@@ -1,0 +1,123 @@
+# Profiles
+#   local   (default) developer PC. Nothing to install: H2 in-memory DB + embedded Redis start with the app.
+#   develop develop-branch deployment (EC2 dev stack) or a PC with docker compose (see compose.yaml).
+#   prod    main-branch deployment. Every value comes from the .env file on the server.
+#   test    used by @SpringBootTest only (src/test/resources/application-test.yml).
+spring:
+  application:
+    name: runkk
+  profiles:
+    default: local
+  jpa:
+    open-in-view: false
+    properties:
+      hibernate:
+        default_batch_fetch_size: 100
+
+server:
+  port: ${SERVER_PORT:8080}
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+springdoc:
+  swagger-ui:
+    path: /docs
+
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+  datasource:
+    url: jdbc:h2:mem:runkk;MODE=MySQL;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+  data:
+    redis:
+      host: localhost
+      port: ${EMBEDDED_REDIS_PORT:6370}
+
+# Redis health indicator parses INFO as java.util.Properties; the embedded Windows binary reports a path that breaks it.
+management:
+  health:
+    redis:
+      enabled: false
+
+runkk:
+  embedded-redis:
+    enabled: true
+    port: ${EMBEDDED_REDIS_PORT:6370}
+
+---
+spring:
+  config:
+    activate:
+      on-profile: develop
+  datasource:
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:runkk}?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+    username: ${DB_USER:runkk}
+    password: ${DB_PASSWORD:runkk}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+
+logging:
+  level:
+    com.a207.runkk: DEBUG
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    url: jdbc:mysql://${DB_HOST}:${DB_PORT:3306}/${DB_NAME}?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+
+springdoc:
+  api-docs:
+    enabled: ${SWAGGER_ENABLED:false}
+  swagger-ui:
+    enabled: ${SWAGGER_ENABLED:false}
+
+logging:
+  level:
+    root: INFO
