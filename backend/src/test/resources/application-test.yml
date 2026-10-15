@@ -1,0 +1,23 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:runkk-test;MODE=MySQL;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+  data:
+    redis:
+      host: localhost
+      port: ${EMBEDDED_REDIS_PORT:6371}
+
+management:
+  health:
+    redis:
+      enabled: false
+
+runkk:
+  embedded-redis:
+    enabled: true
+    port: ${EMBEDDED_REDIS_PORT:6371}
