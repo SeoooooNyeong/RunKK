@@ -9,7 +9,7 @@ SSAFY 15기 자율프로젝트 A207 팀의 러닝 앱입니다. 기획·규칙·
 | `backend/` | API 서버 | Spring Boot 4.1.x, JDK 25, Gradle(Kotlin DSL), MySQL 8.4, Redis 8 |
 | `android/` | 폰 앱 (워치 모듈은 기기 확보 후 추가) | Kotlin 2.4, AGP 9.4, Jetpack Compose(Material 3), Navigation 3, Hilt |
 | `docs/` | 온보딩 등 저장소 안내 문서 | |
-| `infra/` | EC2 배포 설정 (EC2 배정 후 추가 예정) | Docker Compose, Nginx, GitLab CI |
+| `infra/` | 서버 스택과 EC2 이관 가이드 ([infra/README.md](infra/README.md)) | Docker Compose(nginx, api, MySQL 8.4, Redis 8), Let's Encrypt |
 
 ## 브랜치와 MR
 
