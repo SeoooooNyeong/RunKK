@@ -1,0 +1,194 @@
+# 런크크 CI/CD (WBS 1.5-E, Jira S15P31A207-53). 설명은 README.md "CI/CD" 절.
+#
+# 러너 2개를 같은 EC2에 등록한다.
+#   docker : docker executor, /var/run/docker.sock 바인딩 (빌드·테스트, Testcontainers)
+#   deploy : shell executor, docker 그룹 사용자 (infra/deploy.sh, 스모크)
+# CI 변수 (Settings > CI/CD > Variables, masked + protected):
+#   INFRA_ENV                 File 타입, infra/.env 내용 (develop 서버 값)
+#   INFRA_ENV_PROD            File 타입, main 배포용 .env
+#   ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD  (main 릴리스 AAB)
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "develop"
+    - if: $CI_COMMIT_BRANCH == "main"
+
+stages: [lint, test, build, deploy, smoke]
+
+variables:
+  GRADLE_USER_HOME: $CI_PROJECT_DIR/.gradle
+  GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.console=plain"
+  ANDROID_CI_IMAGE: $CI_REGISTRY_IMAGE/android-sdk:37
+
+.backend-changes: &backend-changes
+  - backend/**/*
+  - infra/**/*
+  - .gitlab-ci.yml
+
+.android-changes: &android-changes
+  - android/**/*
+  - .gitlab-ci.yml
+
+# ---------- 백엔드 ----------
+
+.backend:
+  image: eclipse-temurin:25-jdk
+  tags: [docker]
+  interruptible: true
+  cache:
+    key: backend-$CI_COMMIT_REF_SLUG
+    paths: [.gradle/caches, .gradle/wrapper]
+  before_script:
+    - cd backend && chmod +x gradlew
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: *backend-changes
+    - if: $CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "main"
+      changes: *backend-changes
+
+backend:lint:
+  extends: .backend
+  stage: lint
+  script:
+    - ./gradlew spotlessCheck
+
+# 단위 테스트 + ArchUnit 패키지 규칙 + Testcontainers(MySQL 8.4, Redis 8) 통합 테스트.
+# 러너가 docker.sock을 바인딩하면 Testcontainers가 컨테이너 안에서 호스트 Docker를 찾는다.
+# 컨테이너 포트에 못 붙으면 TESTCONTAINERS_HOST_OVERRIDE에 호스트 docker0 IP(보통 172.17.0.1)를 넣는다.
+backend:test:
+  extends: .backend
+  stage: test
+  script:
+    - ./gradlew test jacocoTestReport
+    - |
+      awk -F, 'NR>1 {m+=$4; c+=$5} END {printf "Total coverage: %.1f%%\n", ((m+c)>0 ? c*100/(m+c) : 0)}' build/reports/jacoco/test/jacocoTestReport.csv
+  coverage: '/Total coverage: \d+\.\d+%/'
+  artifacts:
+    when: always
+    reports:
+      junit: backend/build/test-results/test/TEST-*.xml
+    paths: [backend/build/reports]
+    expire_in: 1 week
+
+# 이미지는 EC2에서 바로 만든다 (infra/deploy.sh와 같은 Dockerfile). sha 태그를 남겨 롤백에 쓴다.
+backend:build:
+  stage: build
+  tags: [deploy]
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "main"
+      changes: *backend-changes
+  script:
+    - docker build -t runkk-api:$CI_COMMIT_SHORT_SHA -t runkk-api:latest backend
+
+# develop은 자동, main은 수동 승인. EC2가 한 대라 main 배포는 develop 스택을 교체한다 (README 참고).
+# 롤백: docker tag runkk-api:<이전 sha> runkk-api:latest && cd infra && docker compose up -d --no-build api
+backend:deploy:
+  stage: deploy
+  tags: [deploy]
+  environment:
+    name: $CI_COMMIT_BRANCH
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop"
+      changes: *backend-changes
+    - if: $CI_COMMIT_BRANCH == "main"
+      changes: *backend-changes
+      when: manual
+      allow_failure: false
+  script:
+    - if [ "$CI_COMMIT_BRANCH" = "main" ]; then cp "$INFRA_ENV_PROD" infra/.env; else cp "$INFRA_ENV" infra/.env; fi
+    - cd infra && ./deploy.sh
+
+backend:smoke:
+  stage: smoke
+  tags: [deploy]
+  needs: [backend:deploy]
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "main"
+      changes: *backend-changes
+  script:
+    - if [ "$CI_COMMIT_BRANCH" = "main" ]; then cp "$INFRA_ENV_PROD" infra/.env; else cp "$INFRA_ENV" infra/.env; fi
+    - PORT=$(grep -E '^NGINX_HTTP_PORT=' infra/.env | cut -d= -f2 | tr -d ' '); PORT=${PORT:-80}
+    - curl -fsS "http://localhost:$PORT/actuator/health" | grep -q '"UP"'
+    - if [ "$CI_COMMIT_BRANCH" != "main" ]; then curl -fsSL -o /dev/null "http://localhost:$PORT/docs"; fi
+
+# ---------- 안드로이드 ----------
+
+# SDK 이미지는 ci/android/Dockerfile로 한 번 만들어 프로젝트 레지스트리에 둔다 (android:ci-image 잡, 수동).
+.android:
+  image: $ANDROID_CI_IMAGE
+  tags: [docker]
+  interruptible: true
+  cache:
+    key: android-$CI_COMMIT_REF_SLUG
+    paths: [.gradle/caches, .gradle/wrapper]
+  before_script:
+    - cd android && chmod +x gradlew
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: *android-changes
+    - if: $CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "main"
+      changes: *android-changes
+
+android:lint:
+  extends: .android
+  stage: lint
+  script:
+    - ./gradlew ktlintCheck lintLocalDebug
+  artifacts:
+    when: always
+    paths: [android/app/build/reports/lint-results-localDebug.html]
+    expire_in: 1 week
+
+android:test:
+  extends: .android
+  stage: test
+  script:
+    - ./gradlew testLocalDebugUnitTest
+  artifacts:
+    when: always
+    reports:
+      junit: android/app/build/test-results/testLocalDebugUnitTest/TEST-*.xml
+    expire_in: 1 week
+
+# MR 페이지 > 아티팩트에서 APK를 받아 기기에 설치한다 (develop 플레이버 = develop 서버 접속).
+android:build:
+  extends: .android
+  stage: build
+  script:
+    - ./gradlew assembleDevelopDebug
+  artifacts:
+    paths: [android/app/build/outputs/apk/develop/debug/*.apk]
+    expire_in: 1 week
+
+# main 병합 시 서명된 AAB. 키스토어 변수가 없으면 잡 자체가 생기지 않는다. Play 콘솔 업로드는 수동.
+android:release:
+  extends: .android
+  stage: build
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main" && $ANDROID_KEYSTORE_BASE64
+      changes: *android-changes
+  variables:
+    RUNKK_KEYSTORE_PATH: /tmp/release.jks
+    RUNKK_KEYSTORE_PASSWORD: $ANDROID_KEYSTORE_PASSWORD
+    RUNKK_KEY_ALIAS: $ANDROID_KEY_ALIAS
+    RUNKK_KEY_PASSWORD: $ANDROID_KEY_PASSWORD
+  script:
+    - echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNKK_KEYSTORE_PATH"
+    - ./gradlew bundleProdRelease
+  artifacts:
+    paths: [android/app/build/outputs/bundle/prodRelease/*.aab]
+    expire_in: 1 month
+
+# ci/android/Dockerfile이 바뀌면 develop 파이프라인에서 수동으로 실행해 이미지를 갱신한다.
+android:ci-image:
+  stage: build
+  tags: [deploy]
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop"
+      changes: [ci/android/**/*]
+      when: manual
+  script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+    - docker build -t "$ANDROID_CI_IMAGE" ci/android
+    - docker push "$ANDROID_CI_IMAGE"

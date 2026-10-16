@@ -35,7 +35,7 @@ cd backend
 | 프로필 | 용도 | DB / Redis | 비고 |
 | --- | --- | --- | --- |
 | `local` (기본) | 개인 PC | H2 메모리 DB + 내장 Redis(앱이 직접 띄움, 포트 6370) | DDL create-drop, SQL 로그, H2 콘솔 `/h2-console` |
-| `develop` | develop 브랜치 배포(EC2) 또는 PC에서 실제 DB로 테스트 | MySQL 8.4 + Redis 8. PC에서는 `docker compose up -d` (backend/compose.yaml) | DDL update, Swagger 항상 켬 |
+| `develop` | develop 브랜치 배포(EC2) 또는 PC에서 실제 DB로 테스트 | MySQL 8.4 + Redis 8. PC에서는 `docker compose up -d` (backend/compose.yaml) | Flyway + DDL validate, Swagger 항상 켬 |
 | `prod` | main 브랜치 배포 | MySQL 8.4 + Redis 8, 값은 서버 `.env`에서만 | DDL validate, Swagger는 `SWAGGER_ENABLED=true`일 때만 |
 | `test` | `@SpringBootTest` | H2 + 내장 Redis(포트 6371) | 테스트 코드 전용 |
 
@@ -61,6 +61,23 @@ cd android
 - 빌드 플레이버 `local` / `develop` / `prod`가 `BuildConfig.API_BASE_URL`을 정합니다. 평소 개발은 `localDebug`(에뮬레이터에서 PC의 백엔드 local 프로필에 접속), 배포 빌드는 `prodRelease`. develop/prod 주소는 EC2 도메인 배정 후 `app/build.gradle.kts`에서 바꿉니다.
 - 화면은 `ui/` 아래 기능별 패키지로 나누고, 화면 키는 `ui/RunkkNavDisplay.kt`의 `NavKey`에 추가합니다.
 - 릴리스 서명 키는 스토어 등록 단계에서 CI 변수로 올립니다. 저장소에 `.jks`를 넣지 않습니다.
+
+## CI/CD
+
+루트 `.gitlab-ci.yml` 하나가 `backend/`·`android/` 변경을 나눠 돌립니다. 러너는 EC2 한 대에 둘 다 등록합니다.
+
+| 트리거 | 백엔드 | 안드로이드 |
+| --- | --- | --- |
+| MR → develop | lint(Spotless) → test(단위 + ArchUnit 패키지 규칙 + Testcontainers MySQL·Redis, JUnit·Jacoco 리포트) | lint(ktlint + Android Lint) → test(단위) → build(develop APK 아티팩트) |
+| develop 병합 | 위 + build(이미지) → deploy(`infra/deploy.sh`) → smoke(health, /docs) | 위와 동일 |
+| main 병합 | build → deploy(수동 승인) → smoke | release(서명 AAB, 키스토어 변수 있을 때만) |
+
+- **러너 등록(EC2 배정 후, PM)**: `docker` 태그 = docker executor(`config.toml`의 `volumes = ["/var/run/docker.sock:/var/run/docker.sock", "/cache"]`), `deploy` 태그 = shell executor(러너 사용자를 docker 그룹에 추가). Settings > CI/CD > Runners에서 토큰을 받아 `gitlab-runner register`.
+- **CI 변수(masked + protected)**: `INFRA_ENV`·`INFRA_ENV_PROD`(File 타입, `infra/.env` 내용), `ANDROID_KEYSTORE_BASE64`·`ANDROID_KEYSTORE_PASSWORD`·`ANDROID_KEY_ALIAS`·`ANDROID_KEY_PASSWORD`.
+- **Android SDK 이미지**: 러너 등록 뒤 develop 파이프라인의 `android:ci-image` 수동 잡을 한 번 실행하면 `ci/android/Dockerfile`이 프로젝트 레지스트리에 올라갑니다. 이 이미지가 없으면 Android 잡은 실패합니다.
+- **배포·롤백**: EC2가 한 대라 main 배포는 develop 스택을 교체합니다. 롤백은 `docker tag runkk-api:<이전 sha> runkk-api:latest` 후 `infra/`에서 `docker compose up -d --no-build api`.
+- **스키마 변경**: develop·prod는 Flyway + `ddl validate`입니다. 엔티티를 바꾸면 `backend/src/main/resources/db/migration/V{n}__{설명}.sql`을 함께 넣어야 통합 테스트와 배포가 통과합니다. local·test 프로필은 H2 create-drop이라 마이그레이션 없이 돕니다.
+- **로컬에서 CI와 같은 검사**: 백엔드 `./gradlew spotlessCheck test`(Docker가 있으면 Testcontainers 통합 테스트까지, 없으면 건너뜀), Android `./gradlew ktlintCheck lintLocalDebug testLocalDebugUnitTest`.
 
 ## 링크
 
