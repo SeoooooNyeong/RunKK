@@ -1,0 +1,24 @@
+#:schema https://developers.openai.com/codex/config-schema.json
+# 런크크 Codex CLI 프로젝트 설정. ECC 2.2.0의 .codex/config.toml 참조 설정을 이 저장소에 맞게 줄였다.
+# 모델·인증·개인 MCP 서버는 전역 ~/.codex/config.toml에 둔다. 규칙 본문은 루트 AGENTS.md(Codex가 자동으로 읽는다).
+
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+web_search = "cached"
+
+# 매 프롬프트에 덧붙는 지시(AGENTS.md를 대체하지 않고 추가된다).
+persistent_instructions = "AGENTS.md와 팀 위키 컨벤션 > 런크크 개발 사이클 문서를 따른다. 코드 규칙은 docs/CODE_CONVENTION.md. 검증 명령은 backend `./gradlew build`, android `./gradlew ktlintCheck lintLocalDebug testLocalDebugUnitTest`. main·develop에 직접 push 하지 않는다. Codex에는 훅이 없으므로 포맷·빌드·테스트 게이트를 직접 실행하고 결과를 보고한다."
+
+[features]
+multi_agent = true
+
+# 읽기 전용 리뷰 세션: `codex -p review`
+[profiles.review]
+approval_policy = "on-request"
+sandbox_mode = "read-only"
+web_search = "cached"
+
+# 병렬 에이전트 제한 (AGENTS.md 병렬 작업 원칙과 맞춤)
+[agents]
+max_threads = 3
+max_depth = 1
