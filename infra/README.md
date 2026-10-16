@@ -45,7 +45,7 @@ cd ~/S15P31A207 && git pull && cd infra && ./deploy.sh
 ```
 
 - `deploy.sh`는 `../backend`를 Docker 멀티스테이지로 빌드해 `runkk-api` 이미지를 만들고 스택을 올린 뒤 api 헬스체크가 통과할 때까지 기다립니다.
-- CI/CD(1.5-E)가 붙으면 이 스크립트를 GitLab CI의 deploy 단계에서 SSH로 호출합니다.
+- GitLab CI의 `backend:deploy` 잡(EC2에 등록한 shell 러너, `deploy` 태그)이 CI File 변수 `INFRA_ENV`를 `infra/.env`로 복사한 뒤 이 스크립트를 실행합니다. 수동 배포도 같은 명령입니다(루트 README "CI/CD" 참고).
 - develop 브랜치용 서버라면 `.env`의 `SPRING_PROFILES_ACTIVE=develop`으로 두면 Swagger(`/docs`)가 열리고 DDL이 update로 동작합니다. prod는 DDL validate라 스키마 변경은 마이그레이션으로만 반영됩니다.
 
 ## 4. 운영 명령

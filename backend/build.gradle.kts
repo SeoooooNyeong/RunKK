@@ -3,6 +3,7 @@ plugins {
 	id("org.springframework.boot") version "4.1.1"
 	id("io.spring.dependency-management") version "1.1.7"
 	id("com.diffplug.spotless") version "8.10.4"
+	jacoco
 }
 
 group = "com.a207"
@@ -27,6 +28,8 @@ dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-security-oauth2-client")
 	implementation("org.springframework.boot:spring-boot-starter-validation")
 	implementation("org.springframework.boot:spring-boot-starter-webmvc")
+	implementation("org.springframework.boot:spring-boot-starter-flyway")
+	runtimeOnly("org.flywaydb:flyway-mysql")
 	implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.1.1")
 	developmentOnly("org.springframework.boot:spring-boot-devtools")
 	developmentOnly("org.springframework.boot:spring-boot-h2console")
@@ -40,11 +43,30 @@ dependencies {
 	testImplementation("org.springframework.boot:spring-boot-starter-validation-test")
 	testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
 	runtimeOnly("com.h2database:h2")
+	// CI 1.5-E: 패키지 규칙(ArchUnit), MySQL 8.4·Redis 8 통합 테스트(Testcontainers, Docker 없으면 건너뜀)
+	testImplementation("com.tngtech.archunit:archunit:1.5.1")
+	testImplementation("org.springframework.boot:spring-boot-testcontainers")
+	testImplementation("org.testcontainers:testcontainers-junit-jupiter")
+	testImplementation("org.testcontainers:testcontainers-mysql")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 tasks.withType<Test> {
 	useJUnitPlatform()
+	finalizedBy(tasks.jacocoTestReport)
+}
+
+jacoco {
+	toolVersion = "0.8.15"
+}
+
+tasks.jacocoTestReport {
+	dependsOn(tasks.test)
+	reports {
+		xml.required = true
+		csv.required = true
+		html.required = true
+	}
 }
 
 // 코드 컨벤션 4장: 포맷은 Spotless(google-java-format aosp)가 정한다. 커밋 전 ./gradlew spotlessApply, CI는 spotlessCheck(check에 포함).

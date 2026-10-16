@@ -25,6 +25,7 @@ Closes S15P31A207-
 
 - [ ] 브랜치 이름이 `{유형}/{Jira 키}-{작업명}` 형식인가
 - [ ] 커밋 메시지와 MR 제목에 Jira 키를 포함했는가
+- [ ] 포매터·린트를 통과했는가 (`spotlessApply` / `ktlintFormat`)
 - [ ] 빌드 및 관련 테스트를 통과했는가
 - [ ] 포매터·린트를 통과했는가 (백엔드 `./gradlew spotlessCheck`, 앱 `./gradlew ktlintCheck`)
 - [ ] 관련 문서를 수정했는가 (해당 없으면 체크)
