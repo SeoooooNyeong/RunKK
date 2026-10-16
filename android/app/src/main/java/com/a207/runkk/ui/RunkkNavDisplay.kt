@@ -22,6 +22,6 @@ fun RunkkNavDisplay(modifier: Modifier = Modifier) {
         onBack = { backStack.removeLastOrNull() },
         entryProvider = entryProvider {
             entry<HomeKey> { HomeScreen() }
-        },
+        }
     )
 }
