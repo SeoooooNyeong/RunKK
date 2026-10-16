@@ -17,6 +17,7 @@ SSAFY 15기 자율프로젝트 A207 팀의 러닝 앱입니다. 기획·규칙·
 - 작업 브랜치: `{feature|fix|hotfix}/{Jira 이슈 키}-{작업명}` (예: `feature/S15P31A207-12-login`).
 - 커밋·MR 제목: `{타입}: {작업 내용} [{Jira 이슈 키}]`. 타입은 feat, fix, docs, style, refactor, test, chore.
 - MR 본문은 템플릿(`.gitlab/merge_request_templates/Default.md`)이 자동으로 채워집니다. 리뷰 승인 1명과 파이프라인 통과 후 작성자가 병합합니다.
+- 코드 규칙은 [docs/CODE_CONVENTION.md](docs/CODE_CONVENTION.md)(위키 **컨벤션 > Code Convention** 과 동일)를 따릅니다. 포맷은 도구가 정합니다: 백엔드 `./gradlew spotlessApply`, 앱 `./gradlew ktlintFormat`을 커밋 전에 실행하세요(루트  포함).
 - 자세한 규칙은 위키 **컨벤션** 과 **문서 > Git Workflow 지침** 을 따릅니다.
 
 ## 백엔드 실행

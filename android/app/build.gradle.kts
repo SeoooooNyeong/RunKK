@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
+    alias(libs.plugins.ktlint)
 }
 
 android {
@@ -86,4 +87,10 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+}
+
+// 코드 컨벤션 4장: 포맷은 ktlint(official/android_studio 스타일, 규칙은 루트 .editorconfig)가 정한다. 커밋 전 ./gradlew ktlintFormat, CI는 ktlintCheck(check에 포함).
+ktlint {
+    version.set("1.8.0")
+    android.set(true)
 }

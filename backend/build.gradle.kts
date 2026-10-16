@@ -2,6 +2,7 @@ plugins {
 	java
 	id("org.springframework.boot") version "4.1.1"
 	id("io.spring.dependency-management") version "1.1.7"
+	id("com.diffplug.spotless") version "8.10.4"
 }
 
 group = "com.a207"
@@ -44,4 +45,20 @@ dependencies {
 
 tasks.withType<Test> {
 	useJUnitPlatform()
+}
+
+// 코드 컨벤션 4장: 포맷은 Spotless(google-java-format aosp)가 정한다. 커밋 전 ./gradlew spotlessApply, CI는 spotlessCheck(check에 포함).
+spotless {
+	java {
+		target("src/**/*.java")
+		googleJavaFormat().aosp().reflowLongStrings()
+		removeUnusedImports()
+		trimTrailingWhitespace()
+		endWithNewline()
+	}
+	kotlinGradle {
+		target("*.gradle.kts")
+		trimTrailingWhitespace()
+		endWithNewline()
+	}
 }
