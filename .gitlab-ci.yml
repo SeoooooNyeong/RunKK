@@ -30,6 +30,65 @@ variables:
   - android/**/*
   - .gitlab-ci.yml
 
+.ai-changes: &ai-changes
+  - ai/**/*
+  - .gitlab-ci.yml
+
+# ---------- ai 서버 ----------
+
+.ai:
+  image: python:3.12-slim
+  tags: [docker]
+  interruptible: true
+  variables:
+    UV_CACHE_DIR: $CI_PROJECT_DIR/.uv-cache
+    UV_PYTHON_DOWNLOADS: never
+  cache:
+    key: ai-$CI_COMMIT_REF_SLUG
+    paths: [.uv-cache]
+  before_script:
+    - pip install --no-cache-dir uv==0.12.5
+    - cd ai && uv sync --frozen
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: *ai-changes
+    - if: $CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "main"
+      changes: *ai-changes
+
+ai:lint:
+  extends: .ai
+  stage: lint
+  script:
+    - uv run ruff format --check .
+    - uv run ruff check .
+    - uv run lint-imports
+    - uv run mypy
+
+ai:test:
+  extends: .ai
+  stage: test
+  script:
+    - uv run pytest --cov=runkk_ai --cov-report=term --cov-report=xml:coverage.xml --junitxml=report.xml
+  coverage: '/^TOTAL.+?(\d+(?:\.\d+)?)%$/'
+  artifacts:
+    when: always
+    reports:
+      junit: ai/report.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: ai/coverage.xml
+    expire_in: 1 week
+
+# 이미지는 EC2에서 바로 만든다. 배포는 infra/deploy.sh가 api와 함께 올린다(backend:deploy).
+ai:build:
+  stage: build
+  tags: [deploy]
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "main"
+      changes: *ai-changes
+  script:
+    - docker build -t runkk-ai:$CI_COMMIT_SHORT_SHA -t runkk-ai:latest ai
+
 # ---------- 백엔드 ----------
 
 .backend:

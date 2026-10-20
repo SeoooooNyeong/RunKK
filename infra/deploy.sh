@@ -10,7 +10,7 @@ if [ ! -f .env ]; then
 fi
 
 docker compose --env-file .env pull nginx postgres redis
-docker compose --env-file .env build api
+docker compose --env-file .env build api ai
 docker compose --env-file .env up -d --remove-orphans
 docker compose --env-file .env ps
 
