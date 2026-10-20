@@ -37,6 +37,9 @@ line-length = 120
 target-version = "py312"
 src = ["runkk_ai", "tests"]
 
+[tool.ruff.lint.isort]
+known-first-party = ["runkk_ai", "tests"]
+
 [tool.ruff.lint]
 select = ["E", "W", "F", "I", "B", "UP", "S", "ASYNC", "SIM", "RUF", "PT", "T20", "LOG", "G"]
 ignore = [
