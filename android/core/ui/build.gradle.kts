@@ -6,9 +6,13 @@ plugins {
 }
 
 android {
-    namespace = "com.a207.runkk.app.core.ui"
+    // 리소스(R)가 core.designsystem 패키지에 생기도록 네임스페이스를 맞춘다(Konsist: 5.1.2 표 밖 패키지 import 0).
+    namespace = "com.a207.runkk.app.core.designsystem"
     buildFeatures {
         compose = true
+    }
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
     }
 }
 
@@ -18,5 +22,12 @@ dependencies {
     api(libs.androidx.compose.ui)
     api(libs.androidx.compose.material3)
     api(libs.androidx.navigation3.runtime)
+    api(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.kotlinx.serialization.json)
+    debugImplementation(libs.androidx.compose.ui.tooling)
+
+    testImplementation(platform(libs.androidx.compose.bom))
+    testImplementation(libs.androidx.compose.ui.test.junit4)
+    testImplementation(libs.robolectric)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
 }

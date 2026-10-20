@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 다크 테마 하나(디자인 시스템 RunkkTheme). 창 배경을 #09090b로 두어 시작 때 흰 화면이 번쩍이지 않게 한다. -->
+    <style name="Theme.Runkk" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/ic_launcher_background</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+</resources>
