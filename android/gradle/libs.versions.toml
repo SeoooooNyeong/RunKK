@@ -76,6 +76,9 @@ play-services-wearable = { group = "com.google.android.gms", name = "play-servic
 androidx-health-services-client = { group = "androidx.health", name = "health-services-client", version.ref = "healthServices" }
 androidx-wear-compose-material3 = { group = "androidx.wear.compose", name = "compose-material3", version.ref = "wearCompose" }
 androidx-wear-compose-foundation = { group = "androidx.wear.compose", name = "compose-foundation", version.ref = "wearCompose" }
+# 워치(A4): Data Layer Task·Health Services ListenableFuture를 코루틴으로 기다린다
+kotlinx-coroutines-play-services = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-play-services", version.ref = "coroutines" }
+kotlinx-coroutines-guava = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-guava", version.ref = "coroutines" }
 # 구조 시험 (14장, 5.1.2 의존 표)
 konsist = { group = "com.lemonappdev", name = "konsist", version.ref = "konsist" }
 # build-logic(convention plugin) 컴파일용
