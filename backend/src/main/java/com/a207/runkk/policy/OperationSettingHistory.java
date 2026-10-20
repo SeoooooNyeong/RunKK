@@ -42,15 +42,12 @@ public class OperationSettingHistory {
 
     protected OperationSettingHistory() {}
 
+    /** 바꾼 항목·전후 값(SettingChangeResult)을 한 묶음으로 받아 문자열 인자 순서 실수를 막는다(1단계 리뷰 M3). */
     OperationSettingHistory(
-            SettingKey key,
-            String before,
-            String after,
-            LocalDateTime changedAt,
-            String operatorId) {
-        this.key = key;
-        this.before = before;
-        this.after = after;
+            SettingChangeResult change, LocalDateTime changedAt, String operatorId) {
+        this.key = change.key();
+        this.before = change.before();
+        this.after = change.after();
         this.changedAt = changedAt;
         this.operatorId = operatorId;
     }

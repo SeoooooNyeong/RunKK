@@ -13,6 +13,6 @@ public record RewardRule(int perKm, int battleWin, int dailyCap) {
 
     /** ⌊km × perKm⌋. */
     public int amountForRun(Distance d) {
-        return (int) (d.meters() * perKm / 1000);
+        return (int) (d.meters() * perKm / Distance.METERS_PER_KM);
     }
 }

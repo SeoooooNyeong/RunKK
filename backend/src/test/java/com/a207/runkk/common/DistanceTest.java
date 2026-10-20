@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.Test;
 
+@org.junit.jupiter.api.DisplayName("거리 값 객체")
 class DistanceTest {
 
     @Test
@@ -53,5 +54,12 @@ class DistanceTest {
     void compareTo_ordersByMeters() {
         assertThat(Distance.ofMeters(1).compareTo(Distance.ofMeters(2))).isNegative();
         assertThat(Distance.ofMeters(2).compareTo(Distance.ofMeters(2))).isZero();
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("L5: exactKm은 반올림하지 않은 km 환산이다")
+    void exactKm_isUnrounded() {
+        assertThat(Distance.ofMeters(1_234).exactKm()).isEqualTo(1.234);
+        assertThat(Distance.ofMeters(1_235).km()).isEqualTo(1.24);
     }
 }

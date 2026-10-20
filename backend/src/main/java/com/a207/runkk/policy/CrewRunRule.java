@@ -17,7 +17,8 @@ public record CrewRunRule(
 
     /** 출발 시각 + minutesPerKm × km. */
     public LocalDateTime closesAt(LocalDateTime departedAt, StandardDistance d) {
-        long seconds = Math.round(minutesPerKm * 60.0 * d.distance().meters() / 1000.0);
+        long seconds =
+                Math.round(Duration.ofMinutes(minutesPerKm).toSeconds() * d.distance().exactKm());
         return departedAt.plusSeconds(seconds);
     }
 }

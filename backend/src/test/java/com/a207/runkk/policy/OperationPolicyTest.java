@@ -7,6 +7,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
+@org.junit.jupiter.api.DisplayName("운영 기준값 조회·캐시")
 class OperationPolicyTest {
 
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 10, 20, 15, 0);
@@ -95,5 +96,16 @@ class OperationPolicyTest {
 
         policy.invalidate(SettingKey.SELFIE_LIMIT);
         assertThat(policy.selfieLimit().perDay()).isEqualTo(4);
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("L8: 저장된 값이 범위 밖이면 기본값을 쓴다")
+    void storedOutOfRangeValue_fallsBackToDefault() throws Exception {
+        OperationSetting setting = OperationSetting.initial(SettingKey.SELFIE_LIMIT, NOW);
+        java.lang.reflect.Field value = OperationSetting.class.getDeclaredField("value");
+        value.setAccessible(true);
+        value.set(setting, "{\"perDay\":0}");
+        repository.save(setting);
+        assertThat(new OperationPolicy(repository).selfieLimit().perDay()).isEqualTo(1);
     }
 }

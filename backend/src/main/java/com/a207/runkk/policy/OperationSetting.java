@@ -58,7 +58,8 @@ public class OperationSetting {
             throw new BusinessRuleException(ReasonCode.VALUE_INVALID);
         }
         OperationSettingHistory history =
-                new OperationSettingHistory(key, value, newValue, now, actorId);
+                new OperationSettingHistory(
+                        new SettingChangeResult(key, value, newValue), now, actorId);
         this.value = newValue;
         this.updatedAt = now;
         return history;

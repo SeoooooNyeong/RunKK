@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.core.task.TaskExecutor;
 
+@org.junit.jupiter.api.DisplayName("도메인 사건 발행기와 비동기 설정")
 class SpringDomainEventPublisherTest {
 
     record SampleEvent(LocalDateTime occurredAt) implements DomainEvent {}
@@ -34,9 +35,9 @@ class SpringDomainEventPublisherTest {
     }
 
     @Test
-    void asyncConfig_providesBoundedExecutor() {
-        TaskExecutor executor = new AsyncConfig().getAsyncExecutor();
-        assertThat(executor).isNotNull();
-        assertThat(new AsyncConfig().getAsyncUncaughtExceptionHandler()).isNotNull();
+    void asyncConfig_usesGivenContainerExecutor() {
+        TaskExecutor executor = Runnable::run;
+        assertThat(new AsyncConfig(executor).getAsyncExecutor()).isSameAs(executor);
+        assertThat(new AsyncConfig(executor).getAsyncUncaughtExceptionHandler()).isNotNull();
     }
 }

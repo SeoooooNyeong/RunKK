@@ -23,8 +23,8 @@ public record Pace(int secondsPerKm) {
         if (distance.meters() == 0) {
             throw new IllegalArgumentException("거리가 0이면 페이스를 계산할 수 없다");
         }
-        double seconds = elapsed.toMillis() / 1000.0;
-        return new Pace((int) Math.round(seconds * 1000.0 / distance.meters()));
+        // 밀리초 ÷ 미터 = 초 ÷ km
+        return new Pace((int) Math.round(elapsed.toMillis() / (double) distance.meters()));
     }
 
     /** 목표보다 ratio 이상 느린가: secondsPerKm ≥ target × (1 + ratio). */
@@ -46,7 +46,7 @@ public record Pace(int secondsPerKm) {
 
     /** "5'30\"" 형식. mi 단위면 1마일당 시간으로 바꿔 보인다. */
     public String format(DistanceUnit unit) {
-        long seconds = Math.round(secondsPerKm * unit.metersPerUnit() / 1000.0);
+        long seconds = Math.round(secondsPerKm * unit.metersPerUnit() / Distance.METERS_PER_KM);
         return String.format(Locale.ROOT, "%d'%02d\"", seconds / 60, seconds % 60);
     }
 }

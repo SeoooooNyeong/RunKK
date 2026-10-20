@@ -20,6 +20,21 @@ spring:
         default_batch_fetch_size: 100
         jdbc:
           time_zone: Asia/Seoul
+  # 비동기 사건 수신자(리포트·Runimal, D-03) 실행기. 인스턴스 1개·동시 50명(5.4) 규모. 종료 때 진행 중 작업을 30초까지 기다린다(1단계 리뷰 M6·L2).
+  task:
+    execution:
+      thread-name-prefix: runkk-async-
+      pool:
+        core-size: 2
+        max-size: 4
+        queue-capacity: 500
+      shutdown:
+        await-termination: true
+        await-termination-period: 30s
+  # 회원 인증은 web.auth.AuthFilter(JWT)만 쓴다. Boot 기본 사용자(user + 생성 비밀번호)를 만들지 않는다(1단계 리뷰 L11).
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
 
 server:
   port: ${SERVER_PORT:8080}
@@ -68,6 +83,12 @@ runkk:
       base-url: ${KMA_API_BASE_URL:https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0}
       # 공공데이터포털 서비스 키. 비면 날씨 없이 저장한다(FR-184).
       service-key: ${KMA_SERVICE_KEY:}
+  # api → ai 서버(D-58). 통합 compose가 AI_SERVER_URL·RUNKK_INTERNAL_TOKEN으로 넘긴다. 게이트웨이(AiServerClient)는 다음 단계다.
+  ai:
+    server-url: ${AI_SERVER_URL:http://localhost:8000}
+    internal-token: ${RUNKK_INTERNAL_TOKEN:}
+    comment-timeout: 3s
+    face-timeout: 15s
   batch:
     withdrawal-purge-cron: "0 0 3 * * *"
     disposal-cron: "0 0 3 * * *"

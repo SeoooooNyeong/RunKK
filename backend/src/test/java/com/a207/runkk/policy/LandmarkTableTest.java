@@ -11,6 +11,7 @@ import org.junit.jupiter.params.provider.CsvSource;
  * 6.2 A-18 LandmarkTable.personalProgressOf / crewProgressOf, LandmarkStage 상수별 label(srs.md
  * 3.3.1).
  */
+@org.junit.jupiter.api.DisplayName("랜드마크 표기")
 class LandmarkTableTest {
 
     private final LandmarkTable table =

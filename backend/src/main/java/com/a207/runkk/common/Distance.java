@@ -11,7 +11,8 @@ public record Distance(long meters) implements Comparable<Distance> {
 
     public static final Distance ZERO = new Distance(0);
 
-    private static final double METERS_PER_KM = 1000.0;
+    /** 1km의 미터 수. 정수 환산(⌊km × n⌋ 등)을 쓰는 곳이 함께 쓴다. */
+    public static final long METERS_PER_KM = 1_000;
 
     public Distance {
         if (meters < 0) {
@@ -28,6 +29,11 @@ public record Distance(long meters) implements Comparable<Distance> {
             throw new IllegalArgumentException("거리는 0 이상이어야 한다: " + km);
         }
         return new Distance(Math.round(km * METERS_PER_KM));
+    }
+
+    /** 반올림하지 않은 km 환산(계산용). 표시용은 km(). */
+    public double exactKm() {
+        return (double) meters / METERS_PER_KM;
     }
 
     public Distance plus(Distance d) {

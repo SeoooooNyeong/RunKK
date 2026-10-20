@@ -10,6 +10,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
 
 /** 14장 순서 1 열거형 다형성: SettingKey 상수별 validate·parse·validateTransition(FR-174, D-44, D-62). */
+@org.junit.jupiter.api.DisplayName("운영 기준 항목 검사·변환")
 class SettingKeyTest {
 
     @Test
@@ -167,5 +168,31 @@ class SettingKeyTest {
         assertThat(key.validateTransition("{\"1\":100,\"2\":50}", "{\"1\":120}").valid()).isFalse();
         assertThat(key.validateTransition("{\"1\":100}", "{\"1\":120,\"2\":50}").valid()).isTrue();
         assertThat(key.validateTransition("{\"1\":100}", "oops").valid()).isFalse();
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("L9: 체형 구간의 첫 하한은 0이어야 한다")
+    void bodyShapeRule_firstBandMustBeZero() {
+        assertThat(
+                        SettingKey.BODY_SHAPE_RULE
+                                .validate("{\"bands\":[1,2,3,5],\"restDaysBeforeDecline\":4}")
+                                .valid())
+                .isFalse();
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("L4: 크루런 운영값은 이름 있는 형식으로 읽는다")
+    void crewRunSettings_parseIntoTypedRecords() {
+        assertThat(
+                        SettingKey.CREW_RUN_LOBBY_OPEN.parse(
+                                SettingKey.CREW_RUN_LOBBY_OPEN.defaultValue()))
+                .isEqualTo(new CrewRunLobby(30, 10, 2));
+        assertThat(SettingKey.CREW_RUN_END_RULE.parse(SettingKey.CREW_RUN_END_RULE.defaultValue()))
+                .isEqualTo(new CrewRunEnd(15));
+        assertThat(
+                        SettingKey.CREW_RUN_LOBBY_OPEN
+                                .validate("{\"lobbyOpenBeforeMinutes\":30}")
+                                .valid())
+                .isFalse();
     }
 }

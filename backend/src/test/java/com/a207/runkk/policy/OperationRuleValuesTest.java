@@ -7,7 +7,6 @@ import static org.assertj.core.api.Assertions.within;
 import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.ItemSlot;
 import com.a207.runkk.common.StandardDistance;
-import com.a207.runkk.common.TagCategory;
 import com.a207.runkk.common.Tier;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -22,6 +21,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 /** 14장 순서 1 운영 기준 값 객체(6.1.9 표). 기본값은 srs.md 예시값. */
+@org.junit.jupiter.api.DisplayName("운영 기준 값 객체")
 class OperationRuleValuesTest {
 
     private static <T> T defaultOf(SettingKey key, Class<T> type) {
@@ -163,18 +163,16 @@ class OperationRuleValuesTest {
         assertThat(rule.toneOf(time)).isEqualTo(band);
     }
 
-    // RunimalRule
+    // RunimalRule (L13: 축 평가기가 구성요소를 직접 읽는다)
     @Test
-    void runimalRule_thresholdPerAxis() {
+    void runimalRule_defaults() {
         RunimalRule rule = defaultOf(SettingKey.RUNIMAL_RULE, RunimalRule.class);
-        assertThat(rule.threshold(TagCategory.COMPANION)).isEqualTo(0.5);
-        assertThat(rule.threshold(TagCategory.DISTANCE)).isEqualTo(0.5);
-        assertThat(rule.threshold(TagCategory.COURSE)).isEqualTo(0.6);
-        assertThat(rule.threshold(TagCategory.HABIT)).isEqualTo(0.6);
+        assertThat(rule.companionRatio()).isEqualTo(0.5);
+        assertThat(rule.shortRatio()).isEqualTo(0.5);
+        assertThat(rule.sameCourseRatio()).isEqualTo(0.6);
+        assertThat(rule.habitRatio()).isEqualTo(0.6);
         assertThat(rule.shortDistance()).isEqualTo(Distance.ofKm(3));
         assertThat(rule.habitWindow()).isEqualTo(Duration.ofHours(2));
-        assertThatThrownBy(() -> rule.threshold(TagCategory.GOAL))
-                .isInstanceOf(IllegalArgumentException.class);
     }
 
     // ShopCatalog
