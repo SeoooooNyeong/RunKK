@@ -12,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 /**
  * 설계 6.1.13: BusinessRuleException → 409 + 사유 코드, PermissionDenied → 403, IllegalArgument → 400.
  */
+@org.junit.jupiter.api.DisplayName("API 예외 응답 변환")
 class ApiExceptionHandlerTest {
 
     private final ApiExceptionHandler handler = new ApiExceptionHandler();
@@ -46,5 +47,20 @@ class ApiExceptionHandlerTest {
                 handler.handleIllegalState(new IllegalStateException("처리된 신청"));
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
         assertThat(response.getBody()).isEqualTo(new ErrorResponse("INVALID_STATE", "처리할 수 없는 상태"));
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("L10: 낙관적 잠금 충돌과 고유 제약 경합은 409다")
+    void concurrentUpdate_becomes409() {
+        ResponseEntity<ErrorResponse> optimistic =
+                handler.handleConcurrentUpdate(
+                        new org.springframework.dao.OptimisticLockingFailureException("version"));
+        assertThat(optimistic.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(optimistic.getBody())
+                .isEqualTo(new ErrorResponse("CONCURRENT_UPDATE", "다시 시도해 주세요"));
+        ResponseEntity<ErrorResponse> duplicate =
+                handler.handleConcurrentUpdate(
+                        new org.springframework.dao.DataIntegrityViolationException("pk"));
+        assertThat(duplicate.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
     }
 }
