@@ -3,13 +3,33 @@
 
     <uses-feature android:name="android.hardware.type.watch" />
 
+    <!-- 심박(FR-041). API 36(Wear OS 6)부터는 health.READ_HEART_RATE, 그 전에는 BODY_SENSORS. 런타임에 사용자가 허용할 때만 받는다. -->
+    <uses-permission
+        android:name="android.permission.BODY_SENSORS"
+        android:maxSdkVersion="35" />
+    <uses-permission android:name="android.permission.health.READ_HEART_RATE" />
+
     <application
+        android:name=".RunkkWatchApp"
         android:allowBackup="false"
-        android:label="RunKK"
-        android:supportsRtl="true">
+        android:icon="@drawable/ic_launcher"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@android:style/Theme.DeviceDefault">
+        <!-- 폰 앱이 있어야 동작한다(측정·기록은 폰, C-002). -->
         <meta-data
             android:name="com.google.android.wearable.standalone"
             android:value="false" />
+
+        <activity
+            android:name=".WatchActivity"
+            android:exported="true"
+            android:taskAffinity="">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
     </application>
 
 </manifest>
