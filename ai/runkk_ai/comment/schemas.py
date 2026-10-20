@@ -9,6 +9,8 @@ from pydantic import BaseModel, ConfigDict, Field
 DayOfWeek = Literal["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"]
 
 COMMENT_MAX_CHARS = 120
+HOURS_PER_BAND = 3  # frequentHourBand 한 칸의 길이(시간)
+_LAST_HOUR_BAND = 24 // HOURS_PER_BAND - 1
 
 
 class SummaryIn(BaseModel):
@@ -16,11 +18,12 @@ class SummaryIn(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    averageScore: float = Field(ge=0)  # RunningScore(VDOT) 평균
+    # RunningScore(VDOT) 평균. Python json이 받는 Infinity·NaN은 막는다(프롬프트에 "inf"가 들어가지 않게)
+    averageScore: float = Field(ge=0, allow_inf_nan=False)
     distanceChangeMeters: int  # 직전 10회 대비 평균 거리 변화(부호 있음)
     paceChangeSeconds: int  # 직전 10회 대비 평균 페이스 변화(초/km, 음수 = 빨라짐)
     frequentDay: DayOfWeek  # java.time.DayOfWeek 이름
-    frequentHourBand: int = Field(ge=0, le=7)  # 3시간 단위 0~7
+    frequentHourBand: int = Field(ge=0, le=_LAST_HOUR_BAND)  # HOURS_PER_BAND 시간 단위 0~7
     runCount: int = Field(ge=1, le=10)  # 요약에 쓴 최근 유효 러닝 횟수
 
 

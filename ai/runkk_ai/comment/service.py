@@ -45,15 +45,15 @@ class CommentService:
     async def generate(self, summary: SummaryIn) -> CommentResult:
         async with self._semaphore:
             if not self._reserve_daily_call():
-                self._log("error", 0.0, None, detail="daily_cap")
+                self._log("error", None, None, detail="daily_cap")  # LLM을 부르지 않아 지연을 재지 않는다
                 return CommentResult("error")
             prompt = self._prompt_builder.build(summary)
             started = time.perf_counter()
             try:
                 reply = await self._llm.complete(prompt)
             except asyncio.CancelledError:
-                # 라우터 2.7초 제한(asyncio.timeout)이 이 호출을 끊었다
-                self._log("timeout", started, None, detail="route_timeout")
+                # 라우터 제한(asyncio.timeout)·연결 끊김·종료가 모두 여기로 온다. 시간 초과 집계는 라우터가 한다
+                self._log("cancelled", started, None)
                 raise
             except TimeoutError:
                 self._log("timeout", started, None)
@@ -80,8 +80,8 @@ class CommentService:
         self._calls_today += 1
         return True
 
-    def _log(self, result: str, started: float, reply: LlmReply | None, detail: str = "") -> None:
-        latency_ms = int((time.perf_counter() - started) * 1000) if started else 0
+    def _log(self, result: str, started: float | None, reply: LlmReply | None, detail: str = "") -> None:
+        latency_ms = int((time.perf_counter() - started) * 1000) if started is not None else 0
         logger.info(
             "llm_call model=%s input_tokens=%d output_tokens=%d latency_ms=%d result=%s detail=%s calls_today=%d",
             self._llm.model,

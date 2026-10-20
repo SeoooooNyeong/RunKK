@@ -11,6 +11,10 @@ from pydantic import BaseModel
 FaceFailureReason = Literal["NO_FACE", "MULTIPLE_FACES", "UNSUPPORTED_IMAGE", "TOO_LARGE", "UPSTREAM_FAILED", "TIMEOUT"]
 FACE_FAILURE_REASONS: frozenset[str] = frozenset(get_args(FaceFailureReason))
 
+# 이미지 형식 시그니처. 라우터(입력 검사)와 서비스(결과 검사)가 같은 값을 쓴다
+JPEG_SIGNATURE = b"\xff\xd8\xff"
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+
 
 class FacePart(StrEnum):
     EYES = "EYES"

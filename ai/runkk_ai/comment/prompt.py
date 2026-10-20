@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from runkk_ai.comment.schemas import COMMENT_MAX_CHARS, SummaryIn
+from runkk_ai.comment.schemas import COMMENT_MAX_CHARS, HOURS_PER_BAND, SummaryIn
 
 _DAY_NAMES = {
     "MONDAY": "월요일",
@@ -17,7 +17,7 @@ _DAY_NAMES = {
 
 class PromptBuilder:
     def build(self, summary: SummaryIn) -> str:
-        band_start = summary.frequentHourBand * 3
+        band_start = summary.frequentHourBand * HOURS_PER_BAND
         lines = [
             "당신은 러닝 앱의 코치입니다. 아래 최근 러닝 요약을 보고 러너에게 건넬 격려 코멘트를 씁니다.",
             f"- 최근 유효 러닝 횟수: {summary.runCount}회",
@@ -25,7 +25,7 @@ class PromptBuilder:
             f"- 직전 기간 대비 평균 거리 변화: {_signed(summary.distanceChangeMeters)}m",
             f"- 직전 기간 대비 평균 페이스: {_pace_text(summary.paceChangeSeconds)}",
             f"- 자주 달린 요일: {_DAY_NAMES[summary.frequentDay]}",
-            f"- 자주 달린 시간대: {band_start}~{band_start + 3}시",
+            f"- 자주 달린 시간대: {band_start}~{band_start + HOURS_PER_BAND}시",
             "",
             f"규칙: 한국어 존댓말로 한두 문장, 공백 포함 {COMMENT_MAX_CHARS}자 이내.",
             "숫자를 지어내지 말고 위 값만 쓴다. 의학적 진단·부상 판단은 하지 않는다.",

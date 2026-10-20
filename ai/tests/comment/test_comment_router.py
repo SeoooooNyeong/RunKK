@@ -10,6 +10,8 @@
 
 from __future__ import annotations
 
+import json
+import logging
 import time
 
 import httpx
@@ -160,6 +162,36 @@ async def test_422_does_not_echo_input(client: httpx.AsyncClient) -> None:
 
     assert "비밀닉네임" not in response.text
     assert "nickname" not in response.text
+
+
+@pytest.mark.parametrize("literal", ["Infinity", "-Infinity", "NaN"])
+async def test_non_finite_average_score_is_422(
+    client: httpx.AsyncClient, fake_llm: FakeLlmClient, literal: str
+) -> None:
+    """Python json은 Infinity·NaN을 받으므로 스키마가 막아야 프롬프트에 "inf"가 들어가지 않는다(L14)."""
+    body = json.dumps({**VALID_SUMMARY, "averageScore": 0.0}).replace("0.0", literal)
+
+    response = await client.post("/comments", content=body.encode(), headers={"Content-Type": "application/json"})
+
+    assert response.status_code == 422
+    assert fake_llm.prompts == []
+
+
+async def test_route_timeout_is_logged_by_router(
+    client: httpx.AsyncClient,
+    fake_llm: FakeLlmClient,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """라우터 2.7초 제한으로 끊긴 호출은 라우터가 시간 초과로 센다(L9). 서비스는 취소로만 남긴다."""
+    caplog.set_level(logging.INFO, logger="runkk_ai.comment")
+    monkeypatch.setattr(comment_router, "COMMENT_TIMEOUT_S", 0.05)
+    fake_llm.delay_s = 1.0
+
+    await client.post("/comments", json=VALID_SUMMARY)
+
+    assert "comment_route result=timeout" in caplog.text
+    assert "result=cancelled" in caplog.text
 
 
 async def test_non_json_body_is_422(client: httpx.AsyncClient) -> None:

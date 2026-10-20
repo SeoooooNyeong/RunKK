@@ -12,7 +12,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Request, status
 from fastapi.responses import JSONResponse
 
-from runkk_ai.face.schemas import FaceFailureReason, FaceOut
+from runkk_ai.face.schemas import JPEG_SIGNATURE, PNG_SIGNATURE, FaceFailureReason, FaceOut
 from runkk_ai.face.service import FaceTransformService
 
 FaceRouter = APIRouter(tags=["face"])
@@ -25,8 +25,6 @@ _STATUS_BY_REASON: dict[FaceFailureReason, int] = {
     "UPSTREAM_FAILED": status.HTTP_503_SERVICE_UNAVAILABLE,
     "TIMEOUT": status.HTTP_504_GATEWAY_TIMEOUT,
 }
-_JPEG_SIGNATURE = b"\xff\xd8\xff"
-_PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 
 def get_face_service(request: Request) -> FaceTransformService:
@@ -61,10 +59,11 @@ async def create(
     image = await _read_body(request, service.max_image_bytes)
     if image is None:
         return _failure(status.HTTP_413_CONTENT_TOO_LARGE, "TOO_LARGE")
-    if not image.startswith((_JPEG_SIGNATURE, _PNG_SIGNATURE)):
+    if not image.startswith((JPEG_SIGNATURE, PNG_SIGNATURE)):
         return _failure(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, "UNSUPPORTED_IMAGE")
 
     result = await service.transform(image)
+    # 셀카 원본의 마지막 참조는 이 지역 변수다(서비스는 반환하며 놓았다). 부위 이미지를 인코딩하기 전에 버린다
     del image
     if result.images is None:
         reason: FaceFailureReason = result.reason or "UPSTREAM_FAILED"

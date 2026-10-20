@@ -2,11 +2,12 @@
 
 from runkk_ai.comment.llm import ClaudeClient, LlmClient, LlmReply, OpenAiClient
 from runkk_ai.comment.prompt import PromptBuilder
-from runkk_ai.comment.router import CommentRouter, get_comment_service
+from runkk_ai.comment.router import COMMENT_TIMEOUT_S, CommentRouter, get_comment_service
 from runkk_ai.comment.schemas import CommentOut, SummaryIn
 from runkk_ai.comment.service import CommentResult, CommentService
 
 __all__ = [
+    "COMMENT_TIMEOUT_S",
     "ClaudeClient",
     "CommentOut",
     "CommentResult",

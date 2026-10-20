@@ -7,12 +7,10 @@ import logging
 import time
 from dataclasses import dataclass
 
-from runkk_ai.face.schemas import FaceFailureReason, FacePart
+from runkk_ai.face.schemas import PNG_SIGNATURE, FaceFailureReason, FacePart
 from runkk_ai.face.transformer import FaceTransformer, FaceTransformError, SdFacePartImages
 
 logger = logging.getLogger(__name__)
-
-_PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,8 +49,6 @@ class FaceTransformService:
             else:
                 detail = "invalid_parts"
                 result = FaceResult(reason="UPSTREAM_FAILED")
-        finally:
-            del image  # 원본 참조를 바로 버린다
         logger.info(
             "face_transform result=%s detail=%s size_bytes=%d latency_ms=%d",
             result.reason or "ok",
@@ -64,4 +60,4 @@ class FaceTransformService:
 
 
 def _complete(images: SdFacePartImages) -> bool:
-    return set(images.images) == set(FacePart) and all(png.startswith(_PNG_SIGNATURE) for png in images.images.values())
+    return set(images.images) == set(FacePart) and all(png.startswith(PNG_SIGNATURE) for png in images.images.values())

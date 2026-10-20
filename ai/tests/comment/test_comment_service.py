@@ -97,6 +97,7 @@ async def test_timeout_from_llm_is_timeout(fake_llm: FakeLlmClient) -> None:
 
 
 async def test_cancellation_propagates_and_is_logged(caplog: pytest.LogCaptureFixture) -> None:
+    """취소는 시간 초과만이 아니다(연결 끊김·종료). 서비스는 cancelled로 남기고 시간 초과는 라우터가 센다(L9)."""
     llm = FakeLlmClient(delay_s=5.0)
     service = CommentService(llm=llm, daily_cap=240)
     caplog.set_level(logging.INFO, logger="runkk_ai.comment")
@@ -105,7 +106,19 @@ async def test_cancellation_propagates_and_is_logged(caplog: pytest.LogCaptureFi
         async with asyncio.timeout(0.05):
             await service.generate(SUMMARY)
 
-    assert "result=timeout" in caplog.text
+    assert "result=cancelled" in caplog.text
+    assert "result=timeout" not in caplog.text
+
+
+async def test_daily_cap_log_has_no_latency(fake_llm: FakeLlmClient, caplog: pytest.LogCaptureFixture) -> None:
+    """LLM을 부르지 않은 거절은 지연을 재지 않는다(L8)."""
+    service = CommentService(llm=fake_llm, daily_cap=1)
+    await service.generate(SUMMARY)
+    caplog.set_level(logging.INFO, logger="runkk_ai.comment")
+
+    await service.generate(SUMMARY)
+
+    assert "latency_ms=0 result=error detail=daily_cap" in caplog.text
 
 
 async def test_log_has_metrics_but_no_prompt_or_reply(
