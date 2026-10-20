@@ -1,0 +1,12 @@
+{
+  "endpoint": "POST /faces",
+  "scenario": "reason:MULTIPLE_FACES",
+  "request": {
+    "image": "jpeg"
+  },
+  "status": 422,
+  "body": {
+    "reason": "MULTIPLE_FACES"
+  },
+  "gateway": "FailureReason.MULTIPLE_FACES"
+}

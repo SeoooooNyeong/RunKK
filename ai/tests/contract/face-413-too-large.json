@@ -1,0 +1,12 @@
+{
+  "endpoint": "POST /faces",
+  "scenario": "ok",
+  "request": {
+    "image": "oversized"
+  },
+  "status": 413,
+  "body": {
+    "reason": "TOO_LARGE"
+  },
+  "gateway": "FailureReason.TOO_LARGE"
+}
