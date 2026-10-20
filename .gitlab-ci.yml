@@ -196,7 +196,7 @@ android:lint:
     - ./gradlew ktlintCheck lintLocalDebug
   artifacts:
     when: always
-    paths: [android/app/build/reports/lint-results-localDebug.html]
+    paths: [android/*/build/reports/lint-results-*.html, android/*/*/build/reports/lint-results-*.html]
     expire_in: 1 week
 
 android:test:
@@ -207,7 +207,9 @@ android:test:
   artifacts:
     when: always
     reports:
-      junit: android/app/build/test-results/testLocalDebugUnitTest/TEST-*.xml
+      junit:
+        - android/*/build/test-results/*/TEST-*.xml
+        - android/*/*/build/test-results/*/TEST-*.xml
     expire_in: 1 week
 
 # MR 페이지 > 아티팩트에서 APK를 받아 기기에 설치한다 (develop 플레이버 = develop 서버 접속).
@@ -217,7 +219,7 @@ android:build:
   script:
     - ./gradlew assembleDevelopDebug
   artifacts:
-    paths: [android/app/build/outputs/apk/develop/debug/*.apk]
+    paths: [android/app/build/outputs/apk/develop/debug/*.apk, android/wear/build/outputs/apk/develop/debug/*.apk]
     expire_in: 1 week
 
 # main 병합 시 서명된 AAB. 키스토어 변수가 없으면 잡 자체가 생기지 않는다. Play 콘솔 업로드는 수동.

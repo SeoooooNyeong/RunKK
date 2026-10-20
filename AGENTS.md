@@ -4,7 +4,7 @@ Claude Code와 Codex가 공통으로 읽는 규칙이다. Claude Code는 `CLAUDE
 
 ## 프로젝트
 
-- 러닝 앱. `backend/` Spring Boot 3.5 (Java 21, Gradle Kotlin DSL, PostgreSQL 17, Redis 8), `android/` Kotlin 2.4 + Jetpack Compose + Hilt (minSdk 26, targetSdk 36, compileSdk 37), `infra/` Docker Compose(nginx, api, postgres, redis), `ai/` Python 3.13 FastAPI(예정, 일정표 WBS 2.14).
+- 러닝 앱. `backend/` Spring Boot 3.5 (Java 21, Gradle Kotlin DSL, PostgreSQL 17, Redis 8), `android/` Kotlin 2.4 + Jetpack Compose + Hilt (minSdk 26, targetSdk 36, compileSdk 37), `infra/` Docker Compose(nginx, api, postgres, redis, ai), `ai/` Python 3.12 FastAPI(uv, ruff, pytest, import-linter).
 - 문서 위치: 요구사항·설계·일정은 팀 위키(AppFlowy), 코드 규칙은 위키 **컨벤션 > Code Convention** (원본 md는 GitHub/자율/자율프로젝트_코드컨벤션.md), 개발 사이클은 위키 **컨벤션 > 런크크 개발 사이클 (ECC 하네스)** (원본 md는 GitHub/자율/자율프로젝트_개발사이클.md), 서버 인프라는 `infra/README.md`, 첫 안내는 `docs/ONBOARDING.md`.
 - Spring Boot 3.5 기준: Security 6.x는 람다 DSL만 쓴다(체인 방식 `http.csrf().disable()`은 제거됨), springdoc은 2.x. 서버 설계서(design-oo) D-01이 Java 21 + Spring Boot 3을 정한다.
 
