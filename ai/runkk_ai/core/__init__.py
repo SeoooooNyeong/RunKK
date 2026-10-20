@@ -2,6 +2,6 @@
 
 from runkk_ai.core.config import Settings
 from runkk_ai.core.health import HealthRouter
-from runkk_ai.core.security import verify_internal_token
+from runkk_ai.core.security import InternalTokenMiddleware
 
-__all__ = ["HealthRouter", "Settings", "verify_internal_token"]
+__all__ = ["HealthRouter", "InternalTokenMiddleware", "Settings"]

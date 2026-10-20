@@ -8,7 +8,8 @@
 | `POST /comments` | 체력 요약 집계값 → AI 코멘트. 200 `{"text"}` / 503·504·422 `{"reason"}` |
 | `POST /faces` | 셀카(`application/octet-stream`) → 부위별 base64 PNG. 200 `{"parts"}` / 413·415·422·503·504 `{"reason"}` |
 
-`/comments`·`/faces`는 `X-Internal-Token` 헤더가 필요하다. 응답 표본은 `tests/contract/*.json`(서버 Gateway 계약 시험이 같이 쓴다).
+`/health` 말고는 모두 `X-Internal-Token` 헤더가 필요하다. 미들웨어가 본문을 읽기 전에 검사해 틀리면 401 `{"reason": "UNAUTHORIZED"}`
+(404·405도 `{"reason": "NOT_FOUND"}` 형식). 응답 표본은 `tests/contract/*.json`(서버 Gateway 계약 시험이 같이 쓴다).
 
 ## 준비
 

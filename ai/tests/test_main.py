@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import httpx
 import pytest
 
+from runkk_ai import main as main_module
 from runkk_ai.comment import ClaudeClient, CommentService, OpenAiClient
-from runkk_ai.face import ExternalFaceApi, FaceTransformService
+from runkk_ai.face import ExternalFaceApi, FaceTransformer, FaceTransformService, SdFacePartImages
 from runkk_ai.main import create_app
-from tests.conftest import AUTH, JPEG_HEAD, VALID_SUMMARY, make_settings
+from tests.conftest import AUTH, JPEG_HEAD, VALID_SUMMARY, FakeLlmClient, make_settings
 
 
 async def test_lifespan_builds_services_from_settings_values() -> None:
@@ -44,6 +47,68 @@ async def test_lifespan_closes_clients_on_shutdown() -> None:
 
     assert llm._client is None or llm._client.is_closed()
     assert transformer._client.is_closed
+
+
+@pytest.mark.parametrize(
+    ("provider", "model", "keys", "has_sdk"),
+    [
+        ("openai", "gpt-test", {"openai_api_key": "sk-openai"}, True),
+        ("openai", "gpt-test", {"anthropic_api_key": "sk-anthropic"}, False),
+        ("claude", "claude-haiku-5-5", {"anthropic_api_key": "sk-anthropic"}, True),
+        ("claude", "claude-haiku-5-5", {"openai_api_key": "sk-openai"}, False),
+    ],
+    ids=["openai-own-key", "openai-other-key", "claude-own-key", "claude-other-key"],
+)
+async def test_provider_gets_only_its_own_key(provider: str, model: str, keys: dict[str, str], has_sdk: bool) -> None:
+    """제공자 클래스와 키 항목은 한 표에서 함께 고른다(L10). 다른 제공자 키로 SDK를 만들지 않는다."""
+    app = create_app(make_settings(llm_provider=provider, llm_model=model, **keys))
+
+    async with app.router.lifespan_context(app):
+        llm = app.state.comment_service._llm
+        assert (llm._client is not None) is has_sdk
+
+
+@dataclass
+class _ClosingTransformer(FaceTransformer):
+    closed: bool = False
+
+    async def convert(self, image: bytes) -> SdFacePartImages:
+        raise NotImplementedError
+
+    async def aclose(self) -> None:
+        self.closed = True
+
+
+class _BrokenCloseLlm(FakeLlmClient):
+    async def aclose(self) -> None:
+        raise RuntimeError("close failed")
+
+
+async def test_llm_is_closed_when_face_transformer_cannot_be_built(monkeypatch: pytest.MonkeyPatch) -> None:
+    """두 번째 자원 생성이 실패해도 먼저 만든 LLM 클라이언트를 닫는다(L1)."""
+    llm = FakeLlmClient()
+    monkeypatch.setattr(main_module, "_build_llm_client", lambda _settings: llm)
+    app = create_app(make_settings(face_impl="local"))
+
+    with pytest.raises(RuntimeError, match="C-011"):
+        async with app.router.lifespan_context(app):
+            pass
+
+    assert llm.closed
+
+
+async def test_transformer_is_closed_even_if_llm_close_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+    """한 자원의 aclose()가 실패해도 다른 자원은 닫는다(L1)."""
+    transformer = _ClosingTransformer()
+    monkeypatch.setattr(main_module, "_build_llm_client", lambda _settings: _BrokenCloseLlm())
+    monkeypatch.setattr(main_module, "_build_face_transformer", lambda _settings: transformer)
+    app = create_app(make_settings())
+
+    with pytest.raises(RuntimeError, match="close failed"):
+        async with app.router.lifespan_context(app):
+            pass
+
+    assert transformer.closed
 
 
 async def test_local_face_model_is_refused_until_selected() -> None:

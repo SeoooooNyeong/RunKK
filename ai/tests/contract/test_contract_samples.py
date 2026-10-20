@@ -46,15 +46,20 @@ def _arrange(sample: dict[str, Any], llm: FakeLlmClient, face: FakeFaceTransform
 
 @pytest.mark.parametrize("path", SAMPLES, ids=[p.stem for p in SAMPLES])
 async def test_response_matches_sample(
-    path: Path, client: httpx.AsyncClient, fake_llm: FakeLlmClient, fake_face: FakeFaceTransformer
+    path: Path,
+    client: httpx.AsyncClient,
+    anon_client: httpx.AsyncClient,
+    fake_llm: FakeLlmClient,
+    fake_face: FakeFaceTransformer,
 ) -> None:
     sample = _load(path)
     _arrange(sample, fake_llm, fake_face)
+    caller = anon_client if sample["scenario"] == "no_token" else client  # no_token: X-Internal-Token 없이
 
     if sample["endpoint"] == "POST /comments":
-        response = await client.post("/comments", json=sample["request"]["json"])
+        response = await caller.post("/comments", json=sample["request"]["json"])
     else:
-        response = await client.post(
+        response = await caller.post(
             "/faces",
             content=IMAGES[sample["request"]["image"]],
             headers={"Content-Type": "application/octet-stream"},
@@ -66,7 +71,11 @@ async def test_response_matches_sample(
 
 
 def test_samples_cover_every_face_reason() -> None:
-    reasons = {_load(p)["body"].get("reason") for p in SAMPLES if _load(p)["endpoint"] == "POST /faces"}
+    reasons = {
+        _load(p)["body"].get("reason")
+        for p in SAMPLES
+        if _load(p)["endpoint"] == "POST /faces" and _load(p)["status"] != 401
+    }
 
     assert reasons - {None} == FACE_REASONS
 
@@ -74,7 +83,15 @@ def test_samples_cover_every_face_reason() -> None:
 def test_samples_cover_every_comment_status() -> None:
     statuses = {_load(p)["status"] for p in SAMPLES if _load(p)["endpoint"] == "POST /comments"}
 
-    assert statuses == {200, 422, 503, 504}
+    assert statuses == {200, 401, 422, 503, 504}
+
+
+@pytest.mark.parametrize("endpoint", ["POST /comments", "POST /faces"])
+def test_every_endpoint_has_unauthorized_sample(endpoint: str) -> None:
+    """토큰 불일치 401도 다른 실패와 같은 {"reason"} 본문이다. 서버 Gateway는 이 표본으로 설정 오류를 구분한다."""
+    bodies = [_load(p)["body"] for p in SAMPLES if _load(p)["endpoint"] == endpoint and _load(p)["status"] == 401]
+
+    assert bodies == [{"reason": "UNAUTHORIZED"}]
 
 
 def test_every_failure_body_has_only_reason() -> None:
