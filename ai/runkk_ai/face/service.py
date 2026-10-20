@@ -1,0 +1,67 @@
+"""얼굴 변환 조정(6.1.16, D-59). 원본 bytes는 지역 변수로만 다루고 디스크·로그에 쓰지 않는다(FR-156)."""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+import time
+from dataclasses import dataclass
+
+from runkk_ai.face.schemas import FaceFailureReason, FacePart
+from runkk_ai.face.transformer import FaceTransformer, FaceTransformError, SdFacePartImages
+
+logger = logging.getLogger(__name__)
+
+_PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+
+
+@dataclass(frozen=True, slots=True)
+class FaceResult:
+    images: SdFacePartImages | None = None
+    reason: FaceFailureReason | None = None
+
+
+class FaceTransformService:
+    def __init__(self, transformer: FaceTransformer, timeout_s: float, max_image_bytes: int) -> None:
+        self._transformer = transformer
+        self._timeout_s = timeout_s
+        self._max_image_bytes = max_image_bytes
+
+    @property
+    def max_image_bytes(self) -> int:
+        return self._max_image_bytes
+
+    async def transform(self, image: bytes) -> FaceResult:
+        started = time.perf_counter()
+        size = len(image)
+        detail = ""
+        try:
+            async with asyncio.timeout(self._timeout_s):
+                images = await self._transformer.convert(image)
+        except FaceTransformError as exc:
+            result = FaceResult(reason=exc.reason)
+        except TimeoutError:
+            result = FaceResult(reason="TIMEOUT")
+        except Exception as exc:
+            detail = type(exc).__name__  # 예외 문구에는 외부 응답 본문이 섞일 수 있어 남기지 않는다
+            result = FaceResult(reason="UPSTREAM_FAILED")
+        else:
+            if _complete(images):
+                result = FaceResult(images=images)
+            else:
+                detail = "invalid_parts"
+                result = FaceResult(reason="UPSTREAM_FAILED")
+        finally:
+            del image  # 원본 참조를 바로 버린다
+        logger.info(
+            "face_transform result=%s detail=%s size_bytes=%d latency_ms=%d",
+            result.reason or "ok",
+            detail,
+            size,
+            int((time.perf_counter() - started) * 1000),
+        )
+        return result
+
+
+def _complete(images: SdFacePartImages) -> bool:
+    return set(images.images) == set(FacePart) and all(png.startswith(_PNG_SIGNATURE) for png in images.images.values())
