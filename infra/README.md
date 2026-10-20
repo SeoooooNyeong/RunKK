@@ -21,7 +21,7 @@ curl -fsSL https://get.docker.com | sudo sh
 sudo usermod -aG docker $USER && newgrp docker
 
 git clone https://lab.ssafy.com/s15-final/S15P31A207.git && cd S15P31A207/infra
-cp .env.example .env && nano .env     # SERVER_NAME, DB_PASSWORD 반드시 변경
+cp .env.example .env && nano .env     # SERVER_NAME, DB_PASSWORD, RUNKK_INTERNAL_TOKEN 반드시 변경(토큰 자리표시 값이면 ai가 뜨지 않음)
 ./deploy.sh
 curl http://localhost/actuator/health  # {"status":"UP"}
 ```
@@ -44,7 +44,8 @@ SSAFY 배정 도메인(예: `xxx.p.ssafy.io`)이 EC2를 가리키는지 확인�
 cd ~/S15P31A207 && git pull && cd infra && ./deploy.sh
 ```
 
-- `deploy.sh`는 `../backend`를 Docker 멀티스테이지로 빌드해 `runkk-api` 이미지를 만들고 스택을 올린 뒤 api 헬스체크가 통과할 때까지 기다립니다.
+- `deploy.sh`는 `../backend`·`../ai`를 빌드해 `runkk-api`·`runkk-ai` 이미지를 만들고 스택을 올린 뒤 api와 ai 헬스체크가 모두 통과할 때까지 기다립니다. 어느 하나라도 실패하면 로그를 출력하고 실패로 끝납니다.
+- `.env`를 통째로 컨테이너에 넣지 않습니다. `docker-compose.yml`의 `environment:`가 컨테이너마다 필요한 값만 고릅니다(api는 DB·Redis·Spring 값과 `AI_SERVER_URL`·`RUNKK_INTERNAL_TOKEN`, ai는 `RUNKK_*`만). 새 환경 변수는 `.env.example`과 함께 해당 서비스의 `environment:`에도 추가합니다.
 - GitLab CI의 `backend:deploy` 잡(EC2에 등록한 shell 러너, `deploy` 태그)이 CI File 변수 `INFRA_ENV`를 `infra/.env`로 복사한 뒤 이 스크립트를 실행합니다. 수동 배포도 같은 명령입니다(루트 README "CI/CD" 참고).
 - develop 브랜치용 서버라면 `.env`의 `SPRING_PROFILES_ACTIVE=develop`으로 두면 Swagger(`/docs`)가 열리고 Flyway 마이그레이션(`backend/src/main/resources/db/migration`) 뒤 DDL validate로 동작합니다. prod도 같아서 스키마 변경은 마이그레이션으로만 반영됩니다.
 

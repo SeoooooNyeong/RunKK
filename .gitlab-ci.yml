@@ -32,6 +32,14 @@ variables:
 
 .ai-changes: &ai-changes
   - ai/**/*
+  - infra/docker-compose.yml  # ai 시험이 compose의 ai·api 환경 변수 목록을 확인한다(tests/test_deploy_config.py)
+  - .gitlab-ci.yml
+
+# 배포·스모크는 api·ai 어느 쪽이 바뀌어도 돈다. deploy.sh가 두 이미지를 함께 빌드해 올린다
+.deploy-changes: &deploy-changes
+  - backend/**/*
+  - ai/**/*
+  - infra/**/*
   - .gitlab-ci.yml
 
 # ---------- ai 서버 ----------
@@ -79,7 +87,8 @@ ai:test:
         path: ai/coverage.xml
     expire_in: 1 week
 
-# 이미지는 EC2에서 바로 만든다. 배포는 infra/deploy.sh가 api와 함께 올린다(backend:deploy).
+# 이미지는 EC2에서 바로 만든다. sha 태그를 남겨 롤백에 쓴다. 배포는 infra/deploy.sh가 api와 함께 올린다
+# (backend:deploy, ai만 바뀌어도 deploy-changes로 생긴다).
 ai:build:
   stage: build
   tags: [deploy]
@@ -149,9 +158,9 @@ backend:deploy:
     name: $CI_COMMIT_BRANCH
   rules:
     - if: $CI_COMMIT_BRANCH == "develop"
-      changes: *backend-changes
+      changes: *deploy-changes
     - if: $CI_COMMIT_BRANCH == "main"
-      changes: *backend-changes
+      changes: *deploy-changes
       when: manual
       allow_failure: false
   script:
@@ -164,11 +173,13 @@ backend:smoke:
   needs: [backend:deploy]
   rules:
     - if: $CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "main"
-      changes: *backend-changes
+      changes: *deploy-changes
   script:
     - if [ "$CI_COMMIT_BRANCH" = "main" ]; then cp "$INFRA_ENV_PROD" infra/.env; else cp "$INFRA_ENV" infra/.env; fi
     - PORT=$(grep -E '^NGINX_HTTP_PORT=' infra/.env | cut -d= -f2 | tr -d ' '); PORT=${PORT:-80}
     - curl -fsS "http://localhost:$PORT/actuator/health" | grep -q '"UP"'
+    # ai는 외부 포트가 없어 컨테이너 헬스 상태로 본다("unhealthy"가 걸리지 않게 정확히 비교)
+    - test "$(docker compose -f infra/docker-compose.yml --env-file infra/.env ps ai --format '{{.Health}}')" = healthy
     - if [ "$CI_COMMIT_BRANCH" != "main" ]; then curl -fsSL -o /dev/null "http://localhost:$PORT/docs"; fi
 
 # ---------- 안드로이드 ----------

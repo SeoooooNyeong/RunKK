@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Build the api image from ../backend and (re)start the whole stack.
+# Build the api (../backend) and ai (../ai) images and (re)start the whole stack.
 # Run from the infra/ directory on the server:  ./deploy.sh
+# Fails (exit 1) if api or ai does not become healthy. api keeps serving fallback text while ai is down,
+# so an unhealthy ai would otherwise go unnoticed (e.g. a placeholder RUNKK_INTERNAL_TOKEN makes ai refuse to start).
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -9,20 +11,28 @@ if [ ! -f .env ]; then
   exit 1
 fi
 
-docker compose --env-file .env pull nginx postgres redis
-docker compose --env-file .env build api ai
-docker compose --env-file .env up -d --remove-orphans
-docker compose --env-file .env ps
+compose() { docker compose --env-file .env "$@"; }
 
-echo "Waiting for the api health check..."
-for i in $(seq 1 30); do
-  if docker compose --env-file .env ps api --format '{{.Health}}' | grep -q healthy; then
-    echo "api is healthy"
-    curl -fsS "http://localhost:${NGINX_HTTP_PORT:-80}/actuator/health" && echo
-    exit 0
-  fi
-  sleep 5
-done
-echo "api did not become healthy. Logs:" >&2
-docker compose --env-file .env logs --tail=100 api >&2
-exit 1
+# Prints "healthy" only for a healthy container ("unhealthy" must not match).
+wait_healthy() {  # <service> <tries, 5 s apart>
+  for _ in $(seq 1 "$2"); do
+    if [ "$(compose ps "$1" --format '{{.Health}}')" = "healthy" ]; then
+      echo "$1 is healthy"
+      return 0
+    fi
+    sleep 5
+  done
+  echo "$1 did not become healthy. Logs:" >&2
+  compose logs --tail=100 "$1" >&2
+  return 1
+}
+
+compose pull nginx postgres redis
+compose build api ai
+compose up -d --remove-orphans
+compose ps
+
+echo "Waiting for the api and ai health checks..."
+wait_healthy api 30
+curl -fsS "http://localhost:${NGINX_HTTP_PORT:-80}/actuator/health" && echo
+wait_healthy ai 12
