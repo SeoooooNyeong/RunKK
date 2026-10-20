@@ -73,6 +73,26 @@ services:
       timeout: 5s
       retries: 10
 
+  # ai 서버(FastAPI). 외부 포트 없이 api만 내부 망으로 부른다(D-23). 셀카는 메모리에서만 다루므로 루트는 읽기 전용, /tmp만 tmpfs.
+  # api는 depends_on으로 묶지 않는다: ai가 내려가도 api는 규칙 문구로 대체한다(D-58).
+  ai:
+    build:
+      context: ../ai
+    image: runkk-ai:latest
+    restart: unless-stopped
+    env_file: .env
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 10s
+
   # Runs only when you ask for it:  docker compose run --rm certbot certonly ...
   certbot:
     image: certbot/certbot
