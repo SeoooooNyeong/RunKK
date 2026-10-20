@@ -35,4 +35,9 @@ interface RecordRepository {
 
     /** 공유 카드 값(GET /runs/{id}/card, FR-068). */
     suspend fun card(recordId: String): Outcome<RunCard>
+
+    companion object {
+        /** runs(ownerId, …)에 넘기면 로그인한 본인의 기록. 구현이 본인 회원 ID로 바꿔 부른다. */
+        const val SELF: Long = 0L
+    }
 }
