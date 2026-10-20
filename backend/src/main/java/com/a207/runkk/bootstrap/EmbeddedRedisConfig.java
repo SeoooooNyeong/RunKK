@@ -1,4 +1,4 @@
-package com.a207.runkk.global.config;
+package com.a207.runkk.bootstrap;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;

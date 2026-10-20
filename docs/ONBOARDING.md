@@ -37,7 +37,7 @@ A207 팀에 합류한 분을 위한 첫 안내 문서입니다. 자세한 규칙
 
 | 영역 | 필요한 것 | 처음 확인할 명령 |
 | --- | --- | --- |
-| 백엔드 (`backend/`) | JDK 17 이상 (JDK 25는 Gradle이 내려받음) | `./gradlew build` |
+| 백엔드 (`backend/`) | JDK 17 이상 (JDK 21은 Gradle이 내려받음) | `./gradlew build` |
 | 안드로이드 (`android/`) | Android SDK Platform 37, `local.properties`에 `sdk.dir` | `./gradlew assembleLocalDebug` |
 | 서버 스택 (`infra/`) | Docker Desktop (EC2 배정 뒤 이관) | `infra/README.md` 참고 |
 

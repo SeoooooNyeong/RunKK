@@ -1,4 +1,4 @@
-# RunKK server stack: nginx -> api (Spring Boot) -> mysql / redis
+# RunKK server stack: nginx -> api (Spring Boot) -> postgres / redis
 # Usage (on the EC2 or locally):  cp .env.example .env  &&  ./deploy.sh
 name: runkk
 
@@ -27,7 +27,7 @@ services:
     env_file: .env
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
-      DB_HOST: mysql
+      DB_HOST: postgres
       REDIS_HOST: redis
     expose:
       - "8080"
@@ -38,25 +38,24 @@ services:
       retries: 12
       start_period: 40s
     depends_on:
-      mysql:
+      postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
 
-  mysql:
-    image: mysql:8.4
+  postgres:
+    image: postgres:17-alpine
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
-      MYSQL_DATABASE: ${DB_NAME}
-      MYSQL_USER: ${DB_USER}
-      MYSQL_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
       TZ: Asia/Seoul
-    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_0900_ai_ci
+      PGTZ: Asia/Seoul
     volumes:
-      - mysql-data:/var/lib/mysql
+      - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD}"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -82,7 +81,7 @@ services:
       - letsencrypt:/etc/letsencrypt
 
 volumes:
-  mysql-data:
+  postgres-data:
   redis-data:
   certbot-www:
   letsencrypt:
