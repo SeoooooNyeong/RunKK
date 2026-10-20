@@ -60,6 +60,8 @@ class FakeHeartRateSensor : HeartRateSensor {
 }
 
 class FakeSensorPermission(var isGranted: Boolean = true) : SensorPermission {
+    override val name: String = "test.permission.HEART_RATE"
+
     override fun granted(): Boolean = isGranted
 }
 

@@ -56,6 +56,9 @@ class HeartRateCollector @Inject constructor(
     private val _samples = MutableSharedFlow<WatchHeartRate>(extraBufferCapacity = SAMPLE_BUFFER)
     val samples: Flow<WatchHeartRate> = _samples.asSharedFlow()
 
+    /** 화면이 OS 권한 창을 띄울 때 쓸 권한 이름. */
+    val permissionName: String get() = permission.name
+
     /** 폰이 보낸 허용 플래그. 거짓이면 즉시 멈춘다. */
     fun allow(allowed: Boolean) = update { this.allowed = allowed }
 

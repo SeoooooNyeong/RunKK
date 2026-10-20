@@ -138,6 +138,9 @@ class PhoneLink @Inject constructor(
         return dataLayer.putData(path, batch.encode())
     }
 
+    /** OS 심박 권한 창에 쓸 권한 이름(watch.ui가 watch.heart를 모르게 여기서 넘긴다). */
+    val heartRatePermissionName: String get() = collector.permissionName
+
     /** OS 심박 권한 결과가 바뀌었다(권한 창 닫힘, 화면 복귀). */
     fun onHeartRatePermissionChanged() = collector.onPermissionChanged()
 

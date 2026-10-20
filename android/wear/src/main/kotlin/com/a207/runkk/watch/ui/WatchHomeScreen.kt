@@ -18,7 +18,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material3.Text
-import com.a207.runkk.watch.R
 
 /**
  * 워치 시작 화면(6.1.15, FR-042, N-21, 와이어프레임 6-22): 폰 연결 상태, 오늘 계획(거리·목표 페이스), 시작 버튼.

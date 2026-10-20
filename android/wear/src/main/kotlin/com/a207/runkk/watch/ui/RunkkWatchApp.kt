@@ -1,4 +1,4 @@
-package com.a207.runkk.watch
+package com.a207.runkk.watch.ui
 
 import android.app.Application
 import com.a207.runkk.watch.link.PhoneLink

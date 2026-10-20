@@ -1,4 +1,4 @@
-package com.a207.runkk.watch
+package com.a207.runkk.watch.ui
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -7,10 +7,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.a207.runkk.watch.heart.BodySensorPermission
-import com.a207.runkk.watch.ui.WatchRoot
-import com.a207.runkk.watch.ui.WatchTheme
-import com.a207.runkk.watch.ui.WatchViewModel
 import dagger.hilt.android.AndroidEntryPoint
 
 /**
@@ -32,7 +28,7 @@ class WatchActivity : ComponentActivity() {
                 WatchRoot(
                     state = state,
                     onStart = viewModel::onStartTapped,
-                    onRequestPermission = { heartRatePermission.launch(BodySensorPermission.NAME) }
+                    onRequestPermission = { heartRatePermission.launch(viewModel.heartRatePermission) }
                 )
             }
         }

@@ -3,8 +3,6 @@ package com.a207.runkk.watch.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.a207.runkk.watch.link.PhoneLink
-import com.a207.runkk.wear.contract.HeartRateBatchMessage
-import com.a207.runkk.wear.contract.WatchDisplayMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Clock
 import javax.inject.Inject
@@ -15,6 +13,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -22,10 +21,26 @@ import kotlinx.coroutines.launch
 /**
  * 워치 화면 상태를 만든다. 화면 규칙(심박 빈칸 30초, 연결 끊김, 시작 요청 기다림, 안내 표시 시간)은 여기에만 둔다.
  * 폰과의 통신·수집 제어는 [PhoneLink]가 맡는다(5.1.2 watch.ui → watch.link).
+ * wear.contract 형식은 import하지 않고 PhoneLink가 내준 값을 받자마자 이 클래스의 비공개 값으로 옮긴다.
  */
 @HiltViewModel
 class WatchViewModel @Inject constructor(private val phoneLink: PhoneLink, private val clock: Clock) : ViewModel() {
-    private data class Received(val display: WatchDisplayMessage, val atMillis: Long)
+    /** 폰 표시 정보 중 화면이 쓰는 값(WatchDisplayMessage에서 옮김)과 받은 시각. */
+    private data class Received(
+        val running: Boolean,
+        val elapsedSeconds: Long,
+        val distanceMeters: Long,
+        val paceSecondsPerKm: Int?,
+        val heartRateBpm: Int?,
+        val planDistanceMeters: Long?,
+        val planPaceSecondsPerKm: Int?,
+        val heartRateAllowed: Boolean,
+        val notice: String?,
+        val atMillis: Long
+    )
+
+    /** 워치가 마지막으로 잰 정상 심박. */
+    private data class LocalHeartRate(val measuredAtEpochMillis: Long, val bpm: Int)
 
     private data class LocalEvents(
         val notice: WatchNotice? = null,
@@ -37,7 +52,7 @@ class WatchViewModel @Inject constructor(private val phoneLink: PhoneLink, priva
         val received: Received?,
         val connected: Boolean,
         val permissionNeeded: Boolean,
-        val latestHeartRate: HeartRateBatchMessage.Sample?,
+        val latestHeartRate: LocalHeartRate?,
         val events: LocalEvents
     )
 
@@ -56,7 +71,7 @@ class WatchViewModel @Inject constructor(private val phoneLink: PhoneLink, priva
         received,
         phoneLink.phoneConnected,
         phoneLink.heartRatePermissionNeeded,
-        phoneLink.latestHeartRate,
+        phoneLink.latestHeartRate.map { sample -> sample?.let { LocalHeartRate(it.measuredAtEpochMillis, it.bpm) } },
         events,
         ::Inputs
     )
@@ -65,7 +80,24 @@ class WatchViewModel @Inject constructor(private val phoneLink: PhoneLink, priva
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), WatchUiState())
 
     init {
-        viewModelScope.launch { phoneLink.displays.collect { onDisplay(it) } }
+        viewModelScope.launch {
+            phoneLink.displays.collect { display ->
+                onDisplay(
+                    Received(
+                        running = display.running,
+                        elapsedSeconds = display.elapsedSeconds,
+                        distanceMeters = display.distanceMeters,
+                        paceSecondsPerKm = display.currentPaceSecondsPerKm,
+                        heartRateBpm = display.heartRateBpm,
+                        planDistanceMeters = display.planDistanceMeters,
+                        planPaceSecondsPerKm = display.planPaceSecondsPerKm,
+                        heartRateAllowed = display.heartRateCollectionAllowed,
+                        notice = display.notice,
+                        atMillis = phoneLink.lastDisplayAtMillis.value ?: clock.millis()
+                    )
+                )
+            }
+        }
     }
 
     /**
@@ -90,17 +122,19 @@ class WatchViewModel @Inject constructor(private val phoneLink: PhoneLink, priva
     /** OS 심박 권한 창이 닫혔거나 화면으로 돌아왔다. */
     fun onPermissionResult() = phoneLink.onHeartRatePermissionChanged()
 
+    /** OS 심박 권한 창에 넘길 권한 이름. */
+    val heartRatePermission: String get() = phoneLink.heartRatePermissionName
+
     /** 받은 시각은 PhoneLink가 찍은 값을 쓴다. 화면을 다시 만들 때 다시 받은 지난 표시를 새것으로 보지 않는다. */
-    private fun onDisplay(display: WatchDisplayMessage) {
-        val receivedAt = phoneLink.lastDisplayAtMillis.value ?: clock.millis()
-        received.value = Received(display, receivedAt)
+    private fun onDisplay(display: Received) {
+        received.value = display
         val phoneNotice = display.notice
         events.update { current ->
             when {
                 phoneNotice != null ->
                     current.copy(
                         notice = WatchNotice.FromPhone(phoneNotice),
-                        noticeAtMillis = receivedAt,
+                        noticeAtMillis = display.atMillis,
                         startRequestedAtMillis = null
                     )
 
@@ -112,21 +146,20 @@ class WatchViewModel @Inject constructor(private val phoneLink: PhoneLink, priva
     }
 
     private fun reduce(inputs: Inputs, now: Long): WatchUiState {
-        val received = inputs.received
-        val display = received?.display
+        val display = inputs.received
         val running = display?.running == true
-        val allowed = display?.heartRateCollectionAllowed == true
+        val allowed = display?.heartRateAllowed == true
         val freshLocal = inputs.latestHeartRate
             ?.takeIf { now - it.measuredAtEpochMillis <= HEART_RATE_STALE_MILLIS }
             ?.bpm
-        val displayStale = received == null || now - received.atMillis > LINK_LOST_MILLIS
+        val displayStale = display == null || now - display.atMillis > LINK_LOST_MILLIS
         val requestedAt = inputs.events.startRequestedAtMillis
         return WatchUiState(
             phoneConnected = inputs.connected,
             running = running,
             elapsedSeconds = display?.elapsedSeconds ?: 0,
             distanceMeters = display?.distanceMeters ?: 0,
-            paceSecondsPerKm = display?.currentPaceSecondsPerKm,
+            paceSecondsPerKm = display?.paceSecondsPerKm,
             heartRateBpm = if (allowed) freshLocal ?: display?.heartRateBpm else null,
             planDistanceMeters = display?.planDistanceMeters,
             planPaceSecondsPerKm = display?.planPaceSecondsPerKm,

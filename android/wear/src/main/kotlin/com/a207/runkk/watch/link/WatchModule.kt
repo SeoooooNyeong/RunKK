@@ -1,11 +1,9 @@
-package com.a207.runkk.watch
+package com.a207.runkk.watch.link
 
 import com.a207.runkk.watch.heart.BodySensorPermission
 import com.a207.runkk.watch.heart.HealthServicesHeartRateSensor
 import com.a207.runkk.watch.heart.HeartRateSensor
 import com.a207.runkk.watch.heart.SensorPermission
-import com.a207.runkk.watch.link.PlayServicesWearDataLayer
-import com.a207.runkk.watch.link.WearDataLayer
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -18,8 +16,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 
 /**
- * 워치 조립(Hilt). 워치는 Gradle 모듈 하나라 포트 ↔ 구현 바인딩과 앱 범위를 조립 루트에 둔다.
- * 앱 범위는 [com.a207.runkk.watch.link.PhoneLink]·[com.a207.runkk.watch.heart.HeartRateCollector]가 쓴다(GlobalScope 금지).
+ * 워치 포트 ↔ 구현 바인딩과 앱 범위(Hilt). watch.heart·watch.link의 구현을 묶으므로 두 패키지를 모두 아는
+ * watch.link에 둔다(5.1.2 watch.link → watch.heart). 앱 범위는 [PhoneLink]·HeartRateCollector가 쓴다(전역 범위 금지).
  */
 @Module
 @InstallIn(SingletonComponent::class)

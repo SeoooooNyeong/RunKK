@@ -10,9 +10,11 @@ import javax.inject.Inject
 
 /**
  * OS 심박 권한. API 36(Wear OS 6)부터는 BODY_SENSORS 대신 health.READ_HEART_RATE를 받는다.
- * 권한 창은 화면(조립 루트의 Activity)이 [NAME]으로 띄우고, 결과는 HeartRateCollector.onPermissionChanged로 알린다.
+ * 권한 창은 화면(watch.ui의 Activity)이 PhoneLink를 거쳐 받은 [name]으로 띄우고, 결과는 HeartRateCollector.onPermissionChanged로 알린다.
  */
 class BodySensorPermission @Inject constructor(@ApplicationContext private val context: Context) : SensorPermission {
+    override val name: String get() = NAME
+
     override fun granted(): Boolean =
         ContextCompat.checkSelfPermission(context, NAME) == PackageManager.PERMISSION_GRANTED
 

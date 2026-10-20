@@ -19,7 +19,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material3.Text
-import com.a207.runkk.watch.R
 
 /**
  * 러닝 중 워치 화면(6.1.15, FR-042, 와이어프레임 6-23): 경과 시간·거리·현재 페이스·심박, 연결 끊김 표시.
