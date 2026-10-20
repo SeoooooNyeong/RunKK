@@ -1,30 +1,481 @@
 package com.a207.runkk;
 
-import static com.tngtech.archunit.base.DescribedPredicate.not;
-import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage;
-import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAnyPackage;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noFields;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noMethods;
-import static com.tngtech.archunit.library.Architectures.layeredArchitecture;
 import static com.tngtech.archunit.library.GeneralCodingRules.NO_CLASSES_SHOULD_ACCESS_STANDARD_STREAMS;
 import static com.tngtech.archunit.library.GeneralCodingRules.NO_CLASSES_SHOULD_USE_FIELD_INJECTION;
 import static com.tngtech.archunit.library.GeneralCodingRules.NO_CLASSES_SHOULD_USE_JAVA_UTIL_LOGGING;
 import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices;
+import static org.assertj.core.api.Assertions.assertThat;
 
+import com.tngtech.archunit.base.DescribedPredicate;
+import com.tngtech.archunit.core.domain.Dependency;
+import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
+import com.tngtech.archunit.lang.ArchCondition;
+import com.tngtech.archunit.lang.ArchRule;
+import com.tngtech.archunit.lang.CompositeArchRule;
+import com.tngtech.archunit.lang.ConditionEvents;
+import com.tngtech.archunit.lang.SimpleConditionEvent;
+import com.tngtech.archunit.library.dependencies.Slice;
+import com.tngtech.archunit.library.dependencies.SliceAssignment;
+import com.tngtech.archunit.library.dependencies.SliceIdentifier;
+import jakarta.persistence.Embeddable;
+import jakarta.persistence.Entity;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.stereotype.Component;
 
-/** 코드 컨벤션 2장(백엔드)의 패키지·계층 규칙. 규칙이 빈 집합에 걸리는 동안은 통과한다 (src/test/resources/archunit.properties). */
+/**
+ * 설계서 13.1 ArchUnit 규칙 10개(14장 "통합 — 구조"). 아직 클래스가 없는 패키지 때문에 규칙이 거짓 실패하지 않도록 모든 규칙에
+ * allowEmptyShould(true)를 둔다. 규칙이 실제 위반을 잡는지는 {@link ArchitectureRuleNegativeTest}가 확인한다.
+ */
 class ArchitectureTest {
 
-    private static final String ROOT = "com.a207.runkk";
+    static final String ROOT = "com.a207.runkk";
+
+    /** 5.1.1 서버 패키지 53개. */
+    static final List<String> PACKAGES =
+            List.of(
+                    "web.auth",
+                    "web.me",
+                    "web.notification",
+                    "web.run",
+                    "web.record",
+                    "web.battle",
+                    "web.crew",
+                    "web.runimal",
+                    "web.avatar",
+                    "web.admin",
+                    "web.admin.celebrity",
+                    "web.admin.setting",
+                    "web.admin.audit",
+                    "web.error",
+                    "realtime",
+                    "batch.battle",
+                    "batch.crew",
+                    "batch.analysis",
+                    "batch.avatar",
+                    "batch.running",
+                    "batch.member",
+                    "batch.audit",
+                    "batch.notification",
+                    "bootstrap",
+                    "profile",
+                    "operator",
+                    "member",
+                    "running",
+                    "runimal",
+                    "battle",
+                    "reward",
+                    "avatar",
+                    "crew",
+                    "analysis",
+                    "policy",
+                    "notification",
+                    "audit",
+                    "common",
+                    "infra.member",
+                    "infra.running",
+                    "infra.analysis",
+                    "infra.battle",
+                    "infra.crew",
+                    "infra.runimal",
+                    "infra.avatar",
+                    "infra.reward",
+                    "infra.policy",
+                    "infra.notification",
+                    "infra.audit",
+                    "infra.integration.auth",
+                    "infra.integration.ai",
+                    "infra.integration.push",
+                    "infra.integration.weather");
+
+    /** 도메인·조립 패키지(5.2 조립·응용+도메인·도메인 공통 계층, 핵심 14개). */
+    static final List<String> CORE =
+            List.of(
+                    "profile",
+                    "operator",
+                    "member",
+                    "running",
+                    "runimal",
+                    "battle",
+                    "reward",
+                    "avatar",
+                    "crew",
+                    "analysis",
+                    "policy",
+                    "notification",
+                    "audit",
+                    "common");
+
+    /** 12.2 의존 목록(D1~D74, D44·D67의 → common 포함). 키 패키지는 값 패키지만 import할 수 있다. */
+    static final Map<String, Set<String>> ALLOWED = allowedDependencies();
+
+    private static Map<String, Set<String>> allowedDependencies() {
+        Map<String, Set<String>> m = new HashMap<>();
+        // 핵심 패키지 (D1~D43, 12.3 행렬)
+        m.put("member", Set.of("policy", "audit"));
+        m.put("running", Set.of("member", "audit"));
+        m.put("runimal", Set.of("member", "running", "policy"));
+        m.put("battle", Set.of("member", "running", "policy", "notification", "audit"));
+        m.put("reward", Set.of("member", "running", "battle", "policy"));
+        m.put("avatar", Set.of("member", "running", "reward", "policy", "notification"));
+        m.put("crew", Set.of("member", "running", "runimal", "policy", "notification", "audit"));
+        m.put("analysis", Set.of("member", "running", "crew", "reward", "policy", "notification"));
+        m.put("profile", Set.of("member", "running", "runimal", "avatar", "crew"));
+        m.put("operator", Set.of("member", "policy"));
+        m.put("policy", Set.of("audit"));
+        m.put("notification", Set.of("member", "policy"));
+        m.put("audit", Set.of());
+        m.put("common", Set.of());
+        // 표현 (D45~D54, D63, D64, D68~D70)
+        m.put("web.auth", Set.of("member"));
+        m.put("web.me", Set.of("member", "profile"));
+        m.put("web.notification", Set.of("notification"));
+        m.put("web.run", Set.of("running"));
+        m.put("web.record", Set.of("analysis"));
+        m.put("web.battle", Set.of("battle", "reward"));
+        m.put("web.crew", Set.of("crew", "runimal"));
+        m.put("web.runimal", Set.of("runimal"));
+        m.put("web.avatar", Set.of("avatar", "reward"));
+        m.put("web.admin", Set.of("operator"));
+        m.put("web.admin.celebrity", Set.of("battle"));
+        m.put("web.admin.setting", Set.of("policy"));
+        m.put("web.admin.audit", Set.of("audit"));
+        m.put("web.error", Set.of());
+        m.put("realtime", Set.of("battle", "crew", "member"));
+        // 구동 (D55~D57, D65, D71~D74): batch.<응용> → 같은 이름의 패키지 하나
+        for (String app :
+                List.of(
+                        "battle",
+                        "crew",
+                        "analysis",
+                        "avatar",
+                        "running",
+                        "member",
+                        "audit",
+                        "notification")) {
+            m.put("batch." + app, Set.of(app));
+        }
+        m.put("bootstrap", Set.of());
+        // 인프라 (D58~D62): infra.<도메인> → 같은 이름의 도메인
+        for (String domain :
+                List.of(
+                        "member",
+                        "running",
+                        "analysis",
+                        "battle",
+                        "crew",
+                        "runimal",
+                        "avatar",
+                        "reward",
+                        "policy",
+                        "notification",
+                        "audit")) {
+            m.put("infra." + domain, Set.of(domain));
+        }
+        m.put("infra.integration.auth", Set.of("member", "operator"));
+        m.put("infra.integration.ai", Set.of("analysis", "avatar"));
+        m.put("infra.integration.push", Set.of("notification"));
+        m.put("infra.integration.weather", Set.of("running"));
+        // 모든 패키지 → common (D44, D53, D66, D67)
+        m.replaceAll(
+                (from, to) ->
+                        from.equals("common")
+                                ? to
+                                : Stream.concat(to.stream(), Stream.of("common"))
+                                        .collect(Collectors.toUnmodifiableSet()));
+        return Map.copyOf(m);
+    }
+
+    /**
+     * 클래스 패키지에 맞는 가장 긴 5.1.1 이름을 고른다. battle.live·crew.live는 5.1.1 이름이 아니므로 상위(battle, crew)로 합쳐진다.
+     */
+    static Optional<String> sliceOf(JavaClass javaClass) {
+        String pkg = javaClass.getPackageName();
+        if (!pkg.startsWith(ROOT + ".")) {
+            return Optional.empty();
+        }
+        String relative = pkg.substring(ROOT.length() + 1);
+        return PACKAGES.stream()
+                .filter(name -> relative.equals(name) || relative.startsWith(name + "."))
+                .max(Comparator.comparingInt(String::length));
+    }
+
+    static final SliceAssignment DESIGN_PACKAGES =
+            new SliceAssignment() {
+                @Override
+                public SliceIdentifier getIdentifierOf(JavaClass javaClass) {
+                    return sliceOf(javaClass)
+                            .map(SliceIdentifier::of)
+                            .orElse(SliceIdentifier.ignore());
+                }
+
+                @Override
+                public String getDescription() {
+                    return "5.1.1 서버 패키지 53개(가장 긴 이름, *.live는 상위로)";
+                }
+            };
+
+    private static boolean listedIn12_2(Dependency dependency) {
+        Optional<String> from = sliceOf(dependency.getOriginClass());
+        Optional<String> to = sliceOf(dependency.getTargetClass());
+        if (from.isEmpty() || to.isEmpty() || from.equals(to)) {
+            return true;
+        }
+        return ALLOWED.getOrDefault(from.get(), Set.of()).contains(to.get());
+    }
+
+    private static final ArchCondition<Slice> DEPEND_ONLY_ON_LISTED_PACKAGES =
+            new ArchCondition<>("12.2 의존 목록에 있는 패키지만 import한다") {
+                @Override
+                public void check(Slice slice, ConditionEvents events) {
+                    for (Dependency dependency : slice.getDependenciesFromSelf()) {
+                        if (!listedIn12_2(dependency)) {
+                            events.add(
+                                    SimpleConditionEvent.violated(
+                                            dependency, dependency.getDescription()));
+                        }
+                    }
+                }
+            };
+
+    private static String[] packagesOf(List<String> names) {
+        return names.stream().map(name -> ROOT + "." + name + "..").toArray(String[]::new);
+    }
+
+    private static final String[] CORE_PACKAGES = packagesOf(CORE);
+
+    // (1) 12.2 의존 목록에 없는 패키지 사이 import 0
+    static final ArchRule RULE_1_ONLY_LISTED_DEPENDENCIES =
+            slices().assignedFrom(DESIGN_PACKAGES)
+                    .should(DEPEND_ONLY_ON_LISTED_PACKAGES)
+                    .allowEmptyShould(true)
+                    .because("12.2 의존 목록 밖 import는 설계 불일치다(13.1 규칙 1)");
+
+    // (2) 순환 0 — 하위 패키지는 Fan-In이 0이라 최상위 slice로 충분하다
+    static final ArchRule RULE_2_NO_CYCLES =
+            slices().matching(ROOT + ".(*)..")
+                    .should()
+                    .beFreeOfCycles()
+                    .allowEmptyShould(true)
+                    .because("패키지 사이 순환이 없어야 한다(13.1 규칙 2)");
+
+    // (3) 도메인·조립 패키지 → web.*·realtime·batch.*·infra.* import 0
+    static final ArchRule RULE_3_CORE_DOES_NOT_KNOW_OUTER_LAYERS =
+            noClasses()
+                    .that()
+                    .resideInAnyPackage(CORE_PACKAGES)
+                    .should()
+                    .dependOnClassesThat()
+                    .resideInAnyPackage(
+                            ROOT + ".web..",
+                            ROOT + ".realtime..",
+                            ROOT + ".batch..",
+                            ROOT + ".infra..")
+                    .allowEmptyShould(true)
+                    .because("하위 계층이 상위 계층을 import하지 않는다(5.2, 13.1 규칙 3)");
+
+    private static final DescribedPredicate<JavaClass> STORAGE_PORT =
+            DescribedPredicate.describe(
+                    "…Repository·…Store·QuotaCounter·MatchQueue 인터페이스",
+                    javaClass ->
+                            javaClass.isInterface()
+                                    && (javaClass.getSimpleName().endsWith("Repository")
+                                            || javaClass.getSimpleName().endsWith("Store")
+                                            || javaClass.getSimpleName().equals("QuotaCounter")
+                                            || javaClass.getSimpleName().equals("MatchQueue")));
+
+    private static final ArchCondition<JavaClass> ONLY_USED_BY_OWNER_AND_ITS_INFRA =
+            new ArchCondition<>("선언 패키지와 같은 이름의 infra.<도메인>에서만 참조된다") {
+                @Override
+                public void check(JavaClass port, ConditionEvents events) {
+                    String owner = sliceOf(port).orElseThrow();
+                    for (Dependency dependency : port.getDirectDependenciesToSelf()) {
+                        Optional<String> user = sliceOf(dependency.getOriginClass());
+                        if (user.isEmpty()
+                                || user.get().equals(owner)
+                                || user.get().equals("infra." + owner)) {
+                            continue;
+                        }
+                        events.add(
+                                SimpleConditionEvent.violated(
+                                        dependency, dependency.getDescription()));
+                    }
+                }
+            };
+
+    // (4) 저장 포트는 선언 패키지와 같은 이름의 infra.<도메인> 밖에서 참조하지 않는다
+    static final ArchRule RULE_4_STORAGE_PORTS_STAY_INSIDE =
+            classes()
+                    .that()
+                    .resideInAnyPackage(CORE_PACKAGES)
+                    .and(STORAGE_PORT)
+                    .should(ONLY_USED_BY_OWNER_AND_ITS_INFRA)
+                    .allowEmptyShould(true)
+                    .because("Repository는 자기 패키지 밖에서 쓰지 않는다(D-32, 13.1 규칙 4)");
+
+    private static final ArchCondition<JavaClass> NOT_USE_FOREIGN_ENTITIES =
+            new ArchCondition<>("다른 도메인 패키지의 엔티티를 참조하지 않는다") {
+                @Override
+                public void check(JavaClass javaClass, ConditionEvents events) {
+                    Optional<String> user = sliceOf(javaClass);
+                    if (user.isEmpty()) {
+                        return;
+                    }
+                    for (Dependency dependency : javaClass.getDirectDependenciesFromSelf()) {
+                        JavaClass target = dependency.getTargetClass();
+                        if (!target.isAnnotatedWith(Entity.class)) {
+                            continue;
+                        }
+                        Optional<String> owner = sliceOf(target);
+                        if (owner.isEmpty()
+                                || owner.equals(user)
+                                || user.get().equals("infra." + owner.get())) {
+                            continue;
+                        }
+                        events.add(
+                                SimpleConditionEvent.violated(
+                                        dependency, dependency.getDescription()));
+                    }
+                }
+            };
+
+    // (5) 다른 도메인 패키지의 엔티티 클래스를 import하지 않는다(투영·조회 서비스·사건·포트만)
+    static final ArchRule RULE_5_NO_FOREIGN_ENTITIES =
+            classes()
+                    .that()
+                    .resideInAPackage(ROOT + "..")
+                    .should(NOT_USE_FOREIGN_ENTITIES)
+                    .allowEmptyShould(true)
+                    .because("패키지 밖 엔티티 참조는 식별자로 한다(D-02, D-32, 13.1 규칙 5)");
+
+    private static final String COMMON = ROOT + ".common..";
+    private static final String DOMAIN_EVENT = ROOT + ".common.DomainEvent";
+    private static final String DOMAIN_EVENT_PUBLISHER = ROOT + ".common.DomainEventPublisher";
+
+    // (6) common에는 DomainEvent·DomainEventPublisher 말고 사건 구현·인터페이스·@Component를 두지 않는다
+    static final ArchRule RULE_6_COMMON_STAYS_PLAIN =
+            CompositeArchRule.of(
+                            classes()
+                                    .that()
+                                    .resideInAPackage(COMMON)
+                                    .and()
+                                    .areInterfaces()
+                                    .should()
+                                    .haveFullyQualifiedName(DOMAIN_EVENT)
+                                    .orShould()
+                                    .haveFullyQualifiedName(DOMAIN_EVENT_PUBLISHER)
+                                    .allowEmptyShould(true))
+                    .and(
+                            noClasses()
+                                    .that()
+                                    .resideInAPackage(COMMON)
+                                    .and()
+                                    .doNotHaveFullyQualifiedName(DOMAIN_EVENT)
+                                    .should()
+                                    .implement(DOMAIN_EVENT)
+                                    .allowEmptyShould(true))
+                    .and(
+                            noClasses()
+                                    .that()
+                                    .resideInAPackage(COMMON)
+                                    .should()
+                                    .beMetaAnnotatedWith(Component.class)
+                                    .allowEmptyShould(true))
+                    .because("common은 변경이 드문 불변 기본 형식만 둔다(5.1.1, D-31, 13.1 규칙 6)");
+
+    private static ArchRule liveMessagesStayInside(String parent) {
+        String live = ROOT + "." + parent + ".live..";
+        return CompositeArchRule.of(
+                        classes()
+                                .that()
+                                .resideInAPackage(live)
+                                .should()
+                                .onlyDependOnClassesThat()
+                                .resideInAnyPackage(
+                                        ROOT + "." + parent + "..", ROOT + ".common..", "java..")
+                                .allowEmptyShould(true))
+                .and(
+                        classes()
+                                .that()
+                                .resideInAPackage(live)
+                                .should()
+                                .onlyHaveDependentClassesThat()
+                                .resideInAPackage(ROOT + "." + parent + "..")
+                                .allowEmptyShould(true));
+    }
+
+    // (7) battle.live·crew.live는 자기 상위 패키지와 common만 import하고, 이들을 import하는 것도 자기 상위 패키지뿐
+    static final ArchRule RULE_7_LIVE_MESSAGES_STAY_INSIDE =
+            CompositeArchRule.of(liveMessagesStayInside("battle"))
+                    .and(liveMessagesStayInside("crew"))
+                    .because("실시간 메시지는 만드는 패키지에 두고 realtime은 type()만 본다(D-06, 13.1 규칙 7)");
+
+    // (8) 도메인 서비스 → operator import 0
+    static final ArchRule RULE_8_DOMAIN_DOES_NOT_KNOW_OPERATOR =
+            noClasses()
+                    .that()
+                    .resideInAnyPackage(
+                            packagesOf(
+                                    CORE.stream()
+                                            .filter(name -> !name.equals("operator"))
+                                            .toList()))
+                    .should()
+                    .dependOnClassesThat()
+                    .resideInAPackage(ROOT + ".operator..")
+                    .allowEmptyShould(true)
+                    .because("서비스는 확인된 운영자 계정 문자열(actorId)만 받는다(D-34, D-50, 13.1 규칙 8)");
+
+    // (9) 엔티티에 public setter가 없다
+    static final ArchRule RULE_9_ENTITIES_HAVE_NO_PUBLIC_SETTERS =
+            noMethods()
+                    .that()
+                    .areDeclaredInClassesThat()
+                    .areAnnotatedWith(Entity.class)
+                    .and()
+                    .haveNameMatching("set[A-Z].*")
+                    .should()
+                    .bePublic()
+                    .allowEmptyShould(true)
+                    .because("상태 변경은 업무 동사 메소드로만 한다(13.1 규칙 9)");
+
+    private static final DescribedPredicate<JavaClass> ENTITY_OR_VALUE_OBJECT =
+            DescribedPredicate.describe(
+                    "엔티티·값 객체(@Entity, @Embeddable, record)",
+                    javaClass ->
+                            javaClass.isAnnotatedWith(Entity.class)
+                                    || javaClass.isAnnotatedWith(Embeddable.class)
+                                    || javaClass
+                                            .getRawSuperclass()
+                                            .map(s -> s.getName().equals("java.lang.Record"))
+                                            .orElse(false));
+
+    // (10) 엔티티·값 객체에 public 필드가 없다(static 상수 제외)
+    static final ArchRule RULE_10_NO_PUBLIC_FIELDS =
+            noFields()
+                    .that()
+                    .areDeclaredInClassesThat(ENTITY_OR_VALUE_OBJECT)
+                    .and()
+                    .areNotStatic()
+                    .should()
+                    .bePublic()
+                    .allowEmptyShould(true)
+                    .because("엔티티 속성은 모두 private이다(13.1 규칙 10)");
+
     private static JavaClasses classes;
 
     @BeforeAll
@@ -36,107 +487,69 @@ class ArchitectureTest {
     }
 
     @Test
-    void layers_controller_service_repository() {
-        layeredArchitecture()
-                .consideringOnlyDependenciesInLayers()
-                .withOptionalLayers(true)
-                .layer("Controller")
-                .definedBy("..controller..")
-                .layer("Service")
-                .definedBy("..service..")
-                .layer("Repository")
-                .definedBy("..repository..")
-                .whereLayer("Controller")
-                .mayNotBeAccessedByAnyLayer()
-                .whereLayer("Service")
-                .mayOnlyBeAccessedByLayers("Controller", "Service")
-                .whereLayer("Repository")
-                .mayOnlyBeAccessedByLayers("Service")
-                .check(classes);
+    void designPackageList_has53NamesAndEachHasAnAllowList() {
+        assertThat(Set.copyOf(PACKAGES)).hasSize(53);
+        assertThat(ALLOWED.keySet()).containsExactlyInAnyOrderElementsOf(PACKAGES);
     }
 
     @Test
-    void controllers_doNotTouchEntitiesOrRepositories() {
-        noClasses()
-                .that()
-                .resideInAPackage("..controller..")
-                .should()
-                .dependOnClassesThat()
-                .resideInAnyPackage("..entity..", "..repository..")
-                .check(classes);
+    void mainClasses_resideInDesignPackages() {
+        List<String> stray =
+                classes.stream().filter(c -> sliceOf(c).isEmpty()).map(JavaClass::getName).toList();
+        assertThat(stray).as("5.1.1 패키지 53개 밖의 서버 클래스").isEmpty();
     }
 
     @Test
-    void domains_haveNoCycles() {
-        slices().matching(ROOT + ".(*)..").should().beFreeOfCycles().check(classes);
+    void rule01_onlyDependenciesListedIn12_2() {
+        RULE_1_ONLY_LISTED_DEPENDENCIES.check(classes);
     }
 
     @Test
-    void global_doesNotDependOnDomains() {
-        noClasses()
-                .that()
-                .resideInAPackage("..global..")
-                .should()
-                .dependOnClassesThat(
-                        resideInAPackage(ROOT + "..")
-                                .and(not(resideInAnyPackage("..global..", ROOT))))
-                .check(classes);
+    void rule02_noCycles() {
+        RULE_2_NO_CYCLES.check(classes);
     }
 
     @Test
-    void controllers_areNamedAndAnnotated() {
-        classes()
-                .that()
-                .resideInAPackage("..controller..")
-                .and()
-                .areAnnotatedWith(RestController.class)
-                .should()
-                .haveSimpleNameEndingWith("Controller")
-                .check(classes);
+    void rule03_coreDoesNotImportWebRealtimeBatchInfra() {
+        RULE_3_CORE_DOES_NOT_KNOW_OUTER_LAYERS.check(classes);
     }
 
     @Test
-    void services_areNamedAndTransactional() {
-        classes()
-                .that()
-                .resideInAPackage("..service..")
-                .and()
-                .areAnnotatedWith(Service.class)
-                .should()
-                .haveSimpleNameEndingWith("Service")
-                .andShould()
-                .beAnnotatedWith(Transactional.class)
-                .check(classes);
+    void rule04_storagePortsUsedOnlyByOwnerAndItsInfra() {
+        RULE_4_STORAGE_PORTS_STAY_INSIDE.check(classes);
     }
 
     @Test
-    void repositories_areNamed() {
-        classes()
-                .that()
-                .resideInAPackage("..repository..")
-                .and()
-                .areInterfaces()
-                .should()
-                .haveSimpleNameEndingWith("Repository")
-                .check(classes);
+    void rule05_noForeignEntities() {
+        RULE_5_NO_FOREIGN_ENTITIES.check(classes);
     }
 
     @Test
-    void dtos_areRecords() {
-        classes().that().resideInAPackage("..dto..").should().beRecords().check(classes);
+    void rule06_commonHoldsOnlyPlainTypes() {
+        RULE_6_COMMON_STAYS_PLAIN.check(classes);
     }
 
     @Test
-    void entities_haveNoSetters() {
-        noMethods()
-                .that()
-                .areDeclaredInClassesThat()
-                .resideInAPackage("..entity..")
-                .should()
-                .haveNameStartingWith("set")
-                .check(classes);
+    void rule07_liveMessagesStayInParent() {
+        RULE_7_LIVE_MESSAGES_STAY_INSIDE.check(classes);
     }
 
+    @Test
+    void rule08_domainDoesNotImportOperator() {
+        RULE_8_DOMAIN_DOES_NOT_KNOW_OPERATOR.check(classes);
+    }
+
+    @Test
+    void rule09_entitiesHaveNoPublicSetters() {
+        RULE_9_ENTITIES_HAVE_NO_PUBLIC_SETTERS.check(classes);
+    }
+
+    @Test
+    void rule10_entitiesAndValueObjectsHaveNoPublicFields() {
+        RULE_10_NO_PUBLIC_FIELDS.check(classes);
+    }
+
+    /** 13.1 서비스 의존: 생성자 주입만(필드 주입 금지). 설계 규칙 10개 밖의 공통 코딩 규칙. */
     @Test
     void generalCodingRules() {
         NO_CLASSES_SHOULD_USE_FIELD_INJECTION.check(classes);
