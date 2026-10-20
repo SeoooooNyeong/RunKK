@@ -11,6 +11,7 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Google Play 서비스 Wearable API로 [WearDataLayer]를 구현한다(D-20).
@@ -44,12 +45,17 @@ class PlayServicesWearDataLayer @Inject constructor(@ApplicationContext context:
         true
     }
 
+    /** 제한 시간 안에 끝나지 않거나 실패하면 [fallback]. 늦은 Play 서비스가 부르는 쪽을 붙잡지 않게 한다. */
     private suspend fun <T> attempt(fallback: T, block: suspend () -> T): T = try {
-        block()
+        withTimeoutOrNull(CALL_TIMEOUT_MILLIS) { block() } ?: fallback
     } catch (e: CancellationException) {
         throw e
     } catch (_: Exception) {
         // ApiException(Play 서비스 없음·연결 끊김 등). 부르는 쪽(PhoneLink)이 다시 시도한다.
         fallback
+    }
+
+    private companion object {
+        const val CALL_TIMEOUT_MILLIS = 10_000L
     }
 }

@@ -9,6 +9,7 @@ import java.time.Clock
 import java.time.Instant
 import java.time.ZoneId
 import java.time.ZoneOffset
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -75,6 +76,9 @@ class FakeWearDataLayer : WearDataLayer {
         }
     var failPutData: Boolean = false
     var failSendMessage: Boolean = false
+
+    /** 있으면 putData가 이 신호를 받을 때까지 멈춘다(Play 서비스 지연 흉내). */
+    var putGate: CompletableDeferred<Unit>? = null
     val sentMessages = mutableListOf<Triple<String, String, ByteArray>>()
     val putItems = mutableListOf<Pair<String, ByteArray>>()
     val deliveredItems = mutableListOf<Pair<String, ByteArray>>()
@@ -90,6 +94,7 @@ class FakeWearDataLayer : WearDataLayer {
     }
 
     override suspend fun putData(path: String, data: ByteArray): Boolean {
+        putGate?.await()
         if (failPutData) return false
         putItems += path to data
         if (nodes.isNotEmpty()) syncData()

@@ -12,6 +12,7 @@ import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -24,8 +25,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.SerializationException
 
 /**
@@ -36,6 +35,8 @@ import kotlinx.serialization.SerializationException
  * - 워치 → 폰: 시작 요청(MessageClient, [WearPaths.START_REQUEST], FR-183)과
  *   심박 묶음(DataClient, [WearPaths.HEART_RATE_BATCH] 아래 묶음마다 다른 경로, FR-043, NFR-032).
  *
+ * 수신(메시지·심박)은 상태만 바꾸고 바로 돌아오며, 전송은 따로 도는 코루틴이 맡는다.
+ * 그래서 Data Layer가 늦어져도 철회 메시지 처리와 심박 수신이 막히지 않는다.
  * 워치는 기록을 만들지 않는다(C-002). 심박은 폰에 넘길 때까지 메모리에만 잠깐 둔다.
  */
 @Singleton
@@ -45,15 +46,24 @@ class PhoneLink @Inject constructor(
     private val clock: Clock,
     private val scope: CoroutineScope
 ) {
+    /** 아래 가변 상태(허용 여부·허용 세대·보내지 않은 심박·감시 작업)는 모두 이 잠금 안에서만 읽고 쓴다. */
     private val lock = Any()
-    private val flushMutex = Mutex()
     private var started = false
     private var collectionAllowed = false
+
+    /** 허용이 거짓 → 참으로 바뀐 시각. 그 전에 잰 심박(철회 전 값)은 다시 허용되어도 보내지 않는다. */
+    private var allowedSinceMillis = Long.MAX_VALUE
+
+    /** 철회될 때마다 늘린다. 꺼낸 묶음을 보내기 직전에 같은 세대인지 확인한다. */
+    private var allowGeneration = 0L
     private var batchSequence = 0L
     private var silenceWatchdog: Job? = null
 
     /** 아직 폰에 넘기지 않은 심박(측정 순서). */
-    private val pending = ArrayList<HeartRateBatchMessage.Sample>()
+    private val pending = ArrayDeque<HeartRateBatchMessage.Sample>()
+
+    /** 전송 요청 신호. 여러 번 와도 한 번 보내면 충분하다. */
+    private val flushRequests = Channel<Unit>(Channel.CONFLATED)
 
     private val _displays = MutableSharedFlow<WatchDisplayMessage>(
         replay = 1,
@@ -63,6 +73,11 @@ class PhoneLink @Inject constructor(
 
     /** 폰이 보낸 표시 정보(진행 지표·오늘 계획·허용 플래그·안내). 마지막 한 건을 새 구독자에게 다시 준다. */
     val displays: Flow<WatchDisplayMessage> = _displays.asSharedFlow()
+
+    private val _lastDisplayAtMillis = MutableStateFlow<Long?>(null)
+
+    /** 마지막 표시 정보를 받은 시각. 다시 만든 화면이 지난 표시를 새것으로 보지 않게 한다. */
+    val lastDisplayAtMillis: StateFlow<Long?> = _lastDisplayAtMillis.asStateFlow()
 
     private val _phoneConnected = MutableStateFlow(false)
 
@@ -79,7 +94,7 @@ class PhoneLink @Inject constructor(
     /** 워치가 마지막으로 잰 정상 심박(화면 표시용). 수집 금지가 오면 지운다. */
     val latestHeartRate: StateFlow<HeartRateBatchMessage.Sample?> = _latestHeartRate.asStateFlow()
 
-    /** 수신·수집·연결 확인·주기 전송을 시작한다. 앱 시작 때 한 번 부르고, 거듭 불러도 한 번만 돈다. */
+    /** 수신·수집·전송·연결 확인을 시작한다. 앱 시작 때 한 번 부르고, 거듭 불러도 한 번만 돈다. */
     fun start() {
         synchronized(lock) {
             if (started) return
@@ -87,16 +102,17 @@ class PhoneLink @Inject constructor(
         }
         scope.launch { dataLayer.messages.collect { onMessage(it) } }
         scope.launch { collector.samples.collect { onSample(it) } }
+        scope.launch { for (request in flushRequests) flush() }
         scope.launch {
             while (isActive) {
-                refreshConnection()
-                delay(CONNECTION_POLL_MILLIS)
+                delay(FLUSH_INTERVAL_MILLIS)
+                flushRequests.trySend(Unit)
             }
         }
         scope.launch {
             while (isActive) {
-                delay(FLUSH_INTERVAL_MILLIS)
-                flush()
+                refreshConnection()
+                delay(CONNECTION_POLL_MILLIS)
             }
         }
     }
@@ -125,13 +141,14 @@ class PhoneLink @Inject constructor(
     /** OS 심박 권한 결과가 바뀌었다(권한 창 닫힘, 화면 복귀). */
     fun onHeartRatePermissionChanged() = collector.onPermissionChanged()
 
-    private suspend fun onMessage(message: WearMessage) {
+    private fun onMessage(message: WearMessage) {
         if (message.path != WearPaths.WATCH_DISPLAY) return
         val display = decodeOrNull(message.data) ?: return
         _phoneConnected.value = true
         applyCollectionRules(display)
-        _displays.emit(display)
-        if (!display.running) flush()
+        _lastDisplayAtMillis.value = clock.millis()
+        _displays.tryEmit(display)
+        if (!display.running) flushRequests.trySend(Unit)
     }
 
     private fun decodeOrNull(bytes: ByteArray): WatchDisplayMessage? = try {
@@ -146,11 +163,15 @@ class PhoneLink @Inject constructor(
     private fun applyCollectionRules(display: WatchDisplayMessage) {
         val allowed = display.heartRateCollectionAllowed
         synchronized(lock) {
+            if (allowed && !collectionAllowed) allowedSinceMillis = clock.millis()
+            if (!allowed) {
+                if (collectionAllowed) allowGeneration++
+                pending.clear()
+                _latestHeartRate.value = null
+            }
             collectionAllowed = allowed
-            if (!allowed) pending.clear()
         }
         collector.allow(allowed)
-        if (!allowed) _latestHeartRate.value = null
         if (display.running && allowed) {
             collector.start()
             restartSilenceWatchdog()
@@ -167,7 +188,7 @@ class PhoneLink @Inject constructor(
             silenceWatchdog = scope.launch {
                 delay(MAX_SILENT_RUN_MILLIS)
                 collector.stop()
-                flush()
+                flushRequests.trySend(Unit)
             }
         }
     }
@@ -179,32 +200,48 @@ class PhoneLink @Inject constructor(
         }
     }
 
-    private suspend fun onSample(heartRate: WatchHeartRate) {
+    /** 허용된 동안 잰 심박만 쌓는다. 전송은 기다리지 않고 신호만 보낸다. */
+    private fun onSample(heartRate: WatchHeartRate) {
         val sample = heartRate.toContract()
         val full = synchronized(lock) {
-            if (!collectionAllowed) return
-            pending += sample
+            if (!collectionAllowed || sample.measuredAtEpochMillis < allowedSinceMillis) return
+            pending.addLast(sample)
+            trimPendingLocked()
+            if (sample.status == HeartRateBatchMessage.Status.OK) _latestHeartRate.value = sample
             pending.size >= BATCH_SIZE
         }
-        if (sample.status == HeartRateBatchMessage.Status.OK) _latestHeartRate.value = sample
-        if (full) flush()
+        if (full) flushRequests.trySend(Unit)
     }
 
-    /** 보내지 않은 심박을 한 묶음으로 넘긴다. 실패하면 앞에 되돌려 다음 전송에 함께 보낸다(누락 0, NFR-032). */
+    /**
+     * 보내지 않은 심박을 [MAX_BATCH_SAMPLES]개씩 묶어 넘긴다(DataItem 크기 제한 100KB). 꺼낸 뒤 철회되었으면 보내지 않는다.
+     * 저장에 실패하면 앞에 되돌려 다음 전송에 함께 보낸다(누락 0, NFR-032). 전송 코루틴 하나만 부른다.
+     */
     private suspend fun flush() {
-        flushMutex.withLock {
-            val batch = synchronized(lock) {
+        while (true) {
+            val (batch, generation) = synchronized(lock) {
                 if (pending.isEmpty()) return
-                val taken = pending.toList()
-                pending.clear()
-                taken
+                val taken = List(minOf(pending.size, MAX_BATCH_SAMPLES)) { pending.removeFirst() }
+                taken to allowGeneration
             }
+            if (isRevoked(generation)) return
             if (!sendHeartRates(HeartRateBatchMessage(batch))) {
                 synchronized(lock) {
-                    if (collectionAllowed) pending.addAll(0, batch)
+                    if (generation != allowGeneration || !collectionAllowed) return
+                    batch.asReversed().forEach { pending.addFirst(it) }
+                    trimPendingLocked()
                 }
+                return
             }
         }
+    }
+
+    private fun isRevoked(generation: Long): Boolean =
+        synchronized(lock) { generation != allowGeneration || !collectionAllowed }
+
+    /** 오래 보내지 못하면 메모리를 지키려 가장 오래된 심박부터 버린다. */
+    private fun trimPendingLocked() {
+        while (pending.size > MAX_PENDING_SAMPLES) pending.removeFirst()
     }
 
     private suspend fun refreshConnection(): List<String> {
@@ -234,6 +271,12 @@ class PhoneLink @Inject constructor(
 
         /** 러닝 중 표시가 이만큼 오지 않으면 수집을 멈춘다. */
         const val MAX_SILENT_RUN_MILLIS = 30 * 60 * 1_000L
+
+        /** 묶음 하나에 넣는 최대 개수(약 20KB, DataItem 100KB 제한 안). */
+        const val MAX_BATCH_SAMPLES = 300
+
+        /** 보내지 못한 심박 상한(1초 1건 기준 3시간). DataClient는 끊겨도 저장되므로 보통은 닿지 않는다. */
+        const val MAX_PENDING_SAMPLES = 3 * 60 * 60
 
         private const val DISPLAY_BUFFER = 8
     }

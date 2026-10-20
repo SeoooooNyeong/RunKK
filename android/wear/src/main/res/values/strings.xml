@@ -3,6 +3,7 @@
     <string name="app_name">RunKK</string>
     <string name="phone_connected">폰 연결됨</string>
     <string name="phone_disconnected">폰 연결 안 됨</string>
+    <string name="phone_not_connected">폰과 연결 필요</string>
     <string name="today_plan">오늘 계획</string>
     <string name="no_today_plan">오늘 계획 없음</string>
     <string name="plan_target_pace">목표 %1$s</string>

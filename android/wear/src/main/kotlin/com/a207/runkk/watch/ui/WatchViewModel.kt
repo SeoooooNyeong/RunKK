@@ -28,7 +28,7 @@ class WatchViewModel @Inject constructor(private val phoneLink: PhoneLink, priva
     private data class Received(val display: WatchDisplayMessage, val atMillis: Long)
 
     private data class LocalEvents(
-        val notice: String? = null,
+        val notice: WatchNotice? = null,
         val noticeAtMillis: Long = 0,
         val startRequestedAtMillis: Long? = null
     )
@@ -68,7 +68,10 @@ class WatchViewModel @Inject constructor(private val phoneLink: PhoneLink, priva
         viewModelScope.launch { phoneLink.displays.collect { onDisplay(it) } }
     }
 
-    /** 시작 버튼(FR-183). 폰과 연결되지 않았으면 "폰과 연결 필요"를 보인다. 측정은 폰이 시작한다(C-002). */
+    /**
+     * 시작 버튼(FR-183). 폰과 연결되지 않았으면 [WatchNotice.PhoneNotConnected]("폰과 연결 필요")를 보인다.
+     * 측정은 폰이 시작한다(C-002).
+     */
     fun onStartTapped() {
         events.update { it.copy(startRequestedAtMillis = clock.millis(), notice = null) }
         viewModelScope.launch {
@@ -76,7 +79,7 @@ class WatchViewModel @Inject constructor(private val phoneLink: PhoneLink, priva
                 events.update {
                     it.copy(
                         startRequestedAtMillis = null,
-                        notice = NOT_CONNECTED_NOTICE,
+                        notice = WatchNotice.PhoneNotConnected,
                         noticeAtMillis = clock.millis()
                     )
                 }
@@ -87,13 +90,19 @@ class WatchViewModel @Inject constructor(private val phoneLink: PhoneLink, priva
     /** OS 심박 권한 창이 닫혔거나 화면으로 돌아왔다. */
     fun onPermissionResult() = phoneLink.onHeartRatePermissionChanged()
 
+    /** 받은 시각은 PhoneLink가 찍은 값을 쓴다. 화면을 다시 만들 때 다시 받은 지난 표시를 새것으로 보지 않는다. */
     private fun onDisplay(display: WatchDisplayMessage) {
-        val now = clock.millis()
-        received.value = Received(display, now)
+        val receivedAt = phoneLink.lastDisplayAtMillis.value ?: clock.millis()
+        received.value = Received(display, receivedAt)
+        val phoneNotice = display.notice
         events.update { current ->
             when {
-                display.notice != null ->
-                    current.copy(notice = display.notice, noticeAtMillis = now, startRequestedAtMillis = null)
+                phoneNotice != null ->
+                    current.copy(
+                        notice = WatchNotice.FromPhone(phoneNotice),
+                        noticeAtMillis = receivedAt,
+                        startRequestedAtMillis = null
+                    )
 
                 display.running -> current.copy(startRequestedAtMillis = null)
 
@@ -140,9 +149,6 @@ class WatchViewModel @Inject constructor(private val phoneLink: PhoneLink, priva
 
         /** 시작 요청 뒤 폰의 응답을 기다리는 시간. */
         const val START_PENDING_MILLIS = 10_000L
-
-        /** FR-183 "연결되어 있지 않으면 거부하고 '폰과 연결 필요'를 보인다". */
-        const val NOT_CONNECTED_NOTICE = "폰과 연결 필요"
 
         private const val TICK_MILLIS = 1_000L
         private const val STOP_TIMEOUT_MILLIS = 5_000L

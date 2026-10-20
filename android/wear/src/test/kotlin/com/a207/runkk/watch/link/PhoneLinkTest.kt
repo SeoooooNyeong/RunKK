@@ -19,6 +19,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
@@ -195,8 +196,10 @@ class PhoneLinkTest {
         harness()
         receive(display())
 
-        repeat(PhoneLink.BATCH_SIZE * 2) { sensor.emit(ok(T0 + it * 1_000L, 150)) }
-        runCurrent()
+        repeat(2) { round ->
+            repeat(PhoneLink.BATCH_SIZE) { sensor.emit(ok(T0 + round * 100_000L + it * 1_000L, 150)) }
+            runCurrent()
+        }
 
         assertEquals(2, dataLayer.putItems.size)
         assertEquals(2, dataLayer.putItems.map { it.first }.toSet().size)
@@ -354,5 +357,86 @@ class PhoneLinkTest {
 
         assertFalse(h.link.heartRatePermissionNeeded.value)
         assertEquals(1, sensor.subscribers)
+    }
+
+    @Test
+    fun `전송이 늦어져도 심박 수신과 다음 메시지 처리는 막히지 않는다`() = runTest {
+        val h = harness()
+        receive(display())
+        dataLayer.putGate = CompletableDeferred()
+        repeat(PhoneLink.BATCH_SIZE) { sensor.emit(ok(T0 + it * 1_000L, 140)) }
+        runCurrent()
+
+        sensor.emit(ok(T0 + 50_000, 171))
+        runCurrent()
+        assertEquals(Sample(T0 + 50_000, 171, Status.OK), h.link.latestHeartRate.value)
+
+        receive(display(allowed = false))
+        assertEquals(0, sensor.subscribers)
+        assertEquals(HeartRateCollector.State.BLOCKED, h.collector.state.value)
+    }
+
+    @Test
+    fun `철회된 뒤 다시 허용되면 철회 전에 잰 심박은 보내지 않는다`() = runTest {
+        harness()
+        receive(display(allowed = true))
+        advanceTimeBy(10_000)
+        receive(display(allowed = false))
+        advanceTimeBy(10_000)
+        receive(display(allowed = true))
+
+        sensor.emit(ok(T0 + 5_000, 140))
+        sensor.emit(ok(T0 + testScheduler.currentTime, 150))
+        advanceTimeBy(PhoneLink.FLUSH_INTERVAL_MILLIS + 1)
+        runCurrent()
+
+        assertEquals(listOf(Sample(T0 + 20_000, 150, Status.OK)), deliveredSamples())
+    }
+
+    @Test
+    fun `보내지 못한 심박은 상한까지만 두고 오래된 것부터 버린다`() = runTest {
+        harness()
+        receive(display())
+        dataLayer.failPutData = true
+        val total = PhoneLink.MAX_PENDING_SAMPLES + 5
+        repeat(total) { sensor.emit(ok(T0 + it.toLong(), 140)) }
+        runCurrent()
+
+        dataLayer.failPutData = false
+        advanceTimeBy(PhoneLink.FLUSH_INTERVAL_MILLIS + 1)
+        runCurrent()
+
+        val delivered = deliveredSamples()
+        assertEquals(PhoneLink.MAX_PENDING_SAMPLES, delivered.size)
+        assertEquals(T0 + 5, delivered.minOf { it.measuredAtEpochMillis })
+    }
+
+    @Test
+    fun `표시 정보를 받은 시각을 알린다`() = runTest {
+        val h = harness()
+        assertNull(h.link.lastDisplayAtMillis.value)
+        advanceTimeBy(2_000)
+
+        receive(display())
+
+        assertEquals(T0 + 2_000, h.link.lastDisplayAtMillis.value)
+    }
+
+    @Test
+    fun `밀린 심박은 묶음 상한 크기로 나눠 보내고 하나도 빠뜨리지 않는다`() = runTest {
+        harness()
+        receive(display())
+        dataLayer.failPutData = true
+        val total = PhoneLink.MAX_BATCH_SAMPLES * 2 + 7
+        repeat(total) { sensor.emit(ok(T0 + it.toLong(), 140)) }
+        runCurrent()
+
+        dataLayer.failPutData = false
+        advanceTimeBy(PhoneLink.FLUSH_INTERVAL_MILLIS + 1)
+        runCurrent()
+
+        val sizes = dataLayer.putItems.map { HeartRateBatchMessage.decode(it.second).samples.size }
+        assertTrue(sizes.all { it <= PhoneLink.MAX_BATCH_SAMPLES })
+        assertEquals(total, deliveredSamples().map { it.measuredAtEpochMillis }.toSet().size)
     }
 }

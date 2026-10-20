@@ -46,12 +46,13 @@ class WatchViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun TestScope.viewModel(): WatchViewModel {
-        val clock = SchedulerClock(testScheduler)
+    private fun TestScope.link(): PhoneLink {
         val collector = HeartRateCollector(sensor, permission, backgroundScope)
-        val link = PhoneLink(dataLayer, collector, clock, backgroundScope)
-        link.start()
-        val viewModel = WatchViewModel(link, clock)
+        return PhoneLink(dataLayer, collector, SchedulerClock(testScheduler), backgroundScope).also { it.start() }
+    }
+
+    private fun TestScope.viewModel(link: PhoneLink = link()): WatchViewModel {
+        val viewModel = WatchViewModel(link, SchedulerClock(testScheduler))
         backgroundScope.launch { viewModel.uiState.collect {} }
         runCurrent()
         return viewModel
@@ -149,7 +150,7 @@ class WatchViewModelTest {
         runCurrent()
 
         val state = vm.uiState.value
-        assertEquals(WatchViewModel.NOT_CONNECTED_NOTICE, state.notice)
+        assertEquals(WatchNotice.PhoneNotConnected, state.notice)
         assertFalse(state.startPending)
         assertTrue(dataLayer.sentMessages.isEmpty())
     }
@@ -189,7 +190,7 @@ class WatchViewModelTest {
         runCurrent()
 
         receive(display(running = false, notice = "폰에서 러닝 화면을 여세요"))
-        assertEquals("폰에서 러닝 화면을 여세요", vm.uiState.value.notice)
+        assertEquals(WatchNotice.FromPhone("폰에서 러닝 화면을 여세요"), vm.uiState.value.notice)
         assertFalse(vm.uiState.value.startPending)
 
         advanceTimeBy(WatchViewModel.NOTICE_MILLIS + 1_000)
@@ -238,5 +239,18 @@ class WatchViewModelTest {
 
         assertFalse(vm.uiState.value.heartRatePermissionNeeded)
         assertEquals(1, sensor.subscribers)
+    }
+
+    @Test
+    fun `화면을 다시 만들어도 이미 지난 안내와 끊김을 새것처럼 보이지 않는다`() = runTest {
+        val link = link()
+        runCurrent()
+        receive(display(running = true, notice = "이미 측정 중이에요"))
+        advanceTimeBy(WatchViewModel.NOTICE_MILLIS * 2)
+
+        val vm = viewModel(link)
+
+        assertNull(vm.uiState.value.notice)
+        assertTrue(vm.uiState.value.linkLost)
     }
 }

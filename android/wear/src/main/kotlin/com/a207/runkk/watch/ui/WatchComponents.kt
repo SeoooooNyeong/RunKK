@@ -16,11 +16,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material3.Text
+import com.a207.runkk.watch.R
 
 /** 폰 연결 상태 한 줄(점 + 문구). 연결은 라벤더(실시간 상태), 끊김은 보조색. */
 @Composable
@@ -73,10 +75,14 @@ internal fun PillButton(
 
 /** 안내 문구(폰 안내, "폰과 연결 필요"). */
 @Composable
-internal fun NoticeText(notice: String?, modifier: Modifier = Modifier) {
-    if (notice == null) return
+internal fun NoticeText(notice: WatchNotice?, modifier: Modifier = Modifier) {
+    val text = when (notice) {
+        null -> return
+        is WatchNotice.FromPhone -> notice.text
+        WatchNotice.PhoneNotConnected -> stringResource(R.string.phone_not_connected)
+    }
     Text(
-        text = notice,
+        text = text,
         modifier = modifier,
         style = labelStyle(color = WatchColors.Lavender, size = 12.sp),
         textAlign = TextAlign.Center
