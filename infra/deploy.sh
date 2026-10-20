@@ -9,7 +9,7 @@ if [ ! -f .env ]; then
   exit 1
 fi
 
-docker compose --env-file .env pull nginx mysql redis
+docker compose --env-file .env pull nginx postgres redis
 docker compose --env-file .env build api
 docker compose --env-file .env up -d --remove-orphans
 docker compose --env-file .env ps

@@ -33,7 +33,7 @@ variables:
 # ---------- 백엔드 ----------
 
 .backend:
-  image: eclipse-temurin:25-jdk
+  image: eclipse-temurin:21-jdk
   tags: [docker]
   interruptible: true
   cache:
@@ -53,7 +53,7 @@ backend:lint:
   script:
     - ./gradlew spotlessCheck
 
-# 단위 테스트 + ArchUnit 패키지 규칙 + Testcontainers(MySQL 8.4, Redis 8) 통합 테스트.
+# 단위 테스트 + ArchUnit 패키지 규칙 + Testcontainers(PostgreSQL 17, Redis 8) 통합 테스트.
 # 러너가 docker.sock을 바인딩하면 Testcontainers가 컨테이너 안에서 호스트 Docker를 찾는다.
 # 컨테이너 포트에 못 붙으면 TESTCONTAINERS_HOST_OVERRIDE에 호스트 docker0 IP(보통 172.17.0.1)를 넣는다.
 backend:test:
