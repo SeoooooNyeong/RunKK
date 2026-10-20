@@ -16,6 +16,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 /** AuthService(SQ-17 로그인 갈래)와 SignUpService(srs.md 6.3 1.2). */
+@org.junit.jupiter.api.DisplayName("로그인·가입 서비스")
 class AuthAndSignUpServiceTest {
 
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");

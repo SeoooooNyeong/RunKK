@@ -14,6 +14,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 /** RunRecord(6.1.3): 수신 검증, judgeValidity(한 번만), 신기록·날씨·심박·파기. PersonalRecordBook.apply(A-05). */
+@org.junit.jupiter.api.DisplayName("러닝 기록·최고 기록·파기 지시 엔티티")
 class RunRecordTest {
 
     private static RunUpload with(

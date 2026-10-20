@@ -20,6 +20,7 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 /** Member 상태도(2.4.9)의 전이·금지 전이와 티어 순번(14장 단위 시험). */
+@org.junit.jupiter.api.DisplayName("회원 엔티티 상태 전이와 티어 순번")
 class MemberTest {
 
     private static final TierBoundary BOUNDARY = new TierBoundary(List.of(30.0, 35.0, 40.0, 45.0));

@@ -13,6 +13,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 /** RunTrack(A-03): 정렬·중복 제거, 최고 시속(불안정 제외), 도달 시간 보간, 누적 거리, 파기, 압축 왕복. */
+@org.junit.jupiter.api.DisplayName("위치 트랙 계산")
 class RunTrackTest {
 
     private static LocationPoint at(int second, double meters, SignalState signal) {

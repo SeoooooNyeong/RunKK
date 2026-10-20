@@ -28,6 +28,7 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
 /** FcmPushGateway(D-43): 키가 없으면 로그만, 있으면 서비스 계정 토큰 → v1 발송, 무효 토큰 수집. */
+@org.junit.jupiter.api.DisplayName("FCM 푸시 게이트웨이")
 class FcmPushGatewayTest {
 
     private static final Clock CLOCK =

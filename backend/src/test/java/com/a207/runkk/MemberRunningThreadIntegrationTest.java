@@ -58,6 +58,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @SpringBootTest(classes = RunkkApplication.class)
 @Import({TestcontainersConfig.class, MemberRunningThreadIntegrationTest.Events.class})
 @ActiveProfiles("integration")
+@org.junit.jupiter.api.DisplayName("스레드 기반 통합 T-1·T-6·T-7")
 class MemberRunningThreadIntegrationTest {
 
     /** 커밋 뒤 RunRecordSaved를 모은다(다음 단계 수신자 자리). */

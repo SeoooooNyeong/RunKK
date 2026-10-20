@@ -21,6 +21,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @SpringBootTest(classes = RunkkApplication.class)
 @Import(TestcontainersConfig.class)
 @ActiveProfiles("integration")
+@org.junit.jupiter.api.DisplayName("PostgreSQL·Redis 컨테이너와 마이그레이션 검증")
 class ContainersIntegrationTest {
 
     @Autowired DataSource dataSource;

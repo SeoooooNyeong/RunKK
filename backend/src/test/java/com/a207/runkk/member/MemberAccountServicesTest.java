@@ -30,6 +30,7 @@ import org.junit.jupiter.api.Test;
  * ProfileService·MemberSettingService·WithdrawalService·TierLevelService·MemberQueryService(인메모리
  * 저장소·고정 시계).
  */
+@org.junit.jupiter.api.DisplayName("프로필·설정·탈퇴·티어·회원 조회 서비스")
 class MemberAccountServicesTest {
 
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");

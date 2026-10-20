@@ -42,6 +42,7 @@ import org.springframework.stereotype.Component;
  * 설계서 13.1 ArchUnit 규칙 10개(14장 "통합 — 구조"). 아직 클래스가 없는 패키지 때문에 규칙이 거짓 실패하지 않도록 모든 규칙에
  * allowEmptyShould(true)를 둔다. 규칙이 실제 위반을 잡는지는 {@link ArchitectureRuleNegativeTest}가 확인한다.
  */
+@org.junit.jupiter.api.DisplayName("ArchUnit 13.1 규칙 10개")
 class ArchitectureTest {
 
     static final String ROOT = "com.a207.runkk";

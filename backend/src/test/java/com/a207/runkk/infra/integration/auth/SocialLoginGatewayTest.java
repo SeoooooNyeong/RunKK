@@ -19,6 +19,7 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
 /** 카카오·구글 로그인 게이트웨이(C-007). 외부 HTTP는 MockRestServiceServer로 흉내 낸다. */
+@org.junit.jupiter.api.DisplayName("카카오·구글 로그인 게이트웨이")
 class SocialLoginGatewayTest {
 
     private final RestClient.Builder builder = RestClient.builder().baseUrl("https://provider");

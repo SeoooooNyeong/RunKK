@@ -39,6 +39,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @SpringBootTest(classes = RunkkApplication.class)
 @Import(TestcontainersConfig.class)
 @ActiveProfiles("integration")
+@org.junit.jupiter.api.DisplayName("러닝 기록·최고 기록·파기 지시 저장소(PostgreSQL)")
 class JpaRunningRepositoriesIntegrationTest {
 
     @Autowired JpaRunRecordRepository records;

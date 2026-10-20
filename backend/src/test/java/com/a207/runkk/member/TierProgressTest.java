@@ -10,6 +10,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 /** TierProgress 순번 규칙(D-37, D-40, 14장 "건너뛴 순번 (2 → 4), (9 → 11), (2 → 11)"). */
+@org.junit.jupiter.api.DisplayName("티어 평가 순번 규칙(D-37, D-40)")
 class TierProgressTest {
 
     @ParameterizedTest(name = "({0}, {1}) → {2}")

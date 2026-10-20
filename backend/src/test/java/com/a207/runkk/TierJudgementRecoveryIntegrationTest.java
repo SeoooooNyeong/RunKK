@@ -36,6 +36,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @SpringBootTest(classes = RunkkApplication.class)
 @Import(TestcontainersConfig.class)
 @ActiveProfiles("integration")
+@org.junit.jupiter.api.DisplayName("건너뛴 티어 판정 지점 복구(T-10)")
 class TierJudgementRecoveryIntegrationTest {
 
     @MockitoSpyBean TierLevelService tierLevelService;

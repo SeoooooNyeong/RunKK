@@ -17,6 +17,7 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
 /** KmaWeatherGateway(FR-184, NFR-038): 격자 변환, 발표 시각, 응답 해석, 실패·키 없음은 비어 있음. */
+@org.junit.jupiter.api.DisplayName("기상청 날씨 게이트웨이")
 class KmaWeatherGatewayTest {
 
     private static final GeoPoint SEOUL = new GeoPoint(37.57, 126.98);

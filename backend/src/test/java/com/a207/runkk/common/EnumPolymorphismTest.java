@@ -14,6 +14,7 @@ import org.junit.jupiter.params.provider.CsvSource;
  * 14장 순서 1 열거형 다형성: RecordVisibility, StandardDistance, Tier, TagOwner, AggregationPeriod,
  * DistanceUnit.
  */
+@org.junit.jupiter.api.DisplayName("common 열거형 다형성")
 class EnumPolymorphismTest {
 
     @ParameterizedTest

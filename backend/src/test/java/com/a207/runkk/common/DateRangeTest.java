@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.time.LocalDate;
 import org.junit.jupiter.api.Test;
 
+@org.junit.jupiter.api.DisplayName("날짜 범위")
 class DateRangeTest {
 
     private static final LocalDate DAY = LocalDate.of(2026, 10, 22);

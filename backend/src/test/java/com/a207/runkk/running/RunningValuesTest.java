@@ -14,6 +14,7 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 /** RunningScore VDOT·역산(A-01), ValidityRule, HeartRateSeries, HeartRateZone, 값 검증(14장 순서 1). */
+@org.junit.jupiter.api.DisplayName("러닝 점수·유효 판정·심박 값")
 class RunningValuesTest {
 
     @Test

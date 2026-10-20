@@ -33,6 +33,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @SpringBootTest(classes = RunkkApplication.class)
 @Import({TestcontainersConfig.class, OperationSettingChangeIntegrationTest.ListenerConfig.class})
 @ActiveProfiles("integration")
+@org.junit.jupiter.api.DisplayName("운영 기준 변경 흐름(T-11 일부)")
 class OperationSettingChangeIntegrationTest {
 
     /** battle.VirtualRecordService 같은 커밋 뒤 수신자를 흉내 낸다. */

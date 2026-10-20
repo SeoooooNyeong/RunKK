@@ -53,6 +53,7 @@ import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.SimpleTransactionStatus;
 
 /** running 응용 서비스(인메모리 저장소·가짜 날씨·고정 시계): A-04 업로드, 파기(SQ-13), 조회 투영, 티어 수신자. */
+@org.junit.jupiter.api.DisplayName("러닝 업로드·파기·조회 서비스와 티어 수신자")
 class RunningServicesTest {
 
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");

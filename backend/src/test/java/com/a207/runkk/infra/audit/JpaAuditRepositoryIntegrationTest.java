@@ -31,6 +31,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @SpringBootTest(classes = RunkkApplication.class)
 @Import(TestcontainersConfig.class)
 @ActiveProfiles("integration")
+@org.junit.jupiter.api.DisplayName("감사 저장소(PostgreSQL)")
 class JpaAuditRepositoryIntegrationTest {
 
     private static final LocalDateTime T = LocalDateTime.of(2026, 10, 20, 12, 0);

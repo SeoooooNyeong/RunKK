@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.Test;
 
+@org.junit.jupiter.api.DisplayName("좌표 하버사인 거리·자릿수 낮추기")
 class GeoPointTest {
 
     @Test

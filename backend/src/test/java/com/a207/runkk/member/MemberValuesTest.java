@@ -13,6 +13,7 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 /** member 값 객체·열거형·입력(6.1.2). */
+@org.junit.jupiter.api.DisplayName("member 값 객체·열거형·입력")
 class MemberValuesTest {
 
     @Test

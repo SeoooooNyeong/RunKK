@@ -28,6 +28,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 /** notification 패키지(설계 6.1.10, 상태도 2.4.14, SQ-14). */
+@org.junit.jupiter.api.DisplayName("알림 저장·발송·조회")
 class NotificationServiceTest {
 
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");

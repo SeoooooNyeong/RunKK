@@ -13,6 +13,7 @@ import java.time.ZoneId;
 import org.junit.jupiter.api.Test;
 
 /** JwtTokenIssuer(D-19): 종류별 검증, 만료, 갱신 토큰 회전·폐기, 서명 키 규칙. */
+@org.junit.jupiter.api.DisplayName("회원 JWT 발급·검증")
 class JwtTokenIssuerTest {
 
     private static final String SECRET = "test-secret-test-secret-test-secret-32";

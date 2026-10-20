@@ -30,6 +30,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @SpringBootTest(classes = RunkkApplication.class)
 @Import(TestcontainersConfig.class)
 @ActiveProfiles("integration")
+@org.junit.jupiter.api.DisplayName("알림·기기 토큰 저장소(PostgreSQL)")
 class JpaNotificationRepositoryIntegrationTest {
 
     private static final LocalDateTime T = LocalDateTime.of(2026, 10, 20, 9, 0);
