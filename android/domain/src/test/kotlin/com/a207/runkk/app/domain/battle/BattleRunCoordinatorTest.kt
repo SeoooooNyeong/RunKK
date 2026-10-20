@@ -215,6 +215,49 @@ class BattleRunCoordinatorTest {
     }
 
     @Test
+    fun `같은 시작 신호가 다시 와도 진행 중인 대결을 닫지 않는다`() = runTest {
+        val (tracker, coordinator) = setUp()
+        coordinator.onMatched(match)
+        runCurrent()
+        val start = BattleStart(battleId = 3, startAt = T0, opponentTrack = null)
+        live.channel.messages.emit(start)
+        runCurrent()
+        coordinator.onStart(start)
+        live.channel.messages.emit(start)
+        runCurrent()
+        assertEquals(1, host.started)
+        assertIs<BattleRunState.Running>(coordinator.state.value)
+        tracker.runTo(1, 0.0)
+        tracker.runTo(2, 3.0)
+        runCurrent()
+        assertEquals(3L, live.channel.sent.last().distanceMeters)
+    }
+
+    @Test
+    fun `채널 연결이 실패하면 앱을 죽이지 않고 그 회를 닫는다`() = runTest {
+        val (_, coordinator) = setUp()
+        live.channel.connectFailure = IllegalStateException("handshake")
+        coordinator.onMatched(match)
+        runCurrent()
+        assertIs<BattleRunState.Finished>(coordinator.state.value)
+        assertTrue(parentJob.children.none())
+    }
+
+    @Test
+    fun `새 회를 열면 측정 중이던 이전 회를 endRun하고 채널을 닫는다`() = runTest {
+        val (tracker, coordinator) = setUp()
+        coordinator.onRecordBattleStart(selfStart)
+        advanceTimeBy(3_001)
+        tracker.runTo(1, 0.0)
+        tracker.runTo(5, 12.0)
+        runCurrent()
+        coordinator.onMatched(match)
+        runCurrent()
+        assertEquals(1, host.stopped)
+        assertEquals(BattleRunState.Matched(match), coordinator.state.value)
+    }
+
+    @Test
     fun `그만두기 - forfeit 보고 뒤 endRun하고 범위를 닫는다`() = runTest {
         val (tracker, coordinator) = setUp()
         coordinator.onRecordBattleStart(selfStart)

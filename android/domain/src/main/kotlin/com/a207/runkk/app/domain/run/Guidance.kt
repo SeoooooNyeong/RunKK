@@ -14,7 +14,10 @@ data class Guidance(val kind: Kind, val message: String, val voice: Boolean, val
         GAP,
         RANK,
         OVERTOOK,
-        OVERTAKEN
+        OVERTAKEN,
+
+        /** 측정 결과를 기기 보관함에 저장하지 못함. */
+        SAVE_FAILED
     }
 
     companion object {

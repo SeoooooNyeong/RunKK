@@ -22,6 +22,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 
@@ -98,13 +99,16 @@ class RunTrackerTest {
     }
 
     @Test
-    fun `저장에 실패하면 전송을 요청하지 않는다`() = runTest {
+    fun `저장에 실패하면 두 번 더 시도하고, 그래도 실패하면 전송 대신 실패 안내를 낸다`() = runTest {
         pending.failWith = AppError.Storage
         val tracker = started()
         tracker.runFor(10)
         tracker.onFinishLongPressed()
+        advanceTimeBy(5_000)
         runCurrent()
+        assertEquals(listOf("pending.save", "pending.save", "pending.save"), log.calls)
         assertEquals(0, scheduler.requests)
+        assertEquals(Guidance.Kind.SAVE_FAILED, output.played.last().kind)
     }
 
     @Test

@@ -26,11 +26,15 @@ constructor(
                 is Outcome.Failure -> UploadOutcome.Failed(run.recordId, uploaded.error)
 
                 is Outcome.Success -> {
-                    val removed = pendingRuns.remove(run.recordId)
                     val receipt = uploaded.value
-                    if (receipt.alreadySaved && run.heartRates.isNotEmpty()) {
-                        remote.appendHeartRates(run.recordId, run.heartRates)
-                    }
+                    // 늦게 붙은 심박을 보내지 못하면 보관함에 남겨 다음 재전송 때 다시 보낸다.
+                    val appended =
+                        if (receipt.alreadySaved && run.heartRates.isNotEmpty()) {
+                            remote.appendHeartRates(run.recordId, run.heartRates)
+                        } else {
+                            Outcome.Success(Unit)
+                        }
+                    val removed = if (appended is Outcome.Failure) appended else pendingRuns.remove(run.recordId)
                     when {
                         removed is Outcome.Failure -> UploadOutcome.Failed(run.recordId, removed.error)
                         receipt.alreadySaved -> UploadOutcome.AlreadySaved(run.recordId)

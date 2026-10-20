@@ -115,9 +115,12 @@ class GapGuidanceRule : GuidanceRule {
 
     override fun check(ctx: GuidanceContext): Guidance? {
         val settings = ctx.guidanceSettings
+        val interval = settings.gapAlertMeters.toLong()
+        // 간격 설정이 바뀌면 이미 지난 지점을 다시 알리지 않도록 지금 거리를 기준점으로 새로 센다.
+        val start = if (crossing == null) Distance.ZERO else ctx.progress.distance
         val points =
-            crossing?.takeIf { it.intervalMeters == settings.gapAlertMeters.toLong() }
-                ?: PointCrossing(settings.gapAlertMeters.toLong()).also { crossing = it }
+            crossing?.takeIf { it.intervalMeters == interval }
+                ?: PointCrossing(interval, start).also { crossing = it }
         val newPoint = points.newPoint(ctx.progress.distance)
         val gap = ctx.gapMeters
         if (newPoint == null || gap == null || !settings.battleVoice) return null
@@ -143,8 +146,8 @@ class RankGuidanceRule : GuidanceRule {
 private const val KILOMETER = 1_000L
 
 /** 누적 거리가 간격의 새 지점(1, 2, …번째)을 지났는지 센다. 여러 지점을 한 번에 넘으면 가장 큰 지점 하나만 알린다. */
-private class PointCrossing(val intervalMeters: Long) {
-    private var lastPoint = 0L
+private class PointCrossing(val intervalMeters: Long, startAt: Distance = Distance.ZERO) {
+    private var lastPoint = startAt.meters / intervalMeters
 
     fun newPoint(distance: Distance): Long? {
         val point = distance.meters / intervalMeters

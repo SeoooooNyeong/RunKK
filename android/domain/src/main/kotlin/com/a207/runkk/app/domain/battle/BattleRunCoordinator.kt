@@ -26,6 +26,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.ContinuationInterceptor
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -35,7 +36,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 
@@ -72,6 +73,9 @@ constructor(
         var channel: LiveChannel? = null
         var track: OpponentTrack? = null
         var gapTracker: GapTracker? = null
+
+        /** 시작 예약을 받았는가. 같은 시작 신호(onStart·BattleStart 재전송)가 두 번 와도 한 번만 시작한다. */
+        var scheduled = false
         var running = false
     }
 
@@ -104,6 +108,7 @@ constructor(
             run.cardKind = s.cardKind
             run.track = s.track
             run.gapTracker = GapTracker(s.distance)
+            run.scheduled = true
             _state.value = BattleRunState.Countdown(s.battleId, clock.instant().plus(RECORD_COUNTDOWN))
             delay(RECORD_COUNTDOWN.toMillis())
             if (begin(run)) battleRepository.markStarted(s.battleId)
@@ -136,7 +141,8 @@ constructor(
     }
 
     private suspend fun start(run: BattleRun, s: BattleStart) {
-        if (run.battleId != s.battleId) return
+        if (run.battleId != s.battleId || run.scheduled) return
+        run.scheduled = true
         s.opponentTrack?.let { table ->
             run.track = OpponentTrack.from(table)
             run.gapTracker = run.distance?.let(::GapTracker)
@@ -148,8 +154,12 @@ constructor(
         begin(run)
     }
 
-    /** 측정을 시작하고 진행값 구독을 붙인다. 시작이 거부되면(위치 동의 없음 등) 이 회를 닫는다. */
+    /**
+     * 측정을 시작하고 진행값 구독을 붙인다. 시작이 거부되면(위치 동의 없음 등) 이 회를 닫는다.
+     * 이미 이 회가 측정 중이면 아무것도 하지 않는다(재전송된 시작 신호로 진행 중인 회를 닫지 않는다).
+     */
     private fun begin(run: BattleRun): Boolean {
+        if (run.running) return false
         val battleId = run.battleId ?: return false
         val spec =
             RunStartSpec(
@@ -165,7 +175,7 @@ constructor(
         run.running = true
         _state.value =
             BattleRunState.Running(battleId, gapMeters = null, opponentDistance = null, lastGuidance = null)
-        run.scope.launch { runTracker.progress.drop(1).collect { progress(run, it) } }
+        run.scope.launch { runTracker.progress.filter { it.elapsed > Duration.ZERO }.collect { progress(run, it) } }
         return true
     }
 
@@ -249,14 +259,29 @@ constructor(
         run.scope.cancel()
     }
 
-    /** 이전 회가 남아 있으면 닫고 새 범위를 만든다. 직렬 디스패처로 한 회의 상태 변경이 겹치지 않는다. */
+    /**
+     * 이전 회가 남아 있으면 정리(측정 중이면 endRun, 채널 닫기, 범위 취소)하고 새 범위를 만든다.
+     * 직렬 디스패처로 한 회의 상태 변경이 겹치지 않는다. 범위 안의 예외(채널 연결 실패 등)는 앱을 죽이지 않고
+     * 그 회를 닫는다.
+     */
     @OptIn(ExperimentalCoroutinesApi::class)
     private fun openRun(): BattleRun {
-        run?.scope?.cancel()
+        run?.let { previous ->
+            run = null
+            if (previous.running) {
+                previous.running = false
+                runTracker.endRun()
+            }
+            previous.channel?.close()
+            previous.scope.cancel()
+        }
         val parent = applicationScope.coroutineContext
         val base = parent[ContinuationInterceptor] as? CoroutineDispatcher ?: Dispatchers.Default
         val dispatcher = base.limitedParallelism(1)
-        return BattleRun(CoroutineScope(parent + SupervisorJob(parent.job) + dispatcher)).also { run = it }
+        lateinit var created: BattleRun
+        val onFailure = CoroutineExceptionHandler { _, _ -> finish(created, status = null) }
+        created = BattleRun(CoroutineScope(parent + SupervisorJob(parent.job) + dispatcher + onFailure))
+        return created.also { run = it }
     }
 
     private fun BattleGuidance.Kind.toGuidance(gapMeters: Int): Guidance = when (this) {

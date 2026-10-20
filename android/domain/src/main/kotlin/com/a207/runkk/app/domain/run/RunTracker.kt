@@ -10,6 +10,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -100,6 +101,9 @@ constructor(
     }
 
     fun tick(now: Instant) {
+        // 설정 사본 읽기는 락 밖에서 한다(위치 콜백을 늦추지 않게).
+        val birthYear = settings.birthYear()
+        val guidanceSettings = settings.guidanceSettings()
         val (progress, guidances, plan) =
             synchronized(lock) {
                 val active = session?.takeIf { it.isActive } ?: return
@@ -110,12 +114,13 @@ constructor(
                         todayPlan = active.spec.todayPlan,
                         gapMeters = active.gapMeters,
                         rank = active.rank,
-                        birthYear = settings.birthYear(),
-                        guidanceSettings = settings.guidanceSettings()
+                        birthYear = birthYear,
+                        guidanceSettings = guidanceSettings
                     )
+                // 잠금 연산의 locked 갱신과 순서가 뒤바뀌지 않도록 방출도 락 안에서 한다.
+                _progress.value = progress
                 Triple(progress, coachingJudge.evaluate(context), active.spec.todayPlan)
             }
-        _progress.value = progress
         guidances.forEach(guidanceOutput::play)
         watch.publish(progress.toWatchDisplay(plan, notice = null))
     }
@@ -124,8 +129,8 @@ constructor(
         synchronized(lock) {
             val active = session?.takeIf { it.state == RunSession.State.RUNNING } ?: return
             active.lock()
+            _progress.update { it.copy(locked = true) }
         }
-        _progress.update { it.copy(locked = true) }
     }
 
     fun onUnlockTapped() {
@@ -137,8 +142,8 @@ constructor(
         synchronized(lock) {
             val active = session?.takeIf { it.state == RunSession.State.LOCKED } ?: return
             active.unlock()
+            _progress.update { it.copy(locked = false) }
         }
-        _progress.update { it.copy(locked = false) }
     }
 
     fun onFinishTapped() {
@@ -152,6 +157,7 @@ constructor(
             synchronized(lock) {
                 val active = session?.takeIf { it.isActive } ?: return FinishOutcome.NotSaved
                 val outcome = active.finish(clock.instant())
+                if (outcome != FinishOutcome.Rejected) rememberFinished(active)
                 outcome to if (outcome == FinishOutcome.Rejected) active.hintUnlock() else null
             }
         if (hint != null) {
@@ -167,7 +173,7 @@ constructor(
         val outcome =
             synchronized(lock) {
                 val active = session?.takeIf { it.isActive } ?: return FinishOutcome.NotSaved
-                active.end(clock.instant())
+                active.end(clock.instant()).also { rememberFinished(active) }
             }
         complete(outcome)
         return outcome
@@ -187,18 +193,30 @@ constructor(
         scope.launch { pendingRuns.appendHeartRates(recordId, samples) }
     }
 
+    /** 방금 끝난 세션의 시간 창을 기억한다. lock 안에서만 부른다. */
+    private fun rememberFinished(finished: RunSession) {
+        val start = finished.startedAt ?: return
+        lastFinished = FinishedWindow(finished.spec.recordId, start, clock.instant())
+    }
+
     private fun complete(outcome: FinishOutcome) {
-        synchronized(lock) {
-            val finished = session ?: return@synchronized
-            val start = finished.startedAt ?: return@synchronized
-            lastFinished = FinishedWindow(finished.spec.recordId, start, clock.instant())
-        }
         measurementHost.stop()
-        if (outcome is FinishOutcome.Saved) {
-            scope.launch {
-                if (pendingRuns.save(outcome.run) is Outcome.Success) uploadScheduler.requestUpload()
+        if (outcome is FinishOutcome.Saved) scope.launch { save(outcome.run) }
+    }
+
+    /**
+     * 기기 보관함에 저장한 뒤 전송을 요청한다. 저장이 실패하면 짧게 두 번 더 시도하고,
+     * 그래도 실패하면 화면 안내로 알린다(조용히 버리지 않는다).
+     */
+    private suspend fun save(run: CompletedRun) {
+        repeat(SAVE_ATTEMPTS) { attempt ->
+            if (pendingRuns.save(run) is Outcome.Success) {
+                uploadScheduler.requestUpload()
+                return
             }
+            if (attempt < SAVE_ATTEMPTS - 1) delay(SAVE_RETRY_MILLIS * (attempt + 1))
         }
+        guidanceOutput.play(Guidance.screenOnly(Guidance.Kind.SAVE_FAILED, "러닝 기록을 기기에 저장하지 못했어요"))
     }
 
     private fun onHeartRates(samples: List<HeartRateSample>) {
@@ -252,6 +270,11 @@ constructor(
         todayPlan = plan,
         notice = notice
     )
+
+    private companion object {
+        const val SAVE_ATTEMPTS = 3
+        const val SAVE_RETRY_MILLIS = 1_000L
+    }
 
     private data class FinishedWindow(val recordId: String, val startedAt: Instant, val endedAt: Instant) {
         fun contains(at: Instant): Boolean = !at.isBefore(startedAt) && !at.isAfter(endedAt)

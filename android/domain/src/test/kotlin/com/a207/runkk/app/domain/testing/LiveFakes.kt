@@ -10,10 +10,12 @@ class FakeLiveChannel : LiveChannel {
     val sent = mutableListOf<ProgressReport>()
     var connects = 0
     var closed = false
+    var connectFailure: Exception? = null
     override val messages = MutableSharedFlow<ServerMessage>()
 
     override suspend fun connect() {
         connects++
+        connectFailure?.let { throw it }
     }
 
     override fun send(m: ProgressReport) {

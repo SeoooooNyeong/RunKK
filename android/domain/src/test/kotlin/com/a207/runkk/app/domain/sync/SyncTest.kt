@@ -39,9 +39,11 @@ private class FakeRunUploadRemote(private val log: CallLog) : RunUploadRemote {
         return results[run.recordId] ?: Outcome.Success(UploadReceipt(run.recordId, alreadySaved = false))
     }
 
+    var appendResult: Outcome<Unit> = Outcome.Success(Unit)
+
     override suspend fun appendHeartRates(recordId: String, samples: List<HeartRateSample>): Outcome<Unit> {
         log.add("remote.appendHeartRates:$recordId")
-        return Outcome.Success(Unit)
+        return appendResult
     }
 }
 
@@ -86,9 +88,19 @@ class SyncTest {
         val outcomes = UploadPendingRunsUseCase(pending, remote)()
         assertEquals(listOf(UploadOutcome.AlreadySaved("a")), outcomes)
         assertEquals(
-            listOf("pending.pending", "remote.upload:a", "pending.remove:a", "remote.appendHeartRates:a"),
+            listOf("pending.pending", "remote.upload:a", "remote.appendHeartRates:a", "pending.remove:a"),
             log.calls
         )
+    }
+
+    @Test
+    fun `늦게 붙은 심박을 보내지 못하면 보관함에 남긴다`() = runTest {
+        pending.runs += run("a", heartRates = listOf(HeartRateSample(T0, 140)))
+        remote.results["a"] = Outcome.Success(UploadReceipt("a", alreadySaved = true))
+        remote.appendResult = Outcome.Failure(AppError.Network)
+        val outcomes = UploadPendingRunsUseCase(pending, remote)()
+        assertEquals(listOf(UploadOutcome.Failed("a", AppError.Network)), outcomes)
+        assertEquals(listOf("a"), pending.runs.map { it.recordId })
     }
 
     @Test

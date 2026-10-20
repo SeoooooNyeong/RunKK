@@ -117,6 +117,16 @@ class GuidanceRuleTest {
     }
 
     @Test
+    fun `Gap - 중간 알림 간격이 바뀌어도 이미 지난 지점을 다시 알리지 않는다`() {
+        val rule = GapGuidanceRule()
+        val every500 = GuidanceSettings.DEFAULT.copy(gapAlertMeters = 500)
+        val every1000 = GuidanceSettings.DEFAULT.copy(gapAlertMeters = 1_000)
+        assertNotNull(rule.check(context(progress(1_500), gapMeters = 5, settings = every500)))
+        assertNull(rule.check(context(progress(1_600), gapMeters = 5, settings = every1000)))
+        assertNotNull(rule.check(context(progress(2_000), gapMeters = 5, settings = every1000)))
+    }
+
+    @Test
     fun `Gap - 음성 꺼짐이거나 격차가 없으면 안내 없음`() {
         val off = GuidanceSettings.DEFAULT.copy(battleVoice = false)
         assertNull(GapGuidanceRule().check(context(progress(1_000), gapMeters = 70, settings = off)))
