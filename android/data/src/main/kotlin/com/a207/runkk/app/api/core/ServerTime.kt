@@ -15,6 +15,8 @@ import java.time.temporal.ChronoUnit
  */
 internal object ServerTime {
     val ZONE: ZoneId = ZoneId.of("Asia/Seoul")
+    private val SECONDS = DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss")
+    private val MILLIS = DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SSS")
 
     fun parse(text: String): Instant {
         val parsed = DateTimeFormatter.ISO_DATE_TIME.parseBest(text, OffsetDateTime::from, LocalDateTime::from)
@@ -24,9 +26,11 @@ internal object ServerTime {
         }
     }
 
-    fun format(instant: Instant): String = LocalDateTime
-        .ofInstant(instant.truncatedTo(ChronoUnit.MILLIS), ZONE)
-        .format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+    /** 초 단위면 "2026-10-20T07:00:00", 밀리초가 있으면 "2026-10-20T07:00:00.500"(자릿수 고정). */
+    fun format(instant: Instant): String {
+        val local = LocalDateTime.ofInstant(instant.truncatedTo(ChronoUnit.MILLIS), ZONE)
+        return local.format(if (local.nano == 0) SECONDS else MILLIS)
+    }
 
     fun parseDate(text: String): LocalDate = LocalDate.parse(text)
 
