@@ -2,6 +2,8 @@ package com.a207.runkk.realtime;
 
 import com.a207.runkk.battle.BattleMessage;
 import com.a207.runkk.battle.BattleMessenger;
+import com.a207.runkk.crew.CrewRunMessage;
+import com.a207.runkk.crew.CrewRunMessenger;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Optional;
@@ -13,12 +15,12 @@ import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 
 /**
- * battle.BattleMessenger의 WebSocket 구현(설계 6.1.13, D-06). 연결이 없거나 보내기에 실패하면 버리지 않고 30초 우편함에 두었다가 재연결
- * 때 LiveSocketHandler가 flush로 보낸다. crew.CrewRunMessenger 구현은 crew 단계에서 더한다.
+ * battle.BattleMessenger·crew.CrewRunMessenger의 WebSocket 구현(설계 6.1.13, D-06). 연결이 없거나 보내기에 실패하면
+ * 버리지 않고 30초 우편함에 두었다가 재연결 때 LiveSocketHandler가 flush로 보낸다.
  */
 @Component
 @ConditionalOnProperty(name = "runkk.live", havingValue = "websocket", matchIfMissing = true)
-public class WebSocketMessenger implements BattleMessenger {
+public class WebSocketMessenger implements BattleMessenger, CrewRunMessenger {
 
     private static final Logger log = LoggerFactory.getLogger(WebSocketMessenger.class);
 
@@ -42,6 +44,17 @@ public class WebSocketMessenger implements BattleMessenger {
 
     @Override
     public void sendAll(Collection<Long> memberIds, BattleMessage m) {
+        String json = serializer.serialize(m);
+        memberIds.forEach(id -> deliver(id, json));
+    }
+
+    @Override
+    public void send(long memberId, CrewRunMessage m) {
+        deliver(memberId, serializer.serialize(m));
+    }
+
+    @Override
+    public void sendAll(Collection<Long> memberIds, CrewRunMessage m) {
         String json = serializer.serialize(m);
         memberIds.forEach(id -> deliver(id, json));
     }

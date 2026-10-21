@@ -20,6 +20,7 @@ management:
 runkk:
   batch:
     battle-tick-enabled: false
+    crew-tick-enabled: false
   embedded-redis:
     enabled: true
     port: ${EMBEDDED_REDIS_PORT:6371}

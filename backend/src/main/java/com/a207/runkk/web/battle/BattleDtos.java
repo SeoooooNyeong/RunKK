@@ -157,7 +157,7 @@ final class BattleDtos {
      * @param opponentReachSeconds 상대 도달 시간(초)
      * @param rows 비교표
      * @param weekly 이번 주 전적
-     * @param rewardPoints 적립 리워드, 아직 없으면 null
+     * @param rewardPoints 이 대결로 적립한 리워드(BATTLE_WIN), 없으면 0
      * @param newRecord 신기록
      */
     record BattleResultResponse(
