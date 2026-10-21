@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -121,6 +122,8 @@ private fun Header(state: RunResultUiState) {
             text = listOfNotNull(state.startedAt?.let(::dateLabel), state.weather).joinToString(" · "),
             style = RunkkTextStyles.Caption,
             color = RunkkColors.TextSecondary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f)
         )
         Text(
@@ -287,7 +290,7 @@ internal fun kindLabel(kind: CardKind?): String = when (kind) {
     CardKind.CREW_RUN -> "크루런"
 }
 
-private val DATE = DateTimeFormatter.ofPattern("M월 d일 (E) HH:mm", Locale.KOREAN)
+private val DATE = DateTimeFormatter.ofPattern("M월 d일 (E)", Locale.KOREAN)
 
 internal fun dateLabel(at: Instant): String = DATE.format(at.atZone(ZoneId.systemDefault()))
 

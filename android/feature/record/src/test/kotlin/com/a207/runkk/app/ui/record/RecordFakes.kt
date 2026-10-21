@@ -104,19 +104,44 @@ class FakeRecordRepository : RecordRepository {
 
     override suspend fun run(recordId: String): Outcome<RecordDetail> = runResult
 
-    override suspend fun growth(period: AggregationPeriod): Outcome<Growth> = unused()
+    var growthResult: Outcome<Growth> = Outcome.Success(sampleGrowth)
+    var reportResult: Outcome<Report> = Outcome.Success(Report("이번 주 3회, 15.2km", null, null))
+    var rankingResult: Outcome<Ranking> = Outcome.Success(sampleRanking)
+    val calls = mutableListOf<String>()
 
-    override suspend fun report(): Outcome<Report> = unused()
+    override suspend fun growth(period: AggregationPeriod): Outcome<Growth> {
+        calls += "growth:$period"
+        return growthResult
+    }
 
-    override suspend fun personalRanking(period: AggregationPeriod): Outcome<Ranking> = unused()
+    override suspend fun report(): Outcome<Report> = reportResult
 
-    override suspend fun crewRanking(period: AggregationPeriod): Outcome<Ranking> = unused()
+    override suspend fun personalRanking(period: AggregationPeriod): Outcome<Ranking> {
+        calls += "personal:$period"
+        return rankingResult
+    }
 
-    override suspend fun setWeeklyGoal(distance: Distance?, runs: Int?): Outcome<Unit> = unused()
+    override suspend fun crewRanking(period: AggregationPeriod): Outcome<Ranking> {
+        calls += "crew:$period"
+        return rankingResult
+    }
 
-    override suspend fun putPlan(date: LocalDate, distance: Distance, pace: Pace?): Outcome<Unit> = unused()
+    override suspend fun setWeeklyGoal(distance: Distance?, runs: Int?): Outcome<Unit> {
+        calls += "weeklyGoal:${distance?.meters}"
+        return Outcome.Success(Unit)
+    }
 
-    override suspend fun planProgress(from: LocalDate, to: LocalDate): Outcome<PlanProgress> = unused()
+    override suspend fun putPlan(date: LocalDate, distance: Distance, pace: Pace?): Outcome<Unit> {
+        calls += "plan:$date=${distance.meters}"
+        return Outcome.Success(Unit)
+    }
+
+    override suspend fun planProgress(from: LocalDate, to: LocalDate): Outcome<PlanProgress> {
+        calls += "progress:$from..$to"
+        return Outcome.Success(
+            PlanProgress(listOf(PlanProgress.Day(from, Distance(5_000), Distance(3_000), Distance(2_000))))
+        )
+    }
 
     override suspend fun todayPlan(): Outcome<TodayPlan?> = unused()
 
@@ -190,3 +215,25 @@ fun eventually(timeoutMillis: Long = 5_000, condition: () -> Boolean) {
         Thread.sleep(10)
     }
 }
+
+val sampleGrowth = Growth(
+    periods = listOf(
+        Growth.PeriodTotal(LocalDate.of(2026, 10, 5), Distance(12_000), 3, Pace(345)),
+        Growth.PeriodTotal(LocalDate.of(2026, 10, 12), Distance(18_500), 4, Pace(338)),
+        Growth.PeriodTotal(LocalDate.of(2026, 10, 19), Distance(15_200), 3, Pace(332))
+    ),
+    bests = mapOf("5K" to Duration.ofSeconds(1_620), "10K" to Duration.ofSeconds(3_480)),
+    longest = Distance(12_300)
+)
+
+val sampleRanking = Ranking(
+    entries = listOf(
+        Ranking.Entry(1, "바람", Distance(48_000)),
+        Ranking.Entry(2, "달리는곰", Distance(41_200)),
+        Ranking.Entry(3, "새벽러너", Distance(39_900))
+    ),
+    mine = Ranking.Entry(2, "달리는곰", Distance(41_200)),
+    gapToNext = Distance(6_800),
+    aggregatedAt = Instant.parse("2026-10-20T15:00:00Z"),
+    notice = null
+)

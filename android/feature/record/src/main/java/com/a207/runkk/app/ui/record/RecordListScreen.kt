@@ -1,6 +1,7 @@
 package com.a207.runkk.app.ui.record
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -275,6 +276,7 @@ private fun RunRow(run: RunSummary, zone: ZoneId, onClick: () -> Unit) {
             .fillMaxWidth()
             .clip(RunkkShapes.Large)
             .background(RunkkColors.Surface)
+            .border(1.dp, RunkkColors.Border, RunkkShapes.Large)
             .clickable(role = Role.Button, onClickLabel = "기록 상세 열기", onClick = onClick)
             .padding(16.dp)
             .semantics(mergeDescendants = true) {},

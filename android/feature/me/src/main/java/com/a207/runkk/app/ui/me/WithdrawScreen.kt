@@ -93,11 +93,11 @@ fun WithdrawScreen(
                         heading()
                     }
                 )
-                RunkkCard {
+                RunkkCard(Modifier.fillMaxWidth()) {
                     Text("7일 안에 지워져요", style = RunkkTextStyles.BodyStrong, color = RunkkColors.Lavender)
                     DELETED.forEach { Text("· $it", style = RunkkTextStyles.Body, color = RunkkColors.TextPrimary) }
                 }
-                RunkkCard {
+                RunkkCard(Modifier.fillMaxWidth()) {
                     Text("남는 것", style = RunkkTextStyles.BodyStrong, color = RunkkColors.TextSecondary)
                     KEPT.forEach { Text("· $it", style = RunkkTextStyles.Body, color = RunkkColors.TextSecondary) }
                 }
