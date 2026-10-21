@@ -39,6 +39,8 @@ class BattleResultAssembler {
                 BattleDtos.Row.of(view.comparison()),
                 view.weekly(),
                 rewardPoints,
-                view.newRecord());
+                view.newRecord(),
+                view.opponentName().value(),
+                view.myRecordId());
     }
 }

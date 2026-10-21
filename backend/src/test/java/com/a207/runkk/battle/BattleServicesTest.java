@@ -22,6 +22,7 @@ import com.a207.runkk.battle.live.CountdownStarted;
 import com.a207.runkk.battle.live.MatchFound;
 import com.a207.runkk.battle.live.OpponentProgress;
 import com.a207.runkk.common.BusinessRuleException;
+import com.a207.runkk.common.DateRange;
 import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.DomainEvent;
@@ -92,6 +93,8 @@ class BattleServicesTest {
     void wire() {
         when(policy.matchCondition()).thenReturn(new MatchCondition(0, Duration.ofSeconds(15)));
         when(members.hasConsent(anyLong(), eq(ConsentItem.LOCATION))).thenReturn(true);
+        when(settings.battleSettingsOf(anyLong()))
+                .thenReturn(com.a207.runkk.member.BattleSettings.defaults());
         when(members.summaries(anyCollection()))
                 .thenAnswer(
                         inv -> {
@@ -114,7 +117,7 @@ class BattleServicesTest {
                         battles, startService, sessions, messenger, notifications, publisher, tx);
         resultService =
                 new BattleResultService(
-                        battles, runs, notifications, publisher, messenger, clock, tx);
+                        battles, runs, members, notifications, publisher, messenger, clock, tx);
     }
 
     private MatchTicket waiting(long memberId, LocalDateTime since) {
@@ -507,6 +510,18 @@ class BattleServicesTest {
             assertThat(view.corrected()).isTrue();
             assertThat(view.comparison().rows()).hasSize(4);
             assertThat(view.weekly().wins()).isEqualTo(1);
+            assertThat(view.myRecordId()).isEqualTo("b");
+            assertThat(view.opponentName().value()).isEqualTo("러너" + ALICE);
+
+            BattleHistoryView history =
+                    new BattleHistoryService(
+                                    battles, members, new InMemoryBattleStores.Celebrities())
+                            .history(
+                                    BOB,
+                                    new DateRange(NOW.toLocalDate(), NOW.toLocalDate()),
+                                    Optional.empty());
+            assertThat(history.entries().get(0).gap()).isEqualTo(Duration.ofSeconds(5));
+            assertThat(history.entries().get(0).sourceLabel()).isNull();
         }
 
         @Test

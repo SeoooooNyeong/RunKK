@@ -2,6 +2,7 @@ package com.a207.runkk.battle;
 
 import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.Distance;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -31,6 +32,8 @@ public record BattleHistoryView(
      * @param distance 대결 거리
      * @param verdict 판정, 보류면 null
      * @param newRecord 신기록 여부
+     * @param gap 기록 차이(본인 도달 시간 − 상대 도달 시간, 음수면 본인이 빠름, FR-101), 어느 쪽이든 도달 시간이 없으면 null
+     * @param sourceLabel 유명인 기록 출처 표기(FR-100), 유명인 대결이 아니거나 기록이 지워졌으면 null
      */
     public record Entry(
             long battleId,
@@ -39,5 +42,7 @@ public record BattleHistoryView(
             DisplayName opponentName,
             Distance distance,
             Verdict verdict,
-            boolean newRecord) {}
+            boolean newRecord,
+            Duration gap,
+            String sourceLabel) {}
 }

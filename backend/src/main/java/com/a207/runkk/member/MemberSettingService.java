@@ -79,6 +79,12 @@ public class MemberSettingService {
         memberRepository.save(member);
     }
 
+    /** 배틀런 설정(기본 대결 거리 포함, FR-109). battle.MatchingService가 매칭 상태와 함께 앱에 준다. */
+    @Transactional(readOnly = true)
+    public BattleSettings battleSettingsOf(long memberId) {
+        return MemberLoader.load(memberRepository, memberId).getSettings().battleSettings();
+    }
+
     /** 문서 주소(FR-018). */
     public LegalDocument legalDocument(DocumentType type) {
         return legalDocumentCatalog.find(type);

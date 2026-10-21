@@ -1,5 +1,6 @@
 package com.a207.runkk.battle;
 
+import com.a207.runkk.common.DisplayName;
 import java.time.Duration;
 import java.util.Optional;
 
@@ -18,6 +19,8 @@ import java.util.Optional;
  * @param comparison 비교표
  * @param weekly 이번 주 전적
  * @param newRecord 나와의 싸움에서 이겨 최고 기록이 바뀌었는가
+ * @param opponentName 상대 표시명(결과 문구 "○○ 님보다 …", FR-093)
+ * @param myRecordId 본인 러닝 기록 ID(기록 카드 FR-068로 가는 길), 아직 없으면 null
  */
 public record BattleResultView(
         long battleId,
@@ -30,7 +33,9 @@ public record BattleResultView(
         boolean corrected,
         ComparisonTable comparison,
         WeeklyRecord weekly,
-        boolean newRecord) {
+        boolean newRecord,
+        DisplayName opponentName,
+        String myRecordId) {
 
     public Optional<Verdict> verdictValue() {
         return Optional.ofNullable(verdict);

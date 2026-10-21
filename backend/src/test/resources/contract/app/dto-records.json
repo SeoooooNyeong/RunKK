@@ -229,6 +229,12 @@
     }, {
       "name" : "newRecord",
       "kind" : "leaf"
+    }, {
+      "name" : "opponentName",
+      "kind" : "leaf"
+    }, {
+      "name" : "recordId",
+      "kind" : "leaf"
     } ],
     "file" : "web/battle/BattleDtos.java"
   },
@@ -301,6 +307,12 @@
     }, {
       "name" : "newRecord",
       "kind" : "leaf"
+    }, {
+      "name" : "gapSeconds",
+      "kind" : "leaf"
+    }, {
+      "name" : "sourceLabel",
+      "kind" : "leaf"
     } ],
     "file" : "web/battle/BattleDtos.java"
   },
@@ -310,6 +322,9 @@
       "kind" : "leaf"
     }, {
       "name" : "distanceMeters",
+      "kind" : "leaf"
+    }, {
+      "name" : "defaultDistanceMeters",
       "kind" : "leaf"
     } ],
     "file" : "web/battle/BattleDtos.java"

@@ -69,6 +69,12 @@ public class BattleController {
                 matchingService.requestMatch(memberId, standard(request.distanceMeters())));
     }
 
+    /** 매칭 대기 상태와 기본 대결 거리(설계 5.7.1에 없어 더한 조회, FR-080·FR-109). */
+    @GetMapping("/match")
+    BattleDtos.MatchAcceptanceResponse matchStatus(@RequestAttribute(MEMBER_ID) long memberId) {
+        return BattleDtos.MatchAcceptanceResponse.of(matchingService.status(memberId));
+    }
+
     @DeleteMapping("/match")
     BattleDtos.MatchAcceptanceResponse cancel(@RequestAttribute(MEMBER_ID) long memberId) {
         return BattleDtos.MatchAcceptanceResponse.of(matchingService.cancel(memberId));

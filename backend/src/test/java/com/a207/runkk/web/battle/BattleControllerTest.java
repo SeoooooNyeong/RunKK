@@ -91,6 +91,31 @@ class BattleControllerTest extends WebTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.waiting").value(false));
         mvc.perform(post("/api/v1/battles/match")).andExpect(status().isUnauthorized());
+        mvc.perform(as(s, get("/api/v1/battles/match")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.waiting").value(false))
+                .andExpect(jsonPath("$.defaultDistanceMeters").value(5_000));
+    }
+
+    @Test
+    @DisplayName("GET /battles/match: 대기 상태와 마지막으로 요청한 대결 거리(기본 대결 거리, FR-080·FR-109)")
+    void matchStatus_remembersLastDistance() throws Exception {
+        Session s = signUp();
+        for (int i = 0; i < 3; i++) {
+            upload(s, 5_000, 1_500);
+        }
+        mvc.perform(
+                        as(s, post("/api/v1/battles/match"))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(distance(3_000)))
+                .andExpect(jsonPath("$.defaultDistanceMeters").value(3_000));
+        mvc.perform(as(s, get("/api/v1/battles/match")))
+                .andExpect(jsonPath("$.waiting").value(true))
+                .andExpect(jsonPath("$.distanceMeters").value(3_000))
+                .andExpect(jsonPath("$.defaultDistanceMeters").value(3_000));
+        mvc.perform(as(s, delete("/api/v1/battles/match")))
+                .andExpect(jsonPath("$.waiting").value(false))
+                .andExpect(jsonPath("$.defaultDistanceMeters").value(3_000));
     }
 
     @Test
@@ -156,7 +181,9 @@ class BattleControllerTest extends WebTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.verdict").value("LOSE"))
                 .andExpect(jsonPath("$.pending").value(false))
-                .andExpect(jsonPath("$.type").value("SELF"));
+                .andExpect(jsonPath("$.type").value("SELF"))
+                .andExpect(jsonPath("$.opponentName").value("10/20의 나"))
+                .andExpect(jsonPath("$.recordId").doesNotExist());
         mvc.perform(as(s, get("/api/v1/battles/history").param("type", "SELF")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.total").value(1))
