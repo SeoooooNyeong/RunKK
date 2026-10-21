@@ -79,12 +79,15 @@ class BatchJobsTest {
         new MemberSchedulingConfig(
                         mock(WithdrawalPurgeJob.class),
                         mock(RevocationPurgeJob.class),
-                        "0 0 3 * * *",
-                        "0 0 3 * * *")
+                        new MemberSchedulingConfig.Schedule("0 0 3 * * *", "0 0 3 * * *"))
                 .configureTasks(registrar);
-        new RunningSchedulingConfig(mock(DisposalJob.class), "0 0 3 * * *")
+        new RunningSchedulingConfig(
+                        mock(DisposalJob.class),
+                        new RunningSchedulingConfig.Schedule("0 0 3 * * *"))
                 .configureTasks(registrar);
-        new NotificationSchedulingConfig(mock(NotificationPurgeJob.class), "0 0 3 * * *")
+        new NotificationSchedulingConfig(
+                        mock(NotificationPurgeJob.class),
+                        new NotificationSchedulingConfig.Schedule("0 0 3 * * *"))
                 .configureTasks(registrar);
         Assertions.assertThat(registrar.getCronTaskList()).hasSize(4);
     }

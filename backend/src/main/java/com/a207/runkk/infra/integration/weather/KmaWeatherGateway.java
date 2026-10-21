@@ -16,7 +16,7 @@ import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -47,11 +47,8 @@ public class KmaWeatherGateway implements WeatherGateway {
     private final String serviceKey;
 
     @Autowired
-    public KmaWeatherGateway(
-            RestClient.Builder builder,
-            @Value("${runkk.weather.kma.base-url}") String baseUrl,
-            @Value("${runkk.weather.kma.service-key:}") String serviceKey) {
-        this(builder.requestFactory(timeouts()).baseUrl(baseUrl).build(), serviceKey);
+    public KmaWeatherGateway(RestClient.Builder builder, Kma kma) {
+        this(builder.requestFactory(timeouts()).baseUrl(kma.baseUrl()).build(), kma.serviceKey());
     }
 
     KmaWeatherGateway(RestClient client, String serviceKey) {
@@ -177,4 +174,13 @@ public class KmaWeatherGateway implements WeatherGateway {
         factory.setReadTimeout(READ_TIMEOUT);
         return factory;
     }
+
+    /**
+     * 기상청 단기예보 연동(runkk.weather.kma.*, 코드 리뷰 2차 L1).
+     *
+     * @param baseUrl runkk.weather.kma.base-url
+     * @param serviceKey runkk.weather.kma.service-key(비면 날씨 없이 저장, FR-184)
+     */
+    @ConfigurationProperties("runkk.weather.kma")
+    public record Kma(String baseUrl, String serviceKey) {}
 }

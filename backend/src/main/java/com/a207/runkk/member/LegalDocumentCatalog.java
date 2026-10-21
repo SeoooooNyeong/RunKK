@@ -2,7 +2,8 @@ package com.a207.runkk.member;
 
 import java.util.EnumMap;
 import java.util.Map;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 /**
@@ -14,11 +15,13 @@ public class LegalDocumentCatalog {
 
     private final Map<DocumentType, String> urls = new EnumMap<>(DocumentType.class);
 
-    public LegalDocumentCatalog(
-            @Value("${runkk.legal.terms-url}") String termsUrl,
-            @Value("${runkk.legal.privacy-policy-url}") String privacyPolicyUrl,
-            @Value("${runkk.legal.location-terms-url}") String locationTermsUrl,
-            @Value("${runkk.legal.help-url}") String helpUrl) {
+    @Autowired
+    public LegalDocumentCatalog(Links links) {
+        this(links.termsUrl(), links.privacyPolicyUrl(), links.locationTermsUrl(), links.helpUrl());
+    }
+
+    LegalDocumentCatalog(
+            String termsUrl, String privacyPolicyUrl, String locationTermsUrl, String helpUrl) {
         urls.put(DocumentType.TERMS, termsUrl);
         urls.put(DocumentType.PRIVACY_POLICY, privacyPolicyUrl);
         urls.put(DocumentType.LOCATION_TERMS, locationTermsUrl);
@@ -28,4 +31,16 @@ public class LegalDocumentCatalog {
     public LegalDocument find(DocumentType type) {
         return new LegalDocument(type, urls.get(type));
     }
+
+    /**
+     * 법정 고지 문서 공개 주소(runkk.legal.*, FR-018, 코드 리뷰 2차 L1).
+     *
+     * @param termsUrl 이용약관
+     * @param privacyPolicyUrl 개인정보 처리방침
+     * @param locationTermsUrl 위치정보 이용약관
+     * @param helpUrl 도움말
+     */
+    @ConfigurationProperties("runkk.legal")
+    public record Links(
+            String termsUrl, String privacyPolicyUrl, String locationTermsUrl, String helpUrl) {}
 }

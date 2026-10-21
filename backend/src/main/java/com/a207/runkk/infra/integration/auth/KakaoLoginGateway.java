@@ -8,7 +8,7 @@ import com.a207.runkk.member.SocialLoginGateway;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.time.Duration;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
@@ -30,11 +30,8 @@ public class KakaoLoginGateway implements SocialLoginGateway {
     private final String appId;
 
     @Autowired
-    public KakaoLoginGateway(
-            RestClient.Builder builder,
-            @Value("${runkk.auth.kakao.base-url}") String baseUrl,
-            @Value("${runkk.auth.kakao.app-id:}") String appId) {
-        this(builder.requestFactory(timeouts()).baseUrl(baseUrl).build(), appId);
+    public KakaoLoginGateway(RestClient.Builder builder, Kakao kakao) {
+        this(builder.requestFactory(timeouts()).baseUrl(kakao.baseUrl()).build(), kakao.appId());
     }
 
     KakaoLoginGateway(RestClient client, String appId) {
@@ -83,4 +80,13 @@ public class KakaoLoginGateway implements SocialLoginGateway {
         factory.setReadTimeout(READ_TIMEOUT);
         return factory;
     }
+
+    /**
+     * 카카오 토큰 확인 연동(runkk.auth.kakao.*, 코드 리뷰 2차 L1).
+     *
+     * @param baseUrl runkk.auth.kakao.base-url
+     * @param appId runkk.auth.kakao.app-id(비면 카카오 로그인 거부)
+     */
+    @ConfigurationProperties("runkk.auth.kakao")
+    public record Kakao(String baseUrl, String appId) {}
 }

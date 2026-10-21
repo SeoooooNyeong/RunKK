@@ -23,7 +23,7 @@ import java.util.Date;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /**
@@ -48,10 +48,12 @@ public class JwtOperatorTokenIssuer implements OperatorTokenIssuer {
     private final MACVerifier verifier;
     private final Clock clock;
 
-    public JwtOperatorTokenIssuer(
-            @Value("${runkk.auth.admin-jwt-secret:}") String secret,
-            @Value("${runkk.auth.jwt-secret:}") String memberSecret,
-            Clock clock) {
+    @Autowired
+    public JwtOperatorTokenIssuer(AuthSecrets secrets, Clock clock) {
+        this(secrets.adminJwtSecret(), secrets.jwtSecret(), clock);
+    }
+
+    JwtOperatorTokenIssuer(String secret, String memberSecret, Clock clock) {
         byte[] key = secretBytes(secret, memberSecret);
         try {
             this.signer = new MACSigner(key);

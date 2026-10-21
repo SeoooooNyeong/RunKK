@@ -5,7 +5,9 @@ import java.time.Duration;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.DefaultValue;
 import org.springframework.stereotype.Component;
 
 /**
@@ -23,11 +25,17 @@ public class AiCommentGenerator implements CommentGenerator {
     private final OperationPolicy policy;
     private final Duration timeout;
 
+    @Autowired
     public AiCommentGenerator(
+            LlmCommentGateway gateway, LlmCallQuota quota, OperationPolicy policy, Ai ai) {
+        this(gateway, quota, policy, ai.commentTimeout());
+    }
+
+    AiCommentGenerator(
             LlmCommentGateway gateway,
             LlmCallQuota quota,
             OperationPolicy policy,
-            @Value("${runkk.ai.comment-timeout:3s}") Duration timeout) {
+            Duration timeout) {
         this.gateway = gateway;
         this.quota = quota;
         this.policy = policy;
@@ -54,4 +62,12 @@ public class AiCommentGenerator implements CommentGenerator {
             return Optional.empty();
         }
     }
+
+    /**
+     * LLM 코멘트 대기 시간(runkk.ai.*, 코드 리뷰 2차 L1).
+     *
+     * @param commentTimeout runkk.ai.comment-timeout(기본 3초, FR-066)
+     */
+    @ConfigurationProperties("runkk.ai")
+    public record Ai(@DefaultValue("3s") Duration commentTimeout) {}
 }

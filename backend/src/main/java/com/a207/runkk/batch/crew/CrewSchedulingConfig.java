@@ -2,7 +2,9 @@ package com.a207.runkk.batch.crew;
 
 import java.time.Duration;
 import java.time.ZoneId;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.context.properties.bind.DefaultValue;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.SchedulingConfigurer;
@@ -17,6 +19,7 @@ import org.springframework.scheduling.support.CronTrigger;
  */
 @Configuration
 @EnableScheduling
+@EnableConfigurationProperties(CrewSchedulingConfig.Schedule.class)
 public class CrewSchedulingConfig implements SchedulingConfigurer {
 
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
@@ -36,20 +39,16 @@ public class CrewSchedulingConfig implements SchedulingConfigurer {
             WeeklyRaceReconcileJob weeklyRaceReconcileJob,
             JoinRequestExpiryJob joinRequestExpiryJob,
             CrewRunLinkReconcileJob linkReconcileJob,
-            @Value("${runkk.batch.crew-tick-enabled:true}") boolean tickEnabled,
-            @Value("${runkk.batch.crew-tick-interval:1s}") Duration tickInterval,
-            @Value("${runkk.batch.weekly-race-reconcile-cron}") String reconcileCron,
-            @Value("${runkk.batch.join-request-expiry-cron}") String expiryCron,
-            @Value("${runkk.batch.crew-run-link-reconcile-cron}") String linkReconcileCron) {
+            Schedule schedule) {
         this.crewRunTickJob = crewRunTickJob;
         this.weeklyRaceReconcileJob = weeklyRaceReconcileJob;
         this.joinRequestExpiryJob = joinRequestExpiryJob;
         this.linkReconcileJob = linkReconcileJob;
-        this.tickEnabled = tickEnabled;
-        this.tickInterval = tickInterval;
-        this.reconcileCron = reconcileCron;
-        this.expiryCron = expiryCron;
-        this.linkReconcileCron = linkReconcileCron;
+        this.tickEnabled = schedule.crewTickEnabled();
+        this.tickInterval = schedule.crewTickInterval();
+        this.reconcileCron = schedule.weeklyRaceReconcileCron();
+        this.expiryCron = schedule.joinRequestExpiryCron();
+        this.linkReconcileCron = schedule.crewRunLinkReconcileCron();
     }
 
     @Override
@@ -64,4 +63,21 @@ public class CrewSchedulingConfig implements SchedulingConfigurer {
         registrar.addCronTask(
                 new CronTask(linkReconcileJob::run, new CronTrigger(linkReconcileCron, SEOUL)));
     }
+
+    /**
+     * 이 패키지 작업의 실행 시각·간격(runkk.batch.*, 코드 리뷰 2차 L1: 값 주입 대신 기능별 설정 record).
+     *
+     * @param crewTickEnabled runkk.batch.crew-tick-enabled
+     * @param crewTickInterval runkk.batch.crew-tick-interval
+     * @param weeklyRaceReconcileCron runkk.batch.weekly-race-reconcile-cron
+     * @param joinRequestExpiryCron runkk.batch.join-request-expiry-cron
+     * @param crewRunLinkReconcileCron runkk.batch.crew-run-link-reconcile-cron
+     */
+    @ConfigurationProperties("runkk.batch")
+    public record Schedule(
+            @DefaultValue("true") boolean crewTickEnabled,
+            @DefaultValue("1s") Duration crewTickInterval,
+            String weeklyRaceReconcileCron,
+            String joinRequestExpiryCron,
+            String crewRunLinkReconcileCron) {}
 }

@@ -83,7 +83,9 @@ class CrewBatchJobsTest {
         new RewardReconcileJob(rewards, clock).run();
 
         ScheduledTaskRegistrar registrar = new ScheduledTaskRegistrar();
-        new RewardSchedulingConfig(mock(RewardReconcileJob.class), "0 10 0 * * *")
+        new RewardSchedulingConfig(
+                        mock(RewardReconcileJob.class),
+                        new RewardSchedulingConfig.Schedule("0 10 0 * * *"))
                 .configureTasks(registrar);
         assertThat(registrar.getCronTaskList()).hasSize(1);
     }
@@ -112,11 +114,12 @@ class CrewBatchJobsTest {
                         reconcile,
                         expiry,
                         links,
-                        true,
-                        Duration.ofSeconds(1),
-                        "0 0 0 * * *",
-                        "0 0 3 * * *",
-                        "0 10 0 * * *")
+                        new CrewSchedulingConfig.Schedule(
+                                true,
+                                Duration.ofSeconds(1),
+                                "0 0 0 * * *",
+                                "0 0 3 * * *",
+                                "0 10 0 * * *"))
                 .configureTasks(on);
         assertThat(on.getFixedDelayTaskList()).hasSize(1);
         assertThat(on.getCronTaskList()).hasSize(3);
@@ -127,16 +130,19 @@ class CrewBatchJobsTest {
                         reconcile,
                         expiry,
                         links,
-                        false,
-                        Duration.ofSeconds(1),
-                        "0 0 0 * * *",
-                        "0 0 3 * * *",
-                        "0 10 0 * * *")
+                        new CrewSchedulingConfig.Schedule(
+                                false,
+                                Duration.ofSeconds(1),
+                                "0 0 0 * * *",
+                                "0 0 3 * * *",
+                                "0 10 0 * * *"))
                 .configureTasks(off);
         assertThat(off.getFixedDelayTaskList()).isEmpty();
 
         ScheduledTaskRegistrar avatar = new ScheduledTaskRegistrar();
-        new AvatarSchedulingConfig(mock(AppearanceRefreshJob.class), "0 0 0 * * *")
+        new AvatarSchedulingConfig(
+                        mock(AppearanceRefreshJob.class),
+                        new AvatarSchedulingConfig.Schedule("0 0 0 * * *"))
                 .configureTasks(avatar);
         assertThat(avatar.getCronTaskList()).hasSize(1);
     }

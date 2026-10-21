@@ -3,7 +3,7 @@ package com.a207.runkk.infra.integration.ai;
 import java.net.http.HttpClient;
 import java.time.Duration;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -29,11 +29,16 @@ public class AiServerClient {
     private final RestClient faces;
 
     @Autowired
+    AiServerClient(Server server) {
+        this(
+                server.serverUrl(),
+                server.internalToken(),
+                server.commentTimeout(),
+                server.faceTimeout());
+    }
+
     AiServerClient(
-            @Value("${runkk.ai.server-url}") String serverUrl,
-            @Value("${runkk.ai.internal-token}") String internalToken,
-            @Value("${runkk.ai.comment-timeout}") Duration commentTimeout,
-            @Value("${runkk.ai.face-timeout}") Duration faceTimeout) {
+            String serverUrl, String internalToken, Duration commentTimeout, Duration faceTimeout) {
         if (commentTimeout.compareTo(AI_COMMENT_ROUTER_LIMIT) <= 0) {
             throw new IllegalStateException(
                     "runkk.ai.comment-timeout은 ai 라우터 제한 2.7초보다 커야 한다: " + commentTimeout);
@@ -68,4 +73,19 @@ public class AiServerClient {
     RestClient faces() {
         return faces;
     }
+
+    /**
+     * ai 서버 연결(runkk.ai.*, D-58, 코드 리뷰 2차 L1).
+     *
+     * @param serverUrl runkk.ai.server-url
+     * @param internalToken runkk.ai.internal-token(X-Internal-Token)
+     * @param commentTimeout runkk.ai.comment-timeout(ai 라우터 제한 2.7초보다 커야 한다)
+     * @param faceTimeout runkk.ai.face-timeout
+     */
+    @ConfigurationProperties("runkk.ai")
+    public record Server(
+            String serverUrl,
+            String internalToken,
+            Duration commentTimeout,
+            Duration faceTimeout) {}
 }

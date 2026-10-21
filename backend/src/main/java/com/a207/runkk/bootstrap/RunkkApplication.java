@@ -5,6 +5,7 @@ import java.time.ZoneId;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
+import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.context.annotation.Bean;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
@@ -14,6 +15,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
  */
 @SpringBootApplication(scanBasePackages = RunkkApplication.BASE_PACKAGE)
 @EntityScan(basePackages = RunkkApplication.BASE_PACKAGE)
+@ConfigurationPropertiesScan(basePackages = RunkkApplication.BASE_PACKAGE)
 @EnableJpaRepositories(basePackages = RunkkApplication.BASE_PACKAGE)
 public class RunkkApplication {
 

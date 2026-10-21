@@ -1,8 +1,10 @@
 package com.a207.runkk.batch.battle;
 
 import java.time.Duration;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.context.properties.bind.DefaultValue;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.SchedulingConfigurer;
@@ -15,6 +17,7 @@ import org.springframework.scheduling.config.ScheduledTaskRegistrar;
  */
 @Configuration
 @EnableScheduling
+@EnableConfigurationProperties(BattleSchedulingConfig.Schedule.class)
 @ConditionalOnProperty(
         name = "runkk.batch.battle-tick-enabled",
         havingValue = "true",
@@ -27,14 +30,11 @@ public class BattleSchedulingConfig implements SchedulingConfigurer {
     private final Duration abandonInterval;
 
     public BattleSchedulingConfig(
-            BattleTickJob battleTickJob,
-            AbandonedBattleJob abandonedBattleJob,
-            @Value("${runkk.batch.battle-tick-interval:1s}") Duration interval,
-            @Value("${runkk.batch.battle-abandon-interval:1m}") Duration abandonInterval) {
+            BattleTickJob battleTickJob, AbandonedBattleJob abandonedBattleJob, Schedule schedule) {
         this.battleTickJob = battleTickJob;
         this.abandonedBattleJob = abandonedBattleJob;
-        this.interval = interval;
-        this.abandonInterval = abandonInterval;
+        this.interval = schedule.battleTickInterval();
+        this.abandonInterval = schedule.battleAbandonInterval();
     }
 
     @Override
@@ -42,4 +42,15 @@ public class BattleSchedulingConfig implements SchedulingConfigurer {
         registrar.addFixedDelayTask(battleTickJob::run, interval);
         registrar.addFixedDelayTask(abandonedBattleJob::run, abandonInterval);
     }
+
+    /**
+     * 이 패키지 작업의 실행 시각·간격(runkk.batch.*, 코드 리뷰 2차 L1: 값 주입 대신 기능별 설정 record).
+     *
+     * @param battleTickInterval runkk.batch.battle-tick-interval
+     * @param battleAbandonInterval runkk.batch.battle-abandon-interval
+     */
+    @ConfigurationProperties("runkk.batch")
+    public record Schedule(
+            @DefaultValue("1s") Duration battleTickInterval,
+            @DefaultValue("1m") Duration battleAbandonInterval) {}
 }

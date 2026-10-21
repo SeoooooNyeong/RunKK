@@ -51,8 +51,8 @@ class BattleTickJobTest {
         new BattleSchedulingConfig(
                         mock(BattleTickJob.class),
                         mock(AbandonedBattleJob.class),
-                        Duration.ofSeconds(1),
-                        Duration.ofMinutes(1))
+                        new BattleSchedulingConfig.Schedule(
+                                Duration.ofSeconds(1), Duration.ofMinutes(1)))
                 .configureTasks(registrar);
         assertThat(registrar.getFixedDelayTaskList()).hasSize(2);
     }

@@ -1,7 +1,8 @@
 package com.a207.runkk.batch.member;
 
 import java.time.ZoneId;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.SchedulingConfigurer;
@@ -15,6 +16,7 @@ import org.springframework.scheduling.support.CronTrigger;
  */
 @Configuration
 @EnableScheduling
+@EnableConfigurationProperties(MemberSchedulingConfig.Schedule.class)
 public class MemberSchedulingConfig implements SchedulingConfigurer {
 
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
@@ -27,12 +29,11 @@ public class MemberSchedulingConfig implements SchedulingConfigurer {
     public MemberSchedulingConfig(
             WithdrawalPurgeJob withdrawalPurgeJob,
             RevocationPurgeJob revocationPurgeJob,
-            @Value("${runkk.batch.withdrawal-purge-cron}") String cron,
-            @Value("${runkk.batch.revocation-purge-cron}") String revocationCron) {
+            Schedule schedule) {
         this.withdrawalPurgeJob = withdrawalPurgeJob;
         this.revocationPurgeJob = revocationPurgeJob;
-        this.cron = cron;
-        this.revocationCron = revocationCron;
+        this.cron = schedule.withdrawalPurgeCron();
+        this.revocationCron = schedule.revocationPurgeCron();
     }
 
     @Override
@@ -41,4 +42,13 @@ public class MemberSchedulingConfig implements SchedulingConfigurer {
         registrar.addCronTask(
                 new CronTask(revocationPurgeJob::run, new CronTrigger(revocationCron, SEOUL)));
     }
+
+    /**
+     * 이 패키지 작업의 실행 시각·간격(runkk.batch.*, 코드 리뷰 2차 L1: 값 주입 대신 기능별 설정 record).
+     *
+     * @param withdrawalPurgeCron runkk.batch.withdrawal-purge-cron
+     * @param revocationPurgeCron runkk.batch.revocation-purge-cron
+     */
+    @ConfigurationProperties("runkk.batch")
+    public record Schedule(String withdrawalPurgeCron, String revocationPurgeCron) {}
 }

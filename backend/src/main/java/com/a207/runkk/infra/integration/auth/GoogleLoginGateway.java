@@ -11,7 +11,7 @@ import java.util.Arrays;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
@@ -34,11 +34,10 @@ public class GoogleLoginGateway implements SocialLoginGateway {
     private final Set<String> clientIds;
 
     @Autowired
-    public GoogleLoginGateway(
-            RestClient.Builder builder,
-            @Value("${runkk.auth.google.base-url}") String baseUrl,
-            @Value("${runkk.auth.google.client-ids:}") String clientIds) {
-        this(builder.requestFactory(timeouts()).baseUrl(baseUrl).build(), clientIds);
+    public GoogleLoginGateway(RestClient.Builder builder, Google google) {
+        this(
+                builder.requestFactory(timeouts()).baseUrl(google.baseUrl()).build(),
+                google.clientIds());
     }
 
     GoogleLoginGateway(RestClient client, String clientIds) {
@@ -97,4 +96,13 @@ public class GoogleLoginGateway implements SocialLoginGateway {
         factory.setReadTimeout(READ_TIMEOUT);
         return factory;
     }
+
+    /**
+     * 구글 tokeninfo 연동(runkk.auth.google.*, 코드 리뷰 2차 L1).
+     *
+     * @param baseUrl runkk.auth.google.base-url
+     * @param clientIds runkk.auth.google.client-ids(쉼표 구분, 비면 구글 로그인 거부)
+     */
+    @ConfigurationProperties("runkk.auth.google")
+    public record Google(String baseUrl, String clientIds) {}
 }

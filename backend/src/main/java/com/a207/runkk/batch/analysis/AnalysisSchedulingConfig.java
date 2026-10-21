@@ -1,7 +1,8 @@
 package com.a207.runkk.batch.analysis;
 
 import java.time.ZoneId;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.SchedulingConfigurer;
@@ -15,6 +16,7 @@ import org.springframework.scheduling.support.CronTrigger;
  */
 @Configuration
 @EnableScheduling
+@EnableConfigurationProperties(AnalysisSchedulingConfig.Schedule.class)
 public class AnalysisSchedulingConfig implements SchedulingConfigurer {
 
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
@@ -30,15 +32,13 @@ public class AnalysisSchedulingConfig implements SchedulingConfigurer {
             RankingRebuildJob rankingRebuildJob,
             PlanReminderJob planReminderJob,
             PlanPurgeJob planPurgeJob,
-            @Value("${runkk.batch.ranking-rebuild-cron}") String rankingCron,
-            @Value("${runkk.batch.plan-reminder-cron}") String reminderCron,
-            @Value("${runkk.batch.plan-purge-cron}") String purgeCron) {
+            Schedule schedule) {
         this.rankingRebuildJob = rankingRebuildJob;
         this.planReminderJob = planReminderJob;
         this.planPurgeJob = planPurgeJob;
-        this.rankingCron = rankingCron;
-        this.reminderCron = reminderCron;
-        this.purgeCron = purgeCron;
+        this.rankingCron = schedule.rankingRebuildCron();
+        this.reminderCron = schedule.planReminderCron();
+        this.purgeCron = schedule.planPurgeCron();
     }
 
     @Override
@@ -49,4 +49,15 @@ public class AnalysisSchedulingConfig implements SchedulingConfigurer {
                 new CronTask(planReminderJob::run, new CronTrigger(reminderCron, SEOUL)));
         registrar.addCronTask(new CronTask(planPurgeJob::run, new CronTrigger(purgeCron, SEOUL)));
     }
+
+    /**
+     * 이 패키지 작업의 실행 시각·간격(runkk.batch.*, 코드 리뷰 2차 L1: 값 주입 대신 기능별 설정 record).
+     *
+     * @param rankingRebuildCron runkk.batch.ranking-rebuild-cron
+     * @param planReminderCron runkk.batch.plan-reminder-cron
+     * @param planPurgeCron runkk.batch.plan-purge-cron
+     */
+    @ConfigurationProperties("runkk.batch")
+    public record Schedule(
+            String rankingRebuildCron, String planReminderCron, String planPurgeCron) {}
 }

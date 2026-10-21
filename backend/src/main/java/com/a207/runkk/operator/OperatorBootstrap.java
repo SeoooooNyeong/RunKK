@@ -13,8 +13,9 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
@@ -39,11 +40,20 @@ public class OperatorBootstrap {
     private final ObjectMapper objectMapper;
     private final String operators;
 
+    @Autowired
     public OperatorBootstrap(
             OperationPolicy policy,
             OperationSettingService settingService,
             ObjectMapper objectMapper,
-            @Value("${runkk.operator.bootstrap-operators:}") String operators) {
+            Seed seed) {
+        this(policy, settingService, objectMapper, seed.bootstrapOperators());
+    }
+
+    OperatorBootstrap(
+            OperationPolicy policy,
+            OperationSettingService settingService,
+            ObjectMapper objectMapper,
+            String operators) {
         this.policy = policy;
         this.settingService = settingService;
         this.objectMapper = objectMapper;
@@ -89,4 +99,12 @@ public class OperatorBootstrap {
         }
         return objectMapper.writeValueAsString(Map.of("accounts", accounts));
     }
+
+    /**
+     * 첫 운영자 시드(runkk.operator.*, code-review U10, 코드 리뷰 2차 L1).
+     *
+     * @param bootstrapOperators "KAKAO:계정ID,GOOGLE:계정ID"(비면 넣지 않는다)
+     */
+    @ConfigurationProperties("runkk.operator")
+    public record Seed(String bootstrapOperators) {}
 }

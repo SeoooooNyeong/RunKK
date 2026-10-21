@@ -26,7 +26,6 @@ import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Component;
 
@@ -63,10 +62,11 @@ public class JwtTokenIssuer implements TokenIssuer {
     private final RefreshTokenRevocations revocations;
 
     @Autowired
-    public JwtTokenIssuer(
-            @Value("${runkk.auth.jwt-secret:}") String secret,
-            Clock clock,
-            RefreshTokenRevocations revocations) {
+    public JwtTokenIssuer(AuthSecrets secrets, Clock clock, RefreshTokenRevocations revocations) {
+        this(secrets.jwtSecret(), clock, revocations);
+    }
+
+    JwtTokenIssuer(String secret, Clock clock, RefreshTokenRevocations revocations) {
         byte[] key = secretBytes(secret);
         try {
             this.signer = new MACSigner(key);
