@@ -11,6 +11,7 @@ import java.time.LocalDateTime;
 import java.util.Arrays;
 import org.junit.jupiter.api.Test;
 
+@org.junit.jupiter.api.DisplayName("운영 기준 항목 엔티티")
 class OperationSettingTest {
 
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 10, 20, 15, 0);

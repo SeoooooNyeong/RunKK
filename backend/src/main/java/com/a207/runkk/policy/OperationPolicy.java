@@ -9,8 +9,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
- * 운영 기준값을 형식 있는 값 객체로 내준다(설계 6.1.9). 처음 만들어질 때 저장된 항목을 캐시에 채우고(D-55), 읽을 때 캐시에 없으면 저장소에서 읽어 parse,
- * 그래도 없거나 읽을 수 없으면 srs.md 예시값을 쓴다. 변경 커밋 뒤 invalidate로 무효화한다(D-24).
+ * 운영 기준값을 형식 있는 값 객체로 내준다(설계 6.1.9). 처음 만들어질 때 저장된 항목을 캐시에 채우고(D-55), 읽을 때 캐시에 없으면 저장소에서 읽어 형식·범위를
+ * 검사한 뒤 parse하고, 없거나 읽을 수 없거나 범위 밖이면 srs.md 예시값을 쓴다(1단계 리뷰 L8). 변경 커밋 뒤 invalidate로 무효화한다(D-24). 값은
+ * 형식을 알려 주고 꺼내 다운캐스트를 한 곳에만 둔다(L14).
  */
 @Component
 public class OperationPolicy {
@@ -29,103 +30,103 @@ public class OperationPolicy {
     }
 
     public TierBoundary tierBoundary() {
-        return (TierBoundary) valueOf(SettingKey.TIER_BOUNDARY);
+        return valueOf(SettingKey.TIER_BOUNDARY, TierBoundary.class);
     }
 
     public MatchCondition matchCondition() {
-        return (MatchCondition) valueOf(SettingKey.MATCH_CONDITION);
+        return valueOf(SettingKey.MATCH_CONDITION, MatchCondition.class);
     }
 
     public RewardRule rewardRule() {
-        return (RewardRule) valueOf(SettingKey.REWARD_RULE);
+        return valueOf(SettingKey.REWARD_RULE, RewardRule.class);
     }
 
     public CoachingRule coachingRule() {
-        return (CoachingRule) valueOf(SettingKey.COACHING_RULE);
+        return valueOf(SettingKey.COACHING_RULE, CoachingRule.class);
     }
 
     public RunimalRule runimalRule() {
-        return (RunimalRule) valueOf(SettingKey.RUNIMAL_RULE);
+        return valueOf(SettingKey.RUNIMAL_RULE, RunimalRule.class);
     }
 
     public CourseSimilarityRule courseSimilarityRule() {
-        return (CourseSimilarityRule) valueOf(SettingKey.COURSE_SIMILARITY);
+        return valueOf(SettingKey.COURSE_SIMILARITY, CourseSimilarityRule.class);
     }
 
     public LandmarkTable landmarkTable() {
-        return (LandmarkTable) valueOf(SettingKey.LANDMARKS);
+        return valueOf(SettingKey.LANDMARKS, LandmarkTable.class);
     }
 
     public VirtualRecordRule virtualRecordRule() {
-        return (VirtualRecordRule) valueOf(SettingKey.VIRTUAL_RECORD_RULE);
+        return valueOf(SettingKey.VIRTUAL_RECORD_RULE, VirtualRecordRule.class);
     }
 
     /** SHOP_ITEMS 목록에 ITEM_PRICES의 가격을 덮어쓴 상점 목록. */
-    @SuppressWarnings("unchecked")
     public ShopCatalog shopCatalog() {
-        ShopCatalog items = (ShopCatalog) valueOf(SettingKey.SHOP_ITEMS);
-        Map<Long, Integer> prices = (Map<Long, Integer>) valueOf(SettingKey.ITEM_PRICES);
+        ShopCatalog items = valueOf(SettingKey.SHOP_ITEMS, ShopCatalog.class);
+        Map<?, ?> prices = valueOf(SettingKey.ITEM_PRICES, Map.class);
         return new ShopCatalog(
                 items.items().stream()
                         .map(
-                                item ->
-                                        new ShopItem(
-                                                item.id(),
-                                                item.name(),
-                                                item.slot(),
-                                                prices.getOrDefault(item.id(), item.price()),
-                                                item.onSale()))
+                                item -> {
+                                    Object price = prices.get(item.id());
+                                    return new ShopItem(
+                                            item.id(),
+                                            item.name(),
+                                            item.slot(),
+                                            price instanceof Integer p ? p : item.price(),
+                                            item.onSale());
+                                })
                         .toList());
     }
 
     public FeatureToggles features() {
         return new FeatureToggles(
-                (Boolean) valueOf(SettingKey.SELFIE_ENABLED),
-                (Boolean) valueOf(SettingKey.AI_COMMENT_ENABLED));
+                valueOf(SettingKey.SELFIE_ENABLED, Boolean.class),
+                valueOf(SettingKey.AI_COMMENT_ENABLED, Boolean.class));
     }
 
     public SelfieLimit selfieLimit() {
-        return (SelfieLimit) valueOf(SettingKey.SELFIE_LIMIT);
+        return valueOf(SettingKey.SELFIE_LIMIT, SelfieLimit.class);
     }
 
     public LlmCallLimit llmCallLimit() {
-        return (LlmCallLimit) valueOf(SettingKey.LLM_DAILY_LIMIT);
+        return valueOf(SettingKey.LLM_DAILY_LIMIT, LlmCallLimit.class);
     }
 
     public SupplementCap supplementCap() {
-        return (SupplementCap) valueOf(SettingKey.SUPPLEMENT_CAP);
+        return valueOf(SettingKey.SUPPLEMENT_CAP, SupplementCap.class);
     }
 
     public NotificationRetention notificationRetention() {
-        return (NotificationRetention) valueOf(SettingKey.NOTIFICATION_RETENTION);
+        return valueOf(SettingKey.NOTIFICATION_RETENTION, NotificationRetention.class);
     }
 
     public CalorieCoefficient calorieCoefficient() {
-        return (CalorieCoefficient) valueOf(SettingKey.CALORIE_COEFFICIENT);
+        return valueOf(SettingKey.CALORIE_COEFFICIENT, CalorieCoefficient.class);
     }
 
     public BodyShapeRule bodyShapeRule() {
-        return (BodyShapeRule) valueOf(SettingKey.BODY_SHAPE_RULE);
+        return valueOf(SettingKey.BODY_SHAPE_RULE, BodyShapeRule.class);
     }
 
     public SkinToneRule skinToneRule() {
-        return (SkinToneRule) valueOf(SettingKey.SKIN_TONE_RULE);
+        return valueOf(SettingKey.SKIN_TONE_RULE, SkinToneRule.class);
     }
 
-    /** CREW_RUN_LOBBY_OPEN과 CREW_RUN_END_RULE을 합친 크루런 운영값. */
-    @SuppressWarnings("unchecked")
+    /** CREW_RUN_LOBBY_OPEN과 CREW_RUN_END_RULE을 합친 크루런 운영값(설계 갱신 요청 U2). */
     public CrewRunRule crewRunRule() {
-        Map<String, Integer> lobby = (Map<String, Integer>) valueOf(SettingKey.CREW_RUN_LOBBY_OPEN);
-        Map<String, Integer> end = (Map<String, Integer>) valueOf(SettingKey.CREW_RUN_END_RULE);
+        CrewRunLobby lobby = valueOf(SettingKey.CREW_RUN_LOBBY_OPEN, CrewRunLobby.class);
+        CrewRunEnd end = valueOf(SettingKey.CREW_RUN_END_RULE, CrewRunEnd.class);
         return new CrewRunRule(
-                Duration.ofMinutes(lobby.get("lobbyOpenBeforeMinutes")),
-                Duration.ofMinutes(lobby.get("reminderBeforeMinutes")),
-                lobby.get("minReady"),
-                end.get("minutesPerKm"));
+                Duration.ofMinutes(lobby.lobbyOpenBeforeMinutes()),
+                Duration.ofMinutes(lobby.reminderBeforeMinutes()),
+                lobby.minReady(),
+                end.minutesPerKm());
     }
 
     public OperatorWhitelist operatorWhitelist() {
-        return (OperatorWhitelist) valueOf(SettingKey.OPERATOR_WHITELIST);
+        return valueOf(SettingKey.OPERATOR_WHITELIST, OperatorWhitelist.class);
     }
 
     /** 변경 커밋 뒤 캐시 무효화(D-24). 다음 읽기에서 저장소 값을 다시 읽는다. */
@@ -133,8 +134,8 @@ public class OperationPolicy {
         cache.remove(key);
     }
 
-    private Object valueOf(SettingKey key) {
-        return cache.computeIfAbsent(key, this::load);
+    private <T> T valueOf(SettingKey key, Class<T> type) {
+        return type.cast(cache.computeIfAbsent(key, this::load));
     }
 
     private Object load(SettingKey key) {
@@ -144,12 +145,12 @@ public class OperationPolicy {
                 .orElseGet(() -> key.parse(key.defaultValue()));
     }
 
+    /** 저장값이 형식·범위 검사(validate)를 통과할 때만 쓴다. 수동 SQL·옛 판 값이 범위 밖이면 기본값으로 간다. */
     private static Optional<Object> parseStored(SettingKey key, String json) {
-        try {
-            return Optional.of(key.parse(json));
-        } catch (IllegalArgumentException e) {
-            log.warn("operation_setting_unreadable key={} fallback=default", key);
+        if (!key.validate(json).valid()) {
+            log.warn("operation_setting_unusable key={} fallback=default", key);
             return Optional.empty();
         }
+        return Optional.of(key.parse(json));
     }
 }

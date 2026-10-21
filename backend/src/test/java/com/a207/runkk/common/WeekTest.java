@@ -7,6 +7,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
 
+@org.junit.jupiter.api.DisplayName("주 값 객체")
 class WeekTest {
 
     private static final LocalDate MONDAY = LocalDate.of(2026, 10, 19);

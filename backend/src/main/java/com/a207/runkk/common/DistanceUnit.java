@@ -2,7 +2,7 @@ package com.a207.runkk.common;
 
 /** 거리 표시 단위(FR-009). 저장 값은 언제나 미터다. */
 public enum DistanceUnit {
-    KM(1000.0, "km"),
+    KM(Distance.METERS_PER_KM, "km"),
     MI(1609.344, "mi");
 
     private final double metersPerUnit;

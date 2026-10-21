@@ -1,0 +1,27 @@
+package com.a207.runkk.member;
+
+import com.a207.runkk.common.PersonalityTag;
+import java.util.Set;
+
+/**
+ * 프로필 변경 요청(자료사전 프로필변경요청, FR-007). null인 항목은 바꾸지 않는다. 사진·소개를 지우려면 빈 문자열을 보낸다.
+ *
+ * @param nickname 새 닉네임
+ * @param birthYear 출생연도
+ * @param gender 성별
+ * @param photoUrl 프로필 사진 주소
+ * @param intro 프로필 소개(40자 이하)
+ * @param tags 성향 태그(1~5개)
+ */
+public record ProfileEdit(
+        String nickname,
+        Integer birthYear,
+        Gender gender,
+        String photoUrl,
+        String intro,
+        Set<PersonalityTag> tags) {
+
+    public ProfileEdit {
+        tags = tags == null ? null : Set.copyOf(tags);
+    }
+}

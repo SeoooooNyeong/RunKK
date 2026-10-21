@@ -17,6 +17,7 @@ import com.tngtech.archunit.lang.ArchRule;
 import org.junit.jupiter.api.Test;
 
 /** 음성 시험: 시험 소스에만 있는 위반 클래스로 ArchitectureTest의 규칙이 실제로 위반을 잡는지 확인한다. */
+@org.junit.jupiter.api.DisplayName("ArchUnit 규칙 음성 시험(위반 고정 클래스를 잡는다)")
 class ArchitectureRuleNegativeTest {
 
     private static boolean violates(ArchRule rule, Class<?>... fixtures) {

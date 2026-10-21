@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
+@org.junit.jupiter.api.DisplayName("감사 기록 저장·조회·정리")
 class AuditServiceTest {
 
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");

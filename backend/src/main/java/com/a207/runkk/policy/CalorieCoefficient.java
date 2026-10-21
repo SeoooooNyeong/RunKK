@@ -11,6 +11,6 @@ public record CalorieCoefficient(int kcalPerKm) {
 
     /** round(kcalPerKm × km). */
     public int estimate(Distance d) {
-        return (int) Math.round(kcalPerKm * d.meters() / 1000.0);
+        return (int) Math.round(kcalPerKm * d.exactKm());
     }
 }

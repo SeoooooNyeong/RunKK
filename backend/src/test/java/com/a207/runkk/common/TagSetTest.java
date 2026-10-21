@@ -14,6 +14,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 
+@org.junit.jupiter.api.DisplayName("성향 태그 묶음 규칙")
 class TagSetTest {
 
     @Test

@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.within;
 import java.time.Duration;
 import org.junit.jupiter.api.Test;
 
+@org.junit.jupiter.api.DisplayName("페이스 값 객체")
 class PaceTest {
 
     @Test

@@ -1,46 +1,86 @@
 package com.a207.runkk.web.auth;
 
+import com.a207.runkk.member.TokenIssuer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.config.Customizer;
+import org.springframework.context.annotation.Profile;
+import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 /**
- * 인증 필터의 적용 경로를 설정한다(설계 6.1.13 web.auth.SecurityConfig). Spring Security 6.x의 람다 DSL만 쓴다. 회원 인증
- * 필터(AuthFilter)와 /admin/* 제외는 web.auth·web.admin 단계(B2·B5)에서 더한다.
+ * 인증 필터의 적용 경로를 설정한다(설계 6.1.13 web.auth.SecurityConfig). 로그인·토큰 갱신·가입과 법정 고지 문서(가입 화면이 읽는다)만 공개하고,
+ * /api/v1/admin/*은 회원 인증 필터에서 뺀다(D-42, 관리툴 토큰은 web.admin이 확인). 나머지는 AuthFilter가 붙인 회원만 들어온다. Basic
+ * 인증·폼 로그인·세션은 쓰지 않는다(1단계 리뷰 L11). H2 콘솔은 local 프로필에서만 연다(L12). Spring Security 6.x 람다 DSL만 쓴다.
  */
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
+    private static final String API = "/api/v1";
+
+    /** local 프로필에서만 H2 콘솔(프레임 사용)을 연다. */
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http.csrf(csrf -> csrf.disable())
+    @Order(1)
+    @Profile("local")
+    SecurityFilterChain h2ConsoleChain(HttpSecurity http) throws Exception {
+        http.securityMatcher("/h2-console/**")
+                .csrf(AbstractHttpConfigurer::disable)
+                .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()))
+                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
+        return http.build();
+    }
+
+    @Bean
+    @Order(2)
+    SecurityFilterChain apiChain(HttpSecurity http, TokenIssuer tokenIssuer) throws Exception {
+        http.csrf(AbstractHttpConfigurer::disable)
+                .httpBasic(AbstractHttpConfigurer::disable)
+                .formLogin(AbstractHttpConfigurer::disable)
+                .logout(AbstractHttpConfigurer::disable)
                 .sessionManagement(
                         session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .httpBasic(Customizer.withDefaults())
-                // H2 console (local profile only) renders in a frame
-                .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()))
+                .exceptionHandling(
+                        errors ->
+                                errors.authenticationEntryPoint(
+                                                (request, response, e) ->
+                                                        AuthFilter.writeUnauthorized(response))
+                                        .accessDeniedHandler(
+                                                (request, response, e) ->
+                                                        response.sendError(
+                                                                HttpStatus.FORBIDDEN.value())))
                 .authorizeHttpRequests(
                         auth ->
                                 auth.requestMatchers(
                                                 "/actuator/health",
                                                 "/actuator/health/**",
-                                                "/actuator/info")
-                                        .permitAll()
-                                        .requestMatchers(
+                                                "/actuator/info",
                                                 "/docs",
                                                 "/docs/**",
                                                 "/swagger-ui/**",
-                                                "/v3/api-docs/**")
+                                                "/v3/api-docs/**",
+                                                "/error")
                                         .permitAll()
-                                        .requestMatchers("/h2-console/**")
+                                        .requestMatchers(
+                                                HttpMethod.POST,
+                                                API + "/auth/login",
+                                                API + "/auth/refresh",
+                                                API + "/members")
+                                        .permitAll()
+                                        .requestMatchers(HttpMethod.GET, API + "/legal/**")
+                                        .permitAll()
+                                        .requestMatchers(API + "/admin/**")
                                         .permitAll()
                                         .anyRequest()
-                                        .authenticated());
+                                        .authenticated())
+                .addFilterBefore(
+                        new AuthFilter(tokenIssuer), UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 }

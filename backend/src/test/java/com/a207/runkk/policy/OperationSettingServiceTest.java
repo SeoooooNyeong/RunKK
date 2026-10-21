@@ -22,6 +22,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 /** OperationSettingService.change(FR-174): 값 검사 → 이력 → 감사 → 캐시 무효화 → OperationSettingChanged. */
+@org.junit.jupiter.api.DisplayName("운영 기준 변경 서비스")
 class OperationSettingServiceTest {
 
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
