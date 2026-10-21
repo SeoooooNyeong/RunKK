@@ -357,11 +357,12 @@ private fun ColumnScope.RaceTab(state: CrewHomeUiState, actions: CrewHomeActions
     if (entries.isEmpty()) {
         Text("아직 이번 기간 기록이 없어요", style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
     }
-    // 기여율은 이번 주 크루 거리 대비(시안 31%), 레이스를 못 읽었으면 랭킹 합 대비.
-    val total = (if (state.period == CrewRanking.Period.WEEKLY) race.total.meters else null)
-        ?: entries.sumOf { it.distance.meters }.coerceAtLeast(1)
+    // 기여율은 이번 주 크루 거리 대비(시안 31%), 레이스를 못 읽었거나 아직 0m면 랭킹 합 대비. 나누는 값은 1m 이상이다
+    // (방금 만든 크루는 레이스 합계가 0이라 0/0 = NaN.roundToInt()로 비정상 종료했다, E2E 시나리오 5에서 찾은 결함).
+    val weekly = if (state.period == CrewRanking.Period.WEEKLY) race.total.meters.takeIf { it > 0 } else null
+    val total = (weekly ?: entries.sumOf { it.distance.meters }).coerceAtLeast(1)
     entries.forEach { entry ->
-        val share = (entry.distance.meters * PERCENT / total.toDouble()).roundToInt()
+        val share = (entry.distance.meters * PERCENT / total.toDouble()).roundToInt().coerceIn(0, PERCENT)
         Row(
             modifier = Modifier
                 .fillMaxWidth()

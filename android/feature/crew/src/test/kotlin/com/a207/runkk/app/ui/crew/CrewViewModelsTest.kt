@@ -45,6 +45,30 @@ class CrewFindViewModelTest {
     }
 
     @Test
+    fun `만들기 화면에서 돌아오면 소속을 다시 확인해 방금 만든 크루 홈을 보인다(E2E에서 찾은 결함)`() {
+        val vm = CrewFindViewModel(repo)
+        assertNull(vm.state.value.mine)
+
+        // 크루 만들기 뒤 크루 탭(같은 항목·같은 ViewModel)으로 돌아온다.
+        repo.mine = MyCrew(crewDetail(77), emptyList())
+        vm.refreshMine()
+
+        assertEquals(77L, vm.state.value.mine?.crewId)
+        assertNull(vm.state.value.message)
+    }
+
+    @Test
+    fun `이미 내 크루를 보이고 있으면 돌아와도 다시 확인하지 않는다`() {
+        repo.mine = MyCrew(crewDetail(11), emptyList())
+        val vm = CrewFindViewModel(repo)
+        val before = repo.calls.count { it == "myCrew" }
+
+        vm.refreshMine()
+
+        assertEquals(before, repo.calls.count { it == "myCrew" })
+    }
+
+    @Test
     fun `내 크루를 확인하지 못하면 찾기를 보이지 않고 다시 시도하게 한다`() {
         repo.fail["myCrew"] = AppError.Network
         val vm = CrewFindViewModel(repo)

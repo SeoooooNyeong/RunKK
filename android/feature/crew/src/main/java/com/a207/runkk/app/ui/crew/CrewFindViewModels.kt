@@ -81,6 +81,15 @@ class CrewFindViewModel @Inject constructor(private val crews: CrewRepository) :
         loadMine()
     }
 
+    /**
+     * 다른 화면(크루 만들기 등)에서 크루 탭으로 돌아왔다. 탭 항목과 ViewModel이 그대로 남아 있어(selectTab이 같은 키를 다시 넣는다)
+     * 그 사이 생긴 소속을 모르므로 조용히 다시 확인한다. 이미 내 크루를 보이거나 처음 확인 중이면 하지 않는다(E2E 시나리오 5에서 찾은 결함).
+     */
+    fun refreshMine() {
+        val s = _state.value
+        if (s.mine == null && !s.checkingMine) loadMine(quiet = true)
+    }
+
     /** 내 크루를 확인한다. [quiet]면 로딩을 보이지 않는다(가입·취소 뒤 다시 읽기). 크루가 없으면 찾기 목록도 읽는다. */
     fun loadMine(quiet: Boolean = false) {
         mineJob?.cancel()

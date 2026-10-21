@@ -20,6 +20,7 @@ import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.testing.RUNKK_PHONE
 import com.a207.runkk.app.core.designsystem.testing.captureRunkkScreen
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.domain.crew.CrewRanking
 import com.a207.runkk.app.domain.crew.VoteAnswer
 import java.time.Duration
 import java.time.LocalDate
@@ -101,6 +102,33 @@ class CrewScreensTest {
         compose.onNodeWithText("승인 대기").assertExists()
         compose.onNodeWithContentDescription("저녁런 클럽 가입 신청 취소").performClick()
         assertEquals(listOf("cancel:91"), calls)
+    }
+
+    @Test
+    fun `방금 만든 크루(이번 주 크루 거리 0)도 랭킹 기여율을 그린다(E2E에서 찾은 NaN 비정상 종료)`() {
+        // 크루를 만든 직후: 레이스 합계 0m, 랭킹에는 나(0m)와 달빛 → 예전에는 0/0 = NaN.roundToInt()로 앱이 죽었다.
+        val fresh = race.copy(total = Distance(0), contributors = emptyList(), myShare = 0.0)
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                CrewHomeScreen(
+                    CrewHomeUiState(
+                        crewId = 1,
+                        detail = crewDetail(),
+                        race = fresh,
+                        ranking = CrewRanking(
+                            listOf(
+                                CrewRanking.Entry(1, "달빛", Distance(1_200)),
+                                CrewRanking.Entry(2, "e2erunner", Distance(0))
+                            )
+                        )
+                    ),
+                    CrewHomeActions()
+                )
+            }
+        }
+        // 레이스 합계가 0이면 랭킹 합(1.2km) 대비로 나눈다.
+        compose.onNodeWithContentDescription("1위 달빛 1.2킬로미터, 100%").assertExists()
+        compose.onNodeWithContentDescription("2위 e2erunner", substring = true).assertExists()
     }
 
     @Test
