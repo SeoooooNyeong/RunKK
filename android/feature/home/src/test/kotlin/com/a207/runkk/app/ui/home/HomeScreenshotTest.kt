@@ -1,8 +1,10 @@
 package com.a207.runkk.app.ui.home
 
 import androidx.compose.ui.test.junit4.createComposeRule
+import com.a207.runkk.app.core.designsystem.RunkkErrorText
 import com.a207.runkk.app.core.designsystem.testing.RUNKK_PHONE
 import com.a207.runkk.app.core.designsystem.testing.captureRunkkScreen
+import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.domain.record.Dashboard
@@ -78,7 +80,7 @@ class HomeScreenshotTest {
     @Test
     fun homeOffline() = compose.captureRunkkScreen("A5_home_error") {
         HomeScreen(
-            HomeUiState(loading = false, headerLoading = false, error = "네트워크에 연결할 수 없어요. 연결을 확인하고 다시 시도해 주세요"),
+            HomeUiState(loading = false, headerLoading = false, error = RunkkErrorText.of(AppError.Network)),
             onModeSelected = {},
             onNavigate = {},
             onRetry = {}

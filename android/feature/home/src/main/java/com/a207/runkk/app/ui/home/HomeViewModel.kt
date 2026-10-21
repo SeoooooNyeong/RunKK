@@ -3,6 +3,7 @@ package com.a207.runkk.app.ui.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.designsystem.RunkkErrorText
+import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.getOrNull
@@ -41,7 +42,7 @@ data class HomeUiState(
     val todayPlan: TodayPlan? = null,
     val pendingCount: Int = 0,
     val mode: HomeRunMode = HomeRunMode.FREE,
-    val error: String? = null,
+    val error: UiText? = null,
     val today: LocalDate? = null,
     val header: HomeHeader = HomeHeader(),
     val headerLoading: Boolean = true,
