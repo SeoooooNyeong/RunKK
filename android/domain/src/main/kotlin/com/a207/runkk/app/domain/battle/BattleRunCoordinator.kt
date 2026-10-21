@@ -38,7 +38,9 @@ import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -390,9 +392,13 @@ constructor(
     private fun RunProgress.toMine(): MyProgress =
         MyProgress(distance, elapsed, currentPace, averagePace, locked = runTracker.progress.value.locked)
 
+    /**
+     * 매칭 요청이 취소됐으면(이탈 취소가 요청을 끊음) null. 부른 코루틴 자신이 취소된 것이면 null로 삼키지 않고 취소를 잇는다(리뷰 N-9).
+     */
     private suspend fun Deferred<Outcome<MatchAcceptance>>.awaitOrNull(): Outcome<MatchAcceptance>? = try {
         await()
     } catch (e: CancellationException) {
+        currentCoroutineContext().ensureActive()
         null
     }
 
