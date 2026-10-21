@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -21,12 +22,19 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.method.HandlerMethod;
+import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
+import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
 /**
  * T-13 관리툴(D-42, D-50): 관리툴 토큰 없음·위조·화이트리스트 밖이면 세 관리 요청 모두 403, 회원 JWT로 /admin/* 거부, 확인된 운영자
@@ -42,6 +50,10 @@ class AdminControllerTest extends WebTestSupport {
     @Autowired OperationSettingService settings;
     @Autowired OperatorTokenIssuer operatorTokens;
     @Autowired com.a207.runkk.policy.OperationPolicy policy;
+
+    @Autowired
+    @Qualifier("requestMappingHandlerMapping")
+    RequestMappingHandlerMapping handlerMapping;
 
     @BeforeEach
     void whitelist() {
@@ -121,6 +133,45 @@ class AdminControllerTest extends WebTestSupport {
                         .andExpect(jsonPath("$.code").value("PERMISSION_DENIED"));
             }
         }
+    }
+
+    /**
+     * 코드 리뷰 2차 L23: 보안 필터는 /api/v1/admin/**을 통과시키고 관리툴 확인은 OperatorCheckInterceptor 한 곳이다. 새 관리 경로가
+     * 그 확인을 빠져나가지 못하도록, 등록된 모든 /api/v1/admin 처리기(로그인 제외)가 관리툴 토큰 없이 403 PERMISSION_DENIED인지 목록을 돌며
+     * 본다.
+     */
+    @Test
+    @DisplayName("등록된 모든 관리 경로(로그인 제외)는 관리툴 토큰 없이 403, 처리기는 모두 web.admin 안에 있다")
+    void everyAdminMapping_requiresOperatorToken() throws Exception {
+        int checked = 0;
+        for (Map.Entry<RequestMappingInfo, HandlerMethod> entry :
+                handlerMapping.getHandlerMethods().entrySet()) {
+            for (String pattern : entry.getKey().getPatternValues()) {
+                if (!pattern.startsWith("/api/v1/admin")
+                        || pattern.equals(AdminWebConfig.LOGIN_PATH)) {
+                    continue;
+                }
+                assertThat(entry.getValue().getBeanType().getPackageName())
+                        .as(pattern)
+                        .startsWith(AdminWebConfig.class.getPackageName());
+                String path = pattern.replaceAll("\\{[^}]+}", "1");
+                for (RequestMethod method : methodsOf(entry.getKey())) {
+                    mvc.perform(
+                                    request(HttpMethod.valueOf(method.name()), path)
+                                            .contentType(MediaType.APPLICATION_JSON)
+                                            .content("{}"))
+                            .andExpect(status().isForbidden())
+                            .andExpect(jsonPath("$.code").value("PERMISSION_DENIED"));
+                    checked++;
+                }
+            }
+        }
+        assertThat(checked).as("유명인·기준값·감사 관리 요청").isGreaterThanOrEqualTo(3);
+    }
+
+    private static Set<RequestMethod> methodsOf(RequestMappingInfo info) {
+        Set<RequestMethod> methods = info.getMethodsCondition().getMethods();
+        return methods.isEmpty() ? Set.of(RequestMethod.GET) : methods;
     }
 
     @Test
