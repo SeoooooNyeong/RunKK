@@ -36,7 +36,7 @@ class AvatarScreensTest {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 AvatarSetupScreen(
-                    AvatarSetupUiState(loading = false),
+                    AvatarSetupUiState(isLoading = false),
                     onBack = {},
                     onSelfie = { calls += "selfie" },
                     onCharacter = { calls += it.name },
@@ -57,7 +57,7 @@ class AvatarScreensTest {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 AvatarScreen(
-                    AvatarUiState(loading = false, avatar = avatar, items = items),
+                    AvatarUiState(isLoading = false, avatar = avatar, items = items),
                     onBack = {},
                     onShop = { calls += "shop" },
                     onFace = { calls += "face" },
@@ -123,7 +123,7 @@ class AvatarScreensTest {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 ShopScreen(
-                    ShopUiState(loading = false, shop = Shop(items, 1_240), confirming = items[2]),
+                    ShopUiState(isLoading = false, shop = Shop(items, 1_240), confirming = items[2]),
                     onBack = {},
                     onSlot = {},
                     onPick = {},
@@ -166,14 +166,14 @@ class AvatarScreenshotTest {
 
     @Test
     fun setup() = compose.captureRunkkScreen("F1_avatar_setup") {
-        AvatarSetupScreen(AvatarSetupUiState(loading = false, selected = DefaultCharacter.FOX), {}, {}, {}, {}, {})
+        AvatarSetupScreen(AvatarSetupUiState(isLoading = false, selected = DefaultCharacter.FOX), {}, {}, {}, {}, {})
     }
 
     @Test
     fun setupSelfieLimit() = compose.captureRunkkScreen("F1_avatar_setup_selfie_limit") {
         AvatarSetupScreen(
             AvatarSetupUiState(
-                loading = false,
+                isLoading = false,
                 canCreateSelfie = false,
                 error = UiText.Res(R.string.avatar_error_selfie_limit)
             ),
@@ -187,11 +187,11 @@ class AvatarScreenshotTest {
 
     @Test
     fun decorate() = compose.captureRunkkScreen("F2_avatar_decorate") {
-        AvatarScreen(AvatarUiState(loading = false, avatar = avatar, items = items), {}, {}, {}, {}, {}, {}, {})
+        AvatarScreen(AvatarUiState(isLoading = false, avatar = avatar, items = items), {}, {}, {}, {}, {}, {}, {})
     }
 
     @Test
     fun shop() = compose.captureRunkkScreen("F3_shop") {
-        ShopScreen(ShopUiState(loading = false, shop = Shop(items, 1_240)), {}, {}, {}, {}, {}, {}, {})
+        ShopScreen(ShopUiState(isLoading = false, shop = Shop(items, 1_240)), {}, {}, {}, {}, {}, {}, {})
     }
 }

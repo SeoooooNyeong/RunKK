@@ -262,7 +262,7 @@ class ShopViewModelTest {
         vm.onPick(items[3])
         vm.onBuy()
         assertEquals(UiText.Res(R.string.avatar_error_insufficient_reward), vm.state.value.message)
-        assertFalse(vm.state.value.buying)
+        assertFalse(vm.state.value.isBuying)
     }
 
     @Test
@@ -271,7 +271,7 @@ class ShopViewModelTest {
         val vm = AvatarSetupViewModel(repo)
         vm.onSelfie(byteArrayOf(1))
         assertEquals(UiText.Res(R.string.avatar_error_no_face), vm.state.value.error)
-        assertFalse(vm.state.value.working)
+        assertFalse(vm.state.value.isWorking)
         assertTrue(vm.state.value.canCreateSelfie)
     }
 }
