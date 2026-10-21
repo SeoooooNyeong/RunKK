@@ -13,20 +13,26 @@ internal fun Guidance.text(resources: Resources): String {
 }
 
 @StringRes
-internal fun GuidanceMessage.textRes(): Int = when (this) {
-    GuidanceMessage.FINISH_HINT -> R.string.guidance_finish_hint
-    GuidanceMessage.UNLOCK_HINT -> R.string.guidance_unlock_hint
-    GuidanceMessage.SPLIT -> R.string.guidance_split
-    GuidanceMessage.TARGET_REACHED -> R.string.guidance_target_reached
-    GuidanceMessage.PACE_SLOW -> R.string.guidance_pace_slow
-    GuidanceMessage.BREATH_HIGH -> R.string.guidance_breath_high
-    GuidanceMessage.GAP_AHEAD -> R.string.guidance_gap_ahead
-    GuidanceMessage.GAP_BEHIND -> R.string.guidance_gap_behind
-    GuidanceMessage.GAP_AHEAD_REMAINING -> R.string.guidance_gap_ahead_remaining
-    GuidanceMessage.GAP_BEHIND_REMAINING -> R.string.guidance_gap_behind_remaining
-    GuidanceMessage.RANK -> R.string.guidance_rank
-    GuidanceMessage.OVERTOOK -> R.string.guidance_overtook
-    GuidanceMessage.OVERTAKEN -> R.string.guidance_overtaken
-    GuidanceMessage.SAVE_FAILED -> R.string.guidance_save_failed
-    GuidanceMessage.REPORT_FAILED -> R.string.guidance_report_failed
-}
+internal fun GuidanceMessage.textRes(): Int = GUIDANCE_TEXTS.getValue(this)
+
+/**
+ * 안내 키 → 문구 리소스 대응표(3차 리뷰: 15갈래 when을 표 조회로). 빠진 키는 GuidanceTextsTest가
+ * 모든 GuidanceMessage를 읽어 잡는다.
+ */
+private val GUIDANCE_TEXTS: Map<GuidanceMessage, Int> = mapOf(
+    GuidanceMessage.FINISH_HINT to R.string.guidance_finish_hint,
+    GuidanceMessage.UNLOCK_HINT to R.string.guidance_unlock_hint,
+    GuidanceMessage.SPLIT to R.string.guidance_split,
+    GuidanceMessage.TARGET_REACHED to R.string.guidance_target_reached,
+    GuidanceMessage.PACE_SLOW to R.string.guidance_pace_slow,
+    GuidanceMessage.BREATH_HIGH to R.string.guidance_breath_high,
+    GuidanceMessage.GAP_AHEAD to R.string.guidance_gap_ahead,
+    GuidanceMessage.GAP_BEHIND to R.string.guidance_gap_behind,
+    GuidanceMessage.GAP_AHEAD_REMAINING to R.string.guidance_gap_ahead_remaining,
+    GuidanceMessage.GAP_BEHIND_REMAINING to R.string.guidance_gap_behind_remaining,
+    GuidanceMessage.RANK to R.string.guidance_rank,
+    GuidanceMessage.OVERTOOK to R.string.guidance_overtook,
+    GuidanceMessage.OVERTAKEN to R.string.guidance_overtaken,
+    GuidanceMessage.SAVE_FAILED to R.string.guidance_save_failed,
+    GuidanceMessage.REPORT_FAILED to R.string.guidance_report_failed
+)
