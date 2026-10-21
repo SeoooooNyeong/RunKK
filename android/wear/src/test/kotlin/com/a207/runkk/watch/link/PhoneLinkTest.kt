@@ -439,4 +439,14 @@ class PhoneLinkTest {
         assertTrue(sizes.all { it <= PhoneLink.MAX_BATCH_SAMPLES })
         assertEquals(total, deliveredSamples().map { it.measuredAtEpochMillis }.toSet().size)
     }
+
+    @Test
+    fun `시작할 때 이전 프로세스가 남긴 운동 세션을 한 번만 정리한다`() = runTest {
+        val h = harness()
+
+        h.link.start()
+        runCurrent()
+
+        assertEquals(1, sensor.leftoverChecks)
+    }
 }

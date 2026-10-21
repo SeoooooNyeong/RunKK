@@ -7,6 +7,7 @@ import com.a207.runkk.watch.testing.failed
 import com.a207.runkk.watch.testing.ok
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
@@ -175,5 +176,18 @@ class HeartRateCollectorTest {
         collector.start()
         runCurrent()
         assertEquals(State.COLLECTING, collector.state.value)
+    }
+
+    @Test
+    fun `앱 시작 정리는 센서의 남은 세션 정리를 부르고 Health Services 오류는 삼킨다`() = runTest {
+        val collector = collector()
+        sensor.failLeftoverCheck = true
+
+        val job = collector.endLeftoverSession()
+        runCurrent()
+
+        assertEquals(1, sensor.leftoverChecks)
+        assertTrue(job.isCompleted && !job.isCancelled)
+        assertEquals(State.BLOCKED, collector.state.value)
     }
 }

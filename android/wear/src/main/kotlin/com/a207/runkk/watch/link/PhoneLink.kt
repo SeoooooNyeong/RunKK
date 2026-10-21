@@ -94,12 +94,16 @@ class PhoneLink @Inject constructor(
     /** 워치가 마지막으로 잰 정상 심박(화면 표시용). 수집 금지가 오면 지운다. */
     val latestHeartRate: StateFlow<HeartRateBatchMessage.Sample?> = _latestHeartRate.asStateFlow()
 
-    /** 수신·수집·전송·연결 확인을 시작한다. 앱 시작 때 한 번 부르고, 거듭 불러도 한 번만 돈다. */
+    /**
+     * 수신·수집·전송·연결 확인을 시작한다. 앱 프로세스가 시작될 때 한 번 부르고, 거듭 불러도 한 번만 돈다.
+     * 먼저 이전 프로세스가 남긴 운동 세션을 끝낸다: 새 프로세스는 폰의 허용을 아직 받지 않았다(NFR-023).
+     */
     fun start() {
         synchronized(lock) {
             if (started) return
             started = true
         }
+        collector.endLeftoverSession()
         scope.launch { dataLayer.messages.collect { onMessage(it) } }
         scope.launch { collector.samples.collect { onSample(it) } }
         scope.launch { for (request in flushRequests) flush() }

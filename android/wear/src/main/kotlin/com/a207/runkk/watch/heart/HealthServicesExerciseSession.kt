@@ -1,5 +1,6 @@
 package com.a207.runkk.watch.heart
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.os.SystemClock
 import androidx.health.services.client.ExerciseUpdateCallback
@@ -8,6 +9,7 @@ import androidx.health.services.client.data.Availability
 import androidx.health.services.client.data.DataType
 import androidx.health.services.client.data.ExerciseConfig
 import androidx.health.services.client.data.ExerciseLapSummary
+import androidx.health.services.client.data.ExerciseTrackedStatus
 import androidx.health.services.client.data.ExerciseType
 import androidx.health.services.client.data.ExerciseUpdate
 import androidx.health.services.client.data.HeartRateAccuracy
@@ -15,27 +17,27 @@ import androidx.health.services.client.data.SampleDataPoint
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.Instant
 import javax.inject.Inject
-import javax.inject.Singleton
 import kotlin.math.roundToInt
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.guava.await
-import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withContext
 
 /**
- * Health Services 운동 세션(ExerciseClient)으로 심박을 잰다(13.2 워치). 화면이 꺼지거나 앱이 뒤로 가도
- * 운동 세션이 이어져 러닝 중 측정이 끊기지 않는다. 위치·거리는 재지 않는다(측정·기록은 폰, C-002).
- * 흐름을 모으면 세션을 열고, 취소하면 끝낸다.
+ * Health Services ExerciseClient로 [ExerciseSession]을 구현한다(13.2 워치). 위치·거리는 재지 않는다(측정·기록은 폰, C-002).
+ * 세션을 하나씩 여는 규칙과 남은 세션 정리는 [ExerciseHeartRateSensor]가 맡는다.
  */
-@Singleton
-class HealthServicesHeartRateSensor @Inject constructor(@ApplicationContext context: Context) : HeartRateSensor {
+class HealthServicesExerciseSession @Inject constructor(@ApplicationContext context: Context) : ExerciseSession {
     private val exerciseClient = HealthServices.getClient(context).exerciseClient
 
-    /** 이전 세션의 endExercise가 끝나기 전에 다음 세션을 열면 새 세션이 끝나 버리므로 세션을 하나씩 연다. */
-    private val sessionMutex = Mutex()
+    override suspend fun owner(): ExerciseOwner =
+        exerciseOwnerOf(exerciseClient.getCurrentExerciseInfoAsync().await().exerciseTrackedStatus)
+
+    override suspend fun end() {
+        exerciseClient.endExerciseAsync().await()
+    }
 
     override fun heartRates(): Flow<WatchHeartRate> = callbackFlow {
         val bootInstant = Instant.ofEpochMilli(System.currentTimeMillis() - SystemClock.elapsedRealtime())
@@ -56,7 +58,6 @@ class HealthServicesHeartRateSensor @Inject constructor(@ApplicationContext cont
 
             override fun onAvailabilityChanged(dataType: DataType<*, *>, availability: Availability) = Unit
         }
-        sessionMutex.lock()
         try {
             exerciseClient.setUpdateCallback(callback)
             val config = ExerciseConfig.builder(ExerciseType.RUNNING)
@@ -67,12 +68,11 @@ class HealthServicesHeartRateSensor @Inject constructor(@ApplicationContext cont
             exerciseClient.startExerciseAsync(config).await()
             awaitClose()
         } finally {
-            // 시작 도중 실패·취소에도 콜백과 세션을 정리하고, 정리가 끝난 뒤에야 다음 세션을 연다.
+            // 시작 도중 실패·취소에도 세션과 콜백을 정리한다. 정리가 끝나야 흐름이 끝나고 다음 세션이 열린다.
             withContext(NonCancellable) {
                 runCatching { exerciseClient.endExerciseAsync().await() }
                 runCatching { exerciseClient.clearUpdateCallbackAsync(callback).await() }
             }
-            sessionMutex.unlock()
         }
     }
 
@@ -82,6 +82,18 @@ class HealthServicesHeartRateSensor @Inject constructor(@ApplicationContext cont
             sensorStatus != HeartRateAccuracy.SensorStatus.UNRELIABLE
         return classifyHeartRate(getTimeInstant(bootInstant).toEpochMilli(), value, reliable)
     }
+}
+
+/**
+ * ExerciseTrackedStatus → 세션 주인. 알 수 없음(UNKNOWN)은 남은 세션으로 보지 않는다.
+ * 1.1.0은 IntDef 애너테이션 자체를 라이브러리 전용으로 표시해 상수 접근까지 RestrictedApi로 잡는다.
+ * 상수는 ExerciseInfo.exerciseTrackedStatus의 공개 값이라 이 함수에서만 막는다.
+ */
+@SuppressLint("RestrictedApi")
+internal fun exerciseOwnerOf(trackedStatus: Int): ExerciseOwner = when (trackedStatus) {
+    ExerciseTrackedStatus.OWNED_EXERCISE_IN_PROGRESS -> ExerciseOwner.THIS_APP
+    ExerciseTrackedStatus.OTHER_APP_IN_PROGRESS -> ExerciseOwner.OTHER_APP
+    else -> ExerciseOwner.NONE
 }
 
 /** 센서 값 하나를 심박 한 건으로 바꾼다. 신뢰할 수 없거나 0 이하이면 실패 측정(FR-041 "측정 상태 실패"). */

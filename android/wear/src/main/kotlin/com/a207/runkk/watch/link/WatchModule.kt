@@ -1,7 +1,9 @@
 package com.a207.runkk.watch.link
 
 import com.a207.runkk.watch.heart.BodySensorPermission
-import com.a207.runkk.watch.heart.HealthServicesHeartRateSensor
+import com.a207.runkk.watch.heart.ExerciseHeartRateSensor
+import com.a207.runkk.watch.heart.ExerciseSession
+import com.a207.runkk.watch.heart.HealthServicesExerciseSession
 import com.a207.runkk.watch.heart.HeartRateSensor
 import com.a207.runkk.watch.heart.SensorPermission
 import dagger.Binds
@@ -23,7 +25,10 @@ import kotlinx.coroutines.SupervisorJob
 @InstallIn(SingletonComponent::class)
 abstract class WatchModule {
     @Binds
-    abstract fun heartRateSensor(impl: HealthServicesHeartRateSensor): HeartRateSensor
+    abstract fun heartRateSensor(impl: ExerciseHeartRateSensor): HeartRateSensor
+
+    @Binds
+    abstract fun exerciseSession(impl: HealthServicesExerciseSession): ExerciseSession
 
     @Binds
     abstract fun sensorPermission(impl: BodySensorPermission): SensorPermission

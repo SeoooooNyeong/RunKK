@@ -40,7 +40,7 @@ class HeartRateCollector @Inject constructor(
         /** 센서를 켜고 값을 모으는 중. */
         COLLECTING,
 
-        /** 센서를 쓸 수 없다(다른 앱의 운동 세션 등). stop 뒤 start로 다시 시도한다. */
+        /** 센서를 쓸 수 없다(다른 앱의 운동 세션, 등록 실패 등). stop 뒤 start로 다시 시도한다. */
         UNAVAILABLE
     }
 
@@ -75,6 +75,20 @@ class HeartRateCollector @Inject constructor(
 
     /** OS 권한 결과가 바뀌었을 때(권한 창 닫힘, 화면 복귀) 다시 확인한다. */
     fun onPermissionChanged() = update {}
+
+    /**
+     * 앱 프로세스가 시작될 때 한 번 부른다. 이전 프로세스가 열고 죽어 남은 운동 세션(폰의 금지 플래그를 못 받은 채 도는 센서)을
+     * 끝낸다(NFR-023). 다른 앱의 세션은 두고, Health Services 오류는 삼킨다(다음 수집 시작 때 다시 정리한다).
+     */
+    fun endLeftoverSession(): Job = scope.launch {
+        try {
+            sensor.endLeftoverSession()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            // Health Services에 닿지 못했다. ExerciseHeartRateSensor가 세션을 열기 전에 다시 확인한다.
+        }
+    }
 
     private inline fun update(change: () -> Unit) {
         synchronized(lock) {

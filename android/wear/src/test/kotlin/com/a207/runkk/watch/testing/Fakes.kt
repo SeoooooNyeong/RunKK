@@ -1,5 +1,7 @@
 package com.a207.runkk.watch.testing
 
+import com.a207.runkk.watch.heart.ExerciseOwner
+import com.a207.runkk.watch.heart.ExerciseSession
 import com.a207.runkk.watch.heart.HeartRateSensor
 import com.a207.runkk.watch.heart.SensorPermission
 import com.a207.runkk.watch.heart.WatchHeartRate
@@ -35,7 +37,20 @@ class FakeHeartRateSensor : HeartRateSensor {
         private set
     var openedSessions: Int = 0
         private set
+
+    /** 남은 운동 세션 정리를 부른 횟수. */
+    var leftoverChecks: Int = 0
+        private set
+
+    /** 참이면 남은 세션 정리가 Health Services 오류처럼 예외로 끝난다. */
+    var failLeftoverCheck: Boolean = false
     private var channel: Channel<Result<WatchHeartRate>>? = null
+
+    override suspend fun endLeftoverSession(): Boolean {
+        leftoverChecks++
+        check(!failLeftoverCheck) { "Health Services 없음" }
+        return false
+    }
 
     override fun heartRates(): Flow<WatchHeartRate> = flow {
         val readings = Channel<Result<WatchHeartRate>>(Channel.UNLIMITED)
@@ -56,6 +71,50 @@ class FakeHeartRateSensor : HeartRateSensor {
 
     fun fail() {
         checkNotNull(channel) { "센서를 구독하지 않았다" }.trySend(Result.failure(IllegalStateException("센서 없음")))
+    }
+}
+
+/**
+ * 가짜 Health Services 운동 세션. 기기에 세션은 하나라 [owner]가 지금 주인이다. [events]에 열기·닫기·끝내기 순서를 남긴다.
+ * 세션 흐름은 취소되면 세션을 끝내고(owner = NONE) 닫는다.
+ */
+class FakeExerciseSession(var owner: ExerciseOwner = ExerciseOwner.NONE) : ExerciseSession {
+    val events = mutableListOf<String>()
+    var opened: Int = 0
+        private set
+    var active: Int = 0
+        private set
+    var maxActive: Int = 0
+        private set
+    private var channel: Channel<WatchHeartRate>? = null
+
+    override suspend fun owner(): ExerciseOwner = owner
+
+    override suspend fun end() {
+        events += "end:$owner"
+        owner = ExerciseOwner.NONE
+    }
+
+    override fun heartRates(): Flow<WatchHeartRate> = flow {
+        val readings = Channel<WatchHeartRate>(Channel.UNLIMITED)
+        channel = readings
+        opened++
+        active++
+        maxActive = maxOf(maxActive, active)
+        owner = ExerciseOwner.THIS_APP
+        events += "open"
+        try {
+            readings.consumeAsFlow().collect { emit(it) }
+        } finally {
+            active--
+            owner = ExerciseOwner.NONE
+            events += "close"
+            channel = null
+        }
+    }
+
+    fun emit(sample: WatchHeartRate) {
+        checkNotNull(channel) { "세션이 열려 있지 않다" }.trySend(sample)
     }
 }
 
