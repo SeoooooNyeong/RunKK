@@ -21,6 +21,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -159,17 +160,18 @@ public class RecordBattleService {
             throw new BusinessRuleException(ReasonCode.ALREADY_IN_BATTLE);
         }
         LocalDateTime now = LocalDateTime.now(clock);
-        for (Battle active : battleRepository.findActive(memberId)) {
-            if (!active.isAwaitingStartReport()) {
-                throw new BusinessRuleException(ReasonCode.ALREADY_IN_BATTLE);
-            }
-            active.cancelUnstarted(now);
-            battleRepository.saveImmediately(active);
-        }
         RecordBattleSpec spec = RecordBattleSpec.of(type, memberId, distance, opponent);
         try {
+            for (Battle active : battleRepository.findActive(memberId)) {
+                if (!active.isAwaitingStartReport()) {
+                    throw new BusinessRuleException(ReasonCode.ALREADY_IN_BATTLE);
+                }
+                active.cancelUnstarted(now);
+                battleRepository.saveImmediately(active);
+            }
             return battleRepository.saveImmediately(Battle.againstRecord(spec, now));
-        } catch (DataIntegrityViolationException e) {
+        } catch (DataIntegrityViolationException | OptimisticLockingFailureException e) {
+            // 같은 회원의 다른 생성 요청과 겹쳤다(활성 칸 고유 제약, 같은 이전 대결을 동시에 대신함)
             throw new BusinessRuleException(ReasonCode.ALREADY_IN_BATTLE);
         }
     }
