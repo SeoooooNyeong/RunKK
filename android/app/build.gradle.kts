@@ -38,7 +38,9 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // R8 축소·난독화(리뷰 N-2). 반사로 읽는 곳의 보존 규칙은 proguard-rules.pro, 확인은 assembleProdRelease.
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             if (keystorePath != null) {
                 signingConfig = signingConfigs.getByName("release")
