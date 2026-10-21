@@ -407,6 +407,31 @@
   ],
   "file": "web/battle/BattleDtos.java"
  },
+ "BattleDtos.HistoryQuery": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "type"
+   },
+   {
+    "kind": "leaf",
+    "name": "from"
+   },
+   {
+    "kind": "leaf",
+    "name": "to"
+   },
+   {
+    "kind": "leaf",
+    "name": "cursor"
+   },
+   {
+    "kind": "leaf",
+    "name": "size"
+   }
+  ],
+  "file": "web/battle/BattleDtos.java"
+ },
  "BattleDtos.MatchAcceptanceResponse": {
   "components": [
    {
@@ -876,6 +901,27 @@
   ],
   "file": "web/crew/CrewDtos.java"
  },
+ "CrewDtos.CrewSearchQuery": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "keyword"
+   },
+   {
+    "kind": "list-leaf",
+    "name": "tags"
+   },
+   {
+    "kind": "leaf",
+    "name": "cursor"
+   },
+   {
+    "kind": "leaf",
+    "name": "size"
+   }
+  ],
+  "file": "web/crew/CrewDtos.java"
+ },
  "CrewDtos.DecisionResponse": {
   "components": [
    {
@@ -1033,6 +1079,23 @@
    {
     "kind": "leaf",
     "name": "requestedAt"
+   }
+  ],
+  "file": "web/crew/CrewDtos.java"
+ },
+ "CrewDtos.PostListQuery": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "kind"
+   },
+   {
+    "kind": "leaf",
+    "name": "cursor"
+   },
+   {
+    "kind": "leaf",
+    "name": "size"
    }
   ],
   "file": "web/crew/CrewDtos.java"
