@@ -29,7 +29,10 @@ class HomeScreenshotTest {
         streakDays = 4,
         grass = (0L..27L).filter { it % 3 != 0L }.associate { today.minusDays(it) to Distance(4_000) },
         weeklyAchievement = 0.6,
-        crew = Dashboard.CrewArea("새벽크루", 9, emptyMap(), "남산 3바퀴")
+        crew = Dashboard.CrewArea("새벽크루", 9, emptyMap(), "남산 3바퀴"),
+        todayElapsed = java.time.Duration.ofSeconds(1_004),
+        todayRuns = 1,
+        grassLevels = (0L..27L).filter { it % 3 != 0L }.associate { today.minusDays(it) to (it % 4 + 1).toInt() }
     )
 
     @Test

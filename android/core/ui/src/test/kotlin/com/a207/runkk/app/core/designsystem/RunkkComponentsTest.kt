@@ -1,5 +1,7 @@
 package com.a207.runkk.app.core.designsystem
 
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
@@ -9,13 +11,16 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.text.input.ImeAction
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import org.junit.Rule
@@ -43,6 +48,113 @@ class RunkkComponentsTest {
         compose.onNodeWithText("다음").performClick()
         compose.onNodeWithText("가입").assertIsNotEnabled()
         assertEquals(1, clicks)
+    }
+
+    @Test
+    fun `읽기 문구가 있는 지표 칸도 누를 수 있으면 버튼 동작을 남긴다`() {
+        var clicks = 0
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                RunkkStatTile("이번 주 목표", "60", unit = "%", spoken = "거리 60% 달성", onClick = { clicks++ })
+            }
+        }
+        compose.onNodeWithContentDescription("이번 주 목표 거리 60% 달성").assertHasClickAction().performClick()
+        assertEquals(1, clicks)
+    }
+
+    @Test
+    fun `균등 탭 줄은 탭 역할로 고른 탭을 알리고 누르면 바꾼다`() {
+        val picked = mutableListOf<Int>()
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                RunkkTabRow(listOf("홈", "응원보드", "크루런", "랭킹"), selectedIndex = 0, onSelect = { picked += it })
+            }
+        }
+        compose.onNodeWithText("홈").assertIsSelected()
+        compose.onNodeWithText("응원보드").assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab))
+        compose.onNodeWithText("응원보드").performClick()
+        assertEquals(listOf(1), picked)
+    }
+
+    @Test
+    fun `라임 알약 버튼은 누르면 행동하고 꺼지면 누를 수 없다`() {
+        var clicks = 0
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                androidx.compose.foundation.layout.Row {
+                    RunkkLimePillButton("만들기", onClick = { clicks++ }, leadingIcon = RunkkIcons.Plus)
+                    RunkkLimePillButton("가입", onClick = { clicks++ }, enabled = false)
+                }
+            }
+        }
+        compose.onNodeWithText("만들기").assertHasClickAction().performClick()
+        compose.onNodeWithText("가입").assertIsNotEnabled()
+        assertEquals(1, clicks)
+    }
+
+    @Test
+    fun `종료 카운트다운 배너는 바뀌는 초 대신 고정 문구를 즉시 알린다`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                RunkkCountdownBanner(text = "상대 도착! 27초 안에 도착하지 못하면 대결이 끝나요", spoken = "상대 도착. 곧 대결이 끝나요")
+            }
+        }
+        compose.onNodeWithContentDescription("상대 도착. 곧 대결이 끝나요")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Assertive))
+    }
+
+    @Test
+    fun `라디오 묶음은 묶음 이름을 보이고 선택지마다 읽기 문구를 쓸 수 있다`() {
+        val picked = mutableListOf<Int>()
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                RunkkSegmentRow(
+                    options = listOf("3회", "4회"),
+                    selectedIndex = 1,
+                    onSelect = { picked += it },
+                    groupLabel = "주간 목표 횟수",
+                    spokenLabels = listOf("주 3회", "주 4회")
+                )
+            }
+        }
+        compose.onNodeWithText("주간 목표 횟수").assertExists()
+        compose.onNodeWithContentDescription("주 4회").assertIsSelected()
+        compose.onNodeWithContentDescription("주 3회").performClick()
+        assertEquals(listOf(0), picked)
+    }
+
+    @Test
+    fun `입력칸은 키보드 완료 동작을 넘긴다`() {
+        var searched = 0
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                RunkkTextField(
+                    value = "새벽",
+                    onValueChange = {},
+                    label = "크루 검색",
+                    imeAction = ImeAction.Search,
+                    onImeAction = { searched++ }
+                )
+            }
+        }
+        compose.onNode(hasSetTextAction()).performImeAction()
+        assertEquals(1, searched)
+    }
+
+    @Test
+    fun `오버라인과 거리 칩은 한글 읽기 문구를 쓴다`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                androidx.compose.foundation.layout.Column {
+                    RunkkOverline("LIVE BATTLE · 5K")
+                    RunkkInfoChip("10K", display = true)
+                    RunkkStatusPill("3K")
+                }
+            }
+        }
+        compose.onNodeWithContentDescription("실시간 대결, 5킬로미터").assertExists()
+        compose.onNodeWithContentDescription("10킬로미터").assertExists()
+        compose.onNodeWithContentDescription("3킬로미터").assertExists()
     }
 
     @Test

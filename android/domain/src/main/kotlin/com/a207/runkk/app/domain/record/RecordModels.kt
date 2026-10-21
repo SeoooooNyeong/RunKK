@@ -30,7 +30,10 @@ data class RunSummary(
     val cardKind: CardKind
 )
 
-/** 대시보드(서버 analysis.DashboardView, FR-050~FR-057, FR-077). */
+/**
+ * 대시보드(서버 analysis.DashboardView, FR-050~FR-057, FR-077). [weeklyAchievement]는 이번 주 목표 거리 달성 비율(0.6 = 60%,
+ * 100%를 넘을 수 있다)이고 목표가 없으면 null이다. [weekly]는 횟수·거리 목표와 실제 값, [grassLevels]는 잔디 칸의 진하기(0~4)다.
+ */
 data class Dashboard(
     val today: Distance,
     val total: Distance,
@@ -38,7 +41,11 @@ data class Dashboard(
     val streakDays: Int,
     val grass: Map<LocalDate, Distance>,
     val weeklyAchievement: Double?,
-    val crew: CrewArea?
+    val crew: CrewArea?,
+    val todayElapsed: Duration = Duration.ZERO,
+    val todayRuns: Int = 0,
+    val weekly: WeeklyGoalProgress? = null,
+    val grassLevels: Map<LocalDate, Int> = emptyMap()
 ) {
     /** 크루가 있으면 크루 스트릭·잔디·랜드마크. */
     data class CrewArea(
@@ -49,36 +56,60 @@ data class Dashboard(
     )
 }
 
+/** 이번 주 목표 달성(서버 analysis.WeeklyAchievement, FR-056). 백분율은 100을 넘을 수 있다. */
+data class WeeklyGoalProgress(
+    val goalRuns: Int,
+    val goalDistance: Distance,
+    val actualRuns: Int,
+    val actualDistance: Distance,
+    val runsPercent: Int,
+    val distancePercent: Int
+)
+
 /** 기록 목록(서버 analysis.RecordListView). 본인 기기의 미전송 기록은 화면이 PendingRunRepository로 합쳐 보인다. */
 data class RecordList(val runs: List<RunSummary>)
 
-/** 기록 상세(서버 analysis.RecordDetailView, srs.md 6.3 3.2). route는 본인이거나 코스지도공유 켜짐일 때만 온다. */
+/**
+ * 기록 상세(서버 analysis.RecordDetailView, srs.md 6.3 3.2). route는 본인이거나 코스지도공유 켜짐일 때만 온다.
+ * [unstableSegments]는 신호 불안정 구간(시작 기준 경과 시간, FR-033·FR-059)이다. 서버의 unstableRanges(초를 경로 포인트 번호로
+ * 근사한 값)는 걸러진 위치가 빠지면 번호가 어긋나므로 읽지 않는다. [splitPaces]는 1km 구간 페이스, [fastestKm]은 가장 빠른 1km.
+ */
 data class RecordDetail(
     val summary: RunSummary,
     val route: List<GeoPoint>,
-    val unstableRanges: List<IntRange>,
+    val unstableSegments: List<Unstable>,
     val calories: Int?,
     val heartRateZones: Map<String, Duration>,
     val newRecords: List<String>,
     val crewContribution: Distance?,
     val rewardPoints: Int?,
-    val weather: String?
-)
+    val weather: String?,
+    val splitPaces: List<Pace> = emptyList(),
+    val fastestKm: Pace? = null,
+    val averageHeartRate: Int? = null,
+    val maxHeartRate: Int? = null
+) {
+    /** 불안정 구간 하나: 시작·끝 경과 시간과 구간 거리. */
+    data class Unstable(val from: Duration, val to: Duration, val distance: Distance)
+}
 
 /** 성장 분석(서버 analysis.GrowthView, FR-061~FR-063). */
 data class Growth(val periods: List<PeriodTotal>, val bests: Map<String, Duration>, val longest: Distance?) {
     data class PeriodTotal(val start: LocalDate, val distance: Distance, val runs: Int, val averagePace: Pace?)
 }
 
-/** 리포트(서버 analysis.ReportView, FR-064~FR-067). comment가 null이면 "코멘트 준비 중". */
-data class Report(val summary: String?, val comment: String?, val commentSource: String?)
+/**
+ * 리포트(서버 analysis.ReportView, FR-064~FR-067). comment가 null이면 "코멘트 준비 중". [message]는 서버 안내 문구
+ * (유효 러닝이 없을 때 등)이고 요약이 없을 때 보인다.
+ */
+data class Report(val summary: String?, val comment: String?, val commentSource: String?, val message: String? = null)
 
-/** 랭킹(서버 analysis.RankingView, FR-070·FR-071). */
+/** 랭킹(서버 analysis.RankingView, FR-070·FR-071). 집계 스냅숏이 아직 없으면 [aggregatedAt]이 null이다("집계 준비 중"). */
 data class Ranking(
     val entries: List<Entry>,
     val mine: Entry?,
     val gapToNext: Distance?,
-    val aggregatedAt: Instant,
+    val aggregatedAt: Instant?,
     val notice: String?
 ) {
     data class Entry(val rank: Int, val name: String, val distance: Distance)

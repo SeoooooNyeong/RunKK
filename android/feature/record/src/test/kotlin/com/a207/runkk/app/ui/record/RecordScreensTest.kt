@@ -8,6 +8,9 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.Pace
+import com.a207.runkk.app.domain.record.RecordDetail
+import java.time.Duration
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
@@ -69,6 +72,34 @@ class RecordScreensTest {
         compose.onNodeWithText("유효 러닝").assertExists()
         compose.onNodeWithText("카드 공유").performClick()
         assertEquals(1, shared)
+    }
+
+    @Test
+    fun `기록 상세는 구간 페이스·최고 1km·평균·최고 심박과 불안정 구간 수를 보인다`() {
+        val withSplits = detail().copy(
+            splitPaces = listOf(Pace(341), Pace(318), Pace(330)),
+            fastestKm = Pace(318),
+            averageHeartRate = 152,
+            maxHeartRate = 178,
+            unstableSegments = listOf(
+                RecordDetail.Unstable(Duration.ofSeconds(100), Duration.ofSeconds(160), Distance(180))
+            )
+        )
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                RecordDetailScreen(
+                    RecordDetailUiState(loading = false, recordId = "r1", detail = withSplits),
+                    onBack = {},
+                    onShare = {},
+                    onRetry = {}
+                )
+            }
+        }
+        compose.onNodeWithText("구간 페이스").performScrollTo().assertExists()
+        compose.onNodeWithText("최고 1km 기록 2km · 5:18").performScrollTo().assertExists()
+        compose.onNodeWithContentDescription("2킬로미터 구간 1킬로미터당 5분 18초, 가장 빠름").assertExists()
+        compose.onNodeWithText("평균 152 · 최고 178 bpm").performScrollTo().assertExists()
+        compose.onNodeWithContentDescription("코스 지도, 신호 불안정 구간 1곳 점선 표시").assertExists()
     }
 
     @Test

@@ -52,6 +52,11 @@ object RunkkErrorText {
         "WITHDRAWAL_REJECTED" to "지금은 탈퇴할 수 없어요. 잠시 뒤 다시 시도해 주세요",
         "RECORD_NOT_FOUND" to "기록을 찾을 수 없어요",
         "ROUTE_PURGED" to "경로가 파기된 기록이에요",
+        "RECORD_PRIVATE" to "비공개 기록이라 볼 수 없어요",
+        "RECORD_CREW_ONLY" to "같은 크루원만 볼 수 있는 기록이에요",
+        "GOAL_INVALID" to "주간 목표는 1~7회와 0km보다 긴 거리로 정해 주세요",
+        "PLAN_INVALID" to "계획 거리는 0km보다 길게, 목표 페이스는 0초보다 크게 넣어 주세요",
+        "PAST_DATE" to "지난 날짜에는 계획을 넣을 수 없어요",
         "NOTIFICATION_NOT_FOUND" to "알림을 찾을 수 없어요",
         "NO_TYPE" to "아직 Runimal 유형이 없어요",
         "COURSE_MAP_NOT_SHARED" to "코스 지도 공유가 꺼져 있어 뒷면을 공유할 수 없어요"

@@ -26,11 +26,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
@@ -133,7 +137,17 @@ fun RunkkStatTile(
         // spoken이 있으면 "평균 페이스 1킬로미터당 5분 32초"처럼 읽는다("5:32"가 시각으로 읽히지 않게).
         modifier = modifier.then(
             if (spoken != null) {
-                Modifier.clearAndSetSemantics { contentDescription = "$label $spoken" }
+                // 읽기 문구로 바꿔도 누를 수 있는 칸(이번 주 목표 → 코치)은 버튼 동작을 남긴다.
+                Modifier.clearAndSetSemantics {
+                    contentDescription = "$label $spoken"
+                    if (onClick != null) {
+                        role = Role.Button
+                        onClick {
+                            onClick()
+                            true
+                        }
+                    }
+                }
             } else {
                 Modifier.semantics(mergeDescendants = true) {}
             }
@@ -298,6 +312,31 @@ fun RunkkBanner(
                 RunkkTextStyles.BodyStrong
             },
             color = if (strong) RunkkColors.OnLime else RunkkColors.Lime
+        )
+    }
+}
+
+/**
+ * 종료 카운트다운 배너(라벤더 배경, 검은 글자): "상대 도착! 27초 안에 …". 바뀌는 초는 보이기만 하고 보조 기술에는 고정 문구
+ * [spoken]을 한 번 즉시 알린다(매초 끊어 읽지 않게).
+ */
+@Composable
+fun RunkkCountdownBanner(text: String, spoken: String, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RunkkShapes.Medium)
+            .background(RunkkColors.Lavender)
+            .padding(16.dp)
+            .clearAndSetSemantics {
+                contentDescription = spoken
+                liveRegion = LiveRegionMode.Assertive
+            }
+    ) {
+        Text(
+            text = text,
+            style = RunkkTextStyles.text(15, androidx.compose.ui.text.font.FontWeight.Black),
+            color = RunkkColors.OnLime
         )
     }
 }

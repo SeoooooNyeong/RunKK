@@ -51,7 +51,10 @@ internal data class ProfileResponse(
     val runimalType: String? = null,
     val faceKey: String? = null,
     val crewName: String? = null,
-    val longestDistanceMeters: Long? = null
+    val longestDistanceMeters: Long? = null,
+    val ageBand: String? = null,
+    val gender: String? = null,
+    val photoUrl: String? = null
 )
 
 @Serializable

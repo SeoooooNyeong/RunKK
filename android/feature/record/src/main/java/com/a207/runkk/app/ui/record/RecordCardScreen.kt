@@ -26,6 +26,8 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
+import com.a207.runkk.app.core.designsystem.RunkkErrorText
+import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkLoading
 import com.a207.runkk.app.core.designsystem.RunkkPrimaryButton
 import com.a207.runkk.app.core.designsystem.RunkkSecondaryButton
@@ -35,7 +37,9 @@ import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
+import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
+import com.a207.runkk.app.domain.record.RunCard
 import com.a207.runkk.app.ui.share.CardSide
 
 /** 기록 카드 팝업(FR-068·FR-069): 앞면 기록·뒷면 코스, 기기 저장·다른 앱·스토리 공유. */
@@ -98,7 +102,8 @@ fun RecordCardScreen(
                     if (bitmap != null) {
                         Image(
                             bitmap = bitmap.asImageBitmap(),
-                            contentDescription = if (state.side == CardSide.FRONT) "러닝 카드 앞면" else "러닝 카드 뒷면, 코스 지도",
+                            contentDescription = state.card?.let { cardDescription(it, state.side) }
+                                ?: if (state.side == CardSide.FRONT) "러닝 카드 앞면" else "러닝 카드 뒷면, 코스 지도",
                             modifier = Modifier.weight(
                                 1f,
                                 fill = false
@@ -138,6 +143,26 @@ fun RecordCardScreen(
 }
 
 private const val CARD_RATIO = 1_080f / 1_350f
+
+/** 카드 이미지 대체 텍스트: 면, 종류, 거리, 시간, 평균 페이스(이미지 안 수치를 보조 기술에도 준다). */
+internal fun cardDescription(card: RunCard, side: CardSide): String = listOfNotNull(
+    if (side == CardSide.FRONT) "러닝 카드 앞면" else "러닝 카드 뒷면, 코스 지도",
+    kindLabel(card.cardKind),
+    "${RunkkFormat.km(card.distance)}킬로미터",
+    RunkkFormat.durationSpoken(card.elapsed),
+    card.averagePace?.let(RunkkFormat::paceSpoken)
+).joinToString(", ")
+
+/** 기록 화면 전용 오류 문구. 남의 기록 카드(403 PERMISSION_DENIED)는 본인 기록만 된다고 알리고, 나머지는 공용 문구다. */
+internal object RecordErrorText {
+    fun of(error: AppError): String = if (error is AppError.Rejected && error.code == PERMISSION_DENIED) {
+        "본인 기록만 카드로 만들 수 있어요"
+    } else {
+        RunkkErrorText.of(error)
+    }
+
+    private const val PERMISSION_DENIED = "PERMISSION_DENIED"
+}
 
 @Preview(name = "기록 카드(불러오는 중)", widthDp = 390, heightDp = 844)
 @Composable

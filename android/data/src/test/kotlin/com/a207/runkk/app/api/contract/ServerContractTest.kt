@@ -6,6 +6,7 @@ import com.a207.runkk.app.api.account.LoginResponse
 import com.a207.runkk.app.api.account.LogoutRequest
 import com.a207.runkk.app.api.account.MemberSettingsResponse
 import com.a207.runkk.app.api.account.ProfileEditRequest
+import com.a207.runkk.app.api.account.ProfileResponse
 import com.a207.runkk.app.api.account.SettingChangeBody
 import com.a207.runkk.app.api.account.SignUpRequest
 import com.a207.runkk.app.api.account.TokenPairResponse
@@ -44,6 +45,17 @@ import com.a207.runkk.app.api.notification.InboxResponse
 import com.a207.runkk.app.api.notification.PushTokenRequest
 import com.a207.runkk.app.api.notification.ROUTES
 import com.a207.runkk.app.api.notification.TITLES
+import com.a207.runkk.app.api.record.DashboardResponse
+import com.a207.runkk.app.api.record.GrowthResponse
+import com.a207.runkk.app.api.record.PlanProgressResponse
+import com.a207.runkk.app.api.record.PlanRequest
+import com.a207.runkk.app.api.record.RankingResponse
+import com.a207.runkk.app.api.record.RecordDetailResponse
+import com.a207.runkk.app.api.record.RecordListResponse
+import com.a207.runkk.app.api.record.ReportResponse
+import com.a207.runkk.app.api.record.RunCardResponse
+import com.a207.runkk.app.api.record.TodayPlanResponse
+import com.a207.runkk.app.api.record.WeeklyGoalRequest
 import com.a207.runkk.app.api.run.DisposalOrderResponse
 import com.a207.runkk.app.api.run.LateHeartRatesRequest
 import com.a207.runkk.app.api.run.RunUploadRequest
@@ -237,6 +249,8 @@ class ServerContractTest {
         request(EquipRequest.serializer(), "AvatarDtos.EquipRequest")
         request(PurchaseRequest.serializer(), "AvatarDtos.PurchaseRequest")
         request(PushTokenRequest.serializer(), "NotificationController.PushTokenRequest")
+        request(WeeklyGoalRequest.serializer(), "CoachController.WeeklyGoalRequest")
+        request(PlanRequest.serializer(), "CoachController.PlanRequest")
         assertTrue(problems.isEmpty(), problems.joinToString("\n", prefix = "\n"))
     }
 
@@ -275,6 +289,16 @@ class ServerContractTest {
         response(DisposalOrderResponse.serializer(), "DisposalOrderView")
         response(RunimalStatusResponse.serializer(), "RunimalController.StatusResponse")
         response(RunimalCardResponse.serializer(), "RunimalController.CardResponse")
+        response(ProfileResponse.serializer(), "MeController.ProfileResponse")
+        response(DashboardResponse.serializer(), "RecordDtos.DashboardResponse")
+        response(RecordListResponse.serializer(), "RecordDtos.RecordListResponse")
+        response(RecordDetailResponse.serializer(), "RecordDtos.RecordDetailResponse")
+        response(GrowthResponse.serializer(), "RecordDtos.GrowthResponse")
+        response(ReportResponse.serializer(), "RecordDtos.ReportResponse")
+        response(RankingResponse.serializer(), "RecordDtos.RankingResponse")
+        response(PlanProgressResponse.serializer(), "RecordDtos.PlanProgressResponse")
+        response(TodayPlanResponse.serializer(), "RecordDtos.TodayPlanResponse")
+        response(RunCardResponse.serializer(), "RecordDtos.RunCardResponse")
         assertTrue(problems.isEmpty(), problems.joinToString("\n", prefix = "\n"))
     }
 }

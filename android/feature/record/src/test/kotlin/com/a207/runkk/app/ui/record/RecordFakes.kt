@@ -61,7 +61,7 @@ fun summary(id: String, day: Int, meters: Long, valid: Boolean = true, kind: Car
 fun detail(id: String = "r1") = RecordDetail(
     summary = summary(id, 20, 5_020),
     route = listOf(GeoPoint(37.5, 127.0), GeoPoint(37.51, 127.01)),
-    unstableRanges = emptyList(),
+    unstableSegments = emptyList(),
     calories = 312,
     heartRateZones = mapOf("Z2" to Duration.ofMinutes(10)),
     newRecords = emptyList(),
@@ -126,14 +126,17 @@ class FakeRecordRepository : RecordRepository {
         return rankingResult
     }
 
-    override suspend fun setWeeklyGoal(distance: Distance?, runs: Int?): Outcome<Unit> {
-        calls += "weeklyGoal:${distance?.meters}"
-        return Outcome.Success(Unit)
+    var goalResult: Outcome<Unit> = Outcome.Success(Unit)
+    var planResult: Outcome<Unit> = Outcome.Success(Unit)
+
+    override suspend fun setWeeklyGoal(distance: Distance, runs: Int): Outcome<Unit> {
+        calls += "weeklyGoal:$runs:${distance.meters}"
+        return goalResult
     }
 
     override suspend fun putPlan(date: LocalDate, distance: Distance, pace: Pace?): Outcome<Unit> {
         calls += "plan:$date=${distance.meters}"
-        return Outcome.Success(Unit)
+        return planResult
     }
 
     override suspend fun planProgress(from: LocalDate, to: LocalDate): Outcome<PlanProgress> {

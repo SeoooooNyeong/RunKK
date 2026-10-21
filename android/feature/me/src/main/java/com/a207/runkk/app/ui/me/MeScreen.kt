@@ -53,6 +53,7 @@ import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
+import com.a207.runkk.app.domain.account.Gender
 import com.a207.runkk.app.domain.account.Profile
 
 /** 마이 탭(프로필 요약 + 기록·설정 메뉴 + 로그아웃·탈퇴). */
@@ -155,6 +156,12 @@ fun MeScreen(
     }
 }
 
+/** 입력한 나이대·성별(FR-006). "밝히지 않음"·미입력은 빼고, 둘 다 없으면 null. */
+internal fun aboutLine(profile: Profile): String? = listOfNotNull(
+    profile.ageBand?.takeIf { it.isNotBlank() },
+    profile.gender?.takeIf { it != Gender.UNDISCLOSED }?.let(::genderLabel)
+).takeIf { it.isNotEmpty() }?.joinToString(" · ")
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ProfileCard(profile: Profile, onEdit: () -> Unit) {
@@ -190,6 +197,7 @@ private fun ProfileCard(profile: Profile, onEdit: () -> Unit) {
                     style = RunkkTextStyles.Caption,
                     color = RunkkColors.TextSecondary
                 )
+                aboutLine(profile)?.let { Text(it, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary) }
             }
             RunkkPillButton("편집", onClick = onEdit)
         }

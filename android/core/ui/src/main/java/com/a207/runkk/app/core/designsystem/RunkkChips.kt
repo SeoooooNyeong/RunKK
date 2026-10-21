@@ -25,6 +25,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -123,14 +125,33 @@ fun RunkkSegmentOption(
     }
 }
 
-/** [RunkkSegmentOption]을 같은 너비로 나란히 놓은 라디오 묶음. */
+/**
+ * [RunkkSegmentOption]을 같은 너비로 나란히 놓은 라디오 묶음. [groupLabel]이 있으면 위에 묶음 이름(12, 보조색)을 보이고,
+ * [spokenLabels]가 있으면 선택지마다 보조 기술이 그 문구로 읽는다("4회" → "주 4회").
+ */
 @Composable
-fun RunkkSegmentRow(options: List<String>, selectedIndex: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
-    Row(modifier = modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        options.forEachIndexed { index, label ->
-            RunkkSegmentOption(label = label, selected = index == selectedIndex, onClick = {
-                onSelect(index)
-            }, modifier = Modifier.weight(1f))
+fun RunkkSegmentRow(
+    options: List<String>,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+    groupLabel: String? = null,
+    spokenLabels: List<String>? = null
+) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        groupLabel?.let { Text(text = it, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary) }
+        Row(modifier = Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            options.forEachIndexed { index, label ->
+                val spoken = spokenLabels?.getOrNull(index)
+                RunkkSegmentOption(
+                    label = label,
+                    selected = index == selectedIndex,
+                    onClick = { onSelect(index) },
+                    modifier = Modifier
+                        .weight(1f)
+                        .then(if (spoken != null) Modifier.semantics { contentDescription = spoken } else Modifier)
+                )
+            }
         }
     }
 }
@@ -158,6 +179,7 @@ fun RunkkInfoChip(
     ) {
         Text(
             text = label,
+            modifier = Modifier.spokenIfDifferent(label),
             style = when {
                 display -> RunkkTextStyles.display(16)
                 highlighted -> RunkkTextStyles.text(12, FontWeight.Bold)
@@ -181,8 +203,19 @@ fun RunkkStatusPill(label: String, modifier: Modifier = Modifier, leading: (@Com
         verticalAlignment = Alignment.CenterVertically
     ) {
         leading?.invoke()
-        Text(text = label, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
+        Text(
+            text = label,
+            style = RunkkTextStyles.Caption,
+            color = RunkkColors.TextSecondary,
+            modifier = Modifier.spokenIfDifferent(label)
+        )
     }
+}
+
+/** 라벨을 한글로 읽어야 하면("5K" → "5킬로미터") 읽기 문구를 단다. */
+private fun Modifier.spokenIfDifferent(label: String): Modifier {
+    val spoken = RunkkFormat.spokenLabel(label)
+    return if (spoken == label) this else semantics { contentDescription = spoken }
 }
 
 /** 작은 꼬리표(높이 28, 모서리 8): "자유런", "유효 러닝"(라임), "전체공개". */
@@ -255,6 +288,48 @@ fun RunkkSegmentedTabs(
                             RunkkTextStyles.text(15, if (selected) FontWeight.Black else FontWeight.Normal)
                         },
                         color = if (selected) RunkkColors.TextPrimary else RunkkColors.TextSecondary
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 같은 너비 탭 줄(시안 HiMyCrew: 높이 40, 글자 13, 고른 탭은 라임). [RunkkSegmentedTabs]는 15sp라 네 칸에서 긴 탭 이름이
+ * 줄바꿈되므로 탭이 많을 때 쓴다. 보조 기술에는 탭으로 보인다.
+ */
+@Composable
+fun RunkkTabRow(options: List<String>, selectedIndex: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(RunkkColors.Surface)
+            .padding(4.dp)
+            .selectableGroup()
+    ) {
+        options.forEachIndexed { index, label ->
+            val selected = index == selectedIndex
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .heightIn(min = 48.dp)
+                    .selectable(selected = selected, role = Role.Tab, onClick = { onSelect(index) }),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 40.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (selected) RunkkColors.Lime else Color.Transparent),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        label,
+                        style = RunkkTextStyles.text(13, if (selected) FontWeight.Black else FontWeight.Normal),
+                        color = if (selected) RunkkColors.OnLime else RunkkColors.TextSecondary,
+                        maxLines = 1
                     )
                 }
             }

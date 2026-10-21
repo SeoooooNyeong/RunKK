@@ -276,6 +276,49 @@ fun RunkkPillButton(
 }
 
 /**
+ * 라임 알약 버튼(높이 40, 모서리 20, 글자 13 굵게): 시안 크루 "+ 만들기"·"가입"처럼 작은 주 행동. 터치 영역은 48dp를 보장한다.
+ */
+@Composable
+fun RunkkLimePillButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    leadingIcon: ImageVector? = null,
+    enabled: Boolean = true
+) {
+    val interaction = remember { MutableInteractionSource() }
+    Box(
+        modifier = modifier
+            .minimumInteractiveComponentSize()
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                enabled = enabled,
+                role = Role.Button,
+                onClick = onClick
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(
+            modifier = Modifier
+                .heightIn(min = 40.dp)
+                .runkkPressScale(interaction)
+                .clip(RoundedCornerShape(20.dp))
+                .background(RunkkColors.Lime)
+                .alpha(if (enabled) 1f else DISABLED_ALPHA)
+                .padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (leadingIcon != null) {
+                Icon(leadingIcon, contentDescription = null, tint = RunkkColors.OnLime, modifier = Modifier.size(16.dp))
+            }
+            Text(text, style = RunkkTextStyles.text(13, FontWeight.Black), color = RunkkColors.OnLime)
+        }
+    }
+}
+
+/**
  * 원형 아이콘 버튼(보이는 크기 40dp, 터치 영역 48dp). [badge]가 참이면 오른쪽 위에 라벤더 점을 단다(새 알림).
  * [contentDescription]은 필수다(아이콘만 있는 버튼).
  */

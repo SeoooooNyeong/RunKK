@@ -140,14 +140,29 @@ class AccountRepositoryImplTest {
         api.reply(
             """{"memberId":7,"displayName":"달리는곰","disclosure":"PUBLIC","tier":"GOLD","level":12,
                |"tags":["MORNING"],"intro":"안녕","runimalType":"ENFP","faceKey":"face/7","crewName":"새벽런",
-               |"longestDistanceMeters":21097}
+               |"longestDistanceMeters":21097,"ageBand":"30대","gender":"FEMALE","photoUrl":"https://img/7.png"}
             """.trimMargin()
         )
 
         val profile = repository.profile(7).value()
 
         assertEquals(
-            Profile(7, "달리는곰", "PUBLIC", "GOLD", 12, setOf("MORNING"), "안녕", "ENFP", "face/7", "새벽런", Distance(21_097)),
+            Profile(
+                7,
+                "달리는곰",
+                "PUBLIC",
+                "GOLD",
+                12,
+                setOf("MORNING"),
+                "안녕",
+                "ENFP",
+                "face/7",
+                "새벽런",
+                Distance(21_097),
+                ageBand = "30대",
+                gender = Gender.FEMALE,
+                photoUrl = "https://img/7.png"
+            ),
             profile
         )
         assertEquals("/api/v1/members/7/profile", api.take().url.encodedPath)

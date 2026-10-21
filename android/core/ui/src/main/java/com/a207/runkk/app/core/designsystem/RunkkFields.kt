@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
@@ -52,7 +53,7 @@ import androidx.compose.ui.unit.dp
 
 /**
  * 입력칸(높이 48, 모서리 12, 표면 + 강한 테두리). 위에 [label](12, 보조색), 아래에 [error] 또는 [supporting].
- * [maxLength]를 넘는 입력은 받지 않는다.
+ * [maxLength]를 넘는 입력은 받지 않는다. [onImeAction]이 있으면 키보드의 [imeAction] 단추(검색·완료)를 그 동작으로 받는다.
  */
 @Composable
 fun RunkkTextField(
@@ -65,7 +66,8 @@ fun RunkkTextField(
     supporting: String? = null,
     error: String? = null,
     singleLine: Boolean = true,
-    imeAction: ImeAction = ImeAction.Next
+    imeAction: ImeAction = ImeAction.Next,
+    onImeAction: (() -> Unit)? = null
 ) {
     val shape = RunkkShapes.Small
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -77,6 +79,9 @@ fun RunkkTextField(
             textStyle = RunkkTextStyles.text(16).copy(color = RunkkColors.TextPrimary),
             cursorBrush = SolidColor(RunkkColors.Lime),
             keyboardOptions = KeyboardOptions(imeAction = imeAction),
+            // 완료·검색 같은 키보드 동작을 화면이 받는다. 없으면 기본 동작(다음 칸으로 이동 등).
+            keyboardActions = onImeAction?.let { action -> KeyboardActions(onAny = { action() }) }
+                ?: KeyboardActions.Default,
             modifier = Modifier
                 .fillMaxWidth()
                 .semantics {

@@ -56,10 +56,37 @@ class AnalysisViewModelsTest {
         assertEquals("progress:2026-10-19..2026-10-25", records.calls.first())
         assertNotNull(vm.state.value.progress)
         vm.onTodayPlan(Distance(5_000))
-        vm.onWeeklyGoal(Distance(20_000))
+        vm.onGoalRunsSelected(4)
+        vm.onGoalDistanceSelected(Distance(20_000))
+        vm.onSaveWeeklyGoal()
         assertTrue("plan:2026-10-21=5000" in records.calls)
-        assertTrue("weeklyGoal:20000" in records.calls)
-        assertEquals("이번 주 목표를 20km로 정했어요", vm.state.value.message)
+        assertTrue("weeklyGoal:4:20000" in records.calls)
+        assertEquals("이번 주 목표를 주 4회 · 20km로 정했어요", vm.state.value.message)
         assertEquals(2, records.calls.count { it.startsWith("progress:") })
+    }
+
+    @Test
+    fun `주간 목표는 횟수와 거리를 모두 골라야 보낸다(서버가 둘 다 필수)`() {
+        val vm = CoachViewModel(records, clock)
+        vm.onGoalDistanceSelected(Distance(20_000))
+        assertEquals(false, vm.state.value.canSaveGoal)
+        vm.onSaveWeeklyGoal()
+        assertTrue(records.calls.none { it.startsWith("weeklyGoal") })
+        vm.onGoalRunsSelected(3)
+        assertEquals(true, vm.state.value.canSaveGoal)
+    }
+
+    @Test
+    fun `주간 목표 범위 오류와 지난 날짜 계획은 사유 문구로 알린다`() {
+        records.goalResult = Outcome.Failure(AppError.Rejected("GOAL_INVALID"))
+        records.planResult = Outcome.Failure(AppError.Rejected("PAST_DATE"))
+        val vm = CoachViewModel(records, clock)
+        vm.onGoalRunsSelected(3)
+        vm.onGoalDistanceSelected(Distance(20_000))
+        vm.onSaveWeeklyGoal()
+        assertEquals("주간 목표는 1~7회와 0km보다 긴 거리로 정해 주세요", vm.state.value.message)
+        vm.onMessageShown()
+        vm.onTodayPlan(Distance(5_000))
+        assertEquals("지난 날짜에는 계획을 넣을 수 없어요", vm.state.value.message)
     }
 }

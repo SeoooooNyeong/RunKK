@@ -14,10 +14,12 @@ import com.a207.runkk.app.core.model.RunMode
 import com.a207.runkk.app.domain.record.AggregationPeriod
 import com.a207.runkk.app.domain.record.Dashboard
 import com.a207.runkk.app.domain.record.Ranking
+import com.a207.runkk.app.domain.record.RecordDetail
 import com.a207.runkk.app.domain.record.RecordRepository
 import com.a207.runkk.app.domain.record.RunCard
 import com.a207.runkk.app.domain.record.RunSummary
 import com.a207.runkk.app.domain.record.TodayPlan
+import com.a207.runkk.app.domain.record.WeeklyGoalProgress
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -68,7 +70,10 @@ class RecordRepositoryImplTest {
         api.reply(
             """{"todayMeters":3200,"totalMeters":152300,"landmark":"서울→부산 37%","streakDays":4,
                |"grass":{"2026-10-19":5000,"2026-10-20":3200},"weeklyAchievement":0.6,
-               |"crew":{"crewName":"새벽런","streakDays":9,"grass":{"2026-10-20":12000},"landmark":null}}
+               |"crew":{"crewName":"새벽런","streakDays":9,"grass":{"2026-10-20":12000},"landmark":null},
+               |"todaySeconds":1100,"todayRuns":2,"grassLevels":{"2026-10-19":3,"2026-10-20":2},
+               |"weekly":{"weekStart":"2026-10-19","goalRuns":4,"goalMeters":20000,"actualRuns":2,"actualMeters":12000,
+               |"runsPercent":50,"distancePercent":60}}
             """.trimMargin()
         )
 
@@ -85,7 +90,18 @@ class RecordRepositoryImplTest {
                     LocalDate.of(2026, 10, 20) to Distance(3_200)
                 ),
                 weeklyAchievement = 0.6,
-                crew = Dashboard.CrewArea("새벽런", 9, mapOf(LocalDate.of(2026, 10, 20) to Distance(12_000)), null)
+                crew = Dashboard.CrewArea("새벽런", 9, mapOf(LocalDate.of(2026, 10, 20) to Distance(12_000)), null),
+                todayElapsed = Duration.ofSeconds(1_100),
+                todayRuns = 2,
+                weekly = WeeklyGoalProgress(
+                    goalRuns = 4,
+                    goalDistance = Distance(20_000),
+                    actualRuns = 2,
+                    actualDistance = Distance(12_000),
+                    runsPercent = 50,
+                    distancePercent = 60
+                ),
+                grassLevels = mapOf(LocalDate.of(2026, 10, 19) to 3, LocalDate.of(2026, 10, 20) to 2)
             ),
             dashboard
         )
@@ -98,8 +114,9 @@ class RecordRepositoryImplTest {
             """{"summary":{"recordId":"r-1","startedAt":"2026-10-20T07:00:00","distanceMeters":5010,"elapsedSeconds":1620,
                |"averagePaceSecondsPerKm":323,"valid":true,"mode":"BATTLE","cardKind":"BATTLE_RUN"},
                |"route":[{"latitude":37.5,"longitude":127.0},{"latitude":37.501,"longitude":127.001}],
-               |"unstableRanges":[{"start":3,"end":7}],"calories":320,"heartRateZones":{"ZONE_3":600},
-               |"newRecords":["KM5"],"rewardPoints":30}
+               |"unstableRanges":[{"start":3,"end":7}],"unstableSegments":[{"fromSeconds":3,"toSeconds":7,"distanceMeters":12}],
+               |"calories":320,"heartRateZones":{"ZONE_3":600},"splitPaces":[330,318,325],"fastestKmSecondsPerKm":318,
+               |"averageHeartRate":152,"maxHeartRate":178,"newRecords":["KM5"],"rewardPoints":30}
             """.trimMargin()
         )
 
@@ -119,7 +136,14 @@ class RecordRepositoryImplTest {
             detail.summary
         )
         assertEquals(listOf(GeoPoint(37.5, 127.0), GeoPoint(37.501, 127.001)), detail.route)
-        assertEquals(listOf(3..7), detail.unstableRanges)
+        assertEquals(
+            listOf(RecordDetail.Unstable(Duration.ofSeconds(3), Duration.ofSeconds(7), Distance(12))),
+            detail.unstableSegments
+        )
+        assertEquals(listOf(Pace(330), Pace(318), Pace(325)), detail.splitPaces)
+        assertEquals(Pace(318), detail.fastestKm)
+        assertEquals(152, detail.averageHeartRate)
+        assertEquals(178, detail.maxHeartRate)
         assertEquals(mapOf("ZONE_3" to Duration.ofMinutes(10)), detail.heartRateZones)
         assertEquals(null, detail.crewContribution)
         assertEquals("/api/v1/runs/r-1", api.take().url.encodedPath)
@@ -146,6 +170,26 @@ class RecordRepositoryImplTest {
             ranking
         )
         assertEquals("/api/v1/rankings/personal?period=WEEKLY", api.take().target)
+    }
+
+    @Test
+    fun `집계 전 랭킹은 집계 시각이 없다`() = runTest {
+        api.reply("""{"entries":[],"aggregatedAt":null,"notice":null}""")
+
+        val ranking = repository.crewRanking(AggregationPeriod.MONTHLY).value()
+
+        assertEquals(null, ranking.aggregatedAt)
+    }
+
+    @Test
+    fun `주간 목표는 횟수와 거리를 함께 보낸다`() = runTest {
+        api.replyEmpty()
+
+        repository.setWeeklyGoal(Distance(20_000), runs = 4)
+
+        val request = api.take()
+        assertEquals("PUT /api/v1/goals/weekly", "${request.method} ${request.url.encodedPath}")
+        assertEquals("""{"runs":4,"distanceMeters":20000}""", request.body!!.utf8())
     }
 
     @Test

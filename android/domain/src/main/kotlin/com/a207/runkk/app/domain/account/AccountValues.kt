@@ -73,5 +73,8 @@ data class Profile(
     val runimalType: String?,
     val faceKey: String?,
     val crewName: String?,
-    val longestDistance: Distance?
+    val longestDistance: Distance?,
+    val ageBand: String? = null,
+    val gender: Gender? = null,
+    val photoUrl: String? = null
 )

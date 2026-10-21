@@ -27,6 +27,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -326,7 +327,7 @@ private fun SummaryTiles(dashboard: Dashboard?, onCoach: () -> Unit) {
             label = "오늘",
             value = dashboard?.today?.let(RunkkFormat::km) ?: "0.00",
             unit = "KM",
-            caption = "오늘 달린 거리",
+            caption = dashboard?.let(::todayCaption) ?: "오늘 달린 거리",
             valueStyle = RunkkTextStyles.display(32, lineHeightRatio = 1f),
             modifier = Modifier.weight(1f)
         )
@@ -338,6 +339,7 @@ private fun SummaryTiles(dashboard: Dashboard?, onCoach: () -> Unit) {
             valueColor = RunkkColors.Lime,
             valueStyle = RunkkTextStyles.display(32, lineHeightRatio = 1f),
             caption = if (achievement == null) "목표를 정해 보세요" else null,
+            spoken = dashboard?.let(::weeklySpoken),
             onClick = onCoach,
             modifier = Modifier.weight(1f)
         ) {
@@ -374,13 +376,12 @@ private fun StreakCard(dashboard: Dashboard, today: LocalDate?, onRecords: () ->
             days.chunked(DAYS_PER_WEEK).forEach { week ->
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     week.forEach { day ->
-                        val meters = dashboard.grass[day]?.meters ?: 0L
                         Box(
                             modifier = Modifier
                                 .weight(1f)
                                 .aspectRatio(2f)
                                 .clip(RoundedCornerShape(4.dp))
-                                .background(if (meters > 0) RunkkColors.Lime else RunkkColors.Border)
+                                .background(grassColor(dashboard, day))
                         )
                     }
                 }
@@ -404,6 +405,41 @@ private fun CrewCard(crew: Dashboard.CrewArea, onCrew: () -> Unit) {
         }
     }
 }
+
+/** 오늘 칸 아래 줄(하이파이 HiHome "[시간] · [n]회"). 오늘 기록이 없으면 안내 문구. */
+internal fun todayCaption(dashboard: Dashboard): String = if (dashboard.todayRuns <= 0) {
+    "아직 달리지 않았어요"
+} else {
+    "${RunkkFormat.duration(dashboard.todayElapsed)} · ${dashboard.todayRuns}회"
+}
+
+/**
+ * 이번 주 칸 읽기 문구. weeklyAchievement는 거리 달성 비율(0.6 = 60%, 100%를 넘을 수 있다)이라 거리 기준임을 밝히고,
+ * 횟수 목표가 있으면 덧붙인다.
+ */
+internal fun weeklySpoken(dashboard: Dashboard): String {
+    val achievement = dashboard.weeklyAchievement ?: return "목표를 정해 보세요"
+    val weekly = dashboard.weekly
+    return listOfNotNull(
+        "거리 ${(achievement * PERCENT).roundToInt()}% 달성",
+        weekly?.let { "${it.goalRuns}회 중 ${it.actualRuns}회" }
+    ).joinToString(", ")
+}
+
+/** 잔디 칸 색: 서버 진하기(0~4)가 있으면 단계별로, 없으면 달린 날만 라임. */
+private fun grassColor(dashboard: Dashboard, day: LocalDate): Color {
+    val level = dashboard.grassLevels[day] ?: if ((dashboard.grass[day]?.meters ?: 0L) > 0) MAX_GRASS_LEVEL else 0
+    return GRASS_COLORS[level.coerceIn(0, MAX_GRASS_LEVEL)]
+}
+
+private const val MAX_GRASS_LEVEL = 4
+private val GRASS_COLORS = listOf(
+    RunkkColors.Border,
+    RunkkColors.LimeContainer,
+    RunkkColors.LimeDim,
+    RunkkColors.Lime.copy(alpha = 0.8f),
+    RunkkColors.Lime
+)
 
 private const val PERCENT = 100
 private const val GRASS_DAYS = 28

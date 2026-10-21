@@ -64,6 +64,31 @@ object RunkkFormat {
         return "1킬로미터당 ${seconds / SECONDS_PER_MINUTE}분 ${seconds % SECONDS_PER_MINUTE}초"
     }
 
+    /**
+     * 보조 기술용 라벨 읽기: 영문 오버라인("LIVE BATTLE · 5K")과 거리 라벨("5K")을 한글("실시간 대결, 5킬로미터")로 바꾼다.
+     * " · "로 나뉜 조각마다 바꾸고, 모르는 조각은 그대로 둔다.
+     */
+    fun spokenLabel(text: String): String = text.split(SEPARATOR).joinToString(", ") { raw ->
+        val part = raw.trim()
+        SPOKEN_WORDS[part] ?: KM_LABEL.matchEntire(part)?.let { "${it.groupValues[1]}킬로미터" } ?: part
+    }
+
+    private const val SEPARATOR = " · "
+    private val KM_LABEL = Regex("""(\d+(?:\.\d+)?)K""")
+    private val SPOKEN_WORDS = mapOf(
+        "LIVE BATTLE" to "실시간 대결",
+        "SELF BATTLE" to "나와의 싸움",
+        "CELEB BATTLE" to "유명인 대결",
+        "BATTLE RUN" to "배틀런",
+        "MATCHED" to "매칭 성사",
+        "CREW RUN" to "크루런",
+        "CREW RUN RESULT" to "크루런 결과",
+        "FREE RUN" to "자유런",
+        "FREE" to "목표 없음",
+        "KM" to "킬로미터",
+        "AVG" to "평균"
+    )
+
     private const val METERS_PER_KM = 1_000.0
     private const val SECONDS_PER_MINUTE = 60
     private const val SECONDS_PER_HOUR = 3_600

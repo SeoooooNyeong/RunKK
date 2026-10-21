@@ -1,6 +1,8 @@
 package com.a207.runkk.app.api.account
 
+import com.a207.runkk.app.api.core.enumByName
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.domain.account.Gender
 import com.a207.runkk.app.domain.account.MemberSettings
 import com.a207.runkk.app.domain.account.Profile
 import com.a207.runkk.app.domain.account.ProviderToken
@@ -41,7 +43,10 @@ internal fun ProfileResponse.toDomain(): Profile = Profile(
     runimalType = runimalType,
     faceKey = faceKey,
     crewName = crewName,
-    longestDistance = longestDistanceMeters?.let(::Distance)
+    longestDistance = longestDistanceMeters?.let(::Distance),
+    ageBand = ageBand,
+    gender = enumByName<Gender>(gender),
+    photoUrl = photoUrl
 )
 
 /**

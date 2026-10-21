@@ -26,6 +26,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -205,6 +206,29 @@ fun RunkkMenuRow(
             modifier = Modifier.size(16.dp)
         )
     }
+}
+
+/**
+ * 영문 오버라인(16, 넓은 자간: "LIVE BATTLE · 5K"). 보조 기술에는 [spoken](기본: 한글로 바꾼 라벨, "실시간 대결, 5킬로미터")으로
+ * 읽힌다. [heading]이면 화면 제목으로 알린다.
+ */
+@Composable
+fun RunkkOverline(
+    text: String,
+    modifier: Modifier = Modifier,
+    color: Color = RunkkColors.TextSecondary,
+    heading: Boolean = false,
+    spoken: String = RunkkFormat.spokenLabel(text)
+) {
+    Text(
+        text = text,
+        style = RunkkTextStyles.Overline,
+        color = color,
+        modifier = modifier.semantics {
+            contentDescription = spoken
+            if (heading) heading()
+        }
+    )
 }
 
 /** 구역 제목(13, 700, 보조색): "최신순", "알림". 보조 기술에 제목으로 알린다. */

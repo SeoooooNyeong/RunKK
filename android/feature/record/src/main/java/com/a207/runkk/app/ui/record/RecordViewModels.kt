@@ -148,7 +148,7 @@ class RecordDetailViewModel @Inject constructor(private val records: RecordRepos
                 is Outcome.Success -> _state.update { it.copy(loading = false, detail = result.value) }
 
                 is Outcome.Failure -> _state.update {
-                    it.copy(loading = false, error = RunkkErrorText.of(result.error))
+                    it.copy(loading = false, error = RecordErrorText.of(result.error))
                 }
             }
         }
@@ -222,7 +222,7 @@ class RecordCardViewModel @Inject constructor(
 
                 is Outcome.Failure -> {
                     loadedId = null
-                    _state.update { it.copy(loading = false, error = RunkkErrorText.of(result.error)) }
+                    _state.update { it.copy(loading = false, error = RecordErrorText.of(result.error)) }
                 }
             }
         }

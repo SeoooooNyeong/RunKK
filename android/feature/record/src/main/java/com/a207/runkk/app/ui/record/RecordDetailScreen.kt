@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
@@ -21,6 +22,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -38,6 +40,7 @@ import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkLoading
 import com.a207.runkk.app.core.designsystem.RunkkPillButton
+import com.a207.runkk.app.core.designsystem.RunkkProgressBar
 import com.a207.runkk.app.core.designsystem.RunkkSegmentBar
 import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkStatTile
@@ -141,7 +144,7 @@ private fun DetailBody(detail: RecordDetail) {
         ) {
             CourseMapView(
                 points = detail.route,
-                unstable = detail.unstableRanges,
+                unstable = unstableIndexRanges(detail.unstableSegments, s.elapsed, detail.route.size),
                 modifier = Modifier.fillMaxWidth().weight(1f)
             )
             if (detail.route.size <
@@ -180,7 +183,8 @@ private fun DetailBody(detail: RecordDetail) {
                 modifier = Modifier.weight(1f)
             )
         }
-        if (detail.heartRateZones.isNotEmpty()) {
+        if (detail.splitPaces.isNotEmpty()) SplitPaces(detail)
+        if (detail.heartRateZones.isNotEmpty() || detail.averageHeartRate != null) {
             RunkkCard {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -193,12 +197,17 @@ private fun DetailBody(detail: RecordDetail) {
                         modifier = Modifier.size(24.dp)
                     )
                     Text(
-                        "심박 구간 · 워치",
+                        "심박 · 워치",
                         style = RunkkTextStyles.text(14, FontWeight.Black),
-                        color = RunkkColors.TextPrimary
+                        color = RunkkColors.TextPrimary,
+                        modifier = Modifier.weight(1f)
                     )
+                    heartSummary(detail)?.let {
+                        Text(it, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
+                    }
                 }
                 val zones = detail.heartRateZones.toList()
+                if (zones.isEmpty()) return@RunkkCard
                 val total = zones.sumOf { it.second.seconds }.coerceAtLeast(1)
                 RunkkSegmentBar(
                     zones.mapIndexed { i, (_, d) -> d.seconds.toFloat() / total to ZONE_COLORS[i % ZONE_COLORS.size] },
@@ -239,6 +248,67 @@ private fun DetailBody(detail: RecordDetail) {
     }
 }
 
+/** 평균·최고 심박 한 줄(하이파이 HiRecordDetail "평균 [bpm] · 최고 [bpm]"). 둘 다 없으면 null. */
+private fun heartSummary(detail: RecordDetail): String? {
+    val average = detail.averageHeartRate ?: return detail.maxHeartRate?.let { "최고 $it bpm" }
+    return listOfNotNull("평균 $average", detail.maxHeartRate?.let { "최고 $it" }).joinToString(" · ") + " bpm"
+}
+
+/** 1km 구간 페이스(하이파이 HiRecordDetail): 빠를수록 막대가 길고, 가장 빠른 구간은 라임. */
+@Composable
+private fun SplitPaces(detail: RecordDetail) {
+    val splits = detail.splitPaces
+    val fastest = detail.fastestKm ?: splits.minBy { it.secondsPerKm }
+    val fastestKm = splits.indexOfFirst { it.secondsPerKm == fastest.secondsPerKm } + 1
+    RunkkCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "구간 페이스",
+                style = RunkkTextStyles.text(14, FontWeight.Black),
+                color = RunkkColors.TextPrimary,
+                modifier = Modifier.weight(1f)
+            )
+            if (fastestKm > 0) {
+                Text(
+                    "최고 1km 기록 ${fastestKm}km · ${RunkkFormat.pace(fastest)}",
+                    style = RunkkTextStyles.Caption,
+                    color = RunkkColors.Lime
+                )
+            }
+        }
+        splits.forEachIndexed { index, pace ->
+            val best = index + 1 == fastestKm
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.clearAndSetSemantics {
+                    contentDescription = "${index + 1}킬로미터 구간 ${RunkkFormat.paceSpoken(pace)}" +
+                        if (best) ", 가장 빠름" else ""
+                }
+            ) {
+                Text(
+                    "${index + 1}K",
+                    style = RunkkTextStyles.display(16),
+                    color = RunkkColors.TextSecondary,
+                    modifier = Modifier.width(32.dp)
+                )
+                RunkkProgressBar(
+                    progress = fastest.secondsPerKm.toFloat() / pace.secondsPerKm,
+                    height = 8.dp,
+                    color = if (best) RunkkColors.Lime else RunkkColors.BorderHover,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    RunkkFormat.pace(pace),
+                    style = RunkkTextStyles.display(16),
+                    color = if (best) RunkkColors.Lime else RunkkColors.TextPrimary,
+                    modifier = Modifier.width(40.dp)
+                )
+            }
+        }
+    }
+}
+
 private val DATE = DateTimeFormatter.ofPattern("M월 d일 (E) HH:mm", Locale.KOREAN)
 private val ZONE_COLORS =
     listOf(
@@ -274,7 +344,7 @@ private fun RecordDetailPreview() {
                         GeoPoint(37.502, 127.016),
                         GeoPoint(37.51, 127.024)
                     ),
-                    unstableRanges = emptyList(),
+                    unstableSegments = emptyList(),
                     calories = 312,
                     heartRateZones = mapOf(
                         "Z1" to Duration.ofMinutes(2),

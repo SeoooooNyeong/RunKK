@@ -6,6 +6,8 @@ import com.a207.runkk.app.core.designsystem.testing.captureRunkkScreen
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.GeoPoint
+import com.a207.runkk.app.core.model.Pace
+import com.a207.runkk.app.domain.record.RecordDetail
 import com.a207.runkk.app.ui.share.CardSide
 import com.a207.runkk.app.ui.share.RunCardRenderer
 import java.time.Duration
@@ -78,7 +80,13 @@ class RecordScreenshotTest {
                         GeoPoint(37.51, 127.024),
                         GeoPoint(37.512, 127.03)
                     ),
-                    unstableRanges = listOf(3..3),
+                    unstableSegments = listOf(
+                        RecordDetail.Unstable(Duration.ofSeconds(900), Duration.ofSeconds(1_200), Distance(900))
+                    ),
+                    splitPaces = listOf(Pace(341), Pace(335), Pace(318), Pace(330), Pace(336)),
+                    fastestKm = Pace(318),
+                    averageHeartRate = 152,
+                    maxHeartRate = 178,
                     heartRateZones = mapOf(
                         "Z1" to Duration.ofMinutes(2),
                         "Z2" to Duration.ofMinutes(8),

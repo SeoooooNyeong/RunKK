@@ -73,7 +73,7 @@ class FakeRecordRepository : RecordRepository {
 
     override suspend fun crewRanking(period: AggregationPeriod): Outcome<Ranking> = unused()
 
-    override suspend fun setWeeklyGoal(distance: Distance?, runs: Int?): Outcome<Unit> = unused()
+    override suspend fun setWeeklyGoal(distance: Distance, runs: Int): Outcome<Unit> = unused()
 
     override suspend fun putPlan(date: LocalDate, distance: Distance, pace: Pace?): Outcome<Unit> = unused()
 

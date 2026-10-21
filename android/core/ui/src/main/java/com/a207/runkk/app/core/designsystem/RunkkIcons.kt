@@ -84,6 +84,21 @@ object RunkkIcons {
             "a1.65 1.65 0 0 0-1.51 1Z"
     )
     val Check: ImageVector = line("Check", "M20 6L9 17L4 12")
+    val Search: ImageVector = line("Search", circle(11f, 11f, 8f), "m21 21-4.3-4.3")
+    val Plus: ImageVector = line("Plus", "M5 12h14", "M12 5v14")
+
+    /** 교차한 두 검(시안 HiMatchWaiting 대결 대기). */
+    val Swords: ImageVector = line(
+        "Swords",
+        "M14.5 17.5L3 6V3h3l11.5 11.5",
+        "M13 19l6-6",
+        "M16 16l4 4",
+        "M19 21l2-2",
+        "M14.5 6.5L18 3h3v3l-3.5 3.5",
+        "M5 14l4 4",
+        "M7 17l-3 3",
+        "M3 19l2 2"
+    )
     val Close: ImageVector = line("Close", "M18 6L6 18", "M6 6L18 18")
     val Calendar: ImageVector = line(
         "Calendar",

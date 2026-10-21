@@ -28,8 +28,22 @@ internal data class DashboardResponse(
     val streakDays: Int = 0,
     val grass: Map<String, Long> = emptyMap(),
     val weeklyAchievement: Double? = null,
-    val crew: CrewArea? = null
+    val crew: CrewArea? = null,
+    val todaySeconds: Long = 0,
+    val todayRuns: Int = 0,
+    val weekly: WeeklyDto? = null,
+    val grassLevels: Map<String, Int> = emptyMap()
 ) {
+    @Serializable
+    data class WeeklyDto(
+        val goalRuns: Int,
+        val goalMeters: Long,
+        val actualRuns: Int,
+        val actualMeters: Long,
+        val runsPercent: Int,
+        val distancePercent: Int
+    )
+
     @Serializable
     data class CrewArea(
         val crewName: String,
@@ -42,21 +56,28 @@ internal data class DashboardResponse(
 @Serializable
 internal data class RecordListResponse(val runs: List<RunSummaryDto> = emptyList())
 
-/** unstableRanges는 경로 포인트 번호의 닫힌 구간[start, end]이다. heartRateZones 값은 초. */
+/**
+ * unstableSegments는 시작 기준 초 구간과 거리다. 서버가 함께 주는 unstableRanges(초를 경로 포인트 번호로 근사)는 읽지 않는다.
+ * heartRateZones 값은 초.
+ */
 @Serializable
 internal data class RecordDetailResponse(
     val summary: RunSummaryDto,
     val route: List<GeoPointDto> = emptyList(),
-    val unstableRanges: List<RangeDto> = emptyList(),
+    val unstableSegments: List<UnstableDto> = emptyList(),
     val calories: Int? = null,
     val heartRateZones: Map<String, Long> = emptyMap(),
     val newRecords: List<String> = emptyList(),
     val crewContributionMeters: Long? = null,
     val rewardPoints: Int? = null,
-    val weather: String? = null
+    val weather: String? = null,
+    val splitPaces: List<Int> = emptyList(),
+    val fastestKmSecondsPerKm: Int? = null,
+    val averageHeartRate: Int? = null,
+    val maxHeartRate: Int? = null
 ) {
     @Serializable
-    data class RangeDto(val start: Int, val end: Int)
+    data class UnstableDto(val fromSeconds: Long, val toSeconds: Long, val distanceMeters: Long)
 }
 
 /** bests 값은 기준 거리별 최고 기록(초). */
@@ -79,7 +100,8 @@ internal data class GrowthResponse(
 internal data class ReportResponse(
     val summary: String? = null,
     val comment: String? = null,
-    val commentSource: String? = null
+    val commentSource: String? = null,
+    val message: String? = null
 )
 
 @Serializable
@@ -87,7 +109,7 @@ internal data class RankingResponse(
     val entries: List<Entry> = emptyList(),
     val mine: Entry? = null,
     val gapToNextMeters: Long? = null,
-    val aggregatedAt: String,
+    val aggregatedAt: String? = null,
     val notice: String? = null
 ) {
     @Serializable
@@ -95,7 +117,7 @@ internal data class RankingResponse(
 }
 
 @Serializable
-internal data class WeeklyGoalRequest(val distanceMeters: Long?, val runs: Int?)
+internal data class WeeklyGoalRequest(val runs: Int, val distanceMeters: Long)
 
 @Serializable
 internal data class PlanRequest(val distanceMeters: Long, val paceSecondsPerKm: Int?)

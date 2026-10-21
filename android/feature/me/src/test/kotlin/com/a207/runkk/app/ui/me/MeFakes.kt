@@ -4,6 +4,7 @@ import android.content.Context
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.account.AccountRepository
+import com.a207.runkk.app.domain.account.Gender
 import com.a207.runkk.app.domain.account.MemberSettings
 import com.a207.runkk.app.domain.account.Profile
 import com.a207.runkk.app.domain.account.ProviderToken
@@ -51,7 +52,9 @@ val sampleProfile = Profile(
     runimalType = "치타",
     faceKey = null,
     crewName = "새벽크루",
-    longestDistance = null
+    longestDistance = null,
+    ageBand = "30대",
+    gender = Gender.FEMALE
 )
 
 /** 호출을 기록하고 연산마다 실패를 끼울 수 있는 가짜 AccountRepository. */

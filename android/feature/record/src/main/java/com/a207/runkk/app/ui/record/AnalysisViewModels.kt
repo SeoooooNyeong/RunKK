@@ -70,6 +70,9 @@ class GrowthViewModel @Inject constructor(private val records: RecordRepository)
 data class ReportUiState(val loading: Boolean = true, val report: Report? = null, val error: String? = null) {
     /** 코멘트가 아직 없으면 "코멘트 준비 중"(FR-066). */
     val commentText: String get() = report?.comment ?: "코멘트 준비 중"
+
+    /** 요약 한 줄. 없으면 서버 안내 문구(유효 러닝 없음 등), 그것도 없으면 기본 문구. */
+    val summaryText: String get() = report?.summary ?: report?.message ?: "아직 요약할 기록이 없어요"
 }
 
 @HiltViewModel
@@ -159,10 +162,22 @@ data class CoachUiState(
     val progress: PlanProgress? = null,
     val saving: Boolean = false,
     val message: String? = null,
-    val error: String? = null
-)
+    val error: String? = null,
+    /** 고른 주간 목표 횟수(1~7). */
+    val goalRuns: Int? = null,
+    /** 고른 주간 목표 거리. */
+    val goalDistance: Distance? = null
+) {
+    /** 서버는 횟수·거리를 둘 다 받아야 한다(PUT /goals/weekly, 없으면 400). */
+    val canSaveGoal: Boolean get() = goalRuns != null && goalDistance != null && !saving
 
-/** 목표·코치: 이번 주(월~일) 계획 이행 현황과 보충 거리, 오늘 계획·주간 목표 정하기. */
+    companion object {
+        /** 주간 목표 횟수 범위(FR-072). */
+        val GOAL_RUNS: IntRange = 1..7
+    }
+}
+
+/** 목표·코치: 이번 주(월~일) 계획 이행 현황과 보충 거리, 오늘 계획·주간 목표(횟수 + 거리) 정하기. */
 @HiltViewModel
 class CoachViewModel @Inject constructor(private val records: RecordRepository, clock: Clock) : ViewModel() {
     private val today = LocalDate.now(clock)
@@ -191,8 +206,22 @@ class CoachViewModel @Inject constructor(private val records: RecordRepository, 
         records.putPlan(today, distance, null)
     }
 
-    fun onWeeklyGoal(distance: Distance) = save("이번 주 목표를 ${km(distance)}km로 정했어요", reload = false) {
-        records.setWeeklyGoal(distance, null)
+    fun onGoalRunsSelected(runs: Int) {
+        if (runs in CoachUiState.GOAL_RUNS) _state.update { it.copy(goalRuns = runs) }
+    }
+
+    fun onGoalDistanceSelected(distance: Distance) {
+        if (distance.meters > 0) _state.update { it.copy(goalDistance = distance) }
+    }
+
+    /** 고른 횟수·거리로 주간 목표를 정한다(FR-072). 둘 중 하나라도 없으면 보내지 않는다. */
+    fun onSaveWeeklyGoal() {
+        val s = _state.value
+        val runs = s.goalRuns ?: return
+        val distance = s.goalDistance ?: return
+        save("이번 주 목표를 주 ${runs}회 · ${km(distance)}km로 정했어요", reload = false) {
+            records.setWeeklyGoal(distance, runs)
+        }
     }
 
     fun onMessageShown() = _state.update { it.copy(message = null) }

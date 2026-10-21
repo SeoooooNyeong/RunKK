@@ -24,8 +24,10 @@ interface RecordRepository {
 
     suspend fun crewRanking(period: AggregationPeriod): Outcome<Ranking>
 
-    suspend fun setWeeklyGoal(distance: Distance?, runs: Int?): Outcome<Unit>
+    /** 주간 목표(FR-072). 횟수(1~7)와 거리(0 초과)를 함께 보낸다. 범위를 벗어나면 Rejected(GOAL_INVALID). */
+    suspend fun setWeeklyGoal(distance: Distance, runs: Int): Outcome<Unit>
 
+    /** 날짜별 계획(FR-073). 지난 날짜는 Rejected(PAST_DATE), 거리·페이스가 범위 밖이면 Rejected(PLAN_INVALID). */
     suspend fun putPlan(date: LocalDate, distance: Distance, pace: Pace?): Outcome<Unit>
 
     suspend fun planProgress(from: LocalDate, to: LocalDate): Outcome<PlanProgress>

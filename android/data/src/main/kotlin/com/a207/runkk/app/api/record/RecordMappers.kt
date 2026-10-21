@@ -17,6 +17,7 @@ import com.a207.runkk.app.domain.record.Report
 import com.a207.runkk.app.domain.record.RunCard
 import com.a207.runkk.app.domain.record.RunSummary
 import com.a207.runkk.app.domain.record.TodayPlan
+import com.a207.runkk.app.domain.record.WeeklyGoalProgress
 import java.time.Duration
 import java.time.LocalDate
 
@@ -47,7 +48,20 @@ internal fun DashboardResponse.toDomain(): Dashboard = Dashboard(
     streakDays = streakDays,
     grass = grass.toGrass(),
     weeklyAchievement = weeklyAchievement,
-    crew = crew?.let { Dashboard.CrewArea(it.crewName, it.streakDays, it.grass.toGrass(), it.landmark) }
+    crew = crew?.let { Dashboard.CrewArea(it.crewName, it.streakDays, it.grass.toGrass(), it.landmark) },
+    todayElapsed = Duration.ofSeconds(todaySeconds),
+    todayRuns = todayRuns,
+    weekly = weekly?.let {
+        WeeklyGoalProgress(
+            goalRuns = it.goalRuns,
+            goalDistance = Distance(it.goalMeters),
+            actualRuns = it.actualRuns,
+            actualDistance = Distance(it.actualMeters),
+            runsPercent = it.runsPercent,
+            distancePercent = it.distancePercent
+        )
+    },
+    grassLevels = grassLevels.entries.associate { (date, level) -> ServerTime.parseDate(date) to level }
 )
 
 internal fun RecordListResponse.toDomain(): RecordList = RecordList(runs.map { it.toDomain() })
@@ -55,13 +69,23 @@ internal fun RecordListResponse.toDomain(): RecordList = RecordList(runs.map { i
 internal fun RecordDetailResponse.toDomain(): RecordDetail = RecordDetail(
     summary = summary.toDomain(),
     route = route.map { it.toDomain() },
-    unstableRanges = unstableRanges.map { it.start..it.end },
+    unstableSegments = unstableSegments.map {
+        RecordDetail.Unstable(
+            Duration.ofSeconds(it.fromSeconds),
+            Duration.ofSeconds(it.toSeconds),
+            Distance(it.distanceMeters)
+        )
+    },
     calories = calories,
     heartRateZones = heartRateZones.mapValues { Duration.ofSeconds(it.value) },
     newRecords = newRecords,
     crewContribution = crewContributionMeters?.let(::Distance),
     rewardPoints = rewardPoints,
-    weather = weather
+    weather = weather,
+    splitPaces = splitPaces.mapNotNull { it.toPace() },
+    fastestKm = fastestKmSecondsPerKm.toPace(),
+    averageHeartRate = averageHeartRate,
+    maxHeartRate = maxHeartRate
 )
 
 internal fun GrowthResponse.toDomain(): Growth = Growth(
@@ -78,7 +102,7 @@ internal fun GrowthResponse.toDomain(): Growth = Growth(
     longest = longestMeters?.let(::Distance)
 )
 
-internal fun ReportResponse.toDomain(): Report = Report(summary, comment, commentSource)
+internal fun ReportResponse.toDomain(): Report = Report(summary, comment, commentSource, message)
 
 internal fun RankingResponse.Entry.toDomain(): Ranking.Entry = Ranking.Entry(rank, name, Distance(distanceMeters))
 
@@ -86,7 +110,7 @@ internal fun RankingResponse.toDomain(): Ranking = Ranking(
     entries = entries.map { it.toDomain() },
     mine = mine?.toDomain(),
     gapToNext = gapToNextMeters?.let(::Distance),
-    aggregatedAt = ServerTime.parse(aggregatedAt),
+    aggregatedAt = aggregatedAt?.let(ServerTime::parse),
     notice = notice
 )
 

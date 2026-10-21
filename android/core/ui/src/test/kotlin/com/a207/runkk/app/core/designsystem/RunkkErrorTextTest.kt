@@ -21,6 +21,15 @@ class RunkkErrorTextTest {
     }
 
     @Test
+    fun `목표·계획 범위 오류와 기록 공개 범위 거부는 사유 문구`() {
+        assertEquals("주간 목표는 1~7회와 0km보다 긴 거리로 정해 주세요", RunkkErrorText.of(AppError.Rejected("GOAL_INVALID")))
+        assertEquals("계획 거리는 0km보다 길게, 목표 페이스는 0초보다 크게 넣어 주세요", RunkkErrorText.of(AppError.Rejected("PLAN_INVALID")))
+        assertEquals("지난 날짜에는 계획을 넣을 수 없어요", RunkkErrorText.of(AppError.Rejected("PAST_DATE")))
+        assertEquals("비공개 기록이라 볼 수 없어요", RunkkErrorText.of(AppError.Rejected("RECORD_PRIVATE")))
+        assertEquals("같은 크루원만 볼 수 있는 기록이에요", RunkkErrorText.of(AppError.Rejected("RECORD_CREW_ONLY")))
+    }
+
+    @Test
     fun `네트워크·인증·저장 오류는 각자 문구`() {
         assertEquals(true, RunkkErrorText.of(AppError.Network).startsWith("네트워크"))
         assertEquals(true, RunkkErrorText.of(AppError.Unauthorized).contains("로그인"))

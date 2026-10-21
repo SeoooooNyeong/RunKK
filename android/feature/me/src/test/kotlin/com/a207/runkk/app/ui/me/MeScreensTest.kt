@@ -9,6 +9,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import com.a207.runkk.app.core.designsystem.RunkkTheme
+import com.a207.runkk.app.domain.account.Gender
 import com.a207.runkk.app.domain.account.MemberSettings
 import com.a207.runkk.app.domain.account.ProviderType
 import kotlin.test.assertEquals
@@ -22,6 +23,19 @@ import org.robolectric.RobolectricTestRunner
 class MeScreensTest {
     @get:Rule
     val compose = createComposeRule()
+
+    @Test
+    fun `마이 프로필은 입력한 나이대·성별을 보이고 밝히지 않음은 뺀다(FR-006)`() {
+        assertEquals("30대 · 여성", aboutLine(sampleProfile))
+        assertEquals(null, aboutLine(sampleProfile.copy(ageBand = null, gender = Gender.UNDISCLOSED)))
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                MeScreen(MeUiState(loading = false, profile = sampleProfile), onNavigate = {
+                }, onRetry = {}, onLogout = {})
+            }
+        }
+        compose.onNodeWithText("30대 · 여성").assertExists()
+    }
 
     @Test
     fun `로그인은 로고 라벨과 두 제공자 버튼을 보인다`() {

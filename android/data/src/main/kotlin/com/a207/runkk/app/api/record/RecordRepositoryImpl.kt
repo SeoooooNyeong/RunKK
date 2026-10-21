@@ -51,8 +51,8 @@ constructor(private val api: RecordApi, private val self: SelfMember) :
     override suspend fun crewRanking(period: AggregationPeriod): Outcome<Ranking> =
         ApiErrorMapper.call { api.crewRanking(period.name).toDomain() }
 
-    override suspend fun setWeeklyGoal(distance: Distance?, runs: Int?): Outcome<Unit> =
-        ApiErrorMapper.call { api.setWeeklyGoal(WeeklyGoalRequest(distance?.meters, runs)) }
+    override suspend fun setWeeklyGoal(distance: Distance, runs: Int): Outcome<Unit> =
+        ApiErrorMapper.call { api.setWeeklyGoal(WeeklyGoalRequest(runs, distance.meters)) }
 
     override suspend fun putPlan(date: LocalDate, distance: Distance, pace: Pace?): Outcome<Unit> =
         ApiErrorMapper.call {

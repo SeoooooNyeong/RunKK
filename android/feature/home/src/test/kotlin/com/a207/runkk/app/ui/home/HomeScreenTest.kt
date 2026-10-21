@@ -1,5 +1,6 @@
 package com.a207.runkk.app.ui.home
 
+import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -9,6 +10,8 @@ import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.record.TodayPlan
+import com.a207.runkk.app.domain.record.WeeklyGoalProgress
+import java.time.Duration
 import java.time.LocalDate
 import kotlin.test.assertEquals
 import org.junit.Rule
@@ -70,6 +73,27 @@ class HomeScreenTest {
         show(HomeUiState(loading = false, pendingCount = 2))
         compose.onNodeWithText("미전송 기록 2건 · 연결되면 자동으로 보내요").performScrollTo().performClick()
         assertEquals(listOf(Routes.RECORDS), routes)
+    }
+
+    @Test
+    fun `오늘 칸은 시간·횟수를, 이번 주 칸은 거리 달성률(비율 × 100)을 보인다`() {
+        val dashboard = sampleDashboard.copy(
+            todayElapsed = Duration.ofSeconds(1_100),
+            todayRuns = 2,
+            weekly = WeeklyGoalProgress(4, Distance(20_000), 2, Distance(12_000), 50, 60)
+        )
+        show(HomeUiState(loading = false, dashboard = dashboard, headerLoading = false))
+        compose.onNodeWithText("18:20 · 2회").performScrollTo().assertExists()
+        compose.onNodeWithContentDescription("이번 주 목표 거리 60% 달성, 4회 중 2회")
+            .performScrollTo()
+            .assertHasClickAction()
+    }
+
+    @Test
+    fun `오늘 기록이 없으면 안내 문구, 목표가 없으면 목표 안내를 읽는다`() {
+        assertEquals("아직 달리지 않았어요", todayCaption(sampleDashboard))
+        assertEquals("목표를 정해 보세요", weeklySpoken(sampleDashboard.copy(weeklyAchievement = null)))
+        assertEquals("거리 135% 달성", weeklySpoken(sampleDashboard.copy(weeklyAchievement = 1.35)))
     }
 
     @Test

@@ -181,7 +181,7 @@ class FakeRecordRepository : RecordRepository {
 
     override suspend fun crewRanking(period: AggregationPeriod): Outcome<Ranking> = unused()
 
-    override suspend fun setWeeklyGoal(distance: Distance?, runs: Int?): Outcome<Unit> = unused()
+    override suspend fun setWeeklyGoal(distance: Distance, runs: Int): Outcome<Unit> = unused()
 
     override suspend fun putPlan(date: LocalDate, distance: Distance, pace: Pace?): Outcome<Unit> = unused()
 
@@ -227,7 +227,7 @@ fun recordDetail(id: String = "rec-1") = RecordDetail(
         CardKind.FREE_RUN
     ),
     route = listOf(GeoPoint(37.5, 127.0), GeoPoint(37.51, 127.01)),
-    unstableRanges = emptyList(),
+    unstableSegments = emptyList(),
     calories = 312,
     heartRateZones = mapOf("Z1" to Duration.ofMinutes(2), "Z3" to Duration.ofMinutes(10)),
     newRecords = listOf("최장 거리 신기록 · 직전 4.80km"),

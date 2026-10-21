@@ -22,6 +22,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -35,8 +37,10 @@ import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkLoading
 import com.a207.runkk.app.core.designsystem.RunkkNumberText
 import com.a207.runkk.app.core.designsystem.RunkkPillButton
+import com.a207.runkk.app.core.designsystem.RunkkPrimaryButton
 import com.a207.runkk.app.core.designsystem.RunkkProgressBar
 import com.a207.runkk.app.core.designsystem.RunkkSectionTitle
+import com.a207.runkk.app.core.designsystem.RunkkSegmentRow
 import com.a207.runkk.app.core.designsystem.RunkkSegmentedTabs
 import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
@@ -46,6 +50,7 @@ import com.a207.runkk.app.core.designsystem.RunkkTopBar
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.domain.record.AggregationPeriod
+import com.a207.runkk.app.domain.record.Ranking
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -211,7 +216,7 @@ fun ReportScreen(state: ReportUiState, onBack: () -> Unit, onRetry: () -> Unit) 
         val report = state.report ?: return@AnalysisScaffold
         RunkkCard(Modifier.fillMaxWidth(), shape = RunkkShapes.ExtraLarge) {
             Text("이번 주 요약", style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
-            Text(report.summary ?: "아직 요약할 기록이 없어요", style = RunkkTextStyles.CardTitle, color = RunkkColors.TextPrimary)
+            Text(state.summaryText, style = RunkkTextStyles.CardTitle, color = RunkkColors.TextPrimary)
         }
         RunkkCard(
             Modifier.fillMaxWidth(),
@@ -331,13 +336,20 @@ fun RankingScreen(
                 }
             }
         }
-        RunkkSectionTitle("매일 0시 집계 · ${AGGREGATED.format(ranking.aggregatedAt.atZone(ZoneId.systemDefault()))}")
+        RunkkSectionTitle(
+            ranking.aggregatedAt?.let { "매일 0시 집계 · ${AGGREGATED.format(it.atZone(ZoneId.systemDefault()))}" }
+                ?: "집계 준비 중 · 매일 0시에 순위를 모아요"
+        )
         ranking.notice?.let { Text(it, style = RunkkTextStyles.Caption, color = RunkkColors.Lavender) }
-        if (ranking.entries.isEmpty()) RunkkEmptyState("아직 순위가 없어요")
+        if (ranking.entries.isEmpty()) {
+            RunkkEmptyState(if (ranking.aggregatedAt == null) "첫 집계를 기다리고 있어요" else "아직 순위가 없어요")
+        }
         ranking.entries.forEach { entry ->
             val isMine = entry == ranking.mine
             Row(
-                modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) {},
+                modifier = Modifier.fillMaxWidth().clearAndSetSemantics {
+                    contentDescription = rankingSpoken(entry, isMine)
+                },
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
@@ -369,37 +381,51 @@ fun RankingScreen(
     }
 }
 
+/** 랭킹 한 줄 읽기: "2위 달리는곰, 41.20킬로미터, 나". */
+internal fun rankingSpoken(entry: Ranking.Entry, mine: Boolean): String =
+    listOfNotNull("${entry.rank}위 ${entry.name}", "${RunkkFormat.km(entry.distance)}킬로미터", if (mine) "나" else null)
+        .joinToString(", ")
+
 // ---------- 목표·러닝 코치 ----------
+
+/** 코치 화면 행동 묶음. 1초마다 바뀌지 않는 화면이지만 콜백이 많아 묶는다. */
+class CoachActions(
+    val onBack: () -> Unit = {},
+    val onTodayPlan: (Distance) -> Unit = {},
+    val onGoalRuns: (Int) -> Unit = {},
+    val onGoalDistance: (Distance) -> Unit = {},
+    val onSaveGoal: () -> Unit = {},
+    val onMessageShown: () -> Unit = {},
+    val onRetry: () -> Unit = {}
+)
 
 @Composable
 fun CoachRoute(viewModel: CoachViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val navigator = LocalRunkkNavigator.current
-    CoachScreen(
-        state,
-        onBack = navigator::back,
-        onTodayPlan = viewModel::onTodayPlan,
-        onWeeklyGoal = viewModel::onWeeklyGoal,
-        onMessageShown = viewModel::onMessageShown,
-        onRetry = viewModel::refresh
-    )
+    val actions = remember(viewModel, navigator) {
+        CoachActions(
+            onBack = navigator::back,
+            onTodayPlan = viewModel::onTodayPlan,
+            onGoalRuns = viewModel::onGoalRunsSelected,
+            onGoalDistance = viewModel::onGoalDistanceSelected,
+            onSaveGoal = viewModel::onSaveWeeklyGoal,
+            onMessageShown = viewModel::onMessageShown,
+            onRetry = viewModel::refresh
+        )
+    }
+    CoachScreen(state, actions)
 }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun CoachScreen(
-    state: CoachUiState,
-    onBack: () -> Unit,
-    onTodayPlan: (Distance) -> Unit,
-    onWeeklyGoal: (Distance) -> Unit,
-    onMessageShown: () -> Unit,
-    onRetry: () -> Unit
-) {
+fun CoachScreen(state: CoachUiState, actions: CoachActions) {
+    val onTodayPlan = actions.onTodayPlan
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(state.message) {
         state.message?.let {
             snackbar.showSnackbar(it)
-            onMessageShown()
+            actions.onMessageShown()
         }
     }
     Box(Modifier.fillMaxSize()) {
@@ -407,8 +433,8 @@ fun CoachScreen(
             title = "목표·러닝 코치",
             loading = state.loading && state.progress == null,
             error = state.error,
-            onBack = onBack,
-            onRetry = onRetry
+            onBack = actions.onBack,
+            onRetry = actions.onRetry
         ) {
             RunkkCard(Modifier.fillMaxWidth()) {
                 Text("이번 주 계획", style = RunkkTextStyles.CardTitle, color = RunkkColors.TextPrimary)
@@ -474,18 +500,40 @@ fun CoachScreen(
                     }
                 }
             }
-            RunkkCard(Modifier.fillMaxWidth()) {
-                Text("이번 주 목표 거리", style = RunkkTextStyles.CardTitle, color = RunkkColors.TextPrimary)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    GOAL_CHOICES.forEach { km ->
-                        RunkkPillButton("${km}km", onClick = {
-                            onWeeklyGoal(Distance.ofKm(km.toDouble()))
-                        }, enabled = !state.saving)
-                    }
-                }
-            }
+            WeeklyGoalCard(state, actions)
         }
         RunkkSnackbarHost(snackbar, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp))
+    }
+}
+
+/** 주간 목표(FR-072): 횟수(1~7)와 거리를 모두 고른 뒤 저장한다. */
+@Composable
+private fun WeeklyGoalCard(state: CoachUiState, actions: CoachActions) {
+    RunkkCard(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Text("이번 주 목표", style = RunkkTextStyles.CardTitle, color = RunkkColors.TextPrimary)
+        val runs = CoachUiState.GOAL_RUNS.toList()
+        RunkkSegmentRow(
+            options = runs.map { "${it}회" },
+            selectedIndex = runs.indexOf(state.goalRuns),
+            onSelect = { actions.onGoalRuns(runs[it]) },
+            groupLabel = "목표 횟수",
+            spokenLabels = runs.map { "주 ${it}회" }
+        )
+        val distances = GOAL_CHOICES.map { Distance.ofKm(it.toDouble()) }
+        RunkkSegmentRow(
+            options = GOAL_CHOICES.map { "${it}km" },
+            selectedIndex = distances.indexOf(state.goalDistance),
+            onSelect = { actions.onGoalDistance(distances[it]) },
+            groupLabel = "목표 거리",
+            spokenLabels = GOAL_CHOICES.map { "${it}킬로미터" }
+        )
+        RunkkPrimaryButton(
+            "목표 저장",
+            onClick = actions.onSaveGoal,
+            enabled = state.canSaveGoal,
+            loading = state.saving,
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
 
