@@ -118,6 +118,39 @@ class AvatarControllerTest extends WebTestSupport {
         mvc.perform(as(s, multipart("/api/v1/avatar/selfie").file(selfie(JPEG))))
                 .andExpect(jsonPath("$.code").value("SELFIE_LIMIT"));
 
+        String faceKey =
+                body(mvc.perform(as(s, get("/api/v1/avatar")))
+                                .andReturn()
+                                .getResponse()
+                                .getContentAsString())
+                        .get("faceKey")
+                        .asText();
+        String set = faceKey.substring("selfie:".length());
+        mvc.perform(as(s, get("/api/v1/avatar/parts/" + set + "/EYES")))
+                .andExpect(status().isOk())
+                .andExpect(
+                        org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                                .contentType(MediaType.IMAGE_PNG))
+                .andExpect(
+                        org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                                .bytes(new byte[] {(byte) 0x89, 'P', 'N', 'G'}));
+        Session viewer = signUp();
+        mvc.perform(as(viewer, get("/api/v1/avatar/parts/" + set + "/HAIR")))
+                .andExpect(status().isOk());
+        mvc.perform(as(viewer, get("/api/v1/avatar/parts/" + set + "/WINGS")))
+                .andExpect(status().isBadRequest());
+        mvc.perform(
+                        as(
+                                viewer,
+                                get(
+                                        "/api/v1/avatar/parts/face/"
+                                                + s.memberId()
+                                                + "/00000000-0000-0000-0000-000000000000/EYES")))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("FACE_IMAGE_NOT_FOUND"));
+        mvc.perform(get("/api/v1/avatar/parts/" + set + "/EYES"))
+                .andExpect(status().isUnauthorized());
+
         mvc.perform(
                         as(s, post("/api/v1/avatar/default"))
                                 .contentType(MediaType.APPLICATION_JSON)

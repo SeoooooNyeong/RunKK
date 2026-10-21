@@ -1,16 +1,21 @@
 package com.a207.runkk.web.avatar;
 
 import com.a207.runkk.avatar.AvatarService;
+import com.a207.runkk.avatar.FaceImageService;
 import com.a207.runkk.common.ItemSlot;
 import com.a207.runkk.reward.PurchaseResult;
 import com.a207.runkk.reward.ShopService;
 import jakarta.validation.Valid;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
@@ -33,12 +38,20 @@ public class AvatarController {
     private static final List<MediaType> SELFIE_TYPES =
             List.of(MediaType.IMAGE_JPEG, MediaType.IMAGE_PNG);
 
+    /** 부위 이미지 기기 캐시 기간(묶음 키가 바뀌면 새 주소다). */
+    private static final Duration PART_CACHE = Duration.ofDays(30);
+
     private final AvatarService avatarService;
     private final ShopService shopService;
+    private final FaceImageService faceImageService;
 
-    AvatarController(AvatarService avatarService, ShopService shopService) {
+    AvatarController(
+            AvatarService avatarService,
+            ShopService shopService,
+            FaceImageService faceImageService) {
         this.avatarService = avatarService;
         this.shopService = shopService;
+        this.faceImageService = faceImageService;
     }
 
     @PostMapping(value = "/avatar/selfie", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -74,6 +87,25 @@ public class AvatarController {
     @GetMapping("/avatar")
     AvatarDtos.AvatarResponse view(@RequestAttribute(MEMBER_ID) long memberId) {
         return AvatarDtos.AvatarResponse.of(avatarService.view(memberId));
+    }
+
+    /**
+     * 셀카 아바타 SD 부위 PNG(설계 공백을 메운 조회). 경로는 "/avatar/parts/" + 저장 키이고, 저장 키는 GET /avatar의 faceKey에서
+     * "selfie:"를 뗀 묶음 위치 + "/" + 부위(EYES·NOSE·MOUTH·EARS·HAIR)다. 묶음은 다시 만들 때마다 새 이름이라 내용이 바뀌지 않으므로
+     * 기기에 오래 둬도 된다.
+     */
+    @GetMapping(value = "/avatar/parts/face/{ownerId}/{set}/{part}", produces = "image/png")
+    ResponseEntity<byte[]> partImage(
+            @RequestAttribute(MEMBER_ID) long memberId,
+            @PathVariable String ownerId,
+            @PathVariable String set,
+            @PathVariable String part) {
+        byte[] png =
+                faceImageService.partImage(memberId, "face/" + ownerId + "/" + set + "/" + part);
+        return ResponseEntity.ok()
+                .contentType(MediaType.IMAGE_PNG)
+                .cacheControl(CacheControl.maxAge(PART_CACHE).cachePrivate())
+                .body(png);
     }
 
     @GetMapping("/shop")

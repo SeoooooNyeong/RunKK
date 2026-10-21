@@ -224,6 +224,36 @@ class AvatarServicesTest {
     }
 
     @Test
+    @DisplayName("부위 이미지: 본인·다른 회원 모두 읽고, 탈퇴한 회원·다른 형식 키는 거부")
+    void partImage() {
+        service.createFromSelfie(ALICE, SELFIE);
+        String key = images.saved.get(ALICE).parts().get(FacePart.EYES);
+        FaceImageService faces = new FaceImageService(images, members);
+        when(members.disclosureOf(anyLong(), any()))
+                .thenAnswer(
+                        inv -> {
+                            Map<Long, com.a207.runkk.member.DisclosureLevel> map =
+                                    new java.util.HashMap<>();
+                            for (Object id : (java.util.Collection<?>) inv.getArgument(1)) {
+                                map.put(
+                                        (Long) id,
+                                        (Long) id == ALICE
+                                                ? com.a207.runkk.member.DisclosureLevel.PRIVATE
+                                                : com.a207.runkk.member.DisclosureLevel.WITHDRAWN);
+                            }
+                            return map;
+                        });
+        assertThat(faces.partImage(2L, key)).isNotEmpty();
+        assertThatThrownBy(() -> faces.partImage(2L, "face/3/x/EYES"))
+                .isInstanceOf(com.a207.runkk.common.PermissionDeniedException.class);
+        assertThatThrownBy(() -> faces.partImage(2L, "../etc/passwd"))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> faces.partImage(ALICE, "face/" + ALICE + "/none/EYES"))
+                .extracting(e -> ((BusinessRuleException) e).reason())
+                .isEqualTo(ReasonCode.FACE_IMAGE_NOT_FOUND);
+    }
+
+    @Test
     @DisplayName("탈퇴하면 아바타와 부위 이미지를 지운다")
     void withdrawal() {
         service.createFromSelfie(ALICE, SELFIE);

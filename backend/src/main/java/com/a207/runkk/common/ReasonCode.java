@@ -105,6 +105,8 @@ public enum ReasonCode {
     SELFIE_LIMIT("내일 다시 만들 수 있어요"),
     /** 같은 회원의 셀카 변환이 이미 진행 중(5.3, D-59). */
     SELFIE_IN_PROGRESS("이미 변환 중"),
+    /** 셀카 부위 이미지가 없음(다시 만들어 이전 묶음이 지워졌거나 잘못된 키, GET /avatar/parts). */
+    FACE_IMAGE_NOT_FOUND("얼굴 이미지 없음"),
     /** 보유하지 않았거나 부위가 맞지 않는 아이템 착용(6.6). */
     ITEM_NOT_OWNED("보유하지 않은 아이템"),
 
