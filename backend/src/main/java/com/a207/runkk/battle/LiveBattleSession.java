@@ -12,6 +12,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.TreeMap;
 
 /**
  * 진행 중인 랜덤 대결의 최신 진행값(설계 6.1.6, A-09). 대결마다 하나이고 LiveSessionStore(Redis 해시)에 둔다. 1초 진행값을 받아 상대에게 보낼
@@ -47,14 +48,14 @@ public final class LiveBattleSession {
     /** 대결 시작 때 연다. 아직 진행값이 없는 참가자도 시작 뒤 3초가 지나면 끊김으로 본다. */
     public static LiveBattleSession open(
             long battleId, Distance distance, Map<Long, DisplayName> names, LocalDateTime now) {
-        Map<Long, Runner> runners = new LinkedHashMap<>();
+        Map<Long, Runner> runners = new TreeMap<>();
         names.forEach((id, name) -> runners.put(id, Runner.start(id, name, now)));
         return new LiveBattleSession(battleId, distance, runners, null);
     }
 
     /** 저장소에서 다시 만든다(infra.battle). */
     public static LiveBattleSession restore(Snapshot s) {
-        Map<Long, Runner> runners = new LinkedHashMap<>();
+        Map<Long, Runner> runners = new TreeMap<>();
         s.runners().forEach(r -> runners.put(r.memberId(), r));
         return new LiveBattleSession(
                 s.battleId(), Distance.ofMeters(s.distanceMeters()), runners, s.leaderId());
