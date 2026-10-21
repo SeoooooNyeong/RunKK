@@ -142,8 +142,11 @@ constructor(
         }
     }
 
-    /** 화면이 진행값을 넘길 때. 측정 구독과 같은 값은 한 번만 처리한다(S-16). */
-    fun onProgress(p: RunProgress) {
+    /**
+     * 진행값 한 개를 처리한다. 운영 코드는 RunTracker.progress 구독(CoordinatedRound)만 이 경로를 쓰고 화면은 부르지 않는다.
+     * 시험이 늦게 처리된 진행값을 넣으려고 모듈 안(internal)에만 연다(1차 S-16). 같은 값은 한 번만 처리한다.
+     */
+    internal fun onProgress(p: RunProgress) {
         val run = run ?: return
         run.round.scope.launch { progress(run, p) }
     }
