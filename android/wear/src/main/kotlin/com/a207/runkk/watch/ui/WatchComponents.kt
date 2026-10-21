@@ -26,8 +26,8 @@ import androidx.wear.compose.material3.Text
 
 /** 폰 연결 상태 한 줄(점 + 문구). 연결은 라벤더(실시간 상태), 끊김은 보조색. */
 @Composable
-internal fun ConnectionStatus(connected: Boolean, label: String, modifier: Modifier = Modifier) {
-    val color = if (connected) WatchColors.Lavender else WatchColors.Muted
+internal fun ConnectionStatus(isConnected: Boolean, label: String, modifier: Modifier = Modifier) {
+    val color = if (isConnected) WatchColors.Lavender else WatchColors.Muted
     Row(
         modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
@@ -50,26 +50,26 @@ internal fun PillButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    primary: Boolean = true,
-    enabled: Boolean = true,
+    isPrimary: Boolean = true,
+    isEnabled: Boolean = true,
     onLongClick: (() -> Unit)? = null
 ) {
     val shape = RoundedCornerShape(50)
-    val container = if (primary) WatchColors.Lime else Color.Transparent
-    val content = if (primary) WatchColors.Background else WatchColors.OnSurface
+    val container = if (isPrimary) WatchColors.Lime else Color.Transparent
+    val content = if (isPrimary) WatchColors.Background else WatchColors.OnSurface
     Box(
         modifier = modifier
             .heightIn(min = 48.dp)
             .clip(shape)
-            .background(if (enabled) container else WatchColors.Surface)
-            .border(1.dp, if (primary) Color.Transparent else WatchColors.Border, shape)
-            .combinedClickable(enabled = enabled, role = Role.Button, onClick = onClick, onLongClick = onLongClick)
+            .background(if (isEnabled) container else WatchColors.Surface)
+            .border(1.dp, if (isPrimary) Color.Transparent else WatchColors.Border, shape)
+            .combinedClickable(enabled = isEnabled, role = Role.Button, onClick = onClick, onLongClick = onLongClick)
             .padding(horizontal = 20.dp, vertical = 10.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = text,
-            style = labelStyle(color = if (enabled) content else WatchColors.Muted, size = 15.sp),
+            style = labelStyle(color = if (isEnabled) content else WatchColors.Muted, size = 15.sp),
             textAlign = TextAlign.Center
         )
     }

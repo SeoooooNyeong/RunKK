@@ -32,14 +32,14 @@ class WatchViewModel @Inject constructor(
 ) : ViewModel() {
     /** 폰 표시 정보 중 화면이 쓰는 값(WatchDisplayMessage에서 옮김)과 받은 시각. */
     private data class Received(
-        val running: Boolean,
+        val isRunning: Boolean,
         val elapsedSeconds: Long,
         val distanceMeters: Long,
         val paceSecondsPerKm: Int?,
         val heartRateBpm: Int?,
         val planDistanceMeters: Long?,
         val planPaceSecondsPerKm: Int?,
-        val heartRateAllowed: Boolean,
+        val isHeartRateAllowed: Boolean,
         val notice: String?,
         val atMillis: Long
     )
@@ -51,13 +51,13 @@ class WatchViewModel @Inject constructor(
         val notice: WatchNotice? = null,
         val noticeAtMillis: Long = 0,
         val startRequestedAtMillis: Long? = null,
-        val notificationPromptPending: Boolean = false
+        val isNotificationPromptPending: Boolean = false
     )
 
     private data class Inputs(
         val received: Received?,
-        val connected: Boolean,
-        val permissionNeeded: Boolean,
+        val isConnected: Boolean,
+        val isPermissionNeeded: Boolean,
         val latestHeartRate: LocalHeartRate?,
         val events: LocalEvents
     )
@@ -90,14 +90,14 @@ class WatchViewModel @Inject constructor(
             phoneLink.displays.collect { display ->
                 onDisplay(
                     Received(
-                        running = display.running,
+                        isRunning = display.running,
                         elapsedSeconds = display.elapsedSeconds,
                         distanceMeters = display.distanceMeters,
                         paceSecondsPerKm = display.currentPaceSecondsPerKm,
                         heartRateBpm = display.heartRateBpm,
                         planDistanceMeters = display.planDistanceMeters,
                         planPaceSecondsPerKm = display.planPaceSecondsPerKm,
-                        heartRateAllowed = display.heartRateCollectionAllowed,
+                        isHeartRateAllowed = display.heartRateCollectionAllowed,
                         notice = display.notice,
                         atMillis = phoneLink.lastDisplayAtMillis.value ?: clock.millis()
                     )
@@ -106,7 +106,7 @@ class WatchViewModel @Inject constructor(
         }
         viewModelScope.launch {
             phoneLink.heartRateCollecting.first { collecting -> collecting }
-            if (notificationGate.shouldAsk()) events.update { it.copy(notificationPromptPending = true) }
+            if (notificationGate.shouldAsk()) events.update { it.copy(isNotificationPromptPending = true) }
         }
     }
 
@@ -150,7 +150,7 @@ class WatchViewModel @Inject constructor(
     /** 알림 권한 창을 띄웠다. 결과(허용·거절)와 관계없이 다시 묻지 않고, 심박 수집은 계속한다. */
     fun onNotificationPromptShown() {
         notificationGate.markAsked()
-        events.update { it.copy(notificationPromptPending = false) }
+        events.update { it.copy(isNotificationPromptPending = false) }
     }
 
     /** OS 심박 권한 창이 닫혔거나 화면으로 돌아왔다. */
@@ -172,7 +172,7 @@ class WatchViewModel @Inject constructor(
                         startRequestedAtMillis = null
                     )
 
-                display.running -> current.copy(startRequestedAtMillis = null)
+                display.isRunning -> current.copy(startRequestedAtMillis = null)
 
                 else -> current
             }
@@ -181,27 +181,27 @@ class WatchViewModel @Inject constructor(
 
     private fun reduce(inputs: Inputs, now: Long): WatchUiState {
         val display = inputs.received
-        val running = display?.running == true
-        val allowed = display?.heartRateAllowed == true
+        val isRunning = display?.isRunning == true
+        val isAllowed = display?.isHeartRateAllowed == true
         val freshLocal = inputs.latestHeartRate
             ?.takeIf { now - it.measuredAtEpochMillis <= HEART_RATE_STALE_MILLIS }
             ?.bpm
         val displayStale = display == null || now - display.atMillis > LINK_LOST_MILLIS
         val requestedAt = inputs.events.startRequestedAtMillis
         return WatchUiState(
-            phoneConnected = inputs.connected,
-            running = running,
+            isPhoneConnected = inputs.isConnected,
+            isRunning = isRunning,
             elapsedSeconds = display?.elapsedSeconds ?: 0,
             distanceMeters = display?.distanceMeters ?: 0,
             paceSecondsPerKm = display?.paceSecondsPerKm,
-            heartRateBpm = if (allowed) freshLocal ?: display?.heartRateBpm else null,
+            heartRateBpm = if (isAllowed) freshLocal ?: display?.heartRateBpm else null,
             planDistanceMeters = display?.planDistanceMeters,
             planPaceSecondsPerKm = display?.planPaceSecondsPerKm,
-            linkLost = running && (!inputs.connected || displayStale),
-            startPending = !running && requestedAt != null && now - requestedAt < START_PENDING_MILLIS,
-            heartRatePermissionNeeded = inputs.permissionNeeded,
+            isLinkLost = isRunning && (!inputs.isConnected || displayStale),
+            isStartPending = !isRunning && requestedAt != null && now - requestedAt < START_PENDING_MILLIS,
+            isHeartRatePermissionNeeded = inputs.isPermissionNeeded,
             notice = inputs.events.notice?.takeIf { now - inputs.events.noticeAtMillis < NOTICE_MILLIS },
-            notificationPermissionNeeded = inputs.events.notificationPromptPending
+            isNotificationPermissionNeeded = inputs.events.isNotificationPromptPending
         )
     }
 

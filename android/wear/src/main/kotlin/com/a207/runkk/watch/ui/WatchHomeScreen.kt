@@ -36,7 +36,7 @@ fun WatchHomeScreen(
     ScreenScaffold(
         scrollState = listState,
         modifier = modifier,
-        edgeButton = { StartEdgeButton(isStartPending = state.startPending, onStart = onStart) }
+        edgeButton = { StartEdgeButton(isStartPending = state.isStartPending, onStart = onStart) }
     ) { contentPadding ->
         ScalingLazyColumn(
             state = listState,
@@ -74,18 +74,20 @@ private fun StartEdgeButton(isStartPending: Boolean, onStart: () -> Unit) {
 private fun ScalingLazyListScope.homeItems(state: WatchUiState, onRequestPermission: () -> Unit) {
     item {
         ConnectionStatus(
-            connected = state.phoneConnected,
-            label = stringResource(if (state.phoneConnected) R.string.phone_connected else R.string.phone_disconnected)
+            isConnected = state.isPhoneConnected,
+            label = stringResource(
+                if (state.isPhoneConnected) R.string.phone_connected else R.string.phone_disconnected
+            )
         )
     }
     todayPlan(state)
     state.notice?.let { notice -> item { NoticeText(notice) } }
-    if (state.heartRatePermissionNeeded) {
+    if (state.isHeartRatePermissionNeeded) {
         item {
             PillButton(
                 text = stringResource(R.string.allow_heart_rate),
                 onClick = onRequestPermission,
-                primary = false
+                isPrimary = false
             )
         }
     }
@@ -129,7 +131,7 @@ private fun ScalingLazyListScope.todayPlan(state: WatchUiState) {
 private fun WatchHomeScreenPreview() {
     WatchTheme {
         WatchRoot(
-            state = WatchUiState(phoneConnected = true, planDistanceMeters = 5_000, planPaceSecondsPerKm = 330),
+            state = WatchUiState(isPhoneConnected = true, planDistanceMeters = 5_000, planPaceSecondsPerKm = 330),
             onStart = {},
             onRequestPermission = {},
             onEndTapped = {},

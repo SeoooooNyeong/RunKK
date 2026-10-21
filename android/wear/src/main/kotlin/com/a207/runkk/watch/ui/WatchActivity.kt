@@ -37,8 +37,8 @@ class WatchActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             val state by viewModel.uiState.collectAsStateWithLifecycle()
-            LaunchedEffect(state.notificationPermissionNeeded) {
-                if (state.notificationPermissionNeeded) {
+            LaunchedEffect(state.isNotificationPermissionNeeded) {
+                if (state.isNotificationPermissionNeeded) {
                     viewModel.onNotificationPromptShown()
                     notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
                 }

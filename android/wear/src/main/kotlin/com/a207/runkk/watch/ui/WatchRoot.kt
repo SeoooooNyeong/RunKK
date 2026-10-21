@@ -18,7 +18,7 @@ fun WatchRoot(
     modifier: Modifier = Modifier
 ) {
     AppScaffold(modifier = modifier, containerColor = WatchColors.Background) {
-        if (state.running) {
+        if (state.isRunning) {
             WatchRunDisplay(state = state, onEndTapped = onEndTapped, onEndLongPressed = onEndLongPressed)
         } else {
             WatchHomeScreen(state = state, onStart = onStart, onRequestPermission = onRequestPermission)
