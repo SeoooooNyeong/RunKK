@@ -1,4 +1,4 @@
-package com.a207.runkk.app.ui.me
+package com.a207.runkk.app
 
 import android.app.Application
 import com.a207.runkk.app.core.model.Outcome
