@@ -314,7 +314,8 @@ class CrewControllerTest extends WebTestSupport {
 
         call(leader, patch("/api/v1/crews/" + crewId), Map.of("visibility", "PRIVATE"))
                 .andExpect(status().isNoContent());
-        call(outsider, get("/api/v1/crews/" + crewId), null).andExpect(status().isForbidden());
+        call(outsider, get("/api/v1/crews/" + crewId), null)
+                .andExpect(jsonPath("$.code").value("CREW_NOT_FOUND"));
         call(a, get("/api/v1/crews/" + crewId), null).andExpect(status().isOk());
         call(a, get("/api/v1/crews/987654321"), null)
                 .andExpect(jsonPath("$.code").value("CREW_NOT_FOUND"));

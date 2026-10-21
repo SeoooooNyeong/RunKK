@@ -114,7 +114,7 @@ public class JpaBattleRepository implements BattleRepository {
                 .createQuery(
                         "select b from Battle b join b.participants p where p.memberId = :member"
                                 + " and b.status in :history and b.createdAt >= :from"
-                                + " and b.createdAt < :to order by b.createdAt desc, b.id desc",
+                                + " and b.createdAt < :to order by b.id desc",
                         Battle.class)
                 .setParameter("history", HISTORY)
                 .setParameter("from", range.start().atStartOfDay())

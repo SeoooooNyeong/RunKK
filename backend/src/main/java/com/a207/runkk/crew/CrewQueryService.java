@@ -1,10 +1,11 @@
 package com.a207.runkk.crew;
 
 import com.a207.runkk.common.AggregationPeriod;
+import com.a207.runkk.common.BusinessRuleException;
 import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.PageCursor;
-import com.a207.runkk.common.PermissionDeniedException;
+import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.common.TagSet;
 import com.a207.runkk.common.Week;
 import com.a207.runkk.member.DisclosureLevel;
@@ -213,7 +214,8 @@ public class CrewQueryService {
         Crew crew = crewAccess.require(crewId);
         CrewRelation relation = crew.relationOf(viewerId);
         if (crew.visibility() != CrewVisibility.PUBLIC && relation == CrewRelation.OUTSIDER) {
-            throw new PermissionDeniedException("비공개 크루");
+            // 순번 ID로 비공개 크루의 존재를 가늠하지 못하게 없는 크루와 같은 응답을 준다(자가 리뷰 LOW)
+            throw new BusinessRuleException(ReasonCode.CREW_NOT_FOUND);
         }
         return detailOf(crew, viewerId);
     }

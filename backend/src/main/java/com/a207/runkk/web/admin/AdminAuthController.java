@@ -10,8 +10,11 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.time.Clock;
 import java.time.Duration;
+import java.util.regex.Pattern;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -36,6 +39,8 @@ public class AdminAuthController {
     /** nginx가 덮어써 넣는 실제 접속지 헤더(infra/nginx proxy_set_header X-Real-IP). */
     private static final String REAL_IP = "X-Real-IP";
 
+    private static final Pattern IP_LITERAL = Pattern.compile("[0-9a-fA-F.:]{2,45}");
+
     private final OperatorAuthorizer operatorAuthorizer;
     private final AttemptLimiter attempts;
 
@@ -56,15 +61,36 @@ public class AdminAuthController {
                     operatorAuthorizer.authenticate(request.provider(), request.providerToken());
             attempts.reset(client);
             return session;
-        } catch (PermissionDeniedException | BusinessRuleException | IllegalArgumentException e) {
+        } catch (PermissionDeniedException | IllegalArgumentException e) {
+            // 제공자 무응답(PROVIDER_UNAVAILABLE)은 운영자 잘못이 아니라 세지 않는다
             attempts.recordFailure(client);
             throw e;
         }
     }
 
-    private static String clientOf(HttpServletRequest http) {
+    /**
+     * 접속지. X-Real-IP는 요청이 같은 호스트·사설망(nginx 컨테이너)에서 왔을 때만 믿는다. 밖에서 바로 온 요청이 헤더를 바꿔 제한을 피하지 못하게 한다(자가
+     * 리뷰 MEDIUM).
+     */
+    static String clientOf(HttpServletRequest http) {
+        String remote = http.getRemoteAddr();
         String real = http.getHeader(REAL_IP);
-        return real == null || real.isBlank() ? http.getRemoteAddr() : real.strip();
+        if (real == null || real.isBlank() || !fromProxy(remote)) {
+            return remote;
+        }
+        return real.strip();
+    }
+
+    private static boolean fromProxy(String remote) {
+        if (remote == null || !IP_LITERAL.matcher(remote).matches()) {
+            return false;
+        }
+        try {
+            InetAddress address = InetAddress.getByName(remote); // IP 글자라 이름 조회 없음
+            return address.isLoopbackAddress() || address.isSiteLocalAddress();
+        } catch (UnknownHostException e) {
+            return false;
+        }
     }
 
     /**

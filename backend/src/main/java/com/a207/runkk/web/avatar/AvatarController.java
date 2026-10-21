@@ -94,7 +94,7 @@ public class AvatarController {
      * "selfie:"를 뗀 묶음 위치 + "/" + 부위(EYES·NOSE·MOUTH·EARS·HAIR)다. 묶음은 다시 만들 때마다 새 이름이라 내용이 바뀌지 않으므로
      * 기기에 오래 둬도 된다.
      */
-    @GetMapping(value = "/avatar/parts/face/{ownerId}/{set}/{part}", produces = "image/png")
+    @GetMapping("/avatar/parts/face/{ownerId}/{set}/{part}")
     ResponseEntity<byte[]> partImage(
             @RequestAttribute(MEMBER_ID) long memberId,
             @PathVariable String ownerId,
