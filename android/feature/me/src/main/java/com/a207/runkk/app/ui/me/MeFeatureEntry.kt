@@ -7,6 +7,7 @@ import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.core.navigation.route
 import dagger.Binds
 import dagger.Module
+import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import dagger.multibindings.IntoSet
@@ -43,4 +44,14 @@ internal interface MeEntryModule {
     @Binds
     @IntoSet
     fun bindGoogle(client: GoogleLoginClient): SocialLoginClient
+
+    @Binds
+    fun bindGoogleIdTokenSource(source: CredentialManagerIdTokenSource): GoogleIdTokenSource
+
+    companion object {
+        /** 빌드 속성으로 받은 제공자 앱 키(없으면 빈 문자열 → "준비 중"). */
+        @Provides
+        fun socialLoginKeys(): SocialLoginKeys =
+            SocialLoginKeys(BuildConfig.KAKAO_NATIVE_APP_KEY, BuildConfig.GOOGLE_WEB_CLIENT_ID)
+    }
 }

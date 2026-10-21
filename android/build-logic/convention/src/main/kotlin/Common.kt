@@ -16,6 +16,23 @@ internal val Project.libs: VersionCatalog
 
 internal fun VersionCatalog.lib(alias: String): Provider<MinimalExternalModuleDependency> = findLibrary(alias).get()
 
+/**
+ * 비밀 빌드 속성(제공자 앱 키 등)을 읽는다: local.properties → Gradle 속성(-P, ~/.gradle/gradle.properties) → 환경 변수 순.
+ * 저장소에는 넣지 않으며(AGENTS.md), 없으면 빈 문자열이다. 키가 비면 그 기능은 "준비 중"으로 동작하고 빌드·시험은 통과한다.
+ */
+fun Project.secretProperty(name: String): String {
+    val localFile = rootProject.file("local.properties")
+    val local = if (localFile.exists()) {
+        java.util.Properties().apply { localFile.inputStream().use { load(it) } }.getProperty(name)
+    } else {
+        null
+    }
+    return (local ?: providers.gradleProperty(name).orNull ?: providers.environmentVariable(name).orNull ?: "").trim()
+}
+
+/** BuildConfig 문자열 값으로 쓸 수 있게 따옴표·역슬래시를 막는다. */
+fun buildConfigString(value: String): String = "\"" + value.replace("\\", "").replace("\"", "") + "\""
+
 /** 코드 컨벤션 4장: 포맷은 ktlint(규칙은 루트 .editorconfig)가 정한다. */
 internal fun Project.configureKtlint(android: Boolean) {
     pluginManager.apply("org.jlleitschuh.gradle.ktlint")
