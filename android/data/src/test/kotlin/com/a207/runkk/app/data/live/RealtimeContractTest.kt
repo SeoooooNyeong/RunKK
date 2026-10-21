@@ -109,13 +109,13 @@ class RealtimeContractTest {
         val mine = ServerMessageDecoder { 12L }.decode(read("CrewRunRelay.json")) as CrewRunRelay
         val unknown = ServerMessageDecoder { null }.decode(read("CrewRunRelay.json")) as CrewRunRelay
 
-        assertEquals(listOf(false, true, false), mine.entries.map { it.me })
-        assertEquals(listOf(false, false, false), unknown.entries.map { it.me })
+        assertEquals(listOf(false, true, false), mine.entries.map { it.isMe })
+        assertEquals(listOf(false, false, false), unknown.entries.map { it.isMe })
         val noMemberId =
             ServerMessageDecoder { 12L }.decode(
                 """{"type":"CrewRunRelay","postId":1,"entries":[{"name":"a","distance":1,"connection":"CONNECTED"}]}"""
             ) as CrewRunRelay
-        assertEquals(listOf(false), noMemberId.entries.map { it.me })
+        assertEquals(listOf(false), noMemberId.entries.map { it.isMe })
     }
 
     @Test

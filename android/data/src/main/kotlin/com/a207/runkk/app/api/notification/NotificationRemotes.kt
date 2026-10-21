@@ -1,19 +1,26 @@
 package com.a207.runkk.app.api.notification
 
+import android.content.Context
 import com.a207.runkk.app.api.core.ApiErrorMapper
+import com.a207.runkk.app.api.core.R
 import com.a207.runkk.app.api.core.ServerTime
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.notification.Inbox
 import com.a207.runkk.app.domain.notification.NotificationRepository
 import com.a207.runkk.app.domain.notification.PushTokenRemote
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 
 /** 알림함 포트(GET /notifications, POST /notifications/{id}/open)를 구현한다(6.1.14 api.notification). */
 internal class NotificationRepositoryImpl
 @Inject
-constructor(private val api: NotificationApi) :
-    NotificationRepository {
-    override suspend fun inbox(): Outcome<Inbox> = ApiErrorMapper.call { api.inbox().toDomain() }
+constructor(
+    private val api: NotificationApi,
+    @ApplicationContext private val context: Context
+) : NotificationRepository {
+    override suspend fun inbox(): Outcome<Inbox> = ApiErrorMapper.call { api.inbox().toDomain(::titleOf) }
+
+    private fun titleOf(type: String): String = context.getString(TITLES[type] ?: R.string.inbox_title_default)
 
     override suspend fun open(notificationId: Long): Outcome<Unit> = ApiErrorMapper.call { api.open(notificationId) }
 }
@@ -26,36 +33,35 @@ constructor(private val api: NotificationApi) : PushTokenRemote {
         ApiErrorMapper.call { api.registerPushToken(PushTokenRequest(token)) }
 }
 
-internal fun InboxResponse.toDomain(): Inbox = Inbox(
+/** titleOf는 서버 type → 알림함 제목(문자열 리소스, TITLES). */
+internal fun InboxResponse.toDomain(titleOf: (type: String) -> String): Inbox = Inbox(
     items.map {
         Inbox.Item(
             id = it.id,
             type = it.type,
-            title = TITLES[it.type] ?: DEFAULT_TITLE,
+            title = titleOf(it.type),
             body = it.content,
             receivedAt = ServerTime.parse(it.occurredAt),
-            read = it.read,
+            isRead = it.read,
             route = it.target?.screen?.let(ROUTES::get)
         )
     }
 )
 
-private const val DEFAULT_TITLE = "알림"
-
-/** 서버 NotificationType 이름 → 알림함 제목(서버는 내용만 준다). */
-internal val TITLES: Map<String, String> = mapOf(
-    "PLAN_MISSED" to "계획 미이행",
-    "BODY_SHAPE_CHANGED" to "체형 변화",
-    "JOIN_REQUESTED" to "크루 가입 신청",
-    "JOIN_DECIDED" to "크루 가입 결과",
-    "JOIN_EXPIRED" to "크루 가입 신청 만료",
-    "LEADER_TRANSFERRED" to "크루장 양도",
-    "CREW_DELETED" to "크루 삭제",
-    "KICKED" to "크루 강제 퇴장",
-    "CREW_RUN_RECRUIT" to "크루런 모집",
-    "CREW_RUN_SOON" to "크루런 시작 전",
-    "OPPONENT_ARRIVED" to "대결 상대 도착",
-    "BATTLE_CORRECTED" to "대결 결과 정정"
+/** 서버 NotificationType 이름 → 알림함 제목 문자열 리소스(서버는 내용만 준다). 모르는 type은 inbox_title_default. */
+internal val TITLES: Map<String, Int> = mapOf(
+    "PLAN_MISSED" to R.string.inbox_title_plan_missed,
+    "BODY_SHAPE_CHANGED" to R.string.inbox_title_body_shape_changed,
+    "JOIN_REQUESTED" to R.string.inbox_title_join_requested,
+    "JOIN_DECIDED" to R.string.inbox_title_join_decided,
+    "JOIN_EXPIRED" to R.string.inbox_title_join_expired,
+    "LEADER_TRANSFERRED" to R.string.inbox_title_leader_transferred,
+    "CREW_DELETED" to R.string.inbox_title_crew_deleted,
+    "KICKED" to R.string.inbox_title_kicked,
+    "CREW_RUN_RECRUIT" to R.string.inbox_title_crew_run_recruit,
+    "CREW_RUN_SOON" to R.string.inbox_title_crew_run_soon,
+    "OPPONENT_ARRIVED" to R.string.inbox_title_opponent_arrived,
+    "BATTLE_CORRECTED" to R.string.inbox_title_battle_corrected
 )
 
 /**

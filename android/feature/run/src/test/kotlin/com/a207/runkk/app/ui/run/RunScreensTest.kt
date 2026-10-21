@@ -71,7 +71,7 @@ class RunScreensTest {
 
     @Test
     fun `잠금 화면은 해제만 받는다(짧게 안내, 길게 해제)`() {
-        show(RunUiState(phase = RunPhase.LOCKED, progress = RunProgress.INITIAL.copy(locked = true)))
+        show(RunUiState(phase = RunPhase.LOCKED, progress = RunProgress.INITIAL.copy(isLocked = true)))
         val unlock = compose.onNodeWithContentDescription("화면 잠금 해제")
         unlock.performClick()
         unlock.performSemanticsAction(SemanticsActions.OnLongClick)

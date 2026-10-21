@@ -10,6 +10,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.NavBackStack
@@ -131,6 +132,9 @@ private fun ComingSoonScreen() {
     val navigator = LocalRunkkNavigator.current
     Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(24.dp)) {
         RunkkTopBar(title = "", onBack = { navigator.back() })
-        RunkkEmptyState(title = "준비 중인 화면이에요", message = "곧 만나요")
+        RunkkEmptyState(
+            title = stringResource(R.string.app_coming_soon_title),
+            message = stringResource(R.string.app_coming_soon_message)
+        )
     }
 }

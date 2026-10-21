@@ -67,6 +67,8 @@ import com.a207.runkk.app.core.designsystem.RunkkTextLink
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
+import com.a207.runkk.app.core.designsystem.StatTileStyle
+import com.a207.runkk.app.core.designsystem.StatTileValue
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
@@ -126,7 +128,7 @@ fun BattleResultScreen(
                     onRetry = onRetry
                 )
 
-                result.pending -> Pending(onRetry)
+                result.isPending -> Pending(onRetry)
 
                 else -> ResultBody(state, result, onHistory)
             }
@@ -177,22 +179,24 @@ private fun Pending(onRetry: () -> Unit) {
 @Composable
 private fun ResultBody(state: BattleResultUiState, result: BattleResult, onHistory: () -> Unit) {
     VerdictCard(state.verdict, verdictMessage(state.verdict, result).asString())
-    if (result.newRecord) RunkkBanner(stringResource(R.string.battle_result_new_record), strong = true)
+    if (result.isNewRecord) RunkkBanner(stringResource(R.string.battle_result_new_record), strong = true)
     ComparisonTable(result.rows)
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         RunkkStatTile(
             stringResource(R.string.battle_result_reward),
-            result.rewardPoints?.let { "+$it" } ?: "+0",
-            valueColor = RunkkColors.Lime,
-            valueStyle = RunkkTextStyles.display(28),
+            StatTileValue(result.rewardPoints?.let { "+$it" } ?: "+0"),
+            style = StatTileStyle(valueStyle = RunkkTextStyles.display(28), valueColor = RunkkColors.Lime),
             modifier = Modifier.weight(1f)
         )
         val weekly = state.weekly
         RunkkStatTile(
             stringResource(R.string.battle_result_weekly),
-            weekly?.let(::weeklyLabel) ?: "-",
-            spoken = weekly?.let { weeklySpoken(it).asString() } ?: stringResource(R.string.battle_result_weekly_none),
-            valueStyle = RunkkTextStyles.display(28),
+            StatTileValue(
+                weekly?.let(::weeklyLabel) ?: "-",
+                spoken =
+                    weekly?.let { weeklySpoken(it).asString() } ?: stringResource(R.string.battle_result_weekly_none)
+            ),
+            style = StatTileStyle(valueStyle = RunkkTextStyles.display(28)),
             modifier = Modifier.weight(1f)
         )
     }
@@ -436,25 +440,31 @@ private fun HistoryStats(history: BattleHistory?) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         RunkkStatTile(
             stringResource(R.string.battle_history_stat_battles),
-            history?.total?.toString() ?: "-",
-            centered = true,
-            valueStyle = RunkkTextStyles.DisplaySmall,
+            StatTileValue(history?.total?.toString() ?: "-"),
+            style = StatTileStyle(valueStyle = RunkkTextStyles.DisplaySmall, isCentered = true),
             modifier = Modifier.weight(1f)
         )
         RunkkStatTile(
             stringResource(R.string.battle_history_stat_win_loss),
-            history?.let { "${it.wins}W ${it.losses}L" } ?: "-",
-            spoken = history?.let { stringResource(R.string.battle_history_win_loss_spoken, it.wins, it.losses) },
-            centered = true,
-            valueStyle = RunkkTextStyles.DisplaySmall,
+            StatTileValue(
+                history?.let {
+                    "${it.wins}W ${it.losses}L"
+                } ?: "-",
+                spoken = history?.let {
+                    stringResource(R.string.battle_history_win_loss_spoken, it.wins, it.losses)
+                }
+            ),
+            style = StatTileStyle(valueStyle = RunkkTextStyles.DisplaySmall, isCentered = true),
             modifier = Modifier.weight(1f)
         )
         RunkkStatTile(
             stringResource(R.string.battle_history_stat_self_record),
-            history?.selfNewRecords?.toString() ?: "-",
-            centered = true,
-            valueStyle = RunkkTextStyles.DisplaySmall,
-            valueColor = RunkkColors.Lime,
+            StatTileValue(history?.selfNewRecords?.toString() ?: "-"),
+            style = StatTileStyle(
+                valueStyle = RunkkTextStyles.DisplaySmall,
+                valueColor = RunkkColors.Lime,
+                isCentered = true
+            ),
             modifier = Modifier.weight(1f)
         )
     }
@@ -505,7 +515,7 @@ private fun HistoryRow(entry: BattleHistory.Entry, onClick: () -> Unit) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             HistoryRowInfo(entry, playedFormat)
-            if (entry.newRecord) {
+            if (entry.isNewRecord) {
                 RunkkBadge(
                     stringResource(R.string.battle_history_new_record),
                     tone = RunkkBadgeTone.Lime

@@ -28,7 +28,7 @@ internal fun CandidatesResponse.toDomain(): RecordBattleCandidates = RecordBattl
             finishTime = it.finishSeconds?.let(Duration::ofSeconds),
             recordedOn = it.recordedOn?.let(ServerTime::parseDate),
             sourceLabel = it.sourceLabel,
-            estimated = it.estimated
+            isEstimated = it.estimated
         )
     }
 )
@@ -44,11 +44,11 @@ internal fun RecordBattleStartResponse.toDomain(): RecordBattleStart = RecordBat
 
 internal fun BattleResultResponse.toDomain(): BattleResult = BattleResult(
     battleId = battleId,
-    pending = pending,
+    isPending = pending,
     verdict = verdict,
     rows = rows.map { BattleResult.Row(it.item, it.mine, it.theirs) },
     rewardPoints = rewardPoints,
-    newRecord = newRecord,
+    isNewRecord = newRecord,
     opponentName = opponentName,
     recordId = recordId?.takeIf { it.isNotBlank() },
     myReach = myReachSeconds?.let(Duration::ofSeconds),
@@ -69,7 +69,7 @@ internal fun BattleHistoryResponse.toDomain(): BattleHistory = BattleHistory(
                     playedAt = ServerTime.parse(entry.playedAt),
                     gap = entry.gapSeconds?.let(Duration::ofSeconds),
                     sourceLabel = entry.sourceLabel,
-                    newRecord = entry.newRecord
+                    isNewRecord = entry.newRecord
                 )
             }
         },

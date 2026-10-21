@@ -56,25 +56,25 @@ internal fun ProfileResponse.toDomain(): Profile = Profile(
 internal fun MemberSettingsResponse.toDomain(): SettingsSnapshot {
     val defaults = GuidanceSettings.DEFAULT
     return SettingsSnapshot(
-        locationConsented = consents[CONSENT_LOCATION] == true,
-        heartRateConsented = consents[CONSENT_HEART_RATE] == true,
-        watchLinked = watchLinked,
-        courseMapShared = courseMapShared,
+        isLocationConsented = consents[CONSENT_LOCATION] == true,
+        isHeartRateConsented = consents[CONSENT_HEART_RATE] == true,
+        isWatchLinked = watchLinked,
+        isCourseMapShared = courseMapShared,
         birthYear = birthYear,
         guidanceSettings =
             GuidanceSettings(
-                runVoice = runSettings?.voice ?: defaults.runVoice,
-                runVibration = runSettings?.vibration ?: defaults.runVibration,
-                battleVoice = battleSettings?.voice ?: defaults.battleVoice,
-                battleVibration = battleSettings?.vibration ?: defaults.battleVibration,
+                isRunVoiceOn = runSettings?.voice ?: defaults.isRunVoiceOn,
+                isRunVibrationOn = runSettings?.vibration ?: defaults.isRunVibrationOn,
+                isBattleVoiceOn = battleSettings?.voice ?: defaults.isBattleVoiceOn,
+                isBattleVibrationOn = battleSettings?.vibration ?: defaults.isBattleVibrationOn,
                 gapAlertMeters =
                     when (battleSettings?.gapAlertInterval) {
                         GAP_500M -> 500
                         null -> defaults.gapAlertMeters
                         else -> 1_000
                     },
-                rankAlert = defaults.rankAlert,
-                followCoachPlan = runSettings?.followCoachPlan ?: defaults.followCoachPlan
+                isRankAlertOn = defaults.isRankAlertOn,
+                shouldFollowCoachPlan = runSettings?.followCoachPlan ?: defaults.shouldFollowCoachPlan
             )
     )
 }

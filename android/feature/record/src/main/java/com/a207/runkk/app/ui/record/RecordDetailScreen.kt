@@ -50,6 +50,8 @@ import com.a207.runkk.app.core.designsystem.RunkkStatTile
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
+import com.a207.runkk.app.core.designsystem.StatTileStyle
+import com.a207.runkk.app.core.designsystem.StatTileValue
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
@@ -150,7 +152,7 @@ private fun DetailBadges(detail: RecordDetail) {
     val dateFormat = rememberDateFormatter(R.string.record_detail_date_pattern)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         RunkkBadge(kindLabel(s.cardKind))
-        if (s.valid) {
+        if (s.isValid) {
             RunkkBadge(
                 stringResource(R.string.record_detail_valid),
                 tone = RunkkBadgeTone.Lime
@@ -204,26 +206,23 @@ private fun DetailStats(s: RunSummary) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         RunkkStatTile(
             stringResource(R.string.record_detail_stat_distance),
-            RunkkFormat.km(s.distance),
-            spoken = stringResource(R.string.record_distance_spoken, RunkkFormat.km(s.distance)),
-            centered = true,
-            valueStyle = RunkkTextStyles.DisplaySmall,
+            StatTileValue(
+                RunkkFormat.km(s.distance),
+                spoken = stringResource(R.string.record_distance_spoken, RunkkFormat.km(s.distance))
+            ),
+            style = StatTileStyle(valueStyle = RunkkTextStyles.DisplaySmall, isCentered = true),
             modifier = Modifier.weight(1f)
         )
         RunkkStatTile(
             stringResource(R.string.record_detail_stat_time),
-            RunkkFormat.duration(s.elapsed),
-            spoken = RunkkFormat.durationSpoken(s.elapsed),
-            centered = true,
-            valueStyle = RunkkTextStyles.DisplaySmall,
+            StatTileValue(RunkkFormat.duration(s.elapsed), spoken = RunkkFormat.durationSpoken(s.elapsed)),
+            style = StatTileStyle(valueStyle = RunkkTextStyles.DisplaySmall, isCentered = true),
             modifier = Modifier.weight(1f)
         )
         RunkkStatTile(
             stringResource(R.string.record_stat_avg_pace),
-            RunkkFormat.pace(s.averagePace),
-            spoken = RunkkFormat.paceSpoken(s.averagePace),
-            centered = true,
-            valueStyle = RunkkTextStyles.DisplaySmall,
+            StatTileValue(RunkkFormat.pace(s.averagePace), spoken = RunkkFormat.paceSpoken(s.averagePace)),
+            style = StatTileStyle(valueStyle = RunkkTextStyles.DisplaySmall, isCentered = true),
             modifier = Modifier.weight(1f)
         )
     }

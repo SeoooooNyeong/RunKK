@@ -9,14 +9,14 @@ import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 
-/** 기록 목록·상세 공용 요약 한 줄. valid가 거짓이면 "집계 제외"로 보인다. */
+/** 기록 목록·상세 공용 요약 한 줄. isValid가 거짓이면 "집계 제외"로 보인다. */
 data class RunSummary(
     val recordId: String,
     val startedAt: Instant,
     val distance: Distance,
     val elapsed: Duration,
     val averagePace: Pace?,
-    val valid: Boolean,
+    val isValid: Boolean,
     val mode: RunMode,
     val cardKind: CardKind
 )

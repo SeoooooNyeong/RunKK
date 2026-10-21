@@ -210,7 +210,7 @@ class CrewHomeViewModel @Inject constructor(private val crews: CrewRepository) :
 
     /** 삭제를 누르면 확인을 받는다(되돌릴 수 없다). */
     fun onDeleteAsk(item: PostList.Item) {
-        if (item.mine) _state.update { it.copy(confirmDelete = item) }
+        if (item.isMine) _state.update { it.copy(confirmDelete = item) }
     }
 
     fun onDeleteDismiss() = _state.update { it.copy(confirmDelete = null) }
@@ -223,7 +223,7 @@ class CrewHomeViewModel @Inject constructor(private val crews: CrewRepository) :
 
     /** 글 삭제(작성자 본인, FR-130·FR-134). 크루장의 남의 글 삭제는 크루 관리에서 권한을 확인한 뒤 서버가 판정한다. */
     fun onDeletePost(item: PostList.Item) {
-        if (!item.mine || _state.value.busy) return
+        if (!item.isMine || _state.value.busy) return
         _state.update { it.copy(busy = true) }
         viewModelScope.launch {
             when (val r = crews.deletePost(item.postId)) {

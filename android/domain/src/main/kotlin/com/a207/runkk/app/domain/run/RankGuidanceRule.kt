@@ -13,7 +13,7 @@ class RankGuidanceRule : GuidanceRule {
     override fun check(ctx: GuidanceContext): Guidance? {
         val newPoint = points.newPoint(ctx.progress.distance)
         val rank = ctx.rank
-        if (newPoint == null || rank == null || !ctx.guidanceSettings.rankAlert) return null
+        if (newPoint == null || rank == null || !ctx.guidanceSettings.isRankAlertOn) return null
         return Guidance(
             Guidance.Kind.RANK,
             GuidanceMessage.RANK,

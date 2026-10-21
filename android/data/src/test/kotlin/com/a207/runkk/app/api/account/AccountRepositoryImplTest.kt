@@ -308,20 +308,20 @@ class AccountRepositoryImplTest {
 
         assertEquals(
             SettingsSnapshot(
-                locationConsented = true,
-                heartRateConsented = false,
-                watchLinked = true,
-                courseMapShared = true,
+                isLocationConsented = true,
+                isHeartRateConsented = false,
+                isWatchLinked = true,
+                isCourseMapShared = true,
                 birthYear = 1990,
                 guidanceSettings =
                     GuidanceSettings(
-                        runVoice = false,
-                        runVibration = true,
-                        battleVoice = true,
-                        battleVibration = false,
+                        isRunVoiceOn = false,
+                        isRunVibrationOn = true,
+                        isBattleVoiceOn = true,
+                        isBattleVibrationOn = false,
                         gapAlertMeters = 500,
-                        rankAlert = true,
-                        followCoachPlan = true
+                        isRankAlertOn = true,
+                        shouldFollowCoachPlan = true
                     )
             ),
             snapshot
@@ -432,7 +432,7 @@ class AccountRepositoryImplTest {
 
         val snapshot = SettingsRemoteImpl(api.retrofit.create()).fetch().value()
 
-        assertTrue(!snapshot.locationConsented && !snapshot.heartRateConsented)
+        assertTrue(!snapshot.isLocationConsented && !snapshot.isHeartRateConsented)
         assertEquals(GuidanceSettings.DEFAULT, snapshot.guidanceSettings)
     }
 

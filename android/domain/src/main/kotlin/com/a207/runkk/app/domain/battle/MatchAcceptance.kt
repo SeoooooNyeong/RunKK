@@ -15,4 +15,4 @@ import java.time.LocalDate
  * 매칭 요청·취소·조회 결과(서버 battle.MatchAcceptance). [defaultDistance]는 기본 대결 거리(마지막으로 요청한 거리, 처음이면 5km,
  * FR-109)다. 거부는 AppError.Rejected(사유 코드)로 온다.
  */
-data class MatchAcceptance(val waiting: Boolean, val distance: Distance?, val defaultDistance: Distance? = null)
+data class MatchAcceptance(val isWaiting: Boolean, val distance: Distance?, val defaultDistance: Distance? = null)

@@ -45,33 +45,8 @@ fun WatchRunDisplay(
         ) {
             if (state.linkLost) item { LinkLostChip() }
             item { Text(text = WatchFormat.elapsed(state.elapsedSeconds), style = numberStyle(26.sp)) }
-            item {
-                Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Text(
-                        text = WatchFormat.distanceKm(state.distanceMeters),
-                        style = numberStyle(46.sp, WatchColors.Lime)
-                    )
-                    Text(
-                        text = stringResource(R.string.unit_km),
-                        style = labelStyle(size = 13.sp),
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-                }
-            }
-            item {
-                Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-                    Metric(
-                        value = WatchFormat.pace(state.paceSecondsPerKm),
-                        label = stringResource(R.string.label_pace),
-                        color = WatchColors.OnSurface
-                    )
-                    Metric(
-                        value = WatchFormat.heartRate(state.heartRateBpm),
-                        label = stringResource(R.string.label_heart_rate),
-                        color = WatchColors.Lavender
-                    )
-                }
-            }
+            item { DistanceRow(state.distanceMeters) }
+            item { PaceAndHeartRate(state) }
             state.notice?.let { notice -> item { NoticeText(notice) } }
             item {
                 PillButton(
@@ -82,6 +57,34 @@ fun WatchRunDisplay(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun DistanceRow(distanceMeters: Long) {
+    Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+        Text(text = WatchFormat.distanceKm(distanceMeters), style = numberStyle(46.sp, WatchColors.Lime))
+        Text(
+            text = stringResource(R.string.unit_km),
+            style = labelStyle(size = 13.sp),
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+    }
+}
+
+@Composable
+private fun PaceAndHeartRate(state: WatchUiState) {
+    Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+        Metric(
+            value = WatchFormat.pace(state.paceSecondsPerKm),
+            label = stringResource(R.string.label_pace),
+            color = WatchColors.OnSurface
+        )
+        Metric(
+            value = WatchFormat.heartRate(state.heartRateBpm),
+            label = stringResource(R.string.label_heart_rate),
+            color = WatchColors.Lavender
+        )
     }
 }
 

@@ -97,7 +97,7 @@ class RunSession(val spec: RunStartSpec) {
             currentPace = lastCurrentPace,
             averagePace = average,
             signal = lastSignal,
-            locked = state == State.LOCKED,
+            isLocked = state == State.LOCKED,
             heartRate = heartRates.lastOrNull()?.takeIf { Duration.between(it.at, now) <= HEART_RATE_FRESHNESS }
         )
     }

@@ -31,7 +31,7 @@ class RunScreenshotTest {
         currentPace = Pace(321),
         averagePace = Pace(332),
         signal = SignalState.NORMAL,
-        locked = false,
+        isLocked = false,
         heartRate = HeartRateSample(start, 152)
     )
 
@@ -86,7 +86,7 @@ class RunScreenshotTest {
         RunScreen(
             RunUiState(
                 phase = RunPhase.LOCKED,
-                progress = progress.copy(locked = true),
+                progress = progress.copy(isLocked = true),
                 targetDistance = Distance(5_000)
             ),
             RunActions()

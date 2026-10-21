@@ -152,7 +152,7 @@ data class AvatarUiState(
     val message: UiText? = null,
     val error: UiText? = null
 ) {
-    val ownedInSlot: List<Shop.Item> get() = items.filter { it.owned && it.slot == slot }
+    val ownedInSlot: List<Shop.Item> get() = items.filter { it.isOwned && it.slot == slot }
 
     fun isEquipped(item: Shop.Item): Boolean = avatar?.equipped?.get(item.slot) == item.itemId
 
@@ -224,7 +224,7 @@ class AvatarViewModel @Inject constructor(private val avatars: AvatarRepository)
     /** 같은 부위는 하나만 입는다(FR-161): 입은 것을 누르면 벗기고, 아니면 바꿔 입힌다. */
     fun onToggle(item: Shop.Item) {
         val s = _state.value
-        if (s.saving || s.avatar == null || !item.owned) return
+        if (s.saving || s.avatar == null || !item.isOwned) return
         val next = if (s.isEquipped(item)) null else item.itemId
         _state.update { it.copy(saving = true) }
         viewModelScope.launch {
@@ -296,7 +296,7 @@ class ShopViewModel @Inject constructor(private val avatars: AvatarRepository) :
     }
 
     fun onPick(item: Shop.Item) {
-        if (item.owned || !item.onSale) return
+        if (item.isOwned || !item.isOnSale) return
         _state.update { it.copy(confirming = item) }
     }
 
@@ -319,7 +319,15 @@ class ShopViewModel @Inject constructor(private val avatars: AvatarRepository) :
                             message = uiText(R.string.avatar_shop_bought, item.name),
                             shop = s.shop?.copy(
                                 balance = result.value,
-                                items = s.shop.items.map { if (it.itemId == item.itemId) it.copy(owned = true) else it }
+                                items = s.shop.items.map {
+                                    if (it.itemId ==
+                                        item.itemId
+                                    ) {
+                                        it.copy(isOwned = true)
+                                    } else {
+                                        it
+                                    }
+                                }
                             )
                         )
                     }

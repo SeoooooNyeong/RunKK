@@ -18,7 +18,7 @@ data class PostList(val posts: List<Item>, val nextCursor: Long? = null) {
         val authorName: String,
         val summary: String,
         val writtenAt: Instant,
-        val mine: Boolean,
+        val isMine: Boolean,
         /** 크루런 모집글의 크루런 정보. 응원글이면 null이다. */
         val crewRun: CrewRunInfo? = null
     )

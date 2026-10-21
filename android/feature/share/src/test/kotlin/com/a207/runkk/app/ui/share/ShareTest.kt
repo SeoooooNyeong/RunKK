@@ -73,7 +73,7 @@ class ShareTest {
         elapsed = Duration.ofSeconds(1_668),
         averagePace = Pace(332),
         route = listOf(GeoPoint(37.5, 127.0), GeoPoint(37.51, 127.01), GeoPoint(37.505, 127.02)),
-        courseMapShared = true
+        isCourseMapShared = true
     )
 
     @Test

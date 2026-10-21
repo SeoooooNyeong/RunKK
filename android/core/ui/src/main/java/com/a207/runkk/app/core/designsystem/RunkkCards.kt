@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -117,26 +118,34 @@ fun RunkkCard(
 }
 
 /**
- * 통계 타일: 라벨(12) + 큰 숫자(Barlow). [unit]은 숫자 뒤 작은 글자("KM", "%").
- * [centered]면 결과 화면처럼 가운데 정렬(3열 타일).
+ * 통계 칸의 값: 큰 숫자 [text], 숫자 뒤 작은 글자 [unit]("KM", "%"), 보조 기술이 읽을 문구 [spoken].
+ * spoken이 있으면 "평균 페이스 1킬로미터당 5분 32초"처럼 읽는다("5:32"가 시각으로 읽히지 않게).
  */
+@Immutable
+data class StatTileValue(val text: String, val unit: String? = null, val spoken: String? = null)
+
+/** 통계 칸의 모양: 값 글자 모양·색, [isCentered]면 결과 화면처럼 가운데 정렬(3열 타일). */
+@Immutable
+data class StatTileStyle(
+    val valueStyle: TextStyle = RunkkTextStyles.DisplayMedium,
+    val valueColor: Color = RunkkColors.TextPrimary,
+    val isCentered: Boolean = false
+)
+
+/** 통계 타일: 라벨(12) + 큰 숫자(Barlow) + 아래 [caption]. 값과 모양은 [StatTileValue]·[StatTileStyle]로 받는다. */
 @Composable
 fun RunkkStatTile(
     label: String,
-    value: String,
+    value: StatTileValue,
     modifier: Modifier = Modifier,
-    unit: String? = null,
     caption: String? = null,
-    valueColor: Color = RunkkColors.TextPrimary,
-    valueStyle: TextStyle = RunkkTextStyles.DisplayMedium,
-    centered: Boolean = false,
+    style: StatTileStyle = StatTileStyle(),
     onClick: (() -> Unit)? = null,
-    spoken: String? = null,
     footer: (@Composable () -> Unit)? = null
 ) {
+    val centered = style.isCentered
     RunkkCard(
-        // spoken이 있으면 "평균 페이스 1킬로미터당 5분 32초"처럼 읽는다("5:32"가 시각으로 읽히지 않게).
-        modifier = modifier.then(statTileSemantics(label, spoken, onClick)),
+        modifier = modifier.then(statTileSemantics(label, value.spoken, onClick)),
         shape = if (centered) RunkkShapes.Medium else RunkkShapes.Large,
         contentPadding = if (centered) PaddingValues(horizontal = 8.dp, vertical = 16.dp) else PaddingValues(16.dp),
         onClick = onClick,
@@ -150,10 +159,10 @@ fun RunkkStatTile(
             modifier = Modifier.align(align)
         )
         RunkkNumberText(
-            value = value,
-            unit = unit,
-            style = valueStyle,
-            color = valueColor,
+            value = value.text,
+            unit = value.unit,
+            style = style.valueStyle,
+            color = style.valueColor,
             modifier = Modifier.align(align)
         )
         if (caption != null) {
@@ -204,16 +213,14 @@ fun RunkkNumberText(
 }
 
 /**
- * 큰 숫자 표시(러닝 거리 136·결과 104). [caption]은 아래 줄("KILOMETERS"), [unit]은 옆("KM").
+ * 큰 숫자 표시(러닝 거리 136·결과 104). [caption]은 아래 줄("KILOMETERS").
  */
 @Composable
 fun RunkkBigNumber(
     value: String,
     modifier: Modifier = Modifier,
-    unit: String? = null,
     caption: String? = null,
-    style: TextStyle = RunkkTextStyles.DisplayHuge,
-    color: Color = RunkkColors.TextPrimary
+    style: TextStyle = RunkkTextStyles.DisplayHuge
 ) {
     Column(
         modifier = modifier.semantics(mergeDescendants = true) {
@@ -221,20 +228,8 @@ fun RunkkBigNumber(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(text = value, style = style, color = color)
-            if (unit != null) {
-                Text(
-                    text = unit,
-                    style = RunkkTextStyles.display(24),
-                    color = RunkkColors.TextSecondary,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-            }
-        }
-        if (caption !=
-            null
-        ) {
+        Text(text = value, style = style, color = RunkkColors.TextPrimary)
+        if (caption != null) {
             Text(
                 text = caption,
                 style = RunkkTextStyles.display(20, letterSpacingEm = 0.12f),
@@ -355,12 +350,16 @@ private fun RunkkCardsPreview() {
             RunkkBigNumber("2.14", caption = "KILOMETERS")
             RunkkProgressBar(0.43f)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                RunkkStatTile("오늘", "3.02", unit = "KM", caption = "1회", modifier = Modifier.weight(1f))
+                RunkkStatTile(
+                    "오늘",
+                    StatTileValue("3.02", unit = "KM"),
+                    caption = "1회",
+                    modifier = Modifier.weight(1f)
+                )
                 RunkkStatTile(
                     "이번 주 목표",
-                    "60",
-                    unit = "%",
-                    valueColor = RunkkColors.Lime,
+                    StatTileValue("60", unit = "%"),
+                    style = StatTileStyle(valueColor = RunkkColors.Lime),
                     modifier = Modifier.weight(1f)
                 ) {
                     RunkkProgressBar(0.6f)
@@ -388,23 +387,20 @@ private fun CenteredTilesPreview() {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         RunkkStatTile(
             "시간",
-            "27:48",
-            centered = true,
-            valueStyle = RunkkTextStyles.DisplaySmall,
+            StatTileValue("27:48"),
+            style = StatTileStyle(valueStyle = RunkkTextStyles.DisplaySmall, isCentered = true),
             modifier = Modifier.weight(1f)
         )
         RunkkStatTile(
             "평균 페이스",
-            "5:32",
-            centered = true,
-            valueStyle = RunkkTextStyles.DisplaySmall,
+            StatTileValue("5:32"),
+            style = StatTileStyle(valueStyle = RunkkTextStyles.DisplaySmall, isCentered = true),
             modifier = Modifier.weight(1f)
         )
         RunkkStatTile(
             "평균 심박",
-            "152",
-            centered = true,
-            valueStyle = RunkkTextStyles.DisplaySmall,
+            StatTileValue("152"),
+            style = StatTileStyle(valueStyle = RunkkTextStyles.DisplaySmall, isCentered = true),
             modifier = Modifier.weight(1f)
         )
     }

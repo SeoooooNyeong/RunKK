@@ -107,10 +107,22 @@ class FakePendingRunRepository(private val log: CallLog = CallLog()) : PendingRu
         return lateReadFailWith?.let { Outcome.Failure(it) } ?: Outcome.Success(lateEntries.toList())
     }
 
-    override suspend fun removeLateHeartRates(recordId: String): Outcome<Unit> {
-        log.add("pending.removeLateHeartRates:$recordId")
+    /** removeLateHeartRates가 받은 항목(보낸 내용). */
+    val lateRemoved = mutableListOf<LateHeartRates>()
+
+    /** 실제 보관소처럼 보낸 심박만 빼고, 남는 심박이 없으면 항목을 지운다(X-1). */
+    override suspend fun removeLateHeartRates(sent: LateHeartRates): Outcome<Unit> {
+        log.add("pending.removeLateHeartRates:${sent.recordId}")
         lateRemoveFailWith?.let { return Outcome.Failure(it) }
-        lateEntries.removeAll { it.recordId == recordId }
+        lateRemoved += sent
+        val sentAts = sent.samples.map { it.at }.toSet()
+        val updated =
+            lateEntries.mapNotNull { entry ->
+                if (entry.recordId != sent.recordId) return@mapNotNull entry
+                entry.copy(samples = entry.samples.filter { it.at !in sentAts }).takeIf { it.samples.isNotEmpty() }
+            }
+        lateEntries.clear()
+        lateEntries += updated
         return Outcome.Success(Unit)
     }
 
@@ -168,7 +180,7 @@ class FakeMeasurementHost : MeasurementHost {
 }
 
 class FakeSettingsRepository(
-    snapshot: SettingsSnapshot = SettingsSnapshot.SAFE.copy(locationConsented = true),
+    snapshot: SettingsSnapshot = SettingsSnapshot.SAFE.copy(isLocationConsented = true),
     private val log: CallLog = CallLog()
 ) : SettingsRepository {
     var refreshResult: Outcome<Unit> = Outcome.Success(Unit)
@@ -186,13 +198,13 @@ class FakeSettingsRepository(
         return refreshResult
     }
 
-    override fun locationConsented(): Boolean = snapshot.locationConsented
+    override fun locationConsented(): Boolean = snapshot.isLocationConsented
 
-    override fun heartRateConsented(): Boolean = snapshot.heartRateConsented
+    override fun heartRateConsented(): Boolean = snapshot.isHeartRateConsented
 
-    override fun watchLinked(): Boolean = snapshot.watchLinked
+    override fun watchLinked(): Boolean = snapshot.isWatchLinked
 
-    override fun courseMapShared(): Boolean = snapshot.courseMapShared
+    override fun courseMapShared(): Boolean = snapshot.isCourseMapShared
 
     override fun birthYear(): Int? = snapshot.birthYear
 

@@ -19,8 +19,8 @@ class TargetReachedRule : GuidanceRule {
             Guidance.Kind.TARGET_REACHED,
             GuidanceMessage.TARGET_REACHED,
             listOf(target.km()),
-            hasVoice = settings.runVoice,
-            hasVibration = settings.runVibration
+            hasVoice = settings.isRunVoiceOn,
+            hasVibration = settings.isRunVibrationOn
         )
     }
 }

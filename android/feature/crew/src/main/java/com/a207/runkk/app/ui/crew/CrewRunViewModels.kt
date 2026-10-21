@@ -187,7 +187,7 @@ class CrewRunViewModel @Inject constructor(
 
     /**
      * 대기실 입장(또는 새로 읽기). 모집 일시 30분 전부터 열린다(FR-147). 처음 들어오면 대기실 응답의 크루런 거리로 조정자 채널을 연다.
-     * 중계의 내 줄은 조정자가 CrewRunRelay.Entry.me로 가려 1km 순위 안내(FR-190)에 쓴다.
+     * 중계의 내 줄은 조정자가 CrewRunRelay.Entry.isMe로 가려 1km 순위 안내(FR-190)에 쓴다.
      */
     fun enter() {
         val s = _state.value
@@ -280,7 +280,7 @@ class CrewRunViewModel @Inject constructor(
                         phase = CrewRunPhase.RUNNING,
                         countdown = null,
                         relay = s.entries
-                            .map { e -> RelayRow(e.name, e.distance, e.rank, e.connection.name, e.me) }
+                            .map { e -> RelayRow(e.name, e.distance, e.rank, e.connection.name, e.isMe) }
                             .sortedWith(
                                 compareBy<RelayRow> {
                                     it.rank ?: Int.MAX_VALUE
@@ -347,7 +347,7 @@ class CrewRunViewModel @Inject constructor(
 }
 
 /** 대기실 응답의 내 줄(me) 준비 여부. 내 줄이 없으면 null. */
-private fun Lobby.myReady(): Boolean? = participants.firstOrNull { it.me }?.ready
+private fun Lobby.myReady(): Boolean? = participants.firstOrNull { it.isMe }?.isReady
 
 // ---------- 크루런 결과 ----------
 

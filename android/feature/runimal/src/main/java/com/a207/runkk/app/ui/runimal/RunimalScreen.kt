@@ -123,7 +123,7 @@ private fun RunimalBody(state: RunimalUiState, status: RunimalStatus, modifier: 
     ) {
         val card = status.card
         if (status.type != null && card != null) {
-            TypeCard(card, provisional = status.provisional)
+            TypeCard(card, provisional = status.isProvisional)
         } else {
             RunkkEmptyState(
                 title = stringResource(R.string.runimal_empty_title),

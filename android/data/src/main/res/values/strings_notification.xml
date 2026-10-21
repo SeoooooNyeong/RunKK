@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 알림함 제목(서버 NotificationType별, 서버는 내용만 준다)과 측정 서비스 알림 문구(3차 리뷰 N3-1). -->
+<resources>
+    <string name="inbox_title_default">알림</string>
+    <string name="inbox_title_plan_missed">계획 미이행</string>
+    <string name="inbox_title_body_shape_changed">체형 변화</string>
+    <string name="inbox_title_join_requested">크루 가입 신청</string>
+    <string name="inbox_title_join_decided">크루 가입 결과</string>
+    <string name="inbox_title_join_expired">크루 가입 신청 만료</string>
+    <string name="inbox_title_leader_transferred">크루장 양도</string>
+    <string name="inbox_title_crew_deleted">크루 삭제</string>
+    <string name="inbox_title_kicked">크루 강제 퇴장</string>
+    <string name="inbox_title_crew_run_recruit">크루런 모집</string>
+    <string name="inbox_title_crew_run_soon">크루런 시작 전</string>
+    <string name="inbox_title_opponent_arrived">대결 상대 도착</string>
+    <string name="inbox_title_battle_corrected">대결 결과 정정</string>
+
+    <string name="measurement_channel_name">러닝 측정</string>
+    <string name="measurement_notification_title">러닝 측정 중</string>
+    <string name="measurement_notification_text">화면을 꺼도 거리와 시간을 계속 잽니다</string>
+</resources>

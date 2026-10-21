@@ -76,12 +76,16 @@ class RunkkComponentsScreenshotTest {
                 RunkkBanner("2km 통과 · 11:04 · 평균 5:32")
                 RunkkBigNumber("2.14", caption = "KILOMETERS")
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    RunkkStatTile("오늘", "3.02", unit = "KM", caption = "1회", modifier = Modifier.weight(1f))
+                    RunkkStatTile(
+                        "오늘",
+                        StatTileValue("3.02", unit = "KM"),
+                        caption = "1회",
+                        modifier = Modifier.weight(1f)
+                    )
                     RunkkStatTile(
                         "이번 주 목표",
-                        "60",
-                        unit = "%",
-                        valueColor = RunkkColors.Lime,
+                        StatTileValue("60", unit = "%"),
+                        style = StatTileStyle(valueColor = RunkkColors.Lime),
                         modifier = Modifier.weight(1f)
                     ) {
                         RunkkProgressBar(0.6f)

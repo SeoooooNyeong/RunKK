@@ -349,7 +349,7 @@ private fun RunRow(run: RunSummary, zone: ZoneId, onClick: () -> Unit) {
                 color = RunkkColors.TextSecondary
             )
         }
-        if (!run.valid) {
+        if (!run.isValid) {
             Text(
                 stringResource(R.string.record_excluded),
                 style = RunkkTextStyles.text(11, FontWeight.Black),

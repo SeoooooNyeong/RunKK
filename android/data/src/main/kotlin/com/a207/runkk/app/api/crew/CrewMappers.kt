@@ -102,11 +102,11 @@ internal fun CrewMembersResponse.toDomain(): CrewMembers = CrewMembers(
         CrewMembers.Member(
             it.memberId,
             it.displayName.orEmpty(),
-            it.role,
+            enumByName<CrewRole>(it.role) ?: CrewRole.MEMBER,
             it.crewIntro,
             it.tier,
             it.runimalType,
-            me = it.me
+            isMe = it.me
         )
     }
 )
@@ -173,12 +173,12 @@ internal fun CrewRunResultResponse.toDomain(): CrewRunResult = CrewRunResult(
                 it.displayName.orEmpty(),
                 it.elapsedSeconds,
                 it.averagePaceSecondsPerKm,
-                quit = it.quit,
+                hasQuit = it.quit,
                 memberId = it.memberId,
-                me = it.me
+                isMe = it.me
             )
         },
-    firstCrewRun = firstCrewRun,
+    isFirstCrewRun = firstCrewRun,
     raceContribution = Distance(raceContributionMeters)
 )
 

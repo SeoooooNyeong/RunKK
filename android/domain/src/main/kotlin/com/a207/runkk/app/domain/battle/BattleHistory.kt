@@ -29,7 +29,7 @@ data class BattleHistory(
 
     /**
      * [gap]은 기록 차이(본인 − 상대, 음수면 본인이 빨랐다, 없으면 null), [sourceLabel]은 유명인 기록 출처 표기,
-     * [newRecord]는 나와의 싸움 신기록이다.
+     * [isNewRecord]는 나와의 싸움 신기록이다.
      */
     data class Entry(
         val battleId: Long,
@@ -40,6 +40,6 @@ data class BattleHistory(
         val playedAt: Instant,
         val gap: Duration? = null,
         val sourceLabel: String? = null,
-        val newRecord: Boolean = false
+        val isNewRecord: Boolean = false
     )
 }

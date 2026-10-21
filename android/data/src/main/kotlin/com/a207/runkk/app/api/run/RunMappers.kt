@@ -39,7 +39,7 @@ internal fun HeartRateSample.toRequest(): RunUploadRequest.HeartRate =
 
 internal fun UploadResponse.toDomain(): UploadReceipt = UploadReceipt(
     recordId = recordId,
-    alreadySaved =
+    isAlreadySaved =
         status == ALREADY_STORED
 )
 

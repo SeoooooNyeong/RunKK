@@ -21,6 +21,6 @@ data class RecordBattleCandidates(val candidates: List<Candidate>) {
         val finishTime: Duration?,
         val recordedOn: LocalDate?,
         val sourceLabel: String?,
-        val estimated: Boolean
+        val isEstimated: Boolean
     )
 }

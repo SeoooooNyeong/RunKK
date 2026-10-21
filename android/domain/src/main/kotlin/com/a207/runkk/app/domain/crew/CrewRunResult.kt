@@ -9,17 +9,17 @@ import java.time.LocalDate
 data class CrewRunResult(
     val postId: Long,
     val finishers: List<Finisher>,
-    val firstCrewRun: Boolean,
+    val isFirstCrewRun: Boolean,
     val raceContribution: Distance
 ) {
-    /** rank가 null이면 미완주. [quit]은 중간에 그만둔 사람, [me]는 열람자 본인, [memberId]는 탈퇴했으면 null. */
+    /** rank가 null이면 미완주. [hasQuit]은 중간에 그만둔 사람, [isMe]는 열람자 본인, [memberId]는 탈퇴했으면 null. */
     data class Finisher(
         val rank: Int?,
         val displayName: String,
         val elapsedSeconds: Long?,
         val averagePaceSecondsPerKm: Int?,
-        val quit: Boolean = false,
+        val hasQuit: Boolean = false,
         val memberId: Long? = null,
-        val me: Boolean = false
+        val isMe: Boolean = false
     )
 }

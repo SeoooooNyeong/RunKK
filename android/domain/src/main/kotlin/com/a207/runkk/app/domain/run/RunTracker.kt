@@ -151,7 +151,7 @@ constructor(
 
     fun lockScreen() {
         synchronized(lock) {
-            if (session?.tryLock() == true) _progress.update { it.copy(locked = true) }
+            if (session?.tryLock() == true) _progress.update { it.copy(isLocked = true) }
         }
     }
 
@@ -162,7 +162,7 @@ constructor(
 
     fun onUnlockLongPressed() {
         synchronized(lock) {
-            if (session?.tryUnlock() == true) _progress.update { it.copy(locked = false) }
+            if (session?.tryUnlock() == true) _progress.update { it.copy(isLocked = false) }
         }
     }
 
@@ -214,8 +214,14 @@ constructor(
     fun onLeadChanged(kind: Guidance.Kind, message: GuidanceMessage, args: List<Any> = emptyList()) {
         val battle = settings.guidanceSettings()
         val guidance =
-            if (battle.battleVoice || battle.battleVibration) {
-                Guidance(kind, message, args, hasVoice = battle.battleVoice, hasVibration = battle.battleVibration)
+            if (battle.isBattleVoiceOn || battle.isBattleVibrationOn) {
+                Guidance(
+                    kind,
+                    message,
+                    args,
+                    hasVoice = battle.isBattleVoiceOn,
+                    hasVibration = battle.isBattleVibrationOn
+                )
             } else {
                 Guidance.screenOnly(kind, message, args)
             }

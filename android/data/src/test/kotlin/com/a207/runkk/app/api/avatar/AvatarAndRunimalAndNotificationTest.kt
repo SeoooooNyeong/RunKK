@@ -19,9 +19,13 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlinx.coroutines.test.runTest
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import retrofit2.create
 
-/** api.avatar·api.runimal·api.notification 매퍼(14장 단위(앱 데이터)). */
+/** api.avatar·api.runimal·api.notification 매퍼(14장 단위(앱 데이터)). 알림함 제목이 문자열 리소스라 Robolectric으로 돌린다. */
+@RunWith(RobolectricTestRunner::class)
 class AvatarAndRunimalAndNotificationTest {
     private val api = ApiTestServer()
 
@@ -146,7 +150,10 @@ class AvatarAndRunimalAndNotificationTest {
         )
         api.replyEmpty()
 
-        val inbox = NotificationRepositoryImpl(api.retrofit.create()).inbox().value()
+        val inbox = NotificationRepositoryImpl(
+            api.retrofit.create(),
+            RuntimeEnvironment.getApplication()
+        ).inbox().value()
         val registered = PushTokenRemoteImpl(api.retrofit.create()).register("fcm-token")
 
         assertEquals(

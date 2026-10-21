@@ -35,9 +35,9 @@ constructor(
                 is Outcome.Failure -> return UploadOutcome.Failed(run.recordId, uploaded.error)
                 is Outcome.Success -> uploaded.value
             }
-        // receipt.alreadySaved는 여기서 한 번만 본다(D-80). 늦게 붙은 심박을 보내지 못하면 보관함에 남겨 다음 재전송 때 다시 보낸다.
+        // receipt.isAlreadySaved는 여기서 한 번만 본다(D-80). 늦게 붙은 심박을 보내지 못하면 보관함에 남겨 다음 재전송 때 다시 보낸다.
         val done: UploadOutcome =
-            if (receipt.alreadySaved) UploadOutcome.AlreadySaved(run.recordId) else UploadOutcome.Sent(run.recordId)
+            if (receipt.isAlreadySaved) UploadOutcome.AlreadySaved(run.recordId) else UploadOutcome.Sent(run.recordId)
         val appended =
             if (done is UploadOutcome.AlreadySaved && run.heartRates.isNotEmpty()) {
                 remote.appendHeartRates(run.recordId, run.heartRates)
@@ -64,7 +64,7 @@ constructor(
     /** 항목 하나. 미전송으로 남는 것이 없으면 null. */
     private suspend fun send(entry: LateHeartRates): UploadOutcome? {
         val sent = remote.appendHeartRates(entry.recordId, entry.samples)
-        val result = if (sent.isDone()) pendingRuns.removeLateHeartRates(entry.recordId) else sent
+        val result = if (sent.isDone()) pendingRuns.removeLateHeartRates(entry) else sent
         return (result as? Outcome.Failure)?.let { UploadOutcome.Failed(entry.recordId, it.error) }
     }
 

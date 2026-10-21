@@ -73,6 +73,7 @@ import com.a207.runkk.app.core.designsystem.RunkkStatusPill
 import com.a207.runkk.app.core.designsystem.RunkkTextLink
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
+import com.a207.runkk.app.core.designsystem.StatTileValue
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.model.Distance
@@ -438,27 +439,33 @@ private fun RunningStats(progress: RunProgress) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         RunkkStatTile(
             stringResource(R.string.run_running_elapsed),
-            RunkkFormat.duration(progress.elapsed),
-            spoken = RunkkFormat.durationSpoken(progress.elapsed),
+            StatTileValue(
+                RunkkFormat.duration(progress.elapsed),
+                spoken = RunkkFormat.durationSpoken(progress.elapsed)
+            ),
             modifier = Modifier.weight(1f)
         )
         RunkkStatTile(
             stringResource(R.string.run_running_current_pace),
-            RunkkFormat.pace(progress.currentPace),
-            spoken = RunkkFormat.paceSpoken(progress.currentPace),
+            StatTileValue(
+                RunkkFormat.pace(progress.currentPace),
+                spoken = RunkkFormat.paceSpoken(progress.currentPace)
+            ),
             modifier = Modifier.weight(1f)
         )
     }
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         RunkkStatTile(
             stringResource(R.string.run_stat_avg_pace),
-            RunkkFormat.pace(progress.averagePace),
-            spoken = RunkkFormat.paceSpoken(progress.averagePace),
+            StatTileValue(
+                RunkkFormat.pace(progress.averagePace),
+                spoken = RunkkFormat.paceSpoken(progress.averagePace)
+            ),
             modifier = Modifier.weight(1f)
         )
         RunkkStatTile(
             stringResource(R.string.run_running_heart_rate),
-            progress.heartRate?.bpm?.toString() ?: RunkkFormat.EMPTY,
+            StatTileValue(progress.heartRate?.bpm?.toString() ?: RunkkFormat.EMPTY),
             modifier = Modifier.weight(1f)
         )
     }
@@ -596,7 +603,7 @@ private val previewProgress = RunProgress(
     currentPace = Pace(321),
     averagePace = Pace(332),
     signal = SignalState.NORMAL,
-    locked = false,
+    isLocked = false,
     heartRate = HeartRateSample(Instant.EPOCH, 152)
 )
 
@@ -631,7 +638,7 @@ private fun LockedPreview() {
         RunScreen(
             RunUiState(
                 phase = RunPhase.LOCKED,
-                progress = previewProgress.copy(locked = true),
+                progress = previewProgress.copy(isLocked = true),
                 targetDistance = Distance(5_000)
             ),
             RunActions()

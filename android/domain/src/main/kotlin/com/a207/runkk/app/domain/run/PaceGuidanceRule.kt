@@ -13,15 +13,15 @@ class PaceGuidanceRule : GuidanceRule {
     override fun check(ctx: GuidanceContext): Guidance? {
         val newPoint = points.newPoint(ctx.progress.distance)
         val settings = ctx.guidanceSettings
-        if (newPoint == null || !settings.followCoachPlan) return null
+        if (newPoint == null || !settings.shouldFollowCoachPlan) return null
         val target = ctx.todayPlan?.targetPace ?: return null
         val average = ctx.progress.averagePace ?: return null
         if (!average.isSlowerThanBy(target, SLOWER_RATIO)) return null
         return Guidance(
             Guidance.Kind.PACE,
             GuidanceMessage.PACE_SLOW,
-            hasVoice = settings.runVoice,
-            hasVibration = settings.runVibration
+            hasVoice = settings.isRunVoiceOn,
+            hasVibration = settings.isRunVibrationOn
         )
     }
 

@@ -15,7 +15,7 @@ data class Inbox(val items: List<Item>) {
         val title: String,
         val body: String,
         val receivedAt: Instant,
-        val read: Boolean,
+        val isRead: Boolean,
         val route: String?
     )
 }

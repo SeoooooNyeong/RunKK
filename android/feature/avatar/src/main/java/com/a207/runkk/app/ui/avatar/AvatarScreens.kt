@@ -755,11 +755,11 @@ private fun ShopContent(
 
 @Composable
 private fun ShopTile(item: Shop.Item, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val buyable = !item.owned && item.onSale
+    val buyable = !item.isOwned && item.isOnSale
     val slotLabel = stringResource(item.slot.labelRes)
     val statusText = when {
-        item.owned -> stringResource(R.string.avatar_shop_owned)
-        !item.onSale -> stringResource(R.string.avatar_shop_ended)
+        item.isOwned -> stringResource(R.string.avatar_shop_owned)
+        !item.isOnSale -> stringResource(R.string.avatar_shop_ended)
         else -> stringResource(R.string.avatar_shop_price_description, item.price)
     }
     val description = listOf(item.name, slotLabel, statusText).joinToString(", ")
@@ -776,9 +776,9 @@ private fun ShopTile(item: Shop.Item, onClick: () -> Unit, modifier: Modifier = 
         }
         Text(item.name, style = RunkkTextStyles.BodyStrong, color = RunkkColors.TextPrimary)
         when {
-            item.owned -> RunkkBadge(stringResource(R.string.avatar_shop_owned), tone = RunkkBadgeTone.Lime)
+            item.isOwned -> RunkkBadge(stringResource(R.string.avatar_shop_owned), tone = RunkkBadgeTone.Lime)
 
-            !item.onSale -> RunkkBadge(stringResource(R.string.avatar_shop_ended), tone = RunkkBadgeTone.Muted)
+            !item.isOnSale -> RunkkBadge(stringResource(R.string.avatar_shop_ended), tone = RunkkBadgeTone.Muted)
 
             else -> Row(
                 verticalAlignment = Alignment.CenterVertically,

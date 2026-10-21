@@ -51,7 +51,7 @@ internal val sampleItems = listOf(
         "크루런 곧 시작",
         "새벽크루 크루런이 10분 뒤 시작해요",
         now.minusSeconds(600),
-        read = false,
+        isRead = false,
         route = "crew"
     ),
     Inbox.Item(
@@ -60,7 +60,7 @@ internal val sampleItems = listOf(
         "오늘 계획을 놓쳤어요",
         "보충 거리 2km를 추천해요",
         Instant.parse("2026-10-19T11:00:00Z"),
-        read = true,
+        isRead = true,
         route = null
     ),
     Inbox.Item(
@@ -69,7 +69,7 @@ internal val sampleItems = listOf(
         "대결 결과가 정정됐어요",
         "상대 기록 판정이 바뀌었어요",
         Instant.parse("2026-10-01T11:00:00Z"),
-        read = true,
+        isRead = true,
         route = "battle/history"
     )
 )

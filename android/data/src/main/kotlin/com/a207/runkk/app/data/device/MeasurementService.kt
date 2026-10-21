@@ -17,6 +17,7 @@ import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
+import com.a207.runkk.app.api.core.R
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.GeoPoint
 import com.a207.runkk.app.core.model.Outcome
@@ -116,7 +117,11 @@ class MeasurementService : LifecycleService() {
     private fun notification(): Notification {
         val manager = getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(
-            NotificationChannel(CHANNEL_ID, CHANNEL_NAME, NotificationManager.IMPORTANCE_LOW)
+            NotificationChannel(
+                CHANNEL_ID,
+                getString(R.string.measurement_channel_name),
+                NotificationManager.IMPORTANCE_LOW
+            )
         )
         val open =
             packageManager.getLaunchIntentForPackage(packageName)?.let {
@@ -125,8 +130,8 @@ class MeasurementService : LifecycleService() {
         return NotificationCompat
             .Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_menu_mylocation)
-            .setContentTitle(NOTIFICATION_TITLE)
-            .setContentText(NOTIFICATION_TEXT)
+            .setContentTitle(getString(R.string.measurement_notification_title))
+            .setContentText(getString(R.string.measurement_notification_text))
             .setOngoing(true)
             .setContentIntent(open)
             .build()
@@ -167,9 +172,6 @@ class MeasurementService : LifecycleService() {
         const val MEASUREMENT_UNAVAILABLE = "MEASUREMENT_UNAVAILABLE"
         private const val NOTIFICATION_ID = 31
         private const val CHANNEL_ID = "runkk-measurement"
-        private const val CHANNEL_NAME = "러닝 측정"
-        private const val NOTIFICATION_TITLE = "러닝 측정 중"
-        private const val NOTIFICATION_TEXT = "화면을 꺼도 거리와 시간을 계속 잽니다"
         private const val INTERVAL_MILLIS = 1_000L
     }
 }

@@ -59,6 +59,8 @@ import com.a207.runkk.app.core.designsystem.RunkkStatTile
 import com.a207.runkk.app.core.designsystem.RunkkStatusPill
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
+import com.a207.runkk.app.core.designsystem.StatTileStyle
+import com.a207.runkk.app.core.designsystem.StatTileValue
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.model.Distance
@@ -301,26 +303,20 @@ private fun ColumnScope.Running(state: BattleRunningUiState) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             RunkkStatTile(
                 stringResource(R.string.battle_running_elapsed),
-                RunkkFormat.duration(state.elapsed),
-                spoken = RunkkFormat.durationSpoken(state.elapsed),
-                centered = true,
-                valueStyle = RunkkTextStyles.DisplaySmall,
+                StatTileValue(RunkkFormat.duration(state.elapsed), spoken = RunkkFormat.durationSpoken(state.elapsed)),
+                style = StatTileStyle(valueStyle = RunkkTextStyles.DisplaySmall, isCentered = true),
                 modifier = Modifier.weight(1f)
             )
             RunkkStatTile(
                 stringResource(R.string.battle_running_current_pace),
-                RunkkFormat.pace(state.currentPace),
-                spoken = RunkkFormat.paceSpoken(state.currentPace),
-                centered = true,
-                valueStyle = RunkkTextStyles.DisplaySmall,
+                StatTileValue(RunkkFormat.pace(state.currentPace), spoken = RunkkFormat.paceSpoken(state.currentPace)),
+                style = StatTileStyle(valueStyle = RunkkTextStyles.DisplaySmall, isCentered = true),
                 modifier = Modifier.weight(1f)
             )
             RunkkStatTile(
                 stringResource(R.string.battle_running_average_pace),
-                RunkkFormat.pace(state.averagePace),
-                spoken = RunkkFormat.paceSpoken(state.averagePace),
-                centered = true,
-                valueStyle = RunkkTextStyles.DisplaySmall,
+                StatTileValue(RunkkFormat.pace(state.averagePace), spoken = RunkkFormat.paceSpoken(state.averagePace)),
+                style = StatTileStyle(valueStyle = RunkkTextStyles.DisplaySmall, isCentered = true),
                 modifier = Modifier.weight(1f)
             )
         }

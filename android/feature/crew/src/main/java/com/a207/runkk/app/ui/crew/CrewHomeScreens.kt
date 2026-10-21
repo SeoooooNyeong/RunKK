@@ -351,12 +351,9 @@ private fun HomeTitle(state: CrewHomeUiState, modifier: Modifier = Modifier) {
 }
 
 @StringRes
-private fun CrewRole.labelRes(): Int = if (this ==
-    CrewRole.LEADER
-) {
-    R.string.crew_role_leader
-} else {
-    R.string.crew_role_member
+private fun CrewRole.labelRes(): Int = when (this) {
+    CrewRole.LEADER -> R.string.crew_role_leader
+    CrewRole.MEMBER -> R.string.crew_role_member
 }
 
 /** 머리글 오른쪽 설정 메뉴: 크루 관리(크루장만)·크루 내 소개 바꾸기·크루 나가기. */
@@ -402,7 +399,7 @@ private fun ColumnScope.RaceTab(state: CrewHomeUiState, actions: CrewHomeActions
         Loading(state)
         return
     }
-    RaceCard(race, mine = race.contributors.firstOrNull { it.me })
+    RaceCard(race, mine = race.contributors.firstOrNull { it.isMe })
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
             stringResource(R.string.crew_race_ranking_title),
@@ -584,10 +581,7 @@ private fun ColumnScope.CrewRunTab(state: CrewHomeUiState, actions: CrewHomeActi
 private fun CrewRunPost(post: PostList.Item, actions: CrewHomeActions) {
     val run = post.crewRun
     val status = run?.status
-    val canVote = status == null || status == CrewRunStatus.VOTING
-    val canEnter = status == null || status == CrewRunStatus.VOTING || status == CrewRunStatus.LOBBY_OPEN ||
-        status == CrewRunStatus.RUNNING
-    val finished = status == null || status == CrewRunStatus.FINISHED
+    val entry = CrewRunEntry.of(status)
     RunkkCard {
         CrewRunPostHeader(post, actions)
         if (post.summary.isNotBlank()) {
@@ -606,16 +600,28 @@ private fun CrewRunPost(post: PostList.Item, actions: CrewHomeActions) {
                 }
             }
         }
-        CrewRunVote(post, run?.myAnswer, canVote, actions)
+        CrewRunVote(post, run?.myAnswer, entry.canVote, actions)
         CrewRunEntryButtons(
             post,
             label = post.summary.ifBlank {
                 run?.let { crewRunSummary(it) }.orEmpty()
             },
-            canEnter,
-            finished,
+            entry,
             actions
         )
+    }
+}
+
+/** 모집글 상태로 고른 단추 표시: 투표(갈래요·못 가요), 대기실 들어가기, 지난 결과. 상태를 모르면 모두 보인다. */
+private data class CrewRunEntry(val canVote: Boolean, val canEnter: Boolean, val isFinished: Boolean) {
+    companion object {
+        fun of(status: CrewRunStatus?): CrewRunEntry = CrewRunEntry(
+            canVote = status == null || status == CrewRunStatus.VOTING,
+            canEnter = status == null || status in ENTERABLE,
+            isFinished = status == null || status == CrewRunStatus.FINISHED
+        )
+
+        private val ENTERABLE = setOf(CrewRunStatus.VOTING, CrewRunStatus.LOBBY_OPEN, CrewRunStatus.RUNNING)
     }
 }
 
@@ -630,7 +636,7 @@ private fun CrewRunPostHeader(post: PostList.Item, actions: CrewHomeActions) {
             color = RunkkColors.TextSecondary,
             modifier = Modifier.weight(1f)
         )
-        if (post.mine) {
+        if (post.isMine) {
             RunkkTextLink(
                 stringResource(R.string.crew_action_delete),
                 onClick = { actions.onDeleteAsk(post) },
@@ -671,24 +677,18 @@ private fun CrewRunVote(post: PostList.Item, vote: VoteAnswer?, canVote: Boolean
 
 /** 모집글 아래 단추: 대기실 들어가기·지난 결과. */
 @Composable
-private fun CrewRunEntryButtons(
-    post: PostList.Item,
-    label: String,
-    canEnter: Boolean,
-    finished: Boolean,
-    actions: CrewHomeActions
-) {
+private fun CrewRunEntryButtons(post: PostList.Item, label: String, entry: CrewRunEntry, actions: CrewHomeActions) {
     val lobbyDescription = stringResource(R.string.crew_home_run_lobby_description, label)
     val resultDescription = stringResource(R.string.crew_home_run_result_description, label)
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (canEnter) {
+        if (entry.canEnter) {
             RunkkPillButton(
                 stringResource(R.string.crew_home_run_lobby),
                 onClick = { actions.onLobby(post) },
                 modifier = Modifier.semantics { contentDescription = lobbyDescription }
             )
         }
-        if (finished) {
+        if (entry.isFinished) {
             RunkkPillButton(
                 stringResource(R.string.crew_home_run_result),
                 onClick = { actions.onResult(post) },
@@ -748,7 +748,7 @@ private fun ColumnScope.CheerTab(state: CrewHomeUiState, actions: CrewHomeAction
                         color = RunkkColors.TextSecondary,
                         modifier = Modifier.weight(1f)
                     )
-                    if (post.mine) {
+                    if (post.isMine) {
                         RunkkTextLink(
                             stringResource(R.string.crew_action_delete),
                             onClick = { actions.onDeleteAsk(post) },
@@ -795,10 +795,10 @@ internal fun MemberRow(member: CrewMembers.Member, trailing: (@Composable () -> 
                 ) {
                     Text(member.displayName, style = RunkkTextStyles.BodyStrong, color = RunkkColors.TextPrimary)
                     RunkkBadge(
-                        roleLabel(member.role),
+                        stringResource(member.role.labelRes()),
                         tone = if (isLeader(member)) RunkkBadgeTone.Lime else RunkkBadgeTone.Muted
                     )
-                    if (member.me) RunkkBadge(stringResource(R.string.crew_member_me), tone = RunkkBadgeTone.Neutral)
+                    if (member.isMe) RunkkBadge(stringResource(R.string.crew_member_me), tone = RunkkBadgeTone.Neutral)
                 }
                 Text(
                     listOfNotNull(member.tier, member.runimalType).joinToString(" · ").ifEmpty {
@@ -814,14 +814,7 @@ internal fun MemberRow(member: CrewMembers.Member, trailing: (@Composable () -> 
     }
 }
 
-internal fun isLeader(member: CrewMembers.Member): Boolean = member.role.uppercase() == "LEADER" || member.role == "크루장"
-
-@Composable
-internal fun roleLabel(role: String): String = when (role.uppercase()) {
-    "LEADER" -> stringResource(R.string.crew_role_leader)
-    "MEMBER" -> stringResource(R.string.crew_role_member)
-    else -> role
-}
+internal fun isLeader(member: CrewMembers.Member): Boolean = member.role == CrewRole.LEADER
 
 // ---------- 크루 관리 ----------
 

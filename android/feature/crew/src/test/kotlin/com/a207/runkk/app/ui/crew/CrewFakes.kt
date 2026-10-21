@@ -140,9 +140,9 @@ val crewC = CrewList.Item(
 
 val members = CrewMembers(
     listOf(
-        CrewMembers.Member(1, "바람처럼", "LEADER", "매일 새벽 5시", "골드", "아침 참새"),
-        CrewMembers.Member(2, "달빛", "MEMBER", null, "실버", "고독한 늑대"),
-        CrewMembers.Member(3, "비공개러너", "MEMBER", "반가워요", null, null)
+        CrewMembers.Member(1, "바람처럼", CrewRole.LEADER, "매일 새벽 5시", "골드", "아침 참새"),
+        CrewMembers.Member(2, "달빛", CrewRole.MEMBER, null, "실버", "고독한 늑대"),
+        CrewMembers.Member(3, "비공개러너", CrewRole.MEMBER, "반가워요", null, null)
     )
 )
 
@@ -184,7 +184,7 @@ val crewRunPosts = PostList(
             "바람처럼",
             "같이 달려요",
             start.minusSeconds(3_600),
-            mine = false,
+            isMine = false,
             crewRun = crewRunVoting
         ),
         PostList.Item(
@@ -193,7 +193,7 @@ val crewRunPosts = PostList(
             "나",
             "10km LSD",
             start.minusSeconds(7_200),
-            mine = true,
+            isMine = true,
             crewRun = crewRunVoting.copy(
                 distance = Distance(10_000),
                 status = CrewRunStatus.FINISHED,
@@ -208,8 +208,8 @@ val crewRunPosts = PostList(
 
 val cheers = PostList(
     listOf(
-        PostList.Item(41, PostList.Kind.CHEER, "달빛", "이번 주 60km 가자!", start.minusSeconds(600), mine = false),
-        PostList.Item(42, PostList.Kind.CHEER, "나", "내일 새벽 같이 뛰어요", start.minusSeconds(1_800), mine = true)
+        PostList.Item(41, PostList.Kind.CHEER, "달빛", "이번 주 60km 가자!", start.minusSeconds(600), isMine = false),
+        PostList.Item(42, PostList.Kind.CHEER, "나", "내일 새벽 같이 뛰어요", start.minusSeconds(1_800), isMine = true)
     )
 )
 
@@ -218,7 +218,7 @@ val lobby = Lobby(
     listOf(
         Lobby.Participant("바람처럼", true, 1),
         Lobby.Participant("달빛", false, 2),
-        Lobby.Participant("새벽곰", false, 7, me = true)
+        Lobby.Participant("새벽곰", false, 7, isMe = true)
     ),
     meetAt = start.plusSeconds(600),
     distance = Distance(5_000)
@@ -245,11 +245,11 @@ fun crewDetail(crewId: Long = 11, role: CrewRole? = CrewRole.MEMBER) = CrewDetai
 val crewRunResult = CrewRunResult(
     postId = 31,
     finishers = listOf(
-        CrewRunResult.Finisher(2, "새벽곰", 1_710, 342, memberId = 7, me = true),
+        CrewRunResult.Finisher(2, "새벽곰", 1_710, 342, memberId = 7, isMe = true),
         CrewRunResult.Finisher(1, "바람처럼", 1_640, 328),
-        CrewRunResult.Finisher(null, "달빛", null, null, quit = true, memberId = 2)
+        CrewRunResult.Finisher(null, "달빛", null, null, hasQuit = true, memberId = 2)
     ),
-    firstCrewRun = true,
+    isFirstCrewRun = true,
     raceContribution = Distance(13_400)
 )
 
@@ -380,7 +380,7 @@ class FakeCrewRepository : CrewRepository {
 
     override suspend fun toggleReady(postId: Long): Outcome<Lobby> {
         lobbyState = lobbyState.copy(
-            participants = lobbyState.participants.map { if (it.me) it.copy(ready = !it.ready) else it }
+            participants = lobbyState.participants.map { if (it.isMe) it.copy(isReady = !it.isReady) else it }
         )
         return answer("ready:$postId", lobbyState)
     }
@@ -447,7 +447,7 @@ private class NoPendingRuns : PendingRunRepository {
 
     override suspend fun pendingLateHeartRates(): Outcome<List<LateHeartRates>> = Outcome.Success(emptyList())
 
-    override suspend fun removeLateHeartRates(recordId: String) = Outcome.Success(Unit)
+    override suspend fun removeLateHeartRates(sent: LateHeartRates) = Outcome.Success(Unit)
 
     override suspend fun clear() = Outcome.Success(Unit)
 }
