@@ -12,6 +12,15 @@ class RunkkErrorTextTest {
     }
 
     @Test
+    fun `서버 응답 오류는 네트워크 문구가 아니고, 찾을 수 없음·잘못된 요청은 사유 문구`() {
+        assertEquals(false, RunkkErrorText.of(AppError.Server(500)).startsWith("네트워크"))
+        assertEquals(true, RunkkErrorText.of(AppError.Server(503)).contains("잠시 뒤"))
+        assertEquals(true, RunkkErrorText.of(AppError.Rejected("NOT_FOUND")).contains("찾을 수 없"))
+        assertEquals(true, RunkkErrorText.of(AppError.Rejected("BAD_REQUEST")).contains("요청 내용"))
+        assertEquals("만 14세 이상만 가입할 수 있음", RunkkErrorText.of(AppError.Rejected("UNDER_14")))
+    }
+
+    @Test
     fun `네트워크·인증·저장 오류는 각자 문구`() {
         assertEquals(true, RunkkErrorText.of(AppError.Network).startsWith("네트워크"))
         assertEquals(true, RunkkErrorText.of(AppError.Unauthorized).contains("로그인"))

@@ -9,6 +9,7 @@ import com.a207.runkk.app.core.model.AppError
 object RunkkErrorText {
     fun of(error: AppError): String = when (error) {
         AppError.Network -> "네트워크에 연결할 수 없어요. 연결을 확인하고 다시 시도해 주세요"
+        is AppError.Server -> "서버가 응답하지 못했어요. 잠시 뒤 다시 시도해 주세요"
         AppError.Unauthorized -> "로그인이 풀렸어요. 다시 로그인해 주세요"
         AppError.Storage -> "기기에 저장하지 못했어요. 저장 공간을 확인해 주세요"
         is AppError.Rejected -> rejected(error.code)
@@ -21,6 +22,8 @@ object RunkkErrorText {
         AppError.Rejected.LOCATION_CONSENT to "러닝을 측정하려면 위치 권한과 위치 수집 동의가 필요해요",
         AppError.Rejected.RUN_IN_PROGRESS to "이미 러닝을 측정하고 있어요",
         AppError.Rejected.SIGN_UP_REQUIRED to "가입이 필요해요",
+        "NOT_FOUND" to "찾을 수 없어요. 이미 지워졌거나 없는 항목이에요",
+        "BAD_REQUEST" to "요청 내용을 확인한 뒤 다시 시도해 주세요",
         "PROVIDER_UNAVAILABLE" to "로그인 제공자 연결 실패. 잠시 뒤 다시 시도해 주세요",
         "PROVIDER_SDK_NOT_READY" to "이 로그인 방법은 아직 준비 중이에요",
         "LOGIN_CANCELLED" to "로그인을 취소했어요",
