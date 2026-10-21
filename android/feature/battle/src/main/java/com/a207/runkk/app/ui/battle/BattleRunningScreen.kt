@@ -94,7 +94,7 @@ fun BattleRunningRoute(key: Routes.BattleRunning, viewModel: BattleRunningViewMo
     BackHandler {
         when {
             state.phase == BattlePhase.FAILED -> close()
-            state.locked -> viewModel.onUnlockTapped()
+            state.isLocked -> viewModel.onUnlockTapped()
             else -> viewModel.onForfeitTapped()
         }
     }
@@ -134,7 +134,7 @@ fun BattleRunningScreen(
     modifier: Modifier = Modifier,
     lockActions: BattleLockActions = BattleLockActions()
 ) {
-    if (state.locked && state.measuring) {
+    if (state.isLocked && state.isMeasuring) {
         LockedContent(state, lockActions, modifier)
         return
     }
@@ -160,10 +160,10 @@ fun BattleRunningScreen(
         }
         if (state.phase != BattlePhase.FAILED) {
             state.hint?.let { RunkkHint(it.asString(), modifier = Modifier.align(Alignment.CenterHorizontally)) }
-            ActionButtons(state.measuring, lockActions, onForfeitTap, onForfeitLongPress)
+            ActionButtons(state.isMeasuring, lockActions, onForfeitTap, onForfeitLongPress)
         }
     }
-    if (state.confirmingForfeit) ForfeitDialog(onForfeitConfirm, onForfeitDismiss)
+    if (state.isConfirmingForfeit) ForfeitDialog(onForfeitConfirm, onForfeitDismiss)
 }
 
 /** 그만두기 확인(FR-094): 그만두면 패로 기록되고 달린 기록은 저장된다. */
@@ -176,14 +176,14 @@ private fun ForfeitDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
         onConfirm = onConfirm,
         onDismiss = onDismiss,
         dismissLabel = stringResource(R.string.battle_running_forfeit_dismiss),
-        destructive = true
+        isDestructive = true
     )
 }
 
 /** 시안 HiBattleRunning: 화면 잠금 + 그만두기. 그만두기는 길게 눌러야 해서(D-49) 자유런 화면과 같은 배치를 쓴다. */
 @Composable
 private fun ActionButtons(
-    measuring: Boolean,
+    isMeasuring: Boolean,
     lockActions: BattleLockActions,
     onForfeitTap: () -> Unit,
     onForfeitLongPress: () -> Unit
@@ -193,7 +193,7 @@ private fun ActionButtons(
         horizontalArrangement = Arrangement.spacedBy(40.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.Top
     ) {
-        if (measuring) {
+        if (isMeasuring) {
             RunkkIconButton(
                 RunkkIcons.Lock,
                 contentDescription = stringResource(R.string.battle_running_lock),
@@ -220,7 +220,7 @@ private fun ActionButtons(
                 modifier = Modifier.size(28.dp)
             )
         }
-        if (measuring) Spacer(Modifier.width(64.dp))
+        if (isMeasuring) Spacer(Modifier.width(64.dp))
     }
 }
 
@@ -236,7 +236,7 @@ private fun Header(state: BattleRunningUiState) {
         RunkkOverline(
             "$label · ${distanceLabel(state.distance).asString()}",
             color = RunkkColors.Lavender,
-            heading = true
+            isHeading = true
         )
         Spacer(Modifier.weight(1f))
         // 랜덤 대결은 상대 연결 상태(FR-088), 그 밖은 상대 이름. 연결 확인 중으로 바뀌면 보조 기술에 알린다.
@@ -356,7 +356,7 @@ private fun GuidanceBanner(state: BattleRunningUiState) {
                     R.string.battle_running_overtook
                 }
             ),
-            strong = true,
+            isStrong = true,
             modifier = Modifier.semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }
         )
 
@@ -496,19 +496,24 @@ private fun ProgressCard(state: BattleRunningUiState) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        ProgressRow(stringResource(R.string.battle_me), state.myDistance, state.myDistance.meters / total, mine = true)
+        ProgressRow(
+            stringResource(R.string.battle_me),
+            state.myDistance,
+            state.myDistance.meters / total,
+            isMine = true
+        )
         ProgressRow(
             opponentLabel(state),
             state.opponentDistance ?: Distance.ZERO,
             (state.opponentDistance?.meters ?: 0L) / total,
-            mine = false
+            isMine = false
         )
     }
 }
 
 @Composable
-private fun ProgressRow(name: String, distance: Distance, progress: Float, mine: Boolean) {
-    val color = if (mine) RunkkColors.Lime else RunkkColors.Lavender
+private fun ProgressRow(name: String, distance: Distance, progress: Float, isMine: Boolean) {
+    val color = if (isMine) RunkkColors.Lime else RunkkColors.Lavender
     val description = stringResource(R.string.battle_running_progress_desc, name, RunkkFormat.km(distance))
     Column(
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -519,8 +524,8 @@ private fun ProgressRow(name: String, distance: Distance, progress: Float, mine:
         Row(verticalAlignment = Alignment.Bottom) {
             Text(
                 name,
-                style = if (mine) RunkkTextStyles.text(14, FontWeight.Black) else RunkkTextStyles.Body,
-                color = if (mine) RunkkColors.TextPrimary else RunkkColors.TextSecondary,
+                style = if (isMine) RunkkTextStyles.text(14, FontWeight.Black) else RunkkTextStyles.Body,
+                color = if (isMine) RunkkColors.TextPrimary else RunkkColors.TextSecondary,
                 modifier = Modifier.weight(1f)
             )
             Text("${RunkkFormat.km(distance)} KM", style = RunkkTextStyles.display(22), color = color)

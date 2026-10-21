@@ -32,7 +32,7 @@ enum class Verdict(@StringRes val labelRes: Int, val headline: String) {
 }
 
 data class BattleResultUiState(
-    val loading: Boolean = true,
+    val isLoading: Boolean = true,
     val battleId: Long? = null,
     val result: BattleResult? = null,
     val error: UiText? = null
@@ -120,19 +120,19 @@ class BattleResultViewModel @Inject constructor(
     val state: StateFlow<BattleResultUiState> = _state.asStateFlow()
     private var job: Job? = null
 
-    fun load(battleId: Long, force: Boolean = false) {
-        if (!force && _state.value.battleId == battleId && _state.value.error == null) return
+    fun load(battleId: Long, isForced: Boolean = false) {
+        if (!isForced && _state.value.battleId == battleId && _state.value.error == null) return
         job?.cancel()
-        _state.update { it.copy(loading = true, battleId = battleId, error = null) }
+        _state.update { it.copy(isLoading = true, battleId = battleId, error = null) }
         job = viewModelScope.launch {
             when (val result = battles.result(battleId)) {
                 is Outcome.Success -> {
-                    _state.update { it.copy(loading = false, result = result.value) }
+                    _state.update { it.copy(isLoading = false, result = result.value) }
                     coordinator.acknowledgeFinished()
                 }
 
                 is Outcome.Failure -> _state.update {
-                    it.copy(loading = false, error = BattleErrorText.of(result.error))
+                    it.copy(isLoading = false, error = BattleErrorText.of(result.error))
                 }
             }
         }
@@ -140,11 +140,11 @@ class BattleResultViewModel @Inject constructor(
 }
 
 data class BattleHistoryUiState(
-    val loading: Boolean = true,
+    val isLoading: Boolean = true,
     val filterIndex: Int = 0,
     val history: BattleHistory? = null,
     /** 다음 쪽을 읽는 중. */
-    val loadingMore: Boolean = false,
+    val isLoadingMore: Boolean = false,
     val message: UiText? = null,
     val error: UiText? = null
 )
@@ -169,8 +169,8 @@ class BattleHistoryViewModel @Inject constructor(private val battles: BattleRepo
         val s = _state.value
         val history = s.history ?: return
         val cursor = history.nextCursor ?: return
-        if (s.loading || s.loadingMore) return
-        _state.update { it.copy(loadingMore = true) }
+        if (s.isLoading || s.isLoadingMore) return
+        _state.update { it.copy(isLoadingMore = true) }
         val filter = HISTORY_FILTERS[s.filterIndex].second
         moreJob = viewModelScope.launch {
             when (val more = battles.history(filter, cursor)) {
@@ -178,7 +178,7 @@ class BattleHistoryViewModel @Inject constructor(private val battles: BattleRepo
                     val current = st.history ?: more.value
                     val known = current.entries.map { it.battleId }.toSet()
                     st.copy(
-                        loadingMore = false,
+                        isLoadingMore = false,
                         history = current.copy(
                             entries = current.entries + more.value.entries.filterNot { it.battleId in known },
                             nextCursor = more.value.nextCursor
@@ -187,7 +187,7 @@ class BattleHistoryViewModel @Inject constructor(private val battles: BattleRepo
                 }
 
                 is Outcome.Failure -> _state.update {
-                    it.copy(loadingMore = false, message = BattleErrorText.of(more.error))
+                    it.copy(isLoadingMore = false, message = BattleErrorText.of(more.error))
                 }
             }
         }
@@ -204,13 +204,13 @@ class BattleHistoryViewModel @Inject constructor(private val battles: BattleRepo
     fun load() {
         job?.cancel()
         moreJob?.cancel()
-        _state.update { it.copy(loading = true, loadingMore = false, error = null) }
+        _state.update { it.copy(isLoading = true, isLoadingMore = false, error = null) }
         job = viewModelScope.launch {
             when (val result = battles.history(HISTORY_FILTERS[_state.value.filterIndex].second)) {
-                is Outcome.Success -> _state.update { it.copy(loading = false, history = result.value) }
+                is Outcome.Success -> _state.update { it.copy(isLoading = false, history = result.value) }
 
                 is Outcome.Failure -> _state.update {
-                    it.copy(loading = false, error = BattleErrorText.of(result.error))
+                    it.copy(isLoading = false, error = BattleErrorText.of(result.error))
                 }
             }
         }
