@@ -40,6 +40,18 @@ public enum ReasonCode {
     /** 파기 지시가 없음(FR-026, FR-029). */
     DISPOSAL_ORDER_NOT_FOUND("파기 지시 없음"),
 
+    // analysis (srs.md 6.3 3.2, FR-072, FR-073)
+    /** 비공개 기록을 다른 러너가 조회함(3.2 규칙 2, FR-060). */
+    RECORD_PRIVATE("비공개 기록"),
+    /** 크루 공개 기록을 같은 크루가 아닌 러너가 조회함(3.2 규칙 3, FR-060). */
+    RECORD_CREW_ONLY("크루 공개 기록"),
+    /** 주간 목표 횟수가 1~7이 아니거나 거리가 0 이하(FR-072). */
+    GOAL_INVALID("목표 오류"),
+    /** 계획 거리가 0 이하(FR-073). */
+    PLAN_INVALID("계획 오류"),
+    /** 오늘보다 이전 날짜의 계획(FR-073). */
+    PAST_DATE("지난 날짜"),
+
     // notification (FR-178)
     /** 알림이 없음. */
     NOTIFICATION_NOT_FOUND("알림 없음"),

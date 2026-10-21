@@ -20,6 +20,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class MemberQueryService {
 
+    /** 나이대 단위(10살). */
+    private static final int AGE_BAND = 10;
+
     private final MemberRepository memberRepository;
 
     public MemberQueryService(MemberRepository memberRepository) {
@@ -37,6 +40,14 @@ public class MemberQueryService {
     /** analysis·profile이 엔티티 대신 읽는 설정 투영. */
     public MemberPreference preferenceOf(long memberId) {
         return MemberLoader.load(memberRepository, memberId).preference();
+    }
+
+    /** 프로필 화면의 레벨·사진·소개·나이대·성별(profile, FR-005). year 기준 나이대. */
+    public MemberProfile profileOf(long memberId, int year) {
+        Member m = MemberLoader.load(memberRepository, memberId);
+        OptionalInt age = m.ageIn(year);
+        String ageBand = age.isPresent() ? (age.getAsInt() / AGE_BAND * AGE_BAND) + "대" : null;
+        return new MemberProfile(m.getLevel(), m.photoUrl(), m.intro(), ageBand, m.gender());
     }
 
     /** 성향 태그. 탈퇴했거나 태그가 없으면 TagSet.empty(RUNNER)(runimal, design-review.md R3). */

@@ -1,0 +1,19 @@
+{
+  "endpoint": "POST /comments",
+  "scenario": "no_token",
+  "request": {
+    "json": {
+      "averageScore": 42.5,
+      "distanceChangeMeters": 1200,
+      "paceChangeSeconds": -8,
+      "frequentDay": "SATURDAY",
+      "frequentHourBand": 2,
+      "runCount": 10
+    }
+  },
+  "status": 401,
+  "body": {
+    "reason": "UNAUTHORIZED"
+  },
+  "gateway": "Optional.empty() (토큰 설정 오류, 오류 로그)"
+}
