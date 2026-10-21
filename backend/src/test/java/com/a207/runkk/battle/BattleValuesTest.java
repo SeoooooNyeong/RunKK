@@ -3,6 +3,7 @@ package com.a207.runkk.battle;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.a207.runkk.battle.live.OpponentProgress;
 import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.Pace;
@@ -140,6 +141,21 @@ class BattleValuesTest {
         LiveBattleSession copy = LiveBattleSession.restore(s.snapshot());
         assertThat(copy.overtakeCounts()).isEqualTo(s.overtakeCounts());
         assertThat(copy.nameOf(1L)).contains(DisplayName.of("앨리스"));
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("LiveBattleSession: 늦게 온 이전 진행값(더 작은 거리)은 거리를 되돌리지 않는다")
+    void liveSession_ignoresRegression() {
+        LiveBattleSession s = session();
+        s.onProgress(1L, report(500), NOW);
+        s.onProgress(1L, report(450), NOW.plusSeconds(1));
+        List<BattleDelivery> out = s.onProgress(2L, report(100), NOW.plusSeconds(1));
+        assertThat(((OpponentProgress) out.get(0).message()).opponentDistance())
+                .isEqualTo(Distance.ofMeters(100));
+        assertThat(s.snapshot().runners())
+                .filteredOn(r -> r.memberId() == 1L)
+                .extracting(LiveBattleSession.Runner::distanceMeters)
+                .containsExactly(500L);
     }
 
     @Test

@@ -189,6 +189,11 @@ class BattleControllerTest extends WebTestSupport {
                 .andExpect(jsonPath("$.total").value(1))
                 .andExpect(jsonPath("$.losses").value(1))
                 .andExpect(jsonPath("$.entries[0].opponentName").value("10/20의 나"));
+        mvc.perform(as(s, get("/api/v1/battles/history").param("size", "1")))
+                .andExpect(jsonPath("$.entries.length()").value(1))
+                .andExpect(jsonPath("$.nextCursor").doesNotExist());
+        mvc.perform(as(s, get("/api/v1/battles/history").param("size", "0")))
+                .andExpect(status().isBadRequest());
 
         Session other = signUp();
         mvc.perform(as(other, get("/api/v1/battles/" + battleId + "/result")))

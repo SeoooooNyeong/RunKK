@@ -7,6 +7,7 @@ import com.a207.runkk.battle.MatchingService;
 import com.a207.runkk.battle.RecordBattleService;
 import com.a207.runkk.common.BusinessRuleException;
 import com.a207.runkk.common.DateRange;
+import com.a207.runkk.common.PageCursor;
 import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.common.StandardDistance;
 import jakarta.validation.Valid;
@@ -131,7 +132,10 @@ public class BattleController {
         return battleResultAssembler.assemble(memberId, id);
     }
 
-    /** type: RANDOM(고스트 포함)·SELF·CELEBRITY. from·to가 없으면 최근 12개월. */
+    /**
+     * type: RANDOM(고스트 포함)·SELF·CELEBRITY. from·to가 없으면 최근 12개월. size를 주면 그만큼만, 다음 페이지는 응답
+     * nextCursor를 cursor로(주지 않으면 전부, 기존과 같다).
+     */
     @GetMapping("/history")
     BattleDtos.BattleHistoryResponse history(
             @RequestAttribute(MEMBER_ID) long memberId,
@@ -139,14 +143,17 @@ public class BattleController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
                     LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
-                    LocalDate to) {
+                    LocalDate to,
+            @RequestParam(required = false) Long cursor,
+            @RequestParam(required = false) Integer size) {
         LocalDate today = LocalDate.now(clock);
         DateRange range =
                 new DateRange(
                         from == null ? today.minusMonths(DEFAULT_HISTORY_MONTHS) : from,
                         to == null ? today : to);
         return BattleDtos.BattleHistoryResponse.of(
-                battleHistoryService.history(memberId, range, Optional.ofNullable(type)));
+                battleHistoryService.history(
+                        memberId, range, Optional.ofNullable(type), new PageCursor(cursor, size)));
     }
 
     /** 미터 → 기준 거리. 기준 거리가 아니면 BATTLE_DISTANCE_INVALID. */

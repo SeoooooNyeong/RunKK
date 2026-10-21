@@ -207,16 +207,23 @@ final class BattleDtos {
      * @param wins 승
      * @param losses 패
      * @param selfNewRecords 나와의 싸움 신기록 수
+     * @param nextCursor 다음 페이지 커서(size를 줬을 때만), 없으면 null
      */
     record BattleHistoryResponse(
-            List<Entry> entries, int total, int wins, int losses, int selfNewRecords) {
+            List<Entry> entries,
+            int total,
+            int wins,
+            int losses,
+            int selfNewRecords,
+            Long nextCursor) {
         static BattleHistoryResponse of(BattleHistoryView view) {
             return new BattleHistoryResponse(
                     view.entries().stream().map(Entry::of).toList(),
                     view.total(),
                     view.wins(),
                     view.losses(),
-                    view.selfNewRecords());
+                    view.selfNewRecords(),
+                    view.nextCursor());
         }
     }
 

@@ -13,10 +13,11 @@ import java.util.List;
  * @param wins 승
  * @param losses 패
  * @param selfNewRecords 나와의 싸움 신기록 수
- * @param entries 최신순 목록
+ * @param entries 최신순 목록(페이지를 나눴으면 그 페이지)
+ * @param nextCursor 다음 페이지 커서, 마지막 페이지거나 나누지 않았으면 null
  */
 public record BattleHistoryView(
-        int total, int wins, int losses, int selfNewRecords, List<Entry> entries) {
+        int total, int wins, int losses, int selfNewRecords, List<Entry> entries, Long nextCursor) {
 
     public BattleHistoryView {
         entries = List.copyOf(entries);

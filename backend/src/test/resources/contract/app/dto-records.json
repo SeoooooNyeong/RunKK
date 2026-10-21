@@ -181,6 +181,9 @@
     }, {
       "name" : "selfNewRecords",
       "kind" : "leaf"
+    }, {
+      "name" : "nextCursor",
+      "kind" : "leaf"
     } ],
     "file" : "web/battle/BattleDtos.java"
   },

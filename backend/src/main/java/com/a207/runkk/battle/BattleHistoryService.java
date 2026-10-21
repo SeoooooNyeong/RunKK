@@ -1,6 +1,7 @@
 package com.a207.runkk.battle;
 
 import com.a207.runkk.common.DateRange;
+import com.a207.runkk.common.PageCursor;
 import com.a207.runkk.member.MemberQueryService;
 import com.a207.runkk.member.MemberSummary;
 import java.time.Duration;
@@ -34,9 +35,16 @@ public class BattleHistoryService {
         this.celebrityRecordRepository = celebrityRecordRepository;
     }
 
-    /** FINISHED·RESULT_PENDING 최신순. 필터 RANDOM은 GHOST를 포함한다(BattleType.historyGroup). */
+    /** FINISHED·RESULT_PENDING 최신순 전부. 필터 RANDOM은 GHOST를 포함한다(BattleType.historyGroup). */
     @Transactional(readOnly = true)
     public BattleHistoryView history(long memberId, DateRange range, Optional<BattleType> filter) {
+        return history(memberId, range, filter, PageCursor.all());
+    }
+
+    /** 통계는 기간 전체로, 목록은 page만큼(B3 리뷰: 이력 페이지 나누기). */
+    @Transactional(readOnly = true)
+    public BattleHistoryView history(
+            long memberId, DateRange range, Optional<BattleType> filter, PageCursor page) {
         List<Battle> battles =
                 battleRepository.findHistory(memberId, range).stream()
                         .filter(b -> filter.isEmpty() || b.getType().historyGroup() == filter.get())
@@ -50,12 +58,15 @@ public class BattleHistoryService {
         Map<String, Source> sources = sourcesOf(battles);
         List<BattleHistoryView.Entry> entries =
                 battles.stream().map(b -> entryOf(b, memberId, names, sources)).toList();
+        PageCursor.Slice<BattleHistoryView.Entry> slice =
+                page.slice(entries, BattleHistoryView.Entry::battleId);
         return new BattleHistoryView(
                 entries.size(),
                 count(entries, Verdict.WIN),
                 count(entries, Verdict.LOSE),
                 (int) entries.stream().filter(BattleHistoryView.Entry::newRecord).count(),
-                entries);
+                slice.items(),
+                slice.nextCursor());
     }
 
     /** 유명인 대결이 있을 때만 유명인 기록을 한 번 읽는다(기록 ID 문자열 → 출처). */

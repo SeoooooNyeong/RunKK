@@ -75,6 +75,8 @@ public enum ReasonCode {
     NO_RECORD("아직 기록이 없어요"),
     /** 고른 유명인 기록이 지워짐(4.6, FR-172). */
     CELEBRITY_REMOVED("고를 수 없는 기록"),
+    /** 랜덤·고스트 대결을 만들지 못해 대기가 풀림(실시간 MatchFailed). */
+    MATCH_FAILED("대결을 만들지 못했어요. 다시 시도해 주세요"),
     /** 대결이 없음. */
     BATTLE_NOT_FOUND("대결 없음"),
     /** 유명인 기록 출처명이 비었음(7.1). */

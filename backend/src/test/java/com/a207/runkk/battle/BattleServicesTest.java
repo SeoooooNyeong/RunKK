@@ -110,7 +110,7 @@ class BattleServicesTest {
                 new BattleStartService(battles, members, runs, messenger, sessions, clock, tx);
         GhostMatcher ghost =
                 new GhostMatcher(members, runs, virtuals, battles, startService, new Random(3));
-        matchmaker = new Matchmaker(queue, battles, startService, ghost, policy, tx);
+        matchmaker = new Matchmaker(queue, battles, startService, ghost, policy, tx, messenger);
         liveService = new LiveBattleService(sessions, battles, messenger, notifications, tx);
         clockService =
                 new BattleClockService(
@@ -237,6 +237,17 @@ class BattleServicesTest {
             assertThat(found.animationSeconds()).isEqualTo(3);
             BattleStart start = (BattleStart) messenger.to(BOB, "BattleStart").get(0);
             assertThat(start.opponentTrack()).isNull();
+        }
+
+        @Test
+        @org.junit.jupiter.api.DisplayName("고스트 대결을 만들지 못하면 대기에서 빠지고 MatchFailed를 받는다")
+        void ghostFailure_notifiesMatchFailed() {
+            when(members.ghostEligibleOwners(any(), anyLong())).thenReturn(Map.of());
+            waiting(ALICE, NOW);
+            matchmaker.tick(NOW.plusSeconds(16));
+            assertThat(battles.all()).isEmpty();
+            assertThat(queue.findWaiting(ALICE)).isEmpty();
+            assertThat(messenger.to(ALICE, "MatchFailed")).hasSize(1);
         }
 
         @Test

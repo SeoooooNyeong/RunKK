@@ -89,6 +89,18 @@ class CrewRaceAndLiveTest {
     }
 
     @Test
+    @org.junit.jupiter.api.DisplayName("늦게 온 이전 진행값(더 작은 거리)은 거리를 되돌리지 않고, 중계에 memberId가 있다")
+    void live_ignoresRegression() {
+        CrewRunLiveSession s = session();
+        s.onProgress(1, at(600, 120), NOW.plusSeconds(120));
+        CrewRunRelay relay =
+                (CrewRunRelay) s.onProgress(1, at(400, 80), NOW.plusSeconds(121)).get(0);
+        RelayEntry first = relay.entries().get(0);
+        assertThat(first.memberId()).isEqualTo(1L);
+        assertThat(first.distance()).isEqualTo(Distance.ofMeters(600));
+    }
+
+    @Test
     @org.junit.jupiter.api.DisplayName("도착한 참가자가 거리보다 앞, 그만둔 참가자는 순위 없이 QUIT, 3초 넘게 없으면 CHECKING")
     void live_arrivalQuitTimeout() {
         CrewRunLiveSession s = session();
