@@ -75,6 +75,12 @@ class RunScreensTest {
         unlock.performClick()
         unlock.performSemanticsAction(SemanticsActions.OnLongClick)
         compose.onNodeWithText("화면 잠김").assertExists()
+        compose.onNode(
+            androidx.compose.ui.test.SemanticsMatcher.expectValue(
+                androidx.compose.ui.semantics.SemanticsProperties.PaneTitle,
+                LOCKED_PANE_TITLE
+            )
+        ).assertExists()
         assertEquals(listOf("unlockTap", "unlockLong"), calls)
     }
 

@@ -118,7 +118,14 @@ class RunkkComponentsTest {
                 )
             }
         }
-        compose.onNodeWithText("주간 목표 횟수").assertExists()
+        // 묶음 이름은 선택 묶음 노드가 한 번 읽는다(보이는 글자는 따로 읽지 않는다).
+        compose.onNode(
+            androidx.compose.ui.test.hasContentDescription("주간 목표 횟수") and
+                androidx.compose.ui.test.SemanticsMatcher.keyIsDefined(
+                    androidx.compose.ui.semantics.SemanticsProperties.SelectableGroup
+                )
+        ).assertExists()
+        compose.onNodeWithText("주간 목표 횟수").assertDoesNotExist()
         compose.onNodeWithContentDescription("주 4회").assertIsSelected()
         compose.onNodeWithContentDescription("주 3회").performClick()
         assertEquals(listOf(0), picked)

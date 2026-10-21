@@ -22,8 +22,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -301,7 +303,12 @@ fun RankingScreen(
     ) {
         val ranking = state.ranking ?: return@AnalysisScaffold
         ranking.mine?.let { mine ->
-            RunkkCard(Modifier.fillMaxWidth(), borderColor = RunkkColors.Lime, background = RunkkColors.LimeContainer) {
+            // 범위·기간을 바꾸면 내 순위가 바뀐 것을 보조 기술에 알린다.
+            RunkkCard(
+                Modifier.fillMaxWidth().semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
+                borderColor = RunkkColors.Lime,
+                background = RunkkColors.LimeContainer
+            ) {
                 Text(
                     if (state.scope ==
                         RankingScope.CREW

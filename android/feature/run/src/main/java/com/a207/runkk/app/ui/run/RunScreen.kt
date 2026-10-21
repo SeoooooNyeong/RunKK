@@ -40,6 +40,7 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -413,12 +414,17 @@ private fun RunningContent(state: RunUiState, actions: RunActions) {
     }
 }
 
+/** 잠금 화면 이름(paneTitle). */
+internal const val LOCKED_PANE_TITLE = "화면 잠금, 길게 눌러 해제"
+
 @Composable
 private fun LockedContent(state: RunUiState, actions: RunActions) {
     val progress = state.progress
     Column(
         modifier = Modifier
             .fillMaxSize()
+            // 잠금 화면으로 바뀌면 보조 기술이 화면 이름을 알린다.
+            .semantics { paneTitle = LOCKED_PANE_TITLE }
             // 잠금 화면에는 해제 버튼 말고 누를 것이 없다(FR-182).
             .background(RunkkColors.BackgroundLocked)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 40.dp),

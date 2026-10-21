@@ -157,10 +157,14 @@ constructor(
         run.round.scope.launch { finish(run, status = null) }
     }
 
-    /** 확인 뒤 그만두기(POST /battles/{id}/forfeit) → 기록 저장. 보고가 끝내 실패해도 기기 측정은 끝내고 failure로 알린다. */
+    /**
+     * 확인 뒤 그만두기(POST /battles/{id}/forfeit) → 기록 저장. 보고가 끝내 실패해도 기기 측정은 끝내고 failure로 알린다.
+     * 화면 잠금 중이면(FR-182) 화면이 막지 못한 입력이어도 받지 않는다.
+     */
     fun forfeit() {
         val run = run ?: return
         run.round.scope.launch {
+            if (runTracker.progress.value.locked) return@launch
             report(run) { battleRepository.forfeit(run.battleId) }
             finish(run, status = null)
         }

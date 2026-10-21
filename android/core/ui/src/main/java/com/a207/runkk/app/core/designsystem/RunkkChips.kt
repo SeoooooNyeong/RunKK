@@ -26,7 +26,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -142,8 +144,30 @@ fun RunkkSegmentRow(
     spokenLabels: List<String>? = null
 ) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        groupLabel?.let { Text(text = it, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary) }
-        Row(modifier = Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        // 묶음 이름은 선택 묶음 노드가 읽는다(보이는 글자는 두 번 읽지 않게 숨긴다).
+        groupLabel?.let {
+            Text(
+                text = it,
+                style = RunkkTextStyles.Caption,
+                color = RunkkColors.TextSecondary,
+                modifier = Modifier.clearAndSetSemantics {}
+            )
+        }
+        Row(
+            modifier = Modifier
+                .selectableGroup()
+                .then(
+                    if (groupLabel != null) {
+                        Modifier.semantics {
+                            contentDescription = groupLabel
+                            isTraversalGroup = true
+                        }
+                    } else {
+                        Modifier
+                    }
+                ),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             options.forEachIndexed { index, label ->
                 val spoken = spokenLabels?.getOrNull(index)
                 RunkkSegmentOption(

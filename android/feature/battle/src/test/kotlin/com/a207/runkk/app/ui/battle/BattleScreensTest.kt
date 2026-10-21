@@ -154,6 +154,7 @@ class BattleScreensTest {
         compose.onNodeWithContentDescription("화면 잠금").performClick()
         state = state.copy(locked = true)
         compose.onNodeWithContentDescription("대결 그만두기").assertDoesNotExist()
+        compose.onNode(SemanticsMatcher.expectValue(SemanticsProperties.PaneTitle, LOCKED_PANE_TITLE)).assertExists()
         val unlock = compose.onNodeWithContentDescription("화면 잠금 해제")
         unlock.performClick()
         unlock.performTouchInput { longClick() }

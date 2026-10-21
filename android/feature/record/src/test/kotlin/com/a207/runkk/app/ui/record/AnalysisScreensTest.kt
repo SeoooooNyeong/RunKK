@@ -132,6 +132,22 @@ class AnalysisScreensTest {
     }
 
     @Test
+    fun `랭킹 범위·기간을 바꾸면 내 순위 카드가 바뀐 결과를 알린다`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                RankingScreen(RankingUiState(loading = false, ranking = sampleRanking), {}, {}, {}, {})
+            }
+        }
+        compose.onNode(
+            androidx.compose.ui.test.hasText("내 순위", substring = true) and
+                androidx.compose.ui.test.SemanticsMatcher.expectValue(
+                    androidx.compose.ui.semantics.SemanticsProperties.LiveRegion,
+                    androidx.compose.ui.semantics.LiveRegionMode.Polite
+                )
+        ).assertExists()
+    }
+
+    @Test
     fun growthShot() = compose.captureRunkkScreen("record_growth") {
         GrowthScreen(GrowthUiState(loading = false, growth = sampleGrowth), {}, {}, {})
     }

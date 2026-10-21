@@ -532,6 +532,26 @@ class BattleRunCoordinatorTest {
     }
 
     @Test
+    fun `잠금 중 그만두기는 조정자에서도 받지 않는다(FR-182)`() = runTest {
+        val (tracker, coordinator) = setUp()
+        coordinator.onRecordBattleStart(selfStart)
+        advanceTimeBy(3_001)
+        tracker.runTo(1, 0.0)
+        runCurrent()
+        coordinator.lockScreen()
+        runCurrent()
+        coordinator.forfeit()
+        runCurrent()
+        assertTrue(log.calls.none { it.startsWith("battle.forfeit") }, "잠긴 화면에서 온 그만두기: ${log.calls}")
+        assertIs<BattleRunState.Running>(coordinator.state.value)
+        coordinator.onUnlockLongPressed()
+        runCurrent()
+        coordinator.forfeit()
+        runCurrent()
+        assertTrue(log.calls.any { it.startsWith("battle.forfeit") }, "해제 뒤에는 그만둔다")
+    }
+
+    @Test
     fun `측정 전에는 잠그지 않는다`() = runTest {
         val (_, coordinator) = setUp()
         coordinator.onMatched(match)

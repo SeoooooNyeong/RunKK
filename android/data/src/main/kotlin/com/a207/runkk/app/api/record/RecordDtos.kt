@@ -34,14 +34,15 @@ internal data class DashboardResponse(
     val weekly: WeeklyDto? = null,
     val grassLevels: Map<String, Int> = emptyMap()
 ) {
+    /** 이번 주 목표·실적. 서버가 빠뜨린 항목은 0으로 읽어 대시보드 전체가 실패하지 않게 한다. */
     @Serializable
     data class WeeklyDto(
-        val goalRuns: Int,
-        val goalMeters: Long,
-        val actualRuns: Int,
-        val actualMeters: Long,
-        val runsPercent: Int,
-        val distancePercent: Int
+        val goalRuns: Int = 0,
+        val goalMeters: Long = 0,
+        val actualRuns: Int = 0,
+        val actualMeters: Long = 0,
+        val runsPercent: Int = 0,
+        val distancePercent: Int = 0
     )
 
     @Serializable
@@ -76,8 +77,9 @@ internal data class RecordDetailResponse(
     val averageHeartRate: Int? = null,
     val maxHeartRate: Int? = null
 ) {
+    /** 신호 불안정 구간. 서버가 빠뜨린 항목은 0으로 읽어 기록 상세 전체가 실패하지 않게 한다. */
     @Serializable
-    data class UnstableDto(val fromSeconds: Long, val toSeconds: Long, val distanceMeters: Long)
+    data class UnstableDto(val fromSeconds: Long = 0, val toSeconds: Long = 0, val distanceMeters: Long = 0)
 }
 
 /** bests 값은 기준 거리별 최고 기록(초). */

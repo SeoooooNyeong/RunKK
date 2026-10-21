@@ -33,6 +33,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -469,6 +470,9 @@ private fun ProgressRow(name: String, distance: Distance, progress: Float, mine:
     }
 }
 
+/** 잠금 화면 이름(paneTitle). */
+internal const val LOCKED_PANE_TITLE = "화면 잠금, 길게 눌러 해제"
+
 /**
  * 잠금 화면(FR-182, 시안 HiRunningLocked): 해제 버튼 말고 누를 것이 없다. 격차와 내 거리·경과만 크게 보인다.
  * 종료 카운트다운이면 배너를 함께 보인다.
@@ -478,6 +482,8 @@ private fun LockedContent(state: BattleRunningUiState, actions: BattleLockAction
     Column(
         modifier = modifier
             .fillMaxSize()
+            // 잠금 화면으로 바뀌면 보조 기술이 화면 이름을 알린다.
+            .semantics { paneTitle = LOCKED_PANE_TITLE }
             .background(RunkkColors.BackgroundLocked)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 40.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
