@@ -30,10 +30,10 @@ class OpponentTrack private constructor(private val samples: List<Sample>) {
 
                 else -> {
                     val i = indexAtOrBefore(e)
-                    val a = samples[i]
-                    val b = samples[i + 1]
-                    val r = (e - a.elapsedMillis) / (b.elapsedMillis - a.elapsedMillis)
-                    a.meters + r * (b.meters - a.meters)
+                    val before = samples[i]
+                    val after = samples[i + 1]
+                    val ratio = (e - before.elapsedMillis) / (after.elapsedMillis - before.elapsedMillis)
+                    before.meters + ratio * (after.meters - before.meters)
                 }
             }
         return Distance(meters.roundToLong())

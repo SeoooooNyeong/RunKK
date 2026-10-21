@@ -33,14 +33,22 @@ internal fun Project.aliasVerificationTasks(
     unitTestTask: String,
     lintTask: String,
 ) {
-    tasks.register("testLocalDebugUnitTest") {
-        group = "verification"
-        description = "AGENTS.md 검증 명령용 별칭: $unitTestTask"
-        dependsOn(unitTestTask)
-    }
-    tasks.register("lintLocalDebug") {
-        group = "verification"
-        description = "AGENTS.md 검증 명령용 별칭: $lintTask"
-        dependsOn(lintTask)
+    // 플레이버(env)를 직접 가진 라이브러리(:data, 플레이버별 서버 주소 BuildConfig)는 같은 이름의 실제 작업이 있으므로
+    // 별칭을 만들지 않는다. AGP는 플러그인 적용 때 등록한 afterEvaluate에서 변형 작업을 만들므로 이 검사가 그 뒤에 돈다.
+    afterEvaluate {
+        if ("testLocalDebugUnitTest" !in tasks.names) {
+            tasks.register("testLocalDebugUnitTest") {
+                group = "verification"
+                description = "AGENTS.md 검증 명령용 별칭: $unitTestTask"
+                dependsOn(unitTestTask)
+            }
+        }
+        if ("lintLocalDebug" !in tasks.names) {
+            tasks.register("lintLocalDebug") {
+                group = "verification"
+                description = "AGENTS.md 검증 명령용 별칭: $lintTask"
+                dependsOn(lintTask)
+            }
+        }
     }
 }

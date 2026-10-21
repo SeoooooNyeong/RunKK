@@ -116,6 +116,23 @@ class RunSession(val spec: RunStartSpec) {
 
     fun hintFinish(): Guidance = Guidance.screenOnly(Guidance.Kind.FINISH_HINT, "길게 눌러 종료")
 
+    /** 측정 중(RUNNING)이면 잠그고 참. 그 밖의 상태면 아무것도 하지 않고 거짓(RunTracker가 상태 값을 보지 않게, O-4). */
+    fun tryLock(): Boolean {
+        if (state != State.RUNNING) return false
+        lock()
+        return true
+    }
+
+    /** 잠금 중이면 해제하고 참. 그 밖의 상태면 거짓(O-4). */
+    fun tryUnlock(): Boolean {
+        if (state != State.LOCKED) return false
+        unlock()
+        return true
+    }
+
+    /** 잠금 중이면 해제 안내, 아니면 null. 상태는 바꾸지 않는다(O-4). */
+    fun unlockHintIfLocked(): Guidance? = if (state == State.LOCKED) hintUnlock() else null
+
     /** 화면의 종료(길게 누름). 잠금 중이면 거부한다(FR-182). */
     fun finish(now: Instant): FinishOutcome {
         check(isActive) { "종료할 수 없는 상태: $state" }
@@ -176,13 +193,13 @@ class RunSession(val spec: RunStartSpec) {
         )
     }
 
-    /** 최근 30초 창의 처음·끝 누적 거리 차로 현재 페이스를 낸다(D-14). 거리 차가 1m 미만이면 null. */
+    /** 최근 30초 창의 처음·끝 누적 거리 차로 현재 페이스를 낸다(D-14). 거리 차가 1m 미만이거나 시각 차가 없으면 null(S-19). */
     private fun currentPace(): Pace? {
         if (window.size < 2) return null
         val (fromAt, fromMeters) = window.first()
         val (toAt, toMeters) = window.last()
         val meters = (toMeters - fromMeters).roundToLong()
-        if (meters <= 0) return null
+        if (meters <= 0 || !toAt.isAfter(fromAt)) return null
         return Pace.of(Duration.between(fromAt, toAt), Distance(meters))
     }
 

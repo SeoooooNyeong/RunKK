@@ -1,8 +1,11 @@
 package com.a207.runkk.app.domain.run
 
 import com.a207.runkk.app.core.model.AppError
+import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.core.model.Pace
+import com.a207.runkk.app.core.model.RunMode
 import com.a207.runkk.app.domain.testing.CallLog
 import com.a207.runkk.app.domain.testing.FakeGuidanceOutput
 import com.a207.runkk.app.domain.testing.FakeLocationPermission
@@ -216,5 +219,113 @@ class RunTrackerTest {
         runCurrent()
         assertEquals(0, received)
         assertNotNull(watch.published.last().notice)
+    }
+
+    @Test
+    fun `F-4 늦은 심박 저장이 실패하면 다시 시도하고 남겨 두었다가 다음 묶음과 함께 넣는다`() = runTest {
+        val tracker = started()
+        tracker.runFor(10)
+        tracker.onFinishLongPressed()
+        runCurrent()
+        pending.appendFailWith = AppError.Storage
+        watch.heartRates.emit(listOf(HeartRateSample(at(8), 150)))
+        advanceTimeBy(10_000)
+        runCurrent()
+        assertEquals(3, log.calls.count { it == "pending.appendHeartRates:rec-1" })
+        assertTrue(pending.appended.isEmpty())
+
+        pending.appendFailWith = null
+        watch.heartRates.emit(listOf(HeartRateSample(at(9), 151)))
+        runCurrent()
+        assertEquals(
+            listOf("rec-1" to listOf(HeartRateSample(at(8), 150), HeartRateSample(at(9), 151))),
+            pending.appended
+        )
+    }
+
+    @Test
+    fun `F-4 기록을 찾을 수 없다는 거부는 다시 시도하지 않는다`() = runTest {
+        val tracker = started()
+        tracker.runFor(10)
+        tracker.onFinishLongPressed()
+        runCurrent()
+        pending.appendFailWith = AppError.Rejected("RECORD_NOT_FOUND")
+        watch.heartRates.emit(listOf(HeartRateSample(at(8), 150)))
+        advanceTimeBy(10_000)
+        runCurrent()
+        assertEquals(1, log.calls.count { it == "pending.appendHeartRates:rec-1" })
+    }
+
+    @Test
+    fun `S-18 측정이 끝나면 워치에 러닝 종료 표시를 보낸다`() = runTest {
+        val tracker = started()
+        tracker.runFor(10)
+        tracker.onFinishLongPressed()
+        runCurrent()
+        assertFalse(watch.published.last().running)
+    }
+
+    @Test
+    fun `워치 시작 화면 - 오늘 계획과 함께 러닝 아님 표시를 보내고 측정이 끝나도 그 계획을 보인다`() = runTest {
+        val plan = PlanSnapshot(Distance(5_000), Pace(360))
+        val tracker = tracker(backgroundScope)
+        tracker.publishWatchHome(plan)
+        val home = watch.published.last()
+        assertFalse(home.running)
+        assertEquals(plan, home.todayPlan)
+
+        assertIs<Outcome.Success<Unit>>(tracker.startRun(freeSpec()))
+        tracker.runFor(10)
+        tracker.onFinishLongPressed()
+        runCurrent()
+        assertEquals(plan, watch.published.last().todayPlan)
+        assertFalse(watch.published.last().running)
+    }
+
+    @Test
+    fun `워치 종료 요청 - 자유런은 길게 누르기 종료 규칙으로 끝낸다`() = runTest {
+        val tracker = started()
+        tracker.runFor(10)
+        watch.endRequests.emit(Unit)
+        runCurrent()
+        assertEquals(listOf("pending.save", "upload.requestUpload"), log.calls)
+    }
+
+    @Test
+    fun `워치 종료 요청 - 잠금 중이면 거부하고 해제 안내를 낸다`() = runTest {
+        val tracker = started()
+        tracker.runFor(10)
+        tracker.lockScreen()
+        watch.endRequests.emit(Unit)
+        runCurrent()
+        assertTrue(log.calls.isEmpty())
+        assertEquals(Guidance.Kind.UNLOCK_HINT, output.played.last().kind)
+    }
+
+    @Test
+    fun `워치 종료 요청 - 대결·크루런은 끝내지 않고 워치에 안내한다`() = runTest {
+        val tracker = tracker(backgroundScope)
+        tracker.startRun(
+            RunStartSpec(mode = RunMode.BATTLE, cardKind = CardKind.BATTLE_RUN, battleId = 3, recordId = "b-1")
+        )
+        runCurrent()
+        tracker.runFor(10)
+        watch.endRequests.emit(Unit)
+        runCurrent()
+        assertTrue(log.calls.isEmpty())
+        assertNotNull(watch.published.last().notice)
+        assertTrue(watch.published.last().running)
+    }
+
+    @Test
+    fun `측정 서비스를 띄우지 못하면 시작을 되돌리고 거부한다`() = runTest {
+        host.startFailure = AppError.Rejected("MEASUREMENT_UNAVAILABLE")
+        val tracker = tracker(backgroundScope)
+        assertEquals(
+            Outcome.Failure(AppError.Rejected("MEASUREMENT_UNAVAILABLE")),
+            tracker.startRun(freeSpec())
+        )
+        host.startFailure = null
+        assertIs<Outcome.Success<Unit>>(tracker.startRun(freeSpec()), "앞 시작이 세션을 남기지 않는다")
     }
 }

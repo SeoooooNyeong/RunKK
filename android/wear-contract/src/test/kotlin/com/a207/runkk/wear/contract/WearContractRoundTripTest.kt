@@ -71,4 +71,17 @@ class WearContractRoundTripTest {
         assertEquals(paths.size, paths.toSet().size)
         paths.forEach { assertNotEquals(-1, it.indexOf("/runkk/")) }
     }
+
+    @Test
+    fun `종료 요청 왕복`() {
+        val message = EndRequestMessage(requestedAtEpochMillis = 1_760_000_000_000)
+        assertEquals(message, EndRequestMessage.decode(message.encode()))
+        assertEquals("/runkk/end-request", WearPaths.END_REQUEST)
+    }
+
+    @Test
+    fun `S-20 수집 허용 항목이 없는 옛 표시 정보는 수집 금지로 읽는다`() {
+        val old = """{"running":true,"elapsedSeconds":10,"distanceMeters":30}""".toByteArray()
+        assertEquals(false, WatchDisplayMessage.decode(old).heartRateCollectionAllowed)
+    }
 }

@@ -145,4 +145,12 @@ class RunSessionTest {
         val run = assertIs<FinishOutcome.Saved>(session.finish(at(40))).run
         assertEquals(listOf(HeartRateSample(at(2), 150)), run.heartRates)
     }
+
+    @Test
+    fun `S-19 창의 처음과 끝 시각이 같으면 현재 페이스를 만들지 않는다`() {
+        val session = running()
+        session.onLocation(normal(1, 0.0))
+        session.onLocation(FilteredPoint(at(1), north(5.0), SignalState.NORMAL))
+        assertNull(session.tick(at(1)).currentPace)
+    }
 }
