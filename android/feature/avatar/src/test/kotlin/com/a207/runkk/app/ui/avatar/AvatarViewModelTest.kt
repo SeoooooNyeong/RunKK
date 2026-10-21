@@ -170,10 +170,10 @@ class AvatarDecorateViewModelTest {
 
     @Test
     fun `거부된 착용은 사유를 안내한다`() {
-        repo.equipResult = { Outcome.Success(avatar.copy(rejected = mapOf(ItemSlot.TOP to "보유하지 않은 아이템"))) }
+        repo.equipResult = { Outcome.Success(avatar.copy(rejected = mapOf(ItemSlot.TOP to "ITEM_NOT_OWNED"))) }
         val vm = AvatarViewModel(repo)
         vm.onToggle(items[1])
-        assertEquals("상의: 보유하지 않은 아이템", vm.state.value.message)
+        assertEquals("상의: 가지고 있지 않은 아이템이에요", vm.state.value.message)
     }
 
     @Test
@@ -215,5 +215,18 @@ class ShopViewModelTest {
         vm.onBuy()
         assertEquals("리워드가 모자라요. 달리고 대결에서 이기면 모여요", vm.state.value.message)
         assertFalse(vm.state.value.buying)
+    }
+
+    @Test
+    fun `셀카 변환 실패는 200이어도 실패 사유 안내와 기본 캐릭터 선택으로 이어진다`() {
+        repo.selfieResult = Outcome.Failure(AppError.Rejected("NO_FACE"))
+        val vm = AvatarSetupViewModel(repo)
+        vm.onSelfie(byteArrayOf(1))
+        assertEquals(
+            "얼굴을 찾지 못했어요. 얼굴이 잘 보이게 다시 찍거나 기본 캐릭터를 골라 주세요",
+            vm.state.value.error
+        )
+        assertFalse(vm.state.value.working)
+        assertTrue(vm.state.value.canCreateSelfie)
     }
 }

@@ -252,7 +252,7 @@ private fun MeScreenPreview() {
                 profile = Profile(
                     7, "달리는곰", "SELF", "골드", 3,
                     setOf(
-                        "SOCIAL",
+                        "SOCIAL_RUN",
                         "EVENING"
                     ),
                     "퇴근 뒤 한강", "치타", null, "새벽크루", null

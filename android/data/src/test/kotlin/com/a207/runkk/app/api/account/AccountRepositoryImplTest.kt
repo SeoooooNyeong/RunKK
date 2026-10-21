@@ -187,10 +187,69 @@ class AccountRepositoryImplTest {
     }
 
     @Test
-    fun `약관 본문을 돌려준다`() = runTest {
-        api.reply("""{"type":"TERMS","title":"이용약관","body":"제1조"}""")
+    fun `고지문서는 서버가 주는 공개 주소를 돌려준다`() = runTest {
+        api.reply("""{"type":"PRIVACY_POLICY","url":"https://runkk.example/legal/privacy"}""")
 
-        assertEquals(Outcome.Success("제1조"), repository.legalDocument("TERMS"))
+        assertEquals(Outcome.Success("https://runkk.example/legal/privacy"), repository.legalDocument("PRIVACY_POLICY"))
+        assertEquals("/api/v1/legal/PRIVACY_POLICY", api.take().url.encodedPath)
+    }
+
+    @Test
+    fun `고지문서에 주소도 본문도 없으면 실패로 돌려준다`() = runTest {
+        api.reply("""{"type":"HELP"}""")
+
+        assertEquals(Outcome.Failure(AppError.Server(0)), repository.legalDocument("HELP"))
+    }
+
+    @Test
+    fun `로그인 실패는 서버가 본문 reason에 담은 사유 코드로 돌려준다`() = runTest {
+        api.reply("""{"status":"FAILED","reason":"AUTH_FAILED","message":"인증 실패"}""", code = 401)
+        api.reply("""{"status":"FAILED","reason":"PROVIDER_UNAVAILABLE","message":"로그인 제공자 연결 실패"}""", code = 503)
+
+        assertEquals(
+            Outcome.Failure(AppError.Rejected("AUTH_FAILED")),
+            repository.login(ProviderToken(ProviderType.KAKAO, "bad"))
+        )
+        assertEquals(
+            Outcome.Failure(AppError.Rejected("PROVIDER_UNAVAILABLE")),
+            repository.login(ProviderToken(ProviderType.KAKAO, "down"))
+        )
+    }
+
+    @Test
+    fun `탈퇴가 가드에 막히면 409 본문의 거부 문구를 앱 사유 코드로 바꾼다`() = runTest {
+        api.reply("""{"withdrawn":false,"rejectionReason":"크루장 양도 필요"}""", code = 409)
+        api.reply("""{"withdrawn":false,"rejectionReason":"진행 중인 대결 종료 필요"}""", code = 409)
+        api.reply("""{"withdrawn":false,"rejectionReason":"그 밖의 사유"}""", code = 409)
+
+        assertEquals(Outcome.Failure(AppError.Rejected("LEADER_MUST_TRANSFER")), repository.withdraw())
+        assertEquals(Outcome.Failure(AppError.Rejected("BATTLE_IN_PROGRESS")), repository.withdraw())
+        assertEquals(Outcome.Failure(AppError.Rejected("WITHDRAWAL_REJECTED")), repository.withdraw())
+    }
+
+    @Test
+    fun `가입 요청 본문은 서버 SignUpRequest 항목 이름과 서버 enum 이름을 쓴다`() = runTest {
+        api.reply("""{"status":"SIGN_UP_REQUIRED","signUpTicket":"t"}""")
+        api.reply("""{"memberId":9,"nickname":"달리는곰","accessToken":"a","refreshToken":"r"}""")
+        repository.login(ProviderToken(ProviderType.KAKAO, "k"))
+
+        repository.signUp(
+            SignUpForm(
+                nickname = null,
+                birthYear = 1995,
+                gender = Gender.UNDISCLOSED,
+                intro = null,
+                consents = mapOf("AGE_14_PLUS" to true, "TERMS" to true, "PRIVACY" to true, "LOCATION" to true),
+                recordVisibility = "PUBLIC",
+                tags = setOf("SOLO_RUN", "SHORT_DISTANCE")
+            )
+        )
+
+        api.take()
+        val body = Json.parseToJsonElement(api.take().body!!.utf8()).jsonObject
+        assertEquals("UNDISCLOSED", body["gender"]!!.jsonPrimitive.content)
+        assertEquals("PUBLIC", body["recordVisibility"]!!.jsonPrimitive.content)
+        assertTrue("SOLO_RUN" in body["tags"].toString(), body["tags"].toString())
     }
 
     @Test

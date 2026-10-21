@@ -56,22 +56,22 @@ class MeViewModelsTest {
     fun `프로필 편집은 현재 값을 채우고 바꾼 값을 저장한다(FR-007)`() = runTest {
         val vm = ProfileEditViewModel(account)
         assertEquals("달리는곰", vm.state.value.nickname)
-        assertEquals(setOf("SOCIAL", "EVENING"), vm.state.value.tags)
+        assertEquals(setOf("SOCIAL_RUN", "EVENING"), vm.state.value.tags)
         vm.onNicknameChange("빠른곰")
-        vm.onTagToggled("SOLO")
+        vm.onTagToggled("SOLO_RUN")
         vm.events.test {
             vm.onSave()
             assertEquals(ProfileEditEvent.Saved, awaitItem())
         }
-        assertEquals(Triple("빠른곰", "퇴근 뒤 한강", setOf("SOLO", "EVENING")), account.lastEdit)
+        assertEquals(Triple("빠른곰", "퇴근 뒤 한강", setOf("SOLO_RUN", "EVENING")), account.lastEdit)
     }
 
     @Test
     fun `프로필 저장이 거부되면 사유를 보이고 머문다`() {
-        account.failures["editProfile"] = AppError.Rejected("NICKNAME_TAKEN")
+        account.failures["editProfile"] = AppError.Rejected("NICKNAME_INVALID")
         val vm = ProfileEditViewModel(account)
         vm.onSave()
-        assertEquals("이미 쓰고 있는 닉네임이에요", vm.state.value.error)
+        assertEquals("닉네임은 2~20자로 입력해 주세요", vm.state.value.error)
         assertFalse(vm.state.value.saving)
     }
 
@@ -121,7 +121,7 @@ class MeViewModelsTest {
 
     @Test
     fun `크루장 탈퇴 거부는 양도 안내를 보인다(FR-024)`() {
-        account.failures["withdraw"] = AppError.Rejected("CREW_LEADER_TRANSFER_REQUIRED")
+        account.failures["withdraw"] = AppError.Rejected("LEADER_MUST_TRANSFER")
         val vm = WithdrawViewModel(WithdrawUseCase(account, FakePendingRunRepository(), settingsCopy, session))
         vm.onAcknowledgedChange(true)
         vm.onWithdrawConfirmed()

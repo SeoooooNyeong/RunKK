@@ -272,7 +272,7 @@ private fun CrewRow(crew: CrewList.Item, onClick: () -> Unit) {
 
 /** "크루장 X · 4/10명 · 이번 주 12.3km"(크루 밖 열람 범위, FR-117·W-16). */
 internal fun crewMeta(crew: CrewList.Item, leader: Boolean): String = listOfNotNull(
-    crew.leaderName.takeIf { leader }?.let { "크루장 $it" },
+    crew.leaderName.takeIf { leader && it.isNotBlank() }?.let { "크루장 $it" },
     if (leader) null else crew.joinPolicy.label,
     "${crew.headcount}/${CREW_MAX}명",
     "이번 주 ${RunkkFormat.kmShort(crew.weeklyDistance)}km"

@@ -165,7 +165,9 @@ data class PostList(val posts: List<Item>) {
         val authorName: String,
         val summary: String,
         val writtenAt: Instant,
-        val mine: Boolean
+        val mine: Boolean,
+        /** 크루런 모집글의 거리. 응원글이거나 서버가 주지 않으면 null이다. */
+        val distance: Distance? = null
     )
 }
 

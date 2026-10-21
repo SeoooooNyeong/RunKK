@@ -130,7 +130,7 @@ class CrewScreenshotTest {
         CrewFindScreen(
             CrewFindUiState(
                 loading = false,
-                tags = setOf("SOCIAL"),
+                tags = setOf("SOCIAL_RUN"),
                 crews = listOf(crewA, crewB, crewC),
                 recommendations = listOf(crewA)
             ),
@@ -149,7 +149,11 @@ class CrewScreenshotTest {
     fun create() = compose.captureRunkkScreen("G2_crew_create") {
         CrewCreateScreen(
             CrewCreateUiState(
-                CrewFormState(name = "새벽질주", intro = "새벽에 같이 달려요", tags = setOf("SOCIAL", "DAWN", "BEGINNER_WELCOME"))
+                CrewFormState(
+                    name = "새벽질주",
+                    intro = "새벽에 같이 달려요",
+                    tags = setOf("SOCIAL_RUN", "DAWN", "BEGINNER_WELCOME")
+                )
             ),
             {},
             {},

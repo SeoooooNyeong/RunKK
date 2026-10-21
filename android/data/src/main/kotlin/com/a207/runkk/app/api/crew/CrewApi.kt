@@ -30,7 +30,7 @@ internal interface CrewApi {
     suspend fun search(@Query("keyword") keyword: String?, @Query("tags") tags: List<String>): CrewListResponse
 
     @GET("crews/recommendations")
-    suspend fun recommend(): CrewListResponse
+    suspend fun recommend(): RecommendationsResponse
 
     @POST("crews/join")
     suspend fun apply(@Body body: JoinRequestBody)

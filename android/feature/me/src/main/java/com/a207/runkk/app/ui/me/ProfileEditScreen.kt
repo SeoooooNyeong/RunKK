@@ -125,7 +125,7 @@ private fun ProfileEditPreview() {
                 loading = false,
                 nickname = "달리는곰",
                 intro = "퇴근 뒤 한강",
-                tags = setOf("SOCIAL", "EVENING")
+                tags = setOf("SOCIAL_RUN", "EVENING")
             ),
             onBack = {},
             onNicknameChange = {},

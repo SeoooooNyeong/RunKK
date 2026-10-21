@@ -62,7 +62,18 @@ internal object AvatarErrorText {
         return code?.let(REJECTED::get) ?: RunkkErrorText.of(error)
     }
 
-    private val REJECTED = mapOf(
+    /** 착용 거부 사유(Avatar.rejected 값, 서버 ReasonCode 이름)의 문구. 모르는 코드는 공용 문구다. */
+    fun ofCode(code: String): String = REJECTED[code] ?: RunkkErrorText.rejected(code)
+
+    internal val REJECTED = mapOf(
+        // 셀카 변환 실패(서버 avatar.FailureReason, 200 + created=false라 앱이 Rejected로 바꾼다)
+        "NO_FACE" to "얼굴을 찾지 못했어요. 얼굴이 잘 보이게 다시 찍거나 기본 캐릭터를 골라 주세요",
+        "MULTIPLE_FACES" to "한 사람만 나오게 찍어 주세요. 기본 캐릭터를 골라도 돼요",
+        "UNSUPPORTED_IMAGE" to "지원하지 않는 사진 형식이에요. 다시 찍거나 기본 캐릭터를 골라 주세요",
+        "TOO_LARGE" to "사진이 너무 커요. 다시 찍거나 기본 캐릭터를 골라 주세요",
+        "UPSTREAM_FAILED" to "지금은 얼굴을 변환할 수 없어요. 잠시 뒤 다시 시도하거나 기본 캐릭터를 골라 주세요",
+        "TIMEOUT" to "변환 시간이 초과됐어요. 다시 시도하거나 기본 캐릭터를 골라 주세요",
+        "SELFIE_FAILED" to "얼굴을 만들지 못했어요. 다시 시도하거나 기본 캐릭터를 골라 주세요",
         "SELFIE_LIMIT" to "오늘은 이미 셀카 아바타를 만들었어요. 내일 다시 만들 수 있어요. 기본 캐릭터는 지금 고를 수 있어요",
         "SELFIE_DISABLED" to "지금은 셀카 아바타를 만들 수 없어요. 기본 캐릭터를 골라 주세요",
         "FACE_CONSENT_REQUIRED" to "얼굴 변환 전송 동의가 필요해요. 마이 > 동의 관리에서 켜거나 기본 캐릭터를 골라 주세요",

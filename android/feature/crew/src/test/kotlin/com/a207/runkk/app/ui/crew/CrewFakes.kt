@@ -103,7 +103,7 @@ val crewA = CrewList.Item(
     11,
     "새벽질주",
     "새벽에 같이 달려요",
-    setOf("SOCIAL", "DAWN"),
+    setOf("SOCIAL_RUN", "DAWN"),
     "바람처럼",
     6,
     Distance(42_300),

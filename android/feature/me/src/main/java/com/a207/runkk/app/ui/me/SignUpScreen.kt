@@ -45,6 +45,7 @@ import com.a207.runkk.app.core.designsystem.RunkkCheckRow
 import com.a207.runkk.app.core.designsystem.RunkkChipGroup
 import com.a207.runkk.app.core.designsystem.RunkkChoiceChip
 import com.a207.runkk.app.core.designsystem.RunkkColors
+import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkPrimaryButton
 import com.a207.runkk.app.core.designsystem.RunkkSecondaryButton
@@ -102,6 +103,8 @@ data class SignUpActions(
     val onVisibilityChange: (String) -> Unit = {},
     val onTagToggled: (String) -> Unit = {},
     val onSubmit: (Boolean) -> Unit = {},
+    val onRetrySubmit: () -> Unit = {},
+    val onExit: () -> Unit = {},
     val onErrorShown: () -> Unit = {}
 )
 
@@ -119,6 +122,8 @@ private fun SignUpViewModel.asActions() = SignUpActions(
     onVisibilityChange = ::onVisibilityChange,
     onTagToggled = ::onTagToggled,
     onSubmit = ::onSubmit,
+    onRetrySubmit = ::onRetrySubmit,
+    onExit = ::onExit,
     onErrorShown = ::onErrorShown
 )
 
@@ -146,6 +151,7 @@ fun SignUpScreen(state: SignUpUiState, actions: SignUpActions, modifier: Modifie
                     .padding(horizontal = if (state.step == SignUpStep.TAGS) 24.dp else 16.dp, vertical = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                state.submitError?.let { SubmitError(state, it, actions) }
                 when (state.step) {
                     SignUpStep.CONSENT -> ConsentStep(state, actions)
                     SignUpStep.PROFILE -> ProfileStep(state, actions)
@@ -172,6 +178,19 @@ fun SignUpScreen(state: SignUpUiState, actions: SignUpActions, modifier: Modifie
             },
             confirmButton = { TextButton(onClick = actions.onLegalDismissed) { Text("닫기", color = RunkkColors.Lime) } }
         )
+    }
+}
+
+/** 가입 요청이 거부·실패한 안내. 5단계에서는 "다시 시도", 가입 시간이 지났으면 "로그인으로 돌아가기"를 준다. */
+@Composable
+private fun SubmitError(state: SignUpUiState, message: String, actions: SignUpActions) {
+    when {
+        !state.canRetrySubmit -> RunkkErrorState(message, onRetry = actions.onExit, retryLabel = "로그인으로 돌아가기")
+
+        state.step == SignUpStep.AVATAR && !state.submitting ->
+            RunkkErrorState(message, onRetry = actions.onRetrySubmit)
+
+        else -> RunkkErrorState(message)
     }
 }
 
@@ -421,7 +440,7 @@ private fun SignUpProfilePreview() {
 private fun SignUpTagsPreview() {
     RunkkTheme(reduceMotion = true) {
         SignUpScreen(
-            state = SignUpUiState(step = SignUpStep.TAGS, tags = setOf("SOCIAL", "FAMILIAR_ROUTE", "EVENING")),
+            state = SignUpUiState(step = SignUpStep.TAGS, tags = setOf("SOCIAL_RUN", "FAMILIAR_ROUTE", "EVENING")),
             actions = SignUpActions()
         )
     }

@@ -114,7 +114,9 @@ fun CrewHomeRoute(key: Routes.CrewHome, viewModel: CrewHomeViewModel = hiltViewM
             onVote = viewModel::onVote,
             onWriteCrewRun = { navigator.navigate(Routes.CrewRunWrite(state.crewId)) },
             onLobby = { post ->
-                navigator.navigate(Routes.CrewRunLobby(post.postId, distanceHint(post.summary)?.meters))
+                navigator.navigate(
+                    Routes.CrewRunLobby(post.postId, (post.distance ?: distanceHint(post.summary))?.meters)
+                )
             },
             onResult = { post -> navigator.navigate(Routes.CrewRunResult(post.postId)) },
             onManage = { navigator.navigate(Routes.CrewManage(state.crewId, state.crewName)) },

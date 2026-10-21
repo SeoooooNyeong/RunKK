@@ -208,14 +208,14 @@ private fun ColumnScope.AppSettings(state: SettingsUiState, actions: SettingsAct
         ChoiceSetting(
             "개인정보 공개",
             "비공개면 나이대·성별·소개를 감춰요",
-            listOf("PUBLIC" to "공개", "PRIVATE" to "비공개"),
+            SettingChoices.profileVisibility,
             state.value(SettingKeys.PROFILE_VISIBILITY)
         ) {
             actions.setValue(SettingKeys.PROFILE_VISIBILITY, it)
         }
     }
     Section("단위·기기") {
-        ChoiceSetting("거리 단위", null, listOf("KM" to "km", "MI" to "mile"), state.value(SettingKeys.UNIT)) {
+        ChoiceSetting("거리 단위", null, SettingChoices.unit, state.value(SettingKeys.UNIT)) {
             actions.setValue(SettingKeys.UNIT, it)
         }
         Divider()
@@ -235,13 +235,13 @@ private fun ColumnScope.AppSettings(state: SettingsUiState, actions: SettingsAct
         )
     }
     Section("고지문서") {
-        LegalRow("서비스 이용약관", "TERMS", actions)
+        LegalRow("서비스 이용약관", LegalTypes.TERMS, actions)
         Divider()
-        LegalRow("개인정보 처리방침", "PRIVACY", actions)
+        LegalRow("개인정보 처리방침", LegalTypes.PRIVACY_POLICY, actions)
         Divider()
-        LegalRow("위치 정보 이용약관", "LOCATION", actions)
+        LegalRow("위치 정보 이용약관", LegalTypes.LOCATION_TERMS, actions)
         Divider()
-        LegalRow("도움말", "HELP", actions)
+        LegalRow("도움말", LegalTypes.HELP, actions)
     }
     if (askHeartRate) {
         HeartRateConsentDialog(
@@ -333,9 +333,9 @@ private fun ColumnScope.ConsentSettings(state: SettingsUiState, actions: Setting
     Section("필수 동의") {
         RequiredConsentRow("만 14세 이상 확인")
         Divider()
-        RequiredConsentRow("서비스 이용약관", onView = { actions.onViewLegal("TERMS", "서비스 이용약관") })
+        RequiredConsentRow("서비스 이용약관", onView = { actions.onViewLegal(LegalTypes.TERMS, "서비스 이용약관") })
         Divider()
-        RequiredConsentRow("개인정보 수집·이용", onView = { actions.onViewLegal("PRIVACY", "개인정보 수집·이용") })
+        RequiredConsentRow("개인정보 수집·이용", onView = { actions.onViewLegal(LegalTypes.PRIVACY_POLICY, "개인정보 수집·이용") })
     }
     Section("철회할 수 있는 동의") {
         RunkkSwitchRow(
@@ -352,15 +352,17 @@ private fun ColumnScope.ConsentSettings(state: SettingsUiState, actions: Setting
             description = "민감정보예요. 워치 심박을 코칭 안내 계산에만 써요"
         )
         Divider()
-        RunkkSwitchRow("AI 코멘트용 집계값 외부 전송", state.consent("LLM_TRANSFER"), {
-            actions.setConsent("LLM_TRANSFER", it)
+        RunkkSwitchRow("AI 코멘트용 집계값 외부 전송", state.consent(ConsentKeys.LLM_TRANSFER), {
+            actions.setConsent(ConsentKeys.LLM_TRANSFER, it)
         }, description = "집계값만 국외 AI 서비스로 보내요. 끄면 규칙 기반 문구를 써요")
         Divider()
-        RunkkSwitchRow("셀카 얼굴 변환 전송", state.consent("FACE_TRANSFER"), {
-            actions.setConsent("FACE_TRANSFER", it)
+        RunkkSwitchRow("셀카 얼굴 변환 전송", state.consent(ConsentKeys.FACE_TRANSFER), {
+            actions.setConsent(ConsentKeys.FACE_TRANSFER, it)
         }, description = "아바타 얼굴을 만들 때만 보내고 원본은 변환 직후 지워요")
         Divider()
-        RunkkSwitchRow("마케팅 정보 수신", state.consent("MARKETING"), { actions.setConsent("MARKETING", it) })
+        RunkkSwitchRow("마케팅 정보 수신", state.consent(ConsentKeys.MARKETING), {
+            actions.setConsent(ConsentKeys.MARKETING, it)
+        })
     }
     confirmWithdraw?.let { item ->
         RunkkConfirmDialog(
@@ -416,8 +418,8 @@ private fun HeartRateConsentDialog(onAgree: () -> Unit, onDismiss: () -> Unit) {
     )
 }
 
-private const val LOCATION = "LOCATION"
-private const val HEART_RATE = "HEART_RATE"
+private const val LOCATION = ConsentKeys.LOCATION
+private const val HEART_RATE = ConsentKeys.HEART_RATE
 
 @Preview(name = "자유런 설정", widthDp = 390, heightDp = 1000)
 @Composable

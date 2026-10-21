@@ -56,6 +56,32 @@ object SettingKeys {
     )
 }
 
+/** 동의 항목 키(서버 ConsentItem 이름). 동의 주기·철회(PUT·DELETE /me/consents/{item})와 MemberSettings.consents의 키다. */
+object ConsentKeys {
+    const val LOCATION = "LOCATION"
+    const val HEART_RATE = "HEART_RATE"
+    const val MARKETING = "MARKETING"
+    const val LLM_TRANSFER = "LLM_TRANSFER"
+    const val FACE_TRANSFER = "FACE_TRANSFER"
+}
+
+/** 설정 화면 선택지: 서버 enum 이름(서버로 가는 값) → 화면 문구. */
+object SettingChoices {
+    /** 서버 DistanceUnit. */
+    val unit: List<Pair<String, String>> = listOf("KM" to "km", "MI" to "mile")
+
+    /** 서버 ProfileVisibility. */
+    val profileVisibility: List<Pair<String, String>> = listOf("PUBLIC" to "공개", "PRIVATE" to "비공개")
+}
+
+/** 고지문서 종류(서버 DocumentType 이름, GET /legal/{type}). */
+object LegalTypes {
+    const val TERMS = "TERMS"
+    const val PRIVACY_POLICY = "PRIVACY_POLICY"
+    const val LOCATION_TERMS = "LOCATION_TERMS"
+    const val HELP = "HELP"
+}
+
 /** 자유런 목표 거리(서버 FreeRunTarget). */
 object FreeRunTargets {
     val values: List<Pair<String, String>> = listOf("FREE" to "목표 없음", "KM3" to "3km", "KM5" to "5km", "KM10" to "10km")
@@ -70,7 +96,7 @@ object GapAlertIntervals {
 object NotificationTypes {
     val values: List<Pair<String, String>> = listOf(
         "PLAN_MISSED" to "계획 미이행",
-        "BODY_CHANGED" to "체형 변화",
+        "BODY_SHAPE_CHANGED" to "체형 변화",
         "JOIN_REQUESTED" to "크루 가입 신청 접수",
         "JOIN_DECIDED" to "크루 가입 결정 결과",
         "JOIN_EXPIRED" to "크루 가입 신청 만료",

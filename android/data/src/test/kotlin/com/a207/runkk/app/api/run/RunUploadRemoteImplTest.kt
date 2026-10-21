@@ -42,19 +42,19 @@ class RunUploadRemoteImplTest {
                 cardKind = "BATTLE_RUN",
                 battleId = 42,
                 crewRunPostId = null,
-                startedAt = "2026-10-20T07:00:00",
-                endedAt = "2026-10-20T07:10:05.500",
+                startedAt = "2026-10-20T07:00:00+09:00",
+                endedAt = "2026-10-20T07:10:05.5+09:00",
                 elapsedMillis = 605_500,
                 distanceMeters = 2_012,
                 pointCount = 2,
                 points =
                     listOf(
-                        RunUploadRequest.Point("2026-10-20T07:00:01", 37.501234, 127.034567, "NORMAL"),
-                        RunUploadRequest.Point("2026-10-20T07:00:02", 37.501301, 127.034601, "UNSTABLE")
+                        RunUploadRequest.Point("2026-10-20T07:00:01+09:00", 37.501234, 127.034567, "NORMAL"),
+                        RunUploadRequest.Point("2026-10-20T07:00:02+09:00", 37.501301, 127.034601, "UNSTABLE")
                     ),
                 unstableSegments =
-                    listOf(RunUploadRequest.Segment("2026-10-20T07:01:40", "2026-10-20T07:01:55", 42)),
-                heartRates = listOf(RunUploadRequest.HeartRate("2026-10-20T07:00:10", 130))
+                    listOf(RunUploadRequest.Segment("2026-10-20T07:01:40+09:00", "2026-10-20T07:01:55+09:00", 42)),
+                heartRates = listOf(RunUploadRequest.HeartRate("2026-10-20T07:00:10+09:00", 130))
             ),
             request
         )
@@ -86,13 +86,35 @@ class RunUploadRemoteImplTest {
 
     @Test
     fun `upload는 POST runs로 보내고 이미 저장됨을 읽는다`() = runTest {
-        api.reply("""{"recordId":"${RUN.recordId}","alreadyStored":true}""")
+        api.reply("""{"recordId":"${RUN.recordId}","status":"ALREADY_STORED","valid":true}""")
 
         val receipt = RunUploadRemoteImpl(runApi).upload(RUN)
 
         assertEquals(Outcome.Success(UploadReceipt(RUN.recordId, alreadySaved = true)), receipt)
         val request = api.take()
         assertEquals("POST /api/v1/runs", "${request.method} ${request.url.encodedPath}")
+    }
+
+    @Test
+    fun `새로 저장된 기록은 alreadySaved가 아니다`() = runTest {
+        api.reply("""{"recordId":"${RUN.recordId}","status":"STORED","valid":true}""")
+
+        assertEquals(
+            Outcome.Success(UploadReceipt(RUN.recordId, alreadySaved = false)),
+            RunUploadRemoteImpl(runApi).upload(RUN)
+        )
+    }
+
+    @Test
+    fun `시각은 서버 OffsetDateTime이 받는 오프셋 형식이고 구간은 from·to다`() {
+        val json = api.json.encodeToString(RunUploadRequest.serializer(), RUN.toRequest())
+
+        assertEquals(true, """"startedAt":"2026-10-20T07:00:00+09:00"""" in json, json)
+        assertEquals(
+            true,
+            """"unstableSegments":[{"from":"2026-10-20T07:01:40+09:00","to":"2026-10-20T07:01:55+09:00"""" in json,
+            json
+        )
     }
 
     @Test
@@ -108,7 +130,7 @@ class RunUploadRemoteImplTest {
         assertEquals(Outcome.Success(Unit), result)
         val request = api.take()
         assertEquals("/api/v1/runs/${RUN.recordId}/heart-rates", request.url.encodedPath)
-        assertEquals("""{"samples":[{"measuredAt":"2026-10-20T07:15:00","bpm":150}]}""", request.body!!.utf8())
+        assertEquals("""{"samples":[{"measuredAt":"2026-10-20T07:15:00+09:00","bpm":150}]}""", request.body!!.utf8())
     }
 
     @Test
@@ -120,7 +142,9 @@ class RunUploadRemoteImplTest {
 
     @Test
     fun `파기 지시를 읽고 확인을 보낸다`() = runTest {
-        api.reply("""[{"orderId":1,"kind":"ROUTE"},{"orderId":2,"kind":"HEART_RATE"},{"orderId":3,"kind":"UNKNOWN"}]""")
+        api.reply(
+            """[{"id":1,"kind":"ROUTE","dueAt":"2026-10-27T07:00:00","status":"SCHEDULED"},{"id":2,"kind":"HEART_RATE"},{"id":3,"kind":"UNKNOWN"}]"""
+        )
         api.replyEmpty()
         val remote = DisposalRemoteImpl(runApi)
 

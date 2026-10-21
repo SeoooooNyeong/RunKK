@@ -21,8 +21,7 @@ internal fun CrewForm.toRequest(): CrewFormDto = CrewFormDto(name, intro, tags, 
 
 internal fun CrewRunForm.toRequest(): PostWriteRequest = PostWriteRequest(
     kind = PostList.Kind.CREW_RUN.name,
-    title = title,
-    body = body,
+    body = listOfNotNull(title.takeIf { it.isNotBlank() }, body?.takeIf { it.isNotBlank() }).joinToString(NEWLINE),
     distanceMeters = distance.meters,
     meetAt = ServerTime.format(meetAt)
 )
@@ -34,7 +33,7 @@ internal fun CrewListResponse.toDomain(): CrewList = CrewList(
             name = it.name,
             intro = it.intro,
             tags = it.tags,
-            leaderName = it.leaderName,
+            leaderName = it.leaderName.orEmpty(),
             headcount = it.headcount,
             weeklyDistance = Distance(it.weeklyDistanceMeters),
             joinPolicy = enumByName<JoinPolicy>(it.joinPolicy) ?: JoinPolicy.APPROVAL
@@ -42,43 +41,76 @@ internal fun CrewListResponse.toDomain(): CrewList = CrewList(
     }
 )
 
+/** 서버가 보내지 않은 크루장·주간 거리·소개는 비워 둔다(추천 목록은 크루 이름·태그·정원·가입 방식만 준다). */
+internal fun RecommendationsResponse.toDomain(): CrewList = CrewList(
+    crews.map {
+        CrewList.Item(
+            crewId = it.crewId,
+            name = it.name,
+            intro = null,
+            tags = it.tags,
+            leaderName = "",
+            headcount = it.headcount,
+            weeklyDistance = Distance(0),
+            joinPolicy = enumByName<JoinPolicy>(it.joinPolicy) ?: JoinPolicy.APPROVAL
+        )
+    }
+)
+
 internal fun CrewMembersResponse.toDomain(): CrewMembers = CrewMembers(
-    members.map { CrewMembers.Member(it.memberId, it.displayName, it.role, it.crewIntro, it.tier, it.runimalType) }
+    members.map {
+        CrewMembers.Member(it.memberId, it.displayName.orEmpty(), it.role, it.crewIntro, it.tier, it.runimalType)
+    }
 )
 
 internal fun PendingRequestsResponse.toDomain(): PendingRequests = PendingRequests(
     requests.map {
-        PendingRequests.Request(it.requestId, it.memberId, it.displayName, ServerTime.parse(it.requestedAt))
+        PendingRequests.Request(it.requestId, it.memberId, it.displayName.orEmpty(), ServerTime.parse(it.requestedAt))
     }
 )
 
 internal fun CrewRankingResponse.toDomain(): CrewRanking =
-    CrewRanking(entries.map { CrewRanking.Entry(it.rank, it.displayName, Distance(it.distanceMeters)) })
+    CrewRanking(entries.map { CrewRanking.Entry(it.rank, it.displayName.orEmpty(), Distance(it.distanceMeters)) })
 
 internal fun RaceStatusResponse.toDomain(): RaceStatus = RaceStatus(
     total = Distance(totalMeters),
     closesAt = ServerTime.parse(closesAt),
-    contributors = contributors.map { RaceStatus.Contributor(it.displayName, Distance(it.distanceMeters), it.share) },
+    contributors = contributors.map {
+        RaceStatus.Contributor(it.displayName.orEmpty(), Distance(it.distanceMeters), it.share)
+    },
     myShare = myShare
 )
 
 internal fun PostListResponse.toDomain(): PostList = PostList(
     posts.mapNotNull { post ->
         enumByName<PostList.Kind>(post.kind)?.let { kind ->
-            PostList.Item(post.postId, kind, post.authorName, post.summary, ServerTime.parse(post.writtenAt), post.mine)
+            PostList.Item(
+                post.postId,
+                kind,
+                post.authorName.orEmpty(),
+                post.body.orEmpty(),
+                ServerTime.parse(post.writtenAt),
+                post.mine,
+                post.crewRun?.let { Distance(it.distanceMeters) }
+            )
         }
     }
 )
 
-internal fun LobbyResponse.toDomain(): Lobby =
-    Lobby(postId, participants.map { Lobby.Participant(it.displayName, it.ready) }, ServerTime.parse(meetAt))
+internal fun LobbyResponse.toDomain(): Lobby = Lobby(
+    postId,
+    participants.map { Lobby.Participant(it.displayName.orEmpty(), it.ready) },
+    ServerTime.parse(scheduledAt)
+)
 
 internal fun CrewRunResultResponse.toDomain(): CrewRunResult = CrewRunResult(
     postId = postId,
     finishers =
         finishers.map {
-            CrewRunResult.Finisher(it.rank, it.displayName, it.elapsedSeconds, it.averagePaceSecondsPerKm)
+            CrewRunResult.Finisher(it.rank, it.displayName.orEmpty(), it.elapsedSeconds, it.averagePaceSecondsPerKm)
         },
     firstCrewRun = firstCrewRun,
     raceContribution = Distance(raceContributionMeters)
 )
+
+private const val NEWLINE = "\n"

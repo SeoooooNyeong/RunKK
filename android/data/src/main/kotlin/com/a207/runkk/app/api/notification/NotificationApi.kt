@@ -19,19 +19,24 @@ internal interface NotificationApi {
     suspend fun registerPushToken(@Body body: PushTokenRequest)
 }
 
-/** 서버 notification.InboxView(최신순). route는 core.navigation 경로 이름. */
+/**
+ * 서버 notification.InboxView(최신순). 서버 항목 이름은 type·content·occurredAt·read·target(화면 종류 screen, 대상 targetId)이다.
+ * 앱은 제목을 알림 종류에서, 이동 경로를 target.screen에서 만든다(NotificationRemotes).
+ */
 @Serializable
 internal data class InboxResponse(val items: List<Item> = emptyList()) {
     @Serializable
     data class Item(
         val id: Long,
         val type: String,
-        val title: String,
-        val body: String,
-        val receivedAt: String,
+        val content: String,
+        val occurredAt: String,
         val read: Boolean = false,
-        val route: String? = null
+        val target: Target? = null
     )
+
+    @Serializable
+    data class Target(val screen: String, val targetId: String? = null)
 }
 
 @Serializable

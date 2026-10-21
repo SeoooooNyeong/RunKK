@@ -2,6 +2,7 @@ package com.a207.runkk.app.api.avatar
 
 import com.a207.runkk.app.api.core.ApiErrorMapper
 import com.a207.runkk.app.api.core.enumByName
+import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.avatar.Avatar
 import com.a207.runkk.app.domain.avatar.AvatarRepository
@@ -21,9 +22,23 @@ internal class AvatarRepositoryImpl
 constructor(private val api: AvatarApi) : AvatarRepository {
     override suspend fun avatar(): Outcome<Avatar> = ApiErrorMapper.call { api.avatar().toDomain() }
 
-    override suspend fun createFromSelfie(jpeg: ByteArray): Outcome<Avatar> = ApiErrorMapper.call {
-        val part = MultipartBody.Part.createFormData(SELFIE_PART, SELFIE_FILE, jpeg.toRequestBody(JPEG))
-        api.createFromSelfie(part).toDomain()
+    /** 변환 실패는 200 + created=false라 Rejected(failureReason)로 바꿔 화면이 사유를 보이게 한다. */
+    override suspend fun createFromSelfie(jpeg: ByteArray): Outcome<Avatar> {
+        val reply =
+            when (
+                val result =
+                    ApiErrorMapper.call {
+                        val part = MultipartBody.Part.createFormData(SELFIE_PART, SELFIE_FILE, jpeg.toRequestBody(JPEG))
+                        api.createFromSelfie(part)
+                    }
+            ) {
+                is Outcome.Failure -> return result
+                is Outcome.Success -> result.value
+            }
+        if (reply.created == false) {
+            return Outcome.Failure(AppError.Rejected(reply.failureReason ?: SELFIE_FAILED))
+        }
+        return Outcome.Success(reply.toDomain())
     }
 
     override suspend fun chooseDefault(characterId: String): Outcome<Avatar> =
@@ -41,6 +56,7 @@ constructor(private val api: AvatarApi) : AvatarRepository {
     private companion object {
         const val SELFIE_PART = "selfie"
         const val SELFIE_FILE = "selfie.jpg"
+        const val SELFIE_FAILED = "SELFIE_FAILED"
         val JPEG = "image/jpeg".toMediaType()
     }
 }

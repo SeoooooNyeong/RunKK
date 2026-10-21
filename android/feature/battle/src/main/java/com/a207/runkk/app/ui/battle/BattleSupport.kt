@@ -29,7 +29,7 @@ internal object BattleErrorText {
         return code?.let(REJECTED::get) ?: RunkkErrorText.of(error)
     }
 
-    private val REJECTED: Map<String, String> = mapOf(
+    internal val REJECTED: Map<String, String> = mapOf(
         "RANKED_ONLY" to "유효 러닝 3회 뒤 랜덤 대결 가능, 나와의 싸움은 지금 가능",
         "ALREADY_IN_BATTLE" to "이미 매칭을 기다리거나 대결 중이에요",
         "ALREADY_MATCHED" to "이미 상대를 찾았어요. 곧 출발해요",

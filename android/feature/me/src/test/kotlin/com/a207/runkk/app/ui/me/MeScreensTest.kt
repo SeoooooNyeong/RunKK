@@ -62,7 +62,7 @@ class MeScreensTest {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 SignUpScreen(
-                    SignUpUiState(step = SignUpStep.TAGS, tags = setOf("SOCIAL")),
+                    SignUpUiState(step = SignUpStep.TAGS, tags = setOf("SOCIAL_RUN")),
                     SignUpActions(onTagToggled = {
                         toggled +=
                             it
@@ -73,7 +73,7 @@ class MeScreensTest {
         compose.onNodeWithText("함께가 좋아요").assertIsOn()
         compose.onNodeWithText("1개 선택").assertExists()
         compose.onNodeWithText("새로운 길 탐험").performScrollTo().performClick()
-        assertEquals(listOf("NEW_ROUTE"), toggled)
+        assertEquals(listOf("EXPLORER_ROUTE"), toggled)
     }
 
     @Test
@@ -115,5 +115,56 @@ class MeScreensTest {
         assertEquals(emptyList(), changes)
         compose.onNodeWithText("철회").performClick()
         assertEquals(listOf("LOCATION" to false), changes)
+    }
+
+    @Test
+    fun `가입 5단계 실패 안내와 다시 시도 버튼을 보인다`() {
+        var retried = 0
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                SignUpScreen(
+                    SignUpUiState(step = SignUpStep.AVATAR, submitError = "네트워크에 연결할 수 없어요"),
+                    SignUpActions(onRetrySubmit = { retried++ })
+                )
+            }
+        }
+        compose.onNodeWithText("네트워크에 연결할 수 없어요").assertExists()
+        compose.onNodeWithText("다시 시도").performClick()
+        assertEquals(1, retried)
+    }
+
+    @Test
+    fun `가입 시간이 지난 안내는 로그인으로 돌아가는 버튼을 준다`() {
+        var exited = 0
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                SignUpScreen(
+                    SignUpUiState(
+                        step = SignUpStep.AVATAR,
+                        submitError = "가입 시간이 지났어요. 다시 로그인해 주세요",
+                        canRetrySubmit = false
+                    ),
+                    SignUpActions(onExit = { exited++ })
+                )
+            }
+        }
+        compose.onNodeWithText("가입 시간이 지났어요. 다시 로그인해 주세요").assertExists()
+        compose.onNodeWithText("다시 시도").assertDoesNotExist()
+        compose.onNodeWithText("로그인으로 돌아가기").performClick()
+        assertEquals(1, exited)
+    }
+
+    @Test
+    fun `가입 안내는 이전 단계로 돌아가도 문구가 보인다`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                SignUpScreen(
+                    SignUpUiState(step = SignUpStep.TAGS, submitError = "성향 태그는 분류마다 하나씩, 1~5개를 골라 주세요"),
+                    SignUpActions()
+                )
+            }
+        }
+        compose.onNodeWithText("성향 태그는 분류마다 하나씩, 1~5개를 골라 주세요").assertExists()
+        compose.onNodeWithText("다시 시도").assertDoesNotExist()
     }
 }

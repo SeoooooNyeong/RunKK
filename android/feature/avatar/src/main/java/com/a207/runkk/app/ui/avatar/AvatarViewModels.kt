@@ -202,7 +202,9 @@ class AvatarViewModel @Inject constructor(private val avatars: AvatarRepository)
                     it.copy(
                         saving = false,
                         avatar = result.value,
-                        message = result.value.rejected[item.slot]?.let { reason -> "${item.slot.label}: $reason" }
+                        message = result.value.rejected[item.slot]?.let { reason ->
+                            "${item.slot.label}: ${AvatarErrorText.ofCode(reason)}"
+                        }
                     )
                 }
 

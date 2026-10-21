@@ -57,9 +57,9 @@ class SignUpViewModelTest {
         vm.onNext()
         assertEquals(SignUpStep.TAGS, vm.state.value.step)
         assertFalse(vm.state.value.canProceed)
-        vm.onTagToggled("SOLO")
-        vm.onTagToggled("SOCIAL")
-        assertEquals(setOf("SOCIAL"), vm.state.value.tags)
+        vm.onTagToggled("SOLO_RUN")
+        vm.onTagToggled("SOCIAL_RUN")
+        assertEquals(setOf("SOCIAL_RUN"), vm.state.value.tags)
         vm.onNext()
         assertEquals(SignUpStep.AVATAR, vm.state.value.step)
         vm.onBack()
@@ -98,7 +98,7 @@ class SignUpViewModelTest {
         agreeRequired()
         vm.onNext()
         vm.onNext()
-        vm.onTagToggled("SOLO")
+        vm.onTagToggled("SOLO_RUN")
         vm.onNext()
         vm.onSubmit(createAvatar = false)
         val form = requireNotNull(account.lastForm)
@@ -113,22 +113,22 @@ class SignUpViewModelTest {
         agreeRequired()
         vm.onNext()
         vm.onNext()
-        vm.onTagToggled("SOLO")
+        vm.onTagToggled("SOLO_RUN")
         vm.onNext()
         vm.onSubmit(createAvatar = false)
         assertEquals(SignUpStep.CONSENT, vm.state.value.step)
-        assertEquals("만 14세 이상만 가입할 수 있음", vm.state.value.error)
+        assertEquals("만 14세 이상만 가입할 수 있음", vm.state.value.submitError)
         assertFalse(vm.state.value.submitting)
     }
 
     @Test
-    fun `닉네임 중복은 프로필 단계로 돌아간다`() = runTest {
-        account.failures["signUp"] = AppError.Rejected("NICKNAME_TAKEN")
+    fun `닉네임 오류는 프로필 단계로 돌아간다`() = runTest {
+        account.failures["signUp"] = AppError.Rejected("NICKNAME_INVALID")
         agreeRequired()
         vm.onNext()
         vm.onNicknameChange("달리는곰")
         vm.onNext()
-        vm.onTagToggled("SOLO")
+        vm.onTagToggled("SOLO_RUN")
         vm.onNext()
         vm.onSubmit(createAvatar = true)
         assertEquals(SignUpStep.PROFILE, vm.state.value.step)
@@ -145,5 +145,68 @@ class SignUpViewModelTest {
             vm.onViewLegal("PRIVACY")
             assertEquals(SignUpEvent.OpenUrl("https://runkk.example/legal/privacy"), awaitItem())
         }
+    }
+
+    private fun reachAvatarStep() {
+        agreeRequired()
+        vm.onNext()
+        vm.onNext()
+        vm.onTagToggled("SOLO_RUN")
+        vm.onNext()
+        assertEquals(SignUpStep.AVATAR, vm.state.value.step)
+    }
+
+    @Test
+    fun `5단계에서 가입이 거부되면 사유 안내가 남고 다시 시도할 수 있다`() = runTest {
+        account.failures["signUp"] = AppError.Rejected("BAD_REQUEST")
+        reachAvatarStep()
+        vm.onSubmit(createAvatar = true)
+        val failed = vm.state.value
+        assertEquals(SignUpStep.AVATAR, failed.step)
+        assertEquals("요청 내용을 확인한 뒤 다시 시도해 주세요", failed.submitError)
+        assertFalse(failed.submitting)
+        assertTrue(failed.canRetrySubmit)
+
+        account.failures.clear()
+        vm.events.test {
+            vm.onRetrySubmit()
+            assertEquals(SignUpEvent.Completed(createAvatar = true), awaitItem())
+        }
+        assertEquals(null, vm.state.value.submitError)
+    }
+
+    @Test
+    fun `네트워크 오류도 5단계에 안내가 남는다`() = runTest {
+        account.failures["signUp"] = AppError.Network
+        reachAvatarStep()
+        vm.onSubmit(createAvatar = false)
+        assertEquals(
+            "네트워크에 연결할 수 없어요. 연결을 확인하고 다시 시도해 주세요",
+            vm.state.value.submitError
+        )
+        assertTrue(vm.state.value.canRetrySubmit)
+    }
+
+    @Test
+    fun `가입 시간이 지나면 다시 시도 대신 로그인부터 다시 하게 한다`() = runTest {
+        account.failures["signUp"] = AppError.Rejected("SIGN_UP_TICKET_INVALID")
+        reachAvatarStep()
+        vm.onSubmit(createAvatar = true)
+        assertEquals("가입 시간이 지났어요. 다시 로그인해 주세요", vm.state.value.submitError)
+        assertFalse(vm.state.value.canRetrySubmit)
+        vm.events.test {
+            vm.onExit()
+            assertEquals(SignUpEvent.Exit, awaitItem())
+        }
+    }
+
+    @Test
+    fun `안내는 이전 단계로 돌아가거나 다시 보낼 때 지워진다`() = runTest {
+        account.failures["signUp"] = AppError.Rejected("BAD_REQUEST")
+        reachAvatarStep()
+        vm.onSubmit(createAvatar = false)
+        assertTrue(vm.state.value.submitError != null)
+        vm.onBack()
+        assertEquals(null, vm.state.value.submitError)
     }
 }

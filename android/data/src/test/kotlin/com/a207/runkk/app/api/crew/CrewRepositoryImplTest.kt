@@ -61,7 +61,7 @@ class CrewRepositoryImplTest {
         val request = api.take()
         assertEquals("/api/v1/crews/5/posts", request.url.encodedPath)
         assertEquals(
-            """{"kind":"CREW_RUN","title":"토요 한강런","distanceMeters":10000,"meetAt":"2026-10-25T06:00:00"}""",
+            """{"kind":"CREW_RUN","body":"토요 한강런","distanceMeters":10000,"meetAt":"2026-10-25T06:00:00"}""",
             request.body!!.utf8()
         )
     }
@@ -81,8 +81,8 @@ class CrewRepositoryImplTest {
     @Test
     fun `게시판의 모르는 글 종류는 건너뛴다`() = runTest {
         api.reply(
-            """{"posts":[{"postId":1,"kind":"CHEER","authorName":"곰","summary":"화이팅","writtenAt":"2026-10-20T07:00:00","mine":true},
-               |{"postId":2,"kind":"POLL","authorName":"여우","summary":"?","writtenAt":"2026-10-20T08:00:00"}]}
+            """{"posts":[{"postId":1,"kind":"CHEER","authorName":"곰","body":"화이팅","writtenAt":"2026-10-20T07:00:00","mine":true},
+               |{"postId":2,"kind":"POLL","authorName":"여우","body":"?","writtenAt":"2026-10-20T08:00:00"}]}
             """.trimMargin()
         )
 
@@ -97,8 +97,56 @@ class CrewRepositoryImplTest {
     }
 
     @Test
+    fun `크루런 모집글은 서버가 주는 거리를 싣고 본문이 비면 빈 글로 읽는다`() = runTest {
+        api.reply(
+            """{"posts":[{"postId":3,"kind":"CREW_RUN","authorName":"곰","body":null,"writtenAt":"2026-10-20T07:00:00",
+               |"mine":false,"crewRun":{"distanceMeters":5000,"scheduledAt":"2026-10-25T06:00:00","status":"VOTING","goingCount":2}}]}
+            """.trimMargin()
+        )
+
+        val posts = repository.posts(5, PostList.Kind.CREW_RUN).value()
+
+        assertEquals(
+            PostList(
+                listOf(
+                    PostList.Item(
+                        3,
+                        PostList.Kind.CREW_RUN,
+                        "곰",
+                        "",
+                        Instant.parse("2026-10-19T22:00:00Z"),
+                        false,
+                        Distance(5_000)
+                    )
+                )
+            ),
+            posts
+        )
+    }
+
+    @Test
+    fun `추천 크루는 서버 추천 형식으로 읽는다`() = runTest {
+        api.reply(
+            """{"crews":[{"crewId":4,"name":"새벽런","matchCount":2,"tags":["DAWN","SOCIAL_RUN"],"headcount":7,"joinPolicy":"FREE"}],
+               |"guide":null}
+            """.trimMargin()
+        )
+
+        val crews = repository.recommend().value()
+
+        assertEquals(
+            CrewList(
+                listOf(CrewList.Item(4, "새벽런", null, setOf("DAWN", "SOCIAL_RUN"), "", 7, Distance(0), JoinPolicy.FREE))
+            ),
+            crews
+        )
+    }
+
+    @Test
     fun `대기실·투표·결과를 바꾼다`() = runTest {
-        api.reply("""{"postId":77,"participants":[{"displayName":"곰","ready":true}],"meetAt":"2026-10-25T06:00:00"}""")
+        api.reply(
+            """{"postId":77,"participants":[{"displayName":"곰","ready":true}],"scheduledAt":"2026-10-25T06:00:00"}"""
+        )
         api.replyEmpty()
         api.reply(
             """{"postId":77,"finishers":[{"rank":1,"displayName":"곰","elapsedSeconds":3000,"averagePaceSecondsPerKm":300},

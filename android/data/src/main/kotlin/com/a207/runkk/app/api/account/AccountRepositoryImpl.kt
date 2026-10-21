@@ -13,6 +13,7 @@ import com.a207.runkk.app.domain.account.SessionTokens
 import com.a207.runkk.app.domain.account.SignUpForm
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * 계정·회원 포트를 REST로 구현한다(6.1.14 api.account). 가입 전 로그인이면 서버가 준 가입 티켓을 이 객체가 보관하고
@@ -32,9 +33,12 @@ constructor(
 
     override suspend fun login(token: ProviderToken): Outcome<SessionTokens> {
         val reply =
-            when (val result = ApiErrorMapper.call { auth.login(token.toRequest()) }) {
-                is Outcome.Failure -> return result
-                is Outcome.Success -> result.value
+            try {
+                auth.login(token.toRequest())
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                return Outcome.Failure(ApiErrorMapper.toLoginError(e))
             }
         val access = reply.accessToken
         val refresh = reply.refreshToken
@@ -60,7 +64,14 @@ constructor(
         return ApiErrorMapper.call { auth.logout(LogoutRequest(refresh)) }
     }
 
-    override suspend fun withdraw(): Outcome<Unit> = ApiErrorMapper.call { me.withdraw() }
+    override suspend fun withdraw(): Outcome<Unit> = try {
+        me.withdraw()
+        Outcome.Success(Unit)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Outcome.Failure(ApiErrorMapper.toWithdrawalError(e))
+    }
 
     /** memberId가 SELF면 접근 토큰의 회원 ID로 바꿔 부른다. 본인 ID를 모르면(토큰 없음) Unauthorized. */
     override suspend fun profile(memberId: Long): Outcome<Profile> {
@@ -95,8 +106,10 @@ constructor(
 
     override suspend fun withdrawConsent(item: String): Outcome<Unit> = ApiErrorMapper.call { me.withdrawConsent(item) }
 
-    override suspend fun legalDocument(type: String): Outcome<String> =
-        ApiErrorMapper.call { me.legalDocument(type).body }
+    override suspend fun legalDocument(type: String): Outcome<String> = ApiErrorMapper.call {
+        val document = me.legalDocument(type)
+        requireNotNull(document.url ?: document.body) { "고지문서 주소가 비었다" }
+    }
 
     override suspend fun settings(): Outcome<MemberSettings> = ApiErrorMapper.call { me.settings().toMemberSettings() }
 

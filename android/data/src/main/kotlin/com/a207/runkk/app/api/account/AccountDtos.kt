@@ -61,8 +61,9 @@ internal data class ProfileEditRequest(val nickname: String, val intro: String?,
 @Serializable
 internal data class SettingChangeBody(val item: String, val value: String, val notificationType: String? = null)
 
+/** GET /legal/{type} 응답(서버 member.LegalDocument): 문서는 앱 밖 공개 주소(url)에 있다. body는 주소 대신 본문을 줄 때를 위한 여분이다. */
 @Serializable
-internal data class LegalDocumentResponse(val type: String? = null, val title: String? = null, val body: String)
+internal data class LegalDocumentResponse(val type: String? = null, val url: String? = null, val body: String? = null)
 
 /**
  * GET /me/settings 응답(서버 member.MemberSettingsView, D-53). 앱 사본은 이 가운데 동의·워치 연동·코스지도 공유·

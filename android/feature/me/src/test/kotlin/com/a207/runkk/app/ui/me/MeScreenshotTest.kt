@@ -52,7 +52,7 @@ class MeScreenshotTest {
     @Test
     fun signUpTags() = compose.captureRunkkScreen("A4_signup_4_tags") {
         SignUpScreen(
-            SignUpUiState(step = SignUpStep.TAGS, tags = setOf("SOCIAL", "FAMILIAR_ROUTE", "EVENING")),
+            SignUpUiState(step = SignUpStep.TAGS, tags = setOf("SOCIAL_RUN", "FAMILIAR_ROUTE", "EVENING")),
             SignUpActions()
         )
     }
@@ -80,7 +80,7 @@ class MeScreenshotTest {
                 loading = false,
                 nickname = "달리는곰",
                 intro = "퇴근 뒤 한강",
-                tags = setOf("SOCIAL", "EVENING")
+                tags = setOf("SOCIAL_RUN", "EVENING")
             ),
             onBack = {},
             onNicknameChange = {},

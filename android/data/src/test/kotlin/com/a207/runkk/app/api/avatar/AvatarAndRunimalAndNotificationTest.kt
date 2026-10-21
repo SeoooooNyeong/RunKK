@@ -71,6 +71,34 @@ class AvatarAndRunimalAndNotificationTest {
     }
 
     @Test
+    fun `셀카 변환 실패는 200이어도 실패 사유로 돌려준다`() = runTest {
+        api.reply(
+            """{"faceKey":null,"defaultCharacterId":null,"guide":"기본 캐릭터를 고를 수 있어요","bodyShape":"STAGE1","skinTone":"DAYTIME",
+               |"equipped":{},"balance":0,"canCreateSelfieToday":true,"rejected":{},"created":false,
+               |"failureReason":"NO_FACE","failureMessage":"얼굴을 찾지 못했어요"}
+            """.trimMargin()
+        )
+
+        val result = AvatarRepositoryImpl(api.retrofit.create()).createFromSelfie(byteArrayOf(1))
+
+        assertEquals(Outcome.Failure(AppError.Rejected("NO_FACE")), result)
+    }
+
+    @Test
+    fun `셀카 변환이 성공하면 아바타를 돌려준다`() = runTest {
+        api.reply(
+            """{"faceKey":"face-1","defaultCharacterId":null,"guide":null,"bodyShape":"STAGE1","skinTone":"DAYTIME","equipped":{},
+               |"balance":0,"canCreateSelfieToday":false,"rejected":{},"created":true,"failureReason":null,"failureMessage":null}
+            """.trimMargin()
+        )
+
+        val avatar = AvatarRepositoryImpl(api.retrofit.create()).createFromSelfie(byteArrayOf(1)).value()
+
+        assertEquals("face-1", avatar.faceKey)
+        assertEquals(false, avatar.canCreateSelfieToday)
+    }
+
+    @Test
     fun `상점과 구매 잔액을 읽는다`() = runTest {
         api.reply(
             """{"items":[{"itemId":12,"slot":"TOP","name":"러닝 티","price":100,"owned":true,"onSale":true}],"balance":340}"""
@@ -112,8 +140,8 @@ class AvatarAndRunimalAndNotificationTest {
     @Test
     fun `알림함을 바꾸고 푸시 토큰을 등록한다`() = runTest {
         api.reply(
-            """{"items":[{"id":5,"type":"CREW_RUN_SOON","title":"곧 크루런","body":"10분 뒤 출발","receivedAt":"2026-10-20T05:50:00",
-               |"read":false,"route":"crew/run"}]}
+            """{"items":[{"id":5,"type":"CREW_RUN_SOON","content":"10분 뒤 출발","occurredAt":"2026-10-20T05:50:00",
+               |"read":false,"target":{"screen":"CREW_RUN_RECRUIT","targetId":"9"}}]}
             """.trimMargin()
         )
         api.replyEmpty()
@@ -127,11 +155,11 @@ class AvatarAndRunimalAndNotificationTest {
                     Inbox.Item(
                         5,
                         "CREW_RUN_SOON",
-                        "곧 크루런",
+                        "크루런 시작 전",
                         "10분 뒤 출발",
                         Instant.parse("2026-10-19T20:50:00Z"),
                         false,
-                        "crew/run"
+                        "crew"
                     )
                 )
             ),

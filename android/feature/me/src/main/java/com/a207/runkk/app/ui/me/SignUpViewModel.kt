@@ -36,17 +36,17 @@ enum class SignUpStep(val number: Int) {
     }
 }
 
-/** 가입 동의 항목(서버 ConsentItem 이름). [legalType]이 있으면 "보기"로 고지문서를 연다(FR-018). */
+/** 가입 동의 항목(서버 ConsentItem 이름). [legalType]은 서버 DocumentType 이름이고, 있으면 "보기"로 고지문서를 연다(FR-018). 서버에 AI 코멘트용 전송만의 문서가 없어 개인정보 처리방침을 연다. */
 data class ConsentLine(val item: String, val label: String, val required: Boolean, val legalType: String? = null)
 
 object SignUpConsents {
     val items: List<ConsentLine> = listOf(
         ConsentLine("AGE_14_PLUS", "만 14세 이상이에요", required = true),
-        ConsentLine("TERMS", "서비스 이용약관", required = true, legalType = "TERMS"),
-        ConsentLine("PRIVACY", "개인정보 수집·이용", required = true, legalType = "PRIVACY"),
-        ConsentLine("LOCATION", "위치 정보 수집", required = true, legalType = "LOCATION"),
+        ConsentLine("TERMS", "서비스 이용약관", required = true, legalType = LegalTypes.TERMS),
+        ConsentLine("PRIVACY", "개인정보 수집·이용", required = true, legalType = LegalTypes.PRIVACY_POLICY),
+        ConsentLine("LOCATION", "위치 정보 수집", required = true, legalType = LegalTypes.LOCATION_TERMS),
         ConsentLine("MARKETING", "마케팅 정보 수신", required = false),
-        ConsentLine("LLM_TRANSFER", "AI 코멘트용 집계값 외부 전송", required = false, legalType = "LLM_TRANSFER")
+        ConsentLine("LLM_TRANSFER", "AI 코멘트용 집계값 외부 전송", required = false, legalType = LegalTypes.PRIVACY_POLICY)
     )
 }
 
@@ -69,6 +69,15 @@ data class SignUpUiState(
     val tags: Set<String> = emptySet(),
     val submitting: Boolean = false,
     val error: String? = null,
+    /**
+     * 가입 요청이 거부·실패했을 때의 안내(RunkkErrorText). 스낵바와 달리 다음 시도·단계 이동까지 화면에 남는다.
+     * 5단계에서 실패해도 사용자가 멈춘 것으로 보지 않게 한다.
+     */
+    val submitError: String? = null,
+    /** [submitError]가 있을 때 같은 입력으로 다시 보낼 수 있는가(가입 시간이 지났거나 이미 가입한 계정이면 로그인부터 다시). */
+    val canRetrySubmit: Boolean = true,
+    /** 마지막으로 가입을 시도한 쪽(아바타 만들기로 이어지는가). 다시 시도가 같은 쪽으로 보낸다. */
+    val lastCreateAvatar: Boolean = false,
     val legal: LegalView? = null
 ) {
     val allAgreed: Boolean get() = consents.values.all { it }
@@ -137,6 +146,14 @@ class SignUpViewModel @Inject constructor(private val signUp: SignUpUseCase, pri
 
     fun onErrorShown() = _state.update { it.copy(error = null) }
 
+    /** 가입 거부 안내의 "다시 시도": 마지막과 같은 쪽(아바타 만들기 여부)으로 다시 보낸다. */
+    fun onRetrySubmit() = onSubmit(_state.value.lastCreateAvatar)
+
+    /** 가입 시간이 지났거나 이미 가입한 계정이면 로그인 화면으로 돌아간다. */
+    fun onExit() {
+        _events.trySend(SignUpEvent.Exit)
+    }
+
     fun onNext() {
         val current = _state.value
         if (!current.canProceed) return
@@ -146,7 +163,7 @@ class SignUpViewModel @Inject constructor(private val signUp: SignUpUseCase, pri
             SignUpStep.TAGS -> SignUpStep.AVATAR
             SignUpStep.AVATAR -> return
         }
-        _state.update { it.copy(step = next, error = null) }
+        _state.update { it.copy(step = next, error = null, submitError = null) }
     }
 
     fun onBack() {
@@ -162,7 +179,7 @@ class SignUpViewModel @Inject constructor(private val signUp: SignUpUseCase, pri
 
             SignUpStep.AVATAR -> SignUpStep.TAGS
         }
-        _state.update { it.copy(step = previous, error = null) }
+        _state.update { it.copy(step = previous, error = null, submitError = null) }
     }
 
     fun onViewLegal(item: String) {
@@ -189,7 +206,7 @@ class SignUpViewModel @Inject constructor(private val signUp: SignUpUseCase, pri
     fun onSubmit(createAvatar: Boolean) {
         val s = _state.value
         if (s.submitting) return
-        _state.update { it.copy(submitting = true, error = null) }
+        _state.update { it.copy(submitting = true, error = null, submitError = null, lastCreateAvatar = createAvatar) }
         val form = SignUpForm(
             nickname = s.nickname.trim().ifEmpty { null },
             birthYear = s.birthYear,
@@ -210,7 +227,8 @@ class SignUpViewModel @Inject constructor(private val signUp: SignUpUseCase, pri
                     it.copy(
                         submitting = false,
                         step = stepFor(result.error) ?: it.step,
-                        error = RunkkErrorText.of(result.error)
+                        submitError = RunkkErrorText.of(result.error),
+                        canRetrySubmit = (result.error as? AppError.Rejected)?.code !in LOGIN_AGAIN
                     )
                 }
             }
@@ -220,8 +238,11 @@ class SignUpViewModel @Inject constructor(private val signUp: SignUpUseCase, pri
     /** 거부 사유에 맞는 단계. 모르는 사유면 그대로 머문다. */
     private fun stepFor(error: AppError): SignUpStep? = when ((error as? AppError.Rejected)?.code) {
         "CONSENT_MISSING", "UNDER_14" -> SignUpStep.CONSENT
-        "NICKNAME_INVALID", "NICKNAME_TAKEN", "INTRO_TOO_LONG" -> SignUpStep.PROFILE
+        "NICKNAME_INVALID", "INTRO_TOO_LONG", "VALUE_INVALID" -> SignUpStep.PROFILE
         "TAG_INVALID" -> SignUpStep.TAGS
         else -> null
     }
 }
+
+/** 같은 입력으로 다시 보내도 소용없는 사유: 가입 티켓(15분)이 끝났거나 이미 가입한 계정. 로그인부터 다시 한다. */
+private val LOGIN_AGAIN = setOf("SIGN_UP_TICKET_INVALID", "ALREADY_MEMBER", AppError.Rejected.SIGN_UP_REQUIRED)
