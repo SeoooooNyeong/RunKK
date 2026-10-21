@@ -151,26 +151,33 @@ public class RunRecord {
      * IllegalArgumentException. 포인트는 측정 일시 순으로 정렬한다.
      */
     public static RunRecord receive(long memberId, RunUpload upload) {
-        if (upload.recordId() == null || !UUID_FORMAT.matcher(upload.recordId()).matches()) {
-            throw new IllegalArgumentException("기록 ID는 UUID다");
-        }
-        if (upload.startedAt() == null
-                || upload.endedAt() == null
-                || !upload.startedAt().isBefore(upload.endedAt())) {
-            throw new IllegalArgumentException("시작 일시는 종료 일시보다 앞이다");
-        }
-        if (upload.distance() == null
-                || upload.distance().meters() <= 0
-                || upload.elapsed() == null
-                || upload.elapsed().isZero()
-                || upload.elapsed().isNegative()) {
-            throw new IllegalArgumentException("거리·시간은 0보다 크다");
-        }
-        if (upload.points().size() != upload.declaredPointCount()) {
-            throw new IllegalArgumentException("포인트 수가 선언과 다르다");
-        }
+        require(
+                upload.recordId() != null && UUID_FORMAT.matcher(upload.recordId()).matches(),
+                "기록 ID는 UUID다");
+        require(hasOrderedTimes(upload), "시작 일시는 종료 일시보다 앞이다");
+        require(hasPositiveAmounts(upload), "거리·시간은 0보다 크다");
+        require(upload.points().size() == upload.declaredPointCount(), "포인트 수가 선언과 다르다");
         requireConsistentMode(upload);
         return new RunRecord(memberId, upload);
+    }
+
+    private static void require(boolean condition, String message) {
+        if (!condition) {
+            throw new IllegalArgumentException(message);
+        }
+    }
+
+    private static boolean hasOrderedTimes(RunUpload upload) {
+        return upload.startedAt() != null
+                && upload.endedAt() != null
+                && upload.startedAt().isBefore(upload.endedAt());
+    }
+
+    private static boolean hasPositiveAmounts(RunUpload upload) {
+        return upload.distance() != null
+                && upload.distance().meters() > 0
+                && upload.elapsed() != null
+                && upload.elapsed().isPositive();
     }
 
     /** 유효 판정. 처음 한 번만(두 번째는 IllegalStateException, FR-043 재계산 금지). 유효면 점수 확정. */
