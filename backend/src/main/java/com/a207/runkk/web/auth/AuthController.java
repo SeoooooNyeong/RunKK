@@ -6,6 +6,7 @@ import com.a207.runkk.member.AuthFailureException;
 import com.a207.runkk.member.AuthService;
 import com.a207.runkk.member.LoginResult;
 import com.a207.runkk.member.ProviderType;
+import com.a207.runkk.member.ProviderUnavailableException;
 import com.a207.runkk.member.TokenPair;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -64,11 +65,18 @@ public class AuthController {
     ResponseEntity<Void> logout(
             @RequestAttribute(AuthFilter.MEMBER_ID) long memberId,
             @Valid @RequestBody RefreshRequest request) {
-        authService.logout(memberId, request.refreshToken());
+        try {
+            authService.logout(memberId, request.refreshToken());
+        } catch (ProviderUnavailableException e) {
+            throw new BusinessRuleException(ReasonCode.PROVIDER_UNAVAILABLE);
+        }
         return ResponseEntity.noContent().build();
     }
 
-    /** 갱신 실패는 401(본문 없음). 접속지·갱신 토큰별 시도 제한을 넘으면 429(M5). */
+    /**
+     * 갱신 실패는 401(본문 없음). 접속지·갱신 토큰별 시도 제한을 넘으면 429(M5). 폐기 목록을 확인할 수 없으면 503 PROVIDER_UNAVAILABLE이고
+     * 갱신 토큰을 쓰지 않았으므로 앱은 같은 토큰으로 다시 시도할 수 있다(M6 후속 결정, fail-closed). 시도 제한 실패로 세지 않는다.
+     */
     @PostMapping("/refresh")
     ResponseEntity<TokenResponse> refresh(
             @Valid @RequestBody RefreshRequest request, HttpServletRequest http) {
@@ -78,6 +86,8 @@ public class AuthController {
         } catch (AuthFailureException e) {
             attempts.failed(attempt);
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        } catch (ProviderUnavailableException e) {
+            throw new BusinessRuleException(ReasonCode.PROVIDER_UNAVAILABLE);
         }
     }
 

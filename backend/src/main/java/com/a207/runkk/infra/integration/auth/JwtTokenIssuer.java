@@ -2,6 +2,7 @@ package com.a207.runkk.infra.integration.auth;
 
 import com.a207.runkk.member.AuthFailureException;
 import com.a207.runkk.member.ProviderType;
+import com.a207.runkk.member.ProviderUnavailableException;
 import com.a207.runkk.member.SocialAccount;
 import com.a207.runkk.member.TokenIssuer;
 import com.a207.runkk.member.TokenPair;
@@ -18,18 +19,23 @@ import java.text.ParseException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Date;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Component;
 
 /**
  * member.TokenIssuer를 HS256 JWT로 구현한다(설계 6.1.13, D-19). 접근 토큰 1시간, 갱신 토큰 14일, 가입 티켓 15분. 토큰 종류를
  * token_type 클레임으로 나눠 한 종류의 토큰으로 다른 종류의 검사를 통과하지 못한다. 갱신 토큰은 한 번만 쓰고(회전) 폐기 목록은
- * RefreshTokenRevocations(Redis + 메모리)에 둬 재시작해도 남는다(코드 리뷰 2차 M6). 토큰 값은 로그에 남기지 않는다.
+ * RefreshTokenRevocations(PostgreSQL)에 둬 재시작·Redis 장애와 무관하게 남는다(코드 리뷰 2차 M6, M6 후속 결정). 폐기 목록을
+ * 확인하거나 기록할 수 없으면 갱신·로그아웃을 ProviderUnavailableException으로 거부한다(fail-closed: 폐기된 토큰을 받아 주지 않는다). 토큰
+ * 값은 로그에 남기지 않는다.
  */
 @Component
 public class JwtTokenIssuer implements TokenIssuer {
@@ -47,6 +53,9 @@ public class JwtTokenIssuer implements TokenIssuer {
     private static final String PROVIDER = "provider";
     private static final String ACCOUNT = "account";
     private static final int MIN_SECRET_BYTES = 32;
+
+    /** 서비스 시각(D-10). 배치가 넘기는 now를 순간으로 바꾼다. */
+    private static final ZoneId SERVICE_ZONE = ZoneId.of("Asia/Seoul");
 
     private final MACSigner signer;
     private final MACVerifier verifier;
@@ -67,11 +76,6 @@ public class JwtTokenIssuer implements TokenIssuer {
         }
         this.clock = clock;
         this.revocations = revocations;
-    }
-
-    /** 폐기 목록을 메모리에만 두는 발급기(단위 시험). */
-    JwtTokenIssuer(String secret, Clock clock) {
-        this(secret, clock, new RefreshTokenRevocations(null, clock));
     }
 
     @Override
@@ -110,11 +114,17 @@ public class JwtTokenIssuer implements TokenIssuer {
 
     @Override
     public void revoke(String refreshToken) {
+        JWTClaimsSet claims;
         try {
-            JWTClaimsSet claims = parse(refreshToken, REFRESH);
-            revocations.revoke(claims.getJWTID(), claims.getExpirationTime().toInstant());
+            claims = parse(refreshToken, REFRESH);
         } catch (AuthFailureException e) {
             log.debug("revoke_ignored reason=unreadable_token");
+            return;
+        }
+        try {
+            revocations.revoke(claims.getJWTID(), claims.getExpirationTime().toInstant());
+        } catch (DataAccessException e) {
+            throw unavailable("revoke", e);
         }
     }
 
@@ -122,10 +132,33 @@ public class JwtTokenIssuer implements TokenIssuer {
     public long redeemRefreshToken(String refreshToken) {
         JWTClaimsSet claims = parse(refreshToken, REFRESH);
         Instant expiry = claims.getExpirationTime().toInstant();
-        if (!revocations.claim(claims.getJWTID(), expiry)) {
+        boolean first;
+        try {
+            first = revocations.claim(claims.getJWTID(), expiry);
+        } catch (DataAccessException e) {
+            throw unavailable("claim", e);
+        }
+        if (!first) {
             throw new AuthFailureException("폐기된 갱신 토큰");
         }
         return memberIdOf(claims);
+    }
+
+    @Override
+    public int purgeExpiredRevocations(LocalDateTime now) {
+        int purged = revocations.purgeExpired(now.atZone(SERVICE_ZONE).toInstant());
+        log.info("refresh_revocations_purged count={}", purged);
+        return purged;
+    }
+
+    /** 폐기 목록을 쓸 수 없다: 확인하지 못한 토큰은 받지 않는다(fail-closed). */
+    private static ProviderUnavailableException unavailable(String op, DataAccessException e) {
+        log.error(
+                "refresh_revocation_store_unavailable op={} error={}",
+                op,
+                e.getClass().getSimpleName(),
+                e);
+        return new ProviderUnavailableException("갱신 토큰 폐기 목록을 쓸 수 없다", e);
     }
 
     private JWTClaimsSet.Builder claims(String subject, String type, Duration ttl) {

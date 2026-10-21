@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.a207.runkk.member.AuthFailureException;
 import com.a207.runkk.member.ProviderType;
+import com.a207.runkk.member.ProviderUnavailableException;
 import com.a207.runkk.member.SocialAccount;
 import com.a207.runkk.member.TokenPair;
 import java.time.Clock;
@@ -21,7 +22,8 @@ class JwtTokenIssuerTest {
     private static final Instant T0 = Instant.parse("2026-10-20T06:00:00Z");
 
     private static JwtTokenIssuer at(Instant now) {
-        return new JwtTokenIssuer(SECRET, Clock.fixed(now, SEOUL));
+        return new JwtTokenIssuer(
+                SECRET, Clock.fixed(now, SEOUL), new InMemoryRefreshTokenRevocations());
     }
 
     @Test
@@ -78,10 +80,50 @@ class JwtTokenIssuerTest {
     }
 
     @Test
+    @org.junit.jupiter.api.DisplayName(
+            "M6 후속: 폐기 목록을 쓸 수 없으면 갱신·로그아웃을 거부한다(fail-closed), 토큰은 쓰지 않은 채로 남는다")
+    void revocationStoreDown_failsClosed() {
+        InMemoryRefreshTokenRevocations store = new InMemoryRefreshTokenRevocations();
+        TokenPair pair = at(T0).issue(7);
+        JwtTokenIssuer down =
+                new JwtTokenIssuer(SECRET, Clock.fixed(T0, SEOUL), store.unavailable());
+        assertThatThrownBy(() -> down.redeemRefreshToken(pair.refreshToken()))
+                .isInstanceOf(ProviderUnavailableException.class);
+        assertThatThrownBy(() -> down.revoke(pair.refreshToken()))
+                .isInstanceOf(ProviderUnavailableException.class);
+        down.revoke("not-a-token"); // 읽을 수 없는 토큰은 저장소를 부르지 않는다
+
+        JwtTokenIssuer recovered = at(T0);
+        assertThat(recovered.redeemRefreshToken(pair.refreshToken())).isEqualTo(7);
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("M6 후속: 만료 정리는 서비스 시각(한국) now까지 만료된 폐기 행만 지운다")
+    void purgeExpiredRevocations_removesOnlyExpiredRows() {
+        InMemoryRefreshTokenRevocations store = new InMemoryRefreshTokenRevocations();
+        JwtTokenIssuer issuer = new JwtTokenIssuer(SECRET, Clock.fixed(T0, SEOUL), store);
+        issuer.revoke(issuer.issue(1).refreshToken());
+        JwtTokenIssuer later =
+                new JwtTokenIssuer(SECRET, Clock.fixed(T0.plusSeconds(3600), SEOUL), store);
+        String young = later.issue(2).refreshToken();
+        later.revoke(young);
+
+        java.time.LocalDateTime expiryOfFirst =
+                java.time.LocalDateTime.ofInstant(T0.plus(JwtTokenIssuer.REFRESH_TTL), SEOUL);
+        assertThat(issuer.purgeExpiredRevocations(expiryOfFirst.minusSeconds(1))).isZero();
+        assertThat(issuer.purgeExpiredRevocations(expiryOfFirst)).isEqualTo(1);
+        assertThatThrownBy(() -> later.redeemRefreshToken(young))
+                .isInstanceOf(AuthFailureException.class);
+    }
+
+    @Test
     void forgedOrForeignKeyTokens_areRejected() {
         String token = at(T0).issue(1).accessToken();
         JwtTokenIssuer otherKey =
-                new JwtTokenIssuer("another-secret-another-secret-12345", Clock.fixed(T0, SEOUL));
+                new JwtTokenIssuer(
+                        "another-secret-another-secret-12345",
+                        Clock.fixed(T0, SEOUL),
+                        new InMemoryRefreshTokenRevocations());
         assertThatThrownBy(() -> otherKey.verify(token)).isInstanceOf(AuthFailureException.class);
         String tampered = token.substring(0, token.length() - 2) + "xx";
         assertThatThrownBy(() -> at(T0).verify(tampered)).isInstanceOf(AuthFailureException.class);
@@ -91,9 +133,16 @@ class JwtTokenIssuerTest {
 
     @Test
     void secretRules() {
-        assertThatThrownBy(() -> new JwtTokenIssuer("short", Clock.systemUTC()))
+        assertThatThrownBy(
+                        () ->
+                                new JwtTokenIssuer(
+                                        "short",
+                                        Clock.systemUTC(),
+                                        new InMemoryRefreshTokenRevocations()))
                 .isInstanceOf(IllegalStateException.class);
-        JwtTokenIssuer random = new JwtTokenIssuer("", Clock.fixed(T0, SEOUL));
+        JwtTokenIssuer random =
+                new JwtTokenIssuer(
+                        "", Clock.fixed(T0, SEOUL), new InMemoryRefreshTokenRevocations());
         assertThat(random.verify(random.issue(3).accessToken())).isEqualTo(3);
     }
 }

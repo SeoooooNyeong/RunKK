@@ -60,7 +60,10 @@ class JwtOperatorTokenIssuerTest {
     @DisplayName("회원 접근 토큰은 관리툴 검사를, 관리툴 토큰은 회원 검사를 통과하지 못한다")
     void memberAndAdminTokensDoNotCross() {
         JwtTokenIssuer members =
-                new JwtTokenIssuer(MEMBER_SECRET, Clock.fixed(T0, ZoneId.of("UTC")));
+                new JwtTokenIssuer(
+                        MEMBER_SECRET,
+                        Clock.fixed(T0, ZoneId.of("UTC")),
+                        new InMemoryRefreshTokenRevocations());
         String memberToken = members.issue(7).accessToken();
         assertThatThrownBy(() -> issuer(T0).verify(memberToken))
                 .isInstanceOf(PermissionDeniedException.class);
