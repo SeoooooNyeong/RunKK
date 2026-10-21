@@ -42,7 +42,37 @@ public enum ReasonCode {
 
     // notification (FR-178)
     /** 알림이 없음. */
-    NOTIFICATION_NOT_FOUND("알림 없음");
+    NOTIFICATION_NOT_FOUND("알림 없음"),
+
+    // battle (srs.md 6.3 4.1·4.6·7.1)
+    /** 랜덤 대결 거리가 1·3·5·10km가 아니거나 나와의 싸움 거리가 3·5·10km·하프가 아님(4.1 규칙 1). */
+    BATTLE_DISTANCE_INVALID("대결 거리 오류"),
+    /** 위치 수집 동의 없이 대결을 요청함(4.1 규칙 1, Q-74). */
+    LOCATION_CONSENT_REQUIRED("위치 수집 동의 필요"),
+    /** 언랭 회원의 랜덤 대결 요청(4.1 규칙 2). 앱은 나와의 싸움을 안내한다. */
+    RANKED_ONLY("유효 러닝 3회 뒤 랜덤 대결 가능"),
+    /** 이미 대기 중이거나 진행 중인 대결이 있음(4.1 규칙 3, FR-080). */
+    ALREADY_IN_BATTLE("이미 대기 중이거나 대결 중"),
+    /** 배정된 뒤의 매칭 취소(FR-085). */
+    ALREADY_MATCHED("이미 매칭됨"),
+    /** 대기열 저장소(Redis)를 쓸 수 없음(5.5 장애: Redis). */
+    QUEUE_UNAVAILABLE("잠시 후 다시 시도"),
+    /** 나와의 싸움 거리의 본인 최고 기록이 없음(4.6, FR-096). */
+    NO_RECORD("아직 기록이 없어요"),
+    /** 고른 유명인 기록이 지워짐(4.6, FR-172). */
+    CELEBRITY_REMOVED("고를 수 없는 기록"),
+    /** 대결이 없음. */
+    BATTLE_NOT_FOUND("대결 없음"),
+    /** 유명인 기록 출처명이 비었음(7.1). */
+    SOURCE_REQUIRED("출처 필요"),
+    /** 유명인 익명 닉네임이 비었음(7.1, FR-171). */
+    ANONYMOUS_NAME_REQUIRED("익명 닉네임 필요"),
+    /** 유명인 구간 기록의 누적 거리가 줄어듦(7.1). */
+    SPLITS_INVALID("구간 오류"),
+
+    // runimal (FR-168)
+    /** 판정된 Runimal 유형이 없어 카드를 만들 수 없음. */
+    NO_TYPE("유형 없음");
 
     private final String message;
 
