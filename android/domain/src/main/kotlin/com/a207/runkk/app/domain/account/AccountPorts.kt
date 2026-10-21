@@ -28,6 +28,14 @@ interface AccountRepository {
 
     /** 약관·개인정보 처리방침 본문(GET /legal/{type}). */
     suspend fun legalDocument(type: String): Outcome<String>
+
+    /** 회원 설정 화면 값(GET /me/settings, FR-008~FR-019·FR-048). 마이 > 설정·동의 관리·자유런 설정 화면이 읽는다. */
+    suspend fun settings(): Outcome<MemberSettings>
+
+    companion object {
+        /** profile(memberId)에 넘기면 로그인한 본인. 구현이 본인 회원 ID로 바꿔 부른다. */
+        const val SELF: Long = 0L
+    }
 }
 
 /**

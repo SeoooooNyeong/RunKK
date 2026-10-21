@@ -41,6 +41,8 @@ private class FakeAccountRepository(private val log: CallLog) : AccountRepositor
     override suspend fun withdrawConsent(item: String): Outcome<Unit> = call("withdrawConsent:$item", Unit)
 
     override suspend fun legalDocument(type: String): Outcome<String> = call("legalDocument", "")
+
+    override suspend fun settings(): Outcome<MemberSettings> = call("settings", MemberSettings(emptyMap(), emptyMap()))
 }
 
 private class FakeSessionRepository(private val log: CallLog) : SessionRepository {

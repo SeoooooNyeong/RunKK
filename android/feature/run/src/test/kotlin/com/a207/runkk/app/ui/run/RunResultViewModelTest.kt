@@ -1,0 +1,98 @@
+package com.a207.runkk.app.ui.run
+
+import com.a207.runkk.app.core.model.AppError
+import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.core.model.Pace
+import com.a207.runkk.app.domain.run.HeartRateSample
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runTest
+import org.junit.Rule
+import org.junit.Test
+
+class RunResultViewModelTest {
+    @get:Rule
+    val main = MainDispatcherRule()
+
+    private val pending = FakePendingRunRepository()
+    private val records = FakeRecordRepository()
+
+    @Test
+    fun `서버에 아직 없으면 기기 보관 기록으로 결과를 보인다`() {
+        pending.runs.value =
+            listOf(
+                completedRun(
+                    heartRates = listOf(HeartRateSample(start, 150), HeartRateSample(start.plusSeconds(5), 154))
+                )
+            )
+        val vm = RunResultViewModel(pending, records)
+        vm.load("rec-1")
+        val s = vm.state.value
+        assertFalse(s.loading)
+        assertEquals(Distance(5_020), s.distance)
+        assertEquals(Pace.of(java.time.Duration.ofSeconds(1_668), Distance(5_020)), s.averagePace)
+        assertEquals(152, s.averageHeartRate)
+        assertEquals(2, s.route.size)
+        assertFalse(s.uploaded)
+        assertNull(s.error)
+    }
+
+    @Test
+    fun `서버 기록이 있으면 날씨·칼로리·신기록·심박 구간을 더한다(FR-184~FR-186)`() {
+        pending.runs.value = listOf(completedRun())
+        records.runResult = Outcome.Success(recordDetail())
+        val vm = RunResultViewModel(pending, records)
+        vm.load("rec-1")
+        val s = vm.state.value
+        assertTrue(s.uploaded)
+        assertEquals("12°C 맑음", s.weather)
+        assertEquals(312, s.calories)
+        assertEquals(listOf("최장 거리 신기록 · 직전 4.80km"), s.newRecords)
+        assertEquals(2, s.heartRateZones.size)
+    }
+
+    @Test
+    fun `어디에도 없으면 오류를 보인다`() = runTest(main.dispatcher) {
+        records.runResult = Outcome.Failure(AppError.Network)
+        val vm = RunResultViewModel(pending, records)
+        vm.load("missing")
+        advanceUntilIdle()
+        assertNotNull(vm.state.value.error)
+        assertNull(vm.state.value.distance)
+    }
+
+    @Test
+    fun `같은 기록을 두 번 부르면 다시 읽지 않는다`() {
+        pending.runs.value = listOf(completedRun())
+        val vm = RunResultViewModel(pending, records)
+        vm.load("rec-1")
+        pending.pendingFailure = AppError.Storage
+        vm.load("rec-1")
+        assertEquals(Distance(5_020), vm.state.value.distance)
+    }
+
+    @Test
+    fun `종료 직후 보관함 저장이 늦어도 저장되면 결과를 보인다`() = runTest(main.dispatcher) {
+        val vm = RunResultViewModel(pending, records)
+        vm.load("rec-1")
+        assertTrue(vm.state.value.loading)
+        pending.runs.value = listOf(completedRun())
+        advanceUntilIdle()
+        assertEquals(Distance(5_020), vm.state.value.distance)
+        assertNull(vm.state.value.error)
+    }
+
+    @Test
+    fun `보관함에도 서버에도 없으면 기다린 뒤 오류를 보인다`() = runTest(main.dispatcher) {
+        records.runResult = Outcome.Failure(AppError.Network)
+        val vm = RunResultViewModel(pending, records)
+        vm.load("missing")
+        advanceUntilIdle()
+        assertNotNull(vm.state.value.error)
+    }
+}

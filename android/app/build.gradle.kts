@@ -44,6 +44,10 @@ android {
         buildConfig = true
     }
 
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+    }
+
     // Environment flavors (runkk.android.application이 env 차원을 만든다): BuildConfig.API_BASE_URL points at the
     // matching backend profile.
     //   local   -> backend "local" profile on the developer PC (10.0.2.2 = host from the emulator)
@@ -99,6 +103,10 @@ dependencies {
 
     // 구조 시험(14장): 5.1.2 의존 표·domain 순수성 규칙을 Konsist로 확인한다.
     testImplementation(libs.konsist)
+    // 시작 경로·하단 탭 시험(Robolectric Compose)
+    testImplementation(platform(libs.androidx.compose.bom))
+    testImplementation(libs.androidx.compose.ui.test.junit4)
+    testImplementation(libs.robolectric)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

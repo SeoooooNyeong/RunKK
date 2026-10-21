@@ -34,6 +34,11 @@ robolectric = "4.17"
 androidxTestCore = "1.7.0"
 # 워치(:wear)가 쓰는 진행 중 활동(Ongoing Activity). 통합 때 wear/build.gradle.kts가 이 항목으로 옮긴다.
 wearOngoing = "1.1.0"
+# 화면 구현(A3): ViewModel 주입, 시험(Robolectric Compose UI·Turbine)
+hiltLifecycleViewModelCompose = "1.4.0"
+turbine = "1.2.1"
+# 화면 스크린샷 시험(JVM, Robolectric 위)
+roborazzi = "1.76.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -84,7 +89,7 @@ androidx-lifecycle-service = { group = "androidx.lifecycle", name = "lifecycle-s
 firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging", version.ref = "firebaseMessaging" }
 kotlinx-coroutines-play-services = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-play-services", version.ref = "coroutines" }
 robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
-androidx-test-core = { group = "androidx.test", name = "core", version.ref = "androidxTestCore" }
+androidx-test-core = { group = "androidx.test", name = "core-ktx", version.ref = "androidxTestCore" }
 # 워치
 androidx-health-services-client = { group = "androidx.health", name = "health-services-client", version.ref = "healthServices" }
 androidx-wear-compose-material3 = { group = "androidx.wear.compose", name = "compose-material3", version.ref = "wearCompose" }
@@ -92,6 +97,12 @@ androidx-wear-compose-foundation = { group = "androidx.wear.compose", name = "co
 # 워치(A4): Data Layer Task·Health Services ListenableFuture를 코루틴으로 기다린다
 kotlinx-coroutines-guava = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-guava", version.ref = "coroutines" }
 androidx-wear-ongoing = { group = "androidx.wear", name = "wear-ongoing", version.ref = "wearOngoing" }
+# 화면(ui.*): hiltViewModel(), 화면 시험
+hilt-lifecycle-viewmodel-compose = { group = "androidx.hilt", name = "hilt-lifecycle-viewmodel-compose", version.ref = "hiltLifecycleViewModelCompose" }
+turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine" }
+roborazzi = { group = "io.github.takahirom.roborazzi", name = "roborazzi", version.ref = "roborazzi" }
+roborazzi-compose = { group = "io.github.takahirom.roborazzi", name = "roborazzi-compose", version.ref = "roborazzi" }
+roborazzi-junit-rule = { group = "io.github.takahirom.roborazzi", name = "roborazzi-junit-rule", version.ref = "roborazzi" }
 # 구조 시험 (14장, 5.1.2 의존 표)
 konsist = { group = "com.lemonappdev", name = "konsist", version.ref = "konsist" }
 # build-logic(convention plugin) 컴파일용
@@ -99,6 +110,7 @@ android-gradlePlugin = { group = "com.android.tools.build", name = "gradle", ver
 kotlin-gradlePlugin = { group = "org.jetbrains.kotlin", name = "kotlin-gradle-plugin", version.ref = "kotlin" }
 compose-gradlePlugin = { group = "org.jetbrains.kotlin", name = "compose-compiler-gradle-plugin", version.ref = "kotlin" }
 ktlint-gradlePlugin = { group = "org.jlleitschuh.gradle", name = "ktlint-gradle", version.ref = "ktlintGradle" }
+roborazzi-gradlePlugin = { group = "io.github.takahirom.roborazzi", name = "roborazzi-gradle-plugin", version.ref = "roborazzi" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
@@ -111,8 +123,10 @@ kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", versi
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 ktlint = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlintGradle" }
+roborazzi = { id = "io.github.takahirom.roborazzi", version.ref = "roborazzi" }
 # convention plugins (build-logic)
 runkk-android-application = { id = "runkk.android.application" }
 runkk-android-library = { id = "runkk.android.library" }
 runkk-android-feature = { id = "runkk.android.feature" }
 runkk-jvm-library = { id = "runkk.jvm.library" }
+runkk-android-screenshot = { id = "runkk.android.screenshot" }

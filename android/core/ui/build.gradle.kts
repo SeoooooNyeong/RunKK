@@ -3,12 +3,21 @@ plugins {
     alias(libs.plugins.runkk.android.library)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.runkk.android.screenshot)
 }
 
 android {
-    namespace = "com.a207.runkk.app.core.ui"
+    // 리소스(R)가 core.designsystem 패키지에 생기도록 네임스페이스를 맞춘다(Konsist: 5.1.2 표 밖 패키지 import 0).
+    namespace = "com.a207.runkk.app.core.designsystem"
     buildFeatures {
         compose = true
+    }
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+    }
+    // 화면 모듈 시험이 같이 쓰는 스크린샷 도우미(RunkkSnapshot): testImplementation(testFixtures(project(":core:ui")))
+    testFixtures {
+        enable = true
     }
 }
 
@@ -18,5 +27,17 @@ dependencies {
     api(libs.androidx.compose.ui)
     api(libs.androidx.compose.material3)
     api(libs.androidx.navigation3.runtime)
+    api(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.kotlinx.serialization.json)
+    debugImplementation(libs.androidx.compose.ui.tooling)
+
+    testImplementation(platform(libs.androidx.compose.bom))
+    testImplementation(libs.androidx.compose.ui.test.junit4)
+    testImplementation(libs.robolectric)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
+
+    testFixturesImplementation(platform(libs.androidx.compose.bom))
+    testFixturesImplementation(libs.androidx.compose.ui.test.junit4)
+    testFixturesImplementation(libs.roborazzi)
+    testFixturesImplementation(libs.roborazzi.compose)
 }
