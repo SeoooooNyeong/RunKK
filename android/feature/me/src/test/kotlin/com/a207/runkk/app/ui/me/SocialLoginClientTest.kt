@@ -56,8 +56,29 @@ class SocialLoginClientTest {
     }
 
     @Test
-    fun `카카오는 SDK를 붙이기 전까지 준비 중이고 키는 문자열로 드러나지 않는다`() = runTest {
-        assertEquals(Outcome.Failure(AppError.Rejected(SDK_NOT_READY)), KakaoLoginClient().signIn(context))
+    fun `카카오 네이티브 앱 키가 없으면 SDK를 부르지 않고 준비 중, 키는 문자열로 드러나지 않는다`() = runTest {
+        val appKeys = mutableListOf<String>()
+        val client = KakaoLoginClient(SocialLoginKeys("", "")) { _, key ->
+            appKeys += key
+            Outcome.Success("access")
+        }
+
+        assertEquals(Outcome.Failure(AppError.Rejected(SDK_NOT_READY)), client.signIn(context))
+        assertEquals(emptyList(), appKeys)
         assertFalse("secret" in SocialLoginKeys("secret", "secret").toString())
+    }
+
+    @Test
+    fun `카카오 접근 토큰을 받으면 제공자 토큰으로, 취소는 취소 사유로`() = runTest {
+        val ok = KakaoLoginClient(SocialLoginKeys("native-key", "")) { _, key ->
+            assertEquals("native-key", key)
+            Outcome.Success("kakao-access")
+        }
+        val cancelled = KakaoLoginClient(SocialLoginKeys("native-key", "")) { _, _ ->
+            Outcome.Failure(AppError.Rejected(LOGIN_CANCELLED))
+        }
+
+        assertEquals(Outcome.Success(ProviderToken(ProviderType.KAKAO, "kakao-access")), ok.signIn(context))
+        assertEquals(Outcome.Failure(AppError.Rejected(LOGIN_CANCELLED)), cancelled.signIn(context))
     }
 }

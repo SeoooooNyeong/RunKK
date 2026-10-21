@@ -48,6 +48,9 @@ internal interface MeEntryModule {
     @Binds
     fun bindGoogleIdTokenSource(source: CredentialManagerIdTokenSource): GoogleIdTokenSource
 
+    @Binds
+    fun bindKakaoAccessTokenSource(source: KakaoSdkTokenSource): KakaoAccessTokenSource
+
     companion object {
         /** 빌드 속성으로 받은 제공자 앱 키(없으면 빈 문자열 → "준비 중"). */
         @Provides

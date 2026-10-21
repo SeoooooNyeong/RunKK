@@ -19,7 +19,7 @@ android {
     defaultConfig {
         buildConfigField("String", "KAKAO_NATIVE_APP_KEY", buildConfigString(kakaoNativeAppKey))
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", buildConfigString(googleWebClientId))
-        // Kakao SDK 리다이렉트 스킴(kakao{앱 키}). SDK를 붙일 때 AuthCodeHandlerActivity의 intent-filter가 ${kakaoScheme}을 쓴다.
+        // Kakao SDK 리다이렉트 스킴(kakao{앱 키}). AuthCodeHandlerActivity의 intent-filter가 ${kakaoScheme}을 쓴다(AndroidManifest.xml).
         manifestPlaceholders["kakaoScheme"] = "kakao$kakaoNativeAppKey"
     }
     testOptions {
@@ -35,6 +35,7 @@ dependencies {
     implementation(libs.androidx.credentials)
     implementation(libs.androidx.credentials.play.services.auth)
     implementation(libs.google.googleid)
+    implementation(libs.kakao.sdk.user)
 
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.turbine)

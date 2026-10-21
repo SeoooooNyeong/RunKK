@@ -18,6 +18,10 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        // Kakao SDK(로그인 C-007)는 Kakao 저장소에만 있다. com.kakao 묶음만 여기서 찾는다.
+        maven("https://devrepo.kakao.com/nexus/content/groups/public/") {
+            content { includeGroupByRegex("com\\.kakao.*") }
+        }
     }
 }
 
