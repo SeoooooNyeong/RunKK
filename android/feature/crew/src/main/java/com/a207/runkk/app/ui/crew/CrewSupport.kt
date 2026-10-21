@@ -71,16 +71,3 @@ internal fun postedLabel(at: Instant, zone: ZoneId = ZoneId.systemDefault()): St
 
 private val MEET: DateTimeFormatter = DateTimeFormatter.ofPattern("M월 d일(E) HH:mm", Locale.KOREAN)
 private val POSTED: DateTimeFormatter = DateTimeFormatter.ofPattern("M/d HH:mm", Locale.KOREAN)
-
-// ---------- 통합 브랜치 domain과의 호환 ----------
-// 통합 브랜치(feature/runkk-impl, 436ef01)의 CrewRunCoordinator에는 failure·acknowledgeFinished가 있다. 이 작업 트리(9bd7e7c)의
-// domain에는 아직 없어 같은 이름의 확장으로 컴파일만 맞춘다. 통합하면 멤버가 확장보다 먼저 골라지므로 아래 두 선언만 지운다.
-
-/** 이 회의 실패(통합 전에는 늘 null). */
-internal val CrewRunCoordinator.failure: StateFlow<AppError?> get() = NO_FAILURE
-
-/** 결과 화면이 Finished를 보인 뒤 부른다(통합 전에는 아무것도 하지 않는다). */
-@Suppress("UnusedReceiverParameter")
-internal fun CrewRunCoordinator.acknowledgeFinished() = Unit
-
-private val NO_FAILURE: StateFlow<AppError?> = MutableStateFlow<AppError?>(null).asStateFlow()

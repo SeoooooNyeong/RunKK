@@ -58,17 +58,3 @@ private const val FULL_MAX = 42_300L
 /** 하프·풀 마라톤 거리(m). */
 internal const val HALF_MARATHON_METERS = 21_097L
 internal const val FULL_MARATHON_METERS = 42_195L
-
-// ---------- 통합 브랜치 domain과의 호환 ----------
-// 통합 브랜치(feature/runkk-impl, 436ef01)의 BattleRunCoordinator에는 failure·acknowledgeFinished가 있다. 이 작업 트리를 만든
-// 9bd7e7c의 domain에는 아직 없어 같은 이름의 확장으로 컴파일만 맞춘다. 통합하면 멤버가 이 확장보다 먼저 골라지므로(멤버 우선)
-// 화면 코드는 그대로 두고 아래 두 선언만 지운다.
-
-/** 이 회의 실패(통합 전에는 늘 null). */
-internal val BattleRunCoordinator.failure: StateFlow<AppError?> get() = NO_FAILURE
-
-/** 결과 화면이 Finished를 보인 뒤 부른다(통합 전에는 아무것도 하지 않는다). */
-@Suppress("UnusedReceiverParameter")
-internal fun BattleRunCoordinator.acknowledgeFinished() = Unit
-
-private val NO_FAILURE: StateFlow<AppError?> = MutableStateFlow<AppError?>(null).asStateFlow()

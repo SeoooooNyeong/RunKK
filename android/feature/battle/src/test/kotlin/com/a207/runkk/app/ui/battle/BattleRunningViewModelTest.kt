@@ -3,6 +3,7 @@
 package com.a207.runkk.app.ui.battle
 
 import app.cash.turbine.test
+import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.live.BattleEnded
@@ -139,6 +140,20 @@ class BattleRunningViewModelTest {
         runCurrent()
         assertEquals(BattlePhase.FAILED, vm.state.value.phase)
         assertNotNull(vm.state.value.error)
+    }
+
+    @Test
+    fun `채널 연결이 실패하면 조정자 failure를 안내로 보이고 닫을 때 지운다`() = main.runVmTest { vms ->
+        val w = world()
+        w.channels.channel.connectFailure = AppError.Network
+        val vm = vms.track(BattleRunningViewModel(w.coordinator, w.clock))
+        vm.bind(key)
+        w.coordinator.onMatched(matchFound())
+        runCurrent()
+        assertEquals(BattleErrorText.of(AppError.Network), vm.state.value.error)
+        vm.onFailureClosed()
+        runCurrent()
+        assertNull(w.coordinator.failure.value)
     }
 
     @Test

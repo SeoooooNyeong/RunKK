@@ -3,6 +3,7 @@
 package com.a207.runkk.app.ui.crew
 
 import app.cash.turbine.test
+import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.crew.CrewRunState
@@ -52,6 +53,14 @@ class CrewRunViewModelTest {
         w.clock.now = w.clock.now.plusSeconds(60)
         advanceTimeBy(1_100)
         assertEquals(Duration.ofMinutes(9), vm.state.value.untilStart)
+    }
+
+    @Test
+    fun `채널 연결이 실패하면 조정자 failure를 안내로 보인다`() = main.runVmTest { vms ->
+        val w = crewWorld()
+        w.channels.channel.connectFailure = AppError.Network
+        val vm = lobbyVm(w, vms)
+        assertEquals(CrewErrorText.of(AppError.Network), vm.state.value.error)
     }
 
     @Test

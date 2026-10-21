@@ -3,6 +3,7 @@
 package com.a207.runkk.app.ui.battle
 
 import app.cash.turbine.test
+import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.navigation.Routes
@@ -126,13 +127,26 @@ class MatchViewModelTest {
         w.channels.channel.push(BattleStart(match.battleId, w.clock.now, opponentTrack = null))
         runCurrent()
         assertEquals(MatchPhase.CHOOSING, vm.state.value.phase)
-        assertEquals("대결을 시작하지 못했어요. 다시 시도해 주세요", vm.state.value.error)
+        // 조정자 failure가 실제로 값을 내므로 일반 문구 대신 거부 사유를 안내한다.
+        assertEquals(BattleErrorText.of(AppError.Rejected(AppError.Rejected.LOCATION_CONSENT)), vm.state.value.error)
     }
 
     @Test
     fun `대기 중 채널 연결이 실패하면 앱을 죽이지 않고 대기열에서 빠져 거리 고르기로`() = main.runVmTest { vms ->
         val w = world()
         w.channels.channel.connectError = IllegalStateException("handshake 404")
+        val vm = vms.vm(w)
+        vm.onStartMatching()
+        runCurrent()
+        assertEquals(MatchPhase.CHOOSING, vm.state.value.phase)
+        assertEquals("상대를 찾는 연결이 끊겼어요. 다시 시도해 주세요", vm.state.value.error)
+        assertTrue("cancel" in w.battles.calls)
+    }
+
+    @Test
+    fun `대기 중 채널 연결이 Failure로 돌아와도 대기열에서 빠져 거리 고르기로`() = main.runVmTest { vms ->
+        val w = world()
+        w.channels.channel.connectFailure = AppError.Network
         val vm = vms.vm(w)
         vm.onStartMatching()
         runCurrent()

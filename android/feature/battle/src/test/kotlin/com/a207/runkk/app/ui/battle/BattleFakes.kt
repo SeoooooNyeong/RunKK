@@ -178,11 +178,13 @@ class FakeLiveChannel : LiveChannel {
     var connects = 0
     var closed = 0
     var connectError: Exception? = null
+    var connectFailure: AppError? = null
     private val flow = MutableSharedFlow<ServerMessage>(extraBufferCapacity = 64)
 
-    override suspend fun connect() {
+    override suspend fun connect(): Outcome<Unit> {
         connects++
         connectError?.let { throw it }
+        return connectFailure?.let { Outcome.Failure(it) } ?: Outcome.Success(Unit)
     }
 
     override fun send(m: ProgressReport) {
@@ -237,7 +239,7 @@ private class Silent :
 
     override fun requestUpload() = Unit
 
-    override fun startForeground() = Unit
+    override fun startForeground(): Outcome<Unit> = Outcome.Success(Unit)
 
     override fun stop() = Unit
 }

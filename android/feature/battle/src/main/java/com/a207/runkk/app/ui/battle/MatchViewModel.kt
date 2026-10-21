@@ -147,7 +147,7 @@ class MatchViewModel @Inject constructor(
         waitJob = viewModelScope.launch {
             val match = try {
                 coroutineScope {
-                    launch { opened.connect() }
+                    launch { if (opened.connect() is Outcome.Failure) throw ChannelConnectFailed() }
                     opened.messages.filterIsInstance<MatchFound>().first().also { coroutineContext.cancelChildren() }
                 }
             } catch (e: CancellationException) {
@@ -280,3 +280,6 @@ class MatchViewModel @Inject constructor(
         const val TICK_MILLIS = 1_000L
     }
 }
+
+/** 채널 연결이 Outcome.Failure로 끝났다. 대기를 접고 거리 고르기로 돌아간다. */
+private class ChannelConnectFailed : Exception()
