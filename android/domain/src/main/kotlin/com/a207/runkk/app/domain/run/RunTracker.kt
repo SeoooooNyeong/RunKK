@@ -239,8 +239,11 @@ constructor(
         if (!measuring) watch.publish(homeDisplay())
     }
 
-    /** 측정이 끝난 뒤 늦게 온 심박을 보관 기록에 덧붙인다. appendHeartRates는 이 클래스만 부른다(design-review.md M32). */
-    fun onLateHeartRates(recordId: String, samples: List<HeartRateSample>) {
+    /**
+     * 측정이 끝난 뒤 늦게 온 심박을 보관 기록에 덧붙인다(내부: WatchGateway.heartRates 구독만 부른다, 06-06, 1차 O-2).
+     * appendHeartRates는 이 클래스만 부른다(design-review.md M32).
+     */
+    private fun onLateHeartRates(recordId: String, samples: List<HeartRateSample>) {
         if (samples.isEmpty()) return
         synchronized(lock) { unsavedLate[recordId] = (unsavedLate[recordId].orEmpty() + samples).distinct() }
         scope.launch { saveLateHeartRates(recordId) }
