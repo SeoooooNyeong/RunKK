@@ -128,7 +128,7 @@ class InboxTest {
     @Test
     fun `화면은 묶음 제목과 알림을 보이고 누르면 알린다`() {
         val tapped = mutableListOf<Long>()
-        val state = InboxUiState(loading = false, groups = groupInbox(sampleItems, clock))
+        val state = InboxUiState(isLoading = false, groups = groupInbox(sampleItems, clock))
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 InboxScreen(state, onBack = {}, onItem = {
@@ -146,7 +146,7 @@ class InboxTest {
     fun `알림이 없으면 빈 상태`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
-                InboxScreen(InboxUiState(loading = false), onBack = {}, onItem = {}, onRetry = {})
+                InboxScreen(InboxUiState(isLoading = false), onBack = {}, onItem = {}, onRetry = {})
             }
         }
         compose.onNodeWithText(str(R.string.notification_empty_title)).assertExists()

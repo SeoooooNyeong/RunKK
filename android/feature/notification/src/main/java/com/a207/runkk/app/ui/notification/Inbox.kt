@@ -86,7 +86,7 @@ import kotlinx.coroutines.launch
 data class InboxGroup(@StringRes val titleRes: Int, val items: List<Inbox.Item>)
 
 data class InboxUiState(
-    val loading: Boolean = true,
+    val isLoading: Boolean = true,
     val groups: List<InboxGroup> = emptyList(),
     val error: UiText? = null,
     val message: UiText? = null
@@ -132,15 +132,15 @@ class InboxViewModel @Inject constructor(private val notifications: Notification
     }
 
     fun refresh() {
-        _state.update { it.copy(loading = true, error = null) }
+        _state.update { it.copy(isLoading = true, error = null) }
         viewModelScope.launch {
             when (val result = notifications.inbox()) {
                 is Outcome.Success -> _state.update {
-                    it.copy(loading = false, groups = groupInbox(result.value.items, clock))
+                    it.copy(isLoading = false, groups = groupInbox(result.value.items, clock))
                 }
 
                 is Outcome.Failure -> _state.update {
-                    it.copy(loading = false, error = RunkkErrorText.of(result.error))
+                    it.copy(isLoading = false, error = RunkkErrorText.of(result.error))
                 }
             }
         }
@@ -148,7 +148,7 @@ class InboxViewModel @Inject constructor(private val notifications: Notification
 
     fun onMessageShown() = _state.update { it.copy(message = null) }
 
-    private fun markRead(id: Long, read: Boolean) = _state.update { s ->
+    private fun markRead(id: Long, isRead: Boolean) = _state.update { s ->
         s.copy(
             groups = s.groups.map { g ->
                 g.copy(
@@ -156,7 +156,7 @@ class InboxViewModel @Inject constructor(private val notifications: Notification
                         if (it.id ==
                             id
                         ) {
-                            it.copy(isRead = read)
+                            it.copy(isRead = isRead)
                         } else {
                             it
                         }
@@ -168,11 +168,11 @@ class InboxViewModel @Inject constructor(private val notifications: Notification
 
     fun onItemTapped(item: Inbox.Item) {
         if (!item.isRead) {
-            markRead(item.id, read = true)
+            markRead(item.id, isRead = true)
             viewModelScope.launch {
                 val opened = notifications.open(item.id)
                 if (opened is Outcome.Failure) {
-                    markRead(item.id, read = false)
+                    markRead(item.id, isRead = false)
                     _state.update { it.copy(message = RunkkErrorText.of(opened.error)) }
                 }
             }
@@ -229,7 +229,7 @@ private fun InboxContent(state: InboxUiState, onBack: () -> Unit, onItem: (Inbox
     Column(modifier = Modifier.fillMaxSize().background(RunkkColors.Background)) {
         RunkkTopBar(title = stringResource(R.string.notification_inbox_title), onBack = onBack)
         when {
-            state.loading && state.groups.isEmpty() -> RunkkLoading(modifier = Modifier.weight(1f))
+            state.isLoading && state.groups.isEmpty() -> RunkkLoading(modifier = Modifier.weight(1f))
 
             state.error != null -> RunkkErrorState(state.error.asString(), onRetry = onRetry)
 
@@ -319,7 +319,7 @@ private fun InboxPreview() {
     RunkkTheme(reduceMotion = true) {
         InboxScreen(
             InboxUiState(
-                loading = false,
+                isLoading = false,
                 groups = groupInbox(
                     listOf(
                         Inbox.Item(

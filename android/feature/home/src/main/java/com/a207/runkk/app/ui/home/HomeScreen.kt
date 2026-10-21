@@ -131,7 +131,7 @@ fun HomeScreen(
 @Composable
 private fun PendingCard(count: Int, onRecords: () -> Unit) {
     RunkkCard(
-        dashed = true,
+        isDashed = true,
         background = RunkkColors.Background,
         shape = RunkkShapes.Medium,
         onClick = onRecords,
@@ -183,7 +183,7 @@ private fun HeaderIdentity(state: HomeUiState, modifier: Modifier = Modifier) {
         },
         verticalArrangement = Arrangement.spacedBy(2.dp)
     ) {
-        if (state.headerLoading) {
+        if (state.isHeaderLoading) {
             SkeletonBar(width = 96.dp, height = 16.dp)
             SkeletonBar(width = 72.dp, height = 12.dp)
         } else {
@@ -263,7 +263,7 @@ private fun AvatarSlot(faceLayers: List<FaceLayer>, onAvatar: () -> Unit) {
     RunkkCard(
         modifier = Modifier.size(width = 80.dp, height = 104.dp),
         shape = RunkkShapes.Medium,
-        dashed = true,
+        isDashed = true,
         background = RunkkColors.Surface,
         onClick = onAvatar,
         onClickLabel = stringResource(R.string.home_house_edit_avatar),
@@ -352,8 +352,8 @@ private fun ColumnScope.FreeRunPanel(todayPlan: TodayPlan?, onNavigate: (String)
         planChips(resources, todayPlan).forEachIndexed { index, chip ->
             RunkkInfoChip(
                 label = chip,
-                highlighted = index == 0 && todayPlan?.distance != null,
-                display =
+                isHighlighted = index == 0 && todayPlan?.distance != null,
+                isDisplay =
                     index == 0 && todayPlan?.distance != null,
                 spoken = spoken.getOrNull(index)
             )
@@ -363,7 +363,7 @@ private fun ColumnScope.FreeRunPanel(todayPlan: TodayPlan?, onNavigate: (String)
         text = stringResource(R.string.home_free_start),
         onClick = { onNavigate(Routes.RUN) },
         size = RunkkButtonSize.Large,
-        trailingArrow = true,
+        hasTrailingArrow = true,
         modifier = Modifier.fillMaxWidth()
     )
 }
@@ -378,13 +378,13 @@ private fun ColumnScope.BattleRunPanel(onNavigate: (String) -> Unit) {
         color = RunkkColors.TextSecondary
     )
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        listOf("1K", "3K", "5K", "10K").forEach { RunkkInfoChip(it, display = true) }
+        listOf("1K", "3K", "5K", "10K").forEach { RunkkInfoChip(it, isDisplay = true) }
     }
     RunkkPrimaryButton(
         text = stringResource(R.string.home_battle_start),
         onClick = { onNavigate(Routes.BATTLE_QUICK_MATCH) },
         size = RunkkButtonSize.Large,
-        trailingArrow = true,
+        hasTrailingArrow = true,
         modifier = Modifier.fillMaxWidth()
     )
 }
@@ -589,7 +589,7 @@ private fun HomeScreenPreview() {
     RunkkTheme(reduceMotion = true) {
         HomeScreen(
             state = HomeUiState(
-                loading = false,
+                isLoading = false,
                 today = today,
                 dashboard = Dashboard(
                     today = Distance(3_020),
@@ -603,7 +603,7 @@ private fun HomeScreenPreview() {
                 todayPlan = TodayPlan(Distance(5_000), Pace(330)),
                 pendingCount = 1,
                 header = HomeHeader("달리는곰", "골드", 3, 1_250),
-                headerLoading = false
+                isHeaderLoading = false
             ),
             onModeSelected = {},
             onNavigate = {},
