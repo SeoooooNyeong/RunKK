@@ -3,6 +3,7 @@ package com.a207.runkk.app.ui.share
 import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
+import androidx.annotation.VisibleForTesting
 import androidx.core.content.FileProvider
 import com.a207.runkk.app.domain.settings.SettingsRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -15,7 +16,7 @@ import kotlinx.coroutines.withContext
  * 카드 이미지를 공유한다(6.1.14). 뒷면(코스 지도)인데 코스 지도 공유가 꺼져 있으면 거부한다(FR-069).
  * 이미지는 앱 캐시(shared_cards/)에 PNG로 쓰고 FileProvider 주소로 [ShareTarget]에 넘긴다.
  */
-class CardSharer internal constructor(
+class CardSharer @VisibleForTesting constructor(
     private val context: Context,
     private val settings: SettingsRepository,
     private val uriFor: (Context, File) -> Uri
