@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">런크크</string>
+    <string name="app_splash_description">런크크 시작 중</string>
+    <string name="app_coming_soon_title">준비 중인 화면이에요</string>
+    <string name="app_coming_soon_message">곧 만나요</string>
 </resources>

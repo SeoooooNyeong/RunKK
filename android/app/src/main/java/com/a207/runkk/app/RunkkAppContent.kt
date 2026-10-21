@@ -10,6 +10,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -54,9 +55,10 @@ internal fun startRouteFor(loggedIn: Boolean): String = if (loggedIn) Routes.HOM
 /** 스플래시: 창 배경과 같은 색 위에 RR 아이콘. */
 @Composable
 internal fun RunkkSplash(modifier: Modifier = Modifier) {
+    val description = stringResource(R.string.app_splash_description)
     Box(
         modifier = modifier.fillMaxSize().background(RunkkColors.Background).semantics {
-            contentDescription = "런크크 시작 중"
+            contentDescription = description
         },
         contentAlignment = Alignment.Center
     ) {
