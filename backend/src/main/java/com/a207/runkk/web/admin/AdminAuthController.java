@@ -5,6 +5,7 @@ import com.a207.runkk.common.BusinessRuleException;
 import com.a207.runkk.common.ClientAddress;
 import com.a207.runkk.common.PermissionDeniedException;
 import com.a207.runkk.common.ReasonCode;
+import com.a207.runkk.operator.OperatorAuthFailedException;
 import com.a207.runkk.operator.OperatorAuthorizer;
 import com.a207.runkk.operator.OperatorSession;
 import jakarta.servlet.http.HttpServletRequest;
@@ -22,7 +23,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * 운영자 로그인(설계 5.7.1 POST /admin/login → OperatorAuthorizer.authenticate, FR-173, R-05, D-50). 제공자는
- * 문자열로 넘겨 web.admin이 member 형식을 import하지 않는다(design-review.md R26). 화이트리스트 밖이면 403이다.
+ * 문자열로 넘겨 web.admin이 member 형식을 import하지 않는다(design-review.md R26). 소셜 인증 실패는 401 AUTH_FAILED(D-76
+ * (1), R36: operator.OperatorAuthFailedException을 이 컨트롤러가 바꾼다), 화이트리스트 밖이면 403, 모르는 제공자는 400이다.
  */
 @RestController
 @RequestMapping("/api/v1/admin")
@@ -66,6 +68,10 @@ public class AdminAuthController {
                             request.provider(), request.providerToken(), client);
             attempts.reset(client);
             return session;
+        } catch (OperatorAuthFailedException e) {
+            attempts.recordFailure(client);
+            // 인증 경계 예외는 web.error가 다루지 않는다(13.1 예외 행): 공통 오류 형식의 401로 바꾼다
+            throw new BusinessRuleException(ReasonCode.AUTH_FAILED);
         } catch (PermissionDeniedException | IllegalArgumentException e) {
             // 제공자 무응답(PROVIDER_UNAVAILABLE)은 운영자 잘못이 아니라 세지 않는다
             attempts.recordFailure(client);

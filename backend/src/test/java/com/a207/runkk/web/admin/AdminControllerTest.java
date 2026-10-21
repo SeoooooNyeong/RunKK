@@ -1,6 +1,7 @@
 package com.a207.runkk.web.admin;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -8,6 +9,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.a207.runkk.member.AuthFailureException;
 import com.a207.runkk.member.ProviderType;
 import com.a207.runkk.member.SocialAccount;
 import com.a207.runkk.operator.OperatorId;
@@ -158,6 +160,32 @@ class AdminControllerTest extends WebTestSupport {
                                                         "providerToken",
                                                         OPERATOR))))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("소셜 인증 실패한 운영자 로그인은 401 AUTH_FAILED, 토큰·제공자 토큰 미반환(D-76 (1), TC-2522)")
+    void login_socialAuthFailure_is401() throws Exception {
+        when(kakao.authenticate("expired-provider-token"))
+                .thenThrow(new AuthFailureException("카카오 인증 실패 status=401"));
+        String response =
+                mvc.perform(
+                                post("/api/v1/admin/login")
+                                        .header("X-Real-IP", "10.8.8.8")
+                                        .contentType(MediaType.APPLICATION_JSON)
+                                        .content(
+                                                write(
+                                                        Map.of(
+                                                                "provider",
+                                                                "KAKAO",
+                                                                "providerToken",
+                                                                "expired-provider-token"))))
+                        .andExpect(status().isUnauthorized())
+                        .andExpect(jsonPath("$.code").value("AUTH_FAILED"))
+                        .andExpect(jsonPath("$.adminToken").doesNotExist())
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString();
+        assertThat(response).doesNotContain("expired-provider-token");
     }
 
     @Test

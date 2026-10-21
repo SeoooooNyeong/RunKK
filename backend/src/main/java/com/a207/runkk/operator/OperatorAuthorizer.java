@@ -53,10 +53,10 @@ public class OperatorAuthorizer {
 
     /**
      * 제공자 토큰으로 계정을 확인하고 화이트리스트에 있으면 관리툴 토큰을 발급한다. provider는 "KAKAO"·"GOOGLE" 문자열이다(모르는 값이면
-     * IllegalArgumentException, design-review.md R26). 인증 실패·화이트리스트 밖이면 PermissionDeniedException,
-     * 제공자 무응답은 PROVIDER_UNAVAILABLE. 성공·실패를 모두 감사 기록으로 남긴다(코드 리뷰 2차 L25): 행위자 = 운영자 계정(확인하지 못했으면
-     * "제공자:UNKNOWN" 또는 "UNKNOWN"), 대상 = 접속지, 변경 후 = 결과(SUCCESS 또는 실패 사유). 성공 감사를 남기지 못하면 토큰을 주지
-     * 않는다.
+     * IllegalArgumentException, design-review.md R26). 소셜 인증 실패면 OperatorAuthFailedException(→ 401,
+     * D-76 (1), R36), 화이트리스트 밖이면 PermissionDeniedException(→ 403), 제공자 무응답은 PROVIDER_UNAVAILABLE.
+     * 성공·실패를 모두 감사 기록으로 남긴다(코드 리뷰 2차 L25): 행위자 = 운영자 계정(확인하지 못했으면 "제공자:UNKNOWN" 또는 "UNKNOWN"), 대상 =
+     * 접속지, 변경 후 = 결과(SUCCESS 또는 실패 사유). 성공 감사를 남기지 못하면 토큰을 주지 않는다.
      */
     public OperatorSession authenticate(String provider, String providerToken, String client) {
         ProviderType type = providerOf(provider, client);
@@ -72,7 +72,7 @@ public class OperatorAuthorizer {
             account = gateway.authenticate(providerToken);
         } catch (AuthFailureException e) {
             failed(unidentified, client, LoginFailure.AUTH_FAILED);
-            throw new PermissionDeniedException("운영자 인증 실패");
+            throw new OperatorAuthFailedException("운영자 소셜 인증 실패", e);
         } catch (ProviderUnavailableException e) {
             failed(unidentified, client, LoginFailure.PROVIDER_UNAVAILABLE);
             throw new BusinessRuleException(ReasonCode.PROVIDER_UNAVAILABLE);
