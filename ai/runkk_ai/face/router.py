@@ -6,16 +6,20 @@ UploadFile을 쓰지 않는다(1MB가 넘으면 임시 파일로 넘어간다). 
 
 from __future__ import annotations
 
+import asyncio
 import base64
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request, status
 from fastapi.responses import JSONResponse
+from starlette.requests import ClientDisconnect
 
 from runkk_ai.face.schemas import JPEG_SIGNATURE, PNG_SIGNATURE, FaceFailureReason, FaceOut
 from runkk_ai.face.service import FaceTransformService
 
 FaceRouter = APIRouter(tags=["face"])
+
+_CLIENT_CLOSED_REQUEST = 499
 
 _STATUS_BY_REASON: dict[FaceFailureReason, int] = {
     "NO_FACE": status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -56,7 +60,15 @@ async def create(
         return _failure(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, "UNSUPPORTED_IMAGE")
     if _declared_length(request) > service.max_image_bytes:
         return _failure(status.HTTP_413_CONTENT_TOO_LARGE, "TOO_LARGE")
-    image = await _read_body(request, service.max_image_bytes)
+    try:
+        async with asyncio.timeout(service.timeout_s):  # 느린 업로드가 연결을 오래 쥐지 못하게 읽기 구간도 제한한다
+            image = await _read_body(request, service.max_image_bytes)
+    except ClientDisconnect:
+        return JSONResponse(
+            status_code=_CLIENT_CLOSED_REQUEST, content={"reason": "CLIENT_CLOSED"}
+        )  # 보낼 상대가 없다. 오류 로그·500을 남기지 않는다
+    except TimeoutError:
+        return _failure(status.HTTP_504_GATEWAY_TIMEOUT, "TIMEOUT")
     if image is None:
         return _failure(status.HTTP_413_CONTENT_TOO_LARGE, "TOO_LARGE")
     if not image.startswith((JPEG_SIGNATURE, PNG_SIGNATURE)):

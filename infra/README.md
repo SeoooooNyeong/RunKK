@@ -21,7 +21,7 @@ curl -fsSL https://get.docker.com | sudo sh
 sudo usermod -aG docker $USER && newgrp docker
 
 git clone https://lab.ssafy.com/s15-final/S15P31A207.git && cd S15P31A207/infra
-cp .env.example .env && nano .env     # SERVER_NAME, DB_PASSWORD, RUNKK_INTERNAL_TOKEN 반드시 변경(토큰 자리표시 값이면 ai가 뜨지 않음)
+cp .env.example .env && nano .env     # SERVER_NAME, DB_PASSWORD, REDIS_PASSWORD, RUNKK_INTERNAL_TOKEN 반드시 변경(토큰 자리표시 값이면 ai가 뜨지 않음). DB_NAME·DB_USER·DB_PASSWORD·REDIS_PASSWORD가 비면 compose가 바로 멈춥니다. postgres·redis 포트는 내부 망 기본값(5432·6379)으로 고정입니다
 ./deploy.sh
 curl http://localhost/actuator/health  # {"status":"UP"}
 ```

@@ -14,6 +14,7 @@ Claude Code와 Codex가 공통으로 읽는 규칙이다. Claude Code는 `CLAUDE
 |---|---|---|---|
 | backend | `./gradlew spotlessApply` | `./gradlew build` (check에 spotlessCheck·test 포함) | `./gradlew bootRun` (local 프로필, 설치 없이 뜸) |
 | android | `./gradlew ktlintFormat` | `./gradlew ktlintCheck lintLocalDebug testLocalDebugUnitTest` | `./gradlew assembleLocalDebug` 후 에뮬레이터 설치 |
+| ai | `cd ai && uv run ruff format .` | `uv run ruff check . && uv run lint-imports && uv run mypy && uv run pytest` | `uv run uvicorn --factory runkk_ai.main:create_app` (`RUNKK_INTERNAL_TOKEN` 필요, ai/README.md) |
 
 JDK는 Gradle이 foojay로 21을 내려받는다. 로컬에는 JDK 17 이상만 있으면 된다. Android SDK Platform 37이 필요하다.
 

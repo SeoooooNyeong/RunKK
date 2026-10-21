@@ -1,12 +1,14 @@
 # Rendered by the nginx image at startup (envsubst on ${SERVER_NAME}).
 # HTTP only. After the certificate exists, replace this file with https.conf.template (see README).
-upstream api {
-    server api:8080;
-}
+# api 컨테이너는 배포 때마다 다시 만들어져 IP가 바뀐다. 시작 때 한 번만 풀면 502가 나므로 Docker 내장 DNS로 주기적으로 다시 푼다.
+# 변수로 proxy_pass를 쓰면 nginx가 요청 때 이름을 풀어 resolver를 따른다(URI를 붙이지 않아 원래 경로가 그대로 넘어간다).
+resolver 127.0.0.11 valid=10s ipv6=off;
 
 server {
     listen 80;
     server_name ${SERVER_NAME};
+
+    set $api_upstream api:8080;
 
     client_max_body_size 10m;
 
@@ -17,7 +19,7 @@ server {
 
     # 실시간 대결·크루런 WebSocket(설계 5.7.2, D-06). Upgrade 헤더를 넘기고, 러닝 한 회 동안 연결이 끊기지 않게 읽기 제한을 길게 둔다
     location /ws {
-        proxy_pass http://api;
+        proxy_pass http://$api_upstream;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
@@ -29,8 +31,23 @@ server {
         proxy_send_timeout 2h;
     }
 
+    # 외부에는 /actuator/health만 연다(배포 스모크용). info·metrics 등 나머지 actuator 경로는 숨긴다
+    location = /actuator/health {
+        proxy_pass http://$api_upstream;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 10s;
+    }
+
+    location ^~ /actuator/ {
+        return 404;
+    }
+
     location / {
-        proxy_pass http://api;
+        proxy_pass http://$api_upstream;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
