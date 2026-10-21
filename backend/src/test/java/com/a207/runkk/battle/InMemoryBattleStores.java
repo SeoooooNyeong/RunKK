@@ -46,9 +46,19 @@ public final class InMemoryBattleStores {
     public static final class Battles implements BattleRepository {
         private final Map<Long, Battle> rows = new LinkedHashMap<>();
         private final AtomicLong sequence = new AtomicLong();
+        private int failingSaves;
+
+        /** 다음 저장 n번을 저장소 장애로 실패시킨다(D-64 재시도 시험). */
+        public void failNextSaves(int n) {
+            failingSaves = n;
+        }
 
         @Override
         public Battle save(Battle battle) {
+            if (failingSaves > 0) {
+                failingSaves--;
+                throw new org.springframework.dao.DataAccessResourceFailureException("db down");
+            }
             if (battle.getId() == null) {
                 ReflectionTestUtils.setField(battle, "id", sequence.incrementAndGet());
             }
@@ -201,6 +211,26 @@ public final class InMemoryBattleStores {
             first.assign();
             second.assign();
             return true;
+        }
+
+        @Override
+        public synchronized boolean tryAssign(long memberId) {
+            check();
+            MatchTicket ticket = tickets.get(memberId);
+            if (ticket == null || ticket.getStatus() != MatchStatus.WAITING) {
+                return false;
+            }
+            ticket.assign();
+            return true;
+        }
+
+        @Override
+        public synchronized void release(long memberId) {
+            check();
+            MatchTicket ticket = tickets.get(memberId);
+            if (ticket != null && ticket.getStatus() == MatchStatus.ASSIGNED) {
+                ticket.release();
+            }
         }
     }
 

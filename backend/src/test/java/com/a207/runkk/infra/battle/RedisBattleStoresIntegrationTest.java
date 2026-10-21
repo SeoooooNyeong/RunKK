@@ -93,6 +93,27 @@ class RedisBattleStoresIntegrationTest {
     }
 
     @Test
+    @org.junit.jupiter.api.DisplayName(
+            "D-64: tryAssign은 WAITING일 때만, 그동안 취소(removeWaiting)는 실패, release 뒤 다시 대기·취소")
+    void singleAssignAndRelease() {
+        queue.enqueue(MatchTicket.open(1, Tier.GOLD, StandardDistance.KM5, NOW));
+        assertThat(queue.tryAssign(1)).isTrue();
+        assertThat(queue.tryAssign(1)).isFalse();
+        assertThat(queue.removeWaiting(1)).isFalse();
+        assertThat(queue.waitingOldestFirst()).isEmpty();
+        queue.release(1);
+        assertThat(queue.waitingOldestFirst())
+                .singleElement()
+                .satisfies(
+                        t -> {
+                            assertThat(t.getStatus()).isEqualTo(MatchStatus.WAITING);
+                            assertThat(t.getWaitingSince()).isEqualTo(NOW);
+                        });
+        assertThat(queue.tryAssign(2)).isFalse();
+        assertThat(queue.removeWaiting(1)).isTrue();
+    }
+
+    @Test
     @org.junit.jupiter.api.DisplayName("RedisLiveSessionStore: 대결마다 해시 하나 왕복, 목록·삭제")
     void redisSessions() {
         LiveBattleSession session =
