@@ -110,8 +110,9 @@ public class RecordBattleService {
                         best.recordId(),
                         runQueryService.comparisonOf(best.recordId()),
                         runQueryService.curve(best.recordId(), d.distance()),
-                        DisplayName.of(SELF_LABEL.format(best.achievedOn())),
-                        tierOf(memberId));
+                        new RunRecordOpponent.Owner(
+                                DisplayName.of(SELF_LABEL.format(best.achievedOn())),
+                                tierOf(memberId)));
         Battle battle = create(BattleType.SELF, memberId, d.distance(), self);
         return new RecordBattleStart(
                 battle.getId(),

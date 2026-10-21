@@ -169,12 +169,11 @@ public final class InMemoryBattleStores {
                     .sorted(Comparator.comparing(MatchTicket::getWaitingSince))
                     .map(
                             t ->
-                                    MatchTicket.restore(
+                                    MatchTicket.open(
                                             t.getMemberId(),
                                             t.getTier(),
                                             t.getDistance(),
-                                            t.getWaitingSince(),
-                                            t.getStatus()))
+                                            t.getWaitingSince()))
                     .toList();
         }
 

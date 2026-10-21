@@ -116,13 +116,18 @@ public class RedisMatchQueue implements MatchQueue {
         return Long.valueOf(1).equals(assigned);
     }
 
+    /** 대기 표로 열고 저장 상태가 ASSIGNED면 배정한다. */
     private static MatchTicket ticketOf(Map<Object, Object> fields) {
-        return MatchTicket.restore(
-                Long.parseLong((String) fields.get(MEMBER)),
-                Tier.valueOf((String) fields.get(TIER)),
-                StandardDistance.valueOf((String) fields.get(DISTANCE)),
-                LocalDateTime.parse((String) fields.get(SINCE)),
-                MatchStatus.valueOf((String) fields.get(STATUS)));
+        MatchTicket ticket =
+                MatchTicket.open(
+                        Long.parseLong((String) fields.get(MEMBER)),
+                        Tier.valueOf((String) fields.get(TIER)),
+                        StandardDistance.valueOf((String) fields.get(DISTANCE)),
+                        LocalDateTime.parse((String) fields.get(SINCE)));
+        if (MatchStatus.valueOf((String) fields.get(STATUS)) == MatchStatus.ASSIGNED) {
+            ticket.assign();
+        }
+        return ticket;
     }
 
     private static String ticketKey(long memberId) {

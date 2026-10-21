@@ -28,6 +28,9 @@ public class LiveSocketHandler extends TextWebSocketHandler {
     private static final Logger log = LoggerFactory.getLogger(LiveSocketHandler.class);
     private static final String BEARER = "Bearer ";
 
+    /** 진행값 메시지 한 개의 크기 상한(항목 5개, 약 150바이트). 넘으면 읽지 않고 버린다. */
+    static final int MAX_MESSAGE_BYTES = 1_024;
+
     private final TokenIssuer tokenIssuer;
     private final SocketSessionRegistry registry;
     private final WebSocketMessenger messenger;
@@ -75,7 +78,7 @@ public class LiveSocketHandler extends TextWebSocketHandler {
     @Override
     protected void handleTextMessage(WebSocketSession session, TextMessage message) {
         Object memberId = session.getAttributes().get(MEMBER_ID);
-        if (!(memberId instanceof Long id)) {
+        if (!(memberId instanceof Long id) || message.getPayloadLength() > MAX_MESSAGE_BYTES) {
             return;
         }
         Optional<InboundProgress> inbound = serializer.readInbound(message.getPayload());

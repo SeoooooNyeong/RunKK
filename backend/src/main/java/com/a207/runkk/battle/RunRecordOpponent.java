@@ -18,28 +18,29 @@ public final class RunRecordOpponent implements OpponentRecord {
     private final String recordId;
     private final RunComparison comparison;
     private final RunCurve curve;
-    private final DisplayName ownerName;
-    private final Tier ownerTier;
+    private final Owner owner;
 
     /**
      * @param recordId 러닝 기록 ID
      * @param comparison 비교 값
      * @param curve 경과 시간·누적 거리 표본
-     * @param ownerName 기록 주인 표시명(나와의 싸움은 "MM/DD의 나")
-     * @param ownerTier 기록 주인 티어
+     * @param owner 기록 주인 표시명(나와의 싸움은 "MM/DD의 나")·티어
      */
     public RunRecordOpponent(
-            String recordId,
-            RunComparison comparison,
-            RunCurve curve,
-            DisplayName ownerName,
-            Tier ownerTier) {
+            String recordId, RunComparison comparison, RunCurve curve, Owner owner) {
         this.recordId = Objects.requireNonNull(recordId, "recordId");
         this.comparison = Objects.requireNonNull(comparison, "comparison");
         this.curve = Objects.requireNonNull(curve, "curve");
-        this.ownerName = Objects.requireNonNull(ownerName, "ownerName");
-        this.ownerTier = Objects.requireNonNull(ownerTier, "ownerTier");
+        this.owner = Objects.requireNonNull(owner, "owner");
     }
+
+    /**
+     * 기록 주인의 표시 값. 고스트는 GhostOwner, 나와의 싸움은 본인 MemberSummary에서 채운다.
+     *
+     * @param name 표시명
+     * @param tier 티어
+     */
+    public record Owner(DisplayName name, Tier tier) {}
 
     @Override
     public OpponentTrack track(Distance battleDistance) {
@@ -57,12 +58,12 @@ public final class RunRecordOpponent implements OpponentRecord {
 
     @Override
     public DisplayName displayName() {
-        return ownerName;
+        return owner.name();
     }
 
     @Override
     public Tier displayTier() {
-        return ownerTier;
+        return owner.tier();
     }
 
     @Override

@@ -92,12 +92,17 @@ public class JdbcMatchQueue implements MatchQueue {
         return true;
     }
 
+    /** 대기 표로 열고 저장 상태가 ASSIGNED면 배정한다. */
     private static MatchTicket ticketOf(ResultSet rs, int row) throws SQLException {
-        return MatchTicket.restore(
-                rs.getLong("member_id"),
-                Tier.valueOf(rs.getString("tier")),
-                StandardDistance.valueOf(rs.getString("distance")),
-                rs.getTimestamp("waiting_since").toLocalDateTime(),
-                MatchStatus.valueOf(rs.getString("status")));
+        MatchTicket ticket =
+                MatchTicket.open(
+                        rs.getLong("member_id"),
+                        Tier.valueOf(rs.getString("tier")),
+                        StandardDistance.valueOf(rs.getString("distance")),
+                        rs.getTimestamp("waiting_since").toLocalDateTime());
+        if (MatchStatus.valueOf(rs.getString("status")) == MatchStatus.ASSIGNED) {
+            ticket.assign();
+        }
+        return ticket;
     }
 }

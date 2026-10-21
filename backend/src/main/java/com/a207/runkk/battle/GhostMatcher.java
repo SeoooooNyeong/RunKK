@@ -80,8 +80,7 @@ public class GhostMatcher {
                 run.recordId(),
                 runQueryService.comparisonOf(run.recordId()),
                 runQueryService.curve(run.recordId(), ticket.getDistance().distance()),
-                owner.displayName(),
-                owner.tier());
+                new RunRecordOpponent.Owner(owner.displayName(), owner.tier()));
     }
 
     /** 가상 기록은 늘 있다(Q-61, 서버 시작 때 100개). */

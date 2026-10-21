@@ -9,7 +9,7 @@ import java.util.Objects;
 
 /**
  * 매칭 대기자 한 명의 대기 상태(설계 6.1.6, 상태도 2.4.1). 대기열 키는 memberId다. 저장은 MatchQueue 구현(Redis 해시 또는
- * PostgreSQL 행)이 한다.
+ * PostgreSQL 행)이 하고, 다시 읽을 때는 open 뒤 저장된 상태가 ASSIGNED면 assign으로 되돌린다.
  */
 public final class MatchTicket {
 
@@ -20,16 +20,12 @@ public final class MatchTicket {
     private MatchStatus status;
 
     private MatchTicket(
-            long memberId,
-            Tier tier,
-            StandardDistance distance,
-            LocalDateTime waitingSince,
-            MatchStatus status) {
+            long memberId, Tier tier, StandardDistance distance, LocalDateTime waitingSince) {
         this.memberId = memberId;
         this.tier = Objects.requireNonNull(tier, "tier");
         this.distance = Objects.requireNonNull(distance, "distance");
         this.waitingSince = Objects.requireNonNull(waitingSince, "waitingSince");
-        this.status = Objects.requireNonNull(status, "status");
+        this.status = MatchStatus.WAITING;
     }
 
     /** 랭크 티어·랜덤 대결 거리만. 위반이면 IllegalArgumentException. */
@@ -41,13 +37,7 @@ public final class MatchTicket {
         if (!d.isRandomBattle()) {
             throw new IllegalArgumentException("랜덤 대결 거리가 아니다: " + d);
         }
-        return new MatchTicket(memberId, tier, d, now, MatchStatus.WAITING);
-    }
-
-    /** 저장소에서 다시 만든다(infra.battle). */
-    public static MatchTicket restore(
-            long memberId, Tier tier, StandardDistance d, LocalDateTime since, MatchStatus s) {
-        return new MatchTicket(memberId, tier, d, since, s);
+        return new MatchTicket(memberId, tier, d, now);
     }
 
     /** now − waitingSince > ghostAfter(기본 15초). */

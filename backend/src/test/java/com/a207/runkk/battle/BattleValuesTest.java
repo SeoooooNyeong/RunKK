@@ -73,8 +73,7 @@ class BattleValuesTest {
                                         new CurvePoint(
                                                 Duration.ofMinutes(50), Distance.ofMeters(10_000))),
                                 Distance.ofMeters(10_000)),
-                        DisplayName.of("10/03의 나"),
-                        Tier.GOLD);
+                        new RunRecordOpponent.Owner(DisplayName.of("10/03의 나"), Tier.GOLD));
         OpponentTrack track = opponent.track(FIVE_K);
         assertThat(track.samples()).last().extracting(TrackSample::distance).isEqualTo(FIVE_K);
         assertThat(opponent.comparisonValues(FIVE_K).fastestKmValue()).isEmpty();
