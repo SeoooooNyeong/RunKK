@@ -24,6 +24,8 @@ import kotlinx.coroutines.sync.withLock
 /**
  * 실시간 채널을 고른다(6.1.14 data.live, D-57). 서버 설정을 받지 않고 연결 결과로 고른다:
  * WebSocket을 먼저 열고, 핸드셰이크가 404·426이면 바로, 그 밖의 실패가 3번 이어지면(사이 1·2초, D-16) 폴링 채널로 바꾼다.
+ * 핸드셰이크 401(인증 실패)은 인증된 OkHttp의 TokenAuthenticator가 접근 토큰을 갱신해 한 번 다시 보낸다. 그래도 401이면
+ * 갱신 토큰까지 거부된 것이므로 폴링으로 바꾸지 않고(폴링도 401) connect가 Failure(Unauthorized)로 끝난다.
  *
  * open()은 고른 결과를 감싼 채널 하나를 돌려주고, 닫히기 전까지 같은 채널을 돌려준다(매칭 화면과 BattleRunCoordinator가
  * 같은 연결을 쓴다). connect()는 여러 번 불러도 한 번만 연결한다. 감싼 채널의 messages는 connect 전에 구독해도 고른 채널의
@@ -66,7 +68,7 @@ constructor(
         override suspend fun connect(): Outcome<Unit> = connectLock.withLock {
             if (isClosed) return@withLock Outcome.Failure(AppError.Network)
             if (synchronized(stateLock) { delegate } != null) return@withLock Outcome.Success(Unit)
-            val chosen = choose()
+            val chosen = choose() ?: return@withLock Outcome.Failure(AppError.Unauthorized)
             synchronized(stateLock) {
                 if (isClosed) chosen.close() else delegate = chosen
             }
@@ -88,7 +90,8 @@ constructor(
             synchronized(lock) { if (current === this) current = null }
         }
 
-        private suspend fun choose(): LiveChannel {
+        /** WebSocket 또는 폴링. 토큰 갱신 뒤에도 인증에 실패하면(401) null. */
+        private suspend fun choose(): LiveChannel? {
             repeat(HANDSHAKE_ATTEMPTS) { attempt ->
                 val socket = webSockets.get()
                 val forward = forward(socket)
@@ -98,6 +101,7 @@ constructor(
                 } catch (e: WebSocketLiveChannel.HandshakeFailed) {
                     forward.cancel()
                     socket.close()
+                    if (e.code == UNAUTHORIZED) return null
                     if (e.code in FALLBACK_STATUS) return polling()
                 }
                 if (attempt < HANDSHAKE_ATTEMPTS - 1) delay(RETRY_DELAYS_MILLIS[attempt])
@@ -119,6 +123,9 @@ constructor(
     private companion object {
         const val HANDSHAKE_ATTEMPTS = 3
         const val BUFFER = 64
+
+        /** 토큰 갱신(TokenAuthenticator) 뒤에도 인증 실패. */
+        const val UNAUTHORIZED = 401
 
         /** 서버에 /ws가 없거나(404, runkk.live=polling) 업그레이드를 거부함(426). */
         val FALLBACK_STATUS = setOf(404, 426)

@@ -3,15 +3,14 @@ package com.a207.runkk.app.ui.battle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.model.Outcome
-import com.a207.runkk.app.core.model.getOrNull
 import com.a207.runkk.app.domain.battle.BattleHistory
 import com.a207.runkk.app.domain.battle.BattleRepository
 import com.a207.runkk.app.domain.battle.BattleResult
 import com.a207.runkk.app.domain.battle.BattleRunCoordinator
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.time.Duration
 import javax.inject.Inject
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -33,16 +32,70 @@ data class BattleResultUiState(
     val loading: Boolean = true,
     val battleId: Long? = null,
     val result: BattleResult? = null,
-    /** 전적(대결 이력 통계). 이번 주만 따로 셀 포트가 없어 전체 전적이다. */
-    val wins: Int? = null,
-    val losses: Int? = null,
     val error: String? = null
 ) {
     val verdict: Verdict? get() = Verdict.of(result?.verdict)
+
+    /** 이번 주 전적(결과 응답 weekly). */
+    val weekly: BattleResult.Weekly? get() = result?.weekly
 }
 
+/** 판정 문구(시안 HiBattleResult "[상대]님보다 42초 먼저 도착했어요!"). 상대·도달 시간을 모르면 일반 문구다. */
+internal fun verdictMessage(verdict: Verdict?, result: BattleResult?): String {
+    val name = result?.opponentName?.takeIf { it.isNotBlank() }
+    val mine = result?.myReach
+    val theirs = result?.opponentReach
+    val gap = if (mine != null && theirs != null) gapText(theirs.minus(mine).abs()) else null
+    return when (verdict) {
+        Verdict.WIN -> when {
+            name != null && gap != null -> "${name}님보다 $gap 먼저 도착했어요!"
+            name != null -> "${name}님보다 먼저 도착했어요!"
+            else -> "상대보다 먼저 도착했어요!"
+        }
+
+        Verdict.LOSE -> when {
+            name != null && gap != null -> "${name}님이 $gap 먼저 도착했어요. 다음 대결에서 다시 만나요"
+            name != null -> "${name}님이 먼저 도착했어요. 다음 대결에서 다시 만나요"
+            else -> "아쉽게 졌어요. 다음 대결에서 다시 만나요"
+        }
+
+        Verdict.DRAW -> if (name != null) "${name}님과 1초 안에 함께 도착했어요. 무승부!" else "1초 안에 함께 도착했어요. 무승부!"
+
+        null -> "결과를 확인하고 있어요"
+    }
+}
+
+/** 시간 차 문구: 42초, 1분 5초. */
+internal fun gapText(gap: Duration): String {
+    val seconds = gap.seconds
+    return if (seconds < SECONDS_PER_MINUTE) {
+        "${seconds}초"
+    } else {
+        val minutes = seconds / SECONDS_PER_MINUTE
+        val rest = seconds % SECONDS_PER_MINUTE
+        if (rest == 0L) "${minutes}분" else "${minutes}분 ${rest}초"
+    }
+}
+
+/** 이력의 기록 차이(본인 − 상대): 음수면 "42초 빠름", 양수면 "12초 느림", 0이면 "같은 기록". */
+internal fun gapLabel(gap: Duration): String = when {
+    gap.isNegative -> "${gapText(gap.abs())} 빠름"
+    gap.isZero -> "같은 기록"
+    else -> "${gapText(gap)} 느림"
+}
+
+/** 이번 주 전적 표기: 3W 1L(무승부가 있으면 1D를 더한다). */
+internal fun weeklyLabel(weekly: BattleResult.Weekly): String =
+    "${weekly.wins}W ${weekly.losses}L" + if (weekly.draws > 0) " ${weekly.draws}D" else ""
+
+/** 이번 주 전적 읽기: 3승 1패(무승부가 있으면 1무를 더한다). */
+internal fun weeklySpoken(weekly: BattleResult.Weekly): String =
+    "이번 주 ${weekly.wins}승 ${weekly.losses}패" + if (weekly.draws > 0) " ${weekly.draws}무" else ""
+
+private const val SECONDS_PER_MINUTE = 60L
+
 /**
- * 대결 결과(FR-093·FR-103·FR-108): BattleRepository.result 비교표·판정·적립 리워드와 history 전적을 보인다.
+ * 대결 결과(FR-093·FR-103·FR-108): BattleRepository.result 비교표·판정(상대 표시명·도달 시간 차)·적립 리워드·이번 주 전적을 보인다.
  * 결과를 보인 뒤 BattleRunCoordinator.acknowledgeFinished를 불러 다음 대결 화면이 지난 회의 종료 상태를 받지 않게 한다.
  */
 @HiltViewModel
@@ -59,19 +112,14 @@ class BattleResultViewModel @Inject constructor(
         job?.cancel()
         _state.update { it.copy(loading = true, battleId = battleId, error = null) }
         job = viewModelScope.launch {
-            val history = async { battles.history(null) }
             when (val result = battles.result(battleId)) {
                 is Outcome.Success -> {
-                    val stats = history.await().getOrNull()
-                    _state.update {
-                        it.copy(loading = false, result = result.value, wins = stats?.wins, losses = stats?.losses)
-                    }
+                    _state.update { it.copy(loading = false, result = result.value) }
                     coordinator.acknowledgeFinished()
                 }
 
-                is Outcome.Failure -> {
-                    history.cancel()
-                    _state.update { it.copy(loading = false, error = BattleErrorText.of(result.error)) }
+                is Outcome.Failure -> _state.update {
+                    it.copy(loading = false, error = BattleErrorText.of(result.error))
                 }
             }
         }
@@ -82,19 +130,57 @@ data class BattleHistoryUiState(
     val loading: Boolean = true,
     val filterIndex: Int = 0,
     val history: BattleHistory? = null,
+    /** 다음 쪽을 읽는 중. */
+    val loadingMore: Boolean = false,
+    val message: String? = null,
     val error: String? = null
 )
 
-/** 함께 달린 기록(FR-101): 통계 + 종류별(전체·랜덤·나와의 싸움·유명인) 최신순 목록. 고스트는 랜덤으로 보인다(Q-02). */
+/**
+ * 함께 달린 기록(FR-101): 통계 + 종류별(전체·랜덤·나와의 싸움·유명인) 최신순 목록. 고스트는 랜덤으로 보인다(Q-02).
+ * 끝까지 내리면 다음 쪽(nextCursor)을 이어 받는다.
+ */
 @HiltViewModel
 class BattleHistoryViewModel @Inject constructor(private val battles: BattleRepository) : ViewModel() {
     private val _state = MutableStateFlow(BattleHistoryUiState())
     val state: StateFlow<BattleHistoryUiState> = _state.asStateFlow()
     private var job: Job? = null
+    private var moreJob: Job? = null
 
     init {
         load()
     }
+
+    /** 다음 쪽을 이어 받는다. 끝이거나 읽는 중이면 아무것도 하지 않는다. */
+    fun loadMore() {
+        val s = _state.value
+        val history = s.history ?: return
+        val cursor = history.nextCursor ?: return
+        if (s.loading || s.loadingMore) return
+        _state.update { it.copy(loadingMore = true) }
+        val filter = HISTORY_FILTERS[s.filterIndex].second
+        moreJob = viewModelScope.launch {
+            when (val more = battles.history(filter, cursor)) {
+                is Outcome.Success -> _state.update { st ->
+                    val current = st.history ?: more.value
+                    val known = current.entries.map { it.battleId }.toSet()
+                    st.copy(
+                        loadingMore = false,
+                        history = current.copy(
+                            entries = current.entries + more.value.entries.filterNot { it.battleId in known },
+                            nextCursor = more.value.nextCursor
+                        )
+                    )
+                }
+
+                is Outcome.Failure -> _state.update {
+                    it.copy(loadingMore = false, message = BattleErrorText.of(more.error))
+                }
+            }
+        }
+    }
+
+    fun onMessageShown() = _state.update { it.copy(message = null) }
 
     fun onFilter(index: Int) {
         if (index == _state.value.filterIndex || index !in HISTORY_FILTERS.indices) return
@@ -104,7 +190,8 @@ class BattleHistoryViewModel @Inject constructor(private val battles: BattleRepo
 
     fun load() {
         job?.cancel()
-        _state.update { it.copy(loading = true, error = null) }
+        moreJob?.cancel()
+        _state.update { it.copy(loading = true, loadingMore = false, error = null) }
         job = viewModelScope.launch {
             when (val result = battles.history(HISTORY_FILTERS[_state.value.filterIndex].second)) {
                 is Outcome.Success -> _state.update { it.copy(loading = false, history = result.value) }

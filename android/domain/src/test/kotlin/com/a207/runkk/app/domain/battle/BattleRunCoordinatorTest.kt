@@ -89,7 +89,9 @@ private class FakeBattleRepository(private val log: CallLog) : BattleRepository 
 
     override suspend fun result(battleId: Long): Outcome<BattleResult> = error("unused")
 
-    override suspend fun history(filter: BattleHistory.Type?): Outcome<BattleHistory> = error("unused")
+    override suspend fun history(filter: BattleHistory.Type?, cursor: Long?): Outcome<BattleHistory> = error("unused")
+
+    override suspend fun matchStatus(): Outcome<MatchAcceptance> = error("unused")
 }
 
 /** BattleRunCoordinator(6.1.14): 기록 대결 시작 보고, TrackTable → OpponentTrack, 범위 닫힘. */

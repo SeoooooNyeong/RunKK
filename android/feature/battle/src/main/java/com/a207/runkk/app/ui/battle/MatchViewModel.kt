@@ -2,6 +2,7 @@ package com.a207.runkk.app.ui.battle
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.navigation.Routes
@@ -10,6 +11,7 @@ import com.a207.runkk.app.domain.battle.BattleRunCoordinator
 import com.a207.runkk.app.domain.battle.BattleRunState
 import com.a207.runkk.app.domain.live.LiveChannel
 import com.a207.runkk.app.domain.live.LiveChannelProvider
+import com.a207.runkk.app.domain.live.MatchFailed
 import com.a207.runkk.app.domain.live.MatchFound
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Clock
@@ -25,7 +27,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
@@ -49,7 +50,7 @@ data class MatchUiState(
         /** 랜덤 대결 거리(FR-080). */
         val DISTANCES: List<Distance> = listOf(Distance(1_000), Distance(3_000), Distance(5_000), Distance(10_000))
 
-        /** 기본 대결 거리(FR-109 기본값). 저장된 기본 거리는 ui.battle이 읽을 포트가 없어 쓰지 않는다. */
+        /** 기본 대결 거리(FR-109 기본값). 서버의 기본 대결 거리(GET /battles/match)를 읽기 전·읽지 못했을 때 쓴다. */
         val DEFAULT_DISTANCE: Distance = Distance(5_000)
     }
 }
@@ -66,6 +67,8 @@ sealed interface MatchEvent {
  * 랜덤 매칭 대기·성사(FR-080~FR-087, FR-095). requestMatch로 대기열에 들어가고 실시간 채널에서 MatchFound를 받으면
  * BattleRunCoordinator.onMatched로 넘긴다(채널은 LiveChannelProvider가 같은 연결을 돌려준다, D-57). 이후 시작 예약·측정 시작은
  * 조정자 상태(Matched → Countdown → Running)를 따라 보인다. 15초 뒤 고스트 전환은 서버가 하고 화면은 같은 흐름이다(Q-02).
+ * 들어오면 GET /battles/match로 기본 대결 거리(FR-109)를 거리 고르기 기본값으로 두고, 이미 대기 중이면 대기 화면을 잇는다.
+ * 서버가 대결을 만들지 못해 MatchFailed를 보내면(이미 대기열에서 빠진 상태) 취소를 보내지 않고 거리 고르기로 돌아가 안내한다.
  */
 @HiltViewModel
 class MatchViewModel @Inject constructor(
@@ -146,10 +149,12 @@ class MatchViewModel @Inject constructor(
         _state.update { it.copy(phase = MatchPhase.WAITING, waitingSeconds = 0) }
         val opened = channels.open().also { channel = it }
         waitJob = viewModelScope.launch {
-            val match = try {
+            val outcome = try {
                 coroutineScope {
                     launch { if (opened.connect() is Outcome.Failure) throw ChannelConnectFailed() }
-                    opened.messages.filterIsInstance<MatchFound>().first().also { coroutineContext.cancelChildren() }
+                    opened.messages.first {
+                        it is MatchFound || it is MatchFailed
+                    }.also { coroutineContext.cancelChildren() }
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -160,7 +165,11 @@ class MatchViewModel @Inject constructor(
                 failWaiting()
                 return@launch
             }
-            onMatched(match)
+            when (outcome) {
+                is MatchFound -> onMatched(outcome)
+                is MatchFailed -> onMatchFailed(outcome)
+                else -> Unit
+            }
         }
         tickJob = viewModelScope.launch {
             while (isActive) {
@@ -184,6 +193,20 @@ class MatchViewModel @Inject constructor(
         channel = null
         battles.cancel()
         _state.update { MatchUiState(distance = it.distance, error = "상대를 찾는 연결이 끊겼어요. 다시 시도해 주세요") }
+    }
+
+    /**
+     * 매칭 실패(MatchFailed): 서버가 이미 대기열에서 뺐으므로 취소를 보내지 않고 채널을 닫은 뒤 거리 고르기로 돌아가 안내한다.
+     * 사유 코드를 아는 문구가 있으면 그 문구, 모르면 서버 문구를 보인다.
+     */
+    private fun onMatchFailed(failed: MatchFailed) {
+        tickJob?.cancel()
+        channel?.close()
+        channel = null
+        val text = BattleErrorText.REJECTED[failed.code]
+            ?: failed.message.takeIf { it.isNotBlank() }
+            ?: BattleErrorText.of(AppError.Rejected(failed.code))
+        _state.update { MatchUiState(distance = it.distance, error = text) }
     }
 
     /** 성사: 채널은 이제 조정자가 갖는다(대기용 연결 코루틴은 닫는다). */
@@ -270,6 +293,46 @@ class MatchViewModel @Inject constructor(
         channel?.close()
         channel = null
         _state.update { MatchUiState(distance = it.distance) }
+    }
+
+    /** 기본 대결 거리를 읽었는가(quick 요청의 조건). */
+    private var statusLoaded = false
+
+    // 다른 속성이 모두 초기화된 뒤에 시작한다(즉시 실행 디스패처에서도 대기 화면을 이을 수 있게).
+    private val statusJob: Job = viewModelScope.launch { statusLoaded = loadStatus() }
+    private var quickStarted = false
+
+    /**
+     * 기본 대결 거리와 대기 여부(GET /battles/match, FR-109). 기본 거리를 거리 고르기 기본값으로 두고, 이미 대기열에 있으면
+     * (앱을 다시 연 경우) 대기 화면을 잇는다. 읽지 못하면 5km로 둔다.
+     */
+    private suspend fun loadStatus(): Boolean {
+        val status = battles.matchStatus()
+        if (status !is Outcome.Success) return false
+        val s = status.value
+        if (_state.value.phase != MatchPhase.CHOOSING) return true
+        val preferred = (if (s.waiting) s.distance else s.defaultDistance)?.takeIf { it in MatchUiState.DISTANCES }
+        if (preferred != null) _state.update { it.copy(distance = preferred) }
+        if (s.waiting) startWaiting()
+        return true
+    }
+
+    /**
+     * 홈의 배틀런 시작(FR-080): 기본 대결 거리를 읽은 뒤 그 거리로 바로 요청한다. 읽지 못하면 요청하지 않고 거리 고르기에 남아
+     * 고르게 한다(서버의 기본 거리를 모르는 채 다른 거리로 바꾸지 않게).
+     */
+    fun startQuick() {
+        if (quickStarted) return
+        quickStarted = true
+        viewModelScope.launch {
+            statusJob.join()
+            if (_state.value.phase != MatchPhase.CHOOSING) return@launch
+            if (statusLoaded) {
+                onStartMatching()
+            } else {
+                _state.update { it.copy(error = "기본 대결 거리를 불러오지 못했어요. 거리를 골라 시작해 주세요") }
+            }
+        }
     }
 
     override fun onCleared() {

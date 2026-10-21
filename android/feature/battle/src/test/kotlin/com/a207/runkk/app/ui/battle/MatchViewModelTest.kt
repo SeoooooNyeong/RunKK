@@ -13,6 +13,7 @@ import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.battle.BattleRunState
 import com.a207.runkk.app.domain.battle.MatchAcceptance
 import com.a207.runkk.app.domain.live.BattleStart
+import com.a207.runkk.app.domain.live.MatchFailed
 import com.a207.runkk.app.ui.battle.BattleWorld.Companion.world
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -198,6 +199,90 @@ class MatchViewModelTest {
         assertEquals(MatchPhase.CHOOSING, vm.state.value.phase)
         assertEquals("상대를 찾는 연결이 끊겼어요. 다시 시도해 주세요", vm.state.value.error)
         assertTrue("cancel" in w.battles.calls)
+    }
+
+    @Test
+    fun `거리 고르기 기본값은 서버의 기본 대결 거리다(FR-109)`() = main.runVmTest { vms ->
+        val w = world()
+        w.battles.status = Outcome.Success(MatchAcceptance(false, null, defaultDistance = Distance(10_000)))
+        val vm = vms.vm(w)
+        runCurrent()
+        assertEquals(1, w.battles.statusCalls)
+        assertEquals(Distance(10_000), vm.state.value.distance)
+        assertEquals(MatchPhase.CHOOSING, vm.state.value.phase)
+    }
+
+    @Test
+    fun `기본 대결 거리를 읽지 못하면 5km로 두고 고를 수 있다`() = main.runVmTest { vms ->
+        val w = world()
+        w.battles.status = rejected("QUEUE_UNAVAILABLE")
+        val vm = vms.vm(w)
+        runCurrent()
+        assertEquals(MatchUiState.DEFAULT_DISTANCE, vm.state.value.distance)
+        assertEquals(MatchPhase.CHOOSING, vm.state.value.phase)
+    }
+
+    @Test
+    fun `이미 대기열에 있으면 대기 화면을 잇는다`() = main.runVmTest { vms ->
+        val w = world()
+        w.battles.status = Outcome.Success(MatchAcceptance(true, Distance(3_000), Distance(3_000)))
+        val vm = vms.vm(w)
+        runCurrent()
+        assertEquals(MatchPhase.WAITING, vm.state.value.phase)
+        assertEquals(Distance(3_000), vm.state.value.distance)
+        assertEquals(emptyList(), w.battles.calls, "이미 대기 중이면 다시 요청하지 않는다")
+    }
+
+    @Test
+    fun `홈 배틀런은 기본 대결 거리로 바로 매칭을 요청한다(FR-080)`() = main.runVmTest { vms ->
+        val w = world()
+        w.battles.status = Outcome.Success(MatchAcceptance(false, null, defaultDistance = Distance(3_000)))
+        val vm = vms.vm(w)
+        vm.startQuick()
+        vm.startQuick()
+        runCurrent()
+        assertEquals(listOf("match:3000"), w.battles.calls)
+        assertEquals(MatchPhase.WAITING, vm.state.value.phase)
+    }
+
+    @Test
+    fun `홈 배틀런인데 기본 거리를 읽지 못하면 요청하지 않고 고르게 한다`() = main.runVmTest { vms ->
+        val w = world()
+        w.battles.status = Outcome.Failure(AppError.Network)
+        val vm = vms.vm(w)
+        vm.startQuick()
+        runCurrent()
+        assertEquals(emptyList(), w.battles.calls)
+        assertEquals(MatchPhase.CHOOSING, vm.state.value.phase)
+        assertEquals("기본 대결 거리를 불러오지 못했어요. 거리를 골라 시작해 주세요", vm.state.value.error)
+    }
+
+    @Test
+    fun `매칭 실패(MatchFailed)를 받으면 취소를 보내지 않고 채널을 닫은 뒤 거리 고르기로 돌아가 안내한다`() = main.runVmTest { vms ->
+        val w = world()
+        val vm = vms.vm(w)
+        vm.onStartMatching()
+        runCurrent()
+        assertEquals(MatchPhase.WAITING, vm.state.value.phase)
+        w.channels.channel.push(MatchFailed("MATCH_FAILED", "대결을 만들지 못했어요. 다시 시도해 주세요"))
+        runCurrent()
+        assertEquals(MatchPhase.CHOOSING, vm.state.value.phase)
+        assertEquals("대결을 만들지 못했어요. 다시 시도해 주세요", vm.state.value.error)
+        assertEquals(1, w.channels.channel.closed)
+        assertTrue("cancel" !in w.battles.calls, "서버가 이미 대기열에서 뺐다")
+        advanceTimeBy(5_000)
+        assertEquals(0, vm.state.value.waitingSeconds, "대기 시간을 더 세지 않는다")
+    }
+
+    @Test
+    fun `모르는 사유의 매칭 실패는 서버 문구를 보인다`() = main.runVmTest { vms ->
+        val w = world()
+        val vm = vms.vm(w)
+        vm.onStartMatching()
+        runCurrent()
+        w.channels.channel.push(MatchFailed("SOMETHING_NEW", "잠시 뒤 다시 시도해 주세요"))
+        runCurrent()
+        assertEquals("잠시 뒤 다시 시도해 주세요", vm.state.value.error)
     }
 
     @Test

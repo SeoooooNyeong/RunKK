@@ -9,6 +9,7 @@ import com.a207.runkk.app.domain.live.CrewRunCancelled
 import com.a207.runkk.app.domain.live.CrewRunEnded
 import com.a207.runkk.app.domain.live.CrewRunRelay
 import com.a207.runkk.app.domain.live.CrewRunStart
+import com.a207.runkk.app.domain.live.MatchFailed
 import com.a207.runkk.app.domain.live.MatchFound
 import com.a207.runkk.app.domain.live.OpponentProgress
 import com.a207.runkk.app.domain.live.ProgressReport
@@ -41,7 +42,7 @@ class RealtimeContractTest {
     private val decoder = ServerMessageDecoder()
 
     @Test
-    fun `서버 메시지 표본 10종을 해독한다`() {
+    fun `서버 메시지 표본 11종을 해독한다`() {
         val expected: Map<String, ServerMessage> =
             mapOf(
                 "MatchFound" to
@@ -92,14 +93,15 @@ class RealtimeContractTest {
                             CrewRunRelay.Entry("한강토끼", Distance(1_500), null, CrewRunRelay.Connection.QUIT, 13)
                         )
                     ),
-                "CrewRunEnded" to CrewRunEnded(77)
+                "CrewRunEnded" to CrewRunEnded(77),
+                "MatchFailed" to MatchFailed("MATCH_FAILED", "대결을 만들지 못했어요. 다시 시도해 주세요")
             )
 
         expected.forEach { (sample, message) ->
             assertEquals(message, decoder.decode(read("$sample.json")), "표본 $sample")
         }
         val types = expected.values.map { it::class.simpleName }.toSet()
-        assertEquals(10, types.size, "서버 → 앱 메시지 10종을 모두 덮는다")
+        assertEquals(11, types.size, "서버 → 앱 메시지 11종을 모두 덮는다")
     }
 
     @Test
@@ -200,6 +202,7 @@ class RealtimeContractTest {
                 "CrewRunCancelled.json",
                 "CrewRunRelay.json",
                 "CrewRunEnded.json",
+                "MatchFailed.json",
                 "inbound-progress.json"
             )
     }

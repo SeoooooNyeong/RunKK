@@ -17,7 +17,7 @@ import java.time.Duration
 // DTO → 도메인 매퍼(13.2 toDomain). 앱이 모르는 대결 종류의 이력 줄은 건너뛴다.
 
 internal fun MatchAcceptanceResponse.toDomain(): MatchAcceptance =
-    MatchAcceptance(waiting, distanceMeters?.let(::Distance))
+    MatchAcceptance(waiting, distanceMeters?.let(::Distance), defaultDistanceMeters?.let(::Distance))
 
 internal fun CandidatesResponse.toDomain(): RecordBattleCandidates = RecordBattleCandidates(
     candidates.map {
@@ -48,7 +48,12 @@ internal fun BattleResultResponse.toDomain(): BattleResult = BattleResult(
     verdict = verdict,
     rows = rows.map { BattleResult.Row(it.item, it.mine, it.theirs) },
     rewardPoints = rewardPoints,
-    newRecord = newRecord
+    newRecord = newRecord,
+    opponentName = opponentName,
+    recordId = recordId?.takeIf { it.isNotBlank() },
+    myReach = myReachSeconds?.let(Duration::ofSeconds),
+    opponentReach = opponentReachSeconds?.let(Duration::ofSeconds),
+    weekly = weekly?.let { BattleResult.Weekly(it.wins, it.losses, it.draws) }
 )
 
 internal fun BattleHistoryResponse.toDomain(): BattleHistory = BattleHistory(
@@ -61,12 +66,16 @@ internal fun BattleHistoryResponse.toDomain(): BattleHistory = BattleHistory(
                     opponentName = entry.opponentName,
                     distance = Distance(entry.distanceMeters),
                     verdict = entry.verdict,
-                    playedAt = ServerTime.parse(entry.playedAt)
+                    playedAt = ServerTime.parse(entry.playedAt),
+                    gap = entry.gapSeconds?.let(Duration::ofSeconds),
+                    sourceLabel = entry.sourceLabel,
+                    newRecord = entry.newRecord
                 )
             }
         },
     total = total,
     wins = wins,
     losses = losses,
-    selfNewRecords = selfNewRecords
+    selfNewRecords = selfNewRecords,
+    nextCursor = nextCursor
 )

@@ -60,11 +60,15 @@ import com.a207.runkk.app.domain.live.MatchFound
 import java.time.Duration
 import java.util.Locale
 
-/** 랜덤 매칭: 거리 고르기 → 대기(취소) → 성사(VS·양쪽 최고 기록·자동 출발). 측정이 시작되면 대결 진행으로 바뀐다. */
+/**
+ * 랜덤 매칭: 거리 고르기 → 대기(취소) → 성사(VS·양쪽 최고 기록·자동 출발). 측정이 시작되면 대결 진행으로 바뀐다.
+ * [quick]이면(홈의 배틀런 시작) 기본 대결 거리로 바로 요청한다(FR-080).
+ */
 @Composable
-fun MatchRoute(viewModel: MatchViewModel = hiltViewModel()) {
+fun MatchRoute(quick: Boolean = false, viewModel: MatchViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val navigator = LocalRunkkNavigator.current
+    LaunchedEffect(viewModel, quick) { if (quick) viewModel.startQuick() }
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             when (event) {

@@ -15,6 +15,7 @@ import com.a207.runkk.app.domain.live.CrewRunRelay
 import com.a207.runkk.app.domain.live.CrewRunStart
 import com.a207.runkk.app.domain.live.LiveChannel
 import com.a207.runkk.app.domain.live.LiveChannelProvider
+import com.a207.runkk.app.domain.live.MatchFailed
 import com.a207.runkk.app.domain.live.MatchFound
 import com.a207.runkk.app.domain.live.OpponentProgress
 import com.a207.runkk.app.domain.live.ProgressReport
@@ -193,7 +194,7 @@ constructor(
             is CrewRunEnded -> if (m.postId == run.postId) finish(run, cancelledReason = null)
 
             // 대결 메시지는 이 조정자와 무관하다. 메시지 종류가 늘면 컴파일러가 여기를 알린다(S-10).
-            is MatchFound, is BattleStart, is OpponentProgress -> Unit
+            is MatchFound, is MatchFailed, is BattleStart, is OpponentProgress -> Unit
 
             is BattleGuidance, is CountdownStarted, is BattleEnded -> Unit
         }

@@ -65,7 +65,7 @@ class HomeScreenTest {
     fun `배틀런 탭에서는 랜덤 대결로 간다`() {
         show(HomeUiState(loading = false, mode = HomeRunMode.BATTLE))
         compose.onNodeWithText("배틀런 시작").performScrollTo().performClick()
-        assertEquals(listOf(Routes.BATTLE_RANDOM), routes)
+        assertEquals(listOf(Routes.BATTLE_QUICK_MATCH), routes, "홈 배틀런은 기본 대결 거리로 바로 매칭한다(FR-080)")
     }
 
     @Test

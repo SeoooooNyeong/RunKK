@@ -53,8 +53,11 @@ object Routes {
 
     // 대결(ui.battle), 크루(ui.crew), Runimal(ui.runimal), 아바타(ui.avatar): 화면은 A3b 단계가 등록한다.
 
-    /** 배틀런(랜덤 대결) 거리 고르기·매칭 대기. */
+    /** 배틀런(랜덤 대결) 거리 고르기·매칭 대기. 거리 기본값은 기본 대결 거리(GET /battles/match)다. */
     const val BATTLE_RANDOM = "battle/random"
+
+    /** 홈의 배틀런 시작: 기본 대결 거리로 바로 매칭을 요청한다(FR-080 "홈의 배틀런 버튼은 기본대결거리로 바로 요청"). */
+    const val BATTLE_QUICK_MATCH = "battle/random/quick"
     const val BATTLE_HISTORY = "battle/history"
     const val RUNIMAL = "runimal"
     const val AVATAR = "avatar"

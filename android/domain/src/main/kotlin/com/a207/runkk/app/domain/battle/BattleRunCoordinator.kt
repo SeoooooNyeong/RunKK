@@ -15,6 +15,7 @@ import com.a207.runkk.app.domain.live.CrewRunRelay
 import com.a207.runkk.app.domain.live.CrewRunStart
 import com.a207.runkk.app.domain.live.LiveChannel
 import com.a207.runkk.app.domain.live.LiveChannelProvider
+import com.a207.runkk.app.domain.live.MatchFailed
 import com.a207.runkk.app.domain.live.MatchFound
 import com.a207.runkk.app.domain.live.OpponentProgress
 import com.a207.runkk.app.domain.live.ProgressReport
@@ -282,11 +283,19 @@ constructor(
     private fun handle(run: BattleRun, m: ServerMessage) {
         when (m) {
             is BattleStart -> run.round.scope.launch { start(run, m) }
+
             is OpponentProgress -> onOpponentProgress(run, m)
+
             is BattleGuidance -> onBattleGuidance(run, m)
+
             is CountdownStarted -> onCountdownStarted(run, m)
+
             is BattleEnded -> if (m.battleId == run.battleId) finish(run, m.status)
-            is MatchFound, is CrewRunStart, is CrewRunCancelled, is CrewRunRelay, is CrewRunEnded -> Unit
+
+            // 매칭 성사·실패는 매칭 화면이 받는다(성사 뒤에야 이 조정자가 맡는다).
+            is MatchFound, is MatchFailed -> Unit
+
+            is CrewRunStart, is CrewRunCancelled, is CrewRunRelay, is CrewRunEnded -> Unit
         }
     }
 

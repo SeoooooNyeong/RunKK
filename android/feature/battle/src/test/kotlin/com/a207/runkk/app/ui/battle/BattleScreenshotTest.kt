@@ -130,7 +130,7 @@ class BattleScreenshotTest {
 
     @Test
     fun resultWin() = compose.captureRunkkScreen("D4_battle_result_win") {
-        BattleResultScreen(BattleResultUiState(loading = false, result = battleResult(), wins = 7, losses = 5), {
+        BattleResultScreen(BattleResultUiState(loading = false, result = battleResult()), {
         }, {}, {}, {})
     }
 

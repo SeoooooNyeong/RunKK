@@ -301,7 +301,7 @@ private fun RunCard(state: HomeUiState, onModeSelected: (HomeRunMode) -> Unit, o
                 }
                 RunkkPrimaryButton(
                     text = "배틀런 시작",
-                    onClick = { onNavigate(Routes.BATTLE_RANDOM) },
+                    onClick = { onNavigate(Routes.BATTLE_QUICK_MATCH) },
                     size = RunkkButtonSize.Large,
                     trailingArrow = true,
                     modifier = Modifier.fillMaxWidth()

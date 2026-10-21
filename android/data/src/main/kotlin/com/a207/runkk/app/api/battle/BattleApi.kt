@@ -9,6 +9,9 @@ import retrofit2.http.Query
 
 /** 대결 REST(5.7.1 BattleController). 실시간 메시지는 data.live가 받는다. */
 internal interface BattleApi {
+    @GET("battles/match")
+    suspend fun matchStatus(): MatchAcceptanceResponse
+
     @POST("battles/match")
     suspend fun requestMatch(@Body body: MatchRequest): MatchAcceptanceResponse
 
@@ -37,5 +40,9 @@ internal interface BattleApi {
     suspend fun result(@Path("id") battleId: Long): BattleResultResponse
 
     @GET("battles/history")
-    suspend fun history(@Query("type") type: String?): BattleHistoryResponse
+    suspend fun history(
+        @Query("type") type: String?,
+        @Query("cursor") cursor: Long?,
+        @Query("size") size: Int
+    ): BattleHistoryResponse
 }

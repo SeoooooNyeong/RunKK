@@ -20,7 +20,7 @@ class BattleResultViewModelTest {
     val main = MainDispatcherRule()
 
     @Test
-    fun `결과 비교표·판정·리워드와 전적을 보인다(FR-093)`() = runTest(main.dispatcher) {
+    fun `결과 비교표·판정·리워드와 이번 주 전적을 보인다(FR-093)`() = runTest(main.dispatcher) {
         val w = world()
         val vm = BattleResultViewModel(w.battles, w.coordinator)
         vm.load(9)
@@ -29,9 +29,36 @@ class BattleResultViewModelTest {
         assertEquals(Verdict.WIN, s.verdict)
         assertEquals(4, s.result?.rows?.size)
         assertEquals(70, s.result?.rewardPoints)
-        assertEquals(7, s.wins)
-        assertEquals(5, s.losses)
-        assertTrue("result:9" in w.battles.calls && "history:null" in w.battles.calls)
+        assertEquals("3W 1L", s.weekly?.let(::weeklyLabel))
+        assertEquals(listOf("result:9"), w.battles.calls, "이번 주 전적은 결과 응답에 있어 이력을 따로 부르지 않는다")
+    }
+
+    @Test
+    fun `판정 문구는 상대 표시명과 도달 시간 차를 쓴다(시안 HiBattleResult)`() {
+        val won = battleResult()
+        assertEquals("바람처럼님보다 42초 먼저 도착했어요!", verdictMessage(Verdict.WIN, won))
+        assertEquals(
+            "바람처럼님이 1분 5초 먼저 도착했어요. 다음 대결에서 다시 만나요",
+            verdictMessage(
+                Verdict.LOSE,
+                won.copy(
+                    myReach = java.time.Duration.ofSeconds(1_757),
+                    opponentReach = java.time.Duration.ofSeconds(1_692)
+                )
+            )
+        )
+        assertEquals("바람처럼님과 1초 안에 함께 도착했어요. 무승부!", verdictMessage(Verdict.DRAW, won))
+        assertEquals("상대보다 먼저 도착했어요!", verdictMessage(Verdict.WIN, won.copy(opponentName = null)))
+        assertEquals("바람처럼님보다 먼저 도착했어요!", verdictMessage(Verdict.WIN, won.copy(myReach = null)))
+    }
+
+    @Test
+    fun `이력의 기록 차이는 빠름·느림으로, 이번 주 전적은 무승부가 있으면 더한다`() {
+        assertEquals("42초 빠름", gapLabel(java.time.Duration.ofSeconds(-42)))
+        assertEquals("1분 12초 느림", gapLabel(java.time.Duration.ofSeconds(72)))
+        assertEquals("같은 기록", gapLabel(java.time.Duration.ZERO))
+        assertEquals("3W 1L 1D", weeklyLabel(com.a207.runkk.app.domain.battle.BattleResult.Weekly(3, 1, 1)))
+        assertEquals("이번 주 3승 1패", weeklySpoken(com.a207.runkk.app.domain.battle.BattleResult.Weekly(3, 1, 0)))
     }
 
     @Test
@@ -74,6 +101,21 @@ class BattleResultViewModelTest {
         runCurrent()
         assertEquals(listOf("history:null", "history:SELF"), w.battles.calls)
         assertEquals("랜덤", typeLabel(BattleHistory.Type.GHOST))
+    }
+
+    @Test
+    fun `함께 달린 기록은 끝에 닿으면 다음 쪽을 이어 받고 끝이면 더 부르지 않는다`() = runTest(main.dispatcher) {
+        val w = world()
+        w.battles.historyResult = Outcome.Success(history(nextCursor = 7))
+        val vm = BattleHistoryViewModel(w.battles)
+        runCurrent()
+        vm.loadMore()
+        runCurrent()
+        assertEquals(listOf(9L, 8L, 7L, 4L), vm.state.value.history?.entries?.map { it.battleId })
+        assertNull(vm.state.value.history?.nextCursor)
+        vm.loadMore()
+        runCurrent()
+        assertEquals(1, w.battles.calls.count { it == "history:null:7" })
     }
 
     @Test

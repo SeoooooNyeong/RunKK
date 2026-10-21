@@ -10,6 +10,7 @@ import com.a207.runkk.app.domain.live.CrewRunCancelled
 import com.a207.runkk.app.domain.live.CrewRunEnded
 import com.a207.runkk.app.domain.live.CrewRunRelay
 import com.a207.runkk.app.domain.live.CrewRunStart
+import com.a207.runkk.app.domain.live.MatchFailed
 import com.a207.runkk.app.domain.live.MatchFound
 import com.a207.runkk.app.domain.live.OpponentProgress
 import com.a207.runkk.app.domain.live.ProgressReport
@@ -69,6 +70,12 @@ internal data class MatchFoundJson(
         opponentBest = opponentBest?.let(Duration::ofSeconds),
         animationSeconds = animationSeconds
     )
+}
+
+/** 매칭 실패(서버 battle.live.MatchFailed). 문구가 비어 있으면 사유 코드 문구를 앱이 고른다. */
+@Serializable
+internal data class MatchFailedJson(val code: String, val message: String = "") {
+    fun toDomain(): MatchFailed = MatchFailed(code, message)
 }
 
 /** opponentTrack은 [{elapsedSeconds, distanceMeters}] 배열(기록 상대가 아니면 null). {"points": [...]} 모양도 받아들인다. */

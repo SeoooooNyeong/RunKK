@@ -107,6 +107,16 @@ class FakeBattleRepository : BattleRepository {
     var resultResult: Outcome<BattleResult> = Outcome.Success(battleResult())
     var historyResult: Outcome<BattleHistory> = Outcome.Success(history())
 
+    /** GET /battles/match 응답(기본 대결 거리 5km, 대기 아님). [calls]와 따로 센다. */
+    var status: Outcome<MatchAcceptance> =
+        Outcome.Success(MatchAcceptance(waiting = false, distance = null, defaultDistance = Distance(5_000)))
+    var statusCalls = 0
+
+    override suspend fun matchStatus(): Outcome<MatchAcceptance> {
+        statusCalls++
+        return status
+    }
+
     override suspend fun requestMatch(distance: Distance): Outcome<MatchAcceptance> {
         calls += "match:${distance.meters}"
         return match
@@ -156,7 +166,32 @@ class FakeBattleRepository : BattleRepository {
         return resultResult
     }
 
-    override suspend fun history(filter: BattleHistory.Type?): Outcome<BattleHistory> {
+    /** 다음 쪽(커서가 있을 때)의 이력. */
+    var historyMore: Outcome<BattleHistory> = Outcome.Success(
+        BattleHistory(
+            entries = listOf(
+                BattleHistory.Entry(
+                    4,
+                    BattleHistory.Type.RANDOM,
+                    "달빛",
+                    Distance(3_000),
+                    "LOSE",
+                    start.minusSeconds(400_000)
+                )
+            ),
+            total = 12,
+            wins = 7,
+            losses = 5,
+            selfNewRecords = 2,
+            nextCursor = null
+        )
+    )
+
+    override suspend fun history(filter: BattleHistory.Type?, cursor: Long?): Outcome<BattleHistory> {
+        if (cursor != null) {
+            calls += "history:${filter?.name}:$cursor"
+            return historyMore
+        }
         calls += "history:${filter?.name}"
         return historyResult
     }
@@ -340,7 +375,7 @@ fun matchFound(battleId: Long = 9) = MatchFound(
     animationSeconds = 3
 )
 
-fun battleResult(pending: Boolean = false, verdict: String? = "WIN") = BattleResult(
+fun battleResult(pending: Boolean = false, verdict: String? = "WIN", recordId: String? = "rec-9") = BattleResult(
     battleId = 9,
     pending = pending,
     verdict = verdict,
@@ -351,19 +386,49 @@ fun battleResult(pending: Boolean = false, verdict: String? = "WIN") = BattleRes
         BattleResult.Row("추월 횟수", "2회", "1회")
     ),
     rewardPoints = 70,
-    newRecord = false
+    newRecord = false,
+    opponentName = "바람처럼",
+    recordId = recordId,
+    myReach = java.time.Duration.ofSeconds(1_650),
+    opponentReach = java.time.Duration.ofSeconds(1_692),
+    weekly = BattleResult.Weekly(3, 1, 0)
 )
 
-fun history() = BattleHistory(
+fun history(nextCursor: Long? = null) = BattleHistory(
     entries = listOf(
-        BattleHistory.Entry(9, BattleHistory.Type.RANDOM, "바람처럼", Distance(5_000), "WIN", start),
-        BattleHistory.Entry(8, BattleHistory.Type.SELF, "과거의 나", Distance(3_000), "LOSE", start.minusSeconds(86_400)),
-        BattleHistory.Entry(7, BattleHistory.Type.CELEBRITY, "번개발", Distance(10_000), null, start.minusSeconds(172_800))
+        BattleHistory.Entry(
+            9,
+            BattleHistory.Type.RANDOM,
+            "바람처럼",
+            Distance(5_000),
+            "WIN",
+            start,
+            gap = java.time.Duration.ofSeconds(-42)
+        ),
+        BattleHistory.Entry(
+            8,
+            BattleHistory.Type.SELF,
+            "과거의 나",
+            Distance(3_000),
+            "LOSE",
+            start.minusSeconds(86_400),
+            gap = java.time.Duration.ofSeconds(12)
+        ),
+        BattleHistory.Entry(
+            7,
+            BattleHistory.Type.CELEBRITY,
+            "번개발",
+            Distance(10_000),
+            null,
+            start.minusSeconds(172_800),
+            sourceLabel = "공개 기록 기준 · 2025 서울마라톤"
+        )
     ),
     total = 12,
     wins = 7,
     losses = 5,
-    selfNewRecords = 2
+    selfNewRecords = 2,
+    nextCursor = nextCursor
 )
 
 fun rejected(code: String) = Outcome.Failure(AppError.Rejected(code))

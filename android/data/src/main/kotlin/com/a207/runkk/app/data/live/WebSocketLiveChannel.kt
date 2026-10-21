@@ -31,7 +31,8 @@ import okhttp3.WebSocketListener
  * WebSocket 실시간 채널(6.1.14 data.live, 5.7.2 경로 /ws). api.core의 인증된 OkHttp로 열어 접근 토큰이 핸드셰이크
  * Authorization 헤더에 실린다(design-review.md E1).
  *
- * connect()는 핸드셰이크 한 번이고 실패는 Failure(Network)다. 폴링 전환 판단(응답 코드)이 필요한
+ * 핸드셰이크가 401이면 OkHttp가 TokenAuthenticator로 접근 토큰을 갱신해 같은 핸드셰이크를 한 번 다시 보낸다(끊긴 뒤 다시 연결할 때도
+ * 같다). connect()는 핸드셰이크 한 번이고 실패는 Failure(Network), 갱신 뒤에도 401이면 Failure(Unauthorized)다. 폴링 전환 판단(응답 코드)이 필요한
  * FallbackLiveChannelProvider는 connectOrThrow로 HandshakeFailed(응답 코드)를 받는다. 연결된 뒤 끊기면 1·2·4초 뒤, 이후 5초 간격으로 close()까지 다시 연결한다(D-16, FR-091).
  * 끊긴 동안의 send는 버린다(진행값은 1초마다 새로 보내므로 다음 값이 앞 값을 대신한다).
  */
@@ -72,7 +73,7 @@ class WebSocketLiveChannel internal constructor(
         connectOrThrow()
         Outcome.Success(Unit)
     } catch (e: HandshakeFailed) {
-        Outcome.Failure(AppError.Network)
+        Outcome.Failure(if (e.code == UNAUTHORIZED) AppError.Unauthorized else AppError.Network)
     }
 
     /** 핸드셰이크 한 번. 실패하면 HandshakeFailed(응답 코드). 이미 연결됐거나 닫혔으면 아무것도 하지 않는다. */
@@ -186,6 +187,7 @@ class WebSocketLiveChannel internal constructor(
 
     private companion object {
         const val NORMAL_CLOSURE = 1000
+        const val UNAUTHORIZED = 401
         const val BUFFER = 64
         const val PING_INTERVAL_SECONDS = 10L
 

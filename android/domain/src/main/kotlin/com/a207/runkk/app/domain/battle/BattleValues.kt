@@ -71,8 +71,11 @@ data class MyProgress(
     }
 }
 
-/** 매칭 요청·취소 결과(서버 battle.MatchAcceptance). 거부는 AppError.Rejected(사유 코드)로 온다. */
-data class MatchAcceptance(val waiting: Boolean, val distance: Distance?)
+/**
+ * 매칭 요청·취소·조회 결과(서버 battle.MatchAcceptance). [defaultDistance]는 기본 대결 거리(마지막으로 요청한 거리, 처음이면 5km,
+ * FR-109)다. 거부는 AppError.Rejected(사유 코드)로 온다.
+ */
+data class MatchAcceptance(val waiting: Boolean, val distance: Distance?, val defaultDistance: Distance? = null)
 
 /** 나와의 싸움·유명인 대결 후보(서버 battle.RecordBattleCandidates, FR-096·FR-097·FR-100). */
 data class RecordBattleCandidates(val candidates: List<Candidate>) {
@@ -88,25 +91,37 @@ data class RecordBattleCandidates(val candidates: List<Candidate>) {
     )
 }
 
-/** 대결 결과(서버 battle.BattleResultView + 적립 리워드, FR-093·FR-108). */
+/**
+ * 대결 결과(서버 battle.BattleResultView + 적립 리워드, FR-093·FR-108). [opponentName]은 상대 표시명, [recordId]는 이 대결의
+ * 본인 러닝 기록 ID(기록 카드, 아직 없으면 null), [myReach]·[opponentReach]는 도달 시간, [weekly]는 이번 주 전적이다.
+ */
 data class BattleResult(
     val battleId: Long,
     val pending: Boolean,
     val verdict: String?,
     val rows: List<Row>,
     val rewardPoints: Int?,
-    val newRecord: Boolean
+    val newRecord: Boolean,
+    val opponentName: String? = null,
+    val recordId: String? = null,
+    val myReach: Duration? = null,
+    val opponentReach: Duration? = null,
+    val weekly: Weekly? = null
 ) {
     data class Row(val item: String, val mine: String, val theirs: String)
+
+    /** 이번 주 전적(서버 battle.WeeklyRecord). */
+    data class Weekly(val wins: Int, val losses: Int, val draws: Int)
 }
 
-/** 대결 이력(서버 battle.BattleHistoryView, FR-101). */
+/** 대결 이력(서버 battle.BattleHistoryView, FR-101). [nextCursor]가 null이면 마지막 쪽이다. */
 data class BattleHistory(
     val entries: List<Entry>,
     val total: Int,
     val wins: Int,
     val losses: Int,
-    val selfNewRecords: Int
+    val selfNewRecords: Int,
+    val nextCursor: Long? = null
 ) {
     enum class Type {
         RANDOM,
@@ -115,12 +130,19 @@ data class BattleHistory(
         CELEBRITY
     }
 
+    /**
+     * [gap]은 기록 차이(본인 − 상대, 음수면 본인이 빨랐다, 없으면 null), [sourceLabel]은 유명인 기록 출처 표기,
+     * [newRecord]는 나와의 싸움 신기록이다.
+     */
     data class Entry(
         val battleId: Long,
         val type: Type,
         val opponentName: String,
         val distance: Distance,
         val verdict: String?,
-        val playedAt: Instant
+        val playedAt: Instant,
+        val gap: Duration? = null,
+        val sourceLabel: String? = null,
+        val newRecord: Boolean = false
     )
 }

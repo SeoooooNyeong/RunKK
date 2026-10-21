@@ -187,7 +187,7 @@ class BattleScreensTest {
                 }
             }
         }
-        compose.onNodeWithText("${history().entries.size}건")
+        compose.onNodeWithText("${history().total}건")
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
         compose.onNodeWithText("기록 ${celebCandidates.map(CandidateUi::of).size}개")
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
@@ -198,7 +198,7 @@ class BattleScreensTest {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 BattleResultScreen(
-                    BattleResultUiState(loading = false, result = battleResult(), wins = 7, losses = 5),
+                    BattleResultUiState(loading = false, result = battleResult()),
                     onHistory = { calls += "history" },
                     onCard = { calls += "card" },
                     onHome = { calls += "home" },
@@ -210,6 +210,24 @@ class BattleScreensTest {
         compose.onNodeWithText("기록 카드").performClick()
         compose.onNodeWithText("홈으로").performClick()
         compose.onNodeWithContentDescription("기록, 나 27분 30초, 상대 28분 12초").assertExists()
+        compose.onNodeWithContentDescription("승. 바람처럼님보다 42초 먼저 도착했어요!").assertExists()
         assertEquals(listOf("history", "card", "home"), calls)
+    }
+
+    @Test
+    fun `대결 결과 - 본인 기록 ID가 아직 없으면 기록 목록 단추`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                BattleResultScreen(
+                    BattleResultUiState(loading = false, result = battleResult(recordId = null)),
+                    onHistory = {},
+                    onCard = { calls += "records" },
+                    onHome = {},
+                    onRetry = {}
+                )
+            }
+        }
+        compose.onNodeWithText("기록 목록").performClick()
+        assertEquals(listOf("records"), calls)
     }
 }

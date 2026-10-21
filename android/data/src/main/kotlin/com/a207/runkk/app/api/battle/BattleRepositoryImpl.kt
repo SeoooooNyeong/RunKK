@@ -15,6 +15,8 @@ import javax.inject.Inject
 internal class BattleRepositoryImpl
 @Inject
 constructor(private val api: BattleApi) : BattleRepository {
+    override suspend fun matchStatus(): Outcome<MatchAcceptance> = ApiErrorMapper.call { api.matchStatus().toDomain() }
+
     override suspend fun requestMatch(distance: Distance): Outcome<MatchAcceptance> =
         ApiErrorMapper.call { api.requestMatch(MatchRequest(distance.meters)).toDomain() }
 
@@ -40,6 +42,11 @@ constructor(private val api: BattleApi) : BattleRepository {
         api.result(battleId).toDomain()
     }
 
-    override suspend fun history(filter: BattleHistory.Type?): Outcome<BattleHistory> =
-        ApiErrorMapper.call { api.history(filter?.name).toDomain() }
+    override suspend fun history(filter: BattleHistory.Type?, cursor: Long?): Outcome<BattleHistory> =
+        ApiErrorMapper.call { api.history(filter?.name, cursor, HISTORY_PAGE_SIZE).toDomain() }
+
+    private companion object {
+        /** 대결 이력 한 쪽 크기(서버 PageCursor 1~100). */
+        const val HISTORY_PAGE_SIZE = 20
+    }
 }

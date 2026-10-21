@@ -1,7 +1,10 @@
 package com.a207.runkk.app.data.live
 
 import com.a207.runkk.app.api.core.ApiCoreBindings
+import com.a207.runkk.app.api.core.TokenProvider
 import com.a207.runkk.app.api.live.LiveApi
+import com.a207.runkk.app.core.model.AppError
+import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.live.CrewRunEnded
 import com.a207.runkk.app.domain.live.ProgressReport
 import com.a207.runkk.app.domain.live.ServerMessage
@@ -50,12 +53,33 @@ class FallbackLiveChannelProviderTest {
     private val socketMessages = LinkedBlockingQueue<String>()
 
     /** /ws 요청에 줄 응답. 기본은 업그레이드 성공. */
-    private var socketReply: () -> MockResponse = ::upgrade
+    private var socketReply: (RecordedRequest) -> MockResponse = { upgrade() }
+
+    /** POST /api/v1/auth/refresh 응답(인증 클라이언트 시험). */
+    private var refreshReply: () -> MockResponse = {
+        MockResponse.Builder().addHeader("Content-Type", "application/json")
+            .body("""{"accessToken":"fresh","refreshToken":"refresh-2"}""").build()
+    }
+    private val refreshes = AtomicInteger()
+
+    /** 참이면 앱과 같은 인증 클라이언트(AuthInterceptor + TokenAuthenticator)로 연다. */
+    private var authenticated = false
+    private val tokens = MemoryTokens("expired", "refresh-1")
 
     private val provider: FallbackLiveChannelProvider by lazy {
         server.dispatcher = routes()
         server.start()
-        val client = OkHttpClient()
+        val client =
+            if (authenticated) {
+                ApiCoreBindings.authenticatedClient(
+                    OkHttpClient(),
+                    tokens,
+                    server.url("/api/v1/auth/refresh"),
+                    ApiCoreBindings.json()
+                )
+            } else {
+                OkHttpClient()
+            }
         val json = ApiCoreBindings.json()
         val liveApi: LiveApi =
             Retrofit
@@ -104,6 +128,47 @@ class FallbackLiveChannelProviderTest {
     }
 
     @Test
+    fun `핸드셰이크가 401이면 접근 토큰을 갱신한 뒤 다시 연결한다`() = runBlocking {
+        authenticated = true
+        socketReply = { request ->
+            if (request.headers["Authorization"] ==
+                "Bearer fresh"
+            ) {
+                upgrade()
+            } else {
+                MockResponse.Builder().code(401).build()
+            }
+        }
+        val channel = provider.open()
+        val first = async(start = CoroutineStart.UNDISPATCHED) { channel.messages.first() }
+
+        val connected = withTimeout(TIMEOUT_MILLIS) { channel.connect() }
+
+        assertEquals(Outcome.Success(Unit), connected)
+        assertEquals(CrewRunEnded(9), withTimeout(TIMEOUT_MILLIS) { first.await() })
+        assertEquals(1, refreshes.get(), "갱신은 한 번")
+        assertEquals(2, socketAttempts.get(), "만료 토큰 1번 + 새 토큰 1번")
+        assertEquals("fresh", tokens.accessToken())
+        assertEquals(0, polls.get(), "인증 실패를 폴링 전환 사유로 보지 않는다")
+        channel.close()
+    }
+
+    @Test
+    fun `토큰을 갱신하지 못해 핸드셰이크가 401이면 폴링으로 바꾸지 않고 Unauthorized로 끝낸다`() = runBlocking {
+        authenticated = true
+        socketReply = { MockResponse.Builder().code(401).build() }
+        refreshReply = { MockResponse.Builder().code(401).build() }
+        val channel = provider.open()
+
+        val connected = withTimeout(TIMEOUT_MILLIS) { channel.connect() }
+
+        assertEquals(Outcome.Failure(AppError.Unauthorized), connected)
+        assertEquals(1, socketAttempts.get(), "인증 실패는 다시 시도하지 않는다")
+        assertEquals(0, polls.get())
+        channel.close()
+    }
+
+    @Test
     fun `닫기 전에는 같은 채널을 주고 connect를 여러 번 불러도 한 번만 연결한다`() = runBlocking {
         val channel = provider.open()
         assertSame(channel, provider.open())
@@ -138,7 +203,12 @@ class FallbackLiveChannelProviderTest {
         override fun dispatch(request: RecordedRequest): MockResponse = when (request.url.encodedPath) {
             "/ws" -> {
                 socketAttempts.incrementAndGet()
-                socketReply()
+                socketReply(request)
+            }
+
+            "/api/v1/auth/refresh" -> {
+                refreshes.incrementAndGet()
+                refreshReply()
             }
 
             "/api/v1/live/poll" -> {
@@ -172,6 +242,24 @@ class FallbackLiveChannelProviderTest {
                 }
             }
         ).build()
+
+    /** 메모리 토큰 저장소. */
+    private class MemoryTokens(private var access: String?, private var refresh: String?) : TokenProvider {
+        override fun accessToken(): String? = access
+
+        override fun refreshToken(): String? = refresh
+
+        override fun update(access: String, refresh: String) {
+            this.access = access
+            this.refresh = refresh
+        }
+
+        override suspend fun clear(): Outcome<Unit> {
+            access = null
+            refresh = null
+            return Outcome.Success(Unit)
+        }
+    }
 
     private companion object {
         const val TIMEOUT_MILLIS = 10_000L
