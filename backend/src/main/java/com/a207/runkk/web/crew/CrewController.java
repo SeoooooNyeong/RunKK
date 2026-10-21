@@ -78,6 +78,19 @@ public class CrewController {
                 crewQueryService.search(memberId, new CrewSearch(tags, keyword)));
     }
 
+    /** 본인 소속 크루와 대기 중인 본인 가입 신청(크루 탭 재진입). 설계 5.7.1에 없어 더한 조회다. */
+    @GetMapping("/crews/me")
+    CrewDtos.MyCrewResponse myCrew(@RequestAttribute(MEMBER_ID) long memberId) {
+        return CrewDtos.MyCrewResponse.of(crewQueryService.myCrew(memberId));
+    }
+
+    /** 크루 한 곳(크루 홈·정보 수정 화면). 비공개 크루는 크루원만. 설계 5.7.1에 없어 더한 조회다. */
+    @GetMapping("/crews/{id}")
+    CrewDtos.CrewDetailResponse detail(
+            @RequestAttribute(MEMBER_ID) long memberId, @PathVariable("id") long crewId) {
+        return CrewDtos.CrewDetailResponse.of(crewQueryService.detail(memberId, crewId));
+    }
+
     @GetMapping("/crews/recommendations")
     CrewDtos.RecommendationsResponse recommend(@RequestAttribute(MEMBER_ID) long memberId) {
         return CrewDtos.RecommendationsResponse.of(crewQueryService.recommend(memberId));
@@ -156,7 +169,8 @@ public class CrewController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
                     LocalDate weekStart) {
         return CrewDtos.RaceStatusResponse.of(
-                weeklyRaceService.status(memberId, crewId, Optional.ofNullable(weekStart)));
+                weeklyRaceService.status(memberId, crewId, Optional.ofNullable(weekStart)),
+                memberId);
     }
 
     /**

@@ -161,17 +161,20 @@ class RealtimeContractTest {
                                         bear,
                                         Distance.ofMeters(3_120),
                                         1,
-                                        RelayEntry.Connection.CONNECTED),
+                                        RelayEntry.Connection.CONNECTED,
+                                        11),
                                 new RelayEntry(
                                         fox,
                                         Distance.ofMeters(2_980),
                                         2,
-                                        RelayEntry.Connection.CHECKING),
+                                        RelayEntry.Connection.CHECKING,
+                                        12),
                                 new RelayEntry(
                                         rabbit,
                                         Distance.ofMeters(1_500),
                                         null,
-                                        RelayEntry.Connection.QUIT))),
+                                        RelayEntry.Connection.QUIT,
+                                        13))),
                 "CrewRunEnded",
                 new CrewRunEnded(77));
     }

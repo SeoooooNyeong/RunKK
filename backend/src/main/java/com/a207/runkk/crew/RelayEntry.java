@@ -11,8 +11,10 @@ import com.a207.runkk.common.Distance;
  * @param distance 누적 거리
  * @param rank 순위, 그만뒀으면 null
  * @param connection 연결 상태
+ * @param memberId 참가자 회원 ID(앱이 자기 줄을 가려 순위 안내·강조에 쓴다, FR-190). 표본 계약에 뒤늦게 더한 항목이라 끝에 둔다
  */
-public record RelayEntry(DisplayName name, Distance distance, Integer rank, Connection connection) {
+public record RelayEntry(
+        DisplayName name, Distance distance, Integer rank, Connection connection, long memberId) {
 
     /** 연결 상태(5.7.2). */
     public enum Connection {

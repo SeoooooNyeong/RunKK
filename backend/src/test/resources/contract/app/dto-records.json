@@ -485,6 +485,52 @@
     } ],
     "file" : "web/crew/CrewDtos.java"
   },
+  "CrewDtos.CrewDetailResponse" : {
+    "components" : [ {
+      "name" : "crewId",
+      "kind" : "leaf"
+    }, {
+      "name" : "name",
+      "kind" : "leaf"
+    }, {
+      "name" : "intro",
+      "kind" : "leaf"
+    }, {
+      "name" : "tags",
+      "kind" : "list-leaf"
+    }, {
+      "name" : "visibility",
+      "kind" : "leaf"
+    }, {
+      "name" : "joinPolicy",
+      "kind" : "leaf"
+    }, {
+      "name" : "logoUrl",
+      "kind" : "leaf"
+    }, {
+      "name" : "leaderId",
+      "kind" : "leaf"
+    }, {
+      "name" : "leaderName",
+      "kind" : "leaf"
+    }, {
+      "name" : "headcount",
+      "kind" : "leaf"
+    }, {
+      "name" : "weeklyDistanceMeters",
+      "kind" : "leaf"
+    }, {
+      "name" : "myRole",
+      "kind" : "leaf"
+    }, {
+      "name" : "inviteCode",
+      "kind" : "leaf"
+    }, {
+      "name" : "inviteCodeExpiresAt",
+      "kind" : "leaf"
+    } ],
+    "file" : "web/crew/CrewDtos.java"
+  },
   "CrewDtos.CrewFormRequest" : {
     "components" : [ {
       "name" : "name",
@@ -602,6 +648,12 @@
     }, {
       "name" : "quit",
       "kind" : "leaf"
+    }, {
+      "name" : "memberId",
+      "kind" : "leaf"
+    }, {
+      "name" : "me",
+      "kind" : "leaf"
     } ],
     "file" : "web/crew/CrewDtos.java"
   },
@@ -694,6 +746,37 @@
       "kind" : "leaf"
     }, {
       "name" : "ready",
+      "kind" : "leaf"
+    }, {
+      "name" : "me",
+      "kind" : "leaf"
+    } ],
+    "file" : "web/crew/CrewDtos.java"
+  },
+  "CrewDtos.MyCrewResponse" : {
+    "components" : [ {
+      "name" : "crew",
+      "kind" : "record",
+      "ref" : "CrewDtos.CrewDetailResponse"
+    }, {
+      "name" : "pendingRequests",
+      "kind" : "list",
+      "ref" : "CrewDtos.MyCrewResponse.PendingJoin"
+    } ],
+    "file" : "web/crew/CrewDtos.java"
+  },
+  "CrewDtos.MyCrewResponse.PendingJoin" : {
+    "components" : [ {
+      "name" : "requestId",
+      "kind" : "leaf"
+    }, {
+      "name" : "crewId",
+      "kind" : "leaf"
+    }, {
+      "name" : "crewName",
+      "kind" : "leaf"
+    }, {
+      "name" : "requestedAt",
       "kind" : "leaf"
     } ],
     "file" : "web/crew/CrewDtos.java"
@@ -818,6 +901,12 @@
     }, {
       "name" : "share",
       "kind" : "leaf"
+    }, {
+      "name" : "memberId",
+      "kind" : "leaf"
+    }, {
+      "name" : "me",
+      "kind" : "leaf"
     } ],
     "file" : "web/crew/CrewDtos.java"
   },
@@ -891,6 +980,9 @@
       "kind" : "leaf"
     }, {
       "name" : "runimalType",
+      "kind" : "leaf"
+    }, {
+      "name" : "me",
       "kind" : "leaf"
     } ],
     "file" : "web/crew/CrewMembersAssembler.java"

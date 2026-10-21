@@ -12,6 +12,7 @@ import com.a207.runkk.crew.CrewVisibility;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.TypedQuery;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -124,6 +125,22 @@ public class JpaCrewRepository implements CrewRepository {
                                         Distance.ofMeters(weekly.getOrDefault(c.getId(), 0L)),
                                         c.createdAt()))
                 .toList();
+    }
+
+    @Override
+    public Distance weeklyDistance(long crewId, Week week) {
+        return Distance.ofMeters(weeklyTotals(List.of(crewId), week).getOrDefault(crewId, 0L));
+    }
+
+    @Override
+    public List<Crew> findAllById(Collection<Long> ids) {
+        if (ids.isEmpty()) {
+            return List.of();
+        }
+        return entityManager
+                .createQuery("select c from Crew c where c.id in :ids", Crew.class)
+                .setParameter("ids", ids)
+                .getResultList();
     }
 
     private Map<Long, Long> weeklyTotals(List<Long> crewIds, Week week) {

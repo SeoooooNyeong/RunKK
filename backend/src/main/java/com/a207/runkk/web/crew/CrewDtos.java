@@ -9,6 +9,7 @@ import com.a207.runkk.common.StandardDistance;
 import com.a207.runkk.common.TagOwner;
 import com.a207.runkk.common.TagSet;
 import com.a207.runkk.crew.CrewCreateCommand;
+import com.a207.runkk.crew.CrewDetailView;
 import com.a207.runkk.crew.CrewInfoChange;
 import com.a207.runkk.crew.CrewListView;
 import com.a207.runkk.crew.CrewName;
@@ -18,6 +19,7 @@ import com.a207.runkk.crew.CrewRunResultView;
 import com.a207.runkk.crew.CrewVisibility;
 import com.a207.runkk.crew.JoinPolicy;
 import com.a207.runkk.crew.LobbyView;
+import com.a207.runkk.crew.MyCrewView;
 import com.a207.runkk.crew.PostListView;
 import com.a207.runkk.crew.PostSummary;
 import com.a207.runkk.crew.RaceStatusView;
@@ -275,7 +277,7 @@ final class CrewDtos {
             List<Contributor> contributors,
             int myShare) {
 
-        static RaceStatusResponse of(RaceStatusView v) {
+        static RaceStatusResponse of(RaceStatusView v, long viewerId) {
             return new RaceStatusResponse(
                     v.weekStart(),
                     v.total().meters(),
@@ -286,7 +288,10 @@ final class CrewDtos {
                                             new Contributor(
                                                     displayOf(c.name()),
                                                     c.distance().meters(),
-                                                    c.rate()))
+                                                    c.rate(),
+                                                    c.memberId(),
+                                                    c.memberId() != null
+                                                            && c.memberId() == viewerId))
                             .toList(),
                     v.myRate());
         }
@@ -297,8 +302,11 @@ final class CrewDtos {
          * @param displayName 표시명
          * @param distanceMeters 기여 거리
          * @param share 기여율
+         * @param memberId 기여자 회원 ID, 탈퇴했으면 null
+         * @param me 열람자 본인
          */
-        record Contributor(String displayName, long distanceMeters, int share) {}
+        record Contributor(
+                String displayName, long distanceMeters, int share, Long memberId, boolean me) {}
     }
 
     /**
@@ -437,7 +445,7 @@ final class CrewDtos {
             String status,
             List<Participant> participants) {
 
-        static LobbyResponse of(LobbyView v) {
+        static LobbyResponse of(LobbyView v, long viewerId) {
             return new LobbyResponse(
                     v.postId(),
                     v.scheduledAt(),
@@ -451,7 +459,8 @@ final class CrewDtos {
                                                     p.memberId(),
                                                     displayOf(p.name()),
                                                     p.readiness().name(),
-                                                    p.readiness() == Readiness.READY))
+                                                    p.readiness() == Readiness.READY,
+                                                    p.memberId() == viewerId))
                             .toList());
         }
 
@@ -462,8 +471,10 @@ final class CrewDtos {
          * @param displayName 표시명
          * @param readiness NOT_ENTERED | ENTERING | READY
          * @param ready 준비 완료
+         * @param me 열람자 본인
          */
-        record Participant(long memberId, String displayName, String readiness, boolean ready) {}
+        record Participant(
+                long memberId, String displayName, String readiness, boolean ready, boolean me) {}
     }
 
     /**
@@ -484,12 +495,12 @@ final class CrewDtos {
             boolean firstCrewRun,
             long raceContributionMeters) {
 
-        static CrewRunResultResponse of(CrewRunResultView v) {
+        static CrewRunResultResponse of(CrewRunResultView v, long viewerId) {
             return new CrewRunResultResponse(
                     v.postId(),
                     v.status().name(),
                     v.finisherCount(),
-                    v.runners().stream().map(Finisher::of).toList(),
+                    v.runners().stream().map(l -> Finisher.of(l, viewerId)).toList(),
                     v.firstCrewRun(),
                     v.crewContribution().meters());
         }
@@ -502,22 +513,115 @@ final class CrewDtos {
          * @param elapsedSeconds 기록(초)
          * @param averagePaceSecondsPerKm 평균 페이스(초/km)
          * @param quit 그만둠
+         * @param memberId 참가자 회원 ID, 탈퇴했으면 null
+         * @param me 열람자 본인
          */
         record Finisher(
                 Integer rank,
                 String displayName,
                 Long elapsedSeconds,
                 Integer averagePaceSecondsPerKm,
-                boolean quit) {
+                boolean quit,
+                Long memberId,
+                boolean me) {
 
-            static Finisher of(CrewRunResultView.Line l) {
+            static Finisher of(CrewRunResultView.Line l, long viewerId) {
                 return new Finisher(
                         l.rank(),
                         displayOf(l.name()),
                         l.elapsed() == null ? null : l.elapsed().toSeconds(),
                         l.averagePace() == null ? null : l.averagePace().secondsPerKm(),
-                        l.quit());
+                        l.quit(),
+                        l.memberId(),
+                        l.memberId() != null && l.memberId() == viewerId);
             }
         }
+    }
+
+    /**
+     * 크루 한 곳(GET /crews/{id}, GET /crews/me의 crew).
+     *
+     * @param crewId 크루 ID
+     * @param name 크루명
+     * @param intro 한줄소개
+     * @param tags 성향 태그
+     * @param visibility PUBLIC | PRIVATE
+     * @param joinPolicy FREE | APPROVAL
+     * @param logoUrl 로고
+     * @param leaderId 크루장 회원 ID
+     * @param leaderName 크루장 표시명
+     * @param headcount 인원
+     * @param weeklyDistanceMeters 이번 주 크루 거리
+     * @param myRole LEADER | MEMBER, 크루 밖이면 null
+     * @param inviteCode 초대 코드(크루장만)
+     * @param inviteCodeExpiresAt 초대 코드 만료 일시(크루장만)
+     */
+    record CrewDetailResponse(
+            long crewId,
+            String name,
+            String intro,
+            Set<PersonalityTag> tags,
+            CrewVisibility visibility,
+            JoinPolicy joinPolicy,
+            String logoUrl,
+            long leaderId,
+            String leaderName,
+            int headcount,
+            long weeklyDistanceMeters,
+            String myRole,
+            String inviteCode,
+            LocalDateTime inviteCodeExpiresAt) {
+
+        static CrewDetailResponse of(CrewDetailView v) {
+            return new CrewDetailResponse(
+                    v.crewId(),
+                    v.name(),
+                    v.intro(),
+                    v.tags().tags(),
+                    v.visibility(),
+                    v.joinPolicy(),
+                    v.logoUrl(),
+                    v.leaderId(),
+                    displayOf(v.leaderName()),
+                    v.headcount(),
+                    v.weeklyDistance().meters(),
+                    v.myRole() == null ? null : v.myRole().name(),
+                    v.inviteCode() == null ? null : v.inviteCode().code(),
+                    v.inviteCode() == null ? null : v.inviteCode().expiresAt());
+        }
+    }
+
+    /**
+     * 본인 크루 현황(GET /crews/me).
+     *
+     * @param crew 소속 크루, 없으면 null
+     * @param pendingRequests 대기 중인 본인 가입 신청
+     */
+    record MyCrewResponse(CrewDetailResponse crew, List<PendingJoin> pendingRequests) {
+
+        static MyCrewResponse of(MyCrewView v) {
+            return new MyCrewResponse(
+                    v.crew() == null ? null : CrewDetailResponse.of(v.crew()),
+                    v.pendingRequests().stream()
+                            .map(
+                                    p ->
+                                            new PendingJoin(
+                                                    p.requestId(),
+                                                    p.crewId(),
+                                                    p.crewName(),
+                                                    p.requestedAt()))
+                            .toList());
+        }
+
+        /**
+         * 대기 중인 가입 신청 한 건(취소는 DELETE /join-requests/{requestId}).
+         *
+         * @param requestId 가입 신청 ID
+         * @param crewId 크루 ID
+         * @param crewName 크루명
+         * @param requestedAt 신청 일시
+         */
+        record PendingJoin(
+                long requestId, long crewId, String crewName, LocalDateTime requestedAt) {}
     }
 }

@@ -108,7 +108,10 @@ public class WeeklyRaceService {
                         .map(
                                 c ->
                                         new RaceStatusView.Line(
-                                                nameOf(names, c), c.distance(), rateOf(race, c)))
+                                                nameOf(names, c),
+                                                c.distance(),
+                                                rateOf(race, c),
+                                                c.memberId()))
                         .toList();
         return new RaceStatusView(
                 crewId,

@@ -235,7 +235,16 @@ class CrewControllerTest extends WebTestSupport {
         call(leader, post("/api/v1/crew-runs/" + run + "/lobby/leave"), null);
         call(leader, post("/api/v1/crew-runs/" + run + "/lobby/enter"), null);
         call(leader, post("/api/v1/crew-runs/" + run + "/lobby/ready"), null)
-                .andExpect(jsonPath("$.participants[?(@.ready == true)]").isNotEmpty());
+                .andExpect(jsonPath("$.participants[?(@.ready == true)]").isNotEmpty())
+                .andExpect(jsonPath("$.distanceMeters").value(1000))
+                .andExpect(
+                        jsonPath("$.participants[?(@.me == true)].memberId")
+                                .value(org.hamcrest.Matchers.contains((int) leader.memberId())));
+        JsonNode listed = json(call(a, get("/api/v1/crews/" + crewId + "/posts"), null));
+        JsonNode crewRunPost = listed.get("posts").get(0).get("crewRun");
+        assertThat(crewRunPost.get("distanceMeters").asLong()).isEqualTo(1000);
+        assertThat(crewRunPost.get("myAnswer").asText()).isEqualTo("GOING");
+        assertThat(crewRunPost.get("status").asText()).isEqualTo("LOBBY_OPEN");
 
         crewRunService.tick(scheduledAt);
         LocalDateTime start = scheduledAt.plusSeconds(3);
@@ -248,11 +257,72 @@ class CrewControllerTest extends WebTestSupport {
         assertThat(result.get("finisherCount").asInt()).isEqualTo(2);
         assertThat(result.get("finishers").get(0).get("rank").asInt()).isEqualTo(1);
         assertThat(result.get("raceContributionMeters").asLong()).isEqualTo(2_100);
+        assertThat(result.get("finishers").findValuesAsText("memberId"))
+                .contains(String.valueOf(a.memberId()), String.valueOf(leader.memberId()));
+        assertThat(result.get("finishers").findValues("me").stream().filter(JsonNode::asBoolean))
+                .hasSize(1);
         call(a, post("/api/v1/crew-runs/" + run + "/quit"), null)
                 .andExpect(jsonPath("$.code").value("NOT_PARTICIPANT"));
         call(a, get("/api/v1/crews/" + crewId + "/race"), null)
-                .andExpect(jsonPath("$.totalMeters").value(2_100));
+                .andExpect(jsonPath("$.totalMeters").value(2_100))
+                .andExpect(
+                        jsonPath("$.contributors[?(@.me == true)].memberId")
+                                .value(org.hamcrest.Matchers.contains((int) a.memberId())));
         assertThat(weeklyRaceService.reconcileAll(LocalDateTime.now())).isZero();
         assertThat(membershipService.expireRequests(LocalDateTime.now())).isZero();
+    }
+
+    @Test
+    @DisplayName("내 크루(GET /crews/me)·크루 단건(GET /crews/{id})·크루원 본인 표시·대기 중 신청")
+    void myCrewAndDetail() throws Exception {
+        Session leader = signUp();
+        Session a = signUp();
+        Session outsider = signUp();
+        call(a, get("/api/v1/crews/me"), null)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.crew").doesNotExist())
+                .andExpect(jsonPath("$.pendingRequests").isEmpty());
+        long crewId = createCrew(leader, "APPROVAL");
+
+        long requestId =
+                json(call(a, post("/api/v1/crews/join"), Map.of("crewId", crewId)))
+                        .get("requestId")
+                        .asLong();
+        call(a, get("/api/v1/crews/me"), null)
+                .andExpect(jsonPath("$.crew").doesNotExist())
+                .andExpect(jsonPath("$.pendingRequests[0].requestId").value(requestId))
+                .andExpect(jsonPath("$.pendingRequests[0].crewId").value(crewId))
+                .andExpect(jsonPath("$.pendingRequests[0].crewName").isNotEmpty());
+        call(leader, post("/api/v1/join-requests/" + requestId + "/approve"), null);
+
+        JsonNode mine = json(call(leader, get("/api/v1/crews/me"), null));
+        assertThat(mine.get("crew").get("crewId").asLong()).isEqualTo(crewId);
+        assertThat(mine.get("crew").get("myRole").asText()).isEqualTo("LEADER");
+        assertThat(mine.get("crew").get("inviteCode").asText()).matches("[A-Z0-9]{6}");
+        assertThat(mine.get("crew").get("headcount").asInt()).isEqualTo(2);
+        assertThat(mine.get("crew").get("joinPolicy").asText()).isEqualTo("APPROVAL");
+        assertThat(mine.get("crew").get("tags")).hasSize(2);
+
+        JsonNode asMember = json(call(a, get("/api/v1/crews/" + crewId), null));
+        assertThat(asMember.get("myRole").asText()).isEqualTo("MEMBER");
+        assertThat(asMember.get("inviteCode").isNull()).isTrue();
+        assertThat(asMember.get("leaderId").asLong()).isEqualTo(leader.memberId());
+        assertThat(asMember.get("leaderName").asText()).isNotBlank();
+        JsonNode asOutsider = json(call(outsider, get("/api/v1/crews/" + crewId), null));
+        assertThat(asOutsider.get("myRole").isNull()).isTrue();
+        assertThat(asOutsider.get("weeklyDistanceMeters").asLong()).isZero();
+
+        call(leader, patch("/api/v1/crews/" + crewId), Map.of("visibility", "PRIVATE"))
+                .andExpect(status().isNoContent());
+        call(outsider, get("/api/v1/crews/" + crewId), null).andExpect(status().isForbidden());
+        call(a, get("/api/v1/crews/" + crewId), null).andExpect(status().isOk());
+        call(a, get("/api/v1/crews/987654321"), null)
+                .andExpect(jsonPath("$.code").value("CREW_NOT_FOUND"));
+
+        JsonNode members = json(call(a, get("/api/v1/crews/" + crewId + "/members"), null));
+        for (JsonNode m : members.get("members")) {
+            assertThat(m.get("me").asBoolean())
+                    .isEqualTo(m.get("memberId").asLong() == a.memberId());
+        }
     }
 }
