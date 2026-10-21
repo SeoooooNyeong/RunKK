@@ -55,19 +55,32 @@ class AnalysisAuditBatchJobsTest {
     }
 
     @Test
-    @DisplayName("스케줄 설정: analysis 0시·20시 cron 2개, audit 3시 cron 1개")
+    @DisplayName("스케줄 설정: analysis 0시·20시·3시 30분 cron 3개, audit 3시 cron 1개")
     void schedulingConfigs() {
         ScheduledTaskRegistrar registrar = new ScheduledTaskRegistrar();
         new AnalysisSchedulingConfig(
                         mock(RankingRebuildJob.class),
                         mock(PlanReminderJob.class),
+                        mock(PlanPurgeJob.class),
                         "0 0 0 * * *",
-                        "0 0 20 * * *")
+                        "0 0 20 * * *",
+                        "0 30 3 * * *")
                 .configureTasks(registrar);
         new AuditSchedulingConfig(mock(AuditPurgeJob.class), "0 0 3 * * *")
                 .configureTasks(registrar);
         assertThat(registrar.getCronTaskList())
                 .extracting(t -> t.getExpression())
-                .containsExactly("0 0 0 * * *", "0 0 20 * * *", "0 0 3 * * *");
+                .containsExactly("0 0 0 * * *", "0 0 20 * * *", "0 30 3 * * *", "0 0 3 * * *");
+    }
+
+    @Test
+    @DisplayName("PlanPurgeJob: 오늘 날짜로 지난 계획 정리를 부르고 실패는 로그만")
+    void planPurgeJob() {
+        com.a207.runkk.analysis.CoachService coach =
+                mock(com.a207.runkk.analysis.CoachService.class);
+        new PlanPurgeJob(coach, clock).run();
+        verify(coach).purgePastPlans(NOW.toLocalDate());
+        when(coach.purgePastPlans(any())).thenThrow(new IllegalStateException("db"));
+        new PlanPurgeJob(coach, clock).run();
     }
 }

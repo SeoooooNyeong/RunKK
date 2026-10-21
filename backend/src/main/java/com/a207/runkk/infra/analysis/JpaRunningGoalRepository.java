@@ -45,6 +45,23 @@ public class JpaRunningGoalRepository implements RunningGoalRepository {
                 .getResultList();
     }
 
+    /** 컬렉션 표(daily_plan·weekly_goal)라 JPQL로 지울 수 없어 SQL 두 문장으로 지운다(plan_date 인덱스). */
+    @Override
+    public int deletePlansAndGoalsBefore(LocalDate before) {
+        int plans =
+                entityManager
+                        .createNativeQuery("delete from daily_plan where plan_date < :before")
+                        .setParameter("before", before)
+                        .executeUpdate();
+        int goals =
+                entityManager
+                        .createNativeQuery("delete from weekly_goal where week_start < :before")
+                        .setParameter("before", before)
+                        .executeUpdate();
+        entityManager.clear();
+        return plans + goals;
+    }
+
     @Override
     public void deleteByMember(long memberId) {
         RunningGoal goal = entityManager.find(RunningGoal.class, memberId);

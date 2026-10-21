@@ -122,6 +122,45 @@ class AdminControllerTest extends WebTestSupport {
     }
 
     @Test
+    @DisplayName("같은 접속지에서 로그인이 10분에 10번 실패하면 429 TOO_MANY_ATTEMPTS, 다른 접속지는 그대로")
+    void login_isRateLimitedPerClient() throws Exception {
+        String body = write(Map.of("provider", "KAKAO", "providerToken", "stranger"));
+        for (int i = 0; i < 10; i++) {
+            mvc.perform(
+                            post("/api/v1/admin/login")
+                                    .header("X-Real-IP", "10.9.9.9")
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(body))
+                    .andExpect(status().isForbidden());
+        }
+        mvc.perform(
+                        post("/api/v1/admin/login")
+                                .header("X-Real-IP", "10.9.9.9")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        write(
+                                                Map.of(
+                                                        "provider",
+                                                        "KAKAO",
+                                                        "providerToken",
+                                                        OPERATOR))))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.code").value("TOO_MANY_ATTEMPTS"));
+        mvc.perform(
+                        post("/api/v1/admin/login")
+                                .header("X-Real-IP", "10.9.9.10")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        write(
+                                                Map.of(
+                                                        "provider",
+                                                        "KAKAO",
+                                                        "providerToken",
+                                                        OPERATOR))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     @DisplayName("화이트리스트 밖 계정의 운영자 로그인은 403, 모르는 제공자는 400")
     void login_rejectsStrangersAndUnknownProviders() throws Exception {
         mvc.perform(

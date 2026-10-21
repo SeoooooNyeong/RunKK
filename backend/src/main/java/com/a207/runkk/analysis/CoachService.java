@@ -30,6 +30,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class CoachService {
 
+    /** 계획·주간 목표 보존 기간(설계에 없어 정한 값, B 단계 결정). */
+    static final java.time.Period PLAN_RETENTION = java.time.Period.ofYears(1);
+
     /** 이행 현황 한 번에 볼 수 있는 최대 기간(일). */
     static final long MAX_PROGRESS_DAYS = 93;
 
@@ -116,6 +119,15 @@ public class CoachService {
                                 new TodayPlanView(
                                         today, plan.distance(), plan.targetPace(), supplement))
                 .orElseGet(() -> new TodayPlanView(today, null, null, Distance.ZERO));
+    }
+
+    /**
+     * 3시. batch.analysis의 PlanPurgeJob이 부른다. 보존 기간(1년)보다 오래된 날짜별 계획·주간 목표 행을 지운다(B5 리뷰: 지난 행이 끝없이
+     * 쌓임). 성장·코치 화면은 최근 기간만 읽는다. 지운 행 수를 돌려준다.
+     */
+    @Transactional
+    public int purgePastPlans(LocalDate today) {
+        return runningGoalRepository.deletePlansAndGoalsBefore(today.minus(PLAN_RETENTION));
     }
 
     /**

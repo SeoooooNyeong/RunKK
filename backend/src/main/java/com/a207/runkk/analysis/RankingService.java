@@ -129,21 +129,15 @@ public class RankingService {
 
     private RankingView viewOf(
             RankingKind kind, AggregationPeriod period, Optional<Long> subjectId, String notice) {
-        Optional<RankingSnapshot> latest =
-                transactions.read(() -> snapshotRepository.latest(kind, period));
+        Optional<RankingPage> latest =
+                transactions.read(
+                        () -> snapshotRepository.latestPage(kind, period, TOP, subjectId));
         if (latest.isEmpty()) {
             return new RankingView(kind, period, null, List.of(), null, null, notice);
         }
-        RankingSnapshot snapshot = latest.get();
-        List<RankEntry> entries = snapshot.entries();
+        RankingPage page = latest.get();
         return new RankingView(
-                kind,
-                period,
-                snapshot.getComputedAt(),
-                entries.subList(0, Math.min(TOP, entries.size())),
-                subjectId.flatMap(snapshot::entryOf).orElse(null),
-                subjectId.flatMap(snapshot::gapToNext).orElse(null),
-                notice);
+                kind, period, page.computedAt(), page.top(), page.mine(), page.gapToNext(), notice);
     }
 
     private static List<RankScore> personalScores(

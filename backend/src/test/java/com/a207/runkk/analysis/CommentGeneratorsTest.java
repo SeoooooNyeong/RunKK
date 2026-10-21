@@ -103,7 +103,7 @@ class CommentGeneratorsTest {
     @DisplayName("한도 카운터(Redis) 장애면 ai를 부르지 않고 규칙 문구로 대체한다")
     void quotaStoreFailure_fallsBackToRule() {
         QuotaCounter broken = mock(QuotaCounter.class);
-        when(broken.incrementAndGet(any(), any()))
+        when(broken.tryIncrementAll(any(), any()))
                 .thenThrow(new IllegalStateException("redis down"));
         AiCommentGenerator failing =
                 new AiCommentGenerator(

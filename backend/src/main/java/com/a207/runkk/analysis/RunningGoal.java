@@ -59,6 +59,14 @@ public class RunningGoal {
         return new RunningGoal(memberId);
     }
 
+    /** before보다 이전 날짜의 계획·이전 주 목표를 지우고 지운 수를 돌려준다(인메모리 저장소·정리 작업 시험용 같은 규칙). */
+    public int dropBefore(LocalDate before) {
+        int count = plans.size() + weeklyGoals.size();
+        plans.keySet().removeIf(d -> d.isBefore(before));
+        weeklyGoals.keySet().removeIf(d -> d.isBefore(before));
+        return count - plans.size() - weeklyGoals.size();
+    }
+
     public long getMemberId() {
         return memberId;
     }

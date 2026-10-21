@@ -1,6 +1,7 @@
 package com.a207.runkk.infra.analysis;
 
 import com.a207.runkk.analysis.RankingKind;
+import com.a207.runkk.analysis.RankingPage;
 import com.a207.runkk.analysis.RankingSnapshot;
 import com.a207.runkk.analysis.RankingSnapshotRepository;
 import com.a207.runkk.common.AggregationPeriod;
@@ -14,8 +15,8 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 /**
  * analysis.RankingSnapshotRepository의 구현(설계 5.1.1 infra.analysis, D-25). 스냅숏은
- * ranking_snapshot·ranking_entry에 저장하고 같은 종류·기간의 이전 스냅숏은 지운다. 최근 스냅숏은 RankingCache(Redis)에 두고, 캐시가
- * 비면 DB에서 읽어 다시 채운다. 캐시는 커밋 뒤에 쓴다.
+ * ranking_snapshot·ranking_entry에 저장하고 같은 종류·기간의 이전 스냅숏은 지운다. 조회용 부분(상위 N + 회원별 줄)은
+ * RankingCache(Redis)에 두고, 캐시가 비면 DB에서 읽어 다시 채운다. 캐시는 커밋 뒤에 쓴다.
  */
 @Repository
 public class JpaRankingSnapshotRepository implements RankingSnapshotRepository {
@@ -38,14 +39,20 @@ public class JpaRankingSnapshotRepository implements RankingSnapshotRepository {
 
     @Override
     public Optional<RankingSnapshot> latest(RankingKind kind, AggregationPeriod period) {
-        Optional<RankingSnapshot> cached = cache.get(kind, period);
+        return query(kind, period).setMaxResults(1).getResultList().stream().findFirst();
+    }
+
+    /** 캐시(상위 N + 회원별 줄)에서 읽고, 비면 DB 스냅숏으로 만들고 캐시를 채운다. */
+    @Override
+    public Optional<RankingPage> latestPage(
+            RankingKind kind, AggregationPeriod period, int top, Optional<Long> subjectId) {
+        Optional<RankingPage> cached = cache.page(kind, period, subjectId);
         if (cached.isPresent()) {
             return cached;
         }
-        Optional<RankingSnapshot> stored =
-                query(kind, period).setMaxResults(1).getResultList().stream().findFirst();
+        Optional<RankingSnapshot> stored = latest(kind, period);
         stored.ifPresent(cache::putIfAbsent);
-        return stored;
+        return stored.map(s -> s.page(top, subjectId));
     }
 
     private List<RankingSnapshot> findAll(RankingKind kind, AggregationPeriod period) {
