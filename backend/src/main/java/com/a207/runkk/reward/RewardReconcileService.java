@@ -56,47 +56,44 @@ public class RewardReconcileService {
                 restored +=
                         restore(
                                 active,
-                                run.memberId(),
-                                AccrualReason.VALID_RUN,
-                                run.recordId(),
-                                rule -> rule.amountForRun(run.distance()),
-                                run.savedAt());
+                                new AccrualSource(
+                                        run.memberId(),
+                                        AccrualReason.VALID_RUN,
+                                        run.recordId(),
+                                        run.savedAt()),
+                                rule -> rule.amountForRun(run.distance()));
             }
         }
         for (BattleWin win : battleResultService.winsJudgedBetween(from, now)) {
             restored +=
                     restore(
                             active,
-                            win.winnerId(),
-                            AccrualReason.BATTLE_WIN,
-                            String.valueOf(win.battleId()),
-                            RewardRule::battleWin,
-                            win.judgedAt());
+                            new AccrualSource(
+                                    win.winnerId(),
+                                    AccrualReason.BATTLE_WIN,
+                                    String.valueOf(win.battleId()),
+                                    win.judgedAt()),
+                            RewardRule::battleWin);
         }
         log.info("reward_reconciled from={} restored={}", from, restored);
         return restored;
     }
 
     private int restore(
-            Map<Long, Boolean> active,
-            long memberId,
-            AccrualReason reason,
-            String sourceId,
-            ToIntFunction<RewardRule> amountOf,
-            LocalDateTime at) {
-        if (!active.computeIfAbsent(memberId, memberQueryService::isActive)) {
+            Map<Long, Boolean> active, AccrualSource source, ToIntFunction<RewardRule> amountOf) {
+        if (!active.computeIfAbsent(source.memberId(), memberQueryService::isActive)) {
             return 0;
         }
-        if (rewardService.accruedFor(reason, sourceId, memberId) > 0) {
+        if (rewardService.accruedFor(source.reason(), source.sourceId(), source.memberId()) > 0) {
             return 0; // 이미 적립됨: 지갑 잠금 없이 넘긴다
         }
-        int amount = rewardService.accrueWithRetry(memberId, reason, sourceId, amountOf, at);
+        int amount = rewardService.accrueWithRetry(source, amountOf);
         if (amount > 0) {
             log.info(
                     "reward_accrual_restored memberId={} reason={} sourceId={} amount={}",
-                    memberId,
-                    reason,
-                    sourceId,
+                    source.memberId(),
+                    source.reason(),
+                    source.sourceId(),
                     amount);
             return 1;
         }
