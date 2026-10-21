@@ -1,4 +1,19 @@
 {
+ "AdminAuthController.LoginRequest": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "provider",
+    "required": true
+   },
+   {
+    "kind": "leaf",
+    "name": "providerToken",
+    "required": true
+   }
+  ],
+  "file": "web/admin/AdminAuthController.java"
+ },
  "AuthController.LoginRequest": {
   "components": [
    {
@@ -477,6 +492,91 @@
    }
   ],
   "file": "member/BattleSettings.java"
+ },
+ "CelebrityAdminController.DeleteRequest": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "celebrityId"
+   },
+   {
+    "kind": "leaf",
+    "name": "reason",
+    "required": true
+   }
+  ],
+  "file": "web/admin/celebrity/CelebrityAdminController.java"
+ },
+ "CelebrityAdminController.RegisterRequest": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "anonymousName"
+   },
+   {
+    "kind": "leaf",
+    "name": "distanceMeters"
+   },
+   {
+    "kind": "leaf",
+    "name": "finishSeconds"
+   },
+   {
+    "kind": "list",
+    "name": "splits",
+    "ref": "CelebrityAdminController.Split"
+   },
+   {
+    "kind": "leaf",
+    "name": "sourceName"
+   },
+   {
+    "kind": "leaf",
+    "name": "sourceUrl"
+   }
+  ],
+  "file": "web/admin/celebrity/CelebrityAdminController.java"
+ },
+ "CelebrityAdminController.Split": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "elapsedSeconds"
+   },
+   {
+    "kind": "leaf",
+    "name": "distanceMeters"
+   }
+  ],
+  "file": "web/admin/celebrity/CelebrityAdminController.java"
+ },
+ "CoachController.PlanRequest": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "distanceMeters"
+   },
+   {
+    "kind": "leaf",
+    "name": "paceSecondsPerKm"
+   }
+  ],
+  "file": "web/record/CoachController.java"
+ },
+ "CoachController.WeeklyGoalRequest": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "runs",
+    "required": true
+   },
+   {
+    "kind": "leaf",
+    "name": "distanceMeters",
+    "required": true
+   }
+  ],
+  "file": "web/record/CoachController.java"
  },
  "CrewController.RankingResponse": {
   "components": [
@@ -1221,6 +1321,77 @@
   ],
   "file": "web/me/MeController.java"
  },
+ "MeController.ProfileResponse": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "memberId"
+   },
+   {
+    "kind": "leaf",
+    "name": "displayName"
+   },
+   {
+    "kind": "leaf",
+    "name": "disclosure"
+   },
+   {
+    "kind": "leaf",
+    "name": "tier"
+   },
+   {
+    "kind": "leaf",
+    "name": "level"
+   },
+   {
+    "kind": "list-leaf",
+    "name": "tags"
+   },
+   {
+    "kind": "leaf",
+    "name": "intro"
+   },
+   {
+    "kind": "leaf",
+    "name": "photoUrl"
+   },
+   {
+    "kind": "leaf",
+    "name": "ageBand"
+   },
+   {
+    "kind": "leaf",
+    "name": "gender"
+   },
+   {
+    "kind": "leaf",
+    "name": "runimalType"
+   },
+   {
+    "kind": "leaf",
+    "name": "faceKey"
+   },
+   {
+    "kind": "leaf",
+    "name": "crewName"
+   },
+   {
+    "kind": "record",
+    "name": "crew",
+    "ref": "ProfileView.Crew"
+   },
+   {
+    "kind": "leaf",
+    "name": "longestDistanceMeters"
+   },
+   {
+    "kind": "record",
+    "name": "settings",
+    "ref": "MemberPreference"
+   }
+  ],
+  "file": "web/me/MeController.java"
+ },
  "MeController.SettingChangeRequest": {
   "components": [
    {
@@ -1239,6 +1410,31 @@
    }
   ],
   "file": "web/me/MeController.java"
+ },
+ "MemberPreference": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "unit"
+   },
+   {
+    "kind": "leaf",
+    "name": "recordVisibility"
+   },
+   {
+    "kind": "leaf",
+    "name": "courseMapShared"
+   },
+   {
+    "kind": "leaf",
+    "name": "profileVisibility"
+   },
+   {
+    "kind": "leaf",
+    "name": "llmAgreed"
+   }
+  ],
+  "file": "member/MemberPreference.java"
  },
  "MemberSettingsView": {
   "components": [
@@ -1309,6 +1505,652 @@
    }
   ],
   "file": "web/notification/NotificationController.java"
+ },
+ "ProfileView.Crew": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "crewId"
+   },
+   {
+    "kind": "leaf",
+    "name": "name"
+   },
+   {
+    "kind": "leaf",
+    "name": "logoUrl"
+   }
+  ],
+  "file": "profile/ProfileView.java"
+ },
+ "RecordDtos.BestDto": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "recordId"
+   },
+   {
+    "kind": "leaf",
+    "name": "seconds"
+   },
+   {
+    "kind": "leaf",
+    "name": "distanceMeters"
+   },
+   {
+    "kind": "leaf",
+    "name": "achievedOn"
+   },
+   {
+    "kind": "leaf",
+    "name": "hasUnstable"
+   }
+  ],
+  "file": "web/record/RecordDtos.java"
+ },
+ "RecordDtos.CalendarRun": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "recordId"
+   },
+   {
+    "kind": "leaf",
+    "name": "distanceMeters"
+   },
+   {
+    "kind": "leaf",
+    "name": "valid"
+   }
+  ],
+  "file": "web/record/RecordDtos.java"
+ },
+ "RecordDtos.CrewArea": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "crewId"
+   },
+   {
+    "kind": "leaf",
+    "name": "crewName"
+   },
+   {
+    "kind": "leaf",
+    "name": "streakDays"
+   },
+   {
+    "kind": "map",
+    "name": "grass"
+   },
+   {
+    "kind": "map",
+    "name": "grassLevels"
+   },
+   {
+    "kind": "leaf",
+    "name": "landmark"
+   }
+  ],
+  "file": "web/record/RecordDtos.java"
+ },
+ "RecordDtos.DashboardResponse": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "baseDate"
+   },
+   {
+    "kind": "leaf",
+    "name": "unit"
+   },
+   {
+    "kind": "leaf",
+    "name": "todayMeters"
+   },
+   {
+    "kind": "leaf",
+    "name": "todaySeconds"
+   },
+   {
+    "kind": "leaf",
+    "name": "todayRuns"
+   },
+   {
+    "kind": "leaf",
+    "name": "totalMeters"
+   },
+   {
+    "kind": "leaf",
+    "name": "totalSeconds"
+   },
+   {
+    "kind": "leaf",
+    "name": "totalRuns"
+   },
+   {
+    "kind": "leaf",
+    "name": "landmark"
+   },
+   {
+    "kind": "leaf",
+    "name": "streakDays"
+   },
+   {
+    "kind": "map",
+    "name": "grass"
+   },
+   {
+    "kind": "map",
+    "name": "grassLevels"
+   },
+   {
+    "kind": "leaf",
+    "name": "weeklyAchievement"
+   },
+   {
+    "kind": "record",
+    "name": "weekly",
+    "ref": "RecordDtos.WeeklyDto"
+   },
+   {
+    "kind": "record",
+    "name": "crew",
+    "ref": "RecordDtos.CrewArea"
+   },
+   {
+    "kind": "map",
+    "name": "calendar"
+   }
+  ],
+  "file": "web/record/RecordDtos.java"
+ },
+ "RecordDtos.Day": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "date"
+   },
+   {
+    "kind": "leaf",
+    "name": "plannedMeters"
+   },
+   {
+    "kind": "leaf",
+    "name": "targetPaceSecondsPerKm"
+   },
+   {
+    "kind": "leaf",
+    "name": "doneMeters"
+   },
+   {
+    "kind": "leaf",
+    "name": "actualPaceSecondsPerKm"
+   },
+   {
+    "kind": "leaf",
+    "name": "shortfallMeters"
+   },
+   {
+    "kind": "leaf",
+    "name": "supplementMeters"
+   }
+  ],
+  "file": "web/record/RecordDtos.java"
+ },
+ "RecordDtos.Entry": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "rank"
+   },
+   {
+    "kind": "leaf",
+    "name": "subjectId"
+   },
+   {
+    "kind": "leaf",
+    "name": "name"
+   },
+   {
+    "kind": "leaf",
+    "name": "tier"
+   },
+   {
+    "kind": "leaf",
+    "name": "distanceMeters"
+   }
+  ],
+  "file": "web/record/RecordDtos.java"
+ },
+ "RecordDtos.GeoPointDto": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "latitude"
+   },
+   {
+    "kind": "leaf",
+    "name": "longitude"
+   }
+  ],
+  "file": "web/record/RecordDtos.java"
+ },
+ "RecordDtos.GrowthResponse": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "period"
+   },
+   {
+    "kind": "list",
+    "name": "periods",
+    "ref": "RecordDtos.PeriodTotal"
+   },
+   {
+    "kind": "map",
+    "name": "bests"
+   },
+   {
+    "kind": "map",
+    "name": "bestRecords"
+   },
+   {
+    "kind": "leaf",
+    "name": "longestMeters"
+   },
+   {
+    "kind": "record",
+    "name": "longest",
+    "ref": "RecordDtos.BestDto"
+   }
+  ],
+  "file": "web/record/RecordDtos.java"
+ },
+ "RecordDtos.PeriodTotal": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "start"
+   },
+   {
+    "kind": "leaf",
+    "name": "end"
+   },
+   {
+    "kind": "leaf",
+    "name": "distanceMeters"
+   },
+   {
+    "kind": "leaf",
+    "name": "runs"
+   },
+   {
+    "kind": "leaf",
+    "name": "averagePaceSecondsPerKm"
+   }
+  ],
+  "file": "web/record/RecordDtos.java"
+ },
+ "RecordDtos.PlanProgressResponse": {
+  "components": [
+   {
+    "kind": "list",
+    "name": "days",
+    "ref": "RecordDtos.Day"
+   }
+  ],
+  "file": "web/record/RecordDtos.java"
+ },
+ "RecordDtos.RangeDto": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "start"
+   },
+   {
+    "kind": "leaf",
+    "name": "end"
+   }
+  ],
+  "file": "web/record/RecordDtos.java"
+ },
+ "RecordDtos.RankingResponse": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "kind"
+   },
+   {
+    "kind": "leaf",
+    "name": "period"
+   },
+   {
+    "kind": "list",
+    "name": "entries",
+    "ref": "RecordDtos.Entry"
+   },
+   {
+    "kind": "record",
+    "name": "mine",
+    "ref": "RecordDtos.Entry"
+   },
+   {
+    "kind": "leaf",
+    "name": "gapToNextMeters"
+   },
+   {
+    "kind": "leaf",
+    "name": "aggregatedAt"
+   },
+   {
+    "kind": "leaf",
+    "name": "notice"
+   }
+  ],
+  "file": "web/record/RecordDtos.java"
+ },
+ "RecordDtos.RecordDetailResponse": {
+  "components": [
+   {
+    "kind": "record",
+    "name": "summary",
+    "ref": "RecordDtos.RunSummaryDto"
+   },
+   {
+    "kind": "leaf",
+    "name": "owner"
+   },
+   {
+    "kind": "list",
+    "name": "route",
+    "ref": "RecordDtos.GeoPointDto"
+   },
+   {
+    "kind": "list",
+    "name": "unstableRanges",
+    "ref": "RecordDtos.RangeDto"
+   },
+   {
+    "kind": "list",
+    "name": "unstableSegments",
+    "ref": "RecordDtos.UnstableDto"
+   },
+   {
+    "kind": "leaf",
+    "name": "calories"
+   },
+   {
+    "kind": "list-leaf",
+    "name": "splitPaces"
+   },
+   {
+    "kind": "leaf",
+    "name": "fastestKmSecondsPerKm"
+   },
+   {
+    "kind": "leaf",
+    "name": "averageHeartRate"
+   },
+   {
+    "kind": "leaf",
+    "name": "maxHeartRate"
+   },
+   {
+    "kind": "map",
+    "name": "heartRateZones"
+   },
+   {
+    "kind": "list-leaf",
+    "name": "newRecords"
+   },
+   {
+    "kind": "leaf",
+    "name": "crewContributionMeters"
+   },
+   {
+    "kind": "leaf",
+    "name": "rewardPoints"
+   },
+   {
+    "kind": "leaf",
+    "name": "weather"
+   },
+   {
+    "kind": "leaf",
+    "name": "temperatureC"
+   },
+   {
+    "kind": "leaf",
+    "name": "sky"
+   }
+  ],
+  "file": "web/record/RecordDtos.java"
+ },
+ "RecordDtos.RecordListResponse": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "ownerId"
+   },
+   {
+    "kind": "list",
+    "name": "runs",
+    "ref": "RecordDtos.RunSummaryDto"
+   }
+  ],
+  "file": "web/record/RecordDtos.java"
+ },
+ "RecordDtos.ReportResponse": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "status"
+   },
+   {
+    "kind": "leaf",
+    "name": "message"
+   },
+   {
+    "kind": "leaf",
+    "name": "summary"
+   },
+   {
+    "kind": "leaf",
+    "name": "comment"
+   },
+   {
+    "kind": "leaf",
+    "name": "commentSource"
+   },
+   {
+    "kind": "leaf",
+    "name": "fromRun"
+   },
+   {
+    "kind": "leaf",
+    "name": "toRun"
+   },
+   {
+    "kind": "leaf",
+    "name": "averageScore"
+   },
+   {
+    "kind": "leaf",
+    "name": "distanceChangeMeters"
+   },
+   {
+    "kind": "leaf",
+    "name": "paceChangeSeconds"
+   },
+   {
+    "kind": "leaf",
+    "name": "frequentDay"
+   },
+   {
+    "kind": "leaf",
+    "name": "frequentHourBand"
+   },
+   {
+    "kind": "leaf",
+    "name": "createdAt"
+   }
+  ],
+  "file": "web/record/RecordDtos.java"
+ },
+ "RecordDtos.RunCardResponse": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "recordId"
+   },
+   {
+    "kind": "leaf",
+    "name": "cardKind"
+   },
+   {
+    "kind": "leaf",
+    "name": "startedAt"
+   },
+   {
+    "kind": "leaf",
+    "name": "distanceMeters"
+   },
+   {
+    "kind": "leaf",
+    "name": "elapsedSeconds"
+   },
+   {
+    "kind": "leaf",
+    "name": "averagePaceSecondsPerKm"
+   },
+   {
+    "kind": "leaf",
+    "name": "averageHeartRate"
+   },
+   {
+    "kind": "list-leaf",
+    "name": "newRecords"
+   },
+   {
+    "kind": "list",
+    "name": "route",
+    "ref": "RecordDtos.GeoPointDto"
+   },
+   {
+    "kind": "leaf",
+    "name": "courseMapShared"
+   }
+  ],
+  "file": "web/record/RecordDtos.java"
+ },
+ "RecordDtos.RunSummaryDto": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "recordId"
+   },
+   {
+    "kind": "leaf",
+    "name": "startedAt"
+   },
+   {
+    "kind": "leaf",
+    "name": "distanceMeters"
+   },
+   {
+    "kind": "leaf",
+    "name": "elapsedSeconds"
+   },
+   {
+    "kind": "leaf",
+    "name": "averagePaceSecondsPerKm"
+   },
+   {
+    "kind": "leaf",
+    "name": "valid"
+   },
+   {
+    "kind": "leaf",
+    "name": "mode"
+   },
+   {
+    "kind": "leaf",
+    "name": "cardKind"
+   }
+  ],
+  "file": "web/record/RecordDtos.java"
+ },
+ "RecordDtos.TodayPlanResponse": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "date"
+   },
+   {
+    "kind": "leaf",
+    "name": "distanceMeters"
+   },
+   {
+    "kind": "leaf",
+    "name": "paceSecondsPerKm"
+   },
+   {
+    "kind": "leaf",
+    "name": "supplementMeters"
+   }
+  ],
+  "file": "web/record/RecordDtos.java"
+ },
+ "RecordDtos.UnstableDto": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "fromSeconds"
+   },
+   {
+    "kind": "leaf",
+    "name": "toSeconds"
+   },
+   {
+    "kind": "leaf",
+    "name": "distanceMeters"
+   }
+  ],
+  "file": "web/record/RecordDtos.java"
+ },
+ "RecordDtos.WeeklyDto": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "weekStart"
+   },
+   {
+    "kind": "leaf",
+    "name": "goalRuns"
+   },
+   {
+    "kind": "leaf",
+    "name": "goalMeters"
+   },
+   {
+    "kind": "leaf",
+    "name": "actualRuns"
+   },
+   {
+    "kind": "leaf",
+    "name": "actualMeters"
+   },
+   {
+    "kind": "leaf",
+    "name": "runsPercent"
+   },
+   {
+    "kind": "leaf",
+    "name": "distancePercent"
+   }
+  ],
+  "file": "web/record/RecordDtos.java"
  },
  "RunController.HeartRateRequest": {
   "components": [
