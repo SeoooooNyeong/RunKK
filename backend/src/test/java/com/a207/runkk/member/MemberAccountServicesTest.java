@@ -144,6 +144,19 @@ class MemberAccountServicesTest {
                 .isEqualTo(new LegalDocument(DocumentType.PRIVACY_POLICY, "https://p"));
     }
 
+    /** 코드 리뷰 3차 B-L7: 설정이 빠진 법정 고지 주소는 null 응답이 아니라 기동 실패다. */
+    @Test
+    void legalCatalog_missingUrl_failsAtStartup() {
+        assertThatThrownBy(
+                        () -> new LegalDocumentCatalog("https://t", null, "https://l", "https://h"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("runkk.legal.privacy-policy-url");
+        assertThatThrownBy(
+                        () -> new LegalDocumentCatalog("https://t", "https://p", " ", "https://h"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("runkk.legal.location-terms-url");
+    }
+
     @Test
     void withdraw_guardRejects_orWithdrawsAuditsAndPublishes() {
         long id = saved("달리는곰");

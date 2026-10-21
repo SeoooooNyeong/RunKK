@@ -22,10 +22,21 @@ public class LegalDocumentCatalog {
 
     LegalDocumentCatalog(
             String termsUrl, String privacyPolicyUrl, String locationTermsUrl, String helpUrl) {
-        urls.put(DocumentType.TERMS, termsUrl);
-        urls.put(DocumentType.PRIVACY_POLICY, privacyPolicyUrl);
-        urls.put(DocumentType.LOCATION_TERMS, locationTermsUrl);
-        urls.put(DocumentType.HELP, helpUrl);
+        urls.put(DocumentType.TERMS, required(termsUrl, "terms-url"));
+        urls.put(DocumentType.PRIVACY_POLICY, required(privacyPolicyUrl, "privacy-policy-url"));
+        urls.put(DocumentType.LOCATION_TERMS, required(locationTermsUrl, "location-terms-url"));
+        urls.put(DocumentType.HELP, required(helpUrl, "help-url"));
+    }
+
+    /**
+     * 빈 주소로 뜨면 앱이 null 문서 주소를 받는다. @Value가 하던 대로 설정 누락은 기동 실패로 드러낸다(코드 리뷰 3차 B-L7). 값은 설정 키 이름만
+     * 알린다.
+     */
+    private static String required(String url, String key) {
+        if (url == null || url.isBlank()) {
+            throw new IllegalStateException("runkk.legal." + key + " 설정이 비었다");
+        }
+        return url;
     }
 
     public LegalDocument find(DocumentType type) {
