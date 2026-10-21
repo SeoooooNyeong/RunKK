@@ -41,7 +41,8 @@ class MainActivity : ComponentActivity() {
                     loggedIn = loggedIn,
                     onExit = ::finish,
                     // Modifier.testTag를 UI Automator 리소스 ID로 내보낸다(E2E Maestro 선택자 id:, android/e2e/maestro).
-                    modifier = Modifier.semantics { testTagsAsResourceId = true }
+                    // debug 빌드에서만 켠다: release에서는 testTag를 접근성 트리에 리소스 ID로 내보이지 않는다(리뷰 N-1).
+                    modifier = Modifier.semantics { testTagsAsResourceId = BuildConfig.DEBUG }
                 )
             }
         }
