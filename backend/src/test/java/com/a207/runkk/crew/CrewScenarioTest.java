@@ -174,6 +174,11 @@ class CrewScenarioTest {
             crewRuns.toggleReady(m, run);
         }
         crewRuns.tick(at);
+        sessions.delete(run);
+        sessions.save(CrewRunLiveSession.open(-77L, StandardDistance.KM1, java.util.Map.of(), at));
+        crewRuns.tick(at.plusSeconds(10));
+        assertThat(sessions.load(run)).as("Redis에서 빠진 세션을 시계가 되살린다").isPresent();
+        assertThat(sessions.load(-77L)).as("시계가 보지 않는 크루런 세션은 지운다").isEmpty();
         live.onProgress(
                 a,
                 run,

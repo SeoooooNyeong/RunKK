@@ -57,9 +57,11 @@ class SelfieConversion {
         if (!allowed) {
             throw new BusinessRuleException(ReasonCode.SELFIE_LIMIT);
         }
-        if (!selfieLockStore.tryLock(memberId, LOCK_TTL)) {
-            throw new BusinessRuleException(ReasonCode.SELFIE_IN_PROGRESS);
-        }
+        String token =
+                selfieLockStore
+                        .tryLock(memberId, LOCK_TTL)
+                        .orElseThrow(
+                                () -> new BusinessRuleException(ReasonCode.SELFIE_IN_PROGRESS));
         try {
             FaceTransformOutcome outcome = faceTransformGateway.transform(selfie);
             if (!outcome.isSuccess()) {
@@ -69,7 +71,7 @@ class SelfieConversion {
             transactions.write(() -> apply(memberId, outcome.images(), today, limit));
             return Optional.empty();
         } finally {
-            selfieLockStore.unlock(memberId);
+            selfieLockStore.unlock(memberId, token);
         }
     }
 

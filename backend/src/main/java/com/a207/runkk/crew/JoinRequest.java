@@ -10,6 +10,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.time.LocalDateTime;
 
 /**
@@ -46,6 +47,11 @@ public class JoinRequest {
     /** 소멸 사유(정원 초과, 다른 크루 가입). */
     @Column(name = "reason", length = 40)
     private String reason;
+
+    /** 낙관적 잠금: 승인·거절·취소가 겹치면 늦은 쪽이 409로 끝나 처리된 신청을 덮어쓰지 않는다. */
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version;
 
     protected JoinRequest() {}
 

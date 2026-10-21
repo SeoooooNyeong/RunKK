@@ -11,6 +11,7 @@ import com.a207.runkk.notification.NotificationRequest;
 import com.a207.runkk.notification.NotificationService;
 import com.a207.runkk.notification.NotificationType;
 import com.a207.runkk.notification.Screen;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -72,11 +73,8 @@ class CrewRunAnnouncer {
                         outcome.memberIds().stream().map(names::get).toList());
         CrewRunLiveSession session =
                 CrewRunLiveSession.open(post.getId(), post.distance(), names, outcome.startAt());
-        AfterCommit.run(
-                () -> {
-                    crewLiveSessionStore.save(session);
-                    crewRunMessenger.sendAll(outcome.memberIds(), start);
-                });
+        AfterCommit.run(() -> crewLiveSessionStore.save(session));
+        AfterCommit.run(() -> crewRunMessenger.sendAll(outcome.memberIds(), start));
     }
 
     /** 취소: 갈래요 참가자에게 CrewRunCancelled(커밋 뒤). */
@@ -91,10 +89,36 @@ class CrewRunAnnouncer {
         List<Long> runners = post.runners();
         AfterCommit.run(
                 () -> {
-                    crewRunMessenger.sendAll(runners, new CrewRunEnded(postId));
                     crewLiveSessionStore.delete(postId);
                     crewRunLiveService.forget(postId);
                 });
+        AfterCommit.run(() -> crewRunMessenger.sendAll(runners, new CrewRunEnded(postId)));
+    }
+
+    /** 진행 중인데 세션이 없으면(출발 커밋 뒤 Redis 저장 실패, Redis 재시작) 진행 참가자로 다시 연다. 1초 시계가 RUNNING 크루런마다 부른다. */
+    void ensureSession(CrewRunPost post) {
+        if (post.status() != CrewRunStatus.RUNNING
+                || crewLiveSessionStore.load(post.getId()).isPresent()) {
+            return;
+        }
+        List<Long> runners = post.runners();
+        crewLiveSessionStore.save(
+                CrewRunLiveSession.open(
+                        post.getId(),
+                        post.distance(),
+                        namesOf(runners),
+                        post.departedAt().orElseThrow()));
+    }
+
+    /** 시계가 보는 크루런이 아닌데 남은 세션(삭제된 글·크루)을 지운다. */
+    void sweep(Collection<Long> activePostIds) {
+        crewLiveSessionStore.activePostIds().stream()
+                .filter(id -> !activePostIds.contains(id))
+                .forEach(
+                        id -> {
+                            crewLiveSessionStore.delete(id);
+                            crewRunLiveService.forget(id);
+                        });
     }
 
     /** 그만둠: 세션 표시 → 다른 참가자에게 중계(커밋 뒤). */

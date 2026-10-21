@@ -107,10 +107,12 @@ public class CrewRunService {
         for (long postId : due) {
             transactions.once("crew_run_tick", () -> step(postId, now, rule), Boolean.FALSE);
         }
+        announcer.sweep(due);
     }
 
     private Boolean step(long postId, LocalDateTime now, CrewRunRule rule) {
         CrewRunPost post = locked(postId);
+        announcer.ensureSession(post);
         post.openLobby(now, rule);
         if (post.markReminded(now, rule)) {
             announcer.remind(post);

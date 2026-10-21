@@ -221,11 +221,11 @@ public class WeeklyRaceService {
         return to.isBefore(from) ? Optional.empty() : Optional.of(new DateRange(from, to));
     }
 
-    private static LocalDate max(LocalDate a, LocalDate b) {
-        return a.isAfter(b) ? a : b;
+    private static LocalDate max(LocalDate left, LocalDate right) {
+        return left.isAfter(right) ? left : right;
     }
 
-    private static LocalDate min(LocalDate a, LocalDate b) {
-        return a.isBefore(b) ? a : b;
+    private static LocalDate min(LocalDate left, LocalDate right) {
+        return left.isBefore(right) ? left : right;
     }
 }

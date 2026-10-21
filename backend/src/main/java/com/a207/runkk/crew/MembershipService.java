@@ -35,6 +35,7 @@ public class MembershipService {
     private final JoinRequestRepository joinRequestRepository;
     private final NotificationService notificationService;
     private final AuditService auditService;
+    private final CrewTransactions transactions;
     private final Clock clock;
 
     MembershipService(
@@ -43,12 +44,14 @@ public class MembershipService {
             JoinRequestRepository joinRequestRepository,
             NotificationService notificationService,
             AuditService auditService,
+            CrewTransactions transactions,
             Clock clock) {
         this.crewRepository = crewRepository;
         this.crewAccess = crewAccess;
         this.joinRequestRepository = joinRequestRepository;
         this.notificationService = notificationService;
         this.auditService = auditService;
+        this.transactions = transactions;
         this.clock = clock;
     }
 
@@ -209,23 +212,38 @@ public class MembershipService {
     /**
      * 7일 지난 PENDING을 expire → 알림(JOIN_EXPIRED). batch.crew의 JoinRequestExpiryJob이 3시에 부른다(D-39).
      */
-    @Transactional
     public int expireRequests(LocalDateTime now) {
-        List<JoinRequest> due =
-                joinRequestRepository.findPendingOlderThan(now.minusDays(JoinRequest.EXPIRY_DAYS));
+        List<Long> due =
+                transactions.read(
+                        () ->
+                                joinRequestRepository
+                                        .findPendingOlderThan(
+                                                now.minusDays(JoinRequest.EXPIRY_DAYS))
+                                        .stream()
+                                        .map(JoinRequest::getId)
+                                        .toList());
         int expired = 0;
-        for (JoinRequest request : due) {
-            if (request.expire(now)) {
-                joinRequestRepository.save(request);
-                notify(
-                        request.memberId(),
-                        NotificationType.JOIN_EXPIRED,
-                        "가입 신청이 7일 동안 처리되지 않아 만료되었어요",
-                        at(Screen.CREW_HOME, request.crewId()));
+        for (long requestId : due) {
+            if (transactions.once("join_request_expiry", () -> expire(requestId, now), false)) {
                 expired++;
             }
         }
         return expired;
+    }
+
+    /** 신청 한 건을 만료하고 알린다(한 건마다 따로 트랜잭션, 한 건의 실패가 나머지를 막지 않는다). */
+    private boolean expire(long requestId, LocalDateTime now) {
+        JoinRequest request = requireRequest(requestId);
+        if (!request.expire(now)) {
+            return false;
+        }
+        joinRequestRepository.save(request);
+        notify(
+                request.memberId(),
+                NotificationType.JOIN_EXPIRED,
+                "가입 신청이 7일 동안 처리되지 않아 만료되었어요",
+                at(Screen.CREW_HOME, request.crewId()));
+        return true;
     }
 
     private JoinRequest requireRequest(long requestId) {

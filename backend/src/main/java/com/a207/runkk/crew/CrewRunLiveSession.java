@@ -181,28 +181,29 @@ public class CrewRunLiveSession {
     }
 
     /** snapshot으로 되살린다. */
-    public static CrewRunLiveSession restore(Snapshot s) {
+    public static CrewRunLiveSession restore(Snapshot snapshot) {
         Map<Long, DisplayName> names = new HashMap<>();
-        s.runners().forEach(r -> names.put(r.memberId(), DisplayName.of(r.name())));
+        snapshot.runners().forEach(r -> names.put(r.memberId(), DisplayName.of(r.name())));
         CrewRunLiveSession session =
-                new CrewRunLiveSession(s.postId(), s.distance(), s.startAt(), names);
-        for (Snapshot.Runner r : s.runners()) {
-            if (r.meters() != null) {
+                new CrewRunLiveSession(
+                        snapshot.postId(), snapshot.distance(), snapshot.startAt(), names);
+        for (Snapshot.Runner runner : snapshot.runners()) {
+            if (runner.meters() != null) {
                 session.latest.put(
-                        r.memberId(),
+                        runner.memberId(),
                         new LiveProgress(
-                                Distance.ofMeters(r.meters()),
-                                Duration.ofMillis(r.elapsedMillis()),
-                                r.seenAt()));
+                                Distance.ofMeters(runner.meters()),
+                                Duration.ofMillis(runner.elapsedMillis()),
+                                runner.seenAt()));
             }
-            if (r.arrivedAt() != null) {
-                session.arrived.put(r.memberId(), r.arrivedAt());
+            if (runner.arrivedAt() != null) {
+                session.arrived.put(runner.memberId(), runner.arrivedAt());
             }
-            if (r.quit()) {
-                session.quitters.add(r.memberId());
+            if (runner.quit()) {
+                session.quitters.add(runner.memberId());
             }
-            if (r.checking()) {
-                session.checking.add(r.memberId());
+            if (runner.checking()) {
+                session.checking.add(runner.memberId());
             }
         }
         return session;

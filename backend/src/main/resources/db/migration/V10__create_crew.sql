@@ -50,6 +50,7 @@ CREATE TABLE join_request (
     status       VARCHAR(10)  NOT NULL,
     decided_at   TIMESTAMP(6),
     reason       VARCHAR(40),
+    version      BIGINT       NOT NULL,
     CONSTRAINT ck_join_request_status
         CHECK (status IN ('PENDING', 'APPROVED', 'REJECTED', 'DISSOLVED', 'CANCELLED', 'EXPIRED'))
 );

@@ -2,6 +2,8 @@ package com.a207.runkk.crew;
 
 import com.a207.runkk.common.DateRange;
 import com.a207.runkk.member.MemberWithdrawn;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,6 +16,8 @@ import org.springframework.transaction.event.TransactionalEventListener;
  */
 @Component
 public class CrewWithdrawalListener {
+
+    private static final Logger log = LoggerFactory.getLogger(CrewWithdrawalListener.class);
 
     private final CrewRepository crewRepository;
     private final JoinRequestRepository joinRequestRepository;
@@ -64,19 +68,21 @@ public class CrewWithdrawalListener {
 
     /** 혼자 남은 크루면 크루를 지우고, 아니면 그 회원의 멤버십 행만 지운다. */
     private void leaveCrew(long crewId, long memberId) {
-        crewRepository
-                .findByIdForUpdate(crewId)
-                .ifPresent(
-                        crew -> {
-                            boolean alone =
-                                    crew.membershipOf(memberId).isPresent()
-                                            && crew.headcount() == 1;
-                            if (alone) {
-                                crewDeletion.deleteAll(crewId);
-                            } else {
-                                crew.removeMember(memberId);
-                                crewRepository.save(crew);
-                            }
-                        });
+        crewRepository.findByIdForUpdate(crewId).ifPresent(crew -> leaveCrew(crew, memberId));
+    }
+
+    private void leaveCrew(Crew crew, long memberId) {
+        boolean leader = crew.relationOf(memberId) == CrewRelation.LEADER;
+        if (leader && crew.headcount() == 1) {
+            crewDeletion.deleteAll(crew.getId());
+            return;
+        }
+        if (leader) {
+            // CrewLeaderGuard 검사 뒤 크루원이 들어온 경합. 크루장 없는 크루를 만들지 않도록 남기고 알린다(운영 확인 대상).
+            log.warn("crew_leader_withdrawn_with_members crewId={}", crew.getId());
+            return;
+        }
+        crew.removeMember(memberId);
+        crewRepository.save(crew);
     }
 }

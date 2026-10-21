@@ -82,12 +82,12 @@ public final class AvatarFakes {
         final Set<Long> held = new HashSet<>();
 
         @Override
-        public synchronized boolean tryLock(long memberId, Duration ttl) {
-            return held.add(memberId);
+        public synchronized Optional<String> tryLock(long memberId, Duration ttl) {
+            return held.add(memberId) ? Optional.of("t" + memberId) : Optional.empty();
         }
 
         @Override
-        public synchronized void unlock(long memberId) {
+        public synchronized void unlock(long memberId, String token) {
             held.remove(memberId);
         }
     }
