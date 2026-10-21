@@ -201,6 +201,15 @@ private class PlayServicesTransport(context: Context, private val scope: Corouti
         )
     override val incoming: SharedFlow<WatchLink.Incoming> = received.asSharedFlow()
 
+    /**
+     * 보낼 메시지(경로, 내용). 표시 정보는 1초마다 오므로 밀리면 최신 것만 보낸다(순서가 뒤바뀌지 않게 한 코루틴이 보낸다).
+     * init 블록보다 먼저 선언한다: init의 코루틴이 바로 돌면 아직 만들어지지 않은 채널을 읽어 죽는다(PlayServicesTransportTest).
+     */
+    private val outbox = Channel<Pair<String, ByteArray>>(Channel.CONFLATED)
+
+    @Volatile
+    private var nodeIds: List<String> = emptyList()
+
     init {
         messages.addListener(::onMessage)
         data.addListener(::onData)
@@ -216,12 +225,6 @@ private class PlayServicesTransport(context: Context, private val scope: Corouti
             }
         }
     }
-
-    /** 보낼 메시지(경로, 내용). 표시 정보는 1초마다 오므로 밀리면 최신 것만 보낸다(순서가 뒤바뀌지 않게 한 코루틴이 보낸다). */
-    private val outbox = Channel<Pair<String, ByteArray>>(Channel.CONFLATED)
-
-    @Volatile
-    private var nodeIds: List<String> = emptyList()
 
     override fun send(path: String, payload: ByteArray) {
         outbox.trySend(path to payload)
