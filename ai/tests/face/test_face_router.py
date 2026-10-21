@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 
 import httpx
 import pytest
+from starlette.requests import Request
 
-from runkk_ai.face import FacePart, FaceTransformError
+from runkk_ai.face import FacePart, FaceTransformError, FaceTransformService
+from runkk_ai.face.router import create
 from tests.conftest import JPEG_HEAD, PNG_1X1, FakeFaceTransformer
 
 OCTET = {"Content-Type": "application/octet-stream"}
@@ -130,3 +133,38 @@ async def test_slow_transformer_is_timeout(client: httpx.AsyncClient, fake_face:
 
     assert response.status_code == 504
     assert response.json() == {"reason": "TIMEOUT"}
+
+
+def _stream_request(receive: Callable[[], Awaitable[dict[str, object]]]) -> Request:
+    scope = {
+        "type": "http",
+        "method": "POST",
+        "path": "/faces",
+        "headers": [(b"content-type", b"application/octet-stream")],
+    }
+    return Request(scope, receive)  # type: ignore[arg-type]
+
+
+async def test_client_disconnect_while_uploading_is_not_an_error(face_service: FaceTransformService) -> None:
+    """업로드 중 연결이 끊기면 500 대신 조용히 끝낸다(N4)."""
+
+    async def receive() -> dict[str, object]:
+        return {"type": "http.disconnect"}
+
+    response = await create(_stream_request(receive), face_service)
+
+    assert response.status_code == 499  # type: ignore[union-attr]
+
+
+async def test_slow_upload_times_out_as_504(fake_face: FakeFaceTransformer) -> None:
+    """본문 읽기도 face_timeout_s 안에 끝나야 한다(N4)."""
+    service = FaceTransformService(transformer=fake_face, timeout_s=0.05, max_image_bytes=1024)
+
+    async def receive() -> dict[str, object]:
+        await asyncio.sleep(5)
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    response = await create(_stream_request(receive), service)
+
+    assert response.status_code == 504  # type: ignore[union-attr]
+    assert bytes(response.body) == b'{"reason":"TIMEOUT"}'  # type: ignore[union-attr]

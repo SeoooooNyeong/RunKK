@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import httpx
 import pytest
-from pydantic import ValidationError
+from fastapi import FastAPI
+from pydantic import SecretStr, ValidationError
+from starlette.types import Receive, Scope, Send
 
-from runkk_ai.core import Settings
+from runkk_ai.core import InternalTokenMiddleware, Settings
 from runkk_ai.main import create_app
 from tests.conftest import AUTH, TOKEN, VALID_SUMMARY, make_settings
 
@@ -236,3 +238,49 @@ def test_faces_does_not_take_multipart_upload() -> None:
     operation = app.openapi()["paths"]["/faces"]["post"]
 
     assert "requestBody" not in operation
+
+
+async def test_duplicate_internal_token_header_is_401(anon_client: httpx.AsyncClient) -> None:
+    """같은 헤더가 둘이면 맞는 값이 섞여 있어도 거부한다(N2)."""
+    headers = [("X-Internal-Token", TOKEN), ("X-Internal-Token", TOKEN)]
+
+    response = await anon_client.post("/comments", json=VALID_SUMMARY, headers=headers)
+
+    assert response.status_code == 401
+    assert response.json() == UNAUTHORIZED
+
+
+async def test_websocket_without_token_is_closed_with_policy_violation(app: FastAPI) -> None:
+    """websocket scope도 토큰 없이는 안쪽 앱에 닿지 않는다(N1)."""
+    inner_reached = False
+    sent: list[dict[str, object]] = []
+
+    async def inner(scope: Scope, receive: Receive, send: Send) -> None:
+        nonlocal inner_reached
+        inner_reached = True
+
+    async def receive() -> dict[str, object]:
+        return {"type": "websocket.connect"}
+
+    async def send(message: dict[str, object]) -> None:
+        sent.append(message)
+
+    guard = InternalTokenMiddleware(inner, token=SecretStr(TOKEN), public_paths=("/health",))
+
+    await guard({"type": "websocket", "path": "/ws", "headers": []}, receive, send)  # type: ignore[arg-type]
+
+    assert not inner_reached
+    assert sent == [{"type": "websocket.close", "code": 1008}]
+
+
+async def test_lifespan_scope_passes_through() -> None:
+    reached: list[str] = []
+
+    async def inner(scope: Scope, receive: Receive, send: Send) -> None:
+        reached.append(scope["type"])
+
+    guard = InternalTokenMiddleware(inner, token=SecretStr(TOKEN), public_paths=())
+
+    await guard({"type": "lifespan"}, None, None)  # type: ignore[arg-type]
+
+    assert reached == ["lifespan"]

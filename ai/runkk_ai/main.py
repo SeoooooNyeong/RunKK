@@ -67,6 +67,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.add_exception_handler(RequestValidationError, _invalid_request)
     app.add_exception_handler(StarletteHTTPException, _http_error)
+    app.add_exception_handler(Exception, _internal_error)
     app.include_router(HealthRouter)
     app.include_router(CommentRouter)
     app.include_router(FaceRouter)
@@ -147,6 +148,12 @@ def _build_face_transformer(settings: Settings) -> FaceTransformer:
 async def _invalid_request(request: Request, exc: Exception) -> JSONResponse:
     """422 본문에 입력값을 되돌려 주지 않는다(회원 식별 항목이 섞여 와도 응답·로그로 새지 않게)."""
     return JSONResponse(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, content={"reason": "INVALID_REQUEST"})
+
+
+async def _internal_error(request: Request, exc: Exception) -> JSONResponse:
+    """처리 안 된 예외도 {"reason"} 형식으로 맞춘다(N3). 요청 내용이 섞일 수 있어 예외 클래스 이름만 남긴다."""
+    logger.error("unhandled_error type=%s path=%s", type(exc).__name__, request.url.path)
+    return JSONResponse(status_code=500, content={"reason": "INTERNAL_ERROR"})
 
 
 async def _http_error(request: Request, exc: Exception) -> JSONResponse:

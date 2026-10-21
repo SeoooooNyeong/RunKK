@@ -134,3 +134,19 @@ async def test_app_starts_without_provider_keys_and_falls_back() -> None:
     assert health.status_code == 200
     assert (comment.status_code, comment.json()) == (503, {"reason": "LLM_UNAVAILABLE"})
     assert (face.status_code, face.json()) == (503, {"reason": "UPSTREAM_FAILED"})
+
+
+async def test_unhandled_exception_is_500_with_reason_body() -> None:
+    """처리 안 된 예외도 text/plain이 아니라 {"reason"} JSON이다(N3)."""
+    app = create_app(make_settings())
+
+    @app.get("/boom")
+    async def boom() -> None:
+        raise RuntimeError("secret detail")
+
+    transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
+    async with httpx.AsyncClient(transport=transport, base_url="http://ai", headers=AUTH) as client:
+        response = await client.get("/boom")
+
+    assert response.status_code == 500
+    assert response.json() == {"reason": "INTERNAL_ERROR"}

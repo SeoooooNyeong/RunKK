@@ -26,6 +26,10 @@ class FaceTransformService:
         self._max_image_bytes = max_image_bytes
 
     @property
+    def timeout_s(self) -> float:
+        return self._timeout_s
+
+    @property
     def max_image_bytes(self) -> int:
         return self._max_image_bytes
 
