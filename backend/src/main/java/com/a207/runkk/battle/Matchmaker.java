@@ -6,6 +6,7 @@ import com.a207.runkk.policy.MatchCondition;
 import com.a207.runkk.policy.OperationPolicy;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -56,7 +57,7 @@ public class Matchmaker {
     /** A-06. 오래 기다린 순으로 짝(pairUp), 짝이 없으면 대기 시간에 따라 고스트·포기(resolveUnpaired). */
     public void tick(LocalDateTime now) {
         MatchCondition cond = operationPolicy.matchCondition();
-        List<MatchTicket> waiting = matchQueue.waitingOldestFirst();
+        List<MatchTicket> waiting = withoutActiveBattle(matchQueue.waitingOldestFirst());
         Set<Long> paired = new HashSet<>();
         for (MatchTicket ticket : waiting) {
             if (paired.contains(ticket.getMemberId())) {
@@ -78,6 +79,25 @@ public class Matchmaker {
                         e);
             }
         }
+    }
+
+    /**
+     * 이미 활성 대결이 있는 회원의 표를 대기열에서 뺀다(활성 대결 1개 불변식 결정). 대기 등록(MatchingService.join)과 기록 대결 생성이 겹치면 한
+     * 회원이 표와 활성 대결을 함께 가질 수 있고, 그 표로 만든 대결은 활성 칸 고유 제약에 걸려 매 tick 실패하며 짝이 된 상대까지 막는다. 그런 표는
+     * WAITING일 때 지우고 MatchFailed로 대기 화면을 닫는다.
+     */
+    private List<MatchTicket> withoutActiveBattle(List<MatchTicket> waiting) {
+        List<MatchTicket> free = new ArrayList<>();
+        for (MatchTicket ticket : waiting) {
+            long memberId = ticket.getMemberId();
+            if (!battleRepository.existsActive(memberId)) {
+                free.add(ticket);
+            } else if (matchQueue.removeWaiting(memberId)) {
+                log.warn("match_ticket_dropped memberId={} reason=active_battle", memberId);
+                notifyFailed(List.of(memberId));
+            }
+        }
+        return free;
     }
 
     /** a 뒤에서 a와 짝지을 수 있고 아직 짝짓지 않은 첫 표(가장 오래 기다린 순). 없으면 null(D-79). */

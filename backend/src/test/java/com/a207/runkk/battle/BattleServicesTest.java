@@ -241,6 +241,23 @@ class BattleServicesTest {
 
         @Test
         @org.junit.jupiter.api.DisplayName(
+                "활성 대결 1개: 대기 중 활성 대결이 생긴 회원의 표는 지우고 MatchFailed, 상대 표는 막히지 않고 남는다")
+        void ticketOfMemberWithActiveBattle_isDropped() {
+            battles.save(
+                    Battle.againstRecord(
+                            BattleFixtures.spec(BattleType.SELF, Duration.ofMinutes(25)), NOW));
+            waiting(ALICE, NOW);
+            waiting(BOB, NOW.plusSeconds(1));
+            matchmaker.tick(NOW.plusSeconds(2));
+
+            assertThat(queue.findWaiting(ALICE)).isEmpty();
+            assertThat(messenger.to(ALICE, "MatchFailed")).hasSize(1);
+            assertThat(queue.findWaiting(BOB)).isPresent();
+            assertThat(battles.all()).hasSize(1);
+        }
+
+        @Test
+        @org.junit.jupiter.api.DisplayName(
                 "M1·D-64: 고스트를 만들지 못하면 표를 WAITING으로 되돌리고, 30초를 넘긴 다음 tick에만 MatchFailed")
         void ghostFailure_releasesThenGivesUpAfterThirtySeconds() {
             when(members.ghostEligibleOwners(any(), anyLong())).thenReturn(Map.of());
