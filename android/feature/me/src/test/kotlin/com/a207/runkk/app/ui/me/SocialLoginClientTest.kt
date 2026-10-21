@@ -7,7 +7,9 @@ import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.account.ProviderToken
 import com.a207.runkk.app.domain.account.ProviderType
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertSame
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -80,5 +82,37 @@ class SocialLoginClientTest {
 
         assertEquals(Outcome.Success(ProviderToken(ProviderType.KAKAO, "kakao-access")), ok.signIn(context))
         assertEquals(Outcome.Failure(AppError.Rejected(LOGIN_CANCELLED)), cancelled.signIn(context))
+    }
+
+    /** 키 없이 토큰을 주는 대체 창구(E2E 시험용, :app localDebug만 넣는다). */
+    private class KeylessSource(private val token: String) : KakaoAccessTokenSource {
+        val appKeys = mutableListOf<String>()
+        override val requiresNativeAppKey: Boolean = false
+
+        override suspend fun accessToken(context: Context, nativeAppKey: String): Outcome<String> {
+            appKeys += nativeAppKey
+            return Outcome.Success(token)
+        }
+    }
+
+    @Test
+    fun `앱 키가 필요 없는 대체 창구는 키가 없어도 토큰을 받는다`() = runTest {
+        val source = KeylessSource("e2e-1001")
+        val client = KakaoLoginClient(SocialLoginKeys("", ""), source)
+
+        assertEquals(Outcome.Success(ProviderToken(ProviderType.KAKAO, "e2e-1001")), client.signIn(context))
+        assertEquals(listOf(""), source.appKeys)
+    }
+
+    @Test
+    fun `대체 창구가 없으면 Kakao SDK 창구, 하나면 그것, 둘 이상이면 설정 오류`() {
+        val sdk = KakaoAccessTokenSource { _, _ -> Outcome.Success("sdk") }
+        val override = KeylessSource("e2e-1")
+
+        assertSame(sdk, chooseKakaoTokenSource(emptySet(), sdk))
+        assertSame(override, chooseKakaoTokenSource(setOf(override), sdk))
+        assertFailsWith<IllegalStateException> {
+            chooseKakaoTokenSource(setOf(override, KeylessSource("e2e-2")), sdk)
+        }
     }
 }

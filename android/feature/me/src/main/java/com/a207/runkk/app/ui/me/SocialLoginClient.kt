@@ -20,6 +20,7 @@ import com.kakao.sdk.common.model.ClientError
 import com.kakao.sdk.common.model.ClientErrorCause
 import com.kakao.sdk.user.UserApiClient
 import javax.inject.Inject
+import javax.inject.Qualifier
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.coroutines.resume
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -48,7 +49,27 @@ data class SocialLoginKeys(val kakaoNativeAppKey: String, val googleWebClientId:
 
 /** 카카오 접근 토큰을 받는 창구(Kakao SDK). 시험에서는 가짜로 바꾼다. */
 fun interface KakaoAccessTokenSource {
+    /** 네이티브 앱 키가 있어야 토큰을 받을 수 있는지. 키 없이 토큰을 주는 대체 창구([KakaoTokenOverride])만 false다. */
+    val requiresNativeAppKey: Boolean get() = true
+
     suspend fun accessToken(context: Context, nativeAppKey: String): Outcome<String>
+}
+
+/**
+ * 카카오 토큰 창구를 갈아 끼우는 자리(멀티바인딩 집합). 출시 코드에는 넣는 곳이 없어 늘 비어 Kakao SDK를 쓴다.
+ * :app의 localDebug 소스셋만 빌드 속성 RUNKK_E2E_KAKAO_TOKEN이 있을 때 E2E 시험용 창구를 넣는다(e2e/README.md).
+ */
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class KakaoTokenOverride
+
+/** 대체 창구가 있으면 그것을, 없으면 Kakao SDK 창구를 쓴다. 대체 창구가 둘 이상이면 설정 오류다. */
+internal fun chooseKakaoTokenSource(
+    overrides: Set<KakaoAccessTokenSource>,
+    sdk: KakaoAccessTokenSource
+): KakaoAccessTokenSource {
+    check(overrides.size <= 1) { "카카오 토큰 대체 창구는 하나만 둘 수 있다: ${overrides.size}개" }
+    return overrides.firstOrNull() ?: sdk
 }
 
 /**
@@ -63,7 +84,7 @@ class KakaoLoginClient @Inject constructor(
 
     override suspend fun signIn(context: Context): Outcome<ProviderToken> {
         val appKey = keys.kakaoNativeAppKey.trim()
-        if (appKey.isEmpty()) return Outcome.Failure(AppError.Rejected(SDK_NOT_READY))
+        if (appKey.isEmpty() && source.requiresNativeAppKey) return Outcome.Failure(AppError.Rejected(SDK_NOT_READY))
         return when (val token = source.accessToken(context, appKey)) {
             is Outcome.Success -> Outcome.Success(ProviderToken(ProviderType.KAKAO, token.value))
             is Outcome.Failure -> token

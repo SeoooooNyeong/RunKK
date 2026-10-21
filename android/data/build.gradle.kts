@@ -21,9 +21,12 @@ android {
     productFlavors {
         create("local") {
             dimension = "env"
-            // 에뮬레이터에서 개발 PC의 backend local 프로필(10.0.2.2 = 호스트)
-            buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:8080/api/v1/\"")
-            buildConfigField("String", "LIVE_SOCKET_URL", "\"ws://10.0.2.2:8080/ws\"")
+            // 에뮬레이터에서 개발 PC의 backend local 프로필(10.0.2.2 = 호스트). 빌드 속성 RUNKK_LOCAL_API_URL·RUNKK_LOCAL_WS_URL
+            // (local.properties·-P·환경 변수)이 있으면 그 주소로 덮는다. E2E 시험(e2e/README.md)은 8090 포트 서버를 쓴다.
+            val localApiUrl = secretProperty("RUNKK_LOCAL_API_URL").ifEmpty { "http://10.0.2.2:8080/api/v1/" }
+            val localWsUrl = secretProperty("RUNKK_LOCAL_WS_URL").ifEmpty { "ws://10.0.2.2:8080/ws" }
+            buildConfigField("String", "API_BASE_URL", buildConfigString(localApiUrl))
+            buildConfigField("String", "LIVE_SOCKET_URL", buildConfigString(localWsUrl))
         }
         create("develop") {
             dimension = "env"

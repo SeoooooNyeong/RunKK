@@ -72,6 +72,19 @@ android {
     }
 }
 
+// E2E 시험(e2e/README.md) 전용: local 플레이버 + debug 빌드에만 시험용 카카오 토큰 창구(src/localDebug)와 그 토큰 값을 넣는다.
+// 빌드 속성 RUNKK_E2E_KAKAO_TOKEN(local.properties·-P·환경 변수)이 비면 창구는 꺼져 Kakao SDK를 그대로 쓰고,
+// 다른 변형(localRelease, develop*, prod*)에는 코드도 값도 들어가지 않는다(E2eLoginPathTest).
+val e2eKakaoToken = secretProperty("RUNKK_E2E_KAKAO_TOKEN")
+androidComponents {
+    onVariants(selector().withName("localDebug")) { variant ->
+        variant.buildConfigFields?.put(
+            "E2E_KAKAO_TOKEN",
+            com.android.build.api.variant.BuildConfigField("String", buildConfigString(e2eKakaoToken), "E2E 시험용 카카오 토큰")
+        )
+    }
+}
+
 dependencies {
     // 조립 루트: Hilt가 모든 모듈의 @InstallIn 바인딩과 FeatureEntry @IntoSet을 집계하도록 전부 의존한다.
     // 코드 import는 5.1.2 표(app → domain.sync·account·settings·notification, core.navigation·designsystem)만 쓴다.
