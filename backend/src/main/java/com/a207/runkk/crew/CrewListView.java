@@ -8,8 +8,9 @@ import java.util.List;
  *
  * @param crews 공개 크루, 최근 생성순
  * @param recommendations 크루 없는 러너의 추천, 크루가 있으면 null
+ * @param nextCursor 다음 페이지 커서(크루 ID), 마지막 페이지거나 나누지 않았으면 null
  */
-public record CrewListView(List<Item> crews, RecommendationView recommendations) {
+public record CrewListView(List<Item> crews, RecommendationView recommendations, Long nextCursor) {
 
     public CrewListView {
         crews = List.copyOf(crews);

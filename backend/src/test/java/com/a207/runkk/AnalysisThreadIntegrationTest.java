@@ -347,8 +347,21 @@ class AnalysisThreadIntegrationTest {
         }
         assertThat(together(sameMember)).isEqualTo(1);
 
-        counter.incrementAndGet("runkk:it:ttl", Duration.ofHours(48));
+        assertThat(
+                        counter.tryIncrementAll(
+                                List.of(new QuotaCounter.Limit("runkk:it:ttl", 1)),
+                                Duration.ofHours(48)))
+                .isTrue();
         assertThat(redis.getExpire("runkk:it:ttl")).isPositive();
+        assertThat(
+                        counter.tryIncrementAll(
+                                List.of(
+                                        new QuotaCounter.Limit("runkk:it:a", 5),
+                                        new QuotaCounter.Limit("runkk:it:ttl", 1)),
+                                Duration.ofHours(48)))
+                .as("두 번째 키가 넘으면 첫 키도 되돌린다")
+                .isFalse();
+        assertThat(redis.opsForValue().get("runkk:it:a")).isEqualTo("0");
     }
 
     private static int together(List<Callable<Boolean>> work) throws Exception {
@@ -388,6 +401,11 @@ class AnalysisThreadIntegrationTest {
                 .isTrue();
         assertThat(rankings.personalRanking(b, AggregationPeriod.WEEKLY).mine().rank())
                 .isEqualTo(1);
+        com.a207.runkk.analysis.RankingView cached =
+                rankings.personalRanking(a, AggregationPeriod.WEEKLY);
+        assertThat(cached.mine().rank()).as("캐시의 회원별 줄").isEqualTo(2);
+        assertThat(cached.gapToNext()).isEqualTo(Distance.ofKm(5));
+        assertThat(redis.keys("ranking:PERSONAL:WEEKLY:*:subjects")).isNotEmpty();
         redis.getRequiredConnectionFactory().getConnection().serverCommands().flushAll();
         com.a207.runkk.analysis.RankingView fromDb =
                 rankings.personalRanking(a, AggregationPeriod.WEEKLY);
@@ -404,6 +422,9 @@ class AnalysisThreadIntegrationTest {
         List<Long> planned = tx.execute(s -> goals.membersWithPlanOn(today));
         assertThat(planned).containsExactly(m);
         assertThat(coach.remindMissedPlans(LocalDateTime.now())).isEqualTo(1);
+        assertThat(coach.purgePastPlans(today)).as("보존 기간 안 계획은 남는다").isZero();
+        assertThat(coach.purgePastPlans(today.plusYears(1).plusDays(1))).isEqualTo(1);
+        coach.putPlan(m, new DailyPlan(today, Distance.ofKm(3), null));
         upload(m, 0);
         awaitReady(m);
         tx.executeWithoutResult(

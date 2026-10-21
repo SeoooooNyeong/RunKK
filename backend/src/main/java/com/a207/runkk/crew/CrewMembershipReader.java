@@ -50,14 +50,12 @@ public class CrewMembershipReader {
                                 Collectors.mapping(CrewMembership::memberId, Collectors.toList())));
     }
 
-    /** 크루 랭킹 표시용 크루 이름(design-review.md M6). 없는 크루는 빠진다. */
+    /** 크루 랭킹 표시용 크루 이름(design-review.md M6). 없는 크루는 빠진다. 한 번의 조회로 읽는다(B5 리뷰 N+1). */
     public Map<Long, DisplayName> crewNames(Collection<Long> crewIds) {
         Map<Long, DisplayName> names = new HashMap<>();
-        crewIds.forEach(
-                id ->
-                        crewRepository
-                                .findById(id)
-                                .ifPresent(c -> names.put(id, DisplayName.of(c.name().value()))));
+        crewRepository
+                .findAllById(crewIds)
+                .forEach(c -> names.put(c.getId(), DisplayName.of(c.name().value())));
         return names;
     }
 

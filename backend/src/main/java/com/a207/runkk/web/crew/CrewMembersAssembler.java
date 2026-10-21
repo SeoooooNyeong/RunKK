@@ -43,7 +43,8 @@ class CrewMembersAssembler {
                                                 m.crewIntro(),
                                                 m.crewTags() == null ? null : m.crewTags().tags(),
                                                 m.tier(),
-                                                types.get(m.memberId())))
+                                                types.get(m.memberId()),
+                                                m.memberId() == viewerId))
                         .toList());
     }
 
@@ -83,6 +84,7 @@ class CrewMembersAssembler {
          * @param tags 크루 내 성향 태그(공개만)
          * @param tier 티어(공개만)
          * @param runimalType Runimal 유형(공개만)
+         * @param me 열람자 본인
          */
         record Member(
                 long memberId,
@@ -91,7 +93,8 @@ class CrewMembersAssembler {
                 String crewIntro,
                 Set<PersonalityTag> tags,
                 Tier tier,
-                RunimalType runimalType) {}
+                RunimalType runimalType,
+                boolean me) {}
     }
 
     /**

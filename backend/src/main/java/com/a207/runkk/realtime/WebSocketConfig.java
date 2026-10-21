@@ -19,13 +19,16 @@ public class WebSocketConfig implements WebSocketConfigurer {
     public static final String PATH = "/ws";
 
     private final LiveSocketHandler handler;
+    private final TokenHandshakeInterceptor tokenCheck;
 
-    public WebSocketConfig(LiveSocketHandler handler) {
+    WebSocketConfig(LiveSocketHandler handler, TokenHandshakeInterceptor tokenCheck) {
         this.handler = handler;
+        this.tokenCheck = tokenCheck;
     }
 
+    /** 핸드셰이크 단계에서 토큰을 확인해 틀리면 401로 거부한다. */
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
-        registry.addHandler(handler, PATH);
+        registry.addHandler(handler, PATH).addInterceptors(tokenCheck);
     }
 }

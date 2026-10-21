@@ -20,7 +20,7 @@ public class ProfileService {
         this.reservedNicknameCheckers = List.copyOf(reservedNicknameCheckers);
     }
 
-    /** 닉네임 중복(회원·가상) 검사 → Member.editProfile. 겹치면 BusinessRuleException(NICKNAME_INVALID). */
+    /** 닉네임 중복(회원·가상) 검사 → Member.editProfile. 겹치면 BusinessRuleException(NICKNAME_TAKEN). */
     @Transactional
     public ProfileEditResult editProfile(long memberId, ProfileEdit edit) {
         Member member = MemberLoader.load(memberRepository, memberId);
@@ -31,7 +31,7 @@ public class ProfileService {
                 if (memberRepository.existsByNickname(requested.value())
                         || reservedNicknameCheckers.stream()
                                 .anyMatch(c -> c.isReserved(requested.value()))) {
-                    throw new BusinessRuleException(ReasonCode.NICKNAME_INVALID);
+                    throw new BusinessRuleException(ReasonCode.NICKNAME_TAKEN);
                 }
                 newNickname = requested;
             }

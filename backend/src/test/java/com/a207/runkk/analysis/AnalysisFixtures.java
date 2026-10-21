@@ -83,6 +83,11 @@ public final class AnalysisFixtures {
         public void deleteByMember(long memberId) {
             rows.remove(memberId);
         }
+
+        @Override
+        public int deletePlansAndGoalsBefore(java.time.LocalDate before) {
+            return rows.values().stream().mapToInt(g -> g.dropBefore(before)).sum();
+        }
     }
 
     /** 인메모리 리포트 저장소. */
@@ -118,20 +123,32 @@ public final class AnalysisFixtures {
         public Optional<RankingSnapshot> latest(RankingKind kind, AggregationPeriod period) {
             return Optional.ofNullable(rows.get(kind + ":" + period));
         }
+
+        @Override
+        public Optional<RankingPage> latestPage(
+                RankingKind kind, AggregationPeriod period, int top, Optional<Long> subjectId) {
+            return latest(kind, period).map(s -> s.page(top, subjectId));
+        }
     }
 
-    /** 인메모리 카운터(원자적 증가). */
+    /** 인메모리 카운터(Redis Lua와 같은 규칙을 한 잠금 안에서). */
     public static class Counter implements QuotaCounter {
         final Map<String, AtomicLong> values = new ConcurrentHashMap<>();
 
         @Override
-        public long incrementAndGet(String key, Duration ttl) {
-            return values.computeIfAbsent(key, k -> new AtomicLong()).incrementAndGet();
-        }
-
-        @Override
-        public void decrement(String key) {
-            values.computeIfAbsent(key, k -> new AtomicLong()).decrementAndGet();
+        public synchronized boolean tryIncrementAll(List<Limit> limits, Duration ttl) {
+            for (int i = 0; i < limits.size(); i++) {
+                long n =
+                        values.computeIfAbsent(limits.get(i).key(), k -> new AtomicLong())
+                                .incrementAndGet();
+                if (n > limits.get(i).max()) {
+                    for (int j = 0; j <= i; j++) {
+                        values.get(limits.get(j).key()).decrementAndGet();
+                    }
+                    return false;
+                }
+            }
+            return true;
         }
 
         long valueOf(String suffix) {

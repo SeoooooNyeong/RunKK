@@ -1,7 +1,9 @@
 package com.a207.runkk.crew;
 
 import com.a207.runkk.common.DateRange;
+import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.Week;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -26,6 +28,12 @@ public interface CrewRepository {
 
     /** 공개 크루만, 최근 생성순. 이번 주(week) 크루 거리를 붙인다. 크루장 표시명은 비어 있다. */
     List<CrewListRow> search(CrewSearch cond, Week week);
+
+    /** 그 주 크루 거리 합계(주간 거리 행이 없으면 0). */
+    Distance weeklyDistance(long crewId, Week week);
+
+    /** 그 ID들의 크루를 한 번에 읽는다(없는 ID는 빠진다, N+1 방지). */
+    List<Crew> findAllById(Collection<Long> ids);
 
     /** 그 기간에 소속 행이 있던 크루(crew_membership만 읽는다). */
     List<Long> crewIdsActiveBetween(DateRange range);

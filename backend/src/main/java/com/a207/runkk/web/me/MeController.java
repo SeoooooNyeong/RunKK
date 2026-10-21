@@ -25,8 +25,6 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.util.Set;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -109,13 +107,13 @@ public class MeController {
         return memberSettingService.legalDocument(type);
     }
 
-    /** 확인 단계는 앱 화면이 하고 서버는 확인된 요청만 받는다(D-36). 가드가 거부하면 409 + 사유. */
+    /**
+     * 확인 단계는 앱 화면이 하고 서버는 확인된 요청만 받는다(D-36). 가드가 거부하면 409 공통 오류 응답(code: LEADER_MUST_TRANSFER ·
+     * BATTLE_IN_PROGRESS).
+     */
     @DeleteMapping("/me")
-    ResponseEntity<WithdrawalResult> withdraw(@RequestAttribute(MEMBER_ID) long memberId) {
-        WithdrawalResult result = withdrawalService.withdraw(memberId);
-        return result.withdrawn()
-                ? ResponseEntity.ok(result)
-                : ResponseEntity.status(HttpStatus.CONFLICT).body(result);
+    WithdrawalResult withdraw(@RequestAttribute(MEMBER_ID) long memberId) {
+        return withdrawalService.withdraw(memberId);
     }
 
     /**

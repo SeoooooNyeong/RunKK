@@ -60,6 +60,18 @@ public class JpaJoinRequestRepository implements JoinRequestRepository {
     }
 
     @Override
+    public List<JoinRequest> findPendingByMember(long memberId) {
+        return entityManager
+                .createQuery(
+                        "select r from JoinRequest r where r.memberId = :member and r.status ="
+                                + " :pending order by r.requestedAt, r.id",
+                        JoinRequest.class)
+                .setParameter("member", memberId)
+                .setParameter("pending", JoinRequestStatus.PENDING)
+                .getResultList();
+    }
+
+    @Override
     public List<JoinRequest> findPendingOlderThan(LocalDateTime cutoff) {
         return entityManager
                 .createQuery(

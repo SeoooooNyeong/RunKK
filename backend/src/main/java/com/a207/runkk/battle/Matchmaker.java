@@ -1,5 +1,7 @@
 package com.a207.runkk.battle;
 
+import com.a207.runkk.battle.live.MatchFailed;
+import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.policy.MatchCondition;
 import com.a207.runkk.policy.OperationPolicy;
 import java.time.LocalDateTime;
@@ -13,8 +15,8 @@ import org.springframework.stereotype.Service;
 
 /**
  * 1초마다 대기자를 짝짓는다(설계 6.1.6, A-06, srs.md 6.3 4.2, 활동도 11.2). 짝은 MatchQueue.tryAssignPair로 원자적으로 배정하고
- * (FR-082), 15초 넘게 기다린 대기자는 고스트 매칭으로 넘긴다. 짝·고스트 하나마다 새 트랜잭션이라 한 건의 실패가 다른 건을 막지 않는다. 서버 인스턴스 하나에서만
- * 돈다(5.4).
+ * (FR-082), 15초 넘게 기다린 대기자는 고스트 매칭으로 넘긴다. 짝·고스트 하나마다 새 트랜잭션이라 한 건의 실패가 다른 건을 막지 않는다. 만들지 못한 대결의
+ * 대기자는 대기열에서 빠지므로 실시간 MatchFailed로 알린다. 서버 인스턴스 하나에서만 돈다(5.4).
  */
 @Service
 public class Matchmaker {
@@ -27,6 +29,7 @@ public class Matchmaker {
     private final GhostMatcher ghostMatcher;
     private final OperationPolicy operationPolicy;
     private final BattleTransactions transactions;
+    private final BattleMessenger battleMessenger;
 
     public Matchmaker(
             MatchQueue matchQueue,
@@ -34,13 +37,15 @@ public class Matchmaker {
             BattleStartService battleStartService,
             GhostMatcher ghostMatcher,
             OperationPolicy operationPolicy,
-            BattleTransactions transactions) {
+            BattleTransactions transactions,
+            BattleMessenger battleMessenger) {
         this.matchQueue = matchQueue;
         this.battleRepository = battleRepository;
         this.battleStartService = battleStartService;
         this.ghostMatcher = ghostMatcher;
         this.operationPolicy = operationPolicy;
         this.transactions = transactions;
+        this.battleMessenger = battleMessenger;
     }
 
     /** A-06. 오래 기다린 순으로 짝 → Battle.random → announceMatch. 15초 초과 → GhostMatcher.match. */
@@ -60,7 +65,11 @@ public class Matchmaker {
                 paired.add(partner.get().getMemberId());
             } else if (ticket.isExpired(now, cond.ghostAfter())
                     && matchQueue.remove(ticket.getMemberId())) {
-                transactions.once("ghost_match", () -> ghostMatcher.match(ticket, now));
+                boolean created =
+                        transactions.once("ghost_match", () -> ghostMatcher.match(ticket, now));
+                if (!created) {
+                    notifyFailed(List.of(ticket.getMemberId()));
+                }
             }
         }
     }
@@ -96,6 +105,19 @@ public class Matchmaker {
         matchQueue.remove(second.getMemberId());
         if (!created) {
             log.warn("random_match_dropped tickets={}", LiveBattleSession.RUNNERS);
+            notifyFailed(List.of(first.getMemberId(), second.getMemberId()));
+        }
+    }
+
+    /** 대결을 만들지 못해 대기가 풀렸음을 알린다(앱은 대기 화면을 닫는다). 알림 실패는 로그만 남긴다. */
+    private void notifyFailed(List<Long> memberIds) {
+        try {
+            battleMessenger.sendAll(
+                    memberIds,
+                    new MatchFailed(
+                            ReasonCode.MATCH_FAILED.name(), ReasonCode.MATCH_FAILED.message()));
+        } catch (RuntimeException e) {
+            log.warn("match_failed_notice_failed error={}", e.getClass().getSimpleName());
         }
     }
 }

@@ -15,6 +15,9 @@ public interface JoinRequestRepository {
 
     List<JoinRequest> findPending(long crewId);
 
+    /** 그 회원의 대기 중 신청(신청 일시순). */
+    List<JoinRequest> findPendingByMember(long memberId);
+
     List<JoinRequest> findPendingOlderThan(LocalDateTime cutoff);
 
     void deleteByCrew(long crewId);

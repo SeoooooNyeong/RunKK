@@ -21,7 +21,9 @@ import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /** 한 번 집계한 랭킹표(설계 6.1.4 RankingSnapshot, D-25, FR-070, FR-071). 매일 0시에 만들어 저장하고 조회는 이 표만 읽는다. */
@@ -114,6 +116,33 @@ public class RankingSnapshot {
                 .filter(d -> d.compareTo(own) > 0)
                 .min(Comparator.naturalOrder())
                 .map(above -> above.minus(own));
+    }
+
+    /** 상위 top줄과 subject의 줄·바로 위까지 거리(캐시가 비었을 때 DB 스냅숏에서 만든다). */
+    public RankingPage page(int top, Optional<Long> subjectId) {
+        List<RankEntry> all = entries();
+        return new RankingPage(
+                computedAt,
+                all.subList(0, Math.min(top, all.size())),
+                subjectId.flatMap(this::entryOf).orElse(null),
+                subjectId.flatMap(this::gapToNext).orElse(null));
+    }
+
+    /** 줄마다 바로 위 순위까지 거리(1위는 없음). 순위순 한 번 훑어 구한다(캐시의 회원별 줄). */
+    public Map<Long, Distance> gapsToNext() {
+        Map<Long, Distance> gaps = new HashMap<>();
+        Distance above = null;
+        Distance group = null;
+        for (RankEntry e : entries()) {
+            if (group != null && !e.distance().equals(group)) {
+                above = group;
+            }
+            group = e.distance();
+            if (above != null) {
+                gaps.put(e.subjectId(), above.minus(e.distance()));
+            }
+        }
+        return gaps;
     }
 
     public RankingKind getKind() {

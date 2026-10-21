@@ -323,8 +323,21 @@ class RecordAndAdminServicesTest {
         ghost.forfeit(ALICE, NOW.plusHours(1).plusMinutes(1));
         battles.save(ghost);
         when(members.summaries(anyCollection())).thenReturn(Map.of());
+        CelebrityRecord legend = celebrity(List.of());
+        RecordBattleStart celebrityStart = records.startCelebrityBattle(BOB, legend.getId());
+        Battle celebrityBattle = battles.findById(celebrityStart.battleId()).orElseThrow();
+        celebrityBattle.forfeit(BOB, NOW.plusMinutes(2));
+        battles.save(celebrityBattle);
 
-        BattleHistoryService history = new BattleHistoryService(battles, members);
+        BattleHistoryService history = new BattleHistoryService(battles, members, celebrities);
+        BattleHistoryView bob =
+                history.history(
+                        BOB,
+                        new DateRange(NOW.toLocalDate(), NOW.toLocalDate()),
+                        Optional.of(BattleType.CELEBRITY));
+        assertThat(bob.entries()).hasSize(1);
+        assertThat(bob.entries().get(0).sourceLabel()).isEqualTo("공개 기록 기준 · 대회 공식 기록");
+        assertThat(bob.entries().get(0).gap()).isNull();
         DateRange range = new DateRange(NOW.toLocalDate().minusDays(1), NOW.toLocalDate());
         BattleHistoryView all = history.history(ALICE, range, Optional.empty());
         assertThat(all.total()).isEqualTo(2);
@@ -379,7 +392,7 @@ class RecordAndAdminServicesTest {
         ActiveBattleGuard guard = new ActiveBattleGuard(queue, battles);
         assertThat(guard.check(ALICE)).isEmpty();
         queue.enqueue(MatchTicket.open(ALICE, Tier.GOLD, StandardDistance.KM5, NOW));
-        assertThat(guard.check(ALICE)).contains(ActiveBattleGuard.ACTIVE_BATTLE);
+        assertThat(guard.check(ALICE)).contains(ReasonCode.BATTLE_IN_PROGRESS);
         new BattleWithdrawalListener(queue).onMemberWithdrawn(new MemberWithdrawn(ALICE, NOW));
         assertThat(guard.check(ALICE)).isEmpty();
         battles.save(

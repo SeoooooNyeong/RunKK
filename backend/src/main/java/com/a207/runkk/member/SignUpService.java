@@ -79,7 +79,7 @@ public class SignUpService {
                 member.getId(), nickname.value(), tokenIssuer.issue(member.getId()));
     }
 
-    /** 닉네임이 겹치면 숫자 4자리를 붙여 5회까지 다시 시도한다(Q-75). 그래도 겹치면 NICKNAME_INVALID. */
+    /** 닉네임이 겹치면 숫자 4자리를 붙여 5회까지 다시 시도한다(Q-75). 그래도 겹치면 NICKNAME_TAKEN. */
     private Nickname settleNickname(String requested) {
         Nickname base = Nickname.of(requested == null ? DEFAULT_NICKNAME : requested);
         if (requested != null && !isTaken(base)) {
@@ -91,7 +91,7 @@ public class SignUpService {
                 return candidate;
             }
         }
-        throw new BusinessRuleException(ReasonCode.NICKNAME_INVALID);
+        throw new BusinessRuleException(ReasonCode.NICKNAME_TAKEN);
     }
 
     private boolean isTaken(Nickname nickname) {

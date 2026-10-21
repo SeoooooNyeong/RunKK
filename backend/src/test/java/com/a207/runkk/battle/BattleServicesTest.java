@@ -22,6 +22,7 @@ import com.a207.runkk.battle.live.CountdownStarted;
 import com.a207.runkk.battle.live.MatchFound;
 import com.a207.runkk.battle.live.OpponentProgress;
 import com.a207.runkk.common.BusinessRuleException;
+import com.a207.runkk.common.DateRange;
 import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.DomainEvent;
@@ -92,6 +93,8 @@ class BattleServicesTest {
     void wire() {
         when(policy.matchCondition()).thenReturn(new MatchCondition(0, Duration.ofSeconds(15)));
         when(members.hasConsent(anyLong(), eq(ConsentItem.LOCATION))).thenReturn(true);
+        when(settings.battleSettingsOf(anyLong()))
+                .thenReturn(com.a207.runkk.member.BattleSettings.defaults());
         when(members.summaries(anyCollection()))
                 .thenAnswer(
                         inv -> {
@@ -107,14 +110,14 @@ class BattleServicesTest {
                 new BattleStartService(battles, members, runs, messenger, sessions, clock, tx);
         GhostMatcher ghost =
                 new GhostMatcher(members, runs, virtuals, battles, startService, new Random(3));
-        matchmaker = new Matchmaker(queue, battles, startService, ghost, policy, tx);
+        matchmaker = new Matchmaker(queue, battles, startService, ghost, policy, tx, messenger);
         liveService = new LiveBattleService(sessions, battles, messenger, notifications, tx);
         clockService =
                 new BattleClockService(
                         battles, startService, sessions, messenger, notifications, publisher, tx);
         resultService =
                 new BattleResultService(
-                        battles, runs, notifications, publisher, messenger, clock, tx);
+                        battles, runs, members, notifications, publisher, messenger, clock, tx);
     }
 
     private MatchTicket waiting(long memberId, LocalDateTime since) {
@@ -234,6 +237,17 @@ class BattleServicesTest {
             assertThat(found.animationSeconds()).isEqualTo(3);
             BattleStart start = (BattleStart) messenger.to(BOB, "BattleStart").get(0);
             assertThat(start.opponentTrack()).isNull();
+        }
+
+        @Test
+        @org.junit.jupiter.api.DisplayName("고스트 대결을 만들지 못하면 대기에서 빠지고 MatchFailed를 받는다")
+        void ghostFailure_notifiesMatchFailed() {
+            when(members.ghostEligibleOwners(any(), anyLong())).thenReturn(Map.of());
+            waiting(ALICE, NOW);
+            matchmaker.tick(NOW.plusSeconds(16));
+            assertThat(battles.all()).isEmpty();
+            assertThat(queue.findWaiting(ALICE)).isEmpty();
+            assertThat(messenger.to(ALICE, "MatchFailed")).hasSize(1);
         }
 
         @Test
@@ -507,6 +521,18 @@ class BattleServicesTest {
             assertThat(view.corrected()).isTrue();
             assertThat(view.comparison().rows()).hasSize(4);
             assertThat(view.weekly().wins()).isEqualTo(1);
+            assertThat(view.myRecordId()).isEqualTo("b");
+            assertThat(view.opponentName().value()).isEqualTo("러너" + ALICE);
+
+            BattleHistoryView history =
+                    new BattleHistoryService(
+                                    battles, members, new InMemoryBattleStores.Celebrities())
+                            .history(
+                                    BOB,
+                                    new DateRange(NOW.toLocalDate(), NOW.toLocalDate()),
+                                    Optional.empty());
+            assertThat(history.entries().get(0).gap()).isEqualTo(Duration.ofSeconds(5));
+            assertThat(history.entries().get(0).sourceLabel()).isNull();
         }
 
         @Test

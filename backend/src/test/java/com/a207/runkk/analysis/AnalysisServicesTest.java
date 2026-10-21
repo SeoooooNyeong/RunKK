@@ -357,6 +357,45 @@ class AnalysisServicesTest {
     }
 
     @Test
+    @org.junit.jupiter.api.DisplayName("3시 정리: 1년이 지난 날짜별 계획·주간 목표만 지운다")
+    void purgePastPlans() {
+        RunningGoal goal = goals.findOrCreate(ME);
+        goal.putPlan(
+                new DailyPlan(TODAY.minusYears(2), Distance.ofKm(3), null), TODAY.minusYears(2));
+        goal.putPlan(new DailyPlan(TODAY, Distance.ofKm(3), null), TODAY);
+        goals.save(goal);
+        CoachService coach = new CoachService(goals, runs, notifications, policy, clock);
+        assertThat(coach.purgePastPlans(TODAY)).isEqualTo(1);
+        assertThat(goals.findOrCreate(ME).planOn(TODAY)).isPresent();
+        assertThat(goals.findOrCreate(ME).planOn(TODAY.minusYears(2))).isEmpty();
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("랭킹 부분: 상위 N줄과 본인 줄, 바로 위 순위까지 거리(같은 거리는 같은 순위)")
+    void rankingPage_andGaps() {
+        RankingSnapshot snapshot =
+                RankingSnapshot.build(
+                        RankingKind.PERSONAL,
+                        com.a207.runkk.common.AggregationPeriod.WEEKLY,
+                        NOW,
+                        List.of(score(1, 10), score(2, 8), score(3, 8), score(4, 5)));
+        RankingPage page = snapshot.page(2, java.util.Optional.of(4L));
+        assertThat(page.top()).extracting(RankEntry::subjectId).containsExactly(1L, 2L);
+        assertThat(page.mine().rank()).isEqualTo(4);
+        assertThat(page.gapToNext()).isEqualTo(Distance.ofKm(3));
+        assertThat(snapshot.gapsToNext())
+                .containsEntry(2L, Distance.ofKm(2))
+                .containsEntry(3L, Distance.ofKm(2))
+                .containsEntry(4L, Distance.ofKm(3))
+                .doesNotContainKey(1L);
+    }
+
+    private static RankScore score(long id, long km) {
+        return new RankScore(
+                id, com.a207.runkk.common.DisplayName.of("러너" + id), null, Distance.ofKm(km));
+    }
+
+    @Test
     @org.junit.jupiter.api.DisplayName("20시 미이행 알림: 오늘 계획이 있고 오늘 기록 0인 회원에게만 PLAN_MISSED(FR-075)")
     void remindMissedPlans() {
         CoachService coach = new CoachService(goals, runs, notifications, policy, clock);

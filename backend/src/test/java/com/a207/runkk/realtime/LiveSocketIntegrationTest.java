@@ -1,6 +1,7 @@
 package com.a207.runkk.realtime;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.a207.runkk.battle.Battle;
 import com.a207.runkk.battle.BattleRepository;
@@ -101,7 +102,7 @@ class LiveSocketIntegrationTest {
 
     @Test
     @org.junit.jupiter.api.DisplayName(
-            "인증된 두 러너: 한쪽 진행값이 상대에게 OpponentProgress로 가고 위치 항목이 없다, 토큰 없으면 1008 종료")
+            "인증된 두 러너: 한쪽 진행값이 상대에게 OpponentProgress로 가고 위치 항목이 없다, 토큰 없으면 핸드셰이크 401")
     void relayOverWebSocket() throws Exception {
         long alice = member("소켓곰");
         long bob = member("소켓여우");
@@ -139,10 +140,8 @@ class LiveSocketIntegrationTest {
         assertThat(progress.has("latitude")).isFalse();
 
         Inbox anonymous = new Inbox();
-        connect(anonymous, null);
-        assertThat(anonymous.closes.poll(WAIT_SECONDS, TimeUnit.SECONDS))
-                .extracting(CloseStatus::getCode)
-                .isEqualTo(CloseStatus.POLICY_VIOLATION.getCode());
+        assertThatThrownBy(() -> connect(anonymous, null)).hasStackTraceContaining("401");
+        assertThatThrownBy(() -> connect(new Inbox(), "forged")).hasStackTraceContaining("401");
     }
 
     @Test

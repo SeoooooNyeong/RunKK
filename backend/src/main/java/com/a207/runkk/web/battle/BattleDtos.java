@@ -10,6 +10,7 @@ import com.a207.runkk.battle.Source;
 import com.a207.runkk.battle.TrackSample;
 import com.a207.runkk.battle.Verdict;
 import com.a207.runkk.battle.WeeklyRecord;
+import com.a207.runkk.common.StandardDistance;
 import jakarta.validation.constraints.Positive;
 import java.time.Duration;
 import java.time.LocalDate;
@@ -47,14 +48,19 @@ final class BattleDtos {
      *
      * @param waiting 대기 중인가
      * @param distanceMeters 대기 거리
+     * @param defaultDistanceMeters 기본 대결 거리(마지막으로 요청한 거리)
      */
-    record MatchAcceptanceResponse(boolean waiting, Long distanceMeters) {
+    record MatchAcceptanceResponse(
+            boolean waiting, Long distanceMeters, Long defaultDistanceMeters) {
         static MatchAcceptanceResponse of(MatchAcceptance acceptance) {
             return new MatchAcceptanceResponse(
                     acceptance.waiting(),
-                    acceptance.distance() == null
-                            ? null
-                            : acceptance.distance().distance().meters());
+                    metersOf(acceptance.distance()),
+                    metersOf(acceptance.defaultDistance()));
+        }
+
+        private static Long metersOf(StandardDistance d) {
+            return d == null ? null : d.distance().meters();
         }
     }
 
@@ -159,6 +165,8 @@ final class BattleDtos {
      * @param weekly 이번 주 전적
      * @param rewardPoints 이 대결로 적립한 리워드(BATTLE_WIN), 없으면 0
      * @param newRecord 신기록
+     * @param opponentName 상대 표시명
+     * @param recordId 본인 러닝 기록 ID(기록 카드), 아직 없으면 null
      */
     record BattleResultResponse(
             long battleId,
@@ -172,7 +180,9 @@ final class BattleDtos {
             List<Row> rows,
             WeeklyRecord weekly,
             Integer rewardPoints,
-            boolean newRecord) {}
+            boolean newRecord,
+            String opponentName,
+            String recordId) {}
 
     /**
      * 비교표 한 줄.
@@ -197,16 +207,23 @@ final class BattleDtos {
      * @param wins 승
      * @param losses 패
      * @param selfNewRecords 나와의 싸움 신기록 수
+     * @param nextCursor 다음 페이지 커서(size를 줬을 때만), 없으면 null
      */
     record BattleHistoryResponse(
-            List<Entry> entries, int total, int wins, int losses, int selfNewRecords) {
+            List<Entry> entries,
+            int total,
+            int wins,
+            int losses,
+            int selfNewRecords,
+            Long nextCursor) {
         static BattleHistoryResponse of(BattleHistoryView view) {
             return new BattleHistoryResponse(
                     view.entries().stream().map(Entry::of).toList(),
                     view.total(),
                     view.wins(),
                     view.losses(),
-                    view.selfNewRecords());
+                    view.selfNewRecords(),
+                    view.nextCursor());
         }
     }
 
@@ -220,6 +237,8 @@ final class BattleDtos {
      * @param verdict 판정
      * @param playedAt 대결 일시
      * @param newRecord 신기록
+     * @param gapSeconds 기록 차이(본인 − 상대, 초, 음수면 본인이 빠름), 없으면 null
+     * @param sourceLabel 유명인 기록 출처 표기, 없으면 null
      */
     record Entry(
             long battleId,
@@ -228,7 +247,9 @@ final class BattleDtos {
             long distanceMeters,
             Verdict verdict,
             LocalDateTime playedAt,
-            boolean newRecord) {
+            boolean newRecord,
+            Long gapSeconds,
+            String sourceLabel) {
         static Entry of(BattleHistoryView.Entry e) {
             return new Entry(
                     e.battleId(),
@@ -237,7 +258,9 @@ final class BattleDtos {
                     e.distance().meters(),
                     e.verdict(),
                     e.playedAt(),
-                    e.newRecord());
+                    e.newRecord(),
+                    seconds(e.gap()),
+                    e.sourceLabel());
         }
     }
 

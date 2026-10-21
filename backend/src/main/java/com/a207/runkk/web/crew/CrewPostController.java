@@ -1,5 +1,6 @@
 package com.a207.runkk.web.crew;
 
+import com.a207.runkk.common.PageCursor;
 import com.a207.runkk.crew.CrewPostService;
 import com.a207.runkk.crew.PostKind;
 import com.a207.runkk.crew.PostResult;
@@ -34,8 +35,11 @@ public class CrewPostController {
     CrewDtos.PostListResponse list(
             @RequestAttribute(MEMBER_ID) long memberId,
             @PathVariable("id") long crewId,
-            @RequestParam(required = false) PostKind kind) {
-        return CrewDtos.PostListResponse.of(crewPostService.list(memberId, crewId, kind));
+            @RequestParam(required = false) PostKind kind,
+            @RequestParam(required = false) Long cursor,
+            @RequestParam(required = false) Integer size) {
+        return CrewDtos.PostListResponse.of(
+                crewPostService.list(memberId, crewId, kind, new PageCursor(cursor, size)));
     }
 
     @PostMapping("/crews/{id}/posts")

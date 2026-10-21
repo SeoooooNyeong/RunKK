@@ -14,7 +14,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -35,6 +34,7 @@ public class RunimalService {
     private final MemberQueryService memberQueryService;
     private final OperationPolicy operationPolicy;
     private final Clock clock;
+    private final RunimalTransactions transactions;
 
     RunimalService(
             RunimalProfileRepository runimalProfileRepository,
@@ -43,7 +43,8 @@ public class RunimalService {
             RunSampleReader runSampleReader,
             MemberQueryService memberQueryService,
             OperationPolicy operationPolicy,
-            Clock clock) {
+            Clock clock,
+            RunimalTransactions transactions) {
         this.runimalProfileRepository = runimalProfileRepository;
         this.courseSimilarityService = courseSimilarityService;
         this.runimalJudge = runimalJudge;
@@ -51,16 +52,35 @@ public class RunimalService {
         this.memberQueryService = memberQueryService;
         this.operationPolicy = operationPolicy;
         this.clock = clock;
+        this.transactions = transactions;
     }
 
-    /** 비동기. 유효 기록만. 경로가 있으면 코스 판정 → onValidRun → PROVISIONAL·CONFIRM이면 판정(SQ-10). */
+    /**
+     * 비동기. 유효 기록만. 경로가 있으면 코스 판정 → onValidRun → PROVISIONAL·CONFIRM이면 판정(SQ-10). 같은 회원의 동시 처리와 충돌하면
+     * 새 트랜잭션으로 다시 읽어 재시도하고(최대 3회), 그래도 실패하면 로그만 남긴다(다음 판정 회차에 다시 판정, D-40).
+     */
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onRunSaved(RunRecordSaved e) {
         if (!e.valid() || e.validRunOrdinal() < 1) {
             return;
         }
+        try {
+            transactions.retrying(
+                    () -> {
+                        apply(e);
+                        return Boolean.TRUE;
+                    });
+        } catch (RuntimeException failure) {
+            log.error(
+                    "runimal_judge_failed recordId={} error={}",
+                    e.recordId(),
+                    failure.getClass().getSimpleName(),
+                    failure);
+        }
+    }
+
+    private void apply(RunRecordSaved e) {
         if (e.hasRoute()) {
             courseSimilarityService.judge(e.memberId(), e.recordId());
         }

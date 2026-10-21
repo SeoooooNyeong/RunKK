@@ -110,7 +110,8 @@ class CrewRunViews {
                 name,
                 run.map(RunSummary::elapsed).orElse(null),
                 run.map(RunSummary::averagePace).orElse(null),
-                p.hasQuit());
+                p.hasQuit(),
+                p.memberId().orElse(null));
     }
 
     /**

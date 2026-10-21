@@ -36,7 +36,13 @@ public record CrewRunResultView(
      * @param elapsed 기록(연결된 러닝의 경과 시간), 없으면 null
      * @param averagePace 평균 페이스, 없으면 null
      * @param quit 중간에 그만뒀는가
+     * @param memberId 참가자 회원 ID, 탈퇴했으면 null(앱이 본인 줄을 가린다)
      */
     public record Line(
-            Integer rank, DisplayName name, Duration elapsed, Pace averagePace, boolean quit) {}
+            Integer rank,
+            DisplayName name,
+            Duration elapsed,
+            Pace averagePace,
+            boolean quit,
+            Long memberId) {}
 }

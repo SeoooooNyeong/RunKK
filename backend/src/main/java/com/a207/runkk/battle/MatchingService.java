@@ -85,10 +85,26 @@ public class MatchingService {
         return matchQueue.enqueue(MatchTicket.open(memberId, tier, distance, now));
     }
 
+    /**
+     * 지금 매칭 대기 상태와 기본 대결 거리(GET /battles/match). 대기 중이면 대기 거리, 아니면 대기해제. 설계 5.7.1에 없던 조회로, 앱 대결 화면이
+     * 회원 설정 없이 기본 대결 거리를 읽게 한다(FR-080, FR-109).
+     */
+    public MatchAcceptance status(long memberId) {
+        Optional<MatchTicket> ticket = queueing(() -> matchQueue.findWaiting(memberId));
+        StandardDistance remembered = defaultDistanceOf(memberId);
+        return ticket.filter(t -> t.getStatus() == MatchStatus.WAITING)
+                .map(t -> new MatchAcceptance(true, t.getDistance(), remembered))
+                .orElseGet(() -> MatchAcceptance.released(remembered));
+    }
+
+    private StandardDistance defaultDistanceOf(long memberId) {
+        return memberSettingService.battleSettingsOf(memberId).defaultDistance();
+    }
+
     /** WAITING이면 지우고 대기해제. 이미 배정됐으면 ALREADY_MATCHED(FR-085). 대기 중이 아니면 대기해제(재요청 제한 없음, Q-31). */
     public MatchAcceptance cancel(long memberId) {
         if (queueing(() -> matchQueue.removeWaiting(memberId))) {
-            return MatchAcceptance.released();
+            return MatchAcceptance.released(defaultDistanceOf(memberId));
         }
         boolean assigned =
                 queueing(() -> matchQueue.findWaiting(memberId)).isPresent()
@@ -96,7 +112,7 @@ public class MatchingService {
         if (assigned) {
             throw new BusinessRuleException(ReasonCode.ALREADY_MATCHED);
         }
-        return MatchAcceptance.released();
+        return MatchAcceptance.released(defaultDistanceOf(memberId));
     }
 
     private Tier tierOf(long memberId) {

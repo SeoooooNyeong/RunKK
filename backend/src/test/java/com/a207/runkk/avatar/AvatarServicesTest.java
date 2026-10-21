@@ -59,6 +59,7 @@ class AvatarServicesTest {
     private final AvatarFakes.Avatars avatars = new AvatarFakes.Avatars();
     private final AvatarFakes.Images images = new AvatarFakes.Images();
     private final AvatarFakes.Locks locks = new AvatarFakes.Locks();
+    private final AvatarFakes.Failures failures = new AvatarFakes.Failures();
     private final AvatarFakes.Gateway gateway = new AvatarFakes.Gateway();
     private final RewardService rewards = mock(RewardService.class);
     private final MemberQueryService members = mock(MemberQueryService.class);
@@ -93,7 +94,8 @@ class AvatarServicesTest {
                                         LocalTime.of(21, 0))));
         when(members.hasConsent(ALICE, ConsentItem.FACE_TRANSFER)).thenReturn(true);
         when(rewards.balanceOf(anyLong())).thenReturn(70);
-        SelfieConversion conversion = new SelfieConversion(gateway, images, locks, avatars, tx);
+        SelfieConversion conversion =
+                new SelfieConversion(gateway, images, locks, failures, avatars, members, tx);
         service = new AvatarService(avatars, conversion, rewards, members, policy, clock);
         appearance =
                 new AppearanceService(
@@ -131,6 +133,34 @@ class AvatarServicesTest {
         assertThat(result.view().guide()).isNotNull();
         assertThat(result.view().canCreateSelfieToday()).isTrue();
         assertThat(images.saved).isEmpty();
+    }
+
+    @Test
+    @DisplayName("변환 실패가 하루 5번이면 SELFIE_RETRY_LIMIT, ai를 더 부르지 않는다")
+    void selfie_failureCap() {
+        gateway.answer = image -> FaceTransformOutcome.failure(FailureReason.NO_FACE);
+        for (int i = 0; i < SelfieConversion.MAX_FAILURES_PER_DAY; i++) {
+            assertThat(service.createFromSelfie(ALICE, SELFIE).created()).isFalse();
+        }
+        assertThatThrownBy(() -> service.createFromSelfie(ALICE, SELFIE))
+                .satisfies(e -> assertThat(reasonOf(e)).isEqualTo(ReasonCode.SELFIE_RETRY_LIMIT));
+        assertThat(gateway.calls).isEqualTo(SelfieConversion.MAX_FAILURES_PER_DAY);
+        assertThat(locks.held).isEmpty();
+    }
+
+    @Test
+    @DisplayName("변환하는 사이 탈퇴(동의가 지워짐)하면 부위 이미지를 남기지 않는다")
+    void selfie_withdrawnDuringConversion_leavesNoImages() {
+        gateway.answer =
+                image -> {
+                    when(members.hasConsent(ALICE, ConsentItem.FACE_TRANSFER)).thenReturn(false);
+                    return FaceTransformOutcome.success(AvatarFakes.images());
+                };
+        assertThatThrownBy(() -> service.createFromSelfie(ALICE, SELFIE))
+                .satisfies(
+                        e -> assertThat(reasonOf(e)).isEqualTo(ReasonCode.FACE_CONSENT_REQUIRED));
+        assertThat(images.saved).isEmpty();
+        assertThat(locks.held).isEmpty();
     }
 
     @Test
@@ -221,6 +251,36 @@ class AvatarServicesTest {
         assertThat(appearance.refreshAll(TODAY)).isZero();
         verify(runs).recentStartTimes(2L, 10);
         verify(notifications, never()).notify(any());
+    }
+
+    @Test
+    @DisplayName("부위 이미지: 본인·다른 회원 모두 읽고, 탈퇴한 회원·다른 형식 키는 거부")
+    void partImage() {
+        service.createFromSelfie(ALICE, SELFIE);
+        String key = images.saved.get(ALICE).parts().get(FacePart.EYES);
+        FaceImageService faces = new FaceImageService(images, members);
+        when(members.disclosureOf(anyLong(), any()))
+                .thenAnswer(
+                        inv -> {
+                            Map<Long, com.a207.runkk.member.DisclosureLevel> map =
+                                    new java.util.HashMap<>();
+                            for (Object id : (java.util.Collection<?>) inv.getArgument(1)) {
+                                map.put(
+                                        (Long) id,
+                                        (Long) id == ALICE
+                                                ? com.a207.runkk.member.DisclosureLevel.PRIVATE
+                                                : com.a207.runkk.member.DisclosureLevel.WITHDRAWN);
+                            }
+                            return map;
+                        });
+        assertThat(faces.partImage(2L, key)).isNotEmpty();
+        assertThatThrownBy(() -> faces.partImage(2L, "face/3/x/EYES"))
+                .isInstanceOf(com.a207.runkk.common.PermissionDeniedException.class);
+        assertThatThrownBy(() -> faces.partImage(2L, "../etc/passwd"))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> faces.partImage(ALICE, "face/" + ALICE + "/none/EYES"))
+                .extracting(e -> ((BusinessRuleException) e).reason())
+                .isEqualTo(ReasonCode.FACE_IMAGE_NOT_FOUND);
     }
 
     @Test

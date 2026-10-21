@@ -9,6 +9,7 @@ import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.EnumMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.stereotype.Repository;
 
@@ -43,6 +44,12 @@ public class FacePartImageStoreImpl implements FacePartImageStore {
                             keys.put(part, key);
                         });
         return new SdFaceParts(keys);
+    }
+
+    @Override
+    public Optional<byte[]> find(String imageKey) {
+        return Optional.ofNullable(entityManager.find(FacePartImage.class, imageKey))
+                .map(FacePartImage::png);
     }
 
     @Override

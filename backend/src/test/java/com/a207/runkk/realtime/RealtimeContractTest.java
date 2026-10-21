@@ -7,6 +7,7 @@ import com.a207.runkk.battle.live.BattleEnded;
 import com.a207.runkk.battle.live.BattleGuidance;
 import com.a207.runkk.battle.live.BattleStart;
 import com.a207.runkk.battle.live.CountdownStarted;
+import com.a207.runkk.battle.live.MatchFailed;
 import com.a207.runkk.battle.live.MatchFound;
 import com.a207.runkk.battle.live.OpponentProgress;
 import com.a207.runkk.battle.live.TrackPoint;
@@ -84,7 +85,9 @@ class RealtimeContractTest {
                 "CountdownStarted",
                 new CountdownStarted(101, wind, LocalDateTime.of(2026, 10, 20, 19, 27, 13)),
                 "BattleEnded",
-                new BattleEnded(101, BattleEnded.Status.OPPONENT_FORFEITED));
+                new BattleEnded(101, BattleEnded.Status.OPPONENT_FORFEITED),
+                "MatchFailed",
+                new MatchFailed("MATCH_FAILED", "대결을 만들지 못했어요. 다시 시도해 주세요"));
     }
 
     @Test
@@ -96,7 +99,7 @@ class RealtimeContractTest {
             JsonNode actual = JSON.readTree(serializer.serialize(e.getValue()));
             assertThat(actual).as("표본 " + e.getKey()).isEqualTo(expected);
         }
-        assertThat(messages.values().stream().map(BattleMessage::type).distinct()).hasSize(6);
+        assertThat(messages.values().stream().map(BattleMessage::type).distinct()).hasSize(7);
     }
 
     @Test
@@ -161,17 +164,20 @@ class RealtimeContractTest {
                                         bear,
                                         Distance.ofMeters(3_120),
                                         1,
-                                        RelayEntry.Connection.CONNECTED),
+                                        RelayEntry.Connection.CONNECTED,
+                                        11),
                                 new RelayEntry(
                                         fox,
                                         Distance.ofMeters(2_980),
                                         2,
-                                        RelayEntry.Connection.CHECKING),
+                                        RelayEntry.Connection.CHECKING,
+                                        12),
                                 new RelayEntry(
                                         rabbit,
                                         Distance.ofMeters(1_500),
                                         null,
-                                        RelayEntry.Connection.QUIT))),
+                                        RelayEntry.Connection.QUIT,
+                                        13))),
                 "CrewRunEnded",
                 new CrewRunEnded(77));
     }

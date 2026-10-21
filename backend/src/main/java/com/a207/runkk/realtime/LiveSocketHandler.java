@@ -50,9 +50,13 @@ public class LiveSocketHandler extends TextWebSocketHandler {
         this.dispatcher = dispatcher;
     }
 
+    /** 핸드셰이크가 붙인 회원 ID를 쓴다(TokenHandshakeInterceptor). 없으면(인터셉터 없이 연결) 헤더로 다시 확인한다. */
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws IOException {
-        Optional<Long> memberId = authenticate(session);
+        Optional<Long> memberId =
+                session.getAttributes().get(MEMBER_ID) instanceof Long id
+                        ? Optional.of(id)
+                        : authenticate(session);
         if (memberId.isEmpty()) {
             session.close(CloseStatus.POLICY_VIOLATION.withReason("인증 실패"));
             return;

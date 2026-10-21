@@ -2,6 +2,8 @@ package com.a207.runkk.web.error;
 
 import com.a207.runkk.common.BusinessRuleException;
 import com.a207.runkk.common.PermissionDeniedException;
+import com.a207.runkk.common.ReasonCode;
+import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -31,9 +33,20 @@ public class ApiExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);
 
+    /** 409가 아닌 사유 코드. */
+    private static final Map<ReasonCode, HttpStatus> STATUS_BY_REASON =
+            Map.of(
+                    ReasonCode.AUTH_FAILED, HttpStatus.UNAUTHORIZED,
+                    ReasonCode.PROVIDER_UNAVAILABLE, HttpStatus.SERVICE_UNAVAILABLE,
+                    ReasonCode.TOO_MANY_ATTEMPTS, HttpStatus.TOO_MANY_REQUESTS);
+
+    /**
+     * 업무 규칙 거부는 409가 기본이다. 로그인 실패(AUTH_FAILED 401, PROVIDER_UNAVAILABLE 503)만 그 뜻에 맞는 상태로 준다(앱–서버
+     * 대조 B 단계: 로그인 실패도 공통 오류 형식).
+     */
     @ExceptionHandler(BusinessRuleException.class)
     ResponseEntity<ErrorResponse> handleBusinessRule(BusinessRuleException e) {
-        return ResponseEntity.status(HttpStatus.CONFLICT)
+        return ResponseEntity.status(STATUS_BY_REASON.getOrDefault(e.reason(), HttpStatus.CONFLICT))
                 .body(new ErrorResponse(e.reason().name(), e.reason().message()));
     }
 

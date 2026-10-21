@@ -231,12 +231,13 @@ public final class LiveBattleSession {
             return new Runner(memberId, name.value(), 0, 0, now, 0, false, false);
         }
 
+        /** 늦게 도착한 이전 진행값(더 작은 거리)은 연결 확인으로만 쓰고 거리·경과는 되돌리지 않는다(B3 리뷰: 진행값 역행 거르기). */
         Runner report(ProgressReport r, LocalDateTime now) {
             return new Runner(
                     memberId,
                     name,
-                    r.distance().meters(),
-                    r.elapsed().toMillis(),
+                    Math.max(distanceMeters, r.distance().meters()),
+                    Math.max(elapsedMillis, r.elapsed().toMillis()),
                     now,
                     overtakes,
                     arrived,

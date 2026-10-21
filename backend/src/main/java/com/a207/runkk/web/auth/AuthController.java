@@ -1,6 +1,6 @@
 package com.a207.runkk.web.auth;
 
-import com.a207.runkk.common.ReasonCode;
+import com.a207.runkk.common.BusinessRuleException;
 import com.a207.runkk.member.AuthFailureException;
 import com.a207.runkk.member.AuthService;
 import com.a207.runkk.member.LoginResult;
@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * 로그인·로그아웃·토큰 갱신(설계 5.7.1: POST /auth/login, /auth/logout, /auth/refresh → AuthService). 요청 DTO를
- * 서비스 입력으로, 결과를 응답 DTO로 바꾸기만 한다. 로그인 실패는 401(인증 실패)·503(제공자 무응답)으로 사유 코드와 함께 돌려준다.
+ * 서비스 입력으로, 결과를 응답 DTO로 바꾸기만 한다. 로그인 실패는 401(인증 실패)·503(제공자 무응답)과 공통 오류 응답(code·message)이다.
  */
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -34,6 +34,10 @@ public class AuthController {
         this.authService = authService;
     }
 
+    /**
+     * 로그인 실패는 BusinessRuleException(사유 코드)으로 던져 공통 오류 응답(code·message)이 된다: 401 AUTH_FAILED, 503
+     * PROVIDER_UNAVAILABLE(ApiExceptionHandler가 사유 코드로 상태를 고른다).
+     */
     @PostMapping("/login")
     ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
         LoginResult result = authService.login(request.provider(), request.providerToken());
@@ -43,11 +47,7 @@ public class AuthController {
         if (result.isSignUpRequired()) {
             return ResponseEntity.ok(LoginResponse.signUpRequired(result.signUpTicket()));
         }
-        HttpStatus status =
-                result.failure() == ReasonCode.PROVIDER_UNAVAILABLE
-                        ? HttpStatus.SERVICE_UNAVAILABLE
-                        : HttpStatus.UNAUTHORIZED;
-        return ResponseEntity.status(status).body(LoginResponse.failed(result.failure()));
+        throw new BusinessRuleException(result.failure());
     }
 
     @PostMapping("/logout")
@@ -85,34 +85,23 @@ public class AuthController {
     record RefreshRequest(@NotBlank @Size(max = TOKEN_MAX) String refreshToken) {}
 
     /**
-     * 로그인 결과. status는 LOGGED_IN·SIGN_UP_REQUIRED·FAILED.
+     * 로그인 결과(성공만). status는 LOGGED_IN·SIGN_UP_REQUIRED. 실패는 공통 오류 응답이다.
      *
      * @param status 결과
      * @param accessToken 접근 토큰(로그인완료)
      * @param refreshToken 갱신 토큰(로그인완료)
      * @param signUpTicket 가입 티켓(가입필요, 15분)
-     * @param reason 실패 사유 코드
-     * @param message 실패 화면 문구
      */
     record LoginResponse(
-            String status,
-            String accessToken,
-            String refreshToken,
-            String signUpTicket,
-            String reason,
-            String message) {
+            String status, String accessToken, String refreshToken, String signUpTicket) {
 
         static LoginResponse loggedIn(TokenPair tokens) {
             return new LoginResponse(
-                    "LOGGED_IN", tokens.accessToken(), tokens.refreshToken(), null, null, null);
+                    "LOGGED_IN", tokens.accessToken(), tokens.refreshToken(), null);
         }
 
         static LoginResponse signUpRequired(String ticket) {
-            return new LoginResponse("SIGN_UP_REQUIRED", null, null, ticket, null, null);
-        }
-
-        static LoginResponse failed(ReasonCode reason) {
-            return new LoginResponse("FAILED", null, null, null, reason.name(), reason.message());
+            return new LoginResponse("SIGN_UP_REQUIRED", null, null, ticket);
         }
     }
 

@@ -26,19 +26,19 @@ public class CrewRunController {
     @PostMapping("/{id}/lobby/enter")
     CrewDtos.LobbyResponse enterLobby(
             @RequestAttribute(MEMBER_ID) long memberId, @PathVariable("id") long postId) {
-        return CrewDtos.LobbyResponse.of(crewRunService.enterLobby(memberId, postId));
+        return CrewDtos.LobbyResponse.of(crewRunService.enterLobby(memberId, postId), memberId);
     }
 
     @PostMapping("/{id}/lobby/ready")
     CrewDtos.LobbyResponse toggleReady(
             @RequestAttribute(MEMBER_ID) long memberId, @PathVariable("id") long postId) {
-        return CrewDtos.LobbyResponse.of(crewRunService.toggleReady(memberId, postId));
+        return CrewDtos.LobbyResponse.of(crewRunService.toggleReady(memberId, postId), memberId);
     }
 
     @PostMapping("/{id}/lobby/leave")
     CrewDtos.LobbyResponse leaveLobby(
             @RequestAttribute(MEMBER_ID) long memberId, @PathVariable("id") long postId) {
-        return CrewDtos.LobbyResponse.of(crewRunService.leaveLobby(memberId, postId));
+        return CrewDtos.LobbyResponse.of(crewRunService.leaveLobby(memberId, postId), memberId);
     }
 
     @PostMapping("/{id}/quit")
@@ -50,6 +50,6 @@ public class CrewRunController {
     @GetMapping("/{id}/result")
     CrewDtos.CrewRunResultResponse result(
             @RequestAttribute(MEMBER_ID) long memberId, @PathVariable("id") long postId) {
-        return CrewDtos.CrewRunResultResponse.of(crewRunService.result(memberId, postId));
+        return CrewDtos.CrewRunResultResponse.of(crewRunService.result(memberId, postId), memberId);
     }
 }

@@ -32,6 +32,11 @@ class FacePartImage {
 
     protected FacePartImage() {}
 
+    /** PNG 바이트의 사본. */
+    byte[] png() {
+        return png.clone();
+    }
+
     /** 저장 키의 마지막 마디가 부위 이름이다("face/{회원}/{묶음}/{부위}"). */
     FacePartImage(String imageKey, long memberId, byte[] png, LocalDateTime createdAt) {
         this.imageKey = imageKey;

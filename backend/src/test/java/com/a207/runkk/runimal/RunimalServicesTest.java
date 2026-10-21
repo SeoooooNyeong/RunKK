@@ -52,6 +52,7 @@ class RunimalServicesTest {
     /** 인메모리 판정 상태 저장소. */
     static final class Profiles implements RunimalProfileRepository {
         final Map<Long, RunimalProfile> rows = new HashMap<>();
+        int failNextSaves;
 
         @Override
         public RunimalProfile findOrCreate(long memberId) {
@@ -60,6 +61,10 @@ class RunimalServicesTest {
 
         @Override
         public void save(RunimalProfile profile) {
+            if (failNextSaves > 0) {
+                failNextSaves--;
+                throw new org.springframework.dao.OptimisticLockingFailureException("동시 변경");
+            }
             rows.put(profile.getMemberId(), profile);
         }
 
@@ -147,7 +152,22 @@ class RunimalServicesTest {
                         new RunSampleReader(runs, verdicts, none),
                         members,
                         policy,
-                        clock);
+                        clock,
+                        new RunimalTransactions(com.a207.runkk.NoTransactions.manager()));
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("같은 회원 동시 처리 충돌은 다시 읽어 재시도하고, 3회 모두 충돌하면 예외 없이 로그만")
+    void conflict_isRetried() {
+        profiles.failNextSaves = 2;
+        service.onRunSaved(saved(1, true, false));
+        assertThat(profiles.failNextSaves).isZero();
+        assertThat(profiles.rows).containsKey(MEMBER);
+
+        profiles.rows.clear();
+        profiles.failNextSaves = 3;
+        service.onRunSaved(saved(2, true, false));
+        assertThat(profiles.rows).isEmpty();
     }
 
     private RunRecordSaved saved(int ordinal, boolean valid, boolean hasRoute) {

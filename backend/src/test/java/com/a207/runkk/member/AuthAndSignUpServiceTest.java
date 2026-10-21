@@ -169,7 +169,7 @@ class AuthAndSignUpServiceTest {
                                 new SignUpCommand(
                                         tokens.issueSignUpTicket(MemberFixtures.account("x")),
                                         MemberFixtures.form("곰곰"))),
-                ReasonCode.NICKNAME_INVALID);
+                ReasonCode.NICKNAME_TAKEN);
         assertThat(repository.size()).isZero();
         assertThat(auditRepository.size()).isZero();
     }

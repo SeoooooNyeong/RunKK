@@ -60,13 +60,24 @@ public final class AvatarFakes {
 
     public static final class Images implements FacePartImageStore {
         final Map<Long, SdFaceParts> saved = new HashMap<>();
+        final Map<String, byte[]> bytes = new HashMap<>();
         private int sets;
+
+        @Override
+        public synchronized Optional<byte[]> find(String imageKey) {
+            return Optional.ofNullable(bytes.get(imageKey));
+        }
 
         @Override
         public synchronized SdFaceParts save(long memberId, SdFacePartImages images) {
             String set = "face/" + memberId + "/s" + (++sets);
             Map<FacePart, String> keys = new EnumMap<>(FacePart.class);
-            images.images().keySet().forEach(part -> keys.put(part, set + "/" + part.name()));
+            images.images()
+                    .forEach(
+                            (part, png) -> {
+                                keys.put(part, set + "/" + part.name());
+                                bytes.put(set + "/" + part.name(), png);
+                            });
             SdFaceParts parts = new SdFaceParts(keys);
             saved.put(memberId, parts);
             return parts;
@@ -75,6 +86,21 @@ public final class AvatarFakes {
         @Override
         public synchronized void deleteByMember(long memberId) {
             saved.remove(memberId);
+            bytes.keySet().removeIf(k -> k.startsWith("face/" + memberId + "/"));
+        }
+    }
+
+    public static final class Failures implements SelfieFailureStore {
+        final Map<String, Integer> counts = new HashMap<>();
+
+        @Override
+        public synchronized int failuresOn(long memberId, java.time.LocalDate day) {
+            return counts.getOrDefault(memberId + "@" + day, 0);
+        }
+
+        @Override
+        public synchronized void recordFailure(long memberId, java.time.LocalDate day) {
+            counts.merge(memberId + "@" + day, 1, Integer::sum);
         }
     }
 

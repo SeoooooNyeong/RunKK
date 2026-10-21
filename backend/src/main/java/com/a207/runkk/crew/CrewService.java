@@ -64,7 +64,7 @@ public class CrewService {
         JoinEligibility.evaluate(crewRepository.findMembershipHistory(memberId), now).require();
         CrewName name = CrewName.of(cmd.name());
         if (crewRepository.existsByName(name.value())) {
-            throw new BusinessRuleException(ReasonCode.CREW_NAME_INVALID);
+            throw new BusinessRuleException(ReasonCode.CREW_NAME_TAKEN);
         }
         CrewProfile profile =
                 new CrewProfile(
@@ -88,7 +88,7 @@ public class CrewService {
         if (change.name() != null
                 && !change.name().equals(crew.name())
                 && crewRepository.existsByName(change.name().value())) {
-            throw new BusinessRuleException(ReasonCode.CREW_NAME_INVALID);
+            throw new BusinessRuleException(ReasonCode.CREW_NAME_TAKEN);
         }
         crew.changeInfo(change);
         crewRepository.save(crew);

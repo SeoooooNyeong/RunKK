@@ -3,6 +3,7 @@ package com.a207.runkk.web.me;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -138,6 +139,55 @@ class MeControllerTest extends WebTestSupport {
                                 .content(write(Map.of("intro", "가".repeat(41)))))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("INTRO_TOO_LONG"));
+        Session other = signUp();
+        mvc.perform(
+                        as(other, patch("/api/v1/me/profile"))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(write(Map.of("nickname", "새이름" + s.memberId()))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("NICKNAME_TAKEN"));
+        mvc.perform(
+                        as(other, patch("/api/v1/me/profile"))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(write(Map.of("nickname", "가"))))
+                .andExpect(jsonPath("$.code").value("NICKNAME_INVALID"));
+    }
+
+    @Test
+    @DisplayName("탈퇴 거부는 409 공통 오류 형식(code·message): 크루장 양도 필요")
+    void withdraw_rejectedByGuard() throws Exception {
+        Session leader = signUp();
+        Session member = signUp();
+        String created =
+                mvc.perform(
+                                as(leader, post("/api/v1/crews"))
+                                        .contentType(MediaType.APPLICATION_JSON)
+                                        .content(
+                                                write(
+                                                        Map.of(
+                                                                "name",
+                                                                "탈퇴시험" + leader.memberId(),
+                                                                "tags",
+                                                                java.util.List.of("SOCIAL_RUN"),
+                                                                "visibility",
+                                                                "PUBLIC",
+                                                                "joinPolicy",
+                                                                "FREE"))))
+                        .andExpect(status().isCreated())
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString();
+        long crewId = body(created).get("id").asLong();
+        mvc.perform(
+                        as(member, post("/api/v1/crews/join"))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(write(Map.of("crewId", crewId))))
+                .andExpect(jsonPath("$.status").value("JOINED"));
+        mvc.perform(as(leader, delete("/api/v1/me")))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("LEADER_MUST_TRANSFER"))
+                .andExpect(jsonPath("$.message").value("크루장 양도 필요"))
+                .andExpect(jsonPath("$.rejectionReason").doesNotExist());
     }
 
     @Test

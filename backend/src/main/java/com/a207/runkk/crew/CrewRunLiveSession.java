@@ -59,7 +59,13 @@ public class CrewRunLiveSession {
         if (!names.containsKey(memberId) || quitters.contains(memberId)) {
             return List.of();
         }
-        latest.put(memberId, new LiveProgress(r.distance(), r.elapsed(), now));
+        LiveProgress before = latest.get(memberId);
+        if (before != null && r.distance().compareTo(before.distance()) < 0) {
+            // 늦게 도착한 이전 진행값: 연결 확인으로만 쓰고 거리는 되돌리지 않는다(B3 리뷰: 진행값 역행 거르기)
+            latest.put(memberId, new LiveProgress(before.distance(), before.elapsed(), now));
+        } else {
+            latest.put(memberId, new LiveProgress(r.distance(), r.elapsed(), now));
+        }
         checking.remove(memberId);
         if (r.distance().isAtLeast(distance.distance())) {
             arrived.putIfAbsent(memberId, now);
@@ -98,7 +104,7 @@ public class CrewRunLiveSession {
         List<RelayEntry> entries = new ArrayList<>();
         for (int i = 0; i < racing.size(); i++) {
             long id = racing.get(i);
-            entries.add(new RelayEntry(names.get(id), distanceOf(id), i + 1, connectionOf(id)));
+            entries.add(new RelayEntry(names.get(id), distanceOf(id), i + 1, connectionOf(id), id));
         }
         quitters.stream()
                 .sorted()
@@ -109,7 +115,8 @@ public class CrewRunLiveSession {
                                                 names.get(id),
                                                 distanceOf(id),
                                                 null,
-                                                RelayEntry.Connection.QUIT)));
+                                                RelayEntry.Connection.QUIT,
+                                                id)));
         return entries;
     }
 

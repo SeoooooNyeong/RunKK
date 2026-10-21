@@ -1,8 +1,11 @@
 package com.a207.runkk.crew;
 
 import com.a207.runkk.common.AggregationPeriod;
+import com.a207.runkk.common.BusinessRuleException;
 import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.Distance;
+import com.a207.runkk.common.PageCursor;
+import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.common.TagSet;
 import com.a207.runkk.common.Week;
 import com.a207.runkk.member.DisclosureLevel;
@@ -14,6 +17,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -63,7 +67,14 @@ public class CrewQueryService {
      * MemberQueryService.summaries로 붙인다. 크루 없는 러너면 recommend 결과를 함께 싣는다(FR-117).
      */
     public CrewListView search(long viewerId, CrewSearch cond) {
-        List<CrewListRow> rows = crewRepository.search(cond, thisWeek());
+        return search(viewerId, cond, PageCursor.all());
+    }
+
+    /** 페이지 나누기(B4 리뷰). 크루장 표시명은 그 페이지 크루만 읽는다. */
+    public CrewListView search(long viewerId, CrewSearch cond, PageCursor page) {
+        PageCursor.Slice<CrewListRow> slice =
+                page.slice(crewRepository.search(cond, thisWeek()), CrewListRow::crewId);
+        List<CrewListRow> rows = slice.items();
         Map<Long, MemberSummary> leaders =
                 memberQueryService.summaries(rows.stream().map(CrewListRow::leaderId).toList());
         TagSet viewerTags = memberQueryService.tagsOf(viewerId);
@@ -78,7 +89,7 @@ public class CrewQueryService {
                         .toList();
         RecommendationView recommendations =
                 ownCrewId(viewerId).isEmpty() ? recommend(viewerId) : null;
-        return new CrewListView(items, recommendations);
+        return new CrewListView(items, recommendations, slice.nextCursor());
     }
 
     /** 태그가 없으면 안내(FR-119). 후보(공개, 정원 미달, 본인 소속 아님) → CrewRecommender.recommend(FR-118). */
@@ -193,6 +204,65 @@ public class CrewQueryService {
             lines.add(new CrewRankingView.Line(rank, id, nameOf(summaries, id), distance));
         }
         return new CrewRankingView(crewId, p, lines);
+    }
+
+    /**
+     * 크루 한 곳(GET /crews/{id}). 공개 크루는 누구나, 비공개 크루는 크루원만 본다(비공개 크루는 목록·검색에 나오지 않음, Q-38). 초대 코드는
+     * 크루장에게만 담는다.
+     */
+    public CrewDetailView detail(long viewerId, long crewId) {
+        Crew crew = crewAccess.require(crewId);
+        CrewRelation relation = crew.relationOf(viewerId);
+        if (crew.visibility() != CrewVisibility.PUBLIC && relation == CrewRelation.OUTSIDER) {
+            // 순번 ID로 비공개 크루의 존재를 가늠하지 못하게 없는 크루와 같은 응답을 준다(자가 리뷰 LOW)
+            throw new BusinessRuleException(ReasonCode.CREW_NOT_FOUND);
+        }
+        return detailOf(crew, viewerId);
+    }
+
+    /** 본인 소속 크루(없으면 null)와 대기 중인 본인 가입 신청(GET /crews/me). */
+    public MyCrewView myCrew(long memberId) {
+        CrewDetailView crew =
+                ownCrewId(memberId)
+                        .flatMap(crewRepository::findById)
+                        .map(c -> detailOf(c, memberId))
+                        .orElse(null);
+        List<JoinRequest> pending = joinRequestRepository.findPendingByMember(memberId);
+        Map<Long, String> names = new HashMap<>();
+        crewRepository
+                .findAllById(pending.stream().map(JoinRequest::crewId).distinct().toList())
+                .forEach(c -> names.put(c.getId(), c.name().value()));
+        return new MyCrewView(
+                crew,
+                pending.stream()
+                        .map(
+                                r ->
+                                        new MyCrewView.PendingJoin(
+                                                r.getId(),
+                                                r.crewId(),
+                                                names.get(r.crewId()),
+                                                r.requestedAt()))
+                        .toList());
+    }
+
+    private CrewDetailView detailOf(Crew crew, long viewerId) {
+        long leaderId = crew.leaderId();
+        Map<Long, MemberSummary> leader = memberQueryService.summaries(List.of(leaderId));
+        CrewRole role = crew.membershipOf(viewerId).map(CrewMembership::role).orElse(null);
+        return new CrewDetailView(
+                crew.getId(),
+                crew.name().value(),
+                crew.intro(),
+                crew.tags(),
+                crew.visibility(),
+                crew.joinPolicy(),
+                crew.logoUrl(),
+                leaderId,
+                nameOf(leader, leaderId),
+                crew.headcount(),
+                crewRepository.weeklyDistance(crew.getId(), thisWeek()),
+                role,
+                role == CrewRole.LEADER ? crew.inviteCode() : null);
     }
 
     private Optional<Long> ownCrewId(long memberId) {

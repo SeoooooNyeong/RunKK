@@ -1,6 +1,7 @@
 package com.a207.runkk.web.crew;
 
 import com.a207.runkk.common.AggregationPeriod;
+import com.a207.runkk.common.PageCursor;
 import com.a207.runkk.common.PersonalityTag;
 import com.a207.runkk.crew.CrewCreateResult;
 import com.a207.runkk.crew.CrewQueryService;
@@ -73,9 +74,25 @@ public class CrewController {
     CrewDtos.CrewListResponse search(
             @RequestAttribute(MEMBER_ID) long memberId,
             @RequestParam(required = false) String keyword,
-            @RequestParam(required = false) Set<PersonalityTag> tags) {
+            @RequestParam(required = false) Set<PersonalityTag> tags,
+            @RequestParam(required = false) Long cursor,
+            @RequestParam(required = false) Integer size) {
         return CrewDtos.CrewListResponse.of(
-                crewQueryService.search(memberId, new CrewSearch(tags, keyword)));
+                crewQueryService.search(
+                        memberId, new CrewSearch(tags, keyword), new PageCursor(cursor, size)));
+    }
+
+    /** 본인 소속 크루와 대기 중인 본인 가입 신청(크루 탭 재진입). 설계 5.7.1에 없어 더한 조회다. */
+    @GetMapping("/crews/me")
+    CrewDtos.MyCrewResponse myCrew(@RequestAttribute(MEMBER_ID) long memberId) {
+        return CrewDtos.MyCrewResponse.of(crewQueryService.myCrew(memberId));
+    }
+
+    /** 크루 한 곳(크루 홈·정보 수정 화면). 비공개 크루는 크루원만. 설계 5.7.1에 없어 더한 조회다. */
+    @GetMapping("/crews/{id}")
+    CrewDtos.CrewDetailResponse detail(
+            @RequestAttribute(MEMBER_ID) long memberId, @PathVariable("id") long crewId) {
+        return CrewDtos.CrewDetailResponse.of(crewQueryService.detail(memberId, crewId));
     }
 
     @GetMapping("/crews/recommendations")
@@ -156,7 +173,8 @@ public class CrewController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
                     LocalDate weekStart) {
         return CrewDtos.RaceStatusResponse.of(
-                weeklyRaceService.status(memberId, crewId, Optional.ofNullable(weekStart)));
+                weeklyRaceService.status(memberId, crewId, Optional.ofNullable(weekStart)),
+                memberId);
     }
 
     /**

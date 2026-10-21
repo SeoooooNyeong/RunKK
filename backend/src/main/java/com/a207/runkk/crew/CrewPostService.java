@@ -7,6 +7,7 @@ import com.a207.runkk.audit.AuditService;
 import com.a207.runkk.common.BusinessRuleException;
 import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.Distance;
+import com.a207.runkk.common.PageCursor;
 import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.member.MemberQueryService;
 import com.a207.runkk.member.MemberSummary;
@@ -95,11 +96,17 @@ public class CrewPostService {
      */
     @Transactional(readOnly = true)
     public PostListView list(long memberId, long crewId, PostKind kind) {
+        return list(memberId, crewId, kind, PageCursor.all());
+    }
+
+    /** 페이지 나누기(B4 리뷰). DB에서 cursor 뒤 size + 1개만 읽는다. */
+    @Transactional(readOnly = true)
+    public PostListView list(long memberId, long crewId, PostKind kind, PageCursor page) {
         crewAccess.check(memberId, crewId, CrewAction.VIEW_CREW_INTERNAL);
+        PageCursor.Slice<CrewPost> slice =
+                page.slice(crewPostRepository.findVisible(crewId, kind, page), CrewPost::getId);
         List<PostSummary> summaries =
-                crewPostRepository.findVisible(crewId, kind).stream()
-                        .map(post -> post.summary(memberId))
-                        .toList();
+                slice.items().stream().map(post -> post.summary(memberId)).toList();
         Map<Long, MemberSummary> authors =
                 memberQueryService.summaries(
                         summaries.stream()
@@ -110,7 +117,8 @@ public class CrewPostService {
         return new PostListView(
                 summaries.stream()
                         .map(s -> new PostListView.Line(s, authorName(authors, s), contribution(s)))
-                        .toList());
+                        .toList(),
+                slice.nextCursor());
     }
 
     private static DisplayName authorName(Map<Long, MemberSummary> authors, PostSummary s) {

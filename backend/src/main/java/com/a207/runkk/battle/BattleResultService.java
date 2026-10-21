@@ -7,6 +7,8 @@ import com.a207.runkk.common.DomainEventPublisher;
 import com.a207.runkk.common.PermissionDeniedException;
 import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.common.Week;
+import com.a207.runkk.member.MemberQueryService;
+import com.a207.runkk.member.MemberSummary;
 import com.a207.runkk.notification.NavigationTarget;
 import com.a207.runkk.notification.NotificationRequest;
 import com.a207.runkk.notification.NotificationService;
@@ -21,6 +23,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,6 +45,7 @@ public class BattleResultService {
 
     private final BattleRepository battleRepository;
     private final RunQueryService runQueryService;
+    private final MemberQueryService memberQueryService;
     private final NotificationService notificationService;
     private final DomainEventPublisher eventPublisher;
     private final BattleMessenger battleMessenger;
@@ -51,6 +55,7 @@ public class BattleResultService {
     public BattleResultService(
             BattleRepository battleRepository,
             RunQueryService runQueryService,
+            MemberQueryService memberQueryService,
             NotificationService notificationService,
             DomainEventPublisher eventPublisher,
             BattleMessenger battleMessenger,
@@ -58,6 +63,7 @@ public class BattleResultService {
             BattleTransactions transactions) {
         this.battleRepository = battleRepository;
         this.runQueryService = runQueryService;
+        this.memberQueryService = memberQueryService;
         this.notificationService = notificationService;
         this.eventPublisher = eventPublisher;
         this.battleMessenger = battleMessenger;
@@ -200,7 +206,15 @@ public class BattleResultService {
                 judgement.map(Judgement::corrected).orElse(false),
                 comparison(battle, me),
                 weekly,
-                me.isNewRecord() && verdict == Verdict.WIN);
+                me.isNewRecord() && verdict == Verdict.WIN,
+                OpponentNames.of(battle, memberId, rivalNames(battle, memberId)),
+                me.getRecordId().orElse(null));
+    }
+
+    private Map<Long, MemberSummary> rivalNames(Battle battle, long memberId) {
+        return battle.rivalOf(memberId)
+                .map(rival -> memberQueryService.summaries(List.of(rival.getMemberId())))
+                .orElse(Map.of());
     }
 
     private Optional<Duration> opponentReach(Battle battle, long memberId) {

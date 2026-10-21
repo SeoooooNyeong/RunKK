@@ -34,6 +34,7 @@ public record RaceStatusView(
      * @param name 표시명(탈퇴면 "탈퇴한 사용자")
      * @param distance 기여 거리
      * @param rate 기여율
+     * @param memberId 기여자 회원 ID, 탈퇴했으면 null(앱이 본인 줄을 가린다)
      */
-    public record Line(DisplayName name, Distance distance, int rate) {}
+    public record Line(DisplayName name, Distance distance, int rate, Long memberId) {}
 }
