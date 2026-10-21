@@ -315,7 +315,7 @@ public class Battle {
 
     /**
      * 판정(srs.md 6.3 4.5 의사결정표, A-10). 먼저 도착한 쪽 기록이 아직 없거나 아직 달리는 참가자의 기록이 없으면 비어 있다. 판정되면 FINISHED.
-     * 이미 FINISHED였고 결과가 바뀌면 corrected = true.
+     * 이미 FINISHED였고 결과가 바뀌면 corrected = true. 결과가 같으면 비어 있고 아무것도 바꾸지 않는다(정정은 한 번 표시되면 유지).
      */
     public Optional<Judgement> judge(LocalDateTime now) {
         if (status == BattleStatus.WAITING_START || hasForfeit()) {
@@ -330,8 +330,11 @@ public class Battle {
             return Optional.empty();
         }
         Map<Side, Verdict> verdicts = decide(inTime);
-        boolean changed = status == BattleStatus.FINISHED && !verdicts.equals(currentVerdicts());
-        return Optional.of(apply(verdicts, now, changed));
+        boolean finished = status == BattleStatus.FINISHED;
+        if (finished && verdicts.equals(currentVerdicts())) {
+            return Optional.empty(); // 같은 결과로 다시 판정: 정정 표시·판정 시각·사건을 그대로 둔다(멱등)
+        }
+        return Optional.of(apply(verdicts, now, finished));
     }
 
     /** 24시간 보류 만료. 없는 기록을 무효로 보고 판정한다. 보류 뒤 첫 판정이라 corrected = false. */
@@ -448,7 +451,7 @@ public class Battle {
         winnerOpponent = Side.OPPONENT.equals(winner);
         winnerMemberId =
                 winner instanceof Side.MemberSide member ? Long.valueOf(member.memberId()) : null;
-        corrected = isCorrection;
+        corrected = corrected || isCorrection;
         judgedAt = now;
         status = BattleStatus.FINISHED;
         return getJudgement().orElseThrow();

@@ -272,9 +272,26 @@ class BattleTest {
             Judgement corrected = battle.judge(NOW.plusHours(2)).orElseThrow();
             assertThat(corrected.corrected()).isTrue();
             assertThat(corrected.verdictOf(bob())).contains(Verdict.WIN);
+        }
 
-            Judgement same = battle.judge(NOW.plusHours(3)).orElseThrow();
-            assertThat(same.corrected()).isFalse();
+        @Test
+        @DisplayName("M2: 끝난 대결을 같은 결과로 다시 판정하면 비어 있고 corrected·판정 시각이 그대로다(멱등)")
+        void rejudgeWithSameResult_isIdempotent() {
+            Battle battle = aliceArrivedFirstAndClosed(BOB_REACH);
+            battle.verify(ALICE, "a", true, ALICE_REACH);
+            battle.verify(BOB, "b", true, BOB_REACH);
+            Judgement first = battle.judge(NOW.plusHours(1)).orElseThrow();
+            assertThat(battle.judge(NOW.plusHours(2))).isEmpty();
+            assertThat(battle.getJudgement()).contains(first);
+
+            battle.verify(ALICE, "a", false, ALICE_REACH);
+            Judgement corrected = battle.judge(NOW.plusHours(3)).orElseThrow();
+            assertThat(corrected.corrected()).isTrue();
+
+            battle.verify(BOB, "b", true, BOB_REACH); // 같은 기록 재전달
+            assertThat(battle.judge(NOW.plusHours(4))).isEmpty();
+            assertThat(battle.getJudgement()).contains(corrected);
+            assertThat(battle.getJudgement().orElseThrow().corrected()).isTrue();
         }
 
         @Test

@@ -8,6 +8,7 @@ import com.a207.runkk.battle.WeeklyRecord;
 import com.a207.runkk.common.DateRange;
 import com.a207.runkk.common.Week;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import java.time.LocalDateTime;
 import java.util.EnumMap;
 import java.util.List;
@@ -17,7 +18,8 @@ import org.springframework.stereotype.Repository;
 
 /**
  * battle.BattleRepository의 JPA 구현(설계 5.1.1 infra.battle).
- * battle·battle_participant·battle_disconnection 테이블만 읽고 쓴다(D-32). 시계 조회는 상태·시각 열 인덱스로 찾는다.
+ * battle·battle_participant·battle_disconnection 테이블만 읽고 쓴다(D-32). 시계 조회는 상태·시각 열 인덱스로 찾는다. 이미 있는
+ * 대결을 저장하면 참가자만 바뀌었어도 대결 버전을 올린다(집합체 단위 낙관적 잠금).
  */
 @Repository
 public class JpaBattleRepository implements BattleRepository {
@@ -39,7 +41,10 @@ public class JpaBattleRepository implements BattleRepository {
             entityManager.persist(battle);
             return battle;
         }
-        return entityManager.contains(battle) ? battle : entityManager.merge(battle);
+        Battle managed = entityManager.contains(battle) ? battle : entityManager.merge(battle);
+        // 참가자(자식 행)만 바뀌어도 대결 버전을 올려 같은 대결의 동시 반영이 낙관적 잠금으로 충돌하게 한다(5.3, 코드 리뷰 2차 M3)
+        entityManager.lock(managed, LockModeType.OPTIMISTIC_FORCE_INCREMENT);
+        return managed;
     }
 
     @Override
