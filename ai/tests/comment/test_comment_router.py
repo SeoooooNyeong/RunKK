@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import logging
 import time
+from collections.abc import AsyncIterator
 
 import httpx
 import pytest
@@ -198,3 +199,55 @@ async def test_non_json_body_is_422(client: httpx.AsyncClient) -> None:
     response = await client.post("/comments", content=b"not json", headers={"Content-Type": "application/json"})
 
     assert response.status_code == 422
+
+
+async def test_declared_length_over_limit_is_413_without_calling_llm(
+    client: httpx.AsyncClient, fake_llm: FakeLlmClient
+) -> None:
+    """본문 상한(N5): Content-Length가 상한을 넘으면 읽지 않고 413 TOO_LARGE, LLM에 보내지 않는다."""
+    body = json.dumps({**VALID_SUMMARY, "padding": "x" * comment_router.COMMENT_BODY_MAX_BYTES}).encode()
+
+    response = await client.post("/comments", content=body, headers={"Content-Type": "application/json"})
+
+    assert response.status_code == 413
+    assert response.json() == {"reason": "TOO_LARGE"}
+    assert fake_llm.prompts == []
+
+
+async def test_streamed_body_over_limit_is_413(client: httpx.AsyncClient, fake_llm: FakeLlmClient) -> None:
+    """Content-Length 없이(chunked) 보내도 상한을 넘는 순간 끊는다."""
+
+    async def chunks() -> AsyncIterator[bytes]:
+        for _ in range(comment_router.COMMENT_BODY_MAX_BYTES // 512 + 2):
+            yield b" " * 512
+
+    response = await client.post("/comments", content=chunks(), headers={"Content-Type": "application/json"})
+
+    assert response.status_code == 413
+    assert response.json() == {"reason": "TOO_LARGE"}
+    assert fake_llm.prompts == []
+
+
+async def test_body_at_limit_is_accepted(client: httpx.AsyncClient, fake_llm: FakeLlmClient) -> None:
+    """상한과 같은 크기는 받는다(JSON 뒤 공백으로 채운다)."""
+    body = json.dumps(VALID_SUMMARY).encode()
+    body += b" " * (comment_router.COMMENT_BODY_MAX_BYTES - len(body))
+
+    response = await client.post("/comments", content=body, headers={"Content-Type": "application/json"})
+
+    assert response.status_code == 200
+    assert response.json() == {"text": fake_llm.text}
+
+
+def test_body_limit_is_4_kib() -> None:
+    assert comment_router.COMMENT_BODY_MAX_BYTES == 4096
+
+
+async def test_non_json_content_type_is_422(client: httpx.AsyncClient, fake_llm: FakeLlmClient) -> None:
+    response = await client.post(
+        "/comments", content=json.dumps(VALID_SUMMARY).encode(), headers={"Content-Type": "text/plain"}
+    )
+
+    assert response.status_code == 422
+    assert response.json() == {"reason": "INVALID_REQUEST"}
+    assert fake_llm.prompts == []
