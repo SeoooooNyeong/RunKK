@@ -42,31 +42,31 @@ enum class SignUpStep(val number: Int) {
 data class ConsentLine(
     val item: String,
     @StringRes val labelRes: Int,
-    val required: Boolean,
+    val isRequired: Boolean,
     val legalType: String? = null
 )
 
 object SignUpConsents {
     val items: List<ConsentLine> = listOf(
-        ConsentLine("AGE_14_PLUS", R.string.me_signup_consent_age, required = true),
-        ConsentLine("TERMS", R.string.me_legal_terms, required = true, legalType = LegalTypes.TERMS),
+        ConsentLine("AGE_14_PLUS", R.string.me_signup_consent_age, isRequired = true),
+        ConsentLine("TERMS", R.string.me_legal_terms, isRequired = true, legalType = LegalTypes.TERMS),
         ConsentLine(
             "PRIVACY",
             R.string.me_consents_privacy_collect,
-            required = true,
+            isRequired = true,
             legalType = LegalTypes.PRIVACY_POLICY
         ),
         ConsentLine(
             "LOCATION",
             R.string.me_consents_location_title,
-            required = true,
+            isRequired = true,
             legalType = LegalTypes.LOCATION_TERMS
         ),
-        ConsentLine("MARKETING", R.string.me_consents_marketing_title, required = false),
+        ConsentLine("MARKETING", R.string.me_consents_marketing_title, isRequired = false),
         ConsentLine(
             "LLM_TRANSFER",
             R.string.me_consents_llm_title,
-            required = false,
+            isRequired = false,
             legalType = LegalTypes.PRIVACY_POLICY
         )
     )
@@ -93,7 +93,7 @@ data class SignUpUiState(
     val intro: String = "",
     val recordVisibility: String = "PUBLIC",
     val tags: Set<String> = emptySet(),
-    val submitting: Boolean = false,
+    val isSubmitting: Boolean = false,
     val error: UiText? = null,
     /**
      * 가입 요청이 거부·실패했을 때의 안내(RunkkErrorText). 스낵바와 달리 다음 시도·단계 이동까지 화면에 남는다.
@@ -103,18 +103,18 @@ data class SignUpUiState(
     /** [submitError]가 있을 때 같은 입력으로 다시 보낼 수 있는가(가입 시간이 지났거나 이미 가입한 계정이면 로그인부터 다시). */
     val canRetrySubmit: Boolean = true,
     /** 마지막으로 가입을 시도한 쪽(아바타 만들기로 이어지는가). 다시 시도가 같은 쪽으로 보낸다. */
-    val lastCreateAvatar: Boolean = false,
+    val shouldLastCreateAvatar: Boolean = false,
     val legal: LegalView? = null
 ) {
-    val allAgreed: Boolean get() = consents.values.all { it }
+    val isAllAgreed: Boolean get() = consents.values.all { it }
 
     /** 이 단계의 필수 값을 채웠는가(FR-003 "단계마다 필수 값을 채우기 전에는 다음 단계로 넘어가지 않는다"). */
     val canProceed: Boolean
         get() = when (step) {
-            SignUpStep.CONSENT -> SignUpConsents.items.filter { it.required }.all { consents[it.item] == true }
+            SignUpStep.CONSENT -> SignUpConsents.items.filter { it.isRequired }.all { consents[it.item] == true }
             SignUpStep.PROFILE -> nickname.isBlank() || nickname.trim().length in NICKNAME_LENGTH
             SignUpStep.TAGS -> tags.isNotEmpty()
-            SignUpStep.AVATAR -> !submitting
+            SignUpStep.AVATAR -> !isSubmitting
         }
 
     companion object {
@@ -124,8 +124,8 @@ data class SignUpUiState(
 }
 
 sealed interface SignUpEvent {
-    /** 가입 완료. [createAvatar]면 아바타 만들기로, 아니면 홈으로. */
-    data class Completed(val createAvatar: Boolean) : SignUpEvent
+    /** 가입 완료. [shouldCreateAvatar]면 아바타 만들기로, 아니면 홈으로. */
+    data class Completed(val shouldCreateAvatar: Boolean) : SignUpEvent
 
     /** 첫 단계에서 뒤로: 로그인으로. */
     data object Exit : SignUpEvent
@@ -147,12 +147,14 @@ class SignUpViewModel @Inject constructor(private val signUp: SignUpUseCase, pri
     private val _events = Channel<SignUpEvent>(Channel.BUFFERED)
     val events: Flow<SignUpEvent> = _events.receiveAsFlow()
 
-    fun onAllAgreedChange(agreed: Boolean) = _state.update { s -> s.copy(consents = s.consents.mapValues { agreed }) }
+    fun onAllAgreedChange(isAgreed: Boolean) = _state.update { s ->
+        s.copy(consents = s.consents.mapValues { isAgreed })
+    }
 
-    fun onConsentChange(item: String, agreed: Boolean) = _state.update { s ->
+    fun onConsentChange(item: String, isAgreed: Boolean) = _state.update { s ->
         s.copy(
             consents =
-                s.consents + (item to agreed)
+                s.consents + (item to isAgreed)
         )
     }
 
@@ -173,7 +175,7 @@ class SignUpViewModel @Inject constructor(private val signUp: SignUpUseCase, pri
     fun onErrorShown() = _state.update { it.copy(error = null) }
 
     /** 가입 거부 안내의 "다시 시도": 마지막과 같은 쪽(아바타 만들기 여부)으로 다시 보낸다. */
-    fun onRetrySubmit() = onSubmit(_state.value.lastCreateAvatar)
+    fun onRetrySubmit() = onSubmit(_state.value.shouldLastCreateAvatar)
 
     /** 가입 시간이 지났거나 이미 가입한 계정이면 로그인 화면으로 돌아간다. */
     fun onExit() {
@@ -229,10 +231,12 @@ class SignUpViewModel @Inject constructor(private val signUp: SignUpUseCase, pri
 
     fun onLegalDismissed() = _state.update { it.copy(legal = null) }
 
-    fun onSubmit(createAvatar: Boolean) {
+    fun onSubmit(shouldCreateAvatar: Boolean) {
         val s = _state.value
-        if (s.submitting) return
-        _state.update { it.copy(submitting = true, error = null, submitError = null, lastCreateAvatar = createAvatar) }
+        if (s.isSubmitting) return
+        _state.update {
+            it.copy(isSubmitting = true, error = null, submitError = null, shouldLastCreateAvatar = shouldCreateAvatar)
+        }
         val form = SignUpForm(
             nickname = s.nickname.trim().ifEmpty { null },
             birthYear = s.birthYear,
@@ -245,13 +249,13 @@ class SignUpViewModel @Inject constructor(private val signUp: SignUpUseCase, pri
         viewModelScope.launch {
             when (val result = signUp(form)) {
                 is Outcome.Success -> {
-                    _state.update { it.copy(submitting = false) }
-                    _events.send(SignUpEvent.Completed(createAvatar))
+                    _state.update { it.copy(isSubmitting = false) }
+                    _events.send(SignUpEvent.Completed(shouldCreateAvatar))
                 }
 
                 is Outcome.Failure -> _state.update {
                     it.copy(
-                        submitting = false,
+                        isSubmitting = false,
                         step = stepFor(result.error) ?: it.step,
                         submitError = RunkkErrorText.of(result.error),
                         canRetrySubmit = (result.error as? AppError.Rejected)?.code !in LOGIN_AGAIN

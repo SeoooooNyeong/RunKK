@@ -50,7 +50,7 @@ data class SocialLoginKeys(val kakaoNativeAppKey: String, val googleWebClientId:
 /** 카카오 접근 토큰을 받는 창구(Kakao SDK). 시험에서는 가짜로 바꾼다. */
 fun interface KakaoAccessTokenSource {
     /** 네이티브 앱 키가 있어야 토큰을 받을 수 있는지. 키 없이 토큰을 주는 대체 창구([KakaoTokenOverride])만 false다. */
-    val requiresNativeAppKey: Boolean get() = true
+    val isNativeAppKeyRequired: Boolean get() = true
 
     suspend fun accessToken(context: Context, nativeAppKey: String): Outcome<String>
 }
@@ -84,7 +84,7 @@ class KakaoLoginClient @Inject constructor(
 
     override suspend fun signIn(context: Context): Outcome<ProviderToken> {
         val appKey = keys.kakaoNativeAppKey.trim()
-        if (appKey.isEmpty() && source.requiresNativeAppKey) return Outcome.Failure(AppError.Rejected(SDK_NOT_READY))
+        if (appKey.isEmpty() && source.isNativeAppKeyRequired) return Outcome.Failure(AppError.Rejected(SDK_NOT_READY))
         return when (val token = source.accessToken(context, appKey)) {
             is Outcome.Success -> Outcome.Success(ProviderToken(ProviderType.KAKAO, token.value))
             is Outcome.Failure -> token

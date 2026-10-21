@@ -19,7 +19,7 @@ import javax.inject.Named
  * app → ui.me import는 이 localDebug 파일 한 곳만 ArchitectureTest가 예외로 둔다.
  */
 internal class E2eKakaoTokenSource(private val token: String) : KakaoAccessTokenSource {
-    override val requiresNativeAppKey: Boolean = false
+    override val isNativeAppKeyRequired: Boolean = false
 
     override suspend fun accessToken(context: Context, nativeAppKey: String): Outcome<String> = Outcome.Success(token)
 }

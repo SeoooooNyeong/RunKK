@@ -98,7 +98,7 @@ fun MeScreen(
     ) {
         MeTopRow(onNavigate)
         when {
-            state.loading && state.profile == null -> Box(Modifier.fillMaxWidth().padding(vertical = 32.dp)) {
+            state.isLoading && state.profile == null -> Box(Modifier.fillMaxWidth().padding(vertical = 32.dp)) {
                 RunkkLoading()
             }
 
@@ -117,7 +117,7 @@ fun MeScreen(
             RunkkMenuRow(
                 stringResource(R.string.me_menu_withdraw),
                 onClick = { onNavigate(Routes.WITHDRAW) },
-                accent = true
+                isAccent = true
             )
         }
     }
@@ -141,7 +141,7 @@ private fun LogoutDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
         confirmLabel = stringResource(R.string.me_logout_confirm),
         onConfirm = onConfirm,
         onDismiss = onDismiss,
-        destructive = true
+        isDestructive = true
     )
 }
 
@@ -325,7 +325,7 @@ private fun MeScreenPreview() {
     RunkkTheme(reduceMotion = true) {
         MeScreen(
             state = MeUiState(
-                loading = false,
+                isLoading = false,
                 profile = Profile(
                     7, "달리는곰", "SELF", "골드", 3,
                     setOf(

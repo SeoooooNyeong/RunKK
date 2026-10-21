@@ -129,14 +129,14 @@ private fun LoginButtons(state: LoginUiState, onProvider: (ProviderType) -> Unit
         RunkkPrimaryButton(
             text = stringResource(R.string.me_login_kakao),
             onClick = { onProvider(ProviderType.KAKAO) },
-            loading = state.inProgress == ProviderType.KAKAO,
-            enabled = state.inProgress == null || state.inProgress == ProviderType.KAKAO,
+            isLoading = state.inProgress == ProviderType.KAKAO,
+            isEnabled = state.inProgress == null || state.inProgress == ProviderType.KAKAO,
             modifier = Modifier.fillMaxWidth()
         )
         RunkkSecondaryButton(
             text = stringResource(googleLabel),
             onClick = { onProvider(ProviderType.GOOGLE) },
-            enabled = state.inProgress == null,
+            isEnabled = state.inProgress == null,
             modifier = Modifier.fillMaxWidth()
         )
     }

@@ -29,7 +29,7 @@ class MeViewModelsTest {
         val vm = MeViewModel(account, LogoutUseCase(account, session, settingsCopy))
         assertEquals(sampleProfile, vm.state.value.profile)
         assertEquals(listOf("profile:${AccountRepository.SELF}"), account.calls)
-        assertFalse(vm.state.value.loading)
+        assertFalse(vm.state.value.isLoading)
     }
 
     @Test
@@ -83,7 +83,7 @@ class MeViewModelsTest {
         val vm = ProfileEditViewModel(account)
         vm.onSave()
         assertEquals(RunkkErrorText.rejected("NICKNAME_INVALID"), vm.state.value.error)
-        assertFalse(vm.state.value.saving)
+        assertFalse(vm.state.value.isSaving)
     }
 
     @Test
@@ -137,7 +137,7 @@ class MeViewModelsTest {
         vm.onAcknowledgedChange(true)
         vm.onWithdrawConfirmed()
         assertEquals(RunkkErrorText.rejected("LEADER_MUST_TRANSFER"), vm.state.value.error)
-        assertFalse(vm.state.value.withdrawing)
+        assertFalse(vm.state.value.isWithdrawing)
     }
 
     @Test

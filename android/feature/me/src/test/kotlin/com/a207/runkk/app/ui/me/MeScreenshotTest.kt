@@ -30,7 +30,7 @@ class MeScreenshotTest {
         SignUpScreen(
             SignUpUiState(
                 consents = SignUpConsents.items.associate {
-                    it.item to it.required
+                    it.item to it.isRequired
                 }
             ),
             SignUpActions()
@@ -66,12 +66,12 @@ class MeScreenshotTest {
 
     @Test
     fun me() = compose.captureRunkkScreen("me_profile_menu") {
-        MeScreen(MeUiState(loading = false, profile = sampleProfile), onNavigate = {}, onRetry = {}, onLogout = {})
+        MeScreen(MeUiState(isLoading = false, profile = sampleProfile), onNavigate = {}, onRetry = {}, onLogout = {})
     }
 
     @Test
     fun meError() = compose.captureRunkkScreen("me_error") {
-        MeScreen(MeUiState(loading = false, error = RunkkErrorText.of(AppError.Network)), onNavigate = {
+        MeScreen(MeUiState(isLoading = false, error = RunkkErrorText.of(AppError.Network)), onNavigate = {
         }, onRetry = {}, onLogout = {})
     }
 
@@ -79,7 +79,7 @@ class MeScreenshotTest {
     fun profileEdit() = compose.captureRunkkScreen("me_profile_edit") {
         ProfileEditScreen(
             ProfileEditUiState(
-                loading = false,
+                isLoading = false,
                 nickname = "달리는곰",
                 intro = "퇴근 뒤 한강",
                 tags = setOf("SOCIAL_RUN", "EVENING")
@@ -104,30 +104,38 @@ class MeScreenshotTest {
 
     @Test
     fun appSettings() = compose.captureRunkkScreen("me_settings_app") {
-        SettingsScreen(SettingsPage.APP, SettingsUiState(loading = false, settings = settings), SettingsActions())
+        SettingsScreen(SettingsPage.APP, SettingsUiState(isLoading = false, settings = settings), SettingsActions())
     }
 
     @Test
     fun freeRunSettings() = compose.captureRunkkScreen("me_settings_free_run") {
-        SettingsScreen(SettingsPage.FREE_RUN, SettingsUiState(loading = false, settings = settings), SettingsActions())
+        SettingsScreen(
+            SettingsPage.FREE_RUN,
+            SettingsUiState(isLoading = false, settings = settings),
+            SettingsActions()
+        )
     }
 
     @Test
     fun notificationSettings() = compose.captureRunkkScreen("me_settings_notifications") {
         SettingsScreen(
             SettingsPage.NOTIFICATIONS,
-            SettingsUiState(loading = false, settings = settings),
+            SettingsUiState(isLoading = false, settings = settings),
             SettingsActions()
         )
     }
 
     @Test
     fun consents() = compose.captureRunkkScreen("me_settings_consents") {
-        SettingsScreen(SettingsPage.CONSENTS, SettingsUiState(loading = false, settings = settings), SettingsActions())
+        SettingsScreen(
+            SettingsPage.CONSENTS,
+            SettingsUiState(isLoading = false, settings = settings),
+            SettingsActions()
+        )
     }
 
     @Test
     fun withdraw() = compose.captureRunkkScreen("me_withdraw") {
-        WithdrawScreen(WithdrawUiState(acknowledged = true), {}, {}, {}, {})
+        WithdrawScreen(WithdrawUiState(isAcknowledged = true), {}, {}, {}, {})
     }
 }

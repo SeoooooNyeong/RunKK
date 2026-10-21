@@ -119,7 +119,7 @@ object NotificationTypes {
 }
 
 data class SettingsUiState(
-    val loading: Boolean = true,
+    val isLoading: Boolean = true,
     val settings: MemberSettings? = null,
     val error: UiText? = null,
     val message: UiText? = null,
@@ -153,13 +153,13 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun load() {
-        _state.update { it.copy(loading = true, error = null) }
+        _state.update { it.copy(isLoading = true, error = null) }
         viewModelScope.launch {
             when (val result = account.settings()) {
-                is Outcome.Success -> _state.update { it.copy(loading = false, settings = result.value) }
+                is Outcome.Success -> _state.update { it.copy(isLoading = false, settings = result.value) }
 
                 is Outcome.Failure -> _state.update {
-                    it.copy(loading = false, error = RunkkErrorText.of(result.error))
+                    it.copy(isLoading = false, error = RunkkErrorText.of(result.error))
                 }
             }
         }
@@ -180,14 +180,22 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun setConsent(item: String, agreed: Boolean) {
+    fun setConsent(item: String, isAgreed: Boolean) {
         val current = _state.value.settings ?: return
         val previous = current.consents[item]
-        _state.update { s -> s.copy(settings = s.settings?.let { it.copy(consents = it.consents + (item to agreed)) }) }
-        val request = if (agreed) SettingChangeRequest.GiveConsent(item) else SettingChangeRequest.WithdrawConsent(item)
+        _state.update { s ->
+            s.copy(settings = s.settings?.let { it.copy(consents = it.consents + (item to isAgreed)) })
+        }
+        val request = if (isAgreed) {
+            SettingChangeRequest.GiveConsent(
+                item
+            )
+        } else {
+            SettingChangeRequest.WithdrawConsent(item)
+        }
         send(request) { settings ->
             when {
-                settings.consents[item] != agreed -> settings
+                settings.consents[item] != isAgreed -> settings
                 previous == null -> settings.copy(consents = settings.consents - item)
                 else -> settings.copy(consents = settings.consents + (item to previous))
             }

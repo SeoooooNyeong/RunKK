@@ -20,7 +20,7 @@ class SignUpViewModelTest {
     private val vm = SignUpViewModel(SignUpUseCase(account, FakeSessionRepository(), FakeSettingsRepository()), account)
 
     private fun agreeRequired() = SignUpConsents.items.filter {
-        it.required
+        it.isRequired
     }.forEach { vm.onConsentChange(it.item, true) }
 
     @Test
@@ -39,9 +39,9 @@ class SignUpViewModelTest {
     fun `전체 동의는 선택 동의까지 켜고 끈다`() {
         vm.onAllAgreedChange(true)
         assertTrue(vm.state.value.consents.values.all { it })
-        assertTrue(vm.state.value.allAgreed)
+        assertTrue(vm.state.value.isAllAgreed)
         vm.onConsentChange("MARKETING", false)
-        assertFalse(vm.state.value.allAgreed)
+        assertFalse(vm.state.value.isAllAgreed)
         vm.onAllAgreedChange(false)
         assertTrue(vm.state.value.consents.values.none { it })
     }
@@ -81,8 +81,8 @@ class SignUpViewModelTest {
         vm.onTagToggled("EVENING")
         vm.onNext()
         vm.events.test {
-            vm.onSubmit(createAvatar = true)
-            assertEquals(SignUpEvent.Completed(createAvatar = true), awaitItem())
+            vm.onSubmit(shouldCreateAvatar = true)
+            assertEquals(SignUpEvent.Completed(shouldCreateAvatar = true), awaitItem())
         }
         val form = requireNotNull(account.lastForm)
         assertEquals("달리는곰", form.nickname)
@@ -101,7 +101,7 @@ class SignUpViewModelTest {
         vm.onNext()
         vm.onTagToggled("SOLO_RUN")
         vm.onNext()
-        vm.onSubmit(createAvatar = false)
+        vm.onSubmit(shouldCreateAvatar = false)
         val form = requireNotNull(account.lastForm)
         assertEquals(null, form.nickname)
         assertEquals(Gender.UNDISCLOSED, form.gender)
@@ -116,10 +116,10 @@ class SignUpViewModelTest {
         vm.onNext()
         vm.onTagToggled("SOLO_RUN")
         vm.onNext()
-        vm.onSubmit(createAvatar = false)
+        vm.onSubmit(shouldCreateAvatar = false)
         assertEquals(SignUpStep.CONSENT, vm.state.value.step)
         assertEquals(RunkkErrorText.rejected("UNDER_14"), vm.state.value.submitError)
-        assertFalse(vm.state.value.submitting)
+        assertFalse(vm.state.value.isSubmitting)
     }
 
     @Test
@@ -131,7 +131,7 @@ class SignUpViewModelTest {
         vm.onNext()
         vm.onTagToggled("SOLO_RUN")
         vm.onNext()
-        vm.onSubmit(createAvatar = true)
+        vm.onSubmit(shouldCreateAvatar = true)
         assertEquals(SignUpStep.PROFILE, vm.state.value.step)
     }
 
@@ -161,17 +161,17 @@ class SignUpViewModelTest {
     fun `5단계에서 가입이 거부되면 사유 안내가 남고 다시 시도할 수 있다`() = runTest {
         account.failures["signUp"] = AppError.Rejected("BAD_REQUEST")
         reachAvatarStep()
-        vm.onSubmit(createAvatar = true)
+        vm.onSubmit(shouldCreateAvatar = true)
         val failed = vm.state.value
         assertEquals(SignUpStep.AVATAR, failed.step)
         assertEquals(RunkkErrorText.rejected("BAD_REQUEST"), failed.submitError)
-        assertFalse(failed.submitting)
+        assertFalse(failed.isSubmitting)
         assertTrue(failed.canRetrySubmit)
 
         account.failures.clear()
         vm.events.test {
             vm.onRetrySubmit()
-            assertEquals(SignUpEvent.Completed(createAvatar = true), awaitItem())
+            assertEquals(SignUpEvent.Completed(shouldCreateAvatar = true), awaitItem())
         }
         assertEquals(null, vm.state.value.submitError)
     }
@@ -180,7 +180,7 @@ class SignUpViewModelTest {
     fun `네트워크 오류도 5단계에 안내가 남는다`() = runTest {
         account.failures["signUp"] = AppError.Network
         reachAvatarStep()
-        vm.onSubmit(createAvatar = false)
+        vm.onSubmit(shouldCreateAvatar = false)
         assertEquals(RunkkErrorText.of(AppError.Network), vm.state.value.submitError)
         assertTrue(vm.state.value.canRetrySubmit)
     }
@@ -189,7 +189,7 @@ class SignUpViewModelTest {
     fun `가입 시간이 지나면 다시 시도 대신 로그인부터 다시 하게 한다`() = runTest {
         account.failures["signUp"] = AppError.Rejected("SIGN_UP_TICKET_INVALID")
         reachAvatarStep()
-        vm.onSubmit(createAvatar = true)
+        vm.onSubmit(shouldCreateAvatar = true)
         assertEquals(RunkkErrorText.rejected("SIGN_UP_TICKET_INVALID"), vm.state.value.submitError)
         assertFalse(vm.state.value.canRetrySubmit)
         vm.events.test {
@@ -202,7 +202,7 @@ class SignUpViewModelTest {
     fun `안내는 이전 단계로 돌아가거나 다시 보낼 때 지워진다`() = runTest {
         account.failures["signUp"] = AppError.Rejected("BAD_REQUEST")
         reachAvatarStep()
-        vm.onSubmit(createAvatar = false)
+        vm.onSubmit(shouldCreateAvatar = false)
         assertTrue(vm.state.value.submitError != null)
         vm.onBack()
         assertEquals(null, vm.state.value.submitError)
