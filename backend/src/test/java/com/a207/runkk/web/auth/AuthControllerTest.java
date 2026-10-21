@@ -159,8 +159,10 @@ class AuthControllerTest extends WebTestSupport {
                         get("/api/v1/me/settings")
                                 .header("Authorization", "Bearer " + s.refreshToken()))
                 .andExpect(status().isUnauthorized());
+        // 회원 필터(401)가 아니라 web.admin의 OperatorCheckInterceptor가 관리툴 토큰을 거부한다(403, D-42·D-50)
         mvc.perform(get("/api/v1/admin/audits").header("Authorization", "Bearer forged"))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("PERMISSION_DENIED"));
         mvc.perform(get("/api/v1/legal/TERMS"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.type").value("TERMS"));

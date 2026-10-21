@@ -7,6 +7,8 @@ import com.a207.runkk.audit.AuditService;
 import com.a207.runkk.common.DomainEventPublisher;
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.util.EnumMap;
+import java.util.Map;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -59,6 +61,20 @@ public class OperationSettingService {
         invalidateAfterCommit(key);
         eventPublisher.publish(new OperationSettingChanged(key, now));
         return new SettingChangeResult(key, history.before(), history.after());
+    }
+
+    /**
+     * 기준 항목마다 지금 저장된 값(JSON), 저장값이 없으면 기본값. 관리툴이 바꾸기 전에 지금 값을 보는 데 쓴다(web.admin.setting GET
+     * /admin/settings, 5.7.1 밖 추가 — 설계 갱신 요청).
+     */
+    @Transactional(readOnly = true)
+    public Map<SettingKey, String> currentValues() {
+        Map<SettingKey, String> values = new EnumMap<>(SettingKey.class);
+        for (SettingKey key : SettingKey.values()) {
+            values.put(key, key.defaultValue());
+        }
+        repository.findAll().forEach(setting -> values.put(setting.key(), setting.value()));
+        return values;
     }
 
     /** 사건 수신자(커밋 뒤)가 새 값을 읽도록 사건 발행보다 먼저 등록한다. */
