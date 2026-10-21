@@ -28,6 +28,12 @@ public class ActiveMembers {
     private final Clock clock;
     private final Map<Long, Instant> activeUntil = new ConcurrentHashMap<>();
 
+    /** 탈퇴 사건을 받은 회원과 표시 만료(접근 토큰 수명 1시간). DB 확인과 캐시 저장 사이에 탈퇴가 끼어도 낡은 ACTIVE가 남지 않게 한다. */
+    private final Map<Long, Instant> withdrawnUntil = new ConcurrentHashMap<>();
+
+    /** 탈퇴 표시를 두는 시간(접근 토큰 수명과 같다). */
+    static final Duration WITHDRAWN_MARK_TTL = Duration.ofHours(1);
+
     ActiveMembers(MemberQueryService memberQueryService, Clock clock) {
         this.memberQueryService = memberQueryService;
         this.clock = clock;
@@ -36,6 +42,10 @@ public class ActiveMembers {
     /** 회원이 있고 ACTIVE인가. */
     boolean isActive(long memberId) {
         Instant now = clock.instant();
+        Instant withdrawn = withdrawnUntil.get(memberId);
+        if (withdrawn != null && withdrawn.isAfter(now)) {
+            return false;
+        }
         Instant until = activeUntil.get(memberId);
         if (until != null && until.isAfter(now)) {
             return true;
@@ -46,14 +56,20 @@ public class ActiveMembers {
         }
         if (activeUntil.size() >= PRUNE_THRESHOLD) {
             activeUntil.values().removeIf(expiry -> !expiry.isAfter(now));
+            withdrawnUntil.values().removeIf(expiry -> !expiry.isAfter(now));
         }
         activeUntil.put(memberId, now.plus(CACHE_TTL));
+        if (withdrawnUntil.containsKey(memberId)) {
+            activeUntil.remove(memberId); // 조회 중에 탈퇴 사건이 왔다
+            return false;
+        }
         return true;
     }
 
     /** 탈퇴가 커밋되면 캐시를 지워 남은 토큰을 바로 거부한다. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void onMemberWithdrawn(MemberWithdrawn e) {
+        withdrawnUntil.put(e.memberId(), clock.instant().plus(WITHDRAWN_MARK_TTL));
         activeUntil.remove(e.memberId());
     }
 }

@@ -63,6 +63,11 @@ class ApiExceptionHandlerTest {
                         new org.springframework.dao.DataIntegrityViolationException(
                                 "pk", new java.sql.SQLException("duplicate key", "23505")));
         assertThat(duplicate.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        ResponseEntity<ErrorResponse> deletedMeanwhile = // 동시 삭제로 생긴 외래 키 위반
+                handler.handleIntegrityViolation(
+                        new org.springframework.dao.DataIntegrityViolationException(
+                                "fk", new java.sql.SQLException("foreign key", "23503")));
+        assertThat(deletedMeanwhile.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
     }
 
     @Test

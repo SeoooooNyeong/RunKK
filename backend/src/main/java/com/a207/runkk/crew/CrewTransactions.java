@@ -20,6 +20,8 @@ class CrewTransactions {
     /** 낙관적 잠금 충돌 재시도 횟수(5.3). */
     static final int MAX_ATTEMPTS = 3;
 
+    private static final long RETRY_PAUSE_MILLIS = 20;
+
     private static final Logger log = LoggerFactory.getLogger(CrewTransactions.class);
 
     private final TransactionTemplate template;
@@ -72,6 +74,8 @@ class CrewTransactions {
                             key,
                             e.getClass().getSimpleName(),
                             e);
+                } else {
+                    pause(attempt);
                 }
             } catch (RuntimeException e) {
                 log.error(
@@ -82,6 +86,15 @@ class CrewTransactions {
                         e);
                 return;
             }
+        }
+    }
+
+    /** 일시 오류 재시도 사이에 잠깐 쉰다(20·40ms, 잠금을 쥔 쪽이 끝낼 틈). */
+    private static void pause(int attempt) {
+        try {
+            Thread.sleep(RETRY_PAUSE_MILLIS * attempt);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 

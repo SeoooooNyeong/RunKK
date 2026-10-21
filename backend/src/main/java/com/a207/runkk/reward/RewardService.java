@@ -33,6 +33,8 @@ public class RewardService {
     /** 일시 오류 재시도 횟수(5.3과 같다). */
     static final int MAX_ATTEMPTS = 3;
 
+    private static final long RETRY_PAUSE_MILLIS = 20;
+
     private final RewardWalletRepository rewardWalletRepository;
     private final OperationPolicy operationPolicy;
     private final Clock clock;
@@ -113,11 +115,22 @@ public class RewardService {
                         attempt);
                 if (attempt == MAX_ATTEMPTS) {
                     failed(memberId, reason, sourceId, e);
+                } else {
+                    pause(attempt);
                 }
             } catch (RuntimeException e) {
                 failed(memberId, reason, sourceId, e);
                 return;
             }
+        }
+    }
+
+    /** 일시 오류 재시도 사이에 잠깐 쉰다(20·40ms, 잠금을 쥔 쪽이 끝낼 틈). */
+    private static void pause(int attempt) {
+        try {
+            Thread.sleep(RETRY_PAUSE_MILLIS * attempt);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 

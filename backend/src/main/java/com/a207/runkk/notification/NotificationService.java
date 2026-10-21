@@ -70,7 +70,9 @@ public class NotificationService {
     }
 
     /**
-     * 외부 호출(FCM)을 커밋 뒤로 미룬다. 트랜잭션 밖이면 바로 한다. 부른 쪽 트랜잭션이 낙관적 잠금 충돌로 재시도·롤백되면 그 시도의 푸시는 나가지 않아 같은 알림이
+     * 외부 호출(FCM)을 커밋 뒤로 미룬다. 주의: 이미 커밋된 트랜잭션의 AFTER_COMMIT 단계에서 새 트랜잭션 없이 notify를 부르면 여기서 등록한 동기화가
+     * 불리지 않는다. AFTER_COMMIT 수신자는 REQUIRES_NEW 트랜잭션(BattleTransactions·CrewTransactions 등) 안에서
+     * 부른다(java-reviewer M5). 트랜잭션 밖이면 바로 한다. 부른 쪽 트랜잭션이 낙관적 잠금 충돌로 재시도·롤백되면 그 시도의 푸시는 나가지 않아 같은 알림이
      * 두 번 가지 않는다(코드 리뷰 2차 L5·L6).
      */
     private static void afterCommit(Runnable effect) {

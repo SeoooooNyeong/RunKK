@@ -37,6 +37,9 @@ public class ApiExceptionHandler {
     /** PostgreSQL·H2 고유 제약 위반 SQLSTATE. */
     private static final String UNIQUE_VIOLATION = "23505";
 
+    /** 외래 키 위반 SQLSTATE: 참조하던 행이 동시에 지워진 경합이라 409로 둔다. */
+    private static final String FOREIGN_KEY_VIOLATION = "23503";
+
     /** 409가 아닌 사유 코드. */
     private static final Map<ReasonCode, HttpStatus> STATUS_BY_REASON =
             Map.of(
@@ -91,13 +94,14 @@ public class ApiExceptionHandler {
     }
 
     /**
-     * 고유 제약 경합(SQLSTATE 23505, 같은 행을 동시에 넣음)만 409 "다시 시도해 주세요"다. NOT NULL·길이·외래 키 같은 다른 무결성 위반은
-     * 프로그래밍 오류라 500으로 두고 오류 로그를 남긴다(코드 리뷰 2차 L2).
+     * 고유 제약 경합(SQLSTATE 23505)과 동시 삭제로 생긴 외래 키 위반(23503)만 409 "다시 시도해 주세요"다. NOT NULL·길이 같은 다른 무결성
+     * 위반은 프로그래밍 오류라 500으로 두고 오류 로그를 남긴다(코드 리뷰 2차 L2).
      */
     @ExceptionHandler(DataIntegrityViolationException.class)
     ResponseEntity<ErrorResponse> handleIntegrityViolation(DataIntegrityViolationException e) {
         // 본문 없는 500: 앱은 기존처럼 일반 서버 오류로 처리한다
-        if (UNIQUE_VIOLATION.equals(sqlStateOf(e))) {
+        String state = sqlStateOf(e);
+        if (UNIQUE_VIOLATION.equals(state) || FOREIGN_KEY_VIOLATION.equals(state)) {
             return handleConcurrentUpdate(e);
         }
         log.error("integrity_violation sqlState={}", sqlStateOf(e), e);
