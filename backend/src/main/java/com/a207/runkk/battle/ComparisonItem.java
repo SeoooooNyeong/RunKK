@@ -117,8 +117,8 @@ public enum ComparisonItem {
     }
 
     /** h:mm:ss 또는 mm:ss. */
-    static String formatTime(Duration d) {
-        long seconds = d.toSeconds();
+    static String formatTime(Duration duration) {
+        long seconds = duration.toSeconds();
         long hours = seconds / SECONDS_PER_HOUR;
         long minutes = seconds % SECONDS_PER_HOUR / SECONDS_PER_MINUTE;
         long rest = seconds % SECONDS_PER_MINUTE;

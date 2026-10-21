@@ -49,9 +49,12 @@ final class BattleDtos {
      * @param distanceMeters 대기 거리
      */
     record MatchAcceptanceResponse(boolean waiting, Long distanceMeters) {
-        static MatchAcceptanceResponse of(MatchAcceptance a) {
+        static MatchAcceptanceResponse of(MatchAcceptance acceptance) {
             return new MatchAcceptanceResponse(
-                    a.waiting(), a.distance() == null ? null : a.distance().distance().meters());
+                    acceptance.waiting(),
+                    acceptance.distance() == null
+                            ? null
+                            : acceptance.distance().distance().meters());
         }
     }
 
@@ -61,8 +64,9 @@ final class BattleDtos {
      * @param candidates 후보
      */
     record CandidatesResponse(List<Candidate> candidates) {
-        static CandidatesResponse of(RecordBattleCandidates c) {
-            return new CandidatesResponse(c.candidates().stream().map(Candidate::of).toList());
+        static CandidatesResponse of(RecordBattleCandidates candidates) {
+            return new CandidatesResponse(
+                    candidates.candidates().stream().map(Candidate::of).toList());
         }
     }
 
@@ -196,13 +200,13 @@ final class BattleDtos {
      */
     record BattleHistoryResponse(
             List<Entry> entries, int total, int wins, int losses, int selfNewRecords) {
-        static BattleHistoryResponse of(BattleHistoryView v) {
+        static BattleHistoryResponse of(BattleHistoryView view) {
             return new BattleHistoryResponse(
-                    v.entries().stream().map(Entry::of).toList(),
-                    v.total(),
-                    v.wins(),
-                    v.losses(),
-                    v.selfNewRecords());
+                    view.entries().stream().map(Entry::of).toList(),
+                    view.total(),
+                    view.wins(),
+                    view.losses(),
+                    view.selfNewRecords());
         }
     }
 
@@ -237,7 +241,7 @@ final class BattleDtos {
         }
     }
 
-    static Long seconds(Duration d) {
-        return d == null ? null : d.toSeconds();
+    static Long seconds(Duration duration) {
+        return duration == null ? null : duration.toSeconds();
     }
 }

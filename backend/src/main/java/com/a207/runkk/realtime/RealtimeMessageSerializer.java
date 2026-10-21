@@ -36,6 +36,12 @@ public class RealtimeMessageSerializer {
             DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS");
     private static final long MILLIS_PER_SECOND = 1_000;
 
+    /** 진행값 거리 상한(풀코스의 두 배를 넘는 대결 거리는 없다). */
+    static final long MAX_METERS = 100_000;
+
+    /** 진행값 경과 시간 상한(하루). */
+    static final long MAX_SECONDS = 24 * 60 * 60;
+
     private final ObjectMapper mapper;
 
     public RealtimeMessageSerializer() {
@@ -73,8 +79,8 @@ public class RealtimeMessageSerializer {
             InboundProgress.Channel channel =
                     InboundProgress.Channel.valueOf(node.path("channel").asText());
             long channelId = requirePositive(node.path("channelId"));
-            long meters = requireNonNegative(node.path("distanceMeters"));
-            long seconds = requireNonNegative(node.path("elapsedSeconds"));
+            long meters = requireWithin(node.path("distanceMeters"), MAX_METERS);
+            long seconds = requireWithin(node.path("elapsedSeconds"), MAX_SECONDS);
             LocalDateTime sentAt = LocalDateTime.parse(node.path("sentAt").asText());
             ProgressReport report =
                     new ProgressReport(
@@ -92,9 +98,10 @@ public class RealtimeMessageSerializer {
         return node.asLong();
     }
 
-    private static long requireNonNegative(JsonNode node) {
-        if (!node.canConvertToLong() || node.asLong() < 0) {
-            throw new IllegalArgumentException("0 이상의 정수가 아니다");
+    /** 0 이상 상한 이하의 정수. 터무니없는 값(시간 넘침)을 들이지 않는다. */
+    private static long requireWithin(JsonNode node, long max) {
+        if (!node.canConvertToLong() || node.asLong() < 0 || node.asLong() > max) {
+            throw new IllegalArgumentException("범위 밖의 값");
         }
         return node.asLong();
     }

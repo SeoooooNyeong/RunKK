@@ -124,8 +124,8 @@ public class BattleParticipant {
         newRecord = true;
     }
 
-    void judge(Verdict v) {
-        verdict = v;
+    void judge(Verdict decided) {
+        verdict = decided;
     }
 
     void disconnect(LocalDateTime at) {

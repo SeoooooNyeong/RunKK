@@ -65,13 +65,14 @@ public class RecordBattleService {
         return new RecordBattleCandidates(candidates);
     }
 
-    private RecordBattleCandidates.Candidate selfCandidate(long memberId, StandardDistance d) {
-        Optional<BestEntry> best = runQueryService.best(memberId, d);
+    private RecordBattleCandidates.Candidate selfCandidate(
+            long memberId, StandardDistance distance) {
+        Optional<BestEntry> best = runQueryService.best(memberId, distance);
         Duration time = best.flatMap(BestEntry::time).orElse(null);
         LocalDate on = best.map(BestEntry::achievedOn).orElse(null);
         String label = on == null ? NO_RECORD_YET : SELF_LABEL.format(on);
         return new RecordBattleCandidates.Candidate(
-                null, label, d.distance(), time, on, null, false);
+                null, label, distance.distance(), time, on, null, false);
     }
 
     /** 유명인 기록 목록과 출처, 거리 필터(FR-097, FR-100). */
@@ -149,7 +150,7 @@ public class RecordBattleService {
         return battleRepository.save(Battle.againstRecord(spec, LocalDateTime.now(clock)));
     }
 
-    /** 앱의 3초 카운트다운이 끝났다는 보고 → Battle.start(now)(R-02). */
+    /** 앱의 3초 카운트다운이 끝났다는 보고 → Battle.start(now)(R-02). 기록 대결만, 같은 보고를 다시 받으면 무시한다. */
     @Transactional
     public void markStarted(long memberId, long battleId) {
         Battle battle =
@@ -158,6 +159,12 @@ public class RecordBattleService {
                         .orElseThrow(() -> new BusinessRuleException(ReasonCode.BATTLE_NOT_FOUND));
         if (!battle.isParticipant(memberId)) {
             throw new PermissionDeniedException("대결 참가자가 아니다");
+        }
+        if (!battle.getType().startsWithCountdown()) {
+            throw new IllegalArgumentException("시작 보고는 나와의 싸움·유명인 대결만 받는다");
+        }
+        if (battle.getStartAt().isPresent()) {
+            return; // 앱 재시도: 이미 시작했다(멱등)
         }
         battle.start(LocalDateTime.now(clock));
         battleRepository.save(battle);

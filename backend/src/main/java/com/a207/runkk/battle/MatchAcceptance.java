@@ -10,8 +10,8 @@ import com.a207.runkk.common.StandardDistance;
  */
 public record MatchAcceptance(boolean waiting, StandardDistance distance) {
 
-    static MatchAcceptance waitingFor(StandardDistance d) {
-        return new MatchAcceptance(true, d);
+    static MatchAcceptance waitingFor(StandardDistance distance) {
+        return new MatchAcceptance(true, distance);
     }
 
     static MatchAcceptance released() {

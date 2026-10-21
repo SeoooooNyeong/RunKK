@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 import java.util.Map;
@@ -30,28 +31,38 @@ class MessageMailbox {
         this.clock = clock;
     }
 
+    /** 넣으면서 30초 지난 것을 치운다. 꺼내기와 경합해도 잃지 않게 회원 칸 단위로 원자 처리한다. */
     void put(long memberId, String json) {
-        Deque<Letter> box = boxes.computeIfAbsent(memberId, id -> new ArrayDeque<>());
-        synchronized (box) {
-            box.addLast(new Letter(json, LocalDateTime.now(clock)));
-            while (box.size() > CAPACITY) {
-                box.removeFirst();
-            }
-        }
+        LocalDateTime now = LocalDateTime.now(clock);
+        boxes.compute(
+                memberId,
+                (id, box) -> {
+                    Deque<Letter> letters = box == null ? new ArrayDeque<>() : box;
+                    letters.addLast(new Letter(json, now));
+                    prune(letters, now);
+                    return letters;
+                });
     }
 
     /** 30초 안에 들어온 메시지를 들어온 순서대로 꺼내고 비운다. */
     List<String> drain(long memberId) {
-        Deque<Letter> box = boxes.remove(memberId);
-        if (box == null) {
-            return List.of();
-        }
-        LocalDateTime oldest = LocalDateTime.now(clock).minus(KEEP);
-        synchronized (box) {
-            return box.stream()
-                    .filter(letter -> !letter.at().isBefore(oldest))
-                    .map(Letter::json)
-                    .toList();
+        LocalDateTime now = LocalDateTime.now(clock);
+        List<String> drained = new ArrayList<>();
+        boxes.computeIfPresent(
+                memberId,
+                (id, box) -> {
+                    prune(box, now);
+                    box.forEach(letter -> drained.add(letter.json()));
+                    return null;
+                });
+        return drained;
+    }
+
+    private static void prune(Deque<Letter> letters, LocalDateTime now) {
+        LocalDateTime oldest = now.minus(KEEP);
+        while (!letters.isEmpty()
+                && (letters.size() > CAPACITY || letters.peekFirst().at().isBefore(oldest))) {
+            letters.removeFirst();
         }
     }
 

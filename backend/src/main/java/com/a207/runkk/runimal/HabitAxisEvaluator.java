@@ -52,8 +52,8 @@ class HabitAxisEvaluator implements AxisEvaluator {
     }
 
     /** 24시간 원 위의 분 차이(0~720). */
-    static int circularGap(int a, int b) {
-        int gap = Math.abs(a - b) % MINUTES_PER_DAY;
+    static int circularGap(int first, int second) {
+        int gap = Math.abs(first - second) % MINUTES_PER_DAY;
         return Math.min(gap, MINUTES_PER_DAY - gap);
     }
 }

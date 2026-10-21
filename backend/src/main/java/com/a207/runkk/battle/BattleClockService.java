@@ -52,7 +52,7 @@ public class BattleClockService {
 
     /** A-11 네 단계. */
     public void tick(LocalDateTime now) {
-        transactions.once("battle_start", () -> battleStartService.startDue(now));
+        battleStartService.startDue(now);
         for (Battle due : battleRepository.findOpponentArrivalDue(now)) {
             transactions.once("opponent_arrival", () -> arriveOpponent(due.getId(), now));
         }
@@ -79,8 +79,9 @@ public class BattleClockService {
         CountdownStarted countdown =
                 new CountdownStarted(
                         battleId, ref.displayName(), battle.getCountdownEndsAt().orElseThrow());
-        battleMessenger.sendAll(battle.memberIds(), countdown);
-        for (long memberId : battle.memberIds()) {
+        List<Long> recipients = battle.memberIds();
+        AfterCommit.run(() -> battleMessenger.sendAll(recipients, countdown));
+        for (long memberId : recipients) {
             notificationService.notify(
                     new NotificationRequest(
                             memberId,
@@ -106,8 +107,12 @@ public class BattleClockService {
                 judgement.isPresent()
                         ? BattleEnded.Status.FINISHED
                         : BattleEnded.Status.RESULT_PENDING;
-        battleMessenger.sendAll(battle.memberIds(), new BattleEnded(battleId, status));
-        liveSessionStore.delete(battleId);
+        List<Long> recipients = battle.memberIds();
+        AfterCommit.run(
+                () -> {
+                    battleMessenger.sendAll(recipients, new BattleEnded(battleId, status));
+                    liveSessionStore.delete(battleId);
+                });
         judgement.ifPresent(j -> publish(battle, j));
     }
 

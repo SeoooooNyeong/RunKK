@@ -30,8 +30,11 @@ public class BattleStartService {
     /** 매칭 애니메이션(D-17). */
     static final int ANIMATION_SECONDS = 3;
 
+    /** 애니메이션 뒤 출발까지(FR-087). */
+    static final Duration COUNTDOWN_LEAD = Duration.ofSeconds(10);
+
     /** 성사 뒤 출발까지 = 애니메이션 3초 + 10초(D-17, FR-087). */
-    static final Duration START_DELAY = Duration.ofSeconds(ANIMATION_SECONDS + 10L);
+    static final Duration START_DELAY = Duration.ofSeconds(ANIMATION_SECONDS).plus(COUNTDOWN_LEAD);
 
     private final BattleRepository battleRepository;
     private final MemberQueryService memberQueryService;
@@ -39,6 +42,7 @@ public class BattleStartService {
     private final BattleMessenger battleMessenger;
     private final LiveSessionStore liveSessionStore;
     private final Clock clock;
+    private final BattleTransactions transactions;
 
     public BattleStartService(
             BattleRepository battleRepository,
@@ -46,13 +50,15 @@ public class BattleStartService {
             RunQueryService runQueryService,
             BattleMessenger battleMessenger,
             LiveSessionStore liveSessionStore,
-            Clock clock) {
+            Clock clock,
+            BattleTransactions transactions) {
         this.battleRepository = battleRepository;
         this.memberQueryService = memberQueryService;
         this.runQueryService = runQueryService;
         this.battleMessenger = battleMessenger;
         this.liveSessionStore = liveSessionStore;
         this.clock = clock;
+        this.transactions = transactions;
     }
 
     /** 양쪽 최고 기록을 붙여 MatchFound → 출발 예약(now + 13초) → BattleStart를 미리 보낸다. */
@@ -62,16 +68,21 @@ public class BattleStartService {
         b.scheduleStart(now.plus(START_DELAY));
         Battle battle = battleRepository.save(b);
         Map<Long, MemberSummary> members = memberQueryService.summaries(battle.memberIds());
-        for (long memberId : battle.memberIds()) {
-            battleMessenger.send(memberId, matchFoundFor(battle, memberId, members));
-        }
-        battleMessenger.sendAll(battle.memberIds(), startMessage(battle));
+        Map<Long, MatchFound> found = new LinkedHashMap<>();
+        battle.memberIds().forEach(id -> found.put(id, matchFoundFor(battle, id, members)));
+        BattleStart start = startMessage(battle);
+        List<Long> recipients = battle.memberIds();
+        AfterCommit.run(
+                () -> {
+                    found.forEach(battleMessenger::send);
+                    battleMessenger.sendAll(recipients, start);
+                });
     }
 
     private MatchFound matchFoundFor(
             Battle battle, long memberId, Map<Long, MemberSummary> members) {
-        Optional<StandardDistance> d = battle.standardDistance();
-        Duration myBest = d.flatMap(s -> bestTime(memberId, s)).orElse(null);
+        Optional<StandardDistance> standard = battle.standardDistance();
+        Duration myBest = standard.flatMap(each -> bestTime(memberId, each)).orElse(null);
         Optional<OpponentRef> record = battle.getOpponent();
         if (record.isPresent()) {
             OpponentRef ref = record.get();
@@ -92,12 +103,12 @@ public class BattleStartService {
                 rival == null ? Tier.UNRANKED : rival.tier(),
                 battle.getDistance(),
                 myBest,
-                d.flatMap(s -> bestTime(rivalId, s)).orElse(null),
+                standard.flatMap(each -> bestTime(rivalId, each)).orElse(null),
                 ANIMATION_SECONDS);
     }
 
-    private Optional<Duration> bestTime(long memberId, StandardDistance d) {
-        return runQueryService.best(memberId, d).flatMap(BestEntry::time);
+    private Optional<Duration> bestTime(long memberId, StandardDistance distance) {
+        return runQueryService.best(memberId, distance).flatMap(BestEntry::time);
     }
 
     /** 기록 상대면 상대 표(초·미터), 랜덤이면 null. */
@@ -110,22 +121,32 @@ public class BattleStartService {
     /** 앱 TrackTable 형식(경과 초, 누적 미터). */
     static List<TrackPoint> trackPoints(OpponentTrack track) {
         return track.wholeSeconds().stream()
-                .map(p -> new TrackPoint(p.elapsed().toSeconds(), p.distance().meters()))
+                .map(
+                        sample ->
+                                new TrackPoint(
+                                        sample.elapsed().toSeconds(), sample.distance().meters()))
                 .toList();
     }
 
-    /** startAt이 지난 WAITING_START 대결을 시작한다. 랜덤이면 실시간 세션을 연다. 시작한 대결 수. */
-    @Transactional
+    /** startAt이 지난 WAITING_START 대결을 시작한다. 대결마다 새 트랜잭션이고, 랜덤이면 커밋 뒤 실시간 세션을 연다. 시작한 대결 수. */
     public int startDue(LocalDateTime now) {
-        List<Battle> due = battleRepository.findStartDue(now);
-        for (Battle battle : due) {
-            battle.start(now);
-            battleRepository.save(battle);
-            if (battle.getType() == BattleType.RANDOM) {
-                liveSessionStore.save(openSession(battle, now));
+        int started = 0;
+        for (Battle due : battleRepository.findStartDue(now)) {
+            if (transactions.once("battle_start", () -> start(due.getId(), now))) {
+                started++;
             }
         }
-        return due.size();
+        return started;
+    }
+
+    private void start(long battleId, LocalDateTime now) {
+        Battle battle = battleRepository.findById(battleId).orElseThrow();
+        battle.start(now);
+        battleRepository.save(battle);
+        if (battle.getType() == BattleType.RANDOM) {
+            LiveBattleSession session = openSession(battle, now);
+            AfterCommit.run(() -> liveSessionStore.save(session));
+        }
     }
 
     private LiveBattleSession openSession(Battle battle, LocalDateTime now) {

@@ -162,15 +162,14 @@ public class BattleResultService {
                     LocalDateTime now = LocalDateTime.now(clock);
                     battle.forfeit(memberId, now);
                     battleRepository.save(battle);
+                    BattleEnded ended =
+                            new BattleEnded(battleId, BattleEnded.Status.OPPONENT_FORFEITED);
                     battle.rivalOf(memberId)
+                            .map(BattleParticipant::getMemberId)
                             .ifPresent(
                                     rival ->
-                                            battleMessenger.send(
-                                                    rival.getMemberId(),
-                                                    new BattleEnded(
-                                                            battleId,
-                                                            BattleEnded.Status
-                                                                    .OPPONENT_FORFEITED)));
+                                            AfterCommit.run(
+                                                    () -> battleMessenger.send(rival, ended)));
                     Judgement judgement = battle.getJudgement().orElseThrow();
                     eventPublisher.publish(
                             new BattleJudged(battleId, battle.getType(), judgement, now));

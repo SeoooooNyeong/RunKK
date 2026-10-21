@@ -67,7 +67,12 @@ public class MatchingService {
         if (!queued) {
             throw new BusinessRuleException(ReasonCode.ALREADY_IN_BATTLE);
         }
-        memberSettingService.rememberBattleDistance(memberId, distance);
+        try {
+            memberSettingService.rememberBattleDistance(memberId, distance);
+        } catch (RuntimeException e) {
+            queueing(() -> matchQueue.remove(memberId)); // 요청이 실패했는데 대기열에 남지 않게 되돌린다
+            throw e;
+        }
         return MatchAcceptance.waitingFor(distance);
     }
 
@@ -82,12 +87,13 @@ public class MatchingService {
 
     /** WAITING이면 지우고 대기해제. 이미 배정됐으면 ALREADY_MATCHED(FR-085). 대기 중이 아니면 대기해제(재요청 제한 없음, Q-31). */
     public MatchAcceptance cancel(long memberId) {
-        Optional<MatchTicket> ticket = queueing(() -> matchQueue.findWaiting(memberId));
-        if (ticket.isPresent() && ticket.get().getStatus() == MatchStatus.WAITING) {
-            queueing(() -> matchQueue.remove(memberId));
+        if (queueing(() -> matchQueue.removeWaiting(memberId))) {
             return MatchAcceptance.released();
         }
-        if (ticket.isPresent() || battleRepository.existsActive(memberId)) {
+        boolean assigned =
+                queueing(() -> matchQueue.findWaiting(memberId)).isPresent()
+                        || battleRepository.existsActive(memberId);
+        if (assigned) {
             throw new BusinessRuleException(ReasonCode.ALREADY_MATCHED);
         }
         return MatchAcceptance.released();

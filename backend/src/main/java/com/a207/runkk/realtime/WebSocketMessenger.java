@@ -59,7 +59,8 @@ public class WebSocketMessenger implements BattleMessenger {
         }
         try {
             session.get().sendMessage(new TextMessage(json));
-        } catch (IOException | IllegalStateException e) {
+        } catch (IOException | RuntimeException e) {
+            // 느린 연결의 버퍼·전송 시간 초과(SessionLimitExceededException)도 우편함으로 돌려 호출한 쪽을 막지 않는다
             log.debug("socket_send_failed error={}", e.getClass().getSimpleName());
             mailbox.put(memberId, json);
         }

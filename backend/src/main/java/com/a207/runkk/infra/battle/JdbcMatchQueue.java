@@ -25,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 @ConditionalOnProperty(name = "runkk.queue", havingValue = "jdbc")
 public class JdbcMatchQueue implements MatchQueue {
 
+    private static final int PAIR = 2;
     private static final String COLUMNS = "member_id, tier, distance, waiting_since, status";
 
     private final JdbcTemplate jdbc;
@@ -53,6 +54,15 @@ public class JdbcMatchQueue implements MatchQueue {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public boolean remove(long memberId) {
         return jdbc.update("delete from match_ticket where member_id = ?", memberId) > 0;
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public boolean removeWaiting(long memberId) {
+        return jdbc.update(
+                        "delete from match_ticket where member_id = ? and status = 'WAITING'",
+                        memberId)
+                > 0;
     }
 
     @Override
@@ -85,7 +95,7 @@ public class JdbcMatchQueue implements MatchQueue {
                         Long.class,
                         a,
                         b);
-        if (locked.size() != 2) {
+        if (locked.size() != PAIR) {
             return false;
         }
         jdbc.update("update match_ticket set status = 'ASSIGNED' where member_id in (?, ?)", a, b);

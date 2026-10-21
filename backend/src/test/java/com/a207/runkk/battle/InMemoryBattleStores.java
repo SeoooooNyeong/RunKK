@@ -156,6 +156,17 @@ public final class InMemoryBattleStores {
         }
 
         @Override
+        public synchronized boolean removeWaiting(long memberId) {
+            check();
+            MatchTicket ticket = tickets.get(memberId);
+            if (ticket == null || ticket.getStatus() != MatchStatus.WAITING) {
+                return false;
+            }
+            tickets.remove(memberId);
+            return true;
+        }
+
+        @Override
         public synchronized Optional<MatchTicket> findWaiting(long memberId) {
             check();
             return Optional.ofNullable(tickets.get(memberId));

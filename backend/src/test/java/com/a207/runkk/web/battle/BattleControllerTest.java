@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.a207.runkk.running.LocationPoint;
 import com.a207.runkk.running.RunFixtures;
 import com.a207.runkk.web.WebTestSupport;
+import com.fasterxml.jackson.databind.JsonNode;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.HashMap;
@@ -25,6 +26,8 @@ class BattleControllerTest extends WebTestSupport {
 
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
     private static final LocalDateTime START = LocalDateTime.of(2026, 10, 20, 7, 0);
+    private static final long ASYNC_WAIT_NANOS = 15_000_000_000L;
+    private static final long POLL_MILLIS = 100;
 
     private static String at(LocalDateTime t) {
         return t.atZone(SEOUL).toOffsetDateTime().toString();
@@ -196,5 +199,35 @@ class BattleControllerTest extends WebTestSupport {
         mvc.perform(as(s, get("/api/v1/runimal/card")))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("NO_TYPE"));
+    }
+
+    @Test
+    @DisplayName("유효 러닝 3회 뒤 GET /runimal은 임시 유형, GET /runimal/card는 축 비율이 있는 카드")
+    void runimal_provisionalCard() throws Exception {
+        Session s = signUp();
+        for (int i = 0; i < 3; i++) {
+            upload(s, 2_000, 720);
+        }
+        long deadline = System.nanoTime() + ASYNC_WAIT_NANOS;
+        String type = null;
+        while (type == null && System.nanoTime() < deadline) {
+            JsonNode status =
+                    body(
+                            mvc.perform(as(s, get("/api/v1/runimal")))
+                                    .andReturn()
+                                    .getResponse()
+                                    .getContentAsString());
+            type = status.get("type").isNull() ? null : status.get("type").asText();
+            Thread.sleep(POLL_MILLIS);
+        }
+        org.assertj.core.api.Assertions.assertThat(type).isNotNull();
+        mvc.perform(as(s, get("/api/v1/runimal")))
+                .andExpect(jsonPath("$.provisional").value(true))
+                .andExpect(jsonPath("$.remainingRuns").value(7));
+        mvc.perform(as(s, get("/api/v1/runimal/card")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.type").value(type))
+                .andExpect(jsonPath("$.axes.length()").value(4))
+                .andExpect(jsonPath("$.axisRatios.DISTANCE").value(1.0));
     }
 }

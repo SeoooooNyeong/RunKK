@@ -53,12 +53,12 @@ public class VirtualRecordFactory {
         List<VirtualRecord> result = new ArrayList<>();
         for (Tier tier : TIERS) {
             RunningScore mid = new RunningScore(boundary.midScoreOf(tier, rule));
-            for (StandardDistance d : distances) {
-                Pace basePace = mid.paceFor(d.distance());
+            for (StandardDistance distance : distances) {
+                Pace basePace = mid.paceFor(distance.distance());
                 for (double offset : rule.paceOffsets()) {
-                    Duration finish = finishTime(basePace, offset, d.distance());
+                    Duration finish = finishTime(basePace, offset, distance.distance());
                     String name = uniqueName(nicknameTaken, used);
-                    result.add(new VirtualRecord(tier, d, name, finish));
+                    result.add(new VirtualRecord(tier, distance, name, finish));
                 }
             }
         }
@@ -72,25 +72,25 @@ public class VirtualRecordFactory {
 
     private static List<StandardDistance> randomBattleDistances(VirtualRecordRule rule) {
         List<StandardDistance> distances = new ArrayList<>();
-        for (Distance d : rule.distances()) {
-            matching(d).filter(StandardDistance::isRandomBattle).ifPresent(distances::add);
+        for (Distance distance : rule.distances()) {
+            matching(distance).filter(StandardDistance::isRandomBattle).ifPresent(distances::add);
         }
         return distances;
     }
 
-    private static Optional<StandardDistance> matching(Distance d) {
-        for (StandardDistance s : StandardDistance.values()) {
-            if (s.distance().equals(d)) {
-                return Optional.of(s);
+    private static Optional<StandardDistance> matching(Distance distance) {
+        for (StandardDistance standard : StandardDistance.values()) {
+            if (standard.distance().equals(distance)) {
+                return Optional.of(standard);
             }
         }
         return Optional.empty();
     }
 
     /** 완주 시간 = 거리 × 페이스 × (1 + 오프셋). */
-    static Duration finishTime(Pace basePace, double offset, Distance d) {
+    static Duration finishTime(Pace basePace, double offset, Distance distance) {
         double secondsPerKm = basePace.secondsPerKm() * (1 + offset);
-        return Duration.ofMillis(Math.round(secondsPerKm * d.meters()));
+        return Duration.ofMillis(Math.round(secondsPerKm * distance.meters()));
     }
 
     private String uniqueName(Predicate<String> nicknameTaken, Set<String> used) {

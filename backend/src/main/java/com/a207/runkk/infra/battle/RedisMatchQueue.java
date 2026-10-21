@@ -5,6 +5,7 @@ import com.a207.runkk.battle.MatchStatus;
 import com.a207.runkk.battle.MatchTicket;
 import com.a207.runkk.common.StandardDistance;
 import com.a207.runkk.common.Tier;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -35,6 +36,10 @@ public class RedisMatchQueue implements MatchQueue {
     private static final String DISTANCE = "distance";
     private static final String SINCE = "since";
     private static final String STATUS = "status";
+    private static final Long DONE = 1L;
+
+    /** 표 수명. 대기는 15초 뒤 고스트로 넘어가고 배정된 표는 대결 저장 직후 지우므로, 장애로 남은 표가 재요청을 영구히 막지 않게 둔다. */
+    private static final Duration TICKET_TTL = Duration.ofMinutes(5);
 
     /** 없을 때만 넣기(SETNX와 같은 뜻). KEYS[1] 표, KEYS[2] 정렬 집합. */
     private static final RedisScript<Long> ENQUEUE =
@@ -42,12 +47,20 @@ public class RedisMatchQueue implements MatchQueue {
                     "if redis.call('EXISTS', KEYS[1]) == 1 then return 0 end "
                             + "redis.call('HSET', KEYS[1], 'memberId', ARGV[1], 'tier', ARGV[2],"
                             + " 'distance', ARGV[3], 'since', ARGV[4], 'status', 'WAITING') "
-                            + "redis.call('ZADD', KEYS[2], ARGV[5], ARGV[1]) return 1",
+                            + "redis.call('EXPIRE', KEYS[1], ARGV[6])"
+                            + " redis.call('ZADD', KEYS[2], ARGV[5], ARGV[1]) return 1",
                     Long.class);
 
     private static final RedisScript<Long> REMOVE =
             new DefaultRedisScript<>(
                     "redis.call('ZREM', KEYS[2], ARGV[1]) return redis.call('DEL', KEYS[1])",
+                    Long.class);
+
+    /** WAITING일 때만 지우기(취소). KEYS[1] 표, KEYS[2] 정렬 집합. */
+    private static final RedisScript<Long> REMOVE_WAITING =
+            new DefaultRedisScript<>(
+                    "if redis.call('HGET', KEYS[1], 'status') ~= 'WAITING' then return 0 end"
+                        + " redis.call('ZREM', KEYS[2], ARGV[1]) return redis.call('DEL', KEYS[1])",
                     Long.class);
 
     /** A-22: 두 표가 모두 WAITING일 때만 둘 다 ASSIGNED. */
@@ -77,8 +90,9 @@ public class RedisMatchQueue implements MatchQueue {
                         ticket.getTier().name(),
                         ticket.getDistance().name(),
                         ticket.getWaitingSince().toString(),
-                        String.valueOf(score(ticket.getWaitingSince())));
-        return Long.valueOf(1).equals(added);
+                        String.valueOf(score(ticket.getWaitingSince())),
+                        String.valueOf(TICKET_TTL.toSeconds()));
+        return DONE.equals(added);
     }
 
     @Override
@@ -86,6 +100,16 @@ public class RedisMatchQueue implements MatchQueue {
         Long removed =
                 redis.execute(
                         REMOVE, List.of(ticketKey(memberId), QUEUE_KEY), String.valueOf(memberId));
+        return removed != null && removed > 0;
+    }
+
+    @Override
+    public boolean removeWaiting(long memberId) {
+        Long removed =
+                redis.execute(
+                        REMOVE_WAITING,
+                        List.of(ticketKey(memberId), QUEUE_KEY),
+                        String.valueOf(memberId));
         return removed != null && removed > 0;
     }
 
@@ -103,8 +127,11 @@ public class RedisMatchQueue implements MatchQueue {
             return tickets;
         }
         for (String id : ids) {
-            findWaiting(Long.parseLong(id))
-                    .filter(t -> t.getStatus() == MatchStatus.WAITING)
+            Optional<MatchTicket> ticket = findWaiting(Long.parseLong(id));
+            if (ticket.isEmpty()) {
+                redis.opsForZSet().remove(QUEUE_KEY, id); // 수명이 다한 표의 순서 항목을 치운다
+            }
+            ticket.filter(found -> found.getStatus() == MatchStatus.WAITING)
                     .ifPresent(tickets::add);
         }
         return tickets;
@@ -113,7 +140,7 @@ public class RedisMatchQueue implements MatchQueue {
     @Override
     public boolean tryAssignPair(long a, long b) {
         Long assigned = redis.execute(ASSIGN_PAIR, List.of(ticketKey(a), ticketKey(b)));
-        return Long.valueOf(1).equals(assigned);
+        return DONE.equals(assigned);
     }
 
     /** 대기 표로 열고 저장 상태가 ASSIGNED면 배정한다. */

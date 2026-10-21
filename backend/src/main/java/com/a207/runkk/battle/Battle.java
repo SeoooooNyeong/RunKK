@@ -420,9 +420,9 @@ public class Battle {
         return verdicts;
     }
 
-    private Map<Side, Verdict> everyone(Verdict v) {
+    private Map<Side, Verdict> everyone(Verdict verdict) {
         Map<Side, Verdict> verdicts = new LinkedHashMap<>();
-        sides().forEach(side -> verdicts.put(side, v));
+        sides().forEach(side -> verdicts.put(side, verdict));
         return verdicts;
     }
 

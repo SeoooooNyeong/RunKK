@@ -23,6 +23,9 @@ public final class LiveBattleSession {
     /** 추월로 보는 거리 차(흔들림 방지, FR-188). */
     static final long OVERTAKE_MARGIN_METERS = 10;
 
+    /** 랜덤 대결 참가자 수. */
+    static final int RUNNERS = 2;
+
     /** 진행값이 이 시간보다 오래 없으면 끊김(FR-090). */
     static final Duration TIMEOUT = Duration.ofSeconds(3);
 
@@ -36,7 +39,7 @@ public final class LiveBattleSession {
 
     private LiveBattleSession(
             long battleId, Distance distance, Map<Long, Runner> runners, Long leaderId) {
-        if (runners.size() != 2) {
+        if (runners.size() != RUNNERS) {
             throw new IllegalArgumentException("랜덤 대결 세션은 참가자 2명이다");
         }
         this.battleId = battleId;

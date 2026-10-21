@@ -73,13 +73,15 @@ public class CourseSimilarityJudge {
                                     .add(p));
         }
 
-        boolean hasPointWithin(GeoPoint p, int radiusMeters) {
-            long x = cellX(p);
-            long y = cellY(p);
-            for (long dx = -1; dx <= 1; dx++) {
-                for (long dy = -1; dy <= 1; dy++) {
-                    List<GeoPoint> bucket = cells.getOrDefault(key(x + dx, y + dy), List.of());
-                    if (bucket.stream().anyMatch(q -> q.distanceTo(p).meters() <= radiusMeters)) {
+        boolean hasPointWithin(GeoPoint point, int radiusMeters) {
+            long column = cellX(point);
+            long row = cellY(point);
+            for (long columnStep = -1; columnStep <= 1; columnStep++) {
+                for (long rowStep = -1; rowStep <= 1; rowStep++) {
+                    List<GeoPoint> bucket =
+                            cells.getOrDefault(key(column + columnStep, row + rowStep), List.of());
+                    if (bucket.stream()
+                            .anyMatch(near -> near.distanceTo(point).meters() <= radiusMeters)) {
                         return true;
                     }
                 }
@@ -87,16 +89,17 @@ public class CourseSimilarityJudge {
             return false;
         }
 
-        private long cellX(GeoPoint p) {
-            return (long) Math.floor(p.longitude() * METERS_PER_DEGREE_LON * lonScale / cellMeters);
+        private long cellX(GeoPoint point) {
+            return (long)
+                    Math.floor(point.longitude() * METERS_PER_DEGREE_LON * lonScale / cellMeters);
         }
 
-        private long cellY(GeoPoint p) {
-            return (long) Math.floor(p.latitude() * METERS_PER_DEGREE_LAT / cellMeters);
+        private long cellY(GeoPoint point) {
+            return (long) Math.floor(point.latitude() * METERS_PER_DEGREE_LAT / cellMeters);
         }
 
-        private static long key(long x, long y) {
-            return x * KEY_STRIDE + y;
+        private static long key(long column, long row) {
+            return column * KEY_STRIDE + row;
         }
     }
 }

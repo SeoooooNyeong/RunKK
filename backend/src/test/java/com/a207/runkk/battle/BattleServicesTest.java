@@ -103,7 +103,8 @@ class BattleServicesTest {
                             }
                             return map;
                         });
-        startService = new BattleStartService(battles, members, runs, messenger, sessions, clock);
+        startService =
+                new BattleStartService(battles, members, runs, messenger, sessions, clock, tx);
         GhostMatcher ghost =
                 new GhostMatcher(members, runs, virtuals, battles, startService, new Random(3));
         matchmaker = new Matchmaker(queue, battles, startService, ghost, policy, tx);

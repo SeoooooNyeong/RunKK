@@ -21,23 +21,23 @@ public final class AxisRatios {
         this.ratios = Map.copyOf(new EnumMap<>(ratios));
     }
 
-    public double ratioOfA(RunimalAxis a) {
-        return ratios.get(a);
+    public double ratioOfA(RunimalAxis axis) {
+        return ratios.get(axis);
     }
 
-    public AxisLean dominant(RunimalAxis a, RunimalRule rule) {
-        return a.lean(ratioOfA(a), rule);
+    public AxisLean dominant(RunimalAxis axis, RunimalRule rule) {
+        return axis.lean(ratioOfA(axis), rule);
     }
 
     /** 우세한 쪽 비율(%). */
-    public int percentOfDominant(RunimalAxis a) {
-        double ratio = ratioOfA(a);
+    public int percentOfDominant(RunimalAxis axis) {
+        double ratio = ratioOfA(axis);
         return (int) Math.round(Math.max(ratio, 1 - ratio) * PERCENT);
     }
 
     /** 그 성향 쪽 비율(%). A면 A쪽 비율, B면 1 − A쪽 비율. */
-    public int percentOf(RunimalAxis a, AxisLean lean) {
-        double ratio = lean == AxisLean.A ? ratioOfA(a) : 1 - ratioOfA(a);
+    public int percentOf(RunimalAxis axis, AxisLean lean) {
+        double ratio = lean == AxisLean.A ? ratioOfA(axis) : 1 - ratioOfA(axis);
         return (int) Math.round(ratio * PERCENT);
     }
 

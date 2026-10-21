@@ -14,6 +14,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
@@ -24,6 +26,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class LiveBattleService {
 
+    private static final Logger log = LoggerFactory.getLogger(LiveBattleService.class);
     private static final String OPPONENT_ARRIVED_TEXT = "상대가 먼저 도착했어요. 10초 안에 들어오세요!";
 
     private final LiveSessionStore liveSessionStore;
@@ -46,8 +49,14 @@ public class LiveBattleService {
         this.transactions = transactions;
     }
 
-    /** SQ-04. battleId는 realtime이 수신 메시지의 채널 ID로 넘긴다(D-48). 진행 중 세션이 없거나 회원이 참가자가 아니면 무시한다. */
+    /**
+     * SQ-04. battleId는 realtime이 수신 메시지의 채널 ID로 넘긴다(D-48). 진행 중 세션이 없거나 회원이 참가자가 아니면 무시한다. 도착·복구를
+     * 대결에 먼저 남기고 나서 세션을 저장하므로, 대결 반영이 실패하면 다음 진행값에서 다시 판정한다.
+     */
     public void onProgress(long memberId, long battleId, ProgressReport r, LocalDateTime now) {
+        if (liveSessionStore.load(battleId).isEmpty()) {
+            return; // 없는 채널 ID로 잠금 객체가 쌓이지 않게 세션부터 확인한다
+        }
         synchronized (lockOf(battleId)) {
             Optional<LiveBattleSession> loaded = liveSessionStore.load(battleId);
             if (loaded.isEmpty()) {
@@ -58,40 +67,42 @@ public class LiveBattleService {
             if (out.isEmpty()) {
                 return;
             }
-            liveSessionStore.save(session);
-            session.reconnected()
-                    .ifPresent(
-                            id ->
-                                    transactions.retryingRun(
-                                            () ->
-                                                    update(
-                                                            battleId,
-                                                            b -> b.markReconnected(id, now))));
+            session.reconnected().ifPresent(id -> reconnect(battleId, id, now));
             session.newArrival().ifPresent(id -> arrive(session, id, now));
-            out.forEach(d -> battleMessenger.send(d.recipientId(), d.message()));
+            liveSessionStore.save(session);
+            out.forEach(
+                    delivery -> battleMessenger.send(delivery.recipientId(), delivery.message()));
         }
     }
 
-    /** 첫 도착이면 모두에게 CountdownStarted, 아직 달리는 쪽에 OPPONENT_ARRIVED 알림(FR-102, FR-107). */
+    private void reconnect(long battleId, long memberId, LocalDateTime now) {
+        transactions.retryingRun(
+                () -> update(battleId, battle -> battle.markReconnected(memberId, now)));
+    }
+
+    /** 첫 도착이면 커밋 뒤 모두에게 CountdownStarted, 아직 달리는 쪽에 OPPONENT_ARRIVED 알림(FR-102, FR-107). */
     private void arrive(LiveBattleSession session, long memberId, LocalDateTime now) {
         transactions.retryingRun(
                 () -> {
                     Battle battle = load(session.battleId());
-                    if (!battle.recordArrival(Side.member(memberId), now)) {
-                        battleRepository.save(battle);
-                        return;
-                    }
+                    boolean first = battle.recordArrival(Side.member(memberId), now);
                     battleRepository.save(battle);
-                    DisplayName name = session.nameOf(memberId).orElse(DisplayName.WITHDRAWN);
-                    CountdownStarted countdown =
-                            new CountdownStarted(
-                                    battle.getId(),
-                                    name,
-                                    battle.getCountdownEndsAt().orElseThrow());
-                    battleMessenger.sendAll(battle.memberIds(), countdown);
-                    battle.rivalOf(memberId)
-                            .ifPresent(rival -> notifyArrival(rival.getMemberId(), battle.getId()));
+                    if (first) {
+                        announceCountdown(battle, session.nameOf(memberId), memberId);
+                    }
                 });
+    }
+
+    private void announceCountdown(Battle battle, Optional<DisplayName> name, long memberId) {
+        CountdownStarted countdown =
+                new CountdownStarted(
+                        battle.getId(),
+                        name.orElse(DisplayName.WITHDRAWN),
+                        battle.getCountdownEndsAt().orElseThrow());
+        List<Long> recipients = battle.memberIds();
+        AfterCommit.run(() -> battleMessenger.sendAll(recipients, countdown));
+        battle.rivalOf(memberId)
+                .ifPresent(rival -> notifyArrival(rival.getMemberId(), battle.getId()));
     }
 
     private void notifyArrival(long recipientId, long battleId) {
@@ -103,11 +114,22 @@ public class LiveBattleService {
                         new NavigationTarget(Screen.BATTLE_RESULT, String.valueOf(battleId))));
     }
 
-    /** 진행 중 세션마다 3초 끊김을 판정해 상대에게 알리고 Battle.markDisconnected. 대결이 끝났으면 세션을 지운다. */
+    /**
+     * 진행 중 세션마다 3초 끊김을 판정해 상대에게 알리고 Battle.markDisconnected. 대결이 끝났으면 세션을 지운다. 한 대결의 실패가 다른 대결의 판정을
+     * 막지 않게 대결마다 따로 감싼다.
+     */
     public void detectTimeouts(LocalDateTime now) {
         for (long battleId : liveSessionStore.activeBattleIds()) {
-            synchronized (lockOf(battleId)) {
-                liveSessionStore.load(battleId).ifPresent(session -> timeout(session, now));
+            try {
+                synchronized (lockOf(battleId)) {
+                    liveSessionStore.load(battleId).ifPresent(session -> timeout(session, now));
+                }
+            } catch (RuntimeException e) {
+                log.warn(
+                        "live_timeout_failed battleId={} error={}",
+                        battleId,
+                        e.getClass().getSimpleName(),
+                        e);
             }
         }
     }
@@ -134,7 +156,7 @@ public class LiveBattleService {
             return;
         }
         liveSessionStore.save(session);
-        out.forEach(d -> battleMessenger.send(d.recipientId(), d.message()));
+        out.forEach(delivery -> battleMessenger.send(delivery.recipientId(), delivery.message()));
     }
 
     private void update(long battleId, Consumer<Battle> change) {

@@ -48,46 +48,54 @@ public class Matchmaker {
         MatchCondition cond = operationPolicy.matchCondition();
         List<MatchTicket> waiting = matchQueue.waitingOldestFirst();
         Set<Long> paired = new HashSet<>();
-        for (MatchTicket a : waiting) {
-            if (paired.contains(a.getMemberId())) {
+        for (int index = 0; index < waiting.size(); index++) {
+            MatchTicket ticket = waiting.get(index);
+            if (paired.contains(ticket.getMemberId())) {
                 continue;
             }
-            Optional<MatchTicket> b = partnerOf(a, waiting, paired, cond);
-            if (b.isPresent() && matchQueue.tryAssignPair(a.getMemberId(), b.get().getMemberId())) {
-                pair(a, b.get(), now);
-                paired.add(a.getMemberId());
-                paired.add(b.get().getMemberId());
-            } else if (a.isExpired(now, cond.ghostAfter()) && matchQueue.remove(a.getMemberId())) {
-                transactions.once("ghost_match", () -> ghostMatcher.match(a, now));
+            Optional<MatchTicket> partner = partnerOf(index, waiting, paired, cond);
+            if (partner.isPresent() && assignPair(ticket, partner.get())) {
+                pair(ticket, partner.get(), now);
+                paired.add(ticket.getMemberId());
+                paired.add(partner.get().getMemberId());
+            } else if (ticket.isExpired(now, cond.ghostAfter())
+                    && matchQueue.remove(ticket.getMemberId())) {
+                transactions.once("ghost_match", () -> ghostMatcher.match(ticket, now));
             }
         }
     }
 
-    /** a 뒤의 첫 후보(가장 오래 기다린 순). */
+    private boolean assignPair(MatchTicket ticket, MatchTicket partner) {
+        return matchQueue.tryAssignPair(ticket.getMemberId(), partner.getMemberId());
+    }
+
+    /** index 뒤의 첫 후보(가장 오래 기다린 순). */
     private static Optional<MatchTicket> partnerOf(
-            MatchTicket a, List<MatchTicket> waiting, Set<Long> paired, MatchCondition cond) {
+            int index, List<MatchTicket> waiting, Set<Long> paired, MatchCondition cond) {
+        MatchTicket ticket = waiting.get(index);
         return waiting.stream()
-                .skip(waiting.indexOf(a) + 1L)
-                .filter(b -> !paired.contains(b.getMemberId()))
-                .filter(b -> a.canPairWith(b, cond))
+                .skip(index + 1L)
+                .filter(candidate -> !paired.contains(candidate.getMemberId()))
+                .filter(candidate -> ticket.canPairWith(candidate, cond))
                 .findFirst();
     }
 
-    /** 배정된 두 표로 대결을 저장하고 알린다. 실패하면 두 표를 지워 다시 요청할 수 있게 한다. */
-    private void pair(MatchTicket a, MatchTicket b, LocalDateTime now) {
-        a.assign();
-        b.assign();
+    /** 배정된 두 표로 대결을 저장하고 알린다. 실패해도 두 표를 지워 다시 요청할 수 있게 한다. */
+    private void pair(MatchTicket first, MatchTicket second, LocalDateTime now) {
+        first.assign();
+        second.assign();
         boolean created =
                 transactions.once(
                         "random_match",
                         () -> {
-                            Battle battle = battleRepository.save(Battle.random(a, b, now));
+                            Battle battle =
+                                    battleRepository.save(Battle.random(first, second, now));
                             battleStartService.announceMatch(battle);
                         });
-        matchQueue.remove(a.getMemberId());
-        matchQueue.remove(b.getMemberId());
+        matchQueue.remove(first.getMemberId());
+        matchQueue.remove(second.getMemberId());
         if (!created) {
-            log.warn("random_match_dropped tickets=2");
+            log.warn("random_match_dropped tickets={}", LiveBattleSession.RUNNERS);
         }
     }
 }

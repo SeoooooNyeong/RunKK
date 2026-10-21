@@ -38,10 +38,11 @@ class RunimalJudge {
     /** 거리·습관은 데이터, 동행·코스는 태그(1·3분류) 값. 태그가 없으면 데이터(제안, W-14). 데이터도 없으면 A로 둔다(제안, 부록 E E-08). */
     Judged judgeProvisional(RunSample s, TagSet tags, RunimalRule rule) {
         Map<RunimalAxis, Double> ratios = new EnumMap<>(RunimalAxis.class);
-        for (AxisEvaluator e : evaluators) {
+        for (AxisEvaluator evaluator : evaluators) {
+            RunimalAxis axis = evaluator.axis();
             Optional<Double> tagged =
-                    TAG_FIRST_AXES.contains(e.axis()) ? tagRatio(e.axis(), tags) : Optional.empty();
-            ratios.put(e.axis(), tagged.orElseGet(() -> orElse(e.ratioOfA(s, rule), SIDE_A)));
+                    TAG_FIRST_AXES.contains(axis) ? tagRatio(axis, tags) : Optional.empty();
+            ratios.put(axis, tagged.orElseGet(() -> orElse(evaluator.ratioOfA(s, rule), SIDE_A)));
         }
         return judged(ratios, rule);
     }
@@ -49,21 +50,21 @@ class RunimalJudge {
     /** 4축 모두 데이터. 코스 표본이 없으면 태그의 코스 분류 값, 그 밖에 표본이 없으면 0.5(A-14, FR-166). */
     Judged judgeConfirmed(RunSample s, TagSet tags, RunimalRule rule) {
         Map<RunimalAxis, Double> ratios = new EnumMap<>(RunimalAxis.class);
-        for (AxisEvaluator e : evaluators) {
-            OptionalDouble data = e.ratioOfA(s, rule);
+        for (AxisEvaluator evaluator : evaluators) {
+            OptionalDouble data = evaluator.ratioOfA(s, rule);
             double fallback =
-                    e.axis() == RunimalAxis.COURSE
+                    evaluator.axis() == RunimalAxis.COURSE
                             ? tagRatio(RunimalAxis.COURSE, tags).orElse(UNDECIDED)
                             : UNDECIDED;
-            ratios.put(e.axis(), orElse(data, fallback));
+            ratios.put(evaluator.axis(), orElse(data, fallback));
         }
         return judged(ratios, rule);
     }
 
     private Judged judged(Map<RunimalAxis, Double> ratios, RunimalRule rule) {
         Map<RunimalAxis, AxisLean> leans = new EnumMap<>(RunimalAxis.class);
-        for (AxisEvaluator e : evaluators) {
-            leans.put(e.axis(), e.lean(ratios.get(e.axis()), rule));
+        for (AxisEvaluator evaluator : evaluators) {
+            leans.put(evaluator.axis(), evaluator.lean(ratios.get(evaluator.axis()), rule));
         }
         return new Judged(RunimalType.of(leans), new AxisRatios(ratios));
     }

@@ -222,12 +222,12 @@ public final class OpponentTrack {
                 + ratio * (to.distance().meters() - from.distance().meters());
     }
 
-    private static double reachMillis(TrackSample before, TrackSample sample, Distance d) {
+    private static double reachMillis(TrackSample before, TrackSample sample, Distance target) {
         long gained = sample.distance().meters() - before.distance().meters();
         if (gained == 0) {
             return sample.elapsed().toMillis();
         }
-        double ratio = (double) (d.meters() - before.distance().meters()) / gained;
+        double ratio = (double) (target.meters() - before.distance().meters()) / gained;
         long span = sample.elapsed().toMillis() - before.elapsed().toMillis();
         return before.elapsed().toMillis() + ratio * span;
     }

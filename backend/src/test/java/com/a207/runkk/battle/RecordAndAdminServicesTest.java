@@ -144,7 +144,16 @@ class RecordAndAdminServicesTest {
         assertThatThrownBy(() -> records.markStarted(BOB, start.battleId()))
                 .isInstanceOf(com.a207.runkk.common.PermissionDeniedException.class);
         records.markStarted(ALICE, start.battleId());
+        records.markStarted(ALICE, start.battleId()); // 앱 재시도는 무시(멱등)
         assertThat(battle.getStartAt()).contains(NOW);
+        Battle random =
+                battles.save(
+                        Battle.random(
+                                BattleFixtures.assigned(ALICE, StandardDistance.KM5),
+                                BattleFixtures.assigned(BOB, StandardDistance.KM5),
+                                NOW));
+        assertThatThrownBy(() -> records.markStarted(ALICE, random.getId()))
+                .isInstanceOf(IllegalArgumentException.class);
         assertThat(battle.getOpponentArrivesAt()).contains(NOW.plusMinutes(25));
     }
 

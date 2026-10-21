@@ -88,8 +88,8 @@ public class CelebrityRecord implements OpponentRecord {
         return value == null || value.isBlank();
     }
 
-    private static boolean isPositive(Duration d) {
-        return d != null && !d.isNegative() && !d.isZero();
+    private static boolean isPositive(Duration duration) {
+        return duration != null && !duration.isNegative() && !duration.isZero();
     }
 
     /** 구간 기록이 없으면 OpponentTrack.uniform(distance, finishTime). */
