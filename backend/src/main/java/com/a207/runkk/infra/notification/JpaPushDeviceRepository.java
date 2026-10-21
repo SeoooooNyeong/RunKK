@@ -7,6 +7,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * notification.PushDeviceRepository의 JPA 구현(설계 5.1.1 infra.notification, D-43). push_device 테이블만 읽고
@@ -42,7 +44,9 @@ public class JpaPushDeviceRepository implements PushDeviceRepository {
                 .getResultList();
     }
 
+    /** 커밋 뒤 푸시 결과로 부르므로 새 트랜잭션에서 지운다(NotificationService.push). */
     @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void deleteTokens(Collection<String> tokens) {
         if (tokens.isEmpty()) {
             return;

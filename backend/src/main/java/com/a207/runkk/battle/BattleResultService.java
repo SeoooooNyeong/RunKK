@@ -104,9 +104,23 @@ public class BattleResultService {
                 e.memberId(), e.recordId(), e.valid() && reach.isPresent(), reach.orElse(null));
         battle.getOpponentTrack().ifPresent(track -> recordGaps(battle, e, track));
         markSelfRecord(battle, e);
+        boolean running = battle.getStatus().isRunning();
         Optional<Judgement> judgement = battle.judge(LocalDateTime.now(clock));
         battleRepository.save(battle);
+        if (running && judgement.isPresent()) {
+            endedEarly(battle);
+        }
         judgement.ifPresent(j -> announce(battle, j));
+    }
+
+    /**
+     * 카운트다운이 끝나기 전에 기록이 모두 와 진행 중에 판정됐다. 시계의 close가 돌지 않으므로 여기서 커밋 뒤 BattleEnded(FINISHED)를 보낸다(코드
+     * 리뷰 2차 L15). 실시간 세션은 끊김 감시(detectTimeouts)가 대결이 끝난 것을 보고 지운다.
+     */
+    private void endedEarly(Battle battle) {
+        List<Long> recipients = battle.memberIds();
+        BattleEnded ended = new BattleEnded(battle.getId(), BattleEnded.Status.FINISHED);
+        AfterCommit.run(() -> battleMessenger.sendAll(recipients, ended));
     }
 
     /** 기록 상대와의 거리 차 최댓값을 러너 기록 표본으로 구한다(비교표 MAX_LEAD·MAX_GAP). 경로가 파기됐으면 건너뛴다. */

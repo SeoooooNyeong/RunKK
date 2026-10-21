@@ -104,6 +104,38 @@ class NotificationServiceTest {
     }
 
     @Test
+    @org.junit.jupiter.api.DisplayName("L5·L6: 트랜잭션 안에서 부르면 푸시는 커밋 뒤에만 나가고, 롤백(재시도)되면 나가지 않는다")
+    void notify_insideTransaction_pushesOnlyAfterCommit() {
+        long id = member("곰T");
+        service.registerDevice(id, "token-t");
+        org.springframework.transaction.support.TransactionSynchronizationManager
+                .initSynchronization();
+        try {
+            service.notify(request(id, NotificationType.JOIN_DECIDED));
+            assertThat(pushed).isEmpty();
+            org.springframework.transaction.support.TransactionSynchronizationManager
+                    .getSynchronizations()
+                    .forEach(
+                            org.springframework.transaction.support.TransactionSynchronization
+                                    ::afterCommit);
+            assertThat(pushed).hasSize(1);
+        } finally {
+            org.springframework.transaction.support.TransactionSynchronizationManager
+                    .clearSynchronization();
+        }
+
+        org.springframework.transaction.support.TransactionSynchronizationManager
+                .initSynchronization();
+        try {
+            service.notify(request(id, NotificationType.JOIN_DECIDED)); // 이 시도는 롤백된다
+        } finally {
+            org.springframework.transaction.support.TransactionSynchronizationManager
+                    .clearSynchronization();
+        }
+        assertThat(pushed).hasSize(1);
+    }
+
+    @Test
     void notify_allowed_savesAndPushes_invalidTokensDeleted() {
         long id = member("곰A");
         service.registerDevice(id, "token-1");

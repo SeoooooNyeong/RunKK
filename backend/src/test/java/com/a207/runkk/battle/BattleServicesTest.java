@@ -488,6 +488,31 @@ class BattleServicesTest {
         }
 
         @Test
+        @org.junit.jupiter.api.DisplayName(
+                "L15: 카운트다운이 끝나기 전에 두 기록이 모두 와 바로 판정되면 양쪽에 BattleEnded(FINISHED)를 보낸다")
+        void bothRecordsDuringCountdown_sendBattleEnded() {
+            Battle battle = startedRandom();
+            long id = battle.getId();
+            LocalDateTime arrival = battle.getStartAt().orElseThrow().plusMinutes(25);
+            liveService.onProgress(ALICE, id, at(5_000, 1_500), arrival);
+            liveService.onProgress(BOB, id, at(5_000, 1_502), arrival.plusSeconds(2));
+            assertThat(battle.getStatus()).isEqualTo(BattleStatus.COUNTDOWN);
+            when(runs.timeToReach(anyString(), any()))
+                    .thenReturn(Optional.of(Duration.ofMinutes(25)));
+
+            resultService.onRunSaved(saved(ALICE, battle, "a", true));
+            resultService.onRunSaved(saved(BOB, battle, "b", true));
+
+            assertThat(battle.getStatus()).isEqualTo(BattleStatus.FINISHED);
+            for (long member : List.of(ALICE, BOB)) {
+                assertThat(messenger.to(member, "BattleEnded"))
+                        .singleElement()
+                        .extracting(m -> ((BattleEnded) m).status())
+                        .isEqualTo(BattleEnded.Status.FINISHED);
+            }
+        }
+
+        @Test
         @org.junit.jupiter.api.DisplayName("3초 넘게 진행값이 없으면 상대에게 CHECKING, 대결에 끊김 기록, 다시 오면 복구")
         void timeoutAndReconnect() {
             Battle battle = startedRandom();

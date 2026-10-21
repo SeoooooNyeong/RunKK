@@ -59,8 +59,26 @@ class ApiExceptionHandlerTest {
         assertThat(optimistic.getBody())
                 .isEqualTo(new ErrorResponse("CONCURRENT_UPDATE", "다시 시도해 주세요"));
         ResponseEntity<ErrorResponse> duplicate =
-                handler.handleConcurrentUpdate(
-                        new org.springframework.dao.DataIntegrityViolationException("pk"));
+                handler.handleIntegrityViolation(
+                        new org.springframework.dao.DataIntegrityViolationException(
+                                "pk", new java.sql.SQLException("duplicate key", "23505")));
         assertThat(duplicate.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("L2: 고유 제약이 아닌 무결성 위반(NOT NULL·길이·외래 키)은 프로그래밍 오류라 500이다")
+    void otherIntegrityViolation_becomes500() {
+        ResponseEntity<ErrorResponse> notNull =
+                handler.handleIntegrityViolation(
+                        new org.springframework.dao.DataIntegrityViolationException(
+                                "not null", new java.sql.SQLException("null value", "23502")));
+        assertThat(notNull.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
+        assertThat(notNull.getBody()).isNull();
+        assertThat(
+                        handler.handleIntegrityViolation(
+                                        new org.springframework.dao.DataIntegrityViolationException(
+                                                "unknown"))
+                                .getStatusCode())
+                .isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
     }
 }
