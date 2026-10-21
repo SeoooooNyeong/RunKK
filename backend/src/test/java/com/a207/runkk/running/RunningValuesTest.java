@@ -80,6 +80,36 @@ class RunningValuesTest {
     }
 
     @Test
+    void heartRateSeries_appendIsIdempotentByMeasuredAt() {
+        HeartRateSeries series =
+                HeartRateSeries.of(START, List.of(new HeartRateSample(START.plusSeconds(1), 120)));
+        List<HeartRateSample> late =
+                List.of(
+                        new HeartRateSample(START.plusSeconds(3), 160),
+                        new HeartRateSample(START.plusSeconds(2), 140));
+        series.append(late);
+        series.append(late);
+        assertThat(series.samples())
+                .extracting(HeartRateSample::measuredAt)
+                .containsExactly(START.plusSeconds(1), START.plusSeconds(2), START.plusSeconds(3));
+        assertThat(series.summary()).isEqualTo(new HeartRateSummary(140, 160));
+    }
+
+    @Test
+    void heartRateSeries_sameInstantKeepsFirstReceivedValue() {
+        HeartRateSeries series =
+                HeartRateSeries.of(
+                        START,
+                        List.of(
+                                new HeartRateSample(START.plusSeconds(1), 120),
+                                new HeartRateSample(START.plusSeconds(1), 130)));
+        series.append(List.of(new HeartRateSample(START.plusSeconds(1), 180)));
+        assertThat(series.samples())
+                .containsExactly(new HeartRateSample(START.plusSeconds(1), 120));
+        assertThat(series.summary()).isEqualTo(new HeartRateSummary(120, 120));
+    }
+
+    @Test
     void heartRateSeries_summaryZonesPurgeAndRoundTrip() {
         HeartRateSeries series =
                 HeartRateSeries.of(

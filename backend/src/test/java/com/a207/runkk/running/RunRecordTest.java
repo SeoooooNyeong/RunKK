@@ -190,6 +190,8 @@ class RunRecordTest {
         r.appendHeartRates(List.of(new HeartRateSample(START.plusSeconds(2), 170)));
         assertThat(r.heartRateZones(200)).isNotEmpty();
         assertThat(r.heartRateSummary()).isEqualTo(new HeartRateSummary(160, 170));
+        r.appendHeartRates(List.of(new HeartRateSample(START.plusSeconds(2), 170)));
+        assertThat(r.heartRateSummary()).isEqualTo(new HeartRateSummary(160, 170));
         assertThat(r.isValid()).isTrue();
 
         r.purgeHeartRates();

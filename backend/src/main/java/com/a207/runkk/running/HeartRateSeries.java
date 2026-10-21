@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -42,13 +43,18 @@ public class HeartRateSeries {
         return series;
     }
 
-    /** 덧붙이고 요약을 다시 계산한다. 파기한 뒤에는 덧붙이지 않는다(IllegalStateException). */
+    /**
+     * 덧붙이고 요약을 다시 계산한다. 같은 측정 시각은 한 번만 남긴다(먼저 받은 값 유지). 파기한 뒤에는 덧붙이지 않는다(IllegalStateException).
+     */
     public void append(List<HeartRateSample> s) {
         if (purged) {
             throw new IllegalStateException("심박 원자료를 파기한 기록");
         }
-        List<HeartRateSample> merged = new ArrayList<>(samples);
-        merged.addAll(s);
+        // 측정 시각이 같은 표본은 먼저 받은 값을 남긴다(앱의 재전송이 중복을 만들지 않게, FR-043).
+        Map<LocalDateTime, HeartRateSample> byInstant = new LinkedHashMap<>();
+        samples.forEach(x -> byInstant.putIfAbsent(x.measuredAt(), x));
+        s.forEach(x -> byInstant.putIfAbsent(x.measuredAt(), x));
+        List<HeartRateSample> merged = new ArrayList<>(byInstant.values());
         merged.sort(Comparator.comparing(HeartRateSample::measuredAt));
         this.samples = merged;
         if (!merged.isEmpty()) {
