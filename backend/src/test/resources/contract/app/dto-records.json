@@ -36,12 +36,6 @@
     }, {
       "name" : "signUpTicket",
       "kind" : "leaf"
-    }, {
-      "name" : "reason",
-      "kind" : "leaf"
-    }, {
-      "name" : "message",
-      "kind" : "leaf"
     } ],
     "file" : "web/auth/AuthController.java"
   },

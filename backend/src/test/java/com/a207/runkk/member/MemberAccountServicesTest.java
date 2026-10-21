@@ -13,6 +13,7 @@ import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.DomainEvent;
 import com.a207.runkk.common.DomainEventPublisher;
 import com.a207.runkk.common.PersonalityTag;
+import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.common.RecordVisibility;
 import com.a207.runkk.common.StandardDistance;
 import com.a207.runkk.common.Tier;
@@ -61,7 +62,8 @@ class MemberAccountServicesTest {
                         () ->
                                 service.editProfile(
                                         a, new ProfileEdit("곰B", null, null, null, null, null)))
-                .isInstanceOf(BusinessRuleException.class);
+                .extracting(e -> ((BusinessRuleException) e).reason())
+                .isEqualTo(ReasonCode.NICKNAME_TAKEN);
         assertThatThrownBy(
                         () ->
                                 service.editProfile(
@@ -148,11 +150,15 @@ class MemberAccountServicesTest {
         WithdrawalService rejecting =
                 new WithdrawalService(
                         repository,
-                        List.of(m -> Optional.empty(), m -> Optional.of("크루장 양도 필요")),
+                        List.of(
+                                m -> Optional.empty(),
+                                m -> Optional.of(ReasonCode.LEADER_MUST_TRANSFER)),
                         auditService,
                         publisher,
                         clock);
-        assertThat(rejecting.withdraw(id)).isEqualTo(WithdrawalResult.rejected("크루장 양도 필요"));
+        assertThatThrownBy(() -> rejecting.withdraw(id))
+                .extracting(e -> ((BusinessRuleException) e).reason())
+                .isEqualTo(ReasonCode.LEADER_MUST_TRANSFER);
         assertThat(repository.findById(id).orElseThrow().getStatus())
                 .isEqualTo(MemberStatus.ACTIVE);
 

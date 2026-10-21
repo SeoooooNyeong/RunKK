@@ -110,7 +110,7 @@ class CrewScenarioTest {
         assertThat(reader.activeMemberIds(crewId)).containsExactlyInAnyOrder(leader, a);
         assertThat(reader.activeMembersByCrew().get(crewId)).containsExactlyInAnyOrder(leader, a);
         assertThat(reader.crewNames(List.of(crewId, -1L))).containsOnlyKeys(crewId);
-        assertThat(leaderGuard.check(leader)).contains(CrewLeaderGuard.LEADER_MUST_TRANSFER);
+        assertThat(leaderGuard.check(leader)).contains(ReasonCode.LEADER_MUST_TRANSFER);
         assertThat(leaderGuard.check(a)).isEmpty();
     }
 

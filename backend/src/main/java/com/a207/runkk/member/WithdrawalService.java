@@ -4,7 +4,9 @@ import com.a207.runkk.audit.ActorRole;
 import com.a207.runkk.audit.AuditAction;
 import com.a207.runkk.audit.AuditEntry;
 import com.a207.runkk.audit.AuditService;
+import com.a207.runkk.common.BusinessRuleException;
 import com.a207.runkk.common.DomainEventPublisher;
+import com.a207.runkk.common.ReasonCode;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -43,13 +45,16 @@ public class WithdrawalService {
         this.clock = clock;
     }
 
-    /** 가드 중 하나라도 사유를 주면 rejected(사유). 통과하면 Member.withdraw → 감사(회원탈퇴) → MemberWithdrawn 발행. */
+    /**
+     * 가드 중 하나라도 사유를 주면 BusinessRuleException(사유 코드). 통과하면 Member.withdraw → 감사(회원탈퇴) →
+     * MemberWithdrawn 발행.
+     */
     @Transactional
     public WithdrawalResult withdraw(long memberId) {
         for (WithdrawalGuard guard : guards) {
-            Optional<String> reason = guard.check(memberId);
+            Optional<ReasonCode> reason = guard.check(memberId);
             if (reason.isPresent()) {
-                return WithdrawalResult.rejected(reason.get());
+                throw new BusinessRuleException(reason.get());
             }
         }
         Member member = MemberLoader.load(memberRepository, memberId);

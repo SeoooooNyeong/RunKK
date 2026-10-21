@@ -83,8 +83,9 @@ class AuthControllerTest extends WebTestSupport {
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(login("KAKAO", "t")))
                 .andExpect(status().isServiceUnavailable())
-                .andExpect(jsonPath("$.reason").value("PROVIDER_UNAVAILABLE"))
-                .andExpect(jsonPath("$.message").value("로그인 제공자 연결 실패"));
+                .andExpect(jsonPath("$.code").value("PROVIDER_UNAVAILABLE"))
+                .andExpect(jsonPath("$.message").value("로그인 제공자 연결 실패"))
+                .andExpect(jsonPath("$.reason").doesNotExist());
 
         org.mockito.Mockito.doThrow(new AuthFailureException("bad"))
                 .when(kakao)
@@ -94,7 +95,8 @@ class AuthControllerTest extends WebTestSupport {
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(login("KAKAO", "t")))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.reason").value("AUTH_FAILED"));
+                .andExpect(jsonPath("$.code").value("AUTH_FAILED"))
+                .andExpect(jsonPath("$.message").value("인증 실패"));
 
         mvc.perform(
                         post("/api/v1/auth/login")

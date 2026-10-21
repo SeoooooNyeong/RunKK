@@ -1,5 +1,6 @@
 package com.a207.runkk.crew;
 
+import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.member.WithdrawalGuard;
 import java.util.Optional;
 import org.springframework.stereotype.Component;
@@ -9,9 +10,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Component
 public class CrewLeaderGuard implements WithdrawalGuard {
 
-    /** 탈퇴 거부 문구. */
-    static final String LEADER_MUST_TRANSFER = "크루장 양도 필요";
-
     private final CrewRepository crewRepository;
 
     public CrewLeaderGuard(CrewRepository crewRepository) {
@@ -20,13 +18,13 @@ public class CrewLeaderGuard implements WithdrawalGuard {
 
     @Override
     @Transactional(readOnly = true)
-    public Optional<String> check(long memberId) {
+    public Optional<ReasonCode> check(long memberId) {
         boolean leadsOthers =
                 crewRepository.findMembershipHistory(memberId).stream()
                         .filter(m -> m.isActive() && m.role() == CrewRole.LEADER)
                         .map(m -> crewRepository.findById(m.crewId()))
                         .flatMap(Optional::stream)
                         .anyMatch(crew -> crew.headcount() > 1);
-        return leadsOthers ? Optional.of(LEADER_MUST_TRANSFER) : Optional.empty();
+        return leadsOthers ? Optional.of(ReasonCode.LEADER_MUST_TRANSFER) : Optional.empty();
     }
 }

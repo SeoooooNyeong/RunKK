@@ -392,7 +392,7 @@ class RecordAndAdminServicesTest {
         ActiveBattleGuard guard = new ActiveBattleGuard(queue, battles);
         assertThat(guard.check(ALICE)).isEmpty();
         queue.enqueue(MatchTicket.open(ALICE, Tier.GOLD, StandardDistance.KM5, NOW));
-        assertThat(guard.check(ALICE)).contains(ActiveBattleGuard.ACTIVE_BATTLE);
+        assertThat(guard.check(ALICE)).contains(ReasonCode.BATTLE_IN_PROGRESS);
         new BattleWithdrawalListener(queue).onMemberWithdrawn(new MemberWithdrawn(ALICE, NOW));
         assertThat(guard.check(ALICE)).isEmpty();
         battles.save(
