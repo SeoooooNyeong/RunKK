@@ -1,3 +1,5 @@
+@file:OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+
 package com.a207.runkk.app.ui.battle
 
 import app.cash.turbine.test
