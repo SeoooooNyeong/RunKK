@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.runkk.android.feature)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
+    alias(libs.plugins.runkk.android.screenshot)
 }
 
 android {
@@ -20,5 +21,6 @@ dependencies {
 
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.robolectric)
+    testImplementation(testFixtures(project(":core:ui")))
     testImplementation(libs.androidx.test.core)
 }

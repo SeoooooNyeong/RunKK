@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.runkk.android.library)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.runkk.android.screenshot)
 }
 
 android {
@@ -13,6 +14,10 @@ android {
     }
     testOptions {
         unitTests.isIncludeAndroidResources = true
+    }
+    // 화면 모듈 시험이 같이 쓰는 스크린샷 도우미(RunkkSnapshot): testImplementation(testFixtures(project(":core:ui")))
+    testFixtures {
+        enable = true
     }
 }
 
@@ -30,4 +35,9 @@ dependencies {
     testImplementation(libs.androidx.compose.ui.test.junit4)
     testImplementation(libs.robolectric)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+
+    testFixturesImplementation(platform(libs.androidx.compose.bom))
+    testFixturesImplementation(libs.androidx.compose.ui.test.junit4)
+    testFixturesImplementation(libs.roborazzi)
+    testFixturesImplementation(libs.roborazzi.compose)
 }

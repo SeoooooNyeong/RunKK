@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.runkk.android.feature)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
+    alias(libs.plugins.runkk.android.screenshot)
 }
 
 android {
@@ -22,5 +23,6 @@ dependencies {
     testImplementation(platform(libs.androidx.compose.bom))
     testImplementation(libs.androidx.compose.ui.test.junit4)
     testImplementation(libs.robolectric)
+    testImplementation(testFixtures(project(":core:ui")))
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 }
