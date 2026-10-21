@@ -85,7 +85,7 @@ public class CrewRunService {
             long memberId, long postId, Function<CrewRunPost, CrewRunPost> change) {
         return transactions.retrying(
                 () -> {
-                    CrewRunPost post = load(postId);
+                    CrewRunPost post = locked(postId);
                     crewAccess.check(memberId, post.crewId(), CrewAction.VOTE_OR_JOIN_CREW_RUN);
                     crewPostRepository.save(change.apply(post));
                     return views.lobby(post, LocalDateTime.now(clock));
@@ -110,7 +110,7 @@ public class CrewRunService {
     }
 
     private Boolean step(long postId, LocalDateTime now, CrewRunRule rule) {
-        CrewRunPost post = load(postId);
+        CrewRunPost post = locked(postId);
         post.openLobby(now, rule);
         if (post.markReminded(now, rule)) {
             announcer.remind(post);
@@ -141,7 +141,7 @@ public class CrewRunService {
         transactions.retryingRun(
                 () ->
                         crewPostRepository
-                                .findCrewRunById(e.crewRunPostId())
+                                .findCrewRunByIdForUpdate(e.crewRunPostId())
                                 .ifPresent(post -> link(post, e)));
     }
 
@@ -156,7 +156,7 @@ public class CrewRunService {
     public void quit(long memberId, long postId) {
         transactions.retryingRun(
                 () -> {
-                    CrewRunPost post = load(postId);
+                    CrewRunPost post = locked(postId);
                     post.quit(memberId, LocalDateTime.now(clock));
                     crewPostRepository.save(post);
                     announcer.quitter(postId, memberId);
@@ -174,6 +174,14 @@ public class CrewRunService {
     private CrewRunPost load(long postId) {
         return crewPostRepository
                 .findCrewRunById(postId)
+                .filter(CrewPost::isVisible)
+                .orElseThrow(() -> new BusinessRuleException(ReasonCode.POST_NOT_FOUND));
+    }
+
+    /** 쓰기 경로: 모집글 행을 잠가 읽는다(참가자 10명의 동시 러닝 연결·대기실 입장이 재시도 3회를 넘기지 않게). */
+    private CrewRunPost locked(long postId) {
+        return crewPostRepository
+                .findCrewRunByIdForUpdate(postId)
                 .filter(CrewPost::isVisible)
                 .orElseThrow(() -> new BusinessRuleException(ReasonCode.POST_NOT_FOUND));
     }

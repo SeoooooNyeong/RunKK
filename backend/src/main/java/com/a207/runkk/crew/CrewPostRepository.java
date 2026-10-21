@@ -14,6 +14,9 @@ public interface CrewPostRepository {
 
     Optional<CrewRunPost> findCrewRunById(long id);
 
+    /** 모집글 행을 잠가(SELECT … FOR UPDATE) 읽는다. 대기실·러닝 연결·그만두기·시계가 같은 글을 동시에 바꿀 때 줄을 세운다. */
+    Optional<CrewRunPost> findCrewRunByIdForUpdate(long id);
+
     /** 삭제되지 않은 글, 최신순. kind가 null이면 두 종류 모두. */
     List<CrewPost> findVisible(long crewId, PostKind kind);
 

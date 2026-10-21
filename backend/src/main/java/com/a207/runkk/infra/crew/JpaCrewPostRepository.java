@@ -8,6 +8,7 @@ import com.a207.runkk.crew.CrewRunPost;
 import com.a207.runkk.crew.CrewRunStatus;
 import com.a207.runkk.crew.PostKind;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -46,6 +47,12 @@ public class JpaCrewPostRepository implements CrewPostRepository {
     @Override
     public Optional<CrewRunPost> findCrewRunById(long id) {
         return Optional.ofNullable(entityManager.find(CrewRunPost.class, id));
+    }
+
+    @Override
+    public Optional<CrewRunPost> findCrewRunByIdForUpdate(long id) {
+        return Optional.ofNullable(
+                entityManager.find(CrewRunPost.class, id, LockModeType.PESSIMISTIC_WRITE));
     }
 
     @Override

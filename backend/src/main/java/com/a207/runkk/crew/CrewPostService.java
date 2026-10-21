@@ -134,7 +134,7 @@ public class CrewPostService {
     public PostResult vote(long memberId, long postId, VoteAnswer answer) {
         CrewRunPost post =
                 crewPostRepository
-                        .findCrewRunById(postId)
+                        .findCrewRunByIdForUpdate(postId)
                         .orElseThrow(() -> new BusinessRuleException(ReasonCode.POST_NOT_FOUND));
         crewAccess.check(memberId, post.crewId(), CrewAction.VOTE_OR_JOIN_CREW_RUN);
         post.vote(memberId, answer, LocalDateTime.now(clock));
