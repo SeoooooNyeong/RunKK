@@ -33,6 +33,7 @@ internal object BattleErrorText {
         "RANKED_ONLY" to "유효 러닝 3회 뒤 랜덤 대결 가능, 나와의 싸움은 지금 가능",
         "ALREADY_IN_BATTLE" to "이미 매칭을 기다리거나 대결 중이에요",
         "ALREADY_MATCHED" to "이미 상대를 찾았어요. 곧 출발해요",
+        "MATCH_FAILED" to "대결을 만들지 못했어요. 다시 시도해 주세요",
         "BATTLE_DISTANCE_INVALID" to "고를 수 없는 대결 거리예요",
         "LOCATION_CONSENT_REQUIRED" to "대결하려면 위치 수집 동의가 필요해요. 마이 > 동의 관리에서 켤 수 있어요",
         "QUEUE_UNAVAILABLE" to "잠시 후 다시 시도해 주세요",

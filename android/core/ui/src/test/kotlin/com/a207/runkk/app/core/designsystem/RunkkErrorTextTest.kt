@@ -35,4 +35,22 @@ class RunkkErrorTextTest {
         assertEquals(true, RunkkErrorText.of(AppError.Unauthorized).contains("로그인"))
         assertEquals(true, RunkkErrorText.of(AppError.Storage).contains("저장"))
     }
+
+    @Test
+    fun `서버 빈 곳 메우기에서 생긴 사유 코드 7개는 모두 일반 문구가 아닌 사유 문구를 갖는다`() {
+        val generic = RunkkErrorText.rejected("SOMETHING_NEW")
+        listOf(
+            "NICKNAME_TAKEN",
+            "CREW_NAME_TAKEN",
+            "BATTLE_IN_PROGRESS",
+            "MATCH_FAILED",
+            "FACE_IMAGE_NOT_FOUND",
+            "SELFIE_RETRY_LIMIT",
+            "TOO_MANY_ATTEMPTS"
+        ).forEach { code ->
+            assertEquals(false, RunkkErrorText.rejected(code) == generic, "$code 문구가 없다")
+        }
+        assertEquals(true, RunkkErrorText.rejected("NICKNAME_TAKEN").contains("닉네임"))
+        assertEquals(true, RunkkErrorText.rejected("TOO_MANY_ATTEMPTS").contains("잠시 뒤"))
+    }
 }

@@ -8,7 +8,7 @@ sealed interface AppError {
     data object Network : AppError
 
     /**
-     * 서버는 응답했으나 지금 처리하지 못한다: 5xx, 요청 시간 초과(408)·요청 과다(429), 해독할 수 없는 응답(status 0).
+     * 서버는 응답했으나 지금 처리하지 못한다: 5xx, 요청 시간 초과(408)·사유 코드 없는 요청 과다(429), 해독할 수 없는 응답(status 0).
      * 잠시 뒤 다시 하면 될 수 있으므로 재전송 대상이다(Rejected가 아니다).
      */
     data class Server(val status: Int) : AppError
@@ -19,7 +19,7 @@ sealed interface AppError {
     /** 기기 저장소 오류. */
     data object Storage : AppError
 
-    /** 업무 규칙 거부. code는 서버 사유 코드(409) 또는 앱 도메인의 거부 사유다. */
+    /** 업무 규칙 거부. code는 서버 사유 코드(409, 사유 코드가 있는 429 등) 또는 앱 도메인의 거부 사유다. */
     data class Rejected(val code: String) : AppError {
         companion object {
             /** 위치 수집 동의 또는 OS 위치 권한 없음(FR-031). */

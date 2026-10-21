@@ -217,9 +217,9 @@ class AccountRepositoryImplTest {
     }
 
     @Test
-    fun `로그인 실패는 서버가 본문 reason에 담은 사유 코드로 돌려준다`() = runTest {
-        api.reply("""{"status":"FAILED","reason":"AUTH_FAILED","message":"인증 실패"}""", code = 401)
-        api.reply("""{"status":"FAILED","reason":"PROVIDER_UNAVAILABLE","message":"로그인 제공자 연결 실패"}""", code = 503)
+    fun `로그인 실패는 서버 공통 오류 응답의 code를 사유 코드로 돌려준다`() = runTest {
+        api.reply("""{"code":"AUTH_FAILED","message":"인증 실패"}""", code = 401)
+        api.reply("""{"code":"PROVIDER_UNAVAILABLE","message":"로그인 제공자 연결 실패"}""", code = 503)
 
         assertEquals(
             Outcome.Failure(AppError.Rejected("AUTH_FAILED")),
@@ -232,10 +232,10 @@ class AccountRepositoryImplTest {
     }
 
     @Test
-    fun `탈퇴가 가드에 막히면 409 본문의 거부 문구를 앱 사유 코드로 바꾼다`() = runTest {
-        api.reply("""{"withdrawn":false,"rejectionReason":"크루장 양도 필요"}""", code = 409)
-        api.reply("""{"withdrawn":false,"rejectionReason":"진행 중인 대결 종료 필요"}""", code = 409)
-        api.reply("""{"withdrawn":false,"rejectionReason":"그 밖의 사유"}""", code = 409)
+    fun `탈퇴가 가드에 막히면 409 공통 오류 응답의 code를 사유 코드로 돌려준다`() = runTest {
+        api.reply("""{"code":"LEADER_MUST_TRANSFER","message":"크루장 양도 필요"}""", code = 409)
+        api.reply("""{"code":"BATTLE_IN_PROGRESS","message":"진행 중인 대결 종료 필요"}""", code = 409)
+        api.reply("""{"message":"그 밖의 사유"}""", code = 409)
 
         assertEquals(Outcome.Failure(AppError.Rejected("LEADER_MUST_TRANSFER")), repository.withdraw())
         assertEquals(Outcome.Failure(AppError.Rejected("BATTLE_IN_PROGRESS")), repository.withdraw())

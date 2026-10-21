@@ -41,6 +41,8 @@ internal object CrewErrorText {
         "ALREADY_IN_CREW" to "이미 크루에 소속돼 있어요. 1인 1크루예요",
         "COOLDOWN" to "크루를 나온 뒤 24시간 동안은 가입하거나 만들 수 없어요",
         "CREW_NAME_INVALID" to "크루명은 2~20자로 입력해 주세요",
+        "CREW_NAME_TAKEN" to "이미 있는 크루명이에요. 다른 이름을 입력해 주세요",
+        "TOO_MANY_ATTEMPTS" to "초대 코드를 너무 많이 틀렸어요. 10분 뒤 다시 시도해 주세요",
         "INVALID_CODE" to "초대 코드가 없거나 7일이 지났어요",
         "ALREADY_REQUESTED" to "이 크루에 이미 가입 신청을 했어요",
         "JOIN_REQUEST_NOT_FOUND" to "가입 신청을 찾을 수 없어요",

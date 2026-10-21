@@ -77,6 +77,8 @@ internal object AvatarErrorText {
         "SELFIE_LIMIT" to "오늘은 이미 셀카 아바타를 만들었어요. 내일 다시 만들 수 있어요. 기본 캐릭터는 지금 고를 수 있어요",
         "SELFIE_DISABLED" to "지금은 셀카 아바타를 만들 수 없어요. 기본 캐릭터를 골라 주세요",
         "FACE_CONSENT_REQUIRED" to "얼굴 변환 전송 동의가 필요해요. 마이 > 동의 관리에서 켜거나 기본 캐릭터를 골라 주세요",
+        "SELFIE_RETRY_LIMIT" to "오늘은 셀카 변환을 5번 실패해 더 시도할 수 없어요. 내일 다시 하거나 기본 캐릭터를 골라 주세요",
+        "FACE_IMAGE_NOT_FOUND" to "아바타 얼굴 이미지를 찾을 수 없어요. 아바타를 다시 만들어 주세요",
         "SELFIE_IN_PROGRESS" to "얼굴을 만들고 있어요. 잠시 뒤 다시 확인해 주세요",
         "ITEM_NOT_OWNED" to "가지고 있지 않은 아이템이에요",
         "ITEM_NOT_FOUND" to "없는 아이템이에요",
