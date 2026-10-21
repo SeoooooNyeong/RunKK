@@ -48,7 +48,9 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.job
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestDispatcher
@@ -213,13 +215,13 @@ class FakeLiveChannel : LiveChannel {
     val sent = mutableListOf<ProgressReport>()
     var connects = 0
     var closed = 0
-    var connectError: Exception? = null
     var connectFailure: AppError? = null
-    private val flow = MutableSharedFlow<ServerMessage>(extraBufferCapacity = 64)
+
+    /** null은 메시지 흐름의 끝(채널 종료)이다. */
+    private val flow = MutableSharedFlow<ServerMessage?>(extraBufferCapacity = 64)
 
     override suspend fun connect(): Outcome<Unit> {
         connects++
-        connectError?.let { throw it }
         return connectFailure?.let { Outcome.Failure(it) } ?: Outcome.Success(Unit)
     }
 
@@ -227,7 +229,7 @@ class FakeLiveChannel : LiveChannel {
         sent += m
     }
 
-    override val messages: Flow<ServerMessage> = flow
+    override val messages: Flow<ServerMessage> = flow.takeWhile { it != null }.filterNotNull()
 
     override fun close() {
         closed++
@@ -235,6 +237,11 @@ class FakeLiveChannel : LiveChannel {
 
     fun push(m: ServerMessage) {
         check(flow.tryEmit(m))
+    }
+
+    /** 메시지 흐름을 끝낸다(서버가 채널을 닫음). */
+    fun endMessages() {
+        check(flow.tryEmit(null))
     }
 }
 
