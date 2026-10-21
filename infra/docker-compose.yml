@@ -36,6 +36,9 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       REDIS_HOST: redis
       REDIS_PORT: ${REDIS_PORT:-6379}
+      # 매칭 대기열·대결 세션 저장소 redis|jdbc(D-07, Redis 장기 장애 때 jdbc), 실시간 방식 websocket|polling(D-57)
+      RUNKK_QUEUE: ${RUNKK_QUEUE:-redis}
+      RUNKK_LIVE: ${RUNKK_LIVE:-websocket}
       AI_SERVER_URL: http://ai:8000
       RUNKK_INTERNAL_TOKEN: ${RUNKK_INTERNAL_TOKEN:?set RUNKK_INTERNAL_TOKEN in .env}
       # 회원 JWT 서명 키. 비우면 api가 기동마다 임의 키를 만들어 재시작 때 모든 토큰이 무효가 되므로 배포에서는 필수
