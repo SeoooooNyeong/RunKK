@@ -20,6 +20,8 @@ import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
@@ -31,6 +33,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class RecordBattleService {
+
+    private static final Logger log = LoggerFactory.getLogger(RecordBattleService.class);
 
     /** 기록이 없는 나와의 싸움 거리의 후보 문구(FR-096). */
     static final String NO_RECORD_YET = "아직 기록이 없어요";
@@ -171,7 +175,13 @@ public class RecordBattleService {
             }
             return battleRepository.saveImmediately(Battle.againstRecord(spec, now));
         } catch (DataIntegrityViolationException | OptimisticLockingFailureException e) {
-            // 같은 회원의 다른 생성 요청과 겹쳤다(활성 칸 고유 제약, 같은 이전 대결을 동시에 대신함)
+            // 같은 회원의 다른 생성 요청과 겹쳤다(활성 칸 고유 제약, 같은 이전 대결을 동시에 대신함).
+            // 다른 무결성 위반을 가리지 않도록 원인을 남긴다.
+            log.warn(
+                    "record_battle_create_conflict memberId={} error={}",
+                    memberId,
+                    e.getClass().getSimpleName(),
+                    e);
             throw new BusinessRuleException(ReasonCode.ALREADY_IN_BATTLE);
         }
     }

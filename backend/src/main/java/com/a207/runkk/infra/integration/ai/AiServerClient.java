@@ -84,8 +84,12 @@ public class AiServerClient {
      */
     @ConfigurationProperties("runkk.ai")
     public record Server(
-            String serverUrl,
-            String internalToken,
-            Duration commentTimeout,
-            Duration faceTimeout) {}
+            String serverUrl, String internalToken, Duration commentTimeout, Duration faceTimeout) {
+
+        /** 내부 토큰을 로그·오류 메시지에 남기지 않는다. */
+        @Override
+        public String toString() {
+            return "Server[serverUrl=" + serverUrl + ", internalToken=***]";
+        }
+    }
 }

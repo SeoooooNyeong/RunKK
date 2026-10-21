@@ -182,5 +182,12 @@ public class KmaWeatherGateway implements WeatherGateway {
      * @param serviceKey runkk.weather.kma.service-key(비면 날씨 없이 저장, FR-184)
      */
     @ConfigurationProperties("runkk.weather.kma")
-    public record Kma(String baseUrl, String serviceKey) {}
+    public record Kma(String baseUrl, String serviceKey) {
+
+        /** 서비스 키를 로그·오류 메시지에 남기지 않는다. */
+        @Override
+        public String toString() {
+            return "Kma[baseUrl=" + baseUrl + ", serviceKey=***]";
+        }
+    }
 }
