@@ -89,6 +89,14 @@ class PhoneLink @Inject constructor(
         .map { it == HeartRateCollector.State.NEEDS_PERMISSION }
         .stateIn(scope, SharingStarted.Eagerly, collector.state.value == HeartRateCollector.State.NEEDS_PERMISSION)
 
+    /**
+     * 지금 심박 센서를 켜고 모으는 중인지. 수집 중에만 포그라운드 서비스(watch.ui)를 띄운다.
+     * 금지 플래그·러닝 끝·30분 침묵(MAX_SILENT_RUN_MILLIS)으로 수집이 멈추면 거짓이 되어 서비스도 내려간다.
+     */
+    val heartRateCollecting: StateFlow<Boolean> = collector.state
+        .map { it == HeartRateCollector.State.COLLECTING }
+        .stateIn(scope, SharingStarted.Eagerly, collector.state.value == HeartRateCollector.State.COLLECTING)
+
     private val _latestHeartRate = MutableStateFlow<HeartRateBatchMessage.Sample?>(null)
 
     /** 워치가 마지막으로 잰 정상 심박(화면 표시용). 수집 금지가 오면 지운다. */

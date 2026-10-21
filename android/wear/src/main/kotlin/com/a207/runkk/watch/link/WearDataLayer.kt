@@ -7,7 +7,7 @@ import kotlinx.coroutines.flow.Flow
  * 실패는 예외 대신 거짓·빈 목록으로 돌려준다(PhoneLink가 다시 시도할지 정한다).
  */
 interface WearDataLayer {
-    /** 폰이 MessageClient로 보낸 메시지. 앱 프로세스가 사는 동안 받는다. */
+    /** 폰이 MessageClient로 보낸 메시지. 꺼내는 쪽은 하나(PhoneLink)다. */
     val messages: Flow<WearMessage>
 
     /** 지금 연결된 폰 노드 ID. 끊겼거나 조회에 실패하면 빈 목록. */
