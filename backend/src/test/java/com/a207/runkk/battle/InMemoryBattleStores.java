@@ -47,14 +47,25 @@ public final class InMemoryBattleStores {
         private final Map<Long, Battle> rows = new LinkedHashMap<>();
         private final AtomicLong sequence = new AtomicLong();
         private int failingSaves;
+        private RuntimeException nextSaveFailure;
 
         /** 다음 저장 n번을 저장소 장애로 실패시킨다(D-64 재시도 시험). */
         public void failNextSaves(int n) {
             failingSaves = n;
         }
 
+        /** 다음 저장 한 번을 이 예외로 실패시킨다(제약 위반 변환 시험). */
+        public void failNextSave(RuntimeException error) {
+            nextSaveFailure = error;
+        }
+
         @Override
         public Battle save(Battle battle) {
+            if (nextSaveFailure != null) {
+                RuntimeException error = nextSaveFailure;
+                nextSaveFailure = null;
+                throw error;
+            }
             if (failingSaves > 0) {
                 failingSaves--;
                 throw new org.springframework.dao.DataAccessResourceFailureException("db down");
@@ -89,6 +100,17 @@ public final class InMemoryBattleStores {
         @Override
         public boolean existsActive(long memberId) {
             return rows.values().stream().anyMatch(b -> b.isActive() && b.isParticipant(memberId));
+        }
+
+        /** activeMemberIds 호출 수(매칭 tick이 대기자마다 조회하지 않는지 확인). */
+        public int activeLookups;
+
+        @Override
+        public java.util.Set<Long> activeMemberIds(java.util.Collection<Long> memberIds) {
+            activeLookups++;
+            return memberIds.stream()
+                    .filter(this::existsActive)
+                    .collect(java.util.stream.Collectors.toUnmodifiableSet());
         }
 
         private List<Battle> where(Predicate<Battle> condition) {

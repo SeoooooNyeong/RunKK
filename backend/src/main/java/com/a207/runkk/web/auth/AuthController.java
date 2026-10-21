@@ -68,14 +68,16 @@ public class AuthController {
         try {
             authService.logout(memberId, request.refreshToken());
         } catch (ProviderUnavailableException e) {
-            throw new BusinessRuleException(ReasonCode.PROVIDER_UNAVAILABLE);
+            // 로그아웃은 제공자를 부르지 않는다: 폐기 목록 저장소 장애다(B-L6)
+            throw new BusinessRuleException(ReasonCode.TEMPORARILY_UNAVAILABLE);
         }
         return ResponseEntity.noContent().build();
     }
 
     /**
-     * 갱신 실패는 401(본문 없음). 접속지·갱신 토큰별 시도 제한을 넘으면 429(M5). 폐기 목록을 확인할 수 없으면 503 PROVIDER_UNAVAILABLE이고
-     * 갱신 토큰을 쓰지 않았으므로 앱은 같은 토큰으로 다시 시도할 수 있다(M6 후속 결정, fail-closed). 시도 제한 실패로 세지 않는다.
+     * 갱신 실패는 401(본문 없음). 접속지·갱신 토큰별 시도 제한을 넘으면 429(M5). 폐기 목록을 확인할 수 없으면 503
+     * TEMPORARILY_UNAVAILABLE이고 갱신 토큰을 쓰지 않았으므로 앱은 같은 토큰으로 다시 시도할 수 있다(M6 후속 결정, fail-closed). 시도
+     * 제한 실패로 세지 않는다.
      */
     @PostMapping("/refresh")
     ResponseEntity<TokenResponse> refresh(
@@ -87,7 +89,8 @@ public class AuthController {
             attempts.failed(attempt);
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         } catch (ProviderUnavailableException e) {
-            throw new BusinessRuleException(ReasonCode.PROVIDER_UNAVAILABLE);
+            // 갱신은 제공자를 부르지 않는다: 원인은 서버 저장소라 "로그인 제공자 연결 실패"가 아니다(B-L6)
+            throw new BusinessRuleException(ReasonCode.TEMPORARILY_UNAVAILABLE);
         }
     }
 

@@ -14,8 +14,14 @@ fi
 compose() { docker compose --env-file .env "$@"; }
 
 # .env는 compose만 읽는다. 스크립트가 치는 포트는 같은 파일에서 읽는다(값에 공백·괄호가 있어도 안전하게 이 줄만 뽑는다).
-NGINX_HTTP_PORT="$(grep -E '^NGINX_HTTP_PORT=' .env | tail -n 1 | cut -d= -f2- | sed 's/[[:space:]]*#.*//' | tr -d ' \r"')"
-NGINX_HTTP_PORT="${NGINX_HTTP_PORT:-80}"
+# 키는 선택값(compose는 ${NGINX_HTTP_PORT:-80})이다. 줄이 없으면 grep이 1을 돌려 set -euo pipefail 아래에서 스크립트가
+# 메시지 없이 끝나므로 `|| true`로 빈 값을 받고 기본값을 쓴다(코드 리뷰 3차 I-M1).
+env_value() {  # <key> <default>
+  local value
+  value="$(grep -E "^$1=" .env | tail -n 1 | cut -d= -f2- | sed 's/[[:space:]]*#.*//' | tr -d ' \r"' || true)"
+  echo "${value:-$2}"
+}
+NGINX_HTTP_PORT="$(env_value NGINX_HTTP_PORT 80)"
 
 # Prints "healthy" only for a healthy container ("unhealthy" must not match).
 wait_healthy() {  # <service> <tries, 5 s apart>

@@ -164,7 +164,11 @@ public enum ReasonCode {
     /** 이미 시작했거나 취소된 크루런(5.7.1 규칙 3). */
     ALREADY_STARTED("이미 시작했거나 취소된 크루런"),
     /** 크루런 참가자가 아니거나 진행 중이 아님(FR-192). */
-    NOT_PARTICIPANT("크루런 참가자 아님");
+    NOT_PARTICIPANT("크루런 참가자 아님"),
+
+    // web.auth (코드 리뷰 3차 B-L6)
+    /** 서버 저장소 일시 장애로 지금 처리할 수 없음(갱신 토큰 폐기 목록 등). 소셜 제공자 문제가 아니다. 같은 요청을 다시 보내면 된다. */
+    TEMPORARILY_UNAVAILABLE("잠시 후 다시 시도해 주세요");
 
     private final String message;
 

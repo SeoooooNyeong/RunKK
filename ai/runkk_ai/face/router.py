@@ -1,6 +1,7 @@
 """POST /faces(6.1.16, D-59). 본문은 application/octet-stream(multipart 아님)이고 메모리에서만 읽는다.
 
 UploadFile을 쓰지 않는다(1MB가 넘으면 임시 파일로 넘어간다). 입력 크기 초과 413, 형식 오류 415,
+머리 정보가 깨졌으면 422 UNSUPPORTED_IMAGE, 픽셀 수가 상한을 넘으면 422 TOO_LARGE(디코드하지 않고 머리만 본다, L28),
 변환 실패 422/503/504 + reason.
 """
 
@@ -14,7 +15,7 @@ from fastapi import APIRouter, Depends, Request, status
 from fastapi.responses import JSONResponse
 from starlette.requests import ClientDisconnect
 
-from runkk_ai.face.schemas import JPEG_SIGNATURE, PNG_SIGNATURE, FaceFailureReason, FaceOut
+from runkk_ai.face.schemas import JPEG_SIGNATURE, PNG_SIGNATURE, FaceFailureReason, FaceOut, image_dimensions
 from runkk_ai.face.service import FaceTransformService
 
 FaceRouter = APIRouter(tags=["face"])
@@ -71,8 +72,9 @@ async def create(
         return _failure(status.HTTP_504_GATEWAY_TIMEOUT, "TIMEOUT")
     if image is None:
         return _failure(status.HTTP_413_CONTENT_TOO_LARGE, "TOO_LARGE")
-    if not image.startswith((JPEG_SIGNATURE, PNG_SIGNATURE)):
-        return _failure(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, "UNSUPPORTED_IMAGE")
+    rejection = _rejection(image, service.max_image_pixels)
+    if rejection is not None:
+        return rejection
 
     result = await service.transform(image)
     # 셀카 원본의 마지막 참조는 이 지역 변수다(서비스는 반환하며 놓았다). 부위 이미지를 인코딩하기 전에 버린다
@@ -81,6 +83,19 @@ async def create(
         reason: FaceFailureReason = result.reason or "UPSTREAM_FAILED"
         return _failure(_STATUS_BY_REASON[reason], reason)
     return FaceOut(parts={part: base64.b64encode(png).decode("ascii") for part, png in result.images.images.items()})
+
+
+def _rejection(image: bytes, max_pixels: int) -> JSONResponse | None:
+    """JPEG·PNG가 아니면 415, 머리가 깨졌으면 422 UNSUPPORTED_IMAGE, 가로 × 세로가 상한을 넘으면 422 TOO_LARGE."""
+    if not image.startswith((JPEG_SIGNATURE, PNG_SIGNATURE)):
+        return _failure(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, "UNSUPPORTED_IMAGE")
+    dimensions = image_dimensions(image)
+    if dimensions is None:
+        return _failure(status.HTTP_422_UNPROCESSABLE_CONTENT, "UNSUPPORTED_IMAGE")
+    width, height = dimensions
+    if width * height > max_pixels:
+        return _failure(status.HTTP_422_UNPROCESSABLE_CONTENT, "TOO_LARGE")
+    return None
 
 
 def _declared_length(request: Request) -> int:

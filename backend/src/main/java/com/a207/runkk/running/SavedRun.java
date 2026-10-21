@@ -22,4 +22,17 @@ public record SavedRun(
         Distance distance,
         boolean valid,
         Long crewRunPostId,
-        LocalDateTime savedAt) {}
+        LocalDateTime savedAt) {
+
+    /** 커밋 뒤 수신자가 받은 저장 사건을 보정 배치와 같은 형식으로 바꾼다(저장 일시 = 사건 발생 시각). */
+    public static SavedRun of(RunRecordSaved e) {
+        return new SavedRun(
+                e.recordId(),
+                e.memberId(),
+                e.startedAt(),
+                e.distance(),
+                e.valid(),
+                e.crewRunPostId(),
+                e.occurredAt());
+    }
+}

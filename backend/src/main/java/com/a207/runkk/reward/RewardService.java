@@ -5,7 +5,6 @@ import com.a207.runkk.battle.Side;
 import com.a207.runkk.policy.OperationPolicy;
 import com.a207.runkk.policy.RewardRule;
 import com.a207.runkk.running.RunRecordSaved;
-import java.time.LocalDateTime;
 import java.util.function.ToIntFunction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -56,11 +55,9 @@ public class RewardService {
             return;
         }
         accrueWithRetry(
-                e.memberId(),
-                AccrualReason.VALID_RUN,
-                e.recordId(),
-                rule -> rule.amountForRun(e.distance()),
-                e.occurredAt());
+                new AccrualSource(
+                        e.memberId(), AccrualReason.VALID_RUN, e.recordId(), e.occurredAt()),
+                rule -> rule.amountForRun(e.distance()));
     }
 
     /**
@@ -77,23 +74,20 @@ public class RewardService {
                 .ifPresent(
                         winner ->
                                 accrueWithRetry(
-                                        winner,
-                                        AccrualReason.BATTLE_WIN,
-                                        String.valueOf(e.battleId()),
-                                        RewardRule::battleWin,
-                                        e.judgement().at()));
+                                        new AccrualSource(
+                                                winner,
+                                                AccrualReason.BATTLE_WIN,
+                                                String.valueOf(e.battleId()),
+                                                e.judgement().at()),
+                                        RewardRule::battleWin));
     }
 
     /**
-     * 새 트랜잭션에서 사건 발생 시각 at 기준으로 적립하고 실제 적립량을 돌려준다. 일시 오류면 다시 하고, 그래도 실패하면 실패 로그만 남기고 0이다(M4). 수신자와
-     * 일 단위 보정(RewardReconcileService)이 함께 쓴다. 같은 (회원, 사유, 근거)가 이미 있으면 0이다.
+     * 새 트랜잭션에서 근거 source를 사건 발생 시각 기준으로, 현재 RewardRule에 amountOf를 적용한 양만큼 적립하고 실제 적립량을 돌려준다. 일시 오류면
+     * 다시 하고, 그래도 실패하면 실패 로그만 남기고 0이다(M4). 수신자와 일 단위 보정(RewardReconcileService)이 함께 쓴다. 같은 (회원, 사유,
+     * 근거)가 이미 있으면 0이다.
      */
-    int accrueWithRetry(
-            long memberId,
-            AccrualReason reason,
-            String sourceId,
-            ToIntFunction<RewardRule> amountOf,
-            LocalDateTime at) {
+    int accrueWithRetry(AccrualSource source, ToIntFunction<RewardRule> amountOf) {
         for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
             try {
                 Integer amount =
@@ -101,29 +95,25 @@ public class RewardService {
                                 status -> {
                                     RewardRule rule = operationPolicy.rewardRule();
                                     return accrue(
-                                            memberId,
-                                            new AccrualRequest(
-                                                    reason,
-                                                    sourceId,
-                                                    amountOf.applyAsInt(rule),
-                                                    at),
+                                            source.memberId(),
+                                            source.request(amountOf.applyAsInt(rule)),
                                             rule);
                                 });
                 return amount == null ? 0 : amount;
             } catch (TransientDataAccessException e) {
                 log.info(
                         "reward_accrual_retry memberId={} reason={} sourceId={} attempt={}",
-                        memberId,
-                        reason,
-                        sourceId,
+                        source.memberId(),
+                        source.reason(),
+                        source.sourceId(),
                         attempt);
                 if (attempt == MAX_ATTEMPTS) {
-                    failed(memberId, reason, sourceId, e);
+                    failed(source, e);
                 } else {
                     pause(attempt);
                 }
             } catch (RuntimeException e) {
-                failed(memberId, reason, sourceId, e);
+                failed(source, e);
                 return 0;
             }
         }
@@ -139,13 +129,12 @@ public class RewardService {
         }
     }
 
-    private static void failed(
-            long memberId, AccrualReason reason, String sourceId, RuntimeException e) {
+    private static void failed(AccrualSource source, RuntimeException e) {
         log.error(
                 "reward_accrual_failed memberId={} reason={} sourceId={} error={}",
-                memberId,
-                reason,
-                sourceId,
+                source.memberId(),
+                source.reason(),
+                source.sourceId(),
                 e.getClass().getSimpleName(),
                 e);
     }

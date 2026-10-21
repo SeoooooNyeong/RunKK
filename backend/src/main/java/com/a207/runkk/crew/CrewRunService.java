@@ -1,7 +1,6 @@
 package com.a207.runkk.crew;
 
 import com.a207.runkk.common.BusinessRuleException;
-import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.policy.CrewRunRule;
 import com.a207.runkk.policy.OperationPolicy;
@@ -149,14 +148,7 @@ public class CrewRunService {
                 () ->
                         crewPostRepository
                                 .findCrewRunByIdForUpdate(e.crewRunPostId())
-                                .ifPresent(
-                                        post ->
-                                                link(
-                                                        post,
-                                                        e.memberId(),
-                                                        e.recordId(),
-                                                        e.startedAt(),
-                                                        e.distance())));
+                                .ifPresent(post -> link(post, SavedRun.of(e))));
     }
 
     /**
@@ -170,16 +162,7 @@ public class CrewRunService {
                         crewPostRepository
                                 .findCrewRunByIdForUpdate(run.crewRunPostId())
                                 .filter(post -> isUnlinked(post, run.memberId()))
-                                .map(
-                                        post ->
-                                                link(
-                                                                post,
-                                                                run.memberId(),
-                                                                run.recordId(),
-                                                                run.startedAt(),
-                                                                run.distance())
-                                                        ? 1
-                                                        : 0)
+                                .map(post -> link(post, run) ? 1 : 0)
                                 .orElse(0),
                 0);
     }
@@ -188,16 +171,12 @@ public class CrewRunService {
         return post.participationOf(memberId).map(p -> p.linkedRecordId().isEmpty()).orElse(false);
     }
 
-    private boolean link(
-            CrewRunPost post,
-            long memberId,
-            String recordId,
-            LocalDateTime startedAt,
-            Distance distance) {
-        boolean linked = post.linkRun(memberId, recordId);
-        if (distance.isAtLeast(post.distance().distance())) {
-            views.arrivalAt(recordId, startedAt, post.distance().distance())
-                    .ifPresent(at -> post.recordArrival(memberId, at));
+    /** 수신자(onRunSaved)와 보정(relink)이 같은 저장 기록 형식 SavedRun으로 부른다(코드 리뷰 3차 B-M3). */
+    private boolean link(CrewRunPost post, SavedRun run) {
+        boolean linked = post.linkRun(run.memberId(), run.recordId());
+        if (run.distance().isAtLeast(post.distance().distance())) {
+            views.arrivalAt(run.recordId(), run.startedAt(), post.distance().distance())
+                    .ifPresent(at -> post.recordArrival(run.memberId(), at));
         }
         crewPostRepository.save(post);
         return linked;

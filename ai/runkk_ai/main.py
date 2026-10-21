@@ -85,7 +85,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         resources.push_async_callback(transformer.aclose)
         app.state.comment_service = CommentService(llm=llm, daily_cap=settings.llm_daily_hard_cap)
         app.state.face_service = FaceTransformService(
-            transformer=transformer, timeout_s=settings.face_timeout_s, max_image_bytes=settings.max_image_bytes
+            transformer=transformer,
+            timeout_s=settings.face_timeout_s,
+            max_image_bytes=settings.max_image_bytes,
+            max_image_pixels=settings.max_image_pixels,
         )
         logger.info(
             "ai_started llm_provider=%s llm_model=%s llm_key_set=%s face_impl=%s face_url_set=%s",

@@ -144,6 +144,8 @@ class RedisBattleStoresIntegrationTest {
                             return battles.save(battle).getId();
                         });
         assertThat(battles.existsActive(1)).isTrue();
+        assertThat(battles.activeMemberIds(List.of(1L, 2L, 3L))).containsExactlyInAnyOrder(1L, 2L);
+        assertThat(battles.activeMemberIds(List.of())).isEmpty();
         assertThat(battles.findStartDue(NOW)).isEmpty();
         assertThat(battles.findStartDue(NOW.plusSeconds(13))).hasSize(1);
 
@@ -168,6 +170,7 @@ class RedisBattleStoresIntegrationTest {
         Battle finished = tx.execute(s -> battles.findById(id).orElseThrow());
         assertThat(finished.getStatus()).isEqualTo(BattleStatus.FINISHED);
         assertThat(battles.existsActive(1)).isFalse();
+        assertThat(battles.activeMemberIds(List.of(1L, 2L))).isEmpty();
         DateRange today = new DateRange(NOW.toLocalDate(), NOW.toLocalDate());
         assertThat((List<Battle>) tx.execute(s -> battles.findHistory(1, today))).hasSize(1);
         assertThat(battles.weeklyRecord(1, Week.of(NOW))).isEqualTo(new WeeklyRecord(1, 0, 0));

@@ -45,11 +45,12 @@ public class ApiExceptionHandler {
             Map.of(
                     ReasonCode.AUTH_FAILED, HttpStatus.UNAUTHORIZED,
                     ReasonCode.PROVIDER_UNAVAILABLE, HttpStatus.SERVICE_UNAVAILABLE,
+                    ReasonCode.TEMPORARILY_UNAVAILABLE, HttpStatus.SERVICE_UNAVAILABLE,
                     ReasonCode.TOO_MANY_ATTEMPTS, HttpStatus.TOO_MANY_REQUESTS);
 
     /**
-     * 업무 규칙 거부는 409가 기본이다. 로그인 실패(AUTH_FAILED 401, PROVIDER_UNAVAILABLE 503)만 그 뜻에 맞는 상태로 준다(앱–서버
-     * 대조 B 단계: 로그인 실패도 공통 오류 형식).
+     * 업무 규칙 거부는 409가 기본이다. 로그인 실패(AUTH_FAILED 401, PROVIDER_UNAVAILABLE 503)와 서버 일시
+     * 장애(TEMPORARILY_UNAVAILABLE 503)만 그 뜻에 맞는 상태로 준다(앱–서버 대조 B 단계: 로그인 실패도 공통 오류 형식).
      */
     @ExceptionHandler(BusinessRuleException.class)
     ResponseEntity<ErrorResponse> handleBusinessRule(BusinessRuleException e) {

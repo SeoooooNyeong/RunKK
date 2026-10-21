@@ -34,7 +34,13 @@ PNG_1X1 = bytes.fromhex(
     "89504e470d0a1a0a0000000d4948445200000001000000010806000000"
     "1f15c4890000000d49444154789c6360000002000154a24f5d0000000049454e44ae426082"
 )
-JPEG_HEAD = b"\xff\xd8\xff\xe0" + b"\x00" * 60
+# SOI + APP0(JFIF) + SOF0(1x1, 3성분). 형식 검사는 앞 바이트와 머리의 가로·세로만 본다(L28)
+JPEG_HEAD = (
+    b"\xff\xd8"
+    + b"\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00"
+    + b"\xff\xc0\x00\x11\x08\x00\x01\x00\x01\x03\x01\x11\x00\x02\x11\x01\x03\x11\x01"
+)
+JPEG_HEAD += b"\x00" * (64 - len(JPEG_HEAD))
 PNG_IMAGE = PNG_1X1
 
 VALID_SUMMARY: dict[str, object] = {

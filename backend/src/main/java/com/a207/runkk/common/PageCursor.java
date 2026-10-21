@@ -35,32 +35,40 @@ public record PageCursor(Long cursor, Integer size) {
      * 남았으면 nextCursor가 이 페이지 마지막 항목 ID다.
      */
     public <T> Slice<T> slice(List<T> newestFirst, ToLongFunction<T> idOf) {
-        List<T> rest = newestFirst;
-        if (cursor != null) {
-            int at = -1;
-            for (int i = 0; i < newestFirst.size(); i++) {
-                if (idOf.applyAsLong(newestFirst.get(i)) == cursor) {
-                    at = i;
-                    break;
-                }
-            }
-            if (at >= 0) {
-                rest = newestFirst.subList(at + 1, newestFirst.size());
-            } else {
-                List<T> older = new ArrayList<>();
-                for (T item : newestFirst) {
-                    if (idOf.applyAsLong(item) < cursor) {
-                        older.add(item);
-                    }
-                }
-                rest = older;
-            }
-        }
+        List<T> rest = cursor == null ? newestFirst : afterCursor(newestFirst, idOf);
         if (size == null || rest.size() <= size) {
             return new Slice<>(List.copyOf(rest), null);
         }
         List<T> page = List.copyOf(rest.subList(0, size));
         return new Slice<>(page, idOf.applyAsLong(page.get(page.size() - 1)));
+    }
+
+    /** cursor 항목 뒤의 항목들. cursor 항목이 지워져 없으면 ID가 cursor보다 작은 항목들이다(코드 리뷰 3차 B-M4). */
+    private <T> List<T> afterCursor(List<T> newestFirst, ToLongFunction<T> idOf) {
+        int at = indexOfCursor(newestFirst, idOf);
+        if (at >= 0) {
+            return newestFirst.subList(at + 1, newestFirst.size());
+        }
+        return olderThanCursor(newestFirst, idOf);
+    }
+
+    private <T> int indexOfCursor(List<T> newestFirst, ToLongFunction<T> idOf) {
+        for (int i = 0; i < newestFirst.size(); i++) {
+            if (idOf.applyAsLong(newestFirst.get(i)) == cursor) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private <T> List<T> olderThanCursor(List<T> newestFirst, ToLongFunction<T> idOf) {
+        List<T> older = new ArrayList<>();
+        for (T item : newestFirst) {
+            if (idOf.applyAsLong(item) < cursor) {
+                older.add(item);
+            }
+        }
+        return older;
     }
 
     /**

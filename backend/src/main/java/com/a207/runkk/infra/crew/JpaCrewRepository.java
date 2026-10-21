@@ -2,6 +2,8 @@ package com.a207.runkk.infra.crew;
 
 import com.a207.runkk.common.DateRange;
 import com.a207.runkk.common.Distance;
+import com.a207.runkk.common.PageCursor;
+import com.a207.runkk.common.PersonalityTag;
 import com.a207.runkk.common.Week;
 import com.a207.runkk.crew.Crew;
 import com.a207.runkk.crew.CrewListRow;
@@ -89,34 +91,52 @@ public class JpaCrewRepository implements CrewRepository {
                 .getResultList();
     }
 
-    /** 검색어를 LIKE 글자 그대로로: escape 문자 !와 %·_ 앞에 !를 붙인다(코드 리뷰 2차 L13). */
+    /** 검색어를 LIKE 글자 그대로로(소문자): escape 문자 !와 %·_ 앞에 !를 붙인다(코드 리뷰 2차 L13). */
     private static String likeLiteral(String keyword) {
-        return keyword.toLowerCase(Locale.ROOT)
-                .replace("!", "!!")
-                .replace("%", "!%")
-                .replace("_", "!_");
+        return escapeLike(keyword.toLowerCase(Locale.ROOT));
     }
 
-    /** 공개 크루, 키워드는 SQL로, 태그 AND는 읽은 뒤 거른다. 이번 주 거리는 weekly_race 한 번으로 붙인다. */
+    private static String escapeLike(String value) {
+        return value.replace("!", "!!").replace("%", "!%").replace("_", "!_");
+    }
+
+    /**
+     * 공개 크루. 키워드·태그 AND·페이지를 모두 SQL로 거른다(코드 리뷰 2차 L13). 태그 칸은 정렬된 쉼표 구분 이름이라 앞뒤에 쉼표를 붙여 ",태그,"를
+     * 찾는다. cursor가 있으면 ID가 그보다 작은 크루만, size가 있으면 다음 페이지 여부를 알도록 size + 1개까지 읽는다. 이번 주 거리는
+     * weekly_race 한 번으로 붙인다.
+     */
     @Override
-    public List<CrewListRow> search(CrewSearch cond, Week week) {
+    public List<CrewListRow> search(CrewSearch cond, PageCursor page, Week week) {
+        List<PersonalityTag> tags = cond.tags().stream().sorted().toList();
+        StringBuilder jpql = new StringBuilder("select c from Crew c where c.visibility = :public");
+        if (cond.keyword() != null) {
+            jpql.append(
+                    " and (lower(c.name) like :keyword escape '!' or lower(c.intro) like :keyword"
+                            + " escape '!')");
+        }
+        for (int i = 0; i < tags.size(); i++) {
+            jpql.append(" and concat(',', c.tags, ',') like :tag").append(i).append(" escape '!'");
+        }
+        if (page.cursor() != null) {
+            jpql.append(" and c.id < :cursor");
+        }
         TypedQuery<Crew> query =
                 entityManager.createQuery(
-                        "select c from Crew c where c.visibility = :public"
-                                + (cond.keyword() == null
-                                        ? ""
-                                        : " and (lower(c.name) like :keyword escape '!' or"
-                                                + " lower(c.intro) like :keyword escape '!')")
-                                + " order by c.id desc",
-                        Crew.class);
+                        jpql.append(" order by c.id desc").toString(), Crew.class);
         query.setParameter("public", CrewVisibility.PUBLIC);
         if (cond.keyword() != null) {
             query.setParameter("keyword", "%" + likeLiteral(cond.keyword()) + "%");
         }
-        List<Crew> crews =
-                query.getResultList().stream()
-                        .filter(c -> c.tags().containsAll(cond.tags()))
-                        .toList();
+        for (int i = 0; i < tags.size(); i++) {
+            query.setParameter("tag" + i, "%," + escapeLike(tags.get(i).name()) + ",%");
+        }
+        if (page.cursor() != null) {
+            query.setParameter("cursor", page.cursor());
+        }
+        if (page.size() != null) {
+            query.setMaxResults(page.size() + 1);
+        }
+        List<Crew> crews = query.getResultList();
         Map<Long, Long> weekly = weeklyTotals(crews.stream().map(Crew::getId).toList(), week);
         return crews.stream()
                 .map(

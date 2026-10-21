@@ -2,7 +2,8 @@
 
 FastAPI 의존성(Depends)은 요청 본문을 읽고 JSON을 파싱한 뒤에 돌아, 토큰 없는 깨진 JSON이 401이 아니라 422를 받는다.
 순수 ASGI 미들웨어로 토큰 없는 요청의 본문은 읽지 않고 끊는다(L15).
-토큰을 통과한 요청의 본문 크기는 각 라우터가 제한한다.
+토큰을 통과한 요청의 본문 크기는 이 미들웨어가 아니라 각 라우터가 제한한다
+(/faces는 Settings.max_image_bytes, /comments는 comment.router.COMMENT_BODY_MAX_BYTES, 넘으면 413 TOO_LARGE).
 http와 websocket 연결 모두 검사하고(lifespan만 통과), 새 라우터는 따로 걸지 않아도 검사를 받는다(허용 목록 방식).
 """
 

@@ -70,11 +70,16 @@ class OperatorTest {
     }
 
     @Test
-    @DisplayName("authenticate: 제공자 인증 실패 403, 무응답 PROVIDER_UNAVAILABLE, 모르는·없는 제공자 400")
+    @DisplayName(
+            "authenticate: 제공자 인증 실패 OperatorAuthFailedException(원인 보존, 토큰 미발급), 무응답"
+                    + " PROVIDER_UNAVAILABLE, 모르는·없는 제공자 400")
     void authenticateFailures() {
-        when(kakao.authenticate("forged")).thenThrow(new AuthFailureException("bad"));
+        AuthFailureException cause = new AuthFailureException("bad");
+        when(kakao.authenticate("forged")).thenThrow(cause);
         assertThatThrownBy(() -> authorizer.authenticate("KAKAO", "forged", IP))
-                .isInstanceOf(PermissionDeniedException.class);
+                .isInstanceOf(OperatorAuthFailedException.class)
+                .hasCause(cause);
+        verify(tokens, never()).issue(any());
         when(kakao.authenticate("slow")).thenThrow(new ProviderUnavailableException("down"));
         assertThatThrownBy(() -> authorizer.authenticate("KAKAO", "slow", IP))
                 .isInstanceOf(BusinessRuleException.class);
@@ -137,7 +142,7 @@ class OperatorTest {
                 .isInstanceOf(IllegalStateException.class);
         verify(tokens, never()).issue(any());
         assertThatThrownBy(() -> authorizer.authenticate("KAKAO", "forged", IP))
-                .isInstanceOf(PermissionDeniedException.class);
+                .isInstanceOf(OperatorAuthFailedException.class);
     }
 
     @Test

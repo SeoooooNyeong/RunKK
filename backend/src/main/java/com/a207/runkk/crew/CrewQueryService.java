@@ -73,7 +73,7 @@ public class CrewQueryService {
     /** 페이지 나누기(B4 리뷰). 크루장 표시명은 그 페이지 크루만 읽는다. */
     public CrewListView search(long viewerId, CrewSearch cond, PageCursor page) {
         PageCursor.Slice<CrewListRow> slice =
-                page.slice(crewRepository.search(cond, thisWeek()), CrewListRow::crewId);
+                page.slice(crewRepository.search(cond, page, thisWeek()), CrewListRow::crewId);
         List<CrewListRow> rows = slice.items();
         Map<Long, MemberSummary> leaders =
                 memberQueryService.summaries(rows.stream().map(CrewListRow::leaderId).toList());
@@ -100,7 +100,7 @@ public class CrewQueryService {
         }
         Optional<Long> own = ownCrewId(memberId);
         List<CrewCandidate> candidates =
-                crewRepository.search(CrewSearch.all(), thisWeek()).stream()
+                crewRepository.search(CrewSearch.all(), PageCursor.all(), thisWeek()).stream()
                         .filter(row -> row.headcount() < Crew.CAPACITY)
                         .filter(row -> own.map(id -> id != row.crewId()).orElse(true))
                         .map(

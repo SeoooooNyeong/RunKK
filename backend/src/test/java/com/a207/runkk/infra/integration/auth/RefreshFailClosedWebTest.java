@@ -20,7 +20,8 @@ import org.springframework.test.web.servlet.ResultActions;
 
 /**
  * M6 후속 결정(fail-closed): 폐기 목록을 쓸 수 없으면 POST /auth/refresh·/auth/logout은 503
- * PROVIDER_UNAVAILABLE이다. 토큰을 쓰지 않았으므로 저장소가 돌아오면 같은 갱신 토큰으로 다시 갱신할 수 있다.
+ * TEMPORARILY_UNAVAILABLE이다(소셜 제공자 문제가 아니므로 PROVIDER_UNAVAILABLE을 쓰지 않는다, 코드 리뷰 3차 B-L6). 토큰을 쓰지
+ * 않았으므로 저장소가 돌아오면 같은 갱신 토큰으로 다시 갱신할 수 있다.
  */
 @DisplayName("갱신 토큰 폐기 목록 장애 때 갱신·로그아웃 거부(fail-closed)")
 class RefreshFailClosedWebTest extends WebTestSupport {
@@ -52,12 +53,14 @@ class RefreshFailClosedWebTest extends WebTestSupport {
 
         refresh(s.refreshToken())
                 .andExpect(status().isServiceUnavailable())
-                .andExpect(jsonPath("$.code").value("PROVIDER_UNAVAILABLE"));
+                .andExpect(jsonPath("$.code").value("TEMPORARILY_UNAVAILABLE"))
+                .andExpect(jsonPath("$.message").value("잠시 후 다시 시도해 주세요"));
         mvc.perform(
                         as(s, post("/api/v1/auth/logout"))
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(write(Map.of("refreshToken", s.refreshToken()))))
-                .andExpect(status().isServiceUnavailable());
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value("TEMPORARILY_UNAVAILABLE"));
 
         reset(revocations);
         refresh(s.refreshToken()).andExpect(status().isOk());

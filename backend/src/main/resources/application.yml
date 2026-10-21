@@ -201,7 +201,8 @@ spring:
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:runkk}
     username: ${DB_USER:runkk}
-    password: ${DB_PASSWORD:runkk}
+    # 비밀번호는 기본값을 두지 않는다(코드 리뷰 2차 L27): 빠지면 기동이 멈춘다. 로컬 compose.yaml은 DB_PASSWORD=runkk로 띄운다
+    password: ${DB_PASSWORD}
   flyway:
     enabled: true
   jpa:

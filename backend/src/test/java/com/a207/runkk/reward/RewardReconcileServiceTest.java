@@ -43,7 +43,7 @@ class RewardReconcileServiceTest {
     private final MemberQueryService members = mock(MemberQueryService.class);
     private final RewardService rewards = new RewardService(wallets, policy, new DirectTx());
     private final RewardReconcileService reconcile =
-            new RewardReconcileService(rewards, runs, battles, members);
+            new RewardReconcileService(rewards, runs, battles, members, policy);
     private final List<SavedRun> saved = new ArrayList<>();
     private final List<BattleWin> wins = new ArrayList<>();
 
@@ -142,6 +142,29 @@ class RewardReconcileServiceTest {
         assertThat(rewards.balanceOf(WITHDRAWN)).isZero();
         assertThat(wallets.findByMember(WITHDRAWN)).isEmpty();
         assertThat(rewards.accruedFor(AccrualReason.VALID_RUN, "r-invalid", ALICE)).isZero();
+    }
+
+    @Test
+    @DisplayName("규칙상 적립량이 0인 짧은 유효 기록(km당 10에 90m)은 지갑을 잠그지 않고 건너뛴다(B-L2)")
+    void zeroAmountRun_doesNotTouchWallet() {
+        saved.add(run("r-short", ALICE, 90, YESTERDAY)); // ⌊0.09 km × 10⌋ = 0
+        wallets.failNext(new IllegalStateException("지갑을 잠그면 안 된다"));
+
+        assertThat(reconcile.reconcile(NOW)).isZero();
+        assertThat(wallets.findByMember(ALICE)).isEmpty();
+        saved.add(run("r-ok", ALICE, 3_000, YESTERDAY));
+        assertThat(reconcile.reconcile(NOW)).isZero(); // 남겨 둔 실패를 이번에 처음 잠근 r-ok가 받는다
+        assertThat(reconcile.reconcile(NOW)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("승리 적립이 0으로 바뀌면 대결 판정을 읽지 않는다")
+    void zeroBattleWin_skipsJudgedBattles() {
+        when(policy.rewardRule()).thenReturn(new RewardRule(10, 0, 200));
+        wins.add(new BattleWin(9, ALICE, YESTERDAY));
+
+        assertThat(reconcile.reconcile(NOW)).isZero();
+        assertThat(wallets.findByMember(ALICE)).isEmpty();
     }
 
     @Test
