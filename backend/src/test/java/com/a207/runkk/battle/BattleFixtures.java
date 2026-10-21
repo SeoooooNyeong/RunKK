@@ -3,7 +3,11 @@ package com.a207.runkk.battle;
 import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.StandardDistance;
+import com.a207.runkk.common.TagOwner;
+import com.a207.runkk.common.TagSet;
 import com.a207.runkk.common.Tier;
+import com.a207.runkk.member.MemberSummary;
+import com.a207.runkk.member.ProfileVisibility;
 import java.time.Duration;
 import java.time.LocalDateTime;
 
@@ -15,6 +19,16 @@ public final class BattleFixtures {
     public static final long BOB = 2L;
 
     private BattleFixtures() {}
+
+    /** 표시명 "러너{id}", 공개 프로필, 태그 없음. */
+    public static MemberSummary summary(long memberId, Tier tier) {
+        return new MemberSummary(
+                memberId,
+                DisplayName.of("러너" + memberId),
+                tier,
+                ProfileVisibility.PUBLIC,
+                TagSet.empty(TagOwner.RUNNER));
+    }
 
     public static MatchTicket assigned(long memberId, StandardDistance d) {
         MatchTicket ticket = MatchTicket.open(memberId, Tier.GOLD, d, NOW);
