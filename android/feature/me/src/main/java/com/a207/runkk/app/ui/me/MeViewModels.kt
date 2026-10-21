@@ -4,7 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.designsystem.RunkkErrorText
 import com.a207.runkk.app.core.designsystem.RunkkTags
+import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.core.model.getOrNull
 import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.account.LogoutUseCase
 import com.a207.runkk.app.domain.account.Profile
@@ -25,6 +27,8 @@ import kotlinx.coroutines.launch
 data class MeUiState(
     val loading: Boolean = true,
     val profile: Profile? = null,
+    /** 프로필 원 안의 셀카 얼굴 부위 그림. 비어 있으면 빈 원(자리 그림). */
+    val faceLayers: List<FaceLayer> = emptyList(),
     val error: String? = null,
     val loggingOut: Boolean = false
 )
@@ -51,7 +55,11 @@ class MeViewModel @Inject constructor(private val account: AccountRepository, pr
         _state.update { it.copy(loading = true, error = null) }
         viewModelScope.launch {
             when (val result = account.profile(AccountRepository.SELF)) {
-                is Outcome.Success -> _state.update { it.copy(loading = false, profile = result.value) }
+                is Outcome.Success -> {
+                    _state.update { it.copy(loading = false, profile = result.value) }
+                    val face = result.value.faceKey?.let { account.faceLayers(it).getOrNull() }.orEmpty()
+                    _state.update { it.copy(faceLayers = face) }
+                }
 
                 is Outcome.Failure -> _state.update {
                     it.copy(loading = false, error = RunkkErrorText.of(result.error))

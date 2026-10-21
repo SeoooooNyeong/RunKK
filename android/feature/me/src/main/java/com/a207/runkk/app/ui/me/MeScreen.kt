@@ -27,6 +27,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
@@ -34,6 +35,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.a207.runkk.app.core.designsystem.RunkkAvatarFace
 import com.a207.runkk.app.core.designsystem.RunkkBadge
 import com.a207.runkk.app.core.designsystem.RunkkBadgeTone
 import com.a207.runkk.app.core.designsystem.RunkkCard
@@ -51,6 +53,7 @@ import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkTags
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
+import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.account.Gender
@@ -104,7 +107,11 @@ fun MeScreen(
                 RunkkLoading()
             }
 
-            state.profile != null -> ProfileCard(state.profile, onEdit = { onNavigate(Routes.PROFILE_EDIT) })
+            state.profile != null -> ProfileCard(
+                state.profile,
+                state.faceLayers,
+                onEdit = { onNavigate(Routes.PROFILE_EDIT) }
+            )
 
             state.error != null -> RunkkErrorState(state.error, onRetry = onRetry)
         }
@@ -164,7 +171,7 @@ internal fun aboutLine(profile: Profile): String? = listOfNotNull(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ProfileCard(profile: Profile, onEdit: () -> Unit) {
+private fun ProfileCard(profile: Profile, faceLayers: List<FaceLayer>, onEdit: () -> Unit) {
     RunkkCard(shape = RunkkShapes.ExtraLarge, verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
@@ -177,7 +184,11 @@ private fun ProfileCard(profile: Profile, onEdit: () -> Unit) {
                     RunkkColors.Lime,
                     CircleShape
                 ).padding(4.dp).clip(CircleShape).background(RunkkColors.Border)
-            )
+            ) {
+                if (faceLayers.isNotEmpty()) {
+                    RunkkAvatarFace(faceLayers, Modifier.fillMaxSize().testTag(PROFILE_FACE_TAG))
+                }
+            }
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
                     profile.displayName,
@@ -272,3 +283,6 @@ private fun MeScreenPreview() {
         )
     }
 }
+
+/** 프로필 원 안의 셀카 얼굴(시험이 찾는 표지). */
+internal const val PROFILE_FACE_TAG = "profile-avatar-face"

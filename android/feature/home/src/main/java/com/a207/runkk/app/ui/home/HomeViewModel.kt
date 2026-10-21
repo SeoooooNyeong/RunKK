@@ -3,6 +3,7 @@ package com.a207.runkk.app.ui.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.designsystem.RunkkErrorText
+import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.getOrNull
 import com.a207.runkk.app.domain.account.AccountRepository
@@ -43,7 +44,9 @@ data class HomeUiState(
     val error: String? = null,
     val today: LocalDate? = null,
     val header: HomeHeader = HomeHeader(),
-    val headerLoading: Boolean = true
+    val headerLoading: Boolean = true,
+    /** 우리 집 아바타 자리의 셀카 얼굴 부위 그림. 비어 있으면 "아바타" 자리 그림. */
+    val faceLayers: List<FaceLayer> = emptyList()
 )
 
 /**
@@ -85,12 +88,14 @@ class HomeViewModel @Inject constructor(
             val dashboardResult = dashboard.await()
             val planResult = plan.await()
             val me = profile.await()
+            val myAvatar = wallet.await()
+            val face = myAvatar?.faceKey?.let { avatar.faceLayers(it).getOrNull() }.orEmpty()
             val header =
                 HomeHeader(
                     nickname = me?.displayName,
                     tier = me?.tier,
                     level = me?.level,
-                    balance = wallet.await()?.balance
+                    balance = myAvatar?.balance
                 )
             _state.update {
                 it.copy(
@@ -99,6 +104,7 @@ class HomeViewModel @Inject constructor(
                     todayPlan = planResult.getOrNull(),
                     header = header,
                     headerLoading = false,
+                    faceLayers = face,
                     error = (dashboardResult as? Outcome.Failure)?.let { failure -> RunkkErrorText.of(failure.error) }
                 )
             }

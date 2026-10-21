@@ -38,6 +38,11 @@ class ApiTestServer : AutoCloseable {
 
     fun take(): RecordedRequest = server.takeRequest()
 
+    /** 같은 서버를 쓰는 얼굴 부위 그림 소스(인증 없음). */
+    val faces: FaceImageSource by lazy {
+        FaceImageSource(okhttp3.OkHttpClient(), server.url("/api/v1/"), kotlinx.coroutines.Dispatchers.IO)
+    }
+
     override fun close() {
         server.close()
     }

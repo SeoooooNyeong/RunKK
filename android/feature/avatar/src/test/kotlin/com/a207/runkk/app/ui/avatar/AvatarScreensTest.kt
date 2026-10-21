@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.a207.runkk.app.core.designsystem.RunkkTheme
@@ -68,6 +69,41 @@ class AvatarScreensTest {
         compose.onNodeWithContentDescription("리워드 잔액 1,240, 상점 열기").performClick()
         compose.onNodeWithText("얼굴 바꾸기").performClick()
         assertEquals(listOf("toggle:2", "shop", "face"), calls)
+    }
+
+    @Test
+    fun `꾸미기 - 셀카 얼굴 그림이 있으면 부위를 겹쳐 그리고 그림 하나로 읽어 준다`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                AvatarFigure(
+                    avatar.copy(faceKey = "selfie:face/7/s1"),
+                    equippedNames = emptyMap(),
+                    faceLayers = faceLayers
+                )
+            }
+        }
+        compose.onNodeWithTag(FACE_TAG, useUnmergedTree = true).assertExists()
+        compose.onNodeWithText("SD", useUnmergedTree = true).assertDoesNotExist()
+        compose.onNodeWithContentDescription("아바타, 셀카 SD 얼굴, 체형 탄탄해지는 중").assertExists()
+    }
+
+    @Test
+    fun `꾸미기 - 부위 그림이 깨졌으면 자리 그림(SD)을 그린다`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                AvatarFigure(
+                    avatar.copy(faceKey = "selfie:face/7/s1"),
+                    equippedNames = emptyMap(),
+                    faceLayers = listOf(
+                        com.a207.runkk.app.core.model.FaceLayer(
+                            com.a207.runkk.app.core.model.FacePart.EYES,
+                            byteArrayOf(1, 2)
+                        )
+                    )
+                )
+            }
+        }
+        compose.onNodeWithText("SD", useUnmergedTree = true).assertExists()
     }
 
     @Test

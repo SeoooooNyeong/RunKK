@@ -3,6 +3,7 @@ package com.a207.runkk.app.ui.avatar
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.model.AppError
+import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.getOrNull
 import com.a207.runkk.app.domain.avatar.Avatar
@@ -132,6 +133,8 @@ private val SELFIE_BLOCKED = setOf("SELFIE_LIMIT", "SELFIE_RETRY_LIMIT", "SELFIE
 data class AvatarUiState(
     val loading: Boolean = true,
     val avatar: Avatar? = null,
+    /** 셀카 얼굴 부위 그림. 셀카 얼굴이 아니거나 받지 못하면 비어 있고 자리 그림을 그린다. */
+    val faceLayers: List<FaceLayer> = emptyList(),
     /** 보유 아이템 이름을 찾으려고 읽은 상점 목록(보유 여부 포함). */
     val items: List<Shop.Item> = emptyList(),
     val slot: ItemSlot = ItemSlot.TOP,
@@ -166,8 +169,15 @@ class AvatarViewModel @Inject constructor(private val avatars: AvatarRepository)
         job = viewModelScope.launch {
             val shop = async { avatars.shop(null) }
             when (val avatar = avatars.avatar()) {
-                is Outcome.Success -> _state.update {
-                    it.copy(loading = false, avatar = avatar.value, items = shop.await().getOrNull()?.items.orEmpty())
+                is Outcome.Success -> {
+                    _state.update {
+                        it.copy(
+                            loading = false,
+                            avatar = avatar.value,
+                            items = shop.await().getOrNull()?.items.orEmpty()
+                        )
+                    }
+                    loadFace(avatar.value.faceKey)
                 }
 
                 is Outcome.Failure -> {
@@ -176,6 +186,17 @@ class AvatarViewModel @Inject constructor(private val avatars: AvatarRepository)
                 }
             }
         }
+    }
+
+    /** 마지막으로 그림을 받은 얼굴 키. 같은 얼굴이면 다시 받지 않는다(묶음 키가 바뀌면 새 얼굴이다). */
+    private var faceKeyShown: String? = null
+
+    /** 셀카 얼굴 부위 그림을 받는다. 받지 못하면 비워 두어 자리 그림을 그린다. */
+    private suspend fun loadFace(faceKey: String?) {
+        if (faceKey == faceKeyShown && (faceKey == null || _state.value.faceLayers.isNotEmpty())) return
+        faceKeyShown = faceKey
+        val layers = if (faceKey == null) emptyList() else avatars.faceLayers(faceKey).getOrNull().orEmpty()
+        _state.update { it.copy(faceLayers = layers) }
     }
 
     private var resumedOnce = false

@@ -33,7 +33,7 @@ class AccountRepositoryImplTest {
     private val api = ApiTestServer()
     private val tokens = FixedTokens()
     private val repository =
-        AccountRepositoryImpl(api.retrofit.create(), api.retrofit.create(), tokens, SelfMember(tokens))
+        AccountRepositoryImpl(api.retrofit.create(), api.retrofit.create(), tokens, SelfMember(tokens), api.faces)
 
     @AfterTest
     fun tearDown() = api.close()
@@ -184,7 +184,7 @@ class AccountRepositoryImplTest {
                 override fun accessToken(): String? = null
             }
         val loggedOut =
-            AccountRepositoryImpl(api.retrofit.create(), api.retrofit.create(), noToken, SelfMember(noToken))
+            AccountRepositoryImpl(api.retrofit.create(), api.retrofit.create(), noToken, SelfMember(noToken), api.faces)
 
         assertEquals(Outcome.Failure(AppError.Unauthorized), loggedOut.profile(AccountRepository.SELF))
         assertEquals(0, api.server.requestCount)
@@ -265,6 +265,31 @@ class AccountRepositoryImplTest {
         assertEquals("UNDISCLOSED", body["gender"]!!.jsonPrimitive.content)
         assertEquals("PUBLIC", body["recordVisibility"]!!.jsonPrimitive.content)
         assertTrue("SOLO_RUN" in body["tags"].toString(), body["tags"].toString())
+    }
+
+    @Test
+    fun `로그인·가입 속도 제한(429 TOO_MANY_ATTEMPTS)은 사유 코드 거부로 돌려준다`() = runTest {
+        api.reply("""{"code":"TOO_MANY_ATTEMPTS","message":"잠시 뒤 다시 시도해 주세요"}""", code = 429)
+        api.reply("""{"status":"SIGN_UP_REQUIRED","signUpTicket":"t"}""")
+        api.reply("""{"code":"TOO_MANY_ATTEMPTS","message":"잠시 뒤 다시 시도해 주세요"}""", code = 429)
+
+        assertEquals(
+            Outcome.Failure(AppError.Rejected("TOO_MANY_ATTEMPTS")),
+            repository.login(ProviderToken(ProviderType.KAKAO, "k"))
+        )
+        repository.login(ProviderToken(ProviderType.KAKAO, "k"))
+        val signedUp = repository.signUp(
+            SignUpForm(
+                nickname = null,
+                birthYear = 1995,
+                gender = Gender.UNDISCLOSED,
+                intro = null,
+                consents = mapOf("AGE_14_PLUS" to true, "TERMS" to true, "PRIVACY" to true, "LOCATION" to true),
+                recordVisibility = "PUBLIC",
+                tags = setOf("SOLO_RUN")
+            )
+        )
+        assertEquals(Outcome.Failure(AppError.Rejected("TOO_MANY_ATTEMPTS")), signedUp)
     }
 
     @Test

@@ -108,6 +108,13 @@ class FakeAccountRepository : AccountRepository {
     override suspend fun legalDocument(type: String): Outcome<String> = call("legal:$type") { legal }
 
     override suspend fun settings(): Outcome<MemberSettings> = call("settings") { settings }
+
+    var faceResult: Outcome<List<com.a207.runkk.app.core.model.FaceLayer>> = Outcome.Success(emptyList())
+
+    override suspend fun faceLayers(faceKey: String?): Outcome<List<com.a207.runkk.app.core.model.FaceLayer>> {
+        calls += "face:$faceKey"
+        return faceResult
+    }
 }
 
 class FakeSessionRepository : SessionRepository {

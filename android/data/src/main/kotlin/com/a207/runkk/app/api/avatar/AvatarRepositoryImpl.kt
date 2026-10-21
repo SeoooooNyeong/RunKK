@@ -1,8 +1,10 @@
 package com.a207.runkk.app.api.avatar
 
 import com.a207.runkk.app.api.core.ApiErrorMapper
+import com.a207.runkk.app.api.core.FaceImageSource
 import com.a207.runkk.app.api.core.enumByName
 import com.a207.runkk.app.core.model.AppError
+import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.avatar.Avatar
 import com.a207.runkk.app.domain.avatar.AvatarRepository
@@ -19,8 +21,13 @@ import okhttp3.RequestBody.Companion.toRequestBody
  */
 internal class AvatarRepositoryImpl
 @Inject
-constructor(private val api: AvatarApi) : AvatarRepository {
+constructor(
+    private val api: AvatarApi,
+    private val faces: FaceImageSource
+) : AvatarRepository {
     override suspend fun avatar(): Outcome<Avatar> = ApiErrorMapper.call { api.avatar().toDomain() }
+
+    override suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> = faces.faceLayers(faceKey)
 
     /** 변환 실패는 200 + created=false라 Rejected(failureReason)로 바꿔 화면이 사유를 보이게 한다. */
     override suspend fun createFromSelfie(jpeg: ByteArray): Outcome<Avatar> {

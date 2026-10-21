@@ -175,6 +175,14 @@ class FakeAvatarRepository : com.a207.runkk.app.domain.avatar.AvatarRepository {
         unusedOutcome<com.a207.runkk.app.domain.avatar.Shop>()
 
     override suspend fun purchase(itemId: Long) = unusedOutcome<Int>()
+
+    var faceResult: Outcome<List<com.a207.runkk.app.core.model.FaceLayer>> = Outcome.Success(emptyList())
+    val faceKeys = mutableListOf<String?>()
+
+    override suspend fun faceLayers(faceKey: String?): Outcome<List<com.a207.runkk.app.core.model.FaceLayer>> {
+        faceKeys += faceKey
+        return faceResult
+    }
 }
 
 fun <T> unusedOutcome(): Outcome<T> = Outcome.Failure(AppError.Rejected("UNUSED"))

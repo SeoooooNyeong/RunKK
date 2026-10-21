@@ -2,6 +2,8 @@ package com.a207.runkk.app.ui.avatar
 
 import app.cash.turbine.test
 import com.a207.runkk.app.core.model.AppError
+import com.a207.runkk.app.core.model.FaceLayer
+import com.a207.runkk.app.core.model.FacePart
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.avatar.Avatar
 import com.a207.runkk.app.domain.avatar.AvatarRepository
@@ -93,7 +95,22 @@ class FakeAvatars : AvatarRepository {
         calls += "buy:$itemId"
         return purchaseResult
     }
+
+    /** 셀카 얼굴 부위 그림 응답. */
+    var faceResult: Outcome<List<FaceLayer>> = Outcome.Success(faceLayers)
+
+    override suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> {
+        calls += "face:$faceKey"
+        return faceResult
+    }
 }
+
+/** 1×1 PNG(부위 그림 표본). */
+val tinyPng: ByteArray = java.util.Base64.getDecoder().decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+)
+
+val faceLayers: List<FaceLayer> = FacePart.entries.map { FaceLayer(it, tinyPng) }
 
 class AvatarSetupViewModelTest {
     @get:Rule
@@ -181,6 +198,28 @@ class AvatarDecorateViewModelTest {
         repo.avatarResult = Outcome.Failure(AppError.Network)
         val vm = AvatarViewModel(repo)
         assertNotNull(vm.state.value.error)
+    }
+
+    @Test
+    fun `셀카 얼굴이면 부위 그림을 받고 같은 얼굴은 다시 받지 않는다(FR-155)`() {
+        repo.avatarResult = Outcome.Success(avatar.copy(faceKey = "selfie:face/7/s1"))
+        val vm = AvatarViewModel(repo)
+        assertEquals(faceLayers, vm.state.value.faceLayers)
+        vm.onResumed()
+        vm.onResumed()
+        assertEquals(1, repo.calls.count { it == "face:selfie:face/7/s1" })
+    }
+
+    @Test
+    fun `기본 캐릭터면 받지 않고, 받지 못하면 비워 자리 그림을 그린다`() {
+        val plain = AvatarViewModel(repo)
+        assertEquals(emptyList(), plain.state.value.faceLayers)
+        assertTrue(repo.calls.none { it.startsWith("face:") })
+        repo.avatarResult = Outcome.Success(avatar.copy(faceKey = "selfie:face/7/s1"))
+        repo.faceResult = Outcome.Failure(AppError.Rejected("FACE_IMAGE_NOT_FOUND"))
+        val failed = AvatarViewModel(repo)
+        assertEquals(emptyList(), failed.state.value.faceLayers)
+        assertNull(failed.state.value.error, "얼굴 그림 실패는 화면 오류가 아니다")
     }
 }
 

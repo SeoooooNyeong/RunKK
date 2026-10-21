@@ -1,5 +1,6 @@
 package com.a207.runkk.app.domain.account
 
+import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.model.Outcome
 import kotlinx.coroutines.flow.StateFlow
 
@@ -31,6 +32,12 @@ interface AccountRepository {
 
     /** 회원 설정 화면 값(GET /me/settings, FR-008~FR-019·FR-048). 마이 > 설정·동의 관리·자유런 설정 화면이 읽는다. */
     suspend fun settings(): Outcome<MemberSettings>
+
+    /**
+     * 프로필 얼굴 그림: 프로필의 faceKey(셀카 아바타)로 부위 그림을 받는다(AvatarRepository.faceLayers와 같은 그림).
+     * 셀카 얼굴이 아니면 빈 목록, 받지 못하면 실패다. 구현이 없으면 빈 목록이다.
+     */
+    suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> = Outcome.Success(emptyList())
 
     companion object {
         /** profile(memberId)에 넘기면 로그인한 본인. 구현이 본인 회원 ID로 바꿔 부른다. */

@@ -1,5 +1,6 @@
 package com.a207.runkk.app.domain.avatar
 
+import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.model.Outcome
 
 /**
@@ -19,6 +20,12 @@ interface AvatarRepository {
     suspend fun shop(slot: ItemSlot?): Outcome<Shop>
 
     suspend fun purchase(itemId: Long): Outcome<Int>
+
+    /**
+     * 셀카 아바타 얼굴 부위 그림(GET /avatar/parts/face/…, FR-155). [faceKey]가 셀카 얼굴이 아니면 빈 목록이다.
+     * 받지 못하면 실패이고 화면은 지금의 자리 그림을 그린다. 구현이 없으면 빈 목록이다.
+     */
+    suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> = Outcome.Success(emptyList())
 }
 
 /** 착용 부위(서버 common.ItemSlot). */

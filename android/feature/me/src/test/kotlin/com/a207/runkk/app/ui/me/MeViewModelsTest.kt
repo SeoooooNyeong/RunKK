@@ -32,6 +32,16 @@ class MeViewModelsTest {
     }
 
     @Test
+    fun `프로필이 셀카 얼굴이면 부위 그림을 받아 원 안에 그린다`() {
+        val layer = com.a207.runkk.app.core.model.FaceLayer(com.a207.runkk.app.core.model.FacePart.EYES, byteArrayOf(1))
+        account.profile = sampleProfile.copy(faceKey = "selfie:face/7/s1")
+        account.faceResult = com.a207.runkk.app.core.model.Outcome.Success(listOf(layer))
+        val vm = MeViewModel(account, LogoutUseCase(account, session, settingsCopy))
+        assertEquals(listOf(layer), vm.state.value.faceLayers)
+        assertEquals(listOf("profile:${AccountRepository.SELF}", "face:selfie:face/7/s1"), account.calls)
+    }
+
+    @Test
     fun `프로필을 못 읽으면 오류를 보이고 다시 시도한다`() {
         account.failures["profile:0"] = AppError.Network
         val vm = MeViewModel(account, LogoutUseCase(account, session, settingsCopy))

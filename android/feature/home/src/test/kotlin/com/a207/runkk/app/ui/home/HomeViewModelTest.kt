@@ -38,6 +38,31 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun `우리 집 아바타는 셀카 얼굴이면 부위 그림을 받고 아니면 받지 않는다`() {
+        val plain = viewModel()
+        assertEquals(emptyList(), plain.state.value.faceLayers)
+        assertEquals(emptyList(), avatar.faceKeys)
+
+        val layer = com.a207.runkk.app.core.model.FaceLayer(com.a207.runkk.app.core.model.FacePart.HAIR, byteArrayOf(1))
+        avatar.avatarResult = com.a207.runkk.app.core.model.Outcome.Success(
+            com.a207.runkk.app.domain.avatar.Avatar(
+                "selfie:face/7/s1",
+                null,
+                "NORMAL",
+                "DAY",
+                emptyMap(),
+                10,
+                true,
+                emptyMap()
+            )
+        )
+        avatar.faceResult = com.a207.runkk.app.core.model.Outcome.Success(listOf(layer))
+        val selfie = viewModel()
+        assertEquals(listOf(layer), selfie.state.value.faceLayers)
+        assertEquals(listOf<String?>("selfie:face/7/s1"), avatar.faceKeys)
+    }
+
+    @Test
     fun `미전송 기록 수는 보관함 변화를 따라간다(FR-039)`() {
         val vm = viewModel()
         assertEquals(0, vm.state.value.pendingCount)

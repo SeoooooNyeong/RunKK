@@ -1,0 +1,128 @@
+package com.a207.runkk.app.api.core
+
+import com.a207.runkk.app.core.model.AppError
+import com.a207.runkk.app.core.model.FacePart
+import com.a207.runkk.app.core.model.Outcome
+import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.atomic.AtomicLong
+import kotlin.test.AfterTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.Json
+import mockwebserver3.Dispatcher
+import mockwebserver3.MockResponse
+import mockwebserver3.MockWebServer
+import mockwebserver3.RecordedRequest
+import okhttp3.OkHttpClient
+import okio.Buffer
+
+/**
+ * FaceImageSource(14장 단위(앱 데이터)): 셀카 얼굴 부위 PNG 주소·인증 헤더·메모리 캐시(Cache-Control max-age)·실패 처리.
+ * 서버는 MockWebServer다.
+ */
+class FaceImageSourceTest {
+    private val server = MockWebServer()
+    private val paths = ConcurrentLinkedQueue<String>()
+    private val auth = ConcurrentLinkedQueue<String>()
+    private val clock = AtomicLong(1_000_000L)
+
+    /** 부위 → 응답. 기본은 30일 캐시되는 PNG 한 바이트(부위 순번). */
+    private var reply: (String) -> MockResponse = { part ->
+        MockResponse.Builder()
+            .addHeader("Content-Type", "image/png")
+            .addHeader("Cache-Control", "private, max-age=2592000")
+            .body(Buffer().write(byteArrayOf(FacePart.valueOf(part).ordinal.toByte())))
+            .build()
+    }
+
+    private val source: FaceImageSource by lazy {
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                paths += request.url.encodedPath
+                request.headers["Authorization"]?.let(auth::add)
+                return reply(request.url.pathSegments.last())
+            }
+        }
+        server.start()
+        val client = ApiCoreBindings.authenticatedClient(
+            OkHttpClient(),
+            Tokens("access-1"),
+            server.url("/api/v1/auth/refresh"),
+            Json { ignoreUnknownKeys = true }
+        )
+        FaceImageSource(client, server.url("/api/v1/"), Dispatchers.IO, now = clock::get)
+    }
+
+    @AfterTest
+    fun tearDown() = server.close()
+
+    @Test
+    fun `selfie 키에서 접두어를 뗀 위치 + 부위로 다섯 장을 인증 헤더와 함께 받는다`() = runTest {
+        val layers = (source.faceLayers("selfie:face/7/set-ab12") as Outcome.Success).value
+
+        assertEquals(FacePart.entries, layers.map { it.part }, "그리는 순서(귀·눈·코·입·머리)")
+        assertEquals(FacePart.EYES.ordinal.toByte(), layers.first { it.part == FacePart.EYES }.png.single())
+        assertEquals(
+            FacePart.entries.map { "/api/v1/avatar/parts/face/7/set-ab12/${it.name}" }.toSet(),
+            paths.toSet()
+        )
+        assertTrue(auth.all { it == "Bearer access-1" } && auth.size == 5, "인증 헤더: $auth")
+    }
+
+    @Test
+    fun `max-age 안에는 메모리에서 주고 지나면 다시 받는다`() = runTest {
+        source.faceLayers("selfie:face/7/s1")
+        source.faceLayers("selfie:face/7/s1")
+        assertEquals(5, paths.size, "max-age 안에는 다시 받지 않는다")
+
+        clock.addAndGet(2_592_000_000L + 1)
+        source.faceLayers("selfie:face/7/s1")
+        assertEquals(10, paths.size, "max-age가 지나면 다시 받는다")
+    }
+
+    @Test
+    fun `no-store 응답은 메모리에 두지 않는다`() = runTest {
+        reply = { MockResponse.Builder().addHeader("Cache-Control", "no-store").body("x").build() }
+        source.faceLayers("selfie:face/7/s1")
+        source.faceLayers("selfie:face/7/s1")
+        assertEquals(10, paths.size)
+    }
+
+    @Test
+    fun `부위 하나라도 받지 못하면 서버 사유 코드로 실패한다`() = runTest {
+        val ok = reply
+        reply = { part ->
+            if (part == "NOSE") {
+                MockResponse.Builder().code(409).addHeader("Content-Type", "application/json")
+                    .body("""{"code":"FACE_IMAGE_NOT_FOUND","message":"없음"}""").build()
+            } else {
+                ok(part)
+            }
+        }
+        assertEquals(Outcome.Failure(AppError.Rejected("FACE_IMAGE_NOT_FOUND")), source.faceLayers("selfie:face/7/s1"))
+
+        reply = { MockResponse.Builder().code(403).body("""{"code":"PERMISSION_DENIED"}""").build() }
+        assertEquals(Outcome.Failure(AppError.Rejected("PERMISSION_DENIED")), source.faceLayers("selfie:face/8/s1"))
+    }
+
+    @Test
+    fun `셀카 얼굴이 아니면 받지 않고 빈 목록, 이상한 위치는 거부한다`() = runTest {
+        assertEquals(Outcome.Success(emptyList()), source.faceLayers(null))
+        assertEquals(Outcome.Success(emptyList()), source.faceLayers("default:RABBIT"))
+        assertEquals(Outcome.Failure(AppError.Rejected("FACE_IMAGE_NOT_FOUND")), source.faceLayers("selfie:face/../x"))
+        assertEquals(0, paths.size)
+    }
+
+    private class Tokens(private val access: String) : TokenProvider {
+        override fun accessToken(): String = access
+
+        override fun refreshToken(): String? = null
+
+        override fun update(access: String, refresh: String) = Unit
+
+        override suspend fun clear(): Outcome<Unit> = Outcome.Success(Unit)
+    }
+}

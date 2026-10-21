@@ -1,9 +1,11 @@
 package com.a207.runkk.app.api.account
 
 import com.a207.runkk.app.api.core.ApiErrorMapper
+import com.a207.runkk.app.api.core.FaceImageSource
 import com.a207.runkk.app.api.core.SelfMember
 import com.a207.runkk.app.api.core.TokenProvider
 import com.a207.runkk.app.core.model.AppError
+import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.account.MemberSettings
@@ -26,8 +28,11 @@ constructor(
     private val auth: AuthApi,
     private val me: MeApi,
     private val tokens: TokenProvider,
-    private val self: SelfMember
+    private val self: SelfMember,
+    private val faces: FaceImageSource
 ) : AccountRepository {
+    override suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> = faces.faceLayers(faceKey)
+
     @Volatile
     private var signUpTicket: String? = null
 

@@ -34,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -49,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.a207.runkk.app.core.designsystem.RunkkAvatarFace
 import com.a207.runkk.app.core.designsystem.RunkkBadge
 import com.a207.runkk.app.core.designsystem.RunkkBadgeTone
 import com.a207.runkk.app.core.designsystem.RunkkCard
@@ -70,6 +72,7 @@ import com.a207.runkk.app.core.designsystem.RunkkTextLink
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
+import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.avatar.Avatar
@@ -309,7 +312,8 @@ fun AvatarScreen(
                             avatar,
                             equippedNames = ItemSlot.entries.associateWith {
                                 state.itemName(avatar.equipped[it])
-                            }
+                            },
+                            faceLayers = state.faceLayers
                         )
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(
@@ -427,11 +431,16 @@ private fun ItemTile(item: Shop.Item, equipped: Boolean, onClick: () -> Unit, mo
 }
 
 /**
- * 아바타 자리 그림: 피부톤 색 머리 + 얼굴(셀카·기본 캐릭터) + 체형 단계 폭의 몸 + 착용 부위 표시.
- * 그림 자원(SD 몸체·아이템)은 2단계에 넣는다.
+ * 아바타 그림: 피부톤 색 머리 + 얼굴(셀카면 서버 부위 PNG를 겹친 SD 얼굴, 받지 못했거나 기본 캐릭터면 글자 자리 그림)
+ * + 체형 단계 폭의 몸 + 착용 부위 표시. 그림 자원(SD 몸체·아이템)은 2단계에 넣는다.
  */
 @Composable
-internal fun AvatarFigure(avatar: Avatar, equippedNames: Map<ItemSlot, String?>, modifier: Modifier = Modifier) {
+internal fun AvatarFigure(
+    avatar: Avatar,
+    equippedNames: Map<ItemSlot, String?>,
+    modifier: Modifier = Modifier,
+    faceLayers: List<FaceLayer> = emptyList()
+) {
     val stage = bodyStage(avatar.bodyShape) ?: 1
     val description = buildString {
         append("아바타, ").append(faceLabel(avatar)).append(", 체형 ").append(bodyLabel(stage))
@@ -467,11 +476,20 @@ internal fun AvatarFigure(avatar: Avatar, equippedNames: Map<ItemSlot, String?>,
                 ),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                if (avatar.faceKey != null) "SD" else DefaultCharacter.of(avatar.defaultCharacterId)?.label ?: "?",
-                style = RunkkTextStyles.text(12, FontWeight.Black),
-                color = RunkkColors.OnLime
-            )
+            val placeholder: @Composable () -> Unit = {
+                Text(
+                    if (avatar.faceKey != null) "SD" else DefaultCharacter.of(avatar.defaultCharacterId)?.label ?: "?",
+                    style = RunkkTextStyles.text(12, FontWeight.Black),
+                    color = RunkkColors.OnLime
+                )
+            }
+            if (faceLayers.isEmpty()) {
+                placeholder()
+            } else {
+                RunkkAvatarFace(faceLayers, Modifier.fillMaxSize().testTag(FACE_TAG)) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { placeholder() }
+                }
+            }
         }
         Box(
             Modifier
@@ -516,6 +534,9 @@ private fun skinColor(tone: String): Color = when (tone) {
     "NIGHT" -> Color(0xFFA77B5C)
     else -> Color(0xFFE0B48F)
 }
+
+/** 셀카 얼굴 그림(시험이 찾는 표지). */
+internal const val FACE_TAG = "avatar-face"
 
 private const val BODY_BASE = 48
 private const val BODY_STEP = 8

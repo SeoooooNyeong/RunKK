@@ -36,7 +36,7 @@ class AvatarAndRunimalAndNotificationTest {
             """.trimMargin()
         )
 
-        val avatar = AvatarRepositoryImpl(api.retrofit.create()).avatar().value()
+        val avatar = AvatarRepositoryImpl(api.retrofit.create(), api.faces).avatar().value()
 
         assertEquals(
             Avatar(
@@ -58,7 +58,7 @@ class AvatarAndRunimalAndNotificationTest {
         val body = """{"bodyShape":"NORMAL","skinTone":"DAY"}"""
         api.reply(body)
         api.reply(body)
-        val repository = AvatarRepositoryImpl(api.retrofit.create())
+        val repository = AvatarRepositoryImpl(api.retrofit.create(), api.faces)
 
         repository.createFromSelfie(byteArrayOf(0xFF.toByte(), 0xD8.toByte()))
         repository.equip(mapOf(ItemSlot.HAT to null, ItemSlot.TOP to 12L))
@@ -79,7 +79,7 @@ class AvatarAndRunimalAndNotificationTest {
             """.trimMargin()
         )
 
-        val result = AvatarRepositoryImpl(api.retrofit.create()).createFromSelfie(byteArrayOf(1))
+        val result = AvatarRepositoryImpl(api.retrofit.create(), api.faces).createFromSelfie(byteArrayOf(1))
 
         assertEquals(Outcome.Failure(AppError.Rejected("NO_FACE")), result)
     }
@@ -92,7 +92,7 @@ class AvatarAndRunimalAndNotificationTest {
             """.trimMargin()
         )
 
-        val avatar = AvatarRepositoryImpl(api.retrofit.create()).createFromSelfie(byteArrayOf(1)).value()
+        val avatar = AvatarRepositoryImpl(api.retrofit.create(), api.faces).createFromSelfie(byteArrayOf(1)).value()
 
         assertEquals("face-1", avatar.faceKey)
         assertEquals(false, avatar.canCreateSelfieToday)
@@ -104,7 +104,7 @@ class AvatarAndRunimalAndNotificationTest {
             """{"items":[{"itemId":12,"slot":"TOP","name":"러닝 티","price":100,"owned":true,"onSale":true}],"balance":340}"""
         )
         api.reply("""{"balance":240}""")
-        val repository = AvatarRepositoryImpl(api.retrofit.create())
+        val repository = AvatarRepositoryImpl(api.retrofit.create(), api.faces)
 
         assertEquals(
             Shop(listOf(Shop.Item(12, ItemSlot.TOP, "러닝 티", 100, true, true)), 340),
