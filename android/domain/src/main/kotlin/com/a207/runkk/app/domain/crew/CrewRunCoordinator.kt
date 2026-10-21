@@ -28,6 +28,7 @@ import java.time.Clock
 import java.time.Duration
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
@@ -114,8 +115,8 @@ constructor(
     /**
      * 대기실만 나가기(출발 전, FR-147). 서버에 나가기를 알리고(CrewRepository.leaveLobby) 성공하면 채널을 닫고 이 회를 정리해
      * Idle로 돌린다(종료가 아니므로 Finished를 내지 않는다). 부른 화면의 범위가 취소돼도 알림과 정리는 applicationScope에서 끝낸다.
-     * 출발 예약(CrewRunStart)을 받은 뒤에는 서버에 보내지 않고 ALREADY_STARTED로 거부한다(그만두기는 quit). 실패하면 채널과
-     * 대기 상태를 그대로 두고 실패를 돌려준다.
+     * 출발 예약(CrewRunStart)을 받은 뒤에는 ALREADY_STARTED로 거부한다(그만두기는 quit). 정리는 회의 직렬 범위에서 예약 여부를
+     * 다시 보고 하므로, 서버가 나가기를 받는 사이 출발 예약이 와도 시작한 회를 닫지 않는다. 실패하면 채널과 대기 상태를 그대로 둔다.
      */
     suspend fun leaveLobby(postId: Long): Outcome<Unit> {
         val current = run?.takeIf { it.postId == postId }
@@ -123,14 +124,24 @@ constructor(
         return applicationScope
             .async {
                 when (val left = crewRepository.leaveLobby(postId)) {
-                    is Outcome.Success -> {
-                        current?.let(::closeQuietly)
+                    is Outcome.Success -> if (current == null || closeInRound(current)) {
                         Outcome.Success(Unit)
+                    } else {
+                        Outcome.Failure(AppError.Rejected(ALREADY_STARTED))
                     }
 
                     is Outcome.Failure -> left
                 }
             }.await()
+    }
+
+    /** 회의 직렬 범위에서 조용히 닫는다. 이미 닫힌 회면 참, 그 사이 출발 예약을 받았으면 거짓. */
+    private suspend fun closeInRound(run: CrewRun): Boolean {
+        val closed = CompletableDeferred<Boolean>()
+        val job = run.round.scope.launch { closed.complete(closeQuietly(run)) }
+        // 범위가 이미 닫혀 실행되지 못했으면(취소·종료로 정리된 회) 닫을 것이 없다.
+        job.invokeOnCompletion { closed.complete(true) }
+        return closed.await()
     }
 
     /** 결과 화면이 Finished를 보여 준 뒤 부른다. 다음 크루런 화면이 지난 회의 종료 상태를 받지 않게 Idle로 돌린다(S-17). */
@@ -217,13 +228,18 @@ constructor(
         run.round.cancel()
     }
 
-    /** 측정 전 회를 결과 없이 닫는다(대기실 나가기). 채널을 닫고 범위를 취소한 뒤 Idle로 돌린다. */
-    private fun closeQuietly(run: CrewRun) {
-        if (this.run !== run || run.isScheduled) return
+    /**
+     * 측정 전 회를 결과 없이 닫는다(대기실 나가기). 채널을 닫고 범위를 취소한 뒤 Idle로 돌린다. 회의 직렬 범위에서만 부른다.
+     * 출발 예약을 받았으면 닫지 않고 거짓, 이미 다른 회로 바뀌었으면 닫을 것이 없어 참.
+     */
+    private fun closeQuietly(run: CrewRun): Boolean {
+        if (run.isScheduled) return false
+        if (this.run !== run) return true
         this.run = null
         run.channel?.close()
         _state.update { if (it is CrewRunState.Lobby && it.postId == run.postId) CrewRunState.Idle else it }
         run.round.cancel()
+        return true
     }
 
     /** 이전 회가 남아 있으면 정리(측정 중이면 endRun, 채널 닫기, 범위 취소)하고 새 회를 연다. */

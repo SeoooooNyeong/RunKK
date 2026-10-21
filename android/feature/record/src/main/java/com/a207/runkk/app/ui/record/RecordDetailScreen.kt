@@ -20,6 +20,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -144,7 +145,9 @@ private fun DetailBody(detail: RecordDetail) {
         ) {
             CourseMapView(
                 points = detail.route,
-                unstable = unstableIndexRanges(detail.unstableSegments, s.elapsed, detail.route.size),
+                unstable = remember(detail.unstableSegments, s.elapsed, detail.route.size) {
+                    unstableIndexRanges(detail.unstableSegments, s.elapsed, detail.route.size)
+                },
                 modifier = Modifier.fillMaxWidth().weight(1f)
             )
             if (detail.route.size <
@@ -162,6 +165,7 @@ private fun DetailBody(detail: RecordDetail) {
             RunkkStatTile(
                 "거리",
                 RunkkFormat.km(s.distance),
+                spoken = "${RunkkFormat.km(s.distance)}킬로미터",
                 centered = true,
                 valueStyle = RunkkTextStyles.DisplaySmall,
                 modifier = Modifier.weight(1f)

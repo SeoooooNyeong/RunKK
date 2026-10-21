@@ -71,7 +71,6 @@ fun RunkkTextField(
 ) {
     val shape = RunkkShapes.Small
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(text = label, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
         BasicTextField(
             value = value,
             onValueChange = { next -> if (maxLength == null || next.length <= maxLength) onValueChange(next) },
@@ -87,21 +86,29 @@ fun RunkkTextField(
                 .semantics {
                     if (error != null) error(error)
                 },
+            // 라벨을 입력칸 장식 안에 두어 입력칸 노드가 라벨을 이름으로 읽게 한다(값이 있어도 "라벨, 값, 편집 상자").
             decorationBox = { inner ->
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 48.dp)
-                        .clip(shape)
-                        .background(RunkkColors.Surface)
-                        .border(1.dp, if (error != null) RunkkColors.Lavender else RunkkColors.InputBorder, shape)
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    contentAlignment = Alignment.CenterStart
-                ) {
-                    if (value.isEmpty() && placeholder != null) {
-                        Text(text = placeholder, style = RunkkTextStyles.text(16), color = RunkkColors.TextSecondary)
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(text = label, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .clip(shape)
+                            .background(RunkkColors.Surface)
+                            .border(1.dp, if (error != null) RunkkColors.Lavender else RunkkColors.InputBorder, shape)
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        if (value.isEmpty() && placeholder != null) {
+                            Text(
+                                text = placeholder,
+                                style = RunkkTextStyles.text(16),
+                                color = RunkkColors.TextSecondary
+                            )
+                        }
+                        inner()
                     }
-                    inner()
                 }
             }
         )

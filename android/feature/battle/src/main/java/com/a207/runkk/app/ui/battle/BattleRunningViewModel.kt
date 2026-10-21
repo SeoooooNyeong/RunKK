@@ -57,6 +57,8 @@ data class BattleRunningUiState(
     /** 먼저 도착한 사람(종료 카운트다운, FR-107). */
     val arrivedName: String? = null,
     val closingSeconds: Long? = null,
+    /** 종료 카운트다운이 시작될 때의 남은 초(보조 기술에 한 번 알리는 제한 시간, 매초 읽지 않게 고정). */
+    val closingLimitSeconds: Long? = null,
     val confirmingForfeit: Boolean = false,
     val hint: String? = null,
     val error: String? = null
@@ -186,7 +188,14 @@ class BattleRunningViewModel @Inject constructor(
             is BattleRunState.Closing -> if (s.battleId == battleId) {
                 closesAt = s.endsAt
                 sawRunning = true
-                _state.update { it.copy(phase = BattlePhase.CLOSING, arrivedName = s.arrivedName).withMine(s.mine) }
+                val limit = Duration.between(clock.instant(), s.endsAt).seconds.coerceAtLeast(0)
+                _state.update {
+                    it.copy(
+                        phase = BattlePhase.CLOSING,
+                        arrivedName = s.arrivedName,
+                        closingLimitSeconds = it.closingLimitSeconds ?: limit
+                    ).withMine(s.mine)
+                }
                 tick()
             }
 

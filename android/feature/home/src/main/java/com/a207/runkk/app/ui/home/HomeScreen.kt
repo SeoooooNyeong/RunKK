@@ -339,6 +339,7 @@ private fun SummaryTiles(dashboard: Dashboard?, onCoach: () -> Unit) {
             value = dashboard?.today?.let(RunkkFormat::km) ?: "0.00",
             unit = "KM",
             caption = dashboard?.let(::todayCaption) ?: "오늘 달린 거리",
+            spoken = todaySpoken(dashboard),
             valueStyle = RunkkTextStyles.display(32, lineHeightRatio = 1f),
             modifier = Modifier.weight(1f)
         )
@@ -422,6 +423,13 @@ internal fun todayCaption(dashboard: Dashboard): String = if (dashboard.todayRun
     "아직 달리지 않았어요"
 } else {
     "${RunkkFormat.duration(dashboard.todayElapsed)} · ${dashboard.todayRuns}회"
+}
+
+/** 오늘 칸 읽기 문구: "3.02킬로미터, 18분 20초, 2회"("KM"·"18:20"을 알파벳·시각으로 읽지 않게). */
+internal fun todaySpoken(dashboard: Dashboard?): String {
+    val km = "${RunkkFormat.km(dashboard?.today ?: Distance.ZERO)}킬로미터"
+    if (dashboard == null || dashboard.todayRuns <= 0) return "$km, 아직 달리지 않았어요"
+    return "$km, ${RunkkFormat.durationSpoken(dashboard.todayElapsed)}, ${dashboard.todayRuns}회"
 }
 
 /**

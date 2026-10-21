@@ -148,7 +148,8 @@ class BattleScreensTest {
                 )
             }
         }
-        compose.onNodeWithText("상대 연결 확인 중").assertExists()
+        compose.onNodeWithText("상대 연결 확인 중")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
         compose.onNodeWithText("LIVE BATTLE · 5K").assertContentDescriptionEquals("실시간 대결, 5킬로미터")
         compose.onNodeWithContentDescription("화면 잠금").performClick()
         state = state.copy(locked = true)

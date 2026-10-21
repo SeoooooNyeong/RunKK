@@ -179,16 +179,18 @@ fun RunkkErrorState(
     retryLabel: String = "다시 시도"
 ) {
     Column(
-        modifier = modifier.fillMaxWidth().padding(24.dp).semantics { liveRegion = LiveRegionMode.Polite },
+        modifier = modifier.fillMaxWidth().padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Icon(RunkkIcons.Alert, contentDescription = null, tint = RunkkColors.Lavender, modifier = Modifier.size(32.dp))
+        // 알림 영역은 문구에만 건다: 컨테이너에 걸면 텍스트 없는 노드라 공지가 비고, 합치면 다시 시도 버튼이 묻힌다.
         Text(
             text = message,
             style = RunkkTextStyles.Body,
             color = RunkkColors.TextPrimary,
-            textAlign = TextAlign.Center
+            textAlign = TextAlign.Center,
+            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
         )
         if (onRetry != null) RunkkPillButton(text = retryLabel, onClick = onRetry)
     }
@@ -201,11 +203,15 @@ fun RunkkHint(text: String, modifier: Modifier = Modifier) {
         modifier = modifier
             .clip(RunkkShapes.Medium)
             .background(RunkkColors.Surface)
-            .padding(horizontal = 16.dp, vertical = 12.dp)
-            .semantics { liveRegion = LiveRegionMode.Polite },
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(text = text, style = RunkkTextStyles.text(13, FontWeight.Bold), color = RunkkColors.Lavender)
+        Text(
+            text = text,
+            style = RunkkTextStyles.text(13, FontWeight.Bold),
+            color = RunkkColors.Lavender,
+            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+        )
     }
 }
 

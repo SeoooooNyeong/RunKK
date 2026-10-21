@@ -83,7 +83,7 @@ class HomeScreenTest {
             weekly = WeeklyGoalProgress(4, Distance(20_000), 2, Distance(12_000), 50, 60)
         )
         show(HomeUiState(loading = false, dashboard = dashboard, headerLoading = false))
-        compose.onNodeWithText("18:20 · 2회").performScrollTo().assertExists()
+        compose.onNodeWithContentDescription("오늘 3.02킬로미터, 18분 20초, 2회").performScrollTo().assertExists()
         compose.onNodeWithContentDescription("이번 주 목표 거리 60% 달성, 4회 중 2회")
             .performScrollTo()
             .assertHasClickAction()

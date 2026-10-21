@@ -14,6 +14,7 @@ import com.a207.runkk.app.domain.live.ProgressReport
 import com.a207.runkk.app.domain.live.TrackPoint
 import com.a207.runkk.app.domain.live.TrackTable
 import com.a207.runkk.app.domain.run.Guidance
+import com.a207.runkk.app.domain.run.RunProgress
 import com.a207.runkk.app.domain.run.RunTracker
 import com.a207.runkk.app.domain.run.sample
 import com.a207.runkk.app.domain.settings.GuidanceSettings
@@ -35,9 +36,11 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
@@ -48,11 +51,22 @@ private class FakeBattleRepository(private val log: CallLog) : BattleRepository 
     /** markStarted·forfeit가 돌려줄 실패(F-3). null이면 성공. */
     var reportFailure: AppError? = null
 
-    override suspend fun requestMatch(distance: Distance): Outcome<MatchAcceptance> = error("unused")
+    /** requestMatch를 붙잡아 두는 문(요청이 서버에 가 있는 동안 이탈하는 경우). */
+    var requestGate: CompletableDeferred<Unit>? = null
+
+    /** cancel이 돌려줄 실패. null이면 성공. */
+    var cancelFailure: AppError? = null
+
+    override suspend fun requestMatch(distance: Distance): Outcome<MatchAcceptance> {
+        log.add("battle.requestMatch:${distance.meters}")
+        requestGate?.await()
+        return Outcome.Success(MatchAcceptance(waiting = true, distance = distance))
+    }
 
     override suspend fun cancel(): Outcome<MatchAcceptance> {
         log.add("battle.cancel")
-        return Outcome.Success(MatchAcceptance(waiting = false, distance = null))
+        return cancelFailure?.let { Outcome.Failure(it) }
+            ?: Outcome.Success(MatchAcceptance(waiting = false, distance = null))
     }
 
     override suspend fun selfCandidates(): Outcome<RecordBattleCandidates> = error("unused")
@@ -532,6 +546,46 @@ class BattleRunCoordinatorTest {
         runCurrent()
         assertEquals(listOf("battle.cancel"), log.calls)
         assertTrue(parentJob.children.none(), "보낸 뒤 남는 작업이 없다")
+    }
+
+    @Test
+    fun `매칭 요청 중에 이탈하면 요청이 끝난 뒤에 대기열 취소를 보낸다`() = runTest {
+        val (_, coordinator) = setUp()
+        repository.requestGate = CompletableDeferred()
+        backgroundScope.launch { coordinator.requestMatch(Distance(3_000)) }
+        runCurrent()
+        coordinator.abandonMatching()
+        runCurrent()
+        assertEquals(listOf("battle.requestMatch:3000"), log.calls, "요청보다 취소가 먼저 가지 않는다")
+        repository.requestGate?.complete(Unit)
+        runCurrent()
+        assertEquals(listOf("battle.requestMatch:3000", "battle.cancel"), log.calls)
+    }
+
+    @Test
+    fun `이탈 취소를 다시 보내는 중에 새로 요청하면 남은 재시도를 멈춘다`() = runTest {
+        val (_, coordinator) = setUp()
+        repository.cancelFailure = AppError.Network
+        coordinator.abandonMatching()
+        runCurrent()
+        backgroundScope.launch { coordinator.requestMatch(Distance(5_000)) }
+        advanceTimeBy(10_000)
+        runCurrent()
+        assertEquals(listOf("battle.cancel", "battle.requestMatch:5000"), log.calls, "새 대기열 등록을 지우지 않는다")
+    }
+
+    @Test
+    fun `잠근 뒤 늦게 처리된 진행값이 잠금을 되돌리지 않는다`() = runTest {
+        val (tracker, coordinator) = setUp()
+        coordinator.onRecordBattleStart(selfStart)
+        advanceTimeBy(3_001)
+        tracker.runTo(1, 0.0)
+        runCurrent()
+        coordinator.lockScreen()
+        runCurrent()
+        coordinator.onProgress(RunProgress.INITIAL.copy(elapsed = Duration.ofSeconds(30), locked = false))
+        runCurrent()
+        assertTrue(assertIs<BattleRunState.Running>(coordinator.state.value).mine.locked)
     }
 
     private val match =

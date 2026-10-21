@@ -98,7 +98,8 @@ class MatchViewModel @Inject constructor(
         if (_state.value.phase != MatchPhase.CHOOSING) return
         _state.update { it.copy(phase = MatchPhase.REQUESTING, error = null) }
         viewModelScope.launch {
-            when (val accepted = battles.requestMatch(_state.value.distance)) {
+            // 조정자가 applicationScope에서 보낸다: 요청 중 화면이 사라져도 이탈 취소가 요청 뒤에 나간다.
+            when (val accepted = coordinator.requestMatch(_state.value.distance)) {
                 is Outcome.Success -> startWaiting()
 
                 is Outcome.Failure -> _state.update {

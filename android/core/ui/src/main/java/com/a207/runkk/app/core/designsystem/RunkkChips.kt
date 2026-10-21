@@ -24,11 +24,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -198,9 +201,17 @@ fun RunkkInfoChip(
     }
 }
 
-/** 상태 표시(높이 32, 모서리 16, 표면): "GPS 좋음", "화면 잠김". 앞에 점이나 아이콘을 둘 수 있다. */
+/**
+ * 상태 표시(높이 32, 모서리 16, 표면): "GPS 좋음", "화면 잠김". 앞에 점이나 아이콘을 둘 수 있다. [live]가 있으면 문구가 바뀔 때
+ * 보조 기술에 알린다(알림 영역은 문구 노드에 건다).
+ */
 @Composable
-fun RunkkStatusPill(label: String, modifier: Modifier = Modifier, leading: (@Composable () -> Unit)? = null) {
+fun RunkkStatusPill(
+    label: String,
+    modifier: Modifier = Modifier,
+    live: LiveRegionMode? = null,
+    leading: (@Composable () -> Unit)? = null
+) {
     Row(
         modifier = modifier
             .heightIn(min = 32.dp)
@@ -215,7 +226,9 @@ fun RunkkStatusPill(label: String, modifier: Modifier = Modifier, leading: (@Com
             text = label,
             style = RunkkTextStyles.Caption,
             color = RunkkColors.TextSecondary,
-            modifier = Modifier.spokenIfDifferent(label)
+            modifier = Modifier
+                .spokenIfDifferent(label)
+                .then(if (live != null) Modifier.semantics { liveRegion = live } else Modifier)
         )
     }
 }
@@ -337,7 +350,8 @@ fun RunkkTabRow(options: List<String>, selectedIndex: Int, onSelect: (Int) -> Un
                         label,
                         style = RunkkTextStyles.text(13, if (selected) FontWeight.Black else FontWeight.Normal),
                         color = if (selected) RunkkColors.OnLime else RunkkColors.TextSecondary,
-                        maxLines = 1
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }

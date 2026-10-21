@@ -147,6 +147,20 @@ class CrewRunCoordinatorTest {
     }
 
     @Test
+    fun `대기실 나가기 - 서버가 받는 사이 출발 예약이 오면 닫지 않고 ALREADY_STARTED`() = runTest {
+        val (_, coordinator) = setUp()
+        coordinator.onLobbyEntered(11, Distance(3_000), "나")
+        runCurrent()
+        var result: Outcome<Unit>? = null
+        live.channel.messages.emit(CrewRunStart(11, T0.plusSeconds(10), listOf("나")))
+        backgroundScope.launch(start = CoroutineStart.UNDISPATCHED) { result = coordinator.leaveLobby(11) }
+        runCurrent()
+        assertEquals(Outcome.Failure(AppError.Rejected("ALREADY_STARTED")), result)
+        assertEquals(false, live.channel.closed, "출발한 회의 채널을 닫지 않는다")
+        assertIs<CrewRunState.Countdown>(coordinator.state.value)
+    }
+
+    @Test
     fun `대기실 나가기 - 부른 쪽 범위가 취소돼도 서버 알림과 정리를 끝낸다`() = runTest {
         val (_, coordinator) = setUp()
         coordinator.onLobbyEntered(11, Distance(3_000), "나")

@@ -12,6 +12,7 @@ import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -139,6 +140,19 @@ class RunkkComponentsTest {
         }
         compose.onNode(hasSetTextAction()).performImeAction()
         assertEquals(1, searched)
+        // 라벨이 입력칸 노드의 이름이 된다(값이 있어도 무엇을 넣는 칸인지 읽힌다).
+        compose.onNode(hasSetTextAction() and hasText("크루 검색")).assertExists()
+    }
+
+    @Test
+    fun `상태 알약의 알림 영역은 문구 노드에 걸린다`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                RunkkStatusPill("상대 연결 확인 중", live = LiveRegionMode.Polite)
+            }
+        }
+        compose.onNodeWithText("상대 연결 확인 중")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
     }
 
     @Test

@@ -39,6 +39,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -335,7 +336,7 @@ fun RunkkCountdownBanner(text: String, spoken: String, modifier: Modifier = Modi
     ) {
         Text(
             text = text,
-            style = RunkkTextStyles.text(15, androidx.compose.ui.text.font.FontWeight.Black),
+            style = RunkkTextStyles.text(15, FontWeight.Black),
             color = RunkkColors.OnLime
         )
     }

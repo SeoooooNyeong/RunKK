@@ -216,10 +216,7 @@ private fun Header(state: BattleRunningUiState) {
         RunkkOverline("$label · ${distanceLabel(state.distance)}", color = RunkkColors.Lavender, heading = true)
         Spacer(Modifier.weight(1f))
         // 랜덤 대결은 상대 연결 상태(FR-088), 그 밖은 상대 이름. 연결 확인 중으로 바뀌면 보조 기술에 알린다.
-        RunkkStatusPill(
-            state.connectionLabel ?: opponentLabel(state),
-            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
-        )
+        RunkkStatusPill(state.connectionLabel ?: opponentLabel(state), live = LiveRegionMode.Polite)
     }
 }
 
@@ -309,7 +306,7 @@ private fun GuidanceBanner(state: BattleRunningUiState) {
         val arrived = state.arrivedName ?: "상대"
         RunkkCountdownBanner(
             text = "$arrived 도착! ${state.closingSeconds ?: 0}초 안에 도착하지 못하면 대결이 끝나요",
-            spoken = "$arrived 도착. 제한 시간 안에 도착하지 못하면 대결이 끝나요"
+            spoken = "$arrived 도착. ${state.closingLimitSeconds ?: state.closingSeconds ?: 0}초 안에 도착하지 못하면 대결이 끝나요"
         )
         return
     }
@@ -495,7 +492,7 @@ private fun LockedContent(state: BattleRunningUiState, actions: BattleLockAction
                 )
             }
             Spacer(Modifier.weight(1f))
-            state.connectionLabel?.let { RunkkStatusPill(it) }
+            state.connectionLabel?.let { RunkkStatusPill(it, live = LiveRegionMode.Polite) }
         }
         if (state.phase == BattlePhase.CLOSING) GuidanceBanner(state)
         Column(

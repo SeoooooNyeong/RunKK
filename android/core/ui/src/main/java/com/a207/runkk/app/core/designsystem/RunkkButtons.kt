@@ -303,9 +303,10 @@ fun RunkkLimePillButton(
             modifier = Modifier
                 .heightIn(min = 40.dp)
                 .runkkPressScale(interaction)
+                // 꺼지면 배경까지 흐리게(alpha는 뒤에 오는 그리기에만 걸린다).
+                .alpha(if (enabled) 1f else DISABLED_ALPHA)
                 .clip(RoundedCornerShape(20.dp))
                 .background(RunkkColors.Lime)
-                .alpha(if (enabled) 1f else DISABLED_ALPHA)
                 .padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically

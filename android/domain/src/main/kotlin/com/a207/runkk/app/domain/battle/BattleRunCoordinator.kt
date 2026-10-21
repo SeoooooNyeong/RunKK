@@ -30,8 +30,13 @@ import java.time.Clock
 import java.time.Duration
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -76,6 +81,14 @@ constructor(
 
     @Volatile
     private var run: BattleRun? = null
+
+    /** 서버에 가 있는 매칭 요청(이탈 취소가 요청보다 먼저 가지 않게 기다린다). */
+    @Volatile
+    private var requestJob: Deferred<Outcome<MatchAcceptance>>? = null
+
+    /** 이탈 뒤 대기열 취소(재시도 포함). 새 요청이 오면 멈춘다. */
+    @Volatile
+    private var abandonJob: Job? = null
 
     /** 랜덤 대결: 진행값을 실시간 채널로 보내고 상대 진행은 서버 메시지로 받는다. */
     private val liveOpponentFeed =
@@ -179,12 +192,29 @@ constructor(
     }
 
     /**
+     * 랜덤 매칭 요청(POST /battles/match, FR-080). applicationScope에서 보내 화면이 사라져도 응답을 받는다. 앞선 이탈의 취소
+     * 재시도가 남아 있으면 먼저 멈춰 새 대기열 등록을 지우지 않게 한다.
+     */
+    suspend fun requestMatch(distance: Distance): Outcome<MatchAcceptance> {
+        abandonJob?.cancelAndJoin()
+        abandonJob = null
+        val request = applicationScope.async { battleRepository.requestMatch(distance) }
+        requestJob = request
+        return request.await()
+    }
+
+    /**
      * 매칭 대기 중 화면이 사라질 때(시스템 제스처·탭 이동으로 ViewModel이 지워질 때) 서버 대기열에서 뺀다(FR-085).
-     * 화면 범위는 이미 취소됐으므로 applicationScope에서 보낸다. 네트워크 실패는 1·2초 뒤 두 번 더 보내고, 거부(이미 성사·대기 없음)는
-     * 다시 보내지 않는다.
+     * 화면 범위는 이미 취소됐으므로 applicationScope에서 보낸다. 요청이 아직 서버에 가 있으면 끝난 뒤에 보내고(취소가 먼저 도착해
+     * 대기열에 남지 않게), 요청이 받아들여지지 않았으면 보내지 않는다. 네트워크 실패는 1·2초 뒤 두 번 더 보내고, 거부(이미 성사·
+     * 대기 없음)는 다시 보내지 않는다.
      */
     fun abandonMatching() {
-        applicationScope.launch {
+        val pending = requestJob
+        requestJob = null
+        abandonJob?.cancel()
+        abandonJob = applicationScope.launch {
+            if (pending != null && pending.awaitOrNull() !is Outcome.Success) return@launch
             var attempt = 1
             var result = battleRepository.cancel()
             while (result is Outcome.Failure && result.error !is AppError.Rejected && attempt < CANCEL_ATTEMPTS) {
@@ -340,7 +370,18 @@ constructor(
         updateMine(run) { it.copy(locked = locked) }
     }
 
-    private fun RunProgress.toMine(): MyProgress = MyProgress(distance, elapsed, currentPace, averagePace, locked)
+    /**
+     * 진행값 → 내 측정값. 잠금 여부는 진행값이 아니라 RunTracker의 지금 값을 쓴다: 잠그기 전에 방출된 진행값이 잠근 뒤에
+     * 처리되면 잠금을 되돌릴 수 있다(잠금만 바뀐 방출은 경과가 같아 accept가 버린다).
+     */
+    private fun RunProgress.toMine(): MyProgress =
+        MyProgress(distance, elapsed, currentPace, averagePace, locked = runTracker.progress.value.locked)
+
+    private suspend fun Deferred<Outcome<MatchAcceptance>>.awaitOrNull(): Outcome<MatchAcceptance>? = try {
+        await()
+    } catch (e: CancellationException) {
+        null
+    }
 
     /** 추월·역전 안내. 대결 음성·진동 설정은 RunTracker가 적용한다(F-2). */
     private fun announce(kind: BattleGuidance.Kind, gapMeters: Int) {
