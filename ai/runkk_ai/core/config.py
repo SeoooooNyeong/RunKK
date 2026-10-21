@@ -46,6 +46,8 @@ class Settings(BaseSettings):
     face_api_url: str | None = None
     face_api_key: SecretStr | None = None
     max_image_bytes: int = Field(default=1024 * 1024, gt=0)
+    # 셀카 가로 × 세로 상한(머리 정보로 확인, L28). 기본 4096 × 4096
+    max_image_pixels: int = Field(default=4096 * 4096, gt=0)
 
     # 운영에서는 /docs·/openapi.json을 열지 않는다
     expose_docs: bool = False

@@ -7,7 +7,7 @@ import logging
 import time
 from dataclasses import dataclass
 
-from runkk_ai.face.schemas import PNG_SIGNATURE, FaceFailureReason, FacePart
+from runkk_ai.face.schemas import DEFAULT_MAX_IMAGE_PIXELS, PNG_SIGNATURE, FaceFailureReason, FacePart
 from runkk_ai.face.transformer import FaceTransformer, FaceTransformError, SdFacePartImages
 
 logger = logging.getLogger(__name__)
@@ -20,10 +20,17 @@ class FaceResult:
 
 
 class FaceTransformService:
-    def __init__(self, transformer: FaceTransformer, timeout_s: float, max_image_bytes: int) -> None:
+    def __init__(
+        self,
+        transformer: FaceTransformer,
+        timeout_s: float,
+        max_image_bytes: int,
+        max_image_pixels: int = DEFAULT_MAX_IMAGE_PIXELS,
+    ) -> None:
         self._transformer = transformer
         self._timeout_s = timeout_s
         self._max_image_bytes = max_image_bytes
+        self._max_image_pixels = max_image_pixels
 
     @property
     def timeout_s(self) -> float:
@@ -32,6 +39,10 @@ class FaceTransformService:
     @property
     def max_image_bytes(self) -> int:
         return self._max_image_bytes
+
+    @property
+    def max_image_pixels(self) -> int:
+        return self._max_image_pixels
 
     async def transform(self, image: bytes) -> FaceResult:
         started = time.perf_counter()
