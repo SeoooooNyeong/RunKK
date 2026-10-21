@@ -12,6 +12,7 @@ import com.a207.runkk.app.domain.avatar.ItemSlot
 import com.a207.runkk.app.domain.avatar.Shop
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -45,7 +46,14 @@ sealed interface AvatarSetupEvent {
  * 셀카 실패(동의 없음·하루 1회 초과·변환 실패)는 사유와 함께 기본 캐릭터 선택을 안내한다.
  */
 @HiltViewModel
-class AvatarSetupViewModel @Inject constructor(private val avatars: AvatarRepository) : ViewModel() {
+class AvatarSetupViewModel internal constructor(
+    private val avatars: AvatarRepository,
+    /** 셀카 줄이기 디스패처(리뷰 N-10). */
+    private val encodeDispatcher: CoroutineDispatcher
+) : ViewModel() {
+    @Inject
+    constructor(avatars: AvatarRepository) : this(avatars, Dispatchers.Default)
+
     private val _state = MutableStateFlow(AvatarSetupUiState())
     val state: StateFlow<AvatarSetupUiState> = _state.asStateFlow()
 
@@ -75,7 +83,7 @@ class AvatarSetupViewModel @Inject constructor(private val avatars: AvatarReposi
         if (_state.value.working) return
         _state.update { it.copy(working = true, error = null) }
         viewModelScope.launch {
-            val jpeg = withContext(Dispatchers.Default) { SelfieEncoder.encode(bitmap) }
+            val jpeg = withContext(encodeDispatcher) { SelfieEncoder.encode(bitmap) }
             upload(jpeg)
         }
     }

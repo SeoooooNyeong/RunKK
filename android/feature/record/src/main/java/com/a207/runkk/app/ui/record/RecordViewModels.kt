@@ -24,6 +24,7 @@ import java.time.Clock
 import java.time.LocalDate
 import java.time.YearMonth
 import javax.inject.Inject
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -196,12 +197,22 @@ data class RecordCardUiState(
  * CardSharer로 기기 저장·다른 앱·스토리에 공유한다.
  */
 @HiltViewModel
-class RecordCardViewModel @Inject constructor(
+class RecordCardViewModel internal constructor(
     private val records: RecordRepository,
     private val renderer: RunCardRenderer,
     private val sharer: CardSharer,
-    private val targets: CardShareTargets
+    private val targets: CardShareTargets,
+    /** 카드 그리기 디스패처(리뷰 N-10). */
+    private val renderDispatcher: CoroutineDispatcher
 ) : ViewModel() {
+    @Inject
+    constructor(
+        records: RecordRepository,
+        renderer: RunCardRenderer,
+        sharer: CardSharer,
+        targets: CardShareTargets
+    ) : this(records, renderer, sharer, targets, Dispatchers.Default)
+
     private val _state = MutableStateFlow(RecordCardUiState())
     val state: StateFlow<RecordCardUiState> = _state.asStateFlow()
     private var loadedId: String? = null
@@ -214,7 +225,7 @@ class RecordCardViewModel @Inject constructor(
             when (val result = records.card(recordId)) {
                 is Outcome.Success -> {
                     val card = result.value
-                    val (front, back) = withContext(Dispatchers.Default) {
+                    val (front, back) = withContext(renderDispatcher) {
                         renderer.render(card, CardSide.FRONT) to renderer.render(card, CardSide.BACK)
                     }
                     _state.update { it.copy(loading = false, card = card, front = front, back = back) }
