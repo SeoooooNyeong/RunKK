@@ -34,6 +34,8 @@ services:
       DB_NAME: ${DB_NAME}
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
+      # Hikari 최대 풀. 커밋 뒤 REQUIRES_NEW 수신자가 연결을 하나 더 쓰므로 10이면 크루런 동시 업로드에서 고갈된다(T-4). PostgreSQL max_connections(기본 100) 안에서
+      DB_POOL_SIZE: ${DB_POOL_SIZE:-50}
       REDIS_HOST: redis
       REDIS_PORT: ${REDIS_PORT:-6379}
       # 매칭 대기열·대결 세션 저장소 redis|jdbc(D-07, Redis 장기 장애 때 jdbc), 실시간 방식 websocket|polling(D-57)
