@@ -68,6 +68,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.timber)
 
     // Hilt: 바인딩 모듈, 측정·푸시 서비스(@AndroidEntryPoint)
     implementation(libs.hilt.android)
