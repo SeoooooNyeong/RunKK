@@ -81,4 +81,50 @@ object Routes {
     /** 기록 카드 팝업·공유(러닝 카드 앞뒤, FR-068·FR-069). ui.record가 그린다(ui.record → ui.share). */
     @Serializable
     data class RecordCard(val recordId: String) : NavKey
+
+    // 대결(ui.battle) 인자 화면(A3b)
+
+    /**
+     * 대결 진행(랜덤·고스트·나와의 싸움·유명인). 상대 표시명·대결 거리는 매칭 성사(MatchFound)·기록 대결 시작 정보에서 넘긴다.
+     * [opponentKind]는 RANDOM·SELF·CELEBRITY(고스트는 RANDOM으로 보인다, Q-02).
+     */
+    @Serializable
+    data class BattleRunning(
+        val battleId: Long,
+        val opponentName: String,
+        val distanceMeters: Long,
+        val opponentKind: String
+    ) : NavKey
+
+    /** 대결 결과(비교표, FR-093·FR-108). */
+    @Serializable
+    data class BattleResult(val battleId: Long) : NavKey
+
+    // 크루(ui.crew) 화면(A3b)
+
+    /** 크루 만들기(FR-110). */
+    const val CREW_CREATE = "crew/create"
+
+    /** 내 크루 홈(레이스·크루런·응원보드·크루원 탭). 크루 이름을 돌려주는 조회가 없어 넘긴다. */
+    @Serializable
+    data class CrewHome(val crewId: Long, val crewName: String) : NavKey
+
+    /** 크루 관리(크루장, FR-113~FR-116·FR-123·FR-127). */
+    @Serializable
+    data class CrewManage(val crewId: Long, val crewName: String) : NavKey
+
+    /** 크루런 모집글 쓰기(FR-132). */
+    @Serializable
+    data class CrewRunWrite(val crewId: Long) : NavKey
+
+    /**
+     * 크루런 대기실 → 카운트다운 → 진행 중 중계(한 화면, CrewRunCoordinator 상태). [distanceMeters]는 크루런 거리이고
+     * 모르면 null이다(게시판 목록에 거리 항목이 아직 없다).
+     */
+    @Serializable
+    data class CrewRunLobby(val postId: Long, val distanceMeters: Long?) : NavKey
+
+    /** 크루런 결과(FR-191). */
+    @Serializable
+    data class CrewRunResult(val postId: Long) : NavKey
 }
