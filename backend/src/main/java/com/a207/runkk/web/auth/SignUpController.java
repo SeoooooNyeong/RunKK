@@ -1,6 +1,8 @@
 package com.a207.runkk.web.auth;
 
+import com.a207.runkk.common.BusinessRuleException;
 import com.a207.runkk.common.PersonalityTag;
+import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.common.RecordVisibility;
 import com.a207.runkk.member.ConsentItem;
 import com.a207.runkk.member.Gender;
@@ -8,6 +10,7 @@ import com.a207.runkk.member.SignUpCommand;
 import com.a207.runkk.member.SignUpForm;
 import com.a207.runkk.member.SignUpResult;
 import com.a207.runkk.member.SignUpService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -33,15 +36,29 @@ public class SignUpController {
     private static final int TEXT_MAX = 500;
 
     private final SignUpService signUpService;
+    private final AuthAttemptGuard attempts;
 
-    public SignUpController(SignUpService signUpService) {
+    public SignUpController(SignUpService signUpService, AuthAttemptGuard attempts) {
         this.signUpService = signUpService;
+        this.attempts = attempts;
     }
 
+    /** 접속지·가입 티켓별 시도 제한을 넘으면 429. 위조·만료 티켓(SIGN_UP_TICKET_INVALID)을 실패로 센다(M5). */
     @PostMapping
-    ResponseEntity<SignUpResponse> signUp(@Valid @RequestBody SignUpRequest request) {
-        SignUpResult result =
-                signUpService.signUp(new SignUpCommand(request.signUpTicket(), request.toForm()));
+    ResponseEntity<SignUpResponse> signUp(
+            @Valid @RequestBody SignUpRequest request, HttpServletRequest http) {
+        AuthAttemptGuard.Attempt attempt = attempts.admit(http, request.signUpTicket());
+        SignUpResult result;
+        try {
+            result =
+                    signUpService.signUp(
+                            new SignUpCommand(request.signUpTicket(), request.toForm()));
+        } catch (BusinessRuleException e) {
+            if (e.reason() == ReasonCode.SIGN_UP_TICKET_INVALID) {
+                attempts.failed(attempt);
+            }
+            throw e;
+        }
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(
                         new SignUpResponse(

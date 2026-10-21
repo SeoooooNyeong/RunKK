@@ -1,6 +1,7 @@
 package com.a207.runkk.web.auth;
 
 import com.a207.runkk.member.TokenIssuer;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
@@ -21,6 +22,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  */
 @Configuration
 @EnableWebSecurity
+@EnableConfigurationProperties(AuthAttemptGuard.Limits.class)
 public class SecurityConfig {
 
     private static final String API = "/api/v1";

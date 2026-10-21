@@ -92,6 +92,13 @@ runkk:
       base-url: ${KAKAO_API_BASE_URL:https://kapi.kakao.com}
       # 토큰을 발급한 앱 ID. 비면 카카오 로그인은 "로그인 제공자 연결 실패"로 거부한다(다른 앱 토큰 대입 방지).
       app-id: ${KAKAO_APP_ID:}
+    # 공개 인증 경로(로그인·갱신·가입) 시도 제한(코드 리뷰 2차 M5, web.auth.AuthAttemptGuard). 넘으면 429 TOO_MANY_ATTEMPTS.
+    attempts:
+      client-requests: ${AUTH_CLIENT_REQUESTS_PER_MINUTE:30}
+      request-window: 1m
+      client-failures: 10
+      credential-failures: 5
+      failure-window: 10m
     google:
       base-url: ${GOOGLE_TOKENINFO_BASE_URL:https://oauth2.googleapis.com}
       # ID 토큰 aud로 받을 OAuth 클라이언트 ID(쉼표 구분). 비면 구글 로그인을 거부한다.

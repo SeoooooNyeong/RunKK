@@ -1,11 +1,13 @@
 package com.a207.runkk.web.auth;
 
 import com.a207.runkk.common.BusinessRuleException;
+import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.member.AuthFailureException;
 import com.a207.runkk.member.AuthService;
 import com.a207.runkk.member.LoginResult;
 import com.a207.runkk.member.ProviderType;
 import com.a207.runkk.member.TokenPair;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -29,23 +31,31 @@ public class AuthController {
     private static final int TOKEN_MAX = 4096;
 
     private final AuthService authService;
+    private final AuthAttemptGuard attempts;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, AuthAttemptGuard attempts) {
         this.authService = authService;
+        this.attempts = attempts;
     }
 
     /**
      * 로그인 실패는 BusinessRuleException(사유 코드)으로 던져 공통 오류 응답(code·message)이 된다: 401 AUTH_FAILED, 503
-     * PROVIDER_UNAVAILABLE(ApiExceptionHandler가 사유 코드로 상태를 고른다).
+     * PROVIDER_UNAVAILABLE(ApiExceptionHandler가 사유 코드로 상태를 고른다). 접속지·제공자 토큰별 시도 제한을 넘으면 429(M5).
      */
     @PostMapping("/login")
-    ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
+    ResponseEntity<LoginResponse> login(
+            @Valid @RequestBody LoginRequest request, HttpServletRequest http) {
+        AuthAttemptGuard.Attempt attempt =
+                attempts.admit(http, request.provider() + ":" + request.providerToken());
         LoginResult result = authService.login(request.provider(), request.providerToken());
         if (result.isLoggedIn()) {
             return ResponseEntity.ok(LoginResponse.loggedIn(result.tokens()));
         }
         if (result.isSignUpRequired()) {
             return ResponseEntity.ok(LoginResponse.signUpRequired(result.signUpTicket()));
+        }
+        if (result.failure() == ReasonCode.AUTH_FAILED) {
+            attempts.failed(attempt); // 제공자 무응답은 요청자 잘못이 아니라 세지 않는다
         }
         throw new BusinessRuleException(result.failure());
     }
@@ -58,11 +68,15 @@ public class AuthController {
         return ResponseEntity.noContent().build();
     }
 
+    /** 갱신 실패는 401(본문 없음). 접속지·갱신 토큰별 시도 제한을 넘으면 429(M5). */
     @PostMapping("/refresh")
-    ResponseEntity<TokenResponse> refresh(@Valid @RequestBody RefreshRequest request) {
+    ResponseEntity<TokenResponse> refresh(
+            @Valid @RequestBody RefreshRequest request, HttpServletRequest http) {
+        AuthAttemptGuard.Attempt attempt = attempts.admit(http, request.refreshToken());
         try {
             return ResponseEntity.ok(TokenResponse.of(authService.refresh(request.refreshToken())));
         } catch (AuthFailureException e) {
+            attempts.failed(attempt);
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
     }
