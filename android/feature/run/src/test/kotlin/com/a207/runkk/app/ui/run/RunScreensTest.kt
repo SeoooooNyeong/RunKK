@@ -87,14 +87,14 @@ class RunScreensTest {
 
     @Test
     fun `재동의가 필요하면 권한 허용과 동의 관리를 고를 수 있다`() {
-        show(RunUiState(phase = RunPhase.PREPARING, consentRequired = true))
+        show(RunUiState(phase = RunPhase.PREPARING, isConsentRequired = true))
         compose.onNodeWithText("위치 권한 허용").performClick()
         assertEquals(listOf("permission"), calls)
     }
 
     @Test
     fun `재동의 안내는 뒤로가기로 닫히고 동의 관리로 가지 않는다`() {
-        show(RunUiState(phase = RunPhase.PREPARING, consentRequired = true))
+        show(RunUiState(phase = RunPhase.PREPARING, isConsentRequired = true))
         compose.onNodeWithText("위치 권한이 필요해요").assertExists()
         androidx.test.espresso.Espresso.pressBack()
         compose.waitForIdle()
@@ -109,11 +109,11 @@ class RunScreensTest {
             RunkkTheme(reduceMotion = true) {
                 RunResultScreen(
                     RunResultUiState(
-                        loading = false,
+                        isLoading = false,
                         recordId = "r",
                         distance = Distance(5_020),
                         startedAt = start,
-                        uploaded = true,
+                        isUploaded = true,
                         newRecords = listOf("최장 거리 신기록")
                     ),
                     onCard = { card++ },

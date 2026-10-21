@@ -31,13 +31,13 @@ class RecordScreensTest {
     @Test
     fun `달력은 달린 날을 km로 읽어 주고 기록을 누르면 상세로 간다`() {
         val opened = mutableListOf<String>()
-        val runs = listOf(summary("r3", 20, 5_020), summary("r1", 14, 2_000, valid = false))
+        val runs = listOf(summary("r3", 20, 5_020), summary("r1", 14, 2_000, isValid = false))
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 RecordListScreen(
                     state = RecordListUiState(
                         month = YearMonth.of(2026, 10),
-                        loading = false,
+                        isLoading = false,
                         runs = runs,
                         dailyDistance = mapOf(LocalDate.of(2026, 10, 20) to Distance(5_020)),
                         zone = zone
@@ -65,8 +65,17 @@ class RecordScreensTest {
         var shared = 0
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
-                RecordDetailScreen(RecordDetailUiState(loading = false, recordId = "r1", detail = detail()), onBack = {
-                }, onShare = { shared++ }, onRetry = {})
+                RecordDetailScreen(
+                    RecordDetailUiState(
+                        isLoading = false,
+                        recordId = "r1",
+                        detail = detail()
+                    ),
+                    onBack = {
+                    },
+                    onShare = { shared++ },
+                    onRetry = {}
+                )
             }
         }
         compose.onNodeWithContentDescription("코스 지도").assertExists()
@@ -89,7 +98,7 @@ class RecordScreensTest {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 RecordDetailScreen(
-                    RecordDetailUiState(loading = false, recordId = "r1", detail = withSplits),
+                    RecordDetailUiState(isLoading = false, recordId = "r1", detail = withSplits),
                     onBack = {},
                     onShare = {},
                     onRetry = {}
@@ -110,7 +119,7 @@ class RecordScreensTest {
             RunkkTheme(reduceMotion = true) {
                 RecordDetailScreen(
                     RecordDetailUiState(
-                        loading = false,
+                        isLoading = false,
                         error = UiText.Plain("네트워크에 연결할 수 없어요")
                     ),
                     onBack = {

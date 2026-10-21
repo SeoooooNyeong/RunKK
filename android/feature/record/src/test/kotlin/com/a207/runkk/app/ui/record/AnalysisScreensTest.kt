@@ -36,7 +36,7 @@ class AnalysisScreensTest {
     private val coach = CoachUiState(
         weekStart = week,
         today = week.plusDays(2),
-        loading = false,
+        isLoading = false,
         progress = PlanProgress(
             listOf(
                 PlanProgress.Day(week, Distance(5_000), Distance(5_200), null),
@@ -51,7 +51,7 @@ class AnalysisScreensTest {
         val calls = mutableListOf<Any>()
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
-                RankingScreen(RankingUiState(loading = false, ranking = sampleRanking), {
+                RankingScreen(RankingUiState(isLoading = false, ranking = sampleRanking), {
                 }, onScope = { calls += it }, onPeriod = {
                     calls +=
                         it
@@ -107,7 +107,7 @@ class AnalysisScreensTest {
             RunkkTheme(reduceMotion = true) {
                 RankingScreen(
                     RankingUiState(
-                        loading = false,
+                        isLoading = false,
                         ranking = sampleRanking.copy(entries = emptyList(), mine = null, aggregatedAt = null)
                     ),
                     {},
@@ -124,7 +124,7 @@ class AnalysisScreensTest {
     fun `랭킹 줄은 순위·이름·거리를 한 문장으로 읽는다`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
-                RankingScreen(RankingUiState(loading = false, ranking = sampleRanking), {}, {}, {}, {})
+                RankingScreen(RankingUiState(isLoading = false, ranking = sampleRanking), {}, {}, {}, {})
             }
         }
         compose.onNodeWithContentDescription("1위 바람, 48.00킬로미터").assertExists()
@@ -135,7 +135,7 @@ class AnalysisScreensTest {
     fun `랭킹 범위·기간을 바꾸면 내 순위 카드가 바뀐 결과를 알린다`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
-                RankingScreen(RankingUiState(loading = false, ranking = sampleRanking), {}, {}, {}, {})
+                RankingScreen(RankingUiState(isLoading = false, ranking = sampleRanking), {}, {}, {}, {})
             }
         }
         compose.onNode(
@@ -149,14 +149,14 @@ class AnalysisScreensTest {
 
     @Test
     fun growthShot() = compose.captureRunkkScreen("record_growth") {
-        GrowthScreen(GrowthUiState(loading = false, growth = sampleGrowth), {}, {}, {})
+        GrowthScreen(GrowthUiState(isLoading = false, growth = sampleGrowth), {}, {}, {})
     }
 
     @Test
     fun reportShot() = compose.captureRunkkScreen("record_report") {
         ReportScreen(
             ReportUiState(
-                loading = false,
+                isLoading = false,
                 report = Report("이번 주 3회, 15.2km · 평균 5:38", "지난주보다 페이스가 10초 빨라졌어요. 이 흐름이면 10K도 충분해요", "AI")
             ),
             {
@@ -167,7 +167,7 @@ class AnalysisScreensTest {
 
     @Test
     fun rankingShot() = compose.captureRunkkScreen("record_ranking") {
-        RankingScreen(RankingUiState(loading = false, ranking = sampleRanking), {}, {}, {}, {})
+        RankingScreen(RankingUiState(isLoading = false, ranking = sampleRanking), {}, {}, {}, {})
     }
 
     @Test

@@ -33,7 +33,7 @@ import kotlinx.coroutines.launch
 
 data class GrowthUiState(
     val period: AggregationPeriod = AggregationPeriod.WEEKLY,
-    val loading: Boolean = true,
+    val isLoading: Boolean = true,
     val growth: Growth? = null,
     val error: UiText? = null
 )
@@ -55,13 +55,13 @@ class GrowthViewModel @Inject constructor(private val records: RecordRepository)
 
     fun refresh() {
         val period = _state.value.period
-        _state.update { it.copy(loading = true, error = null) }
+        _state.update { it.copy(isLoading = true, error = null) }
         viewModelScope.launch {
             when (val result = records.growth(period)) {
-                is Outcome.Success -> _state.update { it.copy(loading = false, growth = result.value) }
+                is Outcome.Success -> _state.update { it.copy(isLoading = false, growth = result.value) }
 
                 is Outcome.Failure -> _state.update {
-                    it.copy(loading = false, error = RunkkErrorText.of(result.error))
+                    it.copy(isLoading = false, error = RunkkErrorText.of(result.error))
                 }
             }
         }
@@ -70,7 +70,7 @@ class GrowthViewModel @Inject constructor(private val records: RecordRepository)
 
 // ---------- 리포트(FR-064~FR-067) ----------
 
-data class ReportUiState(val loading: Boolean = true, val report: Report? = null, val error: UiText? = null) {
+data class ReportUiState(val isLoading: Boolean = true, val report: Report? = null, val error: UiText? = null) {
     /** 코멘트가 아직 없으면 "코멘트 준비 중"(FR-066). */
     val commentText: UiText
         get() = report?.comment?.let(UiText::Plain) ?: UiText.Res(R.string.record_report_comment_pending)
@@ -91,13 +91,13 @@ class ReportViewModel @Inject constructor(private val records: RecordRepository)
     }
 
     fun refresh() {
-        _state.update { it.copy(loading = true, error = null) }
+        _state.update { it.copy(isLoading = true, error = null) }
         viewModelScope.launch {
             when (val result = records.report()) {
-                is Outcome.Success -> _state.update { it.copy(loading = false, report = result.value) }
+                is Outcome.Success -> _state.update { it.copy(isLoading = false, report = result.value) }
 
                 is Outcome.Failure -> _state.update {
-                    it.copy(loading = false, error = RunkkErrorText.of(result.error))
+                    it.copy(isLoading = false, error = RunkkErrorText.of(result.error))
                 }
             }
         }
@@ -114,7 +114,7 @@ enum class RankingScope(@StringRes val labelRes: Int) {
 data class RankingUiState(
     val scope: RankingScope = RankingScope.PERSONAL,
     val period: AggregationPeriod = AggregationPeriod.WEEKLY,
-    val loading: Boolean = true,
+    val isLoading: Boolean = true,
     val ranking: Ranking? = null,
     val error: UiText? = null
 )
@@ -142,17 +142,17 @@ class RankingViewModel @Inject constructor(private val records: RecordRepository
 
     fun refresh() {
         val s = _state.value
-        _state.update { it.copy(loading = true, error = null) }
+        _state.update { it.copy(isLoading = true, error = null) }
         viewModelScope.launch {
             val result = when (s.scope) {
                 RankingScope.PERSONAL -> records.personalRanking(s.period)
                 RankingScope.CREW -> records.crewRanking(s.period)
             }
             when (result) {
-                is Outcome.Success -> _state.update { it.copy(loading = false, ranking = result.value) }
+                is Outcome.Success -> _state.update { it.copy(isLoading = false, ranking = result.value) }
 
                 is Outcome.Failure -> _state.update {
-                    it.copy(loading = false, ranking = null, error = RunkkErrorText.of(result.error))
+                    it.copy(isLoading = false, ranking = null, error = RunkkErrorText.of(result.error))
                 }
             }
         }
@@ -164,9 +164,9 @@ class RankingViewModel @Inject constructor(private val records: RecordRepository
 data class CoachUiState(
     val weekStart: LocalDate,
     val today: LocalDate,
-    val loading: Boolean = true,
+    val isLoading: Boolean = true,
     val progress: PlanProgress? = null,
-    val saving: Boolean = false,
+    val isSaving: Boolean = false,
     val message: UiText? = null,
     val error: UiText? = null,
     /** 고른 주간 목표 횟수(1~7). */
@@ -175,7 +175,7 @@ data class CoachUiState(
     val goalDistance: Distance? = null
 ) {
     /** 서버는 횟수·거리를 둘 다 받아야 한다(PUT /goals/weekly, 없으면 400). */
-    val canSaveGoal: Boolean get() = goalRuns != null && goalDistance != null && !saving
+    val canSaveGoal: Boolean get() = goalRuns != null && goalDistance != null && !isSaving
 
     companion object {
         /** 주간 목표 횟수 범위(FR-072). */
@@ -196,20 +196,20 @@ class CoachViewModel @Inject constructor(private val records: RecordRepository, 
     }
 
     fun refresh() {
-        _state.update { it.copy(loading = true, error = null) }
+        _state.update { it.copy(isLoading = true, error = null) }
         viewModelScope.launch {
             when (val result = records.planProgress(weekStart, weekStart.plusDays(DAYS_IN_WEEK - 1L))) {
-                is Outcome.Success -> _state.update { it.copy(loading = false, progress = result.value) }
+                is Outcome.Success -> _state.update { it.copy(isLoading = false, progress = result.value) }
 
                 is Outcome.Failure -> _state.update {
-                    it.copy(loading = false, error = RunkkErrorText.of(result.error))
+                    it.copy(isLoading = false, error = RunkkErrorText.of(result.error))
                 }
             }
         }
     }
 
     fun onTodayPlan(distance: Distance) =
-        save(uiText(R.string.record_coach_today_plan_saved, km(distance)), reload = true) {
+        save(uiText(R.string.record_coach_today_plan_saved, km(distance)), shouldReload = true) {
             records.putPlan(today, distance, null)
         }
 
@@ -226,25 +226,25 @@ class CoachViewModel @Inject constructor(private val records: RecordRepository, 
         val s = _state.value
         val runs = s.goalRuns ?: return
         val distance = s.goalDistance ?: return
-        save(uiText(R.string.record_coach_goal_saved, runs, km(distance)), reload = false) {
+        save(uiText(R.string.record_coach_goal_saved, runs, km(distance)), shouldReload = false) {
             records.setWeeklyGoal(distance, runs)
         }
     }
 
     fun onMessageShown() = _state.update { it.copy(message = null) }
 
-    private fun save(done: UiText, reload: Boolean, call: suspend () -> Outcome<Unit>) {
-        if (_state.value.saving) return
-        _state.update { it.copy(saving = true) }
+    private fun save(done: UiText, shouldReload: Boolean, call: suspend () -> Outcome<Unit>) {
+        if (_state.value.isSaving) return
+        _state.update { it.copy(isSaving = true) }
         viewModelScope.launch {
             val result = call()
             _state.update {
                 it.copy(
-                    saving = false,
+                    isSaving = false,
                     message = if (result is Outcome.Failure) RunkkErrorText.of(result.error) else done
                 )
             }
-            if (result is Outcome.Success && reload) refresh()
+            if (result is Outcome.Success && shouldReload) refresh()
         }
     }
 

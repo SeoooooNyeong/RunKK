@@ -79,7 +79,7 @@ fun RunResultRoute(recordId: String, viewModel: RunResultViewModel = hiltViewMod
         state = state,
         onCard = { navigator.navigate(Routes.RecordCard(recordId)) },
         onHome = { navigator.restart(Routes.HOME) },
-        onRetry = { viewModel.load(recordId, force = true) }
+        onRetry = { viewModel.load(recordId, isForced = true) }
     )
 }
 
@@ -98,7 +98,7 @@ fun RunResultScreen(
         ) {
             Header(state)
             when {
-                state.distance == null && state.loading -> Box(Modifier.fillMaxWidth().height(240.dp)) {
+                state.distance == null && state.isLoading -> Box(Modifier.fillMaxWidth().height(240.dp)) {
                     RunkkLoading()
                 }
 
@@ -118,7 +118,7 @@ fun RunResultScreen(
             RunkkSecondaryButton(
                 stringResource(R.string.run_result_card),
                 onClick = onCard,
-                enabled = state.uploaded,
+                isEnabled = state.isUploaded,
                 modifier = Modifier.weight(1f)
             )
             RunkkPrimaryButton(
@@ -146,9 +146,9 @@ private fun Header(state: RunResultUiState) {
             modifier = Modifier.weight(1f)
         )
         Text(
-            text = stringResource(if (state.uploaded) R.string.run_result_saved else R.string.run_result_sending),
+            text = stringResource(if (state.isUploaded) R.string.run_result_saved else R.string.run_result_sending),
             style = RunkkTextStyles.Caption,
-            color = if (state.uploaded) RunkkColors.Lime else RunkkColors.TextSecondary
+            color = if (state.isUploaded) RunkkColors.Lime else RunkkColors.TextSecondary
         )
     }
 }
@@ -156,7 +156,7 @@ private fun Header(state: RunResultUiState) {
 @Composable
 private fun ResultBody(state: RunResultUiState) {
     state.newRecords.firstOrNull()?.let { record ->
-        RunkkBanner(record, strong = true) {
+        RunkkBanner(record, isStrong = true) {
             Icon(
                 RunkkIcons.Trophy,
                 contentDescription = null,
@@ -365,7 +365,7 @@ private fun RunResultPreview() {
     RunkkTheme(reduceMotion = true) {
         RunResultScreen(
             state = RunResultUiState(
-                loading = false,
+                isLoading = false,
                 recordId = "r",
                 cardKind = CardKind.FREE_RUN,
                 startedAt = Instant.parse("2026-10-20T10:00:00Z"),
@@ -388,7 +388,7 @@ private fun RunResultPreview() {
                     "Z4" to Duration.ofMinutes(5),
                     "Z5" to Duration.ofMinutes(2)
                 ),
-                uploaded = true
+                isUploaded = true
             ),
             onCard = {},
             onHome = {},

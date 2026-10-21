@@ -42,7 +42,7 @@ enum class RecordView { CALENDAR, LIST }
 data class RecordListUiState(
     val month: YearMonth,
     val view: RecordView = RecordView.CALENDAR,
-    val loading: Boolean = true,
+    val isLoading: Boolean = true,
     val runs: List<RunSummary> = emptyList(),
     val dailyDistance: Map<LocalDate, Distance> = emptyMap(),
     val pendingCount: Int = 0,
@@ -79,7 +79,7 @@ class RecordListViewModel @Inject constructor(
 
     fun refresh() {
         val month = _state.value.month
-        _state.update { it.copy(loading = true, error = null) }
+        _state.update { it.copy(isLoading = true, error = null) }
         viewModelScope.launch {
             when (val result = records.runs(RecordRepository.SELF, month.atDay(1), month.atEndOfMonth())) {
                 is Outcome.Success -> {
@@ -93,7 +93,7 @@ class RecordListViewModel @Inject constructor(
                         ) {
                             it
                         } else {
-                            it.copy(loading = false, runs = runs, dailyDistance = daily)
+                            it.copy(isLoading = false, runs = runs, dailyDistance = daily)
                         }
                     }
                 }
@@ -105,7 +105,7 @@ class RecordListViewModel @Inject constructor(
                         it
                     } else {
                         it.copy(
-                            loading = false,
+                            isLoading = false,
                             runs = emptyList(),
                             dailyDistance = emptyMap(),
                             error = RunkkErrorText.of(result.error)
@@ -131,7 +131,7 @@ class RecordListViewModel @Inject constructor(
 // ---------- 기록 상세 ----------
 
 data class RecordDetailUiState(
-    val loading: Boolean = true,
+    val isLoading: Boolean = true,
     val recordId: String? = null,
     val detail: RecordDetail? = null,
     val error: UiText? = null
@@ -143,15 +143,15 @@ class RecordDetailViewModel @Inject constructor(private val records: RecordRepos
     private val _state = MutableStateFlow(RecordDetailUiState())
     val state: StateFlow<RecordDetailUiState> = _state.asStateFlow()
 
-    fun load(recordId: String, force: Boolean = false) {
-        if (!force && _state.value.recordId == recordId && _state.value.detail != null) return
+    fun load(recordId: String, isForced: Boolean = false) {
+        if (!isForced && _state.value.recordId == recordId && _state.value.detail != null) return
         _state.value = RecordDetailUiState(recordId = recordId)
         viewModelScope.launch {
             when (val result = records.run(recordId)) {
-                is Outcome.Success -> _state.update { it.copy(loading = false, detail = result.value) }
+                is Outcome.Success -> _state.update { it.copy(isLoading = false, detail = result.value) }
 
                 is Outcome.Failure -> _state.update {
-                    it.copy(loading = false, error = RecordErrorText.of(result.error))
+                    it.copy(isLoading = false, error = RecordErrorText.of(result.error))
                 }
             }
         }
@@ -181,12 +181,12 @@ class CardShareTargets(val save: ShareTarget, val system: ShareTarget, val story
 }
 
 data class RecordCardUiState(
-    val loading: Boolean = true,
+    val isLoading: Boolean = true,
     val card: RunCard? = null,
     val front: Bitmap? = null,
     val back: Bitmap? = null,
     val side: CardSide = CardSide.FRONT,
-    val sharing: Boolean = false,
+    val isSharing: Boolean = false,
     val message: UiText? = null,
     val error: UiText? = null
 ) {
@@ -230,12 +230,12 @@ class RecordCardViewModel internal constructor(
                     val (front, back) = withContext(renderDispatcher) {
                         renderer.render(card, CardSide.FRONT) to renderer.render(card, CardSide.BACK)
                     }
-                    _state.update { it.copy(loading = false, card = card, front = front, back = back) }
+                    _state.update { it.copy(isLoading = false, card = card, front = front, back = back) }
                 }
 
                 is Outcome.Failure -> {
                     loadedId = null
-                    _state.update { it.copy(loading = false, error = RecordErrorText.of(result.error)) }
+                    _state.update { it.copy(isLoading = false, error = RecordErrorText.of(result.error)) }
                 }
             }
         }
@@ -248,11 +248,11 @@ class RecordCardViewModel internal constructor(
     fun onShare(kind: CardShareKind) {
         val s = _state.value
         val bitmap = (if (s.side == CardSide.FRONT) s.front else s.back) ?: return
-        if (s.sharing) return
-        _state.update { it.copy(sharing = true) }
+        if (s.isSharing) return
+        _state.update { it.copy(isSharing = true) }
         viewModelScope.launch {
             val outcome = sharer.share(bitmap, s.side, targets.of(kind))
-            _state.update { it.copy(sharing = false, message = messageOf(outcome)) }
+            _state.update { it.copy(isSharing = false, message = messageOf(outcome)) }
         }
     }
 

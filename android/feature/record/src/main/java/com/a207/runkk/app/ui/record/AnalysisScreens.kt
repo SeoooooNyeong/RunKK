@@ -77,7 +77,7 @@ private fun periodLabels(): List<String> = PERIODS.map { stringResource(it.secon
 @Composable
 private fun AnalysisScaffold(
     title: String,
-    loading: Boolean,
+    isLoading: Boolean,
     error: UiText?,
     onBack: () -> Unit,
     onRetry: () -> Unit,
@@ -94,7 +94,7 @@ private fun AnalysisScaffold(
         ) {
             header()
             when {
-                loading -> Box(Modifier.fillMaxWidth().padding(vertical = 48.dp)) { RunkkLoading() }
+                isLoading -> Box(Modifier.fillMaxWidth().padding(vertical = 48.dp)) { RunkkLoading() }
                 error != null -> RunkkErrorState(error.asString(), onRetry = onRetry)
                 else -> content()
             }
@@ -115,7 +115,7 @@ fun GrowthRoute(viewModel: GrowthViewModel = hiltViewModel()) {
 fun GrowthScreen(state: GrowthUiState, onBack: () -> Unit, onPeriod: (AggregationPeriod) -> Unit, onRetry: () -> Unit) {
     AnalysisScaffold(
         title = stringResource(R.string.record_growth_title),
-        loading = state.loading && state.growth == null,
+        isLoading = state.isLoading && state.growth == null,
         error = state.error,
         onBack = onBack,
         onRetry = onRetry,
@@ -245,7 +245,7 @@ fun ReportRoute(viewModel: ReportViewModel = hiltViewModel()) {
 fun ReportScreen(state: ReportUiState, onBack: () -> Unit, onRetry: () -> Unit) {
     AnalysisScaffold(
         title = stringResource(R.string.record_report_title),
-        loading = state.loading && state.report == null,
+        isLoading = state.isLoading && state.report == null,
         error = state.error,
         onBack = onBack,
         onRetry = onRetry
@@ -315,7 +315,7 @@ fun RankingScreen(
 ) {
     AnalysisScaffold(
         title = stringResource(R.string.record_ranking_title),
-        loading = state.loading && state.ranking == null,
+        isLoading = state.isLoading && state.ranking == null,
         error = state.error,
         onBack = onBack,
         onRetry = onRetry,
@@ -366,7 +366,7 @@ private fun RankingTabs(
             it.first == period
         },
         onSelect = { onPeriod(PERIODS[it].first) },
-        compact = true
+        isCompact = true
     )
 }
 
@@ -446,10 +446,10 @@ private fun RankingEntryRow(entry: Ranking.Entry, isMine: Boolean) {
 
 /** 랭킹 한 줄 읽기: "2위 달리는곰, 41.20킬로미터, 나". */
 @Composable
-internal fun rankingSpoken(entry: Ranking.Entry, mine: Boolean): String = listOfNotNull(
+internal fun rankingSpoken(entry: Ranking.Entry, isMine: Boolean): String = listOfNotNull(
     stringResource(R.string.record_ranking_spoken_entry, entry.rank, entry.name),
     stringResource(R.string.record_distance_spoken, RunkkFormat.km(entry.distance)),
-    if (mine) stringResource(R.string.record_ranking_spoken_me) else null
+    if (isMine) stringResource(R.string.record_ranking_spoken_me) else null
 ).joinToString(", ")
 
 // ---------- 목표·러닝 코치 ----------
@@ -496,13 +496,13 @@ fun CoachScreen(state: CoachUiState, actions: CoachActions) {
     Box(Modifier.fillMaxSize()) {
         AnalysisScaffold(
             title = stringResource(R.string.record_coach_title),
-            loading = state.loading && state.progress == null,
+            isLoading = state.isLoading && state.progress == null,
             error = state.error,
             onBack = actions.onBack,
             onRetry = actions.onRetry
         ) {
             CoachWeekCard(state)
-            TodayPlanCard(saving = state.saving, onTodayPlan = actions.onTodayPlan)
+            TodayPlanCard(isSaving = state.isSaving, onTodayPlan = actions.onTodayPlan)
             WeeklyGoalCard(state, actions)
         }
         RunkkSnackbarHost(snackbar, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp))
@@ -575,7 +575,7 @@ private fun CoachDayRow(day: PlanProgress.Day, isToday: Boolean) {
 /** 오늘 계획 정하기 카드: 거리 알약 버튼. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun TodayPlanCard(saving: Boolean, onTodayPlan: (Distance) -> Unit) {
+private fun TodayPlanCard(isSaving: Boolean, onTodayPlan: (Distance) -> Unit) {
     RunkkCard(Modifier.fillMaxWidth()) {
         Text(
             stringResource(R.string.record_coach_today_title),
@@ -586,7 +586,7 @@ private fun TodayPlanCard(saving: Boolean, onTodayPlan: (Distance) -> Unit) {
             PLAN_CHOICES.forEach { km ->
                 RunkkPillButton(stringResource(R.string.record_km_int_value, km), onClick = {
                     onTodayPlan(Distance.ofKm(km.toDouble()))
-                }, enabled = !saving)
+                }, isEnabled = !isSaving)
             }
         }
     }
@@ -620,8 +620,8 @@ private fun WeeklyGoalCard(state: CoachUiState, actions: CoachActions) {
         RunkkPrimaryButton(
             stringResource(R.string.record_goal_save),
             onClick = actions.onSaveGoal,
-            enabled = state.canSaveGoal,
-            loading = state.saving,
+            isEnabled = state.canSaveGoal,
+            isLoading = state.isSaving,
             modifier = Modifier.fillMaxWidth()
         )
     }

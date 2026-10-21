@@ -121,7 +121,7 @@ class RecordViewModelsTest {
         val target = CountingTarget(ShareOutcome.Saved)
         val vm = cardViewModel(shared = true, target)
         vm.load("r1")
-        eventually { !vm.state.value.loading }
+        eventually { !vm.state.value.isLoading }
         assertNotNull(vm.state.value.front)
         assertNotNull(vm.state.value.back)
         vm.onShare(CardShareKind.SAVE)
@@ -136,7 +136,7 @@ class RecordViewModelsTest {
         records.cardResult = Outcome.Success(runCard(shared = false))
         val vm = cardViewModel(shared = false, target)
         vm.load("r1")
-        eventually { !vm.state.value.loading }
+        eventually { !vm.state.value.isLoading }
         vm.onSideSelected(CardSide.BACK)
         vm.onShare(CardShareKind.SYSTEM)
         eventually { vm.state.value.message != null }

@@ -33,13 +33,13 @@ class RecordScreenshotTest {
         summary("r4", 17, 5_000, kind = CardKind.BATTLE_RUN),
         summary("r3", 14, 10_200),
         summary("r2", 12, 4_100, kind = CardKind.CREW_RUN),
-        summary("r1", 8, 2_000, valid = false)
+        summary("r1", 8, 2_000, isValid = false)
     )
 
     private fun listState(view: RecordView) = RecordListUiState(
         month = YearMonth.of(2026, 10),
         view = view,
-        loading = false,
+        isLoading = false,
         runs = runs,
         dailyDistance = runs.groupBy {
             it.startedAt.atZone(zone).toLocalDate()
@@ -62,7 +62,7 @@ class RecordScreenshotTest {
 
     @Test
     fun emptyMonth() = compose.captureRunkkScreen("C1_record_empty") {
-        RecordListScreen(RecordListUiState(month = YearMonth.of(2026, 9), loading = false, zone = zone), {
+        RecordListScreen(RecordListUiState(month = YearMonth.of(2026, 9), isLoading = false, zone = zone), {
         }, {}, {}, {}, {}, {})
     }
 
@@ -71,7 +71,7 @@ class RecordScreenshotTest {
         val base = detail()
         RecordDetailScreen(
             RecordDetailUiState(
-                loading = false,
+                isLoading = false,
                 recordId = "r1",
                 detail = base.copy(
                     route = listOf(
@@ -109,7 +109,7 @@ class RecordScreenshotTest {
         val renderer = RunCardRenderer(RuntimeEnvironment.getApplication())
         RecordCardScreen(
             RecordCardUiState(
-                loading = false,
+                isLoading = false,
                 card = card,
                 front = renderer.render(card, CardSide.FRONT),
                 back = renderer.render(card, CardSide.BACK)
@@ -128,7 +128,7 @@ class RecordScreenshotTest {
         val renderer = RunCardRenderer(RuntimeEnvironment.getApplication())
         RecordCardScreen(
             RecordCardUiState(
-                loading = false,
+                isLoading = false,
                 card = card,
                 front = renderer.render(card, CardSide.FRONT),
                 back = renderer.render(card, CardSide.BACK),

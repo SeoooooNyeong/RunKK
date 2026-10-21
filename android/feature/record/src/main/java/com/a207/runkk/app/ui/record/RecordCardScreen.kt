@@ -86,7 +86,7 @@ fun RecordCardScreen(
         Column(modifier = Modifier.fillMaxSize()) {
             RunkkTopBar(title = stringResource(R.string.record_card_title), onBack = onClose)
             when {
-                state.loading -> RunkkLoading(modifier = Modifier.weight(1f))
+                state.isLoading -> RunkkLoading(modifier = Modifier.weight(1f))
 
                 state.front == null -> RunkkErrorState(
                     state.error?.asString() ?: stringResource(R.string.record_card_failed),
@@ -96,7 +96,7 @@ fun RecordCardScreen(
 
                 else -> CardPreview(state, onSideSelected, modifier = Modifier.weight(1f))
             }
-            if (state.front != null) CardShareButtons(state.sharing, onShare)
+            if (state.front != null) CardShareButtons(state.isSharing, onShare)
         }
         RunkkSnackbarHost(snackbar, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 160.dp))
     }
@@ -141,21 +141,21 @@ private fun CardPreview(state: RecordCardUiState, onSideSelected: (CardSide) -> 
 
 /** 공유 버튼: 스토리(큰 버튼), 기기 저장·다른 앱. */
 @Composable
-private fun CardShareButtons(sharing: Boolean, onShare: (CardShareKind) -> Unit) {
+private fun CardShareButtons(isSharing: Boolean, onShare: (CardShareKind) -> Unit) {
     Column(
         modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         RunkkPrimaryButton(stringResource(R.string.record_card_share_story_button), onClick = {
             onShare(CardShareKind.STORY)
-        }, loading = sharing, modifier = Modifier.fillMaxWidth())
+        }, isLoading = isSharing, modifier = Modifier.fillMaxWidth())
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             RunkkSecondaryButton(stringResource(CardShareKind.SAVE.labelRes), onClick = {
                 onShare(CardShareKind.SAVE)
-            }, enabled = !sharing, modifier = Modifier.weight(1f))
+            }, isEnabled = !isSharing, modifier = Modifier.weight(1f))
             RunkkSecondaryButton(stringResource(CardShareKind.SYSTEM.labelRes), onClick = {
                 onShare(CardShareKind.SYSTEM)
-            }, enabled = !sharing, modifier = Modifier.weight(1f))
+            }, isEnabled = !isSharing, modifier = Modifier.weight(1f))
         }
     }
 }

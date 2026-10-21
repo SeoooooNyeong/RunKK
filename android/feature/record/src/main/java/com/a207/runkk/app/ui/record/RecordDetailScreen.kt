@@ -80,7 +80,7 @@ fun RecordDetailRoute(recordId: String, viewModel: RecordDetailViewModel = hiltV
             state = state,
             onBack = navigator::back,
             onShare = { navigator.navigate(Routes.RecordCard(recordId)) },
-            onRetry = { viewModel.load(recordId, force = true) }
+            onRetry = { viewModel.load(recordId, isForced = true) }
         )
     }
 }
@@ -107,7 +107,7 @@ fun RecordDetailScreen(
         when {
             detail != null -> DetailBody(detail)
 
-            state.loading -> RunkkLoading(modifier = Modifier.weight(1f))
+            state.isLoading -> RunkkLoading(modifier = Modifier.weight(1f))
 
             else -> RunkkErrorState(
                 state.error?.asString() ?: stringResource(R.string.record_detail_load_failed),
@@ -127,7 +127,7 @@ private fun DetailBody(detail: RecordDetail) {
     ) {
         DetailBadges(detail)
         detail.newRecords.forEach { record ->
-            RunkkBanner(record, strong = true) {
+            RunkkBanner(record, isStrong = true) {
                 Icon(
                     RunkkIcons.Trophy,
                     contentDescription = null,
@@ -336,16 +336,16 @@ private fun SplitPaces(detail: RecordDetail) {
             }
         }
         splits.forEachIndexed { index, pace ->
-            SplitPaceRow(index, pace, fastest, best = index + 1 == fastestKm)
+            SplitPaceRow(index, pace, fastest, isBest = index + 1 == fastestKm)
         }
     }
 }
 
 /** 구간 한 줄: 번호, 페이스 막대, 페이스. */
 @Composable
-private fun SplitPaceRow(index: Int, pace: Pace, fastest: Pace, best: Boolean) {
+private fun SplitPaceRow(index: Int, pace: Pace, fastest: Pace, isBest: Boolean) {
     val spoken = stringResource(
-        if (best) R.string.record_split_spoken_best else R.string.record_split_spoken,
+        if (isBest) R.string.record_split_spoken_best else R.string.record_split_spoken,
         index + 1,
         RunkkFormat.paceSpoken(pace)
     )
@@ -363,13 +363,13 @@ private fun SplitPaceRow(index: Int, pace: Pace, fastest: Pace, best: Boolean) {
         RunkkProgressBar(
             progress = fastest.secondsPerKm.toFloat() / pace.secondsPerKm,
             height = 8.dp,
-            color = if (best) RunkkColors.Lime else RunkkColors.BorderHover,
+            color = if (isBest) RunkkColors.Lime else RunkkColors.BorderHover,
             modifier = Modifier.weight(1f)
         )
         Text(
             RunkkFormat.pace(pace),
             style = RunkkTextStyles.display(16),
-            color = if (best) RunkkColors.Lime else RunkkColors.TextPrimary,
+            color = if (isBest) RunkkColors.Lime else RunkkColors.TextPrimary,
             modifier = Modifier.width(40.dp)
         )
     }
@@ -390,7 +390,7 @@ private fun RecordDetailPreview() {
     RunkkTheme(reduceMotion = true) {
         RecordDetailScreen(
             state = RecordDetailUiState(
-                loading = false,
+                isLoading = false,
                 recordId = "r",
                 detail = RecordDetail(
                     summary = RunSummary(

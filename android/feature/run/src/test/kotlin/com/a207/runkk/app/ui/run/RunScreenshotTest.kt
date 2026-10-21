@@ -51,7 +51,7 @@ class RunScreenshotTest {
     @Test
     fun preparing() = compose.captureRunkkScreen("B1_countdown_needs_consent_dismissed") {
         RunScreen(
-            RunUiState(phase = RunPhase.PREPARING, consentRequired = true, consentDialogDismissed = true),
+            RunUiState(phase = RunPhase.PREPARING, isConsentRequired = true, isConsentDialogDismissed = true),
             RunActions()
         )
     }
@@ -97,7 +97,7 @@ class RunScreenshotTest {
     fun result() = compose.captureRunkkScreen("B4_run_result") {
         RunResultScreen(
             RunResultUiState(
-                loading = false,
+                isLoading = false,
                 recordId = "rec-1",
                 cardKind = CardKind.FREE_RUN,
                 startedAt = start,
@@ -121,7 +121,7 @@ class RunScreenshotTest {
                     "Z4" to Duration.ofMinutes(5),
                     "Z5" to Duration.ofMinutes(2)
                 ),
-                uploaded = true
+                isUploaded = true
             ),
             onCard = {},
             onHome = {},
@@ -133,7 +133,7 @@ class RunScreenshotTest {
     fun resultPendingUpload() = compose.captureRunkkScreen("B4_run_result_not_uploaded") {
         RunResultScreen(
             RunResultUiState(
-                loading = false,
+                isLoading = false,
                 recordId = "rec-1",
                 startedAt = start,
                 distance = Distance(3_000),

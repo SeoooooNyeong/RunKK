@@ -48,16 +48,17 @@ class MainDispatcherRule(val dispatcher: TestDispatcher = UnconfinedTestDispatch
     override fun finished(description: Description) = Dispatchers.resetMain()
 }
 
-fun summary(id: String, day: Int, meters: Long, valid: Boolean = true, kind: CardKind = CardKind.FREE_RUN) = RunSummary(
-    recordId = id,
-    startedAt = LocalDate.of(2026, 10, day).atTime(7, 0).atZone(java.time.ZoneId.of("Asia/Seoul")).toInstant(),
-    distance = Distance(meters),
-    elapsed = Duration.ofSeconds(meters * 332 / 1_000),
-    averagePace = Pace(332),
-    isValid = valid,
-    mode = if (kind == CardKind.FREE_RUN) RunMode.FREE else RunMode.BATTLE,
-    cardKind = kind
-)
+fun summary(id: String, day: Int, meters: Long, isValid: Boolean = true, kind: CardKind = CardKind.FREE_RUN) =
+    RunSummary(
+        recordId = id,
+        startedAt = LocalDate.of(2026, 10, day).atTime(7, 0).atZone(java.time.ZoneId.of("Asia/Seoul")).toInstant(),
+        distance = Distance(meters),
+        elapsed = Duration.ofSeconds(meters * 332 / 1_000),
+        averagePace = Pace(332),
+        isValid = isValid,
+        mode = if (kind == CardKind.FREE_RUN) RunMode.FREE else RunMode.BATTLE,
+        cardKind = kind
+    )
 
 fun detail(id: String = "r1") = RecordDetail(
     summary = summary(id, 20, 5_020),
@@ -88,7 +89,7 @@ class FakeRecordRepository : RecordRepository {
             listOf(
                 summary("r3", 20, 5_020),
                 summary("r2", 14, 10_200, kind = CardKind.BATTLE_RUN),
-                summary("r1", 14, 2_000, valid = false)
+                summary("r1", 14, 2_000, isValid = false)
             )
         )
     )
