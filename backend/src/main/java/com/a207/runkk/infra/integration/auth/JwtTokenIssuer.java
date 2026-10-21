@@ -20,7 +20,6 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.Date;
 import java.util.UUID;
 import org.slf4j.Logger;
@@ -52,9 +51,6 @@ public class JwtTokenIssuer implements TokenIssuer {
     private static final String PROVIDER = "provider";
     private static final String ACCOUNT = "account";
     private static final int MIN_SECRET_BYTES = 32;
-
-    /** 서비스 시각(D-10). 배치가 넘기는 now를 순간으로 바꾼다. */
-    private static final ZoneId SERVICE_ZONE = ZoneId.of("Asia/Seoul");
 
     private final MACSigner signer;
     private final MACVerifier verifier;
@@ -146,7 +142,8 @@ public class JwtTokenIssuer implements TokenIssuer {
 
     @Override
     public int purgeExpiredRevocations(LocalDateTime now) {
-        int purged = revocations.purgeExpired(now.atZone(SERVICE_ZONE).toInstant());
+        // 배치가 넘기는 서비스 시각(D-10)을 Clock 빈의 시간대(서울)로 순간으로 바꾼다(코드 리뷰 3차 B-L5)
+        int purged = revocations.purgeExpired(now.atZone(clock.getZone()).toInstant());
         log.info("refresh_revocations_purged count={}", purged);
         return purged;
     }
