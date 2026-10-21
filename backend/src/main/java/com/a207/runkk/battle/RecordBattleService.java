@@ -20,6 +20,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -148,16 +149,29 @@ public class RecordBattleService {
     }
 
     /**
-     * 랜덤 매칭 대기 중이면 거부한다(ALREADY_IN_BATTLE, 코드 리뷰 2차 L10). 한 회원이 대기 표와 기록 대결을 함께 갖지 않게 한다. 활성 대결
-     * 전체(existsActive) 확인은 시작 보고 없이 버려진 기록 대결이 다음 대결을 영구히 막을 수 있어 결정 목록으로 넘긴다.
+     * 랜덤 매칭 대기 중이면 거부한다(ALREADY_IN_BATTLE, 코드 리뷰 2차 L10). 활성 대결이 있으면 거부하되, 시작 보고 전의 이전 기록 대결은 새 대결이
+     * 대신한다(CANCELLED, 앱에서 카운트다운 전에 뒤로 가 다시 고른 경우). 회원별 활성 대결 1개는 active_member_id 고유 제약이 동시 생성까지
+     * 지키고, 경합에서 진 요청도 ALREADY_IN_BATTLE이다(활성 대결 1개 불변식 결정).
      */
     private Battle create(
             BattleType type, long memberId, Distance distance, OpponentRecord opponent) {
         if (matchQueue.findWaiting(memberId).isPresent()) {
             throw new BusinessRuleException(ReasonCode.ALREADY_IN_BATTLE);
         }
+        LocalDateTime now = LocalDateTime.now(clock);
+        for (Battle active : battleRepository.findActive(memberId)) {
+            if (!active.isAwaitingStartReport()) {
+                throw new BusinessRuleException(ReasonCode.ALREADY_IN_BATTLE);
+            }
+            active.cancelUnstarted(now);
+            battleRepository.saveImmediately(active);
+        }
         RecordBattleSpec spec = RecordBattleSpec.of(type, memberId, distance, opponent);
-        return battleRepository.save(Battle.againstRecord(spec, LocalDateTime.now(clock)));
+        try {
+            return battleRepository.saveImmediately(Battle.againstRecord(spec, now));
+        } catch (DataIntegrityViolationException e) {
+            throw new BusinessRuleException(ReasonCode.ALREADY_IN_BATTLE);
+        }
     }
 
     /** 앱의 3초 카운트다운이 끝났다는 보고 → Battle.start(now)(R-02). 기록 대결만, 같은 보고를 다시 받으면 무시한다. */
@@ -172,6 +186,9 @@ public class RecordBattleService {
         }
         if (!battle.getType().startsWithCountdown()) {
             throw new IllegalArgumentException("시작 보고는 나와의 싸움·유명인 대결만 받는다");
+        }
+        if (battle.isCancelled()) {
+            throw new BusinessRuleException(ReasonCode.BATTLE_NOT_FOUND); // 버려져 취소됐다
         }
         if (battle.getStartAt().isPresent()) {
             return; // 앱 재시도: 이미 시작했다(멱등)

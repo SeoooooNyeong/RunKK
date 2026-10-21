@@ -94,7 +94,9 @@ public class BattleResultService {
 
     private void applyRecord(RunRecordSaved e) {
         Optional<Battle> found = battleRepository.findById(e.battleId());
-        if (found.isEmpty() || !found.get().isParticipant(e.memberId())) {
+        if (found.isEmpty()
+                || !found.get().isParticipant(e.memberId())
+                || found.get().isCancelled()) {
             return;
         }
         Battle battle = found.get();
@@ -279,6 +281,7 @@ public class BattleResultService {
         Battle battle =
                 battleRepository
                         .findById(battleId)
+                        .filter(b -> !b.isCancelled()) // 출발하지 못해 취소된 대결은 결과가 없다
                         .orElseThrow(() -> new BusinessRuleException(ReasonCode.BATTLE_NOT_FOUND));
         if (!battle.isParticipant(memberId)) {
             throw new PermissionDeniedException("대결 참가자가 아니다");

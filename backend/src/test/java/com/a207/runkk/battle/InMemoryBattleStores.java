@@ -67,6 +67,21 @@ public final class InMemoryBattleStores {
         }
 
         @Override
+        public Battle saveImmediately(Battle battle) {
+            return save(battle);
+        }
+
+        @Override
+        public List<Battle> findActive(long memberId) {
+            return where(b -> b.isActive() && b.isParticipant(memberId));
+        }
+
+        @Override
+        public List<Battle> findAbandoned(LocalDateTime cutoff) {
+            return where(b -> b.isAbandoned(cutoff.plus(Battle.ABANDON_AFTER)));
+        }
+
+        @Override
         public Optional<Battle> findById(long id) {
             return Optional.ofNullable(rows.get(id));
         }
@@ -112,6 +127,7 @@ public final class InMemoryBattleStores {
                             b ->
                                     b.isParticipant(memberId)
                                             && !b.isActive()
+                                            && !b.isCancelled()
                                             && range.contains(b.getCreatedAt().toLocalDate()))
                     .stream()
                     .sorted(Comparator.comparing(Battle::getCreatedAt).reversed())

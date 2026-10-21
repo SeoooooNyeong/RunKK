@@ -7,6 +7,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 import com.a207.runkk.battle.BattleClockService;
+import com.a207.runkk.battle.BattleStartService;
 import com.a207.runkk.battle.LiveBattleService;
 import com.a207.runkk.battle.Matchmaker;
 import java.time.Clock;
@@ -44,11 +45,26 @@ class BattleTickJobTest {
     }
 
     @Test
-    @DisplayName("스케줄 설정은 고정 간격 작업 하나를 등록한다")
+    @DisplayName("스케줄 설정은 1초 시계와 1분 버려진 대결 정리, 고정 간격 작업 둘을 등록한다")
     void schedulingConfig_registersFixedDelay() {
         ScheduledTaskRegistrar registrar = new ScheduledTaskRegistrar();
-        new BattleSchedulingConfig(mock(BattleTickJob.class), Duration.ofSeconds(1))
+        new BattleSchedulingConfig(
+                        mock(BattleTickJob.class),
+                        mock(AbandonedBattleJob.class),
+                        Duration.ofSeconds(1),
+                        Duration.ofMinutes(1))
                 .configureTasks(registrar);
-        assertThat(registrar.getFixedDelayTaskList()).hasSize(1);
+        assertThat(registrar.getFixedDelayTaskList()).hasSize(2);
+    }
+
+    @Test
+    @DisplayName("AbandonedBattleJob → cancelAbandoned(now), 실패해도 던지지 않는다")
+    void abandonedBattleJob() {
+        BattleStartService starts = mock(BattleStartService.class);
+        new AbandonedBattleJob(starts, clock).run();
+        verify(starts).cancelAbandoned(NOW);
+        org.mockito.Mockito.when(starts.cancelAbandoned(any()))
+                .thenThrow(new IllegalStateException("db"));
+        new AbandonedBattleJob(starts, clock).run();
     }
 }

@@ -3,6 +3,7 @@ package com.a207.runkk.infra.battle;
 import com.a207.runkk.battle.Battle;
 import com.a207.runkk.battle.BattleRepository;
 import com.a207.runkk.battle.BattleStatus;
+import com.a207.runkk.battle.BattleType;
 import com.a207.runkk.battle.BattleWin;
 import com.a207.runkk.battle.Verdict;
 import com.a207.runkk.battle.WeeklyRecord;
@@ -11,6 +12,7 @@ import com.a207.runkk.common.Week;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -27,6 +29,11 @@ public class JpaBattleRepository implements BattleRepository {
 
     private static final List<BattleStatus> RUNNING =
             List.of(BattleStatus.IN_PROGRESS, BattleStatus.COUNTDOWN);
+
+    /** 앱이 시작을 보고하는 기록 대결(BattleType.startsWithCountdown). */
+    private static final List<BattleType> REPORTED_START =
+            Arrays.stream(BattleType.values()).filter(BattleType::startsWithCountdown).toList();
+
     private static final List<BattleStatus> HISTORY =
             List.of(BattleStatus.FINISHED, BattleStatus.RESULT_PENDING);
 
@@ -46,6 +53,41 @@ public class JpaBattleRepository implements BattleRepository {
         // 참가자(자식 행)만 바뀌어도 대결 버전을 올려 같은 대결의 동시 반영이 낙관적 잠금으로 충돌하게 한다(5.3, 코드 리뷰 2차 M3)
         entityManager.lock(managed, LockModeType.OPTIMISTIC_FORCE_INCREMENT);
         return managed;
+    }
+
+    @Override
+    public Battle saveImmediately(Battle battle) {
+        Battle saved = save(battle);
+        entityManager.flush();
+        return saved;
+    }
+
+    @Override
+    public List<Battle> findActive(long memberId) {
+        return entityManager
+                .createQuery(
+                        "select b from Battle b join b.participants p"
+                                + " where p.memberId = :member and b.status in :active",
+                        Battle.class)
+                .setParameter("member", memberId)
+                .setParameter("active", List.copyOf(BattleStatus.active()))
+                .getResultList();
+    }
+
+    @Override
+    public List<Battle> findAbandoned(LocalDateTime cutoff) {
+        return entityManager
+                .createQuery(
+                        "select b from Battle b where (b.status = :waiting"
+                                + " and coalesce(b.startAt, b.createdAt) <= :cutoff)"
+                                + " or (b.status = :inProgress and b.startAt is null"
+                                + " and b.type in :reported and b.createdAt <= :cutoff)",
+                        Battle.class)
+                .setParameter("waiting", BattleStatus.WAITING_START)
+                .setParameter("inProgress", BattleStatus.IN_PROGRESS)
+                .setParameter("reported", REPORTED_START)
+                .setParameter("cutoff", cutoff)
+                .getResultList();
     }
 
     @Override
