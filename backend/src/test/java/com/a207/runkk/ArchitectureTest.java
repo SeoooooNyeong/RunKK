@@ -139,7 +139,7 @@ class ArchitectureTest {
         m.put("crew", Set.of("member", "running", "runimal", "policy", "notification", "audit"));
         m.put("analysis", Set.of("member", "running", "crew", "reward", "policy", "notification"));
         m.put("profile", Set.of("member", "running", "runimal", "avatar", "crew"));
-        m.put("operator", Set.of("member", "policy"));
+        m.put("operator", Set.of("member", "policy", "audit")); // + audit: 운영자 로그인 감사(L25)
         m.put("policy", Set.of("audit"));
         m.put("notification", Set.of("member", "policy"));
         m.put("audit", Set.of());

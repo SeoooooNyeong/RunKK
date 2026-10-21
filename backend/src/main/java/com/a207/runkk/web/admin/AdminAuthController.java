@@ -13,6 +13,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.time.Clock;
 import java.time.Duration;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -25,6 +27,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/admin")
 public class AdminAuthController {
+
+    private static final Logger log = LoggerFactory.getLogger(AdminAuthController.class);
 
     private static final int TOKEN_MAX = 4_096;
     private static final int PROVIDER_MAX = 10;
@@ -45,16 +49,21 @@ public class AdminAuthController {
         this.attempts = new AttemptLimiter(LOGIN_FAILURES, LOGIN_WINDOW, clock);
     }
 
-    /** 같은 접속지에서 10분에 10번 실패하면 잠시 막는다(429). 성공하면 그 접속지의 실패를 지운다. */
+    /**
+     * 같은 접속지에서 10분에 10번 실패하면 잠시 막는다(429). 성공하면 그 접속지의 실패를 지운다. 성공·실패 감사는 OperatorAuthorizer가 접속지와
+     * 함께 남긴다(L25). 막힌 요청(429)은 감사 표를 채우지 않도록 운영 로그만 남긴다.
+     */
     @PostMapping("/login")
     OperatorSession login(@Valid @RequestBody LoginRequest request, HttpServletRequest http) {
         String client = clientOf(http);
         if (attempts.isBlocked(client)) {
+            log.warn("operator_login_blocked client={}", client);
             throw new BusinessRuleException(ReasonCode.TOO_MANY_ATTEMPTS);
         }
         try {
             OperatorSession session =
-                    operatorAuthorizer.authenticate(request.provider(), request.providerToken());
+                    operatorAuthorizer.authenticate(
+                            request.provider(), request.providerToken(), client);
             attempts.reset(client);
             return session;
         } catch (PermissionDeniedException | IllegalArgumentException e) {

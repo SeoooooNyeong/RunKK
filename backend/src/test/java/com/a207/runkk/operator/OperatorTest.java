@@ -10,6 +10,10 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.a207.runkk.audit.ActorRole;
+import com.a207.runkk.audit.AuditAction;
+import com.a207.runkk.audit.AuditEntry;
+import com.a207.runkk.audit.AuditService;
 import com.a207.runkk.common.BusinessRuleException;
 import com.a207.runkk.common.PermissionDeniedException;
 import com.a207.runkk.member.AuthFailureException;
@@ -36,8 +40,11 @@ class OperatorTest {
     private final SocialLoginGateway kakao = mock(SocialLoginGateway.class);
     private final OperatorTokenIssuer tokens = mock(OperatorTokenIssuer.class);
     private final OperationPolicy policy = mock(OperationPolicy.class);
+    private final AuditService audit = mock(AuditService.class);
     private final OperatorAuthorizer authorizer =
-            new OperatorAuthorizer(List.of(kakao), tokens, policy);
+            new OperatorAuthorizer(List.of(kakao), tokens, policy, audit);
+    private static final String IP = "10.0.0.7";
+
     private final OperatorId operator =
             new OperatorId(new SocialAccount(ProviderType.KAKAO, "op-1"));
 
@@ -53,12 +60,12 @@ class OperatorTest {
     @DisplayName("authenticate: 화이트리스트 계정이면 관리툴 토큰과 actorId, 밖이면 403")
     void authenticate() {
         when(kakao.authenticate("good")).thenReturn(operator.account());
-        OperatorSession session = authorizer.authenticate("kakao", "good");
+        OperatorSession session = authorizer.authenticate("kakao", "good", IP);
         assertThat(session).isEqualTo(new OperatorSession("admin-token", "KAKAO:op-1"));
 
         when(kakao.authenticate("stranger"))
                 .thenReturn(new SocialAccount(ProviderType.KAKAO, "someone"));
-        assertThatThrownBy(() -> authorizer.authenticate("KAKAO", "stranger"))
+        assertThatThrownBy(() -> authorizer.authenticate("KAKAO", "stranger", IP))
                 .isInstanceOf(PermissionDeniedException.class);
     }
 
@@ -66,15 +73,71 @@ class OperatorTest {
     @DisplayName("authenticate: 제공자 인증 실패 403, 무응답 PROVIDER_UNAVAILABLE, 모르는·없는 제공자 400")
     void authenticateFailures() {
         when(kakao.authenticate("forged")).thenThrow(new AuthFailureException("bad"));
-        assertThatThrownBy(() -> authorizer.authenticate("KAKAO", "forged"))
+        assertThatThrownBy(() -> authorizer.authenticate("KAKAO", "forged", IP))
                 .isInstanceOf(PermissionDeniedException.class);
         when(kakao.authenticate("slow")).thenThrow(new ProviderUnavailableException("down"));
-        assertThatThrownBy(() -> authorizer.authenticate("KAKAO", "slow"))
+        assertThatThrownBy(() -> authorizer.authenticate("KAKAO", "slow", IP))
                 .isInstanceOf(BusinessRuleException.class);
-        assertThatThrownBy(() -> authorizer.authenticate("NAVER", "x"))
+        assertThatThrownBy(() -> authorizer.authenticate("NAVER", "x", IP))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> authorizer.authenticate("GOOGLE", "x"))
+        assertThatThrownBy(() -> authorizer.authenticate("GOOGLE", "x", IP))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    private static AuditEntry login(AuditAction action, String actor, String result) {
+        return new AuditEntry(actor, ActorRole.OPERATOR, action, IP, null, result);
+    }
+
+    @Test
+    @DisplayName("L25: 로그인 성공·실패를 행위자·접속지·결과로 감사에 남긴다")
+    void authenticate_recordsAudit() {
+        when(kakao.authenticate("good")).thenReturn(operator.account());
+        authorizer.authenticate("KAKAO", "good", IP);
+        verify(audit).record(login(AuditAction.OPERATOR_LOGIN_SUCCESS, "KAKAO:op-1", "SUCCESS"));
+
+        when(kakao.authenticate("stranger"))
+                .thenReturn(new SocialAccount(ProviderType.KAKAO, "someone"));
+        when(kakao.authenticate("forged")).thenThrow(new AuthFailureException("bad"));
+        when(kakao.authenticate("slow")).thenThrow(new ProviderUnavailableException("down"));
+        for (String token : List.of("stranger", "forged", "slow")) {
+            assertThatThrownBy(() -> authorizer.authenticate("KAKAO", token, IP))
+                    .isInstanceOf(RuntimeException.class);
+        }
+        assertThatThrownBy(() -> authorizer.authenticate("NAVER", "x", IP))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> authorizer.authenticate("GOOGLE", "x", IP))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        verify(audit)
+                .record(
+                        login(
+                                AuditAction.OPERATOR_LOGIN_FAILURE,
+                                "KAKAO:someone",
+                                "NOT_WHITELISTED"));
+        verify(audit)
+                .record(login(AuditAction.OPERATOR_LOGIN_FAILURE, "KAKAO:UNKNOWN", "AUTH_FAILED"));
+        verify(audit)
+                .record(
+                        login(
+                                AuditAction.OPERATOR_LOGIN_FAILURE,
+                                "KAKAO:UNKNOWN",
+                                "PROVIDER_UNAVAILABLE"));
+        verify(audit, org.mockito.Mockito.times(2))
+                .record(login(AuditAction.OPERATOR_LOGIN_FAILURE, "UNKNOWN", "UNKNOWN_PROVIDER"));
+    }
+
+    @Test
+    @DisplayName("L25: 성공 감사를 남기지 못하면 토큰을 주지 않고, 실패 감사가 안 써져도 원래 거부 사유를 그대로 준다")
+    void auditFailure_handling() {
+        when(kakao.authenticate("good")).thenReturn(operator.account());
+        when(kakao.authenticate("forged")).thenThrow(new AuthFailureException("bad"));
+        org.mockito.Mockito.doThrow(new IllegalStateException("db down")).when(audit).record(any());
+
+        assertThatThrownBy(() -> authorizer.authenticate("KAKAO", "good", IP))
+                .isInstanceOf(IllegalStateException.class);
+        verify(tokens, never()).issue(any());
+        assertThatThrownBy(() -> authorizer.authenticate("KAKAO", "forged", IP))
+                .isInstanceOf(PermissionDeniedException.class);
     }
 
     @Test
