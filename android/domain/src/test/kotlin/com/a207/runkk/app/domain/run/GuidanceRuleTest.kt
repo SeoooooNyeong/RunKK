@@ -19,7 +19,8 @@ class GuidanceRuleTest {
         assertNull(rule.check(context(progress(999))))
         val g = assertNotNull(rule.check(context(progress(1_000))))
         assertEquals(Guidance.Kind.SPLIT, g.kind)
-        assertTrue(g.message.contains("1km"))
+        assertEquals(GuidanceMessage.SPLIT, g.message)
+        assertEquals(listOf<Any>(1L), g.args)
         assertNull(rule.check(context(progress(1_500))))
         assertEquals(Guidance.Kind.SPLIT, rule.check(context(progress(2_010)))?.kind)
     }
@@ -28,8 +29,8 @@ class GuidanceRuleTest {
     fun `Split - 음성·진동 설정을 안내 방식에 싣는다`() {
         val settings = GuidanceSettings.DEFAULT.copy(runVoice = false, runVibration = true)
         val g = assertNotNull(SplitGuidanceRule().check(context(progress(1_000), settings = settings)))
-        assertEquals(false, g.voice)
-        assertEquals(true, g.vibration)
+        assertEquals(false, g.hasVoice)
+        assertEquals(true, g.hasVibration)
     }
 
     @Test
@@ -111,10 +112,11 @@ class GuidanceRuleTest {
         assertNull(rule.check(context(progress(499), plan, gapMeters = 70, settings = settings)))
         val ahead = assertNotNull(rule.check(context(progress(500), plan, gapMeters = 70, settings = settings)))
         assertEquals(Guidance.Kind.GAP, ahead.kind)
-        assertTrue(ahead.message.contains("70m 앞서는 중"))
-        assertTrue(ahead.message.contains("2500m"))
+        assertEquals(GuidanceMessage.GAP_AHEAD_REMAINING, ahead.message)
+        assertEquals(listOf<Any>(70, 2_500L), ahead.args)
         val behind = assertNotNull(rule.check(context(progress(1_000), plan, gapMeters = -30, settings = settings)))
-        assertTrue(behind.message.contains("30m 뒤처져"))
+        assertEquals(GuidanceMessage.GAP_BEHIND_REMAINING, behind.message)
+        assertEquals(30, behind.args.first())
     }
 
     @Test
@@ -139,7 +141,8 @@ class GuidanceRuleTest {
         val rule = RankGuidanceRule()
         val g = assertNotNull(rule.check(context(progress(1_000), rank = CrewRank(2, 5))))
         assertEquals(Guidance.Kind.RANK, g.kind)
-        assertTrue(g.message.contains("5명 중 2위"))
+        assertEquals(GuidanceMessage.RANK, g.message)
+        assertEquals(listOf<Any>(5, 2), g.args)
         val off = GuidanceSettings.DEFAULT.copy(rankAlert = false)
         assertNull(RankGuidanceRule().check(context(progress(1_000), rank = CrewRank(2, 5), settings = off)))
         assertNull(RankGuidanceRule().check(context(progress(1_000))))
@@ -178,10 +181,14 @@ class GuidanceRuleTest {
         val vibrate = GuidanceSettings.DEFAULT.copy(gapAlertMeters = 500, battleVibration = true)
         val silent = GuidanceSettings.DEFAULT.copy(gapAlertMeters = 500, battleVibration = false)
         assertTrue(
-            assertNotNull(GapGuidanceRule().check(context(progress(500), gapMeters = 5, settings = vibrate))).vibration
+            assertNotNull(
+                GapGuidanceRule().check(context(progress(500), gapMeters = 5, settings = vibrate))
+            ).hasVibration
         )
         assertFalse(
-            assertNotNull(GapGuidanceRule().check(context(progress(500), gapMeters = 5, settings = silent))).vibration
+            assertNotNull(
+                GapGuidanceRule().check(context(progress(500), gapMeters = 5, settings = silent))
+            ).hasVibration
         )
     }
 }

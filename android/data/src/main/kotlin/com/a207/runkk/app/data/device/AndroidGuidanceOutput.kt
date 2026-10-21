@@ -18,7 +18,7 @@ import javax.inject.Singleton
 
 /**
  * 안내를 소리·진동·화면으로 낸다(6.1.14 data.device, GuidanceOutput 구현). 소리 크기·출력 장치는 기기 설정을 따른다.
- * - voice → TTS(한국어), vibration → 짧은 진동
+ * - hasVoice → TTS(한국어), hasVibration → 짧은 진동. 문구는 안내 키를 문자열 리소스로 바꾼 것이다(GuidanceTexts, M-3)
  * - 소리·진동이 모두 없는 안내(Guidance.screenOnly: 길게 누르기 안내, 저장 실패)는 화면 배너(토스트)로 보인다
  * 1초 시계·코루틴 어느 스레드에서 불려도 메인 스레드로 넘겨 차례대로 낸다.
  */
@@ -36,9 +36,10 @@ constructor(@ApplicationContext private val context: Context) : GuidanceOutput {
     }
 
     private fun deliver(g: Guidance) {
-        if (g.vibration) vibrate()
-        if (g.voice) speak(g.message)
-        if (!g.voice && !g.vibration) Toast.makeText(context, g.message, Toast.LENGTH_SHORT).show()
+        val text = g.text(context.resources)
+        if (g.hasVibration) vibrate()
+        if (g.hasVoice) speak(text)
+        if (!g.hasVoice && !g.hasVibration) Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
     }
 
     private fun speak(text: String) {

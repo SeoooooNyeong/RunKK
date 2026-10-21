@@ -17,9 +17,10 @@ class TargetReachedRule : GuidanceRule {
         val settings = ctx.guidanceSettings
         return Guidance(
             Guidance.Kind.TARGET_REACHED,
-            "목표 거리 ${target.km()}km에 도달했어요",
-            settings.runVoice,
-            settings.runVibration
+            GuidanceMessage.TARGET_REACHED,
+            listOf(target.km()),
+            hasVoice = settings.runVoice,
+            hasVibration = settings.runVibration
         )
     }
 }

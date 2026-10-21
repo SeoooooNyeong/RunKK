@@ -2,9 +2,12 @@ package com.a207.runkk.app.data.watch
 
 import android.content.Context
 import android.net.Uri
+import androidx.annotation.StringRes
+import com.a207.runkk.app.api.core.R
 import com.a207.runkk.app.domain.run.HeartRateSample
 import com.a207.runkk.app.domain.run.WatchDisplay
 import com.a207.runkk.app.domain.run.WatchGateway
+import com.a207.runkk.app.domain.run.WatchNotice
 import com.a207.runkk.app.domain.settings.SettingsRepository
 import com.a207.runkk.wear.contract.EndRequestMessage
 import com.a207.runkk.wear.contract.HeartRateBatchMessage
@@ -57,14 +60,16 @@ import timber.log.Timber
 class WatchLink internal constructor(
     private val transport: Transport,
     private val settings: SettingsRepository,
-    scope: CoroutineScope
+    scope: CoroutineScope,
+    /** 안내 키 → 워치에 보낼 문구(M-3). 운영은 문자열 리소스, 시험은 키 이름이다. */
+    private val noticeText: (WatchNotice) -> String = { it.name }
 ) : WatchGateway {
     @Inject
     constructor(
         @ApplicationContext context: Context,
         settings: SettingsRepository,
         scope: CoroutineScope
-    ) : this(PlayServicesTransport(context, scope), settings, scope)
+    ) : this(PlayServicesTransport(context, scope), settings, scope, { context.getString(it.textRes()) })
 
     /** Data Layer 송수신. 운영은 Play 서비스, 시험은 가짜다. */
     internal interface Transport {
@@ -124,7 +129,7 @@ class WatchLink internal constructor(
 
     override fun publish(d: WatchDisplay) {
         synchronized(lock) { lastDisplay = d }
-        transport.send(WearPaths.WATCH_DISPLAY, d.toMessage(collectionAllowed()).encode())
+        transport.send(WearPaths.WATCH_DISPLAY, d.toMessage(collectionAllowed(), noticeText).encode())
     }
 
     override fun isConnected(): Boolean = transport.connected.value
@@ -141,7 +146,7 @@ class WatchLink internal constructor(
     /** 허용 여부가 바뀌었다: 마지막 표시 정보(없으면 대기 화면)를 새 허용 여부로 다시 보낸다. */
     private fun resend(allowed: Boolean) {
         val message =
-            synchronized(lock) { lastDisplay }?.toMessage(allowed)
+            synchronized(lock) { lastDisplay }?.toMessage(allowed, noticeText)
                 ?: WatchDisplayMessage(
                     running = false,
                     elapsedSeconds = 0,
@@ -167,8 +172,11 @@ class WatchLink internal constructor(
 
 // wear.contract 메시지 ↔ 도메인 매퍼(6.1.14 data.watch).
 
-internal fun WatchDisplay.toMessage(heartRateCollectionAllowed: Boolean): WatchDisplayMessage = WatchDisplayMessage(
-    running = running,
+internal fun WatchDisplay.toMessage(
+    heartRateCollectionAllowed: Boolean,
+    noticeText: (WatchNotice) -> String
+): WatchDisplayMessage = WatchDisplayMessage(
+    running = isRunning,
     elapsedSeconds = elapsed.seconds,
     distanceMeters = distance.meters,
     currentPaceSecondsPerKm = currentPace?.secondsPerKm,
@@ -176,8 +184,15 @@ internal fun WatchDisplay.toMessage(heartRateCollectionAllowed: Boolean): WatchD
     planDistanceMeters = todayPlan?.targetDistance?.meters,
     planPaceSecondsPerKm = todayPlan?.targetPace?.secondsPerKm,
     heartRateCollectionAllowed = heartRateCollectionAllowed,
-    notice = notice
+    notice = notice?.let(noticeText)
 )
+
+@StringRes
+internal fun WatchNotice.textRes(): Int = when (this) {
+    WatchNotice.ALREADY_MEASURING -> R.string.watch_notice_already_measuring
+    WatchNotice.OPEN_RUN_SCREEN -> R.string.watch_notice_open_run_screen
+    WatchNotice.END_ON_PHONE -> R.string.watch_notice_end_on_phone
+}
 
 internal fun HeartRateBatchMessage.Sample.toDomain(): HeartRateSample =
     HeartRateSample(Instant.ofEpochMilli(measuredAtEpochMillis), bpm)

@@ -397,8 +397,9 @@ class BattleRunCoordinatorTest {
         runCurrent()
         val played = output.played.last()
         assertEquals(Guidance.Kind.OVERTOOK, played.kind)
-        assertTrue(played.voice, "음성 켬")
-        assertEquals(false, played.vibration, "진동 끔")
+        assertTrue(played.hasVoice, "음성 켬")
+        assertEquals(false, played.hasVibration, "진동 끔")
+        assertEquals(listOf<Any>(12), played.args)
     }
 
     @Test

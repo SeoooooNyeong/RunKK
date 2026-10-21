@@ -14,6 +14,12 @@ class RankGuidanceRule : GuidanceRule {
         val newPoint = points.newPoint(ctx.progress.distance)
         val rank = ctx.rank
         if (newPoint == null || rank == null || !ctx.guidanceSettings.rankAlert) return null
-        return Guidance(Guidance.Kind.RANK, "${rank.headcount}명 중 ${rank.rank}위", voice = true, vibration = false)
+        return Guidance(
+            Guidance.Kind.RANK,
+            GuidanceMessage.RANK,
+            listOf(rank.headcount, rank.rank),
+            hasVoice = true,
+            hasVibration = false
+        )
     }
 }

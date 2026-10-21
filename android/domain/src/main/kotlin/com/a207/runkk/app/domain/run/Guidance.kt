@@ -2,8 +2,17 @@ package com.a207.runkk.app.domain.run
 
 import com.a207.runkk.app.domain.settings.GuidanceSettings
 
-/** 안내 하나(안내 종류, 문구, 방식). GuidanceOutput이 소리·진동·화면으로 낸다. */
-data class Guidance(val kind: Kind, val message: String, val voice: Boolean, val vibration: Boolean) {
+/**
+ * 안내 하나(안내 종류, 문구 키와 인자, 방식). GuidanceOutput이 문구 키를 문자열 리소스로 바꿔 소리·진동·화면으로 낸다(M-3).
+ * [hasVoice]·[hasVibration]이 모두 거짓이면 화면에만 보인다.
+ */
+data class Guidance(
+    val kind: Kind,
+    val message: GuidanceMessage,
+    val args: List<Any> = emptyList(),
+    val hasVoice: Boolean,
+    val hasVibration: Boolean
+) {
     enum class Kind {
         FINISH_HINT,
         UNLOCK_HINT,
@@ -25,7 +34,7 @@ data class Guidance(val kind: Kind, val message: String, val voice: Boolean, val
 
     companion object {
         /** 화면에만 보이는 안내(소리·진동 없음). */
-        fun screenOnly(kind: Kind, message: String): Guidance =
-            Guidance(kind, message, voice = false, vibration = false)
+        fun screenOnly(kind: Kind, message: GuidanceMessage, args: List<Any> = emptyList()): Guidance =
+            Guidance(kind, message, args, hasVoice = false, hasVibration = false)
     }
 }

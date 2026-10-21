@@ -17,7 +17,12 @@ class PaceGuidanceRule : GuidanceRule {
         val target = ctx.todayPlan?.targetPace ?: return null
         val average = ctx.progress.averagePace ?: return null
         if (!average.isSlowerThanBy(target, SLOWER_RATIO)) return null
-        return Guidance(Guidance.Kind.PACE, "목표 페이스보다 10% 넘게 느려요", settings.runVoice, settings.runVibration)
+        return Guidance(
+            Guidance.Kind.PACE,
+            GuidanceMessage.PACE_SLOW,
+            hasVoice = settings.runVoice,
+            hasVibration = settings.runVibration
+        )
     }
 
     private companion object {

@@ -218,13 +218,13 @@ constructor(
      * 대결 추월·역전 안내(FR-188)를 대결 음성·진동 설정으로 낸다(F-2). domain.battle은 domain.settings를 모르므로(5.1.2)
      * 설정을 아는 이 클래스가 방식을 정한다. 음성·진동이 모두 꺼져 있으면 화면에만 보인다.
      */
-    fun onLeadChanged(kind: Guidance.Kind, message: String) {
+    fun onLeadChanged(kind: Guidance.Kind, message: GuidanceMessage, args: List<Any> = emptyList()) {
         val battle = settings.guidanceSettings()
         val guidance =
             if (battle.battleVoice || battle.battleVibration) {
-                Guidance(kind, message, voice = battle.battleVoice, vibration = battle.battleVibration)
+                Guidance(kind, message, args, hasVoice = battle.battleVoice, hasVibration = battle.battleVibration)
             } else {
-                Guidance.screenOnly(kind, message)
+                Guidance.screenOnly(kind, message, args)
             }
         guidanceOutput.play(guidance)
     }
@@ -300,7 +300,7 @@ constructor(
         if (saved) {
             uploadScheduler.requestUpload()
         } else {
-            guidanceOutput.play(Guidance.screenOnly(Guidance.Kind.SAVE_FAILED, "러닝 기록을 기기에 저장하지 못했어요"))
+            guidanceOutput.play(Guidance.screenOnly(Guidance.Kind.SAVE_FAILED, GuidanceMessage.SAVE_FAILED))
         }
     }
 
@@ -331,15 +331,15 @@ constructor(
         val measuring = synchronized(lock) { session?.isActive == true }
         val notice =
             when {
-                measuring -> "이미 측정 중이에요"
-                _watchStartRequests.subscriptionCount.value == 0 -> "폰에서 러닝 화면을 여세요"
+                measuring -> WatchNotice.ALREADY_MEASURING
+                _watchStartRequests.subscriptionCount.value == 0 -> WatchNotice.OPEN_RUN_SCREEN
                 else -> null
             }
         if (notice == null) {
             _watchStartRequests.tryEmit(Unit)
             return
         }
-        watch.publish(_progress.value.toWatchDisplay(plan = null, notice = notice, running = measuring))
+        watch.publish(_progress.value.toWatchDisplay(plan = null, notice = notice, isRunning = measuring))
     }
 
     /**
@@ -351,12 +351,12 @@ constructor(
         if (mode == RunMode.FREE) {
             onFinishLongPressed()
         } else {
-            watch.publish(_progress.value.toWatchDisplay(plan = null, notice = "대결·크루런은 폰에서 끝내 주세요"))
+            watch.publish(_progress.value.toWatchDisplay(plan = null, notice = WatchNotice.END_ON_PHONE))
         }
     }
 
     private fun homeDisplay(): WatchDisplay = WatchDisplay(
-        running = false,
+        isRunning = false,
         elapsed = Duration.ZERO,
         distance = Distance.ZERO,
         currentPace = null,
@@ -367,10 +367,10 @@ constructor(
 
     private fun RunProgress.toWatchDisplay(
         plan: PlanSnapshot?,
-        notice: String?,
-        running: Boolean = true
+        notice: WatchNotice?,
+        isRunning: Boolean = true
     ): WatchDisplay = WatchDisplay(
-        running = running,
+        isRunning = isRunning,
         elapsed = elapsed,
         distance = distance,
         currentPace = currentPace,

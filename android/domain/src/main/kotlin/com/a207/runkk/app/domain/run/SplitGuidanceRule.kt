@@ -13,6 +13,12 @@ class SplitGuidanceRule : GuidanceRule {
     override fun check(ctx: GuidanceContext): Guidance? {
         val km = points.newPoint(ctx.progress.distance) ?: return null
         val settings = ctx.guidanceSettings
-        return Guidance(Guidance.Kind.SPLIT, "${km}km 지점입니다", settings.runVoice, settings.runVibration)
+        return Guidance(
+            Guidance.Kind.SPLIT,
+            GuidanceMessage.SPLIT,
+            listOf(km),
+            hasVoice = settings.runVoice,
+            hasVibration = settings.runVibration
+        )
     }
 }

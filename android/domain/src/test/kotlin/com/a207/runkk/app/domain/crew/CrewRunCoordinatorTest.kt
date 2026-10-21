@@ -233,7 +233,7 @@ class CrewRunCoordinatorTest {
         (1L..360L).forEach { second -> tracker.runTo(second, (second - 1) * 3.0) }
         runCurrent()
         val rank = guidance.played.filter { it.kind == Guidance.Kind.RANK }
-        assertEquals(listOf("3명 중 2위"), rank.map { it.message })
+        assertEquals(listOf(listOf<Any>(3, 2)), rank.map { it.args })
     }
 
     @Test

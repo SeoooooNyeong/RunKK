@@ -22,6 +22,7 @@ import com.a207.runkk.app.domain.live.ProgressReport
 import com.a207.runkk.app.domain.live.ServerMessage
 import com.a207.runkk.app.domain.run.CoordinatedRound
 import com.a207.runkk.app.domain.run.Guidance
+import com.a207.runkk.app.domain.run.GuidanceMessage
 import com.a207.runkk.app.domain.run.GuidanceOutput
 import com.a207.runkk.app.domain.run.PlanSnapshot
 import com.a207.runkk.app.domain.run.RunProgress
@@ -278,7 +279,7 @@ constructor(
         val reported = run.round.report(call)
         if (reported is Outcome.Failure) {
             _failure.value = reported.error
-            guidanceOutput.play(Guidance.screenOnly(Guidance.Kind.REPORT_FAILED, "대결 상태를 서버에 알리지 못했어요"))
+            guidanceOutput.play(Guidance.screenOnly(Guidance.Kind.REPORT_FAILED, GuidanceMessage.REPORT_FAILED))
         }
     }
 
@@ -409,9 +410,10 @@ constructor(
     private fun announce(kind: BattleGuidance.Kind, gapMeters: Int) {
         when (kind) {
             BattleGuidance.Kind.OVERTOOK ->
-                runTracker.onLeadChanged(Guidance.Kind.OVERTOOK, "상대를 추월했어요! ${gapMeters}m 앞서는 중")
+                runTracker.onLeadChanged(Guidance.Kind.OVERTOOK, GuidanceMessage.OVERTOOK, listOf(gapMeters))
 
-            BattleGuidance.Kind.OVERTAKEN -> runTracker.onLeadChanged(Guidance.Kind.OVERTAKEN, "역전당했어요")
+            BattleGuidance.Kind.OVERTAKEN ->
+                runTracker.onLeadChanged(Guidance.Kind.OVERTAKEN, GuidanceMessage.OVERTAKEN)
         }
     }
 
