@@ -1,6 +1,7 @@
 package com.a207.runkk.app.ui.run
 
 import androidx.compose.ui.test.junit4.createComposeRule
+import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.testing.RUNKK_PHONE
 import com.a207.runkk.app.core.designsystem.testing.captureRunkkScreen
 import com.a207.runkk.app.core.model.CardKind
@@ -62,7 +63,7 @@ class RunScreenshotTest {
                 phase = RunPhase.RUNNING,
                 progress = progress,
                 targetDistance = Distance(5_000),
-                splitBanner = "2km 통과 · 11:04 · 평균 5:32"
+                splitBanner = UiText.Plain("2km 통과 · 11:04 · 평균 5:32")
             ),
             RunActions()
         )
@@ -71,7 +72,11 @@ class RunScreenshotTest {
     @Test
     fun runningHint() = compose.captureRunkkScreen("B2_running_finish_hint") {
         RunScreen(
-            RunUiState(phase = RunPhase.RUNNING, progress = progress.copy(heartRate = null), hint = "길게 눌러 종료"),
+            RunUiState(
+                phase = RunPhase.RUNNING,
+                progress = progress.copy(heartRate = null),
+                hint = UiText.Res(R.string.run_hold_to_finish)
+            ),
             RunActions()
         )
     }

@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -53,6 +54,7 @@ import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkStatTile
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
+import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.GeoPoint
@@ -98,7 +100,10 @@ fun RunResultScreen(
                     RunkkLoading()
                 }
 
-                state.distance == null -> RunkkErrorState(state.error ?: "기록을 찾지 못했어요", onRetry = onRetry)
+                state.distance == null -> RunkkErrorState(
+                    state.error?.asString() ?: stringResource(R.string.run_result_not_found),
+                    onRetry = onRetry
+                )
 
                 else -> ResultBody(state)
             }
@@ -108,19 +113,30 @@ fun RunResultScreen(
             modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 32.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            RunkkSecondaryButton("기록 카드", onClick = onCard, enabled = state.uploaded, modifier = Modifier.weight(1f))
-            RunkkPrimaryButton("홈으로", onClick = onHome, modifier = Modifier.weight(1f))
+            RunkkSecondaryButton(
+                stringResource(R.string.run_result_card),
+                onClick = onCard,
+                enabled = state.uploaded,
+                modifier = Modifier.weight(1f)
+            )
+            RunkkPrimaryButton(
+                stringResource(R.string.run_result_home),
+                onClick = onHome,
+                modifier = Modifier.weight(1f)
+            )
         }
     }
 }
 
 @Composable
 private fun Header(state: RunResultUiState) {
+    val datePattern = stringResource(R.string.run_result_date_pattern)
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
         RunkkLogo(RunkkLogoKind.Icon, height = 24.dp)
         RunkkBadge(kindLabel(state.cardKind))
         Text(
-            text = listOfNotNull(state.startedAt?.let(::dateLabel), state.weather).joinToString(" · "),
+            text = listOfNotNull(state.startedAt?.let { dateLabel(it, datePattern) }, state.weather)
+                .joinToString(" · "),
             style = RunkkTextStyles.Caption,
             color = RunkkColors.TextSecondary,
             maxLines = 1,
@@ -128,7 +144,7 @@ private fun Header(state: RunResultUiState) {
             modifier = Modifier.weight(1f)
         )
         Text(
-            text = if (state.uploaded) "달력에 저장했어요" else "보내는 중",
+            text = stringResource(if (state.uploaded) R.string.run_result_saved else R.string.run_result_sending),
             style = RunkkTextStyles.Caption,
             color = if (state.uploaded) RunkkColors.Lime else RunkkColors.TextSecondary
         )
@@ -147,12 +163,30 @@ private fun ResultBody(state: RunResultUiState) {
             )
         }
     }
-    val distance = state.distance ?: Distance.ZERO
+    ResultDistance(state.distance ?: Distance.ZERO)
+    ResultStats(state)
+    if (state.calories != null) {
+        Text(
+            stringResource(R.string.run_result_calories, state.calories),
+            style = RunkkTextStyles.Caption,
+            color = RunkkColors.TextSecondary
+        )
+    }
+    CourseCard(state.route)
+    if (state.heartRateZones.isNotEmpty()) {
+        HeartRateZoneCard(state)
+    }
+}
+
+/** 큰 거리 숫자와 KM 단위. */
+@Composable
+private fun ResultDistance(distance: Distance) {
+    val distanceSpoken = stringResource(R.string.run_distance_spoken, RunkkFormat.km(distance))
     Row(
         verticalAlignment = Alignment.Bottom,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier.semantics(mergeDescendants = true) {
-            contentDescription = "${RunkkFormat.km(distance)} 킬로미터"
+            contentDescription = distanceSpoken
         }
     ) {
         Text(RunkkFormat.km(distance), style = RunkkTextStyles.DisplayLarge, color = RunkkColors.TextPrimary)
@@ -163,17 +197,22 @@ private fun ResultBody(state: RunResultUiState) {
             modifier = Modifier.padding(bottom = 8.dp)
         )
     }
+}
+
+/** 시간·평균 페이스·평균 심박 세 칸. */
+@Composable
+private fun ResultStats(state: RunResultUiState) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         RunkkStatTile(
-            "시간",
+            stringResource(R.string.run_result_stat_time),
             state.elapsed?.let(RunkkFormat::duration) ?: RunkkFormat.EMPTY,
-            spoken = state.elapsed?.let(RunkkFormat::durationSpoken),
+            spoken = state.elapsed?.let { RunkkFormat.durationSpoken(it) },
             centered = true,
             valueStyle = RunkkTextStyles.DisplaySmall,
             modifier = Modifier.weight(1f)
         )
         RunkkStatTile(
-            "평균 페이스",
+            stringResource(R.string.run_stat_avg_pace),
             RunkkFormat.pace(state.averagePace),
             spoken = RunkkFormat.paceSpoken(state.averagePace),
             centered = true,
@@ -181,77 +220,80 @@ private fun ResultBody(state: RunResultUiState) {
             modifier = Modifier.weight(1f)
         )
         RunkkStatTile(
-            "평균 심박",
+            stringResource(R.string.run_result_stat_heart_rate),
             state.averageHeartRate?.toString() ?: RunkkFormat.EMPTY,
             centered = true,
             valueStyle = RunkkTextStyles.DisplaySmall,
             modifier = Modifier.weight(1f)
         )
     }
-    if (state.calories != null) {
-        Text("소모 칼로리 약 ${state.calories}kcal", style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
-    }
+}
+
+/** 코스 카드: 경로가 둘 이상이면 그림, 아니면 빈 칸과 "기록 없음". */
+@Composable
+private fun CourseCard(route: List<GeoPoint>) {
     RunkkCard(
         modifier = Modifier.fillMaxWidth().height(160.dp),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp)
     ) {
-        if (state.route.size >= 2) {
-            RoutePreview(state.route, modifier = Modifier.fillMaxWidth().weight(1f))
+        if (route.size >= 2) {
+            RoutePreview(route, modifier = Modifier.fillMaxWidth().weight(1f))
         } else {
             Spacer(Modifier.weight(1f))
         }
         Text(
-            if (state.route.size >=
-                2
-            ) {
-                "코스"
-            } else {
-                "코스 기록 없음"
-            },
+            stringResource(if (route.size >= 2) R.string.run_result_course else R.string.run_result_course_none),
             style = RunkkTextStyles.Micro,
             color = RunkkColors.TextSecondary
         )
     }
-    if (state.heartRateZones.isNotEmpty()) {
-        RunkkCard {
-            Row {
-                Text(
-                    "심박 구간",
-                    style = RunkkTextStyles.text(13, FontWeight.Bold),
-                    color = RunkkColors.TextPrimary,
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    "워치 · 평균 ${state.averageHeartRate ?: RunkkFormat.EMPTY}",
-                    style = RunkkTextStyles.Caption,
-                    color = RunkkColors.TextSecondary
-                )
-            }
-            val total = state.heartRateZones.sumOf { it.second.seconds }.coerceAtLeast(1)
-            RunkkSegmentBar(
-                segments = state.heartRateZones.mapIndexed { index, (_, duration) ->
-                    duration.seconds.toFloat() / total to
-                        ZONE_COLORS[index % ZONE_COLORS.size]
-                },
-                modifier = Modifier.semantics {
-                    contentDescription =
-                        "심박 구간 분포: " + state.heartRateZones.joinToString { (zone, d) -> "$zone ${d.toMinutes()}분" }
-                }
+}
+
+/** 심박 구간 카드: 구간 비율 막대와 구간별 분. */
+@Composable
+private fun HeartRateZoneCard(state: RunResultUiState) {
+    val zones = state.heartRateZones
+    val zoneTexts = zones.map { (zone, d) -> stringResource(R.string.run_result_zone_item, zone, d.toMinutes()) }
+    val distributionSpoken = stringResource(R.string.run_result_zone_spoken, zoneTexts.joinToString())
+    RunkkCard {
+        Row {
+            Text(
+                stringResource(R.string.run_result_zone_title),
+                style = RunkkTextStyles.text(13, FontWeight.Bold),
+                color = RunkkColors.TextPrimary,
+                modifier = Modifier.weight(1f)
             )
             Text(
-                state.heartRateZones.joinToString("  ") { (zone, d) -> "$zone ${d.toMinutes()}분" },
+                stringResource(
+                    R.string.run_result_zone_watch_average,
+                    state.averageHeartRate?.toString() ?: RunkkFormat.EMPTY
+                ),
                 style = RunkkTextStyles.Caption,
-                color = RunkkColors.TextSecondary,
-                modifier = Modifier.clearAndSetSemantics {}
+                color = RunkkColors.TextSecondary
             )
         }
+        val total = zones.sumOf { it.second.seconds }.coerceAtLeast(1)
+        RunkkSegmentBar(
+            segments = zones.mapIndexed { index, (_, duration) ->
+                duration.seconds.toFloat() / total to
+                    ZONE_COLORS[index % ZONE_COLORS.size]
+            },
+            modifier = Modifier.semantics { contentDescription = distributionSpoken }
+        )
+        Text(
+            zoneTexts.joinToString("  "),
+            style = RunkkTextStyles.Caption,
+            color = RunkkColors.TextSecondary,
+            modifier = Modifier.clearAndSetSemantics {}
+        )
     }
 }
 
 /** 경로선을 칸에 맞춰 그린다(지도 없이). 시작은 흰 점, 끝은 라임 점. */
 @Composable
 internal fun RoutePreview(points: List<GeoPoint>, modifier: Modifier = Modifier) {
-    Canvas(modifier = modifier.semantics { contentDescription = "코스 경로" }) {
+    val routeDesc = stringResource(R.string.run_result_route_desc)
+    Canvas(modifier = modifier.semantics { contentDescription = routeDesc }) {
         val minLat = points.minOf { it.latitude }
         val maxLat = points.maxOf { it.latitude }
         val minLon = points.minOf { it.longitude }
@@ -291,17 +333,20 @@ internal fun RoutePreview(points: List<GeoPoint>, modifier: Modifier = Modifier)
     }
 }
 
-internal fun kindLabel(kind: CardKind?): String = when (kind) {
-    CardKind.FREE_RUN, null -> "자유런"
-    CardKind.BATTLE_RUN -> "배틀런"
-    CardKind.SELF_RUN -> "나와의 싸움"
-    CardKind.CELEB_RUN -> "셀럽런"
-    CardKind.CREW_RUN -> "크루런"
-}
+@Composable
+internal fun kindLabel(kind: CardKind?): String = stringResource(
+    when (kind) {
+        CardKind.FREE_RUN, null -> R.string.run_kind_free
+        CardKind.BATTLE_RUN -> R.string.run_kind_battle
+        CardKind.SELF_RUN -> R.string.run_kind_self
+        CardKind.CELEB_RUN -> R.string.run_kind_celeb
+        CardKind.CREW_RUN -> R.string.run_kind_crew
+    }
+)
 
-private val DATE = DateTimeFormatter.ofPattern("M월 d일 (E)", Locale.KOREAN)
-
-internal fun dateLabel(at: Instant): String = DATE.format(at.atZone(ZoneId.systemDefault()))
+/** [pattern](예: "M월 d일 (E)")으로 시작 시각의 날짜를 쓴다. */
+internal fun dateLabel(at: Instant, pattern: String): String =
+    DateTimeFormatter.ofPattern(pattern, Locale.KOREAN).format(at.atZone(ZoneId.systemDefault()))
 
 private val ZONE_COLORS =
     listOf(
