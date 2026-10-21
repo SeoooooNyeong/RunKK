@@ -4,6 +4,7 @@ import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.dao.TransientDataAccessException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -51,6 +52,37 @@ class CrewTransactions {
                     work.run();
                     return Boolean.TRUE;
                 });
+    }
+
+    /**
+     * 커밋 뒤 수신자 한 건(코드 리뷰 2차 M4). 새 트랜잭션에서 하고 일시 오류(낙관적 잠금 충돌·잠금 대기·연결 일시 장애)면 최대 3회 다시 한다. 그래도 실패하면
+     * job과 key를 담은 실패 로그만 남기고 삼켜 업로드 응답과 뒤 수신자를 막지 않는다. 유실분은 각 수신자의 복구 경로가 맞춘다.
+     */
+    void afterCommit(String job, Object key, Runnable work) {
+        for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+            try {
+                template.executeWithoutResult(status -> work.run());
+                return;
+            } catch (TransientDataAccessException e) {
+                log.info("crew_receiver_retry job={} key={} attempt={}", job, key, attempt);
+                if (attempt == MAX_ATTEMPTS) {
+                    log.error(
+                            "crew_receiver_failed job={} key={} error={}",
+                            job,
+                            key,
+                            e.getClass().getSimpleName(),
+                            e);
+                }
+            } catch (RuntimeException e) {
+                log.error(
+                        "crew_receiver_failed job={} key={} error={}",
+                        job,
+                        key,
+                        e.getClass().getSimpleName(),
+                        e);
+                return;
+            }
+        }
     }
 
     <T> T read(Supplier<T> work) {

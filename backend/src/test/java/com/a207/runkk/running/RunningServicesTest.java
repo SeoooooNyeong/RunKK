@@ -391,6 +391,13 @@ class RunningServicesTest {
         new TierUpdateListener(flaky, NO_TX).onRunSaved(saved().get(0));
         verify(flaky, times(3)).recordValidRun(anyLong(), any(RunScoreInput.class));
 
+        TierLevelService locked = mock(TierLevelService.class); // L16: 잠금 대기도 일시 오류로 다시 한다
+        when(locked.recordValidRun(anyLong(), any()))
+                .thenThrow(new org.springframework.dao.CannotAcquireLockException("lock wait"))
+                .thenReturn(null);
+        new TierUpdateListener(locked, NO_TX).onRunSaved(saved().get(0));
+        verify(locked, times(2)).recordValidRun(anyLong(), any(RunScoreInput.class));
+
         TierLevelService broken = mock(TierLevelService.class);
         when(broken.recordValidRun(anyLong(), any())).thenThrow(new IllegalStateException("탈퇴"));
         new TierUpdateListener(broken, NO_TX).onRunSaved(saved().get(0));

@@ -133,14 +133,17 @@ public class CrewRunService {
 
     /**
      * 크루런게시글ID가 있는 기록이 저장되면 linkRun(FR-146), 기록이 크루런 거리에 닿았으면 recordArrival(startedAt +
-     * timeToReach)(FR-191). 커밋 뒤 새 트랜잭션에서 하고 시계와 충돌하면 다시 읽는다.
+     * timeToReach)(FR-191). 커밋 뒤 새 트랜잭션에서 하고 시계와 충돌하는 등 일시 오류면 다시 읽는다. 그래도 실패하면 로그만 남긴다(M4, 복구 경로는
+     * 결정 목록).
      */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onRunSaved(RunRecordSaved e) {
         if (e.crewRunPostId() == null) {
             return;
         }
-        transactions.retryingRun(
+        transactions.afterCommit(
+                "crew_run_link",
+                e.recordId(),
                 () ->
                         crewPostRepository
                                 .findCrewRunByIdForUpdate(e.crewRunPostId())
