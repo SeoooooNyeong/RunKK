@@ -181,6 +181,11 @@ runkk:
     enabled: true
     port: ${EMBEDDED_REDIS_PORT:6370}
 
+
+# local은 인증 없는 h2-console과 기동마다 바뀌는 JWT 키로 뜨므로 기본으로 이 PC에서만 받는다(코드 리뷰 2차 L19).
+# 실기기 시험처럼 같은 망에서 붙어야 하면 SERVER_ADDRESS=0.0.0.0으로 연다(에뮬레이터 10.0.2.2는 이 PC의 루프백이라 그대로 된다).
+server:
+  address: ${SERVER_ADDRESS:127.0.0.1}
 ---
 spring:
   config:
@@ -200,6 +205,8 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+      # Redis 비밀번호(코드 리뷰 2차 L27). 서버 Redis에 requirepass를 켜면 같은 값을 넣는다. 비면 비밀번호 없이 붙는다.
+      password: ${REDIS_PASSWORD:}
 
 springdoc:
   api-docs:
@@ -230,6 +237,7 @@ spring:
     redis:
       host: ${REDIS_HOST}
       port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
 
 springdoc:
   api-docs:
