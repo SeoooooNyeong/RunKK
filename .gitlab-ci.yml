@@ -150,7 +150,8 @@ backend:build:
     - docker build -t runkk-api:$CI_COMMIT_SHORT_SHA -t runkk-api:latest backend
 
 # develop은 자동, main은 수동 승인. EC2가 한 대라 main 배포는 develop 스택을 교체한다 (README 참고).
-# 롤백: docker tag runkk-api:<이전 sha> runkk-api:latest && cd infra && docker compose up -d --no-build api
+# 롤백: docker tag runkk-api:<이전 sha> runkk-api:latest && docker tag runkk-ai:<이전 sha> runkk-ai:latest
+#       && cd infra && docker compose up -d --no-build api ai   (바뀐 쪽 이미지만 되돌려도 된다)
 backend:deploy:
   stage: deploy
   tags: [deploy]
@@ -166,6 +167,9 @@ backend:deploy:
   script:
     - if [ "$CI_COMMIT_BRANCH" = "main" ]; then cp "$INFRA_ENV_PROD" infra/.env; else cp "$INFRA_ENV" infra/.env; fi
     - cd infra && ./deploy.sh
+  # shell 러너 작업 폴더에 운영 .env가 남지 않게 잡이 끝나면(실패해도) 지운다
+  after_script:
+    - rm -f infra/.env
 
 backend:smoke:
   stage: smoke
@@ -176,11 +180,13 @@ backend:smoke:
       changes: *deploy-changes
   script:
     - if [ "$CI_COMMIT_BRANCH" = "main" ]; then cp "$INFRA_ENV_PROD" infra/.env; else cp "$INFRA_ENV" infra/.env; fi
-    - PORT=$(grep -E '^NGINX_HTTP_PORT=' infra/.env | cut -d= -f2 | tr -d ' '); PORT=${PORT:-80}
+    - PORT=$(grep -E '^NGINX_HTTP_PORT=' infra/.env | cut -d= -f2 | sed 's/[[:space:]]*#.*//' | tr -d ' '); PORT=${PORT:-80}
     - curl -fsS "http://localhost:$PORT/actuator/health" | grep -q '"UP"'
     # ai는 외부 포트가 없어 컨테이너 헬스 상태로 본다("unhealthy"가 걸리지 않게 정확히 비교)
     - test "$(docker compose -f infra/docker-compose.yml --env-file infra/.env ps ai --format '{{.Health}}')" = healthy
     - if [ "$CI_COMMIT_BRANCH" != "main" ]; then curl -fsSL -o /dev/null "http://localhost:$PORT/docs"; fi
+  after_script:
+    - rm -f infra/.env
 
 # ---------- 안드로이드 ----------
 
