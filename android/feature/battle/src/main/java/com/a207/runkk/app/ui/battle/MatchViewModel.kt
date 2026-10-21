@@ -202,13 +202,9 @@ class MatchViewModel @Inject constructor(
         channel?.close()
         channel = null
         coordinator.abandonMatching()
-        val text = if (error ==
-            AppError.Unauthorized
-        ) {
-            BattleErrorText.of(error)
-        } else {
-            UiText.Res(R.string.battle_match_connection_lost)
-        }
+        val isAuthLost = error == AppError.Unauthorized
+        val connectionLost = UiText.Res(R.string.battle_match_connection_lost)
+        val text = if (isAuthLost) BattleErrorText.of(AppError.Unauthorized) else connectionLost
         _state.update { MatchUiState(distance = it.distance, error = text) }
     }
 
