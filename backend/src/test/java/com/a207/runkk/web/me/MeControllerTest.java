@@ -191,17 +191,15 @@ class MeControllerTest extends WebTestSupport {
     }
 
     @Test
-    @DisplayName("탈퇴: 첫 요청은 완료, 두 번째는 처리할 수 없는 상태(409)")
+    @DisplayName("탈퇴: 첫 요청은 완료, 그 뒤 남은 접근 토큰은 401(L21: 탈퇴 회원 토큰을 1시간 동안 받지 않는다)")
     void withdraw() throws Exception {
         Session s = signUp();
         mvc.perform(as(s, delete("/api/v1/me")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.withdrawn").value(true));
         mvc.perform(as(s, delete("/api/v1/me")))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("INVALID_STATE"));
-        mvc.perform(as(s, get("/api/v1/me/disposals")))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(0));
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+        mvc.perform(as(s, get("/api/v1/me/disposals"))).andExpect(status().isUnauthorized());
     }
 }

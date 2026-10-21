@@ -46,7 +46,9 @@ public class SecurityConfig {
 
     @Bean
     @Order(2)
-    SecurityFilterChain apiChain(HttpSecurity http, TokenIssuer tokenIssuer) throws Exception {
+    SecurityFilterChain apiChain(
+            HttpSecurity http, TokenIssuer tokenIssuer, ActiveMembers activeMembers)
+            throws Exception {
         http.csrf(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable)
@@ -88,7 +90,8 @@ public class SecurityConfig {
                                         .anyRequest()
                                         .authenticated())
                 .addFilterBefore(
-                        new AuthFilter(tokenIssuer), UsernamePasswordAuthenticationFilter.class);
+                        new AuthFilter(tokenIssuer, activeMembers),
+                        UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 }

@@ -19,7 +19,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * JWT에서 회원 ID를 꺼내 요청에 붙인다(설계 6.1.13 web.auth.AuthFilter). Authorization: Bearer 접근 토큰을
  * member.TokenIssuer.verify로 확인하고 회원 ID를 요청 속성 memberId와 보안 문맥에 둔다. 만료·위조면 바로 401이다.
  * /api/v1/admin/*은 회원 JWT를 검사하지 않는다(관리툴 토큰은 web.admin의 OperatorCheckInterceptor가 본다, D-42, D-50).
- * 토큰 값은 로그에 남기지 않는다.
+ * 서명·만료가 맞아도 회원이 ACTIVE가 아니면(탈퇴) 401이다(ActiveMembers, 코드 리뷰 2차 L21). 토큰 값은 로그에 남기지 않는다.
  */
 public class AuthFilter extends OncePerRequestFilter {
 
@@ -32,9 +32,11 @@ public class AuthFilter extends OncePerRequestFilter {
             "{\"code\":\"UNAUTHORIZED\",\"message\":\"로그인이 필요합니다\"}";
 
     private final TokenIssuer tokenIssuer;
+    private final ActiveMembers activeMembers;
 
-    public AuthFilter(TokenIssuer tokenIssuer) {
+    public AuthFilter(TokenIssuer tokenIssuer, ActiveMembers activeMembers) {
         this.tokenIssuer = tokenIssuer;
+        this.activeMembers = activeMembers;
     }
 
     @Override
@@ -55,6 +57,11 @@ public class AuthFilter extends OncePerRequestFilter {
         try {
             memberId = tokenIssuer.verify(header.substring(BEARER.length()));
         } catch (AuthFailureException e) {
+            SecurityContextHolder.clearContext();
+            writeUnauthorized(response);
+            return;
+        }
+        if (!activeMembers.isActive(memberId)) {
             SecurityContextHolder.clearContext();
             writeUnauthorized(response);
             return;
