@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -38,10 +39,16 @@ fun RunkkNavHost(
     featureEntries: Set<FeatureEntry>,
     startRoute: String,
     onExit: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    loggedIn: Boolean = true
 ) {
     val backStack = rememberNavBackStack(Routes.Key(startRoute))
     val navigator = remember(backStack) { BackStackNavigator(backStack, onExit) }
+    // 로그인 상태가 풀리면(로그아웃·토큰 갱신 실패 → TokenProvider.clear, 6.1.14) 로그인·가입 화면이 아닌 한 로그인으로 돌린다.
+    LaunchedEffect(loggedIn) {
+        val top = (backStack.lastOrNull() as? Routes.Key)?.route
+        if (!loggedIn && top !in AUTH_ROUTES) navigator.restart(Routes.LOGIN)
+    }
     val provider = remember(featureEntries) {
         entryProvider<NavKey>(fallback = { key -> NavEntry(key) { ComingSoonScreen() } }) {
             featureEntries.forEach { it.register(this) }
@@ -97,6 +104,9 @@ internal class BackStackNavigator(private val backStack: NavBackStack<NavKey>, p
         backStack.add(Routes.Key(route))
     }
 }
+
+/** 로그인하지 않은 채로 머물 수 있는 경로. */
+private val AUTH_ROUTES = setOf(Routes.LOGIN, Routes.SIGN_UP)
 
 private fun tabOf(route: String): RunkkTab? = when (route) {
     Routes.SELF -> RunkkTab.SELF
