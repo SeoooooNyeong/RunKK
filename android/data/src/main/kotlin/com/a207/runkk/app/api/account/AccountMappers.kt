@@ -52,20 +52,20 @@ internal fun MemberSettingsResponse.toDomain(): SettingsSnapshot {
         courseMapShared = courseMapShared,
         birthYear = birthYear,
         guidanceSettings =
-        GuidanceSettings(
-            runVoice = runSettings?.voice ?: defaults.runVoice,
-            runVibration = runSettings?.vibration ?: defaults.runVibration,
-            battleVoice = battleSettings?.voice ?: defaults.battleVoice,
-            battleVibration = battleSettings?.vibration ?: defaults.battleVibration,
-            gapAlertMeters =
-            when (battleSettings?.gapAlertInterval) {
-                GAP_500M -> 500
-                null -> defaults.gapAlertMeters
-                else -> 1_000
-            },
-            rankAlert = defaults.rankAlert,
-            followCoachPlan = runSettings?.followCoachPlan ?: defaults.followCoachPlan
-        )
+            GuidanceSettings(
+                runVoice = runSettings?.voice ?: defaults.runVoice,
+                runVibration = runSettings?.vibration ?: defaults.runVibration,
+                battleVoice = battleSettings?.voice ?: defaults.battleVoice,
+                battleVibration = battleSettings?.vibration ?: defaults.battleVibration,
+                gapAlertMeters =
+                    when (battleSettings?.gapAlertInterval) {
+                        GAP_500M -> 500
+                        null -> defaults.gapAlertMeters
+                        else -> 1_000
+                    },
+                rankAlert = defaults.rankAlert,
+                followCoachPlan = runSettings?.followCoachPlan ?: defaults.followCoachPlan
+            )
     )
 }
 

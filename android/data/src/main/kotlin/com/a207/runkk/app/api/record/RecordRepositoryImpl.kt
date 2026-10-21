@@ -30,7 +30,9 @@ constructor(private val api: RecordApi) : RecordRepository {
     override suspend fun runs(ownerId: Long, from: LocalDate, to: LocalDate): Outcome<RecordList> =
         ApiErrorMapper.call { api.runs(ownerId, ServerTime.formatDate(from), ServerTime.formatDate(to)).toDomain() }
 
-    override suspend fun run(recordId: String): Outcome<RecordDetail> = ApiErrorMapper.call { api.run(recordId).toDomain() }
+    override suspend fun run(recordId: String): Outcome<RecordDetail> = ApiErrorMapper.call {
+        api.run(recordId).toDomain()
+    }
 
     override suspend fun growth(period: AggregationPeriod): Outcome<Growth> =
         ApiErrorMapper.call { api.growth(period.name).toDomain() }
@@ -47,7 +49,9 @@ constructor(private val api: RecordApi) : RecordRepository {
         ApiErrorMapper.call { api.setWeeklyGoal(WeeklyGoalRequest(distance?.meters, runs)) }
 
     override suspend fun putPlan(date: LocalDate, distance: Distance, pace: Pace?): Outcome<Unit> =
-        ApiErrorMapper.call { api.putPlan(ServerTime.formatDate(date), PlanRequest(distance.meters, pace?.secondsPerKm)) }
+        ApiErrorMapper.call {
+            api.putPlan(ServerTime.formatDate(date), PlanRequest(distance.meters, pace?.secondsPerKm))
+        }
 
     override suspend fun planProgress(from: LocalDate, to: LocalDate): Outcome<PlanProgress> =
         ApiErrorMapper.call { api.planProgress(ServerTime.formatDate(from), ServerTime.formatDate(to)).toDomain() }
@@ -59,5 +63,7 @@ constructor(private val api: RecordApi) : RecordRepository {
         reply.body()?.toDomain()
     }
 
-    override suspend fun card(recordId: String): Outcome<RunCard> = ApiErrorMapper.call { api.card(recordId).toDomain() }
+    override suspend fun card(recordId: String): Outcome<RunCard> = ApiErrorMapper.call {
+        api.card(recordId).toDomain()
+    }
 }

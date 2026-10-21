@@ -20,13 +20,13 @@ internal fun CompletedRun.toRequest(): RunUploadRequest = RunUploadRequest(
     distanceMeters = distance.meters,
     pointCount = route.size,
     points =
-    route.map { p ->
-        RunUploadRequest.Point(ServerTime.format(p.at), p.point.latitude, p.point.longitude, p.state.name)
-    },
+        route.map { p ->
+            RunUploadRequest.Point(ServerTime.format(p.at), p.point.latitude, p.point.longitude, p.state.name)
+        },
     unstableSegments =
-    unstable.map { s ->
-        RunUploadRequest.Segment(ServerTime.format(s.startAt), ServerTime.format(s.endAt), s.distance.meters)
-    },
+        unstable.map { s ->
+            RunUploadRequest.Segment(ServerTime.format(s.startAt), ServerTime.format(s.endAt), s.distance.meters)
+        },
     heartRates = heartRates.map { it.toRequest() }
 )
 

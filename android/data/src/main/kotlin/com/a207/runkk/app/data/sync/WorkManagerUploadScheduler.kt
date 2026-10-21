@@ -23,7 +23,8 @@ import javax.inject.Singleton
 @Singleton
 class WorkManagerUploadScheduler
 @Inject
-constructor(@ApplicationContext private val context: Context) : UploadScheduler {
+constructor(@ApplicationContext private val context: Context) :
+    UploadScheduler {
     override fun requestUpload() {
         enqueue(ExistingWorkPolicy.REPLACE, Duration.ZERO, attempt = 0)
     }

@@ -166,7 +166,11 @@ class RoomPendingRunRepositoryTest {
         repository.save(completedRun("r-1"))
         repository.remove("r-1")
         val nextDay =
-            RoomPendingRunRepository(db, scheduler, Clock.fixed(now.plus(Duration.ofDays(1)).plusSeconds(1), ZoneOffset.UTC))
+            RoomPendingRunRepository(
+                db,
+                scheduler,
+                Clock.fixed(now.plus(Duration.ofDays(1)).plusSeconds(1), ZoneOffset.UTC)
+            )
 
         nextDay.save(completedRun("r-2"))
         nextDay.remove("r-2")
@@ -197,10 +201,10 @@ class RoomPendingRunRepositoryTest {
         elapsed = Duration.ofSeconds(605),
         distance = Distance(2_012),
         route =
-        listOf(
-            RoutePoint(now.plusSeconds(1), GeoPoint(37.501234, 127.034567), SignalState.NORMAL),
-            RoutePoint(now.plusSeconds(2), GeoPoint(37.501301, 127.034601), SignalState.UNSTABLE)
-        ),
+            listOf(
+                RoutePoint(now.plusSeconds(1), GeoPoint(37.501234, 127.034567), SignalState.NORMAL),
+                RoutePoint(now.plusSeconds(2), GeoPoint(37.501301, 127.034601), SignalState.UNSTABLE)
+            ),
         unstable = listOf(UnstableSegment(now.plusSeconds(100), now.plusSeconds(115), Distance(42))),
         heartRates = listOf(HeartRateSample(now.plusSeconds(10), 130), HeartRateSample(now.plusSeconds(20), 140)),
         savedAt = now.plusSeconds(606)
@@ -212,5 +216,20 @@ class RoomPendingRunRepositoryTest {
         override fun requestUpload() {
             requests++
         }
+    }
+
+    @Test
+    fun `F-4 전송이 읽은 뒤 덧붙은 늦은 심박은 remove가 지우지 않고 다시 보낼 기록으로 남긴다`() = runTest {
+        val run = completedRun("r-1")
+        repository.save(run)
+        repository.pending()
+        val late = listOf(HeartRateSample(now.plusSeconds(700), 150))
+        repository.appendHeartRates("r-1", late)
+
+        repository.remove("r-1")
+
+        val left = (repository.pending() as Outcome.Success).value.single()
+        assertEquals(run.copy(route = emptyList(), unstable = emptyList(), heartRates = late), left)
+        assertEquals(1, scheduler.requests, "남은 늦은 심박을 보내도록 전송을 요청한다")
     }
 }

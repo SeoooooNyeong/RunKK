@@ -151,15 +151,15 @@ class DataStoreSettingsRepositoryTest {
                 courseMapShared = true,
                 birthYear = 1990,
                 guidanceSettings =
-                GuidanceSettings(
-                    runVoice = false,
-                    runVibration = true,
-                    battleVoice = true,
-                    battleVibration = false,
-                    gapAlertMeters = 500,
-                    rankAlert = true,
-                    followCoachPlan = true
-                )
+                    GuidanceSettings(
+                        runVoice = false,
+                        runVibration = true,
+                        battleVoice = true,
+                        battleVibration = false,
+                        gapAlertMeters = 500,
+                        rankAlert = true,
+                        followCoachPlan = true
+                    )
             )
     }
 }

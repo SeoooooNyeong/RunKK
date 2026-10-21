@@ -37,7 +37,9 @@ class CrewRepositoryImplTest {
         val crews = repository.search("새벽", setOf("WEEKEND", "MORNING")).value()
 
         assertEquals(
-            CrewList(listOf(CrewList.Item(1, "새벽런", null, setOf("MORNING"), "곰", 12, Distance(81_000), JoinPolicy.FREE))),
+            CrewList(
+                listOf(CrewList.Item(1, "새벽런", null, setOf("MORNING"), "곰", 12, Distance(81_000), JoinPolicy.FREE))
+            ),
             crews
         )
         val target = api.take().url
@@ -87,7 +89,9 @@ class CrewRepositoryImplTest {
         val posts = repository.posts(5, null).value()
 
         assertEquals(
-            PostList(listOf(PostList.Item(1, PostList.Kind.CHEER, "곰", "화이팅", Instant.parse("2026-10-19T22:00:00Z"), true))),
+            PostList(
+                listOf(PostList.Item(1, PostList.Kind.CHEER, "곰", "화이팅", Instant.parse("2026-10-19T22:00:00Z"), true))
+            ),
             posts
         )
     }

@@ -34,7 +34,9 @@ constructor(private val api: AvatarApi) : AvatarRepository {
 
     override suspend fun shop(slot: ItemSlot?): Outcome<Shop> = ApiErrorMapper.call { api.shop(slot?.name).toDomain() }
 
-    override suspend fun purchase(itemId: Long): Outcome<Int> = ApiErrorMapper.call { api.purchase(PurchaseRequest(itemId)).balance }
+    override suspend fun purchase(itemId: Long): Outcome<Int> = ApiErrorMapper.call {
+        api.purchase(PurchaseRequest(itemId)).balance
+    }
 
     private companion object {
         const val SELFIE_PART = "selfie"
@@ -56,9 +58,11 @@ internal fun AvatarResponse.toDomain(): Avatar = Avatar(
 
 internal fun ShopResponse.toDomain(): Shop = Shop(
     items =
-    items.mapNotNull { item ->
-        enumByName<ItemSlot>(item.slot)?.let { Shop.Item(item.itemId, it, item.name, item.price, item.owned, item.onSale) }
-    },
+        items.mapNotNull { item ->
+            enumByName<ItemSlot>(item.slot)?.let {
+                Shop.Item(item.itemId, it, item.name, item.price, item.owned, item.onSale)
+            }
+        },
     balance = balance
 )
 

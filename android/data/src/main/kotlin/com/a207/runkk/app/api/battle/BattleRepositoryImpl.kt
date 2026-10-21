@@ -36,7 +36,9 @@ constructor(private val api: BattleApi) : BattleRepository {
 
     override suspend fun forfeit(battleId: Long): Outcome<Unit> = ApiErrorMapper.call { api.forfeit(battleId) }
 
-    override suspend fun result(battleId: Long): Outcome<BattleResult> = ApiErrorMapper.call { api.result(battleId).toDomain() }
+    override suspend fun result(battleId: Long): Outcome<BattleResult> = ApiErrorMapper.call {
+        api.result(battleId).toDomain()
+    }
 
     override suspend fun history(filter: BattleHistory.Type?): Outcome<BattleHistory> =
         ApiErrorMapper.call { api.history(filter?.name).toDomain() }

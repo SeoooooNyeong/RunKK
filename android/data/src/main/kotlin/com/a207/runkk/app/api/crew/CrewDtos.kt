@@ -107,7 +107,11 @@ internal data class PostWriteRequest(
 internal data class VoteRequest(val answer: String)
 
 @Serializable
-internal data class LobbyResponse(val postId: Long, val participants: List<Participant> = emptyList(), val meetAt: String) {
+internal data class LobbyResponse(
+    val postId: Long,
+    val participants: List<Participant> = emptyList(),
+    val meetAt: String
+) {
     @Serializable
     data class Participant(val displayName: String, val ready: Boolean)
 }

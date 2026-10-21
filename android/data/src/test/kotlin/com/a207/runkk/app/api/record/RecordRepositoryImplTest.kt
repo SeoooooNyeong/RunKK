@@ -48,7 +48,10 @@ class RecordRepositoryImplTest {
                 total = Distance(152_300),
                 landmark = "서울→부산 37%",
                 streakDays = 4,
-                grass = mapOf(LocalDate.of(2026, 10, 19) to Distance(5_000), LocalDate.of(2026, 10, 20) to Distance(3_200)),
+                grass = mapOf(
+                    LocalDate.of(2026, 10, 19) to Distance(5_000),
+                    LocalDate.of(2026, 10, 20) to Distance(3_200)
+                ),
                 weeklyAchievement = 0.6,
                 crew = Dashboard.CrewArea("새벽런", 9, mapOf(LocalDate.of(2026, 10, 20) to Distance(12_000)), null)
             ),
@@ -146,7 +149,16 @@ class RecordRepositoryImplTest {
         val card = repository.card("r-2").value()
 
         assertEquals(
-            RunCard("r-2", CardKind.FREE_RUN, Instant.parse("2026-10-19T22:00:00Z"), Distance(3_000), Duration.ofSeconds(1_000), null, emptyList(), false),
+            RunCard(
+                "r-2",
+                CardKind.FREE_RUN,
+                Instant.parse("2026-10-19T22:00:00Z"),
+                Distance(3_000),
+                Duration.ofSeconds(1_000),
+                null,
+                emptyList(),
+                false
+            ),
             card
         )
     }

@@ -11,7 +11,8 @@ import javax.inject.Inject
 /** 알림함 포트(GET /notifications, POST /notifications/{id}/open)를 구현한다(6.1.14 api.notification). */
 internal class NotificationRepositoryImpl
 @Inject
-constructor(private val api: NotificationApi) : NotificationRepository {
+constructor(private val api: NotificationApi) :
+    NotificationRepository {
     override suspend fun inbox(): Outcome<Inbox> = ApiErrorMapper.call { api.inbox().toDomain() }
 
     override suspend fun open(notificationId: Long): Outcome<Unit> = ApiErrorMapper.call { api.open(notificationId) }

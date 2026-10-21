@@ -66,9 +66,14 @@ internal fun RecordDetailResponse.toDomain(): RecordDetail = RecordDetail(
 
 internal fun GrowthResponse.toDomain(): Growth = Growth(
     periods =
-    periods.map {
-        Growth.PeriodTotal(ServerTime.parseDate(it.start), Distance(it.distanceMeters), it.runs, it.averagePaceSecondsPerKm.toPace())
-    },
+        periods.map {
+            Growth.PeriodTotal(
+                ServerTime.parseDate(it.start),
+                Distance(it.distanceMeters),
+                it.runs,
+                it.averagePaceSecondsPerKm.toPace()
+            )
+        },
     bests = bests.mapValues { Duration.ofSeconds(it.value) },
     longest = longestMeters?.let(::Distance)
 )

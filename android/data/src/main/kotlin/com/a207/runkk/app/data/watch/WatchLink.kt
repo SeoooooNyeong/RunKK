@@ -6,6 +6,7 @@ import com.a207.runkk.app.domain.run.HeartRateSample
 import com.a207.runkk.app.domain.run.WatchDisplay
 import com.a207.runkk.app.domain.run.WatchGateway
 import com.a207.runkk.app.domain.settings.SettingsRepository
+import com.a207.runkk.wear.contract.EndRequestMessage
 import com.a207.runkk.wear.contract.HeartRateBatchMessage
 import com.a207.runkk.wear.contract.StartRequestMessage
 import com.a207.runkk.wear.contract.WatchDisplayMessage
@@ -24,14 +25,20 @@ import javax.inject.Singleton
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.serialization.SerializationException
@@ -61,9 +68,10 @@ class WatchLink internal constructor(
     internal interface Transport {
         val incoming: SharedFlow<Incoming>
 
-        fun send(path: String, payload: ByteArray)
+        /** 연결된 워치 노드가 있는가. 거짓 → 참이 되면 WatchLink가 표시 정보를 다시 보낸다. */
+        val connected: StateFlow<Boolean>
 
-        fun isConnected(): Boolean
+        fun send(path: String, payload: ByteArray)
     }
 
     /** 워치에서 온 메시지·데이터 항목 하나(경로, 내용). */
@@ -71,6 +79,9 @@ class WatchLink internal constructor(
 
     private val lock = Any()
     private var lastDisplay: WatchDisplay? = null
+
+    /** 이미 넘긴 심박의 측정 시각(밀리초). 워치가 같은 묶음을 다시 넣어도(DataItem 재동기화) 한 번만 넘긴다. lock 안에서만 쓴다. */
+    private val seenHeartRates = LinkedHashSet<Long>()
 
     override val startRequests: Flow<Unit> =
         transport.incoming
@@ -83,8 +94,14 @@ class WatchLink internal constructor(
             .filter { it.path.startsWith(WearPaths.HEART_RATE_BATCH) }
             .mapNotNull { decodeOrNull { HeartRateBatchMessage.decode(it.payload) } }
             .filter { collectionAllowed() }
-            .map { batch -> batch.samples.filter { it.status == HeartRateBatchMessage.Status.OK }.map { it.toDomain() } }
+            .map { batch -> firstSeen(batch.samples.filter { it.status == HeartRateBatchMessage.Status.OK }) }
             .filter { it.isNotEmpty() }
+
+    override val endRequests: Flow<Unit> =
+        transport.incoming
+            .filter { it.path == WearPaths.END_REQUEST }
+            .mapNotNull { decodeOrNull { EndRequestMessage.decode(it.payload) } }
+            .map { }
 
     init {
         scope.launch {
@@ -94,6 +111,13 @@ class WatchLink internal constructor(
                 .distinctUntilChanged()
                 .collect { allowed -> resend(allowed) }
         }
+        // 워치가 (다시) 연결되면 시작 화면·진행 표시와 수집 허용 여부를 바로 맞춘다.
+        scope.launch {
+            transport.connected
+                .drop(1)
+                .filter { it }
+                .collect { resend(collectionAllowed()) }
+        }
     }
 
     override fun publish(d: WatchDisplay) {
@@ -101,7 +125,14 @@ class WatchLink internal constructor(
         transport.send(WearPaths.WATCH_DISPLAY, d.toMessage(collectionAllowed()).encode())
     }
 
-    override fun isConnected(): Boolean = transport.isConnected()
+    override fun isConnected(): Boolean = transport.connected.value
+
+    /** 처음 보는 측정 시각의 표본만 도메인 심박으로 바꾼다. 기억은 최근 SEEN_LIMIT개까지. */
+    private fun firstSeen(samples: List<HeartRateBatchMessage.Sample>): List<HeartRateSample> = synchronized(lock) {
+        val fresh = samples.filter { seenHeartRates.add(it.measuredAtEpochMillis) }
+        while (seenHeartRates.size > SEEN_LIMIT) seenHeartRates.remove(seenHeartRates.first())
+        fresh.map { it.toDomain() }
+    }
 
     private fun collectionAllowed(): Boolean = settings.heartRateConsented() && settings.watchLinked()
 
@@ -124,6 +155,11 @@ class WatchLink internal constructor(
         null
     } catch (e: IllegalArgumentException) {
         null
+    }
+
+    private companion object {
+        /** 심박 1초 간격으로 1시간 남짓. */
+        const val SEEN_LIMIT = 4_096
     }
 }
 
@@ -154,19 +190,26 @@ private class PlayServicesTransport(context: Context, private val scope: Corouti
     private val data: DataClient = Wearable.getDataClient(context)
     private val nodes = Wearable.getNodeClient(context)
 
-    @Volatile
-    private var connected = false
+    private val connection = MutableStateFlow(false)
+    override val connected: StateFlow<Boolean> = connection.asStateFlow()
 
     private val received =
-        MutableSharedFlow<WatchLink.Incoming>(extraBufferCapacity = BUFFER, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+        MutableSharedFlow<WatchLink.Incoming>(
+            extraBufferCapacity = BUFFER,
+            onBufferOverflow = BufferOverflow.DROP_OLDEST
+        )
     override val incoming: SharedFlow<WatchLink.Incoming> = received.asSharedFlow()
 
     init {
         messages.addListener(::onMessage)
         data.addListener(::onData)
+        scope.launch { quietly { drainPendingHeartRates() } }
+        // 워치 연결·끊김을 알아챈다(워치는 표시 정보가 5초 없으면 끊김으로 보인다).
         scope.launch {
-            quietly { refreshNodes() }
-            quietly { drainPendingHeartRates() }
+            while (isActive) {
+                quietly { refreshNodes() }
+                delay(NODE_POLL_MILLIS)
+            }
         }
     }
 
@@ -178,10 +221,8 @@ private class PlayServicesTransport(context: Context, private val scope: Corouti
         }
     }
 
-    override fun isConnected(): Boolean = connected
-
     private fun onMessage(event: MessageEvent) {
-        connected = true
+        connection.value = true
         received.tryEmit(WatchLink.Incoming(event.path, event.data))
     }
 
@@ -201,7 +242,7 @@ private class PlayServicesTransport(context: Context, private val scope: Corouti
 
     private suspend fun refreshNodes(): List<String> {
         val ids = nodes.connectedNodes.await().map { it.id }
-        connected = ids.isNotEmpty()
+        connection.value = ids.isNotEmpty()
         return ids
     }
 
@@ -227,5 +268,6 @@ private class PlayServicesTransport(context: Context, private val scope: Corouti
 
     private companion object {
         const val BUFFER = 64
+        const val NODE_POLL_MILLIS = 5_000L
     }
 }

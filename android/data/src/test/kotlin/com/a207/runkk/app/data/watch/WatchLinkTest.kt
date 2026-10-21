@@ -9,6 +9,7 @@ import com.a207.runkk.app.domain.run.WatchDisplay
 import com.a207.runkk.app.domain.settings.GuidanceSettings
 import com.a207.runkk.app.domain.settings.SettingsRepository
 import com.a207.runkk.app.domain.settings.SettingsSnapshot
+import com.a207.runkk.wear.contract.EndRequestMessage
 import com.a207.runkk.wear.contract.HeartRateBatchMessage
 import com.a207.runkk.wear.contract.StartRequestMessage
 import com.a207.runkk.wear.contract.WatchDisplayMessage
@@ -92,7 +93,11 @@ class WatchLinkTest {
             HeartRateBatchMessage(
                 listOf(
                     HeartRateBatchMessage.Sample(T0.toEpochMilli(), 140, HeartRateBatchMessage.Status.OK),
-                    HeartRateBatchMessage.Sample(T0.plusSeconds(1).toEpochMilli(), 0, HeartRateBatchMessage.Status.FAILED)
+                    HeartRateBatchMessage.Sample(
+                        T0.plusSeconds(1).toEpochMilli(),
+                        0,
+                        HeartRateBatchMessage.Status.FAILED
+                    )
                 )
             ).encode()
         )
@@ -109,7 +114,9 @@ class WatchLinkTest {
 
         transport.receive(
             "${WearPaths.HEART_RATE_BATCH}/42",
-            HeartRateBatchMessage(listOf(HeartRateBatchMessage.Sample(T0.toEpochMilli(), 140, HeartRateBatchMessage.Status.OK))).encode()
+            HeartRateBatchMessage(
+                listOf(HeartRateBatchMessage.Sample(T0.toEpochMilli(), 140, HeartRateBatchMessage.Status.OK))
+            ).encode()
         )
 
         assertTrue(received.isEmpty())
@@ -125,7 +132,7 @@ class WatchLinkTest {
         transport.receive(WearPaths.START_REQUEST, byteArrayOf(1, 2, 3))
 
         assertEquals(1, requests, "해독할 수 없는 요청은 버린다")
-        transport.connected = true
+        transport.connected.value = true
         assertTrue(link.isConnected())
     }
 
@@ -135,14 +142,12 @@ class WatchLinkTest {
 
     private class FakeTransport : WatchLink.Transport {
         val sent = mutableListOf<Pair<String, ByteArray>>()
-        var connected = false
+        override val connected = MutableStateFlow(false)
         override val incoming = MutableSharedFlow<WatchLink.Incoming>(extraBufferCapacity = 16)
 
         override fun send(path: String, payload: ByteArray) {
             sent += path to payload
         }
-
-        override fun isConnected(): Boolean = connected
 
         fun receive(path: String, payload: ByteArray) {
             check(incoming.tryEmit(WatchLink.Incoming(path, payload)))
@@ -181,7 +186,14 @@ class WatchLinkTest {
     private companion object {
         val T0: Instant = Instant.parse("2026-10-20T01:00:00Z")
         val CONSENTED =
-            SettingsSnapshot(true, true, watchLinked = true, courseMapShared = false, birthYear = 1990, GuidanceSettings.DEFAULT)
+            SettingsSnapshot(
+                true,
+                true,
+                watchLinked = true,
+                courseMapShared = false,
+                birthYear = 1990,
+                GuidanceSettings.DEFAULT
+            )
         val DISPLAY =
             WatchDisplay(
                 running = true,
@@ -192,5 +204,55 @@ class WatchLinkTest {
                 todayPlan = PlanSnapshot(Distance(5_000), Pace(360)),
                 notice = null
             )
+    }
+
+    @Test
+    fun `워치 종료 요청을 넘긴다`() = runTest {
+        val link = WatchLink(transport, settings, linkScope())
+        var requests = 0
+        linkScope().launch { link.endRequests.collect { requests++ } }
+
+        transport.receive(WearPaths.END_REQUEST, EndRequestMessage(T0.toEpochMilli()).encode())
+
+        assertEquals(1, requests)
+    }
+
+    @Test
+    fun `같은 측정 시각의 심박이 다시 와도 한 번만 넘긴다`() = runTest {
+        val link = WatchLink(transport, settings, linkScope())
+        val received = mutableListOf<List<HeartRateSample>>()
+        linkScope().launch { link.heartRates.collect { received += it } }
+        val first = HeartRateBatchMessage.Sample(T0.toEpochMilli(), 140, HeartRateBatchMessage.Status.OK)
+        val second = HeartRateBatchMessage.Sample(
+            T0.plusSeconds(1).toEpochMilli(),
+            141,
+            HeartRateBatchMessage.Status.OK
+        )
+
+        transport.receive(
+            "${WearPaths.HEART_RATE_BATCH}/${first.measuredAtEpochMillis}-0",
+            HeartRateBatchMessage(listOf(first)).encode()
+        )
+        transport.receive(
+            "${WearPaths.HEART_RATE_BATCH}/${first.measuredAtEpochMillis}-1",
+            HeartRateBatchMessage(listOf(first, second)).encode()
+        )
+
+        assertEquals(
+            listOf(listOf(HeartRateSample(T0, 140)), listOf(HeartRateSample(T0.plusSeconds(1), 141))),
+            received
+        )
+    }
+
+    @Test
+    fun `워치가 연결되면 마지막 표시 정보를 다시 보낸다`() = runTest {
+        val link = WatchLink(transport, settings, linkScope())
+        link.publish(DISPLAY.copy(running = false))
+        val before = transport.displays().size
+
+        transport.connected.value = true
+
+        assertEquals(before + 1, transport.displays().size)
+        assertTrue(transport.displays().last().heartRateCollectionAllowed)
     }
 }

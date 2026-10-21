@@ -111,15 +111,15 @@ class DataStoreSettingsRepository internal constructor(
             courseMapShared = this[COURSE_MAP_SHARED] ?: false,
             birthYear = this[BIRTH_YEAR],
             guidanceSettings =
-            GuidanceSettings(
-                runVoice = this[RUN_VOICE] ?: defaults.runVoice,
-                runVibration = this[RUN_VIBRATION] ?: defaults.runVibration,
-                battleVoice = this[BATTLE_VOICE] ?: defaults.battleVoice,
-                battleVibration = this[BATTLE_VIBRATION] ?: defaults.battleVibration,
-                gapAlertMeters = this[GAP_ALERT_METERS]?.takeIf { it > 0 } ?: defaults.gapAlertMeters,
-                rankAlert = this[RANK_ALERT] ?: defaults.rankAlert,
-                followCoachPlan = this[FOLLOW_COACH_PLAN] ?: defaults.followCoachPlan
-            )
+                GuidanceSettings(
+                    runVoice = this[RUN_VOICE] ?: defaults.runVoice,
+                    runVibration = this[RUN_VIBRATION] ?: defaults.runVibration,
+                    battleVoice = this[BATTLE_VOICE] ?: defaults.battleVoice,
+                    battleVibration = this[BATTLE_VIBRATION] ?: defaults.battleVibration,
+                    gapAlertMeters = this[GAP_ALERT_METERS]?.takeIf { it > 0 } ?: defaults.gapAlertMeters,
+                    rankAlert = this[RANK_ALERT] ?: defaults.rankAlert,
+                    followCoachPlan = this[FOLLOW_COACH_PLAN] ?: defaults.followCoachPlan
+                )
         )
     }
 

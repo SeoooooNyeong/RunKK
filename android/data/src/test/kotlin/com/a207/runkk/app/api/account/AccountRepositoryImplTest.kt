@@ -76,7 +76,9 @@ class AccountRepositoryImplTest {
 
     @Test
     fun `티켓 없이 가입하면 보내지 않고 거부한다`() = runTest {
-        val result = repository.signUp(SignUpForm(null, null, Gender.UNDISCLOSED, null, emptyMap(), "PUBLIC", emptySet()))
+        val result = repository.signUp(
+            SignUpForm(null, null, Gender.UNDISCLOSED, null, emptyMap(), "PUBLIC", emptySet())
+        )
 
         assertEquals(Outcome.Failure(AppError.Rejected("SIGN_UP_TICKET_INVALID")), result)
         assertEquals(0, api.server.requestCount)
@@ -186,15 +188,15 @@ class AccountRepositoryImplTest {
                 courseMapShared = true,
                 birthYear = 1990,
                 guidanceSettings =
-                GuidanceSettings(
-                    runVoice = false,
-                    runVibration = true,
-                    battleVoice = true,
-                    battleVibration = false,
-                    gapAlertMeters = 500,
-                    rankAlert = true,
-                    followCoachPlan = true
-                )
+                    GuidanceSettings(
+                        runVoice = false,
+                        runVibration = true,
+                        battleVoice = true,
+                        battleVibration = false,
+                        gapAlertMeters = 500,
+                        rankAlert = true,
+                        followCoachPlan = true
+                    )
             ),
             snapshot
         )

@@ -39,7 +39,16 @@ class AvatarAndRunimalAndNotificationTest {
         val avatar = AvatarRepositoryImpl(api.retrofit.create()).avatar().value()
 
         assertEquals(
-            Avatar(null, "bear", "NORMAL", "DAY", mapOf(ItemSlot.TOP to 11L), 340, true, mapOf(ItemSlot.SHOES to "NOT_OWNED")),
+            Avatar(
+                null,
+                "bear",
+                "NORMAL",
+                "DAY",
+                mapOf(ItemSlot.TOP to 11L),
+                340,
+                true,
+                mapOf(ItemSlot.SHOES to "NOT_OWNED")
+            ),
             avatar
         )
     }
@@ -63,11 +72,16 @@ class AvatarAndRunimalAndNotificationTest {
 
     @Test
     fun `상점과 구매 잔액을 읽는다`() = runTest {
-        api.reply("""{"items":[{"itemId":12,"slot":"TOP","name":"러닝 티","price":100,"owned":true,"onSale":true}],"balance":340}""")
+        api.reply(
+            """{"items":[{"itemId":12,"slot":"TOP","name":"러닝 티","price":100,"owned":true,"onSale":true}],"balance":340}"""
+        )
         api.reply("""{"balance":240}""")
         val repository = AvatarRepositoryImpl(api.retrofit.create())
 
-        assertEquals(Shop(listOf(Shop.Item(12, ItemSlot.TOP, "러닝 티", 100, true, true)), 340), repository.shop(ItemSlot.TOP).value())
+        assertEquals(
+            Shop(listOf(Shop.Item(12, ItemSlot.TOP, "러닝 티", 100, true, true)), 340),
+            repository.shop(ItemSlot.TOP).value()
+        )
         assertEquals(Outcome.Success(240), repository.purchase(12))
         assertEquals("/api/v1/shop?slot=TOP", api.take().target)
     }
@@ -83,7 +97,13 @@ class AvatarAndRunimalAndNotificationTest {
         val repository = RunimalRepositoryImpl(api.retrofit.create())
 
         assertEquals(
-            RunimalStatus("ENFP", true, 7, RunimalCard("ENFP", "자유로운 여우", "…", mapOf("PACE" to 0.7)), listOf("ENFP", "ISTJ")),
+            RunimalStatus(
+                "ENFP",
+                true,
+                7,
+                RunimalCard("ENFP", "자유로운 여우", "…", mapOf("PACE" to 0.7)),
+                listOf("ENFP", "ISTJ")
+            ),
             repository.status().value()
         )
         assertEquals(Outcome.Failure(AppError.Rejected("NO_TYPE")), repository.card())
@@ -102,7 +122,19 @@ class AvatarAndRunimalAndNotificationTest {
         val registered = PushTokenRemoteImpl(api.retrofit.create()).register("fcm-token")
 
         assertEquals(
-            Inbox(listOf(Inbox.Item(5, "CREW_RUN_SOON", "곧 크루런", "10분 뒤 출발", Instant.parse("2026-10-19T20:50:00Z"), false, "crew/run"))),
+            Inbox(
+                listOf(
+                    Inbox.Item(
+                        5,
+                        "CREW_RUN_SOON",
+                        "곧 크루런",
+                        "10분 뒤 출발",
+                        Instant.parse("2026-10-19T20:50:00Z"),
+                        false,
+                        "crew/run"
+                    )
+                )
+            ),
             inbox
         )
         assertEquals(Outcome.Success(Unit), registered)

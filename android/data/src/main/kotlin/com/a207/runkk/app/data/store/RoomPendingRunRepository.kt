@@ -10,6 +10,7 @@ import com.a207.runkk.app.domain.run.UploadScheduler
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.flow.Flow
@@ -34,9 +35,21 @@ constructor(
 ) : PendingRunRepository {
     private val dao = database.pendingRunDao()
 
+    /**
+     * 마지막 pending()이 내준 기록별 심박 측정 시각. 전송(UploadPendingRunsUseCase)이 읽은 뒤 remove 전에 덧붙은 늦은 심박을
+     * 가려내려고 기억한다(리뷰 F-4: remove가 그 심박까지 지우지 않게).
+     */
+    private val handedOutHeartRates = ConcurrentHashMap<String, Set<Long>>()
+
     override suspend fun save(run: CompletedRun): Outcome<Unit> = storage { dao.upsert(run.toEntity()) }
 
-    override suspend fun pending(): Outcome<List<CompletedRun>> = storage { dao.pending().map { it.toDomain() } }
+    override suspend fun pending(): Outcome<List<CompletedRun>> = storage {
+        dao.pending().map { row ->
+            row.toDomain().also { run ->
+                handedOutHeartRates[run.recordId] = run.heartRates.map { it.at.toEpochMilli() }.toSet()
+            }
+        }
+    }
 
     /** 읽기 오류는 빈 목록으로 내보내고 끝낸다(화면의 "전송 대기" 표시가 앱을 죽이지 않게). */
     override fun observePending(): Flow<List<CompletedRun>> = dao
@@ -47,13 +60,46 @@ constructor(
             emit(emptyList())
         }
 
-    override suspend fun remove(recordId: String): Outcome<Unit> = storage {
+    /**
+     * 보낸 기록을 미전송 목록에서 뺀다. 경로·심박은 지우고 머리 정보만 하루 남긴다.
+     * 전송이 읽은 뒤 덧붙은 늦은 심박이 있으면 그 심박만 담은 미전송 기록으로 남기고 전송을 요청한다(F-4).
+     */
+    override suspend fun remove(recordId: String): Outcome<Unit> {
+        val leftLate =
+            when (val removed = storage { removeInTransaction(recordId) }) {
+                is Outcome.Failure -> return removed
+                is Outcome.Success -> removed.value
+            }
+        if (leftLate) uploadScheduler.requestUpload()
+        return Outcome.Success(Unit)
+    }
+
+    /** 늦은 심박이 남았으면 참. */
+    private suspend fun removeInTransaction(recordId: String): Boolean {
         val now = clock.instant()
-        database.withTransaction {
-            dao.find(recordId)?.takeIf { it.sentAtMillis == null }?.let { row ->
-                dao.upsert(row.toSentHeader(now.toEpochMilli(), EMPTY_BLOB))
+        val handedOut = handedOutHeartRates.remove(recordId)
+        return database.withTransaction {
+            val row = dao.find(recordId)?.takeIf { it.sentAtMillis == null }
+            val late =
+                row?.let { found ->
+                    val sent = handedOut ?: decodeHeartRates(found.heartRates).map { it.at.toEpochMilli() }.toSet()
+                    decodeHeartRates(found.heartRates).filter { it.at.toEpochMilli() !in sent }
+                }.orEmpty()
+            if (row != null) {
+                val header = row.toSentHeader(now.toEpochMilli(), EMPTY_BLOB)
+                dao.upsert(
+                    if (late.isEmpty()) {
+                        header
+                    } else {
+                        header.copy(
+                            heartRates = encodeHeartRates(late),
+                            sentAtMillis = null
+                        )
+                    }
+                )
             }
             dao.deleteSentBefore(now.minus(SENT_HEADER_KEPT).toEpochMilli())
+            late.isNotEmpty()
         }
     }
 

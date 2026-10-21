@@ -40,7 +40,9 @@ constructor(private val api: CrewApi) : CrewRepository {
 
     override suspend fun recommend(): Outcome<CrewList> = ApiErrorMapper.call { api.recommend().toDomain() }
 
-    override suspend fun apply(crewId: Long): Outcome<Unit> = ApiErrorMapper.call { api.apply(JoinRequestBody(crewId = crewId)) }
+    override suspend fun apply(crewId: Long): Outcome<Unit> = ApiErrorMapper.call {
+        api.apply(JoinRequestBody(crewId = crewId))
+    }
 
     override suspend fun applyWithInviteCode(code: String): Outcome<Unit> =
         ApiErrorMapper.call { api.apply(JoinRequestBody(inviteCode = code)) }
@@ -48,18 +50,24 @@ constructor(private val api: CrewApi) : CrewRepository {
     override suspend fun cancelJoinRequest(requestId: Long): Outcome<Unit> =
         ApiErrorMapper.call { api.cancelJoinRequest(requestId) }
 
-    override suspend fun approveJoin(requestId: Long): Outcome<Unit> = ApiErrorMapper.call { api.approveJoin(requestId) }
+    override suspend fun approveJoin(requestId: Long): Outcome<Unit> = ApiErrorMapper.call {
+        api.approveJoin(requestId)
+    }
 
     override suspend fun rejectJoin(requestId: Long): Outcome<Unit> = ApiErrorMapper.call { api.rejectJoin(requestId) }
 
     override suspend fun leave(crewId: Long): Outcome<Unit> = ApiErrorMapper.call { api.leave(crewId) }
 
-    override suspend fun kick(crewId: Long, memberId: Long): Outcome<Unit> = ApiErrorMapper.call { api.kick(crewId, memberId) }
+    override suspend fun kick(crewId: Long, memberId: Long): Outcome<Unit> = ApiErrorMapper.call {
+        api.kick(crewId, memberId)
+    }
 
     override suspend fun editCrewProfile(crewId: Long, intro: String): Outcome<Unit> =
         ApiErrorMapper.call { api.editCrewProfile(crewId, CrewProfileRequest(intro)) }
 
-    override suspend fun members(crewId: Long): Outcome<CrewMembers> = ApiErrorMapper.call { api.members(crewId).toDomain() }
+    override suspend fun members(crewId: Long): Outcome<CrewMembers> = ApiErrorMapper.call {
+        api.members(crewId).toDomain()
+    }
 
     override suspend fun pendingRequests(crewId: Long): Outcome<PendingRequests> =
         ApiErrorMapper.call { api.pendingRequests(crewId).toDomain() }
@@ -84,11 +92,17 @@ constructor(private val api: CrewApi) : CrewRepository {
     override suspend fun vote(postId: Long, answer: VoteAnswer): Outcome<Unit> =
         ApiErrorMapper.call { api.vote(postId, VoteRequest(answer.name)) }
 
-    override suspend fun enterLobby(postId: Long): Outcome<Lobby> = ApiErrorMapper.call { api.enterLobby(postId).toDomain() }
+    override suspend fun enterLobby(postId: Long): Outcome<Lobby> = ApiErrorMapper.call {
+        api.enterLobby(postId).toDomain()
+    }
 
-    override suspend fun toggleReady(postId: Long): Outcome<Lobby> = ApiErrorMapper.call { api.toggleReady(postId).toDomain() }
+    override suspend fun toggleReady(postId: Long): Outcome<Lobby> = ApiErrorMapper.call {
+        api.toggleReady(postId).toDomain()
+    }
 
-    override suspend fun leaveLobby(postId: Long): Outcome<Lobby> = ApiErrorMapper.call { api.leaveLobby(postId).toDomain() }
+    override suspend fun leaveLobby(postId: Long): Outcome<Lobby> = ApiErrorMapper.call {
+        api.leaveLobby(postId).toDomain()
+    }
 
     override suspend fun quit(postId: Long): Outcome<Unit> = ApiErrorMapper.call { api.quit(postId) }
 

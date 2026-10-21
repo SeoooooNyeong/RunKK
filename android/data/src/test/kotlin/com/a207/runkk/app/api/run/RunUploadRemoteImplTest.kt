@@ -48,12 +48,12 @@ class RunUploadRemoteImplTest {
                 distanceMeters = 2_012,
                 pointCount = 2,
                 points =
-                listOf(
-                    RunUploadRequest.Point("2026-10-20T07:00:01", 37.501234, 127.034567, "NORMAL"),
-                    RunUploadRequest.Point("2026-10-20T07:00:02", 37.501301, 127.034601, "UNSTABLE")
-                ),
+                    listOf(
+                        RunUploadRequest.Point("2026-10-20T07:00:01", 37.501234, 127.034567, "NORMAL"),
+                        RunUploadRequest.Point("2026-10-20T07:00:02", 37.501301, 127.034601, "UNSTABLE")
+                    ),
                 unstableSegments =
-                listOf(RunUploadRequest.Segment("2026-10-20T07:01:40", "2026-10-20T07:01:55", 42)),
+                    listOf(RunUploadRequest.Segment("2026-10-20T07:01:40", "2026-10-20T07:01:55", 42)),
                 heartRates = listOf(RunUploadRequest.HeartRate("2026-10-20T07:00:10", 130))
             ),
             request
@@ -128,7 +128,9 @@ class RunUploadRemoteImplTest {
         val confirmed = remote.confirm(2)
 
         assertEquals(
-            Outcome.Success(listOf(DisposalOrder(1, DisposalOrder.Kind.ROUTE), DisposalOrder(2, DisposalOrder.Kind.HEART_RATE))),
+            Outcome.Success(
+                listOf(DisposalOrder(1, DisposalOrder.Kind.ROUTE), DisposalOrder(2, DisposalOrder.Kind.HEART_RATE))
+            ),
             orders
         )
         assertEquals(Outcome.Success(Unit), confirmed)
@@ -150,10 +152,10 @@ class RunUploadRemoteImplTest {
                 elapsed = Duration.ofMillis(605_500),
                 distance = Distance(2_012),
                 route =
-                listOf(
-                    RoutePoint(START.plusSeconds(1), GeoPoint(37.501234, 127.034567), SignalState.NORMAL),
-                    RoutePoint(START.plusSeconds(2), GeoPoint(37.501301, 127.034601), SignalState.UNSTABLE)
-                ),
+                    listOf(
+                        RoutePoint(START.plusSeconds(1), GeoPoint(37.501234, 127.034567), SignalState.NORMAL),
+                        RoutePoint(START.plusSeconds(2), GeoPoint(37.501301, 127.034601), SignalState.UNSTABLE)
+                    ),
                 unstable = listOf(UnstableSegment(START.plusSeconds(100), START.plusSeconds(115), Distance(42))),
                 heartRates = listOf(HeartRateSample(START.plusSeconds(10), 130)),
                 savedAt = START.plusSeconds(606)

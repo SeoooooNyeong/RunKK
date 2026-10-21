@@ -16,7 +16,8 @@ import java.time.Duration
 
 // DTO → 도메인 매퍼(13.2 toDomain). 앱이 모르는 대결 종류의 이력 줄은 건너뛴다.
 
-internal fun MatchAcceptanceResponse.toDomain(): MatchAcceptance = MatchAcceptance(waiting, distanceMeters?.let(::Distance))
+internal fun MatchAcceptanceResponse.toDomain(): MatchAcceptance =
+    MatchAcceptance(waiting, distanceMeters?.let(::Distance))
 
 internal fun CandidatesResponse.toDomain(): RecordBattleCandidates = RecordBattleCandidates(
     candidates.map {
@@ -52,18 +53,18 @@ internal fun BattleResultResponse.toDomain(): BattleResult = BattleResult(
 
 internal fun BattleHistoryResponse.toDomain(): BattleHistory = BattleHistory(
     entries =
-    entries.mapNotNull { entry ->
-        enumByName<BattleHistory.Type>(entry.type)?.let { type ->
-            BattleHistory.Entry(
-                battleId = entry.battleId,
-                type = type,
-                opponentName = entry.opponentName,
-                distance = Distance(entry.distanceMeters),
-                verdict = entry.verdict,
-                playedAt = ServerTime.parse(entry.playedAt)
-            )
-        }
-    },
+        entries.mapNotNull { entry ->
+            enumByName<BattleHistory.Type>(entry.type)?.let { type ->
+                BattleHistory.Entry(
+                    battleId = entry.battleId,
+                    type = type,
+                    opponentName = entry.opponentName,
+                    distance = Distance(entry.distanceMeters),
+                    verdict = entry.verdict,
+                    playedAt = ServerTime.parse(entry.playedAt)
+                )
+            }
+        },
     total = total,
     wins = wins,
     losses = losses,

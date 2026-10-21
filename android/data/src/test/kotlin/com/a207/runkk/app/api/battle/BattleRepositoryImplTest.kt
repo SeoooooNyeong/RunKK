@@ -94,7 +94,16 @@ class BattleRepositoryImplTest {
         val history = repository.history(BattleHistory.Type.RANDOM).value()
 
         assertEquals(
-            listOf(BattleHistory.Entry(1, BattleHistory.Type.GHOST, "고스트", Distance(3_000), "WIN", Instant.parse("2026-10-17T22:30:00Z"))),
+            listOf(
+                BattleHistory.Entry(
+                    1,
+                    BattleHistory.Type.GHOST,
+                    "고스트",
+                    Distance(3_000),
+                    "WIN",
+                    Instant.parse("2026-10-17T22:30:00Z")
+                )
+            ),
             history.entries
         )
         assertEquals("/api/v1/battles/history?type=RANDOM", api.take().target)

@@ -76,9 +76,9 @@ internal fun LobbyResponse.toDomain(): Lobby =
 internal fun CrewRunResultResponse.toDomain(): CrewRunResult = CrewRunResult(
     postId = postId,
     finishers =
-    finishers.map {
-        CrewRunResult.Finisher(it.rank, it.displayName, it.elapsedSeconds, it.averagePaceSecondsPerKm)
-    },
+        finishers.map {
+            CrewRunResult.Finisher(it.rank, it.displayName, it.elapsedSeconds, it.averagePaceSecondsPerKm)
+        },
     firstCrewRun = firstCrewRun,
     raceContribution = Distance(raceContributionMeters)
 )
