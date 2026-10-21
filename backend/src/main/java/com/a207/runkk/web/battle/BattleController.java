@@ -2,12 +2,10 @@ package com.a207.runkk.web.battle;
 
 import com.a207.runkk.battle.BattleHistoryService;
 import com.a207.runkk.battle.BattleResultService;
-import com.a207.runkk.battle.BattleType;
 import com.a207.runkk.battle.MatchingService;
 import com.a207.runkk.battle.RecordBattleService;
 import com.a207.runkk.common.BusinessRuleException;
 import com.a207.runkk.common.DateRange;
-import com.a207.runkk.common.PageCursor;
 import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.common.StandardDistance;
 import jakarta.validation.Valid;
@@ -15,10 +13,10 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.Optional;
-import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
@@ -139,21 +137,17 @@ public class BattleController {
     @GetMapping("/history")
     BattleDtos.BattleHistoryResponse history(
             @RequestAttribute(MEMBER_ID) long memberId,
-            @RequestParam(required = false) BattleType type,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
-                    LocalDate from,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
-                    LocalDate to,
-            @RequestParam(required = false) Long cursor,
-            @RequestParam(required = false) Integer size) {
+            @ModelAttribute BattleDtos.HistoryQuery query) {
         LocalDate today = LocalDate.now(clock);
         DateRange range =
                 new DateRange(
-                        from == null ? today.minusMonths(DEFAULT_HISTORY_MONTHS) : from,
-                        to == null ? today : to);
+                        query.from() == null
+                                ? today.minusMonths(DEFAULT_HISTORY_MONTHS)
+                                : query.from(),
+                        query.to() == null ? today : query.to());
         return BattleDtos.BattleHistoryResponse.of(
                 battleHistoryService.history(
-                        memberId, range, Optional.ofNullable(type), new PageCursor(cursor, size)));
+                        memberId, range, Optional.ofNullable(query.type()), query.page()));
     }
 
     /** 미터 → 기준 거리. 기준 거리가 아니면 BATTLE_DISTANCE_INVALID. */

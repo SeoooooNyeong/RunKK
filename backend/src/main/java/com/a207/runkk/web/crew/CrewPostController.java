@@ -1,6 +1,5 @@
 package com.a207.runkk.web.crew;
 
-import com.a207.runkk.common.PageCursor;
 import com.a207.runkk.crew.CrewPostService;
 import com.a207.runkk.crew.PostKind;
 import com.a207.runkk.crew.PostResult;
@@ -8,13 +7,13 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -35,11 +34,9 @@ public class CrewPostController {
     CrewDtos.PostListResponse list(
             @RequestAttribute(MEMBER_ID) long memberId,
             @PathVariable("id") long crewId,
-            @RequestParam(required = false) PostKind kind,
-            @RequestParam(required = false) Long cursor,
-            @RequestParam(required = false) Integer size) {
+            @ModelAttribute CrewDtos.PostListQuery query) {
         return CrewDtos.PostListResponse.of(
-                crewPostService.list(memberId, crewId, kind, new PageCursor(cursor, size)));
+                crewPostService.list(memberId, crewId, query.kind(), query.page()));
     }
 
     @PostMapping("/crews/{id}/posts")

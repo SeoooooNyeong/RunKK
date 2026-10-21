@@ -77,28 +77,68 @@ public class AuthAttemptGuard {
         }
     }
 
-    /**
-     * 받아들인 시도의 키.
-     *
-     * @param client 접속지
-     * @param credential 자격 키(SHA-256 앞 16바이트)
-     */
-    record Attempt(String client, String credential) {}
+    /** 받아들인 시도의 키: 접속지와 자격 키(SHA-256 앞 16바이트). 앱 계약 자료(web record)에 들어가지 않게 record가 아닌 내부 형식이다. */
+    static final class Attempt {
+        private final String client;
+        private final String credential;
+
+        Attempt(String client, String credential) {
+            this.client = client;
+            this.credential = credential;
+        }
+
+        String client() {
+            return client;
+        }
+
+        String credential() {
+            return credential;
+        }
+    }
 
     /**
-     * 시도 제한 값(runkk.auth.attempts). 기본: 접속지마다 1분에 요청 30번, 10분에 실패 10번, 자격마다 10분에 실패 5번.
-     *
-     * @param clientRequests 접속지별 요청 상한(requestWindow 안)
-     * @param requestWindow 요청 수 창
-     * @param clientFailures 접속지별 실패 상한(failureWindow 안)
-     * @param credentialFailures 자격별 실패 상한(failureWindow 안)
-     * @param failureWindow 실패 수 창
+     * 시도 제한 값(runkk.auth.attempts, 생성자 바인딩). 기본: 접속지마다 1분에 요청 30번, 10분에 실패 10번, 자격마다 10분에 실패 5번. 앱
+     * 계약 자료에 들어가지 않게 record가 아닌 설정 형식이다.
      */
     @ConfigurationProperties("runkk.auth.attempts")
-    record Limits(
-            @DefaultValue("30") int clientRequests,
-            @DefaultValue("1m") Duration requestWindow,
-            @DefaultValue("10") int clientFailures,
-            @DefaultValue("5") int credentialFailures,
-            @DefaultValue("10m") Duration failureWindow) {}
+    static final class Limits {
+        private final int clientRequests;
+        private final Duration requestWindow;
+        private final int clientFailures;
+        private final int credentialFailures;
+        private final Duration failureWindow;
+
+        Limits(
+                @DefaultValue("30") int clientRequests,
+                @DefaultValue("1m") Duration requestWindow,
+                @DefaultValue("10") int clientFailures,
+                @DefaultValue("5") int credentialFailures,
+                @DefaultValue("10m") Duration failureWindow) {
+            this.clientRequests = clientRequests;
+            this.requestWindow = requestWindow;
+            this.clientFailures = clientFailures;
+            this.credentialFailures = credentialFailures;
+            this.failureWindow = failureWindow;
+        }
+
+        int clientRequests() {
+            return clientRequests;
+        }
+
+        Duration requestWindow() {
+            return requestWindow;
+        }
+
+        int clientFailures() {
+            return clientFailures;
+        }
+
+        int credentialFailures() {
+            return credentialFailures;
+        }
+
+        Duration failureWindow() {
+            return failureWindow;
+        }
+    }
 }

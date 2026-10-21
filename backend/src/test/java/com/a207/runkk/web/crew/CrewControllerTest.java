@@ -91,6 +91,10 @@ class CrewControllerTest extends WebTestSupport {
         JsonNode list = json(call(a, get("/api/v1/crews").param("keyword", "크루"), null));
         assertThat(list.get("crews").findValuesAsText("crewId")).contains(String.valueOf(crewId));
         assertThat(list.get("recommendations")).isNotNull();
+        call(a, get("/api/v1/crews").param("tags", "SOCIAL_RUN,SOLO_RUN"), null) // P2
+                .andExpect(status().isOk());
+        call(a, get("/api/v1/crews").param("tags", "NOPE"), null)
+                .andExpect(status().isBadRequest());
         call(a, get("/api/v1/crews/recommendations"), null).andExpect(status().isOk());
 
         long requestA =
@@ -227,6 +231,8 @@ class CrewControllerTest extends WebTestSupport {
         call(leader, delete("/api/v1/posts/" + cheer), null).andExpect(status().isNoContent());
         call(a, get("/api/v1/crews/" + crewId + "/posts").param("kind", "CHEER"), null)
                 .andExpect(jsonPath("$.posts").isEmpty());
+        call(a, get("/api/v1/crews/" + crewId + "/posts").param("kind", "NOPE"), null) // P3
+                .andExpect(status().isBadRequest());
 
         call(a, post("/api/v1/crew-runs/" + run + "/lobby/enter"), null)
                 .andExpect(jsonPath("$.status").value("LOBBY_OPEN"));
