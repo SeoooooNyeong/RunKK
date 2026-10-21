@@ -325,4 +325,68 @@ class CrewControllerTest extends WebTestSupport {
                     .isEqualTo(m.get("memberId").asLong() == a.memberId());
         }
     }
+
+    @Test
+    @DisplayName("초대 코드 10분에 5번 틀리면 429 TOO_MANY_ATTEMPTS, 크루 목록·게시글 페이지 나누기(cursor·size)")
+    void inviteCodeLimit_andPaging() throws Exception {
+        Session leader = signUp();
+        long crewId = createCrew(leader, "FREE");
+        Session other = signUp();
+        createCrew(other, "FREE");
+        Session guesser = signUp();
+        String code =
+                json(call(leader, post("/api/v1/crews/" + crewId + "/invite-code"), null))
+                        .get("inviteCode")
+                        .asText();
+        for (int i = 0; i < 5; i++) {
+            call(guesser, post("/api/v1/crews/join"), Map.of("inviteCode", "ZZZZZ" + i))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("INVALID_CODE"));
+        }
+        call(guesser, post("/api/v1/crews/join"), Map.of("inviteCode", code))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.code").value("TOO_MANY_ATTEMPTS"));
+        call(guesser, post("/api/v1/crews/join"), Map.of("crewId", crewId))
+                .andExpect(jsonPath("$.status").value("JOINED"));
+
+        JsonNode firstCrews = json(call(guesser, get("/api/v1/crews").param("size", "1"), null));
+        assertThat(firstCrews.get("crews")).hasSize(1);
+        long crewCursor = firstCrews.get("nextCursor").asLong();
+        JsonNode nextCrews =
+                json(
+                        call(
+                                guesser,
+                                get("/api/v1/crews")
+                                        .param("size", "1")
+                                        .param("cursor", String.valueOf(crewCursor)),
+                                null));
+        assertThat(nextCrews.get("crews").get(0).get("crewId").asLong()).isLessThan(crewCursor);
+        assertThat(json(call(guesser, get("/api/v1/crews"), null)).get("nextCursor").isNull())
+                .isTrue();
+
+        for (int i = 0; i < 3; i++) {
+            call(
+                            leader,
+                            post("/api/v1/crews/" + crewId + "/posts"),
+                            Map.of("kind", "CHEER", "body", "글" + i))
+                    .andExpect(status().isCreated());
+        }
+        JsonNode page1 =
+                json(
+                        call(
+                                guesser,
+                                get("/api/v1/crews/" + crewId + "/posts").param("size", "2"),
+                                null));
+        assertThat(page1.get("posts").findValuesAsText("body")).containsExactly("글2", "글1");
+        JsonNode page2 =
+                json(
+                        call(
+                                guesser,
+                                get("/api/v1/crews/" + crewId + "/posts")
+                                        .param("size", "2")
+                                        .param("cursor", page1.get("nextCursor").asText()),
+                                null));
+        assertThat(page2.get("posts").findValuesAsText("body")).containsExactly("글0");
+        assertThat(page2.get("nextCursor").isNull()).isTrue();
+    }
 }

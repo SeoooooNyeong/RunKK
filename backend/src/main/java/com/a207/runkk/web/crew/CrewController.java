@@ -1,6 +1,7 @@
 package com.a207.runkk.web.crew;
 
 import com.a207.runkk.common.AggregationPeriod;
+import com.a207.runkk.common.PageCursor;
 import com.a207.runkk.common.PersonalityTag;
 import com.a207.runkk.crew.CrewCreateResult;
 import com.a207.runkk.crew.CrewQueryService;
@@ -73,9 +74,12 @@ public class CrewController {
     CrewDtos.CrewListResponse search(
             @RequestAttribute(MEMBER_ID) long memberId,
             @RequestParam(required = false) String keyword,
-            @RequestParam(required = false) Set<PersonalityTag> tags) {
+            @RequestParam(required = false) Set<PersonalityTag> tags,
+            @RequestParam(required = false) Long cursor,
+            @RequestParam(required = false) Integer size) {
         return CrewDtos.CrewListResponse.of(
-                crewQueryService.search(memberId, new CrewSearch(tags, keyword)));
+                crewQueryService.search(
+                        memberId, new CrewSearch(tags, keyword), new PageCursor(cursor, size)));
     }
 
     /** 본인 소속 크루와 대기 중인 본인 가입 신청(크루 탭 재진입). 설계 5.7.1에 없어 더한 조회다. */

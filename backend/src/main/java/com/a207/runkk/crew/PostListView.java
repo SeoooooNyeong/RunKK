@@ -8,8 +8,9 @@ import java.util.List;
  * 크루 게시글 목록(자료사전 크루게시목록, FR-131, FR-133). 보이는 글 최신순.
  *
  * @param posts 글
+ * @param nextCursor 다음 페이지 커서(게시글 ID), 마지막 페이지거나 나누지 않았으면 null
  */
-public record PostListView(List<Line> posts) {
+public record PostListView(List<Line> posts, Long nextCursor) {
 
     public PostListView {
         posts = List.copyOf(posts);

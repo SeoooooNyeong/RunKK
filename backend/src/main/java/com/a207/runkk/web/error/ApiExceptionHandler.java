@@ -37,7 +37,8 @@ public class ApiExceptionHandler {
     private static final Map<ReasonCode, HttpStatus> STATUS_BY_REASON =
             Map.of(
                     ReasonCode.AUTH_FAILED, HttpStatus.UNAUTHORIZED,
-                    ReasonCode.PROVIDER_UNAVAILABLE, HttpStatus.SERVICE_UNAVAILABLE);
+                    ReasonCode.PROVIDER_UNAVAILABLE, HttpStatus.SERVICE_UNAVAILABLE,
+                    ReasonCode.TOO_MANY_ATTEMPTS, HttpStatus.TOO_MANY_REQUESTS);
 
     /**
      * 업무 규칙 거부는 409가 기본이다. 로그인 실패(AUTH_FAILED 401, PROVIDER_UNAVAILABLE 503)만 그 뜻에 맞는 상태로 준다(앱–서버

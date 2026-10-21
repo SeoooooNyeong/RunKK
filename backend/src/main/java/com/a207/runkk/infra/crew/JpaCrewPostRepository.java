@@ -1,6 +1,7 @@
 package com.a207.runkk.infra.crew;
 
 import com.a207.runkk.common.DateRange;
+import com.a207.runkk.common.PageCursor;
 import com.a207.runkk.crew.CheerPost;
 import com.a207.runkk.crew.CrewPost;
 import com.a207.runkk.crew.CrewPostRepository;
@@ -9,6 +10,7 @@ import com.a207.runkk.crew.CrewRunStatus;
 import com.a207.runkk.crew.PostKind;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
+import jakarta.persistence.TypedQuery;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -56,17 +58,25 @@ public class JpaCrewPostRepository implements CrewPostRepository {
     }
 
     @Override
-    public List<CrewPost> findVisible(long crewId, PostKind kind) {
+    public List<CrewPost> findVisible(long crewId, PostKind kind, PageCursor page) {
         Class<? extends CrewPost> type = kind == null ? CrewPost.class : typeOf(kind);
-        return entityManager
-                .createQuery(
-                        "select p from "
-                                + type.getSimpleName()
-                                + " p where p.crewId = :crew and p.deleted = false"
-                                + " order by p.createdAt desc, p.id desc",
-                        CrewPost.class)
-                .setParameter("crew", crewId)
-                .getResultList();
+        TypedQuery<CrewPost> query =
+                entityManager
+                        .createQuery(
+                                "select p from "
+                                        + type.getSimpleName()
+                                        + " p where p.crewId = :crew and p.deleted = false"
+                                        + (page.cursor() == null ? "" : " and p.id < :cursor")
+                                        + " order by p.id desc",
+                                CrewPost.class)
+                        .setParameter("crew", crewId);
+        if (page.cursor() != null) {
+            query.setParameter("cursor", page.cursor());
+        }
+        if (page.size() != null) {
+            query.setMaxResults(page.size() + 1);
+        }
+        return query.getResultList();
     }
 
     private static Class<? extends CrewPost> typeOf(PostKind kind) {

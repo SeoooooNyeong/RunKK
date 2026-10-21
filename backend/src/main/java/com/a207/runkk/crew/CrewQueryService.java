@@ -3,6 +3,7 @@ package com.a207.runkk.crew;
 import com.a207.runkk.common.AggregationPeriod;
 import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.Distance;
+import com.a207.runkk.common.PageCursor;
 import com.a207.runkk.common.PermissionDeniedException;
 import com.a207.runkk.common.TagSet;
 import com.a207.runkk.common.Week;
@@ -65,7 +66,14 @@ public class CrewQueryService {
      * MemberQueryService.summaries로 붙인다. 크루 없는 러너면 recommend 결과를 함께 싣는다(FR-117).
      */
     public CrewListView search(long viewerId, CrewSearch cond) {
-        List<CrewListRow> rows = crewRepository.search(cond, thisWeek());
+        return search(viewerId, cond, PageCursor.all());
+    }
+
+    /** 페이지 나누기(B4 리뷰). 크루장 표시명은 그 페이지 크루만 읽는다. */
+    public CrewListView search(long viewerId, CrewSearch cond, PageCursor page) {
+        PageCursor.Slice<CrewListRow> slice =
+                page.slice(crewRepository.search(cond, thisWeek()), CrewListRow::crewId);
+        List<CrewListRow> rows = slice.items();
         Map<Long, MemberSummary> leaders =
                 memberQueryService.summaries(rows.stream().map(CrewListRow::leaderId).toList());
         TagSet viewerTags = memberQueryService.tagsOf(viewerId);
@@ -80,7 +88,7 @@ public class CrewQueryService {
                         .toList();
         RecommendationView recommendations =
                 ownCrewId(viewerId).isEmpty() ? recommend(viewerId) : null;
-        return new CrewListView(items, recommendations);
+        return new CrewListView(items, recommendations, slice.nextCursor());
     }
 
     /** 태그가 없으면 안내(FR-119). 후보(공개, 정원 미달, 본인 소속 아님) → CrewRecommender.recommend(FR-118). */

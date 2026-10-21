@@ -99,7 +99,7 @@ public class JpaCrewRepository implements CrewRepository {
                                         ? ""
                                         : " and (lower(c.name) like :keyword or lower(c.intro) like"
                                                 + " :keyword)")
-                                + " order by c.createdAt desc, c.id desc",
+                                + " order by c.id desc",
                         Crew.class);
         query.setParameter("public", CrewVisibility.PUBLIC);
         if (cond.keyword() != null) {

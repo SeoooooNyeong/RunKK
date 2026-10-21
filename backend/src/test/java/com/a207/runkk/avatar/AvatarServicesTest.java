@@ -59,6 +59,7 @@ class AvatarServicesTest {
     private final AvatarFakes.Avatars avatars = new AvatarFakes.Avatars();
     private final AvatarFakes.Images images = new AvatarFakes.Images();
     private final AvatarFakes.Locks locks = new AvatarFakes.Locks();
+    private final AvatarFakes.Failures failures = new AvatarFakes.Failures();
     private final AvatarFakes.Gateway gateway = new AvatarFakes.Gateway();
     private final RewardService rewards = mock(RewardService.class);
     private final MemberQueryService members = mock(MemberQueryService.class);
@@ -93,7 +94,8 @@ class AvatarServicesTest {
                                         LocalTime.of(21, 0))));
         when(members.hasConsent(ALICE, ConsentItem.FACE_TRANSFER)).thenReturn(true);
         when(rewards.balanceOf(anyLong())).thenReturn(70);
-        SelfieConversion conversion = new SelfieConversion(gateway, images, locks, avatars, tx);
+        SelfieConversion conversion =
+                new SelfieConversion(gateway, images, locks, failures, avatars, members, tx);
         service = new AvatarService(avatars, conversion, rewards, members, policy, clock);
         appearance =
                 new AppearanceService(
@@ -131,6 +133,34 @@ class AvatarServicesTest {
         assertThat(result.view().guide()).isNotNull();
         assertThat(result.view().canCreateSelfieToday()).isTrue();
         assertThat(images.saved).isEmpty();
+    }
+
+    @Test
+    @DisplayName("변환 실패가 하루 5번이면 SELFIE_RETRY_LIMIT, ai를 더 부르지 않는다")
+    void selfie_failureCap() {
+        gateway.answer = image -> FaceTransformOutcome.failure(FailureReason.NO_FACE);
+        for (int i = 0; i < SelfieConversion.MAX_FAILURES_PER_DAY; i++) {
+            assertThat(service.createFromSelfie(ALICE, SELFIE).created()).isFalse();
+        }
+        assertThatThrownBy(() -> service.createFromSelfie(ALICE, SELFIE))
+                .satisfies(e -> assertThat(reasonOf(e)).isEqualTo(ReasonCode.SELFIE_RETRY_LIMIT));
+        assertThat(gateway.calls).isEqualTo(SelfieConversion.MAX_FAILURES_PER_DAY);
+        assertThat(locks.held).isEmpty();
+    }
+
+    @Test
+    @DisplayName("변환하는 사이 탈퇴(동의가 지워짐)하면 부위 이미지를 남기지 않는다")
+    void selfie_withdrawnDuringConversion_leavesNoImages() {
+        gateway.answer =
+                image -> {
+                    when(members.hasConsent(ALICE, ConsentItem.FACE_TRANSFER)).thenReturn(false);
+                    return FaceTransformOutcome.success(AvatarFakes.images());
+                };
+        assertThatThrownBy(() -> service.createFromSelfie(ALICE, SELFIE))
+                .satisfies(
+                        e -> assertThat(reasonOf(e)).isEqualTo(ReasonCode.FACE_CONSENT_REQUIRED));
+        assertThat(images.saved).isEmpty();
+        assertThat(locks.held).isEmpty();
     }
 
     @Test

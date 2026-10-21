@@ -574,6 +574,9 @@
       "name" : "recommendations",
       "kind" : "record",
       "ref" : "CrewDtos.RecommendationsResponse"
+    }, {
+      "name" : "nextCursor",
+      "kind" : "leaf"
     } ],
     "file" : "web/crew/CrewDtos.java"
   },
@@ -798,6 +801,9 @@
       "name" : "posts",
       "kind" : "list",
       "ref" : "CrewDtos.PostListResponse.Item"
+    }, {
+      "name" : "nextCursor",
+      "kind" : "leaf"
     } ],
     "file" : "web/crew/CrewDtos.java"
   },

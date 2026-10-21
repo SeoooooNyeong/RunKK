@@ -165,15 +165,18 @@ final class CrewDtos {
      *
      * @param crews 공개 크루
      * @param recommendations 크루 없는 러너의 추천
+     * @param nextCursor 다음 페이지 커서(size를 줬을 때만), 없으면 null
      */
-    record CrewListResponse(List<Item> crews, RecommendationsResponse recommendations) {
+    record CrewListResponse(
+            List<Item> crews, RecommendationsResponse recommendations, Long nextCursor) {
 
         static CrewListResponse of(CrewListView view) {
             return new CrewListResponse(
                     view.crews().stream().map(Item::of).toList(),
                     view.recommendations() == null
                             ? null
-                            : RecommendationsResponse.of(view.recommendations()));
+                            : RecommendationsResponse.of(view.recommendations()),
+                    view.nextCursor());
         }
 
         /**
@@ -349,11 +352,13 @@ final class CrewDtos {
      * 게시글 목록.
      *
      * @param posts 글, 최신순
+     * @param nextCursor 다음 페이지 커서(size를 줬을 때만), 없으면 null
      */
-    record PostListResponse(List<Item> posts) {
+    record PostListResponse(List<Item> posts, Long nextCursor) {
 
         static PostListResponse of(PostListView view) {
-            return new PostListResponse(view.posts().stream().map(Item::of).toList());
+            return new PostListResponse(
+                    view.posts().stream().map(Item::of).toList(), view.nextCursor());
         }
 
         /**

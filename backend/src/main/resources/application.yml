@@ -84,9 +84,9 @@ runkk:
     location-terms-url: ${LEGAL_LOCATION_TERMS_URL:https://s15p31a207.p.ssafy.io/legal/location}
     help-url: ${LEGAL_HELP_URL:https://s15p31a207.p.ssafy.io/legal/help}
   auth:
-    # 회원 JWT 서명 키(HS256, 32바이트 이상). 비면 기동 때마다 임의 키를 만든다(재시작하면 기존 토큰 무효, D-19).
+    # 회원 JWT 서명 키(HS256, 32바이트 이상). 비면 기동 때마다 임의 키를 만든다(재시작하면 기존 토큰 무효, D-19). prod는 비면 기동 실패(ProductionSecretsCheck).
     jwt-secret: ${JWT_SECRET:}
-    # 관리툴 토큰 서명 키(HS256, 32바이트 이상, 회원 키와 달라야 한다, D-42). 비면 기동 때마다 임의 키(관리툴 재로그인 필요).
+    # 관리툴 토큰 서명 키(HS256, 32바이트 이상, 회원 키와 달라야 한다, D-42). 비면 기동 때마다 임의 키(관리툴 재로그인 필요). prod는 비면 기동 실패.
     admin-jwt-secret: ${ADMIN_JWT_SECRET:}
     kakao:
       base-url: ${KAKAO_API_BASE_URL:https://kapi.kakao.com}
@@ -106,7 +106,7 @@ runkk:
       base-url: ${KMA_API_BASE_URL:https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0}
       # 공공데이터포털 서비스 키. 비면 날씨 없이 저장한다(FR-184).
       service-key: ${KMA_SERVICE_KEY:}
-  # api → ai 서버(D-58, infra.integration.ai.AiServerClient). 통합 compose가 AI_SERVER_URL·RUNKK_INTERNAL_TOKEN으로 넘긴다.
+  # api → ai 서버(D-58, infra.integration.ai.AiServerClient). 통합 compose가 AI_SERVER_URL·RUNKK_INTERNAL_TOKEN으로 넘긴다. 토큰은 prod 필수.
   ai:
     server-url: ${AI_SERVER_URL:http://localhost:8000}
     internal-token: ${RUNKK_INTERNAL_TOKEN:}

@@ -90,6 +90,20 @@ public final class AvatarFakes {
         }
     }
 
+    public static final class Failures implements SelfieFailureStore {
+        final Map<String, Integer> counts = new HashMap<>();
+
+        @Override
+        public synchronized int failuresOn(long memberId, java.time.LocalDate day) {
+            return counts.getOrDefault(memberId + "@" + day, 0);
+        }
+
+        @Override
+        public synchronized void recordFailure(long memberId, java.time.LocalDate day) {
+            counts.merge(memberId + "@" + day, 1, Integer::sum);
+        }
+    }
+
     public static final class Locks implements SelfieLockStore {
         final Set<Long> held = new HashSet<>();
 
