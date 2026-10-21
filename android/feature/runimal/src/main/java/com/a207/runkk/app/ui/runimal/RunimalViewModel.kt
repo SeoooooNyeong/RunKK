@@ -154,8 +154,8 @@ class RunimalViewModel internal constructor(
     private fun messageOf(outcome: ShareOutcome): UiText? = when (outcome) {
         ShareOutcome.Shared -> null
         ShareOutcome.Saved -> UiText.Res(R.string.runimal_saved_to_gallery)
-        is ShareOutcome.Fallback -> outcome.message
-        is ShareOutcome.Failed -> outcome.message
+        is ShareOutcome.Fallback -> UiText.Res(outcome.messageRes)
+        is ShareOutcome.Failed -> UiText.Res(outcome.messageRes)
     }
 
     private companion object {
