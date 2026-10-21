@@ -102,7 +102,7 @@ internal fun CrewMembersResponse.toDomain(): CrewMembers = CrewMembers(
         CrewMembers.Member(
             it.memberId,
             it.displayName.orEmpty(),
-            it.role,
+            enumByName<CrewRole>(it.role) ?: CrewRole.MEMBER,
             it.crewIntro,
             it.tier,
             it.runimalType,

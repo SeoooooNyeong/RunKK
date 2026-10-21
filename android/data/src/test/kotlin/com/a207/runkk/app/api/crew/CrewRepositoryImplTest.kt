@@ -183,6 +183,7 @@ class CrewRepositoryImplTest {
         val race = repository.race(9, null).value()
 
         assertEquals(listOf(false, true), members.members.map { it.me })
+        assertEquals(listOf(CrewRole.LEADER, CrewRole.MEMBER), members.members.map { it.role })
         assertEquals(
             listOf(
                 RaceStatus.Contributor("나", Distance(8_000), 40.0, 7, me = true),

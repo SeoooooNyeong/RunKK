@@ -351,12 +351,9 @@ private fun HomeTitle(state: CrewHomeUiState, modifier: Modifier = Modifier) {
 }
 
 @StringRes
-private fun CrewRole.labelRes(): Int = if (this ==
-    CrewRole.LEADER
-) {
-    R.string.crew_role_leader
-} else {
-    R.string.crew_role_member
+private fun CrewRole.labelRes(): Int = when (this) {
+    CrewRole.LEADER -> R.string.crew_role_leader
+    CrewRole.MEMBER -> R.string.crew_role_member
 }
 
 /** 머리글 오른쪽 설정 메뉴: 크루 관리(크루장만)·크루 내 소개 바꾸기·크루 나가기. */
@@ -795,7 +792,7 @@ internal fun MemberRow(member: CrewMembers.Member, trailing: (@Composable () -> 
                 ) {
                     Text(member.displayName, style = RunkkTextStyles.BodyStrong, color = RunkkColors.TextPrimary)
                     RunkkBadge(
-                        roleLabel(member.role),
+                        stringResource(member.role.labelRes()),
                         tone = if (isLeader(member)) RunkkBadgeTone.Lime else RunkkBadgeTone.Muted
                     )
                     if (member.me) RunkkBadge(stringResource(R.string.crew_member_me), tone = RunkkBadgeTone.Neutral)
@@ -814,14 +811,7 @@ internal fun MemberRow(member: CrewMembers.Member, trailing: (@Composable () -> 
     }
 }
 
-internal fun isLeader(member: CrewMembers.Member): Boolean = member.role.uppercase() == "LEADER" || member.role == "크루장"
-
-@Composable
-internal fun roleLabel(role: String): String = when (role.uppercase()) {
-    "LEADER" -> stringResource(R.string.crew_role_leader)
-    "MEMBER" -> stringResource(R.string.crew_role_member)
-    else -> role
-}
+internal fun isLeader(member: CrewMembers.Member): Boolean = member.role == CrewRole.LEADER
 
 // ---------- 크루 관리 ----------
 
