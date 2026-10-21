@@ -33,9 +33,11 @@ private class FakeNotifications : NotificationRepository {
 
     override suspend fun inbox(): Outcome<Inbox> = inboxResult
 
+    var openResult: Outcome<Unit> = Outcome.Success(Unit)
+
     override suspend fun open(notificationId: Long): Outcome<Unit> {
         opened += notificationId
-        return Outcome.Success(Unit)
+        return openResult
     }
 }
 
@@ -138,5 +140,14 @@ class InboxTest {
             }
         }
         compose.onNodeWithText("새 알림이 없어요").assertExists()
+    }
+
+    @Test
+    fun `읽음 처리가 실패하면 안 읽음으로 되돌리고 알린다`() {
+        repo.openResult = Outcome.Failure(AppError.Network)
+        val vm = InboxViewModel(repo, clock)
+        vm.onItemTapped(sampleItems[0])
+        assertEquals(1, vm.state.value.unreadCount)
+        assertTrue(vm.state.value.message!!.startsWith("네트워크"))
     }
 }

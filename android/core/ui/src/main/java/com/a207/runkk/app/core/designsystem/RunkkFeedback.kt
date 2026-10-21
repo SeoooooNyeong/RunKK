@@ -32,8 +32,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -122,6 +125,7 @@ fun RunkkLoading(modifier: Modifier = Modifier, label: String = "불러오는 �
     Box(
         modifier = modifier.fillMaxSize().semantics {
             contentDescription = label
+            progressBarRangeInfo = ProgressBarRangeInfo.Indeterminate
         },
         contentAlignment = Alignment.Center
     ) {
@@ -147,7 +151,8 @@ fun RunkkEmptyState(
             text = title,
             style = RunkkTextStyles.CardTitle,
             color = RunkkColors.TextPrimary,
-            textAlign = TextAlign.Center
+            textAlign = TextAlign.Center,
+            modifier = Modifier.semantics { heading() }
         )
         if (message !=
             null
@@ -197,7 +202,7 @@ fun RunkkHint(text: String, modifier: Modifier = Modifier) {
             .clip(RunkkShapes.Medium)
             .background(RunkkColors.Surface)
             .padding(horizontal = 16.dp, vertical = 12.dp)
-            .semantics { liveRegion = LiveRegionMode.Assertive },
+            .semantics { liveRegion = LiveRegionMode.Polite },
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(text = text, style = RunkkTextStyles.text(13, FontWeight.Bold), color = RunkkColors.Lavender)

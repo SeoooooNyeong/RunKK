@@ -14,10 +14,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -40,6 +42,7 @@ import com.a207.runkk.app.core.designsystem.RunkkErrorText
 import com.a207.runkk.app.core.designsystem.RunkkLoading
 import com.a207.runkk.app.core.designsystem.RunkkSectionTitle
 import com.a207.runkk.app.core.designsystem.RunkkShapes
+import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
@@ -80,7 +83,8 @@ data class InboxGroup(val title: String, val items: List<Inbox.Item>)
 data class InboxUiState(
     val loading: Boolean = true,
     val groups: List<InboxGroup> = emptyList(),
-    val error: String? = null
+    val error: String? = null,
+    val message: String? = null
 ) {
     val unreadCount: Int get() = groups.sumOf { g -> g.items.count { !it.read } }
 }
@@ -131,26 +135,36 @@ class InboxViewModel @Inject constructor(private val notifications: Notification
         }
     }
 
-    fun onItemTapped(item: Inbox.Item) {
-        if (!item.read) {
-            _state.update { s ->
-                s.copy(
-                    groups = s.groups.map { g ->
-                        g.copy(
-                            items = g.items.map {
-                                if (it.id ==
-                                    item.id
-                                ) {
-                                    it.copy(read = true)
-                                } else {
-                                    it
-                                }
-                            }
-                        )
+    fun onMessageShown() = _state.update { it.copy(message = null) }
+
+    private fun markRead(id: Long, read: Boolean) = _state.update { s ->
+        s.copy(
+            groups = s.groups.map { g ->
+                g.copy(
+                    items = g.items.map {
+                        if (it.id ==
+                            id
+                        ) {
+                            it.copy(read = read)
+                        } else {
+                            it
+                        }
                     }
                 )
             }
-            viewModelScope.launch { notifications.open(item.id) }
+        )
+    }
+
+    fun onItemTapped(item: Inbox.Item) {
+        if (!item.read) {
+            markRead(item.id, read = true)
+            viewModelScope.launch {
+                val opened = notifications.open(item.id)
+                if (opened is Outcome.Failure) {
+                    markRead(item.id, read = false)
+                    _state.update { it.copy(message = RunkkErrorText.of(opened.error)) }
+                }
+            }
         }
         item.route?.let { _events.trySend(InboxEvent.Navigate(it)) }
     }
@@ -167,7 +181,13 @@ fun InboxRoute(viewModel: InboxViewModel = hiltViewModel()) {
             }
         }
     }
-    InboxScreen(state, onBack = navigator::back, onItem = viewModel::onItemTapped, onRetry = viewModel::refresh)
+    InboxScreen(
+        state,
+        onBack = navigator::back,
+        onItem = viewModel::onItemTapped,
+        onRetry = viewModel::refresh,
+        onMessageShown = viewModel::onMessageShown
+    )
 }
 
 @Composable
@@ -176,9 +196,25 @@ fun InboxScreen(
     onBack: () -> Unit,
     onItem: (Inbox.Item) -> Unit,
     onRetry: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onMessageShown: () -> Unit = {}
 ) {
-    Column(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
+    val snackbar = remember { SnackbarHostState() }
+    LaunchedEffect(state.message) {
+        state.message?.let {
+            snackbar.showSnackbar(it)
+            onMessageShown()
+        }
+    }
+    Box(modifier = modifier.fillMaxSize()) {
+        InboxContent(state, onBack, onItem, onRetry)
+        RunkkSnackbarHost(snackbar, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp))
+    }
+}
+
+@Composable
+private fun InboxContent(state: InboxUiState, onBack: () -> Unit, onItem: (Inbox.Item) -> Unit, onRetry: () -> Unit) {
+    Column(modifier = Modifier.fillMaxSize().background(RunkkColors.Background)) {
         RunkkTopBar(title = "알림함", onBack = onBack)
         when {
             state.loading && state.groups.isEmpty() -> RunkkLoading(modifier = Modifier.weight(1f))

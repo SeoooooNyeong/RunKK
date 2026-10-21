@@ -6,6 +6,14 @@
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
 
+    <!-- Android 11+ 패키지 가시성: 인스타그램 스토리 인텐트를 받는 앱이 있는지 묻는다(StoryShareTarget). -->
+    <queries>
+        <intent>
+            <action android:name="com.instagram.share.ADD_TO_STORY" />
+            <data android:mimeType="image/png" />
+        </intent>
+    </queries>
+
     <application>
         <!-- 공유 카드 PNG를 다른 앱(공유 시트·인스타그램 스토리)에 넘기는 주소. -->
         <provider

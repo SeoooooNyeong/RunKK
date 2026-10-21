@@ -109,18 +109,23 @@ class RunkkComponentsTest {
     }
 
     @Test
-    fun `진행 막대는 진행 비율을 보조 기술에 알린다`() {
-        compose.setContent { RunkkTheme(reduceMotion = true) { RunkkStepTopBar(title = "회원 가입", step = 2, total = 5) } }
+    fun `진행 막대는 진행 비율을, 단계 바는 "n단계 중 m단계"를 알린다`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                androidx.compose.foundation.layout.Column {
+                    RunkkProgressBar(0.4f)
+                    RunkkStepTopBar(title = "회원 가입", step = 2, total = 5)
+                }
+            }
+        }
         compose.onNode(SemanticsMatcher.keyIsDefined(SemanticsProperties.ProgressBarRangeInfo))
             .assert(
                 SemanticsMatcher.expectValue(
                     SemanticsProperties.ProgressBarRangeInfo,
-                    androidx.compose.ui.semantics.ProgressBarRangeInfo(
-                        0.4f,
-                        0f..1f
-                    )
+                    androidx.compose.ui.semantics.ProgressBarRangeInfo(0.4f, 0f..1f)
                 )
             )
+        compose.onNodeWithContentDescription("5단계 중 2단계").assertExists()
     }
 
     @Test

@@ -39,8 +39,8 @@ fun RunkkNavHost(
     featureEntries: Set<FeatureEntry>,
     startRoute: String,
     onExit: () -> Unit,
-    modifier: Modifier = Modifier,
-    loggedIn: Boolean = true
+    loggedIn: Boolean,
+    modifier: Modifier = Modifier
 ) {
     val backStack = rememberNavBackStack(Routes.Key(startRoute))
     val navigator = remember(backStack) { BackStackNavigator(backStack, onExit) }

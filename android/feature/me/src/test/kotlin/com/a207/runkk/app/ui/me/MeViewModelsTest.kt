@@ -128,4 +128,14 @@ class MeViewModelsTest {
         assertTrue(vm.state.value.error!!.startsWith("크루장 양도 필요"))
         assertFalse(vm.state.value.withdrawing)
     }
+
+    @Test
+    fun `한 설정이 실패해도 그사이 바꾼 다른 설정은 남는다`() {
+        account.failures["changeSetting:UNIT=MI"] = AppError.Network
+        val vm = SettingsViewModel(account, ChangeSettingUseCase(account, settingsCopy))
+        vm.setValue(SettingKeys.RUN_VOICE, "false")
+        vm.setValue(SettingKeys.UNIT, "MI")
+        assertEquals("KM", vm.state.value.value(SettingKeys.UNIT))
+        assertEquals("false", vm.state.value.value(SettingKeys.RUN_VOICE))
+    }
 }

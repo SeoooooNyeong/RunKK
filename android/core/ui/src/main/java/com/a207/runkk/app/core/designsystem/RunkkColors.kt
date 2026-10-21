@@ -28,6 +28,9 @@ object RunkkColors {
     /** 강한 테두리(보조 버튼, 입력칸). */
     val BorderStrong = Color(0xFF3F3F46)
 
+    /** 입력칸·체크박스 경계(배경 위 약 4.1:1, 표면 위 약 3.7:1, WCAG 1.4.11 비텍스트 대비). */
+    val InputBorder = Color(0xFF71717A)
+
     /** 눌린 테두리(hover 근사), 비강조 막대. */
     val BorderHover = Color(0xFF52525B)
 

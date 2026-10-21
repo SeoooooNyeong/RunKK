@@ -38,9 +38,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.error
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
@@ -78,7 +80,6 @@ fun RunkkTextField(
             modifier = Modifier
                 .fillMaxWidth()
                 .semantics {
-                    contentDescription = label
                     if (error != null) error(error)
                 },
             decorationBox = { inner ->
@@ -88,7 +89,7 @@ fun RunkkTextField(
                         .heightIn(min = 48.dp)
                         .clip(shape)
                         .background(RunkkColors.Surface)
-                        .border(1.dp, if (error != null) RunkkColors.Lavender else RunkkColors.BorderStrong, shape)
+                        .border(1.dp, if (error != null) RunkkColors.Lavender else RunkkColors.InputBorder, shape)
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                     contentAlignment = Alignment.CenterStart
                 ) {
@@ -100,7 +101,12 @@ fun RunkkTextField(
             }
         )
         when {
-            error != null -> Text(text = error, style = RunkkTextStyles.Caption, color = RunkkColors.Lavender)
+            error != null -> Text(
+                text = error,
+                style = RunkkTextStyles.Caption,
+                color = RunkkColors.Lavender,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+            )
 
             supporting != null -> Text(
                 text = supporting,
@@ -130,10 +136,10 @@ fun <T> RunkkSelectField(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(48.dp)
+                    .heightIn(min = 48.dp)
                     .clip(shape)
                     .background(RunkkColors.Surface)
-                    .border(1.dp, RunkkColors.BorderStrong, shape)
+                    .border(1.dp, RunkkColors.InputBorder, shape)
                     .clickable(role = Role.DropdownList, onClickLabel = "$label 고르기") { expanded = true }
                     .semantics {
                         contentDescription = label
@@ -260,7 +266,7 @@ fun RunkkCheckRow(
                 colors = CheckboxDefaults.colors(
                     checkedColor = RunkkColors.Lime,
                     checkmarkColor = RunkkColors.OnLime,
-                    uncheckedColor = RunkkColors.BorderStrong
+                    uncheckedColor = RunkkColors.InputBorder
                 )
             )
             Text(

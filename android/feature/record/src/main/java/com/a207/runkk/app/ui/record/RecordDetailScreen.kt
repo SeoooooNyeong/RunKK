@@ -166,6 +166,7 @@ private fun DetailBody(detail: RecordDetail) {
             RunkkStatTile(
                 "시간",
                 RunkkFormat.duration(s.elapsed),
+                spoken = RunkkFormat.durationSpoken(s.elapsed),
                 centered = true,
                 valueStyle = RunkkTextStyles.DisplaySmall,
                 modifier = Modifier.weight(1f)
@@ -173,6 +174,7 @@ private fun DetailBody(detail: RecordDetail) {
             RunkkStatTile(
                 "평균 페이스",
                 RunkkFormat.pace(s.averagePace),
+                spoken = RunkkFormat.paceSpoken(s.averagePace),
                 centered = true,
                 valueStyle = RunkkTextStyles.DisplaySmall,
                 modifier = Modifier.weight(1f)

@@ -15,6 +15,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * 설정 항목 키(서버 SettingItem 이름, 러닝·대결 설정은 하위 항목, 알림은 "ALERT.알림종류"). MemberSettings.values의 키이자
@@ -130,15 +132,32 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun setValue(key: String, value: String) {
-        val before = _state.value.settings ?: return
+        val current = _state.value.settings ?: return
         if (_state.value.value(key) == value) return
-        apply(before.copy(values = before.values + (key to value)), before, SettingChangeRequest.Change(key, value))
+        val previous = current.values[key]
+        _state.update { s -> s.copy(settings = s.settings?.let { it.copy(values = it.values + (key to value)) }) }
+        send(SettingChangeRequest.Change(key, value)) { settings ->
+            // 실패하면 이 항목만 되돌린다(그사이 바꾼 다른 항목은 그대로). 그사이 같은 항목을 또 바꿨으면 건드리지 않는다.
+            when {
+                settings.values[key] != value -> settings
+                previous == null -> settings.copy(values = settings.values - key)
+                else -> settings.copy(values = settings.values + (key to previous))
+            }
+        }
     }
 
     fun setConsent(item: String, agreed: Boolean) {
-        val before = _state.value.settings ?: return
+        val current = _state.value.settings ?: return
+        val previous = current.consents[item]
+        _state.update { s -> s.copy(settings = s.settings?.let { it.copy(consents = it.consents + (item to agreed)) }) }
         val request = if (agreed) SettingChangeRequest.GiveConsent(item) else SettingChangeRequest.WithdrawConsent(item)
-        apply(before.copy(consents = before.consents + (item to agreed)), before, request)
+        send(request) { settings ->
+            when {
+                settings.consents[item] != agreed -> settings
+                previous == null -> settings.copy(consents = settings.consents - item)
+                else -> settings.copy(consents = settings.consents + (item to previous))
+            }
+        }
     }
 
     fun onMessageShown() = _state.update { it.copy(message = null) }
@@ -165,12 +184,16 @@ class SettingsViewModel @Inject constructor(
 
     fun onUrlOpened() = _state.update { it.copy(urlToOpen = null) }
 
-    private fun apply(next: MemberSettings, before: MemberSettings, request: SettingChangeRequest) {
-        _state.update { it.copy(settings = next) }
+    /** 바꾸기 요청은 하나씩 차례로 보낸다(앞 요청의 사본 갱신과 뒤 요청이 엇갈리지 않게). */
+    private val changes = Mutex()
+
+    private fun send(request: SettingChangeRequest, rollback: (MemberSettings) -> MemberSettings) {
         viewModelScope.launch {
-            val result = changeSetting(request)
+            val result = changes.withLock { changeSetting(request) }
             if (result is Outcome.Failure) {
-                _state.update { it.copy(settings = before, message = RunkkErrorText.of(result.error)) }
+                _state.update { s ->
+                    s.copy(settings = s.settings?.let(rollback), message = RunkkErrorText.of(result.error))
+                }
             }
         }
     }

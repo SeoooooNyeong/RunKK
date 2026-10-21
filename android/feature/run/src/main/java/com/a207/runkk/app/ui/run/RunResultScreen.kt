@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -74,7 +75,7 @@ fun RunResultRoute(recordId: String, viewModel: RunResultViewModel = hiltViewMod
         state = state,
         onCard = { navigator.navigate(Routes.RecordCard(recordId)) },
         onHome = { navigator.restart(Routes.HOME) },
-        onRetry = { viewModel.load(recordId) }
+        onRetry = { viewModel.load(recordId, force = true) }
     )
 }
 
@@ -166,6 +167,7 @@ private fun ResultBody(state: RunResultUiState) {
         RunkkStatTile(
             "시간",
             state.elapsed?.let(RunkkFormat::duration) ?: RunkkFormat.EMPTY,
+            spoken = state.elapsed?.let(RunkkFormat::durationSpoken),
             centered = true,
             valueStyle = RunkkTextStyles.DisplaySmall,
             modifier = Modifier.weight(1f)
@@ -173,6 +175,7 @@ private fun ResultBody(state: RunResultUiState) {
         RunkkStatTile(
             "평균 페이스",
             RunkkFormat.pace(state.averagePace),
+            spoken = RunkkFormat.paceSpoken(state.averagePace),
             centered = true,
             valueStyle = RunkkTextStyles.DisplaySmall,
             modifier = Modifier.weight(1f)
@@ -234,6 +237,12 @@ private fun ResultBody(state: RunResultUiState) {
                     contentDescription =
                         "심박 구간 분포: " + state.heartRateZones.joinToString { (zone, d) -> "$zone ${d.toMinutes()}분" }
                 }
+            )
+            Text(
+                state.heartRateZones.joinToString("  ") { (zone, d) -> "$zone ${d.toMinutes()}분" },
+                style = RunkkTextStyles.Caption,
+                color = RunkkColors.TextSecondary,
+                modifier = Modifier.clearAndSetSemantics {}
             )
         }
     }

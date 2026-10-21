@@ -15,6 +15,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Clock
 import java.time.LocalDate
 import javax.inject.Inject
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -69,10 +70,14 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    private var refreshJob: Job? = null
+
     fun refresh() {
         val today = LocalDate.now(clock)
         _state.update { it.copy(loading = true, error = null, today = today) }
-        viewModelScope.launch {
+        // 늦게 끝난 앞 요청이 새 결과를 덮지 않게 취소한다.
+        refreshJob?.cancel()
+        refreshJob = viewModelScope.launch {
             val dashboard = async { records.dashboard(today) }
             val plan = async { records.todayPlan() }
             val profile = async { account.profile(AccountRepository.SELF).getOrNull() }

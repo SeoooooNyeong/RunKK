@@ -34,21 +34,41 @@ interface ShareTarget {
 
 /** 기기 저장: 사진첩(Pictures/RunKK)에 PNG로 넣는다. */
 class DeviceSaveTarget @Inject constructor() : ShareTarget {
-    override fun share(context: Context, image: Uri): ShareOutcome = runCatching {
+    override fun share(context: Context, image: Uri): ShareOutcome {
         val resolver = context.contentResolver
+        val pending = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
         val values = ContentValues().apply {
             put(MediaStore.Images.Media.DISPLAY_NAME, "runkk_${System.currentTimeMillis()}.png")
             put(MediaStore.Images.Media.MIME_TYPE, PNG)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            if (pending) {
                 put(MediaStore.Images.Media.RELATIVE_PATH, "${Environment.DIRECTORY_PICTURES}/RunKK")
+                // 다 쓰기 전에는 사진첩에 보이지 않게 한다.
+                put(MediaStore.Images.Media.IS_PENDING, 1)
             }
         }
-        val target = requireNotNull(resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values))
-        resolver.openInputStream(image).use { input ->
-            resolver.openOutputStream(target).use { output -> requireNotNull(input).copyTo(requireNotNull(output)) }
+        val target = runCatching { resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values) }.getOrNull()
+            ?: return ShareOutcome.Failed(SAVE_FAILED, "기기에 저장하지 못했어요. 저장 공간과 권한을 확인해 주세요")
+        return runCatching {
+            resolver.openInputStream(image).use { input ->
+                resolver.openOutputStream(target).use { output -> requireNotNull(input).copyTo(requireNotNull(output)) }
+            }
+            if (pending) {
+                resolver.update(
+                    target,
+                    ContentValues().apply {
+                        put(MediaStore.Images.Media.IS_PENDING, 0)
+                    },
+                    null,
+                    null
+                )
+            }
+            ShareOutcome.Saved
+        }.getOrElse {
+            // 반쯤 쓴 빈 항목을 남기지 않는다.
+            runCatching { resolver.delete(target, null, null) }
+            ShareOutcome.Failed(SAVE_FAILED, "기기에 저장하지 못했어요")
         }
-        ShareOutcome.Saved
-    }.getOrElse { ShareOutcome.Failed(SAVE_FAILED, "기기에 저장하지 못했어요") }
+    }
 
     private companion object {
         const val SAVE_FAILED = "SAVE_FAILED"

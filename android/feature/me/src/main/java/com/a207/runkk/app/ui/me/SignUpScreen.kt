@@ -28,6 +28,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
@@ -263,7 +264,12 @@ private fun ColumnScope.ProfileStep(state: SignUpUiState, actions: SignUpActions
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Text("NEXT · 3 / 5", style = RunkkTextStyles.display(14), color = RunkkColors.TextSecondary)
+        Text(
+            "NEXT · 3 / 5",
+            style = RunkkTextStyles.display(14),
+            color = RunkkColors.TextSecondary,
+            modifier = Modifier.clearAndSetSemantics {}
+        )
         Text(
             "내 기록을 누구에게 보여 줄까요?",
             style = RunkkTextStyles.CardTitle,

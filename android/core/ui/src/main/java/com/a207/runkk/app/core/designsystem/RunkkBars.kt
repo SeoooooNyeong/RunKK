@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -27,6 +28,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
@@ -47,7 +50,7 @@ fun RunkkTopBar(
     actions: @Composable RowScope.() -> Unit = {}
 ) {
     Row(
-        modifier = modifier.fillMaxWidth().height(64.dp).padding(horizontal = 16.dp),
+        modifier = modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -79,7 +82,7 @@ fun RunkkTopBar(
 fun RunkkStepTopBar(title: String, step: Int, total: Int, modifier: Modifier = Modifier, onBack: (() -> Unit)? = null) {
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 16.dp),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -99,13 +102,13 @@ fun RunkkStepTopBar(title: String, step: Int, total: Int, modifier: Modifier = M
                     withStyle(SpanStyle(color = RunkkColors.TextSecondary)) { append(" / $total") }
                 },
                 style = RunkkTextStyles.display(20),
-                modifier = Modifier.semantics(mergeDescendants = true) {}
+                modifier = Modifier.clearAndSetSemantics { contentDescription = "${total}단계 중 ${step}단계" }
             )
         }
         RunkkProgressBar(
             progress = step.toFloat() / total,
             height = 4.dp,
-            modifier = Modifier.padding(horizontal = 16.dp)
+            modifier = Modifier.padding(horizontal = 16.dp).clearAndSetSemantics {}
         )
     }
 }

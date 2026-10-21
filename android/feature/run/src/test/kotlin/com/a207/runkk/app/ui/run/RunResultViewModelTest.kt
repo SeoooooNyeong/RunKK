@@ -10,6 +10,8 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
 
@@ -55,10 +57,11 @@ class RunResultViewModelTest {
     }
 
     @Test
-    fun `어디에도 없으면 오류를 보인다`() {
+    fun `어디에도 없으면 오류를 보인다`() = runTest(main.dispatcher) {
         records.runResult = Outcome.Failure(AppError.Network)
         val vm = RunResultViewModel(pending, records)
         vm.load("missing")
+        advanceUntilIdle()
         assertNotNull(vm.state.value.error)
         assertNull(vm.state.value.distance)
     }
@@ -71,5 +74,25 @@ class RunResultViewModelTest {
         pending.pendingFailure = AppError.Storage
         vm.load("rec-1")
         assertEquals(Distance(5_020), vm.state.value.distance)
+    }
+
+    @Test
+    fun `종료 직후 보관함 저장이 늦어도 저장되면 결과를 보인다`() = runTest(main.dispatcher) {
+        val vm = RunResultViewModel(pending, records)
+        vm.load("rec-1")
+        assertTrue(vm.state.value.loading)
+        pending.runs.value = listOf(completedRun())
+        advanceUntilIdle()
+        assertEquals(Distance(5_020), vm.state.value.distance)
+        assertNull(vm.state.value.error)
+    }
+
+    @Test
+    fun `보관함에도 서버에도 없으면 기다린 뒤 오류를 보인다`() = runTest(main.dispatcher) {
+        records.runResult = Outcome.Failure(AppError.Network)
+        val vm = RunResultViewModel(pending, records)
+        vm.load("missing")
+        advanceUntilIdle()
+        assertNotNull(vm.state.value.error)
     }
 }

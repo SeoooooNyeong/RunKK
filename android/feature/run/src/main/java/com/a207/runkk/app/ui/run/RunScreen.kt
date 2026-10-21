@@ -47,6 +47,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.a207.runkk.app.core.designsystem.LocalReduceMotion
 import com.a207.runkk.app.core.designsystem.RunkkBanner
@@ -102,6 +103,11 @@ fun RunRoute(viewModel: RunViewModel = hiltViewModel()) {
             }
         }
     }
+    // 동의 관리·자유런 설정에서 돌아오면 준비 단계를 다시 확인한다.
+    LifecycleResumeEffect(viewModel) {
+        viewModel.onResumed()
+        onPauseOrDispose { }
+    }
     // 측정 중 뒤로 가기는 종료가 아니라 "길게 눌러 종료" 안내다(FR-181). 잠금 중에는 아무것도 하지 않는다.
     BackHandler {
         when (state.phase) {
@@ -111,12 +117,15 @@ fun RunRoute(viewModel: RunViewModel = hiltViewModel()) {
             RunPhase.FINISHING -> Unit
         }
     }
-    RunScreen(
-        state = state,
-        actions = RunActions(
+    // 1초마다 진행값이 바뀌어도 행동 묶음은 다시 만들지 않는다.
+    val actions = remember(viewModel, navigator, permission) {
+        RunActions(
             onCancel = viewModel::onCancelCountdown,
             onCountdownTapped = viewModel::onCountdownTapped,
-            onSettings = { navigator.navigate(Routes.FREE_RUN_SETTINGS) },
+            onSettings = {
+                viewModel.onSettingsTapped()
+                navigator.navigate(Routes.FREE_RUN_SETTINGS)
+            },
             onLock = viewModel::onLockTapped,
             onUnlockTap = viewModel::onUnlockTapped,
             onUnlockLongPress = viewModel::onUnlockLongPressed,
@@ -132,7 +141,8 @@ fun RunRoute(viewModel: RunViewModel = hiltViewModel()) {
             onConsentDismiss = viewModel::onConsentDialogDismissed,
             onErrorShown = viewModel::onErrorShown
         )
-    )
+    }
+    RunScreen(state = state, actions = actions)
 }
 
 /** 러닝 화면 사용자 행동. 누름 종류마다 다른 행동이다(D-49). */
@@ -292,7 +302,7 @@ private fun CountdownBall(number: Int, onTap: () -> Unit) {
             .background(RunkkColors.Lime)
             .clickable(role = Role.Button, onClickLabel = "바로 시작", onClick = onTap)
             .semantics {
-                contentDescription = "$number, 누르면 바로 시작"
+                contentDescription = "$number"
                 liveRegion = LiveRegionMode.Polite
             },
         contentAlignment = Alignment.Center
@@ -345,11 +355,26 @@ private fun RunningContent(state: RunUiState, actions: RunActions) {
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            RunkkStatTile("경과 시간", RunkkFormat.duration(progress.elapsed), modifier = Modifier.weight(1f))
-            RunkkStatTile("현재 페이스", RunkkFormat.pace(progress.currentPace), modifier = Modifier.weight(1f))
+            RunkkStatTile(
+                "경과 시간",
+                RunkkFormat.duration(progress.elapsed),
+                spoken = RunkkFormat.durationSpoken(progress.elapsed),
+                modifier = Modifier.weight(1f)
+            )
+            RunkkStatTile(
+                "현재 페이스",
+                RunkkFormat.pace(progress.currentPace),
+                spoken = RunkkFormat.paceSpoken(progress.currentPace),
+                modifier = Modifier.weight(1f)
+            )
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            RunkkStatTile("평균 페이스", RunkkFormat.pace(progress.averagePace), modifier = Modifier.weight(1f))
+            RunkkStatTile(
+                "평균 페이스",
+                RunkkFormat.pace(progress.averagePace),
+                spoken = RunkkFormat.paceSpoken(progress.averagePace),
+                modifier = Modifier.weight(1f)
+            )
             RunkkStatTile(
                 "심박 (워치)",
                 progress.heartRate?.bpm?.toString() ?: RunkkFormat.EMPTY,
@@ -377,6 +402,7 @@ private fun RunningContent(state: RunUiState, actions: RunActions) {
                 onLongPress = actions.onFinishLongPress,
                 tapLabel = "종료 안내",
                 longPressLabel = "길게 눌러 종료",
+                contentDescription = "러닝 종료",
                 caption = "길게 눌러 종료"
             ) {
                 Box(Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).background(RunkkColors.Lavender))
@@ -451,6 +477,7 @@ private fun LockedContent(state: RunUiState, actions: RunActions) {
             onLongPress = actions.onUnlockLongPress,
             tapLabel = "해제 안내",
             longPressLabel = "길게 눌러 잠금 해제",
+            contentDescription = "화면 잠금 해제",
             caption = "길게 눌러 해제",
             borderColor = RunkkColors.BorderStrong,
             borderWidth = 2.dp,

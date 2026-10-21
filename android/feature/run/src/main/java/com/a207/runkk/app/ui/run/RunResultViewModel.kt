@@ -16,11 +16,15 @@ import java.time.Duration
 import java.time.Instant
 import javax.inject.Inject
 import kotlin.math.roundToInt
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 data class RunResultUiState(
     val loading: Boolean = true,
@@ -53,12 +57,20 @@ class RunResultViewModel @Inject constructor(
     private val _state = MutableStateFlow(RunResultUiState())
     val state: StateFlow<RunResultUiState> = _state.asStateFlow()
 
-    /** [recordId]의 결과를 읽는다. 같은 기록을 다시 부르면 무시한다. */
-    fun load(recordId: String) {
-        if (_state.value.recordId == recordId && !_state.value.loading) return
+    private var loadJob: Job? = null
+
+    /**
+     * [recordId]의 결과를 읽는다. 같은 기록을 다시 부르면 무시하고, [force]면 다시 읽는다.
+     * 종료 직후에는 보관함 저장(RunTracker의 비동기 저장)이 아직 끝나지 않았을 수 있어 보관함에 나타날 때까지 잠깐 기다린다.
+     */
+    fun load(recordId: String, force: Boolean = false) {
+        if (!force && _state.value.recordId == recordId) return
+        loadJob?.cancel()
         _state.value = RunResultUiState(recordId = recordId)
-        viewModelScope.launch {
-            val local = pendingRuns.pending().getOrNull()?.firstOrNull { it.recordId == recordId }
+        loadJob = viewModelScope.launch {
+            val local = withTimeoutOrNull(LOCAL_WAIT_MILLIS) {
+                pendingRuns.observePending().mapNotNull { runs -> runs.firstOrNull { it.recordId == recordId } }.first()
+            } ?: pendingRuns.pending().getOrNull()?.firstOrNull { it.recordId == recordId }
             if (local != null) {
                 _state.update {
                     it.copy(
@@ -101,6 +113,10 @@ class RunResultViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    private companion object {
+        const val LOCAL_WAIT_MILLIS = 3_000L
     }
 
     private fun averagePace(elapsed: Duration, distance: Distance): Pace? =

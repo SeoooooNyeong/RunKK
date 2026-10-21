@@ -10,7 +10,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
@@ -60,7 +60,7 @@ fun RunkkChoiceChip(
     ) {
         Box(
             modifier = Modifier
-                .height(40.dp)
+                .heightIn(min = 40.dp)
                 .runkkPressScale(interaction)
                 .clip(shape)
                 .background(if (selected) RunkkColors.Lime else RunkkColors.Surface)
@@ -106,7 +106,7 @@ fun RunkkSegmentOption(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(height)
+                .heightIn(min = height)
                 .runkkPressScale(interaction)
                 .clip(shape)
                 .background(if (selected) RunkkColors.LimeContainer else Color.Transparent)
@@ -149,7 +149,7 @@ fun RunkkInfoChip(
     val shape = RoundedCornerShape(16.dp)
     Box(
         modifier = modifier
-            .height(32.dp)
+            .heightIn(min = 32.dp)
             .clip(shape)
             .background(if (highlighted) RunkkColors.LimeContainer else Color.Transparent)
             .border(1.dp, if (highlighted) RunkkColors.Lime else RunkkColors.BorderStrong, shape)
@@ -173,7 +173,7 @@ fun RunkkInfoChip(
 fun RunkkStatusPill(label: String, modifier: Modifier = Modifier, leading: (@Composable () -> Unit)? = null) {
     Row(
         modifier = modifier
-            .height(32.dp)
+            .heightIn(min = 32.dp)
             .clip(RoundedCornerShape(16.dp))
             .background(RunkkColors.Surface)
             .padding(horizontal = 16.dp),
@@ -192,7 +192,7 @@ enum class RunkkBadgeTone { Neutral, Lime, Muted }
 fun RunkkBadge(label: String, modifier: Modifier = Modifier, tone: RunkkBadgeTone = RunkkBadgeTone.Neutral) {
     Box(
         modifier = modifier
-            .height(28.dp)
+            .heightIn(min = 28.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(if (tone == RunkkBadgeTone.Lime) RunkkColors.LimeContainer else RunkkColors.Surface)
             .padding(horizontal = 8.dp),
@@ -234,14 +234,14 @@ fun RunkkSegmentedTabs(
             val itemModifier = if (compact) Modifier else Modifier.weight(1f)
             Box(
                 modifier = itemModifier
-                    .height(if (compact) 40.dp else 48.dp)
+                    .heightIn(min = 48.dp)
                     .selectable(selected = selected, role = Role.Tab, onClick = { onSelect(index) }),
                 contentAlignment = Alignment.Center
             ) {
                 Box(
                     modifier = Modifier
                         .then(if (compact) Modifier else Modifier.fillMaxWidth())
-                        .height(if (compact) 32.dp else 40.dp)
+                        .heightIn(min = if (compact) 32.dp else 40.dp)
                         .clip(inner)
                         .background(if (selected) RunkkColors.Border else Color.Transparent)
                         .padding(horizontal = 16.dp),

@@ -44,7 +44,7 @@ class RunScreensTest {
     @Test
     fun `카운트다운 숫자를 누르면 바로 시작하고 취소가 있다`() {
         show(RunUiState(phase = RunPhase.COUNTDOWN, countdown = 2, targetDistance = Distance(5_000)))
-        compose.onNodeWithContentDescription("2, 누르면 바로 시작").performClick()
+        compose.onNodeWithContentDescription("2").performClick()
         compose.onNodeWithText("취소").performClick()
         compose.onNodeWithText("FREE RUN · 5K").assertExists()
         assertEquals(listOf("skip", "cancel"), calls)
@@ -59,7 +59,7 @@ class RunScreensTest {
                 targetDistance = Distance(5_000)
             )
         )
-        val finish = compose.onNodeWithContentDescription("길게 눌러 종료")
+        val finish = compose.onNodeWithContentDescription("러닝 종료")
         finish.performClick()
         finish.performTouchInput { longClick() }
         compose.onNodeWithContentDescription("화면 잠금").performClick()
@@ -71,7 +71,7 @@ class RunScreensTest {
     @Test
     fun `잠금 화면은 해제만 받는다(짧게 안내, 길게 해제)`() {
         show(RunUiState(phase = RunPhase.LOCKED, progress = RunProgress.INITIAL.copy(locked = true)))
-        val unlock = compose.onNodeWithContentDescription("길게 눌러 잠금 해제")
+        val unlock = compose.onNodeWithContentDescription("화면 잠금 해제")
         unlock.performClick()
         unlock.performSemanticsAction(SemanticsActions.OnLongClick)
         compose.onNodeWithText("화면 잠김").assertExists()

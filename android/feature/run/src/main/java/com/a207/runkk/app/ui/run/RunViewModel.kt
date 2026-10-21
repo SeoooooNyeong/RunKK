@@ -94,9 +94,13 @@ class RunViewModel @Inject constructor(private val tracker: RunTracker, private 
 
     private val countdown = StartCountdown(viewModelScope, RunUiState.COUNTDOWN_SECONDS)
     private var plan: PlanSnapshot? = null
+    private var planLoaded = false
     private var startDevice = RunStartSpec.StartDevice.PHONE
     private var hintJob: Job? = null
-    private var lastSplitKm = 0L
+    private var bannerJob: Job? = null
+
+    /** 마지막으로 배너를 띄운 km. 첫 진행값(화면을 다시 연 경우 지금 거리)으로 맞추고 배너는 띄우지 않는다. */
+    private var lastSplitKm: Long? = null
 
     init {
         viewModelScope.launch { tracker.progress.collect(::onProgress) }
@@ -104,13 +108,11 @@ class RunViewModel @Inject constructor(private val tracker: RunTracker, private 
             tracker.consentRequired.collect { required -> _state.update { it.copy(consentRequired = required) } }
         }
         viewModelScope.launch {
-            tracker.watchStartRequests.collect {
-                startDevice = RunStartSpec.StartDevice.WATCH
-                prepare()
-            }
+            tracker.watchStartRequests.collect { prepare(RunStartSpec.StartDevice.WATCH) }
         }
         viewModelScope.launch {
             plan = records.todayPlan().getOrNull()?.let { PlanSnapshot(it.distance, it.pace) }
+            planLoaded = true
             _state.update { it.copy(targetDistance = plan?.targetDistance, targetPace = plan?.targetPace) }
             prepare()
         }
@@ -120,6 +122,19 @@ class RunViewModel @Inject constructor(private val tracker: RunTracker, private 
     fun onRetryStart() {
         _state.update { it.copy(consentDialogDismissed = false) }
         prepare()
+    }
+
+    /** 화면에 돌아왔을 때(동의 관리·설정에서 복귀) 준비 단계면 다시 확인한다. 닫은 안내는 다시 띄우지 않는다. */
+    fun onResumed() = prepare()
+
+    /**
+     * 카운트다운 중 자유런 설정으로 갈 때: 카운트다운을 멈추고 준비 단계로 돌린다. 설정 화면 뒤에서 측정이 시작되지 않게 하고,
+     * 돌아오면 onResumed가 바뀐 설정으로 다시 센다.
+     */
+    fun onSettingsTapped() {
+        if (_state.value.phase != RunPhase.COUNTDOWN) return
+        countdown.cancel()
+        _state.update { it.copy(phase = RunPhase.PREPARING, countdown = RunUiState.COUNTDOWN_SECONDS) }
     }
 
     /** 재동의 안내를 뒤로가기·바깥 누름으로 닫는다. 화면은 "다시 시도"와 함께 남는다. */
@@ -147,6 +162,9 @@ class RunViewModel @Inject constructor(private val tracker: RunTracker, private 
     }
 
     fun onFinishLongPressed() {
+        // 저장 뒤 연타가 NotSaved로 결과 화면 이동을 덮지 않게 측정·잠금 단계에서만 받는다.
+        val phase = _state.value.phase
+        if (phase != RunPhase.RUNNING && phase != RunPhase.LOCKED) return
         when (val outcome = tracker.onFinishLongPressed()) {
             is FinishOutcome.Saved -> {
                 _state.update { it.copy(phase = RunPhase.FINISHING) }
@@ -161,10 +179,17 @@ class RunViewModel @Inject constructor(private val tracker: RunTracker, private 
 
     fun onErrorShown() = _state.update { it.copy(error = null) }
 
-    private fun prepare() {
-        if (_state.value.phase != RunPhase.PREPARING) return
-        // 권한·동의가 없으면 RunTracker가 consentRequired를 참으로 두고 화면은 재동의 안내를 보인다(design-review.md M25).
-        if (tracker.checkStartable() is Outcome.Failure) return
+    private fun prepare(device: RunStartSpec.StartDevice = RunStartSpec.StartDevice.PHONE) {
+        if (_state.value.phase != RunPhase.PREPARING || !planLoaded) return
+        val startable = tracker.checkStartable()
+        if (startable is Outcome.Failure) {
+            // 권한·동의 없음은 RunTracker가 consentRequired를 참으로 두고 화면이 재동의 안내를 보인다(design-review.md M25).
+            // 그 밖의 거부는 문구로 알린다.
+            val consent = (startable.error as? AppError.Rejected)?.code == AppError.Rejected.LOCATION_CONSENT
+            if (!consent) _state.update { it.copy(error = RunkkErrorText.of(startable.error)) }
+            return
+        }
+        startDevice = device
         _state.update { it.copy(phase = RunPhase.COUNTDOWN, countdown = RunUiState.COUNTDOWN_SECONDS) }
         countdown.begin(onTick = { n -> _state.update { it.copy(countdown = n) } }, onFinish = ::startRun)
     }
@@ -179,7 +204,9 @@ class RunViewModel @Inject constructor(private val tracker: RunTracker, private 
                 val code = (started.error as? AppError.Rejected)?.code
                 when (code) {
                     // 이미 측정 중(화면을 다시 연 경우): 이어서 보인다.
-                    AppError.Rejected.RUN_IN_PROGRESS -> _state.update { it.copy(phase = RunPhase.RUNNING) }
+                    AppError.Rejected.RUN_IN_PROGRESS -> _state.update {
+                        it.copy(phase = if (tracker.progress.value.locked) RunPhase.LOCKED else RunPhase.RUNNING)
+                    }
 
                     else -> _state.update {
                         it.copy(phase = RunPhase.PREPARING, error = RunkkErrorText.of(started.error))
@@ -192,11 +219,19 @@ class RunViewModel @Inject constructor(private val tracker: RunTracker, private 
 
     private fun onProgress(progress: RunProgress) {
         val km = progress.distance.meters / METERS_PER_KM
-        val newSplit = if (km > lastSplitKm) {
-            lastSplitKm = km
+        val last = lastSplitKm
+        val newSplit = if (last != null && km > last) {
             "${km}km 통과 · ${RunkkFormat.duration(progress.elapsed)} · 평균 ${RunkkFormat.pace(progress.averagePace)}"
         } else {
             null
+        }
+        if (last == null || km > last) lastSplitKm = km
+        if (newSplit != null) {
+            bannerJob?.cancel()
+            bannerJob = viewModelScope.launch {
+                delay(BANNER_MILLIS)
+                _state.update { it.copy(splitBanner = null) }
+            }
         }
         _state.update { s ->
             val phase = when {
@@ -221,6 +256,7 @@ class RunViewModel @Inject constructor(private val tracker: RunTracker, private 
         const val FINISH_HINT = "길게 눌러 종료"
         const val UNLOCK_HINT = "길게 눌러 해제"
         const val HINT_MILLIS = 2_500L
+        const val BANNER_MILLIS = 10_000L
         const val METERS_PER_KM = 1_000L
     }
 }

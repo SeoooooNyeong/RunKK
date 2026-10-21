@@ -34,8 +34,11 @@ class CardSharer @VisibleForTesting constructor(
         val uri = withContext(Dispatchers.IO) {
             runCatching {
                 val dir = File(context.cacheDir, CACHE_DIR).apply { mkdirs() }
-                val file = File(dir, "card_${side.name.lowercase()}.png")
-                file.outputStream().use { card.compress(Bitmap.CompressFormat.PNG, QUALITY, it) }
+                // 이전에 넘긴 주소가 다른 카드 내용을 가리키지 않게 매번 새 이름으로 쓰고 지난 파일은 지운다.
+                dir.listFiles()?.forEach { it.delete() }
+                val file = File(dir, "card_${side.name.lowercase()}_${System.currentTimeMillis()}.png")
+                val written = file.outputStream().use { card.compress(Bitmap.CompressFormat.PNG, QUALITY, it) }
+                check(written) { "PNG 압축 실패" }
                 uriFor(context, file)
             }.getOrNull()
         } ?: return ShareOutcome.Failed(WRITE_FAILED, "카드 이미지를 만들지 못했어요")

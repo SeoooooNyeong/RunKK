@@ -28,6 +28,8 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
@@ -124,10 +126,18 @@ fun RunkkStatTile(
     valueStyle: TextStyle = RunkkTextStyles.DisplayMedium,
     centered: Boolean = false,
     onClick: (() -> Unit)? = null,
+    spoken: String? = null,
     footer: (@Composable () -> Unit)? = null
 ) {
     RunkkCard(
-        modifier = modifier.semantics(mergeDescendants = true) {},
+        // spoken이 있으면 "평균 페이스 1킬로미터당 5분 32초"처럼 읽는다("5:32"가 시각으로 읽히지 않게).
+        modifier = modifier.then(
+            if (spoken != null) {
+                Modifier.clearAndSetSemantics { contentDescription = "$label $spoken" }
+            } else {
+                Modifier.semantics(mergeDescendants = true) {}
+            }
+        ),
         shape = if (centered) RunkkShapes.Medium else RunkkShapes.Large,
         contentPadding = if (centered) PaddingValues(horizontal = 8.dp, vertical = 16.dp) else PaddingValues(16.dp),
         onClick = onClick,

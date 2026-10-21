@@ -175,4 +175,30 @@ class RunViewModelTest {
         assertEquals(RunPhase.RUNNING, vm.state.value.phase)
         assertEquals(1, host.started)
     }
+
+    @Test
+    fun `카운트다운 중 설정으로 가면 멈추고 돌아오면 다시 센다`() = runTest(main.dispatcher) {
+        val vm = RunViewModel(tracker(), records)
+        runCurrent()
+        vm.onSettingsTapped()
+        advanceUntilIdle()
+        assertEquals(RunPhase.PREPARING, vm.state.value.phase)
+        assertEquals(0, host.started)
+        vm.onResumed()
+        runCurrent()
+        assertEquals(RunPhase.COUNTDOWN, vm.state.value.phase)
+    }
+
+    @Test
+    fun `저장 뒤 종료를 또 길게 눌러도 결과 이동을 덮지 않는다`() = runTest(main.dispatcher) {
+        val (vm, tracker) = started()
+        tracker.walk(1, 37.5)
+        tracker.walk(60, 37.5045)
+        vm.events.test {
+            vm.onFinishLongPressed()
+            vm.onFinishLongPressed()
+            assertTrue(awaitItem() is RunEvent.Finished)
+            expectNoEvents()
+        }
+    }
 }

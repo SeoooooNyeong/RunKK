@@ -16,7 +16,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -37,9 +37,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -81,7 +83,11 @@ fun RunkkPrimaryButton(
     val active = enabled && !loading
     Row(
         modifier = modifier
-            .height(size.height)
+            .semantics(mergeDescendants = true) {
+                contentDescription = text
+                if (loading) stateDescription = "처리 중"
+            }
+            .heightIn(min = size.height)
             .runkkPressScale(interaction)
             .clip(shape)
             .background(if (pressed) RunkkColors.LimePressed else RunkkColors.Lime)
@@ -99,7 +105,7 @@ fun RunkkPrimaryButton(
     ) {
         if (loading) {
             CircularProgressIndicator(
-                modifier = Modifier.size(24.dp).semantics { contentDescription = "처리 중" },
+                modifier = Modifier.size(24.dp).clearAndSetSemantics {},
                 color = RunkkColors.OnLime,
                 strokeWidth = 3.dp
             )
@@ -192,7 +198,7 @@ private fun OutlineButton(
     val shape = RunkkShapes.Medium
     Row(
         modifier = modifier
-            .height(height)
+            .heightIn(min = height)
             .runkkPressScale(interaction)
             .clip(shape)
             .background(if (pressed) RunkkColors.SurfacePressed else RunkkColors.Surface)
@@ -244,7 +250,7 @@ fun RunkkPillButton(
     ) {
         Row(
             modifier = Modifier
-                .height(40.dp)
+                .heightIn(min = 40.dp)
                 .runkkPressScale(interaction)
                 .clip(shape)
                 .background(if (pressed) RunkkColors.SurfacePressed else RunkkColors.Surface)
@@ -289,7 +295,10 @@ fun RunkkIconButton(
         modifier = modifier
             .minimumInteractiveComponentSize()
             .clickable(interactionSource = interaction, indication = null, role = Role.Button, onClick = onClick)
-            .semantics { this.contentDescription = contentDescription },
+            .semantics {
+                this.contentDescription = contentDescription
+                if (badge) stateDescription = "새 소식 있음"
+            },
         contentAlignment = Alignment.Center
     ) {
         Box(
@@ -328,6 +337,7 @@ fun RunkkLongPressButton(
     tapLabel: String,
     longPressLabel: String,
     modifier: Modifier = Modifier,
+    contentDescription: String = longPressLabel,
     caption: String? = null,
     size: Dp = 96.dp,
     shape: Shape = CircleShape,
@@ -358,10 +368,17 @@ fun RunkkLongPressButton(
                     onLongClick = onLongPress,
                     onClick = onTap
                 )
-                .semantics { contentDescription = longPressLabel },
+                .semantics { this.contentDescription = contentDescription },
             contentAlignment = Alignment.Center
         ) { content() }
-        if (caption != null) Text(text = caption, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
+        if (caption != null) {
+            Text(
+                text = caption,
+                style = RunkkTextStyles.Caption,
+                color = RunkkColors.TextSecondary,
+                modifier = Modifier.clearAndSetSemantics {}
+            )
+        }
     }
 }
 
