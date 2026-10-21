@@ -46,14 +46,6 @@
    {
     "kind": "leaf",
     "name": "signUpTicket"
-   },
-   {
-    "kind": "leaf",
-    "name": "reason"
-   },
-   {
-    "kind": "leaf",
-    "name": "message"
    }
   ],
   "file": "web/auth/AuthController.java"
@@ -242,6 +234,10 @@
    {
     "kind": "leaf",
     "name": "selfNewRecords"
+   },
+   {
+    "kind": "leaf",
+    "name": "nextCursor"
    }
   ],
   "file": "web/battle/BattleDtos.java"
@@ -297,6 +293,14 @@
    {
     "kind": "leaf",
     "name": "newRecord"
+   },
+   {
+    "kind": "leaf",
+    "name": "opponentName"
+   },
+   {
+    "kind": "leaf",
+    "name": "recordId"
    }
   ],
   "file": "web/battle/BattleDtos.java"
@@ -391,6 +395,14 @@
    {
     "kind": "leaf",
     "name": "newRecord"
+   },
+   {
+    "kind": "leaf",
+    "name": "gapSeconds"
+   },
+   {
+    "kind": "leaf",
+    "name": "sourceLabel"
    }
   ],
   "file": "web/battle/BattleDtos.java"
@@ -404,6 +416,10 @@
    {
     "kind": "leaf",
     "name": "distanceMeters"
+   },
+   {
+    "kind": "leaf",
+    "name": "defaultDistanceMeters"
    }
   ],
   "file": "web/battle/BattleDtos.java"
@@ -630,6 +646,67 @@
   ],
   "file": "web/crew/CrewDtos.java"
  },
+ "CrewDtos.CrewDetailResponse": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "crewId"
+   },
+   {
+    "kind": "leaf",
+    "name": "name"
+   },
+   {
+    "kind": "leaf",
+    "name": "intro"
+   },
+   {
+    "kind": "list-leaf",
+    "name": "tags"
+   },
+   {
+    "kind": "leaf",
+    "name": "visibility"
+   },
+   {
+    "kind": "leaf",
+    "name": "joinPolicy"
+   },
+   {
+    "kind": "leaf",
+    "name": "logoUrl"
+   },
+   {
+    "kind": "leaf",
+    "name": "leaderId"
+   },
+   {
+    "kind": "leaf",
+    "name": "leaderName"
+   },
+   {
+    "kind": "leaf",
+    "name": "headcount"
+   },
+   {
+    "kind": "leaf",
+    "name": "weeklyDistanceMeters"
+   },
+   {
+    "kind": "leaf",
+    "name": "myRole"
+   },
+   {
+    "kind": "leaf",
+    "name": "inviteCode"
+   },
+   {
+    "kind": "leaf",
+    "name": "inviteCodeExpiresAt"
+   }
+  ],
+  "file": "web/crew/CrewDtos.java"
+ },
  "CrewDtos.CrewFormRequest": {
   "components": [
    {
@@ -670,6 +747,10 @@
     "kind": "record",
     "name": "recommendations",
     "ref": "CrewDtos.RecommendationsResponse"
+   },
+   {
+    "kind": "leaf",
+    "name": "nextCursor"
    }
   ],
   "file": "web/crew/CrewDtos.java"
@@ -783,6 +864,14 @@
    {
     "kind": "leaf",
     "name": "quit"
+   },
+   {
+    "kind": "leaf",
+    "name": "memberId"
+   },
+   {
+    "kind": "leaf",
+    "name": "me"
    }
   ],
   "file": "web/crew/CrewDtos.java"
@@ -904,6 +993,46 @@
    {
     "kind": "leaf",
     "name": "ready"
+   },
+   {
+    "kind": "leaf",
+    "name": "me"
+   }
+  ],
+  "file": "web/crew/CrewDtos.java"
+ },
+ "CrewDtos.MyCrewResponse": {
+  "components": [
+   {
+    "kind": "record",
+    "name": "crew",
+    "ref": "CrewDtos.CrewDetailResponse"
+   },
+   {
+    "kind": "list",
+    "name": "pendingRequests",
+    "ref": "CrewDtos.MyCrewResponse.PendingJoin"
+   }
+  ],
+  "file": "web/crew/CrewDtos.java"
+ },
+ "CrewDtos.MyCrewResponse.PendingJoin": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "requestId"
+   },
+   {
+    "kind": "leaf",
+    "name": "crewId"
+   },
+   {
+    "kind": "leaf",
+    "name": "crewName"
+   },
+   {
+    "kind": "leaf",
+    "name": "requestedAt"
    }
   ],
   "file": "web/crew/CrewDtos.java"
@@ -914,6 +1043,10 @@
     "kind": "list",
     "name": "posts",
     "ref": "CrewDtos.PostListResponse.Item"
+   },
+   {
+    "kind": "leaf",
+    "name": "nextCursor"
    }
   ],
   "file": "web/crew/CrewDtos.java"
@@ -1066,6 +1199,14 @@
    {
     "kind": "leaf",
     "name": "share"
+   },
+   {
+    "kind": "leaf",
+    "name": "memberId"
+   },
+   {
+    "kind": "leaf",
+    "name": "me"
    }
   ],
   "file": "web/crew/CrewDtos.java"
@@ -1162,6 +1303,10 @@
    {
     "kind": "leaf",
     "name": "runimalType"
+   },
+   {
+    "kind": "leaf",
+    "name": "me"
    }
   ],
   "file": "web/crew/CrewMembersAssembler.java"
