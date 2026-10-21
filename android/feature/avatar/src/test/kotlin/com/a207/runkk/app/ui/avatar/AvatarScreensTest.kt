@@ -8,6 +8,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.a207.runkk.app.core.designsystem.RunkkTheme
+import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.testing.RUNKK_PHONE
 import com.a207.runkk.app.core.designsystem.testing.captureRunkkScreen
 import com.a207.runkk.app.domain.avatar.ItemSlot
@@ -18,7 +19,10 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+
+private fun str(id: Int, vararg args: Any): String = RuntimeEnvironment.getApplication().getString(id, *args)
 
 /** 아바타 화면: 주요 버튼·접근성 라벨, 셀카 줄이기. */
 @RunWith(RobolectricTestRunner::class)
@@ -41,10 +45,10 @@ class AvatarScreensTest {
                 )
             }
         }
-        compose.onNodeWithText("캐릭터를 골라 주세요").assertIsNotEnabled()
-        compose.onNodeWithText("셀카 찍기").performClick()
-        compose.onNodeWithText("곰").performClick()
-        compose.onNodeWithText("나중에 할게요").performClick()
+        compose.onNodeWithText(str(R.string.avatar_setup_pick_prompt)).assertIsNotEnabled()
+        compose.onNodeWithText(str(R.string.avatar_setup_take_selfie)).performClick()
+        compose.onNodeWithText(str(R.string.avatar_character_bear)).performClick()
+        compose.onNodeWithText(str(R.string.avatar_setup_later)).performClick()
         assertEquals(listOf("selfie", "BEAR", "later"), calls)
     }
 
@@ -64,10 +68,16 @@ class AvatarScreensTest {
                 )
             }
         }
-        compose.onNodeWithContentDescription("아바타, 기본 캐릭터 · 여우, 체형 탄탄해지는 중, 상의 라임 러닝 티").assertExists()
+        compose.onNodeWithContentDescription(
+            str(
+                R.string.avatar_figure_description,
+                str(R.string.avatar_face_default, str(R.string.avatar_character_fox)),
+                str(R.string.avatar_body_3)
+            ) + str(R.string.avatar_figure_equipped_format, str(R.string.avatar_slot_top), "라임 러닝 티")
+        ).assertExists()
         compose.onNodeWithText("라벤더 싱글렛").performClick()
-        compose.onNodeWithContentDescription("리워드 잔액 1,240, 상점 열기").performClick()
-        compose.onNodeWithText("얼굴 바꾸기").performClick()
+        compose.onNodeWithContentDescription(str(R.string.avatar_balance_open_shop, "1,240")).performClick()
+        compose.onNodeWithText(str(R.string.avatar_decorate_change_face)).performClick()
         assertEquals(listOf("toggle:2", "shop", "face"), calls)
     }
 
@@ -84,7 +94,9 @@ class AvatarScreensTest {
         }
         compose.onNodeWithTag(FACE_TAG, useUnmergedTree = true).assertExists()
         compose.onNodeWithText("SD", useUnmergedTree = true).assertDoesNotExist()
-        compose.onNodeWithContentDescription("아바타, 셀카 SD 얼굴, 체형 탄탄해지는 중").assertExists()
+        compose.onNodeWithContentDescription(
+            str(R.string.avatar_figure_description, str(R.string.avatar_face_selfie), str(R.string.avatar_body_3))
+        ).assertExists()
     }
 
     @Test
@@ -122,8 +134,8 @@ class AvatarScreensTest {
                 )
             }
         }
-        compose.onNodeWithText("런 캡을(를) 살까요?").assertExists()
-        compose.onNodeWithText("사기").performClick()
+        compose.onNodeWithText(str(R.string.avatar_shop_confirm_title, "런 캡")).assertExists()
+        compose.onNodeWithText(str(R.string.avatar_shop_buy)).performClick()
         assertEquals(listOf("buy"), calls)
     }
 
@@ -139,9 +151,9 @@ class AvatarScreensTest {
     @Test
     fun `체형·피부톤 문구`() {
         assertEquals(3, bodyStage("STAGE3"))
-        assertEquals("근육 탄탄", bodyLabel(4))
-        assertTrue(skinLabel("MORNING").startsWith("아침 톤"))
-        assertEquals("모자", ItemSlot.HAT.label)
+        assertEquals(R.string.avatar_body_4, bodyLabelRes(4))
+        assertEquals(UiText.Res(R.string.avatar_skin_morning), skinLabel("MORNING"))
+        assertEquals(R.string.avatar_slot_hat, ItemSlot.HAT.labelRes)
     }
 }
 
@@ -163,7 +175,7 @@ class AvatarScreenshotTest {
             AvatarSetupUiState(
                 loading = false,
                 canCreateSelfie = false,
-                error = "오늘은 이미 셀카 아바타를 만들었어요. 내일 다시 만들 수 있어요. 기본 캐릭터는 지금 고를 수 있어요"
+                error = UiText.Res(R.string.avatar_error_selfie_limit)
             ),
             {},
             {},

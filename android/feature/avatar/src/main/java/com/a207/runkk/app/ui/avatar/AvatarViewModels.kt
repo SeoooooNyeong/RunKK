@@ -2,6 +2,8 @@ package com.a207.runkk.app.ui.avatar
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.a207.runkk.app.core.designsystem.UiText
+import com.a207.runkk.app.core.designsystem.uiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.model.Outcome
@@ -33,7 +35,7 @@ data class AvatarSetupUiState(
     val canCreateSelfie: Boolean = true,
     val selected: DefaultCharacter? = null,
     val working: Boolean = false,
-    val error: String? = null
+    val error: UiText? = null
 )
 
 sealed interface AvatarSetupEvent {
@@ -68,7 +70,7 @@ class AvatarSetupViewModel @Inject constructor(private val avatars: AvatarReposi
     fun onCharacterSelected(character: DefaultCharacter) = _state.update { it.copy(selected = character, error = null) }
 
     /** 셀카 촬영을 취소했거나 사진을 읽지 못했을 때. */
-    fun onSelfieUnavailable() = _state.update { it.copy(error = "사진을 받지 못했어요. 다시 찍거나 기본 캐릭터를 골라 주세요") }
+    fun onSelfieUnavailable() = _state.update { it.copy(error = UiText.Res(R.string.avatar_setup_selfie_unavailable)) }
 
     /** 찍은 셀카를 줄여(긴 변 1024px·JPEG·1MB) 보낸다. 줄이는 동안에도 다시 누르지 못하게 먼저 working을 켠다. */
     fun onSelfieCaptured(bitmap: android.graphics.Bitmap) {
@@ -139,8 +141,8 @@ data class AvatarUiState(
     val items: List<Shop.Item> = emptyList(),
     val slot: ItemSlot = ItemSlot.TOP,
     val saving: Boolean = false,
-    val message: String? = null,
-    val error: String? = null
+    val message: UiText? = null,
+    val error: UiText? = null
 ) {
     val ownedInSlot: List<Shop.Item> get() = items.filter { it.owned && it.slot == slot }
 
@@ -224,7 +226,11 @@ class AvatarViewModel @Inject constructor(private val avatars: AvatarRepository)
                         saving = false,
                         avatar = result.value,
                         message = result.value.rejected[item.slot]?.let { reason ->
-                            "${item.slot.label}: ${AvatarErrorText.ofCode(reason)}"
+                            uiText(
+                                R.string.avatar_equip_rejected,
+                                UiText.Res(item.slot.labelRes),
+                                AvatarErrorText.ofCode(reason)
+                            )
                         }
                     )
                 }
@@ -246,8 +252,8 @@ data class ShopUiState(
     val shop: Shop? = null,
     val confirming: Shop.Item? = null,
     val buying: Boolean = false,
-    val message: String? = null,
-    val error: String? = null
+    val message: UiText? = null,
+    val error: UiText? = null
 )
 
 /** 아바타 상점(FR-160): 부위별 목록·가격·보유 여부·잔액, 확인 뒤 구매. 잔액 판정은 서버가 한다. */
@@ -302,7 +308,7 @@ class ShopViewModel @Inject constructor(private val avatars: AvatarRepository) :
                     _state.update { s ->
                         s.copy(
                             buying = false,
-                            message = "${item.name}을(를) 샀어요. 아바타 꾸미기에서 입을 수 있어요",
+                            message = uiText(R.string.avatar_shop_bought, item.name),
                             shop = s.shop?.copy(
                                 balance = result.value,
                                 items = s.shop.items.map { if (it.itemId == item.itemId) it.copy(owned = true) else it }

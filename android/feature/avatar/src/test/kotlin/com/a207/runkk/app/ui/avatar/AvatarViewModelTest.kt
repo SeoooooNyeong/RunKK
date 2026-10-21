@@ -1,6 +1,8 @@
 package com.a207.runkk.app.ui.avatar
 
 import app.cash.turbine.test
+import com.a207.runkk.app.core.designsystem.UiText
+import com.a207.runkk.app.core.designsystem.uiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.model.FacePart
@@ -140,7 +142,7 @@ class AvatarSetupViewModelTest {
         val vm = AvatarSetupViewModel(repo)
         vm.onSelfie(byteArrayOf(1))
         assertFalse(vm.state.value.canCreateSelfie)
-        assertTrue(vm.state.value.error!!.startsWith("오늘은 이미"))
+        assertEquals(UiText.Res(R.string.avatar_error_selfie_limit), vm.state.value.error)
         vm.events.test {
             vm.onCharacterSelected(DefaultCharacter.CAT)
             vm.onConfirmCharacter()
@@ -190,7 +192,14 @@ class AvatarDecorateViewModelTest {
         repo.equipResult = { Outcome.Success(avatar.copy(rejected = mapOf(ItemSlot.TOP to "ITEM_NOT_OWNED"))) }
         val vm = AvatarViewModel(repo)
         vm.onToggle(items[1])
-        assertEquals("상의: 가지고 있지 않은 아이템이에요", vm.state.value.message)
+        assertEquals(
+            uiText(
+                R.string.avatar_equip_rejected,
+                UiText.Res(R.string.avatar_slot_top),
+                UiText.Res(R.string.avatar_error_item_not_owned)
+            ),
+            vm.state.value.message
+        )
     }
 
     @Test
@@ -252,7 +261,7 @@ class ShopViewModelTest {
         repo.purchaseResult = Outcome.Failure(AppError.Rejected("INSUFFICIENT_REWARD"))
         vm.onPick(items[3])
         vm.onBuy()
-        assertEquals("리워드가 모자라요. 달리고 대결에서 이기면 모여요", vm.state.value.message)
+        assertEquals(UiText.Res(R.string.avatar_error_insufficient_reward), vm.state.value.message)
         assertFalse(vm.state.value.buying)
     }
 
@@ -261,10 +270,7 @@ class ShopViewModelTest {
         repo.selfieResult = Outcome.Failure(AppError.Rejected("NO_FACE"))
         val vm = AvatarSetupViewModel(repo)
         vm.onSelfie(byteArrayOf(1))
-        assertEquals(
-            "얼굴을 찾지 못했어요. 얼굴이 잘 보이게 다시 찍거나 기본 캐릭터를 골라 주세요",
-            vm.state.value.error
-        )
+        assertEquals(UiText.Res(R.string.avatar_error_no_face), vm.state.value.error)
         assertFalse(vm.state.value.working)
         assertTrue(vm.state.value.canCreateSelfie)
     }

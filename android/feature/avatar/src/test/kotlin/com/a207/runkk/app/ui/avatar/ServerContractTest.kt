@@ -1,5 +1,6 @@
 package com.a207.runkk.app.ui.avatar
 
+import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.testing.ContractEnums
 import com.a207.runkk.app.domain.avatar.ItemSlot
 import kotlin.test.Test
@@ -31,7 +32,7 @@ class ServerContractTest {
     @Test
     fun `피부톤은 서버 SkinTone 모두에 문구가 있다`() {
         ContractEnums.names("SkinTone").forEach { name ->
-            assertNotEquals(name, skinLabel(name), "서버 피부톤 $name 의 문구가 없다")
+            assertNotEquals(UiText.Plain(name), skinLabel(name), "서버 피부톤 $name 의 문구가 없다")
         }
     }
 
