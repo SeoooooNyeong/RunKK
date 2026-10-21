@@ -19,18 +19,17 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
-import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
  * member.TokenIssuer를 HS256 JWT로 구현한다(설계 6.1.13, D-19). 접근 토큰 1시간, 갱신 토큰 14일, 가입 티켓 15분. 토큰 종류를
- * token_type 클레임으로 나눠 한 종류의 토큰으로 다른 종류의 검사를 통과하지 못한다. 갱신 토큰은 한 번만 쓰고(회전) 폐기 목록은 메모리에 둔다(인스턴스 1개,
- * 5.4. 재시작하면 목록이 비므로 B2 결정 목록에 남긴다). 토큰 값은 로그에 남기지 않는다.
+ * token_type 클레임으로 나눠 한 종류의 토큰으로 다른 종류의 검사를 통과하지 못한다. 갱신 토큰은 한 번만 쓰고(회전) 폐기 목록은
+ * RefreshTokenRevocations(Redis + 메모리)에 둬 재시작해도 남는다(코드 리뷰 2차 M6). 토큰 값은 로그에 남기지 않는다.
  */
 @Component
 public class JwtTokenIssuer implements TokenIssuer {
@@ -52,9 +51,13 @@ public class JwtTokenIssuer implements TokenIssuer {
     private final MACSigner signer;
     private final MACVerifier verifier;
     private final Clock clock;
-    private final Map<String, Instant> revokedRefreshIds = new ConcurrentHashMap<>();
+    private final RefreshTokenRevocations revocations;
 
-    public JwtTokenIssuer(@Value("${runkk.auth.jwt-secret:}") String secret, Clock clock) {
+    @Autowired
+    public JwtTokenIssuer(
+            @Value("${runkk.auth.jwt-secret:}") String secret,
+            Clock clock,
+            RefreshTokenRevocations revocations) {
         byte[] key = secretBytes(secret);
         try {
             this.signer = new MACSigner(key);
@@ -63,6 +66,12 @@ public class JwtTokenIssuer implements TokenIssuer {
             throw new IllegalStateException("JWT 서명 키를 만들 수 없다", e);
         }
         this.clock = clock;
+        this.revocations = revocations;
+    }
+
+    /** 폐기 목록을 메모리에만 두는 발급기(단위 시험). */
+    JwtTokenIssuer(String secret, Clock clock) {
+        this(secret, clock, new RefreshTokenRevocations(null, clock));
     }
 
     @Override
@@ -103,21 +112,19 @@ public class JwtTokenIssuer implements TokenIssuer {
     public void revoke(String refreshToken) {
         try {
             JWTClaimsSet claims = parse(refreshToken, REFRESH);
-            revokedRefreshIds.put(claims.getJWTID(), claims.getExpirationTime().toInstant());
+            revocations.revoke(claims.getJWTID(), claims.getExpirationTime().toInstant());
         } catch (AuthFailureException e) {
             log.debug("revoke_ignored reason=unreadable_token");
         }
-        forgetExpiredRevocations();
     }
 
     @Override
     public long redeemRefreshToken(String refreshToken) {
         JWTClaimsSet claims = parse(refreshToken, REFRESH);
         Instant expiry = claims.getExpirationTime().toInstant();
-        if (revokedRefreshIds.putIfAbsent(claims.getJWTID(), expiry) != null) {
+        if (!revocations.claim(claims.getJWTID(), expiry)) {
             throw new AuthFailureException("폐기된 갱신 토큰");
         }
-        forgetExpiredRevocations();
         return memberIdOf(claims);
     }
 
@@ -171,11 +178,6 @@ public class JwtTokenIssuer implements TokenIssuer {
         } catch (NumberFormatException e) {
             throw new AuthFailureException("회원 ID 없음", e);
         }
-    }
-
-    private void forgetExpiredRevocations() {
-        Instant now = clock.instant();
-        revokedRefreshIds.values().removeIf(expiry -> !expiry.isAfter(now));
     }
 
     private static byte[] secretBytes(String secret) {
