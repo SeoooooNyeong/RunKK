@@ -167,10 +167,9 @@ public class RecordBattleService {
         RecordBattleSpec spec = RecordBattleSpec.of(type, memberId, distance, opponent);
         try {
             for (Battle active : battleRepository.findActive(memberId)) {
-                if (!active.isAwaitingStartReport()) {
+                if (!active.cancelIfAwaitingStartReport(now)) {
                     throw new BusinessRuleException(ReasonCode.ALREADY_IN_BATTLE);
                 }
-                active.cancelUnstarted(now);
                 battleRepository.saveImmediately(active);
             }
             return battleRepository.saveImmediately(Battle.againstRecord(spec, now));

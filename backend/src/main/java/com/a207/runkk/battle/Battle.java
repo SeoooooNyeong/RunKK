@@ -229,7 +229,7 @@ public class Battle {
     }
 
     /** 나와의 싸움·유명인 대결이 앱의 시작 보고를 아직 받지 않았다(IN_PROGRESS, startAt 없음). */
-    boolean isAwaitingStartReport() {
+    private boolean isAwaitingStartReport() {
         return status == BattleStatus.IN_PROGRESS && startAt == null && type.startsWithCountdown();
     }
 
@@ -260,6 +260,18 @@ public class Battle {
         }
         closedAt = now;
         moveTo(BattleStatus.CANCELLED);
+    }
+
+    /**
+     * 시작 보고 전의 기록 대결이면 취소(CANCELLED)하고 true, 그 밖의 활성 대결은 그대로 두고 false. 새 기록 대결이 이전 대결을 대신할
+     * 때(RecordBattleService) 상태 검사와 취소를 한 번에 한다(코드 리뷰 3차 B-L4, Tell, Don't Ask).
+     */
+    public boolean cancelIfAwaitingStartReport(LocalDateTime now) {
+        if (!isAwaitingStartReport()) {
+            return false;
+        }
+        cancelUnstarted(now);
+        return true;
     }
 
     public boolean isCancelled() {
