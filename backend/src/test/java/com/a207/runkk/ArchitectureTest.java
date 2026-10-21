@@ -14,6 +14,7 @@ import com.tngtech.archunit.base.DescribedPredicate;
 import com.tngtech.archunit.core.domain.Dependency;
 import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaClasses;
+import com.tngtech.archunit.core.domain.JavaMethod;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.lang.ArchCondition;
@@ -441,6 +442,21 @@ class ArchitectureTest {
                     .allowEmptyShould(true)
                     .because("서비스는 확인된 운영자 계정 문자열(actorId)만 받는다(D-34, D-50, 13.1 규칙 8)");
 
+    /**
+     * 필드 setter: set + 같은 이름의 필드가 있는 메소드. RunningGoal.setWeeklyGoal(설계 6.1.4의 업무 동사, 필드는
+     * weeklyGoals)처럼 이름만 set으로 시작하는 업무 연산은 setter가 아니다(B5 결정).
+     */
+    private static final DescribedPredicate<JavaMethod> SETS_A_FIELD =
+            DescribedPredicate.describe(
+                    "같은 이름의 필드를 바꾸는 set 메소드",
+                    method -> {
+                        String property = method.getName().substring("set".length());
+                        String field =
+                                Character.toLowerCase(property.charAt(0)) + property.substring(1);
+                        return method.getOwner().getAllFields().stream()
+                                .anyMatch(f -> f.getName().equals(field));
+                    });
+
     // (9) 엔티티에 public setter가 없다
     static final ArchRule RULE_9_ENTITIES_HAVE_NO_PUBLIC_SETTERS =
             noMethods()
@@ -449,6 +465,7 @@ class ArchitectureTest {
                     .areAnnotatedWith(Entity.class)
                     .and()
                     .haveNameMatching("set[A-Z].*")
+                    .and(SETS_A_FIELD)
                     .should()
                     .bePublic()
                     .allowEmptyShould(true)
@@ -491,6 +508,17 @@ class ArchitectureTest {
     void designPackageList_has53NamesAndEachHasAnAllowList() {
         assertThat(Set.copyOf(PACKAGES)).hasSize(53);
         assertThat(ALLOWED.keySet()).containsExactlyInAnyOrderElementsOf(PACKAGES);
+    }
+
+    /** B5 완료 조건: 5.1.1의 53개 패키지마다 서버 클래스가 하나 이상 있다(빈 패키지 0). */
+    @Test
+    void everyDesignPackage_hasMainClasses() {
+        Set<String> filled =
+                classes.stream()
+                        .map(ArchitectureTest::sliceOf)
+                        .flatMap(Optional::stream)
+                        .collect(Collectors.toSet());
+        assertThat(PACKAGES).as("클래스가 없는 5.1.1 패키지").allMatch(filled::contains);
     }
 
     @Test

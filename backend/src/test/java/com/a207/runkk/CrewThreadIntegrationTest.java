@@ -49,6 +49,9 @@ import com.a207.runkk.member.MemberSettingService;
 import com.a207.runkk.member.MemberWithdrawn;
 import com.a207.runkk.member.SettingChange;
 import com.a207.runkk.member.SettingItem;
+import com.a207.runkk.profile.ProfileDisclosure;
+import com.a207.runkk.profile.ProfileQueryService;
+import com.a207.runkk.profile.ProfileView;
 import com.a207.runkk.reward.RewardService;
 import com.a207.runkk.running.CardKind;
 import com.a207.runkk.running.LocationPoint;
@@ -89,8 +92,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 /**
  * 14장 통합 — 스레드 기반(B4 범위). 실 PostgreSQL·Redis 위에서: T-4 크루런 스레드(SQ-09, 참가자 10명: 대기실 → 출발 → 1초 진행값 중계
  * → 동시 기록 업로드로 러닝 연결·도착 → 종료·순위), T-5 가입 스레드(SQ-08, 동시 승인·동시 자유 가입의 정원 경합), T-9 주간 거리 재합산(수신자 실패를
- * 흉내 낸 뒤 reconcileAll로 복구, 이중 합산 0), T-12 공개 범위(비공개 크루원이 크루원 목록과 프로필 공개 수준 판정에서 같은 수준), 리워드 하루 상한
- * 동시 적립(5.3).
+ * 흉내 낸 뒤 reconcileAll로 복구, 이중 합산 0), T-12 공개 범위(비공개 크루원이 크루원 목록과 프로필 화면(ProfileQueryService)에서 같은
+ * 수준, 한 곳 변경이 두 화면에 함께 반영), 리워드 하루 상한 동시 적립(5.3).
  */
 @Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest(classes = RunkkApplication.class)
@@ -123,6 +126,7 @@ class CrewThreadIntegrationTest {
     @Autowired AvatarWithdrawalListener avatarWithdrawal;
     @Autowired JdbcTemplate jdbc;
     @Autowired StringRedisTemplate redis;
+    @Autowired ProfileQueryService profiles;
 
     @BeforeEach
     void clean() {
@@ -389,6 +393,24 @@ class CrewThreadIntegrationTest {
         assertThat(hiddenLine.crewTags()).isNull();
         assertThat(hiddenLine.tier()).isNull();
         assertThat(hiddenLine.name()).isNotNull();
+
+        // B5: 프로필 화면(ProfileQueryService)도 같은 DisclosureLevel을 쓴다(D-52)
+        for (long id : List.of(hidden, shown, leader)) {
+            ProfileView profile = profiles.view(leader, id);
+            assertThat(profile.disclosure().name()).isEqualTo(levels.get(id).name());
+            assertThat(view.disclosedMemberIds().contains(id))
+                    .isEqualTo(levels.get(id).showsProfile());
+        }
+        ProfileView hiddenProfile = profiles.view(leader, hidden);
+        assertThat(hiddenProfile.tags()).isEmpty();
+        assertThat(hiddenProfile.runimalType()).isNull();
+        assertThat(hiddenProfile.crew().crewId()).isEqualTo(crewId);
+
+        // 공개 범위 한 곳 변경이 두 화면에 함께 반영된다
+        memberSettings.changeSetting(
+                hidden, new SettingChange(SettingItem.PROFILE_VISIBILITY, "PUBLIC", null));
+        assertThat(crewQueries.members(leader, crewId).disclosedMemberIds()).contains(hidden);
+        assertThat(profiles.view(leader, hidden).disclosure()).isEqualTo(ProfileDisclosure.PUBLIC);
     }
 
     @Test
