@@ -29,6 +29,23 @@ class RecordTextsTest {
     }
 
     @Test
+    fun `Kakao 지도는 키가 있고 arm 기기일 때만 띄운다(없으면 Canvas 경로선)`() {
+        assertEquals(false, kakaoMapEnabled("", listOf("arm64-v8a")))
+        assertEquals(false, kakaoMapEnabled("key", listOf("x86_64")))
+        assertEquals(true, kakaoMapEnabled("key", listOf("x86_64", "arm64-v8a")))
+    }
+
+    @Test
+    fun `지도 경로선은 안정·불안정 구간 줄로 나누고 이웃한 줄은 끝점을 나눈다`() {
+        assertEquals(
+            listOf(0..1 to false, 1..2 to true, 2..4 to false),
+            routeRuns(pointCount = 5, unstable = listOf(1..2))
+        )
+        assertEquals(listOf(0..2 to false), routeRuns(3, emptyList()))
+        assertEquals(emptyList(), routeRuns(1, emptyList()))
+    }
+
+    @Test
     fun `카드 이미지 대체 텍스트에 종류·거리·시간·페이스를 담는다`() {
         assertEquals(
             "러닝 카드 앞면, 자유런, 5.02킬로미터, 27분 48초, 1킬로미터당 5분 32초",

@@ -46,10 +46,16 @@ internal fun courseMapDescription(pointCount: Int, unstableCount: Int): String =
 /**
  * 기록 상세의 코스 지도(6.1.14 CourseMapView(points, unstable)). 쓰는 곳이 기록 상세 하나라 ui.record에 둔다(design-review.md M41).
  * 경로선은 라임, 불안정 구간([unstable]: points 인덱스 범위, FR-033, [unstableIndexRanges]로 만든다)은 라벤더 점선,
- * 시작은 흰 점·끝은 라임 점. 지도 타일은 외부 지도 SDK(C-005, Kakao) 연동 뒤 이 경로선 아래에 깐다. 지금은 경로선만 그린다.
+ * 시작은 흰 점·끝은 라임 점. Kakao 지도 키(LocalKakaoMapKey)가 있고 기기가 지도 SDK를 돌릴 수 있으면 Kakao 지도 위에 경로선을
+ * 그리고(KakaoCourseMap, C-005), 아니면 이 Canvas 경로선만 그린다.
  */
 @Composable
 fun CourseMapView(points: List<GeoPoint>, unstable: List<IntRange>, modifier: Modifier = Modifier) {
+    val mapKey = LocalKakaoMapKey.current
+    if (points.size >= 2 && canShowKakaoMap(mapKey)) {
+        KakaoCourseMap(mapKey, points, unstable, courseMapDescription(points.size, unstable.size), modifier)
+        return
+    }
     Canvas(modifier = modifier.semantics { contentDescription = courseMapDescription(points.size, unstable.size) }) {
         if (points.size < 2) return@Canvas
         val minLat = points.minOf { it.latitude }

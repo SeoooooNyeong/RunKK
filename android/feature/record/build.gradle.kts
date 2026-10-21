@@ -8,6 +8,13 @@ plugins {
 
 android {
     namespace = "com.a207.runkk.app.ui.record"
+    buildFeatures {
+        buildConfig = true
+    }
+    defaultConfig {
+        // Kakao 지도(C-005) 네이티브 앱 키. 저장소에 넣지 않고(local.properties·Gradle 속성·환경 변수) 없으면 Canvas 경로선만 그린다.
+        buildConfigField("String", "KAKAO_NATIVE_APP_KEY", buildConfigString(secretProperty("KAKAO_NATIVE_APP_KEY")))
+    }
     testOptions {
         unitTests.isIncludeAndroidResources = true
     }
@@ -18,6 +25,7 @@ dependencies {
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
     implementation(libs.hilt.lifecycle.viewmodel.compose)
+    implementation(libs.kakao.maps)
 
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.turbine)

@@ -18,6 +18,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -69,12 +70,15 @@ fun RecordDetailRoute(recordId: String, viewModel: RecordDetailViewModel = hiltV
     LaunchedEffect(recordId) { viewModel.load(recordId) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val navigator = LocalRunkkNavigator.current
-    RecordDetailScreen(
-        state = state,
-        onBack = navigator::back,
-        onShare = { navigator.navigate(Routes.RecordCard(recordId)) },
-        onRetry = { viewModel.load(recordId, force = true) }
-    )
+    // 실제 화면에서만 Kakao 지도 키를 넣는다(시험·스크린샷은 기본값 빈 문자열 → Canvas 경로선).
+    CompositionLocalProvider(LocalKakaoMapKey provides BuildConfig.KAKAO_NATIVE_APP_KEY) {
+        RecordDetailScreen(
+            state = state,
+            onBack = navigator::back,
+            onShare = { navigator.navigate(Routes.RecordCard(recordId)) },
+            onRetry = { viewModel.load(recordId, force = true) }
+        )
+    }
 }
 
 @Composable
