@@ -286,6 +286,18 @@ class MatchViewModelTest {
     }
 
     @Test
+    fun `대기 채널이 인증 실패(Unauthorized)로 끝나면 로그인 안내를 보이고 대기열에서 뺀다`() = main.runVmTest { vms ->
+        val w = world()
+        w.channels.channel.connectFailure = AppError.Unauthorized
+        val vm = vms.vm(w)
+        vm.onStartMatching()
+        runCurrent()
+        assertEquals(MatchPhase.CHOOSING, vm.state.value.phase)
+        assertEquals(BattleErrorText.of(AppError.Unauthorized), vm.state.value.error)
+        assertTrue("cancel" in w.battles.calls)
+    }
+
+    @Test
     fun `취소를 기다리는 사이 성사되면 취소 응답을 무시한다`() = main.runVmTest { vms ->
         val w = world()
         val gate = kotlinx.coroutines.CompletableDeferred<Unit>()

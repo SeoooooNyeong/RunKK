@@ -9,7 +9,6 @@ import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import mockwebserver3.Dispatcher
@@ -28,6 +27,10 @@ class FaceImageSourceTest {
     private val paths = ConcurrentLinkedQueue<String>()
     private val auth = ConcurrentLinkedQueue<String>()
     private val clock = AtomicLong(1_000_000L)
+
+    /** 로그인한 회원(접근 토큰 sub). null이면 로그아웃. */
+    @Volatile
+    private var member: Long? = 7
 
     /** 부위 → 응답. 기본은 30일 캐시되는 PNG 한 바이트(부위 순번). */
     private var reply: (String) -> MockResponse = { part ->
@@ -53,7 +56,7 @@ class FaceImageSourceTest {
             server.url("/api/v1/auth/refresh"),
             Json { ignoreUnknownKeys = true }
         )
-        FaceImageSource(client, server.url("/api/v1/"), Dispatchers.IO, now = clock::get)
+        FaceImageSource(client, server.url("/api/v1/"), selfId = { member }, now = clock::get)
     }
 
     @AfterTest
@@ -81,6 +84,32 @@ class FaceImageSourceTest {
         clock.addAndGet(2_592_000_000L + 1)
         source.faceLayers("selfie:face/7/s1")
         assertEquals(10, paths.size, "max-age가 지나면 다시 받는다")
+    }
+
+    @Test
+    fun `Age만큼 지난 응답은 남은 시간만 메모리에 둔다`() = runTest {
+        reply = {
+            MockResponse.Builder().addHeader(
+                "Cache-Control",
+                "private, max-age=100"
+            ).addHeader("Age", "90").body("x").build()
+        }
+        source.faceLayers("selfie:face/7/s1")
+        clock.addAndGet(11_000)
+        source.faceLayers("selfie:face/7/s1")
+        assertEquals(10, paths.size, "max-age 100 - Age 90 = 10초 뒤에는 다시 받는다")
+    }
+
+    @Test
+    fun `계정이 바뀌거나 로그아웃하면 앞 계정의 그림을 내주지 않는다`() = runTest {
+        source.faceLayers("selfie:face/7/s1")
+        member = 8
+        source.faceLayers("selfie:face/7/s1")
+        assertEquals(10, paths.size, "다른 계정이면 캐시를 비우고 다시 받는다")
+
+        member = null
+        assertEquals(Outcome.Failure(AppError.Unauthorized), source.faceLayers("selfie:face/7/s1"))
+        assertEquals(10, paths.size, "로그아웃이면 보내지도 않는다")
     }
 
     @Test

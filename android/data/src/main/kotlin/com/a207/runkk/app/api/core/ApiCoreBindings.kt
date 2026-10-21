@@ -9,7 +9,6 @@ import dagger.hilt.components.SingletonComponent
 import java.io.File
 import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
-import kotlinx.coroutines.Dispatchers
 import kotlinx.serialization.json.Json
 import okhttp3.Cache
 import okhttp3.HttpUrl
@@ -69,10 +68,14 @@ object ApiCoreBindings {
      */
     @Provides
     @Singleton
-    fun faceImageSource(client: OkHttpClient, @ApplicationContext context: Context): FaceImageSource = FaceImageSource(
+    internal fun faceImageSource(
+        client: OkHttpClient,
+        self: SelfMember,
+        @ApplicationContext context: Context
+    ): FaceImageSource = FaceImageSource(
         client.newBuilder().cache(Cache(File(context.cacheDir, FACE_CACHE_DIR), FACE_CACHE_BYTES)).build(),
         BuildConfig.API_BASE_URL.toHttpUrl(),
-        Dispatchers.IO
+        selfId = self::memberId
     )
 
     private const val FACE_CACHE_DIR = "avatar-face"

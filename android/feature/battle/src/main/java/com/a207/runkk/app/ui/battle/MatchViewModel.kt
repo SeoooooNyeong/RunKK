@@ -151,7 +151,10 @@ class MatchViewModel @Inject constructor(
         waitJob = viewModelScope.launch {
             val outcome = try {
                 coroutineScope {
-                    launch { if (opened.connect() is Outcome.Failure) throw ChannelConnectFailed() }
+                    launch {
+                        val connected = opened.connect()
+                        if (connected is Outcome.Failure) throw ChannelConnectFailed(connected.error)
+                    }
                     opened.messages.first {
                         it is MatchFound || it is MatchFailed
                     }.also { coroutineContext.cancelChildren() }
@@ -162,7 +165,7 @@ class MatchViewModel @Inject constructor(
                 @Suppress("TooGenericExceptionCaught") e: Exception
             ) {
                 // 연결 실패·채널 종료: 대기열에서 빼고 거리 고르기로 돌아간다(앱을 죽이지 않는다).
-                failWaiting()
+                failWaiting((e as? ChannelConnectFailed)?.error)
                 return@launch
             }
             when (outcome) {
@@ -187,12 +190,17 @@ class MatchViewModel @Inject constructor(
         }
     }
 
-    private suspend fun failWaiting() {
+    /**
+     * 대기 채널을 열지 못했다: 대기열에서 빼고 거리 고르기로 돌아간다. 대기열 취소는 조정자가 applicationScope에서 보낸다(이 화면이
+     * 곧 사라져도 대기열에 남지 않게). 인증이 풀렸으면(/ws 401, 갱신 실패) 로그인 안내, 그 밖에는 연결 끊김 안내다.
+     */
+    private fun failWaiting(error: AppError?) {
         tickJob?.cancel()
         channel?.close()
         channel = null
-        battles.cancel()
-        _state.update { MatchUiState(distance = it.distance, error = "상대를 찾는 연결이 끊겼어요. 다시 시도해 주세요") }
+        coordinator.abandonMatching()
+        val text = if (error == AppError.Unauthorized) BattleErrorText.of(error) else "상대를 찾는 연결이 끊겼어요. 다시 시도해 주세요"
+        _state.update { MatchUiState(distance = it.distance, error = text) }
     }
 
     /**
@@ -352,5 +360,5 @@ class MatchViewModel @Inject constructor(
     }
 }
 
-/** 채널 연결이 Outcome.Failure로 끝났다. 대기를 접고 거리 고르기로 돌아간다. */
-private class ChannelConnectFailed : Exception()
+/** 채널 연결이 Outcome.Failure([error])로 끝났다. 대기를 접고 거리 고르기로 돌아간다. */
+private class ChannelConnectFailed(val error: AppError) : Exception()
