@@ -21,7 +21,9 @@ data class WatchUiState(
     /** 폰이 수집을 허용했지만 워치 OS 심박 권한이 없다. */
     val heartRatePermissionNeeded: Boolean = false,
     /** 안내(폰의 notice 또는 "폰과 연결 필요", FR-183). */
-    val notice: WatchNotice? = null
+    val notice: WatchNotice? = null,
+    /** 심박 수집이 처음 켜졌고 알림 권한이 없어 한 번 물어야 한다(API 33+). 창을 띄운 뒤 화면이 알린다. */
+    val notificationPermissionNeeded: Boolean = false
 )
 
 /** 워치에 잠깐 보이는 안내. 폰이 보낸 문구는 그대로, 워치가 정한 안내는 화면이 문자열 리소스로 바꾼다. */
@@ -30,4 +32,7 @@ sealed interface WatchNotice {
 
     /** FR-183 "연결되어 있지 않으면 거부하고 '폰과 연결 필요'를 보인다". */
     data object PhoneNotConnected : WatchNotice
+
+    /** FR-181 종료 버튼을 짧게 눌렀다. 실수로 끝나지 않게 길게 눌러야 한다. */
+    data object HoldToEnd : WatchNotice
 }

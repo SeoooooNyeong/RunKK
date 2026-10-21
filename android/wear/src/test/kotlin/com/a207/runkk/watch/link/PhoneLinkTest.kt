@@ -8,6 +8,7 @@ import com.a207.runkk.watch.testing.SchedulerClock
 import com.a207.runkk.watch.testing.T0
 import com.a207.runkk.watch.testing.failed
 import com.a207.runkk.watch.testing.ok
+import com.a207.runkk.wear.contract.EndRequestMessage
 import com.a207.runkk.wear.contract.HeartRateBatchMessage
 import com.a207.runkk.wear.contract.HeartRateBatchMessage.Sample
 import com.a207.runkk.wear.contract.HeartRateBatchMessage.Status
@@ -293,6 +294,31 @@ class PhoneLinkTest {
         assertEquals("phone", node)
         assertEquals(WearPaths.START_REQUEST, path)
         assertEquals(StartRequestMessage(T0 + 1_234), StartRequestMessage.decode(bytes))
+    }
+
+    @Test
+    fun `종료 요청은 연결된 폰에 END_REQUEST 경로로 보낸다`() = runTest {
+        val h = harness()
+        advanceTimeBy(500)
+
+        assertTrue(h.link.sendEndRequest())
+
+        val (node, path, bytes) = dataLayer.sentMessages.single()
+        assertEquals("phone", node)
+        assertEquals(WearPaths.END_REQUEST, path)
+        assertEquals(EndRequestMessage(T0 + 500), EndRequestMessage.decode(bytes))
+    }
+
+    @Test
+    fun `폰과 연결되지 않았거나 전송에 실패하면 종료 요청은 거짓이다`() = runTest {
+        val h = harness()
+        dataLayer.nodes = emptyList()
+        assertFalse(h.link.sendEndRequest())
+
+        dataLayer.nodes = listOf("phone")
+        dataLayer.failSendMessage = true
+        assertFalse(h.link.sendEndRequest())
+        assertTrue(dataLayer.sentMessages.isEmpty())
     }
 
     @Test

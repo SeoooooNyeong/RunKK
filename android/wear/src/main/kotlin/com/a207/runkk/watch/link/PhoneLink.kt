@@ -2,6 +2,7 @@ package com.a207.runkk.watch.link
 
 import com.a207.runkk.watch.heart.HeartRateCollector
 import com.a207.runkk.watch.heart.WatchHeartRate
+import com.a207.runkk.wear.contract.EndRequestMessage
 import com.a207.runkk.wear.contract.HeartRateBatchMessage
 import com.a207.runkk.wear.contract.StartRequestMessage
 import com.a207.runkk.wear.contract.WatchDisplayMessage
@@ -32,7 +33,8 @@ import kotlinx.serialization.SerializationException
  *
  * - 폰 → 워치: 표시 정보(MessageClient, [WearPaths.WATCH_DISPLAY])를 [displays]로 내보내고,
  *   그 허용 플래그·러닝 여부로 [HeartRateCollector]를 켜고 끈다. 허용이 거짓이면 즉시 멈추고 보내지 않은 심박을 버린다(NFR-023).
- * - 워치 → 폰: 시작 요청(MessageClient, [WearPaths.START_REQUEST], FR-183)과
+ * - 워치 → 폰: 시작 요청(MessageClient, [WearPaths.START_REQUEST], FR-183), 종료 요청(MessageClient,
+ *   [WearPaths.END_REQUEST], FR-181)과
  *   심박 묶음(DataClient, [WearPaths.HEART_RATE_BATCH] 아래 묶음마다 다른 경로, FR-043, NFR-032).
  *
  * 수신(메시지·심박)은 상태만 바꾸고 바로 돌아오며, 전송은 따로 도는 코루틴이 맡는다.
@@ -130,12 +132,21 @@ class PhoneLink @Inject constructor(
     }
 
     /** 자유런 시작 요청(FR-183). 폰과 연결되어 있지 않거나 보내지 못하면 거짓("폰과 연결 필요"). */
-    suspend fun sendStartRequest(): Boolean {
+    suspend fun sendStartRequest(): Boolean =
+        sendToPhone(WearPaths.START_REQUEST, StartRequestMessage(requestedAtEpochMillis = clock.millis()).encode())
+
+    /**
+     * 종료 요청(워치에서 종료 버튼을 길게 누름, FR-181). 폰과 연결되어 있지 않거나 보내지 못하면 거짓.
+     * 받은 폰은 자유런만 끝내고, 대결·크루런이면 "폰에서 끝내 주세요" 안내를 표시 정보로 돌려보낸다.
+     */
+    suspend fun sendEndRequest(): Boolean =
+        sendToPhone(WearPaths.END_REQUEST, EndRequestMessage(requestedAtEpochMillis = clock.millis()).encode())
+
+    private suspend fun sendToPhone(path: String, bytes: ByteArray): Boolean {
         val nodes = refreshConnection()
         if (nodes.isEmpty()) return false
-        val bytes = StartRequestMessage(requestedAtEpochMillis = clock.millis()).encode()
         var delivered = false
-        nodes.forEach { node -> delivered = dataLayer.sendMessage(node, WearPaths.START_REQUEST, bytes) || delivered }
+        nodes.forEach { node -> delivered = dataLayer.sendMessage(node, path, bytes) || delivered }
         return delivered
     }
 

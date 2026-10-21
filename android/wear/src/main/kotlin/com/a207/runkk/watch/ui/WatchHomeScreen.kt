@@ -124,7 +124,9 @@ private fun WatchHomeScreenPreview() {
         WatchRoot(
             state = WatchUiState(phoneConnected = true, planDistanceMeters = 5_000, planPaceSecondsPerKm = 330),
             onStart = {},
-            onRequestPermission = {}
+            onRequestPermission = {},
+            onEndTapped = {},
+            onEndLongPressed = {}
         )
     }
 }

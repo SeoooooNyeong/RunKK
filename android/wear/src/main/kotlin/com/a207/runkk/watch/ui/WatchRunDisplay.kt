@@ -24,10 +24,16 @@ import androidx.wear.compose.material3.Text
 /**
  * 러닝 중 워치 화면(6.1.15, FR-042, 와이어프레임 6-23): 경과 시간·거리·현재 페이스·심박, 연결 끊김 표시.
  * 심박은 30초 넘게 없거나 수집 금지면 빈칸이다(규칙은 [WatchViewModel]). 화면은 상태를 그리기만 한다.
+ * 맨 아래 종료 버튼은 길게 눌러야 폰에 종료를 요청한다(FR-181). 짧게 누르면 "길게 눌러 종료"만 안내한다.
  * ScalingLazyColumn이라 작은 화면에서 잘리는 지표는 크라운으로 내려 본다.
  */
 @Composable
-fun WatchRunDisplay(state: WatchUiState, modifier: Modifier = Modifier) {
+fun WatchRunDisplay(
+    state: WatchUiState,
+    onEndTapped: () -> Unit,
+    onEndLongPressed: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     val listState = rememberScalingLazyListState()
     ScreenScaffold(scrollState = listState, modifier = modifier) { contentPadding ->
         ScalingLazyColumn(
@@ -67,6 +73,14 @@ fun WatchRunDisplay(state: WatchUiState, modifier: Modifier = Modifier) {
                 }
             }
             state.notice?.let { notice -> item { NoticeText(notice) } }
+            item {
+                PillButton(
+                    text = stringResource(R.string.end),
+                    onClick = onEndTapped,
+                    onLongClick = onEndLongPressed,
+                    primary = false
+                )
+            }
         }
     }
 }
@@ -106,7 +120,9 @@ private fun WatchRunDisplayPreview() {
                 heartRateBpm = 152
             ),
             onStart = {},
-            onRequestPermission = {}
+            onRequestPermission = {},
+            onEndTapped = {},
+            onEndLongPressed = {}
         )
     }
 }

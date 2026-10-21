@@ -11,4 +11,7 @@ import dagger.hilt.components.SingletonComponent
 abstract class WatchUiModule {
     @Binds
     abstract fun foregroundServiceLauncher(impl: AndroidForegroundServiceLauncher): ForegroundServiceLauncher
+
+    @Binds
+    abstract fun notificationPermissionGate(impl: AndroidNotificationPermissionGate): NotificationPermissionGate
 }

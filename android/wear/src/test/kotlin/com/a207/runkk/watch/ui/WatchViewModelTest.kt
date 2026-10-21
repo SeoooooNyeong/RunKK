@@ -4,11 +4,13 @@ import com.a207.runkk.watch.heart.HeartRateCollector
 import com.a207.runkk.watch.link.PhoneLink
 import com.a207.runkk.watch.link.WearMessage
 import com.a207.runkk.watch.testing.FakeHeartRateSensor
+import com.a207.runkk.watch.testing.FakeNotificationPermissionGate
 import com.a207.runkk.watch.testing.FakeSensorPermission
 import com.a207.runkk.watch.testing.FakeWearDataLayer
 import com.a207.runkk.watch.testing.SchedulerClock
 import com.a207.runkk.watch.testing.T0
 import com.a207.runkk.watch.testing.ok
+import com.a207.runkk.wear.contract.EndRequestMessage
 import com.a207.runkk.wear.contract.WatchDisplayMessage
 import com.a207.runkk.wear.contract.WearPaths
 import kotlin.test.AfterTest
@@ -35,6 +37,7 @@ class WatchViewModelTest {
     private val dataLayer = FakeWearDataLayer()
     private val sensor = FakeHeartRateSensor()
     private val permission = FakeSensorPermission(isGranted = true)
+    private val notificationGate = FakeNotificationPermissionGate()
 
     @BeforeTest
     fun setUp() {
@@ -52,7 +55,7 @@ class WatchViewModelTest {
     }
 
     private fun TestScope.viewModel(link: PhoneLink = link()): WatchViewModel {
-        val viewModel = WatchViewModel(link, SchedulerClock(testScheduler))
+        val viewModel = WatchViewModel(link, SchedulerClock(testScheduler), notificationGate)
         backgroundScope.launch { viewModel.uiState.collect {} }
         runCurrent()
         return viewModel
@@ -252,5 +255,92 @@ class WatchViewModelTest {
 
         assertNull(vm.uiState.value.notice)
         assertTrue(vm.uiState.value.linkLost)
+    }
+
+    @Test
+    fun `종료 버튼을 짧게 누르면 길게 눌러 종료 안내를 보이고 요청은 보내지 않는다`() = runTest {
+        val vm = viewModel()
+        receive(display(running = true))
+
+        vm.onEndTapped()
+        runCurrent()
+
+        assertEquals(WatchNotice.HoldToEnd, vm.uiState.value.notice)
+        assertTrue(dataLayer.sentMessages.none { it.second == WearPaths.END_REQUEST })
+    }
+
+    @Test
+    fun `종료 버튼을 길게 누르면 종료 요청을 폰에 보낸다`() = runTest {
+        val vm = viewModel()
+        receive(display(running = true))
+
+        vm.onEndLongPressed()
+        runCurrent()
+
+        val (node, path, bytes) = dataLayer.sentMessages.single { it.second == WearPaths.END_REQUEST }
+        assertEquals("phone", node)
+        assertEquals(WearPaths.END_REQUEST, path)
+        assertEquals(T0, EndRequestMessage.decode(bytes).requestedAtEpochMillis)
+        assertNull(vm.uiState.value.notice)
+    }
+
+    @Test
+    fun `폰과 연결되지 않았으면 종료 요청 대신 폰과 연결 필요를 보인다`() = runTest {
+        val vm = viewModel()
+        receive(display(running = true))
+        dataLayer.nodes = emptyList()
+
+        vm.onEndLongPressed()
+        runCurrent()
+
+        assertEquals(WatchNotice.PhoneNotConnected, vm.uiState.value.notice)
+    }
+
+    @Test
+    fun `폰이 대결 크루런이라 거절하면 그 안내를 그대로 보인다`() = runTest {
+        val vm = viewModel()
+        receive(display(running = true))
+
+        receive(display(running = true, notice = "대결·크루런은 폰에서 끝내 주세요"))
+
+        assertEquals(WatchNotice.FromPhone("대결·크루런은 폰에서 끝내 주세요"), vm.uiState.value.notice)
+    }
+
+    @Test
+    fun `심박 수집이 처음 켜지고 알림 권한이 필요하면 한 번만 묻는다`() = runTest {
+        notificationGate.needed = true
+        val vm = viewModel()
+        assertFalse(vm.uiState.value.notificationPermissionNeeded)
+
+        receive(display(running = true))
+        runCurrent()
+        assertTrue(vm.uiState.value.notificationPermissionNeeded)
+
+        vm.onNotificationPromptShown()
+        runCurrent()
+        assertFalse(vm.uiState.value.notificationPermissionNeeded)
+        assertEquals(1, notificationGate.asked)
+
+        // 수집이 멈췄다 다시 켜져도(거절한 뒤에도) 다시 묻지 않는다. 수집은 계속된다.
+        receive(display(running = false))
+        receive(display(running = true))
+        runCurrent()
+        assertFalse(vm.uiState.value.notificationPermissionNeeded)
+        assertEquals(1, sensor.subscribers)
+    }
+
+    @Test
+    fun `알림 권한이 이미 있거나 수집이 켜지지 않았으면 묻지 않는다`() = runTest {
+        notificationGate.needed = false
+        val vm = viewModel()
+        receive(display(running = true))
+        runCurrent()
+        assertFalse(vm.uiState.value.notificationPermissionNeeded)
+
+        notificationGate.needed = true
+        val other = viewModel(link())
+        receive(display(running = true, allowed = false))
+        runCurrent()
+        assertFalse(other.uiState.value.notificationPermissionNeeded)
     }
 }

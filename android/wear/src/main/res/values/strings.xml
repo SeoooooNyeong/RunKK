@@ -14,6 +14,8 @@
     <string name="allow_heart_rate">심박 권한 허용</string>
     <string name="label_pace">페이스</string>
     <string name="label_heart_rate">심박</string>
+    <string name="end">종료</string>
+    <string name="hold_to_end">길게 눌러 종료</string>
     <string name="link_lost">폰 연결 끊김</string>
     <string name="collecting_channel">심박 수집</string>
     <string name="collecting_title">러닝 중 심박 수집</string>

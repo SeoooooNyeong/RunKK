@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -24,7 +25,11 @@ import kotlinx.coroutines.launch
  * wear.contract 형식은 import하지 않고 PhoneLink가 내준 값을 받자마자 이 클래스의 비공개 값으로 옮긴다.
  */
 @HiltViewModel
-class WatchViewModel @Inject constructor(private val phoneLink: PhoneLink, private val clock: Clock) : ViewModel() {
+class WatchViewModel @Inject constructor(
+    private val phoneLink: PhoneLink,
+    private val clock: Clock,
+    private val notificationGate: NotificationPermissionGate
+) : ViewModel() {
     /** 폰 표시 정보 중 화면이 쓰는 값(WatchDisplayMessage에서 옮김)과 받은 시각. */
     private data class Received(
         val running: Boolean,
@@ -45,7 +50,8 @@ class WatchViewModel @Inject constructor(private val phoneLink: PhoneLink, priva
     private data class LocalEvents(
         val notice: WatchNotice? = null,
         val noticeAtMillis: Long = 0,
-        val startRequestedAtMillis: Long? = null
+        val startRequestedAtMillis: Long? = null,
+        val notificationPromptPending: Boolean = false
     )
 
     private data class Inputs(
@@ -98,6 +104,10 @@ class WatchViewModel @Inject constructor(private val phoneLink: PhoneLink, priva
                 )
             }
         }
+        viewModelScope.launch {
+            phoneLink.heartRateCollecting.first { collecting -> collecting }
+            if (notificationGate.shouldAsk()) events.update { it.copy(notificationPromptPending = true) }
+        }
     }
 
     /**
@@ -117,6 +127,30 @@ class WatchViewModel @Inject constructor(private val phoneLink: PhoneLink, priva
                 }
             }
         }
+    }
+
+    /** 종료 버튼을 짧게 눌렀다(FR-181). 요청은 보내지 않고 "길게 눌러 종료"를 안내한다. */
+    fun onEndTapped() {
+        events.update { it.copy(notice = WatchNotice.HoldToEnd, noticeAtMillis = clock.millis()) }
+    }
+
+    /**
+     * 종료 버튼을 길게 눌렀다(FR-181). 폰에 종료 요청을 보낸다. 끝내는 것은 폰이고(C-002), 폰과 연결되어 있지 않으면
+     * [WatchNotice.PhoneNotConnected]를 보인다. 대결·크루런 거절은 폰이 표시 정보의 안내로 돌려보낸다.
+     */
+    fun onEndLongPressed() {
+        events.update { it.copy(notice = null) }
+        viewModelScope.launch {
+            if (!phoneLink.sendEndRequest()) {
+                events.update { it.copy(notice = WatchNotice.PhoneNotConnected, noticeAtMillis = clock.millis()) }
+            }
+        }
+    }
+
+    /** 알림 권한 창을 띄웠다. 결과(허용·거절)와 관계없이 다시 묻지 않고, 심박 수집은 계속한다. */
+    fun onNotificationPromptShown() {
+        notificationGate.markAsked()
+        events.update { it.copy(notificationPromptPending = false) }
     }
 
     /** OS 심박 권한 창이 닫혔거나 화면으로 돌아왔다. */
@@ -166,7 +200,8 @@ class WatchViewModel @Inject constructor(private val phoneLink: PhoneLink, priva
             linkLost = running && (!inputs.connected || displayStale),
             startPending = !running && requestedAt != null && now - requestedAt < START_PENDING_MILLIS,
             heartRatePermissionNeeded = inputs.permissionNeeded,
-            notice = inputs.events.notice?.takeIf { now - inputs.events.noticeAtMillis < NOTICE_MILLIS }
+            notice = inputs.events.notice?.takeIf { now - inputs.events.noticeAtMillis < NOTICE_MILLIS },
+            notificationPermissionNeeded = inputs.events.notificationPromptPending
         )
     }
 

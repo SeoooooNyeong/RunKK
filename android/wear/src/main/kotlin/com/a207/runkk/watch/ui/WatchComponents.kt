@@ -1,8 +1,9 @@
 package com.a207.runkk.watch.ui
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -42,14 +43,16 @@ internal fun ConnectionStatus(connected: Boolean, label: String, modifier: Modif
     }
 }
 
-/** 둥근 알약 모양 버튼. 주 버튼은 라임 바탕, 보조 버튼은 테두리만. */
+/** 둥근 알약 모양 버튼. 주 버튼은 라임 바탕, 보조 버튼은 테두리만. [onLongClick]이 있으면 길게 누르기도 받는다. */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun PillButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     primary: Boolean = true,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    onLongClick: (() -> Unit)? = null
 ) {
     val shape = RoundedCornerShape(50)
     val container = if (primary) WatchColors.Lime else Color.Transparent
@@ -60,7 +63,7 @@ internal fun PillButton(
             .clip(shape)
             .background(if (enabled) container else WatchColors.Surface)
             .border(1.dp, if (primary) Color.Transparent else WatchColors.Border, shape)
-            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            .combinedClickable(enabled = enabled, role = Role.Button, onClick = onClick, onLongClick = onLongClick)
             .padding(horizontal = 20.dp, vertical = 10.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -79,6 +82,7 @@ internal fun NoticeText(notice: WatchNotice?, modifier: Modifier = Modifier) {
         null -> return
         is WatchNotice.FromPhone -> notice.text
         WatchNotice.PhoneNotConnected -> stringResource(R.string.phone_not_connected)
+        WatchNotice.HoldToEnd -> stringResource(R.string.hold_to_end)
     }
     Text(
         text = text,

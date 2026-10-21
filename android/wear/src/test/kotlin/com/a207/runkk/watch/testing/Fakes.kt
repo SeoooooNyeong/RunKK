@@ -7,6 +7,7 @@ import com.a207.runkk.watch.heart.SensorPermission
 import com.a207.runkk.watch.heart.WatchHeartRate
 import com.a207.runkk.watch.link.WearDataLayer
 import com.a207.runkk.watch.link.WearMessage
+import com.a207.runkk.watch.ui.NotificationPermissionGate
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneId
@@ -170,3 +171,15 @@ class FakeWearDataLayer : WearDataLayer {
 fun ok(atMillis: Long, bpm: Int): WatchHeartRate = WatchHeartRate(atMillis, bpm, WatchHeartRate.Status.OK)
 
 fun failed(atMillis: Long): WatchHeartRate = WatchHeartRate(atMillis, 0, WatchHeartRate.Status.FAILED)
+
+/** 가짜 알림 권한 문지기. [needed]가 참이면 묻고, [markAsked]가 불리면 다시 묻지 않는다. */
+class FakeNotificationPermissionGate(var needed: Boolean = false) : NotificationPermissionGate {
+    var asked: Int = 0
+        private set
+
+    override fun shouldAsk(): Boolean = needed && asked == 0
+
+    override fun markAsked() {
+        asked++
+    }
+}

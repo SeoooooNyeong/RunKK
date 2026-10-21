@@ -13,11 +13,13 @@ fun WatchRoot(
     state: WatchUiState,
     onStart: () -> Unit,
     onRequestPermission: () -> Unit,
+    onEndTapped: () -> Unit,
+    onEndLongPressed: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     AppScaffold(modifier = modifier, containerColor = WatchColors.Background) {
         if (state.running) {
-            WatchRunDisplay(state = state)
+            WatchRunDisplay(state = state, onEndTapped = onEndTapped, onEndLongPressed = onEndLongPressed)
         } else {
             WatchHomeScreen(state = state, onStart = onStart, onRequestPermission = onRequestPermission)
         }
