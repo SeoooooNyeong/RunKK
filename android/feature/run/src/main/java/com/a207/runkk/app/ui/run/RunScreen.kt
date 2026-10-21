@@ -98,7 +98,7 @@ fun RunRoute(viewModel: RunViewModel = hiltViewModel()) {
 
                 RunEvent.NotSaved -> navigator.restart(Routes.HOME)
 
-                RunEvent.Exit -> navigator.back()
+                RunEvent.Exit -> navigator.selectTab(Routes.HOME)
             }
         }
     }
@@ -129,6 +129,7 @@ fun RunRoute(viewModel: RunViewModel = hiltViewModel()) {
             },
             onOpenConsents = { navigator.navigate(Routes.CONSENTS) },
             onRetry = viewModel::onRetryStart,
+            onConsentDismiss = viewModel::onConsentDialogDismissed,
             onErrorShown = viewModel::onErrorShown
         )
     )
@@ -147,6 +148,7 @@ data class RunActions(
     val onRequestPermission: () -> Unit = {},
     val onOpenConsents: () -> Unit = {},
     val onRetry: () -> Unit = {},
+    val onConsentDismiss: () -> Unit = {},
     val onErrorShown: () -> Unit = {}
 )
 
@@ -167,14 +169,15 @@ fun RunScreen(state: RunUiState, actions: RunActions, modifier: Modifier = Modif
         }
         RunkkSnackbarHost(snackbar, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp))
     }
-    if (state.phase == RunPhase.PREPARING && state.consentRequired) {
+    if (state.showConsentDialog) {
         RunkkConfirmDialog(
             title = "위치 권한이 필요해요",
             message = "러닝 경로와 거리를 재려면 기기 위치 권한과 위치 정보 수집 동의가 모두 필요해요. 동의를 철회했다면 동의 관리에서 다시 켜 주세요.",
             confirmLabel = "위치 권한 허용",
             onConfirm = actions.onRequestPermission,
             dismissLabel = "동의 관리",
-            onDismiss = actions.onOpenConsents
+            onDismiss = actions.onOpenConsents,
+            onDismissRequest = actions.onConsentDismiss
         )
     }
 }

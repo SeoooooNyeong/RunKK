@@ -122,3 +122,59 @@ fun completedRun(id: String) = CompletedRun(
     heartRates = emptyList(),
     savedAt = Instant.parse("2026-10-19T10:27:00Z")
 )
+
+class FakeAccountRepository : com.a207.runkk.app.domain.account.AccountRepository {
+    var profileResult: Outcome<com.a207.runkk.app.domain.account.Profile> = Outcome.Success(
+        com.a207.runkk.app.domain.account.Profile(7, "달리는곰", "SELF", "골드", 3, emptySet(), null, null, null, null, null)
+    )
+    val profileIds = mutableListOf<Long>()
+
+    override suspend fun profile(memberId: Long): Outcome<com.a207.runkk.app.domain.account.Profile> {
+        profileIds += memberId
+        return profileResult
+    }
+
+    override suspend fun login(token: com.a207.runkk.app.domain.account.ProviderToken) =
+        unusedOutcome<com.a207.runkk.app.domain.account.SessionTokens>()
+
+    override suspend fun signUp(form: com.a207.runkk.app.domain.account.SignUpForm) =
+        unusedOutcome<com.a207.runkk.app.domain.account.SessionTokens>()
+
+    override suspend fun logout() = unusedOutcome<Unit>()
+
+    override suspend fun withdraw() = unusedOutcome<Unit>()
+
+    override suspend fun editProfile(nickname: String, intro: String?, tags: Set<String>) = unusedOutcome<Unit>()
+
+    override suspend fun changeSetting(item: String, value: String) = unusedOutcome<Unit>()
+
+    override suspend fun giveConsent(item: String) = unusedOutcome<Unit>()
+
+    override suspend fun withdrawConsent(item: String) = unusedOutcome<Unit>()
+
+    override suspend fun legalDocument(type: String) = unusedOutcome<String>()
+
+    override suspend fun settings() = unusedOutcome<com.a207.runkk.app.domain.account.MemberSettings>()
+}
+
+class FakeAvatarRepository : com.a207.runkk.app.domain.avatar.AvatarRepository {
+    var avatarResult: Outcome<com.a207.runkk.app.domain.avatar.Avatar> = Outcome.Success(
+        com.a207.runkk.app.domain.avatar.Avatar(null, "D1", "NORMAL", "DAY", emptyMap(), 1_250, true, emptyMap())
+    )
+
+    override suspend fun avatar() = avatarResult
+
+    override suspend fun createFromSelfie(jpeg: ByteArray) = unusedOutcome<com.a207.runkk.app.domain.avatar.Avatar>()
+
+    override suspend fun chooseDefault(characterId: String) = unusedOutcome<com.a207.runkk.app.domain.avatar.Avatar>()
+
+    override suspend fun equip(changes: Map<com.a207.runkk.app.domain.avatar.ItemSlot, Long?>) =
+        unusedOutcome<com.a207.runkk.app.domain.avatar.Avatar>()
+
+    override suspend fun shop(slot: com.a207.runkk.app.domain.avatar.ItemSlot?) =
+        unusedOutcome<com.a207.runkk.app.domain.avatar.Shop>()
+
+    override suspend fun purchase(itemId: Long) = unusedOutcome<Int>()
+}
+
+fun <T> unusedOutcome(): Outcome<T> = Outcome.Failure(AppError.Rejected("UNUSED"))

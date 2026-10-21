@@ -33,7 +33,8 @@ class RunScreensTest {
         onFinishTap = { calls += "finishTap" },
         onFinishLongPress = { calls += "finishLong" },
         onRequestPermission = { calls += "permission" },
-        onOpenConsents = { calls += "consents" }
+        onOpenConsents = { calls += "consents" },
+        onConsentDismiss = { calls += "dismiss" }
     )
 
     private fun show(state: RunUiState) = compose.setContent {
@@ -82,6 +83,15 @@ class RunScreensTest {
         show(RunUiState(phase = RunPhase.PREPARING, consentRequired = true))
         compose.onNodeWithText("위치 권한 허용").performClick()
         assertEquals(listOf("permission"), calls)
+    }
+
+    @Test
+    fun `재동의 안내는 뒤로가기로 닫히고 동의 관리로 가지 않는다`() {
+        show(RunUiState(phase = RunPhase.PREPARING, consentRequired = true))
+        compose.onNodeWithText("위치 권한이 필요해요").assertExists()
+        androidx.test.espresso.Espresso.pressBack()
+        compose.waitForIdle()
+        assertEquals(listOf("dismiss"), calls)
     }
 
     @Test

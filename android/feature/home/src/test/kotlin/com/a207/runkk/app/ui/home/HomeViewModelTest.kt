@@ -22,7 +22,10 @@ class HomeViewModelTest {
     private val pending = FakePendingRunRepository()
     private val clock = Clock.fixed(Instant.parse("2026-10-20T01:00:00Z"), ZoneId.of("Asia/Seoul"))
 
-    private fun viewModel() = HomeViewModel(records, pending, clock)
+    private val account = FakeAccountRepository()
+    private val avatar = FakeAvatarRepository()
+
+    private fun viewModel() = HomeViewModel(records, pending, account, avatar, clock)
 
     @Test
     fun `홈은 오늘 날짜의 대시보드와 오늘 계획을 읽는다`() {
@@ -60,6 +63,23 @@ class HomeViewModelTest {
         val vm = viewModel()
         assertNull(vm.state.value.todayPlan)
         assertEquals(sampleDashboard, vm.state.value.dashboard)
+    }
+
+    @Test
+    fun `상단에 본인 닉네임·티어·레벨과 리워드 잔액을 보인다(HiHome)`() {
+        val header = viewModel().state.value.header
+        assertEquals(HomeHeader(nickname = "달리는곰", tier = "골드", level = 3, balance = 1_250), header)
+        assertEquals(listOf(com.a207.runkk.app.domain.account.AccountRepository.SELF), account.profileIds)
+    }
+
+    @Test
+    fun `프로필·잔액을 못 읽어도 홈은 보이고 그 자리는 비운다`() {
+        account.profileResult = Outcome.Failure(AppError.Network)
+        avatar.avatarResult = Outcome.Failure(AppError.Network)
+        val state = viewModel().state.value
+        assertEquals(HomeHeader(), state.header)
+        assertFalse(state.headerLoading)
+        assertEquals(sampleDashboard, state.dashboard)
     }
 
     @Test

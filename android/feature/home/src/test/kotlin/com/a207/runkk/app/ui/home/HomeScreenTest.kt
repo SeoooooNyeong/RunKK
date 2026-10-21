@@ -77,4 +77,20 @@ class HomeScreenTest {
         assertEquals(listOf("목표 없이 달리기"), planChips(null))
         assertEquals(listOf("5K"), planChips(TodayPlan(Distance(5_000), null)))
     }
+
+    @Test
+    fun `상단은 닉네임·티어·레벨과 리워드 잔액(상점으로)을 보인다`() {
+        show(HomeUiState(loading = false, headerLoading = false, header = HomeHeader("달리는곰", "골드", 3, 1_250)))
+        compose.onNodeWithText("달리는곰").assertExists()
+        compose.onNodeWithText("골드 · Lv.3").assertExists()
+        compose.onNodeWithContentDescription("리워드 잔액 1,250").performClick()
+        assertEquals(listOf(Routes.SHOP), routes)
+    }
+
+    @Test
+    fun `프로필을 못 읽었으면 자리를 기본 문구로 채운다`() {
+        show(HomeUiState(loading = false, headerLoading = false))
+        compose.onNodeWithText("언랭 · Lv.-").assertExists()
+        compose.onNodeWithContentDescription("리워드 잔액 -").assertExists()
+    }
 }

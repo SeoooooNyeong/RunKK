@@ -93,6 +93,12 @@ class RunViewModelTest {
         assertEquals(RunPhase.PREPARING, vm.state.value.phase)
         assertTrue(vm.state.value.consentRequired)
         assertEquals(0, host.started)
+        assertTrue(vm.state.value.showConsentDialog)
+        vm.onConsentDialogDismissed()
+        assertEquals(false, vm.state.value.showConsentDialog)
+        vm.onRetryStart()
+        advanceUntilIdle()
+        assertTrue(vm.state.value.showConsentDialog)
         settings.consented = true
         vm.onRetryStart()
         advanceUntilIdle()

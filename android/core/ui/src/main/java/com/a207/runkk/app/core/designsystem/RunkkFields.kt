@@ -288,6 +288,8 @@ fun RunkkCheckRow(
 
 /**
  * 확인 대화상자. [destructive]면 확인 글자를 라벤더로(탈퇴·로그아웃·동의 철회).
+ * [onDismiss]는 두 번째 버튼, [onDismissRequest]는 뒤로가기·바깥 누름이다. 두 번째 버튼이 "취소"가 아니라 다른 행동이면
+ * (예: "동의 관리"로 이동) [onDismissRequest]를 따로 넘겨 대화상자만 닫는다.
  */
 @Composable
 fun RunkkConfirmDialog(
@@ -297,10 +299,11 @@ fun RunkkConfirmDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
     dismissLabel: String = "취소",
-    destructive: Boolean = false
+    destructive: Boolean = false,
+    onDismissRequest: () -> Unit = onDismiss
 ) {
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = onDismissRequest,
         containerColor = RunkkColors.Surface,
         titleContentColor = RunkkColors.TextPrimary,
         textContentColor = RunkkColors.TextSecondary,

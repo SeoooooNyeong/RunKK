@@ -2,6 +2,7 @@ package com.a207.runkk.app.ui.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,16 +19,20 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -59,6 +64,7 @@ import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.record.Dashboard
 import com.a207.runkk.app.domain.record.TodayPlan
 import java.time.LocalDate
+import java.util.Locale
 import kotlin.math.roundToInt
 
 /** 홈(A5): 우리 집, 자유런·배틀런 시작, 오늘·이번 주 요약, 스트릭·잔디, 미전송 기록. */
@@ -89,7 +95,7 @@ fun HomeScreen(
         verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
         RunkkLogo(RunkkLogoKind.WordmarkRrun, height = 24.dp, contentDescription = "RRun 런크크")
-        Header(state.dashboard, onNavigate)
+        Header(state, onNavigate)
         HouseCard(state.dashboard, onAvatar = { onNavigate(Routes.AVATAR) })
         RunCard(state, onModeSelected, onNavigate)
         if (state.error != null && state.dashboard == null) {
@@ -114,32 +120,76 @@ fun HomeScreen(
 }
 
 @Composable
-private fun Header(dashboard: Dashboard?, onNavigate: (String) -> Unit) {
+private fun Header(state: HomeUiState, onNavigate: (String) -> Unit) {
+    val header = state.header
     Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(
             modifier = Modifier.size(
                 48.dp
             ).border(2.dp, RunkkColors.Lime, CircleShape).padding(3.dp).clip(CircleShape).background(RunkkColors.Border)
         )
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                "오늘도 달려 볼까요?",
-                style = RunkkTextStyles.text(16, FontWeight.Black),
-                color = RunkkColors.TextPrimary,
-                modifier = Modifier.semantics {
-                    heading()
-                }
-            )
-            Text(
-                text = dashboard?.streakDays?.takeIf { it > 0 }?.let { "${it}일 연속 달리는 중" } ?: "오늘 첫 러닝을 시작해 보세요",
-                style = RunkkTextStyles.Caption,
-                color = RunkkColors.TextSecondary
-            )
+        Column(
+            modifier = Modifier.weight(1f).semantics(mergeDescendants = true) {
+            },
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            if (state.headerLoading) {
+                SkeletonBar(width = 96.dp, height = 16.dp)
+                SkeletonBar(width = 72.dp, height = 12.dp)
+            } else {
+                Text(
+                    text = header.nickname ?: "러너",
+                    style = RunkkTextStyles.text(16, FontWeight.Black),
+                    color = RunkkColors.TextPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.semantics { heading() }
+                )
+                Text(
+                    text = "${header.tier ?: "언랭"} · Lv.${header.level ?: RunkkFormat.EMPTY}",
+                    style = RunkkTextStyles.Caption,
+                    color = RunkkColors.TextSecondary
+                )
+            }
         }
+        BalanceButton(balance = header.balance, onClick = { onNavigate(Routes.SHOP) })
         RunkkIconButton(RunkkIcons.Bell, contentDescription = "알림함", onClick = {
             onNavigate(Routes.NOTIFICATIONS)
         }, borderColor = RunkkColors.BorderStrong)
     }
+}
+
+/** 리워드 잔액 버튼(높이 40, 모서리 20). 누르면 상점. 잔액을 모르면 "-". */
+@Composable
+private fun BalanceButton(balance: Int?, onClick: () -> Unit) {
+    val label = balance?.let { String.format(Locale.US, "%,d", it) } ?: RunkkFormat.EMPTY
+    Box(
+        modifier = Modifier
+            .minimumInteractiveComponentSize()
+            .clickable(role = Role.Button, onClickLabel = "상점 열기", onClick = onClick)
+            .semantics { contentDescription = "리워드 잔액 $label" },
+        contentAlignment = Alignment.Center
+    ) {
+        Row(
+            modifier = Modifier
+                .height(40.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(RunkkColors.Surface)
+                .border(1.dp, RunkkColors.BorderStrong, RoundedCornerShape(20.dp))
+                .padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(RunkkIcons.Bolt, contentDescription = null, tint = RunkkColors.Lime, modifier = Modifier.size(16.dp))
+            Text(label, style = RunkkTextStyles.display(18), color = RunkkColors.TextPrimary)
+        }
+    }
+}
+
+/** 불러오는 중 자리(회색 막대). */
+@Composable
+private fun SkeletonBar(width: androidx.compose.ui.unit.Dp, height: androidx.compose.ui.unit.Dp) {
+    Box(Modifier.size(width = width, height = height).clip(RoundedCornerShape(4.dp)).background(RunkkColors.Border))
 }
 
 @Composable
@@ -378,7 +428,9 @@ private fun HomeScreenPreview() {
                     crew = Dashboard.CrewArea("새벽크루", 9, emptyMap(), "남산 3바퀴")
                 ),
                 todayPlan = TodayPlan(Distance(5_000), Pace(330)),
-                pendingCount = 1
+                pendingCount = 1,
+                header = HomeHeader("달리는곰", "골드", 3, 1_250),
+                headerLoading = false
             ),
             onModeSelected = {},
             onNavigate = {},

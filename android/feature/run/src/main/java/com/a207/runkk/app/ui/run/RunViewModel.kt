@@ -40,6 +40,8 @@ data class RunUiState(
     val targetDistance: Distance? = null,
     val targetPace: Pace? = null,
     val consentRequired: Boolean = false,
+    /** 재동의 안내를 뒤로가기·바깥 누름으로 닫았다. 다시 시도하면 다시 보인다. */
+    val consentDialogDismissed: Boolean = false,
     /** 누름 안내("길게 눌러 종료"·"길게 눌러 해제"). 잠깐 보였다 사라진다. */
     val hint: String? = null,
     /** 새 1km 지점 배너("2km 통과 · 11:04 · 평균 5:32"). */
@@ -48,6 +50,9 @@ data class RunUiState(
 ) {
     /** 목표까지 남은 거리. 목표가 없거나 넘었으면 null. */
     val remaining: Distance? get() = targetDistance?.takeIf { it > progress.distance }?.minus(progress.distance)
+
+    /** 재동의 안내를 보일 때(시작 전, 권한·동의 없음, 닫지 않음). */
+    val showConsentDialog: Boolean get() = phase == RunPhase.PREPARING && consentRequired && !consentDialogDismissed
 
     val targetProgress: Float? get() = targetDistance?.takeIf { it.meters > 0 }?.let {
         (
@@ -112,7 +117,13 @@ class RunViewModel @Inject constructor(private val tracker: RunTracker, private 
     }
 
     /** 재동의(권한 허용·동의 관리) 뒤 다시 시작. */
-    fun onRetryStart() = prepare()
+    fun onRetryStart() {
+        _state.update { it.copy(consentDialogDismissed = false) }
+        prepare()
+    }
+
+    /** 재동의 안내를 뒤로가기·바깥 누름으로 닫는다. 화면은 "다시 시도"와 함께 남는다. */
+    fun onConsentDialogDismissed() = _state.update { it.copy(consentDialogDismissed = true) }
 
     fun onCountdownTapped() = countdown.skip()
 
