@@ -30,7 +30,7 @@ android {
         }
         create("develop") {
             dimension = "env"
-            // develop 브랜치 서버. EC2 도메인이 정해지면 바꾼다(:app의 API_BASE_URL과 같은 호스트).
+            // develop 브랜치 서버. EC2 도메인이 정해지면 바꾼다.
             buildConfigField("String", "API_BASE_URL", "\"https://dev.runkk.example/api/v1/\"")
             buildConfigField("String", "LIVE_SOCKET_URL", "\"wss://dev.runkk.example/ws\"")
         }

@@ -54,22 +54,8 @@ android {
         unitTests.isIncludeAndroidResources = true
     }
 
-    // Environment flavors (runkk.android.application이 env 차원을 만든다): BuildConfig.API_BASE_URL points at the
-    // matching backend profile.
-    //   local   -> backend "local" profile on the developer PC (10.0.2.2 = host from the emulator)
-    //   develop -> develop-branch server (replace the URL once the EC2 domain is assigned)
-    //   prod    -> main-branch server
-    productFlavors {
-        getByName("local") {
-            buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:8080/\"")
-        }
-        getByName("develop") {
-            buildConfigField("String", "API_BASE_URL", "\"https://dev.runkk.example/\"")
-        }
-        getByName("prod") {
-            buildConfigField("String", "API_BASE_URL", "\"https://runkk.example/\"")
-        }
-    }
+    // 서버 주소(API_BASE_URL·LIVE_SOCKET_URL)는 :data(api.core)의 플레이버 BuildConfig 한 곳에서만 관리한다(리뷰 N-4).
+    // app 코드는 서버 주소를 읽지 않는다(5.1.2: 서버 주소는 api.core만 읽는다).
 }
 
 // E2E 시험(e2e/README.md) 전용: local 플레이버 + debug 빌드에만 시험용 카카오 토큰 창구(src/localDebug)와 그 토큰 값을 넣는다.
