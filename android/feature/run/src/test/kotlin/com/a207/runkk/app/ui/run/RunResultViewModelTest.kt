@@ -88,6 +88,23 @@ class RunResultViewModelTest {
     }
 
     @Test
+    fun `결과를 보는 중에 전송이 끝나면 서버 기록으로 바꾼다(E2E에서 찾은 결함)`() = runTest(main.dispatcher) {
+        pending.runs.value = listOf(completedRun())
+        val vm = RunResultViewModel(pending, records)
+        vm.load("rec-1")
+        advanceUntilIdle()
+        assertFalse(vm.state.value.uploaded)
+
+        // 전송 작업(UploadPendingRunsUseCase)이 서버 저장 뒤 보관함에서 지운다.
+        records.runResult = Outcome.Success(recordDetail())
+        pending.runs.value = emptyList()
+        advanceUntilIdle()
+
+        assertTrue(vm.state.value.uploaded)
+        assertEquals(312, vm.state.value.calories)
+    }
+
+    @Test
     fun `보관함에도 서버에도 없으면 기다린 뒤 오류를 보인다`() = runTest(main.dispatcher) {
         records.runResult = Outcome.Failure(AppError.Network)
         val vm = RunResultViewModel(pending, records)

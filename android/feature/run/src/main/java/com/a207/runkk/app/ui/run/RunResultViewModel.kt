@@ -86,34 +86,46 @@ class RunResultViewModel @Inject constructor(
                     )
                 }
             }
-            when (val server = records.run(recordId)) {
-                is Outcome.Success -> {
-                    val detail = server.value
-                    val summary = detail.summary
-                    _state.update {
-                        it.copy(
-                            loading = false,
-                            uploaded = true,
-                            cardKind = summary.cardKind,
-                            startedAt = summary.startedAt,
-                            distance = summary.distance,
-                            elapsed = summary.elapsed,
-                            averagePace = summary.averagePace ?: averagePace(summary.elapsed, summary.distance),
-                            route = detail.route.ifEmpty { it.route },
-                            weather = detail.weather,
-                            calories = detail.calories,
-                            newRecords = detail.newRecords,
-                            heartRateZones = detail.heartRateZones.toList()
-                        )
-                    }
-                }
-
-                is Outcome.Failure -> _state.update {
-                    it.copy(loading = false, error = if (local == null) RunkkErrorText.of(server.error) else null)
-                }
-            }
+            if (applyServer(recordId, local == null) || local == null) return@launch
+            // 아직 서버에 없다(종료 직후 전송 작업이 도는 중). 전송 작업은 서버 저장 뒤 보관함에서 지우므로(UploadPendingRunsUseCase),
+            // 보관함에서 빠지면 서버 기록을 다시 읽어 "보내는 중"을 "달력에 저장했어요"로 바꾼다(E2E 시나리오 3에서 찾은 결함).
+            pendingRuns.observePending().first { runs -> runs.none { it.recordId == recordId } }
+            applyServer(recordId, showError = false)
         }
     }
+
+    /** 서버 기록을 읽어 상태에 더한다. 읽었으면 true. 실패하면 [showError]일 때만 오류 문구를 보인다. */
+    private suspend fun applyServer(recordId: String, showError: Boolean): Boolean =
+        when (val server = records.run(recordId)) {
+            is Outcome.Success -> {
+                val detail = server.value
+                val summary = detail.summary
+                _state.update {
+                    it.copy(
+                        loading = false,
+                        uploaded = true,
+                        cardKind = summary.cardKind,
+                        startedAt = summary.startedAt,
+                        distance = summary.distance,
+                        elapsed = summary.elapsed,
+                        averagePace = summary.averagePace ?: averagePace(summary.elapsed, summary.distance),
+                        route = detail.route.ifEmpty { it.route },
+                        weather = detail.weather,
+                        calories = detail.calories,
+                        newRecords = detail.newRecords,
+                        heartRateZones = detail.heartRateZones.toList()
+                    )
+                }
+                true
+            }
+
+            is Outcome.Failure -> {
+                _state.update {
+                    it.copy(loading = false, error = if (showError) RunkkErrorText.of(server.error) else it.error)
+                }
+                false
+            }
+        }
 
     private companion object {
         const val LOCAL_WAIT_MILLIS = 3_000L
