@@ -14,11 +14,14 @@ import retrofit2.HttpException
  * - 연결 실패·응답 해독 실패 → Network
  * - 401 → Unauthorized(TokenAuthenticator가 갱신까지 실패한 경우)
  * - 409 + 사유 코드 → Rejected(code). 서버 web.error.ErrorResponse(code, message)의 code를 그대로 쓴다.
- * - 그 밖의 4xx는 본문 code(없으면 HTTP_상태)로 Rejected, 5xx는 Network(잠시 뒤 다시 시도할 수 있는 실패)
+ * - 그 밖의 4xx는 본문 code(없으면 HTTP_상태)로 Rejected, 5xx·408·429는 Network(잠시 뒤 다시 시도할 수 있는 실패)
  */
 object ApiErrorMapper {
     private const val UNAUTHORIZED = 401
     private const val SERVER_ERROR = 500
+
+    /** 잠시 뒤 다시 하면 될 4xx(요청 시간 초과, 요청 과다). 재전송(UploadWorker)이 멈추지 않게 Network로 본다. */
+    private val TRANSIENT = setOf(408, 429)
     private val errorJson = Json { ignoreUnknownKeys = true }
 
     fun toAppError(error: Throwable): AppError = when (error) {
@@ -30,7 +33,7 @@ object ApiErrorMapper {
 
     fun fromHttp(status: Int, body: String?): AppError {
         if (status == UNAUTHORIZED) return AppError.Unauthorized
-        if (status >= SERVER_ERROR) return AppError.Network
+        if (status >= SERVER_ERROR || status in TRANSIENT) return AppError.Network
         return AppError.Rejected(reasonCode(body) ?: "HTTP_$status")
     }
 

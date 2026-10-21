@@ -27,6 +27,8 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * 서버 설정 사본을 DataStore에 보관한다(6.1.14 data.settings, D-53). 앱에서 DataStore를 여는 것은 이 클래스 하나다.
@@ -51,6 +53,13 @@ class DataStoreSettingsRepository internal constructor(
     /** 메모리에 올린 사본. null이면 사본 없음. */
     private val copy = MutableStateFlow<SettingsSnapshot?>(null)
 
+    /** refresh 쓰기와 clear를 차례로 돌린다: 로그아웃 clear 뒤에 늦게 끝난 refresh가 이전 회원의 사본을 되살리지 않게. */
+    private val writing = Mutex()
+
+    /** clear할 때마다 늘린다. clear 전에 시작한 refresh의 결과는 쓰지 않는다. */
+    @Volatile
+    private var generation = 0L
+
     init {
         scope.launch {
             dataStore.data
@@ -60,17 +69,21 @@ class DataStoreSettingsRepository internal constructor(
     }
 
     override suspend fun refresh(): Outcome<Unit> {
+        val startedAt = generation
         val snapshot =
             when (val fetched = remote.fetch()) {
                 is Outcome.Failure -> return fetched
                 is Outcome.Success -> fetched.value
             }
-        return try {
-            dataStore.edit { it.write(snapshot) }
-            copy.value = snapshot
-            Outcome.Success(Unit)
-        } catch (e: IOException) {
-            Outcome.Failure(AppError.Storage)
+        return writing.withLock {
+            if (generation != startedAt) return@withLock Outcome.Success(Unit)
+            try {
+                dataStore.edit { it.write(snapshot) }
+                copy.value = snapshot
+                Outcome.Success(Unit)
+            } catch (e: IOException) {
+                Outcome.Failure(AppError.Storage)
+            }
         }
     }
 
@@ -90,12 +103,15 @@ class DataStoreSettingsRepository internal constructor(
 
     /** 사본을 지운다. 기기 파일을 지우지 못해도 메모리 사본은 안전한 값으로 돌린다. */
     override suspend fun clear(): Outcome<Unit> {
+        generation++
         copy.value = null
-        return try {
-            dataStore.edit { it.clear() }
-            Outcome.Success(Unit)
-        } catch (e: IOException) {
-            Outcome.Failure(AppError.Storage)
+        return writing.withLock {
+            try {
+                dataStore.edit { it.clear() }
+                Outcome.Success(Unit)
+            } catch (e: IOException) {
+                Outcome.Failure(AppError.Storage)
+            }
         }
     }
 

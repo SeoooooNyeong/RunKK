@@ -31,6 +31,7 @@ import java.time.Duration
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -98,10 +99,10 @@ constructor(
             _state.value = BattleRunState.Matched(m)
             val channel = liveChannelProvider.open()
             run.attach(channel)
-            when (val connected = channel.connect()) {
-                is Outcome.Failure -> fail(run, connected.error)
-                is Outcome.Success -> channel.messages.collect { handle(run, it) }
-            }
+            // 연결 직후 오는 메시지(BattleStart 등)를 잃지 않게 연결 전에 구독한다.
+            run.round.scope.launch(start = CoroutineStart.UNDISPATCHED) { channel.messages.collect { handle(run, it) } }
+            val connected = channel.connect()
+            if (connected is Outcome.Failure) fail(run, connected.error)
         }
     }
 

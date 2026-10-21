@@ -11,6 +11,7 @@ import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
+import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * 보관 기록을 서버로 보낸다(6.1.14 data.sync): doWork → UploadPendingRunsUseCase().
@@ -23,8 +24,15 @@ import dagger.hilt.components.SingletonComponent
 class UploadWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
         val graph = EntryPointAccessors.fromApplication(applicationContext, Dependencies::class.java)
-        val outcomes = graph.uploadPendingRuns().invoke()
-        val retryable = outcomes.any { it is UploadOutcome.Failed && it.error !is AppError.Rejected }
+        val retryable =
+            try {
+                graph.uploadPendingRuns().invoke().any { it is UploadOutcome.Failed && it.error !is AppError.Rejected }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // 예상하지 못한 실패도 재전송을 예약해 업로드가 조용히 멈추지 않게 한다.
+                true
+            }
         if (retryable) {
             val attempt = inputData.getInt(KEY_ATTEMPT, 0)
             graph.uploadScheduler().scheduleRetry(attempt + 1, graph.retryPolicy().nextDelay(attempt))

@@ -12,6 +12,7 @@ import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
+import javax.inject.Singleton
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
@@ -26,6 +27,7 @@ import kotlinx.coroutines.flow.map
  *   전송을 요청한다. 서버는 같은 기록ID를 "이미 저장됨"으로 받고(D-11), UploadPendingRunsUseCase가 심박만 덧붙여 보낸다.
  * - 머리 정보도 없으면(하루가 지났거나 탈퇴로 지움) Rejected(RECORD_NOT_FOUND).
  */
+@Singleton
 internal class RoomPendingRunRepository
 @Inject
 constructor(
@@ -70,15 +72,15 @@ constructor(
                 is Outcome.Failure -> return removed
                 is Outcome.Success -> removed.value
             }
-        if (leftLate) uploadScheduler.requestUpload()
+        if (leftLate) requestUploadQuietly()
         return Outcome.Success(Unit)
     }
 
     /** 늦은 심박이 남았으면 참. */
     private suspend fun removeInTransaction(recordId: String): Boolean {
         val now = clock.instant()
-        val handedOut = handedOutHeartRates.remove(recordId)
-        return database.withTransaction {
+        val handedOut = handedOutHeartRates[recordId]
+        val leftLate = database.withTransaction {
             val row = dao.find(recordId)?.takeIf { it.sentAtMillis == null }
             val late =
                 row?.let { found ->
@@ -101,6 +103,9 @@ constructor(
             dao.deleteSentBefore(now.minus(SENT_HEADER_KEPT).toEpochMilli())
             late.isNotEmpty()
         }
+        // 트랜잭션이 끝난 뒤에만 지운다: 실패해 다시 remove할 때도 같은 기준으로 늦은 심박을 가린다.
+        handedOutHeartRates.remove(recordId)
+        return leftLate
     }
 
     override suspend fun purgeRoutes(): Outcome<Unit> = storage { dao.replaceRoutes(EMPTY_BLOB) }
@@ -119,7 +124,7 @@ constructor(
                 is Outcome.Failure -> return appended
                 is Outcome.Success -> appended.value ?: return Outcome.Failure(AppError.Rejected(RECORD_NOT_FOUND))
             }
-        if (revived) uploadScheduler.requestUpload()
+        if (revived) requestUploadQuietly()
         return Outcome.Success(Unit)
     }
 
@@ -133,6 +138,15 @@ constructor(
             dao.upsert(row.copy(heartRates = encodeHeartRates(merged), sentAtMillis = null))
             row.sentAtMillis != null
         }
+
+    /** 전송 요청. 예약이 실패해도(WorkManager 미초기화 등) 보관은 이미 끝났으므로 다음 requestUpload 때 함께 간다. */
+    private fun requestUploadQuietly() {
+        try {
+            uploadScheduler.requestUpload()
+        } catch (e: IllegalStateException) {
+            // 다음 전송 요청 때 함께 보낸다.
+        }
+    }
 
     private suspend fun <T> storage(block: suspend () -> T): Outcome<T> = try {
         Outcome.Success(block())

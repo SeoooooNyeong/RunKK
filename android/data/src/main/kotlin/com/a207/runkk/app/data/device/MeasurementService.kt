@@ -63,7 +63,9 @@ class MeasurementService : LifecycleService() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
-        if (!enterForeground()) {
+        if (!enterForeground() || !locationGranted()) {
+            // 포그라운드로 오르지 못했거나 위치 권한이 없다: 측정 세션을 끝내(거리 0이면 저장하지 않음) 측정 중으로 남지 않게 한다.
+            runTracker.endRun()
             stopSelf()
             return START_NOT_STICKY
         }
@@ -93,15 +95,15 @@ class MeasurementService : LifecycleService() {
         false
     }
 
-    @SuppressLint("MissingPermission") // 바로 위에서 권한을 확인한다.
+    private fun locationGranted(): Boolean =
+        ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED
+
+    @SuppressLint("MissingPermission") // onStartCommand가 locationGranted로 먼저 확인한다.
     private fun startMeasuring() {
         if (ticking != null) return
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) ==
-            PackageManager.PERMISSION_GRANTED
-        ) {
-            val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, INTERVAL_MILLIS).build()
-            locations.requestLocationUpdates(request, callback, Looper.getMainLooper())
-        }
+        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, INTERVAL_MILLIS).build()
+        locations.requestLocationUpdates(request, callback, Looper.getMainLooper())
         ticking =
             lifecycleScope.launch {
                 while (isActive) {

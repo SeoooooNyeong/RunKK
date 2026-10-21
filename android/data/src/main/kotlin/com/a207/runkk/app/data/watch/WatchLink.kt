@@ -25,6 +25,7 @@ import javax.inject.Singleton
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -204,6 +205,9 @@ private class PlayServicesTransport(context: Context, private val scope: Corouti
         messages.addListener(::onMessage)
         data.addListener(::onData)
         scope.launch { quietly { drainPendingHeartRates() } }
+        scope.launch {
+            for ((path, payload) in outbox) quietly { deliver(path, payload) }
+        }
         // 워치 연결·끊김을 알아챈다(워치는 표시 정보가 5초 없으면 끊김으로 보인다).
         scope.launch {
             while (isActive) {
@@ -213,12 +217,19 @@ private class PlayServicesTransport(context: Context, private val scope: Corouti
         }
     }
 
+    /** 보낼 메시지(경로, 내용). 표시 정보는 1초마다 오므로 밀리면 최신 것만 보낸다(순서가 뒤바뀌지 않게 한 코루틴이 보낸다). */
+    private val outbox = Channel<Pair<String, ByteArray>>(Channel.CONFLATED)
+
+    @Volatile
+    private var nodeIds: List<String> = emptyList()
+
     override fun send(path: String, payload: ByteArray) {
-        scope.launch {
-            quietly {
-                refreshNodes().forEach { nodeId -> messages.sendMessage(nodeId, path, payload).await() }
-            }
-        }
+        outbox.trySend(path to payload)
+    }
+
+    private suspend fun deliver(path: String, payload: ByteArray) {
+        val targets = nodeIds.ifEmpty { refreshNodes() }
+        targets.forEach { nodeId -> messages.sendMessage(nodeId, path, payload).await() }
     }
 
     private fun onMessage(event: MessageEvent) {
@@ -242,6 +253,7 @@ private class PlayServicesTransport(context: Context, private val scope: Corouti
 
     private suspend fun refreshNodes(): List<String> {
         val ids = nodes.connectedNodes.await().map { it.id }
+        nodeIds = ids
         connection.value = ids.isNotEmpty()
         return ids
     }

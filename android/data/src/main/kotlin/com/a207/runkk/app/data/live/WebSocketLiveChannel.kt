@@ -57,6 +57,9 @@ class WebSocketLiveChannel internal constructor(
     private var reconnecting: Job? = null
     private var closed = false
 
+    /** 핸드셰이크는 끝났지만 아직 socket에 넣기 전에 끊긴 소켓. connectOrThrow가 넣는 즉시 다시 연결을 잡는다. lock 안에서만 쓴다. */
+    private var lostBeforeAttach: WebSocket? = null
+
     private val incoming =
         MutableSharedFlow<ServerMessage>(extraBufferCapacity = BUFFER, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     override val messages: Flow<ServerMessage> = incoming.asSharedFlow()
@@ -73,7 +76,16 @@ class WebSocketLiveChannel internal constructor(
         synchronized(lock) { if (closed || socket != null) return }
         val opened = handshake()
         synchronized(lock) {
-            if (closed) opened.close(NORMAL_CLOSURE, null) else socket = opened
+            when {
+                closed -> opened.close(NORMAL_CLOSURE, null)
+
+                lostBeforeAttach === opened -> {
+                    lostBeforeAttach = null
+                    scheduleReconnectLocked()
+                }
+
+                else -> socket = opened
+            }
         }
     }
 
@@ -87,6 +99,7 @@ class WebSocketLiveChannel internal constructor(
             synchronized(lock) {
                 closed = true
                 reconnecting?.cancel()
+                reconnecting = null
                 socket.also { socket = null }
             }
         current?.close(NORMAL_CLOSURE, null)
@@ -129,27 +142,40 @@ class WebSocketLiveChannel internal constructor(
         continuation.invokeOnCancellation { webSocket.cancel() }
     }
 
-    /** 연결된 소켓이 끊겼다. 닫는 중이 아니면 다시 연결한다. */
+    /** 연결된 소켓이 끊겼다. 닫는 중이 아니면 다시 연결한다. 아직 붙이기 전의 소켓이면 붙이는 쪽이 처리하도록 표시한다. */
     private fun onLost(lost: WebSocket) {
         synchronized(lock) {
-            if (socket !== lost) return
+            if (socket !== lost) {
+                lostBeforeAttach = lost
+                return
+            }
             socket = null
-            if (closed || reconnecting?.isActive == true) return
-            reconnecting = scope.launch { reconnect() }
+            scheduleReconnectLocked()
         }
     }
 
+    /** 재연결 루프가 없으면 띄운다. 루프가 돌고 있으면 루프가 끝나기 전에 socket을 다시 보므로 띄우지 않는다. lock 안에서만. */
+    private fun scheduleReconnectLocked() {
+        if (closed || reconnecting != null) return
+        reconnecting = scope.launch { reconnect() }
+    }
+
+    /** 연결될 때까지 간격을 두고 다시 연결한다. 끝낼지는 lock 안에서 정해 onLost와 엇갈려도 끊긴 채 남지 않는다. */
     private suspend fun reconnect() {
         var attempt = 0
         while (scope.isActive) {
             delay(RECONNECT_DELAYS_MILLIS.getOrElse(attempt) { RECONNECT_STEADY_MILLIS })
             attempt++
-            synchronized(lock) { if (closed) return }
             try {
                 connectOrThrow()
-                return
             } catch (e: IOException) {
                 // 다음 간격 뒤 다시 시도한다.
+            }
+            synchronized(lock) {
+                if (closed || socket != null) {
+                    reconnecting = null
+                    return
+                }
             }
         }
     }

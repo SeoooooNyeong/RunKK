@@ -123,4 +123,17 @@ class TokenAuthenticatorTest {
         assertEquals(1, server.requestCount)
         assertNull(server.takeRequest().headers["Authorization"])
     }
+
+    @Test
+    fun `갱신 서버가 일시 오류(5xx·429)면 토큰을 지우지 않는다`() = runTest {
+        store.save(SessionTokens("access-1", "refresh-1"))
+        server.enqueue(MockResponse.Builder().code(401).build())
+        server.enqueue(MockResponse.Builder().code(503).build())
+
+        val reply = client.newCall(Request.Builder().url(server.url("/api/v1/dashboard")).build()).execute()
+
+        assertEquals(401, reply.code)
+        assertEquals("refresh-1", store.refreshToken())
+        assertTrue(store.loggedIn.value)
+    }
 }
