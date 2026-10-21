@@ -80,14 +80,12 @@ class FaceImageSource internal constructor(
         outcome
     }
 
+    /** 실패가 하나라도 있으면 첫 실패를 돌려주고, 아니면 부위 순서대로 층을 만든다(반복 안에서 빠져나가지 않는다, N3-3). */
     private fun layersOf(results: List<Outcome<ByteArray>>): Outcome<List<FaceLayer>> {
-        val layers = FacePart.entries.zip(results).map { (part, result) ->
-            when (result) {
-                is Outcome.Failure -> return result
-                is Outcome.Success -> FaceLayer(part, result.value)
-            }
-        }
-        return Outcome.Success(layers)
+        val failure = results.filterIsInstance<Outcome.Failure>().firstOrNull()
+        if (failure != null) return failure
+        val images = results.mapNotNull { if (it is Outcome.Success) it.value else null }
+        return Outcome.Success(FacePart.entries.zip(images) { part, image -> FaceLayer(part, image) })
     }
 
     /** 캐시를 [member]의 것으로 맞춘다. 회원이 바뀌었거나 로그아웃(null)이면 비운다. 로그인 상태면 참. */
