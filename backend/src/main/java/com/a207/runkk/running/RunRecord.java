@@ -34,7 +34,6 @@ public class RunRecord {
             Pattern.compile(
                     "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
     private static final int KM = 1_000;
-    private static final int BINARY_MAX = 16_777_216;
 
     @Id
     @Column(name = "record_id", length = 36)
@@ -91,7 +90,7 @@ public class RunRecord {
     @Column(name = "point_count", nullable = false)
     private int pointCount;
 
-    @Column(name = "route_data", length = BINARY_MAX)
+    @Column(name = "route_data", columnDefinition = "bytea")
     private byte[] routeData;
 
     @Column(name = "route_purged", nullable = false)
@@ -101,7 +100,7 @@ public class RunRecord {
     @Column(name = "unstable_segments", nullable = false, columnDefinition = "text")
     private String unstableSegmentsData;
 
-    @Column(name = "heart_rate_data", length = BINARY_MAX)
+    @Column(name = "heart_rate_data", columnDefinition = "bytea")
     private byte[] heartRateData;
 
     @Column(name = "heart_rate_purged", nullable = false)

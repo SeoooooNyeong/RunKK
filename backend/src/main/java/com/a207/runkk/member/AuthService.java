@@ -1,9 +1,7 @@
 package com.a207.runkk.member;
 
 import com.a207.runkk.common.ReasonCode;
-import java.util.EnumMap;
 import java.util.List;
-import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -17,8 +15,9 @@ public class AuthService {
 
     private static final Logger log = LoggerFactory.getLogger(AuthService.class);
 
-    private final Map<ProviderType, SocialLoginGateway> gateways =
-            new EnumMap<>(ProviderType.class);
+    /** 설계의 Map<ProviderType, SocialLoginGateway>. 제공자는 호출 때 provider()로 고른다(빈 생성 순서와 무관). */
+    private final List<SocialLoginGateway> gateways;
+
     private final MemberRepository memberRepository;
     private final TokenIssuer tokenIssuer;
 
@@ -26,9 +25,7 @@ public class AuthService {
             List<SocialLoginGateway> gateways,
             MemberRepository memberRepository,
             TokenIssuer tokenIssuer) {
-        for (SocialLoginGateway gateway : gateways) {
-            this.gateways.put(gateway.provider(), gateway);
-        }
+        this.gateways = List.copyOf(gateways);
         this.memberRepository = memberRepository;
         this.tokenIssuer = tokenIssuer;
     }
@@ -38,7 +35,8 @@ public class AuthService {
      * signUpRequired.
      */
     public LoginResult login(ProviderType provider, String providerToken) {
-        SocialLoginGateway gateway = gateways.get(provider);
+        SocialLoginGateway gateway =
+                gateways.stream().filter(g -> g.provider() == provider).findFirst().orElse(null);
         if (gateway == null) {
             log.warn("login_failed provider={} reason=gateway_missing", provider);
             return LoginResult.failed(ReasonCode.PROVIDER_UNAVAILABLE);
