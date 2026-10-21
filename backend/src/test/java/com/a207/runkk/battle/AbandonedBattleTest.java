@@ -26,6 +26,7 @@ import com.a207.runkk.running.CurvePoint;
 import com.a207.runkk.running.RunComparison;
 import com.a207.runkk.running.RunCurve;
 import com.a207.runkk.running.RunQueryService;
+import java.sql.SQLException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDate;
@@ -37,6 +38,8 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 
 /**
  * 활성 대결 1개 불변식과 버려진 대결 정리: 시작 보고 없이 10분 지난 기록 대결·출발 시각이 10분 지나도 시작하지 못한 대결은 CANCELLED, 새 기록 대결은 시작
@@ -169,5 +172,30 @@ class AbandonedBattleTest {
                 .extracting(e -> ((BusinessRuleException) e).reason())
                 .isEqualTo(ReasonCode.ALREADY_IN_BATTLE);
         assertThat(battles.findActive(ALICE)).containsExactly(second);
+    }
+
+    private static DataIntegrityViolationException integrityViolation(String sqlState) {
+        return new DataIntegrityViolationException(
+                "could not execute statement", new SQLException("violation", sqlState));
+    }
+
+    @Test
+    @DisplayName(
+            "동시 생성으로 활성 칸 고유 제약(23505)에 걸리면 ALREADY_IN_BATTLE, 다른 무결성 위반(NOT NULL 23502)은 409로 가리지"
+                    + " 않는다(B-L3)")
+    void createConflict_onlyUniqueViolationBecomesAlreadyInBattle() {
+        battles.failNextSave(integrityViolation("23505"));
+        assertThatThrownBy(() -> selfBattle(NOW))
+                .extracting(e -> ((BusinessRuleException) e).reason())
+                .isEqualTo(ReasonCode.ALREADY_IN_BATTLE);
+
+        battles.failNextSave(integrityViolation("23502"));
+        assertThatThrownBy(() -> selfBattle(NOW))
+                .isInstanceOf(DataIntegrityViolationException.class);
+
+        battles.failNextSave(new OptimisticLockingFailureException("같은 이전 대결을 동시에 대신함"));
+        assertThatThrownBy(() -> selfBattle(NOW))
+                .extracting(e -> ((BusinessRuleException) e).reason())
+                .isEqualTo(ReasonCode.ALREADY_IN_BATTLE);
     }
 }
