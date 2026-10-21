@@ -131,9 +131,11 @@ class FakeLocationPermission(var granted: Boolean = true) : LocationPermission {
 class FakeMeasurementHost : MeasurementHost {
     var started = 0
     var stopped = 0
+    var startFailure: AppError? = null
 
-    override fun startForeground() {
+    override fun startForeground(): Outcome<Unit> {
         started++
+        return startFailure?.let { Outcome.Failure(it) } ?: Outcome.Success(Unit)
     }
 
     override fun stop() {
