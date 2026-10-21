@@ -213,10 +213,15 @@ android:lint:
 android:test:
   extends: .android
   stage: test
+  # 단위 시험과 화면 스크린샷 비교(Roborazzi, JVM). 기준 이미지는 android/**/src/test/snapshots에 커밋돼 있고,
+  # 화면을 일부러 바꿨을 때만 recordRoborazziLocalDebug로 다시 기록해 커밋한다.
   script:
-    - ./gradlew testLocalDebugUnitTest
+    - ./gradlew testLocalDebugUnitTest verifyRoborazziLocalDebug
   artifacts:
     when: always
+    # 비교가 실패하면 기준·실제·차이 이미지(*_compare.png)가 build/outputs/roborazzi에 남는다. MR에서 내려받아 본다.
+    paths:
+      - android/**/build/outputs/roborazzi/
     reports:
       junit:
         - android/*/build/test-results/*/TEST-*.xml
