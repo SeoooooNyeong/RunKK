@@ -126,6 +126,19 @@ class CrewRunViewModelTest {
     }
 
     @Test
+    fun `대기실 나가기가 실패하면 머물고 사유를 보인다`() = main.runVmTest { vms ->
+        val w = crewWorld()
+        w.crews.fail["leaveLobby"] = com.a207.runkk.app.core.model.AppError.Network
+        val vm = lobbyVm(w, vms)
+        vm.events.test {
+            vm.onLeaveLobby()
+            expectNoEvents()
+        }
+        assertFalse(vm.state.value.leaving)
+        assertNotNull(vm.state.value.error)
+    }
+
+    @Test
     fun `대기실을 나가면 leaveLobby 뒤 이전 화면으로`() = main.runVmTest { vms ->
         val w = crewWorld()
         val vm = lobbyVm(w, vms)

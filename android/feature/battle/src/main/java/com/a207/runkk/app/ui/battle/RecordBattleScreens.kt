@@ -25,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -32,6 +33,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.a207.runkk.app.core.designsystem.RunkkCard
 import com.a207.runkk.app.core.designsystem.RunkkColors
@@ -60,6 +62,10 @@ import java.time.format.DateTimeFormatter
 fun SelfBattleRoute(viewModel: SelfBattleViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val navigator = LocalRunkkNavigator.current
+    LifecycleResumeEffect(viewModel) {
+        viewModel.onScreenResumed()
+        onPauseOrDispose {}
+    }
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             when (event) {
@@ -115,6 +121,10 @@ fun SelfBattleScreen(
 fun CelebBattleRoute(viewModel: CelebBattleViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val navigator = LocalRunkkNavigator.current
+    LifecycleResumeEffect(viewModel) {
+        viewModel.onScreenResumed()
+        onPauseOrDispose {}
+    }
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             when (event) {
@@ -254,7 +264,11 @@ private fun SelfCandidateCard(candidate: CandidateUi, selected: Boolean, onClick
         borderColor = if (selected) RunkkColors.Lime else RunkkColors.Border,
         background = if (selected) RunkkColors.LimeContainer else RunkkColors.Surface
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier.clearAndSetSemantics { contentDescription = selfSpoken(candidate) }
+        ) {
             Text(
                 label,
                 style = RunkkTextStyles.display(32),
@@ -291,7 +305,11 @@ private fun CelebCandidateCard(candidate: CandidateUi, onClick: () -> Unit) {
         onClick = if (candidate.selectable) onClick else null,
         onClickLabel = "${candidate.name}와 대결하기"
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier.clearAndSetSemantics { contentDescription = celebSpoken(candidate) }
+        ) {
             SdCharacter(size = 48)
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
@@ -312,6 +330,27 @@ private fun CelebCandidateCard(candidate: CandidateUi, onClick: () -> Unit) {
             }
         }
     }
+}
+
+/** 보조 기술용: "5킬로미터, 최고 27분 30초, 2026.10.12, 평균 1킬로미터당 5분 30초". */
+internal fun selfSpoken(c: CandidateUi): String = listOfNotNull(
+    spokenDistance(c.distance),
+    c.finishTime?.let { "최고 " + RunkkFormat.durationSpoken(it) } ?: "아직 기록이 없어요",
+    c.recordedOn?.let(::dateLabel),
+    c.averagePace?.let { "평균 " + RunkkFormat.paceSpoken(it) }
+).joinToString(", ")
+
+internal fun celebSpoken(c: CandidateUi): String = listOfNotNull(
+    c.name,
+    spokenDistance(c.distance),
+    c.finishTime?.let(RunkkFormat::durationSpoken) ?: "기록 없음",
+    sourceLine(c)
+).joinToString(", ")
+
+/** "5K"를 "5킬로미터"로(하프·풀은 그대로). */
+internal fun spokenDistance(distance: Distance): String = when (val label = distanceLabel(distance)) {
+    "하프", "풀" -> "$label 마라톤"
+    else -> "${RunkkFormat.kmShort(distance).removeSuffix(".0")}킬로미터"
 }
 
 /** 출처 줄(FR-100): "공개 기록 기준 · 출처". 구간 기록이 없으면 추정 안내를 붙인다(A-006). */

@@ -11,6 +11,7 @@ import com.a207.runkk.app.domain.avatar.ItemSlot
 import com.a207.runkk.app.domain.avatar.Shop
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
@@ -21,6 +22,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 // ---------- 아바타 만들기(가입 5단계·얼굴 바꾸기) ----------
 
@@ -56,7 +58,7 @@ class AvatarSetupViewModel @Inject constructor(private val avatars: AvatarReposi
                 it.copy(
                     loading = false,
                     canCreateSelfie = avatar?.canCreateSelfieToday ?: true,
-                    selected = DefaultCharacter.of(avatar?.defaultCharacterId)
+                    selected = it.selected ?: DefaultCharacter.of(avatar?.defaultCharacterId)
                 )
             }
         }
@@ -67,25 +69,37 @@ class AvatarSetupViewModel @Inject constructor(private val avatars: AvatarReposi
     /** 셀카 촬영을 취소했거나 사진을 읽지 못했을 때. */
     fun onSelfieUnavailable() = _state.update { it.copy(error = "사진을 받지 못했어요. 다시 찍거나 기본 캐릭터를 골라 주세요") }
 
-    fun onSelfie(jpeg: ByteArray) {
+    /** 찍은 셀카를 줄여(긴 변 1024px·JPEG·1MB) 보낸다. 줄이는 동안에도 다시 누르지 못하게 먼저 working을 켠다. */
+    fun onSelfieCaptured(bitmap: android.graphics.Bitmap) {
         if (_state.value.working) return
         _state.update { it.copy(working = true, error = null) }
         viewModelScope.launch {
-            when (val result = avatars.createFromSelfie(jpeg)) {
-                is Outcome.Success -> {
-                    _state.update { it.copy(working = false) }
-                    _events.trySend(AvatarSetupEvent.Done)
-                }
+            val jpeg = withContext(Dispatchers.Default) { SelfieEncoder.encode(bitmap) }
+            upload(jpeg)
+        }
+    }
 
-                is Outcome.Failure -> {
-                    val code = (result.error as? AppError.Rejected)?.code
-                    _state.update {
-                        it.copy(
-                            working = false,
-                            canCreateSelfie = it.canCreateSelfie && code !in SELFIE_BLOCKED,
-                            error = AvatarErrorText.of(result.error)
-                        )
-                    }
+    fun onSelfie(jpeg: ByteArray) {
+        if (_state.value.working) return
+        _state.update { it.copy(working = true, error = null) }
+        viewModelScope.launch { upload(jpeg) }
+    }
+
+    private suspend fun upload(jpeg: ByteArray) {
+        when (val result = avatars.createFromSelfie(jpeg)) {
+            is Outcome.Success -> {
+                _state.update { it.copy(working = false) }
+                _events.trySend(AvatarSetupEvent.Done)
+            }
+
+            is Outcome.Failure -> {
+                val code = (result.error as? AppError.Rejected)?.code
+                _state.update {
+                    it.copy(
+                        working = false,
+                        canCreateSelfie = it.canCreateSelfie && code !in SELFIE_BLOCKED,
+                        error = AvatarErrorText.of(result.error)
+                    )
                 }
             }
         }
@@ -162,6 +176,14 @@ class AvatarViewModel @Inject constructor(private val avatars: AvatarRepository)
                 }
             }
         }
+    }
+
+    private var resumedOnce = false
+
+    /** 상점·얼굴 바꾸기에서 돌아오면 다시 읽는다(처음 표시는 init이 읽는다). */
+    fun onResumed() {
+        if (resumedOnce) load()
+        resumedOnce = true
     }
 
     fun onSlot(slot: ItemSlot) = _state.update { it.copy(slot = slot) }
@@ -248,7 +270,9 @@ class ShopViewModel @Inject constructor(private val avatars: AvatarRepository) :
     fun onBuy() {
         val item = _state.value.confirming ?: return
         if (_state.value.buying) return
-        _state.update { it.copy(confirming = null, buying = true) }
+        // 늦게 끝난 목록 읽기가 구매로 바뀐 보유 표시를 되돌리지 않게 진행 중인 읽기를 멈춘다.
+        job?.cancel()
+        _state.update { it.copy(confirming = null, buying = true, loading = false) }
         viewModelScope.launch {
             when (val result = avatars.purchase(item.itemId)) {
                 is Outcome.Success -> {

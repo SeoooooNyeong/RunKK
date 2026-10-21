@@ -96,21 +96,43 @@ class BattleRunningViewModel @Inject constructor(
     private var tickJob: Job? = null
     private var guidanceJob: Job? = null
     private var hintJob: Job? = null
+    private val bindJobs = mutableListOf<Job>()
 
-    /** 진행 화면 인자를 받아 조정자 상태 구독을 시작한다. 같은 대결로 다시 부르면 무시한다. */
+    /**
+     * 진행 화면 인자를 받아 조정자 상태 구독을 시작한다. 같은 대결로 다시 부르면 무시한다.
+     * 조정자가 이 대결을 모르면(프로세스가 다시 떠 백 스택만 복원된 경우) [STALE_MILLIS] 뒤 실패 화면으로 바꿔 빠져나갈 수 있게 한다.
+     */
     fun bind(key: Routes.BattleRunning) {
         if (bound == key.battleId) return
         bound = key.battleId
+        bindJobs.forEach { it.cancel() }
+        bindJobs.clear()
+        tickJob?.cancel()
+        startedAt = key.startAtEpochMillis?.let(Instant::ofEpochMilli)
+        closesAt = null
+        countdownTo = null
+        sawRunning = false
+        lastGuidanceSeen = null
         _state.value = BattleRunningUiState(
             battleId = key.battleId,
             opponentName = key.opponentName,
             distance = Distance(key.distanceMeters),
             kind = OpponentKind.of(key.opponentKind)
         )
-        viewModelScope.launch { coordinator.state.collect(::onCoordinator) }
-        viewModelScope.launch {
+        bindJobs += viewModelScope.launch { coordinator.state.collect(::onCoordinator) }
+        bindJobs += viewModelScope.launch {
             coordinator.failure.collect { error ->
                 if (error != null) _state.update { it.copy(error = BattleErrorText.of(error)) }
+            }
+        }
+        bindJobs += viewModelScope.launch {
+            delay(STALE_MILLIS)
+            _state.update {
+                if (it.phase == BattlePhase.STARTING) {
+                    it.copy(phase = BattlePhase.FAILED, error = it.error ?: "대결 정보를 찾지 못했어요. 이미 끝난 대결일 수 있어요")
+                } else {
+                    it
+                }
             }
         }
     }
@@ -157,7 +179,8 @@ class BattleRunningViewModel @Inject constructor(
                 val overtook = if (changed && s.lastGuidance == BattleGuidance.Kind.OVERTOOK) 1 else 0
                 _state.update {
                     it.copy(
-                        phase = BattlePhase.RUNNING,
+                        // 종료 카운트다운이 시작되면 조정자가 진행값을 계속 보내도 CLOSING을 유지한다(FR-107).
+                        phase = if (it.phase == BattlePhase.CLOSING) BattlePhase.CLOSING else BattlePhase.RUNNING,
                         countdown = null,
                         gapMeters = s.gapMeters ?: it.gapMeters,
                         opponentDistance = s.opponentDistance ?: it.opponentDistance,
@@ -170,6 +193,7 @@ class BattleRunningViewModel @Inject constructor(
 
             is BattleRunState.Closing -> if (s.battleId == battleId) {
                 closesAt = s.endsAt
+                sawRunning = true
                 _state.update { it.copy(phase = BattlePhase.CLOSING, arrivedName = s.arrivedName) }
                 tick()
             }
@@ -248,5 +272,6 @@ class BattleRunningViewModel @Inject constructor(
         const val GUIDANCE_MILLIS = 5_000L
         const val HINT_MILLIS = 2_500L
         const val FORFEIT_HINT = "길게 눌러 그만두기"
+        const val STALE_MILLIS = 5_000L
     }
 }

@@ -116,6 +116,9 @@ abstract class RecordBattleViewModel(
 
     fun onMessageShown() = mutableState.update { it.copy(message = null) }
 
+    /** 화면에 다시 돌아왔을 때(대결을 마치고 탭으로 복귀). */
+    fun onScreenResumed() = mutableState.update { it.copy(starting = false) }
+
     /** 고른 후보로 대결을 시작한다. 이미 시작 중이면 무시한다. */
     fun onStart() {
         val s = mutableState.value
@@ -127,7 +130,7 @@ abstract class RecordBattleViewModel(
                 is Outcome.Success -> {
                     val start = started.value
                     coordinator.onRecordBattleStart(start)
-                    mutableState.update { it.copy(starting = false) }
+                    // 진행 화면으로 넘어갈 때까지 다시 누르지 못하게 starting을 둔다. 화면에 돌아오면 onScreenResumed가 푼다.
                     _events.trySend(
                         RecordBattleEvent.Start(
                             Routes.BattleRunning(start.battleId, start.opponentName, start.distance.meters, kind.name)

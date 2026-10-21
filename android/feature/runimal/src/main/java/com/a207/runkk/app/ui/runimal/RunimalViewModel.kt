@@ -102,7 +102,10 @@ class RunimalViewModel internal constructor(
         _state.update { it.copy(loading = true, error = null) }
         job = viewModelScope.launch {
             when (val result = runimal.status()) {
-                is Outcome.Success -> _state.update { it.copy(loading = false, status = result.value) }
+                // 유형이 바뀌었을 수 있어 그려 둔 카드는 버린다.
+                is Outcome.Success -> _state.update {
+                    it.copy(loading = false, status = result.value, cardImage = null)
+                }
 
                 is Outcome.Failure -> _state.update {
                     it.copy(loading = false, error = RunkkErrorText.of(result.error))
@@ -118,16 +121,20 @@ class RunimalViewModel internal constructor(
         if (s.sharing || !s.canShare) return
         _state.update { it.copy(sharing = true) }
         viewModelScope.launch {
-            val image = s.cardImage ?: when (val card = runimal.card()) {
-                is Outcome.Success -> withContext(renderDispatcher) { renderer.render(card.value) }
-
-                is Outcome.Failure -> {
-                    _state.update { it.copy(sharing = false, message = shareError(card.error)) }
-                    return@launch
+            var message: String? = null
+            var image: Bitmap? = s.cardImage
+            try {
+                if (image == null) {
+                    when (val card = runimal.card()) {
+                        is Outcome.Success -> image = withContext(renderDispatcher) { renderer.render(card.value) }
+                        is Outcome.Failure -> message = shareError(card.error)
+                    }
                 }
+                image?.let { message = messageOf(sharer.share(it, CardSide.FRONT, targets.of(kind))) }
+            } finally {
+                // 그리기·공유가 예외로 끝나도 공유 중 표시를 풀어 다시 누를 수 있게 한다.
+                _state.update { it.copy(sharing = false, cardImage = image ?: it.cardImage, message = message) }
             }
-            val outcome = sharer.share(image, CardSide.FRONT, targets.of(kind))
-            _state.update { it.copy(sharing = false, cardImage = image, message = messageOf(outcome)) }
         }
     }
 

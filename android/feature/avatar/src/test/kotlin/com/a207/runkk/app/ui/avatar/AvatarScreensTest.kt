@@ -65,7 +65,7 @@ class AvatarScreensTest {
         }
         compose.onNodeWithContentDescription("아바타, 기본 캐릭터 · 여우, 체형 탄탄해지는 중, 상의 라임 러닝 티").assertExists()
         compose.onNodeWithText("라벤더 싱글렛").performClick()
-        compose.onNodeWithContentDescription("리워드 잔액 1240, 상점 열기").performClick()
+        compose.onNodeWithContentDescription("리워드 잔액 1,240, 상점 열기").performClick()
         compose.onNodeWithText("얼굴 바꾸기").performClick()
         assertEquals(listOf("toggle:2", "shop", "face"), calls)
     }

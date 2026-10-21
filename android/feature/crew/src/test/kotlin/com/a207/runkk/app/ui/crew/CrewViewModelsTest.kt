@@ -144,11 +144,14 @@ class CrewHomeViewModelTest {
     }
 
     @Test
-    fun `내 글만 지운다(FR-130)`() {
+    fun `내 글만, 확인을 받은 뒤 지운다(FR-130)`() {
         val vm = vm()
         vm.onTab(CrewTab.CHEER)
-        vm.onDeletePost(cheers.posts[0])
-        vm.onDeletePost(cheers.posts[1])
+        vm.onDeleteAsk(cheers.posts[0])
+        assertNull(vm.state.value.confirmDelete, "남의 글은 묻지도 않는다")
+        vm.onDeleteAsk(cheers.posts[1])
+        assertTrue(repo.calls.none { it.startsWith("deletePost") })
+        vm.onDeleteConfirm()
         assertEquals(listOf("deletePost:42"), repo.calls.filter { it.startsWith("deletePost") })
     }
 
@@ -245,6 +248,16 @@ class CrewManageViewModelTest {
             vm.onConfirm()
             assertEquals(CrewManageEvent.Deleted, awaitItem())
         }
+    }
+
+    @Test
+    fun `정보 수정이 거부되면 제목을 바꾸지 않는다`() {
+        repo.fail["changeInfo"] = AppError.Rejected("CREW_NAME_TAKEN")
+        val vm = vm()
+        vm.onForm(vm.state.value.form.copy(name = "겹치는이름", tags = setOf("DAWN")))
+        vm.onSaveInfo()
+        assertEquals("새벽질주", vm.state.value.crewName)
+        assertEquals("이미 있는 크루명이에요", vm.state.value.message)
     }
 
     @Test

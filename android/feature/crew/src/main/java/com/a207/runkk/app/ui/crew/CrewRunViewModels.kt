@@ -130,6 +130,7 @@ data class CrewRunUiState(
     val relay: List<RelayRow> = emptyList(),
     val cancelledReason: String? = null,
     val confirmingQuit: Boolean = false,
+    val leaving: Boolean = false,
     val hint: String? = null,
     val busy: Boolean = false,
     val error: String? = null
@@ -167,7 +168,9 @@ class CrewRunViewModel @Inject constructor(
         bound = key.postId
         _state.value = CrewRunUiState(postId = key.postId, distance = key.distanceMeters?.let(::Distance))
         enter()
-        viewModelScope.launch { coordinator.state.collect(::onCoordinator) }
+        // 들어올 때 이미 이 크루런의 Finished가 남아 있으면(지난 회의 잔재) 무시한다.
+        val stale = (coordinator.state.value as? CrewRunState.Finished)?.takeIf { it.postId == key.postId }
+        viewModelScope.launch { coordinator.state.collect { if (it !== stale) onCoordinator(it) } }
         viewModelScope.launch {
             coordinator.failure.collect { e -> if (e != null) _state.update { it.copy(error = CrewErrorText.of(e)) } }
         }
@@ -189,6 +192,8 @@ class CrewRunViewModel @Inject constructor(
                         )
                     }
                     val distance = s.distance
+                    // 내 표시명을 알려 주는 포트가 없어(크루 대기실·크루원 응답에 본인 표시 없음) 빈 이름을 넘긴다.
+                    // 그래서 1km 순위 음성 안내(FR-190)는 통합 뒤 내 표시명 포트가 생길 때까지 동작하지 않는다(보고서 포트 변경 목록).
                     if (first && distance != null) coordinator.onLobbyEntered(s.postId, distance, myName = "")
                     if (first && distance == null) {
                         _state.update { it.copy(error = "크루런 거리를 받지 못해 출발할 수 없어요. 크루런 탭에서 다시 들어와 주세요") }
@@ -214,12 +219,16 @@ class CrewRunViewModel @Inject constructor(
         }
     }
 
-    /** 대기실 나가기. */
+    /** 대기실 나가기. 성공하면 이전 화면으로, 실패하면 사유를 보인다. */
     fun onLeaveLobby() {
-        val postId = _state.value.postId
+        val s = _state.value
+        if (s.leaving) return
+        _state.update { it.copy(leaving = true) }
         viewModelScope.launch {
-            crews.leaveLobby(postId)
-            _events.trySend(CrewRunEvent.Left)
+            when (val r = crews.leaveLobby(s.postId)) {
+                is Outcome.Success -> _events.trySend(CrewRunEvent.Left)
+                is Outcome.Failure -> _state.update { it.copy(leaving = false, error = CrewErrorText.of(r.error)) }
+            }
         }
     }
 
@@ -342,12 +351,14 @@ class CrewRunResultViewModel @Inject constructor(
     private val _state = MutableStateFlow(CrewRunResultUiState())
     val state: StateFlow<CrewRunResultUiState> = _state.asStateFlow()
     private var loaded: Long? = null
+    private var job: Job? = null
 
     fun load(postId: Long, force: Boolean = false) {
         if (!force && loaded == postId) return
         loaded = postId
+        job?.cancel()
         _state.update { it.copy(loading = true, error = null) }
-        viewModelScope.launch {
+        job = viewModelScope.launch {
             when (val r = crews.crewRunResult(postId)) {
                 is Outcome.Success -> {
                     _state.update { it.copy(loading = false, result = r.value) }

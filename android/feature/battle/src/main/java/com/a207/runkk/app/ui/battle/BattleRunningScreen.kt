@@ -232,6 +232,7 @@ private fun ColumnScope.Running(state: BattleRunningUiState) {
                 "남은 거리",
                 RunkkFormat.km(state.distance.minus(state.myDistance)),
                 unit = "KM",
+                spoken = "${RunkkFormat.km(state.distance.minus(state.myDistance))}킬로미터",
                 centered = true,
                 valueStyle = RunkkTextStyles.DisplaySmall,
                 modifier = Modifier.weight(1f)
@@ -259,24 +260,31 @@ private fun ColumnScope.Running(state: BattleRunningUiState) {
 @Composable
 private fun GuidanceBanner(state: BattleRunningUiState) {
     if (state.phase == BattlePhase.CLOSING) {
-        Text(
-            "${state.arrivedName ?: "상대"} 도착! ${state.closingSeconds ?: 0}초 안에 도착하지 못하면 대결이 끝나요",
-            style = RunkkTextStyles.text(15, FontWeight.Black),
-            color = RunkkColors.OnLime,
+        // 바뀌는 초는 보이기만 하고, 보조 기술에는 고정 문구를 한 번 알린다(매초 끊어 읽지 않게).
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RunkkShapes.Medium)
                 .background(RunkkColors.Lavender)
                 .padding(16.dp)
-                .semantics { liveRegion = LiveRegionMode.Assertive }
-        )
+                .clearAndSetSemantics {
+                    contentDescription = "${state.arrivedName ?: "상대"} 도착. 제한 시간 안에 도착하지 못하면 대결이 끝나요"
+                    liveRegion = LiveRegionMode.Assertive
+                }
+        ) {
+            Text(
+                "${state.arrivedName ?: "상대"} 도착! ${state.closingSeconds ?: 0}초 안에 도착하지 못하면 대결이 끝나요",
+                style = RunkkTextStyles.text(15, FontWeight.Black),
+                color = RunkkColors.OnLime
+            )
+        }
         return
     }
     when (state.guidance) {
         BattleGuidance.Kind.OVERTOOK -> RunkkBanner(
             if (state.kind == OpponentKind.SELF) "과거의 나를 앞질렀어요" else "추월했어요!",
             strong = true,
-            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+            modifier = Modifier.semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }
         )
 
         BattleGuidance.Kind.OVERTAKEN -> Text(

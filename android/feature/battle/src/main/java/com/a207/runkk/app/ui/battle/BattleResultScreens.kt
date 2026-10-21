@@ -221,7 +221,7 @@ private fun TableRow(item: String, mine: String, theirs: String, header: Boolean
             .fillMaxWidth()
             .padding(16.dp)
             .semantics(mergeDescendants = true) {
-                if (!header) contentDescription = "$item, 나 $mine, 상대 $theirs"
+                if (!header) contentDescription = "$item, 나 ${spokenValue(item, mine)}, 상대 ${spokenValue(item, theirs)}"
             },
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -246,6 +246,16 @@ private fun androidx.compose.foundation.layout.RowScope.Cell(text: String, heade
         modifier = Modifier.weight(1f)
     )
 }
+
+/** 비교표 값 읽기: "27:30" → "27분 30초", 페이스·1km 항목은 "1킬로미터당 …". 그 밖은 그대로. */
+internal fun spokenValue(item: String, value: String): String {
+    val parts = TIME_VALUE.matchEntire(value)?.groupValues ?: return value
+    val (a, b, c) = Triple(parts[1].toInt(), parts[2].toInt(), parts[3].toIntOrNull())
+    val text = if (c != null) "${a}시간 ${b}분 ${c}초" else "${a}분 ${b}초"
+    return if ("페이스" in item || "1km" in item) "1킬로미터당 $text" else text
+}
+
+private val TIME_VALUE = Regex("""(\d+):(\d{2})(?::(\d{2}))?""")
 
 /** 숫자는 Barlow, "공개 안 됨" 같은 한글은 본문 글꼴. */
 private fun cellStyle(text: String) =

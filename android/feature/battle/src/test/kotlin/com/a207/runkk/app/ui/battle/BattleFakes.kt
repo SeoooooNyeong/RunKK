@@ -112,8 +112,12 @@ class FakeBattleRepository : BattleRepository {
         return match
     }
 
+    /** 있으면 취소 응답을 이 신호까지 늦춘다(성사와 취소의 경쟁 시험). */
+    var cancelGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+
     override suspend fun cancel(): Outcome<MatchAcceptance> {
         calls += "cancel"
+        cancelGate?.await()
         return cancelResult
     }
 
@@ -173,10 +177,12 @@ class FakeLiveChannel : LiveChannel {
     val sent = mutableListOf<ProgressReport>()
     var connects = 0
     var closed = 0
+    var connectError: Exception? = null
     private val flow = MutableSharedFlow<ServerMessage>(extraBufferCapacity = 64)
 
     override suspend fun connect() {
         connects++
+        connectError?.let { throw it }
     }
 
     override fun send(m: ProgressReport) {

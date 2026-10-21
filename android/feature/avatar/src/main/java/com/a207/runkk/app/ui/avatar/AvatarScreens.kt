@@ -30,7 +30,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,6 +47,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.a207.runkk.app.core.designsystem.RunkkBadge
 import com.a207.runkk.app.core.designsystem.RunkkBadgeTone
@@ -76,9 +76,6 @@ import com.a207.runkk.app.domain.avatar.Avatar
 import com.a207.runkk.app.domain.avatar.ItemSlot
 import com.a207.runkk.app.domain.avatar.Shop
 import java.util.Locale
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 // ---------- 아바타 만들기 ----------
 
@@ -87,7 +84,6 @@ import kotlinx.coroutines.withContext
 fun AvatarSetupRoute(viewModel: AvatarSetupViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val navigator = LocalRunkkNavigator.current
-    val scope = rememberCoroutineScope()
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             when (event) {
@@ -99,10 +95,7 @@ fun AvatarSetupRoute(viewModel: AvatarSetupViewModel = hiltViewModel()) {
         if (bitmap == null) {
             viewModel.onSelfieUnavailable()
         } else {
-            scope.launch {
-                val jpeg = withContext(Dispatchers.Default) { SelfieEncoder.encode(bitmap) }
-                viewModel.onSelfie(jpeg)
-            }
+            viewModel.onSelfieCaptured(bitmap)
         }
     }
     AvatarSetupScreen(
@@ -250,6 +243,11 @@ private fun CharacterOption(
 /** 아바타 꾸미기. 상점·얼굴 바꾸기로 간다. */
 @Composable
 fun AvatarRoute(viewModel: AvatarViewModel = hiltViewModel()) {
+    // 상점·얼굴 바꾸기에서 돌아오면 다시 읽는다.
+    LifecycleResumeEffect(viewModel) {
+        viewModel.onResumed()
+        onPauseOrDispose {}
+    }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val navigator = LocalRunkkNavigator.current
     AvatarScreen(
@@ -376,7 +374,9 @@ private fun Balance(balance: Int?, onShop: () -> Unit) {
         balance?.let { String.format(Locale.US, "%,d", it) } ?: "-",
         onClick = onShop,
         leadingIcon = RunkkIcons.Bolt,
-        modifier = Modifier.semantics { contentDescription = "리워드 잔액 ${balance ?: 0}, 상점 열기" }
+        modifier = Modifier.semantics {
+            contentDescription = "리워드 잔액 ${balance?.let { String.format(Locale.US, "%,d", it) } ?: "-"}, 상점 열기"
+        }
     )
 }
 
@@ -627,7 +627,17 @@ fun ShopScreen(
 private fun ShopTile(item: Shop.Item, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val buyable = !item.owned && item.onSale
     RunkkCard(
-        modifier = modifier.semantics { if (item.owned) stateDescription = "보유" },
+        modifier = modifier.semantics(mergeDescendants = true) {
+            contentDescription = listOf(
+                item.name,
+                item.slot.label,
+                when {
+                    item.owned -> "보유"
+                    !item.onSale -> "판매 종료"
+                    else -> "${item.price} 리워드"
+                }
+            ).joinToString(", ")
+        },
         onClick = if (buyable) onClick else null,
         onClickLabel = "${item.name} 사기"
     ) {

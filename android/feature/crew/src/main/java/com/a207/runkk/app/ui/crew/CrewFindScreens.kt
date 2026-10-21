@@ -27,7 +27,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -134,7 +137,11 @@ fun CrewFindScreen(state: CrewFindUiState, actions: CrewFindActions, modifier: M
                         modifier = Modifier.weight(1f).semantics { heading() }
                     )
                     RunkkPillButton("초대 코드", onClick = actions.onInviteOpen)
-                    CrewLimePill("+ 만들기", onClick = actions.onCreate)
+                    CrewLimePill(
+                        "+ 만들기",
+                        onClick = actions.onCreate,
+                        modifier = Modifier.semantics { contentDescription = "크루 만들기" }
+                    )
                 }
             }
             item {
@@ -162,7 +169,15 @@ fun CrewFindScreen(state: CrewFindUiState, actions: CrewFindActions, modifier: M
                 item { ForYouCard(top, onOpen = { actions.onOpen(top) }, onJoin = { actions.onJoin(top) }) }
             }
             item {
-                Text("공개 크루 · 최신순", style = RunkkTextStyles.text(13, FontWeight.Bold), color = RunkkColors.TextPrimary)
+                Text(
+                    if (state.loading) "공개 크루 · 최신순" else "공개 크루 ${state.crews.size}개 · 최신순",
+                    style = RunkkTextStyles.text(13, FontWeight.Bold),
+                    color = RunkkColors.TextPrimary,
+                    modifier = Modifier.semantics {
+                        heading()
+                        liveRegion = LiveRegionMode.Polite
+                    }
+                )
             }
             when {
                 state.loading && state.crews.isEmpty() -> item {
@@ -392,6 +407,14 @@ fun CrewCreateScreen(
             }
         }
         HorizontalDivider(color = RunkkColors.Border)
+        if (!state.form.valid) {
+            Text(
+                "크루명 2~20자와 성향 태그 1개 이상을 채우면 만들 수 있어요",
+                style = RunkkTextStyles.Caption,
+                color = RunkkColors.TextSecondary,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp)
+            )
+        }
         RunkkPrimaryButton(
             "크루 만들기",
             onClick = onSubmit,

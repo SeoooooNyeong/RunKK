@@ -158,4 +158,41 @@ class BattleRunningViewModelTest {
         assertEquals(BattlePhase.RUNNING, vm.state.value.phase)
         assertEquals(OpponentKind.SELF, vm.state.value.kind)
     }
+
+    @Test
+    fun `종료 카운트다운 중 진행값이 와도 CLOSING을 유지한다(FR-107)`() = main.runVmTest { vms ->
+        val w = world()
+        val vm = running(w, vms)
+        w.channels.channel.push(CountdownStarted(9, "바람처럼", w.clock.now.plusSeconds(10)))
+        runCurrent()
+        w.channels.channel.push(progress(gap = -30, theirs = 5_000))
+        runCurrent()
+        assertEquals(BattlePhase.CLOSING, vm.state.value.phase)
+    }
+
+    @Test
+    fun `조정자가 이 대결을 모르면 잠시 뒤 실패 화면으로 빠져나갈 수 있다`() = main.runVmTest { vms ->
+        val w = world()
+        val vm = vms.track(BattleRunningViewModel(w.coordinator, w.clock))
+        vm.bind(key)
+        runCurrent()
+        assertEquals(BattlePhase.STARTING, vm.state.value.phase)
+        advanceTimeBy(5_100)
+        assertEquals(BattlePhase.FAILED, vm.state.value.phase)
+    }
+
+    @Test
+    fun `매칭 화면이 넘긴 시작 시각으로 경과를 센다`() = main.runVmTest { vms ->
+        val w = world()
+        val match = matchFound()
+        w.coordinator.onMatched(match)
+        runCurrent()
+        w.channels.channel.push(BattleStart(match.battleId, w.clock.now, opponentTrack = null))
+        runCurrent()
+        w.clock.now = w.clock.now.plusSeconds(20)
+        val vm = vms.track(BattleRunningViewModel(w.coordinator, w.clock))
+        vm.bind(key.copy(startAtEpochMillis = start.toEpochMilli()))
+        runCurrent()
+        assertEquals(Duration.ofSeconds(20), vm.state.value.elapsed)
+    }
 }

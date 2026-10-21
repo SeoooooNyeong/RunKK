@@ -13,7 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
@@ -26,11 +26,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -325,7 +328,10 @@ private fun ColumnScope.LobbyBody(state: CrewRunUiState, actions: CrewRunActions
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) {},
+            modifier = Modifier.fillMaxWidth().clearAndSetSemantics {
+                contentDescription =
+                    "출발까지 ${state.untilStart?.let(RunkkFormat::durationSpoken) ?: "확인 중"}, ${meetLabel(lobby.meetAt)}"
+            },
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
@@ -374,11 +380,21 @@ private fun ColumnScope.LobbyBody(state: CrewRunUiState, actions: CrewRunActions
         onClick = actions.onReady,
         enabled = state.distance != null,
         loading = state.busy,
-        modifier = Modifier.fillMaxWidth()
+        // 다시 누르면 풀리는 켬/끔이라 스위치로 알린다.
+        modifier = Modifier.fillMaxWidth().semantics {
+            role = Role.Switch
+            stateDescription = if (state.ready) "준비 완료, 다시 누르면 풀려요" else "준비 전"
+        }
     )
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         RunkkSecondaryButton("새로 고침", onClick = actions.onRefresh, modifier = Modifier.weight(1f), height = 48.dp)
-        RunkkSecondaryButton("대기실 나가기", onClick = actions.onLeave, modifier = Modifier.weight(1f), height = 48.dp)
+        RunkkSecondaryButton(
+            "대기실 나가기",
+            onClick = actions.onLeave,
+            enabled = !state.leaving,
+            modifier = Modifier.weight(1f),
+            height = 48.dp
+        )
     }
 }
 
@@ -458,7 +474,7 @@ private fun ColumnScope.RelayBody(state: CrewRunUiState) {
                         row.rank?.toString() ?: "-",
                         style = RunkkTextStyles.display(24),
                         color = if (row.rank == 1) RunkkColors.Lime else RunkkColors.TextSecondary,
-                        modifier = Modifier.width(24.dp)
+                        modifier = Modifier.widthIn(min = 24.dp)
                     )
                     Text(
                         row.name,
@@ -602,7 +618,7 @@ private fun ResultBody(state: CrewRunResultUiState, result: CrewRunResult) {
                 f.rank?.toString() ?: "-",
                 style = RunkkTextStyles.display(24),
                 color = if (f.rank == 1) RunkkColors.Lime else RunkkColors.TextSecondary,
-                modifier = Modifier.width(24.dp)
+                modifier = Modifier.widthIn(min = 24.dp)
             )
             Text(
                 f.displayName,

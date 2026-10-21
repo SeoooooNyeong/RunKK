@@ -165,6 +165,16 @@ class RunimalViewModelTest {
     }
 
     @Test
+    fun `다시 불러오면 그려 둔 카드를 버린다(유형이 바뀌었을 수 있다)`() {
+        val v = vm()
+        v.onShare(RunimalShareKind.SAVE)
+        v.awaitShared()
+        assertNotNull(v.state.value.cardImage)
+        v.load()
+        assertNull(v.state.value.cardImage)
+    }
+
+    @Test
     fun `유형 카드가 거부되면 안내한다`() {
         repo.cardResult = Outcome.Failure(AppError.Rejected("NO_TYPE"))
         val v = vm()

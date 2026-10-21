@@ -10,7 +10,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -30,6 +30,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -251,11 +252,14 @@ private fun AllTypes(status: RunimalStatus) {
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .height(56.dp)
+                    .heightIn(min = 56.dp)
                     .clip(RunkkShapes.Medium)
                     .background(if (mine) RunkkColors.LimeContainer else RunkkColors.Surface)
                     .border(1.dp, if (mine) RunkkColors.Lime else RunkkColors.Border, RunkkShapes.Medium)
-                    .semantics { selected = mine }
+                    .semantics(mergeDescendants = true) {
+                        selected = mine
+                        if (mine) stateDescription = "내 유형"
+                    }
                     .padding(horizontal = 12.dp),
                 contentAlignment = Alignment.CenterStart
             ) {

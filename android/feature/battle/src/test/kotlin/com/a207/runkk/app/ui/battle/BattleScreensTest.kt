@@ -39,7 +39,7 @@ class BattleScreensTest {
             }
         }
         compose.onNodeWithText("거리를 골라 주세요").assertIsNotEnabled()
-        compose.onNodeWithText("최고 16:00").performClick()
+        compose.onNodeWithContentDescription("3킬로미터, 최고 16분 0초", substring = true).performClick()
         compose.onNodeWithContentDescription("함께 달린 기록").performClick()
         assertEquals(listOf("select:3000", "history"), calls)
     }
@@ -127,7 +127,7 @@ class BattleScreensTest {
         compose.onNodeWithContentDescription("함께 달린 기록 보기").performClick()
         compose.onNodeWithText("기록 카드").performClick()
         compose.onNodeWithText("홈으로").performClick()
-        compose.onNodeWithContentDescription("기록, 나 27:30, 상대 28:12").assertExists()
+        compose.onNodeWithContentDescription("기록, 나 27분 30초, 상대 28분 12초").assertExists()
         assertEquals(listOf("history", "card", "home"), calls)
     }
 }

@@ -13,6 +13,7 @@ import com.a207.runkk.app.domain.crew.RaceStatus
 import com.a207.runkk.app.domain.crew.VoteAnswer
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -40,6 +41,8 @@ data class CrewHomeUiState(
     /** 내가 고른 참여 응답(이 화면에서 보낸 것). 서버 목록에 내 응답 항목이 아직 없다. */
     val votes: Map<Long, VoteAnswer> = emptyMap(),
     val confirmLeave: Boolean = false,
+    /** 지울지 확인 중인 내 글(FR-130·FR-134). */
+    val confirmDelete: PostList.Item? = null,
     val editingIntro: Boolean = false,
     val introDraft: String = "",
     val busy: Boolean = false,
@@ -72,12 +75,21 @@ class CrewHomeViewModel @Inject constructor(private val crews: CrewRepository) :
     val events: Flow<CrewHomeEvent> = _events.receiveAsFlow()
 
     private var bound: Long? = null
+    private var refreshJob: Job? = null
 
     fun bind(key: Routes.CrewHome) {
         if (bound == key.crewId) return
         bound = key.crewId
         _state.value = CrewHomeUiState(crewId = key.crewId, crewName = key.crewName)
         refresh()
+    }
+
+    private var resumedOnce = false
+
+    /** 화면에 돌아올 때(관리·모집에서 복귀) 지금 탭을 다시 읽는다. 처음 표시는 bind가 읽는다. */
+    fun onResumed() {
+        if (resumedOnce && bound != null) refresh()
+        resumedOnce = true
     }
 
     fun onTab(tab: CrewTab) {
@@ -95,8 +107,9 @@ class CrewHomeViewModel @Inject constructor(private val crews: CrewRepository) :
     /** 지금 탭을 다시 읽는다. */
     fun refresh() {
         val s = _state.value
+        refreshJob?.cancel()
         _state.update { it.copy(loading = true, error = null) }
-        viewModelScope.launch {
+        refreshJob = viewModelScope.launch {
             val error = when (s.tab) {
                 CrewTab.RACE -> {
                     val race = crews.race(s.crewId, null)
@@ -159,6 +172,19 @@ class CrewHomeViewModel @Inject constructor(private val crews: CrewRepository) :
                 is Outcome.Failure -> _state.update { it.copy(busy = false, message = CrewErrorText.of(r.error)) }
             }
         }
+    }
+
+    /** 삭제를 누르면 확인을 받는다(되돌릴 수 없다). */
+    fun onDeleteAsk(item: PostList.Item) {
+        if (item.mine) _state.update { it.copy(confirmDelete = item) }
+    }
+
+    fun onDeleteDismiss() = _state.update { it.copy(confirmDelete = null) }
+
+    fun onDeleteConfirm() {
+        val item = _state.value.confirmDelete ?: return
+        _state.update { it.copy(confirmDelete = null) }
+        onDeletePost(item)
     }
 
     /** 글 삭제(작성자 본인, FR-130·FR-134). 크루장의 남의 글 삭제는 크루 관리에서 권한을 확인한 뒤 서버가 판정한다. */
@@ -344,9 +370,9 @@ class CrewManageViewModel @Inject constructor(private val crews: CrewRepository)
         val form = _state.value.form
         if (!form.valid) return
         act {
-            crews.changeInfo(_state.value.crewId, form.toForm()).done("크루 정보를 바꿨어요").also {
-                _state.update { s -> s.copy(crewName = form.name.trim()) }
-            }
+            val r = crews.changeInfo(_state.value.crewId, form.toForm())
+            if (r is Outcome.Success) _state.update { s -> s.copy(crewName = form.name.trim()) }
+            r.done("크루 정보를 바꿨어요")
         }
     }
 
@@ -373,6 +399,7 @@ class CrewManageViewModel @Inject constructor(private val crews: CrewRepository)
 
                 ManageAction.Delete -> when (val r = crews.delete(crewId)) {
                     is Outcome.Success -> {
+                        deleted = true
                         _events.trySend(CrewManageEvent.Deleted)
                         null
                     }
@@ -384,13 +411,16 @@ class CrewManageViewModel @Inject constructor(private val crews: CrewRepository)
     }
 
     /** 처리 한 번: [block]이 돌려준 문구를 안내하고 목록을 다시 읽는다. */
+    private var deleted = false
+
     private fun act(block: suspend () -> String?) {
         if (_state.value.busy) return
         _state.update { it.copy(busy = true) }
         viewModelScope.launch {
             val message = block()
             _state.update { it.copy(busy = false, message = message) }
-            load()
+            // 지운 크루는 다시 읽지 않는다.
+            if (!deleted) load()
         }
     }
 

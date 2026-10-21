@@ -15,8 +15,11 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Clock
 import java.time.Duration
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -114,7 +117,8 @@ class MatchViewModel @Inject constructor(
                 _state.update { it.copy(phase = MatchPhase.CANCELLING) }
                 viewModelScope.launch {
                     when (val cancelled = battles.cancel()) {
-                        is Outcome.Success -> {
+                        // 기다리는 사이 성사됐으면(MATCHED) 취소 응답을 무시한다.
+                        is Outcome.Success -> if (_state.value.phase == MatchPhase.CANCELLING) {
                             stopWaiting()
                             _events.trySend(MatchEvent.Exit)
                         }
@@ -136,11 +140,25 @@ class MatchViewModel @Inject constructor(
     }
 
     private fun startWaiting() {
+        waitJob?.cancel()
+        tickJob?.cancel()
         _state.update { it.copy(phase = MatchPhase.WAITING, waitingSeconds = 0) }
         val opened = channels.open().also { channel = it }
         waitJob = viewModelScope.launch {
-            launch { opened.connect() }
-            val match = opened.messages.filterIsInstance<MatchFound>().first()
+            val match = try {
+                coroutineScope {
+                    launch { opened.connect() }
+                    opened.messages.filterIsInstance<MatchFound>().first().also { coroutineContext.cancelChildren() }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (
+                @Suppress("TooGenericExceptionCaught") e: Exception
+            ) {
+                // 연결 실패·채널 종료: 대기열에서 빼고 거리 고르기로 돌아간다(앱을 죽이지 않는다).
+                failWaiting()
+                return@launch
+            }
             onMatched(match)
         }
         tickJob = viewModelScope.launch {
@@ -159,6 +177,15 @@ class MatchViewModel @Inject constructor(
         }
     }
 
+    private suspend fun failWaiting() {
+        tickJob?.cancel()
+        channel?.close()
+        channel = null
+        battles.cancel()
+        _state.update { MatchUiState(distance = it.distance, error = "상대를 찾는 연결이 끊겼어요. 다시 시도해 주세요") }
+    }
+
+    /** 성사: 채널은 이제 조정자가 갖는다(대기용 연결 코루틴은 닫는다). */
     private fun onMatched(match: MatchFound) {
         tickJob?.cancel()
         handedOver = true
@@ -182,6 +209,7 @@ class MatchViewModel @Inject constructor(
                         // 시작 전에 끝남(연결 실패·시작 거부). 결과가 없으니 안내하고 거리 고르기로 돌린다.
                         val reason = coordinator.failure.value
                         countdownJob?.cancel()
+                        waitJob?.cancel()
                         handedOver = false
                         _state.update {
                             MatchUiState(
@@ -201,7 +229,10 @@ class MatchViewModel @Inject constructor(
 
     private var countdownJob: Job? = null
 
+    private var startAt: java.time.Instant? = null
+
     private fun countdownTo(s: BattleRunState.Countdown) {
+        startAt = s.startAt
         countdownJob?.cancel()
         countdownJob = viewModelScope.launch {
             while (isActive) {
@@ -225,7 +256,8 @@ class MatchViewModel @Inject constructor(
                     match.battleId,
                     match.opponentName,
                     match.distance.meters,
-                    OpponentKind.RANDOM.name
+                    OpponentKind.RANDOM.name,
+                    startAtEpochMillis = startAt?.toEpochMilli()
                 )
             )
         )

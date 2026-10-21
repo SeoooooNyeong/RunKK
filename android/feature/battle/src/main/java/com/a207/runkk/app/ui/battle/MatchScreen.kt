@@ -154,7 +154,8 @@ private fun androidx.compose.foundation.layout.ColumnScope.Choosing(
         RunkkSegmentRow(
             options = MatchUiState.DISTANCES.map(RunkkFormat::targetLabel),
             selectedIndex = MatchUiState.DISTANCES.indexOf(state.distance),
-            onSelect = { onDistanceSelected(MatchUiState.DISTANCES[it]) }
+            onSelect = { onDistanceSelected(MatchUiState.DISTANCES[it]) },
+            modifier = Modifier.semantics { contentDescription = "대결 거리" }
         )
         if (state.error != null) {
             Text(
@@ -260,7 +261,14 @@ private fun androidx.compose.foundation.layout.ColumnScope.Matched(match: MatchF
         modifier = Modifier.weight(1f).fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterVertically)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            // 성사 순간 한 번 알린다(고정 문구).
+            modifier = Modifier.fillMaxWidth().clearAndSetSemantics {
+                contentDescription = "상대를 찾았어요. ${match.opponentName}, ${match.opponentTier}"
+                liveRegion = LiveRegionMode.Polite
+            }
+        ) {
             Contender("나", tier = null, accent = true, modifier = Modifier.weight(1f))
             Text(
                 "VS",
@@ -294,7 +302,7 @@ private fun androidx.compose.foundation.layout.ColumnScope.Matched(match: MatchF
         }
     }
     Column(
-        modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
+        modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) {},
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {

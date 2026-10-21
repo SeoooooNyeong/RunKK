@@ -86,14 +86,16 @@ object Routes {
 
     /**
      * 대결 진행(랜덤·고스트·나와의 싸움·유명인). 상대 표시명·대결 거리는 매칭 성사(MatchFound)·기록 대결 시작 정보에서 넘긴다.
-     * [opponentKind]는 RANDOM·SELF·CELEBRITY(고스트는 RANDOM으로 보인다, Q-02).
+     * [opponentKind]는 RANDOM·SELF·CELEBRITY(고스트는 RANDOM으로 보인다, Q-02). [startAtEpochMillis]는 매칭 화면이 이미 받은
+     * 시작 시각(측정 중에 화면을 넘겨받을 때 경과 시간 기준)이고 모르면 null이다.
      */
     @Serializable
     data class BattleRunning(
         val battleId: Long,
         val opponentName: String,
         val distanceMeters: Long,
-        val opponentKind: String
+        val opponentKind: String,
+        val startAtEpochMillis: Long? = null
     ) : NavKey
 
     /** 대결 결과(비교표, FR-093·FR-108). */
