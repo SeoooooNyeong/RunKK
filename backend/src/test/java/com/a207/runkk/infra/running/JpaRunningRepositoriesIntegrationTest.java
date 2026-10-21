@@ -57,6 +57,9 @@ class JpaRunningRepositoriesIntegrationTest {
     }
 
     private void store(RunRecord r) {
+        if (r.getSavedAt() == null) {
+            r.markSaved(START.plusHours(1));
+        }
         tx.executeWithoutResult(s -> records.save(r));
     }
 

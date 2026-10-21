@@ -196,6 +196,15 @@ public class BattleResultService {
                 });
     }
 
+    /**
+     * 판정 시각이 [from, to)이고 회원이 이긴 대결(reward.RewardService.reconcile이 빠진 BATTLE_WIN 적립을 찾는다). 정정된 대결은
+     * 지금 승자와 정정 시각이다.
+     */
+    @Transactional(readOnly = true)
+    public List<BattleWin> winsJudgedBetween(LocalDateTime from, LocalDateTime to) {
+        return battleRepository.findMemberWinsJudgedBetween(from, to);
+    }
+
     /** 참가자만. 보류면 "보류" + 기록이 없는 본인에게 재시도 안내. 아니면 판정, 비교표, 이번 주 전적(FR-093, FR-108). */
     @Transactional(readOnly = true)
     public BattleResultView result(long memberId, long battleId) {

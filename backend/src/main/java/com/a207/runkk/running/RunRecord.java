@@ -116,6 +116,10 @@ public class RunRecord {
     @Column(name = "new_records", nullable = false, columnDefinition = "text")
     private String newRecordsData;
 
+    /** 서버 저장 일시(RunRecordSaved.occurredAt과 같다). 커밋 뒤 수신자 보정 배치가 이 날짜로 원래 사건일을 안다. */
+    @Column(name = "saved_at", nullable = false, updatable = false)
+    private LocalDateTime savedAt;
+
     @Transient private RunTrack track;
 
     @Transient private HeartRateSeries heartRates;
@@ -287,6 +291,18 @@ public class RunRecord {
     /** 기록상 거리가 d에 닿았는가(대결 검증, FR-092). */
     public boolean reached(Distance d) {
         return getDistance().isAtLeast(d);
+    }
+
+    /** 저장 직전에 한 번 부른다(RunUploadService.store). */
+    public void markSaved(LocalDateTime at) {
+        if (savedAt != null) {
+            throw new IllegalStateException("이미 저장된 기록");
+        }
+        this.savedAt = at;
+    }
+
+    public LocalDateTime getSavedAt() {
+        return savedAt;
     }
 
     public String getRecordId() {

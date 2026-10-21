@@ -120,9 +120,11 @@ public class RunUploadService {
         }
         int ordinal = record.isValid() ? runRecordRepository.countValid(memberId) + 1 : 0;
         record.markNewRecords(book.apply(record));
+        LocalDateTime savedAt = LocalDateTime.now(clock);
+        record.markSaved(savedAt);
         runRecordRepository.save(record);
         personalRecordBookRepository.save(book);
-        eventPublisher.publish(RunRecordSaved.of(record, ordinal, LocalDateTime.now(clock)));
+        eventPublisher.publish(RunRecordSaved.of(record, ordinal, savedAt));
         return UploadResult.stored(record.getRecordId(), record.isValid());
     }
 

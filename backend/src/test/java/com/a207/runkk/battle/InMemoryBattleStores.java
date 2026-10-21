@@ -119,6 +119,24 @@ public final class InMemoryBattleStores {
         }
 
         @Override
+        public List<BattleWin> findMemberWinsJudgedBetween(LocalDateTime from, LocalDateTime to) {
+            return where(b -> b.getStatus() == BattleStatus.FINISHED).stream()
+                    .flatMap(b -> b.getJudgement().stream().map(j -> Map.entry(b, j)))
+                    .filter(
+                            e ->
+                                    !e.getValue().at().isBefore(from)
+                                            && e.getValue().at().isBefore(to))
+                    .filter(e -> e.getValue().winner() instanceof Side.MemberSide)
+                    .map(
+                            e ->
+                                    new BattleWin(
+                                            e.getKey().getId(),
+                                            ((Side.MemberSide) e.getValue().winner()).memberId(),
+                                            e.getValue().at()))
+                    .toList();
+        }
+
+        @Override
         public WeeklyRecord weeklyRecord(long memberId, Week week) {
             int[] counts = new int[Verdict.values().length];
             where(b -> b.getStatus() == BattleStatus.FINISHED && week.contains(b.getCreatedAt()))

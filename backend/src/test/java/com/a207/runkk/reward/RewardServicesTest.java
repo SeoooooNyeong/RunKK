@@ -45,7 +45,7 @@ class RewardServicesTest {
     private final OperationPolicy policy = mock(OperationPolicy.class);
     private final Clock clock = Clock.fixed(NOW.atZone(SEOUL).toInstant(), SEOUL);
     private final RewardService rewards =
-            new RewardService(wallets, policy, clock, new NoTransactionManager());
+            new RewardService(wallets, policy, new NoTransactionManager());
     private final ShopService shop = new ShopService(wallets, policy, clock);
 
     @BeforeEach

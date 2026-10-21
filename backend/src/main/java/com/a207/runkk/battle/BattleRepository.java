@@ -31,6 +31,9 @@ public interface BattleRepository {
     /** 회원이 참가한 FINISHED·RESULT_PENDING 대결, 생성 일시 최신순(FR-101). */
     List<Battle> findHistory(long memberId, DateRange range);
 
+    /** 판정 시각이 [from, to)이고 회원이 이긴 FINISHED 대결, 판정 순(reward 일 단위 보정). */
+    List<BattleWin> findMemberWinsJudgedBetween(LocalDateTime from, LocalDateTime to);
+
     /** 이번 주 전적(FR-093 주간 전적). */
     WeeklyRecord weeklyRecord(long memberId, Week week);
 }

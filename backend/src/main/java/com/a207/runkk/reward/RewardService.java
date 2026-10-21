@@ -5,7 +5,6 @@ import com.a207.runkk.battle.Side;
 import com.a207.runkk.policy.OperationPolicy;
 import com.a207.runkk.policy.RewardRule;
 import com.a207.runkk.running.RunRecordSaved;
-import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.function.ToIntFunction;
 import org.slf4j.Logger;
@@ -21,9 +20,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 리워드 적립·조회 유스케이스(설계 6.1.8, srs.md 6.3 6.4). 적립은 기록 저장·대결 판정 커밋 뒤 동기로 받는다(D-03: 결과 화면에 바로 필요). 지갑
- * 행을 잠근 뒤 오늘 합계를 계산하고 (회원, 사유, 근거) 고유 제약이 이중 적립을 한 번 더 막는다(5.3). 수신자는 새 트랜잭션에서 적립하고 일시 오류(잠금
+ * 행을 잠근 뒤 사건 발생일의 합계를 계산하고 (회원, 사유, 근거) 고유 제약이 이중 적립을 한 번 더 막는다(5.3). 수신자는 새 트랜잭션에서 적립하고 일시 오류(잠금
  * 대기·충돌·연결 일시 장애)면 3회까지 다시 한다. 그래도 실패하면 reward_accrual_failed 로그(회원·사유·근거)만 남기고 삼켜 업로드 응답과 뒤 수신자를
- * 막지 않는다(코드 리뷰 2차 M4). 유실분 보정 경로는 설계 결정이 필요하다.
+ * 막지 않는다(코드 리뷰 2차 M4). 유실분은 0시 일 단위 보정(RewardReconcileService.reconcile)이 같은 연산으로 채운다. 하루 상한의 "그날"은
+ * 적립을 처리한 날이 아니라 사건 발생일(기록 저장 일시, 판정 시각)이라 수신자와 보정 배치가 같은 날 상한 안에서 센다.
  */
 @Service
 public class RewardService {
@@ -37,17 +37,14 @@ public class RewardService {
 
     private final RewardWalletRepository rewardWalletRepository;
     private final OperationPolicy operationPolicy;
-    private final Clock clock;
     private final TransactionTemplate newTransaction;
 
     public RewardService(
             RewardWalletRepository rewardWalletRepository,
             OperationPolicy operationPolicy,
-            Clock clock,
             PlatformTransactionManager transactionManager) {
         this.rewardWalletRepository = rewardWalletRepository;
         this.operationPolicy = operationPolicy;
-        this.clock = clock;
         this.newTransaction = new TransactionTemplate(transactionManager);
         this.newTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
@@ -58,11 +55,12 @@ public class RewardService {
         if (!e.valid()) {
             return;
         }
-        accrueAfterCommit(
+        accrueWithRetry(
                 e.memberId(),
                 AccrualReason.VALID_RUN,
                 e.recordId(),
-                rule -> rule.amountForRun(e.distance()));
+                rule -> rule.amountForRun(e.distance()),
+                e.occurredAt());
     }
 
     /**
@@ -78,34 +76,40 @@ public class RewardService {
                 .map(side -> ((Side.MemberSide) side).memberId())
                 .ifPresent(
                         winner ->
-                                accrueAfterCommit(
+                                accrueWithRetry(
                                         winner,
                                         AccrualReason.BATTLE_WIN,
                                         String.valueOf(e.battleId()),
-                                        RewardRule::battleWin));
+                                        RewardRule::battleWin,
+                                        e.judgement().at()));
     }
 
-    /** 새 트랜잭션에서 적립한다. 일시 오류면 다시 하고, 그래도 실패하면 실패 로그만 남긴다(M4). */
-    private void accrueAfterCommit(
+    /**
+     * 새 트랜잭션에서 사건 발생 시각 at 기준으로 적립하고 실제 적립량을 돌려준다. 일시 오류면 다시 하고, 그래도 실패하면 실패 로그만 남기고 0이다(M4). 수신자와
+     * 일 단위 보정(RewardReconcileService)이 함께 쓴다. 같은 (회원, 사유, 근거)가 이미 있으면 0이다.
+     */
+    int accrueWithRetry(
             long memberId,
             AccrualReason reason,
             String sourceId,
-            ToIntFunction<RewardRule> amountOf) {
+            ToIntFunction<RewardRule> amountOf,
+            LocalDateTime at) {
         for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
             try {
-                newTransaction.executeWithoutResult(
-                        status -> {
-                            RewardRule rule = operationPolicy.rewardRule();
-                            accrue(
-                                    memberId,
-                                    new AccrualRequest(
-                                            reason,
-                                            sourceId,
-                                            amountOf.applyAsInt(rule),
-                                            LocalDateTime.now(clock)),
-                                    rule);
-                        });
-                return;
+                Integer amount =
+                        newTransaction.execute(
+                                status -> {
+                                    RewardRule rule = operationPolicy.rewardRule();
+                                    return accrue(
+                                            memberId,
+                                            new AccrualRequest(
+                                                    reason,
+                                                    sourceId,
+                                                    amountOf.applyAsInt(rule),
+                                                    at),
+                                            rule);
+                                });
+                return amount == null ? 0 : amount;
             } catch (TransientDataAccessException e) {
                 log.info(
                         "reward_accrual_retry memberId={} reason={} sourceId={} attempt={}",
@@ -120,9 +124,10 @@ public class RewardService {
                 }
             } catch (RuntimeException e) {
                 failed(memberId, reason, sourceId, e);
-                return;
+                return 0;
             }
         }
+        return 0;
     }
 
     /** 일시 오류 재시도 사이에 잠깐 쉰다(20·40ms, 잠금을 쥔 쪽이 끝낼 틈). */
@@ -145,11 +150,12 @@ public class RewardService {
                 e);
     }
 
-    private void accrue(long memberId, AccrualRequest req, RewardRule rule) {
+    private int accrue(long memberId, AccrualRequest req, RewardRule rule) {
         RewardWallet wallet = rewardWalletRepository.findOrCreateForUpdate(memberId);
         int amount = wallet.accrue(req, rule);
         rewardWalletRepository.save(wallet);
         log.info("reward_accrued memberId={} reason={} amount={}", memberId, req.reason(), amount);
+        return amount;
     }
 
     /** 근거 하나의 적립량. analysis(기록 상세)와 web.battle(대결 결과 화면)이 부른다. */

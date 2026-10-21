@@ -11,6 +11,7 @@ import com.a207.runkk.running.RunRecord;
 import com.a207.runkk.running.RunRecordRepository;
 import com.a207.runkk.running.RunSampleRow;
 import com.a207.runkk.running.RunSummary;
+import com.a207.runkk.running.SavedRun;
 import com.a207.runkk.running.TotalStats;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.TypedQuery;
@@ -318,6 +319,32 @@ public class JpaRunRecordRepository implements RunRecordRepository {
                 .getResultList()
                 .stream()
                 .map(row -> new OwnedRun((String) row[0], (Long) row[1]))
+                .toList();
+    }
+
+    @Override
+    public List<SavedRun> savedBetween(LocalDateTime from, LocalDateTime to) {
+        return entityManager
+                .createQuery(
+                        "select r.recordId, r.memberId, r.startedAt, r.distanceMeters, r.valid,"
+                                + " r.crewRunPostId, r.savedAt from RunRecord r"
+                                + " where r.savedAt >= :from and r.savedAt < :to"
+                                + " order by r.savedAt, r.recordId",
+                        Object[].class)
+                .setParameter("from", from)
+                .setParameter("to", to)
+                .getResultList()
+                .stream()
+                .map(
+                        row ->
+                                new SavedRun(
+                                        (String) row[0],
+                                        (Long) row[1],
+                                        (LocalDateTime) row[2],
+                                        Distance.ofMeters((Long) row[3]),
+                                        (Boolean) row[4],
+                                        (Long) row[5],
+                                        (LocalDateTime) row[6]))
                 .toList();
     }
 

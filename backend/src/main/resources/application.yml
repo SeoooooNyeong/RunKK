@@ -28,11 +28,11 @@ spring:
           time_zone: Asia/Seoul
   # 비동기 사건 수신자(리포트·Runimal, D-03) 실행기. 인스턴스 1개·동시 50명(5.4) 규모. 종료 때 진행 중 작업을 30초까지 기다린다(1단계 리뷰 M6·L2).
   task:
-    # 시각 작업은 batch.* 8개 패키지에 12개다(1초 2개, 0시 3개, 3시 6개, 20시 1개). 같은 시각 작업과 1초 시계가 서로 기다리지 않게
-    # 스케줄러 스레드를 작업 수만큼 둔다(5.5, B5 리뷰 "풀 2개로 3시·0시 작업이 겹침"). 작업을 더하면 이 값도 늘린다.
+    # 시각 작업은 batch.* 9개 패키지에 14개다(1초 2개, 0시 3개, 0시 10분 2개, 3시 6개, 20시 1개). 같은 시각 작업과 1초 시계가 서로
+    # 기다리지 않게 스케줄러 스레드를 작업 수만큼 둔다(5.5, B5 리뷰 "풀 2개로 3시·0시 작업이 겹침"). 작업을 더하면 이 값도 늘린다.
     scheduling:
       pool:
-        size: ${SCHEDULER_POOL_SIZE:12}
+        size: ${SCHEDULER_POOL_SIZE:14}
       thread-name-prefix: runkk-schedule-
     execution:
       thread-name-prefix: runkk-async-
@@ -135,6 +135,9 @@ runkk:
     crew-tick-interval: 1s
     # 크루 주간 거리 재합산(D-38), 가입 신청 만료(Q-40), 아바타 외형 재계산(N-18)
     weekly-race-reconcile-cron: "0 0 0 * * *"
+    # 커밋 뒤 수신자 유실분 일 단위 보정(코드 리뷰 2차 M4 결정): 리워드 적립, 크루런 기록 연결. 전날이 끝난 뒤 최근 2일을 다시 본다.
+    reward-reconcile-cron: "0 10 0 * * *"
+    crew-run-link-reconcile-cron: "0 10 0 * * *"
     join-request-expiry-cron: "0 0 3 * * *"
     appearance-refresh-cron: "0 0 0 * * *"
     # 랭킹 스냅숏 재집계(D-25, FR-070), 계획 미이행 알림(FR-075), 감사 기록 6개월 정리(FR-176)

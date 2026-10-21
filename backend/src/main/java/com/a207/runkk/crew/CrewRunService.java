@@ -1,10 +1,12 @@
 package com.a207.runkk.crew;
 
 import com.a207.runkk.common.BusinessRuleException;
+import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.policy.CrewRunRule;
 import com.a207.runkk.policy.OperationPolicy;
 import com.a207.runkk.running.RunRecordSaved;
+import com.a207.runkk.running.SavedRun;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -133,8 +135,8 @@ public class CrewRunService {
 
     /**
      * 크루런게시글ID가 있는 기록이 저장되면 linkRun(FR-146), 기록이 크루런 거리에 닿았으면 recordArrival(startedAt +
-     * timeToReach)(FR-191). 커밋 뒤 새 트랜잭션에서 하고 시계와 충돌하는 등 일시 오류면 다시 읽는다. 그래도 실패하면 로그만 남긴다(M4, 복구 경로는
-     * 결정 목록).
+     * timeToReach)(FR-191). 커밋 뒤 새 트랜잭션에서 하고 시계와 충돌하는 등 일시 오류면 다시 읽는다. 그래도 실패하면 로그만 남기고, 빠진 연결은 0시
+     * 일 단위 보정(CrewRunLinkReconcileService)이 relink로 채운다(M4).
      */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onRunSaved(RunRecordSaved e) {
@@ -147,16 +149,58 @@ public class CrewRunService {
                 () ->
                         crewPostRepository
                                 .findCrewRunByIdForUpdate(e.crewRunPostId())
-                                .ifPresent(post -> link(post, e)));
+                                .ifPresent(
+                                        post ->
+                                                link(
+                                                        post,
+                                                        e.memberId(),
+                                                        e.recordId(),
+                                                        e.startedAt(),
+                                                        e.distance())));
     }
 
-    private void link(CrewRunPost post, RunRecordSaved e) {
-        post.linkRun(e.memberId(), e.recordId());
-        if (e.distance().isAtLeast(post.distance().distance())) {
-            views.arrivalAt(e.recordId(), e.startedAt(), post.distance().distance())
-                    .ifPresent(at -> post.recordArrival(e.memberId(), at));
+    /**
+     * 보정 한 건: 그 회원의 참여에 아직 연결이 없을 때만 수신자와 같은 link를 한다. 새로 이었으면 1, 이미 이었거나 크루런·참여가 없으면 0. 한 건의 실패는
+     * 로그만 남기고 0이다(CrewRunLinkReconcileService가 부른다).
+     */
+    int relink(SavedRun run) {
+        return transactions.once(
+                "crew_run_link_reconcile",
+                () ->
+                        crewPostRepository
+                                .findCrewRunByIdForUpdate(run.crewRunPostId())
+                                .filter(post -> isUnlinked(post, run.memberId()))
+                                .map(
+                                        post ->
+                                                link(
+                                                                post,
+                                                                run.memberId(),
+                                                                run.recordId(),
+                                                                run.startedAt(),
+                                                                run.distance())
+                                                        ? 1
+                                                        : 0)
+                                .orElse(0),
+                0);
+    }
+
+    private static boolean isUnlinked(CrewRunPost post, long memberId) {
+        return post.participationOf(memberId).map(p -> p.linkedRecordId().isEmpty()).orElse(false);
+    }
+
+    private boolean link(
+            CrewRunPost post,
+            long memberId,
+            String recordId,
+            LocalDateTime startedAt,
+            Distance distance) {
+        boolean linked = post.linkRun(memberId, recordId);
+        if (distance.isAtLeast(post.distance().distance())) {
+            views.arrivalAt(recordId, startedAt, post.distance().distance())
+                    .ifPresent(at -> post.recordArrival(memberId, at));
         }
         crewPostRepository.save(post);
+        return linked;
     }
 
     /** CrewRunPost.quit → 세션 markQuit → 다른 참가자에게 "그만둠"(FR-192). */

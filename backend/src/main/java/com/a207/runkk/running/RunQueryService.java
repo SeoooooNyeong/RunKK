@@ -173,6 +173,14 @@ public class RunQueryService {
         return result;
     }
 
+    /**
+     * 저장 일시가 [from, to)인 기록 전부(무효 포함), 저장 순. reward·crew의 커밋 뒤 수신자 일 단위 보정(RewardService.reconcile,
+     * CrewRunService.reconcileLinks)이 빠진 적립·연결을 찾을 때 쓴다.
+     */
+    public List<SavedRun> savedBetween(LocalDateTime from, LocalDateTime to) {
+        return runRecordRepository.savedBetween(from, to);
+    }
+
     /** ownerIds 회원의 유효 기록 중 거리 ≥ d이고 경로가 남은 것(battle.GhostMatcher, A-07). */
     public List<OwnedRun> validRunsReaching(StandardDistance d, Collection<Long> ownerIds) {
         if (ownerIds.isEmpty()) {

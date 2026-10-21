@@ -3,6 +3,7 @@ package com.a207.runkk.infra.battle;
 import com.a207.runkk.battle.Battle;
 import com.a207.runkk.battle.BattleRepository;
 import com.a207.runkk.battle.BattleStatus;
+import com.a207.runkk.battle.BattleWin;
 import com.a207.runkk.battle.Verdict;
 import com.a207.runkk.battle.WeeklyRecord;
 import com.a207.runkk.common.DateRange;
@@ -126,6 +127,24 @@ public class JpaBattleRepository implements BattleRepository {
                 .setParameter("to", range.end().plusDays(1).atStartOfDay())
                 .setParameter("member", memberId)
                 .getResultList();
+    }
+
+    @Override
+    public List<BattleWin> findMemberWinsJudgedBetween(LocalDateTime from, LocalDateTime to) {
+        return entityManager
+                .createQuery(
+                        "select b.id, b.winnerMemberId, b.judgedAt from Battle b"
+                                + " where b.status = :finished and b.winnerMemberId is not null"
+                                + " and b.judgedAt >= :from and b.judgedAt < :to"
+                                + " order by b.judgedAt, b.id",
+                        Object[].class)
+                .setParameter("finished", BattleStatus.FINISHED)
+                .setParameter("from", from)
+                .setParameter("to", to)
+                .getResultList()
+                .stream()
+                .map(row -> new BattleWin((Long) row[0], (Long) row[1], (LocalDateTime) row[2]))
+                .toList();
     }
 
     @Override

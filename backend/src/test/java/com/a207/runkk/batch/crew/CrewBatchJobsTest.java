@@ -10,10 +10,14 @@ import static org.mockito.Mockito.when;
 import com.a207.runkk.avatar.AppearanceService;
 import com.a207.runkk.batch.avatar.AppearanceRefreshJob;
 import com.a207.runkk.batch.avatar.AvatarSchedulingConfig;
+import com.a207.runkk.batch.reward.RewardReconcileJob;
+import com.a207.runkk.batch.reward.RewardSchedulingConfig;
+import com.a207.runkk.crew.CrewRunLinkReconcileService;
 import com.a207.runkk.crew.CrewRunLiveService;
 import com.a207.runkk.crew.CrewRunService;
 import com.a207.runkk.crew.MembershipService;
 import com.a207.runkk.crew.WeeklyRaceService;
+import com.a207.runkk.reward.RewardReconcileService;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -62,6 +66,29 @@ class CrewBatchJobsTest {
     }
 
     @Test
+    @DisplayName(
+            "M4 결정: CrewRunLinkReconcileJob → reconcileLinks(now), RewardReconcileJob →"
+                    + " reconcile(now), 실패해도 던지지 않는다")
+    void receiverReconcileJobs() {
+        CrewRunLinkReconcileService links = mock(CrewRunLinkReconcileService.class);
+        new CrewRunLinkReconcileJob(links, clock).run();
+        verify(links).reconcileLinks(NOW);
+        when(links.reconcileLinks(any())).thenThrow(new IllegalStateException("db"));
+        new CrewRunLinkReconcileJob(links, clock).run();
+
+        RewardReconcileService rewards = mock(RewardReconcileService.class);
+        new RewardReconcileJob(rewards, clock).run();
+        verify(rewards).reconcile(NOW);
+        when(rewards.reconcile(any())).thenThrow(new IllegalStateException("db"));
+        new RewardReconcileJob(rewards, clock).run();
+
+        ScheduledTaskRegistrar registrar = new ScheduledTaskRegistrar();
+        new RewardSchedulingConfig(mock(RewardReconcileJob.class), "0 10 0 * * *")
+                .configureTasks(registrar);
+        assertThat(registrar.getCronTaskList()).hasSize(1);
+    }
+
+    @Test
     @DisplayName("AppearanceRefreshJob → refreshAll(today)")
     void appearanceRefreshJob() {
         AppearanceService appearance = mock(AppearanceService.class);
@@ -77,29 +104,34 @@ class CrewBatchJobsTest {
         CrewRunTickJob tick = mock(CrewRunTickJob.class);
         WeeklyRaceReconcileJob reconcile = mock(WeeklyRaceReconcileJob.class);
         JoinRequestExpiryJob expiry = mock(JoinRequestExpiryJob.class);
+        CrewRunLinkReconcileJob links = mock(CrewRunLinkReconcileJob.class);
 
         ScheduledTaskRegistrar on = new ScheduledTaskRegistrar();
         new CrewSchedulingConfig(
                         tick,
                         reconcile,
                         expiry,
+                        links,
                         true,
                         Duration.ofSeconds(1),
                         "0 0 0 * * *",
-                        "0 0 3 * * *")
+                        "0 0 3 * * *",
+                        "0 10 0 * * *")
                 .configureTasks(on);
         assertThat(on.getFixedDelayTaskList()).hasSize(1);
-        assertThat(on.getCronTaskList()).hasSize(2);
+        assertThat(on.getCronTaskList()).hasSize(3);
 
         ScheduledTaskRegistrar off = new ScheduledTaskRegistrar();
         new CrewSchedulingConfig(
                         tick,
                         reconcile,
                         expiry,
+                        links,
                         false,
                         Duration.ofSeconds(1),
                         "0 0 0 * * *",
-                        "0 0 3 * * *")
+                        "0 0 3 * * *",
+                        "0 10 0 * * *")
                 .configureTasks(off);
         assertThat(off.getFixedDelayTaskList()).isEmpty();
 
