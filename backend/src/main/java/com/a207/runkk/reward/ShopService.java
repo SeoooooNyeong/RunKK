@@ -37,7 +37,7 @@ public class ShopService {
         return new ShopView(
                 operationPolicy.shopCatalog().bySlot(slot).stream()
                         .filter(item -> item.onSale() || owned.contains(item.id()))
-                        .map(item -> new ShopView.Entry(item, owned.contains(item.id())))
+                        .map(item -> ShopView.Entry.of(item, owned.contains(item.id())))
                         .toList(),
                 wallet.map(RewardWallet::balance).orElse(0));
     }

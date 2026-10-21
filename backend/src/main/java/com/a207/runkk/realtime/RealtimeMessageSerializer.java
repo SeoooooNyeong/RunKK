@@ -4,6 +4,7 @@ import com.a207.runkk.battle.BattleMessage;
 import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.ProgressReport;
+import com.a207.runkk.crew.CrewRunMessage;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -55,6 +56,11 @@ public class RealtimeMessageSerializer {
 
     /** 대결 메시지 → {"type": type(), …구성요소}. */
     public String serialize(BattleMessage m) {
+        return serialize(m.type(), m);
+    }
+
+    /** 크루런 메시지 → {"type": type(), …구성요소}. */
+    public String serialize(CrewRunMessage m) {
         return serialize(m.type(), m);
     }
 

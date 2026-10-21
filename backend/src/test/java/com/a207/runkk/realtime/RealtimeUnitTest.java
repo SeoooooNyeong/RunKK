@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 
 import com.a207.runkk.battle.LiveBattleService;
 import com.a207.runkk.battle.live.BattleEnded;
+import com.a207.runkk.crew.CrewRunLiveService;
 import com.a207.runkk.member.AuthFailureException;
 import com.a207.runkk.member.TokenIssuer;
 import java.io.IOException;
@@ -121,6 +122,7 @@ class RealtimeUnitTest {
         when(tokens.verify("good")).thenReturn(42L);
         when(tokens.verify("bad")).thenThrow(new AuthFailureException("위조"));
         LiveBattleService live = mock(LiveBattleService.class);
+        CrewRunLiveService crewLive = mock(CrewRunLiveService.class);
         SocketSessionRegistry registry = new SocketSessionRegistry();
         MessageMailbox mailbox = new MessageMailbox(Clock.system(SEOUL));
         RealtimeMessageSerializer serializer = new RealtimeMessageSerializer();
@@ -130,7 +132,7 @@ class RealtimeUnitTest {
                         registry,
                         new WebSocketMessenger(registry, serializer, mailbox),
                         serializer,
-                        new ProgressDispatcher(live, Clock.system(SEOUL)));
+                        new ProgressDispatcher(live, crewLive, Clock.system(SEOUL)));
 
         WebSocketSession anonymous = session("a", null);
         handler.afterConnectionEstablished(anonymous);
@@ -145,6 +147,9 @@ class RealtimeUnitTest {
         assertThat(registry.find(42)).isPresent();
         handler.handleTextMessage(member, new TextMessage(PROGRESS));
         verify(live).onProgress(eq(42L), eq(7L), any(), any());
+        handler.handleTextMessage(
+                member, new TextMessage(PROGRESS.replace("\"BATTLE\"", "\"CREW_RUN\"")));
+        verify(crewLive).onProgress(eq(42L), eq(7L), any(), any());
 
         handler.handleTextMessage(member, new TextMessage("{\"latitude\":37.5}"));
         handler.handleTextMessage(anonymous, new TextMessage(PROGRESS));

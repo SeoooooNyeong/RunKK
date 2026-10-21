@@ -129,7 +129,7 @@ class RewardServicesTest {
         rewards.onRunSaved(saved("r-1", 5_000, true));
 
         assertThat(shop.shop(ALICE, Optional.empty()).items())
-                .extracting(e -> e.item().id())
+                .extracting(ShopView.Entry::itemId)
                 .containsExactly(1L, 3L);
         assertThat(shop.shop(ALICE, Optional.of(ItemSlot.HAT)).items()).hasSize(1);
         assertThatThrownBy(() -> shop.purchase(ALICE, 42))

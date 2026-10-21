@@ -13,6 +13,12 @@ import com.a207.runkk.battle.live.TrackPoint;
 import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.Tier;
+import com.a207.runkk.crew.CrewRunMessage;
+import com.a207.runkk.crew.RelayEntry;
+import com.a207.runkk.crew.live.CrewRunCancelled;
+import com.a207.runkk.crew.live.CrewRunEnded;
+import com.a207.runkk.crew.live.CrewRunRelay;
+import com.a207.runkk.crew.live.CrewRunStart;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
@@ -29,9 +35,8 @@ import org.junit.jupiter.api.Test;
 
 /**
  * 실시간 메시지 계약 시험(14장, 5.7.2, design-review.md H-17). 앱 저장소의 표본(contract/realtime/*.json)을 그대로 복사해 두
- * 방향을 확인한다: (1) 서버 RealtimeMessageSerializer가 battle.live record를 앱 표본과 같은 JSON으로 낸다 (2) 앱
- * ProgressReport JSON(inbound-progress.json)을 서버 InboundProgress로 읽는다. 크루런 표본 4종은 crew 단계에서 같은 방식으로
- * 확인한다.
+ * 방향을 확인한다: (1) 서버 RealtimeMessageSerializer가 battle.live·crew.live record를 앱 표본과 같은 JSON으로 낸다 (2)
+ * 앱 ProgressReport JSON(inbound-progress.json)을 서버 InboundProgress로 읽는다.
  */
 @org.junit.jupiter.api.DisplayName("실시간 메시지 계약(서버 직렬화 ↔ 앱 표본)")
 class RealtimeContractTest {
@@ -131,6 +136,68 @@ class RealtimeContractTest {
             List<String> keys = keysOf(JSON.readTree(serializer.serialize(m)));
             assertThat(keys).as(m.type()).noneMatch(k -> LOCATION_KEYS.contains(k.toLowerCase()));
         }
+        for (CrewRunMessage m : crewMessages().values()) {
+            List<String> keys = keysOf(JSON.readTree(serializer.serialize(m)));
+            assertThat(keys).as(m.type()).noneMatch(k -> LOCATION_KEYS.contains(k.toLowerCase()));
+        }
+    }
+
+    /** 앱 크루런 표본과 같은 값의 서버 메시지. */
+    private static Map<String, CrewRunMessage> crewMessages() {
+        DisplayName bear = DisplayName.of("새벽곰");
+        DisplayName fox = DisplayName.of("달리는여우");
+        DisplayName rabbit = DisplayName.of("한강토끼");
+        return Map.of(
+                "CrewRunStart",
+                new CrewRunStart(
+                        77, LocalDateTime.of(2026, 10, 21, 6, 0), List.of(bear, fox, rabbit)),
+                "CrewRunCancelled",
+                new CrewRunCancelled(77, "참가자 부족"),
+                "CrewRunRelay",
+                new CrewRunRelay(
+                        77,
+                        List.of(
+                                new RelayEntry(
+                                        bear,
+                                        Distance.ofMeters(3_120),
+                                        1,
+                                        RelayEntry.Connection.CONNECTED),
+                                new RelayEntry(
+                                        fox,
+                                        Distance.ofMeters(2_980),
+                                        2,
+                                        RelayEntry.Connection.CHECKING),
+                                new RelayEntry(
+                                        rabbit,
+                                        Distance.ofMeters(1_500),
+                                        null,
+                                        RelayEntry.Connection.QUIT))),
+                "CrewRunEnded",
+                new CrewRunEnded(77));
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("크루런 메시지 4종을 앱 표본과 같은 JSON으로 직렬화한다")
+    void crewRunMessages_matchAppSamples() throws IOException {
+        Map<String, CrewRunMessage> messages = crewMessages();
+        for (Map.Entry<String, CrewRunMessage> e : messages.entrySet()) {
+            JsonNode expected = JSON.readTree(sample(e.getKey() + ".json"));
+            JsonNode actual = JSON.readTree(serializer.serialize(e.getValue()));
+            assertThat(actual).as("표본 " + e.getKey()).isEqualTo(expected);
+            assertThat(e.getValue().type()).isEqualTo(e.getKey());
+        }
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("앱 크루런 진행값(channel CREW_RUN)을 InboundProgress로 읽는다")
+    void appCrewRunProgress_isReadAsInboundProgress() throws IOException {
+        InboundProgress inbound =
+                serializer
+                        .readInbound(
+                                sample("inbound-progress.json")
+                                        .replace("\"BATTLE\"", "\"CREW_RUN\""))
+                        .orElseThrow();
+        assertThat(inbound.channel()).isEqualTo(InboundProgress.Channel.CREW_RUN);
     }
 
     private static List<String> keysOf(JsonNode node) {
