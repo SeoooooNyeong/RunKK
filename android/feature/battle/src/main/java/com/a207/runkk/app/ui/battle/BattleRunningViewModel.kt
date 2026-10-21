@@ -251,7 +251,7 @@ class BattleRunningViewModel @Inject constructor(
         elapsed = mine.elapsed,
         currentPace = mine.currentPace,
         averagePace = mine.averagePace,
-        locked = mine.locked
+        locked = mine.isLocked
     )
 
     /** 1초마다 시작 카운트다운·종료 카운트다운 남은 초를 갱신한다. 그 밖의 단계면 멈춘다. */

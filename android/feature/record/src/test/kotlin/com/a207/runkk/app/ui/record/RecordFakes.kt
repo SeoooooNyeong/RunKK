@@ -54,7 +54,7 @@ fun summary(id: String, day: Int, meters: Long, valid: Boolean = true, kind: Car
     distance = Distance(meters),
     elapsed = Duration.ofSeconds(meters * 332 / 1_000),
     averagePace = Pace(332),
-    valid = valid,
+    isValid = valid,
     mode = if (kind == CardKind.FREE_RUN) RunMode.FREE else RunMode.BATTLE,
     cardKind = kind
 )
@@ -79,7 +79,7 @@ fun runCard(shared: Boolean = true) = RunCard(
     elapsed = Duration.ofSeconds(1_668),
     averagePace = Pace(332),
     route = listOf(GeoPoint(37.5, 127.0), GeoPoint(37.51, 127.01)),
-    courseMapShared = shared
+    isCourseMapShared = shared
 )
 
 class FakeRecordRepository : RecordRepository {

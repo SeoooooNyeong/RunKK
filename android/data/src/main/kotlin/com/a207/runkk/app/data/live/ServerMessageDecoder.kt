@@ -14,7 +14,7 @@ import kotlinx.serialization.json.jsonPrimitive
  * 서버 → 앱 실시간 메시지를 해독한다(6.1.14 data.live, 5.7.2). 서버 RealtimeMessageSerializer는 메시지 record의 type() 값을
  * type 항목에 쓰고 나머지 구성요소를 그대로 직렬화하므로(D-06), type으로 11종 가운데 하나를 고른다.
  * 모르는 type, 깨진 JSON, 범위 밖 값(음수 거리, 모르는 상태 이름)은 null로 버린다. 연결은 끊지 않는다.
- * 크루런 중계의 본인 줄(CrewRunRelay.Entry.me)은 [selfId](접근 토큰의 회원 ID, SelfMember)와 memberId를 비교해 채운다.
+ * 크루런 중계의 본인 줄(CrewRunRelay.Entry.isMe)은 [selfId](접근 토큰의 회원 ID, SelfMember)와 memberId를 비교해 채운다.
  */
 class ServerMessageDecoder internal constructor(private val selfId: () -> Long? = { null }) {
     @Inject

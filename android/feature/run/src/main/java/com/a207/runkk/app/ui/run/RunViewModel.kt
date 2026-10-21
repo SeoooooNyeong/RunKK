@@ -208,7 +208,7 @@ class RunViewModel @Inject constructor(private val tracker: RunTracker, private 
                 when (code) {
                     // 이미 측정 중(화면을 다시 연 경우): 이어서 보인다.
                     AppError.Rejected.RUN_IN_PROGRESS -> _state.update {
-                        it.copy(phase = if (tracker.progress.value.locked) RunPhase.LOCKED else RunPhase.RUNNING)
+                        it.copy(phase = if (tracker.progress.value.isLocked) RunPhase.LOCKED else RunPhase.RUNNING)
                     }
 
                     else -> _state.update {
@@ -243,8 +243,8 @@ class RunViewModel @Inject constructor(private val tracker: RunTracker, private 
         }
         _state.update { s ->
             val phase = when {
-                s.phase == RunPhase.RUNNING && progress.locked -> RunPhase.LOCKED
-                s.phase == RunPhase.LOCKED && !progress.locked -> RunPhase.RUNNING
+                s.phase == RunPhase.RUNNING && progress.isLocked -> RunPhase.LOCKED
+                s.phase == RunPhase.LOCKED && !progress.isLocked -> RunPhase.RUNNING
                 else -> s.phase
             }
             s.copy(progress = progress, phase = phase, splitBanner = newSplit ?: s.splitBanner)

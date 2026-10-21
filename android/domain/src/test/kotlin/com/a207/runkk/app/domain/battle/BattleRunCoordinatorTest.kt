@@ -61,13 +61,13 @@ private class FakeBattleRepository(private val log: CallLog) : BattleRepository 
     override suspend fun requestMatch(distance: Distance): Outcome<MatchAcceptance> {
         log.add("battle.requestMatch:${distance.meters}")
         requestGate?.await()
-        return Outcome.Success(MatchAcceptance(waiting = true, distance = distance))
+        return Outcome.Success(MatchAcceptance(isWaiting = true, distance = distance))
     }
 
     override suspend fun cancel(): Outcome<MatchAcceptance> {
         log.add("battle.cancel")
         return cancelFailure?.let { Outcome.Failure(it) }
-            ?: Outcome.Success(MatchAcceptance(waiting = false, distance = null))
+            ?: Outcome.Success(MatchAcceptance(isWaiting = false, distance = null))
     }
 
     override suspend fun selfCandidates(): Outcome<RecordBattleCandidates> = error("unused")
@@ -387,8 +387,8 @@ class BattleRunCoordinatorTest {
     fun `F-2 추월·역전 안내는 대결 음성·진동 설정을 따른다`() = runTest {
         settings.snapshot =
             SettingsSnapshot.SAFE.copy(
-                locationConsented = true,
-                guidanceSettings = GuidanceSettings.DEFAULT.copy(battleVoice = true, battleVibration = false)
+                isLocationConsented = true,
+                guidanceSettings = GuidanceSettings.DEFAULT.copy(isBattleVoiceOn = true, isBattleVibrationOn = false)
             )
         val (_, coordinator) = setUp()
         coordinator.onMatched(match)
@@ -522,14 +522,14 @@ class BattleRunCoordinatorTest {
         runCurrent()
         coordinator.lockScreen()
         runCurrent()
-        assertTrue(assertIs<BattleRunState.Running>(coordinator.state.value).mine.locked)
+        assertTrue(assertIs<BattleRunState.Running>(coordinator.state.value).mine.isLocked)
         coordinator.onUnlockTapped()
         runCurrent()
         assertEquals(Guidance.Kind.UNLOCK_HINT, output.played.last().kind, "짧게 누르면 안내만")
-        assertTrue(assertIs<BattleRunState.Running>(coordinator.state.value).mine.locked)
+        assertTrue(assertIs<BattleRunState.Running>(coordinator.state.value).mine.isLocked)
         coordinator.onUnlockLongPressed()
         runCurrent()
-        assertEquals(false, assertIs<BattleRunState.Running>(coordinator.state.value).mine.locked)
+        assertEquals(false, assertIs<BattleRunState.Running>(coordinator.state.value).mine.isLocked)
     }
 
     @Test
@@ -606,9 +606,9 @@ class BattleRunCoordinatorTest {
         runCurrent()
         coordinator.lockScreen()
         runCurrent()
-        coordinator.onProgress(RunProgress.INITIAL.copy(elapsed = Duration.ofSeconds(30), locked = false))
+        coordinator.onProgress(RunProgress.INITIAL.copy(elapsed = Duration.ofSeconds(30), isLocked = false))
         runCurrent()
-        assertTrue(assertIs<BattleRunState.Running>(coordinator.state.value).mine.locked)
+        assertTrue(assertIs<BattleRunState.Running>(coordinator.state.value).mine.isLocked)
     }
 
     private val match =

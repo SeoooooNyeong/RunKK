@@ -70,7 +70,7 @@ class RunTrackerTest {
 
     @Test
     fun `서버 위치 동의가 없으면 startRun도 거부하고 측정을 시작하지 않는다`() = runTest {
-        settings.snapshot = settings.snapshot.copy(locationConsented = false)
+        settings.snapshot = settings.snapshot.copy(isLocationConsented = false)
         val tracker = tracker(backgroundScope)
         assertIs<Outcome.Failure>(tracker.startRun(freeSpec()))
         assertTrue(tracker.consentRequired.value)
@@ -119,7 +119,7 @@ class RunTrackerTest {
         val tracker = started()
         tracker.runFor(5)
         tracker.lockScreen()
-        assertTrue(tracker.progress.value.locked)
+        assertTrue(tracker.progress.value.isLocked)
         assertEquals(FinishOutcome.Rejected, tracker.onFinishLongPressed())
         runCurrent()
         assertTrue(log.calls.isEmpty())
@@ -134,9 +134,9 @@ class RunTrackerTest {
         tracker.lockScreen()
         tracker.onUnlockTapped()
         assertEquals(Guidance.Kind.UNLOCK_HINT, output.played.last().kind)
-        assertTrue(tracker.progress.value.locked)
+        assertTrue(tracker.progress.value.isLocked)
         tracker.onUnlockLongPressed()
-        assertFalse(tracker.progress.value.locked)
+        assertFalse(tracker.progress.value.isLocked)
     }
 
     @Test

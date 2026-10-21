@@ -60,7 +60,8 @@ private val types = listOf(
     "크루의 기둥 코끼리", "펭귄 군단", "V자 리더 철새", "들판의 야생마"
 )
 
-private val confirmed = RunimalStatus("SPARROW", provisional = false, remainingRuns = 4, card = card, allTypes = types)
+private val confirmed =
+    RunimalStatus("SPARROW", isProvisional = false, remainingRuns = 4, card = card, allTypes = types)
 
 private class FakeRunimal : RunimalRepository {
     var status: Outcome<RunimalStatus> = Outcome.Success(confirmed)

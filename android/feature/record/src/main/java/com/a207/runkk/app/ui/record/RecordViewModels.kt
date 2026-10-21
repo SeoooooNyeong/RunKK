@@ -50,10 +50,10 @@ data class RecordListUiState(
     val zone: java.time.ZoneId = java.time.ZoneId.systemDefault()
 ) {
     /** 이번 달 집계에 들어가는 러닝 수(집계 제외 빼고). */
-    val validCount: Int get() = runs.count { it.valid }
+    val validCount: Int get() = runs.count { it.isValid }
 
     val validDistance: Distance get() = runs.filter {
-        it.valid
+        it.isValid
     }.fold(Distance.ZERO) { acc, run -> acc.plus(run.distance) }
 }
 
@@ -191,7 +191,7 @@ data class RecordCardUiState(
     val error: UiText? = null
 ) {
     /** 뒷면(코스 지도)을 공유할 수 있는가(FR-011·FR-069). 최종 판단은 CardSharer가 설정 사본으로 한다. */
-    val canShareBack: Boolean get() = card?.courseMapShared == true
+    val canShareBack: Boolean get() = card?.isCourseMapShared == true
 }
 
 /**

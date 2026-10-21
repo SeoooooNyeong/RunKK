@@ -40,7 +40,7 @@ class CrewRunViewModelTest {
     private fun relay(vararg rows: Triple<String, Long, Int?>) = CrewRunRelay(
         31,
         rows.map { (name, meters, rank) ->
-            CrewRunRelay.Entry(name, Distance(meters), rank, CrewRunRelay.Connection.CONNECTED, me = name == "나")
+            CrewRunRelay.Entry(name, Distance(meters), rank, CrewRunRelay.Connection.CONNECTED, isMe = name == "나")
         }
     )
 
@@ -71,7 +71,7 @@ class CrewRunViewModelTest {
         val vm = lobbyVm(w, vms)
         vm.onReadyToggle()
         assertTrue(vm.state.value.ready)
-        assertTrue(vm.state.value.lobby!!.participants.first { it.me }.ready)
+        assertTrue(vm.state.value.lobby!!.participants.first { it.isMe }.isReady)
         vm.onReadyToggle()
         assertFalse(vm.state.value.ready)
     }
@@ -81,7 +81,7 @@ class CrewRunViewModelTest {
         val w = crewWorld()
         w.crews.lobbyState = lobby.copy(
             distance = Distance(3_000),
-            participants = lobby.participants.map { if (it.me) it.copy(ready = true) else it }
+            participants = lobby.participants.map { if (it.isMe) it.copy(isReady = true) else it }
         )
         val vm = lobbyVm(w, vms)
         assertEquals(Distance(3_000), vm.state.value.distance)
@@ -177,7 +177,7 @@ class CrewRunViewModelTest {
         vm.load(31)
         runCurrent()
         assertEquals(2, vm.state.value.finishedCount)
-        assertTrue(vm.state.value.result!!.firstCrewRun)
+        assertTrue(vm.state.value.result!!.isFirstCrewRun)
         assertEquals(R.string.crew_run_connection_checking, connectionLabelRes("CHECKING"))
         assertEquals(R.string.crew_run_connection_quit, connectionLabelRes("QUIT"))
     }

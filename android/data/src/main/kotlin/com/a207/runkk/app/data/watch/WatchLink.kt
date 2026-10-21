@@ -114,7 +114,7 @@ class WatchLink internal constructor(
         scope.launch {
             settings
                 .changes()
-                .map { it.heartRateConsented && it.watchLinked }
+                .map { it.isHeartRateConsented && it.isWatchLinked }
                 .distinctUntilChanged()
                 .collect { allowed -> resend(allowed) }
         }

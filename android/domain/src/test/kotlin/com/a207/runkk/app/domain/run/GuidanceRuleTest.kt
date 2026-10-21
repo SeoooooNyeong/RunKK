@@ -27,7 +27,7 @@ class GuidanceRuleTest {
 
     @Test
     fun `Split - 음성·진동 설정을 안내 방식에 싣는다`() {
-        val settings = GuidanceSettings.DEFAULT.copy(runVoice = false, runVibration = true)
+        val settings = GuidanceSettings.DEFAULT.copy(isRunVoiceOn = false, isRunVibrationOn = true)
         val g = assertNotNull(SplitGuidanceRule().check(context(progress(1_000), settings = settings)))
         assertEquals(false, g.hasVoice)
         assertEquals(true, g.hasVibration)
@@ -50,7 +50,7 @@ class GuidanceRuleTest {
     @Test
     fun `Pace - 코치 계획 따르기 켬, 새 1km 지점, 평균이 목표의 1·1배 이상`() {
         val plan = PlanSnapshot(null, Pace(300))
-        val on = GuidanceSettings.DEFAULT.copy(followCoachPlan = true)
+        val on = GuidanceSettings.DEFAULT.copy(shouldFollowCoachPlan = true)
         assertEquals(
             Guidance.Kind.PACE,
             PaceGuidanceRule().check(context(progress(1_000, average = Pace(330)), plan, settings = on))?.kind
@@ -61,8 +61,8 @@ class GuidanceRuleTest {
 
     @Test
     fun `Pace - 코치 계획 따르기 꺼짐이거나 목표 페이스가 없으면 안내 없음`() {
-        val off = GuidanceSettings.DEFAULT.copy(followCoachPlan = false)
-        val on = GuidanceSettings.DEFAULT.copy(followCoachPlan = true)
+        val off = GuidanceSettings.DEFAULT.copy(shouldFollowCoachPlan = false)
+        val on = GuidanceSettings.DEFAULT.copy(shouldFollowCoachPlan = true)
         val slow = progress(1_000, average = Pace(400))
         assertNull(PaceGuidanceRule().check(context(slow, PlanSnapshot(null, Pace(300)), settings = off)))
         assertNull(PaceGuidanceRule().check(context(slow, PlanSnapshot(Distance(5_000), null), settings = on)))
@@ -106,7 +106,7 @@ class GuidanceRuleTest {
 
     @Test
     fun `Gap - 중간 알림 간격의 새 지점, 음성 켬 - 앞섬·뒤처짐과 남은 거리`() {
-        val settings = GuidanceSettings.DEFAULT.copy(battleVoice = true, gapAlertMeters = 500)
+        val settings = GuidanceSettings.DEFAULT.copy(isBattleVoiceOn = true, gapAlertMeters = 500)
         val plan = PlanSnapshot(Distance(3_000), null)
         val rule = GapGuidanceRule()
         assertNull(rule.check(context(progress(499), plan, gapMeters = 70, settings = settings)))
@@ -131,7 +131,7 @@ class GuidanceRuleTest {
 
     @Test
     fun `Gap - 음성 꺼짐이거나 격차가 없으면 안내 없음`() {
-        val off = GuidanceSettings.DEFAULT.copy(battleVoice = false)
+        val off = GuidanceSettings.DEFAULT.copy(isBattleVoiceOn = false)
         assertNull(GapGuidanceRule().check(context(progress(1_000), gapMeters = 70, settings = off)))
         assertNull(GapGuidanceRule().check(context(progress(1_000))))
     }
@@ -143,7 +143,7 @@ class GuidanceRuleTest {
         assertEquals(Guidance.Kind.RANK, g.kind)
         assertEquals(GuidanceMessage.RANK, g.message)
         assertEquals(listOf<Any>(5, 2), g.args)
-        val off = GuidanceSettings.DEFAULT.copy(rankAlert = false)
+        val off = GuidanceSettings.DEFAULT.copy(isRankAlertOn = false)
         assertNull(RankGuidanceRule().check(context(progress(1_000), rank = CrewRank(2, 5), settings = off)))
         assertNull(RankGuidanceRule().check(context(progress(1_000))))
     }
@@ -178,8 +178,8 @@ class GuidanceRuleTest {
 
     @Test
     fun `F-2 Gap - 대결 진동 설정을 따른다`() {
-        val vibrate = GuidanceSettings.DEFAULT.copy(gapAlertMeters = 500, battleVibration = true)
-        val silent = GuidanceSettings.DEFAULT.copy(gapAlertMeters = 500, battleVibration = false)
+        val vibrate = GuidanceSettings.DEFAULT.copy(gapAlertMeters = 500, isBattleVibrationOn = true)
+        val silent = GuidanceSettings.DEFAULT.copy(gapAlertMeters = 500, isBattleVibrationOn = false)
         assertTrue(
             assertNotNull(
                 GapGuidanceRule().check(context(progress(500), gapMeters = 5, settings = vibrate))

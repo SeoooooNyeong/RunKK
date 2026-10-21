@@ -43,7 +43,7 @@ class CardScreenshotTest {
             GeoPoint(37.51, 127.024),
             GeoPoint(37.512, 127.03)
         ),
-        courseMapShared = true
+        isCourseMapShared = true
     )
 
     @Test

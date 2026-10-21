@@ -91,7 +91,7 @@ data class InboxUiState(
     val error: UiText? = null,
     val message: UiText? = null
 ) {
-    val unreadCount: Int get() = groups.sumOf { g -> g.items.count { !it.read } }
+    val unreadCount: Int get() = groups.sumOf { g -> g.items.count { !it.isRead } }
 }
 
 sealed interface InboxEvent {
@@ -156,7 +156,7 @@ class InboxViewModel @Inject constructor(private val notifications: Notification
                         if (it.id ==
                             id
                         ) {
-                            it.copy(read = read)
+                            it.copy(isRead = read)
                         } else {
                             it
                         }
@@ -167,7 +167,7 @@ class InboxViewModel @Inject constructor(private val notifications: Notification
     }
 
     fun onItemTapped(item: Inbox.Item) {
-        if (!item.read) {
+        if (!item.isRead) {
             markRead(item.id, read = true)
             viewModelScope.launch {
                 val opened = notifications.open(item.id)
@@ -259,7 +259,7 @@ private fun InboxContent(state: InboxUiState, onBack: () -> Unit, onItem: (Inbox
 
 @Composable
 private fun InboxRow(item: Inbox.Item, onClick: () -> Unit) {
-    val readState = stringResource(if (item.read) R.string.notification_read else R.string.notification_unread)
+    val readState = stringResource(if (item.isRead) R.string.notification_read else R.string.notification_unread)
     val timePattern = stringResource(R.string.notification_time_pattern)
     val time = remember(timePattern) { DateTimeFormatter.ofPattern(timePattern, Locale.KOREAN) }
     Row(
@@ -276,12 +276,12 @@ private fun InboxRow(item: Inbox.Item, onClick: () -> Unit) {
         Box(
             Modifier.padding(
                 top = 6.dp
-            ).size(8.dp).clip(CircleShape).background(if (item.read) RunkkColors.Border else RunkkColors.Lavender)
+            ).size(8.dp).clip(CircleShape).background(if (item.isRead) RunkkColors.Border else RunkkColors.Lavender)
         )
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
                 item.title,
-                style = RunkkTextStyles.text(15, if (item.read) FontWeight.Medium else FontWeight.Black),
+                style = RunkkTextStyles.text(15, if (item.isRead) FontWeight.Medium else FontWeight.Black),
                 color = RunkkColors.TextPrimary
             )
             Text(item.body, style = RunkkTextStyles.Body, color = RunkkColors.TextSecondary)

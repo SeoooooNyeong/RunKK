@@ -12,12 +12,12 @@ data class RaceStatus(
     val contributors: List<Contributor>,
     val myShare: Double?
 ) {
-    /** [memberId]는 탈퇴했으면 null, [me]는 열람자 본인이다. */
+    /** [memberId]는 탈퇴했으면 null, [isMe]는 열람자 본인이다. */
     data class Contributor(
         val displayName: String,
         val distance: Distance,
         val share: Double,
         val memberId: Long? = null,
-        val me: Boolean = false
+        val isMe: Boolean = false
     )
 }

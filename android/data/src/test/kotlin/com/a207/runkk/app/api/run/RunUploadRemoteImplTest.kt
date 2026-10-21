@@ -90,7 +90,7 @@ class RunUploadRemoteImplTest {
 
         val receipt = RunUploadRemoteImpl(runApi).upload(RUN)
 
-        assertEquals(Outcome.Success(UploadReceipt(RUN.recordId, alreadySaved = true)), receipt)
+        assertEquals(Outcome.Success(UploadReceipt(RUN.recordId, isAlreadySaved = true)), receipt)
         val request = api.take()
         assertEquals("POST /api/v1/runs", "${request.method} ${request.url.encodedPath}")
     }
@@ -100,7 +100,7 @@ class RunUploadRemoteImplTest {
         api.reply("""{"recordId":"${RUN.recordId}","status":"STORED","valid":true}""")
 
         assertEquals(
-            Outcome.Success(UploadReceipt(RUN.recordId, alreadySaved = false)),
+            Outcome.Success(UploadReceipt(RUN.recordId, isAlreadySaved = false)),
             RunUploadRemoteImpl(runApi).upload(RUN)
         )
     }

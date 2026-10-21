@@ -131,7 +131,7 @@ class MatchViewModelTest {
     @Test
     fun `성사 - 조정자에 넘기고 시작 예약까지 남은 초를 보인 뒤 측정이 시작되면 진행 화면으로(FR-086·FR-087)`() = main.runVmTest { vms ->
         val w = world()
-        w.battles.match = Outcome.Success(MatchAcceptance(waiting = true, distance = Distance(5_000)))
+        w.battles.match = Outcome.Success(MatchAcceptance(isWaiting = true, distance = Distance(5_000)))
         val vm = vms.vm(w)
         vm.onStartMatching()
         runCurrent()

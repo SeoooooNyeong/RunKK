@@ -126,7 +126,7 @@ fun BattleResultScreen(
                     onRetry = onRetry
                 )
 
-                result.pending -> Pending(onRetry)
+                result.isPending -> Pending(onRetry)
 
                 else -> ResultBody(state, result, onHistory)
             }
@@ -177,7 +177,7 @@ private fun Pending(onRetry: () -> Unit) {
 @Composable
 private fun ResultBody(state: BattleResultUiState, result: BattleResult, onHistory: () -> Unit) {
     VerdictCard(state.verdict, verdictMessage(state.verdict, result).asString())
-    if (result.newRecord) RunkkBanner(stringResource(R.string.battle_result_new_record), strong = true)
+    if (result.isNewRecord) RunkkBanner(stringResource(R.string.battle_result_new_record), strong = true)
     ComparisonTable(result.rows)
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         RunkkStatTile(
@@ -505,7 +505,7 @@ private fun HistoryRow(entry: BattleHistory.Entry, onClick: () -> Unit) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             HistoryRowInfo(entry, playedFormat)
-            if (entry.newRecord) {
+            if (entry.isNewRecord) {
                 RunkkBadge(
                     stringResource(R.string.battle_history_new_record),
                     tone = RunkkBadgeTone.Lime

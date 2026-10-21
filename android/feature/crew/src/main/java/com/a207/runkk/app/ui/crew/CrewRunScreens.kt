@@ -415,7 +415,7 @@ private fun LobbyUntilStart(state: CrewRunUiState, lobby: Lobby) {
 /** 크루런 거리와 준비 완료 인원 타일. */
 @Composable
 private fun LobbyStats(state: CrewRunUiState, lobby: Lobby) {
-    val readyCount = lobby.participants.count { it.ready }
+    val readyCount = lobby.participants.count { it.isReady }
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         RunkkStatTile(
             stringResource(R.string.crew_run_lobby_distance_label),
@@ -478,7 +478,7 @@ private fun Participants(lobby: Lobby) {
                     .fillMaxWidth()
                     .clip(RunkkShapes.Medium)
                     .background(RunkkColors.Surface)
-                    .border(1.dp, if (p.me) RunkkColors.Lime else RunkkColors.Surface, RunkkShapes.Medium)
+                    .border(1.dp, if (p.isMe) RunkkColors.Lime else RunkkColors.Surface, RunkkShapes.Medium)
                     .padding(horizontal = 16.dp, vertical = 12.dp)
                     .semantics(mergeDescendants = true) {},
                 verticalAlignment = Alignment.CenterVertically,
@@ -490,10 +490,10 @@ private fun Participants(lobby: Lobby) {
                     color = RunkkColors.TextPrimary,
                     modifier = Modifier.weight(1f)
                 )
-                if (p.me) RunkkBadge(stringResource(R.string.crew_member_me), tone = RunkkBadgeTone.Neutral)
+                if (p.isMe) RunkkBadge(stringResource(R.string.crew_member_me), tone = RunkkBadgeTone.Neutral)
                 RunkkBadge(
-                    stringResource(if (p.ready) R.string.crew_run_ready else R.string.crew_run_participant_entering),
-                    tone = if (p.ready) RunkkBadgeTone.Lime else RunkkBadgeTone.Muted
+                    stringResource(if (p.isReady) R.string.crew_run_ready else R.string.crew_run_participant_entering),
+                    tone = if (p.isReady) RunkkBadgeTone.Lime else RunkkBadgeTone.Muted
                 )
             }
         }
@@ -679,7 +679,7 @@ fun CrewRunResultScreen(
 @Composable
 private fun ResultBody(state: CrewRunResultUiState, result: CrewRunResult) {
     ResultSummary(state, result)
-    if (result.firstCrewRun) RunkkBanner(stringResource(R.string.crew_run_result_first))
+    if (result.isFirstCrewRun) RunkkBanner(stringResource(R.string.crew_run_result_first))
     result.finishers.sortedBy { it.rank ?: Int.MAX_VALUE }.forEach { f -> FinisherRow(f) }
 }
 
@@ -717,10 +717,10 @@ private fun FinisherRow(f: CrewRunResult.Finisher) {
     val time = f.elapsedSeconds?.let { RunkkFormat.duration(Duration.ofSeconds(it)) }
     val pace = f.averagePaceSecondsPerKm?.takeIf { it > 0 }?.let { RunkkFormat.pace(Pace(it)) }
     val unfinished =
-        stringResource(if (f.quit) R.string.crew_run_connection_quit else R.string.crew_run_result_unfinished)
+        stringResource(if (f.hasQuit) R.string.crew_run_connection_quit else R.string.crew_run_result_unfinished)
     val description = listOfNotNull(
         f.rank?.let { stringResource(R.string.crew_run_rank, it) } ?: unfinished,
-        if (f.me) stringResource(R.string.crew_run_me_named, f.displayName) else f.displayName,
+        if (f.isMe) stringResource(R.string.crew_run_me_named, f.displayName) else f.displayName,
         f.elapsedSeconds?.let { RunkkFormat.durationSpoken(Duration.ofSeconds(it)) },
         f.averagePaceSecondsPerKm?.takeIf { it > 0 }
             ?.let { stringResource(R.string.crew_run_result_average_spoken, RunkkFormat.paceSpoken(Pace(it))) }
@@ -731,8 +731,8 @@ private fun FinisherRow(f: CrewRunResult.Finisher) {
             .clip(RunkkShapes.Medium)
             .background(RunkkColors.Surface)
             .border(
-                if (f.me) 2.dp else 1.dp,
-                if (f.me || f.rank == 1) RunkkColors.Lime else RunkkColors.Border,
+                if (f.isMe) 2.dp else 1.dp,
+                if (f.isMe || f.rank == 1) RunkkColors.Lime else RunkkColors.Border,
                 RunkkShapes.Medium
             )
             .padding(16.dp)
@@ -752,7 +752,7 @@ private fun FinisherRow(f: CrewRunResult.Finisher) {
             color = RunkkColors.TextPrimary,
             modifier = Modifier.weight(1f)
         )
-        if (f.me) RunkkBadge(stringResource(R.string.crew_member_me), tone = RunkkBadgeTone.Lime)
+        if (f.isMe) RunkkBadge(stringResource(R.string.crew_member_me), tone = RunkkBadgeTone.Lime)
         FinisherTrailing(f, unfinished, time, pace)
     }
 }

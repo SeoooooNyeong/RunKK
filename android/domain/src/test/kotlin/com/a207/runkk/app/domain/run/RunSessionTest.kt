@@ -76,7 +76,7 @@ class RunSessionTest {
         session.lock()
         assertEquals(FinishOutcome.Rejected, session.finish(at(5)))
         assertEquals(RunSession.State.LOCKED, session.state)
-        assertTrue(session.tick(at(5)).locked)
+        assertTrue(session.tick(at(5)).isLocked)
     }
 
     @Test

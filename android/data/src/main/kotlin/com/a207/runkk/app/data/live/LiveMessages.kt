@@ -166,7 +166,7 @@ internal data class CrewRunRelayJson(val postId: Long, val entries: List<Entry>)
                 it.rank,
                 CrewRunRelay.Connection.valueOf(it.connection),
                 memberId = it.memberId,
-                me = selfId != null && it.memberId == selfId
+                isMe = selfId != null && it.memberId == selfId
             )
         }
     )

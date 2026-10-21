@@ -17,11 +17,11 @@ import java.time.LocalDate
  */
 data class BattleResult(
     val battleId: Long,
-    val pending: Boolean,
+    val isPending: Boolean,
     val verdict: String?,
     val rows: List<Row>,
     val rewardPoints: Int?,
-    val newRecord: Boolean,
+    val isNewRecord: Boolean,
     val opponentName: String? = null,
     val recordId: String? = null,
     val myReach: Duration? = null,

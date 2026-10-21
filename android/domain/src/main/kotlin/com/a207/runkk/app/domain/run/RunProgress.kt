@@ -15,7 +15,7 @@ data class RunProgress(
     val currentPace: Pace?,
     val averagePace: Pace?,
     val signal: SignalState?,
-    val locked: Boolean,
+    val isLocked: Boolean,
     val heartRate: HeartRateSample?
 ) {
     companion object {
@@ -26,7 +26,7 @@ data class RunProgress(
                 currentPace = null,
                 averagePace = null,
                 signal = null,
-                locked = false,
+                isLocked = false,
                 heartRate = null
             )
     }

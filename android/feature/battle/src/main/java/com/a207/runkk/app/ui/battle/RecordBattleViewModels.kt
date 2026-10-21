@@ -49,7 +49,7 @@ data class CandidateUi(
             recordedOn = c.recordedOn,
             averagePace = c.finishTime?.takeIf { c.distance.meters > 0 }?.let { Pace.of(it, c.distance) },
             sourceLabel = c.sourceLabel,
-            estimated = c.estimated
+            estimated = c.isEstimated
         )
     }
 }

@@ -182,12 +182,12 @@ class CrewRepositoryImplTest {
         val members = repository.members(9).value()
         val race = repository.race(9, null).value()
 
-        assertEquals(listOf(false, true), members.members.map { it.me })
+        assertEquals(listOf(false, true), members.members.map { it.isMe })
         assertEquals(listOf(CrewRole.LEADER, CrewRole.MEMBER), members.members.map { it.role })
         assertEquals(
             listOf(
-                RaceStatus.Contributor("나", Distance(8_000), 40.0, 7, me = true),
-                RaceStatus.Contributor("", Distance(12_000), 60.0, null, me = false)
+                RaceStatus.Contributor("나", Distance(8_000), 40.0, 7, isMe = true),
+                RaceStatus.Contributor("", Distance(12_000), 60.0, null, isMe = false)
             ),
             race.contributors
         )
@@ -291,7 +291,7 @@ class CrewRepositoryImplTest {
         assertEquals(
             Lobby(
                 77,
-                listOf(Lobby.Participant("곰", true, 3, me = false), Lobby.Participant("나", false, 7, me = true)),
+                listOf(Lobby.Participant("곰", true, 3, isMe = false), Lobby.Participant("나", false, 7, isMe = true)),
                 Instant.parse("2026-10-24T21:00:00Z"),
                 Distance(3_000)
             ),
@@ -303,8 +303,8 @@ class CrewRepositoryImplTest {
             CrewRunResult(
                 77,
                 listOf(
-                    CrewRunResult.Finisher(1, "곰", 3_000, 300, quit = false, memberId = 3, me = false),
-                    CrewRunResult.Finisher(null, "토끼", null, null, quit = true, memberId = 7, me = true)
+                    CrewRunResult.Finisher(1, "곰", 3_000, 300, hasQuit = false, memberId = 3, isMe = false),
+                    CrewRunResult.Finisher(null, "토끼", null, null, hasQuit = true, memberId = 7, isMe = true)
                 ),
                 true,
                 Distance(20_000)

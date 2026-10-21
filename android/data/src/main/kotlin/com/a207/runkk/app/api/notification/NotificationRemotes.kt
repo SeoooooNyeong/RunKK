@@ -42,7 +42,7 @@ internal fun InboxResponse.toDomain(titleOf: (type: String) -> String): Inbox = 
             title = titleOf(it.type),
             body = it.content,
             receivedAt = ServerTime.parse(it.occurredAt),
-            read = it.read,
+            isRead = it.read,
             route = it.target?.screen?.let(ROUTES::get)
         )
     }

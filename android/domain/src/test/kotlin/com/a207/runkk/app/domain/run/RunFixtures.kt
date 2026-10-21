@@ -40,7 +40,7 @@ fun progress(
     currentPace = null,
     averagePace = average,
     signal = SignalState.NORMAL,
-    locked = false,
+    isLocked = false,
     heartRate = heartRate
 )
 

@@ -64,7 +64,7 @@ class WatchLinkTest {
         link.publish(DISPLAY)
         val before = transport.displays().size
 
-        settings.emit(CONSENTED.copy(heartRateConsented = false))
+        settings.emit(CONSENTED.copy(isHeartRateConsented = false))
 
         val after = transport.displays()
         assertEquals(before + 1, after.size, "철회 알림 한 번에 한 번 다시 보낸다")
@@ -76,7 +76,7 @@ class WatchLinkTest {
     fun `워치 연동을 끄면 표시 정보가 없어도 금지 플래그를 보낸다`() = runTest {
         WatchLink(transport, settings, linkScope())
 
-        settings.emit(CONSENTED.copy(watchLinked = false))
+        settings.emit(CONSENTED.copy(isWatchLinked = false))
 
         val last = transport.displays().last()
         assertFalse(last.running)
@@ -111,7 +111,7 @@ class WatchLinkTest {
         val link = WatchLink(transport, settings, linkScope())
         val received = mutableListOf<List<HeartRateSample>>()
         linkScope().launch { link.heartRates.collect { received += it } }
-        settings.emit(CONSENTED.copy(heartRateConsented = false))
+        settings.emit(CONSENTED.copy(isHeartRateConsented = false))
 
         transport.receive(
             "${WearPaths.HEART_RATE_BATCH}/42",
@@ -167,13 +167,13 @@ class WatchLinkTest {
 
         override suspend fun refresh(): Outcome<Unit> = Outcome.Success(Unit)
 
-        override fun locationConsented() = state.value.locationConsented
+        override fun locationConsented() = state.value.isLocationConsented
 
-        override fun heartRateConsented() = state.value.heartRateConsented
+        override fun heartRateConsented() = state.value.isHeartRateConsented
 
-        override fun watchLinked() = state.value.watchLinked
+        override fun watchLinked() = state.value.isWatchLinked
 
-        override fun courseMapShared() = state.value.courseMapShared
+        override fun courseMapShared() = state.value.isCourseMapShared
 
         override fun birthYear() = state.value.birthYear
 
@@ -190,8 +190,8 @@ class WatchLinkTest {
             SettingsSnapshot(
                 true,
                 true,
-                watchLinked = true,
-                courseMapShared = false,
+                isWatchLinked = true,
+                isCourseMapShared = false,
                 birthYear = 1990,
                 GuidanceSettings.DEFAULT
             )

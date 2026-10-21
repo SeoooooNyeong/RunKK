@@ -150,7 +150,7 @@ private fun DetailBadges(detail: RecordDetail) {
     val dateFormat = rememberDateFormatter(R.string.record_detail_date_pattern)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         RunkkBadge(kindLabel(s.cardKind))
-        if (s.valid) {
+        if (s.isValid) {
             RunkkBadge(
                 stringResource(R.string.record_detail_valid),
                 tone = RunkkBadgeTone.Lime

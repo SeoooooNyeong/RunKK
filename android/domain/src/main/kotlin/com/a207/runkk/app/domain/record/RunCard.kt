@@ -21,5 +21,5 @@ data class RunCard(
     val elapsed: Duration,
     val averagePace: Pace?,
     val route: List<GeoPoint>,
-    val courseMapShared: Boolean
+    val isCourseMapShared: Boolean
 )

@@ -596,7 +596,7 @@ private val previewProgress = RunProgress(
     currentPace = Pace(321),
     averagePace = Pace(332),
     signal = SignalState.NORMAL,
-    locked = false,
+    isLocked = false,
     heartRate = HeartRateSample(Instant.EPOCH, 152)
 )
 
@@ -631,7 +631,7 @@ private fun LockedPreview() {
         RunScreen(
             RunUiState(
                 phase = RunPhase.LOCKED,
-                progress = previewProgress.copy(locked = true),
+                progress = previewProgress.copy(isLocked = true),
                 targetDistance = Distance(5_000)
             ),
             RunActions()

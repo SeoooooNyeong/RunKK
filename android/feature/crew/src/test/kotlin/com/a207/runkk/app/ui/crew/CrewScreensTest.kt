@@ -290,7 +290,7 @@ class CrewScreenshotTest {
                 if (it.displayName ==
                     "나"
                 ) {
-                    it.copy(me = true)
+                    it.copy(isMe = true)
                 } else {
                     it
                 }
@@ -303,7 +303,7 @@ class CrewScreenshotTest {
             }
         ),
         cheers = cheers,
-        members = members.copy(members = members.members.map { if (it.memberId == 2L) it.copy(me = true) else it })
+        members = members.copy(members = members.members.map { if (it.memberId == 2L) it.copy(isMe = true) else it })
     )
 
     @Test

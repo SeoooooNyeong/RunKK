@@ -23,7 +23,7 @@ class GapGuidanceRule : GuidanceRule {
                 ?: PointCrossing(interval, start).also { crossing = it }
         val newPoint = points.newPoint(ctx.progress.distance)
         val gap = ctx.gapMeters
-        if (newPoint == null || gap == null || !settings.battleVoice) return null
+        if (newPoint == null || gap == null || !settings.isBattleVoiceOn) return null
         val isAhead = gap >= 0
         val remaining = ctx.todayPlan?.targetDistance?.minus(ctx.progress.distance)
         val message =
@@ -33,6 +33,6 @@ class GapGuidanceRule : GuidanceRule {
                 else -> GuidanceMessage.GAP_BEHIND_REMAINING
             }
         val args = listOfNotNull<Any>(abs(gap), remaining?.meters)
-        return Guidance(Guidance.Kind.GAP, message, args, hasVoice = true, hasVibration = settings.battleVibration)
+        return Guidance(Guidance.Kind.GAP, message, args, hasVoice = true, hasVibration = settings.isBattleVibrationOn)
     }
 }

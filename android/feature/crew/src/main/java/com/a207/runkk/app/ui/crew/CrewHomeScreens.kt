@@ -399,7 +399,7 @@ private fun ColumnScope.RaceTab(state: CrewHomeUiState, actions: CrewHomeActions
         Loading(state)
         return
     }
-    RaceCard(race, mine = race.contributors.firstOrNull { it.me })
+    RaceCard(race, mine = race.contributors.firstOrNull { it.isMe })
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
             stringResource(R.string.crew_race_ranking_title),
@@ -627,7 +627,7 @@ private fun CrewRunPostHeader(post: PostList.Item, actions: CrewHomeActions) {
             color = RunkkColors.TextSecondary,
             modifier = Modifier.weight(1f)
         )
-        if (post.mine) {
+        if (post.isMine) {
             RunkkTextLink(
                 stringResource(R.string.crew_action_delete),
                 onClick = { actions.onDeleteAsk(post) },
@@ -745,7 +745,7 @@ private fun ColumnScope.CheerTab(state: CrewHomeUiState, actions: CrewHomeAction
                         color = RunkkColors.TextSecondary,
                         modifier = Modifier.weight(1f)
                     )
-                    if (post.mine) {
+                    if (post.isMine) {
                         RunkkTextLink(
                             stringResource(R.string.crew_action_delete),
                             onClick = { actions.onDeleteAsk(post) },
@@ -795,7 +795,7 @@ internal fun MemberRow(member: CrewMembers.Member, trailing: (@Composable () -> 
                         stringResource(member.role.labelRes()),
                         tone = if (isLeader(member)) RunkkBadgeTone.Lime else RunkkBadgeTone.Muted
                     )
-                    if (member.me) RunkkBadge(stringResource(R.string.crew_member_me), tone = RunkkBadgeTone.Neutral)
+                    if (member.isMe) RunkkBadge(stringResource(R.string.crew_member_me), tone = RunkkBadgeTone.Neutral)
                 }
                 Text(
                     listOfNotNull(member.tier, member.runimalType).joinToString(" · ").ifEmpty {

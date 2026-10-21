@@ -73,7 +73,7 @@ data class CrewRunCancelled(val postId: Long, val reason: String) : ServerMessag
 
 /**
  * 크루런 중계: 참가자마다 표시명·누적 거리·순위·연결 상태(FR-149). [Entry.memberId]는 참가자 회원 ID이고,
- * [Entry.me]는 받는 사람 본인 줄이다(data.live가 접근 토큰의 회원 ID와 memberId를 비교해 채운다).
+ * [Entry.isMe]는 받는 사람 본인 줄이다(data.live가 접근 토큰의 회원 ID와 memberId를 비교해 채운다).
  */
 data class CrewRunRelay(val postId: Long, val entries: List<Entry>) : ServerMessage {
     data class Entry(
@@ -82,7 +82,7 @@ data class CrewRunRelay(val postId: Long, val entries: List<Entry>) : ServerMess
         val rank: Int?,
         val connection: Connection,
         val memberId: Long? = null,
-        val me: Boolean = false
+        val isMe: Boolean = false
     )
 
     enum class Connection {

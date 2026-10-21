@@ -33,7 +33,7 @@ internal fun RunSummaryDto.toDomain(): RunSummary = RunSummary(
     distance = Distance(distanceMeters),
     elapsed = Duration.ofSeconds(elapsedSeconds),
     averagePace = averagePaceSecondsPerKm.toPace(),
-    valid = valid,
+    isValid = valid,
     mode = enumByName<RunMode>(mode) ?: RunMode.FREE,
     cardKind = enumByName<CardKind>(cardKind) ?: CardKind.FREE_RUN
 )
@@ -140,5 +140,5 @@ internal fun RunCardResponse.toDomain(): RunCard = RunCard(
     elapsed = Duration.ofSeconds(elapsedSeconds),
     averagePace = averagePaceSecondsPerKm.toPace(),
     route = route.map { it.toDomain() },
-    courseMapShared = courseMapShared
+    isCourseMapShared = courseMapShared
 )

@@ -93,7 +93,7 @@ class BattleResultViewModelTest {
         val vm = BattleResultViewModel(w.battles, w.coordinator)
         vm.load(9)
         runCurrent()
-        assertTrue(vm.state.value.result?.pending == true)
+        assertTrue(vm.state.value.result?.isPending == true)
         assertNull(vm.state.value.verdict)
         w.battles.resultResult = Outcome.Success(battleResult())
         vm.load(9, force = true)

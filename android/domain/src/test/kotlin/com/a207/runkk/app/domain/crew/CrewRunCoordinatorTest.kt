@@ -224,7 +224,7 @@ class CrewRunCoordinatorTest {
                 listOf(
                     CrewRunRelay.Entry("너", Distance(900), 1, CrewRunRelay.Connection.CONNECTED, memberId = 12),
                     // 같은 표시명의 다른 참가자가 있어도 본인 표시(me)로 가린다.
-                    CrewRunRelay.Entry("나", Distance(850), 2, CrewRunRelay.Connection.CONNECTED, 7, me = true),
+                    CrewRunRelay.Entry("나", Distance(850), 2, CrewRunRelay.Connection.CONNECTED, 7, isMe = true),
                     CrewRunRelay.Entry("나", Distance(300), 3, CrewRunRelay.Connection.CONNECTED, memberId = 13)
                 )
             )

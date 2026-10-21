@@ -87,13 +87,13 @@ class DataStoreSettingsRepository internal constructor(
         }
     }
 
-    override fun locationConsented(): Boolean = current().locationConsented
+    override fun locationConsented(): Boolean = current().isLocationConsented
 
-    override fun heartRateConsented(): Boolean = current().heartRateConsented
+    override fun heartRateConsented(): Boolean = current().isHeartRateConsented
 
-    override fun watchLinked(): Boolean = current().watchLinked
+    override fun watchLinked(): Boolean = current().isWatchLinked
 
-    override fun courseMapShared(): Boolean = current().courseMapShared
+    override fun courseMapShared(): Boolean = current().isCourseMapShared
 
     override fun birthYear(): Int? = current().birthYear
 
@@ -121,20 +121,20 @@ class DataStoreSettingsRepository internal constructor(
         if (this[HAS_COPY] != true) return null
         val defaults = GuidanceSettings.DEFAULT
         return SettingsSnapshot(
-            locationConsented = this[LOCATION] ?: false,
-            heartRateConsented = this[HEART_RATE] ?: false,
-            watchLinked = this[WATCH_LINKED] ?: false,
-            courseMapShared = this[COURSE_MAP_SHARED] ?: false,
+            isLocationConsented = this[LOCATION] ?: false,
+            isHeartRateConsented = this[HEART_RATE] ?: false,
+            isWatchLinked = this[WATCH_LINKED] ?: false,
+            isCourseMapShared = this[COURSE_MAP_SHARED] ?: false,
             birthYear = this[BIRTH_YEAR],
             guidanceSettings =
                 GuidanceSettings(
-                    runVoice = this[RUN_VOICE] ?: defaults.runVoice,
-                    runVibration = this[RUN_VIBRATION] ?: defaults.runVibration,
-                    battleVoice = this[BATTLE_VOICE] ?: defaults.battleVoice,
-                    battleVibration = this[BATTLE_VIBRATION] ?: defaults.battleVibration,
+                    isRunVoiceOn = this[RUN_VOICE] ?: defaults.isRunVoiceOn,
+                    isRunVibrationOn = this[RUN_VIBRATION] ?: defaults.isRunVibrationOn,
+                    isBattleVoiceOn = this[BATTLE_VOICE] ?: defaults.isBattleVoiceOn,
+                    isBattleVibrationOn = this[BATTLE_VIBRATION] ?: defaults.isBattleVibrationOn,
                     gapAlertMeters = this[GAP_ALERT_METERS]?.takeIf { it > 0 } ?: defaults.gapAlertMeters,
-                    rankAlert = this[RANK_ALERT] ?: defaults.rankAlert,
-                    followCoachPlan = this[FOLLOW_COACH_PLAN] ?: defaults.followCoachPlan
+                    isRankAlertOn = this[RANK_ALERT] ?: defaults.isRankAlertOn,
+                    shouldFollowCoachPlan = this[FOLLOW_COACH_PLAN] ?: defaults.shouldFollowCoachPlan
                 )
         )
     }
@@ -142,19 +142,19 @@ class DataStoreSettingsRepository internal constructor(
     private fun MutablePreferences.write(s: SettingsSnapshot) {
         clear()
         this[HAS_COPY] = true
-        this[LOCATION] = s.locationConsented
-        this[HEART_RATE] = s.heartRateConsented
-        this[WATCH_LINKED] = s.watchLinked
-        this[COURSE_MAP_SHARED] = s.courseMapShared
+        this[LOCATION] = s.isLocationConsented
+        this[HEART_RATE] = s.isHeartRateConsented
+        this[WATCH_LINKED] = s.isWatchLinked
+        this[COURSE_MAP_SHARED] = s.isCourseMapShared
         s.birthYear?.let { this[BIRTH_YEAR] = it }
         val g = s.guidanceSettings
-        this[RUN_VOICE] = g.runVoice
-        this[RUN_VIBRATION] = g.runVibration
-        this[BATTLE_VOICE] = g.battleVoice
-        this[BATTLE_VIBRATION] = g.battleVibration
+        this[RUN_VOICE] = g.isRunVoiceOn
+        this[RUN_VIBRATION] = g.isRunVibrationOn
+        this[BATTLE_VOICE] = g.isBattleVoiceOn
+        this[BATTLE_VIBRATION] = g.isBattleVibrationOn
         this[GAP_ALERT_METERS] = g.gapAlertMeters
-        this[RANK_ALERT] = g.rankAlert
-        this[FOLLOW_COACH_PLAN] = g.followCoachPlan
+        this[RANK_ALERT] = g.isRankAlertOn
+        this[FOLLOW_COACH_PLAN] = g.shouldFollowCoachPlan
     }
 
     private companion object {

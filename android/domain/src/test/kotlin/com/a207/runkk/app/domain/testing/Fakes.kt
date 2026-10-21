@@ -180,7 +180,7 @@ class FakeMeasurementHost : MeasurementHost {
 }
 
 class FakeSettingsRepository(
-    snapshot: SettingsSnapshot = SettingsSnapshot.SAFE.copy(locationConsented = true),
+    snapshot: SettingsSnapshot = SettingsSnapshot.SAFE.copy(isLocationConsented = true),
     private val log: CallLog = CallLog()
 ) : SettingsRepository {
     var refreshResult: Outcome<Unit> = Outcome.Success(Unit)
@@ -198,13 +198,13 @@ class FakeSettingsRepository(
         return refreshResult
     }
 
-    override fun locationConsented(): Boolean = snapshot.locationConsented
+    override fun locationConsented(): Boolean = snapshot.isLocationConsented
 
-    override fun heartRateConsented(): Boolean = snapshot.heartRateConsented
+    override fun heartRateConsented(): Boolean = snapshot.isHeartRateConsented
 
-    override fun watchLinked(): Boolean = snapshot.watchLinked
+    override fun watchLinked(): Boolean = snapshot.isWatchLinked
 
-    override fun courseMapShared(): Boolean = snapshot.courseMapShared
+    override fun courseMapShared(): Boolean = snapshot.isCourseMapShared
 
     override fun birthYear(): Int? = snapshot.birthYear
 

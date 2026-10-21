@@ -37,7 +37,7 @@ private class FakeRunUploadRemote(private val log: CallLog) : RunUploadRemote {
 
     override suspend fun upload(run: CompletedRun): Outcome<UploadReceipt> {
         log.add("remote.upload:${run.recordId}")
-        return results[run.recordId] ?: Outcome.Success(UploadReceipt(run.recordId, alreadySaved = false))
+        return results[run.recordId] ?: Outcome.Success(UploadReceipt(run.recordId, isAlreadySaved = false))
     }
 
     var appendResult: Outcome<Unit> = Outcome.Success(Unit)
@@ -95,7 +95,7 @@ class SyncTest {
     @Test
     fun `이미 저장된 기록은 지우고, 늦게 붙은 심박은 따로 보낸다`() = runTest {
         pending.runs += run("a", heartRates = listOf(HeartRateSample(T0, 140)))
-        remote.results["a"] = Outcome.Success(UploadReceipt("a", alreadySaved = true))
+        remote.results["a"] = Outcome.Success(UploadReceipt("a", isAlreadySaved = true))
         val outcomes = UploadPendingRunsUseCase(pending, remote)()
         assertEquals(listOf(UploadOutcome.AlreadySaved("a")), outcomes)
         assertEquals(
@@ -113,7 +113,7 @@ class SyncTest {
     @Test
     fun `늦게 붙은 심박을 보내지 못하면 보관함에 남긴다`() = runTest {
         pending.runs += run("a", heartRates = listOf(HeartRateSample(T0, 140)))
-        remote.results["a"] = Outcome.Success(UploadReceipt("a", alreadySaved = true))
+        remote.results["a"] = Outcome.Success(UploadReceipt("a", isAlreadySaved = true))
         remote.appendResult = Outcome.Failure(AppError.Network)
         val outcomes = UploadPendingRunsUseCase(pending, remote)()
         assertEquals(listOf(UploadOutcome.Failed("a", AppError.Network)), outcomes)

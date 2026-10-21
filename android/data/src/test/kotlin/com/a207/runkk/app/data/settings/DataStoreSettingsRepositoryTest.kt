@@ -81,16 +81,16 @@ class DataStoreSettingsRepositoryTest {
         repository.refresh()
         val seen = mutableListOf<SettingsSnapshot>()
         val collecting = launch(UnconfinedTestDispatcher(testScheduler)) { repository.changes().collect { seen += it } }
-        assertTrue(seen.last().heartRateConsented)
+        assertTrue(seen.last().isHeartRateConsented)
 
-        remote.next += Outcome.Success(CONSENTED.copy(heartRateConsented = false))
+        remote.next += Outcome.Success(CONSENTED.copy(isHeartRateConsented = false))
         repository.refresh()
 
-        val withdrawn = repository.changes().first { !it.heartRateConsented }
-        assertFalse(withdrawn.heartRateConsented)
+        val withdrawn = repository.changes().first { !it.isHeartRateConsented }
+        assertFalse(withdrawn.isHeartRateConsented)
         assertFalse(repository.heartRateConsented())
         collecting.cancel()
-        assertTrue(seen.any { !it.heartRateConsented && it.watchLinked }, "철회된 사본이 방출되지 않았다: $seen")
+        assertTrue(seen.any { !it.isHeartRateConsented && it.isWatchLinked }, "철회된 사본이 방출되지 않았다: $seen")
     }
 
     @Test
@@ -145,20 +145,20 @@ class DataStoreSettingsRepositoryTest {
     private companion object {
         val CONSENTED =
             SettingsSnapshot(
-                locationConsented = true,
-                heartRateConsented = true,
-                watchLinked = true,
-                courseMapShared = true,
+                isLocationConsented = true,
+                isHeartRateConsented = true,
+                isWatchLinked = true,
+                isCourseMapShared = true,
                 birthYear = 1990,
                 guidanceSettings =
                     GuidanceSettings(
-                        runVoice = false,
-                        runVibration = true,
-                        battleVoice = true,
-                        battleVibration = false,
+                        isRunVoiceOn = false,
+                        isRunVibrationOn = true,
+                        isBattleVoiceOn = true,
+                        isBattleVibrationOn = false,
                         gapAlertMeters = 500,
-                        rankAlert = true,
-                        followCoachPlan = true
+                        isRankAlertOn = true,
+                        shouldFollowCoachPlan = true
                     )
             )
     }

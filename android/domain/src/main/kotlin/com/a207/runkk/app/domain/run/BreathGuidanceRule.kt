@@ -30,8 +30,8 @@ class BreathGuidanceRule : GuidanceRule {
         return Guidance(
             Guidance.Kind.BREATH,
             GuidanceMessage.BREATH_HIGH,
-            hasVoice = settings.runVoice,
-            hasVibration = settings.runVibration
+            hasVoice = settings.isRunVoiceOn,
+            hasVibration = settings.isRunVibrationOn
         )
     }
 

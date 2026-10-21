@@ -170,7 +170,7 @@ constructor(
     fun forfeit() {
         val run = run ?: return
         run.round.scope.launch {
-            if (runTracker.progress.value.locked) return@launch
+            if (runTracker.progress.value.isLocked) return@launch
             report(run) { battleRepository.forfeit(run.battleId) }
             finish(run, status = null)
         }
@@ -385,8 +385,8 @@ constructor(
     }
 
     private fun syncLock(run: BattleRun) {
-        val locked = runTracker.progress.value.locked
-        updateMine(run) { it.copy(locked = locked) }
+        val locked = runTracker.progress.value.isLocked
+        updateMine(run) { it.copy(isLocked = locked) }
     }
 
     /**
@@ -394,7 +394,7 @@ constructor(
      * 처리되면 잠금을 되돌릴 수 있다(잠금만 바뀐 방출은 경과가 같아 accept가 버린다).
      */
     private fun RunProgress.toMine(): MyProgress =
-        MyProgress(distance, elapsed, currentPace, averagePace, locked = runTracker.progress.value.locked)
+        MyProgress(distance, elapsed, currentPace, averagePace, isLocked = runTracker.progress.value.isLocked)
 
     /**
      * 매칭 요청이 취소됐으면(이탈 취소가 요청을 끊음) null. 부른 코루틴 자신이 취소된 것이면 null로 삼키지 않고 취소를 잇는다(리뷰 N-9).

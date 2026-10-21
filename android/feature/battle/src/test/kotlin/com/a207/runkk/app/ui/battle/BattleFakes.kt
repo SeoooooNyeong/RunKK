@@ -103,8 +103,8 @@ class MutableClock(var now: Instant = start) : Clock() {
 /** 대결 REST 가짜. 부른 연산을 [calls]에 남긴다. */
 class FakeBattleRepository : BattleRepository {
     val calls = mutableListOf<String>()
-    var match: Outcome<MatchAcceptance> = Outcome.Success(MatchAcceptance(waiting = true, distance = Distance(5_000)))
-    var cancelResult: Outcome<MatchAcceptance> = Outcome.Success(MatchAcceptance(waiting = false, distance = null))
+    var match: Outcome<MatchAcceptance> = Outcome.Success(MatchAcceptance(isWaiting = true, distance = Distance(5_000)))
+    var cancelResult: Outcome<MatchAcceptance> = Outcome.Success(MatchAcceptance(isWaiting = false, distance = null))
     var selfResult: Outcome<RecordBattleCandidates> = Outcome.Success(RecordBattleCandidates(selfCandidates))
     var celebResult: Outcome<RecordBattleCandidates> = Outcome.Success(RecordBattleCandidates(celebCandidates))
     var startResult: Outcome<RecordBattleStart>? = null
@@ -113,7 +113,7 @@ class FakeBattleRepository : BattleRepository {
 
     /** GET /battles/match 응답(기본 대결 거리 5km, 대기 아님). [calls]와 따로 센다. */
     var status: Outcome<MatchAcceptance> =
-        Outcome.Success(MatchAcceptance(waiting = false, distance = null, defaultDistance = Distance(5_000)))
+        Outcome.Success(MatchAcceptance(isWaiting = false, distance = null, defaultDistance = Distance(5_000)))
     var statusCalls = 0
 
     override suspend fun matchStatus(): Outcome<MatchAcceptance> {
@@ -399,7 +399,7 @@ fun matchFound(battleId: Long = 9) = MatchFound(
 
 fun battleResult(pending: Boolean = false, verdict: String? = "WIN", recordId: String? = "rec-9") = BattleResult(
     battleId = 9,
-    pending = pending,
+    isPending = pending,
     verdict = verdict,
     rows = listOf(
         BattleResult.Row("기록", "27:30", "28:12"),
@@ -408,7 +408,7 @@ fun battleResult(pending: Boolean = false, verdict: String? = "WIN", recordId: S
         BattleResult.Row("추월 횟수", "2회", "1회")
     ),
     rewardPoints = 70,
-    newRecord = false,
+    isNewRecord = false,
     opponentName = "바람처럼",
     recordId = recordId,
     myReach = java.time.Duration.ofSeconds(1_650),

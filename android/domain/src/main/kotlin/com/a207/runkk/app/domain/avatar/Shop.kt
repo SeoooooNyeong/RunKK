@@ -10,7 +10,7 @@ data class Shop(val items: List<Item>, val balance: Int) {
         val slot: ItemSlot,
         val name: String,
         val price: Int,
-        val owned: Boolean,
-        val onSale: Boolean
+        val isOwned: Boolean,
+        val isOnSale: Boolean
     )
 }

@@ -69,7 +69,7 @@ constructor(
 
     /**
      * 크루런 대기실 진입(ui.crew가 CrewRepository.enterLobby 성공 뒤 부른다). 채널을 열고 중계를 받는다. 중계의 본인 줄은
-     * data.live가 표시한 CrewRunRelay.Entry.me로 가린다(1km 순위 안내, FR-190).
+     * data.live가 표시한 CrewRunRelay.Entry.isMe로 가린다(1km 순위 안내, FR-190).
      */
     fun onLobbyEntered(postId: Long, distance: Distance) {
         val run = openRun(postId, distance)
@@ -213,7 +213,7 @@ constructor(
                 else -> CrewRunState.Running(run.postId, m.entries)
             }
         }
-        val mine = m.entries.firstOrNull { it.me }?.rank
+        val mine = m.entries.firstOrNull { it.isMe }?.rank
         if (mine != null && mine in 1..m.entries.size) runTracker.onRankChanged(CrewRank(mine, m.entries.size))
     }
 

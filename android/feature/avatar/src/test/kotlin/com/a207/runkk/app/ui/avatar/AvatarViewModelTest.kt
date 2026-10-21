@@ -47,11 +47,11 @@ val avatar = Avatar(
 )
 
 val items = listOf(
-    Shop.Item(1, ItemSlot.TOP, "라임 러닝 티", 300, owned = true, onSale = true),
-    Shop.Item(2, ItemSlot.TOP, "라벤더 싱글렛", 400, owned = true, onSale = true),
-    Shop.Item(3, ItemSlot.HAT, "런 캡", 250, owned = false, onSale = true),
-    Shop.Item(4, ItemSlot.SHOES, "카본 러닝화", 2_000, owned = false, onSale = true),
-    Shop.Item(5, ItemSlot.BOTTOM, "한정 쇼츠", 500, owned = false, onSale = false)
+    Shop.Item(1, ItemSlot.TOP, "라임 러닝 티", 300, isOwned = true, isOnSale = true),
+    Shop.Item(2, ItemSlot.TOP, "라벤더 싱글렛", 400, isOwned = true, isOnSale = true),
+    Shop.Item(3, ItemSlot.HAT, "런 캡", 250, isOwned = false, isOnSale = true),
+    Shop.Item(4, ItemSlot.SHOES, "카본 러닝화", 2_000, isOwned = false, isOnSale = true),
+    Shop.Item(5, ItemSlot.BOTTOM, "한정 쇼츠", 500, isOwned = false, isOnSale = false)
 )
 
 class FakeAvatars : AvatarRepository {
@@ -247,7 +247,7 @@ class ShopViewModelTest {
         vm.onBuy()
         val s = vm.state.value
         assertEquals(990, s.shop?.balance)
-        assertTrue(s.shop!!.items.first().owned)
+        assertTrue(s.shop!!.items.first().isOwned)
         assertNull(s.confirming)
         assertTrue("buy:3" in repo.calls)
     }

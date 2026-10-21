@@ -17,8 +17,8 @@ class SplitGuidanceRule : GuidanceRule {
             Guidance.Kind.SPLIT,
             GuidanceMessage.SPLIT,
             listOf(km),
-            hasVoice = settings.runVoice,
-            hasVibration = settings.runVibration
+            hasVoice = settings.isRunVoiceOn,
+            hasVibration = settings.isRunVibrationOn
         )
     }
 }
