@@ -25,6 +25,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -53,6 +55,8 @@ import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
+import com.a207.runkk.app.core.designsystem.UiText
+import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.domain.runimal.RunimalCard
 import com.a207.runkk.app.domain.runimal.RunimalStatus
@@ -82,9 +86,10 @@ fun RunimalScreen(
     modifier: Modifier = Modifier
 ) {
     val snackbar = remember { SnackbarHostState() }
+    val context = LocalContext.current
     LaunchedEffect(state.message) {
         state.message?.let {
-            snackbar.showSnackbar(it)
+            snackbar.showSnackbar(it.asString(context))
             onMessageShown()
         }
     }
@@ -96,58 +101,68 @@ fun RunimalScreen(
                 status == null && state.loading -> RunkkLoading(modifier = Modifier.weight(1f))
 
                 status == null -> RunkkErrorState(
-                    state.error ?: "Runimal을 불러오지 못했어요",
+                    state.error?.asString() ?: stringResource(R.string.runimal_load_failed),
                     onRetry = onRetry,
                     modifier = Modifier.weight(1f)
                 )
 
-                else -> Column(
-                    modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    val card = status.card
-                    if (status.type != null && card != null) {
-                        TypeCard(card, provisional = status.provisional)
-                    } else {
-                        RunkkEmptyState(
-                            title = "아직 유형이 없어요",
-                            message = "유효 러닝 3번째에 임시 유형, 10번째에 정식 유형이 나와요"
-                        )
-                    }
-                    state.remainingLabel?.let { Remaining(it, status) }
-                    AllTypes(status)
-                }
+                else -> RunimalBody(state, status, Modifier.weight(1f))
             }
-            if (state.canShare) {
-                HorizontalDivider(color = RunkkColors.Border)
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 32.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    RunkkPrimaryButton(
-                        RunimalShareKind.STORY.label + "로 카드 공유",
-                        onClick = { onShare(RunimalShareKind.STORY) },
-                        loading = state.sharing,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        RunkkSecondaryButton(
-                            RunimalShareKind.SAVE.label,
-                            onClick = { onShare(RunimalShareKind.SAVE) },
-                            enabled = !state.sharing,
-                            modifier = Modifier.weight(1f)
-                        )
-                        RunkkSecondaryButton(
-                            RunimalShareKind.SYSTEM.label,
-                            onClick = { onShare(RunimalShareKind.SYSTEM) },
-                            enabled = !state.sharing,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
-            }
+            if (state.canShare) ShareBar(state.sharing, onShare)
         }
         RunkkSnackbarHost(snackbar, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 160.dp))
+    }
+}
+
+/** 본문: 유형 카드(없으면 안내)·남은 횟수·16유형. */
+@Composable
+private fun RunimalBody(state: RunimalUiState, status: RunimalStatus, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier.verticalScroll(rememberScrollState()).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        val card = status.card
+        if (status.type != null && card != null) {
+            TypeCard(card, provisional = status.provisional)
+        } else {
+            RunkkEmptyState(
+                title = stringResource(R.string.runimal_empty_title),
+                message = stringResource(R.string.runimal_empty_message)
+            )
+        }
+        state.remainingLabel?.let { Remaining(it.asString(), status) }
+        AllTypes(status)
+    }
+}
+
+/** 카드 공유 버튼들(스토리·기기 저장·다른 앱). */
+@Composable
+private fun ShareBar(sharing: Boolean, onShare: (RunimalShareKind) -> Unit) {
+    HorizontalDivider(color = RunkkColors.Border)
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 32.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        RunkkPrimaryButton(
+            stringResource(R.string.runimal_share_with, stringResource(RunimalShareKind.STORY.labelRes)),
+            onClick = { onShare(RunimalShareKind.STORY) },
+            loading = sharing,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            RunkkSecondaryButton(
+                stringResource(RunimalShareKind.SAVE.labelRes),
+                onClick = { onShare(RunimalShareKind.SAVE) },
+                enabled = !sharing,
+                modifier = Modifier.weight(1f)
+            )
+            RunkkSecondaryButton(
+                stringResource(RunimalShareKind.SYSTEM.labelRes),
+                onClick = { onShare(RunimalShareKind.SYSTEM) },
+                enabled = !sharing,
+                modifier = Modifier.weight(1f)
+            )
+        }
     }
 }
 
@@ -166,7 +181,7 @@ private fun TypeCard(card: RunimalCard, provisional: Boolean) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             RunkkOverline("MY RUNIMAL", color = RunkkColors.Lime, modifier = Modifier.weight(1f))
             RunkkBadge(
-                if (provisional) "임시 유형" else "확정 유형",
+                stringResource(if (provisional) R.string.runimal_type_provisional else R.string.runimal_type_confirmed),
                 tone = if (provisional) RunkkBadgeTone.Muted else RunkkBadgeTone.Lime
             )
         }
@@ -192,10 +207,11 @@ private fun TypeCard(card: RunimalCard, provisional: Boolean) {
 @Composable
 private fun AxisBar(axis: String, ratio: Double, lime: Boolean) {
     val percent = (ratio.coerceIn(0.0, 1.0) * PERCENT).roundToInt()
+    val description = stringResource(R.string.runimal_axis_description, axis, percent)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
-        modifier = Modifier.clearAndSetSemantics { contentDescription = "$axis $percent%" }
+        modifier = Modifier.clearAndSetSemantics { contentDescription = description }
     ) {
         Text(axis, style = RunkkTextStyles.Label, color = RunkkColors.TextPrimary, modifier = Modifier.width(72.dp))
         RunkkProgressBar(
@@ -205,7 +221,7 @@ private fun AxisBar(axis: String, ratio: Double, lime: Boolean) {
             modifier = Modifier.weight(1f)
         )
         Text(
-            "$percent%",
+            stringResource(R.string.runimal_percent, percent),
             style = RunkkTextStyles.display(20),
             color = RunkkColors.TextPrimary,
             textAlign = TextAlign.End
@@ -228,7 +244,11 @@ private fun Remaining(label: String, status: RunimalStatus) {
     ) {
         Text(label, style = RunkkTextStyles.CardTitle, color = RunkkColors.TextPrimary)
         RunkkProgressBar(done.toFloat() / total)
-        Text("3번째에 임시, 10번째에 정식 유형이 나와요", style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
+        Text(
+            stringResource(R.string.runimal_remaining_hint),
+            style = RunkkTextStyles.Caption,
+            color = RunkkColors.TextSecondary
+        )
     }
 }
 
@@ -237,7 +257,8 @@ private fun Remaining(label: String, status: RunimalStatus) {
 @Composable
 private fun AllTypes(status: RunimalStatus) {
     if (status.allTypes.isEmpty()) return
-    RunkkSectionTitle("16가지 Runimal")
+    RunkkSectionTitle(stringResource(R.string.runimal_all_types_title))
+    val mineLabel = stringResource(R.string.runimal_my_type)
     FlowRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -254,7 +275,7 @@ private fun AllTypes(status: RunimalStatus) {
                     .border(1.dp, if (mine) RunkkColors.Lime else RunkkColors.Border, RunkkShapes.Medium)
                     .semantics(mergeDescendants = true) {
                         selected = mine
-                        if (mine) stateDescription = "내 유형"
+                        if (mine) stateDescription = mineLabel
                     }
                     .padding(horizontal = 12.dp),
                 contentAlignment = Alignment.CenterStart

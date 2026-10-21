@@ -7,8 +7,10 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.a207.runkk.app.core.designsystem.RunkkTheme
+import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.testing.RUNKK_PHONE
 import com.a207.runkk.app.core.designsystem.testing.captureRunkkScreen
+import com.a207.runkk.app.core.designsystem.uiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.runimal.RunimalCard
@@ -135,7 +137,7 @@ class RunimalViewModelTest {
         val s = vm().state.value
         assertFalse(s.loading)
         assertEquals("아침 참새", s.status?.card?.title)
-        assertEquals("다음 확정까지 4회", s.remainingLabel)
+        assertEquals(uiText(R.string.runimal_remaining_confirm, 4), s.remainingLabel)
         assertTrue(s.canShare)
     }
 
@@ -143,7 +145,7 @@ class RunimalViewModelTest {
     fun `유형이 없으면 임시 유형까지 남은 횟수를 보이고 공유하지 않는다`() {
         repo.status = Outcome.Success(RunimalStatus(null, true, 2, null, types))
         val v = vm()
-        assertEquals("임시 유형까지 2회", v.state.value.remainingLabel)
+        assertEquals(uiText(R.string.runimal_remaining_provisional, 2), v.state.value.remainingLabel)
         v.onShare(RunimalShareKind.SAVE)
         assertEquals(0, repo.cardCalls)
     }
@@ -154,7 +156,7 @@ class RunimalViewModelTest {
         v.onShare(RunimalShareKind.SAVE)
         v.awaitShared()
         assertEquals(listOf("save"), shared)
-        assertEquals("사진첩에 저장했어요", v.state.value.message)
+        assertEquals(UiText.Res(R.string.runimal_saved_to_gallery), v.state.value.message)
         assertNotNull(v.state.value.cardImage)
         v.onMessageShown()
         v.onShare(RunimalShareKind.STORY)
@@ -179,7 +181,7 @@ class RunimalViewModelTest {
         repo.cardResult = Outcome.Failure(AppError.Rejected("NO_TYPE"))
         val v = vm()
         v.onShare(RunimalShareKind.SYSTEM)
-        assertEquals("유형이 생기면 카드를 공유할 수 있어요", v.state.value.message)
+        assertEquals(UiText.Res(R.string.runimal_share_no_type), v.state.value.message)
         assertFalse(v.state.value.sharing)
     }
 
@@ -193,6 +195,8 @@ class RunimalViewModelTest {
         assertNull(v.state.value.error)
     }
 }
+
+private fun str(id: Int, vararg args: Any): String = RuntimeEnvironment.getApplication().getString(id, *args)
 
 /** MY Runimal 화면: 공유 버튼과 축 비율 라벨. */
 @RunWith(RobolectricTestRunner::class)
@@ -208,10 +212,12 @@ class RunimalScreenTest {
                 RunimalScreen(RunimalUiState(loading = false, status = confirmed), {}, { calls += it }, {}, {})
             }
         }
-        compose.onNodeWithContentDescription("솔로 78%").assertExists()
-        compose.onNodeWithText("스토리로 카드 공유").performClick()
-        compose.onNodeWithText("기기 저장").performClick()
-        compose.onNodeWithText("다른 앱").performClick()
+        compose.onNodeWithContentDescription(str(R.string.runimal_axis_description, "솔로", 78)).assertExists()
+        compose.onNodeWithText(
+            str(R.string.runimal_share_with, str(R.string.runimal_share_story))
+        ).performClick()
+        compose.onNodeWithText(str(R.string.runimal_share_save)).performClick()
+        compose.onNodeWithText(str(R.string.runimal_share_system)).performClick()
         assertEquals(listOf(RunimalShareKind.STORY, RunimalShareKind.SAVE, RunimalShareKind.SYSTEM), calls)
     }
 }
