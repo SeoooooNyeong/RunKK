@@ -98,7 +98,7 @@ fun RunimalScreen(
             RunkkTopBar(title = "MY Runimal", onBack = onBack)
             val status = state.status
             when {
-                status == null && state.loading -> RunkkLoading(modifier = Modifier.weight(1f))
+                status == null && state.isLoading -> RunkkLoading(modifier = Modifier.weight(1f))
 
                 status == null -> RunkkErrorState(
                     state.error?.asString() ?: stringResource(R.string.runimal_load_failed),
@@ -108,7 +108,7 @@ fun RunimalScreen(
 
                 else -> RunimalBody(state, status, Modifier.weight(1f))
             }
-            if (state.canShare) ShareBar(state.sharing, onShare)
+            if (state.canShare) ShareBar(state.isSharing, onShare)
         }
         RunkkSnackbarHost(snackbar, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 160.dp))
     }
@@ -123,7 +123,7 @@ private fun RunimalBody(state: RunimalUiState, status: RunimalStatus, modifier: 
     ) {
         val card = status.card
         if (status.type != null && card != null) {
-            TypeCard(card, provisional = status.isProvisional)
+            TypeCard(card, isProvisional = status.isProvisional)
         } else {
             RunkkEmptyState(
                 title = stringResource(R.string.runimal_empty_title),
@@ -137,7 +137,7 @@ private fun RunimalBody(state: RunimalUiState, status: RunimalStatus, modifier: 
 
 /** 카드 공유 버튼들(스토리·기기 저장·다른 앱). */
 @Composable
-private fun ShareBar(sharing: Boolean, onShare: (RunimalShareKind) -> Unit) {
+private fun ShareBar(isSharing: Boolean, onShare: (RunimalShareKind) -> Unit) {
     HorizontalDivider(color = RunkkColors.Border)
     Column(
         modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 32.dp),
@@ -146,20 +146,20 @@ private fun ShareBar(sharing: Boolean, onShare: (RunimalShareKind) -> Unit) {
         RunkkPrimaryButton(
             stringResource(R.string.runimal_share_with, stringResource(RunimalShareKind.STORY.labelRes)),
             onClick = { onShare(RunimalShareKind.STORY) },
-            loading = sharing,
+            isLoading = isSharing,
             modifier = Modifier.fillMaxWidth()
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             RunkkSecondaryButton(
                 stringResource(RunimalShareKind.SAVE.labelRes),
                 onClick = { onShare(RunimalShareKind.SAVE) },
-                enabled = !sharing,
+                isEnabled = !isSharing,
                 modifier = Modifier.weight(1f)
             )
             RunkkSecondaryButton(
                 stringResource(RunimalShareKind.SYSTEM.labelRes),
                 onClick = { onShare(RunimalShareKind.SYSTEM) },
-                enabled = !sharing,
+                isEnabled = !isSharing,
                 modifier = Modifier.weight(1f)
             )
         }
@@ -168,7 +168,7 @@ private fun ShareBar(sharing: Boolean, onShare: (RunimalShareKind) -> Unit) {
 
 /** 유형 카드(FR-151): 유형(아이콘은 동물 이름 글자), 이름, 한 줄 설명, 축별 우세 비율. */
 @Composable
-private fun TypeCard(card: RunimalCard, provisional: Boolean) {
+private fun TypeCard(card: RunimalCard, isProvisional: Boolean) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -181,8 +181,10 @@ private fun TypeCard(card: RunimalCard, provisional: Boolean) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             RunkkOverline("MY RUNIMAL", color = RunkkColors.Lime, modifier = Modifier.weight(1f))
             RunkkBadge(
-                stringResource(if (provisional) R.string.runimal_type_provisional else R.string.runimal_type_confirmed),
-                tone = if (provisional) RunkkBadgeTone.Muted else RunkkBadgeTone.Lime
+                stringResource(
+                    if (isProvisional) R.string.runimal_type_provisional else R.string.runimal_type_confirmed
+                ),
+                tone = if (isProvisional) RunkkBadgeTone.Muted else RunkkBadgeTone.Lime
             )
         }
         Column(
@@ -198,14 +200,14 @@ private fun TypeCard(card: RunimalCard, provisional: Boolean) {
             Text(card.description, style = RunkkTextStyles.Body, color = RunkkColors.TextSecondary)
         }
         card.axisRatios.entries.forEachIndexed { index, (axis, ratio) ->
-            AxisBar(axis, ratio, lime = index % 2 == 0)
+            AxisBar(axis, ratio, isLime = index % 2 == 0)
         }
     }
 }
 
 /** 축 막대: 우세한 쪽과 비율(예: 솔로 78%). 비율은 0~1. */
 @Composable
-private fun AxisBar(axis: String, ratio: Double, lime: Boolean) {
+private fun AxisBar(axis: String, ratio: Double, isLime: Boolean) {
     val percent = (ratio.coerceIn(0.0, 1.0) * PERCENT).roundToInt()
     val description = stringResource(R.string.runimal_axis_description, axis, percent)
     Row(
@@ -217,7 +219,7 @@ private fun AxisBar(axis: String, ratio: Double, lime: Boolean) {
         RunkkProgressBar(
             ratio.toFloat(),
             height = 12.dp,
-            color = if (lime) RunkkColors.Lime else RunkkColors.Lavender,
+            color = if (isLime) RunkkColors.Lime else RunkkColors.Lavender,
             modifier = Modifier.weight(1f)
         )
         Text(
@@ -298,7 +300,7 @@ private const val CONFIRM_RUNS = 10
 @Composable
 private fun RunimalPreview() {
     RunkkTheme(reduceMotion = true) {
-        RunimalScreen(RunimalUiState(loading = false, status = RunimalStatus(null, true, 2, null, emptyList())), {
+        RunimalScreen(RunimalUiState(isLoading = false, status = RunimalStatus(null, true, 2, null, emptyList())), {
         }, {}, {}, {})
     }
 }

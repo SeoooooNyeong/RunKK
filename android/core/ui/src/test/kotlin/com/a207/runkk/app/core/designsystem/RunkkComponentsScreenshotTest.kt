@@ -38,20 +38,20 @@ class RunkkComponentsScreenshotTest {
         ) {
             RunkkPrimaryButton("카카오로 시작하기", onClick = {}, modifier = Modifier.fillMaxWidth())
             RunkkPrimaryButton("자유런 시작", onClick = {
-            }, size = RunkkButtonSize.Large, trailingArrow = true, modifier = Modifier.fillMaxWidth())
+            }, size = RunkkButtonSize.Large, hasTrailingArrow = true, modifier = Modifier.fillMaxWidth())
             RunkkSecondaryButton("Google로 시작하기", onClick = {}, modifier = Modifier.fillMaxWidth())
             RunkkAccentOutlinedButton("회원 탈퇴", onClick = {}, modifier = Modifier.fillMaxWidth())
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 RunkkPillButton("카드 공유", onClick = {}, leadingIcon = RunkkIcons.Share)
-                RunkkIconButton(RunkkIcons.Bell, contentDescription = "알림함", onClick = {}, badge = true)
+                RunkkIconButton(RunkkIcons.Bell, contentDescription = "알림함", onClick = {}, hasBadge = true)
             }
             RunkkChipGroup("동행") {
-                RunkkChoiceChip("혼자가 편해요", selected = false, onSelectedChange = {})
-                RunkkChoiceChip("함께가 좋아요", selected = true, onSelectedChange = {})
+                RunkkChoiceChip("혼자가 편해요", isSelected = false, onSelectedChange = {})
+                RunkkChoiceChip("함께가 좋아요", isSelected = true, onSelectedChange = {})
             }
             RunkkSegmentRow(listOf("전체공개", "크루공개", "비공개"), selectedIndex = 0, onSelect = {})
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                RunkkInfoChip("5K", highlighted = true, display = true)
+                RunkkInfoChip("5K", isHighlighted = true, isDisplay = true)
                 RunkkInfoChip("음성 켬")
                 RunkkBadge("유효 러닝", tone = RunkkBadgeTone.Lime)
             }
@@ -72,7 +72,7 @@ class RunkkComponentsScreenshotTest {
         ) {
             RunkkStepTopBar(title = "회원 가입", step = 2, total = 5, onBack = {})
             Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                RunkkBanner("최장 거리 신기록 · 직전 4.80km", strong = true)
+                RunkkBanner("최장 거리 신기록 · 직전 4.80km", isStrong = true)
                 RunkkBanner("2km 통과 · 11:04 · 평균 5:32")
                 RunkkBigNumber("2.14", caption = "KILOMETERS")
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -91,7 +91,7 @@ class RunkkComponentsScreenshotTest {
                         RunkkProgressBar(0.6f)
                     }
                 }
-                RunkkCard(dashed = true) {
+                RunkkCard(isDashed = true) {
                     Text("미전송 기록 1건", style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
                 }
                 RunkkErrorState("네트워크에 연결할 수 없어요", onRetry = {})

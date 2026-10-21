@@ -33,12 +33,12 @@ class RunResultViewModelTest {
         val vm = RunResultViewModel(pending, records)
         vm.load("rec-1")
         val s = vm.state.value
-        assertFalse(s.loading)
+        assertFalse(s.isLoading)
         assertEquals(Distance(5_020), s.distance)
         assertEquals(Pace.of(java.time.Duration.ofSeconds(1_668), Distance(5_020)), s.averagePace)
         assertEquals(152, s.averageHeartRate)
         assertEquals(2, s.route.size)
-        assertFalse(s.uploaded)
+        assertFalse(s.isUploaded)
         assertNull(s.error)
     }
 
@@ -49,7 +49,7 @@ class RunResultViewModelTest {
         val vm = RunResultViewModel(pending, records)
         vm.load("rec-1")
         val s = vm.state.value
-        assertTrue(s.uploaded)
+        assertTrue(s.isUploaded)
         assertEquals("12°C 맑음", s.weather)
         assertEquals(312, s.calories)
         assertEquals(listOf("최장 거리 신기록 · 직전 4.80km"), s.newRecords)
@@ -80,7 +80,7 @@ class RunResultViewModelTest {
     fun `종료 직후 보관함 저장이 늦어도 저장되면 결과를 보인다`() = runTest(main.dispatcher) {
         val vm = RunResultViewModel(pending, records)
         vm.load("rec-1")
-        assertTrue(vm.state.value.loading)
+        assertTrue(vm.state.value.isLoading)
         pending.runs.value = listOf(completedRun())
         advanceUntilIdle()
         assertEquals(Distance(5_020), vm.state.value.distance)
@@ -93,14 +93,14 @@ class RunResultViewModelTest {
         val vm = RunResultViewModel(pending, records)
         vm.load("rec-1")
         advanceUntilIdle()
-        assertFalse(vm.state.value.uploaded)
+        assertFalse(vm.state.value.isUploaded)
 
         // 전송 작업(UploadPendingRunsUseCase)이 서버 저장 뒤 보관함에서 지운다.
         records.runResult = Outcome.Success(recordDetail())
         pending.runs.value = emptyList()
         advanceUntilIdle()
 
-        assertTrue(vm.state.value.uploaded)
+        assertTrue(vm.state.value.isUploaded)
         assertEquals(312, vm.state.value.calories)
     }
 

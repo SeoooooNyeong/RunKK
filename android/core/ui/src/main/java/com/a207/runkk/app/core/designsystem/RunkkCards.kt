@@ -68,7 +68,7 @@ fun Modifier.runkkDashedBorder(
 
 /**
  * 카드(표면 + 테두리, 모서리 20 기본·24 큰 카드). [onClick]이 있으면 눌리는 카드가 되고 [onClickLabel]을 보조 기술에 알린다.
- * [dashed]면 점선 테두리(자리표시).
+ * [isDashed]면 점선 테두리(자리표시).
  */
 @Composable
 fun RunkkCard(
@@ -77,7 +77,7 @@ fun RunkkCard(
     contentPadding: PaddingValues = PaddingValues(16.dp),
     onClick: (() -> Unit)? = null,
     onClickLabel: String? = null,
-    dashed: Boolean = false,
+    isDashed: Boolean = false,
     borderColor: Color = RunkkColors.Border,
     background: Color = RunkkColors.Surface,
     verticalArrangement: Arrangement.Vertical = Arrangement.spacedBy(8.dp),
@@ -96,7 +96,7 @@ fun RunkkCard(
             .clip(shape)
             .background(background)
             .then(
-                if (dashed) Modifier.runkkDashedBorder(corner = corner) else Modifier.border(1.dp, borderColor, shape)
+                if (isDashed) Modifier.runkkDashedBorder(corner = corner) else Modifier.border(1.dp, borderColor, shape)
             )
             .then(
                 if (onClick != null) {
@@ -284,15 +284,15 @@ fun RunkkSegmentBar(segments: List<Pair<Float, Color>>, modifier: Modifier = Mod
 fun RunkkBanner(
     text: String,
     modifier: Modifier = Modifier,
-    strong: Boolean = false,
+    isStrong: Boolean = false,
     leading: (@Composable () -> Unit)? = null
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
             .clip(RunkkShapes.Medium)
-            .background(if (strong) RunkkColors.Lime else RunkkColors.LimeContainer)
-            .then(if (strong) Modifier else Modifier.border(1.dp, RunkkColors.Lime, RunkkShapes.Medium))
+            .background(if (isStrong) RunkkColors.Lime else RunkkColors.LimeContainer)
+            .then(if (isStrong) Modifier else Modifier.border(1.dp, RunkkColors.Lime, RunkkShapes.Medium))
             .padding(16.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -300,7 +300,7 @@ fun RunkkBanner(
         leading?.invoke()
         Text(
             text = text,
-            style = if (strong) {
+            style = if (isStrong) {
                 RunkkTextStyles.text(
                     15,
                     androidx.compose.ui.text.font.FontWeight.Black
@@ -308,7 +308,7 @@ fun RunkkBanner(
             } else {
                 RunkkTextStyles.BodyStrong
             },
-            color = if (strong) RunkkColors.OnLime else RunkkColors.Lime
+            color = if (isStrong) RunkkColors.OnLime else RunkkColors.Lime
         )
     }
 }
@@ -345,7 +345,7 @@ private const val UNIT_RATIO = 0.5f
 private fun RunkkCardsPreview() {
     RunkkTheme(reduceMotion = true) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            RunkkBanner("최장 거리 신기록 · 직전 4.80km", strong = true)
+            RunkkBanner("최장 거리 신기록 · 직전 4.80km", isStrong = true)
             RunkkBanner("2km 통과 · 11:04 · 평균 5:32")
             RunkkBigNumber("2.14", caption = "KILOMETERS")
             RunkkProgressBar(0.43f)
@@ -375,7 +375,7 @@ private fun RunkkCardsPreview() {
                     1f to RunkkColors.Lavender
                 )
             )
-            RunkkCard(dashed = true) {
+            RunkkCard(isDashed = true) {
                 Text("미전송 기록 1건", style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
             }
         }

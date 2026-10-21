@@ -78,9 +78,9 @@ class HealthServicesExerciseSession @Inject constructor(@ApplicationContext cont
 
     private fun SampleDataPoint<Double>.toWatchHeartRate(bootInstant: Instant): WatchHeartRate {
         val sensorStatus = (accuracy as? HeartRateAccuracy)?.sensorStatus
-        val reliable = sensorStatus != HeartRateAccuracy.SensorStatus.NO_CONTACT &&
+        val isReliable = sensorStatus != HeartRateAccuracy.SensorStatus.NO_CONTACT &&
             sensorStatus != HeartRateAccuracy.SensorStatus.UNRELIABLE
-        return classifyHeartRate(getTimeInstant(bootInstant).toEpochMilli(), value, reliable)
+        return classifyHeartRate(getTimeInstant(bootInstant).toEpochMilli(), value, isReliable)
     }
 }
 
@@ -97,9 +97,9 @@ internal fun exerciseOwnerOf(trackedStatus: Int): ExerciseOwner = when (trackedS
 }
 
 /** 센서 값 하나를 심박 한 건으로 바꾼다. 신뢰할 수 없거나 0 이하이면 실패 측정(FR-041 "측정 상태 실패"). */
-internal fun classifyHeartRate(measuredAtEpochMillis: Long, bpm: Double, reliable: Boolean): WatchHeartRate {
+internal fun classifyHeartRate(measuredAtEpochMillis: Long, bpm: Double, isReliable: Boolean): WatchHeartRate {
     val rounded = if (bpm.isFinite()) bpm.roundToInt() else 0
-    return if (reliable && rounded > 0) {
+    return if (isReliable && rounded > 0) {
         WatchHeartRate(measuredAtEpochMillis, rounded, WatchHeartRate.Status.OK)
     } else {
         WatchHeartRate(measuredAtEpochMillis, 0, WatchHeartRate.Status.FAILED)

@@ -309,7 +309,7 @@ class MatchViewModel @Inject constructor(
         _state.update { MatchUiState(distance = it.distance) }
     }
 
-    /** 기본 대결 거리를 읽었는가(quick 요청의 조건). */
+    /** 기본 대결 거리를 읽었는가(isQuick 요청의 조건). */
     private var statusLoaded = false
 
     // 다른 속성이 모두 초기화된 뒤에 시작한다(즉시 실행 디스패처에서도 대기 화면을 이을 수 있게).

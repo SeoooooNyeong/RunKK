@@ -26,12 +26,12 @@ import kotlinx.coroutines.launch
 // ---------- 마이(프로필 요약·메뉴·로그아웃) ----------
 
 data class MeUiState(
-    val loading: Boolean = true,
+    val isLoading: Boolean = true,
     val profile: Profile? = null,
     /** 프로필 원 안의 셀카 얼굴 부위 그림. 비어 있으면 빈 원(자리 그림). */
     val faceLayers: List<FaceLayer> = emptyList(),
     val error: UiText? = null,
-    val loggingOut: Boolean = false
+    val isLoggingOut: Boolean = false
 )
 
 sealed interface MeEvent {
@@ -53,28 +53,28 @@ class MeViewModel @Inject constructor(private val account: AccountRepository, pr
     }
 
     fun refresh() {
-        _state.update { it.copy(loading = true, error = null) }
+        _state.update { it.copy(isLoading = true, error = null) }
         viewModelScope.launch {
             when (val result = account.profile(AccountRepository.SELF)) {
                 is Outcome.Success -> {
-                    _state.update { it.copy(loading = false, profile = result.value) }
+                    _state.update { it.copy(isLoading = false, profile = result.value) }
                     val face = result.value.faceKey?.let { account.faceLayers(it).getOrNull() }.orEmpty()
                     _state.update { it.copy(faceLayers = face) }
                 }
 
                 is Outcome.Failure -> _state.update {
-                    it.copy(loading = false, error = RunkkErrorText.of(result.error))
+                    it.copy(isLoading = false, error = RunkkErrorText.of(result.error))
                 }
             }
         }
     }
 
     fun onLogoutConfirmed() {
-        if (_state.value.loggingOut) return
-        _state.update { it.copy(loggingOut = true) }
+        if (_state.value.isLoggingOut) return
+        _state.update { it.copy(isLoggingOut = true) }
         viewModelScope.launch {
             val result = logout()
-            _state.update { it.copy(loggingOut = false) }
+            _state.update { it.copy(isLoggingOut = false) }
             when (result) {
                 is Outcome.Success -> _events.send(MeEvent.LoggedOut)
                 is Outcome.Failure -> _state.update { it.copy(error = RunkkErrorText.of(result.error)) }
@@ -86,14 +86,14 @@ class MeViewModel @Inject constructor(private val account: AccountRepository, pr
 // ---------- 프로필 편집 ----------
 
 data class ProfileEditUiState(
-    val loading: Boolean = true,
+    val isLoading: Boolean = true,
     val nickname: String = "",
     val intro: String = "",
     val tags: Set<String> = emptySet(),
-    val saving: Boolean = false,
+    val isSaving: Boolean = false,
     val error: UiText? = null
 ) {
-    val canSave: Boolean get() = !loading && !saving && nickname.trim().length in SignUpUiState.NICKNAME_LENGTH &&
+    val canSave: Boolean get() = !isLoading && !isSaving && nickname.trim().length in SignUpUiState.NICKNAME_LENGTH &&
         tags.isNotEmpty()
 }
 
@@ -115,12 +115,12 @@ class ProfileEditViewModel @Inject constructor(private val account: AccountRepos
     }
 
     fun load() {
-        _state.update { it.copy(loading = true, error = null) }
+        _state.update { it.copy(isLoading = true, error = null) }
         viewModelScope.launch {
             when (val result = account.profile(AccountRepository.SELF)) {
                 is Outcome.Success -> _state.update {
                     it.copy(
-                        loading = false,
+                        isLoading = false,
                         nickname = result.value.displayName,
                         intro = result.value.intro.orEmpty(),
                         tags = result.value.tags
@@ -128,7 +128,7 @@ class ProfileEditViewModel @Inject constructor(private val account: AccountRepos
                 }
 
                 is Outcome.Failure -> _state.update {
-                    it.copy(loading = false, error = RunkkErrorText.of(result.error))
+                    it.copy(isLoading = false, error = RunkkErrorText.of(result.error))
                 }
             }
         }
@@ -146,16 +146,18 @@ class ProfileEditViewModel @Inject constructor(private val account: AccountRepos
 
     fun onSave() {
         val s = _state.value
-        if (s.saving) return
-        _state.update { it.copy(saving = true, error = null) }
+        if (s.isSaving) return
+        _state.update { it.copy(isSaving = true, error = null) }
         viewModelScope.launch {
             when (val result = account.editProfile(s.nickname.trim(), s.intro.trim().ifEmpty { null }, s.tags)) {
                 is Outcome.Success -> {
-                    _state.update { it.copy(saving = false) }
+                    _state.update { it.copy(isSaving = false) }
                     _events.send(ProfileEditEvent.Saved)
                 }
 
-                is Outcome.Failure -> _state.update { it.copy(saving = false, error = RunkkErrorText.of(result.error)) }
+                is Outcome.Failure -> _state.update {
+                    it.copy(isSaving = false, error = RunkkErrorText.of(result.error))
+                }
             }
         }
     }
@@ -164,8 +166,8 @@ class ProfileEditViewModel @Inject constructor(private val account: AccountRepos
 // ---------- 회원 탈퇴 ----------
 
 data class WithdrawUiState(
-    val acknowledged: Boolean = false,
-    val withdrawing: Boolean = false,
+    val isAcknowledged: Boolean = false,
+    val isWithdrawing: Boolean = false,
     val error: UiText? = null
 )
 
@@ -185,24 +187,24 @@ class WithdrawViewModel @Inject constructor(private val withdraw: WithdrawUseCas
     private val _events = Channel<WithdrawEvent>(Channel.BUFFERED)
     val events: Flow<WithdrawEvent> = _events.receiveAsFlow()
 
-    fun onAcknowledgedChange(value: Boolean) = _state.update { it.copy(acknowledged = value) }
+    fun onAcknowledgedChange(isAcknowledged: Boolean) = _state.update { it.copy(isAcknowledged = isAcknowledged) }
 
     fun onErrorShown() = _state.update { it.copy(error = null) }
 
     /** 확인 대화상자에서 "탈퇴"를 누른 뒤. 안내를 확인하지 않았으면 보내지 않는다. */
     fun onWithdrawConfirmed() {
         val s = _state.value
-        if (!s.acknowledged || s.withdrawing) return
-        _state.update { it.copy(withdrawing = true, error = null) }
+        if (!s.isAcknowledged || s.isWithdrawing) return
+        _state.update { it.copy(isWithdrawing = true, error = null) }
         viewModelScope.launch {
             when (val result = withdraw()) {
                 is Outcome.Success -> {
-                    _state.update { it.copy(withdrawing = false) }
+                    _state.update { it.copy(isWithdrawing = false) }
                     _events.send(WithdrawEvent.Withdrawn)
                 }
 
                 is Outcome.Failure -> _state.update {
-                    it.copy(withdrawing = false, error = RunkkErrorText.of(result.error))
+                    it.copy(isWithdrawing = false, error = RunkkErrorText.of(result.error))
                 }
             }
         }

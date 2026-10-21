@@ -89,10 +89,10 @@ fun WithdrawScreen(
             WithdrawNotice(state, onAcknowledgedChange, modifier = Modifier.weight(1f))
             RunkkAccentOutlinedButton(
                 text = stringResource(
-                    if (state.withdrawing) R.string.me_withdraw_submitting else R.string.me_withdraw_submit
+                    if (state.isWithdrawing) R.string.me_withdraw_submitting else R.string.me_withdraw_submit
                 ),
                 onClick = { confirm = true },
-                enabled = state.acknowledged && !state.withdrawing,
+                isEnabled = state.isAcknowledged && !state.isWithdrawing,
                 modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 32.dp)
             )
         }
@@ -108,7 +108,7 @@ fun WithdrawScreen(
                 onWithdraw()
             },
             onDismiss = { confirm = false },
-            destructive = true
+            isDestructive = true
         )
     }
 }
@@ -166,7 +166,7 @@ private fun WithdrawNotice(
         )
         RunkkCheckRow(
             label = stringResource(R.string.me_withdraw_acknowledge),
-            checked = state.acknowledged,
+            isChecked = state.isAcknowledged,
             onCheckedChange = onAcknowledgedChange
         )
     }
@@ -175,5 +175,5 @@ private fun WithdrawNotice(
 @Preview(name = "회원 탈퇴", widthDp = 390, heightDp = 844)
 @Composable
 private fun WithdrawPreview() {
-    RunkkTheme(reduceMotion = true) { WithdrawScreen(WithdrawUiState(acknowledged = true), {}, {}, {}, {}) }
+    RunkkTheme(reduceMotion = true) { WithdrawScreen(WithdrawUiState(isAcknowledged = true), {}, {}, {}, {}) }
 }

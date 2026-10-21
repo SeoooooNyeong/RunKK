@@ -66,34 +66,34 @@ fun Modifier.runkkPressScale(interactionSource: MutableInteractionSource, presse
 
 /**
  * 기본 CTA(라임). 화면마다 주 행동 하나에만 쓴다.
- * [trailingArrow]가 참이면 시안 홈 "자유런 시작"처럼 오른쪽에 검은 원 화살표를 단다.
+ * [hasTrailingArrow]가 참이면 시안 홈 "자유런 시작"처럼 오른쪽에 검은 원 화살표를 단다.
  */
 @Composable
 fun RunkkPrimaryButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    enabled: Boolean = true,
-    loading: Boolean = false,
+    isEnabled: Boolean = true,
+    isLoading: Boolean = false,
     size: RunkkButtonSize = RunkkButtonSize.Regular,
-    trailingArrow: Boolean = false
+    hasTrailingArrow: Boolean = false
 ) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val shape = RoundedCornerShape(size.corner)
     val loadingDescription = stringResource(R.string.core_buttons_loading)
-    val active = enabled && !loading
+    val active = isEnabled && !isLoading
     Row(
         modifier = modifier
             .semantics(mergeDescendants = true) {
                 contentDescription = text
-                if (loading) stateDescription = loadingDescription
+                if (isLoading) stateDescription = loadingDescription
             }
             .heightIn(min = size.height)
             .runkkPressScale(interaction)
             .clip(shape)
             .background(if (pressed) RunkkColors.LimePressed else RunkkColors.Lime)
-            .alpha(if (enabled) 1f else DISABLED_ALPHA)
+            .alpha(if (isEnabled) 1f else DISABLED_ALPHA)
             .clickable(
                 interactionSource = interaction,
                 indication = null,
@@ -105,21 +105,21 @@ fun RunkkPrimaryButton(
         horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        if (loading) {
+        if (isLoading) {
             CircularProgressIndicator(
                 modifier = Modifier.size(24.dp).clearAndSetSemantics {},
                 color = RunkkColors.OnLime,
                 strokeWidth = 3.dp
             )
         } else {
-            RunkkPrimaryButtonContent(text, size, trailingArrow)
+            RunkkPrimaryButtonContent(text, size, hasTrailingArrow)
         }
     }
 }
 
 /** 기본 CTA의 글자와(있으면) 오른쪽 검은 원 화살표. */
 @Composable
-private fun RunkkPrimaryButtonContent(text: String, size: RunkkButtonSize, trailingArrow: Boolean) {
+private fun RunkkPrimaryButtonContent(text: String, size: RunkkButtonSize, hasTrailingArrow: Boolean) {
     Text(
         text = text,
         style = if (size ==
@@ -131,7 +131,7 @@ private fun RunkkPrimaryButtonContent(text: String, size: RunkkButtonSize, trail
         },
         color = RunkkColors.OnLime
     )
-    if (trailingArrow) {
+    if (hasTrailingArrow) {
         Box(
             modifier = Modifier.size(40.dp).clip(CircleShape).background(RunkkColors.OnLime),
             contentAlignment = Alignment.Center
@@ -152,7 +152,7 @@ fun RunkkSecondaryButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    enabled: Boolean = true,
+    isEnabled: Boolean = true,
     leadingIcon: ImageVector? = null,
     height: Dp = 56.dp
 ) {
@@ -160,7 +160,7 @@ fun RunkkSecondaryButton(
         text = text,
         onClick = onClick,
         modifier = modifier,
-        enabled = enabled,
+        isEnabled = isEnabled,
         leadingIcon = leadingIcon,
         height = height,
         borderColor = RunkkColors.BorderStrong,
@@ -174,7 +174,7 @@ fun RunkkAccentOutlinedButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    enabled: Boolean = true,
+    isEnabled: Boolean = true,
     leadingIcon: ImageVector? = null,
     height: Dp = 56.dp
 ) {
@@ -182,7 +182,7 @@ fun RunkkAccentOutlinedButton(
         text = text,
         onClick = onClick,
         modifier = modifier,
-        enabled = enabled,
+        isEnabled = isEnabled,
         leadingIcon = leadingIcon,
         height = height,
         borderColor = RunkkColors.Lavender,
@@ -195,7 +195,7 @@ private fun OutlineButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier,
-    enabled: Boolean,
+    isEnabled: Boolean,
     leadingIcon: ImageVector?,
     height: Dp,
     borderColor: Color,
@@ -211,11 +211,11 @@ private fun OutlineButton(
             .clip(shape)
             .background(if (pressed) RunkkColors.SurfacePressed else RunkkColors.Surface)
             .border(1.dp, if (pressed) RunkkColors.BorderHover else borderColor, shape)
-            .alpha(if (enabled) 1f else DISABLED_ALPHA)
+            .alpha(if (isEnabled) 1f else DISABLED_ALPHA)
             .clickable(
                 interactionSource = interaction,
                 indication = null,
-                enabled = enabled,
+                enabled = isEnabled,
                 role = Role.Button,
                 onClick = onClick
             )
@@ -239,7 +239,7 @@ fun RunkkPillButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     leadingIcon: ImageVector? = null,
-    enabled: Boolean = true
+    isEnabled: Boolean = true
 ) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
@@ -250,7 +250,7 @@ fun RunkkPillButton(
             .clickable(
                 interactionSource = interaction,
                 indication = null,
-                enabled = enabled,
+                enabled = isEnabled,
                 role = Role.Button,
                 onClick = onClick
             ),
@@ -263,7 +263,7 @@ fun RunkkPillButton(
                 .clip(shape)
                 .background(if (pressed) RunkkColors.SurfacePressed else RunkkColors.Surface)
                 .border(1.dp, if (pressed) RunkkColors.BorderHover else RunkkColors.BorderStrong, shape)
-                .alpha(if (enabled) 1f else DISABLED_ALPHA)
+                .alpha(if (isEnabled) 1f else DISABLED_ALPHA)
                 .padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -292,7 +292,7 @@ fun RunkkLimePillButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     leadingIcon: ImageVector? = null,
-    enabled: Boolean = true
+    isEnabled: Boolean = true
 ) {
     val interaction = remember { MutableInteractionSource() }
     Box(
@@ -301,7 +301,7 @@ fun RunkkLimePillButton(
             .clickable(
                 interactionSource = interaction,
                 indication = null,
-                enabled = enabled,
+                enabled = isEnabled,
                 role = Role.Button,
                 onClick = onClick
             ),
@@ -312,7 +312,7 @@ fun RunkkLimePillButton(
                 .heightIn(min = 40.dp)
                 .runkkPressScale(interaction)
                 // 꺼지면 배경까지 흐리게(alpha는 뒤에 오는 그리기에만 걸린다).
-                .alpha(if (enabled) 1f else DISABLED_ALPHA)
+                .alpha(if (isEnabled) 1f else DISABLED_ALPHA)
                 .clip(RoundedCornerShape(20.dp))
                 .background(RunkkColors.Lime)
                 .padding(horizontal = 16.dp),
@@ -328,7 +328,7 @@ fun RunkkLimePillButton(
 }
 
 /**
- * 원형 아이콘 버튼(보이는 크기 40dp, 터치 영역 48dp). [badge]가 참이면 오른쪽 위에 라벤더 점을 단다(새 알림).
+ * 원형 아이콘 버튼(보이는 크기 40dp, 터치 영역 48dp). [hasBadge]가 참이면 오른쪽 위에 라벤더 점을 단다(새 알림).
  * [contentDescription]은 필수다(아이콘만 있는 버튼).
  */
 @Composable
@@ -337,7 +337,7 @@ fun RunkkIconButton(
     contentDescription: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    badge: Boolean = false,
+    hasBadge: Boolean = false,
     visualSize: Dp = 40.dp,
     iconSize: Dp = 20.dp,
     borderColor: Color = RunkkColors.Border
@@ -350,7 +350,7 @@ fun RunkkIconButton(
             .clickable(interactionSource = interaction, indication = null, role = Role.Button, onClick = onClick)
             .semantics {
                 this.contentDescription = contentDescription
-                if (badge) stateDescription = newBadgeDescription
+                if (hasBadge) stateDescription = newBadgeDescription
             },
         contentAlignment = Alignment.Center
     ) {
@@ -364,7 +364,7 @@ fun RunkkIconButton(
             contentAlignment = Alignment.Center
         ) {
             Icon(icon, contentDescription = null, tint = RunkkColors.TextPrimary, modifier = Modifier.size(iconSize))
-            if (badge) {
+            if (hasBadge) {
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
@@ -495,14 +495,14 @@ private fun RunkkButtonsPreview() {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             RunkkPrimaryButton("카카오로 시작하기", onClick = {}, modifier = Modifier.fillMaxWidth())
             RunkkPrimaryButton("자유런 시작", onClick = {
-            }, modifier = Modifier.fillMaxWidth(), size = RunkkButtonSize.Large, trailingArrow = true)
-            RunkkPrimaryButton("다음", onClick = {}, modifier = Modifier.fillMaxWidth(), enabled = false)
+            }, modifier = Modifier.fillMaxWidth(), size = RunkkButtonSize.Large, hasTrailingArrow = true)
+            RunkkPrimaryButton("다음", onClick = {}, modifier = Modifier.fillMaxWidth(), isEnabled = false)
             RunkkSecondaryButton("Google로 시작하기", onClick = {}, modifier = Modifier.fillMaxWidth())
             RunkkAccentOutlinedButton("회원 탈퇴", onClick = {}, modifier = Modifier.fillMaxWidth())
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 RunkkPillButton("취소", onClick = {})
                 RunkkPillButton("카드 공유", onClick = {}, leadingIcon = RunkkIcons.Share)
-                RunkkIconButton(RunkkIcons.Bell, contentDescription = "알림함", onClick = {}, badge = true)
+                RunkkIconButton(RunkkIcons.Bell, contentDescription = "알림함", onClick = {}, hasBadge = true)
                 RunkkTextLink("설정", onClick = {})
             }
             RunkkLongPressButton(onTap = {

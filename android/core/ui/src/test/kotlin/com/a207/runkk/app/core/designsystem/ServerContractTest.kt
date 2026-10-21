@@ -32,7 +32,7 @@ class ServerContractTest {
         assertEquals(7, appCategories.distinct().size)
         RunkkTags.categories.forEach { category ->
             assertEquals(
-                category.crewOnly,
+                category.isCrewOnly,
                 category.tags.all { serverCategory.getValue(it.id) == "CREW_MOOD" },
                 "분류 ${category.nameRes}: 크루 전용 표시가 서버 분류(CREW_MOOD)와 다르다"
             )

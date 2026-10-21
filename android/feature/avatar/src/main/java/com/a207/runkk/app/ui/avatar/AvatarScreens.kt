@@ -136,7 +136,7 @@ fun AvatarSetupScreen(
                 style = RunkkTextStyles.Headline,
                 color = RunkkColors.TextPrimary
             )
-            SelfieCard(state.canCreateSelfie, state.working, onSelfie)
+            SelfieCard(state.canCreateSelfie, state.isWorking, onSelfie)
             RunkkSectionTitle(stringResource(R.string.avatar_setup_pick_character))
             CharacterGrid(state.selected, onCharacter)
             if (state.error != null) {
@@ -149,13 +149,13 @@ fun AvatarSetupScreen(
             }
         }
         HorizontalDivider(color = RunkkColors.Border)
-        SetupFooter(state.selected, state.working, onConfirm, onLater)
+        SetupFooter(state.selected, state.isWorking, onConfirm, onLater)
     }
 }
 
 /** 셀카로 SD 얼굴 만들기 카드(하루 한 번). */
 @Composable
-private fun SelfieCard(canCreateSelfie: Boolean, working: Boolean, onSelfie: () -> Unit) {
+private fun SelfieCard(canCreateSelfie: Boolean, isWorking: Boolean, onSelfie: () -> Unit) {
     RunkkCard(borderColor = if (canCreateSelfie) RunkkColors.Lime else RunkkColors.Border) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -190,7 +190,7 @@ private fun SelfieCard(canCreateSelfie: Boolean, working: Boolean, onSelfie: () 
         RunkkSecondaryButton(
             stringResource(R.string.avatar_setup_take_selfie),
             onClick = onSelfie,
-            enabled = canCreateSelfie && !working,
+            isEnabled = canCreateSelfie && !isWorking,
             leadingIcon = RunkkIcons.Camera,
             modifier = Modifier.fillMaxWidth()
         )
@@ -209,7 +209,7 @@ private fun CharacterGrid(selected: DefaultCharacter?, onCharacter: (DefaultChar
         DefaultCharacter.entries.forEach { character ->
             CharacterOption(
                 character,
-                selected = character == selected,
+                isSelected = character == selected,
                 onClick = { onCharacter(character) },
                 modifier = Modifier.weight(1f)
             )
@@ -219,7 +219,7 @@ private fun CharacterGrid(selected: DefaultCharacter?, onCharacter: (DefaultChar
 
 /** 시작하기 버튼과 나중에 하기 링크. */
 @Composable
-private fun SetupFooter(selected: DefaultCharacter?, working: Boolean, onConfirm: () -> Unit, onLater: () -> Unit) {
+private fun SetupFooter(selected: DefaultCharacter?, isWorking: Boolean, onConfirm: () -> Unit, onLater: () -> Unit) {
     Column(
         Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -229,8 +229,8 @@ private fun SetupFooter(selected: DefaultCharacter?, working: Boolean, onConfirm
             selected?.let { stringResource(R.string.avatar_setup_start_with, stringResource(it.labelRes)) }
                 ?: stringResource(R.string.avatar_setup_pick_prompt),
             onClick = onConfirm,
-            enabled = selected != null,
-            loading = working,
+            isEnabled = selected != null,
+            isLoading = isWorking,
             modifier = Modifier.fillMaxWidth()
         )
         RunkkTextLink(stringResource(R.string.avatar_setup_later), onClick = onLater)
@@ -240,17 +240,17 @@ private fun SetupFooter(selected: DefaultCharacter?, working: Boolean, onConfirm
 @Composable
 private fun CharacterOption(
     character: DefaultCharacter,
-    selected: Boolean,
+    isSelected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val name = stringResource(character.labelRes)
     RunkkCard(
-        modifier = modifier.semantics { this.selected = selected },
+        modifier = modifier.semantics { this.selected = isSelected },
         onClick = onClick,
         onClickLabel = stringResource(R.string.avatar_setup_pick_label, name),
-        borderColor = if (selected) RunkkColors.Lime else RunkkColors.Border,
-        background = if (selected) RunkkColors.LimeContainer else RunkkColors.Surface,
+        borderColor = if (isSelected) RunkkColors.Lime else RunkkColors.Border,
+        background = if (isSelected) RunkkColors.LimeContainer else RunkkColors.Surface,
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Box(
@@ -262,7 +262,7 @@ private fun CharacterOption(
         Text(
             name,
             style = RunkkTextStyles.Label,
-            color = if (selected) RunkkColors.Lime else RunkkColors.TextSecondary,
+            color = if (isSelected) RunkkColors.Lime else RunkkColors.TextSecondary,
             modifier = Modifier.align(Alignment.CenterHorizontally)
         )
     }
@@ -325,7 +325,7 @@ fun AvatarScreen(
             }
             val avatar = state.avatar
             when {
-                avatar == null && state.loading -> RunkkLoading(Modifier.weight(1f))
+                avatar == null && state.isLoading -> RunkkLoading(Modifier.weight(1f))
 
                 avatar == null -> RunkkErrorState(
                     state.error?.asString() ?: stringResource(R.string.avatar_decorate_load_failed),
@@ -362,7 +362,7 @@ private fun AvatarBody(
             options = ItemSlot.entries.map { stringResource(it.labelRes) },
             selectedIndex = state.slot.ordinal,
             onSelect = { onSlot(ItemSlot.entries[it]) },
-            compact = true
+            isCompact = true
         )
         OwnedItems(state, onShop, onToggle)
     }
@@ -419,7 +419,7 @@ private fun OwnedItems(state: AvatarUiState, onShop: () -> Unit, onToggle: (Shop
             owned.forEach { item ->
                 ItemTile(
                     item,
-                    equipped = state.isEquipped(item),
+                    isEquipped = state.isEquipped(item),
                     onClick = { onToggle(item) },
                     modifier = Modifier.weight(1f)
                 )
@@ -491,23 +491,23 @@ private fun BodyCard(avatar: Avatar) {
 }
 
 @Composable
-private fun ItemTile(item: Shop.Item, equipped: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun ItemTile(item: Shop.Item, isEquipped: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val wearing = stringResource(R.string.avatar_item_wearing)
-    val state = if (equipped) wearing else stringResource(R.string.avatar_item_off)
+    val state = if (isEquipped) wearing else stringResource(R.string.avatar_item_off)
     RunkkCard(
         modifier = modifier.semantics {
-            selected = equipped
+            selected = isEquipped
             stateDescription = state
         },
         onClick = onClick,
-        onClickLabel = stringResource(if (equipped) R.string.avatar_item_take_off else R.string.avatar_item_put_on),
-        borderColor = if (equipped) RunkkColors.Lime else RunkkColors.Border,
-        background = if (equipped) RunkkColors.LimeContainer else RunkkColors.Surface
+        onClickLabel = stringResource(if (isEquipped) R.string.avatar_item_take_off else R.string.avatar_item_put_on),
+        borderColor = if (isEquipped) RunkkColors.Lime else RunkkColors.Border,
+        background = if (isEquipped) RunkkColors.LimeContainer else RunkkColors.Surface
     ) {
         Text(item.name, style = RunkkTextStyles.BodyStrong, color = RunkkColors.TextPrimary)
         RunkkBadge(
-            if (equipped) wearing else stringResource(item.slot.labelRes),
-            tone = if (equipped) RunkkBadgeTone.Lime else RunkkBadgeTone.Muted
+            if (isEquipped) wearing else stringResource(item.slot.labelRes),
+            tone = if (isEquipped) RunkkBadgeTone.Lime else RunkkBadgeTone.Muted
         )
     }
 }
@@ -705,7 +705,7 @@ private fun ShopHeader(state: ShopUiState, onBack: () -> Unit, onSlot: (ItemSlot
         options = SHOP_SLOTS.map { slot -> slot?.let { stringResource(it.labelRes) } ?: all },
         selectedIndex = SHOP_SLOTS.indexOf(state.slot),
         onSelect = { onSlot(SHOP_SLOTS[it]) },
-        compact = true,
+        isCompact = true,
         modifier = Modifier.padding(horizontal = 16.dp)
     )
 }
@@ -721,7 +721,7 @@ private fun ShopContent(
 ) {
     val shop = state.shop
     when {
-        shop == null && state.loading -> RunkkLoading(modifier)
+        shop == null && state.isLoading -> RunkkLoading(modifier)
 
         shop == null -> RunkkErrorState(
             state.error?.asString() ?: stringResource(R.string.avatar_shop_load_failed),
@@ -800,6 +800,6 @@ private fun ShopTile(item: Shop.Item, onClick: () -> Unit, modifier: Modifier = 
 @Composable
 private fun AvatarSetupPreview() {
     RunkkTheme(reduceMotion = true) {
-        AvatarSetupScreen(AvatarSetupUiState(loading = false, selected = DefaultCharacter.FOX), {}, {}, {}, {}, {})
+        AvatarSetupScreen(AvatarSetupUiState(isLoading = false, selected = DefaultCharacter.FOX), {}, {}, {}, {}, {})
     }
 }

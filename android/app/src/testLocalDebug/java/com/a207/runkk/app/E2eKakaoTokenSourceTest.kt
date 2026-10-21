@@ -25,7 +25,7 @@ class E2eKakaoTokenSourceTest {
     fun `토큰 값이 있으면 앱 키 없이 그 토큰을 돌려준다`() = runTest {
         val source = e2eKakaoTokenSources(" e2e-1001 ").single()
 
-        assertFalse(source.requiresNativeAppKey)
+        assertFalse(source.isNativeAppKeyRequired)
         assertEquals(
             Outcome.Success("e2e-1001"),
             source.accessToken(RuntimeEnvironment.getApplication(), nativeAppKey = "")

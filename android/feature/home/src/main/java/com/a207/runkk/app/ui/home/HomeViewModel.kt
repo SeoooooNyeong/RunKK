@@ -37,7 +37,7 @@ data class HomeHeader(
 )
 
 data class HomeUiState(
-    val loading: Boolean = true,
+    val isLoading: Boolean = true,
     val dashboard: Dashboard? = null,
     val todayPlan: TodayPlan? = null,
     val pendingCount: Int = 0,
@@ -45,7 +45,7 @@ data class HomeUiState(
     val error: UiText? = null,
     val today: LocalDate? = null,
     val header: HomeHeader = HomeHeader(),
-    val headerLoading: Boolean = true,
+    val isHeaderLoading: Boolean = true,
     /** 우리 집 아바타 자리의 셀카 얼굴 부위 그림. 비어 있으면 "아바타" 자리 그림. */
     val faceLayers: List<FaceLayer> = emptyList()
 )
@@ -78,7 +78,7 @@ class HomeViewModel @Inject constructor(
 
     fun refresh() {
         val today = LocalDate.now(clock)
-        _state.update { it.copy(loading = true, error = null, today = today) }
+        _state.update { it.copy(isLoading = true, error = null, today = today) }
         // 늦게 끝난 앞 요청이 새 결과를 덮지 않게 취소한다.
         refreshJob?.cancel()
         refreshJob = viewModelScope.launch {
@@ -100,11 +100,11 @@ class HomeViewModel @Inject constructor(
                 )
             _state.update {
                 it.copy(
-                    loading = false,
+                    isLoading = false,
                     dashboard = dashboardResult.getOrNull() ?: it.dashboard,
                     todayPlan = planResult.getOrNull(),
                     header = header,
-                    headerLoading = false,
+                    isHeaderLoading = false,
                     faceLayers = face,
                     error = (dashboardResult as? Outcome.Failure)?.let { failure -> RunkkErrorText.of(failure.error) }
                 )

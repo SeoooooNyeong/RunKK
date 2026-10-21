@@ -42,7 +42,7 @@ class HomeScreenTest {
     fun `자유런 시작은 러닝 화면으로, 설정은 자유런 설정으로 간다`() {
         show(
             HomeUiState(
-                loading = false,
+                isLoading = false,
                 dashboard = sampleDashboard,
                 today = LocalDate.of(2026, 10, 20),
                 todayPlan = TodayPlan(Distance(5_000), null)
@@ -56,7 +56,7 @@ class HomeScreenTest {
 
     @Test
     fun `알림함·로고에 접근성 라벨이 있다`() {
-        show(HomeUiState(loading = false))
+        show(HomeUiState(isLoading = false))
         compose.onNodeWithContentDescription("RRun 런크크").assertExists()
         compose.onNodeWithContentDescription("알림함").performClick()
         assertEquals(listOf(Routes.NOTIFICATIONS), routes)
@@ -64,14 +64,14 @@ class HomeScreenTest {
 
     @Test
     fun `배틀런 탭에서는 랜덤 대결로 간다`() {
-        show(HomeUiState(loading = false, mode = HomeRunMode.BATTLE))
+        show(HomeUiState(isLoading = false, mode = HomeRunMode.BATTLE))
         compose.onNodeWithText("배틀런 시작").performScrollTo().performClick()
         assertEquals(listOf(Routes.BATTLE_QUICK_MATCH), routes, "홈 배틀런은 기본 대결 거리로 바로 매칭한다(FR-080)")
     }
 
     @Test
     fun `미전송 기록이 있으면 안내를 누르면 기록 목록으로 간다`() {
-        show(HomeUiState(loading = false, pendingCount = 2))
+        show(HomeUiState(isLoading = false, pendingCount = 2))
         compose.onNodeWithText("미전송 기록 2건 · 연결되면 자동으로 보내요").performScrollTo().performClick()
         assertEquals(listOf(Routes.RECORDS), routes)
     }
@@ -83,7 +83,7 @@ class HomeScreenTest {
             todayRuns = 2,
             weekly = WeeklyGoalProgress(4, Distance(20_000), 2, Distance(12_000), 50, 60)
         )
-        show(HomeUiState(loading = false, dashboard = dashboard, headerLoading = false))
+        show(HomeUiState(isLoading = false, dashboard = dashboard, isHeaderLoading = false))
         compose.onNodeWithContentDescription("오늘 3.02킬로미터, 18분 20초, 2회").performScrollTo().assertExists()
         compose.onNodeWithContentDescription("이번 주 목표 거리 60% 달성, 4회 중 2회")
             .performScrollTo()
@@ -111,8 +111,8 @@ class HomeScreenTest {
     fun `오늘 계획 칩은 거리·페이스를 말로 읽는다`() {
         show(
             HomeUiState(
-                loading = false,
-                headerLoading = false,
+                isLoading = false,
+                isHeaderLoading = false,
                 todayPlan = TodayPlan(Distance(5_000), com.a207.runkk.app.core.model.Pace(330))
             )
         )
@@ -130,7 +130,7 @@ class HomeScreenTest {
 
     @Test
     fun `상단은 닉네임·티어·레벨과 리워드 잔액(상점으로)을 보인다`() {
-        show(HomeUiState(loading = false, headerLoading = false, header = HomeHeader("달리는곰", "골드", 3, 1_250)))
+        show(HomeUiState(isLoading = false, isHeaderLoading = false, header = HomeHeader("달리는곰", "골드", 3, 1_250)))
         compose.onNodeWithText("달리는곰").assertExists()
         compose.onNodeWithText("골드 · Lv.3").assertExists()
         compose.onNodeWithContentDescription("리워드 잔액 1,250").performClick()
@@ -139,7 +139,7 @@ class HomeScreenTest {
 
     @Test
     fun `프로필을 못 읽었으면 자리를 기본 문구로 채운다`() {
-        show(HomeUiState(loading = false, headerLoading = false))
+        show(HomeUiState(isLoading = false, isHeaderLoading = false))
         compose.onNodeWithText("언랭 · Lv.-").assertExists()
         compose.onNodeWithContentDescription("리워드 잔액 -").assertExists()
     }

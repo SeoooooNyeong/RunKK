@@ -40,7 +40,7 @@ data class CrewHomeUiState(
     /** 크루 정보(GET /crews/{id}): 이름·인원·내 역할. 읽기 전이면 null. */
     val detail: CrewDetail? = null,
     val tab: CrewTab = CrewTab.RACE,
-    val loading: Boolean = false,
+    val isLoading: Boolean = false,
     val race: RaceStatus? = null,
     val period: CrewRanking.Period = CrewRanking.Period.WEEKLY,
     val ranking: CrewRanking? = null,
@@ -49,17 +49,17 @@ data class CrewHomeUiState(
     val members: CrewMembers? = null,
     val cheerDraft: String = "",
     /** 게시글 다음 쪽을 읽는 중. */
-    val loadingMore: Boolean = false,
-    val confirmLeave: Boolean = false,
+    val isLoadingMore: Boolean = false,
+    val isConfirmingLeave: Boolean = false,
     /** 지울지 확인 중인 내 글(FR-130·FR-134). */
     val confirmDelete: PostList.Item? = null,
-    val editingIntro: Boolean = false,
+    val isEditingIntro: Boolean = false,
     val introDraft: String = "",
-    val busy: Boolean = false,
+    val isBusy: Boolean = false,
     val message: UiText? = null,
     val error: UiText? = null
 ) {
-    val cheerValid: Boolean get() = cheerDraft.isNotBlank() && cheerDraft.length <= CHEER_MAX
+    val isCheerValid: Boolean get() = cheerDraft.isNotBlank() && cheerDraft.length <= CHEER_MAX
 
     val crewName: String get() = detail?.name.orEmpty()
 
@@ -142,7 +142,7 @@ class CrewHomeViewModel @Inject constructor(private val crews: CrewRepository) :
     fun refresh() {
         val s = _state.value
         refreshJob?.cancel()
-        _state.update { it.copy(loading = true, error = null) }
+        _state.update { it.copy(isLoading = true, error = null) }
         refreshJob = viewModelScope.launch {
             val error = when (s.tab) {
                 CrewTab.RACE -> {
@@ -170,7 +170,7 @@ class CrewHomeViewModel @Inject constructor(private val crews: CrewRepository) :
                     if (r is Outcome.Success) _state.update { it.copy(members = r.value) }
                 }.let { (it as? Outcome.Failure)?.error }
             }
-            _state.update { it.copy(loading = false, error = error?.let(CrewErrorText::of)) }
+            _state.update { it.copy(isLoading = false, error = error?.let(CrewErrorText::of)) }
         }
     }
 
@@ -194,16 +194,16 @@ class CrewHomeViewModel @Inject constructor(private val crews: CrewRepository) :
 
     fun onCheerSubmit() {
         val s = _state.value
-        if (!s.cheerValid || s.busy) return
-        _state.update { it.copy(busy = true) }
+        if (!s.isCheerValid || s.isBusy) return
+        _state.update { it.copy(isBusy = true) }
         viewModelScope.launch {
             when (val r = crews.writeCheer(s.crewId, s.cheerDraft.trim())) {
                 is Outcome.Success -> {
-                    _state.update { it.copy(busy = false, cheerDraft = "") }
+                    _state.update { it.copy(isBusy = false, cheerDraft = "") }
                     reloadPosts(PostList.Kind.CHEER)
                 }
 
-                is Outcome.Failure -> _state.update { it.copy(busy = false, message = CrewErrorText.of(r.error)) }
+                is Outcome.Failure -> _state.update { it.copy(isBusy = false, message = CrewErrorText.of(r.error)) }
             }
         }
     }
@@ -223,16 +223,16 @@ class CrewHomeViewModel @Inject constructor(private val crews: CrewRepository) :
 
     /** 글 삭제(작성자 본인, FR-130·FR-134). 크루장의 남의 글 삭제는 크루 관리에서 권한을 확인한 뒤 서버가 판정한다. */
     fun onDeletePost(item: PostList.Item) {
-        if (!item.isMine || _state.value.busy) return
-        _state.update { it.copy(busy = true) }
+        if (!item.isMine || _state.value.isBusy) return
+        _state.update { it.copy(isBusy = true) }
         viewModelScope.launch {
             when (val r = crews.deletePost(item.postId)) {
                 is Outcome.Success -> {
-                    _state.update { it.copy(busy = false, message = uiText(R.string.crew_home_post_deleted)) }
+                    _state.update { it.copy(isBusy = false, message = uiText(R.string.crew_home_post_deleted)) }
                     reloadPosts(item.kind)
                 }
 
-                is Outcome.Failure -> _state.update { it.copy(busy = false, message = CrewErrorText.of(r.error)) }
+                is Outcome.Failure -> _state.update { it.copy(isBusy = false, message = CrewErrorText.of(r.error)) }
             }
         }
     }
@@ -268,8 +268,8 @@ class CrewHomeViewModel @Inject constructor(private val crews: CrewRepository) :
         }
         val list = if (kind == PostList.Kind.CHEER) s.cheers else s.crewRuns
         val cursor = list?.nextCursor ?: return
-        if (s.loading || s.loadingMore) return
-        _state.update { it.copy(loadingMore = true) }
+        if (s.isLoading || s.isLoadingMore) return
+        _state.update { it.copy(isLoadingMore = true) }
         moreJob = viewModelScope.launch {
             when (val r = crews.posts(s.crewId, kind, cursor)) {
                 is Outcome.Success -> _state.update { st ->
@@ -278,14 +278,14 @@ class CrewHomeViewModel @Inject constructor(private val crews: CrewRepository) :
                     val merged =
                         PostList(current.posts + r.value.posts.filterNot { it.postId in known }, r.value.nextCursor)
                     if (kind == PostList.Kind.CHEER) {
-                        st.copy(loadingMore = false, cheers = merged)
+                        st.copy(isLoadingMore = false, cheers = merged)
                     } else {
-                        st.copy(loadingMore = false, crewRuns = merged)
+                        st.copy(isLoadingMore = false, crewRuns = merged)
                     }
                 }
 
                 is Outcome.Failure -> _state.update {
-                    it.copy(loadingMore = false, message = CrewErrorText.of(r.error))
+                    it.copy(isLoadingMore = false, message = CrewErrorText.of(r.error))
                 }
             }
         }
@@ -293,53 +293,53 @@ class CrewHomeViewModel @Inject constructor(private val crews: CrewRepository) :
 
     // 크루원·탈퇴·내 소개
 
-    fun onLeaveAsk() = _state.update { it.copy(confirmLeave = true) }
+    fun onLeaveAsk() = _state.update { it.copy(isConfirmingLeave = true) }
 
-    fun onLeaveDismiss() = _state.update { it.copy(confirmLeave = false) }
+    fun onLeaveDismiss() = _state.update { it.copy(isConfirmingLeave = false) }
 
     /** 확인 뒤 탈퇴(FR-125). 크루원이 남은 크루장이면 서버가 양도를 안내한다(FR-126). */
     fun onLeaveConfirm() {
         val crewId = _state.value.crewId
-        _state.update { it.copy(confirmLeave = false, busy = true) }
+        _state.update { it.copy(isConfirmingLeave = false, isBusy = true) }
         viewModelScope.launch {
             when (val r = crews.leave(crewId)) {
                 is Outcome.Success -> {
-                    _state.update { it.copy(busy = false) }
+                    _state.update { it.copy(isBusy = false) }
                     _events.trySend(CrewHomeEvent.Left)
                 }
 
-                is Outcome.Failure -> _state.update { it.copy(busy = false, message = CrewErrorText.of(r.error)) }
+                is Outcome.Failure -> _state.update { it.copy(isBusy = false, message = CrewErrorText.of(r.error)) }
             }
         }
     }
 
-    fun onIntroEdit() = _state.update { it.copy(editingIntro = true, introDraft = "") }
+    fun onIntroEdit() = _state.update { it.copy(isEditingIntro = true, introDraft = "") }
 
     fun onIntroDraft(text: String) = _state.update { it.copy(introDraft = text.take(CrewHomeUiState.INTRO_MAX)) }
 
-    fun onIntroDismiss() = _state.update { it.copy(editingIntro = false) }
+    fun onIntroDismiss() = _state.update { it.copy(isEditingIntro = false) }
 
     /** 크루 내 한줄 소개(FR-144, 40자). */
     fun onIntroSave() {
         val s = _state.value
-        _state.update { it.copy(editingIntro = false, busy = true) }
+        _state.update { it.copy(isEditingIntro = false, isBusy = true) }
         viewModelScope.launch {
             when (val r = crews.editCrewProfile(s.crewId, s.introDraft.trim())) {
                 is Outcome.Success -> {
                     _state.update {
-                        it.copy(busy = false, message = uiText(R.string.crew_home_intro_changed), members = null)
+                        it.copy(isBusy = false, message = uiText(R.string.crew_home_intro_changed), members = null)
                     }
                     if (_state.value.tab == CrewTab.MEMBERS) refresh()
                 }
 
-                is Outcome.Failure -> _state.update { it.copy(busy = false, message = CrewErrorText.of(r.error)) }
+                is Outcome.Failure -> _state.update { it.copy(isBusy = false, message = CrewErrorText.of(r.error)) }
             }
         }
     }
 
     private suspend fun reloadPosts(kind: PostList.Kind) {
         moreJob?.cancel()
-        _state.update { it.copy(loadingMore = false) }
+        _state.update { it.copy(isLoadingMore = false) }
         when (val r = crews.posts(_state.value.crewId, kind)) {
             is Outcome.Success -> _state.update {
                 if (kind == PostList.Kind.CHEER) it.copy(cheers = r.value) else it.copy(crewRuns = r.value)
@@ -373,13 +373,13 @@ data class CrewManageUiState(
     val crewName: String = "",
     /** 크루 정보(GET /crews/{id}). 정보 수정 칸과 초대 코드를 채운다. */
     val detail: CrewDetail? = null,
-    val loading: Boolean = true,
+    val isLoading: Boolean = true,
     val requests: PendingRequests? = null,
     val members: CrewMembers? = null,
     val inviteCode: String? = null,
     val form: CrewFormState = CrewFormState(),
     val confirming: ManageAction? = null,
-    val busy: Boolean = false,
+    val isBusy: Boolean = false,
     val message: UiText? = null,
     val error: UiText? = null
 )
@@ -412,7 +412,7 @@ class CrewManageViewModel @Inject constructor(private val crews: CrewRepository)
     /** 크루 정보·가입 신청·크루원을 읽는다. 정보 수정 칸은 처음 읽을 때만 채운다(쓰던 값을 덮지 않는다). */
     fun load() {
         val crewId = _state.value.crewId
-        _state.update { it.copy(loading = true, error = null) }
+        _state.update { it.copy(isLoading = true, error = null) }
         viewModelScope.launch {
             val detail = crews.detail(crewId)
             val requests = crews.pendingRequests(crewId)
@@ -420,7 +420,7 @@ class CrewManageViewModel @Inject constructor(private val crews: CrewRepository)
             _state.update { st ->
                 val info = (detail as? Outcome.Success)?.value
                 st.copy(
-                    loading = false,
+                    isLoading = false,
                     detail = info ?: st.detail,
                     crewName = info?.name ?: st.crewName,
                     form = if (st.detail == null && info != null) info.toFormState() else st.form,
@@ -437,14 +437,14 @@ class CrewManageViewModel @Inject constructor(private val crews: CrewRepository)
 
     fun onMessageShown() = _state.update { it.copy(message = null) }
 
-    fun onApprove(request: PendingRequests.Request) = decide(request, approve = true)
+    fun onApprove(request: PendingRequests.Request) = decide(request, shouldApprove = true)
 
-    fun onReject(request: PendingRequests.Request) = decide(request, approve = false)
+    fun onReject(request: PendingRequests.Request) = decide(request, shouldApprove = false)
 
-    private fun decide(request: PendingRequests.Request, approve: Boolean) = act {
-        val r = if (approve) crews.approveJoin(request.requestId) else crews.rejectJoin(request.requestId)
+    private fun decide(request: PendingRequests.Request, shouldApprove: Boolean) = act {
+        val r = if (shouldApprove) crews.approveJoin(request.requestId) else crews.rejectJoin(request.requestId)
         r.done(
-            if (approve) {
+            if (shouldApprove) {
                 uiText(R.string.crew_manage_approved, request.displayName)
             } else {
                 uiText(R.string.crew_manage_rejected, request.displayName)
@@ -469,7 +469,7 @@ class CrewManageViewModel @Inject constructor(private val crews: CrewRepository)
     /** 정보 수정(FR-113). */
     fun onSaveInfo() {
         val form = _state.value.form
-        if (!form.valid) return
+        if (!form.isValid) return
         act {
             val r = crews.changeInfo(_state.value.crewId, form.toForm())
             if (r is Outcome.Success) _state.update { s -> s.copy(crewName = form.name.trim()) }
@@ -515,11 +515,11 @@ class CrewManageViewModel @Inject constructor(private val crews: CrewRepository)
     private var deleted = false
 
     private fun act(block: suspend () -> UiText?) {
-        if (_state.value.busy) return
-        _state.update { it.copy(busy = true) }
+        if (_state.value.isBusy) return
+        _state.update { it.copy(isBusy = true) }
         viewModelScope.launch {
             val message = block()
-            _state.update { it.copy(busy = false, message = message) }
+            _state.update { it.copy(isBusy = false, message = message) }
             // 지운 크루는 다시 읽지 않는다.
             if (!deleted) load()
         }

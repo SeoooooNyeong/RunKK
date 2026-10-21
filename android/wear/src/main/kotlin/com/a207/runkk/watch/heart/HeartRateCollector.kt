@@ -45,7 +45,7 @@ class HeartRateCollector @Inject constructor(
     }
 
     private val lock = Any()
-    private var allowed = false
+    private var isAllowed = false
     private var requested = false
     private var sensorFailed = false
     private var job: Job? = null
@@ -60,7 +60,7 @@ class HeartRateCollector @Inject constructor(
     val permissionName: String get() = permission.name
 
     /** 폰이 보낸 허용 플래그. 거짓이면 즉시 멈춘다. */
-    fun allow(allowed: Boolean) = update { this.allowed = allowed }
+    fun allow(isAllowed: Boolean) = update { this.isAllowed = isAllowed }
 
     /** 수집 시작 요청. 허용·권한이 없으면 상태만 남기고 조건이 갖춰질 때 켠다. 거듭 불러도 세션은 하나다. */
     fun start() = update {
@@ -99,7 +99,7 @@ class HeartRateCollector @Inject constructor(
 
     private fun applyLocked() {
         val next = when {
-            !allowed -> State.BLOCKED
+            !isAllowed -> State.BLOCKED
             !permission.granted() -> State.NEEDS_PERMISSION
             !requested -> State.STOPPED
             sensorFailed -> State.UNAVAILABLE

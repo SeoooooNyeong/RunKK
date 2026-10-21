@@ -96,7 +96,7 @@ class BattleResultViewModelTest {
         assertTrue(vm.state.value.result?.isPending == true)
         assertNull(vm.state.value.verdict)
         w.battles.resultResult = Outcome.Success(battleResult())
-        vm.load(9, force = true)
+        vm.load(9, isForced = true)
         runCurrent()
         assertEquals(Verdict.WIN, vm.state.value.verdict)
     }

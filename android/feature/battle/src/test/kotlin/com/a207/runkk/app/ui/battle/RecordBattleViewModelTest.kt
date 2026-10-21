@@ -33,7 +33,7 @@ class RecordBattleViewModelTest {
         val vm = SelfBattleViewModel(w.battles, w.coordinator)
         runCurrent()
         val s = vm.state.value
-        assertFalse(s.loading)
+        assertFalse(s.isLoading)
         assertEquals(4, s.candidates.size)
         assertEquals(Distance(5_000), s.candidates[1].distance)
         assertNotNull(s.candidates[1].averagePace)
@@ -94,7 +94,7 @@ class RecordBattleViewModelTest {
         val vm = CelebBattleViewModel(w.battles, w.coordinator)
         runCurrent()
         vm.onPick(vm.state.value.candidates.first())
-        assertTrue(vm.state.value.confirming)
+        assertTrue(vm.state.value.isConfirming)
         assertFalse(w.battles.calls.any { it.startsWith("startCeleb") }, "확인 전에는 시작하지 않는다")
         vm.events.test {
             vm.onStart()
@@ -103,7 +103,7 @@ class RecordBattleViewModelTest {
             assertEquals(OpponentKind.CELEBRITY.name, event.key.opponentKind)
         }
         assertTrue("startCeleb:7" in w.battles.calls)
-        assertFalse(vm.state.value.confirming)
+        assertFalse(vm.state.value.isConfirming)
     }
 
     @Test
@@ -123,18 +123,18 @@ class RecordBattleViewModelTest {
 
     @Test
     fun `출처 줄에 공개 기록 기준과 추정 안내를 붙인다(FR-100)`() {
-        val estimated = CandidateUi.of(celebCandidates[1])
+        val isEstimated = CandidateUi.of(celebCandidates[1])
         assertEquals(
             uiText(
                 R.string.battle_record_source_estimated,
                 uiText(R.string.battle_record_source_basis_label, "2024 춘천마라톤")
             ),
-            sourceLine(estimated)
+            sourceLine(isEstimated)
         )
         assertEquals(
             uiText(R.string.battle_record_source_basis),
-            sourceLine(estimated.copy(sourceLabel = null, estimated = false))
+            sourceLine(isEstimated.copy(sourceLabel = null, isEstimated = false))
         )
-        assertEquals(UiText.Res(R.string.battle_distance_full), distanceLabel(estimated.distance))
+        assertEquals(UiText.Res(R.string.battle_distance_full), distanceLabel(isEstimated.distance))
     }
 }

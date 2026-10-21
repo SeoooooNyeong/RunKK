@@ -130,13 +130,13 @@ class RunimalViewModelTest {
 
     /** CardSharer는 파일 쓰기를 Dispatchers.IO에서 하므로 공유가 끝날 때까지 기다린다. */
     private fun RunimalViewModel.awaitShared() = runBlocking {
-        withTimeout(10_000) { state.first { !it.sharing } }
+        withTimeout(10_000) { state.first { !it.isSharing } }
     }
 
     @Test
     fun `확정 유형과 다음 확정까지 남은 횟수를 보인다(FR-151·FR-154)`() {
         val s = vm().state.value
-        assertFalse(s.loading)
+        assertFalse(s.isLoading)
         assertEquals("아침 참새", s.status?.card?.title)
         assertEquals(uiText(R.string.runimal_remaining_confirm, 4), s.remainingLabel)
         assertTrue(s.canShare)
@@ -183,7 +183,7 @@ class RunimalViewModelTest {
         val v = vm()
         v.onShare(RunimalShareKind.SYSTEM)
         assertEquals(UiText.Res(R.string.runimal_share_no_type), v.state.value.message)
-        assertFalse(v.state.value.sharing)
+        assertFalse(v.state.value.isSharing)
     }
 
     @Test
@@ -210,7 +210,7 @@ class RunimalScreenTest {
         val calls = mutableListOf<RunimalShareKind>()
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
-                RunimalScreen(RunimalUiState(loading = false, status = confirmed), {}, { calls += it }, {}, {})
+                RunimalScreen(RunimalUiState(isLoading = false, status = confirmed), {}, { calls += it }, {}, {})
             }
         }
         compose.onNodeWithContentDescription(str(R.string.runimal_axis_description, "솔로", 78)).assertExists()
@@ -232,12 +232,12 @@ class RunimalScreenshotTest {
 
     @Test
     fun confirmedType() = compose.captureRunkkScreen("E1_runimal_type_card") {
-        RunimalScreen(RunimalUiState(loading = false, status = confirmed), {}, {}, {}, {})
+        RunimalScreen(RunimalUiState(isLoading = false, status = confirmed), {}, {}, {}, {})
     }
 
     @Test
     fun noTypeYet() = compose.captureRunkkScreen("E1_runimal_no_type") {
-        RunimalScreen(RunimalUiState(loading = false, status = RunimalStatus(null, true, 2, null, types)), {
+        RunimalScreen(RunimalUiState(isLoading = false, status = RunimalStatus(null, true, 2, null, types)), {
         }, {}, {}, {})
     }
 }

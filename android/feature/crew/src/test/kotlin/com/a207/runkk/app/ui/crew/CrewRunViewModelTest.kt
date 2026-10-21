@@ -70,10 +70,10 @@ class CrewRunViewModelTest {
         val w = crewWorld()
         val vm = lobbyVm(w, vms)
         vm.onReadyToggle()
-        assertTrue(vm.state.value.ready)
+        assertTrue(vm.state.value.isReady)
         assertTrue(vm.state.value.lobby!!.participants.first { it.isMe }.isReady)
         vm.onReadyToggle()
-        assertFalse(vm.state.value.ready)
+        assertFalse(vm.state.value.isReady)
     }
 
     @Test
@@ -85,7 +85,7 @@ class CrewRunViewModelTest {
         )
         val vm = lobbyVm(w, vms)
         assertEquals(Distance(3_000), vm.state.value.distance)
-        assertTrue(vm.state.value.ready)
+        assertTrue(vm.state.value.isReady)
         assertIs<CrewRunState.Lobby>(w.coordinator.state.value)
     }
 
@@ -104,7 +104,7 @@ class CrewRunViewModelTest {
             runCurrent()
             assertEquals(CrewRunPhase.RUNNING, vm.state.value.phase)
             assertEquals(listOf("바람처럼", "나", "달빛"), vm.state.value.relay.map { it.name })
-            assertEquals(listOf(false, true, false), vm.state.value.relay.map { it.me }, "내 줄을 강조한다")
+            assertEquals(listOf(false, true, false), vm.state.value.relay.map { it.isMe }, "내 줄을 강조한다")
             w.channels.channel.push(CrewRunEnded(31))
             runCurrent()
             assertEquals(CrewRunEvent.Finished(31), awaitItem())
@@ -134,7 +134,7 @@ class CrewRunViewModelTest {
         vm.onQuitTapped()
         assertEquals(UiText.Res(R.string.crew_run_quit_hint), vm.state.value.hint)
         vm.onQuitLongPressed()
-        assertTrue(vm.state.value.confirmingQuit)
+        assertTrue(vm.state.value.isConfirmingQuit)
         assertFalse(w.crews.calls.any { it.startsWith("quit") })
         vm.onQuitConfirmed()
         runCurrent()
@@ -152,7 +152,7 @@ class CrewRunViewModelTest {
             runCurrent()
             expectNoEvents()
         }
-        assertFalse(vm.state.value.leaving)
+        assertFalse(vm.state.value.isLeaving)
         assertNotNull(vm.state.value.error)
         assertEquals(0, w.channels.channel.closed, "나가지 못했으면 중계 채널을 그대로 둔다")
     }

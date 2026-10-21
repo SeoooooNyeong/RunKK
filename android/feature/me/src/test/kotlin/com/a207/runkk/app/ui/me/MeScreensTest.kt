@@ -37,7 +37,7 @@ class MeScreensTest {
         assertEquals(null, aboutLine(res, sampleProfile.copy(ageBand = null, gender = Gender.UNDISCLOSED)))
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
-                MeScreen(MeUiState(loading = false, profile = sampleProfile), onNavigate = {
+                MeScreen(MeUiState(isLoading = false, profile = sampleProfile), onNavigate = {
                 }, onRetry = {}, onLogout = {})
             }
         }
@@ -69,9 +69,9 @@ class MeScreensTest {
     @Test
     fun `가입 1단계 필수 동의를 채우면 다음이 켜진다`() {
         var next = 0
-        val agreed = SignUpUiState(consents = SignUpConsents.items.associate { it.item to it.required })
+        val isAgreed = SignUpUiState(consents = SignUpConsents.items.associate { it.item to it.isRequired })
         compose.setContent {
-            RunkkTheme(reduceMotion = true) { SignUpScreen(agreed, SignUpActions(onNext = { next++ })) }
+            RunkkTheme(reduceMotion = true) { SignUpScreen(isAgreed, SignUpActions(onNext = { next++ })) }
         }
         compose.onNodeWithText("다음").assertIsEnabled().performClick()
         assertEquals(1, next)
@@ -108,7 +108,7 @@ class MeScreensTest {
         var withdrawn = 0
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
-                WithdrawScreen(WithdrawUiState(acknowledged = true), {}, {}, { withdrawn++ }, {})
+                WithdrawScreen(WithdrawUiState(isAcknowledged = true), {}, {}, { withdrawn++ }, {})
             }
         }
         compose.onNodeWithText("탈퇴하기").performClick()
@@ -125,7 +125,7 @@ class MeScreensTest {
                 SettingsScreen(
                     page = SettingsPage.CONSENTS,
                     state = SettingsUiState(
-                        loading = false,
+                        isLoading = false,
                         settings = MemberSettings(emptyMap(), mapOf("LOCATION" to true))
                     ),
                     actions = SettingsActions(setConsent = { item, on -> changes += item to on })

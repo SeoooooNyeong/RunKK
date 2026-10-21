@@ -114,13 +114,13 @@ fun SelfBattleScreen(
                     stringResource(R.string.battle_self_start, distanceLabel(it.distance).asString())
                 } ?: stringResource(R.string.battle_self_choose_distance),
                 onClick = onStart,
-                enabled = state.selected != null,
-                loading = state.starting,
+                isEnabled = state.selected != null,
+                isLoading = state.isStarting,
                 modifier = Modifier.fillMaxWidth()
             )
         }
     ) { candidate ->
-        SelfCandidateCard(candidate, selected = candidate == state.selected, onClick = { onSelect(candidate) })
+        SelfCandidateCard(candidate, isSelected = candidate == state.selected, onClick = { onSelect(candidate) })
     }
 }
 
@@ -178,14 +178,14 @@ fun CelebBattleScreen(
                 options = CELEB_FILTERS.map { it.first.asString() },
                 selectedIndex = state.filterIndex,
                 onSelect = onFilter,
-                compact = true
+                isCompact = true
             )
         }
     ) { candidate ->
         CelebCandidateCard(candidate, onClick = { onPick(candidate) })
     }
     val selected = state.selected
-    if (state.confirming && selected != null) {
+    if (state.isConfirming && selected != null) {
         RunkkConfirmDialog(
             title = stringResource(R.string.battle_celeb_confirm_title, selected.name),
             message = stringResource(
@@ -260,7 +260,7 @@ private fun ColumnScope.ScaffoldHead(
     if (header != null) {
         Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp)) { header() }
         // 필터(거리)를 바꾸면 후보 수를 알린다.
-        if (!state.loading && state.error == null) {
+        if (!state.isLoading && state.error == null) {
             FilterCount(
                 stringResource(R.string.battle_record_count, state.candidates.size),
                 modifier = Modifier.padding(start = 16.dp, top = 8.dp)
@@ -278,7 +278,7 @@ private fun ColumnScope.CandidateBody(
     item: @Composable (CandidateUi) -> Unit
 ) {
     when {
-        state.loading && state.candidates.isEmpty() -> RunkkLoading(modifier = Modifier.weight(1f))
+        state.isLoading && state.candidates.isEmpty() -> RunkkLoading(modifier = Modifier.weight(1f))
 
         state.error != null && state.candidates.isEmpty() ->
             RunkkErrorState(state.error.asString(), onRetry = onRetry, modifier = Modifier.weight(1f))
@@ -300,15 +300,15 @@ private fun ColumnScope.CandidateBody(
 }
 
 @Composable
-private fun SelfCandidateCard(candidate: CandidateUi, selected: Boolean, onClick: () -> Unit) {
+private fun SelfCandidateCard(candidate: CandidateUi, isSelected: Boolean, onClick: () -> Unit) {
     val label = distanceLabel(candidate.distance).asString()
     val spoken = selfSpoken(candidate)
     RunkkCard(
-        modifier = Modifier.fillMaxWidth().semantics { this.selected = selected },
-        onClick = if (candidate.selectable) onClick else null,
+        modifier = Modifier.fillMaxWidth().semantics { this.selected = isSelected },
+        onClick = if (candidate.isSelectable) onClick else null,
         onClickLabel = stringResource(R.string.battle_record_select_label, label),
-        borderColor = if (selected) RunkkColors.Lime else RunkkColors.Border,
-        background = if (selected) RunkkColors.LimeContainer else RunkkColors.Surface
+        borderColor = if (isSelected) RunkkColors.Lime else RunkkColors.Border,
+        background = if (isSelected) RunkkColors.LimeContainer else RunkkColors.Surface
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -318,7 +318,7 @@ private fun SelfCandidateCard(candidate: CandidateUi, selected: Boolean, onClick
             Text(
                 label,
                 style = RunkkTextStyles.display(32),
-                color = if (candidate.selectable) RunkkColors.Lime else RunkkColors.TextSecondary,
+                color = if (candidate.isSelectable) RunkkColors.Lime else RunkkColors.TextSecondary,
                 modifier = Modifier.size(width = 72.dp, height = 40.dp)
             )
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -354,7 +354,7 @@ private fun CelebCandidateCard(candidate: CandidateUi, onClick: () -> Unit) {
     val bestTime = candidate.finishTime?.let(RunkkFormat::duration) ?: stringResource(R.string.battle_no_record)
     RunkkCard(
         modifier = Modifier.fillMaxWidth(),
-        onClick = if (candidate.selectable) onClick else null,
+        onClick = if (candidate.isSelectable) onClick else null,
         onClickLabel = stringResource(R.string.battle_record_challenge_label, candidate.name)
     ) {
         Row(
@@ -415,7 +415,7 @@ internal fun spokenDistance(distance: Distance): String {
 internal fun sourceLine(candidate: CandidateUi): UiText {
     val basis = candidate.sourceLabel?.let { uiText(R.string.battle_record_source_basis_label, it) }
         ?: uiText(R.string.battle_record_source_basis)
-    return if (candidate.estimated) uiText(R.string.battle_record_source_estimated, basis) else basis
+    return if (candidate.isEstimated) uiText(R.string.battle_record_source_estimated, basis) else basis
 }
 
 /** 유명인 공통 SD 캐릭터 자리(라벤더 원). 그림 자원은 2단계에 넣는다(FR-099). */
@@ -444,7 +444,7 @@ private fun SelfBattlePreview() {
     RunkkTheme(reduceMotion = true) {
         SelfBattleScreen(
             RecordBattleUiState(
-                loading = false,
+                isLoading = false,
                 candidates = listOf(
                     CandidateUi(
                         null,

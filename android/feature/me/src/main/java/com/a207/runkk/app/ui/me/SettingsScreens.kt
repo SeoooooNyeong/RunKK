@@ -118,7 +118,7 @@ fun SettingsScreen(
         Column(modifier = Modifier.fillMaxSize()) {
             RunkkTopBar(title = stringResource(page.titleRes), onBack = actions.onBack)
             when {
-                state.loading -> RunkkLoading(modifier = Modifier.weight(1f))
+                state.isLoading -> RunkkLoading(modifier = Modifier.weight(1f))
 
                 state.settings == null -> RunkkErrorState(
                     state.error?.asString() ?: stringResource(R.string.me_settings_load_failed),
@@ -238,7 +238,7 @@ private fun RecordSettingsSection(state: SettingsUiState, actions: SettingsActio
         RunkkSwitchRow(
             title = stringResource(R.string.me_settings_course_map_title),
             description = stringResource(R.string.me_settings_course_map_description),
-            checked = state.flag(SettingKeys.COURSE_MAP_SHARED),
+            isChecked = state.flag(SettingKeys.COURSE_MAP_SHARED),
             onCheckedChange = { actions.setValue(SettingKeys.COURSE_MAP_SHARED, it.toString()) },
             // E2E(android/e2e/maestro) 선택자: 켜짐 여부(checked)는 글자가 아닌 줄 전체에 붙는다.
             modifier = Modifier.testTag("setting_course_map_shared")
@@ -266,7 +266,7 @@ private fun UnitDeviceSection(state: SettingsUiState, actions: SettingsActions, 
         RunkkSwitchRow(
             title = stringResource(R.string.me_settings_watch_title),
             description = stringResource(R.string.me_settings_watch_description),
-            checked = state.flag(SettingKeys.WATCH_LINKED),
+            isChecked = state.flag(SettingKeys.WATCH_LINKED),
             onCheckedChange = { on ->
                 if (on &&
                     !state.consent(HEART_RATE)
@@ -409,7 +409,7 @@ private fun ColumnScope.ConsentSettings(state: SettingsUiState, actions: Setting
                 actions.setConsent(item, false)
             },
             onDismiss = { confirmWithdraw = null },
-            destructive = true
+            isDestructive = true
         )
     }
     if (askHeartRate) {
@@ -535,7 +535,7 @@ private fun FreeRunSettingsPreview() {
         SettingsScreen(
             page = SettingsPage.FREE_RUN,
             state = SettingsUiState(
-                loading = false,
+                isLoading = false,
                 settings = MemberSettings(mapOf(SettingKeys.RUN_TARGET to "KM5"), emptyMap())
             ),
             actions = SettingsActions()
@@ -549,7 +549,10 @@ private fun ConsentsPreview() {
     RunkkTheme(reduceMotion = true) {
         SettingsScreen(
             page = SettingsPage.CONSENTS,
-            state = SettingsUiState(loading = false, settings = MemberSettings(emptyMap(), mapOf("LOCATION" to true))),
+            state = SettingsUiState(
+                isLoading = false,
+                settings = MemberSettings(emptyMap(), mapOf("LOCATION" to true))
+            ),
             actions = SettingsActions()
         )
     }

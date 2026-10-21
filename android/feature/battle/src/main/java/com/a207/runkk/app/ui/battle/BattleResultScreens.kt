@@ -100,7 +100,7 @@ fun BattleResultRoute(battleId: Long, viewModel: BattleResultViewModel = hiltVie
             }
         },
         onHome = { navigator.restart(Routes.HOME) },
-        onRetry = { viewModel.load(battleId, force = true) }
+        onRetry = { viewModel.load(battleId, isForced = true) }
     )
 }
 
@@ -118,10 +118,10 @@ fun BattleResultScreen(
             modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            RunkkOverline("BATTLE RESULT", heading = true)
+            RunkkOverline("BATTLE RESULT", isHeading = true)
             val result = state.result
             when {
-                result == null && state.loading -> Box(Modifier.fillMaxWidth().height(240.dp)) { RunkkLoading() }
+                result == null && state.isLoading -> Box(Modifier.fillMaxWidth().height(240.dp)) { RunkkLoading() }
 
                 result == null -> RunkkErrorState(
                     state.error?.asString() ?: stringResource(R.string.battle_result_load_failed),
@@ -179,7 +179,7 @@ private fun Pending(onRetry: () -> Unit) {
 @Composable
 private fun ResultBody(state: BattleResultUiState, result: BattleResult, onHistory: () -> Unit) {
     VerdictCard(state.verdict, verdictMessage(state.verdict, result).asString())
-    if (result.isNewRecord) RunkkBanner(stringResource(R.string.battle_result_new_record), strong = true)
+    if (result.isNewRecord) RunkkBanner(stringResource(R.string.battle_result_new_record), isStrong = true)
     ComparisonTable(result.rows)
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         RunkkStatTile(
@@ -259,17 +259,17 @@ private fun ComparisonTable(rows: List<BattleResult.Row>) {
             stringResource(R.string.battle_result_col_item),
             stringResource(R.string.battle_me),
             stringResource(R.string.battle_opponent),
-            header = true
+            isHeader = true
         )
         rows.forEach { row ->
             HorizontalDivider(color = RunkkColors.Border)
-            TableRow(row.item, row.mine, row.theirs, header = false)
+            TableRow(row.item, row.mine, row.theirs, isHeader = false)
         }
     }
 }
 
 @Composable
-private fun TableRow(item: String, mine: String, theirs: String, header: Boolean) {
+private fun TableRow(item: String, mine: String, theirs: String, isHeader: Boolean) {
     val description = stringResource(
         R.string.battle_result_row_desc,
         item,
@@ -281,26 +281,26 @@ private fun TableRow(item: String, mine: String, theirs: String, header: Boolean
             .fillMaxWidth()
             .padding(16.dp)
             .semantics(mergeDescendants = true) {
-                if (!header) contentDescription = description
+                if (!isHeader) contentDescription = description
             },
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             item,
-            style = if (header) RunkkTextStyles.Caption else RunkkTextStyles.Label,
+            style = if (isHeader) RunkkTextStyles.Caption else RunkkTextStyles.Label,
             color = RunkkColors.TextSecondary,
             modifier = Modifier.weight(WEIGHT_ITEM)
         )
-        Cell(mine, header, RunkkColors.Lime)
-        Cell(theirs, header, if (header) RunkkColors.TextSecondary else RunkkColors.TextPrimary)
+        Cell(mine, isHeader, RunkkColors.Lime)
+        Cell(theirs, isHeader, if (isHeader) RunkkColors.TextSecondary else RunkkColors.TextPrimary)
     }
 }
 
 @Composable
-private fun androidx.compose.foundation.layout.RowScope.Cell(text: String, header: Boolean, color: Color) {
+private fun androidx.compose.foundation.layout.RowScope.Cell(text: String, isHeader: Boolean, color: Color) {
     Text(
         text,
-        style = if (header) RunkkTextStyles.text(12, FontWeight.Bold) else cellStyle(text),
+        style = if (isHeader) RunkkTextStyles.text(12, FontWeight.Bold) else cellStyle(text),
         color = color,
         textAlign = TextAlign.Center,
         modifier = Modifier.weight(1f)
@@ -426,7 +426,7 @@ private fun HistoryList(
                 )
             }
             // 필터를 바꿔 목록이 바뀌면 건수를 알린다(보이는 목록이 바뀐 것을 보조 기술 사용자도 알게).
-            if (history != null && !state.loading && state.error == null) {
+            if (history != null && !state.isLoading && state.error == null) {
                 item { FilterCount(stringResource(R.string.battle_history_count, history.total)) }
             }
             historyBody(state, onEntry, onRetry)
@@ -474,7 +474,7 @@ private fun HistoryStats(history: BattleHistory?) {
 private fun LazyListScope.historyBody(state: BattleHistoryUiState, onEntry: (Long) -> Unit, onRetry: () -> Unit) {
     val history = state.history
     when {
-        history == null && state.loading -> item {
+        history == null && state.isLoading -> item {
             Box(Modifier.fillMaxWidth().height(200.dp)) { RunkkLoading() }
         }
 
@@ -496,7 +496,7 @@ private fun LazyListScope.historyBody(state: BattleHistoryUiState, onEntry: (Lon
             items(history.entries, key = { it.battleId }) { entry ->
                 HistoryRow(entry, onClick = { onEntry(entry.battleId) })
             }
-            if (state.loadingMore) {
+            if (state.isLoadingMore) {
                 item { Box(Modifier.fillMaxWidth().height(64.dp)) { RunkkLoading() } }
             }
         }
@@ -571,7 +571,7 @@ private fun BattleResultPreview() {
     RunkkTheme(reduceMotion = true) {
         BattleResultScreen(
             BattleResultUiState(
-                loading = false,
+                isLoading = false,
                 result = BattleResult(
                     1,
                     false,

@@ -39,7 +39,7 @@ class BattleScreensTest {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 SelfBattleScreen(
-                    RecordBattleUiState(loading = false, candidates = candidates),
+                    RecordBattleUiState(isLoading = false, candidates = candidates),
                     onSelect = { calls += "select:${it.distance.meters}" },
                     onStart = { calls += "start" },
                     onHistory = { calls += "history" },
@@ -60,7 +60,12 @@ class BattleScreensTest {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 CelebBattleScreen(
-                    RecordBattleUiState(loading = false, candidates = celeb, selected = celeb[0], confirming = true),
+                    RecordBattleUiState(
+                        isLoading = false,
+                        candidates = celeb,
+                        selected = celeb[0],
+                        isConfirming = true
+                    ),
                     onFilter = { calls += "filter:$it" },
                     onPick = {},
                     onConfirm = { calls += "confirm" },
@@ -154,7 +159,7 @@ class BattleScreensTest {
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
         compose.onNodeWithText("LIVE BATTLE · 5K").assertContentDescriptionEquals("실시간 대결, 5킬로미터")
         compose.onNodeWithContentDescription("화면 잠금").performClick()
-        state = state.copy(locked = true)
+        state = state.copy(isLocked = true)
         compose.onNodeWithContentDescription("대결 그만두기").assertDoesNotExist()
         val lockedTitle = RuntimeEnvironment.getApplication().getString(R.string.battle_running_locked_pane_title)
         compose.onNode(SemanticsMatcher.expectValue(SemanticsProperties.PaneTitle, lockedTitle)).assertExists()
@@ -170,7 +175,7 @@ class BattleScreensTest {
             RunkkTheme(reduceMotion = true) {
                 androidx.compose.foundation.layout.Column {
                     BattleHistoryScreen(
-                        BattleHistoryUiState(loading = false, history = history()),
+                        BattleHistoryUiState(isLoading = false, history = history()),
                         {},
                         {},
                         {},
@@ -178,7 +183,7 @@ class BattleScreensTest {
                         modifier = androidx.compose.ui.Modifier.weight(1f)
                     )
                     CelebBattleScreen(
-                        RecordBattleUiState(loading = false, candidates = celebCandidates.map(CandidateUi::of)),
+                        RecordBattleUiState(isLoading = false, candidates = celebCandidates.map(CandidateUi::of)),
                         {},
                         {},
                         {},
@@ -202,7 +207,7 @@ class BattleScreensTest {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 BattleResultScreen(
-                    BattleResultUiState(loading = false, result = battleResult()),
+                    BattleResultUiState(isLoading = false, result = battleResult()),
                     onHistory = { calls += "history" },
                     onCard = { calls += "card" },
                     onHome = { calls += "home" },
@@ -223,7 +228,7 @@ class BattleScreensTest {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 BattleResultScreen(
-                    BattleResultUiState(loading = false, result = battleResult(recordId = null)),
+                    BattleResultUiState(isLoading = false, result = battleResult(recordId = null)),
                     onHistory = {},
                     onCard = { calls += "records" },
                     onHome = {},

@@ -50,7 +50,7 @@ data class BattleRunningUiState(
     /** 랜덤 대결 상대 연결 상태 문구(FR-088). 기록 상대·첫 상대 진행값 전이면 null. */
     val connectionLabel: UiText? = null,
     /** 화면 잠금(FR-182). 잠기면 해제 버튼만 누를 수 있다. */
-    val locked: Boolean = false,
+    val isLocked: Boolean = false,
     /** 방금 바뀐 앞뒤 순서 안내(잠깐 보인다, FR-188). */
     val guidance: BattleGuidance.Kind? = null,
     /** 이 화면에서 본 추월 횟수. 공식 횟수는 결과 비교표(서버)다. */
@@ -60,12 +60,12 @@ data class BattleRunningUiState(
     val closingSeconds: Long? = null,
     /** 종료 카운트다운이 시작될 때의 남은 초(보조 기술에 한 번 알리는 제한 시간, 매초 읽지 않게 고정). */
     val closingLimitSeconds: Long? = null,
-    val confirmingForfeit: Boolean = false,
+    val isConfirmingForfeit: Boolean = false,
     val hint: UiText? = null,
     val error: UiText? = null
 ) {
     /** 측정 중인가(진행·종료 카운트다운). 잠금 버튼은 이때만 보인다. */
-    val measuring: Boolean get() = phase == BattlePhase.RUNNING || phase == BattlePhase.CLOSING
+    val isMeasuring: Boolean get() = phase == BattlePhase.RUNNING || phase == BattlePhase.CLOSING
 
     private companion object {
         const val DEFAULT_METERS = 5_000L
@@ -151,16 +151,16 @@ class BattleRunningViewModel @Inject constructor(
     /** 그만두기 길게 누름: 확인을 받는다(FR-094). 잠금 중에는 받지 않는다(FR-182). */
     fun onForfeitLongPressed() {
         val s = _state.value
-        if (s.locked) return
+        if (s.isLocked) return
         if (s.phase == BattlePhase.RUNNING || s.phase == BattlePhase.CLOSING || s.phase == BattlePhase.COUNTDOWN) {
-            _state.update { it.copy(confirmingForfeit = true) }
+            _state.update { it.copy(isConfirmingForfeit = true) }
         }
     }
 
-    fun onForfeitDismissed() = _state.update { it.copy(confirmingForfeit = false) }
+    fun onForfeitDismissed() = _state.update { it.copy(isConfirmingForfeit = false) }
 
     fun onForfeitConfirmed() {
-        _state.update { it.copy(confirmingForfeit = false) }
+        _state.update { it.copy(isConfirmingForfeit = false) }
         coordinator.forfeit()
     }
 
@@ -233,13 +233,13 @@ class BattleRunningViewModel @Inject constructor(
     private fun onFinished(battleId: Long) {
         tickJob?.cancel()
         if (sawRunning) {
-            _state.update { it.copy(phase = BattlePhase.FINISHED, confirmingForfeit = false, locked = false) }
+            _state.update { it.copy(phase = BattlePhase.FINISHED, isConfirmingForfeit = false, isLocked = false) }
             _events.trySend(BattleRunningEvent.Finished(battleId))
         } else {
             _state.update {
                 it.copy(
                     phase = BattlePhase.FAILED,
-                    confirmingForfeit = false,
+                    isConfirmingForfeit = false,
                     error = it.error ?: UiText.Res(R.string.battle_running_start_failed_permission)
                 )
             }
@@ -251,7 +251,7 @@ class BattleRunningViewModel @Inject constructor(
         elapsed = mine.elapsed,
         currentPace = mine.currentPace,
         averagePace = mine.averagePace,
-        locked = mine.isLocked
+        isLocked = mine.isLocked
     )
 
     /** 1초마다 시작 카운트다운·종료 카운트다운 남은 초를 갱신한다. 그 밖의 단계면 멈춘다. */

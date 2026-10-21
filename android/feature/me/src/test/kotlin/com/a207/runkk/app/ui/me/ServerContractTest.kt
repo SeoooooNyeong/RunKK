@@ -17,8 +17,8 @@ class ServerContractTest {
         assertAllIn("ConsentItem", SignUpConsents.items.map { it.item }, "가입 동의 항목")
         assertEquals(
             ContractEnums.names("ConsentItem.required"),
-            SignUpConsents.items.filter { it.required }.map { it.item }.toSet(),
-            "필수 동의 항목이 서버 ConsentItem(required)와 다르다"
+            SignUpConsents.items.filter { it.isRequired }.map { it.item }.toSet(),
+            "필수 동의 항목이 서버 ConsentItem(isRequired)와 다르다"
         )
     }
 

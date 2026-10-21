@@ -26,13 +26,13 @@ class BattleScreenshotTest {
 
     @Test
     fun selfBattle() = compose.captureRunkkScreen("D1_self_battle") {
-        SelfBattleScreen(RecordBattleUiState(loading = false, candidates = self, selected = self[1]), {
+        SelfBattleScreen(RecordBattleUiState(isLoading = false, candidates = self, selected = self[1]), {
         }, {}, {}, {}, {})
     }
 
     @Test
     fun celebBattle() = compose.captureRunkkScreen("D1_celeb_battle") {
-        CelebBattleScreen(RecordBattleUiState(loading = false, candidates = celeb), {}, {}, {}, {}, {}, {}, {})
+        CelebBattleScreen(RecordBattleUiState(isLoading = false, candidates = celeb), {}, {}, {}, {}, {}, {}, {})
     }
 
     @Test
@@ -70,7 +70,7 @@ class BattleScreenshotTest {
     fun battleLocked() = compose.captureRunkkScreen("D3_battle_locked") {
         BattleRunningScreen(
             running.copy(
-                locked = true,
+                isLocked = true,
                 guidance = null,
                 hint = UiText.Res(R.string.battle_running_unlock_hold)
             ),
@@ -138,19 +138,19 @@ class BattleScreenshotTest {
 
     @Test
     fun forfeitConfirm() = compose.captureRunkkScreen("D3_battle_forfeit_confirm") {
-        BattleRunningScreen(running.copy(confirmingForfeit = true, guidance = null), {}, {}, {}, {}, {})
+        BattleRunningScreen(running.copy(isConfirmingForfeit = true, guidance = null), {}, {}, {}, {}, {})
     }
 
     @Test
     fun resultWin() = compose.captureRunkkScreen("D4_battle_result_win") {
-        BattleResultScreen(BattleResultUiState(loading = false, result = battleResult()), {
+        BattleResultScreen(BattleResultUiState(isLoading = false, result = battleResult()), {
         }, {}, {}, {})
     }
 
     @Test
     fun resultPending() = compose.captureRunkkScreen("D4_battle_result_pending") {
         BattleResultScreen(
-            BattleResultUiState(loading = false, result = battleResult(pending = true, verdict = null)),
+            BattleResultUiState(isLoading = false, result = battleResult(pending = true, verdict = null)),
             {},
             {},
             {},
@@ -160,6 +160,6 @@ class BattleScreenshotTest {
 
     @Test
     fun historyScreen() = compose.captureRunkkScreen("D5_battle_history") {
-        BattleHistoryScreen(BattleHistoryUiState(loading = false, history = history()), {}, {}, {}, {})
+        BattleHistoryScreen(BattleHistoryUiState(isLoading = false, history = history()), {}, {}, {}, {})
     }
 }

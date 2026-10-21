@@ -87,7 +87,7 @@ class SocialLoginClientTest {
     /** 키 없이 토큰을 주는 대체 창구(E2E 시험용, :app localDebug만 넣는다). */
     private class KeylessSource(private val token: String) : KakaoAccessTokenSource {
         val appKeys = mutableListOf<String>()
-        override val requiresNativeAppKey: Boolean = false
+        override val isNativeAppKeyRequired: Boolean = false
 
         override suspend fun accessToken(context: Context, nativeAppKey: String): Outcome<String> {
             appKeys += nativeAppKey

@@ -21,7 +21,7 @@ object RunkkIcons {
         "M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9",
         "M10.3 21a1.94 1.94 0 0 0 3.4 0"
     )
-    val Bolt: ImageVector = line("Bolt", "M13 2L3 14H12L11 22L21 10H12L13 2Z", filled = true)
+    val Bolt: ImageVector = line("Bolt", "M13 2L3 14H12L11 22L21 10H12L13 2Z", isFilled = true)
     val Lock: ImageVector = line(
         "Lock",
         "M5 11H19A2 2 0 0 1 21 13V20A2 2 0 0 1 19 22H5A2 2 0 0 1 3 20V13A2 2 0 0 1 5 11Z",
@@ -119,7 +119,7 @@ object RunkkIcons {
     private fun circle(cx: Float, cy: Float, r: Float): String =
         "M${cx - r} ${cy}a$r $r 0 1 0 ${2 * r} 0a$r $r 0 1 0 ${-2 * r} 0"
 
-    private fun line(name: String, vararg paths: String, filled: Boolean = false): ImageVector {
+    private fun line(name: String, vararg paths: String, isFilled: Boolean = false): ImageVector {
         val builder = ImageVector.Builder(
             name = "Runkk.$name",
             defaultWidth = 24.dp,
@@ -130,7 +130,7 @@ object RunkkIcons {
         paths.forEach { data ->
             builder.addPath(
                 pathData = addPathNodes(data),
-                fill = if (filled) SolidColor(Color.Black) else null,
+                fill = if (isFilled) SolidColor(Color.Black) else null,
                 stroke = SolidColor(Color.Black),
                 strokeLineWidth = 2f,
                 strokeLineCap = StrokeCap.Round,

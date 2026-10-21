@@ -64,13 +64,13 @@ import java.util.Locale
 
 /**
  * 랜덤 매칭: 거리 고르기 → 대기(취소) → 성사(VS·양쪽 최고 기록·자동 출발). 측정이 시작되면 대결 진행으로 바뀐다.
- * [quick]이면(홈의 배틀런 시작) 기본 대결 거리로 바로 요청한다(FR-080).
+ * [isQuick]이면(홈의 배틀런 시작) 기본 대결 거리로 바로 요청한다(FR-080).
  */
 @Composable
-fun MatchRoute(quick: Boolean = false, viewModel: MatchViewModel = hiltViewModel()) {
+fun MatchRoute(isQuick: Boolean = false, viewModel: MatchViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val navigator = LocalRunkkNavigator.current
-    LaunchedEffect(viewModel, quick) { if (quick) viewModel.startQuick() }
+    LaunchedEffect(viewModel, isQuick) { if (isQuick) viewModel.startQuick() }
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             when (event) {
@@ -118,13 +118,13 @@ fun MatchScreen(
 }
 
 @Composable
-private fun Overline(text: String, accent: Boolean = false, trailing: (@Composable () -> Unit)? = null) {
+private fun Overline(text: String, isAccent: Boolean = false, trailing: (@Composable () -> Unit)? = null) {
     val spoken = RunkkFormat.spokenLabel(text)
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
         Text(
             text,
             style = RunkkTextStyles.display(20, letterSpacingEm = 0.08f),
-            color = if (accent) RunkkColors.Lime else RunkkColors.TextPrimary,
+            color = if (isAccent) RunkkColors.Lime else RunkkColors.TextPrimary,
             modifier = Modifier.semantics {
                 heading()
                 contentDescription = spoken
@@ -180,7 +180,7 @@ private fun androidx.compose.foundation.layout.ColumnScope.Choosing(
     RunkkPrimaryButton(
         text = stringResource(R.string.battle_match_start, RunkkFormat.targetLabel(state.distance)),
         onClick = onStart,
-        loading = state.phase == MatchPhase.REQUESTING,
+        isLoading = state.phase == MatchPhase.REQUESTING,
         modifier = Modifier.fillMaxWidth()
     )
 }
@@ -229,7 +229,7 @@ private fun androidx.compose.foundation.layout.ColumnScope.Waiting(state: MatchU
             if (state.phase == MatchPhase.CANCELLING) R.string.battle_match_cancelling else R.string.battle_match_cancel
         ),
         onClick = onCancel,
-        enabled = state.phase == MatchPhase.WAITING,
+        isEnabled = state.phase == MatchPhase.WAITING,
         modifier = Modifier.fillMaxWidth()
     )
 }
@@ -279,7 +279,7 @@ private fun radarWave(): Float {
 
 @Composable
 private fun androidx.compose.foundation.layout.ColumnScope.Matched(match: MatchFound, startsIn: Long?) {
-    Overline("MATCHED", accent = true) { RunkkStatusPill(RunkkFormat.targetLabel(match.distance)) }
+    Overline("MATCHED", isAccent = true) { RunkkStatusPill(RunkkFormat.targetLabel(match.distance)) }
     Column(
         modifier = Modifier.weight(1f).fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterVertically)
@@ -301,7 +301,7 @@ private fun MatchedVersus(match: MatchFound) {
             liveRegion = LiveRegionMode.Polite
         }
     ) {
-        Contender(stringResource(R.string.battle_me), tier = null, accent = true, modifier = Modifier.weight(1f))
+        Contender(stringResource(R.string.battle_me), tier = null, isAccent = true, modifier = Modifier.weight(1f))
         Text(
             "VS",
             style = RunkkTextStyles.display(48),
@@ -309,7 +309,7 @@ private fun MatchedVersus(match: MatchFound) {
             modifier = Modifier.clearAndSetSemantics {
             }
         )
-        Contender(match.opponentName, tier = match.opponentTier, accent = false, modifier = Modifier.weight(1f))
+        Contender(match.opponentName, tier = match.opponentTier, isAccent = false, modifier = Modifier.weight(1f))
     }
 }
 
@@ -372,7 +372,7 @@ private fun StartCountdown(startsIn: Long?) {
 }
 
 @Composable
-private fun Contender(name: String, tier: String?, accent: Boolean, modifier: Modifier = Modifier) {
+private fun Contender(name: String, tier: String?, isAccent: Boolean, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier.semantics(mergeDescendants = true) {},
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -383,7 +383,7 @@ private fun Contender(name: String, tier: String?, accent: Boolean, modifier: Mo
                 .size(width = 120.dp, height = 152.dp)
                 .clip(RunkkShapes.ExtraLarge)
                 .background(RunkkColors.Surface)
-                .border(2.dp, if (accent) RunkkColors.Lime else RunkkColors.Lavender, RunkkShapes.ExtraLarge)
+                .border(2.dp, if (isAccent) RunkkColors.Lime else RunkkColors.Lavender, RunkkShapes.ExtraLarge)
                 .clearAndSetSemantics {},
             contentAlignment = Alignment.Center
         ) {

@@ -43,7 +43,7 @@ class RunkkComponentsTest {
             RunkkTheme(reduceMotion = true) {
                 androidx.compose.foundation.layout.Column {
                     RunkkPrimaryButton("다음", onClick = { clicks++ })
-                    RunkkPrimaryButton("가입", onClick = { clicks++ }, enabled = false)
+                    RunkkPrimaryButton("가입", onClick = { clicks++ }, isEnabled = false)
                 }
             }
         }
@@ -89,7 +89,7 @@ class RunkkComponentsTest {
             RunkkTheme(reduceMotion = true) {
                 androidx.compose.foundation.layout.Row {
                     RunkkLimePillButton("만들기", onClick = { clicks++ }, leadingIcon = RunkkIcons.Plus)
-                    RunkkLimePillButton("가입", onClick = { clicks++ }, enabled = false)
+                    RunkkLimePillButton("가입", onClick = { clicks++ }, isEnabled = false)
                 }
             }
         }
@@ -173,7 +173,7 @@ class RunkkComponentsTest {
             RunkkTheme(reduceMotion = true) {
                 androidx.compose.foundation.layout.Column {
                     RunkkOverline("LIVE BATTLE · 5K")
-                    RunkkInfoChip("10K", display = true)
+                    RunkkInfoChip("10K", isDisplay = true)
                     RunkkStatusPill("3K")
                 }
             }
@@ -220,8 +220,8 @@ class RunkkComponentsTest {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 androidx.compose.foundation.layout.Row {
-                    RunkkChoiceChip("함께가 좋아요", selected = true, onSelectedChange = {})
-                    RunkkChoiceChip("혼자가 편해요", selected = false, onSelectedChange = {})
+                    RunkkChoiceChip("함께가 좋아요", isSelected = true, onSelectedChange = {})
+                    RunkkChoiceChip("혼자가 편해요", isSelected = false, onSelectedChange = {})
                 }
             }
         }

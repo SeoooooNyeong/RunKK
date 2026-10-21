@@ -52,11 +52,11 @@ class RunimalShareTargets(val save: ShareTarget, val system: ShareTarget, val st
 }
 
 data class RunimalUiState(
-    val loading: Boolean = true,
+    val isLoading: Boolean = true,
     val status: RunimalStatus? = null,
     /** 공유할 카드 이미지(공유를 처음 누를 때 만든다). */
     val cardImage: Bitmap? = null,
-    val sharing: Boolean = false,
+    val isSharing: Boolean = false,
     val message: UiText? = null,
     val error: UiText? = null
 ) {
@@ -106,16 +106,16 @@ class RunimalViewModel internal constructor(
 
     fun load() {
         job?.cancel()
-        _state.update { it.copy(loading = true, error = null) }
+        _state.update { it.copy(isLoading = true, error = null) }
         job = viewModelScope.launch {
             when (val result = runimal.status()) {
                 // 유형이 바뀌었을 수 있어 그려 둔 카드는 버린다.
                 is Outcome.Success -> _state.update {
-                    it.copy(loading = false, status = result.value, cardImage = null)
+                    it.copy(isLoading = false, status = result.value, cardImage = null)
                 }
 
                 is Outcome.Failure -> _state.update {
-                    it.copy(loading = false, error = RunkkErrorText.of(result.error))
+                    it.copy(isLoading = false, error = RunkkErrorText.of(result.error))
                 }
             }
         }
@@ -125,8 +125,8 @@ class RunimalViewModel internal constructor(
 
     fun onShare(kind: RunimalShareKind) {
         val s = _state.value
-        if (s.sharing || !s.canShare) return
-        _state.update { it.copy(sharing = true) }
+        if (s.isSharing || !s.canShare) return
+        _state.update { it.copy(isSharing = true) }
         viewModelScope.launch {
             var message: UiText? = null
             var image: Bitmap? = s.cardImage
@@ -140,7 +140,7 @@ class RunimalViewModel internal constructor(
                 image?.let { message = messageOf(sharer.share(it, CardSide.FRONT, targets.of(kind))) }
             } finally {
                 // 그리기·공유가 예외로 끝나도 공유 중 표시를 풀어 다시 누를 수 있게 한다.
-                _state.update { it.copy(sharing = false, cardImage = image ?: it.cardImage, message = message) }
+                _state.update { it.copy(isSharing = false, cardImage = image ?: it.cardImage, message = message) }
             }
         }
     }

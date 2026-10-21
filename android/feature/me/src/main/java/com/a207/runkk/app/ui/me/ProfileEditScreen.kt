@@ -74,7 +74,7 @@ fun ProfileEditScreen(
     Box(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
         Column(modifier = Modifier.fillMaxSize()) {
             RunkkTopBar(title = stringResource(R.string.me_profile_edit_title), onBack = onBack)
-            if (state.loading) {
+            if (state.isLoading) {
                 RunkkLoading(modifier = Modifier.weight(1f))
             } else {
                 ProfileEditForm(
@@ -88,8 +88,8 @@ fun ProfileEditScreen(
             RunkkPrimaryButton(
                 text = stringResource(R.string.me_profile_edit_save),
                 onClick = onSave,
-                enabled = state.canSave,
-                loading = state.saving,
+                isEnabled = state.canSave,
+                isLoading = state.isSaving,
                 modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 32.dp)
             )
         }
@@ -130,7 +130,7 @@ private fun ProfileEditForm(
                 category.tags.forEach { tag ->
                     RunkkChoiceChip(
                         stringResource(tag.labelRes),
-                        selected = tag.id in state.tags,
+                        isSelected = tag.id in state.tags,
                         onSelectedChange = { onTagToggled(tag.id) }
                     )
                 }
@@ -145,7 +145,7 @@ private fun ProfileEditPreview() {
     RunkkTheme(reduceMotion = true) {
         ProfileEditScreen(
             state = ProfileEditUiState(
-                loading = false,
+                isLoading = false,
                 nickname = "달리는곰",
                 intro = "퇴근 뒤 한강",
                 tags = setOf("SOCIAL_RUN", "EVENING")

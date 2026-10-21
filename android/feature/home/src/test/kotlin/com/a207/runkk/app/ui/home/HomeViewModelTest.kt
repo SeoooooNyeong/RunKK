@@ -32,7 +32,7 @@ class HomeViewModelTest {
     fun `홈은 오늘 날짜의 대시보드와 오늘 계획을 읽는다`() {
         val vm = viewModel()
         val state = vm.state.value
-        assertFalse(state.loading)
+        assertFalse(state.isLoading)
         assertEquals(sampleDashboard, state.dashboard)
         assertEquals(Distance(5_000), state.todayPlan?.distance)
         assertEquals(listOf(LocalDate.of(2026, 10, 20)), records.dashboardDates)
@@ -104,7 +104,7 @@ class HomeViewModelTest {
         avatar.avatarResult = Outcome.Failure(AppError.Network)
         val state = viewModel().state.value
         assertEquals(HomeHeader(), state.header)
-        assertFalse(state.headerLoading)
+        assertFalse(state.isHeaderLoading)
         assertEquals(sampleDashboard, state.dashboard)
     }
 

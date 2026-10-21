@@ -43,7 +43,7 @@ class CrewScreensTest {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 CrewFindScreen(
-                    CrewFindUiState(loading = false, crews = listOf(crewA, crewB), recommendations = listOf(crewA)),
+                    CrewFindUiState(isLoading = false, crews = listOf(crewA, crewB), recommendations = listOf(crewA)),
                     CrewFindActions(
                         onInviteOpen = { calls += "invite" },
                         onCreate = { calls += "create" },
@@ -65,7 +65,7 @@ class CrewScreensTest {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 CrewFindScreen(
-                    CrewFindUiState(loading = false, keyword = "새벽"),
+                    CrewFindUiState(isLoading = false, keyword = "새벽"),
                     CrewFindActions(onSearch = { calls += "search" })
                 )
             }
@@ -77,7 +77,7 @@ class CrewScreensTest {
     @Test
     fun `크루 상세 - 정원이 차면 가입할 수 없다`() {
         compose.setContent {
-            RunkkTheme(reduceMotion = true) { CrewDetailContent(crewB, joining = false, onJoin = {}) }
+            RunkkTheme(reduceMotion = true) { CrewDetailContent(crewB, isJoining = false, onJoin = {}) }
         }
         compose.onNodeWithText("정원이 찼어요").assertIsNotEnabled()
         compose.onNodeWithText("정원은 크루장 포함 10명이에요. 크루를 나가면 24시간 동안 다른 크루에 가입할 수 없어요.").assertExists()
@@ -90,8 +90,8 @@ class CrewScreensTest {
             RunkkTheme(reduceMotion = true) {
                 CrewFindScreen(
                     CrewFindUiState(
-                        checkingMine = false,
-                        loading = false,
+                        isCheckingMine = false,
+                        isLoading = false,
                         crews = listOf(crewA),
                         pending = listOf(request)
                     ),
@@ -157,7 +157,7 @@ class CrewScreensTest {
     fun `내 크루 - 크루 관리 메뉴는 크루장에게만 보이고 탭 자리에서는 뒤로 단추가 없다`() {
         var state by androidx.compose.runtime.mutableStateOf(CrewHomeUiState(crewId = 11, detail = crewDetail()))
         compose.setContent {
-            RunkkTheme(reduceMotion = true) { CrewHomeScreen(state, CrewHomeActions(), atTabRoot = true) }
+            RunkkTheme(reduceMotion = true) { CrewHomeScreen(state, CrewHomeActions(), isAtTabRoot = true) }
         }
         compose.onNodeWithContentDescription("뒤로").assertDoesNotExist()
         compose.onNodeWithContentDescription("크루 메뉴").performClick()
@@ -237,7 +237,7 @@ class CrewScreensTest {
 }
 
 /** 중계의 내 줄. */
-private val myRelayRow = RelayRow("새벽곰", Distance(2_640), 2, "CONNECTED", me = true)
+private val myRelayRow = RelayRow("새벽곰", Distance(2_640), 2, "CONNECTED", isMe = true)
 
 /** 크루 스크린샷(G1~G8). */
 @RunWith(RobolectricTestRunner::class)
@@ -250,7 +250,7 @@ class CrewScreenshotTest {
     fun find() = compose.captureRunkkScreen("G1_crew_find") {
         CrewFindScreen(
             CrewFindUiState(
-                loading = false,
+                isLoading = false,
                 tags = setOf("SOCIAL_RUN"),
                 crews = listOf(crewA, crewB, crewC),
                 recommendations = listOf(crewA)
@@ -262,7 +262,7 @@ class CrewScreenshotTest {
     @Test
     fun detail() = compose.captureRunkkScreen("G1_crew_detail_sheet") {
         Box(Modifier.fillMaxSize().background(RunkkColors.Surface)) {
-            CrewDetailContent(crewC, joining = false, onJoin = {})
+            CrewDetailContent(crewC, isJoining = false, onJoin = {})
         }
     }
 
@@ -330,7 +330,7 @@ class CrewScreenshotTest {
             CrewManageUiState(
                 crewId = 11,
                 crewName = "새벽질주",
-                loading = false,
+                isLoading = false,
                 requests = com.a207.runkk.app.domain.crew.PendingRequests(
                     listOf(
                         com.a207.runkk.app.domain.crew.PendingRequests.Request(91, 9, "새내기", start.minusSeconds(86_400))
@@ -366,7 +366,7 @@ class CrewScreenshotTest {
                 distance = Distance(5_000),
                 phase = CrewRunPhase.LOBBY,
                 lobby = lobby,
-                ready = true,
+                isReady = true,
                 untilStart = Duration.ofSeconds(512)
             ),
             CrewRunActions()
@@ -401,6 +401,6 @@ class CrewScreenshotTest {
 
     @Test
     fun result() = compose.captureRunkkScreen("G8_crew_run_result") {
-        CrewRunResultScreen(CrewRunResultUiState(loading = false, result = crewRunResult), {}, {}, {})
+        CrewRunResultScreen(CrewRunResultUiState(isLoading = false, result = crewRunResult), {}, {}, {})
     }
 }

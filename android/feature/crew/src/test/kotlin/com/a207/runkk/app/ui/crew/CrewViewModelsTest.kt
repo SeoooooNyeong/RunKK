@@ -31,7 +31,7 @@ class CrewFindViewModelTest {
         val vm = CrewFindViewModel(repo)
         val s = vm.state.value
         assertEquals("myCrew", repo.calls.first())
-        assertFalse(s.checkingMine)
+        assertFalse(s.isCheckingMine)
         assertNull(s.mine)
         assertEquals(3, s.crews.size)
         assertEquals(listOf(crewA), s.recommendations)
@@ -162,7 +162,7 @@ class CrewFindViewModelTest {
         vm.onOpen(crewC)
         vm.onJoin(crewC)
         assertEquals(UiText.Res(R.string.crew_error_cooldown), vm.state.value.message)
-        assertFalse(vm.state.value.joining)
+        assertFalse(vm.state.value.isJoining)
     }
 
     @Test
@@ -173,7 +173,7 @@ class CrewFindViewModelTest {
         assertEquals("AB12CD", vm.state.value.inviteCode)
         vm.onInviteSubmit()
         assertTrue("invite:AB12CD" in repo.calls)
-        assertFalse(vm.state.value.inviteOpen)
+        assertFalse(vm.state.value.isInviteOpen)
         assertEquals(12L, vm.state.value.mine?.crewId, "초대 코드로 가입한 크루 홈을 연다")
     }
 
@@ -314,7 +314,7 @@ class CrewHomeViewModelTest {
     fun `확인 뒤 크루를 나가면 크루 탭으로(FR-125)`() = runTest(main.dispatcher) {
         val vm = vm()
         vm.onLeaveAsk()
-        assertTrue(vm.state.value.confirmLeave)
+        assertTrue(vm.state.value.isConfirmingLeave)
         vm.events.test {
             vm.onLeaveConfirm()
             assertEquals(CrewHomeEvent.Left, awaitItem())

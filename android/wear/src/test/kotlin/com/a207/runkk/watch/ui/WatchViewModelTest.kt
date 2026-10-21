@@ -90,8 +90,8 @@ class WatchViewModelTest {
         receive(display(running = false))
 
         val state = vm.uiState.value
-        assertFalse(state.running)
-        assertTrue(state.phoneConnected)
+        assertFalse(state.isRunning)
+        assertTrue(state.isPhoneConnected)
         assertEquals(5_000L, state.planDistanceMeters)
         assertEquals(330, state.planPaceSecondsPerKm)
     }
@@ -103,12 +103,12 @@ class WatchViewModelTest {
         receive(display(running = true))
 
         val state = vm.uiState.value
-        assertTrue(state.running)
+        assertTrue(state.isRunning)
         assertEquals(754L, state.elapsedSeconds)
         assertEquals(2_510L, state.distanceMeters)
         assertEquals(301, state.paceSecondsPerKm)
         assertEquals(150, state.heartRateBpm)
-        assertFalse(state.linkLost)
+        assertFalse(state.isLinkLost)
     }
 
     @Test
@@ -154,7 +154,7 @@ class WatchViewModelTest {
 
         val state = vm.uiState.value
         assertEquals(WatchNotice.PhoneNotConnected, state.notice)
-        assertFalse(state.startPending)
+        assertFalse(state.isStartPending)
         assertTrue(dataLayer.sentMessages.isEmpty())
     }
 
@@ -165,13 +165,13 @@ class WatchViewModelTest {
 
         vm.onStartTapped()
         runCurrent()
-        assertTrue(vm.uiState.value.startPending)
+        assertTrue(vm.uiState.value.isStartPending)
         assertEquals(WearPaths.START_REQUEST, dataLayer.sentMessages.single().second)
 
         receive(display(running = true))
 
-        assertFalse(vm.uiState.value.startPending)
-        assertTrue(vm.uiState.value.running)
+        assertFalse(vm.uiState.value.isStartPending)
+        assertTrue(vm.uiState.value.isRunning)
     }
 
     @Test
@@ -183,7 +183,7 @@ class WatchViewModelTest {
         advanceTimeBy(WatchViewModel.START_PENDING_MILLIS + 1_000)
         runCurrent()
 
-        assertFalse(vm.uiState.value.startPending)
+        assertFalse(vm.uiState.value.isStartPending)
     }
 
     @Test
@@ -194,7 +194,7 @@ class WatchViewModelTest {
 
         receive(display(running = false, notice = "폰에서 러닝 화면을 여세요"))
         assertEquals(WatchNotice.FromPhone("폰에서 러닝 화면을 여세요"), vm.uiState.value.notice)
-        assertFalse(vm.uiState.value.startPending)
+        assertFalse(vm.uiState.value.isStartPending)
 
         advanceTimeBy(WatchViewModel.NOTICE_MILLIS + 1_000)
         runCurrent()
@@ -208,11 +208,11 @@ class WatchViewModelTest {
 
         advanceTimeBy(WatchViewModel.LINK_LOST_MILLIS + 1_000)
         runCurrent()
-        assertTrue(vm.uiState.value.linkLost)
-        assertTrue(vm.uiState.value.running)
+        assertTrue(vm.uiState.value.isLinkLost)
+        assertTrue(vm.uiState.value.isRunning)
 
         receive(display(running = true))
-        assertFalse(vm.uiState.value.linkLost)
+        assertFalse(vm.uiState.value.isLinkLost)
     }
 
     @Test
@@ -225,8 +225,8 @@ class WatchViewModelTest {
         advanceTimeBy(PhoneLink.CONNECTION_POLL_MILLIS / 2 + 1)
         runCurrent()
 
-        assertFalse(vm.uiState.value.phoneConnected)
-        assertTrue(vm.uiState.value.linkLost)
+        assertFalse(vm.uiState.value.isPhoneConnected)
+        assertTrue(vm.uiState.value.isLinkLost)
     }
 
     @Test
@@ -234,13 +234,13 @@ class WatchViewModelTest {
         permission.isGranted = false
         val vm = viewModel()
         receive(display(running = true))
-        assertTrue(vm.uiState.value.heartRatePermissionNeeded)
+        assertTrue(vm.uiState.value.isHeartRatePermissionNeeded)
 
         permission.isGranted = true
         vm.onPermissionResult()
         runCurrent()
 
-        assertFalse(vm.uiState.value.heartRatePermissionNeeded)
+        assertFalse(vm.uiState.value.isHeartRatePermissionNeeded)
         assertEquals(1, sensor.subscribers)
     }
 
@@ -254,7 +254,7 @@ class WatchViewModelTest {
         val vm = viewModel(link)
 
         assertNull(vm.uiState.value.notice)
-        assertTrue(vm.uiState.value.linkLost)
+        assertTrue(vm.uiState.value.isLinkLost)
     }
 
     @Test
@@ -310,22 +310,22 @@ class WatchViewModelTest {
     fun `심박 수집이 처음 켜지고 알림 권한이 필요하면 한 번만 묻는다`() = runTest {
         notificationGate.needed = true
         val vm = viewModel()
-        assertFalse(vm.uiState.value.notificationPermissionNeeded)
+        assertFalse(vm.uiState.value.isNotificationPermissionNeeded)
 
         receive(display(running = true))
         runCurrent()
-        assertTrue(vm.uiState.value.notificationPermissionNeeded)
+        assertTrue(vm.uiState.value.isNotificationPermissionNeeded)
 
         vm.onNotificationPromptShown()
         runCurrent()
-        assertFalse(vm.uiState.value.notificationPermissionNeeded)
+        assertFalse(vm.uiState.value.isNotificationPermissionNeeded)
         assertEquals(1, notificationGate.asked)
 
         // 수집이 멈췄다 다시 켜져도(거절한 뒤에도) 다시 묻지 않는다. 수집은 계속된다.
         receive(display(running = false))
         receive(display(running = true))
         runCurrent()
-        assertFalse(vm.uiState.value.notificationPermissionNeeded)
+        assertFalse(vm.uiState.value.isNotificationPermissionNeeded)
         assertEquals(1, sensor.subscribers)
     }
 
@@ -335,12 +335,12 @@ class WatchViewModelTest {
         val vm = viewModel()
         receive(display(running = true))
         runCurrent()
-        assertFalse(vm.uiState.value.notificationPermissionNeeded)
+        assertFalse(vm.uiState.value.isNotificationPermissionNeeded)
 
         notificationGate.needed = true
         val other = viewModel(link())
         receive(display(running = true, allowed = false))
         runCurrent()
-        assertFalse(other.uiState.value.notificationPermissionNeeded)
+        assertFalse(other.uiState.value.isNotificationPermissionNeeded)
     }
 }

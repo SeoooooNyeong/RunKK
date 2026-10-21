@@ -75,7 +75,7 @@ fun SignUpRoute(viewModel: SignUpViewModel = hiltViewModel()) {
             when (event) {
                 is SignUpEvent.Completed -> {
                     navigator.restart(Routes.HOME)
-                    if (event.createAvatar) navigator.navigate(Routes.AVATAR_SETUP)
+                    if (event.shouldCreateAvatar) navigator.navigate(Routes.AVATAR_SETUP)
                 }
 
                 SignUpEvent.Exit -> navigator.back()
@@ -182,7 +182,7 @@ private fun SubmitError(state: SignUpUiState, message: String, actions: SignUpAc
             retryLabel = stringResource(R.string.me_signup_back_to_login)
         )
 
-        state.step == SignUpStep.AVATAR && !state.submitting ->
+        state.step == SignUpStep.AVATAR && !state.isSubmitting ->
             RunkkErrorState(message, onRetry = actions.onRetrySubmit)
 
         else -> RunkkErrorState(message)
@@ -206,9 +206,9 @@ private fun ColumnScope.ConsentStep(state: SignUpUiState, actions: SignUpActions
     StepHeadline(stringResource(R.string.me_signup_consent_headline), modifier = Modifier.padding(horizontal = 8.dp))
     RunkkCheckRow(
         label = stringResource(R.string.me_signup_all_agree),
-        checked = state.allAgreed,
+        isChecked = state.isAllAgreed,
         onCheckedChange = actions.onAllAgreedChange,
-        highlighted = true
+        isHighlighted = true
     )
     Column(
         modifier = Modifier
@@ -220,12 +220,12 @@ private fun ColumnScope.ConsentStep(state: SignUpUiState, actions: SignUpActions
         SignUpConsents.items.forEachIndexed { index, line ->
             RunkkCheckRow(
                 label = stringResource(line.labelRes),
-                checked = state.consents[line.item] == true,
+                isChecked = state.consents[line.item] == true,
                 onCheckedChange = { actions.onConsentChange(line.item, it) },
                 tag = stringResource(
-                    if (line.required) R.string.me_signup_tag_required else R.string.me_signup_tag_optional
+                    if (line.isRequired) R.string.me_signup_tag_required else R.string.me_signup_tag_optional
                 ),
-                tagHighlighted = line.required,
+                isTagHighlighted = line.isRequired,
                 onView = line.legalType?.let { { actions.onViewLegal(line.item) } }
             )
             if (index < SignUpConsents.items.lastIndex) HorizontalDivider(color = RunkkColors.Border)
@@ -324,7 +324,7 @@ private fun ColumnScope.TagsStep(state: SignUpUiState, actions: SignUpActions) {
             category.tags.forEach { tag ->
                 RunkkChoiceChip(
                     label = stringResource(tag.labelRes),
-                    selected = tag.id in state.tags,
+                    isSelected = tag.id in state.tags,
                     onSelectedChange = { actions.onTagToggled(tag.id) }
                 )
             }
@@ -382,12 +382,12 @@ private fun BottomActions(state: SignUpUiState, actions: SignUpActions) {
                 RunkkPrimaryButton(
                     text = stringResource(R.string.me_signup_submit_with_avatar),
                     onClick = { actions.onSubmit(true) },
-                    loading = state.submitting,
+                    isLoading = state.isSubmitting,
                     modifier = Modifier.fillMaxWidth()
                 )
                 RunkkSecondaryButton(text = stringResource(R.string.me_signup_submit_later), onClick = {
                     actions.onSubmit(false)
-                }, enabled = !state.submitting, modifier = Modifier.fillMaxWidth())
+                }, isEnabled = !state.isSubmitting, modifier = Modifier.fillMaxWidth())
             }
 
             else -> {
@@ -395,7 +395,7 @@ private fun BottomActions(state: SignUpUiState, actions: SignUpActions) {
                 RunkkPrimaryButton(
                     text = stringResource(R.string.me_signup_next),
                     onClick = actions.onNext,
-                    enabled = state.canProceed,
+                    isEnabled = state.canProceed,
                     modifier = Modifier.fillMaxWidth()
                 )
             }

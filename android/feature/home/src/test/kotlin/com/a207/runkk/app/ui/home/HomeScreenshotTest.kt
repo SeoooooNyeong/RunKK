@@ -41,13 +41,13 @@ class HomeScreenshotTest {
     fun home() = compose.captureRunkkScreen("A5_home") {
         HomeScreen(
             HomeUiState(
-                loading = false,
+                isLoading = false,
                 today = today,
                 dashboard = dashboard,
                 todayPlan = TodayPlan(Distance(5_000), Pace(330)),
                 pendingCount = 1,
                 header = HomeHeader("달리는곰", "골드", 3, 1_250),
-                headerLoading = false
+                isHeaderLoading = false
             ),
             onModeSelected = {},
             onNavigate = {},
@@ -64,12 +64,12 @@ class HomeScreenshotTest {
     fun homeBattleTab() = compose.captureRunkkScreen("A5_home_battle_tab") {
         HomeScreen(
             HomeUiState(
-                loading = false,
+                isLoading = false,
                 today = today,
                 dashboard = dashboard,
                 mode = HomeRunMode.BATTLE,
                 header = HomeHeader("달리는곰", null, 1, 0),
-                headerLoading = false
+                isHeaderLoading = false
             ),
             onModeSelected = {},
             onNavigate = {},
@@ -80,7 +80,7 @@ class HomeScreenshotTest {
     @Test
     fun homeOffline() = compose.captureRunkkScreen("A5_home_error") {
         HomeScreen(
-            HomeUiState(loading = false, headerLoading = false, error = RunkkErrorText.of(AppError.Network)),
+            HomeUiState(isLoading = false, isHeaderLoading = false, error = RunkkErrorText.of(AppError.Network)),
             onModeSelected = {},
             onNavigate = {},
             onRetry = {}

@@ -92,9 +92,9 @@ import kotlin.math.roundToInt
 
 // ---------- 내 크루 홈 ----------
 
-/** 내 크루 홈(시안 HiMyCrew). [atTabRoot]면 크루 탭 자리에 그려 뒤로 단추를 두지 않는다. */
+/** 내 크루 홈(시안 HiMyCrew). [isAtTabRoot]면 크루 탭 자리에 그려 뒤로 단추를 두지 않는다. */
 @Composable
-fun CrewHomeRoute(key: Routes.CrewHome, atTabRoot: Boolean = false, viewModel: CrewHomeViewModel = hiltViewModel()) {
+fun CrewHomeRoute(key: Routes.CrewHome, isAtTabRoot: Boolean = false, viewModel: CrewHomeViewModel = hiltViewModel()) {
     LaunchedEffect(key) { viewModel.bind(key) }
     // 관리·모집 화면에서 돌아오면 지금 탭을 다시 읽는다.
     LifecycleResumeEffect(viewModel) {
@@ -112,7 +112,7 @@ fun CrewHomeRoute(key: Routes.CrewHome, atTabRoot: Boolean = false, viewModel: C
     }
     CrewHomeScreen(
         state = state,
-        atTabRoot = atTabRoot,
+        isAtTabRoot = isAtTabRoot,
         actions = CrewHomeActions(
             onBack = navigator::back,
             onTab = viewModel::onTab,
@@ -172,7 +172,7 @@ fun CrewHomeScreen(
     state: CrewHomeUiState,
     actions: CrewHomeActions,
     modifier: Modifier = Modifier,
-    atTabRoot: Boolean = false
+    isAtTabRoot: Boolean = false
 ) {
     val snackbar = remember { SnackbarHostState() }
     val message = state.message?.asString()
@@ -195,7 +195,7 @@ fun CrewHomeScreen(
     }
     Box(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
         Column(Modifier.fillMaxSize()) {
-            Header(state, actions, atTabRoot)
+            Header(state, actions, isAtTabRoot)
             RunkkTabRow(
                 options = CrewTab.entries.map { stringResource(it.labelRes) },
                 selectedIndex = state.tab.ordinal,
@@ -217,7 +217,7 @@ fun CrewHomeScreen(
 /** 고른 탭의 내용(읽기 실패면 오류 상태). */
 @Composable
 private fun ColumnScope.HomeTabContent(state: CrewHomeUiState, actions: CrewHomeActions) {
-    if (state.error != null && !state.loading) {
+    if (state.error != null && !state.isLoading) {
         RunkkErrorState(state.error.asString(), onRetry = actions.onRetry)
     } else {
         when (state.tab) {
@@ -226,7 +226,7 @@ private fun ColumnScope.HomeTabContent(state: CrewHomeUiState, actions: CrewHome
             CrewTab.CHEER -> CheerTab(state, actions)
             CrewTab.MEMBERS -> MembersTab(state, actions)
         }
-        if (state.loadingMore) Box(Modifier.fillMaxWidth().height(64.dp)) { RunkkLoading() }
+        if (state.isLoadingMore) Box(Modifier.fillMaxWidth().height(64.dp)) { RunkkLoading() }
     }
 }
 
@@ -240,20 +240,20 @@ private fun HomeDialogs(state: CrewHomeUiState, actions: CrewHomeActions) {
             confirmLabel = stringResource(R.string.crew_action_delete),
             onConfirm = actions.onDeleteConfirm,
             onDismiss = actions.onDeleteDismiss,
-            destructive = true
+            isDestructive = true
         )
     }
-    if (state.confirmLeave) {
+    if (state.isConfirmingLeave) {
         RunkkConfirmDialog(
             title = stringResource(R.string.crew_home_leave_title),
             message = stringResource(R.string.crew_home_leave_message),
             confirmLabel = stringResource(R.string.crew_home_leave),
             onConfirm = actions.onLeaveConfirm,
             onDismiss = actions.onLeaveDismiss,
-            destructive = true
+            isDestructive = true
         )
     }
-    if (state.editingIntro) IntroDialog(state.introDraft, actions)
+    if (state.isEditingIntro) IntroDialog(state.introDraft, actions)
 }
 
 /** 크루 내 한 줄 소개 수정 대화상자. */
@@ -302,10 +302,10 @@ private fun IntroDialog(draft: String, actions: CrewHomeActions) {
 private const val LOAD_MORE_PX = 600
 
 @Composable
-private fun Header(state: CrewHomeUiState, actions: CrewHomeActions, atTabRoot: Boolean) {
+private fun Header(state: CrewHomeUiState, actions: CrewHomeActions, isAtTabRoot: Boolean) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(
-            start = if (atTabRoot) 16.dp else 8.dp,
+            start = if (isAtTabRoot) 16.dp else 8.dp,
             end = 16.dp,
             top = 8.dp,
             bottom = 16.dp
@@ -313,14 +313,14 @@ private fun Header(state: CrewHomeUiState, actions: CrewHomeActions, atTabRoot: 
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        if (!atTabRoot) {
+        if (!isAtTabRoot) {
             RunkkIconButton(
                 RunkkIcons.Back,
                 contentDescription = stringResource(R.string.crew_action_back),
                 onClick = actions.onBack
             )
         }
-        CrewLogo(state.crewName, size = 48, accent = true)
+        CrewLogo(state.crewName, size = 48, isAccent = true)
         HomeTitle(state, Modifier.weight(1f))
         HomeMenu(state, actions)
     }
@@ -388,7 +388,7 @@ private fun HomeMenu(state: CrewHomeUiState, actions: CrewHomeActions) {
 
 @Composable
 private fun ColumnScope.Loading(state: CrewHomeUiState) {
-    if (state.loading) Box(Modifier.fillMaxWidth().height(160.dp)) { RunkkLoading() }
+    if (state.isLoading) Box(Modifier.fillMaxWidth().height(160.dp)) { RunkkLoading() }
 }
 
 /** 레이스 탭(FR-140·FR-137): 이번 주 크루 거리·마감·내 기여도, 주간·월간 크루 랭킹. */
@@ -414,7 +414,7 @@ private fun ColumnScope.RaceTab(state: CrewHomeUiState, actions: CrewHomeActions
             ),
             selectedIndex = state.period.ordinal,
             onSelect = { actions.onPeriod(CrewRanking.Period.entries[it]) },
-            compact = true
+            isCompact = true
         )
     }
     val entries = state.ranking?.entries.orEmpty()
@@ -653,13 +653,13 @@ private fun CrewRunVote(post: PostList.Item, vote: VoteAnswer?, canVote: Boolean
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.selectableGroup()) {
             VoteButton(
                 stringResource(R.string.crew_home_run_vote_going),
-                selected = vote == VoteAnswer.GOING,
+                isSelected = vote == VoteAnswer.GOING,
                 onClick = { actions.onVote(post, VoteAnswer.GOING) },
                 modifier = Modifier.weight(1f)
             )
             VoteButton(
                 stringResource(R.string.crew_home_run_vote_not_going),
-                selected = vote == VoteAnswer.NOT_GOING,
+                isSelected = vote == VoteAnswer.NOT_GOING,
                 onClick = { actions.onVote(post, VoteAnswer.NOT_GOING) },
                 modifier = Modifier.weight(1f)
             )
@@ -699,15 +699,15 @@ private fun CrewRunEntryButtons(post: PostList.Item, label: String, entry: CrewR
 }
 
 @Composable
-private fun VoteButton(label: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun VoteButton(label: String, isSelected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     // 갈래요·못 가요는 하나만 고르는 응답이라 선택 상태를 표준 의미로 알린다.
     val stateText =
-        stringResource(if (selected) R.string.crew_home_vote_selected else R.string.crew_home_vote_unselected)
+        stringResource(if (isSelected) R.string.crew_home_vote_selected else R.string.crew_home_vote_unselected)
     val state = modifier.semantics {
-        this.selected = selected
+        this.selected = isSelected
         stateDescription = stateText
     }
-    if (selected) {
+    if (isSelected) {
         RunkkPrimaryButton(label, onClick = onClick, modifier = state)
     } else {
         RunkkSecondaryButton(label, onClick = onClick, modifier = state)
@@ -722,14 +722,14 @@ private fun ColumnScope.CheerTab(state: CrewHomeUiState, actions: CrewHomeAction
         onValueChange = actions.onCheerDraft,
         label = stringResource(R.string.crew_home_cheer_label, state.cheerDraft.length, CrewHomeUiState.CHEER_MAX),
         placeholder = stringResource(R.string.crew_home_cheer_placeholder),
-        singleLine = false,
+        isSingleLine = false,
         maxLength = CrewHomeUiState.CHEER_MAX
     )
     RunkkPrimaryButton(
         stringResource(R.string.crew_home_cheer_submit),
         onClick = actions.onCheerSubmit,
-        enabled = state.cheerValid,
-        loading = state.busy,
+        isEnabled = state.isCheerValid,
+        isLoading = state.isBusy,
         modifier = Modifier.fillMaxWidth()
     )
     val posts = state.cheers?.posts
@@ -879,7 +879,7 @@ fun CrewManageScreen(state: CrewManageUiState, actions: CrewManageActions, modif
                 Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                if (state.loading && state.members == null) {
+                if (state.isLoading && state.members == null) {
                     Box(Modifier.fillMaxWidth().height(160.dp)) { RunkkLoading() }
                 }
                 state.error?.let { RunkkErrorState(it.asString(), onRetry = actions.onRetry) }
@@ -989,7 +989,7 @@ private fun ManageInfo(state: CrewManageUiState, actions: CrewManageActions) {
     RunkkSecondaryButton(
         stringResource(R.string.crew_manage_info_save),
         onClick = actions.onSaveInfo,
-        enabled = state.form.valid && !state.busy,
+        isEnabled = state.form.isValid && !state.isBusy,
         modifier = Modifier.fillMaxWidth()
     )
     HorizontalDivider(color = RunkkColors.Border)
@@ -1033,7 +1033,7 @@ private fun ManageConfirmDialog(action: ManageAction, crewName: String, actions:
         label,
         onConfirm = actions.onConfirm,
         onDismiss = actions.onDismiss,
-        destructive = true
+        isDestructive = true
     )
 }
 

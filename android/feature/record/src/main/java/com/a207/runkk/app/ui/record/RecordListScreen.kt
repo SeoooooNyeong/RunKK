@@ -104,7 +104,7 @@ fun RecordListScreen(
                 ),
                 selectedIndex = state.view.ordinal,
                 onSelect = { onViewSelected(RecordView.entries[it]) },
-                compact = true
+                isCompact = true
             )
         }
         LazyColumn(
@@ -115,7 +115,7 @@ fun RecordListScreen(
             item(key = "month") {
                 MonthCard(
                     state,
-                    showCalendar = state.view == RecordView.CALENDAR,
+                    shouldShowCalendar = state.view == RecordView.CALENDAR,
                     onPreviousMonth = onPreviousMonth,
                     onNextMonth = onNextMonth
                 )
@@ -131,7 +131,7 @@ fun RecordListScreen(
 /** 기기에 남은 미전송 기록 수 안내 카드. */
 @Composable
 private fun PendingCard(count: Int) {
-    RunkkCard(dashed = true, background = RunkkColors.Background, shape = RunkkShapes.Medium) {
+    RunkkCard(isDashed = true, background = RunkkColors.Background, shape = RunkkShapes.Medium) {
         Text(
             stringResource(R.string.record_list_pending, count),
             style = RunkkTextStyles.Caption,
@@ -143,7 +143,7 @@ private fun PendingCard(count: Int) {
 /** 월 카드 아래 목록 칸: 불러오는 중, 오류, 빈 달, 최신순 기록 줄. */
 private fun LazyListScope.runListItems(state: RecordListUiState, onRun: (String) -> Unit, onRetry: () -> Unit) {
     when {
-        state.loading && state.runs.isEmpty() -> item(key = "loading") {
+        state.isLoading && state.runs.isEmpty() -> item(key = "loading") {
             Box(Modifier.fillMaxWidth().height(160.dp)) { RunkkLoading() }
         }
 
@@ -168,13 +168,13 @@ private fun LazyListScope.runListItems(state: RecordListUiState, onRun: (String)
 @Composable
 private fun MonthCard(
     state: RecordListUiState,
-    showCalendar: Boolean,
+    shouldShowCalendar: Boolean,
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit
 ) {
     RunkkCard(shape = RunkkShapes.ExtraLarge, verticalArrangement = Arrangement.spacedBy(16.dp)) {
         MonthHeader(state.month, onPreviousMonth, onNextMonth)
-        if (showCalendar) Calendar(state.month, state.dailyDistance)
+        if (shouldShowCalendar) Calendar(state.month, state.dailyDistance)
         MonthSummary(state.validCount, state.validDistance)
     }
 }
@@ -416,28 +416,29 @@ private val WEEKDAYS = listOf(
 @Composable
 private fun RecordListPreview() {
     val zone = ZoneId.of("Asia/Seoul")
-    fun run(id: String, day: Int, meters: Long, kind: CardKind = CardKind.FREE_RUN, valid: Boolean = true) = RunSummary(
-        id,
-        LocalDate.of(2026, 10, day).atTime(7, 0).atZone(zone).toInstant(),
-        Distance(meters),
-        Duration.ofSeconds(meters * 332 / 1_000),
-        Pace(332),
-        valid,
-        RunMode.FREE,
-        kind
-    )
+    fun run(id: String, day: Int, meters: Long, kind: CardKind = CardKind.FREE_RUN, isValid: Boolean = true) =
+        RunSummary(
+            id,
+            LocalDate.of(2026, 10, day).atTime(7, 0).atZone(zone).toInstant(),
+            Distance(meters),
+            Duration.ofSeconds(meters * 332 / 1_000),
+            Pace(332),
+            isValid,
+            RunMode.FREE,
+            kind
+        )
     val runs =
         listOf(
             run("a", 20, 5_020),
             run("b", 17, 5_000, CardKind.BATTLE_RUN),
             run("c", 14, 10_200),
-            run("d", 12, 2_000, valid = false)
+            run("d", 12, 2_000, isValid = false)
         )
     RunkkTheme(reduceMotion = true) {
         RecordListScreen(
             state = RecordListUiState(
                 month = YearMonth.of(2026, 10),
-                loading = false,
+                isLoading = false,
                 runs = runs,
                 dailyDistance = runs.associate { it.startedAt.atZone(zone).toLocalDate() to it.distance },
                 pendingCount = 1,

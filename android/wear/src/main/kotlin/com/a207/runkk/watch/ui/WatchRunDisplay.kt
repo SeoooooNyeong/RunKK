@@ -43,7 +43,7 @@ fun WatchRunDisplay(
             verticalArrangement = Arrangement.spacedBy(2.dp),
             rotaryScrollableBehavior = RotaryScrollableDefaults.behavior(listState)
         ) {
-            if (state.linkLost) item { LinkLostChip() }
+            if (state.isLinkLost) item { LinkLostChip() }
             item { Text(text = WatchFormat.elapsed(state.elapsedSeconds), style = numberStyle(26.sp)) }
             item { DistanceRow(state.distanceMeters) }
             item { PaceAndHeartRate(state) }
@@ -53,7 +53,7 @@ fun WatchRunDisplay(
                     text = stringResource(R.string.end),
                     onClick = onEndTapped,
                     onLongClick = onEndLongPressed,
-                    primary = false
+                    isPrimary = false
                 )
             }
         }
@@ -115,8 +115,8 @@ private fun WatchRunDisplayPreview() {
     WatchTheme {
         WatchRoot(
             state = WatchUiState(
-                phoneConnected = true,
-                running = true,
+                isPhoneConnected = true,
+                isRunning = true,
                 elapsedSeconds = 1_234,
                 distanceMeters = 4_321,
                 paceSecondsPerKm = 315,

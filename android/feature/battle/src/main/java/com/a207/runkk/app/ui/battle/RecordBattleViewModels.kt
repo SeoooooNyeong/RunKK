@@ -35,10 +35,10 @@ data class CandidateUi(
     val recordedOn: LocalDate?,
     val averagePace: Pace?,
     val sourceLabel: String?,
-    val estimated: Boolean
+    val isEstimated: Boolean
 ) {
     /** 고를 수 있는가(기록이 없으면 "아직 기록이 없어요", FR-096). */
-    val selectable: Boolean get() = finishTime != null
+    val isSelectable: Boolean get() = finishTime != null
 
     companion object {
         fun of(c: RecordBattleCandidates.Candidate) = CandidateUi(
@@ -49,20 +49,20 @@ data class CandidateUi(
             recordedOn = c.recordedOn,
             averagePace = c.finishTime?.takeIf { c.distance.meters > 0 }?.let { Pace.of(it, c.distance) },
             sourceLabel = c.sourceLabel,
-            estimated = c.isEstimated
+            isEstimated = c.isEstimated
         )
     }
 }
 
 data class RecordBattleUiState(
-    val loading: Boolean = true,
+    val isLoading: Boolean = true,
     val candidates: List<CandidateUi> = emptyList(),
     /** 유명인 거리 거르기(전체·5K·10K·하프·풀). 나와의 싸움은 쓰지 않는다. */
     val filterIndex: Int = 0,
     /** 고른 후보. 나와의 싸움은 바로 아래 "대결 시작"에, 유명인은 확인 대화상자에 쓴다. */
     val selected: CandidateUi? = null,
-    val confirming: Boolean = false,
-    val starting: Boolean = false,
+    val isConfirming: Boolean = false,
+    val isStarting: Boolean = false,
     val message: UiText? = null,
     val error: UiText? = null
 )
@@ -95,43 +95,43 @@ abstract class RecordBattleViewModel(
 
     fun load() {
         loadJob?.cancel()
-        mutableState.update { it.copy(loading = true, error = null) }
+        mutableState.update { it.copy(isLoading = true, error = null) }
         loadJob = viewModelScope.launch {
             when (val result = fetch()) {
                 is Outcome.Success -> mutableState.update { s ->
                     val list = result.value.candidates.map(CandidateUi::of)
-                    s.copy(loading = false, candidates = list, selected = s.selected?.takeIf { it in list })
+                    s.copy(isLoading = false, candidates = list, selected = s.selected?.takeIf { it in list })
                 }
 
                 is Outcome.Failure -> mutableState.update {
-                    it.copy(loading = false, error = BattleErrorText.of(result.error))
+                    it.copy(isLoading = false, error = BattleErrorText.of(result.error))
                 }
             }
         }
     }
 
     fun onSelect(candidate: CandidateUi) {
-        if (!candidate.selectable) return
+        if (!candidate.isSelectable) return
         mutableState.update { it.copy(selected = candidate) }
     }
 
     fun onMessageShown() = mutableState.update { it.copy(message = null) }
 
     /** 화면에 다시 돌아왔을 때(대결을 마치고 탭으로 복귀). */
-    fun onScreenResumed() = mutableState.update { it.copy(starting = false) }
+    fun onScreenResumed() = mutableState.update { it.copy(isStarting = false) }
 
     /** 고른 후보로 대결을 시작한다. 이미 시작 중이면 무시한다. */
     fun onStart() {
         val s = mutableState.value
         val candidate = s.selected ?: return
-        if (s.starting) return
-        mutableState.update { it.copy(starting = true, confirming = false) }
+        if (s.isStarting) return
+        mutableState.update { it.copy(isStarting = true, isConfirming = false) }
         viewModelScope.launch {
             when (val started = begin(candidate)) {
                 is Outcome.Success -> {
                     val start = started.value
                     coordinator.onRecordBattleStart(start)
-                    // 진행 화면으로 넘어갈 때까지 다시 누르지 못하게 starting을 둔다. 화면에 돌아오면 onScreenResumed가 푼다.
+                    // 진행 화면으로 넘어갈 때까지 다시 누르지 못하게 isStarting을 둔다. 화면에 돌아오면 onScreenResumed가 푼다.
                     _events.trySend(
                         RecordBattleEvent.Start(
                             Routes.BattleRunning(start.battleId, start.opponentName, start.distance.meters, kind.name)
@@ -141,7 +141,7 @@ abstract class RecordBattleViewModel(
 
                 is Outcome.Failure -> {
                     mutableState.update {
-                        it.copy(starting = false, message = BattleErrorText.of(started.error))
+                        it.copy(isStarting = false, message = BattleErrorText.of(started.error))
                     }
                     if ((started.error as? AppError.Rejected)?.code == CELEBRITY_REMOVED) {
                         mutableState.update { it.copy(selected = null) }
@@ -193,11 +193,11 @@ class CelebBattleViewModel @Inject constructor(battles: BattleRepository, coordi
 
     /** 유명인 기록을 고르면 확인 대화상자를 연다. */
     fun onPick(candidate: CandidateUi) {
-        if (!candidate.selectable) return
-        mutableState.update { it.copy(selected = candidate, confirming = true) }
+        if (!candidate.isSelectable) return
+        mutableState.update { it.copy(selected = candidate, isConfirming = true) }
     }
 
-    fun onDismissConfirm() = mutableState.update { it.copy(confirming = false) }
+    fun onDismissConfirm() = mutableState.update { it.copy(isConfirming = false) }
 }
 
 /** 유명인 거리 거르기(FR-097): 라벨 → 거리(전체는 null). */

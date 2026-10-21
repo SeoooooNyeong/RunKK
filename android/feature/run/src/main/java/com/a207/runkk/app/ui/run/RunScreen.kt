@@ -198,7 +198,7 @@ fun RunScreen(state: RunUiState, actions: RunActions, modifier: Modifier = Modif
         }
         RunkkSnackbarHost(snackbar, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp))
     }
-    if (state.showConsentDialog) {
+    if (state.shouldShowConsentDialog) {
         RunkkConfirmDialog(
             title = stringResource(R.string.run_consent_title),
             message = stringResource(R.string.run_consent_message),
@@ -306,7 +306,7 @@ private fun CountdownPlanCard(state: RunUiState, onSettings: () -> Unit) {
                 state.targetDistance?.let {
                     stringResource(R.string.run_countdown_target_distance, RunkkFormat.km(it).trimEnd('0').trimEnd('.'))
                 } ?: stringResource(R.string.run_countdown_target_none),
-                highlighted =
+                isHighlighted =
                     state.targetDistance != null
             )
             state.targetPace?.let {

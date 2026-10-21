@@ -23,7 +23,7 @@ class BattleFeatureEntry @Inject constructor() : FeatureEntry {
         builder.route(Routes.SELF) { SelfBattleRoute() }
         builder.route(Routes.CELEB) { CelebBattleRoute() }
         builder.route(Routes.BATTLE_RANDOM) { MatchRoute() }
-        builder.route(Routes.BATTLE_QUICK_MATCH) { MatchRoute(quick = true) }
+        builder.route(Routes.BATTLE_QUICK_MATCH) { MatchRoute(isQuick = true) }
         builder.route(Routes.BATTLE_HISTORY) { BattleHistoryRoute() }
         builder.addEntryProvider(Routes.BattleRunning::class) { key -> BattleRunningRoute(key) }
         builder.addEntryProvider(Routes.BattleResult::class) { key -> BattleResultRoute(key.battleId) }

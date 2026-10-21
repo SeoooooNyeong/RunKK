@@ -28,7 +28,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
 data class RunResultUiState(
-    val loading: Boolean = true,
+    val isLoading: Boolean = true,
     val recordId: String? = null,
     val cardKind: CardKind? = null,
     val startedAt: Instant? = null,
@@ -42,7 +42,7 @@ data class RunResultUiState(
     val newRecords: List<String> = emptyList(),
     val heartRateZones: List<Pair<String, Duration>> = emptyList(),
     /** 서버에 저장된 기록(날씨·칼로리·신기록이 붙음)인가. 거짓이면 기기 보관 기록이고 전송 대기 중이다. */
-    val uploaded: Boolean = false,
+    val isUploaded: Boolean = false,
     val error: UiText? = null
 )
 
@@ -61,11 +61,11 @@ class RunResultViewModel @Inject constructor(
     private var loadJob: Job? = null
 
     /**
-     * [recordId]의 결과를 읽는다. 같은 기록을 다시 부르면 무시하고, [force]면 다시 읽는다.
+     * [recordId]의 결과를 읽는다. 같은 기록을 다시 부르면 무시하고, [isForced]면 다시 읽는다.
      * 종료 직후에는 보관함 저장(RunTracker의 비동기 저장)이 아직 끝나지 않았을 수 있어 보관함에 나타날 때까지 잠깐 기다린다.
      */
-    fun load(recordId: String, force: Boolean = false) {
-        if (!force && _state.value.recordId == recordId) return
+    fun load(recordId: String, isForced: Boolean = false) {
+        if (!isForced && _state.value.recordId == recordId) return
         loadJob?.cancel()
         _state.value = RunResultUiState(recordId = recordId)
         loadJob = viewModelScope.launch {
@@ -91,20 +91,20 @@ class RunResultViewModel @Inject constructor(
             // 아직 서버에 없다(종료 직후 전송 작업이 도는 중). 전송 작업은 서버 저장 뒤 보관함에서 지우므로(UploadPendingRunsUseCase),
             // 보관함에서 빠지면 서버 기록을 다시 읽어 "보내는 중"을 "달력에 저장했어요"로 바꾼다(E2E 시나리오 3에서 찾은 결함).
             pendingRuns.observePending().first { runs -> runs.none { it.recordId == recordId } }
-            applyServer(recordId, showError = false)
+            applyServer(recordId, shouldShowError = false)
         }
     }
 
-    /** 서버 기록을 읽어 상태에 더한다. 읽었으면 true. 실패하면 [showError]일 때만 오류 문구를 보인다. */
-    private suspend fun applyServer(recordId: String, showError: Boolean): Boolean =
+    /** 서버 기록을 읽어 상태에 더한다. 읽었으면 true. 실패하면 [shouldShowError]일 때만 오류 문구를 보인다. */
+    private suspend fun applyServer(recordId: String, shouldShowError: Boolean): Boolean =
         when (val server = records.run(recordId)) {
             is Outcome.Success -> {
                 val detail = server.value
                 val summary = detail.summary
                 _state.update {
                     it.copy(
-                        loading = false,
-                        uploaded = true,
+                        isLoading = false,
+                        isUploaded = true,
                         cardKind = summary.cardKind,
                         startedAt = summary.startedAt,
                         distance = summary.distance,
@@ -122,7 +122,10 @@ class RunResultViewModel @Inject constructor(
 
             is Outcome.Failure -> {
                 _state.update {
-                    it.copy(loading = false, error = if (showError) RunkkErrorText.of(server.error) else it.error)
+                    it.copy(
+                        isLoading = false,
+                        error = if (shouldShowError) RunkkErrorText.of(server.error) else it.error
+                    )
                 }
                 false
             }

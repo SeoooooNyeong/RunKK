@@ -31,11 +31,11 @@ import kotlinx.coroutines.withContext
 // ---------- 아바타 만들기(가입 5단계·얼굴 바꾸기) ----------
 
 data class AvatarSetupUiState(
-    val loading: Boolean = true,
+    val isLoading: Boolean = true,
     /** 오늘 셀카 아바타를 만들 수 있는가(하루 1회, FR-157). 모르면 참으로 두고 서버가 거부한다. */
     val canCreateSelfie: Boolean = true,
     val selected: DefaultCharacter? = null,
-    val working: Boolean = false,
+    val isWorking: Boolean = false,
     val error: UiText? = null
 )
 
@@ -67,7 +67,7 @@ class AvatarSetupViewModel internal constructor(
             val avatar = avatars.avatar().getOrNull()
             _state.update {
                 it.copy(
-                    loading = false,
+                    isLoading = false,
                     canCreateSelfie = avatar?.canCreateSelfieToday ?: true,
                     selected = it.selected ?: DefaultCharacter.of(avatar?.defaultCharacterId)
                 )
@@ -80,10 +80,10 @@ class AvatarSetupViewModel internal constructor(
     /** 셀카 촬영을 취소했거나 사진을 읽지 못했을 때. */
     fun onSelfieUnavailable() = _state.update { it.copy(error = UiText.Res(R.string.avatar_setup_selfie_unavailable)) }
 
-    /** 찍은 셀카를 줄여(긴 변 1024px·JPEG·1MB) 보낸다. 줄이는 동안에도 다시 누르지 못하게 먼저 working을 켠다. */
+    /** 찍은 셀카를 줄여(긴 변 1024px·JPEG·1MB) 보낸다. 줄이는 동안에도 다시 누르지 못하게 먼저 isWorking을 켠다. */
     fun onSelfieCaptured(bitmap: android.graphics.Bitmap) {
-        if (_state.value.working) return
-        _state.update { it.copy(working = true, error = null) }
+        if (_state.value.isWorking) return
+        _state.update { it.copy(isWorking = true, error = null) }
         viewModelScope.launch {
             val jpeg = withContext(encodeDispatcher) { SelfieEncoder.encode(bitmap) }
             upload(jpeg)
@@ -91,15 +91,15 @@ class AvatarSetupViewModel internal constructor(
     }
 
     fun onSelfie(jpeg: ByteArray) {
-        if (_state.value.working) return
-        _state.update { it.copy(working = true, error = null) }
+        if (_state.value.isWorking) return
+        _state.update { it.copy(isWorking = true, error = null) }
         viewModelScope.launch { upload(jpeg) }
     }
 
     private suspend fun upload(jpeg: ByteArray) {
         when (val result = avatars.createFromSelfie(jpeg)) {
             is Outcome.Success -> {
-                _state.update { it.copy(working = false) }
+                _state.update { it.copy(isWorking = false) }
                 _events.trySend(AvatarSetupEvent.Done)
             }
 
@@ -107,7 +107,7 @@ class AvatarSetupViewModel internal constructor(
                 val code = (result.error as? AppError.Rejected)?.code
                 _state.update {
                     it.copy(
-                        working = false,
+                        isWorking = false,
                         canCreateSelfie = it.canCreateSelfie && code !in SELFIE_BLOCKED,
                         error = AvatarErrorText.of(result.error)
                     )
@@ -118,17 +118,17 @@ class AvatarSetupViewModel internal constructor(
 
     fun onConfirmCharacter() {
         val character = _state.value.selected ?: return
-        if (_state.value.working) return
-        _state.update { it.copy(working = true, error = null) }
+        if (_state.value.isWorking) return
+        _state.update { it.copy(isWorking = true, error = null) }
         viewModelScope.launch {
             when (val result = avatars.chooseDefault(character.name)) {
                 is Outcome.Success -> {
-                    _state.update { it.copy(working = false) }
+                    _state.update { it.copy(isWorking = false) }
                     _events.trySend(AvatarSetupEvent.Done)
                 }
 
                 is Outcome.Failure -> _state.update {
-                    it.copy(working = false, error = AvatarErrorText.of(result.error))
+                    it.copy(isWorking = false, error = AvatarErrorText.of(result.error))
                 }
             }
         }
@@ -141,14 +141,14 @@ private val SELFIE_BLOCKED = setOf("SELFIE_LIMIT", "SELFIE_RETRY_LIMIT", "SELFIE
 // ---------- 아바타 꾸미기 ----------
 
 data class AvatarUiState(
-    val loading: Boolean = true,
+    val isLoading: Boolean = true,
     val avatar: Avatar? = null,
     /** 셀카 얼굴 부위 그림. 셀카 얼굴이 아니거나 받지 못하면 비어 있고 자리 그림을 그린다. */
     val faceLayers: List<FaceLayer> = emptyList(),
     /** 보유 아이템 이름을 찾으려고 읽은 상점 목록(보유 여부 포함). */
     val items: List<Shop.Item> = emptyList(),
     val slot: ItemSlot = ItemSlot.TOP,
-    val saving: Boolean = false,
+    val isSaving: Boolean = false,
     val message: UiText? = null,
     val error: UiText? = null
 ) {
@@ -175,14 +175,14 @@ class AvatarViewModel @Inject constructor(private val avatars: AvatarRepository)
 
     fun load() {
         job?.cancel()
-        _state.update { it.copy(loading = true, error = null) }
+        _state.update { it.copy(isLoading = true, error = null) }
         job = viewModelScope.launch {
             val shop = async { avatars.shop(null) }
             when (val avatar = avatars.avatar()) {
                 is Outcome.Success -> {
                     _state.update {
                         it.copy(
-                            loading = false,
+                            isLoading = false,
                             avatar = avatar.value,
                             items = shop.await().getOrNull()?.items.orEmpty()
                         )
@@ -192,7 +192,7 @@ class AvatarViewModel @Inject constructor(private val avatars: AvatarRepository)
 
                 is Outcome.Failure -> {
                     shop.cancel()
-                    _state.update { it.copy(loading = false, error = AvatarErrorText.of(avatar.error)) }
+                    _state.update { it.copy(isLoading = false, error = AvatarErrorText.of(avatar.error)) }
                 }
             }
         }
@@ -224,14 +224,14 @@ class AvatarViewModel @Inject constructor(private val avatars: AvatarRepository)
     /** 같은 부위는 하나만 입는다(FR-161): 입은 것을 누르면 벗기고, 아니면 바꿔 입힌다. */
     fun onToggle(item: Shop.Item) {
         val s = _state.value
-        if (s.saving || s.avatar == null || !item.isOwned) return
+        if (s.isSaving || s.avatar == null || !item.isOwned) return
         val next = if (s.isEquipped(item)) null else item.itemId
-        _state.update { it.copy(saving = true) }
+        _state.update { it.copy(isSaving = true) }
         viewModelScope.launch {
             when (val result = avatars.equip(mapOf(item.slot to next))) {
                 is Outcome.Success -> _state.update {
                     it.copy(
-                        saving = false,
+                        isSaving = false,
                         avatar = result.value,
                         message = result.value.rejected[item.slot]?.let { reason ->
                             uiText(
@@ -244,7 +244,7 @@ class AvatarViewModel @Inject constructor(private val avatars: AvatarRepository)
                 }
 
                 is Outcome.Failure -> _state.update {
-                    it.copy(saving = false, message = AvatarErrorText.of(result.error))
+                    it.copy(isSaving = false, message = AvatarErrorText.of(result.error))
                 }
             }
         }
@@ -254,12 +254,12 @@ class AvatarViewModel @Inject constructor(private val avatars: AvatarRepository)
 // ---------- 상점 ----------
 
 data class ShopUiState(
-    val loading: Boolean = true,
+    val isLoading: Boolean = true,
     /** null이면 전체. */
     val slot: ItemSlot? = null,
     val shop: Shop? = null,
     val confirming: Shop.Item? = null,
-    val buying: Boolean = false,
+    val isBuying: Boolean = false,
     val message: UiText? = null,
     val error: UiText? = null
 )
@@ -283,13 +283,13 @@ class ShopViewModel @Inject constructor(private val avatars: AvatarRepository) :
 
     fun load() {
         job?.cancel()
-        _state.update { it.copy(loading = true, error = null) }
+        _state.update { it.copy(isLoading = true, error = null) }
         job = viewModelScope.launch {
             when (val result = avatars.shop(_state.value.slot)) {
-                is Outcome.Success -> _state.update { it.copy(loading = false, shop = result.value) }
+                is Outcome.Success -> _state.update { it.copy(isLoading = false, shop = result.value) }
 
                 is Outcome.Failure -> _state.update {
-                    it.copy(loading = false, error = AvatarErrorText.of(result.error))
+                    it.copy(isLoading = false, error = AvatarErrorText.of(result.error))
                 }
             }
         }
@@ -306,16 +306,16 @@ class ShopViewModel @Inject constructor(private val avatars: AvatarRepository) :
 
     fun onBuy() {
         val item = _state.value.confirming ?: return
-        if (_state.value.buying) return
+        if (_state.value.isBuying) return
         // 늦게 끝난 목록 읽기가 구매로 바뀐 보유 표시를 되돌리지 않게 진행 중인 읽기를 멈춘다.
         job?.cancel()
-        _state.update { it.copy(confirming = null, buying = true, loading = false) }
+        _state.update { it.copy(confirming = null, isBuying = true, isLoading = false) }
         viewModelScope.launch {
             when (val result = avatars.purchase(item.itemId)) {
                 is Outcome.Success -> {
                     _state.update { s ->
                         s.copy(
-                            buying = false,
+                            isBuying = false,
                             message = uiText(R.string.avatar_shop_bought, item.name),
                             shop = s.shop?.copy(
                                 balance = result.value,
@@ -334,7 +334,7 @@ class ShopViewModel @Inject constructor(private val avatars: AvatarRepository) :
                 }
 
                 is Outcome.Failure -> _state.update {
-                    it.copy(buying = false, message = AvatarErrorText.of(result.error))
+                    it.copy(isBuying = false, message = AvatarErrorText.of(result.error))
                 }
             }
         }
