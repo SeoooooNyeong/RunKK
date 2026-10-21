@@ -22,3 +22,6 @@ __pycache__/
 .coverage.*
 htmlcov/
 coverage.xml
+
+# FCM 서비스 계정 등 배포 비밀 파일
+infra/secrets/

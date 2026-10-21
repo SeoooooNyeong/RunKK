@@ -38,6 +38,17 @@ services:
       REDIS_PORT: ${REDIS_PORT:-6379}
       AI_SERVER_URL: http://ai:8000
       RUNKK_INTERNAL_TOKEN: ${RUNKK_INTERNAL_TOKEN:?set RUNKK_INTERNAL_TOKEN in .env}
+      # 회원 JWT 서명 키. 비우면 api가 기동마다 임의 키를 만들어 재시작 때 모든 토큰이 무효가 되므로 배포에서는 필수
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      # 외부 연동. 비우면 그 연동만 꺼진다(카카오·구글 로그인 거부, 푸시는 로그만, 날씨 없이 저장)
+      KAKAO_APP_ID: ${KAKAO_APP_ID:-}
+      GOOGLE_CLIENT_IDS: ${GOOGLE_CLIENT_IDS:-}
+      FCM_PROJECT_ID: ${FCM_PROJECT_ID:-}
+      FCM_CREDENTIALS_FILE: ${FCM_CREDENTIALS_FILE:-}
+      KMA_SERVICE_KEY: ${KMA_SERVICE_KEY:-}
+    # FCM 서비스 계정 JSON은 infra/secrets/에 두고(커밋 금지) FCM_CREDENTIALS_FILE=/run/secrets/<파일명>으로 가리킨다
+    volumes:
+      - ./secrets:/run/secrets:ro
     # 셀카 multipart 임시 파일이 디스크에 남지 않게 /tmp를 메모리에 둔다(5.4, D-59)
     tmpfs:
       - /tmp:size=64m,mode=1777
