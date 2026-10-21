@@ -87,10 +87,14 @@ public class Matchmaker {
      * WAITING일 때 지우고 MatchFailed로 대기 화면을 닫는다.
      */
     private List<MatchTicket> withoutActiveBattle(List<MatchTicket> waiting) {
+        // 대기자 수만큼 조회하지 않고 tick마다 한 번에 확인한다(코드 리뷰 3차 B-L8)
+        Set<Long> busy =
+                battleRepository.activeMemberIds(
+                        waiting.stream().map(MatchTicket::getMemberId).toList());
         List<MatchTicket> free = new ArrayList<>();
         for (MatchTicket ticket : waiting) {
             long memberId = ticket.getMemberId();
-            if (!battleRepository.existsActive(memberId)) {
+            if (!busy.contains(memberId)) {
                 free.add(ticket);
             } else if (matchQueue.removeWaiting(memberId)) {
                 log.warn("match_ticket_dropped memberId={} reason=active_battle", memberId);

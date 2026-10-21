@@ -248,12 +248,16 @@ class BattleServicesTest {
                             BattleFixtures.spec(BattleType.SELF, Duration.ofMinutes(25)), NOW));
             waiting(ALICE, NOW);
             waiting(BOB, NOW.plusSeconds(1));
+            int lookupsBefore = battles.activeLookups;
             matchmaker.tick(NOW.plusSeconds(2));
 
             assertThat(queue.findWaiting(ALICE)).isEmpty();
             assertThat(messenger.to(ALICE, "MatchFailed")).hasSize(1);
             assertThat(queue.findWaiting(BOB)).isPresent();
             assertThat(battles.all()).hasSize(1);
+            assertThat(battles.activeLookups - lookupsBefore)
+                    .as("대기자 둘을 한 번에 확인한다(B-L8)")
+                    .isEqualTo(1);
         }
 
         @Test

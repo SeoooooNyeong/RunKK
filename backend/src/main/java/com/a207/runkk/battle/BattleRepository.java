@@ -3,8 +3,10 @@ package com.a207.runkk.battle;
 import com.a207.runkk.common.DateRange;
 import com.a207.runkk.common.Week;
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 /** 대결 저장소 포트(설계 6.1.6). 구현은 infra.battle.JpaBattleRepository. battle 밖에서 쓰지 않는다(ArchUnit 규칙 4). */
 public interface BattleRepository {
@@ -18,6 +20,9 @@ public interface BattleRepository {
 
     /** 회원이 참가한 활성 대결(WAITING_START, IN_PROGRESS, COUNTDOWN)이 있는가. */
     boolean existsActive(long memberId);
+
+    /** memberIds 중 활성 대결이 있는 회원(매칭 tick이 대기자 전체를 한 번에 확인, 코드 리뷰 3차 B-L8). */
+    Set<Long> activeMemberIds(Collection<Long> memberIds);
 
     /** 회원이 참가한 활성 대결(많아야 1개, active_member_id 고유 제약). */
     List<Battle> findActive(long memberId);

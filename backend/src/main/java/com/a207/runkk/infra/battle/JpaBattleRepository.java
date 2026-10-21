@@ -13,10 +13,12 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.springframework.stereotype.Repository;
 
 /**
@@ -106,6 +108,22 @@ public class JpaBattleRepository implements BattleRepository {
                         .setParameter("active", List.copyOf(BattleStatus.active()))
                         .getSingleResult()
                 > 0;
+    }
+
+    @Override
+    public Set<Long> activeMemberIds(Collection<Long> memberIds) {
+        if (memberIds.isEmpty()) {
+            return Set.of();
+        }
+        return Set.copyOf(
+                entityManager
+                        .createQuery(
+                                "select distinct p.memberId from Battle b join b.participants p"
+                                        + " where p.memberId in :members and b.status in :active",
+                                Long.class)
+                        .setParameter("members", List.copyOf(memberIds))
+                        .setParameter("active", List.copyOf(BattleStatus.active()))
+                        .getResultList());
     }
 
     @Override

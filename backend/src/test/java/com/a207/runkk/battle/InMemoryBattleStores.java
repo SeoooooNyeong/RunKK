@@ -102,6 +102,17 @@ public final class InMemoryBattleStores {
             return rows.values().stream().anyMatch(b -> b.isActive() && b.isParticipant(memberId));
         }
 
+        /** activeMemberIds 호출 수(매칭 tick이 대기자마다 조회하지 않는지 확인). */
+        public int activeLookups;
+
+        @Override
+        public java.util.Set<Long> activeMemberIds(java.util.Collection<Long> memberIds) {
+            activeLookups++;
+            return memberIds.stream()
+                    .filter(this::existsActive)
+                    .collect(java.util.stream.Collectors.toUnmodifiableSet());
+        }
+
         private List<Battle> where(Predicate<Battle> condition) {
             return rows.values().stream().filter(condition).toList();
         }
