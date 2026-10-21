@@ -41,9 +41,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.kotlinx.coroutines.guava)
     implementation(libs.androidx.health.services.client)
-    // 수집 중 Ongoing Activity. 카탈로그(gradle/libs.versions.toml)는 다른 작업과 겹치지 않게 :wear 밖이라 건드리지 않았다.
-    // 병합할 때 androidx-wear-ongoing으로 옮긴다.
-    implementation("androidx.wear:wear-ongoing:1.1.0")
+    implementation(libs.androidx.wear.ongoing)
     implementation(libs.play.services.wearable)
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
