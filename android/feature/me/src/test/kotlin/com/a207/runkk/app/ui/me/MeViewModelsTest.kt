@@ -1,6 +1,7 @@
 package com.a207.runkk.app.ui.me
 
 import app.cash.turbine.test
+import com.a207.runkk.app.core.designsystem.RunkkErrorText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.account.ChangeSettingUseCase
@@ -45,7 +46,7 @@ class MeViewModelsTest {
     fun `프로필을 못 읽으면 오류를 보이고 다시 시도한다`() {
         account.failures["profile:0"] = AppError.Network
         val vm = MeViewModel(account, LogoutUseCase(account, session, settingsCopy))
-        assertTrue(vm.state.value.error!!.startsWith("네트워크"))
+        assertEquals(RunkkErrorText.of(AppError.Network), vm.state.value.error)
         account.failures.clear()
         vm.refresh()
         assertNull(vm.state.value.error)
@@ -81,7 +82,7 @@ class MeViewModelsTest {
         account.failures["editProfile"] = AppError.Rejected("NICKNAME_INVALID")
         val vm = ProfileEditViewModel(account)
         vm.onSave()
-        assertEquals("닉네임은 2~20자로 입력해 주세요", vm.state.value.error)
+        assertEquals(RunkkErrorText.rejected("NICKNAME_INVALID"), vm.state.value.error)
         assertFalse(vm.state.value.saving)
     }
 
@@ -101,7 +102,7 @@ class MeViewModelsTest {
         val vm = SettingsViewModel(account, ChangeSettingUseCase(account, settingsCopy))
         vm.setValue(SettingKeys.UNIT, "MI")
         assertEquals("KM", vm.state.value.value(SettingKeys.UNIT))
-        assertTrue(vm.state.value.message!!.startsWith("네트워크"))
+        assertEquals(RunkkErrorText.of(AppError.Network), vm.state.value.message)
     }
 
     @Test
@@ -135,7 +136,7 @@ class MeViewModelsTest {
         val vm = WithdrawViewModel(WithdrawUseCase(account, FakePendingRunRepository(), settingsCopy, session))
         vm.onAcknowledgedChange(true)
         vm.onWithdrawConfirmed()
-        assertTrue(vm.state.value.error!!.startsWith("크루장 양도 필요"))
+        assertEquals(RunkkErrorText.rejected("LEADER_MUST_TRANSFER"), vm.state.value.error)
         assertFalse(vm.state.value.withdrawing)
     }
 

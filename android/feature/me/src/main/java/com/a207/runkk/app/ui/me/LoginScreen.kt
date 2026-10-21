@@ -17,13 +17,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -36,6 +36,7 @@ import com.a207.runkk.app.core.designsystem.RunkkSecondaryButton
 import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
+import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.account.ProviderType
@@ -69,8 +70,9 @@ fun LoginScreen(
     modifier: Modifier = Modifier
 ) {
     val snackbar = remember { SnackbarHostState() }
+    val errorText = state.error?.asString()
     LaunchedEffect(state.error) {
-        state.error?.let {
+        errorText?.let {
             snackbar.showSnackbar(it)
             onErrorShown()
         }
@@ -83,45 +85,60 @@ fun LoginScreen(
             modifier = Modifier.offset(x = (-24).dp, y = 120.dp).clearAndSetSemantics {}
         )
         Column(modifier = Modifier.fillMaxSize().padding(start = 24.dp, end = 24.dp, bottom = 40.dp)) {
-            Column(
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterVertically)
-            ) {
-                RunkkLogo(RunkkLogoKind.WordmarkKo, width = 240.dp, modifier = Modifier.semantics { heading() })
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        text = buildAnnotatedString {
-                            append("혼자 뛰어도, ")
-                            withStyle(SpanStyle(color = RunkkColors.Lime)) { append("같이 뛰는") }
-                            append(" 러닝")
-                        },
-                        style = RunkkTextStyles.text(18, FontWeight.Bold, lineHeight = 28),
-                        color = RunkkColors.TextPrimary
-                    )
-                    Text(
-                        text = "나와의 기록, 친구와의 대결, 크루와의 레이스까지",
-                        style = RunkkTextStyles.text(14, lineHeight = 24),
-                        color = RunkkColors.TextSecondary
-                    )
-                }
-            }
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                RunkkPrimaryButton(
-                    text = "카카오로 시작하기",
-                    onClick = { onProvider(ProviderType.KAKAO) },
-                    loading = state.inProgress == ProviderType.KAKAO,
-                    enabled = state.inProgress == null || state.inProgress == ProviderType.KAKAO,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                RunkkSecondaryButton(
-                    text = if (state.inProgress == ProviderType.GOOGLE) "Google 로그인 중…" else "Google로 시작하기",
-                    onClick = { onProvider(ProviderType.GOOGLE) },
-                    enabled = state.inProgress == null,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
+            LoginIntro(modifier = Modifier.weight(1f).fillMaxWidth())
+            LoginButtons(state, onProvider)
         }
         RunkkSnackbarHost(snackbar, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 120.dp))
+    }
+}
+
+/** 로고와 소개 문구. */
+@Composable
+private fun LoginIntro(modifier: Modifier = Modifier) {
+    val highlight = stringResource(R.string.me_login_tagline_highlight)
+    val tagline = stringResource(R.string.me_login_tagline, highlight)
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterVertically)) {
+        RunkkLogo(RunkkLogoKind.WordmarkKo, width = 240.dp, modifier = Modifier.semantics { heading() })
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                text = buildAnnotatedString {
+                    append(tagline)
+                    val start = tagline.indexOf(highlight)
+                    if (start >= 0) {
+                        addStyle(SpanStyle(color = RunkkColors.Lime), start, start + highlight.length)
+                    }
+                },
+                style = RunkkTextStyles.text(18, FontWeight.Bold, lineHeight = 28),
+                color = RunkkColors.TextPrimary
+            )
+            Text(
+                text = stringResource(R.string.me_login_subtitle),
+                style = RunkkTextStyles.text(14, lineHeight = 24),
+                color = RunkkColors.TextSecondary
+            )
+        }
+    }
+}
+
+/** 카카오·구글 시작 버튼. */
+@Composable
+private fun LoginButtons(state: LoginUiState, onProvider: (ProviderType) -> Unit) {
+    val googleLabel =
+        if (state.inProgress == ProviderType.GOOGLE) R.string.me_login_google_in_progress else R.string.me_login_google
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        RunkkPrimaryButton(
+            text = stringResource(R.string.me_login_kakao),
+            onClick = { onProvider(ProviderType.KAKAO) },
+            loading = state.inProgress == ProviderType.KAKAO,
+            enabled = state.inProgress == null || state.inProgress == ProviderType.KAKAO,
+            modifier = Modifier.fillMaxWidth()
+        )
+        RunkkSecondaryButton(
+            text = stringResource(googleLabel),
+            onClick = { onProvider(ProviderType.GOOGLE) },
+            enabled = state.inProgress == null,
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
 

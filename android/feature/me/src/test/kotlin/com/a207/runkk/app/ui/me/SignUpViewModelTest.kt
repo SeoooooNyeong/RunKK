@@ -1,6 +1,7 @@
 package com.a207.runkk.app.ui.me
 
 import app.cash.turbine.test
+import com.a207.runkk.app.core.designsystem.RunkkErrorText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.domain.account.Gender
 import com.a207.runkk.app.domain.account.SignUpUseCase
@@ -117,7 +118,7 @@ class SignUpViewModelTest {
         vm.onNext()
         vm.onSubmit(createAvatar = false)
         assertEquals(SignUpStep.CONSENT, vm.state.value.step)
-        assertEquals("만 14세 이상만 가입할 수 있음", vm.state.value.submitError)
+        assertEquals(RunkkErrorText.rejected("UNDER_14"), vm.state.value.submitError)
         assertFalse(vm.state.value.submitting)
     }
 
@@ -163,7 +164,7 @@ class SignUpViewModelTest {
         vm.onSubmit(createAvatar = true)
         val failed = vm.state.value
         assertEquals(SignUpStep.AVATAR, failed.step)
-        assertEquals("요청 내용을 확인한 뒤 다시 시도해 주세요", failed.submitError)
+        assertEquals(RunkkErrorText.rejected("BAD_REQUEST"), failed.submitError)
         assertFalse(failed.submitting)
         assertTrue(failed.canRetrySubmit)
 
@@ -180,10 +181,7 @@ class SignUpViewModelTest {
         account.failures["signUp"] = AppError.Network
         reachAvatarStep()
         vm.onSubmit(createAvatar = false)
-        assertEquals(
-            "네트워크에 연결할 수 없어요. 연결을 확인하고 다시 시도해 주세요",
-            vm.state.value.submitError
-        )
+        assertEquals(RunkkErrorText.of(AppError.Network), vm.state.value.submitError)
         assertTrue(vm.state.value.canRetrySubmit)
     }
 
@@ -192,7 +190,7 @@ class SignUpViewModelTest {
         account.failures["signUp"] = AppError.Rejected("SIGN_UP_TICKET_INVALID")
         reachAvatarStep()
         vm.onSubmit(createAvatar = true)
-        assertEquals("가입 시간이 지났어요. 다시 로그인해 주세요", vm.state.value.submitError)
+        assertEquals(RunkkErrorText.rejected("SIGN_UP_TICKET_INVALID"), vm.state.value.submitError)
         assertFalse(vm.state.value.canRetrySubmit)
         vm.events.test {
             vm.onExit()

@@ -1,9 +1,11 @@
 package com.a207.runkk.app.ui.me
 
+import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.designsystem.RunkkErrorText
 import com.a207.runkk.app.core.designsystem.RunkkTags
+import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.account.AccountRepository
@@ -37,26 +39,50 @@ enum class SignUpStep(val number: Int) {
 }
 
 /** 가입 동의 항목(서버 ConsentItem 이름). [legalType]은 서버 DocumentType 이름이고, 있으면 "보기"로 고지문서를 연다(FR-018). 서버에 AI 코멘트용 전송만의 문서가 없어 개인정보 처리방침을 연다. */
-data class ConsentLine(val item: String, val label: String, val required: Boolean, val legalType: String? = null)
+data class ConsentLine(
+    val item: String,
+    @StringRes val labelRes: Int,
+    val required: Boolean,
+    val legalType: String? = null
+)
 
 object SignUpConsents {
     val items: List<ConsentLine> = listOf(
-        ConsentLine("AGE_14_PLUS", "만 14세 이상이에요", required = true),
-        ConsentLine("TERMS", "서비스 이용약관", required = true, legalType = LegalTypes.TERMS),
-        ConsentLine("PRIVACY", "개인정보 수집·이용", required = true, legalType = LegalTypes.PRIVACY_POLICY),
-        ConsentLine("LOCATION", "위치 정보 수집", required = true, legalType = LegalTypes.LOCATION_TERMS),
-        ConsentLine("MARKETING", "마케팅 정보 수신", required = false),
-        ConsentLine("LLM_TRANSFER", "AI 코멘트용 집계값 외부 전송", required = false, legalType = LegalTypes.PRIVACY_POLICY)
+        ConsentLine("AGE_14_PLUS", R.string.me_signup_consent_age, required = true),
+        ConsentLine("TERMS", R.string.me_legal_terms, required = true, legalType = LegalTypes.TERMS),
+        ConsentLine(
+            "PRIVACY",
+            R.string.me_consents_privacy_collect,
+            required = true,
+            legalType = LegalTypes.PRIVACY_POLICY
+        ),
+        ConsentLine(
+            "LOCATION",
+            R.string.me_consents_location_title,
+            required = true,
+            legalType = LegalTypes.LOCATION_TERMS
+        ),
+        ConsentLine("MARKETING", R.string.me_consents_marketing_title, required = false),
+        ConsentLine(
+            "LLM_TRANSFER",
+            R.string.me_consents_llm_title,
+            required = false,
+            legalType = LegalTypes.PRIVACY_POLICY
+        )
     )
 }
 
 /** 기록 공개 범위(FR-010·FR-028, 서버 RecordVisibility 이름). 기본 전체공개. */
 object RecordVisibilityOptions {
-    val values: List<Pair<String, String>> = listOf("PUBLIC" to "전체공개", "CREW" to "크루공개", "PRIVATE" to "비공개")
+    val values: List<Pair<String, Int>> = listOf(
+        "PUBLIC" to R.string.me_choice_record_public,
+        "CREW" to R.string.me_choice_record_crew,
+        "PRIVATE" to R.string.me_choice_private
+    )
 }
 
 /** 고지문서 본문 보기. */
-data class LegalView(val title: String, val body: String)
+data class LegalView(val title: UiText, val body: String)
 
 data class SignUpUiState(
     val step: SignUpStep = SignUpStep.CONSENT,
@@ -68,12 +94,12 @@ data class SignUpUiState(
     val recordVisibility: String = "PUBLIC",
     val tags: Set<String> = emptySet(),
     val submitting: Boolean = false,
-    val error: String? = null,
+    val error: UiText? = null,
     /**
      * 가입 요청이 거부·실패했을 때의 안내(RunkkErrorText). 스낵바와 달리 다음 시도·단계 이동까지 화면에 남는다.
      * 5단계에서 실패해도 사용자가 멈춘 것으로 보지 않게 한다.
      */
-    val submitError: String? = null,
+    val submitError: UiText? = null,
     /** [submitError]가 있을 때 같은 입력으로 다시 보낼 수 있는가(가입 시간이 지났거나 이미 가입한 계정이면 로그인부터 다시). */
     val canRetrySubmit: Boolean = true,
     /** 마지막으로 가입을 시도한 쪽(아바타 만들기로 이어지는가). 다시 시도가 같은 쪽으로 보낸다. */
@@ -192,7 +218,7 @@ class SignUpViewModel @Inject constructor(private val signUp: SignUpUseCase, pri
                     if (body.startsWith("http://") || body.startsWith("https://")) {
                         _events.send(SignUpEvent.OpenUrl(body))
                     } else {
-                        _state.update { it.copy(legal = LegalView(line.label, body)) }
+                        _state.update { it.copy(legal = LegalView(UiText.Res(line.labelRes), body)) }
                     }
                 }
 
