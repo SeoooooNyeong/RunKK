@@ -26,11 +26,45 @@ internal data class LeaderRequest(val memberId: Long)
 @Serializable
 internal data class JoinRequestBody(val crewId: Long? = null, val inviteCode: String? = null)
 
+/** POST /crews/join·DELETE /join-requests/{id} 결과(서버 CrewDtos.JoinResponse). status는 JOINED·PENDING·CANCELLED. */
+@Serializable
+internal data class JoinResponse(val status: String, val crewId: Long, val requestId: Long? = null)
+
 @Serializable
 internal data class CrewProfileRequest(val intro: String)
 
+/** GET /crews/{id}, GET /crews/me의 crew(서버 CrewDtos.CrewDetailResponse). 초대 코드는 크루장에게만 온다. */
 @Serializable
-internal data class CrewListResponse(val crews: List<Item> = emptyList()) {
+internal data class CrewDetailResponse(
+    val crewId: Long,
+    val name: String,
+    val intro: String? = null,
+    val tags: Set<String> = emptySet(),
+    val visibility: String,
+    val joinPolicy: String,
+    val logoUrl: String? = null,
+    val leaderId: Long,
+    val leaderName: String? = null,
+    val headcount: Int,
+    val weeklyDistanceMeters: Long = 0,
+    val myRole: String? = null,
+    val inviteCode: String? = null,
+    val inviteCodeExpiresAt: String? = null
+)
+
+/** GET /crews/me(서버 CrewDtos.MyCrewResponse). 소속 크루가 없으면 crew가 null이다. */
+@Serializable
+internal data class MyCrewResponse(
+    val crew: CrewDetailResponse? = null,
+    val pendingRequests: List<PendingJoin> = emptyList()
+) {
+    @Serializable
+    data class PendingJoin(val requestId: Long, val crewId: Long, val crewName: String, val requestedAt: String)
+}
+
+/** GET /crews(서버 CrewDtos.CrewListResponse). nextCursor는 size를 보냈을 때 다음 쪽 커서이고 끝이면 null이다. */
+@Serializable
+internal data class CrewListResponse(val crews: List<Item> = emptyList(), val nextCursor: Long? = null) {
     @Serializable
     data class Item(
         val crewId: Long,
@@ -67,7 +101,8 @@ internal data class CrewMembersResponse(val members: List<Member> = emptyList())
         val role: String,
         val crewIntro: String? = null,
         val tier: String? = null,
-        val runimalType: String? = null
+        val runimalType: String? = null,
+        val me: Boolean = false
     )
 }
 
@@ -96,12 +131,21 @@ internal data class RaceStatusResponse(
     val myShare: Double? = null
 ) {
     @Serializable
-    data class Contributor(val displayName: String? = null, val distanceMeters: Long, val share: Double)
+    data class Contributor(
+        val displayName: String? = null,
+        val distanceMeters: Long,
+        val share: Double,
+        val memberId: Long? = null,
+        val me: Boolean = false
+    )
 }
 
-/** 서버 CrewDtos.PostListResponse. 본문은 body이고, 크루런 모집글이면 crewRun(거리·모집 일시·투표 현황)이 함께 온다. */
+/**
+ * 서버 CrewDtos.PostListResponse. 본문은 body이고, 크루런 모집글이면 crewRun(거리·모집 일시·투표 현황)이 함께 온다.
+ * nextCursor는 size를 보냈을 때 다음 쪽 커서이고 끝이면 null이다.
+ */
 @Serializable
-internal data class PostListResponse(val posts: List<Item> = emptyList()) {
+internal data class PostListResponse(val posts: List<Item> = emptyList(), val nextCursor: Long? = null) {
     @Serializable
     data class Item(
         val postId: Long,
@@ -112,9 +156,18 @@ internal data class PostListResponse(val posts: List<Item> = emptyList()) {
         val mine: Boolean = false,
         val crewRun: CrewRun? = null
     ) {
-        /** 크루런 모집글의 거리(미터). 모집 일시·투표 현황은 앱이 아직 쓰지 않는다. */
+        /** 크루런 모집글의 크루런 정보(서버 PostListResponse.CrewRun). myAnswer는 GOING·NOT_GOING, 답하지 않았으면 null. */
         @Serializable
-        data class CrewRun(val distanceMeters: Long)
+        data class CrewRun(
+            val distanceMeters: Long,
+            val scheduledAt: String,
+            val voteDeadline: String? = null,
+            val status: String? = null,
+            val goingCount: Int = 0,
+            val myAnswer: String? = null,
+            val finisherCount: Int = 0,
+            val raceContributionMeters: Long? = null
+        )
     }
 }
 
@@ -133,15 +186,22 @@ internal data class PostWriteRequest(
 @Serializable
 internal data class VoteRequest(val answer: String)
 
-/** 서버 CrewDtos.LobbyResponse. 모집 일시는 scheduledAt이다. */
+/** 서버 CrewDtos.LobbyResponse. 모집 일시는 scheduledAt, 크루런 거리는 distanceMeters다. */
 @Serializable
 internal data class LobbyResponse(
     val postId: Long,
     val participants: List<Participant> = emptyList(),
-    val scheduledAt: String
+    val scheduledAt: String,
+    val distanceMeters: Long
 ) {
+    /** me는 열람자 본인 줄이다. */
     @Serializable
-    data class Participant(val displayName: String? = null, val ready: Boolean = false)
+    data class Participant(
+        val memberId: Long? = null,
+        val displayName: String? = null,
+        val ready: Boolean = false,
+        val me: Boolean = false
+    )
 }
 
 @Serializable
@@ -156,6 +216,9 @@ internal data class CrewRunResultResponse(
         val rank: Int? = null,
         val displayName: String? = null,
         val elapsedSeconds: Long? = null,
-        val averagePaceSecondsPerKm: Int? = null
+        val averagePaceSecondsPerKm: Int? = null,
+        val quit: Boolean = false,
+        val memberId: Long? = null,
+        val me: Boolean = false
     )
 }

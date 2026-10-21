@@ -7,6 +7,7 @@ import com.a207.runkk.app.domain.live.CrewRunCancelled
 import com.a207.runkk.app.domain.live.CrewRunRelay
 import com.a207.runkk.app.domain.live.CrewRunStart
 import com.a207.runkk.app.domain.live.ProgressReport
+import com.a207.runkk.app.domain.run.Guidance
 import com.a207.runkk.app.domain.run.RunTracker
 import com.a207.runkk.app.domain.run.sample
 import com.a207.runkk.app.domain.testing.CallLog
@@ -44,6 +45,7 @@ class CrewRunCoordinatorTest {
     private val clock = TestClock()
     private val host = FakeMeasurementHost()
     private val live = FakeLiveChannelProvider()
+    private val guidance = FakeGuidanceOutput()
     private val parentJob = SupervisorJob()
 
     /** quit이 돌려줄 실패(F-3). null이면 성공. */
@@ -68,7 +70,7 @@ class CrewRunCoordinatorTest {
                 "leaveLobby" -> {
                     log.add("crew.leaveLobby:${args[0]}")
                     leaveFailure?.let { Outcome.Failure(it) }
-                        ?: Outcome.Success(Lobby(args[0] as Long, emptyList(), T0.plusSeconds(600)))
+                        ?: Outcome.Success(Lobby(args[0] as Long, emptyList(), T0.plusSeconds(600), Distance(3_000)))
                 }
 
                 else -> error("unused: ${method.name}")
@@ -86,7 +88,7 @@ class CrewRunCoordinatorTest {
                 FakePendingRunRepository(log),
                 FakeUploadScheduler(log),
                 FakeWatchGateway(),
-                FakeGuidanceOutput(),
+                guidance,
                 FakeLocationPermission(),
                 host,
                 FakeSettingsRepository(),
@@ -106,7 +108,7 @@ class CrewRunCoordinatorTest {
     @Test
     fun `대기실 나가기 - 서버에 알리고 채널을 닫은 뒤 Idle로 돌아간다`() = runTest {
         val (_, coordinator) = setUp()
-        coordinator.onLobbyEntered(11, Distance(3_000), "나")
+        coordinator.onLobbyEntered(11, Distance(3_000))
         runCurrent()
         var result: Outcome<Unit>? = null
         backgroundScope.launch { result = coordinator.leaveLobby(11) }
@@ -122,7 +124,7 @@ class CrewRunCoordinatorTest {
     fun `대기실 나가기 실패 - 채널과 대기 상태를 그대로 두고 실패를 돌려준다`() = runTest {
         leaveFailure = AppError.Network
         val (_, coordinator) = setUp()
-        coordinator.onLobbyEntered(11, Distance(3_000), "나")
+        coordinator.onLobbyEntered(11, Distance(3_000))
         runCurrent()
         var result: Outcome<Unit>? = null
         backgroundScope.launch { result = coordinator.leaveLobby(11) }
@@ -135,7 +137,7 @@ class CrewRunCoordinatorTest {
     @Test
     fun `대기실 나가기 - 출발 예약 뒤에는 서버에 보내지 않고 거부한다`() = runTest {
         val (_, coordinator) = setUp()
-        coordinator.onLobbyEntered(11, Distance(3_000), "나")
+        coordinator.onLobbyEntered(11, Distance(3_000))
         runCurrent()
         live.channel.messages.emit(CrewRunStart(11, T0.plusSeconds(10), listOf("나")))
         runCurrent()
@@ -149,7 +151,7 @@ class CrewRunCoordinatorTest {
     @Test
     fun `대기실 나가기 - 서버가 받는 사이 출발 예약이 오면 닫지 않고 ALREADY_STARTED`() = runTest {
         val (_, coordinator) = setUp()
-        coordinator.onLobbyEntered(11, Distance(3_000), "나")
+        coordinator.onLobbyEntered(11, Distance(3_000))
         runCurrent()
         var result: Outcome<Unit>? = null
         live.channel.messages.emit(CrewRunStart(11, T0.plusSeconds(10), listOf("나")))
@@ -163,7 +165,7 @@ class CrewRunCoordinatorTest {
     @Test
     fun `대기실 나가기 - 부른 쪽 범위가 취소돼도 서버 알림과 정리를 끝낸다`() = runTest {
         val (_, coordinator) = setUp()
-        coordinator.onLobbyEntered(11, Distance(3_000), "나")
+        coordinator.onLobbyEntered(11, Distance(3_000))
         runCurrent()
         val caller = backgroundScope.launch(start = CoroutineStart.UNDISPATCHED) { coordinator.leaveLobby(11) }
         caller.cancel()
@@ -176,7 +178,7 @@ class CrewRunCoordinatorTest {
     @Test
     fun `모집 일시 + 3초 카운트다운 뒤 측정을 시작하고 진행값을 채널로 보낸다`() = runTest {
         val (tracker, coordinator) = setUp()
-        coordinator.onLobbyEntered(postId = 11, distance = Distance(3_000), myName = "나")
+        coordinator.onLobbyEntered(postId = 11, distance = Distance(3_000))
         runCurrent()
         assertEquals(CrewRunState.Lobby(11), coordinator.state.value)
         live.channel.messages.emit(CrewRunStart(11, T0.plusSeconds(10), listOf("나", "너")))
@@ -196,7 +198,7 @@ class CrewRunCoordinatorTest {
     @Test
     fun `중계 메시지를 상태로 내보낸다`() = runTest {
         val (_, coordinator) = setUp()
-        coordinator.onLobbyEntered(11, Distance(3_000), "나")
+        coordinator.onLobbyEntered(11, Distance(3_000))
         runCurrent()
         val entries =
             listOf(
@@ -209,9 +211,52 @@ class CrewRunCoordinatorTest {
     }
 
     @Test
+    fun `중계의 본인 줄(me) 순위로 새 1km마다 순위를 안내한다(FR-190)`() = runTest {
+        val (tracker, coordinator) = setUp()
+        coordinator.onLobbyEntered(11, Distance(3_000))
+        runCurrent()
+        live.channel.messages.emit(CrewRunStart(11, T0, listOf("나", "너", "그")))
+        runCurrent()
+        advanceTimeBy(3_001)
+        live.channel.messages.emit(
+            CrewRunRelay(
+                11,
+                listOf(
+                    CrewRunRelay.Entry("너", Distance(900), 1, CrewRunRelay.Connection.CONNECTED, memberId = 12),
+                    // 같은 표시명의 다른 참가자가 있어도 본인 표시(me)로 가린다.
+                    CrewRunRelay.Entry("나", Distance(850), 2, CrewRunRelay.Connection.CONNECTED, 7, me = true),
+                    CrewRunRelay.Entry("나", Distance(300), 3, CrewRunRelay.Connection.CONNECTED, memberId = 13)
+                )
+            )
+        )
+        runCurrent()
+        (1L..360L).forEach { second -> tracker.runTo(second, (second - 1) * 3.0) }
+        runCurrent()
+        val rank = guidance.played.filter { it.kind == Guidance.Kind.RANK }
+        assertEquals(listOf("3명 중 2위"), rank.map { it.message })
+    }
+
+    @Test
+    fun `중계에 본인 줄이 없으면 순위를 안내하지 않는다`() = runTest {
+        val (tracker, coordinator) = setUp()
+        coordinator.onLobbyEntered(11, Distance(3_000))
+        runCurrent()
+        live.channel.messages.emit(CrewRunStart(11, T0, listOf("나", "너")))
+        runCurrent()
+        advanceTimeBy(3_001)
+        live.channel.messages.emit(
+            CrewRunRelay(11, listOf(CrewRunRelay.Entry("나", Distance(900), 1, CrewRunRelay.Connection.CONNECTED, 12)))
+        )
+        runCurrent()
+        (1L..360L).forEach { second -> tracker.runTo(second, (second - 1) * 3.0) }
+        runCurrent()
+        assertEquals(emptyList(), guidance.played.filter { it.kind == Guidance.Kind.RANK })
+    }
+
+    @Test
     fun `그만두기 - quit 보고 뒤 endRun하고 범위를 닫는다`() = runTest {
         val (tracker, coordinator) = setUp()
-        coordinator.onLobbyEntered(11, Distance(3_000), "나")
+        coordinator.onLobbyEntered(11, Distance(3_000))
         runCurrent()
         live.channel.messages.emit(CrewRunStart(11, T0, listOf("나")))
         advanceTimeBy(3_001)
@@ -228,7 +273,7 @@ class CrewRunCoordinatorTest {
     @Test
     fun `취소 메시지 - 범위를 닫고 사유를 남긴다`() = runTest {
         val (_, coordinator) = setUp()
-        coordinator.onLobbyEntered(11, Distance(3_000), "나")
+        coordinator.onLobbyEntered(11, Distance(3_000))
         runCurrent()
         live.channel.messages.emit(CrewRunCancelled(11, "참가자 부족"))
         runCurrent()
@@ -239,7 +284,7 @@ class CrewRunCoordinatorTest {
     @Test
     fun `F-1 출발 카운트다운 중 중계가 와도 Countdown을 지킨다`() = runTest {
         val (_, coordinator) = setUp()
-        coordinator.onLobbyEntered(11, Distance(3_000), "나")
+        coordinator.onLobbyEntered(11, Distance(3_000))
         runCurrent()
         live.channel.messages.emit(CrewRunStart(11, T0.plusSeconds(10), listOf("나", "너")))
         runCurrent()
@@ -253,7 +298,7 @@ class CrewRunCoordinatorTest {
     @Test
     fun `F-3 그만두기 보고가 실패하면 다시 보내고 그래도 실패하면 failure로 알린다`() = runTest {
         val (tracker, coordinator) = setUp()
-        coordinator.onLobbyEntered(11, Distance(3_000), "나")
+        coordinator.onLobbyEntered(11, Distance(3_000))
         runCurrent()
         live.channel.messages.emit(CrewRunStart(11, T0, listOf("나")))
         advanceTimeBy(3_001)
@@ -273,7 +318,7 @@ class CrewRunCoordinatorTest {
     @Test
     fun `S-17 결과 화면이 확인하면 Idle로 돌아간다`() = runTest {
         val (_, coordinator) = setUp()
-        coordinator.onLobbyEntered(11, Distance(3_000), "나")
+        coordinator.onLobbyEntered(11, Distance(3_000))
         runCurrent()
         live.channel.messages.emit(CrewRunCancelled(11, "참가자 부족"))
         runCurrent()

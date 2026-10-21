@@ -4,12 +4,19 @@ import com.a207.runkk.app.api.core.ApiTestServer
 import com.a207.runkk.app.api.core.value
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.domain.crew.CrewDetail
 import com.a207.runkk.app.domain.crew.CrewList
+import com.a207.runkk.app.domain.crew.CrewRole
 import com.a207.runkk.app.domain.crew.CrewRunForm
 import com.a207.runkk.app.domain.crew.CrewRunResult
+import com.a207.runkk.app.domain.crew.CrewRunStatus
+import com.a207.runkk.app.domain.crew.CrewVisibility
 import com.a207.runkk.app.domain.crew.JoinPolicy
+import com.a207.runkk.app.domain.crew.JoinResult
 import com.a207.runkk.app.domain.crew.Lobby
+import com.a207.runkk.app.domain.crew.MyCrew
 import com.a207.runkk.app.domain.crew.PostList
+import com.a207.runkk.app.domain.crew.RaceStatus
 import com.a207.runkk.app.domain.crew.VoteAnswer
 import java.time.Instant
 import kotlin.test.AfterTest
@@ -67,15 +74,122 @@ class CrewRepositoryImplTest {
     }
 
     @Test
-    fun `가입 신청은 크루 ID 또는 초대 코드로 같은 엔드포인트에 간다`() = runTest {
-        api.replyEmpty()
-        api.replyEmpty()
+    fun `가입 신청은 크루 ID 또는 초대 코드로 같은 엔드포인트에 가고 결과(상태·크루·신청 ID)를 돌려준다`() = runTest {
+        api.reply("""{"status":"PENDING","crewId":5,"requestId":31}""")
+        api.reply("""{"status":"JOINED","crewId":8,"requestId":null}""")
 
-        repository.apply(5)
-        repository.applyWithInviteCode("AB12CD")
+        val applied = repository.apply(5).value()
+        val invited = repository.applyWithInviteCode("AB12CD").value()
 
+        assertEquals(JoinResult(JoinResult.Status.PENDING, 5, 31), applied)
+        assertEquals(JoinResult(JoinResult.Status.JOINED, 8, null), invited)
         assertEquals("""{"crewId":5}""", api.take().body!!.utf8())
         assertEquals("""{"inviteCode":"AB12CD"}""", api.take().body!!.utf8())
+    }
+
+    @Test
+    fun `내 크루는 소속 크루 상세와 대기 중인 본인 가입 신청을 읽는다`() = runTest {
+        api.reply(
+            """{"crew":{"crewId":9,"name":"새벽런","intro":"같이 달려요","tags":["DAWN"],"visibility":"PRIVATE",
+               |"joinPolicy":"APPROVAL","logoUrl":null,"leaderId":3,"leaderName":"곰","headcount":4,"weeklyDistanceMeters":12000,
+               |"myRole":"LEADER","inviteCode":"K7P2QX","inviteCodeExpiresAt":"2026-10-27T09:00:00"},"pendingRequests":[]}
+            """.trimMargin()
+        )
+        api.reply(
+            """{"crew":null,"pendingRequests":[{"requestId":31,"crewId":5,"crewName":"저녁런","requestedAt":"2026-10-20T07:00:00"}]}"""
+        )
+
+        val leader = repository.myCrew().value()
+        val waiting = repository.myCrew().value()
+
+        assertEquals(
+            CrewDetail(
+                crewId = 9,
+                name = "새벽런",
+                intro = "같이 달려요",
+                tags = setOf("DAWN"),
+                visibility = CrewVisibility.PRIVATE,
+                joinPolicy = JoinPolicy.APPROVAL,
+                logoUrl = null,
+                leaderId = 3,
+                leaderName = "곰",
+                headcount = 4,
+                weeklyDistance = Distance(12_000),
+                myRole = CrewRole.LEADER,
+                inviteCode = "K7P2QX",
+                inviteCodeExpiresAt = Instant.parse("2026-10-27T00:00:00Z")
+            ),
+            leader.crew
+        )
+        assertEquals(true, leader.crew!!.isLeader)
+        assertEquals("/api/v1/crews/me", api.take().url.encodedPath)
+        assertEquals(
+            MyCrew(null, listOf(MyCrew.PendingJoin(31, 5, "저녁런", Instant.parse("2026-10-19T22:00:00Z")))),
+            waiting
+        )
+    }
+
+    @Test
+    fun `크루 한 곳은 크루원 역할로 읽고 크루 밖이면 역할·초대 코드가 없다`() = runTest {
+        api.reply(
+            """{"crewId":9,"name":"새벽런","intro":null,"tags":[],"visibility":"PUBLIC","joinPolicy":"FREE","leaderId":3,
+               |"leaderName":null,"headcount":4,"weeklyDistanceMeters":0,"myRole":null}
+            """.trimMargin()
+        )
+
+        val detail = repository.detail(9).value()
+
+        assertEquals("/api/v1/crews/9", api.take().url.encodedPath)
+        assertEquals(null, detail.myRole)
+        assertEquals(false, detail.isLeader)
+        assertEquals(null, detail.inviteCode)
+        assertEquals("", detail.leaderName)
+    }
+
+    @Test
+    fun `목록은 쪽 크기와 커서를 보내고 다음 커서를 돌려준다`() = runTest {
+        api.reply("""{"crews":[],"nextCursor":40}""")
+        api.reply("""{"posts":[],"nextCursor":null}""")
+
+        val crews = repository.search(null, emptySet(), cursor = 60).value()
+        val posts = repository.posts(5, PostList.Kind.CHEER).value()
+
+        assertEquals(40L, crews.nextCursor)
+        assertEquals(null, posts.nextCursor)
+        val crewUrl = api.take().url
+        assertEquals("60", crewUrl.queryParameter("cursor"))
+        assertEquals("20", crewUrl.queryParameter("size"))
+        val postUrl = api.take().url
+        assertEquals(null, postUrl.queryParameter("cursor"))
+        assertEquals("20", postUrl.queryParameter("size"))
+        assertEquals("CHEER", postUrl.queryParameter("kind"))
+    }
+
+    @Test
+    fun `크루원·레이스 기여자는 본인 표시(me)와 회원 ID를 읽는다`() = runTest {
+        api.reply(
+            """{"members":[{"memberId":1,"displayName":"곰","role":"LEADER","me":false},
+               |{"memberId":7,"displayName":"나","role":"MEMBER","me":true}]}
+            """.trimMargin()
+        )
+        api.reply(
+            """{"weekStart":"2026-10-19","totalMeters":20000,"closesAt":"2026-10-26T00:00:00","myShare":40,
+               |"contributors":[{"displayName":"나","distanceMeters":8000,"share":40,"memberId":7,"me":true},
+               |{"displayName":null,"distanceMeters":12000,"share":60,"memberId":null,"me":false}]}
+            """.trimMargin()
+        )
+
+        val members = repository.members(9).value()
+        val race = repository.race(9, null).value()
+
+        assertEquals(listOf(false, true), members.members.map { it.me })
+        assertEquals(
+            listOf(
+                RaceStatus.Contributor("나", Distance(8_000), 40.0, 7, me = true),
+                RaceStatus.Contributor("", Distance(12_000), 60.0, null, me = false)
+            ),
+            race.contributors
+        )
     }
 
     @Test
@@ -97,10 +211,12 @@ class CrewRepositoryImplTest {
     }
 
     @Test
-    fun `크루런 모집글은 서버가 주는 거리를 싣고 본문이 비면 빈 글로 읽는다`() = runTest {
+    fun `크루런 모집글은 서버 crewRun(거리·일시·상태·인원·내 응답)을 싣고 본문이 비면 빈 글로 읽는다`() = runTest {
         api.reply(
             """{"posts":[{"postId":3,"kind":"CREW_RUN","authorName":"곰","body":null,"writtenAt":"2026-10-20T07:00:00",
-               |"mine":false,"crewRun":{"distanceMeters":5000,"scheduledAt":"2026-10-25T06:00:00","status":"VOTING","goingCount":2}}]}
+               |"mine":false,"crewRun":{"distanceMeters":5000,"scheduledAt":"2026-10-25T06:00:00",
+               |"voteDeadline":"2026-10-25T05:00:00","status":"VOTING","goingCount":2,"myAnswer":"GOING","finisherCount":0,
+               |"raceContributionMeters":null}}]}
             """.trimMargin()
         )
 
@@ -116,7 +232,16 @@ class CrewRepositoryImplTest {
                         "",
                         Instant.parse("2026-10-19T22:00:00Z"),
                         false,
-                        Distance(5_000)
+                        PostList.CrewRunInfo(
+                            distance = Distance(5_000),
+                            scheduledAt = Instant.parse("2026-10-24T21:00:00Z"),
+                            voteDeadline = Instant.parse("2026-10-24T20:00:00Z"),
+                            status = CrewRunStatus.VOTING,
+                            goingCount = 2,
+                            myAnswer = VoteAnswer.GOING,
+                            finisherCount = 0,
+                            raceContribution = null
+                        )
                     )
                 )
             ),
@@ -145,12 +270,16 @@ class CrewRepositoryImplTest {
     @Test
     fun `대기실·투표·결과를 바꾼다`() = runTest {
         api.reply(
-            """{"postId":77,"participants":[{"displayName":"곰","ready":true}],"scheduledAt":"2026-10-25T06:00:00"}"""
+            """{"postId":77,"scheduledAt":"2026-10-25T06:00:00","distanceMeters":3000,"remainingSeconds":600,
+               |"status":"LOBBY_OPEN","participants":[{"memberId":3,"displayName":"곰","readiness":"READY","ready":true,"me":false},
+               |{"memberId":7,"displayName":"나","readiness":"ENTERING","ready":false,"me":true}]}
+            """.trimMargin()
         )
         api.replyEmpty()
         api.reply(
-            """{"postId":77,"finishers":[{"rank":1,"displayName":"곰","elapsedSeconds":3000,"averagePaceSecondsPerKm":300},
-               |{"displayName":"토끼"}],"firstCrewRun":true,"raceContributionMeters":20000}
+            """{"postId":77,"finishers":[{"rank":1,"displayName":"곰","elapsedSeconds":3000,"averagePaceSecondsPerKm":300,
+               |"quit":false,"memberId":3,"me":false},{"displayName":"토끼","quit":true,"memberId":7,"me":true}],
+               |"firstCrewRun":true,"raceContributionMeters":20000}
             """.trimMargin()
         )
 
@@ -158,13 +287,24 @@ class CrewRepositoryImplTest {
         repository.vote(77, VoteAnswer.GOING)
         val result = repository.crewRunResult(77).value()
 
-        assertEquals(Lobby(77, listOf(Lobby.Participant("곰", true)), Instant.parse("2026-10-24T21:00:00Z")), lobby)
+        assertEquals(
+            Lobby(
+                77,
+                listOf(Lobby.Participant("곰", true, 3, me = false), Lobby.Participant("나", false, 7, me = true)),
+                Instant.parse("2026-10-24T21:00:00Z"),
+                Distance(3_000)
+            ),
+            lobby
+        )
         assertEquals("/api/v1/crew-runs/77/lobby/ready", api.take().url.encodedPath)
         assertEquals("""{"answer":"GOING"}""", api.take().body!!.utf8())
         assertEquals(
             CrewRunResult(
                 77,
-                listOf(CrewRunResult.Finisher(1, "곰", 3_000, 300), CrewRunResult.Finisher(null, "토끼", null, null)),
+                listOf(
+                    CrewRunResult.Finisher(1, "곰", 3_000, 300, quit = false, memberId = 3, me = false),
+                    CrewRunResult.Finisher(null, "토끼", null, null, quit = true, memberId = 7, me = true)
+                ),
                 true,
                 Distance(20_000)
             ),

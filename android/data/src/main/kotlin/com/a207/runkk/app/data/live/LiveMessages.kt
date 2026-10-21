@@ -141,12 +141,26 @@ internal data class CrewRunCancelledJson(val postId: Long, val reason: String) {
 @Serializable
 internal data class CrewRunRelayJson(val postId: Long, val entries: List<Entry>) {
     @Serializable
-    data class Entry(val name: String, val distance: Long, val rank: Int? = null, val connection: String)
+    data class Entry(
+        val name: String,
+        val distance: Long,
+        val rank: Int? = null,
+        val connection: String,
+        val memberId: Long? = null
+    )
 
-    fun toDomain(): CrewRunRelay = CrewRunRelay(
+    /** [selfId]는 받는 사람 회원 ID(모르면 null). memberId가 같은 줄이 본인 줄이다. */
+    fun toDomain(selfId: Long?): CrewRunRelay = CrewRunRelay(
         postId,
         entries.map {
-            CrewRunRelay.Entry(it.name, Distance(it.distance), it.rank, CrewRunRelay.Connection.valueOf(it.connection))
+            CrewRunRelay.Entry(
+                it.name,
+                Distance(it.distance),
+                it.rank,
+                CrewRunRelay.Connection.valueOf(it.connection),
+                memberId = it.memberId,
+                me = selfId != null && it.memberId == selfId
+            )
         }
     )
 }

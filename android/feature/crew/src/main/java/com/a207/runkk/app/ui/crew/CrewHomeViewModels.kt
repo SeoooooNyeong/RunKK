@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.navigation.Routes
+import com.a207.runkk.app.domain.crew.CrewDetail
 import com.a207.runkk.app.domain.crew.CrewMembers
 import com.a207.runkk.app.domain.crew.CrewRanking
 import com.a207.runkk.app.domain.crew.CrewRepository
@@ -28,7 +29,8 @@ enum class CrewTab(val label: String) { RACE("레이스"), CREW_RUN("크루런")
 
 data class CrewHomeUiState(
     val crewId: Long = 0,
-    val crewName: String = "",
+    /** 크루 정보(GET /crews/{id}): 이름·인원·내 역할. 읽기 전이면 null. */
+    val detail: CrewDetail? = null,
     val tab: CrewTab = CrewTab.RACE,
     val loading: Boolean = false,
     val race: RaceStatus? = null,
@@ -38,8 +40,8 @@ data class CrewHomeUiState(
     val cheers: PostList? = null,
     val members: CrewMembers? = null,
     val cheerDraft: String = "",
-    /** 내가 고른 참여 응답(이 화면에서 보낸 것). 서버 목록에 내 응답 항목이 아직 없다. */
-    val votes: Map<Long, VoteAnswer> = emptyMap(),
+    /** 게시글 다음 쪽을 읽는 중. */
+    val loadingMore: Boolean = false,
     val confirmLeave: Boolean = false,
     /** 지울지 확인 중인 내 글(FR-130·FR-134). */
     val confirmDelete: PostList.Item? = null,
@@ -50,6 +52,11 @@ data class CrewHomeUiState(
     val error: String? = null
 ) {
     val cheerValid: Boolean get() = cheerDraft.isNotBlank() && cheerDraft.length <= CHEER_MAX
+
+    val crewName: String get() = detail?.name.orEmpty()
+
+    /** 크루 관리 메뉴는 크루장에게만 보인다(myRole = LEADER). */
+    val canManage: Boolean get() = detail?.isLeader == true
 
     companion object {
         const val CHEER_MAX = 200
@@ -64,7 +71,8 @@ sealed interface CrewHomeEvent {
 
 /**
  * 내 크루 홈(FR-125, FR-129~FR-131, FR-133, FR-135, FR-137, FR-140, FR-144, FR-145).
- * 탭을 처음 열 때 그 탭의 포트만 부른다(레이스 race + crewRanking, 크루런 posts(CREW_RUN), 응원보드 posts(CHEER), 크루원 members).
+ * 크루 이름·인원·내 역할은 detail(GET /crews/{id})로 읽고, 탭을 처음 열 때 그 탭의 포트만 부른다(레이스 race + crewRanking,
+ * 크루런 posts(CREW_RUN), 응원보드 posts(CHEER), 크루원 members). 게시글은 끝까지 내리면 다음 쪽(nextCursor)을 이어 받는다.
  */
 @HiltViewModel
 class CrewHomeViewModel @Inject constructor(private val crews: CrewRepository) : ViewModel() {
@@ -76,20 +84,38 @@ class CrewHomeViewModel @Inject constructor(private val crews: CrewRepository) :
 
     private var bound: Long? = null
     private var refreshJob: Job? = null
+    private var detailJob: Job? = null
+    private var moreJob: Job? = null
 
     fun bind(key: Routes.CrewHome) {
         if (bound == key.crewId) return
         bound = key.crewId
-        _state.value = CrewHomeUiState(crewId = key.crewId, crewName = key.crewName)
+        _state.value = CrewHomeUiState(crewId = key.crewId)
+        loadDetail()
         refresh()
     }
 
     private var resumedOnce = false
 
-    /** 화면에 돌아올 때(관리·모집에서 복귀) 지금 탭을 다시 읽는다. 처음 표시는 bind가 읽는다. */
+    /** 화면에 돌아올 때(관리·모집에서 복귀) 크루 정보와 지금 탭을 다시 읽는다. 처음 표시는 bind가 읽는다. */
     fun onResumed() {
-        if (resumedOnce && bound != null) refresh()
+        if (resumedOnce && bound != null) {
+            loadDetail()
+            refresh()
+        }
         resumedOnce = true
+    }
+
+    /** 크루 정보(이름·인원·내 역할). 실패하면 이름 칸을 비워 두고 안내한다(탭 내용은 따로 읽는다). */
+    private fun loadDetail() {
+        val crewId = _state.value.crewId
+        detailJob?.cancel()
+        detailJob = viewModelScope.launch {
+            when (val r = crews.detail(crewId)) {
+                is Outcome.Success -> _state.update { it.copy(detail = r.value) }
+                is Outcome.Failure -> _state.update { it.copy(message = CrewErrorText.of(r.error)) }
+            }
+        }
     }
 
     fun onTab(tab: CrewTab) {
@@ -205,12 +231,54 @@ class CrewHomeViewModel @Inject constructor(private val crews: CrewRepository) :
 
     // 크루런
 
-    /** 갈래요·못 가요(FR-145). 마감 전에는 바꿀 수 있다. */
+    /**
+     * 갈래요·못 가요(FR-145). 마감 전에는 바꿀 수 있다. 보낸 응답을 바로 그 글의 내 응답으로 보이고, 서버 목록을 다시 읽어
+     * 참여 인원·내 응답(crewRun.myAnswer)을 맞춘다.
+     */
     fun onVote(item: PostList.Item, answer: VoteAnswer) {
         viewModelScope.launch {
             when (val r = crews.vote(item.postId, answer)) {
-                is Outcome.Success -> _state.update { it.copy(votes = it.votes + (item.postId to answer)) }
+                is Outcome.Success -> {
+                    _state.update { st ->
+                        st.copy(crewRuns = st.crewRuns?.withAnswer(item.postId, answer))
+                    }
+                    reloadPosts(PostList.Kind.CREW_RUN)
+                }
+
                 is Outcome.Failure -> _state.update { it.copy(message = CrewErrorText.of(r.error)) }
+            }
+        }
+    }
+
+    /** 지금 탭(크루런·응원보드)의 다음 쪽을 이어 받는다. 끝이거나 읽는 중이면 아무것도 하지 않는다. */
+    fun onLoadMore() {
+        val s = _state.value
+        val kind = when (s.tab) {
+            CrewTab.CREW_RUN -> PostList.Kind.CREW_RUN
+            CrewTab.CHEER -> PostList.Kind.CHEER
+            else -> return
+        }
+        val list = if (kind == PostList.Kind.CHEER) s.cheers else s.crewRuns
+        val cursor = list?.nextCursor ?: return
+        if (s.loading || s.loadingMore) return
+        _state.update { it.copy(loadingMore = true) }
+        moreJob = viewModelScope.launch {
+            when (val r = crews.posts(s.crewId, kind, cursor)) {
+                is Outcome.Success -> _state.update { st ->
+                    val current = (if (kind == PostList.Kind.CHEER) st.cheers else st.crewRuns) ?: r.value
+                    val known = current.posts.map { it.postId }.toSet()
+                    val merged =
+                        PostList(current.posts + r.value.posts.filterNot { it.postId in known }, r.value.nextCursor)
+                    if (kind == PostList.Kind.CHEER) {
+                        st.copy(loadingMore = false, cheers = merged)
+                    } else {
+                        st.copy(loadingMore = false, crewRuns = merged)
+                    }
+                }
+
+                is Outcome.Failure -> _state.update {
+                    it.copy(loadingMore = false, message = CrewErrorText.of(r.error))
+                }
             }
         }
     }
@@ -260,6 +328,8 @@ class CrewHomeViewModel @Inject constructor(private val crews: CrewRepository) :
     }
 
     private suspend fun reloadPosts(kind: PostList.Kind) {
+        moreJob?.cancel()
+        _state.update { it.copy(loadingMore = false) }
         when (val r = crews.posts(_state.value.crewId, kind)) {
             is Outcome.Success -> _state.update {
                 if (kind == PostList.Kind.CHEER) it.copy(cheers = r.value) else it.copy(crewRuns = r.value)
@@ -269,6 +339,13 @@ class CrewHomeViewModel @Inject constructor(private val crews: CrewRepository) :
         }
     }
 }
+
+/** [postId] 모집글의 내 응답을 [answer]로 바꾼 목록. */
+private fun PostList.withAnswer(postId: Long, answer: VoteAnswer): PostList = copy(
+    posts = posts.map { post ->
+        if (post.postId == postId) post.copy(crewRun = post.crewRun?.copy(myAnswer = answer)) else post
+    }
+)
 
 // ---------- 크루 관리(크루장) ----------
 
@@ -284,6 +361,8 @@ sealed interface ManageAction {
 data class CrewManageUiState(
     val crewId: Long = 0,
     val crewName: String = "",
+    /** 크루 정보(GET /crews/{id}). 정보 수정 칸과 초대 코드를 채운다. */
+    val detail: CrewDetail? = null,
     val loading: Boolean = true,
     val requests: PendingRequests? = null,
     val members: CrewMembers? = null,
@@ -302,7 +381,7 @@ sealed interface CrewManageEvent {
 
 /**
  * 크루 관리(FR-113~FR-116, FR-123, FR-127, FR-136). 권한은 서버가 검사한다(FR-128): 크루장이 아니면 거부 문구를 보인다.
- * 정보 수정 칸은 지금 크루 정보를 돌려주는 조회가 없어 이름만 채워 둔다.
+ * 정보 수정 칸과 초대 코드는 GET /crews/{id}(크루장에게는 초대 코드가 함께 온다)로 채운다.
  */
 @HiltViewModel
 class CrewManageViewModel @Inject constructor(private val crews: CrewRepository) : ViewModel() {
@@ -316,25 +395,31 @@ class CrewManageViewModel @Inject constructor(private val crews: CrewRepository)
     fun bind(key: Routes.CrewManage) {
         if (bound == key.crewId) return
         bound = key.crewId
-        _state.value =
-            CrewManageUiState(crewId = key.crewId, crewName = key.crewName, form = CrewFormState(name = key.crewName))
+        _state.value = CrewManageUiState(crewId = key.crewId)
         load()
     }
 
+    /** 크루 정보·가입 신청·크루원을 읽는다. 정보 수정 칸은 처음 읽을 때만 채운다(쓰던 값을 덮지 않는다). */
     fun load() {
         val crewId = _state.value.crewId
         _state.update { it.copy(loading = true, error = null) }
         viewModelScope.launch {
+            val detail = crews.detail(crewId)
             val requests = crews.pendingRequests(crewId)
             val members = crews.members(crewId)
-            _state.update {
-                it.copy(
+            _state.update { st ->
+                val info = (detail as? Outcome.Success)?.value
+                st.copy(
                     loading = false,
+                    detail = info ?: st.detail,
+                    crewName = info?.name ?: st.crewName,
+                    form = if (st.detail == null && info != null) info.toFormState() else st.form,
+                    inviteCode = st.inviteCode ?: info?.inviteCode,
                     requests = (requests as? Outcome.Success)?.value,
                     members = (members as? Outcome.Success)?.value,
-                    error = ((requests as? Outcome.Failure) ?: (members as? Outcome.Failure))?.error?.let(
-                        CrewErrorText::of
-                    )
+                    error = listOf(detail, requests, members)
+                        .firstNotNullOfOrNull { (it as? Outcome.Failure)?.error }
+                        ?.let(CrewErrorText::of)
                 )
             }
         }
@@ -429,3 +514,7 @@ class CrewManageViewModel @Inject constructor(private val crews: CrewRepository)
         is Outcome.Failure -> CrewErrorText.of(error)
     }
 }
+
+/** 크루 정보 → 정보 수정 칸. */
+internal fun CrewDetail.toFormState(): CrewFormState =
+    CrewFormState(name = name, intro = intro.orEmpty(), tags = tags, visibility = visibility, joinPolicy = joinPolicy)

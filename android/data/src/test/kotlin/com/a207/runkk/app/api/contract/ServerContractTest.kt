@@ -25,6 +25,7 @@ import com.a207.runkk.app.api.battle.MatchRequest
 import com.a207.runkk.app.api.battle.RecordBattleStartResponse
 import com.a207.runkk.app.api.battle.SelfBattleRequest
 import com.a207.runkk.app.api.crew.CreatedResponse
+import com.a207.runkk.app.api.crew.CrewDetailResponse
 import com.a207.runkk.app.api.crew.CrewFormDto
 import com.a207.runkk.app.api.crew.CrewListResponse
 import com.a207.runkk.app.api.crew.CrewMembersResponse
@@ -33,8 +34,10 @@ import com.a207.runkk.app.api.crew.CrewRankingResponse
 import com.a207.runkk.app.api.crew.CrewRunResultResponse
 import com.a207.runkk.app.api.crew.InviteCodeResponse
 import com.a207.runkk.app.api.crew.JoinRequestBody
+import com.a207.runkk.app.api.crew.JoinResponse
 import com.a207.runkk.app.api.crew.LeaderRequest
 import com.a207.runkk.app.api.crew.LobbyResponse
+import com.a207.runkk.app.api.crew.MyCrewResponse
 import com.a207.runkk.app.api.crew.PendingRequestsResponse
 import com.a207.runkk.app.api.crew.PostListResponse
 import com.a207.runkk.app.api.crew.PostWriteRequest
@@ -70,6 +73,8 @@ import com.a207.runkk.app.domain.account.ProviderType
 import com.a207.runkk.app.domain.avatar.ItemSlot
 import com.a207.runkk.app.domain.battle.BattleHistory
 import com.a207.runkk.app.domain.crew.CrewRanking
+import com.a207.runkk.app.domain.crew.CrewRole
+import com.a207.runkk.app.domain.crew.CrewRunStatus
 import com.a207.runkk.app.domain.crew.CrewVisibility
 import com.a207.runkk.app.domain.crew.JoinPolicy
 import com.a207.runkk.app.domain.crew.PostList
@@ -118,6 +123,8 @@ class ServerContractTest {
             "VoteAnswer" to names(VoteAnswer.entries),
             "PostKind" to names(PostList.Kind.entries),
             "AggregationPeriod" to names(CrewRanking.Period.entries),
+            "CrewRole" to names(CrewRole.entries),
+            "CrewRunStatus" to names(CrewRunStatus.entries),
             "BattleType" to names(BattleHistory.Type.entries),
             "CardKind" to names(CardKind.entries),
             "RunMode" to names(RunMode.entries),
@@ -141,6 +148,8 @@ class ServerContractTest {
         assertEquals(enumNames("VoteAnswer"), names(VoteAnswer.entries))
         assertEquals(enumNames("PostKind"), names(PostList.Kind.entries))
         assertEquals(enumNames("AggregationPeriod"), names(CrewRanking.Period.entries))
+        assertEquals(enumNames("CrewRole"), names(CrewRole.entries))
+        assertEquals(enumNames("CrewRunStatus"), names(CrewRunStatus.entries))
         assertEquals(enumNames("BattleType"), names(BattleHistory.Type.entries))
         assertEquals(enumNames("DisposalKind"), names(DisposalOrder.Kind.entries))
         assertEquals(enumNames("ProviderType"), names(ProviderType.entries))
@@ -284,6 +293,9 @@ class ServerContractTest {
         response(CreatedResponse.serializer(), "CrewDtos.CreatedResponse")
         response(CreatedResponse.serializer(), "CrewDtos.PostResponse")
         response(InviteCodeResponse.serializer(), "CrewDtos.InviteCodeResponse")
+        response(JoinResponse.serializer(), "CrewDtos.JoinResponse")
+        response(CrewDetailResponse.serializer(), "CrewDtos.CrewDetailResponse")
+        response(MyCrewResponse.serializer(), "CrewDtos.MyCrewResponse")
         response(InboxResponse.serializer(), "InboxView")
         response(UploadResponse.serializer(), "RunController.UploadResponse")
         response(DisposalOrderResponse.serializer(), "DisposalOrderView")

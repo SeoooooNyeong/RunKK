@@ -28,17 +28,18 @@ class CrewRunViewModelTest {
     @get:Rule
     val main = MainDispatcherRule()
 
-    private fun TestScope.lobbyVm(w: CrewWorld, vms: ViewModelCloser, meters: Long? = 5_000): CrewRunViewModel {
+    private fun TestScope.lobbyVm(w: CrewWorld, vms: ViewModelCloser): CrewRunViewModel {
         val vm = vms.track(CrewRunViewModel(w.crews, w.coordinator, w.clock))
-        vm.bind(Routes.CrewRunLobby(31, meters))
+        vm.bind(Routes.CrewRunLobby(31))
         runCurrent()
         return vm
     }
 
+    /** "나"는 본인 줄(me)이다. */
     private fun relay(vararg rows: Triple<String, Long, Int?>) = CrewRunRelay(
         31,
         rows.map { (name, meters, rank) ->
-            CrewRunRelay.Entry(name, Distance(meters), rank, CrewRunRelay.Connection.CONNECTED)
+            CrewRunRelay.Entry(name, Distance(meters), rank, CrewRunRelay.Connection.CONNECTED, me = name == "나")
         }
     )
 
@@ -69,17 +70,22 @@ class CrewRunViewModelTest {
         val vm = lobbyVm(w, vms)
         vm.onReadyToggle()
         assertTrue(vm.state.value.ready)
-        assertTrue(vm.state.value.lobby!!.participants.first { it.displayName == "나" }.ready)
+        assertTrue(vm.state.value.lobby!!.participants.first { it.me }.ready)
         vm.onReadyToggle()
         assertFalse(vm.state.value.ready)
     }
 
     @Test
-    fun `거리를 모르면 채널을 열지 않고 안내한다`() = main.runVmTest { vms ->
+    fun `크루런 거리는 대기실 응답에서 읽고 준비 여부는 대기실의 내 줄(me)을 따른다`() = main.runVmTest { vms ->
         val w = crewWorld()
-        val vm = lobbyVm(w, vms, meters = null)
-        assertIs<CrewRunState.Idle>(w.coordinator.state.value)
-        assertNotNull(vm.state.value.error)
+        w.crews.lobbyState = lobby.copy(
+            distance = Distance(3_000),
+            participants = lobby.participants.map { if (it.me) it.copy(ready = true) else it }
+        )
+        val vm = lobbyVm(w, vms)
+        assertEquals(Distance(3_000), vm.state.value.distance)
+        assertTrue(vm.state.value.ready)
+        assertIs<CrewRunState.Lobby>(w.coordinator.state.value)
     }
 
     @Test
@@ -97,6 +103,7 @@ class CrewRunViewModelTest {
             runCurrent()
             assertEquals(CrewRunPhase.RUNNING, vm.state.value.phase)
             assertEquals(listOf("바람처럼", "나", "달빛"), vm.state.value.relay.map { it.name })
+            assertEquals(listOf(false, true, false), vm.state.value.relay.map { it.me }, "내 줄을 강조한다")
             w.channels.channel.push(CrewRunEnded(31))
             runCurrent()
             assertEquals(CrewRunEvent.Finished(31), awaitItem())

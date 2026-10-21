@@ -87,9 +87,9 @@ class RealtimeContractTest {
                     CrewRunRelay(
                         77,
                         listOf(
-                            CrewRunRelay.Entry("새벽곰", Distance(3_120), 1, CrewRunRelay.Connection.CONNECTED),
-                            CrewRunRelay.Entry("달리는여우", Distance(2_980), 2, CrewRunRelay.Connection.CHECKING),
-                            CrewRunRelay.Entry("한강토끼", Distance(1_500), null, CrewRunRelay.Connection.QUIT)
+                            CrewRunRelay.Entry("새벽곰", Distance(3_120), 1, CrewRunRelay.Connection.CONNECTED, 11),
+                            CrewRunRelay.Entry("달리는여우", Distance(2_980), 2, CrewRunRelay.Connection.CHECKING, 12),
+                            CrewRunRelay.Entry("한강토끼", Distance(1_500), null, CrewRunRelay.Connection.QUIT, 13)
                         )
                     ),
                 "CrewRunEnded" to CrewRunEnded(77)
@@ -100,6 +100,20 @@ class RealtimeContractTest {
         }
         val types = expected.values.map { it::class.simpleName }.toSet()
         assertEquals(10, types.size, "서버 → 앱 메시지 10종을 모두 덮는다")
+    }
+
+    @Test
+    fun `크루런 중계의 본인 줄은 접근 토큰 회원 ID와 memberId가 같은 줄이다`() {
+        val mine = ServerMessageDecoder { 12L }.decode(read("CrewRunRelay.json")) as CrewRunRelay
+        val unknown = ServerMessageDecoder { null }.decode(read("CrewRunRelay.json")) as CrewRunRelay
+
+        assertEquals(listOf(false, true, false), mine.entries.map { it.me })
+        assertEquals(listOf(false, false, false), unknown.entries.map { it.me })
+        val noMemberId =
+            ServerMessageDecoder { 12L }.decode(
+                """{"type":"CrewRunRelay","postId":1,"entries":[{"name":"a","distance":1,"connection":"CONNECTED"}]}"""
+            ) as CrewRunRelay
+        assertEquals(listOf(false), noMemberId.entries.map { it.me })
     }
 
     @Test

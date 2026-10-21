@@ -5,7 +5,9 @@ import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.crew.CrewRanking
+import com.a207.runkk.app.domain.crew.CrewRole
 import com.a207.runkk.app.domain.crew.JoinPolicy
+import com.a207.runkk.app.domain.crew.MyCrew
 import com.a207.runkk.app.domain.crew.VoteAnswer
 import java.time.LocalTime
 import kotlin.test.assertEquals
@@ -23,12 +25,73 @@ class CrewFindViewModelTest {
     private val repo = FakeCrewRepository()
 
     @Test
-    fun `공개 크루 목록과 추천을 함께 읽는다(FR-117·FR-118)`() {
+    fun `크루가 없으면 내 크루를 확인한 뒤 공개 크루 목록과 추천을 함께 읽는다(FR-117·FR-118)`() {
         val vm = CrewFindViewModel(repo)
         val s = vm.state.value
+        assertEquals("myCrew", repo.calls.first())
+        assertFalse(s.checkingMine)
+        assertNull(s.mine)
         assertEquals(3, s.crews.size)
         assertEquals(listOf(crewA), s.recommendations)
         assertTrue("search:null:[]" in repo.calls)
+    }
+
+    @Test
+    fun `크루 탭에 다시 들어왔을 때 소속 크루가 있으면 찾기 목록을 읽지 않고 내 크루를 보인다`() {
+        repo.mine = MyCrew(crewDetail(11), emptyList())
+        val vm = CrewFindViewModel(repo)
+        assertEquals(11L, vm.state.value.mine?.crewId)
+        assertTrue(repo.calls.none { it.startsWith("search") })
+    }
+
+    @Test
+    fun `내 크루를 확인하지 못하면 찾기를 보이지 않고 다시 시도하게 한다`() {
+        repo.fail["myCrew"] = AppError.Network
+        val vm = CrewFindViewModel(repo)
+        assertNotNull(vm.state.value.mineError)
+        assertTrue(repo.calls.none { it.startsWith("search") })
+        repo.fail.remove("myCrew")
+        vm.loadMine()
+        assertNull(vm.state.value.mineError)
+        assertEquals(3, vm.state.value.crews.size)
+    }
+
+    @Test
+    fun `대기 중인 내 가입 신청을 보이고 확인 뒤 취소한다(FR-143)`() {
+        val request = MyCrew.PendingJoin(91, 12, "저녁런 클럽", start)
+        repo.mine = MyCrew(null, listOf(request))
+        val vm = CrewFindViewModel(repo)
+        assertEquals(listOf(request), vm.state.value.pending)
+        vm.onCancelAsk(request)
+        assertEquals(request, vm.state.value.confirmCancel)
+        assertTrue(repo.calls.none { it.startsWith("cancelJoin") }, "확인 전에는 보내지 않는다")
+        vm.onCancelConfirm()
+        assertTrue("cancelJoin:91" in repo.calls)
+        assertEquals(emptyList(), vm.state.value.pending)
+        assertEquals("저녁런 클럽 가입 신청을 취소했어요", vm.state.value.message)
+    }
+
+    @Test
+    fun `가입 신청 취소가 거부되면 사유를 보이고 소속·신청을 다시 읽는다`() {
+        val request = MyCrew.PendingJoin(91, 12, "저녁런 클럽", start)
+        repo.mine = MyCrew(null, listOf(request))
+        repo.fail["cancelJoin"] = AppError.Rejected("REQUEST_DECIDED")
+        val vm = CrewFindViewModel(repo)
+        vm.onCancelAsk(request)
+        vm.onCancelConfirm()
+        assertEquals("이미 처리된 신청이에요", vm.state.value.message)
+        assertEquals(2, repo.calls.count { it == "myCrew" })
+    }
+
+    @Test
+    fun `목록 끝에 닿으면 다음 쪽을 이어 받고 끝이면 더 부르지 않는다`() {
+        repo.searchNext = 40
+        val vm = CrewFindViewModel(repo)
+        vm.loadMore()
+        assertEquals(listOf(11L, 12L, 13L, 14L), vm.state.value.crews.map { it.crewId })
+        assertNull(vm.state.value.nextCursor)
+        vm.loadMore()
+        assertEquals(1, repo.calls.count { it == "search:null:[]:40" })
     }
 
     @Test
@@ -43,15 +106,15 @@ class CrewFindViewModelTest {
     }
 
     @Test
-    fun `자유 가입이면 바로 크루 홈으로, 승인제면 신청 안내(FR-120·FR-121)`() = runTest(main.dispatcher) {
+    fun `승인제면 신청 안내와 함께 대기 중 신청에 더하고, 가입되면 그 자리에서 내 크루 홈(FR-120·FR-121)`() {
         val vm = CrewFindViewModel(repo)
-        vm.events.test {
-            vm.onJoin(crewA)
-            assertEquals(CrewEvent.Open(Routes.CrewHome(11, "새벽질주")), awaitItem())
-        }
         vm.onJoin(crewC)
         assertEquals("가입 신청했어요. 크루장이 결정하면 알려 드려요", vm.state.value.message)
+        assertEquals(listOf(91L), vm.state.value.pending.map { it.requestId })
+        assertNull(vm.state.value.mine)
         assertEquals(JoinPolicy.APPROVAL, crewC.joinPolicy)
+        vm.onJoin(crewA)
+        assertEquals(11L, vm.state.value.mine?.crewId)
     }
 
     @Test
@@ -73,6 +136,17 @@ class CrewFindViewModelTest {
         vm.onInviteSubmit()
         assertTrue("invite:AB12CD" in repo.calls)
         assertFalse(vm.state.value.inviteOpen)
+        assertEquals(12L, vm.state.value.mine?.crewId, "초대 코드로 가입한 크루 홈을 연다")
+    }
+
+    @Test
+    fun `초대 코드를 너무 많이 틀리면(429 TOO_MANY_ATTEMPTS) 기다리라고 안내한다`() {
+        repo.fail["invite"] = AppError.Rejected("TOO_MANY_ATTEMPTS")
+        val vm = CrewFindViewModel(repo)
+        vm.onInviteOpen()
+        vm.onInviteCode("AB12CD")
+        vm.onInviteSubmit()
+        assertEquals("초대 코드를 너무 많이 틀렸어요. 10분 뒤 다시 시도해 주세요", vm.state.value.message)
     }
 }
 
@@ -92,13 +166,23 @@ class CrewCreateViewModelTest {
     }
 
     @Test
-    fun `만들면 그 크루 홈으로(FR-110)`() = runTest(main.dispatcher) {
+    fun `만들면 크루 탭(내 크루 홈)으로(FR-110)`() = runTest(main.dispatcher) {
         val vm = CrewCreateViewModel(repo)
         vm.onForm(CrewFormState(name = " 새벽질주 ", tags = setOf("SOCIAL_RUN", "BEGINNER_WELCOME")))
         vm.events.test {
             vm.onSubmit()
-            assertEquals(CrewEvent.Open(Routes.CrewHome(77, "새벽질주")), awaitItem())
+            assertEquals(CrewEvent.Created, awaitItem())
         }
+        assertTrue("create:새벽질주" in repo.calls)
+    }
+
+    @Test
+    fun `크루명이 겹치면 이름 중복 문구를 보인다`() {
+        repo.fail["create"] = AppError.Rejected("CREW_NAME_TAKEN")
+        val vm = CrewCreateViewModel(repo)
+        vm.onForm(CrewFormState(name = "새벽질주", tags = setOf("SOCIAL_RUN")))
+        vm.onSubmit()
+        assertEquals("이미 있는 크루명이에요. 다른 이름을 입력해 주세요", vm.state.value.error)
     }
 }
 
@@ -107,7 +191,30 @@ class CrewHomeViewModelTest {
     val main = MainDispatcherRule()
     private val repo = FakeCrewRepository()
 
-    private fun vm() = CrewHomeViewModel(repo).also { it.bind(Routes.CrewHome(11, "새벽질주")) }
+    private fun vm() = CrewHomeViewModel(repo).also { it.bind(Routes.CrewHome(11)) }
+
+    @Test
+    fun `크루 이름·인원·역할은 크루 조회로 읽고 크루 관리는 크루장에게만 연다`() {
+        val member = vm()
+        assertEquals("새벽질주", member.state.value.crewName)
+        assertEquals(6, member.state.value.detail?.headcount)
+        assertFalse(member.state.value.canManage)
+        repo.role = CrewRole.LEADER
+        val leader = CrewHomeViewModel(repo).also { it.bind(Routes.CrewHome(11)) }
+        assertTrue(leader.state.value.canManage)
+    }
+
+    @Test
+    fun `게시글은 끝에 닿으면 다음 쪽을 이어 받는다(FR-131)`() {
+        repo.postsNext = 41
+        val vm = vm()
+        vm.onTab(CrewTab.CHEER)
+        vm.onLoadMore()
+        assertEquals(listOf(41L, 42L, 49L), vm.state.value.cheers?.posts?.map { it.postId })
+        assertNull(vm.state.value.cheers?.nextCursor)
+        vm.onLoadMore()
+        assertEquals(1, repo.calls.count { it == "posts:CHEER:41" })
+    }
 
     @Test
     fun `레이스 탭 - 이번 주 거리·기여도와 주간 랭킹, 기간을 바꾸면 다시 읽는다(FR-137·FR-140)`() {
@@ -156,13 +263,22 @@ class CrewHomeViewModelTest {
     }
 
     @Test
-    fun `크루런 참여 응답을 남긴다(FR-145)`() {
+    fun `크루런 참여 응답을 남기면 그 글의 내 응답으로 보이고 서버 목록을 다시 읽는다(FR-145)`() {
         val vm = vm()
         vm.onTab(CrewTab.CREW_RUN)
+        assertNull(vm.state.value.crewRuns?.posts?.first()?.crewRun?.myAnswer)
         vm.onVote(crewRunPosts.posts[0], VoteAnswer.GOING)
-        assertEquals(VoteAnswer.GOING, vm.state.value.votes[31])
-        assertEquals(Distance(5_000), distanceHint(crewRunPosts.posts[0].summary))
-        assertNull(distanceHint("토 07:00 · 7km"), "1·3·5·10km 밖은 쓰지 않는다")
+        assertTrue("vote:31:GOING" in repo.calls)
+        assertEquals(2, repo.calls.count { it == "posts:CREW_RUN" }, "투표 뒤 참여 인원·내 응답을 서버에서 다시 읽는다")
+    }
+
+    @Test
+    fun `모집글 요약은 서버 crewRun의 거리·모집 일시·참여 인원이고 끝난 크루런은 완주 인원을 더한다(FR-133)`() {
+        assertEquals("5K · 10월 24일(토) 07:00 · 갈래요 2명", crewRunSummary(crewRunVoting, seoul))
+        assertEquals(
+            "10K · 10월 24일(토) 07:00 · 갈래요 3명 · 완주 3명",
+            crewRunSummary(crewRunPosts.posts[1].crewRun!!, seoul)
+        )
     }
 
     @Test
@@ -201,7 +317,20 @@ class CrewManageViewModelTest {
     val main = MainDispatcherRule()
     private val repo = FakeCrewRepository()
 
-    private fun vm() = CrewManageViewModel(repo).also { it.bind(Routes.CrewManage(11, "새벽질주")) }
+    private fun vm() = CrewManageViewModel(repo).also { it.bind(Routes.CrewManage(11)) }
+
+    @Test
+    fun `정보 수정 칸과 초대 코드는 크루 조회로 채운다(FR-112·FR-113)`() {
+        repo.role = CrewRole.LEADER
+        val vm = vm()
+        val form = vm.state.value.form
+        assertEquals("새벽질주", vm.state.value.crewName)
+        assertEquals("새벽에 같이 달려요", form.intro)
+        assertEquals(setOf("SOCIAL_RUN", "DAWN"), form.tags)
+        assertEquals(JoinPolicy.FREE, form.joinPolicy)
+        assertEquals("K7P2QX", vm.state.value.inviteCode)
+        assertTrue("detail:11" in repo.calls)
+    }
 
     @Test
     fun `가입 신청을 승인하면 안내하고 다시 읽는다(FR-123·FR-136)`() {

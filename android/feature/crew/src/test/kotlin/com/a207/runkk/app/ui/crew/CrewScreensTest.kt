@@ -3,6 +3,8 @@ package com.a207.runkk.app.ui.crew
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasSetTextAction
@@ -81,18 +83,61 @@ class CrewScreensTest {
     }
 
     @Test
+    fun `크루 찾기 - 대기 중인 내 가입 신청을 보이고 취소를 묻는다(FR-143)`() {
+        val request = com.a207.runkk.app.domain.crew.MyCrew.PendingJoin(91, 12, "저녁런 클럽", start)
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                CrewFindScreen(
+                    CrewFindUiState(
+                        checkingMine = false,
+                        loading = false,
+                        crews = listOf(crewA),
+                        pending = listOf(request)
+                    ),
+                    CrewFindActions(onCancelAsk = { calls += "cancel:${it.requestId}" })
+                )
+            }
+        }
+        compose.onNodeWithText("승인 대기").assertExists()
+        compose.onNodeWithContentDescription("저녁런 클럽 가입 신청 취소").performClick()
+        assertEquals(listOf("cancel:91"), calls)
+    }
+
+    @Test
     fun `내 크루 - 탭 전환과 랭킹 줄을 읽어 준다`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 CrewHomeScreen(
-                    CrewHomeUiState(crewId = 11, crewName = "새벽질주", race = race, ranking = ranking, members = members),
+                    CrewHomeUiState(
+                        crewId = 11,
+                        detail = crewDetail(),
+                        race = race,
+                        ranking = ranking,
+                        members = members
+                    ),
                     CrewHomeActions(onTab = { calls += it.name })
                 )
             }
         }
         compose.onNodeWithContentDescription("1위 바람처럼 18.2킬로미터, 31%").assertExists()
+        compose.onNodeWithText("6/10명 · 크루원").assertExists()
         compose.onNodeWithText("응원보드").performClick()
         assertEquals(listOf("CHEER"), calls)
+    }
+
+    @Test
+    fun `내 크루 - 크루 관리 메뉴는 크루장에게만 보이고 탭 자리에서는 뒤로 단추가 없다`() {
+        var state by androidx.compose.runtime.mutableStateOf(CrewHomeUiState(crewId = 11, detail = crewDetail()))
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) { CrewHomeScreen(state, CrewHomeActions(), atTabRoot = true) }
+        }
+        compose.onNodeWithContentDescription("뒤로").assertDoesNotExist()
+        compose.onNodeWithContentDescription("크루 메뉴").performClick()
+        compose.onNodeWithText("크루 관리").assertDoesNotExist()
+        compose.onNodeWithText("크루 나가기").assertExists()
+        state = CrewHomeUiState(crewId = 11, detail = crewDetail(role = com.a207.runkk.app.domain.crew.CrewRole.LEADER))
+        compose.waitForIdle()
+        compose.onNodeWithText("크루 관리").assertExists()
     }
 
     @Test
@@ -100,22 +145,51 @@ class CrewScreensTest {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 CrewHomeScreen(
-                    CrewHomeUiState(crewId = 11, crewName = "새벽질주", tab = CrewTab.CREW_RUN, crewRuns = crewRunPosts),
+                    CrewHomeUiState(
+                        crewId = 11,
+                        detail = crewDetail(),
+                        tab = CrewTab.CREW_RUN,
+                        crewRuns = crewRunPosts
+                    ),
                     CrewHomeActions(
                         onVote = { post, answer -> calls += "${post.postId}:$answer" },
-                        onLobby = { calls += "lobby:${it.postId}" }
+                        onLobby = { calls += "lobby:${it.postId}" },
+                        onResult = { calls += "result:${it.postId}" }
                     )
                 )
             }
         }
-        compose.onNodeWithText("토 07:00 · 5km 같이 달려요").assertExists()
+        compose.onNodeWithText("같이 달려요").assertExists()
+        compose.onAllNodes(androidx.compose.ui.test.hasText("· 갈래요 2명", substring = true))[0].assertExists()
+        compose.onNodeWithText("참여 투표 중").assertExists()
         compose.onAllNodesWithTextFirst("갈래요")
         compose.onAllNodesWithTextFirst("대기실 들어가기")
-        assertEquals(listOf("31:${VoteAnswer.GOING}", "lobby:31"), calls)
+        // 끝난 크루런(32)은 투표·대기실 대신 내 응답과 결과 단추만 보인다.
+        compose.onNodeWithText("내 응답: 갈래요").assertExists()
+        compose.onNodeWithText("지난 결과").performClick()
+        assertEquals(listOf("31:${VoteAnswer.GOING}", "lobby:31", "result:32"), calls)
     }
 
     private fun androidx.compose.ui.test.junit4.ComposeContentTestRule.onAllNodesWithTextFirst(text: String) =
         onAllNodes(androidx.compose.ui.test.hasText(text))[0].performClick()
+
+    @Test
+    fun `크루런 진행 - 내 줄은 "나"로 읽어 준다`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                CrewRunScreen(
+                    CrewRunUiState(
+                        postId = 31,
+                        distance = Distance(5_000),
+                        phase = CrewRunPhase.RUNNING,
+                        relay = listOf(RelayRow("바람처럼", Distance(2_900), 1, "CONNECTED"), myRelayRow)
+                    ),
+                    CrewRunActions()
+                )
+            }
+        }
+        compose.onNodeWithContentDescription("2위, 나, 새벽곰, 2.64킬로미터").assertExists()
+    }
 
     @Test
     fun `크루런 진행 - 그만두기는 길게 눌러 확인`() {
@@ -133,6 +207,9 @@ class CrewScreensTest {
         assertEquals(listOf("tap", "long"), calls)
     }
 }
+
+/** 중계의 내 줄. */
+private val myRelayRow = RelayRow("새벽곰", Distance(2_640), 2, "CONNECTED", me = true)
 
 /** 크루 스크린샷(G1~G8). */
 @RunWith(RobolectricTestRunner::class)
@@ -179,13 +256,26 @@ class CrewScreenshotTest {
 
     private val home = CrewHomeUiState(
         crewId = 11,
-        crewName = "새벽질주",
-        race = race,
+        detail = crewDetail(),
+        race = race.copy(
+            contributors = race.contributors.map {
+                if (it.displayName ==
+                    "나"
+                ) {
+                    it.copy(me = true)
+                } else {
+                    it
+                }
+            }
+        ),
         ranking = ranking,
-        crewRuns = crewRunPosts,
+        crewRuns = crewRunPosts.copy(
+            posts = crewRunPosts.posts.map {
+                if (it.postId == 31L) it.copy(crewRun = it.crewRun?.copy(myAnswer = VoteAnswer.GOING)) else it
+            }
+        ),
         cheers = cheers,
-        members = members,
-        votes = mapOf(31L to VoteAnswer.GOING)
+        members = members.copy(members = members.members.map { if (it.memberId == 2L) it.copy(me = true) else it })
     )
 
     @Test
@@ -272,7 +362,7 @@ class CrewScreenshotTest {
                 phase = CrewRunPhase.RUNNING,
                 relay = listOf(
                     RelayRow("바람처럼", Distance(2_900), 1, "CONNECTED"),
-                    RelayRow("나", Distance(2_640), 2, "CONNECTED"),
+                    myRelayRow,
                     RelayRow("달빛", Distance(1_980), 3, "CHECKING"),
                     RelayRow("거북", Distance(800), null, "QUIT")
                 )

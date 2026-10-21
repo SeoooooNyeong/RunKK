@@ -1,12 +1,15 @@
 package com.a207.runkk.app.ui.crew
 
 import com.a207.runkk.app.core.designsystem.RunkkErrorText
+import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkTagCategory
 import com.a207.runkk.app.core.designsystem.RunkkTags
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.domain.crew.CrewRunCoordinator
+import com.a207.runkk.app.domain.crew.CrewRunStatus
 import com.a207.runkk.app.domain.crew.JoinPolicy
+import com.a207.runkk.app.domain.crew.PostList
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -63,14 +66,22 @@ internal object CrewErrorText {
     )
 }
 
-/** 게시글 요약에서 크루런 거리(예: "5km")를 찾는다. 게시판 목록에 거리 항목이 생기면 그 값을 쓴다. */
-internal fun distanceHint(summary: String): Distance? =
-    DISTANCE_IN_TEXT.find(summary)?.groupValues?.get(1)?.toLongOrNull()
-        ?.let { Distance(it * METERS_PER_KM) }
-        ?.takeIf { it in CREW_RUN_DISTANCES }
+/** 크루런 상태 문구(서버 crew.CrewRunStatus). */
+internal fun crewRunStatusLabel(status: CrewRunStatus): String = when (status) {
+    CrewRunStatus.VOTING -> "참여 투표 중"
+    CrewRunStatus.LOBBY_OPEN -> "대기실 열림"
+    CrewRunStatus.RUNNING -> "달리는 중"
+    CrewRunStatus.FINISHED -> "끝남"
+    CrewRunStatus.CANCELLED -> "취소됨"
+}
 
-private val DISTANCE_IN_TEXT = Regex("""(\d+)\s*(?:km|K)""", RegexOption.IGNORE_CASE)
-private const val METERS_PER_KM = 1_000L
+/** 크루런 모집글 한 줄 요약: "5km · 10월 24일(토) 07:00 · 갈래요 3명" (+ 끝났으면 "완주 n명"). */
+internal fun crewRunSummary(info: PostList.CrewRunInfo, zone: ZoneId = ZoneId.systemDefault()): String = listOfNotNull(
+    RunkkFormat.targetLabel(info.distance),
+    meetLabel(info.scheduledAt, zone),
+    "갈래요 ${info.goingCount}명",
+    info.takeIf { it.status == CrewRunStatus.FINISHED }?.let { "완주 ${it.finisherCount}명" }
+).joinToString(" · ")
 
 /** "10월 24일(토) 07:00". */
 internal fun meetLabel(at: Instant, zone: ZoneId = ZoneId.systemDefault()): String = at.atZone(zone).format(MEET)

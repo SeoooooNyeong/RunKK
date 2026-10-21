@@ -38,15 +38,19 @@ import okhttp3.WebSocketListener
 class WebSocketLiveChannel internal constructor(
     private val client: OkHttpClient,
     private val url: String,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
+    private val decoder: ServerMessageDecoder = ServerMessageDecoder()
 ) : LiveChannel {
     @Inject
-    constructor(client: OkHttpClient, scope: CoroutineScope) : this(client, BuildConfig.LIVE_SOCKET_URL, scope)
+    constructor(client: OkHttpClient, scope: CoroutineScope, decoder: ServerMessageDecoder) : this(
+        client,
+        BuildConfig.LIVE_SOCKET_URL,
+        scope,
+        decoder
+    )
 
     /** 핸드셰이크 실패. code는 업그레이드 대신 받은 HTTP 응답 코드(연결 자체가 안 됐으면 null). */
     class HandshakeFailed(val code: Int?) : IOException("WebSocket 핸드셰이크 실패: ${code ?: "연결 안 됨"}")
-
-    private val decoder = ServerMessageDecoder()
 
     /** 끊긴 연결을 빨리 알아채도록 핑을 보낸다(대결 진행도 지연 3초 목표, NFR-005). */
     private val socketClient: OkHttpClient by lazy {

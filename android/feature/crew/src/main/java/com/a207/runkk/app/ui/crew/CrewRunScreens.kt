@@ -409,9 +409,11 @@ private fun Participants(lobby: Lobby) {
                     .fillMaxWidth()
                     .clip(RunkkShapes.Medium)
                     .background(RunkkColors.Surface)
+                    .border(1.dp, if (p.me) RunkkColors.Lime else RunkkColors.Surface, RunkkShapes.Medium)
                     .padding(horizontal = 16.dp, vertical = 12.dp)
                     .semantics(mergeDescendants = true) {},
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
                     p.displayName,
@@ -419,6 +421,7 @@ private fun Participants(lobby: Lobby) {
                     color = RunkkColors.TextPrimary,
                     modifier = Modifier.weight(1f)
                 )
+                if (p.me) RunkkBadge("나", tone = RunkkBadgeTone.Neutral)
                 RunkkBadge(
                     if (p.ready) "준비 완료" else "들어오는 중",
                     tone = if (p.ready) RunkkBadgeTone.Lime else RunkkBadgeTone.Muted
@@ -455,13 +458,17 @@ private fun ColumnScope.RelayBody(state: CrewRunUiState) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RunkkShapes.Medium)
-                    .background(RunkkColors.Surface)
-                    .border(1.dp, if (row.rank == 1) RunkkColors.Lime else RunkkColors.Border, RunkkShapes.Medium)
+                    .background(if (row.me) RunkkColors.LimeContainer else RunkkColors.Surface)
+                    .border(
+                        if (row.me) 2.dp else 1.dp,
+                        if (row.me || row.rank == 1) RunkkColors.Lime else RunkkColors.Border,
+                        RunkkShapes.Medium
+                    )
                     .padding(16.dp)
                     .clearAndSetSemantics {
                         contentDescription = listOfNotNull(
                             row.rank?.let { "${it}위" },
-                            row.name,
+                            if (row.me) "나, ${row.name}" else row.name,
                             "${RunkkFormat.km(row.distance)}킬로미터",
                             status
                         ).joinToString(", ")
@@ -484,6 +491,7 @@ private fun ColumnScope.RelayBody(state: CrewRunUiState) {
                         color = RunkkColors.TextPrimary,
                         modifier = Modifier.weight(1f)
                     )
+                    if (row.me) RunkkBadge("나", tone = RunkkBadgeTone.Lime)
                     status?.let { RunkkBadge(it, tone = RunkkBadgeTone.Muted) }
                     Text(
                         "${RunkkFormat.km(row.distance)} KM",
@@ -596,12 +604,16 @@ private fun ResultBody(state: CrewRunResultUiState, result: CrewRunResult) {
                 .fillMaxWidth()
                 .clip(RunkkShapes.Medium)
                 .background(RunkkColors.Surface)
-                .border(1.dp, if (f.rank == 1) RunkkColors.Lime else RunkkColors.Border, RunkkShapes.Medium)
+                .border(
+                    if (f.me) 2.dp else 1.dp,
+                    if (f.me || f.rank == 1) RunkkColors.Lime else RunkkColors.Border,
+                    RunkkShapes.Medium
+                )
                 .padding(16.dp)
                 .clearAndSetSemantics {
                     contentDescription = listOfNotNull(
-                        f.rank?.let { "${it}위" } ?: "미완주",
-                        f.displayName,
+                        f.rank?.let { "${it}위" } ?: if (f.quit) "그만둠" else "미완주",
+                        if (f.me) "나, ${f.displayName}" else f.displayName,
                         f.elapsedSeconds?.let { RunkkFormat.durationSpoken(Duration.ofSeconds(it)) },
                         f.averagePaceSecondsPerKm?.takeIf { it > 0 }?.let { "평균 " + RunkkFormat.paceSpoken(Pace(it)) }
                     ).joinToString(", ")
@@ -621,8 +633,9 @@ private fun ResultBody(state: CrewRunResultUiState, result: CrewRunResult) {
                 color = RunkkColors.TextPrimary,
                 modifier = Modifier.weight(1f)
             )
+            if (f.me) RunkkBadge("나", tone = RunkkBadgeTone.Lime)
             if (f.rank == null) {
-                RunkkBadge("미완주", tone = RunkkBadgeTone.Muted)
+                RunkkBadge(if (f.quit) "그만둠" else "미완주", tone = RunkkBadgeTone.Muted)
             } else {
                 Column(horizontalAlignment = Alignment.End) {
                     Text(

@@ -66,9 +66,12 @@ constructor(
     @Volatile
     private var run: CrewRun? = null
 
-    /** 크루런 대기실 진입(ui.crew가 CrewRepository.enterLobby 성공 뒤 부른다). 채널을 열고 중계를 받는다. */
-    fun onLobbyEntered(postId: Long, distance: Distance, myName: String) {
-        val run = openRun(postId, distance, myName)
+    /**
+     * 크루런 대기실 진입(ui.crew가 CrewRepository.enterLobby 성공 뒤 부른다). 채널을 열고 중계를 받는다. 중계의 본인 줄은
+     * data.live가 표시한 CrewRunRelay.Entry.me로 가린다(1km 순위 안내, FR-190).
+     */
+    fun onLobbyEntered(postId: Long, distance: Distance) {
+        val run = openRun(postId, distance)
         run.round.scope.launch {
             _state.value = CrewRunState.Lobby(postId)
             val channel = liveChannelProvider.open()
@@ -206,7 +209,7 @@ constructor(
                 else -> CrewRunState.Running(run.postId, m.entries)
             }
         }
-        val mine = m.entries.firstOrNull { it.name == run.myName }?.rank
+        val mine = m.entries.firstOrNull { it.me }?.rank
         if (mine != null && mine in 1..m.entries.size) runTracker.onRankChanged(CrewRank(mine, m.entries.size))
     }
 
@@ -243,7 +246,7 @@ constructor(
     }
 
     /** 이전 회가 남아 있으면 정리(측정 중이면 endRun, 채널 닫기, 범위 취소)하고 새 회를 연다. */
-    private fun openRun(postId: Long, distance: Distance, myName: String): CrewRun {
+    private fun openRun(postId: Long, distance: Distance): CrewRun {
         run?.let { previous ->
             run = null
             previous.round.endMeasuring()
@@ -251,11 +254,11 @@ constructor(
             previous.round.cancel()
         }
         _failure.value = null
-        return CrewRun(postId, distance, myName).also { run = it }
+        return CrewRun(postId, distance).also { run = it }
     }
 
     /** 크루런 한 회. 범위·측정 여부는 CoordinatedRound가 맡는다(S-2, O-3). 범위 안 예외는 연결 실패로 닫는다. */
-    private inner class CrewRun(val postId: Long, val distance: Distance, val myName: String) {
+    private inner class CrewRun(val postId: Long, val distance: Distance) {
         val round = CoordinatedRound(applicationScope, runTracker) { fail(this, AppError.Network) }
 
         @Volatile

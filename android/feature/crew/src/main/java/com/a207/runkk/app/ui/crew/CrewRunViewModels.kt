@@ -114,15 +114,22 @@ class CrewRunWriteViewModel @Inject constructor(private val crews: CrewRepositor
 /** 크루런 화면 단계: 대기실 → 카운트다운 → 진행 중 → 끝(결과로). */
 enum class CrewRunPhase { ENTERING, LOBBY, COUNTDOWN, RUNNING, FINISHED, CANCELLED }
 
-/** 중계 한 줄(FR-149). 위치는 없다. */
-data class RelayRow(val name: String, val distance: Distance, val rank: Int?, val connection: String)
+/** 중계 한 줄(FR-149). 위치는 없다. [me]는 내 줄(강조해 보인다). */
+data class RelayRow(
+    val name: String,
+    val distance: Distance,
+    val rank: Int?,
+    val connection: String,
+    val me: Boolean = false
+)
 
 data class CrewRunUiState(
     val postId: Long = 0,
+    /** 크루런 거리(대기실 응답). 들어오기 전이면 null. */
     val distance: Distance? = null,
     val phase: CrewRunPhase = CrewRunPhase.ENTERING,
     val lobby: Lobby? = null,
-    /** 대기실에서 준비 완료를 눌렀는가(서버 대기실의 내 줄을 가려낼 수 없어 이 화면에서 누른 상태를 쓴다). */
+    /** 내 준비 완료 여부(대기실 응답의 내 줄, me). */
     val ready: Boolean = false,
     /** 모집 일시까지 남은 시간. */
     val untilStart: Duration? = null,
@@ -166,7 +173,7 @@ class CrewRunViewModel @Inject constructor(
     fun bind(key: Routes.CrewRunLobby) {
         if (bound == key.postId) return
         bound = key.postId
-        _state.value = CrewRunUiState(postId = key.postId, distance = key.distanceMeters?.let(::Distance))
+        _state.value = CrewRunUiState(postId = key.postId)
         enter()
         // 들어올 때 이미 이 크루런의 Finished가 남아 있으면(지난 회의 잔재) 무시한다.
         val stale = (coordinator.state.value as? CrewRunState.Finished)?.takeIf { it.postId == key.postId }
@@ -176,7 +183,10 @@ class CrewRunViewModel @Inject constructor(
         }
     }
 
-    /** 대기실 입장(또는 새로 읽기). 모집 일시 30분 전부터 열린다(FR-147). */
+    /**
+     * 대기실 입장(또는 새로 읽기). 모집 일시 30분 전부터 열린다(FR-147). 처음 들어오면 대기실 응답의 크루런 거리로 조정자 채널을 연다.
+     * 중계의 내 줄은 조정자가 CrewRunRelay.Entry.me로 가려 1km 순위 안내(FR-190)에 쓴다.
+     */
     fun enter() {
         val s = _state.value
         _state.update { it.copy(busy = true, error = null) }
@@ -188,16 +198,12 @@ class CrewRunViewModel @Inject constructor(
                         it.copy(
                             busy = false,
                             lobby = r.value,
+                            distance = r.value.distance,
+                            ready = r.value.myReady() ?: it.ready,
                             phase = if (it.phase == CrewRunPhase.ENTERING) CrewRunPhase.LOBBY else it.phase
                         )
                     }
-                    val distance = s.distance
-                    // 내 표시명을 알려 주는 포트가 없어(크루 대기실·크루원 응답에 본인 표시 없음) 빈 이름을 넘긴다.
-                    // 그래서 1km 순위 음성 안내(FR-190)는 통합 뒤 내 표시명 포트가 생길 때까지 동작하지 않는다(보고서 포트 변경 목록).
-                    if (first && distance != null) coordinator.onLobbyEntered(s.postId, distance, myName = "")
-                    if (first && distance == null) {
-                        _state.update { it.copy(error = "크루런 거리를 받지 못해 출발할 수 없어요. 크루런 탭에서 다시 들어와 주세요") }
-                    }
+                    if (first) coordinator.onLobbyEntered(s.postId, r.value.distance)
                     tick()
                 }
 
@@ -213,7 +219,10 @@ class CrewRunViewModel @Inject constructor(
         _state.update { it.copy(busy = true) }
         viewModelScope.launch {
             when (val r = crews.toggleReady(s.postId)) {
-                is Outcome.Success -> _state.update { it.copy(busy = false, lobby = r.value, ready = !it.ready) }
+                is Outcome.Success -> _state.update {
+                    it.copy(busy = false, lobby = r.value, ready = r.value.myReady() ?: !it.ready)
+                }
+
                 is Outcome.Failure -> _state.update { it.copy(busy = false, error = CrewErrorText.of(r.error)) }
             }
         }
@@ -269,7 +278,7 @@ class CrewRunViewModel @Inject constructor(
                         phase = CrewRunPhase.RUNNING,
                         countdown = null,
                         relay = s.entries
-                            .map { e -> RelayRow(e.name, e.distance, e.rank, e.connection.name) }
+                            .map { e -> RelayRow(e.name, e.distance, e.rank, e.connection.name, e.me) }
                             .sortedWith(
                                 compareBy<RelayRow> {
                                     it.rank ?: Int.MAX_VALUE
@@ -334,6 +343,9 @@ class CrewRunViewModel @Inject constructor(
         const val HINT_MILLIS = 2_500L
     }
 }
+
+/** 대기실 응답의 내 줄(me) 준비 여부. 내 줄이 없으면 null. */
+private fun Lobby.myReady(): Boolean? = participants.firstOrNull { it.me }?.ready
 
 // ---------- 크루런 결과 ----------
 

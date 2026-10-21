@@ -27,16 +27,27 @@ internal interface CrewApi {
     suspend fun delete(@Path("id") crewId: Long)
 
     @GET("crews")
-    suspend fun search(@Query("keyword") keyword: String?, @Query("tags") tags: List<String>): CrewListResponse
+    suspend fun search(
+        @Query("keyword") keyword: String?,
+        @Query("tags") tags: List<String>,
+        @Query("cursor") cursor: Long?,
+        @Query("size") size: Int
+    ): CrewListResponse
+
+    @GET("crews/me")
+    suspend fun myCrew(): MyCrewResponse
+
+    @GET("crews/{id}")
+    suspend fun detail(@Path("id") crewId: Long): CrewDetailResponse
 
     @GET("crews/recommendations")
     suspend fun recommend(): RecommendationsResponse
 
     @POST("crews/join")
-    suspend fun apply(@Body body: JoinRequestBody)
+    suspend fun apply(@Body body: JoinRequestBody): JoinResponse
 
     @DELETE("join-requests/{id}")
-    suspend fun cancelJoinRequest(@Path("id") requestId: Long)
+    suspend fun cancelJoinRequest(@Path("id") requestId: Long): JoinResponse
 
     @POST("join-requests/{id}/approve")
     suspend fun approveJoin(@Path("id") requestId: Long)
@@ -66,7 +77,12 @@ internal interface CrewApi {
     suspend fun race(@Path("id") crewId: Long, @Query("weekStart") weekStart: String?): RaceStatusResponse
 
     @GET("crews/{id}/posts")
-    suspend fun posts(@Path("id") crewId: Long, @Query("kind") kind: String?): PostListResponse
+    suspend fun posts(
+        @Path("id") crewId: Long,
+        @Query("kind") kind: String?,
+        @Query("cursor") cursor: Long?,
+        @Query("size") size: Int
+    ): PostListResponse
 
     @POST("crews/{id}/posts")
     suspend fun writePost(@Path("id") crewId: Long, @Body body: PostWriteRequest): CreatedResponse

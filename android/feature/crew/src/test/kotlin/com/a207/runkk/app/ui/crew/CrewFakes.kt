@@ -5,16 +5,22 @@ import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.domain.crew.CrewDetail
 import com.a207.runkk.app.domain.crew.CrewForm
 import com.a207.runkk.app.domain.crew.CrewList
 import com.a207.runkk.app.domain.crew.CrewMembers
 import com.a207.runkk.app.domain.crew.CrewRanking
 import com.a207.runkk.app.domain.crew.CrewRepository
+import com.a207.runkk.app.domain.crew.CrewRole
 import com.a207.runkk.app.domain.crew.CrewRunCoordinator
 import com.a207.runkk.app.domain.crew.CrewRunForm
 import com.a207.runkk.app.domain.crew.CrewRunResult
+import com.a207.runkk.app.domain.crew.CrewRunStatus
+import com.a207.runkk.app.domain.crew.CrewVisibility
 import com.a207.runkk.app.domain.crew.JoinPolicy
+import com.a207.runkk.app.domain.crew.JoinResult
 import com.a207.runkk.app.domain.crew.Lobby
+import com.a207.runkk.app.domain.crew.MyCrew
 import com.a207.runkk.app.domain.crew.PendingRequests
 import com.a207.runkk.app.domain.crew.PostList
 import com.a207.runkk.app.domain.crew.RaceStatus
@@ -156,17 +162,45 @@ val ranking = CrewRanking(
     )
 )
 
+/** 토 07:00 KST 5km, 투표 중, 갈래요 2명(아직 내 응답 없음). */
+val crewRunVoting = PostList.CrewRunInfo(
+    distance = Distance(5_000),
+    scheduledAt = Instant.parse("2026-10-23T22:00:00Z"),
+    voteDeadline = null,
+    status = CrewRunStatus.VOTING,
+    goingCount = 2,
+    myAnswer = null,
+    finisherCount = 0,
+    raceContribution = null
+)
+
 val crewRunPosts = PostList(
     listOf(
         PostList.Item(
             31,
             PostList.Kind.CREW_RUN,
             "바람처럼",
-            "토 07:00 · 5km 같이 달려요",
+            "같이 달려요",
             start.minusSeconds(3_600),
-            mine = false
+            mine = false,
+            crewRun = crewRunVoting
         ),
-        PostList.Item(32, PostList.Kind.CREW_RUN, "나", "일 06:30 · 10km LSD", start.minusSeconds(7_200), mine = true)
+        PostList.Item(
+            32,
+            PostList.Kind.CREW_RUN,
+            "나",
+            "10km LSD",
+            start.minusSeconds(7_200),
+            mine = true,
+            crewRun = crewRunVoting.copy(
+                distance = Distance(10_000),
+                status = CrewRunStatus.FINISHED,
+                goingCount = 3,
+                myAnswer = VoteAnswer.GOING,
+                finisherCount = 3,
+                raceContribution = Distance(30_000)
+            )
+        )
     )
 )
 
@@ -179,16 +213,39 @@ val cheers = PostList(
 
 val lobby = Lobby(
     31,
-    listOf(Lobby.Participant("바람처럼", true), Lobby.Participant("달빛", false), Lobby.Participant("나", false)),
-    meetAt = start.plusSeconds(600)
+    listOf(
+        Lobby.Participant("바람처럼", true, 1),
+        Lobby.Participant("달빛", false, 2),
+        Lobby.Participant("새벽곰", false, 7, me = true)
+    ),
+    meetAt = start.plusSeconds(600),
+    distance = Distance(5_000)
+)
+
+/** 크루 11(새벽질주) 상세. 역할은 [role]. */
+fun crewDetail(crewId: Long = 11, role: CrewRole? = CrewRole.MEMBER) = CrewDetail(
+    crewId = crewId,
+    name = if (crewId == 11L) "새벽질주" else "크루$crewId",
+    intro = "새벽에 같이 달려요",
+    tags = setOf("SOCIAL_RUN", "DAWN"),
+    visibility = CrewVisibility.PUBLIC,
+    joinPolicy = JoinPolicy.FREE,
+    logoUrl = null,
+    leaderId = 1,
+    leaderName = "바람처럼",
+    headcount = 6,
+    weeklyDistance = Distance(42_300),
+    myRole = role,
+    inviteCode = if (role == CrewRole.LEADER) "K7P2QX" else null,
+    inviteCodeExpiresAt = null
 )
 
 val crewRunResult = CrewRunResult(
     postId = 31,
     finishers = listOf(
-        CrewRunResult.Finisher(2, "나", 1_710, 342),
+        CrewRunResult.Finisher(2, "새벽곰", 1_710, 342, memberId = 7, me = true),
         CrewRunResult.Finisher(1, "바람처럼", 1_640, 328),
-        CrewRunResult.Finisher(null, "달빛", null, null)
+        CrewRunResult.Finisher(null, "달빛", null, null, quit = true, memberId = 2)
     ),
     firstCrewRun = true,
     raceContribution = Distance(13_400)
@@ -200,6 +257,24 @@ class FakeCrewRepository : CrewRepository {
     val fail = mutableMapOf<String, AppError>()
     var lobbyState = lobby
 
+    /** GET /crews/me 응답. 가입되면(JOINED) 그 크루로 바뀐다. */
+    var mine = MyCrew(null, emptyList())
+
+    /** 크루 상세의 내 역할. */
+    var role: CrewRole? = CrewRole.MEMBER
+
+    /** 첫 쪽 다음 커서(크루 목록·게시글). null이면 한 쪽뿐이다. */
+    var searchNext: Long? = null
+    var postsNext: Long? = null
+
+    override suspend fun myCrew() = answer("myCrew", mine)
+
+    /** 정보 수정(changeInfo)이 받아들인 크루명. 크루 조회가 이 이름을 돌려준다. */
+    private var renamed: String? = null
+
+    override suspend fun detail(crewId: Long) =
+        answer("detail:$crewId", crewDetail(crewId, role).let { d -> renamed?.let { d.copy(name = it) } ?: d })
+
     private fun <T> answer(op: String, value: T): Outcome<T> {
         calls += op
         return fail[op.substringBefore(':')]?.let { Outcome.Failure(it) } ?: Outcome.Success(value)
@@ -207,7 +282,8 @@ class FakeCrewRepository : CrewRepository {
 
     override suspend fun create(form: CrewForm) = answer("create:${form.name}", 77L)
 
-    override suspend fun changeInfo(crewId: Long, form: CrewForm) = answer("changeInfo:${form.name}", Unit)
+    override suspend fun changeInfo(crewId: Long, form: CrewForm) =
+        answer("changeInfo:${form.name}", Unit).also { if (it is Outcome.Success) renamed = form.name }
 
     override suspend fun reissueInviteCode(crewId: Long) = answer("reissue", "K7P2QX")
 
@@ -215,14 +291,42 @@ class FakeCrewRepository : CrewRepository {
 
     override suspend fun delete(crewId: Long) = answer("delete", Unit)
 
-    override suspend fun search(keyword: String?, tags: Set<String>) =
-        answer("search:$keyword:${tags.sorted()}", CrewList(listOf(crewA, crewB, crewC)))
+    override suspend fun search(keyword: String?, tags: Set<String>, cursor: Long?) = if (cursor == null) {
+        answer("search:$keyword:${tags.sorted()}", CrewList(listOf(crewA, crewB, crewC), searchNext))
+    } else {
+        answer("search:$keyword:${tags.sorted()}:$cursor", CrewList(listOf(crewC.copy(crewId = 14, name = "넷째")), null))
+    }
 
     override suspend fun recommend() = answer("recommend", CrewList(listOf(crewA)))
 
-    override suspend fun apply(crewId: Long) = answer("apply:$crewId", Unit)
+    /** 자유 가입 크루(11)는 바로 가입되고 나머지는 승인 대기(신청 91)다. */
+    override suspend fun apply(crewId: Long): Outcome<JoinResult> {
+        val result = if (crewId == 11L) {
+            JoinResult(JoinResult.Status.JOINED, crewId, null)
+        } else {
+            JoinResult(JoinResult.Status.PENDING, crewId, 91)
+        }
+        return answer("apply:$crewId", result).also { if (it is Outcome.Success) reflect(it.value) }
+    }
 
-    override suspend fun applyWithInviteCode(code: String) = answer("invite:$code", Unit)
+    /** 초대 코드는 크루 12에 바로 가입된다. */
+    override suspend fun applyWithInviteCode(code: String) =
+        answer("invite:$code", JoinResult(JoinResult.Status.JOINED, 12, null)).also {
+            if (it is Outcome.Success) reflect(it.value)
+        }
+
+    private fun reflect(result: JoinResult) {
+        mine = when (result.status) {
+            JoinResult.Status.JOINED -> MyCrew(crewDetail(result.crewId, CrewRole.MEMBER), emptyList())
+
+            JoinResult.Status.PENDING -> mine.copy(
+                pendingRequests = mine.pendingRequests +
+                    MyCrew.PendingJoin(result.requestId ?: 0, result.crewId, "크루${result.crewId}", start)
+            )
+
+            JoinResult.Status.CANCELLED -> mine
+        }
+    }
 
     override suspend fun cancelJoinRequest(requestId: Long) = answer("cancelJoin:$requestId", Unit)
 
@@ -245,8 +349,14 @@ class FakeCrewRepository : CrewRepository {
 
     override suspend fun race(crewId: Long, weekStart: LocalDate?) = answer("race", race)
 
-    override suspend fun posts(crewId: Long, kind: PostList.Kind?) =
-        answer("posts:$kind", if (kind == PostList.Kind.CHEER) cheers else crewRunPosts)
+    override suspend fun posts(crewId: Long, kind: PostList.Kind?, cursor: Long?): Outcome<PostList> {
+        if (cursor != null) {
+            val more = PostList.Item(49, PostList.Kind.CHEER, "새내기", "반가워요", start.minusSeconds(90_000), false)
+            return answer("posts:$kind:$cursor", PostList(listOf(more), null))
+        }
+        val first = if (kind == PostList.Kind.CHEER) cheers else crewRunPosts
+        return answer("posts:$kind", first.copy(nextCursor = postsNext))
+    }
 
     override suspend fun writeCheer(crewId: Long, body: String) = answer("cheer:$body", 43L)
 
@@ -265,7 +375,7 @@ class FakeCrewRepository : CrewRepository {
 
     override suspend fun toggleReady(postId: Long): Outcome<Lobby> {
         lobbyState = lobbyState.copy(
-            participants = lobbyState.participants.map { if (it.displayName == "나") it.copy(ready = !it.ready) else it }
+            participants = lobbyState.participants.map { if (it.me) it.copy(ready = !it.ready) else it }
         )
         return answer("ready:$postId", lobbyState)
     }

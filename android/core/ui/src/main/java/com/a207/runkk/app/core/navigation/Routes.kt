@@ -107,24 +107,21 @@ object Routes {
     /** 크루 만들기(FR-110). */
     const val CREW_CREATE = "crew/create"
 
-    /** 내 크루 홈(레이스·크루런·응원보드·크루원 탭). 크루 이름을 돌려주는 조회가 없어 넘긴다. */
+    /** 내 크루 홈(레이스·크루런·응원보드·크루원 탭). 크루 이름·역할은 화면이 GET /crews/{id}로 읽는다. */
     @Serializable
-    data class CrewHome(val crewId: Long, val crewName: String) : NavKey
+    data class CrewHome(val crewId: Long) : NavKey
 
-    /** 크루 관리(크루장, FR-113~FR-116·FR-123·FR-127). */
+    /** 크루 관리(크루장, FR-113~FR-116·FR-123·FR-127). 지금 크루 정보는 화면이 GET /crews/{id}로 읽는다. */
     @Serializable
-    data class CrewManage(val crewId: Long, val crewName: String) : NavKey
+    data class CrewManage(val crewId: Long) : NavKey
 
     /** 크루런 모집글 쓰기(FR-132). */
     @Serializable
     data class CrewRunWrite(val crewId: Long) : NavKey
 
-    /**
-     * 크루런 대기실 → 카운트다운 → 진행 중 중계(한 화면, CrewRunCoordinator 상태). [distanceMeters]는 크루런 거리이고
-     * 모르면 null이다(게시판 목록에 거리 항목이 아직 없다).
-     */
+    /** 크루런 대기실 → 카운트다운 → 진행 중 중계(한 화면, CrewRunCoordinator 상태). 크루런 거리는 대기실 응답이 준다. */
     @Serializable
-    data class CrewRunLobby(val postId: Long, val distanceMeters: Long?) : NavKey
+    data class CrewRunLobby(val postId: Long) : NavKey
 
     /** 크루런 결과(FR-191). */
     @Serializable

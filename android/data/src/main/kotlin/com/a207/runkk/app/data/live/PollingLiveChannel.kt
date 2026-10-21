@@ -23,9 +23,13 @@ import kotlinx.coroutines.launch
  */
 class PollingLiveChannel
 @Inject
-constructor(private val api: LiveApi, private val scope: CoroutineScope) :
-    LiveChannel {
-    private val decoder = ServerMessageDecoder()
+constructor(
+    private val api: LiveApi,
+    private val scope: CoroutineScope,
+    private val decoder: ServerMessageDecoder
+) : LiveChannel {
+    internal constructor(api: LiveApi, scope: CoroutineScope) : this(api, scope, ServerMessageDecoder())
+
     private val lock = Any()
     private var polling: Job? = null
     private var closed = false

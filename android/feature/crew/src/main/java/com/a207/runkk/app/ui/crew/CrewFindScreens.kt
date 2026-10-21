@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -23,6 +24,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -40,9 +42,11 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.a207.runkk.app.core.designsystem.RunkkBadge
+import com.a207.runkk.app.core.designsystem.RunkkBadgeTone
 import com.a207.runkk.app.core.designsystem.RunkkCard
 import com.a207.runkk.app.core.designsystem.RunkkChoiceChip
 import com.a207.runkk.app.core.designsystem.RunkkColors
+import com.a207.runkk.app.core.designsystem.RunkkConfirmDialog
 import com.a207.runkk.app.core.designsystem.RunkkEmptyState
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkFormat
@@ -62,17 +66,33 @@ import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.crew.CrewList
 import com.a207.runkk.app.domain.crew.JoinPolicy
+import com.a207.runkk.app.domain.crew.MyCrew
 
-/** 크루 탭: 크루 찾기·상세·초대 코드·만들기. */
+/**
+ * 크루 탭: 들어올 때마다 내 크루(GET /crews/me)를 확인해 크루가 있으면 내 크루 홈을 이 자리에 보이고(뒤로 단추 없음),
+ * 없으면 크루 찾기·상세·초대 코드·만들기·대기 중인 내 가입 신청을 보인다.
+ */
 @Composable
 fun CrewFindRoute(viewModel: CrewFindViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val navigator = LocalRunkkNavigator.current
-    LaunchedEffect(viewModel) {
-        viewModel.events.collect { event ->
-            when (event) {
-                is CrewEvent.Open -> navigator.navigate(event.key)
+    val mine = state.mine
+    when {
+        mine != null -> {
+            CrewHomeRoute(Routes.CrewHome(mine.crewId), atTabRoot = true)
+            return
+        }
+
+        state.checkingMine -> {
+            Box(Modifier.fillMaxSize().background(RunkkColors.Background)) { RunkkLoading() }
+            return
+        }
+
+        state.mineError != null -> {
+            Box(Modifier.fillMaxSize().background(RunkkColors.Background).padding(16.dp)) {
+                RunkkErrorState(state.mineError ?: "", onRetry = { viewModel.loadMine() })
             }
+            return
         }
     }
     CrewFindScreen(
@@ -90,7 +110,11 @@ fun CrewFindRoute(viewModel: CrewFindViewModel = hiltViewModel()) {
             onInviteCode = viewModel::onInviteCode,
             onInviteSubmit = viewModel::onInviteSubmit,
             onRetry = viewModel::load,
-            onMessageShown = viewModel::onMessageShown
+            onMessageShown = viewModel::onMessageShown,
+            onLoadMore = viewModel::loadMore,
+            onCancelAsk = viewModel::onCancelAsk,
+            onCancelDismiss = viewModel::onCancelDismiss,
+            onCancelConfirm = viewModel::onCancelConfirm
         )
     )
 }
@@ -109,7 +133,11 @@ data class CrewFindActions(
     val onInviteCode: (String) -> Unit = {},
     val onInviteSubmit: () -> Unit = {},
     val onRetry: () -> Unit = {},
-    val onMessageShown: () -> Unit = {}
+    val onMessageShown: () -> Unit = {},
+    val onLoadMore: () -> Unit = {},
+    val onCancelAsk: (MyCrew.PendingJoin) -> Unit = {},
+    val onCancelDismiss: () -> Unit = {},
+    val onCancelConfirm: () -> Unit = {}
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -122,8 +150,21 @@ fun CrewFindScreen(state: CrewFindUiState, actions: CrewFindActions, modifier: M
             actions.onMessageShown()
         }
     }
+    val listState = rememberLazyListState()
+    // 끝에서 세 줄 안쪽이 보이면 다음 쪽을 이어 받는다(nextCursor가 없으면 ViewModel이 무시한다).
+    val nearEnd by remember {
+        derivedStateOf {
+            val info = listState.layoutInfo
+            val last = info.visibleItemsInfo.lastOrNull()?.index ?: 0
+            info.totalItemsCount > 0 && last >= info.totalItemsCount - LOAD_MORE_AHEAD
+        }
+    }
+    LaunchedEffect(nearEnd, state.nextCursor, state.crews.size) {
+        if (nearEnd && state.nextCursor != null) actions.onLoadMore()
+    }
     Box(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -146,6 +187,11 @@ fun CrewFindScreen(state: CrewFindUiState, actions: CrewFindActions, modifier: M
                         leadingIcon = RunkkIcons.Plus,
                         modifier = Modifier.semantics { contentDescription = "크루 만들기" }
                     )
+                }
+            }
+            if (state.pending.isNotEmpty()) {
+                items(state.pending, key = { "pending-${it.requestId}" }) { request ->
+                    PendingJoinCard(request, busy = state.joining, onCancel = { actions.onCancelAsk(request) })
                 }
             }
             item {
@@ -203,9 +249,14 @@ fun CrewFindScreen(state: CrewFindUiState, actions: CrewFindActions, modifier: M
                     )
                 }
 
-                else -> items(state.crews, key = {
-                    it.crewId
-                }) { crew -> CrewRow(crew, onClick = { actions.onOpen(crew) }) }
+                else -> {
+                    items(state.crews, key = {
+                        it.crewId
+                    }) { crew -> CrewRow(crew, onClick = { actions.onOpen(crew) }) }
+                    if (state.loadingMore) {
+                        item { Box(Modifier.fillMaxWidth().padding(16.dp)) { RunkkLoading() } }
+                    }
+                }
             }
         }
         RunkkSnackbarHost(snackbar, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp))
@@ -216,6 +267,49 @@ fun CrewFindScreen(state: CrewFindUiState, actions: CrewFindActions, modifier: M
         }
     }
     if (state.inviteOpen) InviteDialog(state, actions)
+    state.confirmCancel?.let { request ->
+        RunkkConfirmDialog(
+            title = "가입 신청을 취소할까요?",
+            message = "${request.crewName}에 보낸 가입 신청을 거둬요. 다시 신청할 수 있어요.",
+            confirmLabel = "신청 취소",
+            onConfirm = actions.onCancelConfirm,
+            onDismiss = actions.onCancelDismiss,
+            destructive = true
+        )
+    }
+}
+
+/** 끝에서 이만큼 안쪽 줄이 보이면 다음 쪽을 읽는다. */
+private const val LOAD_MORE_AHEAD = 3
+
+/** 대기 중인 내 가입 신청 한 건(FR-143): 크루명·신청 일시와 취소 단추. */
+@Composable
+private fun PendingJoinCard(request: MyCrew.PendingJoin, busy: Boolean, onCancel: () -> Unit) {
+    RunkkCard {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.weight(1f).semantics(mergeDescendants = true) {}) {
+                Text(
+                    request.crewName,
+                    style = RunkkTextStyles.BodyStrong,
+                    color = RunkkColors.TextPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    "가입 신청 대기 중 · ${postedLabel(request.requestedAt)}",
+                    style = RunkkTextStyles.Caption,
+                    color = RunkkColors.TextSecondary
+                )
+            }
+            RunkkBadge("승인 대기", tone = RunkkBadgeTone.Muted)
+            RunkkPillButton(
+                "취소",
+                onClick = onCancel,
+                enabled = !busy,
+                modifier = Modifier.semantics { contentDescription = "${request.crewName} 가입 신청 취소" }
+            )
+        }
+    }
 }
 
 @Composable
@@ -378,10 +472,8 @@ fun CrewCreateRoute(viewModel: CrewCreateViewModel = hiltViewModel()) {
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             when (event) {
-                is CrewEvent.Open -> {
-                    navigator.back()
-                    navigator.navigate(event.key)
-                }
+                // 크루 탭을 새로 열면 내 크루를 다시 확인해 방금 만든 크루 홈을 보인다.
+                CrewEvent.Created -> navigator.selectTab(Routes.CREW)
             }
         }
     }
