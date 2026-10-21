@@ -22,6 +22,11 @@ spring:
           time_zone: Asia/Seoul
   # 비동기 사건 수신자(리포트·Runimal, D-03) 실행기. 인스턴스 1개·동시 50명(5.4) 규모. 종료 때 진행 중 작업을 30초까지 기다린다(1단계 리뷰 M6·L2).
   task:
+    # 1초 대결 시계와 3시 정리 작업이 서로 기다리지 않게 스케줄러 스레드를 둘 둔다(5.5).
+    scheduling:
+      pool:
+        size: 2
+      thread-name-prefix: runkk-schedule-
     execution:
       thread-name-prefix: runkk-async-
       pool:
@@ -89,7 +94,14 @@ runkk:
     internal-token: ${RUNKK_INTERNAL_TOKEN:}
     comment-timeout: 3s
     face-timeout: 15s
+  # 매칭 대기열·진행 중 대결 세션 저장소(D-07): redis(기본) | jdbc(Redis 장기 장애 때 PostgreSQL 대안, 5.5)
+  queue: ${RUNKK_QUEUE:redis}
+  # 실시간 방식(D-06, C-004): websocket(기본, /ws) | polling(/api/v1/live/poll·progress, /ws를 열지 않음, D-57)
+  live: ${RUNKK_LIVE:websocket}
   batch:
+    # 대결 시계(Matchmaker·BattleClockService·LiveBattleService, D-39). 시험 프로필은 끄고 연산을 직접 부른다.
+    battle-tick-enabled: true
+    battle-tick-interval: 1s
     withdrawal-purge-cron: "0 0 3 * * *"
     disposal-cron: "0 0 3 * * *"
     notification-purge-cron: "0 0 3 * * *"
