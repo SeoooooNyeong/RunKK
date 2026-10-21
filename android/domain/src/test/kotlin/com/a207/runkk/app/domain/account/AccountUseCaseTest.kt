@@ -64,7 +64,7 @@ private class FakeSessionRepository(private val log: CallLog) : SessionRepositor
     }
 }
 
-/** LoginUseCase·LogoutUseCase·WithdrawUseCase·ChangeSettingUseCase: 호출 순서와 실패 때 멈춤(14장). */
+/** LoginUseCase·SignUpUseCase·LogoutUseCase·WithdrawUseCase·ChangeSettingUseCase: 호출 순서와 실패 때 멈춤(14장). */
 class AccountUseCaseTest {
     private val log = CallLog()
     private val account = FakeAccountRepository(log)
@@ -106,8 +106,21 @@ class AccountUseCaseTest {
                 recordVisibility = "PUBLIC",
                 tags = emptySet()
             )
-        assertEquals(Outcome.Success(Unit), LoginUseCase(account, session, settings).signUp(form))
+        assertEquals(Outcome.Success(Unit), SignUpUseCase(account, session, settings)(form))
         assertEquals(listOf("account.signUp", "session.save", "settings.refresh"), log.calls)
+        assertEquals(true, session.loggedIn.value)
+    }
+
+    @Test
+    fun `가입 - 서버 가입이 거부되면 세션을 만들지 않고 멈춘다`() = runTest {
+        account.failures["signUp"] = AppError.Rejected("UNDER_14")
+        val form = SignUpForm(null, null, Gender.UNDISCLOSED, null, emptyMap(), "PUBLIC", emptySet())
+
+        val result = SignUpUseCase(account, session, settings)(form)
+
+        assertEquals(Outcome.Failure(AppError.Rejected("UNDER_14")), result)
+        assertEquals(listOf("account.signUp"), log.calls)
+        assertEquals(false, session.loggedIn.value)
     }
 
     @Test

@@ -3,7 +3,7 @@ package com.a207.runkk.app.ui.me
 import app.cash.turbine.test
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.domain.account.Gender
-import com.a207.runkk.app.domain.account.LoginUseCase
+import com.a207.runkk.app.domain.account.SignUpUseCase
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
@@ -16,7 +16,7 @@ class SignUpViewModelTest {
     val main = MainDispatcherRule()
 
     private val account = FakeAccountRepository()
-    private val vm = SignUpViewModel(LoginUseCase(account, FakeSessionRepository(), FakeSettingsRepository()), account)
+    private val vm = SignUpViewModel(SignUpUseCase(account, FakeSessionRepository(), FakeSettingsRepository()), account)
 
     private fun agreeRequired() = SignUpConsents.items.filter {
         it.required

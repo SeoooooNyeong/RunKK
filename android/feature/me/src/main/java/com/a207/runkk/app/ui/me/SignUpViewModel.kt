@@ -8,8 +8,8 @@ import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.account.Gender
-import com.a207.runkk.app.domain.account.LoginUseCase
 import com.a207.runkk.app.domain.account.SignUpForm
+import com.a207.runkk.app.domain.account.SignUpUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.channels.Channel
@@ -100,11 +100,11 @@ sealed interface SignUpEvent {
 }
 
 /**
- * 단계별 가입(FR-003, FR-004, FR-028). 입력은 단계마다 모으고 마지막에 LoginUseCase.signUp(가입 → 세션 저장 → 설정 사본)으로 보낸다.
+ * 단계별 가입(FR-003, FR-004, FR-028). 입력은 단계마다 모으고 마지막에 SignUpUseCase(가입 → 세션 저장 → 설정 사본)으로 보낸다.
  * 거부 사유(서버 6.3 1.2 의사결정표)에 맞는 단계로 돌아가 문구를 보인다.
  */
 @HiltViewModel
-class SignUpViewModel @Inject constructor(private val login: LoginUseCase, private val account: AccountRepository) :
+class SignUpViewModel @Inject constructor(private val signUp: SignUpUseCase, private val account: AccountRepository) :
     ViewModel() {
     private val _state = MutableStateFlow(SignUpUiState())
     val state: StateFlow<SignUpUiState> = _state.asStateFlow()
@@ -200,7 +200,7 @@ class SignUpViewModel @Inject constructor(private val login: LoginUseCase, priva
             tags = s.tags
         )
         viewModelScope.launch {
-            when (val result = login.signUp(form)) {
+            when (val result = signUp(form)) {
                 is Outcome.Success -> {
                     _state.update { it.copy(submitting = false) }
                     _events.send(SignUpEvent.Completed(createAvatar))
