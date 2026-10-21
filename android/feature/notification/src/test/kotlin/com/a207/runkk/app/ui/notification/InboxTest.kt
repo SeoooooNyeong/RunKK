@@ -4,6 +4,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import app.cash.turbine.test
+import com.a207.runkk.app.core.designsystem.RunkkErrorText
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Outcome
@@ -13,7 +14,6 @@ import java.time.Clock
 import java.time.Instant
 import java.time.ZoneId
 import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -26,6 +26,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 
 private class FakeNotifications : NotificationRepository {
     var inboxResult: Outcome<Inbox> = Outcome.Success(Inbox(sampleItems))
@@ -73,6 +74,8 @@ internal val sampleItems = listOf(
     )
 )
 
+private fun str(id: Int): String = RuntimeEnvironment.getApplication().getString(id)
+
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 class InboxTest {
@@ -92,7 +95,14 @@ class InboxTest {
     fun `알림을 오늘·이번 주·그 전으로 묶는다(FR-178)`() {
         val vm = InboxViewModel(repo, clock)
         val groups = vm.state.value.groups
-        assertEquals(listOf("오늘", "이번 주", "그 전"), groups.map { it.title })
+        assertEquals(
+            listOf(
+                R.string.notification_group_today,
+                R.string.notification_group_this_week,
+                R.string.notification_group_earlier
+            ),
+            groups.map { it.titleRes }
+        )
         assertEquals(listOf(1L), groups[0].items.map { it.id })
         assertEquals(1, vm.state.value.unreadCount)
     }
@@ -112,7 +122,7 @@ class InboxTest {
     fun `알림함을 못 읽으면 오류를 보인다`() {
         repo.inboxResult = Outcome.Failure(AppError.Network)
         val vm = InboxViewModel(repo, clock)
-        assertTrue(vm.state.value.error!!.startsWith("네트워크"))
+        assertEquals(RunkkErrorText.of(AppError.Network), vm.state.value.error)
     }
 
     @Test
@@ -127,7 +137,7 @@ class InboxTest {
                 }, onRetry = {})
             }
         }
-        compose.onNodeWithText("이번 주").assertExists()
+        compose.onNodeWithText(str(R.string.notification_group_this_week)).assertExists()
         compose.onNodeWithText("크루런 곧 시작").performClick()
         assertEquals(listOf(1L), tapped)
     }
@@ -139,7 +149,7 @@ class InboxTest {
                 InboxScreen(InboxUiState(loading = false), onBack = {}, onItem = {}, onRetry = {})
             }
         }
-        compose.onNodeWithText("새 알림이 없어요").assertExists()
+        compose.onNodeWithText(str(R.string.notification_empty_title)).assertExists()
     }
 
     @Test
@@ -148,6 +158,6 @@ class InboxTest {
         val vm = InboxViewModel(repo, clock)
         vm.onItemTapped(sampleItems[0])
         assertEquals(1, vm.state.value.unreadCount)
-        assertTrue(vm.state.value.message!!.startsWith("네트워크"))
+        assertEquals(RunkkErrorText.of(AppError.Network), vm.state.value.message)
     }
 }

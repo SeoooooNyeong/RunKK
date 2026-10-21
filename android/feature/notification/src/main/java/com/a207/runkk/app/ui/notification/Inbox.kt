@@ -1,5 +1,6 @@
 package com.a207.runkk.app.ui.notification
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -23,6 +24,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -46,6 +49,8 @@ import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
+import com.a207.runkk.app.core.designsystem.UiText
+import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.navigation.FeatureEntry
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
@@ -78,13 +83,13 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /** 알림 묶음(오늘·이번 주·그 전). */
-data class InboxGroup(val title: String, val items: List<Inbox.Item>)
+data class InboxGroup(@StringRes val titleRes: Int, val items: List<Inbox.Item>)
 
 data class InboxUiState(
     val loading: Boolean = true,
     val groups: List<InboxGroup> = emptyList(),
-    val error: String? = null,
-    val message: String? = null
+    val error: UiText? = null,
+    val message: UiText? = null
 ) {
     val unreadCount: Int get() = groups.sumOf { g -> g.items.count { !it.read } }
 }
@@ -100,9 +105,15 @@ internal fun groupInbox(items: List<Inbox.Item>, clock: Clock): List<InboxGroup>
     val sorted = items.sortedByDescending { it.receivedAt }
     fun day(item: Inbox.Item) = item.receivedAt.atZone(clock.zone).toLocalDate()
     return listOf(
-        InboxGroup("오늘", sorted.filter { day(it) == today }),
-        InboxGroup("이번 주", sorted.filter { day(it) < today && !day(it).isBefore(weekStart) }),
-        InboxGroup("그 전", sorted.filter { day(it).isBefore(weekStart) })
+        InboxGroup(R.string.notification_group_today, sorted.filter { day(it) == today }),
+        InboxGroup(
+            R.string.notification_group_this_week,
+            sorted.filter {
+                day(it) < today &&
+                    !day(it).isBefore(weekStart)
+            }
+        ),
+        InboxGroup(R.string.notification_group_earlier, sorted.filter { day(it).isBefore(weekStart) })
     ).filter { it.items.isNotEmpty() }
 }
 
@@ -200,9 +211,10 @@ fun InboxScreen(
     onMessageShown: () -> Unit = {}
 ) {
     val snackbar = remember { SnackbarHostState() }
+    val context = LocalContext.current
     LaunchedEffect(state.message) {
         state.message?.let {
-            snackbar.showSnackbar(it)
+            snackbar.showSnackbar(it.asString(context))
             onMessageShown()
         }
     }
@@ -215,13 +227,16 @@ fun InboxScreen(
 @Composable
 private fun InboxContent(state: InboxUiState, onBack: () -> Unit, onItem: (Inbox.Item) -> Unit, onRetry: () -> Unit) {
     Column(modifier = Modifier.fillMaxSize().background(RunkkColors.Background)) {
-        RunkkTopBar(title = "알림함", onBack = onBack)
+        RunkkTopBar(title = stringResource(R.string.notification_inbox_title), onBack = onBack)
         when {
             state.loading && state.groups.isEmpty() -> RunkkLoading(modifier = Modifier.weight(1f))
 
-            state.error != null -> RunkkErrorState(state.error, onRetry = onRetry)
+            state.error != null -> RunkkErrorState(state.error.asString(), onRetry = onRetry)
 
-            state.groups.isEmpty() -> RunkkEmptyState("새 알림이 없어요", message = "크루·대결·코치 소식이 오면 여기에 모여요")
+            state.groups.isEmpty() -> RunkkEmptyState(
+                stringResource(R.string.notification_empty_title),
+                message = stringResource(R.string.notification_empty_message)
+            )
 
             else -> LazyColumn(
                 modifier = Modifier.weight(1f),
@@ -229,8 +244,11 @@ private fun InboxContent(state: InboxUiState, onBack: () -> Unit, onItem: (Inbox
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 state.groups.forEach { group ->
-                    item(key = "title-${group.title}") {
-                        RunkkSectionTitle(group.title, modifier = Modifier.padding(top = 16.dp, start = 8.dp))
+                    item(key = "title-${group.titleRes}") {
+                        RunkkSectionTitle(
+                            stringResource(group.titleRes),
+                            modifier = Modifier.padding(top = 16.dp, start = 8.dp)
+                        )
                     }
                     items(group.items, key = { it.id }) { item -> InboxRow(item, onClick = { onItem(item) }) }
                 }
@@ -241,6 +259,9 @@ private fun InboxContent(state: InboxUiState, onBack: () -> Unit, onItem: (Inbox
 
 @Composable
 private fun InboxRow(item: Inbox.Item, onClick: () -> Unit) {
+    val readState = stringResource(if (item.read) R.string.notification_read else R.string.notification_unread)
+    val timePattern = stringResource(R.string.notification_time_pattern)
+    val time = remember(timePattern) { DateTimeFormatter.ofPattern(timePattern, Locale.KOREAN) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -248,7 +269,7 @@ private fun InboxRow(item: Inbox.Item, onClick: () -> Unit) {
             .background(RunkkColors.Surface)
             .clickable(role = Role.Button, onClick = onClick)
             .padding(16.dp)
-            .semantics(mergeDescendants = true) { stateDescription = if (item.read) "읽음" else "안 읽음" },
+            .semantics(mergeDescendants = true) { stateDescription = readState },
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.Top
     ) {
@@ -265,15 +286,13 @@ private fun InboxRow(item: Inbox.Item, onClick: () -> Unit) {
             )
             Text(item.body, style = RunkkTextStyles.Body, color = RunkkColors.TextSecondary)
             Text(
-                TIME.format(item.receivedAt.atZone(ZoneId.systemDefault())),
+                time.format(item.receivedAt.atZone(ZoneId.systemDefault())),
                 style = RunkkTextStyles.Micro,
                 color = RunkkColors.TextSecondary
             )
         }
     }
 }
-
-private val TIME = DateTimeFormatter.ofPattern("M월 d일 HH:mm", Locale.KOREAN)
 
 /** 알림함 경로를 그래프에 등록한다(FeatureEntry 구현, 6.1.14). */
 class NotificationFeatureEntry @Inject constructor() : FeatureEntry {
