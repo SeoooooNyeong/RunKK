@@ -1,0 +1,19 @@
+{
+  "endpoint": "POST /comments",
+  "scenario": "llm_timeout",
+  "request": {
+    "json": {
+      "averageScore": 42.5,
+      "distanceChangeMeters": 1200,
+      "paceChangeSeconds": -8,
+      "frequentDay": "SATURDAY",
+      "frequentHourBand": 2,
+      "runCount": 10
+    }
+  },
+  "status": 504,
+  "body": {
+    "reason": "LLM_TIMEOUT"
+  },
+  "gateway": "Optional.empty()"
+}
