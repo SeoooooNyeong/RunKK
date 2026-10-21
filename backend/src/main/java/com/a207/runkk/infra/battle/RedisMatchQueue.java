@@ -73,6 +73,22 @@ public class RedisMatchQueue implements MatchQueue {
                             + " return 0",
                     Long.class);
 
+    /** D-64: 표가 WAITING일 때만 ASSIGNED(고스트 매칭 시작). */
+    private static final RedisScript<Long> ASSIGN_ONE =
+            new DefaultRedisScript<>(
+                    "if redis.call('HGET', KEYS[1], 'status') == 'WAITING' then"
+                            + " redis.call('HSET', KEYS[1], 'status', 'ASSIGNED') return 1 end"
+                            + " return 0",
+                    Long.class);
+
+    /** D-64: 표가 ASSIGNED일 때만 WAITING으로 되돌린다(대기 시작 시각과 순서 항목은 그대로). */
+    private static final RedisScript<Long> RELEASE =
+            new DefaultRedisScript<>(
+                    "if redis.call('HGET', KEYS[1], 'status') == 'ASSIGNED' then"
+                            + " redis.call('HSET', KEYS[1], 'status', 'WAITING') return 1 end"
+                            + " return 0",
+                    Long.class);
+
     private final StringRedisTemplate redis;
 
     public RedisMatchQueue(StringRedisTemplate redis) {
@@ -141,6 +157,16 @@ public class RedisMatchQueue implements MatchQueue {
     public boolean tryAssignPair(long a, long b) {
         Long assigned = redis.execute(ASSIGN_PAIR, List.of(ticketKey(a), ticketKey(b)));
         return DONE.equals(assigned);
+    }
+
+    @Override
+    public boolean tryAssign(long memberId) {
+        return DONE.equals(redis.execute(ASSIGN_ONE, List.of(ticketKey(memberId))));
+    }
+
+    @Override
+    public void release(long memberId) {
+        redis.execute(RELEASE, List.of(ticketKey(memberId)));
     }
 
     /** 대기 표로 열고 저장 상태가 ASSIGNED면 배정한다. */

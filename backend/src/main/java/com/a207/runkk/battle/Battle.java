@@ -41,6 +41,13 @@ public class Battle {
     /** 첫 도착 뒤 종료 카운트다운(FR-107). */
     static final Duration COUNTDOWN = Duration.ofSeconds(10);
 
+    /**
+     * 출발하지 못한 대결을 버려진 것으로 보는 시간(활성 대결 1개 불변식 결정). 기록 대결은 생성 뒤, 출발 예약 대결은 출발 시각 뒤 이만큼 지나도 시작하지 않으면
+     * CANCELLED다. 앱은 생성 응답 직후 3초 카운트다운 끝에 시작을 보고하고(R-02) 출발 예약 대결은 1초 시계가 매초 다시 시작하므로, 10분은 재시도와 앱
+     * 재실행을 넉넉히 덮으면서 가장 짧은 기록 대결 최대 시간(3km × 15분 = 45분)보다 짧다. SRS·설계에 값이 없어 /sw-srs에 추가 요청.
+     */
+    static final Duration ABANDON_AFTER = Duration.ofMinutes(10);
+
     /** 결과 보류 만료(FR-108). */
     static final Duration PENDING_LIMIT = Duration.ofHours(24);
 
@@ -162,6 +169,7 @@ public class Battle {
                         now);
         battle.participants.add(new BattleParticipant(a.getMemberId()));
         battle.participants.add(new BattleParticipant(b.getMemberId()));
+        battle.moveTo(battle.status);
         return battle;
     }
 
@@ -178,6 +186,7 @@ public class Battle {
         if (initial == BattleStatus.IN_PROGRESS) {
             battle.maxEndsAt = now.plus(battle.maxDuration());
         }
+        battle.moveTo(initial);
         return battle;
     }
 
@@ -207,7 +216,7 @@ public class Battle {
      */
     public void start(LocalDateTime now) {
         if (status == BattleStatus.WAITING_START && startAt != null && !now.isBefore(startAt)) {
-            status = BattleStatus.IN_PROGRESS;
+            moveTo(BattleStatus.IN_PROGRESS);
         } else if (isAwaitingStartReport()) {
             startAt = now;
         } else {
@@ -219,8 +228,51 @@ public class Battle {
         }
     }
 
-    private boolean isAwaitingStartReport() {
+    /** 나와의 싸움·유명인 대결이 앱의 시작 보고를 아직 받지 않았다(IN_PROGRESS, startAt 없음). */
+    boolean isAwaitingStartReport() {
         return status == BattleStatus.IN_PROGRESS && startAt == null && type.startsWithCountdown();
+    }
+
+    /**
+     * 출발하지 못한 채 ABANDON_AFTER가 지났는가: 시작 보고 없는 기록 대결은 생성 시각, 출발 예약 대결(WAITING_START)은 출발 시각(없으면 생성
+     * 시각)부터 센다. BattleRepository.findAbandoned의 조건이다.
+     */
+    public boolean isAbandoned(LocalDateTime now) {
+        LocalDateTime since;
+        if (isAwaitingStartReport()) {
+            since = createdAt;
+        } else if (status == BattleStatus.WAITING_START) {
+            since = startAt == null ? createdAt : startAt;
+        } else {
+            return false;
+        }
+        return !now.isBefore(since.plus(ABANDON_AFTER));
+    }
+
+    /**
+     * 출발하지 못한 대결 취소: WAITING_START이거나 시작 보고 전 기록 대결만. CANCELLED(활성 아님, 판정·이력·전적 없음). 버려진 대결
+     * 정리(BattleStartService.cancelAbandoned)와 새 기록 대결이 시작 보고 전의 이전 기록 대결을 대신할
+     * 때(RecordBattleService) 부른다.
+     */
+    public void cancelUnstarted(LocalDateTime now) {
+        if (status != BattleStatus.WAITING_START && !isAwaitingStartReport()) {
+            throw new IllegalStateException("출발한 대결은 취소할 수 없다: " + status);
+        }
+        closedAt = now;
+        moveTo(BattleStatus.CANCELLED);
+    }
+
+    public boolean isCancelled() {
+        return status == BattleStatus.CANCELLED;
+    }
+
+    /**
+     * 상태를 바꾸고 참가자의 활성 대결 칸(battle_participant.active_member_id 고유 인덱스)을 맞춘다. 활성이면 회원 ID, 아니면 비운다.
+     * 그래서 한 회원이 활성 대결을 둘 가질 수 없다는 불변식을 PostgreSQL·H2 고유 제약이 지킨다(동시 생성 경합 포함).
+     */
+    private void moveTo(BattleStatus next) {
+        status = next;
+        participants.forEach(p -> p.syncActive(next.isActive()));
     }
 
     /**
@@ -235,7 +287,7 @@ public class Battle {
         if (!firstForSide || status == BattleStatus.COUNTDOWN) {
             return false;
         }
-        status = BattleStatus.COUNTDOWN;
+        moveTo(BattleStatus.COUNTDOWN);
         countdownEndsAt = at.plus(COUNTDOWN);
         return true;
     }
@@ -295,7 +347,7 @@ public class Battle {
         if (!isCloseDue(now)) {
             throw new IllegalStateException("아직 끝낼 수 없는 대결: " + status);
         }
-        status = BattleStatus.RESULT_PENDING;
+        moveTo(BattleStatus.RESULT_PENDING);
         closedAt = now;
     }
 
@@ -315,10 +367,12 @@ public class Battle {
 
     /**
      * 판정(srs.md 6.3 4.5 의사결정표, A-10). 먼저 도착한 쪽 기록이 아직 없거나 아직 달리는 참가자의 기록이 없으면 비어 있다. 판정되면 FINISHED.
-     * 이미 FINISHED였고 결과가 바뀌면 corrected = true.
+     * 이미 FINISHED였고 결과가 바뀌면 corrected = true. 결과가 같으면 비어 있고 아무것도 바꾸지 않는다(정정은 한 번 표시되면 유지).
      */
     public Optional<Judgement> judge(LocalDateTime now) {
-        if (status == BattleStatus.WAITING_START || hasForfeit()) {
+        if (status == BattleStatus.WAITING_START
+                || status == BattleStatus.CANCELLED
+                || hasForfeit()) {
             return Optional.empty();
         }
         List<ArrivalClaim> claims = claims();
@@ -330,8 +384,11 @@ public class Battle {
             return Optional.empty();
         }
         Map<Side, Verdict> verdicts = decide(inTime);
-        boolean changed = status == BattleStatus.FINISHED && !verdicts.equals(currentVerdicts());
-        return Optional.of(apply(verdicts, now, changed));
+        boolean finished = status == BattleStatus.FINISHED;
+        if (finished && verdicts.equals(currentVerdicts())) {
+            return Optional.empty(); // 같은 결과로 다시 판정: 정정 표시·판정 시각·사건을 그대로 둔다(멱등)
+        }
+        return Optional.of(apply(verdicts, now, finished));
     }
 
     /** 24시간 보류 만료. 없는 기록을 무효로 보고 판정한다. 보류 뒤 첫 판정이라 corrected = false. */
@@ -448,9 +505,9 @@ public class Battle {
         winnerOpponent = Side.OPPONENT.equals(winner);
         winnerMemberId =
                 winner instanceof Side.MemberSide member ? Long.valueOf(member.memberId()) : null;
-        corrected = isCorrection;
+        corrected = corrected || isCorrection;
         judgedAt = now;
-        status = BattleStatus.FINISHED;
+        moveTo(BattleStatus.FINISHED);
         return getJudgement().orElseThrow();
     }
 

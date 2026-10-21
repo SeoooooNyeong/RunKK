@@ -2,6 +2,7 @@ package com.a207.runkk.web.admin;
 
 import com.a207.runkk.common.AttemptLimiter;
 import com.a207.runkk.common.BusinessRuleException;
+import com.a207.runkk.common.ClientAddress;
 import com.a207.runkk.common.PermissionDeniedException;
 import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.operator.OperatorAuthorizer;
@@ -10,11 +11,10 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.time.Clock;
 import java.time.Duration;
-import java.util.regex.Pattern;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -28,6 +28,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/admin")
 public class AdminAuthController {
 
+    private static final Logger log = LoggerFactory.getLogger(AdminAuthController.class);
+
     private static final int TOKEN_MAX = 4_096;
     private static final int PROVIDER_MAX = 10;
 
@@ -39,8 +41,6 @@ public class AdminAuthController {
     /** nginx가 덮어써 넣는 실제 접속지 헤더(infra/nginx proxy_set_header X-Real-IP). */
     private static final String REAL_IP = "X-Real-IP";
 
-    private static final Pattern IP_LITERAL = Pattern.compile("[0-9a-fA-F.:]{2,45}");
-
     private final OperatorAuthorizer operatorAuthorizer;
     private final AttemptLimiter attempts;
 
@@ -49,16 +49,21 @@ public class AdminAuthController {
         this.attempts = new AttemptLimiter(LOGIN_FAILURES, LOGIN_WINDOW, clock);
     }
 
-    /** 같은 접속지에서 10분에 10번 실패하면 잠시 막는다(429). 성공하면 그 접속지의 실패를 지운다. */
+    /**
+     * 같은 접속지에서 10분에 10번 실패하면 잠시 막는다(429). 성공하면 그 접속지의 실패를 지운다. 성공·실패 감사는 OperatorAuthorizer가 접속지와
+     * 함께 남긴다(L25). 막힌 요청(429)은 감사 표를 채우지 않도록 운영 로그만 남긴다.
+     */
     @PostMapping("/login")
     OperatorSession login(@Valid @RequestBody LoginRequest request, HttpServletRequest http) {
         String client = clientOf(http);
         if (attempts.isBlocked(client)) {
+            log.warn("operator_login_blocked client={}", client);
             throw new BusinessRuleException(ReasonCode.TOO_MANY_ATTEMPTS);
         }
         try {
             OperatorSession session =
-                    operatorAuthorizer.authenticate(request.provider(), request.providerToken());
+                    operatorAuthorizer.authenticate(
+                            request.provider(), request.providerToken(), client);
             attempts.reset(client);
             return session;
         } catch (PermissionDeniedException | IllegalArgumentException e) {
@@ -68,29 +73,9 @@ public class AdminAuthController {
         }
     }
 
-    /**
-     * 접속지. X-Real-IP는 요청이 같은 호스트·사설망(nginx 컨테이너)에서 왔을 때만 믿는다. 밖에서 바로 온 요청이 헤더를 바꿔 제한을 피하지 못하게 한다(자가
-     * 리뷰 MEDIUM).
-     */
+    /** 접속지. X-Real-IP는 프록시(같은 호스트·사설망)에서 온 요청만 믿는다(common.ClientAddress). */
     static String clientOf(HttpServletRequest http) {
-        String remote = http.getRemoteAddr();
-        String real = http.getHeader(REAL_IP);
-        if (real == null || real.isBlank() || !fromProxy(remote)) {
-            return remote;
-        }
-        return real.strip();
-    }
-
-    private static boolean fromProxy(String remote) {
-        if (remote == null || !IP_LITERAL.matcher(remote).matches()) {
-            return false;
-        }
-        try {
-            InetAddress address = InetAddress.getByName(remote); // IP 글자라 이름 조회 없음
-            return address.isLoopbackAddress() || address.isSiteLocalAddress();
-        } catch (UnknownHostException e) {
-            return false;
-        }
+        return ClientAddress.resolve(http.getRemoteAddr(), http.getHeader(REAL_IP)).value();
     }
 
     /**

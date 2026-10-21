@@ -62,11 +62,12 @@ class AnalysisAuditBatchJobsTest {
                         mock(RankingRebuildJob.class),
                         mock(PlanReminderJob.class),
                         mock(PlanPurgeJob.class),
-                        "0 0 0 * * *",
-                        "0 0 20 * * *",
-                        "0 30 3 * * *")
+                        new AnalysisSchedulingConfig.Schedule(
+                                "0 0 0 * * *", "0 0 20 * * *", "0 30 3 * * *"))
                 .configureTasks(registrar);
-        new AuditSchedulingConfig(mock(AuditPurgeJob.class), "0 0 3 * * *")
+        new AuditSchedulingConfig(
+                        mock(AuditPurgeJob.class),
+                        new AuditSchedulingConfig.Schedule("0 0 3 * * *"))
                 .configureTasks(registrar);
         assertThat(registrar.getCronTaskList())
                 .extracting(t -> t.getExpression())

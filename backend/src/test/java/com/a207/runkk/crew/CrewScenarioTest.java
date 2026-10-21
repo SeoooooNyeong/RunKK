@@ -145,6 +145,24 @@ class CrewScenarioTest {
     }
 
     @Test
+    @org.junit.jupiter.api.DisplayName(
+            "L17: 가드 검사 뒤 크루원이 들어와 크루장이 크루원과 함께 탈퇴되면 가장 먼저 들어온 크루원이 크루장을 넘겨받는다")
+    void leaderWithdrawnWithMembers_handsOverToEarliestMember() {
+        long leader = member();
+        long first = member();
+        long second = member();
+        long crewId = crew(leader, JoinPolicy.FREE);
+        membership.apply(first, JoinTarget.byCrew(crewId));
+        membership.apply(second, JoinTarget.byCrew(crewId));
+
+        withdrawal.onMemberWithdrawn(new MemberWithdrawn(leader, LocalDateTime.now()));
+
+        assertThat(reader.activeMemberIds(crewId)).containsExactlyInAnyOrder(first, second);
+        assertThat(leaderGuard.check(first)).contains(ReasonCode.LEADER_MUST_TRANSFER);
+        assertThat(leaderGuard.check(second)).isEmpty();
+    }
+
+    @Test
     void crewRun_cancelledWhenFewerThanTwoReady_andQuitDuringRun() {
         long leader = member();
         long a = member();

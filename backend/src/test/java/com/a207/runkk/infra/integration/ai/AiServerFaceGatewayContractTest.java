@@ -191,4 +191,16 @@ class AiServerFaceGatewayContractTest {
             return new String(in.readAllBytes(), StandardCharsets.UTF_8);
         }
     }
+
+    @org.junit.jupiter.api.Test
+    void settings_toStringHidesInternalToken() {
+        org.assertj.core.api.Assertions.assertThat(
+                        new AiServerClient.Server(
+                                        "http://ai:8000",
+                                        "secret-token",
+                                        Duration.ofSeconds(3),
+                                        Duration.ofSeconds(15))
+                                .toString())
+                .doesNotContain("secret-token");
+    }
 }

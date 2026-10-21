@@ -10,6 +10,7 @@ import com.a207.runkk.battle.Source;
 import com.a207.runkk.battle.TrackSample;
 import com.a207.runkk.battle.Verdict;
 import com.a207.runkk.battle.WeeklyRecord;
+import com.a207.runkk.common.PageCursor;
 import com.a207.runkk.common.StandardDistance;
 import jakarta.validation.constraints.Positive;
 import java.time.Duration;
@@ -17,6 +18,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.format.annotation.DateTimeFormat;
 
 /**
  * 대결 REST 전송 형식(설계 5.7.1, 10/21 API 계약). 거리는 미터, 시간은 초, 시각은 서버 시간대 ISO-8601, 날짜는 yyyy-MM-dd. 앱
@@ -42,6 +44,27 @@ final class BattleDtos {
      * @param celebrityId 유명인 기록 ID
      */
     record CelebrityBattleRequest(@Positive long celebrityId) {}
+
+    /**
+     * 대결 이력 조회 쿼리(GET /battles/history, 코드 리뷰 2차 P1). 쿼리 이름은 항목 이름과 같다.
+     *
+     * @param type RANDOM(고스트 포함)·SELF·CELEBRITY, 없으면 전부
+     * @param from 시작일(ISO 날짜), 없으면 12개월 전
+     * @param to 끝일(ISO 날짜), 없으면 오늘
+     * @param cursor 다음 페이지 커서(직전 응답 nextCursor)
+     * @param size 페이지 크기(없으면 전부)
+     */
+    record HistoryQuery(
+            BattleType type,
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            Long cursor,
+            Integer size) {
+
+        PageCursor page() {
+            return new PageCursor(cursor, size);
+        }
+    }
 
     /**
      * 매칭 접수 결과.

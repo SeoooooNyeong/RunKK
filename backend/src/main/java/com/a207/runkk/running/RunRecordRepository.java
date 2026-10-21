@@ -3,6 +3,7 @@ package com.a207.runkk.running;
 import com.a207.runkk.common.DateRange;
 import com.a207.runkk.common.Distance;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -60,4 +61,7 @@ public interface RunRecordRepository {
 
     /** ownerIds 회원의 유효 기록 중 거리 ≥ d이고 경로가 남은 것. */
     List<OwnedRun> validRunsReaching(Distance d, Collection<Long> ownerIds);
+
+    /** 저장 일시가 [from, to)인 기록 전부(무효 포함), 저장 순. 커밋 뒤 수신자 보정 배치용. */
+    List<SavedRun> savedBetween(LocalDateTime from, LocalDateTime to);
 }

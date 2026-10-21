@@ -17,6 +17,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,6 +28,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class BattleStartService {
+
+    private static final Logger log = LoggerFactory.getLogger(BattleStartService.class);
 
     /** 매칭 애니메이션(D-17). */
     static final int ANIMATION_SECONDS = 3;
@@ -147,6 +151,36 @@ public class BattleStartService {
             LiveBattleSession session = openSession(battle, now);
             AfterCommit.run(() -> liveSessionStore.save(session));
         }
+    }
+
+    /**
+     * 출발하지 못한 채 ABANDON_AFTER(10분)가 지난 대결을 CANCELLED로 끝낸다(활성 대결 1개 불변식 결정): 시작 보고 없이 버려진 나와의 싸움·유명인
+     * 대결, 출발 시각이 지나도 시작하지 못한 랜덤·고스트 대결. 그래야 다음 대결 생성·매칭·탈퇴를 막지 않는다. batch.battle의
+     * AbandonedBattleJob이 1분마다 부른다. 대결마다 새 트랜잭션이고 취소한 수를 돌려준다. 시작 보고가 없는 기록 대결은 판정할 수 없어(도착 시각을
+     * 모른다) 잃는 결과가 없다. 실시간 세션은 출발 때 열리므로 지울 것이 없다.
+     */
+    public int cancelAbandoned(LocalDateTime now) {
+        int cancelled = 0;
+        for (Battle due : battleRepository.findAbandoned(now.minus(Battle.ABANDON_AFTER))) {
+            if (transactions.once("battle_abandon", () -> cancel(due.getId(), now))) {
+                cancelled++;
+            }
+        }
+        return cancelled;
+    }
+
+    private void cancel(long battleId, LocalDateTime now) {
+        Battle battle = battleRepository.findById(battleId).orElseThrow();
+        if (!battle.isAbandoned(now)) {
+            return; // 그사이 시작 보고가 왔다
+        }
+        battle.cancelUnstarted(now);
+        battleRepository.save(battle);
+        log.info(
+                "battle_abandoned battleId={} type={} memberIds={}",
+                battleId,
+                battle.getType(),
+                battle.memberIds());
     }
 
     private LiveBattleSession openSession(Battle battle, LocalDateTime now) {

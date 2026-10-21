@@ -15,6 +15,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * 알림 저장·발송·조회 유스케이스를 조정한다(설계 6.1.10, SQ-14). 수신 설정과 관계없이 알림함에 저장하고(W-03), 그 종류를 켠 회원에게만 푸시를
@@ -47,7 +49,7 @@ public class NotificationService {
         this.clock = clock;
     }
 
-    /** 탈퇴 회원이면 버림 → 알림함 저장 → ALLOWED면 기기 토큰으로 푸시(MUTED면 저장만). 무효 토큰은 지운다. */
+    /** 탈퇴 회원이면 버림 → 알림함 저장 → ALLOWED면 커밋 뒤 기기 토큰으로 푸시(MUTED면 저장만). 무효 토큰은 지운다. */
     @Transactional
     public void notify(NotificationRequest req) {
         PushDecision decision =
@@ -64,6 +66,31 @@ public class NotificationService {
         if (tokens.isEmpty()) {
             return;
         }
+        afterCommit(() -> push(req, tokens));
+    }
+
+    /**
+     * 외부 호출(FCM)을 커밋 뒤로 미룬다. 주의: 이미 커밋된 트랜잭션의 AFTER_COMMIT 단계에서 새 트랜잭션 없이 notify를 부르면 여기서 등록한 동기화가
+     * 불리지 않는다. AFTER_COMMIT 수신자는 REQUIRES_NEW 트랜잭션(BattleTransactions·CrewTransactions 등) 안에서
+     * 부른다(java-reviewer M5). 트랜잭션 밖이면 바로 한다. 부른 쪽 트랜잭션이 낙관적 잠금 충돌로 재시도·롤백되면 그 시도의 푸시는 나가지 않아 같은 알림이
+     * 두 번 가지 않는다(코드 리뷰 2차 L5·L6).
+     */
+    private static void afterCommit(Runnable effect) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            effect.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        effect.run();
+                    }
+                });
+    }
+
+    /** 푸시 발송. 무효 토큰은 지운다(새 트랜잭션, PushDeviceRepository 구현). 실패는 로그만. */
+    private void push(NotificationRequest req, List<String> tokens) {
         try {
             PushResult result = pushGateway.send(tokens, req.type(), req.content());
             if (!result.invalidTokens().isEmpty()) {

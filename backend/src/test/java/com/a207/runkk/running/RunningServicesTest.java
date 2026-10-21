@@ -129,6 +129,9 @@ class RunningServicesTest {
         send(m, upload(id(3), START.plusHours(2), 3_000, 900));
         assertThat(send(m, upload(id(1), 5_000, 1_500)))
                 .isEqualTo(UploadResult.alreadyStored(id(1)));
+        long stranger = member(); // L30: 남의 기록 ID로는 "이미 저장됨"을 알려 주지 않는다
+        assertThatThrownBy(() -> send(stranger, upload(id(1), 5_000, 1_500)))
+                .isInstanceOf(IllegalStateException.class);
 
         assertThat(saved()).extracting(RunRecordSaved::validRunOrdinal).containsExactly(1, 0, 2);
         RunRecordSaved first = saved().get(0);
@@ -390,6 +393,13 @@ class RunningServicesTest {
                 .thenReturn(null);
         new TierUpdateListener(flaky, NO_TX).onRunSaved(saved().get(0));
         verify(flaky, times(3)).recordValidRun(anyLong(), any(RunScoreInput.class));
+
+        TierLevelService locked = mock(TierLevelService.class); // L16: 잠금 대기도 일시 오류로 다시 한다
+        when(locked.recordValidRun(anyLong(), any()))
+                .thenThrow(new org.springframework.dao.CannotAcquireLockException("lock wait"))
+                .thenReturn(null);
+        new TierUpdateListener(locked, NO_TX).onRunSaved(saved().get(0));
+        verify(locked, times(2)).recordValidRun(anyLong(), any(RunScoreInput.class));
 
         TierLevelService broken = mock(TierLevelService.class);
         when(broken.recordValidRun(anyLong(), any())).thenThrow(new IllegalStateException("탈퇴"));

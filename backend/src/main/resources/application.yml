@@ -28,11 +28,11 @@ spring:
           time_zone: Asia/Seoul
   # 비동기 사건 수신자(리포트·Runimal, D-03) 실행기. 인스턴스 1개·동시 50명(5.4) 규모. 종료 때 진행 중 작업을 30초까지 기다린다(1단계 리뷰 M6·L2).
   task:
-    # 시각 작업은 batch.* 8개 패키지에 12개다(1초 2개, 0시 3개, 3시 6개, 20시 1개). 같은 시각 작업과 1초 시계가 서로 기다리지 않게
-    # 스케줄러 스레드를 작업 수만큼 둔다(5.5, B5 리뷰 "풀 2개로 3시·0시 작업이 겹침"). 작업을 더하면 이 값도 늘린다.
+    # 시각 작업은 batch.* 9개 패키지에 16개다(1초 2개, 1분 1개, 0시 3개, 0시 10분 2개, 3시 7개, 20시 1개). 같은 시각 작업과 1초 시계가 서로
+    # 기다리지 않게 스케줄러 스레드를 작업 수만큼 둔다(5.5, B5 리뷰 "풀 2개로 3시·0시 작업이 겹침"). 작업을 더하면 이 값도 늘린다.
     scheduling:
       pool:
-        size: ${SCHEDULER_POOL_SIZE:12}
+        size: ${SCHEDULER_POOL_SIZE:16}
       thread-name-prefix: runkk-schedule-
     execution:
       thread-name-prefix: runkk-async-
@@ -92,6 +92,13 @@ runkk:
       base-url: ${KAKAO_API_BASE_URL:https://kapi.kakao.com}
       # 토큰을 발급한 앱 ID. 비면 카카오 로그인은 "로그인 제공자 연결 실패"로 거부한다(다른 앱 토큰 대입 방지).
       app-id: ${KAKAO_APP_ID:}
+    # 공개 인증 경로(로그인·갱신·가입) 시도 제한(코드 리뷰 2차 M5, web.auth.AuthAttemptGuard). 넘으면 429 TOO_MANY_ATTEMPTS.
+    attempts:
+      client-requests: ${AUTH_CLIENT_REQUESTS_PER_MINUTE:30}
+      request-window: 1m
+      client-failures: 10
+      credential-failures: 5
+      failure-window: 10m
     google:
       base-url: ${GOOGLE_TOKENINFO_BASE_URL:https://oauth2.googleapis.com}
       # ID 토큰 aud로 받을 OAuth 클라이언트 ID(쉼표 구분). 비면 구글 로그인을 거부한다.
@@ -120,7 +127,11 @@ runkk:
     # 대결 시계(Matchmaker·BattleClockService·LiveBattleService, D-39). 시험 프로필은 끄고 연산을 직접 부른다.
     battle-tick-enabled: true
     battle-tick-interval: 1s
+    # 출발하지 못한 대결 정리(시작 보고 없이 10분 지난 기록 대결 등 → CANCELLED, 활성 대결 1개 불변식 결정)
+    battle-abandon-interval: 1m
     withdrawal-purge-cron: "0 0 3 * * *"
+    # 만료된 갱신 토큰 폐기 목록 행 정리(M6 후속 결정, refresh_token_revocation)
+    revocation-purge-cron: "0 0 3 * * *"
     disposal-cron: "0 0 3 * * *"
     notification-purge-cron: "0 0 3 * * *"
     # 크루런 시계(CrewRunService.tick·CrewRunLiveService.detectTimeouts, D-39). 시험 프로필은 끄고 연산을 직접 부른다.
@@ -128,6 +139,9 @@ runkk:
     crew-tick-interval: 1s
     # 크루 주간 거리 재합산(D-38), 가입 신청 만료(Q-40), 아바타 외형 재계산(N-18)
     weekly-race-reconcile-cron: "0 0 0 * * *"
+    # 커밋 뒤 수신자 유실분 일 단위 보정(코드 리뷰 2차 M4 결정): 리워드 적립, 크루런 기록 연결. 전날이 끝난 뒤 최근 2일을 다시 본다.
+    reward-reconcile-cron: "0 10 0 * * *"
+    crew-run-link-reconcile-cron: "0 10 0 * * *"
     join-request-expiry-cron: "0 0 3 * * *"
     appearance-refresh-cron: "0 0 0 * * *"
     # 랭킹 스냅숏 재집계(D-25, FR-070), 계획 미이행 알림(FR-075), 감사 기록 6개월 정리(FR-176)
@@ -174,6 +188,11 @@ runkk:
     enabled: true
     port: ${EMBEDDED_REDIS_PORT:6370}
 
+
+# local은 인증 없는 h2-console과 기동마다 바뀌는 JWT 키로 뜨므로 기본으로 이 PC에서만 받는다(코드 리뷰 2차 L19).
+# 실기기 시험처럼 같은 망에서 붙어야 하면 SERVER_ADDRESS=0.0.0.0으로 연다(에뮬레이터 10.0.2.2는 이 PC의 루프백이라 그대로 된다).
+server:
+  address: ${SERVER_ADDRESS:127.0.0.1}
 ---
 spring:
   config:
@@ -193,6 +212,8 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+      # Redis 비밀번호(코드 리뷰 2차 L27). 서버 Redis에 requirepass를 켜면 같은 값을 넣는다. 비면 비밀번호 없이 붙는다.
+      password: ${REDIS_PASSWORD:}
 
 springdoc:
   api-docs:
@@ -223,6 +244,7 @@ spring:
     redis:
       host: ${REDIS_HOST}
       port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
 
 springdoc:
   api-docs:

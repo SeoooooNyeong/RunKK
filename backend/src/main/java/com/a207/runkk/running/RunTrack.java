@@ -77,6 +77,15 @@ public class RunTrack {
         return max;
     }
 
+    /** 모든 이웃 포인트 사이 거리의 합(불안정 구간 포함). 선언 거리 대조에 쓴다(L18). */
+    public Distance pathLength() {
+        double acc = 0;
+        for (int i = 1; i < points.size(); i++) {
+            acc += meters(points.get(i - 1).point(), points.get(i).point());
+        }
+        return Distance.ofMeters(Math.round(acc));
+    }
+
     /** 누적 거리 d에 처음 닿은 경과 시간. 두 포인트 사이는 직선 보간. 파기했거나 닿지 않았으면 비어 있음. */
     public Optional<Duration> timeToReach(Distance d) {
         if (purged || points.isEmpty()) {
@@ -134,44 +143,56 @@ public class RunTrack {
      * 만든다. 마지막 표본은 end 시점이다.
      */
     List<CurvePoint> curve(Duration step, Duration end) {
-        int n = points.size();
-        long[] offsets = new long[n];
-        double[] cumulative = new double[n];
-        for (int i = 0; i < n; i++) {
-            offsets[i] = Duration.between(startedAt, points.get(i).measuredAt()).toMillis();
-            if (i > 0) {
-                boolean skip = points.get(i).signal() == SignalState.UNSTABLE;
-                cumulative[i] =
-                        cumulative[i - 1]
-                                + (skip
-                                        ? 0
-                                        : meters(points.get(i - 1).point(), points.get(i).point()));
-            }
-        }
+        long[] offsets = offsetsMillis();
+        double[] cumulative = cumulativeMeters();
         List<CurvePoint> result = new ArrayList<>();
         int i = -1;
         long endMillis = end.toMillis();
         for (long t = 0; ; t = Math.min(t + step.toMillis(), endMillis)) {
-            while (i + 1 < n && offsets[i + 1] <= t) {
+            while (i + 1 < offsets.length && offsets[i + 1] <= t) {
                 i++;
             }
-            double meters;
-            if (i < 0) {
-                meters = 0;
-            } else if (i == n - 1 || offsets[i + 1] == offsets[i]) {
-                meters = cumulative[i];
-            } else {
-                meters =
-                        cumulative[i]
-                                + (cumulative[i + 1] - cumulative[i])
-                                        * (t - offsets[i])
-                                        / (offsets[i + 1] - offsets[i]);
-            }
+            double meters = metersAt(t, i, offsets, cumulative);
             result.add(new CurvePoint(Duration.ofMillis(t), Distance.ofMeters(Math.round(meters))));
             if (t >= endMillis) {
                 return result;
             }
         }
+    }
+
+    /** 포인트마다 시작부터의 경과(ms). */
+    private long[] offsetsMillis() {
+        long[] offsets = new long[points.size()];
+        for (int i = 0; i < offsets.length; i++) {
+            offsets[i] = Duration.between(startedAt, points.get(i).measuredAt()).toMillis();
+        }
+        return offsets;
+    }
+
+    /** 포인트마다 누적 거리(m). 불안정 구간으로 들어가는 구간은 더하지 않는다. */
+    private double[] cumulativeMeters() {
+        double[] cumulative = new double[points.size()];
+        for (int i = 1; i < cumulative.length; i++) {
+            boolean skip = points.get(i).signal() == SignalState.UNSTABLE;
+            cumulative[i] =
+                    cumulative[i - 1]
+                            + (skip ? 0 : meters(points.get(i - 1).point(), points.get(i).point()));
+        }
+        return cumulative;
+    }
+
+    /** t 시점의 누적 거리. i는 t 이전 마지막 포인트(없으면 -1), 다음 포인트까지 직선 보간(sw-test 복잡도 분리). */
+    private static double metersAt(long t, int i, long[] offsets, double[] cumulative) {
+        if (i < 0) {
+            return 0;
+        }
+        if (i == offsets.length - 1 || offsets[i + 1] == offsets[i]) {
+            return cumulative[i];
+        }
+        return cumulative[i]
+                + (cumulative[i + 1] - cumulative[i])
+                        * (t - offsets[i])
+                        / (offsets[i + 1] - offsets[i]);
     }
 
     /** 첫 포인트. 파기 뒤 비어 있음. */

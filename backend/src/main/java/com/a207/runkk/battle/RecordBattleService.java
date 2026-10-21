@@ -20,6 +20,10 @@ import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,6 +34,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class RecordBattleService {
 
+    private static final Logger log = LoggerFactory.getLogger(RecordBattleService.class);
+
     /** 기록이 없는 나와의 싸움 거리의 후보 문구(FR-096). */
     static final String NO_RECORD_YET = "아직 기록이 없어요";
 
@@ -39,6 +45,7 @@ public class RecordBattleService {
     private final RunQueryService runQueryService;
     private final CelebrityRecordRepository celebrityRecordRepository;
     private final BattleRepository battleRepository;
+    private final MatchQueue matchQueue;
     private final Clock clock;
 
     public RecordBattleService(
@@ -46,11 +53,13 @@ public class RecordBattleService {
             RunQueryService runQueryService,
             CelebrityRecordRepository celebrityRecordRepository,
             BattleRepository battleRepository,
+            MatchQueue matchQueue,
             Clock clock) {
         this.memberQueryService = memberQueryService;
         this.runQueryService = runQueryService;
         this.celebrityRecordRepository = celebrityRecordRepository;
         this.battleRepository = battleRepository;
+        this.matchQueue = matchQueue;
         this.clock = clock;
     }
 
@@ -144,10 +153,37 @@ public class RecordBattleService {
                 celebrity.isEstimated());
     }
 
+    /**
+     * 랜덤 매칭 대기 중이면 거부한다(ALREADY_IN_BATTLE, 코드 리뷰 2차 L10). 활성 대결이 있으면 거부하되, 시작 보고 전의 이전 기록 대결은 새 대결이
+     * 대신한다(CANCELLED, 앱에서 카운트다운 전에 뒤로 가 다시 고른 경우). 회원별 활성 대결 1개는 active_member_id 고유 제약이 동시 생성까지
+     * 지키고, 경합에서 진 요청도 ALREADY_IN_BATTLE이다(활성 대결 1개 불변식 결정).
+     */
     private Battle create(
             BattleType type, long memberId, Distance distance, OpponentRecord opponent) {
+        if (matchQueue.findWaiting(memberId).isPresent()) {
+            throw new BusinessRuleException(ReasonCode.ALREADY_IN_BATTLE);
+        }
+        LocalDateTime now = LocalDateTime.now(clock);
         RecordBattleSpec spec = RecordBattleSpec.of(type, memberId, distance, opponent);
-        return battleRepository.save(Battle.againstRecord(spec, LocalDateTime.now(clock)));
+        try {
+            for (Battle active : battleRepository.findActive(memberId)) {
+                if (!active.isAwaitingStartReport()) {
+                    throw new BusinessRuleException(ReasonCode.ALREADY_IN_BATTLE);
+                }
+                active.cancelUnstarted(now);
+                battleRepository.saveImmediately(active);
+            }
+            return battleRepository.saveImmediately(Battle.againstRecord(spec, now));
+        } catch (DataIntegrityViolationException | OptimisticLockingFailureException e) {
+            // 같은 회원의 다른 생성 요청과 겹쳤다(활성 칸 고유 제약, 같은 이전 대결을 동시에 대신함).
+            // 다른 무결성 위반을 가리지 않도록 원인을 남긴다.
+            log.warn(
+                    "record_battle_create_conflict memberId={} error={}",
+                    memberId,
+                    e.getClass().getSimpleName(),
+                    e);
+            throw new BusinessRuleException(ReasonCode.ALREADY_IN_BATTLE);
+        }
     }
 
     /** 앱의 3초 카운트다운이 끝났다는 보고 → Battle.start(now)(R-02). 기록 대결만, 같은 보고를 다시 받으면 무시한다. */
@@ -162,6 +198,9 @@ public class RecordBattleService {
         }
         if (!battle.getType().startsWithCountdown()) {
             throw new IllegalArgumentException("시작 보고는 나와의 싸움·유명인 대결만 받는다");
+        }
+        if (battle.isCancelled()) {
+            throw new BusinessRuleException(ReasonCode.BATTLE_NOT_FOUND); // 버려져 취소됐다
         }
         if (battle.getStartAt().isPresent()) {
             return; // 앱 재시도: 이미 시작했다(멱등)

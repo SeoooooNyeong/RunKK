@@ -20,7 +20,6 @@ import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -61,13 +60,19 @@ public class WeeklyRaceService {
         this.clock = clock;
     }
 
-    /** 유효 러닝만. 기록 시작일시에 소속이던 크루의 그 주에 addAtomically(FR-139). 커밋 뒤 동기(결과 화면에 바로 필요, D-03). */
+    /**
+     * 유효 러닝만. 기록 시작일시에 소속이던 크루의 그 주에 addAtomically(FR-139). 커밋 뒤 동기(결과 화면에 바로 필요, D-03). 일시 오류는 다시
+     * 하고 그래도 실패하면 로그만 남긴다. 빠진 기록은 0시 재합산(reconcileAll)이 지난주·이번 주를 다시 맞춘다(M4).
+     */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onRunSaved(RunRecordSaved e) {
         if (!e.valid()) {
             return;
         }
+        transactions.afterCommit("weekly_race_add", e.recordId(), () -> addToRace(e));
+    }
+
+    private void addToRace(RunRecordSaved e) {
         crewRepository.findMembershipHistory(e.memberId()).stream()
                 .filter(m -> m.coversAt(e.startedAt()))
                 .findFirst()

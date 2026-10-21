@@ -1,6 +1,7 @@
 package com.a207.runkk.member;
 
 import com.a207.runkk.common.ReasonCode;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -68,6 +69,7 @@ public class AuthService {
      * 접근 토큰 재발급(D-19). 갱신 토큰은 한 번만 쓴다(회전). 탈퇴한 회원이면 AuthFailureException.
      *
      * @throws AuthFailureException 갱신 토큰이 위조·만료·폐기되었거나 회원이 탈퇴함
+     * @throws ProviderUnavailableException 폐기 목록을 확인할 수 없음(fail-closed)
      */
     public TokenPair refresh(String refreshToken) {
         long memberId = tokenIssuer.redeemRefreshToken(refreshToken);
@@ -80,5 +82,10 @@ public class AuthService {
             throw new AuthFailureException("탈퇴했거나 없는 회원");
         }
         return tokenIssuer.issue(memberId);
+    }
+
+    /** 만료된 갱신 토큰 폐기 목록 행 정리(M6 후속 결정). batch.member의 RevocationPurgeJob이 3시에 부른다. 지운 수. */
+    public int purgeExpiredRevocations(LocalDateTime now) {
+        return tokenIssuer.purgeExpiredRevocations(now);
     }
 }

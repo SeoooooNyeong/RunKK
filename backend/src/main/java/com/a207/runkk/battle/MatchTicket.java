@@ -62,6 +62,16 @@ public final class MatchTicket {
         status = MatchStatus.ASSIGNED;
     }
 
+    /**
+     * ASSIGNED → WAITING, waitingSince 유지. 대결 저장·고스트 매칭이 실패했을 때만(D-64). 아니면 IllegalStateException.
+     */
+    public void release() {
+        if (status != MatchStatus.ASSIGNED) {
+            throw new IllegalStateException("배정된 표만 되돌린다: " + status);
+        }
+        status = MatchStatus.WAITING;
+    }
+
     public long getMemberId() {
         return memberId;
     }

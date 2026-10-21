@@ -46,6 +46,19 @@ class AvatarControllerTest extends WebTestSupport {
     @Autowired OperationSettingService settings;
     @Autowired OperationPolicy policy;
     @Autowired RewardService rewards;
+    @Autowired org.springframework.data.redis.core.StringRedisTemplate redis;
+
+    /**
+     * 내장 Redis는 시험 실행 사이에 남을 수 있고 H2 회원 ID는 실행마다 1부터라, 같은 날 앞선 실행의 셀카 실패 수·잠금이 새 회원에게 붙는다. 시험마다 셀카
+     * 키를 지워 격리한다.
+     */
+    @org.junit.jupiter.api.BeforeEach
+    void clearSelfieKeys() {
+        java.util.Set<String> keys = redis.keys("selfie:*");
+        if (keys != null && !keys.isEmpty()) {
+            redis.delete(keys);
+        }
+    }
 
     private static SdFacePartImages parts() {
         Map<FacePart, byte[]> images = new EnumMap<>(FacePart.class);

@@ -62,8 +62,21 @@ public class JoinRequest {
         this.status = JoinRequestStatus.PENDING;
     }
 
+    /**
+     * 7일이 지난 신청은 만료 작업이 돌기 전이라도 승인하지 않는다: BusinessRuleException(REQUEST_DECIDED)(06-04, 코드 리뷰 2차
+     * L12).
+     */
     public void approve(LocalDateTime now) {
+        if (isDueToExpire(now)) {
+            throw new BusinessRuleException(ReasonCode.REQUEST_DECIDED);
+        }
         decide(JoinRequestStatus.APPROVED, now);
+    }
+
+    /** PENDING이고 requestedAt + 7일 ≤ now(만료 대상)인가. */
+    public boolean isDueToExpire(LocalDateTime now) {
+        return status == JoinRequestStatus.PENDING
+                && !requestedAt.plusDays(EXPIRY_DAYS).isAfter(now);
     }
 
     public void reject(LocalDateTime now) {
@@ -86,7 +99,7 @@ public class JoinRequest {
 
     /** PENDING이고 requestedAt + 7일 ≤ now면 EXPIRED, true. */
     public boolean expire(LocalDateTime now) {
-        if (status != JoinRequestStatus.PENDING || requestedAt.plusDays(EXPIRY_DAYS).isAfter(now)) {
+        if (!isDueToExpire(now)) {
             return false;
         }
         decide(JoinRequestStatus.EXPIRED, now);

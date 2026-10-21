@@ -292,6 +292,21 @@ class CrewDomainTest {
             assertThatThrownBy(() -> pending().cancel(8, NOW))
                     .satisfies(e -> assertThat(reasonOf(e)).isEqualTo(ReasonCode.NOT_CANCELLABLE));
         }
+
+        @Test
+        @DisplayName("L12: 7일이 지난 신청은 만료 작업 전이라도 승인할 수 없다(REQUEST_DECIDED), 직전에는 승인된다")
+        void approve_rechecksSevenDays() {
+            JoinRequest due = pending();
+            assertThat(due.isDueToExpire(NOW.plusDays(7))).isTrue();
+            assertThatThrownBy(() -> due.approve(NOW.plusDays(7)))
+                    .satisfies(e -> assertThat(reasonOf(e)).isEqualTo(ReasonCode.REQUEST_DECIDED));
+            assertThat(due.isPending()).isTrue();
+
+            JoinRequest inTime = pending();
+            assertThat(inTime.isDueToExpire(NOW.plusDays(7).minusSeconds(1))).isFalse();
+            inTime.approve(NOW.plusDays(7).minusSeconds(1));
+            assertThat(inTime.status()).isEqualTo(JoinRequestStatus.APPROVED);
+        }
     }
 
     @Nested

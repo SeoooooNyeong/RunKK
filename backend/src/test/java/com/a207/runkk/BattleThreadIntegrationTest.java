@@ -34,6 +34,7 @@ import com.a207.runkk.running.CardKind;
 import com.a207.runkk.running.LocationPoint;
 import com.a207.runkk.running.RunFixtures;
 import com.a207.runkk.running.RunMode;
+import com.a207.runkk.running.RunQueryService;
 import com.a207.runkk.running.RunUpload;
 import com.a207.runkk.running.RunUploadCommand;
 import com.a207.runkk.running.RunUploadService;
@@ -50,6 +51,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
@@ -60,6 +62,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
@@ -96,9 +99,27 @@ class BattleThreadIntegrationTest {
     @Autowired TransactionTemplate tx;
     @Autowired JdbcTemplate jdbc;
     @Autowired StringRedisTemplate redis;
+    @MockitoSpyBean RunQueryService runQueries;
+
+    /** 기록 반영 두 건이 대결을 읽은 뒤 서로를 기다리게 하는 문(M3 재현). 비어 있으면 그냥 지나간다. */
+    private final AtomicReference<CountDownLatch> recordGate = new AtomicReference<>();
 
     @BeforeEach
     void clean() {
+        recordGate.set(null);
+        org.mockito.Mockito.doAnswer(
+                        inv -> {
+                            CountDownLatch gate = recordGate.get();
+                            if (gate != null) {
+                                gate.countDown();
+                                gate.await(5, TimeUnit.SECONDS);
+                            }
+                            return inv.callRealMethod();
+                        })
+                .when(runQueries)
+                .timeToReach(
+                        org.mockito.ArgumentMatchers.anyString(),
+                        org.mockito.ArgumentMatchers.any());
         for (String table :
                 List.of(
                         "battle_disconnection",
@@ -233,6 +254,41 @@ class BattleThreadIntegrationTest {
                         Integer.class,
                         bob);
         assertThat(notifications).isEqualTo(1);
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName(
+            "M3: 1초 안에 함께 도착한 두 참가자의 기록이 동시에 반영돼도 서로를 보고 판정한다(Battle 낙관적 잠금)")
+    void bothRecordsAtOnce_areJudgedTogether() throws Exception {
+        long alice = ranked("동시곰");
+        long bob = ranked("동시여우");
+        matching.requestMatch(alice, StandardDistance.KM5);
+        matching.requestMatch(bob, StandardDistance.KM5);
+        matchmaker.tick(LocalDateTime.now());
+        Battle battle = battleOf(alice);
+        LocalDateTime start = battle.getStartAt().orElseThrow();
+        battleClock.tick(start);
+        LocalDateTime arrival = start.plusMinutes(25);
+        live.onProgress(alice, battle.getId(), progress(5_000, 1_500, arrival), arrival);
+        live.onProgress(bob, battle.getId(), progress(5_000, 1_500, arrival), arrival);
+        battleClock.tick(arrival.plusSeconds(10));
+        assertThat(load(battle.getId()).getStatus()).isEqualTo(BattleStatus.RESULT_PENDING);
+
+        recordGate.set(new CountDownLatch(2));
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        List<Future<?>> uploadsInFlight = new ArrayList<>();
+        for (long member : List.of(alice, bob)) {
+            uploadsInFlight.add(pool.submit(() -> uploadBattleRun(member, battle, 5_000)));
+        }
+        for (Future<?> f : uploadsInFlight) {
+            f.get(60, TimeUnit.SECONDS);
+        }
+        pool.shutdown();
+
+        Battle judged = load(battle.getId());
+        assertThat(judged.getStatus()).isEqualTo(BattleStatus.FINISHED);
+        assertThat(judged.getParticipants())
+                .allSatisfy(p -> assertThat(p.getVerified()).contains(true));
     }
 
     @Test

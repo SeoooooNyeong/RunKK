@@ -3,6 +3,7 @@ package com.a207.runkk.web.error;
 import com.a207.runkk.common.BusinessRuleException;
 import com.a207.runkk.common.PermissionDeniedException;
 import com.a207.runkk.common.ReasonCode;
+import java.sql.SQLException;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,6 +33,12 @@ import org.springframework.web.multipart.support.MissingServletRequestPartExcept
 public class ApiExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);
+
+    /** PostgreSQL·H2 고유 제약 위반 SQLSTATE. */
+    private static final String UNIQUE_VIOLATION = "23505";
+
+    /** 외래 키 위반 SQLSTATE: 참조하던 행이 동시에 지워진 경합이라 409로 둔다. */
+    private static final String FOREIGN_KEY_VIOLATION = "23503";
 
     /** 409가 아닌 사유 코드. */
     private static final Map<ReasonCode, HttpStatus> STATUS_BY_REASON =
@@ -79,14 +86,36 @@ public class ApiExceptionHandler {
                 .body(new ErrorResponse("INVALID_STATE", "처리할 수 없는 상태"));
     }
 
-    @ExceptionHandler({
-        OptimisticLockingFailureException.class,
-        DataIntegrityViolationException.class
-    })
+    @ExceptionHandler(OptimisticLockingFailureException.class)
     ResponseEntity<ErrorResponse> handleConcurrentUpdate(RuntimeException e) {
         log.info("concurrent_update type={}", e.getClass().getSimpleName());
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(new ErrorResponse("CONCURRENT_UPDATE", "다시 시도해 주세요"));
+    }
+
+    /**
+     * 고유 제약 경합(SQLSTATE 23505)과 동시 삭제로 생긴 외래 키 위반(23503)만 409 "다시 시도해 주세요"다. NOT NULL·길이 같은 다른 무결성
+     * 위반은 프로그래밍 오류라 500으로 두고 오류 로그를 남긴다(코드 리뷰 2차 L2).
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    ResponseEntity<ErrorResponse> handleIntegrityViolation(DataIntegrityViolationException e) {
+        // 본문 없는 500: 앱은 기존처럼 일반 서버 오류로 처리한다
+        String state = sqlStateOf(e);
+        if (UNIQUE_VIOLATION.equals(state) || FOREIGN_KEY_VIOLATION.equals(state)) {
+            return handleConcurrentUpdate(e);
+        }
+        log.error("integrity_violation sqlState={}", sqlStateOf(e), e);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .build(); // 새 오류 code를 만들지 않는다
+    }
+
+    private static String sqlStateOf(Throwable e) {
+        for (Throwable cause = e; cause != null; cause = cause.getCause()) {
+            if (cause instanceof SQLException sql && sql.getSQLState() != null) {
+                return sql.getSQLState();
+            }
+        }
+        return null;
     }
 
     /** 업로드 크기 초과(셀카 1MB, D-59). 본문은 로그에 남기지 않는다. */

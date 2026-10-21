@@ -116,6 +116,10 @@ public class RunRecord {
     @Column(name = "new_records", nullable = false, columnDefinition = "text")
     private String newRecordsData;
 
+    /** 서버 저장 일시(RunRecordSaved.occurredAt과 같다). 커밋 뒤 수신자 보정 배치가 이 날짜로 원래 사건일을 안다. */
+    @Column(name = "saved_at", nullable = false, updatable = false)
+    private LocalDateTime savedAt;
+
     @Transient private RunTrack track;
 
     @Transient private HeartRateSeries heartRates;
@@ -151,26 +155,33 @@ public class RunRecord {
      * IllegalArgumentException. 포인트는 측정 일시 순으로 정렬한다.
      */
     public static RunRecord receive(long memberId, RunUpload upload) {
-        if (upload.recordId() == null || !UUID_FORMAT.matcher(upload.recordId()).matches()) {
-            throw new IllegalArgumentException("기록 ID는 UUID다");
-        }
-        if (upload.startedAt() == null
-                || upload.endedAt() == null
-                || !upload.startedAt().isBefore(upload.endedAt())) {
-            throw new IllegalArgumentException("시작 일시는 종료 일시보다 앞이다");
-        }
-        if (upload.distance() == null
-                || upload.distance().meters() <= 0
-                || upload.elapsed() == null
-                || upload.elapsed().isZero()
-                || upload.elapsed().isNegative()) {
-            throw new IllegalArgumentException("거리·시간은 0보다 크다");
-        }
-        if (upload.points().size() != upload.declaredPointCount()) {
-            throw new IllegalArgumentException("포인트 수가 선언과 다르다");
-        }
+        require(
+                upload.recordId() != null && UUID_FORMAT.matcher(upload.recordId()).matches(),
+                "기록 ID는 UUID다");
+        require(hasOrderedTimes(upload), "시작 일시는 종료 일시보다 앞이다");
+        require(hasPositiveAmounts(upload), "거리·시간은 0보다 크다");
+        require(upload.points().size() == upload.declaredPointCount(), "포인트 수가 선언과 다르다");
         requireConsistentMode(upload);
         return new RunRecord(memberId, upload);
+    }
+
+    private static void require(boolean condition, String message) {
+        if (!condition) {
+            throw new IllegalArgumentException(message);
+        }
+    }
+
+    private static boolean hasOrderedTimes(RunUpload upload) {
+        return upload.startedAt() != null
+                && upload.endedAt() != null
+                && upload.startedAt().isBefore(upload.endedAt());
+    }
+
+    private static boolean hasPositiveAmounts(RunUpload upload) {
+        return upload.distance() != null
+                && upload.distance().meters() > 0
+                && upload.elapsed() != null
+                && upload.elapsed().isPositive();
     }
 
     /** 유효 판정. 처음 한 번만(두 번째는 IllegalStateException, FR-043 재계산 금지). 유효면 점수 확정. */
@@ -181,10 +192,15 @@ public class RunRecord {
         this.judged = true;
         this.valid =
                 rule.isSatisfiedBy(
-                        getDistance(),
-                        getElapsed(),
-                        getAveragePace(),
-                        track().maxSegmentSpeedKmh());
+                                getDistance(),
+                                getElapsed(),
+                                getAveragePace(),
+                                track().maxSegmentSpeedKmh())
+                        && rule.isBackedBy(
+                                getDistance(),
+                                track().pathLength(),
+                                getElapsed(),
+                                Duration.between(startedAt, endedAt));
         this.score = valid ? RunningScore.of(getDistance(), getElapsed()).value() : null;
         return valid;
     }
@@ -275,6 +291,18 @@ public class RunRecord {
     /** 기록상 거리가 d에 닿았는가(대결 검증, FR-092). */
     public boolean reached(Distance d) {
         return getDistance().isAtLeast(d);
+    }
+
+    /** 저장 직전에 한 번 부른다(RunUploadService.store). */
+    public void markSaved(LocalDateTime at) {
+        if (savedAt != null) {
+            throw new IllegalStateException("이미 저장된 기록");
+        }
+        this.savedAt = at;
+    }
+
+    public LocalDateTime getSavedAt() {
+        return savedAt;
     }
 
     public String getRecordId() {

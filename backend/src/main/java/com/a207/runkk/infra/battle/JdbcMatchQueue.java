@@ -26,6 +26,12 @@ import org.springframework.transaction.annotation.Transactional;
 public class JdbcMatchQueue implements MatchQueue {
 
     private static final int PAIR = 2;
+
+    /** 배정 뒤 이만큼 지나도 남은 행은 장애로 남은 것으로 보고 재요청 때 지운다(Redis 표 수명과 같다, L11). */
+    private static final String STALE_ASSIGNED =
+            "delete from match_ticket where member_id = ? and status = 'ASSIGNED'"
+                    + " and assigned_at < localtimestamp - interval '5 minutes'";
+
     private static final String COLUMNS = "member_id, tier, distance, waiting_since, status";
 
     private final JdbcTemplate jdbc;
@@ -37,6 +43,7 @@ public class JdbcMatchQueue implements MatchQueue {
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public boolean enqueue(MatchTicket ticket) {
+        jdbc.update(STALE_ASSIGNED, ticket.getMemberId());
         int inserted =
                 jdbc.update(
                         "insert into match_ticket ("
@@ -98,8 +105,31 @@ public class JdbcMatchQueue implements MatchQueue {
         if (locked.size() != PAIR) {
             return false;
         }
-        jdbc.update("update match_ticket set status = 'ASSIGNED' where member_id in (?, ?)", a, b);
+        jdbc.update(
+                "update match_ticket set status = 'ASSIGNED', assigned_at = localtimestamp"
+                        + " where member_id in (?, ?)",
+                a,
+                b);
         return true;
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public boolean tryAssign(long memberId) {
+        return jdbc.update(
+                        "update match_ticket set status = 'ASSIGNED', assigned_at = localtimestamp"
+                                + " where member_id = ? and status = 'WAITING'",
+                        memberId)
+                > 0;
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void release(long memberId) {
+        jdbc.update(
+                "update match_ticket set status = 'WAITING', assigned_at = null"
+                        + " where member_id = ? and status = 'ASSIGNED'",
+                memberId);
     }
 
     /** 대기 표로 열고 저장 상태가 ASSIGNED면 배정한다. */

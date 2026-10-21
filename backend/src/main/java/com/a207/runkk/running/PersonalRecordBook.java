@@ -80,47 +80,53 @@ public class PersonalRecordBook {
             return marks;
         }
         for (StandardDistance d : StandardDistance.values()) {
-            if (!d.isRecordBase()) {
-                continue;
-            }
-            Optional<Duration> reached = r.timeToReach(d.distance());
-            if (reached.isEmpty()) {
-                continue;
-            }
-            BestEntry old = bests.get(d);
-            Duration oldTime = old == null ? null : old.time().orElse(null);
-            if (oldTime == null || reached.get().compareTo(oldTime) < 0) {
-                bests.put(
-                        d,
-                        BestEntry.ofTime(
-                                r.getRecordId(),
-                                reached.get(),
-                                r.getStartedAt().toLocalDate(),
-                                r.track().hasUnstableWithin(Distance.ZERO, d.distance())));
-                if (oldTime != null) {
-                    marks.add(
-                            new NewRecordMark(
-                                    NewRecordMark.Kind.BASE_DISTANCE, d, format(oldTime)));
-                }
+            if (d.isRecordBase()) {
+                r.timeToReach(d.distance())
+                        .flatMap(reached -> improveBest(r, d, reached))
+                        .ifPresent(marks::add);
             }
         }
-        Distance previousLongest = longest == null ? null : longest.distance().orElse(null);
-        if (previousLongest == null || r.getDistance().compareTo(previousLongest) > 0) {
-            if (previousLongest != null) {
-                marks.add(
-                        new NewRecordMark(
-                                NewRecordMark.Kind.LONGEST,
-                                null,
-                                String.format(Locale.ROOT, "직전 %.2f km", previousLongest.km())));
-            }
-            this.longest =
-                    BestEntry.ofDistance(
-                            r.getRecordId(),
-                            r.getDistance(),
-                            r.getStartedAt().toLocalDate(),
-                            !r.track().unstableSegments().isEmpty());
-        }
+        improveLongest(r).ifPresent(marks::add);
         return marks;
+    }
+
+    /** 기준 거리 d의 최고 기록을 갱신한다. 갱신했고 직전 기록이 있었으면 신기록 표시(sw-test 복잡도 분리). */
+    private Optional<NewRecordMark> improveBest(RunRecord r, StandardDistance d, Duration reached) {
+        BestEntry old = bests.get(d);
+        Duration oldTime = old == null ? null : old.time().orElse(null);
+        if (oldTime != null && reached.compareTo(oldTime) >= 0) {
+            return Optional.empty();
+        }
+        bests.put(
+                d,
+                BestEntry.ofTime(
+                        r.getRecordId(),
+                        reached,
+                        r.getStartedAt().toLocalDate(),
+                        r.track().hasUnstableWithin(Distance.ZERO, d.distance())));
+        return Optional.ofNullable(oldTime)
+                .map(t -> new NewRecordMark(NewRecordMark.Kind.BASE_DISTANCE, d, format(t)));
+    }
+
+    /** 최장 거리를 갱신한다. 갱신했고 직전 최장이 있었으면 신기록 표시. */
+    private Optional<NewRecordMark> improveLongest(RunRecord r) {
+        Distance previousLongest = longest == null ? null : longest.distance().orElse(null);
+        if (previousLongest != null && r.getDistance().compareTo(previousLongest) <= 0) {
+            return Optional.empty();
+        }
+        this.longest =
+                BestEntry.ofDistance(
+                        r.getRecordId(),
+                        r.getDistance(),
+                        r.getStartedAt().toLocalDate(),
+                        !r.track().unstableSegments().isEmpty());
+        return Optional.ofNullable(previousLongest)
+                .map(
+                        p ->
+                                new NewRecordMark(
+                                        NewRecordMark.Kind.LONGEST,
+                                        null,
+                                        String.format(Locale.ROOT, "직전 %.2f km", p.km())));
     }
 
     /** 거리별 최고. d는 기준 거리여야 한다. */

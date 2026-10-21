@@ -48,7 +48,7 @@ class ArchitectureTest {
 
     static final String ROOT = "com.a207.runkk";
 
-    /** 5.1.1 서버 패키지 53개. */
+    /** 5.1.1 서버 패키지 53개 + batch.reward(코드 리뷰 2차 M4 결정: 리워드 일 단위 보정) = 54개. */
     static final List<String> PACKAGES =
             List.of(
                     "web.auth",
@@ -74,6 +74,7 @@ class ArchitectureTest {
                     "batch.member",
                     "batch.audit",
                     "batch.notification",
+                    "batch.reward",
                     "bootstrap",
                     "profile",
                     "operator",
@@ -138,7 +139,7 @@ class ArchitectureTest {
         m.put("crew", Set.of("member", "running", "runimal", "policy", "notification", "audit"));
         m.put("analysis", Set.of("member", "running", "crew", "reward", "policy", "notification"));
         m.put("profile", Set.of("member", "running", "runimal", "avatar", "crew"));
-        m.put("operator", Set.of("member", "policy"));
+        m.put("operator", Set.of("member", "policy", "audit")); // + audit: 운영자 로그인 감사(L25)
         m.put("policy", Set.of("audit"));
         m.put("notification", Set.of("member", "policy"));
         m.put("audit", Set.of());
@@ -169,7 +170,8 @@ class ArchitectureTest {
                         "running",
                         "member",
                         "audit",
-                        "notification")) {
+                        "notification",
+                        "reward")) {
             m.put("batch." + app, Set.of(app));
         }
         m.put("bootstrap", Set.of());
@@ -228,7 +230,7 @@ class ArchitectureTest {
 
                 @Override
                 public String getDescription() {
-                    return "5.1.1 서버 패키지 53개(가장 긴 이름, *.live는 상위로)";
+                    return "5.1.1 서버 패키지 54개(가장 긴 이름, *.live는 상위로)";
                 }
             };
 
@@ -505,12 +507,12 @@ class ArchitectureTest {
     }
 
     @Test
-    void designPackageList_has53NamesAndEachHasAnAllowList() {
-        assertThat(Set.copyOf(PACKAGES)).hasSize(53);
+    void designPackageList_has54NamesAndEachHasAnAllowList() {
+        assertThat(Set.copyOf(PACKAGES)).hasSize(54);
         assertThat(ALLOWED.keySet()).containsExactlyInAnyOrderElementsOf(PACKAGES);
     }
 
-    /** B5 완료 조건: 5.1.1의 53개 패키지마다 서버 클래스가 하나 이상 있다(빈 패키지 0). */
+    /** B5 완료 조건: 5.1.1의 54개 패키지마다 서버 클래스가 하나 이상 있다(빈 패키지 0). */
     @Test
     void everyDesignPackage_hasMainClasses() {
         Set<String> filled =
@@ -525,7 +527,7 @@ class ArchitectureTest {
     void mainClasses_resideInDesignPackages() {
         List<String> stray =
                 classes.stream().filter(c -> sliceOf(c).isEmpty()).map(JavaClass::getName).toList();
-        assertThat(stray).as("5.1.1 패키지 53개 밖의 서버 클래스").isEmpty();
+        assertThat(stray).as("5.1.1 패키지 54개 밖의 서버 클래스").isEmpty();
     }
 
     @Test

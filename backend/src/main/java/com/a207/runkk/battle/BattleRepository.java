@@ -11,10 +11,19 @@ public interface BattleRepository {
 
     Battle save(Battle battle);
 
+    /** 저장하고 바로 저장소에 쓴다. 활성 대결 칸을 비운 뒤 같은 회원의 새 대결을 넣을 때(고유 제약 순서) 쓴다. */
+    Battle saveImmediately(Battle battle);
+
     Optional<Battle> findById(long id);
 
     /** 회원이 참가한 활성 대결(WAITING_START, IN_PROGRESS, COUNTDOWN)이 있는가. */
     boolean existsActive(long memberId);
+
+    /** 회원이 참가한 활성 대결(많아야 1개, active_member_id 고유 제약). */
+    List<Battle> findActive(long memberId);
+
+    /** 출발하지 못한 채 cutoff(now − ABANDON_AFTER) 전에 생성됐거나 출발 시각이 지난 대결(Battle.isAbandoned의 조건). */
+    List<Battle> findAbandoned(LocalDateTime cutoff);
 
     /** startAt ≤ now인 WAITING_START 대결. */
     List<Battle> findStartDue(LocalDateTime now);
@@ -30,6 +39,9 @@ public interface BattleRepository {
 
     /** 회원이 참가한 FINISHED·RESULT_PENDING 대결, 생성 일시 최신순(FR-101). */
     List<Battle> findHistory(long memberId, DateRange range);
+
+    /** 판정 시각이 [from, to)이고 회원이 이긴 FINISHED 대결, 판정 순(reward 일 단위 보정). */
+    List<BattleWin> findMemberWinsJudgedBetween(LocalDateTime from, LocalDateTime to);
 
     /** 이번 주 전적(FR-093 주간 전적). */
     WeeklyRecord weeklyRecord(long memberId, Week week);

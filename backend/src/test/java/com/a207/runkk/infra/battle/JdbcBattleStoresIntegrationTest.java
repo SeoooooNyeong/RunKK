@@ -115,6 +115,45 @@ class JdbcBattleStoresIntegrationTest {
     }
 
     @Test
+    @org.junit.jupiter.api.DisplayName(
+            "D-64: tryAssign은 WAITING일 때만, 그동안 취소(removeWaiting)는 실패, release 뒤 다시 대기·취소")
+    void singleAssignAndRelease() {
+        queue.enqueue(MatchTicket.open(1, Tier.GOLD, StandardDistance.KM5, NOW));
+        assertThat(queue.tryAssign(1)).isTrue();
+        assertThat(queue.tryAssign(1)).isFalse();
+        assertThat(queue.removeWaiting(1)).isFalse();
+        assertThat(queue.waitingOldestFirst()).isEmpty();
+        queue.release(1);
+        assertThat(queue.waitingOldestFirst())
+                .singleElement()
+                .satisfies(
+                        t -> {
+                            assertThat(t.getStatus()).isEqualTo(MatchStatus.WAITING);
+                            assertThat(t.getWaitingSince()).isEqualTo(NOW);
+                        });
+        assertThat(queue.tryAssign(2)).isFalse();
+        assertThat(queue.removeWaiting(1)).isTrue();
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("L11: 배정 뒤 5분 넘게 남은 ASSIGNED 행은 같은 회원이 다시 대기할 때 지운다")
+    void staleAssignedRow_doesNotBlockRequeue() {
+        queue.enqueue(MatchTicket.open(1, Tier.GOLD, StandardDistance.KM5, NOW));
+        queue.tryAssign(1);
+        assertThat(queue.enqueue(MatchTicket.open(1, Tier.GOLD, StandardDistance.KM5, NOW)))
+                .isFalse();
+        jdbc.update(
+                "update match_ticket set assigned_at = localtimestamp - interval '6 minutes'"
+                        + " where member_id = 1");
+        assertThat(
+                        queue.enqueue(
+                                MatchTicket.open(
+                                        1, Tier.GOLD, StandardDistance.KM5, NOW.plusMinutes(6))))
+                .isTrue();
+        assertThat(queue.findWaiting(1)).map(MatchTicket::getStatus).contains(MatchStatus.WAITING);
+    }
+
+    @Test
     @org.junit.jupiter.api.DisplayName("대결 세션 저장·갱신·삭제·목록")
     void sessionStore() {
         LiveBattleSession session =

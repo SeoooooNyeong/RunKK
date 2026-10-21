@@ -240,14 +240,127 @@ class BattleServicesTest {
         }
 
         @Test
-        @org.junit.jupiter.api.DisplayName("고스트 대결을 만들지 못하면 대기에서 빠지고 MatchFailed를 받는다")
-        void ghostFailure_notifiesMatchFailed() {
+        @org.junit.jupiter.api.DisplayName(
+                "활성 대결 1개: 대기 중 활성 대결이 생긴 회원의 표는 지우고 MatchFailed, 상대 표는 막히지 않고 남는다")
+        void ticketOfMemberWithActiveBattle_isDropped() {
+            battles.save(
+                    Battle.againstRecord(
+                            BattleFixtures.spec(BattleType.SELF, Duration.ofMinutes(25)), NOW));
+            waiting(ALICE, NOW);
+            waiting(BOB, NOW.plusSeconds(1));
+            matchmaker.tick(NOW.plusSeconds(2));
+
+            assertThat(queue.findWaiting(ALICE)).isEmpty();
+            assertThat(messenger.to(ALICE, "MatchFailed")).hasSize(1);
+            assertThat(queue.findWaiting(BOB)).isPresent();
+            assertThat(battles.all()).hasSize(1);
+        }
+
+        @Test
+        @org.junit.jupiter.api.DisplayName(
+                "M1·D-64: 고스트를 만들지 못하면 표를 WAITING으로 되돌리고, 30초를 넘긴 다음 tick에만 MatchFailed")
+        void ghostFailure_releasesThenGivesUpAfterThirtySeconds() {
             when(members.ghostEligibleOwners(any(), anyLong())).thenReturn(Map.of());
             waiting(ALICE, NOW);
             matchmaker.tick(NOW.plusSeconds(16));
             assertThat(battles.all()).isEmpty();
+            assertThat(queue.findWaiting(ALICE))
+                    .map(MatchTicket::getStatus)
+                    .contains(MatchStatus.WAITING);
+            assertThat(messenger.to(ALICE, "MatchFailed")).isEmpty();
+
+            matchmaker.tick(NOW.plusSeconds(30));
+            assertThat(messenger.to(ALICE, "MatchFailed")).isEmpty();
+            assertThat(queue.findWaiting(ALICE)).isPresent();
+
+            matchmaker.tick(NOW.plusSeconds(31));
             assertThat(queue.findWaiting(ALICE)).isEmpty();
             assertThat(messenger.to(ALICE, "MatchFailed")).hasSize(1);
+        }
+
+        @Test
+        @org.junit.jupiter.api.DisplayName(
+                "M1·D-64: 랜덤 대결 저장이 한 번 실패하면 두 표를 WAITING으로 되돌려 다음 tick에 다시 짝짓는다")
+        void randomSaveFailsOnce_retriesNextTick() {
+            waiting(ALICE, NOW);
+            waiting(BOB, NOW.plusSeconds(1));
+            battles.failNextSaves(1);
+            matchmaker.tick(NOW.plusSeconds(2));
+            assertThat(battles.all()).isEmpty();
+            assertThat(messenger.to(ALICE, "MatchFailed")).isEmpty();
+            assertThat(messenger.to(BOB, "MatchFailed")).isEmpty();
+            assertThat(queue.findWaiting(ALICE))
+                    .map(MatchTicket::getStatus)
+                    .contains(MatchStatus.WAITING);
+
+            matchmaker.tick(NOW.plusSeconds(3));
+            assertThat(battles.all()).hasSize(1);
+            assertThat(messenger.to(ALICE, "MatchFound")).hasSize(1);
+            assertThat(queue.findWaiting(ALICE)).isEmpty();
+            assertThat(queue.findWaiting(BOB)).isEmpty();
+        }
+
+        @Test
+        @org.junit.jupiter.api.DisplayName(
+                "M1·D-64: 고스트 대결 저장이 한 번 실패하면 표를 되돌리고 다음 tick에 고스트 대결을 만든다")
+        void ghostSaveFailsOnce_retriesNextTick() {
+            virtuals.replaceAll(
+                    List.of(
+                            new VirtualRecord(
+                                    Tier.GOLD,
+                                    StandardDistance.KM5,
+                                    "달빛여우",
+                                    Duration.ofMinutes(26))));
+            when(members.ghostEligibleOwners(any(), anyLong())).thenReturn(Map.of());
+            waiting(ALICE, NOW);
+            battles.failNextSaves(1);
+            matchmaker.tick(NOW.plusSeconds(16));
+            assertThat(battles.all()).isEmpty();
+            assertThat(messenger.to(ALICE, "MatchFailed")).isEmpty();
+
+            matchmaker.tick(NOW.plusSeconds(17));
+            assertThat(battles.all()).extracting(Battle::getType).containsExactly(BattleType.GHOST);
+            assertThat(queue.findWaiting(ALICE)).isEmpty();
+        }
+
+        @Test
+        @org.junit.jupiter.api.DisplayName(
+                "M1·D-83: 고스트 매칭 중에 온 취소는 ALREADY_MATCHED로 거부되고, \"대기해제인데 고스트 대결\"이 생기지 않는다")
+        void cancelDuringGhostMatch_isRejected() {
+            virtuals.replaceAll(
+                    List.of(
+                            new VirtualRecord(
+                                    Tier.GOLD,
+                                    StandardDistance.KM5,
+                                    "달빛여우",
+                                    Duration.ofMinutes(26))));
+            MatchingService matching =
+                    new MatchingService(members, settings, queue, battles, clock);
+            List<Throwable> cancelOutcome = new ArrayList<>();
+            when(members.ghostEligibleOwners(any(), anyLong()))
+                    .thenAnswer(
+                            inv -> {
+                                // 고스트 트랜잭션이 대결을 저장하기 전에 취소가 한 번 끼어든다
+                                if (!cancelOutcome.isEmpty()) {
+                                    return Map.of();
+                                }
+                                try {
+                                    matching.cancel(ALICE);
+                                    cancelOutcome.add(null);
+                                } catch (BusinessRuleException e) {
+                                    cancelOutcome.add(e);
+                                }
+                                return Map.of();
+                            });
+            waiting(ALICE, NOW);
+            matchmaker.tick(NOW.plusSeconds(16));
+
+            assertThat(cancelOutcome).hasSize(1);
+            assertThat(cancelOutcome.get(0))
+                    .isInstanceOf(BusinessRuleException.class)
+                    .extracting(e -> ((BusinessRuleException) e).reason())
+                    .isEqualTo(ReasonCode.ALREADY_MATCHED);
+            assertThat(battles.all()).hasSize(1);
         }
 
         @Test
@@ -389,6 +502,31 @@ class BattleServicesTest {
             assertThat(battle.getStatus()).isEqualTo(BattleStatus.FINISHED);
             BattleJudged judged = (BattleJudged) events.get(events.size() - 1);
             assertThat(judged.judgement().winnerSide()).contains(Side.member(BOB));
+        }
+
+        @Test
+        @org.junit.jupiter.api.DisplayName(
+                "L15: 카운트다운이 끝나기 전에 두 기록이 모두 와 바로 판정되면 양쪽에 BattleEnded(FINISHED)를 보낸다")
+        void bothRecordsDuringCountdown_sendBattleEnded() {
+            Battle battle = startedRandom();
+            long id = battle.getId();
+            LocalDateTime arrival = battle.getStartAt().orElseThrow().plusMinutes(25);
+            liveService.onProgress(ALICE, id, at(5_000, 1_500), arrival);
+            liveService.onProgress(BOB, id, at(5_000, 1_502), arrival.plusSeconds(2));
+            assertThat(battle.getStatus()).isEqualTo(BattleStatus.COUNTDOWN);
+            when(runs.timeToReach(anyString(), any()))
+                    .thenReturn(Optional.of(Duration.ofMinutes(25)));
+
+            resultService.onRunSaved(saved(ALICE, battle, "a", true));
+            resultService.onRunSaved(saved(BOB, battle, "b", true));
+
+            assertThat(battle.getStatus()).isEqualTo(BattleStatus.FINISHED);
+            for (long member : List.of(ALICE, BOB)) {
+                assertThat(messenger.to(member, "BattleEnded"))
+                        .singleElement()
+                        .extracting(m -> ((BattleEnded) m).status())
+                        .isEqualTo(BattleEnded.Status.FINISHED);
+            }
         }
 
         @Test

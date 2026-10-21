@@ -57,6 +57,11 @@ public class FakeTokenIssuer implements TokenIssuer {
         return Long.parseLong(refreshToken.split("-")[1]);
     }
 
+    @Override
+    public int purgeExpiredRevocations(java.time.LocalDateTime now) {
+        return 0;
+    }
+
     public boolean isRevoked(String refreshToken) {
         return revoked.contains(refreshToken);
     }

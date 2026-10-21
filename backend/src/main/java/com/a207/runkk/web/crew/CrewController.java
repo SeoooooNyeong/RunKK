@@ -1,12 +1,9 @@
 package com.a207.runkk.web.crew;
 
 import com.a207.runkk.common.AggregationPeriod;
-import com.a207.runkk.common.PageCursor;
-import com.a207.runkk.common.PersonalityTag;
 import com.a207.runkk.crew.CrewCreateResult;
 import com.a207.runkk.crew.CrewQueryService;
 import com.a207.runkk.crew.CrewRankingView;
-import com.a207.runkk.crew.CrewSearch;
 import com.a207.runkk.crew.CrewService;
 import com.a207.runkk.crew.JoinResult;
 import com.a207.runkk.crew.JoinTarget;
@@ -16,11 +13,11 @@ import jakarta.validation.Valid;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -73,13 +70,9 @@ public class CrewController {
     @GetMapping("/crews")
     CrewDtos.CrewListResponse search(
             @RequestAttribute(MEMBER_ID) long memberId,
-            @RequestParam(required = false) String keyword,
-            @RequestParam(required = false) Set<PersonalityTag> tags,
-            @RequestParam(required = false) Long cursor,
-            @RequestParam(required = false) Integer size) {
+            @ModelAttribute CrewDtos.CrewSearchQuery query) {
         return CrewDtos.CrewListResponse.of(
-                crewQueryService.search(
-                        memberId, new CrewSearch(tags, keyword), new PageCursor(cursor, size)));
+                crewQueryService.search(memberId, query.toSearch(), query.page()));
     }
 
     /** 본인 소속 크루와 대기 중인 본인 가입 신청(크루 탭 재진입). 설계 5.7.1에 없어 더한 조회다. */

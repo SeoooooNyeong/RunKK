@@ -194,6 +194,17 @@ class BattleControllerTest extends WebTestSupport {
                 .andExpect(jsonPath("$.nextCursor").doesNotExist());
         mvc.perform(as(s, get("/api/v1/battles/history").param("size", "0")))
                 .andExpect(status().isBadRequest());
+        // P1: 쿼리 이름(type·from·to·cursor·size)은 요청 record로 묶은 뒤에도 같다
+        mvc.perform(
+                        as(
+                                s,
+                                get("/api/v1/battles/history")
+                                        .param("from", "2000-01-01")
+                                        .param("to", "2000-01-02")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total").value(0));
+        mvc.perform(as(s, get("/api/v1/battles/history").param("type", "NOPE")))
+                .andExpect(status().isBadRequest());
 
         Session other = signUp();
         mvc.perform(as(other, get("/api/v1/battles/" + battleId + "/result")))

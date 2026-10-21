@@ -77,6 +77,15 @@ public class MemberQueryService {
         return memberRepository.findById(memberId).map(m -> m.hasConsent(item)).orElse(false);
     }
 
+    /** 회원이 있고 ACTIVE인가. web.auth.AuthFilter가 탈퇴 회원의 남은 접근 토큰을 거부할 때 쓴다(코드 리뷰 2차 L21). */
+    @Transactional(readOnly = true)
+    public boolean isActive(long memberId) {
+        return memberRepository
+                .findById(memberId)
+                .filter(m -> m.getStatus() == MemberStatus.ACTIVE)
+                .isPresent();
+    }
+
     /**
      * WITHDRAWN(탈퇴 또는 없는 회원) / MUTED(그 종류 푸시를 껐음) / ALLOWED(SQ-14). 알림 종류는
      * notification.NotificationType의 이름이다(B2 결정).

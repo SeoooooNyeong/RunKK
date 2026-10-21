@@ -44,7 +44,8 @@ class RewardServicesTest {
     private final InMemoryRewardWalletRepository wallets = new InMemoryRewardWalletRepository();
     private final OperationPolicy policy = mock(OperationPolicy.class);
     private final Clock clock = Clock.fixed(NOW.atZone(SEOUL).toInstant(), SEOUL);
-    private final RewardService rewards = new RewardService(wallets, policy, clock);
+    private final RewardService rewards =
+            new RewardService(wallets, policy, new NoTransactionManager());
     private final ShopService shop = new ShopService(wallets, policy, clock);
 
     @BeforeEach
@@ -150,5 +151,46 @@ class RewardServicesTest {
 
         new RewardWithdrawalListener(wallets).onMemberWithdrawn(new MemberWithdrawn(ALICE, NOW));
         assertThat(rewards.balanceOf(ALICE)).isZero();
+    }
+
+    @Test
+    @DisplayName("M4: 적립 중 잠금 대기 같은 일시 오류는 다시 해서 적립한다")
+    void accrual_retriesTransientFailure() {
+        wallets.failNext(new org.springframework.dao.CannotAcquireLockException("lock wait"));
+        org.assertj.core.api.Assertions.assertThatCode(
+                        () -> rewards.onRunSaved(saved("rec-retry", 3_000, true)))
+                .doesNotThrowAnyException();
+        assertThat(rewards.balanceOf(ALICE)).isEqualTo(30);
+    }
+
+    @Test
+    @DisplayName("M4: 적립이 계속 실패해도 수신자는 예외를 던지지 않는다(뒤 수신자·업로드 응답을 막지 않음)")
+    void accrual_persistentFailure_isContained() {
+        wallets.failNext(
+                new IllegalStateException("db down"),
+                new IllegalStateException("db down"),
+                new IllegalStateException("db down"));
+        org.assertj.core.api.Assertions.assertThatCode(
+                        () -> rewards.onRunSaved(saved("rec-fail", 3_000, true)))
+                .doesNotThrowAnyException();
+        org.assertj.core.api.Assertions.assertThatCode(
+                        () -> rewards.onBattleJudged(judged(9L, Side.member(ALICE), false)))
+                .doesNotThrowAnyException();
+    }
+
+    /** 트랜잭션 없이 바로 실행한다(인메모리 저장소 단위 시험). */
+    private static final class NoTransactionManager
+            implements org.springframework.transaction.PlatformTransactionManager {
+        @Override
+        public org.springframework.transaction.TransactionStatus getTransaction(
+                org.springframework.transaction.TransactionDefinition definition) {
+            return new org.springframework.transaction.support.SimpleTransactionStatus();
+        }
+
+        @Override
+        public void commit(org.springframework.transaction.TransactionStatus status) {}
+
+        @Override
+        public void rollback(org.springframework.transaction.TransactionStatus status) {}
     }
 }

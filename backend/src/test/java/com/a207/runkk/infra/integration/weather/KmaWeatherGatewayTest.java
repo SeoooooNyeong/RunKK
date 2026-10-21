@@ -97,4 +97,10 @@ class KmaWeatherGatewayTest {
                 .andRespond(withSuccess(body("0", "9", "1"), MediaType.APPLICATION_JSON));
         assertThat(new KmaWeatherGateway(builder.build(), "key").lookup(SEOUL, AT)).isEmpty();
     }
+
+    @org.junit.jupiter.api.Test
+    void settings_toStringHidesServiceKey() {
+        assertThat(new KmaWeatherGateway.Kma("https://kma", "secret-key").toString())
+                .doesNotContain("secret-key");
+    }
 }

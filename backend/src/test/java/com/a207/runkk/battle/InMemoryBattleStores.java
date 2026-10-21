@@ -46,14 +46,39 @@ public final class InMemoryBattleStores {
     public static final class Battles implements BattleRepository {
         private final Map<Long, Battle> rows = new LinkedHashMap<>();
         private final AtomicLong sequence = new AtomicLong();
+        private int failingSaves;
+
+        /** 다음 저장 n번을 저장소 장애로 실패시킨다(D-64 재시도 시험). */
+        public void failNextSaves(int n) {
+            failingSaves = n;
+        }
 
         @Override
         public Battle save(Battle battle) {
+            if (failingSaves > 0) {
+                failingSaves--;
+                throw new org.springframework.dao.DataAccessResourceFailureException("db down");
+            }
             if (battle.getId() == null) {
                 ReflectionTestUtils.setField(battle, "id", sequence.incrementAndGet());
             }
             rows.put(battle.getId(), battle);
             return battle;
+        }
+
+        @Override
+        public Battle saveImmediately(Battle battle) {
+            return save(battle);
+        }
+
+        @Override
+        public List<Battle> findActive(long memberId) {
+            return where(b -> b.isActive() && b.isParticipant(memberId));
+        }
+
+        @Override
+        public List<Battle> findAbandoned(LocalDateTime cutoff) {
+            return where(b -> b.isAbandoned(cutoff.plus(Battle.ABANDON_AFTER)));
         }
 
         @Override
@@ -102,9 +127,28 @@ public final class InMemoryBattleStores {
                             b ->
                                     b.isParticipant(memberId)
                                             && !b.isActive()
+                                            && !b.isCancelled()
                                             && range.contains(b.getCreatedAt().toLocalDate()))
                     .stream()
                     .sorted(Comparator.comparing(Battle::getCreatedAt).reversed())
+                    .toList();
+        }
+
+        @Override
+        public List<BattleWin> findMemberWinsJudgedBetween(LocalDateTime from, LocalDateTime to) {
+            return where(b -> b.getStatus() == BattleStatus.FINISHED).stream()
+                    .flatMap(b -> b.getJudgement().stream().map(j -> Map.entry(b, j)))
+                    .filter(
+                            e ->
+                                    !e.getValue().at().isBefore(from)
+                                            && e.getValue().at().isBefore(to))
+                    .filter(e -> e.getValue().winner() instanceof Side.MemberSide)
+                    .map(
+                            e ->
+                                    new BattleWin(
+                                            e.getKey().getId(),
+                                            ((Side.MemberSide) e.getValue().winner()).memberId(),
+                                            e.getValue().at()))
                     .toList();
         }
 
@@ -201,6 +245,26 @@ public final class InMemoryBattleStores {
             first.assign();
             second.assign();
             return true;
+        }
+
+        @Override
+        public synchronized boolean tryAssign(long memberId) {
+            check();
+            MatchTicket ticket = tickets.get(memberId);
+            if (ticket == null || ticket.getStatus() != MatchStatus.WAITING) {
+                return false;
+            }
+            ticket.assign();
+            return true;
+        }
+
+        @Override
+        public synchronized void release(long memberId) {
+            check();
+            MatchTicket ticket = tickets.get(memberId);
+            if (ticket != null && ticket.getStatus() == MatchStatus.ASSIGNED) {
+                ticket.release();
+            }
         }
     }
 

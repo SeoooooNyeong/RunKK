@@ -71,7 +71,7 @@ class RecordAndAdminServicesTest {
         when(members.hasConsent(anyLong(), eq(ConsentItem.LOCATION))).thenReturn(true);
         when(members.summaries(anyCollection()))
                 .thenReturn(Map.of(ALICE, BattleFixtures.summary(ALICE, Tier.GOLD)));
-        records = new RecordBattleService(members, runs, celebrities, battles, clock);
+        records = new RecordBattleService(members, runs, celebrities, battles, queue, clock);
         when(policy.tierBoundary()).thenReturn(VirtualRecordFactoryTest.BOUNDARY);
         when(policy.virtualRecordRule()).thenReturn(VirtualRecordFactoryTest.RULE);
     }
@@ -116,6 +116,17 @@ class RecordAndAdminServicesTest {
         assertThat(candidates.get(0).displayName()).isEqualTo(RecordBattleService.NO_RECORD_YET);
         assertThat(candidates.get(1).displayName()).isEqualTo("10/03의 나");
         assertThat(candidates.get(1).finishTime()).isEqualTo(Duration.ofMinutes(25));
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("L10: 랜덤 매칭 대기 중에는 기록 대결을 시작할 수 없다(ALREADY_IN_BATTLE)")
+    void recordBattle_rejectedWhileWaitingForMatch() {
+        bestFiveK();
+        queue.enqueue(MatchTicket.open(ALICE, Tier.GOLD, StandardDistance.KM5, NOW));
+        assertThatThrownBy(() -> records.startSelfBattle(ALICE, StandardDistance.KM5))
+                .extracting(e -> ((BusinessRuleException) e).reason())
+                .isEqualTo(ReasonCode.ALREADY_IN_BATTLE);
+        assertThat(battles.all()).isEmpty();
     }
 
     @Test

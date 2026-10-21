@@ -29,7 +29,7 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -63,15 +63,11 @@ public class FcmPushGateway implements PushGateway {
 
     @Autowired
     public FcmPushGateway(
-            RestClient.Builder builder,
-            ObjectMapper objectMapper,
-            @Value("${runkk.push.fcm.project-id:}") String projectId,
-            @Value("${runkk.push.fcm.credentials-file:}") String credentialsFile,
-            Clock clock) {
+            RestClient.Builder builder, ObjectMapper objectMapper, Fcm fcm, Clock clock) {
         this(
                 builder.requestFactory(timeouts()).build(),
-                projectId,
-                readCredentials(objectMapper, credentialsFile),
+                fcm.projectId(),
+                readCredentials(objectMapper, fcm.credentialsFile()),
                 clock);
     }
 
@@ -238,4 +234,13 @@ public class FcmPushGateway implements PushGateway {
             return "ServiceAccount[***]";
         }
     }
+
+    /**
+     * FCM 연동(runkk.push.fcm.*, 코드 리뷰 2차 L1). 둘 다 있어야 보낸다(FR-175).
+     *
+     * @param projectId runkk.push.fcm.project-id
+     * @param credentialsFile runkk.push.fcm.credentials-file(서비스 계정 JSON 경로)
+     */
+    @ConfigurationProperties("runkk.push.fcm")
+    public record Fcm(String projectId, String credentialsFile) {}
 }

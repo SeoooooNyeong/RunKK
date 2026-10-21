@@ -3,6 +3,7 @@ package com.a207.runkk.web.crew;
 import com.a207.runkk.common.BusinessRuleException;
 import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.Distance;
+import com.a207.runkk.common.PageCursor;
 import com.a207.runkk.common.PersonalityTag;
 import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.common.StandardDistance;
@@ -16,6 +17,7 @@ import com.a207.runkk.crew.CrewName;
 import com.a207.runkk.crew.CrewProfileEdit;
 import com.a207.runkk.crew.CrewRunDraft;
 import com.a207.runkk.crew.CrewRunResultView;
+import com.a207.runkk.crew.CrewSearch;
 import com.a207.runkk.crew.CrewVisibility;
 import com.a207.runkk.crew.JoinPolicy;
 import com.a207.runkk.crew.LobbyView;
@@ -28,6 +30,7 @@ import com.a207.runkk.crew.Recommendation;
 import com.a207.runkk.crew.RecommendationView;
 import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -79,7 +82,7 @@ final class CrewDtos {
             Set<PersonalityTag> tags,
             CrewVisibility visibility,
             JoinPolicy joinPolicy,
-            @Size(max = MAX_LOGO_URL) String logoUrl) {
+            @Pattern(regexp = "^https://[^\\s]+$") @Size(max = MAX_LOGO_URL) String logoUrl) {
 
         CrewCreateCommand toCommand() {
             return new CrewCreateCommand(name, intro, tags, visibility, joinPolicy, logoUrl);
@@ -628,5 +631,38 @@ final class CrewDtos {
          */
         record PendingJoin(
                 long requestId, long crewId, String crewName, LocalDateTime requestedAt) {}
+    }
+
+    /**
+     * 크루 검색 쿼리(GET /crews, 코드 리뷰 2차 P2). 쿼리 이름은 항목 이름과 같다.
+     *
+     * @param keyword 이름 검색어
+     * @param tags 성향 태그(여러 개는 tags=A&tags=B 또는 tags=A,B)
+     * @param cursor 다음 페이지 커서
+     * @param size 페이지 크기(없으면 전부)
+     */
+    record CrewSearchQuery(String keyword, Set<PersonalityTag> tags, Long cursor, Integer size) {
+
+        CrewSearch toSearch() {
+            return new CrewSearch(tags, keyword);
+        }
+
+        PageCursor page() {
+            return new PageCursor(cursor, size);
+        }
+    }
+
+    /**
+     * 크루 게시글 목록 쿼리(GET /crews/{id}/posts, 코드 리뷰 2차 P3). 쿼리 이름은 항목 이름과 같다.
+     *
+     * @param kind 글 종류(CHEER·CREW_RUN), 없으면 전부
+     * @param cursor 다음 페이지 커서
+     * @param size 페이지 크기(없으면 전부)
+     */
+    record PostListQuery(com.a207.runkk.crew.PostKind kind, Long cursor, Integer size) {
+
+        PageCursor page() {
+            return new PageCursor(cursor, size);
+        }
     }
 }

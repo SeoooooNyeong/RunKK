@@ -169,6 +169,26 @@ public final class InMemoryRunningRepositories {
                     .toList();
         }
 
+        @Override
+        public List<SavedRun> savedBetween(
+                java.time.LocalDateTime from, java.time.LocalDateTime to) {
+            return rows.values().stream()
+                    .filter(r -> r.getSavedAt() != null)
+                    .filter(r -> !r.getSavedAt().isBefore(from) && r.getSavedAt().isBefore(to))
+                    .sorted(Comparator.comparing(RunRecord::getSavedAt))
+                    .map(
+                            r ->
+                                    new SavedRun(
+                                            r.getRecordId(),
+                                            r.getMemberId(),
+                                            r.getStartedAt(),
+                                            r.getDistance(),
+                                            r.isValid(),
+                                            r.crewRunPostId(),
+                                            r.getSavedAt()))
+                    .toList();
+        }
+
         public int size() {
             return rows.size();
         }

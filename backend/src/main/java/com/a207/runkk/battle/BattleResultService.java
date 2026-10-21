@@ -94,7 +94,9 @@ public class BattleResultService {
 
     private void applyRecord(RunRecordSaved e) {
         Optional<Battle> found = battleRepository.findById(e.battleId());
-        if (found.isEmpty() || !found.get().isParticipant(e.memberId())) {
+        if (found.isEmpty()
+                || !found.get().isParticipant(e.memberId())
+                || found.get().isCancelled()) {
             return;
         }
         Battle battle = found.get();
@@ -104,9 +106,23 @@ public class BattleResultService {
                 e.memberId(), e.recordId(), e.valid() && reach.isPresent(), reach.orElse(null));
         battle.getOpponentTrack().ifPresent(track -> recordGaps(battle, e, track));
         markSelfRecord(battle, e);
+        boolean running = battle.getStatus().isRunning();
         Optional<Judgement> judgement = battle.judge(LocalDateTime.now(clock));
         battleRepository.save(battle);
+        if (running && judgement.isPresent()) {
+            endedEarly(battle);
+        }
         judgement.ifPresent(j -> announce(battle, j));
+    }
+
+    /**
+     * 카운트다운이 끝나기 전에 기록이 모두 와 진행 중에 판정됐다. 시계의 close가 돌지 않으므로 여기서 커밋 뒤 BattleEnded(FINISHED)를 보낸다(코드
+     * 리뷰 2차 L15). 실시간 세션은 끊김 감시(detectTimeouts)가 대결이 끝난 것을 보고 지운다.
+     */
+    private void endedEarly(Battle battle) {
+        List<Long> recipients = battle.memberIds();
+        BattleEnded ended = new BattleEnded(battle.getId(), BattleEnded.Status.FINISHED);
+        AfterCommit.run(() -> battleMessenger.sendAll(recipients, ended));
     }
 
     /** 기록 상대와의 거리 차 최댓값을 러너 기록 표본으로 구한다(비교표 MAX_LEAD·MAX_GAP). 경로가 파기됐으면 건너뛴다. */
@@ -180,6 +196,15 @@ public class BattleResultService {
                     eventPublisher.publish(
                             new BattleJudged(battleId, battle.getType(), judgement, now));
                 });
+    }
+
+    /**
+     * 판정 시각이 [from, to)이고 회원이 이긴 대결(reward.RewardService.reconcile이 빠진 BATTLE_WIN 적립을 찾는다). 정정된 대결은
+     * 지금 승자와 정정 시각이다.
+     */
+    @Transactional(readOnly = true)
+    public List<BattleWin> winsJudgedBetween(LocalDateTime from, LocalDateTime to) {
+        return battleRepository.findMemberWinsJudgedBetween(from, to);
     }
 
     /** 참가자만. 보류면 "보류" + 기록이 없는 본인에게 재시도 안내. 아니면 판정, 비교표, 이번 주 전적(FR-093, FR-108). */
@@ -256,6 +281,7 @@ public class BattleResultService {
         Battle battle =
                 battleRepository
                         .findById(battleId)
+                        .filter(b -> !b.isCancelled()) // 출발하지 못해 취소된 대결은 결과가 없다
                         .orElseThrow(() -> new BusinessRuleException(ReasonCode.BATTLE_NOT_FOUND));
         if (!battle.isParticipant(memberId)) {
             throw new PermissionDeniedException("대결 참가자가 아니다");

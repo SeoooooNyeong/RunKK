@@ -188,6 +188,59 @@ class AdminControllerTest extends WebTestSupport {
     }
 
     @Test
+    @DisplayName("L25: 운영자 로그인 성공·실패가 행위자·접속지·결과로 감사 기록에 남고 행위 종류로 조회된다")
+    void operatorLogins_areAudited() throws Exception {
+        mvc.perform(
+                        post("/api/v1/admin/login")
+                                .header("X-Real-IP", "10.7.7.7")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        write(
+                                                Map.of(
+                                                        "provider",
+                                                        "KAKAO",
+                                                        "providerToken",
+                                                        "audit-stranger"))))
+                .andExpect(status().isForbidden());
+        String bearer = "Bearer " + login(OPERATOR);
+
+        LocalDate today = LocalDate.now();
+        JsonNode failures =
+                body(
+                        mvc.perform(
+                                        get("/api/v1/admin/audits")
+                                                .header("Authorization", bearer)
+                                                .param("action", "OPERATOR_LOGIN_FAILURE")
+                                                .param("from", today.minusDays(1).toString())
+                                                .param("to", today.plusDays(1).toString()))
+                                .andExpect(status().isOk())
+                                .andReturn()
+                                .getResponse()
+                                .getContentAsString());
+        JsonNode stranger = null;
+        for (JsonNode a : failures) {
+            if ("KAKAO:audit-stranger".equals(a.get("actorId").asText())) {
+                stranger = a;
+            }
+        }
+        assertThat(stranger).isNotNull();
+        assertThat(stranger.get("actorRole").asText()).isEqualTo("OPERATOR");
+        assertThat(stranger.get("targetId").asText()).isEqualTo("10.7.7.7");
+        assertThat(stranger.get("after").asText()).isEqualTo("NOT_WHITELISTED");
+
+        mvc.perform(
+                        get("/api/v1/admin/audits")
+                                .header("Authorization", bearer)
+                                .param("action", "OPERATOR_LOGIN_SUCCESS")
+                                .param("from", today.minusDays(1).toString())
+                                .param("to", today.plusDays(1).toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].action").value("OPERATOR_LOGIN_SUCCESS"))
+                .andExpect(jsonPath("$[0].actorId").value(ACTOR))
+                .andExpect(jsonPath("$[0].after").value("SUCCESS"));
+    }
+
+    @Test
     @DisplayName("운영자 토큰으로 유명인 등록·삭제와 기준값 변경을 하면 actorId가 감사 기록에 남는다")
     void operatorActions_areAuditedWithActorId() throws Exception {
         String bearer = "Bearer " + login(OPERATOR);

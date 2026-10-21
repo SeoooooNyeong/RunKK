@@ -313,6 +313,25 @@
     } ],
     "file" : "web/battle/BattleDtos.java"
   },
+  "BattleDtos.HistoryQuery" : {
+    "components" : [ {
+      "name" : "type",
+      "kind" : "leaf"
+    }, {
+      "name" : "from",
+      "kind" : "leaf"
+    }, {
+      "name" : "to",
+      "kind" : "leaf"
+    }, {
+      "name" : "cursor",
+      "kind" : "leaf"
+    }, {
+      "name" : "size",
+      "kind" : "leaf"
+    } ],
+    "file" : "web/battle/BattleDtos.java"
+  },
   "BattleDtos.MatchAcceptanceResponse" : {
     "components" : [ {
       "name" : "waiting",
@@ -672,6 +691,22 @@
     } ],
     "file" : "web/crew/CrewDtos.java"
   },
+  "CrewDtos.CrewSearchQuery" : {
+    "components" : [ {
+      "name" : "keyword",
+      "kind" : "leaf"
+    }, {
+      "name" : "tags",
+      "kind" : "list-leaf"
+    }, {
+      "name" : "cursor",
+      "kind" : "leaf"
+    }, {
+      "name" : "size",
+      "kind" : "leaf"
+    } ],
+    "file" : "web/crew/CrewDtos.java"
+  },
   "CrewDtos.DecisionResponse" : {
     "components" : [ {
       "name" : "requestId",
@@ -792,6 +827,19 @@
       "kind" : "leaf"
     }, {
       "name" : "requestedAt",
+      "kind" : "leaf"
+    } ],
+    "file" : "web/crew/CrewDtos.java"
+  },
+  "CrewDtos.PostListQuery" : {
+    "components" : [ {
+      "name" : "kind",
+      "kind" : "leaf"
+    }, {
+      "name" : "cursor",
+      "kind" : "leaf"
+    }, {
+      "name" : "size",
       "kind" : "leaf"
     } ],
     "file" : "web/crew/CrewDtos.java"

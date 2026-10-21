@@ -26,4 +26,10 @@ public interface MatchQueue {
 
     /** 두 표가 모두 WAITING일 때만 둘 다 ASSIGNED로 바꾼다. 원자적(FR-082, A-22). */
     boolean tryAssignPair(long a, long b);
+
+    /** 표가 WAITING일 때만 ASSIGNED로 바꾼다. 고스트 매칭 동안 취소·짝 배정을 막는다. 원자적(D-64). */
+    boolean tryAssign(long memberId);
+
+    /** ASSIGNED 표를 WAITING으로 되돌린다(waitingSince 유지). 대결 저장·고스트 매칭이 실패했을 때만 부른다(D-64). */
+    void release(long memberId);
 }

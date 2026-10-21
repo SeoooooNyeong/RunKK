@@ -3,9 +3,7 @@ package com.a207.runkk.crew;
 import com.a207.runkk.common.ProgressReport;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,7 +20,14 @@ public class CrewRunLiveService {
 
     private final CrewLiveSessionStore crewLiveSessionStore;
     private final CrewRunMessenger crewRunMessenger;
-    private final Map<Long, Object> sessionLocks = new ConcurrentHashMap<>();
+
+    /**
+     * 세션 잠금 줄무늬(striped lock). 세션 ID를 고정된 잠금 64개 중 하나에 대응시켜, 잠금 객체를 지우고 다시 만드는 사이에 같은 세션에 잠금이 둘 생기는
+     * 경합이 없다(코드 리뷰 2차 L7). 다른 세션이 같은 잠금을 나눠 쓰면 잠깐 기다릴 뿐 정합성은 같다.
+     */
+    private static final int LOCK_STRIPES = 64;
+
+    private final Object[] sessionLocks = newStripes();
 
     public CrewRunLiveService(
             CrewLiveSessionStore crewLiveSessionStore, CrewRunMessenger crewRunMessenger) {
@@ -69,9 +74,9 @@ public class CrewRunLiveService {
         }
     }
 
-    /** 세션이 끝나면 잠금 객체도 버린다(CrewRunService 종료 때). */
+    /** 세션이 끝났다(CrewRunService 종료 때). 잠금은 줄무늬라 버릴 것이 없다(L7). */
     void forget(long postId) {
-        sessionLocks.remove(postId);
+        log.debug("crew_live_session_forgotten postId={}", postId);
     }
 
     private void update(long postId, Function<CrewRunLiveSession, List<CrewRunMessage>> change) {
@@ -91,6 +96,14 @@ public class CrewRunLiveService {
     }
 
     private Object lockOf(long postId) {
-        return sessionLocks.computeIfAbsent(postId, id -> new Object());
+        return sessionLocks[Math.floorMod(Long.hashCode(postId), LOCK_STRIPES)];
+    }
+
+    private static Object[] newStripes() {
+        Object[] locks = new Object[LOCK_STRIPES];
+        for (int i = 0; i < LOCK_STRIPES; i++) {
+            locks[i] = new Object();
+        }
+        return locks;
     }
 }

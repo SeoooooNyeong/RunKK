@@ -6,11 +6,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.a207.runkk.batch.member.MemberSchedulingConfig;
+import com.a207.runkk.batch.member.RevocationPurgeJob;
 import com.a207.runkk.batch.member.WithdrawalPurgeJob;
 import com.a207.runkk.batch.notification.NotificationPurgeJob;
 import com.a207.runkk.batch.notification.NotificationSchedulingConfig;
 import com.a207.runkk.batch.running.DisposalJob;
 import com.a207.runkk.batch.running.RunningSchedulingConfig;
+import com.a207.runkk.member.AuthService;
 import com.a207.runkk.member.WithdrawalService;
 import com.a207.runkk.notification.NotificationService;
 import com.a207.runkk.running.DisposalService;
@@ -44,6 +46,17 @@ class BatchJobsTest {
     }
 
     @Test
+    @DisplayName("M6 후속: RevocationPurgeJob → purgeExpiredRevocations(now), 실패해도 던지지 않는다")
+    void revocationPurgeJob() {
+        AuthService auth = mock(AuthService.class);
+        new RevocationPurgeJob(auth, clock).run();
+        verify(auth).purgeExpiredRevocations(NOW);
+
+        when(auth.purgeExpiredRevocations(any())).thenThrow(new IllegalStateException("db"));
+        new RevocationPurgeJob(auth, clock).run();
+    }
+
+    @Test
     @DisplayName("DisposalJob → executeDue(now), NotificationPurgeJob → purgeExpired(now)")
     void disposalAndNotificationJobs() {
         DisposalService disposal = mock(DisposalService.class);
@@ -63,12 +76,19 @@ class BatchJobsTest {
     @DisplayName("스케줄 설정은 cron 작업 하나씩을 등록한다")
     void schedulingConfigsRegisterCronTasks() {
         ScheduledTaskRegistrar registrar = new ScheduledTaskRegistrar();
-        new MemberSchedulingConfig(mock(WithdrawalPurgeJob.class), "0 0 3 * * *")
+        new MemberSchedulingConfig(
+                        mock(WithdrawalPurgeJob.class),
+                        mock(RevocationPurgeJob.class),
+                        new MemberSchedulingConfig.Schedule("0 0 3 * * *", "0 0 3 * * *"))
                 .configureTasks(registrar);
-        new RunningSchedulingConfig(mock(DisposalJob.class), "0 0 3 * * *")
+        new RunningSchedulingConfig(
+                        mock(DisposalJob.class),
+                        new RunningSchedulingConfig.Schedule("0 0 3 * * *"))
                 .configureTasks(registrar);
-        new NotificationSchedulingConfig(mock(NotificationPurgeJob.class), "0 0 3 * * *")
+        new NotificationSchedulingConfig(
+                        mock(NotificationPurgeJob.class),
+                        new NotificationSchedulingConfig.Schedule("0 0 3 * * *"))
                 .configureTasks(registrar);
-        Assertions.assertThat(registrar.getCronTaskList()).hasSize(3);
+        Assertions.assertThat(registrar.getCronTaskList()).hasSize(4);
     }
 }

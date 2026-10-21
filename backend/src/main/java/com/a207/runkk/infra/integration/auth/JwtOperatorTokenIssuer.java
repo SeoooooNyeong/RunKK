@@ -23,7 +23,7 @@ import java.util.Date;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /**
@@ -48,10 +48,12 @@ public class JwtOperatorTokenIssuer implements OperatorTokenIssuer {
     private final MACVerifier verifier;
     private final Clock clock;
 
-    public JwtOperatorTokenIssuer(
-            @Value("${runkk.auth.admin-jwt-secret:}") String secret,
-            @Value("${runkk.auth.jwt-secret:}") String memberSecret,
-            Clock clock) {
+    @Autowired
+    public JwtOperatorTokenIssuer(AuthSecrets secrets, Clock clock) {
+        this(secrets.adminJwtSecret(), secrets.jwtSecret(), clock);
+    }
+
+    JwtOperatorTokenIssuer(String secret, String memberSecret, Clock clock) {
         byte[] key = secretBytes(secret, memberSecret);
         try {
             this.signer = new MACSigner(key);
@@ -91,18 +93,7 @@ public class JwtOperatorTokenIssuer implements OperatorTokenIssuer {
             throw new PermissionDeniedException("관리툴 토큰 없음");
         }
         try {
-            SignedJWT jwt = SignedJWT.parse(adminToken);
-            if (!JWSAlgorithm.HS256.equals(jwt.getHeader().getAlgorithm())
-                    || !jwt.verify(verifier)) {
-                throw new PermissionDeniedException("관리툴 토큰 서명 불일치");
-            }
-            JWTClaimsSet claims = jwt.getJWTClaimsSet();
-            if (!ISSUER.equals(claims.getIssuer())
-                    || !ADMIN.equals(claims.getStringClaim(TYPE))
-                    || claims.getExpirationTime() == null
-                    || !claims.getExpirationTime().toInstant().isAfter(clock.instant())) {
-                throw new PermissionDeniedException("관리툴 토큰 만료 또는 종류 불일치");
-            }
+            JWTClaimsSet claims = verifiedClaims(SignedJWT.parse(adminToken));
             String provider = claims.getStringClaim(PROVIDER);
             if (provider == null) {
                 throw new PermissionDeniedException("관리툴 토큰 제공자 없음");
@@ -113,6 +104,25 @@ public class JwtOperatorTokenIssuer implements OperatorTokenIssuer {
         } catch (ParseException | JOSEException | IllegalArgumentException e) {
             throw new PermissionDeniedException("관리툴 토큰 형식 오류");
         }
+    }
+
+    /** 서명(HS256)과 발급자·종류·만료를 확인한 클레임. 어긋나면 PermissionDeniedException(sw-test 복잡도 분리). */
+    private JWTClaimsSet verifiedClaims(SignedJWT jwt) throws JOSEException, ParseException {
+        if (!JWSAlgorithm.HS256.equals(jwt.getHeader().getAlgorithm()) || !jwt.verify(verifier)) {
+            throw new PermissionDeniedException("관리툴 토큰 서명 불일치");
+        }
+        JWTClaimsSet claims = jwt.getJWTClaimsSet();
+        if (!ISSUER.equals(claims.getIssuer())
+                || !ADMIN.equals(claims.getStringClaim(TYPE))
+                || !isUnexpired(claims)) {
+            throw new PermissionDeniedException("관리툴 토큰 만료 또는 종류 불일치");
+        }
+        return claims;
+    }
+
+    private boolean isUnexpired(JWTClaimsSet claims) {
+        return claims.getExpirationTime() != null
+                && claims.getExpirationTime().toInstant().isAfter(clock.instant());
     }
 
     private static byte[] secretBytes(String secret, String memberSecret) {

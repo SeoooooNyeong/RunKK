@@ -67,6 +67,10 @@ public class BattleParticipant {
     @Column(name = "new_record", nullable = false)
     private boolean newRecord;
 
+    /** 활성 대결이면 회원 ID, 아니면 null. 고유 제약이 회원별 활성 대결 1개를 지킨다(Battle.moveTo가 맞춘다). */
+    @Column(name = "active_member_id", unique = true)
+    private Long activeMemberId;
+
     @ElementCollection
     @CollectionTable(
             name = "battle_disconnection",
@@ -78,6 +82,10 @@ public class BattleParticipant {
 
     BattleParticipant(long memberId) {
         this.memberId = memberId;
+    }
+
+    void syncActive(boolean active) {
+        activeMemberId = active ? memberId : null;
     }
 
     /** 처음 도착이면 true. */
