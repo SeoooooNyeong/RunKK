@@ -4,9 +4,20 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 
+import com.a207.runkk.avatar.AppearanceService;
+import com.a207.runkk.avatar.AvatarQuery;
+import com.a207.runkk.avatar.AvatarService;
+import com.a207.runkk.avatar.AvatarWithdrawalListener;
+import com.a207.runkk.avatar.DefaultCharacter;
+import com.a207.runkk.avatar.EquipChange;
+import com.a207.runkk.avatar.FacePart;
+import com.a207.runkk.avatar.FacePartImageStore;
+import com.a207.runkk.avatar.SdFacePartImages;
+import com.a207.runkk.avatar.SdFaceParts;
 import com.a207.runkk.bootstrap.RunkkApplication;
 import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.Distance;
+import com.a207.runkk.common.ItemSlot;
 import com.a207.runkk.common.PersonalityTag;
 import com.a207.runkk.common.ProgressReport;
 import com.a207.runkk.common.StandardDistance;
@@ -35,6 +46,7 @@ import com.a207.runkk.member.MemberFixtures;
 import com.a207.runkk.member.MemberQueryService;
 import com.a207.runkk.member.MemberRepository;
 import com.a207.runkk.member.MemberSettingService;
+import com.a207.runkk.member.MemberWithdrawn;
 import com.a207.runkk.member.SettingChange;
 import com.a207.runkk.member.SettingItem;
 import com.a207.runkk.reward.RewardService;
@@ -47,8 +59,10 @@ import com.a207.runkk.running.RunUpload;
 import com.a207.runkk.running.RunUploadCommand;
 import com.a207.runkk.running.RunUploadService;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -102,6 +116,11 @@ class CrewThreadIntegrationTest {
     @Autowired MemberQueryService memberQueries;
     @Autowired MemberSettingService memberSettings;
     @Autowired TransactionTemplate tx;
+    @Autowired AvatarService avatars;
+    @Autowired AvatarQuery avatarQuery;
+    @Autowired FacePartImageStore faceParts;
+    @Autowired AppearanceService appearance;
+    @Autowired AvatarWithdrawalListener avatarWithdrawal;
     @Autowired JdbcTemplate jdbc;
     @Autowired StringRedisTemplate redis;
 
@@ -116,6 +135,10 @@ class CrewThreadIntegrationTest {
                         "join_request",
                         "crew_membership",
                         "crew",
+                        "avatar_face_part",
+                        "avatar_equipment",
+                        "avatar",
+                        "face_part_image",
                         "reward_accrual",
                         "owned_item",
                         "reward_wallet",
@@ -398,5 +421,39 @@ class CrewThreadIntegrationTest {
             f.get();
         }
         assertThat(rewards.balanceOf(m)).isEqualTo(200);
+    }
+
+    @Test
+    void avatarAndFacePartImages_persistOnPostgres() {
+        long m = member();
+        avatars.chooseDefault(m, DefaultCharacter.CAT);
+        assertThat(avatarQuery.faceKey(m)).contains("default:CAT");
+        SdFaceParts parts =
+                tx.execute(
+                        s -> {
+                            Map<FacePart, byte[]> images = new EnumMap<>(FacePart.class);
+                            for (FacePart part : FacePart.values()) {
+                                images.put(part, new byte[] {(byte) 0x89, 'P', 'N', 'G', 1});
+                            }
+                            return faceParts.save(m, new SdFacePartImages(images));
+                        });
+        assertThat(parts.setKey()).startsWith("face/" + m + "/");
+        assertThat(
+                        jdbc.queryForObject(
+                                "select count(*) from face_part_image where member_id = ?",
+                                Long.class,
+                                m))
+                .isEqualTo(5);
+        assertThat(avatars.equip(m, List.of(EquipChange.wear(ItemSlot.HAT, 77))).rejected())
+                .containsKey(ItemSlot.HAT);
+        assertThat(appearance.refreshAll(LocalDate.now())).isZero();
+        avatarWithdrawal.onMemberWithdrawn(new MemberWithdrawn(m, LocalDateTime.now()));
+        assertThat(
+                        jdbc.queryForObject(
+                                "select count(*) from face_part_image where member_id = ?",
+                                Long.class,
+                                m))
+                .isZero();
+        assertThat(avatarQuery.faceKey(m)).isEmpty();
     }
 }

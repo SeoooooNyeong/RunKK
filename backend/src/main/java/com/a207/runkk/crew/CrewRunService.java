@@ -147,8 +147,10 @@ public class CrewRunService {
 
     private void link(CrewRunPost post, RunRecordSaved e) {
         post.linkRun(e.memberId(), e.recordId());
-        views.arrivalAt(e.recordId(), e.startedAt(), post.distance().distance())
-                .ifPresent(at -> post.recordArrival(e.memberId(), at));
+        if (e.distance().isAtLeast(post.distance().distance())) {
+            views.arrivalAt(e.recordId(), e.startedAt(), post.distance().distance())
+                    .ifPresent(at -> post.recordArrival(e.memberId(), at));
+        }
         crewPostRepository.save(post);
     }
 

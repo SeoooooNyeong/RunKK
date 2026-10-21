@@ -82,7 +82,10 @@ class CrewRunViews {
         Map<Long, MemberSummary> names =
                 memberQueryService.summaries(
                         runners.stream().flatMap(p -> p.memberId().stream()).toList());
-        List<CrewRunResultView.Line> lines = runners.stream().map(p -> lineOf(p, names)).toList();
+        List<CrewRunResultView.Line> lines =
+                runners.stream()
+                        .map(p -> lineOf(p, names, post.scheduledAt().toLocalDate()))
+                        .toList();
         int finishers = (int) runners.stream().filter(p -> p.rank() != null).count();
         Distance contribution =
                 post.linkedRecordIds().stream()
@@ -97,8 +100,10 @@ class CrewRunViews {
                 contribution);
     }
 
-    private CrewRunResultView.Line lineOf(CrewRunParticipation p, Map<Long, MemberSummary> names) {
-        Optional<RunSummary> run = p.linkedRecordId().map(runQueryService::summary);
+    private CrewRunResultView.Line lineOf(
+            CrewRunParticipation p, Map<Long, MemberSummary> names, LocalDate day) {
+        Optional<RunSummary> run =
+                p.memberId().flatMap(id -> p.linkedRecordId().flatMap(r -> summaryOf(id, r, day)));
         DisplayName name = p.memberId().map(id -> nameOf(names, id)).orElse(DisplayName.WITHDRAWN);
         return new CrewRunResultView.Line(
                 p.rank(),
@@ -106,6 +111,18 @@ class CrewRunViews {
                 run.map(RunSummary::elapsed).orElse(null),
                 run.map(RunSummary::averagePace).orElse(null),
                 p.hasQuit());
+    }
+
+    /**
+     * 연결된 기록의 요약(크루런 날 앞뒤 하루). 탈퇴·파기로 기록이 지워졌으면 비어 있다(결과 화면은 기록 없이 순위만). 없는 기록을 예외로 읽으면 읽기 트랜잭션이 롤백
+     * 표시되므로 목록 조회로 찾는다.
+     */
+    private Optional<RunSummary> summaryOf(long memberId, String recordId, LocalDate day) {
+        return runQueryService
+                .summariesBetween(memberId, new DateRange(day.minusDays(1), day.plusDays(1)))
+                .stream()
+                .filter(s -> s.recordId().equals(recordId))
+                .findFirst();
     }
 
     /** 열람자가 이 크루런의 진행 참가자이고 그 전에 진행 참가한 크루런이 없으면 참. */
