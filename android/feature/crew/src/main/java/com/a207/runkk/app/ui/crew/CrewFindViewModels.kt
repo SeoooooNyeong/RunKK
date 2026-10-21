@@ -3,6 +3,8 @@ package com.a207.runkk.app.ui.crew
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.designsystem.RunkkTags
+import com.a207.runkk.app.core.designsystem.UiText
+import com.a207.runkk.app.core.designsystem.uiText
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.getOrNull
 import com.a207.runkk.app.domain.crew.CrewDetail
@@ -34,7 +36,7 @@ data class CrewFindUiState(
     /** 소속 크루. 있으면 크루 탭이 내 크루 홈을 보인다. */
     val mine: CrewDetail? = null,
     /** 내 크루를 확인하지 못했다(다시 시도). 소속을 모르는 채 가입을 권하지 않도록 찾기 화면을 보이지 않는다. */
-    val mineError: String? = null,
+    val mineError: UiText? = null,
     /** 대기 중인 본인 가입 신청(FR-143 취소). */
     val pending: List<MyCrew.PendingJoin> = emptyList(),
     /** 취소를 확인 중인 신청. */
@@ -53,8 +55,8 @@ data class CrewFindUiState(
     val joining: Boolean = false,
     val inviteOpen: Boolean = false,
     val inviteCode: String = "",
-    val message: String? = null,
-    val error: String? = null
+    val message: UiText? = null,
+    val error: UiText? = null
 )
 
 sealed interface CrewEvent {
@@ -241,7 +243,7 @@ class CrewFindViewModel @Inject constructor(private val crews: CrewRepository) :
                     st.copy(
                         joining = false,
                         pending = st.pending.filterNot { it.requestId == request.requestId },
-                        message = "${request.crewName} 가입 신청을 취소했어요"
+                        message = uiText(R.string.crew_find_cancelled_message, request.crewName)
                     )
                 }
 
@@ -260,7 +262,7 @@ class CrewFindViewModel @Inject constructor(private val crews: CrewRepository) :
             JoinResult.Status.JOINED -> loadMine()
 
             JoinResult.Status.PENDING -> {
-                _state.update { it.copy(message = "가입 신청했어요. 크루장이 결정하면 알려 드려요") }
+                _state.update { it.copy(message = uiText(R.string.crew_find_applied_message)) }
                 loadMine(quiet = true)
             }
 
@@ -298,7 +300,7 @@ data class CrewFormState(
 data class CrewCreateUiState(
     val form: CrewFormState = CrewFormState(),
     val saving: Boolean = false,
-    val error: String? = null
+    val error: UiText? = null
 )
 
 /** 크루 만들기(FR-110): 만든 러너가 크루장이 된다. 만들면 크루 탭(내 크루 홈)으로. */

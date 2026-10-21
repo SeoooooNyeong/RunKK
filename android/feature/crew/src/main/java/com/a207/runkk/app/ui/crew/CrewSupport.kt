@@ -1,9 +1,14 @@
 package com.a207.runkk.app.ui.crew
 
+import android.content.res.Resources
+import androidx.annotation.StringRes
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalContext
 import com.a207.runkk.app.core.designsystem.RunkkErrorText
 import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkTagCategory
 import com.a207.runkk.app.core.designsystem.RunkkTags
+import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.domain.crew.CrewRunCoordinator
@@ -25,69 +30,83 @@ internal val CREW_TAG_CATEGORIES: List<RunkkTagCategory> = RunkkTags.categories
 internal val CREW_RUN_DISTANCES: List<Distance> =
     listOf(Distance(1_000), Distance(3_000), Distance(5_000), Distance(10_000))
 
-internal val JoinPolicy.label: String
-    get() = when (this) {
-        JoinPolicy.APPROVAL -> "승인제"
-        JoinPolicy.FREE -> "바로 가입"
+internal val JoinPolicy.labelRes: Int
+    @StringRes get() = when (this) {
+        JoinPolicy.APPROVAL -> R.string.crew_join_policy_approval
+        JoinPolicy.FREE -> R.string.crew_join_policy_free
     }
 
 /** 크루 거부 사유 문구. 키는 서버 common.ReasonCode의 크루 사유(5.1~5.7)와 PERMISSION_DENIED(403)이고, 나머지는 공용 문구다. */
 internal object CrewErrorText {
-    fun of(error: AppError): String {
+    fun of(error: AppError): UiText {
         val code = (error as? AppError.Rejected)?.code
-        return code?.let(REJECTED::get) ?: RunkkErrorText.of(error)
+        return code?.let(REJECTED::get)?.let { UiText.Res(it) } ?: RunkkErrorText.of(error)
     }
 
-    internal val REJECTED = mapOf(
-        "CREW_NOT_FOUND" to "크루를 찾을 수 없어요",
-        "CREW_FULL" to "정원 초과. 크루는 크루장 포함 10명까지예요",
-        "ALREADY_IN_CREW" to "이미 크루에 소속돼 있어요. 1인 1크루예요",
-        "COOLDOWN" to "크루를 나온 뒤 24시간 동안은 가입하거나 만들 수 없어요",
-        "CREW_NAME_INVALID" to "크루명은 2~20자로 입력해 주세요",
-        "CREW_NAME_TAKEN" to "이미 있는 크루명이에요. 다른 이름을 입력해 주세요",
-        "TOO_MANY_ATTEMPTS" to "초대 코드를 너무 많이 틀렸어요. 10분 뒤 다시 시도해 주세요",
-        "INVALID_CODE" to "초대 코드가 없거나 7일이 지났어요",
-        "ALREADY_REQUESTED" to "이 크루에 이미 가입 신청을 했어요",
-        "JOIN_REQUEST_NOT_FOUND" to "가입 신청을 찾을 수 없어요",
-        "NOT_CANCELLABLE" to "취소할 수 없는 신청이에요",
-        "REQUEST_DECIDED" to "이미 처리된 신청이에요",
-        "PERMISSION_DENIED" to "권한 없음. 크루장만 할 수 있어요",
-        "LEADER_MUST_TRANSFER" to "크루장 양도 필요. 크루원에게 크루장을 넘긴 뒤 탈퇴해 주세요",
-        "CREW_DELETE_REQUIRED" to "크루 삭제 필요. 크루원이 없으니 크루를 삭제해 주세요",
-        "TARGET_INVALID" to "대상을 다시 확인해 주세요",
-        "NOT_CREW_MEMBER" to "이 크루의 크루원이 아니에요",
-        "BODY_TOO_LONG" to "응원글은 200자까지 쓸 수 있어요",
-        "CREW_RUN_INVALID" to "크루런 거리는 1·3·5·10km 중에서 고르고 모집 일시는 지금 이후여야 해요",
-        "POST_NOT_FOUND" to "글을 찾을 수 없어요",
-        "VOTE_CLOSED" to "투표가 마감됐어요",
-        "LOBBY_NOT_OPEN" to "대기실은 시작 30분 전부터 시작 시각까지만 열려요",
-        "ALREADY_STARTED" to "이미 시작했거나 취소된 크루런이에요",
-        "NOT_PARTICIPANT" to "이 크루런의 참가자가 아니에요"
+    internal val REJECTED: Map<String, Int> = mapOf(
+        "CREW_NOT_FOUND" to R.string.crew_error_crew_not_found,
+        "CREW_FULL" to R.string.crew_error_crew_full,
+        "ALREADY_IN_CREW" to R.string.crew_error_already_in_crew,
+        "COOLDOWN" to R.string.crew_error_cooldown,
+        "CREW_NAME_INVALID" to R.string.crew_error_crew_name_invalid,
+        "CREW_NAME_TAKEN" to R.string.crew_error_crew_name_taken,
+        "TOO_MANY_ATTEMPTS" to R.string.crew_error_too_many_attempts,
+        "INVALID_CODE" to R.string.crew_error_invalid_code,
+        "ALREADY_REQUESTED" to R.string.crew_error_already_requested,
+        "JOIN_REQUEST_NOT_FOUND" to R.string.crew_error_join_request_not_found,
+        "NOT_CANCELLABLE" to R.string.crew_error_not_cancellable,
+        "REQUEST_DECIDED" to R.string.crew_error_request_decided,
+        "PERMISSION_DENIED" to R.string.crew_error_permission_denied,
+        "LEADER_MUST_TRANSFER" to R.string.crew_error_leader_must_transfer,
+        "CREW_DELETE_REQUIRED" to R.string.crew_error_crew_delete_required,
+        "TARGET_INVALID" to R.string.crew_error_target_invalid,
+        "NOT_CREW_MEMBER" to R.string.crew_error_not_crew_member,
+        "BODY_TOO_LONG" to R.string.crew_error_body_too_long,
+        "CREW_RUN_INVALID" to R.string.crew_error_crew_run_invalid,
+        "POST_NOT_FOUND" to R.string.crew_error_post_not_found,
+        "VOTE_CLOSED" to R.string.crew_error_vote_closed,
+        "LOBBY_NOT_OPEN" to R.string.crew_error_lobby_not_open,
+        "ALREADY_STARTED" to R.string.crew_error_already_started,
+        "NOT_PARTICIPANT" to R.string.crew_error_not_participant
     )
 }
 
 /** 크루런 상태 문구(서버 crew.CrewRunStatus). */
-internal fun crewRunStatusLabel(status: CrewRunStatus): String = when (status) {
-    CrewRunStatus.VOTING -> "참여 투표 중"
-    CrewRunStatus.LOBBY_OPEN -> "대기실 열림"
-    CrewRunStatus.RUNNING -> "달리는 중"
-    CrewRunStatus.FINISHED -> "끝남"
-    CrewRunStatus.CANCELLED -> "취소됨"
+@StringRes
+internal fun crewRunStatusLabelRes(status: CrewRunStatus): Int = when (status) {
+    CrewRunStatus.VOTING -> R.string.crew_run_status_voting
+    CrewRunStatus.LOBBY_OPEN -> R.string.crew_run_status_lobby_open
+    CrewRunStatus.RUNNING -> R.string.crew_run_status_running
+    CrewRunStatus.FINISHED -> R.string.crew_run_status_finished
+    CrewRunStatus.CANCELLED -> R.string.crew_run_status_cancelled
 }
 
 /** 크루런 모집글 한 줄 요약: "5km · 10월 24일(토) 07:00 · 갈래요 3명" (+ 끝났으면 "완주 n명"). */
-internal fun crewRunSummary(info: PostList.CrewRunInfo, zone: ZoneId = ZoneId.systemDefault()): String = listOfNotNull(
+internal fun crewRunSummary(
+    resources: Resources,
+    info: PostList.CrewRunInfo,
+    zone: ZoneId = ZoneId.systemDefault()
+): String = listOfNotNull(
     RunkkFormat.targetLabel(info.distance),
-    meetLabel(info.scheduledAt, zone),
-    "갈래요 ${info.goingCount}명",
-    info.takeIf { it.status == CrewRunStatus.FINISHED }?.let { "완주 ${it.finisherCount}명" }
+    meetLabel(resources, info.scheduledAt, zone),
+    resources.getString(R.string.crew_run_going_count, info.goingCount),
+    info.takeIf { it.status == CrewRunStatus.FINISHED }
+        ?.let { resources.getString(R.string.crew_run_finisher_count, it.finisherCount) }
 ).joinToString(" · ")
 
-/** "10월 24일(토) 07:00". */
-internal fun meetLabel(at: Instant, zone: ZoneId = ZoneId.systemDefault()): String = at.atZone(zone).format(MEET)
+/** 화면에서 쓰는 [crewRunSummary]. */
+@Composable
+internal fun crewRunSummary(info: PostList.CrewRunInfo): String = crewRunSummary(LocalContext.current.resources, info)
+
+/** "10월 24일(토) 07:00". 틀은 문자열 리소스(crew_meet_pattern)다. */
+internal fun meetLabel(resources: Resources, at: Instant, zone: ZoneId = ZoneId.systemDefault()): String =
+    at.atZone(zone).format(DateTimeFormatter.ofPattern(resources.getString(R.string.crew_meet_pattern), Locale.KOREAN))
+
+/** 화면에서 쓰는 [meetLabel]. */
+@Composable
+internal fun meetLabel(at: Instant): String = meetLabel(LocalContext.current.resources, at)
 
 /** "10/21 18:30". */
 internal fun postedLabel(at: Instant, zone: ZoneId = ZoneId.systemDefault()): String = at.atZone(zone).format(POSTED)
 
-private val MEET: DateTimeFormatter = DateTimeFormatter.ofPattern("M월 d일(E) HH:mm", Locale.KOREAN)
 private val POSTED: DateTimeFormatter = DateTimeFormatter.ofPattern("M/d HH:mm", Locale.KOREAN)
