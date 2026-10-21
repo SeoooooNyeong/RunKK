@@ -39,6 +39,7 @@ public class RecordBattleService {
     private final RunQueryService runQueryService;
     private final CelebrityRecordRepository celebrityRecordRepository;
     private final BattleRepository battleRepository;
+    private final MatchQueue matchQueue;
     private final Clock clock;
 
     public RecordBattleService(
@@ -46,11 +47,13 @@ public class RecordBattleService {
             RunQueryService runQueryService,
             CelebrityRecordRepository celebrityRecordRepository,
             BattleRepository battleRepository,
+            MatchQueue matchQueue,
             Clock clock) {
         this.memberQueryService = memberQueryService;
         this.runQueryService = runQueryService;
         this.celebrityRecordRepository = celebrityRecordRepository;
         this.battleRepository = battleRepository;
+        this.matchQueue = matchQueue;
         this.clock = clock;
     }
 
@@ -144,8 +147,15 @@ public class RecordBattleService {
                 celebrity.isEstimated());
     }
 
+    /**
+     * 랜덤 매칭 대기 중이면 거부한다(ALREADY_IN_BATTLE, 코드 리뷰 2차 L10). 한 회원이 대기 표와 기록 대결을 함께 갖지 않게 한다. 활성 대결
+     * 전체(existsActive) 확인은 시작 보고 없이 버려진 기록 대결이 다음 대결을 영구히 막을 수 있어 결정 목록으로 넘긴다.
+     */
     private Battle create(
             BattleType type, long memberId, Distance distance, OpponentRecord opponent) {
+        if (matchQueue.findWaiting(memberId).isPresent()) {
+            throw new BusinessRuleException(ReasonCode.ALREADY_IN_BATTLE);
+        }
         RecordBattleSpec spec = RecordBattleSpec.of(type, memberId, distance, opponent);
         return battleRepository.save(Battle.againstRecord(spec, LocalDateTime.now(clock)));
     }
