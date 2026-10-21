@@ -42,10 +42,10 @@ data class CrewRunWriteUiState(
     val dayOffset: Int = 1,
     val time: LocalTime = LocalTime.of(DEFAULT_HOUR, 0),
     val today: LocalDate = LocalDate.MIN,
-    val saving: Boolean = false,
+    val isSaving: Boolean = false,
     val error: UiText? = null
 ) {
-    val valid: Boolean get() = title.isNotBlank()
+    val isValid: Boolean get() = title.isNotBlank()
 
     companion object {
         const val DEFAULT_HOUR = 7
@@ -85,22 +85,22 @@ class CrewRunWriteViewModel @Inject constructor(private val crews: CrewRepositor
 
     fun onSubmit(crewId: Long) {
         val s = _state.value
-        if (!s.valid || s.saving) return
+        if (!s.isValid || s.isSaving) return
         val meetAt = s.today.plusDays(s.dayOffset.toLong()).atTime(s.time).atZone(clock.zone).toInstant()
         if (!meetAt.isAfter(clock.instant())) {
             _state.update { it.copy(error = uiText(R.string.crew_run_write_past_time)) }
             return
         }
-        _state.update { it.copy(saving = true) }
+        _state.update { it.copy(isSaving = true) }
         viewModelScope.launch {
             val form = CrewRunForm(s.title.trim(), s.body.trim().ifBlank { null }, s.distance, meetAt)
             when (val r = crews.writeCrewRun(crewId, form)) {
                 is Outcome.Success -> {
-                    _state.update { it.copy(saving = false) }
+                    _state.update { it.copy(isSaving = false) }
                     _events.trySend(CrewRunWriteEvent.Posted)
                 }
 
-                is Outcome.Failure -> _state.update { it.copy(saving = false, error = CrewErrorText.of(r.error)) }
+                is Outcome.Failure -> _state.update { it.copy(isSaving = false, error = CrewErrorText.of(r.error)) }
             }
         }
     }
@@ -122,7 +122,7 @@ data class RelayRow(
     val distance: Distance,
     val rank: Int?,
     val connection: String,
-    val me: Boolean = false
+    val isMe: Boolean = false
 )
 
 data class CrewRunUiState(
@@ -132,16 +132,16 @@ data class CrewRunUiState(
     val phase: CrewRunPhase = CrewRunPhase.ENTERING,
     val lobby: Lobby? = null,
     /** 내 준비 완료 여부(대기실 응답의 내 줄, me). */
-    val ready: Boolean = false,
+    val isReady: Boolean = false,
     /** 모집 일시까지 남은 시간. */
     val untilStart: Duration? = null,
     val countdown: Long? = null,
     val relay: List<RelayRow> = emptyList(),
     val cancelledReason: String? = null,
-    val confirmingQuit: Boolean = false,
-    val leaving: Boolean = false,
+    val isConfirmingQuit: Boolean = false,
+    val isLeaving: Boolean = false,
     val hint: UiText? = null,
-    val busy: Boolean = false,
+    val isBusy: Boolean = false,
     val error: UiText? = null
 )
 
@@ -191,17 +191,17 @@ class CrewRunViewModel @Inject constructor(
      */
     fun enter() {
         val s = _state.value
-        _state.update { it.copy(busy = true, error = null) }
+        _state.update { it.copy(isBusy = true, error = null) }
         viewModelScope.launch {
             when (val r = crews.enterLobby(s.postId)) {
                 is Outcome.Success -> {
                     val first = _state.value.lobby == null
                     _state.update {
                         it.copy(
-                            busy = false,
+                            isBusy = false,
                             lobby = r.value,
                             distance = r.value.distance,
-                            ready = r.value.myReady() ?: it.ready,
+                            isReady = r.value.myReady() ?: it.isReady,
                             phase = if (it.phase == CrewRunPhase.ENTERING) CrewRunPhase.LOBBY else it.phase
                         )
                     }
@@ -209,7 +209,7 @@ class CrewRunViewModel @Inject constructor(
                     tick()
                 }
 
-                is Outcome.Failure -> _state.update { it.copy(busy = false, error = CrewErrorText.of(r.error)) }
+                is Outcome.Failure -> _state.update { it.copy(isBusy = false, error = CrewErrorText.of(r.error)) }
             }
         }
     }
@@ -217,15 +217,15 @@ class CrewRunViewModel @Inject constructor(
     /** 준비 완료 ↔ 해제(FR-147). */
     fun onReadyToggle() {
         val s = _state.value
-        if (s.busy || s.phase != CrewRunPhase.LOBBY) return
-        _state.update { it.copy(busy = true) }
+        if (s.isBusy || s.phase != CrewRunPhase.LOBBY) return
+        _state.update { it.copy(isBusy = true) }
         viewModelScope.launch {
             when (val r = crews.toggleReady(s.postId)) {
                 is Outcome.Success -> _state.update {
-                    it.copy(busy = false, lobby = r.value, ready = r.value.myReady() ?: !it.ready)
+                    it.copy(isBusy = false, lobby = r.value, isReady = r.value.myReady() ?: !it.isReady)
                 }
 
-                is Outcome.Failure -> _state.update { it.copy(busy = false, error = CrewErrorText.of(r.error)) }
+                is Outcome.Failure -> _state.update { it.copy(isBusy = false, error = CrewErrorText.of(r.error)) }
             }
         }
     }
@@ -236,12 +236,12 @@ class CrewRunViewModel @Inject constructor(
      */
     fun onLeaveLobby() {
         val s = _state.value
-        if (s.leaving) return
-        _state.update { it.copy(leaving = true) }
+        if (s.isLeaving) return
+        _state.update { it.copy(isLeaving = true) }
         viewModelScope.launch {
             when (val r = coordinator.leaveLobby(s.postId)) {
                 is Outcome.Success -> _events.trySend(CrewRunEvent.Left)
-                is Outcome.Failure -> _state.update { it.copy(leaving = false, error = CrewErrorText.of(r.error)) }
+                is Outcome.Failure -> _state.update { it.copy(isLeaving = false, error = CrewErrorText.of(r.error)) }
             }
         }
     }
@@ -250,15 +250,15 @@ class CrewRunViewModel @Inject constructor(
 
     fun onQuitLongPressed() {
         if (_state.value.phase == CrewRunPhase.RUNNING || _state.value.phase == CrewRunPhase.COUNTDOWN) {
-            _state.update { it.copy(confirmingQuit = true) }
+            _state.update { it.copy(isConfirmingQuit = true) }
         }
     }
 
-    fun onQuitDismissed() = _state.update { it.copy(confirmingQuit = false) }
+    fun onQuitDismissed() = _state.update { it.copy(isConfirmingQuit = false) }
 
     /** 확인 뒤 중간 그만두기(FR-192). 그때까지 달린 기록은 저장된다. */
     fun onQuitConfirmed() {
-        _state.update { it.copy(confirmingQuit = false) }
+        _state.update { it.copy(isConfirmingQuit = false) }
         coordinator.quit()
     }
 
@@ -295,7 +295,7 @@ class CrewRunViewModel @Inject constructor(
                 if (s.cancelledReason != null) {
                     _state.update { it.copy(phase = CrewRunPhase.CANCELLED, cancelledReason = s.cancelledReason) }
                 } else {
-                    _state.update { it.copy(phase = CrewRunPhase.FINISHED, confirmingQuit = false) }
+                    _state.update { it.copy(phase = CrewRunPhase.FINISHED, isConfirmingQuit = false) }
                     _events.trySend(CrewRunEvent.Finished(postId))
                 }
             }
@@ -352,7 +352,7 @@ private fun Lobby.myReady(): Boolean? = participants.firstOrNull { it.isMe }?.is
 // ---------- 크루런 결과 ----------
 
 data class CrewRunResultUiState(
-    val loading: Boolean = true,
+    val isLoading: Boolean = true,
     val result: CrewRunResult? = null,
     val error: UiText? = null
 ) {
@@ -370,21 +370,21 @@ class CrewRunResultViewModel @Inject constructor(
     private var loaded: Long? = null
     private var job: Job? = null
 
-    fun load(postId: Long, force: Boolean = false) {
-        if (!force && loaded == postId) return
+    fun load(postId: Long, isForced: Boolean = false) {
+        if (!isForced && loaded == postId) return
         loaded = postId
         job?.cancel()
-        _state.update { it.copy(loading = true, error = null) }
+        _state.update { it.copy(isLoading = true, error = null) }
         job = viewModelScope.launch {
             when (val r = crews.crewRunResult(postId)) {
                 is Outcome.Success -> {
-                    _state.update { it.copy(loading = false, result = r.value) }
+                    _state.update { it.copy(isLoading = false, result = r.value) }
                     coordinator.acknowledgeFinished()
                 }
 
                 is Outcome.Failure -> {
                     loaded = null
-                    _state.update { it.copy(loading = false, error = CrewErrorText.of(r.error)) }
+                    _state.update { it.copy(isLoading = false, error = CrewErrorText.of(r.error)) }
                 }
             }
         }

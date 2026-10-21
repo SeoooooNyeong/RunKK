@@ -90,11 +90,11 @@ fun CrewFindRoute(viewModel: CrewFindViewModel = hiltViewModel()) {
     val mine = state.mine
     when {
         mine != null -> {
-            CrewHomeRoute(Routes.CrewHome(mine.crewId), atTabRoot = true)
+            CrewHomeRoute(Routes.CrewHome(mine.crewId), isAtTabRoot = true)
             return
         }
 
-        state.checkingMine -> {
+        state.isCheckingMine -> {
             Box(Modifier.fillMaxSize().background(RunkkColors.Background)) { RunkkLoading() }
             return
         }
@@ -197,10 +197,10 @@ fun CrewFindScreen(state: CrewFindUiState, actions: CrewFindActions, modifier: M
 private fun FindOverlays(state: CrewFindUiState, actions: CrewFindActions) {
     state.detail?.let { crew ->
         ModalBottomSheet(onDismissRequest = actions.onCloseDetail, containerColor = RunkkColors.Surface) {
-            CrewDetailContent(crew, joining = state.joining, onJoin = { actions.onJoin(crew) })
+            CrewDetailContent(crew, isJoining = state.isJoining, onJoin = { actions.onJoin(crew) })
         }
     }
-    if (state.inviteOpen) InviteDialog(state, actions)
+    if (state.isInviteOpen) InviteDialog(state, actions)
     state.confirmCancel?.let { request ->
         RunkkConfirmDialog(
             title = stringResource(R.string.crew_find_cancel_confirm_title),
@@ -208,7 +208,7 @@ private fun FindOverlays(state: CrewFindUiState, actions: CrewFindActions) {
             confirmLabel = stringResource(R.string.crew_find_cancel_confirm_action),
             onConfirm = actions.onCancelConfirm,
             onDismiss = actions.onCancelDismiss,
-            destructive = true
+            isDestructive = true
         )
     }
 }
@@ -218,7 +218,7 @@ private fun LazyListScope.crewFindItems(state: CrewFindUiState, actions: CrewFin
     item { FindHeaderRow(onInviteOpen = actions.onInviteOpen, onCreate = actions.onCreate) }
     if (state.pending.isNotEmpty()) {
         items(state.pending, key = { "pending-${it.requestId}" }) { request ->
-            PendingJoinCard(request, busy = state.joining, onCancel = { actions.onCancelAsk(request) })
+            PendingJoinCard(request, isBusy = state.isJoining, onCancel = { actions.onCancelAsk(request) })
         }
     }
     item { FindSearchRow(state.keyword, actions.onKeyword, actions.onSearch) }
@@ -226,9 +226,9 @@ private fun LazyListScope.crewFindItems(state: CrewFindUiState, actions: CrewFin
     state.recommendations.firstOrNull()?.let { top ->
         item { ForYouCard(top, onOpen = { actions.onOpen(top) }, onJoin = { actions.onJoin(top) }) }
     }
-    item { FindListTitle(loading = state.loading, count = state.crews.size) }
+    item { FindListTitle(isLoading = state.isLoading, count = state.crews.size) }
     when {
-        state.loading && state.crews.isEmpty() -> item {
+        state.isLoading && state.crews.isEmpty() -> item {
             Box(Modifier.fillMaxWidth().padding(32.dp)) { RunkkLoading() }
         }
 
@@ -249,7 +249,7 @@ private fun LazyListScope.crewFindItems(state: CrewFindUiState, actions: CrewFin
             items(state.crews, key = {
                 it.crewId
             }) { crew -> CrewRow(crew, onClick = { actions.onOpen(crew) }) }
-            if (state.loadingMore) {
+            if (state.isLoadingMore) {
                 item { Box(Modifier.fillMaxWidth().padding(16.dp)) { RunkkLoading() } }
             }
         }
@@ -306,7 +306,7 @@ private fun FindSearchRow(keyword: String, onKeyword: (String) -> Unit, onSearch
 private fun FindTagRow(selected: Set<String>, onTag: (String) -> Unit) {
     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         items(RunkkTags.categories.flatMap { it.tags }, key = { it.id }) { tag ->
-            RunkkChoiceChip(stringResource(tag.labelRes), selected = tag.id in selected, onSelectedChange = {
+            RunkkChoiceChip(stringResource(tag.labelRes), isSelected = tag.id in selected, onSelectedChange = {
                 onTag(tag.id)
             })
         }
@@ -315,9 +315,9 @@ private fun FindTagRow(selected: Set<String>, onTag: (String) -> Unit) {
 
 /** 공개 크루 목록 제목(읽는 중에는 개수를 숨긴다). */
 @Composable
-private fun FindListTitle(loading: Boolean, count: Int) {
+private fun FindListTitle(isLoading: Boolean, count: Int) {
     Text(
-        if (loading) {
+        if (isLoading) {
             stringResource(R.string.crew_find_list_title_loading)
         } else {
             stringResource(R.string.crew_find_list_title, count)
@@ -336,7 +336,7 @@ private const val LOAD_MORE_AHEAD = 3
 
 /** 대기 중인 내 가입 신청 한 건(FR-143): 크루명·신청 일시와 취소 단추. */
 @Composable
-private fun PendingJoinCard(request: MyCrew.PendingJoin, busy: Boolean, onCancel: () -> Unit) {
+private fun PendingJoinCard(request: MyCrew.PendingJoin, isBusy: Boolean, onCancel: () -> Unit) {
     val cancelDescription = stringResource(R.string.crew_find_pending_cancel_description, request.crewName)
     RunkkCard {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -358,7 +358,7 @@ private fun PendingJoinCard(request: MyCrew.PendingJoin, busy: Boolean, onCancel
             RunkkPillButton(
                 stringResource(R.string.crew_action_cancel),
                 onClick = onCancel,
-                enabled = !busy,
+                isEnabled = !isBusy,
                 modifier = Modifier.semantics { contentDescription = cancelDescription }
             )
         }
@@ -380,7 +380,7 @@ private fun ForYouCard(crew: CrewList.Item, onOpen: () -> Unit, onJoin: () -> Un
             color = RunkkColors.Lime
         )
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            CrewLogo(crew.name, size = 56, accent = true)
+            CrewLogo(crew.name, size = 56, isAccent = true)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
                     crew.name,
@@ -389,7 +389,11 @@ private fun ForYouCard(crew: CrewList.Item, onOpen: () -> Unit, onJoin: () -> Un
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Text(crewMeta(crew, leader = false), style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
+                Text(
+                    crewMeta(crew, isLeader = false),
+                    style = RunkkTextStyles.Caption,
+                    color = RunkkColors.TextSecondary
+                )
             }
             RunkkLimePillButton(
                 stringResource(
@@ -402,7 +406,7 @@ private fun ForYouCard(crew: CrewList.Item, onOpen: () -> Unit, onJoin: () -> Un
                     }
                 ),
                 onClick = onJoin,
-                enabled = crew.headcount < CREW_MAX
+                isEnabled = crew.headcount < CREW_MAX
             )
         }
     }
@@ -416,7 +420,11 @@ private fun CrewRow(crew: CrewList.Item, onClick: () -> Unit) {
             CrewLogo(crew.name)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(crew.name, style = RunkkTextStyles.text(15, FontWeight.Black), color = RunkkColors.TextPrimary)
-                Text(crewMeta(crew, leader = true), style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
+                Text(
+                    crewMeta(crew, isLeader = true),
+                    style = RunkkTextStyles.Caption,
+                    color = RunkkColors.TextSecondary
+                )
                 if (crew.tags.isNotEmpty()) {
                     Text(
                         crew.tags.joinToString(" · ") { RunkkTags.label(resources, it) },
@@ -434,9 +442,9 @@ private fun CrewRow(crew: CrewList.Item, onClick: () -> Unit) {
 
 /** "크루장 X · 4/10명 · 이번 주 12.3km"(크루 밖 열람 범위, FR-117·W-16). */
 @Composable
-internal fun crewMeta(crew: CrewList.Item, leader: Boolean): String = listOfNotNull(
-    crew.leaderName.takeIf { leader && it.isNotBlank() }?.let { stringResource(R.string.crew_meta_leader, it) },
-    if (leader) null else stringResource(crew.joinPolicy.labelRes),
+internal fun crewMeta(crew: CrewList.Item, isLeader: Boolean): String = listOfNotNull(
+    crew.leaderName.takeIf { isLeader && it.isNotBlank() }?.let { stringResource(R.string.crew_meta_leader, it) },
+    if (isLeader) null else stringResource(crew.joinPolicy.labelRes),
     stringResource(R.string.crew_meta_headcount, crew.headcount, CREW_MAX),
     stringResource(R.string.crew_meta_weekly_distance, RunkkFormat.kmShort(crew.weeklyDistance))
 ).joinToString(" · ")
@@ -445,7 +453,7 @@ internal const val CREW_MAX = 10
 
 /** 크루 상세(크루 밖 열람 범위: 소개·태그·로고·인원·크루장·이번 주 거리, Q-45). */
 @Composable
-internal fun CrewDetailContent(crew: CrewList.Item, joining: Boolean, onJoin: () -> Unit) {
+internal fun CrewDetailContent(crew: CrewList.Item, isJoining: Boolean, onJoin: () -> Unit) {
     Column(
         modifier = Modifier.fillMaxWidth().verticalScroll(
             rememberScrollState()
@@ -476,8 +484,8 @@ internal fun CrewDetailContent(crew: CrewList.Item, joining: Boolean, onJoin: ()
                 }
             ),
             onClick = onJoin,
-            enabled = !full,
-            loading = joining,
+            isEnabled = !full,
+            isLoading = isJoining,
             modifier = Modifier.fillMaxWidth()
         )
     }
@@ -487,7 +495,7 @@ internal fun CrewDetailContent(crew: CrewList.Item, joining: Boolean, onJoin: ()
 @Composable
 private fun CrewDetailHeader(crew: CrewList.Item) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        CrewLogo(crew.name, size = 56, accent = true)
+        CrewLogo(crew.name, size = 56, isAccent = true)
         Column(Modifier.weight(1f)) {
             Text(
                 crew.name,
@@ -497,7 +505,7 @@ private fun CrewDetailHeader(crew: CrewList.Item) {
                     heading()
                 }
             )
-            Text(crewMeta(crew, leader = true), style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
+            Text(crewMeta(crew, isLeader = true), style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
         }
     }
 }
@@ -526,7 +534,7 @@ private fun InviteDialog(state: CrewFindUiState, actions: CrewFindActions) {
             TextButton(
                 onClick = actions.onInviteSubmit,
                 enabled =
-                    state.inviteCode.length == INVITE_LENGTH && !state.joining
+                    state.inviteCode.length == INVITE_LENGTH && !state.isJoining
             ) {
                 Text(
                     stringResource(R.string.crew_find_join_action),
@@ -590,7 +598,7 @@ fun CrewCreateScreen(
             }
         }
         HorizontalDivider(color = RunkkColors.Border)
-        if (!state.form.valid) {
+        if (!state.form.isValid) {
             Text(
                 stringResource(R.string.crew_create_invalid_hint),
                 style = RunkkTextStyles.Caption,
@@ -601,8 +609,8 @@ fun CrewCreateScreen(
         RunkkPrimaryButton(
             stringResource(R.string.crew_create_title),
             onClick = onSubmit,
-            enabled = state.form.valid,
-            loading = state.saving,
+            isEnabled = state.form.isValid,
+            isLoading = state.isSaving,
             // E2E(android/e2e/maestro) 선택자: 상단 "만들기"와 이름이 같아 태그로 찾는다.
             modifier = Modifier
                 .testTag("crew_create_submit")
@@ -615,5 +623,5 @@ fun CrewCreateScreen(
 @Preview(name = "크루 찾기", widthDp = 390, heightDp = 844)
 @Composable
 private fun CrewFindPreview() {
-    RunkkTheme(reduceMotion = true) { CrewFindScreen(CrewFindUiState(loading = false), CrewFindActions()) }
+    RunkkTheme(reduceMotion = true) { CrewFindScreen(CrewFindUiState(isLoading = false), CrewFindActions()) }
 }

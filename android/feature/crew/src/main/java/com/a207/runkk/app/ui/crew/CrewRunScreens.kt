@@ -144,8 +144,8 @@ fun CrewRunWriteScreen(
         RunkkPrimaryButton(
             stringResource(R.string.crew_run_write_submit),
             onClick = onSubmit,
-            enabled = state.valid,
-            loading = state.saving,
+            isEnabled = state.isValid,
+            isLoading = state.isSaving,
             modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 32.dp)
         )
     }
@@ -170,7 +170,7 @@ private fun RunWriteFields(
         onValueChange = onBody,
         label = stringResource(R.string.crew_run_write_body_label),
         placeholder = stringResource(R.string.crew_run_write_body_placeholder),
-        singleLine = false
+        isSingleLine = false
     )
     RunkkSegmentRow(
         options = CREW_RUN_DISTANCES.map(RunkkFormat::targetLabel),
@@ -292,7 +292,7 @@ fun CrewRunScreen(state: CrewRunUiState, actions: CrewRunActions, modifier: Modi
             RunkkOverline(
                 "CREW RUN" + (state.distance?.let { " · ${RunkkFormat.targetLabel(it)}" } ?: ""),
                 color = if (state.phase == CrewRunPhase.RUNNING) RunkkColors.Lavender else RunkkColors.Lime,
-                heading = true,
+                isHeading = true,
                 modifier = Modifier.weight(1f)
             )
         }
@@ -301,7 +301,7 @@ fun CrewRunScreen(state: CrewRunUiState, actions: CrewRunActions, modifier: Modi
             RunQuitControl(state, actions)
         }
     }
-    if (state.confirmingQuit) {
+    if (state.isConfirmingQuit) {
         RunkkConfirmDialog(
             title = stringResource(R.string.crew_run_quit_confirm_title),
             message = stringResource(R.string.crew_run_quit_confirm_message),
@@ -309,7 +309,7 @@ fun CrewRunScreen(state: CrewRunUiState, actions: CrewRunActions, modifier: Modi
             onConfirm = actions.onQuitConfirm,
             onDismiss = actions.onQuitDismiss,
             dismissLabel = stringResource(R.string.crew_run_quit_confirm_dismiss),
-            destructive = true
+            isDestructive = true
         )
     }
 }
@@ -441,13 +441,13 @@ private fun LobbyStats(state: CrewRunUiState, lobby: Lobby) {
 @Composable
 private fun LobbyButtons(state: CrewRunUiState, actions: CrewRunActions) {
     val readyState = stringResource(
-        if (state.ready) R.string.crew_run_lobby_ready_state_on else R.string.crew_run_lobby_ready_state_off
+        if (state.isReady) R.string.crew_run_lobby_ready_state_on else R.string.crew_run_lobby_ready_state_off
     )
     RunkkPrimaryButton(
-        stringResource(if (state.ready) R.string.crew_run_lobby_ready_waiting else R.string.crew_run_ready),
+        stringResource(if (state.isReady) R.string.crew_run_lobby_ready_waiting else R.string.crew_run_ready),
         onClick = actions.onReady,
-        enabled = state.distance != null,
-        loading = state.busy,
+        isEnabled = state.distance != null,
+        isLoading = state.isBusy,
         // 다시 누르면 풀리는 켬/끔이라 스위치로 알린다.
         modifier = Modifier.fillMaxWidth().semantics {
             role = Role.Switch
@@ -464,7 +464,7 @@ private fun LobbyButtons(state: CrewRunUiState, actions: CrewRunActions) {
         RunkkSecondaryButton(
             stringResource(R.string.crew_run_lobby_leave),
             onClick = actions.onLeave,
-            enabled = !state.leaving,
+            isEnabled = !state.isLeaving,
             modifier = Modifier.weight(1f),
             height = 48.dp
         )
@@ -550,17 +550,17 @@ private fun ColumnScope.RelayBody(state: CrewRunUiState) {
 private fun RelayRowItem(row: RelayRow, total: Long?) {
     val status = connectionLabelRes(row.connection)?.let { stringResource(it) }
     val rankText = row.rank?.let { stringResource(R.string.crew_run_rank, it) }
-    val nameText = if (row.me) stringResource(R.string.crew_run_me_named, row.name) else row.name
+    val nameText = if (row.isMe) stringResource(R.string.crew_run_me_named, row.name) else row.name
     val kmText = stringResource(R.string.crew_run_km_spoken, RunkkFormat.km(row.distance))
     val description = listOfNotNull(rankText, nameText, kmText, status).joinToString(", ")
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RunkkShapes.Medium)
-            .background(if (row.me) RunkkColors.LimeContainer else RunkkColors.Surface)
+            .background(if (row.isMe) RunkkColors.LimeContainer else RunkkColors.Surface)
             .border(
-                if (row.me) 2.dp else 1.dp,
-                if (row.me || row.rank == 1) RunkkColors.Lime else RunkkColors.Border,
+                if (row.isMe) 2.dp else 1.dp,
+                if (row.isMe || row.rank == 1) RunkkColors.Lime else RunkkColors.Border,
                 RunkkShapes.Medium
             )
             .padding(16.dp)
@@ -596,7 +596,7 @@ private fun RelayRowTop(row: RelayRow, status: String?) {
             color = RunkkColors.TextPrimary,
             modifier = Modifier.weight(1f)
         )
-        if (row.me) RunkkBadge(stringResource(R.string.crew_member_me), tone = RunkkBadgeTone.Lime)
+        if (row.isMe) RunkkBadge(stringResource(R.string.crew_member_me), tone = RunkkBadgeTone.Lime)
         status?.let { RunkkBadge(it, tone = RunkkBadgeTone.Muted) }
         Text(
             "${RunkkFormat.km(row.distance)} KM",
@@ -629,7 +629,7 @@ fun CrewRunResultRoute(postId: Long, viewModel: CrewRunResultViewModel = hiltVie
         state = state,
         onCard = { navigator.navigate(Routes.RECORDS) },
         onHome = { navigator.restart(Routes.HOME) },
-        onRetry = { viewModel.load(postId, force = true) }
+        onRetry = { viewModel.load(postId, isForced = true) }
     )
 }
 
@@ -646,10 +646,10 @@ fun CrewRunResultScreen(
             Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            RunkkOverline("CREW RUN RESULT", heading = true)
+            RunkkOverline("CREW RUN RESULT", isHeading = true)
             val result = state.result
             when {
-                result == null && state.loading -> Box(Modifier.fillMaxWidth().height(240.dp)) { RunkkLoading() }
+                result == null && state.isLoading -> Box(Modifier.fillMaxWidth().height(240.dp)) { RunkkLoading() }
 
                 result == null -> RunkkErrorState(
                     state.error?.asString() ?: stringResource(R.string.crew_run_result_load_failed),

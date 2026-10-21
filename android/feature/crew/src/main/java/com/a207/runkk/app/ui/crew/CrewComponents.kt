@@ -42,19 +42,19 @@ import com.a207.runkk.app.domain.crew.JoinPolicy
 
 /** 크루 로고 자리(이니셜). 로고 이미지는 크루 정보 응답에 아직 없다. */
 @Composable
-internal fun CrewLogo(name: String, size: Int = 48, accent: Boolean = false, modifier: Modifier = Modifier) {
+internal fun CrewLogo(name: String, size: Int = 48, isAccent: Boolean = false, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .size(size.dp)
             .clip(RoundedCornerShape((size / 4).dp))
-            .background(if (accent) RunkkColors.LimeContainer else RunkkColors.Border)
+            .background(if (isAccent) RunkkColors.LimeContainer else RunkkColors.Border)
             .clearAndSetSemantics {},
         contentAlignment = Alignment.Center
     ) {
         Text(
             name.trim().take(1).ifEmpty { "C" },
             style = RunkkTextStyles.text(size / 2 - 4, FontWeight.Black),
-            color = if (accent) RunkkColors.Lime else RunkkColors.TextSecondary
+            color = if (isAccent) RunkkColors.Lime else RunkkColors.TextSecondary
         )
     }
 }
@@ -111,7 +111,7 @@ private fun CrewTagChoices(form: CrewFormState, onForm: (CrewFormState) -> Unit)
             category.tags.forEach { tag ->
                 RunkkChoiceChip(
                     label = stringResource(tag.labelRes),
-                    selected = tag.id in form.tags,
+                    isSelected = tag.id in form.tags,
                     onSelectedChange = { onForm(form.copy(tags = RunkkTags.toggle(form.tags, tag.id))) }
                 )
             }

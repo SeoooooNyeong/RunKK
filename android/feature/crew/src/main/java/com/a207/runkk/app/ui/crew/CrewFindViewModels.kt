@@ -32,7 +32,7 @@ import kotlinx.coroutines.launch
 
 data class CrewFindUiState(
     /** 크루 탭에 들어와 내 크루(GET /crews/me)를 확인하는 중. */
-    val checkingMine: Boolean = true,
+    val isCheckingMine: Boolean = true,
     /** 소속 크루. 있으면 크루 탭이 내 크루 홈을 보인다. */
     val mine: CrewDetail? = null,
     /** 내 크루를 확인하지 못했다(다시 시도). 소속을 모르는 채 가입을 권하지 않도록 찾기 화면을 보이지 않는다. */
@@ -41,7 +41,7 @@ data class CrewFindUiState(
     val pending: List<MyCrew.PendingJoin> = emptyList(),
     /** 취소를 확인 중인 신청. */
     val confirmCancel: MyCrew.PendingJoin? = null,
-    val loading: Boolean = true,
+    val isLoading: Boolean = true,
     val keyword: String = "",
     val tags: Set<String> = emptySet(),
     /** 추천(FR-118). 태그가 없으면 서버가 빈 목록을 준다(FR-119). */
@@ -49,11 +49,11 @@ data class CrewFindUiState(
     val crews: List<CrewList.Item> = emptyList(),
     /** 다음 쪽 커서. null이면 끝까지 읽었다. */
     val nextCursor: Long? = null,
-    val loadingMore: Boolean = false,
+    val isLoadingMore: Boolean = false,
     /** 상세(바텀 시트)로 연 크루. */
     val detail: CrewList.Item? = null,
-    val joining: Boolean = false,
-    val inviteOpen: Boolean = false,
+    val isJoining: Boolean = false,
+    val isInviteOpen: Boolean = false,
     val inviteCode: String = "",
     val message: UiText? = null,
     val error: UiText? = null
@@ -92,29 +92,34 @@ class CrewFindViewModel @Inject constructor(private val crews: CrewRepository) :
      */
     fun refreshMine() {
         val s = _state.value
-        if (s.mine == null && !s.checkingMine) loadMine(quiet = true)
+        if (s.mine == null && !s.isCheckingMine) loadMine(isQuiet = true)
     }
 
-    /** 내 크루를 확인한다. [quiet]면 로딩을 보이지 않는다(가입·취소 뒤 다시 읽기). 크루가 없으면 찾기 목록도 읽는다. */
-    fun loadMine(quiet: Boolean = false) {
+    /** 내 크루를 확인한다. [isQuiet]면 로딩을 보이지 않는다(가입·취소 뒤 다시 읽기). 크루가 없으면 찾기 목록도 읽는다. */
+    fun loadMine(isQuiet: Boolean = false) {
         mineJob?.cancel()
-        if (!quiet) _state.update { it.copy(checkingMine = true, mineError = null) }
+        if (!isQuiet) _state.update { it.copy(isCheckingMine = true, mineError = null) }
         mineJob = viewModelScope.launch {
             when (val r = crews.myCrew()) {
                 is Outcome.Success -> {
                     val crew = r.value.crew
                     val firstFind = !hasRequestedFind
                     _state.update {
-                        it.copy(checkingMine = false, mineError = null, mine = crew, pending = r.value.pendingRequests)
+                        it.copy(
+                            isCheckingMine = false,
+                            mineError = null,
+                            mine = crew,
+                            pending = r.value.pendingRequests
+                        )
                     }
-                    if (crew == null && (!quiet || firstFind)) load()
+                    if (crew == null && (!isQuiet || firstFind)) load()
                 }
 
                 is Outcome.Failure -> _state.update {
-                    if (quiet) {
+                    if (isQuiet) {
                         it.copy(message = CrewErrorText.of(r.error))
                     } else {
-                        it.copy(checkingMine = false, mineError = CrewErrorText.of(r.error))
+                        it.copy(isCheckingMine = false, mineError = CrewErrorText.of(r.error))
                     }
                 }
             }
@@ -126,14 +131,14 @@ class CrewFindViewModel @Inject constructor(private val crews: CrewRepository) :
         hasRequestedFind = true
         job?.cancel()
         moreJob?.cancel()
-        _state.update { it.copy(loading = true, loadingMore = false, error = null) }
+        _state.update { it.copy(isLoading = true, isLoadingMore = false, error = null) }
         val s = _state.value
         job = viewModelScope.launch {
             val recommended = async { crews.recommend() }
             when (val found = crews.search(s.keyword.trim().ifBlank { null }, s.tags)) {
                 is Outcome.Success -> _state.update {
                     it.copy(
-                        loading = false,
+                        isLoading = false,
                         crews = found.value.crews,
                         nextCursor = found.value.nextCursor,
                         recommendations = recommended.await().getOrNull()?.crews.orEmpty()
@@ -142,7 +147,7 @@ class CrewFindViewModel @Inject constructor(private val crews: CrewRepository) :
 
                 is Outcome.Failure -> {
                     recommended.cancel()
-                    _state.update { it.copy(loading = false, error = CrewErrorText.of(found.error)) }
+                    _state.update { it.copy(isLoading = false, error = CrewErrorText.of(found.error)) }
                 }
             }
         }
@@ -152,21 +157,21 @@ class CrewFindViewModel @Inject constructor(private val crews: CrewRepository) :
     fun loadMore() {
         val s = _state.value
         val cursor = s.nextCursor ?: return
-        if (s.loading || s.loadingMore) return
-        _state.update { it.copy(loadingMore = true) }
+        if (s.isLoading || s.isLoadingMore) return
+        _state.update { it.copy(isLoadingMore = true) }
         moreJob = viewModelScope.launch {
             when (val more = crews.search(s.keyword.trim().ifBlank { null }, s.tags, cursor)) {
                 is Outcome.Success -> _state.update { st ->
                     val known = st.crews.map { it.crewId }.toSet()
                     st.copy(
-                        loadingMore = false,
+                        isLoadingMore = false,
                         crews = st.crews + more.value.crews.filterNot { it.crewId in known },
                         nextCursor = more.value.nextCursor
                     )
                 }
 
                 is Outcome.Failure -> _state.update {
-                    it.copy(loadingMore = false, message = CrewErrorText.of(more.error))
+                    it.copy(isLoadingMore = false, message = CrewErrorText.of(more.error))
                 }
             }
         }
@@ -187,25 +192,25 @@ class CrewFindViewModel @Inject constructor(private val crews: CrewRepository) :
 
     /** 가입되면(JOINED) 내 크루 홈으로 바뀌고, 승인제면(PENDING) 신청 안내와 함께 대기 중 신청에 더한다(FR-120·FR-121). */
     fun onJoin(item: CrewList.Item) {
-        if (_state.value.joining) return
-        _state.update { it.copy(joining = true) }
+        if (_state.value.isJoining) return
+        _state.update { it.copy(isJoining = true) }
         viewModelScope.launch {
             when (val result = crews.apply(item.crewId)) {
                 is Outcome.Success -> {
-                    _state.update { it.copy(joining = false, detail = null) }
+                    _state.update { it.copy(isJoining = false, detail = null) }
                     onJoined(result.value)
                 }
 
                 is Outcome.Failure -> _state.update {
-                    it.copy(joining = false, message = CrewErrorText.of(result.error))
+                    it.copy(isJoining = false, message = CrewErrorText.of(result.error))
                 }
             }
         }
     }
 
-    fun onInviteOpen() = _state.update { it.copy(inviteOpen = true, inviteCode = "") }
+    fun onInviteOpen() = _state.update { it.copy(isInviteOpen = true, inviteCode = "") }
 
-    fun onInviteClose() = _state.update { it.copy(inviteOpen = false) }
+    fun onInviteClose() = _state.update { it.copy(isInviteOpen = false) }
 
     /** 초대 코드는 6자리 영문·숫자(FR-112). 대문자로 맞춘다. */
     fun onInviteCode(text: String) = _state.update {
@@ -215,17 +220,17 @@ class CrewFindViewModel @Inject constructor(private val crews: CrewRepository) :
     /** 초대 코드 가입(FR-122): 가입되면 응답의 크루로 내 크루 홈을 연다. */
     fun onInviteSubmit() {
         val code = _state.value.inviteCode
-        if (code.length != INVITE_LENGTH || _state.value.joining) return
-        _state.update { it.copy(joining = true) }
+        if (code.length != INVITE_LENGTH || _state.value.isJoining) return
+        _state.update { it.copy(isJoining = true) }
         viewModelScope.launch {
             when (val result = crews.applyWithInviteCode(code)) {
                 is Outcome.Success -> {
-                    _state.update { it.copy(joining = false, inviteOpen = false) }
+                    _state.update { it.copy(isJoining = false, isInviteOpen = false) }
                     onJoined(result.value)
                 }
 
                 is Outcome.Failure -> _state.update {
-                    it.copy(joining = false, message = CrewErrorText.of(result.error))
+                    it.copy(isJoining = false, message = CrewErrorText.of(result.error))
                 }
             }
         }
@@ -240,21 +245,21 @@ class CrewFindViewModel @Inject constructor(private val crews: CrewRepository) :
     /** 확인 뒤 가입 신청 취소(DELETE /join-requests/{id}). */
     fun onCancelConfirm() {
         val request = _state.value.confirmCancel ?: return
-        _state.update { it.copy(confirmCancel = null, joining = true) }
+        _state.update { it.copy(confirmCancel = null, isJoining = true) }
         viewModelScope.launch {
             when (val r = crews.cancelJoinRequest(request.requestId)) {
                 is Outcome.Success -> _state.update { st ->
                     st.copy(
-                        joining = false,
+                        isJoining = false,
                         pending = st.pending.filterNot { it.requestId == request.requestId },
                         message = uiText(R.string.crew_find_cancelled_message, request.crewName)
                     )
                 }
 
                 is Outcome.Failure -> {
-                    _state.update { it.copy(joining = false, message = CrewErrorText.of(r.error)) }
+                    _state.update { it.copy(isJoining = false, message = CrewErrorText.of(r.error)) }
                     // 이미 승인·거절됐을 수 있다(REQUEST_DECIDED·NOT_CANCELLABLE): 소속과 신청을 다시 읽는다.
-                    loadMine(quiet = true)
+                    loadMine(isQuiet = true)
                 }
             }
         }
@@ -267,10 +272,10 @@ class CrewFindViewModel @Inject constructor(private val crews: CrewRepository) :
 
             JoinResult.Status.PENDING -> {
                 _state.update { it.copy(message = uiText(R.string.crew_find_applied_message)) }
-                loadMine(quiet = true)
+                loadMine(isQuiet = true)
             }
 
-            JoinResult.Status.CANCELLED -> loadMine(quiet = true)
+            JoinResult.Status.CANCELLED -> loadMine(isQuiet = true)
         }
     }
 
@@ -290,7 +295,7 @@ data class CrewFormState(
     val joinPolicy: JoinPolicy = JoinPolicy.APPROVAL
 ) {
     /** 크루명 2~20자, 태그 1~5개(FR-110). 최종 판정은 서버가 한다. */
-    val valid: Boolean get() = name.trim().length in NAME_MIN..NAME_MAX && tags.size in 1..RunkkTags.MAX_SELECTED
+    val isValid: Boolean get() = name.trim().length in NAME_MIN..NAME_MAX && tags.size in 1..RunkkTags.MAX_SELECTED
 
     fun toForm() = CrewForm(name.trim(), intro.trim().ifBlank { null }, tags, visibility, joinPolicy)
 
@@ -303,7 +308,7 @@ data class CrewFormState(
 
 data class CrewCreateUiState(
     val form: CrewFormState = CrewFormState(),
-    val saving: Boolean = false,
+    val isSaving: Boolean = false,
     val error: UiText? = null
 )
 
@@ -320,16 +325,18 @@ class CrewCreateViewModel @Inject constructor(private val crews: CrewRepository)
 
     fun onSubmit() {
         val s = _state.value
-        if (!s.form.valid || s.saving) return
-        _state.update { it.copy(saving = true) }
+        if (!s.form.isValid || s.isSaving) return
+        _state.update { it.copy(isSaving = true) }
         viewModelScope.launch {
             when (val result = crews.create(s.form.toForm())) {
                 is Outcome.Success -> {
-                    _state.update { it.copy(saving = false) }
+                    _state.update { it.copy(isSaving = false) }
                     _events.trySend(CrewEvent.Created)
                 }
 
-                is Outcome.Failure -> _state.update { it.copy(saving = false, error = CrewErrorText.of(result.error)) }
+                is Outcome.Failure -> _state.update {
+                    it.copy(isSaving = false, error = CrewErrorText.of(result.error))
+                }
             }
         }
     }
