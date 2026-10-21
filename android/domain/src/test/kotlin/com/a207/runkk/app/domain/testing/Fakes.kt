@@ -6,6 +6,7 @@ import com.a207.runkk.app.domain.run.CompletedRun
 import com.a207.runkk.app.domain.run.Guidance
 import com.a207.runkk.app.domain.run.GuidanceOutput
 import com.a207.runkk.app.domain.run.HeartRateSample
+import com.a207.runkk.app.domain.run.LateHeartRates
 import com.a207.runkk.app.domain.run.LocationPermission
 import com.a207.runkk.app.domain.run.MeasurementHost
 import com.a207.runkk.app.domain.run.PendingRunRepository
@@ -89,6 +90,27 @@ class FakePendingRunRepository(private val log: CallLog = CallLog()) : PendingRu
         log.add("pending.appendHeartRates:$recordId")
         appendFailWith?.let { return Outcome.Failure(it) }
         appended += recordId to samples
+        return Outcome.Success(Unit)
+    }
+
+    /** 머리 정보 없는 기록의 늦은 심박 항목(D-77). */
+    val lateEntries = mutableListOf<LateHeartRates>()
+
+    /** 늦은 심박 항목 읽기만 실패시킨다. */
+    var lateReadFailWith: AppError? = null
+
+    /** 늦은 심박 항목 지우기만 실패시킨다. */
+    var lateRemoveFailWith: AppError? = null
+
+    override suspend fun pendingLateHeartRates(): Outcome<List<LateHeartRates>> {
+        log.add("pending.pendingLateHeartRates")
+        return lateReadFailWith?.let { Outcome.Failure(it) } ?: Outcome.Success(lateEntries.toList())
+    }
+
+    override suspend fun removeLateHeartRates(recordId: String): Outcome<Unit> {
+        log.add("pending.removeLateHeartRates:$recordId")
+        lateRemoveFailWith?.let { return Outcome.Failure(it) }
+        lateEntries.removeAll { it.recordId == recordId }
         return Outcome.Success(Unit)
     }
 

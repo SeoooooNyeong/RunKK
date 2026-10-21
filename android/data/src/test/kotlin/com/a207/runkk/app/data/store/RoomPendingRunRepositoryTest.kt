@@ -3,7 +3,6 @@ package com.a207.runkk.app.data.store
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
-import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.GeoPoint
@@ -12,6 +11,7 @@ import com.a207.runkk.app.core.model.RunMode
 import com.a207.runkk.app.core.model.SignalState
 import com.a207.runkk.app.domain.run.CompletedRun
 import com.a207.runkk.app.domain.run.HeartRateSample
+import com.a207.runkk.app.domain.run.LateHeartRates
 import com.a207.runkk.app.domain.run.RoutePoint
 import com.a207.runkk.app.domain.run.UnstableSegment
 import com.a207.runkk.app.domain.run.UploadScheduler
@@ -19,12 +19,14 @@ import com.a207.runkk.app.domain.run.UploadState
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
+import java.time.ZoneId
 import java.time.ZoneOffset
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -155,28 +157,79 @@ class RoomPendingRunRepositoryTest {
     }
 
     @Test
-    fun `보관한 적 없는 기록의 늦은 심박은 거부한다`() = runTest {
-        val result = repository.appendHeartRates("unknown", listOf(HeartRateSample(now, 120)))
+    fun `M-1 머리 정보 없는 기록의 늦은 심박은 거부하지 않고 심박만 담은 항목으로 남기고 전송을 요청한다`() = runTest {
+        val late = listOf(HeartRateSample(now.plusSeconds(30), 120), HeartRateSample(now.plusSeconds(10), 118))
 
-        assertEquals(Outcome.Failure(AppError.Rejected(RoomPendingRunRepository.RECORD_NOT_FOUND)), result)
+        assertEquals(Outcome.Success(Unit), repository.appendHeartRates("unknown", late))
+
+        assertEquals(
+            Outcome.Success(listOf(LateHeartRates("unknown", late.sortedBy { it.at }))),
+            repository.pendingLateHeartRates()
+        )
+        assertEquals(Outcome.Success(emptyList()), repository.pending(), "미전송 기록을 새로 만들지 않는다")
+        assertEquals(1, scheduler.requests)
     }
 
     @Test
-    fun `보낸 기록의 머리 정보는 하루가 지나면 지운다`() = runTest {
-        repository.save(completedRun("r-1"))
-        repository.remove("r-1")
-        val nextDay =
-            RoomPendingRunRepository(
-                db,
-                scheduler,
-                Clock.fixed(now.plus(Duration.ofDays(1)).plusSeconds(1), ZoneOffset.UTC)
-            )
+    fun `같은 기록의 늦은 심박 항목은 시각 순서로 합치고 같은 시각은 한 번만 둔다`() = runTest {
+        repository.appendHeartRates("unknown", listOf(HeartRateSample(now.plusSeconds(20), 121)))
 
-        nextDay.save(completedRun("r-2"))
-        nextDay.remove("r-2")
+        repository.appendHeartRates(
+            "unknown",
+            listOf(HeartRateSample(now.plusSeconds(20), 121), HeartRateSample(now.plusSeconds(5), 110))
+        )
 
-        assertEquals(null, db.pendingRunDao().find("r-1"))
-        assertFalse(nextDay.appendHeartRates("r-1", listOf(HeartRateSample(now, 1))) is Outcome.Success)
+        val entry = (repository.pendingLateHeartRates() as Outcome.Success).value.single()
+        assertEquals(listOf(110, 121), entry.samples.map { it.bpm })
+    }
+
+    @Test
+    fun `removeLateHeartRates는 그 기록의 항목만 지운다`() = runTest {
+        repository.appendHeartRates("x", listOf(HeartRateSample(now, 120)))
+        repository.appendHeartRates("y", listOf(HeartRateSample(now, 121)))
+
+        assertEquals(Outcome.Success(Unit), repository.removeLateHeartRates("x"))
+
+        assertEquals(listOf("y"), (repository.pendingLateHeartRates() as Outcome.Success).value.map { it.recordId })
+    }
+
+    @Test
+    fun `심박 파기와 탈퇴는 늦은 심박 항목도 지운다(FR-029, TF-VA-31)`() = runTest {
+        repository.appendHeartRates("x", listOf(HeartRateSample(now, 120)))
+        repository.purgeHeartRates()
+        assertEquals(Outcome.Success(emptyList()), repository.pendingLateHeartRates())
+
+        repository.appendHeartRates("y", listOf(HeartRateSample(now, 121)))
+        repository.clear()
+        assertEquals(Outcome.Success(emptyList()), repository.pendingLateHeartRates())
+    }
+
+    @Test
+    fun `보낸 기록의 머리 정보는 기간이 아니라 최근 보낸 30건으로 남는다(D-77)`() = runTest {
+        val clock = MutableClock(now)
+        val counted = RoomPendingRunRepository(db, scheduler, clock)
+        repeat(30) { i ->
+            counted.save(completedRun("r-$i"))
+            counted.remove("r-$i")
+            clock.now = clock.now.plusSeconds(60)
+        }
+        clock.now = clock.now.plus(Duration.ofDays(3))
+
+        // 사흘 뒤에 온 늦은 심박도 머리 정보에 덧붙는다(그 뒤 다시 보내면 r-0이 가장 최근 보낸 기록이 된다).
+        val late = listOf(HeartRateSample(now.plusSeconds(1), 1))
+        assertEquals(Outcome.Success(Unit), counted.appendHeartRates("r-0", late))
+        assertEquals(listOf("r-0"), (counted.pending() as Outcome.Success).value.map { it.recordId })
+        counted.remove("r-0")
+        assertEquals(30, (0 until 30).count { db.pendingRunDao().find("r-$it") != null })
+
+        // 31번째 보낸 기록이 생기면 가장 오래된 머리 정보(r-1)가 지워진다.
+        clock.now = clock.now.plusSeconds(60)
+        counted.save(completedRun("r-30"))
+        counted.remove("r-30")
+
+        assertNull(db.pendingRunDao().find("r-1"))
+        assertNotNull(db.pendingRunDao().find("r-0"))
+        assertNotNull(db.pendingRunDao().find("r-30"))
     }
 
     @Test
@@ -188,7 +241,7 @@ class RoomPendingRunRepositoryTest {
         repository.clear()
 
         assertEquals(Outcome.Success(emptyList()), repository.pending())
-        assertEquals(null, db.pendingRunDao().find("r-1"))
+        assertNull(db.pendingRunDao().find("r-1"))
     }
 
     private fun completedRun(id: String) = CompletedRun(
@@ -209,6 +262,14 @@ class RoomPendingRunRepositoryTest {
         heartRates = listOf(HeartRateSample(now.plusSeconds(10), 130), HeartRateSample(now.plusSeconds(20), 140)),
         savedAt = now.plusSeconds(606)
     )
+
+    private class MutableClock(var now: Instant) : Clock() {
+        override fun getZone(): ZoneId = ZoneOffset.UTC
+
+        override fun withZone(zone: ZoneId?): Clock = this
+
+        override fun instant(): Instant = now
+    }
 
     private class CountingScheduler : UploadScheduler {
         var requests = 0

@@ -248,7 +248,8 @@ constructor(
 
     /**
      * 기억해 둔 늦은 심박을 보관함에 넣는다(F-4). 저장 오류면 짧게 두 번 더 시도하고, 그래도 안 되면 다음 늦은 심박이 올 때
-     * 함께 다시 넣도록 남긴다. 보관함이 그 기록을 모른다는 거부(Rejected)는 다시 해도 같으므로 버린다.
+     * 함께 다시 넣도록 남긴다. 보관함은 머리 정보도 없는 기록의 심박도 늦은 심박 항목(LateHeartRates)으로 받으므로(D-77)
+     * 거부(Rejected)는 업무 규칙 거부뿐이고, 다시 해도 같으므로 다시 넣지 않는다.
      */
     private suspend fun saveLateHeartRates(recordId: String) {
         lateSaving.withLock {

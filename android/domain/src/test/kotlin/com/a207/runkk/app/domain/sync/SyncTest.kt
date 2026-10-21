@@ -7,6 +7,7 @@ import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.RunMode
 import com.a207.runkk.app.domain.run.CompletedRun
 import com.a207.runkk.app.domain.run.HeartRateSample
+import com.a207.runkk.app.domain.run.LateHeartRates
 import com.a207.runkk.app.domain.testing.CallLog
 import com.a207.runkk.app.domain.testing.FakePendingRunRepository
 import com.a207.runkk.app.domain.testing.T0
@@ -40,10 +41,13 @@ private class FakeRunUploadRemote(private val log: CallLog) : RunUploadRemote {
     }
 
     var appendResult: Outcome<Unit> = Outcome.Success(Unit)
+    val appendResults = mutableMapOf<String, Outcome<Unit>>()
+    val appended = mutableListOf<Pair<String, List<HeartRateSample>>>()
 
     override suspend fun appendHeartRates(recordId: String, samples: List<HeartRateSample>): Outcome<Unit> {
         log.add("remote.appendHeartRates:$recordId")
-        return appendResult
+        appended += recordId to samples
+        return appendResults[recordId] ?: appendResult
     }
 }
 
@@ -75,7 +79,14 @@ class SyncTest {
         val outcomes = UploadPendingRunsUseCase(pending, remote)()
         assertEquals(listOf(UploadOutcome.Sent("a"), UploadOutcome.Sent("b")), outcomes)
         assertEquals(
-            listOf("pending.pending", "remote.upload:a", "pending.remove:a", "remote.upload:b", "pending.remove:b"),
+            listOf(
+                "pending.pending",
+                "remote.upload:a",
+                "pending.remove:a",
+                "remote.upload:b",
+                "pending.remove:b",
+                "pending.pendingLateHeartRates"
+            ),
             log.calls
         )
         assertEquals(emptyList(), pending.runs)
@@ -88,7 +99,13 @@ class SyncTest {
         val outcomes = UploadPendingRunsUseCase(pending, remote)()
         assertEquals(listOf(UploadOutcome.AlreadySaved("a")), outcomes)
         assertEquals(
-            listOf("pending.pending", "remote.upload:a", "remote.appendHeartRates:a", "pending.remove:a"),
+            listOf(
+                "pending.pending",
+                "remote.upload:a",
+                "remote.appendHeartRates:a",
+                "pending.remove:a",
+                "pending.pendingLateHeartRates"
+            ),
             log.calls
         )
     }
@@ -113,10 +130,90 @@ class SyncTest {
     }
 
     @Test
-    fun `보관함을 읽지 못하면 실패 하나를 돌려준다`() = runTest {
+    fun `보관함을 읽지 못하면 실패 하나를 돌려주고 늦은 심박 항목도 보내지 않는다`() = runTest {
         pending.failWith = AppError.Storage
+        pending.lateEntries += LateHeartRates("x", listOf(HeartRateSample(T0, 120)))
         assertEquals(
             listOf(UploadOutcome.Failed(null, AppError.Storage)),
+            UploadPendingRunsUseCase(pending, remote)()
+        )
+        assertEquals(listOf("pending.pending"), log.calls)
+    }
+
+    @Test
+    fun `M-1 머리 정보 없는 기록의 늦은 심박 항목을 기록 뒤에 보내고, 보내면 지우며 결과는 더하지 않는다(D-80)`() = runTest {
+        val samples = listOf(HeartRateSample(T0, 120))
+        pending.runs += run("a")
+        pending.lateEntries += LateHeartRates("x", samples)
+
+        val outcomes = UploadPendingRunsUseCase(pending, remote)()
+
+        assertEquals(listOf(UploadOutcome.Sent("a")), outcomes)
+        assertEquals(listOf("x" to samples), remote.appended)
+        assertEquals(
+            listOf(
+                "pending.pending",
+                "remote.upload:a",
+                "pending.remove:a",
+                "pending.pendingLateHeartRates",
+                "remote.appendHeartRates:x",
+                "pending.removeLateHeartRates:x"
+            ),
+            log.calls
+        )
+        assertEquals(emptyList(), pending.lateEntries)
+    }
+
+    @Test
+    fun `늦은 심박 항목 - 서버에 그 기록이 없으면(RECORD_NOT_FOUND) 지운다`() = runTest {
+        pending.lateEntries += LateHeartRates("x", listOf(HeartRateSample(T0, 120)))
+        remote.appendResult = Outcome.Failure(AppError.Rejected(UploadPendingRunsUseCase.RECORD_NOT_FOUND))
+
+        assertEquals(emptyList(), UploadPendingRunsUseCase(pending, remote)())
+        assertEquals(emptyList(), pending.lateEntries)
+    }
+
+    @Test
+    fun `늦은 심박 항목 - 일시 오류와 다른 거부는 남기고 실패를 더한다(NFR-032)`() = runTest {
+        pending.lateEntries +=
+            listOf(
+                LateHeartRates("net", listOf(HeartRateSample(T0, 120))),
+                LateHeartRates("auth", listOf(HeartRateSample(T0, 121))),
+                LateHeartRates("deny", listOf(HeartRateSample(T0, 122))),
+                LateHeartRates("ok", listOf(HeartRateSample(T0, 123)))
+            )
+        remote.appendResults["net"] = Outcome.Failure(AppError.Network)
+        remote.appendResults["auth"] = Outcome.Failure(AppError.Unauthorized)
+        remote.appendResults["deny"] = Outcome.Failure(AppError.Rejected("FORBIDDEN"))
+
+        val outcomes = UploadPendingRunsUseCase(pending, remote)()
+
+        assertEquals(
+            listOf(
+                UploadOutcome.Failed("net", AppError.Network),
+                UploadOutcome.Failed("auth", AppError.Unauthorized),
+                UploadOutcome.Failed("deny", AppError.Rejected("FORBIDDEN"))
+            ),
+            outcomes
+        )
+        assertEquals(listOf("net", "auth", "deny"), pending.lateEntries.map { it.recordId })
+    }
+
+    @Test
+    fun `늦은 심박 항목 - 보낸 뒤 지우지 못하면 실패를 더한다`() = runTest {
+        pending.lateEntries += LateHeartRates("x", listOf(HeartRateSample(T0, 120)))
+        pending.lateRemoveFailWith = AppError.Storage
+
+        assertEquals(listOf(UploadOutcome.Failed("x", AppError.Storage)), UploadPendingRunsUseCase(pending, remote)())
+    }
+
+    @Test
+    fun `늦은 심박 항목 목록을 읽지 못하면 기록 결과 뒤에 실패 하나를 붙인다`() = runTest {
+        pending.runs += run("a")
+        pending.lateReadFailWith = AppError.Storage
+
+        assertEquals(
+            listOf(UploadOutcome.Sent("a"), UploadOutcome.Failed(null, AppError.Storage)),
             UploadPendingRunsUseCase(pending, remote)()
         )
     }

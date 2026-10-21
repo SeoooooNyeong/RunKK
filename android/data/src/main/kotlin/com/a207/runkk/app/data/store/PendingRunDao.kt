@@ -26,8 +26,12 @@ internal interface PendingRunDao {
     @Query("UPDATE pending_run SET heartRates = :empty")
     suspend fun replaceHeartRates(empty: ByteArray)
 
-    @Query("DELETE FROM pending_run WHERE sentAtMillis IS NOT NULL AND sentAtMillis < :before")
-    suspend fun deleteSentBefore(before: Long)
+    /** 보낸 기록의 머리 정보 가운데 최근 보낸 kept건만 남긴다(D-77). */
+    @Query(
+        "DELETE FROM pending_run WHERE sentAtMillis IS NOT NULL AND recordId NOT IN " +
+            "(SELECT recordId FROM pending_run WHERE sentAtMillis IS NOT NULL ORDER BY sentAtMillis DESC LIMIT :kept)"
+    )
+    suspend fun keepLatestSent(kept: Int)
 
     @Query("DELETE FROM pending_run")
     suspend fun deleteAll()

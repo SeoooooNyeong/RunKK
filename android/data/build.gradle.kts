@@ -47,6 +47,11 @@ android {
             isIncludeAndroidResources = true
         }
     }
+
+    // Room 이전 시험(MigrationTestHelper)이 내보낸 스키마를 자산으로 읽는다.
+    sourceSets {
+        getByName("test").assets.directories.add("$projectDir/schemas")
+    }
 }
 
 ksp {
