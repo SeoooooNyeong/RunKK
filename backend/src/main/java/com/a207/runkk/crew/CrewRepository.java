@@ -2,6 +2,7 @@ package com.a207.runkk.crew;
 
 import com.a207.runkk.common.DateRange;
 import com.a207.runkk.common.Distance;
+import com.a207.runkk.common.PageCursor;
 import com.a207.runkk.common.Week;
 import java.util.Collection;
 import java.util.List;
@@ -26,8 +27,12 @@ public interface CrewRepository {
     /** 회원의 모든 크루 멤버십(퇴장 행 포함). */
     List<CrewMembership> findMembershipHistory(long memberId);
 
-    /** 공개 크루만, 최근 생성순. 이번 주(week) 크루 거리를 붙인다. 크루장 표시명은 비어 있다. */
-    List<CrewListRow> search(CrewSearch cond, Week week);
+    /**
+     * 공개 크루만, 최근 생성순(ID 내림차순). 키워드·태그 AND와 페이지(cursor보다 ID가 작은 것, size + 1개까지)를 저장소가 거른다(코드 리뷰 2차
+     * L13). 더 남았는지 알도록 size보다 하나 더 읽으므로 호출자가 page.slice로 자른다. 이번 주(week) 크루 거리를 붙인다. 크루장 표시명은 비어
+     * 있다.
+     */
+    List<CrewListRow> search(CrewSearch cond, PageCursor page, Week week);
 
     /** 그 주 크루 거리 합계(주간 거리 행이 없으면 0). */
     Distance weeklyDistance(long crewId, Week week);

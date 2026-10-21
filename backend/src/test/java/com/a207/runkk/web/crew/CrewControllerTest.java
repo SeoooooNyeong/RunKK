@@ -95,6 +95,24 @@ class CrewControllerTest extends WebTestSupport {
                 .andExpect(status().isOk());
         call(a, get("/api/v1/crews").param("tags", "NOPE"), null)
                 .andExpect(status().isBadRequest());
+        // 2차 L13: 태그 AND를 SQL로 거른다(",태그," 단위라 SOCIAL_RUN이 다른 태그의 일부로 맞지 않는다)
+        String id = String.valueOf(crewId);
+        assertThat(
+                        json(call(
+                                        a,
+                                        get("/api/v1/crews").param("tags", "MORNING,SOCIAL_RUN"),
+                                        null))
+                                .get("crews")
+                                .findValuesAsText("crewId"))
+                .contains(id);
+        assertThat(
+                        json(call(
+                                        a,
+                                        get("/api/v1/crews").param("tags", "SOCIAL_RUN,SOLO_RUN"),
+                                        null))
+                                .get("crews")
+                                .findValuesAsText("crewId"))
+                .doesNotContain(id);
         // L13: 검색어의 %·_는 글자 그대로 찾는다(모든 크루와 맞지 않는다)
         assertThat(json(call(a, get("/api/v1/crews").param("keyword", "%_%"), null)).get("crews"))
                 .isEmpty();
