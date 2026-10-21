@@ -25,6 +25,11 @@ public class SecurityConfig {
 
     private static final String API = "/api/v1";
 
+    /**
+     * 실시간 WebSocket 핸드셰이크(5.7.2). 접근 토큰은 realtime.LiveSocketHandler가 TokenIssuer.verify로 확인한다(E1).
+     */
+    private static final String LIVE_SOCKET = "/ws";
+
     /** local 프로필에서만 H2 콘솔(프레임 사용)을 연다. */
     @Bean
     @Order(1)
@@ -65,7 +70,8 @@ public class SecurityConfig {
                                                 "/docs/**",
                                                 "/swagger-ui/**",
                                                 "/v3/api-docs/**",
-                                                "/error")
+                                                "/error",
+                                                LIVE_SOCKET)
                                         .permitAll()
                                         .requestMatchers(
                                                 HttpMethod.POST,

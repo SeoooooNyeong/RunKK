@@ -18,6 +18,8 @@ management:
       enabled: false
 
 runkk:
+  batch:
+    battle-tick-enabled: false
   embedded-redis:
     enabled: true
     port: ${EMBEDDED_REDIS_PORT:6371}

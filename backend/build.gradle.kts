@@ -29,6 +29,8 @@ dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-oauth2-client")
 	implementation("org.springframework.boot:spring-boot-starter-validation")
 	implementation("org.springframework.boot:spring-boot-starter-web")
+	// 실시간 대결 메시지(설계 5.7.2, /ws 하나, STOMP 없이 type 필드로 나눈다)
+	implementation("org.springframework.boot:spring-boot-starter-websocket")
 	// 회원 JWT(D-19)와 FCM 서비스 계정 서명. 버전은 Spring Boot BOM이 정한다.
 	implementation("com.nimbusds:nimbus-jose-jwt")
 	implementation("org.flywaydb:flyway-core")
