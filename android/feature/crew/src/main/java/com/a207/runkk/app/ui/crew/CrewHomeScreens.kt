@@ -581,10 +581,7 @@ private fun ColumnScope.CrewRunTab(state: CrewHomeUiState, actions: CrewHomeActi
 private fun CrewRunPost(post: PostList.Item, actions: CrewHomeActions) {
     val run = post.crewRun
     val status = run?.status
-    val canVote = status == null || status == CrewRunStatus.VOTING
-    val canEnter = status == null || status == CrewRunStatus.VOTING || status == CrewRunStatus.LOBBY_OPEN ||
-        status == CrewRunStatus.RUNNING
-    val finished = status == null || status == CrewRunStatus.FINISHED
+    val entry = CrewRunEntry.of(status)
     RunkkCard {
         CrewRunPostHeader(post, actions)
         if (post.summary.isNotBlank()) {
@@ -603,16 +600,28 @@ private fun CrewRunPost(post: PostList.Item, actions: CrewHomeActions) {
                 }
             }
         }
-        CrewRunVote(post, run?.myAnswer, canVote, actions)
+        CrewRunVote(post, run?.myAnswer, entry.canVote, actions)
         CrewRunEntryButtons(
             post,
             label = post.summary.ifBlank {
                 run?.let { crewRunSummary(it) }.orEmpty()
             },
-            canEnter,
-            finished,
+            entry,
             actions
         )
+    }
+}
+
+/** 모집글 상태로 고른 단추 표시: 투표(갈래요·못 가요), 대기실 들어가기, 지난 결과. 상태를 모르면 모두 보인다. */
+private data class CrewRunEntry(val canVote: Boolean, val canEnter: Boolean, val isFinished: Boolean) {
+    companion object {
+        fun of(status: CrewRunStatus?): CrewRunEntry = CrewRunEntry(
+            canVote = status == null || status == CrewRunStatus.VOTING,
+            canEnter = status == null || status in ENTERABLE,
+            isFinished = status == null || status == CrewRunStatus.FINISHED
+        )
+
+        private val ENTERABLE = setOf(CrewRunStatus.VOTING, CrewRunStatus.LOBBY_OPEN, CrewRunStatus.RUNNING)
     }
 }
 
@@ -668,24 +677,18 @@ private fun CrewRunVote(post: PostList.Item, vote: VoteAnswer?, canVote: Boolean
 
 /** 모집글 아래 단추: 대기실 들어가기·지난 결과. */
 @Composable
-private fun CrewRunEntryButtons(
-    post: PostList.Item,
-    label: String,
-    canEnter: Boolean,
-    finished: Boolean,
-    actions: CrewHomeActions
-) {
+private fun CrewRunEntryButtons(post: PostList.Item, label: String, entry: CrewRunEntry, actions: CrewHomeActions) {
     val lobbyDescription = stringResource(R.string.crew_home_run_lobby_description, label)
     val resultDescription = stringResource(R.string.crew_home_run_result_description, label)
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (canEnter) {
+        if (entry.canEnter) {
             RunkkPillButton(
                 stringResource(R.string.crew_home_run_lobby),
                 onClick = { actions.onLobby(post) },
                 modifier = Modifier.semantics { contentDescription = lobbyDescription }
             )
         }
-        if (finished) {
+        if (entry.isFinished) {
             RunkkPillButton(
                 stringResource(R.string.crew_home_run_result),
                 onClick = { actions.onResult(post) },
