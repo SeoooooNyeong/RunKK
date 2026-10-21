@@ -30,6 +30,7 @@ import com.a207.runkk.crew.Recommendation;
 import com.a207.runkk.crew.RecommendationView;
 import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -81,7 +82,7 @@ final class CrewDtos {
             Set<PersonalityTag> tags,
             CrewVisibility visibility,
             JoinPolicy joinPolicy,
-            @Size(max = MAX_LOGO_URL) String logoUrl) {
+            @Pattern(regexp = "^https://[^\\s]+$") @Size(max = MAX_LOGO_URL) String logoUrl) {
 
         CrewCreateCommand toCommand() {
             return new CrewCreateCommand(name, intro, tags, visibility, joinPolicy, logoUrl);

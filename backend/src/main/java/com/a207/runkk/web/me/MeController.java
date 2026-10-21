@@ -23,6 +23,7 @@ import com.a207.runkk.profile.ProfileView;
 import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.util.Set;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -130,7 +131,7 @@ public class MeController {
             @Size(max = TEXT_MAX) String nickname,
             Integer birthYear,
             Gender gender,
-            @Size(max = TEXT_MAX) String photoUrl,
+            @Pattern(regexp = "^$|^https://[^\\s]+$") @Size(max = TEXT_MAX) String photoUrl,
             @Size(max = TEXT_MAX) String intro,
             Set<PersonalityTag> tags) {
 

@@ -169,4 +169,57 @@ class AuthControllerTest extends WebTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.type").value("TERMS"));
     }
+
+    @Test
+    @DisplayName("L20: 사진 주소는 https만(가입·프로필 변경), 프로필의 빈 문자열은 지우기")
+    void photoUrl_mustBeHttps() throws Exception {
+        String ticket =
+                body(mvc.perform(
+                                        post("/api/v1/auth/login")
+                                                .contentType(MediaType.APPLICATION_JSON)
+                                                .content(
+                                                        login(
+                                                                "KAKAO",
+                                                                "photo-"
+                                                                        + java.util.UUID
+                                                                                .randomUUID())))
+                                .andReturn()
+                                .getResponse()
+                                .getContentAsString())
+                        .get("signUpTicket")
+                        .asText();
+        java.util.Map<String, Object> form = new java.util.HashMap<>(signUpBody(ticket, "사진러너"));
+        form.put("photoUrl", "javascript:alert(1)");
+        mvc.perform(
+                        post("/api/v1/members")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(write(form)))
+                .andExpect(status().isBadRequest());
+
+        Session s = signUp();
+        mvc.perform(
+                        as(
+                                        s,
+                                        org.springframework.test.web.servlet.request
+                                                .MockMvcRequestBuilders.patch("/api/v1/me/profile"))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(write(Map.of("photoUrl", "http://plain.example/p.png"))))
+                .andExpect(status().isBadRequest());
+        mvc.perform(
+                        as(
+                                        s,
+                                        org.springframework.test.web.servlet.request
+                                                .MockMvcRequestBuilders.patch("/api/v1/me/profile"))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(write(Map.of("photoUrl", "https://cdn.example/p.png"))))
+                .andExpect(status().is2xxSuccessful());
+        mvc.perform(
+                        as(
+                                        s,
+                                        org.springframework.test.web.servlet.request
+                                                .MockMvcRequestBuilders.patch("/api/v1/me/profile"))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(write(Map.of("photoUrl", ""))))
+                .andExpect(status().is2xxSuccessful());
+    }
 }

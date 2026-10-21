@@ -95,6 +95,9 @@ class CrewControllerTest extends WebTestSupport {
                 .andExpect(status().isOk());
         call(a, get("/api/v1/crews").param("tags", "NOPE"), null)
                 .andExpect(status().isBadRequest());
+        // L13: 검색어의 %·_는 글자 그대로 찾는다(모든 크루와 맞지 않는다)
+        assertThat(json(call(a, get("/api/v1/crews").param("keyword", "%_%"), null)).get("crews"))
+                .isEmpty();
         call(a, get("/api/v1/crews/recommendations"), null).andExpect(status().isOk());
 
         long requestA =

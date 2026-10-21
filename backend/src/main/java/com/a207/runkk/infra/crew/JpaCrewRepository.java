@@ -89,6 +89,14 @@ public class JpaCrewRepository implements CrewRepository {
                 .getResultList();
     }
 
+    /** 검색어를 LIKE 글자 그대로로: escape 문자 !와 %·_ 앞에 !를 붙인다(코드 리뷰 2차 L13). */
+    private static String likeLiteral(String keyword) {
+        return keyword.toLowerCase(Locale.ROOT)
+                .replace("!", "!!")
+                .replace("%", "!%")
+                .replace("_", "!_");
+    }
+
     /** 공개 크루, 키워드는 SQL로, 태그 AND는 읽은 뒤 거른다. 이번 주 거리는 weekly_race 한 번으로 붙인다. */
     @Override
     public List<CrewListRow> search(CrewSearch cond, Week week) {
@@ -97,13 +105,13 @@ public class JpaCrewRepository implements CrewRepository {
                         "select c from Crew c where c.visibility = :public"
                                 + (cond.keyword() == null
                                         ? ""
-                                        : " and (lower(c.name) like :keyword or lower(c.intro) like"
-                                                + " :keyword)")
+                                        : " and (lower(c.name) like :keyword escape '!' or"
+                                                + " lower(c.intro) like :keyword escape '!')")
                                 + " order by c.id desc",
                         Crew.class);
         query.setParameter("public", CrewVisibility.PUBLIC);
         if (cond.keyword() != null) {
-            query.setParameter("keyword", "%" + cond.keyword().toLowerCase(Locale.ROOT) + "%");
+            query.setParameter("keyword", "%" + likeLiteral(cond.keyword()) + "%");
         }
         List<Crew> crews =
                 query.getResultList().stream()
