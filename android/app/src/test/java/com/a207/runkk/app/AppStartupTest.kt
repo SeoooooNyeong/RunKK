@@ -196,7 +196,7 @@ private class NoPendingRuns : PendingRunRepository {
 
     override suspend fun pendingLateHeartRates(): Outcome<List<LateHeartRates>> = unused()
 
-    override suspend fun removeLateHeartRates(recordId: String): Outcome<Unit> = unused()
+    override suspend fun removeLateHeartRates(sent: LateHeartRates): Outcome<Unit> = unused()
 
     override suspend fun clear(): Outcome<Unit> = unused()
 

@@ -64,7 +64,7 @@ constructor(
     /** 항목 하나. 미전송으로 남는 것이 없으면 null. */
     private suspend fun send(entry: LateHeartRates): UploadOutcome? {
         val sent = remote.appendHeartRates(entry.recordId, entry.samples)
-        val result = if (sent.isDone()) pendingRuns.removeLateHeartRates(entry.recordId) else sent
+        val result = if (sent.isDone()) pendingRuns.removeLateHeartRates(entry) else sent
         return (result as? Outcome.Failure)?.let { UploadOutcome.Failed(entry.recordId, it.error) }
     }
 

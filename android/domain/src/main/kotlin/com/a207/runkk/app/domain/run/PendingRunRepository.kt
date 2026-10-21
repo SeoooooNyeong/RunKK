@@ -36,8 +36,11 @@ interface PendingRunRepository {
     /** 머리 정보 없는 기록의 늦은 심박 항목. UploadPendingRunsUseCase만 읽는다(D-77, D-80). */
     suspend fun pendingLateHeartRates(): Outcome<List<LateHeartRates>>
 
-    /** 서버로 보낸(또는 서버에 그 기록이 없는) 늦은 심박 항목을 지운다(D-80). */
-    suspend fun removeLateHeartRates(recordId: String): Outcome<Unit>
+    /**
+     * 서버로 보낸(또는 서버에 그 기록이 없는) 늦은 심박을 항목에서 뺀다(D-80). sent는 pendingLateHeartRates가 내준 항목이다.
+     * 읽은 뒤 같은 기록에 합쳐진 심박은 남기고, 남는 심박이 없을 때만 항목을 지운다(X-1: 전송 중 합쳐진 심박 유실 방지).
+     */
+    suspend fun removeLateHeartRates(sent: LateHeartRates): Outcome<Unit>
 
     /** 탈퇴 때 늦은 심박 항목까지 전부 지운다. */
     suspend fun clear(): Outcome<Unit>

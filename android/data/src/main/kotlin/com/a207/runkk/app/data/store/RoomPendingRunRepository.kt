@@ -141,7 +141,22 @@ constructor(
         lateDao.all().map { LateHeartRates(it.recordId, decodeHeartRates(it.heartRates)) }
     }
 
-    override suspend fun removeLateHeartRates(recordId: String): Outcome<Unit> = storage { lateDao.delete(recordId) }
+    /**
+     * 보낸 심박만 항목에서 뺀다(X-1). 전송이 읽은 뒤 mergeLateEntry로 합쳐진 심박은 남아 다음 전송에 간다.
+     * 남은 심박이 없으면 항목을 지운다. 미전송 기록 쪽의 handedOutHeartRates와 같은 기준(측정 시각)으로 가린다.
+     */
+    override suspend fun removeLateHeartRates(sent: LateHeartRates): Outcome<Unit> = storage {
+        val sentAts = sent.samples.map { it.at }.toSet()
+        database.withTransaction {
+            val kept = lateDao.find(sent.recordId) ?: return@withTransaction
+            val left = decodeHeartRates(kept.heartRates).filter { it.at !in sentAts }
+            if (left.isEmpty()) {
+                lateDao.delete(sent.recordId)
+            } else {
+                lateDao.upsert(LateHeartRateEntity(kept.recordId, encodeHeartRates(left), kept.savedAtMillis))
+            }
+        }
+    }
 
     /** 미전송 기록·머리 정보·늦은 심박 항목을 모두 지운다(탈퇴). */
     override suspend fun clear(): Outcome<Unit> = storage {

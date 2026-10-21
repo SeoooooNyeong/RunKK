@@ -447,7 +447,7 @@ private class NoPendingRuns : PendingRunRepository {
 
     override suspend fun pendingLateHeartRates(): Outcome<List<LateHeartRates>> = Outcome.Success(emptyList())
 
-    override suspend fun removeLateHeartRates(recordId: String) = Outcome.Success(Unit)
+    override suspend fun removeLateHeartRates(sent: LateHeartRates) = Outcome.Success(Unit)
 
     override suspend fun clear() = Outcome.Success(Unit)
 }

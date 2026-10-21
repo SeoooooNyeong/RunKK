@@ -188,9 +188,35 @@ class RoomPendingRunRepositoryTest {
         repository.appendHeartRates("x", listOf(HeartRateSample(now, 120)))
         repository.appendHeartRates("y", listOf(HeartRateSample(now, 121)))
 
-        assertEquals(Outcome.Success(Unit), repository.removeLateHeartRates("x"))
+        val sentX = (repository.pendingLateHeartRates() as Outcome.Success).value.first { it.recordId == "x" }
+
+        assertEquals(Outcome.Success(Unit), repository.removeLateHeartRates(sentX))
 
         assertEquals(listOf("y"), (repository.pendingLateHeartRates() as Outcome.Success).value.map { it.recordId })
+    }
+
+    @Test
+    fun `X-1 전송이 읽은 뒤 합쳐진 늦은 심박은 항목을 지워도 남는다`() = runTest {
+        repository.appendHeartRates("x", listOf(HeartRateSample(now, 120)))
+        val sent = (repository.pendingLateHeartRates() as Outcome.Success).value.single()
+        val arrived = HeartRateSample(now.plusSeconds(5), 125)
+        repository.appendHeartRates("x", listOf(arrived))
+
+        assertEquals(Outcome.Success(Unit), repository.removeLateHeartRates(sent))
+
+        assertEquals(
+            Outcome.Success(listOf(LateHeartRates("x", listOf(arrived)))),
+            repository.pendingLateHeartRates()
+        )
+    }
+
+    @Test
+    fun `X-1 이미 지워진 항목을 다시 지워도 성공하고 아무것도 만들지 않는다`() = runTest {
+        val gone = LateHeartRates("x", listOf(HeartRateSample(now, 120)))
+
+        assertEquals(Outcome.Success(Unit), repository.removeLateHeartRates(gone))
+
+        assertEquals(Outcome.Success(emptyList()), repository.pendingLateHeartRates())
     }
 
     @Test

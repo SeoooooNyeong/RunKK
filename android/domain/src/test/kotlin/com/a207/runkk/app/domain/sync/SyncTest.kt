@@ -165,6 +165,16 @@ class SyncTest {
     }
 
     @Test
+    fun `X-1 늦은 심박 항목은 보낸 내용을 넘겨 지운다(전송 중 합쳐진 심박은 보관소가 남긴다)`() = runTest {
+        val entry = LateHeartRates("x", listOf(HeartRateSample(T0, 120)))
+        pending.lateEntries += entry
+
+        UploadPendingRunsUseCase(pending, remote)()
+
+        assertEquals(listOf(entry), pending.lateRemoved)
+    }
+
+    @Test
     fun `늦은 심박 항목 - 서버에 그 기록이 없으면(RECORD_NOT_FOUND) 지운다`() = runTest {
         pending.lateEntries += LateHeartRates("x", listOf(HeartRateSample(T0, 120)))
         remote.appendResult = Outcome.Failure(AppError.Rejected(UploadPendingRunsUseCase.RECORD_NOT_FOUND))
