@@ -71,6 +71,15 @@ public class CrewWithdrawalListener {
         crewRepository.findByIdForUpdate(crewId).ifPresent(crew -> leaveCrew(crew, memberId));
     }
 
+    /** 떠나는 크루장 다음으로 가장 먼저 들어온 활성 크루원. */
+    private static long successorOf(Crew crew, long leaderId) {
+        return crew.activeMembers().stream()
+                .filter(m -> m.memberId() != leaderId)
+                .min(java.util.Comparator.comparing(CrewMembership::joinedAt))
+                .map(CrewMembership::memberId)
+                .orElseThrow(() -> new IllegalStateException("넘겨받을 크루원이 없다"));
+    }
+
     private void leaveCrew(Crew crew, long memberId) {
         boolean leader = crew.relationOf(memberId) == CrewRelation.LEADER;
         if (leader && crew.headcount() == 1) {
@@ -78,9 +87,14 @@ public class CrewWithdrawalListener {
             return;
         }
         if (leader) {
-            // CrewLeaderGuard 검사 뒤 크루원이 들어온 경합. 크루장 없는 크루를 만들지 않도록 남기고 알린다(운영 확인 대상).
-            log.warn("crew_leader_withdrawn_with_members crewId={}", crew.getId());
-            return;
+            // CrewLeaderGuard 검사 뒤 크루원이 들어온 경합(크루 행은 잠금). 크루장 없는 크루나 탈퇴한 크루장이 남지 않게 가장 먼저
+            // 들어온 크루원에게 넘기고 지운다(코드 리뷰 2차 L17).
+            long successor = successorOf(crew, memberId);
+            crew.transferLeadership(memberId, successor);
+            log.warn(
+                    "crew_leader_withdrawn_with_members crewId={} newLeader={}",
+                    crew.getId(),
+                    successor);
         }
         crew.removeMember(memberId);
         crewRepository.save(crew);
