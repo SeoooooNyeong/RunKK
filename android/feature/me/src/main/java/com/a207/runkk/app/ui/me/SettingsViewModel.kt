@@ -3,6 +3,7 @@ package com.a207.runkk.app.ui.me
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.designsystem.RunkkErrorText
+import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.account.ChangeSettingUseCase
@@ -65,13 +66,14 @@ object ConsentKeys {
     const val FACE_TRANSFER = "FACE_TRANSFER"
 }
 
-/** 설정 화면 선택지: 서버 enum 이름(서버로 가는 값) → 화면 문구. */
+/** 설정 화면 선택지: 서버 enum 이름(서버로 가는 값) → 화면 문구 리소스. 문구는 화면에서 푼다. */
 object SettingChoices {
     /** 서버 DistanceUnit. */
-    val unit: List<Pair<String, String>> = listOf("KM" to "km", "MI" to "mile")
+    val unit: List<Pair<String, Int>> = listOf("KM" to R.string.me_choice_unit_km, "MI" to R.string.me_choice_unit_mile)
 
     /** 서버 ProfileVisibility. */
-    val profileVisibility: List<Pair<String, String>> = listOf("PUBLIC" to "공개", "PRIVATE" to "비공개")
+    val profileVisibility: List<Pair<String, Int>> =
+        listOf("PUBLIC" to R.string.me_choice_public, "PRIVATE" to R.string.me_choice_private)
 }
 
 /** 고지문서 종류(서버 DocumentType 이름, GET /legal/{type}). */
@@ -84,37 +86,43 @@ object LegalTypes {
 
 /** 자유런 목표 거리(서버 FreeRunTarget). */
 object FreeRunTargets {
-    val values: List<Pair<String, String>> = listOf("FREE" to "목표 없음", "KM3" to "3km", "KM5" to "5km", "KM10" to "10km")
+    val values: List<Pair<String, Int>> = listOf(
+        "FREE" to R.string.me_choice_target_free,
+        "KM3" to R.string.me_choice_target_km3,
+        "KM5" to R.string.me_choice_target_km5,
+        "KM10" to R.string.me_choice_target_km10
+    )
 }
 
 /** 대결 중간 알림 간격(서버 GapAlertInterval, FR-189). */
 object GapAlertIntervals {
-    val values: List<Pair<String, String>> = listOf("M500" to "500m마다", "KM1" to "1km마다")
+    val values: List<Pair<String, Int>> =
+        listOf("M500" to R.string.me_choice_gap_m500, "KM1" to R.string.me_choice_gap_km1)
 }
 
-/** 알림 종류(자료사전 알림종류, FR-008). */
+/** 알림 종류(자료사전 알림종류, FR-008). 키는 서버 이름, 값은 화면 문구 리소스. */
 object NotificationTypes {
-    val values: List<Pair<String, String>> = listOf(
-        "PLAN_MISSED" to "계획 미이행",
-        "BODY_SHAPE_CHANGED" to "체형 변화",
-        "JOIN_REQUESTED" to "크루 가입 신청 접수",
-        "JOIN_DECIDED" to "크루 가입 결정 결과",
-        "JOIN_EXPIRED" to "크루 가입 신청 만료",
-        "LEADER_TRANSFERRED" to "크루장 양도",
-        "CREW_DELETED" to "크루 삭제",
-        "KICKED" to "크루 강제 퇴장",
-        "CREW_RUN_RECRUIT" to "크루런 모집",
-        "CREW_RUN_SOON" to "크루런 시작 전",
-        "OPPONENT_ARRIVED" to "대결 상대 도착",
-        "BATTLE_CORRECTED" to "대결 결과 정정"
+    val values: List<Pair<String, Int>> = listOf(
+        "PLAN_MISSED" to R.string.me_alert_plan_missed,
+        "BODY_SHAPE_CHANGED" to R.string.me_alert_body_shape_changed,
+        "JOIN_REQUESTED" to R.string.me_alert_join_requested,
+        "JOIN_DECIDED" to R.string.me_alert_join_decided,
+        "JOIN_EXPIRED" to R.string.me_alert_join_expired,
+        "LEADER_TRANSFERRED" to R.string.me_alert_leader_transferred,
+        "CREW_DELETED" to R.string.me_alert_crew_deleted,
+        "KICKED" to R.string.me_alert_kicked,
+        "CREW_RUN_RECRUIT" to R.string.me_alert_crew_run_recruit,
+        "CREW_RUN_SOON" to R.string.me_alert_crew_run_soon,
+        "OPPONENT_ARRIVED" to R.string.me_alert_opponent_arrived,
+        "BATTLE_CORRECTED" to R.string.me_alert_battle_corrected
     )
 }
 
 data class SettingsUiState(
     val loading: Boolean = true,
     val settings: MemberSettings? = null,
-    val error: String? = null,
-    val message: String? = null,
+    val error: UiText? = null,
+    val message: UiText? = null,
     val legal: LegalView? = null,
     val urlToOpen: String? = null
 ) {
@@ -189,7 +197,7 @@ class SettingsViewModel @Inject constructor(
     fun onMessageShown() = _state.update { it.copy(message = null) }
 
     /** 고지문서 보기(FR-018). 주소면 밖에서 열고(urlToOpen), 본문이면 대화상자로 보인다. */
-    fun onViewLegal(type: String, title: String) {
+    fun onViewLegal(type: String, title: UiText) {
         viewModelScope.launch {
             when (val doc = account.legalDocument(type)) {
                 is Outcome.Success -> {

@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.designsystem.RunkkErrorText
 import com.a207.runkk.app.core.designsystem.RunkkTags
+import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.getOrNull
@@ -29,7 +30,7 @@ data class MeUiState(
     val profile: Profile? = null,
     /** 프로필 원 안의 셀카 얼굴 부위 그림. 비어 있으면 빈 원(자리 그림). */
     val faceLayers: List<FaceLayer> = emptyList(),
-    val error: String? = null,
+    val error: UiText? = null,
     val loggingOut: Boolean = false
 )
 
@@ -90,7 +91,7 @@ data class ProfileEditUiState(
     val intro: String = "",
     val tags: Set<String> = emptySet(),
     val saving: Boolean = false,
-    val error: String? = null
+    val error: UiText? = null
 ) {
     val canSave: Boolean get() = !loading && !saving && nickname.trim().length in SignUpUiState.NICKNAME_LENGTH &&
         tags.isNotEmpty()
@@ -165,7 +166,7 @@ class ProfileEditViewModel @Inject constructor(private val account: AccountRepos
 data class WithdrawUiState(
     val acknowledged: Boolean = false,
     val withdrawing: Boolean = false,
-    val error: String? = null
+    val error: UiText? = null
 )
 
 sealed interface WithdrawEvent {

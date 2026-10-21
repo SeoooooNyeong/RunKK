@@ -136,23 +136,7 @@ fun RunkkStatTile(
 ) {
     RunkkCard(
         // spoken이 있으면 "평균 페이스 1킬로미터당 5분 32초"처럼 읽는다("5:32"가 시각으로 읽히지 않게).
-        modifier = modifier.then(
-            if (spoken != null) {
-                // 읽기 문구로 바꿔도 누를 수 있는 칸(이번 주 목표 → 코치)은 버튼 동작을 남긴다.
-                Modifier.clearAndSetSemantics {
-                    contentDescription = "$label $spoken"
-                    if (onClick != null) {
-                        role = Role.Button
-                        onClick {
-                            onClick()
-                            true
-                        }
-                    }
-                }
-            } else {
-                Modifier.semantics(mergeDescendants = true) {}
-            }
-        ),
+        modifier = modifier.then(statTileSemantics(label, spoken, onClick)),
         shape = if (centered) RunkkShapes.Medium else RunkkShapes.Large,
         contentPadding = if (centered) PaddingValues(horizontal = 8.dp, vertical = 16.dp) else PaddingValues(16.dp),
         onClick = onClick,
@@ -182,6 +166,23 @@ fun RunkkStatTile(
         }
         footer?.invoke()
     }
+}
+
+/** 읽기 문구가 있으면 "라벨 읽기문구"로 읽는다. 누를 수 있는 칸은 버튼 동작을 남기고, 없으면 자식 문구를 합친다. */
+private fun statTileSemantics(label: String, spoken: String?, onClick: (() -> Unit)?): Modifier = if (spoken != null) {
+    // 읽기 문구로 바꿔도 누를 수 있는 칸(이번 주 목표 → 코치)은 버튼 동작을 남긴다.
+    Modifier.clearAndSetSemantics {
+        contentDescription = "$label $spoken"
+        if (onClick != null) {
+            role = Role.Button
+            onClick {
+                onClick()
+                true
+            }
+        }
+    }
+} else {
+    Modifier.semantics(mergeDescendants = true) {}
 }
 
 /** 숫자 + 단위(숫자의 절반 크기). "2.14" + " KM". */
@@ -365,29 +366,7 @@ private fun RunkkCardsPreview() {
                     RunkkProgressBar(0.6f)
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                RunkkStatTile(
-                    "시간",
-                    "27:48",
-                    centered = true,
-                    valueStyle = RunkkTextStyles.DisplaySmall,
-                    modifier = Modifier.weight(1f)
-                )
-                RunkkStatTile(
-                    "평균 페이스",
-                    "5:32",
-                    centered = true,
-                    valueStyle = RunkkTextStyles.DisplaySmall,
-                    modifier = Modifier.weight(1f)
-                )
-                RunkkStatTile(
-                    "평균 심박",
-                    "152",
-                    centered = true,
-                    valueStyle = RunkkTextStyles.DisplaySmall,
-                    modifier = Modifier.weight(1f)
-                )
-            }
+            CenteredTilesPreview()
             RunkkSegmentBar(
                 listOf(
                     1f to RunkkColors.BorderStrong,
@@ -401,5 +380,32 @@ private fun RunkkCardsPreview() {
                 Text("미전송 기록 1건", style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
             }
         }
+    }
+}
+
+@Composable
+private fun CenteredTilesPreview() {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        RunkkStatTile(
+            "시간",
+            "27:48",
+            centered = true,
+            valueStyle = RunkkTextStyles.DisplaySmall,
+            modifier = Modifier.weight(1f)
+        )
+        RunkkStatTile(
+            "평균 페이스",
+            "5:32",
+            centered = true,
+            valueStyle = RunkkTextStyles.DisplaySmall,
+            modifier = Modifier.weight(1f)
+        )
+        RunkkStatTile(
+            "평균 심박",
+            "152",
+            centered = true,
+            valueStyle = RunkkTextStyles.DisplaySmall,
+            modifier = Modifier.weight(1f)
+        )
     }
 }

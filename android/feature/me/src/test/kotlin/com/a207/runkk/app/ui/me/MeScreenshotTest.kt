@@ -1,8 +1,10 @@
 package com.a207.runkk.app.ui.me
 
 import androidx.compose.ui.test.junit4.createComposeRule
+import com.a207.runkk.app.core.designsystem.RunkkErrorText
 import com.a207.runkk.app.core.designsystem.testing.RUNKK_PHONE
 import com.a207.runkk.app.core.designsystem.testing.captureRunkkScreen
+import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.domain.account.Gender
 import com.a207.runkk.app.domain.account.MemberSettings
 import org.junit.Rule
@@ -69,7 +71,7 @@ class MeScreenshotTest {
 
     @Test
     fun meError() = compose.captureRunkkScreen("me_error") {
-        MeScreen(MeUiState(loading = false, error = "네트워크에 연결할 수 없어요. 연결을 확인하고 다시 시도해 주세요"), onNavigate = {
+        MeScreen(MeUiState(loading = false, error = RunkkErrorText.of(AppError.Network)), onNavigate = {
         }, onRetry = {}, onLogout = {})
     }
 

@@ -1,9 +1,12 @@
 package com.a207.runkk.app.ui.run
 
+import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.designsystem.RunkkErrorText
 import com.a207.runkk.app.core.designsystem.RunkkFormat
+import com.a207.runkk.app.core.designsystem.UiText
+import com.a207.runkk.app.core.designsystem.uiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
@@ -43,10 +46,10 @@ data class RunUiState(
     /** 재동의 안내를 뒤로가기·바깥 누름으로 닫았다. 다시 시도하면 다시 보인다. */
     val consentDialogDismissed: Boolean = false,
     /** 누름 안내("길게 눌러 종료"·"길게 눌러 해제"). 잠깐 보였다 사라진다. */
-    val hint: String? = null,
+    val hint: UiText? = null,
     /** 새 1km 지점 배너("2km 통과 · 11:04 · 평균 5:32"). */
-    val splitBanner: String? = null,
-    val error: String? = null
+    val splitBanner: UiText? = null,
+    val error: UiText? = null
 ) {
     /** 목표까지 남은 거리. 목표가 없거나 넘었으면 null. */
     val remaining: Distance? get() = targetDistance?.takeIf { it > progress.distance }?.minus(progress.distance)
@@ -151,14 +154,14 @@ class RunViewModel @Inject constructor(private val tracker: RunTracker, private 
 
     fun onUnlockTapped() {
         tracker.onUnlockTapped()
-        showHint(UNLOCK_HINT)
+        showHint(R.string.run_hold_to_unlock)
     }
 
     fun onUnlockLongPressed() = tracker.onUnlockLongPressed()
 
     fun onFinishTapped() {
         tracker.onFinishTapped()
-        showHint(FINISH_HINT)
+        showHint(R.string.run_hold_to_finish)
     }
 
     fun onFinishLongPressed() {
@@ -173,7 +176,7 @@ class RunViewModel @Inject constructor(private val tracker: RunTracker, private 
 
             FinishOutcome.NotSaved -> _events.trySend(RunEvent.NotSaved)
 
-            FinishOutcome.Rejected -> showHint(UNLOCK_HINT)
+            FinishOutcome.Rejected -> showHint(R.string.run_hold_to_unlock)
         }
     }
 
@@ -221,7 +224,12 @@ class RunViewModel @Inject constructor(private val tracker: RunTracker, private 
         val km = progress.distance.meters / METERS_PER_KM
         val last = lastSplitKm
         val newSplit = if (last != null && km > last) {
-            "${km}km 통과 · ${RunkkFormat.duration(progress.elapsed)} · 평균 ${RunkkFormat.pace(progress.averagePace)}"
+            uiText(
+                R.string.run_split_banner,
+                km,
+                RunkkFormat.duration(progress.elapsed),
+                RunkkFormat.pace(progress.averagePace)
+            )
         } else {
             null
         }
@@ -243,8 +251,8 @@ class RunViewModel @Inject constructor(private val tracker: RunTracker, private 
         }
     }
 
-    private fun showHint(text: String) {
-        _state.update { it.copy(hint = text) }
+    private fun showHint(@StringRes text: Int) {
+        _state.update { it.copy(hint = UiText.Res(text)) }
         hintJob?.cancel()
         hintJob = viewModelScope.launch {
             delay(HINT_MILLIS)
@@ -253,8 +261,6 @@ class RunViewModel @Inject constructor(private val tracker: RunTracker, private 
     }
 
     private companion object {
-        const val FINISH_HINT = "길게 눌러 종료"
-        const val UNLOCK_HINT = "길게 눌러 해제"
         const val HINT_MILLIS = 2_500L
         const val BANNER_MILLIS = 10_000L
         const val METERS_PER_KM = 1_000L

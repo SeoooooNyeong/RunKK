@@ -1,5 +1,6 @@
 package com.a207.runkk.app.ui.crew
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -32,6 +33,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -71,6 +73,7 @@ import com.a207.runkk.app.core.designsystem.RunkkTextLink
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
+import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
@@ -172,8 +175,9 @@ fun CrewHomeScreen(
     atTabRoot: Boolean = false
 ) {
     val snackbar = remember { SnackbarHostState() }
+    val message = state.message?.asString()
     LaunchedEffect(state.message) {
-        state.message?.let {
+        message?.let {
             snackbar.showSnackbar(it)
             actions.onMessageShown()
         }
@@ -193,7 +197,7 @@ fun CrewHomeScreen(
         Column(Modifier.fillMaxSize()) {
             Header(state, actions, atTabRoot)
             RunkkTabRow(
-                options = CrewTab.entries.map { it.label },
+                options = CrewTab.entries.map { stringResource(it.labelRes) },
                 selectedIndex = state.tab.ordinal,
                 onSelect = { actions.onTab(CrewTab.entries[it]) },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
@@ -202,26 +206,38 @@ fun CrewHomeScreen(
                 modifier = Modifier.weight(1f).verticalScroll(scroll).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                if (state.error != null && !state.loading) {
-                    RunkkErrorState(state.error, onRetry = actions.onRetry)
-                } else {
-                    when (state.tab) {
-                        CrewTab.RACE -> RaceTab(state, actions)
-                        CrewTab.CREW_RUN -> CrewRunTab(state, actions)
-                        CrewTab.CHEER -> CheerTab(state, actions)
-                        CrewTab.MEMBERS -> MembersTab(state, actions)
-                    }
-                    if (state.loadingMore) Box(Modifier.fillMaxWidth().height(64.dp)) { RunkkLoading() }
-                }
+                HomeTabContent(state, actions)
             }
         }
         RunkkSnackbarHost(snackbar, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp))
     }
+    HomeDialogs(state, actions)
+}
+
+/** 고른 탭의 내용(읽기 실패면 오류 상태). */
+@Composable
+private fun ColumnScope.HomeTabContent(state: CrewHomeUiState, actions: CrewHomeActions) {
+    if (state.error != null && !state.loading) {
+        RunkkErrorState(state.error.asString(), onRetry = actions.onRetry)
+    } else {
+        when (state.tab) {
+            CrewTab.RACE -> RaceTab(state, actions)
+            CrewTab.CREW_RUN -> CrewRunTab(state, actions)
+            CrewTab.CHEER -> CheerTab(state, actions)
+            CrewTab.MEMBERS -> MembersTab(state, actions)
+        }
+        if (state.loadingMore) Box(Modifier.fillMaxWidth().height(64.dp)) { RunkkLoading() }
+    }
+}
+
+/** 크루 홈의 확인 대화상자: 글 삭제·크루 나가기·크루 내 소개 수정. */
+@Composable
+private fun HomeDialogs(state: CrewHomeUiState, actions: CrewHomeActions) {
     if (state.confirmDelete != null) {
         RunkkConfirmDialog(
-            title = "글을 지울까요?",
-            message = "지운 글은 되돌릴 수 없어요.",
-            confirmLabel = "삭제",
+            title = stringResource(R.string.crew_home_delete_title),
+            message = stringResource(R.string.crew_home_delete_message),
+            confirmLabel = stringResource(R.string.crew_action_delete),
             onConfirm = actions.onDeleteConfirm,
             onDismiss = actions.onDeleteDismiss,
             destructive = true
@@ -229,39 +245,57 @@ fun CrewHomeScreen(
     }
     if (state.confirmLeave) {
         RunkkConfirmDialog(
-            title = "크루를 나갈까요?",
-            message = "나가면 24시간 동안 다른 크루에 가입할 수 없어요. 이번 주 크루 거리에 더한 기록은 그대로 남아요.",
-            confirmLabel = "크루 나가기",
+            title = stringResource(R.string.crew_home_leave_title),
+            message = stringResource(R.string.crew_home_leave_message),
+            confirmLabel = stringResource(R.string.crew_home_leave),
             onConfirm = actions.onLeaveConfirm,
             onDismiss = actions.onLeaveDismiss,
             destructive = true
         )
     }
-    if (state.editingIntro) {
-        AlertDialog(
-            onDismissRequest = actions.onIntroDismiss,
-            containerColor = RunkkColors.Surface,
-            title = { Text("크루 내 한 줄 소개", style = RunkkTextStyles.CardTitle, color = RunkkColors.TextPrimary) },
-            text = {
-                RunkkTextField(
-                    value = state.introDraft,
-                    onValueChange = actions.onIntroDraft,
-                    label = "40자 · 이 크루 안에서만 보여요",
-                    maxLength = CrewHomeUiState.INTRO_MAX
+    if (state.editingIntro) IntroDialog(state.introDraft, actions)
+}
+
+/** 크루 내 한 줄 소개 수정 대화상자. */
+@Composable
+private fun IntroDialog(draft: String, actions: CrewHomeActions) {
+    AlertDialog(
+        onDismissRequest = actions.onIntroDismiss,
+        containerColor = RunkkColors.Surface,
+        title = {
+            Text(
+                stringResource(R.string.crew_home_intro_title),
+                style = RunkkTextStyles.CardTitle,
+                color = RunkkColors.TextPrimary
+            )
+        },
+        text = {
+            RunkkTextField(
+                value = draft,
+                onValueChange = actions.onIntroDraft,
+                label = stringResource(R.string.crew_home_intro_label),
+                maxLength = CrewHomeUiState.INTRO_MAX
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = actions.onIntroSave) {
+                Text(
+                    stringResource(R.string.crew_home_intro_save),
+                    style = RunkkTextStyles.BodyStrong,
+                    color = RunkkColors.Lime
                 )
-            },
-            confirmButton = {
-                TextButton(onClick = actions.onIntroSave) {
-                    Text("저장", style = RunkkTextStyles.BodyStrong, color = RunkkColors.Lime)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = actions.onIntroDismiss) {
-                    Text("취소", style = RunkkTextStyles.BodyStrong, color = RunkkColors.TextSecondary)
-                }
             }
-        )
-    }
+        },
+        dismissButton = {
+            TextButton(onClick = actions.onIntroDismiss) {
+                Text(
+                    stringResource(R.string.crew_action_cancel),
+                    style = RunkkTextStyles.BodyStrong,
+                    color = RunkkColors.TextSecondary
+                )
+            }
+        }
+    )
 }
 
 /** 끝에서 이 픽셀 안쪽까지 내리면 다음 쪽을 읽는다. */
@@ -269,7 +303,6 @@ private const val LOAD_MORE_PX = 600
 
 @Composable
 private fun Header(state: CrewHomeUiState, actions: CrewHomeActions, atTabRoot: Boolean) {
-    var menu by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier.fillMaxWidth().padding(
             start = if (atTabRoot) 16.dp else 8.dp,
@@ -280,46 +313,77 @@ private fun Header(state: CrewHomeUiState, actions: CrewHomeActions, atTabRoot: 
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        if (!atTabRoot) RunkkIconButton(RunkkIcons.Back, contentDescription = "뒤로", onClick = actions.onBack)
-        CrewLogo(state.crewName, size = 48, accent = true)
-        Column(Modifier.weight(1f)) {
-            Text(
-                state.crewName,
-                style = RunkkTextStyles.TopBarTitle,
-                color = RunkkColors.TextPrimary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.semantics { heading() }
+        if (!atTabRoot) {
+            RunkkIconButton(
+                RunkkIcons.Back,
+                contentDescription = stringResource(R.string.crew_action_back),
+                onClick = actions.onBack
             )
-            (state.detail?.headcount ?: state.members?.members?.size)?.let { headcount ->
-                Text(
-                    listOfNotNull(
-                        "$headcount/${CREW_MAX}명",
-                        state.detail?.myRole?.let { if (it == CrewRole.LEADER) "크루장" else "크루원" }
-                    ).joinToString(" · "),
-                    style = RunkkTextStyles.Caption,
-                    color = RunkkColors.TextSecondary
-                )
-            }
         }
-        Box {
-            RunkkIconButton(RunkkIcons.Settings, contentDescription = "크루 메뉴", onClick = { menu = true })
-            DropdownMenu(expanded = menu, onDismissRequest = {
-                menu = false
-            }, modifier = Modifier.background(RunkkColors.Surface)) {
-                listOfNotNull(
-                    ("크루 관리" to actions.onManage).takeIf { state.canManage },
-                    "크루 내 소개 바꾸기" to actions.onIntroEdit,
-                    "크루 나가기" to actions.onLeaveAsk
-                ).forEach { (label, action) ->
-                    DropdownMenuItem(
-                        text = { Text(label, style = RunkkTextStyles.Body, color = RunkkColors.TextPrimary) },
-                        onClick = {
-                            menu = false
-                            action()
-                        }
-                    )
-                }
+        CrewLogo(state.crewName, size = 48, accent = true)
+        HomeTitle(state, Modifier.weight(1f))
+        HomeMenu(state, actions)
+    }
+}
+
+/** 머리글의 크루 이름과 인원·내 역할. */
+@Composable
+private fun HomeTitle(state: CrewHomeUiState, modifier: Modifier = Modifier) {
+    Column(modifier) {
+        Text(
+            state.crewName,
+            style = RunkkTextStyles.TopBarTitle,
+            color = RunkkColors.TextPrimary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.semantics { heading() }
+        )
+        (state.detail?.headcount ?: state.members?.members?.size)?.let { headcount ->
+            val role = state.detail?.myRole?.let { stringResource(it.labelRes()) }
+            Text(
+                listOfNotNull(stringResource(R.string.crew_meta_headcount, headcount, CREW_MAX), role)
+                    .joinToString(" · "),
+                style = RunkkTextStyles.Caption,
+                color = RunkkColors.TextSecondary
+            )
+        }
+    }
+}
+
+@StringRes
+private fun CrewRole.labelRes(): Int = if (this ==
+    CrewRole.LEADER
+) {
+    R.string.crew_role_leader
+} else {
+    R.string.crew_role_member
+}
+
+/** 머리글 오른쪽 설정 메뉴: 크루 관리(크루장만)·크루 내 소개 바꾸기·크루 나가기. */
+@Composable
+private fun HomeMenu(state: CrewHomeUiState, actions: CrewHomeActions) {
+    var menu by remember { mutableStateOf(false) }
+    Box {
+        RunkkIconButton(
+            RunkkIcons.Settings,
+            contentDescription = stringResource(R.string.crew_home_menu),
+            onClick = { menu = true }
+        )
+        DropdownMenu(expanded = menu, onDismissRequest = {
+            menu = false
+        }, modifier = Modifier.background(RunkkColors.Surface)) {
+            listOfNotNull(
+                (stringResource(R.string.crew_home_menu_manage) to actions.onManage).takeIf { state.canManage },
+                stringResource(R.string.crew_home_intro_change) to actions.onIntroEdit,
+                stringResource(R.string.crew_home_leave) to actions.onLeaveAsk
+            ).forEach { (label, action) ->
+                DropdownMenuItem(
+                    text = { Text(label, style = RunkkTextStyles.Body, color = RunkkColors.TextPrimary) },
+                    onClick = {
+                        menu = false
+                        action()
+                    }
+                )
             }
         }
     }
@@ -341,13 +405,16 @@ private fun ColumnScope.RaceTab(state: CrewHomeUiState, actions: CrewHomeActions
     RaceCard(race, mine = race.contributors.firstOrNull { it.me })
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
-            "크루 랭킹",
+            stringResource(R.string.crew_race_ranking_title),
             style = RunkkTextStyles.CardTitle,
             color = RunkkColors.TextPrimary,
             modifier = Modifier.weight(1f)
         )
         RunkkSegmentedTabs(
-            options = listOf("주간", "월간"),
+            options = listOf(
+                stringResource(R.string.crew_race_period_weekly),
+                stringResource(R.string.crew_race_period_monthly)
+            ),
             selectedIndex = state.period.ordinal,
             onSelect = { actions.onPeriod(CrewRanking.Period.entries[it]) },
             compact = true
@@ -355,7 +422,11 @@ private fun ColumnScope.RaceTab(state: CrewHomeUiState, actions: CrewHomeActions
     }
     val entries = state.ranking?.entries.orEmpty()
     if (entries.isEmpty()) {
-        Text("아직 이번 기간 기록이 없어요", style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
+        Text(
+            stringResource(R.string.crew_race_ranking_empty),
+            style = RunkkTextStyles.Caption,
+            color = RunkkColors.TextSecondary
+        )
     }
     // 기여율은 이번 주 크루 거리 대비(시안 31%), 레이스를 못 읽었거나 아직 0m면 랭킹 합 대비. 나누는 값은 1m 이상이다
     // (방금 만든 크루는 레이스 합계가 0이라 0/0 = NaN.roundToInt()로 비정상 종료했다, E2E 시나리오 5에서 찾은 결함).
@@ -363,40 +434,54 @@ private fun ColumnScope.RaceTab(state: CrewHomeUiState, actions: CrewHomeActions
     val total = (weekly ?: entries.sumOf { it.distance.meters }).coerceAtLeast(1)
     entries.forEach { entry ->
         val share = (entry.distance.meters * PERCENT / total.toDouble()).roundToInt().coerceIn(0, PERCENT)
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RunkkShapes.Medium)
-                .background(RunkkColors.Surface)
-                .border(1.dp, RunkkColors.Border, RunkkShapes.Medium)
-                .padding(horizontal = 16.dp, vertical = 8.dp)
-                .clearAndSetSemantics {
-                    contentDescription =
-                        "${entry.rank}위 ${entry.displayName} ${RunkkFormat.kmShort(entry.distance)}킬로미터, $share%"
-                },
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
+        RankingRow(entry, share)
+    }
+}
+
+/** 크루 랭킹 한 줄: 순위·표시명·거리·기여율. */
+@Composable
+private fun RankingRow(entry: CrewRanking.Entry, share: Int) {
+    val description = stringResource(
+        R.string.crew_race_ranking_description,
+        entry.rank,
+        entry.displayName,
+        RunkkFormat.kmShort(entry.distance),
+        share
+    )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RunkkShapes.Medium)
+            .background(RunkkColors.Surface)
+            .border(1.dp, RunkkColors.Border, RunkkShapes.Medium)
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .clearAndSetSemantics { contentDescription = description },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text(
+            entry.rank.toString(),
+            style = RunkkTextStyles.display(24),
+            color = if (entry.rank == 1) RunkkColors.Lime else RunkkColors.TextSecondary,
+            modifier = Modifier.widthIn(min = 24.dp)
+        )
+        Text(
+            entry.displayName,
+            style = RunkkTextStyles.BodyStrong,
+            color = RunkkColors.TextPrimary,
+            modifier = Modifier.weight(1f)
+        )
+        Column(horizontalAlignment = Alignment.End) {
             Text(
-                entry.rank.toString(),
-                style = RunkkTextStyles.display(24),
-                color = if (entry.rank == 1) RunkkColors.Lime else RunkkColors.TextSecondary,
-                modifier = Modifier.widthIn(min = 24.dp)
+                RunkkFormat.kmShort(entry.distance),
+                style = RunkkTextStyles.display(20),
+                color = RunkkColors.TextPrimary
             )
             Text(
-                entry.displayName,
-                style = RunkkTextStyles.BodyStrong,
-                color = RunkkColors.TextPrimary,
-                modifier = Modifier.weight(1f)
+                stringResource(R.string.crew_race_share_percent, share),
+                style = RunkkTextStyles.Micro,
+                color = RunkkColors.TextSecondary
             )
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    RunkkFormat.kmShort(entry.distance),
-                    style = RunkkTextStyles.display(20),
-                    color = RunkkColors.TextPrimary
-                )
-                Text("$share%", style = RunkkTextStyles.Micro, color = RunkkColors.TextSecondary)
-            }
         }
     }
 }
@@ -416,30 +501,46 @@ private fun RaceCard(race: RaceStatus, mine: RaceStatus.Contributor?) {
     ) {
         Row {
             Text(
-                "이번 주 크루 거리",
+                stringResource(R.string.crew_race_weekly_distance),
                 style = RunkkTextStyles.Caption,
                 color = RunkkColors.TextSecondary,
                 modifier = Modifier.weight(1f)
             )
-            Text("일요일 자정 마감", style = RunkkTextStyles.text(12, FontWeight.Bold), color = RunkkColors.Lavender)
-        }
-        Row(verticalAlignment = Alignment.Bottom) {
-            Text(RunkkFormat.kmShort(race.total), style = RunkkTextStyles.display(64), color = RunkkColors.TextPrimary)
             Text(
-                " KM",
-                style = RunkkTextStyles.display(24),
-                color = RunkkColors.TextSecondary,
-                modifier = Modifier.padding(bottom = 8.dp)
+                stringResource(R.string.crew_race_deadline),
+                style = RunkkTextStyles.text(12, FontWeight.Bold),
+                color = RunkkColors.Lavender
             )
         }
+        RaceTotal(race)
         Text(
-            if (share != null) {
-                "내 기여도 ${shareLabel(share)}%" + (mine?.let { " · ${RunkkFormat.kmShort(it.distance)}km" } ?: "")
-            } else {
-                "이번 주에 달리면 크루 거리에 자동으로 더해져요"
+            when {
+                share == null -> stringResource(R.string.crew_race_my_share_empty)
+
+                mine == null -> stringResource(R.string.crew_race_my_share, shareLabel(share))
+
+                else -> stringResource(
+                    R.string.crew_race_my_share_with_km,
+                    shareLabel(share),
+                    RunkkFormat.kmShort(mine.distance)
+                )
             },
             style = RunkkTextStyles.Body,
             color = RunkkColors.TextPrimary
+        )
+    }
+}
+
+/** 이번 주 크루 거리 큰 숫자. */
+@Composable
+private fun RaceTotal(race: RaceStatus) {
+    Row(verticalAlignment = Alignment.Bottom) {
+        Text(RunkkFormat.kmShort(race.total), style = RunkkTextStyles.display(64), color = RunkkColors.TextPrimary)
+        Text(
+            " KM",
+            style = RunkkTextStyles.display(24),
+            color = RunkkColors.TextSecondary,
+            modifier = Modifier.padding(bottom = 8.dp)
         )
     }
 }
@@ -452,16 +553,25 @@ private const val PERCENT = 100
 /** 크루런 탭(FR-133·FR-145): 모집글, 갈래요·못 가요, 대기실·결과. */
 @Composable
 private fun ColumnScope.CrewRunTab(state: CrewHomeUiState, actions: CrewHomeActions) {
-    RunkkPrimaryButton("크루런 모집하기", onClick = actions.onWriteCrewRun, modifier = Modifier.fillMaxWidth())
+    RunkkPrimaryButton(
+        stringResource(R.string.crew_home_run_recruit),
+        onClick = actions.onWriteCrewRun,
+        modifier = Modifier.fillMaxWidth()
+    )
     Text(
-        "같은 시간에 각자 다른 곳에서 함께 출발해요. 위치 대신 달린 거리만 공유돼요.",
+        stringResource(R.string.crew_home_run_notice),
         style = RunkkTextStyles.Caption,
         color = RunkkColors.TextSecondary
     )
     val posts = state.crewRuns?.posts
     when {
         posts == null -> Loading(state)
-        posts.isEmpty() -> RunkkEmptyState("아직 모집 중인 크루런이 없어요", message = "첫 크루런을 모집해 보세요")
+
+        posts.isEmpty() -> RunkkEmptyState(
+            stringResource(R.string.crew_home_run_empty_title),
+            message = stringResource(R.string.crew_home_run_empty_message)
+        )
+
         else -> posts.forEach { post -> CrewRunPost(post, actions) }
     }
 }
@@ -474,22 +584,12 @@ private fun ColumnScope.CrewRunTab(state: CrewHomeUiState, actions: CrewHomeActi
 private fun CrewRunPost(post: PostList.Item, actions: CrewHomeActions) {
     val run = post.crewRun
     val status = run?.status
-    val vote = run?.myAnswer
     val canVote = status == null || status == CrewRunStatus.VOTING
     val canEnter = status == null || status == CrewRunStatus.VOTING || status == CrewRunStatus.LOBBY_OPEN ||
         status == CrewRunStatus.RUNNING
     val finished = status == null || status == CrewRunStatus.FINISHED
     RunkkCard {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            RunkkBadge("크루런", tone = RunkkBadgeTone.Lime)
-            Text(
-                "  ${post.authorName} · ${postedLabel(post.writtenAt)}",
-                style = RunkkTextStyles.Caption,
-                color = RunkkColors.TextSecondary,
-                modifier = Modifier.weight(1f)
-            )
-            if (post.mine) RunkkTextLink("삭제", onClick = { actions.onDeleteAsk(post) }, contentDescription = "모집글 삭제")
-        }
+        CrewRunPostHeader(post, actions)
         if (post.summary.isNotBlank()) {
             Text(post.summary, style = RunkkTextStyles.BodyStrong, color = RunkkColors.TextPrimary)
         }
@@ -501,44 +601,99 @@ private fun CrewRunPost(post: PostList.Item, actions: CrewHomeActions) {
                     color = RunkkColors.TextPrimary,
                     modifier = Modifier.weight(1f)
                 )
-                status?.let { RunkkBadge(crewRunStatusLabel(it), tone = RunkkBadgeTone.Muted) }
+                status?.let {
+                    RunkkBadge(stringResource(crewRunStatusLabelRes(it)), tone = RunkkBadgeTone.Muted)
+                }
             }
         }
-        val label = post.summary.ifBlank { run?.let(::crewRunSummary).orEmpty() }
-        if (canVote) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.selectableGroup()) {
-                VoteButton("갈래요", selected = vote == VoteAnswer.GOING, onClick = {
-                    actions.onVote(post, VoteAnswer.GOING)
-                }, modifier = Modifier.weight(1f))
-                VoteButton(
-                    "못 가요",
-                    selected = vote == VoteAnswer.NOT_GOING,
-                    onClick = { actions.onVote(post, VoteAnswer.NOT_GOING) },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        } else if (vote != null) {
-            Text(
-                if (vote == VoteAnswer.GOING) "내 응답: 갈래요" else "내 응답: 못 가요",
-                style = RunkkTextStyles.Caption,
-                color = RunkkColors.TextSecondary
+        CrewRunVote(post, run?.myAnswer, canVote, actions)
+        CrewRunEntryButtons(
+            post,
+            label = post.summary.ifBlank {
+                run?.let { crewRunSummary(it) }.orEmpty()
+            },
+            canEnter,
+            finished,
+            actions
+        )
+    }
+}
+
+/** 모집글 머리줄: 크루런 배지·작성자·작성 시각과 내 글 삭제. */
+@Composable
+private fun CrewRunPostHeader(post: PostList.Item, actions: CrewHomeActions) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        RunkkBadge(stringResource(R.string.crew_home_run_badge), tone = RunkkBadgeTone.Lime)
+        Text(
+            "  " + stringResource(R.string.crew_home_run_author_time, post.authorName, postedLabel(post.writtenAt)),
+            style = RunkkTextStyles.Caption,
+            color = RunkkColors.TextSecondary,
+            modifier = Modifier.weight(1f)
+        )
+        if (post.mine) {
+            RunkkTextLink(
+                stringResource(R.string.crew_action_delete),
+                onClick = { actions.onDeleteAsk(post) },
+                contentDescription = stringResource(R.string.crew_home_run_delete_description)
             )
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (canEnter) {
-                RunkkPillButton(
-                    "대기실 들어가기",
-                    onClick = { actions.onLobby(post) },
-                    modifier = Modifier.semantics { contentDescription = "대기실 들어가기, $label" }
-                )
-            }
-            if (finished) {
-                RunkkPillButton(
-                    "지난 결과",
-                    onClick = { actions.onResult(post) },
-                    modifier = Modifier.semantics { contentDescription = "지난 결과, $label" }
-                )
-            }
+    }
+}
+
+/** 모집글의 응답: 투표 중이면 갈래요·못 가요 단추, 아니면 내 응답 문구. */
+@Composable
+private fun CrewRunVote(post: PostList.Item, vote: VoteAnswer?, canVote: Boolean, actions: CrewHomeActions) {
+    if (canVote) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.selectableGroup()) {
+            VoteButton(
+                stringResource(R.string.crew_home_run_vote_going),
+                selected = vote == VoteAnswer.GOING,
+                onClick = { actions.onVote(post, VoteAnswer.GOING) },
+                modifier = Modifier.weight(1f)
+            )
+            VoteButton(
+                stringResource(R.string.crew_home_run_vote_not_going),
+                selected = vote == VoteAnswer.NOT_GOING,
+                onClick = { actions.onVote(post, VoteAnswer.NOT_GOING) },
+                modifier = Modifier.weight(1f)
+            )
+        }
+    } else if (vote != null) {
+        Text(
+            stringResource(
+                if (vote == VoteAnswer.GOING) R.string.crew_home_run_my_going else R.string.crew_home_run_my_not_going
+            ),
+            style = RunkkTextStyles.Caption,
+            color = RunkkColors.TextSecondary
+        )
+    }
+}
+
+/** 모집글 아래 단추: 대기실 들어가기·지난 결과. */
+@Composable
+private fun CrewRunEntryButtons(
+    post: PostList.Item,
+    label: String,
+    canEnter: Boolean,
+    finished: Boolean,
+    actions: CrewHomeActions
+) {
+    val lobbyDescription = stringResource(R.string.crew_home_run_lobby_description, label)
+    val resultDescription = stringResource(R.string.crew_home_run_result_description, label)
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (canEnter) {
+            RunkkPillButton(
+                stringResource(R.string.crew_home_run_lobby),
+                onClick = { actions.onLobby(post) },
+                modifier = Modifier.semantics { contentDescription = lobbyDescription }
+            )
+        }
+        if (finished) {
+            RunkkPillButton(
+                stringResource(R.string.crew_home_run_result),
+                onClick = { actions.onResult(post) },
+                modifier = Modifier.semantics { contentDescription = resultDescription }
+            )
         }
     }
 }
@@ -546,9 +701,11 @@ private fun CrewRunPost(post: PostList.Item, actions: CrewHomeActions) {
 @Composable
 private fun VoteButton(label: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     // 갈래요·못 가요는 하나만 고르는 응답이라 선택 상태를 표준 의미로 알린다.
+    val stateText =
+        stringResource(if (selected) R.string.crew_home_vote_selected else R.string.crew_home_vote_unselected)
     val state = modifier.semantics {
         this.selected = selected
-        stateDescription = if (selected) "선택됨" else "선택 안 됨"
+        stateDescription = stateText
     }
     if (selected) {
         RunkkPrimaryButton(label, onClick = onClick, modifier = state)
@@ -563,13 +720,13 @@ private fun ColumnScope.CheerTab(state: CrewHomeUiState, actions: CrewHomeAction
     RunkkTextField(
         value = state.cheerDraft,
         onValueChange = actions.onCheerDraft,
-        label = "응원 한마디 · ${state.cheerDraft.length}/${CrewHomeUiState.CHEER_MAX}",
-        placeholder = "이번 주도 같이 달려요!",
+        label = stringResource(R.string.crew_home_cheer_label, state.cheerDraft.length, CrewHomeUiState.CHEER_MAX),
+        placeholder = stringResource(R.string.crew_home_cheer_placeholder),
         singleLine = false,
         maxLength = CrewHomeUiState.CHEER_MAX
     )
     RunkkPrimaryButton(
-        "응원 남기기",
+        stringResource(R.string.crew_home_cheer_submit),
         onClick = actions.onCheerSubmit,
         enabled = state.cheerValid,
         loading = state.busy,
@@ -579,7 +736,7 @@ private fun ColumnScope.CheerTab(state: CrewHomeUiState, actions: CrewHomeAction
     when {
         posts == null -> Loading(state)
 
-        posts.isEmpty() -> RunkkEmptyState("첫 응원을 남겨 보세요")
+        posts.isEmpty() -> RunkkEmptyState(stringResource(R.string.crew_home_cheer_empty))
 
         else -> posts.forEach { post ->
             RunkkCard {
@@ -592,9 +749,11 @@ private fun ColumnScope.CheerTab(state: CrewHomeUiState, actions: CrewHomeAction
                         modifier = Modifier.weight(1f)
                     )
                     if (post.mine) {
-                        RunkkTextLink("삭제", onClick = {
-                            actions.onDeleteAsk(post)
-                        }, contentDescription = "응원글 삭제")
+                        RunkkTextLink(
+                            stringResource(R.string.crew_action_delete),
+                            onClick = { actions.onDeleteAsk(post) },
+                            contentDescription = stringResource(R.string.crew_home_cheer_delete_description)
+                        )
                     }
                 }
                 Text(post.summary, style = RunkkTextStyles.Body, color = RunkkColors.TextPrimary)
@@ -612,7 +771,11 @@ private fun ColumnScope.MembersTab(state: CrewHomeUiState, actions: CrewHomeActi
 
         else -> {
             members.forEach { member -> MemberRow(member) }
-            RunkkSecondaryButton("크루 내 소개 바꾸기", onClick = actions.onIntroEdit, modifier = Modifier.fillMaxWidth())
+            RunkkSecondaryButton(
+                stringResource(R.string.crew_home_intro_change),
+                onClick = actions.onIntroEdit,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }
@@ -635,10 +798,12 @@ internal fun MemberRow(member: CrewMembers.Member, trailing: (@Composable () -> 
                         roleLabel(member.role),
                         tone = if (isLeader(member)) RunkkBadgeTone.Lime else RunkkBadgeTone.Muted
                     )
-                    if (member.me) RunkkBadge("나", tone = RunkkBadgeTone.Neutral)
+                    if (member.me) RunkkBadge(stringResource(R.string.crew_member_me), tone = RunkkBadgeTone.Neutral)
                 }
                 Text(
-                    listOfNotNull(member.tier, member.runimalType).joinToString(" · ").ifEmpty { "프로필 비공개" },
+                    listOfNotNull(member.tier, member.runimalType).joinToString(" · ").ifEmpty {
+                        stringResource(R.string.crew_member_profile_private)
+                    },
                     style = RunkkTextStyles.Caption,
                     color = RunkkColors.TextSecondary
                 )
@@ -651,9 +816,10 @@ internal fun MemberRow(member: CrewMembers.Member, trailing: (@Composable () -> 
 
 internal fun isLeader(member: CrewMembers.Member): Boolean = member.role.uppercase() == "LEADER" || member.role == "크루장"
 
+@Composable
 internal fun roleLabel(role: String): String = when (role.uppercase()) {
-    "LEADER" -> "크루장"
-    "MEMBER" -> "크루원"
+    "LEADER" -> stringResource(R.string.crew_role_leader)
+    "MEMBER" -> stringResource(R.string.crew_role_member)
     else -> role
 }
 
@@ -706,15 +872,16 @@ data class CrewManageActions(
 @Composable
 fun CrewManageScreen(state: CrewManageUiState, actions: CrewManageActions, modifier: Modifier = Modifier) {
     val snackbar = remember { SnackbarHostState() }
+    val message = state.message?.asString()
     LaunchedEffect(state.message) {
-        state.message?.let {
+        message?.let {
             snackbar.showSnackbar(it)
             actions.onMessageShown()
         }
     }
     Box(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
         Column(Modifier.fillMaxSize()) {
-            RunkkTopBar(title = "크루 관리", onBack = actions.onBack)
+            RunkkTopBar(title = stringResource(R.string.crew_manage_title), onBack = actions.onBack)
             Column(
                 Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -722,123 +889,159 @@ fun CrewManageScreen(state: CrewManageUiState, actions: CrewManageActions, modif
                 if (state.loading && state.members == null) {
                     Box(Modifier.fillMaxWidth().height(160.dp)) { RunkkLoading() }
                 }
-                state.error?.let { RunkkErrorState(it, onRetry = actions.onRetry) }
-                Section("가입 신청")
-                val requests = state.requests?.requests.orEmpty()
-                if (requests.isEmpty()) {
-                    Text("대기 중인 가입 신청이 없어요", style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
-                }
-                requests.forEach { request ->
-                    RunkkCard {
-                        Text(request.displayName, style = RunkkTextStyles.BodyStrong, color = RunkkColors.TextPrimary)
-                        Text(
-                            "신청 ${postedLabel(request.requestedAt)}",
-                            style = RunkkTextStyles.Caption,
-                            color = RunkkColors.TextSecondary
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            RunkkSecondaryButton(
-                                "거절",
-                                onClick = { actions.onReject(request) },
-                                modifier = Modifier.weight(1f).semantics {
-                                    contentDescription = "${request.displayName} 신청 거절"
-                                },
-                                height = 48.dp
-                            )
-                            RunkkPrimaryButton(
-                                "승인",
-                                onClick = { actions.onApprove(request) },
-                                modifier = Modifier.weight(1f).semantics {
-                                    contentDescription = "${request.displayName} 신청 승인"
-                                }
-                            )
-                        }
-                    }
-                }
-                Section("초대 코드")
-                RunkkCard {
-                    val code = state.inviteCode
-                    Text(
-                        code ?: "새로 만들면 이전 코드는 바로 쓸 수 없어요",
-                        style = if (code != null) RunkkTextStyles.display(36) else RunkkTextStyles.Caption,
-                        color = if (code != null) RunkkColors.Lime else RunkkColors.TextSecondary,
-                        // 코드는 한 글자씩 읽어 전하기 쉽게, 새로 만들면 알린다.
-                        modifier = if (code != null) {
-                            Modifier.semantics {
-                                contentDescription = "초대 코드 " + code.toList().joinToString(" ")
-                                liveRegion = LiveRegionMode.Polite
-                            }
-                        } else {
-                            Modifier
-                        }
-                    )
-                    RunkkPillButton("초대 코드 새로 만들기", onClick = actions.onReissue)
-                }
-                Section("크루원 관리")
-                state.members?.members.orEmpty().filterNot(::isLeader).forEach { member ->
-                    MemberRow(member) {
-                        Column(horizontalAlignment = Alignment.End) {
-                            RunkkTextLink(
-                                "크루장 넘기기",
-                                onClick = { actions.onAsk(ManageAction.Transfer(member)) },
-                                contentDescription = "${member.displayName}에게 크루장 넘기기"
-                            )
-                            RunkkTextLink(
-                                "내보내기",
-                                onClick = { actions.onAsk(ManageAction.Kick(member)) },
-                                contentDescription = "${member.displayName} 내보내기"
-                            )
-                        }
-                    }
-                }
-                Section("크루 정보 바꾸기")
-                CrewFormFields(state.form, actions.onForm)
-                RunkkSecondaryButton(
-                    "정보 저장",
-                    onClick = actions.onSaveInfo,
-                    enabled = state.form.valid && !state.busy,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                HorizontalDivider(color = RunkkColors.Border)
-                Text(
-                    "크루를 지우면 크루원·게시글·이번 주 거리가 모두 지워지고 크루원에게 알려요.",
-                    style = RunkkTextStyles.Caption,
-                    color = RunkkColors.TextSecondary
-                )
-                RunkkAccentOutlinedButton(
-                    "크루 삭제",
-                    onClick = { actions.onAsk(ManageAction.Delete) },
-                    modifier = Modifier.fillMaxWidth()
-                )
+                state.error?.let { RunkkErrorState(it.asString(), onRetry = actions.onRetry) }
+                ManageRequests(state.requests?.requests.orEmpty(), actions)
+                ManageInviteCode(state.inviteCode, actions.onReissue)
+                ManageMembers(state.members?.members.orEmpty(), actions)
+                ManageInfo(state, actions)
             }
         }
         RunkkSnackbarHost(snackbar, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp))
     }
-    state.confirming?.let { action ->
-        val (title, message, label) = when (action) {
-            is ManageAction.Kick -> Triple(
-                "${action.member.displayName}님을 내보낼까요?",
-                "내보내면 24시간 동안 다른 크루에 가입할 수 없어요.",
-                "내보내기"
-            )
+    state.confirming?.let { action -> ManageConfirmDialog(action, state.crewName, actions) }
+}
 
-            is ManageAction.Transfer -> Triple(
-                "${action.member.displayName}님에게 크루장을 넘길까요?",
-                "넘기면 나는 크루원이 되고 크루 관리를 할 수 없어요.",
-                "넘기기"
-            )
-
-            ManageAction.Delete -> Triple("${state.crewName}를 지울까요?", "지운 크루는 되돌릴 수 없어요.", "삭제")
-        }
-        RunkkConfirmDialog(
-            title,
-            message,
-            label,
-            onConfirm = actions.onConfirm,
-            onDismiss = actions.onDismiss,
-            destructive = true
+/** 가입 신청 목록과 승인·거절 단추. */
+@Composable
+private fun ManageRequests(requests: List<PendingRequests.Request>, actions: CrewManageActions) {
+    Section(stringResource(R.string.crew_manage_section_requests))
+    if (requests.isEmpty()) {
+        Text(
+            stringResource(R.string.crew_manage_requests_empty),
+            style = RunkkTextStyles.Caption,
+            color = RunkkColors.TextSecondary
         )
     }
+    requests.forEach { request ->
+        val rejectDescription = stringResource(R.string.crew_manage_reject_description, request.displayName)
+        val approveDescription = stringResource(R.string.crew_manage_approve_description, request.displayName)
+        RunkkCard {
+            Text(request.displayName, style = RunkkTextStyles.BodyStrong, color = RunkkColors.TextPrimary)
+            Text(
+                stringResource(R.string.crew_manage_requested_at, postedLabel(request.requestedAt)),
+                style = RunkkTextStyles.Caption,
+                color = RunkkColors.TextSecondary
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                RunkkSecondaryButton(
+                    stringResource(R.string.crew_manage_reject),
+                    onClick = { actions.onReject(request) },
+                    modifier = Modifier.weight(1f).semantics { contentDescription = rejectDescription },
+                    height = 48.dp
+                )
+                RunkkPrimaryButton(
+                    stringResource(R.string.crew_manage_approve),
+                    onClick = { actions.onApprove(request) },
+                    modifier = Modifier.weight(1f).semantics { contentDescription = approveDescription }
+                )
+            }
+        }
+    }
+}
+
+/** 초대 코드와 새로 만들기 단추. */
+@Composable
+private fun ManageInviteCode(code: String?, onReissue: () -> Unit) {
+    Section(stringResource(R.string.crew_manage_section_invite))
+    val codeDescription =
+        stringResource(R.string.crew_manage_invite_code_description, code.orEmpty().toList().joinToString(" "))
+    RunkkCard {
+        Text(
+            code ?: stringResource(R.string.crew_manage_invite_empty),
+            style = if (code != null) RunkkTextStyles.display(36) else RunkkTextStyles.Caption,
+            color = if (code != null) RunkkColors.Lime else RunkkColors.TextSecondary,
+            // 코드는 한 글자씩 읽어 전하기 쉽게, 새로 만들면 알린다.
+            modifier = if (code != null) {
+                Modifier.semantics {
+                    contentDescription = codeDescription
+                    liveRegion = LiveRegionMode.Polite
+                }
+            } else {
+                Modifier
+            }
+        )
+        RunkkPillButton(stringResource(R.string.crew_manage_invite_reissue), onClick = onReissue)
+    }
+}
+
+/** 크루장을 뺀 크루원 목록과 크루장 넘기기·내보내기. */
+@Composable
+private fun ManageMembers(members: List<CrewMembers.Member>, actions: CrewManageActions) {
+    Section(stringResource(R.string.crew_manage_section_members))
+    members.filterNot(::isLeader).forEach { member ->
+        val transferDescription = stringResource(R.string.crew_manage_transfer_description, member.displayName)
+        val kickDescription = stringResource(R.string.crew_manage_kick_description, member.displayName)
+        MemberRow(member) {
+            Column(horizontalAlignment = Alignment.End) {
+                RunkkTextLink(
+                    stringResource(R.string.crew_manage_transfer),
+                    onClick = { actions.onAsk(ManageAction.Transfer(member)) },
+                    contentDescription = transferDescription
+                )
+                RunkkTextLink(
+                    stringResource(R.string.crew_manage_kick),
+                    onClick = { actions.onAsk(ManageAction.Kick(member)) },
+                    contentDescription = kickDescription
+                )
+            }
+        }
+    }
+}
+
+/** 크루 정보 수정 칸·저장과 크루 삭제. */
+@Composable
+private fun ManageInfo(state: CrewManageUiState, actions: CrewManageActions) {
+    Section(stringResource(R.string.crew_manage_section_info))
+    CrewFormFields(state.form, actions.onForm)
+    RunkkSecondaryButton(
+        stringResource(R.string.crew_manage_info_save),
+        onClick = actions.onSaveInfo,
+        enabled = state.form.valid && !state.busy,
+        modifier = Modifier.fillMaxWidth()
+    )
+    HorizontalDivider(color = RunkkColors.Border)
+    Text(
+        stringResource(R.string.crew_manage_delete_notice),
+        style = RunkkTextStyles.Caption,
+        color = RunkkColors.TextSecondary
+    )
+    RunkkAccentOutlinedButton(
+        stringResource(R.string.crew_manage_delete),
+        onClick = { actions.onAsk(ManageAction.Delete) },
+        modifier = Modifier.fillMaxWidth()
+    )
+}
+
+/** 내보내기·크루장 넘기기·크루 삭제 확인 대화상자. */
+@Composable
+private fun ManageConfirmDialog(action: ManageAction, crewName: String, actions: CrewManageActions) {
+    val (title, message, label) = when (action) {
+        is ManageAction.Kick -> Triple(
+            stringResource(R.string.crew_manage_kick_title, action.member.displayName),
+            stringResource(R.string.crew_manage_kick_message),
+            stringResource(R.string.crew_manage_kick)
+        )
+
+        is ManageAction.Transfer -> Triple(
+            stringResource(R.string.crew_manage_transfer_title, action.member.displayName),
+            stringResource(R.string.crew_manage_transfer_message),
+            stringResource(R.string.crew_manage_transfer_confirm)
+        )
+
+        ManageAction.Delete -> Triple(
+            stringResource(R.string.crew_manage_delete_title, crewName),
+            stringResource(R.string.crew_manage_delete_message),
+            stringResource(R.string.crew_action_delete)
+        )
+    }
+    RunkkConfirmDialog(
+        title,
+        message,
+        label,
+        onConfirm = actions.onConfirm,
+        onDismiss = actions.onDismiss,
+        destructive = true
+    )
 }
 
 @Composable

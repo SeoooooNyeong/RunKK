@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.designsystem.RunkkErrorText
+import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.account.LoginUseCase
@@ -20,7 +21,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /** 로그인 화면 상태. [inProgress]는 지금 로그인 중인 제공자. */
-data class LoginUiState(val inProgress: ProviderType? = null, val error: String? = null)
+data class LoginUiState(val inProgress: ProviderType? = null, val error: UiText? = null)
 
 sealed interface LoginEvent {
     data object LoggedIn : LoginEvent

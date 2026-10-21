@@ -1,5 +1,6 @@
 package com.a207.runkk.app.ui.record
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -23,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -50,6 +53,7 @@ import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
+import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Pace
@@ -92,10 +96,16 @@ fun RecordListScreen(
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
-        RunkkTopBar(title = "내 기록", onBack = onBack) {
-            RunkkSegmentedTabs(listOf("달력", "목록"), selectedIndex = state.view.ordinal, onSelect = {
-                onViewSelected(RecordView.entries[it])
-            }, compact = true)
+        RunkkTopBar(title = stringResource(R.string.record_list_title), onBack = onBack) {
+            RunkkSegmentedTabs(
+                listOf(
+                    stringResource(R.string.record_list_tab_calendar),
+                    stringResource(R.string.record_list_tab_list)
+                ),
+                selectedIndex = state.view.ordinal,
+                onSelect = { onViewSelected(RecordView.entries[it]) },
+                compact = true
+            )
         }
         LazyColumn(
             modifier = Modifier.weight(1f),
@@ -110,35 +120,47 @@ fun RecordListScreen(
                     onNextMonth = onNextMonth
                 )
             }
-            when {
-                state.loading && state.runs.isEmpty() -> item(key = "loading") {
-                    Box(Modifier.fillMaxWidth().height(160.dp)) { RunkkLoading() }
-                }
-
-                state.error != null -> item(key = "error") { RunkkErrorState(state.error, onRetry = onRetry) }
-
-                state.runs.isEmpty() -> item(key = "empty") {
-                    RunkkEmptyState("이 달에는 기록이 없어요", message = "홈에서 자유런을 시작해 보세요")
-                }
-
-                else -> {
-                    item(key = "title") { RunkkSectionTitle("최신순") }
-                    items(state.runs, key = {
-                        it.recordId
-                    }) { run -> RunRow(run, state.zone, onClick = { onRun(run.recordId) }) }
-                }
-            }
+            runListItems(state, onRun, onRetry)
             if (state.pendingCount > 0) {
-                item(key = "pending") {
-                    RunkkCard(dashed = true, background = RunkkColors.Background, shape = RunkkShapes.Medium) {
-                        Text(
-                            "미전송 기록 ${state.pendingCount}건 · 연결되면 자동으로 보내요",
-                            style = RunkkTextStyles.Caption,
-                            color = RunkkColors.TextSecondary
-                        )
-                    }
-                }
+                item(key = "pending") { PendingCard(state.pendingCount) }
             }
+        }
+    }
+}
+
+/** 기기에 남은 미전송 기록 수 안내 카드. */
+@Composable
+private fun PendingCard(count: Int) {
+    RunkkCard(dashed = true, background = RunkkColors.Background, shape = RunkkShapes.Medium) {
+        Text(
+            stringResource(R.string.record_list_pending, count),
+            style = RunkkTextStyles.Caption,
+            color = RunkkColors.TextSecondary
+        )
+    }
+}
+
+/** 월 카드 아래 목록 칸: 불러오는 중, 오류, 빈 달, 최신순 기록 줄. */
+private fun LazyListScope.runListItems(state: RecordListUiState, onRun: (String) -> Unit, onRetry: () -> Unit) {
+    when {
+        state.loading && state.runs.isEmpty() -> item(key = "loading") {
+            Box(Modifier.fillMaxWidth().height(160.dp)) { RunkkLoading() }
+        }
+
+        state.error != null -> item(key = "error") { RunkkErrorState(state.error.asString(), onRetry = onRetry) }
+
+        state.runs.isEmpty() -> item(key = "empty") {
+            RunkkEmptyState(
+                stringResource(R.string.record_list_empty_title),
+                message = stringResource(R.string.record_list_empty_message)
+            )
+        }
+
+        else -> {
+            item(key = "title") { RunkkSectionTitle(stringResource(R.string.record_list_sort_latest)) }
+            items(state.runs, key = {
+                it.recordId
+            }) { run -> RunRow(run, state.zone, onClick = { onRun(run.recordId) }) }
         }
     }
 }
@@ -151,58 +173,76 @@ private fun MonthCard(
     onNextMonth: () -> Unit
 ) {
     RunkkCard(shape = RunkkShapes.ExtraLarge, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            RunkkIconButton(
-                RunkkIcons.Back,
-                contentDescription = "이전 달",
-                onClick = onPreviousMonth,
-                borderColor = RunkkColors.Surface
-            )
-            Text(
-                MONTH.format(state.month),
-                style = RunkkTextStyles.CardTitle,
-                color = RunkkColors.TextPrimary,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.weight(1f).semantics { heading() }
-            )
-            RunkkIconButton(
-                RunkkIcons.ChevronRight,
-                contentDescription = "다음 달",
-                onClick = onNextMonth,
-                borderColor = RunkkColors.Surface
-            )
-        }
+        MonthHeader(state.month, onPreviousMonth, onNextMonth)
         if (showCalendar) Calendar(state.month, state.dailyDistance)
-        Row {
-            Text(
-                buildAnnotatedString {
-                    append("이번 달 ")
-                    withStyle(SpanStyle(color = RunkkColors.TextPrimary, fontWeight = FontWeight.Bold)) {
-                        append("${state.validCount}")
-                    }
-                    append("회")
-                },
-                style = RunkkTextStyles.Caption,
-                color = RunkkColors.TextSecondary,
-                modifier = Modifier.weight(1f)
-            )
-            Text(
-                buildAnnotatedString {
-                    withStyle(
-                        SpanStyle(
-                            color = RunkkColors.Lime,
-                            fontFamily = RunkkTextStyles.display(16).fontFamily,
-                            fontSize = RunkkTextStyles.display(16).fontSize
-                        )
-                    ) {
-                        append(RunkkFormat.kmShort(state.validDistance))
-                    }
-                    append(" km")
-                },
-                style = RunkkTextStyles.Caption,
-                color = RunkkColors.TextSecondary
-            )
-        }
+        MonthSummary(state.validCount, state.validDistance)
+    }
+}
+
+/** 월 이동 줄: 이전 달 버튼, 가운데 연월, 다음 달 버튼. */
+@Composable
+private fun MonthHeader(month: YearMonth, onPreviousMonth: () -> Unit, onNextMonth: () -> Unit) {
+    val monthFormat = rememberDateFormatter(R.string.record_month_pattern)
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        RunkkIconButton(
+            RunkkIcons.Back,
+            contentDescription = stringResource(R.string.record_list_previous_month),
+            onClick = onPreviousMonth,
+            borderColor = RunkkColors.Surface
+        )
+        Text(
+            monthFormat.format(month),
+            style = RunkkTextStyles.CardTitle,
+            color = RunkkColors.TextPrimary,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.weight(1f).semantics { heading() }
+        )
+        RunkkIconButton(
+            RunkkIcons.ChevronRight,
+            contentDescription = stringResource(R.string.record_list_next_month),
+            onClick = onNextMonth,
+            borderColor = RunkkColors.Surface
+        )
+    }
+}
+
+/** 달 요약 줄: 이번 달 횟수(숫자만 굵게)와 총 거리. */
+@Composable
+private fun MonthSummary(count: Int, distance: Distance) {
+    val countText = stringResource(R.string.record_list_month_count, count)
+    Row {
+        Text(
+            buildAnnotatedString {
+                append(countText)
+                val start = countText.indexOf("$count")
+                if (start >= 0) {
+                    addStyle(
+                        SpanStyle(color = RunkkColors.TextPrimary, fontWeight = FontWeight.Bold),
+                        start,
+                        start + "$count".length
+                    )
+                }
+            },
+            style = RunkkTextStyles.Caption,
+            color = RunkkColors.TextSecondary,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            buildAnnotatedString {
+                withStyle(
+                    SpanStyle(
+                        color = RunkkColors.Lime,
+                        fontFamily = RunkkTextStyles.display(16).fontFamily,
+                        fontSize = RunkkTextStyles.display(16).fontSize
+                    )
+                ) {
+                    append(RunkkFormat.kmShort(distance))
+                }
+                append(" km")
+            },
+            style = RunkkTextStyles.Caption,
+            color = RunkkColors.TextSecondary
+        )
     }
 }
 
@@ -222,9 +262,9 @@ private fun Calendar(month: YearMonth, daily: Map<LocalDate, Distance>) {
     }
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            WEEK.forEach {
+            WEEKDAYS.forEach {
                 Text(
-                    it,
+                    stringResource(it),
                     style = RunkkTextStyles.Micro,
                     color = RunkkColors.TextSecondary,
                     textAlign = TextAlign.Center,
@@ -244,13 +284,18 @@ private fun Calendar(month: YearMonth, daily: Map<LocalDate, Distance>) {
 private fun DayCell(day: LocalDate?, distance: Distance?, modifier: Modifier) {
     val km = distance?.takeIf { it.meters > 0 }?.let(RunkkFormat::kmShort)
     val ran = km != null
+    val spoken = when {
+        day == null -> null
+        km != null -> stringResource(R.string.record_calendar_day_distance_spoken, day.dayOfMonth, km)
+        else -> stringResource(R.string.record_calendar_day_spoken, day.dayOfMonth)
+    }
     Column(
         modifier = modifier
             .height(40.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(if (ran) RunkkColors.Lime else RunkkColors.Background)
             .semantics(mergeDescendants = true) {
-                if (day != null) contentDescription = "${day.dayOfMonth}일" + if (ran) " ${km}킬로미터" else ""
+                if (spoken != null) contentDescription = spoken
             },
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
@@ -272,6 +317,8 @@ private fun DayCell(day: LocalDate?, distance: Distance?, modifier: Modifier) {
 
 @Composable
 private fun RunRow(run: RunSummary, zone: ZoneId, onClick: () -> Unit) {
+    val dayFormat = rememberDateFormatter(R.string.record_day_pattern)
+    val openLabel = stringResource(R.string.record_list_open_detail)
     Row(
         modifier = Modifier
             // E2E(android/e2e/maestro) 선택자. 화면에는 보이지 않는다.
@@ -280,7 +327,7 @@ private fun RunRow(run: RunSummary, zone: ZoneId, onClick: () -> Unit) {
             .clip(RunkkShapes.Large)
             .background(RunkkColors.Surface)
             .border(1.dp, RunkkColors.Border, RunkkShapes.Large)
-            .clickable(role = Role.Button, onClickLabel = "기록 상세 열기", onClick = onClick)
+            .clickable(role = Role.Button, onClickLabel = openLabel, onClick = onClick)
             .padding(16.dp)
             .semantics(mergeDescendants = true) {},
         horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -293,41 +340,58 @@ private fun RunRow(run: RunSummary, zone: ZoneId, onClick: () -> Unit) {
             Text(shortLabel(run.cardKind), style = RunkkTextStyles.display(14), color = RunkkColors.Lime)
         }
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            RunRowTitle(run)
             Text(
-                buildAnnotatedString {
-                    append("${RunkkFormat.km(run.distance)}km ")
-                    withStyle(
-                        SpanStyle(
-                            fontSize = RunkkTextStyles.Caption.fontSize,
-                            fontWeight = FontWeight.Medium,
-                            color = RunkkColors.TextSecondary
-                        )
-                    ) {
-                        append(kindLabel(run.cardKind))
-                    }
-                },
-                style = RunkkTextStyles.text(15, FontWeight.Black),
-                color = RunkkColors.TextPrimary
-            )
-            Text(
-                "${DAY.format(
+                "${dayFormat.format(
                     run.startedAt.atZone(zone)
                 )} · ${RunkkFormat.duration(run.elapsed)} · ${RunkkFormat.pace(run.averagePace)}/km",
                 style = RunkkTextStyles.Caption,
                 color = RunkkColors.TextSecondary
             )
         }
-        if (!run.valid) Text("집계 제외", style = RunkkTextStyles.text(11, FontWeight.Black), color = RunkkColors.Lavender)
+        if (!run.valid) {
+            Text(
+                stringResource(R.string.record_excluded),
+                style = RunkkTextStyles.text(11, FontWeight.Black),
+                color = RunkkColors.Lavender
+            )
+        }
     }
 }
 
-internal fun kindLabel(kind: CardKind): String = when (kind) {
-    CardKind.FREE_RUN -> "자유런"
-    CardKind.BATTLE_RUN -> "배틀런"
-    CardKind.SELF_RUN -> "나와의 싸움"
-    CardKind.CELEB_RUN -> "셀럽런"
-    CardKind.CREW_RUN -> "크루런"
+/** 기록 줄 제목: 거리와 작은 글씨의 종류 이름. */
+@Composable
+private fun RunRowTitle(run: RunSummary) {
+    val kind = kindLabel(run.cardKind)
+    Text(
+        buildAnnotatedString {
+            append("${RunkkFormat.km(run.distance)}km ")
+            withStyle(
+                SpanStyle(
+                    fontSize = RunkkTextStyles.Caption.fontSize,
+                    fontWeight = FontWeight.Medium,
+                    color = RunkkColors.TextSecondary
+                )
+            ) {
+                append(kind)
+            }
+        },
+        style = RunkkTextStyles.text(15, FontWeight.Black),
+        color = RunkkColors.TextPrimary
+    )
 }
+
+@StringRes
+internal fun kindLabelRes(kind: CardKind): Int = when (kind) {
+    CardKind.FREE_RUN -> R.string.record_kind_free
+    CardKind.BATTLE_RUN -> R.string.record_kind_battle
+    CardKind.SELF_RUN -> R.string.record_kind_self
+    CardKind.CELEB_RUN -> R.string.record_kind_celeb
+    CardKind.CREW_RUN -> R.string.record_kind_crew
+}
+
+@Composable
+internal fun kindLabel(kind: CardKind): String = stringResource(kindLabelRes(kind))
 
 private fun shortLabel(kind: CardKind): String = when (kind) {
     CardKind.FREE_RUN -> "FREE"
@@ -338,9 +402,15 @@ private fun shortLabel(kind: CardKind): String = when (kind) {
 }
 
 private const val DAYS_IN_WEEK = 7
-private val WEEK = listOf("일", "월", "화", "수", "목", "금", "토")
-private val MONTH = DateTimeFormatter.ofPattern("yyyy년 M월", Locale.KOREAN)
-private val DAY = DateTimeFormatter.ofPattern("M월 d일 (E)", Locale.KOREAN)
+private val WEEKDAYS = listOf(
+    R.string.record_weekday_sun,
+    R.string.record_weekday_mon,
+    R.string.record_weekday_tue,
+    R.string.record_weekday_wed,
+    R.string.record_weekday_thu,
+    R.string.record_weekday_fri,
+    R.string.record_weekday_sat
+)
 
 @Preview(name = "C1 기록 목록·달력", widthDp = 390, heightDp = 1000)
 @Composable

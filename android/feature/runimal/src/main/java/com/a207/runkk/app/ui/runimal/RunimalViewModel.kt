@@ -1,9 +1,12 @@
 package com.a207.runkk.app.ui.runimal
 
 import android.graphics.Bitmap
+import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.designsystem.RunkkErrorText
+import com.a207.runkk.app.core.designsystem.UiText
+import com.a207.runkk.app.core.designsystem.uiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.runimal.RunimalRepository
@@ -29,10 +32,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /** 공유 대상 3종(C-012): 기기 저장, 다른 앱, 스토리. */
-enum class RunimalShareKind(val label: String) {
-    SAVE("기기 저장"),
-    SYSTEM("다른 앱"),
-    STORY("스토리")
+enum class RunimalShareKind(@StringRes val labelRes: Int) {
+    SAVE(R.string.runimal_share_save),
+    SYSTEM(R.string.runimal_share_system),
+    STORY(R.string.runimal_share_story)
 }
 
 /** ui.share의 공유 대상 묶음. 시험에서는 가짜 대상을 넣는다. */
@@ -54,15 +57,19 @@ data class RunimalUiState(
     /** 공유할 카드 이미지(공유를 처음 누를 때 만든다). */
     val cardImage: Bitmap? = null,
     val sharing: Boolean = false,
-    val message: String? = null,
-    val error: String? = null
+    val message: UiText? = null,
+    val error: UiText? = null
 ) {
     /** 다음 판정까지 남은 횟수 문구(FR-154): 유형 전이면 "임시 유형까지 n회", 뒤면 "다음 확정까지 n회". */
-    val remainingLabel: String?
+    val remainingLabel: UiText?
         get() {
             val s = status ?: return null
             val n = s.remainingRuns ?: return null
-            return if (s.type == null) "임시 유형까지 ${n}회" else "다음 확정까지 ${n}회"
+            return if (s.type == null) {
+                uiText(R.string.runimal_remaining_provisional, n)
+            } else {
+                uiText(R.string.runimal_remaining_confirm, n)
+            }
         }
 
     /** 임시·확정 유형이 있을 때만 공유한다(FR-168). */
@@ -121,7 +128,7 @@ class RunimalViewModel internal constructor(
         if (s.sharing || !s.canShare) return
         _state.update { it.copy(sharing = true) }
         viewModelScope.launch {
-            var message: String? = null
+            var message: UiText? = null
             var image: Bitmap? = s.cardImage
             try {
                 if (image == null) {
@@ -138,14 +145,17 @@ class RunimalViewModel internal constructor(
         }
     }
 
-    private fun shareError(error: AppError): String =
-        if ((error as? AppError.Rejected)?.code == NO_TYPE) "유형이 생기면 카드를 공유할 수 있어요" else RunkkErrorText.of(error)
+    private fun shareError(error: AppError): UiText = if ((error as? AppError.Rejected)?.code == NO_TYPE) {
+        UiText.Res(R.string.runimal_share_no_type)
+    } else {
+        RunkkErrorText.of(error)
+    }
 
-    private fun messageOf(outcome: ShareOutcome): String? = when (outcome) {
+    private fun messageOf(outcome: ShareOutcome): UiText? = when (outcome) {
         ShareOutcome.Shared -> null
-        ShareOutcome.Saved -> "사진첩에 저장했어요"
-        is ShareOutcome.Fallback -> outcome.message
-        is ShareOutcome.Failed -> outcome.message
+        ShareOutcome.Saved -> UiText.Res(R.string.runimal_saved_to_gallery)
+        is ShareOutcome.Fallback -> UiText.Res(outcome.messageRes)
+        is ShareOutcome.Failed -> UiText.Res(outcome.messageRes)
     }
 
     private companion object {

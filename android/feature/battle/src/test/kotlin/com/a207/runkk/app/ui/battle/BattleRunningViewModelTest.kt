@@ -3,6 +3,7 @@
 package com.a207.runkk.app.ui.battle
 
 import app.cash.turbine.test
+import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.GeoPoint
@@ -91,10 +92,10 @@ class BattleRunningViewModelTest {
         val vm = running(w, vms)
         w.channels.channel.push(progress(gap = 5, theirs = 100))
         runCurrent()
-        assertEquals("상대 연결됨", vm.state.value.connectionLabel)
+        assertEquals(UiText.Res(R.string.battle_running_connected), vm.state.value.connectionLabel)
         w.channels.channel.push(progress(gap = 5, theirs = 100, connection = OpponentProgress.Connection.CHECKING))
         runCurrent()
-        assertEquals("상대 연결 확인 중", vm.state.value.connectionLabel)
+        assertEquals(UiText.Res(R.string.battle_running_checking), vm.state.value.connectionLabel)
     }
 
     @Test
@@ -108,7 +109,7 @@ class BattleRunningViewModelTest {
         assertTrue(vm.state.value.locked)
         vm.onUnlockTapped()
         runCurrent()
-        assertEquals("길게 눌러 해제", vm.state.value.hint)
+        assertEquals(UiText.Res(R.string.battle_running_unlock_hold), vm.state.value.hint)
         assertTrue(vm.state.value.locked)
         vm.onUnlockLongPressed()
         runCurrent()
@@ -155,7 +156,7 @@ class BattleRunningViewModelTest {
         val w = world()
         val vm = running(w, vms)
         vm.onForfeitTapped()
-        assertEquals("길게 눌러 그만두기", vm.state.value.hint)
+        assertEquals(UiText.Res(R.string.battle_running_forfeit_hold), vm.state.value.hint)
         assertFalse(vm.state.value.confirmingForfeit)
         vm.onForfeitLongPressed()
         assertTrue(vm.state.value.confirmingForfeit)

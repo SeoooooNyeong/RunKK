@@ -31,6 +31,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.contentDescription
@@ -99,7 +100,7 @@ fun RunkkLogo(
     modifier: Modifier = Modifier,
     width: Dp? = null,
     height: Dp? = null,
-    contentDescription: String? = "런크크"
+    contentDescription: String? = stringResource(R.string.core_feedback_logo)
 ) {
     val res = when (kind) {
         RunkkLogoKind.WordmarkKo -> R.drawable.logo_wordmark_ko_lime
@@ -121,7 +122,7 @@ fun RunkkLogo(
 
 /** 불러오는 중(가운데 라임 원). 보조 기술에 [label]을 알린다. */
 @Composable
-fun RunkkLoading(modifier: Modifier = Modifier, label: String = "불러오는 중") {
+fun RunkkLoading(modifier: Modifier = Modifier, label: String = stringResource(R.string.core_feedback_loading)) {
     Box(
         modifier = modifier.fillMaxSize().semantics {
             contentDescription = label
@@ -176,7 +177,7 @@ fun RunkkErrorState(
     message: String,
     modifier: Modifier = Modifier,
     onRetry: (() -> Unit)? = null,
-    retryLabel: String = "다시 시도"
+    retryLabel: String = stringResource(R.string.core_feedback_retry)
 ) {
     Column(
         modifier = modifier.fillMaxWidth().padding(24.dp),

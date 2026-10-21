@@ -2,6 +2,7 @@ package com.a207.runkk.app.ui.battle
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
@@ -46,7 +47,7 @@ data class MatchUiState(
     val match: MatchFound? = null,
     /** 자동 출발까지 남은 초. 시작 예약(BattleStart)을 받기 전이면 null. */
     val startsInSeconds: Long? = null,
-    val error: String? = null
+    val error: UiText? = null
 ) {
     companion object {
         /** 랜덤 대결 거리(FR-080). */
@@ -201,7 +202,13 @@ class MatchViewModel @Inject constructor(
         channel?.close()
         channel = null
         coordinator.abandonMatching()
-        val text = if (error == AppError.Unauthorized) BattleErrorText.of(error) else "상대를 찾는 연결이 끊겼어요. 다시 시도해 주세요"
+        val text = if (error ==
+            AppError.Unauthorized
+        ) {
+            BattleErrorText.of(error)
+        } else {
+            UiText.Res(R.string.battle_match_connection_lost)
+        }
         _state.update { MatchUiState(distance = it.distance, error = text) }
     }
 
@@ -213,8 +220,8 @@ class MatchViewModel @Inject constructor(
         tickJob?.cancel()
         channel?.close()
         channel = null
-        val text = BattleErrorText.REJECTED[failed.code]
-            ?: failed.message.takeIf { it.isNotBlank() }
+        val text = BattleErrorText.REJECTED[failed.code]?.let { UiText.Res(it) }
+            ?: failed.message.takeIf { it.isNotBlank() }?.let { UiText.Plain(it) }
             ?: BattleErrorText.of(AppError.Rejected(failed.code))
         _state.update { MatchUiState(distance = it.distance, error = text) }
     }
@@ -248,7 +255,8 @@ class MatchViewModel @Inject constructor(
                         _state.update {
                             MatchUiState(
                                 distance = it.distance,
-                                error = reason?.let(BattleErrorText::of) ?: "대결을 시작하지 못했어요. 다시 시도해 주세요"
+                                error =
+                                    reason?.let(BattleErrorText::of) ?: UiText.Res(R.string.battle_match_start_failed)
                             )
                         }
                         coordinator.acknowledgeFinished()
@@ -340,7 +348,7 @@ class MatchViewModel @Inject constructor(
             if (statusLoaded) {
                 onStartMatching()
             } else {
-                _state.update { it.copy(error = "기본 대결 거리를 불러오지 못했어요. 거리를 골라 시작해 주세요") }
+                _state.update { it.copy(error = UiText.Res(R.string.battle_match_default_distance_failed)) }
             }
         }
     }

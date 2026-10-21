@@ -9,6 +9,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import com.a207.runkk.app.core.designsystem.RunkkTheme
+import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.domain.account.Gender
 import com.a207.runkk.app.domain.account.MemberSettings
 import com.a207.runkk.app.domain.account.ProviderType
@@ -17,6 +18,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 
 /** 로그인·가입·탈퇴·설정 화면: 주요 버튼 동작과 접근성 라벨(Robolectric Compose). */
 @RunWith(RobolectricTestRunner::class)
@@ -26,8 +28,13 @@ class MeScreensTest {
 
     @Test
     fun `마이 프로필은 입력한 나이대·성별을 보이고 밝히지 않음은 뺀다(FR-006)`() {
-        assertEquals("30대 · 여성", aboutLine(sampleProfile))
-        assertEquals(null, aboutLine(sampleProfile.copy(ageBand = null, gender = Gender.UNDISCLOSED)))
+        val res = RuntimeEnvironment.getApplication().resources
+        assertEquals(
+            "30대 · ${res.getString(R.string.me_gender_female)}",
+            aboutLine(res, sampleProfile)
+        )
+        assertEquals("30대 · 여성", aboutLine(res, sampleProfile))
+        assertEquals(null, aboutLine(res, sampleProfile.copy(ageBand = null, gender = Gender.UNDISCLOSED)))
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 MeScreen(MeUiState(loading = false, profile = sampleProfile), onNavigate = {
@@ -137,7 +144,7 @@ class MeScreensTest {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 SignUpScreen(
-                    SignUpUiState(step = SignUpStep.AVATAR, submitError = "네트워크에 연결할 수 없어요"),
+                    SignUpUiState(step = SignUpStep.AVATAR, submitError = UiText.Plain("네트워크에 연결할 수 없어요")),
                     SignUpActions(onRetrySubmit = { retried++ })
                 )
             }
@@ -155,7 +162,7 @@ class MeScreensTest {
                 SignUpScreen(
                     SignUpUiState(
                         step = SignUpStep.AVATAR,
-                        submitError = "가입 시간이 지났어요. 다시 로그인해 주세요",
+                        submitError = UiText.Plain("가입 시간이 지났어요. 다시 로그인해 주세요"),
                         canRetrySubmit = false
                     ),
                     SignUpActions(onExit = { exited++ })
@@ -173,7 +180,7 @@ class MeScreensTest {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 SignUpScreen(
-                    SignUpUiState(step = SignUpStep.TAGS, submitError = "성향 태그는 분류마다 하나씩, 1~5개를 골라 주세요"),
+                    SignUpUiState(step = SignUpStep.TAGS, submitError = UiText.Plain("성향 태그는 분류마다 하나씩, 1~5개를 골라 주세요")),
                     SignUpActions()
                 )
             }

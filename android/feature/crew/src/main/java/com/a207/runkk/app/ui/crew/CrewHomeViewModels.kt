@@ -1,7 +1,10 @@
 package com.a207.runkk.app.ui.crew
 
+import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.a207.runkk.app.core.designsystem.UiText
+import com.a207.runkk.app.core.designsystem.uiText
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.crew.CrewDetail
@@ -25,7 +28,12 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /** 크루 홈 탭(시안 HiMyCrew): 레이스·크루런·응원보드·크루원. */
-enum class CrewTab(val label: String) { RACE("레이스"), CREW_RUN("크루런"), CHEER("응원보드"), MEMBERS("크루원") }
+enum class CrewTab(@StringRes val labelRes: Int) {
+    RACE(R.string.crew_home_tab_race),
+    CREW_RUN(R.string.crew_home_tab_crew_run),
+    CHEER(R.string.crew_home_tab_cheer),
+    MEMBERS(R.string.crew_home_tab_members)
+}
 
 data class CrewHomeUiState(
     val crewId: Long = 0,
@@ -48,8 +56,8 @@ data class CrewHomeUiState(
     val editingIntro: Boolean = false,
     val introDraft: String = "",
     val busy: Boolean = false,
-    val message: String? = null,
-    val error: String? = null
+    val message: UiText? = null,
+    val error: UiText? = null
 ) {
     val cheerValid: Boolean get() = cheerDraft.isNotBlank() && cheerDraft.length <= CHEER_MAX
 
@@ -220,7 +228,7 @@ class CrewHomeViewModel @Inject constructor(private val crews: CrewRepository) :
         viewModelScope.launch {
             when (val r = crews.deletePost(item.postId)) {
                 is Outcome.Success -> {
-                    _state.update { it.copy(busy = false, message = "글을 지웠어요") }
+                    _state.update { it.copy(busy = false, message = uiText(R.string.crew_home_post_deleted)) }
                     reloadPosts(item.kind)
                 }
 
@@ -318,7 +326,9 @@ class CrewHomeViewModel @Inject constructor(private val crews: CrewRepository) :
         viewModelScope.launch {
             when (val r = crews.editCrewProfile(s.crewId, s.introDraft.trim())) {
                 is Outcome.Success -> {
-                    _state.update { it.copy(busy = false, message = "크루 내 소개를 바꿨어요", members = null) }
+                    _state.update {
+                        it.copy(busy = false, message = uiText(R.string.crew_home_intro_changed), members = null)
+                    }
                     if (_state.value.tab == CrewTab.MEMBERS) refresh()
                 }
 
@@ -370,8 +380,8 @@ data class CrewManageUiState(
     val form: CrewFormState = CrewFormState(),
     val confirming: ManageAction? = null,
     val busy: Boolean = false,
-    val message: String? = null,
-    val error: String? = null
+    val message: UiText? = null,
+    val error: UiText? = null
 )
 
 sealed interface CrewManageEvent {
@@ -433,7 +443,13 @@ class CrewManageViewModel @Inject constructor(private val crews: CrewRepository)
 
     private fun decide(request: PendingRequests.Request, approve: Boolean) = act {
         val r = if (approve) crews.approveJoin(request.requestId) else crews.rejectJoin(request.requestId)
-        r.done(if (approve) "${request.displayName}님을 받았어요" else "${request.displayName}님의 신청을 거절했어요")
+        r.done(
+            if (approve) {
+                uiText(R.string.crew_manage_approved, request.displayName)
+            } else {
+                uiText(R.string.crew_manage_rejected, request.displayName)
+            }
+        )
     }
 
     /** 초대 코드 재발급(FR-114): 이전 코드는 바로 무효, 새 코드는 7일 유효. */
@@ -441,7 +457,7 @@ class CrewManageViewModel @Inject constructor(private val crews: CrewRepository)
         when (val r = crews.reissueInviteCode(_state.value.crewId)) {
             is Outcome.Success -> {
                 _state.update { it.copy(inviteCode = r.value) }
-                "새 초대 코드를 만들었어요. 7일 동안 쓸 수 있어요"
+                uiText(R.string.crew_manage_invite_reissued)
             }
 
             is Outcome.Failure -> CrewErrorText.of(r.error)
@@ -457,7 +473,7 @@ class CrewManageViewModel @Inject constructor(private val crews: CrewRepository)
         act {
             val r = crews.changeInfo(_state.value.crewId, form.toForm())
             if (r is Outcome.Success) _state.update { s -> s.copy(crewName = form.name.trim()) }
-            r.done("크루 정보를 바꿨어요")
+            r.done(uiText(R.string.crew_manage_info_changed))
         }
     }
 
@@ -474,13 +490,13 @@ class CrewManageViewModel @Inject constructor(private val crews: CrewRepository)
                 is ManageAction.Kick -> crews.kick(
                     crewId,
                     action.member.memberId
-                ).done("${action.member.displayName}님을 내보냈어요")
+                ).done(uiText(R.string.crew_manage_kicked, action.member.displayName))
 
                 is ManageAction.Transfer ->
                     crews.transferLeadership(
                         crewId,
                         action.member.memberId
-                    ).done("${action.member.displayName}님에게 크루장을 넘겼어요")
+                    ).done(uiText(R.string.crew_manage_transferred, action.member.displayName))
 
                 ManageAction.Delete -> when (val r = crews.delete(crewId)) {
                     is Outcome.Success -> {
@@ -498,7 +514,7 @@ class CrewManageViewModel @Inject constructor(private val crews: CrewRepository)
     /** 처리 한 번: [block]이 돌려준 문구를 안내하고 목록을 다시 읽는다. */
     private var deleted = false
 
-    private fun act(block: suspend () -> String?) {
+    private fun act(block: suspend () -> UiText?) {
         if (_state.value.busy) return
         _state.update { it.copy(busy = true) }
         viewModelScope.launch {
@@ -509,7 +525,7 @@ class CrewManageViewModel @Inject constructor(private val crews: CrewRepository)
         }
     }
 
-    private fun Outcome<Unit>.done(success: String): String = when (this) {
+    private fun Outcome<Unit>.done(success: UiText): UiText = when (this) {
         is Outcome.Success -> success
         is Outcome.Failure -> CrewErrorText.of(error)
     }

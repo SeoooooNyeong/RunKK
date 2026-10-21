@@ -1,6 +1,8 @@
 package com.a207.runkk.app.ui.crew
 
 import app.cash.turbine.test
+import com.a207.runkk.app.core.designsystem.UiText
+import com.a207.runkk.app.core.designsystem.uiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.navigation.Routes
@@ -104,7 +106,7 @@ class CrewFindViewModelTest {
         vm.onCancelConfirm()
         assertTrue("cancelJoin:91" in repo.calls)
         assertEquals(emptyList(), vm.state.value.pending)
-        assertEquals("저녁런 클럽 가입 신청을 취소했어요", vm.state.value.message)
+        assertEquals(uiText(R.string.crew_find_cancelled_message, "저녁런 클럽"), vm.state.value.message)
     }
 
     @Test
@@ -115,7 +117,7 @@ class CrewFindViewModelTest {
         val vm = CrewFindViewModel(repo)
         vm.onCancelAsk(request)
         vm.onCancelConfirm()
-        assertEquals("이미 처리된 신청이에요", vm.state.value.message)
+        assertEquals(UiText.Res(R.string.crew_error_request_decided), vm.state.value.message)
         assertEquals(2, repo.calls.count { it == "myCrew" })
     }
 
@@ -145,7 +147,7 @@ class CrewFindViewModelTest {
     fun `승인제면 신청 안내와 함께 대기 중 신청에 더하고, 가입되면 그 자리에서 내 크루 홈(FR-120·FR-121)`() {
         val vm = CrewFindViewModel(repo)
         vm.onJoin(crewC)
-        assertEquals("가입 신청했어요. 크루장이 결정하면 알려 드려요", vm.state.value.message)
+        assertEquals(UiText.Res(R.string.crew_find_applied_message), vm.state.value.message)
         assertEquals(listOf(91L), vm.state.value.pending.map { it.requestId })
         assertNull(vm.state.value.mine)
         assertEquals(JoinPolicy.APPROVAL, crewC.joinPolicy)
@@ -159,7 +161,7 @@ class CrewFindViewModelTest {
         val vm = CrewFindViewModel(repo)
         vm.onOpen(crewC)
         vm.onJoin(crewC)
-        assertEquals("크루를 나온 뒤 24시간 동안은 가입하거나 만들 수 없어요", vm.state.value.message)
+        assertEquals(UiText.Res(R.string.crew_error_cooldown), vm.state.value.message)
         assertFalse(vm.state.value.joining)
     }
 
@@ -182,7 +184,7 @@ class CrewFindViewModelTest {
         vm.onInviteOpen()
         vm.onInviteCode("AB12CD")
         vm.onInviteSubmit()
-        assertEquals("초대 코드를 너무 많이 틀렸어요. 10분 뒤 다시 시도해 주세요", vm.state.value.message)
+        assertEquals(UiText.Res(R.string.crew_error_too_many_attempts), vm.state.value.message)
     }
 }
 
@@ -218,7 +220,7 @@ class CrewCreateViewModelTest {
         val vm = CrewCreateViewModel(repo)
         vm.onForm(CrewFormState(name = "새벽질주", tags = setOf("SOCIAL_RUN")))
         vm.onSubmit()
-        assertEquals("이미 있는 크루명이에요. 다른 이름을 입력해 주세요", vm.state.value.error)
+        assertEquals(UiText.Res(R.string.crew_error_crew_name_taken), vm.state.value.error)
     }
 }
 
@@ -309,15 +311,6 @@ class CrewHomeViewModelTest {
     }
 
     @Test
-    fun `모집글 요약은 서버 crewRun의 거리·모집 일시·참여 인원이고 끝난 크루런은 완주 인원을 더한다(FR-133)`() {
-        assertEquals("5K · 10월 24일(토) 07:00 · 갈래요 2명", crewRunSummary(crewRunVoting, seoul))
-        assertEquals(
-            "10K · 10월 24일(토) 07:00 · 갈래요 3명 · 완주 3명",
-            crewRunSummary(crewRunPosts.posts[1].crewRun!!, seoul)
-        )
-    }
-
-    @Test
     fun `확인 뒤 크루를 나가면 크루 탭으로(FR-125)`() = runTest(main.dispatcher) {
         val vm = vm()
         vm.onLeaveAsk()
@@ -333,7 +326,7 @@ class CrewHomeViewModelTest {
         repo.fail["leave"] = AppError.Rejected("LEADER_MUST_TRANSFER")
         val vm = vm()
         vm.onLeaveConfirm()
-        assertEquals("크루장 양도 필요. 크루원에게 크루장을 넘긴 뒤 탈퇴해 주세요", vm.state.value.message)
+        assertEquals(UiText.Res(R.string.crew_error_leader_must_transfer), vm.state.value.message)
     }
 
     @Test
@@ -373,7 +366,7 @@ class CrewManageViewModelTest {
         val vm = vm()
         val request = vm.state.value.requests!!.requests.first()
         vm.onApprove(request)
-        assertEquals("새내기님을 받았어요", vm.state.value.message)
+        assertEquals(uiText(R.string.crew_manage_approved, "새내기"), vm.state.value.message)
         assertEquals(2, repo.calls.count { it == "pending" })
     }
 
@@ -402,7 +395,7 @@ class CrewManageViewModelTest {
         repo.fail["reissue"] = AppError.Rejected("PERMISSION_DENIED")
         val vm = vm()
         vm.onReissue()
-        assertEquals("권한 없음. 크루장만 할 수 있어요", vm.state.value.message)
+        assertEquals(UiText.Res(R.string.crew_error_permission_denied), vm.state.value.message)
     }
 
     @Test
@@ -422,7 +415,7 @@ class CrewManageViewModelTest {
         vm.onForm(vm.state.value.form.copy(name = "겹치는이름", tags = setOf("DAWN")))
         vm.onSaveInfo()
         assertEquals("새벽질주", vm.state.value.crewName)
-        assertEquals("크루명은 2~20자로 입력해 주세요", vm.state.value.message)
+        assertEquals(UiText.Res(R.string.crew_error_crew_name_invalid), vm.state.value.message)
     }
 
     @Test
@@ -449,7 +442,7 @@ class CrewRunWriteViewModelTest {
         vm.onDay(0)
         vm.onTime(LocalTime.of(7, 0))
         vm.onSubmit(11)
-        assertEquals("지난 시각이에요. 모집 일시를 다시 골라 주세요", vm.state.value.error)
+        assertEquals(UiText.Res(R.string.crew_run_write_past_time), vm.state.value.error)
         vm.onDay(4)
         vm.onDistance(Distance(10_000))
         vm.events.test {

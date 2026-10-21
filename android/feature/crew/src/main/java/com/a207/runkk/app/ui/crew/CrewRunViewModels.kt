@@ -2,6 +2,8 @@ package com.a207.runkk.app.ui.crew
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.a207.runkk.app.core.designsystem.UiText
+import com.a207.runkk.app.core.designsystem.uiText
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.navigation.Routes
@@ -41,7 +43,7 @@ data class CrewRunWriteUiState(
     val time: LocalTime = LocalTime.of(DEFAULT_HOUR, 0),
     val today: LocalDate = LocalDate.MIN,
     val saving: Boolean = false,
-    val error: String? = null
+    val error: UiText? = null
 ) {
     val valid: Boolean get() = title.isNotBlank()
 
@@ -86,7 +88,7 @@ class CrewRunWriteViewModel @Inject constructor(private val crews: CrewRepositor
         if (!s.valid || s.saving) return
         val meetAt = s.today.plusDays(s.dayOffset.toLong()).atTime(s.time).atZone(clock.zone).toInstant()
         if (!meetAt.isAfter(clock.instant())) {
-            _state.update { it.copy(error = "지난 시각이에요. 모집 일시를 다시 골라 주세요") }
+            _state.update { it.copy(error = uiText(R.string.crew_run_write_past_time)) }
             return
         }
         _state.update { it.copy(saving = true) }
@@ -138,9 +140,9 @@ data class CrewRunUiState(
     val cancelledReason: String? = null,
     val confirmingQuit: Boolean = false,
     val leaving: Boolean = false,
-    val hint: String? = null,
+    val hint: UiText? = null,
     val busy: Boolean = false,
-    val error: String? = null
+    val error: UiText? = null
 )
 
 sealed interface CrewRunEvent {
@@ -244,7 +246,7 @@ class CrewRunViewModel @Inject constructor(
         }
     }
 
-    fun onQuitTapped() = showHint("길게 눌러 그만두기")
+    fun onQuitTapped() = showHint(uiText(R.string.crew_run_quit_hint))
 
     fun onQuitLongPressed() {
         if (_state.value.phase == CrewRunPhase.RUNNING || _state.value.phase == CrewRunPhase.COUNTDOWN) {
@@ -329,7 +331,7 @@ class CrewRunViewModel @Inject constructor(
         }
     }
 
-    private fun showHint(text: String) {
+    private fun showHint(text: UiText) {
         _state.update { it.copy(hint = text) }
         hintJob?.cancel()
         hintJob = viewModelScope.launch {
@@ -352,7 +354,7 @@ private fun Lobby.myReady(): Boolean? = participants.firstOrNull { it.me }?.read
 data class CrewRunResultUiState(
     val loading: Boolean = true,
     val result: CrewRunResult? = null,
-    val error: String? = null
+    val error: UiText? = null
 ) {
     val finishedCount: Int get() = result?.finishers?.count { it.rank != null } ?: 0
 }

@@ -3,6 +3,7 @@
 package com.a207.runkk.app.ui.crew
 
 import app.cash.turbine.test
+import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.navigation.Routes
@@ -131,7 +132,7 @@ class CrewRunViewModelTest {
         w.channels.channel.push(relay(Triple("나", 400, 1)))
         runCurrent()
         vm.onQuitTapped()
-        assertEquals("길게 눌러 그만두기", vm.state.value.hint)
+        assertEquals(UiText.Res(R.string.crew_run_quit_hint), vm.state.value.hint)
         vm.onQuitLongPressed()
         assertTrue(vm.state.value.confirmingQuit)
         assertFalse(w.crews.calls.any { it.startsWith("quit") })
@@ -177,7 +178,7 @@ class CrewRunViewModelTest {
         runCurrent()
         assertEquals(2, vm.state.value.finishedCount)
         assertTrue(vm.state.value.result!!.firstCrewRun)
-        assertEquals("연결 확인 중", connectionLabel("CHECKING"))
-        assertEquals("그만둠", connectionLabel("QUIT"))
+        assertEquals(R.string.crew_run_connection_checking, connectionLabelRes("CHECKING"))
+        assertEquals(R.string.crew_run_connection_quit, connectionLabelRes("QUIT"))
     }
 }

@@ -17,6 +17,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 /** 기록 목록·달력(C1)·상세(C2)·카드 팝업 스크린샷(가짜 UiState, 390×844dp 다크). */
@@ -105,7 +106,7 @@ class RecordScreenshotTest {
     @Test
     fun cardFront() = compose.captureRunkkScreen("C2_record_card_front") {
         val card = runCard()
-        val renderer = RunCardRenderer()
+        val renderer = RunCardRenderer(RuntimeEnvironment.getApplication())
         RecordCardScreen(
             RecordCardUiState(
                 loading = false,
@@ -124,7 +125,7 @@ class RecordScreenshotTest {
     @Test
     fun cardBackNotShared() = compose.captureRunkkScreen("C2_record_card_back_not_shared") {
         val card = runCard(shared = false)
-        val renderer = RunCardRenderer()
+        val renderer = RunCardRenderer(RuntimeEnvironment.getApplication())
         RecordCardScreen(
             RecordCardUiState(
                 loading = false,

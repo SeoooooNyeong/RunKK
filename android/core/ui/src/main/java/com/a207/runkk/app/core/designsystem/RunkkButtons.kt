@@ -36,6 +36,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -80,12 +81,13 @@ fun RunkkPrimaryButton(
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val shape = RoundedCornerShape(size.corner)
+    val loadingDescription = stringResource(R.string.core_buttons_loading)
     val active = enabled && !loading
     Row(
         modifier = modifier
             .semantics(mergeDescendants = true) {
                 contentDescription = text
-                if (loading) stateDescription = "처리 중"
+                if (loading) stateDescription = loadingDescription
             }
             .heightIn(min = size.height)
             .runkkPressScale(interaction)
@@ -110,30 +112,36 @@ fun RunkkPrimaryButton(
                 strokeWidth = 3.dp
             )
         } else {
-            Text(
-                text = text,
-                style = if (size ==
-                    RunkkButtonSize.Large
-                ) {
-                    RunkkTextStyles.text(24, FontWeight.Black)
-                } else {
-                    RunkkTextStyles.Button
-                },
-                color = RunkkColors.OnLime
+            RunkkPrimaryButtonContent(text, size, trailingArrow)
+        }
+    }
+}
+
+/** 기본 CTA의 글자와(있으면) 오른쪽 검은 원 화살표. */
+@Composable
+private fun RunkkPrimaryButtonContent(text: String, size: RunkkButtonSize, trailingArrow: Boolean) {
+    Text(
+        text = text,
+        style = if (size ==
+            RunkkButtonSize.Large
+        ) {
+            RunkkTextStyles.text(24, FontWeight.Black)
+        } else {
+            RunkkTextStyles.Button
+        },
+        color = RunkkColors.OnLime
+    )
+    if (trailingArrow) {
+        Box(
+            modifier = Modifier.size(40.dp).clip(CircleShape).background(RunkkColors.OnLime),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                RunkkIcons.ArrowRight,
+                contentDescription = null,
+                tint = RunkkColors.Lime,
+                modifier = Modifier.size(20.dp)
             )
-            if (trailingArrow) {
-                Box(
-                    modifier = Modifier.size(40.dp).clip(CircleShape).background(RunkkColors.OnLime),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        RunkkIcons.ArrowRight,
-                        contentDescription = null,
-                        tint = RunkkColors.Lime,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            }
         }
     }
 }
@@ -335,13 +343,14 @@ fun RunkkIconButton(
     borderColor: Color = RunkkColors.Border
 ) {
     val interaction = remember { MutableInteractionSource() }
+    val newBadgeDescription = stringResource(R.string.core_buttons_new_badge)
     Box(
         modifier = modifier
             .minimumInteractiveComponentSize()
             .clickable(interactionSource = interaction, indication = null, role = Role.Button, onClick = onClick)
             .semantics {
                 this.contentDescription = contentDescription
-                if (badge) stateDescription = "새 소식 있음"
+                if (badge) stateDescription = newBadgeDescription
             },
         contentAlignment = Alignment.Center
     ) {
@@ -396,25 +405,10 @@ fun RunkkLongPressButton(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .size(size)
-                .runkkPressScale(interaction, pressedScale = 0.94f)
-                .clip(shape)
-                .background(background)
-                .border(borderWidth, borderColor, shape)
-                .combinedClickable(
-                    interactionSource = interaction,
-                    indication = null,
-                    role = Role.Button,
-                    onClickLabel = tapLabel,
-                    onLongClickLabel = longPressLabel,
-                    onLongClick = onLongPress,
-                    onClick = onTap
-                )
-                .semantics { this.contentDescription = contentDescription },
-            contentAlignment = Alignment.Center
-        ) { content() }
+        LongPressTarget(
+            interaction, onTap, onLongPress, tapLabel, longPressLabel, contentDescription,
+            size, shape, borderColor, borderWidth, background, content
+        )
         if (caption != null) {
             Text(
                 text = caption,
@@ -424,6 +418,44 @@ fun RunkkLongPressButton(
             )
         }
     }
+}
+
+/** 길게 누르는 버튼의 원형 누름 영역. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun LongPressTarget(
+    interaction: MutableInteractionSource,
+    onTap: () -> Unit,
+    onLongPress: () -> Unit,
+    tapLabel: String,
+    longPressLabel: String,
+    contentDescription: String,
+    size: Dp,
+    shape: Shape,
+    borderColor: Color,
+    borderWidth: Dp,
+    background: Color,
+    content: @Composable () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(size)
+            .runkkPressScale(interaction, pressedScale = 0.94f)
+            .clip(shape)
+            .background(background)
+            .border(borderWidth, borderColor, shape)
+            .combinedClickable(
+                interactionSource = interaction,
+                indication = null,
+                role = Role.Button,
+                onClickLabel = tapLabel,
+                onLongClickLabel = longPressLabel,
+                onLongClick = onLongPress,
+                onClick = onTap
+            )
+            .semantics { this.contentDescription = contentDescription },
+        contentAlignment = Alignment.Center
+    ) { content() }
 }
 
 /** 라임 글자 링크("보기", "설정", "바꾸기"). 터치 영역 48dp. */

@@ -39,6 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -69,7 +70,6 @@ fun RunkkTextField(
     imeAction: ImeAction = ImeAction.Next,
     onImeAction: (() -> Unit)? = null
 ) {
-    val shape = RunkkShapes.Small
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         BasicTextField(
             value = value,
@@ -88,44 +88,59 @@ fun RunkkTextField(
                 },
             // 라벨을 입력칸 장식 안에 두어 입력칸 노드가 라벨을 이름으로 읽게 한다(값이 있어도 "라벨, 값, 편집 상자").
             decorationBox = { inner ->
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(text = label, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 48.dp)
-                            .clip(shape)
-                            .background(RunkkColors.Surface)
-                            .border(1.dp, if (error != null) RunkkColors.Lavender else RunkkColors.InputBorder, shape)
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        contentAlignment = Alignment.CenterStart
-                    ) {
-                        if (value.isEmpty() && placeholder != null) {
-                            Text(
-                                text = placeholder,
-                                style = RunkkTextStyles.text(16),
-                                color = RunkkColors.TextSecondary
-                            )
-                        }
-                        inner()
-                    }
-                }
+                RunkkTextFieldDecoration(label, value, placeholder, error != null, inner)
             }
         )
-        when {
-            error != null -> Text(
-                text = error,
-                style = RunkkTextStyles.Caption,
-                color = RunkkColors.Lavender,
-                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
-            )
+        RunkkFieldFootnote(error, supporting)
+    }
+}
 
-            supporting != null -> Text(
-                text = supporting,
-                style = RunkkTextStyles.Caption,
-                color = RunkkColors.TextSecondary
-            )
+/** 입력칸 장식: 위 라벨, 테두리 상자, 비었을 때 자리 문구. */
+@Composable
+private fun RunkkTextFieldDecoration(
+    label: String,
+    value: String,
+    placeholder: String?,
+    hasError: Boolean,
+    inner: @Composable () -> Unit
+) {
+    val shape = RunkkShapes.Small
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(text = label, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 48.dp)
+                .clip(shape)
+                .background(RunkkColors.Surface)
+                .border(1.dp, if (hasError) RunkkColors.Lavender else RunkkColors.InputBorder, shape)
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            if (value.isEmpty() && placeholder != null) {
+                Text(text = placeholder, style = RunkkTextStyles.text(16), color = RunkkColors.TextSecondary)
+            }
+            inner()
         }
+    }
+}
+
+/** 입력칸 아래 줄: 오류가 우선, 없으면 보조 문구. */
+@Composable
+private fun RunkkFieldFootnote(error: String?, supporting: String?) {
+    when {
+        error != null -> Text(
+            text = error,
+            style = RunkkTextStyles.Caption,
+            color = RunkkColors.Lavender,
+            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+        )
+
+        supporting != null -> Text(
+            text = supporting,
+            style = RunkkTextStyles.Caption,
+            color = RunkkColors.TextSecondary
+        )
     }
 }
 
@@ -138,42 +153,14 @@ fun <T> RunkkSelectField(
     optionLabel: (T) -> String,
     onSelect: (T) -> Unit,
     modifier: Modifier = Modifier,
-    placeholder: String = "선택"
+    placeholder: String = stringResource(R.string.core_fields_select)
 ) {
     var expanded by remember { mutableStateOf(false) }
-    val shape = RunkkShapes.Small
+    val selectActionLabel = stringResource(R.string.core_fields_select_action, label)
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(text = label, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
         Box {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 48.dp)
-                    .clip(shape)
-                    .background(RunkkColors.Surface)
-                    .border(1.dp, RunkkColors.InputBorder, shape)
-                    .clickable(role = Role.DropdownList, onClickLabel = "$label 고르기") { expanded = true }
-                    .semantics {
-                        contentDescription = label
-                        stateDescription =
-                            selected?.let(optionLabel) ?: placeholder
-                    }
-                    .padding(horizontal = 16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = selected?.let(optionLabel) ?: placeholder,
-                    style = RunkkTextStyles.text(15),
-                    color = if (selected == null) RunkkColors.TextSecondary else RunkkColors.TextPrimary,
-                    modifier = Modifier.weight(1f)
-                )
-                Icon(
-                    RunkkIcons.ChevronRight,
-                    contentDescription = null,
-                    tint = RunkkColors.TextSecondary,
-                    modifier = Modifier.size(16.dp)
-                )
-            }
+            RunkkSelectBox(label, selected?.let(optionLabel), placeholder, selectActionLabel) { expanded = true }
             DropdownMenu(expanded = expanded, onDismissRequest = {
                 expanded = false
             }, modifier = Modifier.heightIn(max = 320.dp).background(RunkkColors.Surface)) {
@@ -235,6 +222,46 @@ fun RunkkSwitchRow(
     }
 }
 
+/** 고르기 칸의 입력칸 모양 줄: 고른 값(없으면 [placeholder])과 화살표. */
+@Composable
+private fun RunkkSelectBox(
+    label: String,
+    selectedText: String?,
+    placeholder: String,
+    selectActionLabel: String,
+    onOpen: () -> Unit
+) {
+    val shape = RunkkShapes.Small
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .clip(shape)
+            .background(RunkkColors.Surface)
+            .border(1.dp, RunkkColors.InputBorder, shape)
+            .clickable(role = Role.DropdownList, onClickLabel = selectActionLabel, onClick = onOpen)
+            .semantics {
+                contentDescription = label
+                stateDescription = selectedText ?: placeholder
+            }
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = selectedText ?: placeholder,
+            style = RunkkTextStyles.text(15),
+            color = if (selectedText == null) RunkkColors.TextSecondary else RunkkColors.TextPrimary,
+            modifier = Modifier.weight(1f)
+        )
+        Icon(
+            RunkkIcons.ChevronRight,
+            contentDescription = null,
+            tint = RunkkColors.TextSecondary,
+            modifier = Modifier.size(16.dp)
+        )
+    }
+}
+
 /**
  * 체크 한 줄(약관 동의): [tag]("[필수]" 라임 / "[선택]" 보조색) + 문구 + 오른쪽 "보기"(선택).
  * [highlighted]면 "전체 동의"처럼 라임 테두리 상자로 그린다.
@@ -250,17 +277,8 @@ fun RunkkCheckRow(
     highlighted: Boolean = false,
     onView: (() -> Unit)? = null
 ) {
-    val shape = RunkkShapes.Medium
     Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .then(
-                if (highlighted) {
-                    Modifier.clip(shape).background(RunkkColors.LimeContainer).border(1.dp, RunkkColors.Lime, shape)
-                } else {
-                    Modifier
-                }
-            ),
+        modifier = modifier.fillMaxWidth().then(checkRowBox(highlighted)),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Row(
@@ -281,27 +299,49 @@ fun RunkkCheckRow(
                     uncheckedColor = RunkkColors.InputBorder
                 )
             )
-            Text(
-                text = androidx.compose.ui.text.buildAnnotatedString {
-                    if (tag != null) {
-                        pushStyle(
-                            androidx.compose.ui.text.SpanStyle(
-                                color = if (tagHighlighted) RunkkColors.Lime else RunkkColors.TextSecondary,
-                                fontWeight = FontWeight.Bold
-                            )
-                        )
-                        append(tag)
-                        pop()
-                        append(" ")
-                    }
-                    append(label)
-                },
-                style = if (highlighted) RunkkTextStyles.text(16, FontWeight.Black) else RunkkTextStyles.Body,
-                color = RunkkColors.TextPrimary
+            RunkkCheckRowLabel(label, tag, tagHighlighted, highlighted)
+        }
+        if (onView != null) {
+            RunkkTextLink(
+                text = stringResource(R.string.core_fields_view),
+                onClick = onView,
+                contentDescription = stringResource(R.string.core_fields_view_label, label)
             )
         }
-        if (onView != null) RunkkTextLink(text = "보기", onClick = onView, contentDescription = "$label 보기")
     }
+}
+
+/** 강조 체크 줄("전체 동의")은 라임 테두리 상자로 그린다. */
+private fun checkRowBox(highlighted: Boolean): Modifier {
+    val shape = RunkkShapes.Medium
+    return if (highlighted) {
+        Modifier.clip(shape).background(RunkkColors.LimeContainer).border(1.dp, RunkkColors.Lime, shape)
+    } else {
+        Modifier
+    }
+}
+
+/** 체크 한 줄의 문구: 앞에 [tag]("[필수]" 라임 / "[선택]" 보조색)가 있으면 굵게 붙인다. */
+@Composable
+private fun RunkkCheckRowLabel(label: String, tag: String?, tagHighlighted: Boolean, highlighted: Boolean) {
+    Text(
+        text = androidx.compose.ui.text.buildAnnotatedString {
+            if (tag != null) {
+                pushStyle(
+                    androidx.compose.ui.text.SpanStyle(
+                        color = if (tagHighlighted) RunkkColors.Lime else RunkkColors.TextSecondary,
+                        fontWeight = FontWeight.Bold
+                    )
+                )
+                append(tag)
+                pop()
+                append(" ")
+            }
+            append(label)
+        },
+        style = if (highlighted) RunkkTextStyles.text(16, FontWeight.Black) else RunkkTextStyles.Body,
+        color = RunkkColors.TextPrimary
+    )
 }
 
 /**
@@ -316,7 +356,7 @@ fun RunkkConfirmDialog(
     confirmLabel: String,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
-    dismissLabel: String = "취소",
+    dismissLabel: String = stringResource(R.string.core_fields_cancel),
     destructive: Boolean = false,
     onDismissRequest: () -> Unit = onDismiss
 ) {

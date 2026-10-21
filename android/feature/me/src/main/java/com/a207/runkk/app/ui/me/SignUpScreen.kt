@@ -1,6 +1,7 @@
 package com.a207.runkk.app.ui.me
 
 import androidx.activity.compose.BackHandler
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -10,24 +11,23 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -35,7 +35,6 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -58,6 +57,7 @@ import com.a207.runkk.app.core.designsystem.RunkkTags
 import com.a207.runkk.app.core.designsystem.RunkkTextField
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
+import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.designsystem.runkkDashedBorder
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
@@ -130,8 +130,9 @@ private fun SignUpViewModel.asActions() = SignUpActions(
 @Composable
 fun SignUpScreen(state: SignUpUiState, actions: SignUpActions, modifier: Modifier = Modifier) {
     val snackbar = remember { SnackbarHostState() }
+    val errorText = state.error?.asString()
     LaunchedEffect(state.error) {
-        state.error?.let {
+        errorText?.let {
             snackbar.showSnackbar(it)
             actions.onErrorShown()
         }
@@ -139,45 +140,35 @@ fun SignUpScreen(state: SignUpUiState, actions: SignUpActions, modifier: Modifie
     Box(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
         Column(modifier = Modifier.fillMaxSize()) {
             RunkkStepTopBar(
-                title = "회원 가입",
+                title = stringResource(R.string.me_signup_title),
                 step = state.step.number,
                 total = SignUpStep.TOTAL,
                 onBack = actions.onBack
             )
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = if (state.step == SignUpStep.TAGS) 24.dp else 16.dp, vertical = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                state.submitError?.let { SubmitError(state, it, actions) }
-                when (state.step) {
-                    SignUpStep.CONSENT -> ConsentStep(state, actions)
-                    SignUpStep.PROFILE -> ProfileStep(state, actions)
-                    SignUpStep.TAGS -> TagsStep(state, actions)
-                    SignUpStep.AVATAR -> AvatarStep()
-                }
-            }
+            SignUpBody(state, actions, modifier = Modifier.weight(1f))
             BottomActions(state, actions)
         }
         RunkkSnackbarHost(snackbar, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 112.dp))
     }
-    state.legal?.let { legal ->
-        AlertDialog(
-            onDismissRequest = actions.onLegalDismissed,
-            containerColor = RunkkColors.Surface,
-            title = { Text(legal.title, style = RunkkTextStyles.CardTitle, color = RunkkColors.TextPrimary) },
-            text = {
-                Text(
-                    text = legal.body,
-                    style = RunkkTextStyles.Body,
-                    color = RunkkColors.TextSecondary,
-                    modifier = Modifier.heightIn(max = 400.dp).verticalScroll(rememberScrollState())
-                )
-            },
-            confirmButton = { TextButton(onClick = actions.onLegalDismissed) { Text("닫기", color = RunkkColors.Lime) } }
-        )
+    state.legal?.let { LegalDialog(it, actions.onLegalDismissed) }
+}
+
+/** 가입 거부 안내와 현재 단계 내용(스크롤). */
+@Composable
+private fun SignUpBody(state: SignUpUiState, actions: SignUpActions, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = if (state.step == SignUpStep.TAGS) 24.dp else 16.dp, vertical = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        state.submitError?.let { SubmitError(state, it.asString(), actions) }
+        when (state.step) {
+            SignUpStep.CONSENT -> ConsentStep(state, actions)
+            SignUpStep.PROFILE -> ProfileStep(state, actions)
+            SignUpStep.TAGS -> TagsStep(state, actions)
+            SignUpStep.AVATAR -> AvatarStep()
+        }
     }
 }
 
@@ -185,7 +176,11 @@ fun SignUpScreen(state: SignUpUiState, actions: SignUpActions, modifier: Modifie
 @Composable
 private fun SubmitError(state: SignUpUiState, message: String, actions: SignUpActions) {
     when {
-        !state.canRetrySubmit -> RunkkErrorState(message, onRetry = actions.onExit, retryLabel = "로그인으로 돌아가기")
+        !state.canRetrySubmit -> RunkkErrorState(
+            message,
+            onRetry = actions.onExit,
+            retryLabel = stringResource(R.string.me_signup_back_to_login)
+        )
 
         state.step == SignUpStep.AVATAR && !state.submitting ->
             RunkkErrorState(message, onRetry = actions.onRetrySubmit)
@@ -208,9 +203,9 @@ private fun StepHeadline(text: String, modifier: Modifier = Modifier) {
 
 @Composable
 private fun ColumnScope.ConsentStep(state: SignUpUiState, actions: SignUpActions) {
-    StepHeadline("달리기 전,\n약속 하나만 해요", modifier = Modifier.padding(horizontal = 8.dp))
+    StepHeadline(stringResource(R.string.me_signup_consent_headline), modifier = Modifier.padding(horizontal = 8.dp))
     RunkkCheckRow(
-        label = "전체 동의",
+        label = stringResource(R.string.me_signup_all_agree),
         checked = state.allAgreed,
         onCheckedChange = actions.onAllAgreedChange,
         highlighted = true
@@ -224,10 +219,12 @@ private fun ColumnScope.ConsentStep(state: SignUpUiState, actions: SignUpActions
     ) {
         SignUpConsents.items.forEachIndexed { index, line ->
             RunkkCheckRow(
-                label = line.label,
+                label = stringResource(line.labelRes),
                 checked = state.consents[line.item] == true,
                 onCheckedChange = { actions.onConsentChange(line.item, it) },
-                tag = if (line.required) "[필수]" else "[선택]",
+                tag = stringResource(
+                    if (line.required) R.string.me_signup_tag_required else R.string.me_signup_tag_optional
+                ),
                 tagHighlighted = line.required,
                 onView = line.legalType?.let { { actions.onViewLegal(line.item) } }
             )
@@ -238,43 +235,56 @@ private fun ColumnScope.ConsentStep(state: SignUpUiState, actions: SignUpActions
 
 @Composable
 private fun ColumnScope.ProfileStep(state: SignUpUiState, actions: SignUpActions) {
-    StepHeadline("트랙에서 사용할\n이름을 정해요", modifier = Modifier.padding(horizontal = 8.dp))
+    StepHeadline(stringResource(R.string.me_signup_profile_headline), modifier = Modifier.padding(horizontal = 8.dp))
     val nicknameError = state.nickname.isNotBlank() && state.nickname.trim().length !in SignUpUiState.NICKNAME_LENGTH
     RunkkTextField(
         value = state.nickname,
         onValueChange = actions.onNicknameChange,
-        label = "닉네임 · 2~20자, 비우면 계정 이름",
-        placeholder = "닉네임",
+        label = stringResource(R.string.me_signup_nickname_label),
+        placeholder = stringResource(R.string.me_profile_nickname_placeholder),
         maxLength = SignUpUiState.NICKNAME_LENGTH.last,
-        error = if (nicknameError) "닉네임은 2~20자로 입력해 주세요" else null
+        error = if (nicknameError) stringResource(R.string.me_signup_nickname_error) else null
     )
+    BirthGenderRow(state, actions)
+    RunkkTextField(
+        value = state.intro,
+        onValueChange = actions.onIntroChange,
+        label = stringResource(R.string.me_profile_intro_label),
+        placeholder = stringResource(R.string.me_profile_intro_placeholder),
+        maxLength = SignUpUiState.INTRO_MAX,
+        imeAction = androidx.compose.ui.text.input.ImeAction.Done
+    )
+    VisibilityCard(state, actions)
+}
+
+/** 출생연도·성별 선택칸. */
+@Composable
+private fun BirthGenderRow(state: SignUpUiState, actions: SignUpActions) {
+    val resources = LocalContext.current.resources
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         val thisYear = remember { Year.now().value }
         RunkkSelectField(
-            label = "출생연도 (선택)",
+            label = stringResource(R.string.me_signup_birth_year_label),
             options = remember(thisYear) { (thisYear downTo OLDEST_BIRTH_YEAR).toList() },
             selected = state.birthYear,
-            optionLabel = { "${it}년" },
+            optionLabel = { resources.getString(R.string.me_signup_birth_year_option, it) },
             onSelect = { actions.onBirthYearChange(it) },
             modifier = Modifier.weight(1f)
         )
         RunkkSelectField(
-            label = "성별 (선택)",
+            label = stringResource(R.string.me_signup_gender_label),
             options = Gender.entries,
             selected = state.gender,
-            optionLabel = ::genderLabel,
+            optionLabel = { resources.getString(genderLabelRes(it)) },
             onSelect = actions.onGenderChange,
             modifier = Modifier.weight(1f)
         )
     }
-    RunkkTextField(
-        value = state.intro,
-        onValueChange = actions.onIntroChange,
-        label = "한 줄 소개 (선택, 40자)",
-        placeholder = "소개",
-        maxLength = SignUpUiState.INTRO_MAX,
-        imeAction = androidx.compose.ui.text.input.ImeAction.Done
-    )
+}
+
+/** 기록 공개 범위 선택 카드(3단계 안내). */
+@Composable
+private fun VisibilityCard(state: SignUpUiState, actions: SignUpActions) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -290,7 +300,7 @@ private fun ColumnScope.ProfileStep(state: SignUpUiState, actions: SignUpActions
             modifier = Modifier.clearAndSetSemantics {}
         )
         Text(
-            "내 기록을 누구에게 보여 줄까요?",
+            stringResource(R.string.me_signup_visibility_title),
             style = RunkkTextStyles.CardTitle,
             color = RunkkColors.TextPrimary,
             modifier = Modifier.semantics {
@@ -299,7 +309,7 @@ private fun ColumnScope.ProfileStep(state: SignUpUiState, actions: SignUpActions
         )
         val options = RecordVisibilityOptions.values
         RunkkSegmentRow(
-            options = options.map { it.second },
+            options = options.map { stringResource(it.second) },
             selectedIndex = options.indexOfFirst { it.first == state.recordVisibility },
             onSelect = { actions.onVisibilityChange(options[it].first) }
         )
@@ -308,13 +318,15 @@ private fun ColumnScope.ProfileStep(state: SignUpUiState, actions: SignUpActions
 
 @Composable
 private fun ColumnScope.TagsStep(state: SignUpUiState, actions: SignUpActions) {
-    StepHeadline("나는 어떤 러너일까요?")
+    StepHeadline(stringResource(R.string.me_signup_tags_headline))
     RunkkTags.runnerCategories.forEach { category ->
-        RunkkChipGroup(title = category.name) {
+        RunkkChipGroup(title = stringResource(category.nameRes)) {
             category.tags.forEach { tag ->
-                RunkkChoiceChip(label = tag.label, selected = tag.id in state.tags, onSelectedChange = {
-                    actions.onTagToggled(tag.id)
-                })
+                RunkkChoiceChip(
+                    label = stringResource(tag.labelRes),
+                    selected = tag.id in state.tags,
+                    onSelectedChange = { actions.onTagToggled(tag.id) }
+                )
             }
         }
     }
@@ -322,7 +334,7 @@ private fun ColumnScope.TagsStep(state: SignUpUiState, actions: SignUpActions) {
 
 @Composable
 private fun ColumnScope.AvatarStep() {
-    StepHeadline("마지막으로,\n나만의 아바타를 만들어요", modifier = Modifier.padding(horizontal = 8.dp))
+    StepHeadline(stringResource(R.string.me_signup_avatar_headline), modifier = Modifier.padding(horizontal = 8.dp))
     RunkkCard(shape = RunkkShapes.ExtraLarge, verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Box(
             modifier = Modifier
@@ -339,7 +351,7 @@ private fun ColumnScope.AvatarStep() {
             )
         }
         Text(
-            text = "셀카로 SD 얼굴을 만들거나 기본 캐릭터 4종에서 고를 수 있어요.\n셀카 원본은 변환한 뒤 바로 지워요.",
+            text = stringResource(R.string.me_signup_avatar_description),
             style = RunkkTextStyles.Body,
             color = RunkkColors.TextSecondary,
             textAlign = TextAlign.Center,
@@ -368,33 +380,20 @@ private fun BottomActions(state: SignUpUiState, actions: SignUpActions) {
         when (state.step) {
             SignUpStep.AVATAR -> {
                 RunkkPrimaryButton(
-                    text = "가입하고 아바타 만들기",
+                    text = stringResource(R.string.me_signup_submit_with_avatar),
                     onClick = { actions.onSubmit(true) },
                     loading = state.submitting,
                     modifier = Modifier.fillMaxWidth()
                 )
-                RunkkSecondaryButton(text = "나중에 만들기", onClick = {
+                RunkkSecondaryButton(text = stringResource(R.string.me_signup_submit_later), onClick = {
                     actions.onSubmit(false)
                 }, enabled = !state.submitting, modifier = Modifier.fillMaxWidth())
             }
 
             else -> {
-                if (state.step == SignUpStep.TAGS) {
-                    Text(
-                        text = buildAnnotatedString {
-                            withStyle(SpanStyle(color = RunkkColors.Lime, fontWeight = FontWeight.Bold)) {
-                                append("${state.tags.size}")
-                            }
-                            append("개 선택")
-                        },
-                        style = RunkkTextStyles.Caption,
-                        color = RunkkColors.TextSecondary,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
+                if (state.step == SignUpStep.TAGS) TagsSelectedCount(state.tags.size)
                 RunkkPrimaryButton(
-                    text = "다음",
+                    text = stringResource(R.string.me_signup_next),
                     onClick = actions.onNext,
                     enabled = state.canProceed,
                     modifier = Modifier.fillMaxWidth()
@@ -404,10 +403,35 @@ private fun BottomActions(state: SignUpUiState, actions: SignUpActions) {
     }
 }
 
-internal fun genderLabel(gender: Gender): String = when (gender) {
-    Gender.FEMALE -> "여성"
-    Gender.MALE -> "남성"
-    Gender.UNDISCLOSED -> "밝히지 않음"
+/** "N개 선택" 줄. 숫자만 라임색 굵은 글씨. */
+@Composable
+private fun TagsSelectedCount(count: Int) {
+    val number = "$count"
+    val text = stringResource(R.string.me_signup_tags_selected, count)
+    Text(
+        text = buildAnnotatedString {
+            append(text)
+            val start = text.indexOf(number)
+            if (start >= 0) {
+                addStyle(
+                    SpanStyle(color = RunkkColors.Lime, fontWeight = FontWeight.Bold),
+                    start,
+                    start + number.length
+                )
+            }
+        },
+        style = RunkkTextStyles.Caption,
+        color = RunkkColors.TextSecondary,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth()
+    )
+}
+
+@StringRes
+internal fun genderLabelRes(gender: Gender): Int = when (gender) {
+    Gender.FEMALE -> R.string.me_gender_female
+    Gender.MALE -> R.string.me_gender_male
+    Gender.UNDISCLOSED -> R.string.me_gender_undisclosed
 }
 
 private const val OLDEST_BIRTH_YEAR = 1930

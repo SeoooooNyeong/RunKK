@@ -78,7 +78,7 @@ class ShareTest {
 
     @Test
     fun `러닝 카드는 앞·뒷면 모두 같은 크기로 그린다(FR-068)`() {
-        val renderer = RunCardRenderer()
+        val renderer = RunCardRenderer(context)
         val front = renderer.render(card, CardSide.FRONT)
         val back = renderer.render(card, CardSide.BACK)
         assertEquals(RunCardRenderer.WIDTH, front.width)
@@ -95,7 +95,7 @@ class ShareTest {
     fun `코스 지도 공유가 꺼져 있으면 뒷면 공유를 거부한다(FR-069)`() = runTest {
         val target = RecordingTarget()
         val sharer = CardSharer(context, FakeSettings(shared = false), uriFor = ::fileUri)
-        val outcome = sharer.share(RunCardRenderer().render(card, CardSide.BACK), CardSide.BACK, target)
+        val outcome = sharer.share(RunCardRenderer(context).render(card, CardSide.BACK), CardSide.BACK, target)
         assertIs<ShareOutcome.Failed>(outcome)
         assertEquals(CardSharer.COURSE_MAP_NOT_SHARED, outcome.code)
         assertNull(target.received)
@@ -105,7 +105,7 @@ class ShareTest {
     fun `앞면은 이미지 파일 주소를 공유 대상에 넘긴다`() = runTest {
         val target = RecordingTarget()
         val sharer = CardSharer(context, FakeSettings(shared = false), uriFor = ::fileUri)
-        val outcome = sharer.share(RunCardRenderer().render(card, CardSide.FRONT), CardSide.FRONT, target)
+        val outcome = sharer.share(RunCardRenderer(context).render(card, CardSide.FRONT), CardSide.FRONT, target)
         assertEquals(ShareOutcome.Shared, outcome)
         val uri = assertNotNull(target.received)
         assertTrue(java.io.File(requireNotNull(uri.path)).length() > 0)

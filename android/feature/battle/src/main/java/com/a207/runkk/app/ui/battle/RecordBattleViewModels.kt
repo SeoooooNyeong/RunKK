@@ -2,6 +2,7 @@ package com.a207.runkk.app.ui.battle
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
@@ -62,8 +63,8 @@ data class RecordBattleUiState(
     val selected: CandidateUi? = null,
     val confirming: Boolean = false,
     val starting: Boolean = false,
-    val message: String? = null,
-    val error: String? = null
+    val message: UiText? = null,
+    val error: UiText? = null
 )
 
 /** 기록 대결 화면의 한 번 처리 이동. */
@@ -200,10 +201,10 @@ class CelebBattleViewModel @Inject constructor(battles: BattleRepository, coordi
 }
 
 /** 유명인 거리 거르기(FR-097): 라벨 → 거리(전체는 null). */
-val CELEB_FILTERS: List<Pair<String, Distance?>> = listOf(
-    "전체" to null,
-    "5K" to Distance(5_000),
-    "10K" to Distance(10_000),
-    "하프" to Distance(HALF_MARATHON_METERS),
-    "풀" to Distance(FULL_MARATHON_METERS)
+val CELEB_FILTERS: List<Pair<UiText, Distance?>> = listOf(
+    UiText.Res(R.string.battle_filter_all) to null,
+    UiText.Plain("5K") to Distance(5_000),
+    UiText.Plain("10K") to Distance(10_000),
+    UiText.Res(R.string.battle_distance_half) to Distance(HALF_MARATHON_METERS),
+    UiText.Res(R.string.battle_distance_full) to Distance(FULL_MARATHON_METERS)
 )

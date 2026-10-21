@@ -1,5 +1,6 @@
 package com.a207.runkk.app.ui.share
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
@@ -12,6 +13,7 @@ import com.a207.runkk.app.core.model.GeoPoint
 import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.domain.record.RunCard
 import com.a207.runkk.app.domain.runimal.RunimalCard
+import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.Duration
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -98,7 +100,7 @@ internal fun cardKindLabel(kind: CardKind): String = when (kind) {
  * 러닝 카드 이미지(6.1.14 RunCardRenderer.render(card, side): Bitmap). 앞면은 기록, 뒷면은 경로선(RunCard.route),
  * 라벨은 카드 종류. 지도 타일은 지도 SDK 연동(C-005) 뒤 뒷면 바탕에 깐다. 지금은 어두운 격자 위에 경로선만 그린다.
  */
-class RunCardRenderer @Inject constructor() {
+class RunCardRenderer @Inject constructor(@ApplicationContext private val context: Context) {
     fun render(card: RunCard, side: CardSide): Bitmap {
         val bitmap = Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
@@ -117,7 +119,10 @@ class RunCardRenderer @Inject constructor() {
         canvas.drawText(date, PAD, PAD + 140f, paint(CardColors.TEXT_SECONDARY, 40f))
         canvas.drawText(km(card.distance), PAD - 8f, 700f, paint(CardColors.TEXT, 300f, NUMBER))
         canvas.drawText("KILOMETERS", PAD, 790f, paint(CardColors.TEXT_SECONDARY, 56f, NUMBER))
-        val stats = listOf("시간" to duration(card.elapsed), "평균 페이스" to pace(card.averagePace))
+        val stats = listOf(
+            context.getString(R.string.share_card_stat_time) to duration(card.elapsed),
+            context.getString(R.string.share_card_stat_pace) to pace(card.averagePace)
+        )
         stats.forEachIndexed { i, (label, value) ->
             val x = PAD + i * 460f
             canvas.drawText(label, x, 960f, paint(CardColors.TEXT_SECONDARY, 40f))
@@ -138,7 +143,7 @@ class RunCardRenderer @Inject constructor() {
             canvas.drawLine(x, area.top, x, area.bottom, grid)
             x += GRID
         }
-        drawRoute(canvas, card.route, area)
+        drawRoute(canvas, card.route, area, context.getString(R.string.share_card_no_course))
         canvas.drawText(
             "${km(card.distance)} KM · ${duration(card.elapsed)}",
             PAD,
@@ -147,9 +152,9 @@ class RunCardRenderer @Inject constructor() {
         )
     }
 
-    private fun drawRoute(canvas: Canvas, route: List<GeoPoint>, area: RectF) {
+    private fun drawRoute(canvas: Canvas, route: List<GeoPoint>, area: RectF, noCourse: String) {
         if (route.size < 2) {
-            canvas.drawText("코스 기록 없음", area.left + 40f, area.centerY(), paint(CardColors.TEXT_SECONDARY, 44f))
+            canvas.drawText(noCourse, area.left + 40f, area.centerY(), paint(CardColors.TEXT_SECONDARY, 44f))
             return
         }
         val minLat = route.minOf { it.latitude }

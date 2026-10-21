@@ -16,6 +16,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -31,6 +32,7 @@ import com.a207.runkk.app.core.designsystem.RunkkTags
 import com.a207.runkk.app.core.designsystem.RunkkTextField
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
+import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 
 /** 프로필 편집(FR-007). */
@@ -62,50 +64,29 @@ fun ProfileEditScreen(
     modifier: Modifier = Modifier
 ) {
     val snackbar = remember { SnackbarHostState() }
+    val errorText = state.error?.asString()
     LaunchedEffect(state.error) {
-        state.error?.let {
+        errorText?.let {
             snackbar.showSnackbar(it)
             onErrorShown()
         }
     }
     Box(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
         Column(modifier = Modifier.fillMaxSize()) {
-            RunkkTopBar(title = "프로필 편집", onBack = onBack)
+            RunkkTopBar(title = stringResource(R.string.me_profile_edit_title), onBack = onBack)
             if (state.loading) {
                 RunkkLoading(modifier = Modifier.weight(1f))
             } else {
-                Column(
-                    modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    RunkkTextField(
-                        value = state.nickname,
-                        onValueChange = onNicknameChange,
-                        label = "닉네임 · 2~20자",
-                        placeholder = "닉네임",
-                        maxLength = SignUpUiState.NICKNAME_LENGTH.last
-                    )
-                    RunkkTextField(
-                        value = state.intro,
-                        onValueChange = onIntroChange,
-                        label = "한 줄 소개 (선택, 40자)",
-                        placeholder = "소개",
-                        maxLength = SignUpUiState.INTRO_MAX,
-                        imeAction = ImeAction.Done
-                    )
-                    RunkkTags.runnerCategories.forEach { category ->
-                        RunkkChipGroup(title = category.name) {
-                            category.tags.forEach { tag ->
-                                RunkkChoiceChip(tag.label, selected = tag.id in state.tags, onSelectedChange = {
-                                    onTagToggled(tag.id)
-                                })
-                            }
-                        }
-                    }
-                }
+                ProfileEditForm(
+                    state = state,
+                    onNicknameChange = onNicknameChange,
+                    onIntroChange = onIntroChange,
+                    onTagToggled = onTagToggled,
+                    modifier = Modifier.weight(1f)
+                )
             }
             RunkkPrimaryButton(
-                text = "저장",
+                text = stringResource(R.string.me_profile_edit_save),
                 onClick = onSave,
                 enabled = state.canSave,
                 loading = state.saving,
@@ -113,6 +94,48 @@ fun ProfileEditScreen(
             )
         }
         RunkkSnackbarHost(snackbar, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 112.dp))
+    }
+}
+
+/** 닉네임·소개 입력칸과 성향 태그 선택. */
+@Composable
+private fun ProfileEditForm(
+    state: ProfileEditUiState,
+    onNicknameChange: (String) -> Unit,
+    onIntroChange: (String) -> Unit,
+    onTagToggled: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier.verticalScroll(rememberScrollState()).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        RunkkTextField(
+            value = state.nickname,
+            onValueChange = onNicknameChange,
+            label = stringResource(R.string.me_profile_edit_nickname_label),
+            placeholder = stringResource(R.string.me_profile_nickname_placeholder),
+            maxLength = SignUpUiState.NICKNAME_LENGTH.last
+        )
+        RunkkTextField(
+            value = state.intro,
+            onValueChange = onIntroChange,
+            label = stringResource(R.string.me_profile_intro_label),
+            placeholder = stringResource(R.string.me_profile_intro_placeholder),
+            maxLength = SignUpUiState.INTRO_MAX,
+            imeAction = ImeAction.Done
+        )
+        RunkkTags.runnerCategories.forEach { category ->
+            RunkkChipGroup(title = stringResource(category.nameRes)) {
+                category.tags.forEach { tag ->
+                    RunkkChoiceChip(
+                        stringResource(tag.labelRes),
+                        selected = tag.id in state.tags,
+                        onSelectedChange = { onTagToggled(tag.id) }
+                    )
+                }
+            }
+        }
     }
 }
 

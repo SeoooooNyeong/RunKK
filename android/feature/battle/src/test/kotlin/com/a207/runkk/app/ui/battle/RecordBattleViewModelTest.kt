@@ -3,6 +3,8 @@
 package com.a207.runkk.app.ui.battle
 
 import app.cash.turbine.test
+import com.a207.runkk.app.core.designsystem.UiText
+import com.a207.runkk.app.core.designsystem.uiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
@@ -113,7 +115,7 @@ class RecordBattleViewModelTest {
         vm.onPick(vm.state.value.candidates.first())
         vm.onStart()
         runCurrent()
-        assertEquals("고를 수 없는 기록이에요. 목록을 새로 불러왔어요", vm.state.value.message)
+        assertEquals(UiText.Res(R.string.battle_error_celebrity_removed), vm.state.value.message)
         assertNull(vm.state.value.selected)
         assertEquals(2, w.battles.calls.count { it.startsWith("celeb") })
         assertIs<BattleRunState.Idle>(w.coordinator.state.value)
@@ -122,7 +124,17 @@ class RecordBattleViewModelTest {
     @Test
     fun `출처 줄에 공개 기록 기준과 추정 안내를 붙인다(FR-100)`() {
         val estimated = CandidateUi.of(celebCandidates[1])
-        assertEquals("공개 기록 기준 · 2024 춘천마라톤 · 구간 기록이 없으면 평균 페이스로 추정", sourceLine(estimated))
-        assertEquals("풀", distanceLabel(estimated.distance))
+        assertEquals(
+            uiText(
+                R.string.battle_record_source_estimated,
+                uiText(R.string.battle_record_source_basis_label, "2024 춘천마라톤")
+            ),
+            sourceLine(estimated)
+        )
+        assertEquals(
+            uiText(R.string.battle_record_source_basis),
+            sourceLine(estimated.copy(sourceLabel = null, estimated = false))
+        )
+        assertEquals(UiText.Res(R.string.battle_distance_full), distanceLabel(estimated.distance))
     }
 }

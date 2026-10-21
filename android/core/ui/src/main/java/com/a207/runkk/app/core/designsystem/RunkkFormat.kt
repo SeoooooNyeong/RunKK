@@ -1,5 +1,8 @@
 package com.a207.runkk.app.core.designsystem
 
+import android.content.res.Resources
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalContext
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Pace
 import java.time.Duration
@@ -45,51 +48,65 @@ object RunkkFormat {
     }
 
     /** 보조 기술용 시간 읽기: "27분 48초", "1시간 2분 3초". */
-    fun durationSpoken(duration: Duration): String {
+    fun durationSpoken(res: Resources, duration: Duration): String {
         val total = duration.seconds.coerceAtLeast(0)
         val hours = total / SECONDS_PER_HOUR
         val minutes = (total % SECONDS_PER_HOUR) / SECONDS_PER_MINUTE
         val seconds = total % SECONDS_PER_MINUTE
         return buildList {
-            if (hours > 0) add("${hours}시간")
-            if (minutes > 0 || hours > 0) add("${minutes}분")
-            add("${seconds}초")
+            if (hours > 0) add(res.getString(R.string.core_spoken_hours, hours))
+            if (minutes > 0 || hours > 0) add(res.getString(R.string.core_spoken_minutes, minutes))
+            add(res.getString(R.string.core_spoken_seconds, seconds))
         }.joinToString(" ")
     }
 
     /** 보조 기술용 페이스 읽기: "1킬로미터당 5분 32초". */
-    fun paceSpoken(pace: Pace?): String {
-        if (pace == null) return "페이스 없음"
+    fun paceSpoken(res: Resources, pace: Pace?): String {
+        if (pace == null) return res.getString(R.string.core_spoken_pace_none)
         val seconds = pace.secondsPerKm
-        return "1킬로미터당 ${seconds / SECONDS_PER_MINUTE}분 ${seconds % SECONDS_PER_MINUTE}초"
+        return res.getString(R.string.core_spoken_pace, seconds / SECONDS_PER_MINUTE, seconds % SECONDS_PER_MINUTE)
     }
 
     /**
      * 보조 기술용 라벨 읽기: 영문 오버라인("LIVE BATTLE · 5K")과 거리 라벨("5K")을 한글("실시간 대결, 5킬로미터")로 바꾼다.
      * " · "로 나뉜 조각마다 바꾸고, 모르는 조각은 그대로 둔다.
      */
-    fun spokenLabel(text: String): String = text.split(SEPARATOR).joinToString(", ") { raw ->
+    fun spokenLabel(res: Resources, text: String): String = text.split(SEPARATOR).joinToString(", ") { raw ->
         val part = raw.trim()
-        SPOKEN_WORDS[part] ?: KM_LABEL.matchEntire(part)?.let { "${it.groupValues[1]}킬로미터" } ?: part
+        SPOKEN_WORDS[part]?.let(res::getString)
+            ?: KM_LABEL.matchEntire(part)?.let { res.getString(R.string.core_spoken_km, it.groupValues[1]) }
+            ?: part
     }
+
+    /** [durationSpoken]을 화면에서 쓴다. */
+    @Composable
+    fun durationSpoken(duration: Duration): String = durationSpoken(LocalContext.current.resources, duration)
+
+    /** [paceSpoken]을 화면에서 쓴다. */
+    @Composable
+    fun paceSpoken(pace: Pace?): String = paceSpoken(LocalContext.current.resources, pace)
+
+    /** [spokenLabel]을 화면에서 쓴다. */
+    @Composable
+    fun spokenLabel(text: String): String = spokenLabel(LocalContext.current.resources, text)
 
     private const val SEPARATOR = " · "
     private val KM_LABEL = Regex("""(\d+(?:\.\d+)?)K""")
     private val SPOKEN_WORDS = mapOf(
-        "LIVE BATTLE" to "실시간 대결",
-        "SELF BATTLE" to "나와의 싸움",
-        "CELEB BATTLE" to "유명인 대결",
-        "BATTLE RUN" to "배틀런",
-        "MATCHED" to "매칭 성사",
-        "BATTLE RESULT" to "대결 결과",
-        "RUNNING" to "측정 중",
-        "MY RUNIMAL" to "내 Runimal",
-        "CREW RUN" to "크루런",
-        "CREW RUN RESULT" to "크루런 결과",
-        "FREE RUN" to "자유런",
-        "FREE" to "목표 없음",
-        "KM" to "킬로미터",
-        "AVG" to "평균"
+        "LIVE BATTLE" to R.string.core_spoken_live_battle,
+        "SELF BATTLE" to R.string.core_spoken_self_battle,
+        "CELEB BATTLE" to R.string.core_spoken_celeb_battle,
+        "BATTLE RUN" to R.string.core_spoken_battle_run,
+        "MATCHED" to R.string.core_spoken_matched,
+        "BATTLE RESULT" to R.string.core_spoken_battle_result,
+        "RUNNING" to R.string.core_spoken_running,
+        "MY RUNIMAL" to R.string.core_spoken_my_runimal,
+        "CREW RUN" to R.string.core_spoken_crew_run,
+        "CREW RUN RESULT" to R.string.core_spoken_crew_run_result,
+        "FREE RUN" to R.string.core_spoken_free_run,
+        "FREE" to R.string.core_spoken_free,
+        "KM" to R.string.core_spoken_kilometer,
+        "AVG" to R.string.core_spoken_average
     )
 
     private const val METERS_PER_KM = 1_000.0

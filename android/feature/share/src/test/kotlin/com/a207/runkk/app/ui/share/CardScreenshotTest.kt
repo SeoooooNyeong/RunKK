@@ -19,6 +19,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 /** 공유 카드 이미지(러닝 카드 앞·뒷면, Runimal 카드) 스크린샷. */
@@ -48,7 +49,7 @@ class CardScreenshotTest {
     @Test
     fun runCardFront() = compose.captureRunkkScreen("share_run_card_front") {
         Image(
-            RunCardRenderer().render(card, CardSide.FRONT).asImageBitmap(),
+            RunCardRenderer(RuntimeEnvironment.getApplication()).render(card, CardSide.FRONT).asImageBitmap(),
             contentDescription = null,
             modifier = Modifier.fillMaxSize()
         )
@@ -57,7 +58,7 @@ class CardScreenshotTest {
     @Test
     fun runCardBack() = compose.captureRunkkScreen("share_run_card_back") {
         Image(
-            RunCardRenderer().render(card, CardSide.BACK).asImageBitmap(),
+            RunCardRenderer(RuntimeEnvironment.getApplication()).render(card, CardSide.BACK).asImageBitmap(),
             contentDescription = null,
             modifier = Modifier.fillMaxSize()
         )

@@ -2,6 +2,7 @@ package com.a207.runkk.app.ui.battle
 
 import com.a207.runkk.app.core.designsystem.RunkkErrorText
 import com.a207.runkk.app.core.designsystem.RunkkFormat
+import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.domain.battle.BattleRunCoordinator
@@ -24,31 +25,31 @@ enum class OpponentKind {
 
 /** 대결 거부 사유 문구(서버 ReasonCode). 모르는 코드는 공용 문구(RunkkErrorText). */
 internal object BattleErrorText {
-    fun of(error: AppError): String {
+    fun of(error: AppError): UiText {
         val code = (error as? AppError.Rejected)?.code
-        return code?.let(REJECTED::get) ?: RunkkErrorText.of(error)
+        return code?.let(REJECTED::get)?.let { UiText.Res(it) } ?: RunkkErrorText.of(error)
     }
 
-    internal val REJECTED: Map<String, String> = mapOf(
-        "RANKED_ONLY" to "유효 러닝 3회 뒤 랜덤 대결 가능, 나와의 싸움은 지금 가능",
-        "ALREADY_IN_BATTLE" to "이미 매칭을 기다리거나 대결 중이에요",
-        "ALREADY_MATCHED" to "이미 상대를 찾았어요. 곧 출발해요",
-        "MATCH_FAILED" to "대결을 만들지 못했어요. 다시 시도해 주세요",
-        "BATTLE_DISTANCE_INVALID" to "고를 수 없는 대결 거리예요",
-        "LOCATION_CONSENT_REQUIRED" to "대결하려면 위치 수집 동의가 필요해요. 마이 > 동의 관리에서 켤 수 있어요",
-        "QUEUE_UNAVAILABLE" to "잠시 후 다시 시도해 주세요",
-        "NO_RECORD" to "아직 기록이 없어요",
-        "CELEBRITY_REMOVED" to "고를 수 없는 기록이에요. 목록을 새로 불러왔어요",
-        "BATTLE_NOT_FOUND" to "대결을 찾지 못했어요",
-        AppError.Rejected.LOCATION_CONSENT to "대결하려면 위치 권한과 위치 수집 동의가 필요해요"
+    internal val REJECTED: Map<String, Int> = mapOf(
+        "RANKED_ONLY" to R.string.battle_error_ranked_only,
+        "ALREADY_IN_BATTLE" to R.string.battle_error_already_in_battle,
+        "ALREADY_MATCHED" to R.string.battle_error_already_matched,
+        "MATCH_FAILED" to R.string.battle_error_match_failed,
+        "BATTLE_DISTANCE_INVALID" to R.string.battle_error_distance_invalid,
+        "LOCATION_CONSENT_REQUIRED" to R.string.battle_error_location_consent_required,
+        "QUEUE_UNAVAILABLE" to R.string.battle_error_queue_unavailable,
+        "NO_RECORD" to R.string.battle_no_record_yet,
+        "CELEBRITY_REMOVED" to R.string.battle_error_celebrity_removed,
+        "BATTLE_NOT_FOUND" to R.string.battle_error_not_found,
+        AppError.Rejected.LOCATION_CONSENT to R.string.battle_error_location_permission
     )
 }
 
 /** 거리 라벨: 21,097m → "하프", 42,195m → "풀", 그 밖은 "5K". */
-internal fun distanceLabel(distance: Distance): String = when (distance.meters) {
-    in HALF_MIN..HALF_MAX -> "하프"
-    in FULL_MIN..FULL_MAX -> "풀"
-    else -> RunkkFormat.targetLabel(distance)
+internal fun distanceLabel(distance: Distance): UiText = when (distance.meters) {
+    in HALF_MIN..HALF_MAX -> UiText.Res(R.string.battle_distance_half)
+    in FULL_MIN..FULL_MAX -> UiText.Res(R.string.battle_distance_full)
+    else -> UiText.Plain(RunkkFormat.targetLabel(distance))
 }
 
 private const val HALF_MIN = 21_000L

@@ -34,7 +34,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -72,6 +74,8 @@ import com.a207.runkk.app.core.designsystem.RunkkTextLink
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
+import com.a207.runkk.app.core.designsystem.UiText
+import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
@@ -111,7 +115,6 @@ fun AvatarSetupRoute(viewModel: AvatarSetupViewModel = hiltViewModel()) {
     )
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AvatarSetupScreen(
     state: AvatarSetupUiState,
@@ -123,67 +126,22 @@ fun AvatarSetupScreen(
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
-        RunkkTopBar(title = "아바타 만들기", onBack = onBack)
+        RunkkTopBar(title = stringResource(R.string.avatar_setup_title), onBack = onBack)
         Column(
             modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            Text("나만의 아바타를 만들어요", style = RunkkTextStyles.Headline, color = RunkkColors.TextPrimary)
-            RunkkCard(borderColor = if (state.canCreateSelfie) RunkkColors.Lime else RunkkColors.Border) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Box(
-                        Modifier.size(56.dp).clip(CircleShape).background(RunkkColors.LimeContainer),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            RunkkIcons.Camera,
-                            contentDescription = null,
-                            tint = RunkkColors.Lime,
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(
-                            "셀카로 SD 얼굴 만들기",
-                            style = RunkkTextStyles.CardTitle,
-                            color = RunkkColors.TextPrimary
-                        )
-                        Text(
-                            if (state.canCreateSelfie) SELFIE_OK else SELFIE_BLOCKED_TODAY,
-                            style = RunkkTextStyles.Caption,
-                            color = RunkkColors.TextSecondary
-                        )
-                    }
-                }
-                RunkkSecondaryButton(
-                    "셀카 찍기",
-                    onClick = onSelfie,
-                    enabled = state.canCreateSelfie && !state.working,
-                    leadingIcon = RunkkIcons.Camera,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-            RunkkSectionTitle("기본 캐릭터 고르기")
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                maxItemsInEachRow = 2
-            ) {
-                DefaultCharacter.entries.forEach { character ->
-                    CharacterOption(
-                        character,
-                        selected = character == state.selected,
-                        onClick = { onCharacter(character) },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
+            Text(
+                stringResource(R.string.avatar_setup_headline),
+                style = RunkkTextStyles.Headline,
+                color = RunkkColors.TextPrimary
+            )
+            SelfieCard(state.canCreateSelfie, state.working, onSelfie)
+            RunkkSectionTitle(stringResource(R.string.avatar_setup_pick_character))
+            CharacterGrid(state.selected, onCharacter)
             if (state.error != null) {
                 Text(
-                    state.error,
+                    state.error.asString(),
                     style = RunkkTextStyles.text(13, FontWeight.Bold),
                     color = RunkkColors.Lavender,
                     modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
@@ -191,25 +149,93 @@ fun AvatarSetupScreen(
             }
         }
         HorizontalDivider(color = RunkkColors.Border)
-        Column(
-            Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+        SetupFooter(state.selected, state.working, onConfirm, onLater)
+    }
+}
+
+/** 셀카로 SD 얼굴 만들기 카드(하루 한 번). */
+@Composable
+private fun SelfieCard(canCreateSelfie: Boolean, working: Boolean, onSelfie: () -> Unit) {
+    RunkkCard(borderColor = if (canCreateSelfie) RunkkColors.Lime else RunkkColors.Border) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            RunkkPrimaryButton(
-                state.selected?.let { "${it.label}로 시작하기" } ?: "캐릭터를 골라 주세요",
-                onClick = onConfirm,
-                enabled = state.selected != null,
-                loading = state.working,
-                modifier = Modifier.fillMaxWidth()
+            Box(
+                Modifier.size(56.dp).clip(CircleShape).background(RunkkColors.LimeContainer),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    RunkkIcons.Camera,
+                    contentDescription = null,
+                    tint = RunkkColors.Lime,
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    stringResource(R.string.avatar_setup_selfie_title),
+                    style = RunkkTextStyles.CardTitle,
+                    color = RunkkColors.TextPrimary
+                )
+                Text(
+                    stringResource(
+                        if (canCreateSelfie) R.string.avatar_setup_selfie_ok else R.string.avatar_setup_selfie_blocked
+                    ),
+                    style = RunkkTextStyles.Caption,
+                    color = RunkkColors.TextSecondary
+                )
+            }
+        }
+        RunkkSecondaryButton(
+            stringResource(R.string.avatar_setup_take_selfie),
+            onClick = onSelfie,
+            enabled = canCreateSelfie && !working,
+            leadingIcon = RunkkIcons.Camera,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+/** 기본 캐릭터 4종 고르기. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun CharacterGrid(selected: DefaultCharacter?, onCharacter: (DefaultCharacter) -> Unit) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        maxItemsInEachRow = 2
+    ) {
+        DefaultCharacter.entries.forEach { character ->
+            CharacterOption(
+                character,
+                selected = character == selected,
+                onClick = { onCharacter(character) },
+                modifier = Modifier.weight(1f)
             )
-            RunkkTextLink("나중에 할게요", onClick = onLater)
         }
     }
 }
 
-private const val SELFIE_OK = "하루 한 번 만들 수 있어요. 원본은 변환 뒤 바로 지워요"
-private const val SELFIE_BLOCKED_TODAY = "오늘은 만들 수 없어요. 내일 다시 만들 수 있어요"
+/** 시작하기 버튼과 나중에 하기 링크. */
+@Composable
+private fun SetupFooter(selected: DefaultCharacter?, working: Boolean, onConfirm: () -> Unit, onLater: () -> Unit) {
+    Column(
+        Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 32.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        RunkkPrimaryButton(
+            selected?.let { stringResource(R.string.avatar_setup_start_with, stringResource(it.labelRes)) }
+                ?: stringResource(R.string.avatar_setup_pick_prompt),
+            onClick = onConfirm,
+            enabled = selected != null,
+            loading = working,
+            modifier = Modifier.fillMaxWidth()
+        )
+        RunkkTextLink(stringResource(R.string.avatar_setup_later), onClick = onLater)
+    }
+}
 
 @Composable
 private fun CharacterOption(
@@ -218,10 +244,11 @@ private fun CharacterOption(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val name = stringResource(character.labelRes)
     RunkkCard(
         modifier = modifier.semantics { this.selected = selected },
         onClick = onClick,
-        onClickLabel = "${character.label} 고르기",
+        onClickLabel = stringResource(R.string.avatar_setup_pick_label, name),
         borderColor = if (selected) RunkkColors.Lime else RunkkColors.Border,
         background = if (selected) RunkkColors.LimeContainer else RunkkColors.Surface,
         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -230,10 +257,10 @@ private fun CharacterOption(
             Modifier.align(Alignment.CenterHorizontally).size(64.dp).clip(CircleShape).background(RunkkColors.Border),
             contentAlignment = Alignment.Center
         ) {
-            Text(character.label, style = RunkkTextStyles.text(14, FontWeight.Black), color = RunkkColors.TextPrimary)
+            Text(name, style = RunkkTextStyles.text(14, FontWeight.Black), color = RunkkColors.TextPrimary)
         }
         Text(
-            character.label,
+            name,
             style = RunkkTextStyles.Label,
             color = if (selected) RunkkColors.Lime else RunkkColors.TextSecondary,
             modifier = Modifier.align(Alignment.CenterHorizontally)
@@ -265,7 +292,18 @@ fun AvatarRoute(viewModel: AvatarViewModel = hiltViewModel()) {
     )
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+/** 안내 문구가 생기면 스낵바로 한 번 보이고 지운다. */
+@Composable
+private fun MessageEffect(message: UiText?, snackbar: SnackbarHostState, onMessageShown: () -> Unit) {
+    val context = LocalContext.current
+    LaunchedEffect(message) {
+        message?.let {
+            snackbar.showSnackbar(it.asString(context))
+            onMessageShown()
+        }
+    }
+}
+
 @Composable
 fun AvatarScreen(
     state: AvatarUiState,
@@ -279,15 +317,10 @@ fun AvatarScreen(
     modifier: Modifier = Modifier
 ) {
     val snackbar = remember { SnackbarHostState() }
-    LaunchedEffect(state.message) {
-        state.message?.let {
-            snackbar.showSnackbar(it)
-            onMessageShown()
-        }
-    }
+    MessageEffect(state.message, snackbar, onMessageShown)
     Box(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
         Column(Modifier.fillMaxSize()) {
-            RunkkTopBar(title = "아바타 꾸미기", onBack = onBack) {
+            RunkkTopBar(title = stringResource(R.string.avatar_decorate_title), onBack = onBack) {
                 Balance(state.avatar?.balance, onShop)
             }
             val avatar = state.avatar
@@ -295,92 +328,126 @@ fun AvatarScreen(
                 avatar == null && state.loading -> RunkkLoading(Modifier.weight(1f))
 
                 avatar == null -> RunkkErrorState(
-                    state.error ?: "아바타를 불러오지 못했어요",
+                    state.error?.asString() ?: stringResource(R.string.avatar_decorate_load_failed),
                     onRetry = onRetry,
                     modifier = Modifier.weight(1f)
                 )
 
-                else -> Column(
-                    modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        AvatarFigure(
-                            avatar,
-                            equippedNames = ItemSlot.entries.associateWith {
-                                state.itemName(avatar.equipped[it])
-                            },
-                            faceLayers = state.faceLayers
-                        )
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text(
-                                faceLabel(avatar),
-                                style = RunkkTextStyles.CardTitle,
-                                color = RunkkColors.TextPrimary
-                            )
-                            if (avatar.faceKey == null && avatar.defaultCharacterId == null) {
-                                Text("기본 캐릭터를 고를 수 있어요", style = RunkkTextStyles.Caption, color = RunkkColors.Lavender)
-                            }
-                            RunkkPillButton("얼굴 바꾸기", onClick = onFace, leadingIcon = RunkkIcons.Camera)
-                        }
-                    }
-                    BodyCard(avatar)
-                    RunkkSectionTitle("내 아이템 입히기")
-                    RunkkSegmentedTabs(
-                        options = ItemSlot.entries.map { it.label },
-                        selectedIndex = state.slot.ordinal,
-                        onSelect = { onSlot(ItemSlot.entries[it]) },
-                        compact = true
-                    )
-                    val owned = state.ownedInSlot
-                    if (owned.isEmpty()) {
-                        RunkkEmptyState(
-                            title = "${state.slot.label} 아이템이 없어요",
-                            message = "상점에서 리워드로 살 수 있어요",
-                            actionLabel = "상점 가기",
-                            onAction = onShop
-                        )
-                    } else {
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                            maxItemsInEachRow = 2
-                        ) {
-                            owned.forEach { item ->
-                                ItemTile(
-                                    item,
-                                    equipped = state.isEquipped(item),
-                                    onClick = { onToggle(item) },
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                        }
-                    }
-                }
+                else -> AvatarBody(state, avatar, onFace, onShop, onSlot, onToggle, Modifier.weight(1f))
             }
         }
         RunkkSnackbarHost(snackbar, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 32.dp))
     }
 }
 
-private fun faceLabel(avatar: Avatar): String = when {
-    avatar.faceKey != null -> "셀카 SD 얼굴"
-    else -> DefaultCharacter.of(avatar.defaultCharacterId)?.let { "기본 캐릭터 · ${it.label}" } ?: "얼굴 없음"
+/** 꾸미기 본문: 그림·체형·부위 탭·보유 아이템. */
+@Composable
+private fun AvatarBody(
+    state: AvatarUiState,
+    avatar: Avatar,
+    onFace: () -> Unit,
+    onShop: () -> Unit,
+    onSlot: (ItemSlot) -> Unit,
+    onToggle: (Shop.Item) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier.verticalScroll(rememberScrollState()).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        AvatarHeader(state, avatar, onFace)
+        BodyCard(avatar)
+        RunkkSectionTitle(stringResource(R.string.avatar_decorate_dress_title))
+        RunkkSegmentedTabs(
+            options = ItemSlot.entries.map { stringResource(it.labelRes) },
+            selectedIndex = state.slot.ordinal,
+            onSelect = { onSlot(ItemSlot.entries[it]) },
+            compact = true
+        )
+        OwnedItems(state, onShop, onToggle)
+    }
 }
+
+/** 아바타 그림과 얼굴 문구·얼굴 바꾸기 버튼. */
+@Composable
+private fun AvatarHeader(state: AvatarUiState, avatar: Avatar, onFace: () -> Unit) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        AvatarFigure(
+            avatar,
+            equippedNames = ItemSlot.entries.associateWith { state.itemName(avatar.equipped[it]) },
+            faceLayers = state.faceLayers
+        )
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(faceLabel(avatar), style = RunkkTextStyles.CardTitle, color = RunkkColors.TextPrimary)
+            if (avatar.faceKey == null && avatar.defaultCharacterId == null) {
+                Text(
+                    stringResource(R.string.avatar_decorate_pick_default_hint),
+                    style = RunkkTextStyles.Caption,
+                    color = RunkkColors.Lavender
+                )
+            }
+            RunkkPillButton(
+                stringResource(R.string.avatar_decorate_change_face),
+                onClick = onFace,
+                leadingIcon = RunkkIcons.Camera
+            )
+        }
+    }
+}
+
+/** 부위에 맞는 보유 아이템 목록(없으면 상점 안내). */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun OwnedItems(state: AvatarUiState, onShop: () -> Unit, onToggle: (Shop.Item) -> Unit) {
+    val owned = state.ownedInSlot
+    if (owned.isEmpty()) {
+        RunkkEmptyState(
+            title = stringResource(R.string.avatar_decorate_no_items, stringResource(state.slot.labelRes)),
+            message = stringResource(R.string.avatar_decorate_no_items_hint),
+            actionLabel = stringResource(R.string.avatar_decorate_go_shop),
+            onAction = onShop
+        )
+    } else {
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            maxItemsInEachRow = 2
+        ) {
+            owned.forEach { item ->
+                ItemTile(
+                    item,
+                    equipped = state.isEquipped(item),
+                    onClick = { onToggle(item) },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun faceLabel(avatar: Avatar): String = when {
+    avatar.faceKey != null -> stringResource(R.string.avatar_face_selfie)
+
+    else -> DefaultCharacter.of(avatar.defaultCharacterId)
+        ?.let { stringResource(R.string.avatar_face_default, stringResource(it.labelRes)) }
+        ?: stringResource(R.string.avatar_face_none)
+}
+
+private fun formatReward(value: Int?): String = value?.let { String.format(Locale.US, "%,d", it) } ?: "-"
 
 /** 리워드 잔액(누르면 상점). */
 @Composable
 private fun Balance(balance: Int?, onShop: () -> Unit) {
+    val description = stringResource(R.string.avatar_balance_open_shop, formatReward(balance))
     RunkkPillButton(
-        balance?.let { String.format(Locale.US, "%,d", it) } ?: "-",
+        formatReward(balance),
         onClick = onShop,
         leadingIcon = RunkkIcons.Bolt,
-        modifier = Modifier.semantics {
-            contentDescription = "리워드 잔액 ${balance?.let { String.format(Locale.US, "%,d", it) } ?: "-"}, 상점 열기"
-        }
+        modifier = Modifier.semantics { contentDescription = description }
     )
 }
 
@@ -391,40 +458,55 @@ private fun BodyCard(avatar: Avatar) {
     RunkkCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "체형",
+                stringResource(R.string.avatar_body_title),
                 style = RunkkTextStyles.Caption,
                 color = RunkkColors.TextSecondary,
                 modifier = Modifier.weight(1f)
             )
             Text(
-                "${stage ?: "-"}/${BODY_STAGES}단계 · ${bodyLabel(stage)}",
+                stringResource(
+                    R.string.avatar_body_stage,
+                    stage?.toString() ?: "-",
+                    BODY_STAGES,
+                    stringResource(bodyLabelRes(stage))
+                ),
                 style = RunkkTextStyles.BodyStrong,
                 color = RunkkColors.TextPrimary
             )
         }
         RunkkProgressBar((stage ?: 0).toFloat() / BODY_STAGES)
-        Text("4일 넘게 쉬면 배가 나오기 시작해요", style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
+        Text(
+            stringResource(R.string.avatar_body_rest_hint),
+            style = RunkkTextStyles.Caption,
+            color = RunkkColors.TextSecondary
+        )
         HorizontalDivider(color = RunkkColors.Border)
-        Text("피부톤은 달리는 시간을 따라가요", style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
-        Text(skinLabel(avatar.skinTone), style = RunkkTextStyles.Body, color = RunkkColors.TextPrimary)
+        Text(
+            stringResource(R.string.avatar_body_skin_hint),
+            style = RunkkTextStyles.Caption,
+            color = RunkkColors.TextSecondary
+        )
+        Text(skinLabel(avatar.skinTone).asString(), style = RunkkTextStyles.Body, color = RunkkColors.TextPrimary)
     }
 }
 
 @Composable
 private fun ItemTile(item: Shop.Item, equipped: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val wearing = stringResource(R.string.avatar_item_wearing)
+    val state = if (equipped) wearing else stringResource(R.string.avatar_item_off)
     RunkkCard(
         modifier = modifier.semantics {
             selected = equipped
-            stateDescription = if (equipped) "입는 중" else "벗은 상태"
+            stateDescription = state
         },
         onClick = onClick,
-        onClickLabel = if (equipped) "벗기" else "입기",
+        onClickLabel = stringResource(if (equipped) R.string.avatar_item_take_off else R.string.avatar_item_put_on),
         borderColor = if (equipped) RunkkColors.Lime else RunkkColors.Border,
         background = if (equipped) RunkkColors.LimeContainer else RunkkColors.Surface
     ) {
         Text(item.name, style = RunkkTextStyles.BodyStrong, color = RunkkColors.TextPrimary)
         RunkkBadge(
-            if (equipped) "입는 중" else item.slot.label,
+            if (equipped) wearing else stringResource(item.slot.labelRes),
             tone = if (equipped) RunkkBadgeTone.Lime else RunkkBadgeTone.Muted
         )
     }
@@ -442,10 +524,7 @@ internal fun AvatarFigure(
     faceLayers: List<FaceLayer> = emptyList()
 ) {
     val stage = bodyStage(avatar.bodyShape) ?: 1
-    val description = buildString {
-        append("아바타, ").append(faceLabel(avatar)).append(", 체형 ").append(bodyLabel(stage))
-        equippedNames.filterValues { it != null }.forEach { (slot, name) -> append(", ${slot.label} $name") }
-    }
+    val description = figureDescription(avatar, equippedNames, stage)
     Column(
         modifier = modifier
             .size(width = 120.dp, height = 168.dp)
@@ -460,37 +539,7 @@ internal fun AvatarFigure(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Box(
-            Modifier
-                .size(52.dp)
-                .clip(CircleShape)
-                .background(skinColor(avatar.skinTone))
-                .then(
-                    if (equippedNames[ItemSlot.HAT] !=
-                        null
-                    ) {
-                        Modifier.border(3.dp, RunkkColors.Lavender, CircleShape)
-                    } else {
-                        Modifier
-                    }
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            val placeholder: @Composable () -> Unit = {
-                Text(
-                    if (avatar.faceKey != null) "SD" else DefaultCharacter.of(avatar.defaultCharacterId)?.label ?: "?",
-                    style = RunkkTextStyles.text(12, FontWeight.Black),
-                    color = RunkkColors.OnLime
-                )
-            }
-            if (faceLayers.isEmpty()) {
-                placeholder()
-            } else {
-                RunkkAvatarFace(faceLayers, Modifier.fillMaxSize().testTag(FACE_TAG)) {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { placeholder() }
-                }
-            }
-        }
+        FigureHead(avatar, equippedNames[ItemSlot.HAT] != null, faceLayers)
         Box(
             Modifier
                 .width((BODY_BASE + (BODY_STAGES - stage) * BODY_STEP).dp)
@@ -498,24 +547,7 @@ internal fun AvatarFigure(
                 .clip(RoundedCornerShape(16.dp))
                 .background(if (equippedNames[ItemSlot.TOP] != null) RunkkColors.Lime else RunkkColors.BorderStrong)
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            repeat(2) {
-                Box(
-                    Modifier
-                        .size(width = 14.dp, height = 20.dp)
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(
-                            if (equippedNames[ItemSlot.BOTTOM] !=
-                                null
-                            ) {
-                                RunkkColors.Lavender
-                            } else {
-                                RunkkColors.BorderStrong
-                            }
-                        )
-                )
-            }
-        }
+        FigureLegs(equippedNames[ItemSlot.BOTTOM] != null)
         Spacer(Modifier.height(2.dp))
         Box(
             Modifier
@@ -523,6 +555,69 @@ internal fun AvatarFigure(
                 .clip(RoundedCornerShape(3.dp))
                 .background(if (equippedNames[ItemSlot.SHOES] != null) RunkkColors.Lime else RunkkColors.Border)
         )
+    }
+}
+
+/** 그림 하나로 읽어 주는 설명: 얼굴·체형·입은 아이템. */
+@Composable
+private fun figureDescription(avatar: Avatar, equippedNames: Map<ItemSlot, String?>, stage: Int): String {
+    val base =
+        stringResource(R.string.avatar_figure_description, faceLabel(avatar), stringResource(bodyLabelRes(stage)))
+    val slotLabels = ItemSlot.entries.associateWith { stringResource(it.labelRes) }
+    val equipped = stringResource(R.string.avatar_figure_equipped_format)
+    return buildString {
+        append(base)
+        equippedNames.filterValues { it != null }.forEach { (slot, name) ->
+            append(String.format(equipped, slotLabels.getValue(slot), name))
+        }
+    }
+}
+
+/** 머리: 피부톤 원 + 얼굴(셀카 부위 그림 또는 자리 글자). 모자를 쓰면 테두리를 두른다. */
+@Composable
+private fun FigureHead(avatar: Avatar, hasHat: Boolean, faceLayers: List<FaceLayer>) {
+    Box(
+        Modifier
+            .size(52.dp)
+            .clip(CircleShape)
+            .background(skinColor(avatar.skinTone))
+            .then(if (hasHat) Modifier.border(3.dp, RunkkColors.Lavender, CircleShape) else Modifier),
+        contentAlignment = Alignment.Center
+    ) {
+        val placeholderText = if (avatar.faceKey != null) {
+            "SD"
+        } else {
+            DefaultCharacter.of(avatar.defaultCharacterId)?.let { stringResource(it.labelRes) } ?: "?"
+        }
+        val placeholder: @Composable () -> Unit = {
+            Text(
+                placeholderText,
+                style = RunkkTextStyles.text(12, FontWeight.Black),
+                color = RunkkColors.OnLime
+            )
+        }
+        if (faceLayers.isEmpty()) {
+            placeholder()
+        } else {
+            RunkkAvatarFace(faceLayers, Modifier.fillMaxSize().testTag(FACE_TAG)) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { placeholder() }
+            }
+        }
+    }
+}
+
+/** 다리 두 개(하의를 입으면 라벤더). */
+@Composable
+private fun FigureLegs(hasBottom: Boolean) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        repeat(2) {
+            Box(
+                Modifier
+                    .size(width = 14.dp, height = 20.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(if (hasBottom) RunkkColors.Lavender else RunkkColors.BorderStrong)
+            )
+        }
     }
 }
 
@@ -561,7 +656,6 @@ fun ShopRoute(viewModel: ShopViewModel = hiltViewModel()) {
 
 private val SHOP_SLOTS: List<ItemSlot?> = listOf(null) + ItemSlot.entries
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ShopScreen(
     state: ShopUiState,
@@ -575,104 +669,116 @@ fun ShopScreen(
     modifier: Modifier = Modifier
 ) {
     val snackbar = remember { SnackbarHostState() }
-    LaunchedEffect(state.message) {
-        state.message?.let {
-            snackbar.showSnackbar(it)
-            onMessageShown()
-        }
-    }
+    MessageEffect(state.message, snackbar, onMessageShown)
     Box(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
         Column(Modifier.fillMaxSize()) {
-            RunkkTopBar(title = "상점", onBack = onBack) {
-                Text(
-                    state.shop?.balance?.let { String.format(Locale.US, "%,d", it) } ?: "-",
-                    style = RunkkTextStyles.display(22),
-                    color = RunkkColors.Lime,
-                    modifier = Modifier.semantics { contentDescription = "리워드 잔액 ${state.shop?.balance ?: 0}" }
-                )
-            }
-            RunkkSegmentedTabs(
-                options = SHOP_SLOTS.map { it?.label ?: "전체" },
-                selectedIndex = SHOP_SLOTS.indexOf(state.slot),
-                onSelect = { onSlot(SHOP_SLOTS[it]) },
-                compact = true,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
-            val shop = state.shop
-            when {
-                shop == null && state.loading -> RunkkLoading(Modifier.weight(1f))
-
-                shop == null -> RunkkErrorState(
-                    state.error ?: "상점을 불러오지 못했어요",
-                    onRetry = onRetry,
-                    modifier = Modifier.weight(1f)
-                )
-
-                shop.items.isEmpty() -> RunkkEmptyState("판매 중인 아이템이 없어요", modifier = Modifier.weight(1f))
-
-                else -> Column(
-                    Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        "달린 거리 1km마다 10, 대결 승리마다 20 리워드가 쌓여요(하루 200까지)",
-                        style = RunkkTextStyles.Caption,
-                        color = RunkkColors.TextSecondary
-                    )
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        maxItemsInEachRow = 2
-                    ) {
-                        shop.items.forEach { item ->
-                            ShopTile(item, onClick = { onPick(item) }, modifier = Modifier.weight(1f))
-                        }
-                    }
-                }
-            }
+            ShopHeader(state, onBack, onSlot)
+            ShopContent(state, onRetry, onPick, Modifier.weight(1f))
         }
         RunkkSnackbarHost(snackbar, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 32.dp))
     }
     state.confirming?.let { item ->
         RunkkConfirmDialog(
-            title = "${item.name}을(를) 살까요?",
-            message = "${item.price} 리워드를 써요. 지금 잔액 ${state.shop?.balance ?: 0}",
-            confirmLabel = "사기",
+            title = stringResource(R.string.avatar_shop_confirm_title, item.name),
+            message = stringResource(R.string.avatar_shop_confirm_message, item.price, state.shop?.balance ?: 0),
+            confirmLabel = stringResource(R.string.avatar_shop_buy),
             onConfirm = onBuy,
             onDismiss = onDismiss
         )
     }
 }
 
+/** 상점 상단: 제목·잔액과 부위 탭. */
+@Composable
+private fun ShopHeader(state: ShopUiState, onBack: () -> Unit, onSlot: (ItemSlot?) -> Unit) {
+    val balanceDescription = stringResource(R.string.avatar_shop_balance_description, state.shop?.balance ?: 0)
+    RunkkTopBar(title = stringResource(R.string.avatar_shop_title), onBack = onBack) {
+        Text(
+            formatReward(state.shop?.balance),
+            style = RunkkTextStyles.display(22),
+            color = RunkkColors.Lime,
+            modifier = Modifier.semantics { contentDescription = balanceDescription }
+        )
+    }
+    val all = stringResource(R.string.avatar_shop_all)
+    RunkkSegmentedTabs(
+        options = SHOP_SLOTS.map { slot -> slot?.let { stringResource(it.labelRes) } ?: all },
+        selectedIndex = SHOP_SLOTS.indexOf(state.slot),
+        onSelect = { onSlot(SHOP_SLOTS[it]) },
+        compact = true,
+        modifier = Modifier.padding(horizontal = 16.dp)
+    )
+}
+
+/** 상점 본문: 불러오는 중·오류·빈 목록·아이템 목록. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ShopContent(
+    state: ShopUiState,
+    onRetry: () -> Unit,
+    onPick: (Shop.Item) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val shop = state.shop
+    when {
+        shop == null && state.loading -> RunkkLoading(modifier)
+
+        shop == null -> RunkkErrorState(
+            state.error?.asString() ?: stringResource(R.string.avatar_shop_load_failed),
+            onRetry = onRetry,
+            modifier = modifier
+        )
+
+        shop.items.isEmpty() -> RunkkEmptyState(stringResource(R.string.avatar_shop_empty), modifier = modifier)
+
+        else -> Column(
+            modifier.verticalScroll(rememberScrollState()).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                stringResource(R.string.avatar_shop_reward_hint),
+                style = RunkkTextStyles.Caption,
+                color = RunkkColors.TextSecondary
+            )
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                maxItemsInEachRow = 2
+            ) {
+                shop.items.forEach { item ->
+                    ShopTile(item, onClick = { onPick(item) }, modifier = Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun ShopTile(item: Shop.Item, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val buyable = !item.owned && item.onSale
+    val slotLabel = stringResource(item.slot.labelRes)
+    val statusText = when {
+        item.owned -> stringResource(R.string.avatar_shop_owned)
+        !item.onSale -> stringResource(R.string.avatar_shop_ended)
+        else -> stringResource(R.string.avatar_shop_price_description, item.price)
+    }
+    val description = listOf(item.name, slotLabel, statusText).joinToString(", ")
     RunkkCard(
-        modifier = modifier.semantics(mergeDescendants = true) {
-            contentDescription = listOf(
-                item.name,
-                item.slot.label,
-                when {
-                    item.owned -> "보유"
-                    !item.onSale -> "판매 종료"
-                    else -> "${item.price} 리워드"
-                }
-            ).joinToString(", ")
-        },
+        modifier = modifier.semantics(mergeDescendants = true) { contentDescription = description },
         onClick = if (buyable) onClick else null,
-        onClickLabel = "${item.name} 사기"
+        onClickLabel = stringResource(R.string.avatar_shop_buy_label, item.name)
     ) {
         Box(
             Modifier.fillMaxWidth().height(72.dp).clip(RunkkShapes.Medium).background(RunkkColors.Border),
             contentAlignment = Alignment.Center
         ) {
-            Text(item.slot.label, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
+            Text(slotLabel, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
         }
         Text(item.name, style = RunkkTextStyles.BodyStrong, color = RunkkColors.TextPrimary)
         when {
-            item.owned -> RunkkBadge("보유", tone = RunkkBadgeTone.Lime)
+            item.owned -> RunkkBadge(stringResource(R.string.avatar_shop_owned), tone = RunkkBadgeTone.Lime)
 
-            !item.onSale -> RunkkBadge("판매 종료", tone = RunkkBadgeTone.Muted)
+            !item.onSale -> RunkkBadge(stringResource(R.string.avatar_shop_ended), tone = RunkkBadgeTone.Muted)
 
             else -> Row(
                 verticalAlignment = Alignment.CenterVertically,

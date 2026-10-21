@@ -1,6 +1,7 @@
 package com.a207.runkk.app.ui.battle
 
 import androidx.compose.ui.test.junit4.createComposeRule
+import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.testing.RUNKK_PHONE
 import com.a207.runkk.app.core.designsystem.testing.captureRunkkScreen
 import com.a207.runkk.app.core.model.Distance
@@ -60,14 +61,26 @@ class BattleScreenshotTest {
         elapsed = Duration.ofSeconds(940),
         currentPace = Pace(324),
         averagePace = Pace(331),
-        connectionLabel = "상대 연결됨",
+        connectionLabel = UiText.Res(R.string.battle_running_connected),
         guidance = BattleGuidance.Kind.OVERTOOK,
         overtakes = 2
     )
 
     @Test
     fun battleLocked() = compose.captureRunkkScreen("D3_battle_locked") {
-        BattleRunningScreen(running.copy(locked = true, guidance = null, hint = "길게 눌러 해제"), {}, {}, {}, {}, {})
+        BattleRunningScreen(
+            running.copy(
+                locked = true,
+                guidance = null,
+                hint = UiText.Res(R.string.battle_running_unlock_hold)
+            ),
+            {
+            },
+            {},
+            {},
+            {},
+            {}
+        )
     }
 
     @Test

@@ -3,6 +3,7 @@ package com.a207.runkk.app.ui.run
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.designsystem.RunkkErrorText
+import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.GeoPoint
@@ -42,7 +43,7 @@ data class RunResultUiState(
     val heartRateZones: List<Pair<String, Duration>> = emptyList(),
     /** 서버에 저장된 기록(날씨·칼로리·신기록이 붙음)인가. 거짓이면 기기 보관 기록이고 전송 대기 중이다. */
     val uploaded: Boolean = false,
-    val error: String? = null
+    val error: UiText? = null
 )
 
 /**

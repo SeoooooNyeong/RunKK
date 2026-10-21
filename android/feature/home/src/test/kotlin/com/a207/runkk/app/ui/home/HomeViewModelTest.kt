@@ -1,5 +1,6 @@
 package com.a207.runkk.app.ui.home
 
+import com.a207.runkk.app.core.designsystem.RunkkErrorText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
@@ -74,7 +75,7 @@ class HomeViewModelTest {
     fun `대시보드를 못 읽으면 오류를 보이고 다시 읽는다`() {
         records.dashboardResult = Outcome.Failure(AppError.Network)
         val vm = viewModel()
-        assertTrue(vm.state.value.error!!.startsWith("네트워크"))
+        assertEquals(RunkkErrorText.of(AppError.Network), vm.state.value.error)
         assertNull(vm.state.value.dashboard)
         records.dashboardResult = Outcome.Success(sampleDashboard)
         vm.refresh()

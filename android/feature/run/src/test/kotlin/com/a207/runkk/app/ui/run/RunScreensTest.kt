@@ -16,6 +16,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 
 /** 카운트다운·측정·잠금·결과 화면: 누름 종류별 행동과 접근성 라벨. */
 @RunWith(RobolectricTestRunner::class)
@@ -78,7 +79,7 @@ class RunScreensTest {
         compose.onNode(
             androidx.compose.ui.test.SemanticsMatcher.expectValue(
                 androidx.compose.ui.semantics.SemanticsProperties.PaneTitle,
-                LOCKED_PANE_TITLE
+                RuntimeEnvironment.getApplication().getString(R.string.run_locked_pane_title)
             )
         ).assertExists()
         assertEquals(listOf("unlockTap", "unlockLong"), calls)

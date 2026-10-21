@@ -1,6 +1,7 @@
 package com.a207.runkk.app.ui.run
 
 import app.cash.turbine.test
+import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.GeoPoint
 import com.a207.runkk.app.domain.run.Guidance
@@ -114,7 +115,7 @@ class RunViewModelTest {
         tracker.tick(clock.now)
         vm.onFinishTapped()
         assertEquals(RunPhase.RUNNING, vm.state.value.phase)
-        assertEquals("길게 눌러 종료", vm.state.value.hint)
+        assertEquals(UiText.Res(R.string.run_hold_to_finish), vm.state.value.hint)
         assertTrue(guidance.played.any { it.kind == Guidance.Kind.FINISH_HINT })
         vm.events.test {
             vm.onFinishLongPressed()
@@ -144,7 +145,7 @@ class RunViewModelTest {
         vm.onUnlockTapped()
         runCurrent()
         assertEquals(RunPhase.LOCKED, vm.state.value.phase)
-        assertEquals("길게 눌러 해제", vm.state.value.hint)
+        assertEquals(UiText.Res(R.string.run_hold_to_unlock), vm.state.value.hint)
         vm.onUnlockLongPressed()
         runCurrent()
         assertEquals(RunPhase.RUNNING, vm.state.value.phase)
@@ -157,7 +158,9 @@ class RunViewModelTest {
         tracker.walk(330, 37.509)
         tracker.tick(clock.now)
         runCurrent()
-        assertTrue(vm.state.value.splitBanner!!.startsWith("1km 통과"))
+        val banner = vm.state.value.splitBanner as UiText.Res
+        assertEquals(R.string.run_split_banner, banner.id)
+        assertEquals(1L, banner.args.first())
     }
 
     @Test

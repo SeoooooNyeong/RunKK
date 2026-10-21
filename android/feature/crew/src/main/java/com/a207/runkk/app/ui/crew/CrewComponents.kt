@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
@@ -66,45 +67,55 @@ internal fun CrewFormFields(form: CrewFormState, onForm: (CrewFormState) -> Unit
         RunkkTextField(
             value = form.name,
             onValueChange = { onForm(form.copy(name = it)) },
-            label = "크루명 · 2~20자",
-            placeholder = "크루명",
+            label = stringResource(R.string.crew_form_name_label),
+            placeholder = stringResource(R.string.crew_form_name_placeholder),
             maxLength = CrewFormState.NAME_MAX
         )
         RunkkTextField(
             value = form.intro,
             onValueChange = { onForm(form.copy(intro = it)) },
-            label = "한 줄 소개 · 40자",
-            placeholder = "우리 크루를 한 줄로",
+            label = stringResource(R.string.crew_form_intro_label),
+            placeholder = stringResource(R.string.crew_form_intro_placeholder),
             maxLength = CrewFormState.INTRO_MAX
         )
         Text(
-            "성향 태그 · 분류마다 1개, 모두 1~5개 (${form.tags.size}/${RunkkTags.MAX_SELECTED})",
+            stringResource(R.string.crew_form_tags_caption, form.tags.size, RunkkTags.MAX_SELECTED),
             style = RunkkTextStyles.Caption,
             color = RunkkColors.TextSecondary
         )
-        CREW_TAG_CATEGORIES.forEach { category ->
-            RunkkChipGroup(category.name) {
-                category.tags.forEach { tag ->
-                    RunkkChoiceChip(
-                        label = tag.label,
-                        selected = tag.id in form.tags,
-                        onSelectedChange = { onForm(form.copy(tags = RunkkTags.toggle(form.tags, tag.id))) }
-                    )
-                }
-            }
-        }
+        CrewTagChoices(form, onForm)
         RunkkSegmentRow(
-            options = listOf("공개", "비공개(초대 코드로만)"),
+            options = listOf(
+                stringResource(R.string.crew_form_visibility_public),
+                stringResource(R.string.crew_form_visibility_private)
+            ),
             selectedIndex = form.visibility.ordinal,
             onSelect = { onForm(form.copy(visibility = CrewVisibility.entries[it])) },
-            groupLabel = "공개 범위"
+            groupLabel = stringResource(R.string.crew_form_visibility_group)
         )
         RunkkSegmentRow(
-            options = JoinPolicy.entries.map { it.label },
+            options = JoinPolicy.entries.map { stringResource(it.labelRes) },
             selectedIndex = form.joinPolicy.ordinal,
             onSelect = { onForm(form.copy(joinPolicy = JoinPolicy.entries[it])) },
-            groupLabel = "가입 방식"
+            groupLabel = stringResource(R.string.crew_form_join_policy_group)
         )
+    }
+}
+
+/** 성향 태그 분류별 칩. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun CrewTagChoices(form: CrewFormState, onForm: (CrewFormState) -> Unit) {
+    CREW_TAG_CATEGORIES.forEach { category ->
+        RunkkChipGroup(stringResource(category.nameRes)) {
+            category.tags.forEach { tag ->
+                RunkkChoiceChip(
+                    label = stringResource(tag.labelRes),
+                    selected = tag.id in form.tags,
+                    onSelectedChange = { onForm(form.copy(tags = RunkkTags.toggle(form.tags, tag.id))) }
+                )
+            }
+        }
     }
 }
 

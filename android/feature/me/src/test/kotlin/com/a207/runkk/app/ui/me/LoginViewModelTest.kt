@@ -3,6 +3,7 @@ package com.a207.runkk.app.ui.me
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import app.cash.turbine.test
+import com.a207.runkk.app.core.designsystem.RunkkErrorText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.account.LoginUseCase
@@ -56,7 +57,7 @@ class LoginViewModelTest {
         account.loginResult = Outcome.Failure(AppError.Rejected("PROVIDER_UNAVAILABLE"))
         val vm = viewModel()
         vm.onProviderTapped(ProviderType.KAKAO, context)
-        assertEquals("로그인 제공자 연결 실패. 잠시 뒤 다시 시도해 주세요", vm.state.value.error)
+        assertEquals(RunkkErrorText.rejected("PROVIDER_UNAVAILABLE"), vm.state.value.error)
         assertNull(vm.state.value.inProgress)
         vm.onErrorShown()
         assertNull(vm.state.value.error)
@@ -67,7 +68,7 @@ class LoginViewModelTest {
         kakao.result = Outcome.Failure(AppError.Rejected("LOGIN_CANCELLED"))
         val vm = viewModel()
         vm.onProviderTapped(ProviderType.KAKAO, context)
-        assertEquals("로그인을 취소했어요", vm.state.value.error)
+        assertEquals(RunkkErrorText.rejected("LOGIN_CANCELLED"), vm.state.value.error)
         assertEquals(emptyList(), account.calls)
     }
 }

@@ -18,6 +18,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 
 @RunWith(RobolectricTestRunner::class)
 class HomeScreenTest {
@@ -91,9 +92,19 @@ class HomeScreenTest {
 
     @Test
     fun `오늘 기록이 없으면 안내 문구, 목표가 없으면 목표 안내를 읽는다`() {
-        assertEquals("아직 달리지 않았어요", todayCaption(sampleDashboard))
-        assertEquals("목표를 정해 보세요", weeklySpoken(sampleDashboard.copy(weeklyAchievement = null)))
-        assertEquals("거리 135% 달성", weeklySpoken(sampleDashboard.copy(weeklyAchievement = 1.35)))
+        val res = RuntimeEnvironment.getApplication().resources
+        assertEquals(res.getString(R.string.home_today_not_run), todayCaption(res, sampleDashboard))
+        assertEquals("아직 달리지 않았어요", todayCaption(res, sampleDashboard))
+        assertEquals(
+            res.getString(R.string.home_summary_set_goal),
+            weeklySpoken(res, sampleDashboard.copy(weeklyAchievement = null))
+        )
+        assertEquals("목표를 정해 보세요", weeklySpoken(res, sampleDashboard.copy(weeklyAchievement = null)))
+        assertEquals(
+            res.getString(R.string.home_week_spoken_distance, 135),
+            weeklySpoken(res, sampleDashboard.copy(weeklyAchievement = 1.35))
+        )
+        assertEquals("거리 135% 달성", weeklySpoken(res, sampleDashboard.copy(weeklyAchievement = 1.35)))
     }
 
     @Test
@@ -111,8 +122,10 @@ class HomeScreenTest {
 
     @Test
     fun `계획이 없으면 목표 없이 달리기 칩`() {
-        assertEquals(listOf("목표 없이 달리기"), planChips(null))
-        assertEquals(listOf("5K"), planChips(TodayPlan(Distance(5_000), null)))
+        val res = RuntimeEnvironment.getApplication().resources
+        assertEquals(listOf(res.getString(R.string.home_plan_none)), planChips(res, null))
+        assertEquals(listOf("목표 없이 달리기"), planChips(res, null))
+        assertEquals(listOf("5K"), planChips(res, TodayPlan(Distance(5_000), null)))
     }
 
     @Test

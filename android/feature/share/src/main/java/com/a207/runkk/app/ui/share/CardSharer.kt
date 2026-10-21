@@ -32,7 +32,7 @@ class CardSharer @VisibleForTesting constructor(
 
     suspend fun share(card: Bitmap, side: CardSide, target: ShareTarget): ShareOutcome {
         if (side == CardSide.BACK && !settings.courseMapShared()) {
-            return ShareOutcome.Failed(COURSE_MAP_NOT_SHARED, "코스 지도 공유가 꺼져 있어 뒷면을 공유할 수 없어요. 마이 > 앱 설정에서 켤 수 있어요")
+            return ShareOutcome.Failed(COURSE_MAP_NOT_SHARED, R.string.share_course_map_off)
         }
         val uri = withContext(ioDispatcher) {
             shareFailureOrNull("카드 이미지 파일 쓰기 실패") {
@@ -41,10 +41,10 @@ class CardSharer @VisibleForTesting constructor(
                 dir.listFiles()?.forEach { it.delete() }
                 val file = File(dir, "card_${side.name.lowercase()}_${System.currentTimeMillis()}.png")
                 val written = file.outputStream().use { card.compress(Bitmap.CompressFormat.PNG, QUALITY, it) }
-                check(written) { "PNG 압축 실패" }
+                check(written) { "PNG compress failed" }
                 uriFor(context, file)
             }
-        } ?: return ShareOutcome.Failed(WRITE_FAILED, "카드 이미지를 만들지 못했어요")
+        } ?: return ShareOutcome.Failed(WRITE_FAILED, R.string.share_card_write_failed)
         return withContext(ioDispatcher) { target.share(context, uri) }
     }
 

@@ -1,5 +1,7 @@
 package com.a207.runkk.app.ui.record
 
+import com.a207.runkk.app.core.designsystem.RunkkErrorText
+import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
@@ -32,7 +34,7 @@ class AnalysisViewModelsTest {
     @Test
     fun `리포트 코멘트가 없으면 준비 중으로 보인다(FR-066)`() {
         val vm = ReportViewModel(records)
-        assertEquals("코멘트 준비 중", vm.state.value.commentText)
+        assertEquals(UiText.Res(R.string.record_report_comment_pending), vm.state.value.commentText)
     }
 
     @Test
@@ -47,7 +49,7 @@ class AnalysisViewModelsTest {
     @Test
     fun `랭킹 오류는 문구로 보인다`() {
         records.rankingResult = Outcome.Failure(AppError.Network)
-        assertTrue(RankingViewModel(records).state.value.error!!.startsWith("네트워크"))
+        assertEquals(RunkkErrorText.of(AppError.Network), RankingViewModel(records).state.value.error)
     }
 
     @Test
@@ -61,7 +63,7 @@ class AnalysisViewModelsTest {
         vm.onSaveWeeklyGoal()
         assertTrue("plan:2026-10-21=5000" in records.calls)
         assertTrue("weeklyGoal:4:20000" in records.calls)
-        assertEquals("이번 주 목표를 주 4회 · 20km로 정했어요", vm.state.value.message)
+        assertEquals(UiText.Res(R.string.record_coach_goal_saved, listOf(4, "20")), vm.state.value.message)
         assertEquals(2, records.calls.count { it.startsWith("progress:") })
     }
 
@@ -84,9 +86,9 @@ class AnalysisViewModelsTest {
         vm.onGoalRunsSelected(3)
         vm.onGoalDistanceSelected(Distance(20_000))
         vm.onSaveWeeklyGoal()
-        assertEquals("주간 목표는 1~7회와 0km보다 긴 거리로 정해 주세요", vm.state.value.message)
+        assertEquals(RunkkErrorText.rejected("GOAL_INVALID"), vm.state.value.message)
         vm.onMessageShown()
         vm.onTodayPlan(Distance(5_000))
-        assertEquals("지난 날짜에는 계획을 넣을 수 없어요", vm.state.value.message)
+        assertEquals(RunkkErrorText.rejected("PAST_DATE"), vm.state.value.message)
     }
 }

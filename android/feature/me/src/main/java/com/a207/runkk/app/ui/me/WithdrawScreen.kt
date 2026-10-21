@@ -1,5 +1,6 @@
 package com.a207.runkk.app.ui.me
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,6 +20,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
@@ -34,6 +37,7 @@ import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
+import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
 
@@ -53,13 +57,13 @@ fun WithdrawRoute(viewModel: WithdrawViewModel = hiltViewModel()) {
 }
 
 private val DELETED = listOf(
-    "닉네임·출생연도·성별·사진·소개 등 회원 정보",
-    "러닝 기록(위치 경로·심박 포함)과 목표·리포트",
-    "크루 소속·캐릭터·리워드·알림함",
-    "이 기기에 남은 미전송 기록"
+    R.string.me_withdraw_deleted_profile,
+    R.string.me_withdraw_deleted_records,
+    R.string.me_withdraw_deleted_social,
+    R.string.me_withdraw_deleted_pending
 )
 
-private val KEPT = listOf("대결 기록, 크루 주간 거리 기여분, 응원보드·크루런 글은 \"탈퇴한 사용자\"로 남아요")
+private val KEPT = listOf(R.string.me_withdraw_kept_item)
 
 @Composable
 fun WithdrawScreen(
@@ -72,48 +76,21 @@ fun WithdrawScreen(
 ) {
     var confirm by remember { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
+    val errorText = state.error?.asString()
     LaunchedEffect(state.error) {
-        state.error?.let {
+        errorText?.let {
             snackbar.showSnackbar(it)
             onErrorShown()
         }
     }
     Box(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
         Column(modifier = Modifier.fillMaxSize()) {
-            RunkkTopBar(title = "회원 탈퇴", onBack = onBack)
-            Column(
-                modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Text(
-                    "떠나기 전에 확인해 주세요",
-                    style = RunkkTextStyles.Headline,
-                    color = RunkkColors.TextPrimary,
-                    modifier = Modifier.semantics {
-                        heading()
-                    }
-                )
-                RunkkCard(Modifier.fillMaxWidth()) {
-                    Text("7일 안에 지워져요", style = RunkkTextStyles.BodyStrong, color = RunkkColors.Lavender)
-                    DELETED.forEach { Text("· $it", style = RunkkTextStyles.Body, color = RunkkColors.TextPrimary) }
-                }
-                RunkkCard(Modifier.fillMaxWidth()) {
-                    Text("남는 것", style = RunkkTextStyles.BodyStrong, color = RunkkColors.TextSecondary)
-                    KEPT.forEach { Text("· $it", style = RunkkTextStyles.Body, color = RunkkColors.TextSecondary) }
-                }
-                Text(
-                    "진행 중인 대결·매칭 대기가 있거나 크루원이 있는 크루장이면 탈퇴할 수 없어요.",
-                    style = RunkkTextStyles.Caption,
-                    color = RunkkColors.TextSecondary
-                )
-                RunkkCheckRow(
-                    label = "위 내용을 모두 확인했어요",
-                    checked = state.acknowledged,
-                    onCheckedChange = onAcknowledgedChange
-                )
-            }
+            RunkkTopBar(title = stringResource(R.string.me_withdraw_title), onBack = onBack)
+            WithdrawNotice(state, onAcknowledgedChange, modifier = Modifier.weight(1f))
             RunkkAccentOutlinedButton(
-                text = if (state.withdrawing) "탈퇴하는 중…" else "탈퇴하기",
+                text = stringResource(
+                    if (state.withdrawing) R.string.me_withdraw_submitting else R.string.me_withdraw_submit
+                ),
                 onClick = { confirm = true },
                 enabled = state.acknowledged && !state.withdrawing,
                 modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 32.dp)
@@ -123,15 +100,74 @@ fun WithdrawScreen(
     }
     if (confirm) {
         RunkkConfirmDialog(
-            title = "정말 탈퇴할까요?",
-            message = "탈퇴하면 되돌릴 수 없어요.",
-            confirmLabel = "탈퇴",
+            title = stringResource(R.string.me_withdraw_confirm_title),
+            message = stringResource(R.string.me_withdraw_confirm_message),
+            confirmLabel = stringResource(R.string.me_withdraw_confirm_button),
             onConfirm = {
                 confirm = false
                 onWithdraw()
             },
             onDismiss = { confirm = false },
             destructive = true
+        )
+    }
+}
+
+/** 제목과 글머리 항목을 담은 안내 카드. */
+@Composable
+private fun NoticeCard(@StringRes title: Int, items: List<Int>, titleColor: Color, itemColor: Color) {
+    RunkkCard(Modifier.fillMaxWidth()) {
+        Text(stringResource(title), style = RunkkTextStyles.BodyStrong, color = titleColor)
+        items.forEach {
+            Text(
+                stringResource(R.string.me_withdraw_bullet, stringResource(it)),
+                style = RunkkTextStyles.Body,
+                color = itemColor
+            )
+        }
+    }
+}
+
+/** 지워지는 것·남는 것 안내와 확인 체크. */
+@Composable
+private fun WithdrawNotice(
+    state: WithdrawUiState,
+    onAcknowledgedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier.verticalScroll(rememberScrollState()).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text(
+            stringResource(R.string.me_withdraw_heading),
+            style = RunkkTextStyles.Headline,
+            color = RunkkColors.TextPrimary,
+            modifier = Modifier.semantics {
+                heading()
+            }
+        )
+        NoticeCard(
+            R.string.me_withdraw_deleted_title,
+            DELETED,
+            titleColor = RunkkColors.Lavender,
+            itemColor = RunkkColors.TextPrimary
+        )
+        NoticeCard(
+            R.string.me_withdraw_kept_title,
+            KEPT,
+            titleColor = RunkkColors.TextSecondary,
+            itemColor = RunkkColors.TextSecondary
+        )
+        Text(
+            stringResource(R.string.me_withdraw_blocked_notice),
+            style = RunkkTextStyles.Caption,
+            color = RunkkColors.TextSecondary
+        )
+        RunkkCheckRow(
+            label = stringResource(R.string.me_withdraw_acknowledge),
+            checked = state.acknowledged,
+            onCheckedChange = onAcknowledgedChange
         )
     }
 }

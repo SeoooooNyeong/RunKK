@@ -24,6 +24,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -49,6 +50,7 @@ import com.a207.runkk.app.core.designsystem.RunkkStatTile
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
+import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.GeoPoint
@@ -90,48 +92,38 @@ fun RecordDetailScreen(
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
-        RunkkTopBar(title = "기록 상세", onBack = onBack) {
-            if (state.detail != null) RunkkPillButton("카드 공유", onClick = onShare, leadingIcon = RunkkIcons.Share)
+        RunkkTopBar(title = stringResource(R.string.record_detail_title), onBack = onBack) {
+            if (state.detail != null) {
+                RunkkPillButton(
+                    stringResource(R.string.record_detail_share),
+                    onClick = onShare,
+                    leadingIcon = RunkkIcons.Share
+                )
+            }
         }
         val detail = state.detail
         when {
             detail != null -> DetailBody(detail)
+
             state.loading -> RunkkLoading(modifier = Modifier.weight(1f))
-            else -> RunkkErrorState(state.error ?: "기록을 불러오지 못했어요", onRetry = onRetry)
+
+            else -> RunkkErrorState(
+                state.error?.asString() ?: stringResource(R.string.record_detail_load_failed),
+                onRetry = onRetry
+            )
         }
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun DetailBody(detail: RecordDetail) {
-    val s = detail.summary
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(
             rememberScrollState()
         ).padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            RunkkBadge(kindLabel(s.cardKind))
-            if (s.valid) {
-                RunkkBadge(
-                    "유효 러닝",
-                    tone = RunkkBadgeTone.Lime
-                )
-            } else {
-                RunkkBadge("집계 제외", tone = RunkkBadgeTone.Muted)
-            }
-            Text(
-                listOfNotNull(
-                    DATE.format(s.startedAt.atZone(ZoneId.systemDefault())),
-                    detail.weather
-                ).joinToString(" · "),
-                style = RunkkTextStyles.Caption,
-                color = RunkkColors.TextSecondary,
-                modifier = Modifier.align(Alignment.CenterVertically)
-            )
-        }
+        DetailBadges(detail)
         detail.newRecords.forEach { record ->
             RunkkBanner(record, strong = true) {
                 Icon(
@@ -142,124 +134,184 @@ private fun DetailBody(detail: RecordDetail) {
                 )
             }
         }
-        RunkkCard(
-            modifier = Modifier.fillMaxWidth().height(200.dp),
-            shape = RunkkShapes.ExtraLarge,
-            contentPadding = PaddingValues(8.dp)
-        ) {
-            CourseMapView(
-                points = detail.route,
-                unstable = remember(detail.unstableSegments, s.elapsed, detail.route.size) {
-                    unstableIndexRanges(detail.unstableSegments, s.elapsed, detail.route.size)
-                },
-                modifier = Modifier.fillMaxWidth().weight(1f)
-            )
-            if (detail.route.size <
-                2
-            ) {
-                Text(
-                    "코스 지도는 본인이거나 공유를 켠 기록만 보여요",
-                    style = RunkkTextStyles.Micro,
-                    color = RunkkColors.TextSecondary,
-                    modifier = Modifier.padding(8.dp)
-                )
-            }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            RunkkStatTile(
-                "거리",
-                RunkkFormat.km(s.distance),
-                spoken = "${RunkkFormat.km(s.distance)}킬로미터",
-                centered = true,
-                valueStyle = RunkkTextStyles.DisplaySmall,
-                modifier = Modifier.weight(1f)
-            )
-            RunkkStatTile(
-                "시간",
-                RunkkFormat.duration(s.elapsed),
-                spoken = RunkkFormat.durationSpoken(s.elapsed),
-                centered = true,
-                valueStyle = RunkkTextStyles.DisplaySmall,
-                modifier = Modifier.weight(1f)
-            )
-            RunkkStatTile(
-                "평균 페이스",
-                RunkkFormat.pace(s.averagePace),
-                spoken = RunkkFormat.paceSpoken(s.averagePace),
-                centered = true,
-                valueStyle = RunkkTextStyles.DisplaySmall,
-                modifier = Modifier.weight(1f)
-            )
-        }
+        DetailCourseCard(detail)
+        DetailStats(detail.summary)
         if (detail.splitPaces.isNotEmpty()) SplitPaces(detail)
-        if (detail.heartRateZones.isNotEmpty() || detail.averageHeartRate != null) {
-            RunkkCard {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Icon(
-                        RunkkIcons.Heart,
-                        contentDescription = null,
-                        tint = RunkkColors.Lavender,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Text(
-                        "심박 · 워치",
-                        style = RunkkTextStyles.text(14, FontWeight.Black),
-                        color = RunkkColors.TextPrimary,
-                        modifier = Modifier.weight(1f)
-                    )
-                    heartSummary(detail)?.let {
-                        Text(it, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
-                    }
-                }
-                val zones = detail.heartRateZones.toList()
-                if (zones.isEmpty()) return@RunkkCard
-                val total = zones.sumOf { it.second.seconds }.coerceAtLeast(1)
-                RunkkSegmentBar(
-                    zones.mapIndexed { i, (_, d) -> d.seconds.toFloat() / total to ZONE_COLORS[i % ZONE_COLORS.size] },
-                    modifier = Modifier.semantics {
-                        contentDescription =
-                            "심박 구간 분포: " + zones.joinToString { (z, d) -> "$z ${d.toMinutes()}분" }
-                    }
-                )
-                Text(
-                    zones.joinToString("  ") { (z, d) ->
-                        "$z ${d.toMinutes()}분"
-                    },
-                    style = RunkkTextStyles.Caption,
-                    color = RunkkColors.TextSecondary
-                )
+        if (detail.heartRateZones.isNotEmpty() || detail.averageHeartRate != null) HeartRateCard(detail)
+        DetailExtras(detail)
+    }
+}
+
+/** 맨 위 줄: 종류·유효 여부 배지와 날짜·날씨. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun DetailBadges(detail: RecordDetail) {
+    val s = detail.summary
+    val dateFormat = rememberDateFormatter(R.string.record_detail_date_pattern)
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        RunkkBadge(kindLabel(s.cardKind))
+        if (s.valid) {
+            RunkkBadge(
+                stringResource(R.string.record_detail_valid),
+                tone = RunkkBadgeTone.Lime
+            )
+        } else {
+            RunkkBadge(stringResource(R.string.record_excluded), tone = RunkkBadgeTone.Muted)
+        }
+        Text(
+            listOfNotNull(
+                dateFormat.format(s.startedAt.atZone(ZoneId.systemDefault())),
+                detail.weather
+            ).joinToString(" · "),
+            style = RunkkTextStyles.Caption,
+            color = RunkkColors.TextSecondary,
+            modifier = Modifier.align(Alignment.CenterVertically)
+        )
+    }
+}
+
+/** 코스 지도 카드. 경로가 없으면 공개 범위 안내를 덧붙인다. */
+@Composable
+private fun DetailCourseCard(detail: RecordDetail) {
+    RunkkCard(
+        modifier = Modifier.fillMaxWidth().height(200.dp),
+        shape = RunkkShapes.ExtraLarge,
+        contentPadding = PaddingValues(8.dp)
+    ) {
+        CourseMapView(
+            points = detail.route,
+            unstable = remember(detail.unstableSegments, detail.summary.elapsed, detail.route.size) {
+                unstableIndexRanges(detail.unstableSegments, detail.summary.elapsed, detail.route.size)
+            },
+            modifier = Modifier.fillMaxWidth().weight(1f)
+        )
+        if (detail.route.size <
+            2
+        ) {
+            Text(
+                stringResource(R.string.record_detail_course_hidden),
+                style = RunkkTextStyles.Micro,
+                color = RunkkColors.TextSecondary,
+                modifier = Modifier.padding(8.dp)
+            )
+        }
+    }
+}
+
+/** 거리·시간·평균 페이스 세 칸. */
+@Composable
+private fun DetailStats(s: RunSummary) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        RunkkStatTile(
+            stringResource(R.string.record_detail_stat_distance),
+            RunkkFormat.km(s.distance),
+            spoken = stringResource(R.string.record_distance_spoken, RunkkFormat.km(s.distance)),
+            centered = true,
+            valueStyle = RunkkTextStyles.DisplaySmall,
+            modifier = Modifier.weight(1f)
+        )
+        RunkkStatTile(
+            stringResource(R.string.record_detail_stat_time),
+            RunkkFormat.duration(s.elapsed),
+            spoken = RunkkFormat.durationSpoken(s.elapsed),
+            centered = true,
+            valueStyle = RunkkTextStyles.DisplaySmall,
+            modifier = Modifier.weight(1f)
+        )
+        RunkkStatTile(
+            stringResource(R.string.record_stat_avg_pace),
+            RunkkFormat.pace(s.averagePace),
+            spoken = RunkkFormat.paceSpoken(s.averagePace),
+            centered = true,
+            valueStyle = RunkkTextStyles.DisplaySmall,
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+/** 심박 카드: 평균·최고 심박 요약과 구간 분포 막대. */
+@Composable
+private fun HeartRateCard(detail: RecordDetail) {
+    val zones = detail.heartRateZones.toList()
+    val zoneTexts = zones.map { (z, d) -> stringResource(R.string.record_zone_item, z, d.toMinutes()) }
+    val distributionSpoken = stringResource(R.string.record_zone_spoken, zoneTexts.joinToString())
+    RunkkCard {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Icon(
+                RunkkIcons.Heart,
+                contentDescription = null,
+                tint = RunkkColors.Lavender,
+                modifier = Modifier.size(24.dp)
+            )
+            Text(
+                stringResource(R.string.record_heart_title),
+                style = RunkkTextStyles.text(14, FontWeight.Black),
+                color = RunkkColors.TextPrimary,
+                modifier = Modifier.weight(1f)
+            )
+            heartSummary(detail)?.let {
+                Text(it, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
             }
         }
-        val extras = listOfNotNull(
-            detail.calories?.let { "소모 칼로리" to "약 ${it}kcal" },
-            detail.crewContribution?.let { "크루 거리 기여" to "${RunkkFormat.km(it)}km" },
-            detail.rewardPoints?.let { "리워드" to "+$it" }
+        if (zones.isEmpty()) return@RunkkCard
+        val total = zones.sumOf { it.second.seconds }.coerceAtLeast(1)
+        RunkkSegmentBar(
+            zones.mapIndexed { i, (_, d) -> d.seconds.toFloat() / total to ZONE_COLORS[i % ZONE_COLORS.size] },
+            modifier = Modifier.semantics { contentDescription = distributionSpoken }
         )
-        if (extras.isNotEmpty()) {
-            RunkkCard {
-                extras.forEach { (label, value) ->
-                    Row(modifier = Modifier.semantics(mergeDescendants = true) {}) {
-                        Text(
-                            label,
-                            style = RunkkTextStyles.Body,
-                            color = RunkkColors.TextSecondary,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Text(value, style = RunkkTextStyles.BodyStrong, color = RunkkColors.TextPrimary)
-                    }
-                }
+        Text(
+            zoneTexts.joinToString("  "),
+            style = RunkkTextStyles.Caption,
+            color = RunkkColors.TextSecondary
+        )
+    }
+}
+
+/** 칼로리·크루 기여·리워드 카드. 값이 하나도 없으면 그리지 않는다. */
+@Composable
+private fun DetailExtras(detail: RecordDetail) {
+    val extras = listOfNotNull(
+        detail.calories?.let {
+            stringResource(R.string.record_extra_calories) to stringResource(R.string.record_extra_calories_value, it)
+        },
+        detail.crewContribution?.let {
+            stringResource(R.string.record_extra_crew) to
+                stringResource(R.string.record_km_value, RunkkFormat.km(it))
+        },
+        detail.rewardPoints?.let {
+            stringResource(R.string.record_extra_reward) to stringResource(R.string.record_extra_reward_value, it)
+        }
+    )
+    if (extras.isEmpty()) return
+    RunkkCard {
+        extras.forEach { (label, value) ->
+            Row(modifier = Modifier.semantics(mergeDescendants = true) {}) {
+                Text(
+                    label,
+                    style = RunkkTextStyles.Body,
+                    color = RunkkColors.TextSecondary,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(value, style = RunkkTextStyles.BodyStrong, color = RunkkColors.TextPrimary)
             }
         }
     }
 }
 
 /** 평균·최고 심박 한 줄(하이파이 HiRecordDetail "평균 [bpm] · 최고 [bpm]"). 둘 다 없으면 null. */
+@Composable
 private fun heartSummary(detail: RecordDetail): String? {
-    val average = detail.averageHeartRate ?: return detail.maxHeartRate?.let { "최고 $it bpm" }
-    return listOfNotNull("평균 $average", detail.maxHeartRate?.let { "최고 $it" }).joinToString(" · ") + " bpm"
+    val average = detail.averageHeartRate
+    val max = detail.maxHeartRate
+    return when {
+        average != null && max != null -> stringResource(R.string.record_heart_avg_max, average, max)
+        average != null -> stringResource(R.string.record_heart_avg_only, average)
+        max != null -> stringResource(R.string.record_heart_max_only, max)
+        else -> null
+    }
 }
 
 /** 1km 구간 페이스(하이파이 HiRecordDetail): 빠를수록 막대가 길고, 가장 빠른 구간은 라임. */
@@ -271,53 +323,59 @@ private fun SplitPaces(detail: RecordDetail) {
     RunkkCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "구간 페이스",
+                stringResource(R.string.record_split_title),
                 style = RunkkTextStyles.text(14, FontWeight.Black),
                 color = RunkkColors.TextPrimary,
                 modifier = Modifier.weight(1f)
             )
             if (fastestKm > 0) {
                 Text(
-                    "최고 1km 기록 ${fastestKm}km · ${RunkkFormat.pace(fastest)}",
+                    stringResource(R.string.record_split_best, fastestKm, RunkkFormat.pace(fastest)),
                     style = RunkkTextStyles.Caption,
                     color = RunkkColors.Lime
                 )
             }
         }
         splits.forEachIndexed { index, pace ->
-            val best = index + 1 == fastestKm
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.clearAndSetSemantics {
-                    contentDescription = "${index + 1}킬로미터 구간 ${RunkkFormat.paceSpoken(pace)}" +
-                        if (best) ", 가장 빠름" else ""
-                }
-            ) {
-                Text(
-                    "${index + 1}K",
-                    style = RunkkTextStyles.display(16),
-                    color = RunkkColors.TextSecondary,
-                    modifier = Modifier.width(32.dp)
-                )
-                RunkkProgressBar(
-                    progress = fastest.secondsPerKm.toFloat() / pace.secondsPerKm,
-                    height = 8.dp,
-                    color = if (best) RunkkColors.Lime else RunkkColors.BorderHover,
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    RunkkFormat.pace(pace),
-                    style = RunkkTextStyles.display(16),
-                    color = if (best) RunkkColors.Lime else RunkkColors.TextPrimary,
-                    modifier = Modifier.width(40.dp)
-                )
-            }
+            SplitPaceRow(index, pace, fastest, best = index + 1 == fastestKm)
         }
     }
 }
 
-private val DATE = DateTimeFormatter.ofPattern("M월 d일 (E) HH:mm", Locale.KOREAN)
+/** 구간 한 줄: 번호, 페이스 막대, 페이스. */
+@Composable
+private fun SplitPaceRow(index: Int, pace: Pace, fastest: Pace, best: Boolean) {
+    val spoken = stringResource(
+        if (best) R.string.record_split_spoken_best else R.string.record_split_spoken,
+        index + 1,
+        RunkkFormat.paceSpoken(pace)
+    )
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.clearAndSetSemantics { contentDescription = spoken }
+    ) {
+        Text(
+            "${index + 1}K",
+            style = RunkkTextStyles.display(16),
+            color = RunkkColors.TextSecondary,
+            modifier = Modifier.width(32.dp)
+        )
+        RunkkProgressBar(
+            progress = fastest.secondsPerKm.toFloat() / pace.secondsPerKm,
+            height = 8.dp,
+            color = if (best) RunkkColors.Lime else RunkkColors.BorderHover,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            RunkkFormat.pace(pace),
+            style = RunkkTextStyles.display(16),
+            color = if (best) RunkkColors.Lime else RunkkColors.TextPrimary,
+            modifier = Modifier.width(40.dp)
+        )
+    }
+}
+
 private val ZONE_COLORS =
     listOf(
         RunkkColors.BorderStrong,
