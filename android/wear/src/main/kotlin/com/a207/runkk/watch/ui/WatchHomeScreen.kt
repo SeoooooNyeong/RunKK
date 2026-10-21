@@ -36,23 +36,7 @@ fun WatchHomeScreen(
     ScreenScaffold(
         scrollState = listState,
         modifier = modifier,
-        edgeButton = {
-            EdgeButton(
-                onClick = onStart,
-                enabled = !state.startPending,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = WatchColors.Lime,
-                    contentColor = WatchColors.Background,
-                    disabledContainerColor = WatchColors.Surface,
-                    disabledContentColor = WatchColors.Muted
-                )
-            ) {
-                Text(
-                    text = stringResource(if (state.startPending) R.string.start_pending else R.string.start),
-                    textAlign = TextAlign.Center
-                )
-            }
-        }
+        edgeButton = { StartEdgeButton(isStartPending = state.startPending, onStart = onStart) }
     ) { contentPadding ->
         ScalingLazyColumn(
             state = listState,
@@ -61,28 +45,51 @@ fun WatchHomeScreen(
             verticalArrangement = Arrangement.spacedBy(4.dp),
             rotaryScrollableBehavior = RotaryScrollableDefaults.behavior(listState)
         ) {
-            item {
-                ConnectionStatus(
-                    connected = state.phoneConnected,
-                    label = stringResource(
-                        if (state.phoneConnected) R.string.phone_connected else R.string.phone_disconnected
-                    )
-                )
-            }
-            todayPlan(state)
-            state.notice?.let { notice -> item { NoticeText(notice) } }
-            if (state.heartRatePermissionNeeded) {
-                item {
-                    PillButton(
-                        text = stringResource(R.string.allow_heart_rate),
-                        onClick = onRequestPermission,
-                        primary = false
-                    )
-                }
-            }
-            item { Text(text = stringResource(R.string.record_on_phone), style = labelStyle(size = 10.sp)) }
+            homeItems(state, onRequestPermission)
         }
     }
+}
+
+/** 화면 아래 가장자리 시작 버튼. 시작 요청을 보낸 뒤 응답 전에는 누를 수 없다. */
+@Composable
+private fun StartEdgeButton(isStartPending: Boolean, onStart: () -> Unit) {
+    EdgeButton(
+        onClick = onStart,
+        enabled = !isStartPending,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = WatchColors.Lime,
+            contentColor = WatchColors.Background,
+            disabledContainerColor = WatchColors.Surface,
+            disabledContentColor = WatchColors.Muted
+        )
+    ) {
+        Text(
+            text = stringResource(if (isStartPending) R.string.start_pending else R.string.start),
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+/** 시작 화면 목록: 연결 상태, 오늘 계획, 안내, 심박 권한 버튼, 기록 안내 순서. */
+private fun ScalingLazyListScope.homeItems(state: WatchUiState, onRequestPermission: () -> Unit) {
+    item {
+        ConnectionStatus(
+            connected = state.phoneConnected,
+            label = stringResource(if (state.phoneConnected) R.string.phone_connected else R.string.phone_disconnected)
+        )
+    }
+    todayPlan(state)
+    state.notice?.let { notice -> item { NoticeText(notice) } }
+    if (state.heartRatePermissionNeeded) {
+        item {
+            PillButton(
+                text = stringResource(R.string.allow_heart_rate),
+                onClick = onRequestPermission,
+                primary = false
+            )
+        }
+    }
+    item { Text(text = stringResource(R.string.record_on_phone), style = labelStyle(size = 10.sp)) }
 }
 
 private fun ScalingLazyListScope.todayPlan(state: WatchUiState) {
