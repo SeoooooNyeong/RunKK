@@ -24,9 +24,15 @@ class GapGuidanceRule : GuidanceRule {
         val newPoint = points.newPoint(ctx.progress.distance)
         val gap = ctx.gapMeters
         if (newPoint == null || gap == null || !settings.battleVoice) return null
-        val position = if (gap >= 0) "${gap}m 앞서는 중" else "${abs(gap)}m 뒤처져 있어요"
+        val isAhead = gap >= 0
         val remaining = ctx.todayPlan?.targetDistance?.minus(ctx.progress.distance)
-        val message = remaining?.let { "$position, 남은 거리 ${it.meters}m" } ?: position
-        return Guidance(Guidance.Kind.GAP, message, voice = true, vibration = settings.battleVibration)
+        val message =
+            when {
+                remaining == null -> if (isAhead) GuidanceMessage.GAP_AHEAD else GuidanceMessage.GAP_BEHIND
+                isAhead -> GuidanceMessage.GAP_AHEAD_REMAINING
+                else -> GuidanceMessage.GAP_BEHIND_REMAINING
+            }
+        val args = listOfNotNull<Any>(abs(gap), remaining?.meters)
+        return Guidance(Guidance.Kind.GAP, message, args, hasVoice = true, hasVibration = settings.battleVibration)
     }
 }

@@ -33,9 +33,11 @@ import com.a207.runkk.app.domain.run.CompletedRun
 import com.a207.runkk.app.domain.run.Guidance
 import com.a207.runkk.app.domain.run.GuidanceOutput
 import com.a207.runkk.app.domain.run.HeartRateSample
+import com.a207.runkk.app.domain.run.LateHeartRates
 import com.a207.runkk.app.domain.run.LocationPermission
 import com.a207.runkk.app.domain.run.MeasurementHost
 import com.a207.runkk.app.domain.run.PendingRunRepository
+import com.a207.runkk.app.domain.run.RunArchive
 import com.a207.runkk.app.domain.run.RunTracker
 import com.a207.runkk.app.domain.run.UploadScheduler
 import com.a207.runkk.app.domain.run.WatchDisplay
@@ -267,6 +269,9 @@ class FakeCrewRepository : CrewRepository {
     var searchNext: Long? = null
     var postsNext: Long? = null
 
+    /** 첫 쪽 공개 크루. */
+    var searchFirstPage = listOf(crewA, crewB, crewC)
+
     override suspend fun myCrew() = answer("myCrew", mine)
 
     /** 정보 수정(changeInfo)이 받아들인 크루명. 크루 조회가 이 이름을 돌려준다. */
@@ -292,7 +297,7 @@ class FakeCrewRepository : CrewRepository {
     override suspend fun delete(crewId: Long) = answer("delete", Unit)
 
     override suspend fun search(keyword: String?, tags: Set<String>, cursor: Long?) = if (cursor == null) {
-        answer("search:$keyword:${tags.sorted()}", CrewList(listOf(crewA, crewB, crewC), searchNext))
+        answer("search:$keyword:${tags.sorted()}", CrewList(searchFirstPage, searchNext))
     } else {
         answer("search:$keyword:${tags.sorted()}:$cursor", CrewList(listOf(crewC.copy(crewId = 14, name = "넷째")), null))
     }
@@ -440,6 +445,10 @@ private class NoPendingRuns : PendingRunRepository {
 
     override suspend fun appendHeartRates(recordId: String, samples: List<HeartRateSample>) = Outcome.Success(Unit)
 
+    override suspend fun pendingLateHeartRates(): Outcome<List<LateHeartRates>> = Outcome.Success(emptyList())
+
+    override suspend fun removeLateHeartRates(recordId: String) = Outcome.Success(Unit)
+
     override suspend fun clear() = Outcome.Success(Unit)
 }
 
@@ -494,7 +503,16 @@ class CrewWorld(scope: CoroutineScope, val clock: MutableClock = MutableClock())
     val channels = FakeLiveChannels()
     private val silent = Silent()
     val tracker =
-        RunTracker(NoPendingRuns(), silent, NoWatch(), silent, silent, silent, ConsentedSettings(), clock, scope)
+        RunTracker(
+            RunArchive(NoPendingRuns(), silent),
+            NoWatch(),
+            silent,
+            silent,
+            silent,
+            ConsentedSettings(),
+            clock,
+            scope
+        )
     val coordinator = CrewRunCoordinator(tracker, channels, crews, clock, scope)
 
     companion object {

@@ -18,9 +18,3 @@ data class ProgressReport(
         CREW_RUN
     }
 }
-
-/** BattleStart.opponentTrack의 형식: 경과 시간·누적 거리 표(design-review.md M39). */
-data class TrackTable(val points: List<TrackPoint>)
-
-/** 표의 한 줄(경과 초, 누적 미터). */
-data class TrackPoint(val elapsedSeconds: Long, val distanceMeters: Long)

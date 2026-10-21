@@ -1,5 +1,6 @@
 package com.a207.runkk.app.ui.share
 
+import android.content.ActivityNotFoundException
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
@@ -7,7 +8,9 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import java.io.IOException
 import javax.inject.Inject
+import timber.log.Timber
 
 /** 카드 앞면·뒷면(앞면 기록, 뒷면 지도 + 경로선, FR-068). */
 enum class CardSide { FRONT, BACK }
@@ -46,9 +49,12 @@ class DeviceSaveTarget @Inject constructor() : ShareTarget {
                 put(MediaStore.Images.Media.IS_PENDING, 1)
             }
         }
-        val target = runCatching { resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values) }.getOrNull()
-            ?: return ShareOutcome.Failed(SAVE_FAILED, "기기에 저장하지 못했어요. 저장 공간과 권한을 확인해 주세요")
-        return runCatching {
+        val target =
+            shareFailureOrNull("사진첩 항목 만들기 실패") {
+                resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+            }
+                ?: return ShareOutcome.Failed(SAVE_FAILED, "기기에 저장하지 못했어요. 저장 공간과 권한을 확인해 주세요")
+        val saved = shareFailureOrNull("사진첩에 쓰기 실패") {
             resolver.openInputStream(image).use { input ->
                 resolver.openOutputStream(target).use { output -> requireNotNull(input).copyTo(requireNotNull(output)) }
             }
@@ -63,11 +69,11 @@ class DeviceSaveTarget @Inject constructor() : ShareTarget {
                 )
             }
             ShareOutcome.Saved
-        }.getOrElse {
-            // 반쯤 쓴 빈 항목을 남기지 않는다.
-            runCatching { resolver.delete(target, null, null) }
-            ShareOutcome.Failed(SAVE_FAILED, "기기에 저장하지 못했어요")
         }
+        if (saved != null) return saved
+        // 반쯤 쓴 빈 항목을 남기지 않는다.
+        shareFailureOrNull("반쯤 쓴 사진첩 항목 지우기 실패") { resolver.delete(target, null, null) }
+        return ShareOutcome.Failed(SAVE_FAILED, "기기에 저장하지 못했어요")
     }
 
     private companion object {
@@ -84,10 +90,10 @@ class SystemShareTarget @Inject constructor() : ShareTarget {
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
         val chooser = Intent.createChooser(send, "러닝 카드 공유").apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
-        return runCatching {
+        return shareFailureOrNull("공유 시트 열기 실패") {
             context.startActivity(chooser)
             ShareOutcome.Shared
-        }.getOrElse { ShareOutcome.Failed("NO_SHARE_APP", "공유할 앱이 없어요") }
+        } ?: ShareOutcome.Failed("NO_SHARE_APP", "공유할 앱이 없어요")
     }
 }
 
@@ -105,7 +111,7 @@ class StoryShareTarget @Inject constructor(private val deviceSave: DeviceSaveTar
         val installed = context.packageManager.queryIntentActivities(story, 0).isNotEmpty()
         if (installed) {
             context.grantUriPermission(INSTAGRAM, image, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            val started = runCatching { context.startActivity(story) }.isSuccess
+            val started = shareFailureOrNull("인스타그램 스토리 열기 실패") { context.startActivity(story) } != null
             if (started) return ShareOutcome.Shared
         }
         return when (deviceSave.share(context, image)) {
@@ -121,3 +127,29 @@ class StoryShareTarget @Inject constructor(private val deviceSave: DeviceSaveTar
 }
 
 private const val PNG = "image/png"
+
+/**
+ * 공유·기기 저장에서 예상되는 실패(권한·저장 공간·받을 앱 없음·주소 오류·지원하지 않는 제공자)만 잡아 원인을 기록하고 null로 돌려준다(리뷰 N-7).
+ * 그 밖의 예외(프로그래밍 오류)는 그대로 올린다.
+ */
+internal fun <T> shareFailureOrNull(what: String, block: () -> T): T? = try {
+    block()
+} catch (e: SecurityException) {
+    logged(e, what)
+} catch (e: IOException) {
+    logged(e, what)
+} catch (e: ActivityNotFoundException) {
+    logged(e, what)
+} catch (e: IllegalArgumentException) {
+    logged(e, what)
+} catch (e: IllegalStateException) {
+    logged(e, what)
+} catch (e: UnsupportedOperationException) {
+    // 쓰기·읽기를 지원하지 않는 content 제공자.
+    logged(e, what)
+}
+
+private fun logged(e: Exception, what: String): Nothing? {
+    Timber.w(e, what)
+    return null
+}

@@ -413,7 +413,7 @@ internal fun CrewDetailContent(crew: CrewList.Item, joining: Boolean, onJoin: ()
         crew.intro?.let { Text(it, style = RunkkTextStyles.Body, color = RunkkColors.TextPrimary) }
         if (crew.tags.isNotEmpty()) {
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(crew.tags.toList()) { RunkkBadge(RunkkTags.label(it)) }
+                items(crew.tags.toList(), key = { it }) { RunkkBadge(RunkkTags.label(it)) }
             }
         }
         InfoLine("가입 방식", crew.joinPolicy.label)

@@ -17,6 +17,12 @@ object WearPaths {
      */
     const val HEART_RATE_BATCH = "/runkk/heart-rate-batch"
 
+    /**
+     * 런크크 워치 앱이 알리는 능력 이름(CapabilityClient). 워치 앱 res/values/wear.xml의 android_wear_capabilities와 같아야 한다.
+     * 폰은 이 능력이 닿는 노드가 바뀔 때만 연결 상태를 갱신한다(5초마다 노드를 조회하지 않는다).
+     */
+    const val WATCH_CAPABILITY = "runkk_watch"
+
     /** 워치 → 폰: 러닝 종료 요청(MessageClient). 워치의 종료는 길게 누르기이고 폰이 같은 종료 규칙으로 처리한다(FR-181). */
     const val END_REQUEST = "/runkk/end-request"
 }

@@ -58,6 +58,18 @@ class CrewFindViewModelTest {
     }
 
     @Test
+    fun `N-12 공개 크루가 0개여도 돌아올 때마다 찾기 목록을 다시 읽지 않는다`() {
+        repo.searchFirstPage = emptyList()
+        val vm = CrewFindViewModel(repo)
+        assertEquals(1, repo.calls.count { it.startsWith("search") })
+
+        vm.refreshMine()
+        vm.refreshMine()
+
+        assertEquals(1, repo.calls.count { it.startsWith("search") })
+    }
+
+    @Test
     fun `이미 내 크루를 보이고 있으면 돌아와도 다시 확인하지 않는다`() {
         repo.mine = MyCrew(crewDetail(11), emptyList())
         val vm = CrewFindViewModel(repo)

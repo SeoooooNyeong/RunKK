@@ -6,6 +6,7 @@ import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.domain.run.HeartRateSample
 import com.a207.runkk.app.domain.run.PlanSnapshot
 import com.a207.runkk.app.domain.run.WatchDisplay
+import com.a207.runkk.app.domain.run.WatchNotice
 import com.a207.runkk.app.domain.settings.GuidanceSettings
 import com.a207.runkk.app.domain.settings.SettingsRepository
 import com.a207.runkk.app.domain.settings.SettingsSnapshot
@@ -196,7 +197,7 @@ class WatchLinkTest {
             )
         val DISPLAY =
             WatchDisplay(
-                running = true,
+                isRunning = true,
                 elapsed = Duration.ofSeconds(605),
                 distance = Distance(2_012),
                 currentPace = Pace(330),
@@ -247,12 +248,21 @@ class WatchLinkTest {
     @Test
     fun `워치가 연결되면 마지막 표시 정보를 다시 보낸다`() = runTest {
         val link = WatchLink(transport, settings, linkScope())
-        link.publish(DISPLAY.copy(running = false))
+        link.publish(DISPLAY.copy(isRunning = false))
         val before = transport.displays().size
 
         transport.connected.value = true
 
         assertEquals(before + 1, transport.displays().size)
         assertTrue(transport.displays().last().heartRateCollectionAllowed)
+    }
+
+    @Test
+    fun `M-3 안내 키는 문구로 바꿔 워치에 보낸다`() = runTest {
+        val link = WatchLink(transport, settings, linkScope()) { "문구:${it.name}" }
+
+        link.publish(DISPLAY.copy(notice = WatchNotice.END_ON_PHONE))
+
+        assertEquals("문구:END_ON_PHONE", transport.displays().last().notice)
     }
 }

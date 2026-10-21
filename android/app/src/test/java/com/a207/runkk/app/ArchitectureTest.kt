@@ -85,11 +85,32 @@ class ArchitectureTest {
                 val to = moduleOf(imported.substringBeforeLast('.')) ?: moduleOf(imported)
                 when {
                     to == null -> "$from → $imported (${file.name})"
-                    to == from || to in allowed -> null
+
+                    to == from || to in allowed || isE2eException(
+                        file,
+                        imported
+                    ) || isOwnResources(from, imported) -> null
+
                     else -> "$from → $to (${file.name})"
                 }
             }
     }
+
+    /**
+     * 표 밖 import의 유일한 예외(리뷰 N-3): localDebug 소스셋의 E2E 토큰 창구가 ui.me의 창구 자리를 쓴다.
+     * 다른 변형에는 이 파일이 없다(E2eLoginPathTest, e2e/verify_release.sh).
+     */
+    private fun isE2eException(file: KoFileDeclaration, imported: String): Boolean =
+        file.path.replace('\\', '/').contains("/src/localDebug/") &&
+            file.name == E2E_TOKEN_FILE &&
+            imported in E2E_TOKEN_IMPORTS
+
+    /**
+     * :data Gradle 모듈의 R(문자열 리소스)은 namespace 때문에 api.core 패키지에 생기지만 api.core 코드가 아니다.
+     * data.*가 같은 Gradle 모듈의 리소스를 읽는 것은 표의 화살표로 치지 않는다(2차 리뷰 M-3: 도메인 안내 문구).
+     */
+    private fun isOwnResources(from: String, imported: String): Boolean =
+        from.startsWith("data.") && imported == "$APP.api.core.R"
 
     private fun isAppOrUi(module: String?): Boolean = module == "app" || module?.startsWith("ui.") == true
 
@@ -103,6 +124,9 @@ class ArchitectureTest {
         const val ROOT = "com.a207.runkk"
         const val APP = "$ROOT.app"
         const val WATCH = "$ROOT.watch"
+
+        const val E2E_TOKEN_FILE = "E2eKakaoTokenSource"
+        val E2E_TOKEN_IMPORTS = setOf("$APP.ui.me.KakaoAccessTokenSource", "$APP.ui.me.KakaoTokenOverride")
 
         private val DOMAINS =
             listOf(

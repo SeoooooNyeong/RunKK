@@ -5,6 +5,7 @@ import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.GeoPoint
 import com.a207.runkk.app.domain.run.Guidance
 import com.a207.runkk.app.domain.run.LocationSample
+import com.a207.runkk.app.domain.run.RunArchive
 import com.a207.runkk.app.domain.run.RunStartSpec
 import com.a207.runkk.app.domain.run.RunTracker
 import kotlin.test.assertEquals
@@ -35,7 +36,7 @@ class RunViewModelTest {
     private val clock = MutableClock()
 
     private fun TestScope.tracker() =
-        RunTracker(pending, upload, watch, guidance, permission, host, settings, clock, backgroundScope)
+        RunTracker(RunArchive(pending, upload), watch, guidance, permission, host, settings, clock, backgroundScope)
 
     private fun TestScope.started(): Pair<RunViewModel, RunTracker> {
         val tracker = tracker()

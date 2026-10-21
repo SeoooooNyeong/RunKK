@@ -77,6 +77,9 @@ class CrewFindViewModel @Inject constructor(private val crews: CrewRepository) :
     private var moreJob: Job? = null
     private var mineJob: Job? = null
 
+    /** 찾기 목록(첫 쪽)을 한 번이라도 읽기 시작했는가. 공개 크루가 0개여도 돌아올 때마다 다시 읽지 않게 한다(리뷰 N-12). */
+    private var hasRequestedFind = false
+
     init {
         loadMine()
     }
@@ -98,7 +101,7 @@ class CrewFindViewModel @Inject constructor(private val crews: CrewRepository) :
             when (val r = crews.myCrew()) {
                 is Outcome.Success -> {
                     val crew = r.value.crew
-                    val firstFind = _state.value.crews.isEmpty() && _state.value.error == null
+                    val firstFind = !hasRequestedFind
                     _state.update {
                         it.copy(checkingMine = false, mineError = null, mine = crew, pending = r.value.pendingRequests)
                     }
@@ -118,6 +121,7 @@ class CrewFindViewModel @Inject constructor(private val crews: CrewRepository) :
 
     /** 첫 쪽부터 다시 찾는다. */
     fun load() {
+        hasRequestedFind = true
         job?.cancel()
         moreJob?.cancel()
         _state.update { it.copy(loading = true, loadingMore = false, error = null) }

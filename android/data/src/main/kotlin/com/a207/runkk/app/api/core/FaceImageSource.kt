@@ -5,12 +5,14 @@ import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.model.FacePart
 import com.a207.runkk.app.core.model.Outcome
 import java.io.IOException
-import kotlin.coroutines.cancellation.CancellationException
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.suspendCancellableCoroutine
 import okhttp3.Call
 import okhttp3.Callback
@@ -57,20 +59,35 @@ class FaceImageSource internal constructor(
             return Outcome.Failure(AppError.Rejected(FACE_IMAGE_NOT_FOUND))
         }
         if (!ownCacheFor(selfId())) return Outcome.Failure(AppError.Unauthorized)
-        return try {
-            coroutineScope {
-                val layers = FacePart.entries.map { part ->
-                    async { FaceLayer(part, fetch(segments, part)) }
-                }.awaitAll()
-                Outcome.Success(layers)
-            }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: PartFailed) {
-            Outcome.Failure(e.error)
-        } catch (e: IOException) {
-            Outcome.Failure(AppError.Network)
+        return loadLayers(segments)
+    }
+
+    /**
+     * 다섯 부위를 함께 받는다. 실패는 값(Outcome)으로 받고(리뷰 N-8: 예외로 흐름을 넘기지 않는다), 먼저 온 실패가 나머지 요청을 끊는다.
+     */
+    private suspend fun loadLayers(segments: List<String>): Outcome<List<FaceLayer>> = coroutineScope {
+        val firstFailure = CompletableDeferred<Outcome.Failure>()
+        val parts = FacePart.entries.map { part ->
+            async { fetch(segments, part).also { if (it is Outcome.Failure) firstFailure.complete(it) } }
         }
+        val all = async { parts.awaitAll() }
+        val outcome =
+            select {
+                firstFailure.onAwait { it }
+                all.onAwait { results -> layersOf(results) }
+            }
+        coroutineContext.cancelChildren()
+        outcome
+    }
+
+    private fun layersOf(results: List<Outcome<ByteArray>>): Outcome<List<FaceLayer>> {
+        val layers = FacePart.entries.zip(results).map { (part, result) ->
+            when (result) {
+                is Outcome.Failure -> return result
+                is Outcome.Success -> FaceLayer(part, result.value)
+            }
+        }
+        return Outcome.Success(layers)
     }
 
     /** 캐시를 [member]의 것으로 맞춘다. 회원이 바뀌었거나 로그아웃(null)이면 비운다. 로그인 상태면 참. */
@@ -93,25 +110,31 @@ class FaceImageSource internal constructor(
         return member != null
     }
 
-    private suspend fun fetch(segments: List<String>, part: FacePart): ByteArray {
+    /** 부위 하나. 연결 실패는 Network, 서버 거부·상한 초과는 그 오류로 돌려준다. */
+    private suspend fun fetch(segments: List<String>, part: FacePart): Outcome<ByteArray> = try {
+        download(segments, part)
+    } catch (e: IOException) {
+        Outcome.Failure(AppError.Network)
+    }
+
+    private suspend fun download(segments: List<String>, part: FacePart): Outcome<ByteArray> {
         val url = baseUrl.newBuilder().addPathSegments(PARTS_PATH).apply {
             segments.forEach { addPathSegment(it) }
         }.addPathSegment(part.name).build()
         val key = url.toString()
         synchronized(lock) {
             val cached = memory[key]
-            if (cached != null && cached.expiresAt > now()) return cached.png
+            if (cached != null && cached.expiresAt > now()) return Outcome.Success(cached.png)
             if (cached != null) memory.remove(key)
         }
         val request = Request.Builder().url(url).header(ACCEPT, PNG).build()
         return client.newCall(request).await().use { response ->
             if (!response.isSuccessful) {
-                throw PartFailed(ApiErrorMapper.fromHttp(response.code, response.body.string()))
+                return Outcome.Failure(ApiErrorMapper.fromHttp(response.code, response.body.string()))
             }
-            val length = response.body.contentLength()
-            if (length > MAX_PART_BYTES) throw PartFailed(AppError.Server(TOO_LARGE))
+            if (response.body.contentLength() > MAX_PART_BYTES) return Outcome.Failure(AppError.Server(TOO_LARGE))
             val png = response.body.source().use { source ->
-                if (source.request(MAX_PART_BYTES + 1)) throw PartFailed(AppError.Server(TOO_LARGE))
+                if (source.request(MAX_PART_BYTES + 1)) return Outcome.Failure(AppError.Server(TOO_LARGE))
                 source.readByteArray()
             }
             val control = response.cacheControl
@@ -120,7 +143,7 @@ class FaceImageSource internal constructor(
             if (!control.noStore && fresh > 0) {
                 synchronized(lock) { memory[key] = Cached(png, now() + fresh * MILLIS_PER_SECOND) }
             }
-            png
+            Outcome.Success(png)
         }
     }
 
@@ -141,8 +164,6 @@ class FaceImageSource internal constructor(
     }
 
     private class Cached(val png: ByteArray, val expiresAt: Long)
-
-    private class PartFailed(val error: AppError) : Exception()
 
     private companion object {
         const val SELFIE_PREFIX = "selfie:"

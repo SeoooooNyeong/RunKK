@@ -27,38 +27,3 @@ interface AvatarRepository {
      */
     suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> = Outcome.Success(emptyList())
 }
-
-/** 착용 부위(서버 common.ItemSlot). */
-enum class ItemSlot {
-    TOP,
-    BOTTOM,
-    SHOES,
-    HAT
-}
-
-/**
- * 아바타(서버 avatar.AvatarView, FR-155~FR-163). 얼굴이 없으면 faceKey가 null이고 "기본 캐릭터를 고를 수 있다".
- * balance는 리워드 잔액이다. 필드는 10/21 API 계약으로 확정한다.
- */
-data class Avatar(
-    val faceKey: String?,
-    val defaultCharacterId: String?,
-    val bodyShape: String,
-    val skinTone: String,
-    val equipped: Map<ItemSlot, Long>,
-    val balance: Int,
-    val canCreateSelfieToday: Boolean,
-    val rejected: Map<ItemSlot, String>
-)
-
-/** 상점(서버 reward.ShopView, FR-160): 판매 중 아이템과 이미 보유한 아이템. */
-data class Shop(val items: List<Item>, val balance: Int) {
-    data class Item(
-        val itemId: Long,
-        val slot: ItemSlot,
-        val name: String,
-        val price: Int,
-        val owned: Boolean,
-        val onSale: Boolean
-    )
-}

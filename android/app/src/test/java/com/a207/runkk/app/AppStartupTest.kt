@@ -8,6 +8,7 @@ import com.a207.runkk.app.domain.notification.PushTokenSource
 import com.a207.runkk.app.domain.notification.PushTokenSync
 import com.a207.runkk.app.domain.run.CompletedRun
 import com.a207.runkk.app.domain.run.HeartRateSample
+import com.a207.runkk.app.domain.run.LateHeartRates
 import com.a207.runkk.app.domain.run.PendingRunRepository
 import com.a207.runkk.app.domain.settings.GuidanceSettings
 import com.a207.runkk.app.domain.settings.SettingsRepository
@@ -192,6 +193,10 @@ private class NoPendingRuns : PendingRunRepository {
     override suspend fun needsReminder(now: Instant): Outcome<Boolean> = unused()
 
     override suspend fun appendHeartRates(recordId: String, samples: List<HeartRateSample>): Outcome<Unit> = unused()
+
+    override suspend fun pendingLateHeartRates(): Outcome<List<LateHeartRates>> = unused()
+
+    override suspend fun removeLateHeartRates(recordId: String): Outcome<Unit> = unused()
 
     override suspend fun clear(): Outcome<Unit> = unused()
 

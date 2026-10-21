@@ -14,6 +14,7 @@ import com.a207.runkk.app.domain.live.ProgressReport
 import com.a207.runkk.app.domain.live.TrackPoint
 import com.a207.runkk.app.domain.live.TrackTable
 import com.a207.runkk.app.domain.run.Guidance
+import com.a207.runkk.app.domain.run.RunArchive
 import com.a207.runkk.app.domain.run.RunProgress
 import com.a207.runkk.app.domain.run.RunTracker
 import com.a207.runkk.app.domain.run.sample
@@ -116,8 +117,7 @@ class BattleRunCoordinatorTest {
     private fun TestScope.setUp(): Pair<RunTracker, BattleRunCoordinator> {
         val tracker =
             RunTracker(
-                pending,
-                FakeUploadScheduler(log),
+                RunArchive(pending, FakeUploadScheduler(log)),
                 watch,
                 output,
                 FakeLocationPermission(),
@@ -397,8 +397,9 @@ class BattleRunCoordinatorTest {
         runCurrent()
         val played = output.played.last()
         assertEquals(Guidance.Kind.OVERTOOK, played.kind)
-        assertTrue(played.voice, "음성 켬")
-        assertEquals(false, played.vibration, "진동 끔")
+        assertTrue(played.hasVoice, "음성 켬")
+        assertEquals(false, played.hasVibration, "진동 끔")
+        assertEquals(listOf<Any>(12), played.args)
     }
 
     @Test

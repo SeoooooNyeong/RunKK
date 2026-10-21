@@ -43,7 +43,7 @@ class RunTrackerTest {
     private val clock = TestClock()
 
     private fun tracker(scope: CoroutineScope) =
-        RunTracker(pending, scheduler, watch, output, permission, host, settings, clock, scope)
+        RunTracker(RunArchive(pending, scheduler), watch, output, permission, host, settings, clock, scope)
 
     private fun TestScope.started(): RunTracker {
         val tracker = tracker(backgroundScope)
@@ -159,7 +159,7 @@ class RunTrackerTest {
         tracker.tick(at(335))
         assertEquals(Guidance.Kind.SPLIT, output.played.single().kind)
         val display = watch.published.last()
-        assertTrue(display.running)
+        assertTrue(display.isRunning)
         assertEquals(Distance(1_002), display.distance)
     }
 
@@ -262,7 +262,7 @@ class RunTrackerTest {
         tracker.runFor(10)
         tracker.onFinishLongPressed()
         runCurrent()
-        assertFalse(watch.published.last().running)
+        assertFalse(watch.published.last().isRunning)
     }
 
     @Test
@@ -271,7 +271,7 @@ class RunTrackerTest {
         val tracker = tracker(backgroundScope)
         tracker.publishWatchHome(plan)
         val home = watch.published.last()
-        assertFalse(home.running)
+        assertFalse(home.isRunning)
         assertEquals(plan, home.todayPlan)
 
         assertIs<Outcome.Success<Unit>>(tracker.startRun(freeSpec()))
@@ -279,7 +279,7 @@ class RunTrackerTest {
         tracker.onFinishLongPressed()
         runCurrent()
         assertEquals(plan, watch.published.last().todayPlan)
-        assertFalse(watch.published.last().running)
+        assertFalse(watch.published.last().isRunning)
     }
 
     @Test
@@ -314,7 +314,7 @@ class RunTrackerTest {
         runCurrent()
         assertTrue(log.calls.isEmpty())
         assertNotNull(watch.published.last().notice)
-        assertTrue(watch.published.last().running)
+        assertTrue(watch.published.last().isRunning)
     }
 
     @Test

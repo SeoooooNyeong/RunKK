@@ -21,6 +21,8 @@ android {
 
     buildFeatures {
         compose = true
+        // RunkkWatchApp이 디버그 빌드에서만 Timber.DebugTree를 심는다.
+        buildConfig = true
     }
 }
 
@@ -44,6 +46,7 @@ dependencies {
     implementation(libs.androidx.wear.ongoing)
     implementation(libs.play.services.wearable)
     implementation(libs.hilt.android)
+    implementation(libs.timber)
     ksp(libs.hilt.compiler)
     debugImplementation(libs.androidx.compose.ui.tooling)
 

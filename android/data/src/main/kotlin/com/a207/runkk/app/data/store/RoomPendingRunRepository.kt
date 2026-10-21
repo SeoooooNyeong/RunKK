@@ -5,6 +5,7 @@ import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.run.CompletedRun
 import com.a207.runkk.app.domain.run.HeartRateSample
+import com.a207.runkk.app.domain.run.LateHeartRates
 import com.a207.runkk.app.domain.run.PendingRunRepository
 import com.a207.runkk.app.domain.run.UploadScheduler
 import java.time.Clock
@@ -23,9 +24,10 @@ import kotlinx.coroutines.flow.map
  *
  * 늦은 심박(FR-043)의 자리: 측정이 끝난 뒤 온 심박은 RunTracker가 appendHeartRates로 넘긴다.
  * - 아직 보내지 않은 기록이면 그 기록의 심박에 시각 순서로 덧붙인다(다음 전송에 함께 간다).
- * - 이미 보내 remove된 기록이면, remove가 하루 동안 남겨 둔 머리 정보(경로·심박 없음) + 늦은 심박으로 미전송 기록을 다시 만들고
- *   전송을 요청한다. 서버는 같은 기록ID를 "이미 저장됨"으로 받고(D-11), UploadPendingRunsUseCase가 심박만 덧붙여 보낸다.
- * - 머리 정보도 없으면(하루가 지났거나 탈퇴로 지움) Rejected(RECORD_NOT_FOUND).
+ * - 이미 보내 remove된 기록이면, remove가 남겨 둔 머리 정보(경로·심박 없음, 최근 보낸 30건) + 늦은 심박으로 미전송 기록을
+ *   다시 만들고 전송을 요청한다. 서버는 같은 기록ID를 "이미 저장됨"으로 받고(D-11), UploadPendingRunsUseCase가 심박만 덧붙여 보낸다.
+ * - 머리 정보도 없으면(30건 밖이거나 탈퇴로 지움) 거부하지 않고 심박만 담은 항목(LateHeartRates)으로 남기고 전송을 요청한다.
+ *   서버로 보내는 일은 UploadPendingRunsUseCase가 pendingLateHeartRates로 읽어 한다(D-77, v0.8 검증 R37: 이 클래스는 서버를 부르지 않는다).
  */
 @Singleton
 internal class RoomPendingRunRepository
@@ -36,6 +38,7 @@ constructor(
     private val clock: Clock
 ) : PendingRunRepository {
     private val dao = database.pendingRunDao()
+    private val lateDao = database.lateHeartRateDao()
 
     /**
      * 마지막 pending()이 내준 기록별 심박 측정 시각. 전송(UploadPendingRunsUseCase)이 읽은 뒤 remove 전에 덧붙은 늦은 심박을
@@ -63,7 +66,7 @@ constructor(
         }
 
     /**
-     * 보낸 기록을 미전송 목록에서 뺀다. 경로·심박은 지우고 머리 정보만 하루 남긴다.
+     * 보낸 기록을 미전송 목록에서 뺀다. 경로·심박은 지우고 머리 정보만 최근 보낸 30건 안에서 남긴다(D-77).
      * 전송이 읽은 뒤 덧붙은 늦은 심박이 있으면 그 심박만 담은 미전송 기록으로 남기고 전송을 요청한다(F-4).
      */
     override suspend fun remove(recordId: String): Outcome<Unit> {
@@ -100,7 +103,7 @@ constructor(
                     }
                 )
             }
-            dao.deleteSentBefore(now.minus(SENT_HEADER_KEPT).toEpochMilli())
+            dao.keepLatestSent(SENT_HEADERS_KEPT)
             late.isNotEmpty()
         }
         // 트랜잭션이 끝난 뒤에만 지운다: 실패해 다시 remove할 때도 같은 기준으로 늦은 심박을 가린다.
@@ -110,7 +113,13 @@ constructor(
 
     override suspend fun purgeRoutes(): Outcome<Unit> = storage { dao.replaceRoutes(EMPTY_BLOB) }
 
-    override suspend fun purgeHeartRates(): Outcome<Unit> = storage { dao.replaceHeartRates(EMPTY_BLOB) }
+    /** 미전송 기록의 심박과 늦은 심박 항목을 함께 지운다(FR-029, TF-VA-31). */
+    override suspend fun purgeHeartRates(): Outcome<Unit> = storage {
+        database.withTransaction {
+            dao.replaceHeartRates(EMPTY_BLOB)
+            lateDao.deleteAll()
+        }
+    }
 
     override suspend fun needsReminder(now: Instant): Outcome<Boolean> = storage {
         val rows = dao.pending()
@@ -119,25 +128,59 @@ constructor(
     }
 
     override suspend fun appendHeartRates(recordId: String, samples: List<HeartRateSample>): Outcome<Unit> {
-        val revived =
+        val needsUpload =
             when (val appended = storage { appendInTransaction(recordId, samples) }) {
                 is Outcome.Failure -> return appended
-                is Outcome.Success -> appended.value ?: return Outcome.Failure(AppError.Rejected(RECORD_NOT_FOUND))
+                is Outcome.Success -> appended.value
             }
-        if (revived) requestUploadQuietly()
+        if (needsUpload) requestUploadQuietly()
         return Outcome.Success(Unit)
     }
 
-    override suspend fun clear(): Outcome<Unit> = storage { dao.deleteAll() }
+    override suspend fun pendingLateHeartRates(): Outcome<List<LateHeartRates>> = storage {
+        lateDao.all().map { LateHeartRates(it.recordId, decodeHeartRates(it.heartRates)) }
+    }
 
-    /** 덧붙이면 false, 머리 정보로 다시 만들었으면 true, 기록이 없으면 null. */
-    private suspend fun appendInTransaction(recordId: String, samples: List<HeartRateSample>): Boolean? =
+    override suspend fun removeLateHeartRates(recordId: String): Outcome<Unit> = storage { lateDao.delete(recordId) }
+
+    /** 미전송 기록·머리 정보·늦은 심박 항목을 모두 지운다(탈퇴). */
+    override suspend fun clear(): Outcome<Unit> = storage {
         database.withTransaction {
-            val row = dao.find(recordId) ?: return@withTransaction null
-            val merged = (decodeHeartRates(row.heartRates) + samples).distinctBy { it.at }.sortedBy { it.at }
-            dao.upsert(row.copy(heartRates = encodeHeartRates(merged), sentAtMillis = null))
+            dao.deleteAll()
+            lateDao.deleteAll()
+        }
+    }
+
+    /**
+     * 미전송 기록이면 덧붙인다(false). 머리 정보면 미전송 기록으로 다시 만든다(true). 둘 다 없으면 늦은 심박 항목에 합친다(true).
+     * 참이면 전송을 요청해야 한다.
+     */
+    private suspend fun appendInTransaction(recordId: String, samples: List<HeartRateSample>): Boolean =
+        database.withTransaction {
+            val row = dao.find(recordId)
+            if (row == null) {
+                mergeLateEntry(recordId, samples)
+                return@withTransaction true
+            }
+            dao.upsert(
+                row.copy(
+                    heartRates = encodeHeartRates(merge(decodeHeartRates(row.heartRates), samples)),
+                    sentAtMillis = null
+                )
+            )
             row.sentAtMillis != null
         }
+
+    private suspend fun mergeLateEntry(recordId: String, samples: List<HeartRateSample>) {
+        val kept = lateDao.find(recordId)
+        val merged = merge(kept?.let { decodeHeartRates(it.heartRates) }.orEmpty(), samples)
+        val savedAt = kept?.savedAtMillis ?: clock.instant().toEpochMilli()
+        lateDao.upsert(LateHeartRateEntity(recordId, encodeHeartRates(merged), savedAt))
+    }
+
+    /** 시각 순서로 합치고 같은 시각은 먼저 있던 것을 둔다. */
+    private fun merge(kept: List<HeartRateSample>, added: List<HeartRateSample>): List<HeartRateSample> =
+        (kept + added).distinctBy { it.at }.sortedBy { it.at }
 
     /** 전송 요청. 예약이 실패해도(WorkManager 미초기화 등) 보관은 이미 끝났으므로 다음 requestUpload 때 함께 간다. */
     private fun requestUploadQuietly() {
@@ -156,15 +199,15 @@ constructor(
         Outcome.Failure(AppError.Storage)
     }
 
-    companion object {
-        /** 늦은 심박을 받을 기록이 없음. */
-        const val RECORD_NOT_FOUND = "RECORD_NOT_FOUND"
+    private companion object {
+        const val REMIND_COUNT = 20
+        val REMIND_AGE: Duration = Duration.ofDays(7)
 
-        private const val REMIND_COUNT = 20
-        private val REMIND_AGE: Duration = Duration.ofDays(7)
-
-        /** 보낸 기록 머리 정보를 남기는 시간. 워치 심박은 연결이 돌아오면 곧 오므로 하루면 충분하다(NFR-032). */
-        private val SENT_HEADER_KEPT: Duration = Duration.ofDays(1)
-        private val EMPTY_BLOB = ByteArray(0)
+        /**
+         * 보낸 기록 머리 정보를 남기는 건수(D-77, E-24 제안값). 기간으로 자르면 하루 넘게 끊긴 워치의 심박이 사라지므로
+         * 건수로 잘라 보관함 크기만 정한다(FR-043은 기간 제한이 없다).
+         */
+        const val SENT_HEADERS_KEPT = 30
+        val EMPTY_BLOB = ByteArray(0)
     }
 }

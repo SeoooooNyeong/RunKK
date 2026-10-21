@@ -13,13 +13,12 @@ import com.a207.runkk.app.domain.live.LiveChannel
 import com.a207.runkk.app.domain.live.LiveChannelProvider
 import com.a207.runkk.app.domain.live.MatchFailed
 import com.a207.runkk.app.domain.live.MatchFound
+import com.a207.runkk.app.domain.live.ServerMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Clock
 import java.time.Duration
 import javax.inject.Inject
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -28,6 +27,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.mapNotNull
+import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
@@ -149,29 +151,13 @@ class MatchViewModel @Inject constructor(
         _state.update { it.copy(phase = MatchPhase.WAITING, waitingSeconds = 0) }
         val opened = channels.open().also { channel = it }
         waitJob = viewModelScope.launch {
-            val outcome = try {
-                coroutineScope {
-                    launch {
-                        val connected = opened.connect()
-                        if (connected is Outcome.Failure) throw ChannelConnectFailed(connected.error)
-                    }
-                    opened.messages.first {
-                        it is MatchFound || it is MatchFailed
-                    }.also { coroutineContext.cancelChildren() }
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (
-                @Suppress("TooGenericExceptionCaught") e: Exception
-            ) {
+            when (val end = awaitWaitEnd(opened)) {
+                is WaitEnd.Found -> onMatched(end.match)
+
+                is WaitEnd.Failed -> onMatchFailed(end.failed)
+
                 // 연결 실패·채널 종료: 대기열에서 빼고 거리 고르기로 돌아간다(앱을 죽이지 않는다).
-                failWaiting((e as? ChannelConnectFailed)?.error)
-                return@launch
-            }
-            when (outcome) {
-                is MatchFound -> onMatched(outcome)
-                is MatchFailed -> onMatchFailed(outcome)
-                else -> Unit
+                is WaitEnd.Lost -> failWaiting(end.error)
             }
         }
         tickJob = viewModelScope.launch {
@@ -188,6 +174,22 @@ class MatchViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    /**
+     * 대기가 끝나는 첫 사건을 값으로 돌려준다(M-4: 예상된 연결 실패를 예외로 흐름 제어하지 않는다). 연결이 Failure로 끝나면
+     * Lost(error), 메시지 흐름이 결과 없이 끝나면 Lost(null), MatchFound·MatchFailed가 오면 그 메시지다. 연결 코루틴은 끝에 거둔다.
+     */
+    private suspend fun awaitWaitEnd(opened: LiveChannel): WaitEnd = coroutineScope {
+        val lost = Channel<WaitEnd>(Channel.CONFLATED)
+        val connecting = launch {
+            (opened.connect() as? Outcome.Failure)?.let { lost.trySend(WaitEnd.Lost(it.error)) }
+        }
+        val results =
+            opened.messages
+                .mapNotNull(WaitEnd::of)
+                .onCompletion { cause -> if (cause == null) emit(WaitEnd.Lost(null)) }
+        merge(results, lost.receiveAsFlow()).first().also { connecting.cancel() }
     }
 
     /**
@@ -360,5 +362,20 @@ class MatchViewModel @Inject constructor(
     }
 }
 
-/** 채널 연결이 Outcome.Failure([error])로 끝났다. 대기를 접고 거리 고르기로 돌아간다. */
-private class ChannelConnectFailed(val error: AppError) : Exception()
+/** 매칭 대기가 끝난 까닭. */
+private sealed interface WaitEnd {
+    data class Found(val match: MatchFound) : WaitEnd
+
+    data class Failed(val failed: MatchFailed) : WaitEnd
+
+    /** 연결 실패(error) 또는 결과 없이 채널이 끝남(null). */
+    data class Lost(val error: AppError?) : WaitEnd
+
+    companion object {
+        fun of(message: ServerMessage): WaitEnd? = when (message) {
+            is MatchFound -> Found(message)
+            is MatchFailed -> Failed(message)
+            else -> null
+        }
+    }
+}

@@ -22,6 +22,7 @@ import com.a207.runkk.app.domain.live.ProgressReport
 import com.a207.runkk.app.domain.live.ServerMessage
 import com.a207.runkk.app.domain.run.CoordinatedRound
 import com.a207.runkk.app.domain.run.Guidance
+import com.a207.runkk.app.domain.run.GuidanceMessage
 import com.a207.runkk.app.domain.run.GuidanceOutput
 import com.a207.runkk.app.domain.run.PlanSnapshot
 import com.a207.runkk.app.domain.run.RunProgress
@@ -38,7 +39,9 @@ import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -140,8 +143,11 @@ constructor(
         }
     }
 
-    /** 화면이 진행값을 넘길 때. 측정 구독과 같은 값은 한 번만 처리한다(S-16). */
-    fun onProgress(p: RunProgress) {
+    /**
+     * 진행값 한 개를 처리한다. 운영 코드는 RunTracker.progress 구독(CoordinatedRound)만 이 경로를 쓰고 화면은 부르지 않는다.
+     * 시험이 늦게 처리된 진행값을 넣으려고 모듈 안(internal)에만 연다(1차 S-16). 같은 값은 한 번만 처리한다.
+     */
+    internal fun onProgress(p: RunProgress) {
         val run = run ?: return
         run.round.scope.launch { progress(run, p) }
     }
@@ -273,7 +279,7 @@ constructor(
         val reported = run.round.report(call)
         if (reported is Outcome.Failure) {
             _failure.value = reported.error
-            guidanceOutput.play(Guidance.screenOnly(Guidance.Kind.REPORT_FAILED, "대결 상태를 서버에 알리지 못했어요"))
+            guidanceOutput.play(Guidance.screenOnly(Guidance.Kind.REPORT_FAILED, GuidanceMessage.REPORT_FAILED))
         }
     }
 
@@ -390,9 +396,13 @@ constructor(
     private fun RunProgress.toMine(): MyProgress =
         MyProgress(distance, elapsed, currentPace, averagePace, locked = runTracker.progress.value.locked)
 
+    /**
+     * 매칭 요청이 취소됐으면(이탈 취소가 요청을 끊음) null. 부른 코루틴 자신이 취소된 것이면 null로 삼키지 않고 취소를 잇는다(리뷰 N-9).
+     */
     private suspend fun Deferred<Outcome<MatchAcceptance>>.awaitOrNull(): Outcome<MatchAcceptance>? = try {
         await()
     } catch (e: CancellationException) {
+        currentCoroutineContext().ensureActive()
         null
     }
 
@@ -400,9 +410,10 @@ constructor(
     private fun announce(kind: BattleGuidance.Kind, gapMeters: Int) {
         when (kind) {
             BattleGuidance.Kind.OVERTOOK ->
-                runTracker.onLeadChanged(Guidance.Kind.OVERTOOK, "상대를 추월했어요! ${gapMeters}m 앞서는 중")
+                runTracker.onLeadChanged(Guidance.Kind.OVERTOOK, GuidanceMessage.OVERTOOK, listOf(gapMeters))
 
-            BattleGuidance.Kind.OVERTAKEN -> runTracker.onLeadChanged(Guidance.Kind.OVERTAKEN, "역전당했어요")
+            BattleGuidance.Kind.OVERTAKEN ->
+                runTracker.onLeadChanged(Guidance.Kind.OVERTAKEN, GuidanceMessage.OVERTAKEN)
         }
     }
 

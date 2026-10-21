@@ -178,11 +178,12 @@ class MatchViewModelTest {
     }
 
     @Test
-    fun `대기 중 채널 연결이 실패하면 앱을 죽이지 않고 대기열에서 빠져 거리 고르기로`() = main.runVmTest { vms ->
+    fun `M-4 대기 채널이 결과 없이 끝나면 앱을 죽이지 않고 대기열에서 빠져 거리 고르기로`() = main.runVmTest { vms ->
         val w = world()
-        w.channels.channel.connectError = IllegalStateException("handshake 404")
         val vm = vms.vm(w)
         vm.onStartMatching()
+        runCurrent()
+        w.channels.channel.endMessages()
         runCurrent()
         assertEquals(MatchPhase.CHOOSING, vm.state.value.phase)
         assertEquals("상대를 찾는 연결이 끊겼어요. 다시 시도해 주세요", vm.state.value.error)

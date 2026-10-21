@@ -14,6 +14,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import java.security.KeyStore
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -30,12 +31,15 @@ import kotlinx.coroutines.withContext
  * 기기에 쓰지 못해도 갱신된 토큰은 메모리에 남아 서버가 돌린(rotate) 갱신 토큰을 이번 실행 동안 잃지 않는다.
  */
 @Singleton
-class EncryptedTokenStore internal constructor(private val openPreferences: () -> SharedPreferences?) :
-    SessionRepository,
+class EncryptedTokenStore internal constructor(
+    /** 기기 저장소 읽기·쓰기 디스패처(리뷰 N-10: 하드코딩하지 않고 받는다). */
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val openPreferences: () -> SharedPreferences?
+) : SessionRepository,
     TokenProvider,
     LoginState {
     @Inject
-    constructor(@ApplicationContext context: Context) : this({ openEncrypted(context) })
+    constructor(@ApplicationContext context: Context) : this(Dispatchers.IO, { openEncrypted(context) })
 
     private val lock = Any()
 
@@ -59,12 +63,12 @@ class EncryptedTokenStore internal constructor(private val openPreferences: () -
         store(access, refresh)
     }
 
-    override suspend fun save(tokens: SessionTokens): Outcome<Unit> = withContext(Dispatchers.IO) {
+    override suspend fun save(tokens: SessionTokens): Outcome<Unit> = withContext(ioDispatcher) {
         if (store(tokens.access, tokens.refresh)) Outcome.Success(Unit) else Outcome.Failure(AppError.Storage)
     }
 
     /** 토큰을 지운다. 기기에 남은 값을 지우지 못해도 로그인 상태는 거짓으로 둔다(화면이 로그인으로 가도록). */
-    override suspend fun clear(): Outcome<Unit> = withContext(Dispatchers.IO) {
+    override suspend fun clear(): Outcome<Unit> = withContext(ioDispatcher) {
         val removed =
             synchronized(lock) {
                 memory.value = null

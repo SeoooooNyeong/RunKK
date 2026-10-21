@@ -41,7 +41,7 @@ class PlayServicesTransportTest {
             val link = WatchLink(context, NoSettings, scope)
             link.publish(
                 WatchDisplay(
-                    running = false,
+                    isRunning = false,
                     elapsed = Duration.ZERO,
                     distance = Distance(0),
                     currentPace = null,

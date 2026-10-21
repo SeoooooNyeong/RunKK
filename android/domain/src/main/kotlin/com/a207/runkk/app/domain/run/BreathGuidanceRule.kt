@@ -29,9 +29,9 @@ class BreathGuidanceRule : GuidanceRule {
         val settings = ctx.guidanceSettings
         return Guidance(
             Guidance.Kind.BREATH,
-            "심박이 높아요. 호흡을 고르세요 (의료 판단이 아닙니다)",
-            settings.runVoice,
-            settings.runVibration
+            GuidanceMessage.BREATH_HIGH,
+            hasVoice = settings.runVoice,
+            hasVibration = settings.runVibration
         )
     }
 

@@ -1,0 +1,34 @@
+package com.a207.runkk.app.domain.record
+
+import com.a207.runkk.app.core.model.CardKind
+import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.GeoPoint
+import com.a207.runkk.app.core.model.Pace
+import com.a207.runkk.app.core.model.RunMode
+import java.time.Duration
+import java.time.Instant
+import java.time.LocalDate
+
+/**
+ * 기록 상세(서버 analysis.RecordDetailView, srs.md 6.3 3.2). route는 본인이거나 코스지도공유 켜짐일 때만 온다.
+ * [unstableSegments]는 신호 불안정 구간(시작 기준 경과 시간, FR-033·FR-059)이다. 서버의 unstableRanges(초를 경로 포인트 번호로
+ * 근사한 값)는 걸러진 위치가 빠지면 번호가 어긋나므로 읽지 않는다. [splitPaces]는 1km 구간 페이스, [fastestKm]은 가장 빠른 1km.
+ */
+data class RecordDetail(
+    val summary: RunSummary,
+    val route: List<GeoPoint>,
+    val unstableSegments: List<Unstable>,
+    val calories: Int?,
+    val heartRateZones: Map<String, Duration>,
+    val newRecords: List<String>,
+    val crewContribution: Distance?,
+    val rewardPoints: Int?,
+    val weather: String?,
+    val splitPaces: List<Pace> = emptyList(),
+    val fastestKm: Pace? = null,
+    val averageHeartRate: Int? = null,
+    val maxHeartRate: Int? = null
+) {
+    /** 불안정 구간 하나: 시작·끝 경과 시간과 구간 거리. */
+    data class Unstable(val from: Duration, val to: Duration, val distance: Distance)
+}

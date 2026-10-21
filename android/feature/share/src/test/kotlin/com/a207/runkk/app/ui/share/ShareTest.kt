@@ -94,7 +94,7 @@ class ShareTest {
     @Test
     fun `코스 지도 공유가 꺼져 있으면 뒷면 공유를 거부한다(FR-069)`() = runTest {
         val target = RecordingTarget()
-        val sharer = CardSharer(context, FakeSettings(shared = false), ::fileUri)
+        val sharer = CardSharer(context, FakeSettings(shared = false), uriFor = ::fileUri)
         val outcome = sharer.share(RunCardRenderer().render(card, CardSide.BACK), CardSide.BACK, target)
         assertIs<ShareOutcome.Failed>(outcome)
         assertEquals(CardSharer.COURSE_MAP_NOT_SHARED, outcome.code)
@@ -104,7 +104,7 @@ class ShareTest {
     @Test
     fun `앞면은 이미지 파일 주소를 공유 대상에 넘긴다`() = runTest {
         val target = RecordingTarget()
-        val sharer = CardSharer(context, FakeSettings(shared = false), ::fileUri)
+        val sharer = CardSharer(context, FakeSettings(shared = false), uriFor = ::fileUri)
         val outcome = sharer.share(RunCardRenderer().render(card, CardSide.FRONT), CardSide.FRONT, target)
         assertEquals(ShareOutcome.Shared, outcome)
         val uri = assertNotNull(target.received)

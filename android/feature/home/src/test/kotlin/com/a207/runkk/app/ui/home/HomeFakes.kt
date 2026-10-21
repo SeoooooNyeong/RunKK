@@ -19,6 +19,7 @@ import com.a207.runkk.app.domain.record.RunCard
 import com.a207.runkk.app.domain.record.TodayPlan
 import com.a207.runkk.app.domain.run.CompletedRun
 import com.a207.runkk.app.domain.run.HeartRateSample
+import com.a207.runkk.app.domain.run.LateHeartRates
 import com.a207.runkk.app.domain.run.PendingRunRepository
 import java.time.Duration
 import java.time.Instant
@@ -104,6 +105,10 @@ class FakePendingRunRepository : PendingRunRepository {
     override suspend fun needsReminder(now: Instant) = Outcome.Success(false)
 
     override suspend fun appendHeartRates(recordId: String, samples: List<HeartRateSample>) = Outcome.Success(Unit)
+
+    override suspend fun pendingLateHeartRates(): Outcome<List<LateHeartRates>> = Outcome.Success(emptyList())
+
+    override suspend fun removeLateHeartRates(recordId: String) = Outcome.Success(Unit)
 
     override suspend fun clear() = Outcome.Success(Unit)
 }

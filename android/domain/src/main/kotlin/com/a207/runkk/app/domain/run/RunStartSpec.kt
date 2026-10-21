@@ -25,13 +25,3 @@ data class RunStartSpec(
         WATCH
     }
 }
-
-/** 오늘 계획(목표 거리, 목표 페이스). */
-data class PlanSnapshot(val targetDistance: Distance?, val targetPace: Pace?)
-
-/** 크루런 순위(순위, 인원). */
-data class CrewRank(val rank: Int, val headcount: Int) {
-    init {
-        require(rank in 1..headcount) { "순위는 1..인원: $rank / $headcount" }
-    }
-}

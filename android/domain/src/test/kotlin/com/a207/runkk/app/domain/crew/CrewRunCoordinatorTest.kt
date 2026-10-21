@@ -8,6 +8,7 @@ import com.a207.runkk.app.domain.live.CrewRunRelay
 import com.a207.runkk.app.domain.live.CrewRunStart
 import com.a207.runkk.app.domain.live.ProgressReport
 import com.a207.runkk.app.domain.run.Guidance
+import com.a207.runkk.app.domain.run.RunArchive
 import com.a207.runkk.app.domain.run.RunTracker
 import com.a207.runkk.app.domain.run.sample
 import com.a207.runkk.app.domain.testing.CallLog
@@ -85,8 +86,7 @@ class CrewRunCoordinatorTest {
     private fun TestScope.setUp(): Pair<RunTracker, CrewRunCoordinator> {
         val tracker =
             RunTracker(
-                FakePendingRunRepository(log),
-                FakeUploadScheduler(log),
+                RunArchive(FakePendingRunRepository(log), FakeUploadScheduler(log)),
                 FakeWatchGateway(),
                 guidance,
                 FakeLocationPermission(),
@@ -233,7 +233,7 @@ class CrewRunCoordinatorTest {
         (1L..360L).forEach { second -> tracker.runTo(second, (second - 1) * 3.0) }
         runCurrent()
         val rank = guidance.played.filter { it.kind == Guidance.Kind.RANK }
-        assertEquals(listOf("3명 중 2위"), rank.map { it.message })
+        assertEquals(listOf(listOf<Any>(3, 2)), rank.map { it.args })
     }
 
     @Test

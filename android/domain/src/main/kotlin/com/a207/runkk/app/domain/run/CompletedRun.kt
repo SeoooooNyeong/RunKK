@@ -31,18 +31,3 @@ data class CompletedRun(
     /** 심박 동의 철회 파기 지시: 심박을 지운 사본. */
     fun purgeHeartRates(): CompletedRun = copy(heartRates = emptyList())
 }
-
-/** 보관 기록 전송 상태. */
-enum class UploadState {
-    NOT_SENT,
-    SENDING
-}
-
-/** 종료 요약(srs.md 1.3): 저장(CompletedRun) / 거부(잠금 중) / 저장 안 함(거리 0). */
-sealed interface FinishOutcome {
-    data class Saved(val run: CompletedRun) : FinishOutcome
-
-    data object Rejected : FinishOutcome
-
-    data object NotSaved : FinishOutcome
-}

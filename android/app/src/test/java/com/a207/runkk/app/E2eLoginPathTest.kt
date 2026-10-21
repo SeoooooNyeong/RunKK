@@ -15,8 +15,8 @@ class E2eLoginPathTest {
     fun `시험용 카카오 창구 클래스는 localDebug에만 있다`() {
         val present =
             listOf(
-                "com.a207.runkk.app.ui.me.E2eKakaoTokenSource",
-                "com.a207.runkk.app.ui.me.E2eLoginModule",
+                "com.a207.runkk.app.E2eKakaoTokenSource",
+                "com.a207.runkk.app.E2eLoginModule",
                 "com.a207.runkk.app.E2eBuildConfigModule"
             ).map { name -> runCatching { Class.forName(name) }.isSuccess }
 

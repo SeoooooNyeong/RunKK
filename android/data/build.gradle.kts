@@ -30,7 +30,7 @@ android {
         }
         create("develop") {
             dimension = "env"
-            // develop 브랜치 서버. EC2 도메인이 정해지면 바꾼다(:app의 API_BASE_URL과 같은 호스트).
+            // develop 브랜치 서버. EC2 도메인이 정해지면 바꾼다.
             buildConfigField("String", "API_BASE_URL", "\"https://dev.runkk.example/api/v1/\"")
             buildConfigField("String", "LIVE_SOCKET_URL", "\"wss://dev.runkk.example/ws\"")
         }
@@ -46,6 +46,11 @@ android {
             // Robolectric(Room 메모리 DB, WorkManager 시험 도구)이 리소스·매니페스트를 읽는다.
             isIncludeAndroidResources = true
         }
+    }
+
+    // Room 이전 시험(MigrationTestHelper)이 내보낸 스키마를 자산으로 읽는다.
+    sourceSets {
+        getByName("test").assets.directories.add("$projectDir/schemas")
     }
 }
 
@@ -63,6 +68,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.timber)
 
     // Hilt: 바인딩 모듈, 측정·푸시 서비스(@AndroidEntryPoint)
     implementation(libs.hilt.android)

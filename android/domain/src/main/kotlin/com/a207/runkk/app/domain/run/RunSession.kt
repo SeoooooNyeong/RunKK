@@ -107,14 +107,14 @@ class RunSession(val spec: RunStartSpec) {
         state = State.LOCKED
     }
 
-    fun hintUnlock(): Guidance = Guidance.screenOnly(Guidance.Kind.UNLOCK_HINT, "길게 눌러 해제")
+    fun hintUnlock(): Guidance = Guidance.screenOnly(Guidance.Kind.UNLOCK_HINT, GuidanceMessage.UNLOCK_HINT)
 
     fun unlock() {
         check(state == State.LOCKED) { "해제할 수 없는 상태: $state" }
         state = State.RUNNING
     }
 
-    fun hintFinish(): Guidance = Guidance.screenOnly(Guidance.Kind.FINISH_HINT, "길게 눌러 종료")
+    fun hintFinish(): Guidance = Guidance.screenOnly(Guidance.Kind.FINISH_HINT, GuidanceMessage.FINISH_HINT)
 
     /** 측정 중(RUNNING)이면 잠그고 참. 그 밖의 상태면 아무것도 하지 않고 거짓(RunTracker가 상태 값을 보지 않게, O-4). */
     fun tryLock(): Boolean {
