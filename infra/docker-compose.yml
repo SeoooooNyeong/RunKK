@@ -30,14 +30,17 @@ services:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
       SWAGGER_ENABLED: ${SWAGGER_ENABLED:-false}
       DB_HOST: postgres
-      DB_PORT: ${DB_PORT:-5432}
-      DB_NAME: ${DB_NAME}
-      DB_USER: ${DB_USER}
-      DB_PASSWORD: ${DB_PASSWORD}
+      # postgres·redis는 내부 망에서 기본 포트로 고정한다(밖으로 열지 않으므로 바꿀 이유가 없다)
+      DB_PORT: "5432"
+      DB_NAME: ${DB_NAME:?set DB_NAME in .env}
+      DB_USER: ${DB_USER:?set DB_USER in .env}
+      DB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
       # Hikari 최대 풀. 커밋 뒤 REQUIRES_NEW 수신자가 연결을 하나 더 쓰므로 10이면 크루런 동시 업로드에서 고갈된다(T-4). PostgreSQL max_connections(기본 100) 안에서
       DB_POOL_SIZE: ${DB_POOL_SIZE:-50}
       REDIS_HOST: redis
-      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PORT: "6379"
+      # redis 접속 비밀번호(redis 서비스 --requirepass와 같은 값). 내부 망 안에서도 다른 컨테이너의 무단 접근을 막는다
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}
       # 매칭 대기열·대결 세션 저장소 redis|jdbc(D-07, Redis 장기 장애 때 jdbc), 실시간 방식 websocket|polling(D-57)
       RUNKK_QUEUE: ${RUNKK_QUEUE:-redis}
       RUNKK_LIVE: ${RUNKK_LIVE:-websocket}
@@ -50,6 +53,13 @@ services:
       # 첫 운영자 시드: 화이트리스트가 비었을 때만 한 번 넣고 감사 기록을 남긴다. 예) KAKAO:1234567890
       RUNKK_BOOTSTRAP_OPERATORS: ${RUNKK_BOOTSTRAP_OPERATORS:-}
       SCHEDULER_POOL_SIZE: ${SCHEDULER_POOL_SIZE:-12}
+      # 카카오·구글·Apple 로그인 같은 인증 요청의 클라이언트(IP)별 분당 상한
+      AUTH_CLIENT_REQUESTS_PER_MINUTE: ${AUTH_CLIENT_REQUESTS_PER_MINUTE:-30}
+      # 법정 고지 문서 주소. Spring은 빈 환경 변수도 값으로 보아 application.yml 기본값을 덮으므로 기본값을 서버 설정과 같게 둔다
+      LEGAL_TERMS_URL: ${LEGAL_TERMS_URL:-https://s15p31a207.p.ssafy.io/legal/terms}
+      LEGAL_PRIVACY_POLICY_URL: ${LEGAL_PRIVACY_POLICY_URL:-https://s15p31a207.p.ssafy.io/legal/privacy}
+      LEGAL_LOCATION_TERMS_URL: ${LEGAL_LOCATION_TERMS_URL:-https://s15p31a207.p.ssafy.io/legal/location}
+      LEGAL_HELP_URL: ${LEGAL_HELP_URL:-https://s15p31a207.p.ssafy.io/legal/help}
       # 외부 연동. 비우면 그 연동만 꺼진다(카카오·구글 로그인 거부, 푸시는 로그만, 날씨 없이 저장)
       KAKAO_APP_ID: ${KAKAO_APP_ID:-}
       GOOGLE_CLIENT_IDS: ${GOOGLE_CLIENT_IDS:-}
@@ -80,9 +90,9 @@ services:
     image: postgres:17-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${DB_NAME}
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME:?set DB_NAME in .env}
+      POSTGRES_USER: ${DB_USER:?set DB_USER in .env}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
       TZ: Asia/Seoul
       PGTZ: Asia/Seoul
     volumes:
@@ -96,11 +106,14 @@ services:
   redis:
     image: redis:8
     restart: unless-stopped
-    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}
+    # 비밀번호를 명령줄에 풀어 쓰지 않고 컨테이너 안에서 환경 변수로 읽는다(공백·특수문자가 있어도 안전)
+    command: ["sh", "-c", 'exec redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru --requirepass "$$REDIS_PASSWORD"']
     volumes:
       - redis-data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", 'redis-cli -a "$$REDIS_PASSWORD" --no-auth-warning ping | grep -q PONG']
       interval: 10s
       timeout: 5s
       retries: 10
