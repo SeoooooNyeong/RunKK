@@ -1,6 +1,7 @@
 # Local PostgreSQL + Redis for the develop profile (optional; the local profile needs nothing).
 #   docker compose up -d
-#   ./gradlew bootRun --args='--spring.profiles.active=develop'
+#   DB_PASSWORD=runkk ./gradlew bootRun --args='--spring.profiles.active=develop'
+#   (develop 프로필은 DB 비밀번호 기본값이 없다. PowerShell: $env:DB_PASSWORD='runkk'; ./gradlew bootRun ...)
 services:
   postgres:
     image: postgres:17-alpine
