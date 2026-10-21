@@ -97,6 +97,19 @@ class HomeScreenTest {
     }
 
     @Test
+    fun `오늘 계획 칩은 거리·페이스를 말로 읽는다`() {
+        show(
+            HomeUiState(
+                loading = false,
+                headerLoading = false,
+                todayPlan = TodayPlan(Distance(5_000), com.a207.runkk.app.core.model.Pace(330))
+            )
+        )
+        compose.onNodeWithContentDescription("오늘 목표 5킬로미터").performScrollTo().assertExists()
+        compose.onNodeWithContentDescription("목표 페이스 1킬로미터당 5분 30초").performScrollTo().assertExists()
+    }
+
+    @Test
     fun `계획이 없으면 목표 없이 달리기 칩`() {
         assertEquals(listOf("목표 없이 달리기"), planChips(null))
         assertEquals(listOf("5K"), planChips(TodayPlan(Distance(5_000), null)))

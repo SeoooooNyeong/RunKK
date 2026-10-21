@@ -43,6 +43,7 @@ import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkEmptyState
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkLoading
+import com.a207.runkk.app.core.designsystem.RunkkOverline
 import com.a207.runkk.app.core.designsystem.RunkkPrimaryButton
 import com.a207.runkk.app.core.designsystem.RunkkProgressBar
 import com.a207.runkk.app.core.designsystem.RunkkSecondaryButton
@@ -163,12 +164,7 @@ private fun TypeCard(card: RunimalCard, provisional: Boolean) {
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(
-                "MY RUNIMAL",
-                style = RunkkTextStyles.Overline,
-                color = RunkkColors.Lime,
-                modifier = Modifier.weight(1f)
-            )
+            RunkkOverline("MY RUNIMAL", color = RunkkColors.Lime, modifier = Modifier.weight(1f))
             RunkkBadge(
                 if (provisional) "임시 유형" else "확정 유형",
                 tone = if (provisional) RunkkBadgeTone.Muted else RunkkBadgeTone.Lime

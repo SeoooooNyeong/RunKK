@@ -270,12 +270,14 @@ private fun RunCard(state: HomeUiState, onModeSelected: (HomeRunMode) -> Unit, o
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    val spoken = planChipsSpoken(state.todayPlan)
                     planChips(state.todayPlan).forEachIndexed { index, chip ->
                         RunkkInfoChip(
                             label = chip,
                             highlighted = index == 0 && state.todayPlan?.distance != null,
                             display =
-                                index == 0 && state.todayPlan?.distance != null
+                                index == 0 && state.todayPlan?.distance != null,
+                            spoken = spoken.getOrNull(index)
                         )
                     }
                 }
@@ -317,6 +319,15 @@ internal fun planChips(plan: TodayPlan?): List<String> {
         plan.pace?.let {
             "목표 ${RunkkFormat.pace(it)}/km"
         }
+    )
+}
+
+/** 계획 칩 읽기 문구: "오늘 목표 5킬로미터", "목표 페이스 1킬로미터당 5분 30초"("5:30"이 시각으로 읽히지 않게). */
+internal fun planChipsSpoken(plan: TodayPlan?): List<String> {
+    if (plan == null || (plan.distance == null && plan.pace == null)) return listOf("목표 없이 달리기")
+    return listOfNotNull(
+        plan.distance?.let { "오늘 목표 ${RunkkFormat.spokenLabel(RunkkFormat.targetLabel(it))}" },
+        plan.pace?.let { "목표 페이스 ${RunkkFormat.paceSpoken(it)}" }
     )
 }
 

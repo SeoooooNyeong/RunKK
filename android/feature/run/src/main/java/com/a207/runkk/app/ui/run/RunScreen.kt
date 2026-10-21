@@ -62,6 +62,7 @@ import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkInfoChip
 import com.a207.runkk.app.core.designsystem.RunkkLiveDot
 import com.a207.runkk.app.core.designsystem.RunkkLongPressButton
+import com.a207.runkk.app.core.designsystem.RunkkOverline
 import com.a207.runkk.app.core.designsystem.RunkkPillButton
 import com.a207.runkk.app.core.designsystem.RunkkProgressBar
 import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
@@ -229,10 +230,12 @@ private fun CountdownContent(state: RunUiState, actions: RunActions) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterVertically)
         ) {
+            val mode = "FREE RUN · ${modeSuffix(state.targetDistance)}"
             Text(
-                "FREE RUN · ${modeSuffix(state.targetDistance)}",
+                mode,
                 style = RunkkTextStyles.display(20, letterSpacingEm = 0.12f),
-                color = RunkkColors.TextSecondary
+                color = RunkkColors.TextSecondary,
+                modifier = Modifier.semantics { contentDescription = RunkkFormat.spokenLabel(mode) }
             )
             if (state.phase == RunPhase.COUNTDOWN) {
                 CountdownBall(state.countdown, actions.onCountdownTapped)
@@ -261,7 +264,9 @@ private fun CountdownContent(state: RunUiState, actions: RunActions) {
                     highlighted =
                         state.targetDistance != null
                 )
-                state.targetPace?.let { RunkkInfoChip("목표 페이스 ${RunkkFormat.pace(it)}") }
+                state.targetPace?.let {
+                    RunkkInfoChip("목표 페이스 ${RunkkFormat.pace(it)}", spoken = "목표 페이스 ${RunkkFormat.paceSpoken(it)}")
+                }
                 RunkkInfoChip("1km마다 안내")
             }
         }
@@ -322,11 +327,7 @@ private fun RunningContent(state: RunUiState, actions: RunActions) {
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             RunkkLiveDot()
-            Text(
-                "RUNNING · ${modeSuffix(state.targetDistance)}",
-                style = RunkkTextStyles.Overline,
-                color = RunkkColors.Lime
-            )
+            RunkkOverline("RUNNING · ${modeSuffix(state.targetDistance)}", color = RunkkColors.Lime)
             Spacer(Modifier.weight(1f))
             RunkkStatusPill(gpsLabel(progress.signal) + if (progress.heartRate != null) " · 워치" else "")
         }
@@ -433,11 +434,7 @@ private fun LockedContent(state: RunUiState, actions: RunActions) {
                 )
             }
             Spacer(Modifier.weight(1f))
-            Text(
-                "FREE RUN · ${modeSuffix(state.targetDistance)}",
-                style = RunkkTextStyles.Overline,
-                color = RunkkColors.TextSecondary
-            )
+            RunkkOverline("FREE RUN · ${modeSuffix(state.targetDistance)}")
         }
         Column(
             modifier = Modifier.weight(1f).fillMaxWidth(),
