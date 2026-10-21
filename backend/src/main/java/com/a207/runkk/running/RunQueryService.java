@@ -93,7 +93,8 @@ public class RunQueryService {
                         : Map.of(),
                 record.unstableSegments(),
                 record.getWeather(),
-                record.getNewRecords());
+                record.getNewRecords(),
+                record.heartRateSummary());
     }
 
     /** 대결 결과 비교표용(R5). 없으면 RECORD_NOT_FOUND. */
