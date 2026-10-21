@@ -37,6 +37,7 @@ import com.a207.runkk.app.domain.run.LateHeartRates
 import com.a207.runkk.app.domain.run.LocationPermission
 import com.a207.runkk.app.domain.run.MeasurementHost
 import com.a207.runkk.app.domain.run.PendingRunRepository
+import com.a207.runkk.app.domain.run.RunArchive
 import com.a207.runkk.app.domain.run.RunTracker
 import com.a207.runkk.app.domain.run.UploadScheduler
 import com.a207.runkk.app.domain.run.WatchDisplay
@@ -502,7 +503,16 @@ class CrewWorld(scope: CoroutineScope, val clock: MutableClock = MutableClock())
     val channels = FakeLiveChannels()
     private val silent = Silent()
     val tracker =
-        RunTracker(NoPendingRuns(), silent, NoWatch(), silent, silent, silent, ConsentedSettings(), clock, scope)
+        RunTracker(
+            RunArchive(NoPendingRuns(), silent),
+            NoWatch(),
+            silent,
+            silent,
+            silent,
+            ConsentedSettings(),
+            clock,
+            scope
+        )
     val coordinator = CrewRunCoordinator(tracker, channels, crews, clock, scope)
 
     companion object {

@@ -14,6 +14,7 @@ import com.a207.runkk.app.domain.live.ProgressReport
 import com.a207.runkk.app.domain.live.TrackPoint
 import com.a207.runkk.app.domain.live.TrackTable
 import com.a207.runkk.app.domain.run.Guidance
+import com.a207.runkk.app.domain.run.RunArchive
 import com.a207.runkk.app.domain.run.RunProgress
 import com.a207.runkk.app.domain.run.RunTracker
 import com.a207.runkk.app.domain.run.sample
@@ -116,8 +117,7 @@ class BattleRunCoordinatorTest {
     private fun TestScope.setUp(): Pair<RunTracker, BattleRunCoordinator> {
         val tracker =
             RunTracker(
-                pending,
-                FakeUploadScheduler(log),
+                RunArchive(pending, FakeUploadScheduler(log)),
                 watch,
                 output,
                 FakeLocationPermission(),

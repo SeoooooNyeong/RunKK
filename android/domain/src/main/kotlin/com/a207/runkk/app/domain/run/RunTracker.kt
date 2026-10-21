@@ -12,7 +12,6 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -21,8 +20,6 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 
 /**
  * 한 번의 러닝 측정 흐름을 조정한다(6.1.14, D-56). 측정 상태를 가지므로 ui.run, data.device.MeasurementService,
@@ -37,8 +34,8 @@ import kotlinx.coroutines.sync.withLock
 class RunTracker
 @Inject
 constructor(
-    private val pendingRuns: PendingRunRepository,
-    private val uploadScheduler: UploadScheduler,
+    /** 기록 저장·늦은 심박 덧붙이기·전송 요청(1차 S-1: 보관 포트 둘과 재시도 상태를 묶은 협력 객체). */
+    private val archive: RunArchive,
     private val watch: WatchGateway,
     private val guidanceOutput: GuidanceOutput,
     private val locationPermission: LocationPermission,
@@ -55,10 +52,6 @@ constructor(
 
     /** 마지막으로 끝난 러닝(늦게 온 심박을 이 기록에 덧붙인다, FR-043). */
     private var lastFinished: FinishedWindow? = null
-
-    /** 보관함에 아직 넣지 못한 늦은 심박(기록ID별). 다음 늦은 심박이 올 때 함께 다시 넣는다(F-4). lock 안에서만 쓴다. */
-    private val unsavedLate = mutableMapOf<String, List<HeartRateSample>>()
-    private val lateSaving = Mutex()
 
     /** 워치 시작 화면에 보일 오늘 계획(publishWatchHome). 러닝이 끝난 뒤 시작 화면 표시에도 쓴다. */
     @Volatile
@@ -241,36 +234,12 @@ constructor(
 
     /**
      * 측정이 끝난 뒤 늦게 온 심박을 보관 기록에 덧붙인다(내부: WatchGateway.heartRates 구독만 부른다, 06-06, 1차 O-2).
-     * appendHeartRates는 이 클래스만 부른다(design-review.md M32).
+     * 재시도·다음 묶음과 합치기는 RunArchive가 한다(F-4).
      */
     private fun onLateHeartRates(recordId: String, samples: List<HeartRateSample>) {
         if (samples.isEmpty()) return
-        synchronized(lock) { unsavedLate[recordId] = (unsavedLate[recordId].orEmpty() + samples).distinct() }
-        scope.launch { saveLateHeartRates(recordId) }
+        scope.launch { archive.appendLateHeartRates(recordId, samples) }
     }
-
-    /**
-     * 기억해 둔 늦은 심박을 보관함에 넣는다(F-4). 저장 오류면 짧게 두 번 더 시도하고, 그래도 안 되면 다음 늦은 심박이 올 때
-     * 함께 다시 넣도록 남긴다. 보관함은 머리 정보도 없는 기록의 심박도 늦은 심박 항목(LateHeartRates)으로 받으므로(D-77)
-     * 거부(Rejected)는 업무 규칙 거부뿐이고, 다시 해도 같으므로 다시 넣지 않는다.
-     */
-    private suspend fun saveLateHeartRates(recordId: String) {
-        lateSaving.withLock {
-            val batch = synchronized(lock) { unsavedLate.remove(recordId) } ?: return
-            var result = pendingRuns.appendHeartRates(recordId, batch)
-            var attempt = 1
-            while (result.isRetryableFailure() && attempt < SAVE_ATTEMPTS) {
-                delay(SAVE_RETRY_MILLIS * attempt)
-                result = pendingRuns.appendHeartRates(recordId, batch)
-                attempt++
-            }
-            if (result.isRetryableFailure()) {
-                synchronized(lock) { unsavedLate[recordId] = (batch + unsavedLate[recordId].orEmpty()).distinct() }
-            }
-        }
-    }
-
-    private fun Outcome<Unit>.isRetryableFailure(): Boolean = this is Outcome.Failure && error !is AppError.Rejected
 
     /** 방금 끝난 세션의 시간 창을 기억한다. lock 안에서만 부른다. */
     private fun rememberFinished(finished: RunSession) {
@@ -285,21 +254,9 @@ constructor(
         if (outcome is FinishOutcome.Saved) scope.launch { save(outcome.run) }
     }
 
-    /**
-     * 기기 보관함에 저장한 뒤 전송을 요청한다. 저장이 실패하면 짧게 두 번 더 시도하고,
-     * 그래도 실패하면 화면 안내로 알린다(조용히 버리지 않는다). 반복의 출구는 조건 하나다(P-1).
-     */
+    /** 보관하고 전송을 요청한다(RunArchive가 두 번 더 시도한다). 끝내 저장하지 못하면 화면 안내로 알린다(조용히 버리지 않는다). */
     private suspend fun save(run: CompletedRun) {
-        var saved = pendingRuns.save(run) is Outcome.Success
-        var attempt = 1
-        while (!saved && attempt < SAVE_ATTEMPTS) {
-            delay(SAVE_RETRY_MILLIS * attempt)
-            saved = pendingRuns.save(run) is Outcome.Success
-            attempt++
-        }
-        if (saved) {
-            uploadScheduler.requestUpload()
-        } else {
+        if (!archive.save(run)) {
             guidanceOutput.play(Guidance.screenOnly(Guidance.Kind.SAVE_FAILED, GuidanceMessage.SAVE_FAILED))
         }
     }
@@ -378,11 +335,6 @@ constructor(
         todayPlan = plan,
         notice = notice
     )
-
-    private companion object {
-        const val SAVE_ATTEMPTS = 3
-        const val SAVE_RETRY_MILLIS = 1_000L
-    }
 
     private data class FinishedWindow(val recordId: String, val startedAt: Instant, val endedAt: Instant) {
         fun contains(at: Instant): Boolean = !at.isBefore(startedAt) && !at.isAfter(endedAt)

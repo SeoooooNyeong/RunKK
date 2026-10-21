@@ -43,7 +43,7 @@ class RunTrackerTest {
     private val clock = TestClock()
 
     private fun tracker(scope: CoroutineScope) =
-        RunTracker(pending, scheduler, watch, output, permission, host, settings, clock, scope)
+        RunTracker(RunArchive(pending, scheduler), watch, output, permission, host, settings, clock, scope)
 
     private fun TestScope.started(): RunTracker {
         val tracker = tracker(backgroundScope)

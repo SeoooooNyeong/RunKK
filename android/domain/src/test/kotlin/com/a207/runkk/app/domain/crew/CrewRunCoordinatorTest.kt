@@ -8,6 +8,7 @@ import com.a207.runkk.app.domain.live.CrewRunRelay
 import com.a207.runkk.app.domain.live.CrewRunStart
 import com.a207.runkk.app.domain.live.ProgressReport
 import com.a207.runkk.app.domain.run.Guidance
+import com.a207.runkk.app.domain.run.RunArchive
 import com.a207.runkk.app.domain.run.RunTracker
 import com.a207.runkk.app.domain.run.sample
 import com.a207.runkk.app.domain.testing.CallLog
@@ -85,8 +86,7 @@ class CrewRunCoordinatorTest {
     private fun TestScope.setUp(): Pair<RunTracker, CrewRunCoordinator> {
         val tracker =
             RunTracker(
-                FakePendingRunRepository(log),
-                FakeUploadScheduler(log),
+                RunArchive(FakePendingRunRepository(log), FakeUploadScheduler(log)),
                 FakeWatchGateway(),
                 guidance,
                 FakeLocationPermission(),
