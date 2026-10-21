@@ -1,0 +1,14 @@
+# 런크크 스모크 E2E(Maestro). 실행은 e2e/run.sh가 단계마다 한 파일씩 돌린다(단계별 logcat·결과).
+# 한 번에 돌리려면: maestro test android/e2e/maestro -e APP_ID=... (env 목록은 e2e/README.md)
+flows:
+  - "*.yaml"
+executionOrder:
+  continueOnFailure: false
+  flowsOrder:
+    - 01_signup
+    - 02_home
+    - 03_free_run
+    - 04_records
+    - 05_crew
+    - 06_settings
+    - 07_inbox

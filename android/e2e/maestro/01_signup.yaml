@@ -1,0 +1,48 @@
+# 시나리오 1: 카카오 버튼 로그인 → 가입 5단계(약관·14세·필수 동의 → 프로필·공개 범위 → 성향 태그 → 아바타 "나중에") → 홈.
+# 앱은 E2E 빌드(RUNKK_E2E_KAKAO_TOKEN)라 Kakao SDK 대신 시험 토큰을 서버로 보내고, 서버는 카카오 스텁으로 검증한다.
+# 이미 가입된 계정이면(같은 서버로 다시 돌릴 때) 로그인 뒤 바로 홈이 뜨고 가입 단계는 건너뛴다.
+appId: ${APP_ID}
+name: 01_signup
+tags: [smoke]
+---
+- launchApp:
+    clearState: true
+    permissions:
+      all: allow
+- extendedWaitUntil:
+    visible: "카카오로 시작하기"
+    timeout: 20000
+- tapOn: "카카오로 시작하기"
+- extendedWaitUntil:
+    visible: "5단계 중 1단계|자유런 시작"
+    timeout: 15000
+- runFlow:
+    when:
+      visible: "5단계 중 1단계"
+    commands:
+      - tapOn: '\[필수\] 만 14세 이상이에요'
+      - tapOn: '\[필수\] 서비스 이용약관'
+      - tapOn: '\[필수\] 개인정보 수집·이용'
+      - tapOn: '\[필수\] 위치 정보 수집'
+      - tapOn: "다음"
+      - assertVisible: "5단계 중 2단계"
+      - tapOn: "닉네임"
+      - inputText: ${NICKNAME}
+      - hideKeyboard
+      - tapOn: "전체공개"
+      - tapOn: "다음"
+      # 3단계는 앱 설계상 건너뛴다(SignUpStep: 1·2·4·5).
+      - extendedWaitUntil:
+          visible: "5단계 중 4단계"
+          timeout: 10000
+      - tapOn: "함께가 좋아요"
+      - tapOn: "짧게 자주"
+      - tapOn: "꾸준히"
+      - tapOn: "다음"
+      - assertVisible: "5단계 중 5단계"
+      - tapOn: "나중에 만들기"
+- extendedWaitUntil:
+    visible: "자유런 시작"
+    timeout: 15000
+- assertVisible: ${NICKNAME}
+- takeScreenshot: 01_signup_home

@@ -6,6 +6,9 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.navigation.FeatureEntry
 import com.a207.runkk.app.domain.account.SessionRepository
@@ -33,7 +36,13 @@ class MainActivity : ComponentActivity() {
                             it
                     }
                 }
-                RunkkAppContent(featureEntries = featureEntries, loggedIn = loggedIn, onExit = ::finish)
+                RunkkAppContent(
+                    featureEntries = featureEntries,
+                    loggedIn = loggedIn,
+                    onExit = ::finish,
+                    // Modifier.testTag를 UI Automator 리소스 ID로 내보낸다(E2E Maestro 선택자 id:, android/e2e/maestro).
+                    modifier = Modifier.semantics { testTagsAsResourceId = true }
+                )
             }
         }
     }

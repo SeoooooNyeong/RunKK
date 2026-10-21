@@ -1,0 +1,58 @@
+# 시나리오 6: 마이 > 설정에서 "코스 지도 공유"를 켜고, 설정을 다시 열었을 때 켜진 채인지 확인한다. 서버 /me/settings도 확인한다.
+appId: ${APP_ID}
+name: 06_settings
+tags: [smoke]
+---
+- launchApp
+- extendedWaitUntil:
+    visible: "자유런 시작"
+    timeout: 20000
+- tapOn: "마이"
+- tapOn: "설정"
+- extendedWaitUntil:
+    visible: "앱 설정"
+    timeout: 10000
+# 가입 직후 기본값은 꺼짐이다. 이미 켜져 있으면(연결 끊김으로 이 단계를 다시 돌 때) 누르지 않는다.
+- runFlow:
+    when:
+      visible:
+        id: "setting_course_map_shared"
+        checked: false
+    commands:
+      - tapOn:
+          id: "setting_course_map_shared"
+- assertVisible:
+    id: "setting_course_map_shared"
+    checked: true
+# 다시 열기: 화면을 닫았다 열고, 앱을 껐다 켜서도 확인한다.
+- tapOn: "뒤로"
+- tapOn: "설정"
+- extendedWaitUntil:
+    visible: "앱 설정"
+    timeout: 10000
+- assertVisible:
+    id: "setting_course_map_shared"
+    checked: true
+- launchApp
+- extendedWaitUntil:
+    visible: "자유런 시작"
+    timeout: 20000
+- tapOn: "마이"
+- tapOn: "설정"
+- extendedWaitUntil:
+    visible: "앱 설정"
+    timeout: 10000
+- assertVisible:
+    id: "setting_course_map_shared"
+    checked: true
+- takeScreenshot: 06_settings_kept
+- runScript:
+    file: scripts/server_login.js
+    env:
+      SERVER_URL: ${SERVER_URL}
+      KAKAO_TOKEN: ${KAKAO_TOKEN}
+- runScript:
+    file: scripts/check_setting.js
+    env:
+      SERVER_URL: ${SERVER_URL}
+- tapOn: "뒤로"

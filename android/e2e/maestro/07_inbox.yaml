@@ -1,0 +1,24 @@
+# 시나리오 7: 알림함을 연다(빈 상태). 서버 /notifications도 비어 있는지 확인한다.
+appId: ${APP_ID}
+name: 07_inbox
+tags: [smoke]
+---
+- launchApp
+- extendedWaitUntil:
+    visible: "자유런 시작"
+    timeout: 20000
+- tapOn: "알림함"
+- extendedWaitUntil:
+    visible: "새 알림이 없어요"
+    timeout: 10000
+- takeScreenshot: 07_inbox_empty
+- runScript:
+    file: scripts/server_login.js
+    env:
+      SERVER_URL: ${SERVER_URL}
+      KAKAO_TOKEN: ${KAKAO_TOKEN}
+- runScript:
+    file: scripts/check_inbox_empty.js
+    env:
+      SERVER_URL: ${SERVER_URL}
+- tapOn: "뒤로"

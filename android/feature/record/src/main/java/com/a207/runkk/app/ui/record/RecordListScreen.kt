@@ -22,6 +22,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -273,6 +274,8 @@ private fun DayCell(day: LocalDate?, distance: Distance?, modifier: Modifier) {
 private fun RunRow(run: RunSummary, zone: ZoneId, onClick: () -> Unit) {
     Row(
         modifier = Modifier
+            // E2E(android/e2e/maestro) 선택자. 화면에는 보이지 않는다.
+            .testTag("record_row")
             .fillMaxWidth()
             .clip(RunkkShapes.Large)
             .background(RunkkColors.Surface)

@@ -29,6 +29,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -524,7 +525,11 @@ fun CrewCreateScreen(
             onClick = onSubmit,
             enabled = state.form.valid,
             loading = state.saving,
-            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 32.dp)
+            // E2E(android/e2e/maestro) 선택자: 상단 "만들기"와 이름이 같아 태그로 찾는다.
+            modifier = Modifier
+                .testTag("crew_create_submit")
+                .fillMaxWidth()
+                .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 32.dp)
         )
     }
 }

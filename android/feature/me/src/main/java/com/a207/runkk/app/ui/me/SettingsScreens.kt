@@ -28,6 +28,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -202,7 +203,9 @@ private fun ColumnScope.AppSettings(state: SettingsUiState, actions: SettingsAct
             title = "코스 지도 공유",
             description = "끄면 다른 러너와 기록 카드에 거리·시간만 보여요",
             checked = state.flag(SettingKeys.COURSE_MAP_SHARED),
-            onCheckedChange = { actions.setValue(SettingKeys.COURSE_MAP_SHARED, it.toString()) }
+            onCheckedChange = { actions.setValue(SettingKeys.COURSE_MAP_SHARED, it.toString()) },
+            // E2E(android/e2e/maestro) 선택자: 켜짐 여부(checked)는 글자가 아닌 줄 전체에 붙는다.
+            modifier = Modifier.testTag("setting_course_map_shared")
         )
         Divider()
         ChoiceSetting(
