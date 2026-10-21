@@ -12,7 +12,7 @@ import androidx.compose.ui.platform.LocalContext
  */
 data class RunkkTag(val id: String, @StringRes val labelRes: Int)
 
-data class RunkkTagCategory(@StringRes val nameRes: Int, val tags: List<RunkkTag>, val crewOnly: Boolean = false)
+data class RunkkTagCategory(@StringRes val nameRes: Int, val tags: List<RunkkTag>, val isCrewOnly: Boolean = false)
 
 object RunkkTags {
     /** 러너가 고르는 상한(FR-007). */
@@ -70,12 +70,12 @@ object RunkkTags {
         RunkkTagCategory(
             R.string.core_tag_category_crew_mood,
             listOf(RunkkTag("BEGINNER_WELCOME", R.string.core_tag_beginner_welcome)),
-            crewOnly = true
+            isCrewOnly = true
         )
     )
 
     /** 러너용 6분류. */
-    val runnerCategories: List<RunkkTagCategory> = categories.filterNot { it.crewOnly }
+    val runnerCategories: List<RunkkTagCategory> = categories.filterNot { it.isCrewOnly }
 
     private val byId: Map<String, RunkkTag> = categories.flatMap { it.tags }.associateBy { it.id }
 

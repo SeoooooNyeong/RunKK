@@ -183,7 +183,7 @@ fun RunkkMenuRow(
     modifier: Modifier = Modifier,
     value: String? = null,
     icon: ImageVector? = null,
-    accent: Boolean = false
+    isAccent: Boolean = false
 ) {
     Row(
         modifier = modifier
@@ -199,14 +199,14 @@ fun RunkkMenuRow(
             Icon(
                 icon,
                 contentDescription = null,
-                tint = if (accent) RunkkColors.Lavender else RunkkColors.TextSecondary,
+                tint = if (isAccent) RunkkColors.Lavender else RunkkColors.TextSecondary,
                 modifier = Modifier.size(20.dp)
             )
         }
         Text(
             text = title,
             style = RunkkTextStyles.text(15, FontWeight.Medium),
-            color = if (accent) RunkkColors.Lavender else RunkkColors.TextPrimary,
+            color = if (isAccent) RunkkColors.Lavender else RunkkColors.TextPrimary,
             modifier = Modifier.weight(1f)
         )
         if (value != null) Text(text = value, style = RunkkTextStyles.Label, color = RunkkColors.TextSecondary)
@@ -221,14 +221,14 @@ fun RunkkMenuRow(
 
 /**
  * 영문 오버라인(16, 넓은 자간: "LIVE BATTLE · 5K"). 보조 기술에는 [spoken](기본: 한글로 바꾼 라벨, "실시간 대결, 5킬로미터")으로
- * 읽힌다. [heading]이면 화면 제목으로 알린다.
+ * 읽힌다. [isHeading]이면 화면 제목으로 알린다.
  */
 @Composable
 fun RunkkOverline(
     text: String,
     modifier: Modifier = Modifier,
     color: Color = RunkkColors.TextSecondary,
-    heading: Boolean = false,
+    isHeading: Boolean = false,
     spoken: String = RunkkFormat.spokenLabel(text)
 ) {
     Text(
@@ -237,7 +237,7 @@ fun RunkkOverline(
         color = color,
         modifier = modifier.semantics {
             contentDescription = spoken
-            if (heading) heading()
+            if (isHeading) heading()
         }
     )
 }
@@ -261,7 +261,7 @@ private fun RunkkBarsPreview() {
     RunkkTheme(reduceMotion = true) {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             RunkkTopBar(title = "내 기록", onBack = {}) {
-                RunkkSegmentedTabs(listOf("달력", "목록"), selectedIndex = 0, onSelect = {}, compact = true)
+                RunkkSegmentedTabs(listOf("달력", "목록"), selectedIndex = 0, onSelect = {}, isCompact = true)
             }
             RunkkStepTopBar(title = "회원 가입", step = 1, total = 5, onBack = {})
             RunkkMenuRow("설정", onClick = {}, icon = RunkkIcons.Settings, value = "km")

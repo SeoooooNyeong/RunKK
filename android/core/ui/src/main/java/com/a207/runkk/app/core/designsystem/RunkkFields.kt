@@ -66,7 +66,7 @@ fun RunkkTextField(
     maxLength: Int? = null,
     supporting: String? = null,
     error: String? = null,
-    singleLine: Boolean = true,
+    isSingleLine: Boolean = true,
     imeAction: ImeAction = ImeAction.Next,
     onImeAction: (() -> Unit)? = null
 ) {
@@ -74,7 +74,7 @@ fun RunkkTextField(
         BasicTextField(
             value = value,
             onValueChange = { next -> if (maxLength == null || next.length <= maxLength) onValueChange(next) },
-            singleLine = singleLine,
+            singleLine = isSingleLine,
             textStyle = RunkkTextStyles.text(16).copy(color = RunkkColors.TextPrimary),
             cursorBrush = SolidColor(RunkkColors.Lime),
             keyboardOptions = KeyboardOptions(imeAction = imeAction),
@@ -184,17 +184,17 @@ fun <T> RunkkSelectField(
 @Composable
 fun RunkkSwitchRow(
     title: String,
-    checked: Boolean,
+    isChecked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
     description: String? = null,
-    enabled: Boolean = true
+    isEnabled: Boolean = true
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
             .defaultMinSize(minHeight = 56.dp)
-            .toggleable(value = checked, enabled = enabled, role = Role.Switch, onValueChange = onCheckedChange)
+            .toggleable(value = isChecked, enabled = isEnabled, role = Role.Switch, onValueChange = onCheckedChange)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -208,9 +208,9 @@ fun RunkkSwitchRow(
             }
         }
         Switch(
-            checked = checked,
+            checked = isChecked,
             onCheckedChange = null,
-            enabled = enabled,
+            enabled = isEnabled,
             colors = SwitchDefaults.colors(
                 checkedThumbColor = RunkkColors.OnLime,
                 checkedTrackColor = RunkkColors.Lime,
@@ -264,34 +264,37 @@ private fun RunkkSelectBox(
 
 /**
  * 체크 한 줄(약관 동의): [tag]("[필수]" 라임 / "[선택]" 보조색) + 문구 + 오른쪽 "보기"(선택).
- * [highlighted]면 "전체 동의"처럼 라임 테두리 상자로 그린다.
+ * [isHighlighted]면 "전체 동의"처럼 라임 테두리 상자로 그린다.
  */
 @Composable
 fun RunkkCheckRow(
     label: String,
-    checked: Boolean,
+    isChecked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
     tag: String? = null,
-    tagHighlighted: Boolean = false,
-    highlighted: Boolean = false,
+    isTagHighlighted: Boolean = false,
+    isHighlighted: Boolean = false,
     onView: (() -> Unit)? = null
 ) {
     Row(
-        modifier = modifier.fillMaxWidth().then(checkRowBox(highlighted)),
+        modifier = modifier.fillMaxWidth().then(checkRowBox(isHighlighted)),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Row(
             modifier = Modifier
                 .weight(1f)
                 .defaultMinSize(minHeight = 48.dp)
-                .toggleable(value = checked, role = Role.Checkbox, onValueChange = onCheckedChange)
-                .padding(horizontal = if (highlighted) 16.dp else 0.dp, vertical = if (highlighted) 12.dp else 0.dp),
+                .toggleable(value = isChecked, role = Role.Checkbox, onValueChange = onCheckedChange)
+                .padding(
+                    horizontal = if (isHighlighted) 16.dp else 0.dp,
+                    vertical = if (isHighlighted) 12.dp else 0.dp
+                ),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Checkbox(
-                checked = checked,
+                checked = isChecked,
                 onCheckedChange = null,
                 colors = CheckboxDefaults.colors(
                     checkedColor = RunkkColors.Lime,
@@ -299,7 +302,7 @@ fun RunkkCheckRow(
                     uncheckedColor = RunkkColors.InputBorder
                 )
             )
-            RunkkCheckRowLabel(label, tag, tagHighlighted, highlighted)
+            RunkkCheckRowLabel(label, tag, isTagHighlighted, isHighlighted)
         }
         if (onView != null) {
             RunkkTextLink(
@@ -312,9 +315,9 @@ fun RunkkCheckRow(
 }
 
 /** 강조 체크 줄("전체 동의")은 라임 테두리 상자로 그린다. */
-private fun checkRowBox(highlighted: Boolean): Modifier {
+private fun checkRowBox(isHighlighted: Boolean): Modifier {
     val shape = RunkkShapes.Medium
-    return if (highlighted) {
+    return if (isHighlighted) {
         Modifier.clip(shape).background(RunkkColors.LimeContainer).border(1.dp, RunkkColors.Lime, shape)
     } else {
         Modifier
@@ -323,13 +326,13 @@ private fun checkRowBox(highlighted: Boolean): Modifier {
 
 /** 체크 한 줄의 문구: 앞에 [tag]("[필수]" 라임 / "[선택]" 보조색)가 있으면 굵게 붙인다. */
 @Composable
-private fun RunkkCheckRowLabel(label: String, tag: String?, tagHighlighted: Boolean, highlighted: Boolean) {
+private fun RunkkCheckRowLabel(label: String, tag: String?, isTagHighlighted: Boolean, isHighlighted: Boolean) {
     Text(
         text = androidx.compose.ui.text.buildAnnotatedString {
             if (tag != null) {
                 pushStyle(
                     androidx.compose.ui.text.SpanStyle(
-                        color = if (tagHighlighted) RunkkColors.Lime else RunkkColors.TextSecondary,
+                        color = if (isTagHighlighted) RunkkColors.Lime else RunkkColors.TextSecondary,
                         fontWeight = FontWeight.Bold
                     )
                 )
@@ -339,13 +342,13 @@ private fun RunkkCheckRowLabel(label: String, tag: String?, tagHighlighted: Bool
             }
             append(label)
         },
-        style = if (highlighted) RunkkTextStyles.text(16, FontWeight.Black) else RunkkTextStyles.Body,
+        style = if (isHighlighted) RunkkTextStyles.text(16, FontWeight.Black) else RunkkTextStyles.Body,
         color = RunkkColors.TextPrimary
     )
 }
 
 /**
- * 확인 대화상자. [destructive]면 확인 글자를 라벤더로(탈퇴·로그아웃·동의 철회).
+ * 확인 대화상자. [isDestructive]면 확인 글자를 라벤더로(탈퇴·로그아웃·동의 철회).
  * [onDismiss]는 두 번째 버튼, [onDismissRequest]는 뒤로가기·바깥 누름이다. 두 번째 버튼이 "취소"가 아니라 다른 행동이면
  * (예: "동의 관리"로 이동) [onDismissRequest]를 따로 넘겨 대화상자만 닫는다.
  */
@@ -357,7 +360,7 @@ fun RunkkConfirmDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
     dismissLabel: String = stringResource(R.string.core_fields_cancel),
-    destructive: Boolean = false,
+    isDestructive: Boolean = false,
     onDismissRequest: () -> Unit = onDismiss
 ) {
     AlertDialog(
@@ -372,7 +375,7 @@ fun RunkkConfirmDialog(
                 Text(
                     confirmLabel,
                     style = RunkkTextStyles.BodyStrong,
-                    color = if (destructive) RunkkColors.Lavender else RunkkColors.Lime
+                    color = if (isDestructive) RunkkColors.Lavender else RunkkColors.Lime
                 )
             }
         },
@@ -408,10 +411,10 @@ private fun RunkkFieldsPreview() {
             RunkkSelectField(label = "출생연도 (선택)", options = listOf(1990, 1991), selected = null, optionLabel = {
                 "${it}년"
             }, onSelect = {})
-            RunkkCheckRow(label = "전체 동의", checked = true, onCheckedChange = {}, highlighted = true)
-            RunkkCheckRow(label = "서비스 이용약관", checked = true, onCheckedChange = {
-            }, tag = "[필수]", tagHighlighted = true, onView = {})
-            RunkkSwitchRow(title = "음성 안내", description = "1km마다 알려 줘요", checked = true, onCheckedChange = {})
+            RunkkCheckRow(label = "전체 동의", isChecked = true, onCheckedChange = {}, isHighlighted = true)
+            RunkkCheckRow(label = "서비스 이용약관", isChecked = true, onCheckedChange = {
+            }, tag = "[필수]", isTagHighlighted = true, onView = {})
+            RunkkSwitchRow(title = "음성 안내", description = "1km마다 알려 줘요", isChecked = true, onCheckedChange = {})
         }
     }
 }

@@ -45,10 +45,10 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun RunkkChoiceChip(
     label: String,
-    selected: Boolean,
+    isSelected: Boolean,
     onSelectedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
-    enabled: Boolean = true
+    isEnabled: Boolean = true
 ) {
     val interaction = remember { MutableInteractionSource() }
     val shape = RoundedCornerShape(20.dp)
@@ -56,10 +56,10 @@ fun RunkkChoiceChip(
         modifier = modifier
             .minimumInteractiveComponentSize()
             .toggleable(
-                value = selected,
+                value = isSelected,
                 interactionSource = interaction,
                 indication = null,
-                enabled = enabled,
+                enabled = isEnabled,
                 role = Role.Checkbox,
                 onValueChange = onSelectedChange
             ),
@@ -70,15 +70,15 @@ fun RunkkChoiceChip(
                 .heightIn(min = 40.dp)
                 .runkkPressScale(interaction)
                 .clip(shape)
-                .background(if (selected) RunkkColors.Lime else RunkkColors.Surface)
-                .border(1.dp, if (selected) RunkkColors.Lime else RunkkColors.BorderStrong, shape)
+                .background(if (isSelected) RunkkColors.Lime else RunkkColors.Surface)
+                .border(1.dp, if (isSelected) RunkkColors.Lime else RunkkColors.BorderStrong, shape)
                 .padding(horizontal = 16.dp),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = label,
-                style = RunkkTextStyles.text(13, if (selected) FontWeight.Black else FontWeight.Normal),
-                color = if (selected) RunkkColors.OnLime else RunkkColors.TextSecondary
+                style = RunkkTextStyles.text(13, if (isSelected) FontWeight.Black else FontWeight.Normal),
+                color = if (isSelected) RunkkColors.OnLime else RunkkColors.TextSecondary
             )
         }
     }
@@ -91,7 +91,7 @@ fun RunkkChoiceChip(
 @Composable
 fun RunkkSegmentOption(
     label: String,
-    selected: Boolean,
+    isSelected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     height: Dp = 40.dp
@@ -102,7 +102,7 @@ fun RunkkSegmentOption(
         modifier = modifier
             .minimumInteractiveComponentSize()
             .selectable(
-                selected = selected,
+                selected = isSelected,
                 interactionSource = interaction,
                 indication = null,
                 role = Role.RadioButton,
@@ -116,14 +116,14 @@ fun RunkkSegmentOption(
                 .heightIn(min = height)
                 .runkkPressScale(interaction)
                 .clip(shape)
-                .background(if (selected) RunkkColors.LimeContainer else Color.Transparent)
-                .border(1.dp, if (selected) RunkkColors.Lime else RunkkColors.BorderStrong, shape),
+                .background(if (isSelected) RunkkColors.LimeContainer else Color.Transparent)
+                .border(1.dp, if (isSelected) RunkkColors.Lime else RunkkColors.BorderStrong, shape),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = label,
-                style = RunkkTextStyles.text(13, if (selected) FontWeight.Bold else FontWeight.Normal),
-                color = if (selected) RunkkColors.Lime else RunkkColors.TextSecondary,
+                style = RunkkTextStyles.text(13, if (isSelected) FontWeight.Bold else FontWeight.Normal),
+                color = if (isSelected) RunkkColors.Lime else RunkkColors.TextSecondary,
                 textAlign = TextAlign.Center
             )
         }
@@ -172,7 +172,7 @@ fun RunkkSegmentRow(
                 val spoken = spokenLabels?.getOrNull(index)
                 RunkkSegmentOption(
                     label = label,
-                    selected = index == selectedIndex,
+                    isSelected = index == selectedIndex,
                     onClick = { onSelect(index) },
                     modifier = Modifier
                         .weight(1f)
@@ -185,15 +185,15 @@ fun RunkkSegmentRow(
 
 /**
  * 정보 칩(높이 32, 모서리 16): "지난 설정 그대로" 요약처럼 누르지 않는 표시.
- * [highlighted]면 라임 테두리·글자, [display]면 숫자 글꼴("5K"). [spoken]이 있으면 보조 기술이 그 문구로 읽고, 없으면 "5K"처럼
+ * [isHighlighted]면 라임 테두리·글자, [isDisplay]면 숫자 글꼴("5K"). [spoken]이 있으면 보조 기술이 그 문구로 읽고, 없으면 "5K"처럼
  * 한글로 읽어야 하는 라벨만 바꿔 읽는다.
  */
 @Composable
 fun RunkkInfoChip(
     label: String,
     modifier: Modifier = Modifier,
-    highlighted: Boolean = false,
-    display: Boolean = false,
+    isHighlighted: Boolean = false,
+    isDisplay: Boolean = false,
     spoken: String? = null
 ) {
     val shape = RoundedCornerShape(16.dp)
@@ -201,8 +201,8 @@ fun RunkkInfoChip(
         modifier = modifier
             .heightIn(min = 32.dp)
             .clip(shape)
-            .background(if (highlighted) RunkkColors.LimeContainer else Color.Transparent)
-            .border(1.dp, if (highlighted) RunkkColors.Lime else RunkkColors.BorderStrong, shape)
+            .background(if (isHighlighted) RunkkColors.LimeContainer else Color.Transparent)
+            .border(1.dp, if (isHighlighted) RunkkColors.Lime else RunkkColors.BorderStrong, shape)
             .padding(horizontal = 16.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -216,11 +216,11 @@ fun RunkkInfoChip(
                 Modifier.spokenIfDifferent(label)
             },
             style = when {
-                display -> RunkkTextStyles.display(16)
-                highlighted -> RunkkTextStyles.text(12, FontWeight.Bold)
+                isDisplay -> RunkkTextStyles.display(16)
+                isHighlighted -> RunkkTextStyles.text(12, FontWeight.Bold)
                 else -> RunkkTextStyles.Caption
             },
-            color = if (highlighted) RunkkColors.Lime else RunkkColors.TextSecondary
+            color = if (isHighlighted) RunkkColors.Lime else RunkkColors.TextSecondary
         )
     }
 }
@@ -290,7 +290,7 @@ fun RunkkBadge(label: String, modifier: Modifier = Modifier, tone: RunkkBadgeTon
 }
 
 /**
- * 탭 전환(자유런/배틀런, 달력/목록). [compact]면 높이 32(상단 바 안), 아니면 40.
+ * 탭 전환(자유런/배틀런, 달력/목록). [isCompact]면 높이 32(상단 바 안), 아니면 40.
  * 보조 기술에는 탭으로 보인다.
  */
 @Composable
@@ -299,41 +299,41 @@ fun RunkkSegmentedTabs(
     selectedIndex: Int,
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
-    compact: Boolean = false
+    isCompact: Boolean = false
 ) {
-    val container = if (compact) RunkkColors.Surface else RunkkColors.Background
-    val outer = if (compact) RunkkShapes.Small else RunkkShapes.Medium
-    val inner = if (compact) RoundedCornerShape(8.dp) else RunkkShapes.Small
+    val container = if (isCompact) RunkkColors.Surface else RunkkColors.Background
+    val outer = if (isCompact) RunkkShapes.Small else RunkkShapes.Medium
+    val inner = if (isCompact) RoundedCornerShape(8.dp) else RunkkShapes.Small
     Row(
         modifier = modifier.clip(outer).background(container).padding(4.dp).selectableGroup(),
         verticalAlignment = Alignment.CenterVertically
     ) {
         options.forEachIndexed { index, label ->
-            val selected = index == selectedIndex
-            val itemModifier = if (compact) Modifier else Modifier.weight(1f)
+            val isSelected = index == selectedIndex
+            val itemModifier = if (isCompact) Modifier else Modifier.weight(1f)
             Box(
                 modifier = itemModifier
                     .heightIn(min = 48.dp)
-                    .selectable(selected = selected, role = Role.Tab, onClick = { onSelect(index) }),
+                    .selectable(selected = isSelected, role = Role.Tab, onClick = { onSelect(index) }),
                 contentAlignment = Alignment.Center
             ) {
                 Box(
                     modifier = Modifier
-                        .then(if (compact) Modifier else Modifier.fillMaxWidth())
-                        .heightIn(min = if (compact) 32.dp else 40.dp)
+                        .then(if (isCompact) Modifier else Modifier.fillMaxWidth())
+                        .heightIn(min = if (isCompact) 32.dp else 40.dp)
                         .clip(inner)
-                        .background(if (selected) RunkkColors.Border else Color.Transparent)
+                        .background(if (isSelected) RunkkColors.Border else Color.Transparent)
                         .padding(horizontal = 16.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = label,
-                        style = if (compact) {
-                            RunkkTextStyles.text(13, if (selected) FontWeight.Bold else FontWeight.Normal)
+                        style = if (isCompact) {
+                            RunkkTextStyles.text(13, if (isSelected) FontWeight.Bold else FontWeight.Normal)
                         } else {
-                            RunkkTextStyles.text(15, if (selected) FontWeight.Black else FontWeight.Normal)
+                            RunkkTextStyles.text(15, if (isSelected) FontWeight.Black else FontWeight.Normal)
                         },
-                        color = if (selected) RunkkColors.TextPrimary else RunkkColors.TextSecondary
+                        color = if (isSelected) RunkkColors.TextPrimary else RunkkColors.TextSecondary
                     )
                 }
             }
@@ -355,12 +355,12 @@ fun RunkkTabRow(options: List<String>, selectedIndex: Int, onSelect: (Int) -> Un
             .selectableGroup()
     ) {
         options.forEachIndexed { index, label ->
-            val selected = index == selectedIndex
+            val isSelected = index == selectedIndex
             Box(
                 modifier = Modifier
                     .weight(1f)
                     .heightIn(min = 48.dp)
-                    .selectable(selected = selected, role = Role.Tab, onClick = { onSelect(index) }),
+                    .selectable(selected = isSelected, role = Role.Tab, onClick = { onSelect(index) }),
                 contentAlignment = Alignment.Center
             ) {
                 Box(
@@ -368,13 +368,13 @@ fun RunkkTabRow(options: List<String>, selectedIndex: Int, onSelect: (Int) -> Un
                         .fillMaxWidth()
                         .heightIn(min = 40.dp)
                         .clip(RoundedCornerShape(12.dp))
-                        .background(if (selected) RunkkColors.Lime else Color.Transparent),
+                        .background(if (isSelected) RunkkColors.Lime else Color.Transparent),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         label,
-                        style = RunkkTextStyles.text(13, if (selected) FontWeight.Black else FontWeight.Normal),
-                        color = if (selected) RunkkColors.OnLime else RunkkColors.TextSecondary,
+                        style = RunkkTextStyles.text(13, if (isSelected) FontWeight.Black else FontWeight.Normal),
+                        color = if (isSelected) RunkkColors.OnLime else RunkkColors.TextSecondary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -402,12 +402,12 @@ private fun RunkkChipsPreview() {
     RunkkTheme(reduceMotion = true) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             RunkkChipGroup("동행") {
-                RunkkChoiceChip("혼자가 편해요", selected = false, onSelectedChange = {})
-                RunkkChoiceChip("함께가 좋아요", selected = true, onSelectedChange = {})
+                RunkkChoiceChip("혼자가 편해요", isSelected = false, onSelectedChange = {})
+                RunkkChoiceChip("함께가 좋아요", isSelected = true, onSelectedChange = {})
             }
             RunkkSegmentRow(listOf("전체공개", "크루공개", "비공개"), selectedIndex = 0, onSelect = {})
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                RunkkInfoChip("5K", highlighted = true, display = true)
+                RunkkInfoChip("5K", isHighlighted = true, isDisplay = true)
                 RunkkInfoChip("음성 켬")
                 RunkkStatusPill("GPS 좋음")
             }
@@ -418,7 +418,7 @@ private fun RunkkChipsPreview() {
             }
             RunkkSegmentedTabs(listOf("자유런", "배틀런"), selectedIndex = 0, onSelect = {
             }, modifier = Modifier.fillMaxWidth())
-            RunkkSegmentedTabs(listOf("달력", "목록"), selectedIndex = 1, onSelect = {}, compact = true)
+            RunkkSegmentedTabs(listOf("달력", "목록"), selectedIndex = 1, onSelect = {}, isCompact = true)
         }
     }
 }
