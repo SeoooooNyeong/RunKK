@@ -129,6 +129,9 @@ class RunningServicesTest {
         send(m, upload(id(3), START.plusHours(2), 3_000, 900));
         assertThat(send(m, upload(id(1), 5_000, 1_500)))
                 .isEqualTo(UploadResult.alreadyStored(id(1)));
+        long stranger = member(); // L30: 남의 기록 ID로는 "이미 저장됨"을 알려 주지 않는다
+        assertThatThrownBy(() -> send(stranger, upload(id(1), 5_000, 1_500)))
+                .isInstanceOf(IllegalStateException.class);
 
         assertThat(saved()).extracting(RunRecordSaved::validRunOrdinal).containsExactly(1, 0, 2);
         RunRecordSaved first = saved().get(0);

@@ -170,6 +170,24 @@ class RealtimeUnitTest {
     }
 
     @Test
+    @DisplayName("L22: 폴링 진행값 본문이 WebSocket 상한(1024바이트)을 넘으면 읽지 않고 400")
+    void pollingProgress_rejectsOversizedBody() {
+        LiveBattleService live = mock(LiveBattleService.class);
+        CrewRunLiveService crewLive = mock(CrewRunLiveService.class);
+        LivePollingController controller =
+                new LivePollingController(
+                        new PollingMessenger(
+                                new RealtimeMessageSerializer(),
+                                new MessageMailbox(Clock.system(SEOUL))),
+                        new RealtimeMessageSerializer(),
+                        new ProgressDispatcher(live, crewLive, Clock.system(SEOUL)));
+        String padded = PROGRESS.replace("}", ",\"pad\":\"" + "x".repeat(1_100) + "\"}");
+        assertThat(controller.progress(42L, padded).getStatusCode().value()).isEqualTo(400);
+        verify(live, never()).onProgress(anyLong(), anyLong(), any(), any());
+        assertThat(controller.progress(42L, PROGRESS).getStatusCode().value()).isEqualTo(204);
+    }
+
+    @Test
     @DisplayName("새 연결이 오면 옛 세션을 닫고, 옛 세션의 종료는 새 등록을 지우지 않는다")
     void registry_replacesOldSession() throws IOException {
         SocketSessionRegistry registry = new SocketSessionRegistry();

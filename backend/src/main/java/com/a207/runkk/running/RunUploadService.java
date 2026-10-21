@@ -59,7 +59,7 @@ public class RunUploadService {
     public UploadResult upload(long memberId, RunUploadCommand command) {
         RunUpload upload = command.toUpload();
         if (runRecordRepository.exists(upload.recordId())) {
-            return UploadResult.alreadyStored(upload.recordId());
+            return alreadyStored(memberId, upload.recordId());
         }
         if (!upload.heartRates().isEmpty()
                 && !memberQueryService.hasConsent(memberId, ConsentItem.HEART_RATE)) {
@@ -72,6 +72,22 @@ public class RunUploadService {
                 .flatMap(p -> weatherAt(p, record))
                 .ifPresent(record::attachWeather);
         return transaction.execute(status -> store(memberId, record));
+    }
+
+    /**
+     * 같은 회원의 재전송이면 alreadyStored. 다른 회원의 기록 ID면 그 ID가 있다는 것을 알리지 않고 409(INVALID_STATE)로 거부한다(코드 리뷰
+     * 2차 L30).
+     */
+    private UploadResult alreadyStored(long memberId, String recordId) {
+        boolean mine =
+                runRecordRepository
+                        .findById(recordId)
+                        .map(r -> r.getMemberId() == memberId)
+                        .orElse(false);
+        if (!mine) {
+            throw new IllegalStateException("다른 회원의 기록 ID");
+        }
+        return UploadResult.alreadyStored(recordId);
     }
 
     /** 늦게 온 심박 덧붙이기(FR-043). 기록 주인만. 심박 동의가 없거나 원자료를 파기한 기록이면 버린다. */

@@ -77,6 +77,15 @@ public class RunTrack {
         return max;
     }
 
+    /** 모든 이웃 포인트 사이 거리의 합(불안정 구간 포함). 선언 거리 대조에 쓴다(L18). */
+    public Distance pathLength() {
+        double acc = 0;
+        for (int i = 1; i < points.size(); i++) {
+            acc += meters(points.get(i - 1).point(), points.get(i).point());
+        }
+        return Distance.ofMeters(Math.round(acc));
+    }
+
     /** 누적 거리 d에 처음 닿은 경과 시간. 두 포인트 사이는 직선 보간. 파기했거나 닿지 않았으면 비어 있음. */
     public Optional<Duration> timeToReach(Distance d) {
         if (purged || points.isEmpty()) {

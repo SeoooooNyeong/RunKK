@@ -181,10 +181,15 @@ public class RunRecord {
         this.judged = true;
         this.valid =
                 rule.isSatisfiedBy(
-                        getDistance(),
-                        getElapsed(),
-                        getAveragePace(),
-                        track().maxSegmentSpeedKmh());
+                                getDistance(),
+                                getElapsed(),
+                                getAveragePace(),
+                                track().maxSegmentSpeedKmh())
+                        && rule.isBackedBy(
+                                getDistance(),
+                                track().pathLength(),
+                                getElapsed(),
+                                Duration.between(startedAt, endedAt));
         this.score = valid ? RunningScore.of(getDistance(), getElapsed()).value() : null;
         return valid;
     }

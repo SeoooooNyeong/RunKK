@@ -1,5 +1,6 @@
 package com.a207.runkk.realtime;
 
+import java.nio.charset.StandardCharsets;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -40,10 +41,15 @@ public class LivePollingController {
         return ResponseEntity.ok("[" + String.join(",", pollingMessenger.drain(memberId)) + "]");
     }
 
-    /** 앱 → 서버 진행값(InboundProgress JSON). 형식이 틀리면 400. */
+    /**
+     * 앱 → 서버 진행값(InboundProgress JSON). WebSocket과 같은 1024바이트 상한을 넘거나 형식이 틀리면 400(코드 리뷰 2차 L22).
+     */
     @PostMapping(value = "/progress", consumes = MediaType.APPLICATION_JSON_VALUE)
     ResponseEntity<Void> progress(
             @RequestAttribute(MEMBER_ID) long memberId, @RequestBody String body) {
+        if (body.getBytes(StandardCharsets.UTF_8).length > LiveSocketHandler.MAX_MESSAGE_BYTES) {
+            return ResponseEntity.badRequest().build();
+        }
         return serializer
                 .readInbound(body)
                 .map(

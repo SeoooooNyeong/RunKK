@@ -139,8 +139,8 @@ public class MembershipService {
     }
 
     /**
-     * check(VIEW_OR_DECIDE_JOIN) → 크루 잠금 → 정원·소속 재확인 → admit + approve 또는 dissolve(사유) →
-     * 알림(JOIN_DECIDED). 처리된 신청이면 REQUEST_DECIDED.
+     * check(VIEW_OR_DECIDE_JOIN) → 크루 잠금 → 7일 경과 재확인 → 정원·소속 재확인 → admit + approve 또는 dissolve(사유)
+     * → 알림(JOIN_DECIDED). 처리된 신청이면 REQUEST_DECIDED.
      */
     @Transactional
     public DecisionResult approveJoin(long requesterId, long requestId) {
@@ -150,6 +150,9 @@ public class MembershipService {
                         requesterId, request.crewId(), CrewAction.VIEW_OR_DECIDE_JOIN);
         requirePending(request);
         LocalDateTime now = LocalDateTime.now(clock);
+        if (request.isDueToExpire(now)) {
+            throw new BusinessRuleException(ReasonCode.REQUEST_DECIDED); // 7일 경과 재확인(06-04, L12)
+        }
         Optional<String> dissolved = dissolveReason(crew, request.memberId(), now);
         if (dissolved.isPresent()) {
             request.dissolve(dissolved.get(), now);

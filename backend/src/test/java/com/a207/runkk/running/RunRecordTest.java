@@ -108,6 +108,48 @@ class RunRecordTest {
     }
 
     @Test
+    @org.junit.jupiter.api.DisplayName(
+            "L18: 선언 거리가 경로 길이의 두 배를 넘거나 선언 시간이 시작~종료보다 길면 다른 조건을 다 맞아도 무효")
+    void judgeValidity_declaredValuesMustMatchTrack() {
+        RunUpload marathon = upload(id(1), 42_195, 14_400);
+        RunUpload twoPoints =
+                new RunUpload(
+                        marathon.recordId(),
+                        marathon.startedAt(),
+                        marathon.endedAt(),
+                        marathon.distance(),
+                        marathon.elapsed(),
+                        marathon.mode(),
+                        marathon.cardKind(),
+                        null,
+                        null,
+                        2,
+                        marathon.points().subList(0, 2),
+                        List.of(),
+                        List.of());
+        assertThat(RunFixtures.judged(twoPoints).isValid()).isFalse();
+
+        RunUpload fiveK = upload(id(2), 5_000, 1_500);
+        RunUpload stretched =
+                new RunUpload(
+                        fiveK.recordId(),
+                        fiveK.startedAt(),
+                        fiveK.startedAt().plusSeconds(1_200),
+                        fiveK.distance(),
+                        fiveK.elapsed(),
+                        fiveK.mode(),
+                        fiveK.cardKind(),
+                        null,
+                        null,
+                        fiveK.declaredPointCount(),
+                        fiveK.points(),
+                        List.of(),
+                        List.of());
+        assertThat(RunFixtures.judged(stretched).isValid()).isFalse();
+        assertThat(RunFixtures.judged(upload(id(3), 5_000, 1_500)).isValid()).isTrue();
+    }
+
+    @Test
     void markNewRecords_ignoredWhenInvalid() {
         RunRecord invalid = RunFixtures.judged(upload(id(1), 900, 300));
         invalid.markNewRecords(
