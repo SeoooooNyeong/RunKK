@@ -10,3 +10,4 @@ build/
 *.keystore
 *.jks
 .kotlin/
+/app/google-services.json

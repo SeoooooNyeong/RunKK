@@ -27,6 +27,8 @@ playServicesWearable = "20.0.1"
 playServicesLocation = "21.4.0"
 wearCompose = "1.7.1"
 konsist = "0.18.1"
+timber = "5.0.1"
+googleServices = "4.4.4"
 # 데이터 계층(A2)에서 더함
 securityCrypto = "1.1.0"
 firebaseMessaging = "26.0.0"
@@ -103,6 +105,7 @@ turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine
 roborazzi = { group = "io.github.takahirom.roborazzi", name = "roborazzi", version.ref = "roborazzi" }
 roborazzi-compose = { group = "io.github.takahirom.roborazzi", name = "roborazzi-compose", version.ref = "roborazzi" }
 roborazzi-junit-rule = { group = "io.github.takahirom.roborazzi", name = "roborazzi-junit-rule", version.ref = "roborazzi" }
+timber = { group = "com.jakewharton.timber", name = "timber", version.ref = "timber" }
 # 구조 시험 (14장, 5.1.2 의존 표)
 konsist = { group = "com.lemonappdev", name = "konsist", version.ref = "konsist" }
 # build-logic(convention plugin) 컴파일용
@@ -124,6 +127,7 @@ ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 ktlint = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlintGradle" }
 roborazzi = { id = "io.github.takahirom.roborazzi", version.ref = "roborazzi" }
+google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" }
 # convention plugins (build-logic)
 runkk-android-application = { id = "runkk.android.application" }
 runkk-android-library = { id = "runkk.android.library" }

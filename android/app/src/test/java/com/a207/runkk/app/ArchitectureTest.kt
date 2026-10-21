@@ -188,8 +188,10 @@ class ArchitectureTest {
                 "ui.avatar" to CORE_UI + "domain.avatar",
                 "ui.me" to CORE_UI + "domain.account",
                 "ui.notification" to CORE_UI + "domain.notification",
+                // core.model 추가: 시작 작업(AppStartup)이 UseCase·포트의 Outcome을 받아 실패를 기록한다.
                 "app" to
                     setOf(
+                        "core.model",
                         "domain.sync",
                         "domain.account",
                         "domain.settings",

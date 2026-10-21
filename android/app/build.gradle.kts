@@ -6,6 +6,12 @@ plugins {
     alias(libs.plugins.hilt)
 }
 
+// FCM(firebase-messaging)은 google-services.json이 있어야 초기화된다. 파일은 저장소에 넣지 않으므로(비밀 설정) 있을 때만
+// 플러그인을 적용하고, 없으면 푸시 등록만 건너뛴 채 빌드·실행이 된다(PushTokenSync는 토큰이 없으면 아무것도 하지 않는다).
+if (file("google-services.json").exists()) {
+    apply(plugin = libs.plugins.google.services.get().pluginId)
+}
+
 android {
     // 패키지 루트는 설계서 0.1의 com.a207.runkk.app. applicationId는 스토어 식별자라 그대로 둔다.
     namespace = "com.a207.runkk.app"
@@ -99,6 +105,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.hilt.android)
     implementation(libs.hilt.navigation.compose)
+    implementation(libs.timber)
     ksp(libs.hilt.compiler)
 
     // 구조 시험(14장): 5.1.2 의존 표·domain 순수성 규칙을 Konsist로 확인한다.
@@ -107,6 +114,7 @@ dependencies {
     testImplementation(platform(libs.androidx.compose.bom))
     testImplementation(libs.androidx.compose.ui.test.junit4)
     testImplementation(libs.robolectric)
+    testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
