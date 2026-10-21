@@ -1,6 +1,9 @@
 package com.a207.runkk.app.api.record
 
 import com.a207.runkk.app.api.core.ApiTestServer
+import com.a207.runkk.app.api.core.SelfMember
+import com.a207.runkk.app.api.core.TokenProvider
+import com.a207.runkk.app.api.core.jwtOf
 import com.a207.runkk.app.api.core.value
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
@@ -11,6 +14,7 @@ import com.a207.runkk.app.core.model.RunMode
 import com.a207.runkk.app.domain.record.AggregationPeriod
 import com.a207.runkk.app.domain.record.Dashboard
 import com.a207.runkk.app.domain.record.Ranking
+import com.a207.runkk.app.domain.record.RecordRepository
 import com.a207.runkk.app.domain.record.RunCard
 import com.a207.runkk.app.domain.record.RunSummary
 import com.a207.runkk.app.domain.record.TodayPlan
@@ -26,10 +30,38 @@ import retrofit2.create
 /** api.record 매퍼(14장 단위(앱 데이터) "api.<기능> 매퍼"): 대시보드·기록 상세·랭킹·오늘 계획·카드 DTO → 도메인. */
 class RecordRepositoryImplTest {
     private val api = ApiTestServer()
-    private val repository = RecordRepositoryImpl(api.retrofit.create())
+    private val tokens =
+        object : TokenProvider {
+            override fun accessToken(): String? = jwtOf("7")
+
+            override fun refreshToken(): String? = null
+
+            override fun update(access: String, refresh: String) = Unit
+
+            override suspend fun clear(): Outcome<Unit> = Outcome.Success(Unit)
+        }
+    private val repository = RecordRepositoryImpl(api.retrofit.create(), SelfMember(tokens))
 
     @AfterTest
     fun tearDown() = api.close()
+
+    @Test
+    fun `SELF 기록 목록은 토큰의 본인 회원 ID로 부른다`() = runTest {
+        api.reply("""{"runs":[]}""")
+
+        repository.runs(RecordRepository.SELF, LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 31))
+
+        assertEquals("/api/v1/members/7/runs", api.take().url.encodedPath)
+    }
+
+    @Test
+    fun `다른 회원 ID는 그대로 부른다`() = runTest {
+        api.reply("""{"runs":[]}""")
+
+        repository.runs(9, LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 31))
+
+        assertEquals("/api/v1/members/9/runs", api.take().url.encodedPath)
+    }
 
     @Test
     fun `대시보드 DTO를 도메인으로 바꾼다`() = runTest {

@@ -1,7 +1,9 @@
 package com.a207.runkk.app.api.record
 
 import com.a207.runkk.app.api.core.ApiErrorMapper
+import com.a207.runkk.app.api.core.SelfMember
 import com.a207.runkk.app.api.core.ServerTime
+import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.Pace
@@ -23,12 +25,16 @@ import retrofit2.HttpException
 /** 기록 분석 조회 포트를 REST로 구현한다(6.1.14 api.record). */
 internal class RecordRepositoryImpl
 @Inject
-constructor(private val api: RecordApi) : RecordRepository {
+constructor(private val api: RecordApi, private val self: SelfMember) :
+    RecordRepository {
     override suspend fun dashboard(baseDate: LocalDate): Outcome<Dashboard> =
         ApiErrorMapper.call { api.dashboard(ServerTime.formatDate(baseDate)).toDomain() }
 
-    override suspend fun runs(ownerId: Long, from: LocalDate, to: LocalDate): Outcome<RecordList> =
-        ApiErrorMapper.call { api.runs(ownerId, ServerTime.formatDate(from), ServerTime.formatDate(to)).toDomain() }
+    /** ownerId가 SELF면 접근 토큰의 회원 ID로 바꿔 부른다. 본인 ID를 모르면(토큰 없음) Unauthorized. */
+    override suspend fun runs(ownerId: Long, from: LocalDate, to: LocalDate): Outcome<RecordList> {
+        val id = self.resolve(ownerId, RecordRepository.SELF) ?: return Outcome.Failure(AppError.Unauthorized)
+        return ApiErrorMapper.call { api.runs(id, ServerTime.formatDate(from), ServerTime.formatDate(to)).toDomain() }
+    }
 
     override suspend fun run(recordId: String): Outcome<RecordDetail> = ApiErrorMapper.call {
         api.run(recordId).toDomain()

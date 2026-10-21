@@ -27,7 +27,7 @@ object SettingKeys {
     const val RECORD_VISIBILITY = "RECORD_VISIBILITY"
     const val COURSE_MAP_SHARED = "COURSE_MAP_SHARED"
     const val PROFILE_VISIBILITY = "PROFILE_VISIBILITY"
-    const val WATCH_LINKED = "WATCH_LINKED"
+    const val WATCH_LINKED = "WATCH_LINK"
     const val RUN_TARGET = "RUN_SETTINGS.target"
     const val RUN_VOICE = "RUN_SETTINGS.voice"
     const val RUN_VIBRATION = "RUN_SETTINGS.vibration"

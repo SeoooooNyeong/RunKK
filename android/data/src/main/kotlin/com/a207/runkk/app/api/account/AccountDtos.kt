@@ -57,9 +57,9 @@ internal data class ProfileResponse(
 @Serializable
 internal data class ProfileEditRequest(val nickname: String, val intro: String?, val tags: Set<String>)
 
-/** PATCH /me/settings 요청(서버 SettingChange: 설정항목 이름과 값). */
+/** PATCH /me/settings 요청(서버 SettingChangeRequest: 설정항목 이름·값, ALERT일 때만 알림 종류). */
 @Serializable
-internal data class SettingChangeBody(val item: String, val value: String)
+internal data class SettingChangeBody(val item: String, val value: String, val notificationType: String? = null)
 
 @Serializable
 internal data class LegalDocumentResponse(val type: String? = null, val title: String? = null, val body: String)

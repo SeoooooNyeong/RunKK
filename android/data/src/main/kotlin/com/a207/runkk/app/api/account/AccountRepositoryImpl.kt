@@ -1,10 +1,12 @@
 package com.a207.runkk.app.api.account
 
 import com.a207.runkk.app.api.core.ApiErrorMapper
+import com.a207.runkk.app.api.core.SelfMember
 import com.a207.runkk.app.api.core.TokenProvider
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.account.AccountRepository
+import com.a207.runkk.app.domain.account.MemberSettings
 import com.a207.runkk.app.domain.account.Profile
 import com.a207.runkk.app.domain.account.ProviderToken
 import com.a207.runkk.app.domain.account.SessionTokens
@@ -22,7 +24,8 @@ internal class AccountRepositoryImpl
 constructor(
     private val auth: AuthApi,
     private val me: MeApi,
-    private val tokens: TokenProvider
+    private val tokens: TokenProvider,
+    private val self: SelfMember
 ) : AccountRepository {
     @Volatile
     private var signUpTicket: String? = null
@@ -59,14 +62,34 @@ constructor(
 
     override suspend fun withdraw(): Outcome<Unit> = ApiErrorMapper.call { me.withdraw() }
 
-    override suspend fun profile(memberId: Long): Outcome<Profile> =
-        ApiErrorMapper.call { me.profile(memberId).toDomain() }
+    /** memberId가 SELF면 접근 토큰의 회원 ID로 바꿔 부른다. 본인 ID를 모르면(토큰 없음) Unauthorized. */
+    override suspend fun profile(memberId: Long): Outcome<Profile> {
+        val id = self.resolve(memberId, AccountRepository.SELF) ?: return Outcome.Failure(AppError.Unauthorized)
+        return ApiErrorMapper.call { me.profile(id).toDomain() }
+    }
 
     override suspend fun editProfile(nickname: String, intro: String?, tags: Set<String>): Outcome<Unit> =
         ApiErrorMapper.call { me.editProfile(ProfileEditRequest(nickname, intro, tags)) }
 
-    override suspend fun changeSetting(item: String, value: String): Outcome<Unit> =
-        ApiErrorMapper.call { me.changeSetting(SettingChangeBody(item, value)) }
+    /**
+     * 화면의 설정 키를 서버 요청으로 바꾼다(MemberSettings.values와 같은 키). "ALERT.알림종류"는 항목 ALERT에 알림 종류를 싣고,
+     * "RUN_SETTINGS.필드"·"BATTLE_SETTINGS.필드"는 서버 값을 읽어 그 필드만 덮은 JSON을 항목 값으로 보낸다. 그 밖은 그대로 보낸다.
+     */
+    override suspend fun changeSetting(item: String, value: String): Outcome<Unit> = ApiErrorMapper.call {
+        val dot = item.indexOf('.')
+        val group = if (dot > 0) item.substring(0, dot) else null
+        val field = if (dot > 0) item.substring(dot + 1) else ""
+        when (group) {
+            GROUP_ALERT -> me.changeSetting(SettingChangeBody(GROUP_ALERT, value, notificationType = field))
+
+            GROUP_RUN, GROUP_BATTLE -> {
+                val merged = me.settings().withSettingChanged(group, field, value)
+                me.changeSetting(SettingChangeBody(group, requireNotNull(merged)))
+            }
+
+            else -> me.changeSetting(SettingChangeBody(item, value))
+        }
+    }
 
     override suspend fun giveConsent(item: String): Outcome<Unit> = ApiErrorMapper.call { me.giveConsent(item) }
 
@@ -74,6 +97,8 @@ constructor(
 
     override suspend fun legalDocument(type: String): Outcome<String> =
         ApiErrorMapper.call { me.legalDocument(type).body }
+
+    override suspend fun settings(): Outcome<MemberSettings> = ApiErrorMapper.call { me.settings().toMemberSettings() }
 
     private companion object {
         /** 서버 ReasonCode와 같은 이름. */

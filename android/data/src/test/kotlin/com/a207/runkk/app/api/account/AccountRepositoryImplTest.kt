@@ -1,12 +1,16 @@
 package com.a207.runkk.app.api.account
 
 import com.a207.runkk.app.api.core.ApiTestServer
+import com.a207.runkk.app.api.core.SelfMember
 import com.a207.runkk.app.api.core.TokenProvider
+import com.a207.runkk.app.api.core.jwtOf
 import com.a207.runkk.app.api.core.value
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.account.Gender
+import com.a207.runkk.app.domain.account.MemberSettings
 import com.a207.runkk.app.domain.account.Profile
 import com.a207.runkk.app.domain.account.ProviderToken
 import com.a207.runkk.app.domain.account.ProviderType
@@ -28,7 +32,8 @@ import retrofit2.create
 class AccountRepositoryImplTest {
     private val api = ApiTestServer()
     private val tokens = FixedTokens()
-    private val repository = AccountRepositoryImpl(api.retrofit.create(), api.retrofit.create(), tokens)
+    private val repository =
+        AccountRepositoryImpl(api.retrofit.create(), api.retrofit.create(), tokens, SelfMember(tokens))
 
     @AfterTest
     fun tearDown() = api.close()
@@ -94,12 +99,12 @@ class AccountRepositoryImplTest {
     }
 
     @Test
-    fun `401은 Unauthorized, 5xx와 연결 실패는 Network`() = runTest {
+    fun `401은 Unauthorized, 5xx는 Server, 연결 실패는 Network`() = runTest {
         api.reply("{}", code = 401)
         api.reply("{}", code = 503)
 
         assertEquals(Outcome.Failure(AppError.Unauthorized), repository.withdraw())
-        assertEquals(Outcome.Failure(AppError.Network), repository.withdraw())
+        assertEquals(Outcome.Failure(AppError.Server(503)), repository.withdraw())
         api.close()
         assertEquals(Outcome.Failure(AppError.Network), repository.withdraw())
     }
@@ -146,6 +151,28 @@ class AccountRepositoryImplTest {
             profile
         )
         assertEquals("/api/v1/members/7/profile", api.take().url.encodedPath)
+    }
+
+    @Test
+    fun `SELF 프로필은 토큰의 본인 회원 ID로 부른다`() = runTest {
+        api.reply("""{"memberId":7,"displayName":"나","disclosure":"PUBLIC"}""")
+
+        repository.profile(AccountRepository.SELF).value()
+
+        assertEquals("/api/v1/members/7/profile", api.take().url.encodedPath)
+    }
+
+    @Test
+    fun `본인 ID를 모르면 SELF 프로필은 보내지 않고 Unauthorized`() = runTest {
+        val noToken =
+            object : TokenProvider by tokens {
+                override fun accessToken(): String? = null
+            }
+        val loggedOut =
+            AccountRepositoryImpl(api.retrofit.create(), api.retrofit.create(), noToken, SelfMember(noToken))
+
+        assertEquals(Outcome.Failure(AppError.Unauthorized), loggedOut.profile(AccountRepository.SELF))
+        assertEquals(0, api.server.requestCount)
     }
 
     @Test
@@ -204,6 +231,103 @@ class AccountRepositoryImplTest {
     }
 
     @Test
+    fun `설정 화면 값은 changeSetting의 항목 키와 같은 키로 바꾼다`() = runTest {
+        api.reply(
+            """{"unit":"MI","recordVisibility":"PUBLIC","courseMapShared":true,"profileVisibility":"PRIVATE",
+               |"notificationPrefs":{"PLAN_MISSED":false},"watchLinked":true,
+               |"runSettings":{"target":"KM5","voice":false,"vibration":true,"followCoachPlan":true},
+               |"battleSettings":{"defaultDistance":"KM3","voice":true,"vibration":false,"gapAlertInterval":"M500"},
+               |"consents":{"LOCATION":true,"HEART_RATE":false}}
+            """.trimMargin()
+        )
+
+        val settings = repository.settings().value()
+
+        assertEquals(
+            MemberSettings(
+                values =
+                    mapOf(
+                        "UNIT" to "MI",
+                        "RECORD_VISIBILITY" to "PUBLIC",
+                        "COURSE_MAP_SHARED" to "true",
+                        "PROFILE_VISIBILITY" to "PRIVATE",
+                        "WATCH_LINK" to "true",
+                        "RUN_SETTINGS.target" to "KM5",
+                        "RUN_SETTINGS.voice" to "false",
+                        "RUN_SETTINGS.vibration" to "true",
+                        "RUN_SETTINGS.followCoachPlan" to "true",
+                        "BATTLE_SETTINGS.defaultDistance" to "KM3",
+                        "BATTLE_SETTINGS.voice" to "true",
+                        "BATTLE_SETTINGS.vibration" to "false",
+                        "BATTLE_SETTINGS.gapAlertInterval" to "M500",
+                        "ALERT.PLAN_MISSED" to "false"
+                    ),
+                consents = mapOf("LOCATION" to true, "HEART_RATE" to false)
+            ),
+            settings
+        )
+        assertEquals("GET /api/v1/me/settings", api.take().let { "${it.method} ${it.url.encodedPath}" })
+    }
+
+    @Test
+    fun `서버가 보내지 않은 설정 항목은 값에 넣지 않는다`() = runTest {
+        api.reply("""{}""")
+
+        val settings = repository.settings().value()
+
+        assertEquals(mapOf("COURSE_MAP_SHARED" to "false", "WATCH_LINK" to "false"), settings.values)
+        assertEquals(emptyMap(), settings.consents)
+    }
+
+    @Test
+    fun `알림 설정은 항목 ALERT에 알림 종류를 실어 보낸다`() = runTest {
+        api.replyEmpty()
+
+        repository.changeSetting("ALERT.PLAN_MISSED", "false").value()
+
+        val body = Json.parseToJsonElement(api.take().body!!.utf8()).jsonObject
+        assertEquals("ALERT", body["item"]!!.jsonPrimitive.content)
+        assertEquals("false", body["value"]!!.jsonPrimitive.content)
+        assertEquals("PLAN_MISSED", body["notificationType"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `러닝 설정 한 항목만 바꾸면 서버 값을 읽어 합친 JSON을 보낸다`() = runTest {
+        api.reply("""{"runSettings":{"target":"KM5","voice":true,"vibration":true,"followCoachPlan":false}}""")
+        api.replyEmpty()
+
+        repository.changeSetting("RUN_SETTINGS.voice", "false").value()
+
+        assertEquals("/api/v1/me/settings", api.take().url.encodedPath)
+        val patch = api.take()
+        assertEquals("PATCH", patch.method)
+        val body = Json.parseToJsonElement(patch.body!!.utf8()).jsonObject
+        assertEquals("RUN_SETTINGS", body["item"]!!.jsonPrimitive.content)
+        assertEquals(
+            Json.parseToJsonElement("""{"target":"KM5","voice":false,"vibration":true,"followCoachPlan":false}"""),
+            Json.parseToJsonElement(body["value"]!!.jsonPrimitive.content)
+        )
+    }
+
+    @Test
+    fun `대결 설정은 서버에 값이 없으면 기본값 위에 바꾼 항목을 얹는다`() = runTest {
+        api.reply("""{}""")
+        api.replyEmpty()
+
+        repository.changeSetting("BATTLE_SETTINGS.gapAlertInterval", "M500").value()
+
+        api.take()
+        val body = Json.parseToJsonElement(api.take().body!!.utf8()).jsonObject
+        assertEquals("BATTLE_SETTINGS", body["item"]!!.jsonPrimitive.content)
+        assertEquals(
+            Json.parseToJsonElement(
+                """{"defaultDistance":"KM5","voice":true,"vibration":true,"gapAlertInterval":"M500"}"""
+            ),
+            Json.parseToJsonElement(body["value"]!!.jsonPrimitive.content)
+        )
+    }
+
+    @Test
     fun `동의 항목이 빠진 설정은 동의 거짓으로 읽는다`() = runTest {
         api.reply("""{"watchLinked":false,"courseMapShared":false}""")
 
@@ -214,7 +338,7 @@ class AccountRepositoryImplTest {
     }
 
     private class FixedTokens : TokenProvider {
-        override fun accessToken(): String? = "access-1"
+        override fun accessToken(): String? = jwtOf("7")
 
         override fun refreshToken(): String? = "refresh-1"
 
