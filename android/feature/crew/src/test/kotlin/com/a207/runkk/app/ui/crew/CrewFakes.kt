@@ -268,6 +268,9 @@ class FakeCrewRepository : CrewRepository {
     var searchNext: Long? = null
     var postsNext: Long? = null
 
+    /** 첫 쪽 공개 크루. */
+    var searchFirstPage = listOf(crewA, crewB, crewC)
+
     override suspend fun myCrew() = answer("myCrew", mine)
 
     /** 정보 수정(changeInfo)이 받아들인 크루명. 크루 조회가 이 이름을 돌려준다. */
@@ -293,7 +296,7 @@ class FakeCrewRepository : CrewRepository {
     override suspend fun delete(crewId: Long) = answer("delete", Unit)
 
     override suspend fun search(keyword: String?, tags: Set<String>, cursor: Long?) = if (cursor == null) {
-        answer("search:$keyword:${tags.sorted()}", CrewList(listOf(crewA, crewB, crewC), searchNext))
+        answer("search:$keyword:${tags.sorted()}", CrewList(searchFirstPage, searchNext))
     } else {
         answer("search:$keyword:${tags.sorted()}:$cursor", CrewList(listOf(crewC.copy(crewId = 14, name = "넷째")), null))
     }
