@@ -43,8 +43,11 @@ def test_ai_gets_exactly_its_settings() -> None:
 def test_api_gets_internal_token_but_no_ai_keys() -> None:
     names = _environment_names("api")
 
+    ai_settings = {f"RUNKK_{field.upper()}" for field in Settings.model_fields}
+
     assert {"AI_SERVER_URL", "RUNKK_INTERNAL_TOKEN", "DB_PASSWORD"} <= names
-    assert {name for name in names if name.startswith("RUNKK_")} == {"RUNKK_INTERNAL_TOKEN"}
+    # api 자기 설정(RUNKK_QUEUE·RUNKK_LIVE 등)은 받아도 되지만, ai 설정 중에서는 공유 토큰 하나만 받는다
+    assert names & ai_settings == {"RUNKK_INTERNAL_TOKEN"}
 
 
 @pytest.mark.parametrize("service", ["api", "ai"])
