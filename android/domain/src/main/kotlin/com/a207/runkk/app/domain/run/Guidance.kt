@@ -29,16 +29,3 @@ data class Guidance(val kind: Kind, val message: String, val voice: Boolean, val
             Guidance(kind, message, voice = false, vibration = false)
     }
 }
-
-/**
- * CoachingJudge.evaluate의 입력(design-review.md M24). RunTracker가 1초마다 만든다.
- * birthYear·guidanceSettings는 SettingsRepository에서 읽는다.
- */
-data class GuidanceContext(
-    val progress: RunProgress,
-    val todayPlan: PlanSnapshot?,
-    val gapMeters: Int?,
-    val rank: CrewRank?,
-    val birthYear: Int?,
-    val guidanceSettings: GuidanceSettings
-)
