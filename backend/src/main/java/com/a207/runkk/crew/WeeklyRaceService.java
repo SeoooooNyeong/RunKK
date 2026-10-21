@@ -170,19 +170,19 @@ public class WeeklyRaceService {
                     weeklyRaceRepository
                             .find(crewId, week)
                             .orElseGet(() -> WeeklyRace.empty(crewId, week));
-            for (CrewMembership m : crew.get().memberships()) {
-                added += reconcileMember(race, m, week);
+            for (CrewMembership membership : crew.get().memberships()) {
+                added += reconcileMember(race, membership, week);
             }
         }
         return added;
     }
 
-    private int reconcileMember(WeeklyRace race, CrewMembership m, Week week) {
-        Optional<DateRange> overlap = overlapOf(m, week);
+    private int reconcileMember(WeeklyRace race, CrewMembership membership, Week week) {
+        Optional<DateRange> overlap = overlapOf(membership, week);
         if (overlap.isEmpty()) {
             return 0;
         }
-        long memberId = m.memberId();
+        long memberId = membership.memberId();
         Distance expected =
                 runQueryService.distancesByMember(List.of(memberId), overlap.get()).get(memberId);
         Distance actual =
@@ -196,7 +196,7 @@ public class WeeklyRaceService {
         int added = 0;
         for (RunSummary run : runQueryService.summariesBetween(memberId, overlap.get())) {
             if (run.valid()
-                    && m.coversAt(run.startedAt())
+                    && membership.coversAt(run.startedAt())
                     && week.contains(run.startedAt())
                     && race.contributionOf(run.recordId()).meters() == 0
                     && weeklyRaceRepository.addAtomically(
@@ -209,11 +209,12 @@ public class WeeklyRaceService {
     }
 
     /** 소속 기간과 주가 겹치는 날짜 범위. */
-    private static Optional<DateRange> overlapOf(CrewMembership m, Week week) {
+    private static Optional<DateRange> overlapOf(CrewMembership membership, Week week) {
         LocalDate weekEnd = week.monday().plusDays(DAYS_IN_WEEK - 1);
-        LocalDate from = max(week.monday(), m.joinedAt().toLocalDate());
+        LocalDate from = max(week.monday(), membership.joinedAt().toLocalDate());
         LocalDate to =
-                m.leftAt()
+                membership
+                        .leftAt()
                         .map(LocalDateTime::toLocalDate)
                         .map(d -> min(d, weekEnd))
                         .orElse(weekEnd);

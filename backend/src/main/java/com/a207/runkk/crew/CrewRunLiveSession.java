@@ -165,14 +165,14 @@ public class CrewRunLiveSession {
         List<Snapshot.Runner> runners = new ArrayList<>();
         names.forEach(
                 (id, name) -> {
-                    Optional<LiveProgress> p = Optional.ofNullable(latest.get(id));
+                    Optional<LiveProgress> progress = Optional.ofNullable(latest.get(id));
                     runners.add(
                             new Snapshot.Runner(
                                     id,
                                     name.value(),
-                                    p.map(x -> x.distance().meters()).orElse(null),
-                                    p.map(x -> x.elapsed().toMillis()).orElse(null),
-                                    p.map(LiveProgress::seenAt).orElse(null),
+                                    progress.map(seen -> seen.distance().meters()).orElse(null),
+                                    progress.map(seen -> seen.elapsed().toMillis()).orElse(null),
+                                    progress.map(LiveProgress::seenAt).orElse(null),
                                     arrived.get(id),
                                     quitters.contains(id),
                                     checking.contains(id)));

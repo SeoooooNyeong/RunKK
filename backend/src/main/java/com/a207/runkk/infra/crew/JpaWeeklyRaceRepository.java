@@ -77,11 +77,11 @@ public class JpaWeeklyRaceRepository implements WeeklyRaceRepository {
         }
         WeeklyRace race = WeeklyRace.empty(crewId, week);
         for (WeeklyRaceRows.Contribution row : rows) {
-            Distance d = Distance.ofMeters(row.meters());
+            Distance meters = Distance.ofMeters(row.meters());
             if (row.memberId() == null) {
-                race.addAnonymized(row.recordId(), d);
+                race.addAnonymized(row.recordId(), meters);
             } else {
-                race.add(row.memberId(), row.recordId(), d);
+                race.add(row.memberId(), row.recordId(), meters);
             }
         }
         return Optional.of(race);

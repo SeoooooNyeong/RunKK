@@ -26,6 +26,7 @@ import com.a207.runkk.crew.Recommendation;
 import com.a207.runkk.crew.RecommendationView;
 import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Arrays;
@@ -37,6 +38,9 @@ import java.util.Set;
  * api.crew DTO와 같은 항목 이름을 쓰고, 도메인 값으로 바꾸는 일만 한다.
  */
 final class CrewDtos {
+
+    /** 로고 이미지 주소 상한(crew.logo_url 열). */
+    static final int MAX_LOGO_URL = 500;
 
     private CrewDtos() {}
 
@@ -73,7 +77,7 @@ final class CrewDtos {
             Set<PersonalityTag> tags,
             CrewVisibility visibility,
             JoinPolicy joinPolicy,
-            String logoUrl) {
+            @Size(max = MAX_LOGO_URL) String logoUrl) {
 
         CrewCreateCommand toCommand() {
             return new CrewCreateCommand(name, intro, tags, visibility, joinPolicy, logoUrl);
@@ -365,17 +369,17 @@ final class CrewDtos {
                 CrewRun crewRun) {
 
             static Item of(PostListView.Line line) {
-                PostSummary s = line.summary();
+                PostSummary summary = line.summary();
                 return new Item(
-                        s.postId(),
-                        s.kind().name(),
+                        summary.postId(),
+                        summary.kind().name(),
                         displayOf(line.authorName()),
-                        s.body(),
-                        s.writtenAt(),
-                        s.mine(),
-                        s.crewRun() == null
+                        summary.body(),
+                        summary.writtenAt(),
+                        summary.mine(),
+                        summary.crewRun() == null
                                 ? null
-                                : CrewRun.of(s.crewRun(), line.crewContribution()));
+                                : CrewRun.of(summary.crewRun(), line.crewContribution()));
             }
         }
 

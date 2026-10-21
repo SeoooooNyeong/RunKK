@@ -122,11 +122,11 @@ public class AiServerFaceGateway implements FaceTransformGateway {
 
     /** 읽기 시간 초과만 TIMEOUT. 연결 시간 초과(ai 컨테이너 없음)는 UPSTREAM_FAILED다. */
     private static boolean isReadTimeout(Throwable e) {
-        for (Throwable t = e; t != null; t = t.getCause()) {
-            if (t instanceof HttpConnectTimeoutException) {
+        for (Throwable cause = e; cause != null; cause = cause.getCause()) {
+            if (cause instanceof HttpConnectTimeoutException) {
                 return false;
             }
-            if (t instanceof HttpTimeoutException || t instanceof SocketTimeoutException) {
+            if (cause instanceof HttpTimeoutException || cause instanceof SocketTimeoutException) {
                 return true;
             }
         }

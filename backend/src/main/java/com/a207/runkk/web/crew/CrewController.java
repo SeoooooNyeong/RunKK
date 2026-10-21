@@ -11,6 +11,7 @@ import com.a207.runkk.crew.JoinResult;
 import com.a207.runkk.crew.JoinTarget;
 import com.a207.runkk.crew.MembershipService;
 import com.a207.runkk.crew.WeeklyRaceService;
+import jakarta.validation.Valid;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -62,7 +63,7 @@ public class CrewController {
     @ResponseStatus(HttpStatus.CREATED)
     CrewDtos.CreatedResponse create(
             @RequestAttribute(MEMBER_ID) long memberId,
-            @RequestBody CrewDtos.CrewFormRequest body) {
+            @Valid @RequestBody CrewDtos.CrewFormRequest body) {
         CrewCreateResult result = crewService.create(memberId, body.toCommand());
         return new CrewDtos.CreatedResponse(
                 result.crewId(), result.inviteCode(), result.inviteCodeExpiresAt());

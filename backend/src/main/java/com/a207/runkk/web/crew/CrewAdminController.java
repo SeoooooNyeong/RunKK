@@ -39,7 +39,7 @@ public class CrewAdminController {
     void changeInfo(
             @RequestAttribute(MEMBER_ID) long memberId,
             @PathVariable("id") long crewId,
-            @RequestBody CrewDtos.CrewFormRequest body) {
+            @Valid @RequestBody CrewDtos.CrewFormRequest body) {
         crewService.changeInfo(memberId, crewId, body.toChange());
     }
 

@@ -124,16 +124,16 @@ public class CrewQueryService {
                                                 .showsProfile())
                         .collect(Collectors.toSet());
         List<CrewMembersView.Line> lines = new ArrayList<>();
-        for (CrewMembership m : active) {
-            boolean shown = disclosed.contains(m.memberId());
-            MemberSummary summary = summaries.get(m.memberId());
+        for (CrewMembership membership : active) {
+            boolean shown = disclosed.contains(membership.memberId());
+            MemberSummary summary = summaries.get(membership.memberId());
             lines.add(
                     new CrewMembersView.Line(
-                            m.memberId(),
-                            nameOf(summaries, m.memberId()),
-                            m.role(),
-                            m.crewIntro(),
-                            shown ? m.crewTags() : null,
+                            membership.memberId(),
+                            nameOf(summaries, membership.memberId()),
+                            membership.role(),
+                            membership.crewIntro(),
+                            shown ? membership.crewTags() : null,
                             shown && summary != null ? summary.tier() : null));
         }
         return new CrewMembersView(crewId, lines, disclosed);
@@ -185,12 +185,12 @@ public class CrewQueryService {
         int rank = 0;
         for (int i = 0; i < ordered.size(); i++) {
             long id = ordered.get(i);
-            Distance d = distances.getOrDefault(id, Distance.ZERO);
-            if (!d.equals(previous)) {
+            Distance distance = distances.getOrDefault(id, Distance.ZERO);
+            if (!distance.equals(previous)) {
                 rank = i + 1;
-                previous = d;
+                previous = distance;
             }
-            lines.add(new CrewRankingView.Line(rank, id, nameOf(summaries, id), d));
+            lines.add(new CrewRankingView.Line(rank, id, nameOf(summaries, id), distance));
         }
         return new CrewRankingView(crewId, p, lines);
     }

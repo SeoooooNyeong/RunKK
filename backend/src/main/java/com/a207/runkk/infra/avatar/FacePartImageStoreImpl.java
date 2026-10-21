@@ -39,8 +39,7 @@ public class FacePartImageStoreImpl implements FacePartImageStore {
                 .forEach(
                         (part, png) -> {
                             String key = set + "/" + part.name();
-                            entityManager.persist(
-                                    new FacePartImage(key, memberId, part.name(), png, now));
+                            entityManager.persist(new FacePartImage(key, memberId, png, now));
                             keys.put(part, key);
                         });
         return new SdFaceParts(keys);

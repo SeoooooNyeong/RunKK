@@ -32,11 +32,11 @@ class FacePartImage {
 
     protected FacePartImage() {}
 
-    FacePartImage(
-            String imageKey, long memberId, String part, byte[] png, LocalDateTime createdAt) {
+    /** 저장 키의 마지막 마디가 부위 이름이다("face/{회원}/{묶음}/{부위}"). */
+    FacePartImage(String imageKey, long memberId, byte[] png, LocalDateTime createdAt) {
         this.imageKey = imageKey;
         this.memberId = memberId;
-        this.part = part;
+        this.part = imageKey.substring(imageKey.lastIndexOf('/') + 1);
         this.png = png.clone();
         this.createdAt = createdAt;
     }
