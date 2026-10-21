@@ -64,6 +64,8 @@ import com.a207.runkk.app.core.designsystem.RunkkStatTile
 import com.a207.runkk.app.core.designsystem.RunkkTextLink
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
+import com.a207.runkk.app.core.designsystem.StatTileStyle
+import com.a207.runkk.app.core.designsystem.StatTileValue
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.designsystem.runkkDashedBorder
 import com.a207.runkk.app.core.model.Distance
@@ -425,24 +427,31 @@ private fun SummaryTiles(dashboard: Dashboard?, onCoach: () -> Unit) {
     val resources = LocalContext.current.resources
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         RunkkStatTile(
-            label = stringResource(R.string.home_summary_today),
-            value = dashboard?.today?.let(RunkkFormat::km) ?: "0.00",
-            unit = "KM",
+            stringResource(R.string.home_summary_today),
+            StatTileValue(
+                dashboard?.today?.let(RunkkFormat::km) ?: "0.00",
+                unit = "KM",
+                spoken = todaySpoken(resources, dashboard)
+            ),
+            style = StatTileStyle(valueStyle = RunkkTextStyles.display(32, lineHeightRatio = 1f)),
             caption = dashboard?.let { todayCaption(resources, it) }
                 ?: stringResource(R.string.home_summary_today_caption),
-            spoken = todaySpoken(resources, dashboard),
-            valueStyle = RunkkTextStyles.display(32, lineHeightRatio = 1f),
             modifier = Modifier.weight(1f)
         )
         val achievement = dashboard?.weeklyAchievement
+        val percentUnit = achievement?.let { "%" }
         RunkkStatTile(
-            label = stringResource(R.string.home_summary_week_goal),
-            value = achievement?.let { "${(it * PERCENT).roundToInt()}" } ?: "-",
-            unit = if (achievement != null) "%" else null,
-            valueColor = RunkkColors.Lime,
-            valueStyle = RunkkTextStyles.display(32, lineHeightRatio = 1f),
+            stringResource(R.string.home_summary_week_goal),
+            StatTileValue(
+                achievement?.let { "${(it * PERCENT).roundToInt()}" } ?: "-",
+                unit = percentUnit,
+                spoken = dashboard?.let { weeklySpoken(resources, it) }
+            ),
+            style = StatTileStyle(
+                valueStyle = RunkkTextStyles.display(32, lineHeightRatio = 1f),
+                valueColor = RunkkColors.Lime
+            ),
             caption = if (achievement == null) stringResource(R.string.home_summary_set_goal) else null,
-            spoken = dashboard?.let { weeklySpoken(resources, it) },
             onClick = onCoach,
             modifier = Modifier.weight(1f)
         ) {

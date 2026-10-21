@@ -67,6 +67,8 @@ import com.a207.runkk.app.core.designsystem.RunkkTextField
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
+import com.a207.runkk.app.core.designsystem.StatTileStyle
+import com.a207.runkk.app.core.designsystem.StatTileValue
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Pace
@@ -419,17 +421,17 @@ private fun LobbyStats(state: CrewRunUiState, lobby: Lobby) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         RunkkStatTile(
             stringResource(R.string.crew_run_lobby_distance_label),
-            state.distance?.let(RunkkFormat::targetLabel) ?: RunkkFormat.EMPTY,
-            centered = true,
-            valueStyle = RunkkTextStyles.DisplaySmall,
+            StatTileValue(state.distance?.let(RunkkFormat::targetLabel) ?: RunkkFormat.EMPTY),
+            style = StatTileStyle(valueStyle = RunkkTextStyles.DisplaySmall, isCentered = true),
             modifier = Modifier.weight(1f)
         )
         RunkkStatTile(
             stringResource(R.string.crew_run_ready),
-            "$readyCount/${lobby.participants.size}",
-            spoken = stringResource(R.string.crew_run_lobby_ready_spoken, lobby.participants.size, readyCount),
-            centered = true,
-            valueStyle = RunkkTextStyles.DisplaySmall,
+            StatTileValue(
+                "$readyCount/${lobby.participants.size}",
+                spoken = stringResource(R.string.crew_run_lobby_ready_spoken, lobby.participants.size, readyCount)
+            ),
+            style = StatTileStyle(valueStyle = RunkkTextStyles.DisplaySmall, isCentered = true),
             modifier = Modifier.weight(1f)
         )
     }

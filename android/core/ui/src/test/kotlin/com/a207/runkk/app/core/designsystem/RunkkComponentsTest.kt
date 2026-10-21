@@ -57,7 +57,11 @@ class RunkkComponentsTest {
         var clicks = 0
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
-                RunkkStatTile("이번 주 목표", "60", unit = "%", spoken = "거리 60% 달성", onClick = { clicks++ })
+                RunkkStatTile(
+                    "이번 주 목표",
+                    StatTileValue("60", unit = "%", spoken = "거리 60% 달성"),
+                    onClick = { clicks++ }
+                )
             }
         }
         compose.onNodeWithContentDescription("이번 주 목표 거리 60% 달성").assertHasClickAction().performClick()

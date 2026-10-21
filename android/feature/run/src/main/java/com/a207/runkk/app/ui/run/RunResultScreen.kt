@@ -54,6 +54,8 @@ import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkStatTile
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
+import com.a207.runkk.app.core.designsystem.StatTileStyle
+import com.a207.runkk.app.core.designsystem.StatTileValue
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
@@ -205,25 +207,25 @@ private fun ResultStats(state: RunResultUiState) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         RunkkStatTile(
             stringResource(R.string.run_result_stat_time),
-            state.elapsed?.let(RunkkFormat::duration) ?: RunkkFormat.EMPTY,
-            spoken = state.elapsed?.let { RunkkFormat.durationSpoken(it) },
-            centered = true,
-            valueStyle = RunkkTextStyles.DisplaySmall,
+            StatTileValue(
+                state.elapsed?.let(RunkkFormat::duration) ?: RunkkFormat.EMPTY,
+                spoken = state.elapsed?.let {
+                    RunkkFormat.durationSpoken(it)
+                }
+            ),
+            style = StatTileStyle(valueStyle = RunkkTextStyles.DisplaySmall, isCentered = true),
             modifier = Modifier.weight(1f)
         )
         RunkkStatTile(
             stringResource(R.string.run_stat_avg_pace),
-            RunkkFormat.pace(state.averagePace),
-            spoken = RunkkFormat.paceSpoken(state.averagePace),
-            centered = true,
-            valueStyle = RunkkTextStyles.DisplaySmall,
+            StatTileValue(RunkkFormat.pace(state.averagePace), spoken = RunkkFormat.paceSpoken(state.averagePace)),
+            style = StatTileStyle(valueStyle = RunkkTextStyles.DisplaySmall, isCentered = true),
             modifier = Modifier.weight(1f)
         )
         RunkkStatTile(
             stringResource(R.string.run_result_stat_heart_rate),
-            state.averageHeartRate?.toString() ?: RunkkFormat.EMPTY,
-            centered = true,
-            valueStyle = RunkkTextStyles.DisplaySmall,
+            StatTileValue(state.averageHeartRate?.toString() ?: RunkkFormat.EMPTY),
+            style = StatTileStyle(valueStyle = RunkkTextStyles.DisplaySmall, isCentered = true),
             modifier = Modifier.weight(1f)
         )
     }

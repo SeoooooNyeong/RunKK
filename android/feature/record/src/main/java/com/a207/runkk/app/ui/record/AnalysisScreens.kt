@@ -50,6 +50,8 @@ import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
 import com.a207.runkk.app.core.designsystem.RunkkStatTile
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
+import com.a207.runkk.app.core.designsystem.StatTileStyle
+import com.a207.runkk.app.core.designsystem.StatTileValue
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.model.Distance
@@ -184,24 +186,20 @@ private fun GrowthStats(growth: Growth) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         RunkkStatTile(
             stringResource(R.string.record_growth_stat_runs),
-            "${latest.runs}",
-            unit = stringResource(R.string.record_growth_unit_runs),
-            centered = true,
-            valueStyle = RunkkTextStyles.DisplaySmall,
+            StatTileValue("${latest.runs}", unit = stringResource(R.string.record_growth_unit_runs)),
+            style = StatTileStyle(valueStyle = RunkkTextStyles.DisplaySmall, isCentered = true),
             modifier = Modifier.weight(1f)
         )
         RunkkStatTile(
             stringResource(R.string.record_stat_avg_pace),
-            RunkkFormat.pace(latest.averagePace),
-            centered = true,
-            valueStyle = RunkkTextStyles.DisplaySmall,
+            StatTileValue(RunkkFormat.pace(latest.averagePace)),
+            style = StatTileStyle(valueStyle = RunkkTextStyles.DisplaySmall, isCentered = true),
             modifier = Modifier.weight(1f)
         )
         RunkkStatTile(
             stringResource(R.string.record_growth_stat_longest),
-            growth.longest?.let(RunkkFormat::km) ?: RunkkFormat.EMPTY,
-            centered = true,
-            valueStyle = RunkkTextStyles.DisplaySmall,
+            StatTileValue(growth.longest?.let(RunkkFormat::km) ?: RunkkFormat.EMPTY),
+            style = StatTileStyle(valueStyle = RunkkTextStyles.DisplaySmall, isCentered = true),
             modifier = Modifier.weight(1f)
         )
     }
