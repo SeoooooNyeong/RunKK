@@ -35,6 +35,7 @@ object RunkkErrorText {
         "TAG_INVALID" to R.string.core_error_tag_invalid,
         "VALUE_INVALID" to R.string.core_error_value_invalid,
         "PROVIDER_UNAVAILABLE" to R.string.core_error_provider_unavailable,
+        "TEMPORARILY_UNAVAILABLE" to R.string.core_error_temporarily_unavailable,
         "PROVIDER_SDK_NOT_READY" to R.string.core_error_provider_sdk_not_ready,
         "LOGIN_CANCELLED" to R.string.core_error_login_cancelled,
         "AUTH_FAILED" to R.string.core_error_auth_failed,
