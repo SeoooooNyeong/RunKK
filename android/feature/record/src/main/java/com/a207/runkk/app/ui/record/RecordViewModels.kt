@@ -1,9 +1,11 @@
 package com.a207.runkk.app.ui.record
 
 import android.graphics.Bitmap
+import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.designsystem.RunkkErrorText
+import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.record.RecordDetail
@@ -43,7 +45,7 @@ data class RecordListUiState(
     val runs: List<RunSummary> = emptyList(),
     val dailyDistance: Map<LocalDate, Distance> = emptyMap(),
     val pendingCount: Int = 0,
-    val error: String? = null,
+    val error: UiText? = null,
     val zone: java.time.ZoneId = java.time.ZoneId.systemDefault()
 ) {
     /** 이번 달 집계에 들어가는 러닝 수(집계 제외 빼고). */
@@ -131,7 +133,7 @@ data class RecordDetailUiState(
     val loading: Boolean = true,
     val recordId: String? = null,
     val detail: RecordDetail? = null,
-    val error: String? = null
+    val error: UiText? = null
 )
 
 /** 기록 상세(C2, FR-059·FR-060·FR-078·FR-079·FR-185·FR-186). */
@@ -158,10 +160,10 @@ class RecordDetailViewModel @Inject constructor(private val records: RecordRepos
 // ---------- 기록 카드 팝업·공유 ----------
 
 /** 공유 대상 3종(C-012): 기기 저장, 다른 앱, 스토리. */
-enum class CardShareKind(val label: String) {
-    SAVE("기기 저장"),
-    SYSTEM("다른 앱"),
-    STORY("스토리")
+enum class CardShareKind(@StringRes val labelRes: Int) {
+    SAVE(R.string.record_card_share_save),
+    SYSTEM(R.string.record_card_share_system),
+    STORY(R.string.record_card_share_story)
 }
 
 /** ui.share의 공유 대상 묶음. 시험에서는 가짜 대상을 넣는다. */
@@ -184,8 +186,8 @@ data class RecordCardUiState(
     val back: Bitmap? = null,
     val side: CardSide = CardSide.FRONT,
     val sharing: Boolean = false,
-    val message: String? = null,
-    val error: String? = null
+    val message: UiText? = null,
+    val error: UiText? = null
 ) {
     /** 뒷면(코스 지도)을 공유할 수 있는가(FR-011·FR-069). 최종 판단은 CardSharer가 설정 사본으로 한다. */
     val canShareBack: Boolean get() = card?.courseMapShared == true
@@ -243,10 +245,10 @@ class RecordCardViewModel @Inject constructor(
         }
     }
 
-    private fun messageOf(outcome: ShareOutcome): String? = when (outcome) {
+    private fun messageOf(outcome: ShareOutcome): UiText? = when (outcome) {
         ShareOutcome.Shared -> null
-        ShareOutcome.Saved -> "사진첩에 저장했어요"
-        is ShareOutcome.Fallback -> outcome.message
-        is ShareOutcome.Failed -> outcome.message
+        ShareOutcome.Saved -> UiText.Res(R.string.record_card_saved)
+        is ShareOutcome.Fallback -> UiText.Res(outcome.messageRes)
+        is ShareOutcome.Failed -> UiText.Res(outcome.messageRes)
     }
 }

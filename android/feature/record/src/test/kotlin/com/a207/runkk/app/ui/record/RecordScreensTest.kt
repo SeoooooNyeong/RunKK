@@ -7,6 +7,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import com.a207.runkk.app.core.designsystem.RunkkTheme
+import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.domain.record.RecordDetail
@@ -107,8 +108,16 @@ class RecordScreensTest {
         var retried = 0
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
-                RecordDetailScreen(RecordDetailUiState(loading = false, error = "네트워크에 연결할 수 없어요"), onBack = {
-                }, onShare = {}, onRetry = { retried++ })
+                RecordDetailScreen(
+                    RecordDetailUiState(
+                        loading = false,
+                        error = UiText.Plain("네트워크에 연결할 수 없어요")
+                    ),
+                    onBack = {
+                    },
+                    onShare = {},
+                    onRetry = { retried++ }
+                )
             }
         }
         compose.onNodeWithText("다시 시도").performClick()

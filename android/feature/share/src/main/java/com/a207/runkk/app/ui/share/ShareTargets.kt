@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import androidx.annotation.StringRes
 import javax.inject.Inject
 
 /** 카드 앞면·뒷면(앞면 기록, 뒷면 지도 + 경로선, FR-068). */
@@ -21,10 +22,10 @@ sealed interface ShareOutcome {
     data object Saved : ShareOutcome
 
     /** 원래 대상 대신 다른 방법을 썼거나 안내가 필요하다(인스타그램 없음). */
-    data class Fallback(val message: String) : ShareOutcome
+    data class Fallback(@StringRes val messageRes: Int) : ShareOutcome
 
     /** 공유하지 못했다. [code]는 사유 코드(COURSE_MAP_NOT_SHARED 등). */
-    data class Failed(val code: String, val message: String) : ShareOutcome
+    data class Failed(val code: String, @StringRes val messageRes: Int) : ShareOutcome
 }
 
 /** 카드 이미지 하나를 한 곳에 공유한다(6.1.14, C-012). [image]는 FileProvider content 주소. */
@@ -47,7 +48,7 @@ class DeviceSaveTarget @Inject constructor() : ShareTarget {
             }
         }
         val target = runCatching { resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values) }.getOrNull()
-            ?: return ShareOutcome.Failed(SAVE_FAILED, "기기에 저장하지 못했어요. 저장 공간과 권한을 확인해 주세요")
+            ?: return ShareOutcome.Failed(SAVE_FAILED, R.string.share_save_failed_check)
         return runCatching {
             resolver.openInputStream(image).use { input ->
                 resolver.openOutputStream(target).use { output -> requireNotNull(input).copyTo(requireNotNull(output)) }
@@ -66,7 +67,7 @@ class DeviceSaveTarget @Inject constructor() : ShareTarget {
         }.getOrElse {
             // 반쯤 쓴 빈 항목을 남기지 않는다.
             runCatching { resolver.delete(target, null, null) }
-            ShareOutcome.Failed(SAVE_FAILED, "기기에 저장하지 못했어요")
+            ShareOutcome.Failed(SAVE_FAILED, R.string.share_save_failed)
         }
     }
 
@@ -83,11 +84,13 @@ class SystemShareTarget @Inject constructor() : ShareTarget {
             putExtra(Intent.EXTRA_STREAM, image)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        val chooser = Intent.createChooser(send, "러닝 카드 공유").apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+        val chooser = Intent.createChooser(send, context.getString(R.string.share_chooser_title)).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
         return runCatching {
             context.startActivity(chooser)
             ShareOutcome.Shared
-        }.getOrElse { ShareOutcome.Failed("NO_SHARE_APP", "공유할 앱이 없어요") }
+        }.getOrElse { ShareOutcome.Failed("NO_SHARE_APP", R.string.share_no_share_app) }
     }
 }
 
@@ -109,8 +112,8 @@ class StoryShareTarget @Inject constructor(private val deviceSave: DeviceSaveTar
             if (started) return ShareOutcome.Shared
         }
         return when (deviceSave.share(context, image)) {
-            ShareOutcome.Saved -> ShareOutcome.Fallback("인스타그램이 없어 기기에 저장했어요. 사진첩에서 스토리에 올려 주세요")
-            else -> ShareOutcome.Fallback("인스타그램이 없어요. 기기 저장이나 다른 앱 공유를 써 주세요")
+            ShareOutcome.Saved -> ShareOutcome.Fallback(R.string.share_story_saved_fallback)
+            else -> ShareOutcome.Fallback(R.string.share_story_no_instagram)
         }
     }
 

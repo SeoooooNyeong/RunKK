@@ -1,9 +1,12 @@
 package com.a207.runkk.app.ui.record
 
+import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.designsystem.RunkkErrorText
 import com.a207.runkk.app.core.designsystem.RunkkFormat
+import com.a207.runkk.app.core.designsystem.UiText
+import com.a207.runkk.app.core.designsystem.uiText
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.record.AggregationPeriod
@@ -32,7 +35,7 @@ data class GrowthUiState(
     val period: AggregationPeriod = AggregationPeriod.WEEKLY,
     val loading: Boolean = true,
     val growth: Growth? = null,
-    val error: String? = null
+    val error: UiText? = null
 )
 
 @HiltViewModel
@@ -67,12 +70,15 @@ class GrowthViewModel @Inject constructor(private val records: RecordRepository)
 
 // ---------- 리포트(FR-064~FR-067) ----------
 
-data class ReportUiState(val loading: Boolean = true, val report: Report? = null, val error: String? = null) {
+data class ReportUiState(val loading: Boolean = true, val report: Report? = null, val error: UiText? = null) {
     /** 코멘트가 아직 없으면 "코멘트 준비 중"(FR-066). */
-    val commentText: String get() = report?.comment ?: "코멘트 준비 중"
+    val commentText: UiText
+        get() = report?.comment?.let(UiText::Plain) ?: UiText.Res(R.string.record_report_comment_pending)
 
     /** 요약 한 줄. 없으면 서버 안내 문구(유효 러닝 없음 등), 그것도 없으면 기본 문구. */
-    val summaryText: String get() = report?.summary ?: report?.message ?: "아직 요약할 기록이 없어요"
+    val summaryText: UiText
+        get() = (report?.summary ?: report?.message)?.let(UiText::Plain)
+            ?: UiText.Res(R.string.record_report_summary_empty)
 }
 
 @HiltViewModel
@@ -100,9 +106,9 @@ class ReportViewModel @Inject constructor(private val records: RecordRepository)
 
 // ---------- 랭킹(FR-070·FR-071) ----------
 
-enum class RankingScope(val label: String) {
-    PERSONAL("개인"),
-    CREW("크루")
+enum class RankingScope(@StringRes val labelRes: Int) {
+    PERSONAL(R.string.record_ranking_scope_personal),
+    CREW(R.string.record_ranking_scope_crew)
 }
 
 data class RankingUiState(
@@ -110,7 +116,7 @@ data class RankingUiState(
     val period: AggregationPeriod = AggregationPeriod.WEEKLY,
     val loading: Boolean = true,
     val ranking: Ranking? = null,
-    val error: String? = null
+    val error: UiText? = null
 )
 
 @HiltViewModel
@@ -161,8 +167,8 @@ data class CoachUiState(
     val loading: Boolean = true,
     val progress: PlanProgress? = null,
     val saving: Boolean = false,
-    val message: String? = null,
-    val error: String? = null,
+    val message: UiText? = null,
+    val error: UiText? = null,
     /** 고른 주간 목표 횟수(1~7). */
     val goalRuns: Int? = null,
     /** 고른 주간 목표 거리. */
@@ -202,9 +208,10 @@ class CoachViewModel @Inject constructor(private val records: RecordRepository, 
         }
     }
 
-    fun onTodayPlan(distance: Distance) = save("오늘 계획을 ${km(distance)}km로 정했어요", reload = true) {
-        records.putPlan(today, distance, null)
-    }
+    fun onTodayPlan(distance: Distance) =
+        save(uiText(R.string.record_coach_today_plan_saved, km(distance)), reload = true) {
+            records.putPlan(today, distance, null)
+        }
 
     fun onGoalRunsSelected(runs: Int) {
         if (runs in CoachUiState.GOAL_RUNS) _state.update { it.copy(goalRuns = runs) }
@@ -219,14 +226,14 @@ class CoachViewModel @Inject constructor(private val records: RecordRepository, 
         val s = _state.value
         val runs = s.goalRuns ?: return
         val distance = s.goalDistance ?: return
-        save("이번 주 목표를 주 ${runs}회 · ${km(distance)}km로 정했어요", reload = false) {
+        save(uiText(R.string.record_coach_goal_saved, runs, km(distance)), reload = false) {
             records.setWeeklyGoal(distance, runs)
         }
     }
 
     fun onMessageShown() = _state.update { it.copy(message = null) }
 
-    private fun save(done: String, reload: Boolean, call: suspend () -> Outcome<Unit>) {
+    private fun save(done: UiText, reload: Boolean, call: suspend () -> Outcome<Unit>) {
         if (_state.value.saving) return
         _state.update { it.copy(saving = true) }
         viewModelScope.launch {

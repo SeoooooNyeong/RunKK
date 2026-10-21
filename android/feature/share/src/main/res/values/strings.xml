@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="share_save_failed_check">기기에 저장하지 못했어요. 저장 공간과 권한을 확인해 주세요</string>
+    <string name="share_save_failed">기기에 저장하지 못했어요</string>
+    <string name="share_chooser_title">러닝 카드 공유</string>
+    <string name="share_no_share_app">공유할 앱이 없어요</string>
+    <string name="share_story_saved_fallback">인스타그램이 없어 기기에 저장했어요. 사진첩에서 스토리에 올려 주세요</string>
+    <string name="share_story_no_instagram">인스타그램이 없어요. 기기 저장이나 다른 앱 공유를 써 주세요</string>
+    <string name="share_course_map_off">코스 지도 공유가 꺼져 있어 뒷면을 공유할 수 없어요. 마이 > 앱 설정에서 켤 수 있어요</string>
+    <string name="share_card_write_failed">카드 이미지를 만들지 못했어요</string>
+    <string name="share_card_stat_time">시간</string>
+    <string name="share_card_stat_pace">평균 페이스</string>
+    <string name="share_card_no_course">코스 기록 없음</string>
+</resources>

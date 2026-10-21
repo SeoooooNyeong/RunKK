@@ -3,6 +3,9 @@ package com.a207.runkk.app.ui.record
 import android.content.Context
 import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
+import com.a207.runkk.app.core.designsystem.RunkkErrorText
+import com.a207.runkk.app.core.designsystem.UiText
+import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
@@ -101,12 +104,12 @@ class RecordViewModelsTest {
         val failing = RecordDetailViewModel(records)
         failing.load("r9")
         assertNull(failing.state.value.detail)
-        assertTrue(failing.state.value.error!!.startsWith("네트워크"))
+        assertEquals(RunkkErrorText.of(AppError.Network), failing.state.value.error)
     }
 
     private fun cardViewModel(shared: Boolean, target: CountingTarget = CountingTarget()) = RecordCardViewModel(
         records,
-        RunCardRenderer(),
+        RunCardRenderer(ApplicationProvider.getApplicationContext()),
         CardSharer(ApplicationProvider.getApplicationContext(), FakeSettingsRepository(shared)) { _, file: File ->
             Uri.fromFile(file)
         },
@@ -124,7 +127,7 @@ class RecordViewModelsTest {
         vm.onShare(CardShareKind.SAVE)
         eventually { vm.state.value.message != null }
         assertEquals(1, target.count)
-        assertEquals("사진첩에 저장했어요", vm.state.value.message)
+        assertEquals(UiText.Res(R.string.record_card_saved), vm.state.value.message)
     }
 
     @Test
@@ -138,7 +141,8 @@ class RecordViewModelsTest {
         vm.onShare(CardShareKind.SYSTEM)
         eventually { vm.state.value.message != null }
         assertEquals(0, target.count)
-        assertTrue(vm.state.value.message!!.startsWith("코스 지도 공유가 꺼져 있어"))
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        assertTrue(vm.state.value.message!!.asString(context).startsWith("코스 지도 공유가 꺼져 있어"))
         assertFalse(vm.state.value.canShareBack)
     }
 }
