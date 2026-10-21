@@ -28,6 +28,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 
 /** 디자인 시스템 구성 요소의 동작과 접근성 라벨(Robolectric Compose 시험). */
 @RunWith(RobolectricTestRunner::class)
@@ -235,7 +236,9 @@ class RunkkComponentsTest {
                 })
             }
         }
-        RunkkTab.entries.forEach { compose.onNodeWithText(it.label).assertExists() }
+        RunkkTab.entries.forEach {
+            compose.onNodeWithText(RuntimeEnvironment.getApplication().getString(it.labelRes)).assertExists()
+        }
         compose.onNodeWithText("홈").assertIsSelected()
         compose.onNodeWithText("크루").performClick()
         assertEquals(RunkkTab.CREW, picked)

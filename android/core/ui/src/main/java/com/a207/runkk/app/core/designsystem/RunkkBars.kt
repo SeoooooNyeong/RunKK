@@ -1,5 +1,6 @@
 package com.a207.runkk.app.core.designsystem
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -28,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -58,7 +60,7 @@ fun RunkkTopBar(
         if (onBack != null) {
             RunkkIconButton(
                 RunkkIcons.Back,
-                contentDescription = "뒤로",
+                contentDescription = stringResource(R.string.core_bars_back),
                 onClick = onBack,
                 modifier = Modifier.padding(end = 0.dp)
             )
@@ -81,13 +83,22 @@ fun RunkkTopBar(
  */
 @Composable
 fun RunkkStepTopBar(title: String, step: Int, total: Int, modifier: Modifier = Modifier, onBack: (() -> Unit)? = null) {
+    val stepDescription = stringResource(R.string.core_bars_step_progress, step, total)
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (onBack != null) RunkkIconButton(RunkkIcons.Back, contentDescription = "뒤로", onClick = onBack)
+            if (onBack !=
+                null
+            ) {
+                RunkkIconButton(
+                    RunkkIcons.Back,
+                    contentDescription = stringResource(R.string.core_bars_back),
+                    onClick = onBack
+                )
+            }
             Text(
                 text = title,
                 style = RunkkTextStyles.StepTitle,
@@ -103,7 +114,7 @@ fun RunkkStepTopBar(title: String, step: Int, total: Int, modifier: Modifier = M
                     withStyle(SpanStyle(color = RunkkColors.TextSecondary)) { append(" / $total") }
                 },
                 style = RunkkTextStyles.display(20),
-                modifier = Modifier.clearAndSetSemantics { contentDescription = "${total}단계 중 ${step}단계" }
+                modifier = Modifier.clearAndSetSemantics { contentDescription = stepDescription }
             )
         }
         RunkkProgressBar(
@@ -115,12 +126,12 @@ fun RunkkStepTopBar(title: String, step: Int, total: Int, modifier: Modifier = M
 }
 
 /** 하단 탭 다섯 개(셀프·셀럽·홈·크루·마이, SRS 5.1). 경로 이름과의 대응은 app이 정한다. */
-enum class RunkkTab(val label: String, val icon: ImageVector) {
-    SELF("셀프", RunkkIcons.History),
-    CELEB("셀럽", RunkkIcons.Star),
-    HOME("홈", RunkkIcons.Home),
-    CREW("크루", RunkkIcons.Users),
-    ME("마이", RunkkIcons.User)
+enum class RunkkTab(@StringRes val labelRes: Int, val icon: ImageVector) {
+    SELF(R.string.core_tab_self, RunkkIcons.History),
+    CELEB(R.string.core_tab_celeb, RunkkIcons.Star),
+    HOME(R.string.core_tab_home, RunkkIcons.Home),
+    CREW(R.string.core_tab_crew, RunkkIcons.Users),
+    ME(R.string.core_tab_me, RunkkIcons.User)
 }
 
 /**
@@ -154,7 +165,7 @@ fun RunkkBottomBar(selected: RunkkTab?, onSelect: (RunkkTab) -> Unit, modifier: 
                 ) {
                     Icon(tab.icon, contentDescription = null, tint = color, modifier = Modifier.size(24.dp))
                     Text(
-                        text = tab.label,
+                        text = stringResource(tab.labelRes),
                         style = RunkkTextStyles.text(11, if (isSelected) FontWeight.Bold else FontWeight.Normal),
                         color = color
                     )

@@ -1,44 +1,77 @@
 package com.a207.runkk.app.core.designsystem
 
+import android.content.res.Resources
+import androidx.annotation.StringRes
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalContext
+
 /**
  * 성향 태그 고정 목록(SRS 3.5.1, W-13: 7분류 19개)의 화면 문구. 가입·프로필 편집(ui.me)과 크루(ui.crew)가 같이 쓴다.
  * [RunkkTag.id]는 서버 PersonalityTag 상수 이름이다(서버로 가는 값). 계약 시험(ContractEnumsTest)이 서버 이름 목록과 대조한다.
  * 고르기 규칙(분류마다 1개, 모두 1~5개)은 서버가 판정한다. 화면은 [RunkkTags.toggle]로 분류마다 1개만 남긴다.
  */
-data class RunkkTag(val id: String, val label: String)
+data class RunkkTag(val id: String, @StringRes val labelRes: Int)
 
-data class RunkkTagCategory(val name: String, val tags: List<RunkkTag>, val crewOnly: Boolean = false)
+data class RunkkTagCategory(@StringRes val nameRes: Int, val tags: List<RunkkTag>, val crewOnly: Boolean = false)
 
 object RunkkTags {
     /** 러너가 고르는 상한(FR-007). */
     const val MAX_SELECTED = 5
 
     val categories: List<RunkkTagCategory> = listOf(
-        RunkkTagCategory("동행", listOf(RunkkTag("SOLO_RUN", "혼자가 편해요"), RunkkTag("SOCIAL_RUN", "함께가 좋아요"))),
-        RunkkTagCategory("거리", listOf(RunkkTag("SHORT_DISTANCE", "짧게 자주"), RunkkTag("LONG_DISTANCE", "길게 천천히"))),
-        RunkkTagCategory("코스", listOf(RunkkTag("FAMILIAR_ROUTE", "늘 가던 길"), RunkkTag("EXPLORER_ROUTE", "새로운 길 탐험"))),
-        RunkkTagCategory("습관", listOf(RunkkTag("ROUTINE_RUN", "정해진 루틴"), RunkkTag("IMPROMPTU_RUN", "그날 기분대로"))),
         RunkkTagCategory(
-            "주로 뛰는 시간",
+            R.string.core_tag_category_companion,
             listOf(
-                RunkkTag("DAWN", "새벽"),
-                RunkkTag("MORNING", "아침"),
-                RunkkTag("LUNCH", "점심"),
-                RunkkTag("EVENING", "저녁"),
-                RunkkTag("NIGHT", "밤")
+                RunkkTag("SOLO_RUN", R.string.core_tag_solo_run),
+                RunkkTag("SOCIAL_RUN", R.string.core_tag_social_run)
             )
         ),
         RunkkTagCategory(
-            "목표",
+            R.string.core_tag_category_distance,
             listOf(
-                RunkkTag("PERSONAL_BEST", "기록 단축"),
-                RunkkTag("RACE_PREP", "대회 준비"),
-                RunkkTag("DIET", "다이어트"),
-                RunkkTag("STRESS_RELIEF", "스트레스 해소"),
-                RunkkTag("CONSISTENCY", "꾸준히")
+                RunkkTag("SHORT_DISTANCE", R.string.core_tag_short_distance),
+                RunkkTag("LONG_DISTANCE", R.string.core_tag_long_distance)
             )
         ),
-        RunkkTagCategory("크루 분위기", listOf(RunkkTag("BEGINNER_WELCOME", "초보 환영")), crewOnly = true)
+        RunkkTagCategory(
+            R.string.core_tag_category_course,
+            listOf(
+                RunkkTag("FAMILIAR_ROUTE", R.string.core_tag_familiar_route),
+                RunkkTag("EXPLORER_ROUTE", R.string.core_tag_explorer_route)
+            )
+        ),
+        RunkkTagCategory(
+            R.string.core_tag_category_habit,
+            listOf(
+                RunkkTag("ROUTINE_RUN", R.string.core_tag_routine_run),
+                RunkkTag("IMPROMPTU_RUN", R.string.core_tag_impromptu_run)
+            )
+        ),
+        RunkkTagCategory(
+            R.string.core_tag_category_time,
+            listOf(
+                RunkkTag("DAWN", R.string.core_tag_dawn),
+                RunkkTag("MORNING", R.string.core_tag_morning),
+                RunkkTag("LUNCH", R.string.core_tag_lunch),
+                RunkkTag("EVENING", R.string.core_tag_evening),
+                RunkkTag("NIGHT", R.string.core_tag_night)
+            )
+        ),
+        RunkkTagCategory(
+            R.string.core_tag_category_goal,
+            listOf(
+                RunkkTag("PERSONAL_BEST", R.string.core_tag_personal_best),
+                RunkkTag("RACE_PREP", R.string.core_tag_race_prep),
+                RunkkTag("DIET", R.string.core_tag_diet),
+                RunkkTag("STRESS_RELIEF", R.string.core_tag_stress_relief),
+                RunkkTag("CONSISTENCY", R.string.core_tag_consistency)
+            )
+        ),
+        RunkkTagCategory(
+            R.string.core_tag_category_crew_mood,
+            listOf(RunkkTag("BEGINNER_WELCOME", R.string.core_tag_beginner_welcome)),
+            crewOnly = true
+        )
     )
 
     /** 러너용 6분류. */
@@ -47,7 +80,11 @@ object RunkkTags {
     private val byId: Map<String, RunkkTag> = categories.flatMap { it.tags }.associateBy { it.id }
 
     /** id → 화면 문구. 모르는 id는 그대로 보인다. */
-    fun label(id: String): String = byId[id]?.label ?: id
+    fun label(res: Resources, id: String): String = byId[id]?.let { res.getString(it.labelRes) } ?: id
+
+    /** [label]을 화면에서 쓴다. */
+    @Composable
+    fun label(id: String): String = label(LocalContext.current.resources, id)
 
     /**
      * 태그 하나를 켜거나 끈다. 켤 때는 같은 분류의 다른 태그를 끈다(분류마다 1개). 상한을 넘기면 바꾸지 않는다.

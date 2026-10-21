@@ -2,13 +2,17 @@ package com.a207.runkk.app.core.designsystem
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 
+@RunWith(RobolectricTestRunner::class)
 class RunkkTagsTest {
     @Test
     fun `고정 목록은 7분류 19개이고 러너는 6분류`() {
         assertEquals(19, RunkkTags.categories.sumOf { it.tags.size })
         assertEquals(6, RunkkTags.runnerCategories.size)
-        assertEquals("함께가 좋아요", RunkkTags.label("SOCIAL_RUN"))
+        assertEquals("함께가 좋아요", RunkkTags.label(RuntimeEnvironment.getApplication().resources, "SOCIAL_RUN"))
     }
 
     @Test

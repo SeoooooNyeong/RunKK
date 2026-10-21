@@ -258,6 +258,7 @@ fun RunkkStatusPill(
 }
 
 /** 라벨을 한글로 읽어야 하면("5K" → "5킬로미터") 읽기 문구를 단다. */
+@Composable
 private fun Modifier.spokenIfDifferent(label: String): Modifier {
     val spoken = RunkkFormat.spokenLabel(label)
     return if (spoken == label) this else semantics { contentDescription = spoken }

@@ -39,6 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -138,10 +139,11 @@ fun <T> RunkkSelectField(
     optionLabel: (T) -> String,
     onSelect: (T) -> Unit,
     modifier: Modifier = Modifier,
-    placeholder: String = "선택"
+    placeholder: String = stringResource(R.string.core_fields_select)
 ) {
     var expanded by remember { mutableStateOf(false) }
     val shape = RunkkShapes.Small
+    val selectActionLabel = stringResource(R.string.core_fields_select_action, label)
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(text = label, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
         Box {
@@ -152,7 +154,7 @@ fun <T> RunkkSelectField(
                     .clip(shape)
                     .background(RunkkColors.Surface)
                     .border(1.dp, RunkkColors.InputBorder, shape)
-                    .clickable(role = Role.DropdownList, onClickLabel = "$label 고르기") { expanded = true }
+                    .clickable(role = Role.DropdownList, onClickLabel = selectActionLabel) { expanded = true }
                     .semantics {
                         contentDescription = label
                         stateDescription =
@@ -300,7 +302,13 @@ fun RunkkCheckRow(
                 color = RunkkColors.TextPrimary
             )
         }
-        if (onView != null) RunkkTextLink(text = "보기", onClick = onView, contentDescription = "$label 보기")
+        if (onView != null) {
+            RunkkTextLink(
+                text = stringResource(R.string.core_fields_view),
+                onClick = onView,
+                contentDescription = stringResource(R.string.core_fields_view_label, label)
+            )
+        }
     }
 }
 
@@ -316,7 +324,7 @@ fun RunkkConfirmDialog(
     confirmLabel: String,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
-    dismissLabel: String = "취소",
+    dismissLabel: String = stringResource(R.string.core_fields_cancel),
     destructive: Boolean = false,
     onDismissRequest: () -> Unit = onDismiss
 ) {

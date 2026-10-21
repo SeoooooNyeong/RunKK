@@ -36,6 +36,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -80,12 +81,13 @@ fun RunkkPrimaryButton(
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val shape = RoundedCornerShape(size.corner)
+    val loadingDescription = stringResource(R.string.core_buttons_loading)
     val active = enabled && !loading
     Row(
         modifier = modifier
             .semantics(mergeDescendants = true) {
                 contentDescription = text
-                if (loading) stateDescription = "처리 중"
+                if (loading) stateDescription = loadingDescription
             }
             .heightIn(min = size.height)
             .runkkPressScale(interaction)
@@ -335,13 +337,14 @@ fun RunkkIconButton(
     borderColor: Color = RunkkColors.Border
 ) {
     val interaction = remember { MutableInteractionSource() }
+    val newBadgeDescription = stringResource(R.string.core_buttons_new_badge)
     Box(
         modifier = modifier
             .minimumInteractiveComponentSize()
             .clickable(interactionSource = interaction, indication = null, role = Role.Button, onClick = onClick)
             .semantics {
                 this.contentDescription = contentDescription
-                if (badge) stateDescription = "새 소식 있음"
+                if (badge) stateDescription = newBadgeDescription
             },
         contentAlignment = Alignment.Center
     ) {

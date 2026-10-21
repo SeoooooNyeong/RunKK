@@ -25,7 +25,7 @@ class ServerContractTest {
             .associate { it.substringBefore(' ') to it.substringAfter(' ') }
         val appCategories = RunkkTags.categories.map { category ->
             category.tags.map { serverCategory.getValue(it.id) }.toSet().also {
-                assertEquals(1, it.size, "${category.name}: 한 분류에 서버 분류가 섞였다 $it")
+                assertEquals(1, it.size, "분류 ${category.nameRes}: 한 분류에 서버 분류가 섞였다 $it")
             }.single()
         }
         assertEquals(serverCategory.values.toSet(), appCategories.toSet())
@@ -34,7 +34,7 @@ class ServerContractTest {
             assertEquals(
                 category.crewOnly,
                 category.tags.all { serverCategory.getValue(it.id) == "CREW_MOOD" },
-                "${category.name}: 크루 전용 표시가 서버 분류(CREW_MOOD)와 다르다"
+                "분류 ${category.nameRes}: 크루 전용 표시가 서버 분류(CREW_MOOD)와 다르다"
             )
         }
     }
