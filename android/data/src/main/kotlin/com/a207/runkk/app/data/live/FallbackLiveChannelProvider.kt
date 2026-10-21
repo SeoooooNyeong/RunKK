@@ -1,5 +1,7 @@
 package com.a207.runkk.app.data.live
 
+import com.a207.runkk.app.core.model.AppError
+import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.live.LiveChannel
 import com.a207.runkk.app.domain.live.LiveChannelProvider
 import com.a207.runkk.app.domain.live.ProgressReport
@@ -54,17 +56,21 @@ constructor(
             private set
 
         private val incoming =
-            MutableSharedFlow<ServerMessage>(extraBufferCapacity = BUFFER, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+            MutableSharedFlow<ServerMessage>(
+                extraBufferCapacity = BUFFER,
+                onBufferOverflow = BufferOverflow.DROP_OLDEST
+            )
         override val messages: Flow<ServerMessage> = incoming.asSharedFlow()
 
-        override suspend fun connect() {
-            connectLock.withLock {
-                if (isClosed || synchronized(stateLock) { delegate } != null) return
-                val chosen = choose()
-                synchronized(stateLock) {
-                    if (isClosed) chosen.close() else delegate = chosen
-                }
+        /** WebSocket 또는 폴링 가운데 하나로 연결한다. 폴링으로 떨어지면 늘 연결되므로 닫힌 뒤가 아니면 성공이다. */
+        override suspend fun connect(): Outcome<Unit> = connectLock.withLock {
+            if (isClosed) return@withLock Outcome.Failure(AppError.Network)
+            if (synchronized(stateLock) { delegate } != null) return@withLock Outcome.Success(Unit)
+            val chosen = choose()
+            synchronized(stateLock) {
+                if (isClosed) chosen.close() else delegate = chosen
             }
+            if (isClosed) Outcome.Failure(AppError.Network) else Outcome.Success(Unit)
         }
 
         override fun send(m: ProgressReport) {
@@ -87,7 +93,7 @@ constructor(
                 val socket = webSockets.get()
                 val forward = forward(socket)
                 try {
-                    socket.connect()
+                    socket.connectOrThrow()
                     return socket
                 } catch (e: WebSocketLiveChannel.HandshakeFailed) {
                     forward.cancel()

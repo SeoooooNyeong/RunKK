@@ -1,11 +1,13 @@
 package com.a207.runkk.app.domain.battle
 
+import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.live.BattleEnded
 import com.a207.runkk.app.domain.live.BattleGuidance
 import com.a207.runkk.app.domain.live.BattleStart
+import com.a207.runkk.app.domain.live.CountdownStarted
 import com.a207.runkk.app.domain.live.MatchFound
 import com.a207.runkk.app.domain.live.OpponentProgress
 import com.a207.runkk.app.domain.live.ProgressReport
@@ -14,6 +16,8 @@ import com.a207.runkk.app.domain.live.TrackTable
 import com.a207.runkk.app.domain.run.Guidance
 import com.a207.runkk.app.domain.run.RunTracker
 import com.a207.runkk.app.domain.run.sample
+import com.a207.runkk.app.domain.settings.GuidanceSettings
+import com.a207.runkk.app.domain.settings.SettingsSnapshot
 import com.a207.runkk.app.domain.testing.CallLog
 import com.a207.runkk.app.domain.testing.FakeGuidanceOutput
 import com.a207.runkk.app.domain.testing.FakeLiveChannelProvider
@@ -41,6 +45,9 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 
 private class FakeBattleRepository(private val log: CallLog) : BattleRepository {
+    /** markStarted·forfeit가 돌려줄 실패(F-3). null이면 성공. */
+    var reportFailure: AppError? = null
+
     override suspend fun requestMatch(distance: Distance): Outcome<MatchAcceptance> = error("unused")
 
     override suspend fun cancel(): Outcome<MatchAcceptance> = error("unused")
@@ -55,12 +62,12 @@ private class FakeBattleRepository(private val log: CallLog) : BattleRepository 
 
     override suspend fun markStarted(battleId: Long): Outcome<Unit> {
         log.add("battle.markStarted:$battleId")
-        return Outcome.Success(Unit)
+        return reportFailure?.let { Outcome.Failure(it) } ?: Outcome.Success(Unit)
     }
 
     override suspend fun forfeit(battleId: Long): Outcome<Unit> {
         log.add("battle.forfeit:$battleId")
-        return Outcome.Success(Unit)
+        return reportFailure?.let { Outcome.Failure(it) } ?: Outcome.Success(Unit)
     }
 
     override suspend fun result(battleId: Long): Outcome<BattleResult> = error("unused")
@@ -78,6 +85,8 @@ class BattleRunCoordinatorTest {
     private val pending = FakePendingRunRepository(log)
     private val live = FakeLiveChannelProvider()
     private val repository = FakeBattleRepository(log)
+    private val settings = FakeSettingsRepository()
+    private val watch = FakeWatchGateway()
     private val parentJob = SupervisorJob()
 
     @AfterTest
@@ -90,11 +99,11 @@ class BattleRunCoordinatorTest {
             RunTracker(
                 pending,
                 FakeUploadScheduler(log),
-                FakeWatchGateway(),
+                watch,
                 output,
                 FakeLocationPermission(),
                 host,
-                FakeSettingsRepository(),
+                settings,
                 clock,
                 backgroundScope
             )
@@ -236,10 +245,11 @@ class BattleRunCoordinatorTest {
     @Test
     fun `채널 연결이 실패하면 앱을 죽이지 않고 그 회를 닫는다`() = runTest {
         val (_, coordinator) = setUp()
-        live.channel.connectFailure = IllegalStateException("handshake")
+        live.channel.connectFailure = AppError.Network
         coordinator.onMatched(match)
         runCurrent()
         assertIs<BattleRunState.Finished>(coordinator.state.value)
+        assertEquals(AppError.Network, coordinator.failure.value, "O-6: 연결 실패를 결과 대기와 구분한다")
         assertTrue(parentJob.children.none())
     }
 
@@ -313,6 +323,122 @@ class BattleRunCoordinatorTest {
         runCurrent()
         assertEquals(BattleRunState.Matched(match), coordinator.state.value)
         assertEquals(1, live.channel.connects)
+    }
+
+    @Test
+    fun `F-1 종료 카운트다운 중 상대 진행값·추월 안내가 와도 Closing을 지킨다`() = runTest {
+        val (_, coordinator) = setUp()
+        coordinator.onMatched(match)
+        runCurrent()
+        live.channel.messages.emit(BattleStart(battleId = 3, startAt = T0, opponentTrack = null))
+        runCurrent()
+        live.channel.messages.emit(CountdownStarted(3, "상대", T0.plusSeconds(30)))
+        live.channel.messages.emit(
+            OpponentProgress(
+                3,
+                "상대",
+                Distance(1_000),
+                Duration.ofSeconds(300),
+                -40,
+                OpponentProgress.Connection.CONNECTED
+            )
+        )
+        live.channel.messages.emit(BattleGuidance(3, BattleGuidance.Kind.OVERTAKEN, -40))
+        runCurrent()
+        assertEquals(BattleRunState.Closing(3, "상대", T0.plusSeconds(30)), coordinator.state.value)
+    }
+
+    @Test
+    fun `F-1 기록 상대 진행값도 종료 카운트다운을 덮지 않는다`() = runTest {
+        val (tracker, coordinator) = setUp()
+        coordinator.onMatched(match)
+        runCurrent()
+        val table = TrackTable(listOf(TrackPoint(10, 20), TrackPoint(400, 1_000)))
+        live.channel.messages.emit(BattleStart(battleId = 3, startAt = T0, opponentTrack = table))
+        runCurrent()
+        live.channel.messages.emit(CountdownStarted(3, "고스트", T0.plusSeconds(60)))
+        runCurrent()
+        tracker.runTo(1, 0.0)
+        tracker.runTo(10, 30.0)
+        runCurrent()
+        assertIs<BattleRunState.Closing>(coordinator.state.value)
+    }
+
+    @Test
+    fun `F-2 추월·역전 안내는 대결 음성·진동 설정을 따른다`() = runTest {
+        settings.snapshot =
+            SettingsSnapshot.SAFE.copy(
+                locationConsented = true,
+                guidanceSettings = GuidanceSettings.DEFAULT.copy(battleVoice = true, battleVibration = false)
+            )
+        val (_, coordinator) = setUp()
+        coordinator.onMatched(match)
+        runCurrent()
+        live.channel.messages.emit(BattleGuidance(3, BattleGuidance.Kind.OVERTOOK, 12))
+        runCurrent()
+        val played = output.played.last()
+        assertEquals(Guidance.Kind.OVERTOOK, played.kind)
+        assertTrue(played.voice, "음성 켬")
+        assertEquals(false, played.vibration, "진동 끔")
+    }
+
+    @Test
+    fun `F-3 그만두기 보고가 실패하면 다시 보내고 그래도 실패하면 failure로 알린다`() = runTest {
+        val (tracker, coordinator) = setUp()
+        coordinator.onRecordBattleStart(selfStart)
+        advanceTimeBy(3_001)
+        tracker.runTo(1, 0.0)
+        tracker.runTo(5, 12.0)
+        runCurrent()
+        repository.reportFailure = AppError.Network
+        coordinator.forfeit()
+        advanceTimeBy(10_000)
+        runCurrent()
+        assertEquals(3, log.calls.count { it == "battle.forfeit:7" })
+        assertEquals(AppError.Network, coordinator.failure.value)
+        assertEquals(1, host.stopped, "기기 측정은 사용자의 그만두기대로 끝낸다")
+        assertIs<BattleRunState.Finished>(coordinator.state.value)
+    }
+
+    @Test
+    fun `F-3 시작 보고가 실패해도 측정은 계속하고 failure로 알린다`() = runTest {
+        repository.reportFailure = AppError.Rejected("INVALID_STATE")
+        val (_, coordinator) = setUp()
+        coordinator.onRecordBattleStart(selfStart)
+        advanceTimeBy(3_001)
+        runCurrent()
+        assertEquals(1, log.calls.count { it == "battle.markStarted:7" }, "거부(Rejected)는 다시 보내지 않는다")
+        assertEquals(AppError.Rejected("INVALID_STATE"), coordinator.failure.value)
+        assertIs<BattleRunState.Running>(coordinator.state.value)
+    }
+
+    @Test
+    fun `S-16 화면이 onProgress를 불러도 진행값을 두 번 보내지 않는다`() = runTest {
+        val (tracker, coordinator) = setUp()
+        coordinator.onMatched(match)
+        runCurrent()
+        live.channel.messages.emit(BattleStart(battleId = 3, startAt = T0, opponentTrack = null))
+        runCurrent()
+        tracker.runTo(1, 0.0)
+        tracker.runTo(2, 3.0)
+        runCurrent()
+        val sent = live.channel.sent.size
+        coordinator.onProgress(tracker.progress.value)
+        runCurrent()
+        assertEquals(sent, live.channel.sent.size)
+    }
+
+    @Test
+    fun `S-17 결과 화면이 확인하면 다음 대결을 위해 Idle로 돌아간다`() = runTest {
+        val (_, coordinator) = setUp()
+        coordinator.onMatched(match)
+        runCurrent()
+        live.channel.messages.emit(BattleEnded(3, BattleEnded.Status.FINISHED))
+        runCurrent()
+        assertIs<BattleRunState.Finished>(coordinator.state.value)
+        coordinator.acknowledgeFinished()
+        assertEquals(BattleRunState.Idle, coordinator.state.value)
+        assertEquals(null, coordinator.failure.value)
     }
 
     private val match =

@@ -59,9 +59,14 @@ class RealtimeContractTest {
                         battleId = 101,
                         startAt = utc("2026-10-20T10:00:13Z"),
                         opponentTrack =
-                        TrackTable(
-                            listOf(TrackPoint(0, 0), TrackPoint(60, 190), TrackPoint(120, 385), TrackPoint(1_580, 5_000))
-                        )
+                            TrackTable(
+                                listOf(
+                                    TrackPoint(0, 0),
+                                    TrackPoint(60, 190),
+                                    TrackPoint(120, 385),
+                                    TrackPoint(1_580, 5_000)
+                                )
+                            )
                     ),
                 "BattleStart-random" to BattleStart(102, utc("2026-10-20T10:05:13.500Z"), opponentTrack = null),
                 "OpponentProgress" to
@@ -128,7 +133,11 @@ class RealtimeContractTest {
         assertNull(decoder.decode("""{"battleId":1}"""))
         assertNull(decoder.decode("not json"))
         assertNull(decoder.decode("""{"type":"BattleEnded","battleId":1,"status":"EXPLODED"}"""))
-        assertNull(decoder.decode("""{"type":"OpponentProgress","battleId":1,"opponentName":"x","opponentDistance":-1,"opponentElapsed":1,"gapMeters":0,"connection":"CONNECTED"}"""))
+        assertNull(
+            decoder.decode(
+                """{"type":"OpponentProgress","battleId":1,"opponentName":"x","opponentDistance":-1,"opponentElapsed":1,"gapMeters":0,"connection":"CONNECTED"}"""
+            )
+        )
     }
 
     @Test
@@ -145,7 +154,9 @@ class RealtimeContractTest {
 
     @Test
     fun `오프셋이 붙은 시각도 읽는다`() {
-        val message = decoder.decode("""{"type":"CountdownStarted","battleId":1,"arrivedName":"a","endsAt":"2026-10-20T10:27:13Z"}""")
+        val message = decoder.decode(
+            """{"type":"CountdownStarted","battleId":1,"arrivedName":"a","endsAt":"2026-10-20T10:27:13Z"}"""
+        )
 
         assertEquals(CountdownStarted(1, "a", Instant.parse("2026-10-20T10:27:13Z")), message)
     }

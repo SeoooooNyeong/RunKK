@@ -52,7 +52,14 @@ constructor(@ApplicationContext private val context: Context) : GuidanceOutput {
             ttsReady = status == TextToSpeech.SUCCESS
             if (ttsReady) {
                 engine.language = Locale.KOREAN
-                while (waiting.isNotEmpty()) engine.speak(waiting.removeFirst(), TextToSpeech.QUEUE_ADD, null, UTTERANCE_ID)
+                while (waiting.isNotEmpty()) {
+                    engine.speak(
+                        waiting.removeFirst(),
+                        TextToSpeech.QUEUE_ADD,
+                        null,
+                        UTTERANCE_ID
+                    )
+                }
             } else {
                 waiting.clear()
             }

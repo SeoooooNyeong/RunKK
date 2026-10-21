@@ -23,10 +23,8 @@ import kotlinx.coroutines.launch
  */
 class PollingLiveChannel
 @Inject
-constructor(
-    private val api: LiveApi,
-    private val scope: CoroutineScope
-) : LiveChannel {
+constructor(private val api: LiveApi, private val scope: CoroutineScope) :
+    LiveChannel {
     private val decoder = ServerMessageDecoder()
     private val lock = Any()
     private var polling: Job? = null
@@ -36,11 +34,12 @@ constructor(
         MutableSharedFlow<ServerMessage>(extraBufferCapacity = BUFFER, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     override val messages: Flow<ServerMessage> = incoming.asSharedFlow()
 
-    override suspend fun connect() {
+    /** 폴링을 시작한다. 폴링 실패는 주기마다 다시 하므로 연결 자체는 늘 성공이다. */
+    override suspend fun connect(): Outcome<Unit> {
         synchronized(lock) {
-            if (closed || polling != null) return
-            polling = scope.launch { pollEverySecond() }
+            if (!closed && polling == null) polling = scope.launch { pollEverySecond() }
         }
+        return Outcome.Success(Unit)
     }
 
     override fun send(m: ProgressReport) {

@@ -6,6 +6,7 @@ import com.a207.runkk.app.core.model.RunMode
 import com.a207.runkk.app.domain.settings.GuidanceSettings
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -170,5 +171,17 @@ class GuidanceRuleTest {
         val judge = CoachingJudge.forMode(RunMode.FREE)
         val guidances = judge.evaluate(context(progress(3_000), PlanSnapshot(Distance(3_000), null)))
         assertEquals(listOf(Guidance.Kind.SPLIT, Guidance.Kind.TARGET_REACHED), guidances.map { it.kind })
+    }
+
+    @Test
+    fun `F-2 Gap - 대결 진동 설정을 따른다`() {
+        val vibrate = GuidanceSettings.DEFAULT.copy(gapAlertMeters = 500, battleVibration = true)
+        val silent = GuidanceSettings.DEFAULT.copy(gapAlertMeters = 500, battleVibration = false)
+        assertTrue(
+            assertNotNull(GapGuidanceRule().check(context(progress(500), gapMeters = 5, settings = vibrate))).vibration
+        )
+        assertFalse(
+            assertNotNull(GapGuidanceRule().check(context(progress(500), gapMeters = 5, settings = silent))).vibration
+        )
     }
 }

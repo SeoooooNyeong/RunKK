@@ -1,6 +1,8 @@
 package com.a207.runkk.app.data.live
 
 import com.a207.runkk.app.api.core.BuildConfig
+import com.a207.runkk.app.core.model.AppError
+import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.live.LiveChannel
 import com.a207.runkk.app.domain.live.ProgressReport
 import com.a207.runkk.app.domain.live.ServerMessage
@@ -29,8 +31,8 @@ import okhttp3.WebSocketListener
  * WebSocket 실시간 채널(6.1.14 data.live, 5.7.2 경로 /ws). api.core의 인증된 OkHttp로 열어 접근 토큰이 핸드셰이크
  * Authorization 헤더에 실린다(design-review.md E1).
  *
- * connect()는 핸드셰이크 한 번이다: 성공하면 돌아오고, 실패하면 HandshakeFailed(응답 코드)를 던진다(폴링 전환 판단은
- * FallbackLiveChannelProvider가 한다). 연결된 뒤 끊기면 1·2·4초 뒤, 이후 5초 간격으로 close()까지 다시 연결한다(D-16, FR-091).
+ * connect()는 핸드셰이크 한 번이고 실패는 Failure(Network)다. 폴링 전환 판단(응답 코드)이 필요한
+ * FallbackLiveChannelProvider는 connectOrThrow로 HandshakeFailed(응답 코드)를 받는다. 연결된 뒤 끊기면 1·2·4초 뒤, 이후 5초 간격으로 close()까지 다시 연결한다(D-16, FR-091).
  * 끊긴 동안의 send는 버린다(진행값은 1초마다 새로 보내므로 다음 값이 앞 값을 대신한다).
  */
 class WebSocketLiveChannel internal constructor(
@@ -59,7 +61,15 @@ class WebSocketLiveChannel internal constructor(
         MutableSharedFlow<ServerMessage>(extraBufferCapacity = BUFFER, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     override val messages: Flow<ServerMessage> = incoming.asSharedFlow()
 
-    override suspend fun connect() {
+    override suspend fun connect(): Outcome<Unit> = try {
+        connectOrThrow()
+        Outcome.Success(Unit)
+    } catch (e: HandshakeFailed) {
+        Outcome.Failure(AppError.Network)
+    }
+
+    /** 핸드셰이크 한 번. 실패하면 HandshakeFailed(응답 코드). 이미 연결됐거나 닫혔으면 아무것도 하지 않는다. */
+    internal suspend fun connectOrThrow() {
         synchronized(lock) { if (closed || socket != null) return }
         val opened = handshake()
         synchronized(lock) {
@@ -136,7 +146,7 @@ class WebSocketLiveChannel internal constructor(
             attempt++
             synchronized(lock) { if (closed) return }
             try {
-                connect()
+                connectOrThrow()
                 return
             } catch (e: IOException) {
                 // 다음 간격 뒤 다시 시도한다.

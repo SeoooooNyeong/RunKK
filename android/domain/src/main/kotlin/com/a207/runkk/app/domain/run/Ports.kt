@@ -3,6 +3,7 @@ package com.a207.runkk.app.domain.run
 import com.a207.runkk.app.core.model.Outcome
 import java.time.Instant
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 
 /**
  * 미전송 기록 보관 포트(6.1.14). 구현 data.store.RoomPendingRunRepository.
@@ -45,6 +46,9 @@ interface WatchGateway {
 
     val heartRates: Flow<List<HeartRateSample>>
 
+    /** 워치의 종료 요청(길게 누름). RunTracker가 화면의 길게 누르기 종료와 같은 규칙으로 처리한다. 워치가 없으면 비어 있다. */
+    val endRequests: Flow<Unit> get() = emptyFlow()
+
     fun isConnected(): Boolean
 }
 
@@ -60,7 +64,8 @@ interface LocationPermission {
 
 /** 포그라운드 측정 서비스 시작·정지 포트. 구현 data.device.MeasurementService. */
 interface MeasurementHost {
-    fun startForeground()
+    /** OS가 포그라운드 시작을 거부하면(Android 12+ 백그라운드 시작 제한 등) Failure. RunTracker가 시작을 되돌린다. */
+    fun startForeground(): Outcome<Unit>
 
     fun stop()
 }

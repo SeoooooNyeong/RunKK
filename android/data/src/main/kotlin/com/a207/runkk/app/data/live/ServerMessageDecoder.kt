@@ -33,15 +33,34 @@ constructor() {
         return try {
             when (type) {
                 "MatchFound" -> liveJson.decodeFromJsonElement(MatchFoundJson.serializer(), message).toDomain()
+
                 "BattleStart" -> liveJson.decodeFromJsonElement(BattleStartJson.serializer(), message).toDomain()
-                "OpponentProgress" -> liveJson.decodeFromJsonElement(OpponentProgressJson.serializer(), message).toDomain()
+
+                "OpponentProgress" -> liveJson.decodeFromJsonElement(
+                    OpponentProgressJson.serializer(),
+                    message
+                ).toDomain()
+
                 "BattleGuidance" -> liveJson.decodeFromJsonElement(BattleGuidanceJson.serializer(), message).toDomain()
-                "CountdownStarted" -> liveJson.decodeFromJsonElement(CountdownStartedJson.serializer(), message).toDomain()
+
+                "CountdownStarted" -> liveJson.decodeFromJsonElement(
+                    CountdownStartedJson.serializer(),
+                    message
+                ).toDomain()
+
                 "BattleEnded" -> liveJson.decodeFromJsonElement(BattleEndedJson.serializer(), message).toDomain()
+
                 "CrewRunStart" -> liveJson.decodeFromJsonElement(CrewRunStartJson.serializer(), message).toDomain()
-                "CrewRunCancelled" -> liveJson.decodeFromJsonElement(CrewRunCancelledJson.serializer(), message).toDomain()
+
+                "CrewRunCancelled" -> liveJson.decodeFromJsonElement(
+                    CrewRunCancelledJson.serializer(),
+                    message
+                ).toDomain()
+
                 "CrewRunRelay" -> liveJson.decodeFromJsonElement(CrewRunRelayJson.serializer(), message).toDomain()
+
                 "CrewRunEnded" -> liveJson.decodeFromJsonElement(CrewRunEndedJson.serializer(), message).toDomain()
+
                 else -> null
             }
         } catch (e: SerializationException) {

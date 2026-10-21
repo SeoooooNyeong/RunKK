@@ -17,7 +17,9 @@ import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
+import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.GeoPoint
+import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.run.LocationSample
 import com.a207.runkk.app.domain.run.MeasurementHost
 import com.a207.runkk.app.domain.run.RunTracker
@@ -141,14 +143,16 @@ class MeasurementService : LifecycleService() {
     class Host
     @Inject
     constructor(@ApplicationContext private val context: Context) : MeasurementHost {
-        override fun startForeground() {
-            try {
-                ContextCompat.startForegroundService(context, Intent(context, MeasurementService::class.java))
-            } catch (e: IllegalStateException) {
-                // 앱이 백그라운드라 시작할 수 없다(Android 12+). 측정 화면이 앞에 있을 때 다시 불린다.
-            } catch (e: SecurityException) {
-                // 위치 권한 없음: RunTracker.checkStartable이 먼저 막는다.
-            }
+        /** OS가 시작을 거부하면 Failure(Rejected(MEASUREMENT_UNAVAILABLE)): RunTracker가 측정 시작을 되돌린다. */
+        override fun startForeground(): Outcome<Unit> = try {
+            ContextCompat.startForegroundService(context, Intent(context, MeasurementService::class.java))
+            Outcome.Success(Unit)
+        } catch (e: IllegalStateException) {
+            // 앱이 백그라운드라 시작할 수 없다(Android 12+ ForegroundServiceStartNotAllowedException).
+            Outcome.Failure(AppError.Rejected(MEASUREMENT_UNAVAILABLE))
+        } catch (e: SecurityException) {
+            // 위치 권한 없음: 보통은 RunTracker.checkStartable이 먼저 막는다.
+            Outcome.Failure(AppError.Rejected(MEASUREMENT_UNAVAILABLE))
         }
 
         override fun stop() {
@@ -156,12 +160,14 @@ class MeasurementService : LifecycleService() {
         }
     }
 
-    private companion object {
-        const val NOTIFICATION_ID = 31
-        const val CHANNEL_ID = "runkk-measurement"
-        const val CHANNEL_NAME = "러닝 측정"
-        const val NOTIFICATION_TITLE = "러닝 측정 중"
-        const val NOTIFICATION_TEXT = "화면을 꺼도 거리와 시간을 계속 잽니다"
-        const val INTERVAL_MILLIS = 1_000L
+    companion object {
+        /** 포그라운드 측정 서비스를 띄우지 못함(사유 코드). */
+        const val MEASUREMENT_UNAVAILABLE = "MEASUREMENT_UNAVAILABLE"
+        private const val NOTIFICATION_ID = 31
+        private const val CHANNEL_ID = "runkk-measurement"
+        private const val CHANNEL_NAME = "러닝 측정"
+        private const val NOTIFICATION_TITLE = "러닝 측정 중"
+        private const val NOTIFICATION_TEXT = "화면을 꺼도 거리와 시간을 계속 잽니다"
+        private const val INTERVAL_MILLIS = 1_000L
     }
 }

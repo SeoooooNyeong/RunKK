@@ -51,6 +51,9 @@ class FakePendingRunRepository(private val log: CallLog = CallLog()) : PendingRu
     val runs = mutableListOf<CompletedRun>()
     val appended = mutableListOf<Pair<String, List<HeartRateSample>>>()
     var failWith: AppError? = null
+
+    /** 늦은 심박 덧붙이기만 실패시킨다(F-4). */
+    var appendFailWith: AppError? = null
     private val flow = MutableStateFlow<List<CompletedRun>>(emptyList())
 
     private fun result(call: String): Outcome<Unit> {
@@ -82,8 +85,12 @@ class FakePendingRunRepository(private val log: CallLog = CallLog()) : PendingRu
 
     override suspend fun needsReminder(now: Instant): Outcome<Boolean> = Outcome.Success(runs.size >= 20)
 
-    override suspend fun appendHeartRates(recordId: String, samples: List<HeartRateSample>): Outcome<Unit> =
-        result("pending.appendHeartRates:$recordId").also { appended += recordId to samples }
+    override suspend fun appendHeartRates(recordId: String, samples: List<HeartRateSample>): Outcome<Unit> {
+        log.add("pending.appendHeartRates:$recordId")
+        appendFailWith?.let { return Outcome.Failure(it) }
+        appended += recordId to samples
+        return Outcome.Success(Unit)
+    }
 
     override suspend fun clear(): Outcome<Unit> = result("pending.clear")
 }
@@ -100,6 +107,7 @@ class FakeUploadScheduler(private val log: CallLog = CallLog()) : UploadSchedule
 class FakeWatchGateway : WatchGateway {
     val published = mutableListOf<WatchDisplay>()
     override val startRequests = MutableSharedFlow<Unit>()
+    override val endRequests = MutableSharedFlow<Unit>()
     override val heartRates = MutableSharedFlow<List<HeartRateSample>>()
     var connected = true
 
@@ -125,9 +133,11 @@ class FakeLocationPermission(var granted: Boolean = true) : LocationPermission {
 class FakeMeasurementHost : MeasurementHost {
     var started = 0
     var stopped = 0
+    var startFailure: AppError? = null
 
-    override fun startForeground() {
+    override fun startForeground(): Outcome<Unit> {
         started++
+        return startFailure?.let { Outcome.Failure(it) } ?: Outcome.Success(Unit)
     }
 
     override fun stop() {
@@ -136,11 +146,18 @@ class FakeMeasurementHost : MeasurementHost {
 }
 
 class FakeSettingsRepository(
-    var snapshot: SettingsSnapshot = SettingsSnapshot.SAFE.copy(locationConsented = true),
+    snapshot: SettingsSnapshot = SettingsSnapshot.SAFE.copy(locationConsented = true),
     private val log: CallLog = CallLog()
 ) : SettingsRepository {
     var refreshResult: Outcome<Unit> = Outcome.Success(Unit)
     private val flow = MutableStateFlow(snapshot)
+
+    /** 설정 사본. 바꾸면 changes()도 방출한다. */
+    var snapshot: SettingsSnapshot
+        get() = flow.value
+        set(value) {
+            flow.value = value
+        }
 
     override suspend fun refresh(): Outcome<Unit> {
         log.add("settings.refresh")
