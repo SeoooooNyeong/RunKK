@@ -1,10 +1,12 @@
 package com.a207.runkk.app.domain.run
 
 import com.a207.runkk.app.core.model.AppError
+import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.RunMode
 import com.a207.runkk.app.domain.settings.SettingsRepository
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -19,14 +21,17 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * 한 번의 러닝 측정 흐름을 조정한다(6.1.14, D-56). 측정 상태를 가지므로 ui.run, data.device.MeasurementService,
  * 두 조정자가 같은 인스턴스를 받는다(@Singleton, design-review.md M49).
  *
  * 화면 입력은 누름 종류마다 다른 연산(onFinishTapped·onFinishLongPressed, lockScreen·onUnlockTapped·onUnlockLongPressed)으로,
- * 조정자의 종료는 endRun으로 받는다(D-36, D-49). 위치 콜백·1초 시계·워치 수집이 서로 다른 스레드에서 올 수 있어
- * 측정 상태는 lock으로 보호하고, 저장·덧붙이기 같은 suspend 작업은 주입받은 applicationScope에서 돈다.
+ * 조정자의 종료는 endRun으로 받는다(D-36, D-49). 워치의 종료 요청은 화면의 길게 누르기와 같은 규칙으로 받는다(자유런만).
+ * 위치 콜백·1초 시계·워치 수집이 서로 다른 스레드에서 올 수 있어 측정 상태는 lock으로 보호하고,
+ * 저장·덧붙이기 같은 suspend 작업은 주입받은 applicationScope에서 돈다.
  */
 @Singleton
 class RunTracker
@@ -51,6 +56,14 @@ constructor(
     /** 마지막으로 끝난 러닝(늦게 온 심박을 이 기록에 덧붙인다, FR-043). */
     private var lastFinished: FinishedWindow? = null
 
+    /** 보관함에 아직 넣지 못한 늦은 심박(기록ID별). 다음 늦은 심박이 올 때 함께 다시 넣는다(F-4). lock 안에서만 쓴다. */
+    private val unsavedLate = mutableMapOf<String, List<HeartRateSample>>()
+    private val lateSaving = Mutex()
+
+    /** 워치 시작 화면에 보일 오늘 계획(publishWatchHome). 러닝이 끝난 뒤 시작 화면 표시에도 쓴다. */
+    @Volatile
+    private var homePlan: PlanSnapshot? = null
+
     private val _progress = MutableStateFlow(RunProgress.INITIAL)
     val progress: StateFlow<RunProgress> = _progress.asStateFlow()
 
@@ -62,6 +75,7 @@ constructor(
 
     init {
         scope.launch { watch.startRequests.collect { onWatchStartRequest() } }
+        scope.launch { watch.endRequests.collect { onWatchEndRequest() } }
     }
 
     /** 카운트다운 전 확인: OS 위치 권한과 서버 위치 동의(FR-031, NFR-022). */
@@ -75,21 +89,38 @@ constructor(
         }
     }
 
+    /**
+     * 측정을 시작한다. 포그라운드 측정 서비스를 띄우지 못하면(OS 거부) 만든 세션을 되돌리고 그 실패를 돌려준다:
+     * 서비스 없이 측정 중으로 남으면 화면을 끄는 순간 위치가 끊긴다.
+     */
     fun startRun(spec: RunStartSpec): Outcome<Unit> {
         val startable = checkStartable()
         if (startable is Outcome.Failure) return startable
-        synchronized(lock) {
-            if (session?.isActive == true) {
-                return Outcome.Failure(AppError.Rejected(AppError.Rejected.RUN_IN_PROGRESS))
+        val created =
+            synchronized(lock) {
+                if (session?.isActive == true) {
+                    return Outcome.Failure(AppError.Rejected(AppError.Rejected.RUN_IN_PROGRESS))
+                }
+                RunSession(spec).also { fresh ->
+                    fresh.start(clock.instant())
+                    session = fresh
+                    locationFilter = LocationFilter()
+                    coachingJudge = CoachingJudge.forMode(spec.mode)
+                    _progress.value = RunProgress.INITIAL
+                    heartRateJob?.cancel()
+                    heartRateJob = scope.launch { watch.heartRates.collect { onHeartRates(it) } }
+                }
             }
-            session = RunSession(spec).also { it.start(clock.instant()) }
-            locationFilter = LocationFilter()
-            coachingJudge = CoachingJudge.forMode(spec.mode)
-            _progress.value = RunProgress.INITIAL
-            heartRateJob?.cancel()
-            heartRateJob = scope.launch { watch.heartRates.collect { onHeartRates(it) } }
+        val hosted = measurementHost.startForeground()
+        if (hosted is Outcome.Failure) {
+            synchronized(lock) {
+                if (session === created) {
+                    session = null
+                    heartRateJob?.cancel()
+                }
+            }
+            return hosted
         }
-        measurementHost.startForeground()
         return Outcome.Success(Unit)
     }
 
@@ -127,22 +158,18 @@ constructor(
 
     fun lockScreen() {
         synchronized(lock) {
-            val active = session?.takeIf { it.state == RunSession.State.RUNNING } ?: return
-            active.lock()
-            _progress.update { it.copy(locked = true) }
+            if (session?.tryLock() == true) _progress.update { it.copy(locked = true) }
         }
     }
 
     fun onUnlockTapped() {
-        val hint = synchronized(lock) { session?.takeIf { it.state == RunSession.State.LOCKED }?.hintUnlock() }
+        val hint = synchronized(lock) { session?.unlockHintIfLocked() }
         hint?.let(guidanceOutput::play)
     }
 
     fun onUnlockLongPressed() {
         synchronized(lock) {
-            val active = session?.takeIf { it.state == RunSession.State.LOCKED } ?: return
-            active.unlock()
-            _progress.update { it.copy(locked = false) }
+            if (session?.tryUnlock() == true) _progress.update { it.copy(locked = false) }
         }
     }
 
@@ -187,11 +214,59 @@ constructor(
         synchronized(lock) { session?.takeIf { it.isActive }?.updateRank(rank) }
     }
 
+    /**
+     * 대결 추월·역전 안내(FR-188)를 대결 음성·진동 설정으로 낸다(F-2). domain.battle은 domain.settings를 모르므로(5.1.2)
+     * 설정을 아는 이 클래스가 방식을 정한다. 음성·진동이 모두 꺼져 있으면 화면에만 보인다.
+     */
+    fun onLeadChanged(kind: Guidance.Kind, message: String) {
+        val battle = settings.guidanceSettings()
+        val guidance =
+            if (battle.battleVoice || battle.battleVibration) {
+                Guidance(kind, message, voice = battle.battleVoice, vibration = battle.battleVibration)
+            } else {
+                Guidance.screenOnly(kind, message)
+            }
+        guidanceOutput.play(guidance)
+    }
+
+    /**
+     * 워치 시작 화면 표시(running = false, 오늘 계획, FR-042·N-21). 오늘 계획을 읽은 화면(ui.run·ui.home)이 부른다.
+     * 측정 중이면 계획만 기억했다가 측정이 끝난 뒤 시작 화면에 보인다. 수집 허용 여부는 data.watch가 채운다.
+     */
+    fun publishWatchHome(plan: PlanSnapshot?) {
+        homePlan = plan
+        val measuring = synchronized(lock) { session?.isActive == true }
+        if (!measuring) watch.publish(homeDisplay())
+    }
+
     /** 측정이 끝난 뒤 늦게 온 심박을 보관 기록에 덧붙인다. appendHeartRates는 이 클래스만 부른다(design-review.md M32). */
     fun onLateHeartRates(recordId: String, samples: List<HeartRateSample>) {
         if (samples.isEmpty()) return
-        scope.launch { pendingRuns.appendHeartRates(recordId, samples) }
+        synchronized(lock) { unsavedLate[recordId] = (unsavedLate[recordId].orEmpty() + samples).distinct() }
+        scope.launch { saveLateHeartRates(recordId) }
     }
+
+    /**
+     * 기억해 둔 늦은 심박을 보관함에 넣는다(F-4). 저장 오류면 짧게 두 번 더 시도하고, 그래도 안 되면 다음 늦은 심박이 올 때
+     * 함께 다시 넣도록 남긴다. 보관함이 그 기록을 모른다는 거부(Rejected)는 다시 해도 같으므로 버린다.
+     */
+    private suspend fun saveLateHeartRates(recordId: String) {
+        lateSaving.withLock {
+            val batch = synchronized(lock) { unsavedLate.remove(recordId) } ?: return
+            var result = pendingRuns.appendHeartRates(recordId, batch)
+            var attempt = 1
+            while (result.isRetryableFailure() && attempt < SAVE_ATTEMPTS) {
+                delay(SAVE_RETRY_MILLIS * attempt)
+                result = pendingRuns.appendHeartRates(recordId, batch)
+                attempt++
+            }
+            if (result.isRetryableFailure()) {
+                synchronized(lock) { unsavedLate[recordId] = (batch + unsavedLate[recordId].orEmpty()).distinct() }
+            }
+        }
+    }
+
+    private fun Outcome<Unit>.isRetryableFailure(): Boolean = this is Outcome.Failure && error !is AppError.Rejected
 
     /** 방금 끝난 세션의 시간 창을 기억한다. lock 안에서만 부른다. */
     private fun rememberFinished(finished: RunSession) {
@@ -199,43 +274,49 @@ constructor(
         lastFinished = FinishedWindow(finished.spec.recordId, start, clock.instant())
     }
 
+    /** 측정 서비스를 멈추고 워치를 시작 화면으로 돌린 뒤(S-18), 저장할 기록이면 보관한다. */
     private fun complete(outcome: FinishOutcome) {
         measurementHost.stop()
+        watch.publish(homeDisplay())
         if (outcome is FinishOutcome.Saved) scope.launch { save(outcome.run) }
     }
 
     /**
      * 기기 보관함에 저장한 뒤 전송을 요청한다. 저장이 실패하면 짧게 두 번 더 시도하고,
-     * 그래도 실패하면 화면 안내로 알린다(조용히 버리지 않는다).
+     * 그래도 실패하면 화면 안내로 알린다(조용히 버리지 않는다). 반복의 출구는 조건 하나다(P-1).
      */
     private suspend fun save(run: CompletedRun) {
-        repeat(SAVE_ATTEMPTS) { attempt ->
-            if (pendingRuns.save(run) is Outcome.Success) {
-                uploadScheduler.requestUpload()
-                return
-            }
-            if (attempt < SAVE_ATTEMPTS - 1) delay(SAVE_RETRY_MILLIS * (attempt + 1))
+        var saved = pendingRuns.save(run) is Outcome.Success
+        var attempt = 1
+        while (!saved && attempt < SAVE_ATTEMPTS) {
+            delay(SAVE_RETRY_MILLIS * attempt)
+            saved = pendingRuns.save(run) is Outcome.Success
+            attempt++
         }
-        guidanceOutput.play(Guidance.screenOnly(Guidance.Kind.SAVE_FAILED, "러닝 기록을 기기에 저장하지 못했어요"))
+        if (saved) {
+            uploadScheduler.requestUpload()
+        } else {
+            guidanceOutput.play(Guidance.screenOnly(Guidance.Kind.SAVE_FAILED, "러닝 기록을 기기에 저장하지 못했어요"))
+        }
     }
 
     private fun onHeartRates(samples: List<HeartRateSample>) {
-        val late =
+        val lateBatch =
             synchronized(lock) {
                 val active = session?.takeIf { it.isActive }
                 val activeStart = active?.startedAt
                 val window = lastFinished
-                val late = mutableListOf<HeartRateSample>()
+                val lateSamples = mutableListOf<HeartRateSample>()
                 samples.sortedBy { it.at }.forEach { sample ->
                     if (active != null && activeStart != null && !sample.at.isBefore(activeStart)) {
                         active.onHeartRate(sample)
                     } else if (window != null && window.contains(sample.at)) {
-                        late += sample
+                        lateSamples += sample
                     }
                 }
-                window?.let { it.recordId to late }
+                window?.let { it.recordId to lateSamples }
             }
-        late?.let { (recordId, samples) -> onLateHeartRates(recordId, samples) }
+        lateBatch?.let { (recordId, lateSamples) -> onLateHeartRates(recordId, lateSamples) }
     }
 
     /**
@@ -256,6 +337,29 @@ constructor(
         }
         watch.publish(_progress.value.toWatchDisplay(plan = null, notice = notice, running = measuring))
     }
+
+    /**
+     * 워치 종료 요청(워치에서 길게 누름, FR-181). 자유런이면 화면의 길게 누르기와 같은 규칙(잠금 중 거부)으로 끝낸다.
+     * 대결·크루런은 서버 보고(그만두기)를 거쳐야 해서 폰에서만 끝내고 워치에 안내한다.
+     */
+    private fun onWatchEndRequest() {
+        val mode = synchronized(lock) { session?.takeIf { it.isActive }?.spec?.mode } ?: return
+        if (mode == RunMode.FREE) {
+            onFinishLongPressed()
+        } else {
+            watch.publish(_progress.value.toWatchDisplay(plan = null, notice = "대결·크루런은 폰에서 끝내 주세요"))
+        }
+    }
+
+    private fun homeDisplay(): WatchDisplay = WatchDisplay(
+        running = false,
+        elapsed = Duration.ZERO,
+        distance = Distance.ZERO,
+        currentPace = null,
+        heartRateBpm = null,
+        todayPlan = homePlan,
+        notice = null
+    )
 
     private fun RunProgress.toWatchDisplay(
         plan: PlanSnapshot?,

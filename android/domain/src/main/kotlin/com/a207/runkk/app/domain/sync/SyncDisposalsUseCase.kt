@@ -18,18 +18,21 @@ constructor(
         val orders =
             when (val pending = remote.pending()) {
                 is Outcome.Failure -> return pending
-                is Outcome.Success -> pending.value
+                is Outcome.Success -> pending.value.iterator()
             }
-        for (order in orders) {
-            val purged =
-                when (order.kind) {
-                    DisposalOrder.Kind.ROUTE -> pendingRuns.purgeRoutes()
-                    DisposalOrder.Kind.HEART_RATE -> pendingRuns.purgeHeartRates()
-                }
-            if (purged is Outcome.Failure) return purged
-            val confirmed = remote.confirm(order.orderId)
-            if (confirmed is Outcome.Failure) return confirmed
-        }
-        return Outcome.Success(Unit)
+        // 반복의 출구는 조건 하나다(리뷰 P-2): 실패한 지시에서 멈추고 그 실패를 돌려준다.
+        var result: Outcome<Unit> = Outcome.Success(Unit)
+        while (result is Outcome.Success && orders.hasNext()) result = apply(orders.next())
+        return result
+    }
+
+    /** 지시 하나: 기기 사본을 지운 뒤 확인을 보낸다. 지우지 못하면 확인을 보내지 않는다. */
+    private suspend fun apply(order: DisposalOrder): Outcome<Unit> {
+        val purged =
+            when (order.kind) {
+                DisposalOrder.Kind.ROUTE -> pendingRuns.purgeRoutes()
+                DisposalOrder.Kind.HEART_RATE -> pendingRuns.purgeHeartRates()
+            }
+        return if (purged is Outcome.Failure) purged else remote.confirm(order.orderId)
     }
 }

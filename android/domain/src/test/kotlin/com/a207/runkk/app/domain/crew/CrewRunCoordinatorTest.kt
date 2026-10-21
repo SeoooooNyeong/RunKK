@@ -1,5 +1,6 @@
 package com.a207.runkk.app.domain.crew
 
+import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.live.CrewRunCancelled
@@ -43,6 +44,9 @@ class CrewRunCoordinatorTest {
     private val live = FakeLiveChannelProvider()
     private val parentJob = SupervisorJob()
 
+    /** quit이 돌려줄 실패(F-3). null이면 성공. */
+    private var quitFailure: AppError? = null
+
     /** quit만 쓰는 가짜 CrewRepository. 나머지 연산을 부르면 실패한다. */
     private val repository: CrewRepository =
         Proxy.newProxyInstance(CrewRepository::class.java.classLoader, arrayOf(CrewRepository::class.java)) {
@@ -52,7 +56,7 @@ class CrewRunCoordinatorTest {
             ->
             check(method.name == "quit") { "unused: ${method.name}" }
             log.add("crew.quit:${args[0]}")
-            Outcome.Success(Unit)
+            quitFailure?.let { Outcome.Failure(it) } ?: Outcome.Success(Unit)
         } as CrewRepository
 
     @AfterTest
@@ -144,5 +148,50 @@ class CrewRunCoordinatorTest {
         runCurrent()
         assertEquals(CrewRunState.Finished(11, "참가자 부족"), coordinator.state.value)
         assertTrue(parentJob.children.none())
+    }
+
+    @Test
+    fun `F-1 출발 카운트다운 중 중계가 와도 Countdown을 지킨다`() = runTest {
+        val (_, coordinator) = setUp()
+        coordinator.onLobbyEntered(11, Distance(3_000), "나")
+        runCurrent()
+        live.channel.messages.emit(CrewRunStart(11, T0.plusSeconds(10), listOf("나", "너")))
+        runCurrent()
+        live.channel.messages.emit(
+            CrewRunRelay(11, listOf(CrewRunRelay.Entry("너", Distance(0), 1, CrewRunRelay.Connection.CONNECTED)))
+        )
+        runCurrent()
+        assertEquals(CrewRunState.Countdown(11, T0.plusSeconds(13)), coordinator.state.value)
+    }
+
+    @Test
+    fun `F-3 그만두기 보고가 실패하면 다시 보내고 그래도 실패하면 failure로 알린다`() = runTest {
+        val (tracker, coordinator) = setUp()
+        coordinator.onLobbyEntered(11, Distance(3_000), "나")
+        runCurrent()
+        live.channel.messages.emit(CrewRunStart(11, T0, listOf("나")))
+        advanceTimeBy(3_001)
+        tracker.runTo(1, 0.0)
+        tracker.runTo(5, 12.0)
+        runCurrent()
+        quitFailure = AppError.Network
+        coordinator.quit()
+        advanceTimeBy(10_000)
+        runCurrent()
+        assertEquals(3, log.calls.count { it == "crew.quit:11" })
+        assertEquals(AppError.Network, coordinator.failure.value)
+        assertIs<CrewRunState.Finished>(coordinator.state.value)
+        assertEquals(1, host.stopped)
+    }
+
+    @Test
+    fun `S-17 결과 화면이 확인하면 Idle로 돌아간다`() = runTest {
+        val (_, coordinator) = setUp()
+        coordinator.onLobbyEntered(11, Distance(3_000), "나")
+        runCurrent()
+        live.channel.messages.emit(CrewRunCancelled(11, "참가자 부족"))
+        runCurrent()
+        coordinator.acknowledgeFinished()
+        assertEquals(CrewRunState.Idle, coordinator.state.value)
     }
 }

@@ -160,7 +160,8 @@ class ArchitectureTest {
                 "api.account" to setOf("api.core", "domain.account", "domain.settings", "core.model"),
                 "api.run" to setOf("api.core", "domain.sync", "domain.run", "core.model"),
                 "api.record" to setOf("api.core", "domain.record", "core.model"),
-                "api.battle" to setOf("api.core", "domain.battle", "core.model"),
+                // domain.live 추가: RecordBattleStart.track(OpponentTrack)은 OpponentTrack.from(TrackTable)로만 만든다(M39). A2 결정.
+                "api.battle" to setOf("api.core", "domain.battle", "domain.live", "core.model"),
                 "api.crew" to setOf("api.core", "domain.crew", "core.model"),
                 "api.runimal" to setOf("api.core", "domain.runimal", "core.model"),
                 "api.avatar" to setOf("api.core", "domain.avatar", "core.model"),
@@ -173,7 +174,8 @@ class ArchitectureTest {
                 "data.watch" to setOf("domain.run", "domain.settings", "wear.contract"),
                 "data.live" to setOf("domain.live", "api.core", "api.live", "core.model"),
                 "data.push" to setOf("domain.notification"),
-                "data.session" to setOf("domain.account", "domain.notification", "api.core"),
+                // core.model 추가: SessionRepository.save·clear가 Outcome을 돌려준다(13.2 "포트는 Outcome"). A2 결정.
+                "data.session" to setOf("domain.account", "domain.notification", "api.core", "core.model"),
                 "ui.share" to setOf("domain.record", "domain.runimal", "domain.settings", "core.model"),
                 "ui.home" to CORE_UI + setOf("domain.record", "domain.run"),
                 "ui.run" to CORE_UI + setOf("domain.run", "domain.record"),

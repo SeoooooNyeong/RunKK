@@ -1,0 +1,45 @@
+package com.a207.runkk.app.api.battle
+
+import com.a207.runkk.app.api.core.ApiErrorMapper
+import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.domain.battle.BattleHistory
+import com.a207.runkk.app.domain.battle.BattleRepository
+import com.a207.runkk.app.domain.battle.BattleResult
+import com.a207.runkk.app.domain.battle.MatchAcceptance
+import com.a207.runkk.app.domain.battle.RecordBattleCandidates
+import com.a207.runkk.app.domain.battle.RecordBattleStart
+import javax.inject.Inject
+
+/** 대결 포트를 REST로 구현한다(6.1.14 api.battle). 확인 단계는 화면이 하고 확인된 요청만 보낸다. */
+internal class BattleRepositoryImpl
+@Inject
+constructor(private val api: BattleApi) : BattleRepository {
+    override suspend fun requestMatch(distance: Distance): Outcome<MatchAcceptance> =
+        ApiErrorMapper.call { api.requestMatch(MatchRequest(distance.meters)).toDomain() }
+
+    override suspend fun cancel(): Outcome<MatchAcceptance> = ApiErrorMapper.call { api.cancel().toDomain() }
+
+    override suspend fun selfCandidates(): Outcome<RecordBattleCandidates> =
+        ApiErrorMapper.call { api.selfCandidates().toDomain() }
+
+    override suspend fun celebrityCandidates(distance: Distance?): Outcome<RecordBattleCandidates> =
+        ApiErrorMapper.call { api.celebrityCandidates(distance?.meters).toDomain() }
+
+    override suspend fun startSelfBattle(distance: Distance): Outcome<RecordBattleStart> =
+        ApiErrorMapper.call { api.startSelfBattle(SelfBattleRequest(distance.meters)).toDomain() }
+
+    override suspend fun startCelebrityBattle(celebrityId: Long): Outcome<RecordBattleStart> =
+        ApiErrorMapper.call { api.startCelebrityBattle(CelebrityBattleRequest(celebrityId)).toDomain() }
+
+    override suspend fun markStarted(battleId: Long): Outcome<Unit> = ApiErrorMapper.call { api.markStarted(battleId) }
+
+    override suspend fun forfeit(battleId: Long): Outcome<Unit> = ApiErrorMapper.call { api.forfeit(battleId) }
+
+    override suspend fun result(battleId: Long): Outcome<BattleResult> = ApiErrorMapper.call {
+        api.result(battleId).toDomain()
+    }
+
+    override suspend fun history(filter: BattleHistory.Type?): Outcome<BattleHistory> =
+        ApiErrorMapper.call { api.history(filter?.name).toDomain() }
+}
