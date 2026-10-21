@@ -219,13 +219,16 @@ class CrewRunViewModel @Inject constructor(
         }
     }
 
-    /** 대기실 나가기. 성공하면 이전 화면으로, 실패하면 사유를 보인다. */
+    /**
+     * 대기실 나가기. 조정자가 서버에 나가기를 알리고 중계 채널을 닫는다(CrewRunCoordinator.leaveLobby). 성공하면 이전 화면으로,
+     * 실패하면 사유를 보인다.
+     */
     fun onLeaveLobby() {
         val s = _state.value
         if (s.leaving) return
         _state.update { it.copy(leaving = true) }
         viewModelScope.launch {
-            when (val r = crews.leaveLobby(s.postId)) {
+            when (val r = coordinator.leaveLobby(s.postId)) {
                 is Outcome.Success -> _events.trySend(CrewRunEvent.Left)
                 is Outcome.Failure -> _state.update { it.copy(leaving = false, error = CrewErrorText.of(r.error)) }
             }

@@ -33,6 +33,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -45,6 +46,8 @@ import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkEmptyState
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkFormat
+import com.a207.runkk.app.core.designsystem.RunkkIcons
+import com.a207.runkk.app.core.designsystem.RunkkLimePillButton
 import com.a207.runkk.app.core.designsystem.RunkkLoading
 import com.a207.runkk.app.core.designsystem.RunkkPillButton
 import com.a207.runkk.app.core.designsystem.RunkkPrimaryButton
@@ -137,9 +140,10 @@ fun CrewFindScreen(state: CrewFindUiState, actions: CrewFindActions, modifier: M
                         modifier = Modifier.weight(1f).semantics { heading() }
                     )
                     RunkkPillButton("초대 코드", onClick = actions.onInviteOpen)
-                    CrewLimePill(
-                        "+ 만들기",
+                    RunkkLimePillButton(
+                        "만들기",
                         onClick = actions.onCreate,
+                        leadingIcon = RunkkIcons.Plus,
                         modifier = Modifier.semantics { contentDescription = "크루 만들기" }
                     )
                 }
@@ -151,9 +155,11 @@ fun CrewFindScreen(state: CrewFindUiState, actions: CrewFindActions, modifier: M
                         onValueChange = actions.onKeyword,
                         label = "크루 찾기",
                         placeholder = "크루명·한 줄 소개 검색",
+                        imeAction = ImeAction.Search,
+                        onImeAction = actions.onSearch,
                         modifier = Modifier.weight(1f)
                     )
-                    RunkkPillButton("검색", onClick = actions.onSearch)
+                    RunkkPillButton("검색", onClick = actions.onSearch, leadingIcon = RunkkIcons.Search)
                 }
             }
             item {
@@ -238,7 +244,7 @@ private fun ForYouCard(crew: CrewList.Item, onOpen: () -> Unit, onJoin: () -> Un
                 )
                 Text(crewMeta(crew, leader = false), style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
             }
-            CrewLimePill(
+            RunkkLimePillButton(
                 if (crew.joinPolicy == JoinPolicy.FREE) "가입" else "신청",
                 onClick = onJoin,
                 enabled = crew.headcount < CREW_MAX

@@ -5,12 +5,14 @@ package com.a207.runkk.app.ui.battle
 import app.cash.turbine.test
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.GeoPoint
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.live.BattleEnded
 import com.a207.runkk.app.domain.live.BattleGuidance
 import com.a207.runkk.app.domain.live.BattleStart
 import com.a207.runkk.app.domain.live.CountdownStarted
 import com.a207.runkk.app.domain.live.OpponentProgress
+import com.a207.runkk.app.domain.run.LocationSample
 import com.a207.runkk.app.ui.battle.BattleWorld.Companion.world
 import java.time.Duration
 import kotlin.test.assertEquals
@@ -44,35 +46,73 @@ class BattleRunningViewModelTest {
         return vm
     }
 
-    private fun progress(gap: Int, theirs: Long) = OpponentProgress(
+    private fun progress(
+        gap: Int,
+        theirs: Long,
+        connection: OpponentProgress.Connection = OpponentProgress.Connection.CONNECTED
+    ) = OpponentProgress(
         battleId = 9,
         opponentName = "바람처럼",
         opponentDistance = Distance(theirs),
         opponentElapsed = Duration.ofSeconds(600),
         gapMeters = gap,
-        connection = OpponentProgress.Connection.CONNECTED
+        connection = connection
     )
 
+    /** 측정에 위치 표본과 1초 시계를 넣는다(시작 [start] 기준 [second]초, 북쪽으로 [meters]m). */
+    private fun BattleWorld.runTo(second: Long, meters: Double) {
+        val at = start.plusSeconds(second)
+        clock.now = at
+        tracker.onLocationSample(LocationSample(at, GeoPoint(37.0 + meters / METERS_PER_DEGREE, 127.0), 5.0))
+        tracker.tick(at)
+    }
+
     @Test
-    fun `상대 진행값으로 격차·상대 거리·내 거리를 보인다(FR-088)`() = main.runVmTest { vms ->
+    fun `내 거리·경과·페이스는 측정 진행값에서, 격차·상대 거리는 상대 진행값에서 온다(FR-088)`() = main.runVmTest { vms ->
         val w = world()
         val vm = running(w, vms)
         assertEquals(BattlePhase.RUNNING, vm.state.value.phase)
+        w.runTo(1, 0.0)
+        w.runTo(15, 45.0)
+        runCurrent()
         w.channels.channel.push(progress(gap = 42, theirs = 2_800))
         runCurrent()
         val s = vm.state.value
         assertEquals(42, s.gapMeters)
         assertEquals(Distance(2_800), s.opponentDistance)
-        assertEquals(Distance(2_842), s.myDistance)
+        assertEquals(w.tracker.progress.value.distance, s.myDistance, "격차로 거꾸로 셈하지 않는다")
+        assertEquals(Duration.ofSeconds(15), s.elapsed, "시작 시각이 아니라 측정 경과")
+        assertEquals(w.tracker.progress.value.averagePace, s.averagePace)
     }
 
     @Test
-    fun `경과 시간은 1초마다 늘어난다`() = main.runVmTest { vms ->
+    fun `상대 연결이 끊기면 연결 확인 중을 보인다(FR-088)`() = main.runVmTest { vms ->
         val w = world()
         val vm = running(w, vms)
-        w.clock.now = w.clock.now.plusSeconds(15)
-        advanceTimeBy(1_100)
-        assertEquals(Duration.ofSeconds(15), vm.state.value.elapsed)
+        w.channels.channel.push(progress(gap = 5, theirs = 100))
+        runCurrent()
+        assertEquals("상대 연결됨", vm.state.value.connectionLabel)
+        w.channels.channel.push(progress(gap = 5, theirs = 100, connection = OpponentProgress.Connection.CHECKING))
+        runCurrent()
+        assertEquals("상대 연결 확인 중", vm.state.value.connectionLabel)
+    }
+
+    @Test
+    fun `화면 잠금 - 잠그면 잠금 화면, 짧게 누르면 안내, 길게 누르면 해제(FR-182, D-49)`() = main.runVmTest { vms ->
+        val w = world()
+        val vm = running(w, vms)
+        w.runTo(1, 0.0)
+        runCurrent()
+        vm.onLockTapped()
+        runCurrent()
+        assertTrue(vm.state.value.locked)
+        vm.onUnlockTapped()
+        runCurrent()
+        assertEquals("길게 눌러 해제", vm.state.value.hint)
+        assertTrue(vm.state.value.locked)
+        vm.onUnlockLongPressed()
+        runCurrent()
+        assertFalse(vm.state.value.locked)
     }
 
     @Test
@@ -197,17 +237,23 @@ class BattleRunningViewModelTest {
     }
 
     @Test
-    fun `매칭 화면이 넘긴 시작 시각으로 경과를 센다`() = main.runVmTest { vms ->
+    fun `화면을 다시 열어도 경과는 측정 진행값을 따른다`() = main.runVmTest { vms ->
         val w = world()
         val match = matchFound()
         w.coordinator.onMatched(match)
         runCurrent()
         w.channels.channel.push(BattleStart(match.battleId, w.clock.now, opponentTrack = null))
         runCurrent()
-        w.clock.now = w.clock.now.plusSeconds(20)
+        w.runTo(1, 0.0)
+        w.runTo(20, 60.0)
+        runCurrent()
         val vm = vms.track(BattleRunningViewModel(w.coordinator, w.clock))
         vm.bind(key.copy(startAtEpochMillis = start.toEpochMilli()))
         runCurrent()
         assertEquals(Duration.ofSeconds(20), vm.state.value.elapsed)
+    }
+
+    private companion object {
+        const val METERS_PER_DEGREE = 6_371_000.0 * Math.PI / 180.0
     }
 }

@@ -51,6 +51,7 @@ import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkLiveDot
 import com.a207.runkk.app.core.designsystem.RunkkLoading
 import com.a207.runkk.app.core.designsystem.RunkkLongPressButton
+import com.a207.runkk.app.core.designsystem.RunkkOverline
 import com.a207.runkk.app.core.designsystem.RunkkPrimaryButton
 import com.a207.runkk.app.core.designsystem.RunkkProgressBar
 import com.a207.runkk.app.core.designsystem.RunkkSecondaryButton
@@ -124,11 +125,12 @@ fun CrewRunWriteScreen(
                 placeholder = "페이스·분위기를 알려 주세요",
                 singleLine = false
             )
-            Text("크루런 거리", style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
             RunkkSegmentRow(
                 options = CREW_RUN_DISTANCES.map(RunkkFormat::targetLabel),
                 selectedIndex = CREW_RUN_DISTANCES.indexOf(state.distance),
-                onSelect = { onDistance(CREW_RUN_DISTANCES[it]) }
+                onSelect = { onDistance(CREW_RUN_DISTANCES[it]) },
+                groupLabel = "크루런 거리",
+                spokenLabels = CREW_RUN_DISTANCES.map { RunkkFormat.spokenLabel(RunkkFormat.targetLabel(it)) }
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 RunkkSelectField(
@@ -259,11 +261,11 @@ fun CrewRunScreen(state: CrewRunUiState, actions: CrewRunActions, modifier: Modi
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             RunkkLiveDot(color = if (state.phase == CrewRunPhase.RUNNING) RunkkColors.Lavender else RunkkColors.Lime)
-            Text(
+            RunkkOverline(
                 "CREW RUN" + (state.distance?.let { " · ${RunkkFormat.targetLabel(it)}" } ?: ""),
-                style = RunkkTextStyles.Overline,
                 color = if (state.phase == CrewRunPhase.RUNNING) RunkkColors.Lavender else RunkkColors.Lime,
-                modifier = Modifier.weight(1f).semantics { heading() }
+                heading = true,
+                modifier = Modifier.weight(1f)
             )
         }
         when (state.phase) {
@@ -545,14 +547,7 @@ fun CrewRunResultScreen(
             Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text(
-                "CREW RUN RESULT",
-                style = RunkkTextStyles.Overline,
-                color = RunkkColors.TextSecondary,
-                modifier = Modifier.semantics {
-                    heading()
-                }
-            )
+            RunkkOverline("CREW RUN RESULT", heading = true)
             val result = state.result
             when {
                 result == null && state.loading -> Box(Modifier.fillMaxWidth().height(240.dp)) { RunkkLoading() }

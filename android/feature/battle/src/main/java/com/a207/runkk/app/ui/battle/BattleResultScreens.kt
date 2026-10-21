@@ -25,9 +25,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -44,6 +46,7 @@ import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkEmptyState
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkLoading
+import com.a207.runkk.app.core.designsystem.RunkkOverline
 import com.a207.runkk.app.core.designsystem.RunkkPillButton
 import com.a207.runkk.app.core.designsystem.RunkkPrimaryButton
 import com.a207.runkk.app.core.designsystem.RunkkSecondaryButton
@@ -90,12 +93,7 @@ fun BattleResultScreen(
             modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text(
-                "BATTLE RESULT",
-                style = RunkkTextStyles.Overline,
-                color = RunkkColors.TextSecondary,
-                modifier = Modifier.semantics { heading() }
-            )
+            RunkkOverline("BATTLE RESULT", heading = true)
             val result = state.result
             when {
                 result == null && state.loading -> Box(Modifier.fillMaxWidth().height(240.dp)) { RunkkLoading() }
@@ -264,6 +262,17 @@ private fun cellStyle(text: String) =
 private const val WEIGHT_ITEM = 1.2f
 private const val DECOR_ALPHA = 0.18f
 
+/** 필터 결과 건수(작게, 바뀌면 보조 기술에 알린다). */
+@Composable
+internal fun FilterCount(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text,
+        style = RunkkTextStyles.Caption,
+        color = RunkkColors.TextSecondary,
+        modifier = modifier.semantics { liveRegion = LiveRegionMode.Polite }
+    )
+}
+
 /** 함께 달린 기록(FR-101). 항목을 누르면 그 대결 결과. */
 @Composable
 fun BattleHistoryRoute(viewModel: BattleHistoryViewModel = hiltViewModel()) {
@@ -329,6 +338,10 @@ fun BattleHistoryScreen(
                     onSelect = onFilter,
                     modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
                 )
+            }
+            // 필터를 바꿔 목록이 바뀌면 건수를 알린다(보이는 목록이 바뀐 것을 보조 기술 사용자도 알게).
+            if (history != null && !state.loading && state.error == null) {
+                item { FilterCount("${history.entries.size}건") }
             }
             when {
                 history == null && state.loading -> item {

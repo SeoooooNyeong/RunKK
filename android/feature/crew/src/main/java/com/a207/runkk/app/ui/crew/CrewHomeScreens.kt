@@ -64,6 +64,7 @@ import com.a207.runkk.app.core.designsystem.RunkkSecondaryButton
 import com.a207.runkk.app.core.designsystem.RunkkSegmentedTabs
 import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
+import com.a207.runkk.app.core.designsystem.RunkkTabRow
 import com.a207.runkk.app.core.designsystem.RunkkTextField
 import com.a207.runkk.app.core.designsystem.RunkkTextLink
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
@@ -169,7 +170,7 @@ fun CrewHomeScreen(state: CrewHomeUiState, actions: CrewHomeActions, modifier: M
     Box(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
         Column(Modifier.fillMaxSize()) {
             Header(state, actions)
-            CrewTabRow(
+            RunkkTabRow(
                 options = CrewTab.entries.map { it.label },
                 selectedIndex = state.tab.ordinal,
                 onSelect = { actions.onTab(CrewTab.entries[it]) },

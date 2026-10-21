@@ -50,7 +50,10 @@ private class FakeBattleRepository(private val log: CallLog) : BattleRepository 
 
     override suspend fun requestMatch(distance: Distance): Outcome<MatchAcceptance> = error("unused")
 
-    override suspend fun cancel(): Outcome<MatchAcceptance> = error("unused")
+    override suspend fun cancel(): Outcome<MatchAcceptance> {
+        log.add("battle.cancel")
+        return Outcome.Success(MatchAcceptance(waiting = false, distance = null))
+    }
 
     override suspend fun selfCandidates(): Outcome<RecordBattleCandidates> = error("unused")
 
@@ -439,6 +442,96 @@ class BattleRunCoordinatorTest {
         coordinator.acknowledgeFinished()
         assertEquals(BattleRunState.Idle, coordinator.state.value)
         assertEquals(null, coordinator.failure.value)
+    }
+
+    @Test
+    fun `진행 상태에 내 거리·경과·페이스를 담는다 - 화면이 측정 모듈을 보지 않게`() = runTest {
+        val (tracker, coordinator) = setUp()
+        coordinator.onRecordBattleStart(selfStart)
+        advanceTimeBy(3_001)
+        tracker.runTo(1, 0.0)
+        tracker.runTo(10, 30.0)
+        runCurrent()
+        val running = assertIs<BattleRunState.Running>(coordinator.state.value)
+        assertEquals(tracker.progress.value.distance, running.mine.distance)
+        assertEquals(Duration.ofSeconds(10), running.mine.elapsed)
+        assertEquals(tracker.progress.value.averagePace, running.mine.averagePace)
+        assertEquals(null, running.opponentConnection, "기록 상대는 연결 상태가 없다")
+    }
+
+    @Test
+    fun `랜덤 대결 - 상대 연결 상태를 진행 상태에 담고 상대 메시지가 내 값을 지우지 않는다`() = runTest {
+        val (tracker, coordinator) = setUp()
+        coordinator.onMatched(match)
+        runCurrent()
+        live.channel.messages.emit(BattleStart(battleId = 3, startAt = T0, opponentTrack = null))
+        runCurrent()
+        tracker.runTo(1, 0.0)
+        tracker.runTo(5, 15.0)
+        runCurrent()
+        live.channel.messages.emit(
+            OpponentProgress(3, "상대", Distance(10), Duration.ofSeconds(5), 5, OpponentProgress.Connection.CHECKING)
+        )
+        runCurrent()
+        val running = assertIs<BattleRunState.Running>(coordinator.state.value)
+        assertEquals(OpponentProgress.Connection.CHECKING, running.opponentConnection)
+        assertEquals(Duration.ofSeconds(5), running.mine.elapsed)
+        assertEquals(tracker.progress.value.distance, running.mine.distance)
+    }
+
+    @Test
+    fun `종료 카운트다운 중에도 내 거리·경과는 계속 갱신한다`() = runTest {
+        val (tracker, coordinator) = setUp()
+        coordinator.onMatched(match)
+        runCurrent()
+        live.channel.messages.emit(BattleStart(battleId = 3, startAt = T0, opponentTrack = null))
+        runCurrent()
+        live.channel.messages.emit(CountdownStarted(3, "상대", T0.plusSeconds(60)))
+        runCurrent()
+        tracker.runTo(1, 0.0)
+        tracker.runTo(8, 20.0)
+        runCurrent()
+        val closing = assertIs<BattleRunState.Closing>(coordinator.state.value)
+        assertEquals(Duration.ofSeconds(8), closing.mine.elapsed)
+        assertEquals(tracker.progress.value.distance, closing.mine.distance)
+    }
+
+    @Test
+    fun `화면 잠금 - 조정자가 RunTracker 잠금 연산을 위임하고 누름 종류별로 해제한다(D-49)`() = runTest {
+        val (tracker, coordinator) = setUp()
+        coordinator.onRecordBattleStart(selfStart)
+        advanceTimeBy(3_001)
+        tracker.runTo(1, 0.0)
+        runCurrent()
+        coordinator.lockScreen()
+        runCurrent()
+        assertTrue(assertIs<BattleRunState.Running>(coordinator.state.value).mine.locked)
+        coordinator.onUnlockTapped()
+        runCurrent()
+        assertEquals(Guidance.Kind.UNLOCK_HINT, output.played.last().kind, "짧게 누르면 안내만")
+        assertTrue(assertIs<BattleRunState.Running>(coordinator.state.value).mine.locked)
+        coordinator.onUnlockLongPressed()
+        runCurrent()
+        assertEquals(false, assertIs<BattleRunState.Running>(coordinator.state.value).mine.locked)
+    }
+
+    @Test
+    fun `측정 전에는 잠그지 않는다`() = runTest {
+        val (_, coordinator) = setUp()
+        coordinator.onMatched(match)
+        runCurrent()
+        coordinator.lockScreen()
+        runCurrent()
+        assertEquals(BattleRunState.Matched(match), coordinator.state.value)
+    }
+
+    @Test
+    fun `매칭 대기 이탈 - 화면이 사라져도 앱 범위에서 대기열 취소를 보낸다`() = runTest {
+        val (_, coordinator) = setUp()
+        coordinator.abandonMatching()
+        runCurrent()
+        assertEquals(listOf("battle.cancel"), log.calls)
+        assertTrue(parentJob.children.none(), "보낸 뒤 남는 작업이 없다")
     }
 
     private val match =

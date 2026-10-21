@@ -27,8 +27,10 @@ import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
@@ -47,16 +49,30 @@ class CrewRunCoordinatorTest {
     /** quit이 돌려줄 실패(F-3). null이면 성공. */
     private var quitFailure: AppError? = null
 
-    /** quit만 쓰는 가짜 CrewRepository. 나머지 연산을 부르면 실패한다. */
+    /** leaveLobby가 돌려줄 실패. null이면 성공. */
+    private var leaveFailure: AppError? = null
+
+    /** quit·leaveLobby만 쓰는 가짜 CrewRepository. 나머지 연산을 부르면 실패한다. */
     private val repository: CrewRepository =
         Proxy.newProxyInstance(CrewRepository::class.java.classLoader, arrayOf(CrewRepository::class.java)) {
                 _,
                 method,
                 args
             ->
-            check(method.name == "quit") { "unused: ${method.name}" }
-            log.add("crew.quit:${args[0]}")
-            quitFailure?.let { Outcome.Failure(it) } ?: Outcome.Success(Unit)
+            when (method.name) {
+                "quit" -> {
+                    log.add("crew.quit:${args[0]}")
+                    quitFailure?.let { Outcome.Failure(it) } ?: Outcome.Success(Unit)
+                }
+
+                "leaveLobby" -> {
+                    log.add("crew.leaveLobby:${args[0]}")
+                    leaveFailure?.let { Outcome.Failure(it) }
+                        ?: Outcome.Success(Lobby(args[0] as Long, emptyList(), T0.plusSeconds(600)))
+                }
+
+                else -> error("unused: ${method.name}")
+            }
         } as CrewRepository
 
     @AfterTest
@@ -85,6 +101,62 @@ class CrewRunCoordinatorTest {
         onLocationSample(sample(second, meters))
         clock.now = T0.plusSeconds(second)
         tick(clock.now)
+    }
+
+    @Test
+    fun `대기실 나가기 - 서버에 알리고 채널을 닫은 뒤 Idle로 돌아간다`() = runTest {
+        val (_, coordinator) = setUp()
+        coordinator.onLobbyEntered(11, Distance(3_000), "나")
+        runCurrent()
+        var result: Outcome<Unit>? = null
+        backgroundScope.launch { result = coordinator.leaveLobby(11) }
+        runCurrent()
+        assertEquals(Outcome.Success(Unit), result)
+        assertEquals(listOf("crew.leaveLobby:11"), log.calls)
+        assertTrue(live.channel.closed)
+        assertEquals(CrewRunState.Idle, coordinator.state.value, "결과 화면으로 가지 않는다")
+        assertTrue(parentJob.children.none())
+    }
+
+    @Test
+    fun `대기실 나가기 실패 - 채널과 대기 상태를 그대로 두고 실패를 돌려준다`() = runTest {
+        leaveFailure = AppError.Network
+        val (_, coordinator) = setUp()
+        coordinator.onLobbyEntered(11, Distance(3_000), "나")
+        runCurrent()
+        var result: Outcome<Unit>? = null
+        backgroundScope.launch { result = coordinator.leaveLobby(11) }
+        runCurrent()
+        assertEquals(Outcome.Failure(AppError.Network), result)
+        assertEquals(false, live.channel.closed)
+        assertEquals(CrewRunState.Lobby(11), coordinator.state.value)
+    }
+
+    @Test
+    fun `대기실 나가기 - 출발 예약 뒤에는 서버에 보내지 않고 거부한다`() = runTest {
+        val (_, coordinator) = setUp()
+        coordinator.onLobbyEntered(11, Distance(3_000), "나")
+        runCurrent()
+        live.channel.messages.emit(CrewRunStart(11, T0.plusSeconds(10), listOf("나")))
+        runCurrent()
+        var result: Outcome<Unit>? = null
+        backgroundScope.launch { result = coordinator.leaveLobby(11) }
+        runCurrent()
+        assertEquals(Outcome.Failure(AppError.Rejected("ALREADY_STARTED")), result)
+        assertTrue(log.calls.none { it.startsWith("crew.leaveLobby") })
+    }
+
+    @Test
+    fun `대기실 나가기 - 부른 쪽 범위가 취소돼도 서버 알림과 정리를 끝낸다`() = runTest {
+        val (_, coordinator) = setUp()
+        coordinator.onLobbyEntered(11, Distance(3_000), "나")
+        runCurrent()
+        val caller = backgroundScope.launch(start = CoroutineStart.UNDISPATCHED) { coordinator.leaveLobby(11) }
+        caller.cancel()
+        runCurrent()
+        assertEquals(listOf("crew.leaveLobby:11"), log.calls)
+        assertTrue(live.channel.closed)
+        assertEquals(CrewRunState.Idle, coordinator.state.value)
     }
 
     @Test

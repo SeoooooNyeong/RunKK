@@ -39,41 +39,6 @@ import com.a207.runkk.app.core.designsystem.runkkPressScale
 import com.a207.runkk.app.domain.crew.CrewVisibility
 import com.a207.runkk.app.domain.crew.JoinPolicy
 
-/**
- * 라임 알약 버튼(높이 40, 시안 크루 "+ 만들기"·"가입"). 디자인 시스템에 라임 알약이 없어 크루 모듈 안에 둔다(올릴 후보).
- */
-@Composable
-internal fun CrewLimePill(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
-    val interaction = remember { MutableInteractionSource() }
-    Box(
-        modifier = modifier
-            .minimumInteractiveComponentSize()
-            .clickable(
-                interactionSource = interaction,
-                indication = null,
-                enabled = enabled,
-                role = Role.Button,
-                onClick = onClick
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        Box(
-            Modifier
-                .heightIn(min = 40.dp)
-                .runkkPressScale(interaction)
-                .clip(RoundedCornerShape(20.dp))
-                .background(RunkkColors.Lime)
-                .alpha(if (enabled) 1f else DISABLED)
-                .padding(horizontal = 16.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(text, style = RunkkTextStyles.text(13, FontWeight.Black), color = RunkkColors.OnLime)
-        }
-    }
-}
-
-private const val DISABLED = 0.4f
-
 /** 크루 로고 자리(이니셜). 로고 이미지는 크루 정보 응답에 아직 없다. */
 @Composable
 internal fun CrewLogo(name: String, size: Int = 48, accent: Boolean = false, modifier: Modifier = Modifier) {
@@ -128,65 +93,18 @@ internal fun CrewFormFields(form: CrewFormState, onForm: (CrewFormState) -> Unit
                 }
             }
         }
-        Text("공개 범위", style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
         RunkkSegmentRow(
             options = listOf("공개", "비공개(초대 코드로만)"),
             selectedIndex = form.visibility.ordinal,
-            onSelect = { onForm(form.copy(visibility = CrewVisibility.entries[it])) }
+            onSelect = { onForm(form.copy(visibility = CrewVisibility.entries[it])) },
+            groupLabel = "공개 범위"
         )
-        Text("가입 방식", style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
         RunkkSegmentRow(
             options = JoinPolicy.entries.map { it.label },
             selectedIndex = form.joinPolicy.ordinal,
-            onSelect = { onForm(form.copy(joinPolicy = JoinPolicy.entries[it])) }
+            onSelect = { onForm(form.copy(joinPolicy = JoinPolicy.entries[it])) },
+            groupLabel = "가입 방식"
         )
-    }
-}
-
-/**
- * 같은 너비 탭 줄(시안 HiMyCrew: 높이 40, 글자 13, 고른 탭은 라임). RunkkSegmentedTabs는 15sp라 네 칸에서 "응원보드"가 줄바꿈되어
- * 크루 모듈 안에 둔다(디자인 시스템으로 올릴 후보: 균등·13sp 탭). 보조 기술에는 탭으로 보인다.
- */
-@Composable
-internal fun CrewTabRow(
-    options: List<String>,
-    selectedIndex: Int,
-    onSelect: (Int) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(RunkkColors.Surface)
-            .padding(4.dp)
-            .selectableGroup()
-    ) {
-        options.forEachIndexed { index, label ->
-            val selected = index == selectedIndex
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .heightIn(min = 48.dp)
-                    .selectable(selected = selected, role = Role.Tab, onClick = { onSelect(index) }),
-                contentAlignment = Alignment.Center
-            ) {
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 40.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(if (selected) RunkkColors.Lime else Color.Transparent),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        label,
-                        style = RunkkTextStyles.text(13, if (selected) FontWeight.Black else FontWeight.Normal),
-                        color = if (selected) RunkkColors.OnLime else RunkkColors.TextSecondary,
-                        maxLines = 1
-                    )
-                }
-            }
-        }
     }
 }
 

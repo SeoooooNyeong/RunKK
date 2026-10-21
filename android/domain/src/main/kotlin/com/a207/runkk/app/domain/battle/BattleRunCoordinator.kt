@@ -48,6 +48,9 @@ import kotlinx.coroutines.launch
  * OpponentProgress·BattleGuidance를 반영하며, 기록 상대(고스트·나와의 싸움·유명인)는 OpponentTrack으로 상대 거리를 보간하고
  * GapTracker로 추월·도착을 판정한다(D-05). 종료 카운트다운(Closing)이 시작되면 진행 메시지가 그 상태를 덮지 않는다(F-1).
  * 서버 보고(시작·그만두기)를 다시 보내도 실패하거나 채널에 연결하지 못하면 failure로 알린다(F-3, O-6).
+ *
+ * ui.battle은 domain.run을 보지 않으므로(5.1.2) 내 측정값(RunTracker 진행값)을 상태의 MyProgress로 옮기고, 화면 잠금은
+ * 누름 종류별 연산(lockScreen·onUnlockTapped·onUnlockLongPressed, D-49)을 RunTracker에 넘긴다.
  */
 @Singleton
 class BattleRunCoordinator
@@ -149,6 +152,49 @@ constructor(
         }
     }
 
+    /** 화면 잠금(FR-182). 측정 중일 때만 잠그고 상태의 mine.locked에 바로 반영한다. */
+    fun lockScreen() {
+        val run = run ?: return
+        run.round.scope.launch {
+            if (!run.round.isMeasuring) return@launch
+            runTracker.lockScreen()
+            syncLock(run)
+        }
+    }
+
+    /** 잠금 해제 짧게 누름: 길게 눌러야 한다는 안내만(D-49). */
+    fun onUnlockTapped() {
+        val run = run ?: return
+        run.round.scope.launch { if (run.round.isMeasuring) runTracker.onUnlockTapped() }
+    }
+
+    /** 잠금 해제 길게 누름. */
+    fun onUnlockLongPressed() {
+        val run = run ?: return
+        run.round.scope.launch {
+            if (!run.round.isMeasuring) return@launch
+            runTracker.onUnlockLongPressed()
+            syncLock(run)
+        }
+    }
+
+    /**
+     * 매칭 대기 중 화면이 사라질 때(시스템 제스처·탭 이동으로 ViewModel이 지워질 때) 서버 대기열에서 뺀다(FR-085).
+     * 화면 범위는 이미 취소됐으므로 applicationScope에서 보낸다. 네트워크 실패는 1·2초 뒤 두 번 더 보내고, 거부(이미 성사·대기 없음)는
+     * 다시 보내지 않는다.
+     */
+    fun abandonMatching() {
+        applicationScope.launch {
+            var attempt = 1
+            var result = battleRepository.cancel()
+            while (result is Outcome.Failure && result.error !is AppError.Rejected && attempt < CANCEL_ATTEMPTS) {
+                delay(CANCEL_RETRY_MILLIS * attempt)
+                result = battleRepository.cancel()
+                attempt++
+            }
+        }
+    }
+
     /** 결과 화면이 Finished를 보여 준 뒤 부른다. 다음 대결 화면이 지난 회의 종료 상태를 받지 않게 Idle로 돌린다(S-17). */
     fun acknowledgeFinished() {
         _state.update { if (it is BattleRunState.Finished) BattleRunState.Idle else it }
@@ -199,6 +245,7 @@ constructor(
     private fun progress(run: BattleRun, p: RunProgress) {
         if (!run.round.isMeasuring || !run.round.accept(p)) return
         run.feed.onProgress(run, p)
+        updateMine(run) { p.toMine() }
         if (run.feed.hasArrived(run, p.distance)) finish(run, status = null)
     }
 
@@ -217,7 +264,18 @@ constructor(
         if (m.battleId != run.battleId) return
         runTracker.onGapChanged(m.gapMeters)
         updateRunning { previous ->
-            BattleRunState.Running(m.battleId, m.gapMeters, m.opponentDistance, previous?.lastGuidance)
+            previous?.copy(
+                gapMeters = m.gapMeters,
+                opponentDistance = m.opponentDistance,
+                opponentConnection = m.connection
+            )
+                ?: BattleRunState.Running(
+                    m.battleId,
+                    m.gapMeters,
+                    m.opponentDistance,
+                    lastGuidance = null,
+                    opponentConnection = m.connection
+                )
         }
     }
 
@@ -231,7 +289,10 @@ constructor(
 
     private fun onCountdownStarted(run: BattleRun, m: CountdownStarted) {
         if (m.battleId != run.battleId) return
-        _state.value = BattleRunState.Closing(m.battleId, m.arrivedName, m.endsAt)
+        _state.update { current ->
+            val mine = (current as? BattleRunState.Running)?.mine ?: MyProgress.ZERO
+            BattleRunState.Closing(m.battleId, m.arrivedName, m.endsAt, mine)
+        }
         run.round.scope.launch {
             val wait = Duration.between(clock.instant(), m.endsAt)
             if (!wait.isNegative) delay(wait.toMillis())
@@ -248,6 +309,38 @@ constructor(
             }
         }
     }
+
+    /** 내 측정값을 진행·종료 카운트다운 상태에 반영한다. 다른 상태(카운트다운·종료)는 그대로 둔다. */
+    private fun updateMine(run: BattleRun, next: (MyProgress) -> MyProgress) {
+        _state.update { current ->
+            when (current) {
+                is BattleRunState.Running -> if (current.battleId ==
+                    run.battleId
+                ) {
+                    current.copy(mine = next(current.mine))
+                } else {
+                    current
+                }
+
+                is BattleRunState.Closing -> if (current.battleId ==
+                    run.battleId
+                ) {
+                    current.copy(mine = next(current.mine))
+                } else {
+                    current
+                }
+
+                else -> current
+            }
+        }
+    }
+
+    private fun syncLock(run: BattleRun) {
+        val locked = runTracker.progress.value.locked
+        updateMine(run) { it.copy(locked = locked) }
+    }
+
+    private fun RunProgress.toMine(): MyProgress = MyProgress(distance, elapsed, currentPace, averagePace, locked)
 
     /** 추월·역전 안내. 대결 음성·진동 설정은 RunTracker가 적용한다(F-2). */
     private fun announce(kind: BattleGuidance.Kind, gapMeters: Int) {
@@ -341,7 +434,11 @@ constructor(
             runTracker.onGapChanged(gapTracker.gapMeters)
             kind?.let { announce(it, gapTracker.gapMeters) }
             updateRunning { previous ->
-                BattleRunState.Running(run.battleId, gapTracker.gapMeters, theirs, kind ?: previous?.lastGuidance)
+                previous?.copy(
+                    gapMeters = gapTracker.gapMeters,
+                    opponentDistance = theirs,
+                    lastGuidance = kind ?: previous.lastGuidance
+                ) ?: BattleRunState.Running(run.battleId, gapTracker.gapMeters, theirs, kind)
             }
         }
 
@@ -350,5 +447,7 @@ constructor(
 
     private companion object {
         val RECORD_COUNTDOWN: Duration = Duration.ofSeconds(3)
+        const val CANCEL_ATTEMPTS = 3
+        const val CANCEL_RETRY_MILLIS = 1_000L
     }
 }

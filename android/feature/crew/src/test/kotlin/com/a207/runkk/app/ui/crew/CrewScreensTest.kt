@@ -5,11 +5,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performTouchInput
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkTheme
@@ -49,10 +51,24 @@ class CrewScreensTest {
             }
         }
         compose.onNodeWithText("초대 코드").performClick()
-        compose.onNodeWithText("+ 만들기").performClick()
+        compose.onNodeWithContentDescription("크루 만들기").performClick()
         compose.onNodeWithText("가입").performClick()
         compose.onNodeWithText("저녁런 클럽").performClick()
         assertEquals(listOf("invite", "create", "join:11", "open:12"), calls)
+    }
+
+    @Test
+    fun `크루 찾기 - 키보드 검색 단추로도 검색한다`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                CrewFindScreen(
+                    CrewFindUiState(loading = false, keyword = "새벽"),
+                    CrewFindActions(onSearch = { calls += "search" })
+                )
+            }
+        }
+        compose.onNode(hasSetTextAction()).performImeAction()
+        assertEquals(listOf("search"), calls)
     }
 
     @Test

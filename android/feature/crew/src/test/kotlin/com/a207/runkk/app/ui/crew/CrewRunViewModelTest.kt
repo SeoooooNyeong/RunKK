@@ -141,10 +141,12 @@ class CrewRunViewModelTest {
         val vm = lobbyVm(w, vms)
         vm.events.test {
             vm.onLeaveLobby()
+            runCurrent()
             expectNoEvents()
         }
         assertFalse(vm.state.value.leaving)
         assertNotNull(vm.state.value.error)
+        assertEquals(0, w.channels.channel.closed, "나가지 못했으면 중계 채널을 그대로 둔다")
     }
 
     @Test
@@ -156,6 +158,8 @@ class CrewRunViewModelTest {
             assertEquals(CrewRunEvent.Left, awaitItem())
         }
         assertTrue("leaveLobby:31" in w.crews.calls)
+        assertEquals(1, w.channels.channel.closed, "대기실만 나가도 조정자가 연 채널을 닫는다")
+        assertEquals(CrewRunState.Idle, w.coordinator.state.value, "결과 화면으로 가지 않는다")
     }
 
     @Test

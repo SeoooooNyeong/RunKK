@@ -297,7 +297,11 @@ class FakeLiveChannel : LiveChannel {
 
     override val messages: Flow<ServerMessage> = flow
 
-    override fun close() = Unit
+    var closed = 0
+
+    override fun close() {
+        closed++
+    }
 
     fun push(m: ServerMessage) {
         check(flow.tryEmit(m))

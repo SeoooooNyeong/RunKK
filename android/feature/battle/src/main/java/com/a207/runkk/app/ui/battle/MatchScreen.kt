@@ -118,7 +118,10 @@ private fun Overline(text: String, accent: Boolean = false, trailing: (@Composab
             text,
             style = RunkkTextStyles.display(20, letterSpacingEm = 0.08f),
             color = if (accent) RunkkColors.Lime else RunkkColors.TextPrimary,
-            modifier = Modifier.semantics { heading() }
+            modifier = Modifier.semantics {
+                heading()
+                contentDescription = RunkkFormat.spokenLabel(text)
+            }
         )
         Spacer(Modifier.weight(1f))
         trailing?.invoke()
@@ -236,7 +239,12 @@ private fun Radar() {
             Modifier.size(120.dp).clip(CircleShape).background(RunkkColors.Lime),
             contentAlignment = Alignment.Center
         ) {
-            Icon(RunkkIcons.Bolt, contentDescription = null, tint = RunkkColors.OnLime, modifier = Modifier.size(48.dp))
+            Icon(
+                RunkkIcons.Swords,
+                contentDescription = null,
+                tint = RunkkColors.OnLime,
+                modifier = Modifier.size(48.dp)
+            )
         }
     }
 }

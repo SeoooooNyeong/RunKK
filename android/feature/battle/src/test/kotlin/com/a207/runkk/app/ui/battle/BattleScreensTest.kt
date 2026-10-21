@@ -1,5 +1,13 @@
 package com.a207.runkk.app.ui.battle
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
@@ -109,6 +117,79 @@ class BattleScreensTest {
         forfeit.performTouchInput { longClick() }
         assertEquals(listOf("tap", "long"), calls)
         compose.onNodeWithContentDescription("상대와 거리 차이 15미터 뒤처지는 중").assertExists()
+    }
+
+    @Test
+    fun `대결 진행 - 화면 잠금 버튼과 상대 연결 상태, 잠금 화면에서는 길게 눌러 해제`() {
+        var state by mutableStateOf(
+            BattleRunningUiState(
+                battleId = 9,
+                opponentName = "바람처럼",
+                phase = BattlePhase.RUNNING,
+                gapMeters = 10,
+                opponentDistance = Distance(1_000),
+                connectionLabel = "상대 연결 확인 중"
+            )
+        )
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                BattleRunningScreen(
+                    state,
+                    onForfeitTap = {},
+                    onForfeitLongPress = {},
+                    onForfeitConfirm = {},
+                    onForfeitDismiss = {},
+                    onClose = {},
+                    lockActions = BattleLockActions(
+                        onLock = { calls += "lock" },
+                        onUnlockTap = { calls += "unlockTap" },
+                        onUnlockLongPress = { calls += "unlockLong" }
+                    )
+                )
+            }
+        }
+        compose.onNodeWithText("상대 연결 확인 중").assertExists()
+        compose.onNodeWithText("LIVE BATTLE · 5K").assertContentDescriptionEquals("실시간 대결, 5킬로미터")
+        compose.onNodeWithContentDescription("화면 잠금").performClick()
+        state = state.copy(locked = true)
+        compose.onNodeWithContentDescription("대결 그만두기").assertDoesNotExist()
+        val unlock = compose.onNodeWithContentDescription("화면 잠금 해제")
+        unlock.performClick()
+        unlock.performTouchInput { longClick() }
+        assertEquals(listOf("lock", "unlockTap", "unlockLong"), calls)
+    }
+
+    @Test
+    fun `함께 달린 기록·셀럽 후보는 필터 결과 건수를 보조 기술에 알린다`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                androidx.compose.foundation.layout.Column {
+                    BattleHistoryScreen(
+                        BattleHistoryUiState(loading = false, history = history()),
+                        {},
+                        {},
+                        {},
+                        {},
+                        modifier = androidx.compose.ui.Modifier.weight(1f)
+                    )
+                    CelebBattleScreen(
+                        RecordBattleUiState(loading = false, candidates = celebCandidates.map(CandidateUi::of)),
+                        {},
+                        {},
+                        {},
+                        {},
+                        {},
+                        {},
+                        {},
+                        modifier = androidx.compose.ui.Modifier.weight(1f)
+                    )
+                }
+            }
+        }
+        compose.onNodeWithText("${history().entries.size}건")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
+        compose.onNodeWithText("기록 ${celebCandidates.map(CandidateUi::of).size}개")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
     }
 
     @Test

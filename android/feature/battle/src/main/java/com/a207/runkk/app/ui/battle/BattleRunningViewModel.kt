@@ -7,7 +7,9 @@ import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.battle.BattleRunCoordinator
 import com.a207.runkk.app.domain.battle.BattleRunState
+import com.a207.runkk.app.domain.battle.MyProgress
 import com.a207.runkk.app.domain.live.BattleGuidance
+import com.a207.runkk.app.domain.live.OpponentProgress
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Clock
 import java.time.Duration
@@ -39,7 +41,15 @@ data class BattleRunningUiState(
     /** 나 − 상대(m), 앞서면 양수. 첫 진행값 전이면 null. */
     val gapMeters: Int? = null,
     val opponentDistance: Distance? = null,
+    /** 내 누적 거리·경과·페이스(조정자가 옮긴 측정 진행값). */
+    val myDistance: Distance = Distance.ZERO,
     val elapsed: Duration = Duration.ZERO,
+    val currentPace: Pace? = null,
+    val averagePace: Pace? = null,
+    /** 랜덤 대결 상대 연결 상태 문구(FR-088). 기록 상대·첫 상대 진행값 전이면 null. */
+    val connectionLabel: String? = null,
+    /** 화면 잠금(FR-182). 잠기면 해제 버튼만 누를 수 있다. */
+    val locked: Boolean = false,
     /** 방금 바뀐 앞뒤 순서 안내(잠깐 보인다, FR-188). */
     val guidance: BattleGuidance.Kind? = null,
     /** 이 화면에서 본 추월 횟수. 공식 횟수는 결과 비교표(서버)다. */
@@ -51,16 +61,8 @@ data class BattleRunningUiState(
     val hint: String? = null,
     val error: String? = null
 ) {
-    /** 내 누적 거리 = 상대 거리 + 격차(조정자 상태에 내 거리가 따로 없다). */
-    val myDistance: Distance
-        get() {
-            val theirs = opponentDistance ?: return Distance.ZERO
-            val gap = gapMeters ?: return Distance.ZERO
-            return Distance((theirs.meters + gap).coerceAtLeast(0))
-        }
-
-    val averagePace: Pace?
-        get() = myDistance.takeIf { it.meters > 0 && !elapsed.isZero }?.let { Pace.of(elapsed, it) }
+    /** 측정 중인가(진행·종료 카운트다운). 잠금 버튼은 이때만 보인다. */
+    val measuring: Boolean get() = phase == BattlePhase.RUNNING || phase == BattlePhase.CLOSING
 
     private companion object {
         const val DEFAULT_METERS = 5_000L
@@ -72,9 +74,10 @@ sealed interface BattleRunningEvent {
 }
 
 /**
- * 대결 진행(FR-087~FR-091, FR-094, FR-098, FR-099, FR-102, FR-107, FR-188). BattleRunCoordinator.state를 화면 상태로 바꾼다.
- * 측정·진행값 전송·추월 판정·도착·종료는 조정자가 하고, 화면은 그만두기(확인 뒤 forfeit, D-49 길게 누름)만 넘긴다.
- * 상대 연결 상태("연결 확인 중")와 내 측정값(RunProgress)은 ui.battle이 볼 수 있는 상태에 없어 격차·상대 거리로 보인다.
+ * 대결 진행(FR-087~FR-091, FR-094, FR-098, FR-099, FR-102, FR-107, FR-182, FR-188). BattleRunCoordinator.state를 화면 상태로
+ * 바꾼다. 측정·진행값 전송·추월 판정·도착·종료는 조정자가 하고, 내 거리·경과·페이스와 잠금 여부는 조정자 상태의 MyProgress로,
+ * 상대 연결 상태는 Running.opponentConnection으로 받는다(ui.battle은 domain.run을 보지 않는다, 5.1.2).
+ * 화면은 그만두기(확인 뒤 forfeit)와 화면 잠금·해제를 누름 종류별 연산으로 넘긴다(D-49).
  */
 @HiltViewModel
 class BattleRunningViewModel @Inject constructor(
@@ -88,7 +91,6 @@ class BattleRunningViewModel @Inject constructor(
     val events: Flow<BattleRunningEvent> = _events.receiveAsFlow()
 
     private var bound: Long? = null
-    private var startedAt: Instant? = null
     private var closesAt: Instant? = null
     private var countdownTo: Instant? = null
     private var sawRunning = false
@@ -108,7 +110,6 @@ class BattleRunningViewModel @Inject constructor(
         bindJobs.forEach { it.cancel() }
         bindJobs.clear()
         tickJob?.cancel()
-        startedAt = key.startAtEpochMillis?.let(Instant::ofEpochMilli)
         closesAt = null
         countdownTo = null
         sawRunning = false
@@ -140,10 +141,11 @@ class BattleRunningViewModel @Inject constructor(
     /** 그만두기 짧게 누름: 길게 눌러야 한다는 안내만(D-49). */
     fun onForfeitTapped() = showHint(FORFEIT_HINT)
 
-    /** 그만두기 길게 누름: 확인을 받는다(FR-094). */
+    /** 그만두기 길게 누름: 확인을 받는다(FR-094). 잠금 중에는 받지 않는다(FR-182). */
     fun onForfeitLongPressed() {
-        val phase = _state.value.phase
-        if (phase == BattlePhase.RUNNING || phase == BattlePhase.CLOSING || phase == BattlePhase.COUNTDOWN) {
+        val s = _state.value
+        if (s.locked) return
+        if (s.phase == BattlePhase.RUNNING || s.phase == BattlePhase.CLOSING || s.phase == BattlePhase.COUNTDOWN) {
             _state.update { it.copy(confirmingForfeit = true) }
         }
     }
@@ -155,6 +157,18 @@ class BattleRunningViewModel @Inject constructor(
         coordinator.forfeit()
     }
 
+    /** 화면 잠금(FR-182). 조정자가 RunTracker.lockScreen에 넘기고 상태의 잠금 여부를 바꾼다. */
+    fun onLockTapped() = coordinator.lockScreen()
+
+    /** 잠금 해제 짧게 누름: "길게 눌러 해제" 안내(D-49). */
+    fun onUnlockTapped() {
+        coordinator.onUnlockTapped()
+        showHint(UNLOCK_HINT)
+    }
+
+    /** 잠금 해제 길게 누름. */
+    fun onUnlockLongPressed() = coordinator.onUnlockLongPressed()
+
     /** 시작하지 못하고 끝난 화면을 닫을 때. */
     fun onFailureClosed() = coordinator.acknowledgeFinished()
 
@@ -163,62 +177,70 @@ class BattleRunningViewModel @Inject constructor(
         when (s) {
             is BattleRunState.Countdown -> if (s.battleId == battleId) {
                 countdownTo = s.startAt
-                startedAt = s.startAt
                 _state.update { it.copy(phase = BattlePhase.COUNTDOWN) }
                 tick()
             }
 
-            is BattleRunState.Running -> if (s.battleId == battleId) {
-                if (!sawRunning) {
-                    sawRunning = true
-                    if (startedAt == null || clock.instant().isBefore(startedAt)) startedAt = clock.instant()
-                }
-                // 조정자는 마지막 안내를 계속 들고 있으므로 바뀐 때만 새 안내로 본다.
-                val changed = s.lastGuidance != null && s.lastGuidance != lastGuidanceSeen
-                if (changed) lastGuidanceSeen = s.lastGuidance
-                val overtook = if (changed && s.lastGuidance == BattleGuidance.Kind.OVERTOOK) 1 else 0
-                _state.update {
-                    it.copy(
-                        // 종료 카운트다운이 시작되면 조정자가 진행값을 계속 보내도 CLOSING을 유지한다(FR-107).
-                        phase = if (it.phase == BattlePhase.CLOSING) BattlePhase.CLOSING else BattlePhase.RUNNING,
-                        countdown = null,
-                        gapMeters = s.gapMeters ?: it.gapMeters,
-                        opponentDistance = s.opponentDistance ?: it.opponentDistance,
-                        overtakes = it.overtakes + overtook
-                    )
-                }
-                if (changed) showGuidance(s.lastGuidance)
-                tick()
-            }
+            is BattleRunState.Running -> if (s.battleId == battleId) onRunning(s)
 
             is BattleRunState.Closing -> if (s.battleId == battleId) {
                 closesAt = s.endsAt
                 sawRunning = true
-                _state.update { it.copy(phase = BattlePhase.CLOSING, arrivedName = s.arrivedName) }
+                _state.update { it.copy(phase = BattlePhase.CLOSING, arrivedName = s.arrivedName).withMine(s.mine) }
                 tick()
             }
 
-            is BattleRunState.Finished -> if (s.battleId == battleId) {
-                tickJob?.cancel()
-                if (sawRunning) {
-                    _state.update { it.copy(phase = BattlePhase.FINISHED, confirmingForfeit = false) }
-                    _events.trySend(BattleRunningEvent.Finished(battleId))
-                } else {
-                    _state.update {
-                        it.copy(
-                            phase = BattlePhase.FAILED,
-                            confirmingForfeit = false,
-                            error = it.error ?: "대결을 시작하지 못했어요. 위치 권한과 연결을 확인해 주세요"
-                        )
-                    }
-                }
-            }
+            is BattleRunState.Finished -> if (s.battleId == battleId) onFinished(battleId)
 
             else -> Unit
         }
     }
 
-    /** 1초마다 경과·카운트다운 남은 초를 갱신한다. 끝나면 멈춘다. */
+    private fun onRunning(s: BattleRunState.Running) {
+        sawRunning = true
+        // 조정자는 마지막 안내를 계속 들고 있으므로 바뀐 때만 새 안내로 본다.
+        val changed = s.lastGuidance != null && s.lastGuidance != lastGuidanceSeen
+        if (changed) lastGuidanceSeen = s.lastGuidance
+        val overtook = if (changed && s.lastGuidance == BattleGuidance.Kind.OVERTOOK) 1 else 0
+        _state.update {
+            it.copy(
+                // 종료 카운트다운이 시작되면 조정자가 진행값을 계속 보내도 CLOSING을 유지한다(FR-107).
+                phase = if (it.phase == BattlePhase.CLOSING) BattlePhase.CLOSING else BattlePhase.RUNNING,
+                countdown = null,
+                gapMeters = s.gapMeters ?: it.gapMeters,
+                opponentDistance = s.opponentDistance ?: it.opponentDistance,
+                connectionLabel = s.opponentConnection?.let(::connectionLabel) ?: it.connectionLabel,
+                overtakes = it.overtakes + overtook
+            ).withMine(s.mine)
+        }
+        if (changed) showGuidance(s.lastGuidance)
+    }
+
+    private fun onFinished(battleId: Long) {
+        tickJob?.cancel()
+        if (sawRunning) {
+            _state.update { it.copy(phase = BattlePhase.FINISHED, confirmingForfeit = false, locked = false) }
+            _events.trySend(BattleRunningEvent.Finished(battleId))
+        } else {
+            _state.update {
+                it.copy(
+                    phase = BattlePhase.FAILED,
+                    confirmingForfeit = false,
+                    error = it.error ?: "대결을 시작하지 못했어요. 위치 권한과 연결을 확인해 주세요"
+                )
+            }
+        }
+    }
+
+    private fun BattleRunningUiState.withMine(mine: MyProgress): BattleRunningUiState = copy(
+        myDistance = mine.distance,
+        elapsed = mine.elapsed,
+        currentPace = mine.currentPace,
+        averagePace = mine.averagePace,
+        locked = mine.locked
+    )
+
+    /** 1초마다 시작 카운트다운·종료 카운트다운 남은 초를 갱신한다. 그 밖의 단계면 멈춘다. */
     private fun tick() {
         if (tickJob?.isActive == true) {
             refreshClock()
@@ -228,7 +250,7 @@ class BattleRunningViewModel @Inject constructor(
             while (isActive) {
                 refreshClock()
                 val phase = _state.value.phase
-                if (phase == BattlePhase.FINISHED || phase == BattlePhase.FAILED) break
+                if (phase != BattlePhase.COUNTDOWN && phase != BattlePhase.CLOSING) break
                 delay(TICK_MILLIS)
             }
         }
@@ -241,8 +263,6 @@ class BattleRunningViewModel @Inject constructor(
                 countdown = countdownTo?.takeIf {
                     s.phase == BattlePhase.COUNTDOWN
                 }?.let { Duration.between(now, it).seconds.coerceAtLeast(0) },
-                elapsed = startedAt?.takeIf { s.phase == BattlePhase.RUNNING || s.phase == BattlePhase.CLOSING }
-                    ?.let { Duration.between(it, now).coerceAtLeast(Duration.ZERO) } ?: s.elapsed,
                 closingSeconds = closesAt?.takeIf { s.phase == BattlePhase.CLOSING }
                     ?.let { Duration.between(now, it).seconds.coerceAtLeast(0) }
             )
@@ -272,6 +292,13 @@ class BattleRunningViewModel @Inject constructor(
         const val GUIDANCE_MILLIS = 5_000L
         const val HINT_MILLIS = 2_500L
         const val FORFEIT_HINT = "길게 눌러 그만두기"
+        const val UNLOCK_HINT = "길게 눌러 해제"
         const val STALE_MILLIS = 5_000L
     }
+}
+
+/** 상대 연결 상태 문구(FR-088, 시안 HiBattleRunning "상대 연결됨"). */
+internal fun connectionLabel(connection: OpponentProgress.Connection): String = when (connection) {
+    OpponentProgress.Connection.CONNECTED -> "상대 연결됨"
+    OpponentProgress.Connection.CHECKING -> "상대 연결 확인 중"
 }

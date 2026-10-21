@@ -224,7 +224,13 @@ private fun RecordBattleScaffold(
                 color = RunkkColors.TextSecondary,
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
-            if (header != null) Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp)) { header() }
+            if (header != null) {
+                Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp)) { header() }
+                // 필터(거리)를 바꾸면 후보 수를 알린다.
+                if (!state.loading && state.error == null) {
+                    FilterCount("기록 ${state.candidates.size}개", modifier = Modifier.padding(start = 16.dp, top = 8.dp))
+                }
+            }
             when {
                 state.loading && state.candidates.isEmpty() -> RunkkLoading(modifier = Modifier.weight(1f))
 
@@ -347,10 +353,10 @@ internal fun celebSpoken(c: CandidateUi): String = listOfNotNull(
     sourceLine(c)
 ).joinToString(", ")
 
-/** "5K"를 "5킬로미터"로(하프·풀은 그대로). */
+/** "5K"를 "5킬로미터"로(하프·풀은 "하프 마라톤"·"풀 마라톤"). */
 internal fun spokenDistance(distance: Distance): String = when (val label = distanceLabel(distance)) {
     "하프", "풀" -> "$label 마라톤"
-    else -> "${RunkkFormat.kmShort(distance).removeSuffix(".0")}킬로미터"
+    else -> RunkkFormat.spokenLabel(label)
 }
 
 /** 출처 줄(FR-100): "공개 기록 기준 · 출처". 구간 기록이 없으면 추정 안내를 붙인다(A-006). */

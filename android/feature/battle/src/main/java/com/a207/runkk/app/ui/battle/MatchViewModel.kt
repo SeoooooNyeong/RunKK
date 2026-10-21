@@ -272,12 +272,19 @@ class MatchViewModel @Inject constructor(
     }
 
     override fun onCleared() {
-        // 성사 전에 화면을 떠나면 대기 채널을 닫는다. 성사 뒤 채널은 조정자가 갖는다.
-        if (!handedOver) channel?.close()
+        // 성사 전에 화면을 떠나면(시스템 제스처·탭 이동으로 ViewModel이 지워지면) 대기 채널을 닫고, 서버 대기열에서도 뺀다.
+        // viewModelScope는 이미 취소됐으므로 조정자가 applicationScope에서 보낸다(FR-085). 성사 뒤 채널·대결은 조정자가 갖는다.
+        if (handedOver) return
+        channel?.close()
+        channel = null
+        if (_state.value.phase in QUEUED) coordinator.abandonMatching()
     }
 
     private companion object {
         const val TICK_MILLIS = 1_000L
+
+        /** 서버 대기열에 들어갔거나 들어가는 중인 단계(요청 중이면 응답 뒤 대기열에 남을 수 있다). */
+        val QUEUED = setOf(MatchPhase.REQUESTING, MatchPhase.WAITING, MatchPhase.CANCELLING)
     }
 }
 

@@ -30,6 +30,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -108,6 +109,28 @@ constructor(
             if (reported is Outcome.Failure) _failure.value = reported.error
             finish(run, cancelledReason = null)
         }
+    }
+
+    /**
+     * 대기실만 나가기(출발 전, FR-147). 서버에 나가기를 알리고(CrewRepository.leaveLobby) 성공하면 채널을 닫고 이 회를 정리해
+     * Idle로 돌린다(종료가 아니므로 Finished를 내지 않는다). 부른 화면의 범위가 취소돼도 알림과 정리는 applicationScope에서 끝낸다.
+     * 출발 예약(CrewRunStart)을 받은 뒤에는 서버에 보내지 않고 ALREADY_STARTED로 거부한다(그만두기는 quit). 실패하면 채널과
+     * 대기 상태를 그대로 두고 실패를 돌려준다.
+     */
+    suspend fun leaveLobby(postId: Long): Outcome<Unit> {
+        val current = run?.takeIf { it.postId == postId }
+        if (current?.isScheduled == true) return Outcome.Failure(AppError.Rejected(ALREADY_STARTED))
+        return applicationScope
+            .async {
+                when (val left = crewRepository.leaveLobby(postId)) {
+                    is Outcome.Success -> {
+                        current?.let(::closeQuietly)
+                        Outcome.Success(Unit)
+                    }
+
+                    is Outcome.Failure -> left
+                }
+            }.await()
     }
 
     /** 결과 화면이 Finished를 보여 준 뒤 부른다. 다음 크루런 화면이 지난 회의 종료 상태를 받지 않게 Idle로 돌린다(S-17). */
@@ -194,6 +217,15 @@ constructor(
         run.round.cancel()
     }
 
+    /** 측정 전 회를 결과 없이 닫는다(대기실 나가기). 채널을 닫고 범위를 취소한 뒤 Idle로 돌린다. */
+    private fun closeQuietly(run: CrewRun) {
+        if (this.run !== run || run.isScheduled) return
+        this.run = null
+        run.channel?.close()
+        _state.update { if (it is CrewRunState.Lobby && it.postId == run.postId) CrewRunState.Idle else it }
+        run.round.cancel()
+    }
+
     /** 이전 회가 남아 있으면 정리(측정 중이면 endRun, 채널 닫기, 범위 취소)하고 새 회를 연다. */
     private fun openRun(postId: Long, distance: Distance, myName: String): CrewRun {
         run?.let { previous ->
@@ -219,7 +251,9 @@ constructor(
             private set
 
         /** 시작 예약을 받았는가. 같은 CrewRunStart가 두 번 와도 한 번만 시작한다. */
-        private var isScheduled = false
+        @Volatile
+        var isScheduled = false
+            private set
 
         fun attach(channel: LiveChannel) {
             this.channel = channel
@@ -239,5 +273,8 @@ constructor(
 
     private companion object {
         val START_COUNTDOWN: Duration = Duration.ofSeconds(3)
+
+        /** 서버 common.ReasonCode.ALREADY_STARTED와 같은 이름. */
+        const val ALREADY_STARTED = "ALREADY_STARTED"
     }
 }
