@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
 import app.cash.turbine.test
+import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
@@ -54,7 +55,7 @@ class MatchViewModelTest {
         vm.onStartMatching()
         runCurrent()
         assertEquals(MatchPhase.CHOOSING, vm.state.value.phase)
-        assertEquals("유효 러닝 3회 뒤 랜덤 대결 가능, 나와의 싸움은 지금 가능", vm.state.value.error)
+        assertEquals(UiText.Res(R.string.battle_error_ranked_only), vm.state.value.error)
     }
 
     @Test
@@ -124,7 +125,7 @@ class MatchViewModelTest {
         vm.onCancel()
         runCurrent()
         assertEquals(MatchPhase.WAITING, vm.state.value.phase)
-        assertEquals("이미 상대를 찾았어요. 곧 출발해요", vm.state.value.error)
+        assertEquals(UiText.Res(R.string.battle_error_already_matched), vm.state.value.error)
     }
 
     @Test
@@ -185,7 +186,7 @@ class MatchViewModelTest {
         vm.onStartMatching()
         runCurrent()
         assertEquals(MatchPhase.CHOOSING, vm.state.value.phase)
-        assertEquals("상대를 찾는 연결이 끊겼어요. 다시 시도해 주세요", vm.state.value.error)
+        assertEquals(UiText.Res(R.string.battle_match_connection_lost), vm.state.value.error)
         assertTrue("cancel" in w.battles.calls)
     }
 
@@ -197,7 +198,7 @@ class MatchViewModelTest {
         vm.onStartMatching()
         runCurrent()
         assertEquals(MatchPhase.CHOOSING, vm.state.value.phase)
-        assertEquals("상대를 찾는 연결이 끊겼어요. 다시 시도해 주세요", vm.state.value.error)
+        assertEquals(UiText.Res(R.string.battle_match_connection_lost), vm.state.value.error)
         assertTrue("cancel" in w.battles.calls)
     }
 
@@ -254,7 +255,7 @@ class MatchViewModelTest {
         runCurrent()
         assertEquals(emptyList(), w.battles.calls)
         assertEquals(MatchPhase.CHOOSING, vm.state.value.phase)
-        assertEquals("기본 대결 거리를 불러오지 못했어요. 거리를 골라 시작해 주세요", vm.state.value.error)
+        assertEquals(UiText.Res(R.string.battle_match_default_distance_failed), vm.state.value.error)
     }
 
     @Test
@@ -267,7 +268,7 @@ class MatchViewModelTest {
         w.channels.channel.push(MatchFailed("MATCH_FAILED", "대결을 만들지 못했어요. 다시 시도해 주세요"))
         runCurrent()
         assertEquals(MatchPhase.CHOOSING, vm.state.value.phase)
-        assertEquals("대결을 만들지 못했어요. 다시 시도해 주세요", vm.state.value.error)
+        assertEquals(UiText.Res(R.string.battle_error_match_failed), vm.state.value.error)
         assertEquals(1, w.channels.channel.closed)
         assertTrue("cancel" !in w.battles.calls, "서버가 이미 대기열에서 뺐다")
         advanceTimeBy(5_000)
@@ -282,7 +283,7 @@ class MatchViewModelTest {
         runCurrent()
         w.channels.channel.push(MatchFailed("SOMETHING_NEW", "잠시 뒤 다시 시도해 주세요"))
         runCurrent()
-        assertEquals("잠시 뒤 다시 시도해 주세요", vm.state.value.error)
+        assertEquals(UiText.Plain("잠시 뒤 다시 시도해 주세요"), vm.state.value.error)
     }
 
     @Test

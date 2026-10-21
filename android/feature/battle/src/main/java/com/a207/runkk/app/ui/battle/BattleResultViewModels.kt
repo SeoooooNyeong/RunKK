@@ -1,7 +1,10 @@
 package com.a207.runkk.app.ui.battle
 
+import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.a207.runkk.app.core.designsystem.UiText
+import com.a207.runkk.app.core.designsystem.uiText
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.battle.BattleHistory
 import com.a207.runkk.app.domain.battle.BattleRepository
@@ -18,10 +21,10 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /** 판정(서버 battle.Verdict). */
-enum class Verdict(val label: String, val headline: String) {
-    WIN("승", "VICTORY"),
-    LOSE("패", "DEFEAT"),
-    DRAW("무", "DRAW");
+enum class Verdict(@StringRes val labelRes: Int, val headline: String) {
+    WIN(R.string.battle_verdict_win, "VICTORY"),
+    LOSE(R.string.battle_verdict_lose, "DEFEAT"),
+    DRAW(R.string.battle_verdict_draw, "DRAW");
 
     companion object {
         fun of(value: String?): Verdict? = entries.firstOrNull { it.name == value }
@@ -32,7 +35,7 @@ data class BattleResultUiState(
     val loading: Boolean = true,
     val battleId: Long? = null,
     val result: BattleResult? = null,
-    val error: String? = null
+    val error: UiText? = null
 ) {
     val verdict: Verdict? get() = Verdict.of(result?.verdict)
 
@@ -41,47 +44,54 @@ data class BattleResultUiState(
 }
 
 /** 판정 문구(시안 HiBattleResult "[상대]님보다 42초 먼저 도착했어요!"). 상대·도달 시간을 모르면 일반 문구다. */
-internal fun verdictMessage(verdict: Verdict?, result: BattleResult?): String {
+internal fun verdictMessage(verdict: Verdict?, result: BattleResult?): UiText {
     val name = result?.opponentName?.takeIf { it.isNotBlank() }
     val mine = result?.myReach
     val theirs = result?.opponentReach
     val gap = if (mine != null && theirs != null) gapText(theirs.minus(mine).abs()) else null
     return when (verdict) {
         Verdict.WIN -> when {
-            name != null && gap != null -> "${name}님보다 $gap 먼저 도착했어요!"
-            name != null -> "${name}님보다 먼저 도착했어요!"
-            else -> "상대보다 먼저 도착했어요!"
+            name != null && gap != null -> uiText(R.string.battle_result_win_name_gap, name, gap)
+            name != null -> uiText(R.string.battle_result_win_name, name)
+            else -> uiText(R.string.battle_result_win)
         }
 
         Verdict.LOSE -> when {
-            name != null && gap != null -> "${name}님이 $gap 먼저 도착했어요. 다음 대결에서 다시 만나요"
-            name != null -> "${name}님이 먼저 도착했어요. 다음 대결에서 다시 만나요"
-            else -> "아쉽게 졌어요. 다음 대결에서 다시 만나요"
+            name != null && gap != null -> uiText(R.string.battle_result_lose_name_gap, name, gap)
+            name != null -> uiText(R.string.battle_result_lose_name, name)
+            else -> uiText(R.string.battle_result_lose)
         }
 
-        Verdict.DRAW -> if (name != null) "${name}님과 1초 안에 함께 도착했어요. 무승부!" else "1초 안에 함께 도착했어요. 무승부!"
+        Verdict.DRAW ->
+            if (name != null) uiText(R.string.battle_result_draw_name, name) else uiText(R.string.battle_result_draw)
 
-        null -> "결과를 확인하고 있어요"
+        null -> uiText(R.string.battle_result_checking)
     }
 }
 
 /** 시간 차 문구: 42초, 1분 5초. */
-internal fun gapText(gap: Duration): String {
+internal fun gapText(gap: Duration): UiText {
     val seconds = gap.seconds
     return if (seconds < SECONDS_PER_MINUTE) {
-        "${seconds}초"
+        uiText(R.string.battle_gap_seconds, seconds)
     } else {
         val minutes = seconds / SECONDS_PER_MINUTE
         val rest = seconds % SECONDS_PER_MINUTE
-        if (rest == 0L) "${minutes}분" else "${minutes}분 ${rest}초"
+        if (rest ==
+            0L
+        ) {
+            uiText(R.string.battle_gap_minutes, minutes)
+        } else {
+            uiText(R.string.battle_gap_minutes_seconds, minutes, rest)
+        }
     }
 }
 
 /** 이력의 기록 차이(본인 − 상대): 음수면 "42초 빠름", 양수면 "12초 느림", 0이면 "같은 기록". */
-internal fun gapLabel(gap: Duration): String = when {
-    gap.isNegative -> "${gapText(gap.abs())} 빠름"
-    gap.isZero -> "같은 기록"
-    else -> "${gapText(gap)} 느림"
+internal fun gapLabel(gap: Duration): UiText = when {
+    gap.isNegative -> uiText(R.string.battle_gap_faster, gapText(gap.abs()))
+    gap.isZero -> uiText(R.string.battle_gap_same)
+    else -> uiText(R.string.battle_gap_slower, gapText(gap))
 }
 
 /** 이번 주 전적 표기: 3W 1L(무승부가 있으면 1D를 더한다). */
@@ -89,8 +99,11 @@ internal fun weeklyLabel(weekly: BattleResult.Weekly): String =
     "${weekly.wins}W ${weekly.losses}L" + if (weekly.draws > 0) " ${weekly.draws}D" else ""
 
 /** 이번 주 전적 읽기: 3승 1패(무승부가 있으면 1무를 더한다). */
-internal fun weeklySpoken(weekly: BattleResult.Weekly): String =
-    "이번 주 ${weekly.wins}승 ${weekly.losses}패" + if (weekly.draws > 0) " ${weekly.draws}무" else ""
+internal fun weeklySpoken(weekly: BattleResult.Weekly): UiText = if (weekly.draws > 0) {
+    uiText(R.string.battle_weekly_spoken_draw, weekly.wins, weekly.losses, weekly.draws)
+} else {
+    uiText(R.string.battle_weekly_spoken, weekly.wins, weekly.losses)
+}
 
 private const val SECONDS_PER_MINUTE = 60L
 
@@ -132,8 +145,8 @@ data class BattleHistoryUiState(
     val history: BattleHistory? = null,
     /** 다음 쪽을 읽는 중. */
     val loadingMore: Boolean = false,
-    val message: String? = null,
-    val error: String? = null
+    val message: UiText? = null,
+    val error: UiText? = null
 )
 
 /**
@@ -205,15 +218,16 @@ class BattleHistoryViewModel @Inject constructor(private val battles: BattleRepo
 }
 
 /** 이력 거르기 라벨 → 종류(전체는 null). RANDOM이면 서버가 GHOST도 함께 준다. */
-val HISTORY_FILTERS: List<Pair<String, BattleHistory.Type?>> = listOf(
-    "전체" to null,
-    "랜덤" to BattleHistory.Type.RANDOM,
-    "나와의 싸움" to BattleHistory.Type.SELF,
-    "유명인" to BattleHistory.Type.CELEBRITY
+val HISTORY_FILTERS: List<Pair<Int, BattleHistory.Type?>> = listOf(
+    R.string.battle_filter_all to null,
+    R.string.battle_type_random to BattleHistory.Type.RANDOM,
+    R.string.battle_type_self to BattleHistory.Type.SELF,
+    R.string.battle_type_celebrity to BattleHistory.Type.CELEBRITY
 )
 
-internal fun typeLabel(type: BattleHistory.Type): String = when (type) {
-    BattleHistory.Type.RANDOM, BattleHistory.Type.GHOST -> "랜덤"
-    BattleHistory.Type.SELF -> "나와의 싸움"
-    BattleHistory.Type.CELEBRITY -> "유명인"
+@StringRes
+internal fun typeLabel(type: BattleHistory.Type): Int = when (type) {
+    BattleHistory.Type.RANDOM, BattleHistory.Type.GHOST -> R.string.battle_type_random
+    BattleHistory.Type.SELF -> R.string.battle_type_self
+    BattleHistory.Type.CELEBRITY -> R.string.battle_type_celebrity
 }

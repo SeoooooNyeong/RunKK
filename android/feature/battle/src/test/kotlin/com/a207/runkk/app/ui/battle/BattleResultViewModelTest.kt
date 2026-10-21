@@ -2,6 +2,8 @@
 
 package com.a207.runkk.app.ui.battle
 
+import com.a207.runkk.app.core.designsystem.UiText
+import com.a207.runkk.app.core.designsystem.uiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.battle.BattleHistory
@@ -36,9 +38,16 @@ class BattleResultViewModelTest {
     @Test
     fun `판정 문구는 상대 표시명과 도달 시간 차를 쓴다(시안 HiBattleResult)`() {
         val won = battleResult()
-        assertEquals("바람처럼님보다 42초 먼저 도착했어요!", verdictMessage(Verdict.WIN, won))
         assertEquals(
-            "바람처럼님이 1분 5초 먼저 도착했어요. 다음 대결에서 다시 만나요",
+            uiText(R.string.battle_result_win_name_gap, "바람처럼", uiText(R.string.battle_gap_seconds, 42L)),
+            verdictMessage(Verdict.WIN, won)
+        )
+        assertEquals(
+            uiText(
+                R.string.battle_result_lose_name_gap,
+                "바람처럼",
+                uiText(R.string.battle_gap_minutes_seconds, 1L, 5L)
+            ),
             verdictMessage(
                 Verdict.LOSE,
                 won.copy(
@@ -47,18 +56,34 @@ class BattleResultViewModelTest {
                 )
             )
         )
-        assertEquals("바람처럼님과 1초 안에 함께 도착했어요. 무승부!", verdictMessage(Verdict.DRAW, won))
-        assertEquals("상대보다 먼저 도착했어요!", verdictMessage(Verdict.WIN, won.copy(opponentName = null)))
-        assertEquals("바람처럼님보다 먼저 도착했어요!", verdictMessage(Verdict.WIN, won.copy(myReach = null)))
+        assertEquals(uiText(R.string.battle_result_draw_name, "바람처럼"), verdictMessage(Verdict.DRAW, won))
+        assertEquals(uiText(R.string.battle_result_win), verdictMessage(Verdict.WIN, won.copy(opponentName = null)))
+        assertEquals(
+            uiText(R.string.battle_result_win_name, "바람처럼"),
+            verdictMessage(Verdict.WIN, won.copy(myReach = null))
+        )
     }
 
     @Test
     fun `이력의 기록 차이는 빠름·느림으로, 이번 주 전적은 무승부가 있으면 더한다`() {
-        assertEquals("42초 빠름", gapLabel(java.time.Duration.ofSeconds(-42)))
-        assertEquals("1분 12초 느림", gapLabel(java.time.Duration.ofSeconds(72)))
-        assertEquals("같은 기록", gapLabel(java.time.Duration.ZERO))
+        assertEquals(
+            uiText(R.string.battle_gap_faster, uiText(R.string.battle_gap_seconds, 42L)),
+            gapLabel(java.time.Duration.ofSeconds(-42))
+        )
+        assertEquals(
+            uiText(R.string.battle_gap_slower, uiText(R.string.battle_gap_minutes_seconds, 1L, 12L)),
+            gapLabel(java.time.Duration.ofSeconds(72))
+        )
+        assertEquals(uiText(R.string.battle_gap_same), gapLabel(java.time.Duration.ZERO))
         assertEquals("3W 1L 1D", weeklyLabel(com.a207.runkk.app.domain.battle.BattleResult.Weekly(3, 1, 1)))
-        assertEquals("이번 주 3승 1패", weeklySpoken(com.a207.runkk.app.domain.battle.BattleResult.Weekly(3, 1, 0)))
+        assertEquals(
+            uiText(R.string.battle_weekly_spoken, 3, 1),
+            weeklySpoken(com.a207.runkk.app.domain.battle.BattleResult.Weekly(3, 1, 0))
+        )
+        assertEquals(
+            uiText(R.string.battle_weekly_spoken_draw, 3, 1, 1),
+            weeklySpoken(com.a207.runkk.app.domain.battle.BattleResult.Weekly(3, 1, 1))
+        )
     }
 
     @Test
@@ -83,7 +108,7 @@ class BattleResultViewModelTest {
         val vm = BattleResultViewModel(w.battles, w.coordinator)
         vm.load(9)
         runCurrent()
-        assertEquals("대결을 찾지 못했어요", vm.state.value.error)
+        assertEquals(UiText.Res(R.string.battle_error_not_found), vm.state.value.error)
         w.battles.resultResult = Outcome.Success(battleResult())
         vm.load(9)
         runCurrent()
@@ -100,7 +125,7 @@ class BattleResultViewModelTest {
         vm.onFilter(2)
         runCurrent()
         assertEquals(listOf("history:null", "history:SELF"), w.battles.calls)
-        assertEquals("랜덤", typeLabel(BattleHistory.Type.GHOST))
+        assertEquals(R.string.battle_type_random, typeLabel(BattleHistory.Type.GHOST))
     }
 
     @Test

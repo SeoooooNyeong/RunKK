@@ -7,12 +7,14 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -30,6 +32,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -63,6 +67,7 @@ import com.a207.runkk.app.core.designsystem.RunkkTextLink
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
+import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.battle.BattleHistory
@@ -115,52 +120,68 @@ fun BattleResultScreen(
             val result = state.result
             when {
                 result == null && state.loading -> Box(Modifier.fillMaxWidth().height(240.dp)) { RunkkLoading() }
-                result == null -> RunkkErrorState(state.error ?: "결과를 불러오지 못했어요", onRetry = onRetry)
+
+                result == null -> RunkkErrorState(
+                    state.error?.asString() ?: stringResource(R.string.battle_result_load_failed),
+                    onRetry = onRetry
+                )
+
                 result.pending -> Pending(onRetry)
+
                 else -> ResultBody(state, result, onHistory)
             }
         }
         HorizontalDivider(color = RunkkColors.Border)
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 32.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            RunkkSecondaryButton(
-                if (state.result?.recordId != null) "기록 카드" else "기록 목록",
-                onClick = onCard,
-                modifier = Modifier.weight(1f)
-            )
-            RunkkPrimaryButton("홈으로", onClick = onHome, modifier = Modifier.weight(1f))
-        }
+        BottomActions(state.result?.recordId != null, onCard, onHome)
+    }
+}
+
+/** 하단 버튼: 기록 카드(기록 ID가 없으면 기록 목록)와 홈으로. */
+@Composable
+private fun BottomActions(hasRecord: Boolean, onCard: () -> Unit, onHome: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 32.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        RunkkSecondaryButton(
+            stringResource(if (hasRecord) R.string.battle_result_record_card else R.string.battle_result_record_list),
+            onClick = onCard,
+            modifier = Modifier.weight(1f)
+        )
+        RunkkPrimaryButton(
+            stringResource(R.string.battle_result_home),
+            onClick = onHome,
+            modifier = Modifier.weight(1f)
+        )
     }
 }
 
 @Composable
 private fun Pending(onRetry: () -> Unit) {
     RunkkCard(borderColor = RunkkColors.Lavender) {
-        Text("보류", style = RunkkTextStyles.display(56), color = RunkkColors.Lavender)
+        Text(stringResource(R.string.battle_pending), style = RunkkTextStyles.display(56), color = RunkkColors.Lavender)
         Text(
-            "먼저 도착한 기록이 아직 서버에 없어요. 기록이 올라오면 결과를 확정하고 알려 드려요(최대 24시간).",
+            stringResource(R.string.battle_result_pending_message),
             style = RunkkTextStyles.Body,
             color = RunkkColors.TextPrimary
         )
         Text(
-            "내 기록이 아직 전송 대기 중이면 연결되었을 때 자동으로 보내요.",
+            stringResource(R.string.battle_result_pending_hint),
             style = RunkkTextStyles.Caption,
             color = RunkkColors.TextSecondary
         )
-        RunkkPillButton("결과 다시 보기", onClick = onRetry)
+        RunkkPillButton(stringResource(R.string.battle_result_retry), onClick = onRetry)
     }
 }
 
 @Composable
 private fun ResultBody(state: BattleResultUiState, result: BattleResult, onHistory: () -> Unit) {
-    VerdictCard(state.verdict, verdictMessage(state.verdict, result))
-    if (result.newRecord) RunkkBanner("신기록! 이 거리의 새 최고 기록이에요", strong = true)
+    VerdictCard(state.verdict, verdictMessage(state.verdict, result).asString())
+    if (result.newRecord) RunkkBanner(stringResource(R.string.battle_result_new_record), strong = true)
     ComparisonTable(result.rows)
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         RunkkStatTile(
-            "적립 리워드",
+            stringResource(R.string.battle_result_reward),
             result.rewardPoints?.let { "+$it" } ?: "+0",
             valueColor = RunkkColors.Lime,
             valueStyle = RunkkTextStyles.display(28),
@@ -168,14 +189,18 @@ private fun ResultBody(state: BattleResultUiState, result: BattleResult, onHisto
         )
         val weekly = state.weekly
         RunkkStatTile(
-            "이번 주 전적",
+            stringResource(R.string.battle_result_weekly),
             weekly?.let(::weeklyLabel) ?: "-",
-            spoken = weekly?.let(::weeklySpoken) ?: "이번 주 전적 없음",
+            spoken = weekly?.let { weeklySpoken(it).asString() } ?: stringResource(R.string.battle_result_weekly_none),
             valueStyle = RunkkTextStyles.display(28),
             modifier = Modifier.weight(1f)
         )
     }
-    RunkkTextLink("함께 달린 기록 보기 →", onClick = onHistory, contentDescription = "함께 달린 기록 보기")
+    RunkkTextLink(
+        stringResource(R.string.battle_result_history_link),
+        onClick = onHistory,
+        contentDescription = stringResource(R.string.battle_result_history_link_desc)
+    )
 }
 
 @Composable
@@ -186,13 +211,18 @@ private fun VerdictCard(verdict: Verdict?, message: String) {
         else -> RunkkColors.Surface
     }
     val content = if (verdict == null || verdict == Verdict.DRAW) RunkkColors.TextPrimary else RunkkColors.OnLime
+    val description = stringResource(
+        R.string.battle_result_verdict_desc,
+        stringResource(verdict?.labelRes ?: R.string.battle_result_verdict_unknown),
+        message
+    )
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RunkkShapes.ExtraLarge)
             .background(background)
             .semantics(mergeDescendants = true) {
-                contentDescription = "${verdict?.label ?: "결과"}. $message"
+                contentDescription = description
             }
     ) {
         Text(
@@ -221,7 +251,12 @@ private fun ComparisonTable(rows: List<BattleResult.Row>) {
             .background(RunkkColors.Surface)
             .border(1.dp, RunkkColors.Border, RunkkShapes.Large)
     ) {
-        TableRow("항목", "나", "상대", header = true)
+        TableRow(
+            stringResource(R.string.battle_result_col_item),
+            stringResource(R.string.battle_me),
+            stringResource(R.string.battle_opponent),
+            header = true
+        )
         rows.forEach { row ->
             HorizontalDivider(color = RunkkColors.Border)
             TableRow(row.item, row.mine, row.theirs, header = false)
@@ -231,12 +266,18 @@ private fun ComparisonTable(rows: List<BattleResult.Row>) {
 
 @Composable
 private fun TableRow(item: String, mine: String, theirs: String, header: Boolean) {
+    val description = stringResource(
+        R.string.battle_result_row_desc,
+        item,
+        spokenValue(item, mine),
+        spokenValue(item, theirs)
+    )
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(16.dp)
             .semantics(mergeDescendants = true) {
-                if (!header) contentDescription = "$item, 나 ${spokenValue(item, mine)}, 상대 ${spokenValue(item, theirs)}"
+                if (!header) contentDescription = description
             },
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -263,11 +304,18 @@ private fun androidx.compose.foundation.layout.RowScope.Cell(text: String, heade
 }
 
 /** 비교표 값 읽기: "27:30" → "27분 30초", 페이스·1km 항목은 "1킬로미터당 …". 그 밖은 그대로. */
+@Composable
 internal fun spokenValue(item: String, value: String): String {
     val parts = TIME_VALUE.matchEntire(value)?.groupValues ?: return value
     val (a, b, c) = Triple(parts[1].toInt(), parts[2].toInt(), parts[3].toIntOrNull())
-    val text = if (c != null) "${a}시간 ${b}분 ${c}초" else "${a}분 ${b}초"
-    return if ("페이스" in item || "1km" in item) "1킬로미터당 $text" else text
+    val text = if (c != null) {
+        stringResource(R.string.battle_result_spoken_hms, a, b, c)
+    } else {
+        stringResource(R.string.battle_result_spoken_ms, a, b)
+    }
+    val perKm = stringResource(R.string.battle_result_pace_keyword) in item ||
+        stringResource(R.string.battle_result_per_km_keyword) in item
+    return if (perKm) stringResource(R.string.battle_result_spoken_per_km, text) else text
 }
 
 private val TIME_VALUE = Regex("""(\d+):(\d{2})(?::(\d{2}))?""")
@@ -329,9 +377,10 @@ fun BattleHistoryScreen(
         if (nearEnd && state.history?.nextCursor != null) onLoadMore()
     }
     val snackbar = remember { SnackbarHostState() }
+    val context = LocalContext.current
     LaunchedEffect(state.message) {
         state.message?.let {
-            snackbar.showSnackbar(it)
+            snackbar.showSnackbar(it.asString(context))
             onMessageShown()
         }
     }
@@ -354,44 +403,19 @@ private fun HistoryList(
     onRetry: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
-        RunkkTopBar(title = "함께 달린 기록", onBack = onBack)
+        RunkkTopBar(title = stringResource(R.string.battle_history_title), onBack = onBack)
         val history = state.history
+        val filterLabels = HISTORY_FILTERS.map { stringResource(it.first) }
         LazyColumn(
             state = listState,
             modifier = Modifier.weight(1f),
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            item {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    RunkkStatTile(
-                        "대결",
-                        history?.total?.toString() ?: "-",
-                        centered = true,
-                        valueStyle = RunkkTextStyles.DisplaySmall,
-                        modifier = Modifier.weight(1f)
-                    )
-                    RunkkStatTile(
-                        "승·패",
-                        history?.let { "${it.wins}W ${it.losses}L" } ?: "-",
-                        spoken = history?.let { "${it.wins}승 ${it.losses}패" },
-                        centered = true,
-                        valueStyle = RunkkTextStyles.DisplaySmall,
-                        modifier = Modifier.weight(1f)
-                    )
-                    RunkkStatTile(
-                        "셀프 신기록",
-                        history?.selfNewRecords?.toString() ?: "-",
-                        centered = true,
-                        valueStyle = RunkkTextStyles.DisplaySmall,
-                        valueColor = RunkkColors.Lime,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
+            item { HistoryStats(history) }
             item {
                 RunkkSegmentedTabs(
-                    options = HISTORY_FILTERS.map { it.first },
+                    options = filterLabels,
                     selectedIndex = state.filterIndex,
                     onSelect = onFilter,
                     modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
@@ -399,29 +423,71 @@ private fun HistoryList(
             }
             // 필터를 바꿔 목록이 바뀌면 건수를 알린다(보이는 목록이 바뀐 것을 보조 기술 사용자도 알게).
             if (history != null && !state.loading && state.error == null) {
-                item { FilterCount("${history.total}건") }
+                item { FilterCount(stringResource(R.string.battle_history_count, history.total)) }
             }
-            when {
-                history == null && state.loading -> item {
-                    Box(Modifier.fillMaxWidth().height(200.dp)) { RunkkLoading() }
-                }
+            historyBody(state, onEntry, onRetry)
+        }
+    }
+}
 
-                history == null || state.error != null -> item {
-                    RunkkErrorState(state.error ?: "기록을 불러오지 못했어요", onRetry = onRetry)
-                }
+/** 이력 통계 세 칸(대결·승패·셀프 신기록). */
+@Composable
+private fun HistoryStats(history: BattleHistory?) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        RunkkStatTile(
+            stringResource(R.string.battle_history_stat_battles),
+            history?.total?.toString() ?: "-",
+            centered = true,
+            valueStyle = RunkkTextStyles.DisplaySmall,
+            modifier = Modifier.weight(1f)
+        )
+        RunkkStatTile(
+            stringResource(R.string.battle_history_stat_win_loss),
+            history?.let { "${it.wins}W ${it.losses}L" } ?: "-",
+            spoken = history?.let { stringResource(R.string.battle_history_win_loss_spoken, it.wins, it.losses) },
+            centered = true,
+            valueStyle = RunkkTextStyles.DisplaySmall,
+            modifier = Modifier.weight(1f)
+        )
+        RunkkStatTile(
+            stringResource(R.string.battle_history_stat_self_record),
+            history?.selfNewRecords?.toString() ?: "-",
+            centered = true,
+            valueStyle = RunkkTextStyles.DisplaySmall,
+            valueColor = RunkkColors.Lime,
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
 
-                history.entries.isEmpty() -> item {
-                    RunkkEmptyState("아직 함께 달린 기록이 없어요", message = "배틀런이나 나와의 싸움을 시작해 보세요")
-                }
+/** 이력 목록 본문: 읽는 중·오류·빈 목록·항목(다음 쪽 읽는 중 표시 포함). */
+private fun LazyListScope.historyBody(state: BattleHistoryUiState, onEntry: (Long) -> Unit, onRetry: () -> Unit) {
+    val history = state.history
+    when {
+        history == null && state.loading -> item {
+            Box(Modifier.fillMaxWidth().height(200.dp)) { RunkkLoading() }
+        }
 
-                else -> {
-                    items(history.entries, key = { it.battleId }) { entry ->
-                        HistoryRow(entry, onClick = { onEntry(entry.battleId) })
-                    }
-                    if (state.loadingMore) {
-                        item { Box(Modifier.fillMaxWidth().height(64.dp)) { RunkkLoading() } }
-                    }
-                }
+        history == null || state.error != null -> item {
+            RunkkErrorState(
+                state.error?.asString() ?: stringResource(R.string.battle_history_load_failed),
+                onRetry = onRetry
+            )
+        }
+
+        history.entries.isEmpty() -> item {
+            RunkkEmptyState(
+                stringResource(R.string.battle_history_empty_title),
+                message = stringResource(R.string.battle_history_empty_message)
+            )
+        }
+
+        else -> {
+            items(history.entries, key = { it.battleId }) { entry ->
+                HistoryRow(entry, onClick = { onEntry(entry.battleId) })
+            }
+            if (state.loadingMore) {
+                item { Box(Modifier.fillMaxWidth().height(64.dp)) { RunkkLoading() } }
             }
         }
     }
@@ -430,52 +496,64 @@ private fun HistoryList(
 @Composable
 private fun HistoryRow(entry: BattleHistory.Entry, onClick: () -> Unit) {
     val verdict = Verdict.of(entry.verdict)
+    val playedFormat = DateTimeFormatter.ofPattern(stringResource(R.string.battle_history_played_pattern))
     RunkkCard(
         modifier = Modifier.fillMaxWidth(),
         onClick = onClick,
-        onClickLabel = "대결 결과 보기",
+        onClickLabel = stringResource(R.string.battle_history_open_result),
         shape = RunkkShapes.Medium
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    RunkkBadge(typeLabel(entry.type))
-                    Text(
-                        entry.playedAt.atZone(ZoneId.systemDefault()).format(PLAYED),
-                        style = RunkkTextStyles.Caption,
-                        color = RunkkColors.TextSecondary
-                    )
-                }
-                Text(
-                    "${entry.opponentName} · ${distanceLabel(entry.distance)}",
-                    style = RunkkTextStyles.text(15, FontWeight.Bold),
-                    color = RunkkColors.TextPrimary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+            HistoryRowInfo(entry, playedFormat)
+            if (entry.newRecord) {
+                RunkkBadge(
+                    stringResource(R.string.battle_history_new_record),
+                    tone = RunkkBadgeTone.Lime
                 )
-                listOfNotNull(entry.gap?.let(::gapLabel), entry.sourceLabel).takeIf { it.isNotEmpty() }?.let { parts ->
-                    Text(
-                        parts.joinToString(" · "),
-                        style = RunkkTextStyles.Caption,
-                        color = RunkkColors.TextSecondary,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
             }
-            if (entry.newRecord) RunkkBadge("신기록", tone = RunkkBadgeTone.Lime)
             RunkkBadge(
-                verdict?.label ?: "보류",
+                stringResource(verdict?.labelRes ?: R.string.battle_pending),
                 tone = if (verdict == Verdict.WIN) RunkkBadgeTone.Lime else RunkkBadgeTone.Muted
             )
         }
     }
 }
 
-private val PLAYED: DateTimeFormatter = DateTimeFormatter.ofPattern("M월 d일 HH:mm")
+/** 이력 줄 왼쪽: 종류·일시, 상대·거리, 기록 차이·출처. */
+@Composable
+private fun RowScope.HistoryRowInfo(entry: BattleHistory.Entry, playedFormat: DateTimeFormatter) {
+    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            RunkkBadge(stringResource(typeLabel(entry.type)))
+            Text(
+                entry.playedAt.atZone(ZoneId.systemDefault()).format(playedFormat),
+                style = RunkkTextStyles.Caption,
+                color = RunkkColors.TextSecondary
+            )
+        }
+        Text(
+            "${entry.opponentName} · ${distanceLabel(entry.distance).asString()}",
+            style = RunkkTextStyles.text(15, FontWeight.Bold),
+            color = RunkkColors.TextPrimary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        listOfNotNull(entry.gap?.let { gapLabel(it).asString() }, entry.sourceLabel)
+            .takeIf { it.isNotEmpty() }
+            ?.let { parts ->
+                Text(
+                    parts.joinToString(" · "),
+                    style = RunkkTextStyles.Caption,
+                    color = RunkkColors.TextSecondary,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+    }
+}
 
 @Preview(name = "대결 결과", widthDp = 390, heightDp = 844)
 @Composable

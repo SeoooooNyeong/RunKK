@@ -16,12 +16,14 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import com.a207.runkk.app.core.designsystem.RunkkTheme
+import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.Distance
 import kotlin.test.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 
 /** 대결 화면: 주요 버튼과 접근성 라벨. */
 @RunWith(RobolectricTestRunner::class)
@@ -128,7 +130,7 @@ class BattleScreensTest {
                 phase = BattlePhase.RUNNING,
                 gapMeters = 10,
                 opponentDistance = Distance(1_000),
-                connectionLabel = "상대 연결 확인 중"
+                connectionLabel = UiText.Res(R.string.battle_running_checking)
             )
         )
         compose.setContent {
@@ -154,7 +156,8 @@ class BattleScreensTest {
         compose.onNodeWithContentDescription("화면 잠금").performClick()
         state = state.copy(locked = true)
         compose.onNodeWithContentDescription("대결 그만두기").assertDoesNotExist()
-        compose.onNode(SemanticsMatcher.expectValue(SemanticsProperties.PaneTitle, LOCKED_PANE_TITLE)).assertExists()
+        val lockedTitle = RuntimeEnvironment.getApplication().getString(R.string.battle_running_locked_pane_title)
+        compose.onNode(SemanticsMatcher.expectValue(SemanticsProperties.PaneTitle, lockedTitle)).assertExists()
         val unlock = compose.onNodeWithContentDescription("화면 잠금 해제")
         unlock.performClick()
         unlock.performTouchInput { longClick() }

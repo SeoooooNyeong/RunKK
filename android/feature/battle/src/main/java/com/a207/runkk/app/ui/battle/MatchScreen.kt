@@ -29,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -54,6 +55,7 @@ import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkStatusPill
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
+import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.domain.live.MatchFound
@@ -117,6 +119,7 @@ fun MatchScreen(
 
 @Composable
 private fun Overline(text: String, accent: Boolean = false, trailing: (@Composable () -> Unit)? = null) {
+    val spoken = RunkkFormat.spokenLabel(text)
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
         Text(
             text,
@@ -124,7 +127,7 @@ private fun Overline(text: String, accent: Boolean = false, trailing: (@Composab
             color = if (accent) RunkkColors.Lime else RunkkColors.TextPrimary,
             modifier = Modifier.semantics {
                 heading()
-                contentDescription = RunkkFormat.spokenLabel(text)
+                contentDescription = spoken
             }
         )
         Spacer(Modifier.weight(1f))
@@ -140,7 +143,7 @@ private fun androidx.compose.foundation.layout.ColumnScope.Choosing(
     onBack: () -> Unit
 ) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        RunkkIconButton(RunkkIcons.Back, contentDescription = "뒤로", onClick = onBack)
+        RunkkIconButton(RunkkIcons.Back, contentDescription = stringResource(R.string.battle_back), onClick = onBack)
         Overline("BATTLE RUN")
     }
     Column(
@@ -148,25 +151,26 @@ private fun androidx.compose.foundation.layout.ColumnScope.Choosing(
         verticalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterVertically)
     ) {
         Text(
-            "같은 티어·같은 거리 상대와 동시에 달려요",
+            stringResource(R.string.battle_match_headline),
             style = RunkkTextStyles.Headline,
             color = RunkkColors.TextPrimary
         )
         Text(
-            "15초 안에 상대가 없으면 다른 러너의 기록과 바로 대결해요. 고른 거리는 다음 배틀런에도 그대로 써요.",
+            stringResource(R.string.battle_match_description),
             style = RunkkTextStyles.Body,
             color = RunkkColors.TextSecondary
         )
-        Text("대결 거리", style = RunkkTextStyles.text(13, FontWeight.Bold), color = RunkkColors.TextSecondary)
+        val distanceTitle = stringResource(R.string.battle_match_distance_title)
+        Text(distanceTitle, style = RunkkTextStyles.text(13, FontWeight.Bold), color = RunkkColors.TextSecondary)
         RunkkSegmentRow(
             options = MatchUiState.DISTANCES.map(RunkkFormat::targetLabel),
             selectedIndex = MatchUiState.DISTANCES.indexOf(state.distance),
             onSelect = { onDistanceSelected(MatchUiState.DISTANCES[it]) },
-            modifier = Modifier.semantics { contentDescription = "대결 거리" }
+            modifier = Modifier.semantics { contentDescription = distanceTitle }
         )
         if (state.error != null) {
             Text(
-                state.error,
+                state.error.asString(),
                 style = RunkkTextStyles.text(13, FontWeight.Bold),
                 color = RunkkColors.Lavender,
                 modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
@@ -174,7 +178,7 @@ private fun androidx.compose.foundation.layout.ColumnScope.Choosing(
         }
     }
     RunkkPrimaryButton(
-        text = "${RunkkFormat.targetLabel(state.distance)} 매칭 시작",
+        text = stringResource(R.string.battle_match_start, RunkkFormat.targetLabel(state.distance)),
         onClick = onStart,
         loading = state.phase == MatchPhase.REQUESTING,
         modifier = Modifier.fillMaxWidth()
@@ -183,6 +187,7 @@ private fun androidx.compose.foundation.layout.ColumnScope.Choosing(
 
 @Composable
 private fun androidx.compose.foundation.layout.ColumnScope.Waiting(state: MatchUiState, onCancel: () -> Unit) {
+    val waitingDescription = stringResource(R.string.battle_match_finding_desc, state.waitingSeconds)
     Overline("BATTLE RUN") { RunkkStatusPill(RunkkFormat.targetLabel(state.distance)) }
     Column(
         modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -194,10 +199,14 @@ private fun androidx.compose.foundation.layout.ColumnScope.Waiting(state: MatchU
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.semantics(mergeDescendants = true) {
-                contentDescription = "상대를 찾고 있어요, ${state.waitingSeconds}초 지남"
+                contentDescription = waitingDescription
             }
         ) {
-            Text("상대를 찾고 있어요", style = RunkkTextStyles.Headline, color = RunkkColors.TextPrimary)
+            Text(
+                stringResource(R.string.battle_match_finding),
+                style = RunkkTextStyles.Headline,
+                color = RunkkColors.TextPrimary
+            )
             Text(
                 waitLabel(state.waitingSeconds),
                 style = RunkkTextStyles.display(56),
@@ -207,7 +216,7 @@ private fun androidx.compose.foundation.layout.ColumnScope.Waiting(state: MatchU
         }
         if (state.error != null) {
             Text(
-                state.error,
+                state.error.asString(),
                 style = RunkkTextStyles.Caption,
                 color = RunkkColors.Lavender,
                 textAlign = TextAlign.Center,
@@ -216,7 +225,9 @@ private fun androidx.compose.foundation.layout.ColumnScope.Waiting(state: MatchU
         }
     }
     RunkkSecondaryButton(
-        text = if (state.phase == MatchPhase.CANCELLING) "취소하는 중" else "매칭 취소",
+        text = stringResource(
+            if (state.phase == MatchPhase.CANCELLING) R.string.battle_match_cancelling else R.string.battle_match_cancel
+        ),
         onClick = onCancel,
         enabled = state.phase == MatchPhase.WAITING,
         modifier = Modifier.fillMaxWidth()
@@ -273,46 +284,67 @@ private fun androidx.compose.foundation.layout.ColumnScope.Matched(match: MatchF
         modifier = Modifier.weight(1f).fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterVertically)
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            // 성사 순간 한 번 알린다(고정 문구).
-            modifier = Modifier.fillMaxWidth().clearAndSetSemantics {
-                contentDescription = "상대를 찾았어요. ${match.opponentName}, ${match.opponentTier}"
-                liveRegion = LiveRegionMode.Polite
-            }
-        ) {
-            Contender("나", tier = null, accent = true, modifier = Modifier.weight(1f))
-            Text(
-                "VS",
-                style = RunkkTextStyles.display(48),
-                color = RunkkColors.Lime,
-                modifier = Modifier.clearAndSetSemantics {
-                }
-            )
-            Contender(match.opponentName, tier = match.opponentTier, accent = false, modifier = Modifier.weight(1f))
-        }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RunkkShapes.Large)
-                .background(RunkkColors.Surface)
-                .border(1.dp, RunkkColors.Border, RunkkShapes.Large)
-                .padding(16.dp)
-                .semantics(mergeDescendants = true) {
-                    contentDescription = "${RunkkFormat.targetLabel(match.distance)} 최고 기록, 나 " +
-                        "${bestSpoken(match.myBest)}, 상대 ${bestSpoken(match.opponentBest)}"
-                },
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            BestTime(match.myBest, Modifier.weight(1f))
-            Text(
-                "${RunkkFormat.targetLabel(match.distance)} 최고 기록",
-                style = RunkkTextStyles.Caption,
-                color = RunkkColors.TextSecondary
-            )
-            BestTime(match.opponentBest, Modifier.weight(1f))
-        }
+        MatchedVersus(match)
+        MatchedBest(match)
     }
+    StartCountdown(startsIn)
+}
+
+/** 나 VS 상대. 성사 순간 한 번 알린다(고정 문구). */
+@Composable
+private fun MatchedVersus(match: MatchFound) {
+    val description = stringResource(R.string.battle_match_found_desc, match.opponentName, match.opponentTier)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().clearAndSetSemantics {
+            contentDescription = description
+            liveRegion = LiveRegionMode.Polite
+        }
+    ) {
+        Contender(stringResource(R.string.battle_me), tier = null, accent = true, modifier = Modifier.weight(1f))
+        Text(
+            "VS",
+            style = RunkkTextStyles.display(48),
+            color = RunkkColors.Lime,
+            modifier = Modifier.clearAndSetSemantics {
+            }
+        )
+        Contender(match.opponentName, tier = match.opponentTier, accent = false, modifier = Modifier.weight(1f))
+    }
+}
+
+/** 거리 최고 기록 비교(나 · 상대). */
+@Composable
+private fun MatchedBest(match: MatchFound) {
+    val description = stringResource(
+        R.string.battle_match_best_desc,
+        RunkkFormat.targetLabel(match.distance),
+        bestSpoken(match.myBest),
+        bestSpoken(match.opponentBest)
+    )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RunkkShapes.Large)
+            .background(RunkkColors.Surface)
+            .border(1.dp, RunkkColors.Border, RunkkShapes.Large)
+            .padding(16.dp)
+            .semantics(mergeDescendants = true) { contentDescription = description },
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        BestTime(match.myBest, Modifier.weight(1f))
+        Text(
+            stringResource(R.string.battle_match_best_caption, RunkkFormat.targetLabel(match.distance)),
+            style = RunkkTextStyles.Caption,
+            color = RunkkColors.TextSecondary
+        )
+        BestTime(match.opponentBest, Modifier.weight(1f))
+    }
+}
+
+/** 자동 출발까지 남은 초(시작 예약을 받기 전이면 안내 문구만). */
+@Composable
+private fun StartCountdown(startsIn: Long?) {
     Column(
         modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) {},
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -324,9 +356,17 @@ private fun androidx.compose.foundation.layout.ColumnScope.Matched(match: MatchF
                 style = RunkkTextStyles.display(96, lineHeightRatio = 0.9f),
                 color = RunkkColors.Lime
             )
-            Text("초 후 자동 출발", style = RunkkTextStyles.BodyStrong, color = RunkkColors.TextPrimary)
+            Text(
+                stringResource(R.string.battle_match_starts_in_suffix),
+                style = RunkkTextStyles.BodyStrong,
+                color = RunkkColors.TextPrimary
+            )
         } else {
-            Text("곧 자동으로 출발해요", style = RunkkTextStyles.BodyStrong, color = RunkkColors.TextPrimary)
+            Text(
+                stringResource(R.string.battle_match_starts_soon),
+                style = RunkkTextStyles.BodyStrong,
+                color = RunkkColors.TextPrimary
+            )
         }
     }
 }
@@ -347,7 +387,11 @@ private fun Contender(name: String, tier: String?, accent: Boolean, modifier: Mo
                 .clearAndSetSemantics {},
             contentAlignment = Alignment.Center
         ) {
-            Text("아바타", style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
+            Text(
+                stringResource(R.string.battle_match_avatar),
+                style = RunkkTextStyles.Caption,
+                color = RunkkColors.TextSecondary
+            )
         }
         Text(
             name,
@@ -371,7 +415,9 @@ private fun BestTime(best: Duration?, modifier: Modifier) {
     )
 }
 
-private fun bestSpoken(best: Duration?): String = best?.let(RunkkFormat::durationSpoken) ?: "기록 없음"
+@Composable
+private fun bestSpoken(best: Duration?): String =
+    best?.let { RunkkFormat.durationSpoken(it) } ?: stringResource(R.string.battle_no_record)
 
 internal fun waitLabel(seconds: Long): String =
     String.format(Locale.US, "%d:%02d", seconds / SECONDS_PER_MINUTE, seconds % SECONDS_PER_MINUTE)

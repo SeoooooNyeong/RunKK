@@ -2,6 +2,7 @@ package com.a207.runkk.app.ui.battle
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.core.navigation.Routes
@@ -47,7 +48,7 @@ data class BattleRunningUiState(
     val currentPace: Pace? = null,
     val averagePace: Pace? = null,
     /** 랜덤 대결 상대 연결 상태 문구(FR-088). 기록 상대·첫 상대 진행값 전이면 null. */
-    val connectionLabel: String? = null,
+    val connectionLabel: UiText? = null,
     /** 화면 잠금(FR-182). 잠기면 해제 버튼만 누를 수 있다. */
     val locked: Boolean = false,
     /** 방금 바뀐 앞뒤 순서 안내(잠깐 보인다, FR-188). */
@@ -60,8 +61,8 @@ data class BattleRunningUiState(
     /** 종료 카운트다운이 시작될 때의 남은 초(보조 기술에 한 번 알리는 제한 시간, 매초 읽지 않게 고정). */
     val closingLimitSeconds: Long? = null,
     val confirmingForfeit: Boolean = false,
-    val hint: String? = null,
-    val error: String? = null
+    val hint: UiText? = null,
+    val error: UiText? = null
 ) {
     /** 측정 중인가(진행·종료 카운트다운). 잠금 버튼은 이때만 보인다. */
     val measuring: Boolean get() = phase == BattlePhase.RUNNING || phase == BattlePhase.CLOSING
@@ -132,7 +133,11 @@ class BattleRunningViewModel @Inject constructor(
             delay(STALE_MILLIS)
             _state.update {
                 if (it.phase == BattlePhase.STARTING) {
-                    it.copy(phase = BattlePhase.FAILED, error = it.error ?: "대결 정보를 찾지 못했어요. 이미 끝난 대결일 수 있어요")
+                    it.copy(
+                        phase = BattlePhase.FAILED,
+                        error =
+                            it.error ?: UiText.Res(R.string.battle_running_not_found)
+                    )
                 } else {
                     it
                 }
@@ -235,7 +240,7 @@ class BattleRunningViewModel @Inject constructor(
                 it.copy(
                     phase = BattlePhase.FAILED,
                     confirmingForfeit = false,
-                    error = it.error ?: "대결을 시작하지 못했어요. 위치 권한과 연결을 확인해 주세요"
+                    error = it.error ?: UiText.Res(R.string.battle_running_start_failed_permission)
                 )
             }
         }
@@ -287,7 +292,7 @@ class BattleRunningViewModel @Inject constructor(
         }
     }
 
-    private fun showHint(text: String) {
+    private fun showHint(text: UiText) {
         _state.update { it.copy(hint = text) }
         hintJob?.cancel()
         hintJob = viewModelScope.launch {
@@ -300,14 +305,14 @@ class BattleRunningViewModel @Inject constructor(
         const val TICK_MILLIS = 1_000L
         const val GUIDANCE_MILLIS = 5_000L
         const val HINT_MILLIS = 2_500L
-        const val FORFEIT_HINT = "길게 눌러 그만두기"
-        const val UNLOCK_HINT = "길게 눌러 해제"
+        val FORFEIT_HINT = UiText.Res(R.string.battle_running_forfeit_hold)
+        val UNLOCK_HINT = UiText.Res(R.string.battle_running_unlock_hold)
         const val STALE_MILLIS = 5_000L
     }
 }
 
 /** 상대 연결 상태 문구(FR-088, 시안 HiBattleRunning "상대 연결됨"). */
-internal fun connectionLabel(connection: OpponentProgress.Connection): String = when (connection) {
-    OpponentProgress.Connection.CONNECTED -> "상대 연결됨"
-    OpponentProgress.Connection.CHECKING -> "상대 연결 확인 중"
+internal fun connectionLabel(connection: OpponentProgress.Connection): UiText = when (connection) {
+    OpponentProgress.Connection.CONNECTED -> UiText.Res(R.string.battle_running_connected)
+    OpponentProgress.Connection.CHECKING -> UiText.Res(R.string.battle_running_checking)
 }
