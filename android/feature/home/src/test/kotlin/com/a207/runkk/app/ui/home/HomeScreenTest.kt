@@ -9,8 +9,9 @@ import androidx.compose.ui.test.performScrollTo
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.navigation.Routes
-import com.a207.runkk.app.domain.record.TodayPlan
 import com.a207.runkk.app.domain.record.WeeklyGoalProgress
+import com.a207.runkk.app.domain.run.FreeRunGoal
+import com.a207.runkk.app.domain.run.PlanSnapshot
 import java.time.Duration
 import java.time.LocalDate
 import kotlin.test.assertEquals
@@ -45,7 +46,7 @@ class HomeScreenTest {
                 isLoading = false,
                 dashboard = sampleDashboard,
                 today = LocalDate.of(2026, 10, 20),
-                todayPlan = TodayPlan(Distance(5_000), null)
+                freeRunGoal = FreeRunGoal(PlanSnapshot(Distance(5_000), null), isFromCoachPlan = true)
             )
         )
         compose.onNodeWithText("자유런 시작").performScrollTo().performClick()
@@ -113,11 +114,30 @@ class HomeScreenTest {
             HomeUiState(
                 isLoading = false,
                 isHeaderLoading = false,
-                todayPlan = TodayPlan(Distance(5_000), com.a207.runkk.app.core.model.Pace(330))
+                freeRunGoal =
+                    FreeRunGoal(
+                        PlanSnapshot(Distance(5_000), com.a207.runkk.app.core.model.Pace(330)),
+                        isFromCoachPlan = true
+                    )
             )
         )
+        compose.onNodeWithText("오늘 계획 그대로").performScrollTo().assertExists()
         compose.onNodeWithContentDescription("오늘 목표 5킬로미터").performScrollTo().assertExists()
         compose.onNodeWithContentDescription("목표 페이스 1킬로미터당 5분 30초").performScrollTo().assertExists()
+    }
+
+    @Test
+    fun `설정 목표면 지난번 설정 그대로와 목표 거리 칩을 보인다(FR-048)`() {
+        show(
+            HomeUiState(
+                isLoading = false,
+                isHeaderLoading = false,
+                freeRunGoal = FreeRunGoal(PlanSnapshot(Distance(3_000), null), isFromCoachPlan = false)
+            )
+        )
+        compose.onNodeWithText("지난번 설정 그대로").performScrollTo().assertExists()
+        compose.onNodeWithText("3K").performScrollTo().assertExists()
+        compose.onNodeWithContentDescription("목표 3킬로미터").performScrollTo().assertExists()
     }
 
     @Test
@@ -125,7 +145,7 @@ class HomeScreenTest {
         val res = RuntimeEnvironment.getApplication().resources
         assertEquals(listOf(res.getString(R.string.home_plan_none)), planChips(res, null))
         assertEquals(listOf("목표 없이 달리기"), planChips(res, null))
-        assertEquals(listOf("5K"), planChips(res, TodayPlan(Distance(5_000), null)))
+        assertEquals(listOf("5K"), planChips(res, PlanSnapshot(Distance(5_000), null)))
     }
 
     @Test

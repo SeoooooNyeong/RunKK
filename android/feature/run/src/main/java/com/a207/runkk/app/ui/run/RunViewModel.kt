@@ -16,6 +16,7 @@ import com.a207.runkk.app.core.model.RunMode
 import com.a207.runkk.app.core.model.getOrNull
 import com.a207.runkk.app.domain.record.RecordRepository
 import com.a207.runkk.app.domain.run.FinishOutcome
+import com.a207.runkk.app.domain.run.FreeRunGoalUseCase
 import com.a207.runkk.app.domain.run.PlanSnapshot
 import com.a207.runkk.app.domain.run.RunProgress
 import com.a207.runkk.app.domain.run.RunStartSpec
@@ -85,11 +86,16 @@ sealed interface RunEvent {
  * 자유런 측정 화면(B1~B3, FR-030~FR-036·FR-180~FR-183). 측정 상태는 RunTracker(@Singleton)가 갖고 이 ViewModel은
  * 그 StateFlow를 구독해 화면 상태로 바꾼다(13.2 측정). 화면 입력은 누름 종류마다 다른 연산으로 넘긴다(D-36, D-49):
  * onFinishTapped·onFinishLongPressed, lockScreen·onUnlockTapped·onUnlockLongPressed.
- * 시작은 checkStartable → StartCountdown → startRun(자유런, 오늘 계획). 워치의 시작 요청(watchStartRequests)도 같은 흐름을 탄다.
+ * 시작은 checkStartable → StartCountdown → startRun(자유런, 목표). 워치의 시작 요청(watchStartRequests)도 같은 흐름을 탄다.
+ * 목표는 카운트다운을 시작할 때마다 FreeRunGoalUseCase로 고른다(코치 계획 따르기 켬 + 오늘 계획 있음 → 오늘 계획,
+ * 그 밖 → 자유런 설정 목표 거리, FR-048). 카운트다운 중 설정에서 바꾸고 돌아오면 바뀐 목표로 다시 센다.
  */
 @HiltViewModel
-class RunViewModel @Inject constructor(private val tracker: RunTracker, private val records: RecordRepository) :
-    ViewModel() {
+class RunViewModel @Inject constructor(
+    private val tracker: RunTracker,
+    private val records: RecordRepository,
+    private val goals: FreeRunGoalUseCase
+) : ViewModel() {
     private val _state = MutableStateFlow(RunUiState())
     val state: StateFlow<RunUiState> = _state.asStateFlow()
 
@@ -97,7 +103,12 @@ class RunViewModel @Inject constructor(private val tracker: RunTracker, private 
     val events: Flow<RunEvent> = _events.receiveAsFlow()
 
     private val countdown = StartCountdown(viewModelScope, RunUiState.COUNTDOWN_SECONDS)
-    private var plan: PlanSnapshot? = null
+
+    /** 오늘 계획(서버 원본). 목표는 이것과 설정 사본으로 고른다. */
+    private var todayPlan: PlanSnapshot? = null
+
+    /** 이번 자유런의 목표(RunStartSpec.todayPlan에 싣는다). */
+    private var goal: PlanSnapshot? = null
     private var planLoaded = false
     private var startDevice = RunStartSpec.StartDevice.PHONE
     private var hintJob: Job? = null
@@ -115,9 +126,8 @@ class RunViewModel @Inject constructor(private val tracker: RunTracker, private 
             tracker.watchStartRequests.collect { prepare(RunStartSpec.StartDevice.WATCH) }
         }
         viewModelScope.launch {
-            plan = records.todayPlan().getOrNull()?.let { PlanSnapshot(it.distance, it.pace) }
+            todayPlan = records.todayPlan().getOrNull()?.let { PlanSnapshot(it.distance, it.pace) }
             planLoaded = true
-            _state.update { it.copy(targetDistance = plan?.targetDistance, targetPace = plan?.targetPace) }
             prepare()
         }
     }
@@ -185,6 +195,9 @@ class RunViewModel @Inject constructor(private val tracker: RunTracker, private 
 
     private fun prepare(device: RunStartSpec.StartDevice = RunStartSpec.StartDevice.PHONE) {
         if (_state.value.phase != RunPhase.PREPARING || !planLoaded) return
+        val chosen = goals.current(todayPlan).plan
+        goal = chosen
+        _state.update { it.copy(targetDistance = chosen?.targetDistance, targetPace = chosen?.targetPace) }
         val startable = tracker.checkStartable()
         if (startable is Outcome.Failure) {
             // 권한·동의 없음은 RunTracker가 consentRequired를 참으로 두고 화면이 재동의 안내를 보인다(design-review.md M25).
@@ -200,7 +213,7 @@ class RunViewModel @Inject constructor(private val tracker: RunTracker, private 
 
     private fun startRun() {
         val spec =
-            RunStartSpec(mode = RunMode.FREE, cardKind = CardKind.FREE_RUN, startDevice = startDevice, todayPlan = plan)
+            RunStartSpec(mode = RunMode.FREE, cardKind = CardKind.FREE_RUN, startDevice = startDevice, todayPlan = goal)
         when (val started = tracker.startRun(spec)) {
             is Outcome.Success -> _state.update { it.copy(phase = RunPhase.RUNNING) }
 

@@ -74,7 +74,8 @@ import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.record.Dashboard
-import com.a207.runkk.app.domain.record.TodayPlan
+import com.a207.runkk.app.domain.run.FreeRunGoal
+import com.a207.runkk.app.domain.run.PlanSnapshot
 import java.time.LocalDate
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -322,19 +323,22 @@ private fun RunCard(state: HomeUiState, onModeSelected: (HomeRunMode) -> Unit, o
             modifier = Modifier.fillMaxWidth().semantics { contentDescription = modeDescription }
         )
         when (state.mode) {
-            HomeRunMode.FREE -> FreeRunPanel(state.todayPlan, onNavigate)
+            HomeRunMode.FREE -> FreeRunPanel(state.freeRunGoal, onNavigate)
             HomeRunMode.BATTLE -> BattleRunPanel(onNavigate)
         }
     }
 }
 
-/** 자유런 탭: 오늘 계획 칩과 시작 버튼. */
+/** 자유런 탭: 목표 칩(오늘 계획 또는 자유런 설정 목표)과 시작 버튼. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ColumnScope.FreeRunPanel(todayPlan: TodayPlan?, onNavigate: (String) -> Unit) {
+private fun ColumnScope.FreeRunPanel(goal: FreeRunGoal, onNavigate: (String) -> Unit) {
+    val plan = goal.plan
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
-            stringResource(R.string.home_free_plan_caption),
+            stringResource(
+                if (goal.isFromCoachPlan) R.string.home_free_plan_caption else R.string.home_free_settings_caption
+            ),
             style = RunkkTextStyles.Caption,
             color = RunkkColors.TextSecondary,
             modifier = Modifier.weight(1f)
@@ -348,13 +352,13 @@ private fun ColumnScope.FreeRunPanel(todayPlan: TodayPlan?, onNavigate: (String)
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         val resources = LocalContext.current.resources
-        val spoken = planChipsSpoken(resources, todayPlan)
-        planChips(resources, todayPlan).forEachIndexed { index, chip ->
+        val spoken = planChipsSpoken(resources, goal)
+        planChips(resources, plan).forEachIndexed { index, chip ->
             RunkkInfoChip(
                 label = chip,
-                isHighlighted = index == 0 && todayPlan?.distance != null,
+                isHighlighted = index == 0 && plan?.targetDistance != null,
                 isDisplay =
-                    index == 0 && todayPlan?.distance != null,
+                    index == 0 && plan?.targetDistance != null,
                 spoken = spoken.getOrNull(index)
             )
         }
@@ -389,36 +393,39 @@ private fun ColumnScope.BattleRunPanel(onNavigate: (String) -> Unit) {
     )
 }
 
-/** 오늘 계획 칩: 목표 거리(있으면 첫 칩), 목표 페이스. 계획이 없으면 "목표 없이 달리기". */
-internal fun planChips(res: Resources, plan: TodayPlan?): List<String> {
+/** 목표 칩: 목표 거리(있으면 첫 칩), 목표 페이스. 목표가 없으면 "목표 없이 달리기". */
+internal fun planChips(res: Resources, plan: PlanSnapshot?): List<String> {
     if (plan == null ||
-        (plan.distance == null && plan.pace == null)
+        (plan.targetDistance == null && plan.targetPace == null)
     ) {
         return listOf(res.getString(R.string.home_plan_none))
     }
     return listOfNotNull(
-        plan.distance?.let(RunkkFormat::targetLabel),
-        plan.pace?.let {
+        plan.targetDistance?.let(RunkkFormat::targetLabel),
+        plan.targetPace?.let {
             res.getString(R.string.home_plan_pace, RunkkFormat.pace(it))
         }
     )
 }
 
-/** 계획 칩 읽기 문구: "오늘 목표 5킬로미터", "목표 페이스 1킬로미터당 5분 30초"("5:30"이 시각으로 읽히지 않게). */
-internal fun planChipsSpoken(res: Resources, plan: TodayPlan?): List<String> {
+/**
+ * 목표 칩 읽기 문구: 오늘 계획이면 "오늘 목표 5킬로미터", 자유런 설정 목표면 "목표 3킬로미터",
+ * "목표 페이스 1킬로미터당 5분 30초"("5:30"이 시각으로 읽히지 않게).
+ */
+internal fun planChipsSpoken(res: Resources, goal: FreeRunGoal): List<String> {
+    val plan = goal.plan
     if (plan == null ||
-        (plan.distance == null && plan.pace == null)
+        (plan.targetDistance == null && plan.targetPace == null)
     ) {
         return listOf(res.getString(R.string.home_plan_none))
     }
+    val distanceText =
+        if (goal.isFromCoachPlan) R.string.home_plan_distance_spoken else R.string.home_goal_distance_spoken
     return listOfNotNull(
-        plan.distance?.let {
-            res.getString(
-                R.string.home_plan_distance_spoken,
-                RunkkFormat.spokenLabel(res, RunkkFormat.targetLabel(it))
-            )
+        plan.targetDistance?.let {
+            res.getString(distanceText, RunkkFormat.spokenLabel(res, RunkkFormat.targetLabel(it)))
         },
-        plan.pace?.let { res.getString(R.string.home_plan_pace_spoken, RunkkFormat.paceSpoken(res, it)) }
+        plan.targetPace?.let { res.getString(R.string.home_plan_pace_spoken, RunkkFormat.paceSpoken(res, it)) }
     )
 }
 
@@ -600,7 +607,7 @@ private fun HomeScreenPreview() {
                     weeklyAchievement = 0.6,
                     crew = Dashboard.CrewArea("새벽크루", 9, emptyMap(), "남산 3바퀴")
                 ),
-                todayPlan = TodayPlan(Distance(5_000), Pace(330)),
+                freeRunGoal = FreeRunGoal(PlanSnapshot(Distance(5_000), Pace(330)), isFromCoachPlan = true),
                 pendingCount = 1,
                 header = HomeHeader("달리는곰", "골드", 3, 1_250),
                 isHeaderLoading = false

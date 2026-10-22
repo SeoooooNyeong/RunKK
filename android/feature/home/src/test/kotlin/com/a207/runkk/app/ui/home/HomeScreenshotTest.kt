@@ -8,7 +8,8 @@ import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.domain.record.Dashboard
-import com.a207.runkk.app.domain.record.TodayPlan
+import com.a207.runkk.app.domain.run.FreeRunGoal
+import com.a207.runkk.app.domain.run.PlanSnapshot
 import java.time.LocalDate
 import org.junit.Rule
 import org.junit.Test
@@ -44,8 +45,26 @@ class HomeScreenshotTest {
                 isLoading = false,
                 today = today,
                 dashboard = dashboard,
-                todayPlan = TodayPlan(Distance(5_000), Pace(330)),
+                freeRunGoal = FreeRunGoal(PlanSnapshot(Distance(5_000), Pace(330)), isFromCoachPlan = true),
                 pendingCount = 1,
+                header = HomeHeader("달리는곰", "골드", 3, 1_250),
+                isHeaderLoading = false
+            ),
+            onModeSelected = {},
+            onNavigate = {},
+            onRetry = {}
+        )
+    }
+
+    /** 오늘 계획을 따르지 않을 때: 자유런 설정 목표(3km)와 "지난번 설정 그대로"(FR-048). */
+    @Test
+    fun homeFreeRunTarget() = compose.captureRunkkScreen("A5_home_free_run_target") {
+        HomeScreen(
+            HomeUiState(
+                isLoading = false,
+                today = today,
+                dashboard = dashboard,
+                freeRunGoal = FreeRunGoal(PlanSnapshot(Distance(3_000), null), isFromCoachPlan = false),
                 header = HomeHeader("달리는곰", "골드", 3, 1_250),
                 isHeaderLoading = false
             ),
