@@ -122,14 +122,15 @@ class RecordBattleViewModelTest {
     }
 
     @Test
-    fun `출처 줄에 공개 기록 기준과 추정 안내를 붙인다(FR-100)`() {
+    fun `출처 줄은 서버 sourceLabel을 그대로 쓰고 추정 안내만 붙인다(FR-100)`() {
         val isEstimated = CandidateUi.of(celebCandidates[1])
         assertEquals(
-            uiText(
-                R.string.battle_record_source_estimated,
-                uiText(R.string.battle_record_source_basis_label, "2024 춘천마라톤")
-            ),
+            uiText(R.string.battle_record_source_estimated, UiText.Plain("공개 기록 기준 · 2024 춘천마라톤")),
             sourceLine(isEstimated)
+        )
+        assertEquals(
+            UiText.Plain("공개 기록 기준 · 2025 서울마라톤"),
+            sourceLine(CandidateUi.of(celebCandidates[0]))
         )
         assertEquals(
             uiText(R.string.battle_record_source_basis),
