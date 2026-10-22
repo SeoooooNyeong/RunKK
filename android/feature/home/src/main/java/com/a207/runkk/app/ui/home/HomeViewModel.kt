@@ -15,6 +15,7 @@ import com.a207.runkk.app.domain.run.FreeRunGoal
 import com.a207.runkk.app.domain.run.FreeRunGoalUseCase
 import com.a207.runkk.app.domain.run.PendingRunRepository
 import com.a207.runkk.app.domain.run.PlanSnapshot
+import com.a207.runkk.app.domain.run.TodayPlanCache
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Clock
 import java.time.LocalDate
@@ -60,6 +61,8 @@ data class HomeUiState(
  * 돌아오면 다시 읽지 않아도 바로 바뀐다(FR-048).
  * 상단의 닉네임·티어·레벨은 AccountRepository.profile(SELF), 리워드 잔액은 AvatarRepository.avatar().balance에서 읽는다
  * (하이파이 HiHome 헤더. 5.1.2 표의 ui.home 의존에 domain.account·domain.avatar를 더했다).
+ * 오늘 계획을 읽으면 TodayPlanCache에도 알려 워치 시작 화면이 같은 계획을 보이게 한다(WatchHomeSync, FR-042).
+ * 읽지 못하면 알리지 않는다(통신 오류로 워치의 계획을 지우지 않게).
  */
 @HiltViewModel
 class HomeViewModel @Inject constructor(
@@ -68,6 +71,7 @@ class HomeViewModel @Inject constructor(
     private val account: AccountRepository,
     private val avatar: AvatarRepository,
     private val goals: FreeRunGoalUseCase,
+    private val todayPlans: TodayPlanCache,
     private val clock: Clock
 ) : ViewModel() {
     private val _state = MutableStateFlow(HomeUiState())
@@ -104,6 +108,7 @@ class HomeViewModel @Inject constructor(
             val myAvatar = wallet.await()
             val face = myAvatar?.faceKey?.let { avatar.faceLayers(it).getOrNull() }.orEmpty()
             todayPlan.value = planResult.getOrNull()?.let { PlanSnapshot(it.distance, it.pace) }
+            if (planResult is Outcome.Success) todayPlans.put(todayPlan.value)
             val header =
                 HomeHeader(
                     nickname = me?.displayName,

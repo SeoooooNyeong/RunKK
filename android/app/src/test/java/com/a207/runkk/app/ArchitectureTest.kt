@@ -213,9 +213,13 @@ class ArchitectureTest {
                 "ui.me" to CORE_UI + "domain.account",
                 "ui.notification" to CORE_UI + "domain.notification",
                 // core.model 추가: 시작 작업(AppStartup)이 UseCase·포트의 Outcome을 받아 실패를 기록한다.
+                // domain.run·domain.record 추가: 시작·로그인 때 오늘 계획을 읽어(RecordRepository.todayPlan) 워치 시작 화면을
+                // 맞춘다(TodayPlanCache·WatchHomeSync, FR-042). 설계서 5.1.2 표 app 행에는 아직 없다(갱신 요청).
                 "app" to
                     setOf(
                         "core.model",
+                        "domain.run",
+                        "domain.record",
                         "domain.sync",
                         "domain.account",
                         "domain.settings",
