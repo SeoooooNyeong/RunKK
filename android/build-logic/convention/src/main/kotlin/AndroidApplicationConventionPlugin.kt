@@ -47,6 +47,20 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
                         dimension = "env"
                     }
                 }
+                // 키스토어는 RUNKK_KEYSTORE_* 환경 변수로만 받는다(.gitlab-ci.yml, 저장소에 .jks 없음). 있으면 debug·release를 같은 키로
+                // 서명한다: 시험 APK를 덮어 설치할 수 있고, 카카오 키 해시가 고정되며, 폰·워치 앱이 같은 서명으로 짝지어진다.
+                // 없으면 debug는 기기의 디버그 키, release는 서명 없이 빌드된다.
+                val keystorePath = System.getenv("RUNKK_KEYSTORE_PATH")
+                if (!keystorePath.isNullOrBlank()) {
+                    val runkk = signingConfigs.create("runkk") {
+                        storeFile = file(keystorePath)
+                        storePassword = System.getenv("RUNKK_KEYSTORE_PASSWORD")
+                        keyAlias = System.getenv("RUNKK_KEY_ALIAS")
+                        keyPassword = System.getenv("RUNKK_KEY_PASSWORD")
+                    }
+                    buildTypes.getByName("debug").signingConfig = runkk
+                    buildTypes.getByName("release").signingConfig = runkk
+                }
             }
             dependencies {
                 add("testImplementation", libs.lib("junit"))
