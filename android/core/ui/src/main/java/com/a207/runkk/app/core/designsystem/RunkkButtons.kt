@@ -30,11 +30,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -93,7 +93,7 @@ fun RunkkPrimaryButton(
             .runkkPressScale(interaction)
             .clip(shape)
             .background(if (pressed) RunkkColors.LimePressed else RunkkColors.Lime)
-            .alpha(if (isEnabled) 1f else DISABLED_ALPHA)
+            .runkkDisabledAlpha(isEnabled)
             .clickable(
                 interactionSource = interaction,
                 indication = null,
@@ -211,7 +211,7 @@ private fun OutlineButton(
             .clip(shape)
             .background(if (pressed) RunkkColors.SurfacePressed else RunkkColors.Surface)
             .border(1.dp, if (pressed) RunkkColors.BorderHover else borderColor, shape)
-            .alpha(if (isEnabled) 1f else DISABLED_ALPHA)
+            .runkkDisabledAlpha(isEnabled)
             .clickable(
                 interactionSource = interaction,
                 indication = null,
@@ -263,7 +263,7 @@ fun RunkkPillButton(
                 .clip(shape)
                 .background(if (pressed) RunkkColors.SurfacePressed else RunkkColors.Surface)
                 .border(1.dp, if (pressed) RunkkColors.BorderHover else RunkkColors.BorderStrong, shape)
-                .alpha(if (isEnabled) 1f else DISABLED_ALPHA)
+                .runkkDisabledAlpha(isEnabled)
                 .padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -312,7 +312,7 @@ fun RunkkLimePillButton(
                 .heightIn(min = 40.dp)
                 .runkkPressScale(interaction)
                 // 꺼지면 배경까지 흐리게(alpha는 뒤에 오는 그리기에만 걸린다).
-                .alpha(if (isEnabled) 1f else DISABLED_ALPHA)
+                .runkkDisabledAlpha(isEnabled)
                 .clip(RoundedCornerShape(20.dp))
                 .background(RunkkColors.Lime)
                 .padding(horizontal = 16.dp),
@@ -487,6 +487,13 @@ fun RunkkTextLink(
 }
 
 private const val DISABLED_ALPHA = 0.4f
+
+/**
+ * 비활성 버튼을 흐리게 한다. Modifier.alpha는 1f이면 수정자 자체가 빠져 활성 전환 때 수정자 사슬 구조가 바뀌고,
+ * 그 첫 전환에서 버튼이 그려지지 않다가 눌러야 나타나는 결함이 있었다. graphicsLayer는 항상 같은 구조를 유지한다.
+ */
+private fun Modifier.runkkDisabledAlpha(isEnabled: Boolean): Modifier =
+    graphicsLayer { alpha = if (isEnabled) 1f else DISABLED_ALPHA }
 
 @Preview(name = "버튼", backgroundColor = 0xFF09090B, showBackground = true, widthDp = 390)
 @Composable
