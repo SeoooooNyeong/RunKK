@@ -1,23 +1,24 @@
-# Local MySQL + Redis for the develop profile (optional; the local profile needs nothing).
+# Local PostgreSQL + Redis for the develop profile (optional; the local profile needs nothing).
 #   docker compose up -d
-#   ./gradlew bootRun --args='--spring.profiles.active=develop'
+#   DB_PASSWORD=runkk ./gradlew bootRun --args='--spring.profiles.active=develop'
+#   (develop 프로필은 DB 비밀번호 기본값이 없다. PowerShell: $env:DB_PASSWORD='runkk'; ./gradlew bootRun ...)
 services:
-  mysql:
-    image: mysql:8.4
+  postgres:
+    image: postgres:17-alpine
     environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: runkk
-      MYSQL_USER: runkk
-      MYSQL_PASSWORD: runkk
+      POSTGRES_DB: runkk
+      POSTGRES_USER: runkk
+      POSTGRES_PASSWORD: runkk
+      TZ: Asia/Seoul
+      PGTZ: Asia/Seoul
     ports:
-      - "3306:3306"
-    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_0900_ai_ci
+      - "5432:5432"
     volumes:
-      - mysql-data:/var/lib/mysql
+      - postgres-data:/var/lib/postgresql/data
   redis:
     image: redis:8
     ports:
       - "6379:6379"
 
 volumes:
-  mysql-data:
+  postgres-data:

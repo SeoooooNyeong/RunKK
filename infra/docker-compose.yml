@@ -1,4 +1,5 @@
-# RunKK server stack: nginx -> api (Spring Boot) -> mysql / redis
+# RunKK server stack: nginx -> api (Spring Boot) -> postgres / redis, api -> ai (FastAPI)
+# Each container gets only the variables it needs (no env_file): ai sees only RUNKK_*, api never sees the LLM/face keys.
 # Usage (on the EC2 or locally):  cp .env.example .env  &&  ./deploy.sh
 name: runkk
 
@@ -24,11 +25,53 @@ services:
       context: ../backend
     image: runkk-api:latest
     restart: unless-stopped
-    env_file: .env
+    # backend/src/main/resources/application.yml이 읽는 값 + ai 연결(AI_SERVER_URL, RUNKK_INTERNAL_TOKEN)만 넘긴다
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
-      DB_HOST: mysql
+      SWAGGER_ENABLED: ${SWAGGER_ENABLED:-false}
+      DB_HOST: postgres
+      # postgres·redis는 내부 망에서 기본 포트로 고정한다(밖으로 열지 않으므로 바꿀 이유가 없다)
+      DB_PORT: "5432"
+      DB_NAME: ${DB_NAME:?set DB_NAME in .env}
+      DB_USER: ${DB_USER:?set DB_USER in .env}
+      DB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      # Hikari 최대 풀. 커밋 뒤 REQUIRES_NEW 수신자가 연결을 하나 더 쓰므로 10이면 크루런 동시 업로드에서 고갈된다(T-4). PostgreSQL max_connections(기본 100) 안에서
+      DB_POOL_SIZE: ${DB_POOL_SIZE:-50}
       REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      # redis 접속 비밀번호(redis 서비스 --requirepass와 같은 값). 내부 망 안에서도 다른 컨테이너의 무단 접근을 막는다
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}
+      # 매칭 대기열·대결 세션 저장소 redis|jdbc(D-07, Redis 장기 장애 때 jdbc), 실시간 방식 websocket|polling(D-57)
+      RUNKK_QUEUE: ${RUNKK_QUEUE:-redis}
+      RUNKK_LIVE: ${RUNKK_LIVE:-websocket}
+      AI_SERVER_URL: http://ai:8000
+      RUNKK_INTERNAL_TOKEN: ${RUNKK_INTERNAL_TOKEN:?set RUNKK_INTERNAL_TOKEN in .env}
+      # 회원 JWT 서명 키. 비우면 api가 기동마다 임의 키를 만들어 재시작 때 모든 토큰이 무효가 되므로 배포에서는 필수
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      # 관리툴 운영자 토큰 서명 키(D-42). JWT_SECRET과 달라야 하며(같으면 api가 기동을 멈춘다) 비우면 재시작 때마다 관리툴 재로그인
+      ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET:?set ADMIN_JWT_SECRET in .env}
+      # 첫 운영자 시드: 화이트리스트가 비었을 때만 한 번 넣고 감사 기록을 남긴다. 예) KAKAO:1234567890
+      RUNKK_BOOTSTRAP_OPERATORS: ${RUNKK_BOOTSTRAP_OPERATORS:-}
+      SCHEDULER_POOL_SIZE: ${SCHEDULER_POOL_SIZE:-16}
+      # 카카오·구글·Apple 로그인 같은 인증 요청의 클라이언트(IP)별 분당 상한
+      AUTH_CLIENT_REQUESTS_PER_MINUTE: ${AUTH_CLIENT_REQUESTS_PER_MINUTE:-30}
+      # 법정 고지 문서 주소. Spring은 빈 환경 변수도 값으로 보아 application.yml 기본값을 덮으므로 기본값을 서버 설정과 같게 둔다
+      LEGAL_TERMS_URL: ${LEGAL_TERMS_URL:-https://s15p31a207.p.ssafy.io/legal/terms}
+      LEGAL_PRIVACY_POLICY_URL: ${LEGAL_PRIVACY_POLICY_URL:-https://s15p31a207.p.ssafy.io/legal/privacy}
+      LEGAL_LOCATION_TERMS_URL: ${LEGAL_LOCATION_TERMS_URL:-https://s15p31a207.p.ssafy.io/legal/location}
+      LEGAL_HELP_URL: ${LEGAL_HELP_URL:-https://s15p31a207.p.ssafy.io/legal/help}
+      # 외부 연동. 비우면 그 연동만 꺼진다(카카오·구글 로그인 거부, 푸시는 로그만, 날씨 없이 저장)
+      KAKAO_APP_ID: ${KAKAO_APP_ID:-}
+      GOOGLE_CLIENT_IDS: ${GOOGLE_CLIENT_IDS:-}
+      FCM_PROJECT_ID: ${FCM_PROJECT_ID:-}
+      FCM_CREDENTIALS_FILE: ${FCM_CREDENTIALS_FILE:-}
+      KMA_SERVICE_KEY: ${KMA_SERVICE_KEY:-}
+    # FCM 서비스 계정 JSON은 infra/secrets/에 두고(커밋 금지) FCM_CREDENTIALS_FILE=/run/secrets/<파일명>으로 가리킨다
+    volumes:
+      - ./secrets:/run/secrets:ro
+    # 셀카 multipart 임시 파일이 디스크에 남지 않게 /tmp를 메모리에 둔다(5.4, D-59)
+    tmpfs:
+      - /tmp:size=64m,mode=1777
     expose:
       - "8080"
     healthcheck:
@@ -38,25 +81,24 @@ services:
       retries: 12
       start_period: 40s
     depends_on:
-      mysql:
+      postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
 
-  mysql:
-    image: mysql:8.4
+  postgres:
+    image: postgres:17-alpine
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
-      MYSQL_DATABASE: ${DB_NAME}
-      MYSQL_USER: ${DB_USER}
-      MYSQL_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME:?set DB_NAME in .env}
+      POSTGRES_USER: ${DB_USER:?set DB_USER in .env}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
       TZ: Asia/Seoul
-    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_0900_ai_ci
+      PGTZ: Asia/Seoul
     volumes:
-      - mysql-data:/var/lib/mysql
+      - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD}"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -64,14 +106,59 @@ services:
   redis:
     image: redis:8
     restart: unless-stopped
-    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}
+    # 비밀번호를 명령줄에 풀어 쓰지 않고 컨테이너 안에서 환경 변수로 읽는다(공백·특수문자가 있어도 안전)
+    command: ["sh", "-c", 'exec redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru --requirepass "$$REDIS_PASSWORD"']
     volumes:
       - redis-data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", 'redis-cli -a "$$REDIS_PASSWORD" --no-auth-warning ping | grep -q PONG']
       interval: 10s
       timeout: 5s
       retries: 10
+
+  # ai 서버(FastAPI). 외부 포트 없이 api만 내부 망으로 부른다(D-23). 셀카는 메모리에서만 다루므로 루트는 읽기 전용, /tmp만 tmpfs.
+  # api는 depends_on으로 묶지 않는다: ai가 내려가도 api는 규칙 문구로 대체한다(D-58).
+  ai:
+    build:
+      context: ../ai
+    image: runkk-ai:latest
+    restart: unless-stopped
+    # ai Settings가 읽는 RUNKK_*만 넘긴다(M1). 빈 값은 ai가 기본값으로 본다(env_ignore_empty)
+    environment:
+      RUNKK_INTERNAL_TOKEN: ${RUNKK_INTERNAL_TOKEN:?set RUNKK_INTERNAL_TOKEN in .env}
+      RUNKK_LLM_PROVIDER: ${RUNKK_LLM_PROVIDER:-}
+      RUNKK_LLM_MODEL: ${RUNKK_LLM_MODEL:-}
+      RUNKK_LLM_TIMEOUT_S: ${RUNKK_LLM_TIMEOUT_S:-}
+      RUNKK_LLM_MAX_TOKENS: ${RUNKK_LLM_MAX_TOKENS:-}
+      RUNKK_LLM_DAILY_HARD_CAP: ${RUNKK_LLM_DAILY_HARD_CAP:-}
+      RUNKK_ANTHROPIC_API_KEY: ${RUNKK_ANTHROPIC_API_KEY:-}
+      # Anthropic SDK가 직접 읽는 주소(SSAFY GMS 같은 호환 프록시). 빈 문자열이면 SDK가 그대로 써서 깨지므로 기본값을 둔다
+      ANTHROPIC_BASE_URL: ${RUNKK_ANTHROPIC_BASE_URL:-https://api.anthropic.com}
+      RUNKK_OPENAI_API_KEY: ${RUNKK_OPENAI_API_KEY:-}
+      RUNKK_FACE_IMPL: ${RUNKK_FACE_IMPL:-}
+      RUNKK_FACE_TIMEOUT_S: ${RUNKK_FACE_TIMEOUT_S:-}
+      RUNKK_FACE_API_URL: ${RUNKK_FACE_API_URL:-}
+      RUNKK_FACE_API_KEY: ${RUNKK_FACE_API_KEY:-}
+      RUNKK_MAX_IMAGE_BYTES: ${RUNKK_MAX_IMAGE_BYTES:-}
+      RUNKK_MAX_IMAGE_PIXELS: ${RUNKK_MAX_IMAGE_PIXELS:-}
+      RUNKK_EXPOSE_DOCS: ${RUNKK_EXPOSE_DOCS:-}
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 512m  # 같은 EC2의 postgres·redis·api를 지킨다. 외부 API 중계라 여유가 크다
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 10s
 
   # Runs only when you ask for it:  docker compose run --rm certbot certonly ...
   certbot:
@@ -82,7 +169,7 @@ services:
       - letsencrypt:/etc/letsencrypt
 
 volumes:
-  mysql-data:
+  postgres-data:
   redis-data:
   certbot-www:
   letsencrypt:

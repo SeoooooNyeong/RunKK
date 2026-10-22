@@ -1,0 +1,20 @@
+{
+  "endpoint": "POST /comments",
+  "scenario": "ok",
+  "request": {
+    "json": {
+      "averageScore": 42.5,
+      "distanceChangeMeters": 1200,
+      "paceChangeSeconds": -8,
+      "frequentDay": "SATURDAY",
+      "frequentHourBand": 2,
+      "runCount": 10,
+      "memberId": 7
+    }
+  },
+  "status": 422,
+  "body": {
+    "reason": "INVALID_REQUEST"
+  },
+  "gateway": "Optional.empty()"
+}

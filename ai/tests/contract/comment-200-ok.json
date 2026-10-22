@@ -1,0 +1,19 @@
+{
+  "endpoint": "POST /comments",
+  "scenario": "ok",
+  "request": {
+    "json": {
+      "averageScore": 42.5,
+      "distanceChangeMeters": 1200,
+      "paceChangeSeconds": -8,
+      "frequentDay": "SATURDAY",
+      "frequentHourBand": 2,
+      "runCount": 10
+    }
+  },
+  "status": 200,
+  "body": {
+    "text": "꾸준히 늘고 있어요. 이번 주도 토요일 아침에 달려 봐요!"
+  },
+  "gateway": "Optional.of(Comment(text))"
+}

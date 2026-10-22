@@ -1,0 +1,12 @@
+{
+  "endpoint": "POST /faces",
+  "scenario": "reason:TOO_LARGE",
+  "request": {
+    "image": "jpeg"
+  },
+  "status": 422,
+  "body": {
+    "reason": "TOO_LARGE"
+  },
+  "gateway": "FailureReason.TOO_LARGE"
+}

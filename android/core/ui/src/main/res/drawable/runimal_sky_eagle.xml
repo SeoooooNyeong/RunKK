@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 러니멀 그림: sky_eagle. 단순 플랫 그림, 뷰포트 120x120. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp"
+    android:height="120dp"
+    android:viewportWidth="120"
+    android:viewportHeight="120">
+    <path
+        android:fillColor="#A3BD22"
+        android:pathData="M32,60 C22,50 12,42 2,42 L10,52 L1,58 L11,64 L3,72 L14,76 L8,86 L32,86ZM88,60C98,50 108,42 118,42L110,52L119,58L109,64L117,72L106,76L112,86L88,86Z" />
+    <path
+        android:fillColor="#A3BD22"
+        android:pathData="M44,40 L46,22 L54,34 L60,18 L66,34 L74,22 L76,40Z" />
+    <path
+        android:fillColor="#CBEA2B"
+        android:pathData="M26,66a34,34 0 1,0 68,0a34,34 0 1,0 -68,0Z" />
+    <path
+        android:fillColor="#09090B"
+        android:pathData="M42.4,64a4.6,4.6 0 1,0 9.2,0a4.6,4.6 0 1,0 -9.2,0ZM68.4,64a4.6,4.6 0 1,0 9.2,0a4.6,4.6 0 1,0 -9.2,0Z" />
+    <path
+        android:fillColor="#FAFAFA"
+        android:pathData="M47,62.4a1.5,1.5 0 1,0 3,0a1.5,1.5 0 1,0 -3,0ZM73,62.4a1.5,1.5 0 1,0 3,0a1.5,1.5 0 1,0 -3,0Z" />
+    <path
+        android:pathData="M38,53 L54,59 M82,53 L66,59"
+        android:strokeWidth="4"
+        android:strokeColor="#09090B"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:fillColor="#FAFAFA"
+        android:pathData="M49,72 C52,67 68,67 71,72 C73,80 67,88 60,96 C60,90 56,86 51,81 C49,79 48,75 49,72Z" />
+</vector>

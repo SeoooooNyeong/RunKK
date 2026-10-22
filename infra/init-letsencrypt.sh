@@ -12,4 +12,5 @@ docker compose --env-file .env run --rm certbot certonly --webroot -w /var/www/c
 cp nginx/https.conf.template nginx/templates/default.conf.template
 docker compose --env-file .env restart nginx
 echo "HTTPS enabled for https://$SERVER_NAME"
-echo "Renewal (add to crontab, weekly): docker compose -f $(pwd)/docker-compose.yml --env-file $(pwd)/.env run --rm certbot renew && docker compose -f $(pwd)/docker-compose.yml restart nginx"
+# 갱신은 작업 폴더에 묶지 않는다(CI 작업 폴더는 배포마다 새로 받고 .env를 지운다). compose 프로젝트 이름(runkk)의 볼륨과 컨테이너를 직접 쓴다
+echo "Renewal (add to crontab, weekly): docker run --rm -v runkk_certbot-www:/var/www/certbot -v runkk_letsencrypt:/etc/letsencrypt certbot/certbot renew -q && docker exec runkk-nginx-1 nginx -s reload"

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 러니멀 그림: strolling_cat. 단순 플랫 그림, 뷰포트 120x120. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp"
+    android:height="120dp"
+    android:viewportWidth="120"
+    android:viewportHeight="120">
+    <path
+        android:fillColor="#CBEA2B"
+        android:pathData="M26,56L28,18L56,38ZM94,56L92,18L64,38Z" />
+    <path
+        android:fillColor="#A3BD22"
+        android:pathData="M32,46L33,28L47,39ZM88,46L87,28L73,39Z" />
+    <path
+        android:fillColor="#CBEA2B"
+        android:pathData="M24,66a36,36 0 1,0 72,0a36,36 0 1,0 -72,0Z" />
+    <path
+        android:pathData="M53,33 V41 M60,31 V43 M67,33 V41"
+        android:strokeWidth="3.4"
+        android:strokeColor="#A3BD22"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:fillColor="#09090B"
+        android:pathData="M41.4,64a4.6,4.6 0 1,0 9.2,0a4.6,4.6 0 1,0 -9.2,0ZM69.4,64a4.6,4.6 0 1,0 9.2,0a4.6,4.6 0 1,0 -9.2,0Z" />
+    <path
+        android:fillColor="#FAFAFA"
+        android:pathData="M46,62.4a1.5,1.5 0 1,0 3,0a1.5,1.5 0 1,0 -3,0ZM74,62.4a1.5,1.5 0 1,0 3,0a1.5,1.5 0 1,0 -3,0Z" />
+    <path
+        android:fillColor="#09090B"
+        android:pathData="M55,74 H65 L60,79.5Z" />
+    <path
+        android:pathData="M60,79 Q60,85 54,84 M60,79 Q60,85 66,84"
+        android:strokeWidth="2.2"
+        android:strokeColor="#09090B"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M30,74 L10,70 M31,81 L11,84 M90,74 L110,70 M89,81 L109,84"
+        android:strokeWidth="2.2"
+        android:strokeColor="#09090B"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

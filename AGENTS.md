@@ -4,9 +4,9 @@ Claude Code와 Codex가 공통으로 읽는 규칙이다. Claude Code는 `CLAUDE
 
 ## 프로젝트
 
-- 러닝 앱. `backend/` Spring Boot 4.1 (Java 25, Gradle Kotlin DSL, MySQL 8.4, Redis 8), `android/` Kotlin 2.4 + Jetpack Compose + Hilt (minSdk 26, targetSdk 36, compileSdk 37), `infra/` Docker Compose(nginx, api, mysql, redis), `ai/` Python 3.13 FastAPI(예정, 일정표 WBS 2.14).
+- 러닝 앱. `backend/` Spring Boot 3.5 (Java 21, Gradle Kotlin DSL, PostgreSQL 17, Redis 8), `android/` Kotlin 2.4 + Jetpack Compose + Hilt (minSdk 26, targetSdk 36, compileSdk 37), `infra/` Docker Compose(nginx, api, postgres, redis, ai), `ai/` Python 3.12 FastAPI(uv, ruff, pytest, import-linter).
 - 문서 위치: 요구사항·설계·일정은 팀 위키(AppFlowy), 코드 규칙은 위키 **컨벤션 > Code Convention** (원본 md는 GitHub/자율/자율프로젝트_코드컨벤션.md), 개발 사이클은 위키 **컨벤션 > 런크크 개발 사이클 (ECC 하네스)** (원본 md는 GitHub/자율/자율프로젝트_개발사이클.md), 서버 인프라는 `infra/README.md`, 첫 안내는 `docs/ONBOARDING.md`.
-- Spring Boot 4 주의: Security 7은 람다 DSL만, springdoc은 3.x. Boot 3.x 예제를 그대로 복사하면 컴파일되지 않는다.
+- Spring Boot 3.5 기준: Security 6.x는 람다 DSL만 쓴다(체인 방식 `http.csrf().disable()`은 제거됨), springdoc은 2.x. 서버 설계서(design-oo) D-01이 Java 21 + Spring Boot 3을 정한다.
 
 ## 명령 (검증은 항상 이 명령으로)
 
@@ -14,8 +14,9 @@ Claude Code와 Codex가 공통으로 읽는 규칙이다. Claude Code는 `CLAUDE
 |---|---|---|---|
 | backend | `./gradlew spotlessApply` | `./gradlew build` (check에 spotlessCheck·test 포함) | `./gradlew bootRun` (local 프로필, 설치 없이 뜸) |
 | android | `./gradlew ktlintFormat` | `./gradlew ktlintCheck lintLocalDebug testLocalDebugUnitTest` | `./gradlew assembleLocalDebug` 후 에뮬레이터 설치 |
+| ai | `cd ai && uv run ruff format .` | `uv run ruff check . && uv run lint-imports && uv run mypy && uv run pytest` | `uv run uvicorn --factory runkk_ai.main:create_app` (`RUNKK_INTERNAL_TOKEN` 필요, ai/README.md) |
 
-JDK는 Gradle이 foojay로 25를 내려받는다. 로컬에는 JDK 17 이상만 있으면 된다. Android SDK Platform 37이 필요하다.
+JDK는 Gradle이 foojay로 21을 내려받는다. 로컬에는 JDK 17 이상만 있으면 된다. Android SDK Platform 37이 필요하다.
 
 ## 작업 사이클 (상세: 위키 컨벤션 > 런크크 개발 사이클)
 

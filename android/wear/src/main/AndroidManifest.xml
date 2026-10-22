@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-feature android:name="android.hardware.type.watch" />
+
+    <!-- 심박(FR-041). API 36(Wear OS 6)부터는 health.READ_HEART_RATE, 그 전에는 BODY_SENSORS. 런타임에 사용자가 허용할 때만 받는다. -->
+    <uses-permission
+        android:name="android.permission.BODY_SENSORS"
+        android:maxSdkVersion="35" />
+    <uses-permission android:name="android.permission.health.READ_HEART_RATE" />
+    <!-- 수집 중 포그라운드 서비스(타입 health)와 Ongoing Activity 알림. 프로세스가 죽으면 폰의 수집 금지 플래그를 못 받는다(NFR-023). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_HEALTH" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <application
+        android:name="com.a207.runkk.watch.ui.RunkkWatchApp"
+        android:allowBackup="false"
+        android:icon="@drawable/ic_launcher"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@android:style/Theme.DeviceDefault">
+        <!-- 폰 앱이 있어야 동작한다(측정·기록은 폰, C-002). -->
+        <meta-data
+            android:name="com.google.android.wearable.standalone"
+            android:value="false" />
+
+        <activity
+            android:name="com.a207.runkk.watch.ui.WatchActivity"
+            android:exported="true"
+            android:taskAffinity="">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- 심박을 모으는 동안만 띄운다(CollectionForegroundKeeper). -->
+        <service
+            android:name="com.a207.runkk.watch.ui.HeartRateCollectionService"
+            android:exported="false"
+            android:foregroundServiceType="health" />
+
+        <!-- 폰 메시지. 프로세스가 죽어 있어도 받으며, 뜬 프로세스는 남은 운동 세션부터 끝낸다(D-20, NFR-023). -->
+        <service
+            android:name="com.a207.runkk.watch.link.PhoneMessageService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.MESSAGE_RECEIVED" />
+                <data
+                    android:host="*"
+                    android:pathPrefix="/runkk/"
+                    android:scheme="wear" />
+            </intent-filter>
+        </service>
+    </application>
+
+</manifest>
