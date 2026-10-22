@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.a207.runkk.app.core.designsystem.RunimalTypeLabel
 import com.a207.runkk.app.core.designsystem.RunkkAccentOutlinedButton
 import com.a207.runkk.app.core.designsystem.RunkkBadge
 import com.a207.runkk.app.core.designsystem.RunkkBadgeTone
@@ -800,17 +801,33 @@ internal fun MemberRow(member: CrewMembers.Member, trailing: (@Composable () -> 
                     )
                     if (member.isMe) RunkkBadge(stringResource(R.string.crew_member_me), tone = RunkkBadgeTone.Neutral)
                 }
-                Text(
-                    listOfNotNull(member.tier, member.runimalType).joinToString(" · ").ifEmpty {
-                        stringResource(R.string.crew_member_profile_private)
-                    },
-                    style = RunkkTextStyles.Caption,
-                    color = RunkkColors.TextSecondary
-                )
+                MemberTierAndRunimal(member)
                 member.crewIntro?.let { Text(it, style = RunkkTextStyles.Caption, color = RunkkColors.TextPrimary) }
             }
             trailing?.invoke()
         }
+    }
+}
+
+/** 등급 · 러니멀 유형(한국어 이름과 작은 그림). 둘 다 비공개면 "프로필 비공개". */
+@Composable
+private fun MemberTierAndRunimal(member: CrewMembers.Member) {
+    val tier = member.tier?.takeIf { it.isNotBlank() }
+    val type = member.runimalType?.takeIf { it.isNotBlank() }
+    if (tier == null && type == null) {
+        Text(
+            stringResource(R.string.crew_member_profile_private),
+            style = RunkkTextStyles.Caption,
+            color = RunkkColors.TextSecondary
+        )
+        return
+    }
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        if (tier != null) Text(tier, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
+        if (tier != null && type != null) {
+            Text("·", style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
+        }
+        if (type != null) RunimalTypeLabel(type)
     }
 }
 

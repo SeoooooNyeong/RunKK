@@ -140,8 +140,8 @@ val crewC = CrewList.Item(
 
 val members = CrewMembers(
     listOf(
-        CrewMembers.Member(1, "바람처럼", CrewRole.LEADER, "매일 새벽 5시", "골드", "아침 참새"),
-        CrewMembers.Member(2, "달빛", CrewRole.MEMBER, null, "실버", "고독한 늑대"),
+        CrewMembers.Member(1, "바람처럼", CrewRole.LEADER, "매일 새벽 5시", "골드", "MORNING_SPARROW"),
+        CrewMembers.Member(2, "달빛", CrewRole.MEMBER, null, "실버", "LONE_WOLF"),
         CrewMembers.Member(3, "비공개러너", CrewRole.MEMBER, "반가워요", null, null)
     )
 )

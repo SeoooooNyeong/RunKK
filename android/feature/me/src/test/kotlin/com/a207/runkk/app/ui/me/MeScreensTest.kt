@@ -50,6 +50,41 @@ class MeScreensTest {
     }
 
     @Test
+    fun `프로필 러니멀 칸은 한국어 유형 이름을 보이고 enum 이름은 없다`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                MeScreen(
+                    MeUiState(isLoading = false, profile = sampleProfile.copy(runimalType = "MORNING_SPARROW")),
+                    onNavigate = {},
+                    onRetry = {},
+                    onLogout = {}
+                )
+            }
+        }
+        compose.onNodeWithText("아침 참새").assertExists()
+        compose.onNodeWithText("MORNING_SPARROW").assertDoesNotExist()
+    }
+
+    @Test
+    fun `프로필 러니멀 칸 - 모르는 값은 알 수 없는 유형, 없으면 판정 전`() {
+        var type by mutableStateOf<String?>("CHEETAH")
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                MeScreen(
+                    MeUiState(isLoading = false, profile = sampleProfile.copy(runimalType = type)),
+                    onNavigate = {},
+                    onRetry = {},
+                    onLogout = {}
+                )
+            }
+        }
+        compose.onNodeWithText("알 수 없는 유형").assertExists()
+        compose.onNodeWithText("CHEETAH").assertDoesNotExist()
+        compose.runOnIdle { type = null }
+        compose.onNodeWithText("판정 전").assertExists()
+    }
+
+    @Test
     fun `마이 프로필은 입력한 나이대·성별을 보이고 밝히지 않음은 뺀다(FR-006)`() {
         val res = RuntimeEnvironment.getApplication().resources
         assertEquals(

@@ -11,4 +11,5 @@
     <string name="share_card_stat_time">시간</string>
     <string name="share_card_stat_pace">평균 페이스</string>
     <string name="share_card_no_course">코스 기록 없음</string>
+    <string name="share_card_runimal_label">MY 러니멀</string>
 </resources>

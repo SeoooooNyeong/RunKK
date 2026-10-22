@@ -17,7 +17,7 @@
     <string name="me_menu_coach">목표·러닝 코치</string>
     <string name="me_menu_battle_history">함께 달린 기록</string>
     <string name="me_menu_section_character">캐릭터</string>
-    <string name="me_menu_runimal">MY Runimal</string>
+    <string name="me_menu_runimal">MY 러니멀</string>
     <string name="me_menu_avatar">아바타 꾸미기</string>
     <string name="me_menu_shop">상점</string>
     <string name="me_menu_section_settings">설정</string>
@@ -29,7 +29,7 @@
     <string name="me_profile_default_tier">언랭</string>
     <string name="me_profile_level">Lv.%1$s</string>
     <string name="me_profile_edit">편집</string>
-    <string name="me_profile_runimal">Runimal</string>
+    <string name="me_profile_runimal">러니멀</string>
     <string name="me_profile_runimal_unknown">판정 전</string>
     <string name="me_profile_longest">최장 거리</string>
     <string name="me_profile_longest_value">%1$s km</string>
