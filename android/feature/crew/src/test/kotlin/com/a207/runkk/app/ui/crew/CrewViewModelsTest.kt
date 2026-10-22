@@ -1,3 +1,5 @@
+@file:OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+
 package com.a207.runkk.app.ui.crew
 
 import app.cash.turbine.test
@@ -5,18 +7,22 @@ import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.uiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.ServerClock
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.crew.CrewRanking
 import com.a207.runkk.app.domain.crew.CrewRole
 import com.a207.runkk.app.domain.crew.JoinPolicy
+import com.a207.runkk.app.domain.crew.LobbyAvailability
 import com.a207.runkk.app.domain.crew.MyCrew
 import com.a207.runkk.app.domain.crew.VoteAnswer
+import java.time.Instant
 import java.time.LocalTime
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
@@ -228,8 +234,38 @@ class CrewHomeViewModelTest {
     @get:Rule
     val main = MainDispatcherRule()
     private val repo = FakeCrewRepository()
+    private val clock = MutableClock()
+    private val serverClock = ServerClock(clock)
 
-    private fun vm() = CrewHomeViewModel(repo).also { it.bind(Routes.CrewHome(11)) }
+    private fun vm() = CrewHomeViewModel(repo, serverClock).also { it.bind(Routes.CrewHome(11)) }
+
+    /** 모집글 31(투표 중) 모집 일시에서 [minutes]분 앞. */
+    private fun beforeMeet(minutes: Long): Instant = crewRunVoting.scheduledAt.minusSeconds(minutes * 60)
+
+    @Test
+    fun `크루런 대기실 단추 - 열리기 전엔 남은 분, 30분 전에 저절로 열리고, 모집 일시가 지나면 닫힌다(FR-133·FR-147)`() = main.runVmTest { vms ->
+        clock.now = beforeMeet(40)
+        val vm = vms.track(vm())
+        vm.onTab(CrewTab.CREW_RUN)
+        assertEquals(LobbyAvailability.NotYet(10), vm.state.value.lobbyEntries[31])
+        assertEquals(LobbyAvailability.Closed, vm.state.value.lobbyEntries[32], "끝난 크루런")
+        clock.now = beforeMeet(30)
+        advanceTimeBy(1_100)
+        assertEquals(LobbyAvailability.Open, vm.state.value.lobbyEntries[31], "다시 읽지 않아도 시각이 되면 연다")
+        clock.now = beforeMeet(0)
+        advanceTimeBy(1_100)
+        assertEquals(LobbyAvailability.Closed, vm.state.value.lobbyEntries[31])
+    }
+
+    @Test
+    fun `크루런 대기실 단추는 기기 시계가 아니라 서버 시각으로 판단한다`() = main.runVmTest { vms ->
+        // 기기 시계가 2분 빠르다: 기기로는 29분 전이지만 서버로는 31분 전이라 아직 안 열렸다.
+        clock.now = beforeMeet(29)
+        serverClock.onServerDate(beforeMeet(31))
+        val vm = vms.track(vm())
+        vm.onTab(CrewTab.CREW_RUN)
+        assertEquals(LobbyAvailability.NotYet(1), vm.state.value.lobbyEntries[31])
+    }
 
     @Test
     fun `크루 이름·인원·역할은 크루 조회로 읽고 크루 관리는 크루장에게만 연다`() {
@@ -238,7 +274,7 @@ class CrewHomeViewModelTest {
         assertEquals(6, member.state.value.detail?.headcount)
         assertFalse(member.state.value.canManage)
         repo.role = CrewRole.LEADER
-        val leader = CrewHomeViewModel(repo).also { it.bind(Routes.CrewHome(11)) }
+        val leader = CrewHomeViewModel(repo, serverClock).also { it.bind(Routes.CrewHome(11)) }
         assertTrue(leader.state.value.canManage)
     }
 

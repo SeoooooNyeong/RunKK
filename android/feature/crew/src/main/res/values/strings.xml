@@ -131,7 +131,10 @@
     <string name="crew_home_run_my_going">내 응답: 갈래요</string>
     <string name="crew_home_run_my_not_going">내 응답: 못 가요</string>
     <string name="crew_home_run_lobby">대기실 들어가기</string>
-    <string name="crew_home_run_lobby_description">대기실 들어가기, %1$s</string>
+    <string name="crew_home_run_lobby_description">%1$s, %2$s</string>
+    <string name="crew_home_run_lobby_opens_in">대기실 %1$d분 뒤 열려요</string>
+    <string name="crew_home_run_lobby_opens_before">대기실은 시작 30분 전에 열려요</string>
+    <string name="crew_home_run_lobby_closed">대기실이 닫혔어요</string>
     <string name="crew_home_run_result">지난 결과</string>
     <string name="crew_home_run_result_description">지난 결과, %1$s</string>
     <string name="crew_home_vote_selected">선택됨</string>
@@ -190,6 +193,7 @@
     <string name="crew_run_cancelled">크루런이 취소됐어요</string>
     <string name="crew_run_cancelled_with_reason">크루런이 취소됐어요 · %1$s</string>
     <string name="crew_run_cancelled_back">돌아가기</string>
+    <string name="crew_run_back">뒤로</string>
     <string name="crew_run_quit_tap_label">그만두기 안내</string>
     <string name="crew_run_quit_description">크루런 그만두기</string>
     <string name="crew_run_lobby_notice">시간이 되면 3초 카운트다운 뒤 다 같이 출발해요. 위치는 공유되지 않고 달린 거리만 보여요. 1km마다 순위를 음성으로 알려 줘요.</string>

@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -17,10 +18,14 @@ import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performTouchInput
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkTheme
+import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.testing.RUNKK_PHONE
 import com.a207.runkk.app.core.designsystem.testing.captureRunkkScreen
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.domain.crew.CrewRanking
+import com.a207.runkk.app.domain.crew.CrewRunStatus
+import com.a207.runkk.app.domain.crew.LobbyAvailability
+import com.a207.runkk.app.domain.crew.PostList
 import com.a207.runkk.app.domain.crew.VoteAnswer
 import java.time.Duration
 import java.time.LocalDate
@@ -177,7 +182,8 @@ class CrewScreensTest {
                         crewId = 11,
                         detail = crewDetail(),
                         tab = CrewTab.CREW_RUN,
-                        crewRuns = crewRunPosts
+                        crewRuns = crewRunPosts,
+                        lobbyEntries = mapOf(31L to LobbyAvailability.Open, 32L to LobbyAvailability.Closed)
                     ),
                     CrewHomeActions(
                         onVote = { post, answer -> calls += "${post.postId}:$answer" },
@@ -196,6 +202,94 @@ class CrewScreensTest {
         compose.onNodeWithText("내 응답: 갈래요").assertExists()
         compose.onNodeWithText("지난 결과").performClick()
         assertEquals(listOf("31:${VoteAnswer.GOING}", "lobby:31", "result:32"), calls)
+    }
+
+    private fun showCrewRuns(entry: LobbyAvailability, status: CrewRunStatus = CrewRunStatus.VOTING) {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                CrewHomeScreen(
+                    CrewHomeUiState(
+                        crewId = 11,
+                        detail = crewDetail(),
+                        tab = CrewTab.CREW_RUN,
+                        crewRuns = PostList(
+                            listOf(
+                                crewRunPosts.posts[0].copy(crewRun = crewRunVoting.copy(status = status))
+                            )
+                        ),
+                        lobbyEntries = mapOf(31L to entry)
+                    ),
+                    CrewHomeActions(onLobby = { calls += "lobby:${it.postId}" })
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `크루런 탭 - 대기실이 열리기 전에는 남은 분을 보이고 누를 수 없다(FR-133)`() {
+        showCrewRuns(LobbyAvailability.NotYet(10))
+        compose.onNodeWithText("대기실 들어가기").assertDoesNotExist()
+        compose.onNodeWithText("대기실 10분 뒤 열려요").assertIsNotEnabled().performClick()
+        assertEquals(emptyList(), calls)
+    }
+
+    @Test
+    fun `크루런 탭 - 한 시간보다 많이 남았으면 30분 전에 열린다고 안내한다`() {
+        showCrewRuns(LobbyAvailability.NotYet(61))
+        compose.onNodeWithText("대기실은 시작 30분 전에 열려요").assertIsNotEnabled()
+    }
+
+    @Test
+    fun `크루런 탭 - 30분 전부터는 대기실에 들어간다`() {
+        showCrewRuns(LobbyAvailability.Open, CrewRunStatus.LOBBY_OPEN)
+        compose.onNodeWithText("대기실 들어가기").assertIsEnabled().performClick()
+        assertEquals(listOf("lobby:31"), calls)
+    }
+
+    @Test
+    fun `크루런 탭 - 모집 일시가 지났으면 대기실이 닫혔다고 보이고 누를 수 없다`() {
+        showCrewRuns(LobbyAvailability.Closed, CrewRunStatus.RUNNING)
+        compose.onNodeWithText("대기실 들어가기").assertDoesNotExist()
+        compose.onNodeWithText("대기실이 닫혔어요").assertIsNotEnabled().performClick()
+        assertEquals(emptyList(), calls)
+    }
+
+    @Test
+    fun `크루런 대기실 - 열리지 않아 못 들어가면 돌아가기·뒤로 단추·시스템 뒤로 가기로 나간다`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                CrewRunScreen(
+                    CrewRunUiState(
+                        postId = 31,
+                        error = UiText.Res(R.string.crew_error_lobby_not_open),
+                        canRetry = false
+                    ),
+                    CrewRunActions(onBack = { calls += "back" }, onRefresh = { calls += "retry" })
+                )
+            }
+        }
+        compose.onNodeWithText("대기실은 시작 30분 전부터 시작 시각까지만 열려요").assertExists()
+        compose.onNodeWithText("다시 시도").assertDoesNotExist()
+        compose.onNodeWithText("돌아가기").performClick()
+        compose.onNodeWithContentDescription("뒤로").performClick()
+        androidx.test.espresso.Espresso.pressBack()
+        compose.waitForIdle()
+        assertEquals(listOf("back", "back", "back"), calls)
+    }
+
+    @Test
+    fun `크루런 대기실 - 네트워크 오류면 다시 시도와 뒤로 단추를 함께 준다`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                CrewRunScreen(
+                    CrewRunUiState(postId = 31, error = UiText.Res(R.string.crew_run_lobby_until_checking)),
+                    CrewRunActions(onBack = { calls += "back" }, onRefresh = { calls += "retry" })
+                )
+            }
+        }
+        compose.onNodeWithText("다시 시도").performClick()
+        compose.onNodeWithContentDescription("뒤로").performClick()
+        assertEquals(listOf("retry", "back"), calls)
     }
 
     private fun androidx.compose.ui.test.junit4.ComposeContentTestRule.onAllNodesWithTextFirst(text: String) =
@@ -302,6 +396,7 @@ class CrewScreenshotTest {
                 if (it.postId == 31L) it.copy(crewRun = it.crewRun?.copy(myAnswer = VoteAnswer.GOING)) else it
             }
         ),
+        lobbyEntries = mapOf(31L to LobbyAvailability.of(crewRunVoting, start)),
         cheers = cheers,
         members = members.copy(members = members.members.map { if (it.memberId == 2L) it.copy(isMe = true) else it })
     )

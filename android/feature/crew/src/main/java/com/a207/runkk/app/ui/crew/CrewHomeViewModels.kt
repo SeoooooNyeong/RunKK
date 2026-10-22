@@ -6,11 +6,13 @@ import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.uiText
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.core.model.ServerClock
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.crew.CrewDetail
 import com.a207.runkk.app.domain.crew.CrewMembers
 import com.a207.runkk.app.domain.crew.CrewRanking
 import com.a207.runkk.app.domain.crew.CrewRepository
+import com.a207.runkk.app.domain.crew.LobbyAvailability
 import com.a207.runkk.app.domain.crew.PendingRequests
 import com.a207.runkk.app.domain.crew.PostList
 import com.a207.runkk.app.domain.crew.RaceStatus
@@ -19,10 +21,14 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -45,6 +51,8 @@ data class CrewHomeUiState(
     val period: CrewRanking.Period = CrewRanking.Period.WEEKLY,
     val ranking: CrewRanking? = null,
     val crewRuns: PostList? = null,
+    /** 크루런 모집글별 대기실 단추 상태(postId → LobbyAvailability). 서버 시각 추정으로 1초마다 다시 판단한다. */
+    val lobbyEntries: Map<Long, LobbyAvailability> = emptyMap(),
     val cheers: PostList? = null,
     val members: CrewMembers? = null,
     val cheerDraft: String = "",
@@ -81,11 +89,19 @@ sealed interface CrewHomeEvent {
  * 내 크루 홈(FR-125, FR-129~FR-131, FR-133, FR-135, FR-137, FR-140, FR-144, FR-145).
  * 크루 이름·인원·내 역할은 detail(GET /crews/{id})로 읽고, 탭을 처음 열 때 그 탭의 포트만 부른다(레이스 race + crewRanking,
  * 크루런 posts(CREW_RUN), 응원보드 posts(CHEER), 크루원 members). 게시글은 끝까지 내리면 다음 쪽(nextCursor)을 이어 받는다.
+ * 크루런 모집글의 대기실 단추는 서버 시각 추정(ServerClock)으로 열림 30분 전·모집 일시를 따져 열고 닫는다(FR-133·FR-147).
  */
 @HiltViewModel
-class CrewHomeViewModel @Inject constructor(private val crews: CrewRepository) : ViewModel() {
+class CrewHomeViewModel @Inject constructor(private val crews: CrewRepository, private val serverClock: ServerClock) :
+    ViewModel() {
     private val _state = MutableStateFlow(CrewHomeUiState())
     val state: StateFlow<CrewHomeUiState> = _state.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            _state.map { it.crewRuns }.distinctUntilChanged().collectLatest(::watchLobbies)
+        }
+    }
 
     private val _events = Channel<CrewHomeEvent>(Channel.BUFFERED)
     val events: Flow<CrewHomeEvent> = _events.receiveAsFlow()
@@ -337,6 +353,21 @@ class CrewHomeViewModel @Inject constructor(private val crews: CrewRepository) :
         }
     }
 
+    /**
+     * 모집글마다 대기실 단추 상태를 정하고, 시각이 지나 바뀔 수 있는 글(열리기 전·열림)이 남아 있는 동안 1초마다 다시 정한다.
+     * 목록을 다시 받으면 collectLatest가 이 반복을 새로 시작한다. 바뀐 것이 없으면 상태를 내보내지 않는다.
+     */
+    private suspend fun watchLobbies(runs: PostList?) {
+        val infos = runs?.posts.orEmpty().mapNotNull { post -> post.crewRun?.let { post.postId to it } }
+        while (true) {
+            val now = serverClock.now()
+            val entries = infos.associate { (postId, info) -> postId to LobbyAvailability.of(info, now) }
+            _state.update { if (it.lobbyEntries == entries) it else it.copy(lobbyEntries = entries) }
+            if (entries.values.all { it == LobbyAvailability.Closed }) return
+            delay(LOBBY_TICK_MILLIS)
+        }
+    }
+
     private suspend fun reloadPosts(kind: PostList.Kind) {
         moreJob?.cancel()
         _state.update { it.copy(isLoadingMore = false) }
@@ -349,6 +380,8 @@ class CrewHomeViewModel @Inject constructor(private val crews: CrewRepository) :
         }
     }
 }
+
+private const val LOBBY_TICK_MILLIS = 1_000L
 
 /** [postId] 모집글의 내 응답을 [answer]로 바꾼 목록. */
 private fun PostList.withAnswer(postId: Long, answer: VoteAnswer): PostList = copy(

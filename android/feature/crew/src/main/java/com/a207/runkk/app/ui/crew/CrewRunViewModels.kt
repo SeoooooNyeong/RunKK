@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.uiText
+import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.navigation.Routes
@@ -142,7 +143,12 @@ data class CrewRunUiState(
     val isLeaving: Boolean = false,
     val hint: UiText? = null,
     val isBusy: Boolean = false,
-    val error: UiText? = null
+    val error: UiText? = null,
+    /**
+     * 대기실에 들어가지 못한 오류([error])를 다시 시도해 볼 만한지. 업무 규칙 거부(열리지 않음·이미 시작·참가자 아님 등)는
+     * 다시 해도 같으므로 거짓이고, 화면은 "다시 시도" 대신 "돌아가기"를 보인다.
+     */
+    val canRetry: Boolean = true
 )
 
 sealed interface CrewRunEvent {
@@ -209,7 +215,28 @@ class CrewRunViewModel @Inject constructor(
                     tick()
                 }
 
-                is Outcome.Failure -> _state.update { it.copy(isBusy = false, error = CrewErrorText.of(r.error)) }
+                is Outcome.Failure -> _state.update {
+                    it.copy(isBusy = false, error = CrewErrorText.of(r.error), canRetry = r.error !is AppError.Rejected)
+                }
+            }
+        }
+    }
+
+    /**
+     * 뒤로 가기(상단 뒤로 단추·시스템 뒤로 가기·오류의 돌아가기). 대기실에 들어가지 못했으면(ENTERING) 나가기 요청 없이 닫고,
+     * 대기실이면 나가기, 출발 카운트다운·진행 중이면 그만두기 안내만, 취소됐으면 조정자에 알린 뒤 닫는다.
+     */
+    fun onBack() {
+        when (_state.value.phase) {
+            CrewRunPhase.ENTERING -> _events.trySend(CrewRunEvent.Left)
+
+            CrewRunPhase.LOBBY, CrewRunPhase.FINISHED -> onLeaveLobby()
+
+            CrewRunPhase.COUNTDOWN, CrewRunPhase.RUNNING -> onQuitTapped()
+
+            CrewRunPhase.CANCELLED -> {
+                onCancelledClosed()
+                _events.trySend(CrewRunEvent.Left)
             }
         }
     }

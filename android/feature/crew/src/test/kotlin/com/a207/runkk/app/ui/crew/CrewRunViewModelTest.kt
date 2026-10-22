@@ -171,6 +171,58 @@ class CrewRunViewModelTest {
     }
 
     @Test
+    fun `대기실이 아직 안 열렸으면 다시 시도 대신 돌아가기를 주고, 뒤로 가면 나가기 요청 없이 닫는다`() = main.runVmTest { vms ->
+        val w = crewWorld()
+        w.crews.fail["enter"] = AppError.Rejected("LOBBY_NOT_OPEN")
+        val vm = lobbyVm(w, vms)
+        assertEquals(CrewRunPhase.ENTERING, vm.state.value.phase)
+        assertEquals(UiText.Res(R.string.crew_error_lobby_not_open), vm.state.value.error)
+        assertFalse(vm.state.value.canRetry, "다시 해도 같은 거부라 다시 시도를 주지 않는다")
+        vm.events.test {
+            vm.onBack()
+            assertEquals(CrewRunEvent.Left, awaitItem())
+        }
+        assertFalse(w.crews.calls.any { it.startsWith("leaveLobby") }, "들어가지 못한 대기실은 나가기를 보내지 않는다")
+    }
+
+    @Test
+    fun `네트워크 오류로 못 들어갔으면 다시 시도를 주고 뒤로 가기도 된다`() = main.runVmTest { vms ->
+        val w = crewWorld()
+        w.crews.fail["enter"] = AppError.Network
+        val vm = lobbyVm(w, vms)
+        assertTrue(vm.state.value.canRetry)
+        vm.events.test {
+            vm.onBack()
+            assertEquals(CrewRunEvent.Left, awaitItem())
+        }
+    }
+
+    @Test
+    fun `뒤로 가기 - 대기실에서는 나가기를 보낸 뒤 닫는다`() = main.runVmTest { vms ->
+        val w = crewWorld()
+        val vm = lobbyVm(w, vms)
+        vm.events.test {
+            vm.onBack()
+            assertEquals(CrewRunEvent.Left, awaitItem())
+        }
+        assertTrue("leaveLobby:31" in w.crews.calls)
+    }
+
+    @Test
+    fun `뒤로 가기 - 출발 카운트다운부터는 나가지 않고 그만두기 안내만 한다`() = main.runVmTest { vms ->
+        val w = crewWorld()
+        val vm = lobbyVm(w, vms)
+        w.channels.channel.push(CrewRunStart(31, w.clock.now, listOf("나")))
+        runCurrent()
+        vm.events.test {
+            vm.onBack()
+            expectNoEvents()
+        }
+        assertEquals(UiText.Res(R.string.crew_run_quit_hint), vm.state.value.hint)
+        assertFalse(w.crews.calls.any { it.startsWith("leaveLobby") })
+    }
+
+    @Test
     fun `결과 - 완주 인원·순위·첫 크루런·크루 거리 반영(FR-191)`() = main.runVmTest { vms ->
         val w = crewWorld()
         val vm = vms.track(CrewRunResultViewModel(w.crews, w.coordinator))
