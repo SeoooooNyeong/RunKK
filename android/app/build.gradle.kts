@@ -6,11 +6,30 @@ plugins {
     alias(libs.plugins.hilt)
 }
 
-// FCM(firebase-messaging)은 google-services.json이 있어야 초기화된다. 파일은 저장소에 넣지 않으므로(비밀 설정) 있을 때만
-// 플러그인을 적용하고, 없으면 푸시 등록만 건너뛴 채 빌드·실행이 된다(PushTokenSync는 토큰이 없으면 아무것도 하지 않는다).
-if (file("google-services.json").exists()) {
+// FCM(firebase-messaging)은 google-services.json이 있어야 초기화된다. 파일은 저장소에 넣지 않으므로(비밀 설정) 어느 위치에든
+// 있을 때만 플러그인을 적용하고, 없으면 푸시 등록만 건너뛴 채 빌드·실행이 된다(FcmPushTokenSource는 FirebaseApp이 없으면 null,
+// PushTokenSync는 토큰이 없으면 아무것도 하지 않는다).
+// 플러그인은 변형마다 json을 찾아(src/<변형>, src/<플레이버>, src/<빌드타입>, app/) 그 안에 변형의 applicationId와 같은
+// client.package_name이 없으면 빌드를 실패시킨다. 그래서 등록되지 않은 패키지의 변형(예: .local·.dev)은 처리 태스크를 끄고 경고한다.
+val googleServicesCandidates = listOf("google-services.json") +
+    fileTree("src") { include("*/google-services.json", "*/*/google-services.json") }.files
+        .map { it.relativeTo(projectDir).invariantSeparatorsPath }
+if (googleServicesCandidates.any { file(it).exists() }) {
     apply(plugin = libs.plugins.google.services.get().pluginId)
 }
+
+fun googleServicesPackages(json: File): Set<String> =
+    @Suppress("UNCHECKED_CAST")
+    ((groovy.json.JsonSlurper().parse(json) as Map<String, Any?>)["client"] as? List<Map<String, Any?>>)
+        .orEmpty()
+        .mapNotNull {
+            (
+                (it["client_info"] as? Map<*, *>)?.get(
+                    "android_client_info"
+                ) as? Map<*, *>
+                )?.get("package_name") as? String
+        }
+        .toSet()
 
 android {
     // 패키지 루트는 설계서 0.1의 com.a207.runkk.app. applicationId는 스토어 식별자라 그대로 둔다.
@@ -65,6 +84,32 @@ android {
 // 다른 변형(localRelease, develop*, prod*)에는 코드도 값도 들어가지 않는다(E2eLoginPathTest).
 val e2eKakaoToken = secretProperty("RUNKK_E2E_KAKAO_TOKEN")
 androidComponents {
+    onVariants { variant ->
+        if (!plugins.hasPlugin(libs.plugins.google.services.get().pluginId)) return@onVariants
+        val flavors = variant.productFlavors.map { it.second }
+        val buildType = variant.buildType.orEmpty()
+        // 플러그인의 탐색 위치와 같은 곳(변형 이름, 플레이버, 빌드 타입, 앱 루트)을 우선순위 순으로 본다.
+        val dirs =
+            listOf(variant.name) + flavors + listOfNotNull(buildType.ifEmpty { null }) +
+                flavors.map { it + buildType.replaceFirstChar(Char::uppercase) } +
+                ""
+        val json = dirs.map {
+            if (it.isEmpty()) file("google-services.json") else file("src/$it/google-services.json")
+        }.firstOrNull { it.exists() }
+        val appId = variant.applicationId.get()
+        if (json == null || appId !in googleServicesPackages(json)) {
+            val reason = if (json ==
+                null
+            ) {
+                "google-services.json 없음"
+            } else {
+                "${json.relativeTo(projectDir)}에 패키지 $appId 미등록"
+            }
+            logger.warn("경고: ${variant.name} 변형은 google-services 처리를 건너뛴다($reason). FCM이 초기화되지 않는다.")
+            val taskName = "process${variant.name.replaceFirstChar(Char::uppercase)}GoogleServices"
+            tasks.configureEach { if (name == taskName) enabled = false }
+        }
+    }
     onVariants(selector().withName("localDebug")) { variant ->
         variant.buildConfigFields?.put(
             "E2E_KAKAO_TOKEN",
