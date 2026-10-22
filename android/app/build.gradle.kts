@@ -41,29 +41,13 @@ android {
         versionName = "0.1.0"
     }
 
-    // CI(main)에서만 서명한다: 키스토어는 RUNKK_KEYSTORE_* 환경 변수로 전달 (.gitlab-ci.yml android:release).
-    // 변수가 없으면 release는 서명 없이 빌드되고, 저장소에는 .jks를 넣지 않는다.
-    val keystorePath = System.getenv("RUNKK_KEYSTORE_PATH")
-    signingConfigs {
-        if (keystorePath != null) {
-            create("release") {
-                storeFile = file(keystorePath)
-                storePassword = System.getenv("RUNKK_KEYSTORE_PASSWORD")
-                keyAlias = System.getenv("RUNKK_KEY_ALIAS")
-                keyPassword = System.getenv("RUNKK_KEY_PASSWORD")
-            }
-        }
-    }
-
+    // 서명은 runkk.android.application 공통 플러그인이 RUNKK_KEYSTORE_* 환경 변수로 정한다(.gitlab-ci.yml).
     buildTypes {
         release {
             // R8 축소·난독화(리뷰 N-2). 반사로 읽는 곳의 보존 규칙은 proguard-rules.pro, 확인은 assembleProdRelease.
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            if (keystorePath != null) {
-                signingConfig = signingConfigs.getByName("release")
-            }
         }
     }
 
