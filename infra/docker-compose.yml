@@ -13,7 +13,9 @@ services:
     environment:
       SERVER_NAME: ${SERVER_NAME:-localhost}
     volumes:
-      - ./nginx/templates:/etc/nginx/templates:ro
+      # HTTP(초기)·HTTPS(인증서 발급 뒤) 설정은 폴더로 나눠 두고 deploy.sh가 NGINX_MODE로 고른다. 저장소 파일을 덮어쓰지 않아
+      # CI가 작업 폴더를 다시 받아도(git checkout) nginx가 재시작될 때 HTTP 설정으로 돌아가지 않는다
+      - ./nginx/${NGINX_MODE:-http}:/etc/nginx/templates:ro
       - certbot-www:/var/www/certbot:ro
       - letsencrypt:/etc/letsencrypt:ro
     depends_on:
