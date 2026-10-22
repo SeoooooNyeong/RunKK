@@ -98,6 +98,25 @@ class JpaAuditRepositoryIntegrationTest {
                 .isEqualTo(1);
     }
 
+    /**
+     * 행위 종류를 더할 때 검사 제약(ck_audit_record_action) 마이그레이션을 빠뜨리지 않도록 enum 전부를 실제 표에 넣어 본다(V16, V18).
+     */
+    @Test
+    void everyAuditAction_passesActionCheckConstraint() {
+        for (AuditAction action : AuditAction.values()) {
+            append(action, T);
+        }
+
+        assertThat(jdbc.queryForObject("select count(*) from audit_record", Integer.class))
+                .isEqualTo(AuditAction.values().length);
+        assertThat(
+                        auditService.query(
+                                new DateRange(T.toLocalDate(), T.toLocalDate()),
+                                Optional.of(AuditAction.RANKING_RECOMPUTED)))
+                .extracting(AuditRecordView::action)
+                .containsExactly(AuditAction.RANKING_RECOMPUTED);
+    }
+
     @Test
     void table_isAppendOnly_updateRejectedByTrigger() {
         append(AuditAction.KICK, T);

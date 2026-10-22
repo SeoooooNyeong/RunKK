@@ -17,7 +17,10 @@ import org.springframework.web.servlet.HandlerInterceptor;
 @Component
 public class OperatorCheckInterceptor implements HandlerInterceptor {
 
-    /** web.admin.celebrity·setting·audit 컨트롤러와의 계약(요청 속성 이름, D-50). */
+    /**
+     * web.admin.celebrity·setting·audit 컨트롤러와 web.admin의 RankingAdminController와의 계약(요청 속성 이름,
+     * D-50).
+     */
     public static final String ACTOR_ID = "actorId";
 
     private static final String BEARER = "Bearer ";

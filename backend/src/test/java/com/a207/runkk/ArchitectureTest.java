@@ -154,7 +154,9 @@ class ArchitectureTest {
         m.put("web.crew", Set.of("crew", "runimal"));
         m.put("web.runimal", Set.of("runimal"));
         m.put("web.avatar", Set.of("avatar", "reward"));
-        m.put("web.admin", Set.of("operator"));
+        // + analysis·audit: 운영자 랭킹 다시 계산(RankingAdminController → RankingService.recompute, 감사
+        // RANKING_RECOMPUTED). 12.2에 없는 화살표 2개 — 설계서 갱신 요청
+        m.put("web.admin", Set.of("operator", "analysis", "audit"));
         m.put("web.admin.celebrity", Set.of("battle"));
         m.put("web.admin.setting", Set.of("policy"));
         m.put("web.admin.audit", Set.of("audit"));
