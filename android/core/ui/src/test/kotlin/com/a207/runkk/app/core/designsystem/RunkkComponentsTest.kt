@@ -172,9 +172,9 @@ class RunkkComponentsTest {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 androidx.compose.foundation.layout.Column {
-                    RunkkOverline("LIVE BATTLE · 5K")
-                    RunkkInfoChip("10K", isDisplay = true)
-                    RunkkStatusPill("3K")
+                    RunkkOverline("LIVE BATTLE · 5km")
+                    RunkkInfoChip("10km", isDisplay = true)
+                    RunkkStatusPill("3km")
                 }
             }
         }

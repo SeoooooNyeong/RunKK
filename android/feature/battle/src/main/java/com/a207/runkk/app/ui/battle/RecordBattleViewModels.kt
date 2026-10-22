@@ -2,6 +2,7 @@ package com.a207.runkk.app.ui.battle
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
@@ -57,7 +58,7 @@ data class CandidateUi(
 data class RecordBattleUiState(
     val isLoading: Boolean = true,
     val candidates: List<CandidateUi> = emptyList(),
-    /** 유명인 거리 거르기(전체·5K·10K·하프·풀). 나와의 싸움은 쓰지 않는다. */
+    /** 유명인 거리 거르기(전체·5km·10km·하프·풀). 나와의 싸움은 쓰지 않는다. */
     val filterIndex: Int = 0,
     /** 고른 후보. 나와의 싸움은 바로 아래 "대결 시작"에, 유명인은 확인 대화상자에 쓴다. */
     val selected: CandidateUi? = null,
@@ -203,8 +204,8 @@ class CelebBattleViewModel @Inject constructor(battles: BattleRepository, coordi
 /** 유명인 거리 거르기(FR-097): 라벨 → 거리(전체는 null). */
 val CELEB_FILTERS: List<Pair<UiText, Distance?>> = listOf(
     UiText.Res(R.string.battle_filter_all) to null,
-    UiText.Plain("5K") to Distance(5_000),
-    UiText.Plain("10K") to Distance(10_000),
+    UiText.Plain(RunkkFormat.targetLabel(Distance(5_000))) to Distance(5_000),
+    UiText.Plain(RunkkFormat.targetLabel(Distance(10_000))) to Distance(10_000),
     UiText.Res(R.string.battle_distance_half) to Distance(HALF_MARATHON_METERS),
     UiText.Res(R.string.battle_distance_full) to Distance(FULL_MARATHON_METERS)
 )

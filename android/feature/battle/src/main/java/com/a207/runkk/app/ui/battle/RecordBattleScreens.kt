@@ -400,7 +400,7 @@ internal fun celebSpoken(c: CandidateUi): String = listOfNotNull(
     sourceLine(c).asString()
 ).joinToString(", ")
 
-/** "5K"를 "5킬로미터"로(하프·풀은 "하프 마라톤"·"풀 마라톤"). */
+/** "5km"를 "5킬로미터"로(하프·풀은 "하프 마라톤"·"풀 마라톤"). */
 @Composable
 internal fun spokenDistance(distance: Distance): String {
     val label = distanceLabel(distance)

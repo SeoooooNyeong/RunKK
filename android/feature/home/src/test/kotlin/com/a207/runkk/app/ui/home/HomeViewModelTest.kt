@@ -199,4 +199,49 @@ class HomeViewModelTest {
         vm.onModeSelected(HomeRunMode.BATTLE)
         assertEquals(HomeRunMode.BATTLE, vm.state.value.mode)
     }
+
+    private fun battleSettings(defaultDistance: String) = Outcome.Success(
+        com.a207.runkk.app.domain.account.MemberSettings(
+            mapOf(com.a207.runkk.app.domain.account.MemberSettings.BATTLE_DEFAULT_DISTANCE to defaultDistance),
+            emptyMap()
+        )
+    )
+
+    @Test
+    fun `배틀런 거리는 처음엔 대결 설정의 기본 대결 거리를 고른다(FR-080·FR-109)`() {
+        account.settingsResult = battleSettings("KM3")
+        val vm = viewModel()
+        assertEquals(Distance(3_000), vm.state.value.battleDistance)
+    }
+
+    @Test
+    fun `기본 대결 거리를 읽지 못하면 5km를 고른다(FR-109 기본값)`() {
+        account.settingsResult = Outcome.Failure(AppError.Network)
+        val vm = viewModel()
+        assertEquals(Distance(5_000), vm.state.value.battleDistance)
+    }
+
+    @Test
+    fun `배틀런 거리를 고르면 선택이 바뀌고, 다시 읽어도 고른 거리를 덮지 않는다`() {
+        account.settingsResult = battleSettings("KM5")
+        val vm = viewModel()
+        vm.onBattleDistanceSelected(Distance(10_000))
+        assertEquals(Distance(10_000), vm.state.value.battleDistance)
+        vm.refresh()
+        assertEquals(Distance(10_000), vm.state.value.battleDistance)
+    }
+
+    @Test
+    fun `랜덤 대결 거리가 아니면 고르지 않는다`() {
+        val vm = viewModel()
+        vm.onBattleDistanceSelected(Distance(21_097))
+        assertEquals(Distance(5_000), vm.state.value.battleDistance)
+    }
+
+    @Test
+    fun `거리를 고르는 것만으로 설정을 바꾸지 않는다 - 기본 대결 거리는 매칭 요청 때 서버가 저장한다(FR-080)`() {
+        val vm = viewModel()
+        vm.onBattleDistanceSelected(Distance(1_000))
+        assertEquals(emptyList(), account.changedSettings)
+    }
 }

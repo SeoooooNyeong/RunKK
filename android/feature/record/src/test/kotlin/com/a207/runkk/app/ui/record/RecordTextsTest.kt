@@ -77,4 +77,14 @@ class RecordTextsTest {
             RecordErrorText.of(AppError.Rejected("RECORD_CREW_ONLY"))
         )
     }
+
+    @Test
+    fun `거리별 최고 기록의 기준 거리(서버 StandardDistance 이름)는 km·하프·풀로 보인다`() {
+        assertEquals("1km", bestDistanceLabel(resources, "KM1"))
+        assertEquals("5km", bestDistanceLabel(resources, "KM5"))
+        assertEquals("10km", bestDistanceLabel(resources, "KM10"))
+        assertEquals("하프", bestDistanceLabel(resources, "HALF"))
+        assertEquals("풀", bestDistanceLabel(resources, "FULL"))
+        assertEquals("UNKNOWN", bestDistanceLabel(resources, "UNKNOWN"))
+    }
 }

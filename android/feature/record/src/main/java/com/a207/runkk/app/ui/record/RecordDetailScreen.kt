@@ -355,10 +355,10 @@ private fun SplitPaceRow(index: Int, pace: Pace, fastest: Pace, isBest: Boolean)
         modifier = Modifier.clearAndSetSemantics { contentDescription = spoken }
     ) {
         Text(
-            "${index + 1}K",
+            "${index + 1}km",
             style = RunkkTextStyles.display(16),
             color = RunkkColors.TextSecondary,
-            modifier = Modifier.width(32.dp)
+            modifier = Modifier.width(48.dp)
         )
         RunkkProgressBar(
             progress = fastest.secondsPerKm.toFloat() / pace.secondsPerKm,

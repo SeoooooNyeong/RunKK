@@ -185,7 +185,7 @@ fun RunkkSegmentRow(
 
 /**
  * 정보 칩(높이 32, 모서리 16): "지난 설정 그대로" 요약처럼 누르지 않는 표시.
- * [isHighlighted]면 라임 테두리·글자, [isDisplay]면 숫자 글꼴("5K"). [spoken]이 있으면 보조 기술이 그 문구로 읽고, 없으면 "5K"처럼
+ * [isHighlighted]면 라임 테두리·글자, [isDisplay]면 숫자 글꼴("5km"). [spoken]이 있으면 보조 기술이 그 문구로 읽고, 없으면 "5km"처럼
  * 한글로 읽어야 하는 라벨만 바꿔 읽는다.
  */
 @Composable
@@ -257,7 +257,7 @@ fun RunkkStatusPill(
     }
 }
 
-/** 라벨을 한글로 읽어야 하면("5K" → "5킬로미터") 읽기 문구를 단다. */
+/** 라벨을 한글로 읽어야 하면("5km" → "5킬로미터") 읽기 문구를 단다. */
 @Composable
 private fun Modifier.spokenIfDifferent(label: String): Modifier {
     val spoken = RunkkFormat.spokenLabel(label)
@@ -407,7 +407,7 @@ private fun RunkkChipsPreview() {
             }
             RunkkSegmentRow(listOf("전체공개", "크루공개", "비공개"), selectedIndex = 0, onSelect = {})
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                RunkkInfoChip("5K", isHighlighted = true, isDisplay = true)
+                RunkkInfoChip("5km", isHighlighted = true, isDisplay = true)
                 RunkkInfoChip("음성 켬")
                 RunkkStatusPill("GPS 좋음")
             }

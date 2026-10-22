@@ -45,7 +45,7 @@ internal object BattleErrorText {
     )
 }
 
-/** 거리 라벨: 21,097m → "하프", 42,195m → "풀", 그 밖은 "5K". */
+/** 거리 라벨: 21,097m → "하프", 42,195m → "풀", 그 밖은 "5km". */
 internal fun distanceLabel(distance: Distance): UiText = when (distance.meters) {
     in HALF_MIN..HALF_MAX -> UiText.Res(R.string.battle_distance_half)
     in FULL_MIN..FULL_MAX -> UiText.Res(R.string.battle_distance_full)

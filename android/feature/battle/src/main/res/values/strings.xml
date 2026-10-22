@@ -2,7 +2,6 @@
 <resources>
     <string name="battle_match_connection_lost">상대를 찾는 연결이 끊겼어요. 다시 시도해 주세요</string>
     <string name="battle_match_start_failed">대결을 시작하지 못했어요. 다시 시도해 주세요</string>
-    <string name="battle_match_default_distance_failed">기본 대결 거리를 불러오지 못했어요. 거리를 골라 시작해 주세요</string>
     <string name="battle_me">나</string>
     <string name="battle_opponent">상대</string>
     <string name="battle_back">뒤로</string>

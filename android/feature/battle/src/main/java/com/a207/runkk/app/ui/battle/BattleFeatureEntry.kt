@@ -2,6 +2,7 @@ package com.a207.runkk.app.ui.battle
 
 import androidx.navigation3.runtime.EntryProviderScope
 import androidx.navigation3.runtime.NavKey
+import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.navigation.FeatureEntry
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.core.navigation.route
@@ -23,7 +24,9 @@ class BattleFeatureEntry @Inject constructor() : FeatureEntry {
         builder.route(Routes.SELF) { SelfBattleRoute() }
         builder.route(Routes.CELEB) { CelebBattleRoute() }
         builder.route(Routes.BATTLE_RANDOM) { MatchRoute() }
-        builder.route(Routes.BATTLE_QUICK_MATCH) { MatchRoute(isQuick = true) }
+        builder.addEntryProvider(Routes.BattleQuickMatch::class) { key ->
+            MatchRoute(quickDistance = Distance(key.distanceMeters))
+        }
         builder.route(Routes.BATTLE_HISTORY) { BattleHistoryRoute() }
         builder.addEntryProvider(Routes.BattleRunning::class) { key -> BattleRunningRoute(key) }
         builder.addEntryProvider(Routes.BattleResult::class) { key -> BattleResultRoute(key.battleId) }
