@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.locks.ReentrantLock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -27,7 +28,8 @@ import org.springframework.stereotype.Service;
 /**
  * 개인·크루 랭킹(설계 6.1.4 RankingService, D-25, D-36, FR-070, FR-071). 0시에 개인·크루 × 주간·월간 4개 스냅숏을 만들고 조회는
  * 최근 스냅숏만 읽는다. 대상 회원(나만 보기 제외)과 크루원의 합집합으로 기간마다 RunQueryService.distancesByMember를 한 번 부르고, 표시명·크루
- * 이름도 묶음 조회 한 번으로 붙인다(N+1 방지, design-review.md M6). 크루 점수는 크루원 거리 합 ÷ 크루원 수(비공개 포함)다.
+ * 이름도 묶음 조회 한 번으로 붙인다(N+1 방지, design-review.md M6). 크루 점수는 크루원 거리 합 ÷ 크루원 수(비공개 포함)다. 운영자는 관리 API로
+ * 0시를 기다리지 않고 다시 집계할 수 있다(recompute, 설계서 갱신 요청).
  */
 @Service
 public class RankingService {
@@ -47,6 +49,13 @@ public class RankingService {
     private final AnalysisTransactions transactions;
     private final Clock clock;
 
+    /**
+     * 집계 하나만 돌게 하는 잠금(0시 작업·시작 집계·운영자 재계산 공용). 같은 종류·기간의 스냅숏 교체가 두 트랜잭션에서 겹치면 한쪽이 이미 지운 이전 스냅숏을 다시
+     * 지우다 실패하거나 캐시 상위 키가 늦게 커밋된 옛 판을 가리킬 수 있어 집계 전체를 직렬로 한다. 서버가 한 대(infra/docker-compose api 하나)라
+     * 프로세스 잠금으로 충분하다.
+     */
+    private final ReentrantLock rebuildLock = new ReentrantLock();
+
     public RankingService(
             RankingSnapshotRepository snapshotRepository,
             MemberQueryService memberQueryService,
@@ -62,30 +71,56 @@ public class RankingService {
         this.clock = clock;
     }
 
-    /** 0시. batch.analysis의 RankingRebuildJob이 부른다. 기간마다 스냅숏 저장은 따로 감싼다. */
+    /**
+     * 0시. batch.analysis의 RankingRebuildJob이 부른다. 기간마다 스냅숏 저장은 따로 감싼다. 운영자 재계산({@link #recompute})이
+     * 돌고 있으면 끝날 때까지 기다렸다 이어서 집계한다(0시 집계를 건너뛰지 않는다).
+     */
     public void rebuild(LocalDateTime now) {
+        rebuildLock.lock();
+        try {
+            rebuildLocked(now);
+        } finally {
+            rebuildLock.unlock();
+        }
+    }
+
+    /**
+     * 운영자 관리 API(web.admin RankingAdminController)가 0시를 기다리지 않고 지금 시각으로 다시 집계한다. 0시 작업과 같은 경로(4개
+     * 스냅숏을 종류·기간마다 한 트랜잭션에서 바꾸고 커밋 뒤 캐시 판을 바꾼다)를 같은 잠금 안에서 탄다. 다른 집계(0시 작업, 시작 집계, 다른 운영자 요청)가 돌고
+     * 있으면 기다리지 않고 IllegalStateException(web.error가 409로 바꾼다)을 던진다.
+     */
+    public RankingRecomputeResult recompute() {
+        if (!rebuildLock.tryLock()) {
+            throw new IllegalStateException("랭킹 집계가 이미 진행 중");
+        }
+        try {
+            return rebuildLocked(LocalDateTime.now(clock));
+        } finally {
+            rebuildLock.unlock();
+        }
+    }
+
+    private RankingRecomputeResult rebuildLocked(LocalDateTime now) {
         Set<Long> ranked = memberQueryService.rankedMemberIds();
         Map<Long, List<Long>> crews = crewMembershipReader.activeMembersByCrew();
         Set<Long> everyone = new HashSet<>(ranked);
         crews.values().forEach(everyone::addAll);
         Map<Long, MemberSummary> names = memberQueryService.summaries(ranked);
         Map<Long, DisplayName> crewNames = crewMembershipReader.crewNames(crews.keySet());
+        int personalCount = 0;
+        int crewCount = 0;
+        int failed = 0;
         for (AggregationPeriod period : AggregationPeriod.values()) {
             DateRange range = period.rangeOf(now.toLocalDate());
             Map<Long, Distance> distances = runQueryService.distancesByMember(everyone, range);
-            save(
-                    RankingSnapshot.build(
-                            RankingKind.PERSONAL,
-                            period,
-                            now,
-                            personalScores(ranked, names, distances)));
-            save(
-                    RankingSnapshot.build(
-                            RankingKind.CREW,
-                            period,
-                            now,
-                            crewScores(crews, crewNames, distances)));
+            List<RankScore> personal = personalScores(ranked, names, distances);
+            List<RankScore> crew = crewScores(crews, crewNames, distances);
+            personalCount = personal.size();
+            crewCount = crew.size();
+            failed += save(RankingSnapshot.build(RankingKind.PERSONAL, period, now, personal));
+            failed += save(RankingSnapshot.build(RankingKind.CREW, period, now, crew));
         }
+        return new RankingRecomputeResult(now, personalCount, crewCount, failed);
     }
 
     /**
@@ -185,13 +220,15 @@ public class RankingService {
         return scores;
     }
 
-    private void save(RankingSnapshot snapshot) {
+    /** 저장하면 0, 실패하면 1(로그만 남기고 다른 종류·기간은 이어서 저장한다). */
+    private int save(RankingSnapshot snapshot) {
         try {
             transactions.write(
                     () -> {
                         snapshotRepository.save(snapshot);
                         return null;
                     });
+            return 0;
         } catch (RuntimeException e) {
             log.error(
                     "ranking_snapshot_failed kind={} period={} error={}",
@@ -199,6 +236,7 @@ public class RankingService {
                     snapshot.getPeriod(),
                     e.getClass().getSimpleName(),
                     e);
+            return 1;
         }
     }
 }

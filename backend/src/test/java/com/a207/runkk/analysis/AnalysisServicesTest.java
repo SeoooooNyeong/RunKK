@@ -466,6 +466,89 @@ class AnalysisServicesTest {
         verify(runs, times(4)).distancesByMember(anyCollection(), any());
     }
 
+    @Test
+    @org.junit.jupiter.api.DisplayName("운영자 재계산: 지금 시각으로 4개 스냅숏을 다시 만들고 개인·크루 건수를 돌려준다")
+    void recompute_rebuildsNowAndReportsCounts() {
+        RankingService service = new RankingService(snapshots, members, crews, runs, tx, clock);
+        when(members.rankedMemberIds()).thenReturn(Set.of(ME, OTHER));
+        when(crews.activeMembersByCrew()).thenReturn(Map.of(7L, List.of(ME, 3L)));
+        when(members.summaries(any()))
+                .thenReturn(Map.of(ME, summaryOf(ME, "나"), OTHER, summaryOf(OTHER, "너")));
+        when(crews.crewNames(any())).thenReturn(Map.of(7L, DisplayName.of("새벽크루")));
+        when(runs.distancesByMember(anyCollection(), any()))
+                .thenReturn(Map.of(ME, Distance.ofKm(10), OTHER, Distance.ofKm(20)));
+
+        RankingRecomputeResult result = service.recompute();
+
+        assertThat(result).isEqualTo(new RankingRecomputeResult(NOW, 2, 1, 0));
+        assertThat(snapshots.rows).hasSize(4);
+        snapshots.rows.values().forEach(s -> assertThat(s.getComputedAt()).isEqualTo(NOW));
+        assertThat(service.personalRanking(ME, AggregationPeriod.WEEKLY).mine().rank())
+                .isEqualTo(2);
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("재계산 저장 실패는 삼키지 않고 실패한 스냅숏 수로 알린다")
+    void recompute_reportsFailedSnapshots() {
+        RankingSnapshotRepository failing = mock(RankingSnapshotRepository.class);
+        org.mockito.Mockito.doThrow(new IllegalStateException("db"))
+                .when(failing)
+                .save(org.mockito.ArgumentMatchers.argThat(s -> s.getKind() == RankingKind.CREW));
+        RankingService service = new RankingService(failing, members, crews, runs, tx, clock);
+
+        assertThat(service.recompute().failedSnapshots()).isEqualTo(2);
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName(
+            "재계산 중 또 부르면 IllegalStateException(409), 0시 작업은 끝날 때까지 기다렸다 이어서 집계한다")
+    void recompute_whileRunning_isRejected_andMidnightRebuildWaits() throws Exception {
+        RankingService service = new RankingService(snapshots, members, crews, runs, tx, clock);
+        java.util.concurrent.CountDownLatch inside = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.atomic.AtomicInteger calls =
+                new java.util.concurrent.atomic.AtomicInteger();
+        when(members.rankedMemberIds())
+                .thenAnswer(
+                        inv -> {
+                            if (calls.incrementAndGet() == 1) {
+                                inside.countDown();
+                                release.await(5, java.util.concurrent.TimeUnit.SECONDS);
+                            }
+                            return Set.of(ME);
+                        });
+        when(members.summaries(any())).thenReturn(Map.of(ME, summaryOf(ME, "나")));
+        java.util.concurrent.ExecutorService pool =
+                java.util.concurrent.Executors.newFixedThreadPool(2);
+        try {
+            java.util.concurrent.Future<RankingRecomputeResult> first =
+                    pool.submit(service::recompute);
+            assertThat(inside.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+
+            assertThatThrownBy(service::recompute).isInstanceOf(IllegalStateException.class);
+            java.util.concurrent.Future<?> midnight =
+                    pool.submit(() -> service.rebuild(NOW.withHour(0)));
+            assertThatThrownBy(() -> midnight.get(300, java.util.concurrent.TimeUnit.MILLISECONDS))
+                    .as("0시 작업은 재계산이 끝날 때까지 들어오지 못한다")
+                    .isInstanceOf(java.util.concurrent.TimeoutException.class);
+            assertThat(calls).hasValue(1);
+
+            release.countDown();
+            assertThat(first.get(5, java.util.concurrent.TimeUnit.SECONDS).personalCount())
+                    .isEqualTo(1);
+            midnight.get(5, java.util.concurrent.TimeUnit.SECONDS);
+        } finally {
+            pool.shutdownNow();
+        }
+        assertThat(calls).hasValue(2);
+        assertThat(snapshots.rows).hasSize(4);
+        snapshots
+                .rows
+                .values()
+                .forEach(s -> assertThat(s.getComputedAt()).isEqualTo(TODAY.atStartOfDay()));
+        assertThat(service.recompute().computedAt()).as("끝난 뒤에는 다시 부를 수 있다").isEqualTo(NOW);
+    }
+
     private static MemberSummary summaryOf(long id, String name) {
         return new MemberSummary(
                 id,
