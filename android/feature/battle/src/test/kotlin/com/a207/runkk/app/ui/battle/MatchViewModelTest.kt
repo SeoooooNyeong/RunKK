@@ -236,27 +236,59 @@ class MatchViewModelTest {
     }
 
     @Test
-    fun `홈 배틀런은 기본 대결 거리로 바로 매칭을 요청한다(FR-080)`() = main.runVmTest { vms ->
+    fun `홈 배틀런은 홈에서 고른 거리로 매칭을 요청한다(FR-080) - 서버 기본 거리보다 고른 거리가 먼저다`() = main.runVmTest { vms ->
         val w = world()
-        w.battles.status = Outcome.Success(MatchAcceptance(false, null, defaultDistance = Distance(3_000)))
+        w.battles.status = Outcome.Success(MatchAcceptance(false, null, defaultDistance = Distance(5_000)))
         val vm = vms.vm(w)
-        vm.startQuick()
-        vm.startQuick()
+        vm.startQuick(Distance(3_000))
+        vm.startQuick(Distance(3_000))
         runCurrent()
-        assertEquals(listOf("match:3000"), w.battles.calls)
+        assertEquals(listOf("match:3000"), w.battles.calls, "한 번만, 고른 3km로 요청한다")
+        assertEquals(MatchPhase.WAITING, vm.state.value.phase)
+        assertEquals(Distance(3_000), vm.state.value.distance)
+    }
+
+    @Test
+    fun `홈 배틀런은 기본 거리 조회가 실패해도 홈에서 고른 거리로 요청한다`() = main.runVmTest { vms ->
+        val w = world()
+        w.battles.status = Outcome.Failure(AppError.Network)
+        val vm = vms.vm(w)
+        vm.startQuick(Distance(10_000))
+        runCurrent()
+        assertEquals(listOf("match:10000"), w.battles.calls)
         assertEquals(MatchPhase.WAITING, vm.state.value.phase)
     }
 
     @Test
-    fun `홈 배틀런인데 기본 거리를 읽지 못하면 요청하지 않고 고르게 한다`() = main.runVmTest { vms ->
+    fun `홈 배틀런인데 이미 대기열에 있으면 다시 요청하지 않고 대기 화면을 잇는다`() = main.runVmTest { vms ->
         val w = world()
-        w.battles.status = Outcome.Failure(AppError.Network)
+        w.battles.status = Outcome.Success(MatchAcceptance(true, Distance(1_000), Distance(1_000)))
         val vm = vms.vm(w)
-        vm.startQuick()
+        vm.startQuick(Distance(5_000))
+        runCurrent()
+        assertEquals(emptyList(), w.battles.calls)
+        assertEquals(MatchPhase.WAITING, vm.state.value.phase)
+        assertEquals(Distance(1_000), vm.state.value.distance)
+    }
+
+    @Test
+    fun `홈 배틀런 거리가 랜덤 대결 거리가 아니면 요청하지 않고 거리 고르기에 남는다`() = main.runVmTest { vms ->
+        val w = world()
+        val vm = vms.vm(w)
+        vm.startQuick(Distance(21_097))
         runCurrent()
         assertEquals(emptyList(), w.battles.calls)
         assertEquals(MatchPhase.CHOOSING, vm.state.value.phase)
-        assertEquals(UiText.Res(R.string.battle_match_default_distance_failed), vm.state.value.error)
+        assertEquals(UiText.Res(R.string.battle_error_distance_invalid), vm.state.value.error)
+    }
+
+    @Test
+    fun `거리 고르기 화면은 들어오기만 해서는 매칭을 요청하지 않는다`() = main.runVmTest { vms ->
+        val w = world()
+        val vm = vms.vm(w)
+        runCurrent()
+        assertEquals(emptyList(), w.battles.calls)
+        assertEquals(MatchPhase.CHOOSING, vm.state.value.phase)
     }
 
     @Test

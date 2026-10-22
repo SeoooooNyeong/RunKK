@@ -1,7 +1,13 @@
 package com.a207.runkk.app.ui.home
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHasClickAction
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -69,10 +75,49 @@ class HomeScreenTest {
     }
 
     @Test
-    fun `배틀런 탭에서는 랜덤 대결로 간다`() {
-        show(HomeUiState(isLoading = false, mode = HomeRunMode.BATTLE))
+    fun `배틀런 탭 - 거리 칩을 누르면 선택이 바뀌고, 시작을 눌러야 고른 거리로 매칭한다(FR-080)`() {
+        val started = mutableListOf<Distance>()
+        compose.setContent {
+            var state by remember {
+                mutableStateOf(
+                    HomeUiState(isLoading = false, mode = HomeRunMode.BATTLE, battleDistance = Distance(5_000))
+                )
+            }
+            RunkkTheme(reduceMotion = true) {
+                HomeScreen(
+                    state,
+                    onModeSelected = {},
+                    onNavigate = { routes += it },
+                    onRetry = {},
+                    onBattleDistanceSelected = { state = state.copy(battleDistance = it) },
+                    onBattleStart = { started += it }
+                )
+            }
+        }
+        listOf("1킬로미터", "3킬로미터", "5킬로미터", "10킬로미터").forEach {
+            compose.onNodeWithContentDescription(it).performScrollTo().assertExists()
+        }
+        compose.onNodeWithContentDescription("5킬로미터").assertIsSelected()
+        compose.onNodeWithContentDescription("3킬로미터").assertIsNotSelected().performClick()
+        compose.onNodeWithContentDescription("3킬로미터").assertIsSelected()
+        compose.onNodeWithContentDescription("5킬로미터").assertIsNotSelected()
+        assertEquals(emptyList(), started, "거리를 고르는 것만으로 매칭을 시작하지 않는다")
         compose.onNodeWithText("배틀런 시작").performScrollTo().performClick()
-        assertEquals(listOf(Routes.BATTLE_QUICK_MATCH), routes, "홈 배틀런은 기본 대결 거리로 바로 매칭한다(FR-080)")
+        assertEquals(listOf(Distance(3_000)), started)
+        assertEquals(emptyList(), routes)
+    }
+
+    @Test
+    fun `배틀런 시작 경로는 고른 거리를 매칭 화면 인자로 넘긴다`() {
+        assertEquals(Routes.BattleQuickMatch(3_000), battleQuickMatchKey(Distance(3_000)))
+    }
+
+    @Test
+    fun `배틀런 거리 칩은 대결 거리 라디오 묶음이고 킬로미터로 읽는다`() {
+        show(HomeUiState(isLoading = false, mode = HomeRunMode.BATTLE, battleDistance = Distance(10_000)))
+        compose.onNodeWithContentDescription("대결 거리").performScrollTo().assertExists()
+        compose.onNodeWithContentDescription("10킬로미터").assertIsSelected()
+        compose.onNodeWithContentDescription("1킬로미터").assertIsNotSelected()
     }
 
     @Test

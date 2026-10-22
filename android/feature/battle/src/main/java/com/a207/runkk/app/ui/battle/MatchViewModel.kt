@@ -309,43 +309,41 @@ class MatchViewModel @Inject constructor(
         _state.update { MatchUiState(distance = it.distance) }
     }
 
-    /** 기본 대결 거리를 읽었는가(isQuick 요청의 조건). */
-    private var statusLoaded = false
-
     // 다른 속성이 모두 초기화된 뒤에 시작한다(즉시 실행 디스패처에서도 대기 화면을 이을 수 있게).
-    private val statusJob: Job = viewModelScope.launch { statusLoaded = loadStatus() }
+    private val statusJob: Job = viewModelScope.launch { loadStatus() }
     private var quickStarted = false
 
     /**
      * 기본 대결 거리와 대기 여부(GET /battles/match, FR-109). 기본 거리를 거리 고르기 기본값으로 두고, 이미 대기열에 있으면
      * (앱을 다시 연 경우) 대기 화면을 잇는다. 읽지 못하면 5km로 둔다.
      */
-    private suspend fun loadStatus(): Boolean {
+    private suspend fun loadStatus() {
         val status = battles.matchStatus()
-        if (status !is Outcome.Success) return false
+        if (status !is Outcome.Success) return
         val s = status.value
-        if (_state.value.phase != MatchPhase.CHOOSING) return true
+        if (_state.value.phase != MatchPhase.CHOOSING) return
         val preferred = (if (s.isWaiting) s.distance else s.defaultDistance)?.takeIf { it in MatchUiState.DISTANCES }
         if (preferred != null) _state.update { it.copy(distance = preferred) }
         if (s.isWaiting) startWaiting()
-        return true
     }
 
     /**
-     * 홈의 배틀런 시작(FR-080): 기본 대결 거리를 읽은 뒤 그 거리로 바로 요청한다. 읽지 못하면 요청하지 않고 거리 고르기에 남아
-     * 고르게 한다(서버의 기본 거리를 모르는 채 다른 거리로 바꾸지 않게).
+     * 홈의 배틀런 시작(FR-080): 러너가 홈 배틀런 탭에서 고른 [distance](처음엔 기본 대결 거리)로 바로 요청한다. 서버는 요청한 거리를
+     * 기본 대결 거리로 저장한다(rememberBattleDistance). 대기 여부를 먼저 읽어 이미 대기 중이면 다시 요청하지 않고 대기 화면을 잇고,
+     * 랜덤 대결 거리(1·3·5·10km)가 아니면 요청하지 않고 거리 고르기에 남는다.
      */
-    fun startQuick() {
+    fun startQuick(distance: Distance) {
         if (quickStarted) return
         quickStarted = true
         viewModelScope.launch {
             statusJob.join()
             if (_state.value.phase != MatchPhase.CHOOSING) return@launch
-            if (statusLoaded) {
-                onStartMatching()
-            } else {
-                _state.update { it.copy(error = UiText.Res(R.string.battle_match_default_distance_failed)) }
+            if (distance !in MatchUiState.DISTANCES) {
+                _state.update { it.copy(error = UiText.Res(R.string.battle_error_distance_invalid)) }
+                return@launch
             }
+            _state.update { it.copy(distance = distance) }
+            onStartMatching()
         }
     }
 

@@ -36,6 +36,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -59,6 +60,7 @@ import com.a207.runkk.app.core.designsystem.RunkkLogoKind
 import com.a207.runkk.app.core.designsystem.RunkkNumberText
 import com.a207.runkk.app.core.designsystem.RunkkPrimaryButton
 import com.a207.runkk.app.core.designsystem.RunkkProgressBar
+import com.a207.runkk.app.core.designsystem.RunkkSegmentRow
 import com.a207.runkk.app.core.designsystem.RunkkSegmentedTabs
 import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkStatTile
@@ -90,9 +92,14 @@ fun HomeRoute(viewModel: HomeViewModel = hiltViewModel()) {
         state = state,
         onModeSelected = viewModel::onModeSelected,
         onNavigate = navigator::navigate,
-        onRetry = viewModel::refresh
+        onRetry = viewModel::refresh,
+        onBattleDistanceSelected = viewModel::onBattleDistanceSelected,
+        onBattleStart = { navigator.navigate(battleQuickMatchKey(it)) }
     )
 }
+
+/** 홈 배틀런 시작 경로: 고른 거리로 바로 매칭(FR-080). 매칭 화면(ui.battle)은 경로 인자로 거리를 받는다. */
+internal fun battleQuickMatchKey(distance: Distance): Routes.BattleQuickMatch = Routes.BattleQuickMatch(distance.meters)
 
 @Composable
 fun HomeScreen(
@@ -100,7 +107,9 @@ fun HomeScreen(
     onModeSelected: (HomeRunMode) -> Unit,
     onNavigate: (String) -> Unit,
     onRetry: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onBattleDistanceSelected: (Distance) -> Unit = {},
+    onBattleStart: (Distance) -> Unit = {}
 ) {
     Column(
         modifier = modifier.fillMaxSize().background(
@@ -115,7 +124,7 @@ fun HomeScreen(
         )
         Header(state, onNavigate)
         HouseCard(state.dashboard, state.faceKey, state.faceLayers, onAvatar = { onNavigate(Routes.AVATAR) })
-        RunCard(state, onModeSelected, onNavigate)
+        RunCard(state, onModeSelected, onNavigate, onBattleDistanceSelected, onBattleStart)
         if (state.error != null && state.dashboard == null) {
             RunkkErrorState(state.error.asString(), onRetry = onRetry)
         } else {
@@ -317,7 +326,13 @@ private fun HouseInfo(dashboard: Dashboard?) {
 }
 
 @Composable
-private fun RunCard(state: HomeUiState, onModeSelected: (HomeRunMode) -> Unit, onNavigate: (String) -> Unit) {
+private fun RunCard(
+    state: HomeUiState,
+    onModeSelected: (HomeRunMode) -> Unit,
+    onNavigate: (String) -> Unit,
+    onBattleDistanceSelected: (Distance) -> Unit,
+    onBattleStart: (Distance) -> Unit
+) {
     val modeDescription = stringResource(R.string.home_mode_description)
     RunkkCard(shape = RunkkShapes.ExtraLarge, verticalArrangement = Arrangement.spacedBy(16.dp)) {
         RunkkSegmentedTabs(
@@ -328,7 +343,7 @@ private fun RunCard(state: HomeUiState, onModeSelected: (HomeRunMode) -> Unit, o
         )
         when (state.mode) {
             HomeRunMode.FREE -> FreeRunPanel(state.freeRunGoal, onNavigate)
-            HomeRunMode.BATTLE -> BattleRunPanel(onNavigate)
+            HomeRunMode.BATTLE -> BattleRunPanel(state.battleDistance, onBattleDistanceSelected, onBattleStart)
         }
     }
 }
@@ -376,21 +391,37 @@ private fun ColumnScope.FreeRunPanel(goal: FreeRunGoal, onNavigate: (String) -> 
     )
 }
 
-/** 배틀런 탭: 안내 문구, 거리 칩, 시작 버튼. */
-@OptIn(ExperimentalLayoutApi::class)
+/**
+ * 배틀런 탭(시안 HomeHiFi "대결 거리" 라디오 묶음): 안내 문구, 대결 거리 고르기(1·3·5·10km, 처음엔 기본 대결 거리), 시작 버튼.
+ * 거리를 고르는 것만으로는 매칭하지 않고 "배틀런 시작"을 눌러야 고른 거리로 매칭을 요청한다(FR-080).
+ */
 @Composable
-private fun ColumnScope.BattleRunPanel(onNavigate: (String) -> Unit) {
+private fun ColumnScope.BattleRunPanel(
+    distance: Distance,
+    onDistanceSelected: (Distance) -> Unit,
+    onStart: (Distance) -> Unit
+) {
+    val distances = HomeUiState.BATTLE_DISTANCES
+    val labels = distances.map(RunkkFormat::targetLabel)
+    val groupLabel = stringResource(R.string.home_battle_distance_title)
     Text(
         stringResource(R.string.home_battle_caption),
         style = RunkkTextStyles.Caption,
         color = RunkkColors.TextSecondary
     )
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        listOf("1K", "3K", "5K", "10K").forEach { RunkkInfoChip(it, isDisplay = true) }
-    }
+    RunkkSegmentRow(
+        options = labels,
+        selectedIndex = distances.indexOf(distance),
+        onSelect = { onDistanceSelected(distances[it]) },
+        spokenLabels = labels.map { RunkkFormat.spokenLabel(it) },
+        modifier = Modifier.fillMaxWidth().semantics {
+            contentDescription = groupLabel
+            isTraversalGroup = true
+        }
+    )
     RunkkPrimaryButton(
         text = stringResource(R.string.home_battle_start),
-        onClick = { onNavigate(Routes.BATTLE_QUICK_MATCH) },
+        onClick = { onStart(distance) },
         size = RunkkButtonSize.Large,
         hasTrailingArrow = true,
         modifier = Modifier.fillMaxWidth()

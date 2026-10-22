@@ -23,6 +23,7 @@
     <string name="home_free_start">자유런 시작</string>
     <string name="home_battle_caption">같은 거리를 랜덤 상대와 동시에 달려요. 지난 거리를 기억해요.</string>
     <string name="home_battle_start">배틀런 시작</string>
+    <string name="home_battle_distance_title">대결 거리</string>
     <string name="home_plan_none">목표 없이 달리기</string>
     <string name="home_plan_pace">목표 %1$s/km</string>
     <string name="home_plan_distance_spoken">오늘 목표 %1$s</string>

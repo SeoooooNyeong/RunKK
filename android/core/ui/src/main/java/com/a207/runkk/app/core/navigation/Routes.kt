@@ -56,8 +56,6 @@ object Routes {
     /** 배틀런(랜덤 대결) 거리 고르기·매칭 대기. 거리 기본값은 기본 대결 거리(GET /battles/match)다. */
     const val BATTLE_RANDOM = "battle/random"
 
-    /** 홈의 배틀런 시작: 기본 대결 거리로 바로 매칭을 요청한다(FR-080 "홈의 배틀런 버튼은 기본대결거리로 바로 요청"). */
-    const val BATTLE_QUICK_MATCH = "battle/random/quick"
     const val BATTLE_HISTORY = "battle/history"
     const val RUNIMAL = "runimal"
     const val AVATAR = "avatar"
@@ -100,6 +98,13 @@ object Routes {
         val opponentKind: String,
         val startAtEpochMillis: Long? = null
     ) : NavKey
+
+    /**
+     * 홈의 배틀런 시작(FR-080): 홈 배틀런 탭에서 고른 대결 거리(1·3·5·10km, 처음엔 기본 대결 거리 FR-109)로 바로 매칭을 요청한다.
+     * 거리는 홈이 고르고 매칭 화면(ui.battle)은 이 인자로 받는다(화면 모듈끼리 직접 의존하지 않는다).
+     */
+    @Serializable
+    data class BattleQuickMatch(val distanceMeters: Long) : NavKey
 
     /** 대결 결과(비교표, FR-093·FR-108). */
     @Serializable

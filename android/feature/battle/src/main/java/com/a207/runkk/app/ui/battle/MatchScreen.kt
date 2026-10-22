@@ -64,13 +64,13 @@ import java.util.Locale
 
 /**
  * 랜덤 매칭: 거리 고르기 → 대기(취소) → 성사(VS·양쪽 최고 기록·자동 출발). 측정이 시작되면 대결 진행으로 바뀐다.
- * [isQuick]이면(홈의 배틀런 시작) 기본 대결 거리로 바로 요청한다(FR-080).
+ * [quickDistance]가 있으면(홈의 배틀런 시작) 홈에서 고른 그 거리로 바로 요청한다(FR-080). 없으면 거리 고르기부터 보인다.
  */
 @Composable
-fun MatchRoute(isQuick: Boolean = false, viewModel: MatchViewModel = hiltViewModel()) {
+fun MatchRoute(quickDistance: Distance? = null, viewModel: MatchViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val navigator = LocalRunkkNavigator.current
-    LaunchedEffect(viewModel, isQuick) { if (isQuick) viewModel.startQuick() }
+    LaunchedEffect(viewModel, quickDistance) { quickDistance?.let(viewModel::startQuick) }
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             when (event) {

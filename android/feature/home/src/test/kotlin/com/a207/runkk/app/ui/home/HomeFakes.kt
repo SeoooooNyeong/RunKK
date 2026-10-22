@@ -154,7 +154,12 @@ class FakeAccountRepository : com.a207.runkk.app.domain.account.AccountRepositor
 
     override suspend fun editProfile(nickname: String, intro: String?, tags: Set<String>) = unusedOutcome<Unit>()
 
-    override suspend fun changeSetting(item: String, value: String) = unusedOutcome<Unit>()
+    val changedSettings = mutableListOf<Pair<String, String>>()
+
+    override suspend fun changeSetting(item: String, value: String): Outcome<Unit> {
+        changedSettings += item to value
+        return unusedOutcome()
+    }
 
     override suspend fun giveConsent(item: String) = unusedOutcome<Unit>()
 
@@ -162,7 +167,13 @@ class FakeAccountRepository : com.a207.runkk.app.domain.account.AccountRepositor
 
     override suspend fun legalDocument(type: String) = unusedOutcome<String>()
 
-    override suspend fun settings() = unusedOutcome<com.a207.runkk.app.domain.account.MemberSettings>()
+    var settingsResult: Outcome<com.a207.runkk.app.domain.account.MemberSettings> = unusedOutcome()
+    var settingsCalls = 0
+
+    override suspend fun settings(): Outcome<com.a207.runkk.app.domain.account.MemberSettings> {
+        settingsCalls++
+        return settingsResult
+    }
 }
 
 class FakeAvatarRepository : com.a207.runkk.app.domain.avatar.AvatarRepository {
