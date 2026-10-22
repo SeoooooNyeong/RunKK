@@ -4,6 +4,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.emptyPreferences
 import com.a207.runkk.app.core.model.AppError
+import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.settings.GuidanceSettings
 import com.a207.runkk.app.domain.settings.SettingsRemote
@@ -67,6 +68,7 @@ class DataStoreSettingsRepositoryTest {
         assertTrue(first.watchLinked())
         assertEquals(1990, first.birthYear())
         assertEquals(500, first.guidanceSettings().gapAlertMeters)
+        assertEquals(Distance(3_000), first.guidanceSettings().freeRunTarget)
         closeAll()
 
         val reopened = open()
@@ -158,7 +160,8 @@ class DataStoreSettingsRepositoryTest {
                         isBattleVibrationOn = false,
                         gapAlertMeters = 500,
                         isRankAlertOn = true,
-                        shouldFollowCoachPlan = true
+                        shouldFollowCoachPlan = true,
+                        freeRunTarget = Distance(3_000)
                     )
             )
     }

@@ -11,6 +11,7 @@ import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.preferencesDataStoreFile
 import com.a207.runkk.app.core.model.AppError
+import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.settings.GuidanceSettings
 import com.a207.runkk.app.domain.settings.SettingsRemote
@@ -134,7 +135,8 @@ class DataStoreSettingsRepository internal constructor(
                     isBattleVibrationOn = this[BATTLE_VIBRATION] ?: defaults.isBattleVibrationOn,
                     gapAlertMeters = this[GAP_ALERT_METERS]?.takeIf { it > 0 } ?: defaults.gapAlertMeters,
                     isRankAlertOn = this[RANK_ALERT] ?: defaults.isRankAlertOn,
-                    shouldFollowCoachPlan = this[FOLLOW_COACH_PLAN] ?: defaults.shouldFollowCoachPlan
+                    shouldFollowCoachPlan = this[FOLLOW_COACH_PLAN] ?: defaults.shouldFollowCoachPlan,
+                    freeRunTarget = this[FREE_RUN_TARGET_METERS]?.takeIf { it > 0 }?.let { Distance(it.toLong()) }
                 )
         )
     }
@@ -155,6 +157,7 @@ class DataStoreSettingsRepository internal constructor(
         this[GAP_ALERT_METERS] = g.gapAlertMeters
         this[RANK_ALERT] = g.isRankAlertOn
         this[FOLLOW_COACH_PLAN] = g.shouldFollowCoachPlan
+        g.freeRunTarget?.let { this[FREE_RUN_TARGET_METERS] = it.meters.toInt() }
     }
 
     private companion object {
@@ -172,5 +175,8 @@ class DataStoreSettingsRepository internal constructor(
         val GAP_ALERT_METERS = intPreferencesKey("gap_alert_meters")
         val RANK_ALERT = booleanPreferencesKey("rank_alert")
         val FOLLOW_COACH_PLAN = booleanPreferencesKey("follow_coach_plan")
+
+        /** 자유런 목표 거리(m). 목표 없음(FREE)이면 넣지 않는다. */
+        val FREE_RUN_TARGET_METERS = intPreferencesKey("free_run_target_meters")
     }
 }

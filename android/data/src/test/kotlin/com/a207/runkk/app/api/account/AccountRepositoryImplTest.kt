@@ -427,6 +427,25 @@ class AccountRepositoryImplTest {
     }
 
     @Test
+    fun `자유런 목표(FreeRunTarget)를 사본의 목표 거리로 옮긴다(FR-048)`() = runTest {
+        val expected =
+            linkedMapOf(
+                "FREE" to null,
+                "KM3" to Distance(3_000),
+                "KM5" to Distance(5_000),
+                "KM10" to Distance(10_000),
+                "UNKNOWN" to null
+            )
+        expected.forEach { (target, distance) ->
+            api.reply("""{"runSettings":{"target":"$target","voice":true,"vibration":true,"followCoachPlan":false}}""")
+
+            val snapshot = SettingsRemoteImpl(api.retrofit.create()).fetch().value()
+
+            assertEquals(distance, snapshot.guidanceSettings.freeRunTarget, target)
+        }
+    }
+
+    @Test
     fun `동의 항목이 빠진 설정은 동의 거짓으로 읽는다`() = runTest {
         api.reply("""{"watchLinked":false,"courseMapShared":false}""")
 

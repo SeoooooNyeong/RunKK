@@ -52,6 +52,7 @@ internal fun ProfileResponse.toDomain(): Profile = Profile(
 /**
  * 서버 설정 원본 → 앱 사본(D-53). 동의는 consents의 LOCATION·HEART_RATE(없으면 거짓).
  * 중간 알림 간격은 M500 → 500m, 그 밖 → 1km. 서버 설정에 순위 알림 항목이 없어 기본값(켬)을 쓴다(FR-190).
+ * 자유런 목표(FreeRunTarget)는 KM3·KM5·KM10 → 3·5·10km, FREE와 모르는 값 → 목표 없음(FR-048).
  */
 internal fun MemberSettingsResponse.toDomain(): SettingsSnapshot {
     val defaults = GuidanceSettings.DEFAULT
@@ -74,10 +75,15 @@ internal fun MemberSettingsResponse.toDomain(): SettingsSnapshot {
                         else -> 1_000
                     },
                 isRankAlertOn = defaults.isRankAlertOn,
-                shouldFollowCoachPlan = runSettings?.followCoachPlan ?: defaults.shouldFollowCoachPlan
+                shouldFollowCoachPlan = runSettings?.followCoachPlan ?: defaults.shouldFollowCoachPlan,
+                freeRunTarget = runSettings?.target?.let(FREE_RUN_TARGETS::get)
             )
     )
 }
+
+/** 서버 FreeRunTarget → 목표 거리. FREE(목표 없음)는 넣지 않는다. */
+private val FREE_RUN_TARGETS: Map<String, Distance> =
+    mapOf("KM3" to Distance(3_000), "KM5" to Distance(5_000), "KM10" to Distance(10_000))
 
 /**
  * 서버 설정 원본 → 설정 화면 값(MemberSettings). values의 키는 changeSetting(item, value)의 item과 같다:
