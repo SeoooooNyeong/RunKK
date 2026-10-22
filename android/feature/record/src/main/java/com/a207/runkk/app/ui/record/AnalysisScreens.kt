@@ -22,6 +22,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -214,13 +215,16 @@ private fun GrowthBestsCard(growth: Growth) {
             style = RunkkTextStyles.CardTitle,
             color = RunkkColors.TextPrimary
         )
+        val resources = LocalContext.current.resources
         growth.bests.forEach { (distance, time) ->
+            val label = bestDistanceLabel(resources, distance)
+            val spoken = RunkkFormat.spokenLabel(resources, label)
             Row(modifier = Modifier.semantics(mergeDescendants = true) {}) {
                 Text(
-                    distance,
+                    label,
                     style = RunkkTextStyles.display(18),
                     color = RunkkColors.Lime,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f).semantics { contentDescription = spoken }
                 )
                 Text(
                     RunkkFormat.duration(time),

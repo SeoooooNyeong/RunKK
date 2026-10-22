@@ -211,7 +211,7 @@ fun RunScreen(state: RunUiState, actions: RunActions, modifier: Modifier = Modif
     }
 }
 
-/** 모드 라벨 끝: 목표 거리가 있으면 "5K", 없으면 "FREE". */
+/** 모드 라벨 끝: 목표 거리가 있으면 "5km", 없으면 "FREE". */
 private fun modeSuffix(target: Distance?): String = target?.let(RunkkFormat::targetLabel) ?: "FREE"
 
 @Composable

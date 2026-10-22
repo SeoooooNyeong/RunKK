@@ -227,7 +227,7 @@ private fun RunkkFeedbackPreview() {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 RunkkLiveDot()
-                Text("RUNNING · 5K", style = RunkkTextStyles.Overline, color = RunkkColors.Lime)
+                Text("RUNNING · 5km", style = RunkkTextStyles.Overline, color = RunkkColors.Lime)
             }
             RunkkLogo(RunkkLogoKind.WordmarkKo, width = 240.dp)
             RunkkLogo(RunkkLogoKind.WordmarkRrun, height = 24.dp)

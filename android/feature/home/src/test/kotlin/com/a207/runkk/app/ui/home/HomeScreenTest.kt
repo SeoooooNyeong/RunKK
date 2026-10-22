@@ -63,7 +63,7 @@ class HomeScreenTest {
         compose.onNodeWithText("자유런 시작").performScrollTo().performClick()
         compose.onNodeWithContentDescription("자유런 설정").performScrollTo().performClick()
         assertEquals(listOf(Routes.RUN, Routes.FREE_RUN_SETTINGS), routes)
-        compose.onNodeWithText("5K").assertExists()
+        compose.onNodeWithText("5km").assertExists()
     }
 
     @Test
@@ -113,9 +113,10 @@ class HomeScreenTest {
     }
 
     @Test
-    fun `배틀런 거리 칩은 대결 거리 라디오 묶음이고 킬로미터로 읽는다`() {
+    fun `배틀런 거리 칩은 대결 거리 라디오 묶음이고 km로 보이고 킬로미터로 읽는다`() {
         show(HomeUiState(isLoading = false, mode = HomeRunMode.BATTLE, battleDistance = Distance(10_000)))
         compose.onNodeWithContentDescription("대결 거리").performScrollTo().assertExists()
+        listOf("1km", "3km", "5km", "10km").forEach { compose.onNodeWithText(it).assertExists() }
         compose.onNodeWithContentDescription("10킬로미터").assertIsSelected()
         compose.onNodeWithContentDescription("1킬로미터").assertIsNotSelected()
     }
@@ -186,7 +187,7 @@ class HomeScreenTest {
             )
         )
         compose.onNodeWithText("지난번 설정 그대로").performScrollTo().assertExists()
-        compose.onNodeWithText("3K").performScrollTo().assertExists()
+        compose.onNodeWithText("3km").performScrollTo().assertExists()
         compose.onNodeWithContentDescription("목표 3킬로미터").performScrollTo().assertExists()
     }
 
@@ -195,7 +196,7 @@ class HomeScreenTest {
         val res = RuntimeEnvironment.getApplication().resources
         assertEquals(listOf(res.getString(R.string.home_plan_none)), planChips(res, null))
         assertEquals(listOf("목표 없이 달리기"), planChips(res, null))
-        assertEquals(listOf("5K"), planChips(res, PlanSnapshot(Distance(5_000), null)))
+        assertEquals(listOf("5km"), planChips(res, PlanSnapshot(Distance(5_000), null)))
     }
 
     @Test

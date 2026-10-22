@@ -102,7 +102,7 @@ object RunkkTextStyles {
     /** 작은 통계 값: 26. */
     val DisplaySmall: TextStyle = display(26, lineHeightRatio = 1f)
 
-    /** 모드 라벨("RUNNING · 5K"): 16, 0.08em. */
+    /** 모드 라벨("RUNNING · 5km"): 16, 0.08em. */
     val Overline: TextStyle = display(16, letterSpacingEm = 0.08f)
 }
 

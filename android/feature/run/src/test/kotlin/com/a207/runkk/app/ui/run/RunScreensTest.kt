@@ -47,7 +47,7 @@ class RunScreensTest {
         show(RunUiState(phase = RunPhase.COUNTDOWN, countdown = 2, targetDistance = Distance(5_000)))
         compose.onNodeWithContentDescription("2").performClick()
         compose.onNodeWithText("취소").performClick()
-        compose.onNodeWithText("FREE RUN · 5K").assertExists()
+        compose.onNodeWithText("FREE RUN · 5km").assertExists()
         assertEquals(listOf("skip", "cancel"), calls)
     }
 

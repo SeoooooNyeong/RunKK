@@ -21,10 +21,10 @@ object RunkkFormat {
     /** km 소수 첫째 자리: 5.0(달력 칸). */
     fun kmShort(distance: Distance): String = String.format(Locale.US, "%.1f", distance.meters / METERS_PER_KM)
 
-    /** 목표 거리 라벨: 5000m → "5K", 2500m → "2.5K". */
+    /** 목표 거리 라벨: 5000m → "5km", 2500m → "2.5km". */
     fun targetLabel(distance: Distance): String {
         val km = distance.meters / METERS_PER_KM
-        return if (km % 1.0 == 0.0) "${km.toLong()}K" else "${String.format(Locale.US, "%.1f", km)}K"
+        return if (km % 1.0 == 0.0) "${km.toLong()}km" else "${String.format(Locale.US, "%.1f", km)}km"
     }
 
     /** 페이스 m:ss(/km 단위 생략): 5:32. 없으면 "-:--". */
@@ -68,7 +68,7 @@ object RunkkFormat {
     }
 
     /**
-     * 보조 기술용 라벨 읽기: 영문 오버라인("LIVE BATTLE · 5K")과 거리 라벨("5K")을 한글("실시간 대결, 5킬로미터")로 바꾼다.
+     * 보조 기술용 라벨 읽기: 영문 오버라인("LIVE BATTLE · 5km")과 거리 라벨("5km")을 한글("실시간 대결, 5킬로미터")로 바꾼다.
      * " · "로 나뉜 조각마다 바꾸고, 모르는 조각은 그대로 둔다.
      */
     fun spokenLabel(res: Resources, text: String): String = text.split(SEPARATOR).joinToString(", ") { raw ->
@@ -91,7 +91,7 @@ object RunkkFormat {
     fun spokenLabel(text: String): String = spokenLabel(LocalContext.current.resources, text)
 
     private const val SEPARATOR = " · "
-    private val KM_LABEL = Regex("""(\d+(?:\.\d+)?)K""")
+    private val KM_LABEL = Regex("""(\d+(?:\.\d+)?)km""")
     private val SPOKEN_WORDS = mapOf(
         "LIVE BATTLE" to R.string.core_spoken_live_battle,
         "SELF BATTLE" to R.string.core_spoken_self_battle,

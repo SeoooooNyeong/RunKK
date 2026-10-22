@@ -22,22 +22,22 @@ class RunkkFormatTest {
 
     @Test
     fun `영문 오버라인·거리 라벨은 보조 기술이 한글로 읽는다`() {
-        assertEquals("실시간 대결, 5킬로미터", RunkkFormat.spokenLabel(res, "LIVE BATTLE · 5K"))
+        assertEquals("실시간 대결, 5킬로미터", RunkkFormat.spokenLabel(res, "LIVE BATTLE · 5km"))
         assertEquals("나와의 싸움, 하프", RunkkFormat.spokenLabel(res, "SELF BATTLE · 하프"))
-        assertEquals("유명인 대결, 10킬로미터", RunkkFormat.spokenLabel(res, "CELEB BATTLE · 10K"))
+        assertEquals("유명인 대결, 10킬로미터", RunkkFormat.spokenLabel(res, "CELEB BATTLE · 10km"))
         assertEquals("자유런, 목표 없음", RunkkFormat.spokenLabel(res, "FREE RUN · FREE"))
         assertEquals("크루런 결과", RunkkFormat.spokenLabel(res, "CREW RUN RESULT"))
-        assertEquals("크루런, 2.5킬로미터", RunkkFormat.spokenLabel(res, "CREW RUN · 2.5K"))
+        assertEquals("크루런, 2.5킬로미터", RunkkFormat.spokenLabel(res, "CREW RUN · 2.5km"))
         assertEquals("배틀런", RunkkFormat.spokenLabel(res, "BATTLE RUN"))
         assertEquals("매칭 성사", RunkkFormat.spokenLabel(res, "MATCHED"))
-        assertEquals("5킬로미터", RunkkFormat.spokenLabel(res, "5K"))
+        assertEquals("5킬로미터", RunkkFormat.spokenLabel(res, "5km"))
         assertEquals("GPS 좋음", RunkkFormat.spokenLabel(res, "GPS 좋음"))
     }
 
     @Test
     fun `목표 거리 라벨은 정수면 소수 없이`() {
-        assertEquals("5K", RunkkFormat.targetLabel(Distance(5_000)))
-        assertEquals("2.5K", RunkkFormat.targetLabel(Distance(2_500)))
+        assertEquals("5km", RunkkFormat.targetLabel(Distance(5_000)))
+        assertEquals("2.5km", RunkkFormat.targetLabel(Distance(2_500)))
     }
 
     @Test

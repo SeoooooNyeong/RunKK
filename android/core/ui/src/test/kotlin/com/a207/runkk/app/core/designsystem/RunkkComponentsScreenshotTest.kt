@@ -54,7 +54,7 @@ class RunkkComponentsScreenshotTest {
             }
             RunkkSegmentRow(listOf("전체공개", "크루공개", "비공개"), selectedIndex = 0, onSelect = {})
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                RunkkInfoChip("5K", isHighlighted = true, isDisplay = true)
+                RunkkInfoChip("5km", isHighlighted = true, isDisplay = true)
                 RunkkInfoChip("음성 켬")
                 RunkkBadge("유효 러닝", tone = RunkkBadgeTone.Lime)
             }

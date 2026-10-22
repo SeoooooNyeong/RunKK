@@ -231,7 +231,7 @@ val sampleGrowth = Growth(
         Growth.PeriodTotal(LocalDate.of(2026, 10, 12), Distance(18_500), 4, Pace(338)),
         Growth.PeriodTotal(LocalDate.of(2026, 10, 19), Distance(15_200), 3, Pace(332))
     ),
-    bests = mapOf("5K" to Duration.ofSeconds(1_620), "10K" to Duration.ofSeconds(3_480)),
+    bests = mapOf("KM5" to Duration.ofSeconds(1_620), "KM10" to Duration.ofSeconds(3_480)),
     longest = Distance(12_300)
 )
 

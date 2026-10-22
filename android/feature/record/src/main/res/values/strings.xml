@@ -81,6 +81,8 @@
     <string name="record_growth_unit_runs">회</string>
     <string name="record_growth_stat_longest">최장 거리</string>
     <string name="record_growth_bests_title">거리별 최고 기록</string>
+    <string name="record_distance_half">하프</string>
+    <string name="record_distance_full">풀</string>
     <string name="record_report_title">리포트</string>
     <string name="record_report_summary_title">이번 주 요약</string>
     <string name="record_report_comment_title">코치 코멘트</string>
