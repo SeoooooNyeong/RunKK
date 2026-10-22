@@ -7,7 +7,7 @@ plugins {
 }
 
 // 배포 서버(EC2, infra/.env SERVER_NAME). develop·prod 플레이버의 기본 주소다.
-val serverHost = "s15p31a207.p.ssafy.io"
+val serverHost = "k15a207.p.ssafy.io"
 
 android {
     // BuildConfig(플레이버별 서버 주소)가 api.core 패키지에 생기게 한다. 서버 주소는 api.core만 읽는다(5.1.2 의존 표).
