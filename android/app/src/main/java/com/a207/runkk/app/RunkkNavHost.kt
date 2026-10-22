@@ -2,7 +2,9 @@ package com.a207.runkk.app
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
@@ -69,7 +71,9 @@ fun RunkkNavHost(
         ) { innerPadding ->
             NavDisplay(
                 backStack = backStack,
-                modifier = Modifier.padding(innerPadding),
+                // Scaffold는 키보드(IME) 인셋을 빼 준다. 하단 버튼·입력칸이 키보드에 가리지 않게 여기서 한 번만 올린다.
+                // innerPadding이 이미 띄운 내비게이션 바·하단 탭 높이는 consumeWindowInsets로 빼서 이중으로 띄우지 않는다.
+                modifier = Modifier.padding(innerPadding).consumeWindowInsets(innerPadding).imePadding(),
                 onBack = { navigator.back() },
                 entryDecorators = listOf(
                     rememberSaveableStateHolderNavEntryDecorator(),
