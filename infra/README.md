@@ -5,8 +5,8 @@ Docker Compose 한 벌로 nginx, api(Spring Boot 3.5, Java 21), PostgreSQL 17, R
 ```
 infra/
 ├─ docker-compose.yml        nginx · api · postgres · redis (+ certbot 프로필)
-├─ nginx/templates/default.conf.template   HTTP 리버스 프록시 (초기)
-├─ nginx/https.conf.template               인증서 발급 후 교체할 HTTPS 설정
+├─ nginx/http/default.conf.template        HTTP 리버스 프록시 (초기)
+├─ nginx/https/default.conf.template       인증서 발급 후 쓰는 HTTPS 설정 (deploy.sh가 NGINX_MODE로 고름)
 ├─ .env.example              서버 환경 변수 목록 (.env는 커밋 금지)
 ├─ deploy.sh                 이미지 빌드 + 스택 재시작 + 헬스체크
 └─ init-letsencrypt.sh       Let's Encrypt 인증서 1회 발급 + HTTPS 전환

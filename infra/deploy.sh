@@ -39,13 +39,14 @@ wait_healthy() {  # <service> <tries, 5 s apart>
   return 1
 }
 
-# 인증서는 letsencrypt 볼륨에 있고(init-letsencrypt.sh가 1회 발급) nginx 설정은 작업 폴더의 파일이다. CI는 배포마다 저장소를
-# 새로 받아 HTTP 설정으로 돌아가므로, 인증서가 있으면 배포 때마다 HTTPS 설정을 다시 고른다.
+# 인증서는 letsencrypt 볼륨에 있다(init-letsencrypt.sh가 1회 발급). 인증서가 있으면 nginx/https 설정 폴더를 고른다(NGINX_MODE).
+# 예전처럼 저장소 파일을 덮어쓰면 다음 CI 잡이 작업 폴더를 다시 받을 때 HTTP 설정으로 돌아가고, 그 뒤 nginx가 재시작되면 443이 닫혔다.
 if compose run --rm --no-deps --entrypoint test certbot -f "/etc/letsencrypt/live/${SERVER_NAME}/fullchain.pem" 2>/dev/null; then
-  cp nginx/https.conf.template nginx/templates/default.conf.template
+  export NGINX_MODE=https
   # HTTPS면 80은 301만 돌려주므로 443을 인증서 이름으로 직접 부른다(--resolve로 이 서버에 붙고 인증서도 검증한다)
   HEALTH_CURL=(curl -fsS --resolve "${SERVER_NAME}:${NGINX_HTTPS_PORT}:127.0.0.1" "https://${SERVER_NAME}:${NGINX_HTTPS_PORT}/actuator/health")
 else
+  export NGINX_MODE=http
   HEALTH_CURL=(curl -fsS "http://localhost:${NGINX_HTTP_PORT}/actuator/health")
 fi
 
