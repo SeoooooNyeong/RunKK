@@ -6,6 +6,7 @@ import app.cash.turbine.test
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.ServerClock
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.crew.CrewRunState
 import com.a207.runkk.app.domain.live.CrewRunCancelled
@@ -29,8 +30,12 @@ class CrewRunViewModelTest {
     @get:Rule
     val main = MainDispatcherRule()
 
-    private fun TestScope.lobbyVm(w: CrewWorld, vms: ViewModelCloser): CrewRunViewModel {
-        val vm = vms.track(CrewRunViewModel(w.crews, w.coordinator, w.clock))
+    private fun TestScope.lobbyVm(
+        w: CrewWorld,
+        vms: ViewModelCloser,
+        serverClock: ServerClock = ServerClock(w.clock)
+    ): CrewRunViewModel {
+        val vm = vms.track(CrewRunViewModel(w.crews, w.coordinator, w.clock, serverClock))
         vm.bind(Routes.CrewRunLobby(31))
         runCurrent()
         return vm
@@ -55,6 +60,18 @@ class CrewRunViewModelTest {
         w.clock.now = w.clock.now.plusSeconds(60)
         advanceTimeBy(1_100)
         assertEquals(Duration.ofMinutes(9), vm.state.value.untilStart)
+    }
+
+    @Test
+    fun `출발까지 남은 시간은 기기 시계가 아니라 서버 시각으로 센다`() = main.runVmTest { vms ->
+        val w = crewWorld()
+        // 기기 시계가 서버보다 2분 빠르다: 모집 일시(기기 기준 10분 뒤)까지 서버로는 12분 남았다.
+        val serverClock = ServerClock(w.clock).apply { onServerDate(w.clock.now.minusSeconds(120)) }
+        val vm = lobbyVm(w, vms, serverClock)
+        assertEquals(Duration.ofMinutes(12), vm.state.value.untilStart)
+        w.clock.now = w.clock.now.plusSeconds(60)
+        advanceTimeBy(1_100)
+        assertEquals(Duration.ofMinutes(11), vm.state.value.untilStart)
     }
 
     @Test
