@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- 기기 저장(DeviceSaveTarget): Android 10(API 29)부터는 MediaStore에 권한 없이 넣는다. -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
+
+    <!-- Android 11+ 패키지 가시성: 인스타그램 스토리 인텐트를 받는 앱이 있는지 묻는다(StoryShareTarget). -->
+    <queries>
+        <intent>
+            <action android:name="com.instagram.share.ADD_TO_STORY" />
+            <data android:mimeType="image/png" />
+        </intent>
+    </queries>
+
+    <application>
+        <!-- 공유 카드 PNG를 다른 앱(공유 시트·인스타그램 스토리)에 넘기는 주소. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.runkk.cards"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/runkk_share_paths" />
+        </provider>
+    </application>
+
+</manifest>

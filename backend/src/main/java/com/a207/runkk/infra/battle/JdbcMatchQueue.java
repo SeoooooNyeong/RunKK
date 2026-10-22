@@ -1,0 +1,148 @@
+package com.a207.runkk.infra.battle;
+
+import com.a207.runkk.battle.MatchQueue;
+import com.a207.runkk.battle.MatchStatus;
+import com.a207.runkk.battle.MatchTicket;
+import com.a207.runkk.common.StandardDistance;
+import com.a207.runkk.common.Tier;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.util.List;
+import java.util.Optional;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+
+/**
+ * battle.MatchQueue의 PostgreSQL 대안(설계 D-07, 5.3). runkk.queue=jdbc일 때 쓴다. 중복 대기는 기본 키(member_id)로
+ * 막고, 짝 배정은 두 행을 {@code SELECT … FOR UPDATE SKIP LOCKED}로 잠근 뒤 둘 다 WAITING일 때만 바꾼다(FR-082).
+ * match_ticket 테이블만 쓴다.
+ */
+@Component
+@ConditionalOnProperty(name = "runkk.queue", havingValue = "jdbc")
+public class JdbcMatchQueue implements MatchQueue {
+
+    private static final int PAIR = 2;
+
+    /** 배정 뒤 이만큼 지나도 남은 행은 장애로 남은 것으로 보고 재요청 때 지운다(Redis 표 수명과 같다, L11). */
+    private static final String STALE_ASSIGNED =
+            "delete from match_ticket where member_id = ? and status = 'ASSIGNED'"
+                    + " and assigned_at < localtimestamp - interval '5 minutes'";
+
+    private static final String COLUMNS = "member_id, tier, distance, waiting_since, status";
+
+    private final JdbcTemplate jdbc;
+
+    public JdbcMatchQueue(JdbcTemplate jdbc) {
+        this.jdbc = jdbc;
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public boolean enqueue(MatchTicket ticket) {
+        jdbc.update(STALE_ASSIGNED, ticket.getMemberId());
+        int inserted =
+                jdbc.update(
+                        "insert into match_ticket ("
+                                + COLUMNS
+                                + ") values (?, ?, ?, ?, ?) on conflict (member_id) do nothing",
+                        ticket.getMemberId(),
+                        ticket.getTier().name(),
+                        ticket.getDistance().name(),
+                        Timestamp.valueOf(ticket.getWaitingSince()),
+                        ticket.getStatus().name());
+        return inserted == 1;
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public boolean remove(long memberId) {
+        return jdbc.update("delete from match_ticket where member_id = ?", memberId) > 0;
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public boolean removeWaiting(long memberId) {
+        return jdbc.update(
+                        "delete from match_ticket where member_id = ? and status = 'WAITING'",
+                        memberId)
+                > 0;
+    }
+
+    @Override
+    public Optional<MatchTicket> findWaiting(long memberId) {
+        List<MatchTicket> found =
+                jdbc.query(
+                        "select " + COLUMNS + " from match_ticket where member_id = ?",
+                        JdbcMatchQueue::ticketOf,
+                        memberId);
+        return found.stream().findFirst();
+    }
+
+    @Override
+    public List<MatchTicket> waitingOldestFirst() {
+        return jdbc.query(
+                "select "
+                        + COLUMNS
+                        + " from match_ticket where status = 'WAITING' order by waiting_since,"
+                        + " member_id",
+                JdbcMatchQueue::ticketOf);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public boolean tryAssignPair(long a, long b) {
+        List<Long> locked =
+                jdbc.queryForList(
+                        "select member_id from match_ticket where member_id in (?, ?) and status ="
+                                + " 'WAITING' for update skip locked",
+                        Long.class,
+                        a,
+                        b);
+        if (locked.size() != PAIR) {
+            return false;
+        }
+        jdbc.update(
+                "update match_ticket set status = 'ASSIGNED', assigned_at = localtimestamp"
+                        + " where member_id in (?, ?)",
+                a,
+                b);
+        return true;
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public boolean tryAssign(long memberId) {
+        return jdbc.update(
+                        "update match_ticket set status = 'ASSIGNED', assigned_at = localtimestamp"
+                                + " where member_id = ? and status = 'WAITING'",
+                        memberId)
+                > 0;
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void release(long memberId) {
+        jdbc.update(
+                "update match_ticket set status = 'WAITING', assigned_at = null"
+                        + " where member_id = ? and status = 'ASSIGNED'",
+                memberId);
+    }
+
+    /** 대기 표로 열고 저장 상태가 ASSIGNED면 배정한다. */
+    private static MatchTicket ticketOf(ResultSet rs, int row) throws SQLException {
+        MatchTicket ticket =
+                MatchTicket.open(
+                        rs.getLong("member_id"),
+                        Tier.valueOf(rs.getString("tier")),
+                        StandardDistance.valueOf(rs.getString("distance")),
+                        rs.getTimestamp("waiting_since").toLocalDateTime());
+        if (MatchStatus.valueOf(rs.getString("status")) == MatchStatus.ASSIGNED) {
+            ticket.assign();
+        }
+        return ticket;
+    }
+}

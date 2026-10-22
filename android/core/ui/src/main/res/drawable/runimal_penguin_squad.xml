@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 러니멀 그림: penguin_squad. 단순 플랫 그림, 뷰포트 120x120. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp"
+    android:height="120dp"
+    android:viewportWidth="120"
+    android:viewportHeight="120">
+    <path
+        android:fillColor="#5B4FD9"
+        android:pathData="M15.75,76.62A8,19 25 1,0 30.25,83.38A8,19 25 1,0 15.75,76.62ZM89.75,83.38A8,19 -25 1,0 104.25,76.62A8,19 -25 1,0 89.75,83.38Z" />
+    <path
+        android:fillColor="#CBEA2B"
+        android:pathData="M39,106A9,4.5 0 1,0 57,106A9,4.5 0 1,0 39,106ZM63,106A9,4.5 0 1,0 81,106A9,4.5 0 1,0 63,106Z" />
+    <path
+        android:fillColor="#5B4FD9"
+        android:pathData="M24,64A36,41 0 1,0 96,64A36,41 0 1,0 24,64Z" />
+    <path
+        android:fillColor="#FAFAFA"
+        android:pathData="M60,52 C66,40 92,42 90,66 C88,90 74,101 60,101 C46,101 32,90 30,66 C28,42 54,40 60,52Z" />
+    <path
+        android:fillColor="#09090B"
+        android:pathData="M43.4,64a4.6,4.6 0 1,0 9.2,0a4.6,4.6 0 1,0 -9.2,0ZM67.4,64a4.6,4.6 0 1,0 9.2,0a4.6,4.6 0 1,0 -9.2,0Z" />
+    <path
+        android:fillColor="#FAFAFA"
+        android:pathData="M48,62.4a1.5,1.5 0 1,0 3,0a1.5,1.5 0 1,0 -3,0ZM72,62.4a1.5,1.5 0 1,0 3,0a1.5,1.5 0 1,0 -3,0Z" />
+    <path
+        android:fillColor="#CBEA2B"
+        android:pathData="M53,73 H67 L60,82Z" />
+</vector>

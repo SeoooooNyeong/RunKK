@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_group_today">오늘</string>
+    <string name="notification_group_this_week">이번 주</string>
+    <string name="notification_group_earlier">그 전</string>
+    <string name="notification_inbox_title">알림함</string>
+    <string name="notification_empty_title">새 알림이 없어요</string>
+    <string name="notification_empty_message">크루·대결·코치 소식이 오면 여기에 모여요</string>
+    <string name="notification_read">읽음</string>
+    <string name="notification_unread">안 읽음</string>
+    <string name="notification_time_pattern">M월 d일 HH:mm</string>
+</resources>

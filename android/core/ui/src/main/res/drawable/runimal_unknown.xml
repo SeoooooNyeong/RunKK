@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 러니멀 그림: unknown. 단순 플랫 그림, 뷰포트 120x120. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp"
+    android:height="120dp"
+    android:viewportWidth="120"
+    android:viewportHeight="120">
+    <path
+        android:fillColor="#3F3F46"
+        android:pathData="M22,64a38,38 0 1,0 76,0a38,38 0 1,0 -76,0Z" />
+    <path
+        android:pathData="M47,52 C47,38 73,37 73,52 C73,63 60,62 60,74"
+        android:strokeWidth="8"
+        android:strokeColor="#A1A1AA"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:fillColor="#A1A1AA"
+        android:pathData="M55,88a5,5 0 1,0 10,0a5,5 0 1,0 -10,0Z" />
+</vector>

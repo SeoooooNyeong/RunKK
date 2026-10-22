@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 폰 앱이 이 능력이 닿는 노드로 워치 연결을 안다(wear.contract WearPaths.WATCH_CAPABILITY와 같은 값). -->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:keep="@array/android_wear_capabilities">
+    <string-array name="android_wear_capabilities" translatable="false">
+        <item>runkk_watch</item>
+    </string-array>
+</resources>

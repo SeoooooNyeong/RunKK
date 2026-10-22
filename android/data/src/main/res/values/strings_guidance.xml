@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 도메인 안내 키(domain.run.GuidanceMessage·WatchNotice)의 문구(2차 리뷰 M-3). data.device·data.watch가 바꿔 낸다. -->
+<resources>
+    <string name="guidance_finish_hint">길게 눌러 종료</string>
+    <string name="guidance_unlock_hint">길게 눌러 해제</string>
+    <string name="guidance_split">%1$skm 지점입니다</string>
+    <string name="guidance_target_reached">목표 거리 %1$skm에 도달했어요</string>
+    <string name="guidance_pace_slow" formatted="false">목표 페이스보다 10% 넘게 느려요</string>
+    <string name="guidance_breath_high">심박이 높아요. 호흡을 고르세요 (의료 판단이 아닙니다)</string>
+    <string name="guidance_gap_ahead">%1$sm 앞서는 중</string>
+    <string name="guidance_gap_behind">%1$sm 뒤처져 있어요</string>
+    <string name="guidance_gap_ahead_remaining">%1$sm 앞서는 중, 남은 거리 %2$sm</string>
+    <string name="guidance_gap_behind_remaining">%1$sm 뒤처져 있어요, 남은 거리 %2$sm</string>
+    <string name="guidance_rank">%1$s명 중 %2$s위</string>
+    <string name="guidance_overtook">상대를 추월했어요! %1$sm 앞서는 중</string>
+    <string name="guidance_overtaken">역전당했어요</string>
+    <string name="guidance_save_failed">러닝 기록을 기기에 저장하지 못했어요</string>
+    <string name="guidance_report_failed">대결 상태를 서버에 알리지 못했어요</string>
+
+    <string name="watch_notice_already_measuring">이미 측정 중이에요</string>
+    <string name="watch_notice_open_run_screen">폰에서 러닝 화면을 여세요</string>
+    <string name="watch_notice_end_on_phone">대결·크루런은 폰에서 끝내 주세요</string>
+</resources>
