@@ -51,6 +51,7 @@ import com.a207.runkk.app.core.designsystem.RunkkConfirmDialog
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkHint
+import com.a207.runkk.app.core.designsystem.RunkkIconButton
 import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkLiveDot
 import com.a207.runkk.app.core.designsystem.RunkkLoading
@@ -236,19 +237,6 @@ fun CrewRunRoute(key: Routes.CrewRunLobby, viewModel: CrewRunViewModel = hiltVie
             }
         }
     }
-    val running = state.phase == CrewRunPhase.RUNNING || state.phase == CrewRunPhase.COUNTDOWN
-    BackHandler {
-        when {
-            running -> viewModel.onQuitTapped()
-
-            state.phase == CrewRunPhase.CANCELLED -> {
-                viewModel.onCancelledClosed()
-                navigator.back()
-            }
-
-            else -> viewModel.onLeaveLobby()
-        }
-    }
     CrewRunScreen(
         state = state,
         actions = CrewRunActions(
@@ -259,10 +247,8 @@ fun CrewRunRoute(key: Routes.CrewRunLobby, viewModel: CrewRunViewModel = hiltVie
             onQuitLongPress = viewModel::onQuitLongPressed,
             onQuitConfirm = viewModel::onQuitConfirmed,
             onQuitDismiss = viewModel::onQuitDismissed,
-            onClose = {
-                viewModel.onCancelledClosed()
-                navigator.back()
-            }
+            onClose = viewModel::onBack,
+            onBack = viewModel::onBack
         )
     )
 }
@@ -275,11 +261,18 @@ data class CrewRunActions(
     val onQuitLongPress: () -> Unit = {},
     val onQuitConfirm: () -> Unit = {},
     val onQuitDismiss: () -> Unit = {},
-    val onClose: () -> Unit = {}
+    val onClose: () -> Unit = {},
+    /** 상단 뒤로 단추·시스템 뒤로 가기·"돌아가기". 단계별 처리는 CrewRunViewModel.onBack. */
+    val onBack: () -> Unit = {}
 )
 
+/**
+ * 크루런 대기실·진행 화면. 시스템 뒤로 가기는 늘 [CrewRunActions.onBack]으로 보낸다(대기실에 들어가지 못한 오류 화면에서도 나갈 수
+ * 있게). 들어가는 중(ENTERING)에는 상단에 뒤로 단추를 둔다.
+ */
 @Composable
 fun CrewRunScreen(state: CrewRunUiState, actions: CrewRunActions, modifier: Modifier = Modifier) {
+    BackHandler(onBack = actions.onBack)
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -288,6 +281,13 @@ fun CrewRunScreen(state: CrewRunUiState, actions: CrewRunActions, modifier: Modi
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (state.phase == CrewRunPhase.ENTERING) {
+                RunkkIconButton(
+                    RunkkIcons.Back,
+                    contentDescription = stringResource(R.string.crew_run_back),
+                    onClick = actions.onBack
+                )
+            }
             RunkkLiveDot(color = if (state.phase == CrewRunPhase.RUNNING) RunkkColors.Lavender else RunkkColors.Lime)
             RunkkOverline(
                 "CREW RUN" + (state.distance?.let { " · ${RunkkFormat.targetLabel(it)}" } ?: ""),
@@ -319,7 +319,17 @@ fun CrewRunScreen(state: CrewRunUiState, actions: CrewRunActions, modifier: Modi
 private fun ColumnScope.RunPhaseBody(state: CrewRunUiState, actions: CrewRunActions) {
     when (state.phase) {
         CrewRunPhase.ENTERING -> if (state.error != null) {
-            RunkkErrorState(state.error.asString(), onRetry = actions.onRefresh, modifier = Modifier.weight(1f))
+            // 열리지 않음·이미 시작 같은 거부는 다시 해도 같으니 "돌아가기"를 준다.
+            if (state.canRetry) {
+                RunkkErrorState(state.error.asString(), onRetry = actions.onRefresh, modifier = Modifier.weight(1f))
+            } else {
+                RunkkErrorState(
+                    state.error.asString(),
+                    onRetry = actions.onBack,
+                    retryLabel = stringResource(R.string.crew_run_cancelled_back),
+                    modifier = Modifier.weight(1f)
+                )
+            }
         } else {
             RunkkLoading(Modifier.weight(1f))
         }

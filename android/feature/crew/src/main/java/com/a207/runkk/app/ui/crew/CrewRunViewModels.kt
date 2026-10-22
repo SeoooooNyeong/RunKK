@@ -4,8 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.uiText
+import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.core.model.ServerClock
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.crew.CrewRepository
 import com.a207.runkk.app.domain.crew.CrewRunCoordinator
@@ -142,7 +144,12 @@ data class CrewRunUiState(
     val isLeaving: Boolean = false,
     val hint: UiText? = null,
     val isBusy: Boolean = false,
-    val error: UiText? = null
+    val error: UiText? = null,
+    /**
+     * 대기실에 들어가지 못한 오류([error])를 다시 시도해 볼 만한지. 업무 규칙 거부(열리지 않음·이미 시작·참가자 아님 등)는
+     * 다시 해도 같으므로 거짓이고, 화면은 "다시 시도" 대신 "돌아가기"를 보인다.
+     */
+    val canRetry: Boolean = true
 )
 
 sealed interface CrewRunEvent {
@@ -154,12 +161,15 @@ sealed interface CrewRunEvent {
 /**
  * 크루런 대기실 → 동시 출발 → 진행 중 중계(FR-147~FR-149, FR-190, FR-192). enterLobby 성공 뒤 CrewRunCoordinator.onLobbyEntered로
  * 채널을 연다. 이후 시작·중계·종료는 조정자 상태를 보이고, 중간 그만두기는 길게 누름 + 확인 뒤 quit(D-49).
+ * 출발까지 남은 시간(모집 일시는 서버 시각)은 서버 시각 추정(ServerClock)으로 세고, 출발 카운트다운은 조정자가 측정을 여는
+ * 기기 시계(clock)로 센다.
  */
 @HiltViewModel
 class CrewRunViewModel @Inject constructor(
     private val crews: CrewRepository,
     private val coordinator: CrewRunCoordinator,
-    private val clock: Clock
+    private val clock: Clock,
+    private val serverClock: ServerClock
 ) : ViewModel() {
     private val _state = MutableStateFlow(CrewRunUiState())
     val state: StateFlow<CrewRunUiState> = _state.asStateFlow()
@@ -209,7 +219,28 @@ class CrewRunViewModel @Inject constructor(
                     tick()
                 }
 
-                is Outcome.Failure -> _state.update { it.copy(isBusy = false, error = CrewErrorText.of(r.error)) }
+                is Outcome.Failure -> _state.update {
+                    it.copy(isBusy = false, error = CrewErrorText.of(r.error), canRetry = r.error !is AppError.Rejected)
+                }
+            }
+        }
+    }
+
+    /**
+     * 뒤로 가기(상단 뒤로 단추·시스템 뒤로 가기·오류의 돌아가기). 대기실에 들어가지 못했으면(ENTERING) 나가기 요청 없이 닫고,
+     * 대기실이면 나가기, 출발 카운트다운·진행 중이면 그만두기 안내만, 취소됐으면 조정자에 알린 뒤 닫는다.
+     */
+    fun onBack() {
+        when (_state.value.phase) {
+            CrewRunPhase.ENTERING -> _events.trySend(CrewRunEvent.Left)
+
+            CrewRunPhase.LOBBY, CrewRunPhase.FINISHED -> onLeaveLobby()
+
+            CrewRunPhase.COUNTDOWN, CrewRunPhase.RUNNING -> onQuitTapped()
+
+            CrewRunPhase.CANCELLED -> {
+                onCancelledClosed()
+                _events.trySend(CrewRunEvent.Left)
             }
         }
     }
@@ -322,9 +353,10 @@ class CrewRunViewModel @Inject constructor(
 
     private fun refreshClock() {
         val now = clock.instant()
+        val serverNow = serverClock.now()
         _state.update { s ->
             s.copy(
-                untilStart = s.lobby?.meetAt?.let { Duration.between(now, it).coerceAtLeast(Duration.ZERO) },
+                untilStart = s.lobby?.meetAt?.let { Duration.between(serverNow, it).coerceAtLeast(Duration.ZERO) },
                 countdown = startAt?.takeIf { s.phase == CrewRunPhase.COUNTDOWN }
                     ?.let { Duration.between(now, it).seconds.coerceAtLeast(0) }
             )

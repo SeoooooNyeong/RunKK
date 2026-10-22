@@ -6,6 +6,7 @@ import app.cash.turbine.test
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.ServerClock
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.crew.CrewRunState
 import com.a207.runkk.app.domain.live.CrewRunCancelled
@@ -29,8 +30,12 @@ class CrewRunViewModelTest {
     @get:Rule
     val main = MainDispatcherRule()
 
-    private fun TestScope.lobbyVm(w: CrewWorld, vms: ViewModelCloser): CrewRunViewModel {
-        val vm = vms.track(CrewRunViewModel(w.crews, w.coordinator, w.clock))
+    private fun TestScope.lobbyVm(
+        w: CrewWorld,
+        vms: ViewModelCloser,
+        serverClock: ServerClock = ServerClock(w.clock)
+    ): CrewRunViewModel {
+        val vm = vms.track(CrewRunViewModel(w.crews, w.coordinator, w.clock, serverClock))
         vm.bind(Routes.CrewRunLobby(31))
         runCurrent()
         return vm
@@ -55,6 +60,18 @@ class CrewRunViewModelTest {
         w.clock.now = w.clock.now.plusSeconds(60)
         advanceTimeBy(1_100)
         assertEquals(Duration.ofMinutes(9), vm.state.value.untilStart)
+    }
+
+    @Test
+    fun `출발까지 남은 시간은 기기 시계가 아니라 서버 시각으로 센다`() = main.runVmTest { vms ->
+        val w = crewWorld()
+        // 기기 시계가 서버보다 2분 빠르다: 모집 일시(기기 기준 10분 뒤)까지 서버로는 12분 남았다.
+        val serverClock = ServerClock(w.clock).apply { onServerDate(w.clock.now.minusSeconds(120)) }
+        val vm = lobbyVm(w, vms, serverClock)
+        assertEquals(Duration.ofMinutes(12), vm.state.value.untilStart)
+        w.clock.now = w.clock.now.plusSeconds(60)
+        advanceTimeBy(1_100)
+        assertEquals(Duration.ofMinutes(11), vm.state.value.untilStart)
     }
 
     @Test
@@ -168,6 +185,58 @@ class CrewRunViewModelTest {
         assertTrue("leaveLobby:31" in w.crews.calls)
         assertEquals(1, w.channels.channel.closed, "대기실만 나가도 조정자가 연 채널을 닫는다")
         assertEquals(CrewRunState.Idle, w.coordinator.state.value, "결과 화면으로 가지 않는다")
+    }
+
+    @Test
+    fun `대기실이 아직 안 열렸으면 다시 시도 대신 돌아가기를 주고, 뒤로 가면 나가기 요청 없이 닫는다`() = main.runVmTest { vms ->
+        val w = crewWorld()
+        w.crews.fail["enter"] = AppError.Rejected("LOBBY_NOT_OPEN")
+        val vm = lobbyVm(w, vms)
+        assertEquals(CrewRunPhase.ENTERING, vm.state.value.phase)
+        assertEquals(UiText.Res(R.string.crew_error_lobby_not_open), vm.state.value.error)
+        assertFalse(vm.state.value.canRetry, "다시 해도 같은 거부라 다시 시도를 주지 않는다")
+        vm.events.test {
+            vm.onBack()
+            assertEquals(CrewRunEvent.Left, awaitItem())
+        }
+        assertFalse(w.crews.calls.any { it.startsWith("leaveLobby") }, "들어가지 못한 대기실은 나가기를 보내지 않는다")
+    }
+
+    @Test
+    fun `네트워크 오류로 못 들어갔으면 다시 시도를 주고 뒤로 가기도 된다`() = main.runVmTest { vms ->
+        val w = crewWorld()
+        w.crews.fail["enter"] = AppError.Network
+        val vm = lobbyVm(w, vms)
+        assertTrue(vm.state.value.canRetry)
+        vm.events.test {
+            vm.onBack()
+            assertEquals(CrewRunEvent.Left, awaitItem())
+        }
+    }
+
+    @Test
+    fun `뒤로 가기 - 대기실에서는 나가기를 보낸 뒤 닫는다`() = main.runVmTest { vms ->
+        val w = crewWorld()
+        val vm = lobbyVm(w, vms)
+        vm.events.test {
+            vm.onBack()
+            assertEquals(CrewRunEvent.Left, awaitItem())
+        }
+        assertTrue("leaveLobby:31" in w.crews.calls)
+    }
+
+    @Test
+    fun `뒤로 가기 - 출발 카운트다운부터는 나가지 않고 그만두기 안내만 한다`() = main.runVmTest { vms ->
+        val w = crewWorld()
+        val vm = lobbyVm(w, vms)
+        w.channels.channel.push(CrewRunStart(31, w.clock.now, listOf("나")))
+        runCurrent()
+        vm.events.test {
+            vm.onBack()
+            expectNoEvents()
+        }
+        assertEquals(UiText.Res(R.string.crew_run_quit_hint), vm.state.value.hint)
+        assertFalse(w.crews.calls.any { it.startsWith("leaveLobby") })
     }
 
     @Test

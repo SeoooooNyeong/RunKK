@@ -1,12 +1,14 @@
 package com.a207.runkk.app.api.core
 
 import android.content.Context
+import com.a207.runkk.app.core.model.ServerClock
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import java.io.File
+import java.time.Clock
 import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
 import kotlinx.serialization.json.Json
@@ -21,6 +23,7 @@ import retrofit2.converter.kotlinx.serialization.asConverterFactory
 /**
  * 서버 연결을 그래프에 내준다(5.1.2 api.core). 서버 주소는 플레이버별 BuildConfig.API_BASE_URL이다.
  * 그래프의 OkHttpClient는 인증된 것 하나(AuthInterceptor + TokenAuthenticator)이고, 갱신용 인증 없는 클라이언트는 밖에 내지 않는다.
+ * 모든 응답의 Date 머리글로 서버 시각 추정(ServerClock)을 맞춘다(ServerDateInterceptor).
  * 요청·응답 본문 로깅은 하지 않는다(토큰·위치가 로그에 남지 않게).
  */
 @Module
@@ -37,14 +40,20 @@ object ApiCoreBindings {
         encodeDefaults = true
     }
 
+    /** 서버 시각 추정 하나(앱 전체 공유). 기기 시계는 data.device.DeviceBindings가 내준다. */
     @Provides
     @Singleton
-    fun okHttpClient(tokens: TokenProvider, json: Json): OkHttpClient {
+    fun serverClock(device: Clock): ServerClock = ServerClock(device)
+
+    @Provides
+    @Singleton
+    fun okHttpClient(tokens: TokenProvider, json: Json, serverClock: ServerClock): OkHttpClient {
         val base =
             OkHttpClient
                 .Builder()
                 .connectTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
                 .readTimeout(READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                .addNetworkInterceptor(ServerDateInterceptor(serverClock))
                 .build()
         val refreshUrl = requireNotNull(BuildConfig.API_BASE_URL.toHttpUrl().resolve("auth/refresh"))
         return authenticatedClient(base, tokens, refreshUrl, json)

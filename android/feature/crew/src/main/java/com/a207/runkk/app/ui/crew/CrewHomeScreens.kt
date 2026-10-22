@@ -85,6 +85,7 @@ import com.a207.runkk.app.domain.crew.CrewRole
 import com.a207.runkk.app.domain.crew.CrewRunStatus
 import com.a207.runkk.app.domain.crew.CrewVisibility
 import com.a207.runkk.app.domain.crew.JoinPolicy
+import com.a207.runkk.app.domain.crew.LobbyAvailability
 import com.a207.runkk.app.domain.crew.PendingRequests
 import com.a207.runkk.app.domain.crew.PostList
 import com.a207.runkk.app.domain.crew.RaceStatus
@@ -570,19 +571,19 @@ private fun ColumnScope.CrewRunTab(state: CrewHomeUiState, actions: CrewHomeActi
             message = stringResource(R.string.crew_home_run_empty_message)
         )
 
-        else -> posts.forEach { post -> CrewRunPost(post, actions) }
+        else -> posts.forEach { post -> CrewRunPost(post, state.lobbyEntries[post.postId], actions) }
     }
 }
 
 /**
  * 크루런 모집글(FR-133): 거리·모집 일시·참여 인원·상태와 내 응답(서버 crewRun.myAnswer). 투표 중이면 갈래요·못 가요,
- * 대기실이 열렸거나 달리는 중이면 대기실, 끝났으면 결과 단추를 보인다(상태를 모르면 모두 보인다).
+ * 대기실 단추는 [lobby](모집 일시 30분 전부터 모집 일시 전까지 열림)를 따르고, 끝났으면 결과 단추를 보인다.
  */
 @Composable
-private fun CrewRunPost(post: PostList.Item, actions: CrewHomeActions) {
+private fun CrewRunPost(post: PostList.Item, lobby: LobbyAvailability?, actions: CrewHomeActions) {
     val run = post.crewRun
     val status = run?.status
-    val entry = CrewRunEntry.of(status)
+    val entry = CrewRunEntry.of(status, lobby)
     RunkkCard {
         CrewRunPostHeader(post, actions)
         if (post.summary.isNotBlank()) {
@@ -613,16 +614,17 @@ private fun CrewRunPost(post: PostList.Item, actions: CrewHomeActions) {
     }
 }
 
-/** 모집글 상태로 고른 단추 표시: 투표(갈래요·못 가요), 대기실 들어가기, 지난 결과. 상태를 모르면 모두 보인다. */
-private data class CrewRunEntry(val canVote: Boolean, val canEnter: Boolean, val isFinished: Boolean) {
+/**
+ * 모집글 상태로 고른 단추 표시: 투표(갈래요·못 가요), 대기실 단추([lobby], 끝·취소된 글이면 null), 지난 결과.
+ * 상태를 모르면 투표·결과를 보이고 대기실은 시각으로만 판단한다.
+ */
+private data class CrewRunEntry(val canVote: Boolean, val lobby: LobbyAvailability?, val isFinished: Boolean) {
     companion object {
-        fun of(status: CrewRunStatus?): CrewRunEntry = CrewRunEntry(
+        fun of(status: CrewRunStatus?, lobby: LobbyAvailability?): CrewRunEntry = CrewRunEntry(
             canVote = status == null || status == CrewRunStatus.VOTING,
-            canEnter = status == null || status in ENTERABLE,
+            lobby = lobby.takeUnless { status == CrewRunStatus.FINISHED || status == CrewRunStatus.CANCELLED },
             isFinished = status == null || status == CrewRunStatus.FINISHED
         )
-
-        private val ENTERABLE = setOf(CrewRunStatus.VOTING, CrewRunStatus.LOBBY_OPEN, CrewRunStatus.RUNNING)
     }
 }
 
@@ -676,16 +678,21 @@ private fun CrewRunVote(post: PostList.Item, vote: VoteAnswer?, canVote: Boolean
     }
 }
 
-/** 모집글 아래 단추: 대기실 들어가기·지난 결과. */
+/**
+ * 모집글 아래 단추: 대기실·지난 결과. 대기실은 열렸을 때만 누를 수 있고, 열리기 전에는 남은 분(1시간 넘게 남으면 "30분 전에 열려요"),
+ * 모집 일시가 지났으면 닫혔다고 보인다(서버가 LOBBY_NOT_OPEN·ALREADY_STARTED로 거부하는 때를 미리 막는다).
+ */
 @Composable
 private fun CrewRunEntryButtons(post: PostList.Item, label: String, entry: CrewRunEntry, actions: CrewHomeActions) {
-    val lobbyDescription = stringResource(R.string.crew_home_run_lobby_description, label)
     val resultDescription = stringResource(R.string.crew_home_run_result_description, label)
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (entry.canEnter) {
+        entry.lobby?.let { lobby ->
+            val text = lobbyButtonText(lobby)
+            val lobbyDescription = stringResource(R.string.crew_home_run_lobby_description, text, label)
             RunkkPillButton(
-                stringResource(R.string.crew_home_run_lobby),
+                text,
                 onClick = { actions.onLobby(post) },
+                isEnabled = lobby == LobbyAvailability.Open,
                 modifier = Modifier.semantics { contentDescription = lobbyDescription }
             )
         }
@@ -698,6 +705,22 @@ private fun CrewRunEntryButtons(post: PostList.Item, label: String, entry: CrewR
         }
     }
 }
+
+@Composable
+private fun lobbyButtonText(lobby: LobbyAvailability): String = when (lobby) {
+    LobbyAvailability.Open -> stringResource(R.string.crew_home_run_lobby)
+
+    LobbyAvailability.Closed -> stringResource(R.string.crew_home_run_lobby_closed)
+
+    is LobbyAvailability.NotYet -> if (lobby.minutesLeft <= LOBBY_COUNTDOWN_MINUTES) {
+        stringResource(R.string.crew_home_run_lobby_opens_in, lobby.minutesLeft.toInt())
+    } else {
+        stringResource(R.string.crew_home_run_lobby_opens_before)
+    }
+}
+
+/** 이만큼(분) 남았을 때부터 "N분 뒤 열려요"로 센다. */
+private const val LOBBY_COUNTDOWN_MINUTES = 60L
 
 @Composable
 private fun VoteButton(label: String, isSelected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
