@@ -33,6 +33,7 @@ ENUMS = {
     'avatar': ['DefaultCharacter', 'BodyShape', 'SkinTone', 'FailureReason'],
     'battle': ['BattleType', 'Verdict'],
     'running': ['CardKind', 'RunMode', 'SignalState', 'DisposalKind'],
+    'runimal': ['RunimalType'],
     'crew': ['CrewVisibility', 'JoinPolicy', 'VoteAnswer', 'PostKind', 'CrewRole', 'CrewRunStatus', 'Readiness',
              'JoinRequestStatus'],
 }

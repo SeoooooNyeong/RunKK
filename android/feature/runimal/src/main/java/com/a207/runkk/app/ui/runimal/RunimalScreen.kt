@@ -1,5 +1,6 @@
 package com.a207.runkk.app.ui.runimal
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -12,8 +13,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.SnackbarHostState
@@ -26,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -62,7 +66,7 @@ import com.a207.runkk.app.domain.runimal.RunimalCard
 import com.a207.runkk.app.domain.runimal.RunimalStatus
 import kotlin.math.roundToInt
 
-/** MY Runimal: 유형 카드·남은 횟수·16유형·카드 공유. */
+/** MY 러니멀: 유형 카드·남은 횟수·16유형·카드 공유. */
 @Composable
 fun RunimalRoute(viewModel: RunimalViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -95,7 +99,7 @@ fun RunimalScreen(
     }
     Box(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
         Column(modifier = Modifier.fillMaxSize()) {
-            RunkkTopBar(title = "MY Runimal", onBack = onBack)
+            RunkkTopBar(title = stringResource(R.string.runimal_title), onBack = onBack)
             val status = state.status
             when {
                 status == null && state.isLoading -> RunkkLoading(modifier = Modifier.weight(1f))
@@ -166,7 +170,7 @@ private fun ShareBar(isSharing: Boolean, onShare: (RunimalShareKind) -> Unit) {
     }
 }
 
-/** 유형 카드(FR-151): 유형(아이콘은 동물 이름 글자), 이름, 한 줄 설명, 축별 우세 비율. */
+/** 유형 카드(FR-151): 유형 동물 그림, 이름, 한 줄 설명, 축별 우세 비율. */
 @Composable
 private fun TypeCard(card: RunimalCard, isProvisional: Boolean) {
     Column(
@@ -179,7 +183,11 @@ private fun TypeCard(card: RunimalCard, isProvisional: Boolean) {
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            RunkkOverline("MY RUNIMAL", color = RunkkColors.Lime, modifier = Modifier.weight(1f))
+            RunkkOverline(
+                stringResource(R.string.runimal_overline),
+                color = RunkkColors.Lime,
+                modifier = Modifier.weight(1f)
+            )
             RunkkBadge(
                 stringResource(
                     if (isProvisional) R.string.runimal_type_provisional else R.string.runimal_type_confirmed
@@ -187,6 +195,17 @@ private fun TypeCard(card: RunimalCard, isProvisional: Boolean) {
                 tone = if (isProvisional) RunkkBadgeTone.Muted else RunkkBadgeTone.Lime
             )
         }
+        val art = RunimalArt.of(card.type)
+        Image(
+            painter = painterResource(art.drawableRes),
+            contentDescription = if (art == RunimalArt.UNKNOWN) card.title else stringResource(art.nameRes),
+            modifier = Modifier
+                .align(Alignment.CenterHorizontally)
+                .size(TYPE_ART_SIZE)
+                .clip(CircleShape)
+                .background(RunkkColors.Background)
+                .padding(12.dp)
+        )
         Column(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.semantics(mergeDescendants = true) {}
@@ -254,7 +273,7 @@ private fun Remaining(label: String, status: RunimalStatus) {
     }
 }
 
-/** 16유형(3.6.1). 내 유형을 라임으로 표시한다. */
+/** 16유형(3.6.1): 동물 그림과 한국어 이름. 내 유형을 라임으로 표시한다. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun AllTypes(status: RunimalStatus) {
@@ -268,22 +287,31 @@ private fun AllTypes(status: RunimalStatus) {
     ) {
         status.allTypes.forEach { type ->
             val mine = type == status.type || type == status.card?.title
-            Box(
+            val art = RunimalArt.of(type)
+            val name = if (art == RunimalArt.UNKNOWN) type else stringResource(art.nameRes)
+            Row(
                 modifier = Modifier
                     .weight(1f)
                     .heightIn(min = 56.dp)
                     .clip(RunkkShapes.Medium)
                     .background(if (mine) RunkkColors.LimeContainer else RunkkColors.Surface)
                     .border(1.dp, if (mine) RunkkColors.Lime else RunkkColors.Border, RunkkShapes.Medium)
-                    .semantics(mergeDescendants = true) {
+                    .clearAndSetSemantics {
+                        contentDescription = name
                         selected = mine
                         if (mine) stateDescription = mineLabel
                     }
-                    .padding(horizontal = 12.dp),
-                contentAlignment = Alignment.CenterStart
+                    .padding(horizontal = 8.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                Image(
+                    painter = painterResource(art.drawableRes),
+                    contentDescription = name,
+                    modifier = Modifier.size(LIST_ART_SIZE)
+                )
                 Text(
-                    type,
+                    name,
                     style = RunkkTextStyles.text(13, if (mine) FontWeight.Black else FontWeight.Normal),
                     color = if (mine) RunkkColors.Lime else RunkkColors.TextSecondary
                 )
@@ -292,11 +320,13 @@ private fun AllTypes(status: RunimalStatus) {
     }
 }
 
+private val TYPE_ART_SIZE = 144.dp
+private val LIST_ART_SIZE = 40.dp
 private const val PERCENT = 100
 private const val PROVISIONAL_RUNS = 3
 private const val CONFIRM_RUNS = 10
 
-@Preview(name = "MY Runimal", widthDp = 390, heightDp = 844)
+@Preview(name = "MY 러니멀", widthDp = 390, heightDp = 844)
 @Composable
 private fun RunimalPreview() {
     RunkkTheme(reduceMotion = true) {

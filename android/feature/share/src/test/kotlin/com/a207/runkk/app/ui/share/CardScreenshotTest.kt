@@ -78,7 +78,7 @@ class CardScreenshotTest {
             )
         )
         Image(
-            RunimalCardRenderer().render(runimal).asImageBitmap(),
+            RunimalCardRenderer(RuntimeEnvironment.getApplication()).render(runimal).asImageBitmap(),
             contentDescription = null,
             modifier = Modifier.fillMaxSize()
         )

@@ -7,6 +7,8 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Typeface
+import androidx.annotation.DrawableRes
+import androidx.core.content.ContextCompat
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.GeoPoint
@@ -194,16 +196,29 @@ class RunCardRenderer @Inject constructor(@ApplicationContext private val contex
     }
 }
 
-/** Runimal 유형 카드 이미지(앞면만, FR-168, design-review.md M28). 유형·제목·설명·축별 비율. */
-class RunimalCardRenderer @Inject constructor() {
-    fun render(card: RunimalCard): Bitmap {
+/**
+ * 러니멀 유형 카드 이미지(앞면만, FR-168, design-review.md M28). 유형 동물 그림·제목·설명·축별 비율.
+ * 그림은 ui.runimal의 대응표가 고른 drawable을 받는다(ui.share는 유형 값을 해석하지 않는다). null이면 그림을 비워 둔다.
+ */
+class RunimalCardRenderer @Inject constructor(@ApplicationContext private val context: Context) {
+    fun render(card: RunimalCard, @DrawableRes art: Int? = null): Bitmap {
         val width = RunCardRenderer.WIDTH
         val height = RunCardRenderer.HEIGHT
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         canvas.cardBase(width, height)
-        canvas.labelPill("MY RUNIMAL")
-        canvas.drawText(card.type, PAD, 420f, paint(CardColors.LIME, 150f, NUMBER))
+        canvas.labelPill(context.getString(R.string.share_card_runimal_label))
+        art?.let { ContextCompat.getDrawable(context, it) }?.let { drawable ->
+            canvas.drawCircle(PAD + ART_SIZE / 2, ART_TOP + ART_SIZE / 2, ART_SIZE / 2, paint(CardColors.BACKGROUND))
+            val inset = ART_SIZE * ART_INSET
+            drawable.setBounds(
+                (PAD + inset).toInt(),
+                (ART_TOP + inset).toInt(),
+                (PAD + ART_SIZE - inset).toInt(),
+                (ART_TOP + ART_SIZE - inset).toInt()
+            )
+            drawable.draw(canvas)
+        }
         canvas.drawText(card.title, PAD, 540f, paint(CardColors.TEXT, 64f))
         wrap(card.description, 26).take(3).forEachIndexed { i, line ->
             canvas.drawText(line, PAD, 640f + i * 60f, paint(CardColors.TEXT_SECONDARY, 42f))
@@ -235,6 +250,12 @@ class RunimalCardRenderer @Inject constructor() {
     }
 
     private fun wrap(text: String, perLine: Int): List<String> = text.chunked(perLine)
+
+    private companion object {
+        const val ART_TOP = 196f
+        const val ART_SIZE = 270f
+        const val ART_INSET = 0.08f
+    }
 }
 
 private const val MARGIN = 24f

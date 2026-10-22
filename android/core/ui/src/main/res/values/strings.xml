@@ -45,7 +45,7 @@
     <string name="core_error_plan_invalid">계획 거리는 0km보다 길게, 목표 페이스는 0초보다 크게 넣어 주세요</string>
     <string name="core_error_past_date">지난 날짜에는 계획을 넣을 수 없어요</string>
     <string name="core_error_notification_not_found">알림을 찾을 수 없어요</string>
-    <string name="core_error_no_type">아직 Runimal 유형이 없어요</string>
+    <string name="core_error_no_type">아직 러니멀 유형이 없어요</string>
     <string name="core_error_course_map_not_shared">코스 지도 공유가 꺼져 있어 뒷면을 공유할 수 없어요</string>
     <string name="core_error_generic">요청을 처리하지 못했어요</string>
     <string name="core_tab_self">셀프</string>
@@ -78,7 +78,7 @@
     <string name="core_spoken_matched">매칭 성사</string>
     <string name="core_spoken_battle_result">대결 결과</string>
     <string name="core_spoken_running">측정 중</string>
-    <string name="core_spoken_my_runimal">내 Runimal</string>
+    <string name="core_spoken_my_runimal">내 러니멀</string>
     <string name="core_spoken_crew_run">크루런</string>
     <string name="core_spoken_crew_run_result">크루런 결과</string>
     <string name="core_spoken_free_run">자유런</string>

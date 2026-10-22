@@ -77,8 +77,8 @@ data class RunimalUiState(
 }
 
 /**
- * MY Runimal(FR-151~FR-154, FR-166, FR-168): RunimalRepository.status로 유형 카드·16유형·남은 횟수를 보이고,
- * 카드 공유는 RunimalRepository.card를 ui.share의 RunimalCardRenderer로 그려 CardSharer로 보낸다.
+ * MY 러니멀(FR-151~FR-154, FR-166, FR-168): RunimalRepository.status로 유형 카드·16유형·남은 횟수를 보이고,
+ * 카드 공유는 RunimalRepository.card를 유형 그림(RunimalArt)과 함께 ui.share의 RunimalCardRenderer로 그려 CardSharer로 보낸다.
  */
 @HiltViewModel
 class RunimalViewModel internal constructor(
@@ -133,7 +133,10 @@ class RunimalViewModel internal constructor(
             try {
                 if (image == null) {
                     when (val card = runimal.card()) {
-                        is Outcome.Success -> image = withContext(renderDispatcher) { renderer.render(card.value) }
+                        is Outcome.Success -> image = withContext(renderDispatcher) {
+                            renderer.render(card.value, RunimalArt.of(card.value.type).drawableRes)
+                        }
+
                         is Outcome.Failure -> message = shareError(card.error)
                     }
                 }

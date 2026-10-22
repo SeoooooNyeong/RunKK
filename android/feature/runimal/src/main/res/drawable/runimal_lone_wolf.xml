@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 러니멀 그림: lone_wolf. 단순 플랫 그림, 뷰포트 120x120. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp"
+    android:height="120dp"
+    android:viewportWidth="120"
+    android:viewportHeight="120">
+    <path
+        android:fillColor="#CBEA2B"
+        android:pathData="M24,60L20,10L52,38ZM96,60L100,10L68,38Z" />
+    <path
+        android:fillColor="#A3BD22"
+        android:pathData="M29,50L26,22L45,38ZM91,50L94,22L75,38Z" />
+    <path
+        android:fillColor="#CBEA2B"
+        android:pathData="M28,64L8,74L22,80L10,92L34,94ZM92,64L112,74L98,80L110,92L86,94Z" />
+    <path
+        android:fillColor="#CBEA2B"
+        android:pathData="M26,66a34,34 0 1,0 68,0a34,34 0 1,0 -68,0Z" />
+    <path
+        android:fillColor="#A3BD22"
+        android:pathData="M60,34L67,48L60,58L53,48Z" />
+    <path
+        android:fillColor="#FAFAFA"
+        android:pathData="M60,60 C71,60 77,74 75,85 C73,95 67,99 60,99 C53,99 47,95 45,85 C43,74 49,60 60,60Z" />
+    <path
+        android:fillColor="#09090B"
+        android:pathData="M38.4,62a4.6,4.6 0 1,0 9.2,0a4.6,4.6 0 1,0 -9.2,0ZM72.4,62a4.6,4.6 0 1,0 9.2,0a4.6,4.6 0 1,0 -9.2,0Z" />
+    <path
+        android:fillColor="#FAFAFA"
+        android:pathData="M43,60.4a1.5,1.5 0 1,0 3,0a1.5,1.5 0 1,0 -3,0ZM77,60.4a1.5,1.5 0 1,0 3,0a1.5,1.5 0 1,0 -3,0Z" />
+    <path
+        android:fillColor="#09090B"
+        android:pathData="M54,79A6,4.4 0 1,0 66,79A6,4.4 0 1,0 54,79Z" />
+    <path
+        android:pathData="M60,83 V88 M54,91 Q60,95 66,91"
+        android:strokeWidth="2.2"
+        android:strokeColor="#09090B"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

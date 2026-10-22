@@ -87,7 +87,7 @@ class ShareTest {
 
     @Test
     fun `Runimal 카드는 앞면 하나를 그린다(FR-168)`() {
-        val bitmap = RunimalCardRenderer().render(RunimalCard("치타", "질주하는 치타", "짧고 빠르게", mapOf("거리" to 0.7)))
+        val bitmap = RunimalCardRenderer(context).render(RunimalCard("치타", "질주하는 치타", "짧고 빠르게", mapOf("거리" to 0.7)))
         assertEquals(RunCardRenderer.WIDTH, bitmap.width)
     }
 

@@ -7,7 +7,7 @@
     <string name="runimal_remaining_confirm">다음 확정까지 %1$d회</string>
     <string name="runimal_share_no_type">유형이 생기면 카드를 공유할 수 있어요</string>
     <string name="runimal_saved_to_gallery">사진첩에 저장했어요</string>
-    <string name="runimal_load_failed">Runimal을 불러오지 못했어요</string>
+    <string name="runimal_load_failed">러니멀을 불러오지 못했어요</string>
     <string name="runimal_empty_title">아직 유형이 없어요</string>
     <string name="runimal_empty_message">유효 러닝 3번째에 임시 유형, 10번째에 정식 유형이 나와요</string>
     <string name="runimal_share_with">%1$s로 카드 공유</string>
@@ -16,6 +16,26 @@
     <string name="runimal_axis_description">%1$s %2$d%%</string>
     <string name="runimal_percent">%1$d%%</string>
     <string name="runimal_remaining_hint">3번째에 임시, 10번째에 정식 유형이 나와요</string>
-    <string name="runimal_all_types_title">16가지 Runimal</string>
+    <string name="runimal_all_types_title">16가지 러니멀</string>
     <string name="runimal_my_type">내 유형</string>
+    <string name="runimal_title">MY 러니멀</string>
+    <string name="runimal_overline">MY 러니멀</string>
+    <!-- 유형 이름(서버 RunimalType.displayName과 같게 둔다) -->
+    <string name="runimal_name_morning_sparrow">아침 참새</string>
+    <string name="runimal_name_wheel_hamster">쳇바퀴 햄스터</string>
+    <string name="runimal_name_alley_squirrel">골목 탐험 다람쥐</string>
+    <string name="runimal_name_strolling_cat">마실 나온 고양이</string>
+    <string name="runimal_name_commuter_turtle">출근도장 거북이</string>
+    <string name="runimal_name_steady_camel">묵묵한 낙타</string>
+    <string name="runimal_name_sky_eagle">하늘길 독수리</string>
+    <string name="runimal_name_lone_wolf">고독한 늑대</string>
+    <string name="runimal_name_walking_puppy">산책 나온 강아지</string>
+    <string name="runimal_name_playground_monkey">놀이터 원숭이</string>
+    <string name="runimal_name_explorer_otter">탐험대 수달</string>
+    <string name="runimal_name_picnic_rabbit">소풍 나온 토끼</string>
+    <string name="runimal_name_pillar_elephant">크루의 기둥 코끼리</string>
+    <string name="runimal_name_penguin_squad">펭귄 군단</string>
+    <string name="runimal_name_leader_bird">V자 리더 철새</string>
+    <string name="runimal_name_wild_horse">들판의 야생마</string>
+    <string name="runimal_name_unknown">알 수 없는 유형</string>
 </resources>
