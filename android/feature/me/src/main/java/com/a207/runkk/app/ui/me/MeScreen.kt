@@ -40,6 +40,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.a207.runkk.app.core.designsystem.RunimalTypeLabel
 import com.a207.runkk.app.core.designsystem.RunkkAvatarFace
 import com.a207.runkk.app.core.designsystem.RunkkBadge
 import com.a207.runkk.app.core.designsystem.RunkkBadgeTone
@@ -277,11 +278,7 @@ private fun ColumnScope.ProfileDetails(profile: Profile) {
         }
     }
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        MiniStat(
-            stringResource(R.string.me_profile_runimal),
-            profile.runimalType ?: stringResource(R.string.me_profile_runimal_unknown),
-            Modifier.weight(1f)
-        )
+        RunimalStat(profile.runimalType, Modifier.weight(1f))
         MiniStat(
             stringResource(R.string.me_profile_longest),
             profile.longestDistance?.let {
@@ -303,6 +300,36 @@ private fun MiniStat(label: String, value: String, modifier: Modifier = Modifier
     ) {
         Text(label, style = RunkkTextStyles.Micro, color = RunkkColors.TextSecondary)
         Text(value, style = RunkkTextStyles.BodyStrong, color = RunkkColors.TextPrimary)
+    }
+}
+
+/** 러니멀 칸: 서버 유형 값을 한국어 이름과 작은 그림으로 보인다. 아직 유형이 없으면 "판정 전". */
+@Composable
+private fun RunimalStat(type: String?, modifier: Modifier = Modifier) {
+    if (type.isNullOrBlank()) {
+        MiniStat(
+            stringResource(R.string.me_profile_runimal),
+            stringResource(R.string.me_profile_runimal_unknown),
+            modifier
+        )
+        return
+    }
+    Column(
+        modifier = modifier.clip(RunkkShapes.Medium).background(RunkkColors.Background).padding(12.dp)
+            .semantics(mergeDescendants = true) {},
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Text(
+            stringResource(R.string.me_profile_runimal),
+            style = RunkkTextStyles.Micro,
+            color = RunkkColors.TextSecondary
+        )
+        RunimalTypeLabel(
+            type,
+            artSize = 24.dp,
+            textStyle = RunkkTextStyles.BodyStrong,
+            color = RunkkColors.TextPrimary
+        )
     }
 }
 

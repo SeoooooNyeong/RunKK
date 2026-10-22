@@ -7,8 +7,9 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Typeface
-import androidx.annotation.DrawableRes
 import androidx.core.content.ContextCompat
+import com.a207.runkk.app.core.designsystem.RunimalArt
+import com.a207.runkk.app.core.designsystem.RunimalAxisName
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.GeoPoint
@@ -198,17 +199,17 @@ class RunCardRenderer @Inject constructor(@ApplicationContext private val contex
 
 /**
  * 러니멀 유형 카드 이미지(앞면만, FR-168, design-review.md M28). 유형 동물 그림·제목·설명·축별 비율.
- * 그림은 ui.runimal의 대응표가 고른 drawable을 받는다(ui.share는 유형 값을 해석하지 않는다). null이면 그림을 비워 둔다.
+ * 그림·축 이름은 core.designsystem의 대응표(RunimalArt, RunimalAxisName)로 고른다. 모르는 유형은 기본 그림이다.
  */
 class RunimalCardRenderer @Inject constructor(@ApplicationContext private val context: Context) {
-    fun render(card: RunimalCard, @DrawableRes art: Int? = null): Bitmap {
+    fun render(card: RunimalCard): Bitmap {
         val width = RunCardRenderer.WIDTH
         val height = RunCardRenderer.HEIGHT
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         canvas.cardBase(width, height)
         canvas.labelPill(context.getString(R.string.share_card_runimal_label))
-        art?.let { ContextCompat.getDrawable(context, it) }?.let { drawable ->
+        ContextCompat.getDrawable(context, RunimalArt.of(card.type).drawableRes)?.let { drawable ->
             canvas.drawCircle(PAD + ART_SIZE / 2, ART_TOP + ART_SIZE / 2, ART_SIZE / 2, paint(CardColors.BACKGROUND))
             val inset = ART_SIZE * ART_INSET
             drawable.setBounds(
@@ -225,7 +226,8 @@ class RunimalCardRenderer @Inject constructor(@ApplicationContext private val co
         }
         card.axisRatios.entries.take(4).forEachIndexed { i, (axis, ratio) ->
             val y = 880f + i * 100f
-            canvas.drawText(axis, PAD, y, paint(CardColors.TEXT_SECONDARY, 40f))
+            val label = RunimalAxisName.of(axis)?.let { context.getString(it.nameRes) } ?: axis
+            canvas.drawText(label, PAD, y, paint(CardColors.TEXT_SECONDARY, 40f))
             val left = PAD + 220f
             val right = width - PAD
             canvas.drawRoundRect(RectF(left, y - 30f, right, y), 15f, 15f, paint(CardColors.BORDER))

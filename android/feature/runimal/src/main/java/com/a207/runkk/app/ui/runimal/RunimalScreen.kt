@@ -43,6 +43,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.a207.runkk.app.core.designsystem.RunimalArt
+import com.a207.runkk.app.core.designsystem.RunimalAxisName
 import com.a207.runkk.app.core.designsystem.RunkkBadge
 import com.a207.runkk.app.core.designsystem.RunkkBadgeTone
 import com.a207.runkk.app.core.designsystem.RunkkColors
@@ -228,13 +230,15 @@ private fun TypeCard(card: RunimalCard, isProvisional: Boolean) {
 @Composable
 private fun AxisBar(axis: String, ratio: Double, isLime: Boolean) {
     val percent = (ratio.coerceIn(0.0, 1.0) * PERCENT).roundToInt()
-    val description = stringResource(R.string.runimal_axis_description, axis, percent)
+    // 서버가 보낸 축 키(COMPANION 등)는 한국어 이름으로 바꾼다. 모르는 축은 받은 값 그대로 둔다.
+    val label = RunimalAxisName.of(axis)?.let { stringResource(it.nameRes) } ?: axis
+    val description = stringResource(R.string.runimal_axis_description, label, percent)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         modifier = Modifier.clearAndSetSemantics { contentDescription = description }
     ) {
-        Text(axis, style = RunkkTextStyles.Label, color = RunkkColors.TextPrimary, modifier = Modifier.width(72.dp))
+        Text(label, style = RunkkTextStyles.Label, color = RunkkColors.TextPrimary, modifier = Modifier.width(72.dp))
         RunkkProgressBar(
             ratio.toFloat(),
             height = 12.dp,

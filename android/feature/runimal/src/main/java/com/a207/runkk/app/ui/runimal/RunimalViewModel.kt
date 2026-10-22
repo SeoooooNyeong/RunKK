@@ -134,7 +134,7 @@ class RunimalViewModel internal constructor(
                 if (image == null) {
                     when (val card = runimal.card()) {
                         is Outcome.Success -> image = withContext(renderDispatcher) {
-                            renderer.render(card.value, RunimalArt.of(card.value.type).drawableRes)
+                            renderer.render(card.value)
                         }
 
                         is Outcome.Failure -> message = shareError(card.error)

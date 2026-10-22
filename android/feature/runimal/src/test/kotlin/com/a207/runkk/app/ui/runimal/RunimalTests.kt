@@ -12,6 +12,7 @@ import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import com.a207.runkk.app.core.designsystem.RunimalArt
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.testing.RUNKK_PHONE
@@ -57,7 +58,7 @@ private val card = RunimalCard(
     type = "MORNING_SPARROW",
     title = "아침 참새",
     description = "매일 같은 시간, 동네 한 바퀴 가볍게",
-    axisRatios = linkedMapOf("솔로" to 0.78, "단거리" to 0.62, "단골길" to 0.7, "루틴" to 0.66)
+    axisRatios = linkedMapOf("COMPANION" to 0.78, "DISTANCE" to 0.62, "COURSE" to 0.7, "HABIT" to 0.66)
 )
 
 /** 서버는 16유형을 RunimalType enum 이름으로 보낸다(RunimalController.StatusResponse.allTypes). */
@@ -216,7 +217,7 @@ class RunimalScreenTest {
                 RunimalScreen(RunimalUiState(isLoading = false, status = confirmed), {}, { calls += it }, {}, {})
             }
         }
-        compose.onNodeWithContentDescription(str(R.string.runimal_axis_description, "솔로", 78)).assertExists()
+        compose.onNodeWithContentDescription(str(R.string.runimal_axis_description, "동행", 78)).assertExists()
         // 내 유형 카드의 큰 그림과 16유형 목록 칸이 동물 이름으로 읽힌다.
         compose.onAllNodesWithContentDescription("아침 참새").assertCountEquals(2)
         compose.onNodeWithContentDescription("펭귄 군단").assertExists()
@@ -241,12 +242,12 @@ class RunimalScreenshotTest {
         RunimalScreen(RunimalUiState(isLoading = false, status = confirmed), {}, {}, {}, {})
     }
 
-    /** 공유 카드 이미지(ui.share RunimalCardRenderer)에 유형 그림을 넣어 그린다. */
+    /** 공유 카드 이미지(ui.share RunimalCardRenderer)가 유형 그림과 한국어 축 이름을 넣어 그린다. */
     @Test
     fun shareCard() = compose.captureRunkkScreen("E1_runimal_share_card") {
         Image(
             RunimalCardRenderer(RuntimeEnvironment.getApplication())
-                .render(card, RunimalArt.of(card.type).drawableRes)
+                .render(card)
                 .asImageBitmap(),
             contentDescription = null,
             modifier = Modifier.fillMaxSize()

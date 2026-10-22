@@ -320,6 +320,19 @@ class CrewScreenshotTest {
     }
 
     @Test
+    fun `크루원 목록은 한국어 유형 이름을 보이고 enum 이름은 없다`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                CrewHomeScreen(home.copy(tab = CrewTab.MEMBERS), CrewHomeActions())
+            }
+        }
+        compose.onNodeWithText("아침 참새").assertExists()
+        compose.onNodeWithText("고독한 늑대").assertExists()
+        compose.onNodeWithText("MORNING_SPARROW").assertDoesNotExist()
+        compose.onNodeWithText("LONE_WOLF").assertDoesNotExist()
+    }
+
+    @Test
     fun memberList() = compose.captureRunkkScreen("G3_my_crew_members") {
         CrewHomeScreen(home.copy(tab = CrewTab.MEMBERS), CrewHomeActions())
     }

@@ -67,14 +67,14 @@ class CardScreenshotTest {
     @Test
     fun runimalCard() = compose.captureRunkkScreen("share_runimal_card") {
         val runimal = RunimalCard(
-            "치타",
+            "MORNING_SPARROW",
             "질주하는 치타",
             "짧고 빠르게, 늘 가던 길을 정해진 시간에 달려요",
             mapOf(
-                "동행" to 0.3,
-                "거리" to 0.8,
-                "코스" to 0.6,
-                "습관" to 0.7
+                "COMPANION" to 0.7,
+                "DISTANCE" to 0.8,
+                "COURSE" to 0.6,
+                "HABIT" to 0.7
             )
         )
         Image(

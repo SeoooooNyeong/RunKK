@@ -200,7 +200,9 @@ class ArchitectureTest {
                 "data.push" to setOf("domain.notification"),
                 // core.model 추가: SessionRepository.save·clear가 Outcome을 돌려준다(13.2 "포트는 Outcome"). A2 결정.
                 "data.session" to setOf("domain.account", "domain.notification", "api.core", "core.model"),
-                "ui.share" to setOf("domain.record", "domain.runimal", "domain.settings", "core.model"),
+                // core.designsystem 추가: 러니멀 카드 이미지가 공용 유형 그림·이름 대응표(RunimalArt, RunimalAxisName)를 쓴다.
+                "ui.share" to
+                    setOf("domain.record", "domain.runimal", "domain.settings", "core.model", "core.designsystem"),
                 // 하이파이 HiHome 상단(닉네임·티어·Lv, 리워드 잔액) 때문에 domain.account(Profile)·domain.avatar(Avatar.balance)를 더했다.
                 // 설계서 5.1.2 표(ui.home: domain.record, domain.run)에는 아직 없다(A3a 결정 목록).
                 "ui.home" to CORE_UI + setOf("domain.record", "domain.run", "domain.account", "domain.avatar"),
