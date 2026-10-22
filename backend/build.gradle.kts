@@ -52,6 +52,9 @@ dependencies {
 
 tasks.withType<Test> {
 	useJUnitPlatform()
+	// 서버 시계는 Asia/Seoul(RunkkApplication.clock)이다. 시험이 만드는 LocalDateTime.now()도 같은 시간대여야
+	// CI 컨테이너(UTC)와 개발 PC(KST)에서 결과가 같다(UTC면 크루런 예약 시각이 과거가 되어 시험 4개가 깨진다)
+	systemProperty("user.timezone", "Asia/Seoul")
 	finalizedBy(tasks.jacocoTestReport)
 }
 

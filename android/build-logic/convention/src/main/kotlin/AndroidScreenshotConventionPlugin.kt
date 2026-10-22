@@ -28,6 +28,8 @@ class AndroidScreenshotConventionPlugin : Plugin<Project> {
                 // 실제 그리기(글꼴·그림자 포함)로 찍는다.
                 systemProperty("robolectric.graphicsMode", "NATIVE")
                 systemProperty("robolectric.pixelCopyRenderMode", "hardware")
+                // 화면에 찍히는 시각은 기기 시간대로 바뀐다. 기준 이미지는 KST로 기록했으므로 UTC인 CI 컨테이너에서도 같게 고정한다.
+                systemProperty("user.timezone", "Asia/Seoul")
             }
             dependencies {
                 add("testImplementation", libs.lib("roborazzi"))
