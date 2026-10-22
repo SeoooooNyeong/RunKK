@@ -74,6 +74,25 @@ class HomeScreenshotTest {
         )
     }
 
+    /** 서버 시연 계정 모양: 기본 캐릭터 곰(faceKey "default:BEAR"). 상단 프로필 원과 우리 집 자리에 곰 그림. */
+    @Test
+    fun homeDefaultCharacter() = compose.captureRunkkScreen("A5_home_default_character") {
+        HomeScreen(
+            HomeUiState(
+                isLoading = false,
+                today = today,
+                dashboard = dashboard,
+                freeRunGoal = FreeRunGoal(PlanSnapshot(Distance(5_000), Pace(330)), isFromCoachPlan = true),
+                header = HomeHeader("러너0632", "실버", 4, 100),
+                isHeaderLoading = false,
+                faceKey = "default:BEAR"
+            ),
+            onModeSelected = {},
+            onNavigate = {},
+            onRetry = {}
+        )
+    }
+
     @Test
     fun homeLoading() = compose.captureRunkkScreen("A5_home_loading") {
         HomeScreen(HomeUiState(), onModeSelected = {}, onNavigate = {}, onRetry = {})

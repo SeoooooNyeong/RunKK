@@ -44,7 +44,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.a207.runkk.app.core.designsystem.RunkkAvatarFace
+import com.a207.runkk.app.core.designsystem.RunkkAvatarArt
+import com.a207.runkk.app.core.designsystem.RunkkAvatarPortrait
 import com.a207.runkk.app.core.designsystem.RunkkButtonSize
 import com.a207.runkk.app.core.designsystem.RunkkCard
 import com.a207.runkk.app.core.designsystem.RunkkColors
@@ -113,7 +114,7 @@ fun HomeScreen(
             contentDescription = stringResource(R.string.home_logo_description)
         )
         Header(state, onNavigate)
-        HouseCard(state.dashboard, state.faceLayers, onAvatar = { onNavigate(Routes.AVATAR) })
+        HouseCard(state.dashboard, state.faceKey, state.faceLayers, onAvatar = { onNavigate(Routes.AVATAR) })
         RunCard(state, onModeSelected, onNavigate)
         if (state.error != null && state.dashboard == null) {
             RunkkErrorState(state.error.asString(), onRetry = onRetry)
@@ -150,7 +151,9 @@ private fun PendingCard(count: Int, onRecords: () -> Unit) {
 private fun Header(state: HomeUiState, onNavigate: (String) -> Unit) {
     val header = state.header
     Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(
+        RunkkAvatarPortrait(
+            state.faceKey,
+            state.faceLayers,
             modifier = Modifier.size(
                 48.dp
             ).border(2.dp, RunkkColors.Lime, CircleShape).padding(3.dp).clip(CircleShape).background(RunkkColors.Border)
@@ -241,7 +244,7 @@ private fun SkeletonBar(width: Dp, height: Dp) {
 }
 
 @Composable
-private fun HouseCard(dashboard: Dashboard?, faceLayers: List<FaceLayer>, onAvatar: () -> Unit) {
+private fun HouseCard(dashboard: Dashboard?, faceKey: String?, faceLayers: List<FaceLayer>, onAvatar: () -> Unit) {
     RunkkCard(
         modifier = Modifier.fillMaxWidth().height(136.dp),
         shape = RunkkShapes.ExtraLarge,
@@ -252,15 +255,15 @@ private fun HouseCard(dashboard: Dashboard?, faceLayers: List<FaceLayer>, onAvat
             horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            AvatarSlot(faceLayers, onAvatar)
+            AvatarSlot(faceKey, faceLayers, onAvatar)
             HouseInfo(dashboard)
         }
     }
 }
 
-/** 우리 집의 아바타 자리(점선 카드). 누르면 아바타 꾸미기. */
+/** 우리 집의 아바타 자리(점선 카드): 기본 캐릭터·셀카 얼굴 그림과 "아바타". 누르면 아바타 꾸미기. */
 @Composable
-private fun AvatarSlot(faceLayers: List<FaceLayer>, onAvatar: () -> Unit) {
+private fun AvatarSlot(faceKey: String?, faceLayers: List<FaceLayer>, onAvatar: () -> Unit) {
     RunkkCard(
         modifier = Modifier.size(width = 80.dp, height = 104.dp),
         shape = RunkkShapes.Medium,
@@ -270,8 +273,9 @@ private fun AvatarSlot(faceLayers: List<FaceLayer>, onAvatar: () -> Unit) {
         onClickLabel = stringResource(R.string.home_house_edit_avatar),
         verticalArrangement = Arrangement.Center
     ) {
-        if (faceLayers.isNotEmpty()) {
-            RunkkAvatarFace(
+        if (RunkkAvatarArt.characterOf(faceKey) != null || faceLayers.isNotEmpty()) {
+            RunkkAvatarPortrait(
+                faceKey,
                 faceLayers,
                 Modifier.size(56.dp).align(Alignment.CenterHorizontally).testTag(HOME_FACE_TAG)
             )
@@ -619,5 +623,5 @@ private fun HomeScreenPreview() {
     }
 }
 
-/** 우리 집 아바타 자리의 셀카 얼굴(시험이 찾는 표지). */
+/** 우리 집 아바타 자리의 얼굴 그림(시험이 찾는 표지). */
 internal const val HOME_FACE_TAG = "home-avatar-face"

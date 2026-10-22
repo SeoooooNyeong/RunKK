@@ -40,7 +40,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.a207.runkk.app.core.designsystem.RunkkAvatarFace
+import com.a207.runkk.app.core.designsystem.RunkkAvatarPortrait
 import com.a207.runkk.app.core.designsystem.RunkkBadge
 import com.a207.runkk.app.core.designsystem.RunkkBadgeTone
 import com.a207.runkk.app.core.designsystem.RunkkCard
@@ -222,14 +222,16 @@ private fun ProfileCard(profile: Profile, faceLayers: List<FaceLayer>, onEdit: (
     }
 }
 
-/** 프로필 원(셀카 얼굴), 닉네임·티어 줄·나이대·성별, 편집 버튼. */
+/** 프로필 원(기본 캐릭터·셀카 얼굴), 닉네임·티어 줄·나이대·성별, 편집 버튼. */
 @Composable
 private fun ProfileHeader(profile: Profile, faceLayers: List<FaceLayer>, onEdit: () -> Unit) {
     val defaultTier = stringResource(R.string.me_profile_default_tier)
     val level = profile.level?.let { stringResource(R.string.me_profile_level, it) }
     val about = aboutLine(LocalContext.current.resources, profile)
     Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(
+        RunkkAvatarPortrait(
+            profile.faceKey,
+            faceLayers,
             modifier = Modifier.size(
                 56.dp
             ).clip(
@@ -238,12 +240,8 @@ private fun ProfileHeader(profile: Profile, faceLayers: List<FaceLayer>, onEdit:
                 2.dp,
                 RunkkColors.Lime,
                 CircleShape
-            ).padding(4.dp).clip(CircleShape).background(RunkkColors.Border)
-        ) {
-            if (faceLayers.isNotEmpty()) {
-                RunkkAvatarFace(faceLayers, Modifier.fillMaxSize().testTag(PROFILE_FACE_TAG))
-            }
-        }
+            ).padding(4.dp).clip(CircleShape).background(RunkkColors.Border).testTag(PROFILE_FACE_TAG)
+        )
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
                 profile.displayName,
@@ -342,5 +340,5 @@ private fun MeScreenPreview() {
     }
 }
 
-/** 프로필 원 안의 셀카 얼굴(시험이 찾는 표지). */
+/** 프로필 원(시험이 찾는 표지). */
 internal const val PROFILE_FACE_TAG = "profile-avatar-face"

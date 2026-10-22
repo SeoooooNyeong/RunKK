@@ -411,10 +411,12 @@ internal fun spokenDistance(distance: Distance): String {
     }
 }
 
-/** 출처 줄(FR-100): "공개 기록 기준 · 출처". 구간 기록이 없으면 추정 안내를 붙인다(A-006). */
+/**
+ * 출처 줄(FR-100): "공개 기록 기준 · 출처". 서버 sourceLabel(Source.label(), 설계 6.1.6)이 이미 접두어를 붙여 오므로
+ * 그대로 쓰고, 출처가 없을 때만 "공개 기록 기준"을 쓴다. 구간 기록이 없으면 추정 안내를 붙인다(A-006).
+ */
 internal fun sourceLine(candidate: CandidateUi): UiText {
-    val basis = candidate.sourceLabel?.let { uiText(R.string.battle_record_source_basis_label, it) }
-        ?: uiText(R.string.battle_record_source_basis)
+    val basis = candidate.sourceLabel?.let(UiText::Plain) ?: uiText(R.string.battle_record_source_basis)
     return if (candidate.isEstimated) uiText(R.string.battle_record_source_estimated, basis) else basis
 }
 

@@ -124,6 +124,29 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun `우리 집·상단 아바타는 서버 얼굴 키(기본 캐릭터 default 키)를 그대로 넘긴다`() {
+        // 서버 GET /avatar 모양: 기본 캐릭터면 faceKey "default:BEAR"와 defaultCharacterId "BEAR"가 함께 온다.
+        avatar.avatarResult = Outcome.Success(
+            com.a207.runkk.app.domain.avatar.Avatar(
+                "default:BEAR",
+                "BEAR",
+                "STAGE1",
+                "DAYTIME",
+                mapOf(
+                    com.a207.runkk.app.domain.avatar.ItemSlot.TOP to 101L,
+                    com.a207.runkk.app.domain.avatar.ItemSlot.HAT to 401L
+                ),
+                100,
+                true,
+                emptyMap()
+            )
+        )
+        val vm = viewModel()
+        assertEquals("default:BEAR", vm.state.value.faceKey)
+        assertEquals(emptyList(), vm.state.value.faceLayers)
+    }
+
+    @Test
     fun `미전송 기록 수는 보관함 변화를 따라간다(FR-039)`() {
         val vm = viewModel()
         assertEquals(0, vm.state.value.pendingCount)

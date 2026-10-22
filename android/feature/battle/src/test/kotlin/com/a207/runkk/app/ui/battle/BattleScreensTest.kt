@@ -8,9 +8,11 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertContentDescriptionEquals
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -52,6 +54,28 @@ class BattleScreensTest {
         compose.onNodeWithContentDescription("3킬로미터, 최고 16분 0초", substring = true).performClick()
         compose.onNodeWithContentDescription("함께 달린 기록").performClick()
         assertEquals(listOf("select:3000", "history"), calls)
+    }
+
+    @Test
+    fun `유명인 - 카드 출처 줄은 서버 sourceLabel을 그대로 보여 접두어가 한 번만 붙는다(FR-100)`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                CelebBattleScreen(
+                    RecordBattleUiState(isLoading = false, candidates = celebCandidates.map(CandidateUi::of)),
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {}
+                )
+            }
+        }
+        // 카드는 보조 기술용 한 문장으로 묶여 있어 그 문장(출처 줄 포함)으로 찾는다.
+        compose.onNodeWithContentDescription("2025 서울마라톤", substring = true)
+            .assertContentDescriptionEquals("번개발, 10킬로미터, 42분 10초, 공개 기록 기준 · 2025 서울마라톤")
+        compose.onAllNodesWithContentDescription("공개 기록 기준 · 공개 기록 기준", substring = true).assertCountEquals(0)
     }
 
     @Test

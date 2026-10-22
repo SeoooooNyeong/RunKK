@@ -9,6 +9,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.UiText
+import com.a207.runkk.app.core.designsystem.runkkAvatarCharacterTag
 import com.a207.runkk.app.core.designsystem.testing.RUNKK_PHONE
 import com.a207.runkk.app.core.designsystem.testing.captureRunkkScreen
 import com.a207.runkk.app.domain.avatar.ItemSlot
@@ -79,6 +80,38 @@ class AvatarScreensTest {
         compose.onNodeWithContentDescription(str(R.string.avatar_balance_open_shop, "1,240")).performClick()
         compose.onNodeWithText(str(R.string.avatar_decorate_change_face)).performClick()
         assertEquals(listOf("toggle:2", "shop", "face"), calls)
+    }
+
+    @Test
+    fun `꾸미기 - 서버가 기본 캐릭터 키(default)를 주면 셀카가 아니라 그 캐릭터 그림으로 그리고 읽어 준다`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                AvatarFigure(
+                    avatar.copy(faceKey = "default:BEAR", defaultCharacterId = "BEAR"),
+                    equippedNames = emptyMap()
+                )
+            }
+        }
+        compose.onNodeWithTag(runkkAvatarCharacterTag("BEAR"), useUnmergedTree = true).assertExists()
+        compose.onNodeWithContentDescription(
+            str(
+                R.string.avatar_figure_description,
+                str(R.string.avatar_face_default, str(R.string.avatar_character_bear)),
+                str(R.string.avatar_body_3)
+            )
+        ).assertExists()
+    }
+
+    @Test
+    fun `아바타 만들기 - 기본 캐릭터 4종을 그림으로 보인다`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                AvatarSetupScreen(AvatarSetupUiState(isLoading = false), {}, {}, {}, {}, {})
+            }
+        }
+        DefaultCharacter.entries.forEach {
+            compose.onNodeWithTag(runkkAvatarCharacterTag(it.name), useUnmergedTree = true).assertExists()
+        }
     }
 
     @Test

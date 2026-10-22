@@ -374,9 +374,26 @@ val selfCandidates = listOf(
     RecordBattleCandidates.Candidate(null, "나", Distance(21_097), null, null, null, false)
 )
 
+/** 서버 GET /battles/celebrity/candidates 모양: sourceLabel은 Source.label()이 붙인 "공개 기록 기준 · 출처명" 그대로다(FR-100). */
 val celebCandidates = listOf(
-    RecordBattleCandidates.Candidate(7, "번개발", Distance(10_000), Duration.ofSeconds(2_530), null, "2025 서울마라톤", false),
-    RecordBattleCandidates.Candidate(8, "마라톤왕", Distance(42_195), Duration.ofSeconds(7_800), null, "2024 춘천마라톤", true)
+    RecordBattleCandidates.Candidate(
+        7,
+        "번개발",
+        Distance(10_000),
+        Duration.ofSeconds(2_530),
+        null,
+        "공개 기록 기준 · 2025 서울마라톤",
+        false
+    ),
+    RecordBattleCandidates.Candidate(
+        8,
+        "마라톤왕",
+        Distance(42_195),
+        Duration.ofSeconds(7_800),
+        null,
+        "공개 기록 기준 · 2024 춘천마라톤",
+        true
+    )
 )
 
 fun recordStart(distance: Distance, kind: CardKind, name: String) = RecordBattleStart(
