@@ -54,6 +54,6 @@ class ConfigurationPropertiesBindingTest {
         assertThat(secrets.jwtSecret()).isEmpty();
         assertThat(secrets.toString()).doesNotContain("jwt");
         assertThat(seed.bootstrapOperators()).isEmpty();
-        assertThat(links.termsUrl()).isEqualTo("https://s15p31a207.p.ssafy.io/legal/terms");
+        assertThat(links.termsUrl()).isEqualTo("https://k15a207.p.ssafy.io/legal/terms");
     }
 }

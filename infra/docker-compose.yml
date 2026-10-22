@@ -58,10 +58,10 @@ services:
       # 카카오·구글·Apple 로그인 같은 인증 요청의 클라이언트(IP)별 분당 상한
       AUTH_CLIENT_REQUESTS_PER_MINUTE: ${AUTH_CLIENT_REQUESTS_PER_MINUTE:-30}
       # 법정 고지 문서 주소. Spring은 빈 환경 변수도 값으로 보아 application.yml 기본값을 덮으므로 기본값을 서버 설정과 같게 둔다
-      LEGAL_TERMS_URL: ${LEGAL_TERMS_URL:-https://s15p31a207.p.ssafy.io/legal/terms}
-      LEGAL_PRIVACY_POLICY_URL: ${LEGAL_PRIVACY_POLICY_URL:-https://s15p31a207.p.ssafy.io/legal/privacy}
-      LEGAL_LOCATION_TERMS_URL: ${LEGAL_LOCATION_TERMS_URL:-https://s15p31a207.p.ssafy.io/legal/location}
-      LEGAL_HELP_URL: ${LEGAL_HELP_URL:-https://s15p31a207.p.ssafy.io/legal/help}
+      LEGAL_TERMS_URL: ${LEGAL_TERMS_URL:-https://k15a207.p.ssafy.io/legal/terms}
+      LEGAL_PRIVACY_POLICY_URL: ${LEGAL_PRIVACY_POLICY_URL:-https://k15a207.p.ssafy.io/legal/privacy}
+      LEGAL_LOCATION_TERMS_URL: ${LEGAL_LOCATION_TERMS_URL:-https://k15a207.p.ssafy.io/legal/location}
+      LEGAL_HELP_URL: ${LEGAL_HELP_URL:-https://k15a207.p.ssafy.io/legal/help}
       # 외부 연동. 비우면 그 연동만 꺼진다(카카오·구글 로그인 거부, 푸시는 로그만, 날씨 없이 저장)
       KAKAO_APP_ID: ${KAKAO_APP_ID:-}
       GOOGLE_CLIENT_IDS: ${GOOGLE_CLIENT_IDS:-}
