@@ -2,9 +2,11 @@ package com.a207.runkk.app.ui.avatar
 
 import android.graphics.Bitmap
 import androidx.annotation.StringRes
+import com.a207.runkk.app.core.designsystem.RunkkAvatarArt
 import com.a207.runkk.app.core.designsystem.RunkkErrorText
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.AppError
+import com.a207.runkk.app.domain.avatar.Avatar
 import com.a207.runkk.app.domain.avatar.ItemSlot
 import java.io.ByteArrayOutputStream
 import kotlin.math.max
@@ -19,8 +21,29 @@ enum class DefaultCharacter(@StringRes val labelRes: Int) {
 
     companion object {
         fun of(id: String?): DefaultCharacter? = entries.firstOrNull { it.name == id }
+
+        /** 서버 얼굴 키("default:<이름>")의 캐릭터. 셀카 얼굴·모르는 값이면 null. */
+        fun ofFaceKey(faceKey: String?): DefaultCharacter? =
+            entries.firstOrNull { RunkkAvatarArt.defaultKey(it.name) == faceKey }
     }
 }
+
+/**
+ * 그릴 얼굴 키(서버 Face.renderKey). 서버는 기본 캐릭터면 faceKey "default:<이름>"과 defaultCharacterId를 함께 준다.
+ * faceKey가 비었으면 defaultCharacterId로 같은 형식의 키를 만든다.
+ */
+internal val Avatar.renderKey: String?
+    get() = faceKey ?: defaultCharacterId?.let(RunkkAvatarArt::defaultKey)
+
+/** 기본 캐릭터 얼굴이면 그 캐릭터, 셀카 얼굴·얼굴 없음·모르는 값이면 null. */
+internal val Avatar.character: DefaultCharacter?
+    get() = DefaultCharacter.ofFaceKey(renderKey)
+
+/** 셀카 얼굴인지(서버 SelfieFace.renderKey는 "selfie:"로 시작한다). */
+internal val Avatar.isSelfieFace: Boolean
+    get() = faceKey?.startsWith(SELFIE_PREFIX) == true
+
+private const val SELFIE_PREFIX = "selfie:"
 
 /** 부위 문구(FR-161). */
 @get:StringRes

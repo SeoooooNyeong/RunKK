@@ -35,7 +35,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
@@ -52,7 +51,9 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.a207.runkk.app.core.designsystem.RunkkAvatarFace
+import com.a207.runkk.app.core.designsystem.RUNKK_AVATAR_FACE_TAG
+import com.a207.runkk.app.core.designsystem.RunkkAvatarArt
+import com.a207.runkk.app.core.designsystem.RunkkAvatarPortrait
 import com.a207.runkk.app.core.designsystem.RunkkBadge
 import com.a207.runkk.app.core.designsystem.RunkkBadgeTone
 import com.a207.runkk.app.core.designsystem.RunkkCard
@@ -253,9 +254,11 @@ private fun CharacterOption(
         background = if (isSelected) RunkkColors.LimeContainer else RunkkColors.Surface,
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Box(
-            Modifier.align(Alignment.CenterHorizontally).size(64.dp).clip(CircleShape).background(RunkkColors.Border),
-            contentAlignment = Alignment.Center
+        RunkkAvatarPortrait(
+            RunkkAvatarArt.defaultKey(character.name),
+            faceLayers = emptyList(),
+            modifier = Modifier.align(Alignment.CenterHorizontally).size(64.dp).clip(CircleShape)
+                .background(RunkkColors.Border)
         ) {
             Text(name, style = RunkkTextStyles.text(14, FontWeight.Black), color = RunkkColors.TextPrimary)
         }
@@ -428,13 +431,15 @@ private fun OwnedItems(state: AvatarUiState, onShop: () -> Unit, onToggle: (Shop
     }
 }
 
+/** 얼굴 문구: 기본 캐릭터(faceKey "default:…")면 그 캐릭터, 셀카 얼굴("selfie:…")이면 셀카, 아니면 없음. */
 @Composable
-private fun faceLabel(avatar: Avatar): String = when {
-    avatar.faceKey != null -> stringResource(R.string.avatar_face_selfie)
-
-    else -> DefaultCharacter.of(avatar.defaultCharacterId)
-        ?.let { stringResource(R.string.avatar_face_default, stringResource(it.labelRes)) }
-        ?: stringResource(R.string.avatar_face_none)
+private fun faceLabel(avatar: Avatar): String {
+    val character = avatar.character
+    return when {
+        character != null -> stringResource(R.string.avatar_face_default, stringResource(character.labelRes))
+        avatar.isSelfieFace -> stringResource(R.string.avatar_face_selfie)
+        else -> stringResource(R.string.avatar_face_none)
+    }
 }
 
 private fun formatReward(value: Int?): String = value?.let { String.format(Locale.US, "%,d", it) } ?: "-"
@@ -513,7 +518,7 @@ private fun ItemTile(item: Shop.Item, isEquipped: Boolean, onClick: () -> Unit, 
 }
 
 /**
- * 아바타 그림: 피부톤 색 머리 + 얼굴(셀카면 서버 부위 PNG를 겹친 SD 얼굴, 받지 못했거나 기본 캐릭터면 글자 자리 그림)
+ * 아바타 그림: 피부톤 색 머리 + 얼굴(기본 캐릭터면 앱의 캐릭터 그림, 셀카면 서버 부위 PNG를 겹친 SD 얼굴, 받지 못했으면 글자 자리 그림)
  * + 체형 단계 폭의 몸 + 착용 부위 표시. 그림 자원(SD 몸체·아이템)은 2단계에 넣는다.
  */
 @Composable
@@ -573,7 +578,7 @@ private fun figureDescription(avatar: Avatar, equippedNames: Map<ItemSlot, Strin
     }
 }
 
-/** 머리: 피부톤 원 + 얼굴(셀카 부위 그림 또는 자리 글자). 모자를 쓰면 테두리를 두른다. */
+/** 머리: 피부톤 원 + 얼굴(기본 캐릭터 그림, 셀카 부위 그림, 받지 못했으면 자리 글자). 모자를 쓰면 테두리를 두른다. */
 @Composable
 private fun FigureHead(avatar: Avatar, hasHat: Boolean, faceLayers: List<FaceLayer>) {
     Box(
@@ -584,23 +589,14 @@ private fun FigureHead(avatar: Avatar, hasHat: Boolean, faceLayers: List<FaceLay
             .then(if (hasHat) Modifier.border(3.dp, RunkkColors.Lavender, CircleShape) else Modifier),
         contentAlignment = Alignment.Center
     ) {
-        val placeholderText = if (avatar.faceKey != null) {
-            "SD"
-        } else {
-            DefaultCharacter.of(avatar.defaultCharacterId)?.let { stringResource(it.labelRes) } ?: "?"
-        }
-        val placeholder: @Composable () -> Unit = {
-            Text(
-                placeholderText,
-                style = RunkkTextStyles.text(12, FontWeight.Black),
-                color = RunkkColors.OnLime
-            )
-        }
-        if (faceLayers.isEmpty()) {
-            placeholder()
-        } else {
-            RunkkAvatarFace(faceLayers, Modifier.fillMaxSize().testTag(FACE_TAG)) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { placeholder() }
+        val placeholderText = if (avatar.isSelfieFace) "SD" else "?"
+        RunkkAvatarPortrait(avatar.renderKey, faceLayers, Modifier.fillMaxSize()) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(
+                    placeholderText,
+                    style = RunkkTextStyles.text(12, FontWeight.Black),
+                    color = RunkkColors.OnLime
+                )
             }
         }
     }
@@ -630,8 +626,8 @@ private fun skinColor(tone: String): Color = when (tone) {
     else -> Color(0xFFE0B48F)
 }
 
-/** 셀카 얼굴 그림(시험이 찾는 표지). */
-internal const val FACE_TAG = "avatar-face"
+/** 셀카 얼굴 그림(시험이 찾는 표지, 공용 아바타 얼굴 칸의 표지). */
+internal const val FACE_TAG = RUNKK_AVATAR_FACE_TAG
 
 private const val BODY_BASE = 48
 private const val BODY_STEP = 8

@@ -69,6 +69,17 @@ class MeScreenshotTest {
         MeScreen(MeUiState(isLoading = false, profile = sampleProfile), onNavigate = {}, onRetry = {}, onLogout = {})
     }
 
+    /** 프로필 원에 기본 캐릭터(faceKey "default:BEAR") 그림. */
+    @Test
+    fun meDefaultCharacter() = compose.captureRunkkScreen("me_profile_default_character") {
+        MeScreen(
+            MeUiState(isLoading = false, profile = sampleProfile.copy(faceKey = "default:BEAR")),
+            onNavigate = {},
+            onRetry = {},
+            onLogout = {}
+        )
+    }
+
     @Test
     fun meError() = compose.captureRunkkScreen("me_error") {
         MeScreen(MeUiState(isLoading = false, error = RunkkErrorText.of(AppError.Network)), onNavigate = {

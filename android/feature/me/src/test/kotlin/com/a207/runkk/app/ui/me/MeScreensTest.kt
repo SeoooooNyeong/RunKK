@@ -1,15 +1,21 @@
 package com.a207.runkk.app.ui.me
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import com.a207.runkk.app.core.designsystem.RUNKK_AVATAR_FACE_TAG
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.UiText
+import com.a207.runkk.app.core.designsystem.runkkAvatarCharacterTag
 import com.a207.runkk.app.domain.account.Gender
 import com.a207.runkk.app.domain.account.MemberSettings
 import com.a207.runkk.app.domain.account.ProviderType
@@ -25,6 +31,23 @@ import org.robolectric.RuntimeEnvironment
 class MeScreensTest {
     @get:Rule
     val compose = createComposeRule()
+
+    @Test
+    fun `프로필 원은 기본 캐릭터면 캐릭터 그림, 모르는 값이면 비운다`() {
+        var faceKey by mutableStateOf<String?>("default:BEAR")
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                MeScreen(MeUiState(isLoading = false, profile = sampleProfile.copy(faceKey = faceKey)), onNavigate = {
+                }, onRetry = {}, onLogout = {})
+            }
+        }
+        compose.onNodeWithTag(runkkAvatarCharacterTag("BEAR"), useUnmergedTree = true).assertExists()
+
+        faceKey = "default:DRAGON"
+        compose.waitForIdle()
+        compose.onNodeWithTag(runkkAvatarCharacterTag("BEAR"), useUnmergedTree = true).assertDoesNotExist()
+        compose.onNodeWithTag(RUNKK_AVATAR_FACE_TAG, useUnmergedTree = true).assertDoesNotExist()
+    }
 
     @Test
     fun `마이 프로필은 입력한 나이대·성별을 보이고 밝히지 않음은 뺀다(FR-006)`() {

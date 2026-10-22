@@ -1,12 +1,17 @@
 package com.a207.runkk.app.ui.home
 
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import com.a207.runkk.app.core.designsystem.RunkkAvatarArt
 import com.a207.runkk.app.core.designsystem.RunkkTheme
+import com.a207.runkk.app.core.designsystem.runkkAvatarCharacterTag
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.record.TodayPlan
@@ -135,6 +140,21 @@ class HomeScreenTest {
         compose.onNodeWithText("골드 · Lv.3").assertExists()
         compose.onNodeWithContentDescription("리워드 잔액 1,250").performClick()
         assertEquals(listOf(Routes.SHOP), routes)
+    }
+
+    @Test
+    fun `기본 캐릭터면 상단 프로필 원과 우리 집 아바타 자리에 캐릭터 그림을 그린다`() {
+        show(HomeUiState(isLoading = false, isHeaderLoading = false, faceKey = "default:BEAR"))
+        compose.onAllNodesWithTag(runkkAvatarCharacterTag("BEAR"), useUnmergedTree = true).assertCountEquals(2)
+    }
+
+    @Test
+    fun `얼굴이 없거나 모르는 값이면 캐릭터 그림 없이 자리 그림이다`() {
+        show(HomeUiState(isLoading = false, isHeaderLoading = false, faceKey = "default:DRAGON"))
+        compose.onNodeWithText("아바타").assertExists()
+        RunkkAvatarArt.characters.keys.forEach {
+            compose.onNodeWithTag(runkkAvatarCharacterTag(it), useUnmergedTree = true).assertDoesNotExist()
+        }
     }
 
     @Test

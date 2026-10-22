@@ -46,7 +46,9 @@ data class HomeUiState(
     val today: LocalDate? = null,
     val header: HomeHeader = HomeHeader(),
     val isHeaderLoading: Boolean = true,
-    /** 우리 집 아바타 자리의 셀카 얼굴 부위 그림. 비어 있으면 "아바타" 자리 그림. */
+    /** 아바타 얼굴 키(서버 renderKey: "default:<캐릭터>" 또는 "selfie:…"). 상단 프로필 원과 우리 집 아바타 자리가 그린다. */
+    val faceKey: String? = null,
+    /** 셀카 얼굴 부위 그림(셀카 얼굴일 때만). 기본 캐릭터도 셀카 그림도 없으면 "아바타" 자리 그림. */
     val faceLayers: List<FaceLayer> = emptyList()
 )
 
@@ -105,6 +107,7 @@ class HomeViewModel @Inject constructor(
                     todayPlan = planResult.getOrNull(),
                     header = header,
                     isHeaderLoading = false,
+                    faceKey = myAvatar?.faceKey,
                     faceLayers = face,
                     error = (dashboardResult as? Outcome.Failure)?.let { failure -> RunkkErrorText.of(failure.error) }
                 )
