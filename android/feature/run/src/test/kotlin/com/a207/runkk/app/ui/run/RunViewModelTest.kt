@@ -4,11 +4,16 @@ import app.cash.turbine.test
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.GeoPoint
+import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.core.model.Pace
+import com.a207.runkk.app.domain.record.TodayPlan
+import com.a207.runkk.app.domain.run.FreeRunGoalUseCase
 import com.a207.runkk.app.domain.run.Guidance
 import com.a207.runkk.app.domain.run.LocationSample
 import com.a207.runkk.app.domain.run.RunArchive
 import com.a207.runkk.app.domain.run.RunStartSpec
 import com.a207.runkk.app.domain.run.RunTracker
+import com.a207.runkk.app.domain.settings.GuidanceSettings
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -35,13 +40,15 @@ class RunViewModelTest {
     private val settings = FakeSettingsRepository()
     private val records = FakeRecordRepository()
     private val clock = MutableClock()
+    private val goals = FreeRunGoalUseCase(settings)
+    private val km3 = GuidanceSettings.DEFAULT.copy(freeRunTarget = Distance(3_000))
 
     private fun TestScope.tracker() =
         RunTracker(RunArchive(pending, upload), watch, guidance, permission, host, settings, clock, backgroundScope)
 
     private fun TestScope.started(): Pair<RunViewModel, RunTracker> {
         val tracker = tracker()
-        val vm = RunViewModel(tracker, records)
+        val vm = RunViewModel(tracker, records, goals)
         runCurrent()
         advanceUntilIdle()
         return vm to tracker
@@ -54,21 +61,67 @@ class RunViewModelTest {
     }
 
     @Test
-    fun `카운트다운이 끝나면 오늘 계획으로 자유런을 시작한다`() = runTest(main.dispatcher) {
+    fun `코치 계획 따르기가 켜져 있으면 카운트다운이 끝난 뒤 오늘 계획으로 자유런을 시작한다`() = runTest(main.dispatcher) {
+        settings.guidance = km3.copy(shouldFollowCoachPlan = true)
         val tracker = tracker()
-        val vm = RunViewModel(tracker, records)
+        val vm = RunViewModel(tracker, records, goals)
         runCurrent()
         assertEquals(RunPhase.COUNTDOWN, vm.state.value.phase)
         assertEquals(3, vm.state.value.countdown)
         advanceUntilIdle()
         assertEquals(RunPhase.RUNNING, vm.state.value.phase)
         assertEquals(Distance(5_000), vm.state.value.targetDistance)
+        assertEquals(Pace(330), vm.state.value.targetPace)
         assertEquals(1, host.started)
     }
 
     @Test
+    fun `오늘 계획이 없으면 자유런 설정의 목표 거리 3km로 시작한다(FR-048)`() = runTest(main.dispatcher) {
+        records.todayPlanResult = Outcome.Success(null)
+        settings.guidance = km3
+        val (vm, _) = started()
+        assertEquals(RunPhase.RUNNING, vm.state.value.phase)
+        assertEquals(Distance(3_000), vm.state.value.targetDistance)
+        assertEquals(null, vm.state.value.targetPace)
+    }
+
+    @Test
+    fun `코치 계획 따르기가 꺼져 있으면 오늘 계획이 있어도 설정 목표로 시작한다`() = runTest(main.dispatcher) {
+        records.todayPlanResult = Outcome.Success(TodayPlan(Distance(5_000), Pace(330)))
+        settings.guidance = km3.copy(shouldFollowCoachPlan = false)
+        val (vm, _) = started()
+        assertEquals(Distance(3_000), vm.state.value.targetDistance)
+        assertEquals(null, vm.state.value.targetPace)
+    }
+
+    @Test
+    fun `설정 목표 거리에 닿으면 목표 도달 안내가 울린다(FR-049)`() = runTest(main.dispatcher) {
+        records.todayPlanResult = Outcome.Success(null)
+        settings.guidance = km3
+        val (_, tracker) = started()
+        tracker.walk(1, 37.5)
+        tracker.walk(1_000, 37.528)
+        tracker.tick(clock.now)
+        assertTrue(guidance.played.any { it.kind == Guidance.Kind.TARGET_REACHED })
+    }
+
+    @Test
+    fun `카운트다운 중 설정에서 목표를 바꾸고 돌아오면 바꾼 목표로 다시 센다`() = runTest(main.dispatcher) {
+        records.todayPlanResult = Outcome.Success(null)
+        val vm = RunViewModel(tracker(), records, goals)
+        runCurrent()
+        assertEquals(null, vm.state.value.targetDistance)
+        vm.onSettingsTapped()
+        settings.guidance = GuidanceSettings.DEFAULT.copy(freeRunTarget = Distance(10_000))
+        vm.onResumed()
+        advanceUntilIdle()
+        assertEquals(RunPhase.RUNNING, vm.state.value.phase)
+        assertEquals(Distance(10_000), vm.state.value.targetDistance)
+    }
+
+    @Test
     fun `숫자를 누르면 바로 시작한다`() = runTest(main.dispatcher) {
-        val vm = RunViewModel(tracker(), records)
+        val vm = RunViewModel(tracker(), records, goals)
         runCurrent()
         vm.onCountdownTapped()
         runCurrent()
@@ -77,7 +130,7 @@ class RunViewModelTest {
 
     @Test
     fun `카운트다운 중 취소하면 시작하지 않고 나간다`() = runTest(main.dispatcher) {
-        val vm = RunViewModel(tracker(), records)
+        val vm = RunViewModel(tracker(), records, goals)
         runCurrent()
         vm.events.test {
             vm.onCancelCountdown()
@@ -90,7 +143,7 @@ class RunViewModelTest {
     @Test
     fun `위치 동의가 없으면 카운트다운 전에 재동의를 보인다(FR-031)`() = runTest(main.dispatcher) {
         settings.consented = false
-        val vm = RunViewModel(tracker(), records)
+        val vm = RunViewModel(tracker(), records, goals)
         advanceUntilIdle()
         assertEquals(RunPhase.PREPARING, vm.state.value.phase)
         assertTrue(vm.state.value.isConsentRequired)
@@ -172,7 +225,7 @@ class RunViewModelTest {
                 cardKind = com.a207.runkk.app.core.model.CardKind.FREE_RUN
             )
         )
-        val vm = RunViewModel(tracker, records)
+        val vm = RunViewModel(tracker, records, goals)
         runCurrent()
         vm.onCountdownTapped()
         runCurrent()
@@ -182,7 +235,7 @@ class RunViewModelTest {
 
     @Test
     fun `카운트다운 중 설정으로 가면 멈추고 돌아오면 다시 센다`() = runTest(main.dispatcher) {
-        val vm = RunViewModel(tracker(), records)
+        val vm = RunViewModel(tracker(), records, goals)
         runCurrent()
         vm.onSettingsTapped()
         advanceUntilIdle()

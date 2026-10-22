@@ -8,7 +8,8 @@ import java.util.UUID
 
 /**
  * 러닝 한 회의 시작 조건(6.1.14). recordId는 앱이 만든 UUID다(D-11).
- * todayPlan: 자유런이면 ui.run이 RecordRepository.todayPlan()에서 채우고, 대결은 조정자가 대결 거리를 목표 거리로 넣는다.
+ * todayPlan: 이번 회의 목표 거리·목표 페이스. 자유런이면 ui.run이 FreeRunGoalUseCase로 고른 목표(코치 계획 따르기 켬 +
+ * 오늘 계획 → 오늘 계획, 그 밖 → 자유런 설정 목표 거리, FR-048)를 넣고, 대결은 조정자가 대결 거리를 목표 거리로 넣는다.
  */
 data class RunStartSpec(
     val mode: RunMode,

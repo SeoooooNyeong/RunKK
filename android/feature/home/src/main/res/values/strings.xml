@@ -17,6 +17,7 @@
     <string name="home_mode_battle">배틀런</string>
     <string name="home_mode_description">러닝 종류</string>
     <string name="home_free_plan_caption">오늘 계획 그대로</string>
+    <string name="home_free_settings_caption">지난번 설정 그대로</string>
     <string name="home_free_settings">설정</string>
     <string name="home_free_settings_description">자유런 설정</string>
     <string name="home_free_start">자유런 시작</string>
@@ -25,6 +26,7 @@
     <string name="home_plan_none">목표 없이 달리기</string>
     <string name="home_plan_pace">목표 %1$s/km</string>
     <string name="home_plan_distance_spoken">오늘 목표 %1$s</string>
+    <string name="home_goal_distance_spoken">목표 %1$s</string>
     <string name="home_plan_pace_spoken">목표 페이스 %1$s</string>
     <string name="home_summary_today">오늘</string>
     <string name="home_summary_today_caption">오늘 달린 거리</string>

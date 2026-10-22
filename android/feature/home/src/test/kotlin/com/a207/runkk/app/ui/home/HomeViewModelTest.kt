@@ -4,6 +4,12 @@ import com.a207.runkk.app.core.designsystem.RunkkErrorText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.core.model.Pace
+import com.a207.runkk.app.domain.run.FreeRunGoal
+import com.a207.runkk.app.domain.run.FreeRunGoalUseCase
+import com.a207.runkk.app.domain.run.PlanSnapshot
+import com.a207.runkk.app.domain.run.TodayPlanCache
+import com.a207.runkk.app.domain.settings.GuidanceSettings
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
@@ -26,16 +32,70 @@ class HomeViewModelTest {
     private val account = FakeAccountRepository()
     private val avatar = FakeAvatarRepository()
 
-    private fun viewModel() = HomeViewModel(records, pending, account, avatar, clock)
+    private val settings = FakeSettingsRepository()
+    private val km3 = GuidanceSettings.DEFAULT.copy(freeRunTarget = Distance(3_000))
+
+    private val todayPlans = TodayPlanCache()
+
+    private fun viewModel() =
+        HomeViewModel(records, pending, account, avatar, FreeRunGoalUseCase(settings), todayPlans, clock)
+
+    @Test
+    fun `오늘 계획을 읽으면 앱의 오늘 계획 사본에 알린다(워치 시작 화면, FR-042)`() {
+        viewModel()
+        assertEquals(PlanSnapshot(Distance(5_000), Pace(330)), todayPlans.plan.value)
+    }
+
+    @Test
+    fun `오늘 계획을 읽지 못하면 앱의 오늘 계획 사본은 그대로 둔다`() {
+        val known = PlanSnapshot(Distance(7_000), null)
+        todayPlans.put(known)
+        records.todayPlanResult = Outcome.Failure(AppError.Network)
+        viewModel()
+        assertEquals(known, todayPlans.plan.value)
+    }
 
     @Test
     fun `홈은 오늘 날짜의 대시보드와 오늘 계획을 읽는다`() {
+        settings.guidance = km3.copy(shouldFollowCoachPlan = true)
         val vm = viewModel()
         val state = vm.state.value
         assertFalse(state.isLoading)
         assertEquals(sampleDashboard, state.dashboard)
-        assertEquals(Distance(5_000), state.todayPlan?.distance)
+        assertEquals(FreeRunGoal(PlanSnapshot(Distance(5_000), Pace(330)), isFromCoachPlan = true), state.freeRunGoal)
         assertEquals(listOf(LocalDate.of(2026, 10, 20)), records.dashboardDates)
+    }
+
+    @Test
+    fun `오늘 계획이 없으면 자유런 카드는 설정 목표 3km를 보인다(FR-048)`() {
+        records.todayPlanResult = Outcome.Success(null)
+        settings.guidance = km3
+        val vm = viewModel()
+        assertEquals(
+            FreeRunGoal(PlanSnapshot(Distance(3_000), null), isFromCoachPlan = false),
+            vm.state.value.freeRunGoal
+        )
+    }
+
+    @Test
+    fun `코치 계획 따르기가 꺼져 있으면 오늘 계획이 있어도 설정 목표를 보인다`() {
+        settings.guidance = km3
+        val vm = viewModel()
+        assertEquals(
+            FreeRunGoal(PlanSnapshot(Distance(3_000), null), isFromCoachPlan = false),
+            vm.state.value.freeRunGoal
+        )
+    }
+
+    @Test
+    fun `설정을 바꾸고 홈으로 돌아오면 다시 읽지 않아도 목표가 바로 바뀐다`() {
+        records.todayPlanResult = Outcome.Success(null)
+        val vm = viewModel()
+        assertEquals(FreeRunGoal.NONE, vm.state.value.freeRunGoal)
+        settings.guidance = GuidanceSettings.DEFAULT.copy(freeRunTarget = Distance(10_000))
+        assertEquals(PlanSnapshot(Distance(10_000), null), vm.state.value.freeRunGoal.plan)
+        settings.guidance = GuidanceSettings.DEFAULT
+        assertEquals(FreeRunGoal.NONE, vm.state.value.freeRunGoal)
     }
 
     @Test
@@ -87,7 +147,8 @@ class HomeViewModelTest {
     fun `오늘 계획이 없어도 대시보드는 보인다`() {
         records.todayPlanResult = Outcome.Failure(AppError.Network)
         val vm = viewModel()
-        assertNull(vm.state.value.todayPlan)
+        settings.guidance = GuidanceSettings.DEFAULT.copy(shouldFollowCoachPlan = true)
+        assertEquals(FreeRunGoal.NONE, vm.state.value.freeRunGoal)
         assertEquals(sampleDashboard, vm.state.value.dashboard)
     }
 

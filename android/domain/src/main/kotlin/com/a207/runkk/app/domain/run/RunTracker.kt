@@ -229,7 +229,8 @@ constructor(
     }
 
     /**
-     * 워치 시작 화면 표시(running = false, 오늘 계획, FR-042·N-21). 오늘 계획을 읽은 화면(ui.run·ui.home)이 부른다.
+     * 워치 시작 화면 표시(running = false, 오늘 계획, FR-042·N-21). WatchHomeSync가 앱 시작 때와 목표(오늘 계획·자유런 설정)가
+     * 바뀔 때마다 부른다.
      * 측정 중이면 계획만 기억했다가 측정이 끝난 뒤 시작 화면에 보인다. 수집 허용 여부는 data.watch가 채운다.
      */
     fun publishWatchHome(plan: PlanSnapshot?) {

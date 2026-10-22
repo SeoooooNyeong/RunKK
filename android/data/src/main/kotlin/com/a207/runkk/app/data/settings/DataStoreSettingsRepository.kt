@@ -11,6 +11,7 @@ import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.preferencesDataStoreFile
 import com.a207.runkk.app.core.model.AppError
+import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.settings.GuidanceSettings
 import com.a207.runkk.app.domain.settings.SettingsRemote
@@ -25,7 +26,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -35,6 +38,8 @@ import kotlinx.coroutines.sync.withLock
  * 원본은 SettingsRemote(GET /me/settings)로 받고, 사본에는 서버 회원 설정 외의 값을 넣지 않는다.
  *
  * 읽기 연산은 위치 콜백·1초 시계에서 불리므로 막지 않는다: 저장된 사본을 메모리(StateFlow)에 올려 두고 읽는다.
+ * 메모리 사본은 세대 번호와 함께 compare-and-set으로만 바꾸어, 로그아웃(clear) 뒤에 늦게 끝난 기기 읽기나 refresh가
+ * 이전 회원의 동의·설정을 되살리지 못한다.
  * 사본이 없거나 아직 읽지 못했으면 개인정보 쪽으로 안전한 값(SettingsSnapshot.SAFE: 동의 거짓, 공유 거짓)이다.
  */
 @Singleton
@@ -50,36 +55,42 @@ class DataStoreSettingsRepository internal constructor(
         scope: CoroutineScope
     ) : this(PreferenceDataStoreFactory.create { context.preferencesDataStoreFile(FILE) }, remote, scope)
 
-    /** 메모리에 올린 사본. null이면 사본 없음. */
-    private val copy = MutableStateFlow<SettingsSnapshot?>(null)
+    /**
+     * 메모리에 올린 사본과 세대 번호. 메모리 사본은 이 값 하나를 compare-and-set(update)으로만 바꾼다(clear 뒤에 늦게 온
+     * 옛 값이 덮어쓰지 못하게, 로그아웃 경쟁).
+     */
+    private val cache = MutableStateFlow(Cache(epoch = 0, snapshot = null, isSettled = false))
 
-    /** refresh 쓰기와 clear를 차례로 돌린다: 로그아웃 clear 뒤에 늦게 끝난 refresh가 이전 회원의 사본을 되살리지 않게. */
+    /** 기기 사본 쓰기(refresh)와 지우기(clear)를 차례로 돌린다: 기기 파일이 마지막 연산의 결과로 남게. */
     private val writing = Mutex()
 
-    /** clear할 때마다 늘린다. clear 전에 시작한 refresh의 결과는 쓰지 않는다. */
-    @Volatile
-    private var generation = 0L
-
     init {
+        // 앱 시작 때 기기 사본을 한 번만 읽어 올린다. 이 클래스만 이 파일을 쓰므로 그 뒤 값은 refresh·clear가 직접 올린다.
+        // 읽기가 늦게 끝나 그 사이 refresh나 clear가 이미 값을 정했으면(isSettled) 읽은 옛 값은 버린다.
         scope.launch {
-            dataStore.data
-                .catch { error -> if (error is IOException) emit(emptyPreferences()) else throw error }
-                .collect { copy.value = it.toSnapshot() }
+            val stored =
+                dataStore.data
+                    .catch { error -> if (error is IOException) emit(emptyPreferences()) else throw error }
+                    .first()
+                    .toSnapshot()
+            cache.update { if (it.isSettled) it else it.copy(snapshot = stored, isSettled = true) }
         }
     }
 
     override suspend fun refresh(): Outcome<Unit> {
-        val startedAt = generation
+        val startedAt = cache.value.epoch
         val snapshot =
             when (val fetched = remote.fetch()) {
                 is Outcome.Failure -> return fetched
                 is Outcome.Success -> fetched.value
             }
         return writing.withLock {
-            if (generation != startedAt) return@withLock Outcome.Success(Unit)
+            // clear 전에 시작한 refresh(이전 회원의 원본)는 쓰지 않는다.
+            if (cache.value.epoch != startedAt) return@withLock Outcome.Success(Unit)
             try {
                 dataStore.edit { it.write(snapshot) }
-                copy.value = snapshot
+                // 저장하는 사이 clear가 세대를 올렸으면 메모리에도 올리지 않는다(뒤이어 clear가 기기 사본도 지운다).
+                cache.update { if (it.epoch == startedAt) Cache(it.epoch, snapshot, isSettled = true) else it }
                 Outcome.Success(Unit)
             } catch (e: IOException) {
                 Outcome.Failure(AppError.Storage)
@@ -99,12 +110,15 @@ class DataStoreSettingsRepository internal constructor(
 
     override fun guidanceSettings(): GuidanceSettings = current().guidanceSettings
 
-    override fun changes(): Flow<SettingsSnapshot> = copy.map { it ?: SettingsSnapshot.SAFE }.distinctUntilChanged()
+    override fun changes(): Flow<SettingsSnapshot> =
+        cache.map { it.snapshot ?: SettingsSnapshot.SAFE }.distinctUntilChanged()
 
-    /** 사본을 지운다. 기기 파일을 지우지 못해도 메모리 사본은 안전한 값으로 돌린다. */
+    /**
+     * 사본을 지운다. 세대를 올리고 메모리 사본을 먼저 안전한 값으로 돌린 뒤(기다리지 않고 바로) 기기 파일을 지운다.
+     * 기기 파일을 지우지 못해도 메모리 사본은 안전한 값이다.
+     */
     override suspend fun clear(): Outcome<Unit> {
-        generation++
-        copy.value = null
+        cache.update { Cache(it.epoch + 1, snapshot = null, isSettled = true) }
         return writing.withLock {
             try {
                 dataStore.edit { it.clear() }
@@ -115,7 +129,7 @@ class DataStoreSettingsRepository internal constructor(
         }
     }
 
-    private fun current(): SettingsSnapshot = copy.value ?: SettingsSnapshot.SAFE
+    private fun current(): SettingsSnapshot = cache.value.snapshot ?: SettingsSnapshot.SAFE
 
     private fun Preferences.toSnapshot(): SettingsSnapshot? {
         if (this[HAS_COPY] != true) return null
@@ -134,7 +148,8 @@ class DataStoreSettingsRepository internal constructor(
                     isBattleVibrationOn = this[BATTLE_VIBRATION] ?: defaults.isBattleVibrationOn,
                     gapAlertMeters = this[GAP_ALERT_METERS]?.takeIf { it > 0 } ?: defaults.gapAlertMeters,
                     isRankAlertOn = this[RANK_ALERT] ?: defaults.isRankAlertOn,
-                    shouldFollowCoachPlan = this[FOLLOW_COACH_PLAN] ?: defaults.shouldFollowCoachPlan
+                    shouldFollowCoachPlan = this[FOLLOW_COACH_PLAN] ?: defaults.shouldFollowCoachPlan,
+                    freeRunTarget = this[FREE_RUN_TARGET_METERS]?.takeIf { it > 0 }?.let { Distance(it.toLong()) }
                 )
         )
     }
@@ -155,7 +170,14 @@ class DataStoreSettingsRepository internal constructor(
         this[GAP_ALERT_METERS] = g.gapAlertMeters
         this[RANK_ALERT] = g.isRankAlertOn
         this[FOLLOW_COACH_PLAN] = g.shouldFollowCoachPlan
+        g.freeRunTarget?.let { this[FREE_RUN_TARGET_METERS] = it.meters.toInt() }
     }
+
+    /**
+     * 메모리 사본(null이면 사본 없음)과 세대(clear마다 1 늘어난다). isSettled는 refresh·clear·첫 읽기 가운데 하나가
+     * 값을 정했는지다: 정해진 뒤 끝난 첫 읽기는 버린다.
+     */
+    private data class Cache(val epoch: Long, val snapshot: SettingsSnapshot?, val isSettled: Boolean)
 
     private companion object {
         const val FILE = "settings_copy"
@@ -172,5 +194,8 @@ class DataStoreSettingsRepository internal constructor(
         val GAP_ALERT_METERS = intPreferencesKey("gap_alert_meters")
         val RANK_ALERT = booleanPreferencesKey("rank_alert")
         val FOLLOW_COACH_PLAN = booleanPreferencesKey("follow_coach_plan")
+
+        /** 자유런 목표 거리(m). 목표 없음(FREE)이면 넣지 않는다. */
+        val FREE_RUN_TARGET_METERS = intPreferencesKey("free_run_target_meters")
     }
 }

@@ -15,6 +15,8 @@ import com.a207.runkk.app.domain.record.PlanProgress
 import com.a207.runkk.app.domain.record.Ranking
 import com.a207.runkk.app.domain.record.RecordRepository
 import com.a207.runkk.app.domain.record.Report
+import com.a207.runkk.app.domain.run.PlanSnapshot
+import com.a207.runkk.app.domain.run.TodayPlanCache
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Clock
 import java.time.DayOfWeek
@@ -183,9 +185,16 @@ data class CoachUiState(
     }
 }
 
-/** 목표·코치: 이번 주(월~일) 계획 이행 현황과 보충 거리, 오늘 계획·주간 목표(횟수 + 거리) 정하기. */
+/**
+ * 목표·코치: 이번 주(월~일) 계획 이행 현황과 보충 거리, 오늘 계획·주간 목표(횟수 + 거리) 정하기.
+ * 오늘 계획을 정하면 TodayPlanCache에도 알려 워치 시작 화면이 바뀐 계획을 보이게 한다(WatchHomeSync, FR-042).
+ */
 @HiltViewModel
-class CoachViewModel @Inject constructor(private val records: RecordRepository, clock: Clock) : ViewModel() {
+class CoachViewModel @Inject constructor(
+    private val records: RecordRepository,
+    private val todayPlans: TodayPlanCache,
+    clock: Clock
+) : ViewModel() {
     private val today = LocalDate.now(clock)
     private val weekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
     private val _state = MutableStateFlow(CoachUiState(weekStart = weekStart, today = today))
@@ -210,7 +219,9 @@ class CoachViewModel @Inject constructor(private val records: RecordRepository, 
 
     fun onTodayPlan(distance: Distance) =
         save(uiText(R.string.record_coach_today_plan_saved, km(distance)), shouldReload = true) {
-            records.putPlan(today, distance, null)
+            records.putPlan(today, distance, null).also { result ->
+                if (result is Outcome.Success) todayPlans.put(PlanSnapshot(distance, null))
+            }
         }
 
     fun onGoalRunsSelected(runs: Int) {

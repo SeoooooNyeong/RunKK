@@ -11,8 +11,11 @@ import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.avatar.AvatarRepository
 import com.a207.runkk.app.domain.record.Dashboard
 import com.a207.runkk.app.domain.record.RecordRepository
-import com.a207.runkk.app.domain.record.TodayPlan
+import com.a207.runkk.app.domain.run.FreeRunGoal
+import com.a207.runkk.app.domain.run.FreeRunGoalUseCase
 import com.a207.runkk.app.domain.run.PendingRunRepository
+import com.a207.runkk.app.domain.run.PlanSnapshot
+import com.a207.runkk.app.domain.run.TodayPlanCache
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Clock
 import java.time.LocalDate
@@ -39,7 +42,8 @@ data class HomeHeader(
 data class HomeUiState(
     val isLoading: Boolean = true,
     val dashboard: Dashboard? = null,
-    val todayPlan: TodayPlan? = null,
+    /** 자유런 카드의 목표(코치 계획 따르기 켬 + 오늘 계획 → 오늘 계획, 그 밖 → 자유런 설정 목표, FR-048). */
+    val freeRunGoal: FreeRunGoal = FreeRunGoal.NONE,
     val pendingCount: Int = 0,
     val mode: HomeRunMode = HomeRunMode.FREE,
     val error: UiText? = null,
@@ -53,8 +57,12 @@ data class HomeUiState(
 /**
  * 홈(A5, FR-050~FR-057·FR-077): 대시보드(RecordRepository.dashboard), 오늘 계획(todayPlan), 미전송 기록 수
  * (PendingRunRepository.observePending, 13.2)를 모은다. 업무 규칙(스트릭·랜드마크 계산)은 서버가 한다.
+ * 자유런 카드의 목표는 FreeRunGoalUseCase.observe로 오늘 계획과 설정 사본을 함께 구독해 고른다: 자유런 설정을 바꾸고
+ * 돌아오면 다시 읽지 않아도 바로 바뀐다(FR-048).
  * 상단의 닉네임·티어·레벨은 AccountRepository.profile(SELF), 리워드 잔액은 AvatarRepository.avatar().balance에서 읽는다
  * (하이파이 HiHome 헤더. 5.1.2 표의 ui.home 의존에 domain.account·domain.avatar를 더했다).
+ * 오늘 계획을 읽으면 TodayPlanCache에도 알려 워치 시작 화면이 같은 계획을 보이게 한다(WatchHomeSync, FR-042).
+ * 읽지 못하면 알리지 않는다(통신 오류로 워치의 계획을 지우지 않게).
  */
 @HiltViewModel
 class HomeViewModel @Inject constructor(
@@ -62,12 +70,20 @@ class HomeViewModel @Inject constructor(
     private val pendingRuns: PendingRunRepository,
     private val account: AccountRepository,
     private val avatar: AvatarRepository,
+    private val goals: FreeRunGoalUseCase,
+    private val todayPlans: TodayPlanCache,
     private val clock: Clock
 ) : ViewModel() {
     private val _state = MutableStateFlow(HomeUiState())
     val state: StateFlow<HomeUiState> = _state.asStateFlow()
 
+    /** 오늘 계획(서버 원본). 자유런 목표는 이것과 설정 사본으로 고른다. */
+    private val todayPlan = MutableStateFlow<PlanSnapshot?>(null)
+
     init {
+        viewModelScope.launch {
+            goals.observe(todayPlan).collect { goal -> _state.update { it.copy(freeRunGoal = goal) } }
+        }
         refresh()
         viewModelScope.launch {
             pendingRuns.observePending().collect { runs -> _state.update { it.copy(pendingCount = runs.size) } }
@@ -91,6 +107,8 @@ class HomeViewModel @Inject constructor(
             val me = profile.await()
             val myAvatar = wallet.await()
             val face = myAvatar?.faceKey?.let { avatar.faceLayers(it).getOrNull() }.orEmpty()
+            todayPlan.value = planResult.getOrNull()?.let { PlanSnapshot(it.distance, it.pace) }
+            if (planResult is Outcome.Success) todayPlans.put(todayPlan.value)
             val header =
                 HomeHeader(
                     nickname = me?.displayName,
@@ -102,7 +120,6 @@ class HomeViewModel @Inject constructor(
                 it.copy(
                     isLoading = false,
                     dashboard = dashboardResult.getOrNull() ?: it.dashboard,
-                    todayPlan = planResult.getOrNull(),
                     header = header,
                     isHeaderLoading = false,
                     faceLayers = face,

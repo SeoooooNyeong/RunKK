@@ -46,7 +46,6 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.TestDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -149,6 +148,15 @@ class FakeMeasurementHost : MeasurementHost {
 }
 
 class FakeSettingsRepository(var consented: Boolean = true) : SettingsRepository {
+    private val snapshot = MutableStateFlow(SettingsSnapshot.SAFE)
+
+    /** 안내 설정 사본(자유런 목표·코치 계획 따르기). 바꾸면 changes()도 방출한다. */
+    var guidance: GuidanceSettings
+        get() = snapshot.value.guidanceSettings
+        set(value) {
+            snapshot.value = snapshot.value.copy(guidanceSettings = value)
+        }
+
     override suspend fun refresh(): Outcome<Unit> = Outcome.Success(Unit)
 
     override fun locationConsented() = consented
@@ -161,9 +169,9 @@ class FakeSettingsRepository(var consented: Boolean = true) : SettingsRepository
 
     override fun birthYear(): Int? = null
 
-    override fun guidanceSettings() = GuidanceSettings.DEFAULT
+    override fun guidanceSettings() = guidance
 
-    override fun changes(): Flow<SettingsSnapshot> = flowOf(SettingsSnapshot.SAFE)
+    override fun changes(): Flow<SettingsSnapshot> = snapshot
 
     override suspend fun clear(): Outcome<Unit> = Outcome.Success(Unit)
 }

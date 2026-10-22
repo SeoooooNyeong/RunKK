@@ -21,6 +21,9 @@ import com.a207.runkk.app.domain.run.CompletedRun
 import com.a207.runkk.app.domain.run.HeartRateSample
 import com.a207.runkk.app.domain.run.LateHeartRates
 import com.a207.runkk.app.domain.run.PendingRunRepository
+import com.a207.runkk.app.domain.settings.GuidanceSettings
+import com.a207.runkk.app.domain.settings.SettingsRepository
+import com.a207.runkk.app.domain.settings.SettingsSnapshot
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -191,3 +194,32 @@ class FakeAvatarRepository : com.a207.runkk.app.domain.avatar.AvatarRepository {
 }
 
 fun <T> unusedOutcome(): Outcome<T> = Outcome.Failure(AppError.Rejected("UNUSED"))
+
+/** 설정 사본(자유런 목표·코치 계획 따르기). guidance를 바꾸면 changes()가 바로 방출한다. */
+class FakeSettingsRepository : SettingsRepository {
+    private val snapshot = MutableStateFlow(SettingsSnapshot.SAFE)
+
+    var guidance: GuidanceSettings
+        get() = snapshot.value.guidanceSettings
+        set(value) {
+            snapshot.value = snapshot.value.copy(guidanceSettings = value)
+        }
+
+    override suspend fun refresh(): Outcome<Unit> = Outcome.Success(Unit)
+
+    override fun locationConsented() = false
+
+    override fun heartRateConsented() = false
+
+    override fun watchLinked() = false
+
+    override fun courseMapShared() = false
+
+    override fun birthYear(): Int? = null
+
+    override fun guidanceSettings() = guidance
+
+    override fun changes(): Flow<SettingsSnapshot> = snapshot
+
+    override suspend fun clear(): Outcome<Unit> = Outcome.Success(Unit)
+}
