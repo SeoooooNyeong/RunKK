@@ -43,14 +43,17 @@ wait_healthy() {  # <service> <tries, 5 s apart>
 # 예전처럼 저장소 파일을 덮어쓰면 다음 CI 잡이 작업 폴더를 다시 받을 때 HTTP 설정으로 돌아가고, 그 뒤 nginx가 재시작되면 443이 닫혔다.
 if compose run --rm --no-deps --entrypoint test certbot -f "/etc/letsencrypt/live/${SERVER_NAME}/fullchain.pem" 2>/dev/null; then
   export NGINX_MODE=https
+  # Grafana가 만드는 링크 주소와 로그인 쿠키 Secure를 nginx 모드에 맞춘다(compose 기본값은 http)
+  export GRAFANA_ROOT_URL="https://${SERVER_NAME}/grafana/" GRAFANA_COOKIE_SECURE=true
   # HTTPS면 80은 301만 돌려주므로 443을 인증서 이름으로 직접 부른다(--resolve로 이 서버에 붙고 인증서도 검증한다)
   HEALTH_CURL=(curl -fsS --resolve "${SERVER_NAME}:${NGINX_HTTPS_PORT}:127.0.0.1" "https://${SERVER_NAME}:${NGINX_HTTPS_PORT}/actuator/health")
 else
   export NGINX_MODE=http
+  export GRAFANA_ROOT_URL="http://${SERVER_NAME}:${NGINX_HTTP_PORT}/grafana/" GRAFANA_COOKIE_SECURE=false
   HEALTH_CURL=(curl -fsS "http://localhost:${NGINX_HTTP_PORT}/actuator/health")
 fi
 
-compose pull nginx postgres redis
+compose pull nginx postgres redis prometheus node-exporter grafana
 compose build api ai
 compose up -d --remove-orphans
 compose ps

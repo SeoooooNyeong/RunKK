@@ -59,15 +59,24 @@ server:
   port: ${SERVER_PORT:8080}
   shutdown: graceful
 
+# prometheus는 모니터링(S15P31A207-78, infra/monitoring)의 Prometheus가 읽는다. develop·prod는 관리 포트를 따로 두어(아래 프로필)
+# 서비스 포트(nginx가 넘기는 8080)에는 actuator가 없고 compose 내부 망에서만 읽힌다. nginx는 바깥에 /actuator/health 하나만 넘긴다.
 management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,prometheus
   endpoint:
     health:
       probes:
         enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    # 응답 시간 p95를 Grafana에서 계산할 히스토그램 버킷. 백분위 히스토그램 전체(버킷 수십 개)를 켜지 않고 경계만 둔다
+    distribution:
+      slo:
+        "[http.server.requests]": 50ms,100ms,200ms,500ms,1s,2s,5s
 
 springdoc:
   # 컨트롤러마다 중첩 DTO(record Day, Entry …) 이름이 겹치므로 스키마 이름을 패키지 포함 이름으로 둔다(앱–서버 대조 제안).
@@ -222,6 +231,11 @@ springdoc:
   swagger-ui:
     enabled: true
 
+# 관리 포트(actuator). compose는 밖으로 열지 않고 api 컨테이너 healthcheck·nginx /actuator/health·Prometheus만 이 포트를 부른다
+management:
+  server:
+    port: ${MANAGEMENT_PORT:8081}
+
 logging:
   level:
     com.a207.runkk: DEBUG
@@ -252,6 +266,11 @@ springdoc:
     enabled: ${SWAGGER_ENABLED:false}
   swagger-ui:
     enabled: ${SWAGGER_ENABLED:false}
+
+# 관리 포트(actuator). compose는 밖으로 열지 않고 api 컨테이너 healthcheck·nginx /actuator/health·Prometheus만 이 포트를 부른다
+management:
+  server:
+    port: ${MANAGEMENT_PORT:8081}
 
 logging:
   level:

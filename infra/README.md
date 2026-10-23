@@ -4,11 +4,12 @@ Docker Compose 한 벌로 nginx, api(Spring Boot 3.5, Java 21), PostgreSQL 17, R
 
 ```
 infra/
-├─ docker-compose.yml        nginx · api · postgres · redis (+ certbot 프로필)
+├─ docker-compose.yml        nginx · api · postgres · redis · ai · prometheus · grafana · node-exporter (+ certbot 프로필)
 ├─ nginx/http/default.conf.template        HTTP 리버스 프록시 (초기)
 ├─ nginx/https/default.conf.template       인증서 발급 후 쓰는 HTTPS 설정 (deploy.sh가 NGINX_MODE로 고름)
 ├─ nginx/https/wiki.conf.template          팀 위키(appflowy.kktrkkt.dev)를 같은 서버의 AppFlowy 스택으로 넘김. 인증서는 letsencrypt 볼륨 appflowy-interim/
 ├─ nginx/static/                           공개 홈(/)과 법정 고지 문서(/legal/privacy·terms·location·help), 두 설정이 모두 정적으로 보여 줌
+├─ monitoring/                             Prometheus 수집 설정, Grafana 데이터소스·대시보드 provisioning (6절)
 ├─ .env.example              서버 환경 변수 목록 (.env는 커밋 금지)
 ├─ deploy.sh                 이미지 빌드 + 스택 재시작 + 헬스체크
 └─ init-letsencrypt.sh       Let's Encrypt 인증서 1회 발급 + HTTPS 전환
@@ -48,7 +49,7 @@ sudo mkdir -p /srv/gitlab-runner/cache
 
 캐시는 호스트 폴더 `/srv/gitlab-runner/cache` 하나에 둡니다. 기본값(`"/cache"`)이면 동시 실행 슬롯(`concurrent`)마다 Docker 볼륨이 따로 생겨, 같은 브랜치라도 다른 슬롯에 걸린 잡은 빈 캐시(android 약 1.4GB)로 시작합니다.
 
-보안 그룹은 22, 80, 443만 엽니다. 5432·6379·8080은 외부에 열지 않습니다(compose 내부 네트워크만 사용).
+보안 그룹은 22, 80, 443만 엽니다. 5432·6379·8080·8081(api 관리 포트)·9090(Prometheus)·9100(node-exporter)·3000(Grafana)은 외부에 열지 않습니다(compose 내부 네트워크만 사용).
 
 ## 2. HTTPS 전환
 
@@ -90,3 +91,43 @@ cd infra && cp .env.example .env && ./deploy.sh
 curl http://localhost:8088/actuator/health
 docker compose down -v
 ```
+
+## 6. 모니터링 (Prometheus + Grafana)
+
+같은 compose에 `prometheus`·`grafana`·`node-exporter`가 함께 뜹니다(`deploy.sh`가 이미지를 받고 올립니다). 셋 다 호스트 포트를 열지 않고, Grafana만 nginx를 거쳐 밖에서 보입니다.
+
+```
+브라우저 ─ nginx /grafana/ ─ grafana:3000 ─ prometheus:9090 ─┬─ api:8081/actuator/prometheus  (Spring Boot 관리 포트)
+                                                            └─ node-exporter:9100            (EC2 호스트 CPU·메모리·디스크)
+```
+
+- 접속: `https://<SERVER_NAME>/grafana/` (HTTP 모드면 `http://<SERVER_NAME>/grafana/`). `.env`의 `GRAFANA_ADMIN_USER`(기본 `admin`)·`GRAFANA_ADMIN_PASSWORD`로 로그인합니다. 익명 접근과 회원가입은 꺼져 있습니다.
+- 대시보드: **런크크** 폴더의 `런크크 API`(요청 수·응답 시간 p95·오류율·JVM 메모리·GC·CPU·DB 연결 풀)와 `런크크 서버 호스트`(CPU·메모리·디스크·부하). `monitoring/grafana/dashboards/*.json`이 원본이라 화면에서 고친 내용은 저장되지 않습니다. 바꾸려면 JSON을 고쳐 배포합니다.
+- api 지표: develop·prod 프로필은 actuator를 관리 포트 8081에 따로 둡니다(`application.yml`). 서비스 포트 8080에는 actuator가 없고, nginx는 바깥에 `/actuator/health` 하나만 8081로 넘기며 나머지 `/actuator/*`는 404입니다. compose healthcheck도 8081을 부릅니다.
+- 보존: Prometheus는 15일 또는 2GB 중 먼저 닿는 쪽까지 둡니다(`prometheus-data` 볼륨). Grafana 설정·세션은 `grafana-data` 볼륨에 있습니다.
+- 메모리 제한: prometheus 512m, grafana 512m, node-exporter 64m. EC2(15GiB, 4코어)에서 api·postgres·CI 빌드와 같은 서버의 AppFlowy 스택을 지키는 값입니다.
+- ai 서버 지표는 아직 수집하지 않습니다. ai는 Prometheus 라이브러리가 없고 모든 경로에 내부 토큰을 요구하므로, 붙이려면 의존성·잠금 파일과 토큰 예외 경로를 함께 바꿔야 합니다.
+
+### 새 환경 변수
+
+| 이름 | 필수 | 설명 |
+|---|---|---|
+| `GRAFANA_ADMIN_PASSWORD` | 예 | Grafana 관리자 비밀번호. 비면 compose가 멈춥니다(`docker compose ps`도 실패하므로 CI 배포·스모크가 모두 멈춥니다). `$`가 들어가면 compose가 변수로 읽으니 `openssl rand -base64 24`처럼 만듭니다 |
+| `GRAFANA_ADMIN_USER` | 아니요 | 관리자 계정 이름. 기본 `admin` |
+
+`GRAFANA_ROOT_URL`·`GRAFANA_COOKIE_SECURE`는 `.env`에 넣지 않습니다. `deploy.sh`가 nginx 모드(HTTP·HTTPS)를 보고 정합니다.
+
+관리자 비밀번호는 `grafana-data` 볼륨이 처음 만들어질 때만 반영됩니다. 그 뒤 바꾸려면 CI 변수(`.env`)를 고치고 서버에서 아래 명령을 한 번 실행합니다(CI 작업 폴더에는 `.env`가 남지 않으므로 compose 대신 컨테이너 이름을 씁니다).
+
+```bash
+docker exec runkk-grafana-1 grafana cli admin reset-admin-password '<새 비밀번호>'
+```
+
+### 배포 순서 (처음 붙일 때)
+
+1. GitLab **Settings > CI/CD > Variables**의 `INFRA_ENV`(develop)와 `INFRA_ENV_PROD`(main) 파일 내용에 `GRAFANA_ADMIN_PASSWORD=...`(필요하면 `GRAFANA_ADMIN_USER=...`)를 먼저 더합니다. 빠진 채로 병합하면 `backend:deploy`가 compose 단계에서 실패합니다.
+2. MR을 develop에 병합하면 `backend:deploy`가 `deploy.sh`로 api 이미지를 다시 만들고(관리 포트 8081) 모니터링 컨테이너 3개를 함께 올립니다. 수동이면 `cd infra && ./deploy.sh`.
+3. 확인: `https://<SERVER_NAME>/actuator/health`가 `UP`, `https://<SERVER_NAME>/actuator/prometheus`가 404, `https://<SERVER_NAME>/grafana/`에서 로그인 뒤 **Connections > Data sources > Prometheus > Test**가 성공하고 두 대시보드에 값이 나오는지 봅니다. 서버에서 `docker ps --filter name=runkk-`로 `runkk-prometheus-1`·`runkk-grafana-1`이 `healthy`인지도 봅니다.
+
+수집 대상 상태는 Grafana **Explore**에서 `up` 쿼리로 봅니다(`job` 값 `api`·`node`·`prometheus`가 1이면 정상).
+
