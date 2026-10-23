@@ -313,7 +313,8 @@ android:release:
     RUNKK_KEY_PASSWORD: $ANDROID_KEY_PASSWORD
   script:
     - echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNKK_KEYSTORE_PATH"
-    - ./gradlew bundleProdRelease
+    # Play 배포용은 ABI 분할·.so 압축을 끈다(android/app/build.gradle.kts splits 주석). 없으면 번들 빌드가 실패한다.
+    - ./gradlew bundleProdRelease -Prunkk.playBundle=true
   artifacts:
     paths: [android/app/build/outputs/bundle/prodRelease/*.aab]
     expire_in: 1 month
