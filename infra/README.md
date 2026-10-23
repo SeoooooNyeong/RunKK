@@ -7,6 +7,7 @@ infra/
 ├─ docker-compose.yml        nginx · api · postgres · redis (+ certbot 프로필)
 ├─ nginx/http/default.conf.template        HTTP 리버스 프록시 (초기)
 ├─ nginx/https/default.conf.template       인증서 발급 후 쓰는 HTTPS 설정 (deploy.sh가 NGINX_MODE로 고름)
+├─ nginx/https/wiki.conf.template          팀 위키(appflowy.kktrkkt.dev)를 같은 서버의 AppFlowy 스택으로 넘김. 인증서는 letsencrypt 볼륨 appflowy-interim/
 ├─ nginx/static/                           공개 홈(/)과 법정 고지 문서(/legal/privacy·terms·location·help), 두 설정이 모두 정적으로 보여 줌
 ├─ .env.example              서버 환경 변수 목록 (.env는 커밋 금지)
 ├─ deploy.sh                 이미지 빌드 + 스택 재시작 + 헬스체크
