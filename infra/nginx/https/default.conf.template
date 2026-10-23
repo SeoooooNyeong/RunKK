@@ -60,6 +60,20 @@ server {
         return 404;
     }
 
+    # 공개 홈과 법정 고지 문서(개인정보 처리방침·이용약관·위치정보 이용약관·도움말). Google OAuth 동의 화면과 앱 설정 링크
+    # (application.yml runkk.legal.*-url)가 연다. 파일은 infra/nginx/static을 읽기 전용으로 연결한다. /legal/privacy → privacy.html
+    location = / {
+        root /usr/share/nginx/runkk;
+        charset utf-8;
+        try_files /index.html =404;
+    }
+
+    location ^~ /legal/ {
+        root /usr/share/nginx/runkk;
+        charset utf-8;
+        try_files $uri $uri.html =404;
+    }
+
     location / {
         proxy_pass http://$api_upstream;
         proxy_http_version 1.1;
