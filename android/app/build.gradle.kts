@@ -51,6 +51,31 @@ android {
         }
     }
 
+    // APK 크기: 43MB 중 37MB가 Kakao 지도 SDK(libK3fAndroid.so arm64 18MB·armeabi-v7a 16MB, 글꼴 3.5MB)다.
+    // 직접 주고받는 APK는 ABI마다 따로 만들고(app-<플레이버>-<ABI>-<빌드타입>.apk, 요즘 폰은 arm64 하나면 되고 x86_64는 에뮬레이터용)
+    // .so를 압축해 담는다(arm64 18MB -> 6MB, 대신 설치 때 풀려 설치 용량이 그만큼 는다).
+    // Play 배포 AAB는 -Prunkk.playBundle=true로 둘 다 끈다(CI android:release): AGP는 ABI 분할을 켠 채 번들을 만들지 못하고
+    // (issuetracker 402800800), ABI 분할은 Play가 하며, .so는 압축하지 않는 기본값이 설치 용량에 낫다.
+    val playBundle = providers.gradleProperty("runkk.playBundle").orNull == "true"
+    splits {
+        abi {
+            isEnable = !playBundle
+            reset()
+            include("arm64-v8a", "armeabi-v7a", "x86_64")
+            isUniversalApk = false
+        }
+    }
+    packaging {
+        jniLibs {
+            useLegacyPackaging = !playBundle
+        }
+    }
+
+    // 라이브러리(AndroidX·Play 서비스 등)가 가져오는 97개 언어 리소스 중 한국어·영어만 남긴다. 앱 문구는 기본 values(한국어)에 있다.
+    androidResources {
+        localeFilters += listOf("ko", "en")
+    }
+
     buildFeatures {
         buildConfig = true
     }
