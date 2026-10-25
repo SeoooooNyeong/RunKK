@@ -1,0 +1,19 @@
+{
+  "endpoint": "POST /sessions/{sessionId}/analyze",
+  "scenario": "conflict",
+  "request": {
+    "sessionId": "run-20261019",
+    "fixture": "second_run",
+    "override": {
+      "userId": "u_other"
+    }
+  },
+  "setup": [
+    "second_run"
+  ],
+  "status": 409,
+  "body": {
+    "reason": "SESSION_CONFLICT"
+  },
+  "gateway": "다른 회원의 같은 세션 ID. 재시도하지 않는다"
+}

@@ -1,0 +1,228 @@
+{
+  "endpoint": "GET /sessions/{sessionId}",
+  "scenario": "ok",
+  "request": {
+    "sessionId": "run-20261019"
+  },
+  "setup": [
+    "first_run",
+    "second_run"
+  ],
+  "status": 200,
+  "body": {
+    "sessionId": "run-20261019",
+    "userId": "u_demo",
+    "schemaVersion": 2,
+    "engineVersion": "0.2",
+    "summary": {
+      "distanceMeters": 3008,
+      "activeMs": 1084930,
+      "paceSecondsPerKm": 361,
+      "avgHeartRate": 157,
+      "maxHeartRate": 188,
+      "cadenceMedian": 165,
+      "recoveryHeartRate1m": -27,
+      "startedAt": "2026-10-19T19:09:39+09:00",
+      "source": "watch"
+    },
+    "axes": {
+      "intensity": {
+        "score": 78,
+        "ref": 55,
+        "value": 50.0,
+        "label": "높음",
+        "level": "warn"
+      },
+      "endurance": {
+        "score": 39,
+        "ref": 60,
+        "value": -12.5,
+        "label": "후반에 처짐",
+        "level": "warn"
+      },
+      "stability": {
+        "score": 46,
+        "ref": 60,
+        "value": 12.0,
+        "label": "들쭉날쭉",
+        "level": "warn"
+      },
+      "form": {
+        "score": 62,
+        "ref": 60,
+        "value": 165.0,
+        "label": "보폭이 긴 편",
+        "level": "warn"
+      },
+      "fitness": {
+        "score": 69,
+        "ref": 55,
+        "value": -27.0,
+        "label": "회복 빠름",
+        "level": "good"
+      }
+    },
+    "metrics": {
+      "intensity": {
+        "hrZonePct": {
+          "z1": 0.6,
+          "z2": 5.1,
+          "z3": 42.9,
+          "z4": 36.0,
+          "z5": 14.0
+        },
+        "hrMaxUsed": 194,
+        "avgHr": 157,
+        "maxHr": 188,
+        "z4PlusPct": 50.0
+      },
+      "endurance": {
+        "hrDriftBpm": -5.5,
+        "efficiencyChange": -0.125,
+        "paceDecaySPerKm": 62,
+        "firstHalfAvgHr": 160,
+        "secondHalfAvgHr": 155
+      },
+      "stability": {
+        "paceCv": 0.12,
+        "lapSpreadS": 64,
+        "paceBinsMinPerKm": [
+          5.58,
+          5.49,
+          5.36,
+          5.3,
+          5.3,
+          5.25,
+          5.28,
+          5.21,
+          5.36,
+          5.36,
+          5.83,
+          5.66,
+          5.8,
+          5.87,
+          6.05,
+          6.0,
+          5.98,
+          6.26,
+          6.8,
+          6.82,
+          6.89,
+          6.92,
+          7.43,
+          6.65,
+          6.04,
+          6.61,
+          6.84,
+          6.76,
+          6.67,
+          6.63,
+          6.55,
+          6.6,
+          6.76,
+          6.23,
+          8.59
+        ]
+      },
+      "form": {
+        "cadenceMedian": 165,
+        "strideM": 1.02,
+        "cadenceChangeSpm": -1.4
+      },
+      "fitness": {
+        "vo2maxEst": 50.1,
+        "recoveryHr1m": -27,
+        "recoveryHr2m": -44
+      },
+      "course": {
+        "gps": true,
+        "gpsLockDelayS": 0,
+        "preGpsDistanceM": 0,
+        "gpsAccuracyOkPct": 100.0,
+        "gpsAccuracyMedianM": 6.0,
+        "gpsRawDistanceM": 2977,
+        "gpsJumps": 1,
+        "distanceCorrectedM": 2939,
+        "distanceOfficialM": 3008,
+        "distanceErrorPct": -2.3,
+        "altitudeGainM": 13.8
+      }
+    },
+    "coaching": {
+      "flags": [
+        "warmup_missing",
+        "positive_split",
+        "overstride"
+      ],
+      "detail": {
+        "warmup": {
+          "z4ReachedAtS": 122,
+          "first500mPaceS": 317,
+          "fastStart": true,
+          "missing": true
+        },
+        "split": {
+          "type": "positive",
+          "firstHalfPaceS": 336,
+          "secondHalfPaceS": 398,
+          "ratio": 0.184
+        },
+        "overstride": {
+          "flag": true,
+          "cadence": 165,
+          "strideM": 1.02
+        },
+        "recovery": {
+          "flag": false,
+          "needs": 2
+        },
+        "acwr": {
+          "flag": false,
+          "ratio": null,
+          "reason": "28일 데이터 부족"
+        }
+      }
+    },
+    "laps": [
+      {
+        "km": 1.0,
+        "paceSeconds": 320,
+        "avgHeartRate": 157,
+        "partial": false
+      },
+      {
+        "km": 2.0,
+        "paceSeconds": 374,
+        "avgHeartRate": 157,
+        "partial": false
+      },
+      {
+        "km": 3.0,
+        "paceSeconds": 384,
+        "avgHeartRate": 157,
+        "partial": false
+      }
+    ],
+    "prev": {
+      "sessionId": "run-20261018",
+      "distanceMeters": 2027,
+      "paceSecondsPerKm": 379,
+      "recoveryHeartRate1m": -14
+    },
+    "feedback": {
+      "headline": "출발이 너무 빨랐어요",
+      "good": "회복 심박이 좋아졌어요 (1분 -27, 지난번 -14)",
+      "fix": "첫 500 m를 5'17\"로 나갔고 2분 2초 만에 역치 구간에 들어갔어요. 그래서 전반 5'36\" → 후반 6'38\"로 느려졌어요",
+      "next": "첫 1 km를 6'11\"보다 느리게 묶어 보세요. 그러면 후반이 더 빨라질 수 있어요",
+      "moreFixes": [
+        "케이던스 165 spm에 보폭 1.02 m. 발이 몸보다 앞에 닿아 무릎 충격이 커져요"
+      ],
+      "ruleId": "overpace_start",
+      "goodRuleId": "recovery_improved",
+      "source": "template",
+      "modelVersion": null
+    },
+    "qualityFlags": []
+  },
+  "gateway": "결과 화면 표시"
+}

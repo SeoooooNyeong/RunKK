@@ -1,0 +1,13 @@
+{
+  "endpoint": "POST /sessions/{sessionId}/analyze",
+  "scenario": "too_large",
+  "request": {
+    "sessionId": "run-20261019",
+    "declaredLength": 9437184
+  },
+  "status": 413,
+  "body": {
+    "reason": "TOO_LARGE"
+  },
+  "gateway": "재시도하지 않는다"
+}
