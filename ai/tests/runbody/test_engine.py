@@ -125,3 +125,22 @@ def test_result_is_json_safe(second_run: SessionIn) -> None:
 
     assert "NaN" not in text
     assert "Infinity" not in text
+
+
+def test_high_recent_load_adds_acwr_flag(second_run: SessionIn) -> None:
+    """최근 7일 15 km, 28일 30 km(주평균 7.5 km) → 2.0배 → acwr_high. 출발 과속이 먼저라 고칠 점 둘째에 온다."""
+    load = {"km_7d": 15.0, "km_28d": 30.0, "days_tracked": 40}
+
+    result = analyze_session(second_run, history=[], load=load)
+
+    assert "acwr_high" in result.coaching.flags
+    assert result.coaching.detail["acwr"] == {"flag": True, "ratio": 2.0}
+    assert result.feedback.headline == "출발이 너무 빨랐어요"
+    assert "최근 7일 거리가 평소 주간의 2.0배예요 (기준 1.5 이하)" in result.feedback.moreFixes
+
+
+def test_short_history_load_keeps_acwr_off(second_run: SessionIn) -> None:
+    result = analyze_session(second_run, history=[], load={"km_7d": 15.0, "km_28d": 30.0, "days_tracked": 10})
+
+    assert "acwr_high" not in result.coaching.flags
+    assert result.coaching.detail["acwr"]["reason"] == "28일 데이터 부족"

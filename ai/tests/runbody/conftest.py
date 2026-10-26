@@ -16,6 +16,7 @@ from typing import Any
 import pytest
 
 from runkk_ai.runbody import InMemoryResultRepository, RunbodyService, SessionIn, SessionResultOut, analyze_session
+from runkk_ai.runbody.schemas import Metrics
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 
@@ -82,13 +83,15 @@ class FakeAnalyzer:
     error: BaseException | None = None
     calls: list[str] = field(default_factory=list)
 
-    async def __call__(self, session: SessionIn, history: Sequence[SessionResultOut]) -> SessionResultOut:
+    async def __call__(
+        self, session: SessionIn, history: Sequence[SessionResultOut], load: Metrics | None
+    ) -> SessionResultOut:
         self.calls.append(session.sessionId)
         if self.gate is not None:
             await self.gate.wait()
         if self.error is not None:
             raise self.error
-        return analyze_session(session, history)
+        return analyze_session(session, history, load)
 
 
 @pytest.fixture

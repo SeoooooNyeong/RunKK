@@ -22,6 +22,7 @@ import pytest
 from fastapi import FastAPI
 
 from runkk_ai.runbody import InMemoryResultRepository, RunbodyService, SessionIn, SessionResultOut, get_runbody_service
+from runkk_ai.runbody.schemas import Metrics
 from tests.conftest import JPEG_HEAD, FakeFaceTransformer, FakeLlmClient
 
 FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures"
@@ -67,7 +68,9 @@ def _fixture_body(name: str, override: dict[str, Any] | None = None) -> bytes:
     return json.dumps(body, ensure_ascii=False).encode()
 
 
-async def _never_finishes(session: SessionIn, history: Sequence[SessionResultOut]) -> SessionResultOut:
+async def _never_finishes(
+    session: SessionIn, history: Sequence[SessionResultOut], load: Metrics | None
+) -> SessionResultOut:
     await asyncio.Event().wait()
     raise AssertionError  # 도달하지 않는다
 

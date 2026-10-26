@@ -12,23 +12,26 @@ import asyncio
 import logging
 import time
 from collections.abc import Awaitable, Callable, Sequence
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from runkk_ai.runbody.engine import analyze_session
+from runkk_ai.runbody.load import CHRONIC_DAYS, engine_load
 from runkk_ai.runbody.repository import ResultRepository, SessionRecord, with_status
-from runkk_ai.runbody.schemas import SessionIn, SessionResultOut
+from runkk_ai.runbody.schemas import Metrics, SessionIn, SessionResultOut
 
 logger = logging.getLogger(__name__)
 
-Analyzer = Callable[[SessionIn, Sequence[SessionResultOut]], Awaitable[SessionResultOut]]
+Analyzer = Callable[[SessionIn, Sequence[SessionResultOut], Metrics | None], Awaitable[SessionResultOut]]
 
 HISTORY_LIMIT = 3  # 회복 추세는 직전 3회, 지난 러닝 비교는 직전 1회를 본다
 MAX_CONCURRENT_ANALYSES = 2  # 계산 스레드 수. 같은 컨테이너의 /comments·/faces 응답을 막지 않게 작게 둔다
 ENGINE_ERROR = "ENGINE_ERROR"
 
 
-async def analyze_in_thread(session: SessionIn, history: Sequence[SessionResultOut]) -> SessionResultOut:
-    return await asyncio.to_thread(analyze_session, session, history)
+async def analyze_in_thread(
+    session: SessionIn, history: Sequence[SessionResultOut], load: Metrics | None
+) -> SessionResultOut:
+    return await asyncio.to_thread(analyze_session, session, history, load)
 
 
 def _now() -> datetime:
@@ -90,7 +93,8 @@ class RunbodyService:
         try:
             async with self._semaphore:
                 history = await self._repository.history(session.userId, session.startedAt, HISTORY_LIMIT)
-                result = await self._analyzer(session, history)
+                load = await self._recent_load(session)
+                result = await self._analyzer(session, history, load)
             await self._repository.save(with_status(pending, "done", self._clock(), result=result))
             self._log(session.sessionId, "done", started, len(history))
         except asyncio.CancelledError:
@@ -103,6 +107,14 @@ class RunbodyService:
             self._log(session.sessionId, "failed", started, 0, detail=type(exc).__name__)
         finally:
             self._tasks.pop(session.sessionId, None)
+
+    async def _recent_load(self, session: SessionIn) -> Metrics:
+        """이 러닝 직전 28일 기록 + 이 러닝 거리로 최근 부하를 만든다(acwr_high 판단용)."""
+        previous = await self._repository.results_between(
+            session.userId, session.startedAt - timedelta(days=CHRONIC_DAYS), session.startedAt
+        )
+        first = await self._repository.first_started_at(session.userId)
+        return engine_load(previous, first, round(session.distanceMeters), session.startedAt)
 
     @staticmethod
     def _log(session_id: str, result: str, started: float, history: int, detail: str = "") -> None:

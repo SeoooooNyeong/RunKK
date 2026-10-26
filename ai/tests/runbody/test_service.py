@@ -37,7 +37,7 @@ async def test_close_marks_running_analysis_failed(second_run: SessionIn) -> Non
 
 
 async def test_thread_analyzer_matches_engine(first_run: SessionIn) -> None:
-    in_thread = await analyze_in_thread(first_run, [])
+    in_thread = await analyze_in_thread(first_run, [], None)
 
     assert in_thread == analyze_session(first_run, [])
 
