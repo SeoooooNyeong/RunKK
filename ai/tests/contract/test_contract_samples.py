@@ -3,7 +3,8 @@
 tests/contract/*.json은 서버 AiServerCommentGateway·AiServerFaceGateway 계약 시험이 그대로 읽는 표본이다.
 ai 응답이 표본과 한 글자라도 달라지면 여기서 먼저 실패한다. 표본을 고칠 때는 서버 Gateway 시험도 같이 고친다.
 
-sessions-*.json(RUN바디 1회 분석)은 서버 쪽 Gateway가 생기면(S15P31A207-163) 같은 방식으로 읽는다.
+sessions-*.json(RUN바디 1회 분석)·months-*.json(월간 RUN바디)은
+서버 쪽 Gateway가 생기면(S15P31A207-163) 같은 방식으로 읽는다.
 request.fixture는 tests/fixtures/{이름}.json 본문, request.override는 그 위에 덮어쓸 필드,
 setup은 먼저 분석해 둘 fixture다.
 """
@@ -28,6 +29,7 @@ SESSION_ENDPOINTS = (
     "POST /sessions/{sessionId}/analyze",
     "GET /sessions/{sessionId}/status",
     "GET /sessions/{sessionId}",
+    "GET /users/{userId}/months/{yearMonth}",
 )
 
 SAMPLES_DIR = Path(__file__).parent
@@ -82,7 +84,10 @@ async def _call_sessions(
         pending = RunbodyService(InMemoryResultRepository(), analyzer=_never_finishes)
         app.dependency_overrides[get_runbody_service] = lambda: pending
         await client.post(f"/sessions/{request['sessionId']}/analyze", content=_fixture_body(request["fixture"]))
-    path = sample["endpoint"].split(" ", 1)[1].replace("{sessionId}", request["sessionId"])
+    path = sample["endpoint"].split(" ", 1)[1]
+    for name, value in request.items():
+        if isinstance(value, str):
+            path = path.replace("{" + name + "}", value)
     if sample["endpoint"].startswith("GET"):
         response = await caller.get(path)
     else:
@@ -155,6 +160,7 @@ def test_samples_cover_every_session_status() -> None:
         "POST /sessions/{sessionId}/analyze": {202, 401, 409, 413, 422},
         "GET /sessions/{sessionId}/status": {200, 401, 404},
         "GET /sessions/{sessionId}": {200, 401, 404, 409},
+        "GET /users/{userId}/months/{yearMonth}": {200, 401, 422},
     }
 
 

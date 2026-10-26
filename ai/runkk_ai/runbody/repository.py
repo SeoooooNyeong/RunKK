@@ -44,6 +44,14 @@ class ResultRepository(Protocol):
         """user_id의 완료된 결과 중 before보다 먼저 시작한 것을 오래된 순으로 최대 limit개."""
         ...
 
+    async def results_between(self, user_id: str, start: datetime, end: datetime) -> list[SessionResultOut]:
+        """user_id의 완료된 결과 중 start <= 시작 시각 < end인 것을 오래된 순으로(월간·부하 계산용)."""
+        ...
+
+    async def first_started_at(self, user_id: str) -> datetime | None:
+        """user_id의 완료된 러닝 중 가장 이른 시작 시각(ACWR을 켜는 날짜 계산용)."""
+        ...
+
 
 class InMemoryResultRepository:
     def __init__(self, max_records: int = MEMORY_MAX_RECORDS) -> None:
@@ -76,6 +84,19 @@ class InMemoryResultRepository:
             key=lambda r: r.started_at,
         )
         return [r.result for r in done[-limit:] if r.result is not None]
+
+    async def results_between(self, user_id: str, start: datetime, end: datetime) -> list[SessionResultOut]:
+        done = sorted(
+            (r for r in self._done(user_id) if start <= r.started_at < end),
+            key=lambda r: r.started_at,
+        )
+        return [r.result for r in done if r.result is not None]
+
+    async def first_started_at(self, user_id: str) -> datetime | None:
+        return min((r.started_at for r in self._done(user_id)), default=None)
+
+    def _done(self, user_id: str) -> list[SessionRecord]:
+        return [r for r in self._records.values() if r.user_id == user_id and r.status == "done"]
 
     def _put(self, record: SessionRecord) -> None:
         self._records[record.session_id] = record

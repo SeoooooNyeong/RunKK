@@ -21,7 +21,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from runkk_ai.comment import COMMENT_TIMEOUT_S, ClaudeClient, CommentRouter, CommentService, LlmClient, OpenAiClient
 from runkk_ai.core import HealthRouter, InternalTokenMiddleware, Settings
 from runkk_ai.face import ExternalFaceApi, FaceRouter, FaceTransformer, FaceTransformService
-from runkk_ai.runbody import InMemoryResultRepository, RunbodyRouter, RunbodyService
+from runkk_ai.runbody import InMemoryResultRepository, MonthlyRouter, MonthlyService, RunbodyRouter, RunbodyService
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +74,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(CommentRouter)
     app.include_router(FaceRouter)
     app.include_router(RunbodyRouter)
+    app.include_router(MonthlyRouter)
     return app
 
 
@@ -95,9 +96,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         )
         # 분석 결과 저장소는 S15P31A207-163에서 analytics 스키마 구현으로 바꾼다.
         # 그 전까지는 재시작하면 비는 메모리 저장소다
-        runbody = RunbodyService(InMemoryResultRepository())
+        repository = InMemoryResultRepository()
+        runbody = RunbodyService(repository)
         resources.push_async_callback(runbody.aclose)
         app.state.runbody_service = runbody
+        app.state.monthly_service = MonthlyService(repository)
         logger.info(
             "ai_started llm_provider=%s llm_model=%s llm_key_set=%s face_impl=%s face_url_set=%s"
             " runbody_storage=memory",

@@ -97,9 +97,11 @@ def fake_analyzer() -> FakeAnalyzer:
 
 
 @pytest.fixture
-async def runbody_service(fake_analyzer: FakeAnalyzer) -> AsyncIterator[RunbodyService]:
+async def runbody_service(
+    fake_analyzer: FakeAnalyzer, runbody_repository: InMemoryResultRepository
+) -> AsyncIterator[RunbodyService]:
     """tests/runbody 안에서는 가짜 분석기를 끼운 서비스로 루트 conftest의 runbody_service를 덮는다."""
-    service = RunbodyService(InMemoryResultRepository(), analyzer=fake_analyzer)
+    service = RunbodyService(runbody_repository, analyzer=fake_analyzer)
     yield service
     if fake_analyzer.gate is not None:
         fake_analyzer.gate.set()

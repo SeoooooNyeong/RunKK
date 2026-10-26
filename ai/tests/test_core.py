@@ -83,6 +83,7 @@ def test_protected_operations_are_the_designed_ones() -> None:
     assert _protected_operations() == [
         ("GET", "/sessions/{session_id}"),
         ("GET", "/sessions/{session_id}/status"),
+        ("GET", "/users/{user_id}/months/{year_month}"),
         ("POST", "/comments"),
         ("POST", "/faces"),
         ("POST", "/sessions/{session_id}/analyze"),
