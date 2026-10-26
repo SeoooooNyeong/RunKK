@@ -1,0 +1,13 @@
+{
+  "endpoint": "GET /sessions/{sessionId}",
+  "scenario": "pending",
+  "request": {
+    "sessionId": "run-20261019",
+    "fixture": "second_run"
+  },
+  "status": 409,
+  "body": {
+    "reason": "ANALYSIS_PENDING"
+  },
+  "gateway": "잠시 뒤 다시 조회"
+}

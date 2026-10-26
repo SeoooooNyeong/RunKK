@@ -1,0 +1,16 @@
+{
+  "endpoint": "POST /sessions/{sessionId}/analyze",
+  "scenario": "ok",
+  "request": {
+    "sessionId": "run-20261019",
+    "fixture": "second_run",
+    "override": {
+      "email": "runner@example.com"
+    }
+  },
+  "status": 422,
+  "body": {
+    "reason": "INVALID_REQUEST"
+  },
+  "gateway": "요청 형식 오류. 재시도하지 않는다"
+}
