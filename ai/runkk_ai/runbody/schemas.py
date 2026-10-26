@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Literal
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
@@ -168,3 +168,91 @@ class SessionResultOut(BaseModel):
     prev: PrevOut | None
     feedback: FeedbackOut
     qualityFlags: list[QualityFlag]
+
+
+# ---------- F2 월간 RUN바디 ----------
+
+AcwrLevel = Literal["low", "normal", "high"]
+
+
+class MonthlyAxisOut(BaseModel):
+    """한 달 동안 점수가 있는 세션들의 평균(반올림). 점수가 하나도 없으면 average는 None."""
+
+    average: int | None
+    count: int
+    ref: int
+
+
+class BestOut(BaseModel):
+    value: int  # 초(1km·2km), m(최장), bpm 변화(회복)
+    sessionId: str
+    runDate: date  # 한국 시간 기준 러닝 날짜
+
+
+class BestsOut(BaseModel):
+    fastestKmSeconds: BestOut | None
+    fastest2kmSeconds: BestOut | None  # 연속한 온전한 1 km 랩 두 개의 합
+    longestRunMeters: BestOut | None
+    bestRecoveryHeartRate1m: BestOut | None  # 가장 많이 떨어진(가장 작은) 값
+
+
+class WeekOut(BaseModel):
+    weekStart: date  # 월요일(한국 시간)
+    distanceMeters: int
+    sessionCount: int
+
+
+class TimeOfDayOut(BaseModel):
+    night: int  # 18:00~05:59 시작(한국 시간)
+    day: int
+
+
+class LoadOut(BaseModel):
+    """최근 부하(ACWR = 7일 거리 ÷ 28일 주평균 거리). 첫 러닝부터 28일이 지나야 켠다."""
+
+    available: bool
+    ratio: float | None
+    level: AcwrLevel | None
+    acuteMeters: int  # 최근 7일
+    chronicWeeklyMeters: int  # 최근 28일 ÷ 4
+    availableFrom: date | None  # available이 false일 때 켜지는 날짜
+
+
+class BaselineOut(BaseModel):
+    """개인 기준값: 최근 러닝(최대 10회)의 평균. 3회부터 쓴다."""
+
+    available: bool
+    sessionCount: int
+    needs: int  # 기준값까지 남은 러닝 수
+    paceSecondsPerKm: int | None
+    avgHeartRate: int | None
+    cadenceMedian: int | None
+    recoveryHeartRate1m: int | None
+
+
+class AvatarInputsOut(BaseModel):
+    """백엔드가 체형 단계를 정할 때 쓰는 입력값. 단계 판단은 백엔드가 한다."""
+
+    distance14dMeters: int
+    sessions14d: int
+
+
+class MonthlyOut(BaseModel):
+    """GET /users/{userId}/months/{yearMonth} 200 본문. 이번 달이면 asOf(지금)까지, 지난달이면 월말까지 계산한다."""
+
+    userId: str
+    yearMonth: str
+    asOf: datetime
+    engineVersion: str = ENGINE_VERSION
+    sessionCount: int
+    distanceMeters: int
+    activeMs: int
+    paceSecondsPerKm: int | None
+    avgHeartRate: int | None
+    axes: dict[AxisName, MonthlyAxisOut]
+    bests: BestsOut
+    weeks: list[WeekOut]
+    timeOfDay: TimeOfDayOut
+    load: LoadOut
+    baseline: BaselineOut
+    avatarInputs: AvatarInputsOut

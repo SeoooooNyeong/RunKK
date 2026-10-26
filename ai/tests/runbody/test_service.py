@@ -37,7 +37,7 @@ async def test_close_marks_running_analysis_failed(second_run: SessionIn) -> Non
 
 
 async def test_thread_analyzer_matches_engine(first_run: SessionIn) -> None:
-    in_thread = await analyze_in_thread(first_run, [])
+    in_thread = await analyze_in_thread(first_run, [], None)
 
     assert in_thread == analyze_session(first_run, [])
 
@@ -82,3 +82,18 @@ async def test_history_is_oldest_first_and_limited(first_run: SessionIn) -> None
 
     assert len(history) == 3
     assert await repo.history("u2", before=T0 + timedelta(days=1), limit=3) == []
+
+
+async def test_results_between_is_half_open_and_done_only(first_run: SessionIn) -> None:
+    repo = InMemoryResultRepository()
+    result = analyze_session(first_run, [])
+    for i in range(3):
+        record = _record(f"s{i}", minutes=i * 10)
+        await repo.save(SessionRecord(record.session_id, "u1", record.started_at, "done", T0, result=result))
+    await repo.save(_record("pending", minutes=5))
+
+    found = await repo.results_between("u1", T0, T0 + timedelta(minutes=20))
+
+    assert len(found) == 2  # 0분·10분. 20분은 끝값이라 빠지고 pending은 세지 않는다
+    assert await repo.first_started_at("u1") == T0
+    assert await repo.first_started_at("u2") is None

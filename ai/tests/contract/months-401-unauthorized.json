@@ -1,0 +1,13 @@
+{
+  "endpoint": "GET /users/{userId}/months/{yearMonth}",
+  "scenario": "no_token",
+  "request": {
+    "userId": "u_demo",
+    "yearMonth": "2026-10"
+  },
+  "status": 401,
+  "body": {
+    "reason": "UNAUTHORIZED"
+  },
+  "gateway": "설정 오류(토큰 불일치)"
+}

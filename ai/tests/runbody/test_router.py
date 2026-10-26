@@ -9,8 +9,8 @@ from typing import Any
 
 import httpx
 
-from runkk_ai.runbody import RunbodyService
-from tests.runbody.conftest import FakeAnalyzer
+from runkk_ai.runbody import InMemoryResultRepository, RunbodyService, SessionRecord, SessionResultOut
+from tests.runbody.conftest import FakeAnalyzer, kst, retime
 
 FIRST = "run-20261018"
 SECOND = "run-20261019"
@@ -243,3 +243,34 @@ async def test_requires_internal_token(anon_client: httpx.AsyncClient, second_ru
 
     assert response.status_code == 401
     assert response.json() == {"reason": "UNAUTHORIZED"}
+
+
+async def test_analysis_uses_recent_load_from_repository(
+    client: httpx.AsyncClient,
+    runbody_service: RunbodyService,
+    runbody_repository: InMemoryResultRepository,
+    first_result: SessionResultOut,
+    second_run_body: dict[str, Any],
+) -> None:
+    """저장소의 지난 러닝으로 최근 부하를 계산해 1회 분석에 넘긴다(10/19 19:09 러닝 기준)."""
+    prior = {
+        "sep01": "2026-09-01 07:00",  # 첫 러닝(28일 창 밖) → 기록 48일째
+        "sep25": "2026-09-25 07:00",
+        "oct02": "2026-10-02 07:00",
+        "oct09": "2026-10-09 07:00",
+        "oct14": "2026-10-14 07:00",
+        "oct16": "2026-10-16 07:00",
+    }
+    for session_id, when in prior.items():
+        result = retime(first_result, session_id, kst(when), 5000)
+        await runbody_repository.save(
+            SessionRecord(session_id, "u_demo", result.summary.startedAt, "done", kst(when), result=result)
+        )
+
+    await _analyze(client, second_run_body)
+    await runbody_service.wait(SECOND)
+    body = (await client.get(f"/sessions/{SECOND}")).json()
+
+    # 7일: 10/14·10/16 + 이번 3.008 km = 13.008, 28일: 9/25~10/16 다섯 번 + 이번 = 28.008 → 주평균 7.002
+    assert "acwr_high" in body["coaching"]["flags"]
+    assert body["coaching"]["detail"]["acwr"]["ratio"] == 1.86

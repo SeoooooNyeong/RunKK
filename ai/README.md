@@ -10,6 +10,7 @@
 | `POST /sessions/{sessionId}/analyze` | 러닝 1회 원본(1초 센서·GPS·회복 심박) → RUN바디 분석 접수. 202 `{"sessionId","status","engineVersion"}` / 409·413·422 `{"reason"}` |
 | `GET /sessions/{sessionId}/status` | 분석 상태 `pending`·`done`·`failed`. 200 / 404 `{"reason"}` |
 | `GET /sessions/{sessionId}` | RUN바디 1회 결과(5각 점수·판정 라벨·코칭 플래그·km 랩·피드백 문장). 200 / 404·409 `{"reason"}` |
+| `GET /users/{userId}/months/{yearMonth}` | 월간 RUN바디(월 요약·5각 평균·최고 기록·주간 거리·최근 부하·개인 기준값·아바타 입력값). 200 / 422 `{"reason"}` |
 
 `/health` 말고는 모두 `X-Internal-Token` 헤더가 필요하다. 미들웨어가 본문을 읽기 전에 검사해 틀리면 401 `{"reason": "UNAUTHORIZED"}`
 (404·405도 `{"reason": "NOT_FOUND"}` 형식). 응답 표본은 `tests/contract/*.json`(서버 Gateway 계약 시험이 같이 쓴다).
@@ -58,8 +59,27 @@ curl localhost:8000/sessions/run-20261019/status -H "$H"   # "done"이 되면
 curl localhost:8000/sessions/run-20261019 -H "$H"          # 헤드라인 "출발이 너무 빨랐어요"
 ```
 
+월간 결과는 같은 저장소의 1회 결과로 요청 때마다 계산한다(러닝이 없는 달도 200, `sessionCount` 0).
+
+```bash
+curl localhost:8000/users/u_demo/months/2026-10 -H "$H"   # 2회 5,035 m, 5각 평균, 10/19 최장 3,008 m
+```
+
 분석은 별도 스레드에서 돈다(동시 2개, 한 번에 수십 ms). 결과 저장소는 아직 메모리라 재시작하면 빈다
 (analytics 스키마 저장은 S15P31A207-163). 같은 `sessionId`를 다시 보내면 다시 계산하지 않고 현재 상태를 돌려준다.
+
+### RUN바디 판단 기준
+
+| 구분 | 기준 | 코드 |
+|---|---|---|
+| 5각 점수·라벨 | 축별 지표 → 0~100 점수와 `label`·`level`(앱은 그대로 표시) | `runbody/scoring.py` |
+| 코칭 플래그 5개 | warmup_missing · positive_split · overstride · recovery_slower · acwr_high | `runbody/coaching.py` |
+| 고칠 점 규칙 8개 | overpace_start > no_warmup > positive_split > acwr_high > recovery_slower > too_hard > overstride > all_good | `feedback.FIX_RULES` |
+| 좋은 점 규칙 7개 | recovery_improved > negative_split > steady_pace > recovery_good > efficiency_kept > distance_up > finished | `feedback.GOOD_RULES` |
+| 최근 부하(ACWR) | 7일 거리 ÷ (28일 거리 ÷ 4). 첫 러닝 28일 뒤부터, 0.8 미만 low · 1.5 초과 high | `runbody/load.py` |
+| 개인 기준값 | 최근 10회 평균, 3회부터 | `runbody/load.py` |
+
+체형 단계(아바타)는 백엔드가 정한다. 월간 결과의 `avatarInputs`(최근 14일 거리·러닝 수)는 그 입력값이다.
 
 ## 컨테이너
 

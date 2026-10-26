@@ -12,6 +12,28 @@ from dataclasses import dataclass
 from runkk_ai.runbody.coaching import target_stride
 from runkk_ai.runbody.schemas import CoachingFlag, FeedbackOut, Metrics
 
+# 고칠 점 규칙 8개(우선순위 순). 판정 문장은 가장 앞선 규칙이 정한다. 문서·시험이 이 순서를 기준으로 한다
+FIX_RULES = (
+    "overpace_start",  # 예열 없음 + 후반 처짐 → 출발 과속(강도 과다는 같은 원인이라 함께 내지 않는다)
+    "no_warmup",  # 출발 150초 안 Z4 도달 또는 첫 500 m가 평균보다 10% 이상 빠름
+    "positive_split",  # 후반 페이스가 전반보다 5% 이상 느림
+    "acwr_high",  # 최근 7일 거리 ÷ 28일 주평균 > 1.5
+    "recovery_slower",  # 1분 회복이 직전 3회 평균보다 5 bpm 이상 둔화
+    "too_hard",  # Z4 이상 비율 40% 이상
+    "overstride",  # 케이던스 < 170 이고 보폭 ≥ 1.0 m
+    "all_good",  # 고칠 점 없음
+)
+# 좋은 점 규칙 7개(우선순위 순). 항상 하나는 나온다(마지막은 완주)
+GOOD_RULES = (
+    "recovery_improved",
+    "negative_split",
+    "steady_pace",
+    "recovery_good",
+    "efficiency_kept",
+    "distance_up",
+    "finished",
+)
+
 TOO_HARD_Z4_PCT = 40
 STEADY_PACE_CV = 0.08
 RECOVERY_GOOD_1M = -12

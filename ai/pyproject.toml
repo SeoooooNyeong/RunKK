@@ -112,14 +112,14 @@ layers = [
 ]
 
 [[tool.importlinter.contracts]]
-name = "runbody: 라우터 → 서비스 → 엔진·저장소 → 피드백 → 코칭·점수 → 지표·전처리 한 방향"
+name = "runbody: 라우터 → 서비스 → 엔진·저장소·월간 → 피드백 → 코칭·점수·부하 → 지표·전처리 한 방향"
 type = "layers"
 layers = [
-    "runkk_ai.runbody.router",
-    "runkk_ai.runbody.service",
-    "runkk_ai.runbody.engine | runkk_ai.runbody.repository",
+    "runkk_ai.runbody.router | runkk_ai.runbody.monthly_router",
+    "runkk_ai.runbody.service | runkk_ai.runbody.monthly_service",
+    "runkk_ai.runbody.engine | runkk_ai.runbody.repository | runkk_ai.runbody.monthly",
     "runkk_ai.runbody.feedback",
-    "runkk_ai.runbody.coaching | runkk_ai.runbody.scoring",
+    "runkk_ai.runbody.coaching | runkk_ai.runbody.scoring | runkk_ai.runbody.load",
     "runkk_ai.runbody.metrics | runkk_ai.runbody.preprocess",
     "runkk_ai.runbody.schemas",
 ]

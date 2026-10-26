@@ -30,8 +30,13 @@ SHORT_RUN_M = 2000
 _SNAKE = re.compile(r"_([a-z0-9])")
 
 
-def analyze_session(session: SessionIn, history: Sequence[SessionResultOut]) -> SessionResultOut:
-    """history는 같은 사용자의 이전 결과(오래된 순). 회복 추세와 지난 러닝 비교에 쓴다."""
+def analyze_session(
+    session: SessionIn, history: Sequence[SessionResultOut], load: Metrics | None = None
+) -> SessionResultOut:
+    """history는 같은 사용자의 이전 결과(오래된 순). 회복 추세와 지난 러닝 비교에 쓴다.
+
+    load는 최근 부하(km_7d·km_28d·days_tracked, load.engine_load). 있으면 acwr_high를 판단한다.
+    """
     grid = preprocess.to_grid(session)
     hr_max = preprocess.hr_max_for(session.profile.birthYear, session.startedAt.date(), session.profile.hrMax)
 
@@ -46,7 +51,7 @@ def analyze_session(session: SessionIn, history: Sequence[SessionResultOut]) -> 
     }
     distance_m = round(session.distanceMeters)
     pace = round(session.activeMs / 1000 / (session.distanceMeters / 1000))
-    flags, detail = coaching.evaluate(grid, m, pace, hr_max, history)
+    flags, detail = coaching.evaluate(grid, m, pace, hr_max, history, load)
     prev = history[-1] if history else None
 
     summary = SummaryOut(

@@ -9,12 +9,14 @@ import asyncio
 import json
 from collections.abc import AsyncIterator, Sequence
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
 import pytest
 
 from runkk_ai.runbody import InMemoryResultRepository, RunbodyService, SessionIn, SessionResultOut, analyze_session
+from runkk_ai.runbody.schemas import Metrics
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 
@@ -81,13 +83,15 @@ class FakeAnalyzer:
     error: BaseException | None = None
     calls: list[str] = field(default_factory=list)
 
-    async def __call__(self, session: SessionIn, history: Sequence[SessionResultOut]) -> SessionResultOut:
+    async def __call__(
+        self, session: SessionIn, history: Sequence[SessionResultOut], load: Metrics | None
+    ) -> SessionResultOut:
         self.calls.append(session.sessionId)
         if self.gate is not None:
             await self.gate.wait()
         if self.error is not None:
             raise self.error
-        return analyze_session(session, history)
+        return analyze_session(session, history, load)
 
 
 @pytest.fixture
@@ -96,10 +100,40 @@ def fake_analyzer() -> FakeAnalyzer:
 
 
 @pytest.fixture
-async def runbody_service(fake_analyzer: FakeAnalyzer) -> AsyncIterator[RunbodyService]:
+async def runbody_service(
+    fake_analyzer: FakeAnalyzer, runbody_repository: InMemoryResultRepository
+) -> AsyncIterator[RunbodyService]:
     """tests/runbody 안에서는 가짜 분석기를 끼운 서비스로 루트 conftest의 runbody_service를 덮는다."""
-    service = RunbodyService(InMemoryResultRepository(), analyzer=fake_analyzer)
+    service = RunbodyService(runbody_repository, analyzer=fake_analyzer)
     yield service
     if fake_analyzer.gate is not None:
         fake_analyzer.gate.set()
     await service.aclose()
+
+
+KST = timezone(timedelta(hours=9))
+
+
+def kst(text: str) -> datetime:
+    """'2026-10-19 19:09' → 한국 시간 datetime."""
+    return datetime.strptime(text, "%Y-%m-%d %H:%M").replace(tzinfo=KST)
+
+
+def retime(
+    base: SessionResultOut, session_id: str, started_at: datetime, distance_m: int | None = None
+) -> SessionResultOut:
+    """실측 결과를 복사해 세션 ID·시작 시각·거리만 바꾼다(월간·부하 시험용 가상 기록)."""
+    summary = base.summary.model_copy(
+        update={"startedAt": started_at, "distanceMeters": distance_m or base.summary.distanceMeters}
+    )
+    return base.model_copy(update={"sessionId": session_id, "summary": summary})
+
+
+@pytest.fixture(scope="session")
+def first_result(first_run: SessionIn) -> SessionResultOut:
+    return analyze_session(first_run, [])
+
+
+@pytest.fixture(scope="session")
+def second_result(first_run: SessionIn, second_run: SessionIn, first_result: SessionResultOut) -> SessionResultOut:
+    return analyze_session(second_run, [first_result])

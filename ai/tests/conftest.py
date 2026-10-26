@@ -26,7 +26,13 @@ from runkk_ai.face import (
     get_face_service,
 )
 from runkk_ai.main import create_app
-from runkk_ai.runbody import InMemoryResultRepository, RunbodyService, get_runbody_service
+from runkk_ai.runbody import (
+    InMemoryResultRepository,
+    MonthlyService,
+    RunbodyService,
+    get_monthly_service,
+    get_runbody_service,
+)
 
 TOKEN = "test-internal-token-0123456789"
 AUTH = {"X-Internal-Token": TOKEN}
@@ -144,8 +150,19 @@ FIXED_NOW = datetime(2026, 10, 19, 10, 30, tzinfo=UTC)
 
 
 @pytest.fixture
-async def runbody_service() -> AsyncIterator[RunbodyService]:
-    service = RunbodyService(InMemoryResultRepository(), clock=lambda: FIXED_NOW)
+def runbody_repository() -> InMemoryResultRepository:
+    """1회 분석과 월간 조회가 같은 저장소를 본다."""
+    return InMemoryResultRepository()
+
+
+@pytest.fixture
+def monthly_service(runbody_repository: InMemoryResultRepository) -> MonthlyService:
+    return MonthlyService(runbody_repository, clock=lambda: FIXED_NOW)
+
+
+@pytest.fixture
+async def runbody_service(runbody_repository: InMemoryResultRepository) -> AsyncIterator[RunbodyService]:
+    service = RunbodyService(runbody_repository, clock=lambda: FIXED_NOW)
     yield service
     await service.aclose()
 
@@ -155,11 +172,13 @@ def app(
     comment_service: CommentService,
     face_service: FaceTransformService,
     runbody_service: RunbodyService,
+    monthly_service: MonthlyService,
 ) -> FastAPI:
     application = create_app(make_settings())
     application.dependency_overrides[get_comment_service] = lambda: comment_service
     application.dependency_overrides[get_face_service] = lambda: face_service
     application.dependency_overrides[get_runbody_service] = lambda: runbody_service
+    application.dependency_overrides[get_monthly_service] = lambda: monthly_service
     return application
 
 
