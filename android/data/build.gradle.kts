@@ -6,8 +6,10 @@ plugins {
     alias(libs.plugins.hilt)
 }
 
-// 배포 서버(EC2, infra/.env SERVER_NAME). develop·prod 플레이버의 기본 주소다.
+// 배포 서버(EC2, infra/edge.env SERVER_NAME). develop·prod 플레이버의 기본 주소다.
+// 한 서버의 nginx가 포트로 환경을 나눈다(infra/nginx/https): 443 → prod 환경(main 브랜치), 8443 → develop 환경(develop 브랜치).
 val serverHost = "k15a207.p.ssafy.io"
+val developServer = "$serverHost:8443"
 
 android {
     // BuildConfig(플레이버별 서버 주소)가 api.core 패키지에 생기게 한다. 서버 주소는 api.core만 읽는다(5.1.2 의존 표).
@@ -31,12 +33,13 @@ android {
             buildConfigField("String", "API_BASE_URL", buildConfigString(localApiUrl))
             buildConfigField("String", "LIVE_SOCKET_URL", buildConfigString(localWsUrl))
         }
-        // develop·prod는 EC2(nginx HTTPS)를 쓴다. 서버를 나누면 빌드 속성 RUNKK_DEVELOP_API_URL·RUNKK_DEVELOP_WS_URL·
-        // RUNKK_PROD_API_URL·RUNKK_PROD_WS_URL(local.properties·-P·환경 변수)로 덮는다.
+        // develop·prod는 EC2(nginx HTTPS)를 쓴다. develop 플레이버는 develop 서버(8443), prod 플레이버는 베타 서버(443).
+        // 다른 서버로 붙이려면 빌드 속성 RUNKK_DEVELOP_API_URL·RUNKK_DEVELOP_WS_URL·RUNKK_PROD_API_URL·RUNKK_PROD_WS_URL
+        // (local.properties·-P·환경 변수)로 덮는다.
         create("develop") {
             dimension = "env"
-            val apiUrl = secretProperty("RUNKK_DEVELOP_API_URL").ifEmpty { "https://$serverHost/api/v1/" }
-            val wsUrl = secretProperty("RUNKK_DEVELOP_WS_URL").ifEmpty { "wss://$serverHost/ws" }
+            val apiUrl = secretProperty("RUNKK_DEVELOP_API_URL").ifEmpty { "https://$developServer/api/v1/" }
+            val wsUrl = secretProperty("RUNKK_DEVELOP_WS_URL").ifEmpty { "wss://$developServer/ws" }
             buildConfigField("String", "API_BASE_URL", buildConfigString(apiUrl))
             buildConfigField("String", "LIVE_SOCKET_URL", buildConfigString(wsUrl))
         }

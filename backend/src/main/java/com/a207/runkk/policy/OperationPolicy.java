@@ -6,6 +6,8 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
@@ -19,10 +21,23 @@ public class OperationPolicy {
     private static final Logger log = LoggerFactory.getLogger(OperationPolicy.class);
 
     private final OperationSettingRepository repository;
+    private final boolean selfieAllowed;
     private final ConcurrentHashMap<SettingKey, Object> cache = new ConcurrentHashMap<>();
 
     public OperationPolicy(OperationSettingRepository repository) {
+        this(repository, true);
+    }
+
+    /**
+     * @param selfieAllowed 셀카 변환 서버 스위치(runkk.features.selfie-enabled, 환경 변수 SELFIE_ENABLED).
+     *     false면 운영 기준값 SELFIE_ENABLED가 켜져 있어도 셀카를 막는다. 베타(prod) 서버는 꺼 둔다(2026-10-23 결정)
+     */
+    @Autowired
+    public OperationPolicy(
+            OperationSettingRepository repository,
+            @Value("${runkk.features.selfie-enabled:true}") boolean selfieAllowed) {
         this.repository = repository;
+        this.selfieAllowed = selfieAllowed;
         for (OperationSetting setting : repository.findAll()) {
             parseStored(setting.key(), setting.value())
                     .ifPresent(value -> cache.put(setting.key(), value));
@@ -80,9 +95,10 @@ public class OperationPolicy {
                         .toList());
     }
 
+    /** 셀카 사용은 서버 스위치와 운영 기준값 SELFIE_ENABLED가 모두 켜졌을 때만 참이다. */
     public FeatureToggles features() {
         return new FeatureToggles(
-                valueOf(SettingKey.SELFIE_ENABLED, Boolean.class),
+                selfieAllowed && valueOf(SettingKey.SELFIE_ENABLED, Boolean.class),
                 valueOf(SettingKey.AI_COMMENT_ENABLED, Boolean.class));
     }
 

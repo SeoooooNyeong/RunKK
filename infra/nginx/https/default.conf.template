@@ -1,7 +1,10 @@
-# HTTPS version. Copy over templates/default.conf.template once /etc/letsencrypt/live/${SERVER_NAME}/ exists:
-# HTTPS version. deploy.sh mounts this folder (NGINX_MODE=https) when /etc/letsencrypt/live/${SERVER_NAME}/ exists;
-#   init-letsencrypt.sh switches to it right after the first certificate is issued.
-# 변수로 proxy_pass를 쓰면 nginx가 요청 때 이름을 풀어 resolver를 따른다(URI를 붙이지 않아 원래 경로가 그대로 넘어간다).
+# HTTPS 설정. deploy.sh가 letsencrypt 볼륨에 /etc/letsencrypt/live/${SERVER_NAME}/가 있으면 이 폴더를 연결한다(NGINX_MODE=https).
+# init-letsencrypt.sh가 첫 인증서를 받은 직후에도 이 폴더로 바꾼다.
+#   80   ACME 확인 + https(443)로 301
+#   443  prod 환경(main 브랜치, api-prod) + 모니터링 /grafana/
+#   8443 develop 환경(develop 브랜치, api-develop). 같은 인증서를 쓴다
+# api 컨테이너는 배포 때마다 다시 만들어져 IP가 바뀐다. 시작 때 한 번만 풀면 502가 나므로 Docker 내장 DNS로 주기적으로 다시 푼다.
+# 공통 경로는 /etc/nginx/runkk/app-locations.conf(infra/nginx/common)에 있다.
 resolver 127.0.0.11 valid=10s ipv6=off;
 
 # Grafana Live(WebSocket)만 Upgrade로 넘기고 나머지 요청은 보통 연결로 둔다
@@ -23,6 +26,7 @@ server {
     }
 }
 
+# prod(베타). 앱 prod 플레이버(com.a207.runkk)가 https://${SERVER_NAME}/ 를 쓴다
 server {
     listen 443 ssl;
     http2 on;
@@ -33,84 +37,31 @@ server {
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_prefer_server_ciphers off;
 
-    set $api_upstream api:8080;
-    # actuator 관리 포트(develop·prod). 밖에는 /actuator/health 하나만 이 포트로 넘긴다
-    set $api_management_upstream api:8081;
-    # 모니터링 Grafana. 변수로 두어 grafana 컨테이너가 없어도 nginx는 뜨고 /grafana/만 502가 난다
-    set $grafana_upstream grafana:3000;
+    set $api_upstream api-prod:8080;
+    # actuator 관리 포트. 밖에는 /actuator/health 하나만 이 포트로 넘긴다
+    set $api_management_upstream api-prod:8081;
 
-    client_max_body_size 10m;
+    include /etc/nginx/runkk/grafana-locations.conf;
+    include /etc/nginx/runkk/app-locations.conf;
+}
 
-    # 실시간 대결·크루런 WebSocket(설계 5.7.2, D-06). Upgrade 헤더를 넘기고, 러닝 한 회 동안 연결이 끊기지 않게 읽기 제한을 길게 둔다
-    location /ws {
-        proxy_pass http://$api_upstream;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_read_timeout 2h;
-        proxy_send_timeout 2h;
-    }
+# develop. 앱 develop 플레이버(com.a207.runkk.dev)가 https://${SERVER_NAME}:8443/ 을 쓴다.
+# 컨테이너 안 포트는 8443으로 고정하고 호스트 포트는 NGINX_DEVELOP_PORT(기본 8443)로 연결한다
+server {
+    listen 8443 ssl;
+    http2 on;
+    server_name ${SERVER_NAME};
 
-    # 외부에는 /actuator/health만 연다(배포 스모크용). info·prometheus 등 나머지 actuator 경로는 숨긴다
-    location = /actuator/health {
-        proxy_pass http://$api_management_upstream;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_read_timeout 10s;
-    }
+    ssl_certificate     /etc/letsencrypt/live/${SERVER_NAME}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${SERVER_NAME}/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
 
-    location ^~ /actuator/ {
-        return 404;
-    }
+    # 이 포트로 http:// 요청이 오면(497) 같은 포트의 https로 돌려보낸다
+    error_page 497 =301 https://$host:$server_port$request_uri;
 
-    # 공개 홈과 법정 고지 문서(개인정보 처리방침·이용약관·위치정보 이용약관·도움말). Google OAuth 동의 화면과 앱 설정 링크
-    # (application.yml runkk.legal.*-url)가 연다. 파일은 infra/nginx/static을 읽기 전용으로 연결한다. /legal/privacy → privacy.html
-    location = / {
-        root /usr/share/nginx/runkk;
-        charset utf-8;
-        try_files /index.html =404;
-    }
+    set $api_upstream api-develop:8080;
+    set $api_management_upstream api-develop:8081;
 
-    location ^~ /legal/ {
-        root /usr/share/nginx/runkk;
-        charset utf-8;
-        try_files $uri $uri.html =404;
-    }
-
-    # 모니터링 대시보드(S15P31A207-78). Grafana 로그인(관리자 계정)으로만 들어간다. Grafana가 serve_from_sub_path로
-    # /grafana/ 경로를 직접 받으므로 경로를 그대로 넘긴다(proxy_pass에 URI를 붙이지 않는다)
-    location = /grafana {
-        # 상대 주소로 돌려보내 로컬처럼 80이 아닌 포트로 열어도 같은 포트에 머문다
-        absolute_redirect off;
-        return 301 /grafana/;
-    }
-
-    location ^~ /grafana/ {
-        proxy_pass http://$grafana_upstream;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection $grafana_connection;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_read_timeout 60s;
-    }
-
-    location / {
-        proxy_pass http://$api_upstream;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_read_timeout 60s;
-    }
+    include /etc/nginx/runkk/app-locations.conf;
 }

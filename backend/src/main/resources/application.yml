@@ -128,6 +128,10 @@ runkk:
     internal-token: ${RUNKK_INTERNAL_TOKEN:}
     comment-timeout: 3s
     face-timeout: 15s
+  # 서버 스위치(policy.OperationPolicy). selfie-enabled가 false면 관리툴 운영 기준값 SELFIE_ENABLED와 관계없이 셀카 변환을 막는다(SELFIE_DISABLED).
+  # 로컬·시험은 켜 두고, 배포 compose는 기본 꺼짐이다(infra/docker-compose.yml SELFIE_ENABLED, 베타 prod는 꺼짐 2026-10-23 결정)
+  features:
+    selfie-enabled: ${SELFIE_ENABLED:true}
   # 매칭 대기열·진행 중 대결 세션 저장소(D-07): redis(기본) | jdbc(Redis 장기 장애 때 PostgreSQL 대안, 5.5)
   queue: ${RUNKK_QUEUE:redis}
   # 실시간 방식(D-06, C-004): websocket(기본, /ws) | polling(/api/v1/live/poll·progress, /ws를 열지 않음, D-57)

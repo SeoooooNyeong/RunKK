@@ -8,7 +8,7 @@
  "timezone": "browser",
  "editable": false,
  "schemaVersion": 39,
- "version": 1,
+ "version": 2,
  "refresh": "30s",
  "time": {
   "from": "now-6h",
@@ -77,7 +77,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "up{job=\"api\"}",
+     "expr": "up{job=\"api\",env=\"$env\"}",
      "instant": true
     }
    ],
@@ -136,7 +136,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "(sum(rate(http_server_requests_seconds_count{job=\"api\",uri!~\"/actuator.*\",status=~\"5..\"}[5m])) or vector(0)) / sum(rate(http_server_requests_seconds_count{job=\"api\",uri!~\"/actuator.*\"}[5m]))",
+     "expr": "(sum(rate(http_server_requests_seconds_count{job=\"api\",env=\"$env\",uri!~\"/actuator.*\",status=~\"5..\"}[5m])) or vector(0)) / sum(rate(http_server_requests_seconds_count{job=\"api\",env=\"$env\",uri!~\"/actuator.*\"}[5m]))",
      "instant": true
     }
    ]
@@ -194,7 +194,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"api\",uri!~\"/actuator.*\"}[5m])))",
+     "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"api\",env=\"$env\",uri!~\"/actuator.*\"}[5m])))",
      "instant": true
     }
    ],
@@ -245,7 +245,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "sum(rate(http_server_requests_seconds_count{job=\"api\",uri!~\"/actuator.*\"}[5m]))",
+     "expr": "sum(rate(http_server_requests_seconds_count{job=\"api\",env=\"$env\",uri!~\"/actuator.*\"}[5m]))",
      "instant": true
     }
    ]
@@ -303,7 +303,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "sum(jvm_memory_used_bytes{job=\"api\",area=\"heap\"}) / sum(jvm_memory_max_bytes{job=\"api\",area=\"heap\"} > 0)",
+     "expr": "sum(jvm_memory_used_bytes{job=\"api\",env=\"$env\",area=\"heap\"}) / sum(jvm_memory_max_bytes{job=\"api\",env=\"$env\",area=\"heap\"} > 0)",
      "instant": true
     }
    ]
@@ -349,7 +349,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "sum by (method, uri) (rate(http_server_requests_seconds_count{job=\"api\",uri!~\"/actuator.*\"}[$__rate_interval]))",
+     "expr": "sum by (method, uri) (rate(http_server_requests_seconds_count{job=\"api\",env=\"$env\",uri!~\"/actuator.*\"}[$__rate_interval]))",
      "legendFormat": "{{method}} {{uri}}"
     }
    ]
@@ -395,7 +395,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"api\",uri!~\"/actuator.*\"}[$__rate_interval])))",
+     "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"api\",env=\"$env\",uri!~\"/actuator.*\"}[$__rate_interval])))",
      "legendFormat": "p95"
     },
     {
@@ -404,7 +404,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "sum(rate(http_server_requests_seconds_sum{job=\"api\",uri!~\"/actuator.*\"}[$__rate_interval])) / sum(rate(http_server_requests_seconds_count{job=\"api\",uri!~\"/actuator.*\"}[$__rate_interval]))",
+     "expr": "sum(rate(http_server_requests_seconds_sum{job=\"api\",env=\"$env\",uri!~\"/actuator.*\"}[$__rate_interval])) / sum(rate(http_server_requests_seconds_count{job=\"api\",env=\"$env\",uri!~\"/actuator.*\"}[$__rate_interval]))",
      "legendFormat": "평균"
     }
    ]
@@ -450,7 +450,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "(sum(rate(http_server_requests_seconds_count{job=\"api\",uri!~\"/actuator.*\",status=~\"5..\"}[$__rate_interval])) or vector(0)) / sum(rate(http_server_requests_seconds_count{job=\"api\",uri!~\"/actuator.*\"}[$__rate_interval]))",
+     "expr": "(sum(rate(http_server_requests_seconds_count{job=\"api\",env=\"$env\",uri!~\"/actuator.*\",status=~\"5..\"}[$__rate_interval])) or vector(0)) / sum(rate(http_server_requests_seconds_count{job=\"api\",env=\"$env\",uri!~\"/actuator.*\"}[$__rate_interval]))",
      "legendFormat": "5xx"
     },
     {
@@ -459,7 +459,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "(sum(rate(http_server_requests_seconds_count{job=\"api\",uri!~\"/actuator.*\",status=~\"4..\"}[$__rate_interval])) or vector(0)) / sum(rate(http_server_requests_seconds_count{job=\"api\",uri!~\"/actuator.*\"}[$__rate_interval]))",
+     "expr": "(sum(rate(http_server_requests_seconds_count{job=\"api\",env=\"$env\",uri!~\"/actuator.*\",status=~\"4..\"}[$__rate_interval])) or vector(0)) / sum(rate(http_server_requests_seconds_count{job=\"api\",env=\"$env\",uri!~\"/actuator.*\"}[$__rate_interval]))",
      "legendFormat": "4xx"
     }
    ]
@@ -505,7 +505,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "sum by (method, uri, status) (rate(http_server_requests_seconds_count{job=\"api\",uri!~\"/actuator.*\",status=~\"5..\"}[$__rate_interval]))",
+     "expr": "sum by (method, uri, status) (rate(http_server_requests_seconds_count{job=\"api\",env=\"$env\",uri!~\"/actuator.*\",status=~\"5..\"}[$__rate_interval]))",
      "legendFormat": "{{status}} {{method}} {{uri}}"
     }
    ]
@@ -551,7 +551,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "sum(jvm_memory_used_bytes{job=\"api\",area=\"heap\"})",
+     "expr": "sum(jvm_memory_used_bytes{job=\"api\",env=\"$env\",area=\"heap\"})",
      "legendFormat": "힙 사용"
     },
     {
@@ -560,7 +560,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "sum(jvm_memory_max_bytes{job=\"api\",area=\"heap\"} > 0)",
+     "expr": "sum(jvm_memory_max_bytes{job=\"api\",env=\"$env\",area=\"heap\"} > 0)",
      "legendFormat": "힙 최대"
     },
     {
@@ -569,7 +569,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "sum(jvm_memory_used_bytes{job=\"api\",area=\"nonheap\"})",
+     "expr": "sum(jvm_memory_used_bytes{job=\"api\",env=\"$env\",area=\"nonheap\"})",
      "legendFormat": "힙 밖 사용"
     }
    ]
@@ -615,7 +615,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "sum by (gc) (rate(jvm_gc_pause_seconds_sum{job=\"api\"}[$__rate_interval]))",
+     "expr": "sum by (gc) (rate(jvm_gc_pause_seconds_sum{job=\"api\",env=\"$env\"}[$__rate_interval]))",
      "legendFormat": "{{gc}}"
     }
    ]
@@ -663,7 +663,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "process_cpu_usage{job=\"api\"}",
+     "expr": "process_cpu_usage{job=\"api\",env=\"$env\"}",
      "legendFormat": "api 프로세스"
     },
     {
@@ -672,7 +672,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "system_cpu_usage{job=\"api\"}",
+     "expr": "system_cpu_usage{job=\"api\",env=\"$env\"}",
      "legendFormat": "호스트 전체"
     }
    ]
@@ -718,7 +718,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "hikaricp_connections_active{job=\"api\"}",
+     "expr": "hikaricp_connections_active{job=\"api\",env=\"$env\"}",
      "legendFormat": "사용 중"
     },
     {
@@ -727,7 +727,7 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "hikaricp_connections_pending{job=\"api\"}",
+     "expr": "hikaricp_connections_pending{job=\"api\",env=\"$env\"}",
      "legendFormat": "대기"
     },
     {
@@ -736,14 +736,37 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "hikaricp_connections_max{job=\"api\"}",
+     "expr": "hikaricp_connections_max{job=\"api\",env=\"$env\"}",
      "legendFormat": "최대"
     }
    ]
   }
  ],
  "templating": {
-  "list": []
+  "list": [
+   {
+    "name": "env",
+    "label": "환경",
+    "type": "query",
+    "datasource": {
+     "type": "prometheus",
+     "uid": "prometheus"
+    },
+    "definition": "label_values(up{job=\"api\"}, env)",
+    "query": {
+     "query": "label_values(up{job=\"api\"}, env)",
+     "refId": "env"
+    },
+    "refresh": 1,
+    "sort": 1,
+    "multi": false,
+    "includeAll": false,
+    "current": {
+     "text": "prod",
+     "value": "prod"
+    }
+   }
+  ]
  },
  "annotations": {
   "list": []

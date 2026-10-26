@@ -1,64 +1,150 @@
 #!/usr/bin/env bash
-# Build the api (../backend) and ai (../ai) images and (re)start the whole stack.
-# Run from the infra/ directory on the server:  ./deploy.sh
-# Fails (exit 1) if api or ai does not become healthy. api keeps serving fallback text while ai is down,
-# so an unhealthy ai would otherwise go unnoticed (e.g. a placeholder RUNKK_INTERNAL_TOKEN makes ai refuse to start).
+# 서버 배포. infra/ 폴더에서 실행한다(README 3절).
+#   ./deploy.sh         .env의 RUNKK_ENV(develop|prod) 환경을 배포한다: 이미지 빌드 → 에지 맞추기 → 배포 직전 DB 덤프 → 환경 스택 재시작 → 헬스체크
+#   ./deploy.sh edge    에지(nginx·모니터링)만 맞춘다. .env가 필요 없다
+# 값: .env(환경 스택, CI INFRA_ENV / INFRA_ENV_PROD), edge.env(에지, CI INFRA_ENV_EDGE).
+# 한 환경 배포는 다른 환경 컨테이너를 건드리지 않는다(프로젝트가 다르고 --remove-orphans도 자기 프로젝트만 본다).
+# 에지는 어느 배포에서든 맞추되, 바뀐 컨테이너만 다시 만들고 nginx·Prometheus 설정은 nginx -t 검사를 통과한 뒤에만 다시 읽힌다.
+# api나 ai가 healthy가 되지 않으면 실패(exit 1)한다. ai가 내려가도 api는 대체 문구로 버티므로 따로 확인하지 않으면 모른다.
 set -euo pipefail
 cd "$(dirname "$0")"
+# shellcheck source=lib.sh
+source ./lib.sh
 
-if [ ! -f .env ]; then
-  echo ".env not found. Copy .env.example to .env and fill in the values." >&2
-  exit 1
+TARGET="${1:-app}"
+case "$TARGET" in app|edge) ;; *) die "usage: ./deploy.sh [edge]" ;; esac
+
+load_edge_env
+if [ "$TARGET" = app ]; then
+  load_app_env
+  SPRING_PROFILE="$(env_value "$APP_ENV_FILE" SPRING_PROFILES_ACTIVE prod)"
+  # prod(베타)는 prod 프로필만, Swagger는 켜지 않는다(sqa.md 8.1 필수 4). 셀카는 서버 스위치로 꺼 둔다(2026-10-23 결정)
+  if [ "$RUNKK_ENV" = prod ]; then
+    [ "$SPRING_PROFILE" = prod ] || die "RUNKK_ENV=prod needs SPRING_PROFILES_ACTIVE=prod (got $SPRING_PROFILE)"
+    [ "$(env_value "$APP_ENV_FILE" SWAGGER_ENABLED false)" = false ] || die "RUNKK_ENV=prod must not set SWAGGER_ENABLED=true"
+    if [ "$(env_value "$APP_ENV_FILE" SELFIE_ENABLED false)" != false ]; then
+      echo "warning: SELFIE_ENABLED is on for prod. The beta decision (2026-10-23) keeps selfie conversion off." >&2
+    fi
+  fi
 fi
 
-compose() { docker compose --env-file .env "$@"; }
-
-# .env는 compose만 읽는다. 스크립트가 치는 포트는 같은 파일에서 읽는다(값에 공백·괄호가 있어도 안전하게 이 줄만 뽑는다).
-# 키는 선택값(compose는 ${NGINX_HTTP_PORT:-80})이다. 줄이 없으면 grep이 1을 돌려 set -euo pipefail 아래에서 스크립트가
-# 메시지 없이 끝나므로 `|| true`로 빈 값을 받고 기본값을 쓴다(코드 리뷰 3차 I-M1).
-env_value() {  # <key> <default>
-  local value
-  value="$(grep -E "^$1=" .env | tail -n 1 | cut -d= -f2- | sed 's/[[:space:]]*#.*//' | tr -d ' \r"' || true)"
-  echo "${value:-$2}"
-}
-NGINX_HTTP_PORT="$(env_value NGINX_HTTP_PORT 80)"
-NGINX_HTTPS_PORT="$(env_value NGINX_HTTPS_PORT 443)"
-SERVER_NAME="$(env_value SERVER_NAME localhost)"
+# 두 환경 배포가 동시에 에지를 만지지 않게 서버 안에서 한 번에 하나만 돈다(CI resource_group과 같은 뜻, 수동 실행까지 막는다)
+mkdir -p "$RUNKK_HOME" 2>/dev/null || die "cannot create $RUNKK_HOME. Once on the server: sudo install -d -m 2775 -g docker $RUNKK_HOME"
+if command -v flock >/dev/null 2>&1; then
+  exec 9>"$RUNKK_HOME/.deploy.lock"
+  flock -w 1800 9 || die "another deploy is still running ($RUNKK_HOME/.deploy.lock)"
+fi
 
 # Prints "healthy" only for a healthy container ("unhealthy" must not match).
 wait_healthy() {  # <service> <tries, 5 s apart>
   for _ in $(seq 1 "$2"); do
-    if [ "$(compose ps "$1" --format '{{.Health}}')" = "healthy" ]; then
+    if [ "$(app_compose ps "$1" --format '{{.Health}}')" = "healthy" ]; then
       echo "$1 is healthy"
       return 0
     fi
     sleep 5
   done
   echo "$1 did not become healthy. Logs:" >&2
-  compose logs --tail=100 "$1" >&2
+  app_compose logs --tail=100 "$1" >&2
   return 1
 }
 
-# 인증서는 letsencrypt 볼륨에 있다(init-letsencrypt.sh가 1회 발급). 인증서가 있으면 nginx/https 설정 폴더를 고른다(NGINX_MODE).
-# 예전처럼 저장소 파일을 덮어쓰면 다음 CI 잡이 작업 폴더를 다시 받을 때 HTTP 설정으로 돌아가고, 그 뒤 nginx가 재시작되면 443이 닫혔다.
-if compose run --rm --no-deps --entrypoint test certbot -f "/etc/letsencrypt/live/${SERVER_NAME}/fullchain.pem" 2>/dev/null; then
-  export NGINX_MODE=https
-  # Grafana가 만드는 링크 주소와 로그인 쿠키 Secure를 nginx 모드에 맞춘다(compose 기본값은 http)
-  export GRAFANA_ROOT_URL="https://${SERVER_NAME}/grafana/" GRAFANA_COOKIE_SECURE=true
-  # HTTPS면 80은 301만 돌려주므로 443을 인증서 이름으로 직접 부른다(--resolve로 이 서버에 붙고 인증서도 검증한다)
-  HEALTH_CURL=(curl -fsS --resolve "${SERVER_NAME}:${NGINX_HTTPS_PORT}:127.0.0.1" "https://${SERVER_NAME}:${NGINX_HTTPS_PORT}/actuator/health")
-else
-  export NGINX_MODE=http
-  export GRAFANA_ROOT_URL="http://${SERVER_NAME}:${NGINX_HTTP_PORT}/grafana/" GRAFANA_COOKIE_SECURE=false
-  HEALTH_CURL=(curl -fsS "http://localhost:${NGINX_HTTP_PORT}/actuator/health")
+# 분리 전(한 프로젝트 runkk에 nginx와 api·ai·postgres·redis가 함께 있던 때) 컨테이너를 내린다. 볼륨은 지우지 않는다.
+# postgres는 바로 죽이지 않고 60초까지 정상 종료를 기다린다. 이 뒤 develop 스택이 같은 볼륨(runkk_postgres-data)으로 뜬다
+retire_legacy_app_containers() {
+  local legacy
+  legacy="$(docker ps -a --filter label=com.docker.compose.project=runkk --format '{{.Label "com.docker.compose.service"}} {{.Names}}' \
+    | awk '$1=="api"||$1=="ai"||$1=="postgres"||$1=="redis" {print $2}' || true)"
+  [ -n "$legacy" ] || return 0
+  echo "Retiring pre-split containers (volumes are kept): $(echo "$legacy" | tr '\n' ' ')"
+  # api·ai를 먼저 내려 DB 쓰기를 멈춘 뒤 postgres·redis를 내린다
+  for service in api ai postgres redis; do
+    docker ps -a --filter label=com.docker.compose.project=runkk --filter "label=com.docker.compose.service=$service" -q \
+      | xargs -r docker stop -t 60 >/dev/null
+  done
+  echo "$legacy" | xargs -r docker rm >/dev/null
+}
+
+deploy_edge() {
+  sync_bundle "$EDGE_DIR" docker-compose.edge.yml nginx monitoring
+  detect_nginx_mode
+  if [ "$NGINX_MODE" = https ]; then
+    # Grafana가 만드는 링크 주소와 로그인 쿠키 Secure를 nginx 모드에 맞춘다(compose 기본값은 http). Grafana는 prod 도메인(443)에 둔다
+    if [ "$NGINX_HTTPS_PORT" = 443 ]; then
+      export GRAFANA_ROOT_URL="https://${SERVER_NAME}/grafana/"
+    else
+      export GRAFANA_ROOT_URL="https://${SERVER_NAME}:${NGINX_HTTPS_PORT}/grafana/"
+    fi
+    export GRAFANA_COOKIE_SECURE=true
+  else
+    export GRAFANA_ROOT_URL="http://${SERVER_NAME}:${NGINX_HTTP_PORT}/grafana/" GRAFANA_COOKIE_SECURE=false
+  fi
+  echo "Edge: nginx mode $NGINX_MODE"
+
+  edge_compose pull -q nginx prometheus node-exporter grafana
+  # 새 설정을 일회용 컨테이너에서 먼저 검사한다(같은 템플릿·인증서·망). 실패하면 돌고 있는 nginx는 건드리지 않고 멈춘다
+  edge_compose run --rm --no-deps -T -e NGINX_ENTRYPOINT_QUIET_LOGS=1 nginx nginx -t -q || die "nginx config test failed; the running nginx was not touched"
+
+  retire_legacy_app_containers
+  edge_compose up -d --remove-orphans nginx prometheus node-exporter grafana
+
+  # 연결한 파일이 바뀌어도 compose는 컨테이너를 다시 만들지 않는다. 템플릿을 다시 그리고 검사한 뒤 무중단으로 다시 읽힌다
+  edge_compose exec -T nginx sh -c '/docker-entrypoint.d/20-envsubst-on-templates.sh >/dev/null && nginx -t -q && nginx -s reload'
+  wait_edge_healthy prometheus
+  edge_compose exec -T prometheus wget -q -O /dev/null --post-data= http://127.0.0.1:9090/-/reload
+  edge_compose ps
+}
+
+wait_edge_healthy() {  # <service>
+  for _ in $(seq 1 24); do
+    [ "$(edge_compose ps "$1" --format '{{.Health}}')" = healthy ] && return 0
+    sleep 5
+  done
+  edge_compose logs --tail=50 "$1" >&2
+  die "$1 did not become healthy"
+}
+
+# 이 환경의 postgres 볼륨을 다른 프로젝트 컨테이너가 쓰고 있으면 멈춘다. 같은 데이터 폴더에 postgres 두 개가 붙으면 DB가 깨진다
+guard_postgres_volume() {
+  local volume users
+  volume="$(env_value "$APP_ENV_FILE" POSTGRES_VOLUME "")"
+  [ -n "$volume" ] || die "POSTGRES_VOLUME is not set in .env"
+  users="$(docker ps --filter "volume=$volume" --format '{{.Label "com.docker.compose.project"}} {{.Names}}' | awk -v p="$APP_PROJECT" '$1!=p' || true)"
+  [ -z "$users" ] || die "volume $volume is in use by another stack: $users"
+}
+
+deploy_app() {
+  # 배포 직전 덤프(Flyway 마이그레이션 전). 이 환경 백업 컨테이너가 이미 돌고 있을 때만(첫 배포는 건너뛴다)
+  if [ "$(docker inspect -f '{{.State.Running}}' "$APP_PROJECT-backup-1" 2>/dev/null || true)" = true ]; then
+    docker exec "$APP_PROJECT-backup-1" sh /opt/runkk-backup/pg-backup.sh now predeploy || die "pre-deploy backup failed"
+  fi
+
+  sync_bundle "$APP_DIR" docker-compose.yml backup secrets
+  guard_postgres_volume
+  app_compose pull -q postgres redis
+  app_compose up -d --remove-orphans
+  app_compose ps
+
+  echo "Waiting for the api and ai health checks..."
+  wait_healthy api 30
+  # nginx를 거친 주소까지 확인한다. `cmd && echo` 꼴은 set -e에서 실패해도 넘어가므로 따로 부른다
+  health_curl "$RUNKK_ENV" /actuator/health || die "$RUNKK_ENV api is not reachable through nginx"
+  echo
+  wait_healthy ai 12
+}
+
+if [ "$TARGET" = app ]; then
+  # 빌드는 내려가는 시간이 없으니 먼저 한다. 환경별 태그라 다른 환경 이미지를 덮어쓰지 않는다. 직전 이미지는 -prev로 남긴다(README 롤백)
+  for image in api ai; do
+    if docker image inspect "runkk-$image:$RUNKK_ENV" >/dev/null 2>&1; then
+      docker tag "runkk-$image:$RUNKK_ENV" "runkk-$image:$RUNKK_ENV-prev"
+    fi
+  done
+  docker build -t "runkk-api:$RUNKK_ENV" ../backend
+  docker build -t "runkk-ai:$RUNKK_ENV" ../ai
 fi
 
-compose pull nginx postgres redis prometheus node-exporter grafana
-compose build api ai
-compose up -d --remove-orphans
-compose ps
-
-echo "Waiting for the api and ai health checks..."
-wait_healthy api 30
-"${HEALTH_CURL[@]}" && echo
-wait_healthy ai 12
+deploy_edge
+if [ "$TARGET" = app ]; then
+  deploy_app
+fi

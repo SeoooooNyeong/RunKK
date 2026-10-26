@@ -1,4 +1,5 @@
-# 런크크 모니터링(S15P31A207-78). compose 내부 망에서만 읽는다(호스트 포트 없음). 보존 기간·크기는 docker-compose.yml command에 둔다.
+# 런크크 모니터링(S15P31A207-78). 에지 스택(docker-compose.edge.yml)의 Prometheus가 공유 망(runkk_default)에서만 읽는다(호스트 포트 없음).
+# 보존 기간·크기는 docker-compose.edge.yml command에 둔다. 이 폴더를 통째로 연결하고, 파일이 바뀌면 deploy.sh가 Prometheus에 다시 읽힌다.
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
@@ -8,11 +9,18 @@ scrape_configs:
     static_configs:
       - targets: ["localhost:9090"]
 
-  # Spring Boot actuator. develop·prod는 관리 포트 8081에만 있다(서비스 포트 8080·nginx로는 닿지 않는다)
+  # Spring Boot actuator. develop·prod는 관리 포트 8081에만 있다(서비스 포트 8080·nginx로는 닿지 않는다).
+  # 환경마다 api가 공유 망에 api-<환경> 별칭으로 붙는다(docker-compose.yml api.networks). env 라벨로 대시보드에서 환경을 고른다.
+  # 한쪽 환경이 내려가 있으면 그 대상만 up=0이 된다
   - job_name: api
     metrics_path: /actuator/prometheus
     static_configs:
-      - targets: ["api:8081"]
+      - targets: ["api-prod:8081"]
+        labels:
+          env: prod
+      - targets: ["api-develop:8081"]
+        labels:
+          env: develop
 
   # EC2 호스트 CPU·메모리·디스크. 컨테이너 망 안에서 돌아 네트워크 지표는 node-exporter 컨테이너 것이다
   - job_name: node
