@@ -1,0 +1,111 @@
+{
+  "endpoint": "GET /users/{userId}/months/{yearMonth}",
+  "scenario": "ok",
+  "request": {
+    "userId": "u_demo",
+    "yearMonth": "2026-10"
+  },
+  "setup": [
+    "first_run",
+    "second_run"
+  ],
+  "status": 200,
+  "body": {
+    "userId": "u_demo",
+    "yearMonth": "2026-10",
+    "asOf": "2026-10-19T10:30:00Z",
+    "engineVersion": "0.2",
+    "sessionCount": 2,
+    "distanceMeters": 5035,
+    "activeMs": 1853010,
+    "paceSecondsPerKm": 368,
+    "avgHeartRate": 154,
+    "axes": {
+      "intensity": {
+        "average": 75,
+        "count": 2,
+        "ref": 55
+      },
+      "endurance": {
+        "average": 45,
+        "count": 2,
+        "ref": 60
+      },
+      "stability": {
+        "average": 63,
+        "count": 2,
+        "ref": 60
+      },
+      "form": {
+        "average": 64,
+        "count": 2,
+        "ref": 60
+      },
+      "fitness": {
+        "average": 73,
+        "count": 2,
+        "ref": 55
+      }
+    },
+    "bests": {
+      "fastestKmSeconds": {
+        "value": 320,
+        "sessionId": "run-20261019",
+        "runDate": "2026-10-19"
+      },
+      "fastest2kmSeconds": {
+        "value": 694,
+        "sessionId": "run-20261019",
+        "runDate": "2026-10-19"
+      },
+      "longestRunMeters": {
+        "value": 3008,
+        "sessionId": "run-20261019",
+        "runDate": "2026-10-19"
+      },
+      "bestRecoveryHeartRate1m": {
+        "value": -27,
+        "sessionId": "run-20261019",
+        "runDate": "2026-10-19"
+      }
+    },
+    "weeks": [
+      {
+        "weekStart": "2026-10-12",
+        "distanceMeters": 2027,
+        "sessionCount": 1
+      },
+      {
+        "weekStart": "2026-10-19",
+        "distanceMeters": 3008,
+        "sessionCount": 1
+      }
+    ],
+    "timeOfDay": {
+      "night": 2,
+      "day": 0
+    },
+    "load": {
+      "available": false,
+      "ratio": null,
+      "level": null,
+      "acuteMeters": 5035,
+      "chronicWeeklyMeters": 1259,
+      "availableFrom": "2026-11-15"
+    },
+    "baseline": {
+      "available": false,
+      "sessionCount": 2,
+      "needs": 1,
+      "paceSecondsPerKm": null,
+      "avgHeartRate": null,
+      "cadenceMedian": null,
+      "recoveryHeartRate1m": null
+    },
+    "avatarInputs": {
+      "distance14dMeters": 5035,
+      "sessions14d": 2
+    }
+  },
+  "gateway": "월간 화면 표시"
+}

@@ -1,7 +1,7 @@
 [project]
 name = "runkk-ai"
 version = "0.1.0"
-description = "런크크 ai 서버: AI 코멘트(/comments)와 셀카 얼굴 변환(/faces). api 컨테이너만 부르는 내부 서비스"
+description = "런크크 ai 서버: AI 코멘트(/comments), 셀카 얼굴 변환(/faces), RUN바디 1회 분석(/sessions). api 컨테이너만 부르는 내부 서비스"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "fastapi==0.150.0",
@@ -12,6 +12,8 @@ dependencies = [
     "openai==3.35.1",
     "httpx==0.28.1",
     "anyio==4.15.1",
+    "pandas==3.1.0",
+    "numpy==2.5.4",
 ]
 
 [dependency-groups]
@@ -22,6 +24,7 @@ dev = [
     "ruff==0.17.1",
     "import-linter==2.15",
     "mypy==2.4.0",
+    "pandas-stubs==3.0.5.260914",
 ]
 
 [build-system]
@@ -78,14 +81,14 @@ plugins = ["pydantic.mypy"]
 root_package = "runkk_ai"
 
 [[tool.importlinter.contracts]]
-name = "core·comment·face는 서로 import하지 않는다 (D-60)"
+name = "core·comment·face·runbody는 서로 import하지 않는다 (D-60)"
 type = "independence"
-modules = ["runkk_ai.core", "runkk_ai.comment", "runkk_ai.face"]
+modules = ["runkk_ai.core", "runkk_ai.comment", "runkk_ai.face", "runkk_ai.runbody"]
 
 [[tool.importlinter.contracts]]
-name = "core·comment·face는 main을 import하지 않는다 (main → 기능 모듈 한 방향)"
+name = "core·comment·face·runbody는 main을 import하지 않는다 (main → 기능 모듈 한 방향)"
 type = "forbidden"
-source_modules = ["runkk_ai.core", "runkk_ai.comment", "runkk_ai.face"]
+source_modules = ["runkk_ai.core", "runkk_ai.comment", "runkk_ai.face", "runkk_ai.runbody"]
 forbidden_modules = ["runkk_ai.main"]
 
 [[tool.importlinter.contracts]]
@@ -106,4 +109,17 @@ layers = [
     "runkk_ai.face.service",
     "runkk_ai.face.transformer",
     "runkk_ai.face.schemas",
+]
+
+[[tool.importlinter.contracts]]
+name = "runbody: 라우터 → 서비스 → 엔진·저장소·월간 → 피드백 → 코칭·점수·부하 → 지표·전처리 한 방향"
+type = "layers"
+layers = [
+    "runkk_ai.runbody.router | runkk_ai.runbody.monthly_router",
+    "runkk_ai.runbody.service | runkk_ai.runbody.monthly_service",
+    "runkk_ai.runbody.engine | runkk_ai.runbody.repository | runkk_ai.runbody.monthly",
+    "runkk_ai.runbody.feedback",
+    "runkk_ai.runbody.coaching | runkk_ai.runbody.scoring | runkk_ai.runbody.load",
+    "runkk_ai.runbody.metrics | runkk_ai.runbody.preprocess",
+    "runkk_ai.runbody.schemas",
 ]

@@ -1,0 +1,18 @@
+{
+  "endpoint": "GET /sessions/{sessionId}/status",
+  "scenario": "ok",
+  "request": {
+    "sessionId": "run-20261019"
+  },
+  "setup": [
+    "second_run"
+  ],
+  "status": 200,
+  "body": {
+    "sessionId": "run-20261019",
+    "status": "done",
+    "updatedAt": "2026-10-19T10:30:00Z",
+    "errorCode": null
+  },
+  "gateway": "done이면 GET /sessions/{sessionId}"
+}

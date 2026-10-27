@@ -1,8 +1,8 @@
 """공용 픽스처와 가짜 구현.
 
 실제 LLM·얼굴 변환 API를 부르지 않는다. 라우터 시험은 13.3·14장대로
-`app.dependency_overrides`로 get_comment_service·get_face_service를 덮어
-가짜 LlmClient·FaceTransformer를 가진 서비스를 끼운다.
+`app.dependency_overrides`로 get_comment_service·get_face_service·get_runbody_service를 덮어
+가짜 LlmClient·FaceTransformer를 가진 서비스와 메모리 저장소를 쓰는 RUN바디 서비스를 끼운다.
 """
 
 from __future__ import annotations
@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncIterator, Callable, Mapping
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 
 import httpx
 import pytest
@@ -25,6 +26,13 @@ from runkk_ai.face import (
     get_face_service,
 )
 from runkk_ai.main import create_app
+from runkk_ai.runbody import (
+    InMemoryResultRepository,
+    MonthlyService,
+    RunbodyService,
+    get_monthly_service,
+    get_runbody_service,
+)
 
 TOKEN = "test-internal-token-0123456789"
 AUTH = {"X-Internal-Token": TOKEN}
@@ -137,11 +145,40 @@ def face_service(fake_face: FakeFaceTransformer) -> FaceTransformService:
     return FaceTransformService(transformer=fake_face, timeout_s=1.0, max_image_bytes=1024 * 1024)
 
 
+# 계약 표본의 updatedAt을 고정하려고 서비스 시계를 멈춘다
+FIXED_NOW = datetime(2026, 10, 19, 10, 30, tzinfo=UTC)
+
+
 @pytest.fixture
-def app(comment_service: CommentService, face_service: FaceTransformService) -> FastAPI:
+def runbody_repository() -> InMemoryResultRepository:
+    """1회 분석과 월간 조회가 같은 저장소를 본다."""
+    return InMemoryResultRepository()
+
+
+@pytest.fixture
+def monthly_service(runbody_repository: InMemoryResultRepository) -> MonthlyService:
+    return MonthlyService(runbody_repository, clock=lambda: FIXED_NOW)
+
+
+@pytest.fixture
+async def runbody_service(runbody_repository: InMemoryResultRepository) -> AsyncIterator[RunbodyService]:
+    service = RunbodyService(runbody_repository, clock=lambda: FIXED_NOW)
+    yield service
+    await service.aclose()
+
+
+@pytest.fixture
+def app(
+    comment_service: CommentService,
+    face_service: FaceTransformService,
+    runbody_service: RunbodyService,
+    monthly_service: MonthlyService,
+) -> FastAPI:
     application = create_app(make_settings())
     application.dependency_overrides[get_comment_service] = lambda: comment_service
     application.dependency_overrides[get_face_service] = lambda: face_service
+    application.dependency_overrides[get_runbody_service] = lambda: runbody_service
+    application.dependency_overrides[get_monthly_service] = lambda: monthly_service
     return application
 
 

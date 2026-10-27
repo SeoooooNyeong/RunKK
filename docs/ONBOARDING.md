@@ -42,7 +42,7 @@ A207 팀에 합류한 분을 위한 첫 안내 문서입니다. 자세한 규칙
 | 서버 스택 (`infra/`) | Docker Desktop (EC2 배정 뒤 이관) | `infra/README.md` 참고 |
 
 - 코드 규칙은 위키 **컨벤션 > Code Convention** 을 따릅니다. 포맷은 도구가 정하므로 커밋 전에 백엔드 `./gradlew spotlessApply`, 앱 `./gradlew ktlintFormat`을 실행합니다.
-- 브랜치는 `{feature|fix|hotfix}/{Jira 키}-{작업명}`, 커밋·MR 제목은 `{타입}: {내용} [{Jira 키}]`. `main`·`develop`에는 직접 push 하지 않고 MR로만 반영합니다. MR 본문은 템플릿이 자동으로 채워지고, `Closes {Jira 키}`를 적으면 병합 시 Jira가 자동으로 Done 됩니다.
+- 브랜치는 `{feature|fix|hotfix}/{Jira 키}-{작업명}`, 커밋·MR 제목은 `{타입}: {내용} [{Jira 키}]`. `main`·`develop`·`release/*`에는 직접 push 하지 않고 MR로만 반영합니다. 평소 작업은 develop으로, 배포는 `release/vX.Y` → `main`으로, 배포 버전의 긴급 수정은 `hotfix/…` → `main`으로 올립니다(`AGENTS.md` "브랜치 흐름"). MR 본문은 템플릿이 자동으로 채워지고, `Closes {Jira 키}`를 적으면 병합 시 Jira가 자동으로 Done 됩니다.
 
 ## 4. AI 코딩 도구 (Claude Code, Codex)
 

@@ -23,7 +23,8 @@ Closes S15P31A207-
 
 ## 확인 사항
 
-- [ ] 브랜치 이름이 `{유형}/{Jira 키}-{작업명}` 형식인가
+- [ ] 브랜치 이름이 `{유형}/{Jira 키}-{작업명}` 형식인가 (릴리스는 `release/vX.Y`)
+- [ ] 대상 브랜치와 병합 방식이 맞는가 (feature·fix는 squash, release·hotfix → main과 main → develop은 merge commit)
 - [ ] 커밋 메시지와 MR 제목에 Jira 키를 포함했는가
 - [ ] 포매터·린트를 통과했는가 (`spotlessApply` / `ktlintFormat`)
 - [ ] 빌드 및 관련 테스트를 통과했는가
