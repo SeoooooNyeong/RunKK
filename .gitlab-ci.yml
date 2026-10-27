@@ -218,8 +218,9 @@ backend:deploy:
       variables:
         DEPLOY_ENV: prod
   script:
-    - if [ "$DEPLOY_ENV" = "prod" ]; then cp "$INFRA_ENV_PROD" infra/.env; else cp "$INFRA_ENV" infra/.env; fi
-    - cp "$INFRA_ENV_EDGE" infra/edge.env
+    # GitLab 화면에서 저장한 File 변수는 줄 끝이 CRLF다. CR을 지워야 grep -x·env_value가 값을 그대로 읽는다
+    - if [ "$DEPLOY_ENV" = "prod" ]; then tr -d '\r' < "$INFRA_ENV_PROD" > infra/.env; else tr -d '\r' < "$INFRA_ENV" > infra/.env; fi
+    - tr -d '\r' < "$INFRA_ENV_EDGE" > infra/edge.env
     # 장애 알림 Mattermost 웹훅은 따로 둔 masked 변수에서 붙인다(edge.env 파일 변수를 열지 않고 바꾸게)
     - if [ -n "${GRAFANA_ALERT_WEBHOOK_URL:-}" ]; then printf '\nGRAFANA_ALERT_WEBHOOK_URL=%s\n' "$GRAFANA_ALERT_WEBHOOK_URL" >> infra/edge.env; fi
     # 브랜치와 .env의 환경이 어긋나면(CI 변수를 바꿔 넣은 경우) 다른 환경을 덮지 않게 멈춘다
@@ -246,8 +247,8 @@ backend:smoke:
       variables:
         DEPLOY_ENV: prod
   script:
-    - if [ "$DEPLOY_ENV" = "prod" ]; then cp "$INFRA_ENV_PROD" infra/.env; else cp "$INFRA_ENV" infra/.env; fi
-    - cp "$INFRA_ENV_EDGE" infra/edge.env
+    - if [ "$DEPLOY_ENV" = "prod" ]; then tr -d '\r' < "$INFRA_ENV_PROD" > infra/.env; else tr -d '\r' < "$INFRA_ENV" > infra/.env; fi
+    - tr -d '\r' < "$INFRA_ENV_EDGE" > infra/edge.env
     - infra/smoke.sh
   after_script:
     - rm -f infra/.env infra/edge.env
