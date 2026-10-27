@@ -92,6 +92,13 @@ deploy_edge() {
   edge_compose exec -T nginx sh -c '/docker-entrypoint.d/20-envsubst-on-templates.sh >/dev/null && nginx -t -q && nginx -s reload'
   wait_edge_healthy prometheus
   edge_compose exec -T prometheus wget -q -O /dev/null --post-data= http://127.0.0.1:9090/-/reload
+  # 알림 규칙·연락처(monitoring/grafana/provisioning/alerting)도 파일만 바뀌면 다시 읽히지 않는다. 관리자 API로 다시 읽힌다.
+  # 관리자 비밀번호를 reset-admin-password로 바꿔 edge.env와 어긋나면 실패하므로 배포는 멈추지 않고 경고만 남긴다(그때는 grafana 재시작)
+  wait_edge_healthy grafana
+  edge_compose exec -T grafana sh -c 'wget -q -O /dev/null --post-data= \
+    --header "Authorization: Basic $(printf "%s:%s" "$GF_SECURITY_ADMIN_USER" "$GF_SECURITY_ADMIN_PASSWORD" | base64 | tr -d "\n")" \
+    http://127.0.0.1:3000/api/admin/provisioning/alerting/reload' \
+    || echo "WARN: grafana alerting reload failed; run: docker compose -p runkk restart grafana" >&2
   edge_compose ps
 }
 

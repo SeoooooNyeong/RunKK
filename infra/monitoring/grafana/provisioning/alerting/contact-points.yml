@@ -1,0 +1,20 @@
+# 장애 알림을 Mattermost runkk-alerts 채널로 보낸다(S15P31A207-78). Mattermost Incoming Webhook은 Slack 형식을 받는다.
+# 주소는 CI 변수 GRAFANA_ALERT_WEBHOOK_URL → edge.env → grafana 환경 변수로 들어온다. 비어 있으면 compose가 닿지 않는 주소를 넣어
+# Grafana는 뜨고 알림 전송만 실패한다(Grafana 로그에 남는다).
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: mattermost-runkk-alerts
+    receivers:
+      - uid: runkk-mattermost
+        type: slack
+        disableResolveMessage: false
+        settings:
+          url: ${GRAFANA_ALERT_WEBHOOK_URL}
+          username: runkk-alert
+          title: '{{ if eq .Status "firing" }}[장애]{{ else }}[복구]{{ end }} {{ .CommonLabels.alertname }}'
+          text: |-
+            {{ range .Alerts }}{{ .Annotations.summary }}
+            {{ .Annotations.description }}
+            {{ end }}

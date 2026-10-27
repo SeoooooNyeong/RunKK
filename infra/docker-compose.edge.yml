@@ -112,10 +112,13 @@ services:
       GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
       GF_NEWS_NEWS_FEED_ENABLED: "false"
       GF_LOG_MODE: console
+      # 장애 알림 Mattermost 웹훅(provisioning/alerting/contact-points.yml). 없으면 닿지 않는 주소로 두어 Grafana는 뜨고 전송만 실패한다
+      GRAFANA_ALERT_WEBHOOK_URL: ${GRAFANA_ALERT_WEBHOOK_URL:-http://127.0.0.1:9/alert-webhook-not-set}
     volumes:
-      # provisioning 폴더 전체를 덮으면 이미지의 빈 plugins·alerting 폴더가 가려져 기동 때 오류 로그가 나므로 쓰는 폴더만 연결한다
+      # provisioning 폴더 전체를 덮으면 이미지의 빈 plugins 폴더가 가려져 기동 때 오류 로그가 나므로 쓰는 폴더만 연결한다
       - ./monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
       - ./monitoring/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/provisioning/alerting:/etc/grafana/provisioning/alerting:ro
       - ./monitoring/grafana/dashboards:/etc/grafana/dashboards:ro
       - grafana-data:/var/lib/grafana
     security_opt:

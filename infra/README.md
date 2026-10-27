@@ -167,6 +167,20 @@ docker compose -p runkk-develop down -v && docker compose -p runkk down -v   # �
 docker exec runkk-grafana-1 grafana cli admin reset-admin-password '<새 비밀번호>'
 ```
 
+### 장애 알림
+
+장애는 두 갈래로 알립니다. 둘 다 Mattermost **15기 자율 서울2반 › runkk-alerts**(비공개) 채널로 옵니다.
+
+| 감시 | 무엇을 | 언제 울리나 | 못 잡는 것 |
+|---|---|---|---|
+| Grafana 알림 (`monitoring/grafana/provisioning/alerting/`) | prod api `up`, prod 5xx 비율, 호스트 디스크·메모리 | api 응답 없음 2분, 5xx 5% 초과 5분(분당 3건 이상일 때), 디스크·메모리 90% 초과 10분 | EC2 자체가 멈추거나 에지 스택이 죽은 경우 |
+| 외부 가동 감시 (UptimeRobot 등, 팀 계정) | `https://<SERVER_NAME>/actuator/health` | 5분 간격 확인이 연속 실패 | 서버 안쪽 원인(로그로 본다) |
+
+- 웹훅 주소는 GitLab CI 변수 `GRAFANA_ALERT_WEBHOOK_URL`(masked·protected)에 둡니다. 배포가 `edge.env` 끝에 붙이고, Grafana는 환경 변수로 읽습니다. 없으면 Grafana는 뜨고 알림 전송만 실패합니다.
+- 규칙 파일을 고치면 배포가 Grafana 관리자 API로 다시 읽힙니다. 화면에서 고친 규칙은 저장되지 않습니다.
+- 대응: 알림 스레드에 확인 시각과 복구 시각을 남깁니다. NFR-016(장애 확인 뒤 1시간 안 복구)의 기록이 됩니다.
+- 시험: Grafana **Alerting › Contact points › mattermost-runkk-alerts › Test**로 채널에 시험 메시지를 보냅니다.
+
 ### 메모리 배분 (15GiB, 4코어)
 
 | 대상 | 제한 | 비고 |
