@@ -100,6 +100,7 @@ source_modules = [
     "runkk_ai.runbody",
     "runkk_ai.storage",
     "runkk_ai.writer",
+    "runkk_ai.coach",
 ]
 forbidden_modules = ["runkk_ai.main"]
 
@@ -179,3 +180,16 @@ layers = [
     "runkk_ai.writer.dataset",
     "runkk_ai.writer.brief | runkk_ai.writer.prompt | runkk_ai.writer.checks",
 ]
+
+[[tool.importlinter.contracts]]
+name = "coach는 runbody 결과를 읽기만 한다. 다른 모듈은 coach를 모른다"
+type = "forbidden"
+source_modules = [
+    "runkk_ai.core",
+    "runkk_ai.comment",
+    "runkk_ai.face",
+    "runkk_ai.runbody",
+    "runkk_ai.storage",
+    "runkk_ai.writer",
+]
+forbidden_modules = ["runkk_ai.coach"]
