@@ -327,9 +327,9 @@ android:release:
   script:
     - echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNKK_KEYSTORE_PATH"
     # Play 배포용은 ABI 분할·.so 압축을 끈다(android/app/build.gradle.kts splits 주석). 없으면 번들 빌드가 실패한다.
-    - ./gradlew bundleProdRelease -Prunkk.playBundle=true
+    - ./gradlew bundleProdRelease -Prunkk.playBundle=true -Prunkk.versionCode=$((CI_PIPELINE_IID * 10))
   artifacts:
-    paths: [android/app/build/outputs/bundle/prodRelease/*.aab]
+    paths: [android/app/build/outputs/bundle/prodRelease/*.aab, android/wear/build/outputs/bundle/prodRelease/*.aab]
     expire_in: 1 month
 
 # ci/android/Dockerfile이 바뀌면 같은 파이프라인의 안드로이드 잡보다 먼저(.pre) EC2 로컬 이미지를 다시 만든다.
