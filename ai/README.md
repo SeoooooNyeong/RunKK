@@ -11,6 +11,7 @@
 | `GET /sessions/{sessionId}/status` | 분석 상태 `pending`·`done`·`failed`. 200 / 404 `{"reason"}` |
 | `GET /sessions/{sessionId}` | RUN바디 1회 결과(5각 점수·판정 라벨·코칭 플래그·km 랩·피드백 문장). 200 / 404·409 `{"reason"}` |
 | `GET /users/{userId}/months/{yearMonth}` | 월간 RUN바디(월 요약·5각 평균·최고 기록·주간 거리·최근 부하·개인 기준값·아바타 입력값). 200 / 422 `{"reason"}` |
+| `POST /coach/chat` | AI 코치 대화(F5). `{"userId","conversationId"?,"message"}` → 200 `text/event-stream`(meta·tool·delta·done·error) / 404·413·422·429·503 `{"reason"}` |
 
 `/health` 말고는 모두 `X-Internal-Token` 헤더가 필요하다. 미들웨어가 본문을 읽기 전에 검사해 틀리면 401 `{"reason": "UNAUTHORIZED"}`
 (404·405도 `{"reason": "NOT_FOUND"}` 형식). 응답 표본은 `tests/contract/*.json`(서버 Gateway 계약 시험이 같이 쓴다).
@@ -124,7 +125,7 @@ RUNKK_TEST_DB_URL=postgresql://runkk:runkk@localhost:5432/runkk_test uv run pyte
 ## AI 코치 도구 (S15P31A207-192)
 
 AI 코치(F5)가 질문에 답할 때 API 모델이 고르는 조회 도구다. 코드는 `runkk_ai/coach/tools.py`(`CoachTools`, `TOOL_SPECS`).
-대화 API(`POST /coach/chat`, SSE)는 S15P31A207-193에서 붙인다.
+대화 API는 아래 "AI 코치 대화" 절.
 
 | 도구 | 입력 | 돌려주는 것 |
 |---|---|---|
@@ -135,6 +136,30 @@ AI 코치(F5)가 질문에 답할 때 API 모델이 고르는 조회 도구다. 
 - 사용자 ID는 모델 입력이 아니라 서버가 넣는다(api가 인증한 사용자). 다른 사람의 세션은 `SESSION_NOT_FOUND`로 답한다.
 - 응답은 2,000자 안으로 줄인다(페이스 `6'05"`, 날짜는 한국 시간). 실패는 `{"error": 코드}`(`NO_RUNS`, `INVALID_YEAR_MONTH`, `UNKNOWN_TOOL`).
 - 저장소 규약 위에서 읽으므로 메모리 저장소와 analytics 스키마에서 똑같이 동작한다.
+
+## AI 코치 대화 (S15P31A207-193)
+
+`POST /coach/chat`은 질문을 받아 API 모델(기본 `claude-haiku-5-5`)이 위 도구를 골라 기록을 확인한 뒤 답을 글자 단위로 흘려보낸다(SSE).
+
+| 이벤트 | data | 뜻 |
+|---|---|---|
+| `meta` | `{"conversationId"}` | 맨 처음. 새 대화면 새 ID |
+| `tool` | `{"name"}` | 도구를 부를 때마다(앱은 "기록 확인 중"을 띄운다) |
+| `delta` | `{"text"}` | 답 조각 |
+| `done` | `{"model","inputTokens","outputTokens","tools"}` | 정상 끝 |
+| `error` | `{"reason"}` | 중간 실패(`LLM_TIMEOUT`, `LLM_ERROR`). 받은 delta는 버린다 |
+
+- 시작 전 거절: 키 없음 503 `LLM_UNAVAILABLE`, 남의 대화 404 `CONVERSATION_NOT_FOUND`, 하루 상한 429 `QUOTA_EXCEEDED`.
+- 크레딧 보호: 하루 상한(전체 `RUNKK_COACH_DAILY_HARD_CAP`=300, 사용자별 `RUNKK_COACH_USER_DAILY_CAP`=30, 한국 날짜 기준). 도구 turn은 3번까지, 이전 대화는 최근 10개 메시지만 다시 보낸다.
+- 대화 기록: 질문과 최종 답만 `analytics.coach_message`(DB 없으면 메모리)에 남긴다. 토큰 수·모델·부른 도구도 같이 남겨 단가를 확인한다.
+- 키는 `RUNKK_ANTHROPIC_API_KEY`, GMS 주소는 `ANTHROPIC_BASE_URL`을 `/comments`와 같이 쓴다.
+
+로컬에서 해 보기(분석 2회를 먼저 보낸 뒤, Windows는 `curl.exe`):
+
+```bash
+curl -N localhost:8000/coach/chat -H "X-Internal-Token: $RUNKK_INTERNAL_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"userId":"u_demo","message":"어제 러닝 어땠어?"}'
+```
 
 ## writer 학습 데이터 (S15P31A207-191)
 

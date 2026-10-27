@@ -50,7 +50,7 @@ async def test_migration_matches_table_definitions(pg_engine: AsyncEngine) -> No
 async def test_upgrade_twice_is_noop(pg_engine: AsyncEngine) -> None:
     await upgrade(pg_engine)
 
-    assert await _rows(pg_engine, "SELECT version_num FROM analytics.alembic_version") == [("v0001",)]
+    assert await _rows(pg_engine, "SELECT version_num FROM analytics.alembic_version") == [("v0002",)]
 
 
 def _downgrade_all(connection: Connection) -> None:

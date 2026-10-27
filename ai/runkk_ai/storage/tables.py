@@ -14,6 +14,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Index,
+    Integer,
     MetaData,
     Table,
     Text,
@@ -63,4 +64,23 @@ analysis_event = Table(
     Column("error_code", Text),
     Column("at", DateTime(timezone=True), nullable=False),
     Index("ix_analysis_event_session", "session_id"),
+)
+
+# AI 코치 대화(S15P31A207-193). 사용자 질문과 코치의 최종 답만 남긴다
+coach_message = Table(
+    "coach_message",
+    metadata,
+    Column("id", BigInteger, primary_key=True, autoincrement=True),
+    Column("conversation_id", Text, nullable=False),
+    Column("user_id", Text, nullable=False),
+    Column("role", Text, nullable=False),
+    Column("content", Text, nullable=False),
+    Column("model", Text),
+    Column("input_tokens", Integer),
+    Column("output_tokens", Integer),
+    Column("tools", Text),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    CheckConstraint("role IN ('user', 'assistant')", name="ck_coach_message_role"),
+    Index("ix_coach_message_conversation", "conversation_id", "id"),
+    Index("ix_coach_message_user_created", "user_id", "created_at"),
 )

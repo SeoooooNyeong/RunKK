@@ -163,7 +163,7 @@ forbidden_modules = [
 name = "storage: 저장소·마이그레이션 → 연결·테이블 한 방향"
 type = "layers"
 layers = [
-    "runkk_ai.storage.pg_repository | runkk_ai.storage.migrate",
+    "runkk_ai.storage.pg_repository | runkk_ai.storage.coach_store | runkk_ai.storage.migrate",
     "runkk_ai.storage.engine | runkk_ai.storage.tables",
 ]
 
@@ -184,12 +184,27 @@ layers = [
 [[tool.importlinter.contracts]]
 name = "coach는 runbody 결과를 읽기만 한다. 다른 모듈은 coach를 모른다"
 type = "forbidden"
-source_modules = [
-    "runkk_ai.core",
-    "runkk_ai.comment",
-    "runkk_ai.face",
-    "runkk_ai.runbody",
-    "runkk_ai.storage",
-    "runkk_ai.writer",
-]
+source_modules = ["runkk_ai.core", "runkk_ai.comment", "runkk_ai.face", "runkk_ai.runbody", "runkk_ai.writer"]
 forbidden_modules = ["runkk_ai.coach"]
+
+[[tool.importlinter.contracts]]
+name = "storage는 코치 대화 저장소 규약(coach.store)만 구현한다"
+type = "forbidden"
+source_modules = ["runkk_ai.storage"]
+forbidden_modules = [
+    "runkk_ai.coach.router",
+    "runkk_ai.coach.service",
+    "runkk_ai.coach.model",
+    "runkk_ai.coach.tools",
+]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "coach: 라우터 → 서비스 → 모델·저장소·도구·지시문 → 요청 형식 한 방향"
+type = "layers"
+layers = [
+    "runkk_ai.coach.router",
+    "runkk_ai.coach.service",
+    "runkk_ai.coach.model | runkk_ai.coach.store | runkk_ai.coach.tools | runkk_ai.coach.prompt",
+    "runkk_ai.coach.schemas",
+]

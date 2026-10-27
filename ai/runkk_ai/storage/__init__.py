@@ -4,8 +4,9 @@ runbody는 이 모듈을 모른다. runbody.repository.ResultRepository 규약�
 테이블은 Alembic(migrations/)이 관리한다. 스키마와 runkk_ai 계정은 백엔드 Flyway가 만든다.
 """
 
+from runkk_ai.storage.coach_store import PgCoachStore
 from runkk_ai.storage.engine import create_engine
 from runkk_ai.storage.migrate import upgrade
 from runkk_ai.storage.pg_repository import PgResultRepository
 
-__all__ = ["PgResultRepository", "create_engine", "upgrade"]
+__all__ = ["PgCoachStore", "PgResultRepository", "create_engine", "upgrade"]
