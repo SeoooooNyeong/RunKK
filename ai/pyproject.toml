@@ -55,7 +55,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101", "S105", "S106"]
+"tests/**" = ["S101", "S105", "S106", "S311"]
 
 # ---------- pytest ----------
 [tool.pytest.ini_options]
@@ -91,7 +91,14 @@ modules = ["runkk_ai.core", "runkk_ai.comment", "runkk_ai.face", "runkk_ai.runbo
 [[tool.importlinter.contracts]]
 name = "core·comment·face·runbody·storage는 main을 import하지 않는다 (main → 기능 모듈 한 방향)"
 type = "forbidden"
-source_modules = ["runkk_ai.core", "runkk_ai.comment", "runkk_ai.face", "runkk_ai.runbody", "runkk_ai.storage"]
+source_modules = [
+    "runkk_ai.core",
+    "runkk_ai.comment",
+    "runkk_ai.face",
+    "runkk_ai.runbody",
+    "runkk_ai.storage",
+    "runkk_ai.writer",
+]
 forbidden_modules = ["runkk_ai.main"]
 
 [[tool.importlinter.contracts]]
@@ -156,3 +163,9 @@ layers = [
     "runkk_ai.storage.pg_repository | runkk_ai.storage.migrate",
     "runkk_ai.storage.engine | runkk_ai.storage.tables",
 ]
+
+[[tool.importlinter.contracts]]
+name = "writer는 runbody 결과를 읽기만 한다. 서버 모듈은 writer 학습 도구(dataset)를 모른다"
+type = "forbidden"
+source_modules = ["runkk_ai.core", "runkk_ai.comment", "runkk_ai.face", "runkk_ai.runbody", "runkk_ai.storage"]
+forbidden_modules = ["runkk_ai.writer"]
