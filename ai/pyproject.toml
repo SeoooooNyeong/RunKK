@@ -14,6 +14,9 @@ dependencies = [
     "anyio==4.15.1",
     "pandas==3.1.0",
     "numpy==2.5.4",
+    "sqlalchemy[asyncio]==2.1.6",
+    "asyncpg==0.32.0",
+    "alembic==1.20.1",
 ]
 
 [dependency-groups]
@@ -52,7 +55,11 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101", "S105", "S106"]
+"tests/**" = ["S101", "S105", "S106", "S311"]
+# 학습 데이터 명령: 진행 상황을 화면에 찍고, seed로 다시 만들 수 있는 난수를 쓴다(보안 용도 아님)
+"runkk_ai/writer/dataset/**" = ["T201", "S311"]
+# Colab 노트북: 셀마다 import하고 결과를 찍어 본다
+"notebooks/**" = ["E402", "T201", "S101", "PT018"]
 
 # ---------- pytest ----------
 [tool.pytest.ini_options]
@@ -86,9 +93,17 @@ type = "independence"
 modules = ["runkk_ai.core", "runkk_ai.comment", "runkk_ai.face", "runkk_ai.runbody"]
 
 [[tool.importlinter.contracts]]
-name = "core·comment·face·runbody는 main을 import하지 않는다 (main → 기능 모듈 한 방향)"
+name = "core·comment·face·runbody·storage는 main을 import하지 않는다 (main → 기능 모듈 한 방향)"
 type = "forbidden"
-source_modules = ["runkk_ai.core", "runkk_ai.comment", "runkk_ai.face", "runkk_ai.runbody"]
+source_modules = [
+    "runkk_ai.core",
+    "runkk_ai.comment",
+    "runkk_ai.face",
+    "runkk_ai.runbody",
+    "runkk_ai.storage",
+    "runkk_ai.writer",
+    "runkk_ai.coach",
+]
 forbidden_modules = ["runkk_ai.main"]
 
 [[tool.importlinter.contracts]]
@@ -122,4 +137,76 @@ layers = [
     "runkk_ai.runbody.coaching | runkk_ai.runbody.scoring | runkk_ai.runbody.load",
     "runkk_ai.runbody.metrics | runkk_ai.runbody.preprocess",
     "runkk_ai.runbody.schemas",
+]
+
+[[tool.importlinter.contracts]]
+name = "storage는 runbody 규약(repository·schemas)을 구현한다. 어느 기능 모듈도 storage를 모른다 (main이 끼운다)"
+type = "forbidden"
+source_modules = ["runkk_ai.core", "runkk_ai.comment", "runkk_ai.face", "runkk_ai.runbody"]
+forbidden_modules = ["runkk_ai.storage"]
+
+[[tool.importlinter.contracts]]
+name = "storage는 runbody의 라우터·서비스·엔진을 부르지 않는다"
+type = "forbidden"
+source_modules = ["runkk_ai.storage"]
+forbidden_modules = [
+    "runkk_ai.runbody.router",
+    "runkk_ai.runbody.monthly_router",
+    "runkk_ai.runbody.service",
+    "runkk_ai.runbody.monthly_service",
+    "runkk_ai.runbody.engine",
+    "runkk_ai.runbody.monthly",
+    "runkk_ai.comment",
+    "runkk_ai.face",
+    "runkk_ai.core",
+]
+
+[[tool.importlinter.contracts]]
+name = "storage: 저장소·마이그레이션 → 연결·테이블 한 방향"
+type = "layers"
+layers = [
+    "runkk_ai.storage.pg_repository | runkk_ai.storage.coach_store | runkk_ai.storage.migrate",
+    "runkk_ai.storage.engine | runkk_ai.storage.tables",
+]
+
+[[tool.importlinter.contracts]]
+name = "writer는 runbody 결과를 읽기만 한다. 서버 모듈은 writer 학습 도구(dataset)를 모른다"
+type = "forbidden"
+source_modules = ["runkk_ai.core", "runkk_ai.comment", "runkk_ai.face", "runkk_ai.runbody", "runkk_ai.storage"]
+forbidden_modules = ["runkk_ai.writer"]
+
+[[tool.importlinter.contracts]]
+name = "writer: 학습 도구 → 요약·지시문·검사 한 방향"
+type = "layers"
+layers = [
+    "runkk_ai.writer.dataset",
+    "runkk_ai.writer.brief | runkk_ai.writer.prompt | runkk_ai.writer.checks",
+]
+
+[[tool.importlinter.contracts]]
+name = "coach는 runbody 결과를 읽기만 한다. 다른 모듈은 coach를 모른다"
+type = "forbidden"
+source_modules = ["runkk_ai.core", "runkk_ai.comment", "runkk_ai.face", "runkk_ai.runbody", "runkk_ai.writer"]
+forbidden_modules = ["runkk_ai.coach"]
+
+[[tool.importlinter.contracts]]
+name = "storage는 코치 대화 저장소 규약(coach.store)만 구현한다"
+type = "forbidden"
+source_modules = ["runkk_ai.storage"]
+forbidden_modules = [
+    "runkk_ai.coach.router",
+    "runkk_ai.coach.service",
+    "runkk_ai.coach.model",
+    "runkk_ai.coach.tools",
+]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "coach: 라우터 → 서비스 → 모델·저장소·도구·지시문 → 요청 형식 한 방향"
+type = "layers"
+layers = [
+    "runkk_ai.coach.router",
+    "runkk_ai.coach.service",
+    "runkk_ai.coach.model | runkk_ai.coach.store | runkk_ai.coach.tools | runkk_ai.coach.prompt",
+    "runkk_ai.coach.schemas",
 ]

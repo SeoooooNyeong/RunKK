@@ -11,6 +11,7 @@
 | `GET /sessions/{sessionId}/status` | 분석 상태 `pending`·`done`·`failed`. 200 / 404 `{"reason"}` |
 | `GET /sessions/{sessionId}` | RUN바디 1회 결과(5각 점수·판정 라벨·코칭 플래그·km 랩·피드백 문장). 200 / 404·409 `{"reason"}` |
 | `GET /users/{userId}/months/{yearMonth}` | 월간 RUN바디(월 요약·5각 평균·최고 기록·주간 거리·최근 부하·개인 기준값·아바타 입력값). 200 / 422 `{"reason"}` |
+| `POST /coach/chat` | AI 코치 대화(F5). `{"userId","conversationId"?,"message"}` → 200 `text/event-stream`(meta·tool·delta·done·error) / 404·413·422·429·503 `{"reason"}` |
 
 `/health` 말고는 모두 `X-Internal-Token` 헤더가 필요하다. 미들웨어가 본문을 읽기 전에 검사해 틀리면 401 `{"reason": "UNAUTHORIZED"}`
 (404·405도 `{"reason": "NOT_FOUND"}` 형식). 응답 표본은 `tests/contract/*.json`(서버 Gateway 계약 시험이 같이 쓴다).
@@ -28,12 +29,13 @@ uv sync                      # .venv 생성, 개발 도구 포함
 ```bash
 uv run ruff format --check .
 uv run ruff check .
-uv run lint-imports          # core·comment·face·runbody 상호 독립, 모듈 안 라우터 → 서비스 → 하위 한 방향
+uv run lint-imports          # core·comment·face·runbody 상호 독립, storage는 main만 끼움, 모듈 안 한 방향
 uv run mypy
 uv run pytest --cov=runkk_ai # 라인 커버리지 80% 미만이면 실패
 ```
 
 Windows 콘솔에서 `lint-imports` 한글이 깨지면 `PYTHONIOENCODING=utf-8`을 붙인다.
+`tests/storage`의 PostgreSQL 시험은 `RUNKK_TEST_DB_URL`이 있을 때만 돈다(CI는 항상 돈다. 아래 "PostgreSQL 저장소").
 
 ## 실행
 
@@ -80,6 +82,98 @@ curl localhost:8000/users/u_demo/months/2026-10 -H "$H"   # 2회 5,035 m, 5각 �
 | 개인 기준값 | 최근 10회 평균, 3회부터 | `runbody/load.py` |
 
 체형 단계(아바타)는 백엔드가 정한다. 월간 결과의 `avatarInputs`(최근 14일 거리·러닝 수)는 그 입력값이다.
+
+## PostgreSQL 저장소
+
+`RUNKK_DB_URL`이 없으면 분석 결과를 메모리에만 둔다(재시작하면 사라진다). 있으면 같은 PostgreSQL의 `analytics` 스키마에 저장한다.
+
+| 대상 | 내용 |
+|---|---|
+| `analytics.session_result` | 세션 1행. 상태(`pending`·`done`·`failed`)·사용자·시작 시각, 결과는 응답 JSON 그대로 `result`(jsonb) |
+| `analytics.analysis_event` | 상태가 바뀔 때마다 1행(접수·완료·실패, 오류 코드) |
+| `analytics.v_session_result` | 완료된 결과만. 거리·페이스·심박·5각 점수·헤드라인을 컬럼으로 꺼낸 뷰(api·코치 조회용) |
+
+- 테이블은 Alembic(`runkk_ai/storage/migrations`)이 관리하고, ai가 **기동할 때 `upgrade head`를 스스로 돈다**. DB에 못 붙거나 마이그레이션이 실패하면 기동을 멈춘다.
+- 스키마와 `runkk_ai` 계정은 ai가 만들지 않는다. EC2에서는 백엔드 Flyway가, 로컬에서는 `scripts/analytics-dev-init.sql`이 만든다. `runkk_ai`는 `analytics`를 소유하고 `public`(백엔드 테이블)은 읽기만 한다.
+- 스키마를 바꿀 때는 `runkk_ai/storage/tables.py`와 새 리비전(`migrations/versions/`)을 함께 고친다. 둘이 어긋나면 `test_migration_matches_table_definitions`가 실패한다.
+
+로컬에서 띄우기(백엔드 로컬 compose의 PostgreSQL 17을 같이 쓴다. 저장소 루트에서):
+
+```bash
+docker compose -f backend/compose.yaml up -d postgres
+docker compose -f backend/compose.yaml exec -T postgres psql -U runkk -d runkk < ai/scripts/analytics-dev-init.sql
+
+cd ai
+export RUNKK_DB_URL=postgresql://runkk_ai:runkk_ai@localhost:5432/runkk   # 로컬 전용 비밀번호
+uv run uvicorn --factory runkk_ai.main:create_app --port 8000             # 기동 때 테이블 생성
+# 분석 2회를 보낸 뒤
+docker compose -f backend/compose.yaml exec postgres psql -U runkk -d runkk \
+  -c "select session_id, distance_meters, headline from analytics.v_session_result"
+```
+
+Windows에서 기동 때 `connection was closed in the middle of operation`이 나면 PC에 설치된 PostgreSQL 서비스가 5432를 함께 잡고 있는 경우다
+(`netstat -ano | findstr :5432`에 PID가 둘). 관리자 PowerShell에서 `Stop-Service postgresql-x64-17`로 끄거나(`Get-Service *postgres*`로 이름 확인),
+`docker run -p 55432:5432 …`처럼 다른 포트로 띄우고 주소의 포트를 바꾼다.
+
+PostgreSQL 시험(시험마다 `analytics` 스키마를 지우고 다시 만든다. 개발 DB와 다른 DB를 쓴다):
+
+```bash
+docker compose -f ../backend/compose.yaml exec postgres createdb -U runkk runkk_test
+RUNKK_TEST_DB_URL=postgresql://runkk:runkk@localhost:5432/runkk_test uv run pytest tests/storage
+```
+
+## AI 코치 도구 (S15P31A207-192)
+
+AI 코치(F5)가 질문에 답할 때 API 모델이 고르는 조회 도구다. 코드는 `runkk_ai/coach/tools.py`(`CoachTools`, `TOOL_SPECS`).
+대화 API는 아래 "AI 코치 대화" 절.
+
+| 도구 | 입력 | 돌려주는 것 |
+|---|---|---|
+| `getSessionResult` | `sessionId`(비우면 최근) | 러닝 1회: 거리·페이스·심박·5각 판정·코칭 신호·km 랩·피드백·지난 러닝 비교 |
+| `getMonthlyResult` | `yearMonth`(비우면 이번 달) | 월 요약: 러닝 수·총거리·평균 페이스·5각 평균·최고 기록·주간 거리·부하·기준값 |
+| `getBaseline` | 없음 | 개인 기준값(최근 10회 평균)·최근 5회 목록·최근 부하(ACWR) |
+
+- 사용자 ID는 모델 입력이 아니라 서버가 넣는다(api가 인증한 사용자). 다른 사람의 세션은 `SESSION_NOT_FOUND`로 답한다.
+- 응답은 2,000자 안으로 줄인다(페이스 `6'05"`, 날짜는 한국 시간). 실패는 `{"error": 코드}`(`NO_RUNS`, `INVALID_YEAR_MONTH`, `UNKNOWN_TOOL`).
+- 저장소 규약 위에서 읽으므로 메모리 저장소와 analytics 스키마에서 똑같이 동작한다.
+
+## AI 코치 대화 (S15P31A207-193)
+
+`POST /coach/chat`은 질문을 받아 API 모델(기본 `claude-haiku-5-5`)이 위 도구를 골라 기록을 확인한 뒤 답을 글자 단위로 흘려보낸다(SSE).
+
+| 이벤트 | data | 뜻 |
+|---|---|---|
+| `meta` | `{"conversationId"}` | 맨 처음. 새 대화면 새 ID |
+| `tool` | `{"name"}` | 도구를 부를 때마다(앱은 "기록 확인 중"을 띄운다) |
+| `delta` | `{"text"}` | 답 조각 |
+| `done` | `{"model","inputTokens","outputTokens","tools"}` | 정상 끝 |
+| `error` | `{"reason"}` | 중간 실패(`LLM_TIMEOUT`, `LLM_ERROR`). 받은 delta는 버린다 |
+
+- 시작 전 거절: 키 없음 503 `LLM_UNAVAILABLE`, 남의 대화 404 `CONVERSATION_NOT_FOUND`, 하루 상한 429 `QUOTA_EXCEEDED`.
+- 크레딧 보호: 하루 상한(전체 `RUNKK_COACH_DAILY_HARD_CAP`=300, 사용자별 `RUNKK_COACH_USER_DAILY_CAP`=30, 한국 날짜 기준). 도구 turn은 3번까지, 이전 대화는 최근 10개 메시지만 다시 보낸다.
+- 대화 기록: 질문과 최종 답만 `analytics.coach_message`(DB 없으면 메모리)에 남긴다. 토큰 수·모델·부른 도구도 같이 남겨 단가를 확인한다.
+- 키는 `RUNKK_ANTHROPIC_API_KEY`, GMS 주소는 `ANTHROPIC_BASE_URL`을 `/comments`와 같이 쓴다.
+
+로컬에서 해 보기(분석 2회를 먼저 보낸 뒤, Windows는 `curl.exe`):
+
+```bash
+curl -N localhost:8000/coach/chat -H "X-Internal-Token: $RUNKK_INTERNAL_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"userId":"u_demo","message":"어제 러닝 어땠어?"}'
+```
+
+## writer 학습 데이터 (S15P31A207-191)
+
+자체 모델 runkk-writer가 배울 (분석 요약 → 코칭 문장) 쌍을 만든다. 코드는 `runkk_ai/writer/`.
+
+| 단계 | 명령 | 결과(`data/writer/`, git에 올리지 않음) |
+|---|---|---|
+| 1. 상황 | `uv run python -m runkk_ai.writer.dataset situations --total 1000` | `situations.jsonl`: 실측 2회를 변형해 엔진으로 분석한 상황. 고칠 점 규칙 8개가 고르게 섞인다 |
+| 2. 초안 | `uv run python -m runkk_ai.writer.dataset draft --model claude-opus-5-5` | `drafts.jsonl`: API 모델(GMS)이 쓴 문장. 끊겨도 다시 돌리면 남은 것만 묻는다 |
+| 3. 검사 | `uv run python -m runkk_ai.writer.dataset check --eval 100` | `train.jsonl`(학습, 대화 형식), `eval.jsonl`(홀드아웃), `report.json`(탈락 이유·규칙별 개수) |
+
+- 초안 단계는 `RUNKK_ANTHROPIC_API_KEY`(GMS 키)와 `ANTHROPIC_BASE_URL`(GMS 주소)이 필요하다. 먼저 `draft --limit 5`로 문장을 보고 지시문(`writer/prompt.py`)을 다듬은 뒤 전부 돌린다.
+- writer는 판단하지 않는다. 엔진 규칙이 고른 고칠 점·좋은 점과 템플릿 문장(`brief.template`)을 받아 자연스럽게 다시 쓴다. 숫자는 요약에 있는 것만 쓴다(`writer/checks.py`가 지어낸 숫자를 걸러 낸다).
+- 지시문이나 요약 형식을 바꾸면 `PROMPT_VERSION`·`BRIEF_VERSION`을 올리고 데이터를 다시 만든다.
 
 ## 컨테이너
 

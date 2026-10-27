@@ -49,6 +49,18 @@ class Settings(BaseSettings):
     # 셀카 가로 × 세로 상한(머리 정보로 확인, L28). 기본 4096 × 4096
     max_image_pixels: int = Field(default=4096 * 4096, gt=0)
 
+    # AI 코치 대화(F5, S15P31A207-193). 키는 anthropic_api_key(GMS 주소는 ANTHROPIC_BASE_URL)를 같이 쓴다.
+    # 도구를 고르고 답을 쓰는 API 모델. 크레딧 보호용 하루 상한(프로세스 전체·사용자별, 한국 날짜 기준)
+    coach_model: str = "claude-haiku-5-5"
+    coach_max_tokens: int = Field(default=700, gt=0)
+    coach_timeout_s: float = Field(default=45.0, gt=0)
+    coach_daily_hard_cap: int = Field(default=300, gt=0)
+    coach_user_daily_cap: int = Field(default=30, gt=0)
+
+    # 분석 결과 저장소(S15P31A207-163). analytics 스키마를 쓰는 runkk_ai 계정 주소.
+    # 예: postgresql://runkk_ai:<비밀번호>@postgres:5432/runkk. 비우면 재시작 때 비는 메모리 저장소를 쓴다
+    db_url: SecretStr | None = None
+
     # 운영에서는 /docs·/openapi.json을 열지 않는다
     expose_docs: bool = False
 
@@ -65,4 +77,6 @@ class Settings(BaseSettings):
         is_claude_model = self.llm_model.startswith(_CLAUDE_MODEL_PREFIX)
         if is_claude_model != (self.llm_provider == "claude"):
             raise ValueError(f"llm_model이 llm_provider={self.llm_provider}의 모델이 아니다")
+        if not self.coach_model.startswith(_CLAUDE_MODEL_PREFIX):
+            raise ValueError("coach_model은 Claude 모델이어야 한다(도구 사용 형식이 Anthropic 기준)")
         return self

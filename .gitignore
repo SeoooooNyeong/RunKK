@@ -22,6 +22,8 @@ __pycache__/
 .coverage.*
 htmlcov/
 coverage.xml
+# writer 학습 데이터(생성물. 명령으로 다시 만들 수 있고 Colab에는 Drive로 옮긴다)
+ai/data/
 
 # FCM 서비스 계정 등 배포 비밀 파일
 infra/secrets/

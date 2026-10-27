@@ -164,6 +164,18 @@ services:
       RUNKK_MAX_IMAGE_BYTES: ${RUNKK_MAX_IMAGE_BYTES:-}
       RUNKK_MAX_IMAGE_PIXELS: ${RUNKK_MAX_IMAGE_PIXELS:-}
       RUNKK_EXPOSE_DOCS: ${RUNKK_EXPOSE_DOCS:-}
+      # AI 코치(F5). 키는 RUNKK_ANTHROPIC_API_KEY를 같이 쓴다. 하루 상한으로 크레딧을 지킨다
+      RUNKK_COACH_MODEL: ${RUNKK_COACH_MODEL:-}
+      RUNKK_COACH_MAX_TOKENS: ${RUNKK_COACH_MAX_TOKENS:-}
+      RUNKK_COACH_TIMEOUT_S: ${RUNKK_COACH_TIMEOUT_S:-}
+      RUNKK_COACH_DAILY_HARD_CAP: ${RUNKK_COACH_DAILY_HARD_CAP:-}
+      RUNKK_COACH_USER_DAILY_CAP: ${RUNKK_COACH_USER_DAILY_CAP:-}
+      # 분석 결과 저장(analytics 스키마, runkk_ai 계정). 비우면 메모리 저장소(재시작하면 비움)
+      RUNKK_DB_URL: ${RUNKK_DB_URL:-}
+    # DB를 쓰면 기동 때 마이그레이션을 돌리므로 postgres가 준비된 뒤 뜬다(api와는 묶지 않는다)
+    depends_on:
+      postgres:
+        condition: service_healthy
     read_only: true
     tmpfs:
       - /tmp:size=16m,mode=1777

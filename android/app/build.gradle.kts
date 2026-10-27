@@ -37,7 +37,8 @@ android {
 
     defaultConfig {
         applicationId = "com.a207.runkk"
-        versionCode = 1
+        // 폰은 IID×10, 워치는 IID×10+1로 Play 버전 코드 충돌을 막는다.
+        versionCode = providers.gradleProperty("runkk.versionCode").orElse("10").get().toInt()
         versionName = "0.1.0"
     }
 

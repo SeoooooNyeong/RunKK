@@ -18,10 +18,27 @@ from fastapi.responses import JSONResponse
 from pydantic import SecretStr
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from runkk_ai.coach import (
+    ClaudeCoachModel,
+    CoachMessageStore,
+    CoachModel,
+    CoachRouter,
+    CoachService,
+    CoachTools,
+    InMemoryCoachStore,
+)
 from runkk_ai.comment import COMMENT_TIMEOUT_S, ClaudeClient, CommentRouter, CommentService, LlmClient, OpenAiClient
 from runkk_ai.core import HealthRouter, InternalTokenMiddleware, Settings
 from runkk_ai.face import ExternalFaceApi, FaceRouter, FaceTransformer, FaceTransformService
-from runkk_ai.runbody import InMemoryResultRepository, MonthlyRouter, MonthlyService, RunbodyRouter, RunbodyService
+from runkk_ai.runbody import (
+    InMemoryResultRepository,
+    MonthlyRouter,
+    MonthlyService,
+    ResultRepository,
+    RunbodyRouter,
+    RunbodyService,
+)
+from runkk_ai.storage import PgCoachStore, PgResultRepository, create_engine, upgrade
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +92,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(FaceRouter)
     app.include_router(RunbodyRouter)
     app.include_router(MonthlyRouter)
+    app.include_router(CoachRouter)
     return app
 
 
@@ -94,23 +112,64 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             max_image_bytes=settings.max_image_bytes,
             max_image_pixels=settings.max_image_pixels,
         )
-        # 분석 결과 저장소는 S15P31A207-163에서 analytics 스키마 구현으로 바꾼다.
-        # 그 전까지는 재시작하면 비는 메모리 저장소다
-        repository = InMemoryResultRepository()
+        repository, coach_store, storage = await _build_storage(settings, resources)
         runbody = RunbodyService(repository)
         resources.push_async_callback(runbody.aclose)
         app.state.runbody_service = runbody
-        app.state.monthly_service = MonthlyService(repository)
+        monthly = MonthlyService(repository)
+        app.state.monthly_service = monthly
+        coach_model = _build_coach_model(settings)
+        if coach_model is not None:
+            resources.push_async_callback(coach_model.aclose)
+        app.state.coach_service = CoachService(
+            coach_model,
+            CoachTools(repository, monthly),
+            coach_store,
+            daily_cap=settings.coach_daily_hard_cap,
+            user_daily_cap=settings.coach_user_daily_cap,
+            timeout_s=settings.coach_timeout_s,
+        )
         logger.info(
-            "ai_started llm_provider=%s llm_model=%s llm_key_set=%s face_impl=%s face_url_set=%s"
-            " runbody_storage=memory",
+            "ai_started llm_provider=%s llm_model=%s llm_key_set=%s face_impl=%s face_url_set=%s runbody_storage=%s"
+            " coach_model=%s coach_key_set=%s",
             settings.llm_provider,
             settings.llm_model,
             _llm_key(settings) is not None,
             settings.face_impl,
             bool(settings.face_api_url),
+            storage,
+            settings.coach_model,
+            settings.anthropic_api_key is not None,
         )
         yield
+
+
+async def _build_storage(
+    settings: Settings, resources: AsyncExitStack
+) -> tuple[ResultRepository, CoachMessageStore, str]:
+    """RUNKK_DB_URL이 있으면 analytics 테이블을 최신으로 맞추고 PostgreSQL 저장소(분석 결과·코치 대화)를 쓴다.
+
+    연결이나 마이그레이션이 실패하면 예외가 올라가 기동을 멈춘다. 설정해 둔 DB를 두고 조용히 메모리로 뜨면
+    재시작 때마다 결과가 사라지는 것을 아무도 모른다.
+    """
+    if settings.db_url is None:
+        return InMemoryResultRepository(), InMemoryCoachStore(), "memory"
+    engine = create_engine(settings.db_url.get_secret_value())
+    resources.push_async_callback(engine.dispose)
+    await upgrade(engine)
+    return PgResultRepository(engine), PgCoachStore(engine), "postgres"
+
+
+def _build_coach_model(settings: Settings) -> CoachModel | None:
+    """키가 없으면 모델을 만들지 않는다. 그때 /coach/chat은 503 LLM_UNAVAILABLE이다."""
+    if settings.anthropic_api_key is None:
+        return None
+    return ClaudeCoachModel(
+        api_key=settings.anthropic_api_key.get_secret_value(),
+        model=settings.coach_model,
+        max_tokens=settings.coach_max_tokens,
+        timeout_s=settings.coach_timeout_s,
+    )
 
 
 def _check_llm_timeout(settings: Settings) -> None:
