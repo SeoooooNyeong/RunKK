@@ -28,12 +28,13 @@ uv sync                      # .venv 생성, 개발 도구 포함
 ```bash
 uv run ruff format --check .
 uv run ruff check .
-uv run lint-imports          # core·comment·face·runbody 상호 독립, 모듈 안 라우터 → 서비스 → 하위 한 방향
+uv run lint-imports          # core·comment·face·runbody 상호 독립, storage는 main만 끼움, 모듈 안 한 방향
 uv run mypy
 uv run pytest --cov=runkk_ai # 라인 커버리지 80% 미만이면 실패
 ```
 
 Windows 콘솔에서 `lint-imports` 한글이 깨지면 `PYTHONIOENCODING=utf-8`을 붙인다.
+`tests/storage`의 PostgreSQL 시험은 `RUNKK_TEST_DB_URL`이 있을 때만 돈다(CI는 항상 돈다. 아래 "PostgreSQL 저장소").
 
 ## 실행
 
@@ -80,6 +81,41 @@ curl localhost:8000/users/u_demo/months/2026-10 -H "$H"   # 2회 5,035 m, 5각 �
 | 개인 기준값 | 최근 10회 평균, 3회부터 | `runbody/load.py` |
 
 체형 단계(아바타)는 백엔드가 정한다. 월간 결과의 `avatarInputs`(최근 14일 거리·러닝 수)는 그 입력값이다.
+
+## PostgreSQL 저장소
+
+`RUNKK_DB_URL`이 없으면 분석 결과를 메모리에만 둔다(재시작하면 사라진다). 있으면 같은 PostgreSQL의 `analytics` 스키마에 저장한다.
+
+| 대상 | 내용 |
+|---|---|
+| `analytics.session_result` | 세션 1행. 상태(`pending`·`done`·`failed`)·사용자·시작 시각, 결과는 응답 JSON 그대로 `result`(jsonb) |
+| `analytics.analysis_event` | 상태가 바뀔 때마다 1행(접수·완료·실패, 오류 코드) |
+| `analytics.v_session_result` | 완료된 결과만. 거리·페이스·심박·5각 점수·헤드라인을 컬럼으로 꺼낸 뷰(api·코치 조회용) |
+
+- 테이블은 Alembic(`runkk_ai/storage/migrations`)이 관리하고, ai가 **기동할 때 `upgrade head`를 스스로 돈다**. DB에 못 붙거나 마이그레이션이 실패하면 기동을 멈춘다.
+- 스키마와 `runkk_ai` 계정은 ai가 만들지 않는다. EC2에서는 백엔드 Flyway가, 로컬에서는 `scripts/analytics-dev-init.sql`이 만든다. `runkk_ai`는 `analytics`를 소유하고 `public`(백엔드 테이블)은 읽기만 한다.
+- 스키마를 바꿀 때는 `runkk_ai/storage/tables.py`와 새 리비전(`migrations/versions/`)을 함께 고친다. 둘이 어긋나면 `test_migration_matches_table_definitions`가 실패한다.
+
+로컬에서 띄우기(백엔드 로컬 compose의 PostgreSQL 17을 같이 쓴다. 저장소 루트에서):
+
+```bash
+docker compose -f backend/compose.yaml up -d postgres
+docker compose -f backend/compose.yaml exec -T postgres psql -U runkk -d runkk < ai/scripts/analytics-dev-init.sql
+
+cd ai
+export RUNKK_DB_URL=postgresql://runkk_ai:runkk_ai@localhost:5432/runkk   # 로컬 전용 비밀번호
+uv run uvicorn --factory runkk_ai.main:create_app --port 8000             # 기동 때 테이블 생성
+# 분석 2회를 보낸 뒤
+docker compose -f backend/compose.yaml exec postgres psql -U runkk -d runkk \
+  -c "select session_id, distance_meters, headline from analytics.v_session_result"
+```
+
+PostgreSQL 시험(시험마다 `analytics` 스키마를 지우고 다시 만든다. 개발 DB와 다른 DB를 쓴다):
+
+```bash
+docker compose -f ../backend/compose.yaml exec postgres createdb -U runkk runkk_test
+RUNKK_TEST_DB_URL=postgresql://runkk:runkk@localhost:5432/runkk_test uv run pytest tests/storage
+```
 
 ## 컨테이너
 
