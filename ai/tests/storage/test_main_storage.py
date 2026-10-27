@@ -24,8 +24,8 @@ async def test_without_db_url_uses_memory() -> None:
 async def test_with_db_url_migrates_and_stores_in_postgres() -> None:
     engine = await fresh_engine()  # 빈 analytics 스키마. 테이블은 기동이 만든다
     async with engine.begin() as conn:
-        await conn.execute(text("DROP TABLE analytics.alembic_version, analytics.analysis_event CASCADE"))
-        await conn.execute(text("DROP TABLE analytics.session_result CASCADE"))
+        await conn.execute(text("DROP SCHEMA analytics CASCADE"))
+        await conn.execute(text("CREATE SCHEMA analytics"))
     url = str(engine.url.render_as_string(hide_password=False))
     app = create_app(make_settings(db_url=url))
 
