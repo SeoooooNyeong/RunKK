@@ -68,7 +68,7 @@ def build_situations(total: int, seed: int, fixtures: Path = FIXTURES) -> list[d
 
 
 # ---------- 2) 초안 ----------
-def anthropic_teacher(model: str, max_tokens: int = 600) -> Teacher:
+def anthropic_teacher(model: str, max_tokens: int = 1500) -> Teacher:
     import anthropic  # 초안 단계에서만 쓴다
 
     key = os.environ.get("RUNKK_ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")
