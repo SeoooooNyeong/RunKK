@@ -1,0 +1,12 @@
+# infra/monitoring/grafana/dashboards/*.json을 "런크크" 폴더에 넣는다. 화면에서 고친 내용은 저장되지 않으니 JSON을 고쳐 배포한다
+apiVersion: 1
+
+providers:
+  - name: runkk
+    folder: 런크크
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    updateIntervalSeconds: 60
+    options:
+      path: /etc/grafana/dashboards

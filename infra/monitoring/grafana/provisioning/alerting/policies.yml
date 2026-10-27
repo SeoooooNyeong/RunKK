@@ -1,0 +1,10 @@
+# 모든 알림을 runkk-alerts 채널로 보낸다. 같은 알림은 4시간마다 다시 알린다(복구되면 복구 메시지 한 번).
+apiVersion: 1
+
+policies:
+  - orgId: 1
+    receiver: mattermost-runkk-alerts
+    group_by: ['alertname', 'env']
+    group_wait: 30s
+    group_interval: 5m
+    repeat_interval: 4h

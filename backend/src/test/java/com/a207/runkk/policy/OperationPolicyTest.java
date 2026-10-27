@@ -75,6 +75,24 @@ class OperationPolicyTest {
     }
 
     @Test
+    @org.junit.jupiter.api.DisplayName("서버 스위치가 꺼져 있으면 운영 기준값과 관계없이 셀카를 막는다(베타 결정 2026-10-23)")
+    void selfieServerSwitchOff_overridesStoredToggle() {
+        store(SettingKey.SELFIE_ENABLED, "true");
+        OperationPolicy policy = new OperationPolicy(repository, false);
+
+        assertThat(policy.features()).isEqualTo(new FeatureToggles(false, true));
+    }
+
+    @Test
+    void selfieServerSwitchOn_followsStoredToggle() {
+        store(SettingKey.SELFIE_ENABLED, "false");
+
+        assertThat(new OperationPolicy(repository, true).features().selfieEnabled()).isFalse();
+        assertThat(new OperationPolicy(new InMemoryOperationSettingRepository(), true).features())
+                .isEqualTo(new FeatureToggles(true, true));
+    }
+
+    @Test
     void itemPrices_overrideShopItemPrices() {
         store(
                 SettingKey.SHOP_ITEMS,

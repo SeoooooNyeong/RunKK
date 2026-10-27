@@ -1,0 +1,151 @@
+# 런크크 에지 스택: 한 서버에 한 벌만 둔다. nginx(80·443·8443) + 모니터링(prometheus·grafana·node-exporter) + certbot.
+#   443  → prod 환경 api-prod (main 브랜치, 앱 prod 플레이버), /grafana/ 도 여기
+#   8443 → develop 환경 api-develop (develop 브랜치, 앱 develop 플레이버)
+#   80   → ACME 확인 + https 리다이렉트(인증서 전), HTTP 모드에서는 prod
+# 환경별 api·ai·postgres·redis는 docker-compose.yml(프로젝트 runkk-develop / runkk-prod)이 띄우고, api만 이 스택의 기본 망(runkk_default)에
+# api-<환경> 별칭으로 붙는다. 같은 EC2의 AppFlowy nginx도 이 망에 appflowy-nginx 별칭으로 붙어 있다(nginx/https/wiki.conf.template).
+# 프로젝트 이름 runkk는 분리 전과 같다. 그래서 망(runkk_default)·인증서 볼륨(runkk_letsencrypt)·컨테이너 이름(runkk-nginx-1)이 그대로 이어진다.
+# 사용: ./deploy.sh 가 develop·prod 어느 배포에서든 이 스택을 먼저 맞춘다(바뀐 컨테이너만 다시 만들고, nginx·prometheus 설정은 검사 뒤 다시 읽힌다).
+# 값은 edge.env(edge.env.example, CI 변수 INFRA_ENV_EDGE)에서 읽는다. 환경별 .env와 섞지 않아 두 배포가 서로 다른 값으로 에지를 흔들지 않는다.
+name: runkk
+
+# 모든 컨테이너 로그를 크기로 돌린다(NFR-020). 컨테이너를 다시 만들면 이 로그는 사라지므로 오래 둘 기록은 api 파일 로그(docker-compose.yml)에 남긴다
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
+
+services:
+  nginx:
+    image: nginx:1.28-alpine
+    restart: unless-stopped
+    logging: *default-logging
+    ports:
+      - "${NGINX_HTTP_PORT:-80}:80"
+      - "${NGINX_HTTPS_PORT:-443}:443"
+      # develop 환경. 컨테이너 안은 8443으로 고정(템플릿), 호스트 포트만 바꿀 수 있다
+      - "${NGINX_DEVELOP_PORT:-8443}:8443"
+    environment:
+      SERVER_NAME: ${SERVER_NAME:-localhost}
+    volumes:
+      # HTTP(초기)·HTTPS(인증서 발급 뒤) 설정은 폴더로 나눠 두고 deploy.sh가 NGINX_MODE로 고른다
+      - ./nginx/${NGINX_MODE:-http}:/etc/nginx/templates:ro
+      # 두 모드 공통 location 조각(envsubst 없음). server 블록이 include한다
+      - ./nginx/common:/etc/nginx/runkk:ro
+      # 공개 홈·법정 고지 문서(/, /legal/*). 443·8443 모두 정적으로 보여 준다
+      - ./nginx/static:/usr/share/nginx/runkk:ro
+      - certbot-www:/var/www/certbot:ro
+      - letsencrypt:/etc/letsencrypt:ro
+
+  # ---------- 모니터링 (S15P31A207-78, infra/monitoring, README "모니터링") ----------
+  # 셋 다 호스트 포트 없이 내부 망만 쓴다. Grafana만 nginx /grafana/(443)로 밖에 보이고 로그인해야 들어간다.
+  # 한 벌이 두 환경 api를 모두 읽는다(prometheus.yml env 라벨). 메모리 제한은 같은 EC2(15GiB, 4코어)의 두 환경·CI 빌드·AppFlowy 스택을 지키는 값이다.
+  prometheus:
+    image: prom/prometheus:v3.15.1
+    restart: unless-stopped
+    logging: *default-logging
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      # 15일이 지나거나 2GB를 넘으면 오래된 블록부터 지운다
+      - --storage.tsdb.retention.time=15d
+      - --storage.tsdb.retention.size=2GB
+      # deploy.sh가 설정을 바꾼 뒤 POST /-/reload로 다시 읽힌다(포트는 밖에 열리지 않는다)
+      - --web.enable-lifecycle
+    volumes:
+      # 파일 하나가 아니라 폴더를 연결한다. 파일 하나를 연결하면 파일을 바꿔 쓸 때(새 inode) 컨테이너가 옛 내용을 계속 본다
+      - ./monitoring/prometheus:/etc/prometheus:ro
+      - prometheus-data:/prometheus
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 512m  # 지표 수집 대상 4개, 15초 간격이면 수십 MiB다. Prometheus 3은 이 제한으로 GOMEMLIMIT을 잡는다
+    expose:
+      - "9090"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9090/-/ready"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  # 호스트 지표(CPU·메모리·디스크). 호스트 루트를 읽기 전용으로 보고 호스트 프로세스 공간을 쓴다. 네트워크는 compose 망이다
+  node-exporter:
+    image: prom/node-exporter:v1.12.1
+    restart: unless-stopped
+    logging: *default-logging
+    command:
+      - --path.rootfs=/host
+    pid: host
+    volumes:
+      # 서버(Linux)는 기본값(/, rslave)을 쓴다. Docker Desktop은 VM 루트 연결을 거부하므로 로컬 edge.env만
+      # NODE_EXPORTER_HOST_ROOT=/tmp, NODE_EXPORTER_ROOT_PROPAGATION=rprivate로 둔다(호스트 지표는 의미 없음)
+      - ${NODE_EXPORTER_HOST_ROOT:-/}:/host:ro,${NODE_EXPORTER_ROOT_PROPAGATION:-rslave}
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 64m
+    expose:
+      - "9100"
+
+  grafana:
+    image: grafana/grafana:13.2.4
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      # 관리자 비밀번호는 grafana-data 볼륨이 처음 만들어질 때만 쓰인다. 바꾸려면 README "모니터링"의 reset-admin-password
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in edge.env}
+      # nginx가 /grafana/ 경로를 그대로 넘긴다(prod 443). 주소·쿠키 Secure는 deploy.sh가 NGINX_MODE(http|https)에 맞춰 정한다
+      GF_SERVER_DOMAIN: ${SERVER_NAME:-localhost}
+      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-http://localhost/grafana/}
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      GF_SECURITY_COOKIE_SECURE: ${GRAFANA_COOKIE_SECURE:-false}
+      GF_SECURITY_DISABLE_GRAVATAR: "true"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_USERS_ALLOW_ORG_CREATE: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+      GF_LOG_MODE: console
+      # 장애 알림 Mattermost 웹훅(provisioning/alerting/contact-points.yml). 없으면 닿지 않는 주소로 두어 Grafana는 뜨고 전송만 실패한다
+      GRAFANA_ALERT_WEBHOOK_URL: ${GRAFANA_ALERT_WEBHOOK_URL:-http://127.0.0.1:9/alert-webhook-not-set}
+    volumes:
+      # provisioning 폴더 전체를 덮으면 이미지의 빈 plugins 폴더가 가려져 기동 때 오류 로그가 나므로 쓰는 폴더만 연결한다
+      - ./monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./monitoring/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/provisioning/alerting:/etc/grafana/provisioning/alerting:ro
+      - ./monitoring/grafana/dashboards:/etc/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 512m  # 로컬 측정: 대시보드 2개를 연 뒤 상주 약 210MiB(+파일 캐시)
+    expose:
+      - "3000"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      - prometheus
+
+  # 요청할 때만 돈다:  docker compose -f docker-compose.edge.yml --env-file edge.env run --rm certbot certonly ...
+  certbot:
+    image: certbot/certbot
+    profiles: ["certbot"]
+    logging: *default-logging
+    volumes:
+      - certbot-www:/var/www/certbot
+      - letsencrypt:/etc/letsencrypt
+
+volumes:
+  certbot-www:
+  letsencrypt:
+  prometheus-data:
+  grafana-data:

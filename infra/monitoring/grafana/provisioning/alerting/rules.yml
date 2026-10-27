@@ -1,0 +1,138 @@
+# 런크크 장애 알림 규칙(S15P31A207-78, SQA 필수 6, NFR-015·016). 원본은 이 파일이라 화면에서 고친 내용은 저장되지 않는다.
+# 같은 서버의 Grafana가 보내므로 EC2 자체가 멈추면 알림이 오지 않는다. 그 경우는 외부 가동 감시가 맡는다(infra/README.md "장애 알림").
+# 각 규칙: A = Prometheus 즉시 질의, B = 마지막 값, C = 임계값. 질의 결과가 없으면(트래픽 없음 등) 정상으로 본다.
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: runkk-server
+    folder: 런크크
+    interval: 1m
+    rules:
+      # prod api가 응답하지 않는다. 6시간 안에 한 번이라도 떠 있던 때만 본다(prod를 처음 올리기 전에는 울리지 않게)
+      - uid: runkk-api-down
+        title: prod api 응답 없음
+        condition: C
+        for: 2m
+        noDataState: OK
+        execErrState: Error
+        labels:
+          env: prod
+          severity: critical
+        annotations:
+          summary: prod api(api-prod:8081)가 2분 넘게 응답하지 않는다
+          description: https://k15a207.p.ssafy.io/actuator/health 와 docker compose -p runkk-prod ps 를 확인한다. 복구 목표 1시간(NFR-016)
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: (1 - up{job="api",env="prod"}) * (max_over_time(up{job="api",env="prod"}[6h]) == bool 1)
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, expression: A, reducer: last }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+
+      # prod 5xx 비율. 분당 3건 이상 요청이 있을 때만 본다(새벽 한두 건 실패로 울리지 않게)
+      - uid: runkk-api-5xx
+        title: prod 5xx 비율 5% 초과
+        condition: C
+        for: 5m
+        noDataState: OK
+        execErrState: Error
+        labels:
+          env: prod
+          severity: warning
+        annotations:
+          summary: prod api 5xx 응답이 5분 동안 5%를 넘는다
+          description: Grafana 런크크 API 대시보드(환경 prod) "5xx 응답" 패널과 api 로그(docker logs runkk-prod-api-1)를 본다
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: (sum(rate(http_server_requests_seconds_count{job="api",env="prod",uri!~"/actuator.*",status=~"5.."}[5m])) or vector(0)) / (sum(rate(http_server_requests_seconds_count{job="api",env="prod",uri!~"/actuator.*"}[5m])) > 0.05)
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, expression: A, reducer: last }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: { type: gt, params: [0.05] }
+
+      - uid: runkk-host-disk
+        title: 서버 디스크 90% 초과
+        condition: C
+        for: 10m
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: warning
+        annotations:
+          summary: EC2 루트 디스크 사용률이 90%를 넘는다
+          description: docker system df, 백업 폴더(infra/README.md "백업"), Prometheus 보존 용량을 확인한다
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: 1 - node_filesystem_avail_bytes{job="node",mountpoint="/",fstype!="rootfs"} / node_filesystem_size_bytes{job="node",mountpoint="/",fstype!="rootfs"}
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, expression: A, reducer: last }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: { type: gt, params: [0.9] }
+
+      - uid: runkk-host-memory
+        title: 서버 메모리 90% 초과
+        condition: C
+        for: 10m
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: warning
+        annotations:
+          summary: EC2 메모리 사용률이 10분 동안 90%를 넘는다
+          description: docker stats 로 컨테이너별 사용량을 보고, 메모리 제한(infra/README.md "메모리")과 비교한다
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: 1 - node_memory_MemAvailable_bytes{job="node"} / node_memory_MemTotal_bytes{job="node"}
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, expression: A, reducer: last }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: { type: gt, params: [0.9] }
