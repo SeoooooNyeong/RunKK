@@ -121,6 +121,20 @@ docker compose -f ../backend/compose.yaml exec postgres createdb -U runkk runkk_
 RUNKK_TEST_DB_URL=postgresql://runkk:runkk@localhost:5432/runkk_test uv run pytest tests/storage
 ```
 
+## writer 학습 데이터 (S15P31A207-191)
+
+자체 모델 runkk-writer가 배울 (분석 요약 → 코칭 문장) 쌍을 만든다. 코드는 `runkk_ai/writer/`.
+
+| 단계 | 명령 | 결과(`data/writer/`, git에 올리지 않음) |
+|---|---|---|
+| 1. 상황 | `uv run python -m runkk_ai.writer.dataset situations --total 1000` | `situations.jsonl`: 실측 2회를 변형해 엔진으로 분석한 상황. 고칠 점 규칙 8개가 고르게 섞인다 |
+| 2. 초안 | `uv run python -m runkk_ai.writer.dataset draft --model claude-opus-5-5` | `drafts.jsonl`: API 모델(GMS)이 쓴 문장. 끊겨도 다시 돌리면 남은 것만 묻는다 |
+| 3. 검사 | `uv run python -m runkk_ai.writer.dataset check --eval 100` | `train.jsonl`(학습, 대화 형식), `eval.jsonl`(홀드아웃), `report.json`(탈락 이유·규칙별 개수) |
+
+- 초안 단계는 `RUNKK_ANTHROPIC_API_KEY`(GMS 키)와 `ANTHROPIC_BASE_URL`(GMS 주소)이 필요하다. 먼저 `draft --limit 5`로 문장을 보고 지시문(`writer/prompt.py`)을 다듬은 뒤 전부 돌린다.
+- writer는 판단하지 않는다. 엔진 규칙이 고른 고칠 점·좋은 점과 템플릿 문장(`brief.template`)을 받아 자연스럽게 다시 쓴다. 숫자는 요약에 있는 것만 쓴다(`writer/checks.py`가 지어낸 숫자를 걸러 낸다).
+- 지시문이나 요약 형식을 바꾸면 `PROMPT_VERSION`·`BRIEF_VERSION`을 올리고 데이터를 다시 만든다.
+
 ## 컨테이너
 
 ```bash
