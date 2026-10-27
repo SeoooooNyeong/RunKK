@@ -90,6 +90,15 @@ ai:test:
   extends: .ai
   stage: test
   needs: [ai:lint]
+  # analytics 저장소 시험(tests/storage)용 PostgreSQL. 운영과 같은 17. 시험이 analytics 스키마를 지우고 다시 만든다
+  services:
+    - name: postgres:17-alpine
+      alias: postgres
+  variables:
+    POSTGRES_DB: runkk_test
+    POSTGRES_USER: runkk
+    POSTGRES_PASSWORD: runkk
+    RUNKK_TEST_DB_URL: postgresql://runkk:runkk@postgres:5432/runkk_test
   script:
     - uv run pytest --cov=runkk_ai --cov-report=term --cov-report=xml:coverage.xml --junitxml=report.xml
   coverage: '/^TOTAL.+?(\d+(?:\.\d+)?)%$/'
