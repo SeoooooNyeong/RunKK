@@ -15,7 +15,8 @@ android {
         // Wearable Data Layer는 폰 앱과 같은 applicationId·서명으로 짝을 짓는다.
         applicationId = "com.a207.runkk"
         minSdk = 30
-        versionCode = 1
+        // 폰과 같은 기준값에 1을 더해 Play 버전 코드를 분리한다.
+        versionCode = providers.gradleProperty("runkk.versionCode").orElse("10").get().toInt() + 1
         versionName = "0.1.0"
     }
 
