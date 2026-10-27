@@ -5,6 +5,7 @@ import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.account.Gender
+import com.a207.runkk.app.domain.account.GuestSession
 import com.a207.runkk.app.domain.account.MemberSettings
 import com.a207.runkk.app.domain.account.Profile
 import com.a207.runkk.app.domain.account.ProviderToken
@@ -48,7 +49,6 @@ val sampleProfile = Profile(
     disclosure = "SELF",
     tier = "골드",
     level = 3,
-    tags = setOf("SOCIAL_RUN", "EVENING"),
     intro = "퇴근 뒤 한강",
     runimalType = "MORNING_SPARROW",
     faceKey = null,
@@ -70,7 +70,7 @@ class FakeAccountRepository : AccountRepository {
     )
     var legal: String = "약관 본문"
     var lastForm: SignUpForm? = null
-    var lastEdit: Triple<String, String?, Set<String>>? = null
+    var lastEdit: Pair<String, String?>? = null
 
     private fun <T> call(name: String, value: () -> T): Outcome<T> {
         calls += name
@@ -89,12 +89,22 @@ class FakeAccountRepository : AccountRepository {
 
     override suspend fun logout(): Outcome<Unit> = call("logout") {}
 
+    var lastGuestConsents: Map<String, Boolean>? = null
+    var guestResult: Outcome<GuestSession>? = null
+
+    override suspend fun startAsGuest(consents: Map<String, Boolean>): Outcome<GuestSession> {
+        lastGuestConsents = consents
+        return guestResult ?: call("startAsGuest") { GuestSession(SessionTokens("a", "r"), "g1.1.credential") }
+    }
+
+    override suspend fun linkSocialAccount(token: ProviderToken): Outcome<Unit> = call("linkSocialAccount") {}
+
     override suspend fun withdraw(): Outcome<Unit> = call("withdraw") {}
 
     override suspend fun profile(memberId: Long): Outcome<Profile> = call("profile:$memberId") { profile }
 
-    override suspend fun editProfile(nickname: String, intro: String?, tags: Set<String>): Outcome<Unit> {
-        lastEdit = Triple(nickname, intro, tags)
+    override suspend fun editProfile(nickname: String, intro: String?): Outcome<Unit> {
+        lastEdit = nickname to intro
         return call("editProfile") {}
     }
 
@@ -129,7 +139,28 @@ class FakeSessionRepository : SessionRepository {
 
     override suspend fun clear(): Outcome<Unit> {
         state.value = false
+        credential = null
         return Outcome.Success(Unit)
+    }
+
+    var credential: String? = null
+
+    override suspend fun saveGuestCredential(credential: String): Outcome<Unit> {
+        this.credential = credential
+        return Outcome.Success(Unit)
+    }
+
+    override suspend fun clearGuestCredential(): Outcome<Unit> {
+        credential = null
+        return Outcome.Success(Unit)
+    }
+
+    /** 게스트 자격 증명을 읽은 횟수(어느 디스패처에서 읽는지 시험한다). */
+    var guestReads = 0
+
+    override suspend fun hasGuestCredential(): Boolean {
+        guestReads++
+        return credential != null
     }
 }
 
@@ -152,6 +183,8 @@ class FakeSettingsRepository : SettingsRepository {
     override fun birthYear(): Int? = null
 
     override fun guidanceSettings() = GuidanceSettings.DEFAULT
+
+    override fun isGuest(): Boolean = false
 
     override fun changes(): Flow<SettingsSnapshot> = flowOf(SettingsSnapshot.SAFE)
 

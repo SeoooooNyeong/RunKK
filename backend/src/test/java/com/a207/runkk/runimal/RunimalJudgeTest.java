@@ -3,16 +3,12 @@ package com.a207.runkk.runimal;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.a207.runkk.common.Distance;
-import com.a207.runkk.common.PersonalityTag;
-import com.a207.runkk.common.TagOwner;
-import com.a207.runkk.common.TagSet;
 import com.a207.runkk.policy.RunimalRule;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.OptionalDouble;
-import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -116,25 +112,7 @@ class RunimalJudgeTest {
     }
 
     @Test
-    @DisplayName("임시 유형: 동행·코스는 태그, 거리·습관은 데이터")
-    void provisional_usesTagsForCompanionAndCourse() {
-        TagSet tags =
-                TagSet.of(
-                        Set.of(PersonalityTag.SOCIAL_RUN, PersonalityTag.EXPLORER_ROUTE),
-                        TagOwner.RUNNER);
-        RunSample s =
-                sample(
-                        List.of(
-                                run(0, 2_000, 7, true, false),
-                                run(1, 2_000, 7, true, false),
-                                run(2, 2_000, 7, true, false)));
-        Judged judged = judge.judgeProvisional(s, tags, RULE);
-        assertThat(judged.type()).isEqualTo(RunimalType.EXPLORER_OTTER);
-        assertThat(judged.ratios().ratioOfA(RunimalAxis.COMPANION)).isZero();
-    }
-
-    @Test
-    @DisplayName("임시 유형: 태그가 없으면 데이터, 데이터도 없으면 A")
+    @DisplayName("TC-1188 임시 유형(태그 매개변수 없음): 데이터로 판정, 표본이 없으면 코스만 탐험길(D-147)")
     void provisional_fallsBackToDataThenA() {
         RunSample s =
                 sample(
@@ -142,26 +120,51 @@ class RunimalJudgeTest {
                                 run(0, 8_000, 7, false, true),
                                 run(1, 8_000, 15, false, true),
                                 run(2, 8_000, 22, false, true)));
-        Judged judged = judge.judgeProvisional(s, TagSet.empty(TagOwner.RUNNER), RULE);
+        Judged judged = judge.judgeProvisional(s, RULE);
         assertThat(judged.type()).isEqualTo(RunimalType.WILD_HORSE);
 
-        Judged empty =
-                judge.judgeProvisional(sample(List.of()), TagSet.empty(TagOwner.RUNNER), RULE);
-        assertThat(empty.type()).isEqualTo(RunimalType.MORNING_SPARROW);
+        Judged empty = judge.judgeProvisional(sample(List.of()), RULE);
+        assertThat(empty.type()).isEqualTo(RunimalType.ALLEY_SQUIRREL);
+        for (RunimalAxis axis : RunimalAxis.values()) {
+            assertThat(empty.ratios().ratioOfA(axis)).as(axis.name()).isEqualTo(0.5);
+        }
     }
 
     @Test
-    @DisplayName("확정 유형: 4축 데이터, 코스 표본이 없으면 태그의 코스 값")
+    @DisplayName("TC-1186 확정 유형: 코스 표본이 없으면 탐험길(경로 파기만 남은 경우도 같다)")
     void confirmed_allData_courseFallsBackToTag() {
         List<RunSample.SampleRun> runs = new ArrayList<>();
         for (int i = 0; i < 10; i++) {
             runs.add(run(i, 2_000, 7, null, false));
         }
-        TagSet familiar = TagSet.of(Set.of(PersonalityTag.FAMILIAR_ROUTE), TagOwner.RUNNER);
-        assertThat(judge.judgeConfirmed(sample(runs), familiar, RULE).type())
-                .isEqualTo(RunimalType.MORNING_SPARROW);
-        assertThat(judge.judgeConfirmed(sample(runs), TagSet.empty(TagOwner.RUNNER), RULE).type())
+        Judged judged = judge.judgeConfirmed(sample(runs), RULE);
+        assertThat(judged.type()).isEqualTo(RunimalType.ALLEY_SQUIRREL);
+        assertThat(judged.ratios().ratioOfA(RunimalAxis.COURSE)).isEqualTo(0.5);
+        assertThat(judge.judgeProvisional(sample(runs.subList(0, 3)), RULE).type())
                 .isEqualTo(RunimalType.ALLEY_SQUIRREL);
+    }
+
+    @Test
+    @DisplayName("TC-1184 ③ 비교 대상이 없던 첫 러닝(거짓)도 표본: 1 ÷ 2 = 0.5 < 0.6 → 탐험길")
+    void confirmed_noComparisonRunCountsAsNotSame() {
+        List<RunSample.SampleRun> runs = new ArrayList<>();
+        runs.add(run(0, 2_000, 7, false, false));
+        runs.add(run(1, 2_000, 7, true, false));
+        for (int i = 2; i < 10; i++) {
+            runs.add(run(i, 2_000, 7, null, false));
+        }
+        Judged judged = judge.judgeConfirmed(sample(runs), RULE);
+        assertThat(judged.ratios().ratioOfA(RunimalAxis.COURSE)).isEqualTo(0.5);
+        assertThat(judged.type()).isEqualTo(RunimalType.ALLEY_SQUIRREL);
+    }
+
+    @Test
+    @DisplayName("AxisEvaluator.leanWithoutSample: 코스만 B, 나머지 A(D-147, E-08)")
+    void leanWithoutSample() {
+        assertThat(new CourseAxisEvaluator().leanWithoutSample()).isEqualTo(AxisLean.B);
+        assertThat(new CompanionAxisEvaluator().leanWithoutSample()).isEqualTo(AxisLean.A);
+        assertThat(new DistanceAxisEvaluator().leanWithoutSample()).isEqualTo(AxisLean.A);
+        assertThat(new HabitAxisEvaluator().leanWithoutSample()).isEqualTo(AxisLean.A);
     }
 
     @Test

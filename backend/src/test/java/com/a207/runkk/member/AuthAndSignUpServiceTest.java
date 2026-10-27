@@ -45,7 +45,12 @@ class AuthAndSignUpServiceTest {
     }
 
     private AuthService auth(RuntimeException failure) {
-        return new AuthService(List.of(gateway(failure)), repository, tokens);
+        return new AuthService(
+                List.of(gateway(failure)),
+                repository,
+                tokens,
+                clock,
+                org.springframework.transaction.support.TransactionOperations.withoutTransaction());
     }
 
     private SignUpService signUp(ReservedNicknameChecker... reserved) {
@@ -157,7 +162,7 @@ class AuthAndSignUpServiceTest {
                                 new SignUpCommand(
                                         tokens.issueSignUpTicket(MemberFixtures.account("n")),
                                         MemberFixtures.form(null)));
-        assertThat(r.nickname()).matches(SignUpService.DEFAULT_NICKNAME + "\\d{4}");
+        assertThat(r.nickname()).matches("러너" + "\\d{4}");
     }
 
     @Test
@@ -176,17 +181,9 @@ class AuthAndSignUpServiceTest {
 
     @Test
     void signUp_decisionTableRejection_leavesNothing() {
-        SignUpForm f = MemberFixtures.form("달리는곰");
-        SignUpForm under14 =
-                new SignUpForm(
-                        f.nickname(),
-                        2015,
-                        f.gender(),
-                        null,
-                        null,
-                        f.consents(),
-                        f.recordVisibility(),
-                        f.tags());
+        java.util.Map<ConsentItem, Boolean> consents = MemberFixtures.requiredConsents();
+        consents.put(ConsentItem.AGE_14_PLUS, false);
+        SignUpForm under14 = new SignUpForm("달리는곰", consents);
         assertReason(
                 () ->
                         signUp().signUp(

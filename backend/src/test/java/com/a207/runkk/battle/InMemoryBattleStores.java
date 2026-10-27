@@ -222,14 +222,17 @@ public final class InMemoryBattleStores {
         }
 
         @Override
-        public synchronized boolean removeWaiting(long memberId) {
+        public synchronized QueueRemoval removeIfWaiting(long memberId) {
             check();
             MatchTicket ticket = tickets.get(memberId);
-            if (ticket == null || ticket.getStatus() != MatchStatus.WAITING) {
-                return false;
+            if (ticket == null) {
+                return QueueRemoval.ABSENT;
+            }
+            if (ticket.getStatus() != MatchStatus.WAITING) {
+                return QueueRemoval.ASSIGNED;
             }
             tickets.remove(memberId);
-            return true;
+            return QueueRemoval.REMOVED;
         }
 
         @Override

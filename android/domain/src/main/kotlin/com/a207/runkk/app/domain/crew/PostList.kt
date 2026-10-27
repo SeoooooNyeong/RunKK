@@ -7,9 +7,14 @@ import java.time.LocalDate
 
 /** 크루 게시판(서버 crew.PostListView, FR-131·FR-133). [nextCursor]가 null이면 마지막 쪽이다. */
 data class PostList(val posts: List<Item>, val nextCursor: Long? = null) {
+    /** 게시 종류(서버 crew.PostKind, v0.11 F.6.4). 모르는 종류의 글은 api.crew 해독이 목록에서 버린다(F.2.4). */
     enum class Kind {
         CHEER,
-        CREW_RUN
+        CREW_RUN,
+        MEETUP,
+        NOTICE,
+        POLL,
+        BOARD
     }
 
     data class Item(
@@ -19,8 +24,18 @@ data class PostList(val posts: List<Item>, val nextCursor: Long? = null) {
         val summary: String,
         val writtenAt: Instant,
         val isMine: Boolean,
-        /** 크루런 모집글의 크루런 정보. 응원글이면 null이다. */
-        val crewRun: CrewRunInfo? = null
+        /** 크루런 모집글의 크루런 정보. 다른 종류면 null이다. */
+        val crewRun: CrewRunInfo? = null,
+        /** 본인 글이거나 운영진 이상이면 참(FR-213). */
+        val canDelete: Boolean = false,
+        /** 대면 모임 일정(MEETUP). */
+        val meetup: Meetup? = null,
+        /** 공지(NOTICE). */
+        val notice: Notice? = null,
+        /** 투표(POLL). */
+        val poll: Poll? = null,
+        /** 게시판 글(BOARD)의 본문·사진. */
+        val board: BoardPost? = null
     )
 
     /**
@@ -33,8 +48,10 @@ data class PostList(val posts: List<Item>, val nextCursor: Long? = null) {
         val voteDeadline: Instant?,
         val status: CrewRunStatus?,
         val goingCount: Int,
-        val myAnswer: VoteAnswer?,
+        val myAnswer: AttendanceAnswer?,
         val finisherCount: Int,
-        val raceContribution: Distance?
+        val raceContribution: Distance?,
+        val notGoingCount: Int = 0,
+        val undecidedCount: Int = 0
     )
 }

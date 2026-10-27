@@ -18,8 +18,8 @@ import org.springframework.web.servlet.HandlerInterceptor;
 public class OperatorCheckInterceptor implements HandlerInterceptor {
 
     /**
-     * web.admin.celebrity·setting·audit 컨트롤러와 web.admin의 RankingAdminController와의 계약(요청 속성 이름,
-     * D-50).
+     * web.admin.celebrity·setting·audit·report·ranking 컨트롤러와의 계약(요청 속성 이름, D-50). 그 컨트롤러들은
+     * web.admin을 import하지 않고 같은 문자열 상수를 따로 둔다.
      */
     public static final String ACTOR_ID = "actorId";
 

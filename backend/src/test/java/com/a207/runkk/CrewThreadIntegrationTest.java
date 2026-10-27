@@ -390,7 +390,6 @@ class CrewThreadIntegrationTest {
                         .filter(l -> l.memberId() == hidden)
                         .findFirst()
                         .orElseThrow();
-        assertThat(hiddenLine.crewTags()).isNull();
         assertThat(hiddenLine.tier()).isNull();
         assertThat(hiddenLine.name()).isNotNull();
 
@@ -402,7 +401,6 @@ class CrewThreadIntegrationTest {
                     .isEqualTo(levels.get(id).showsProfile());
         }
         ProfileView hiddenProfile = profiles.view(leader, hidden);
-        assertThat(hiddenProfile.tags()).isEmpty();
         assertThat(hiddenProfile.runimalType()).isNull();
         assertThat(hiddenProfile.crew().crewId()).isEqualTo(crewId);
 

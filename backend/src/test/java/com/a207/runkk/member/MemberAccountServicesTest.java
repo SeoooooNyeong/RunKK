@@ -12,7 +12,6 @@ import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.DomainEvent;
 import com.a207.runkk.common.DomainEventPublisher;
-import com.a207.runkk.common.PersonalityTag;
 import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.common.RecordVisibility;
 import com.a207.runkk.common.StandardDistance;
@@ -56,31 +55,27 @@ class MemberAccountServicesTest {
     void editProfile_rejectsTakenNickname_allowsOwnNickname() {
         long a = saved("곰A");
         saved("곰B");
-        ProfileService service = new ProfileService(repository, List.of(n -> n.equals("가상곰")));
+        ProfileService service =
+                new ProfileService(repository, List.of(n -> n.equals("가상곰")), clock);
 
         assertThatThrownBy(
-                        () ->
-                                service.editProfile(
-                                        a, new ProfileEdit("곰B", null, null, null, null, null)))
+                        () -> service.editProfile(a, new ProfileEdit("곰B", null, null, null, null)))
                 .extracting(e -> ((BusinessRuleException) e).reason())
                 .isEqualTo(ReasonCode.NICKNAME_TAKEN);
         assertThatThrownBy(
                         () ->
                                 service.editProfile(
-                                        a, new ProfileEdit("가상곰", null, null, null, null, null)))
+                                        a, new ProfileEdit("가상곰", null, null, null, null)))
                 .isInstanceOf(BusinessRuleException.class);
 
         ProfileEditResult same =
-                service.editProfile(a, new ProfileEdit("곰A", 2000, null, "", "소개", null));
+                service.editProfile(a, new ProfileEdit("곰A", 2000, null, "", "소개"));
         assertThat(same.nickname()).isEqualTo("곰A");
         assertThat(same.birthYear()).isEqualTo(2000);
         assertThat(same.photoUrl()).isNull();
         ProfileEditResult renamed =
-                service.editProfile(
-                        a,
-                        new ProfileEdit("곰C", null, null, null, null, Set.of(PersonalityTag.DAWN)));
+                service.editProfile(a, new ProfileEdit("곰C", null, null, null, null));
         assertThat(renamed.nickname()).isEqualTo("곰C");
-        assertThat(renamed.tags()).containsExactly(PersonalityTag.DAWN);
     }
 
     @Test
@@ -166,6 +161,7 @@ class MemberAccountServicesTest {
                         List.of(
                                 m -> Optional.empty(),
                                 m -> Optional.of(ReasonCode.LEADER_MUST_TRANSFER)),
+                        List.of(),
                         auditService,
                         publisher,
                         clock);
@@ -176,7 +172,8 @@ class MemberAccountServicesTest {
                 .isEqualTo(MemberStatus.ACTIVE);
 
         WithdrawalService service =
-                new WithdrawalService(repository, List.of(), auditService, publisher, clock);
+                new WithdrawalService(
+                        repository, List.of(), List.of(), auditService, publisher, clock);
         assertThat(service.withdraw(id).withdrawn()).isTrue();
         assertThat(published).containsExactly(new MemberWithdrawn(id, NOW));
         assertThat(auditRepository.all())
@@ -191,7 +188,8 @@ class MemberAccountServicesTest {
         long late = repository.save(MemberFixtures.member("곰B", NOW.minusDays(30))).getId();
         saved("곰C");
         WithdrawalService service =
-                new WithdrawalService(repository, List.of(), auditService, publisher, clock);
+                new WithdrawalService(
+                        repository, List.of(), List.of(), auditService, publisher, clock);
         repository.findById(early).orElseThrow().withdraw(NOW.minusDays(8));
         repository.findById(late).orElseThrow().withdraw(NOW.minusDays(6));
 
@@ -230,8 +228,6 @@ class MemberAccountServicesTest {
                 .isEqualTo(DisplayName.WITHDRAWN);
         assertThat(query.summaries(List.of())).isEmpty();
         assertThat(query.preferenceOf(b).llmAgreed()).isTrue();
-        assertThat(query.tagsOf(c).isEmpty()).isTrue();
-        assertThat(query.tagsOf(a).isEmpty()).isFalse();
         assertThat(query.ageOf(a, 2026)).hasValue(31);
         assertThat(query.isNicknameTaken("곰A")).isTrue();
         assertThat(query.hasConsent(a, ConsentItem.LOCATION)).isTrue();

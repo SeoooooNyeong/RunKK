@@ -12,9 +12,20 @@ import com.a207.runkk.common.Distance;
  * @param rank 순위, 그만뒀으면 null
  * @param connection 연결 상태
  * @param memberId 참가자 회원 ID(앱이 자기 줄을 가려 순위 안내·강조에 쓴다, FR-190). 표본 계약에 뒤늦게 더한 항목이라 끝에 둔다
+ * @param mine 받는 사람 본인의 줄이면 참(D-161). 세션 순위는 거짓으로 만들고 보낼 때 받는 사람마다 정한다(CrewRunRelay.forRecipient)
  */
 public record RelayEntry(
-        DisplayName name, Distance distance, Integer rank, Connection connection, long memberId) {
+        DisplayName name,
+        Distance distance,
+        Integer rank,
+        Connection connection,
+        long memberId,
+        boolean mine) {
+
+    /** 받는 사람 recipientId에게 보일 줄: 자기 줄이면 mine 참. */
+    public RelayEntry seenBy(long recipientId) {
+        return new RelayEntry(name, distance, rank, connection, memberId, memberId == recipientId);
+    }
 
     /** 연결 상태(5.7.2). */
     public enum Connection {

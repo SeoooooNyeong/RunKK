@@ -40,9 +40,10 @@ class ConfigurationPropertiesBindingTest {
     void batchSchedules() {
         assertThat(crew.crewTickEnabled()).isFalse();
         assertThat(crew.crewTickInterval()).isEqualTo(Duration.ofSeconds(1));
-        assertThat(crew.weeklyRaceReconcileCron()).isEqualTo("0 0 0 * * *");
+        assertThat(crew.weeklyRaceReconcileCron()).isEqualTo("0 30 0 * * *");
         assertThat(crew.crewRunLinkReconcileCron()).isEqualTo("0 10 0 * * *");
         assertThat(member.revocationPurgeCron()).isEqualTo("0 0 3 * * *");
+        assertThat(member.idleGuestWithdrawalCron()).isEqualTo("0 0 3 * * *");
         assertThat(reward.rewardReconcileCron()).isEqualTo("0 10 0 * * *");
         assertThat(battle.battleAbandonInterval()).isEqualTo(Duration.ofMinutes(1));
     }
@@ -53,7 +54,7 @@ class ConfigurationPropertiesBindingTest {
         assertThat(ai.commentTimeout()).isEqualTo(Duration.ofSeconds(3));
         assertThat(secrets.jwtSecret()).isEmpty();
         assertThat(secrets.toString()).doesNotContain("jwt");
-        assertThat(seed.bootstrapOperators()).isEmpty();
+        assertThat(seed.operators()).as("변수가 없으면 null(D-166)").isNull();
         assertThat(links.termsUrl()).isEqualTo("https://k15a207.p.ssafy.io/legal/terms");
     }
 }

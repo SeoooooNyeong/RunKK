@@ -10,6 +10,7 @@
   enums/PersonalityTag.categories.txt  "태그 분류" (분류 번호 1~7)
   enums/ErrorCode.http.txt      ReasonCode가 아닌 서버 오류 응답 code (web.error.ApiExceptionHandler)
   dto-records.json              서버 요청·응답 record의 항목 이름·필수 여부·중첩 형식
+  policy/ValidityRule.txt       유효 판정 초과 시속 상한 "maxSpeedKmh 값" (running.ValidityRule.STANDARD, FR-047)
 
 앱 쪽 시험(ContractEnumsTest·ServerDtoContractTest)이 이 파일들과 앱 상수·DTO를 대조한다. 서버 값이 바뀌면 이 스크립트를 다시
 돌려 변경분을 커밋하고, 앱이 따라가지 못하면 시험이 실패한다.
@@ -28,14 +29,17 @@ ENUMS = {
     'common': ['PersonalityTag', 'ReasonCode', 'RecordVisibility', 'StandardDistance', 'ItemSlot', 'Tier',
                'AggregationPeriod', 'DistanceUnit'],
     'member': ['ConsentItem', 'FreeRunTarget', 'GapAlertInterval', 'ProfileVisibility', 'Gender', 'ProviderType',
-               'SettingItem', 'DocumentType'],
+               'SettingItem', 'DocumentType', 'AccountType', 'ScreenTheme'],
     'notification': ['NotificationType', 'Screen'],
     'avatar': ['DefaultCharacter', 'BodyShape', 'SkinTone', 'FailureReason'],
     'battle': ['BattleType', 'Verdict'],
     'running': ['CardKind', 'RunMode', 'SignalState', 'DisposalKind'],
     'runimal': ['RunimalType'],
-    'crew': ['CrewVisibility', 'JoinPolicy', 'VoteAnswer', 'PostKind', 'CrewRole', 'CrewRunStatus', 'Readiness',
-             'JoinRequestStatus'],
+    'crew': ['CrewVisibility', 'JoinPolicy', 'AttendanceAnswer', 'PostKind', 'CrewRole', 'CrewRunStatus', 'Readiness',
+             'JoinRequestStatus', 'PollMethod'],
+    'crew.chat': ['ReactionKind'],
+    'crew.chat.live': ['ChatRemovalReason'],
+    'report': ['ReportTargetKind', 'ReportReason', 'ReportStatus'],
 }
 
 
@@ -134,7 +138,7 @@ def write(path, lines):
 def sync_enums():
     for pkg, names in ENUMS.items():
         for name in names:
-            consts, clean = enum_constants(os.path.join(JAVA, pkg, name + '.java'))
+            consts, clean = enum_constants(os.path.join(JAVA, *pkg.split('.'), name + '.java'))
             write(os.path.join(ENUM_OUT, name + '.txt'), consts)
             if name == 'ConsentItem':
                 required = [c for c in consts if re.search(r'\b%s\(\s*true' % c, clean)]
@@ -350,7 +354,19 @@ def sync_records():
     return len(out)
 
 
+# ---------- 정책 고정값(앱이 같은 값을 써야 하는 기준) ----------
+
+def sync_policy():
+    """running.ValidityRule.STANDARD의 maxSpeedKmh(마지막 인자)를 적는다. 앱 OverspeedRule.MAX_SEGMENT_SPEED_KMH가 같아야 한다(FR-047)."""
+    src, _ = strip_comments_and_literals(read(os.path.join(JAVA, 'running', 'ValidityRule.java')))
+    m = re.search(r'STANDARD\s*=\s*new\s+ValidityRule\s*\(', src)
+    end = match(src, m.end() - 1, '(', ')')
+    args = [a.strip() for a in split_top(src[m.end():end])]
+    write(os.path.join(HERE, 'policy', 'ValidityRule.txt'), ['maxSpeedKmh %s' % float(args[-1])])
+
+
 if __name__ == '__main__':
     sync_enums()
+    sync_policy()
     count = sync_records()
     print('enums + %d records' % count, file=sys.stderr)

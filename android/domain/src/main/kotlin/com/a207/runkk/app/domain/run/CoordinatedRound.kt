@@ -38,7 +38,7 @@ internal class CoordinatedRound(
         val context = parent.coroutineContext
         val base =
             requireNotNull(context[ContinuationInterceptor] as? CoroutineDispatcher) {
-                "applicationScope에 디스패처가 없다"
+                "applicationScope has no dispatcher"
             }
 
         @OptIn(ExperimentalCoroutinesApi::class)

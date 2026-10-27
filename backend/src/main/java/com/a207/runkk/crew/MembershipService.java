@@ -4,7 +4,6 @@ import com.a207.runkk.audit.ActorRole;
 import com.a207.runkk.audit.AuditAction;
 import com.a207.runkk.audit.AuditEntry;
 import com.a207.runkk.audit.AuditService;
-import com.a207.runkk.common.AttemptLimiter;
 import com.a207.runkk.common.BusinessRuleException;
 import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.notification.NavigationTarget;
@@ -13,7 +12,6 @@ import com.a207.runkk.notification.NotificationService;
 import com.a207.runkk.notification.NotificationType;
 import com.a207.runkk.notification.Screen;
 import java.time.Clock;
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -32,24 +30,20 @@ public class MembershipService {
 
     static final String DISSOLVED_OTHER_CREW = "다른 크루 가입";
 
-    /** 틀린 초대 코드 허용 횟수와 창(B4 리뷰: 무차별 대입 제한). 넘으면 TOO_MANY_ATTEMPTS. */
-    static final int INVITE_CODE_FAILURES = 5;
-
-    static final Duration INVITE_CODE_WINDOW = Duration.ofMinutes(10);
-
     private final CrewRepository crewRepository;
     private final CrewAccess crewAccess;
     private final JoinRequestRepository joinRequestRepository;
+    private final CrewPostRepository crewPostRepository;
     private final NotificationService notificationService;
     private final AuditService auditService;
     private final CrewTransactions transactions;
     private final Clock clock;
-    private final AttemptLimiter inviteCodeAttempts;
 
     MembershipService(
             CrewRepository crewRepository,
             CrewAccess crewAccess,
             JoinRequestRepository joinRequestRepository,
+            CrewPostRepository crewPostRepository,
             NotificationService notificationService,
             AuditService auditService,
             CrewTransactions transactions,
@@ -57,38 +51,21 @@ public class MembershipService {
         this.crewRepository = crewRepository;
         this.crewAccess = crewAccess;
         this.joinRequestRepository = joinRequestRepository;
+        this.crewPostRepository = crewPostRepository;
         this.notificationService = notificationService;
         this.auditService = auditService;
         this.transactions = transactions;
         this.clock = clock;
-        this.inviteCodeAttempts =
-                new AttemptLimiter(INVITE_CODE_FAILURES, INVITE_CODE_WINDOW, clock);
     }
 
     /**
      * SQ-08. JoinEligibility → 크루 잠금 → admissionFor → IMMEDIATE면 admit, REQUEST면 대기 중 신청 확인 뒤
-     * JoinRequest + 알림 (JOIN_REQUESTED). 크루가 없거나 코드가 틀리면 INVALID_CODE, 정원이면 CREW_FULL. 초대 코드가 10분에
-     * 5번 틀리면 그 회원의 코드 가입을 잠시 막는다(TOO_MANY_ATTEMPTS).
+     * JoinRequest + 알림 (JOIN_REQUESTED). 크루가 없거나 코드가 틀리면 INVALID_CODE, 정원이면 CREW_FULL. 초대 코드 실패 횟수
+     * 제한은 web.crew의 CrewJoinAttemptGuard가 이 호출 앞뒤에서 한다(D-132).
      */
     @Transactional
     public JoinResult apply(long memberId, JoinTarget target) {
-        if (target.code().isEmpty()) {
-            return admit(memberId, target);
-        }
-        String key = String.valueOf(memberId);
-        if (inviteCodeAttempts.isBlocked(key)) {
-            throw new BusinessRuleException(ReasonCode.TOO_MANY_ATTEMPTS);
-        }
-        try {
-            JoinResult result = admit(memberId, target);
-            inviteCodeAttempts.reset(key);
-            return result;
-        } catch (BusinessRuleException e) {
-            if (e.reason() == ReasonCode.INVALID_CODE) {
-                inviteCodeAttempts.recordFailure(key);
-            }
-            throw e;
-        }
+        return admit(memberId, target);
     }
 
     private JoinResult admit(long memberId, JoinTarget target) {
@@ -200,25 +177,30 @@ public class MembershipService {
 
     /**
      * Crew.release(WITHDREW). 크루원이 남은 크루장은 LEADER_MUST_TRANSFER, 혼자인 크루장은
-     * CREW_DELETE_REQUIRED(5.3.3).
+     * CREW_DELETE_REQUIRED(5.3.3). 운영진이면 역할도 사라진다(D-98). 같은 트랜잭션에서 시작 전 일정의 참석 응답과 마감 전 투표 응답을
+     * 지운다(지난 것·리액션·작성 글은 남긴다, FR-125, D-146).
      */
     @Transactional
     public CrewResult leave(long memberId, long crewId) {
         Crew crew = crewAccess.requireForUpdate(crewId);
-        crew.release(memberId, LeaveReason.WITHDREW, LocalDateTime.now(clock));
+        LocalDateTime now = LocalDateTime.now(clock);
+        crew.release(memberId, LeaveReason.WITHDREW, now);
         crewRepository.save(crew);
+        crewPostRepository.deleteOpenResponses(crewId, memberId, now);
         return CrewResult.of(crewId);
     }
 
     /**
-     * check(KICK) → release(KICKED) → 알림(KICKED) → 감사(강제퇴장). 본인이나 크루원이 아닌 대상은
-     * TARGET_INVALID(FR-127).
+     * check(KICK, 크루장만) → release(KICKED) → 같은 트랜잭션에서 leave와 같은 응답 정리(D-146) → 알림(KICKED) →
+     * 감사(강제퇴장). 본인이나 크루원이 아닌 대상은 TARGET_INVALID(FR-127).
      */
     @Transactional
     public CrewResult kick(long requesterId, long crewId, long targetId) {
         Crew crew = crewAccess.checkForUpdate(requesterId, crewId, CrewAction.KICK);
-        crew.release(targetId, LeaveReason.KICKED, LocalDateTime.now(clock));
+        LocalDateTime now = LocalDateTime.now(clock);
+        crew.release(targetId, LeaveReason.KICKED, now);
         crewRepository.save(crew);
+        crewPostRepository.deleteOpenResponses(crewId, targetId, now); // D-146
         notify(targetId, NotificationType.KICKED, "크루에서 내보내졌어요", at(Screen.CREW_HOME, crewId));
         auditService.record(
                 new AuditEntry(
@@ -238,7 +220,7 @@ public class MembershipService {
         CrewMembership membership =
                 crew.membershipOf(memberId)
                         .orElseThrow(() -> new BusinessRuleException(ReasonCode.NOT_CREW_MEMBER));
-        membership.editCrewProfile(edit.intro(), edit.tags());
+        membership.editCrewProfile(edit.intro());
         crewRepository.save(crew);
         return CrewResult.of(crewId);
     }

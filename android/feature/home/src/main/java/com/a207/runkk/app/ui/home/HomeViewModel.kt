@@ -2,17 +2,14 @@ package com.a207.runkk.app.ui.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.a207.runkk.app.core.designsystem.RunkkAvatarArt
 import com.a207.runkk.app.core.designsystem.RunkkErrorText
-import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.Distance
-import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.getOrNull
 import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.avatar.AvatarRepository
-import com.a207.runkk.app.domain.record.Dashboard
 import com.a207.runkk.app.domain.record.RecordRepository
-import com.a207.runkk.app.domain.run.FreeRunGoal
 import com.a207.runkk.app.domain.run.FreeRunGoalUseCase
 import com.a207.runkk.app.domain.run.PendingRunRepository
 import com.a207.runkk.app.domain.run.PlanSnapshot
@@ -29,48 +26,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/** 홈의 러닝 종류 탭(자유런 / 배틀런). */
-enum class HomeRunMode { FREE, BATTLE }
-
-/** 홈 상단(하이파이 HiHome): 닉네임, 티어·레벨, 리워드 잔액. 못 읽은 값은 null이고 화면은 그 자리를 비워 둔다. */
-data class HomeHeader(
-    val nickname: String? = null,
-    val tier: String? = null,
-    val level: Int? = null,
-    val balance: Int? = null
-)
-
-data class HomeUiState(
-    val isLoading: Boolean = true,
-    val dashboard: Dashboard? = null,
-    /** 자유런 카드의 목표(코치 계획 따르기 켬 + 오늘 계획 → 오늘 계획, 그 밖 → 자유런 설정 목표, FR-048). */
-    val freeRunGoal: FreeRunGoal = FreeRunGoal.NONE,
-    val pendingCount: Int = 0,
-    val mode: HomeRunMode = HomeRunMode.FREE,
-    val error: UiText? = null,
-    val today: LocalDate? = null,
-    val header: HomeHeader = HomeHeader(),
-    val isHeaderLoading: Boolean = true,
-    /** 아바타 얼굴 키(서버 renderKey: "default:<캐릭터>" 또는 "selfie:…"). 상단 프로필 원과 우리 집 아바타 자리가 그린다. */
-    val faceKey: String? = null,
-    /** 셀카 얼굴 부위 그림(셀카 얼굴일 때만). 기본 캐릭터도 셀카 그림도 없으면 "아바타" 자리 그림. */
-    val faceLayers: List<FaceLayer> = emptyList(),
-    /**
-     * 배틀런 탭에서 고른 대결 거리(FR-080). 처음엔 대결 설정의 기본 대결 거리(지난번 매칭 거리, FR-109)이고 읽기 전·읽지 못하면 5km다.
-     * "배틀런 시작"을 누르면 이 거리로 매칭을 요청한다.
-     */
-    val battleDistance: Distance = DEFAULT_BATTLE_DISTANCE
-) {
-    companion object {
-        /** 랜덤 대결 거리(FR-080: 1·3·5·10km). */
-        val BATTLE_DISTANCES: List<Distance> =
-            listOf(Distance(1_000), Distance(3_000), Distance(5_000), Distance(10_000))
-
-        /** 기본 대결 거리의 기본값(FR-109). */
-        val DEFAULT_BATTLE_DISTANCE: Distance = Distance(5_000)
-    }
-}
-
 /**
  * 홈(A5, FR-050~FR-057·FR-077): 대시보드(RecordRepository.dashboard), 오늘 계획(todayPlan), 미전송 기록 수
  * (PendingRunRepository.observePending, 13.2)를 모은다. 업무 규칙(스트릭·랜드마크 계산)은 서버가 한다.
@@ -80,6 +35,7 @@ data class HomeUiState(
  * (하이파이 HiHome 헤더. 5.1.2 표의 ui.home 의존에 domain.account·domain.avatar를 더했다).
  * 오늘 계획을 읽으면 TodayPlanCache에도 알려 워치 시작 화면이 같은 계획을 보이게 한다(WatchHomeSync, FR-042).
  * 읽지 못하면 알리지 않는다(통신 오류로 워치의 계획을 지우지 않게).
+ * 우리 집 배경은 Avatar.backgroundKey(FR-202), 자유런 칩의 음성·진동은 AccountRepository.settings()의 러닝 설정 값이다.
  * 배틀런 탭의 대결 거리는 AccountRepository.settings()의 기본 대결 거리(FR-109)로 처음 고르고, 러너가 칩으로 바꾼다. 고르기만으로는
  * 설정을 바꾸지 않는다: 기본 대결 거리는 매칭을 요청할 때 서버가 그 거리로 저장한다(FR-080, MatchingService.requestMatch).
  */
@@ -114,6 +70,17 @@ class HomeViewModel @Inject constructor(
 
     private var refreshJob: Job? = null
 
+    private var resumedOnce = false
+
+    /**
+     * 홈이 다시 보일 때(러닝 결과의 "홈으로", 다른 탭에서 복귀) 요약을 다시 읽는다. 오늘 달린 거리·누적 거리·랜드마크가 방금 저장한 기록을 따라간다.
+     * 처음 표시는 init이 읽으므로 첫 재개는 건너뛴다(두 번 부르지 않는다).
+     */
+    fun onResumed() {
+        if (resumedOnce) refresh()
+        resumedOnce = true
+    }
+
     fun refresh() {
         val today = LocalDate.now(clock)
         _state.update { it.copy(isLoading = true, error = null, today = today) }
@@ -129,7 +96,8 @@ class HomeViewModel @Inject constructor(
             val planResult = plan.await()
             val me = profile.await()
             val myAvatar = wallet.await()
-            val battleDefault = settings.await()?.battleDefaultDistance?.takeIf { it in HomeUiState.BATTLE_DISTANCES }
+            val memberSettings = settings.await()
+            val battleDefault = memberSettings?.battleDefaultDistance?.takeIf { it in HomeUiState.BATTLE_DISTANCES }
             val face = myAvatar?.faceKey?.let { avatar.faceLayers(it).getOrNull() }.orEmpty()
             todayPlan.value = planResult.getOrNull()?.let { PlanSnapshot(it.distance, it.pace) }
             if (planResult is Outcome.Success) todayPlans.put(todayPlan.value)
@@ -146,8 +114,16 @@ class HomeViewModel @Inject constructor(
                     dashboard = dashboardResult.getOrNull() ?: it.dashboard,
                     header = header,
                     isHeaderLoading = false,
-                    faceKey = myAvatar?.faceKey,
+                    // 얼굴을 고르기 전이면 기본 캐릭터 얼굴 1번(FR-155·FR-158).
+                    faceKey = myAvatar?.let {
+                        it.faceKey ?: it.defaultCharacterId?.let(RunkkAvatarArt::defaultKey)
+                            ?: RunkkAvatarArt.DEFAULT_FACE_KEY
+                    },
                     faceLayers = face,
+                    backgroundKey = myAvatar?.backgroundKey,
+                    isRunVoiceOn = memberSettings?.values?.get(RUN_VOICE)?.toBooleanStrictOrNull() ?: it.isRunVoiceOn,
+                    isRunVibrationOn =
+                        memberSettings?.values?.get(RUN_VIBRATION)?.toBooleanStrictOrNull() ?: it.isRunVibrationOn,
                     battleDistance = battleDefault?.takeUnless { isBattleDistanceChosen } ?: it.battleDistance,
                     error = (dashboardResult as? Outcome.Failure)?.let { failure -> RunkkErrorText.of(failure.error) }
                 )
@@ -162,5 +138,11 @@ class HomeViewModel @Inject constructor(
         if (distance !in HomeUiState.BATTLE_DISTANCES) return
         isBattleDistanceChosen = true
         _state.update { it.copy(battleDistance = distance) }
+    }
+
+    private companion object {
+        /** 러닝 설정 하위 항목 키(MemberSettings.values, 서버 RunSettings.voice·vibration). */
+        const val RUN_VOICE = "RUN_SETTINGS.voice"
+        const val RUN_VIBRATION = "RUN_SETTINGS.vibration"
     }
 }

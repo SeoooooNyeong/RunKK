@@ -40,6 +40,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /**
@@ -134,8 +135,11 @@ enum class RunkkTab(@StringRes val labelRes: Int, val icon: ImageVector) {
     ME(R.string.core_tab_me, RunkkIcons.User)
 }
 
+/** 하단 탭 바의 높이(구분선 1 + 탭 줄 79). 시스템 내비게이션 영역은 따로 더한다. 탭 화면의 아래 여백이 이 값을 쓴다. */
+val RUNKK_BOTTOM_BAR_HEIGHT: Dp = 80.dp
+
 /**
- * 하단 탭 바(높이 80 + 시스템 내비게이션 영역). 고른 탭은 라임 + 굵게. 보조 기술에는 탭으로 보인다.
+ * 하단 탭 바(높이 [RUNKK_BOTTOM_BAR_HEIGHT] + 시스템 내비게이션 영역). 고른 탭은 라임 + 굵게. 보조 기술에는 탭으로 보인다.
  */
 @Composable
 fun RunkkBottomBar(selected: RunkkTab?, onSelect: (RunkkTab) -> Unit, modifier: Modifier = Modifier) {
@@ -144,10 +148,10 @@ fun RunkkBottomBar(selected: RunkkTab?, onSelect: (RunkkTab) -> Unit, modifier: 
             RunkkColors.Background
         ).windowInsetsPadding(WindowInsets.navigationBars)
     ) {
-        HorizontalDivider(thickness = 1.dp, color = RunkkColors.Border)
+        HorizontalDivider(thickness = BOTTOM_BAR_DIVIDER, color = RunkkColors.Border)
         Row(
             modifier = Modifier.fillMaxWidth().height(
-                79.dp
+                RUNKK_BOTTOM_BAR_HEIGHT - BOTTOM_BAR_DIVIDER
             ).padding(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 16.dp).selectableGroup(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
@@ -174,6 +178,8 @@ fun RunkkBottomBar(selected: RunkkTab?, onSelect: (RunkkTab) -> Unit, modifier: 
         }
     }
 }
+
+private val BOTTOM_BAR_DIVIDER: Dp = 1.dp
 
 /** 메뉴 한 줄(마이·설정): 아이콘(선택) + 제목 + 값(선택) + 오른쪽 화살표. 높이 56 이상. */
 @Composable

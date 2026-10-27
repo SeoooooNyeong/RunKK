@@ -12,6 +12,7 @@ import com.a207.runkk.batch.avatar.AppearanceRefreshJob;
 import com.a207.runkk.batch.avatar.AvatarSchedulingConfig;
 import com.a207.runkk.batch.reward.RewardReconcileJob;
 import com.a207.runkk.batch.reward.RewardSchedulingConfig;
+import com.a207.runkk.crew.CrewPostService;
 import com.a207.runkk.crew.CrewRunLinkReconcileService;
 import com.a207.runkk.crew.CrewRunLiveService;
 import com.a207.runkk.crew.CrewRunService;
@@ -91,6 +92,16 @@ class CrewBatchJobsTest {
     }
 
     @Test
+    @DisplayName("PollReminderJob(1분, D-106) → remindClosingPolls(now), 실패해도 던지지 않는다")
+    void pollReminderJob() {
+        CrewPostService posts = mock(CrewPostService.class);
+        new PollReminderJob(posts, clock).run();
+        verify(posts).remindClosingPolls(NOW);
+        when(posts.remindClosingPolls(any())).thenThrow(new IllegalStateException("db"));
+        new PollReminderJob(posts, clock).run();
+    }
+
+    @Test
     @DisplayName("AppearanceRefreshJob → refreshAll(today)")
     void appearanceRefreshJob() {
         AppearanceService appearance = mock(AppearanceService.class);
@@ -107,6 +118,7 @@ class CrewBatchJobsTest {
         WeeklyRaceReconcileJob reconcile = mock(WeeklyRaceReconcileJob.class);
         JoinRequestExpiryJob expiry = mock(JoinRequestExpiryJob.class);
         CrewRunLinkReconcileJob links = mock(CrewRunLinkReconcileJob.class);
+        PollReminderJob polls = mock(PollReminderJob.class);
 
         ScheduledTaskRegistrar on = new ScheduledTaskRegistrar();
         new CrewSchedulingConfig(
@@ -114,14 +126,19 @@ class CrewBatchJobsTest {
                         reconcile,
                         expiry,
                         links,
+                        polls,
                         new CrewSchedulingConfig.Schedule(
                                 true,
                                 Duration.ofSeconds(1),
                                 "0 0 0 * * *",
                                 "0 0 3 * * *",
-                                "0 10 0 * * *"))
+                                "0 10 0 * * *",
+                                Duration.ofMinutes(1)))
                 .configureTasks(on);
-        assertThat(on.getFixedDelayTaskList()).hasSize(1);
+        assertThat(on.getFixedDelayTaskList()).as("1초 크루런 시계 + 1분 투표 마감 알림").hasSize(2);
+        assertThat(on.getFixedDelayTaskList())
+                .extracting(t -> t.getIntervalDuration())
+                .containsExactlyInAnyOrder(Duration.ofSeconds(1), Duration.ofMinutes(1));
         assertThat(on.getCronTaskList()).hasSize(3);
 
         ScheduledTaskRegistrar off = new ScheduledTaskRegistrar();
@@ -130,20 +147,23 @@ class CrewBatchJobsTest {
                         reconcile,
                         expiry,
                         links,
+                        polls,
                         new CrewSchedulingConfig.Schedule(
                                 false,
                                 Duration.ofSeconds(1),
                                 "0 0 0 * * *",
                                 "0 0 3 * * *",
-                                "0 10 0 * * *"))
+                                "0 10 0 * * *",
+                                Duration.ofMinutes(1)))
                 .configureTasks(off);
-        assertThat(off.getFixedDelayTaskList()).isEmpty();
+        assertThat(off.getFixedDelayTaskList()).as("시계를 꺼도 투표 마감 알림은 돈다").hasSize(1);
 
         ScheduledTaskRegistrar avatar = new ScheduledTaskRegistrar();
         new AvatarSchedulingConfig(
                         mock(AppearanceRefreshJob.class),
-                        new AvatarSchedulingConfig.Schedule("0 0 0 * * *"))
+                        mock(com.a207.runkk.batch.avatar.BackgroundReconcileJob.class),
+                        new AvatarSchedulingConfig.Schedule("0 0 0 * * *", "0 10 0 * * *"))
                 .configureTasks(avatar);
-        assertThat(avatar.getCronTaskList()).hasSize(1);
+        assertThat(avatar.getCronTaskList()).hasSize(2);
     }
 }

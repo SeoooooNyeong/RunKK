@@ -6,46 +6,66 @@ import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.PageCursor;
 import com.a207.runkk.common.PersonalityTag;
 import com.a207.runkk.common.ReasonCode;
+import com.a207.runkk.common.ServerZone;
 import com.a207.runkk.common.StandardDistance;
 import com.a207.runkk.common.TagOwner;
 import com.a207.runkk.common.TagSet;
+import com.a207.runkk.crew.AlbumView;
+import com.a207.runkk.crew.AttendanceAnswer;
+import com.a207.runkk.crew.AttendanceCounts;
+import com.a207.runkk.crew.AttendanceView;
 import com.a207.runkk.crew.CrewCreateCommand;
 import com.a207.runkk.crew.CrewDetailView;
 import com.a207.runkk.crew.CrewInfoChange;
 import com.a207.runkk.crew.CrewListView;
 import com.a207.runkk.crew.CrewName;
 import com.a207.runkk.crew.CrewProfileEdit;
+import com.a207.runkk.crew.CrewRole;
 import com.a207.runkk.crew.CrewRunDraft;
 import com.a207.runkk.crew.CrewRunResultView;
 import com.a207.runkk.crew.CrewSearch;
 import com.a207.runkk.crew.CrewVisibility;
 import com.a207.runkk.crew.JoinPolicy;
 import com.a207.runkk.crew.LobbyView;
+import com.a207.runkk.crew.MeetupDraft;
 import com.a207.runkk.crew.MyCrewView;
+import com.a207.runkk.crew.NoticeDraft;
+import com.a207.runkk.crew.PollDraft;
+import com.a207.runkk.crew.PollMethod;
+import com.a207.runkk.crew.PollResultView;
+import com.a207.runkk.crew.PostKind;
 import com.a207.runkk.crew.PostListView;
+import com.a207.runkk.crew.PostQuery;
 import com.a207.runkk.crew.PostSummary;
 import com.a207.runkk.crew.RaceStatusView;
 import com.a207.runkk.crew.Readiness;
-import com.a207.runkk.crew.Recommendation;
-import com.a207.runkk.crew.RecommendationView;
 import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 
 /**
- * 크루 REST 전송 형식(설계 5.7.1, 10/21 API 계약). 거리는 미터, 시간은 초, 시각은 서버 시간대 ISO-8601, 날짜는 yyyy-MM-dd. 앱
- * api.crew DTO와 같은 항목 이름을 쓰고, 도메인 값으로 바꾸는 일만 한다.
+ * 크루 REST 전송 형식(설계 5.7.1, 부록 F F.2.2). 거리는 미터, 시간은 초, 시각은 오프셋 포함 ISO-8601(OffsetDateTime,
+ * D-84·D-114, 서버 시간대 Asia/Seoul), 날짜는 yyyy-MM-dd. 앱 api.crew DTO와 같은 항목 이름을 쓰고, 도메인 값으로 바꾸는 일만 한다.
  */
 final class CrewDtos {
 
     /** 로고 이미지 주소 상한(crew.logo_url 열). */
     static final int MAX_LOGO_URL = 500;
+
+    /** 서버 시간대(bootstrap Clock과 같다). 도메인 시각(LocalDateTime)을 이 시간대의 오프셋으로 내보낸다. */
+    static final ZoneId SEOUL = ServerZone.ID;
+
+    /** 게시 사진 주소(GET /crew-photos/{photoId}, D-100). */
+    static final String PHOTO_PATH = "/api/v1/crew-photos/";
 
     private CrewDtos() {}
 
@@ -64,6 +84,20 @@ final class CrewDtos {
 
     static Long meters(Distance d) {
         return d == null ? null : d.meters();
+    }
+
+    /** 도메인 시각 → 오프셋 포함 시각(D-114). */
+    static OffsetDateTime at(LocalDateTime time) {
+        return time == null ? null : time.atZone(SEOUL).toOffsetDateTime();
+    }
+
+    /** 요청 시각 → 서버 시간대의 도메인 시각. */
+    static LocalDateTime local(OffsetDateTime time) {
+        return time == null ? null : time.atZoneSameInstant(SEOUL).toLocalDateTime();
+    }
+
+    static String photoUrl(long photoId) {
+        return PHOTO_PATH + photoId;
     }
 
     /**
@@ -106,7 +140,7 @@ final class CrewDtos {
      * @param inviteCode 초대 코드
      * @param inviteCodeExpiresAt 만료 일시
      */
-    record CreatedResponse(long id, String inviteCode, LocalDateTime inviteCodeExpiresAt) {}
+    record CreatedResponse(long id, String inviteCode, OffsetDateTime inviteCodeExpiresAt) {}
 
     /**
      * 초대 코드 재발급 결과.
@@ -114,7 +148,7 @@ final class CrewDtos {
      * @param inviteCode 새 코드
      * @param inviteCodeExpiresAt 만료 일시
      */
-    record InviteCodeResponse(String inviteCode, LocalDateTime inviteCodeExpiresAt) {}
+    record InviteCodeResponse(String inviteCode, OffsetDateTime inviteCodeExpiresAt) {}
 
     /**
      * 크루장 양도.
@@ -153,33 +187,25 @@ final class CrewDtos {
      * 크루 내 표시 정보 변경.
      *
      * @param intro 크루 내 소개
-     * @param tags 성향 태그, 비우면 그대로
      */
-    record CrewProfileRequest(String intro, Set<PersonalityTag> tags) {
+    record CrewProfileRequest(String intro) {
 
         CrewProfileEdit toEdit() {
-            return new CrewProfileEdit(
-                    intro, tags == null ? null : TagSet.of(tags, TagOwner.RUNNER));
+            return new CrewProfileEdit(intro);
         }
     }
 
     /**
-     * 크루 목록.
+     * 크루 목록(v0.11: 추천·태그 일치 수 삭제, FR-118 삭제, D-91).
      *
      * @param crews 공개 크루
-     * @param recommendations 크루 없는 러너의 추천
      * @param nextCursor 다음 페이지 커서(size를 줬을 때만), 없으면 null
      */
-    record CrewListResponse(
-            List<Item> crews, RecommendationsResponse recommendations, Long nextCursor) {
+    record CrewListResponse(List<Item> crews, Long nextCursor) {
 
         static CrewListResponse of(CrewListView view) {
             return new CrewListResponse(
-                    view.crews().stream().map(Item::of).toList(),
-                    view.recommendations() == null
-                            ? null
-                            : RecommendationsResponse.of(view.recommendations()),
-                    view.nextCursor());
+                    view.crews().stream().map(Item::of).toList(), view.nextCursor());
         }
 
         /**
@@ -194,7 +220,6 @@ final class CrewDtos {
          * @param headcount 인원
          * @param weeklyDistanceMeters 이번 주 크루 거리
          * @param joinPolicy 가입 방식
-         * @param tagMatches 태그 일치 수
          */
         record Item(
                 long crewId,
@@ -205,8 +230,7 @@ final class CrewDtos {
                 String leaderName,
                 int headcount,
                 long weeklyDistanceMeters,
-                JoinPolicy joinPolicy,
-                int tagMatches) {
+                JoinPolicy joinPolicy) {
 
             static Item of(CrewListView.Item i) {
                 return new Item(
@@ -218,51 +242,7 @@ final class CrewDtos {
                         displayOf(i.leaderName()),
                         i.row().headcount(),
                         i.row().weeklyDistance().meters(),
-                        i.row().joinPolicy(),
-                        i.tagMatches());
-            }
-        }
-    }
-
-    /**
-     * 추천 크루 목록.
-     *
-     * @param crews 추천
-     * @param guide 태그가 없을 때 안내문
-     */
-    record RecommendationsResponse(List<Item> crews, String guide) {
-
-        static RecommendationsResponse of(RecommendationView view) {
-            return new RecommendationsResponse(
-                    view.crews().stream().map(Item::of).toList(), view.guide());
-        }
-
-        /**
-         * 추천 한 건("태그 n개 일치 · 바로 가입/승인제").
-         *
-         * @param crewId 크루 ID
-         * @param name 크루명
-         * @param matchCount 일치도
-         * @param tags 성향 태그
-         * @param headcount 인원
-         * @param joinPolicy 가입 방식
-         */
-        record Item(
-                long crewId,
-                String name,
-                int matchCount,
-                Set<PersonalityTag> tags,
-                int headcount,
-                JoinPolicy joinPolicy) {
-
-            static Item of(Recommendation r) {
-                return new Item(
-                        r.crew().crewId(),
-                        r.crew().name(),
-                        r.matchCount(),
-                        r.crew().tags().tags(),
-                        r.crew().headcount(),
-                        r.crew().joinPolicy());
+                        i.row().joinPolicy());
             }
         }
     }
@@ -275,19 +255,27 @@ final class CrewDtos {
      * @param closesAt 마감 일시
      * @param contributors 기여자
      * @param myShare 본인 기여율
+     * @param goalMeters 이번 주 공동 목표(v0.11 FR-138), 없으면 null
+     * @param goalProgressPercent 목표 진행률 min(100, 합산 × 100 ÷ 목표), 목표가 없으면 null
+     * @param achievedAt 목표 달성 일시, 아니면 null
+     * @param celebration 축하 카드(달성한 주만, FR-217)
      */
     record RaceStatusResponse(
             LocalDate weekStart,
             long totalMeters,
-            LocalDateTime closesAt,
+            OffsetDateTime closesAt,
             List<Contributor> contributors,
-            int myShare) {
+            int myShare,
+            Long goalMeters,
+            Integer goalProgressPercent,
+            OffsetDateTime achievedAt,
+            Celebration celebration) {
 
         static RaceStatusResponse of(RaceStatusView v, long viewerId) {
             return new RaceStatusResponse(
                     v.weekStart(),
                     v.total().meters(),
-                    v.closesAt(),
+                    at(v.closesAt()),
                     v.contributors().stream()
                             .map(
                                     c ->
@@ -299,8 +287,29 @@ final class CrewDtos {
                                                     c.memberId() != null
                                                             && c.memberId() == viewerId))
                             .toList(),
-                    v.myRate());
+                    v.myRate(),
+                    meters(v.goal()),
+                    v.goalProgressPercent(),
+                    at(v.achievedAt()),
+                    v.celebration() == null
+                            ? null
+                            : new Celebration(
+                                    v.celebration().crewName(),
+                                    v.celebration().totalMeters().meters(),
+                                    v.celebration().goalMeters().meters(),
+                                    v.celebration().participantCount()));
         }
+
+        /**
+         * 공동 목표 축하 카드(FR-217).
+         *
+         * @param crewName 크루명
+         * @param totalMeters 합산 거리
+         * @param goalMeters 목표 거리
+         * @param participantCount 참여 인원
+         */
+        record Celebration(
+                String crewName, long totalMeters, long goalMeters, int participantCount) {}
 
         /**
          * 기여자 한 명.
@@ -316,24 +325,53 @@ final class CrewDtos {
     }
 
     /**
-     * 게시글 작성. 응원글(CHEER)은 body만, 크루런 모집글(CREW_RUN)은 body·distanceMeters·scheduledAt·voteDeadline.
+     * 게시글 작성(부록 F F.2.2). 응원글(CHEER)은 body만, 크루런(CREW_RUN)은
+     * body·distanceMeters·scheduledAt·voteDeadline, 대면 모임(MEETUP)은 scheduledAt·placeName·capacity,
+     * 공지(NOTICE)는 body·pinned, 투표(POLL)는 body(질문)·pollMethod·options·closesAt. 게시글(BOARD)은
+     * multipart POST /crews/{id}/board-posts로 쓴다.
      *
      * @param kind 게시 종류
-     * @param body 본문
+     * @param body 본문(투표는 질문)
      * @param distanceMeters 크루런 거리
-     * @param scheduledAt 모집희망일시
-     * @param voteDeadline 투표 마감, 비우면 모집희망일시
+     * @param scheduledAt 크루런·대면 모임 일시
+     * @param voteDeadline 크루런 참석 응답 마감, 비우면 일시
+     * @param placeName 대면 모임 장소명(1~50자)
+     * @param capacity 대면 모임 정원(2~10), 비우면 크루 정원
+     * @param pinned 공지 고정, 기본 false
+     * @param pollMethod 투표 방식
+     * @param options 투표 선택지(CHOICES 2~5개, YES_NO는 비운다)
+     * @param closesAt 투표 마감 일시
      */
     record PostWriteRequest(
-            @NotNull com.a207.runkk.crew.PostKind kind,
+            @NotNull PostKind kind,
             String body,
             Long distanceMeters,
-            @JsonAlias("meetAt") LocalDateTime scheduledAt,
-            LocalDateTime voteDeadline) {
+            @JsonAlias("meetAt") OffsetDateTime scheduledAt,
+            OffsetDateTime voteDeadline,
+            String placeName,
+            Integer capacity,
+            Boolean pinned,
+            PollMethod pollMethod,
+            List<String> options,
+            OffsetDateTime closesAt) {
 
-        CrewRunDraft toDraft() {
+        CrewRunDraft toCrewRunDraft() {
             return new CrewRunDraft(
-                    body, scheduledAt, crewRunDistance(distanceMeters), voteDeadline);
+                    body, local(scheduledAt), crewRunDistance(distanceMeters), local(voteDeadline));
+        }
+
+        /** 장소명·정원 범위 위반은 MeetupDraft 생성자의 IllegalArgumentException(400, D-155). */
+        MeetupDraft toMeetupDraft() {
+            return new MeetupDraft(body, local(scheduledAt), placeName, capacity);
+        }
+
+        NoticeDraft toNoticeDraft() {
+            return new NoticeDraft(body, Boolean.TRUE.equals(pinned));
+        }
+
+        /** 질문·선택지 길이·개수 위반은 PollDraft 생성자의 IllegalArgumentException(400, D-155). */
+        PollDraft toPollDraft() {
+            return new PollDraft(body, pollMethod, options, local(closesAt));
         }
     }
 
@@ -345,11 +383,173 @@ final class CrewDtos {
     record PostResponse(long id) {}
 
     /**
-     * 참여 투표.
+     * 일정 참석 응답(v0.11 PUT /posts/{id}/attendance, FR-145).
      *
-     * @param answer GOING | NOT_GOING
+     * @param answer GOING | NOT_GOING | UNDECIDED
      */
-    record VoteRequest(@NotNull com.a207.runkk.crew.VoteAnswer answer) {}
+    record AttendanceRequest(@NotNull AttendanceAnswer answer) {}
+
+    /**
+     * 참석 응답 결과.
+     *
+     * @param postId 게시글 ID
+     * @param myAnswer 본인 응답
+     * @param goingCount 참석 인원
+     * @param notGoingCount 불참 인원
+     * @param undecidedCount 미정 인원
+     */
+    record AttendanceResponse(
+            long postId,
+            AttendanceAnswer myAnswer,
+            int goingCount,
+            int notGoingCount,
+            int undecidedCount) {
+
+        static AttendanceResponse of(AttendanceView v) {
+            return new AttendanceResponse(
+                    v.postId(),
+                    v.myAnswer(),
+                    v.goingCount(),
+                    v.notGoingCount(),
+                    v.undecidedCount());
+        }
+    }
+
+    /**
+     * 공지 고정(v0.11 PUT /posts/{id}/pin, FR-205).
+     *
+     * @param pinned 고정 여부
+     */
+    record PinRequest(@NotNull Boolean pinned) {}
+
+    /**
+     * 공지 고정 결과.
+     *
+     * @param postId 게시글 ID
+     * @param pinned 고정 여부
+     */
+    record PinResponse(long postId, boolean pinned) {}
+
+    /**
+     * 투표 응답(v0.11 PUT /posts/{id}/poll-response, FR-207). 마감 전에는 바꿀 수 있다.
+     *
+     * @param optionNo 고른 선택지 번호(1~5)
+     */
+    record PollAnswerRequest(@NotNull Integer optionNo) {}
+
+    /**
+     * 투표 결과(v0.11 GET /posts/{id}/poll, FR-207). 응답자는 익명이 아니다.
+     *
+     * @param postId 게시글 ID
+     * @param question 질문
+     * @param method 투표 방식
+     * @param closesAt 마감 일시
+     * @param closed 마감됨
+     * @param options 선택지별 결과
+     * @param myOptionNo 본인이 고른 선택지, 없으면 null
+     */
+    record PollResultResponse(
+            long postId,
+            String question,
+            PollMethod method,
+            OffsetDateTime closesAt,
+            boolean closed,
+            List<Option> options,
+            Integer myOptionNo) {
+
+        static PollResultResponse of(PollResultView v) {
+            return new PollResultResponse(
+                    v.postId(),
+                    v.question(),
+                    v.method(),
+                    at(v.closesAt()),
+                    v.closed(),
+                    v.options().stream()
+                            .map(
+                                    o ->
+                                            new Option(
+                                                    o.optionNo(),
+                                                    o.label(),
+                                                    o.count(),
+                                                    o.respondents().stream()
+                                                            .map(
+                                                                    r ->
+                                                                            new Respondent(
+                                                                                    r.memberId(),
+                                                                                    displayOf(
+                                                                                            r
+                                                                                                    .displayName())))
+                                                            .toList()))
+                            .toList(),
+                    v.myOptionNo());
+        }
+
+        /**
+         * 선택지 하나.
+         *
+         * @param optionNo 번호
+         * @param label 이름
+         * @param count 응답 수
+         * @param respondents 응답자
+         */
+        record Option(int optionNo, String label, int count, List<Respondent> respondents) {}
+
+        /**
+         * 응답자.
+         *
+         * @param memberId 회원 ID
+         * @param displayName 표시명
+         */
+        record Respondent(long memberId, String displayName) {}
+    }
+
+    /**
+     * 크루 앨범(v0.11 GET /crews/{id}/album, FR-212). 최신순.
+     *
+     * @param photos 사진
+     * @param nextCursor 다음 페이지 커서(photoId), 없으면 null
+     */
+    record AlbumResponse(List<Photo> photos, Long nextCursor) {
+
+        static AlbumResponse of(AlbumView v) {
+            return new AlbumResponse(
+                    v.photos().stream()
+                            .map(
+                                    p ->
+                                            new Photo(
+                                                    p.photoId(),
+                                                    p.postId(),
+                                                    photoUrl(p.photoId()),
+                                                    at(p.postedAt())))
+                            .toList(),
+                    v.nextCursor());
+        }
+
+        /**
+         * 앨범 사진.
+         *
+         * @param photoId 사진 ID
+         * @param postId 게시글 ID
+         * @param url 사진 주소(/api/v1/crew-photos/{photoId})
+         * @param postedAt 게시 일시
+         */
+        record Photo(long photoId, long postId, String url, OffsetDateTime postedAt) {}
+    }
+
+    /**
+     * 이번 주 공동 목표(v0.11 PUT /crews/{id}/goal, FR-138).
+     *
+     * @param goalMeters 목표 거리(m, 1,000 이상)
+     */
+    record GoalRequest(@NotNull Long goalMeters) {}
+
+    /**
+     * 운영진 지정·해제 결과(v0.11 PUT·DELETE /crews/{id}/managers/{memberId}, FR-204).
+     *
+     * @param memberId 대상 회원 ID
+     * @param role 지정이면 MANAGER, 해제면 MEMBER
+     */
+    record ManagerResponse(long memberId, CrewRole role) {}
 
     /**
      * 게시글 목록.
@@ -359,9 +559,11 @@ final class CrewDtos {
      */
     record PostListResponse(List<Item> posts, Long nextCursor) {
 
-        static PostListResponse of(PostListView view) {
+        /** now는 투표 마감 여부(closed)를 정하는 조회 시각이다. */
+        static PostListResponse of(PostListView view, LocalDateTime now) {
             return new PostListResponse(
-                    view.posts().stream().map(Item::of).toList(), view.nextCursor());
+                    view.posts().stream().map(line -> Item.of(line, now)).toList(),
+                    view.nextCursor());
         }
 
         /**
@@ -374,30 +576,123 @@ final class CrewDtos {
          * @param writtenAt 작성 일시
          * @param mine 내가 쓴 글
          * @param crewRun 크루런 정보(모집글만)
+         * @param canDelete 지울 수 있음(본인 글 또는 운영진 이상, v0.11 FR-213)
+         * @param meetup 대면 모임 정보(MEETUP만)
+         * @param notice 공지 정보(NOTICE만)
+         * @param poll 투표 요약(POLL만)
+         * @param photos 사진(BOARD만)
          */
         record Item(
                 long postId,
                 String kind,
                 String authorName,
                 String body,
-                LocalDateTime writtenAt,
+                OffsetDateTime writtenAt,
                 boolean mine,
-                CrewRun crewRun) {
+                CrewRun crewRun,
+                boolean canDelete,
+                Meetup meetup,
+                Notice notice,
+                Poll poll,
+                List<Photo> photos) {
 
-            static Item of(PostListView.Line line) {
+            static Item of(PostListView.Line line, LocalDateTime now) {
                 PostSummary summary = line.summary();
                 return new Item(
                         summary.postId(),
                         summary.kind().name(),
                         displayOf(line.authorName()),
                         summary.body(),
-                        summary.writtenAt(),
+                        at(summary.writtenAt()),
                         summary.mine(),
                         summary.crewRun() == null
                                 ? null
-                                : CrewRun.of(summary.crewRun(), line.crewContribution()));
+                                : CrewRun.of(summary.crewRun(), line.crewContribution()),
+                        line.canDelete(),
+                        summary.meetup() == null ? null : Meetup.of(summary.meetup()),
+                        summary.notice() == null ? null : new Notice(summary.notice().pinned()),
+                        summary.poll() == null ? null : Poll.of(summary.poll(), now),
+                        summary.photoIds() == null
+                                ? null
+                                : summary.photoIds().stream()
+                                        .map(id -> new Photo(id, photoUrl(id)))
+                                        .toList());
             }
         }
+
+        /**
+         * 대면 모임 정보(v0.11 FR-132).
+         *
+         * @param scheduledAt 일시
+         * @param placeName 장소명
+         * @param capacity 정원
+         * @param goingCount 참석 인원
+         * @param notGoingCount 불참 인원
+         * @param undecidedCount 미정 인원
+         * @param myAnswer 본인 응답, 없으면 null
+         */
+        record Meetup(
+                OffsetDateTime scheduledAt,
+                String placeName,
+                int capacity,
+                int goingCount,
+                int notGoingCount,
+                int undecidedCount,
+                AttendanceAnswer myAnswer) {
+
+            static Meetup of(PostSummary.MeetupInfo m) {
+                AttendanceCounts c = m.counts();
+                return new Meetup(
+                        at(m.scheduledAt()),
+                        m.placeName(),
+                        m.capacity(),
+                        c.going(),
+                        c.notGoing(),
+                        c.undecided(),
+                        m.myAnswer());
+            }
+        }
+
+        /**
+         * 공지 정보(v0.11 FR-205).
+         *
+         * @param pinned 고정됨
+         */
+        record Notice(boolean pinned) {}
+
+        /**
+         * 투표 요약(v0.11 FR-206).
+         *
+         * @param method 투표 방식
+         * @param closesAt 마감 일시
+         * @param closed 마감됨
+         * @param responseCount 응답 수
+         * @param myOptionNo 본인이 고른 선택지, 없으면 null
+         */
+        record Poll(
+                PollMethod method,
+                OffsetDateTime closesAt,
+                boolean closed,
+                int responseCount,
+                Integer myOptionNo) {
+
+            static Poll of(PostSummary.PollInfo p, LocalDateTime now) {
+                return new Poll(
+                        p.method(),
+                        at(p.closesAt()),
+                        p.closedAt(now),
+                        p.responseCount(),
+                        p.myOptionNo());
+            }
+        }
+
+        /**
+         * 게시글 사진(v0.11 FR-211).
+         *
+         * @param photoId 사진 ID
+         * @param url 사진 주소(/api/v1/crew-photos/{photoId})
+         */
+        record Photo(long photoId, String url) {}
 
         /**
          * 모집글의 크루런 정보.
@@ -406,31 +701,37 @@ final class CrewDtos {
          * @param scheduledAt 모집희망일시
          * @param voteDeadline 투표 마감
          * @param status 크루런 상태
-         * @param goingCount 참여 인원
-         * @param myAnswer 본인 응답
+         * @param goingCount 참석 인원
+         * @param myAnswer 본인 응답(GOING | NOT_GOING | UNDECIDED)
          * @param finisherCount 완주 인원
          * @param raceContributionMeters 크루 반영 거리(지난 크루런)
+         * @param notGoingCount 불참 인원(v0.11 FR-133)
+         * @param undecidedCount 미정 인원(v0.11 FR-133)
          */
         record CrewRun(
                 long distanceMeters,
-                LocalDateTime scheduledAt,
-                LocalDateTime voteDeadline,
+                OffsetDateTime scheduledAt,
+                OffsetDateTime voteDeadline,
                 String status,
                 int goingCount,
                 String myAnswer,
                 int finisherCount,
-                Long raceContributionMeters) {
+                Long raceContributionMeters,
+                int notGoingCount,
+                int undecidedCount) {
 
             static CrewRun of(PostSummary.CrewRunInfo run, Distance contribution) {
                 return new CrewRun(
                         run.distance().distance().meters(),
-                        run.scheduledAt(),
-                        run.voteDeadline(),
+                        at(run.scheduledAt()),
+                        at(run.voteDeadline()),
                         run.status().name(),
-                        run.goingCount(),
+                        run.counts().going(),
                         run.myAnswer() == null ? null : run.myAnswer().name(),
                         run.finisherCount(),
-                        meters(contribution));
+                        meters(contribution),
+                        run.counts().notGoing(),
+                        run.counts().undecided());
             }
         }
     }
@@ -447,7 +748,7 @@ final class CrewDtos {
      */
     record LobbyResponse(
             long postId,
-            LocalDateTime scheduledAt,
+            OffsetDateTime scheduledAt,
             long distanceMeters,
             long remainingSeconds,
             String status,
@@ -456,7 +757,7 @@ final class CrewDtos {
         static LobbyResponse of(LobbyView v, long viewerId) {
             return new LobbyResponse(
                     v.postId(),
-                    v.scheduledAt(),
+                    at(v.scheduledAt()),
                     v.distance().distance().meters(),
                     v.remaining().toSeconds(),
                     v.status().name(),
@@ -560,7 +861,7 @@ final class CrewDtos {
      * @param leaderName 크루장 표시명
      * @param headcount 인원
      * @param weeklyDistanceMeters 이번 주 크루 거리
-     * @param myRole LEADER | MEMBER, 크루 밖이면 null
+     * @param myRole LEADER | MANAGER | MEMBER, 크루 밖이면 null
      * @param inviteCode 초대 코드(크루장만)
      * @param inviteCodeExpiresAt 초대 코드 만료 일시(크루장만)
      */
@@ -578,7 +879,7 @@ final class CrewDtos {
             long weeklyDistanceMeters,
             String myRole,
             String inviteCode,
-            LocalDateTime inviteCodeExpiresAt) {
+            OffsetDateTime inviteCodeExpiresAt) {
 
         static CrewDetailResponse of(CrewDetailView v) {
             return new CrewDetailResponse(
@@ -595,7 +896,7 @@ final class CrewDtos {
                     v.weeklyDistance().meters(),
                     v.myRole() == null ? null : v.myRole().name(),
                     v.inviteCode() == null ? null : v.inviteCode().code(),
-                    v.inviteCode() == null ? null : v.inviteCode().expiresAt());
+                    v.inviteCode() == null ? null : at(v.inviteCode().expiresAt()));
         }
     }
 
@@ -617,7 +918,7 @@ final class CrewDtos {
                                                     p.requestId(),
                                                     p.crewId(),
                                                     p.crewName(),
-                                                    p.requestedAt()))
+                                                    at(p.requestedAt())))
                             .toList());
         }
 
@@ -630,7 +931,7 @@ final class CrewDtos {
          * @param requestedAt 신청 일시
          */
         record PendingJoin(
-                long requestId, long crewId, String crewName, LocalDateTime requestedAt) {}
+                long requestId, long crewId, String crewName, OffsetDateTime requestedAt) {}
     }
 
     /**
@@ -653,13 +954,37 @@ final class CrewDtos {
     }
 
     /**
-     * 크루 게시글 목록 쿼리(GET /crews/{id}/posts, 코드 리뷰 2차 P3). 쿼리 이름은 항목 이름과 같다.
+     * 크루 게시글 목록 쿼리(GET /crews/{id}/posts, F.2.2). 쿼리 이름은 항목 이름과 같다.
      *
-     * @param kind 글 종류(CHEER·CREW_RUN), 없으면 전부
+     * @param kinds 글 종류(쉼표 또는 반복), 없으면 전부
+     * @param kind v0.10 단수 종류(호환), kinds와 함께 오면 합친다
+     * @param pinnedOnly 고정 공지만
      * @param cursor 다음 페이지 커서
      * @param size 페이지 크기(없으면 전부)
      */
-    record PostListQuery(com.a207.runkk.crew.PostKind kind, Long cursor, Integer size) {
+    record PostListQuery(
+            Set<PostKind> kinds, PostKind kind, Boolean pinnedOnly, Long cursor, Integer size) {
+
+        PostQuery toQuery() {
+            Set<PostKind> all = EnumSet.noneOf(PostKind.class);
+            if (kinds != null) {
+                all.addAll(kinds);
+            }
+            if (kind != null) {
+                all.add(kind);
+            }
+            return new PostQuery(
+                    all, Boolean.TRUE.equals(pinnedOnly), new PageCursor(cursor, size));
+        }
+    }
+
+    /**
+     * 크루 앨범 쿼리(GET /crews/{id}/album, FR-212).
+     *
+     * @param cursor 다음 페이지 커서(photoId)
+     * @param size 페이지 크기(없으면 30)
+     */
+    record AlbumQuery(Long cursor, Integer size) {
 
         PageCursor page() {
             return new PageCursor(cursor, size);

@@ -16,6 +16,16 @@
     <string name="inbox_title_battle_corrected">대결 결과 정정</string>
 
     <string name="measurement_channel_name">러닝 측정</string>
+    <string name="push_channel_name">런크크 알림</string>
     <string name="measurement_notification_title">러닝 측정 중</string>
     <string name="measurement_notification_text">화면을 꺼도 거리와 시간을 계속 잽니다</string>
+    <string name="inbox_title_crew_notice">크루 공지</string>
+    <string name="inbox_title_crew_poll">크루 투표</string>
+    <string name="inbox_title_poll_closing_soon">투표 마감 임박</string>
+    <string name="inbox_title_crew_schedule">크루 일정</string>
+    <string name="inbox_title_crew_chat">크루 채팅</string>
+    <string name="inbox_title_crew_goal_achieved">크루 공동 목표 달성</string>
+    <string name="inbox_title_manager_changed">운영진 변경</string>
+    <string name="inbox_title_background_unlocked">아바타 배경 해금</string>
+    <string name="inbox_title_report_resolved">신고 처리 결과</string>
 </resources>

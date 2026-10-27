@@ -123,7 +123,7 @@ private fun Overline(text: String, isAccent: Boolean = false, trailing: (@Compos
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
         Text(
             text,
-            style = RunkkTextStyles.display(20, letterSpacingEm = 0.08f),
+            style = RunkkTextStyles.TopBarTitle,
             color = if (isAccent) RunkkColors.Lime else RunkkColors.TextPrimary,
             modifier = Modifier.semantics {
                 heading()
@@ -144,7 +144,7 @@ private fun androidx.compose.foundation.layout.ColumnScope.Choosing(
 ) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         RunkkIconButton(RunkkIcons.Back, contentDescription = stringResource(R.string.battle_back), onClick = onBack)
-        Overline("BATTLE RUN")
+        Overline(stringResource(R.string.battle_match_title))
     }
     Column(
         modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -154,11 +154,6 @@ private fun androidx.compose.foundation.layout.ColumnScope.Choosing(
             stringResource(R.string.battle_match_headline),
             style = RunkkTextStyles.Headline,
             color = RunkkColors.TextPrimary
-        )
-        Text(
-            stringResource(R.string.battle_match_description),
-            style = RunkkTextStyles.Body,
-            color = RunkkColors.TextSecondary
         )
         val distanceTitle = stringResource(R.string.battle_match_distance_title)
         Text(distanceTitle, style = RunkkTextStyles.text(13, FontWeight.Bold), color = RunkkColors.TextSecondary)
@@ -188,7 +183,7 @@ private fun androidx.compose.foundation.layout.ColumnScope.Choosing(
 @Composable
 private fun androidx.compose.foundation.layout.ColumnScope.Waiting(state: MatchUiState, onCancel: () -> Unit) {
     val waitingDescription = stringResource(R.string.battle_match_finding_desc, state.waitingSeconds)
-    Overline("BATTLE RUN") { RunkkStatusPill(RunkkFormat.targetLabel(state.distance)) }
+    Overline(stringResource(R.string.battle_match_title)) { RunkkStatusPill(RunkkFormat.targetLabel(state.distance)) }
     Column(
         modifier = Modifier.weight(1f).fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -279,11 +274,18 @@ private fun radarWave(): Float {
 
 @Composable
 private fun androidx.compose.foundation.layout.ColumnScope.Matched(match: MatchFound, startsIn: Long?) {
-    Overline("MATCHED", isAccent = true) { RunkkStatusPill(RunkkFormat.targetLabel(match.distance)) }
+    Overline(stringResource(R.string.battle_match_title)) { RunkkStatusPill(RunkkFormat.targetLabel(match.distance)) }
     Column(
         modifier = Modifier.weight(1f).fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterVertically)
     ) {
+        Text(
+            stringResource(R.string.battle_match_found),
+            style = RunkkTextStyles.Headline,
+            color = RunkkColors.Lime,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().clearAndSetSemantics {}
+        )
         MatchedVersus(match)
         MatchedBest(match)
     }

@@ -115,7 +115,7 @@ class MeControllerTest extends WebTestSupport {
     }
 
     @Test
-    @DisplayName("프로필: 닉네임·소개·태그를 바꾸고, 소개 41자는 거부한다")
+    @DisplayName("프로필: 닉네임·소개를 바꾸고(태그는 보내도 무시, D-91), 소개 41자는 거부한다")
     void profile() throws Exception {
         Session s = signUp();
         mvc.perform(
@@ -132,7 +132,7 @@ class MeControllerTest extends WebTestSupport {
                                                         java.util.List.of("DAWN")))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.nickname").value("새이름" + s.memberId()))
-                .andExpect(jsonPath("$.tags[0]").value("DAWN"));
+                .andExpect(jsonPath("$.tags").doesNotExist());
         mvc.perform(
                         as(s, patch("/api/v1/me/profile"))
                                 .contentType(MediaType.APPLICATION_JSON)

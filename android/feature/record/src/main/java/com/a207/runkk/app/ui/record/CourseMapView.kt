@@ -15,6 +15,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.a207.runkk.app.core.designsystem.LocalRunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.model.GeoPoint
@@ -60,13 +61,14 @@ fun CourseMapView(points: List<GeoPoint>, unstable: List<IntRange>, modifier: Mo
         KakaoCourseMap(mapKey, points, unstable, description, modifier)
         return
     }
+    val colors = LocalRunkkColors.current
     Canvas(modifier = modifier.semantics { contentDescription = description }) {
-        if (points.size >= 2) drawCourseRoute(points, unstable)
+        if (points.size >= 2) drawCourseRoute(points, unstable, colors)
     }
 }
 
 /** Canvas에 경로선을 그린다: 안정 구간은 라임 실선, 불안정 구간은 라벤더 점선, 시작은 흰 점·끝은 라임 점. */
-private fun DrawScope.drawCourseRoute(points: List<GeoPoint>, unstable: List<IntRange>) {
+private fun DrawScope.drawCourseRoute(points: List<GeoPoint>, unstable: List<IntRange>, colors: RunkkColors) {
     val minLat = points.minOf { it.latitude }
     val maxLat = points.maxOf { it.latitude }
     val minLon = points.minOf { it.longitude }
@@ -93,7 +95,7 @@ private fun DrawScope.drawCourseRoute(points: List<GeoPoint>, unstable: List<Int
         val isUnstable = i in unstableIndexes
         drawPath(
             segment,
-            color = if (isUnstable) RunkkColors.Lavender else RunkkColors.Lime,
+            color = if (isUnstable) colors.lavender else colors.lime,
             style = Stroke(
                 width = stroke,
                 cap = StrokeCap.Round,
@@ -108,8 +110,8 @@ private fun DrawScope.drawCourseRoute(points: List<GeoPoint>, unstable: List<Int
             )
         )
     }
-    drawCircle(RunkkColors.TextPrimary, radius = 6.dp.toPx(), center = at(points.first()))
-    drawCircle(RunkkColors.Lime, radius = 6.dp.toPx(), center = at(points.last()))
+    drawCircle(colors.textPrimary, radius = 6.dp.toPx(), center = at(points.first()))
+    drawCircle(colors.lime, radius = 6.dp.toPx(), center = at(points.last()))
 }
 
 @Preview(name = "코스 지도", widthDp = 358, heightDp = 200, backgroundColor = 0xFF18181B, showBackground = true)

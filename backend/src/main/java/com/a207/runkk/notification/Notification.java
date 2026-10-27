@@ -29,10 +29,11 @@ public class Notification {
     @Column(name = "type", nullable = false, updatable = false, length = 30)
     private NotificationType type;
 
-    @Column(name = "content", nullable = false, updatable = false, length = CONTENT_MAX)
+    /** 묶음 알림(notifyCollapsing)이 같은 행의 내용·일시를 바꾼다(D-102). */
+    @Column(name = "content", nullable = false, length = CONTENT_MAX)
     private String content;
 
-    @Column(name = "occurred_at", nullable = false, updatable = false)
+    @Column(name = "occurred_at", nullable = false)
     private LocalDateTime occurredAt;
 
     @Column(name = "is_read", nullable = false)
@@ -50,16 +51,27 @@ public class Notification {
     private Notification(NotificationRequest req, LocalDateTime occurredAt) {
         this.recipientId = req.recipientId();
         this.type = req.type();
-        this.content =
-                req.content().length() > CONTENT_MAX
-                        ? req.content().substring(0, CONTENT_MAX)
-                        : req.content();
+        this.content = fit(req.content());
         this.occurredAt = occurredAt;
         this.read = false;
         if (req.target() != null) {
             this.targetScreen = req.target().screen();
             this.targetId = req.target().targetId();
         }
+    }
+
+    /** 묶음 알림: 읽지 않은 같은 알림의 내용·발생 일시를 새 사건으로 바꾼다(v0.11 D-102). 읽음 여부·대상은 그대로다. */
+    void collapse(NotificationRequest req, LocalDateTime occurredAt) {
+        if (occurredAt == null) {
+            throw new IllegalArgumentException("발생 일시가 비었다");
+        }
+        this.content = fit(req.content());
+        this.occurredAt = occurredAt;
+    }
+
+    /** 내용 칼럼 길이(500)를 넘으면 앞부분만 남긴다. */
+    static String fit(String content) {
+        return content.length() > CONTENT_MAX ? content.substring(0, CONTENT_MAX) : content;
     }
 
     /** 알림 사건을 알림함 한 건으로 만든다(UNREAD). */

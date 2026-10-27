@@ -3,7 +3,9 @@ package com.a207.runkk.avatar;
 import com.a207.runkk.common.BusinessRuleException;
 import com.a207.runkk.common.ItemSlot;
 import com.a207.runkk.common.ReasonCode;
+import com.a207.runkk.policy.Landmark;
 import com.a207.runkk.policy.SelfieLimit;
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
 import jakarta.persistence.ElementCollection;
@@ -15,14 +17,21 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.MapKeyColumn;
 import jakarta.persistence.MapKeyEnumerated;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * 회원 아바타의 외형 상태(설계 6.1.8, 상태도 2.4.12). 얼굴은 셀카 SD 부위(SelfieFace) 또는 기본 캐릭터(DefaultFace)다. 착용 아이템 보유
@@ -75,6 +84,15 @@ public class Avatar {
     @MapKeyColumn(name = "slot", length = 10)
     @Column(name = "item_id", nullable = false)
     private Map<ItemSlot, Long> equipped = new HashMap<>();
+
+    /** 고른 랜드마크 배경 키. null이면 기본 배경(FR-202, D-107 (5)). */
+    @Column(name = "selected_background", length = 40)
+    private String selectedBackgroundKey;
+
+    /** 해금한 배경(avatar_background). 해금은 취소하지 않는다(D-107 (4)). 배경 연산 때만 읽는다. */
+    @OneToMany(cascade = CascadeType.ALL)
+    @JoinColumn(name = "member_id", insertable = false, updatable = false)
+    private List<UnlockedBackground> unlockedBackgrounds = new ArrayList<>();
 
     @Version
     @Column(name = "version", nullable = false)
@@ -138,6 +156,52 @@ public class Avatar {
         return changed;
     }
 
+    /**
+     * reached 중 아직 해금하지 않은 키만 해금 때의 키·이름·단계·거리 스냅숏(unlockedAt = now)으로 더하고 새로 해금한 것만 돌려준다. 해금은 취소하지
+     * 않는다(기준값이 바뀌어도 지우지 않는다, FR-201, D-107).
+     */
+    public List<UnlockedBackground> unlock(Collection<Landmark> reached, LocalDateTime now) {
+        Set<String> have = unlockedKeys();
+        List<UnlockedBackground> added = new ArrayList<>();
+        for (Landmark landmark : reached) {
+            if (have.add(landmark.key())) {
+                UnlockedBackground background = UnlockedBackground.of(memberId, landmark, now);
+                unlockedBackgrounds.add(background);
+                added.add(background);
+            }
+        }
+        return added;
+    }
+
+    /** 해금하지 않은 키면 BusinessRuleException(BACKGROUND_LOCKED)이고 선택은 그대로다(FR-202). */
+    public void selectBackground(String key) {
+        if (key == null || !unlockedKeys().contains(key)) {
+            throw new BusinessRuleException(ReasonCode.BACKGROUND_LOCKED);
+        }
+        selectedBackgroundKey = key;
+    }
+
+    /** 기본 배경으로 돌아간다(FR-202). */
+    public void useDefaultBackground() {
+        selectedBackgroundKey = null;
+    }
+
+    private Set<String> unlockedKeys() {
+        Set<String> keys = new HashSet<>();
+        unlockedBackgrounds.forEach(u -> keys.add(u.landmarkKey()));
+        return keys;
+    }
+
+    /** 해금한 배경(읽기 전용 복사본). */
+    public List<UnlockedBackground> unlockedBackgrounds() {
+        return List.copyOf(unlockedBackgrounds);
+    }
+
+    /** 고른 배경 키. 기본 배경이면 비어 있다. */
+    public Optional<String> selectedBackgroundKey() {
+        return Optional.ofNullable(selectedBackgroundKey);
+    }
+
     /** 얼굴. 고르지 않았으면 비어 있다. */
     public Optional<Face> face() {
         if (defaultCharacter != null) {
@@ -149,7 +213,7 @@ public class Avatar {
         return Optional.empty();
     }
 
-    /** 얼굴이 없으면 "기본 캐릭터를 고를 수 있다". */
+    /** 얼굴이 없으면 "기본 캐릭터를 고를 수 있다". 고른 배경 키(null = 기본 배경)를 싣는다(FR-162, FR-202). */
     public AvatarView view(int balance) {
         Optional<String> key = face().map(Face::renderKey);
         Map<ItemSlot, Long> worn = new EnumMap<>(ItemSlot.class);
@@ -159,6 +223,7 @@ public class Avatar {
                 key.isPresent() ? null : CHOOSE_DEFAULT_GUIDE,
                 bodyShape,
                 skinTone,
+                selectedBackgroundKey,
                 worn,
                 balance,
                 false,

@@ -1,11 +1,9 @@
 package com.a207.runkk.infra.member;
 
 import com.a207.runkk.common.DisplayName;
-import com.a207.runkk.common.PersonalityTag;
 import com.a207.runkk.common.RecordVisibility;
-import com.a207.runkk.common.TagOwner;
-import com.a207.runkk.common.TagSet;
 import com.a207.runkk.common.Tier;
+import com.a207.runkk.member.AccountType;
 import com.a207.runkk.member.GhostOwner;
 import com.a207.runkk.member.Member;
 import com.a207.runkk.member.MemberRepository;
@@ -81,6 +79,19 @@ public class JpaMemberRepository implements MemberRepository {
     }
 
     @Override
+    public List<Member> findIdleGuests(LocalDateTime before) {
+        return entityManager
+                .createQuery(
+                        "select m from Member m where m.accountType = :guest and m.status = :status"
+                                + " and m.lastAccessAt <= :before order by m.id",
+                        Member.class)
+                .setParameter("guest", AccountType.GUEST)
+                .setParameter("status", MemberStatus.ACTIVE)
+                .setParameter("before", before)
+                .getResultList();
+    }
+
+    @Override
     public Member save(Member member) {
         if (member.getId() == null) {
             entityManager.persist(member);
@@ -98,7 +109,7 @@ public class JpaMemberRepository implements MemberRepository {
                 entityManager
                         .createQuery(
                                 "select m.id, m.nickname.value, m.status, m.tier,"
-                                        + " m.settings.profileVisibility, m.tags"
+                                        + " m.settings.profileVisibility"
                                         + " from Member m where m.id in :ids",
                                 Object[].class)
                         .setParameter("ids", Set.copyOf(memberIds))
@@ -114,8 +125,7 @@ public class JpaMemberRepository implements MemberRepository {
                             id,
                             DisplayName.ofNullable(nickname),
                             (Tier) row[3],
-                            (ProfileVisibility) row[4],
-                            decodeTags((String) row[5])));
+                            (ProfileVisibility) row[4]));
         }
         return result;
     }
@@ -172,17 +182,5 @@ public class JpaMemberRepository implements MemberRepository {
                         .setParameter("status", MemberStatus.ACTIVE)
                         .setParameter("visibilities", ranked)
                         .getResultList());
-    }
-
-    /** member.tags 열(쉼표 구분 태그 이름)을 읽는다. Member와 같은 형식이다. */
-    private static TagSet decodeTags(String encoded) {
-        if (encoded == null || encoded.isEmpty()) {
-            return TagSet.empty(TagOwner.RUNNER);
-        }
-        return TagSet.of(
-                Arrays.stream(encoded.split(","))
-                        .map(PersonalityTag::valueOf)
-                        .collect(Collectors.toSet()),
-                TagOwner.RUNNER);
     }
 }

@@ -23,6 +23,9 @@ interface SettingsRepository {
 
     fun guidanceSettings(): GuidanceSettings
 
+    /** 서버 사본의 계정 유형이 GUEST인가(연동하지 않은 게스트, FR-199). 사본이 없으면 거짓이다. */
+    fun isGuest(): Boolean
+
     /** 값이 바뀔 때마다 알린다. WatchLink가 동의 철회를 바로 반영한다. */
     fun changes(): Flow<SettingsSnapshot>
 

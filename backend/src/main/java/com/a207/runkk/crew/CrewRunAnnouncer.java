@@ -27,6 +27,9 @@ class CrewRunAnnouncer {
     /** 준비 완료 2명 미만 취소 문구(srs.md 6.3 5.7.2). */
     static final String CANCELLED_REASON = "함께 달릴 크루원이 없어 취소됨";
 
+    /** 대기실에서 모집글·크루가 지워졌을 때 문구(D-66). */
+    static final String DELETED_REASON = "크루런이 삭제되었어요";
+
     private static final String SOON_TEXT = "곧 크루런이 시작돼요. 대기실이 열렸어요";
 
     private final CrewRunMessenger crewRunMessenger;
@@ -93,6 +96,37 @@ class CrewRunAnnouncer {
                     crewRunLiveService.forget(postId);
                 });
         AfterCommit.run(() -> crewRunMessenger.sendAll(runners, new CrewRunEnded(postId)));
+    }
+
+    /**
+     * 모집글·크루 삭제(D-66, K-2): RUNNING이면 출발 참가자에게 CrewRunEnded, LOBBY_OPEN이면 대기실 입장자에게
+     * CrewRunCancelled(삭제 문구), 그 밖은 보내지 않는다. 세션은 지운다. 모두 커밋 뒤다. 참가자 기기의 측정은 멈추지 않는다.
+     */
+    void deleted(CrewRunPost post) {
+        long postId = post.getId();
+        List<Long> recipients =
+                switch (post.status()) {
+                    case RUNNING -> post.runners();
+                    case LOBBY_OPEN ->
+                            post.participations().stream()
+                                    .filter(p -> p.readiness() != Readiness.NOT_ENTERED)
+                                    .flatMap(p -> p.memberId().stream())
+                                    .toList();
+                    default -> List.of();
+                };
+        AfterCommit.run(
+                () -> {
+                    crewLiveSessionStore.delete(postId);
+                    crewRunLiveService.forget(postId);
+                });
+        if (recipients.isEmpty()) {
+            return;
+        }
+        CrewRunMessage message =
+                post.status() == CrewRunStatus.RUNNING
+                        ? new CrewRunEnded(postId)
+                        : new CrewRunCancelled(postId, DELETED_REASON);
+        AfterCommit.run(() -> crewRunMessenger.sendAll(recipients, message));
     }
 
     /** 진행 중인데 세션이 없으면(출발 커밋 뒤 Redis 저장 실패, Redis 재시작) 진행 참가자로 다시 연다. 1초 시계가 RUNNING 크루런마다 부른다. */

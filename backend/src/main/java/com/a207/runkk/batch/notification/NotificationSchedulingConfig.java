@@ -1,5 +1,6 @@
 package com.a207.runkk.batch.notification;
 
+import com.a207.runkk.common.ServerZone;
 import java.time.ZoneId;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -10,13 +11,16 @@ import org.springframework.scheduling.config.CronTask;
 import org.springframework.scheduling.config.ScheduledTaskRegistrar;
 import org.springframework.scheduling.support.CronTrigger;
 
-/** batch.notification 작업의 실행 시각(설계 6.1.13 …SchedulingConfig, D-39). 기본 매일 3시(한국 시간). */
+/**
+ * batch.notification 작업의 실행 시각(설계 6.1.13 …SchedulingConfig, D-39). 기본 매일 0시(한국 시간, srs 소단위명세 7.3,
+ * D-67, 부록 E K-3).
+ */
 @Configuration
 @EnableScheduling
 @EnableConfigurationProperties(NotificationSchedulingConfig.Schedule.class)
 public class NotificationSchedulingConfig implements SchedulingConfigurer {
 
-    private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
+    private static final ZoneId SEOUL = ServerZone.ID;
 
     private final NotificationPurgeJob notificationPurgeJob;
     private final String cron;

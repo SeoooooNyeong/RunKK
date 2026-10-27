@@ -120,7 +120,46 @@ public class RunRecord {
     @Column(name = "saved_at", nullable = false, updatable = false)
     private LocalDateTime savedAt;
 
+    /** 정지 구간 "시작;끝" 줄 목록(자유런만, V21). */
+    @Column(name = "pauses", nullable = false, updatable = false, columnDefinition = "text")
+    private String pausesData;
+
+    /** 정지 구간 길이의 합(ms). 자유런이 아니면 0(ck_run_record_pause, V21). */
+    @Column(name = "paused_millis", nullable = false, updatable = false)
+    private long pausedMillis;
+
+    /**
+     * 티어에 반영했는가(유효 기록만 뜻이 있다, 총괄 결정 7-3, V21). 엔티티 저장으로는 바꾸지 않고(updatable = false) 저장소의 조건부 갱신
+     * markTierApplied로만 세운다. 다른 트랜잭션이 읽어 둔 엔티티를 저장할 때 표시가 되돌아가지 않게 하려는 것이다.
+     */
+    @Column(name = "tier_applied", nullable = false, updatable = false)
+    private boolean tierApplied;
+
+    /**
+     * 유효 판정에서 뺀 거리(m, FR-047 v0.10): 이웃 포인트 사이 시속이 25km/h를 넘는 쌍의 거리 합(서버가 경로로 잰 값).
+     * distance_meters는 뺀 뒤 남은 집계 거리다. 원래 측정 거리는 대략 둘의 합이다(V27).
+     */
+    @Column(name = "excluded_meters", nullable = false, updatable = false)
+    private long excludedMeters;
+
+    /** 유효 판정에서 뺀 시간(ms, FR-047 v0.10). elapsed_millis는 뺀 뒤 남은 운동 시간이다(V27). */
+    @Column(name = "excluded_millis", nullable = false, updatable = false)
+    private long excludedMillis;
+
+    /**
+     * v0.10 일회성 재판정 표시(V28, RunRejudgeService). V28이 그때까지 저장된 무효 기록에 PENDING을 세우고, 재판정이 VALID(유효로
+     * 바뀌어 부수 처리 대기)·DONE·SKIPPED(경로 파기)로 바꾼다. 새로 받은 기록은 null이다. 저장소의 조건부 갱신으로만 바꾼다.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "rejudge_state", length = 8, insertable = false, updatable = false)
+    private RejudgeState rejudgeState;
+
     @Transient private RunTrack track;
+
+    @Transient private List<PauseInterval> pauses;
+
+    /** 정지 구간과 제외 구간(초과 시속 쌍)을 합친 시간순 목록. 처음 쓸 때 경로로 계산한다. */
+    @Transient private List<PauseInterval> stops;
 
     @Transient private HeartRateSeries heartRates;
 
@@ -142,6 +181,9 @@ public class RunRecord {
         this.track = new RunTrack(startedAt, upload.points(), upload.unstableSegments(), false);
         this.track.sortByTime();
         this.unstableSegmentsData = encodeSegments(upload.unstableSegments());
+        this.pauses = upload.pauses();
+        this.pausesData = encodePauses(pauses);
+        this.pausedMillis = pauses.stream().mapToLong(p -> p.duration().toMillis()).sum();
         storeTrack();
         if (!upload.heartRates().isEmpty()) {
             this.heartRates = HeartRateSeries.of(startedAt, upload.heartRates());
@@ -184,25 +226,78 @@ public class RunRecord {
                 && upload.elapsed().isPositive();
     }
 
-    /** 유효 판정. 처음 한 번만(두 번째는 IllegalStateException, FR-043 재계산 금지). 유효면 점수 확정. */
+    /**
+     * 유효 판정(A-03, D-94, FR-047 v0.10). 처음 한 번만(두 번째는 IllegalStateException, FR-043 재계산 금지). 판정 규칙은
+     * judge가 정한다. 유효면 점수 확정. 경로 파기 뒤 다시 판정하지 않는다.
+     */
     public boolean judgeValidity(ValidityRule rule) {
         if (judged) {
             throw new IllegalStateException("이미 판정한 기록");
         }
         this.judged = true;
-        this.valid =
-                rule.isSatisfiedBy(
-                                getDistance(),
-                                getElapsed(),
-                                getAveragePace(),
-                                track().maxSegmentSpeedKmh())
-                        && rule.isBackedBy(
-                                getDistance(),
-                                track().pathLength(),
-                                getElapsed(),
-                                Duration.between(startedAt, endedAt));
-        this.score = valid ? RunningScore.of(getDistance(), getElapsed()).value() : null;
+        judge(rule);
         return valid;
+    }
+
+    /**
+     * v0.10 규칙 변경에 따른 일회성 재판정(사용자 결정, RunRejudgeService만 부른다). FR-043의 재계산 금지와 judgeValidity의 한 번만
+     * 판정은 그대로 두고, 이 경로만 좁게 연다: 이미 판정했고, 무효이며, 경로가 남은 기록만 받는다(그 밖이면 IllegalStateException). 유효 기록은 옛
+     * 규칙에서 25km/h를 넘는 쌍이 없었으므로 새 규칙으로도 값이 같아 다시 보지 않는다. 저장된 거리·시간을 측정값으로 보고 judge를 다시 적용한다.
+     */
+    boolean rejudgeInvalid(ValidityRule rule) {
+        if (!judged || valid || !hasRoute()) {
+            throw new IllegalStateException("재판정할 수 없는 기록");
+        }
+        this.stops = null;
+        judge(rule);
+        return valid;
+    }
+
+    /**
+     * 판정 규칙(FR-047 v0.10). 이웃 포인트 사이 시속이 상한을 넘는 쌍(정지 경계 쌍·불안정 끝 쌍 제외)의 거리와 시간을 뺀다. 뺀 거리는 측정 거리와 경로로
+     * 다시 센 집계 거리(countedLength) 가운데 작은 값이다: 옛 앱은 그 쌍을 더해 보내고 새 앱은 빼고 보내므로 어느 쪽이든 두 번 빼지 않는다. 뺀 시간은
+     * 서버가 경로로 잰 값을 운동 시간에서 뺀다(앱은 시간을 빼지 않는다). 남은 거리·시간·평균 페이스에 세 조건을 적용하고, 다섯째 조건 isBackedBy는 남은
+     * 거리를 초과 쌍을 뺀 경로 길이와 대조한다(wall = 종료 − 시작 − 정지 합, 선언 시간과 비교). 남은 거리·시간이 0이면 무효이고 저장 값은 측정값 그대로
+     * 둔다(거리·시간 &gt; 0 제약). 그렇지 않으면 저장 거리·시간·페이스를 남은 값으로 바꾼다.
+     */
+    private void judge(ValidityRule rule) {
+        List<PauseInterval> pauses = pauses();
+        ExcludedSegments excluded = track().overspeedSegments(pauses, rule);
+        Distance counted = getDistance();
+        Duration countedElapsed = getElapsed();
+        if (!excluded.isEmpty()) {
+            Distance byTrack = track().countedLength(excluded.withPauses(pauses));
+            counted = byTrack.compareTo(counted) < 0 ? byTrack : counted;
+            countedElapsed = countedElapsed.minus(excluded.elapsed());
+        }
+        this.excludedMeters = excluded.distance().meters();
+        this.excludedMillis = excluded.elapsed().toMillis();
+        if (counted.meters() <= 0 || !countedElapsed.isPositive()) {
+            this.valid = false;
+            this.score = null;
+            return;
+        }
+        Duration wall = Duration.between(startedAt, endedAt).minus(pausedTotal());
+        Distance path = track().pathLength(pauses).minus(excluded.distance());
+        Duration declaredElapsed = getElapsed();
+        this.distanceMeters = counted.meters();
+        this.elapsedMillis = countedElapsed.toMillis();
+        this.averagePaceSeconds =
+                (int) Math.max(1, Math.round(elapsedMillis / (double) distanceMeters));
+        this.valid =
+                rule.isSatisfiedBy(getDistance(), getElapsed(), getAveragePace())
+                        && rule.isBackedBy(getDistance(), path, declaredElapsed, wall);
+        this.score = valid ? RunningScore.of(getDistance(), getElapsed()).value() : null;
+    }
+
+    /** 유효 판정에서 뺀 거리(FR-047 v0.10). 뺀 구간이 없으면 0. */
+    public Distance getExcludedDistance() {
+        return Distance.ofMeters(excludedMeters);
+    }
+
+    /** 유효 판정에서 뺀 시간(FR-047 v0.10). 뺀 구간이 없으면 0. */
+    public Duration getExcludedElapsed() {
+        return Duration.ofMillis(excludedMillis);
     }
 
     /** 날씨 붙이기. null이면 무시. */
@@ -253,9 +348,37 @@ public class RunRecord {
         this.heartRatePurged = true;
     }
 
-    /** d에 처음 닿은 경과 시간. 파기된 경로면 비어 있음. */
+    /**
+     * d에 처음 닿은 경과 시간(정지 시간을 뺀다, D-122·D-163). 제외 구간(초과 시속 쌍)도 정지처럼 거리와 시간에서 뺀다(FR-047 v0.10). 파기된
+     * 경로면 비어 있음.
+     */
     public Optional<Duration> timeToReach(Distance d) {
-        return track().timeToReach(d);
+        return track().timeToReach(d, stops());
+    }
+
+    /**
+     * 정지 구간과 제외 구간(초과 시속 쌍, ValidityRule.STANDARD)을 합친 시간순 목록. 도달 시간·곡선이 둘을 같이 건너뛴다. 옛 규칙으로 유효였던
+     * 기록은 초과 쌍이 없어 정지 구간과 같다. 파기된 경로면 정지 구간만이다.
+     */
+    List<PauseInterval> stops() {
+        if (stops == null) {
+            this.stops =
+                    track().overspeedSegments(pauses(), ValidityRule.STANDARD).withPauses(pauses());
+        }
+        return stops;
+    }
+
+    /** 정지 구간(읽기 전용, 시간순). 정지가 없으면 빈 목록(FR-036, FR-194). */
+    public List<PauseInterval> pauses() {
+        if (pauses == null) {
+            this.pauses = decodePauses(pausesData);
+        }
+        return pauses;
+    }
+
+    /** 정지 시간 합. 정지가 없으면 0(D-94). */
+    public Duration pausedTotal() {
+        return Duration.ofMillis(pausedMillis);
     }
 
     /** 1km 구간 페이스. 경로가 없으면 빈 목록. */
@@ -299,6 +422,20 @@ public class RunRecord {
             throw new IllegalStateException("이미 저장된 기록");
         }
         this.savedAt = at;
+    }
+
+    /** 티어에 반영했는가(총괄 결정 7-3). */
+    public boolean isTierApplied() {
+        return tierApplied;
+    }
+
+    /** 메모리 위 엔티티의 표시를 세운다. 처음이면 true. 저장소 구현이 조건부 갱신과 함께 부른다. */
+    boolean markTierApplied() {
+        if (tierApplied) {
+            return false;
+        }
+        this.tierApplied = true;
+        return true;
     }
 
     public LocalDateTime getSavedAt() {
@@ -374,6 +511,16 @@ public class RunRecord {
 
     boolean isRoutePurged() {
         return routePurged;
+    }
+
+    /** v0.10 일회성 재판정 표시(V28). 재판정 대상이 아니었으면 null. */
+    RejudgeState rejudgeState() {
+        return rejudgeState;
+    }
+
+    /** 메모리 위 엔티티의 재판정 표시를 바꾼다. 저장소 구현이 조건부 갱신과 함께 부른다(시험은 V28 표시를 흉내 낼 때). */
+    void markRejudgeState(RejudgeState state) {
+        this.rejudgeState = state;
     }
 
     List<UnstableSegment> unstableSegments() {
@@ -470,6 +617,20 @@ public class RunRecord {
                                         LocalDateTime.parse(f[0]),
                                         LocalDateTime.parse(f[1]),
                                         Distance.ofMeters(Long.parseLong(f[2]))))
+                .toList();
+    }
+
+    private static String encodePauses(List<PauseInterval> pauses) {
+        return pauses.stream().map(p -> p.from() + ";" + p.to()).collect(Collectors.joining("\n"));
+    }
+
+    private static List<PauseInterval> decodePauses(String data) {
+        if (data == null || data.isEmpty()) {
+            return List.of();
+        }
+        return Arrays.stream(data.split("\n"))
+                .map(line -> line.split(";"))
+                .map(f -> new PauseInterval(LocalDateTime.parse(f[0]), LocalDateTime.parse(f[1])))
                 .toList();
     }
 

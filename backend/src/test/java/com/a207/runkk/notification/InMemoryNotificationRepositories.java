@@ -47,6 +47,27 @@ public final class InMemoryNotificationRepositories {
         }
 
         @Override
+        public void saveCollapsing(NotificationRequest req, LocalDateTime occurredAt) {
+            Optional<Notification> unread =
+                    rows.values().stream()
+                            .filter(
+                                    n ->
+                                            n.recipientId() == req.recipientId()
+                                                    && n.type() == req.type()
+                                                    && !n.isRead())
+                            .filter(
+                                    n ->
+                                            java.util.Objects.equals(
+                                                    n.target().targetId(), req.target().targetId()))
+                            .findFirst();
+            if (unread.isPresent()) {
+                unread.get().collapse(req, occurredAt);
+            } else {
+                save(Notification.of(req, occurredAt));
+            }
+        }
+
+        @Override
         public int deleteOlderThan(LocalDateTime cutoff) {
             int before = rows.size();
             rows.values().removeIf(n -> n.occurredAt().isBefore(cutoff));

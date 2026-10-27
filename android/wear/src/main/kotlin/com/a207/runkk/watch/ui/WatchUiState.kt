@@ -2,7 +2,8 @@ package com.a207.runkk.watch.ui
 
 /**
  * 워치 화면 상태. [WatchViewModel]이 만들고 [WatchHomeScreen]·[WatchRunDisplay]는 그리기만 한다.
- * isRunning이 참이면 러닝 중 화면, 거짓이면 시작 화면(오늘 계획·시작 버튼, FR-042, N-21)이다.
+ * isRunning이 참이면 러닝 중 화면(정지 중이면 일시정지 화면, 근접 알림 중이면 대결 화면), 거짓이면 시작 화면(오늘 계획·시작 버튼,
+ * FR-042, N-21)이고 폰과 연결되어 있지 않으면 미연결 화면이다(와이어프레임 K1~K5).
  */
 data class WatchUiState(
     val isPhoneConnected: Boolean = false,
@@ -23,16 +24,19 @@ data class WatchUiState(
     /** 안내(폰의 notice 또는 "폰과 연결 필요", FR-183). */
     val notice: WatchNotice? = null,
     /** 심박 수집이 처음 켜졌고 알림 권한이 없어 한 번 물어야 한다(API 33+). 창을 띄운 뒤 화면이 알린다. */
-    val isNotificationPermissionNeeded: Boolean = false
-)
-
-/** 워치에 잠깐 보이는 안내. 폰이 보낸 문구는 그대로, 워치가 정한 안내는 화면이 문자열 리소스로 바꾼다. */
-sealed interface WatchNotice {
-    data class FromPhone(val text: String) : WatchNotice
-
-    /** FR-183 "연결되어 있지 않으면 거부하고 '폰과 연결 필요'를 보인다". */
-    data object PhoneNotConnected : WatchNotice
-
-    /** FR-181 종료 버튼을 짧게 눌렀다. 실수로 끝나지 않게 길게 눌러야 한다. */
-    data object HoldToEnd : WatchNotice
+    val isNotificationPermissionNeeded: Boolean = false,
+    /** 폰이 측정을 정지했다(FR-194). 지표는 폰이 정지 시작 때 값으로 고정해 보낸다. */
+    val isPaused: Boolean = false,
+    /** 자유런 측정 중이라 워치에서 일시정지·재개를 요청할 수 있다(대결·크루런·옛 폰 앱은 거짓, F.4.2). */
+    val isPausable: Boolean = false,
+    /** 대결 중 근접 알림이 켜져 있다(FR-196). 이때 러닝 화면 대신 근접 알림 화면(와이어프레임 K5)을 보인다. */
+    val proximity: WatchProximity? = null
+) {
+    /** 러닝 화면에 둘 일시정지 조작(6.1.15 WatchRunDisplay, TC-6569). */
+    val pauseControl: PauseControl
+        get() = when {
+            !isPausable -> PauseControl.NONE
+            isPaused -> PauseControl.RESUME
+            else -> PauseControl.PAUSE
+        }
 }

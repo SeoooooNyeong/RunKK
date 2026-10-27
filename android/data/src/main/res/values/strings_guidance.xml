@@ -20,4 +20,10 @@
     <string name="watch_notice_already_measuring">이미 측정 중이에요</string>
     <string name="watch_notice_open_run_screen">폰에서 러닝 화면을 여세요</string>
     <string name="watch_notice_end_on_phone">대결·크루런은 폰에서 끝내 주세요</string>
+    <string name="watch_notice_auto_end_soon">5분 뒤 자동 종료돼요</string>
+    <string name="watch_notice_auto_ended">정지 60분으로 러닝을 끝냈어요</string>
+    <string name="guidance_paused">일시정지했어요</string>
+    <string name="guidance_resumed">다시 측정을 시작해요</string>
+    <string name="guidance_pause_auto_end_soon">일시정지가 55분이 되었어요. 5분 뒤 자동으로 종료돼요</string>
+    <string name="guidance_pause_auto_ended">일시정지가 60분이 되어 러닝을 종료했어요</string>
 </resources>

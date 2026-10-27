@@ -106,4 +106,33 @@ class FcmPushGatewayTest {
         assertThat(second.sentCount()).isEqualTo(1);
         server.verify();
     }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName(
+            "sendCollapsing: 안드로이드 collapse_key·APNs apns-collapse-id에 묶음 키를 싣는다(D-102)")
+    void sendCollapsing_setsCollapseKeys() throws Exception {
+        FcmPushGateway gateway = new FcmPushGateway(builder.build(), "runkk", credentials(), CLOCK);
+        server.expect(once(), requestTo(TOKEN_URI))
+                .andRespond(
+                        withSuccess(
+                                "{\"access_token\":\"ya29.x\",\"expires_in\":3600}",
+                                MediaType.APPLICATION_JSON));
+        server.expect(requestTo(SEND))
+                .andExpect(
+                        org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath(
+                                        "$.message.android.collapse_key")
+                                .value("crew_chat_7"))
+                .andExpect(
+                        org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath(
+                                        "$.message.apns.headers['apns-collapse-id']")
+                                .value("crew_chat_7"))
+                .andRespond(withSuccess("{\"name\":\"m1\"}", MediaType.APPLICATION_JSON));
+
+        PushResult result =
+                gateway.sendCollapsing(
+                        List.of("ok"), NotificationType.CREW_CHAT, "새 메시지", "crew_chat_7");
+
+        assertThat(result.sentCount()).isEqualTo(1);
+        server.verify();
+    }
 }

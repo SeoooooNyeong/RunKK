@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.test.runTest
 
-private class FakeAccountRepository(private val log: CallLog) : AccountRepository {
+internal class FakeAccountRepository(private val log: CallLog) : AccountRepository {
     val failures = mutableMapOf<String, AppError>()
     private val tokens = SessionTokens("access", "refresh")
 
@@ -26,12 +26,16 @@ private class FakeAccountRepository(private val log: CallLog) : AccountRepositor
 
     override suspend fun logout(): Outcome<Unit> = call("logout", Unit)
 
+    override suspend fun startAsGuest(consents: Map<String, Boolean>): Outcome<GuestSession> =
+        call("startAsGuest", GuestSession(SessionTokens("A1", "R1"), "g1.42.credential"))
+
+    override suspend fun linkSocialAccount(token: ProviderToken): Outcome<Unit> = call("linkSocialAccount", Unit)
+
     override suspend fun withdraw(): Outcome<Unit> = call("withdraw", Unit)
 
     override suspend fun profile(memberId: Long): Outcome<Profile> = error("unused")
 
-    override suspend fun editProfile(nickname: String, intro: String?, tags: Set<String>): Outcome<Unit> =
-        call("editProfile", Unit)
+    override suspend fun editProfile(nickname: String, intro: String?): Outcome<Unit> = call("editProfile", Unit)
 
     override suspend fun changeSetting(item: String, value: String): Outcome<Unit> =
         call("changeSetting:$item=$value", Unit)
@@ -45,13 +49,18 @@ private class FakeAccountRepository(private val log: CallLog) : AccountRepositor
     override suspend fun settings(): Outcome<MemberSettings> = call("settings", MemberSettings(emptyMap(), emptyMap()))
 }
 
-private class FakeSessionRepository(private val log: CallLog) : SessionRepository {
+internal class FakeSessionRepository(private val log: CallLog) : SessionRepository {
     private val state = MutableStateFlow(false)
     override val loggedIn: StateFlow<Boolean> = state
     var saved: SessionTokens? = null
 
+    var credential: String? = null
+    var saveFailure: AppError? = null
+    var credentialFailure: AppError? = null
+
     override suspend fun save(tokens: SessionTokens): Outcome<Unit> {
         log.add("session.save")
+        saveFailure?.let { return Outcome.Failure(it) }
         saved = tokens
         state.value = true
         return Outcome.Success(Unit)
@@ -60,8 +69,25 @@ private class FakeSessionRepository(private val log: CallLog) : SessionRepositor
     override suspend fun clear(): Outcome<Unit> {
         log.add("session.clear")
         state.value = false
+        saved = null
+        credential = null
         return Outcome.Success(Unit)
     }
+
+    override suspend fun saveGuestCredential(credential: String): Outcome<Unit> {
+        log.add("session.saveGuestCredential:$credential")
+        credentialFailure?.let { return Outcome.Failure(it) }
+        this.credential = credential
+        return Outcome.Success(Unit)
+    }
+
+    override suspend fun clearGuestCredential(): Outcome<Unit> {
+        log.add("session.clearGuestCredential")
+        credential = null
+        return Outcome.Success(Unit)
+    }
+
+    override suspend fun hasGuestCredential(): Boolean = credential != null
 }
 
 /** LoginUseCase·SignUpUseCase·LogoutUseCase·WithdrawUseCase·ChangeSettingUseCase: 호출 순서와 실패 때 멈춤(14장). */
@@ -97,15 +123,7 @@ class AccountUseCaseTest {
     @Test
     fun `가입 - signUp → session save → settings refresh`() = runTest {
         val form =
-            SignUpForm(
-                nickname = "러너",
-                birthYear = 1996,
-                gender = Gender.UNDISCLOSED,
-                intro = null,
-                consents = mapOf("TERMS" to true),
-                recordVisibility = "PUBLIC",
-                tags = emptySet()
-            )
+            SignUpForm(nickname = "러너", consents = mapOf("TERMS" to true))
         assertEquals(Outcome.Success(Unit), SignUpUseCase(account, session, settings)(form))
         assertEquals(listOf("account.signUp", "session.save", "settings.refresh"), log.calls)
         assertEquals(true, session.loggedIn.value)
@@ -114,7 +132,7 @@ class AccountUseCaseTest {
     @Test
     fun `가입 - 서버 가입이 거부되면 세션을 만들지 않고 멈춘다`() = runTest {
         account.failures["signUp"] = AppError.Rejected("UNDER_14")
-        val form = SignUpForm(null, null, Gender.UNDISCLOSED, null, emptyMap(), "PUBLIC", emptySet())
+        val form = SignUpForm(null, emptyMap())
 
         val result = SignUpUseCase(account, session, settings)(form)
 
@@ -125,14 +143,14 @@ class AccountUseCaseTest {
 
     @Test
     fun `로그아웃 - 미전송 기록은 지우지 않는다`() = runTest {
-        assertEquals(Outcome.Success(Unit), LogoutUseCase(account, session, settings)())
+        assertEquals(Outcome.Success(Unit), LogoutUseCase(account, session, pending, settings)())
         assertEquals(listOf("account.logout", "session.clear", "settings.clear"), log.calls)
     }
 
     @Test
     fun `로그아웃 - 서버 로그아웃이 실패해도 기기의 세션·설정 사본은 지운다`() = runTest {
         account.failures["logout"] = AppError.Network
-        LogoutUseCase(account, session, settings)()
+        LogoutUseCase(account, session, pending, settings)()
         assertEquals(listOf("account.logout", "session.clear", "settings.clear"), log.calls)
     }
 

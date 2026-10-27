@@ -1,13 +1,16 @@
 package com.a207.runkk.web.avatar;
 
 import com.a207.runkk.avatar.AvatarService;
+import com.a207.runkk.avatar.BackgroundService;
 import com.a207.runkk.avatar.FaceImageService;
 import com.a207.runkk.common.ItemSlot;
 import com.a207.runkk.reward.PurchaseResult;
 import com.a207.runkk.reward.ShopService;
 import jakarta.validation.Valid;
 import java.io.IOException;
+import java.time.Clock;
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.http.CacheControl;
@@ -27,8 +30,9 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
- * 아바타 꾸미기·상점 엔드포인트(설계 5.7.1 AvatarController: 아바타 4, 상점 2). 셀카는 multipart로 받되 file-size-threshold가
- * max-file-size보다 커서 디스크 임시 파일 없이 메모리로만 받고(D-59), JPEG·PNG만 들인다. 셀카 바이트를 저장·로그하지 않는다(FR-156).
+ * 아바타 꾸미기·상점 엔드포인트(설계 5.7.1 AvatarController: 아바타 4 + 배경 2(v0.11 FR-201, FR-202), 상점 2). 셀카는
+ * multipart로 받되 file-size-threshold가 max-file-size보다 커서 디스크 임시 파일 없이 메모리로만 받고(D-59), JPEG·PNG만 들인다.
+ * 셀카 바이트를 저장·로그하지 않는다(FR-156).
  */
 @RestController
 @RequestMapping("/api/v1")
@@ -44,14 +48,20 @@ public class AvatarController {
     private final AvatarService avatarService;
     private final ShopService shopService;
     private final FaceImageService faceImageService;
+    private final BackgroundService backgroundService;
+    private final Clock clock;
 
     AvatarController(
             AvatarService avatarService,
             ShopService shopService,
-            FaceImageService faceImageService) {
+            FaceImageService faceImageService,
+            BackgroundService backgroundService,
+            Clock clock) {
         this.avatarService = avatarService;
         this.shopService = shopService;
         this.faceImageService = faceImageService;
+        this.backgroundService = backgroundService;
+        this.clock = clock;
     }
 
     @PostMapping(value = "/avatar/selfie", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -87,6 +97,24 @@ public class AvatarController {
     @GetMapping("/avatar")
     AvatarDtos.AvatarResponse view(@RequestAttribute(MEMBER_ID) long memberId) {
         return AvatarDtos.AvatarResponse.of(avatarService.view(memberId));
+    }
+
+    /** 랜드마크 배경 목록(v0.11 FR-201, FR-202). 배포 전에 넘은 랜드마크는 알림 없이 먼저 채운다(D-107 (3)). */
+    @GetMapping("/avatar/backgrounds")
+    AvatarDtos.BackgroundsResponse backgrounds(@RequestAttribute(MEMBER_ID) long memberId) {
+        return AvatarDtos.BackgroundsResponse.of(
+                backgroundService.backgrounds(memberId, LocalDateTime.now(clock)));
+    }
+
+    /** 배경 선택(v0.11 FR-202). key가 null이면 기본 배경, 해금하지 않은 키면 409 BACKGROUND_LOCKED. */
+    @PutMapping("/avatar/background")
+    AvatarDtos.BackgroundsResponse chooseBackground(
+            @RequestAttribute(MEMBER_ID) long memberId,
+            @RequestBody AvatarDtos.BackgroundRequest request) {
+        return AvatarDtos.BackgroundsResponse.of(
+                request.key() == null
+                        ? backgroundService.useDefault(memberId)
+                        : backgroundService.choose(memberId, request.key()));
     }
 
     /**

@@ -48,5 +48,17 @@ enum class GuidanceMessage {
     SAVE_FAILED,
 
     /** 대결 상태를 서버에 알리지 못함. */
-    REPORT_FAILED
+    REPORT_FAILED,
+
+    /** 일시정지했다(FR-194). */
+    PAUSED,
+
+    /** 다시 측정한다(FR-194). */
+    RESUMED,
+
+    /** 정지가 55분이 되어 5분 뒤 자동 종료된다(FR-195). */
+    PAUSE_AUTO_END_SOON,
+
+    /** 정지가 60분이 되어 자동 종료했다(FR-195). */
+    PAUSE_AUTO_ENDED
 }

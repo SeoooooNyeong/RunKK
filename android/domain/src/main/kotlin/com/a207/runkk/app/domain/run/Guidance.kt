@@ -29,7 +29,10 @@ data class Guidance(
         SAVE_FAILED,
 
         /** 대결 시작·그만두기를 서버에 알리지 못함(다시 보내도 실패, 리뷰 F-3). */
-        REPORT_FAILED
+        REPORT_FAILED,
+
+        /** 일시정지·재개·정지 자동 종료 안내(FR-194, FR-195). */
+        PAUSE
     }
 
     companion object {

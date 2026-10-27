@@ -78,6 +78,7 @@
     <string name="core_spoken_matched">매칭 성사</string>
     <string name="core_spoken_battle_result">대결 결과</string>
     <string name="core_spoken_running">측정 중</string>
+    <string name="core_spoken_paused">일시정지</string>
     <string name="core_spoken_my_runimal">내 러니멀</string>
     <string name="core_spoken_crew_run">크루런</string>
     <string name="core_spoken_crew_run_result">크루런 결과</string>
@@ -134,4 +135,12 @@
     <string name="runimal_axis_distance">거리</string>
     <string name="runimal_axis_course">코스</string>
     <string name="runimal_axis_habit">습관</string>
+    <!-- 신고 대화상자 공용 문구(D-186, FR-214). 사유 순서는 ReportReasonLabels.ORDER -->
+    <string name="core_report_reason_group">신고 사유</string>
+    <string name="core_report_submit">신고하기</string>
+    <string name="core_report_reason_abuse">욕설, 비방</string>
+    <string name="core_report_reason_sexual">음란</string>
+    <string name="core_report_reason_spam">광고, 스팸</string>
+    <string name="core_report_reason_privacy">개인정보 노출</string>
+    <string name="core_report_reason_other">기타</string>
 </resources>

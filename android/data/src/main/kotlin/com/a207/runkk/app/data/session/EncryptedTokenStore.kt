@@ -21,7 +21,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
 
 /**
- * 서비스 토큰과 로그인 상태를 기기에 암호화해 보관한다(6.1.14 data.session, D-19).
+ * 서비스 토큰·게스트 자격 증명과 로그인 상태를 기기에 암호화해 보관한다(6.1.14 data.session, D-19, D-89).
  * SessionRepository(domain.account)·LoginState(domain.notification)·TokenProvider(api.core)를 한 객체가 구현하므로
  * SessionRepository.save와 TokenProvider.update가 같은 저장소를 쓰고, 어느 쪽에서 지우든 loggedIn이 거짓이 된다(H-25).
  * 저장은 EncryptedSharedPreferences(키는 Android Keystore의 AES256-GCM 마스터 키)이고 토큰 값은 로그에 쓰지 않는다.
@@ -43,6 +43,12 @@ class EncryptedTokenStore internal constructor(
 
     private val lock = Any()
 
+    /**
+     * 로그인 세대. 세션이 바뀌는 clear()(로그아웃)와 save()(로그인·연동·게스트 시작으로 토큰 교체)마다 1씩 는다. 갱신 결과 저장(update)은
+     * 같은 세션을 잇는 것이라 올리지 않는다. lock 안에서만 쓴다.
+     */
+    private var generation = 0L
+
     /** 기기 저장소. 열지 못했으면 null(메모리 전용). */
     private val prefs: SharedPreferences? by lazy { openPreferences() }
 
@@ -50,6 +56,9 @@ class EncryptedTokenStore internal constructor(
     private val memory: MutableStateFlow<Pair<String, String>?> by lazy { MutableStateFlow(readStored()) }
 
     private val _loggedIn: MutableStateFlow<Boolean> by lazy { MutableStateFlow(memory.value != null) }
+
+    /** 메모리의 게스트 자격 증명(FR-197). 처음 읽을 때 기기 저장소에서 올린다. 값은 로그에 쓰지 않는다. */
+    private val guest: MutableStateFlow<String?> by lazy { MutableStateFlow(prefs?.getString(KEY_GUEST, null)) }
 
     override val loggedIn: StateFlow<Boolean>
         get() = _loggedIn
@@ -63,15 +72,61 @@ class EncryptedTokenStore internal constructor(
         store(access, refresh)
     }
 
-    override suspend fun save(tokens: SessionTokens): Outcome<Unit> = withContext(ioDispatcher) {
-        if (store(tokens.access, tokens.refresh)) Outcome.Success(Unit) else Outcome.Failure(AppError.Storage)
+    override fun sessionGeneration(): Long = synchronized(lock) { generation }
+
+    /** 세대 확인과 저장을 lock 한 번에 한다. 그 사이 clear()·save()가 있었으면 저장하지 않는다(갱신 중 로그아웃 AN5-C-8, 새 로그인 AN6-2). */
+    override fun updateInSession(generation: Long, access: String, refresh: String): Boolean = synchronized(lock) {
+        if (this.generation != generation) {
+            false
+        } else {
+            store(access, refresh)
+            true
+        }
     }
 
-    /** 토큰을 지운다. 기기에 남은 값을 지우지 못해도 로그인 상태는 거짓으로 둔다(화면이 로그인으로 가도록). */
+    /** 새 세션의 토큰을 둔다. 세대를 함께 올려 이전 세션에서 보낸 갱신의 늦은 응답이 이 토큰을 덮어쓰지 않게 한다(AN6-2). */
+    override suspend fun save(tokens: SessionTokens): Outcome<Unit> = withContext(ioDispatcher) {
+        val written =
+            synchronized(lock) {
+                generation++
+                store(tokens.access, tokens.refresh)
+            }
+        if (written) Outcome.Success(Unit) else Outcome.Failure(AppError.Storage)
+    }
+
+    /** 게스트 시작 때 한 번 받는 기기 자격 증명을 토큰과 같은 저장소에 둔다(D-89). 기기에 쓰지 못하면 Storage 실패다. */
+    override suspend fun saveGuestCredential(credential: String): Outcome<Unit> = withContext(ioDispatcher) {
+        val written =
+            synchronized(lock) {
+                guest.value = credential
+                persist { putString(KEY_GUEST, credential) }
+            }
+        if (written) Outcome.Success(Unit) else Outcome.Failure(AppError.Storage)
+    }
+
+    /** 게스트 자격 증명만 지운다(연동 성공 뒤, D-159 (2)). 토큰과 로그인 상태는 그대로다. */
+    override suspend fun clearGuestCredential(): Outcome<Unit> = withContext(ioDispatcher) {
+        val removed =
+            synchronized(lock) {
+                guest.value = null
+                persist { remove(KEY_GUEST) }
+            }
+        if (removed) Outcome.Success(Unit) else Outcome.Failure(AppError.Storage)
+    }
+
+    override suspend fun hasGuestCredential(): Boolean = withContext(ioDispatcher) { guestCredential() != null }
+
+    override fun guestCredential(): String? = guest.value
+
+    /**
+     * 토큰과 게스트 자격 증명을 지운다(FR-002, D-89). 기기에 남은 값을 지우지 못해도 로그인 상태는 거짓으로 둔다(화면이 로그인으로 가도록).
+     */
     override suspend fun clear(): Outcome<Unit> = withContext(ioDispatcher) {
         val removed =
             synchronized(lock) {
+                generation++
                 memory.value = null
+                guest.value = null
                 _loggedIn.value = false
                 persist { clear() }
             }
@@ -106,6 +161,7 @@ class EncryptedTokenStore internal constructor(
         const val FILE = "runkk_session"
         const val KEY_ACCESS = "access_token"
         const val KEY_REFRESH = "refresh_token"
+        const val KEY_GUEST = "guest_credential"
 
         /** androidx.security MasterKey의 기본 별칭(DEFAULT_MASTER_KEY_ALIAS). */
         const val MASTER_KEY_ALIAS = "_androidx_security_master_key_"

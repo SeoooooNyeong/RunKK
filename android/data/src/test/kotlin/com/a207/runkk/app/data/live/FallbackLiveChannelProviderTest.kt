@@ -17,7 +17,6 @@ import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotSame
-import kotlin.test.assertSame
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
@@ -169,19 +168,22 @@ class FallbackLiveChannelProviderTest {
     }
 
     @Test
-    fun `닫기 전에는 같은 채널을 주고 connect를 여러 번 불러도 한 번만 연결한다`() = runBlocking {
+    fun `임대마다 connect를 여러 번 불러도 연결은 한 번이고 모두 반납하면 다음은 새 연결이다`() = runBlocking {
         val channel = provider.open()
-        assertSame(channel, provider.open())
+        val other = provider.open()
+        assertNotSame(channel, other, "open은 임대를 새로 내준다(D-103)")
 
         withTimeout(TIMEOUT_MILLIS) {
             channel.connect()
             channel.connect()
+            other.connect()
         }
-        assertSame(channel, provider.open())
         assertEquals(1, socketAttempts.get())
 
         channel.close()
-        assertNotSame(channel, provider.open())
+        other.close()
+        withTimeout(TIMEOUT_MILLIS) { provider.open().connect() }
+        assertEquals(2, socketAttempts.get())
     }
 
     private fun assertFallsBackToPolling(status: Int, expectedAttempts: Int) = runBlocking {

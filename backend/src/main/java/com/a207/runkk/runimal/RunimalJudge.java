@@ -1,29 +1,20 @@
 package com.a207.runkk.runimal;
 
-import com.a207.runkk.common.PersonalityTag;
-import com.a207.runkk.common.TagSet;
 import com.a207.runkk.policy.RunimalRule;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.OptionalDouble;
-import java.util.Set;
 import org.springframework.stereotype.Component;
 
 /**
- * 표본과 성향 태그로 Runimal 유형을 판정한다(설계 6.1.8, A-14, FR-152, FR-153). 축 평가기 4개가 비율을 계산하고 이 클래스는 축마다 데이터·태그
- * 중 무엇을 쓸지만 정한다.
+ * 표본으로 Runimal 유형을 판정한다(설계 6.1.8, A-14, FR-152, FR-153). 축 평가기 4개가 비율을 계산한다. v0.11에서 러너 성향 태그를
+ * 지워(FR-119, D-91) 임시·확정 판정 모두 4축 데이터만 쓴다. 표본이 없는 축은 비율 0.5(카드 표시용)와 그 평가기의 leanWithoutSample()(코스는
+ * 탐험길, 나머지는 A)로 둔다(D-147).
  */
 @Component
 class RunimalJudge {
 
-    /** 임시 유형에서 태그를 먼저 보는 축(3회로는 판정하기 어렵다, W-14). */
-    private static final Set<RunimalAxis> TAG_FIRST_AXES =
-            Set.of(RunimalAxis.COMPANION, RunimalAxis.COURSE);
-
-    private static final double SIDE_A = 1.0;
-    private static final double SIDE_B = 0.0;
     private static final double UNDECIDED = 0.5;
 
     private final List<AxisEvaluator> evaluators;
@@ -35,47 +26,30 @@ class RunimalJudge {
         this.evaluators = List.copyOf(evaluators);
     }
 
-    /** 거리·습관은 데이터, 동행·코스는 태그(1·3분류) 값. 태그가 없으면 데이터(제안, W-14). 데이터도 없으면 A로 둔다(제안, 부록 E E-08). */
-    Judged judgeProvisional(RunSample s, TagSet tags, RunimalRule rule) {
-        Map<RunimalAxis, Double> ratios = new EnumMap<>(RunimalAxis.class);
-        for (AxisEvaluator evaluator : evaluators) {
-            RunimalAxis axis = evaluator.axis();
-            Optional<Double> tagged =
-                    TAG_FIRST_AXES.contains(axis) ? tagRatio(axis, tags) : Optional.empty();
-            ratios.put(axis, tagged.orElseGet(() -> orElse(evaluator.ratioOfA(s, rule), SIDE_A)));
-        }
-        return judged(ratios, rule);
+    /** 3번째 유효 러닝의 임시 유형(FR-152). 4축 모두 데이터, 표본 없는 축은 leanWithoutSample(). */
+    Judged judgeProvisional(RunSample s, RunimalRule rule) {
+        return judge(s, rule);
     }
 
-    /** 4축 모두 데이터. 코스 표본이 없으면 태그의 코스 분류 값, 그 밖에 표본이 없으면 0.5(A-14, FR-166). */
-    Judged judgeConfirmed(RunSample s, TagSet tags, RunimalRule rule) {
-        Map<RunimalAxis, Double> ratios = new EnumMap<>(RunimalAxis.class);
-        for (AxisEvaluator evaluator : evaluators) {
-            OptionalDouble data = evaluator.ratioOfA(s, rule);
-            double fallback =
-                    evaluator.axis() == RunimalAxis.COURSE
-                            ? tagRatio(RunimalAxis.COURSE, tags).orElse(UNDECIDED)
-                            : UNDECIDED;
-            ratios.put(evaluator.axis(), orElse(data, fallback));
-        }
-        return judged(ratios, rule);
+    /** 10의 배수 유효 러닝의 확정 유형(FR-153). 4축 모두 데이터, 표본 없는 축은 leanWithoutSample()(A-14, FR-166). */
+    Judged judgeConfirmed(RunSample s, RunimalRule rule) {
+        return judge(s, rule);
     }
 
-    private Judged judged(Map<RunimalAxis, Double> ratios, RunimalRule rule) {
+    private Judged judge(RunSample s, RunimalRule rule) {
+        Map<RunimalAxis, Double> ratios = new EnumMap<>(RunimalAxis.class);
         Map<RunimalAxis, AxisLean> leans = new EnumMap<>(RunimalAxis.class);
         for (AxisEvaluator evaluator : evaluators) {
-            leans.put(evaluator.axis(), evaluator.lean(ratios.get(evaluator.axis()), rule));
+            RunimalAxis axis = evaluator.axis();
+            OptionalDouble data = evaluator.ratioOfA(s, rule);
+            if (data.isPresent()) {
+                ratios.put(axis, data.getAsDouble());
+                leans.put(axis, evaluator.lean(data.getAsDouble(), rule));
+            } else {
+                ratios.put(axis, UNDECIDED);
+                leans.put(axis, evaluator.leanWithoutSample());
+            }
         }
         return new Judged(RunimalType.of(leans), new AxisRatios(ratios));
-    }
-
-    /** 그 축 분류의 태그가 있으면 A쪽이면 1, B쪽이면 0. */
-    private static Optional<Double> tagRatio(RunimalAxis axis, TagSet tags) {
-        Optional<PersonalityTag> tag = tags.valueOf(axis.category());
-        return tag.map(t -> axis.isSideA(t) ? SIDE_A : SIDE_B);
-    }
-
-    private static double orElse(OptionalDouble value, double fallback) {
-        return value.isPresent() ? value.getAsDouble() : fallback;
     }
 }

@@ -1,7 +1,5 @@
 package com.a207.runkk.crew;
 
-import com.a207.runkk.common.TagOwner;
-import com.a207.runkk.common.TagSet;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -55,9 +53,6 @@ public class CrewMembership {
     @Column(name = "crew_intro", length = 40)
     private String crewIntro;
 
-    @Column(name = "crew_tags", nullable = false, length = 200)
-    private String crewTags = "";
-
     protected CrewMembership() {}
 
     CrewMembership(Crew crew, long memberId, CrewRole role, LocalDateTime now) {
@@ -81,21 +76,28 @@ public class CrewMembership {
         this.leaveReason = reason;
     }
 
+    /** 크루장 양도의 새 크루장: LEADER. */
     public void promote() {
         role = CrewRole.LEADER;
     }
 
+    /** 이전 크루장·운영진 해제: MEMBER. */
     public void demote() {
         role = CrewRole.MEMBER;
     }
 
-    /** 크루 내 표시 정보(FR-144). 40자 초과 INTRO_TOO_LONG, tags가 null이면 태그는 그대로다. */
-    public void editCrewProfile(String intro, TagSet tags) {
+    /** MEMBER → MANAGER(Crew.appointManager만 부른다, D-98). MEMBER가 아니면 IllegalStateException. */
+    void appointManager() {
+        if (role != CrewRole.MEMBER) {
+            throw new IllegalStateException("크루원만 운영진으로 지정한다: " + role);
+        }
+        role = CrewRole.MANAGER;
+    }
+
+    /** 크루 내 표시 정보(FR-144). 40자 초과 INTRO_TOO_LONG. 러너 성향 태그는 지웠다(D-91). */
+    public void editCrewProfile(String intro) {
         CrewProfile.requireIntro(intro);
         this.crewIntro = intro;
-        if (tags != null) {
-            this.crewTags = CrewTags.encode(tags);
-        }
     }
 
     /** WITHDREW·KICKED면 leftAt + 24시간. */
@@ -134,9 +136,5 @@ public class CrewMembership {
 
     public String crewIntro() {
         return crewIntro;
-    }
-
-    public TagSet crewTags() {
-        return CrewTags.decode(crewTags, TagOwner.RUNNER);
     }
 }

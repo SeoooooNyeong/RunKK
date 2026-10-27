@@ -11,6 +11,7 @@ import java.util.Map;
  * @param guide 얼굴이 없을 때 안내문, 있으면 null
  * @param bodyShape 체형
  * @param skinTone 피부색
+ * @param backgroundKey 고른 랜드마크 배경 키, null이면 기본 배경(FR-162, FR-202)
  * @param equipped 부위별 착용 아이템 ID
  * @param balance 리워드 잔액
  * @param canCreateSelfieToday 오늘 셀카로 다시 만들 수 있는가(FR-157)
@@ -21,6 +22,7 @@ public record AvatarView(
         String guide,
         BodyShape bodyShape,
         SkinTone skinTone,
+        String backgroundKey,
         Map<ItemSlot, Long> equipped,
         int balance,
         boolean canCreateSelfieToday,
@@ -33,7 +35,15 @@ public record AvatarView(
 
     AvatarView withSelfieToday(boolean available) {
         return new AvatarView(
-                faceKey, guide, bodyShape, skinTone, equipped, balance, available, rejected);
+                faceKey,
+                guide,
+                bodyShape,
+                skinTone,
+                backgroundKey,
+                equipped,
+                balance,
+                available,
+                rejected);
     }
 
     AvatarView withRejected(Map<ItemSlot, ReasonCode> reasons) {
@@ -42,6 +52,7 @@ public record AvatarView(
                 guide,
                 bodyShape,
                 skinTone,
+                backgroundKey,
                 equipped,
                 balance,
                 canCreateSelfieToday,

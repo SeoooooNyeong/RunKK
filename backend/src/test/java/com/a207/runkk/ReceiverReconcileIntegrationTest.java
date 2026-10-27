@@ -229,9 +229,13 @@ class ReceiverReconcileIntegrationTest {
                 Timestamp.valueOf(yesterday),
                 recordId);
         int cap = policy.rewardRule().dailyCap();
+        // V26 이후 지갑은 집계 칼럼(가장 최근 적립일·그날 합계)을 적립 내역과 맞춰 둔다(D-109)
         jdbc.update(
-                "insert into reward_wallet (member_id, balance, version) values (?, ?, 0)",
+                "insert into reward_wallet (member_id, balance, last_accrual_date,"
+                        + " last_accrual_date_amount, version) values (?, ?, ?, ?, 0)",
                 runner,
+                cap - 10,
+                java.sql.Date.valueOf(yesterday.toLocalDate()),
                 cap - 10);
         jdbc.update(
                 "insert into reward_accrual (member_id, reason, source_id, amount, accrued_at)"
@@ -249,6 +253,57 @@ class ReceiverReconcileIntegrationTest {
                                 Timestamp.class,
                                 recordId))
                 .isEqualTo(Timestamp.valueOf(yesterday));
+        assertThat(rewardReconcile.reconcile(LocalDateTime.now())).isZero();
+    }
+
+    @Test
+    @DisplayName("T-32 TC-6792: 지갑 집계 칼럼이 오늘(30)인 회원의 전날 보정은 sumOn(전날)으로 상한을 세고 칼럼은 그대로다(D-109)")
+    void olderDayReconcile_keepsDailyTotalColumns() {
+        long runner = member();
+        doThrow(new IllegalStateException("수신자 장애")).when(wallets).findOrCreateForUpdate(anyLong());
+        String recordId =
+                uploads.upload(
+                                runner,
+                                new RunUploadCommand(
+                                        RunFixtures.upload(
+                                                UUID.randomUUID().toString(),
+                                                LocalDateTime.now().minusDays(1).withHour(7),
+                                                5_000,
+                                                1_500)))
+                        .recordId();
+        reset(wallets);
+        LocalDateTime yesterday = LocalDateTime.now().minusDays(1).withHour(12).withNano(0);
+        jdbc.update(
+                "update run_record set saved_at = ? where record_id = ?",
+                Timestamp.valueOf(yesterday),
+                recordId);
+        int cap = policy.rewardRule().dailyCap();
+        java.time.LocalDate today = LocalDateTime.now().toLocalDate();
+        jdbc.update(
+                "insert into reward_wallet (member_id, balance, last_accrual_date,"
+                        + " last_accrual_date_amount, version) values (?, ?, ?, 30, 0)",
+                runner,
+                cap - 20 + 30,
+                java.sql.Date.valueOf(today));
+        jdbc.update(
+                "insert into reward_accrual (member_id, reason, source_id, amount, accrued_at)"
+                    + " values (?, 'BATTLE_WIN', 'prev', ?, ?), (?, 'BATTLE_WIN', 'now', 30, ?)",
+                runner,
+                cap - 20,
+                Timestamp.valueOf(yesterday.withHour(9)),
+                runner,
+                Timestamp.valueOf(today.atStartOfDay()));
+
+        assertThat(rewardReconcile.reconcile(LocalDateTime.now())).isEqualTo(1);
+
+        assertThat(rewards.accruedFor(AccrualReason.VALID_RUN, recordId, runner)).isEqualTo(20);
+        assertThat(
+                        jdbc.queryForMap(
+                                "select last_accrual_date, last_accrual_date_amount from"
+                                        + " reward_wallet where member_id = ?",
+                                runner))
+                .containsEntry("last_accrual_date", java.sql.Date.valueOf(today))
+                .containsEntry("last_accrual_date_amount", 30);
         assertThat(rewardReconcile.reconcile(LocalDateTime.now())).isZero();
     }
 

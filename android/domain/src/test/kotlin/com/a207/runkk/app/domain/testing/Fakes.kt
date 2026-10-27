@@ -9,7 +9,13 @@ import com.a207.runkk.app.domain.run.HeartRateSample
 import com.a207.runkk.app.domain.run.LateHeartRates
 import com.a207.runkk.app.domain.run.LocationPermission
 import com.a207.runkk.app.domain.run.MeasurementHost
+import com.a207.runkk.app.domain.run.MeasurementRuntime
 import com.a207.runkk.app.domain.run.PendingRunRepository
+import com.a207.runkk.app.domain.run.ProximityAlert
+import com.a207.runkk.app.domain.run.RunArchive
+import com.a207.runkk.app.domain.run.RunCoach
+import com.a207.runkk.app.domain.run.RunTracker
+import com.a207.runkk.app.domain.run.RunWatchBridge
 import com.a207.runkk.app.domain.run.UploadScheduler
 import com.a207.runkk.app.domain.run.WatchDisplay
 import com.a207.runkk.app.domain.run.WatchGateway
@@ -20,6 +26,8 @@ import java.time.Clock
 import java.time.Instant
 import java.time.ZoneId
 import java.time.ZoneOffset
+import java.util.Collections
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -62,7 +70,19 @@ class FakePendingRunRepository(private val log: CallLog = CallLog()) : PendingRu
         return failWith?.let { Outcome.Failure(it) } ?: Outcome.Success(Unit)
     }
 
-    override suspend fun save(run: CompletedRun): Outcome<Unit> = result("pending.save").also {
+    /** 앞으로 이만큼의 save를 Storage 실패로 돌려준다(그 뒤는 failWith 규칙). */
+    var saveFailuresLeft = 0
+
+    override suspend fun save(run: CompletedRun): Outcome<Unit> {
+        if (saveFailuresLeft > 0) {
+            saveFailuresLeft--
+            log.add("pending.save")
+            return Outcome.Failure(AppError.Storage)
+        }
+        return saveResult(run)
+    }
+
+    private fun saveResult(run: CompletedRun): Outcome<Unit> = result("pending.save").also {
         if (it is Outcome.Success) {
             runs += run
             flow.value = runs.toList()
@@ -139,21 +159,54 @@ class FakeUploadScheduler(private val log: CallLog = CallLog()) : UploadSchedule
 }
 
 class FakeWatchGateway : WatchGateway {
-    val published = mutableListOf<WatchDisplay>()
+    /** 여러 스레드가 함께 보낼 수 있다(RunTrackerRaceTest). */
+    val published: MutableList<WatchDisplay> = Collections.synchronizedList(mutableListOf())
     override val startRequests = MutableSharedFlow<Unit>()
     override val endRequests = MutableSharedFlow<Unit>()
+    override val pauseRequests = MutableSharedFlow<WatchGateway.PauseAction>()
     override val heartRates = MutableSharedFlow<List<HeartRateSample>>()
     var connected = true
+
+    /** publishProximity로 보낸 값(null = 끔). */
+    val proximity = mutableListOf<ProximityAlert?>()
+    val leadChanges = mutableListOf<Guidance.Kind>()
 
     override fun publish(d: WatchDisplay) {
         published += d
     }
 
     override fun isConnected(): Boolean = connected
+
+    override fun publishProximity(alert: ProximityAlert?) {
+        proximity += alert
+    }
+
+    override fun publishLeadChange(kind: Guidance.Kind) {
+        leadChanges += kind
+    }
 }
 
+/** 협력 객체 넷으로 RunTracker를 조립한다(D-95). */
+fun runTracker(
+    pending: PendingRunRepository,
+    scheduler: UploadScheduler,
+    watch: WatchGateway,
+    output: GuidanceOutput,
+    permission: LocationPermission,
+    host: MeasurementHost,
+    settings: SettingsRepository,
+    clock: Clock,
+    scope: CoroutineScope
+): RunTracker = RunTracker(
+    RunArchive(pending, scheduler, scope),
+    RunWatchBridge(watch, scope),
+    RunCoach(output, settings),
+    MeasurementRuntime(permission, host, settings, clock)
+)
+
 class FakeGuidanceOutput : GuidanceOutput {
-    val played = mutableListOf<Guidance>()
+    /** 여러 스레드가 함께 낼 수 있다(RunTrackerRaceTest). */
+    val played: MutableList<Guidance> = Collections.synchronizedList(mutableListOf())
 
     override fun play(g: Guidance) {
         played += g
@@ -209,6 +262,8 @@ class FakeSettingsRepository(
     override fun birthYear(): Int? = snapshot.birthYear
 
     override fun guidanceSettings(): GuidanceSettings = snapshot.guidanceSettings
+
+    override fun isGuest(): Boolean = snapshot.isGuest
 
     override fun changes(): Flow<SettingsSnapshot> = flow
 

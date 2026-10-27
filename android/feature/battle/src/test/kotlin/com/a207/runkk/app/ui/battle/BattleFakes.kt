@@ -14,8 +14,10 @@ import com.a207.runkk.app.domain.battle.MatchAcceptance
 import com.a207.runkk.app.domain.battle.OpponentTrack
 import com.a207.runkk.app.domain.battle.RecordBattleCandidates
 import com.a207.runkk.app.domain.battle.RecordBattleStart
+import com.a207.runkk.app.domain.live.ClientMessage
 import com.a207.runkk.app.domain.live.LiveChannel
 import com.a207.runkk.app.domain.live.LiveChannelProvider
+import com.a207.runkk.app.domain.live.LiveState
 import com.a207.runkk.app.domain.live.MatchFound
 import com.a207.runkk.app.domain.live.ProgressReport
 import com.a207.runkk.app.domain.live.ServerMessage
@@ -26,9 +28,13 @@ import com.a207.runkk.app.domain.run.HeartRateSample
 import com.a207.runkk.app.domain.run.LateHeartRates
 import com.a207.runkk.app.domain.run.LocationPermission
 import com.a207.runkk.app.domain.run.MeasurementHost
+import com.a207.runkk.app.domain.run.MeasurementRuntime
 import com.a207.runkk.app.domain.run.PendingRunRepository
+import com.a207.runkk.app.domain.run.ProximityAlert
 import com.a207.runkk.app.domain.run.RunArchive
+import com.a207.runkk.app.domain.run.RunCoach
 import com.a207.runkk.app.domain.run.RunTracker
+import com.a207.runkk.app.domain.run.RunWatchBridge
 import com.a207.runkk.app.domain.run.UploadScheduler
 import com.a207.runkk.app.domain.run.WatchDisplay
 import com.a207.runkk.app.domain.run.WatchGateway
@@ -49,6 +55,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.takeWhile
@@ -226,9 +233,11 @@ class FakeLiveChannel : LiveChannel {
         return connectFailure?.let { Outcome.Failure(it) } ?: Outcome.Success(Unit)
     }
 
-    override fun send(m: ProgressReport) {
-        sent += m
+    override fun send(m: ClientMessage) {
+        if (m is ProgressReport) sent += m
     }
+
+    override val state: StateFlow<LiveState> = MutableStateFlow(LiveState.CONNECTED)
 
     override val messages: Flow<ServerMessage> = flow.takeWhile { it != null }.filterNotNull()
 
@@ -293,6 +302,13 @@ private class Silent :
 }
 
 private class NoWatch : WatchGateway {
+    override val endRequests: Flow<Unit> = MutableSharedFlow()
+    override val pauseRequests: Flow<WatchGateway.PauseAction> = MutableSharedFlow()
+
+    override fun publishProximity(alert: ProximityAlert?) = Unit
+
+    override fun publishLeadChange(kind: Guidance.Kind) = Unit
+
     override val startRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     override val heartRates: Flow<List<HeartRateSample>> = MutableSharedFlow()
 
@@ -316,6 +332,8 @@ private class ConsentedSettings : SettingsRepository {
 
     override fun guidanceSettings() = GuidanceSettings.DEFAULT
 
+    override fun isGuest(): Boolean = false
+
     override fun changes(): Flow<SettingsSnapshot> = flowOf(SettingsSnapshot.SAFE)
 
     override suspend fun clear(): Outcome<Unit> = Outcome.Success(Unit)
@@ -332,14 +350,10 @@ class BattleWorld(
     private val silent = Silent()
     val tracker =
         RunTracker(
-            RunArchive(NoPendingRuns(), silent),
-            NoWatch(),
-            silent,
-            permission,
-            silent,
-            ConsentedSettings(),
-            clock,
-            scope
+            RunArchive(NoPendingRuns(), silent, scope),
+            RunWatchBridge(NoWatch(), scope),
+            RunCoach(silent, ConsentedSettings()),
+            MeasurementRuntime(permission, silent, ConsentedSettings(), clock)
         )
     val coordinator = BattleRunCoordinator(tracker, channels, battles, silent, clock, scope)
 

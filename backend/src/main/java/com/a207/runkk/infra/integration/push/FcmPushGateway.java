@@ -24,6 +24,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
@@ -83,6 +84,18 @@ public class FcmPushGateway implements PushGateway {
 
     @Override
     public PushResult send(List<String> deviceTokens, NotificationType type, String content) {
+        return sendAll(deviceTokens, type, content, null);
+    }
+
+    /** 안드로이드 collapse_key와 APNs apns-collapse-id에 같은 묶음 키를 실어 기기 알림을 하나로 묶는다(v0.11 D-102). */
+    @Override
+    public PushResult sendCollapsing(
+            List<String> deviceTokens, NotificationType type, String content, String collapseKey) {
+        return sendAll(deviceTokens, type, content, collapseKey);
+    }
+
+    private PushResult sendAll(
+            List<String> deviceTokens, NotificationType type, String content, String collapseKey) {
         if (!isEnabled()) {
             log.info(
                     "push_skipped reason=fcm_not_configured type={} devices={}",
@@ -99,7 +112,7 @@ public class FcmPushGateway implements PushGateway {
                         .uri(FCM_BASE + projectId + "/messages:send")
                         .contentType(MediaType.APPLICATION_JSON)
                         .header("Authorization", "Bearer " + bearer)
-                        .body(message(token, type, content))
+                        .body(message(token, type, content, collapseKey))
                         .retrieve()
                         .toBodilessEntity();
                 sent++;
@@ -144,13 +157,16 @@ public class FcmPushGateway implements PushGateway {
     }
 
     private static Map<String, Object> message(
-            String token, NotificationType type, String content) {
-        return Map.of(
-                "message",
-                Map.of(
-                        "token", token,
-                        "notification", Map.of("title", TITLE, "body", content),
-                        "data", Map.of("type", type.name())));
+            String token, NotificationType type, String content, String collapseKey) {
+        Map<String, Object> message = new LinkedHashMap<>();
+        message.put("token", token);
+        message.put("notification", Map.of("title", TITLE, "body", content));
+        message.put("data", Map.of("type", type.name()));
+        if (collapseKey != null) {
+            message.put("android", Map.of("collapse_key", collapseKey));
+            message.put("apns", Map.of("headers", Map.of("apns-collapse-id", collapseKey)));
+        }
+        return Map.of("message", message);
     }
 
     /** FCM v1: 404 UNREGISTERED, 400 INVALID_ARGUMENT(토큰 형식)는 다시 보내도 실패하는 토큰이다. */

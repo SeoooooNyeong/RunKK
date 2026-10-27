@@ -10,25 +10,32 @@ import com.a207.runkk.policy.ShopCatalog;
 import com.a207.runkk.reward.RewardService;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 아바타 얼굴·꾸미기 유스케이스(설계 6.1.8, SQ-11, srs.md 6.3 6.3·6.6). 셀카 변환은 트랜잭션 밖에서 SelfieConversion이 하고(5.3),
- * 잔액·보유 확인은 reward.RewardService로 읽는다(D-33).
+ * 잔액·보유 확인은 reward.RewardService로 읽는다(D-33). 조회(view)는 배포 전에 넘은 랜드마크 배경을 알림 없이 먼저 채운다(D-107 (3)).
  */
 @Service
 public class AvatarService {
+
+    private static final Logger log = LoggerFactory.getLogger(AvatarService.class);
 
     private final AvatarRepository avatarRepository;
     private final SelfieConversion selfieConversion;
     private final RewardService rewardService;
     private final MemberQueryService memberQueryService;
     private final OperationPolicy operationPolicy;
+    private final BackgroundService backgroundService;
+    private final AvatarTransactions transactions;
     private final Clock clock;
 
     AvatarService(
@@ -37,12 +44,16 @@ public class AvatarService {
             RewardService rewardService,
             MemberQueryService memberQueryService,
             OperationPolicy operationPolicy,
+            BackgroundService backgroundService,
+            AvatarTransactions transactions,
             Clock clock) {
         this.avatarRepository = avatarRepository;
         this.selfieConversion = selfieConversion;
         this.rewardService = rewardService;
         this.memberQueryService = memberQueryService;
         this.operationPolicy = operationPolicy;
+        this.backgroundService = backgroundService;
+        this.transactions = transactions;
         this.clock = clock;
     }
 
@@ -102,10 +113,21 @@ public class AvatarService {
                 && rewardService.owns(memberId, itemId);
     }
 
-    /** 잔액은 RewardService.balanceOf로 붙인다. */
-    @Transactional(readOnly = true)
+    /**
+     * 잔액은 RewardService.balanceOf로 붙이고 고른 배경 키를 싣는다. 먼저 BackgroundService.backfillReached로 배포 전에 넘은
+     * 랜드마크 해금을 알림 없이 채운다(GET /avatar, D-107 (3)). 채우기 실패는 로그만 남기고 조회는 계속한다(보정 배치가 채운다).
+     */
     public AvatarView view(long memberId) {
-        return viewOf(avatarRepository.findOrCreate(memberId));
+        try {
+            backgroundService.backfillReached(memberId, LocalDateTime.now(clock));
+        } catch (RuntimeException e) {
+            log.warn(
+                    "background_backfill_failed memberId={} error={}",
+                    memberId,
+                    e.getClass().getSimpleName(),
+                    e);
+        }
+        return transactions.read(() -> viewOf(avatarRepository.findOrCreate(memberId)));
     }
 
     private AvatarView viewOf(Avatar avatar) {

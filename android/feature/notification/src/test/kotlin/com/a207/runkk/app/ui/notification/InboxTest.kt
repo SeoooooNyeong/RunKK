@@ -6,14 +6,17 @@ import androidx.compose.ui.test.performClick
 import app.cash.turbine.test
 import com.a207.runkk.app.core.designsystem.RunkkErrorText
 import com.a207.runkk.app.core.designsystem.RunkkTheme
+import com.a207.runkk.app.core.designsystem.testing.ContractEnums
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.notification.Inbox
 import com.a207.runkk.app.domain.notification.NotificationRepository
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneId
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -52,7 +55,8 @@ internal val sampleItems = listOf(
         "새벽크루 크루런이 10분 뒤 시작해요",
         now.minusSeconds(600),
         isRead = false,
-        route = "crew"
+        screen = "CREW_HOME",
+        targetId = "7"
     ),
     Inbox.Item(
         2,
@@ -61,7 +65,7 @@ internal val sampleItems = listOf(
         "보충 거리 2km를 추천해요",
         Instant.parse("2026-10-19T11:00:00Z"),
         isRead = true,
-        route = null
+        screen = null
     ),
     Inbox.Item(
         3,
@@ -70,7 +74,8 @@ internal val sampleItems = listOf(
         "상대 기록 판정이 바뀌었어요",
         Instant.parse("2026-10-01T11:00:00Z"),
         isRead = true,
-        route = "battle/history"
+        screen = "BATTLE_RESULT",
+        targetId = "12"
     )
 )
 
@@ -112,7 +117,7 @@ class InboxTest {
         val vm = InboxViewModel(repo, clock)
         vm.events.test {
             vm.onItemTapped(sampleItems[0])
-            assertEquals(InboxEvent.Navigate("crew"), awaitItem())
+            assertEquals(InboxEvent.Navigate(Routes.CrewHome(7)), awaitItem())
         }
         assertEquals(listOf(1L), repo.opened)
         assertEquals(0, vm.state.value.unreadCount)
@@ -126,19 +131,24 @@ class InboxTest {
     }
 
     @Test
-    fun `화면은 묶음 제목과 알림을 보이고 누르면 알린다`() {
+    fun `화면은 묶음 제목 없이 종류 라벨, 본문, 상대 시간을 보이고 누르면 알린다(F7)`() {
         val tapped = mutableListOf<Long>()
-        val state = InboxUiState(isLoading = false, groups = groupInbox(sampleItems, clock))
+        val state = InboxUiState(
+            isLoading = false,
+            groups = groupInbox(sampleItems, clock),
+            now = now,
+            zone = clock.zone
+        )
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
-                InboxScreen(state, onBack = {}, onItem = {
-                    tapped +=
-                        it.id
-                }, onRetry = {})
+                InboxScreen(state, onBack = {}, onItem = { tapped += it.id }, onRetry = {})
             }
         }
-        compose.onNodeWithText(str(R.string.notification_group_this_week)).assertExists()
-        compose.onNodeWithText("크루런 곧 시작").performClick()
+        compose.onNodeWithText(str(R.string.notification_group_this_week)).assertDoesNotExist()
+        compose.onNodeWithText("크루런").assertExists()
+        compose.onNodeWithText("10분 전").assertExists()
+        compose.onNodeWithText("2일 전").assertExists()
+        compose.onNodeWithText("새벽크루 크루런이 10분 뒤 시작해요").performClick()
         assertEquals(listOf(1L), tapped)
     }
 
@@ -159,5 +169,72 @@ class InboxTest {
         vm.onItemTapped(sampleItems[0])
         assertEquals(1, vm.state.value.unreadCount)
         assertEquals(RunkkErrorText.of(AppError.Network), vm.state.value.message)
+    }
+
+    @Test
+    fun `TC-6535 알림 이동 표 - 새 화면 5종과 대상 ID, 모르는 화면은 알림함에 머문다(FR-178, D-150)`() {
+        // 공지·투표·일정 알림의 대상 ID는 글 ID라 크루 홈 경로로 쓰지 않는다: 내 크루 홈의 해당 탭(A3b 경로)으로 연다.
+        assertEquals(Routes.Key(Routes.CREW_NOTICE), inboxDestination("CREW_NOTICE", "3"))
+        assertEquals(Routes.Key(Routes.CREW_POLL), inboxDestination("CREW_POLL", "3"))
+        assertEquals(Routes.Key(Routes.CREW_SCHEDULE), inboxDestination("CREW_SCHEDULE", "3"))
+        assertEquals(Routes.Key(Routes.CREW_NOTICE), inboxDestination("CREW_NOTICE", null))
+        // 채팅 알림의 대상 ID는 크루 ID다(서버 ChatDeliveryListener). 없으면 내 크루를 확인하는 채팅 경로로.
+        assertEquals(Routes.CrewChat(3), inboxDestination("CREW_CHAT", "3"))
+        assertEquals(Routes.Key(Routes.CREW_CHAT), inboxDestination("CREW_CHAT", null))
+        assertEquals(Routes.Key(Routes.AVATAR_BACKGROUND), inboxDestination("AVATAR_BACKGROUND", null))
+        assertEquals(Routes.CrewHome(7), inboxDestination("CREW_HOME", "7"))
+        assertEquals(Routes.BattleResult(12), inboxDestination("BATTLE_RESULT", "12"))
+        assertEquals(Routes.Key(Routes.BATTLE_HISTORY), inboxDestination("BATTLE_RESULT", "x"))
+        assertEquals(Routes.CrewManage(4), inboxDestination("CREW_MANAGE", "4"))
+        assertEquals(null, inboxDestination("CREW_BOARD", "3"))
+        assertEquals(null, inboxDestination("SOMETHING_NEW", null))
+        assertEquals(null, inboxDestination(null, null))
+    }
+
+    /**
+     * TC-6535 "Routes가 새로 더한 상수": v0.11에서 Routes에 더한 경로는 알림 화면 5종만이 아니다. A3a가 GUEST_START·AVATAR_BACKGROUND,
+     * A3b가 CrewChat·CrewPollWrite·CrewBoardWrite·CREW_NOTICE·CREW_POLL·CREW_SCHEDULE·CREW_CHAT을, v0.10 와이어프레임(M1·M3·M7·M8)이
+     * CrewNoticeWrite·CrewPoll·CrewMeetupDetail·CrewGoalSet을 더했다(실제 목록에 맞춘다).
+     */
+    @Test
+    fun `TC-6535 Routes의 경로 이름과 인자 키는 이 목록이다(v0·11 9개, 와이어프레임 v0·10 5개)`() {
+        val constants = Routes::class.java.declaredFields
+            .filter { java.lang.reflect.Modifier.isStatic(it.modifiers) && it.type == String::class.java }
+            .map { it.name }
+            .toSet()
+        val keys = Routes::class.java.declaredClasses.map { it.simpleName }.toSet()
+        assertEquals(V010_CONSTANTS + V011_CONSTANTS, constants)
+        assertEquals(V010_KEYS + V011_KEYS + WIRE_V010_KEYS, keys)
+    }
+
+    @Test
+    fun `알림 이동 표는 서버 Screen 11개를 모두 다룬다`() {
+        assertEquals(ContractEnums.names("Screen"), INBOX_SCREENS)
+        INBOX_SCREENS.forEach { assertNotNull(inboxDestination(it, "1"), it) }
+    }
+
+    private companion object {
+        val V010_CONSTANTS = setOf(
+            "LOGIN", "SIGN_UP", "SELF", "CELEB", "HOME", "CREW", "ME", "RUN", "PROFILE_EDIT", "SETTINGS",
+            "FREE_RUN_SETTINGS", "NOTIFICATION_SETTINGS", "CONSENTS", "WITHDRAW", "RECORDS", "GROWTH", "REPORT",
+            "RANKING", "COACH", "NOTIFICATIONS", "BATTLE_RANDOM", "BATTLE_HISTORY", "RUNIMAL", "AVATAR", "AVATAR_SETUP",
+            "SHOP", "CREW_CREATE"
+        )
+        val V011_CONSTANTS = setOf(
+            "GUEST_START",
+            "AVATAR_BACKGROUND",
+            "CREW_NOTICE",
+            "CREW_POLL",
+            "CREW_SCHEDULE",
+            "CREW_CHAT"
+        )
+        val V010_KEYS = setOf(
+            "Key", "RunResult", "RecordDetail", "RecordCard", "BattleRunning", "BattleQuickMatch", "BattleResult",
+            "CrewHome", "CrewManage", "CrewRunWrite", "CrewRunLobby", "CrewRunResult"
+        )
+        val V011_KEYS = setOf("CrewChat", "CrewPollWrite", "CrewBoardWrite")
+
+        /** 와이어프레임 v0.10 반영에서 더한 인자 키(F8 다른 러너 프로필, M1 공지 쓰기, M3 투표, M7 대면 모임, M8 공동 목표). */
+        val WIRE_V010_KEYS = setOf("MemberProfile", "CrewNoticeWrite", "CrewPoll", "CrewMeetupDetail", "CrewGoalSet")
     }
 }

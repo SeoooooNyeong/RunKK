@@ -26,11 +26,15 @@ interface CrewRepository {
 
     suspend fun transferLeadership(crewId: Long, memberId: Long): Outcome<Unit>
 
+    /** 운영진 지정(PUT /crews/{id}/managers/{memberId}, FR-204). 크루장만. 최대 2명(MANAGER_LIMIT). */
+    suspend fun appointManager(crewId: Long, memberId: Long): Outcome<Unit>
+
+    /** 운영진 해제(DELETE /crews/{id}/managers/{memberId}, FR-204). 크루장만. */
+    suspend fun dismissManager(crewId: Long, memberId: Long): Outcome<Unit>
+
     suspend fun delete(crewId: Long): Outcome<Unit>
 
     suspend fun search(keyword: String?, tags: Set<String>, cursor: Long? = null): Outcome<CrewList>
-
-    suspend fun recommend(): Outcome<CrewList>
 
     /** 크루 ID로 가입(자유 가입은 JOINED, 승인제는 PENDING + 신청 ID). */
     suspend fun apply(crewId: Long): Outcome<JoinResult>
@@ -64,9 +68,42 @@ interface CrewRepository {
 
     suspend fun writeCrewRun(crewId: Long, form: CrewRunForm): Outcome<Long>
 
+    /** 공지 쓰기(FR-205). 운영진 이상. 고정 공지는 3개까지(PIN_LIMIT). */
+    suspend fun writeNotice(crewId: Long, body: String, isPinned: Boolean): Outcome<Long>
+
+    /** 공지 고정·해제(PUT /posts/{id}/pin, FR-205). */
+    suspend fun pin(postId: Long, isPinned: Boolean): Outcome<Unit>
+
+    /** 투표 쓰기(FR-206). */
+    suspend fun writePoll(crewId: Long, form: PollForm): Outcome<Long>
+
+    /** 투표 응답(FR-206). 마감 뒤에는 POLL_CLOSED. */
+    suspend fun respondPoll(postId: Long, optionNo: Int): Outcome<Unit>
+
+    suspend fun pollResult(postId: Long): Outcome<PollResult>
+
+    /** 대면 모임 일정 쓰기(FR-207). 작성자는 GOING으로 들어간다. */
+    suspend fun writeMeetup(crewId: Long, form: MeetupForm): Outcome<Long>
+
+    /** 게시판 글 쓰기(FR-211). [photoUris]는 기기 사진 주소이고 api.crew가 줄여서 보낸다(최대 5장, D-100). */
+    suspend fun writeBoard(crewId: Long, body: String, photoUris: List<String>): Outcome<Long>
+
+    /**
+     * 게시판·앨범 사진 한 장의 JPEG 바이트(GET /crew-photos/{id}, FR-212, D-100). 인증된 연결로 읽고, 크루 밖·숨김·삭제면 거부가 온다.
+     * 사진 주소 대신 ID로 받아 인증 헤더가 서버 밖 주소로 나가지 않게 한다.
+     */
+    suspend fun photo(photoId: Long): Outcome<ByteArray>
+
+    /** 크루 앨범(GET /crews/{id}/album, FR-212). */
+    suspend fun album(crewId: Long, cursor: Long? = null): Outcome<Album>
+
+    /** 이번 주 공동 목표 정하기(PUT /crews/{id}/goal, FR-138). 운영진 이상. 1km 미만은 GOAL_INVALID. */
+    suspend fun setWeeklyGoal(crewId: Long, goal: Distance): Outcome<RaceStatus>
+
     suspend fun deletePost(postId: Long): Outcome<Unit>
 
-    suspend fun vote(postId: Long, answer: VoteAnswer): Outcome<Unit>
+    /** 일정(크루런·대면 모임) 참석 응답(PUT /posts/{id}/attendance, FR-145, D-99). */
+    suspend fun answerAttendance(postId: Long, answer: AttendanceAnswer): Outcome<Unit>
 
     suspend fun enterLobby(postId: Long): Outcome<Lobby>
 

@@ -2,11 +2,15 @@ package com.a207.runkk.web.avatar;
 
 import com.a207.runkk.avatar.AvatarResult;
 import com.a207.runkk.avatar.AvatarView;
+import com.a207.runkk.avatar.BackgroundsView;
 import com.a207.runkk.avatar.DefaultCharacter;
 import com.a207.runkk.avatar.EquipChange;
 import com.a207.runkk.common.ItemSlot;
+import com.a207.runkk.common.ServerZone;
 import com.a207.runkk.reward.ShopView;
 import jakarta.validation.constraints.NotNull;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -15,6 +19,9 @@ import java.util.Map;
 final class AvatarDtos {
 
     private static final String DEFAULT_PREFIX = "default:";
+
+    /** 서비스 시각(LocalDateTime, D-10)을 +09:00 오프셋 일시로 내보낸다. */
+    private static final ZoneId SEOUL = ServerZone.ID;
 
     private AvatarDtos() {}
 
@@ -26,6 +33,7 @@ final class AvatarDtos {
      * @param guide 얼굴이 없을 때 안내문
      * @param bodyShape 체형
      * @param skinTone 피부색
+     * @param backgroundKey 고른 랜드마크 배경 키, null이면 기본 배경(v0.11 FR-162, FR-202)
      * @param equipped 부위별 착용 아이템
      * @param balance 리워드 잔액
      * @param canCreateSelfieToday 오늘 셀카로 다시 만들 수 있는가
@@ -40,6 +48,7 @@ final class AvatarDtos {
             String guide,
             String bodyShape,
             String skinTone,
+            String backgroundKey,
             Map<ItemSlot, Long> equipped,
             int balance,
             boolean canCreateSelfieToday,
@@ -60,6 +69,7 @@ final class AvatarDtos {
                     v.guide(),
                     v.bodyShape().name(),
                     v.skinTone().name(),
+                    v.backgroundKey(),
                     v.equipped(),
                     v.balance(),
                     v.canCreateSelfieToday(),
@@ -77,6 +87,7 @@ final class AvatarDtos {
                     base.guide,
                     base.bodyShape,
                     base.skinTone,
+                    base.backgroundKey,
                     base.equipped,
                     base.balance,
                     base.canCreateSelfieToday,
@@ -165,4 +176,59 @@ final class AvatarDtos {
      * @param balance 구매 뒤 잔액
      */
     record PurchaseResponse(long itemId, int balance) {}
+
+    /**
+     * 랜드마크 배경 목록(v0.11 GET /avatar/backgrounds, FR-201, FR-202). 순서는 운영 기준값의 개인 랜드마크 순서, 그 뒤에 표에서
+     * 빠졌지만 이미 해금한 배경이다.
+     *
+     * @param selectedKey 고른 배경 키, null이면 기본 배경
+     * @param backgrounds 배경
+     */
+    record BackgroundsResponse(String selectedKey, List<Background> backgrounds) {
+
+        static BackgroundsResponse of(BackgroundsView view) {
+            return new BackgroundsResponse(
+                    view.selectedKey(),
+                    view.backgrounds().stream()
+                            .map(
+                                    b ->
+                                            new Background(
+                                                    b.key(),
+                                                    b.name(),
+                                                    b.stage(),
+                                                    b.distance().meters(),
+                                                    b.unlocked(),
+                                                    b.unlockedAt() == null
+                                                            ? null
+                                                            : b.unlockedAt()
+                                                                    .atZone(SEOUL)
+                                                                    .toOffsetDateTime()))
+                            .toList());
+        }
+
+        /**
+         * 배경 하나.
+         *
+         * @param key 랜드마크 키
+         * @param name 랜드마크 이름
+         * @param stage DOMESTIC | EAST_ASIA | INTERCONTINENTAL
+         * @param distanceMeters 해금 누적 거리(m)
+         * @param unlocked 해금됨
+         * @param unlockedAt 해금 일시, 잠겼으면 null
+         */
+        record Background(
+                String key,
+                String name,
+                String stage,
+                long distanceMeters,
+                boolean unlocked,
+                OffsetDateTime unlockedAt) {}
+    }
+
+    /**
+     * 배경 선택(v0.11 PUT /avatar/background, FR-202).
+     *
+     * @param key 랜드마크 키, null이면 기본 배경
+     */
+    record BackgroundRequest(String key) {}
 }

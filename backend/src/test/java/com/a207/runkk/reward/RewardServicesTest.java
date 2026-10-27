@@ -42,10 +42,11 @@ class RewardServicesTest {
     private static final long BOB = 2;
 
     private final InMemoryRewardWalletRepository wallets = new InMemoryRewardWalletRepository();
+    private final InMemoryRewardAccrualRepository accruals = new InMemoryRewardAccrualRepository();
     private final OperationPolicy policy = mock(OperationPolicy.class);
     private final Clock clock = Clock.fixed(NOW.atZone(SEOUL).toInstant(), SEOUL);
     private final RewardService rewards =
-            new RewardService(wallets, policy, new NoTransactionManager());
+            new RewardService(wallets, accruals, policy, new NoTransactionManager());
     private final ShopService shop = new ShopService(wallets, policy, clock);
 
     @BeforeEach
@@ -176,6 +177,55 @@ class RewardServicesTest {
         org.assertj.core.api.Assertions.assertThatCode(
                         () -> rewards.onBattleJudged(judged(9L, Side.member(ALICE), false)))
                 .doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("TC-6155 ① 같은 근거 두 번: 둘째는 amountFor로 걸러 0, 잔액·적립 행 그대로")
+    void accrueWithRetry_duplicateSource() {
+        AccrualSource source = new AccrualSource(ALICE, AccrualReason.VALID_RUN, "r1", NOW);
+        assertThat(rewards.accrueWithRetry(source, rule -> 30)).isEqualTo(30);
+        assertThat(rewards.accrueWithRetry(source, rule -> 30)).isZero();
+        assertThat(rewards.balanceOf(ALICE)).isEqualTo(30);
+        assertThat(accruals.amountFor(ALICE, AccrualReason.VALID_RUN, "r1")).isEqualTo(30);
+        assertThat(accruals.sumOnCalls()).as("오늘(칼럼의 날)은 sumOn을 부르지 않는다").isZero();
+    }
+
+    @Test
+    @DisplayName("TC-6155 ② 지난 날짜 근거: 칼럼이 비어 있어 sumOn(회원, 그날)을 1회 읽어 상한을 센다")
+    void accrueWithRetry_olderDay_readsSumOn() {
+        rewards.accrueWithRetry(
+                new AccrualSource(ALICE, AccrualReason.VALID_RUN, "today", NOW), rule -> 30);
+        LocalDateTime d20 = NOW.minusDays(1).withHour(18);
+        accruals.seed(new RewardAccrual(ALICE, AccrualReason.VALID_RUN, "old", 180, d20));
+
+        int amount =
+                rewards.accrueWithRetry(
+                        new AccrualSource(ALICE, AccrualReason.VALID_RUN, "late", d20), rule -> 50);
+
+        assertThat(amount).isEqualTo(20);
+        assertThat(accruals.sumOnCalls()).isEqualTo(1);
+        assertThat(accruals.sumOnDays()).containsExactly(d20.toLocalDate());
+    }
+
+    @Test
+    @DisplayName("TC-6155 ③ 일시 오류 2번 뒤 성공은 적립, 3번 모두 실패면 0")
+    void accrueWithRetry_transient() {
+        org.springframework.dao.CannotAcquireLockException lock =
+                new org.springframework.dao.CannotAcquireLockException("lock wait");
+        wallets.failNext(lock, lock);
+        assertThat(
+                        rewards.accrueWithRetry(
+                                new AccrualSource(ALICE, AccrualReason.VALID_RUN, "a", NOW),
+                                rule -> 10))
+                .isEqualTo(10);
+
+        wallets.failNext(lock, lock, lock, lock);
+        assertThat(
+                        rewards.accrueWithRetry(
+                                new AccrualSource(ALICE, AccrualReason.VALID_RUN, "b", NOW),
+                                rule -> 10))
+                .isZero();
+        assertThat(rewards.balanceOf(ALICE)).isEqualTo(10);
     }
 
     /** 트랜잭션 없이 바로 실행한다(인메모리 저장소 단위 시험). */

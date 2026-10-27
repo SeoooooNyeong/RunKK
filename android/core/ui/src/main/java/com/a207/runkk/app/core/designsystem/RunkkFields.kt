@@ -155,14 +155,14 @@ fun <T> RunkkSelectField(
     modifier: Modifier = Modifier,
     placeholder: String = stringResource(R.string.core_fields_select)
 ) {
-    var expanded by remember { mutableStateOf(false) }
+    var isExpanded by remember { mutableStateOf(false) }
     val selectActionLabel = stringResource(R.string.core_fields_select_action, label)
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(text = label, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
         Box {
-            RunkkSelectBox(label, selected?.let(optionLabel), placeholder, selectActionLabel) { expanded = true }
-            DropdownMenu(expanded = expanded, onDismissRequest = {
-                expanded = false
+            RunkkSelectBox(label, selected?.let(optionLabel), placeholder, selectActionLabel) { isExpanded = true }
+            DropdownMenu(expanded = isExpanded, onDismissRequest = {
+                isExpanded = false
             }, modifier = Modifier.heightIn(max = 320.dp).background(RunkkColors.Surface)) {
                 options.forEach { option ->
                     DropdownMenuItem(
@@ -170,7 +170,7 @@ fun <T> RunkkSelectField(
                             Text(optionLabel(option), style = RunkkTextStyles.Body, color = RunkkColors.TextPrimary)
                         },
                         onClick = {
-                            expanded = false
+                            isExpanded = false
                             onSelect(option)
                         }
                     )
@@ -315,6 +315,7 @@ fun RunkkCheckRow(
 }
 
 /** 강조 체크 줄("전체 동의")은 라임 테두리 상자로 그린다. */
+@Composable
 private fun checkRowBox(isHighlighted: Boolean): Modifier {
     val shape = RunkkShapes.Medium
     return if (isHighlighted) {

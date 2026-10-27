@@ -5,13 +5,16 @@ import com.a207.runkk.common.DistanceUnit;
 import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.common.RecordVisibility;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.Optional;
 
 /**
- * 설정 항목 13개(자료사전 설정항목, 설계 6.1.2). 상수마다 값 검사(validate)와 대응하는 동의 항목(consentItem)을 가진다. 값은 문자열이고
- * 러닝설정·대결설정은 각 record의 JSON이다. 설정에 반영하는 일(applyTo)도 상수별 메소드로 두어 MemberSettings에 항목 분기를 두지 않는다(6.4).
+ * 설정 항목 14개(자료사전 설정항목 13개 + 화면테마, 설계 6.1.2, v0.11 FR-203). 상수마다 값 검사(validate)와 대응하는 동의
+ * 항목(consentItem)을 가진다. 값은 문자열이고 러닝설정·대결설정은 각 record의 JSON이다. 설정에 반영하는 일(applyTo)도 상수별 메소드로 두어
+ * MemberSettings에 항목 분기를 두지 않는다(6.4).
  */
 public enum SettingItem {
     /** 알림수신. 알림 종류 하나의 수신 여부(SettingChange.notificationType). */
@@ -104,13 +107,28 @@ public enum SettingItem {
             return parseJson(BattleSettings.class, value);
         }
 
+        /** 값 JSON에 proximityAlert가 없으면 현재 값을 유지한다(옛 앱 호환, D-92). */
         @Override
         void applyTo(MemberSettings settings, SettingChange change) {
-            settings.changeBattleSettings((BattleSettings) parse(change.value()));
+            settings.changeBattleSettings(
+                    mergeProximityAlert(change.value(), settings.battleSettings()));
+        }
+    },
+    /** 화면테마(FR-203, D-92). 값은 ScreenTheme 이름(SYSTEM·LIGHT·DARK)이다. */
+    THEME {
+        @Override
+        Object parse(String value) {
+            return parseEnum(ScreenTheme.class, value);
+        }
+
+        @Override
+        void applyTo(MemberSettings settings, SettingChange change) {
+            settings.changeTheme((ScreenTheme) parse(change.value()));
         }
     };
 
     private static final ObjectMapper JSON = JsonMapper.builder().build();
+    private static final String PROXIMITY_ALERT = "proximityAlert";
 
     private final ConsentItem consentItem;
 
@@ -165,6 +183,24 @@ public enum SettingItem {
         }
         try {
             return JSON.readValue(value, type);
+        } catch (JsonProcessingException | IllegalArgumentException e) {
+            throw invalid();
+        }
+    }
+
+    private static BattleSettings mergeProximityAlert(String value, BattleSettings current) {
+        if (value == null) {
+            throw invalid();
+        }
+        try {
+            JsonNode tree = JSON.readTree(value);
+            if (!(tree instanceof ObjectNode object)) {
+                throw invalid();
+            }
+            if (!object.has(PROXIMITY_ALERT) || object.get(PROXIMITY_ALERT).isNull()) {
+                object.put(PROXIMITY_ALERT, current.proximityAlert());
+            }
+            return JSON.treeToValue(object, BattleSettings.class);
         } catch (JsonProcessingException | IllegalArgumentException e) {
             throw invalid();
         }

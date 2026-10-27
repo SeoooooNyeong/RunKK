@@ -34,5 +34,9 @@ private val GUIDANCE_TEXTS: Map<GuidanceMessage, Int> = mapOf(
     GuidanceMessage.OVERTOOK to R.string.guidance_overtook,
     GuidanceMessage.OVERTAKEN to R.string.guidance_overtaken,
     GuidanceMessage.SAVE_FAILED to R.string.guidance_save_failed,
-    GuidanceMessage.REPORT_FAILED to R.string.guidance_report_failed
+    GuidanceMessage.REPORT_FAILED to R.string.guidance_report_failed,
+    GuidanceMessage.PAUSED to R.string.guidance_paused,
+    GuidanceMessage.RESUMED to R.string.guidance_resumed,
+    GuidanceMessage.PAUSE_AUTO_END_SOON to R.string.guidance_pause_auto_end_soon,
+    GuidanceMessage.PAUSE_AUTO_ENDED to R.string.guidance_pause_auto_ended
 )

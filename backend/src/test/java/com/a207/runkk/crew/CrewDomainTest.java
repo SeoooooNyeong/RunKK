@@ -7,13 +7,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.a207.runkk.common.BusinessRuleException;
 import com.a207.runkk.common.PermissionDeniedException;
-import com.a207.runkk.common.PersonalityTag;
 import com.a207.runkk.common.ReasonCode;
-import com.a207.runkk.common.TagOwner;
-import com.a207.runkk.common.TagSet;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -230,9 +226,9 @@ class CrewDomainTest {
         void membershipProfile() {
             Crew crew = CrewFixtures.crew("소개크루", 1);
             CrewMembership m = crew.membershipOf(1).orElseThrow();
-            m.editCrewProfile("반가워요", TagSet.of(Set.of(PersonalityTag.SOLO_RUN), TagOwner.RUNNER));
+            m.editCrewProfile("반가워요");
             assertThat(m.crewIntro()).isEqualTo("반가워요");
-            assertThatThrownBy(() -> m.editCrewProfile("가".repeat(41), null))
+            assertThatThrownBy(() -> m.editCrewProfile("가".repeat(41)))
                     .satisfies(e -> assertThat(reasonOf(e)).isEqualTo(ReasonCode.INTRO_TOO_LONG));
             m.leave(LeaveReason.WITHDREW, NOW);
             assertThat(m.cooldownUntil()).contains(NOW.plusHours(24));
@@ -345,7 +341,7 @@ class CrewDomainTest {
         }
 
         @Test
-        @DisplayName("권한표 12행: 크루장 전용 5개, 크루원 공용 6개, 공개 정보는 모두")
+        @DisplayName("권한표 16행: 크루장은 모두, 크루원은 구성원 공용 8개, 크루 밖은 공개 정보만")
         void permissionTable() {
             CrewPermissionPolicy policy = new CrewPermissionPolicy();
             for (CrewAction action : CrewAction.values()) {
@@ -360,8 +356,9 @@ class CrewDomainTest {
                     .containsExactlyInAnyOrder(
                             CrewAction.VIEW_PUBLIC_INFO,
                             CrewAction.WRITE_POST,
-                            CrewAction.VOTE_OR_JOIN_CREW_RUN,
-                            CrewAction.DELETE_OWN_POST,
+                            CrewAction.RESPOND,
+                            CrewAction.REPORT,
+                            CrewAction.DELETE_OWN_CONTENT,
                             CrewAction.VIEW_CREW_INTERNAL,
                             CrewAction.EDIT_OWN_CREW_PROFILE,
                             CrewAction.LEAVE);

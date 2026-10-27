@@ -9,6 +9,7 @@ import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.domain.record.RecordList
 import com.a207.runkk.app.domain.record.RecordRepository
 import com.a207.runkk.app.ui.share.CardSharer
 import com.a207.runkk.app.ui.share.CardSide
@@ -58,11 +59,32 @@ class RecordViewModelsTest {
             Triple(RecordRepository.SELF, LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 31)),
             records.runsCalls.single()
         )
-        assertEquals(Distance(12_200), s.dailyDistance[LocalDate.of(2026, 10, 14)])
+        // 14일: 유효 10.2km + 집계 제외 2km → 달력 칸은 유효 기록만 더한다(FR-057)
+        assertEquals(Distance(10_200), s.dailyDistance[LocalDate.of(2026, 10, 14)])
+        assertEquals(emptySet(), s.excludedDays)
         assertEquals(3, s.runs.size)
         assertEquals(listOf("r3", "r2", "r1"), s.runs.map { it.recordId })
         assertEquals(2, s.validCount)
         assertEquals(Distance(15_220), s.validDistance)
+    }
+
+    @Test
+    fun `달력 칸은 유효 기록 거리만 더하고, 집계 제외 기록만 있는 날은 거리 없이 표시만 남긴다`() {
+        records.runsResult = Outcome.Success(
+            RecordList(
+                listOf(
+                    summary("valid", 26, 3_090),
+                    summary("teleport", 26, 9_078_810, isValid = false),
+                    summary("jump", 26, 3_140, isValid = false),
+                    summary("only", 25, 9_078_810, isValid = false)
+                )
+            )
+        )
+        val s = RecordListViewModel(records, pending, clock).state.value
+        assertEquals(mapOf(LocalDate.of(2026, 10, 26) to Distance(3_090)), s.dailyDistance)
+        assertEquals(setOf(LocalDate.of(2026, 10, 25)), s.excludedDays)
+        assertEquals(1, s.validCount)
+        assertEquals(Distance(3_090), s.validDistance)
     }
 
     @Test
@@ -107,8 +129,11 @@ class RecordViewModelsTest {
         assertEquals(RunkkErrorText.of(AppError.Network), failing.state.value.error)
     }
 
+    private val avatars = FakeAvatarRepository()
+
     private fun cardViewModel(shared: Boolean, target: CountingTarget = CountingTarget()) = RecordCardViewModel(
         records,
+        avatars,
         RunCardRenderer(ApplicationProvider.getApplicationContext()),
         CardSharer(ApplicationProvider.getApplicationContext(), FakeSettingsRepository(shared)) { _, file: File ->
             Uri.fromFile(file)
@@ -144,5 +169,16 @@ class RecordViewModelsTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         assertTrue(vm.state.value.message!!.asString(context).startsWith("코스 지도 공유가 꺼져 있어"))
         assertFalse(vm.state.value.canShareBack)
+    }
+
+    @Test
+    fun `카드 앞면 배경 키는 아바타 배경에서 읽고, 읽지 못해도 기본 배경으로 그린다(FR-202, D-140)`() {
+        avatars.backgroundResult = Outcome.Failure(AppError.Network)
+        val vm = cardViewModel(shared = true)
+        vm.load("r1")
+        eventually { !vm.state.value.isLoading }
+        assertEquals(1, avatars.backgroundCalls)
+        assertNotNull(vm.state.value.front)
+        assertNull(vm.state.value.error)
     }
 }

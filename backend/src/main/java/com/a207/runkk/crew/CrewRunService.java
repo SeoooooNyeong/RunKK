@@ -47,7 +47,10 @@ public class CrewRunService {
         this.clock = clock;
     }
 
-    /** check(VOTE_OR_JOIN_CREW_RUN) → CrewRunPost.enterLobby(memberId, now, rule)(FR-147). */
+    /**
+     * check(RESPOND) → CrewRunPost.enterLobby(memberId, now, rule)(FR-147). 응답 없음·미정·불참이어도 입장하면
+     * GOING이 되어 참가자다(D-152).
+     */
     public LobbyView enterLobby(long memberId, long postId) {
         LocalDateTime now = LocalDateTime.now(clock);
         CrewRunRule rule = operationPolicy.crewRunRule();
@@ -60,7 +63,7 @@ public class CrewRunService {
                 });
     }
 
-    /** check(VOTE_OR_JOIN_CREW_RUN) → CrewRunPost.toggleReady(memberId). */
+    /** check(RESPOND) → CrewRunPost.toggleReady(memberId). */
     public LobbyView toggleReady(long memberId, long postId) {
         return lobbyChange(
                 memberId,
@@ -87,7 +90,7 @@ public class CrewRunService {
         return transactions.retrying(
                 () -> {
                     CrewRunPost post = locked(postId);
-                    crewAccess.check(memberId, post.crewId(), CrewAction.VOTE_OR_JOIN_CREW_RUN);
+                    crewAccess.check(memberId, post.crewId(), CrewAction.RESPOND);
                     crewPostRepository.save(change.apply(post));
                     return views.lobby(post, LocalDateTime.now(clock));
                 });
@@ -180,6 +183,15 @@ public class CrewRunService {
         }
         crewPostRepository.save(post);
         return linked;
+    }
+
+    /**
+     * 크루 삭제·모집글 삭제가 부른다(D-66, K-2). RUNNING이면 출발 참가자에게 CrewRunEnded, LOBBY_OPEN이면 대기실 입장자에게
+     * CrewRunCancelled("크루런이 삭제되었어요"), 그 밖은 보내지 않는다. 세션을 지운다. 메시지는 삭제 트랜잭션 커밋 뒤에 나간다. 이미 저장된 개인 기록은
+     * 지우지 않는다.
+     */
+    public void endByDeletion(CrewRunPost post) {
+        announcer.deleted(post);
     }
 
     /** CrewRunPost.quit → 세션 markQuit → 다른 참가자에게 "그만둠"(FR-192). */

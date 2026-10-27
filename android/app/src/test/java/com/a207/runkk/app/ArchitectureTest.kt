@@ -2,6 +2,9 @@ package com.a207.runkk.app
 
 import com.lemonappdev.konsist.api.Konsist
 import com.lemonappdev.konsist.api.declaration.KoFileDeclaration
+import com.lemonappdev.konsist.api.provider.KoNameProvider
+import com.lemonappdev.konsist.api.provider.KoParentProvider
+import com.lemonappdev.konsist.api.provider.modifier.KoSealedModifierProvider
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -67,9 +70,134 @@ class ArchitectureTest {
     }
 
     @Test
+    fun `TC-6581 ui·chat은 domain·chat·domain·report·core만 import한다`() {
+        assertEquals(CORE_UI + setOf("domain.chat", "domain.report"), ALLOWED.getValue("ui.chat"))
+        assertTrue(files.any { moduleOf(it.packageName()) == "ui.chat" }, "ui.chat 파일이 없다")
+        val violations = filesIn("ui.chat").flatMap(::tableViolations)
+        assertEquals(emptyList(), violations)
+    }
+
+    @Test
+    fun `TC-6582 domain·chat은 domain·live·core·model만, domain·report는 core·model만 import한다`() {
+        assertEquals(setOf("domain.live", "core.model"), ALLOWED.getValue("domain.chat"))
+        assertEquals(setOf("core.model"), ALLOWED.getValue("domain.report"))
+        assertTrue(files.any { moduleOf(it.packageName()) == "domain.chat" }, "domain.chat 파일이 없다")
+        assertTrue(files.any { moduleOf(it.packageName()) == "domain.report" }, "domain.report 파일이 없다")
+        val violations =
+            (filesIn("domain.chat") + filesIn("domain.report")).flatMap { file ->
+                file.importNames().filter { name -> isDataLayer(name) || name.startsWith("$APP.ui.") } +
+                    tableViolations(file)
+            }
+        assertEquals(emptyList(), violations)
+    }
+
+    @Test
+    fun `TC-6583 한 파일 규칙은 sealed 계층과 짝 UseCase만 허용한다 (D-112, 픽스처)`() {
+        fun fixture(name: String): List<String> =
+            Konsist.scopeFromFile("$FIXTURES/$name.kt").files.flatMap(::oneFileViolations)
+        assertEquals(emptyList(), fixture("SealedFixture"))
+        assertEquals(emptyList(), fixture("PairedUseCaseFixture"))
+        assertEquals(1, fixture("TwoClassesInTrackerFixture").size)
+        assertEquals(1, fixture("TwoDataClassesFixture").size)
+    }
+
+    /** D-112는 앱 전체 규칙이다. 도메인(A1)과 데이터 계층 api.*·data.*(A2)에 건다. 표현 계층은 아래 시험이 건다. */
+    @Test
+    fun `TC-6583 domain·api·data 소스는 한 파일 규칙을 지킨다 (D-112)`() {
+        assertTrue(filesIn("api.").isNotEmpty() && filesIn("data.").isNotEmpty(), "api·data 파일이 없다")
+        val violations = (filesIn("domain.") + filesIn("api.") + filesIn("data.")).flatMap(::oneFileViolations)
+        assertEquals(emptyList(), violations)
+    }
+
+    /**
+     * D-112를 표현 계층 전체로 넓힌다(A3a·A3b·A4): core.designsystem·core.navigation, app, 5.1.2 표의 ui.* 모듈 모두
+     * (ui.battle·ui.runimal은 A4가 나눴다). 표에 ui 모듈이 새로 생기면 자동으로 이 검사에 들어간다.
+     */
+    @Test
+    fun `TC-6583 core·app·ui 전체 소스는 한 파일 규칙을 지킨다 (D-112)`() {
+        val modules = ONE_FILE_PRESENTATION_MODULES
+        assertTrue("ui.battle" in modules && "ui.runimal" in modules && "ui.crew" in modules && "ui.chat" in modules)
+        modules.forEach { module ->
+            assertTrue(files.any { moduleOf(it.packageName()) == module }, "$module 파일이 없다")
+        }
+        val violations = files.filter { moduleOf(it.packageName()) in modules }.flatMap(::oneFileViolations)
+        assertEquals(emptyList(), violations)
+    }
+
+    /** D-183: 한 파일 규칙의 적용 범위는 워치(:wear, 6.1.15 watch.*)까지다. */
+    @Test
+    fun `TC-6583 워치 소스도 한 파일 규칙을 지킨다 (D-112, D-183)`() {
+        val watch = filesIn("watch.")
+        assertTrue(watch.any { moduleOf(it.packageName()) == "watch.alert" }, "watch.alert 파일이 없다")
+        assertEquals(emptyList(), watch.flatMap(::oneFileViolations))
+    }
+
+    @Test
+    fun `TC-6584 domain은 한글 문자열 리터럴과 is·has·can이 아닌 Boolean 속성을 두지 않는다 (D-111)`() {
+        assertEquals(emptyList(), filesIn("domain.").flatMap(::koreanLiterals))
+        assertEquals(emptyList(), filesIn("domain.").flatMap(::booleanNameViolations))
+        val fixture = Konsist.scopeFromFile("$FIXTURES/BooleanNameFixture.kt").files
+        assertEquals(setOf("shouldFollow", "enabled"), fixture.flatMap(::booleanNameViolations).toSet())
+    }
+
+    @Test
+    fun `TC-6585 data·push → domain·chat은 허용, domain·chat → data는 없다 (D-130)`() {
+        assertTrue("domain.chat" in ALLOWED.getValue("data.push"))
+        assertTrue(ALLOWED.getValue("domain.chat").none { it.startsWith("data.") })
+    }
+
+    @Test
     fun `GlobalScope를 쓰지 않는다`() {
         val violations = files.filter { it.text.contains("GlobalScope") }.map { it.path }
         assertEquals(emptyList(), violations)
+    }
+
+    /** D-112: 최상위 타입이 둘 이상이면 sealed 계층(부모와 하위 타입)이거나 private 함수를 나누는 짝 UseCase여야 한다. */
+    private fun oneFileViolations(file: KoFileDeclaration): List<String> {
+        val types: List<KoNameProvider> =
+            file.classes(includeNested = false) + file.interfaces(includeNested = false) +
+                file.objects(includeNested = false) + file.typeAliases
+        if (types.size <= 1) return emptyList()
+        val sealedRoots =
+            types.filter { (it as? KoSealedModifierProvider)?.hasSealedModifier == true }.map { it.name }.toSet()
+        val isSealedHierarchy =
+            sealedRoots.isNotEmpty() &&
+                types.all { type ->
+                    type.name in sealedRoots ||
+                        (type as? KoParentProvider)?.parents()?.any { it.name in sealedRoots } == true
+                }
+        val isPairedUseCase =
+            types.all { it.name.endsWith("UseCase") } &&
+                file.functions(includeNested = false).any { it.hasPrivateModifier }
+        if (isSealedHierarchy || isPairedUseCase) return emptyList()
+        return listOf("${file.path} ${types.map { it.name }}")
+    }
+
+    /** 주석을 뺀 소스에서 한글이 든 문자열 리터럴(D-111: 사용자 문구는 domain 밖 strings.xml). */
+    private fun koreanLiterals(file: KoFileDeclaration): List<String> {
+        val code = file.text.replace(BLOCK_COMMENT, "").replace(LINE_COMMENT, "")
+        return STRING_LITERAL
+            .findAll(code)
+            .map { it.value }
+            .filter { HANGUL.containsMatchIn(it) }
+            .map { "${file.name}: $it" }
+            .toList()
+    }
+
+    /** 형식을 적은 Boolean 속성(생성자 val·var 포함) 가운데 is·has·can으로 시작하지 않는 이름(D-111). */
+    private fun booleanNameViolations(file: KoFileDeclaration): List<String> {
+        val properties =
+            file
+                .properties(includeNested = true)
+                .filter { it.type?.name == "Boolean" }
+                .map { it.name }
+        val parameters =
+            file
+                .classes(includeNested = true)
+                .flatMap { it.primaryConstructor?.parameters.orEmpty() }
+                .filter { (it.isVal || it.isVar) && it.type.name == "Boolean" }
+                .map { it.name }
+        return (properties + parameters).distinct().filterNot { BOOLEAN_PREFIX.matches(it) }
     }
 
     private fun filesIn(modulePrefix: String): List<KoFileDeclaration> =
@@ -102,7 +230,7 @@ class ArchitectureTest {
      */
     private fun isE2eException(file: KoFileDeclaration, imported: String): Boolean =
         file.path.replace('\\', '/').contains("/src/localDebug/") &&
-            file.name == E2E_TOKEN_FILE &&
+            file.name in E2E_TOKEN_FILES &&
             imported in E2E_TOKEN_IMPORTS
 
     /**
@@ -125,7 +253,8 @@ class ArchitectureTest {
         const val APP = "$ROOT.app"
         const val WATCH = "$ROOT.watch"
 
-        const val E2E_TOKEN_FILE = "E2eKakaoTokenSource"
+        /** E2E 토큰 창구와 그 창구를 대체 자리에 넣는 Hilt 모듈(D-112로 파일을 나눴다). */
+        val E2E_TOKEN_FILES = setOf("E2eKakaoTokenSource", "E2eLoginModule")
         val E2E_TOKEN_IMPORTS = setOf("$APP.ui.me.KakaoAccessTokenSource", "$APP.ui.me.KakaoTokenOverride")
 
         private val DOMAINS =
@@ -140,13 +269,40 @@ class ArchitectureTest {
                 "runimal",
                 "avatar",
                 "notification",
-                "account"
+                "account",
+                "chat",
+                "report"
             )
         private val APIS =
-            listOf("core", "account", "run", "record", "battle", "crew", "runimal", "avatar", "notification", "live")
+            listOf(
+                "core",
+                "account",
+                "run",
+                "record",
+                "battle",
+                "crew",
+                "runimal",
+                "avatar",
+                "notification",
+                "live",
+                "chat",
+                "report"
+            )
         private val DATAS = listOf("store", "settings", "sync", "watch", "live", "device", "push", "session")
         private val UIS =
-            listOf("share", "home", "run", "record", "battle", "crew", "runimal", "avatar", "me", "notification")
+            listOf(
+                "share",
+                "home",
+                "run",
+                "record",
+                "battle",
+                "crew",
+                "runimal",
+                "avatar",
+                "me",
+                "notification",
+                "chat"
+            )
 
         /** 5.1.2 모듈(패키지) 이름 → 실제 패키지 접두어. 가장 긴 접두어가 이긴다. */
         val PACKAGES: Map<String, String> =
@@ -157,10 +313,23 @@ class ArchitectureTest {
                 DATAS.forEach { put("data.$it", "$APP.data.$it") }
                 UIS.forEach { put("ui.$it", "$APP.ui.$it") }
                 put("wear.contract", "$ROOT.wear.contract")
-                listOf("heart", "link", "ui").forEach { put("watch.$it", "$WATCH.$it") }
+                listOf("heart", "alert", "link", "ui").forEach { put("watch.$it", "$WATCH.$it") }
             }
 
         private val CORE_UI = setOf("core.designsystem", "core.navigation", "core.model")
+
+        /** 한 파일 규칙(D-112)을 건 표현 계층 모듈: core 표현 두 패키지, app, 5.1.2 표의 ui.* 전부. */
+        private val ONE_FILE_PRESENTATION_MODULES: List<String> =
+            listOf("core.designsystem", "core.navigation", "app") + UIS.map { "ui.$it" }
+
+        /** 한 파일 규칙·Boolean 이름 규칙의 픽스처(프로젝트 루트 기준). */
+        const val FIXTURES = "app/src/test/resources/konsist"
+
+        private val BLOCK_COMMENT = Regex("/\\*[\\s\\S]*?\\*/")
+        private val LINE_COMMENT = Regex("//[^\\n]*")
+        private val STRING_LITERAL = Regex("\"(?:[^\"\\\\\\n]|\\\\.)*\"")
+        private val HANGUL = Regex("[\\uAC00-\\uD7A3]")
+        private val BOOLEAN_PREFIX = Regex("(is|has|can)[A-Z].*")
 
         /** 5.1.2 앱 모듈 사이 의존 표(코드 import 기준). 같은 모듈 안은 언제나 허용한다. */
         val ALLOWED: Map<String, Set<String>> =
@@ -174,6 +343,8 @@ class ArchitectureTest {
                 "domain.record" to setOf("core.model"),
                 "domain.runimal" to setOf("core.model"),
                 "domain.avatar" to setOf("core.model"),
+                "domain.report" to setOf("core.model"),
+                "domain.chat" to setOf("domain.live", "core.model"),
                 "domain.notification" to setOf("core.model"),
                 "domain.run" to setOf("domain.settings", "core.model"),
                 "domain.sync" to setOf("domain.run", "core.model"),
@@ -191,26 +362,40 @@ class ArchitectureTest {
                 "api.avatar" to setOf("api.core", "domain.avatar", "core.model"),
                 "api.notification" to setOf("api.core", "domain.notification", "core.model"),
                 "api.live" to setOf("api.core"),
+                "api.chat" to setOf("api.core", "domain.chat", "core.model"),
+                "api.report" to setOf("api.core", "domain.report", "core.model"),
                 "data.store" to setOf("domain.run", "core.model"),
                 "data.device" to setOf("domain.run", "core.model"),
                 "data.settings" to setOf("domain.settings", "core.model"),
                 "data.sync" to setOf("domain.sync", "domain.run", "core.model"),
                 "data.watch" to setOf("domain.run", "domain.settings", "wear.contract"),
                 "data.live" to setOf("domain.live", "api.core", "api.live", "core.model"),
-                "data.push" to setOf("domain.notification"),
+                // domain.chat 추가: OpenChatRoomTracker가 OpenChatRoomRegistry를 구현한다(D-130).
+                "data.push" to setOf("domain.notification", "domain.chat"),
                 // core.model 추가: SessionRepository.save·clear가 Outcome을 돌려준다(13.2 "포트는 Outcome"). A2 결정.
                 "data.session" to setOf("domain.account", "domain.notification", "api.core", "core.model"),
                 // core.designsystem 추가: 러니멀 카드 이미지가 공용 유형 그림·이름 대응표(RunimalArt, RunimalAxisName)를 쓴다.
+                // domain.crew 추가: 공동 목표 축하 카드(CelebrationCard, FR-141, D-140).
                 "ui.share" to
-                    setOf("domain.record", "domain.runimal", "domain.settings", "core.model", "core.designsystem"),
+                    setOf(
+                        "domain.record",
+                        "domain.runimal",
+                        "domain.settings",
+                        "domain.crew",
+                        "core.model",
+                        "core.designsystem"
+                    ),
                 // 하이파이 HiHome 상단(닉네임·티어·Lv, 리워드 잔액) 때문에 domain.account(Profile)·domain.avatar(Avatar.balance)를 더했다.
-                // 설계서 5.1.2 표(ui.home: domain.record, domain.run)에는 아직 없다(A3a 결정 목록).
+                // 설계서 5.1.2 표 ui.home 행에 함께 올라 있다(A3a 결정).
                 "ui.home" to CORE_UI + setOf("domain.record", "domain.run", "domain.account", "domain.avatar"),
                 "ui.run" to CORE_UI + setOf("domain.run", "domain.record"),
-                "ui.record" to CORE_UI + setOf("domain.record", "domain.run", "ui.share"),
+                // domain.avatar 추가: 러닝 카드 배경 키·단계(AvatarRepository.backgroundChoice, D-140, D-185).
+                "ui.record" to CORE_UI + setOf("domain.record", "domain.run", "domain.avatar", "ui.share"),
                 "ui.battle" to CORE_UI + setOf("domain.battle", "domain.live"),
                 "ui.runimal" to CORE_UI + setOf("domain.runimal", "ui.share"),
-                "ui.crew" to CORE_UI + "domain.crew",
+                // domain.report(신고 대화상자)·ui.share(축하 카드 공유) 추가(v0.11 F.6.4, D-140).
+                "ui.crew" to CORE_UI + setOf("domain.crew", "domain.report", "ui.share"),
+                "ui.chat" to CORE_UI + setOf("domain.chat", "domain.report"),
                 "ui.avatar" to CORE_UI + "domain.avatar",
                 "ui.me" to CORE_UI + "domain.account",
                 "ui.notification" to CORE_UI + "domain.notification",
@@ -230,7 +415,8 @@ class ArchitectureTest {
                         "core.designsystem"
                     ),
                 "watch.heart" to emptySet(),
-                "watch.link" to setOf("wear.contract", "watch.heart"),
+                "watch.alert" to setOf("wear.contract"),
+                "watch.link" to setOf("wear.contract", "watch.heart", "watch.alert"),
                 "watch.ui" to setOf("watch.link")
             )
 

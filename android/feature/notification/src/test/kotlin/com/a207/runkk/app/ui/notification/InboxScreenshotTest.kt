@@ -23,8 +23,18 @@ class InboxScreenshotTest {
 
     @Test
     fun inbox() = compose.captureRunkkScreen("notification_inbox") {
-        InboxScreen(InboxUiState(isLoading = false, groups = groupInbox(sampleItems, clock)), onBack = {
-        }, onItem = {}, onRetry = {})
+        InboxScreen(
+            InboxUiState(
+                isLoading = false,
+                groups = groupInbox(sampleItems, clock),
+                now = clock.instant(),
+                zone = clock.zone
+            ),
+            onBack = {
+            },
+            onItem = {},
+            onRetry = {}
+        )
     }
 
     @Test

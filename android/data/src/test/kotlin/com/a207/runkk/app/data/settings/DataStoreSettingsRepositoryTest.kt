@@ -2,11 +2,14 @@ package com.a207.runkk.app.data.settings
 
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.emptyPreferences
+import androidx.datastore.preferences.core.stringPreferencesKey
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.settings.GuidanceSettings
+import com.a207.runkk.app.domain.settings.ScreenTheme
 import com.a207.runkk.app.domain.settings.SettingsRemote
 import com.a207.runkk.app.domain.settings.SettingsSnapshot
 import kotlin.test.AfterTest
@@ -129,6 +132,41 @@ class DataStoreSettingsRepositoryTest {
     }
 
     @Test
+    fun `changes는 기기 사본을 읽기 전에는 내보내지 않아 저장된 테마 앞에 SYSTEM이 끼지 않는다(A4 첫 프레임)`() = runTest {
+        val store = ControlledDataStore()
+        remote.next += Outcome.Success(CONSENTED.copy(theme = ScreenTheme.DARK))
+        DataStoreSettingsRepository(store, remote, backgroundScope).refresh()
+        val restarted = DataStoreSettingsRepository(store, remote, backgroundScope)
+        val seen = mutableListOf<ScreenTheme>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            restarted.changes().collect { seen += it.theme }
+        }
+        runCurrent()
+        assertEquals(emptyList(), seen, "기기 사본을 읽기 전에 안전한 값(SYSTEM)을 내보냈다")
+
+        // 기기 읽기 두 번(처음 연 저장소와 다시 연 저장소가 하나씩 받는다).
+        store.deliver(store.stored)
+        store.deliver(store.stored)
+        runCurrent()
+
+        assertEquals(listOf(ScreenTheme.DARK), seen)
+    }
+
+    @Test
+    fun `기기 사본 읽기가 IOException 밖의 예외로 실패해도 안전한 값을 내보낸다(A4 리뷰)`() = runTest {
+        val broken = object : DataStore<Preferences> {
+            override val data: Flow<Preferences> = kotlinx.coroutines.flow.flow { throw IllegalStateException("깨진 사본") }
+
+            override suspend fun updateData(transform: suspend (t: Preferences) -> Preferences): Preferences =
+                error("쓰지 않는다")
+        }
+        val repository = DataStoreSettingsRepository(broken, remote, backgroundScope)
+        runCurrent()
+
+        assertEquals(SettingsSnapshot.SAFE, repository.changes().first())
+    }
+
+    @Test
     fun `clear 뒤에 늦게 도착한 이전 사본 방출이 메모리 사본을 되살리지 않는다`() = runTest {
         val store = ControlledDataStore()
         val repository = DataStoreSettingsRepository(store, remote, backgroundScope)
@@ -180,6 +218,70 @@ class DataStoreSettingsRepositoryTest {
 
         assertTrue(repository.locationConsented())
         assertFalse(repository.courseMapShared())
+    }
+
+    @Test
+    fun `TC-6526 사본이 없으면 테마는 SYSTEM, 근접 알림은 참, 게스트는 거짓이다`() = runTest {
+        val repository = open()
+
+        assertEquals(ScreenTheme.SYSTEM, repository.changes().first().theme)
+        assertTrue(repository.guidanceSettings().isProximityAlertOn)
+        assertFalse(repository.isGuest())
+    }
+
+    @Test
+    fun `TC-6527 테마가 DARK로 바뀌면 changes가 바로 내보내고 다시 열어도 DARK다`() = runTest {
+        val repository = open()
+        remote.next += Outcome.Success(CONSENTED)
+        repository.refresh()
+        val seen = mutableListOf<SettingsSnapshot>()
+        val collecting = launch(UnconfinedTestDispatcher(testScheduler)) { repository.changes().collect { seen += it } }
+
+        remote.next += Outcome.Success(CONSENTED.copy(theme = ScreenTheme.DARK))
+        repository.refresh()
+
+        assertEquals(ScreenTheme.DARK, repository.changes().first { it.theme == ScreenTheme.DARK }.theme)
+        collecting.cancel()
+        assertTrue(seen.any { it.theme == ScreenTheme.DARK }, "DARK 사본이 방출되지 않았다: $seen")
+        closeAll()
+        val reopened = open()
+        assertEquals(ScreenTheme.DARK, reopened.changes().first { it != SettingsSnapshot.SAFE }.theme)
+    }
+
+    @Test
+    fun `근접 알림 끔과 게스트 여부를 사본에 저장하고 다시 열어도 남는다`() = runTest {
+        val repository = open()
+        val guest =
+            CONSENTED.copy(
+                guidanceSettings = CONSENTED.guidanceSettings.copy(isProximityAlertOn = false),
+                isGuest = true
+            )
+        remote.next += Outcome.Success(guest)
+        repository.refresh()
+
+        assertFalse(repository.guidanceSettings().isProximityAlertOn)
+        assertTrue(repository.isGuest())
+        closeAll()
+        val reopened = open()
+        val stored = reopened.changes().first { it != SettingsSnapshot.SAFE }
+        assertFalse(stored.guidanceSettings.isProximityAlertOn)
+        assertTrue(stored.isGuest)
+    }
+
+    @Test
+    fun `TC-6529 저장된 테마 이름을 모르면 SYSTEM으로 읽고 예외가 없다`() = runTest {
+        store.updateData { prefs ->
+            prefs.toMutablePreferences().apply {
+                this[booleanPreferencesKey("has_copy")] = true
+                this[booleanPreferencesKey("location_consented")] = true
+                this[stringPreferencesKey("theme")] = "SEPIA"
+            }
+        }
+
+        val repository = open()
+
+        val stored = repository.changes().first { it.isLocationConsented }
+        assertEquals(ScreenTheme.SYSTEM, stored.theme)
     }
 
     private fun open(): DataStoreSettingsRepository {
@@ -257,7 +359,7 @@ class DataStoreSettingsRepositoryTest {
                         isBattleVibrationOn = false,
                         gapAlertMeters = 500,
                         isRankAlertOn = true,
-                        shouldFollowCoachPlan = true,
+                        isFollowingCoachPlan = true,
                         freeRunTarget = Distance(3_000)
                     )
             )

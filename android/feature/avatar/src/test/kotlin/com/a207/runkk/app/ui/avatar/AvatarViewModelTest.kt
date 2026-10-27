@@ -8,7 +8,9 @@ import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.model.FacePart
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.avatar.Avatar
+import com.a207.runkk.app.domain.avatar.AvatarBackgrounds
 import com.a207.runkk.app.domain.avatar.AvatarRepository
+import com.a207.runkk.app.domain.avatar.BackgroundChoice
 import com.a207.runkk.app.domain.avatar.ItemSlot
 import com.a207.runkk.app.domain.avatar.Shop
 import kotlin.test.assertEquals
@@ -92,6 +94,21 @@ class FakeAvatars : AvatarRepository {
         calls += "shop:$slot"
         return Outcome.Success(Shop(items.filter { slot == null || it.slot == slot }, 1_240))
     }
+
+    var backgroundsResult: Outcome<AvatarBackgrounds> = Outcome.Success(sampleBackgrounds)
+    var chooseResult: Outcome<Unit> = Outcome.Success(Unit)
+
+    override suspend fun backgrounds(): Outcome<AvatarBackgrounds> {
+        calls += "backgrounds"
+        return backgroundsResult
+    }
+
+    override suspend fun chooseBackground(key: String?): Outcome<Unit> {
+        calls += "chooseBackground:$key"
+        return chooseResult
+    }
+
+    override suspend fun backgroundChoice(): Outcome<BackgroundChoice?> = error("unused")
 
     override suspend fun purchase(itemId: Long): Outcome<Int> {
         calls += "buy:$itemId"

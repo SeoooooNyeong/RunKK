@@ -171,31 +171,8 @@ class AuthControllerTest extends WebTestSupport {
     }
 
     @Test
-    @DisplayName("L20: 사진 주소는 https만(가입·프로필 변경), 프로필의 빈 문자열은 지우기")
+    @DisplayName("L20: 사진 주소는 https만(프로필 변경, 가입 항목은 D-90으로 지웠다), 프로필의 빈 문자열은 지우기")
     void photoUrl_mustBeHttps() throws Exception {
-        String ticket =
-                body(mvc.perform(
-                                        post("/api/v1/auth/login")
-                                                .contentType(MediaType.APPLICATION_JSON)
-                                                .content(
-                                                        login(
-                                                                "KAKAO",
-                                                                "photo-"
-                                                                        + java.util.UUID
-                                                                                .randomUUID())))
-                                .andReturn()
-                                .getResponse()
-                                .getContentAsString())
-                        .get("signUpTicket")
-                        .asText();
-        java.util.Map<String, Object> form = new java.util.HashMap<>(signUpBody(ticket, "사진러너"));
-        form.put("photoUrl", "javascript:alert(1)");
-        mvc.perform(
-                        post("/api/v1/members")
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .content(write(form)))
-                .andExpect(status().isBadRequest());
-
         Session s = signUp();
         mvc.perform(
                         as(

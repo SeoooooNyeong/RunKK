@@ -19,22 +19,3 @@ interface NotificationPermissionGate {
     /** 물었다고 기록한다. 이후 [shouldAsk]는 거짓이다(앱을 다시 켜도). */
     fun markAsked()
 }
-
-class AndroidNotificationPermissionGate @Inject constructor(@ApplicationContext private val context: Context) :
-    NotificationPermissionGate {
-    private val preferences get() = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
-
-    override fun shouldAsk(): Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
-        PackageManager.PERMISSION_GRANTED &&
-        !preferences.getBoolean(KEY_ASKED, false)
-
-    override fun markAsked() {
-        preferences.edit().putBoolean(KEY_ASKED, true).apply()
-    }
-
-    private companion object {
-        const val PREFERENCES = "notification_prompt"
-        const val KEY_ASKED = "asked"
-    }
-}

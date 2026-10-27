@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -29,6 +30,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -40,16 +42,15 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.a207.runkk.app.core.designsystem.RunkkCard
 import com.a207.runkk.app.core.designsystem.RunkkColors
-import com.a207.runkk.app.core.designsystem.RunkkConfirmDialog
 import com.a207.runkk.app.core.designsystem.RunkkEmptyState
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkFormat
-import com.a207.runkk.app.core.designsystem.RunkkIconButton
-import com.a207.runkk.app.core.designsystem.RunkkIcons
+import com.a207.runkk.app.core.designsystem.RunkkLimePillButton
 import com.a207.runkk.app.core.designsystem.RunkkLoading
 import com.a207.runkk.app.core.designsystem.RunkkPrimaryButton
 import com.a207.runkk.app.core.designsystem.RunkkSegmentedTabs
 import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
+import com.a207.runkk.app.core.designsystem.RunkkTextLink
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
@@ -101,7 +102,7 @@ fun SelfBattleScreen(
 ) {
     RecordBattleScaffold(
         title = stringResource(R.string.battle_type_self),
-        subtitle = stringResource(R.string.battle_self_subtitle),
+        subtitle = stringResource(R.string.battle_self_question),
         state = state,
         onHistory = onHistory,
         onRetry = onRetry,
@@ -166,7 +167,7 @@ fun CelebBattleScreen(
 ) {
     RecordBattleScaffold(
         title = stringResource(R.string.battle_celeb_title),
-        subtitle = stringResource(R.string.battle_celeb_subtitle),
+        subtitle = null,
         state = state,
         onHistory = onHistory,
         onRetry = onRetry,
@@ -182,20 +183,14 @@ fun CelebBattleScreen(
             )
         }
     ) { candidate ->
-        CelebCandidateCard(candidate, onClick = { onPick(candidate) })
-    }
-    val selected = state.selected
-    if (state.isConfirming && selected != null) {
-        RunkkConfirmDialog(
-            title = stringResource(R.string.battle_celeb_confirm_title, selected.name),
-            message = stringResource(
-                R.string.battle_celeb_confirm_message,
-                distanceLabel(selected.distance).asString(),
-                selected.finishTime?.let(RunkkFormat::duration) ?: RunkkFormat.EMPTY
-            ),
-            confirmLabel = stringResource(R.string.battle_celeb_confirm_start),
-            onConfirm = onConfirm,
-            onDismiss = onDismissConfirm
+        // 보드 H2: "대결"을 누르면 확인 없이 바로 유명인 대결을 시작한다.
+        CelebCandidateCard(
+            candidate,
+            isStarting = state.isStarting,
+            onClick = {
+                onPick(candidate)
+                onConfirm()
+            }
         )
     }
 }
@@ -203,7 +198,7 @@ fun CelebBattleScreen(
 @Composable
 private fun RecordBattleScaffold(
     title: String,
-    subtitle: String,
+    subtitle: String?,
     state: RecordBattleUiState,
     onHistory: () -> Unit,
     onRetry: () -> Unit,
@@ -224,7 +219,7 @@ private fun RecordBattleScaffold(
     }
     Box(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
         Column(modifier = Modifier.fillMaxSize()) {
-            ScaffoldHead(title, subtitle, state, onHistory, header)
+            ScaffoldHead(title, subtitle, onHistory, header)
             CandidateBody(state, emptyTitle, onRetry, item)
             if (bottom != null) {
                 HorizontalDivider(color = RunkkColors.Border)
@@ -235,37 +230,27 @@ private fun RecordBattleScaffold(
     }
 }
 
-/** 위쪽: 제목줄(함께 달린 기록 버튼), 부제, 거르기 머리와 후보 수. */
+/** 위쪽: 제목줄("함께 달린 기록 ›"), 질문(있으면), 거르기 머리. */
 @Composable
 private fun ColumnScope.ScaffoldHead(
     title: String,
-    subtitle: String,
-    state: RecordBattleUiState,
+    subtitle: String?,
     onHistory: () -> Unit,
     header: (@Composable () -> Unit)?
 ) {
     RunkkTopBar(title = title) {
-        RunkkIconButton(
-            RunkkIcons.History,
-            contentDescription = stringResource(R.string.battle_history_title),
-            onClick = onHistory
+        RunkkTextLink(stringResource(R.string.battle_history_link), onClick = onHistory)
+    }
+    if (subtitle != null) {
+        Text(
+            subtitle,
+            style = RunkkTextStyles.Headline,
+            color = RunkkColors.TextPrimary,
+            modifier = Modifier.padding(horizontal = 16.dp).semantics { heading() }
         )
     }
-    Text(
-        subtitle,
-        style = RunkkTextStyles.Caption,
-        color = RunkkColors.TextSecondary,
-        modifier = Modifier.padding(horizontal = 16.dp)
-    )
     if (header != null) {
-        Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp)) { header() }
-        // 필터(거리)를 바꾸면 후보 수를 알린다.
-        if (!state.isLoading && state.error == null) {
-            FilterCount(
-                stringResource(R.string.battle_record_count, state.candidates.size),
-                modifier = Modifier.padding(start = 16.dp, top = 8.dp)
-            )
-        }
+        Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp)) { header() }
     }
 }
 
@@ -299,6 +284,7 @@ private fun ColumnScope.CandidateBody(
     }
 }
 
+/** 나와의 싸움 거리 한 칸(H1): 거리, "내 최고 기록"과 기록, 기록한 날. 기록이 없으면 "기록 없음". */
 @Composable
 private fun SelfCandidateCard(candidate: CandidateUi, isSelected: Boolean, onClick: () -> Unit) {
     val label = distanceLabel(candidate.distance).asString()
@@ -317,53 +303,42 @@ private fun SelfCandidateCard(candidate: CandidateUi, isSelected: Boolean, onCli
         ) {
             Text(
                 label,
-                style = RunkkTextStyles.display(32),
+                style = RunkkTextStyles.display(28),
                 color = if (candidate.isSelectable) RunkkColors.Lime else RunkkColors.TextSecondary,
-                modifier = Modifier.size(width = 72.dp, height = 40.dp)
+                modifier = Modifier.width(72.dp)
             )
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                if (candidate.finishTime != null) {
-                    Text(
-                        stringResource(R.string.battle_record_best, RunkkFormat.duration(candidate.finishTime)),
-                        style = RunkkTextStyles.text(16, FontWeight.Black),
-                        color = RunkkColors.TextPrimary
-                    )
-                    Text(
-                        listOfNotNull(
-                            candidate.recordedOn?.let(::dateLabel),
-                            stringResource(R.string.battle_record_average, RunkkFormat.pace(candidate.averagePace))
-                        ).joinToString(" · "),
-                        style = RunkkTextStyles.Caption,
-                        color = RunkkColors.TextSecondary
-                    )
-                } else {
-                    Text(
-                        stringResource(R.string.battle_no_record_yet),
-                        style = RunkkTextStyles.Body,
-                        color = RunkkColors.TextSecondary
-                    )
-                }
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    stringResource(R.string.battle_self_best_label),
+                    style = RunkkTextStyles.Caption,
+                    color = RunkkColors.TextSecondary
+                )
+                Text(
+                    candidate.finishTime?.let(RunkkFormat::duration) ?: stringResource(R.string.battle_no_record),
+                    style = RunkkTextStyles.text(16, FontWeight.Black),
+                    color = if (candidate.finishTime != null) RunkkColors.TextPrimary else RunkkColors.TextSecondary
+                )
+            }
+            candidate.recordedOn?.let {
+                Text(shortDateLabel(it), style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
             }
         }
     }
 }
 
+/** 유명인 한 칸(H2): SD 캐릭터, 이름, "거리, 기록", 출처, "대결" 버튼. */
 @Composable
-private fun CelebCandidateCard(candidate: CandidateUi, onClick: () -> Unit) {
+private fun CelebCandidateCard(candidate: CandidateUi, isStarting: Boolean, onClick: () -> Unit) {
     val spoken = celebSpoken(candidate)
     val bestTime = candidate.finishTime?.let(RunkkFormat::duration) ?: stringResource(R.string.battle_no_record)
-    RunkkCard(
-        modifier = Modifier.fillMaxWidth(),
-        onClick = if (candidate.isSelectable) onClick else null,
-        onClickLabel = stringResource(R.string.battle_record_challenge_label, candidate.name)
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            modifier = Modifier.clearAndSetSemantics { contentDescription = spoken }
-        ) {
+    val distance = distanceLabel(candidate.distance).asString()
+    RunkkCard(modifier = Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             SdCharacter(size = 48)
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(
+                modifier = Modifier.weight(1f).clearAndSetSemantics { contentDescription = spoken },
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
                 Text(
                     candidate.name,
                     style = RunkkTextStyles.text(15, FontWeight.Black),
@@ -372,12 +347,19 @@ private fun CelebCandidateCard(candidate: CandidateUi, onClick: () -> Unit) {
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    "${distanceLabel(candidate.distance).asString()} · $bestTime",
+                    stringResource(R.string.battle_celeb_record, distance, bestTime),
                     style = RunkkTextStyles.Caption,
                     color = RunkkColors.TextPrimary
                 )
-                Text(sourceLine(candidate).asString(), style = RunkkTextStyles.Micro, color = RunkkColors.TextSecondary)
+                sourceLine(candidate)?.let {
+                    Text(it.asString(), style = RunkkTextStyles.Micro, color = RunkkColors.TextSecondary)
+                }
             }
+            RunkkLimePillButton(
+                stringResource(R.string.battle_celeb_start),
+                onClick = onClick,
+                isEnabled = candidate.isSelectable && !isStarting
+            )
         }
     }
 }
@@ -397,7 +379,7 @@ internal fun celebSpoken(c: CandidateUi): String = listOfNotNull(
     c.name,
     spokenDistance(c.distance),
     c.finishTime?.let { RunkkFormat.durationSpoken(it) } ?: stringResource(R.string.battle_no_record),
-    sourceLine(c).asString()
+    sourceLine(c)?.asString()
 ).joinToString(", ")
 
 /** "5km"를 "5킬로미터"로(하프·풀은 "하프 마라톤"·"풀 마라톤"). */
@@ -411,14 +393,9 @@ internal fun spokenDistance(distance: Distance): String {
     }
 }
 
-/**
- * 출처 줄(FR-100): "공개 기록 기준 · 출처". 서버 sourceLabel(Source.label(), 설계 6.1.6)이 이미 접두어를 붙여 오므로
- * 그대로 쓰고, 출처가 없을 때만 "공개 기록 기준"을 쓴다. 구간 기록이 없으면 추정 안내를 붙인다(A-006).
- */
-internal fun sourceLine(candidate: CandidateUi): UiText {
-    val basis = candidate.sourceLabel?.let(UiText::Plain) ?: uiText(R.string.battle_record_source_basis)
-    return if (candidate.isEstimated) uiText(R.string.battle_record_source_estimated, basis) else basis
-}
+/** 출처 줄(FR-100, 보드 H2 "출처: [출처]"). 서버 출처 표기(sourceLabel)가 없으면 줄을 두지 않는다. */
+internal fun sourceLine(candidate: CandidateUi): UiText? =
+    candidate.sourceLabel?.let { uiText(R.string.battle_record_source, it) }
 
 /** 유명인 공통 SD 캐릭터 자리(라벤더 원). 그림 자원은 2단계에 넣는다(FR-099). */
 @Composable
@@ -438,7 +415,11 @@ internal fun SdCharacter(size: Int, modifier: Modifier = Modifier, label: String
 
 internal fun dateLabel(date: LocalDate): String = date.format(DATE)
 
+/** 카드의 짧은 날짜(보드 H1 "[09.14]"). */
+internal fun shortDateLabel(date: LocalDate): String = date.format(SHORT_DATE)
+
 private val DATE: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy.MM.dd")
+private val SHORT_DATE: DateTimeFormatter = DateTimeFormatter.ofPattern("MM.dd")
 
 @Preview(name = "나와의 싸움", widthDp = 390, heightDp = 844)
 @Composable

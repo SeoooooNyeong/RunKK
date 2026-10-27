@@ -66,21 +66,24 @@ class CrewRunPostTest {
     }
 
     @Test
-    @DisplayName("투표: 마감 전 추가·변경, 마감 뒤·삭제된 글은 VOTE_CLOSED")
-    void vote() {
+    @DisplayName("참석 응답: 마감 전 추가·변경, 마감 뒤 VOTE_CLOSED, 삭제된 글은 상태 위반(서비스가 먼저 POST_NOT_FOUND)")
+    void answer() {
         CrewRunPost post = post();
-        post.vote(A, VoteAnswer.GOING, NOW);
-        post.vote(B, VoteAnswer.GOING, NOW);
-        post.vote(B, VoteAnswer.NOT_GOING, NOW);
+        post.answer(A, AttendanceAnswer.GOING, NOW);
+        post.answer(B, AttendanceAnswer.GOING, NOW);
+        AttendanceView view = post.answer(B, AttendanceAnswer.NOT_GOING, NOW);
 
+        assertThat(view.myAnswer()).isEqualTo(AttendanceAnswer.NOT_GOING);
+        assertThat(view.goingCount()).isEqualTo(2);
+        assertThat(view.notGoingCount()).isEqualTo(1);
         assertThat(post.participantsToRemind()).containsExactlyInAnyOrder(LEADER, A);
-        assertThat(post.summary(B).crewRun().myAnswer()).isEqualTo(VoteAnswer.NOT_GOING);
-        assertThat(post.summary(B).crewRun().goingCount()).isEqualTo(2);
-        assertThatThrownBy(() -> post.vote(C, VoteAnswer.GOING, AT))
+        assertThat(post.summary(B).crewRun().myAnswer()).isEqualTo(AttendanceAnswer.NOT_GOING);
+        assertThat(post.summary(B).crewRun().counts()).isEqualTo(new AttendanceCounts(2, 1, 0));
+        assertThatThrownBy(() -> post.answer(C, AttendanceAnswer.GOING, AT))
                 .satisfies(e -> assertThat(reasonOf(e)).isEqualTo(ReasonCode.VOTE_CLOSED));
         post.delete(LEADER, CrewRelation.LEADER);
-        assertThatThrownBy(() -> post.vote(C, VoteAnswer.GOING, NOW))
-                .satisfies(e -> assertThat(reasonOf(e)).isEqualTo(ReasonCode.VOTE_CLOSED));
+        assertThatThrownBy(() -> post.answer(C, AttendanceAnswer.GOING, NOW))
+                .isInstanceOf(IllegalStateException.class);
     }
 
     @Test
@@ -94,7 +97,7 @@ class CrewRunPostTest {
         assertThat(post.openLobby(AT.minusMinutes(30), RULE)).isTrue();
         assertThat(post.openLobby(AT.minusMinutes(29), RULE)).as("한 번만 연다").isFalse();
 
-        post.vote(A, VoteAnswer.NOT_GOING, NOW);
+        post.answer(A, AttendanceAnswer.NOT_GOING, NOW);
         post.enterLobby(A, AT.minusMinutes(5), RULE);
         assertThat(post.readinessOf(A)).contains(Readiness.ENTERING);
         assertThat(post.participantsToRemind()).contains(A);
@@ -133,7 +136,7 @@ class CrewRunPostTest {
     @DisplayName("출발: READY가 2명 미만이면 CANCELLED, 갈래요 응답자에게 알린다")
     void depart_cancelled() {
         CrewRunPost post = lobby();
-        post.vote(A, VoteAnswer.GOING, NOW);
+        post.answer(A, AttendanceAnswer.GOING, NOW);
         post.enterLobby(LEADER, AT.minusMinutes(1), RULE);
         post.toggleReady(LEADER);
 

@@ -74,7 +74,7 @@ public class DashboardService {
                 memberQueryService.preferenceOf(memberId).unit(),
                 todayOf(monthRuns, base),
                 new DashboardView.Totals(totals.distance(), totals.elapsed(), totals.count()),
-                landmarks.personalProgressOf(totals.validDistance()).label(),
+                landmarks.personalProgressOf(totals.distance()).label(),
                 Streak.countBack(runDays(dailyDistance), base),
                 Grass.of(dailyDistance, grassRange),
                 weeklyOf(memberId, base, daily),
@@ -82,9 +82,13 @@ public class DashboardService {
                 calendarOf(monthRuns));
     }
 
+    /** 오늘 달린 거리·시간·횟수. 유효 기록만 센다(집계 제외 기록은 달력·누적과 같이 뺀다, v0.10). */
     private static DashboardView.Totals todayOf(List<RunSummary> monthRuns, LocalDate base) {
         List<RunSummary> today =
-                monthRuns.stream().filter(r -> r.startedAt().toLocalDate().equals(base)).toList();
+                monthRuns.stream()
+                        .filter(RunSummary::valid)
+                        .filter(r -> r.startedAt().toLocalDate().equals(base))
+                        .toList();
         return new DashboardView.Totals(
                 Distance.ofMeters(today.stream().mapToLong(r -> r.distance().meters()).sum()),
                 today.stream().map(RunSummary::elapsed).reduce(Duration.ZERO, Duration::plus),

@@ -45,9 +45,10 @@ object ApiCoreBindings {
     @Singleton
     fun serverClock(device: Clock): ServerClock = ServerClock(device)
 
+    /** 갱신 담당 하나(TokenAuthenticator와 data.live가 함께 쓴다, D-110). 인증 없는 기본 클라이언트를 함께 갖는다. */
     @Provides
     @Singleton
-    fun okHttpClient(tokens: TokenProvider, json: Json, serverClock: ServerClock): OkHttpClient {
+    fun sessionRefresher(tokens: TokenProvider, json: Json, serverClock: ServerClock): SessionRefresher {
         val base =
             OkHttpClient
                 .Builder()
@@ -56,8 +57,13 @@ object ApiCoreBindings {
                 .addNetworkInterceptor(ServerDateInterceptor(serverClock))
                 .build()
         val refreshUrl = requireNotNull(BuildConfig.API_BASE_URL.toHttpUrl().resolve("auth/refresh"))
-        return authenticatedClient(base, tokens, refreshUrl, json)
+        return SessionRefresher(tokens, base, refreshUrl, json)
     }
+
+    @Provides
+    @Singleton
+    fun okHttpClient(tokens: TokenProvider, refresher: SessionRefresher): OkHttpClient =
+        authenticatedClient(refresher.client, tokens, refresher)
 
     /** 인증 없는 base 위에 접근 토큰 부착과 401 갱신을 얹는다. 갱신 요청은 base로 보낸다(시험도 이 조립을 쓴다). */
     internal fun authenticatedClient(
@@ -65,10 +71,16 @@ object ApiCoreBindings {
         tokens: TokenProvider,
         refreshUrl: HttpUrl,
         json: Json
+    ): OkHttpClient = authenticatedClient(base, tokens, SessionRefresher(tokens, base, refreshUrl, json))
+
+    internal fun authenticatedClient(
+        base: OkHttpClient,
+        tokens: TokenProvider,
+        refresher: SessionRefresher
     ): OkHttpClient = base
         .newBuilder()
         .addInterceptor(AuthInterceptor(tokens))
-        .authenticator(TokenAuthenticator(tokens, base, refreshUrl, json))
+        .authenticator(TokenAuthenticator(tokens, refresher))
         .build()
 
     /**

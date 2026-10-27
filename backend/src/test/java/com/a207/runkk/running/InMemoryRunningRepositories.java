@@ -136,15 +136,12 @@ public final class InMemoryRunningRepositories {
 
         @Override
         public TotalStats totals(long memberId) {
-            List<RunRecord> all = findByMember(memberId);
+            List<RunRecord> all =
+                    findByMember(memberId).stream().filter(RunRecord::isValid).toList();
             return new TotalStats(
                     all.stream().map(RunRecord::getDistance).reduce(Distance.ZERO, Distance::plus),
                     all.stream().map(RunRecord::getElapsed).reduce(Duration.ZERO, Duration::plus),
-                    all.size(),
-                    all.stream()
-                            .filter(RunRecord::isValid)
-                            .map(RunRecord::getDistance)
-                            .reduce(Distance.ZERO, Distance::plus));
+                    all.size());
         }
 
         @Override
@@ -175,7 +172,9 @@ public final class InMemoryRunningRepositories {
             return rows.values().stream()
                     .filter(r -> r.getSavedAt() != null)
                     .filter(r -> !r.getSavedAt().isBefore(from) && r.getSavedAt().isBefore(to))
-                    .sorted(Comparator.comparing(RunRecord::getSavedAt))
+                    .sorted(
+                            Comparator.comparing(RunRecord::getSavedAt)
+                                    .thenComparing(RunRecord::getRecordId))
                     .map(
                             r ->
                                     new SavedRun(
@@ -187,6 +186,102 @@ public final class InMemoryRunningRepositories {
                                             r.crewRunPostId(),
                                             r.getSavedAt()))
                     .toList();
+        }
+
+        @Override
+        public List<ValidRunScore> validRunsAfter(long memberId, int ordinal) {
+            List<RunRecord> valid =
+                    of(memberId)
+                            .filter(RunRecord::isValid)
+                            .sorted(
+                                    Comparator.comparing(RunRecord::getSavedAt)
+                                            .thenComparing(RunRecord::getRecordId))
+                            .toList();
+            List<ValidRunScore> result = new java.util.ArrayList<>();
+            for (int i = Math.max(0, ordinal); i < valid.size(); i++) {
+                RunRecord r = valid.get(i);
+                result.add(new ValidRunScore(i + 1, r.getScore().value(), r.getDistance()));
+            }
+            return result;
+        }
+
+        @Override
+        public Distance validDistanceSavedBefore(long memberId, java.time.LocalDateTime cutoff) {
+            return Distance.ofMeters(
+                    rows.values().stream()
+                            .filter(r -> r.getMemberId() == memberId && r.isValid())
+                            .filter(r -> r.getSavedAt() != null && r.getSavedAt().isBefore(cutoff))
+                            .mapToLong(r -> r.getDistance().meters())
+                            .sum());
+        }
+
+        @Override
+        public List<SavedRun> tierPendingBetween(
+                java.time.LocalDateTime from, java.time.LocalDateTime to) {
+            return savedBetween(from, to).stream()
+                    .filter(SavedRun::valid)
+                    .filter(r -> !rows.get(r.recordId()).isTierApplied())
+                    .toList();
+        }
+
+        @Override
+        public Optional<ValidRunScore> validRunScoreOf(String recordId) {
+            RunRecord target = rows.get(recordId);
+            if (target == null || !target.isValid()) {
+                return Optional.empty();
+            }
+            long before =
+                    of(target.getMemberId())
+                            .filter(RunRecord::isValid)
+                            .filter(r -> savedBefore(r, target))
+                            .count();
+            return Optional.of(
+                    new ValidRunScore(
+                            (int) before + 1, target.getScore().value(), target.getDistance()));
+        }
+
+        private static boolean savedBefore(RunRecord r, RunRecord target) {
+            int bySaved = r.getSavedAt().compareTo(target.getSavedAt());
+            return bySaved < 0
+                    || (bySaved == 0 && r.getRecordId().compareTo(target.getRecordId()) < 0);
+        }
+
+        @Override
+        public boolean markTierApplied(String recordId) {
+            RunRecord r = rows.get(recordId);
+            return r != null && r.markTierApplied();
+        }
+
+        @Override
+        public List<String> rejudgeCandidates(RejudgeState state, int limit) {
+            return rows.values().stream()
+                    .filter(r -> r.rejudgeState() == state)
+                    .sorted(
+                            Comparator.comparing(RunRecord::getSavedAt)
+                                    .thenComparing(RunRecord::getRecordId))
+                    .limit(limit)
+                    .map(RunRecord::getRecordId)
+                    .toList();
+        }
+
+        @Override
+        public Optional<RunRecord> findForUpdate(String recordId) {
+            return findById(recordId);
+        }
+
+        @Override
+        public boolean storeRejudgement(RunRecord record, RejudgeState from, RejudgeState to) {
+            return moveRejudgeState(record.getRecordId(), from, to);
+        }
+
+        @Override
+        public boolean moveRejudgeState(String recordId, RejudgeState from, RejudgeState to) {
+            RunRecord r = rows.get(recordId);
+            if (r == null || r.rejudgeState() != from) {
+                return false;
+            }
+            r.markRejudgeState(to);
+            return true;
         }
 
         public int size() {

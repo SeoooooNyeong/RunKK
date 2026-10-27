@@ -2,13 +2,16 @@ package com.a207.runkk.app.api.account
 
 import com.a207.runkk.app.api.core.enumByName
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.domain.account.AccountType
 import com.a207.runkk.app.domain.account.Gender
+import com.a207.runkk.app.domain.account.GuestSession
 import com.a207.runkk.app.domain.account.MemberSettings
 import com.a207.runkk.app.domain.account.Profile
 import com.a207.runkk.app.domain.account.ProviderToken
 import com.a207.runkk.app.domain.account.SessionTokens
 import com.a207.runkk.app.domain.account.SignUpForm
 import com.a207.runkk.app.domain.settings.GuidanceSettings
+import com.a207.runkk.app.domain.settings.ScreenTheme
 import com.a207.runkk.app.domain.settings.SettingsSnapshot
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -19,16 +22,12 @@ import kotlinx.serialization.json.booleanOrNull
 
 internal fun ProviderToken.toRequest(): LoginRequest = LoginRequest(provider = provider.name, providerToken = token)
 
-internal fun SignUpForm.toRequest(ticket: String): SignUpRequest = SignUpRequest(
-    signUpTicket = ticket,
-    nickname = nickname,
-    birthYear = birthYear,
-    gender = gender.name,
-    intro = intro,
-    consents = consents,
-    recordVisibility = recordVisibility,
-    tags = tags
-)
+/** 가입 요청은 티켓·닉네임·동의만 싣는다(D-90). */
+internal fun SignUpForm.toRequest(ticket: String): SignUpRequest =
+    SignUpRequest(signUpTicket = ticket, nickname = nickname, consents = consents)
+
+internal fun GuestStartResponse.toDomain(): GuestSession =
+    GuestSession(SessionTokens(access = accessToken, refresh = refreshToken), guestCredential)
 
 internal fun TokenPairResponse.toDomain(): SessionTokens = SessionTokens(access = accessToken, refresh = refreshToken)
 
@@ -38,7 +37,6 @@ internal fun ProfileResponse.toDomain(): Profile = Profile(
     disclosure = disclosure,
     tier = tier,
     level = level,
-    tags = tags,
     intro = intro,
     runimalType = runimalType,
     faceKey = faceKey,
@@ -46,13 +44,15 @@ internal fun ProfileResponse.toDomain(): Profile = Profile(
     longestDistance = longestDistanceMeters?.let(::Distance),
     ageBand = ageBand,
     gender = enumByName<Gender>(gender),
-    photoUrl = photoUrl
+    photoUrl = photoUrl,
+    avatarBackgroundKey = avatarBackgroundKey
 )
 
 /**
  * 서버 설정 원본 → 앱 사본(D-53). 동의는 consents의 LOCATION·HEART_RATE(없으면 거짓).
  * 중간 알림 간격은 M500 → 500m, 그 밖 → 1km. 서버 설정에 순위 알림 항목이 없어 기본값(켬)을 쓴다(FR-190).
  * 자유런 목표(FreeRunTarget)는 KM3·KM5·KM10 → 3·5·10km, FREE와 모르는 값 → 목표 없음(FR-048).
+ * 화면 테마는 모르는 값·없음이면 SYSTEM, 근접 알림은 없으면 참(D-162). 게스트 여부는 accountType을 AccountType으로 읽어 GUEST인지다(AN5-C-11).
  */
 internal fun MemberSettingsResponse.toDomain(): SettingsSnapshot {
     val defaults = GuidanceSettings.DEFAULT
@@ -75,9 +75,12 @@ internal fun MemberSettingsResponse.toDomain(): SettingsSnapshot {
                         else -> 1_000
                     },
                 isRankAlertOn = defaults.isRankAlertOn,
-                shouldFollowCoachPlan = runSettings?.followCoachPlan ?: defaults.shouldFollowCoachPlan,
-                freeRunTarget = runSettings?.target?.let(FREE_RUN_TARGETS::get)
-            )
+                isFollowingCoachPlan = runSettings?.followCoachPlan ?: defaults.isFollowingCoachPlan,
+                freeRunTarget = runSettings?.target?.let(FREE_RUN_TARGETS::get),
+                isProximityAlertOn = battleSettings?.proximityAlert ?: defaults.isProximityAlertOn
+            ),
+        theme = enumByName<ScreenTheme>(theme) ?: ScreenTheme.SYSTEM,
+        isGuest = enumByName<AccountType>(accountType) == AccountType.GUEST
     )
 }
 
@@ -97,6 +100,7 @@ internal fun MemberSettingsResponse.toMemberSettings(): MemberSettings {
     values[ITEM_COURSE_MAP_SHARED] = courseMapShared.toString()
     profileVisibility?.let { values[ITEM_PROFILE_VISIBILITY] = it }
     values[ITEM_WATCH_LINK] = watchLinked.toString()
+    theme?.let { values[ITEM_THEME] = it }
     runSettings?.let {
         it.target?.let { target -> values["$GROUP_RUN.target"] = target }
         values["$GROUP_RUN.voice"] = it.voice.toString()
@@ -108,6 +112,7 @@ internal fun MemberSettingsResponse.toMemberSettings(): MemberSettings {
         values["$GROUP_BATTLE.voice"] = it.voice.toString()
         values["$GROUP_BATTLE.vibration"] = it.vibration.toString()
         values["$GROUP_BATTLE.gapAlertInterval"] = it.gapAlertInterval
+        values["$GROUP_BATTLE.proximityAlert"] = it.proximityAlert.toString()
     }
     notificationPrefs.forEach { (type, on) -> values["$GROUP_ALERT.$type"] = on.toString() }
     return MemberSettings(values = values, consents = consents)
@@ -132,6 +137,7 @@ internal fun MemberSettingsResponse.withSettingChanged(group: String, field: Str
             fields["voice"] = JsonPrimitive(battleSettings?.voice ?: true)
             fields["vibration"] = JsonPrimitive(battleSettings?.vibration ?: true)
             fields["gapAlertInterval"] = JsonPrimitive(battleSettings?.gapAlertInterval ?: "KM1")
+            fields["proximityAlert"] = JsonPrimitive(battleSettings?.proximityAlert ?: true)
         }
 
         else -> return null
@@ -149,6 +155,7 @@ private const val ITEM_RECORD_VISIBILITY = "RECORD_VISIBILITY"
 private const val ITEM_COURSE_MAP_SHARED = "COURSE_MAP_SHARED"
 private const val ITEM_PROFILE_VISIBILITY = "PROFILE_VISIBILITY"
 private const val ITEM_WATCH_LINK = "WATCH_LINK"
+private const val ITEM_THEME = "THEME"
 private const val CONSENT_LOCATION = "LOCATION"
 private const val CONSENT_HEART_RATE = "HEART_RATE"
 private const val GAP_500M = "M500"

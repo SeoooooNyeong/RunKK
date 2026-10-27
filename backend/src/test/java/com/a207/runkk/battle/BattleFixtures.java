@@ -3,8 +3,6 @@ package com.a207.runkk.battle;
 import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.StandardDistance;
-import com.a207.runkk.common.TagOwner;
-import com.a207.runkk.common.TagSet;
 import com.a207.runkk.common.Tier;
 import com.a207.runkk.member.MemberSummary;
 import com.a207.runkk.member.ProfileVisibility;
@@ -20,14 +18,10 @@ public final class BattleFixtures {
 
     private BattleFixtures() {}
 
-    /** 표시명 "러너{id}", 공개 프로필, 태그 없음. */
+    /** 표시명 "러너{id}", 공개 프로필. */
     public static MemberSummary summary(long memberId, Tier tier) {
         return new MemberSummary(
-                memberId,
-                DisplayName.of("러너" + memberId),
-                tier,
-                ProfileVisibility.PUBLIC,
-                TagSet.empty(TagOwner.RUNNER));
+                memberId, DisplayName.of("러너" + memberId), tier, ProfileVisibility.PUBLIC);
     }
 
     public static MatchTicket assigned(long memberId, StandardDistance d) {

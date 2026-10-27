@@ -2,12 +2,16 @@ package com.a207.runkk.app.api.avatar
 
 import com.a207.runkk.app.api.core.ApiErrorMapper
 import com.a207.runkk.app.api.core.FaceImageSource
+import com.a207.runkk.app.api.core.ServerTime
 import com.a207.runkk.app.api.core.enumByName
 import com.a207.runkk.app.core.model.AppError
+import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.avatar.Avatar
+import com.a207.runkk.app.domain.avatar.AvatarBackgrounds
 import com.a207.runkk.app.domain.avatar.AvatarRepository
+import com.a207.runkk.app.domain.avatar.BackgroundChoice
 import com.a207.runkk.app.domain.avatar.ItemSlot
 import com.a207.runkk.app.domain.avatar.Shop
 import javax.inject.Inject
@@ -60,6 +64,24 @@ constructor(
         api.purchase(PurchaseRequest(itemId)).balance
     }
 
+    override suspend fun backgrounds(): Outcome<AvatarBackgrounds> = ApiErrorMapper.call {
+        api.backgrounds().toDomain()
+    }
+
+    /** 해금하지 않은 배경은 Rejected(BACKGROUND_LOCKED)다. */
+    override suspend fun chooseBackground(key: String?): Outcome<Unit> = ApiErrorMapper.call {
+        api.chooseBackground(BackgroundRequest(key))
+        Unit
+    }
+
+    /** 러닝 카드 배경(GET /avatar/backgrounds의 고른 키와 그 항목의 단계, D-185). 목록에 없는 키면 단계는 빈 문자열이다. */
+    override suspend fun backgroundChoice(): Outcome<BackgroundChoice?> = ApiErrorMapper.call {
+        val backgrounds = api.backgrounds().toDomain()
+        backgrounds.selectedKey?.let { key ->
+            BackgroundChoice(key, backgrounds.items.firstOrNull { it.key == key }?.stage.orEmpty())
+        }
+    }
+
     private companion object {
         const val SELFIE_PART = "selfie"
         const val SELFIE_FILE = "selfie.jpg"
@@ -76,7 +98,23 @@ internal fun AvatarResponse.toDomain(): Avatar = Avatar(
     equipped = equipped.bySlot(),
     balance = balance,
     canCreateSelfieToday = canCreateSelfieToday,
-    rejected = rejected.bySlot()
+    rejected = rejected.bySlot(),
+    backgroundKey = backgroundKey
+)
+
+internal fun BackgroundsResponse.toDomain(): AvatarBackgrounds = AvatarBackgrounds(
+    selectedKey = selectedKey,
+    items =
+        backgrounds.map {
+            AvatarBackgrounds.Item(
+                key = it.key,
+                name = it.name,
+                stage = it.stage,
+                distance = Distance(it.distanceMeters),
+                isUnlocked = it.unlocked,
+                unlockedAt = it.unlockedAt?.let(ServerTime::parse)
+            )
+        }
 )
 
 internal fun ShopResponse.toDomain(): Shop = Shop(

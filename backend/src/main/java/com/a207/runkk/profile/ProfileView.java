@@ -2,11 +2,9 @@ package com.a207.runkk.profile;
 
 import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.Distance;
-import com.a207.runkk.common.PersonalityTag;
 import com.a207.runkk.common.Tier;
 import com.a207.runkk.member.MemberPreference;
 import com.a207.runkk.member.MemberProfile;
-import java.util.Set;
 
 /**
  * 프로필 화면(설계 6.1.5 ProfileView, FR-005, FR-006). 공개 수준(disclosure)이 보이지 않게 정한 항목은 null·빈 값이다.
@@ -16,8 +14,9 @@ import java.util.Set;
  * @param disclosure 공개 수준(SELF·PUBLIC·PRIVATE·WITHDRAWN)
  * @param displayName 표시명(탈퇴면 "탈퇴한 사용자")
  * @param faceKey 아바타 얼굴 키, 없으면 null
+ * @param avatarBackgroundKey 아바타 랜드마크 배경 키, 기본 배경이면 null. 아바타 얼굴을 보이는 수준(SELF·PUBLIC·PRIVATE)만
+ *     싣는다(FR-202)
  * @param tier 티어
- * @param tags 성향 태그
  * @param runimalType Runimal 유형 이름, 없으면 null
  * @param crew 소속 크루, 없으면 null
  * @param longestDistance 최장 거리(본인만, FR-076)
@@ -29,8 +28,8 @@ public record ProfileView(
         ProfileDisclosure disclosure,
         DisplayName displayName,
         String faceKey,
+        String avatarBackgroundKey,
         Tier tier,
-        Set<PersonalityTag> tags,
         String runimalType,
         Crew crew,
         Distance longestDistance,

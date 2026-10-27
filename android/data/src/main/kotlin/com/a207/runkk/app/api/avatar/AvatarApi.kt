@@ -31,49 +31,12 @@ internal interface AvatarApi {
 
     @POST("shop/purchases")
     suspend fun purchase(@Body body: PurchaseRequest): PurchaseResponse
+
+    /** 랜드마크 배경 목록(FR-201, FR-202). */
+    @GET("avatar/backgrounds")
+    suspend fun backgrounds(): BackgroundsResponse
+
+    /** 배경 고르기(FR-202). key가 null이면 기본 배경, 해금하지 않은 키면 409 BACKGROUND_LOCKED. */
+    @PUT("avatar/background")
+    suspend fun chooseBackground(@Body body: BackgroundRequest): BackgroundsResponse
 }
-
-/**
- * 서버 web.avatar.AvatarResponse. equipped·rejected 키는 착용 부위(ItemSlot) 이름이다. 셀카 요청이면 변환이 실패해도 200으로 오고
- * created=false와 failureReason(NO_FACE·MULTIPLE_FACES·UNSUPPORTED_IMAGE·TOO_LARGE·UPSTREAM_FAILED·TIMEOUT)이 함께 온다.
- */
-@Serializable
-internal data class AvatarResponse(
-    val faceKey: String? = null,
-    val defaultCharacterId: String? = null,
-    val bodyShape: String,
-    val skinTone: String,
-    val equipped: Map<String, Long> = emptyMap(),
-    val balance: Int = 0,
-    val canCreateSelfieToday: Boolean = false,
-    val rejected: Map<String, String> = emptyMap(),
-    val created: Boolean? = null,
-    val failureReason: String? = null
-)
-
-@Serializable
-internal data class DefaultCharacterRequest(val characterId: String)
-
-/** 부위 이름 → 아이템 ID(null이면 해제). */
-@Serializable
-internal data class EquipRequest(val changes: Map<String, Long?>)
-
-@Serializable
-internal data class ShopResponse(val items: List<Item> = emptyList(), val balance: Int = 0) {
-    @Serializable
-    data class Item(
-        val itemId: Long,
-        val slot: String,
-        val name: String,
-        val price: Int,
-        val owned: Boolean = false,
-        val onSale: Boolean = true
-    )
-}
-
-@Serializable
-internal data class PurchaseRequest(val itemId: Long)
-
-/** 구매 뒤 리워드 잔액. */
-@Serializable
-internal data class PurchaseResponse(val balance: Int)

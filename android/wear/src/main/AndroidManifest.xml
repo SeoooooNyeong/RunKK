@@ -12,6 +12,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_HEALTH" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 대결 근접 알림·추월 긴 진동(FR-196, FR-188, watch.alert). -->
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <application
         android:name="com.a207.runkk.watch.ui.RunkkWatchApp"

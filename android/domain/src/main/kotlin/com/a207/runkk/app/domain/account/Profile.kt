@@ -12,7 +12,6 @@ data class Profile(
     val disclosure: String,
     val tier: String?,
     val level: Int?,
-    val tags: Set<String>,
     val intro: String?,
     val runimalType: String?,
     val faceKey: String?,
@@ -20,5 +19,7 @@ data class Profile(
     val longestDistance: Distance?,
     val ageBand: String? = null,
     val gender: Gender? = null,
-    val photoUrl: String? = null
+    val photoUrl: String? = null,
+    /** 아바타 배경 키(공개 수준이 아바타를 보일 때만, null이면 기본 배경, FR-202). */
+    val avatarBackgroundKey: String? = null
 )

@@ -90,7 +90,8 @@ class CrewControllerTest extends WebTestSupport {
                 .andExpect(jsonPath("$.code").value("ALREADY_IN_CREW"));
         JsonNode list = json(call(a, get("/api/v1/crews").param("keyword", "크루"), null));
         assertThat(list.get("crews").findValuesAsText("crewId")).contains(String.valueOf(crewId));
-        assertThat(list.get("recommendations")).isNotNull();
+        assertThat(list.has("recommendations")).as("추천 삭제(FR-118)").isFalse();
+        assertThat(list.get("crews").get(0).has("tagMatches")).isFalse();
         call(a, get("/api/v1/crews").param("tags", "SOCIAL_RUN,SOLO_RUN"), null) // P2
                 .andExpect(status().isOk());
         call(a, get("/api/v1/crews").param("tags", "NOPE"), null)
@@ -116,7 +117,9 @@ class CrewControllerTest extends WebTestSupport {
         // L13: 검색어의 %·_는 글자 그대로 찾는다(모든 크루와 맞지 않는다)
         assertThat(json(call(a, get("/api/v1/crews").param("keyword", "%_%"), null)).get("crews"))
                 .isEmpty();
-        call(a, get("/api/v1/crews/recommendations"), null).andExpect(status().isOk());
+        // 추천 삭제(FR-118): GET은 받지 않는다(같은 경로 모양의 다른 메소드 매핑이 있어 405)
+        call(a, get("/api/v1/crews/recommendations"), null)
+                .andExpect(status().isMethodNotAllowed());
 
         long requestA =
                 json(call(a, post("/api/v1/crews/join"), Map.of("crewId", crewId)))
@@ -241,11 +244,17 @@ class CrewControllerTest extends WebTestSupport {
                                         "distanceMeters",
                                         1000,
                                         "meetAt",
-                                        scheduledAt.toString())))
+                                        scheduledAt
+                                                .atZone(java.time.ZoneId.of("Asia/Seoul"))
+                                                .toOffsetDateTime()
+                                                .toString())))
                         .get("id")
                         .asLong();
-        call(a, put("/api/v1/posts/" + run + "/vote"), Map.of("answer", "GOING"))
-                .andExpect(status().isNoContent());
+        call(a, put("/api/v1/posts/" + run + "/attendance"), Map.of("answer", "GOING"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.goingCount").value(2));
+        call(a, put("/api/v1/posts/" + run + "/vote"), Map.of("answer", "GOING")) // F.2.4 삭제
+                .andExpect(status().isNotFound());
         JsonNode posts = json(call(a, get("/api/v1/crews/" + crewId + "/posts"), null));
         assertThat(posts.get("posts")).hasSize(2);
         assertThat(posts.get("posts").get(0).get("crewRun").get("goingCount").asInt()).isEqualTo(2);

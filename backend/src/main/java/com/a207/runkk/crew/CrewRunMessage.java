@@ -8,4 +8,12 @@ public interface CrewRunMessage {
 
     /** JSON의 type 필드 값(record 이름). */
     String type();
+
+    /**
+     * 받는 사람 memberId에게 보낼 모양. 받는 사람마다 내용이 다른 메시지(CrewRunRelay의 mine, D-161)만 바꾸고 나머지는 그대로다. 송신 구현은
+     * 회원마다 이 결과를 직렬화한다(크루 최대 10명).
+     */
+    default CrewRunMessage forRecipient(long memberId) {
+        return this;
+    }
 }

@@ -148,6 +148,21 @@ class BattleScreenshotTest {
     }
 
     @Test
+    fun resultWaiting() = compose.captureRunkkScreen("D4_battle_result_waiting") {
+        BattleResultScreen(
+            BattleResultUiState(
+                isLoading = false,
+                result = battleResult(pending = true, verdict = null),
+                isAwaitingVerdict = true
+            ),
+            {},
+            {},
+            {},
+            {}
+        )
+    }
+
+    @Test
     fun resultPending() = compose.captureRunkkScreen("D4_battle_result_pending") {
         BattleResultScreen(
             BattleResultUiState(isLoading = false, result = battleResult(pending = true, verdict = null)),
@@ -161,5 +176,17 @@ class BattleScreenshotTest {
     @Test
     fun historyScreen() = compose.captureRunkkScreen("D5_battle_history") {
         BattleHistoryScreen(BattleHistoryUiState(isLoading = false, history = history()), {}, {}, {}, {})
+    }
+
+    // 라이트 벌(FR-203, NFR-041 화면 10개 × 테마 2).
+    @Test
+    fun battleRunningLight() = compose.captureRunkkScreen("D3_battle_running_light", isDarkTheme = false) {
+        BattleRunningScreen(running, {}, {}, {}, {}, {})
+    }
+
+    @Test
+    fun resultWinLight() = compose.captureRunkkScreen("D4_battle_result_win_light", isDarkTheme = false) {
+        BattleResultScreen(BattleResultUiState(isLoading = false, result = battleResult()), {
+        }, {}, {}, {})
     }
 }

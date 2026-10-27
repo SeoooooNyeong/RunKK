@@ -27,57 +27,48 @@ class TagSetTest {
 
     @Test
     void of_acceptsOneToFiveTagsWithOnePerCategory() {
-        TagSet tags = TagSet.of(Set.of(SOLO_RUN, LONG_DISTANCE, DAWN), TagOwner.RUNNER);
+        TagSet tags =
+                TagSet.of(Set.of(SOLO_RUN, LONG_DISTANCE, DAWN, BEGINNER_WELCOME), TagOwner.CREW);
         assertThat(tags.isEmpty()).isFalse();
-        assertThat(tags.valueOf(TagCategory.COMPANION)).contains(SOLO_RUN);
-        assertThat(tags.valueOf(TagCategory.HABIT)).isEmpty();
+        assertThat(tags.tags()).hasSize(4);
     }
 
     @Test
     void of_rejectsEmptyOrMoreThanFive() {
-        assertRejected(Set.of(), TagOwner.RUNNER);
+        assertRejected(Set.of(), TagOwner.CREW);
         assertRejected(
                 Set.of(SOLO_RUN, LONG_DISTANCE, FAMILIAR_ROUTE, ROUTINE_RUN, DAWN, DIET),
-                TagOwner.RUNNER);
+                TagOwner.CREW);
     }
 
     @Test
     void of_rejectsTwoTagsInOneCategory() {
-        assertRejected(Set.of(SOLO_RUN, SOCIAL_RUN), TagOwner.RUNNER);
-    }
-
-    @Test
-    void of_rejectsCrewOnlyCategoryForRunner() {
-        assertRejected(Set.of(SOLO_RUN, BEGINNER_WELCOME), TagOwner.RUNNER);
-        assertThat(TagSet.of(Set.of(SOLO_RUN, BEGINNER_WELCOME), TagOwner.CREW).isEmpty())
-                .isFalse();
+        assertRejected(Set.of(SOLO_RUN, SOCIAL_RUN), TagOwner.CREW);
     }
 
     @Test
     void empty_hasNoTags() {
-        TagSet empty = TagSet.empty(TagOwner.RUNNER);
+        TagSet empty = TagSet.empty(TagOwner.CREW);
         assertThat(empty.isEmpty()).isTrue();
         assertThat(empty.tags()).isEmpty();
-        assertThat(empty.owner()).isEqualTo(TagOwner.RUNNER);
+        assertThat(empty.owner()).isEqualTo(TagOwner.CREW);
     }
 
     @Test
-    void overlapCountAndContainsAll() {
-        TagSet runner = TagSet.of(Set.of(SOLO_RUN, LONG_DISTANCE, DAWN), TagOwner.RUNNER);
+    void containsAll() {
         TagSet crew = TagSet.of(Set.of(SOLO_RUN, DAWN, BEGINNER_WELCOME), TagOwner.CREW);
-        assertThat(runner.overlapCount(crew)).isEqualTo(2);
         assertThat(crew.containsAll(Set.of(SOLO_RUN, BEGINNER_WELCOME))).isTrue();
         assertThat(crew.containsAll(Set.of(SOLO_RUN, LONG_DISTANCE))).isFalse();
     }
 
     @Test
     void tags_isImmutableAndEqualityByValue() {
-        TagSet a = TagSet.of(Set.of(SOLO_RUN), TagOwner.RUNNER);
+        TagSet a = TagSet.of(Set.of(SOLO_RUN), TagOwner.CREW);
         assertThatThrownBy(() -> a.tags().add(DAWN))
                 .isInstanceOf(UnsupportedOperationException.class);
-        assertThat(a).isEqualTo(TagSet.of(Set.of(SOLO_RUN), TagOwner.RUNNER));
-        assertThat(a.hashCode()).isEqualTo(TagSet.of(Set.of(SOLO_RUN), TagOwner.RUNNER).hashCode());
-        assertThat(a).isNotEqualTo(TagSet.of(Set.of(SOLO_RUN), TagOwner.CREW));
+        assertThat(a).isEqualTo(TagSet.of(Set.of(SOLO_RUN), TagOwner.CREW));
+        assertThat(a.hashCode()).isEqualTo(TagSet.of(Set.of(SOLO_RUN), TagOwner.CREW).hashCode());
+        assertThat(a).isNotEqualTo(TagSet.of(Set.of(DAWN), TagOwner.CREW));
         assertThat(a.toString()).contains("SOLO_RUN");
     }
 

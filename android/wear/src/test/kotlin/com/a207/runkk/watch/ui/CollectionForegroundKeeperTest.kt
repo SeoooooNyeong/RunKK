@@ -7,6 +7,7 @@ import com.a207.runkk.watch.testing.FakeHeartRateSensor
 import com.a207.runkk.watch.testing.FakeSensorPermission
 import com.a207.runkk.watch.testing.FakeWearDataLayer
 import com.a207.runkk.watch.testing.SchedulerClock
+import com.a207.runkk.watch.testing.alertPlayer
 import com.a207.runkk.wear.contract.WatchDisplayMessage
 import com.a207.runkk.wear.contract.WearPaths
 import kotlin.test.Test
@@ -42,7 +43,7 @@ class CollectionForegroundKeeperTest {
 
     private fun TestScope.keeper(): CollectionForegroundKeeper {
         val collector = HeartRateCollector(sensor, FakeSensorPermission(isGranted = true), backgroundScope)
-        val link = PhoneLink(dataLayer, collector, SchedulerClock(testScheduler), backgroundScope)
+        val link = PhoneLink(dataLayer, collector, alertPlayer(), SchedulerClock(testScheduler), backgroundScope)
         link.start()
         return CollectionForegroundKeeper(link, launcher, backgroundScope).also {
             it.start()
@@ -52,14 +53,14 @@ class CollectionForegroundKeeperTest {
 
     private fun TestScope.receive(running: Boolean = true, allowed: Boolean = true) {
         val message = WatchDisplayMessage(
-            running = running,
+            isRunning = running,
             elapsedSeconds = 60,
             distanceMeters = 200,
             currentPaceSecondsPerKm = 300,
             heartRateBpm = null,
             planDistanceMeters = null,
             planPaceSecondsPerKm = null,
-            heartRateCollectionAllowed = allowed,
+            isHeartRateCollectionAllowed = allowed,
             notice = null
         )
         dataLayer.incoming.tryEmit(WearMessage(WearPaths.WATCH_DISPLAY, message.encode()))

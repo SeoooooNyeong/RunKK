@@ -40,6 +40,11 @@ class CrewAccess {
         return crew;
     }
 
+    /** 화면 버튼 표시용: 그 회원이 이 크루에서 그 행동을 할 수 있는가(예외 없음). */
+    boolean allows(Crew crew, long memberId, CrewAction action) {
+        return permissionPolicy.isAllowed(crew.relationOf(memberId), action);
+    }
+
     /** 잠가 읽고 검사한다. */
     Crew checkForUpdate(long memberId, long crewId, CrewAction action) {
         Crew crew = requireForUpdate(crewId);

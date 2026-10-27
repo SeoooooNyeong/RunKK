@@ -1,19 +1,30 @@
 package com.a207.runkk.app
 
+import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
-import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.navigation.FeatureEntry
 import com.a207.runkk.app.domain.account.SessionRepository
+import com.a207.runkk.app.domain.settings.ScreenTheme
+import com.a207.runkk.app.domain.settings.SettingsRepository
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -24,17 +35,33 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var session: SessionRepository
 
+    /** 설정 사본(5.1.2 app → domain.settings). 화면 테마(theme)를 구독해 RunkkTheme을 다시 그린다(FR-203, D-92). */
+    @Inject
+    lateinit var settings: SettingsRepository
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            RunkkTheme {
+            // 저장된 화면 테마를 읽기 전(null)에는 아무것도 그리지 않고 창 배경을 둔다(A4: 첫 프레임에 SYSTEM 벌을 그렸다가 저장된
+            // 벌로 바뀌는 깜빡임 방지). changes()는 기기 사본을 읽은 뒤 첫 값을 내고, 사본이 없으면 SYSTEM(기기 설정, D-162)이다.
+            // 마지막 값은 저장해 두어 화면 회전 같은 Activity 재생성 때는 빈 프레임 없이 바로 그린다. 바뀌면 다시 그린다.
+            var stored by rememberSaveable { mutableStateOf<ScreenTheme?>(null) }
+            LaunchedEffect(settings) {
+                settings.changes().map { it.theme }.distinctUntilChanged().collect { stored = it }
+            }
+            val theme = stored ?: return@setContent
+            val isDark = isDarkTheme(theme, isSystemInDarkTheme())
+            // 상태·내비게이션 막대 아이콘 색을 테마에 맞춘다(밝은 벌이면 어두운 아이콘).
+            DisposableEffect(isDark) {
+                val style = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT) { isDark }
+                enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
+                onDispose {}
+            }
+            RunkkAppTheme(theme) {
                 // 첫 값을 받기 전에는 null(스플래시). StateFlow라 보통 첫 프레임에 바로 정해진다.
                 val loggedIn by produceState<Boolean?>(initialValue = null, session) {
-                    session.loggedIn.collect {
-                        value =
-                            it
-                    }
+                    session.loggedIn.collect { value = it }
                 }
                 RunkkAppContent(
                     featureEntries = featureEntries,

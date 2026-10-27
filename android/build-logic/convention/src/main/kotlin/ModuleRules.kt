@@ -4,7 +4,8 @@ import org.gradle.api.artifacts.ProjectDependency
 
 /**
  * 설계서 13.2 "계층 규칙"을 Gradle 의존 선언으로 강제한다.
- * - `:feature:*`는 `:domain`·`:core:*`만 의존한다. 예외는 `:feature:record`·`:feature:runimal` → `:feature:share`.
+ * - `:feature:*`는 `:domain`·`:core:*`만 의존한다. 예외는 `:feature:record`·`:feature:runimal`·`:feature:crew` → `:feature:share`
+ *   (크루 축하 카드 공유, ui.crew → ui.share, D-140).
  * - `:data`는 `:domain`·`:core:model`·`:wear-contract`만 의존한다.
  * - `:domain`은 `:core:model`만, 순수 모듈(`:core:model`, `:wear-contract`)은 아무 모듈도 의존하지 않는다.
  * - `:app`은 조립 루트라 Hilt 집계를 위해 모든 모듈을 가진다(5.1.2 의존 표는 import 기준이라 세지 않는다).
@@ -25,7 +26,8 @@ internal object ModuleRules {
             ":feature:run" to featureBase,
             ":feature:record" to featureBase + ":feature:share",
             ":feature:battle" to featureBase,
-            ":feature:crew" to featureBase,
+            ":feature:crew" to featureBase + ":feature:share",
+            ":feature:chat" to featureBase,
             ":feature:runimal" to featureBase + ":feature:share",
             ":feature:avatar" to featureBase,
             ":feature:me" to featureBase,
