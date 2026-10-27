@@ -15,7 +15,7 @@ from typing import Any
 
 from runkk_ai.runbody import MonthlyService, ResultRepository, SessionResultOut
 from runkk_ai.runbody.load import CHRONIC_DAYS, baseline, kst_date, recent_load
-from runkk_ai.runbody.schemas import BestOut, MonthlyOut
+from runkk_ai.runbody.schemas import BestOut, LoadOut, MonthlyOut
 from runkk_ai.writer.brief import pace_text
 
 RECENT_RUNS = 5  # getBaseline이 함께 주는 최근 러닝 수
@@ -124,19 +124,28 @@ def monthly_digest(m: MonthlyOut) -> dict[str, Any]:
             "longestRunMeters": _best(m.bests.longestRunMeters, "value"),
             "bestRecovery1m": _best(m.bests.bestRecoveryHeartRate1m, "value"),
         },
+        # 월요일 시작 달력 주(러닝이 있는 주만). '이번 주'는 load.last7DaysKm로 답한다
         "weeks": [{"weekStart": w.weekStart.isoformat(), "distanceKm": _km(w.distanceMeters)} for w in m.weeks],
         "timeOfDay": {"night": m.timeOfDay.night, "day": m.timeOfDay.day},
-        "load": _load(load.available, load.ratio, load.level, load.availableFrom),
+        "load": _load(load),
         "baseline": _baseline(
             base.available, base.needs, base.paceSecondsPerKm, base.avgHeartRate, base.recoveryHeartRate1m
         ),
     }
 
 
-def _load(available: bool, ratio: float | None, level: str | None, available_from: Any) -> dict[str, Any]:
-    if available:
-        return {"acwr": ratio, "level": level}
-    return {"acwr": None, "availableFrom": available_from.isoformat() if available_from else None}
+def _load(load: LoadOut) -> dict[str, Any]:
+    """'이번 주 많이 뛰었어?'는 최근 7일 거리로 답한다(달력 주가 아니다). ACWR은 첫 러닝 28일 뒤부터."""
+    out: dict[str, Any] = {
+        "last7DaysKm": _km(load.acuteMeters),
+        "weeklyAvg28DaysKm": _km(load.chronicWeeklyMeters),
+        "acwr": load.ratio,
+    }
+    if load.available:
+        out["level"] = load.level
+    else:
+        out["acwrFrom"] = load.availableFrom.isoformat() if load.availableFrom else None
+    return out
 
 
 def _baseline(available: bool, needs: int, pace: int | None, hr: int | None, recovery: int | None) -> dict[str, Any]:
@@ -213,10 +222,12 @@ class CoachTools:
                     "startedAt": _when(r.summary.startedAt),
                     "distanceKm": _km(r.summary.distanceMeters),
                     "pace": pace_text(r.summary.paceSecondsPerKm),
+                    "avgHeartRate": r.summary.avgHeartRate,
+                    "cadence": r.summary.cadenceMedian,
                     "recovery1m": r.summary.recoveryHeartRate1m,
                     "headline": r.feedback.headline,
                 }
                 for r in reversed(recent[-RECENT_RUNS:])
             ],
-            "load": _load(load.available, load.ratio, load.level, load.availableFrom),
+            "load": _load(load),
         }
