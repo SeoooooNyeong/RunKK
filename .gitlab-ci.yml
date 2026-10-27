@@ -200,6 +200,8 @@ backend:deploy:
       allow_failure: false
   script:
     - if [ "$CI_COMMIT_BRANCH" = "main" ]; then cp "$INFRA_ENV_PROD" infra/.env; else cp "$INFRA_ENV" infra/.env; fi
+    # CI 변수를 Windows에서 붙여 넣으면 줄 끝에 \r이 붙는다. 값(호스트·포트·비밀번호)에 섞이지 않게 지운다
+    - sed -i 's/\r$//' infra/.env
     - mkdir -p infra/secrets && if [ -n "${FCM_SERVICE_ACCOUNT:-}" ]; then cp "$FCM_SERVICE_ACCOUNT" infra/secrets/fcm-service-account.json && chmod 644 infra/secrets/fcm-service-account.json; fi
     - cd infra && ./deploy.sh
   # shell 러너 작업 폴더에 운영 .env가 남지 않게 잡이 끝나면(실패해도) 지운다
@@ -215,8 +217,10 @@ backend:smoke:
       changes: *deploy-changes
   script:
     - if [ "$CI_COMMIT_BRANCH" = "main" ]; then cp "$INFRA_ENV_PROD" infra/.env; else cp "$INFRA_ENV" infra/.env; fi
-    - PORT=$(grep -E '^NGINX_HTTP_PORT=' infra/.env | cut -d= -f2 | sed 's/[[:space:]]*#.*//' | tr -d ' '); PORT=${PORT:-80}
-    - HOST=$(grep -E '^SERVER_NAME=' infra/.env | cut -d= -f2 | sed 's/[[:space:]]*#.*//' | tr -d ' '); HOST=${HOST:-localhost}
+    # CI 변수를 Windows에서 붙여 넣으면 줄 끝에 \r이 붙는다. 값(호스트·포트·비밀번호)에 섞이지 않게 지운다
+    - sed -i 's/\r$//' infra/.env
+    - PORT=$(grep -E '^NGINX_HTTP_PORT=' infra/.env | cut -d= -f2 | sed 's/[[:space:]]*#.*//' | tr -d ' \r'); PORT=${PORT:-80}
+    - HOST=$(grep -E '^SERVER_NAME=' infra/.env | cut -d= -f2 | sed 's/[[:space:]]*#.*//' | tr -d ' \r'); HOST=${HOST:-localhost}
     # HTTPS로 바뀐 서버는 80이 https://$host로 301을 준다. 서버 이름으로 부르고 80·443을 이 서버로 고정해 리다이렉트를 따라간다(인증서도 검증)
     - CURL="curl -fsSL --resolve $HOST:$PORT:127.0.0.1 --resolve $HOST:443:127.0.0.1"
     - $CURL "http://$HOST:$PORT/actuator/health" | grep -q '"UP"'
