@@ -31,7 +31,7 @@ public class CrewRunParticipation {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "answer", nullable = false, length = 10)
-    private VoteAnswer answer;
+    private AttendanceAnswer answer;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "readiness", nullable = false, length = 12)
@@ -54,13 +54,13 @@ public class CrewRunParticipation {
 
     protected CrewRunParticipation() {}
 
-    CrewRunParticipation(long memberId, VoteAnswer answer, LocalDateTime now) {
+    CrewRunParticipation(long memberId, AttendanceAnswer answer, LocalDateTime now) {
         this.memberId = memberId;
         this.answer = answer;
         this.votedAt = now;
     }
 
-    public void changeAnswer(VoteAnswer newAnswer, LocalDateTime now) {
+    public void changeAnswer(AttendanceAnswer newAnswer, LocalDateTime now) {
         this.answer = newAnswer;
         this.votedAt = now;
     }
@@ -126,7 +126,7 @@ public class CrewRunParticipation {
     }
 
     boolean isGoing() {
-        return answer == VoteAnswer.GOING;
+        return answer == AttendanceAnswer.GOING;
     }
 
     /** 도착했거나 그만뒀다(진행 종료 조건). */
@@ -142,7 +142,7 @@ public class CrewRunParticipation {
         return memberId != null && memberId == member;
     }
 
-    public VoteAnswer answer() {
+    public AttendanceAnswer answer() {
         return answer;
     }
 

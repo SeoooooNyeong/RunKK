@@ -120,15 +120,26 @@ guard_postgres_volume() {
   [ -z "$users" ] || die "volume $volume is in use by another stack: $users"
 }
 
-deploy_app() {
-  # 배포 직전 덤프(Flyway 마이그레이션 전). 이 환경 백업 컨테이너가 이미 돌고 있을 때만(첫 배포는 건너뛴다)
-  if [ "$(docker inspect -f '{{.State.Running}}' "$APP_PROJECT-backup-1" 2>/dev/null || true)" = true ]; then
-    docker exec "$APP_PROJECT-backup-1" sh /opt/runkk-backup/pg-backup.sh now predeploy || die "pre-deploy backup failed"
+# 배포 직전 덤프(Flyway가 되돌릴 수 없는 마이그레이션을 돌리기 전, BE5-A-15). 이 환경 postgres 데이터 볼륨이 있으면
+# postgres·backup만 먼저 올려 덤프한다(분리 후 첫 배포나 down 뒤에도, BE6-3). 볼륨이 없을 때(처음 배포)만 건너뛴다.
+# 덤프는 백업 컨테이너가 CI 작업 폴더 밖 BACKUP_DIR/<환경>에 폴더 700·파일 600으로 남긴다(BE6-1·BE6-2, backup/pg-backup.sh).
+predeploy_backup() {
+  local volume
+  volume="$(env_value "$APP_ENV_FILE" POSTGRES_VOLUME "")"
+  if ! docker volume inspect "$volume" >/dev/null 2>&1; then
+    echo "No postgres data volume $volume yet (first deploy); skipping the pre-deploy backup."
+    return 0
   fi
+  app_compose up -d --no-deps postgres backup || die "could not start postgres/backup for the pre-deploy backup"
+  wait_healthy postgres 12 || die "postgres is not healthy; aborting the deploy before the migrations run"
+  docker exec "$APP_PROJECT-backup-1" sh /opt/runkk-backup/pg-backup.sh now predeploy     || die "pre-deploy backup failed; aborting the deploy before the migrations run"
+}
 
+deploy_app() {
   sync_bundle "$APP_DIR" docker-compose.yml backup secrets
   guard_postgres_volume
   app_compose pull -q postgres redis
+  predeploy_backup
   app_compose up -d --remove-orphans
   app_compose ps
 

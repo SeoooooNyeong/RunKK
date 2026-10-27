@@ -37,6 +37,7 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -48,12 +49,11 @@ import com.a207.runkk.app.core.designsystem.RunkkCountdownBanner
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkHint
-import com.a207.runkk.app.core.designsystem.RunkkIconButton
 import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkLiveDot
 import com.a207.runkk.app.core.designsystem.RunkkLongPressButton
-import com.a207.runkk.app.core.designsystem.RunkkOverline
 import com.a207.runkk.app.core.designsystem.RunkkProgressBar
+import com.a207.runkk.app.core.designsystem.RunkkSecondaryButton
 import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkStatTile
 import com.a207.runkk.app.core.designsystem.RunkkStatusPill
@@ -94,8 +94,11 @@ fun BattleRunningRoute(key: Routes.BattleRunning, viewModel: BattleRunningViewMo
     BackHandler {
         when {
             state.phase == BattlePhase.FAILED -> close()
+
             state.isLocked -> viewModel.onUnlockTapped()
-            else -> viewModel.onForfeitTapped()
+
+            // 뒤로가기는 그만두기와 같다: 포기 확인(D5)을 띄운다.
+            else -> viewModel.onForfeitLongPressed()
         }
     }
     val lockActions = remember(viewModel) {
@@ -160,7 +163,7 @@ fun BattleRunningScreen(
         }
         if (state.phase != BattlePhase.FAILED) {
             state.hint?.let { RunkkHint(it.asString(), modifier = Modifier.align(Alignment.CenterHorizontally)) }
-            ActionButtons(state.isMeasuring, lockActions, onForfeitTap, onForfeitLongPress)
+            ActionButtons(state.isMeasuring, lockActions, onForfeit = onForfeitLongPress)
         }
     }
     if (state.isConfirmingForfeit) ForfeitDialog(onForfeitConfirm, onForfeitDismiss)
@@ -180,65 +183,44 @@ private fun ForfeitDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
     )
 }
 
-/** 시안 HiBattleRunning: 화면 잠금 + 그만두기. 그만두기는 길게 눌러야 해서(D-49) 자유런 화면과 같은 배치를 쓴다. */
+/** 아래 버튼(D3): "그만두기"(누르면 포기 확인 D5, FR-094)와 "잠금"(측정 중에만, FR-182). */
 @Composable
-private fun ActionButtons(
-    isMeasuring: Boolean,
-    lockActions: BattleLockActions,
-    onForfeitTap: () -> Unit,
-    onForfeitLongPress: () -> Unit
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(40.dp, Alignment.CenterHorizontally),
-        verticalAlignment = Alignment.Top
-    ) {
+private fun ActionButtons(isMeasuring: Boolean, lockActions: BattleLockActions, onForfeit: () -> Unit) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        RunkkSecondaryButton(
+            stringResource(R.string.battle_running_forfeit_button),
+            onClick = onForfeit,
+            modifier = Modifier.weight(1f)
+        )
         if (isMeasuring) {
-            RunkkIconButton(
-                RunkkIcons.Lock,
-                contentDescription = stringResource(R.string.battle_running_lock),
+            RunkkSecondaryButton(
+                stringResource(R.string.battle_running_lock_button),
                 onClick = lockActions.onLock,
-                visualSize = 64.dp,
-                iconSize = 24.dp,
-                borderColor = RunkkColors.BorderStrong,
-                modifier = Modifier.padding(top = 4.dp)
+                modifier = Modifier.weight(1f)
             )
         }
-        RunkkLongPressButton(
-            onTap = onForfeitTap,
-            onLongPress = onForfeitLongPress,
-            tapLabel = stringResource(R.string.battle_running_forfeit_tap_label),
-            longPressLabel = stringResource(R.string.battle_running_forfeit_hold),
-            contentDescription = stringResource(R.string.battle_running_forfeit_desc),
-            caption = stringResource(R.string.battle_running_forfeit_hold),
-            size = 72.dp
-        ) {
-            Icon(
-                RunkkIcons.Close,
-                contentDescription = null,
-                tint = RunkkColors.Lavender,
-                modifier = Modifier.size(28.dp)
-            )
-        }
-        if (isMeasuring) Spacer(Modifier.width(64.dp))
     }
 }
 
+/** 머리(D3·H3): "배틀런, 5km"(나와의 싸움, 유명인은 "vs 이름, 거리")와 상대 연결 상태. */
 @Composable
 private fun Header(state: BattleRunningUiState) {
-    val label = when (state.kind) {
-        OpponentKind.RANDOM -> "LIVE BATTLE"
-        OpponentKind.SELF -> "SELF BATTLE"
-        OpponentKind.CELEBRITY -> "CELEB BATTLE"
+    val distance = distanceLabel(state.distance).asString()
+    val title = when (state.kind) {
+        OpponentKind.RANDOM -> stringResource(R.string.battle_running_title_random, distance)
+        OpponentKind.SELF -> stringResource(R.string.battle_running_title_self, distance)
+        OpponentKind.CELEBRITY -> stringResource(R.string.battle_running_title_celeb, opponentLabel(state), distance)
     }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         RunkkLiveDot(color = RunkkColors.Lavender)
-        RunkkOverline(
-            "$label · ${distanceLabel(state.distance).asString()}",
+        Text(
+            title,
+            style = RunkkTextStyles.text(15, FontWeight.Black),
             color = RunkkColors.Lavender,
-            isHeading = true
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f).semantics { heading() }
         )
-        Spacer(Modifier.weight(1f))
         // 랜덤 대결은 상대 연결 상태(FR-088), 그 밖은 상대 이름. 연결 확인 중으로 바뀌면 보조 기술에 알린다.
         RunkkStatusPill(state.connectionLabel?.asString() ?: opponentLabel(state), live = LiveRegionMode.Polite)
     }
@@ -260,7 +242,7 @@ private fun ColumnScope.Countdown(state: BattleRunningUiState) {
         verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically)
     ) {
         Text(
-            state.countdown?.toString() ?: "READY",
+            state.countdown?.toString() ?: stringResource(R.string.battle_running_ready),
             style = RunkkTextStyles.display(state.countdown?.let { 160 } ?: 72),
             color = RunkkColors.Lime
         )
@@ -299,7 +281,7 @@ private fun ColumnScope.Running(state: BattleRunningUiState) {
         Gap(state)
         if (state.kind == OpponentKind.CELEBRITY) CharacterTrack(state)
         ProgressCard(state)
-        // 시안 HiBattleRunning: 경과 · 현재 페이스 · 평균 페이스.
+        // 보드 D3: 경과, 현재 페이스, 평균 페이스.
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             RunkkStatTile(
                 stringResource(R.string.battle_running_elapsed),
@@ -403,7 +385,7 @@ private fun Gap(state: BattleRunningUiState) {
                 color = if (ahead) RunkkColors.Lime else RunkkColors.Lavender
             )
             Text(
-                "M",
+                "m",
                 style = RunkkTextStyles.display(36),
                 color = if (ahead) RunkkColors.Lime else RunkkColors.Lavender,
                 modifier = Modifier.padding(bottom = 8.dp)
@@ -417,7 +399,7 @@ private fun Gap(state: BattleRunningUiState) {
                     else -> stringResource(R.string.battle_running_behind)
                 },
                 stringResource(R.string.battle_running_overtakes, state.overtakes)
-            ).joinToString(" · "),
+            ).joinToString(", "),
             style = RunkkTextStyles.Label,
             color = RunkkColors.TextSecondary
         )
@@ -528,7 +510,7 @@ private fun ProgressRow(name: String, distance: Distance, progress: Float, isMin
                 color = if (isMine) RunkkColors.TextPrimary else RunkkColors.TextSecondary,
                 modifier = Modifier.weight(1f)
             )
-            Text("${RunkkFormat.km(distance)} KM", style = RunkkTextStyles.display(22), color = color)
+            Text("${RunkkFormat.km(distance)}km", style = RunkkTextStyles.display(22), color = color)
         }
         RunkkProgressBar(progress, height = 12.dp, color = color)
     }
@@ -564,7 +546,7 @@ private fun LockedContent(state: BattleRunningUiState, actions: BattleLockAction
         ) {
             Gap(state)
             Text(
-                "${RunkkFormat.km(state.myDistance)} KM · ${RunkkFormat.duration(state.elapsed)}",
+                "${RunkkFormat.km(state.myDistance)}km, ${RunkkFormat.duration(state.elapsed)}",
                 style = RunkkTextStyles.display(24),
                 color = RunkkColors.TextPrimary,
                 modifier = Modifier.clearAndSetSemantics { contentDescription = description }

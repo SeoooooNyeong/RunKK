@@ -15,8 +15,11 @@ public interface MatchQueue {
     /** 지웠으면 true. */
     boolean remove(long memberId);
 
-    /** WAITING일 때만 원자적으로 지운다(취소, FR-085). 이미 배정됐거나 없으면 false. */
-    boolean removeWaiting(long memberId);
+    /**
+     * 취소 전용 원자 연산(FR-085, D-83). 표가 WAITING이면 지우고 REMOVED, ASSIGNED면 지우지 않고 ASSIGNED, 표가 없으면
+     * ABSENT. 상태 확인과 삭제를 한 번에 해 고스트 시작(tryAssign)과 겹쳐도 한쪽만 이긴다.
+     */
+    QueueRemoval removeIfWaiting(long memberId);
 
     /** 회원의 대기열 표(WAITING 또는 배정 직후의 ASSIGNED). 없으면 비어 있다. */
     Optional<MatchTicket> findWaiting(long memberId);

@@ -30,8 +30,8 @@ class BootstrapConfigTest {
     void asyncExecutor_isContainerManagedBeanConfiguredFromProperties() {
         assertThat(asyncConfig.getAsyncExecutor()).isSameAs(applicationTaskExecutor);
         ThreadPoolTaskExecutor pool = (ThreadPoolTaskExecutor) applicationTaskExecutor;
-        assertThat(pool.getCorePoolSize()).isEqualTo(2);
-        assertThat(pool.getMaxPoolSize()).isEqualTo(4);
+        assertThat(pool.getCorePoolSize()).isEqualTo(4);
+        assertThat(pool.getMaxPoolSize()).isEqualTo(8);
         assertThat(pool.getThreadNamePrefix()).isEqualTo("runkk-async-");
     }
 

@@ -6,7 +6,6 @@ import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.PageCursor;
 import com.a207.runkk.common.ReasonCode;
-import com.a207.runkk.common.TagSet;
 import com.a207.runkk.common.Week;
 import com.a207.runkk.member.DisclosureLevel;
 import com.a207.runkk.member.MemberQueryService;
@@ -34,13 +33,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class CrewQueryService {
 
-    /** 태그 없는 러너 안내(FR-119). */
-    static final String NO_TAG_GUIDE = "프로필에서 성향 태그를 고르면 추천받을 수 있다";
-
     private final CrewRepository crewRepository;
     private final CrewAccess crewAccess;
     private final JoinRequestRepository joinRequestRepository;
-    private final CrewRecommender crewRecommender;
     private final MemberQueryService memberQueryService;
     private final RunQueryService runQueryService;
     private final Clock clock;
@@ -49,71 +44,33 @@ public class CrewQueryService {
             CrewRepository crewRepository,
             CrewAccess crewAccess,
             JoinRequestRepository joinRequestRepository,
-            CrewRecommender crewRecommender,
             MemberQueryService memberQueryService,
             RunQueryService runQueryService,
             Clock clock) {
         this.crewRepository = crewRepository;
         this.crewAccess = crewAccess;
         this.joinRequestRepository = joinRequestRepository;
-        this.crewRecommender = crewRecommender;
         this.memberQueryService = memberQueryService;
         this.runQueryService = runQueryService;
         this.clock = clock;
     }
 
     /**
-     * 공개 크루만, 태그 AND, 키워드(이름·소개), 최근 생성순. 크루 밖 열람 범위 항목만 + 이번 주 크루 거리(W-16). 크루장 표시명은
-     * MemberQueryService.summaries로 붙인다. 크루 없는 러너면 recommend 결과를 함께 싣는다(FR-117).
+     * 공개 크루만, 태그 AND, 키워드(이름·소개), 최근 생성순. 크루 밖 열람 범위 항목만 + 이번 주 크루 거리(W-16). 크루장 표시명은 그 페이지 크루만
+     * MemberQueryService.summaries로 붙인다(B4 리뷰). v0.11에서 추천 결합과 태그 일치 수를 지웠다(FR-117, FR-118 삭제,
+     * D-91).
      */
-    public CrewListView search(long viewerId, CrewSearch cond) {
-        return search(viewerId, cond, PageCursor.all());
-    }
-
-    /** 페이지 나누기(B4 리뷰). 크루장 표시명은 그 페이지 크루만 읽는다. */
     public CrewListView search(long viewerId, CrewSearch cond, PageCursor page) {
         PageCursor.Slice<CrewListRow> slice =
                 page.slice(crewRepository.search(cond, page, thisWeek()), CrewListRow::crewId);
         List<CrewListRow> rows = slice.items();
         Map<Long, MemberSummary> leaders =
                 memberQueryService.summaries(rows.stream().map(CrewListRow::leaderId).toList());
-        TagSet viewerTags = memberQueryService.tagsOf(viewerId);
         List<CrewListView.Item> items =
                 rows.stream()
-                        .map(
-                                row ->
-                                        new CrewListView.Item(
-                                                row,
-                                                nameOf(leaders, row.leaderId()),
-                                                viewerTags.overlapCount(row.tags())))
+                        .map(row -> new CrewListView.Item(row, nameOf(leaders, row.leaderId())))
                         .toList();
-        RecommendationView recommendations =
-                ownCrewId(viewerId).isEmpty() ? recommend(viewerId) : null;
-        return new CrewListView(items, recommendations, slice.nextCursor());
-    }
-
-    /** 태그가 없으면 안내(FR-119). 후보(공개, 정원 미달, 본인 소속 아님) → CrewRecommender.recommend(FR-118). */
-    public RecommendationView recommend(long memberId) {
-        TagSet tags = memberQueryService.tagsOf(memberId);
-        if (tags.isEmpty()) {
-            return new RecommendationView(List.of(), NO_TAG_GUIDE);
-        }
-        Optional<Long> own = ownCrewId(memberId);
-        List<CrewCandidate> candidates =
-                crewRepository.search(CrewSearch.all(), PageCursor.all(), thisWeek()).stream()
-                        .filter(row -> row.headcount() < Crew.CAPACITY)
-                        .filter(row -> own.map(id -> id != row.crewId()).orElse(true))
-                        .map(
-                                row ->
-                                        new CrewCandidate(
-                                                row.crewId(),
-                                                row.name(),
-                                                row.tags(),
-                                                row.headcount(),
-                                                row.joinPolicy(),
-                                                row.createdAt()))
-                        .toList();
-        return new RecommendationView(crewRecommender.recommend(tags, candidates), null);
+        return new CrewListView(items, slice.nextCursor());
     }
 
     /**
@@ -144,7 +101,6 @@ public class CrewQueryService {
                             nameOf(summaries, membership.memberId()),
                             membership.role(),
                             membership.crewIntro(),
-                            shown ? membership.crewTags() : null,
                             shown && summary != null ? summary.tier() : null));
         }
         return new CrewMembersView(crewId, lines, disclosed);

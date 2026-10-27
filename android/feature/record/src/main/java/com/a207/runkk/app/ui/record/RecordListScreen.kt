@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -174,7 +175,7 @@ private fun MonthCard(
 ) {
     RunkkCard(shape = RunkkShapes.ExtraLarge, verticalArrangement = Arrangement.spacedBy(16.dp)) {
         MonthHeader(state.month, onPreviousMonth, onNextMonth)
-        if (shouldShowCalendar) Calendar(state.month, state.dailyDistance)
+        if (shouldShowCalendar) Calendar(state.month, state.dailyDistance, state.excludedDays)
         MonthSummary(state.validCount, state.validDistance)
     }
 }
@@ -246,9 +247,9 @@ private fun MonthSummary(count: Int, distance: Distance) {
     }
 }
 
-/** 달력: 일요일 시작 7열. 달린 날은 라임 칸에 날짜와 km. */
+/** 달력: 일요일 시작 7열. 유효 기록이 있는 날은 라임 칸에 날짜와 km, 집계 제외 기록만 있는 날은 날짜 아래 흐린 점. */
 @Composable
-private fun Calendar(month: YearMonth, daily: Map<LocalDate, Distance>) {
+private fun Calendar(month: YearMonth, daily: Map<LocalDate, Distance>, excludedDays: Set<LocalDate>) {
     val lead = month.atDay(1).dayOfWeek.value % DAYS_IN_WEEK
     val cells: List<LocalDate?> = List(lead) { null } + (1..month.lengthOfMonth()).map { month.atDay(it) }
     val rows = cells.chunked(DAYS_IN_WEEK).map {
@@ -274,19 +275,23 @@ private fun Calendar(month: YearMonth, daily: Map<LocalDate, Distance>) {
         }
         rows.forEach { week ->
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                week.forEach { day -> DayCell(day, day?.let(daily::get), Modifier.weight(1f)) }
+                week.forEach { day ->
+                    DayCell(day, day?.let(daily::get), isExcludedOnly = day in excludedDays, Modifier.weight(1f))
+                }
             }
         }
     }
 }
 
 @Composable
-private fun DayCell(day: LocalDate?, distance: Distance?, modifier: Modifier) {
+private fun DayCell(day: LocalDate?, distance: Distance?, isExcludedOnly: Boolean, modifier: Modifier) {
     val km = distance?.takeIf { it.meters > 0 }?.let(RunkkFormat::kmShort)
     val ran = km != null
+    val isExcluded = !ran && isExcludedOnly
     val spoken = when {
         day == null -> null
         km != null -> stringResource(R.string.record_calendar_day_distance_spoken, day.dayOfMonth, km)
+        isExcluded -> stringResource(R.string.record_calendar_day_excluded_spoken, day.dayOfMonth)
         else -> stringResource(R.string.record_calendar_day_spoken, day.dayOfMonth)
     }
     Column(
@@ -310,6 +315,14 @@ private fun DayCell(day: LocalDate?, distance: Distance?, modifier: Modifier) {
                 null
             ) {
                 Text(km, style = RunkkTextStyles.display(13, lineHeightRatio = 1f), color = RunkkColors.OnLime)
+            } else if (isExcluded) {
+                Box(
+                    Modifier
+                        .padding(top = 3.dp)
+                        .size(4.dp)
+                        .clip(CircleShape)
+                        .background(RunkkColors.Lavender.copy(alpha = EXCLUDED_DOT_ALPHA))
+                )
             }
         }
     }
@@ -344,7 +357,7 @@ private fun RunRow(run: RunSummary, zone: ZoneId, onClick: () -> Unit) {
             Text(
                 "${dayFormat.format(
                     run.startedAt.atZone(zone)
-                )} · ${RunkkFormat.duration(run.elapsed)} · ${RunkkFormat.pace(run.averagePace)}/km",
+                )}, ${RunkkFormat.duration(run.elapsed)}, ${RunkkFormat.pace(run.averagePace)}/km",
                 style = RunkkTextStyles.Caption,
                 color = RunkkColors.TextSecondary
             )
@@ -365,7 +378,7 @@ private fun RunRowTitle(run: RunSummary) {
     val kind = kindLabel(run.cardKind)
     Text(
         buildAnnotatedString {
-            append("${RunkkFormat.km(run.distance)}km ")
+            append("${RunkkFormat.km(run.distance)}km, ")
             withStyle(
                 SpanStyle(
                     fontSize = RunkkTextStyles.Caption.fontSize,
@@ -402,6 +415,9 @@ private fun shortLabel(kind: CardKind): String = when (kind) {
 }
 
 private const val DAYS_IN_WEEK = 7
+
+/** 집계 제외 기록만 있는 날의 점은 흐리게 둔다(기록 줄의 "집계 제외" 글자와 같은 색). */
+private const val EXCLUDED_DOT_ALPHA = 0.6f
 private val WEEKDAYS = listOf(
     R.string.record_weekday_sun,
     R.string.record_weekday_mon,
@@ -440,7 +456,8 @@ private fun RecordListPreview() {
                 month = YearMonth.of(2026, 10),
                 isLoading = false,
                 runs = runs,
-                dailyDistance = runs.associate { it.startedAt.atZone(zone).toLocalDate() to it.distance },
+                dailyDistance = dailyValidDistance(runs, zone),
+                excludedDays = excludedOnlyDays(runs, zone),
                 pendingCount = 1,
                 zone = zone
             ),

@@ -5,6 +5,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.a207.runkk.avatar.BackgroundService;
+import com.a207.runkk.batch.avatar.BackgroundReconcileJob;
+import com.a207.runkk.batch.member.IdleGuestWithdrawalJob;
 import com.a207.runkk.batch.member.MemberSchedulingConfig;
 import com.a207.runkk.batch.member.RevocationPurgeJob;
 import com.a207.runkk.batch.member.WithdrawalPurgeJob;
@@ -12,10 +15,12 @@ import com.a207.runkk.batch.notification.NotificationPurgeJob;
 import com.a207.runkk.batch.notification.NotificationSchedulingConfig;
 import com.a207.runkk.batch.running.DisposalJob;
 import com.a207.runkk.batch.running.RunningSchedulingConfig;
+import com.a207.runkk.batch.running.TierReconcileJob;
 import com.a207.runkk.member.AuthService;
 import com.a207.runkk.member.WithdrawalService;
 import com.a207.runkk.notification.NotificationService;
 import com.a207.runkk.running.DisposalService;
+import com.a207.runkk.running.TierReconcileService;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -73,22 +78,51 @@ class BatchJobsTest {
     }
 
     @Test
+    @DisplayName("TierReconcileJob(0시 10분, D-108) → reconcile(now) 하나, 실패해도 던지지 않는다")
+    void tierReconcileJob() {
+        TierReconcileService service = mock(TierReconcileService.class);
+        new TierReconcileJob(service, clock).run();
+        verify(service).reconcile(NOW);
+
+        when(service.reconcile(any())).thenThrow(new IllegalStateException("db"));
+        new TierReconcileJob(service, clock).run();
+    }
+
+    @Test
+    @DisplayName(
+            "BackgroundReconcileJob → BackgroundService.reconcile(now), 실패해도 던지지 않는다(D-107 (3))")
+    void backgroundReconcileJob() {
+        BackgroundService backgrounds = mock(BackgroundService.class);
+        new BackgroundReconcileJob(backgrounds, clock).run();
+        verify(backgrounds).reconcile(NOW);
+
+        when(backgrounds.reconcile(any())).thenThrow(new IllegalStateException("db"));
+        new BackgroundReconcileJob(backgrounds, clock).run();
+    }
+
+    @Test
     @DisplayName("스케줄 설정은 cron 작업 하나씩을 등록한다")
     void schedulingConfigsRegisterCronTasks() {
         ScheduledTaskRegistrar registrar = new ScheduledTaskRegistrar();
         new MemberSchedulingConfig(
                         mock(WithdrawalPurgeJob.class),
                         mock(RevocationPurgeJob.class),
-                        new MemberSchedulingConfig.Schedule("0 0 3 * * *", "0 0 3 * * *"))
+                        mock(IdleGuestWithdrawalJob.class),
+                        new MemberSchedulingConfig.Schedule(
+                                "0 0 3 * * *", "0 0 3 * * *", "0 0 3 * * *"))
                 .configureTasks(registrar);
         new RunningSchedulingConfig(
                         mock(DisposalJob.class),
-                        new RunningSchedulingConfig.Schedule("0 0 3 * * *"))
+                        mock(TierReconcileJob.class),
+                        new RunningSchedulingConfig.Schedule("0 0 3 * * *", "0 10 0 * * *"))
                 .configureTasks(registrar);
         new NotificationSchedulingConfig(
                         mock(NotificationPurgeJob.class),
                         new NotificationSchedulingConfig.Schedule("0 0 3 * * *"))
                 .configureTasks(registrar);
-        Assertions.assertThat(registrar.getCronTaskList()).hasSize(4);
+        Assertions.assertThat(registrar.getCronTaskList()).hasSize(6);
+        Assertions.assertThat(registrar.getCronTaskList())
+                .extracting(org.springframework.scheduling.config.CronTask::getExpression)
+                .contains("0 10 0 * * *");
     }
 }

@@ -36,6 +36,9 @@ object RunkkAvatarArt {
 
     /** 기본 캐릭터 이름의 얼굴 키(서버 DefaultFace.renderKey와 같은 형식). */
     fun defaultKey(characterName: String): String = DEFAULT_PREFIX + characterName
+
+    /** 얼굴을 고르기 전에 쓰는 얼굴: 기본 캐릭터 얼굴 1번(토끼, FR-155·FR-158). */
+    val DEFAULT_FACE_KEY: String = defaultKey("RABBIT")
 }
 
 /**

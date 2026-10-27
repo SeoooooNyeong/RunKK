@@ -15,6 +15,10 @@ import java.util.List;
  * @param closesAt 마감 일시(일요일 24시)
  * @param contributors 기여자, 거리 큰 순
  * @param myRate 본인 기여율
+ * @param goal 그 주 공동 목표(이어 쓴 값 포함), 없으면 null
+ * @param goalProgressPercent min(100, 합계 × 100 ÷ 목표), 목표가 없으면 null
+ * @param achievedAt 목표 달성 일시, 아니면 null
+ * @param celebration 달성한 주의 축하 카드, 아니면 null
  */
 public record RaceStatusView(
         long crewId,
@@ -22,7 +26,11 @@ public record RaceStatusView(
         Distance total,
         LocalDateTime closesAt,
         List<Line> contributors,
-        int myRate) {
+        int myRate,
+        Distance goal,
+        Integer goalProgressPercent,
+        LocalDateTime achievedAt,
+        CelebrationCard celebration) {
 
     public RaceStatusView {
         contributors = List.copyOf(contributors);

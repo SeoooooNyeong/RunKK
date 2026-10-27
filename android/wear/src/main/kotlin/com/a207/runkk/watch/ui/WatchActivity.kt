@@ -8,6 +8,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -46,10 +47,17 @@ class WatchActivity : ComponentActivity() {
             WatchTheme {
                 WatchRoot(
                     state = state,
-                    onStart = viewModel::onStartTapped,
-                    onRequestPermission = { heartRatePermission.launch(viewModel.heartRatePermission) },
-                    onEndTapped = viewModel::onEndTapped,
-                    onEndLongPressed = viewModel::onEndLongPressed
+                    actions = remember {
+                        WatchActions(
+                            onStart = viewModel::onStartTapped,
+                            onRequestPermission = { heartRatePermission.launch(viewModel.heartRatePermission) },
+                            onReconnect = viewModel::onReconnectTapped,
+                            onEndTapped = viewModel::onEndTapped,
+                            onEndLongPressed = viewModel::onEndLongPressed,
+                            onPauseTapped = viewModel::onPauseTapped,
+                            onResumeTapped = viewModel::onResumeTapped
+                        )
+                    }
                 )
             }
         }

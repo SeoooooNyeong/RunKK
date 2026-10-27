@@ -2,8 +2,6 @@ package com.a207.runkk.runimal;
 
 import com.a207.runkk.common.BusinessRuleException;
 import com.a207.runkk.common.ReasonCode;
-import com.a207.runkk.common.TagSet;
-import com.a207.runkk.member.MemberQueryService;
 import com.a207.runkk.policy.OperationPolicy;
 import com.a207.runkk.policy.RunimalRule;
 import com.a207.runkk.running.RunRecordSaved;
@@ -31,7 +29,6 @@ public class RunimalService {
     private final CourseSimilarityService courseSimilarityService;
     private final RunimalJudge runimalJudge;
     private final RunSampleReader runSampleReader;
-    private final MemberQueryService memberQueryService;
     private final OperationPolicy operationPolicy;
     private final Clock clock;
     private final RunimalTransactions transactions;
@@ -41,7 +38,6 @@ public class RunimalService {
             CourseSimilarityService courseSimilarityService,
             RunimalJudge runimalJudge,
             RunSampleReader runSampleReader,
-            MemberQueryService memberQueryService,
             OperationPolicy operationPolicy,
             Clock clock,
             RunimalTransactions transactions) {
@@ -49,7 +45,6 @@ public class RunimalService {
         this.courseSimilarityService = courseSimilarityService;
         this.runimalJudge = runimalJudge;
         this.runSampleReader = runSampleReader;
-        this.memberQueryService = memberQueryService;
         this.operationPolicy = operationPolicy;
         this.clock = clock;
         this.transactions = transactions;
@@ -95,14 +90,13 @@ public class RunimalService {
     private void judge(RunimalProfile profile, JudgeTrigger trigger) {
         LocalDateTime now = LocalDateTime.now(clock);
         RunSample sample = runSampleReader.read(profile.getMemberId(), now.toLocalDate());
-        TagSet tags = memberQueryService.tagsOf(profile.getMemberId());
         RunimalRule rule = operationPolicy.runimalRule();
         if (trigger == JudgeTrigger.PROVISIONAL) {
-            Judged judged = runimalJudge.judgeProvisional(sample, tags, rule);
+            Judged judged = runimalJudge.judgeProvisional(sample, rule);
             profile.assignProvisional(judged.type(), judged.ratios(), now);
             return;
         }
-        Judged judged = runimalJudge.judgeConfirmed(sample, tags, rule);
+        Judged judged = runimalJudge.judgeConfirmed(sample, rule);
         boolean changed = profile.confirm(judged.type(), judged.ratios(), now);
         log.info("runimal_confirmed changed={}", changed);
     }

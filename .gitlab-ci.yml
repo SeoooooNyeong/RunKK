@@ -206,6 +206,8 @@ backend:deploy:
   environment:
     name: $DEPLOY_ENV
   resource_group: runkk-server
+  # 마이그레이션 전 DB 덤프는 환경 스택의 backup 컨테이너가 작업 폴더 밖 BACKUP_DIR/<환경>(기본 /var/backups/runkk)에 남긴다.
+  # 작업 폴더는 shell 러너가 다음 잡 시작 때 git clean으로 지우므로 거기에 두지 않는다(BE6-1, infra/README.md 3절·7절).
   rules:
     - if: $CI_COMMIT_BRANCH =~ /^release\//
       changes: *deploy-changes
@@ -341,8 +343,10 @@ android:build:
     - ./gradlew assembleDevelopDebug
   after_script:
     - rm -f /tmp/release.jks
+  # 산출물 업로드 상한(약 100MiB) 때문에 폰은 arm64 APK만 올린다(ABI 3개 + 워치를 합치면 넘는다).
+  # 에뮬레이터용 x86_64·32비트 armeabi-v7a는 로컬에서 assembleDevelopDebug로 만든다.
   artifacts:
-    paths: [android/app/build/outputs/apk/develop/debug/*.apk, android/wear/build/outputs/apk/develop/debug/*.apk]
+    paths: [android/app/build/outputs/apk/develop/debug/*-arm64-v8a-debug.apk, android/wear/build/outputs/apk/develop/debug/*.apk]
     expire_in: 1 week
 
 # Play 업로드용 폰·워치 prod release AAB(업로드 키 서명, S15P31A207-67·213). Play Console 업로드는 사람이 한다.

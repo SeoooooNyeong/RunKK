@@ -7,6 +7,7 @@ import com.a207.runkk.app.core.model.RunMode
 import com.a207.runkk.app.core.model.SignalState
 import com.a207.runkk.app.domain.run.CompletedRun
 import com.a207.runkk.app.domain.run.HeartRateSample
+import com.a207.runkk.app.domain.run.PauseInterval
 import com.a207.runkk.app.domain.run.RoutePoint
 import com.a207.runkk.app.domain.run.UnstableSegment
 import com.a207.runkk.app.domain.run.UploadState
@@ -20,7 +21,7 @@ import java.util.zip.GZIPInputStream
 import java.util.zip.GZIPOutputStream
 
 // 엔티티 ↔ CompletedRun 매퍼(6.1.14 data.store, 13.2 "도메인 모델과 매퍼").
-// 경로·불안정 구간·심박은 [형식 버전 1바이트][개수 Int][항목…]을 GZIP으로 압축한 BLOB이다.
+// 경로·불안정 구간·심박·정지 구간은 [형식 버전 1바이트][개수 Int][항목…]을 GZIP으로 압축한 BLOB이다. 빈 BLOB은 빈 목록이다.
 // 시각은 epoch 밀리초, 좌표는 Double 그대로(측정값을 줄이지 않는다), 신호 상태는 0 NORMAL / 1 UNSTABLE.
 
 private const val FORMAT_VERSION = 1
@@ -41,7 +42,8 @@ internal fun CompletedRun.toEntity(): PendingRunEntity = PendingRunEntity(
     heartRates = encodeHeartRates(heartRates),
     uploadState = uploadState.name,
     savedAtMillis = savedAt.toEpochMilli(),
-    sentAtMillis = null
+    sentAtMillis = null,
+    pauses = encodePauses(pauses)
 )
 
 internal fun PendingRunEntity.toDomain(): CompletedRun = CompletedRun(
@@ -56,6 +58,7 @@ internal fun PendingRunEntity.toDomain(): CompletedRun = CompletedRun(
     route = decodeRoute(route),
     unstable = decodeUnstable(unstable),
     heartRates = decodeHeartRates(heartRates),
+    pauses = decodePauses(pauses),
     uploadState = UploadState.valueOf(uploadState),
     savedAt = Instant.ofEpochMilli(savedAtMillis)
 )
@@ -82,6 +85,17 @@ internal fun encodeHeartRates(samples: List<HeartRateSample>): ByteArray = compr
         out.writeLong(s.at.toEpochMilli())
         out.writeInt(s.bpm)
     }
+}
+
+internal fun encodePauses(pauses: List<PauseInterval>): ByteArray = compress(pauses.size) { out ->
+    pauses.forEach { p ->
+        out.writeLong(p.from.toEpochMilli())
+        out.writeLong(p.to.toEpochMilli())
+    }
+}
+
+internal fun decodePauses(blob: ByteArray): List<PauseInterval> = decompress(blob) { input ->
+    PauseInterval(Instant.ofEpochMilli(input.readLong()), Instant.ofEpochMilli(input.readLong()))
 }
 
 internal fun decodeRoute(blob: ByteArray): List<RoutePoint> = decompress(blob) { input ->

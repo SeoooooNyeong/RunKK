@@ -18,6 +18,7 @@ import com.a207.runkk.reward.AccrualReason;
 import com.a207.runkk.reward.RewardService;
 import com.a207.runkk.running.HeartRateSummary;
 import com.a207.runkk.running.NewRecordMark;
+import com.a207.runkk.running.PauseInterval;
 import com.a207.runkk.running.RunDetail;
 import com.a207.runkk.running.RunQueryService;
 import com.a207.runkk.running.RunSummary;
@@ -112,7 +113,14 @@ public class RecordQueryService {
                 weatherOf(detail),
                 newRecordLabels(detail.newRecords()),
                 self ? contributionOf(recordId) : null,
-                self ? rewardService.accruedFor(AccrualReason.VALID_RUN, recordId, ownerId) : null);
+                self ? rewardService.accruedFor(AccrualReason.VALID_RUN, recordId, ownerId) : null,
+                detail.pauses().stream()
+                        .map(p -> new RecordDetailView.PauseRange(p.from(), p.to()))
+                        .toList(),
+                detail.pauses().stream()
+                        .map(PauseInterval::duration)
+                        .reduce(Duration.ZERO, Duration::plus)
+                        .toSeconds());
     }
 
     /** 본인 기록만(srs.md 6.3 3.5). 앞면 값 + 뒷면 경로 + 코스지도공유 값. */

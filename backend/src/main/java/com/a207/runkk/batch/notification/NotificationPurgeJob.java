@@ -8,8 +8,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
- * 3시에 보관 기한 지난 알림 삭제를 부른다(설계 6.1.13 batch.notification, FR-175). NotificationService.purgeExpired
- * 하나만 부른다(D-39). 20시 계획 미이행 알림(PlanReminderJob)은 analysis를 부르므로 batch.analysis 단계에서 만든다.
+ * 0시에 보관 기한 지난 알림 삭제를 부른다(설계 6.1.13 batch.notification, FR-175, srs 소단위명세 7.3, D-67, 부록 E K-3).
+ * NotificationService.purgeExpired 하나만 부른다(D-39). 20시 계획 미이행 알림(PlanReminderJob)은 analysis를 부르므로
+ * batch.analysis 단계에서 만든다.
  */
 @Component
 public class NotificationPurgeJob {

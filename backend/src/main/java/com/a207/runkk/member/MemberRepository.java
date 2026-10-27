@@ -24,9 +24,15 @@ public interface MemberRepository {
     /** 탈퇴 일시가 t 이전인 회원. */
     List<Member> findWithdrawnBefore(LocalDateTime t);
 
+    /**
+     * 미이용 게스트: ACTIVE 게스트 중 lastAccessAt ≤ before(정각 포함, D-156). 부분 색인
+     * idx_member_idle_guest(FR-200).
+     */
+    List<Member> findIdleGuests(LocalDateTime before);
+
     Member save(Member member);
 
-    /** 표시명·티어·공개 범위·태그를 한 번의 조회로(N+1 방지, 6.5). 없는 ID는 맵에 없다. */
+    /** 표시명·티어·공개 범위를 한 번의 조회로(N+1 방지, 6.5). 없는 ID는 맵에 없다. */
     Map<Long, MemberSummary> summaries(Collection<Long> memberIds);
 
     /** 상태 ACTIVE, 기록 전체공개, tier ∈ tiers인 회원(요청자 제외). */

@@ -30,4 +30,16 @@ public class TierLevelService {
         memberRepository.save(member);
         return change;
     }
+
+    /**
+     * 뒤 순번이 먼저 반영되어 구멍이 된 유효 러닝을 늦게 반영한다(총괄 결정 7-3,
+     * running.TierReconcileService·TierUpdateListener). 판정 없이 점수·거리만 더하고 저장한다.
+     */
+    @Transactional
+    public TierChange recordLateValidRun(long memberId, RunScoreInput input) {
+        Member member = MemberLoader.load(memberRepository, memberId);
+        TierChange change = member.recordLateValidRun(input);
+        memberRepository.save(member);
+        return change;
+    }
 }

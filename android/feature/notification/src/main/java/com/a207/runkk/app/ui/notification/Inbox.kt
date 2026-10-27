@@ -1,6 +1,5 @@
 package com.a207.runkk.app.ui.notification
 
-import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -13,8 +12,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -24,6 +24,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -33,70 +34,25 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewModelScope
-import androidx.navigation3.runtime.EntryProviderScope
-import androidx.navigation3.runtime.NavKey
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkEmptyState
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
-import com.a207.runkk.app.core.designsystem.RunkkErrorText
 import com.a207.runkk.app.core.designsystem.RunkkLoading
-import com.a207.runkk.app.core.designsystem.RunkkSectionTitle
-import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
-import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.asString
-import com.a207.runkk.app.core.model.Outcome
-import com.a207.runkk.app.core.navigation.FeatureEntry
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
-import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.core.navigation.route
 import com.a207.runkk.app.domain.notification.Inbox
-import com.a207.runkk.app.domain.notification.NotificationRepository
-import dagger.Binds
-import dagger.Module
-import dagger.hilt.InstallIn
-import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.components.SingletonComponent
-import dagger.multibindings.IntoSet
 import java.time.Clock
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import java.time.temporal.TemporalAdjusters
-import java.util.Locale
-import javax.inject.Inject
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.receiveAsFlow
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
-
-/** 알림 묶음(오늘·이번 주·그 전). */
-data class InboxGroup(@StringRes val titleRes: Int, val items: List<Inbox.Item>)
-
-data class InboxUiState(
-    val isLoading: Boolean = true,
-    val groups: List<InboxGroup> = emptyList(),
-    val error: UiText? = null,
-    val message: UiText? = null
-) {
-    val unreadCount: Int get() = groups.sumOf { g -> g.items.count { !it.isRead } }
-}
-
-sealed interface InboxEvent {
-    data class Navigate(val route: String) : InboxEvent
-}
 
 /** 최신순 알림을 오늘·이번 주(월요일 시작)·그 전으로 묶는다(FR-178). */
 internal fun groupInbox(items: List<Inbox.Item>, clock: Clock): List<InboxGroup> {
@@ -117,70 +73,6 @@ internal fun groupInbox(items: List<Inbox.Item>, clock: Clock): List<InboxGroup>
     ).filter { it.items.isNotEmpty() }
 }
 
-/** 알림함(FR-175·FR-178): NotificationRepository.inbox·open. 누르면 읽음으로 하고 이동 경로(core.navigation 이름)로 간다. */
-@HiltViewModel
-class InboxViewModel @Inject constructor(private val notifications: NotificationRepository, private val clock: Clock) :
-    ViewModel() {
-    private val _state = MutableStateFlow(InboxUiState())
-    val state: StateFlow<InboxUiState> = _state.asStateFlow()
-
-    private val _events = Channel<InboxEvent>(Channel.BUFFERED)
-    val events: Flow<InboxEvent> = _events.receiveAsFlow()
-
-    init {
-        refresh()
-    }
-
-    fun refresh() {
-        _state.update { it.copy(isLoading = true, error = null) }
-        viewModelScope.launch {
-            when (val result = notifications.inbox()) {
-                is Outcome.Success -> _state.update {
-                    it.copy(isLoading = false, groups = groupInbox(result.value.items, clock))
-                }
-
-                is Outcome.Failure -> _state.update {
-                    it.copy(isLoading = false, error = RunkkErrorText.of(result.error))
-                }
-            }
-        }
-    }
-
-    fun onMessageShown() = _state.update { it.copy(message = null) }
-
-    private fun markRead(id: Long, isRead: Boolean) = _state.update { s ->
-        s.copy(
-            groups = s.groups.map { g ->
-                g.copy(
-                    items = g.items.map {
-                        if (it.id ==
-                            id
-                        ) {
-                            it.copy(isRead = isRead)
-                        } else {
-                            it
-                        }
-                    }
-                )
-            }
-        )
-    }
-
-    fun onItemTapped(item: Inbox.Item) {
-        if (!item.isRead) {
-            markRead(item.id, isRead = true)
-            viewModelScope.launch {
-                val opened = notifications.open(item.id)
-                if (opened is Outcome.Failure) {
-                    markRead(item.id, isRead = false)
-                    _state.update { it.copy(message = RunkkErrorText.of(opened.error)) }
-                }
-            }
-        }
-        item.route?.let { _events.trySend(InboxEvent.Navigate(it)) }
-    }
-}
-
 @Composable
 fun InboxRoute(viewModel: InboxViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -188,7 +80,7 @@ fun InboxRoute(viewModel: InboxViewModel = hiltViewModel()) {
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             when (event) {
-                is InboxEvent.Navigate -> navigator.navigate(event.route)
+                is InboxEvent.Navigate -> navigator.navigate(event.key)
             }
         }
     }
@@ -233,82 +125,58 @@ private fun InboxContent(state: InboxUiState, onBack: () -> Unit, onItem: (Inbox
 
             state.error != null -> RunkkErrorState(state.error.asString(), onRetry = onRetry)
 
-            state.groups.isEmpty() -> RunkkEmptyState(
-                stringResource(R.string.notification_empty_title),
-                message = stringResource(R.string.notification_empty_message)
-            )
+            state.groups.isEmpty() -> RunkkEmptyState(stringResource(R.string.notification_empty_title))
 
             else -> LazyColumn(
                 modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 32.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 32.dp)
             ) {
-                state.groups.forEach { group ->
-                    item(key = "title-${group.titleRes}") {
-                        RunkkSectionTitle(
-                            stringResource(group.titleRes),
-                            modifier = Modifier.padding(top = 16.dp, start = 8.dp)
-                        )
-                    }
-                    items(group.items, key = { it.id }) { item -> InboxRow(item, onClick = { onItem(item) }) }
+                // 보드(F7)는 묶음 제목 없이 최신순 한 목록이다.
+                val items = state.groups.flatMap { it.items }
+                itemsIndexed(items, key = { _, item -> item.id }) { index, item ->
+                    InboxRow(item, state, onClick = { onItem(item) })
+                    if (index < items.lastIndex) HorizontalDivider(color = RunkkColors.Border)
                 }
             }
         }
     }
 }
 
+/** 알림 한 줄: 안 읽음 점, 종류 라벨, 본문(안 읽음은 굵게), 오른쪽 상대 시간. */
 @Composable
-private fun InboxRow(item: Inbox.Item, onClick: () -> Unit) {
+private fun InboxRow(item: Inbox.Item, state: InboxUiState, onClick: () -> Unit) {
     val readState = stringResource(if (item.isRead) R.string.notification_read else R.string.notification_unread)
-    val timePattern = stringResource(R.string.notification_time_pattern)
-    val time = remember(timePattern) { DateTimeFormatter.ofPattern(timePattern, Locale.KOREAN) }
+    val resources = LocalContext.current.resources
+    val time = remember(item.receivedAt, state.now, state.zone) {
+        inboxTime(resources, item.receivedAt, state.now, state.zone)
+    }
+    val label = InboxLabels.of(item.type)?.let { stringResource(it) } ?: item.title
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RunkkShapes.Large)
-            .background(RunkkColors.Surface)
             .clickable(role = Role.Button, onClick = onClick)
-            .padding(16.dp)
+            .padding(vertical = 12.dp)
             .semantics(mergeDescendants = true) { stateDescription = readState },
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.Top
     ) {
         Box(
-            Modifier.padding(
-                top = 6.dp
-            ).size(8.dp).clip(CircleShape).background(if (item.isRead) RunkkColors.Border else RunkkColors.Lavender)
+            Modifier
+                .padding(top = 7.dp)
+                .size(8.dp)
+                .clip(CircleShape)
+                .background(if (item.isRead) Color.Transparent else RunkkColors.Lime)
         )
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(label, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
             Text(
-                item.title,
-                style = RunkkTextStyles.text(15, if (item.isRead) FontWeight.Medium else FontWeight.Black),
+                item.body,
+                style = RunkkTextStyles.text(14, if (item.isRead) FontWeight.Normal else FontWeight.Bold),
                 color = RunkkColors.TextPrimary
             )
-            Text(item.body, style = RunkkTextStyles.Body, color = RunkkColors.TextSecondary)
-            Text(
-                time.format(item.receivedAt.atZone(ZoneId.systemDefault())),
-                style = RunkkTextStyles.Micro,
-                color = RunkkColors.TextSecondary
-            )
         }
+        Text(time, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
     }
-}
-
-/** 알림함 경로를 그래프에 등록한다(FeatureEntry 구현, 6.1.14). */
-class NotificationFeatureEntry @Inject constructor() : FeatureEntry {
-    override val route: String = Routes.NOTIFICATIONS
-
-    override fun register(builder: EntryProviderScope<NavKey>) {
-        builder.route(Routes.NOTIFICATIONS) { InboxRoute() }
-    }
-}
-
-@Module
-@InstallIn(SingletonComponent::class)
-internal interface NotificationEntryModule {
-    @Binds
-    @IntoSet
-    fun bindNotificationEntry(entry: NotificationFeatureEntry): FeatureEntry
 }
 
 @Preview(name = "알림함", widthDp = 390, heightDp = 844)
@@ -329,7 +197,8 @@ private fun InboxPreview() {
                             "새벽크루 크루런이 10분 뒤 시작해요",
                             now.minusSeconds(600),
                             false,
-                            "crew"
+                            "CREW_RUN_RECRUIT",
+                            "31"
                         ),
                         Inbox.Item(
                             2,
@@ -342,7 +211,9 @@ private fun InboxPreview() {
                         )
                     ),
                     clock
-                )
+                ),
+                now = now,
+                zone = clock.zone
             ),
             onBack = {},
             onItem = {},

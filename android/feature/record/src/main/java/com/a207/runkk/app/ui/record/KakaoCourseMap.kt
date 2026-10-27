@@ -15,6 +15,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.a207.runkk.app.core.designsystem.LocalRunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.model.GeoPoint
 import com.kakao.vectormap.KakaoMap
@@ -90,6 +91,7 @@ internal fun KakaoCourseMap(
 ) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val colors = LocalRunkkColors.current
     val mapView = remember(context, appKey) {
         KakaoMapInit.ensure(context, appKey)
         MapView(context)
@@ -102,7 +104,7 @@ internal fun KakaoCourseMap(
                 override fun onMapError(error: Exception) = Unit
             },
             object : KakaoMapReadyCallback() {
-                override fun onMapReady(map: KakaoMap) = drawRoute(map, points, unstable)
+                override fun onMapReady(map: KakaoMap) = drawRoute(map, points, unstable, colors)
             }
         )
         val observer = LifecycleEventObserver { _, event ->
@@ -121,10 +123,10 @@ internal fun KakaoCourseMap(
     AndroidView(factory = { mapView }, modifier = modifier.semantics { contentDescription = description })
 }
 
-private fun drawRoute(map: KakaoMap, points: List<GeoPoint>, unstable: List<IntRange>) {
+private fun drawRoute(map: KakaoMap, points: List<GeoPoint>, unstable: List<IntRange>, colors: RunkkColors) {
     val latLngs = points.map { LatLng.from(it.latitude, it.longitude) }
-    val stable = RouteLineStyles.from(RouteLineStyle.from(LINE_WIDTH, RunkkColors.Lime.toArgb()))
-    val shaky = RouteLineStyles.from(RouteLineStyle.from(LINE_WIDTH, RunkkColors.Lavender.toArgb()))
+    val stable = RouteLineStyles.from(RouteLineStyle.from(LINE_WIDTH, colors.lime.toArgb()))
+    val shaky = RouteLineStyles.from(RouteLineStyle.from(LINE_WIDTH, colors.lavender.toArgb()))
     val segments = routeRuns(points.size, unstable).map { (range, isUnstable) ->
         RouteLineSegment.from(latLngs.subList(range.first, range.last + 1), if (isUnstable) shaky else stable)
     }

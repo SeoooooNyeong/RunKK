@@ -57,6 +57,9 @@ tasks.withType<Test> {
 	// 서버 시계는 Asia/Seoul(RunkkApplication.clock)이다. 시험이 만드는 LocalDateTime.now()도 같은 시간대여야
 	// CI 컨테이너(UTC)와 개발 PC(KST)에서 결과가 같다(UTC면 크루런 예약 시각이 과거가 되어 시험 4개가 깨진다)
 	systemProperty("user.timezone", "Asia/Seoul")
+	// v0.11에서 Spring 시험 문맥(채팅·크루·실시간 통합 시험)이 늘어 기본 힙 512MB로는 OutOfMemoryError가 난다.
+	// 문맥 캐시 수는 줄이지 않는다: 밀려난 문맥이 닫히며 공유 H2(create-drop) 표를 지워 다른 시험이 깨진다
+	maxHeapSize = "1536m"
 	finalizedBy(tasks.jacocoTestReport)
 }
 

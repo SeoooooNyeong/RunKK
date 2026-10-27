@@ -4,16 +4,19 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -40,13 +43,17 @@ import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.account.ProviderType
+import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.launch
 
-/** 로그인(A1, FR-001): 카카오·구글. 가입된 회원은 홈, 아니면 단계별 가입으로 간다. */
+/** 로그인(A1, FR-001): 카카오·구글·게스트. 가입된 회원은 홈, 아니면 동의 화면으로 간다. */
 @Composable
 fun LoginRoute(viewModel: LoginViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val navigator = LocalRunkkNavigator.current
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             when (event) {
@@ -57,7 +64,22 @@ fun LoginRoute(viewModel: LoginViewModel = hiltViewModel()) {
     }
     LoginScreen(
         state = state,
-        onProvider = { viewModel.onProviderTapped(it, context) },
+        // SDK 로그인은 이 화면의 코루틴에서 띄운다(화면이 사라지면 끊기고 ViewModel은 Activity를 잡지 않는다, AN5-D-11).
+        onProvider = { provider ->
+            viewModel.onLoginStart(provider)?.let { client ->
+                // UNDISPATCHED: 시작 전에 화면이 사라져도 try 안에서 취소를 받아 진행 표시를 푼다.
+                scope.launch(start = CoroutineStart.UNDISPATCHED) {
+                    val token = try {
+                        client.signIn(context)
+                    } catch (e: CancellationException) {
+                        viewModel.onLoginCancelled()
+                        throw e
+                    }
+                    viewModel.onLoginToken(token)
+                }
+            }
+        },
+        onGuest = { navigator.navigate(Routes.GUEST_START) },
         onErrorShown = viewModel::onErrorShown
     )
 }
@@ -67,7 +89,8 @@ fun LoginScreen(
     state: LoginUiState,
     onProvider: (ProviderType) -> Unit,
     onErrorShown: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onGuest: () -> Unit = {}
 ) {
     val snackbar = remember { SnackbarHostState() }
     val errorText = state.error?.asString()
@@ -86,7 +109,7 @@ fun LoginScreen(
         )
         Column(modifier = Modifier.fillMaxSize().padding(start = 24.dp, end = 24.dp, bottom = 40.dp)) {
             LoginIntro(modifier = Modifier.weight(1f).fillMaxWidth())
-            LoginButtons(state, onProvider)
+            LoginButtons(state, onProvider, onGuest)
         }
         RunkkSnackbarHost(snackbar, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 120.dp))
     }
@@ -120,9 +143,9 @@ private fun LoginIntro(modifier: Modifier = Modifier) {
     }
 }
 
-/** 카카오·구글 시작 버튼. */
+/** 카카오·구글 시작 버튼, "또는" 구분선, "게스트로 시작하기"(FR-001, FR-197). */
 @Composable
-private fun LoginButtons(state: LoginUiState, onProvider: (ProviderType) -> Unit) {
+private fun LoginButtons(state: LoginUiState, onProvider: (ProviderType) -> Unit, onGuest: () -> Unit) {
     val googleLabel =
         if (state.inProgress == ProviderType.GOOGLE) R.string.me_login_google_in_progress else R.string.me_login_google
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -139,6 +162,27 @@ private fun LoginButtons(state: LoginUiState, onProvider: (ProviderType) -> Unit
             isEnabled = state.inProgress == null,
             modifier = Modifier.fillMaxWidth()
         )
+        OrDivider()
+        RunkkSecondaryButton(
+            text = stringResource(R.string.me_login_guest),
+            onClick = onGuest,
+            isEnabled = state.inProgress == null,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+/** 소셜 로그인과 게스트 시작 사이 "또는" 구분선. */
+@Composable
+private fun OrDivider() {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        HorizontalDivider(modifier = Modifier.weight(1f), color = RunkkColors.Border)
+        Text(stringResource(R.string.me_login_or), style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
+        HorizontalDivider(modifier = Modifier.weight(1f), color = RunkkColors.Border)
     }
 }
 

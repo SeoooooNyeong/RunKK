@@ -102,7 +102,7 @@ class HomeScreenTest {
         compose.onNodeWithContentDescription("3킬로미터").assertIsSelected()
         compose.onNodeWithContentDescription("5킬로미터").assertIsNotSelected()
         assertEquals(emptyList(), started, "거리를 고르는 것만으로 매칭을 시작하지 않는다")
-        compose.onNodeWithText("배틀런 시작").performScrollTo().performClick()
+        compose.onNodeWithText("랜덤 매칭 시작").performScrollTo().performClick()
         assertEquals(listOf(Distance(3_000)), started)
         assertEquals(emptyList(), routes)
     }
@@ -122,10 +122,15 @@ class HomeScreenTest {
     }
 
     @Test
-    fun `미전송 기록이 있으면 안내를 누르면 기록 목록으로 간다`() {
-        show(HomeUiState(isLoading = false, pendingCount = 2))
-        compose.onNodeWithText("미전송 기록 2건 · 연결되면 자동으로 보내요").performScrollTo().performClick()
+    fun `자유런 칩은 러닝 설정의 음성·진동을 보이고, 오늘 칸을 누르면 기록 목록으로 간다`() {
+        show(HomeUiState(isLoading = false, isRunVoiceOn = true, isRunVibrationOn = false, pendingCount = 2))
+        compose.onNodeWithText("음성 켬").performScrollTo().assertExists()
+        compose.onNodeWithText("진동 끔").performScrollTo().assertExists()
+        compose.onNodeWithContentDescription("오늘 달린 거리 0.00킬로미터, 아직 달리지 않았어요")
+            .performScrollTo()
+            .performClick()
         assertEquals(listOf(Routes.RECORDS), routes)
+        compose.onNodeWithText("미전송 기록", substring = true).assertDoesNotExist()
     }
 
     @Test
@@ -136,7 +141,7 @@ class HomeScreenTest {
             weekly = WeeklyGoalProgress(4, Distance(20_000), 2, Distance(12_000), 50, 60)
         )
         show(HomeUiState(isLoading = false, dashboard = dashboard, isHeaderLoading = false))
-        compose.onNodeWithContentDescription("오늘 3.02킬로미터, 18분 20초, 2회").performScrollTo().assertExists()
+        compose.onNodeWithContentDescription("오늘 달린 거리 3.02킬로미터, 18분 20초, 2회").performScrollTo().assertExists()
         compose.onNodeWithContentDescription("이번 주 목표 거리 60% 달성, 4회 중 2회")
             .performScrollTo()
             .assertHasClickAction()
@@ -172,13 +177,12 @@ class HomeScreenTest {
                     )
             )
         )
-        compose.onNodeWithText("오늘 계획 그대로").performScrollTo().assertExists()
         compose.onNodeWithContentDescription("오늘 목표 5킬로미터").performScrollTo().assertExists()
         compose.onNodeWithContentDescription("목표 페이스 1킬로미터당 5분 30초").performScrollTo().assertExists()
     }
 
     @Test
-    fun `설정 목표면 지난번 설정 그대로와 목표 거리 칩을 보인다(FR-048)`() {
+    fun `설정 목표면 목표 거리 칩을 보인다(FR-048)`() {
         show(
             HomeUiState(
                 isLoading = false,
@@ -186,7 +190,6 @@ class HomeScreenTest {
                 freeRunGoal = FreeRunGoal(PlanSnapshot(Distance(3_000), null), isFromCoachPlan = false)
             )
         )
-        compose.onNodeWithText("지난번 설정 그대로").performScrollTo().assertExists()
         compose.onNodeWithText("3km").performScrollTo().assertExists()
         compose.onNodeWithContentDescription("목표 3킬로미터").performScrollTo().assertExists()
     }
@@ -203,7 +206,7 @@ class HomeScreenTest {
     fun `상단은 닉네임·티어·레벨과 리워드 잔액(상점으로)을 보인다`() {
         show(HomeUiState(isLoading = false, isHeaderLoading = false, header = HomeHeader("달리는곰", "골드", 3, 1_250)))
         compose.onNodeWithText("달리는곰").assertExists()
-        compose.onNodeWithText("골드 · Lv.3").assertExists()
+        compose.onNodeWithText("골드, Lv.3").assertExists()
         compose.onNodeWithContentDescription("리워드 잔액 1,250").performClick()
         assertEquals(listOf(Routes.SHOP), routes)
     }
@@ -226,7 +229,7 @@ class HomeScreenTest {
     @Test
     fun `프로필을 못 읽었으면 자리를 기본 문구로 채운다`() {
         show(HomeUiState(isLoading = false, isHeaderLoading = false))
-        compose.onNodeWithText("언랭 · Lv.-").assertExists()
+        compose.onNodeWithText("언랭, Lv.-").assertExists()
         compose.onNodeWithContentDescription("리워드 잔액 -").assertExists()
     }
 }

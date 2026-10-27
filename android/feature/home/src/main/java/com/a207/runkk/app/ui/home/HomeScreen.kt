@@ -6,12 +6,12 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -34,9 +34,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.isTraversalGroup
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -44,11 +47,12 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.a207.runkk.app.core.designsystem.AvatarBackdrop
 import com.a207.runkk.app.core.designsystem.RunkkAvatarArt
 import com.a207.runkk.app.core.designsystem.RunkkAvatarPortrait
 import com.a207.runkk.app.core.designsystem.RunkkButtonSize
-import com.a207.runkk.app.core.designsystem.RunkkCard
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkFormat
@@ -62,13 +66,9 @@ import com.a207.runkk.app.core.designsystem.RunkkPrimaryButton
 import com.a207.runkk.app.core.designsystem.RunkkProgressBar
 import com.a207.runkk.app.core.designsystem.RunkkSegmentRow
 import com.a207.runkk.app.core.designsystem.RunkkSegmentedTabs
-import com.a207.runkk.app.core.designsystem.RunkkShapes
-import com.a207.runkk.app.core.designsystem.RunkkStatTile
 import com.a207.runkk.app.core.designsystem.RunkkTextLink
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
-import com.a207.runkk.app.core.designsystem.StatTileStyle
-import com.a207.runkk.app.core.designsystem.StatTileValue
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.designsystem.runkkDashedBorder
 import com.a207.runkk.app.core.model.Distance
@@ -83,10 +83,15 @@ import java.time.LocalDate
 import java.util.Locale
 import kotlin.math.roundToInt
 
-/** 홈(A5): 우리 집, 자유런·배틀런 시작, 오늘·이번 주 요약, 스트릭·잔디, 미전송 기록. */
+/** 홈(A5·A5-2): 상단(닉네임·잔액·알림), 화면을 채우는 우리 집(오늘·이번 주, 랜드마크, 아바타, 자유런·배틀런 시작). */
 @Composable
 fun HomeRoute(viewModel: HomeViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    // 러닝 결과·다른 화면에서 돌아오면 요약을 다시 읽는다(처음 표시는 init이 읽는다).
+    LifecycleResumeEffect(viewModel) {
+        viewModel.onResumed()
+        onPauseOrDispose {}
+    }
     val navigator = LocalRunkkNavigator.current
     HomeScreen(
         state = state,
@@ -111,50 +116,36 @@ fun HomeScreen(
     onBattleDistanceSelected: (Distance) -> Unit = {},
     onBattleStart: (Distance) -> Unit = {}
 ) {
-    Column(
-        modifier = modifier.fillMaxSize().background(
-            RunkkColors.Background
-        ).verticalScroll(rememberScrollState()).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(24.dp)
-    ) {
-        RunkkLogo(
-            RunkkLogoKind.WordmarkRrun,
-            height = 24.dp,
-            contentDescription = stringResource(R.string.home_logo_description)
-        )
-        Header(state, onNavigate)
-        HouseCard(state.dashboard, state.faceKey, state.faceLayers, onAvatar = { onNavigate(Routes.AVATAR) })
-        RunCard(state, onModeSelected, onNavigate, onBattleDistanceSelected, onBattleStart)
-        if (state.error != null && state.dashboard == null) {
-            RunkkErrorState(state.error.asString(), onRetry = onRetry)
-        } else {
-            SummaryTiles(state.dashboard, onCoach = { onNavigate(Routes.COACH) })
-            state.dashboard?.let { StreakCard(it, state.today, onRecords = { onNavigate(Routes.RECORDS) }) }
-            state.dashboard?.crew?.let { crew -> CrewCard(crew, onCrew = { onNavigate(Routes.CREW) }) }
-        }
-        if (state.pendingCount > 0) {
-            PendingCard(state.pendingCount, onRecords = { onNavigate(Routes.RECORDS) })
+    // 우리 집은 화면 남은 높이를 채운다. 작은 화면에서는 최소 높이를 지키고 화면이 스크롤된다.
+    BoxWithConstraints(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
+        val roomHeight = (maxHeight - TOP_PART_HEIGHT).coerceAtLeast(ROOM_MIN_HEIGHT)
+        Column(
+            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            RunkkLogo(
+                RunkkLogoKind.WordmarkRrun,
+                height = 24.dp,
+                contentDescription = stringResource(R.string.home_logo_description)
+            )
+            Header(state, onNavigate)
+            HouseRoom(
+                state = state,
+                actions = HomeRoomActions(onModeSelected, onNavigate, onRetry, onBattleDistanceSelected, onBattleStart),
+                modifier = Modifier.fillMaxWidth().height(roomHeight)
+            )
         }
     }
 }
 
-/** 미전송 기록 안내 카드. 누르면 기록 목록. */
-@Composable
-private fun PendingCard(count: Int, onRecords: () -> Unit) {
-    RunkkCard(
-        isDashed = true,
-        background = RunkkColors.Background,
-        shape = RunkkShapes.Medium,
-        onClick = onRecords,
-        onClickLabel = stringResource(R.string.home_open_records)
-    ) {
-        Text(
-            stringResource(R.string.home_pending_notice, count),
-            style = RunkkTextStyles.Caption,
-            color = RunkkColors.TextSecondary
-        )
-    }
-}
+/** 우리 집 안의 행동 묶음. */
+private class HomeRoomActions(
+    val onModeSelected: (HomeRunMode) -> Unit,
+    val onNavigate: (String) -> Unit,
+    val onRetry: () -> Unit,
+    val onBattleDistanceSelected: (Distance) -> Unit,
+    val onBattleStart: (Distance) -> Unit
+)
 
 @Composable
 private fun Header(state: HomeUiState, onNavigate: (String) -> Unit) {
@@ -252,65 +243,158 @@ private fun SkeletonBar(width: Dp, height: Dp) {
     Box(Modifier.size(width = width, height = height).clip(RoundedCornerShape(4.dp)).background(RunkkColors.Border))
 }
 
+/**
+ * 우리 집(A5): 고른 랜드마크 배경(FR-202) 위에 오늘·이번 주 칸, 랜드마크 표기·누적 거리, 아바타, 러닝 시작 패널을 겹친다.
+ * 배경은 장식이라 읽지 않고, 위에 얹는 칸은 반투명 바탕으로 글자를 읽기 쉽게 한다.
+ */
 @Composable
-private fun HouseCard(dashboard: Dashboard?, faceKey: String?, faceLayers: List<FaceLayer>, onAvatar: () -> Unit) {
-    RunkkCard(
-        modifier = Modifier.fillMaxWidth().height(136.dp),
-        shape = RunkkShapes.ExtraLarge,
-        verticalArrangement = Arrangement.Center
+private fun HouseRoom(state: HomeUiState, actions: HomeRoomActions, modifier: Modifier = Modifier) {
+    val shape = RoundedCornerShape(ROOM_CORNER)
+    val roomLabel = stringResource(R.string.home_house_title)
+    Box(
+        modifier = modifier
+            .clip(shape)
+            .background(RunkkColors.Surface)
+            .border(1.dp, RunkkColors.Border, shape)
+            .semantics {
+                contentDescription = roomLabel
+                isTraversalGroup = true
+            }
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
-            verticalAlignment = Alignment.CenterVertically
+        AvatarBackdrop(state.backgroundKey, modifier = Modifier.matchParentSize())
+        Column(
+            modifier = Modifier.fillMaxSize().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            AvatarSlot(faceKey, faceLayers, onAvatar)
-            HouseInfo(dashboard)
+            SummaryTiles(state.dashboard, onNavigate = actions.onNavigate)
+            Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                if (state.error != null && state.dashboard == null) {
+                    RunkkErrorState(
+                        state.error.asString(),
+                        onRetry = actions.onRetry,
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(overlayColor())
+                    )
+                } else {
+                    RoomAvatar(
+                        state.faceKey,
+                        state.faceLayers,
+                        onAvatar = { actions.onNavigate(Routes.AVATAR) },
+                        modifier = Modifier.align(Alignment.BottomCenter)
+                    )
+                    LandmarkTag(state.dashboard, modifier = Modifier.align(Alignment.TopStart))
+                }
+            }
+            RunPanel(state, actions)
         }
     }
 }
 
-/** 우리 집의 아바타 자리(점선 카드): 기본 캐릭터·셀카 얼굴 그림과 "아바타". 누르면 아바타 꾸미기. */
+/** 우리 집 위에 얹는 칸의 반투명 바탕(지금 테마 배경색, 배경 그림 위 글자 대비). */
 @Composable
-private fun AvatarSlot(faceKey: String?, faceLayers: List<FaceLayer>, onAvatar: () -> Unit) {
-    RunkkCard(
-        modifier = Modifier.size(width = 80.dp, height = 104.dp),
-        shape = RunkkShapes.Medium,
-        isDashed = true,
-        background = RunkkColors.Surface,
-        onClick = onAvatar,
-        onClickLabel = stringResource(R.string.home_house_edit_avatar),
-        verticalArrangement = Arrangement.Center
-    ) {
-        if (RunkkAvatarArt.characterOf(faceKey) != null || faceLayers.isNotEmpty()) {
-            RunkkAvatarPortrait(
-                faceKey,
-                faceLayers,
-                Modifier.size(56.dp).align(Alignment.CenterHorizontally).testTag(HOME_FACE_TAG)
+private fun overlayColor(): Color = RunkkColors.Background.copy(alpha = OVERLAY_ALPHA)
+
+/** 오늘 달린 거리·이번 주 목표 두 칸. 오늘은 기록 목록, 이번 주는 코치로 간다. */
+@Composable
+private fun SummaryTiles(dashboard: Dashboard?, onNavigate: (String) -> Unit) {
+    val resources = LocalContext.current.resources
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        RoomTile(
+            label = stringResource(R.string.home_summary_today),
+            spoken = todaySpoken(resources, dashboard),
+            onClick = { onNavigate(Routes.RECORDS) },
+            onClickLabel = stringResource(R.string.home_open_records),
+            modifier = Modifier.weight(1f)
+        ) {
+            RunkkNumberText(
+                value = dashboard?.today?.let(RunkkFormat::km) ?: "0.00",
+                unit = "KM",
+                style = RunkkTextStyles.display(28, lineHeightRatio = 1f),
+                color = RunkkColors.TextPrimary
+            )
+            Text(
+                dashboard?.let { todayCaption(resources, it) } ?: stringResource(R.string.home_today_not_run),
+                style = RunkkTextStyles.Micro,
+                color = RunkkColors.TextSecondary
             )
         }
-        Text(
-            stringResource(R.string.home_house_avatar),
-            style = RunkkTextStyles.Caption,
-            color = RunkkColors.TextSecondary,
-            modifier = Modifier.align(Alignment.CenterHorizontally)
-        )
+        val achievement = dashboard?.weeklyAchievement
+        RoomTile(
+            label = stringResource(R.string.home_summary_week_goal),
+            spoken = dashboard?.let { weeklySpoken(resources, it) } ?: stringResource(R.string.home_summary_set_goal),
+            onClick = { onNavigate(Routes.COACH) },
+            onClickLabel = stringResource(R.string.home_open_coach),
+            modifier = Modifier.weight(1f)
+        ) {
+            RunkkNumberText(
+                value = achievement?.let { "${(it * PERCENT).roundToInt()}" } ?: "-",
+                unit = achievement?.let { "%" },
+                style = RunkkTextStyles.display(28, lineHeightRatio = 1f),
+                color = RunkkColors.Lime
+            )
+            if (achievement != null) {
+                RunkkProgressBar(
+                    progress = achievement.toFloat(),
+                    height = 6.dp,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            } else {
+                Text(
+                    stringResource(R.string.home_summary_set_goal),
+                    style = RunkkTextStyles.Micro,
+                    color = RunkkColors.TextSecondary
+                )
+            }
+        }
     }
 }
 
-/** 우리 집 오른쪽 글: 이름, 다음 랜드마크, 누적 거리. */
+/** 우리 집 위 반투명 칸(누르면 [onClick]). 보조 기술은 "라벨 읽기문구"로 한 번에 읽는다. */
 @Composable
-private fun HouseInfo(dashboard: Dashboard?) {
+private fun RoomTile(
+    label: String,
+    spoken: String,
+    onClick: () -> Unit,
+    onClickLabel: String,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    val shape = RoundedCornerShape(16.dp)
     Column(
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.semantics(mergeDescendants = true) {
-        }
+        modifier = modifier
+            .clip(shape)
+            .background(overlayColor())
+            .border(1.dp, RunkkColors.Border, shape)
+            .clickable(role = Role.Button, onClickLabel = onClickLabel, onClick = onClick)
+            .clearAndSetSemantics {
+                contentDescription = "$label $spoken"
+                role = Role.Button
+                onClick(label = onClickLabel) {
+                    onClick()
+                    true
+                }
+            }
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Text(
-            stringResource(R.string.home_house_title),
-            style = RunkkTextStyles.Caption,
-            color = RunkkColors.TextSecondary
-        )
+        Text(label, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
+        content()
+    }
+}
+
+/** 왼쪽 위 랜드마크 표기와 누적 거리. 아직 랜드마크가 없으면 첫 랜드마크를 향한다는 표기. */
+@Composable
+private fun LandmarkTag(dashboard: Dashboard?, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(overlayColor())
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .semantics(mergeDescendants = true) {},
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
         Text(
             dashboard?.landmark ?: stringResource(R.string.home_house_first_landmark),
             style = RunkkTextStyles.CardTitle,
@@ -319,68 +403,126 @@ private fun HouseInfo(dashboard: Dashboard?) {
         RunkkNumberText(
             value = dashboard?.total?.let(RunkkFormat::km) ?: "0.00",
             unit = "KM",
-            style = RunkkTextStyles.display(24),
+            style = RunkkTextStyles.display(22, lineHeightRatio = 1f),
             color = RunkkColors.Lime
         )
     }
 }
 
+/** 우리 집 가운데 아바타(기본 캐릭터·셀카 얼굴). 그림이 없으면 점선 자리. 누르면 아바타 꾸미기. */
 @Composable
-private fun RunCard(
-    state: HomeUiState,
-    onModeSelected: (HomeRunMode) -> Unit,
-    onNavigate: (String) -> Unit,
-    onBattleDistanceSelected: (Distance) -> Unit,
-    onBattleStart: (Distance) -> Unit
+private fun RoomAvatar(
+    faceKey: String?,
+    faceLayers: List<FaceLayer>,
+    onAvatar: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
+    val hasArt = RunkkAvatarArt.characterOf(faceKey) != null || faceLayers.isNotEmpty()
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(24.dp))
+            .clickable(
+                role = Role.Button,
+                onClickLabel = stringResource(R.string.home_house_edit_avatar),
+                onClick = onAvatar
+            ),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        if (hasArt) {
+            RunkkAvatarPortrait(faceKey, faceLayers, Modifier.size(AVATAR_SIZE).testTag(HOME_FACE_TAG))
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(width = 112.dp, height = 152.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(overlayColor())
+                    .runkkDashedBorder(corner = 16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    stringResource(R.string.home_house_avatar),
+                    style = RunkkTextStyles.Caption,
+                    color = RunkkColors.TextSecondary
+                )
+            }
+        }
+        // 아바타 발밑 그림자(장식).
+        Box(
+            Modifier
+                .size(width = 160.dp, height = 18.dp)
+                .clip(CircleShape)
+                .background(Color.Black.copy(alpha = SHADOW_ALPHA))
+                .clearAndSetSemantics {}
+        )
+    }
+}
+
+/** 러닝 시작 패널: 자유런·배틀런 탭, 칩 줄과 설정, 시작 버튼. */
+@Composable
+private fun RunPanel(state: HomeUiState, actions: HomeRoomActions) {
     val modeDescription = stringResource(R.string.home_mode_description)
-    RunkkCard(shape = RunkkShapes.ExtraLarge, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(overlayColor())
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
         RunkkSegmentedTabs(
             options = listOf(stringResource(R.string.home_mode_free), stringResource(R.string.home_mode_battle)),
             selectedIndex = state.mode.ordinal,
-            onSelect = { onModeSelected(HomeRunMode.entries[it]) },
+            onSelect = { actions.onModeSelected(HomeRunMode.entries[it]) },
             modifier = Modifier.fillMaxWidth().semantics { contentDescription = modeDescription }
         )
         when (state.mode) {
-            HomeRunMode.FREE -> FreeRunPanel(state.freeRunGoal, onNavigate)
-            HomeRunMode.BATTLE -> BattleRunPanel(state.battleDistance, onBattleDistanceSelected, onBattleStart)
+            HomeRunMode.FREE -> FreeRunPanel(state, actions.onNavigate)
+
+            HomeRunMode.BATTLE -> BattleRunPanel(
+                state.battleDistance,
+                actions.onBattleDistanceSelected,
+                actions.onBattleStart,
+                onSettings = { actions.onNavigate(Routes.FREE_RUN_SETTINGS) }
+            )
         }
     }
 }
 
-/** 자유런 탭: 목표 칩(오늘 계획 또는 자유런 설정 목표)과 시작 버튼. */
+/** 자유런 탭: 목표 칩(오늘 계획 또는 자유런 설정 목표), 음성·진동 칩, 설정, 시작 버튼. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ColumnScope.FreeRunPanel(goal: FreeRunGoal, onNavigate: (String) -> Unit) {
+private fun FreeRunPanel(state: HomeUiState, onNavigate: (String) -> Unit) {
+    val goal = state.freeRunGoal
     val plan = goal.plan
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            stringResource(
-                if (goal.isFromCoachPlan) R.string.home_free_plan_caption else R.string.home_free_settings_caption
-            ),
-            style = RunkkTextStyles.Caption,
-            color = RunkkColors.TextSecondary,
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.weight(1f)
-        )
+        ) {
+            val resources = LocalContext.current.resources
+            val spoken = planChipsSpoken(resources, goal)
+            planChips(resources, plan).forEachIndexed { index, chip ->
+                val isTarget = index == 0 && plan?.targetDistance != null
+                RunkkInfoChip(
+                    label = chip,
+                    isHighlighted = isTarget,
+                    isDisplay = isTarget,
+                    spoken = spoken.getOrNull(index)
+                )
+            }
+            RunkkInfoChip(
+                stringResource(if (state.isRunVoiceOn) R.string.home_free_voice_on else R.string.home_free_voice_off)
+            )
+            RunkkInfoChip(
+                stringResource(
+                    if (state.isRunVibrationOn) R.string.home_free_vibration_on else R.string.home_free_vibration_off
+                )
+            )
+        }
         RunkkTextLink(stringResource(R.string.home_free_settings), onClick = {
             onNavigate(Routes.FREE_RUN_SETTINGS)
         }, contentDescription = stringResource(R.string.home_free_settings_description))
-    }
-    FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        val resources = LocalContext.current.resources
-        val spoken = planChipsSpoken(resources, goal)
-        planChips(resources, plan).forEachIndexed { index, chip ->
-            RunkkInfoChip(
-                label = chip,
-                isHighlighted = index == 0 && plan?.targetDistance != null,
-                isDisplay =
-                    index == 0 && plan?.targetDistance != null,
-                spoken = spoken.getOrNull(index)
-            )
-        }
     }
     RunkkPrimaryButton(
         text = stringResource(R.string.home_free_start),
@@ -392,33 +534,36 @@ private fun ColumnScope.FreeRunPanel(goal: FreeRunGoal, onNavigate: (String) -> 
 }
 
 /**
- * 배틀런 탭(시안 HomeHiFi "대결 거리" 라디오 묶음): 안내 문구, 대결 거리 고르기(1·3·5·10km, 처음엔 기본 대결 거리), 시작 버튼.
- * 거리를 고르는 것만으로는 매칭하지 않고 "배틀런 시작"을 눌러야 고른 거리로 매칭을 요청한다(FR-080).
+ * 배틀런 탭(A5-2): 대결 거리 고르기(1·3·5·10km, 처음엔 기본 대결 거리), 설정, "랜덤 매칭 시작".
+ * 거리를 고르는 것만으로는 매칭하지 않고 시작 버튼을 눌러야 고른 거리로 매칭을 요청한다(FR-080).
  */
 @Composable
-private fun ColumnScope.BattleRunPanel(
+private fun BattleRunPanel(
     distance: Distance,
     onDistanceSelected: (Distance) -> Unit,
-    onStart: (Distance) -> Unit
+    onStart: (Distance) -> Unit,
+    onSettings: () -> Unit
 ) {
     val distances = HomeUiState.BATTLE_DISTANCES
     val labels = distances.map(RunkkFormat::targetLabel)
     val groupLabel = stringResource(R.string.home_battle_distance_title)
-    Text(
-        stringResource(R.string.home_battle_caption),
-        style = RunkkTextStyles.Caption,
-        color = RunkkColors.TextSecondary
-    )
-    RunkkSegmentRow(
-        options = labels,
-        selectedIndex = distances.indexOf(distance),
-        onSelect = { onDistanceSelected(distances[it]) },
-        spokenLabels = labels.map { RunkkFormat.spokenLabel(it) },
-        modifier = Modifier.fillMaxWidth().semantics {
-            contentDescription = groupLabel
-            isTraversalGroup = true
-        }
-    )
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        RunkkSegmentRow(
+            options = labels,
+            selectedIndex = distances.indexOf(distance),
+            onSelect = { onDistanceSelected(distances[it]) },
+            spokenLabels = labels.map { RunkkFormat.spokenLabel(it) },
+            modifier = Modifier.weight(1f).semantics {
+                contentDescription = groupLabel
+                isTraversalGroup = true
+            }
+        )
+        RunkkTextLink(
+            stringResource(R.string.home_free_settings),
+            onClick = onSettings,
+            contentDescription = stringResource(R.string.home_battle_settings_description)
+        )
+    }
     RunkkPrimaryButton(
         text = stringResource(R.string.home_battle_start),
         onClick = { onStart(distance) },
@@ -464,116 +609,7 @@ internal fun planChipsSpoken(res: Resources, goal: FreeRunGoal): List<String> {
     )
 }
 
-@Composable
-private fun SummaryTiles(dashboard: Dashboard?, onCoach: () -> Unit) {
-    val resources = LocalContext.current.resources
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        RunkkStatTile(
-            stringResource(R.string.home_summary_today),
-            StatTileValue(
-                dashboard?.today?.let(RunkkFormat::km) ?: "0.00",
-                unit = "KM",
-                spoken = todaySpoken(resources, dashboard)
-            ),
-            style = StatTileStyle(valueStyle = RunkkTextStyles.display(32, lineHeightRatio = 1f)),
-            caption = dashboard?.let { todayCaption(resources, it) }
-                ?: stringResource(R.string.home_summary_today_caption),
-            modifier = Modifier.weight(1f)
-        )
-        val achievement = dashboard?.weeklyAchievement
-        val percentUnit = achievement?.let { "%" }
-        RunkkStatTile(
-            stringResource(R.string.home_summary_week_goal),
-            StatTileValue(
-                achievement?.let { "${(it * PERCENT).roundToInt()}" } ?: "-",
-                unit = percentUnit,
-                spoken = dashboard?.let { weeklySpoken(resources, it) }
-            ),
-            style = StatTileStyle(
-                valueStyle = RunkkTextStyles.display(32, lineHeightRatio = 1f),
-                valueColor = RunkkColors.Lime
-            ),
-            caption = if (achievement == null) stringResource(R.string.home_summary_set_goal) else null,
-            onClick = onCoach,
-            modifier = Modifier.weight(1f)
-        ) {
-            if (achievement != null) RunkkProgressBar(progress = achievement.toFloat())
-        }
-    }
-}
-
-/** 스트릭·잔디(FR-052~FR-055): 최근 4주, 달린 날은 라임. */
-@Composable
-private fun StreakCard(dashboard: Dashboard, today: LocalDate?, onRecords: () -> Unit) {
-    val end = today ?: dashboard.grass.keys.maxOrNull() ?: return
-    val days = (GRASS_DAYS - 1 downTo 0).map { end.minusDays(it.toLong()) }
-    val ran = days.count { (dashboard.grass[it]?.meters ?: 0L) > 0 }
-    val description = stringResource(R.string.home_streak_description, ran)
-    RunkkCard(
-        onClick = onRecords,
-        onClickLabel = stringResource(R.string.home_streak_open_calendar),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Row(verticalAlignment = Alignment.Bottom) {
-            Text(
-                stringResource(R.string.home_streak_title),
-                style = RunkkTextStyles.CardTitle,
-                color = RunkkColors.TextPrimary,
-                modifier = Modifier.weight(1f)
-            )
-            RunkkNumberText(
-                value = "${dashboard.streakDays}",
-                unit = stringResource(R.string.home_streak_days_unit),
-                style = RunkkTextStyles.display(24),
-                color = RunkkColors.Lime
-            )
-        }
-        Column(
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-            modifier = Modifier.semantics(mergeDescendants = true) { contentDescription = description }
-        ) {
-            days.chunked(DAYS_PER_WEEK).forEach { week ->
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    week.forEach { day ->
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .aspectRatio(2f)
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(grassColor(dashboard, day))
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun CrewCard(crew: Dashboard.CrewArea, onCrew: () -> Unit) {
-    RunkkCard(onClick = onCrew, onClickLabel = stringResource(R.string.home_crew_open)) {
-        Text(
-            stringResource(R.string.home_crew_title, crew.crewName),
-            style = RunkkTextStyles.Caption,
-            color = RunkkColors.TextSecondary
-        )
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                crew.landmark ?: stringResource(R.string.home_crew_first_landmark),
-                style = RunkkTextStyles.CardTitle,
-                color = RunkkColors.TextPrimary,
-                modifier = Modifier.weight(1f)
-            )
-            Text(
-                stringResource(R.string.home_crew_streak_days, crew.streakDays),
-                style = RunkkTextStyles.BodyStrong,
-                color = RunkkColors.Lime
-            )
-        }
-    }
-}
-
-/** 오늘 칸 아래 줄(하이파이 HiHome "[시간] · [n]회"). 오늘 기록이 없으면 안내 문구. */
+/** 오늘 칸 아래 줄("[시간], [n]회"). 오늘 기록이 없으면 안내 문구. */
 internal fun todayCaption(res: Resources, dashboard: Dashboard): String = if (dashboard.todayRuns <= 0) {
     res.getString(R.string.home_today_not_run)
 } else {
@@ -605,26 +641,19 @@ internal fun weeklySpoken(res: Resources, dashboard: Dashboard): String {
     ).joinToString(", ")
 }
 
-/** 잔디 칸 색: 서버 진하기(0~4)가 있으면 단계별로, 없으면 달린 날만 라임. */
-private fun grassColor(dashboard: Dashboard, day: LocalDate): Color {
-    val level = dashboard.grassLevels[day] ?: if ((dashboard.grass[day]?.meters ?: 0L) > 0) MAX_GRASS_LEVEL else 0
-    return GRASS_COLORS[level.coerceIn(0, MAX_GRASS_LEVEL)]
-}
-
-private const val MAX_GRASS_LEVEL = 4
-private val GRASS_COLORS = listOf(
-    RunkkColors.Border,
-    RunkkColors.LimeContainer,
-    RunkkColors.LimeDim,
-    RunkkColors.Lime.copy(alpha = 0.8f),
-    RunkkColors.Lime
-)
-
 private const val PERCENT = 100
-private const val GRASS_DAYS = 28
-private const val DAYS_PER_WEEK = 7
+private const val OVERLAY_ALPHA = 0.78f
+private const val SHADOW_ALPHA = 0.28f
+private val ROOM_CORNER = 28.dp
+private val AVATAR_SIZE = 168.dp
 
-@Preview(name = "A5 홈", widthDp = 390, heightDp = 1100)
+/** 우리 집 위쪽(바깥 여백 32 + 로고 24 + 상단 48 + 사이 32). */
+private val TOP_PART_HEIGHT = 136.dp
+
+/** 우리 집 최소 높이: 두 칸 + 아바타 + 러닝 패널이 겹치지 않는 높이. */
+private val ROOM_MIN_HEIGHT = 560.dp
+
+@Preview(name = "A5 홈", widthDp = 390, heightDp = 844)
 @Composable
 private fun HomeScreenPreview() {
     val today = LocalDate.of(2026, 10, 20)
@@ -638,12 +667,11 @@ private fun HomeScreenPreview() {
                     total = Distance(128_400),
                     landmark = "한강 다리 12개",
                     streakDays = 4,
-                    grass = (0L..27L).filter { it % 3 != 0L }.associate { today.minusDays(it) to Distance(4_000) },
+                    grass = emptyMap(),
                     weeklyAchievement = 0.6,
-                    crew = Dashboard.CrewArea("새벽크루", 9, emptyMap(), "남산 3바퀴")
+                    crew = null
                 ),
                 freeRunGoal = FreeRunGoal(PlanSnapshot(Distance(5_000), Pace(330)), isFromCoachPlan = true),
-                pendingCount = 1,
                 header = HomeHeader("달리는곰", "골드", 3, 1_250),
                 isHeaderLoading = false
             ),

@@ -1,5 +1,6 @@
 package com.a207.runkk.infra.integration.auth;
 
+import com.a207.runkk.member.AccessGrant;
 import com.a207.runkk.member.AuthFailureException;
 import com.a207.runkk.member.ProviderType;
 import com.a207.runkk.member.ProviderUnavailableException;
@@ -106,6 +107,13 @@ public class JwtTokenIssuer implements TokenIssuer {
     @Override
     public long verify(String accessToken) {
         return memberIdOf(parse(accessToken, ACCESS));
+    }
+
+    /** 접근 토큰의 회원과 만료 시각(exp, 초 단위). 실시간 연결이 이 시각에 4401로 닫힌다(D-110). */
+    @Override
+    public AccessGrant verifyGrant(String accessToken) {
+        JWTClaimsSet claims = parse(accessToken, ACCESS);
+        return new AccessGrant(memberIdOf(claims), claims.getExpirationTime().toInstant());
     }
 
     @Override

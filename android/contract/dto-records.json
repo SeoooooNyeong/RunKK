@@ -14,6 +14,16 @@
   ],
   "file": "web/admin/AdminAuthController.java"
  },
+ "AuthController.GuestSessionRequest": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "guestCredential",
+    "required": true
+   }
+  ],
+  "file": "web/auth/AuthController.java"
+ },
  "AuthController.LoginRequest": {
   "components": [
    {
@@ -60,6 +70,34 @@
   ],
   "file": "web/auth/AuthController.java"
  },
+ "AuthController.SocialLinkRequest": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "provider",
+    "required": true
+   },
+   {
+    "kind": "leaf",
+    "name": "providerToken",
+    "required": true
+   }
+  ],
+  "file": "web/auth/AuthController.java"
+ },
+ "AuthController.SocialLinkResponse": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "accountType"
+   },
+   {
+    "kind": "leaf",
+    "name": "provider"
+   }
+  ],
+  "file": "web/auth/AuthController.java"
+ },
  "AuthController.TokenResponse": {
   "components": [
    {
@@ -96,6 +134,10 @@
     "name": "skinTone"
    },
    {
+    "kind": "leaf",
+    "name": "backgroundKey"
+   },
+   {
     "kind": "map",
     "name": "equipped"
    },
@@ -122,6 +164,58 @@
    {
     "kind": "leaf",
     "name": "failureMessage"
+   }
+  ],
+  "file": "web/avatar/AvatarDtos.java"
+ },
+ "AvatarDtos.BackgroundRequest": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "key"
+   }
+  ],
+  "file": "web/avatar/AvatarDtos.java"
+ },
+ "AvatarDtos.BackgroundsResponse": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "selectedKey"
+   },
+   {
+    "kind": "list",
+    "name": "backgrounds",
+    "ref": "AvatarDtos.BackgroundsResponse.Background"
+   }
+  ],
+  "file": "web/avatar/AvatarDtos.java"
+ },
+ "AvatarDtos.BackgroundsResponse.Background": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "key"
+   },
+   {
+    "kind": "leaf",
+    "name": "name"
+   },
+   {
+    "kind": "leaf",
+    "name": "stage"
+   },
+   {
+    "kind": "leaf",
+    "name": "distanceMeters"
+   },
+   {
+    "kind": "leaf",
+    "name": "unlocked"
+   },
+   {
+    "kind": "leaf",
+    "name": "unlockedAt"
    }
   ],
   "file": "web/avatar/AvatarDtos.java"
@@ -530,6 +624,10 @@
    {
     "kind": "leaf",
     "name": "gapAlertInterval"
+   },
+   {
+    "kind": "leaf",
+    "name": "proximityAlert"
    }
   ],
   "file": "member/BattleSettings.java"
@@ -590,6 +688,106 @@
    }
   ],
   "file": "web/admin/celebrity/CelebrityAdminController.java"
+ },
+ "ChatController.ChatMessageItem": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "messageId"
+   },
+   {
+    "kind": "leaf",
+    "name": "authorId"
+   },
+   {
+    "kind": "leaf",
+    "name": "authorName"
+   },
+   {
+    "kind": "leaf",
+    "name": "content"
+   },
+   {
+    "kind": "leaf",
+    "name": "sentAt"
+   },
+   {
+    "kind": "map",
+    "name": "reactions"
+   },
+   {
+    "kind": "list-leaf",
+    "name": "myReactions"
+   },
+   {
+    "kind": "leaf",
+    "name": "mine"
+   },
+   {
+    "kind": "leaf",
+    "name": "canDelete"
+   },
+   {
+    "kind": "leaf",
+    "name": "clientMessageId"
+   }
+  ],
+  "file": "web/chat/ChatController.java"
+ },
+ "ChatController.ChatPageResponse": {
+  "components": [
+   {
+    "kind": "list",
+    "name": "messages",
+    "ref": "ChatController.ChatMessageItem"
+   },
+   {
+    "kind": "leaf",
+    "name": "hasMore"
+   }
+  ],
+  "file": "web/chat/ChatController.java"
+ },
+ "ChatController.ChatPostRequest": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "clientMessageId",
+    "required": true
+   },
+   {
+    "kind": "leaf",
+    "name": "content",
+    "required": true
+   }
+  ],
+  "file": "web/chat/ChatController.java"
+ },
+ "ChatController.ReactionResponse": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "messageId"
+   },
+   {
+    "kind": "map",
+    "name": "reactions"
+   },
+   {
+    "kind": "list-leaf",
+    "name": "myReactions"
+   }
+  ],
+  "file": "web/chat/ChatController.java"
+ },
+ "ClientAddress": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "value"
+   }
+  ],
+  "file": "web/attempt/ClientAddress.java"
  },
  "CoachController.PlanRequest": {
   "components": [
@@ -653,6 +851,89 @@
    }
   ],
   "file": "web/crew/CrewController.java"
+ },
+ "CrewDtos.AlbumQuery": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "cursor"
+   },
+   {
+    "kind": "leaf",
+    "name": "size"
+   }
+  ],
+  "file": "web/crew/CrewDtos.java"
+ },
+ "CrewDtos.AlbumResponse": {
+  "components": [
+   {
+    "kind": "list",
+    "name": "photos",
+    "ref": "CrewDtos.AlbumResponse.Photo"
+   },
+   {
+    "kind": "leaf",
+    "name": "nextCursor"
+   }
+  ],
+  "file": "web/crew/CrewDtos.java"
+ },
+ "CrewDtos.AlbumResponse.Photo": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "photoId"
+   },
+   {
+    "kind": "leaf",
+    "name": "postId"
+   },
+   {
+    "kind": "leaf",
+    "name": "url"
+   },
+   {
+    "kind": "leaf",
+    "name": "postedAt"
+   }
+  ],
+  "file": "web/crew/CrewDtos.java"
+ },
+ "CrewDtos.AttendanceRequest": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "answer",
+    "required": true
+   }
+  ],
+  "file": "web/crew/CrewDtos.java"
+ },
+ "CrewDtos.AttendanceResponse": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "postId"
+   },
+   {
+    "kind": "leaf",
+    "name": "myAnswer"
+   },
+   {
+    "kind": "leaf",
+    "name": "goingCount"
+   },
+   {
+    "kind": "leaf",
+    "name": "notGoingCount"
+   },
+   {
+    "kind": "leaf",
+    "name": "undecidedCount"
+   }
+  ],
+  "file": "web/crew/CrewDtos.java"
  },
  "CrewDtos.CreatedResponse": {
   "components": [
@@ -769,11 +1050,6 @@
     "ref": "CrewDtos.CrewListResponse.Item"
    },
    {
-    "kind": "record",
-    "name": "recommendations",
-    "ref": "CrewDtos.RecommendationsResponse"
-   },
-   {
     "kind": "leaf",
     "name": "nextCursor"
    }
@@ -817,10 +1093,6 @@
    {
     "kind": "leaf",
     "name": "joinPolicy"
-   },
-   {
-    "kind": "leaf",
-    "name": "tagMatches"
    }
   ],
   "file": "web/crew/CrewDtos.java"
@@ -830,10 +1102,6 @@
    {
     "kind": "leaf",
     "name": "intro"
-   },
-   {
-    "kind": "list-leaf",
-    "name": "tags"
    }
   ],
   "file": "web/crew/CrewDtos.java"
@@ -935,6 +1203,16 @@
    {
     "kind": "leaf",
     "name": "reason"
+   }
+  ],
+  "file": "web/crew/CrewDtos.java"
+ },
+ "CrewDtos.GoalRequest": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "goalMeters",
+    "required": true
    }
   ],
   "file": "web/crew/CrewDtos.java"
@@ -1047,6 +1325,19 @@
   ],
   "file": "web/crew/CrewDtos.java"
  },
+ "CrewDtos.ManagerResponse": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "memberId"
+   },
+   {
+    "kind": "leaf",
+    "name": "role"
+   }
+  ],
+  "file": "web/crew/CrewDtos.java"
+ },
  "CrewDtos.MyCrewResponse": {
   "components": [
    {
@@ -1083,11 +1374,121 @@
   ],
   "file": "web/crew/CrewDtos.java"
  },
- "CrewDtos.PostListQuery": {
+ "CrewDtos.PinRequest": {
   "components": [
    {
     "kind": "leaf",
+    "name": "pinned",
+    "required": true
+   }
+  ],
+  "file": "web/crew/CrewDtos.java"
+ },
+ "CrewDtos.PinResponse": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "postId"
+   },
+   {
+    "kind": "leaf",
+    "name": "pinned"
+   }
+  ],
+  "file": "web/crew/CrewDtos.java"
+ },
+ "CrewDtos.PollAnswerRequest": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "optionNo",
+    "required": true
+   }
+  ],
+  "file": "web/crew/CrewDtos.java"
+ },
+ "CrewDtos.PollResultResponse": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "postId"
+   },
+   {
+    "kind": "leaf",
+    "name": "question"
+   },
+   {
+    "kind": "leaf",
+    "name": "method"
+   },
+   {
+    "kind": "leaf",
+    "name": "closesAt"
+   },
+   {
+    "kind": "leaf",
+    "name": "closed"
+   },
+   {
+    "kind": "list",
+    "name": "options",
+    "ref": "CrewDtos.PollResultResponse.Option"
+   },
+   {
+    "kind": "leaf",
+    "name": "myOptionNo"
+   }
+  ],
+  "file": "web/crew/CrewDtos.java"
+ },
+ "CrewDtos.PollResultResponse.Option": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "optionNo"
+   },
+   {
+    "kind": "leaf",
+    "name": "label"
+   },
+   {
+    "kind": "leaf",
+    "name": "count"
+   },
+   {
+    "kind": "list",
+    "name": "respondents",
+    "ref": "CrewDtos.PollResultResponse.Respondent"
+   }
+  ],
+  "file": "web/crew/CrewDtos.java"
+ },
+ "CrewDtos.PollResultResponse.Respondent": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "memberId"
+   },
+   {
+    "kind": "leaf",
+    "name": "displayName"
+   }
+  ],
+  "file": "web/crew/CrewDtos.java"
+ },
+ "CrewDtos.PostListQuery": {
+  "components": [
+   {
+    "kind": "list-leaf",
+    "name": "kinds"
+   },
+   {
+    "kind": "leaf",
     "name": "kind"
+   },
+   {
+    "kind": "leaf",
+    "name": "pinnedOnly"
    },
    {
     "kind": "leaf",
@@ -1147,6 +1548,14 @@
    {
     "kind": "leaf",
     "name": "raceContributionMeters"
+   },
+   {
+    "kind": "leaf",
+    "name": "notGoingCount"
+   },
+   {
+    "kind": "leaf",
+    "name": "undecidedCount"
    }
   ],
   "file": "web/crew/CrewDtos.java"
@@ -1181,6 +1590,110 @@
     "kind": "record",
     "name": "crewRun",
     "ref": "CrewDtos.PostListResponse.CrewRun"
+   },
+   {
+    "kind": "leaf",
+    "name": "canDelete"
+   },
+   {
+    "kind": "record",
+    "name": "meetup",
+    "ref": "CrewDtos.PostListResponse.Meetup"
+   },
+   {
+    "kind": "record",
+    "name": "notice",
+    "ref": "CrewDtos.PostListResponse.Notice"
+   },
+   {
+    "kind": "record",
+    "name": "poll",
+    "ref": "CrewDtos.PostListResponse.Poll"
+   },
+   {
+    "kind": "list",
+    "name": "photos",
+    "ref": "CrewDtos.PostListResponse.Photo"
+   }
+  ],
+  "file": "web/crew/CrewDtos.java"
+ },
+ "CrewDtos.PostListResponse.Meetup": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "scheduledAt"
+   },
+   {
+    "kind": "leaf",
+    "name": "placeName"
+   },
+   {
+    "kind": "leaf",
+    "name": "capacity"
+   },
+   {
+    "kind": "leaf",
+    "name": "goingCount"
+   },
+   {
+    "kind": "leaf",
+    "name": "notGoingCount"
+   },
+   {
+    "kind": "leaf",
+    "name": "undecidedCount"
+   },
+   {
+    "kind": "leaf",
+    "name": "myAnswer"
+   }
+  ],
+  "file": "web/crew/CrewDtos.java"
+ },
+ "CrewDtos.PostListResponse.Notice": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "pinned"
+   }
+  ],
+  "file": "web/crew/CrewDtos.java"
+ },
+ "CrewDtos.PostListResponse.Photo": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "photoId"
+   },
+   {
+    "kind": "leaf",
+    "name": "url"
+   }
+  ],
+  "file": "web/crew/CrewDtos.java"
+ },
+ "CrewDtos.PostListResponse.Poll": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "method"
+   },
+   {
+    "kind": "leaf",
+    "name": "closesAt"
+   },
+   {
+    "kind": "leaf",
+    "name": "closed"
+   },
+   {
+    "kind": "leaf",
+    "name": "responseCount"
+   },
+   {
+    "kind": "leaf",
+    "name": "myOptionNo"
    }
   ],
   "file": "web/crew/CrewDtos.java"
@@ -1219,6 +1732,30 @@
    {
     "kind": "leaf",
     "name": "voteDeadline"
+   },
+   {
+    "kind": "leaf",
+    "name": "placeName"
+   },
+   {
+    "kind": "leaf",
+    "name": "capacity"
+   },
+   {
+    "kind": "leaf",
+    "name": "pinned"
+   },
+   {
+    "kind": "leaf",
+    "name": "pollMethod"
+   },
+   {
+    "kind": "list-leaf",
+    "name": "options"
+   },
+   {
+    "kind": "leaf",
+    "name": "closesAt"
    }
   ],
   "file": "web/crew/CrewDtos.java"
@@ -1245,6 +1782,44 @@
    {
     "kind": "leaf",
     "name": "myShare"
+   },
+   {
+    "kind": "leaf",
+    "name": "goalMeters"
+   },
+   {
+    "kind": "leaf",
+    "name": "goalProgressPercent"
+   },
+   {
+    "kind": "leaf",
+    "name": "achievedAt"
+   },
+   {
+    "kind": "record",
+    "name": "celebration",
+    "ref": "CrewDtos.RaceStatusResponse.Celebration"
+   }
+  ],
+  "file": "web/crew/CrewDtos.java"
+ },
+ "CrewDtos.RaceStatusResponse.Celebration": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "crewName"
+   },
+   {
+    "kind": "leaf",
+    "name": "totalMeters"
+   },
+   {
+    "kind": "leaf",
+    "name": "goalMeters"
+   },
+   {
+    "kind": "leaf",
+    "name": "participantCount"
    }
   ],
   "file": "web/crew/CrewDtos.java"
@@ -1270,59 +1845,6 @@
    {
     "kind": "leaf",
     "name": "me"
-   }
-  ],
-  "file": "web/crew/CrewDtos.java"
- },
- "CrewDtos.RecommendationsResponse": {
-  "components": [
-   {
-    "kind": "list",
-    "name": "crews",
-    "ref": "CrewDtos.RecommendationsResponse.Item"
-   },
-   {
-    "kind": "leaf",
-    "name": "guide"
-   }
-  ],
-  "file": "web/crew/CrewDtos.java"
- },
- "CrewDtos.RecommendationsResponse.Item": {
-  "components": [
-   {
-    "kind": "leaf",
-    "name": "crewId"
-   },
-   {
-    "kind": "leaf",
-    "name": "name"
-   },
-   {
-    "kind": "leaf",
-    "name": "matchCount"
-   },
-   {
-    "kind": "list-leaf",
-    "name": "tags"
-   },
-   {
-    "kind": "leaf",
-    "name": "headcount"
-   },
-   {
-    "kind": "leaf",
-    "name": "joinPolicy"
-   }
-  ],
-  "file": "web/crew/CrewDtos.java"
- },
- "CrewDtos.VoteRequest": {
-  "components": [
-   {
-    "kind": "leaf",
-    "name": "answer",
-    "required": true
    }
   ],
   "file": "web/crew/CrewDtos.java"
@@ -1354,10 +1876,6 @@
    {
     "kind": "leaf",
     "name": "crewIntro"
-   },
-   {
-    "kind": "list-leaf",
-    "name": "tags"
    },
    {
     "kind": "leaf",
@@ -1521,10 +2039,6 @@
    {
     "kind": "leaf",
     "name": "intro"
-   },
-   {
-    "kind": "list-leaf",
-    "name": "tags"
    }
   ],
   "file": "web/me/MeController.java"
@@ -1552,10 +2066,6 @@
     "name": "level"
    },
    {
-    "kind": "list-leaf",
-    "name": "tags"
-   },
-   {
     "kind": "leaf",
     "name": "intro"
    },
@@ -1578,6 +2088,10 @@
    {
     "kind": "leaf",
     "name": "faceKey"
+   },
+   {
+    "kind": "leaf",
+    "name": "avatarBackgroundKey"
    },
    {
     "kind": "leaf",
@@ -1687,6 +2201,18 @@
    {
     "kind": "leaf",
     "name": "birthYear"
+   },
+   {
+    "kind": "leaf",
+    "name": "theme"
+   },
+   {
+    "kind": "leaf",
+    "name": "accountType"
+   },
+   {
+    "kind": "leaf",
+    "name": "linkedProvider"
    }
   ],
   "file": "member/MemberSettingsView.java"
@@ -1975,6 +2501,19 @@
   ],
   "file": "web/record/RecordDtos.java"
  },
+ "RecordDtos.PauseDto": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "from"
+   },
+   {
+    "kind": "leaf",
+    "name": "to"
+   }
+  ],
+  "file": "web/record/RecordDtos.java"
+ },
  "RecordDtos.PeriodTotal": {
   "components": [
    {
@@ -2131,6 +2670,15 @@
    {
     "kind": "leaf",
     "name": "sky"
+   },
+   {
+    "kind": "list",
+    "name": "pauses",
+    "ref": "RecordDtos.PauseDto"
+   },
+   {
+    "kind": "leaf",
+    "name": "pausedSeconds"
    }
   ],
   "file": "web/record/RecordDtos.java"
@@ -2360,6 +2908,123 @@
   ],
   "file": "web/record/RecordDtos.java"
  },
+ "ReportAdminController.ReportCaseItem": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "caseId"
+   },
+   {
+    "kind": "leaf",
+    "name": "targetKind"
+   },
+   {
+    "kind": "leaf",
+    "name": "targetId"
+   },
+   {
+    "kind": "leaf",
+    "name": "crewId"
+   },
+   {
+    "kind": "leaf",
+    "name": "contentPreview"
+   },
+   {
+    "kind": "leaf",
+    "name": "targetMissing"
+   },
+   {
+    "kind": "leaf",
+    "name": "authorId"
+   },
+   {
+    "kind": "leaf",
+    "name": "status"
+   },
+   {
+    "kind": "leaf",
+    "name": "reporterCount"
+   },
+   {
+    "kind": "map",
+    "name": "reasons"
+   },
+   {
+    "kind": "leaf",
+    "name": "firstReportedAt"
+   },
+   {
+    "kind": "leaf",
+    "name": "lastReportedAt"
+   }
+  ],
+  "file": "web/admin/report/ReportAdminController.java"
+ },
+ "ReportAdminController.ReportCaseListResponse": {
+  "components": [
+   {
+    "kind": "list",
+    "name": "cases",
+    "ref": "ReportAdminController.ReportCaseItem"
+   },
+   {
+    "kind": "leaf",
+    "name": "nextCursor"
+   }
+  ],
+  "file": "web/admin/report/ReportAdminController.java"
+ },
+ "ReportAdminController.ReportCaseStatusResponse": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "caseId"
+   },
+   {
+    "kind": "leaf",
+    "name": "status"
+   }
+  ],
+  "file": "web/admin/report/ReportAdminController.java"
+ },
+ "ReportController.ReportRequest": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "targetKind",
+    "required": true
+   },
+   {
+    "kind": "leaf",
+    "name": "targetId",
+    "required": true
+   },
+   {
+    "kind": "leaf",
+    "name": "reason",
+    "required": true
+   },
+   {
+    "kind": "leaf",
+    "name": "detail"
+   }
+  ],
+  "file": "web/report/ReportController.java"
+ },
+ "ReportController.ReportResponse": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "reportId"
+   },
+   {
+    "kind": "leaf",
+    "name": "status"
+   }
+  ],
+  "file": "web/report/ReportController.java"
+ },
  "RunController.HeartRateRequest": {
   "components": [
    {
@@ -2380,6 +3045,21 @@
     "kind": "list",
     "name": "samples",
     "ref": "RunController.HeartRateRequest",
+    "required": true
+   }
+  ],
+  "file": "web/run/RunController.java"
+ },
+ "RunController.PauseRequest": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "from",
+    "required": true
+   },
+   {
+    "kind": "leaf",
+    "name": "to",
     "required": true
    }
   ],
@@ -2473,6 +3153,11 @@
     "kind": "list",
     "name": "heartRates",
     "ref": "RunController.HeartRateRequest"
+   },
+   {
+    "kind": "list",
+    "name": "pauses",
+    "ref": "RunController.PauseRequest"
    }
   ],
   "file": "web/run/RunController.java"
@@ -2615,6 +3300,41 @@
   ],
   "file": "web/runimal/RunimalController.java"
  },
+ "SignUpController.GuestStartRequest": {
+  "components": [
+   {
+    "kind": "map",
+    "name": "consents",
+    "required": true
+   }
+  ],
+  "file": "web/auth/SignUpController.java"
+ },
+ "SignUpController.GuestStartResponse": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "memberId"
+   },
+   {
+    "kind": "leaf",
+    "name": "nickname"
+   },
+   {
+    "kind": "leaf",
+    "name": "accessToken"
+   },
+   {
+    "kind": "leaf",
+    "name": "refreshToken"
+   },
+   {
+    "kind": "leaf",
+    "name": "guestCredential"
+   }
+  ],
+  "file": "web/auth/SignUpController.java"
+ },
  "SignUpController.SignUpRequest": {
   "components": [
    {
@@ -2627,33 +3347,9 @@
     "name": "nickname"
    },
    {
-    "kind": "leaf",
-    "name": "birthYear"
-   },
-   {
-    "kind": "leaf",
-    "name": "gender"
-   },
-   {
-    "kind": "leaf",
-    "name": "photoUrl"
-   },
-   {
-    "kind": "leaf",
-    "name": "intro"
-   },
-   {
     "kind": "map",
     "name": "consents",
     "required": true
-   },
-   {
-    "kind": "leaf",
-    "name": "recordVisibility"
-   },
-   {
-    "kind": "list-leaf",
-    "name": "tags"
    }
   ],
   "file": "web/auth/SignUpController.java"

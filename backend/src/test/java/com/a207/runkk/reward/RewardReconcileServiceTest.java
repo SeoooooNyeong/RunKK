@@ -37,11 +37,13 @@ class RewardReconcileServiceTest {
     private static final long WITHDRAWN = 3;
 
     private final InMemoryRewardWalletRepository wallets = new InMemoryRewardWalletRepository();
+    private final InMemoryRewardAccrualRepository accruals = new InMemoryRewardAccrualRepository();
     private final OperationPolicy policy = mock(OperationPolicy.class);
     private final RunQueryService runs = mock(RunQueryService.class);
     private final BattleResultService battles = mock(BattleResultService.class);
     private final MemberQueryService members = mock(MemberQueryService.class);
-    private final RewardService rewards = new RewardService(wallets, policy, new DirectTx());
+    private final RewardService rewards =
+            new RewardService(wallets, accruals, policy, new DirectTx());
     private final RewardReconcileService reconcile =
             new RewardReconcileService(rewards, runs, battles, members, policy);
     private final List<SavedRun> saved = new ArrayList<>();
@@ -177,6 +179,20 @@ class RewardReconcileServiceTest {
         assertThat(reconcile.reconcile(NOW)).isEqualTo(1);
         assertThat(reconcile.reconcile(NOW)).isEqualTo(1);
         assertThat(rewards.balanceOf(ALICE)).isEqualTo(70);
+    }
+
+    @Test
+    @DisplayName("TC-6792 지갑 칼럼이 오늘(30)일 때 전날 보정은 sumOn(전날) = 100으로 상한을 세고 칼럼은 그대로다")
+    void olderDayReconcile_usesSumOn_keepsColumns() {
+        rewards.onRunSaved(event("r-today", 3_000, NOW)); // 오늘 30
+        accruals.seed(new RewardAccrual(ALICE, AccrualReason.VALID_RUN, "r-prev", 100, YESTERDAY));
+        saved.add(run("r-missed", ALICE, 5_000, YESTERDAY.plusHours(1)));
+
+        assertThat(reconcile.reconcile(NOW)).isEqualTo(1);
+        assertThat(rewards.accruedFor(AccrualReason.VALID_RUN, "r-missed", ALICE)).isEqualTo(50);
+        assertThat(accruals.sumOnDays()).containsExactly(YESTERDAY.toLocalDate());
+        assertThat(wallets.findByMember(ALICE).orElseThrow().accruedOn(NOW.toLocalDate()))
+                .hasValue(30);
     }
 
     /** 트랜잭션 없이 바로 실행한다. */

@@ -10,7 +10,9 @@ import com.a207.runkk.policy.OperationPolicy;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
+import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -66,7 +68,52 @@ public class NotificationService {
         if (tokens.isEmpty()) {
             return;
         }
-        afterCommit(() -> push(req, tokens));
+        afterCommit(
+                () -> push(req, tokens, () -> pushGateway.send(tokens, req.type(), req.content())));
+    }
+
+    /**
+     * 묶음 알림(CREW_CHAT, FR-218, D-102). 같은 수신자·종류·대상(target.targetId)에 읽지 않은 알림이 있으면 새 행을 만들지 않고 그
+     * 행의 내용·일시를 바꾸고, 없으면 notify처럼 저장한다. 수신 설정은 notify와 같고(탈퇴 버림, MUTED 저장만), 푸시는 묶음 키 "종류_대상"(예
+     * crew_chat_7)으로 보내 기기 알림도 한 건으로 묶는다. 대상 ID가 없으면 notify와 같다. 같은 대상의 동시 호출도 읽지 않은 행은 하나다
+     * (NotificationRepository.saveCollapsing: V23 부분 유일 색인 + 충돌하면 고쳐 쓰기, 리뷰 M4).
+     */
+    @Transactional
+    public void notifyCollapsing(NotificationRequest req) {
+        if (req.target() == null || req.target().targetId() == null) {
+            notify(req); // 묶을 대상이 없으면 묶지 않는다(묶음 키 "종류_null" 방지)
+            return;
+        }
+        PushDecision decision =
+                memberQueryService.pushDecision(req.recipientId(), req.type().name());
+        if (decision == PushDecision.WITHDRAWN) {
+            log.debug("notification_dropped type={} reason=withdrawn", req.type());
+            return;
+        }
+        String targetId = req.target().targetId();
+        notificationRepository.saveCollapsing(
+                new NotificationRequest(
+                        req.recipientId(),
+                        req.type(),
+                        Notification.fit(req.content()),
+                        req.target()),
+                LocalDateTime.now(clock));
+        if (decision != PushDecision.ALLOWED) {
+            return;
+        }
+        List<String> tokens = pushDeviceRepository.tokensOf(req.recipientId());
+        if (tokens.isEmpty()) {
+            return;
+        }
+        String collapseKey = req.type().name().toLowerCase(Locale.ROOT) + "_" + targetId;
+        afterCommit(
+                () ->
+                        push(
+                                req,
+                                tokens,
+                                () ->
+                                        pushGateway.sendCollapsing(
+                                                tokens, req.type(), req.content(), collapseKey)));
     }
 
     /**
@@ -90,9 +137,9 @@ public class NotificationService {
     }
 
     /** 푸시 발송. 무효 토큰은 지운다(새 트랜잭션, PushDeviceRepository 구현). 실패는 로그만. */
-    private void push(NotificationRequest req, List<String> tokens) {
+    private void push(NotificationRequest req, List<String> tokens, Supplier<PushResult> sending) {
         try {
-            PushResult result = pushGateway.send(tokens, req.type(), req.content());
+            PushResult result = sending.get();
             if (!result.invalidTokens().isEmpty()) {
                 pushDeviceRepository.deleteTokens(result.invalidTokens());
             }

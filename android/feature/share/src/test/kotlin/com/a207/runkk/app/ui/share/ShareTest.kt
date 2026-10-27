@@ -18,6 +18,7 @@ import com.a207.runkk.app.domain.settings.SettingsSnapshot
 import java.time.Duration
 import java.time.Instant
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -44,6 +45,8 @@ private class FakeSettings(var shared: Boolean) : SettingsRepository {
     override fun birthYear(): Int? = null
 
     override fun guidanceSettings() = GuidanceSettings.DEFAULT
+
+    override fun isGuest(): Boolean = false
 
     override fun changes(): Flow<SettingsSnapshot> = flowOf(SettingsSnapshot.SAFE)
 
@@ -79,10 +82,28 @@ class ShareTest {
     @Test
     fun `러닝 카드는 앞·뒷면 모두 같은 크기로 그린다(FR-068)`() {
         val renderer = RunCardRenderer(context)
-        val front = renderer.render(card, CardSide.FRONT)
-        val back = renderer.render(card, CardSide.BACK)
+        val front = renderer.render(card, CardSide.FRONT, null, null)
+        val back = renderer.render(card, CardSide.BACK, null, null)
         assertEquals(RunCardRenderer.WIDTH, front.width)
         assertEquals(RunCardRenderer.HEIGHT, back.height)
+    }
+
+    @Test
+    fun `러닝 카드 앞면은 고른 배경 키에 따라 다르게 그리고 모르는 키도 그린다(FR-202, D-140)`() {
+        val renderer = RunCardRenderer(context)
+        val plain = renderer.render(card, CardSide.FRONT, null, null)
+        val incheon = renderer.render(card, CardSide.FRONT, "INCHEON", null)
+        val unknown = renderer.render(card, CardSide.FRONT, "LM_99", null)
+        assertFalse(plain.sameAs(incheon))
+        assertTrue(plain.sameAs(unknown))
+    }
+
+    @Test
+    fun `운영이 더한 배경 키(LM_n)도 단계를 받으면 단계 그림으로 그린다(AN5-D-14, D-185)`() {
+        val renderer = RunCardRenderer(context)
+        val plain = renderer.render(card, CardSide.FRONT, null, null)
+        val staged = renderer.render(card, CardSide.FRONT, "LM_99", "EAST_ASIA")
+        assertFalse(plain.sameAs(staged))
     }
 
     @Test
@@ -95,7 +116,11 @@ class ShareTest {
     fun `코스 지도 공유가 꺼져 있으면 뒷면 공유를 거부한다(FR-069)`() = runTest {
         val target = RecordingTarget()
         val sharer = CardSharer(context, FakeSettings(shared = false), uriFor = ::fileUri)
-        val outcome = sharer.share(RunCardRenderer(context).render(card, CardSide.BACK), CardSide.BACK, target)
+        val outcome = sharer.share(
+            RunCardRenderer(context).render(card, CardSide.BACK, null, null),
+            CardSide.BACK,
+            target
+        )
         assertIs<ShareOutcome.Failed>(outcome)
         assertEquals(CardSharer.COURSE_MAP_NOT_SHARED, outcome.code)
         assertNull(target.received)
@@ -105,7 +130,11 @@ class ShareTest {
     fun `앞면은 이미지 파일 주소를 공유 대상에 넘긴다`() = runTest {
         val target = RecordingTarget()
         val sharer = CardSharer(context, FakeSettings(shared = false), uriFor = ::fileUri)
-        val outcome = sharer.share(RunCardRenderer(context).render(card, CardSide.FRONT), CardSide.FRONT, target)
+        val outcome = sharer.share(
+            RunCardRenderer(context).render(card, CardSide.FRONT, null, null),
+            CardSide.FRONT,
+            target
+        )
         assertEquals(ShareOutcome.Shared, outcome)
         val uri = assertNotNull(target.received)
         assertTrue(java.io.File(requireNotNull(uri.path)).length() > 0)

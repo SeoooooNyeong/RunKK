@@ -9,8 +9,11 @@ import com.a207.runkk.watch.testing.FakeSensorPermission
 import com.a207.runkk.watch.testing.FakeWearDataLayer
 import com.a207.runkk.watch.testing.SchedulerClock
 import com.a207.runkk.watch.testing.T0
+import com.a207.runkk.watch.testing.alertPlayer
 import com.a207.runkk.watch.testing.ok
 import com.a207.runkk.wear.contract.EndRequestMessage
+import com.a207.runkk.wear.contract.PauseRequestMessage
+import com.a207.runkk.wear.contract.ProximityMessage
 import com.a207.runkk.wear.contract.WatchDisplayMessage
 import com.a207.runkk.wear.contract.WearPaths
 import kotlin.test.AfterTest
@@ -51,7 +54,9 @@ class WatchViewModelTest {
 
     private fun TestScope.link(): PhoneLink {
         val collector = HeartRateCollector(sensor, permission, backgroundScope)
-        return PhoneLink(dataLayer, collector, SchedulerClock(testScheduler), backgroundScope).also { it.start() }
+        return PhoneLink(dataLayer, collector, alertPlayer(), SchedulerClock(testScheduler), backgroundScope).also {
+            it.start()
+        }
     }
 
     private fun TestScope.viewModel(link: PhoneLink = link()): WatchViewModel {
@@ -65,17 +70,21 @@ class WatchViewModelTest {
         running: Boolean = true,
         allowed: Boolean = true,
         heartRateBpm: Int? = 150,
-        notice: String? = null
+        notice: String? = null,
+        pausable: Boolean = false,
+        paused: Boolean = false
     ) = WatchDisplayMessage(
-        running = running,
+        isRunning = running,
         elapsedSeconds = 754,
         distanceMeters = 2_510,
         currentPaceSecondsPerKm = 301,
         heartRateBpm = heartRateBpm,
         planDistanceMeters = 5_000,
         planPaceSecondsPerKm = 330,
-        heartRateCollectionAllowed = allowed,
-        notice = notice
+        isHeartRateCollectionAllowed = allowed,
+        notice = notice,
+        isPaused = paused,
+        isPausable = pausable
     )
 
     private fun TestScope.receive(message: WatchDisplayMessage) {
@@ -342,5 +351,141 @@ class WatchViewModelTest {
         receive(display(running = true, allowed = false))
         runCurrent()
         assertFalse(other.uiState.value.isNotificationPermissionNeeded)
+    }
+
+    @Test
+    fun `TC-6569 일시정지할 수 있는 자유런이면 일시정지 버튼, 정지 중이면 일시정지 표시와 재개 버튼, 아니면 버튼이 없다`() = runTest {
+        val vm = viewModel()
+
+        receive(display(pausable = true, paused = false))
+        assertEquals(PauseControl.PAUSE, vm.uiState.value.pauseControl)
+        assertFalse(vm.uiState.value.isPaused)
+
+        receive(display(pausable = true, paused = true))
+        assertEquals(PauseControl.RESUME, vm.uiState.value.pauseControl)
+        assertTrue(vm.uiState.value.isPaused)
+        // 정지 중 지표는 폰이 보낸 값 그대로(폰이 고정해 보낸다).
+        assertEquals(754L, vm.uiState.value.elapsedSeconds)
+
+        receive(display(pausable = false, paused = false))
+        assertEquals(PauseControl.NONE, vm.uiState.value.pauseControl)
+    }
+
+    @Test
+    fun `대결·크루런처럼 일시정지할 수 없으면 정지 표시가 와도 버튼을 보이지 않는다`() = runTest {
+        val vm = viewModel()
+
+        receive(display(pausable = false, paused = true))
+
+        assertEquals(PauseControl.NONE, vm.uiState.value.pauseControl)
+    }
+
+    @Test
+    fun `일시정지 버튼을 누르면 PAUSE 요청을, 재개 버튼을 누르면 RESUME 요청을 폰에 보낸다`() = runTest {
+        val vm = viewModel()
+        receive(display(pausable = true))
+
+        vm.onPauseTapped()
+        runCurrent()
+        receive(display(pausable = true, paused = true))
+        vm.onResumeTapped()
+        runCurrent()
+
+        val actions = dataLayer.sentMessages
+            .filter { it.second == WearPaths.PAUSE_REQUEST }
+            .map { PauseRequestMessage.decode(it.third).action }
+        assertEquals(listOf(PauseRequestMessage.Action.PAUSE, PauseRequestMessage.Action.RESUME), actions)
+        assertNull(vm.uiState.value.notice)
+    }
+
+    @Test
+    fun `폰과 연결되지 않았으면 일시정지 요청 대신 폰과 연결 필요를 보인다`() = runTest {
+        val vm = viewModel()
+        receive(display(pausable = true))
+        dataLayer.nodes = emptyList()
+
+        vm.onPauseTapped()
+        runCurrent()
+
+        assertEquals(WatchNotice.PhoneNotConnected, vm.uiState.value.notice)
+        assertTrue(dataLayer.sentMessages.isEmpty())
+    }
+
+    @Test
+    fun `TC-6570 폰이 보낸 자동 종료 안내 문구를 그대로 보이고 폰이 계속 보내는 동안 남긴다`() = runTest {
+        val vm = viewModel()
+        val soon = "5분 뒤 러닝이 자동으로 끝나요"
+
+        repeat(10) {
+            receive(display(pausable = true, paused = true, notice = soon))
+            advanceTimeBy(1_000)
+        }
+        runCurrent()
+
+        assertEquals(WatchNotice.FromPhone(soon), vm.uiState.value.notice)
+        assertTrue(vm.uiState.value.isPaused)
+    }
+
+    @Test
+    fun `TC-6572 정지 중에도 종료 버튼을 길게 누르면 종료 요청을 보낸다`() = runTest {
+        val vm = viewModel()
+        receive(display(pausable = true, paused = true))
+
+        vm.onEndLongPressed()
+        runCurrent()
+
+        assertEquals(1, dataLayer.sentMessages.count { it.second == WearPaths.END_REQUEST })
+    }
+
+    private fun TestScope.receiveProximity(active: Boolean = true, gapMeters: Int = 18, isAhead: Boolean = true) {
+        val message = ProximityMessage(
+            isActive = active,
+            gapMeters = if (active) gapMeters else 0,
+            intervalMillis = if (active) 600 else 0,
+            isAhead = isAhead,
+            sentAtEpochMillis = T0 + testScheduler.currentTime
+        )
+        dataLayer.incoming.tryEmit(WearMessage(WearPaths.PROXIMITY, message.encode()))
+        runCurrent()
+    }
+
+    @Test
+    fun `대결 중 근접 알림이 켜지면 격차와 간격을 화면 상태로 옮기고 꺼지면 지운다(K5)`() = runTest {
+        val vm = viewModel()
+        receive(display(running = true))
+
+        receiveProximity(gapMeters = 72, isAhead = false)
+        assertEquals(WatchProximity(gapMeters = 72, isAhead = false, intervalMillis = 600), vm.uiState.value.proximity)
+
+        receiveProximity(active = false)
+        assertNull(vm.uiState.value.proximity)
+    }
+
+    @Test
+    fun `근접 알림이 3초 동안 다시 오지 않으면 러닝 화면으로 돌아간다(D-158)`() = runTest {
+        val vm = viewModel()
+        receive(display(running = true))
+        receiveProximity()
+
+        advanceTimeBy(WatchViewModel.PROXIMITY_EXPIRY_MILLIS - 1_000)
+        runCurrent()
+        assertEquals(18, vm.uiState.value.proximity?.gapMeters)
+
+        advanceTimeBy(1_000)
+        runCurrent()
+        assertNull(vm.uiState.value.proximity)
+    }
+
+    @Test
+    fun `다시 연결을 누르면 연결을 바로 다시 확인해 시작 화면으로 바꾼다(K3)`() = runTest {
+        dataLayer.nodes = emptyList()
+        val vm = viewModel()
+        assertFalse(vm.uiState.value.isPhoneConnected)
+
+        dataLayer.nodes = listOf("phone")
+        vm.onReconnectTapped()
+        runCurrent()
+
+        assertTrue(vm.uiState.value.isPhoneConnected)
     }
 }

@@ -84,7 +84,7 @@ class OpponentTrack private constructor(private val samples: List<Sample>) {
 
         /** 균등 페이스 표(1초 간격): t = 1 .. ceil(finish) - 1 에 round(d × t ÷ finish), 마지막은 (finish, d). */
         fun uniform(d: Distance, finish: Duration): OpponentTrack {
-            require(!finish.isNegative && !finish.isZero) { "완주 시간은 0보다 커야 한다: $finish" }
+            require(!finish.isNegative && !finish.isZero) { "finish time must be positive: $finish" }
             val finishMillis = finish.toMillis()
             val lastWholeSecond = ceil(finishMillis / MILLIS_PER_SECOND.toDouble()).toLong() - 1
             val samples =

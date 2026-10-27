@@ -1,5 +1,6 @@
 package com.a207.runkk.crew;
 
+import java.util.List;
 import org.springframework.stereotype.Component;
 
 /**
@@ -23,6 +24,11 @@ class CrewDeletion {
         this.joinRequestRepository = joinRequestRepository;
         this.crewPostRepository = crewPostRepository;
         this.weeklyRaceRepository = weeklyRaceRepository;
+    }
+
+    /** 크루 삭제 때 끝낼 크루런(LOBBY_OPEN·RUNNING, D-66). */
+    List<CrewRunPost> activeCrewRunsOf(long crewId) {
+        return crewPostRepository.findActiveCrewRunsOf(crewId);
     }
 
     void deleteAll(long crewId) {

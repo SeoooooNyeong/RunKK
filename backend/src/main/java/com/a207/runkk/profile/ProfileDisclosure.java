@@ -2,7 +2,6 @@ package com.a207.runkk.profile;
 
 import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.member.DisclosureLevel;
-import java.util.Set;
 
 /**
  * 공개 수준별 프로필 항목 거르기(설계 6.1.5 ProfileDisclosure, 6.4 다형성, D-52). 어느 수준인지는 정하지
@@ -23,7 +22,7 @@ public enum ProfileDisclosure {
             return view(this, data, false, false);
         }
     },
-    /** 표시명, 아바타 얼굴, 티어, 소속 크루(Q-69). */
+    /** 표시명, 아바타 얼굴·배경, 티어, 소속 크루(Q-69, FR-202). */
     PRIVATE {
         @Override
         public ProfileView filter(ProfileData data) {
@@ -32,8 +31,8 @@ public enum ProfileDisclosure {
                     this,
                     data.displayName(),
                     data.faceKey(),
+                    data.avatarBackgroundKey(),
                     data.tier(),
-                    Set.of(),
                     null,
                     data.crew(),
                     null,
@@ -51,7 +50,7 @@ public enum ProfileDisclosure {
                     DisplayName.WITHDRAWN,
                     null,
                     null,
-                    Set.of(),
+                    null,
                     null,
                     null,
                     null,
@@ -75,8 +74,8 @@ public enum ProfileDisclosure {
                 level,
                 data.displayName(),
                 data.faceKey(),
+                data.avatarBackgroundKey(),
                 data.tier(),
-                data.tags(),
                 data.runimalType(),
                 data.crew(),
                 longest ? data.longestDistance() : null,

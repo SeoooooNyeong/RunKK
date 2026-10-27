@@ -28,6 +28,7 @@ import com.a207.runkk.app.domain.run.LateHeartRates
 import com.a207.runkk.app.domain.run.LocationPermission
 import com.a207.runkk.app.domain.run.MeasurementHost
 import com.a207.runkk.app.domain.run.PendingRunRepository
+import com.a207.runkk.app.domain.run.ProximityAlert
 import com.a207.runkk.app.domain.run.RoutePoint
 import com.a207.runkk.app.domain.run.UploadScheduler
 import com.a207.runkk.app.domain.run.WatchDisplay
@@ -109,9 +110,16 @@ class FakeUploadScheduler : UploadScheduler {
 }
 
 class FakeWatchGateway : WatchGateway {
+    override val endRequests = MutableSharedFlow<Unit>()
+    override val pauseRequests = MutableSharedFlow<WatchGateway.PauseAction>()
+
+    override fun publishProximity(alert: ProximityAlert?) = Unit
+
+    override fun publishLeadChange(kind: Guidance.Kind) = Unit
+
     val published = mutableListOf<WatchDisplay>()
     override val startRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
-    override val heartRates: Flow<List<HeartRateSample>> = MutableSharedFlow()
+    override val heartRates = MutableSharedFlow<List<HeartRateSample>>()
 
     override fun publish(d: WatchDisplay) {
         published += d
@@ -170,6 +178,8 @@ class FakeSettingsRepository(var consented: Boolean = true) : SettingsRepository
     override fun birthYear(): Int? = null
 
     override fun guidanceSettings() = guidance
+
+    override fun isGuest(): Boolean = false
 
     override fun changes(): Flow<SettingsSnapshot> = snapshot
 

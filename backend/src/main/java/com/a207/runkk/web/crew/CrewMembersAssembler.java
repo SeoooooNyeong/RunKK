@@ -1,16 +1,14 @@
 package com.a207.runkk.web.crew;
 
-import com.a207.runkk.common.PersonalityTag;
 import com.a207.runkk.common.Tier;
 import com.a207.runkk.crew.CrewMembersView;
 import com.a207.runkk.crew.CrewQueryService;
 import com.a207.runkk.crew.PendingRequestsView;
 import com.a207.runkk.runimal.RunimalQuery;
 import com.a207.runkk.runimal.RunimalType;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.springframework.stereotype.Component;
 
 /**
@@ -41,7 +39,6 @@ class CrewMembersAssembler {
                                                 CrewDtos.displayOf(m.name()),
                                                 m.role().name(),
                                                 m.crewIntro(),
-                                                m.crewTags() == null ? null : m.crewTags().tags(),
                                                 m.tier(),
                                                 types.get(m.memberId()),
                                                 m.memberId() == viewerId))
@@ -63,7 +60,7 @@ class CrewMembersAssembler {
                                                 CrewDtos.displayOf(r.name()),
                                                 r.tier(),
                                                 types.get(r.memberId()),
-                                                r.requestedAt()))
+                                                CrewDtos.at(r.requestedAt())))
                         .toList());
     }
 
@@ -81,7 +78,6 @@ class CrewMembersAssembler {
          * @param displayName 표시명
          * @param role LEADER | MEMBER
          * @param crewIntro 크루 내 소개
-         * @param tags 크루 내 성향 태그(공개만)
          * @param tier 티어(공개만)
          * @param runimalType Runimal 유형(공개만)
          * @param me 열람자 본인
@@ -91,7 +87,6 @@ class CrewMembersAssembler {
                 String displayName,
                 String role,
                 String crewIntro,
-                Set<PersonalityTag> tags,
                 Tier tier,
                 RunimalType runimalType,
                 boolean me) {}
@@ -120,6 +115,6 @@ class CrewMembersAssembler {
                 String displayName,
                 Tier tier,
                 RunimalType runimalType,
-                LocalDateTime requestedAt) {}
+                OffsetDateTime requestedAt) {}
     }
 }

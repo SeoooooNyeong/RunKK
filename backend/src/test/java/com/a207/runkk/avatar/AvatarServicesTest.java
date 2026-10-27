@@ -96,7 +96,20 @@ class AvatarServicesTest {
         when(rewards.balanceOf(anyLong())).thenReturn(70);
         SelfieConversion conversion =
                 new SelfieConversion(gateway, images, locks, failures, avatars, members, tx);
-        service = new AvatarService(avatars, conversion, rewards, members, policy, clock);
+        BackgroundService backgrounds =
+                new BackgroundService(
+                        avatars,
+                        runs,
+                        policy,
+                        notifications,
+                        tx,
+                        new com.a207.runkk.avatar.BackfillProperties(
+                                java.time.LocalDateTime.of(2026, 10, 1, 0, 0)));
+        when(policy.landmarkTable()).thenReturn(new com.a207.runkk.policy.LandmarkTable(List.of()));
+        when(runs.validDistanceOf(anyLong())).thenReturn(Distance.ZERO);
+        service =
+                new AvatarService(
+                        avatars, conversion, rewards, members, policy, backgrounds, tx, clock);
         appearance =
                 new AppearanceService(
                         avatars, new AppearanceCalculator(), runs, policy, notifications, tx);

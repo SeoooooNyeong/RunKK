@@ -15,6 +15,7 @@ import com.a207.runkk.analysis.WeeklyAchievement;
 import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.GeoPoint;
 import com.a207.runkk.common.Pace;
+import com.a207.runkk.common.ServerZone;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -34,7 +35,7 @@ final class RecordDtos {
 
     private RecordDtos() {}
 
-    private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
+    private static final ZoneId SEOUL = ServerZone.ID;
     private static final int HOURS_PER_BAND = 3;
     private static final double PERCENT = 100.0;
 
@@ -203,7 +204,18 @@ final class RecordDtos {
     /** 불안정 구간의 경로 포인트 번호 닫힌 구간(앱 RangeDto). 위치 표본이 1초 간격이라(D-18) 시작 기준 초를 번호로 쓴다. */
     record RangeDto(int start, int end) {}
 
-    /** 기록 상세(앱 RecordDetailResponse + 구간 페이스·심박 요약·날씨 항목). */
+    /**
+     * 자유 러닝 정지 구간(v0.11 FR-036, D-93).
+     *
+     * @param from 정지 시작
+     * @param to 재개
+     */
+    record PauseDto(OffsetDateTime from, OffsetDateTime to) {}
+
+    /**
+     * 기록 상세(앱 RecordDetailResponse + 구간 페이스·심박 요약·날씨 항목). v0.11: 정지 구간(pauses)과 정지
+     * 합계(pausedSeconds)를 더했다(V21). 경과 시간은 정지를 뺀 운동 시간이다.
+     */
     record RecordDetailResponse(
             RunSummaryDto summary,
             boolean owner,
@@ -221,7 +233,9 @@ final class RecordDtos {
             Integer rewardPoints,
             String weather,
             Integer temperatureC,
-            String sky) {
+            String sky,
+            List<PauseDto> pauses,
+            long pausedSeconds) {
 
         static RecordDetailResponse of(RecordDetailView v) {
             Map<String, Long> zones = new LinkedHashMap<>();
@@ -257,7 +271,11 @@ final class RecordDtos {
                     v.rewardPoints(),
                     w == null ? null : w.sky() + " " + w.temperatureC() + "°C",
                     w == null ? null : w.temperatureC(),
-                    w == null ? null : w.sky());
+                    w == null ? null : w.sky(),
+                    v.pauses().stream()
+                            .map(p -> new PauseDto(seoul(p.from()), seoul(p.to())))
+                            .toList(),
+                    v.pausedSeconds());
         }
     }
 

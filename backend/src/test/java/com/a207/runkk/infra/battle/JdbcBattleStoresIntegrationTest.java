@@ -8,6 +8,7 @@ import com.a207.runkk.battle.LiveSessionStore;
 import com.a207.runkk.battle.MatchQueue;
 import com.a207.runkk.battle.MatchStatus;
 import com.a207.runkk.battle.MatchTicket;
+import com.a207.runkk.battle.QueueRemoval;
 import com.a207.runkk.bootstrap.RunkkApplication;
 import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.Distance;
@@ -116,12 +117,14 @@ class JdbcBattleStoresIntegrationTest {
 
     @Test
     @org.junit.jupiter.api.DisplayName(
-            "D-64: tryAssign은 WAITING일 때만, 그동안 취소(removeWaiting)는 실패, release 뒤 다시 대기·취소")
+            "D-64·D-83: tryAssign은 WAITING일 때만, 그동안 취소(removeIfWaiting)는 ASSIGNED, release 뒤 다시"
+                    + " 대기·취소(REMOVED), 표가 없으면 ABSENT")
     void singleAssignAndRelease() {
         queue.enqueue(MatchTicket.open(1, Tier.GOLD, StandardDistance.KM5, NOW));
         assertThat(queue.tryAssign(1)).isTrue();
         assertThat(queue.tryAssign(1)).isFalse();
-        assertThat(queue.removeWaiting(1)).isFalse();
+        assertThat(queue.removeIfWaiting(1)).isEqualTo(QueueRemoval.ASSIGNED);
+        assertThat(queue.findWaiting(1)).isPresent();
         assertThat(queue.waitingOldestFirst()).isEmpty();
         queue.release(1);
         assertThat(queue.waitingOldestFirst())
@@ -132,7 +135,9 @@ class JdbcBattleStoresIntegrationTest {
                             assertThat(t.getWaitingSince()).isEqualTo(NOW);
                         });
         assertThat(queue.tryAssign(2)).isFalse();
-        assertThat(queue.removeWaiting(1)).isTrue();
+        assertThat(queue.removeIfWaiting(1)).isEqualTo(QueueRemoval.REMOVED);
+        assertThat(queue.findWaiting(1)).isEmpty();
+        assertThat(queue.removeIfWaiting(1)).isEqualTo(QueueRemoval.ABSENT);
     }
 
     @Test

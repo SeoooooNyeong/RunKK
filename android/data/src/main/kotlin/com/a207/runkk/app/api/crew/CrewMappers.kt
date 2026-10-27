@@ -3,6 +3,10 @@ package com.a207.runkk.app.api.crew
 import com.a207.runkk.app.api.core.ServerTime
 import com.a207.runkk.app.api.core.enumByName
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.domain.crew.Album
+import com.a207.runkk.app.domain.crew.AttendanceAnswer
+import com.a207.runkk.app.domain.crew.BoardPost
+import com.a207.runkk.app.domain.crew.CelebrationCard
 import com.a207.runkk.app.domain.crew.CrewDetail
 import com.a207.runkk.app.domain.crew.CrewForm
 import com.a207.runkk.app.domain.crew.CrewList
@@ -16,21 +20,26 @@ import com.a207.runkk.app.domain.crew.CrewVisibility
 import com.a207.runkk.app.domain.crew.JoinPolicy
 import com.a207.runkk.app.domain.crew.JoinResult
 import com.a207.runkk.app.domain.crew.Lobby
+import com.a207.runkk.app.domain.crew.Meetup
 import com.a207.runkk.app.domain.crew.MyCrew
+import com.a207.runkk.app.domain.crew.Notice
 import com.a207.runkk.app.domain.crew.PendingRequests
+import com.a207.runkk.app.domain.crew.Poll
+import com.a207.runkk.app.domain.crew.PollMethod
+import com.a207.runkk.app.domain.crew.PollResult
 import com.a207.runkk.app.domain.crew.PostList
 import com.a207.runkk.app.domain.crew.RaceStatus
-import com.a207.runkk.app.domain.crew.VoteAnswer
 
 // 도메인 ↔ DTO 매퍼(13.2 toRequest·toDomain). 앱이 모르는 글 종류는 건너뛰고, 모르는 가입 방식은 승인제로 읽는다.
 
 internal fun CrewForm.toRequest(): CrewFormDto = CrewFormDto(name, intro, tags, visibility.name, joinPolicy.name)
 
+/** 서버 모집글에는 제목이 없어 제목과 본문을 줄바꿈으로 이어 body에 싣는다. 모집 일시는 오프셋 시각이다. */
 internal fun CrewRunForm.toRequest(): PostWriteRequest = PostWriteRequest(
     kind = PostList.Kind.CREW_RUN.name,
     body = listOfNotNull(title.takeIf { it.isNotBlank() }, body?.takeIf { it.isNotBlank() }).joinToString(NEWLINE),
     distanceMeters = distance.meters,
-    meetAt = ServerTime.format(meetAt)
+    scheduledAt = ServerTime.formatWithOffset(meetAt)
 )
 
 /** 모르는 공개 범위는 비공개로, 가입 방식은 승인제로, 역할은 크루 밖(null)으로 읽는다(넓게 허용하지 않는 쪽). */
@@ -81,22 +90,6 @@ internal fun CrewListResponse.toDomain(): CrewList = CrewList(
     }
 )
 
-/** 서버가 보내지 않은 크루장·주간 거리·소개는 비워 둔다(추천 목록은 크루 이름·태그·정원·가입 방식만 준다). */
-internal fun RecommendationsResponse.toDomain(): CrewList = CrewList(
-    crews.map {
-        CrewList.Item(
-            crewId = it.crewId,
-            name = it.name,
-            intro = null,
-            tags = it.tags,
-            leaderName = "",
-            headcount = it.headcount,
-            weeklyDistance = Distance(0),
-            joinPolicy = enumByName<JoinPolicy>(it.joinPolicy) ?: JoinPolicy.APPROVAL
-        )
-    }
-)
-
 internal fun CrewMembersResponse.toDomain(): CrewMembers = CrewMembers(
     members.map {
         CrewMembers.Member(
@@ -126,24 +119,84 @@ internal fun RaceStatusResponse.toDomain(): RaceStatus = RaceStatus(
     contributors = contributors.map {
         RaceStatus.Contributor(it.displayName.orEmpty(), Distance(it.distanceMeters), it.share, it.memberId, it.me)
     },
-    myShare = myShare
+    myShare = myShare,
+    goal = goalMeters?.let(::Distance),
+    goalProgressPercent = goalProgressPercent,
+    achievedAt = achievedAt?.let(ServerTime::parse),
+    celebration = celebration?.let {
+        CelebrationCard(it.crewName, Distance(it.totalMeters), Distance(it.goalMeters), it.participantCount)
+    }
 )
 
+/** 모르는 종류의 글은 목록에서 버린다(F.2.4). 투표 방식을 모르면 투표 요약 없이 둔다. */
 internal fun PostListResponse.toDomain(): PostList = PostList(
     nextCursor = nextCursor,
     posts = posts.mapNotNull { post ->
         enumByName<PostList.Kind>(post.kind)?.let { kind ->
             PostList.Item(
-                post.postId,
-                kind,
-                post.authorName.orEmpty(),
-                post.body.orEmpty(),
-                ServerTime.parse(post.writtenAt),
-                post.mine,
-                post.crewRun?.toDomain()
+                postId = post.postId,
+                kind = kind,
+                authorName = post.authorName.orEmpty(),
+                summary = post.body.orEmpty(),
+                writtenAt = ServerTime.parse(post.writtenAt),
+                isMine = post.mine,
+                crewRun = post.crewRun?.toDomain(),
+                canDelete = post.canDelete,
+                meetup = post.meetup?.toDomain(),
+                notice = post.notice?.let { Notice(it.pinned) },
+                poll = post.poll?.toDomain(),
+                board =
+                    if (kind == PostList.Kind.BOARD) {
+                        BoardPost(
+                            post.body.orEmpty(),
+                            post.photos.orEmpty().map {
+                                BoardPost.Photo(it.photoId, it.url)
+                            }
+                        )
+                    } else {
+                        null
+                    }
             )
         }
     }
+)
+
+private fun PostListResponse.Item.Meetup.toDomain(): Meetup = Meetup(
+    scheduledAt = ServerTime.parse(scheduledAt),
+    placeName = placeName,
+    capacity = capacity,
+    goingCount = goingCount,
+    notGoingCount = notGoingCount,
+    undecidedCount = undecidedCount,
+    myAnswer = myAnswer?.let { enumByName<AttendanceAnswer>(it) }
+)
+
+private fun PostListResponse.Item.Poll.toDomain(): Poll? = enumByName<PollMethod>(method)?.let {
+    Poll(it, ServerTime.parse(closesAt), closed, responseCount, myOptionNo)
+}
+
+/** 모르는 투표 방식은 해독할 수 없는 응답으로 본다(결과 화면을 잘못 그리지 않는다). */
+internal fun PollResultResponse.toDomain(): PollResult = PollResult(
+    postId = postId,
+    question = question,
+    method = requireNotNull(enumByName<PollMethod>(method)) { "모르는 투표 방식 $method" },
+    closesAt = ServerTime.parse(closesAt),
+    isClosed = closed,
+    options =
+        options.map { option ->
+            PollResult.Option(
+                option.optionNo,
+                option.label,
+                option.count,
+                option.respondents.map { PollResult.Respondent(it.memberId, it.displayName) }
+            )
+        },
+    myOptionNo = myOptionNo
+)
+
+internal fun AlbumResponse.toDomain(): Album = Album(
+    photos = photos.map { Album.Photo(it.photoId, it.postId, it.url, ServerTime.parse(it.postedAt)) },
+    nextCursor = nextCursor
 )
 
 private fun PostListResponse.Item.CrewRun.toDomain(): PostList.CrewRunInfo = PostList.CrewRunInfo(
@@ -152,9 +205,11 @@ private fun PostListResponse.Item.CrewRun.toDomain(): PostList.CrewRunInfo = Pos
     voteDeadline = voteDeadline?.let(ServerTime::parse),
     status = status?.let { enumByName<CrewRunStatus>(it) },
     goingCount = goingCount,
-    myAnswer = myAnswer?.let { enumByName<VoteAnswer>(it) },
+    myAnswer = myAnswer?.let { enumByName<AttendanceAnswer>(it) },
     finisherCount = finisherCount,
-    raceContribution = raceContributionMeters?.let(::Distance)
+    raceContribution = raceContributionMeters?.let(::Distance),
+    notGoingCount = notGoingCount,
+    undecidedCount = undecidedCount
 )
 
 internal fun LobbyResponse.toDomain(): Lobby = Lobby(

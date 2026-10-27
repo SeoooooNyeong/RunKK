@@ -10,6 +10,7 @@ import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.battle.BattleRepository
 import com.a207.runkk.app.domain.battle.BattleRunCoordinator
 import com.a207.runkk.app.domain.battle.BattleRunState
+import com.a207.runkk.app.domain.live.BattleStart
 import com.a207.runkk.app.domain.live.LiveChannel
 import com.a207.runkk.app.domain.live.LiveChannelProvider
 import com.a207.runkk.app.domain.live.MatchFailed
@@ -19,6 +20,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Clock
 import java.time.Duration
 import javax.inject.Inject
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
@@ -27,6 +29,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.merge
@@ -35,36 +38,6 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-
-/** 랜덤 매칭 단계: 거리 고르기 → 대기 → 성사(자동 출발까지). */
-enum class MatchPhase { CHOOSING, REQUESTING, WAITING, CANCELLING, MATCHED }
-
-data class MatchUiState(
-    val phase: MatchPhase = MatchPhase.CHOOSING,
-    val distance: Distance = DEFAULT_DISTANCE,
-    /** 대기 시작 뒤 경과 초(시안 "0:07"). */
-    val waitingSeconds: Long = 0,
-    val match: MatchFound? = null,
-    /** 자동 출발까지 남은 초. 시작 예약(BattleStart)을 받기 전이면 null. */
-    val startsInSeconds: Long? = null,
-    val error: UiText? = null
-) {
-    companion object {
-        /** 랜덤 대결 거리(FR-080). */
-        val DISTANCES: List<Distance> = listOf(Distance(1_000), Distance(3_000), Distance(5_000), Distance(10_000))
-
-        /** 기본 대결 거리(FR-109 기본값). 서버의 기본 대결 거리(GET /battles/match)를 읽기 전·읽지 못했을 때 쓴다. */
-        val DEFAULT_DISTANCE: Distance = Distance(5_000)
-    }
-}
-
-sealed interface MatchEvent {
-    /** 측정 시작: 대결 진행 화면으로(이 화면을 대신한다). */
-    data class Started(val key: Routes.BattleRunning) : MatchEvent
-
-    /** 대기 취소: 이전 화면으로. */
-    data object Exit : MatchEvent
-}
 
 /**
  * 랜덤 매칭 대기·성사(FR-080~FR-087, FR-095). requestMatch로 대기열에 들어가고 실시간 채널에서 MatchFound를 받으면
@@ -91,6 +64,15 @@ class MatchViewModel @Inject constructor(
     private var tickJob: Job? = null
     private var followJob: Job? = null
     private var handedOver = false
+
+    /**
+     * 대기 채널에서 받은 출발 예약. 서버는 MatchFound와 BattleStart를 잇따라 보내는데 실시간 채널은 지난 메시지를 다시 주지 않아,
+     * 조정자가 성사 뒤에 구독을 붙이면 BattleStart를 놓친다. 대기 중에 미리 받아 두었다가 성사 뒤 조정자에 넘긴다.
+     */
+    private var startsJob: Job? = null
+    private var waitingLease: LiveChannel? = null
+    private var earlyStart: BattleStart? = null
+    private var matchedBattleId: Long? = null
 
     fun onDistanceSelected(distance: Distance) {
         if (_state.value.phase != MatchPhase.CHOOSING || distance !in MatchUiState.DISTANCES) return
@@ -151,6 +133,7 @@ class MatchViewModel @Inject constructor(
         tickJob?.cancel()
         _state.update { it.copy(phase = MatchPhase.WAITING, waitingSeconds = 0) }
         val opened = channels.open().also { channel = it }
+        collectStarts(opened)
         waitJob = viewModelScope.launch {
             when (val end = awaitWaitEnd(opened)) {
                 is WaitEnd.Found -> onMatched(end.match)
@@ -199,6 +182,7 @@ class MatchViewModel @Inject constructor(
      */
     private fun failWaiting(error: AppError?) {
         tickJob?.cancel()
+        startsJob?.cancel()
         channel?.close()
         channel = null
         coordinator.abandonMatching()
@@ -214,6 +198,7 @@ class MatchViewModel @Inject constructor(
      */
     private fun onMatchFailed(failed: MatchFailed) {
         tickJob?.cancel()
+        startsJob?.cancel()
         channel?.close()
         channel = null
         val text = BattleErrorText.REJECTED[failed.code]?.let { UiText.Res(it) }
@@ -222,14 +207,47 @@ class MatchViewModel @Inject constructor(
         _state.update { MatchUiState(distance = it.distance, error = text) }
     }
 
-    /** 성사: 채널은 이제 조정자가 갖는다(대기용 연결 코루틴은 닫는다). */
+    /**
+     * 성사: 대결은 이제 조정자가 갖는다. 먼저 받아 둔 출발 예약이 있으면 넘긴다. 대기 임대는 바로 닫지 않는다: 조정자가 자기 임대를 열기 전에
+     * 닫으면 임대 수가 0이 되어 연결이 끊기고 출발 예약을 잃는다. 측정이 시작되거나 대결이 끝나면 반납한다(D-196, 7차 AN7-1).
+     */
     private fun onMatched(match: MatchFound) {
         tickJob?.cancel()
         handedOver = true
+        waitingLease = channel
         channel = null
         _state.update { it.copy(phase = MatchPhase.MATCHED, match = match, distance = match.distance) }
         coordinator.onMatched(match)
+        matchedBattleId = match.battleId
+        earlyStart?.let(::forwardStart)
         follow(match)
+    }
+
+    /** 대기 채널의 BattleStart를 받는다. 연결 전에 구독해야 MatchFound 직후에 오는 출발 예약도 받는다. */
+    private fun collectStarts(opened: LiveChannel) {
+        startsJob?.cancel()
+        earlyStart = null
+        matchedBattleId = null
+        startsJob = viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) {
+            opened.messages.filterIsInstance<BattleStart>().collect { start ->
+                earlyStart = start
+                forwardStart(start)
+            }
+        }
+    }
+
+    /** 성사된 대결의 출발 예약이면 조정자에 넘긴다. 조정자가 직접 받은 것과 겹쳐도 한 번만 시작한다(BattleRun.schedule). */
+    private fun forwardStart(start: BattleStart) {
+        if (start.battleId != matchedBattleId) return
+        coordinator.onStart(start)
+        startsJob?.cancel()
+    }
+
+    /** 성사 뒤 쥐고 있던 대기 임대를 반납한다. 조정자 임대가 연결을 이어 가므로 연결은 닫히지 않는다. */
+    private fun releaseWaitingLease() {
+        startsJob?.cancel()
+        waitingLease?.close()
+        waitingLease = null
     }
 
     /** 조정자 상태를 따라 자동 출발까지 남은 초를 보이고, 측정이 시작되면 대결 진행 화면으로 간다. */
@@ -240,10 +258,14 @@ class MatchViewModel @Inject constructor(
                 when (s) {
                     is BattleRunState.Countdown -> if (s.battleId == match.battleId) countdownTo(s)
 
-                    is BattleRunState.Running -> if (s.battleId == match.battleId) started(match)
+                    is BattleRunState.Running -> if (s.battleId == match.battleId) {
+                        releaseWaitingLease()
+                        started(match)
+                    }
 
                     is BattleRunState.Finished -> if (s.battleId == match.battleId && !navigated) {
                         // 시작 전에 끝남(연결 실패·시작 거부). 결과가 없으니 안내하고 거리 고르기로 돌린다.
+                        releaseWaitingLease()
                         val reason = coordinator.failure.value
                         countdownJob?.cancel()
                         waitJob?.cancel()
@@ -304,6 +326,7 @@ class MatchViewModel @Inject constructor(
     private fun stopWaiting() {
         waitJob?.cancel()
         tickJob?.cancel()
+        startsJob?.cancel()
         channel?.close()
         channel = null
         _state.update { MatchUiState(distance = it.distance) }
@@ -350,10 +373,31 @@ class MatchViewModel @Inject constructor(
     override fun onCleared() {
         // 성사 전에 화면을 떠나면(시스템 제스처·탭 이동으로 ViewModel이 지워지면) 대기 채널을 닫고, 서버 대기열에서도 뺀다.
         // viewModelScope는 이미 취소됐으므로 조정자가 applicationScope에서 보낸다(FR-085). 성사 뒤 채널·대결은 조정자가 갖는다.
-        if (handedOver) return
+        if (handedOver) {
+            releaseWaitingLease()
+            return
+        }
         channel?.close()
         channel = null
         if (_state.value.phase in QUEUED) coordinator.abandonMatching()
+    }
+
+    /** 매칭 대기가 끝난 까닭. */
+    private sealed interface WaitEnd {
+        data class Found(val match: MatchFound) : WaitEnd
+
+        data class Failed(val failed: MatchFailed) : WaitEnd
+
+        /** 연결 실패(error) 또는 결과 없이 채널이 끝남(null). */
+        data class Lost(val error: AppError?) : WaitEnd
+
+        companion object {
+            fun of(message: ServerMessage): WaitEnd? = when (message) {
+                is MatchFound -> Found(message)
+                is MatchFailed -> Failed(message)
+                else -> null
+            }
+        }
     }
 
     private companion object {
@@ -361,23 +405,5 @@ class MatchViewModel @Inject constructor(
 
         /** 서버 대기열에 들어갔거나 들어가는 중인 단계(요청 중이면 응답 뒤 대기열에 남을 수 있다). */
         val QUEUED = setOf(MatchPhase.REQUESTING, MatchPhase.WAITING, MatchPhase.CANCELLING)
-    }
-}
-
-/** 매칭 대기가 끝난 까닭. */
-private sealed interface WaitEnd {
-    data class Found(val match: MatchFound) : WaitEnd
-
-    data class Failed(val failed: MatchFailed) : WaitEnd
-
-    /** 연결 실패(error) 또는 결과 없이 채널이 끝남(null). */
-    data class Lost(val error: AppError?) : WaitEnd
-
-    companion object {
-        fun of(message: ServerMessage): WaitEnd? = when (message) {
-            is MatchFound -> Found(message)
-            is MatchFailed -> Failed(message)
-            else -> null
-        }
     }
 }

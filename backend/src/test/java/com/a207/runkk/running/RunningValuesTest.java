@@ -57,18 +57,23 @@ class RunningValuesTest {
     }
 
     @Test
-    void validityRule_fourConditions() {
+    void validityRule_threeConditionsAndOverspeed() {
         ValidityRule rule = ValidityRule.STANDARD;
         Distance d = Distance.ofKm(5);
         Duration t = Duration.ofMinutes(25);
         Pace p = new Pace(300);
-        assertThat(rule.isSatisfiedBy(d, t, p, 20)).isTrue();
-        assertThat(rule.isSatisfiedBy(Distance.ofMeters(999), t, p, 20)).isFalse();
-        assertThat(rule.isSatisfiedBy(d, Duration.ofSeconds(179), p, 20)).isFalse();
-        assertThat(rule.isSatisfiedBy(d, t, new Pace(179), 20)).isFalse();
-        assertThat(rule.isSatisfiedBy(d, t, new Pace(901), 20)).isFalse();
-        assertThat(rule.isSatisfiedBy(d, t, new Pace(180), 25)).isTrue();
-        assertThat(rule.isSatisfiedBy(d, t, new Pace(900), 25.01)).isFalse();
+        assertThat(rule.isSatisfiedBy(d, t, p)).isTrue();
+        assertThat(rule.isSatisfiedBy(Distance.ofMeters(999), t, p)).isFalse();
+        assertThat(rule.isSatisfiedBy(Distance.ofMeters(1_000), t, p)).isTrue();
+        assertThat(rule.isSatisfiedBy(d, Duration.ofSeconds(179), p)).isFalse();
+        assertThat(rule.isSatisfiedBy(d, t, new Pace(179))).isFalse();
+        assertThat(rule.isSatisfiedBy(d, t, new Pace(901))).isFalse();
+        assertThat(rule.isSatisfiedBy(d, t, new Pace(180))).isTrue();
+        assertThat(rule.isSatisfiedBy(d, t, new Pace(900))).isTrue();
+        // 25km/h를 넘는 쌍만 뺀다(같으면 빼지 않는다, FR-047 v0.10)
+        assertThat(rule.isOverspeed(25)).isFalse();
+        assertThat(rule.isOverspeed(25.01)).isTrue();
+        assertThat(rule.isOverspeed(20)).isFalse();
     }
 
     @Test

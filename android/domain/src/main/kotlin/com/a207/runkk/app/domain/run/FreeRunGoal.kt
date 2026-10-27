@@ -20,7 +20,7 @@ data class FreeRunGoal(val plan: PlanSnapshot?, val isFromCoachPlan: Boolean) {
         fun of(todayPlan: PlanSnapshot?, settings: GuidanceSettings): FreeRunGoal {
             val coach =
                 todayPlan?.takeIf {
-                    settings.shouldFollowCoachPlan && (it.targetDistance != null || it.targetPace != null)
+                    settings.isFollowingCoachPlan && (it.targetDistance != null || it.targetPace != null)
                 }
             if (coach != null) {
                 return FreeRunGoal(

@@ -187,4 +187,82 @@ class RunControllerTest extends WebTestSupport {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("DISPOSAL_ORDER_NOT_FOUND"));
     }
+
+    private static Map<String, Object> pause(LocalDateTime from, LocalDateTime to) {
+        return Map.of("from", at(from), "to", at(to));
+    }
+
+    private void expectStatus(Session s, Map<String, Object> body, int status) throws Exception {
+        mvc.perform(
+                        as(s, post("/api/v1/runs"))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(write(body)))
+                .andExpect(status().is(status));
+    }
+
+    @Test
+    @DisplayName("TC-6677: 정지 구간 규칙 위반 일곱 가지는 400(저장 0), 100개는 200(D-163 맞닿음 포함)")
+    void upload_rejectsBadPauses() throws Exception {
+        Session s = signUp();
+        LocalDateTime a = START.plusMinutes(5);
+        LocalDateTime b = START.plusMinutes(10);
+        LocalDateTime c = START.plusMinutes(15);
+        List<List<Map<String, Object>>> bad =
+                List.of(
+                        List.of(pause(a, a)),
+                        List.of(pause(START.minusSeconds(1), b)),
+                        List.of(pause(b, START.plusSeconds(1_501))),
+                        List.of(pause(a, b), pause(b, c)),
+                        List.of(pause(a, c), pause(b, c.plusMinutes(1))),
+                        List.of(pause(b, c), pause(START.plusMinutes(1), a)));
+        List<String> rejected = new java.util.ArrayList<>();
+        for (List<Map<String, Object>> pauses : bad) {
+            Map<String, Object> body = run(UUID.randomUUID().toString(), 5_000, 1_500);
+            body.put("pauses", pauses);
+            expectStatus(s, body, 400);
+            rejected.add((String) body.get("recordId"));
+        }
+        Map<String, Object> battle = run(UUID.randomUUID().toString(), 5_000, 1_500);
+        battle.put("mode", "BATTLE");
+        battle.put("cardKind", "BATTLE_RUN");
+        battle.put("battleId", 1);
+        battle.put("pauses", List.of(pause(a, b)));
+        expectStatus(s, battle, 400);
+
+        List<Map<String, Object>> many = new java.util.ArrayList<>();
+        for (int i = 0; i < 101; i++) {
+            LocalDateTime from = START.plusSeconds(2L * i + 1);
+            many.add(pause(from, from.plusSeconds(1)));
+        }
+        Map<String, Object> tooMany = run(UUID.randomUUID().toString(), 5_000, 1_500);
+        tooMany.put("pauses", many);
+        expectStatus(s, tooMany, 400);
+        Map<String, Object> hundred = run(UUID.randomUUID().toString(), 5_000, 1_500);
+        hundred.put("pauses", many.subList(0, 100));
+        expectStatus(s, hundred, 200);
+
+        for (String id : rejected) {
+            mvc.perform(as(s, get("/api/v1/runs/" + id)))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("RECORD_NOT_FOUND"));
+        }
+    }
+
+    @Test
+    @DisplayName("TC-6685: pauses 항목이 없거나 null·빈 목록이면 정지 없음으로 저장한다")
+    void upload_withoutPausesIsCompatible() throws Exception {
+        Session s = signUp();
+        expectStatus(s, run(UUID.randomUUID().toString(), 5_000, 1_500), 200);
+        Map<String, Object> nullPauses = run(UUID.randomUUID().toString(), 5_000, 1_500);
+        nullPauses.put("pauses", null);
+        expectStatus(s, nullPauses, 200);
+        Map<String, Object> empty = run(UUID.randomUUID().toString(), 5_000, 1_500);
+        empty.put("pauses", List.of());
+        mvc.perform(
+                        as(s, post("/api/v1/runs"))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(write(empty)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.valid").value(true));
+    }
 }

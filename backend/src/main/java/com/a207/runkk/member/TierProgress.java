@@ -94,6 +94,30 @@ public class TierProgress {
         return OptionalInt.empty();
     }
 
+    /**
+     * 늦게 온 유효 러닝(총괄 결정, 설계 쟁점 7-3). 뒤 순번이 먼저 반영되어 이미 지난 순번이다. 판정하지 않고 거리를 더하며, 최근 10회 창 안의
+     * 순번이면(ordinal &gt; validRunCount − 10) 점수도 창에 넣고 가장 오래된 점수를 밀어낸다(창의 평균만 쓰므로 순서는 상관없다). 이중 반영은
+     * running의 기록별 반영 표시가 막는다. 아직 오지 않은 순번이면 IllegalArgumentException.
+     */
+    public void addLateValidRun(RunScoreInput input) {
+        int ordinal = input.validRunOrdinal();
+        if (ordinal > validRunCount) {
+            throw new IllegalArgumentException("늦은 순번이 아니다: " + ordinal);
+        }
+        if (ordinal > validRunCount - WINDOW) {
+            Deque<Double> scores = scores();
+            scores.addLast(input.score());
+            while (scores.size() > WINDOW) {
+                scores.removeFirst();
+            }
+            this.recentScores =
+                    scores.stream()
+                            .map(s -> String.format(Locale.ROOT, "%.4f", s))
+                            .collect(Collectors.joining(","));
+        }
+        this.totalValidMeters += input.distance().meters();
+    }
+
     /** 누적 유효 거리(레벨 계산용). */
     public Distance totalValidDistance() {
         return Distance.ofMeters(totalValidMeters);

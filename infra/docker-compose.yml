@@ -60,7 +60,9 @@ services:
       ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET:?set ADMIN_JWT_SECRET in .env}
       # 첫 운영자 시드: 화이트리스트가 비었을 때만 한 번 넣고 감사 기록을 남긴다. 예) KAKAO:1234567890
       RUNKK_BOOTSTRAP_OPERATORS: ${RUNKK_BOOTSTRAP_OPERATORS:-}
-      SCHEDULER_POOL_SIZE: ${SCHEDULER_POOL_SIZE:-16}
+      SCHEDULER_POOL_SIZE: ${SCHEDULER_POOL_SIZE:-20}
+      # 랜드마크 배경 알림 없이 채우기 기준 시각(D-176): 이 시각 전 유효 거리만 센다. 첫 배포 때 V25 적용 시각으로 둔다
+      AVATAR_BACKFILL_CUTOFF: ${AVATAR_BACKFILL_CUTOFF:-2026-10-22T00:00:00}
       # 카카오·구글·Apple 로그인 같은 인증 요청의 클라이언트(IP)별 분당 상한
       AUTH_CLIENT_REQUESTS_PER_MINUTE: ${AUTH_CLIENT_REQUESTS_PER_MINUTE:-30}
       # 법정 고지 문서 주소. Spring은 빈 환경 변수도 값으로 보아 application.yml 기본값을 덮으므로 기본값을 서버 설정과 같게 둔다

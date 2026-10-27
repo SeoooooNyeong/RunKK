@@ -9,20 +9,23 @@ import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.uiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.CardKind
-import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
-import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.core.model.RunMode
 import com.a207.runkk.app.core.model.getOrNull
 import com.a207.runkk.app.domain.record.RecordRepository
 import com.a207.runkk.app.domain.run.FinishOutcome
 import com.a207.runkk.app.domain.run.FreeRunGoalUseCase
+import com.a207.runkk.app.domain.run.PauseLimit
 import com.a207.runkk.app.domain.run.PlanSnapshot
 import com.a207.runkk.app.domain.run.RunProgress
 import com.a207.runkk.app.domain.run.RunStartSpec
 import com.a207.runkk.app.domain.run.RunTracker
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.time.Clock
+import java.time.Duration
+import java.time.Instant
 import javax.inject.Inject
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
@@ -34,67 +37,22 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/** 러닝 화면 단계: 준비(재동의 대기) → 카운트다운 → 측정 ⇄ 잠금 → 종료 중. */
-enum class RunPhase { PREPARING, COUNTDOWN, RUNNING, LOCKED, FINISHING }
-
-data class RunUiState(
-    val phase: RunPhase = RunPhase.PREPARING,
-    val countdown: Int = COUNTDOWN_SECONDS,
-    val progress: RunProgress = RunProgress.INITIAL,
-    val targetDistance: Distance? = null,
-    val targetPace: Pace? = null,
-    val isConsentRequired: Boolean = false,
-    /** 재동의 안내를 뒤로가기·바깥 누름으로 닫았다. 다시 시도하면 다시 보인다. */
-    val isConsentDialogDismissed: Boolean = false,
-    /** 누름 안내("길게 눌러 종료"·"길게 눌러 해제"). 잠깐 보였다 사라진다. */
-    val hint: UiText? = null,
-    /** 새 1km 지점 배너("2km 통과 · 11:04 · 평균 5:32"). */
-    val splitBanner: UiText? = null,
-    val error: UiText? = null
-) {
-    /** 목표까지 남은 거리. 목표가 없거나 넘었으면 null. */
-    val remaining: Distance? get() = targetDistance?.takeIf { it > progress.distance }?.minus(progress.distance)
-
-    /** 재동의 안내를 보일 때(시작 전, 권한·동의 없음, 닫지 않음). */
-    val shouldShowConsentDialog: Boolean get() = phase == RunPhase.PREPARING && isConsentRequired &&
-        !isConsentDialogDismissed
-
-    val targetProgress: Float? get() = targetDistance?.takeIf { it.meters > 0 }?.let {
-        (
-            progress.distance.meters.toFloat() /
-                it.meters
-            ).coerceIn(0f, 1f)
-    }
-
-    companion object {
-        const val COUNTDOWN_SECONDS = 3
-    }
-}
-
-sealed interface RunEvent {
-    /** 저장됨: 결과 화면으로. */
-    data class Finished(val recordId: String) : RunEvent
-
-    /** 거리 0이라 저장하지 않음: 홈으로. */
-    data object NotSaved : RunEvent
-
-    /** 카운트다운 취소: 이전 화면으로. */
-    data object Exit : RunEvent
-}
-
 /**
  * 자유런 측정 화면(B1~B3, FR-030~FR-036·FR-180~FR-183). 측정 상태는 RunTracker(@Singleton)가 갖고 이 ViewModel은
  * 그 StateFlow를 구독해 화면 상태로 바꾼다(13.2 측정). 화면 입력은 누름 종류마다 다른 연산으로 넘긴다(D-36, D-49):
  * onFinishTapped·onFinishLongPressed, lockScreen·onUnlockTapped·onUnlockLongPressed.
+ * 취소(onDiscardTapped → 확인 → RunTracker.discardRun)는 기록을 남기지 않고 끝내며, 끝난 결과(NotSaved)로 홈에 간다.
  * 시작은 checkStartable → StartCountdown → startRun(자유런, 목표). 워치의 시작 요청(watchStartRequests)도 같은 흐름을 탄다.
  * 목표는 카운트다운을 시작할 때마다 FreeRunGoalUseCase로 고른다(코치 계획 따르기 켬 + 오늘 계획 있음 → 오늘 계획,
  * 그 밖 → 자유런 설정 목표 거리, FR-048). 카운트다운 중 설정에서 바꾸고 돌아오면 바뀐 목표로 다시 센다.
+ * 정지 경과(B2-2 "정지한 지", B2-3 자동 종료 안내)는 진행값에 정지 시작 시각이 없어 정지를 본 순간부터 [clock]으로 1초마다 센다.
  */
 @HiltViewModel
 class RunViewModel @Inject constructor(
     private val tracker: RunTracker,
     private val records: RecordRepository,
-    private val goals: FreeRunGoalUseCase
+    private val goals: FreeRunGoalUseCase,
+    private val clock: Clock
 ) : ViewModel() {
     private val _state = MutableStateFlow(RunUiState())
     val state: StateFlow<RunUiState> = _state.asStateFlow()
@@ -113,6 +71,10 @@ class RunViewModel @Inject constructor(
     private var startDevice = RunStartSpec.StartDevice.PHONE
     private var hintJob: Job? = null
     private var bannerJob: Job? = null
+    private var pauseJob: Job? = null
+
+    /** 정지를 처음 본 시각. 정지 중이 아니면 null. */
+    private var pausedSince: Instant? = null
 
     /** 마지막으로 배너를 띄운 km. 첫 진행값(화면을 다시 연 경우 지금 거리)으로 맞추고 배너는 띄우지 않는다. */
     private var lastSplitKm: Long? = null
@@ -125,6 +87,11 @@ class RunViewModel @Inject constructor(
         viewModelScope.launch {
             tracker.watchStartRequests.collect { prepare(RunStartSpec.StartDevice.WATCH) }
         }
+        // 화면 길게 누름·워치 종료·정지 60분 자동 종료(FR-195) 모두 같은 길로 결과·홈으로 간다.
+        // 구독을 먼저 걸고(UNDISPATCHED: 여기서 바로 구독) 화면이 떨어져 있던 동안 끝난 자유런이 남아 있으면(A4) 카운트다운 대신
+        // 그 결과로 간다. 순서가 반대면 그 사이에 끝난 결과를 방출로도 보관으로도 받지 못한다.
+        viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) { tracker.ended.collect(::onEnded) }
+        tracker.takeUnclaimedEnd()?.let { if (_state.value.phase != RunPhase.FINISHING) moveToEnd(it) }
         viewModelScope.launch {
             todayPlan = records.todayPlan().getOrNull()?.let { PlanSnapshot(it.distance, it.pace) }
             planLoaded = true
@@ -175,29 +142,76 @@ class RunViewModel @Inject constructor(
         showHint(R.string.run_hold_to_finish)
     }
 
+    /**
+     * 길게 눌러 종료(FR-181, 정지 중에도 FR-036). 잠금 중(PAUSED_LOCKED 포함)이면 거부되어 해제를 안내한다(D-157).
+     * 끝난 결과(저장됨·저장 안 함)는 RunTracker.ended로 받아 이동한다(워치·자동 종료와 같은 길).
+     */
     fun onFinishLongPressed() {
         // 저장 뒤 연타가 NotSaved로 결과 화면 이동을 덮지 않게 측정·잠금 단계에서만 받는다.
         val phase = _state.value.phase
         if (phase != RunPhase.RUNNING && phase != RunPhase.LOCKED) return
-        when (val outcome = tracker.onFinishLongPressed()) {
-            is FinishOutcome.Saved -> {
-                _state.update { it.copy(phase = RunPhase.FINISHING) }
-                _events.trySend(RunEvent.Finished(outcome.run.recordId))
-            }
+        if (tracker.onFinishLongPressed() == FinishOutcome.Rejected) showHint(R.string.run_hold_to_unlock)
+    }
 
-            FinishOutcome.NotSaved -> _events.trySend(RunEvent.NotSaved)
+    /** 취소(측정·정지 화면): 확인 대화상자를 띄운다. 잠금·종료 중에는 받지 않는다(FR-182). */
+    fun onDiscardTapped() {
+        if (_state.value.phase == RunPhase.RUNNING) _state.update { it.copy(isDiscardConfirming = true) }
+    }
 
-            FinishOutcome.Rejected -> showHint(R.string.run_hold_to_unlock)
-        }
+    /** 취소 확인에서 "계속 달리기"·뒤로가기·바깥 누름. 측정은 그대로 이어 간다. */
+    fun onDiscardDismissed() = _state.update { it.copy(isDiscardConfirming = false) }
+
+    /**
+     * 취소 확인: 기록을 남기지 않고 측정을 끝낸다(서버 전송·미전송 보관 없음). 끝난 결과(NotSaved)는 RunTracker.ended로 받아
+     * 길게 눌러 종료와 같은 길로 홈에 간다. 그 사이 잠겼으면 RunTracker가 거부하고 측정을 이어 간다.
+     */
+    fun onDiscardConfirmed() {
+        val isConfirming = _state.value.isDiscardDialogVisible
+        _state.update { it.copy(isDiscardConfirming = false) }
+        if (isConfirming) tracker.discardRun()
+    }
+
+    /** 일시정지(자유런, FR-194). 잠금 중에는 폰 버튼을 받지 않는다(FR-182, RunTracker가 거른다). */
+    fun onPauseTapped() {
+        if (_state.value.phase == RunPhase.RUNNING) tracker.onPauseTapped()
+    }
+
+    /** 재개(FR-194). 잠금 중 워치 정지(PAUSED_LOCKED)는 폰 버튼으로 재개하지 않는다(D-120). */
+    fun onResumeTapped() {
+        if (_state.value.phase == RunPhase.RUNNING) tracker.onResumeTapped()
     }
 
     fun onErrorShown() = _state.update { it.copy(error = null) }
 
+    /** 측정이 끝났다: 저장됐으면 결과로, 거리 0이면 홈으로(FR-036). 측정 화면일 때 한 번만 옮긴다. */
+    private fun onEnded(outcome: FinishOutcome) {
+        val phase = _state.value.phase
+        if (phase != RunPhase.RUNNING && phase != RunPhase.LOCKED) return
+        moveToEnd(outcome)
+    }
+
+    private fun moveToEnd(outcome: FinishOutcome) {
+        val event = when (outcome) {
+            is FinishOutcome.Saved -> RunEvent.Finished(outcome.run.recordId)
+            FinishOutcome.NotSaved -> RunEvent.NotSaved
+            FinishOutcome.Rejected -> return
+        }
+        _state.update { it.copy(phase = RunPhase.FINISHING) }
+        _events.trySend(event)
+    }
+
     private fun prepare(device: RunStartSpec.StartDevice = RunStartSpec.StartDevice.PHONE) {
         if (_state.value.phase != RunPhase.PREPARING || !planLoaded) return
-        val chosen = goals.current(todayPlan).plan
+        val current = goals.current(todayPlan)
+        val chosen = current.plan
         goal = chosen
-        _state.update { it.copy(targetDistance = chosen?.targetDistance, targetPace = chosen?.targetPace) }
+        _state.update {
+            it.copy(
+                targetDistance = chosen?.targetDistance,
+                targetPace = chosen?.targetPace,
+                isFromCoachPlan = current.isFromCoachPlan
+            )
+        }
         val startable = tracker.checkStartable()
         if (startable is Outcome.Failure) {
             // 권한·동의 없음은 RunTracker가 consentRequired를 참으로 두고 화면이 재동의 안내를 보인다(design-review.md M25).
@@ -263,6 +277,30 @@ class RunViewModel @Inject constructor(
             }
             s.copy(progress = progress, phase = phase, splitBanner = newSplit ?: s.splitBanner)
         }
+        trackPause(progress.isPaused)
+    }
+
+    /**
+     * 정지로 바뀌면 그 시각부터 1초마다 정지 경과를 갱신하고, 재개·종료되면 멈춘다. 정지는 60분이면 자동 종료되므로(FR-195)
+     * 그보다 조금 길게만 센다. 끝없는 반복은 가상 시간 시험(runTest 끝의 advanceUntilIdle)을 멈추지 않게 만든다.
+     */
+    private fun trackPause(isPaused: Boolean) {
+        if (isPaused == (pausedSince != null)) return
+        pauseJob?.cancel()
+        if (!isPaused) {
+            pausedSince = null
+            _state.update { it.copy(pausedFor = null) }
+            return
+        }
+        val since = clock.instant()
+        pausedSince = since
+        pauseJob = viewModelScope.launch {
+            repeat(MAX_PAUSE_TICKS) {
+                val pausedFor = Duration.between(since, clock.instant()).coerceAtLeast(Duration.ZERO)
+                _state.update { it.copy(pausedFor = pausedFor) }
+                delay(TICK_MILLIS)
+            }
+        }
     }
 
     private fun showHint(@StringRes text: Int) {
@@ -278,5 +316,9 @@ class RunViewModel @Inject constructor(
         const val HINT_MILLIS = 2_500L
         const val BANNER_MILLIS = 10_000L
         const val METERS_PER_KM = 1_000L
+        const val TICK_MILLIS = 1_000L
+
+        /** 정지 경과를 세는 최대 횟수: 자동 종료(60분)에 1분 여유. */
+        val MAX_PAUSE_TICKS: Int = PauseLimit.END_AFTER.plusMinutes(1).seconds.toInt()
     }
 }

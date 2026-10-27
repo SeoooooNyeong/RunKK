@@ -10,6 +10,7 @@ import com.a207.runkk.app.core.model.RunMode
 import com.a207.runkk.app.core.model.SignalState
 import com.a207.runkk.app.domain.run.CompletedRun
 import com.a207.runkk.app.domain.run.HeartRateSample
+import com.a207.runkk.app.domain.run.PauseInterval
 import com.a207.runkk.app.domain.run.RoutePoint
 import com.a207.runkk.app.domain.run.UnstableSegment
 import com.a207.runkk.app.domain.sync.DisposalOrder
@@ -21,6 +22,8 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import retrofit2.create
 
 /** api.run(14장 단위(앱 데이터) "api.run의 CompletedRun → RunUploadRequest"): 전송 형식과 파기 지시 매퍼. */
@@ -54,10 +57,37 @@ class RunUploadRemoteImplTest {
                     ),
                 unstableSegments =
                     listOf(RunUploadRequest.Segment("2026-10-20T07:01:40+09:00", "2026-10-20T07:01:55+09:00", 42)),
-                heartRates = listOf(RunUploadRequest.HeartRate("2026-10-20T07:00:10+09:00", 130))
+                heartRates = listOf(RunUploadRequest.HeartRate("2026-10-20T07:00:10+09:00", 130)),
+                pauses = emptyList()
             ),
             request
         )
+    }
+
+    @Test
+    fun `TC-6524 정지 구간을 오프셋 시각 from·to로 보내고 종료 시각에 정지 시간을 더한다`() {
+        val free =
+            RUN.copy(
+                mode = RunMode.FREE,
+                cardKind = CardKind.FREE_RUN,
+                battleId = null,
+                startedAt = Instant.parse("2026-10-22T10:00:00Z"),
+                elapsed = Duration.ofMinutes(20),
+                pauses = listOf(
+                    PauseInterval(Instant.parse("2026-10-22T10:10:00Z"), Instant.parse("2026-10-22T10:15:00Z"))
+                )
+            )
+
+        val json = Json.parseToJsonElement(api.json.encodeToString(RunUploadRequest.serializer(), free.toRequest()))
+
+        assertEquals(
+            Json.parseToJsonElement("""[{"from":"2026-10-22T19:10:00+09:00","to":"2026-10-22T19:15:00+09:00"}]"""),
+            json.jsonObject["pauses"]
+        )
+        assertEquals("2026-10-22T19:25:00+09:00", json.jsonObject["endedAt"]!!.jsonPrimitive.content, "20분 운동 + 5분 정지")
+        assertEquals("1200000", json.jsonObject["elapsedMillis"]!!.jsonPrimitive.content, "elapsedMillis는 운동 시간")
+        val empty = Json.parseToJsonElement(api.json.encodeToString(RunUploadRequest.serializer(), RUN.toRequest()))
+        assertEquals(Json.parseToJsonElement("[]"), empty.jsonObject["pauses"], "정지 없음은 빈 배열")
     }
 
     @Test
@@ -78,7 +108,8 @@ class RunUploadRemoteImplTest {
                 "pointCount",
                 "points",
                 "unstableSegments",
-                "heartRates"
+                "heartRates",
+                "pauses"
             ),
             keys
         )

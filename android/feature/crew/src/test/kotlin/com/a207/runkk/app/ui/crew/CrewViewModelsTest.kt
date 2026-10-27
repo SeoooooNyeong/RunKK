@@ -9,12 +9,12 @@ import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.ServerClock
 import com.a207.runkk.app.core.navigation.Routes
+import com.a207.runkk.app.domain.crew.AttendanceAnswer
 import com.a207.runkk.app.domain.crew.CrewRanking
 import com.a207.runkk.app.domain.crew.CrewRole
 import com.a207.runkk.app.domain.crew.JoinPolicy
 import com.a207.runkk.app.domain.crew.LobbyAvailability
 import com.a207.runkk.app.domain.crew.MyCrew
-import com.a207.runkk.app.domain.crew.VoteAnswer
 import java.time.Instant
 import java.time.LocalTime
 import kotlin.test.assertEquals
@@ -33,14 +33,13 @@ class CrewFindViewModelTest {
     private val repo = FakeCrewRepository()
 
     @Test
-    fun `크루가 없으면 내 크루를 확인한 뒤 공개 크루 목록과 추천을 함께 읽는다(FR-117·FR-118)`() {
+    fun `크루가 없으면 내 크루를 확인한 뒤 공개 크루 목록을 읽고 추천은 읽지 않는다(FR-117, FR-118 삭제)`() {
         val vm = CrewFindViewModel(repo)
         val s = vm.state.value
         assertEquals("myCrew", repo.calls.first())
         assertFalse(s.isCheckingMine)
         assertNull(s.mine)
         assertEquals(3, s.crews.size)
-        assertEquals(listOf(crewA), s.recommendations)
         assertTrue("search:null:[]" in repo.calls)
     }
 
@@ -237,7 +236,9 @@ class CrewHomeViewModelTest {
     private val clock = MutableClock()
     private val serverClock = ServerClock(clock)
 
-    private fun vm() = CrewHomeViewModel(repo, serverClock).also { it.bind(Routes.CrewHome(11)) }
+    private fun vm() = CrewHomeViewModel(repo, serverClock, FakeCelebrationSharer()).also {
+        it.bind(Routes.CrewHome(11))
+    }
 
     /** 모집글 31(투표 중) 모집 일시에서 [minutes]분 앞. */
     private fun beforeMeet(minutes: Long): Instant = crewRunVoting.scheduledAt.minusSeconds(minutes * 60)
@@ -246,7 +247,7 @@ class CrewHomeViewModelTest {
     fun `크루런 대기실 단추 - 열리기 전엔 남은 분, 30분 전에 저절로 열리고, 모집 일시가 지나면 닫힌다(FR-133·FR-147)`() = main.runVmTest { vms ->
         clock.now = beforeMeet(40)
         val vm = vms.track(vm())
-        vm.onTab(CrewTab.CREW_RUN)
+        vm.onTab(CrewTab.SCHEDULE)
         assertEquals(LobbyAvailability.NotYet(10), vm.state.value.lobbyEntries[31])
         assertEquals(LobbyAvailability.Closed, vm.state.value.lobbyEntries[32], "끝난 크루런")
         clock.now = beforeMeet(30)
@@ -263,29 +264,28 @@ class CrewHomeViewModelTest {
         clock.now = beforeMeet(29)
         serverClock.onServerDate(beforeMeet(31))
         val vm = vms.track(vm())
-        vm.onTab(CrewTab.CREW_RUN)
+        vm.onTab(CrewTab.SCHEDULE)
         assertEquals(LobbyAvailability.NotYet(1), vm.state.value.lobbyEntries[31])
     }
 
     @Test
-    fun `크루 이름·인원·역할은 크루 조회로 읽고 크루 관리는 크루장에게만 연다`() {
+    fun `크루 이름·인원·역할은 크루 조회로 읽고 크루 관리는 크루장·운영진에게만 연다`() {
         val member = vm()
         assertEquals("새벽질주", member.state.value.crewName)
         assertEquals(6, member.state.value.detail?.headcount)
         assertFalse(member.state.value.canManage)
         repo.role = CrewRole.LEADER
-        val leader = CrewHomeViewModel(repo, serverClock).also { it.bind(Routes.CrewHome(11)) }
+        val leader = CrewHomeViewModel(repo, serverClock, FakeCelebrationSharer()).also { it.bind(Routes.CrewHome(11)) }
         assertTrue(leader.state.value.canManage)
     }
 
     @Test
-    fun `게시글은 끝에 닿으면 다음 쪽을 이어 받는다(FR-131)`() {
+    fun `게시글은 끝에 닿으면 다음 쪽을 이어 받는다(FR-131, 게시판 응원 칩)`() {
         repo.postsNext = 41
-        val vm = vm()
-        vm.onTab(CrewTab.CHEER)
+        val vm = CrewBoardViewModel(repo, clock).also { it.bind(11, BoardFilter.CHEER) }
         vm.onLoadMore()
-        assertEquals(listOf(41L, 42L, 49L), vm.state.value.cheers?.posts?.map { it.postId })
-        assertNull(vm.state.value.cheers?.nextCursor)
+        assertEquals(listOf(41L, 42L, 49L), vm.state.value.posts?.posts?.map { it.postId })
+        assertNull(vm.state.value.posts?.nextCursor)
         vm.onLoadMore()
         assertEquals(1, repo.calls.count { it == "posts:CHEER:41" })
     }
@@ -304,44 +304,41 @@ class CrewHomeViewModelTest {
     @Test
     fun `탭은 처음 열 때 한 번만 읽는다`() {
         val vm = vm()
-        vm.onTab(CrewTab.CHEER)
+        vm.onTab(CrewTab.MEMBERS)
         vm.onTab(CrewTab.RACE)
-        vm.onTab(CrewTab.CHEER)
-        assertEquals(1, repo.calls.count { it == "posts:CHEER" })
-        assertEquals(2, vm.state.value.cheers?.posts?.size)
+        vm.onTab(CrewTab.MEMBERS)
+        assertEquals(1, repo.calls.count { it == "members" })
     }
 
     @Test
-    fun `응원글을 쓰면 비우고 목록을 다시 읽는다, 200자를 넘기지 않는다(FR-129)`() {
-        val vm = vm()
-        vm.onTab(CrewTab.CHEER)
+    fun `응원글 200자는 코드 포인트로 세고 넘기지 않는다(D-143, FR-129, 게시판 응원 칩)`() {
+        val vm = CrewBoardViewModel(repo, clock).also { it.bind(11, BoardFilter.CHEER) }
+        val emoji = "\uD83C\uDFC3"
+        vm.onCheerDraft(emoji.repeat(201))
+        assertEquals(emoji.repeat(200), vm.state.value.cheerDraft)
+        assertTrue(vm.state.value.isCheerValid)
         vm.onCheerDraft("가".repeat(250))
         assertEquals(200, vm.state.value.cheerDraft.length)
-        vm.onCheerDraft("화이팅")
-        vm.onCheerSubmit()
-        assertTrue("cheer:화이팅" in repo.calls)
-        assertEquals("", vm.state.value.cheerDraft)
-        assertEquals(2, repo.calls.count { it == "posts:CHEER" })
     }
 
     @Test
-    fun `내 글만, 확인을 받은 뒤 지운다(FR-130)`() {
+    fun `지울 수 있는 일정 글만, 확인을 받은 뒤 지운다(FR-130)`() {
         val vm = vm()
-        vm.onTab(CrewTab.CHEER)
-        vm.onDeleteAsk(cheers.posts[0])
+        vm.onTab(CrewTab.SCHEDULE)
+        vm.onDeleteAsk(crewRunPosts.posts[0].copy(canDelete = false))
         assertNull(vm.state.value.confirmDelete, "남의 글은 묻지도 않는다")
-        vm.onDeleteAsk(cheers.posts[1])
+        vm.onDeleteAsk(crewRunPosts.posts[0].copy(canDelete = true))
         assertTrue(repo.calls.none { it.startsWith("deletePost") })
         vm.onDeleteConfirm()
-        assertEquals(listOf("deletePost:42"), repo.calls.filter { it.startsWith("deletePost") })
+        assertEquals(listOf("deletePost:31"), repo.calls.filter { it.startsWith("deletePost") })
     }
 
     @Test
     fun `크루런 참여 응답을 남기면 그 글의 내 응답으로 보이고 서버 목록을 다시 읽는다(FR-145)`() {
         val vm = vm()
-        vm.onTab(CrewTab.CREW_RUN)
+        vm.onTab(CrewTab.SCHEDULE)
         assertNull(vm.state.value.crewRuns?.posts?.first()?.crewRun?.myAnswer)
-        vm.onVote(crewRunPosts.posts[0], VoteAnswer.GOING)
+        vm.onAttendance(crewRunPosts.posts[0], AttendanceAnswer.GOING)
         assertTrue("vote:31:GOING" in repo.calls)
         assertEquals(2, repo.calls.count { it == "posts:CREW_RUN" }, "투표 뒤 참여 인원·내 응답을 서버에서 다시 읽는다")
     }

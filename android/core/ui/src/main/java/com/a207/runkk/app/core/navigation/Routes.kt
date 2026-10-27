@@ -13,6 +13,9 @@ object Routes {
     const val LOGIN = "login"
     const val SIGN_UP = "signup"
 
+    /** 게스트로 시작(FR-197): 가입과 같은 동의 화면 하나를 게스트 갈래로 보인다. */
+    const val GUEST_START = "signup/guest"
+
     // 하단 탭 다섯 개(셀프·셀럽·홈·크루·마이, SRS 5.1)
 
     /** 셀프 탭: 나와의 싸움 선택(ui.battle). */
@@ -64,6 +67,9 @@ object Routes {
     const val AVATAR_SETUP = "avatar/setup"
     const val SHOP = "avatar/shop"
 
+    /** 아바타 랜드마크 배경 고르기(FR-201, FR-202). 알림 Screen.AVATAR_BACKGROUND가 여기로 온다. */
+    const val AVATAR_BACKGROUND = "avatar/background"
+
     /** 하단 탭 경로(왼쪽부터). */
     val TABS: List<String> = listOf(SELF, CELEB, HOME, CREW, ME)
 
@@ -82,6 +88,10 @@ object Routes {
     /** 기록 카드 팝업·공유(러닝 카드 앞뒤, FR-068·FR-069). ui.record가 그린다(ui.record → ui.share). */
     @Serializable
     data class RecordCard(val recordId: String) : NavKey
+
+    /** 다른 러너 프로필(F8, FR-005). 회원 ID. ui.me가 그린다. 크루원 목록·랭킹 등에서 연다. */
+    @Serializable
+    data class MemberProfile(val memberId: Long) : NavKey
 
     // 대결(ui.battle) 인자 화면(A3b)
 
@@ -119,11 +129,14 @@ object Routes {
     @Serializable
     data class CrewHome(val crewId: Long) : NavKey
 
-    /** 크루 관리(크루장, FR-113~FR-116·FR-123·FR-127). 지금 크루 정보는 화면이 GET /crews/{id}로 읽는다. */
+    /**
+     * 크루 관리(크루장·운영진, FR-113~FR-116·FR-123·FR-127·FR-204). 보이는 기능은 내 역할(3.0.3)로 정한다.
+     * 지금 크루 정보는 화면이 GET /crews/{id}로 읽는다.
+     */
     @Serializable
     data class CrewManage(val crewId: Long) : NavKey
 
-    /** 크루런 모집글 쓰기(FR-132). */
+    /** 일정 쓰기(FR-132): 크루런 또는 대면 모임을 고른다. 이름은 v0.10 크루런 모집글 쓰기에서 이어 왔다. */
     @Serializable
     data class CrewRunWrite(val crewId: Long) : NavKey
 
@@ -134,4 +147,49 @@ object Routes {
     /** 크루런 결과(FR-191). */
     @Serializable
     data class CrewRunResult(val postId: Long) : NavKey
+
+    /** 투표 만들기(FR-206). */
+    @Serializable
+    data class CrewPollWrite(val crewId: Long) : NavKey
+
+    /** 게시판 글쓰기(본문 + 사진 0~5장, FR-211). */
+    @Serializable
+    data class CrewBoardWrite(val crewId: Long) : NavKey
+
+    /** 공지 쓰기(FR-205, 와이어프레임 M1). 크루장·운영진. */
+    @Serializable
+    data class CrewNoticeWrite(val crewId: Long) : NavKey
+
+    /** 투표 응답과 결과(FR-206·FR-207, 와이어프레임 M3). 작성자·시각은 크루 투표 목록에서 찾는다. */
+    @Serializable
+    data class CrewPoll(val crewId: Long, val postId: Long) : NavKey
+
+    /** 대면 모임 상세와 참석 응답(FR-145·FR-207, 와이어프레임 M7). */
+    @Serializable
+    data class CrewMeetupDetail(val crewId: Long, val postId: Long) : NavKey
+
+    /** 주간 공동 목표 정하기(FR-138, 와이어프레임 M8). 크루장·운영진. */
+    @Serializable
+    data class CrewGoalSet(val crewId: Long) : NavKey
+
+    // 크루 채팅(ui.chat, :feature:chat) 화면(A3b)
+
+    /** 크루 채팅방(FR-208~FR-210, FR-213, FR-214). ui.chat의 ChatFeatureEntry가 등록한다(6.1.14). */
+    @Serializable
+    data class CrewChat(val crewId: Long) : NavKey
+
+    // 알림 이동 화면(FR-178, D-150): 서버 notification.Screen 이름과 같은 v0.11 크루 화면 4종. 알림은 크루 ID를 경로로 넘기지 않으므로
+    // 내 크루(GET /crews/me)의 해당 탭이나 채팅방을 연다. ui.crew가 등록한다(채팅은 내 크루를 확인한 뒤 CrewChat(crewId)으로 넘긴다).
+
+    /** 내 크루 홈의 공지 탭(Screen CREW_NOTICE). */
+    const val CREW_NOTICE = "crew/notice"
+
+    /** 내 크루 홈의 투표 탭(Screen CREW_POLL). */
+    const val CREW_POLL = "crew/poll"
+
+    /** 내 크루 홈의 일정 탭(Screen CREW_SCHEDULE). */
+    const val CREW_SCHEDULE = "crew/schedule"
+
+    /** 내 크루 채팅방(Screen CREW_CHAT). */
+    const val CREW_CHAT = "crew/chat"
 }

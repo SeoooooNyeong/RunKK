@@ -1,14 +1,18 @@
 package com.a207.runkk.battle;
 
 import com.a207.runkk.common.ReasonCode;
+import com.a207.runkk.member.IdleGuestWithdrawalGuard;
 import com.a207.runkk.member.WithdrawalGuard;
 import java.util.Optional;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 대기 중이거나 활성 대결이 있으면 탈퇴를 막는다(설계 6.1.6, member.WithdrawalGuard 구현, FR-024). */
+/**
+ * 대기 중이거나 활성 대결이 있으면 탈퇴를 막는다(설계 6.1.6, member.WithdrawalGuard 구현, FR-024). 미이용 게스트 파기도 같은 검사로
+ * 건너뛴다(member.IdleGuestWithdrawalGuard 구현, 다음 날 다시 본다, D-141).
+ */
 @Component
-public class ActiveBattleGuard implements WithdrawalGuard {
+public class ActiveBattleGuard implements WithdrawalGuard, IdleGuestWithdrawalGuard {
 
     private final MatchQueue matchQueue;
     private final BattleRepository battleRepository;

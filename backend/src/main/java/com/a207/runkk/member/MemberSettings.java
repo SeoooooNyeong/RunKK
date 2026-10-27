@@ -27,8 +27,9 @@ import java.util.stream.Collectors;
 public class MemberSettings {
 
     /**
-     * notification.NotificationType 12개의 이름(자료사전 알림종류, 부록 B). member는 notification에 의존할 수 없어(12.2,
-     * notification → member) 이름 목록을 여기 둔다. 두 목록이 같은지는 notification의 시험이 확인한다.
+     * notification.NotificationType 21개의 이름(자료사전 알림종류 12개 + v0.11 9개, 부록 B, 06-05). member는
+     * notification에 의존할 수 없어(12.2, notification → member) 이름 목록을 여기 둔다. 두 목록이 같은지는 notification의
+     * 시험이 확인한다.
      */
     public static final List<String> NOTIFICATION_TYPES =
             List.of(
@@ -43,7 +44,16 @@ public class MemberSettings {
                     "CREW_RUN_RECRUIT",
                     "CREW_RUN_SOON",
                     "OPPONENT_ARRIVED",
-                    "BATTLE_CORRECTED");
+                    "BATTLE_CORRECTED",
+                    "CREW_NOTICE",
+                    "CREW_POLL",
+                    "POLL_CLOSING_SOON",
+                    "CREW_SCHEDULE",
+                    "CREW_CHAT",
+                    "CREW_GOAL_ACHIEVED",
+                    "MANAGER_CHANGED",
+                    "BACKGROUND_UNLOCKED",
+                    "REPORT_RESOLVED");
 
     @Enumerated(EnumType.STRING)
     @Column(name = "unit", nullable = false, length = 5)
@@ -71,6 +81,10 @@ public class MemberSettings {
 
     @Embedded private BattleSettings battleSettings;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "screen_theme", nullable = false, length = 10)
+    private ScreenTheme theme;
+
     protected MemberSettings() {}
 
     private MemberSettings(RecordVisibility chosen) {
@@ -82,9 +96,10 @@ public class MemberSettings {
         this.watchLinked = false;
         this.runSettings = RunSettings.defaults();
         this.battleSettings = BattleSettings.defaults();
+        this.theme = ScreenTheme.SYSTEM;
     }
 
-    /** 가입 기본값(srs.md 6.3 1.2). 기록 공개 범위는 가입 단계에서 고른 값이다(FR-028). */
+    /** 가입 기본값(srs.md 6.3 1.2). 가입·게스트 시작 모두 PUBLIC을 넘긴다(FR-028). 탈퇴 정리는 PRIVATE. */
     public static MemberSettings defaults(RecordVisibility chosen) {
         if (chosen == null) {
             throw new IllegalArgumentException("기록 공개 범위가 비었다");
@@ -114,8 +129,20 @@ public class MemberSettings {
         this.battleSettings = battleSettings.withDefaultDistance(d);
     }
 
-    /** 모든 항목을 복사한 읽기 전용 사본. 동의와 출생연도는 회원이 넘긴다(GET /me/settings, D-53). */
-    MemberSettingsView view(Map<ConsentItem, Boolean> consents, Integer birthYear) {
+    /** 화면 테마 변경(FR-203, D-92). SettingItem.THEME.applyTo가 부른다. */
+    public void changeTheme(ScreenTheme t) {
+        if (t == null) {
+            throw new IllegalArgumentException("화면 테마가 비었다");
+        }
+        this.theme = t;
+    }
+
+    /** 모든 항목을 복사한 읽기 전용 사본. 동의·출생연도·계정 유형·연동 제공자는 회원이 넘긴다(GET /me/settings, D-53, D-90). */
+    MemberSettingsView view(
+            Map<ConsentItem, Boolean> consents,
+            Integer birthYear,
+            AccountType accountType,
+            ProviderType linkedProvider) {
         Set<String> muted = muted();
         Map<String, Boolean> prefs = new LinkedHashMap<>();
         for (String type : NOTIFICATION_TYPES) {
@@ -131,7 +158,10 @@ public class MemberSettings {
                 runSettings,
                 battleSettings,
                 consents,
-                birthYear);
+                birthYear,
+                theme,
+                accountType,
+                linkedProvider);
     }
 
     RecordVisibility recordVisibility() {
@@ -189,6 +219,10 @@ public class MemberSettings {
 
     void changeBattleSettings(BattleSettings settings) {
         this.battleSettings = settings;
+    }
+
+    BattleSettings battleSettings() {
+        return battleSettings;
     }
 
     private Set<String> muted() {

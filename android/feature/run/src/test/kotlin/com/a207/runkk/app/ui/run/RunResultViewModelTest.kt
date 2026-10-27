@@ -57,6 +57,36 @@ class RunResultViewModelTest {
     }
 
     @Test
+    fun `서버가 무효로 판정한 기록이면 집계 제외를 보이고 칼로리는 빼며, 거리는 서버 값이다`() {
+        pending.runs.value = listOf(completedRun())
+        val base = recordDetail()
+        records.runResult = Outcome.Success(
+            base.copy(summary = base.summary.copy(distance = Distance(360), isValid = false))
+        )
+        val vm = RunResultViewModel(pending, records)
+        vm.load("rec-1")
+        val s = vm.state.value
+        assertTrue(s.isUploaded)
+        assertTrue(s.isExcluded)
+        assertNull(s.calories)
+        assertEquals(Distance(360), s.distance)
+    }
+
+    @Test
+    fun `유효 기록과 서버 판정 전(미전송) 기록은 집계 제외를 보이지 않는다`() {
+        pending.runs.value = listOf(completedRun())
+        records.runResult = Outcome.Success(recordDetail())
+        val uploaded = RunResultViewModel(pending, records).also { it.load("rec-1") }.state.value
+        assertFalse(uploaded.isExcluded)
+        assertEquals(312, uploaded.calories)
+
+        records.runResult = Outcome.Failure(AppError.Network)
+        val local = RunResultViewModel(pending, records).also { it.load("rec-1") }.state.value
+        assertFalse(local.isUploaded)
+        assertFalse(local.isExcluded)
+    }
+
+    @Test
     fun `어디에도 없으면 오류를 보인다`() = runTest(main.dispatcher) {
         records.runResult = Outcome.Failure(AppError.Network)
         val vm = RunResultViewModel(pending, records)

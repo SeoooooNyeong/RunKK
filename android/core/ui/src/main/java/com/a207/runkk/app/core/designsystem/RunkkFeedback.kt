@@ -29,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -112,10 +113,13 @@ fun RunkkLogo(
         height != null -> Modifier.height(height).width(height * kind.aspect)
         else -> Modifier.height(24.dp).width(24.dp * kind.aspect)
     }
+    // 로고 그림은 라임 한 색이다. 라이트 벌에서는 흰 바탕 대비가 낮아 지금 벌의 포인트 색으로 칠한다(FR-203).
+    val tint = if (LocalRunkkColors.current.isDark) null else ColorFilter.tint(RunkkColors.Lime)
     Image(
         painter = painterResource(res),
         contentDescription = contentDescription,
         contentScale = ContentScale.Fit,
+        colorFilter = tint,
         modifier = modifier.then(sized)
     )
 }

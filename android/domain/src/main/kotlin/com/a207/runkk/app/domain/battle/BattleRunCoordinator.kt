@@ -9,6 +9,9 @@ import com.a207.runkk.app.domain.live.BattleEnded
 import com.a207.runkk.app.domain.live.BattleGuidance
 import com.a207.runkk.app.domain.live.BattleStart
 import com.a207.runkk.app.domain.live.CountdownStarted
+import com.a207.runkk.app.domain.live.CrewChatPosted
+import com.a207.runkk.app.domain.live.CrewChatReactionChanged
+import com.a207.runkk.app.domain.live.CrewChatRemoved
 import com.a207.runkk.app.domain.live.CrewRunCancelled
 import com.a207.runkk.app.domain.live.CrewRunEnded
 import com.a207.runkk.app.domain.live.CrewRunRelay
@@ -306,11 +309,32 @@ constructor(
             is MatchFound, is MatchFailed -> Unit
 
             is CrewRunStart, is CrewRunCancelled, is CrewRunRelay, is CrewRunEnded -> Unit
+
+            // 채팅은 같은 연결을 쓰는 ChatRoom이 받는다(D-103).
+            is CrewChatPosted, is CrewChatRemoved, is CrewChatReactionChanged -> Unit
         }
     }
 
+    /**
+     * 상대 진행값. 상대 연결 확인 중(CHECKING)이면 격차가 낡은 값이라 근접 알림을 멈추고(onGapChanged(null)) 화면의 마지막 격차는
+     * 그대로 둔다. 연결로 돌아오면 새 격차로 다시 시작한다(D-145 (1)).
+     */
     private fun onOpponentProgress(run: BattleRun, m: OpponentProgress) {
         if (m.battleId != run.battleId) return
+        if (m.connection == OpponentProgress.Connection.CHECKING) {
+            runTracker.onGapChanged(null)
+            updateRunning { previous ->
+                previous?.copy(opponentConnection = m.connection)
+                    ?: BattleRunState.Running(
+                        m.battleId,
+                        gapMeters = null,
+                        opponentDistance = m.opponentDistance,
+                        lastGuidance = null,
+                        opponentConnection = m.connection
+                    )
+            }
+            return
+        }
         runTracker.onGapChanged(m.gapMeters)
         updateRunning { previous ->
             previous?.copy(

@@ -8,6 +8,7 @@ import com.a207.runkk.running.DisposalService;
 import com.a207.runkk.running.HeartRateSample;
 import com.a207.runkk.running.LateHeartRateCommand;
 import com.a207.runkk.running.LocationPoint;
+import com.a207.runkk.running.PauseInterval;
 import com.a207.runkk.running.RunMode;
 import com.a207.runkk.running.RunUpload;
 import com.a207.runkk.running.RunUploadCommand;
@@ -117,6 +118,8 @@ public class RunController {
      * @param points 위치 포인트
      * @param unstableSegments 불안정 구간
      * @param heartRates 심박
+     * @param pauses 자유 러닝 정지 구간(v0.11 FR-036, D-93), null·빈 목록이면 정지 없음. 규칙 위반은 RunUpload 생성자가
+     *     IllegalArgumentException(400)으로 거부한다(F.2.2, D-163)
      */
     record RunUploadRequest(
             @NotBlank @Size(max = 36) String recordId,
@@ -131,7 +134,8 @@ public class RunController {
             @PositiveOrZero int pointCount,
             @NotNull @Size(max = MAX_POINTS) List<@Valid @NotNull PointRequest> points,
             @Size(max = MAX_POINTS) List<@Valid @NotNull SegmentRequest> unstableSegments,
-            @Size(max = MAX_POINTS) List<@Valid @NotNull HeartRateRequest> heartRates) {
+            @Size(max = MAX_POINTS) List<@Valid @NotNull HeartRateRequest> heartRates,
+            @Size(max = RunUpload.MAX_PAUSES) List<@Valid @NotNull PauseRequest> pauses) {
 
         RunUpload toUpload(ZoneId zone) {
             return new RunUpload(
@@ -151,7 +155,23 @@ public class RunController {
                             : unstableSegments.stream().map(s -> s.toSegment(zone)).toList(),
                     heartRates == null
                             ? List.of()
-                            : heartRates.stream().map(h -> h.toSample(zone)).toList());
+                            : heartRates.stream().map(h -> h.toSample(zone)).toList(),
+                    pauses == null
+                            ? List.of()
+                            : pauses.stream().map(p -> p.toInterval(zone)).toList());
+        }
+    }
+
+    /**
+     * 정지 구간(v0.11 FR-036, D-93).
+     *
+     * @param from 정지 시작 일시
+     * @param to 재개 일시
+     */
+    record PauseRequest(@NotNull OffsetDateTime from, @NotNull OffsetDateTime to) {
+
+        PauseInterval toInterval(ZoneId zone) {
+            return new PauseInterval(local(from, zone), local(to, zone));
         }
     }
 

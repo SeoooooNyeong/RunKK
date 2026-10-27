@@ -26,29 +26,30 @@ spring:
         default_batch_fetch_size: 100
         jdbc:
           time_zone: Asia/Seoul
-  # 비동기 사건 수신자(리포트·Runimal, D-03) 실행기. 인스턴스 1개·동시 50명(5.4) 규모. 종료 때 진행 중 작업을 30초까지 기다린다(1단계 리뷰 M6·L2).
+  # 비동기 사건 수신자(리포트·Runimal, D-03·배경 해금 BackgroundUnlockListener·채팅 방 밖 알림 ChatDeliveryListener) 실행기. 인스턴스 1개·동시 50명(5.4) 규모. 종료 때 진행 중 작업을 30초까지 기다린다(1단계 리뷰 M6·L2).
   task:
-    # 시각 작업은 batch.* 9개 패키지에 16개다(1초 2개, 1분 1개, 0시 3개, 0시 10분 2개, 3시 7개, 20시 1개). 같은 시각 작업과 1초 시계가 서로
-    # 기다리지 않게 스케줄러 스레드를 작업 수만큼 둔다(5.5, B5 리뷰 "풀 2개로 3시·0시 작업이 겹침"). 작업을 더하면 이 값도 늘린다.
+    # 시각 작업은 batch.* 10개 패키지에 20개다(1초 2개, 1분 2개, 0시 3개, 0시 10분 4개, 0시 30분 1개, 3시 6개, 3시 30분 1개, 20시 1개). 같은 시각 작업과
+    # 1초 시계가 서로 기다리지 않게 스케줄러 스레드를 작업 수만큼 둔다(5.5, B5 리뷰 "풀 2개로 3시·0시 작업이 겹침"). 작업을 더하면 이 값도 늘린다.
     scheduling:
       pool:
-        size: ${SCHEDULER_POOL_SIZE:16}
+        size: ${SCHEDULER_POOL_SIZE:20}
       thread-name-prefix: runkk-schedule-
     execution:
       thread-name-prefix: runkk-async-
       pool:
-        core-size: 2
-        max-size: 4
+        core-size: 4
+        max-size: 8
         queue-capacity: 500
       shutdown:
         await-termination: true
         await-termination-period: 30s
   # 셀카 업로드(POST /avatar/selfie, D-59): 앱이 1MB 이하로 줄여 보낸다. file-size-threshold를 max-file-size보다 크게 두어
   # multipart를 디스크 임시 파일 없이 메모리로만 받는다(셀카는 어디에도 저장하지 않는다, FR-156). 컨테이너 /tmp는 tmpfs다.
+  # 크루 게시글(POST /crews/{id}/board-posts, D-100)은 사진 5장 × 1MB라 요청 전체를 6MB까지 받는다(nginx 10m 안).
   servlet:
     multipart:
       max-file-size: 1MB
-      max-request-size: 2MB
+      max-request-size: 6MB
       file-size-threshold: 2MB
   # 회원 인증은 web.auth.AuthFilter(JWT)만 쓴다. Boot 기본 사용자(user + 생성 비밀번호)를 만들지 않는다(1단계 리뷰 L11).
   autoconfigure:
@@ -86,6 +87,9 @@ springdoc:
 
 # 런크크 설정. 키·토큰은 환경 변수로만 받는다(.env, 커밋 금지). 비어 있으면 그 연동은 꺼진 채로 안전하게 동작한다.
 runkk:
+  avatar:
+    # 배경 해금 조회 채우기 기준 시각(D-176): V25 적용 시각. 이 시각 이전에 저장한 유효 기록의 거리만 알림 없이 채운다. 배포 때 실제 적용 시각으로 맞춘다.
+    backfill-cutoff: ${AVATAR_BACKFILL_CUTOFF:2026-10-22T00:00:00}
   # 법정 고지 문서 공개 주소(FR-018, member.LegalDocumentCatalog)
   legal:
     terms-url: ${LEGAL_TERMS_URL:https://k15a207.p.ssafy.io/legal/terms}
@@ -108,6 +112,9 @@ runkk:
       client-failures: 10
       credential-failures: 5
       failure-window: 10m
+      # 게스트 생성(POST /members/guest) 접속지별 한도(FR-197, D-89 (4)): 1시간에 10회
+      guest-starts: 10
+      guest-start-window: 1h
     google:
       base-url: ${GOOGLE_TOKENINFO_BASE_URL:https://oauth2.googleapis.com}
       # ID 토큰 aud로 받을 OAuth 클라이언트 ID(쉼표 구분). 비면 구글 로그인을 거부한다.
@@ -145,16 +152,25 @@ runkk:
     withdrawal-purge-cron: "0 0 3 * * *"
     # 만료된 갱신 토큰 폐기 목록 행 정리(M6 후속 결정, refresh_token_revocation)
     revocation-purge-cron: "0 0 3 * * *"
+    # 1년(365일) 미접속 게스트 파기(FR-200, D-156)
+    idle-guest-withdrawal-cron: "0 0 3 * * *"
     disposal-cron: "0 0 3 * * *"
-    notification-purge-cron: "0 0 3 * * *"
+    # 보관 기한 지난 알림 정리는 매일 0시(srs 소단위명세 7.3, D-67, 부록 E K-3)
+    notification-purge-cron: "0 0 0 * * *"
     # 크루런 시계(CrewRunService.tick·CrewRunLiveService.detectTimeouts, D-39). 시험 프로필은 끄고 연산을 직접 부른다.
     crew-tick-enabled: true
     crew-tick-interval: 1s
-    # 크루 주간 거리 재합산(D-38), 가입 신청 만료(Q-40), 아바타 외형 재계산(N-18)
-    weekly-race-reconcile-cron: "0 0 0 * * *"
+    # 투표 마감 1시간 전 알림(PollReminderJob, FR-218, D-106): 1분 간격
+    poll-reminder-interval: 1m
+    # 크루 주간 거리 재합산(D-38, 0시 작업 셋과 겹치지 않게 0시 30분 D-88, 부록 E K-4), 가입 신청 만료(Q-40), 아바타 외형 재계산(N-18)
+    weekly-race-reconcile-cron: "0 30 0 * * *"
     # 커밋 뒤 수신자 유실분 일 단위 보정(코드 리뷰 2차 M4 결정): 리워드 적립, 크루런 기록 연결. 전날이 끝난 뒤 최근 2일을 다시 본다.
     reward-reconcile-cron: "0 10 0 * * *"
     crew-run-link-reconcile-cron: "0 10 0 * * *"
+    # 티어 갱신 보정(D-108, L16): 리스너가 놓친 유효 러닝 순번을 최근 2일 저장 기록으로 다시 넘긴다
+    tier-reconcile-cron: "0 10 0 * * *"
+    # 랜드마크 배경 해금 보정(D-107 (3)): 커밋 뒤 비동기 수신자가 놓친 해금을 최근 2일 저장 기록 회원으로 다시 채운다
+    background-reconcile-cron: "0 10 0 * * *"
     join-request-expiry-cron: "0 0 3 * * *"
     appearance-refresh-cron: "0 0 0 * * *"
     # 랭킹 스냅숏 재집계(D-25, FR-070), 계획 미이행 알림(FR-075), 감사 기록 6개월 정리(FR-176)
@@ -163,9 +179,9 @@ runkk:
     audit-purge-cron: "0 0 3 * * *"
     # 보존 기간(1년)이 지난 날짜별 계획·주간 목표 행 정리(B5 리뷰)
     plan-purge-cron: "0 30 3 * * *"
-  # 관리툴 첫 운영자(code-review U10, FR-173). 화이트리스트가 비었을 때만 시작 때 한 번 넣는다("KAKAO:계정ID,GOOGLE:계정ID").
-  operator:
-    bootstrap-operators: ${RUNKK_BOOTSTRAP_OPERATORS:}
+  # 관리툴 첫 운영자(code-review U10, FR-173)는 환경 변수 RUNKK_BOOTSTRAP_OPERATORS("KAKAO:계정ID,GOOGLE:계정ID")가
+  # runkk.bootstrap.operators로 바로 묶인다. 화이트리스트가 비었을 때만 시작 때 한 번 넣는다. 변수가 없으면 시드 없음(로그 없음),
+  # 빈 문자열이면 WARN 1줄(D-166)이라 여기에 빈 기본값을 두지 않는다.
 
 ---
 spring:

@@ -14,6 +14,7 @@ import com.a207.runkk.app.domain.testing.FakeSettingsRepository
 import com.a207.runkk.app.domain.testing.FakeUploadScheduler
 import com.a207.runkk.app.domain.testing.FakeWatchGateway
 import com.a207.runkk.app.domain.testing.TestClock
+import com.a207.runkk.app.domain.testing.runTracker
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -33,12 +34,13 @@ class WatchHomeSyncTest {
     private val watch = FakeWatchGateway()
     private val settings = FakeSettingsRepository()
     private val todayPlans = TodayPlanCache()
-    private val follow = GuidanceSettings.DEFAULT.copy(shouldFollowCoachPlan = true)
+    private val follow = GuidanceSettings.DEFAULT.copy(isFollowingCoachPlan = true)
 
     private fun TestScope.started(): Pair<WatchHomeSync, RunTracker> {
         val tracker =
-            RunTracker(
-                RunArchive(FakePendingRunRepository(), FakeUploadScheduler()),
+            runTracker(
+                FakePendingRunRepository(),
+                FakeUploadScheduler(),
                 watch,
                 FakeGuidanceOutput(),
                 FakeLocationPermission(),

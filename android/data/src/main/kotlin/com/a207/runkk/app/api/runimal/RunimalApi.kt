@@ -12,22 +12,3 @@ internal interface RunimalApi {
     @GET("runimal/card")
     suspend fun card(): RunimalCardResponse
 }
-
-/** 서버 runimal.RunimalStatusView. remainingRuns는 유형 확정까지 남은 유효 러닝 수. */
-@Serializable
-internal data class RunimalStatusResponse(
-    val type: String? = null,
-    val provisional: Boolean = false,
-    val remainingRuns: Int? = null,
-    val card: RunimalCardResponse? = null,
-    val allTypes: List<String> = emptyList()
-)
-
-/** 서버 runimal.RunimalCardView(앞면만). axisRatios는 축 이름 → 우세 비율(0~1). */
-@Serializable
-internal data class RunimalCardResponse(
-    val type: String,
-    val title: String,
-    val description: String,
-    val axisRatios: Map<String, Double> = emptyMap()
-)

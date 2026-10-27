@@ -8,7 +8,7 @@ class RetryPolicy
 @Inject
 constructor() {
     fun nextDelay(attempt: Int): Duration {
-        require(attempt >= 0) { "attempt는 0 이상: $attempt" }
+        require(attempt >= 0) { "attempt must not be negative: $attempt" }
         if (attempt >= MAX_DOUBLINGS) return MAX_DELAY
         val delay = BASE_DELAY.multipliedBy(1L shl attempt)
         return if (delay > MAX_DELAY) MAX_DELAY else delay

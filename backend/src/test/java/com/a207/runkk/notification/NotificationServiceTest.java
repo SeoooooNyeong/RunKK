@@ -40,16 +40,30 @@ class NotificationServiceTest {
     private final InMemoryNotificationRepositories.Devices devices =
             new InMemoryNotificationRepositories.Devices();
     private final List<List<String>> pushed = new ArrayList<>();
+    private final List<String> collapseKeys = new ArrayList<>();
     private final List<String> invalid = new ArrayList<>();
     private boolean pushFails;
 
     private final PushGateway gateway =
-            (tokens, type, content) -> {
-                if (pushFails) {
-                    throw new IllegalStateException("FCM down");
+            new PushGateway() {
+                @Override
+                public PushResult send(List<String> tokens, NotificationType type, String content) {
+                    if (pushFails) {
+                        throw new IllegalStateException("FCM down");
+                    }
+                    pushed.add(tokens);
+                    return new PushResult(tokens.size(), invalid);
                 }
-                pushed.add(tokens);
-                return new PushResult(tokens.size(), invalid);
+
+                @Override
+                public PushResult sendCollapsing(
+                        List<String> tokens,
+                        NotificationType type,
+                        String content,
+                        String collapseKey) {
+                    collapseKeys.add(collapseKey);
+                    return send(tokens, type, content);
+                }
             };
 
     private NotificationService serviceAt(LocalDateTime now) {
@@ -152,6 +166,63 @@ class NotificationServiceTest {
         assertThat(notifications.size()).isEqualTo(1);
         assertThat(pushed).containsExactly(List.of("token-1", "token-2"));
         assertThat(devices.tokensOf(id)).containsExactly("token-1");
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName(
+            "notifyCollapsing(D-102): 같은 수신자·종류·대상의 읽지 않은 알림은 내용·일시만 바꾸고, 읽었거나 대상이 다르면 새 행, 푸시는 묶음"
+                    + " 키")
+    void notifyCollapsing_updatesUnreadSameTarget() {
+        long id = member("곰A");
+        service.registerDevice(id, "t");
+        NavigationTarget crew7 = new NavigationTarget(Screen.CREW_CHAT, "7");
+
+        service.notifyCollapsing(
+                new NotificationRequest(id, NotificationType.CREW_CHAT, "새 메시지 1", crew7));
+        serviceAt(NOW.plusMinutes(1))
+                .notifyCollapsing(
+                        new NotificationRequest(id, NotificationType.CREW_CHAT, "새 메시지 2", crew7));
+
+        assertThat(notifications.size()).isEqualTo(1);
+        InboxView.Item only = service.inbox(id, Optional.empty()).items().get(0);
+        assertThat(only.content()).isEqualTo("새 메시지 2");
+        assertThat(only.occurredAt()).isEqualTo(NOW.plusMinutes(1));
+        assertThat(collapseKeys).containsExactly("crew_chat_7", "crew_chat_7");
+
+        service.notifyCollapsing(
+                new NotificationRequest(
+                        id,
+                        NotificationType.CREW_CHAT,
+                        "다른 크루",
+                        new NavigationTarget(Screen.CREW_CHAT, "8")));
+        assertThat(notifications.size()).isEqualTo(2);
+
+        service.open(id, only.id());
+        service.notifyCollapsing(
+                new NotificationRequest(id, NotificationType.CREW_CHAT, "읽은 뒤 새 메시지", crew7));
+        assertThat(notifications.size()).isEqualTo(3);
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName(
+            "notifyCollapsing: 수신을 끈 회원은 저장만, 탈퇴 회원은 버린다(notify와 같은 수신 설정)")
+    void notifyCollapsing_respectsPushDecision() {
+        long muted = member("곰A");
+        members.findById(muted)
+                .orElseThrow()
+                .changeSetting(new SettingChange(SettingItem.ALERT, "false", "CREW_CHAT"));
+        service.registerDevice(muted, "t");
+        NavigationTarget crew7 = new NavigationTarget(Screen.CREW_CHAT, "7");
+        service.notifyCollapsing(
+                new NotificationRequest(muted, NotificationType.CREW_CHAT, "메시지", crew7));
+        assertThat(notifications.size()).isEqualTo(1);
+        assertThat(pushed).isEmpty();
+
+        long gone = member("곰B");
+        members.findById(gone).orElseThrow().withdraw(NOW);
+        service.notifyCollapsing(
+                new NotificationRequest(gone, NotificationType.CREW_CHAT, "메시지", crew7));
+        assertThat(notifications.size()).isEqualTo(1);
     }
 
     @Test

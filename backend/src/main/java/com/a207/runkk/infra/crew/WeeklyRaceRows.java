@@ -9,6 +9,7 @@ import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 /**
  * weekly_race·race_contribution 테이블 매핑(JpaWeeklyRaceRepository 안에서만 쓴다). 합산은 엔티티로 읽고-더하고-쓰지 않고 원자적
@@ -40,6 +41,15 @@ final class WeeklyRaceRows {
 
         @Column(name = "total_meters", nullable = false)
         private long totalMeters;
+
+        @Column(name = "goal_meters")
+        private Long goalMeters;
+
+        @Column(name = "goal_set_by")
+        private Long goalSetBy;
+
+        @Column(name = "achieved_at")
+        private LocalDateTime achievedAt;
 
         protected Race() {}
     }

@@ -21,6 +21,7 @@ import java.util.List;
  * @param points 위치 포인트
  * @param unstableSegments 불안정 구간
  * @param heartRates 심박 측정값(없을 수 있음)
+ * @param pauses 정지 구간(자유런만, null·빈 목록 = 정지 없음). elapsed는 정지 시간을 뺀 운동 시간이다(FR-036, FR-194)
  */
 public record RunUpload(
         String recordId,
@@ -35,12 +36,93 @@ public record RunUpload(
         int declaredPointCount,
         List<LocationPoint> points,
         List<UnstableSegment> unstableSegments,
-        List<HeartRateSample> heartRates) {
+        List<HeartRateSample> heartRates,
+        List<PauseInterval> pauses) {
 
+    /** 한 기록의 정지 구간 최대 개수(부록 F F.2.2 POST /runs, 제안 100개). */
+    public static final int MAX_PAUSES = 100;
+
+    /**
+     * 정지 구간 검사(설계 6.1.3 RunUpload, F.2.2, D-163): 자유런만 비어 있지 않을 수 있다, 최대 100개, startedAt ≤ from, to
+     * ≤ endedAt, 시간순이고 겹치거나 맞닿지 않는다(앞 구간 to &lt; 뒤 구간 from). 위반은 IllegalArgumentException(→ 400).
+     */
     public RunUpload {
         points = points == null ? List.of() : List.copyOf(points);
         unstableSegments = unstableSegments == null ? List.of() : List.copyOf(unstableSegments);
         heartRates = heartRates == null ? List.of() : List.copyOf(heartRates);
+        pauses = pauses == null ? List.of() : List.copyOf(pauses);
+        requireValidPauses(pauses, mode, startedAt, endedAt);
+    }
+
+    /** 정지 구간이 없는 기록(대결·크루런, 정지 없는 자유런). */
+    public RunUpload(
+            String recordId,
+            LocalDateTime startedAt,
+            LocalDateTime endedAt,
+            Distance distance,
+            Duration elapsed,
+            RunMode mode,
+            CardKind cardKind,
+            Long battleId,
+            Long crewRunPostId,
+            int declaredPointCount,
+            List<LocationPoint> points,
+            List<UnstableSegment> unstableSegments,
+            List<HeartRateSample> heartRates) {
+        this(
+                recordId,
+                startedAt,
+                endedAt,
+                distance,
+                elapsed,
+                mode,
+                cardKind,
+                battleId,
+                crewRunPostId,
+                declaredPointCount,
+                points,
+                unstableSegments,
+                heartRates,
+                List.of());
+    }
+
+    private static void requireValidPauses(
+            List<PauseInterval> pauses,
+            RunMode mode,
+            LocalDateTime startedAt,
+            LocalDateTime endedAt) {
+        if (!pauses.isEmpty()) {
+            requireAllowed(pauses, mode);
+            requireOrderedWithin(pauses, startedAt, endedAt);
+        }
+    }
+
+    /** 정지 구간은 자유런에만 있고 {@value #MAX_PAUSES}개까지다. */
+    private static void requireAllowed(List<PauseInterval> pauses, RunMode mode) {
+        if (mode != RunMode.FREE) {
+            throw new IllegalArgumentException("정지 구간은 자유런에만 있다");
+        }
+        if (pauses.size() > MAX_PAUSES) {
+            throw new IllegalArgumentException("정지 구간은 " + MAX_PAUSES + "개까지");
+        }
+    }
+
+    /** 정지 구간은 시작~종료 안에서 시간순이고 겹치거나 맞닿지 않는다. */
+    private static void requireOrderedWithin(
+            List<PauseInterval> pauses, LocalDateTime startedAt, LocalDateTime endedAt) {
+        if (startedAt == null || endedAt == null) {
+            throw new IllegalArgumentException("시작·종료 일시가 비었다");
+        }
+        PauseInterval previous = null;
+        for (PauseInterval p : pauses) {
+            if (p.from().isBefore(startedAt) || p.to().isAfter(endedAt)) {
+                throw new IllegalArgumentException("정지 구간은 시작~종료 안에 있다");
+            }
+            if (previous != null && !previous.to().isBefore(p.from())) {
+                throw new IllegalArgumentException("정지 구간은 시간순이고 겹치거나 맞닿지 않는다");
+            }
+            previous = p;
+        }
     }
 
     /** 심박 동의가 없을 때 심박을 뺀 사본(NFR-023). */
@@ -58,6 +140,7 @@ public record RunUpload(
                 declaredPointCount,
                 points,
                 unstableSegments,
-                List.of());
+                List.of(),
+                pauses);
     }
 }

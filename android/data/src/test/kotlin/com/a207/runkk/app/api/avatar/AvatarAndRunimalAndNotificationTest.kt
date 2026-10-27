@@ -166,7 +166,8 @@ class AvatarAndRunimalAndNotificationTest {
                         "10분 뒤 출발",
                         Instant.parse("2026-10-19T20:50:00Z"),
                         false,
-                        "crew"
+                        "CREW_RUN_RECRUIT",
+                        "9"
                     )
                 )
             ),

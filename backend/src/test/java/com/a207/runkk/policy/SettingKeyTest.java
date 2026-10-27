@@ -79,9 +79,14 @@ class SettingKeyTest {
                 "COURSE_SIMILARITY|{\"coverage\":1.0,\"radiusMeters\":1,\"compareCount\":100}|true",
                 "COURSE_SIMILARITY|{\"coverage\":0.8,\"radiusMeters\":0,\"compareCount\":30}|false",
                 "COURSE_SIMILARITY|{\"coverage\":0.8,\"radiusMeters\":50,\"compareCount\":101}|false",
-                "LANDMARKS|{\"landmarks\":[{\"stage\":\"DOMESTIC\",\"name\":\"인천\",\"distance\":{\"meters\":60000},\"roundTrip\":true}]}|true",
-                "LANDMARKS|{\"landmarks\":[{\"stage\":\"DOMESTIC\",\"name\":\"대전\",\"distance\":{\"meters\":280000},\"roundTrip\":true},{\"stage\":\"DOMESTIC\",\"name\":\"인천\",\"distance\":{\"meters\":60000},\"roundTrip\":true}]}|false",
+                "LANDMARKS|{\"landmarks\":[{\"key\":\"INCHEON\",\"stage\":\"DOMESTIC\",\"name\":\"인천\",\"distance\":{\"meters\":60000},\"roundTrip\":true}]}|true",
+                "LANDMARKS|{\"landmarks\":[{\"key\":\"DAEJEON\",\"stage\":\"DOMESTIC\",\"name\":\"대전\",\"distance\":{\"meters\":280000},\"roundTrip\":true},{\"key\":\"INCHEON\",\"stage\":\"DOMESTIC\",\"name\":\"인천\",\"distance\":{\"meters\":60000},\"roundTrip\":true}]}|false",
                 "LANDMARKS|{\"landmarks\":[]}|false",
+                "LANDMARKS|{\"landmarks\":[{\"key\":\"LM_1\",\"stage\":\"DOMESTIC\",\"name\":\"인천\",\"distance\":{\"meters\":60000},\"roundTrip\":true}]}|true",
+                "LANDMARKS|{\"landmarks\":[{\"key\":\"incheon\",\"stage\":\"DOMESTIC\",\"name\":\"인천\",\"distance\":{\"meters\":60000},\"roundTrip\":true}]}|false",
+                "LANDMARKS|{\"landmarks\":[{\"key\":\"INCHEON\",\"stage\":\"DOMESTIC\",\"name\":\"인천\",\"distance\":{\"meters\":60000},\"roundTrip\":true},{\"key\":\"INCHEON\",\"stage\":\"DOMESTIC\",\"name\":\"개성\",\"distance\":{\"meters\":120000},\"roundTrip\":true}]}|false",
+                "LANDMARKS|{\"landmarks\":[{\"key\":\"\",\"stage\":\"DOMESTIC\",\"name\":\"인천\",\"distance\":{\"meters\":60000},\"roundTrip\":true}]}|false",
+                "LANDMARKS|{\"landmarks\":[{\"stage\":\"DOMESTIC\",\"name\":\"인천\",\"distance\":{\"meters\":60000},\"roundTrip\":true}]}|false",
                 "VIRTUAL_RECORD_RULE|{\"openLowScore\":27,\"openHighScore\":48,\"paceOffsets\":[-0.05,-0.025,0,0.025,0.05],\"distances\":[{\"meters\":1000}]}|true",
                 "VIRTUAL_RECORD_RULE|{\"openLowScore\":0,\"openHighScore\":48,\"paceOffsets\":[-0.05,-0.025,0,0.025,0.05],\"distances\":[{\"meters\":1000}]}|false",
                 "VIRTUAL_RECORD_RULE|{\"openLowScore\":27,\"openHighScore\":48,\"paceOffsets\":[-0.05,0,0.05],\"distances\":[{\"meters\":1000}]}|false",
@@ -111,6 +116,50 @@ class SettingKeyTest {
             })
     void validate_checksFormatAndRange(SettingKey key, String json, boolean expected) {
         assertThat(key.validate(json).valid()).isEqualTo(expected);
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("TC-6164 기본 랜드마크 표는 키를 가진 채 통과하고 키는 D-107 목록이다")
+    void landmarks_defaultTableHasKeys() {
+        assertThat(SettingKey.LANDMARKS.validate(SettingKey.LANDMARKS.defaultValue()).valid())
+                .isTrue();
+        LandmarkTable table =
+                (LandmarkTable) SettingKey.LANDMARKS.parse(SettingKey.LANDMARKS.defaultValue());
+        assertThat(table.landmarks()).hasSize(30);
+        assertThat(table.landmarks().stream().map(Landmark::key).toList())
+                .containsExactly(
+                        "INCHEON",
+                        "KAESONG",
+                        "DAEJEON",
+                        "JEONJU",
+                        "YEOSU",
+                        "BUSAN",
+                        "JEJU",
+                        "BEIJING",
+                        "TOKYO",
+                        "TAIPEI",
+                        "HONG_KONG",
+                        "HANOI",
+                        "BANGKOK",
+                        "KUALA_LUMPUR",
+                        "HONOLULU",
+                        "SYDNEY",
+                        "LONDON",
+                        "PARIS",
+                        "LOS_ANGELES",
+                        "NEW_YORK",
+                        "SANTIAGO",
+                        "EARTH_LAP",
+                        "EARTH_2_LAPS",
+                        "KM_100K",
+                        "KM_200K",
+                        "MOON_APPROACH",
+                        "MOON",
+                        "KM_500K",
+                        "MOON_ROUND_TRIP",
+                        "KM_1M");
+        assertThat(table.landmarks().stream().filter(l -> l.stage() != LandmarkStage.CREW_TOTAL))
+                .hasSize(22);
     }
 
     @Test

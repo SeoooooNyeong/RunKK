@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 아바타 랜드마크 배경(FR-202, D-107): 동아시아. 테마와 무관한 그림이다. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="160dp"
+    android:height="100dp"
+    android:viewportWidth="160"
+    android:viewportHeight="100">
+    <path android:pathData="M0,0h160v100h-160z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:endX="0"
+                android:endY="100"
+                android:startX="0"
+                android:startY="0"
+                android:type="linear">
+                <item android:color="#FF5B2A3C" android:offset="0" />
+                <item android:color="#FF180C14" android:offset="1" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path
+        android:fillColor="#FFF2B06A"
+        android:pathData="M120,26m-10,0a10,10 0,1 0,20 0a10,10 0,1 0,-20 0" />
+    <path
+        android:fillColor="#FF2B1520"
+        android:pathData="M56,86 L56,56 L104,56 L104,86 Z" />
+    <path
+        android:fillColor="#FF3A1D2B"
+        android:pathData="M48,58 L80,40 L112,58 Z" />
+    <path
+        android:fillColor="#FF3A1D2B"
+        android:pathData="M58,72 L80,62 L102,72 Z" />
+    <path
+        android:fillColor="#FF120910"
+        android:pathData="M0,86 L160,86 L160,100 L0,100 Z" />
+</vector>

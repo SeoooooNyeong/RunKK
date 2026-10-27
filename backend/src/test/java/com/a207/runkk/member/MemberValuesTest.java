@@ -9,7 +9,6 @@ import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.common.RecordVisibility;
 import java.util.EnumMap;
 import java.util.Map;
-import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 /** member 값 객체·열거형·입력(6.1.2). */
@@ -59,8 +58,8 @@ class MemberValuesTest {
     }
 
     @Test
-    void settingItem_hasThirteenConstantsAndConsentMapping() {
-        assertThat(SettingItem.values()).hasSize(13);
+    void settingItem_hasFourteenConstantsAndConsentMapping() {
+        assertThat(SettingItem.values()).hasSize(14); // 자료사전 13개 + v0.11 THEME
         assertThat(SettingItem.LOCATION_CONSENT.consentItem()).contains(ConsentItem.LOCATION);
         assertThat(SettingItem.HEART_RATE_CONSENT.consentItem()).contains(ConsentItem.HEART_RATE);
         assertThat(SettingItem.UNIT.consentItem()).isEmpty();
@@ -110,47 +109,19 @@ class MemberValuesTest {
 
     @Test
     void signUpForm_decisionTableOrder() {
-        int year = 2026;
         // 규칙 1: 필수 동의 누락
         Map<ConsentItem, Boolean> missing = new EnumMap<>(MemberFixtures.requiredConsents());
         missing.put(ConsentItem.LOCATION, false);
-        SignUpForm rule1 = withConsents(missing, 2020, "가");
-        assertThat(rule1.missingRequiredConsents()).containsExactly(ConsentItem.LOCATION);
-        assertReason(() -> rule1.validate(year), ReasonCode.CONSENT_MISSING);
+        assertReason(() -> new SignUpForm("가", missing).validate(), ReasonCode.CONSENT_MISSING);
 
-        // 규칙 2: 만 14세 미만(확인 미동의 또는 출생연도)
+        // 규칙 2: 만 14세 확인 미동의(출생연도는 가입 항목이 아니다, D-90)
         Map<ConsentItem, Boolean> noAge = new EnumMap<>(MemberFixtures.requiredConsents());
         noAge.remove(ConsentItem.AGE_14_PLUS);
-        assertThat(withConsents(noAge, null, "달리는곰").isUnder14(year)).isTrue();
-        SignUpForm rule2 = withConsents(MemberFixtures.requiredConsents(), 2013, "가");
-        assertThat(rule2.isUnder14(year)).isTrue();
-        assertReason(() -> rule2.validate(year), ReasonCode.UNDER_14);
-        assertThat(withConsents(MemberFixtures.requiredConsents(), 2012, "달리는곰").isUnder14(year))
-                .isFalse();
+        assertReason(() -> new SignUpForm("달리는곰", noAge).validate(), ReasonCode.UNDER_14);
 
-        // 규칙 3: 닉네임 오류
-        SignUpForm rule3 = withConsents(MemberFixtures.requiredConsents(), 1990, "가");
-        assertReason(() -> rule3.validate(year), ReasonCode.NICKNAME_INVALID);
-
-        // 규칙 4: 통과 (닉네임 없음도 통과)
-        withConsents(MemberFixtures.requiredConsents(), 1990, null).validate(year);
-    }
-
-    @Test
-    void signUpForm_tagRule() {
-        SignUpForm f =
-                new SignUpForm(
-                        "달리는곰",
-                        null,
-                        null,
-                        null,
-                        null,
-                        MemberFixtures.requiredConsents(),
-                        RecordVisibility.PUBLIC,
-                        Set.of(
-                                com.a207.runkk.common.PersonalityTag.SOLO_RUN,
-                                com.a207.runkk.common.PersonalityTag.SOCIAL_RUN));
-        assertReason(() -> f.validate(2026), ReasonCode.TAG_INVALID);
+        // 규칙 3: 통과(닉네임은 검사하지 않는다, D-143)
+        new SignUpForm("가", MemberFixtures.requiredConsents()).validate();
+        new SignUpForm(null, MemberFixtures.requiredConsents()).validate();
     }
 
     @Test
@@ -190,12 +161,6 @@ class MemberValuesTest {
         assertThat(BattleSettings.defaults().defaultDistance())
                 .isEqualTo(com.a207.runkk.common.StandardDistance.KM5);
         assertThat(BattleSettings.defaults().gapAlertInterval()).isEqualTo(GapAlertInterval.KM1);
-    }
-
-    private static SignUpForm withConsents(
-            Map<ConsentItem, Boolean> consents, Integer birthYear, String nickname) {
-        return new SignUpForm(
-                nickname, birthYear, null, null, null, consents, RecordVisibility.PUBLIC, Set.of());
     }
 
     private static void assertReason(Runnable action, ReasonCode reason) {

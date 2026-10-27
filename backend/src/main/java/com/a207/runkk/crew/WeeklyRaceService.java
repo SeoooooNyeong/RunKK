@@ -6,6 +6,10 @@ import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.Week;
 import com.a207.runkk.member.MemberQueryService;
 import com.a207.runkk.member.MemberSummary;
+import com.a207.runkk.notification.NavigationTarget;
+import com.a207.runkk.notification.NotificationRequest;
+import com.a207.runkk.notification.NotificationService;
+import com.a207.runkk.notification.NotificationType;
 import com.a207.runkk.running.RunQueryService;
 import com.a207.runkk.running.RunRecordSaved;
 import com.a207.runkk.running.RunSummary;
@@ -34,12 +38,14 @@ public class WeeklyRaceService {
     private static final Logger log = LoggerFactory.getLogger(WeeklyRaceService.class);
     private static final int DAYS_IN_WEEK = 7;
     private static final int PERCENT = 100;
+    private static final String GOAL_ACHIEVED_TEXT = "크루 공동 목표를 달성했어요";
 
     private final WeeklyRaceRepository weeklyRaceRepository;
     private final CrewRepository crewRepository;
     private final CrewAccess crewAccess;
     private final RunQueryService runQueryService;
     private final MemberQueryService memberQueryService;
+    private final NotificationService notificationService;
     private final CrewTransactions transactions;
     private final Clock clock;
 
@@ -49,6 +55,7 @@ public class WeeklyRaceService {
             CrewAccess crewAccess,
             RunQueryService runQueryService,
             MemberQueryService memberQueryService,
+            NotificationService notificationService,
             CrewTransactions transactions,
             Clock clock) {
         this.weeklyRaceRepository = weeklyRaceRepository;
@@ -56,6 +63,7 @@ public class WeeklyRaceService {
         this.crewAccess = crewAccess;
         this.runQueryService = runQueryService;
         this.memberQueryService = memberQueryService;
+        this.notificationService = notificationService;
         this.transactions = transactions;
         this.clock = clock;
     }
@@ -72,19 +80,65 @@ public class WeeklyRaceService {
         transactions.afterCommit("weekly_race_add", e.recordId(), () -> addToRace(e));
     }
 
+    /**
+     * 기록 시작일시에 소속이던 크루 → Week.of(startedAt) → addAtomically. 더했으면 같은 트랜잭션에서 markAchievedIfReached를
+     * 부르고 한 행을 바꿨으면 그 크루의 현재 크루원 모두에게 CREW_GOAL_ACHIEVED(푸시는 커밋 뒤). 늦게 저장된 지난 주 기록도 지난 주에 더하고 지난 주를
+     * 판정한다(FR-217, D-105).
+     */
     private void addToRace(RunRecordSaved e) {
         crewRepository.findMembershipHistory(e.memberId()).stream()
                 .filter(m -> m.coversAt(e.startedAt()))
                 .findFirst()
                 .ifPresent(
-                        m ->
-                                weeklyRaceRepository.addAtomically(
-                                        new RaceContributionKey(
-                                                m.crewId(),
-                                                Week.of(e.startedAt()),
-                                                e.memberId(),
-                                                e.recordId()),
-                                        e.distance()));
+                        m -> {
+                            Week week = Week.of(e.startedAt());
+                            if (weeklyRaceRepository.addAtomically(
+                                    new RaceContributionKey(
+                                            m.crewId(), week, e.memberId(), e.recordId()),
+                                    e.distance())) {
+                                judgeGoal(m.crewId(), week, LocalDateTime.now(clock));
+                            }
+                        });
+    }
+
+    /** 조건부 UPDATE로 달성을 한 번만 기록하고, 바꿨으면 현재 크루원 모두에게 알린다(A-12). */
+    private boolean judgeGoal(long crewId, Week week, LocalDateTime now) {
+        if (!weeklyRaceRepository.markAchievedIfReached(crewId, week, now)) {
+            return false;
+        }
+        NavigationTarget target =
+                new NavigationTarget(
+                        NotificationType.CREW_GOAL_ACHIEVED.defaultScreen(),
+                        String.valueOf(crewId));
+        crewRepository
+                .findById(crewId)
+                .map(Crew::activeMemberIds)
+                .orElse(List.of())
+                .forEach(
+                        id ->
+                                notificationService.notify(
+                                        new NotificationRequest(
+                                                id,
+                                                NotificationType.CREW_GOAL_ACHIEVED,
+                                                GOAL_ACHIEVED_TEXT,
+                                                target)));
+        return true;
+    }
+
+    /**
+     * check(SET_GOAL, 크루장·운영진) → 이번 주(Week.of(now)) 행을 만들거나(합계 0, 목표 이어 쓰기) 읽어
+     * WeeklyRace.setGoal(1km 미만 GOAL_INVALID) → 정한 즉시 이번 주 합계가 목표 이상이면 그 자리에서 달성(이미 달성한 주는 다시 판정하지
+     * 않는다) → 달성했으면 CREW_GOAL_ACHIEVED → status(FR-138, FR-217, D-105).
+     */
+    @Transactional
+    public RaceStatusView setGoal(long memberId, long crewId, Distance goal, LocalDateTime now) {
+        crewAccess.check(memberId, crewId, CrewAction.SET_GOAL);
+        Week week = Week.of(now);
+        WeeklyRace race = weeklyRaceRepository.findOrCreate(crewId, week);
+        race.setGoal(goal, memberId);
+        weeklyRaceRepository.saveGoal(race);
+        judgeGoal(crewId, week, now);
+        return status(memberId, crewId, Optional.of(week.monday()));
     }
 
     /** check(VIEW_CREW_INTERNAL) → 합계, 마감, 기여자별 표시명·거리·기여율, 본인 기여율(FR-140). 주를 비우면 이번 주. */
@@ -124,7 +178,22 @@ public class WeeklyRaceService {
                 race.total(),
                 race.closesAt(),
                 lines,
-                race.contributionRate(viewerId));
+                race.contributionRate(viewerId),
+                race.goal().orElse(null),
+                race.goalProgressPercent().orElse(null),
+                race.achievedAt().orElse(null),
+                celebrationOf(crewId, race));
+    }
+
+    /** 달성한 주만 축하 카드(크루명, 합계, 목표, 참여 인원 = 그 주 기여가 있는 회원 수). 저장하지 않고 조회 때 만든다(FR-141, D-105). */
+    private CelebrationCard celebrationOf(long crewId, WeeklyRace race) {
+        if (!race.isAchieved() || race.goal().isEmpty()) {
+            return null;
+        }
+        int participants =
+                (int) race.contributions().stream().filter(c -> c.distance().meters() > 0).count();
+        String crewName = crewAccess.require(crewId).name().value();
+        return new CelebrationCard(crewName, race.total(), race.goal().get(), participants);
     }
 
     private static int rateOf(WeeklyRace race, RaceContribution c) {
@@ -181,6 +250,7 @@ public class WeeklyRaceService {
             for (CrewMembership membership : crew.get().memberships()) {
                 added += reconcileMember(race, membership, week);
             }
+            judgeGoal(crewId, week, LocalDateTime.now(clock)); // 놓친 달성을 채운다(D-105)
         }
         return added;
     }

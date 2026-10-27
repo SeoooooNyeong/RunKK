@@ -25,12 +25,79 @@ class ApiExceptionHandlerTest {
         assertThat(response.getBody()).isEqualTo(new ErrorResponse("VALUE_INVALID", "값 오류"));
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(
+            strings = {
+                "ALREADY_LINKED",
+                "MANAGER_LIMIT",
+                "PIN_LIMIT",
+                "SCHEDULE_INVALID",
+                "SCHEDULE_FULL",
+                "POLL_INVALID",
+                "POLL_CLOSED",
+                "POST_EMPTY",
+                "PHOTO_LIMIT",
+                "CHAT_EMPTY",
+                "CHAT_MESSAGE_NOT_FOUND",
+                "REPORT_TARGET_NOT_FOUND",
+                "ALREADY_REPORTED",
+                "REPORT_NOT_FOUND",
+                "REPORT_DECIDED",
+                "BACKGROUND_LOCKED"
+            })
+    @org.junit.jupiter.api.DisplayName("TC-6200: v0.11 새 사유 16개는 모두 409와 사유 코드·문구다")
+    void newV011Reasons_become409(String name) {
+        ReasonCode reason = ReasonCode.valueOf(name);
+        ResponseEntity<ErrorResponse> response =
+                handler.handleBusinessRule(new BusinessRuleException(reason));
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(response.getBody()).isEqualTo(new ErrorResponse(name, reason.message()));
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("TC-6200: 상태가 409가 아닌 사유 코드(STATUS_BY_REASON)")
+    void nonConflictReasons_mapToTheirStatus() {
+        assertThat(statusOf(ReasonCode.UNSUPPORTED_IMAGE))
+                .isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+        assertThat(statusOf(ReasonCode.TOO_LARGE)).isEqualTo(HttpStatus.PAYLOAD_TOO_LARGE);
+        assertThat(statusOf(ReasonCode.TOO_MANY_ATTEMPTS)).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+        assertThat(statusOf(ReasonCode.AUTH_FAILED)).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(statusOf(ReasonCode.PROVIDER_UNAVAILABLE))
+                .isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+        assertThat(statusOf(ReasonCode.TEMPORARILY_UNAVAILABLE))
+                .isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+        ResponseEntity<ErrorResponse> image =
+                handler.handleBusinessRule(new BusinessRuleException(ReasonCode.UNSUPPORTED_IMAGE));
+        assertThat(image.getBody()).isEqualTo(new ErrorResponse("UNSUPPORTED_IMAGE", "지원하지 않는 형식"));
+    }
+
+    private org.springframework.http.HttpStatusCode statusOf(ReasonCode reason) {
+        return handler.handleBusinessRule(new BusinessRuleException(reason)).getStatusCode();
+    }
+
     @Test
     void permissionDenied_becomes403() {
         ResponseEntity<ErrorResponse> response =
                 handler.handlePermissionDenied(new PermissionDeniedException("화이트리스트 밖"));
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
         assertThat(response.getBody()).isEqualTo(new ErrorResponse("PERMISSION_DENIED", "권한 없음"));
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName(
+            "크루 밖 두 경로(구현 결정): PermissionDeniedException은 403 PERMISSION_DENIED, NOT_CREW_MEMBER는"
+                    + " 409 그대로")
+    void outsider_twoPathsKeepTheirStatus() {
+        ResponseEntity<ErrorResponse> write =
+                handler.handlePermissionDenied(new PermissionDeniedException("크루 밖 글 쓰기"));
+        ResponseEntity<ErrorResponse> chat =
+                handler.handleBusinessRule(new BusinessRuleException(ReasonCode.NOT_CREW_MEMBER));
+        assertThat(write.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(write.getBody().code()).isEqualTo("PERMISSION_DENIED");
+        assertThat(chat.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(chat.getBody())
+                .isEqualTo(
+                        new ErrorResponse("NOT_CREW_MEMBER", ReasonCode.NOT_CREW_MEMBER.message()));
     }
 
     @Test

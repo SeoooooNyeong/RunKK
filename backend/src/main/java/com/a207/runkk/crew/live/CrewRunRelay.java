@@ -21,4 +21,10 @@ public record CrewRunRelay(long postId, List<RelayEntry> entries) implements Cre
     public String type() {
         return "CrewRunRelay";
     }
+
+    /** 받는 사람 본인 줄에만 mine 참(D-161). 참가자가 아니면 모두 거짓이다. */
+    @Override
+    public CrewRunRelay forRecipient(long memberId) {
+        return new CrewRunRelay(postId, entries.stream().map(e -> e.seenBy(memberId)).toList());
+    }
 }

@@ -40,4 +40,21 @@ class WatchFormatTest {
         assertEquals("152", WatchFormat.heartRate(152))
         assertEquals(WatchFormat.EMPTY, WatchFormat.heartRate(null))
     }
+
+    @Test
+    fun `근접 알림 간격은 초 소수 첫째 자리로 반올림`() {
+        assertEquals("0.3", WatchFormat.intervalSeconds(300))
+        assertEquals("0.8", WatchFormat.intervalSeconds(750))
+        assertEquals("1.5", WatchFormat.intervalSeconds(1_510))
+        assertEquals("2.0", WatchFormat.intervalSeconds(2_000))
+    }
+
+    @Test
+    fun `근접 알림 세기 점은 가까울수록(간격이 짧을수록) 많고 1에서 7 사이`() {
+        assertEquals(WatchFormat.PROXIMITY_LEVELS, WatchFormat.proximityLevel(300))
+        assertEquals(WatchFormat.PROXIMITY_LEVELS, WatchFormat.proximityLevel(100))
+        assertEquals(1, WatchFormat.proximityLevel(2_000))
+        assertEquals(1, WatchFormat.proximityLevel(3_000))
+        assertEquals(4, WatchFormat.proximityLevel(1_150))
+    }
 }

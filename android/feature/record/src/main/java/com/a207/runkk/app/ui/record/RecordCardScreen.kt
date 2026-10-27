@@ -1,9 +1,11 @@
 package com.a207.runkk.app.ui.record
 
 import android.content.res.Resources
+import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,6 +14,9 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -22,8 +27,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -32,12 +44,13 @@ import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkErrorText
 import com.a207.runkk.app.core.designsystem.RunkkFormat
+import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkLoading
 import com.a207.runkk.app.core.designsystem.RunkkPrimaryButton
 import com.a207.runkk.app.core.designsystem.RunkkSecondaryButton
-import com.a207.runkk.app.core.designsystem.RunkkSegmentedTabs
 import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
+import com.a207.runkk.app.core.designsystem.RunkkSwitchRow
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
@@ -48,19 +61,24 @@ import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.domain.record.RunCard
 import com.a207.runkk.app.ui.share.CardSide
 
-/** 기록 카드 팝업(FR-068·FR-069): 앞면 기록·뒷면 코스, 기기 저장·다른 앱·스토리 공유. */
+/**
+ * 러닝 카드 팝업(G1·G2, FR-068)과 카드 공유(G3, FR-069). 팝업은 카드를 눌러 앞·뒷면을 뒤집고, "공유"를 누르면 같은 경로 안에서
+ * 카드 공유 단계(미리보기, 코스 지도 표시, 기기에 저장·스토리·더 보기)로 바뀐다. 뒤로가기는 공유 단계에서 팝업으로 돌아온다.
+ */
 @Composable
 fun RecordCardRoute(recordId: String, viewModel: RecordCardViewModel = hiltViewModel()) {
     LaunchedEffect(recordId) { viewModel.load(recordId) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val navigator = LocalRunkkNavigator.current
+    BackHandler(enabled = state.isShareStep) { viewModel.onShareStep(false) }
     RecordCardScreen(
         state = state,
         onClose = navigator::back,
         onSideSelected = viewModel::onSideSelected,
         onShare = viewModel::onShare,
         onMessageShown = viewModel::onMessageShown,
-        onRetry = { viewModel.load(recordId) }
+        onRetry = { viewModel.load(recordId) },
+        onShareStep = viewModel::onShareStep
     )
 }
 
@@ -72,7 +90,8 @@ fun RecordCardScreen(
     onShare: (CardShareKind) -> Unit,
     onMessageShown: () -> Unit,
     onRetry: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onShareStep: (Boolean) -> Unit = {}
 ) {
     val snackbar = remember { SnackbarHostState() }
     val messageText = state.message?.asString()
@@ -83,80 +102,169 @@ fun RecordCardScreen(
         }
     }
     Box(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            RunkkTopBar(title = stringResource(R.string.record_card_title), onBack = onClose)
-            when {
-                state.isLoading -> RunkkLoading(modifier = Modifier.weight(1f))
+        when {
+            state.isLoading -> RunkkLoading(modifier = Modifier.fillMaxSize())
 
-                state.front == null -> RunkkErrorState(
+            state.front == null -> Column(Modifier.fillMaxSize()) {
+                RunkkTopBar(title = stringResource(R.string.record_card_title), onBack = onClose)
+                RunkkErrorState(
                     state.error?.asString() ?: stringResource(R.string.record_card_failed),
                     onRetry = onRetry,
                     modifier = Modifier.weight(1f)
                 )
-
-                else -> CardPreview(state, onSideSelected, modifier = Modifier.weight(1f))
             }
-            if (state.front != null) CardShareButtons(state.isSharing, onShare)
+
+            state.isShareStep -> ShareStep(state, onSideSelected, onShare, onBack = { onShareStep(false) })
+
+            else -> CardPopup(
+                state,
+                onFlip = { onSideSelected(if (state.side == CardSide.FRONT) CardSide.BACK else CardSide.FRONT) },
+                onShare = { onShareStep(true) },
+                onClose = onClose
+            )
         }
         RunkkSnackbarHost(snackbar, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 160.dp))
     }
 }
 
-/** 카드 미리보기: 앞·뒷면 탭, 고른 면 이미지, 뒷면을 공유할 수 없을 때의 안내. */
+/** 팝업(G1·G2): 카드 한 장(누르면 뒤집기), 면 표시 점 두 개, "공유"·"닫기". */
 @Composable
-private fun CardPreview(state: RecordCardUiState, onSideSelected: (CardSide) -> Unit, modifier: Modifier = Modifier) {
+private fun CardPopup(state: RecordCardUiState, onFlip: () -> Unit, onShare: () -> Unit, onClose: () -> Unit) {
     val resources = LocalContext.current.resources
     Column(
-        modifier = modifier.padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+        modifier = Modifier.fillMaxSize().padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        RunkkSegmentedTabs(
-            listOf(stringResource(R.string.record_card_tab_front), stringResource(R.string.record_card_tab_back)),
-            selectedIndex = state.side.ordinal,
-            onSelect = { onSideSelected(CardSide.entries[it]) },
-            modifier = Modifier.fillMaxWidth()
-        )
-        val bitmap = if (state.side == CardSide.FRONT) state.front else state.back
-        if (bitmap != null) {
-            Image(
-                bitmap = bitmap.asImageBitmap(),
-                contentDescription = state.card?.let { cardDescription(resources, it, state.side) }
-                    ?: stringResource(sideDescriptionRes(state.side)),
-                modifier = Modifier.weight(
-                    1f,
-                    fill = false
-                ).aspectRatio(CARD_RATIO).clip(RunkkShapes.ExtraLarge)
+        Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+            val bitmap = if (state.side == CardSide.FRONT) state.front else state.back
+            val flipLabel = stringResource(
+                if (state.side ==
+                    CardSide.FRONT
+                ) {
+                    R.string.record_card_flip_to_back
+                } else {
+                    R.string.record_card_flip_to_front
+                }
             )
+            if (bitmap != null) {
+                Image(
+                    bitmap = bitmap.asImageBitmap(),
+                    contentDescription = state.card?.let { cardDescription(resources, it, state.side) }
+                        ?: stringResource(sideDescriptionRes(state.side)),
+                    modifier = Modifier
+                        .aspectRatio(CARD_RATIO)
+                        .clip(RunkkShapes.ExtraLarge)
+                        .clickable(role = Role.Button, onClickLabel = flipLabel, onClick = onFlip)
+                )
+            }
         }
-        if (state.side == CardSide.BACK && !state.canShareBack) {
-            Text(
-                stringResource(R.string.record_card_back_not_shareable),
-                style = RunkkTextStyles.Caption,
-                color = RunkkColors.Lavender
+        SideDots(state.side)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            RunkkPrimaryButton(
+                stringResource(R.string.record_card_share),
+                onClick = onShare,
+                modifier = Modifier.weight(1f)
+            )
+            RunkkSecondaryButton(
+                stringResource(R.string.record_card_close),
+                onClick = onClose,
+                modifier = Modifier.weight(1f)
             )
         }
     }
 }
 
-/** 공유 버튼: 스토리(큰 버튼), 기기 저장·다른 앱. */
+/** 지금 보이는 면을 알리는 점 두 개(앞면, 뒷면). */
 @Composable
-private fun CardShareButtons(isSharing: Boolean, onShare: (CardShareKind) -> Unit) {
+private fun SideDots(side: CardSide) {
+    val description = stringResource(sideDescriptionRes(side))
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.semantics { stateDescription = description }
+    ) {
+        CardSide.entries.forEach {
+            Box(
+                Modifier
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(if (it == side) RunkkColors.Lime else RunkkColors.BorderStrong)
+            )
+        }
+    }
+}
+
+/**
+ * 카드 공유(G3): 미리보기, "코스 지도 표시"(켜면 코스 면을 공유한다), 공유 대상(기기에 저장, 인스타그램 스토리, 더 보기).
+ * 코스 지도 공유가 꺼진 기록은 스위치를 끈 채 잠근다(FR-011·FR-069).
+ */
+@Composable
+private fun ShareStep(
+    state: RecordCardUiState,
+    onSideSelected: (CardSide) -> Unit,
+    onShare: (CardShareKind) -> Unit,
+    onBack: () -> Unit
+) {
+    val resources = LocalContext.current.resources
+    Column(modifier = Modifier.fillMaxSize()) {
+        RunkkTopBar(title = stringResource(R.string.record_card_share_title), onBack = onBack)
+        Column(
+            modifier = Modifier.weight(1f).padding(horizontal = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            val bitmap = if (state.side == CardSide.FRONT) state.front else state.back
+            if (bitmap != null) {
+                Image(
+                    bitmap = bitmap.asImageBitmap(),
+                    contentDescription = state.card?.let { cardDescription(resources, it, state.side) }
+                        ?: stringResource(sideDescriptionRes(state.side)),
+                    modifier = Modifier.weight(1f, fill = false).aspectRatio(CARD_RATIO).clip(RunkkShapes.ExtraLarge)
+                )
+            }
+            RunkkSwitchRow(
+                title = stringResource(R.string.record_card_show_course),
+                isChecked = state.side == CardSide.BACK,
+                onCheckedChange = { onSideSelected(if (it) CardSide.BACK else CardSide.FRONT) },
+                isEnabled = state.canShareBack
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 32.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            ShareTargetButton(RunkkIcons.Plus, stringResource(CardShareKind.SAVE.labelRes), state.isSharing) {
+                onShare(CardShareKind.SAVE)
+            }
+            ShareTargetButton(RunkkIcons.Camera, stringResource(CardShareKind.STORY.labelRes), state.isSharing) {
+                onShare(CardShareKind.STORY)
+            }
+            ShareTargetButton(RunkkIcons.Share, stringResource(CardShareKind.SYSTEM.labelRes), state.isSharing) {
+                onShare(CardShareKind.SYSTEM)
+            }
+        }
+    }
+}
+
+/** 공유 대상 한 칸: 원 아이콘과 이름. 공유 중에는 누를 수 없다. */
+@Composable
+private fun ShareTargetButton(icon: ImageVector, label: String, isSharing: Boolean, onClick: () -> Unit) {
     Column(
-        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 32.dp),
+        modifier = Modifier
+            .clip(RunkkShapes.Medium)
+            .clickable(enabled = !isSharing, role = Role.Button, onClick = onClick)
+            .semantics(mergeDescendants = true) {}
+            .padding(8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        RunkkPrimaryButton(stringResource(R.string.record_card_share_story_button), onClick = {
-            onShare(CardShareKind.STORY)
-        }, isLoading = isSharing, modifier = Modifier.fillMaxWidth())
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            RunkkSecondaryButton(stringResource(CardShareKind.SAVE.labelRes), onClick = {
-                onShare(CardShareKind.SAVE)
-            }, isEnabled = !isSharing, modifier = Modifier.weight(1f))
-            RunkkSecondaryButton(stringResource(CardShareKind.SYSTEM.labelRes), onClick = {
-                onShare(CardShareKind.SYSTEM)
-            }, isEnabled = !isSharing, modifier = Modifier.weight(1f))
+        Box(
+            Modifier.size(56.dp).clip(CircleShape).background(RunkkColors.Surface).clearAndSetSemantics {},
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, contentDescription = null, tint = RunkkColors.Lime, modifier = Modifier.size(24.dp))
         }
+        Text(label, style = RunkkTextStyles.Caption, color = RunkkColors.TextPrimary, textAlign = TextAlign.Center)
     }
 }
 

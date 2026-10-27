@@ -193,7 +193,8 @@ class BattleServicesTest {
 
         @Test
         @org.junit.jupiter.api.DisplayName(
-                "cancel: WAITING이면 대기해제, 배정됐으면 ALREADY_MATCHED, 대기열 장애면 QUEUE_UNAVAILABLE")
+                "TC-1649 cancel(D-83, K-1): WAITING이면 대기해제, 배정됐으면 ALREADY_MATCHED(표 유지), 대기 중이 아니면"
+                        + " 거부, 대기열 장애면 QUEUE_UNAVAILABLE")
         void cancel_andQueueFailure() {
             MatchingService matching = matching();
             waiting(ALICE, NOW);
@@ -204,6 +205,12 @@ class BattleServicesTest {
             waiting(BOB, NOW);
             queue.tryAssignPair(ALICE, BOB);
             assertThatThrownBy(() -> matching.cancel(ALICE))
+                    .extracting(e -> ((BusinessRuleException) e).reason())
+                    .isEqualTo(ReasonCode.ALREADY_MATCHED);
+            assertThat(queue.findWaiting(ALICE)).isPresent();
+
+            // 대기도 배정도 없으면 SRS 4.1 ELSE 갈래대로 거부한다(대기해제로 응답하지 않는다)
+            assertThatThrownBy(() -> matching.cancel(3L))
                     .extracting(e -> ((BusinessRuleException) e).reason())
                     .isEqualTo(ReasonCode.ALREADY_MATCHED);
 

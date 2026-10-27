@@ -25,8 +25,6 @@ import com.a207.runkk.common.PermissionDeniedException;
 import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.common.RecordVisibility;
 import com.a207.runkk.common.StandardDistance;
-import com.a207.runkk.common.TagOwner;
-import com.a207.runkk.common.TagSet;
 import com.a207.runkk.common.Tier;
 import com.a207.runkk.crew.CrewMembershipReader;
 import com.a207.runkk.crew.CrewSummary;
@@ -53,6 +51,7 @@ import com.a207.runkk.running.DayStats;
 import com.a207.runkk.running.HeartRateSummary;
 import com.a207.runkk.running.HeartRateZone;
 import com.a207.runkk.running.NewRecordMark;
+import com.a207.runkk.running.PauseInterval;
 import com.a207.runkk.running.PeriodStats;
 import com.a207.runkk.running.RunDetail;
 import com.a207.runkk.running.RunMode;
@@ -107,11 +106,13 @@ class AnalysisServicesTest {
                         new LandmarkTable(
                                 List.of(
                                         new Landmark(
+                                                "INCHEON",
                                                 LandmarkStage.DOMESTIC,
                                                 "인천",
                                                 Distance.ofKm(28),
                                                 true),
                                         new Landmark(
+                                                "MOON",
                                                 LandmarkStage.CREW_TOTAL,
                                                 "달",
                                                 Distance.ofKm(380_000),
@@ -122,8 +123,7 @@ class AnalysisServicesTest {
         preference(ME, RecordVisibility.PUBLIC, false);
         when(runs.dailyStats(anyLong(), any())).thenReturn(Map.of());
         when(runs.summariesBetween(anyLong(), any())).thenReturn(List.of());
-        when(runs.totals(anyLong()))
-                .thenReturn(new TotalStats(Distance.ZERO, Duration.ZERO, 0, Distance.ZERO));
+        when(runs.totals(anyLong())).thenReturn(new TotalStats(Distance.ZERO, Duration.ZERO, 0));
     }
 
     private void preference(long id, RecordVisibility visibility, boolean courseMapShared) {
@@ -154,10 +154,7 @@ class AnalysisServicesTest {
                                         Distance.ofKm(3),
                                         Duration.ofMinutes(18),
                                         1)));
-        when(runs.totals(ME))
-                .thenReturn(
-                        new TotalStats(
-                                Distance.ofKm(20), Duration.ofHours(2), 4, Distance.ofKm(14)));
+        when(runs.totals(ME)).thenReturn(new TotalStats(Distance.ofKm(14), Duration.ofHours(2), 4));
         RunningGoal goal = RunningGoal.create(ME);
         goal.setWeeklyGoal(WeeklyGoal.of(com.a207.runkk.common.Week.of(NOW), 4, Distance.ofKm(16)));
         goals.save(goal);
@@ -171,7 +168,7 @@ class AnalysisServicesTest {
 
         assertThat(view.baseDate()).isEqualTo(TODAY);
         assertThat(view.today().count()).isEqualTo(1);
-        assertThat(view.total().distance()).isEqualTo(Distance.ofKm(20));
+        assertThat(view.total().distance()).isEqualTo(Distance.ofKm(14));
         assertThat(view.landmark()).contains("인천").contains("50%");
         assertThat(view.streakDays()).isEqualTo(2);
         assertThat(view.weekly().actualCount()).isEqualTo(2);
@@ -217,7 +214,11 @@ class AnalysisServicesTest {
                                                 NewRecordMark.Kind.BASE_DISTANCE,
                                                 StandardDistance.KM5,
                                                 "26:00")),
-                                new HeartRateSummary(150, 172)));
+                                new HeartRateSummary(150, 172),
+                                List.of(
+                                        new PauseInterval(
+                                                summary.startedAt().plusMinutes(10),
+                                                summary.startedAt().plusMinutes(12)))));
         when(runs.routePoints(summary.recordId())).thenReturn(List.of(new GeoPoint(37.5, 127.0)));
         return summary;
     }
@@ -242,6 +243,14 @@ class AnalysisServicesTest {
         assertThat(own.heartRateZones()).containsKey("Z3");
         assertThat(own.newRecords()).containsExactly("최장 거리 신기록 · 직전 4.20 km", "5 km 신기록");
         assertThat(own.unstable().get(0).from()).isEqualTo(Duration.ofMinutes(1));
+        assertThat(own.pauses())
+                .singleElement()
+                .satisfies(
+                        p -> {
+                            assertThat(p.from()).isEqualTo(summary.startedAt().plusMinutes(10));
+                            assertThat(p.to()).isEqualTo(summary.startedAt().plusMinutes(12));
+                        });
+        assertThat(own.pausedSeconds()).isEqualTo(120);
         verify(runs).detail(summary.recordId(), OptionalInt.of(190));
 
         assertThatThrownBy(() -> service.detail(ME, summary.recordId()))
@@ -550,12 +559,7 @@ class AnalysisServicesTest {
     }
 
     private static MemberSummary summaryOf(long id, String name) {
-        return new MemberSummary(
-                id,
-                DisplayName.of(name),
-                Tier.GOLD,
-                ProfileVisibility.PUBLIC,
-                TagSet.empty(TagOwner.RUNNER));
+        return new MemberSummary(id, DisplayName.of(name), Tier.GOLD, ProfileVisibility.PUBLIC);
     }
 
     private RunRecordSaved saved(int ordinal, boolean valid) {

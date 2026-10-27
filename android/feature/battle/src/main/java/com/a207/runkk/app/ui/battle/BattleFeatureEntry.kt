@@ -6,11 +6,6 @@ import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.navigation.FeatureEntry
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.core.navigation.route
-import dagger.Binds
-import dagger.Module
-import dagger.hilt.InstallIn
-import dagger.hilt.components.SingletonComponent
-import dagger.multibindings.IntoSet
 import javax.inject.Inject
 
 /**
@@ -31,12 +26,4 @@ class BattleFeatureEntry @Inject constructor() : FeatureEntry {
         builder.addEntryProvider(Routes.BattleRunning::class) { key -> BattleRunningRoute(key) }
         builder.addEntryProvider(Routes.BattleResult::class) { key -> BattleResultRoute(key.battleId) }
     }
-}
-
-@Module
-@InstallIn(SingletonComponent::class)
-internal interface BattleEntryModule {
-    @Binds
-    @IntoSet
-    fun bindBattleEntry(entry: BattleFeatureEntry): FeatureEntry
 }

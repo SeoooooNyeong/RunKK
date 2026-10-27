@@ -100,6 +100,12 @@ object RunkkIcons {
         "M3 19l2 2"
     )
     val Close: ImageVector = line("Close", "M18 6L6 18", "M6 6L18 18")
+
+    /** 일시정지(두 막대, FR-194). */
+    val Pause: ImageVector = line("Pause", "M7 5h3v14H7z", "M14 5h3v14h-3z", isFilled = true)
+
+    /** 재개(삼각형, FR-194). */
+    val Play: ImageVector = line("Play", "M7 4.5L19 12L7 19.5z", isFilled = true)
     val Calendar: ImageVector = line(
         "Calendar",
         "M5 4H19A2 2 0 0 1 21 6V20A2 2 0 0 1 19 22H5A2 2 0 0 1 3 20V6A2 2 0 0 1 5 4Z",

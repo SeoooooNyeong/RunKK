@@ -25,9 +25,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -41,6 +43,7 @@ import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkConfirmDialog
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkLoading
+import com.a207.runkk.app.core.designsystem.RunkkSecondaryButton
 import com.a207.runkk.app.core.designsystem.RunkkSectionTitle
 import com.a207.runkk.app.core.designsystem.RunkkSegmentRow
 import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
@@ -52,36 +55,28 @@ import com.a207.runkk.app.core.designsystem.RunkkTopBar
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
+import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.account.MemberSettings
-
-/** 설정 화면 종류. 같은 SettingsViewModel을 화면마다 따로 둔다. */
-enum class SettingsPage(@StringRes val titleRes: Int) {
-    APP(R.string.me_settings_page_app),
-    FREE_RUN(R.string.me_settings_page_free_run),
-    NOTIFICATIONS(R.string.me_settings_page_notifications),
-    CONSENTS(R.string.me_settings_page_consents)
-}
-
-/** 설정 화면 사용자 행동. */
-data class SettingsActions(
-    val onBack: () -> Unit = {},
-    val onRetry: () -> Unit = {},
-    val setValue: (String, String) -> Unit = { _, _ -> },
-    val setConsent: (String, Boolean) -> Unit = { _, _ -> },
-    val onViewLegal: (String, UiText) -> Unit = { _, _ -> },
-    val onLegalDismissed: () -> Unit = {},
-    val onMessageShown: () -> Unit = {}
-)
+import com.a207.runkk.app.domain.account.ProviderType
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.launch
 
 @Composable
 fun SettingsRoute(page: SettingsPage, viewModel: SettingsViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val navigator = LocalRunkkNavigator.current
     val uriHandler = LocalUriHandler.current
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(viewModel) {
+        viewModel.events.collect { if (it == SettingsEvent.LoggedOut) navigator.restart(Routes.LOGIN) }
+    }
     LaunchedEffect(state.urlToOpen) {
-        state.urlToOpen?.let {
-            runCatching { uriHandler.openUri(it) }
-            viewModel.onUrlOpened()
+        state.urlToOpen?.let { url ->
+            runCatching { uriHandler.openUri(url) }
+                .onSuccess { viewModel.onUrlOpened() }
+                .onFailure { viewModel.onUrlOpenFailed() }
         }
     }
     SettingsScreen(
@@ -94,7 +89,24 @@ fun SettingsRoute(page: SettingsPage, viewModel: SettingsViewModel = hiltViewMod
             setConsent = viewModel::setConsent,
             onViewLegal = viewModel::onViewLegal,
             onLegalDismissed = viewModel::onLegalDismissed,
-            onMessageShown = viewModel::onMessageShown
+            onMessageShown = viewModel::onMessageShown,
+            // SDK 로그인은 이 화면의 코루틴에서 띄운다(화면이 사라지면 끊기고 ViewModel은 Activity를 잡지 않는다, A4).
+            onLink = { provider ->
+                viewModel.onLinkStart(provider)?.let { client ->
+                    // UNDISPATCHED: 시작 전에 화면이 사라져도 try 안에서 취소를 받아 진행 표시를 푼다.
+                    scope.launch(start = CoroutineStart.UNDISPATCHED) {
+                        val token = try {
+                            client.signIn(context)
+                        } catch (e: CancellationException) {
+                            viewModel.onLinkCancelled()
+                            throw e
+                        }
+                        viewModel.onLinkToken(token)
+                    }
+                }
+            },
+            onNavigate = navigator::navigate,
+            onLogout = viewModel::onLogoutConfirmed
         )
     )
 }
@@ -137,7 +149,8 @@ fun SettingsScreen(
                         SettingsPage.APP -> AppSettings(state, actions)
                         SettingsPage.FREE_RUN -> FreeRunSettings(state, actions)
                         SettingsPage.NOTIFICATIONS -> NotificationSettings(state, actions)
-                        SettingsPage.CONSENTS -> ConsentSettings(state, actions)
+                        SettingsPage.CONSENTS -> ConsentSection(state, actions)
+                        SettingsPage.ACCOUNT_LINK -> AccountLinkContent(state, actions)
                     }
                 }
             }
@@ -168,189 +181,60 @@ internal fun LegalDialog(legal: LegalView, onDismiss: () -> Unit) {
     )
 }
 
+/** 러닝 설정(A6): 자유런(목표 거리, 음성·진동 안내, 코치 계획 따르기)과 배틀런(기본 대결 거리, 안내, 근접 알림, 중간 알림 간격). */
 @Composable
-private fun Section(@StringRes title: Int, content: @Composable ColumnScope.() -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        RunkkSectionTitle(stringResource(title), modifier = Modifier.padding(horizontal = 8.dp))
-        RunkkCard(contentPadding = PaddingValues(0.dp), verticalArrangement = Arrangement.Top, content = content)
-    }
-}
-
-@Composable
-private fun ChoiceSetting(
-    @StringRes title: Int,
-    @StringRes description: Int?,
-    options: List<Pair<String, Int>>,
-    selected: String,
-    onSelect: (String) -> Unit
-) {
-    Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(
-            stringResource(title),
-            style = RunkkTextStyles.text(15, FontWeight.Medium),
-            color = RunkkColors.TextPrimary
-        )
-        if (description != null) {
-            Text(stringResource(description), style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
-        }
-        RunkkSegmentRow(
-            options = options.map { stringResource(it.second) },
-            selectedIndex = options.indexOfFirst { it.first == selected },
-            onSelect = { onSelect(options[it].first) }
-        )
-    }
-}
-
-@Composable
-private fun Divider() = HorizontalDivider(color = RunkkColors.Border)
-
-@Composable
-private fun ColumnScope.AppSettings(state: SettingsUiState, actions: SettingsActions) {
-    var askHeartRate by remember { mutableStateOf(false) }
-    RecordSettingsSection(state, actions)
-    UnitDeviceSection(state, actions, onAskHeartRate = { askHeartRate = true })
-    LegalSection(actions)
-    if (askHeartRate) {
-        HeartRateConsentDialog(
-            onAgree = {
-                askHeartRate = false
-                actions.setConsent(HEART_RATE, true)
-                actions.setValue(SettingKeys.WATCH_LINKED, "true")
-            },
-            onDismiss = { askHeartRate = false }
-        )
-    }
-}
-
-/** 기록·공개 묶음: 기록 공개 범위, 코스 지도 공유, 개인정보 공개. */
-@Composable
-private fun RecordSettingsSection(state: SettingsUiState, actions: SettingsActions) {
-    Section(R.string.me_settings_section_record) {
-        ChoiceSetting(
-            R.string.me_settings_record_visibility_title,
-            R.string.me_settings_record_visibility_description,
-            RecordVisibilityOptions.values,
-            state.value(SettingKeys.RECORD_VISIBILITY)
-        ) {
-            actions.setValue(SettingKeys.RECORD_VISIBILITY, it)
-        }
-        Divider()
-        RunkkSwitchRow(
-            title = stringResource(R.string.me_settings_course_map_title),
-            description = stringResource(R.string.me_settings_course_map_description),
-            isChecked = state.flag(SettingKeys.COURSE_MAP_SHARED),
-            onCheckedChange = { actions.setValue(SettingKeys.COURSE_MAP_SHARED, it.toString()) },
-            // E2E(android/e2e/maestro) 선택자: 켜짐 여부(checked)는 글자가 아닌 줄 전체에 붙는다.
-            modifier = Modifier.testTag("setting_course_map_shared")
-        )
-        Divider()
-        ChoiceSetting(
-            R.string.me_settings_profile_visibility_title,
-            R.string.me_settings_profile_visibility_description,
-            SettingChoices.profileVisibility,
-            state.value(SettingKeys.PROFILE_VISIBILITY)
-        ) {
-            actions.setValue(SettingKeys.PROFILE_VISIBILITY, it)
-        }
-    }
-}
-
-/** 단위·기기 묶음: 거리 단위, 워치 연동(심박 동의가 없으면 [onAskHeartRate]). */
-@Composable
-private fun UnitDeviceSection(state: SettingsUiState, actions: SettingsActions, onAskHeartRate: () -> Unit) {
-    Section(R.string.me_settings_section_unit_device) {
-        ChoiceSetting(R.string.me_settings_unit_title, null, SettingChoices.unit, state.value(SettingKeys.UNIT)) {
-            actions.setValue(SettingKeys.UNIT, it)
-        }
-        Divider()
-        RunkkSwitchRow(
-            title = stringResource(R.string.me_settings_watch_title),
-            description = stringResource(R.string.me_settings_watch_description),
-            isChecked = state.flag(SettingKeys.WATCH_LINKED),
-            onCheckedChange = { on ->
-                if (on &&
-                    !state.consent(HEART_RATE)
-                ) {
-                    onAskHeartRate()
-                } else {
-                    actions.setValue(SettingKeys.WATCH_LINKED, on.toString())
-                }
-            }
-        )
-    }
-}
-
-/** 고지문서 묶음. */
-@Composable
-private fun LegalSection(actions: SettingsActions) {
-    Section(R.string.me_settings_section_legal) {
-        LegalRow(R.string.me_legal_terms, LegalTypes.TERMS, actions)
-        Divider()
-        LegalRow(R.string.me_legal_privacy, LegalTypes.PRIVACY_POLICY, actions)
-        Divider()
-        LegalRow(R.string.me_legal_location_terms, LegalTypes.LOCATION_TERMS, actions)
-        Divider()
-        LegalRow(R.string.me_legal_help, LegalTypes.HELP, actions)
-    }
-}
-
-@Composable
-private fun LegalRow(@StringRes titleRes: Int, type: String, actions: SettingsActions) {
-    val title = stringResource(titleRes)
-    Row(
-        modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 56.dp).padding(horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            title,
-            style = RunkkTextStyles.text(15, FontWeight.Medium),
-            color = RunkkColors.TextPrimary,
-            modifier = Modifier.weight(1f)
-        )
-        RunkkTextLink(
-            stringResource(R.string.me_legal_view),
-            onClick = { actions.onViewLegal(type, UiText.Res(titleRes)) },
-            contentDescription = stringResource(R.string.me_legal_view_description, title)
-        )
-    }
-}
-
-@Composable
-private fun ColumnScope.FreeRunSettings(state: SettingsUiState, actions: SettingsActions) {
+private fun FreeRunSettings(state: SettingsUiState, actions: SettingsActions) {
     Section(R.string.me_settings_section_free_run) {
         ChoiceSetting(
             R.string.me_settings_target_title,
-            R.string.me_settings_target_description,
+            null,
             FreeRunTargets.values,
             state.value(SettingKeys.RUN_TARGET)
         ) {
             actions.setValue(SettingKeys.RUN_TARGET, it)
         }
-        Divider()
+        SettingsDivider()
         RunkkSwitchRow(stringResource(R.string.me_settings_voice_title), state.flag(SettingKeys.RUN_VOICE), {
             actions.setValue(SettingKeys.RUN_VOICE, it.toString())
-        }, description = stringResource(R.string.me_settings_free_run_voice_description))
-        Divider()
+        })
+        SettingsDivider()
         RunkkSwitchRow(stringResource(R.string.me_settings_vibration_title), state.flag(SettingKeys.RUN_VIBRATION), {
             actions.setValue(SettingKeys.RUN_VIBRATION, it.toString())
         })
-        Divider()
+        SettingsDivider()
         RunkkSwitchRow(
             stringResource(R.string.me_settings_follow_plan_title),
             state.flag(SettingKeys.RUN_FOLLOW_COACH_PLAN),
-            { actions.setValue(SettingKeys.RUN_FOLLOW_COACH_PLAN, it.toString()) },
-            description = stringResource(R.string.me_settings_follow_plan_description)
+            { actions.setValue(SettingKeys.RUN_FOLLOW_COACH_PLAN, it.toString()) }
         )
     }
     Section(R.string.me_settings_section_battle) {
+        // 기본 대결 거리(FR-109): 홈 배틀런 탭이 처음 고르는 거리. 값이 없으면 서버 기본값 5km.
+        val battleDistance = state.value(BATTLE_DEFAULT_DISTANCE).takeIf { v -> BATTLE_DISTANCES.any { it.first == v } }
+        ChoiceSetting(
+            R.string.me_settings_battle_distance_title,
+            null,
+            BATTLE_DISTANCES,
+            battleDistance ?: DEFAULT_BATTLE_DISTANCE
+        ) {
+            actions.setValue(BATTLE_DEFAULT_DISTANCE, it)
+        }
+        SettingsDivider()
         RunkkSwitchRow(stringResource(R.string.me_settings_voice_title), state.flag(SettingKeys.BATTLE_VOICE), {
             actions.setValue(SettingKeys.BATTLE_VOICE, it.toString())
         }, description = stringResource(R.string.me_settings_battle_voice_description))
-        Divider()
+        SettingsDivider()
         RunkkSwitchRow(stringResource(R.string.me_settings_vibration_title), state.flag(SettingKeys.BATTLE_VIBRATION), {
             actions.setValue(SettingKeys.BATTLE_VIBRATION, it.toString())
-        })
-        Divider()
+        }, description = stringResource(R.string.me_settings_battle_vibration_description))
+        SettingsDivider()
+        RunkkSwitchRow(
+            stringResource(R.string.me_settings_proximity_title),
+            state.flag(SettingKeys.BATTLE_PROXIMITY_ALERT),
+            { actions.setValue(SettingKeys.BATTLE_PROXIMITY_ALERT, it.toString()) },
+            description = stringResource(R.string.me_settings_proximity_description)
+        )
+        SettingsDivider()
         ChoiceSetting(
             R.string.me_settings_gap_title,
             null,
@@ -362,171 +246,17 @@ private fun ColumnScope.FreeRunSettings(state: SettingsUiState, actions: Setting
     }
 }
 
-@Composable
-private fun ColumnScope.NotificationSettings(state: SettingsUiState, actions: SettingsActions) {
-    Text(
-        stringResource(R.string.me_settings_coaching_notice),
-        style = RunkkTextStyles.Caption,
-        color = RunkkColors.TextSecondary,
-        modifier = Modifier.padding(horizontal = 8.dp)
-    )
-    Section(R.string.me_settings_section_alerts) {
-        NotificationTypes.values.forEachIndexed { index, (type, label) ->
-            RunkkSwitchRow(stringResource(label), state.flag(SettingKeys.alert(type)), {
-                actions.setValue(SettingKeys.alert(type), it.toString())
-            })
-            if (index < NotificationTypes.values.lastIndex) Divider()
-        }
-    }
-}
+/** 대결 설정의 기본 대결 거리 키(MemberSettings.BATTLE_DEFAULT_DISTANCE와 같은 서버 하위 항목). */
+private const val BATTLE_DEFAULT_DISTANCE = "BATTLE_SETTINGS.defaultDistance"
+private const val DEFAULT_BATTLE_DISTANCE = "KM5"
 
-@Composable
-private fun ColumnScope.ConsentSettings(state: SettingsUiState, actions: SettingsActions) {
-    var confirmWithdraw by remember { mutableStateOf<String?>(null) }
-    var askHeartRate by remember { mutableStateOf(false) }
-    RequiredConsentSection(actions)
-    WithdrawableConsentSection(
-        state,
-        actions,
-        onWithdraw = { confirmWithdraw = it },
-        onAskHeartRate = { askHeartRate = true }
-    )
-    confirmWithdraw?.let { item ->
-        val location = item == LOCATION
-        val titleRes =
-            if (location) R.string.me_consents_withdraw_location_title else R.string.me_consents_withdraw_heart_title
-        val messageRes = if (location) {
-            R.string.me_consents_withdraw_location_message
-        } else {
-            R.string.me_consents_withdraw_heart_message
-        }
-        RunkkConfirmDialog(
-            title = stringResource(titleRes),
-            message = stringResource(messageRes),
-            confirmLabel = stringResource(R.string.me_consents_withdraw_confirm),
-            onConfirm = {
-                confirmWithdraw = null
-                actions.setConsent(item, false)
-            },
-            onDismiss = { confirmWithdraw = null },
-            isDestructive = true
-        )
-    }
-    if (askHeartRate) {
-        HeartRateConsentDialog(
-            onAgree = {
-                askHeartRate = false
-                actions.setConsent(HEART_RATE, true)
-            },
-            onDismiss = { askHeartRate = false }
-        )
-    }
-}
-
-/** 필수 동의 묶음(철회 불가, 약관·방침 보기). */
-@Composable
-private fun RequiredConsentSection(actions: SettingsActions) {
-    Section(R.string.me_consents_section_required) {
-        RequiredConsentRow(R.string.me_consents_age_confirm)
-        Divider()
-        RequiredConsentRow(
-            R.string.me_legal_terms,
-            onView = { actions.onViewLegal(LegalTypes.TERMS, UiText.Res(R.string.me_legal_terms)) }
-        )
-        Divider()
-        RequiredConsentRow(
-            R.string.me_consents_privacy_collect,
-            onView = {
-                actions.onViewLegal(LegalTypes.PRIVACY_POLICY, UiText.Res(R.string.me_consents_privacy_collect))
-            }
-        )
-    }
-}
-
-/** 철회할 수 있는 동의 묶음. 위치·심박은 철회 확인([onWithdraw])·심박 동의 안내([onAskHeartRate])를 거친다. */
-@Composable
-private fun WithdrawableConsentSection(
-    state: SettingsUiState,
-    actions: SettingsActions,
-    onWithdraw: (String) -> Unit,
-    onAskHeartRate: () -> Unit
-) {
-    Section(R.string.me_consents_section_withdrawable) {
-        RunkkSwitchRow(
-            stringResource(R.string.me_consents_location_title),
-            state.consent(LOCATION),
-            { on -> if (on) actions.setConsent(LOCATION, true) else onWithdraw(LOCATION) },
-            description = stringResource(R.string.me_consents_location_description)
-        )
-        Divider()
-        RunkkSwitchRow(
-            stringResource(R.string.me_consents_heart_title),
-            state.consent(HEART_RATE),
-            { on -> if (on) onAskHeartRate() else onWithdraw(HEART_RATE) },
-            description = stringResource(R.string.me_consents_heart_description)
-        )
-        Divider()
-        RunkkSwitchRow(
-            stringResource(R.string.me_consents_llm_title),
-            state.consent(ConsentKeys.LLM_TRANSFER),
-            { actions.setConsent(ConsentKeys.LLM_TRANSFER, it) },
-            description = stringResource(R.string.me_consents_llm_description)
-        )
-        Divider()
-        RunkkSwitchRow(
-            stringResource(R.string.me_consents_face_title),
-            state.consent(ConsentKeys.FACE_TRANSFER),
-            { actions.setConsent(ConsentKeys.FACE_TRANSFER, it) },
-            description = stringResource(R.string.me_consents_face_description)
-        )
-        Divider()
-        RunkkSwitchRow(
-            stringResource(R.string.me_consents_marketing_title),
-            state.consent(ConsentKeys.MARKETING),
-            { actions.setConsent(ConsentKeys.MARKETING, it) }
-        )
-    }
-}
-
-@Composable
-private fun RequiredConsentRow(@StringRes titleRes: Int, onView: (() -> Unit)? = null) {
-    val title = stringResource(titleRes)
-    Row(
-        modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 56.dp).padding(horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(title, style = RunkkTextStyles.text(15, FontWeight.Medium), color = RunkkColors.TextPrimary)
-            Text(
-                stringResource(R.string.me_consents_required_status),
-                style = RunkkTextStyles.Caption,
-                color = RunkkColors.TextSecondary
-            )
-        }
-        if (onView != null) {
-            RunkkTextLink(
-                stringResource(R.string.me_legal_view),
-                onClick = onView,
-                contentDescription = stringResource(R.string.me_legal_view_description, title)
-            )
-        }
-    }
-}
-
-/** 심박 수집 동의(FR-014): 민감정보와 사용 목적을 먼저 보인다. */
-@Composable
-private fun HeartRateConsentDialog(onAgree: () -> Unit, onDismiss: () -> Unit) {
-    RunkkConfirmDialog(
-        title = stringResource(R.string.me_consents_heart_dialog_title),
-        message = stringResource(R.string.me_consents_heart_dialog_message),
-        confirmLabel = stringResource(R.string.me_consents_heart_dialog_agree),
-        onConfirm = onAgree,
-        onDismiss = onDismiss
-    )
-}
-
-private const val LOCATION = ConsentKeys.LOCATION
-private const val HEART_RATE = ConsentKeys.HEART_RATE
+/** 랜덤 대결 거리(서버 StandardDistance RANDOM_BATTLE, FR-080). */
+private val BATTLE_DISTANCES: List<Pair<String, Int>> = listOf(
+    "KM1" to R.string.me_choice_battle_km1,
+    "KM3" to R.string.me_choice_target_km3,
+    "KM5" to R.string.me_choice_target_km5,
+    "KM10" to R.string.me_choice_target_km10
+)
 
 @Preview(name = "자유런 설정", widthDp = 390, heightDp = 1000)
 @Composable
@@ -552,6 +282,39 @@ private fun ConsentsPreview() {
             state = SettingsUiState(
                 isLoading = false,
                 settings = MemberSettings(emptyMap(), mapOf("LOCATION" to true))
+            ),
+            actions = SettingsActions()
+        )
+    }
+}
+
+@Preview(name = "F4 설정 (게스트)", widthDp = 390, heightDp = 1400)
+@Composable
+private fun AppSettingsPreview() {
+    RunkkTheme(reduceMotion = true) {
+        SettingsScreen(
+            page = SettingsPage.APP,
+            state = SettingsUiState(
+                isLoading = false,
+                isGuest = true,
+                settings = MemberSettings(emptyMap(), mapOf("LOCATION" to true))
+            ),
+            actions = SettingsActions()
+        )
+    }
+}
+
+@Preview(name = "F9 소셜 계정 연동", widthDp = 390, heightDp = 844)
+@Composable
+private fun AccountLinkPreview() {
+    RunkkTheme(reduceMotion = true) {
+        SettingsScreen(
+            page = SettingsPage.ACCOUNT_LINK,
+            state = SettingsUiState(
+                isLoading = false,
+                isGuest = true,
+                nickname = "러너1234",
+                settings = MemberSettings(emptyMap(), emptyMap())
             ),
             actions = SettingsActions()
         )

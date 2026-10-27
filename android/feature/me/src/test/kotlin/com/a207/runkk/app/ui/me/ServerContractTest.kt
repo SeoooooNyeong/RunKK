@@ -66,6 +66,8 @@ class ServerContractTest {
             SettingKeys.BATTLE_VOICE,
             SettingKeys.BATTLE_VIBRATION,
             SettingKeys.BATTLE_GAP_ALERT,
+            SettingKeys.BATTLE_PROXIMITY_ALERT,
+            SettingKeys.THEME,
             SettingKeys.alert("PLAN_MISSED")
         )
         assertAllIn("SettingItem", keys.map { it.substringBefore('.') }, "설정 키")
@@ -74,6 +76,7 @@ class ServerContractTest {
 
     @Test
     fun `설정 값 선택지는 서버 enum과 같다`() {
+        assertEquals(ContractEnums.names("ScreenTheme"), SettingChoices.theme.map { it.first }.toSet())
         assertEquals(ContractEnums.names("DistanceUnit"), SettingChoices.unit.map { it.first }.toSet())
         assertEquals(
             ContractEnums.names("ProfileVisibility"),
@@ -95,9 +98,9 @@ class ServerContractTest {
     }
 
     @Test
-    fun `알림 종류 12개는 서버 NotificationType과 같다`() {
-        assertEquals(ContractEnums.names("NotificationType"), NotificationTypes.values.map { it.first }.toSet())
-        assertEquals(12, NotificationTypes.values.size)
+    fun `알림 설정 묶음은 서버 NotificationType 21개를 빠짐없이 한 번씩 담는다`() {
+        assertEquals(ContractEnums.names("NotificationType"), NotificationTypes.allTypes.toSet())
+        assertEquals(21, NotificationTypes.allTypes.size)
     }
 
     @Test

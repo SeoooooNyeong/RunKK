@@ -4,6 +4,7 @@ import com.a207.runkk.app.api.core.ApiTestServer
 import com.a207.runkk.app.api.core.value
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.domain.crew.AttendanceAnswer
 import com.a207.runkk.app.domain.crew.CrewDetail
 import com.a207.runkk.app.domain.crew.CrewList
 import com.a207.runkk.app.domain.crew.CrewRole
@@ -17,7 +18,6 @@ import com.a207.runkk.app.domain.crew.Lobby
 import com.a207.runkk.app.domain.crew.MyCrew
 import com.a207.runkk.app.domain.crew.PostList
 import com.a207.runkk.app.domain.crew.RaceStatus
-import com.a207.runkk.app.domain.crew.VoteAnswer
 import java.time.Instant
 import kotlin.test.AfterTest
 import kotlin.test.Test
@@ -28,7 +28,8 @@ import retrofit2.create
 /** api.crew 매퍼(14장 단위(앱 데이터)): 크루 목록·게시판·대기실·크루런 결과 DTO → 도메인, 갈래별 엔드포인트(D-36). */
 class CrewRepositoryImplTest {
     private val api = ApiTestServer()
-    private val repository = CrewRepositoryImpl(api.retrofit.create())
+    private val photos = FakePhotos()
+    private val repository = CrewRepositoryImpl(api.retrofit.create(), photos.compressor)
 
     @AfterTest
     fun tearDown() = api.close()
@@ -68,7 +69,7 @@ class CrewRepositoryImplTest {
         val request = api.take()
         assertEquals("/api/v1/crews/5/posts", request.url.encodedPath)
         assertEquals(
-            """{"kind":"CREW_RUN","body":"토요 한강런","distanceMeters":10000,"meetAt":"2026-10-25T06:00:00"}""",
+            """{"kind":"CREW_RUN","body":"토요 한강런","distanceMeters":10000,"scheduledAt":"2026-10-25T06:00:00+09:00"}""",
             request.body!!.utf8()
         )
     }
@@ -197,7 +198,7 @@ class CrewRepositoryImplTest {
     fun `게시판의 모르는 글 종류는 건너뛴다`() = runTest {
         api.reply(
             """{"posts":[{"postId":1,"kind":"CHEER","authorName":"곰","body":"화이팅","writtenAt":"2026-10-20T07:00:00","mine":true},
-               |{"postId":2,"kind":"POLL","authorName":"여우","body":"?","writtenAt":"2026-10-20T08:00:00"}]}
+               |{"postId":2,"kind":"FUTURE_KIND","authorName":"여우","body":"?","writtenAt":"2026-10-20T08:00:00"}]}
             """.trimMargin()
         )
 
@@ -239,7 +240,7 @@ class CrewRepositoryImplTest {
                             voteDeadline = Instant.parse("2026-10-24T20:00:00Z"),
                             status = CrewRunStatus.VOTING,
                             goingCount = 2,
-                            myAnswer = VoteAnswer.GOING,
+                            myAnswer = AttendanceAnswer.GOING,
                             finisherCount = 0,
                             raceContribution = null
                         )
@@ -251,24 +252,6 @@ class CrewRepositoryImplTest {
     }
 
     @Test
-    fun `추천 크루는 서버 추천 형식으로 읽는다`() = runTest {
-        api.reply(
-            """{"crews":[{"crewId":4,"name":"새벽런","matchCount":2,"tags":["DAWN","SOCIAL_RUN"],"headcount":7,"joinPolicy":"FREE"}],
-               |"guide":null}
-            """.trimMargin()
-        )
-
-        val crews = repository.recommend().value()
-
-        assertEquals(
-            CrewList(
-                listOf(CrewList.Item(4, "새벽런", null, setOf("DAWN", "SOCIAL_RUN"), "", 7, Distance(0), JoinPolicy.FREE))
-            ),
-            crews
-        )
-    }
-
-    @Test
     fun `대기실·투표·결과를 바꾼다`() = runTest {
         api.reply(
             """{"postId":77,"scheduledAt":"2026-10-25T06:00:00","distanceMeters":3000,"remainingSeconds":600,
@@ -276,7 +259,7 @@ class CrewRepositoryImplTest {
                |{"memberId":7,"displayName":"나","readiness":"ENTERING","ready":false,"me":true}]}
             """.trimMargin()
         )
-        api.replyEmpty()
+        api.reply("""{"postId":77,"myAnswer":"GOING","goingCount":3,"notGoingCount":1,"undecidedCount":0}""")
         api.reply(
             """{"postId":77,"finishers":[{"rank":1,"displayName":"곰","elapsedSeconds":3000,"averagePaceSecondsPerKm":300,
                |"quit":false,"memberId":3,"me":false},{"displayName":"토끼","quit":true,"memberId":7,"me":true}],
@@ -285,7 +268,7 @@ class CrewRepositoryImplTest {
         )
 
         val lobby = repository.toggleReady(77).value()
-        repository.vote(77, VoteAnswer.GOING)
+        repository.answerAttendance(77, AttendanceAnswer.GOING)
         val result = repository.crewRunResult(77).value()
 
         assertEquals(
@@ -298,7 +281,9 @@ class CrewRepositoryImplTest {
             lobby
         )
         assertEquals("/api/v1/crew-runs/77/lobby/ready", api.take().url.encodedPath)
-        assertEquals("""{"answer":"GOING"}""", api.take().body!!.utf8())
+        val attendance = api.take()
+        assertEquals("PUT /api/v1/posts/77/attendance", "${attendance.method} ${attendance.url.encodedPath}")
+        assertEquals("""{"answer":"GOING"}""", attendance.body!!.utf8())
         assertEquals(
             CrewRunResult(
                 77,

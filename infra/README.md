@@ -98,7 +98,7 @@ SSAFY 배정 도메인(`k15a207.p.ssafy.io`)이 EC2를 가리키는지 확인한
 
 1. `../backend`·`../ai`로 이미지를 만듭니다. 태그는 환경별(`runkk-api:develop`·`runkk-api:prod`)이라 서로 덮어쓰지 않고, 직전 이미지는 `runkk-api:<환경>-prev`로 남깁니다.
 2. 에지를 맞춥니다. 설정 파일을 `/srv/runkk/edge/`에 복사하고(RUNKK_HOME), 새 nginx 설정을 일회용 컨테이너에서 `nginx -t`로 검사한 뒤 `up -d`로 바뀐 컨테이너만 다시 만들고, 돌고 있는 nginx는 템플릿을 다시 그려 `nginx -s reload`, Prometheus는 `/-/reload`로 다시 읽힙니다. 검사가 실패하면 돌고 있는 nginx를 건드리지 않고 멈춥니다. 분리 전 컨테이너(프로젝트 `runkk`의 api·ai·postgres·redis)가 있으면 여기서 정상 종료시켜 지웁니다(볼륨은 남김, 9절).
-3. 이 환경 백업 컨테이너가 돌고 있으면 배포 직전 덤프를 하나 뜹니다(Flyway 마이그레이션 전, 7절).
+3. 배포 직전 덤프를 하나 뜹니다(Flyway가 되돌릴 수 없는 마이그레이션을 돌리기 전, 7절). 이 환경 postgres 데이터 볼륨이 있으면 postgres·backup 컨테이너만 먼저 올려(분리 후 첫 배포나 `down` 뒤에도) `pg-backup.sh now predeploy`로 덤프하고, 올리지 못하거나 덤프가 실패하면 배포를 멈춥니다. 볼륨이 없을 때(처음 배포)만 건너뜁니다. 덤프는 CI 작업 폴더 밖 `/var/backups/runkk/<환경>/`에 폴더 700·파일 600으로 남습니다.
 4. 환경 스택 설정을 `/srv/runkk/<환경>/`에 복사하고, 이 환경 postgres 볼륨을 다른 프로젝트 컨테이너가 쓰고 있으면 멈춥니다(같은 데이터 폴더에 postgres 두 개가 붙으면 DB가 깨짐). 그 뒤 `up -d --remove-orphans`(자기 프로젝트만)로 올리고 api·ai healthy와 nginx를 거친 `/actuator/health`를 기다립니다.
 
 - 한 환경 배포는 다른 환경 컨테이너를 다시 만들지 않습니다. 두 배포가 겹치지 않게 CI는 `resource_group: runkk-server`, 스크립트는 `/srv/runkk/.deploy.lock`(flock)을 씁니다.

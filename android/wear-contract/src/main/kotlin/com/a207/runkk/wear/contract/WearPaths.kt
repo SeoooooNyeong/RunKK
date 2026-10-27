@@ -1,14 +1,15 @@
 package com.a207.runkk.wear.contract
 
 /**
- * 폰–워치 Wearable Data Layer 경로 이름(D-20, 6.1.15).
- * 시작 요청·표시 정보는 MessageClient, 심박 묶음은 DataClient(끊겨도 쌓였다가 전달, NFR-032)로 보낸다.
+ * 폰–워치 Wearable Data Layer 경로 이름(D-20, 6.1.15, F.4.1). 경로는 더하기만 한다(D-97).
+ * 심박 묶음만 DataClient(끊겨도 쌓였다가 전달, NFR-032)이고 나머지는 MessageClient다.
+ * 경로 7개는 서로 겹치지 않는다(계약 시험). 받는 쪽은 모르는 경로를 버린다(F.4.4).
  */
 object WearPaths {
     /** 워치 → 폰: 자유런 시작 요청(MessageClient, FR-183). */
     const val START_REQUEST = "/runkk/start-request"
 
-    /** 폰 → 워치: 진행 지표·오늘 계획·수집 허용 여부(MessageClient, FR-042). */
+    /** 폰 → 워치: 진행 지표·오늘 계획·수집 허용 여부·일시정지 상태(MessageClient, FR-042, FR-194). */
     const val WATCH_DISPLAY = "/runkk/watch-display"
 
     /**
@@ -19,10 +20,19 @@ object WearPaths {
 
     /**
      * 런크크 워치 앱이 알리는 능력 이름(CapabilityClient). 워치 앱 res/values/wear.xml의 android_wear_capabilities와 같아야 한다.
-     * 폰은 이 능력이 닿는 노드가 바뀔 때만 연결 상태를 갱신한다(5초마다 노드를 조회하지 않는다).
+     * 폰은 이 능력이 닿는 노드가 바뀔 때만 연결 상태를 갱신한다(5초마다 노드를 조회하지 않는다, CR34-16).
      */
     const val WATCH_CAPABILITY = "runkk_watch"
 
     /** 워치 → 폰: 러닝 종료 요청(MessageClient). 워치의 종료는 길게 누르기이고 폰이 같은 종료 규칙으로 처리한다(FR-181). */
     const val END_REQUEST = "/runkk/end-request"
+
+    /** 워치 → 폰: 자유런 일시정지·재개 요청(MessageClient, PauseRequestMessage, FR-194). */
+    const val PAUSE_REQUEST = "/runkk/pause-request"
+
+    /** 폰 → 워치: 대결 근접 알림 간격(MessageClient, 유실 허용, ProximityMessage, FR-196). */
+    const val PROXIMITY = "/runkk/proximity"
+
+    /** 폰 → 워치: 추월·역전 순간(MessageClient, LeadChangeMessage, FR-188, FR-196). */
+    const val LEAD_CHANGE = "/runkk/lead-change"
 }

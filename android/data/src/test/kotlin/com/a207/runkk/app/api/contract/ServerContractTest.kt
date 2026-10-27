@@ -1,5 +1,7 @@
 package com.a207.runkk.app.api.contract
 
+import com.a207.runkk.app.api.account.GuestStartRequest
+import com.a207.runkk.app.api.account.GuestStartResponse
 import com.a207.runkk.app.api.account.LegalDocumentResponse
 import com.a207.runkk.app.api.account.LoginRequest
 import com.a207.runkk.app.api.account.LoginResponse
@@ -9,8 +11,12 @@ import com.a207.runkk.app.api.account.ProfileEditRequest
 import com.a207.runkk.app.api.account.ProfileResponse
 import com.a207.runkk.app.api.account.SettingChangeBody
 import com.a207.runkk.app.api.account.SignUpRequest
+import com.a207.runkk.app.api.account.SocialLinkRequest
+import com.a207.runkk.app.api.account.SocialLinkResponse
 import com.a207.runkk.app.api.account.TokenPairResponse
 import com.a207.runkk.app.api.avatar.AvatarResponse
+import com.a207.runkk.app.api.avatar.BackgroundRequest
+import com.a207.runkk.app.api.avatar.BackgroundsResponse
 import com.a207.runkk.app.api.avatar.DefaultCharacterRequest
 import com.a207.runkk.app.api.avatar.EquipRequest
 import com.a207.runkk.app.api.avatar.PurchaseRequest
@@ -24,6 +30,13 @@ import com.a207.runkk.app.api.battle.MatchAcceptanceResponse
 import com.a207.runkk.app.api.battle.MatchRequest
 import com.a207.runkk.app.api.battle.RecordBattleStartResponse
 import com.a207.runkk.app.api.battle.SelfBattleRequest
+import com.a207.runkk.app.api.chat.ChatMessageItem
+import com.a207.runkk.app.api.chat.ChatPageResponse
+import com.a207.runkk.app.api.chat.ChatPostRequest
+import com.a207.runkk.app.api.chat.ReactionResponse
+import com.a207.runkk.app.api.crew.AlbumResponse
+import com.a207.runkk.app.api.crew.AttendanceRequest
+import com.a207.runkk.app.api.crew.AttendanceResponse
 import com.a207.runkk.app.api.crew.CreatedResponse
 import com.a207.runkk.app.api.crew.CrewDetailResponse
 import com.a207.runkk.app.api.crew.CrewFormDto
@@ -32,21 +45,24 @@ import com.a207.runkk.app.api.crew.CrewMembersResponse
 import com.a207.runkk.app.api.crew.CrewProfileRequest
 import com.a207.runkk.app.api.crew.CrewRankingResponse
 import com.a207.runkk.app.api.crew.CrewRunResultResponse
+import com.a207.runkk.app.api.crew.GoalRequest
 import com.a207.runkk.app.api.crew.InviteCodeResponse
 import com.a207.runkk.app.api.crew.JoinRequestBody
 import com.a207.runkk.app.api.crew.JoinResponse
 import com.a207.runkk.app.api.crew.LeaderRequest
 import com.a207.runkk.app.api.crew.LobbyResponse
+import com.a207.runkk.app.api.crew.ManagerResponse
 import com.a207.runkk.app.api.crew.MyCrewResponse
 import com.a207.runkk.app.api.crew.PendingRequestsResponse
+import com.a207.runkk.app.api.crew.PinRequest
+import com.a207.runkk.app.api.crew.PinResponse
+import com.a207.runkk.app.api.crew.PollAnswerRequest
+import com.a207.runkk.app.api.crew.PollResultResponse
 import com.a207.runkk.app.api.crew.PostListResponse
 import com.a207.runkk.app.api.crew.PostWriteRequest
 import com.a207.runkk.app.api.crew.RaceStatusResponse
-import com.a207.runkk.app.api.crew.RecommendationsResponse
-import com.a207.runkk.app.api.crew.VoteRequest
 import com.a207.runkk.app.api.notification.InboxResponse
 import com.a207.runkk.app.api.notification.PushTokenRequest
-import com.a207.runkk.app.api.notification.ROUTES
 import com.a207.runkk.app.api.notification.TITLES
 import com.a207.runkk.app.api.record.DashboardResponse
 import com.a207.runkk.app.api.record.GrowthResponse
@@ -59,6 +75,7 @@ import com.a207.runkk.app.api.record.ReportResponse
 import com.a207.runkk.app.api.record.RunCardResponse
 import com.a207.runkk.app.api.record.TodayPlanResponse
 import com.a207.runkk.app.api.record.WeeklyGoalRequest
+import com.a207.runkk.app.api.report.ReportRequest
 import com.a207.runkk.app.api.run.DisposalOrderResponse
 import com.a207.runkk.app.api.run.LateHeartRatesRequest
 import com.a207.runkk.app.api.run.RunUploadRequest
@@ -68,21 +85,30 @@ import com.a207.runkk.app.api.runimal.RunimalStatusResponse
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.RunMode
 import com.a207.runkk.app.core.model.SignalState
+import com.a207.runkk.app.domain.account.AccountType
 import com.a207.runkk.app.domain.account.Gender
 import com.a207.runkk.app.domain.account.ProviderType
 import com.a207.runkk.app.domain.avatar.ItemSlot
 import com.a207.runkk.app.domain.battle.BattleHistory
+import com.a207.runkk.app.domain.chat.ReactionKind
+import com.a207.runkk.app.domain.crew.AttendanceAnswer
 import com.a207.runkk.app.domain.crew.CrewRanking
 import com.a207.runkk.app.domain.crew.CrewRole
 import com.a207.runkk.app.domain.crew.CrewRunStatus
 import com.a207.runkk.app.domain.crew.CrewVisibility
 import com.a207.runkk.app.domain.crew.JoinPolicy
+import com.a207.runkk.app.domain.crew.PollMethod
 import com.a207.runkk.app.domain.crew.PostList
-import com.a207.runkk.app.domain.crew.VoteAnswer
+import com.a207.runkk.app.domain.live.CrewChatRemoved
+import com.a207.runkk.app.domain.report.ReportReason
+import com.a207.runkk.app.domain.report.ReportStatus
+import com.a207.runkk.app.domain.report.ReportTargetKind
+import com.a207.runkk.app.domain.settings.ScreenTheme
 import com.a207.runkk.app.domain.sync.DisposalOrder
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.descriptors.SerialDescriptor
@@ -120,7 +146,7 @@ class ServerContractTest {
             "ItemSlot" to names(ItemSlot.entries),
             "CrewVisibility" to names(CrewVisibility.entries),
             "JoinPolicy" to names(JoinPolicy.entries),
-            "VoteAnswer" to names(VoteAnswer.entries),
+            "AttendanceAnswer" to names(AttendanceAnswer.entries),
             "PostKind" to names(PostList.Kind.entries),
             "AggregationPeriod" to names(CrewRanking.Period.entries),
             "CrewRole" to names(CrewRole.entries),
@@ -129,7 +155,14 @@ class ServerContractTest {
             "CardKind" to names(CardKind.entries),
             "RunMode" to names(RunMode.entries),
             "SignalState" to names(SignalState.entries),
-            "DisposalKind" to names(DisposalOrder.Kind.entries)
+            "DisposalKind" to names(DisposalOrder.Kind.entries),
+            "AccountType" to names(AccountType.entries),
+            "ScreenTheme" to names(ScreenTheme.entries),
+            "PollMethod" to names(PollMethod.entries),
+            "ReactionKind" to names(ReactionKind.entries),
+            "ReportTargetKind" to names(ReportTargetKind.entries),
+            "ReportReason" to names(ReportReason.entries),
+            "ReportStatus" to names(ReportStatus.entries)
         )
         pairs.forEach { (server, app) ->
             val unknown = app - enumNames(server)
@@ -145,7 +178,7 @@ class ServerContractTest {
         assertEquals(enumNames("ItemSlot"), names(ItemSlot.entries))
         assertEquals(enumNames("CrewVisibility"), names(CrewVisibility.entries))
         assertEquals(enumNames("JoinPolicy"), names(JoinPolicy.entries))
-        assertEquals(enumNames("VoteAnswer"), names(VoteAnswer.entries))
+        assertEquals(enumNames("AttendanceAnswer"), names(AttendanceAnswer.entries))
         assertEquals(enumNames("PostKind"), names(PostList.Kind.entries))
         assertEquals(enumNames("AggregationPeriod"), names(CrewRanking.Period.entries))
         assertEquals(enumNames("CrewRole"), names(CrewRole.entries))
@@ -154,12 +187,19 @@ class ServerContractTest {
         assertEquals(enumNames("DisposalKind"), names(DisposalOrder.Kind.entries))
         assertEquals(enumNames("ProviderType"), names(ProviderType.entries))
         assertEquals(enumNames("Gender"), names(Gender.entries))
+        assertEquals(enumNames("AccountType"), names(AccountType.entries))
+        assertEquals(enumNames("ScreenTheme"), names(ScreenTheme.entries))
+        assertEquals(enumNames("PollMethod"), names(PollMethod.entries))
+        assertEquals(enumNames("ReactionKind"), names(ReactionKind.entries))
+        assertEquals(enumNames("ReportTargetKind"), names(ReportTargetKind.entries))
+        assertEquals(enumNames("ReportReason"), names(ReportReason.entries))
+        assertEquals(enumNames("ReportStatus"), names(ReportStatus.entries))
+        assertEquals(enumNames("ChatRemovalReason"), names(CrewChatRemoved.Reason.entries))
     }
 
     @Test
-    fun `알림함 제목과 이동 경로는 서버 알림 종류와 화면 종류를 모두 다룬다`() {
+    fun `알림함 제목은 서버 알림 종류를 모두 다룬다(이동 표는 ui·notification이 갖는다)`() {
         assertEquals(enumNames("NotificationType"), TITLES.keys)
-        assertEquals(enumNames("Screen"), ROUTES.keys)
     }
 
     // ---------- DTO ----------
@@ -253,7 +293,15 @@ class ServerContractTest {
         request(JoinRequestBody.serializer(), "CrewDtos.JoinRequestBody")
         request(CrewProfileRequest.serializer(), "CrewDtos.CrewProfileRequest")
         request(PostWriteRequest.serializer(), "CrewDtos.PostWriteRequest")
-        request(VoteRequest.serializer(), "CrewDtos.VoteRequest")
+        request(AttendanceRequest.serializer(), "CrewDtos.AttendanceRequest")
+        request(PinRequest.serializer(), "CrewDtos.PinRequest")
+        request(PollAnswerRequest.serializer(), "CrewDtos.PollAnswerRequest")
+        request(GoalRequest.serializer(), "CrewDtos.GoalRequest")
+        request(GuestStartRequest.serializer(), "SignUpController.GuestStartRequest")
+        request(SocialLinkRequest.serializer(), "AuthController.SocialLinkRequest")
+        request(BackgroundRequest.serializer(), "AvatarDtos.BackgroundRequest")
+        request(ChatPostRequest.serializer(), "ChatController.ChatPostRequest")
+        request(ReportRequest.serializer(), "ReportController.ReportRequest")
         request(DefaultCharacterRequest.serializer(), "AvatarDtos.DefaultCharacterRequest")
         request(EquipRequest.serializer(), "AvatarDtos.EquipRequest")
         request(PurchaseRequest.serializer(), "AvatarDtos.PurchaseRequest")
@@ -282,7 +330,21 @@ class ServerContractTest {
         response(BattleResultResponse.serializer(), "BattleDtos.BattleResultResponse")
         response(BattleHistoryResponse.serializer(), "BattleDtos.BattleHistoryResponse")
         response(CrewListResponse.serializer(), "CrewDtos.CrewListResponse")
-        response(RecommendationsResponse.serializer(), "CrewDtos.RecommendationsResponse")
+        response(AttendanceResponse.serializer(), "CrewDtos.AttendanceResponse")
+        response(ManagerResponse.serializer(), "CrewDtos.ManagerResponse")
+        response(PinResponse.serializer(), "CrewDtos.PinResponse")
+        response(PollResultResponse.serializer(), "CrewDtos.PollResultResponse")
+        response(AlbumResponse.serializer(), "CrewDtos.AlbumResponse")
+        response(GuestStartResponse.serializer(), "SignUpController.GuestStartResponse")
+        response(SocialLinkResponse.serializer(), "AuthController.SocialLinkResponse")
+        response(BackgroundsResponse.serializer(), "AvatarDtos.BackgroundsResponse")
+        response(ChatPageResponse.serializer(), "ChatController.ChatPageResponse")
+        response(ChatMessageItem.serializer(), "ChatController.ChatMessageItem")
+        response(ReactionResponse.serializer(), "ChatController.ReactionResponse")
+        response(
+            com.a207.runkk.app.api.report.ReportResponse.serializer(),
+            "ReportController.ReportResponse"
+        )
         response(CrewMembersResponse.serializer(), "CrewMembersAssembler.CrewMembersResponse")
         response(PendingRequestsResponse.serializer(), "CrewMembersAssembler.PendingRequestsResponse")
         response(CrewRankingResponse.serializer(), "CrewController.RankingResponse")
@@ -312,5 +374,27 @@ class ServerContractTest {
         response(TodayPlanResponse.serializer(), "RecordDtos.TodayPlanResponse")
         response(RunCardResponse.serializer(), "RecordDtos.RunCardResponse")
         assertTrue(problems.isEmpty(), problems.joinToString("\n", prefix = "\n"))
+    }
+
+    @Test
+    fun `TC-6857 크루 목록은 추천 항목 없이 해독되고 api·crew는 추천 경로를 부르지 않는다`() {
+        val sample = """{"crews":[{"crewId":1,"name":"새벽런","headcount":3,"joinPolicy":"FREE"}],"nextCursor":null}"""
+        val decoded = Json { ignoreUnknownKeys = true }.decodeFromString(CrewListResponse.serializer(), sample)
+        assertEquals(1, decoded.crews.size)
+        assertFalse(records.containsKey("CrewDtos.RecommendationsResponse"), "서버 추천 형식은 지워졌다")
+        val crewSources =
+            File(requireNotNull(System.getProperty("user.dir")))
+                .resolve("src/main/kotlin/com/a207/runkk/app/api/crew")
+                .listFiles()
+                .orEmpty()
+        assertTrue(crewSources.isNotEmpty())
+        assertTrue(crewSources.none { "crews/recommendations" in it.readText() }, "GET /crews/recommendations 호출 0")
+    }
+
+    @Test
+    fun `TC-6854 앱에 VoteAnswer·VoteRequest 계약이 남아 있지 않다`() {
+        assertFalse(File(contractDir, "enums/VoteAnswer.txt").exists())
+        assertTrue(File(contractDir, "enums/AttendanceAnswer.txt").exists())
+        assertTrue(records.containsKey("CrewDtos.AttendanceRequest"))
     }
 }

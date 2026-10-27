@@ -1,16 +1,24 @@
 package com.a207.runkk.crew;
 
-/** 크루 권한표 12행(srs.md 3.0.3). CrewPermissionPolicy가 관계별 허용을 정한다. */
+/**
+ * 크루 권한표 16행(srs.md 3.0.3, 부록 F F.5.1). CrewPermissionPolicy가 관계별 허용을 정한다. v0.10의
+ * VOTE_OR_JOIN_CREW_RUN은 RESPOND로, DELETE_ANY_POST·DELETE_OWN_POST는
+ * DELETE_ANY_CONTENT·DELETE_OWN_CONTENT로 개명했다(D-98).
+ */
 public enum CrewAction {
     VIEW_PUBLIC_INFO,
     EDIT_CREW,
     TRANSFER_OR_DELETE,
-    VIEW_OR_DECIDE_JOIN,
+    APPOINT_MANAGER,
     KICK,
+    VIEW_OR_DECIDE_JOIN,
+    MANAGE_NOTICE,
+    SET_GOAL,
     WRITE_POST,
-    VOTE_OR_JOIN_CREW_RUN,
-    DELETE_ANY_POST,
-    DELETE_OWN_POST,
+    RESPOND,
+    REPORT,
+    DELETE_ANY_CONTENT,
+    DELETE_OWN_CONTENT,
     VIEW_CREW_INTERNAL,
     EDIT_OWN_CREW_PROFILE,
     LEAVE

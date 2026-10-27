@@ -3,20 +3,28 @@ package com.a207.runkk.app.data.watch
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.Pace
+import com.a207.runkk.app.domain.run.Guidance
 import com.a207.runkk.app.domain.run.HeartRateSample
 import com.a207.runkk.app.domain.run.PlanSnapshot
+import com.a207.runkk.app.domain.run.ProximityAlert
 import com.a207.runkk.app.domain.run.WatchDisplay
+import com.a207.runkk.app.domain.run.WatchGateway
 import com.a207.runkk.app.domain.run.WatchNotice
 import com.a207.runkk.app.domain.settings.GuidanceSettings
 import com.a207.runkk.app.domain.settings.SettingsRepository
 import com.a207.runkk.app.domain.settings.SettingsSnapshot
 import com.a207.runkk.wear.contract.EndRequestMessage
 import com.a207.runkk.wear.contract.HeartRateBatchMessage
+import com.a207.runkk.wear.contract.LeadChangeMessage
+import com.a207.runkk.wear.contract.PauseRequestMessage
+import com.a207.runkk.wear.contract.ProximityMessage
 import com.a207.runkk.wear.contract.StartRequestMessage
 import com.a207.runkk.wear.contract.WatchDisplayMessage
 import com.a207.runkk.wear.contract.WearPaths
+import java.time.Clock
 import java.time.Duration
 import java.time.Instant
+import java.time.ZoneOffset
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -29,6 +37,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
 
 /** WatchLink(14장 단위(앱 데이터)): 동의 철회 즉시 수집 금지 플래그(NFR-023, H-19), 실패 표본·금지 중 심박 버림, 시작 요청. */
 class WatchLinkTest {
@@ -44,14 +54,14 @@ class WatchLinkTest {
         val sent = transport.displays().last()
         assertEquals(
             WatchDisplayMessage(
-                running = true,
+                isRunning = true,
                 elapsedSeconds = 605,
                 distanceMeters = 2_012,
                 currentPaceSecondsPerKm = 330,
                 heartRateBpm = 151,
                 planDistanceMeters = 5_000,
                 planPaceSecondsPerKm = 360,
-                heartRateCollectionAllowed = true,
+                isHeartRateCollectionAllowed = true,
                 notice = null
             ),
             sent
@@ -68,7 +78,7 @@ class WatchLinkTest {
 
         val after = transport.displays()
         assertEquals(before + 1, after.size, "철회 알림 한 번에 한 번 다시 보낸다")
-        assertFalse(after.last().heartRateCollectionAllowed)
+        assertFalse(after.last().isHeartRateCollectionAllowed)
         assertEquals(2_012, after.last().distanceMeters, "마지막 표시 정보를 그대로 다시 보낸다")
     }
 
@@ -79,8 +89,8 @@ class WatchLinkTest {
         settings.emit(CONSENTED.copy(isWatchLinked = false))
 
         val last = transport.displays().last()
-        assertFalse(last.running)
-        assertFalse(last.heartRateCollectionAllowed)
+        assertFalse(last.isRunning)
+        assertFalse(last.isHeartRateCollectionAllowed)
     }
 
     @Test
@@ -137,6 +147,62 @@ class WatchLinkTest {
         assertTrue(link.isConnected())
     }
 
+    @Test
+    fun `워치 일시정지·재개 요청을 넘기고 모르는 action은 버린다(D-157 (6))`() = runTest {
+        val link = WatchLink(transport, settings, linkScope())
+        val actions = mutableListOf<WatchGateway.PauseAction>()
+        linkScope().launch { link.pauseRequests.collect { actions += it } }
+
+        transport.receive(WearPaths.PAUSE_REQUEST, PauseRequestMessage(PauseRequestMessage.Action.PAUSE, 1).encode())
+        transport.receive(WearPaths.PAUSE_REQUEST, """{"action":"STOP","requestedAtEpochMillis":2}""".toByteArray())
+        transport.receive(WearPaths.PAUSE_REQUEST, PauseRequestMessage(PauseRequestMessage.Action.RESUME, 3).encode())
+
+        assertEquals(listOf(WatchGateway.PauseAction.PAUSE, WatchGateway.PauseAction.RESUME), actions)
+    }
+
+    @Test
+    fun `근접 알림을 ProximityMessage로 보내고 null이면 끔(0·0)을 보낸다`() = runTest {
+        val clock = Clock.fixed(T0, ZoneOffset.UTC)
+        val link = WatchLink(transport, settings, linkScope(), clock = clock)
+
+        link.publishProximity(ProximityAlert(24, Duration.ofMillis(640), isAhead = true))
+        link.publishProximity(null)
+
+        val sent = transport.sent.filter { it.first == WearPaths.PROXIMITY }
+        assertEquals(
+            listOf(
+                ProximityMessage(true, 24, 640, true, T0.toEpochMilli()),
+                ProximityMessage(false, 0, 0, false, T0.toEpochMilli())
+            ),
+            sent.map { ProximityMessage.decode(it.second) }
+        )
+        val keys = Json.parseToJsonElement(sent.first().second.decodeToString()).jsonObject.keys
+        assertTrue("active" in keys && "ahead" in keys && "isActive" !in keys, "$keys")
+    }
+
+    @Test
+    fun `추월·역전만 LeadChangeMessage로 보낸다`() = runTest {
+        val link = WatchLink(transport, settings, linkScope(), clock = Clock.fixed(T0, ZoneOffset.UTC))
+
+        link.publishLeadChange(Guidance.Kind.OVERTAKEN)
+        link.publishLeadChange(Guidance.Kind.SPLIT)
+
+        assertEquals(
+            listOf(LeadChangeMessage(LeadChangeMessage.Kind.OVERTAKEN, T0.toEpochMilli())),
+            transport.sent.filter { it.first == WearPaths.LEAD_CHANGE }.map { LeadChangeMessage.decode(it.second) }
+        )
+    }
+
+    @Test
+    fun `TC-6401 표시 정보에 정지 중·정지 가능을 싣는다`() = runTest {
+        val link = WatchLink(transport, settings, linkScope())
+
+        link.publish(DISPLAY.copy(isPaused = true, isPausable = true))
+
+        val sent = transport.displays().last()
+        assertTrue(sent.isPaused && sent.isPausable)
+    }
+
     /** 시험이 끝나면 함께 취소되고, 구독·방출이 바로 도는 범위. */
     private fun TestScope.linkScope(): CoroutineScope =
         CoroutineScope(backgroundScope.coroutineContext + UnconfinedTestDispatcher(testScheduler))
@@ -178,6 +244,8 @@ class WatchLinkTest {
         override fun birthYear() = state.value.birthYear
 
         override fun guidanceSettings() = state.value.guidanceSettings
+
+        override fun isGuest(): Boolean = state.value.isGuest
 
         override fun changes(): Flow<SettingsSnapshot> = state
 
@@ -254,12 +322,12 @@ class WatchLinkTest {
         transport.connected.value = true
 
         assertEquals(before + 1, transport.displays().size)
-        assertTrue(transport.displays().last().heartRateCollectionAllowed)
+        assertTrue(transport.displays().last().isHeartRateCollectionAllowed)
     }
 
     @Test
     fun `M-3 안내 키는 문구로 바꿔 워치에 보낸다`() = runTest {
-        val link = WatchLink(transport, settings, linkScope()) { "문구:${it.name}" }
+        val link = WatchLink(transport, settings, linkScope(), noticeText = { "문구:${it.name}" })
 
         link.publish(DISPLAY.copy(notice = WatchNotice.END_ON_PHONE))
 

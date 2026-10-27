@@ -5,25 +5,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.Distance;
-import com.a207.runkk.common.PersonalityTag;
 import com.a207.runkk.common.ProgressReport;
 import com.a207.runkk.common.StandardDistance;
-import com.a207.runkk.common.TagOwner;
-import com.a207.runkk.common.TagSet;
 import com.a207.runkk.common.Week;
 import com.a207.runkk.crew.live.CrewRunRelay;
 import java.time.Duration;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.junit.jupiter.api.Test;
 
-/**
- * 14장 순서 1: WeeklyRace.add(이중 합산 방지), CrewRunLiveSession(5.7.3 순위·3초 연결 확인),
- * TagOverlapRecommender(FR-118).
- */
-@org.junit.jupiter.api.DisplayName("WeeklyRace·CrewRunLiveSession·TagOverlapRecommender")
+/** 14장 순서 1: WeeklyRace.add(이중 합산 방지), CrewRunLiveSession(5.7.3 순위·3초 연결 확인). */
+@org.junit.jupiter.api.DisplayName("WeeklyRace·CrewRunLiveSession")
 class CrewRaceAndLiveTest {
 
     private static final Week WEEK = Week.of(NOW);
@@ -136,42 +128,5 @@ class CrewRaceAndLiveTest {
         CrewRunLiveSession restored = CrewRunLiveSession.restore(s.snapshot());
         assertThat(restored.ranking()).isEqualTo(s.ranking());
         assertThat(restored.postId()).isEqualTo(77);
-    }
-
-    @Test
-    @org.junit.jupiter.api.DisplayName("추천: 겹치는 태그 1개 이상, 많은 순(같으면 최근 생성순), 상위 5개")
-    void recommender() {
-        TagSet runner =
-                TagSet.of(
-                        Set.of(
-                                PersonalityTag.SOCIAL_RUN,
-                                PersonalityTag.MORNING,
-                                PersonalityTag.DIET),
-                        TagOwner.RUNNER);
-        List<CrewCandidate> candidates =
-                List.of(
-                        candidate(1, NOW, PersonalityTag.SOCIAL_RUN),
-                        candidate(2, NOW.plusHours(1), PersonalityTag.SOCIAL_RUN),
-                        candidate(3, NOW, PersonalityTag.SOCIAL_RUN, PersonalityTag.MORNING),
-                        candidate(4, NOW, PersonalityTag.SOLO_RUN),
-                        candidate(5, NOW, PersonalityTag.DIET),
-                        candidate(6, NOW.minusDays(1), PersonalityTag.MORNING),
-                        candidate(7, NOW.minusDays(2), PersonalityTag.DIET));
-
-        List<Recommendation> picked = new TagOverlapRecommender().recommend(runner, candidates);
-
-        assertThat(picked).extracting(r -> r.crew().crewId()).containsExactly(3L, 2L, 1L, 5L, 6L);
-        assertThat(picked.get(0).matchCount()).isEqualTo(2);
-    }
-
-    private static CrewCandidate candidate(
-            long id, LocalDateTime createdAt, PersonalityTag... tags) {
-        return new CrewCandidate(
-                id,
-                "크루" + id,
-                TagSet.of(Set.of(tags), TagOwner.CREW),
-                3,
-                JoinPolicy.FREE,
-                createdAt);
     }
 }

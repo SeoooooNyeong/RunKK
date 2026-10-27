@@ -5,13 +5,6 @@ import androidx.navigation3.runtime.NavKey
 import com.a207.runkk.app.core.navigation.FeatureEntry
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.core.navigation.route
-import dagger.Binds
-import dagger.Module
-import dagger.Provides
-import dagger.hilt.InstallIn
-import dagger.hilt.components.SingletonComponent
-import dagger.multibindings.IntoSet
-import dagger.multibindings.Multibinds
 import javax.inject.Inject
 
 /** 로그인·가입·마이 화면 경로를 그래프에 등록한다(FeatureEntry 구현, 6.1.14). */
@@ -20,7 +13,8 @@ class MeFeatureEntry @Inject constructor() : FeatureEntry {
 
     override fun register(builder: EntryProviderScope<NavKey>) {
         builder.route(Routes.LOGIN) { LoginRoute() }
-        builder.route(Routes.SIGN_UP) { SignUpRoute() }
+        builder.route(Routes.SIGN_UP) { SignUpRoute(isGuest = false) }
+        builder.route(Routes.GUEST_START) { SignUpRoute(isGuest = true) }
         builder.route(Routes.ME) { MeRoute() }
         builder.route(Routes.PROFILE_EDIT) { ProfileEditRoute() }
         builder.route(Routes.SETTINGS) { SettingsRoute(SettingsPage.APP) }
@@ -28,42 +22,7 @@ class MeFeatureEntry @Inject constructor() : FeatureEntry {
         builder.route(Routes.NOTIFICATION_SETTINGS) { SettingsRoute(SettingsPage.NOTIFICATIONS) }
         builder.route(Routes.CONSENTS) { SettingsRoute(SettingsPage.CONSENTS) }
         builder.route(Routes.WITHDRAW) { WithdrawRoute() }
-    }
-}
-
-@Module
-@InstallIn(SingletonComponent::class)
-internal interface MeEntryModule {
-    @Binds
-    @IntoSet
-    fun bindMeEntry(entry: MeFeatureEntry): FeatureEntry
-
-    @Binds
-    @IntoSet
-    fun bindKakao(client: KakaoLoginClient): SocialLoginClient
-
-    @Binds
-    @IntoSet
-    fun bindGoogle(client: GoogleLoginClient): SocialLoginClient
-
-    @Binds
-    fun bindGoogleIdTokenSource(source: CredentialManagerIdTokenSource): GoogleIdTokenSource
-
-    /** 대체 창구 자리. 출시 코드에서는 비어 있다(KakaoTokenOverride 참고). */
-    @Multibinds
-    @KakaoTokenOverride
-    fun kakaoTokenOverrides(): Set<KakaoAccessTokenSource>
-
-    companion object {
-        @Provides
-        fun kakaoAccessTokenSource(
-            @KakaoTokenOverride overrides: Set<@JvmSuppressWildcards KakaoAccessTokenSource>,
-            sdk: KakaoSdkTokenSource
-        ): KakaoAccessTokenSource = chooseKakaoTokenSource(overrides, sdk)
-
-        /** 빌드 속성으로 받은 제공자 앱 키(없으면 빈 문자열 → "준비 중"). */
-        @Provides
-        fun socialLoginKeys(): SocialLoginKeys =
-            SocialLoginKeys(BuildConfig.KAKAO_NATIVE_APP_KEY, BuildConfig.GOOGLE_WEB_CLIENT_ID)
+        builder.route(MeRoutes.ACCOUNT_LINK) { SettingsRoute(SettingsPage.ACCOUNT_LINK) }
+        builder.addEntryProvider(Routes.MemberProfile::class) { key -> OtherProfileRoute(key.memberId) }
     }
 }

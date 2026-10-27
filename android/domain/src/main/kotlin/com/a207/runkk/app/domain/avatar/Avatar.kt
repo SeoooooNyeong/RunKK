@@ -15,5 +15,7 @@ data class Avatar(
     val equipped: Map<ItemSlot, Long>,
     val balance: Int,
     val canCreateSelfieToday: Boolean,
-    val rejected: Map<ItemSlot, String>
+    val rejected: Map<ItemSlot, String>,
+    /** 고른 배경 키(FR-202). null이면 단계별 기본 배경이다. */
+    val backgroundKey: String? = null
 )

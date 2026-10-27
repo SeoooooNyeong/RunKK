@@ -162,6 +162,50 @@ class MatchViewModelTest {
     }
 
     @Test
+    fun `성사와 출발 예약이 잇따라 와도 출발 예약을 놓치지 않는다`() = main.runVmTest { vms ->
+        val w = world()
+        val vm = vms.vm(w)
+        vm.onStartMatching()
+        runCurrent()
+        val match = matchFound()
+        // 서버는 MatchFound와 BattleStart를 커밋 뒤 한 번에 보낸다. 조정자가 구독을 붙이기 전에 BattleStart가 온다.
+        w.channels.channel.push(match)
+        w.channels.channel.push(BattleStart(match.battleId, w.clock.now.plusSeconds(10), opponentTrack = null))
+        runCurrent()
+        assertIs<BattleRunState.Countdown>(w.coordinator.state.value)
+        assertEquals(10L, vm.state.value.startsInSeconds)
+    }
+
+    @Test
+    fun `측정이 시작되면 대기용 임대를 반납하고 조정자 임대는 남긴다(7차 AN7-1)`() = main.runVmTest { vms ->
+        val w = world()
+        val vm = vms.vm(w)
+        vm.onStartMatching()
+        runCurrent()
+        val match = matchFound()
+        w.channels.channel.push(match)
+        runCurrent()
+        assertEquals(0, w.channels.channel.closed, "출발 전에는 대기 임대를 쥐고 있어야 출발 예약을 받는다")
+        w.channels.channel.push(BattleStart(match.battleId, w.clock.now, opponentTrack = null))
+        runCurrent()
+        assertIs<BattleRunState.Running>(w.coordinator.state.value)
+        assertEquals(1, w.channels.channel.closed, "대기 임대만 반납한다")
+    }
+
+    @Test
+    fun `다른 대결의 출발 예약은 넘기지 않는다`() = main.runVmTest { vms ->
+        val w = world()
+        val vm = vms.vm(w)
+        vm.onStartMatching()
+        runCurrent()
+        val match = matchFound()
+        w.channels.channel.push(BattleStart(match.battleId + 1, w.clock.now.plusSeconds(10), opponentTrack = null))
+        w.channels.channel.push(match)
+        runCurrent()
+        assertIs<BattleRunState.Matched>(w.coordinator.state.value)
+    }
+
+    @Test
     fun `시작이 거부돼 측정 없이 끝나면 안내하고 거리 고르기로 돌아간다`() = main.runVmTest { vms ->
         val w = world()
         w.permission.granted = false

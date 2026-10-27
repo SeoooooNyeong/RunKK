@@ -42,6 +42,12 @@ public class FakeTokenIssuer implements TokenIssuer {
         return Long.parseLong(accessToken.substring("access-".length()));
     }
 
+    /** 만료 시각은 지금 + 1시간(접근 토큰 수명). */
+    @Override
+    public AccessGrant verifyGrant(String accessToken) {
+        return new AccessGrant(verify(accessToken), java.time.Instant.now().plusSeconds(3_600));
+    }
+
     @Override
     public void revoke(String refreshToken) {
         revoked.add(refreshToken);
@@ -60,6 +66,10 @@ public class FakeTokenIssuer implements TokenIssuer {
     @Override
     public int purgeExpiredRevocations(java.time.LocalDateTime now) {
         return 0;
+    }
+
+    public int issuedCount() {
+        return issued;
     }
 
     public boolean isRevoked(String refreshToken) {

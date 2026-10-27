@@ -59,9 +59,4 @@ public enum RunimalAxis {
     public String label(AxisLean lean) {
         return (lean == AxisLean.A ? sideA : sideB).label();
     }
-
-    /** 태그가 A쪽 성향인가(임시 유형의 동행·코스 축, W-14). */
-    boolean isSideA(PersonalityTag tag) {
-        return tag == sideA;
-    }
 }

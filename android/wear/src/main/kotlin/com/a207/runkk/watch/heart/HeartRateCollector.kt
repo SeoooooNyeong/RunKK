@@ -16,7 +16,7 @@ import kotlinx.coroutines.launch
 /**
  * 심박 센서 값을 모은다(6.1.15, FR-041).
  *
- * 수집은 세 조건이 모두 참일 때만 켠다: 폰의 허용 플래그([allow], WatchDisplayMessage.heartRateCollectionAllowed),
+ * 수집은 세 조건이 모두 참일 때만 켠다: 폰의 허용 플래그([allow], WatchDisplayMessage.isHeartRateCollectionAllowed),
  * OS 심박 권한([SensorPermission]), 시작 요청([start]). 허용이 거짓으로 오면 다른 조건과 관계없이 즉시 센서를 끈다(NFR-023).
  * 처음 값은 "허용 없음"이라 폰이 허용을 보내기 전에는 수집하지 않는다.
  */

@@ -11,6 +11,7 @@ import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.GeoPoint
 import com.a207.runkk.app.core.model.Pace
+import com.a207.runkk.app.domain.crew.CelebrationCard
 import com.a207.runkk.app.domain.record.RunCard
 import com.a207.runkk.app.domain.runimal.RunimalCard
 import java.time.Duration
@@ -22,7 +23,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
-/** 공유 카드 이미지(러닝 카드 앞·뒷면, Runimal 카드) 스크린샷. */
+/** 공유 카드 이미지(러닝 카드 앞·뒷면, Runimal 카드, 공동 목표 축하 카드) 스크린샷. */
 @RunWith(RobolectricTestRunner::class)
 @Config(qualifiers = RUNKK_PHONE)
 class CardScreenshotTest {
@@ -49,7 +50,20 @@ class CardScreenshotTest {
     @Test
     fun runCardFront() = compose.captureRunkkScreen("share_run_card_front") {
         Image(
-            RunCardRenderer(RuntimeEnvironment.getApplication()).render(card, CardSide.FRONT).asImageBitmap(),
+            RunCardRenderer(
+                RuntimeEnvironment.getApplication()
+            ).render(card, CardSide.FRONT, null, null).asImageBitmap(),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize()
+        )
+    }
+
+    @Test
+    fun runCardFrontWithBackground() = compose.captureRunkkScreen("share_run_card_front_background") {
+        Image(
+            RunCardRenderer(
+                RuntimeEnvironment.getApplication()
+            ).render(card, CardSide.FRONT, "JEJU", "DOMESTIC").asImageBitmap(),
             contentDescription = null,
             modifier = Modifier.fillMaxSize()
         )
@@ -58,7 +72,19 @@ class CardScreenshotTest {
     @Test
     fun runCardBack() = compose.captureRunkkScreen("share_run_card_back") {
         Image(
-            RunCardRenderer(RuntimeEnvironment.getApplication()).render(card, CardSide.BACK).asImageBitmap(),
+            RunCardRenderer(
+                RuntimeEnvironment.getApplication()
+            ).render(card, CardSide.BACK, null, null).asImageBitmap(),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize()
+        )
+    }
+
+    @Test
+    fun crewGoalCard() = compose.captureRunkkScreen("share_crew_goal_card") {
+        val card = CelebrationCard("새벽크루", Distance(52_400), Distance(50_000), 8)
+        Image(
+            CrewGoalCardRenderer(RuntimeEnvironment.getApplication()).render(card).asImageBitmap(),
             contentDescription = null,
             modifier = Modifier.fillMaxSize()
         )

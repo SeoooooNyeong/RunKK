@@ -22,6 +22,7 @@ import com.a207.runkk.app.domain.testing.FakeUploadScheduler
 import com.a207.runkk.app.domain.testing.FakeWatchGateway
 import com.a207.runkk.app.domain.testing.T0
 import com.a207.runkk.app.domain.testing.TestClock
+import com.a207.runkk.app.domain.testing.runTracker
 import java.lang.reflect.Proxy
 import kotlin.test.AfterTest
 import kotlin.test.Test
@@ -85,8 +86,9 @@ class CrewRunCoordinatorTest {
 
     private fun TestScope.setUp(): Pair<RunTracker, CrewRunCoordinator> {
         val tracker =
-            RunTracker(
-                RunArchive(FakePendingRunRepository(log), FakeUploadScheduler(log)),
+            runTracker(
+                FakePendingRunRepository(log),
+                FakeUploadScheduler(log),
                 FakeWatchGateway(),
                 guidance,
                 FakeLocationPermission(),

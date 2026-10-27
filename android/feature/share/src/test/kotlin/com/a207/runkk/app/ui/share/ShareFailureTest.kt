@@ -137,6 +137,8 @@ private object AlwaysShared : SettingsRepository {
 
     override fun guidanceSettings() = GuidanceSettings.DEFAULT
 
+    override fun isGuest(): Boolean = false
+
     override fun changes(): Flow<SettingsSnapshot> = flowOf(SettingsSnapshot.SAFE)
 
     override suspend fun clear(): Outcome<Unit> = Outcome.Success(Unit)

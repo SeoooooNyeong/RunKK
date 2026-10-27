@@ -38,7 +38,7 @@ class PlayServicesTransportTest {
                 SupervisorJob() + UnconfinedTestDispatcher() + CoroutineExceptionHandler { _, e -> failures += e }
             )
         try {
-            val link = WatchLink(context, NoSettings, scope)
+            val link = WatchLink(context, NoSettings, scope, java.time.Clock.systemUTC())
             link.publish(
                 WatchDisplay(
                     isRunning = false,
@@ -71,6 +71,8 @@ class PlayServicesTransportTest {
         override fun birthYear(): Int? = null
 
         override fun guidanceSettings() = GuidanceSettings.DEFAULT
+
+        override fun isGuest(): Boolean = false
 
         override fun changes(): Flow<SettingsSnapshot> = flowOf(SettingsSnapshot.SAFE)
 

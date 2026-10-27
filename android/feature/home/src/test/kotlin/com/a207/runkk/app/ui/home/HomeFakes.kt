@@ -6,6 +6,8 @@ import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.core.model.RunMode
+import com.a207.runkk.app.domain.avatar.AvatarBackgrounds
+import com.a207.runkk.app.domain.avatar.BackgroundChoice
 import com.a207.runkk.app.domain.record.AggregationPeriod
 import com.a207.runkk.app.domain.record.Dashboard
 import com.a207.runkk.app.domain.record.Growth
@@ -133,7 +135,7 @@ fun completedRun(id: String) = CompletedRun(
 
 class FakeAccountRepository : com.a207.runkk.app.domain.account.AccountRepository {
     var profileResult: Outcome<com.a207.runkk.app.domain.account.Profile> = Outcome.Success(
-        com.a207.runkk.app.domain.account.Profile(7, "달리는곰", "SELF", "골드", 3, emptySet(), null, null, null, null, null)
+        com.a207.runkk.app.domain.account.Profile(7, "달리는곰", "SELF", "골드", 3, null, null, null, null, null)
     )
     val profileIds = mutableListOf<Long>()
 
@@ -150,9 +152,15 @@ class FakeAccountRepository : com.a207.runkk.app.domain.account.AccountRepositor
 
     override suspend fun logout() = unusedOutcome<Unit>()
 
+    override suspend fun startAsGuest(consents: Map<String, Boolean>) =
+        unusedOutcome<com.a207.runkk.app.domain.account.GuestSession>()
+
+    override suspend fun linkSocialAccount(token: com.a207.runkk.app.domain.account.ProviderToken) =
+        unusedOutcome<Unit>()
+
     override suspend fun withdraw() = unusedOutcome<Unit>()
 
-    override suspend fun editProfile(nickname: String, intro: String?, tags: Set<String>) = unusedOutcome<Unit>()
+    override suspend fun editProfile(nickname: String, intro: String?) = unusedOutcome<Unit>()
 
     val changedSettings = mutableListOf<Pair<String, String>>()
 
@@ -193,6 +201,12 @@ class FakeAvatarRepository : com.a207.runkk.app.domain.avatar.AvatarRepository {
     override suspend fun shop(slot: com.a207.runkk.app.domain.avatar.ItemSlot?) =
         unusedOutcome<com.a207.runkk.app.domain.avatar.Shop>()
 
+    override suspend fun backgrounds(): Outcome<AvatarBackgrounds> = error("unused")
+
+    override suspend fun chooseBackground(key: String?): Outcome<Unit> = error("unused")
+
+    override suspend fun backgroundChoice(): Outcome<BackgroundChoice?> = error("unused")
+
     override suspend fun purchase(itemId: Long) = unusedOutcome<Int>()
 
     var faceResult: Outcome<List<com.a207.runkk.app.core.model.FaceLayer>> = Outcome.Success(emptyList())
@@ -229,6 +243,8 @@ class FakeSettingsRepository : SettingsRepository {
     override fun birthYear(): Int? = null
 
     override fun guidanceSettings() = guidance
+
+    override fun isGuest(): Boolean = false
 
     override fun changes(): Flow<SettingsSnapshot> = snapshot
 

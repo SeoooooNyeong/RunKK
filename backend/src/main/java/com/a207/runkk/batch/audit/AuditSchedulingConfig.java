@@ -1,5 +1,6 @@
 package com.a207.runkk.batch.audit;
 
+import com.a207.runkk.common.ServerZone;
 import java.time.ZoneId;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -16,7 +17,7 @@ import org.springframework.scheduling.support.CronTrigger;
 @EnableConfigurationProperties(AuditSchedulingConfig.Schedule.class)
 public class AuditSchedulingConfig implements SchedulingConfigurer {
 
-    private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
+    private static final ZoneId SEOUL = ServerZone.ID;
 
     private final AuditPurgeJob auditPurgeJob;
     private final String cron;

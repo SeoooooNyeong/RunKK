@@ -19,6 +19,3 @@ interface WearDataLayer {
     /** DataClient 저장. 끊겨 있어도 기기에 쌓였다가 연결되면 동기화된다(NFR-032). 저장되었으면 참. */
     suspend fun putData(path: String, data: ByteArray): Boolean
 }
-
-/** 받은 메시지 한 건(경로와 본문). */
-class WearMessage(val path: String, val data: ByteArray)

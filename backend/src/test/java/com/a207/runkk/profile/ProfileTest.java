@@ -11,10 +11,7 @@ import static org.mockito.Mockito.when;
 import com.a207.runkk.avatar.AvatarQuery;
 import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.DistanceUnit;
-import com.a207.runkk.common.PersonalityTag;
 import com.a207.runkk.common.RecordVisibility;
-import com.a207.runkk.common.TagOwner;
-import com.a207.runkk.common.TagSet;
 import com.a207.runkk.common.Tier;
 import com.a207.runkk.crew.CrewMembershipReader;
 import com.a207.runkk.crew.CrewSummary;
@@ -32,7 +29,6 @@ import com.a207.runkk.running.RunQueryService;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -53,8 +49,8 @@ class ProfileTest {
                     5,
                     com.a207.runkk.common.DisplayName.of("달림이"),
                     "default:RABBIT",
+                    "KAESONG",
                     Tier.GOLD,
-                    Set.of(PersonalityTag.SOLO_RUN),
                     "CHEETAH",
                     new ProfileView.Crew(7, "새벽크루", null),
                     Distance.ofKm(21),
@@ -94,16 +90,17 @@ class ProfileTest {
         ProfileView open = ProfileDisclosure.PUBLIC.filter(DATA);
         assertThat(open.settings()).isNull();
         assertThat(open.longestDistance()).isNull();
-        assertThat(open.tags()).containsExactly(PersonalityTag.SOLO_RUN);
         assertThat(open.runimalType()).isEqualTo("CHEETAH");
         assertThat(open.about().intro()).isEqualTo("안녕");
 
         ProfileView hidden = ProfileDisclosure.PRIVATE.filter(DATA);
         assertThat(hidden.displayName().value()).isEqualTo("달림이");
         assertThat(hidden.faceKey()).isEqualTo("default:RABBIT");
+        assertThat(hidden.avatarBackgroundKey()).as("아바타가 보이면 배경 키도(FR-202)").isEqualTo("KAESONG");
+        assertThat(self.avatarBackgroundKey()).isEqualTo("KAESONG");
+        assertThat(open.avatarBackgroundKey()).isEqualTo("KAESONG");
         assertThat(hidden.tier()).isEqualTo(Tier.GOLD);
         assertThat(hidden.crew().name()).isEqualTo("새벽크루");
-        assertThat(hidden.tags()).isEmpty();
         assertThat(hidden.runimalType()).isNull();
         assertThat(hidden.settings()).isNull();
         assertThat(hidden.about()).as("나이대·성별·소개 감춤(FR-006)").isNull();
@@ -111,6 +108,7 @@ class ProfileTest {
         ProfileView gone = ProfileDisclosure.WITHDRAWN.filter(DATA);
         assertThat(gone.displayName().value()).isEqualTo("탈퇴한 사용자");
         assertThat(gone.faceKey()).isNull();
+        assertThat(gone.avatarBackgroundKey()).isNull();
         assertThat(gone.tier()).isNull();
         assertThat(gone.crew()).isNull();
     }
@@ -140,22 +138,21 @@ class ProfileTest {
                                         5,
                                         com.a207.runkk.common.DisplayName.of("달림이"),
                                         Tier.SILVER,
-                                        ProfileVisibility.PRIVATE,
-                                        TagSet.of(
-                                                Set.of(PersonalityTag.SOLO_RUN),
-                                                TagOwner.RUNNER))));
+                                        ProfileVisibility.PRIVATE)));
         when(members.preferenceOf(5)).thenReturn(SETTINGS);
         when(members.profileOf(
                         org.mockito.ArgumentMatchers.eq(5L), org.mockito.ArgumentMatchers.anyInt()))
                 .thenReturn(new MemberProfile(3, null, null, null, null));
         when(runimals.typesOf(List.of(5L))).thenReturn(Map.of(5L, RunimalType.values()[0]));
         when(avatars.faceKey(5)).thenReturn(Optional.of("default:BEAR"));
+        when(avatars.backgroundKeyOf(5)).thenReturn(Optional.of("INCHEON"));
         when(crews.activeCrewOf(5)).thenReturn(Optional.of(new CrewSummary(7, "새벽크루", "logo")));
         when(runs.longestDistance(5)).thenReturn(Optional.of(Distance.ofKm(10)));
 
         ProfileView view = service.view(1, 5);
         assertThat(view.disclosure()).isEqualTo(ProfileDisclosure.PRIVATE);
         assertThat(view.faceKey()).isEqualTo("default:BEAR");
+        assertThat(view.avatarBackgroundKey()).isEqualTo("INCHEON");
         assertThat(view.crew().logoUrl()).isEqualTo("logo");
         assertThat(view.runimalType()).isNull();
         assertThat(view.longestDistance()).isNull();

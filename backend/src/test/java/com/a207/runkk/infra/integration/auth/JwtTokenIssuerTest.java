@@ -3,6 +3,7 @@ package com.a207.runkk.infra.integration.auth;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.a207.runkk.member.AccessGrant;
 import com.a207.runkk.member.AuthFailureException;
 import com.a207.runkk.member.ProviderType;
 import com.a207.runkk.member.ProviderUnavailableException;
@@ -21,6 +22,16 @@ class JwtTokenIssuerTest {
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
     private static final Instant T0 = Instant.parse("2026-10-20T06:00:00Z");
 
+    /**
+     * 서명 가운데 글자 하나를 다른 글자로 바꾼다. 끝 두 글자를 고정 문자열로 바꾸면 원래 끝 글자가 같거나 마지막 글자의 버려지는 비트만 바뀌어 서명이 그대로일 수
+     * 있다(드물게 시험이 흔들림).
+     */
+    private static String tamperSignature(String token) {
+        int i = token.length() - 10;
+        char replaced = token.charAt(i) == 'A' ? 'B' : 'A';
+        return token.substring(0, i) + replaced + token.substring(i + 1);
+    }
+
     private static JwtTokenIssuer at(Instant now) {
         return new JwtTokenIssuer(
                 SECRET, Clock.fixed(now, SEOUL), new InMemoryRefreshTokenRevocations());
@@ -33,6 +44,40 @@ class JwtTokenIssuerTest {
         assertThat(at(T0.plusSeconds(3599)).verify(pair.accessToken())).isEqualTo(42);
         assertThatThrownBy(() -> at(T0.plusSeconds(3600)).verify(pair.accessToken()))
                 .isInstanceOf(AuthFailureException.class);
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName(
+            "TC-6192 verifyGrant: 59:59는 AccessGrant(회원, 발급 + 1시간), 1:00:00·1:00:01은"
+                    + " AuthFailureException")
+    void verifyGrant_expiryBoundary() {
+        TokenPair pair = at(T0).issue(42);
+        assertThat(at(T0.plusSeconds(3599)).verifyGrant(pair.accessToken()))
+                .isEqualTo(new AccessGrant(42, T0.plusSeconds(3600)));
+        assertThatThrownBy(() -> at(T0.plusSeconds(3600)).verifyGrant(pair.accessToken()))
+                .isInstanceOf(AuthFailureException.class);
+        assertThatThrownBy(() -> at(T0.plusSeconds(3601)).verifyGrant(pair.accessToken()))
+                .isInstanceOf(AuthFailureException.class);
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName(
+            "TC-6193 verifyGrant: 서명 위조·관리툴 토큰·갱신 토큰은 AuthFailureException")
+    void verifyGrant_rejectsForgedOperatorAndRefresh() {
+        TokenPair pair = at(T0).issue(42);
+        String forged = tamperSignature(pair.accessToken());
+        String operator =
+                new JwtOperatorTokenIssuer(
+                                "admin-secret-for-tests-0123456789abcdef",
+                                SECRET,
+                                Clock.fixed(T0, SEOUL))
+                        .issue(
+                                new com.a207.runkk.operator.OperatorId(
+                                        new SocialAccount(ProviderType.KAKAO, "op-1")));
+        for (String token : java.util.List.of(forged, operator, pair.refreshToken())) {
+            assertThatThrownBy(() -> at(T0).verifyGrant(token))
+                    .isInstanceOf(AuthFailureException.class);
+        }
     }
 
     @Test
@@ -125,8 +170,8 @@ class JwtTokenIssuerTest {
                         Clock.fixed(T0, SEOUL),
                         new InMemoryRefreshTokenRevocations());
         assertThatThrownBy(() -> otherKey.verify(token)).isInstanceOf(AuthFailureException.class);
-        String tampered = token.substring(0, token.length() - 2) + "xx";
-        assertThatThrownBy(() -> at(T0).verify(tampered)).isInstanceOf(AuthFailureException.class);
+        assertThatThrownBy(() -> at(T0).verify(tamperSignature(token)))
+                .isInstanceOf(AuthFailureException.class);
         assertThatThrownBy(() -> at(T0).verify(null)).isInstanceOf(AuthFailureException.class);
         assertThatThrownBy(() -> at(T0).verify("abc")).isInstanceOf(AuthFailureException.class);
     }

@@ -1,5 +1,8 @@
 package com.a207.runkk.app.ui.record
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -56,7 +59,7 @@ class RecordScreensTest {
         compose.onNodeWithText("달력").assertIsSelected()
         compose.onNodeWithText("집계 제외").performScrollTo()
         compose.onNodeWithText("2026년 10월").assertExists()
-        compose.onNodeWithText("5.02km 자유런").performScrollTo().performClick()
+        compose.onNodeWithText("5.02km, 자유런").performScrollTo().performClick()
         assertEquals(listOf("r3"), opened)
     }
 
@@ -106,9 +109,9 @@ class RecordScreensTest {
             }
         }
         compose.onNodeWithText("구간 페이스").performScrollTo().assertExists()
-        compose.onNodeWithText("최고 1km 기록 2km · 5:18").performScrollTo().assertExists()
+        compose.onNodeWithText("가장 빠른 1km: 2km 구간 5:18").performScrollTo().assertExists()
         compose.onNodeWithContentDescription("2킬로미터 구간 1킬로미터당 5분 18초, 가장 빠름").assertExists()
-        compose.onNodeWithText("평균 152 · 최고 178 bpm").performScrollTo().assertExists()
+        compose.onNodeWithText("평균 152, 최고 178 bpm").performScrollTo().assertExists()
         compose.onNodeWithContentDescription("코스 지도, 신호 불안정 구간 1곳 점선 표시").assertExists()
     }
 
@@ -131,5 +134,39 @@ class RecordScreensTest {
         }
         compose.onNodeWithText("다시 시도").performClick()
         assertEquals(1, retried)
+    }
+
+    @Test
+    fun `카드 팝업은 눌러 뒤집고 공유로 카드 공유 단계를 연다, 코스 지도 공유가 꺼지면 코스 지도 표시를 잠근다(G1~G3)`() {
+        val bitmap = android.graphics.Bitmap.createBitmap(8, 10, android.graphics.Bitmap.Config.ARGB_8888)
+        val sides = mutableListOf<com.a207.runkk.app.ui.share.CardSide>()
+        val steps = mutableListOf<Boolean>()
+        val shares = mutableListOf<CardShareKind>()
+        var state by androidx.compose.runtime.mutableStateOf(
+            RecordCardUiState(isLoading = false, card = runCard(shared = false), front = bitmap, back = bitmap)
+        )
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                RecordCardScreen(
+                    state,
+                    onClose = {},
+                    onSideSelected = { sides += it },
+                    onShare = { shares += it },
+                    onMessageShown = {},
+                    onRetry = {},
+                    onShareStep = { steps += it }
+                )
+            }
+        }
+        compose.onNodeWithContentDescription("러닝 카드 앞면", substring = true).performClick()
+        compose.onNodeWithText("공유").performClick()
+        assertEquals(listOf(com.a207.runkk.app.ui.share.CardSide.BACK), sides)
+        assertEquals(listOf(true), steps)
+        state = state.copy(isShareStep = true)
+        compose.onNodeWithText("카드 공유").assertExists()
+        compose.onNodeWithText("코스 지도 표시").assertIsNotEnabled()
+        compose.onNodeWithText("기기에 저장").performClick()
+        compose.onNodeWithText("더 보기").performClick()
+        assertEquals(listOf(CardShareKind.SAVE, CardShareKind.SYSTEM), shares)
     }
 }

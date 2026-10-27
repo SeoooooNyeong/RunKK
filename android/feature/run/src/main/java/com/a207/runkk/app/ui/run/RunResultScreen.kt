@@ -23,6 +23,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
@@ -30,6 +31,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -45,8 +47,6 @@ import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkLoading
-import com.a207.runkk.app.core.designsystem.RunkkLogo
-import com.a207.runkk.app.core.designsystem.RunkkLogoKind
 import com.a207.runkk.app.core.designsystem.RunkkPrimaryButton
 import com.a207.runkk.app.core.designsystem.RunkkSecondaryButton
 import com.a207.runkk.app.core.designsystem.RunkkSegmentBar
@@ -69,7 +69,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-/** 러닝 결과·기록 카드(B4). "기록 카드"는 ui.record의 카드 팝업으로, "홈으로"는 홈으로 간다. */
+/** 러닝 결과(B4). "기록 카드"는 ui.record의 카드 팝업으로, "홈으로"는 홈으로 간다. */
 @Composable
 fun RunResultRoute(recordId: String, viewModel: RunResultViewModel = hiltViewModel()) {
     LaunchedEffect(recordId) { viewModel.load(recordId) }
@@ -130,26 +130,42 @@ fun RunResultScreen(
     }
 }
 
+/** 머리(B4): "러닝 결과"와 저장 상태, 아래 줄에 종류와 시작 일시·날씨. */
 @Composable
 private fun Header(state: RunResultUiState) {
     val datePattern = stringResource(R.string.run_result_date_pattern)
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-        RunkkLogo(RunkkLogoKind.Icon, height = 24.dp)
-        RunkkBadge(kindLabel(state.cardKind))
+    Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
-            text = listOfNotNull(state.startedAt?.let { dateLabel(it, datePattern) }, state.weather)
-                .joinToString(" · "),
-            style = RunkkTextStyles.Caption,
-            color = RunkkColors.TextSecondary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f)
+            stringResource(R.string.run_result_title),
+            style = RunkkTextStyles.TopBarTitle,
+            color = RunkkColors.TextPrimary,
+            modifier = Modifier.weight(1f).semantics { heading() }
         )
         Text(
             text = stringResource(if (state.isUploaded) R.string.run_result_saved else R.string.run_result_sending),
             style = RunkkTextStyles.Caption,
             color = if (state.isUploaded) RunkkColors.Lime else RunkkColors.TextSecondary
         )
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        RunkkBadge(kindLabel(state.cardKind))
+        Text(
+            text = listOfNotNull(state.startedAt?.let { dateLabel(it, datePattern) }, state.weather)
+                .joinToString(", "),
+            style = RunkkTextStyles.Caption,
+            color = RunkkColors.TextSecondary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+        )
+        // 서버가 무효로 판정한 기록(기록 목록 줄의 "집계 제외"와 같은 표시).
+        if (state.isExcluded) {
+            Text(
+                stringResource(R.string.run_result_excluded),
+                style = RunkkTextStyles.text(11, FontWeight.Black),
+                color = RunkkColors.Lavender
+            )
+        }
     }
 }
 
@@ -167,7 +183,7 @@ private fun ResultBody(state: RunResultUiState) {
     }
     ResultDistance(state.distance ?: Distance.ZERO)
     ResultStats(state)
-    if (state.calories != null) {
+    if (state.calories != null && !state.isExcluded) {
         Text(
             stringResource(R.string.run_result_calories, state.calories),
             style = RunkkTextStyles.Caption,
@@ -193,7 +209,7 @@ private fun ResultDistance(distance: Distance) {
     ) {
         Text(RunkkFormat.km(distance), style = RunkkTextStyles.DisplayLarge, color = RunkkColors.TextPrimary)
         Text(
-            "KM",
+            "km",
             style = RunkkTextStyles.display(24),
             color = RunkkColors.TextSecondary,
             modifier = Modifier.padding(bottom = 8.dp)
@@ -213,6 +229,10 @@ private fun ResultStats(state: RunResultUiState) {
                     RunkkFormat.durationSpoken(it)
                 }
             ),
+            // 정지 구간이 있으면 운동 시간에서 뺐음을 보인다(FR-194).
+            caption = state.pausedTotal?.takeIf { it.toMinutes() > 0 }?.let {
+                stringResource(R.string.run_result_paused_excluded, it.toMinutes())
+            },
             style = StatTileStyle(valueStyle = RunkkTextStyles.DisplaySmall, isCentered = true),
             modifier = Modifier.weight(1f)
         )
@@ -275,10 +295,10 @@ private fun HeartRateZoneCard(state: RunResultUiState) {
             )
         }
         val total = zones.sumOf { it.second.seconds }.coerceAtLeast(1)
+        val colors = zoneColors()
         RunkkSegmentBar(
             segments = zones.mapIndexed { index, (_, duration) ->
-                duration.seconds.toFloat() / total to
-                    ZONE_COLORS[index % ZONE_COLORS.size]
+                duration.seconds.toFloat() / total to colors[index % colors.size]
             },
             modifier = Modifier.semantics { contentDescription = distributionSpoken }
         )
@@ -295,6 +315,8 @@ private fun HeartRateZoneCard(state: RunResultUiState) {
 @Composable
 internal fun RoutePreview(points: List<GeoPoint>, modifier: Modifier = Modifier) {
     val routeDesc = stringResource(R.string.run_result_route_desc)
+    val lineColor = RunkkColors.Lime
+    val startColor = RunkkColors.TextPrimary
     Canvas(modifier = modifier.semantics { contentDescription = routeDesc }) {
         val minLat = points.minOf { it.latitude }
         val maxLat = points.maxOf { it.latitude }
@@ -327,11 +349,11 @@ internal fun RoutePreview(points: List<GeoPoint>, modifier: Modifier = Modifier)
         }
         drawPath(
             path,
-            RunkkColors.Lime,
+            lineColor,
             style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
         )
-        drawCircle(RunkkColors.TextPrimary, radius = 6.dp.toPx(), center = toOffset(points.first()))
-        drawCircle(RunkkColors.Lime, radius = 6.dp.toPx(), center = toOffset(points.last()))
+        drawCircle(startColor, radius = 6.dp.toPx(), center = toOffset(points.first()))
+        drawCircle(lineColor, radius = 6.dp.toPx(), center = toOffset(points.last()))
     }
 }
 
@@ -350,14 +372,15 @@ internal fun kindLabel(kind: CardKind?): String = stringResource(
 internal fun dateLabel(at: Instant, pattern: String): String =
     DateTimeFormatter.ofPattern(pattern, Locale.KOREAN).format(at.atZone(ZoneId.systemDefault()))
 
-private val ZONE_COLORS =
-    listOf(
-        RunkkColors.BorderStrong,
-        RunkkColors.BorderHover,
-        RunkkColors.LimeDim,
-        RunkkColors.Lime,
-        RunkkColors.Lavender
-    )
+/** 심박 구간 막대 색(낮은 구간부터). 지금 테마 벌에서 고른다. */
+@Composable
+private fun zoneColors(): List<Color> = listOf(
+    RunkkColors.BorderStrong,
+    RunkkColors.BorderHover,
+    RunkkColors.LimeDim,
+    RunkkColors.Lime,
+    RunkkColors.Lavender
+)
 
 @Preview(name = "B4 러닝 결과·카드", widthDp = 390, heightDp = 844)
 @Composable
@@ -380,7 +403,7 @@ private fun RunResultPreview() {
                     GeoPoint(37.51, 127.03)
                 ),
                 weather = "12°C 맑음",
-                newRecords = listOf("최장 거리 신기록 · 직전 4.80km"),
+                newRecords = listOf("최장 거리 신기록, 직전 4.80km"),
                 heartRateZones = listOf(
                     "Z1" to Duration.ofMinutes(2),
                     "Z2" to Duration.ofMinutes(6),

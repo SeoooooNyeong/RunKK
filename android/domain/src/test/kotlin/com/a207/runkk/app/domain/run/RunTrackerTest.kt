@@ -15,16 +15,19 @@ import com.a207.runkk.app.domain.testing.FakeSettingsRepository
 import com.a207.runkk.app.domain.testing.FakeUploadScheduler
 import com.a207.runkk.app.domain.testing.FakeWatchGateway
 import com.a207.runkk.app.domain.testing.TestClock
+import com.a207.runkk.app.domain.testing.runTracker
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -43,7 +46,7 @@ class RunTrackerTest {
     private val clock = TestClock()
 
     private fun tracker(scope: CoroutineScope) =
-        RunTracker(RunArchive(pending, scheduler), watch, output, permission, host, settings, clock, scope)
+        runTracker(pending, scheduler, watch, output, permission, host, settings, clock, scope)
 
     private fun TestScope.started(): RunTracker {
         val tracker = tracker(backgroundScope)
@@ -289,6 +292,59 @@ class RunTrackerTest {
         watch.endRequests.emit(Unit)
         runCurrent()
         assertEquals(listOf("pending.save", "upload.requestUpload"), log.calls)
+    }
+
+    @Test
+    fun `러닝 화면이 떨어져 있을 때 워치로 끝난 자유런은 takeUnclaimedEnd로 한 번 꺼낸다(A4)`() = runTest {
+        val tracker = started()
+        tracker.runFor(10)
+        watch.endRequests.emit(Unit)
+        runCurrent()
+        val unclaimed = tracker.takeUnclaimedEnd()
+        assertIs<FinishOutcome.Saved>(unclaimed)
+        assertNull(tracker.takeUnclaimedEnd(), "한 번 꺼내면 지운다")
+    }
+
+    @Test
+    fun `남긴 결과는 10분이 지나면 버리고 거리 0(저장 안 함)은 남기지 않는다(A4 리뷰)`() = runTest {
+        val tracker = started()
+        tracker.runFor(10)
+        watch.endRequests.emit(Unit)
+        runCurrent()
+        clock.advanceSeconds(601)
+        assertNull(tracker.takeUnclaimedEnd(), "10분이 지난 결과로 옮겼다")
+
+        assertIs<Outcome.Success<Unit>>(tracker.startRun(freeSpec()))
+        runCurrent()
+        watch.endRequests.emit(Unit)
+        runCurrent()
+        assertNull(tracker.takeUnclaimedEnd(), "저장하지 않은 종료를 남겼다")
+    }
+
+    @Test
+    fun `러닝 화면이 구독 중이면 끝난 결과를 남기지 않는다(A4)`() = runTest {
+        val tracker = started()
+        val seen = mutableListOf<FinishOutcome>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { tracker.ended.collect { seen += it } }
+        tracker.runFor(10)
+        watch.endRequests.emit(Unit)
+        runCurrent()
+        assertIs<FinishOutcome.Saved>(seen.single())
+        assertNull(tracker.takeUnclaimedEnd())
+    }
+
+    @Test
+    fun `조정자 종료(대결·크루런)와 새 측정 시작은 남긴 결과를 만들지 않거나 지운다(A4)`() = runTest {
+        val tracker = started()
+        tracker.runFor(5)
+        watch.endRequests.emit(Unit)
+        runCurrent()
+        assertIs<Outcome.Success<Unit>>(tracker.startRun(freeSpec()))
+        assertNull(tracker.takeUnclaimedEnd(), "새 측정을 시작하면 지난 결과는 버린다")
+        tracker.runFor(5)
+        tracker.endRun()
+        runCurrent()
+        assertNull(tracker.takeUnclaimedEnd(), "조정자 종료는 그 화면이 처리한다")
     }
 
     @Test

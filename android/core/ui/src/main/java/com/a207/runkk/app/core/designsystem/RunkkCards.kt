@@ -16,17 +16,19 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.takeOrElse
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.Role
@@ -46,12 +48,14 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
-/** 점선 테두리(빈 자리·자리표시 카드: "미전송 기록 1건", "[아바타]"). */
-fun Modifier.runkkDashedBorder(
-    color: Color = RunkkColors.BorderStrong,
-    corner: Dp = 16.dp,
-    width: Dp = 1.dp
-): Modifier = drawWithContent {
+/** 점선 테두리(빈 자리·자리표시 카드: "미전송 기록 1건", "[아바타]"). [color]를 주지 않으면 지금 테마의 강한 테두리색이다. */
+fun Modifier.runkkDashedBorder(color: Color = Color.Unspecified, corner: Dp = 16.dp, width: Dp = 1.dp): Modifier =
+    composed {
+        val lineColor = color.takeOrElse { RunkkColors.BorderStrong }
+        drawWithContent { drawDashedBorder(lineColor, corner, width) }
+    }
+
+private fun ContentDrawScope.drawDashedBorder(color: Color, corner: Dp, width: Dp) {
     drawContent()
     val stroke = width.toPx()
     drawRoundRect(
@@ -117,21 +121,6 @@ fun RunkkCard(
     )
 }
 
-/**
- * 통계 칸의 값: 큰 숫자 [text], 숫자 뒤 작은 글자 [unit]("KM", "%"), 보조 기술이 읽을 문구 [spoken].
- * spoken이 있으면 "평균 페이스 1킬로미터당 5분 32초"처럼 읽는다("5:32"가 시각으로 읽히지 않게).
- */
-@Immutable
-data class StatTileValue(val text: String, val unit: String? = null, val spoken: String? = null)
-
-/** 통계 칸의 모양: 값 글자 모양·색, [isCentered]면 결과 화면처럼 가운데 정렬(3열 타일). */
-@Immutable
-data class StatTileStyle(
-    val valueStyle: TextStyle = RunkkTextStyles.DisplayMedium,
-    val valueColor: Color = RunkkColors.TextPrimary,
-    val isCentered: Boolean = false
-)
-
 /** 통계 타일: 라벨(12) + 큰 숫자(Barlow) + 아래 [caption]. 값과 모양은 [StatTileValue]·[StatTileStyle]로 받는다. */
 @Composable
 fun RunkkStatTile(
@@ -162,7 +151,7 @@ fun RunkkStatTile(
             value = value.text,
             unit = value.unit,
             style = style.valueStyle,
-            color = style.valueColor,
+            color = style.valueColor.takeOrElse { RunkkColors.TextPrimary },
             modifier = Modifier.align(align)
         )
         if (caption != null) {
