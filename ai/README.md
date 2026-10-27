@@ -110,6 +110,10 @@ docker compose -f backend/compose.yaml exec postgres psql -U runkk -d runkk \
   -c "select session_id, distance_meters, headline from analytics.v_session_result"
 ```
 
+Windows에서 기동 때 `connection was closed in the middle of operation`이 나면 PC에 설치된 PostgreSQL 서비스가 5432를 함께 잡고 있는 경우다
+(`netstat -ano | findstr :5432`에 PID가 둘). 관리자 PowerShell에서 `Stop-Service postgresql-x64-17`로 끄거나(`Get-Service *postgres*`로 이름 확인),
+`docker run -p 55432:5432 …`처럼 다른 포트로 띄우고 주소의 포트를 바꾼다.
+
 PostgreSQL 시험(시험마다 `analytics` 스키마를 지우고 다시 만든다. 개발 DB와 다른 DB를 쓴다):
 
 ```bash
