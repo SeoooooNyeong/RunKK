@@ -49,6 +49,10 @@ class Settings(BaseSettings):
     # 셀카 가로 × 세로 상한(머리 정보로 확인, L28). 기본 4096 × 4096
     max_image_pixels: int = Field(default=4096 * 4096, gt=0)
 
+    # 분석 결과 저장소(S15P31A207-163). analytics 스키마를 쓰는 runkk_ai 계정 주소.
+    # 예: postgresql://runkk_ai:<비밀번호>@postgres:5432/runkk. 비우면 재시작 때 비는 메모리 저장소를 쓴다
+    db_url: SecretStr | None = None
+
     # 운영에서는 /docs·/openapi.json을 열지 않는다
     expose_docs: bool = False
 

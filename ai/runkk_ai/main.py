@@ -21,7 +21,15 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from runkk_ai.comment import COMMENT_TIMEOUT_S, ClaudeClient, CommentRouter, CommentService, LlmClient, OpenAiClient
 from runkk_ai.core import HealthRouter, InternalTokenMiddleware, Settings
 from runkk_ai.face import ExternalFaceApi, FaceRouter, FaceTransformer, FaceTransformService
-from runkk_ai.runbody import InMemoryResultRepository, MonthlyRouter, MonthlyService, RunbodyRouter, RunbodyService
+from runkk_ai.runbody import (
+    InMemoryResultRepository,
+    MonthlyRouter,
+    MonthlyService,
+    ResultRepository,
+    RunbodyRouter,
+    RunbodyService,
+)
+from runkk_ai.storage import PgResultRepository, create_engine, upgrade
 
 logger = logging.getLogger(__name__)
 
@@ -94,23 +102,35 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             max_image_bytes=settings.max_image_bytes,
             max_image_pixels=settings.max_image_pixels,
         )
-        # 분석 결과 저장소는 S15P31A207-163에서 analytics 스키마 구현으로 바꾼다.
-        # 그 전까지는 재시작하면 비는 메모리 저장소다
-        repository = InMemoryResultRepository()
+        repository, storage = await _build_repository(settings, resources)
         runbody = RunbodyService(repository)
         resources.push_async_callback(runbody.aclose)
         app.state.runbody_service = runbody
         app.state.monthly_service = MonthlyService(repository)
         logger.info(
-            "ai_started llm_provider=%s llm_model=%s llm_key_set=%s face_impl=%s face_url_set=%s"
-            " runbody_storage=memory",
+            "ai_started llm_provider=%s llm_model=%s llm_key_set=%s face_impl=%s face_url_set=%s runbody_storage=%s",
             settings.llm_provider,
             settings.llm_model,
             _llm_key(settings) is not None,
             settings.face_impl,
             bool(settings.face_api_url),
+            storage,
         )
         yield
+
+
+async def _build_repository(settings: Settings, resources: AsyncExitStack) -> tuple[ResultRepository, str]:
+    """RUNKK_DB_URL이 있으면 analytics 테이블을 최신으로 맞추고 PostgreSQL 저장소를 쓴다.
+
+    연결이나 마이그레이션이 실패하면 예외가 올라가 기동을 멈춘다. 설정해 둔 DB를 두고 조용히 메모리로 뜨면
+    재시작 때마다 결과가 사라지는 것을 아무도 모른다.
+    """
+    if settings.db_url is None:
+        return InMemoryResultRepository(), "memory"
+    engine = create_engine(settings.db_url.get_secret_value())
+    resources.push_async_callback(engine.dispose)
+    await upgrade(engine)
+    return PgResultRepository(engine), "postgres"
 
 
 def _check_llm_timeout(settings: Settings) -> None:
