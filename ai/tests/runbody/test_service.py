@@ -97,3 +97,39 @@ async def test_results_between_is_half_open_and_done_only(first_run: SessionIn) 
     assert len(found) == 2  # 0분·10분. 20분은 끝값이라 빠지고 pending은 세지 않는다
     assert await repo.first_started_at("u1") == T0
     assert await repo.first_started_at("u2") is None
+
+
+async def test_same_user_runs_are_analyzed_in_order(first_run: SessionIn, second_run: SessionIn) -> None:
+    """같은 사용자의 두 러닝을 동시에 맡겨도 두 번째가 첫 번째 결과를 이전 기록으로 본다(S15P31A207-216)."""
+    analyzer = FakeAnalyzer(gate=asyncio.Event())
+    service = RunbodyService(InMemoryResultRepository(), analyzer=analyzer)
+    await service.accept(first_run)
+    await service.accept(second_run)
+    await asyncio.sleep(0)
+
+    analyzer.gate.set()
+    await service.wait(first_run.sessionId)
+    await service.wait(second_run.sessionId)
+    await service.aclose()
+
+    record = await service.get(second_run.sessionId)
+    assert record is not None
+    assert record.result is not None
+    assert record.result.prev is not None
+    assert record.result.prev.sessionId == first_run.sessionId
+    assert service._user_locks == {}  # 다 끝나면 사용자별 잠금을 남기지 않는다
+
+
+async def test_other_users_still_run_together(first_run: SessionIn, second_run: SessionIn) -> None:
+    """다른 사용자끼리는 서로 기다리지 않는다."""
+    analyzer = FakeAnalyzer(gate=asyncio.Event())
+    service = RunbodyService(InMemoryResultRepository(), analyzer=analyzer)
+    other = second_run.model_copy(update={"userId": "u_other"})
+    await service.accept(first_run)
+    await service.accept(other)
+    for _ in range(3):
+        await asyncio.sleep(0)
+
+    assert analyzer.calls == [first_run.sessionId, other.sessionId]
+    analyzer.gate.set()
+    await service.aclose()
