@@ -12,12 +12,17 @@
 #   ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD  (릴리스 AAB, 시험 APK 서명)
 #   KAKAO_NATIVE_APP_KEY, GOOGLE_WEB_CLIENT_ID  앱 로그인 키(prod 패키지 com.a207.runkk용 카카오 네이티브 앱 키)
 #   KAKAO_NATIVE_APP_KEY_DEVELOP  develop 패키지(com.a207.runkk.dev)용 카카오 네이티브 앱 키. android:build가 KAKAO_NATIVE_APP_KEY 대신 쓴다
+#   RELEASE_FREEZE            보통 Variable(보호 안 함). release/* 브랜치가 있는 동안 1, 끝나면 지운다. 1이면 develop 배포가 수동이 된다
+# protected 변수는 보호 브랜치에서만 보인다. release/* 를 보호 브랜치로 등록해야 release 배포가 INFRA_ENV를 읽는다.
 
+# 브랜치 흐름(AGENTS.md): feature·fix → develop(squash), release/vX.Y → main(merge commit, 태그 vX.Y.Z),
+# hotfix/* → main, 병합 뒤 main → develop 역병합. release/* 는 MR이 없어도 브랜치 파이프라인으로 배포까지 돈다.
 workflow:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == "develop"
     - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH =~ /^release\//
 
 # 잡은 needs로 자기 스택의 앞 잡만 기다린다(가장 느린 android:lint를 backend·ai가 기다리지 않게). stage는 표시 순서다.
 stages: [lint, test, build, deploy, smoke]
@@ -74,7 +79,7 @@ variables:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: *ai-changes
-    - if: $CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH =~ /^release\//
       changes: *ai-changes
 
 ai:lint:
@@ -118,7 +123,7 @@ ai:build:
   tags: [deploy]
   needs: [ai:test]
   rules:
-    - if: $CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH =~ /^release\//
       changes: *ai-changes
   script:
     - docker build -t runkk-ai:$CI_COMMIT_SHORT_SHA -t runkk-ai:latest ai
@@ -138,7 +143,7 @@ ai:build:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: *backend-changes
-    - if: $CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH =~ /^release\//
       changes: *backend-changes
 
 backend:lint:
@@ -172,12 +177,15 @@ backend:build:
   tags: [deploy]
   needs: [backend:test]
   rules:
-    - if: $CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH =~ /^release\//
       changes: *backend-changes
   script:
     - docker build -t runkk-api:$CI_COMMIT_SHORT_SHA -t runkk-api:latest backend
 
 # develop은 자동, main은 수동 승인. EC2가 한 대라 main 배포는 develop 스택을 교체한다 (README 참고).
+# release/* 는 develop 환경에 자동으로 올라가 베타 전 확인 서버가 된다. 릴리스 기간에는 CI 변수 RELEASE_FREEZE=1로
+# develop 자동 배포를 수동으로 바꿔 release 확인 서버를 덮어쓰지 않는다(AGENTS.md "브랜치 흐름").
+# resource_group으로 develop·release·main 배포가 동시에 돌지 않는다.
 # 롤백: docker tag runkk-api:<이전 sha> runkk-api:latest && docker tag runkk-ai:<이전 sha> runkk-ai:latest
 #       && cd infra && docker compose up -d --no-build api ai   (바뀐 쪽 이미지만 되돌려도 된다)
 backend:deploy:
@@ -190,14 +198,29 @@ backend:deploy:
     - job: ai:build
       optional: true
   environment:
-    name: $CI_COMMIT_BRANCH
+    name: $DEPLOY_ENV
+  resource_group: runkk-server
   rules:
+    - if: $CI_COMMIT_BRANCH =~ /^release\//
+      changes: *deploy-changes
+      variables:
+        DEPLOY_ENV: develop
+    - if: $CI_COMMIT_BRANCH == "develop" && $RELEASE_FREEZE == "1"
+      changes: *deploy-changes
+      when: manual
+      allow_failure: true
+      variables:
+        DEPLOY_ENV: develop
     - if: $CI_COMMIT_BRANCH == "develop"
       changes: *deploy-changes
+      variables:
+        DEPLOY_ENV: develop
     - if: $CI_COMMIT_BRANCH == "main"
       changes: *deploy-changes
       when: manual
       allow_failure: false
+      variables:
+        DEPLOY_ENV: main
   script:
     - if [ "$CI_COMMIT_BRANCH" = "main" ]; then cp "$INFRA_ENV_PROD" infra/.env; else cp "$INFRA_ENV" infra/.env; fi
     - mkdir -p infra/secrets && if [ -n "${FCM_SERVICE_ACCOUNT:-}" ]; then cp "$FCM_SERVICE_ACCOUNT" infra/secrets/fcm-service-account.json && chmod 644 infra/secrets/fcm-service-account.json; fi
@@ -210,8 +233,9 @@ backend:smoke:
   stage: smoke
   tags: [deploy]
   needs: [backend:deploy]
+  resource_group: runkk-server
   rules:
-    - if: $CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH =~ /^release\//
       changes: *deploy-changes
   script:
     - if [ "$CI_COMMIT_BRANCH" = "main" ]; then cp "$INFRA_ENV_PROD" infra/.env; else cp "$INFRA_ENV" infra/.env; fi
@@ -246,7 +270,7 @@ backend:smoke:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: *android-changes
-    - if: $CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH =~ /^release\//
       changes: *android-changes
 
 android:lint:
@@ -336,7 +360,7 @@ android:ci-image:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: [ci/android/**/*]
-    - if: $CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH =~ /^release\//
       changes: [ci/android/**/*]
   script:
     - docker build -t "$ANDROID_CI_IMAGE" ci/android
