@@ -121,6 +121,21 @@ docker compose -f ../backend/compose.yaml exec postgres createdb -U runkk runkk_
 RUNKK_TEST_DB_URL=postgresql://runkk:runkk@localhost:5432/runkk_test uv run pytest tests/storage
 ```
 
+## AI 코치 도구 (S15P31A207-192)
+
+AI 코치(F5)가 질문에 답할 때 API 모델이 고르는 조회 도구다. 코드는 `runkk_ai/coach/tools.py`(`CoachTools`, `TOOL_SPECS`).
+대화 API(`POST /coach/chat`, SSE)는 S15P31A207-193에서 붙인다.
+
+| 도구 | 입력 | 돌려주는 것 |
+|---|---|---|
+| `getSessionResult` | `sessionId`(비우면 최근) | 러닝 1회: 거리·페이스·심박·5각 판정·코칭 신호·km 랩·피드백·지난 러닝 비교 |
+| `getMonthlyResult` | `yearMonth`(비우면 이번 달) | 월 요약: 러닝 수·총거리·평균 페이스·5각 평균·최고 기록·주간 거리·부하·기준값 |
+| `getBaseline` | 없음 | 개인 기준값(최근 10회 평균)·최근 5회 목록·최근 부하(ACWR) |
+
+- 사용자 ID는 모델 입력이 아니라 서버가 넣는다(api가 인증한 사용자). 다른 사람의 세션은 `SESSION_NOT_FOUND`로 답한다.
+- 응답은 2,000자 안으로 줄인다(페이스 `6'05"`, 날짜는 한국 시간). 실패는 `{"error": 코드}`(`NO_RUNS`, `INVALID_YEAR_MONTH`, `UNKNOWN_TOOL`).
+- 저장소 규약 위에서 읽으므로 메모리 저장소와 analytics 스키마에서 똑같이 동작한다.
+
 ## writer 학습 데이터 (S15P31A207-191)
 
 자체 모델 runkk-writer가 배울 (분석 요약 → 코칭 문장) 쌍을 만든다. 코드는 `runkk_ai/writer/`.
