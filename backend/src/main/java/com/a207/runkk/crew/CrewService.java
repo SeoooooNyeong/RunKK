@@ -28,6 +28,8 @@ public class CrewService {
 
     private static final String LEADER_TRANSFERRED_TEXT = "크루장을 넘겨받았어요";
     private static final String CREW_DELETED_TEXT = "크루가 삭제되었어요";
+    private static final String MANAGER_APPOINTED_TEXT = "크루 운영진으로 지정되었어요";
+    private static final String MANAGER_DISMISSED_TEXT = "크루 운영진에서 해제되었어요";
 
     private final CrewRepository crewRepository;
     private final CrewAccess crewAccess;
@@ -35,6 +37,7 @@ public class CrewService {
     private final NotificationService notificationService;
     private final AuditService auditService;
     private final CrewDeletion crewDeletion;
+    private final CrewRunService crewRunService;
     private final Clock clock;
 
     CrewService(
@@ -44,6 +47,7 @@ public class CrewService {
             NotificationService notificationService,
             AuditService auditService,
             CrewDeletion crewDeletion,
+            CrewRunService crewRunService,
             Clock clock) {
         this.crewRepository = crewRepository;
         this.crewAccess = crewAccess;
@@ -51,6 +55,7 @@ public class CrewService {
         this.notificationService = notificationService;
         this.auditService = auditService;
         this.crewDeletion = crewDeletion;
+        this.crewRunService = crewRunService;
         this.clock = clock;
     }
 
@@ -123,14 +128,60 @@ public class CrewService {
     }
 
     /**
-     * check(TRANSFER_OR_DELETE) → 크루원마다 알림(CREW_DELETED) → 크루·소속·대기 신청·게시글·주간 거리 삭제 →
-     * 감사(크루삭제)(FR-116). 소속이 없어진 크루원은 쿨타임 없이 바로 다른 크루에 가입할 수 있다.
+     * CrewAccess.checkForUpdate(APPOINT_MANAGER, crew 행 잠금) → Crew.appointManager(상한은 같은 잠금 안에서 센다)
+     * → 감사 (MANAGER_APPOINT, 행위자 역할 CREW_LEADER) → 대상에게 MANAGER_CHANGED. 대상의 새 역할(MANAGER)을
+     * 돌려준다(FR-204, D-98).
+     */
+    @Transactional
+    public CrewRole appointManager(long requesterId, long crewId, long targetId) {
+        Crew crew = crewAccess.checkForUpdate(requesterId, crewId, CrewAction.APPOINT_MANAGER);
+        crew.appointManager(targetId);
+        crewRepository.save(crew);
+        managerChanged(requesterId, crewId, targetId, CrewRole.MANAGER);
+        return CrewRole.MANAGER;
+    }
+
+    /**
+     * checkForUpdate(APPOINT_MANAGER) → Crew.dismissManager → 감사(MANAGER_DISMISS) → 대상에게
+     * MANAGER_CHANGED. MEMBER를 돌려준다.
+     */
+    @Transactional
+    public CrewRole dismissManager(long requesterId, long crewId, long targetId) {
+        Crew crew = crewAccess.checkForUpdate(requesterId, crewId, CrewAction.APPOINT_MANAGER);
+        crew.dismissManager(targetId);
+        crewRepository.save(crew);
+        managerChanged(requesterId, crewId, targetId, CrewRole.MEMBER);
+        return CrewRole.MEMBER;
+    }
+
+    private void managerChanged(long requesterId, long crewId, long targetId, CrewRole role) {
+        boolean appointed = role == CrewRole.MANAGER;
+        auditService.record(
+                new AuditEntry(
+                        String.valueOf(requesterId),
+                        ActorRole.CREW_LEADER,
+                        appointed ? AuditAction.MANAGER_APPOINT : AuditAction.MANAGER_DISMISS,
+                        String.valueOf(targetId),
+                        String.valueOf(crewId),
+                        role.name()));
+        notify(
+                targetId,
+                NotificationType.MANAGER_CHANGED,
+                appointed ? MANAGER_APPOINTED_TEXT : MANAGER_DISMISSED_TEXT,
+                crewId);
+    }
+
+    /**
+     * check(TRANSFER_OR_DELETE) → 크루원마다 알림(CREW_DELETED) → 진행 중·대기실 크루런마다
+     * CrewRunService.endByDeletion(D-66, K-2) → 크루·소속·대기 신청·게시글·주간 거리 삭제 → 감사(크루삭제)(FR-116). 소속이
+     * 없어진 크루원은 쿨타임 없이 바로 다른 크루에 가입할 수 있다.
      */
     @Transactional
     public CrewResult delete(long requesterId, long crewId) {
         Crew crew = crewAccess.checkForUpdate(requesterId, crewId, CrewAction.TRANSFER_OR_DELETE);
         List<Long> members =
                 crew.activeMemberIds().stream().filter(id -> id != requesterId).toList();
+        crewDeletion.activeCrewRunsOf(crewId).forEach(crewRunService::endByDeletion);
         crewDeletion.deleteAll(crewId);
         members.forEach(id -> notify(id, NotificationType.CREW_DELETED, CREW_DELETED_TEXT, crewId));
         auditService.record(

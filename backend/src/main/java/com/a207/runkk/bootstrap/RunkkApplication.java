@@ -1,7 +1,7 @@
 package com.a207.runkk.bootstrap;
 
+import com.a207.runkk.common.ServerZone;
 import java.time.Clock;
-import java.time.ZoneId;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
@@ -24,7 +24,7 @@ public class RunkkApplication {
     /** 서비스가 생성자로 받는 시계(설계 D-10). 서비스 시각은 한국 시간 기준이다. */
     @Bean
     Clock clock() {
-        return Clock.system(ZoneId.of("Asia/Seoul"));
+        return Clock.system(ServerZone.ID);
     }
 
     public static void main(String[] args) {

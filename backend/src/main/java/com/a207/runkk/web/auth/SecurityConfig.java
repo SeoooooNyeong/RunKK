@@ -16,9 +16,10 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 /**
- * 인증 필터의 적용 경로를 설정한다(설계 6.1.13 web.auth.SecurityConfig). 로그인·토큰 갱신·가입과 법정 고지 문서(가입 화면이 읽는다)만 공개하고,
- * /api/v1/admin/*은 회원 인증 필터에서 뺀다(D-42, 관리툴 토큰은 web.admin이 확인). 나머지는 AuthFilter가 붙인 회원만 들어온다. Basic
- * 인증·폼 로그인·세션은 쓰지 않는다(1단계 리뷰 L11). H2 콘솔은 local 프로필에서만 연다(L12). Spring Security 6.x 람다 DSL만 쓴다.
+ * 인증 필터의 적용 경로를 설정한다(설계 6.1.13 web.auth.SecurityConfig). 로그인·토큰 갱신·가입·게스트 시작·게스트 세션 재개(v0.11
+ * F.2.0)와 법정 고지 문서(가입 화면이 읽는다)만 공개하고, /api/v1/admin/*은 회원 인증 필터에서 뺀다(D-42, 관리툴 토큰은 web.admin이 확인).
+ * 나머지는 AuthFilter가 붙인 회원만 들어온다. Basic 인증·폼 로그인·세션은 쓰지 않는다(1단계 리뷰 L11). H2 콘솔은 local 프로필에서만 연다(L12).
+ * Spring Security 6.x 람다 DSL만 쓴다.
  */
 @Configuration
 @EnableWebSecurity
@@ -81,7 +82,9 @@ public class SecurityConfig {
                                                 HttpMethod.POST,
                                                 API + "/auth/login",
                                                 API + "/auth/refresh",
-                                                API + "/members")
+                                                API + "/auth/guest/session",
+                                                API + "/members",
+                                                API + "/members/guest")
                                         .permitAll()
                                         .requestMatchers(HttpMethod.GET, API + "/legal/**")
                                         .permitAll()

@@ -31,6 +31,7 @@ import com.a207.runkk.app.domain.testing.FakeUploadScheduler
 import com.a207.runkk.app.domain.testing.FakeWatchGateway
 import com.a207.runkk.app.domain.testing.T0
 import com.a207.runkk.app.domain.testing.TestClock
+import com.a207.runkk.app.domain.testing.runTracker
 import java.time.Duration
 import kotlin.test.AfterTest
 import kotlin.test.Test
@@ -116,8 +117,9 @@ class BattleRunCoordinatorTest {
 
     private fun TestScope.setUp(): Pair<RunTracker, BattleRunCoordinator> {
         val tracker =
-            RunTracker(
-                RunArchive(pending, FakeUploadScheduler(log)),
+            runTracker(
+                pending,
+                FakeUploadScheduler(log),
                 watch,
                 output,
                 FakeLocationPermission(),
@@ -384,7 +386,7 @@ class BattleRunCoordinatorTest {
     }
 
     @Test
-    fun `F-2 추월·역전 안내는 대결 음성·진동 설정을 따른다`() = runTest {
+    fun `F-2 추월·역전 안내는 화면에 보이고 진동은 대결 진동 설정을 따르며 음성은 없다`() = runTest {
         settings.snapshot =
             SettingsSnapshot.SAFE.copy(
                 isLocationConsented = true,
@@ -397,7 +399,7 @@ class BattleRunCoordinatorTest {
         runCurrent()
         val played = output.played.last()
         assertEquals(Guidance.Kind.OVERTOOK, played.kind)
-        assertTrue(played.hasVoice, "음성 켬")
+        assertEquals(false, played.hasVoice, "추월·역전은 음성을 쓰지 않는다(FR-109, TF-AN-03)")
         assertEquals(false, played.hasVibration, "진동 끔")
         assertEquals(listOf<Any>(12), played.args)
     }
@@ -494,6 +496,32 @@ class BattleRunCoordinatorTest {
         assertEquals(OpponentProgress.Connection.CHECKING, running.opponentConnection)
         assertEquals(Duration.ofSeconds(5), running.mine.elapsed)
         assertEquals(tracker.progress.value.distance, running.mine.distance)
+    }
+
+    @Test
+    fun `TC-6408 상대 연결 확인 중이면 마지막 격차를 두고 근접 알림을 멈춘 뒤 연결되면 새 격차로 잇는다`() = runTest {
+        val (tracker, coordinator) = setUp()
+        coordinator.onMatched(match)
+        runCurrent()
+        live.channel.messages.emit(BattleStart(battleId = 3, startAt = T0, opponentTrack = null))
+        runCurrent()
+        tracker.runTo(1, 0.0)
+        tracker.runTo(7, 20.0)
+        runCurrent()
+        val connected = OpponentProgress.Connection.CONNECTED
+        live.channel.messages.emit(OpponentProgress(3, "상대", Distance(10), Duration.ofSeconds(7), 20, connected))
+        runCurrent()
+        val checking = OpponentProgress.Connection.CHECKING
+        live.channel.messages.emit(OpponentProgress(3, "상대", Distance(10), Duration.ofSeconds(8), 35, checking))
+        runCurrent()
+        val stale = assertIs<BattleRunState.Running>(coordinator.state.value)
+        assertEquals(20, stale.gapMeters)
+        assertEquals(checking, stale.opponentConnection)
+        assertEquals(null, watch.proximity.last())
+        live.channel.messages.emit(OpponentProgress(3, "상대", Distance(10), Duration.ofSeconds(9), 30, connected))
+        runCurrent()
+        assertEquals(30, assertIs<BattleRunState.Running>(coordinator.state.value).gapMeters)
+        assertEquals(30, watch.proximity.last()?.gapMeters)
     }
 
     @Test

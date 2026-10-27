@@ -1,24 +1,17 @@
 package com.a207.runkk.app.ui.runimal
 
 import android.graphics.Bitmap
-import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.designsystem.RunkkErrorText
 import com.a207.runkk.app.core.designsystem.UiText
-import com.a207.runkk.app.core.designsystem.uiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.runimal.RunimalRepository
-import com.a207.runkk.app.domain.runimal.RunimalStatus
 import com.a207.runkk.app.ui.share.CardSharer
 import com.a207.runkk.app.ui.share.CardSide
-import com.a207.runkk.app.ui.share.DeviceSaveTarget
 import com.a207.runkk.app.ui.share.RunimalCardRenderer
 import com.a207.runkk.app.ui.share.ShareOutcome
-import com.a207.runkk.app.ui.share.ShareTarget
-import com.a207.runkk.app.ui.share.StoryShareTarget
-import com.a207.runkk.app.ui.share.SystemShareTarget
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
@@ -30,51 +23,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-
-/** 공유 대상 3종(C-012): 기기 저장, 다른 앱, 스토리. */
-enum class RunimalShareKind(@StringRes val labelRes: Int) {
-    SAVE(R.string.runimal_share_save),
-    SYSTEM(R.string.runimal_share_system),
-    STORY(R.string.runimal_share_story)
-}
-
-/** ui.share의 공유 대상 묶음. 시험에서는 가짜 대상을 넣는다. */
-class RunimalShareTargets(val save: ShareTarget, val system: ShareTarget, val story: ShareTarget) {
-    @Inject
-    constructor(save: DeviceSaveTarget, system: SystemShareTarget, story: StoryShareTarget) :
-        this(save as ShareTarget, system as ShareTarget, story as ShareTarget)
-
-    fun of(kind: RunimalShareKind): ShareTarget = when (kind) {
-        RunimalShareKind.SAVE -> save
-        RunimalShareKind.SYSTEM -> system
-        RunimalShareKind.STORY -> story
-    }
-}
-
-data class RunimalUiState(
-    val isLoading: Boolean = true,
-    val status: RunimalStatus? = null,
-    /** 공유할 카드 이미지(공유를 처음 누를 때 만든다). */
-    val cardImage: Bitmap? = null,
-    val isSharing: Boolean = false,
-    val message: UiText? = null,
-    val error: UiText? = null
-) {
-    /** 다음 판정까지 남은 횟수 문구(FR-154): 유형 전이면 "임시 유형까지 n회", 뒤면 "다음 확정까지 n회". */
-    val remainingLabel: UiText?
-        get() {
-            val s = status ?: return null
-            val n = s.remainingRuns ?: return null
-            return if (s.type == null) {
-                uiText(R.string.runimal_remaining_provisional, n)
-            } else {
-                uiText(R.string.runimal_remaining_confirm, n)
-            }
-        }
-
-    /** 임시·확정 유형이 있을 때만 공유한다(FR-168). */
-    val canShare: Boolean get() = status?.type != null
-}
 
 /**
  * MY 러니멀(FR-151~FR-154, FR-166, FR-168): RunimalRepository.status로 유형 카드·16유형·남은 횟수를 보이고,

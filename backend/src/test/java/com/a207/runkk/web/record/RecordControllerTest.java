@@ -274,4 +274,63 @@ class RecordControllerTest extends WebTestSupport {
         assertThat(dashboard.get("weekly").get("goalRuns").asInt()).isEqualTo(3);
         assertThat(dashboard.get("weeklyAchievement").asDouble()).isGreaterThan(0.0);
     }
+
+    @Test
+    @DisplayName(
+            "TC-7103·TC-6682: 정지 두 번 있는 자유런 상세에 pauses 2개(+09:00)와 pausedSeconds 150, 경과는 운동 시간")
+    void detail_showsPauses() throws Exception {
+        Session me = signUp();
+        String recordId = UUID.randomUUID().toString();
+        int wallSeconds = 35 * 60;
+        List<LocationPoint> points = RunFixtures.straightLine(START, 5_000.0 / 1_950, wallSeconds);
+        Map<String, Object> body = new HashMap<>();
+        body.put("recordId", recordId);
+        body.put("startedAt", at(START));
+        body.put("endedAt", at(START.plusSeconds(wallSeconds)));
+        body.put("distanceMeters", 5_000);
+        body.put("elapsedMillis", 1_950_000L);
+        body.put("mode", "FREE");
+        body.put("cardKind", "FREE_RUN");
+        body.put("pointCount", points.size());
+        body.put(
+                "points",
+                points.stream()
+                        .map(
+                                p ->
+                                        Map.of(
+                                                "measuredAt", at(p.measuredAt()),
+                                                "latitude", p.point().latitude(),
+                                                "longitude", p.point().longitude(),
+                                                "accuracyMeters", 5))
+                        .toList());
+        body.put(
+                "pauses",
+                List.of(
+                        Map.of(
+                                "from", at(START.plusMinutes(10)),
+                                "to", at(START.plusMinutes(12))),
+                        Map.of(
+                                "from", at(START.plusSeconds(20 * 60 + 30)),
+                                "to", at(START.plusMinutes(21)))));
+        mvc.perform(
+                        as(me, post("/api/v1/runs"))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(write(body)))
+                .andExpect(status().isOk());
+
+        JsonNode detail = getJson(me, "/api/v1/runs/" + recordId);
+        assertThat(detail.get("pauses")).hasSize(2);
+        assertThat(detail.get("pauses").get(0).get("from").asText()).endsWith("+09:00");
+        assertThat(
+                        java.time.OffsetDateTime.parse(
+                                        detail.get("pauses").get(1).get("to").asText())
+                                .toInstant())
+                .isEqualTo(START.plusMinutes(21).atZone(SEOUL).toInstant());
+        assertThat(detail.get("pausedSeconds").asLong()).isEqualTo(150);
+        assertThat(detail.get("summary").get("elapsedSeconds").asLong()).isEqualTo(1_950);
+
+        JsonNode plain = getJson(me, "/api/v1/runs/" + upload(me, 5_000, 1_500));
+        assertThat(plain.get("pauses")).isEmpty();
+        assertThat(plain.get("pausedSeconds").asLong()).isZero();
+    }
 }

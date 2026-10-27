@@ -8,6 +8,7 @@ import com.a207.runkk.common.BusinessRuleException;
 import com.a207.runkk.common.DateRange;
 import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.Distance;
+import com.a207.runkk.common.PageCursor;
 import com.a207.runkk.common.PersonalityTag;
 import com.a207.runkk.common.ProgressReport;
 import com.a207.runkk.common.ReasonCode;
@@ -128,7 +129,11 @@ class CrewScenarioTest {
         withdrawal.onMemberWithdrawn(new MemberWithdrawn(lonelyLeader, LocalDateTime.now()));
 
         assertThat(reader.activeMemberIds(crewId)).containsExactly(leader);
-        PostListView list = posts.list(leader, crewId, PostKind.CHEER);
+        PostListView list =
+                posts.list(
+                        leader,
+                        crewId,
+                        new PostQuery(Set.of(PostKind.CHEER), false, PageCursor.all()));
         assertThat(list.posts())
                 .singleElement()
                 .satisfies(

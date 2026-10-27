@@ -10,7 +10,8 @@ import com.a207.runkk.common.ProgressReport;
  * @param channelId 대결 ID 또는 크루런 게시글 ID
  * @param report 거리·경과·보낸 시각
  */
-public record InboundProgress(Channel channel, long channelId, ProgressReport report) {
+public record InboundProgress(Channel channel, long channelId, ProgressReport report)
+        implements InboundMessage {
 
     /** 진행값 채널. */
     public enum Channel {

@@ -10,5 +10,11 @@ public enum Screen {
     CREW_MANAGE,
     CREW_HOME,
     CREW_RUN_RECRUIT,
-    BATTLE_RESULT
+    BATTLE_RESULT,
+    // v0.11 (FR-178, D-150: CREW_BOARD는 가는 알림종류가 없어 두지 않는다)
+    CREW_NOTICE,
+    CREW_POLL,
+    CREW_SCHEDULE,
+    CREW_CHAT,
+    AVATAR_BACKGROUND
 }

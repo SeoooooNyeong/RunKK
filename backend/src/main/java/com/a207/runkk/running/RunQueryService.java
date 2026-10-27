@@ -16,10 +16,12 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
+import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -81,7 +83,7 @@ public class RunQueryService {
         return runRecordRepository.summariesBetween(memberId, r);
     }
 
-    /** 1km 구간 페이스, 가장 빠른 1km, 심박 구간(최대 심박이 있을 때), 불안정 구간, 날씨, 신기록. */
+    /** 1km 구간 페이스, 가장 빠른 1km, 심박 구간(최대 심박이 있을 때), 불안정 구간, 날씨, 신기록, 정지 구간(FR-036). */
     public RunDetail detail(String recordId, OptionalInt maxHeartRate) {
         RunRecord record = load(recordId);
         return new RunDetail(
@@ -94,7 +96,8 @@ public class RunQueryService {
                 record.unstableSegments(),
                 record.getWeather(),
                 record.getNewRecords(),
-                record.heartRateSummary());
+                record.heartRateSummary(),
+                record.pauses());
     }
 
     /** 대결 결과 비교표용(R5). 없으면 RECORD_NOT_FOUND. */
@@ -174,11 +177,40 @@ public class RunQueryService {
     }
 
     /**
-     * 저장 일시가 [from, to)인 기록 전부(무효 포함), 저장 순. reward·crew의 커밋 뒤 수신자 일 단위 보정(RewardService.reconcile,
-     * CrewRunService.reconcileLinks)이 빠진 적립·연결을 찾을 때 쓴다.
+     * 저장 일시가 [from, to)인 기록 전부(무효 포함), 저장 순. 커밋 뒤 수신자의 일 단위 보정(reward.RewardReconcileService,
+     * crew.CrewRunLinkReconcileService, running.TierReconcileService)이 빠진 처리를 찾을 때 쓴다(D-107,
+     * D-108).
      */
     public List<SavedRun> savedBetween(LocalDateTime from, LocalDateTime to) {
         return runRecordRepository.savedBetween(from, to);
+    }
+
+    /**
+     * 저장 일시 &lt; cutoff인 유효 기록의 누적 거리(avatar.BackgroundService.backfillReached가 배포 전에 넘은 랜드마크만 알림
+     * 없이 채울 때 쓰는 좁은 조회, D-176).
+     */
+    public Distance validDistanceBefore(long memberId, LocalDateTime cutoff) {
+        return runRecordRepository.validDistanceSavedBefore(memberId, cutoff);
+    }
+
+    /** 저장 일시가 [from, to)인 기록이 있는 회원 ID(avatar.BackgroundService.reconcile용 좁은 조회, D-139). */
+    public Set<Long> memberIdsSavedBetween(LocalDateTime from, LocalDateTime to) {
+        Set<Long> ids = new LinkedHashSet<>();
+        runRecordRepository.savedBetween(from, to).forEach(r -> ids.add(r.memberId()));
+        return ids;
+    }
+
+    /** 누적 유효 거리(avatar.BackgroundService의 배경 해금 판정용 좁은 조회, D-139). */
+    public Distance validDistanceOf(long memberId) {
+        return runRecordRepository.totals(memberId).distance();
+    }
+
+    /**
+     * 그 회원의 유효 기록 중 유효 러닝 순번 &gt; ordinal인 것, 저장 일시·기록 ID 순(D-108). TierReconcileService가 티어에 빠진
+     * 순번을 넘길 때 쓴다.
+     */
+    public List<ValidRunScore> validRunsAfter(long memberId, int ordinal) {
+        return runRecordRepository.validRunsAfter(memberId, ordinal);
     }
 
     /** ownerIds 회원의 유효 기록 중 거리 ≥ d이고 경로가 남은 것(battle.GhostMatcher, A-07). */
@@ -189,16 +221,21 @@ public class RunQueryService {
         return runRecordRepository.validRunsReaching(d.distance(), ownerIds);
     }
 
-    /** 1초 간격 (경과 시간, 누적 거리) 표본을 cut 거리까지. 좌표가 없다. 경로가 파기되었으면 ROUTE_PURGED. */
+    /**
+     * 1초 간격 (경과 시간, 누적 거리) 표본을 cut 거리까지. 좌표가 없다. 경로가 파기되었으면 ROUTE_PURGED. 정지가 있는 자유런은 운동 시간 축으로 바꿔
+     * 정지 구간을 잘라 낸다(총괄 결정 7-4).
+     */
     public RunCurve curve(String recordId, Distance cut) {
         RunRecord record = load(recordId);
         if (record.isRoutePurged()) {
             throw new BusinessRuleException(ReasonCode.ROUTE_PURGED);
         }
         RunTrack track = record.track();
-        Duration end = track.timeToReach(cut).orElse(record.getElapsed());
+        // 정지 구간과 제외 구간(초과 시속 쌍, FR-047 v0.10)을 같이 잘라 낸다
+        List<PauseInterval> stops = record.stops();
+        Duration end = track.timeToReach(cut, stops).orElse(record.getElapsed());
         List<CurvePoint> samples =
-                track.curve(CURVE_STEP, end).stream()
+                track.curve(CURVE_STEP, end, stops).stream()
                         .map(p -> new CurvePoint(p.elapsed(), min(p.distance(), cut)))
                         .toList();
         return new RunCurve(samples, cut);

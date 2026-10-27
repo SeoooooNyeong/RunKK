@@ -10,7 +10,10 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 
-/** 적립 내역 한 건(자료사전 리워드레코드의 적립 내역). RewardWallet이 합성으로 가진다. (회원, 사유, 근거)는 한 번만 있다(5.3 고유 제약). */
+/**
+ * 적립 내역 한 건(자료사전 리워드레코드의 적립 내역). v0.11부터 RewardWallet이 컬렉션으로 갖지 않고 RewardAccrualRepository로만 읽고
+ * 쓴다(D-109). (회원, 사유, 근거)는 한 번만 있다(5.3 고유 제약).
+ */
 @Entity
 @Table(name = "reward_accrual")
 public class RewardAccrual {
@@ -18,6 +21,9 @@ public class RewardAccrual {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(name = "member_id", nullable = false, updatable = false)
+    private long memberId;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "reason", nullable = false, length = 20)
@@ -34,7 +40,13 @@ public class RewardAccrual {
 
     protected RewardAccrual() {}
 
-    RewardAccrual(AccrualReason reason, String sourceId, int amount, LocalDateTime accruedAt) {
+    RewardAccrual(
+            long memberId,
+            AccrualReason reason,
+            String sourceId,
+            int amount,
+            LocalDateTime accruedAt) {
+        this.memberId = memberId;
         this.reason = reason;
         this.sourceId = sourceId;
         this.amount = amount;
@@ -45,11 +57,24 @@ public class RewardAccrual {
         return reason == r && sourceId.equals(source);
     }
 
-    boolean isOn(LocalDateTime day) {
-        return accruedAt.toLocalDate().equals(day.toLocalDate());
+    public long memberId() {
+        return memberId;
     }
 
-    int amount() {
+    public AccrualReason reason() {
+        return reason;
+    }
+
+    public String sourceId() {
+        return sourceId;
+    }
+
+    public int amount() {
         return amount;
+    }
+
+    /** 사건 발생 시각(하루 상한의 "그날"). */
+    public LocalDateTime accruedAt() {
+        return accruedAt;
     }
 }

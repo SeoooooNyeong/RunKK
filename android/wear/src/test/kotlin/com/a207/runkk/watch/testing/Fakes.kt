@@ -1,5 +1,9 @@
 package com.a207.runkk.watch.testing
 
+import com.a207.runkk.watch.alert.AlertBeeper
+import com.a207.runkk.watch.alert.AlertVibrator
+import com.a207.runkk.watch.alert.MonotonicClock
+import com.a207.runkk.watch.alert.ProximityAlertPlayer
 import com.a207.runkk.watch.heart.ExerciseOwner
 import com.a207.runkk.watch.heart.ExerciseSession
 import com.a207.runkk.watch.heart.HeartRateSensor
@@ -19,6 +23,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.consumeAsFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.TestCoroutineScheduler
+import kotlinx.coroutines.test.TestScope
 
 /** 시험 시작 시각(2026-10-20 근처). 가상 시간과 함께 흐른다. */
 const val T0: Long = 1_792_000_000_000
@@ -183,3 +188,54 @@ class FakeNotificationPermissionGate(var needed: Boolean = false) : Notification
         asked++
     }
 }
+
+/** 가짜 부팅 뒤 경과 시각의 시작값. 벽시계(T0)와 다른 값이라 재생기가 벽시계를 쓰면 시험이 틀린다. */
+const val BOOT_ELAPSED: Long = 86_400_000
+
+/** 코루틴 가상 시간을 따르는 단조 시계(SystemClock.elapsedRealtime 흉내). */
+class SchedulerMonotonicClock(private val scheduler: TestCoroutineScheduler) : MonotonicClock {
+    override fun elapsedMillis(): Long = BOOT_ELAPSED + scheduler.currentTime
+}
+
+/** 가짜 진동기·비프음. 낸 시각(가상 시간, 시험 시작 기준 ms)과 길이를 [events]에 순서대로 남긴다. */
+class FakeAlertOutput(private val clock: MonotonicClock) :
+    AlertVibrator,
+    AlertBeeper {
+    data class Event(val atMillis: Long, val kind: Kind, val durationMillis: Long)
+
+    enum class Kind { VIBRATE, BEEP }
+
+    val events = mutableListOf<Event>()
+
+    /** 참이면 진동·비프가 기기 오류처럼 예외로 끝난다(시도한 것은 [events]에 남긴다). */
+    var isFailing: Boolean = false
+
+    override fun vibrate(durationMillis: Long) {
+        events += Event(clock.elapsedMillis() - BOOT_ELAPSED, Kind.VIBRATE, durationMillis)
+        check(!isFailing) { "진동기 오류" }
+    }
+
+    override fun beep(durationMillis: Int) {
+        events += Event(clock.elapsedMillis() - BOOT_ELAPSED, Kind.BEEP, durationMillis.toLong())
+        check(!isFailing) { "비프음 오류" }
+    }
+
+    /** 비프음 자원을 놓은 시각들. */
+    val releases = mutableListOf<Long>()
+
+    override fun release() {
+        releases += clock.elapsedMillis() - BOOT_ELAPSED
+    }
+
+    /** 비프음을 낸 시각(T0 기준 ms). */
+    fun beepTimes(): List<Long> = events.filter { it.kind == Kind.BEEP }.map { it.atMillis }
+
+    /** 긴 진동(근접 반복의 짧은 진동보다 긴 것)을 낸 시각. */
+    fun longVibrationTimes(minMillis: Long): List<Long> =
+        events.filter { it.kind == Kind.VIBRATE && it.durationMillis >= minMillis }.map { it.atMillis }
+}
+
+/** 가짜 출력([output])으로 소리·진동을 남기는 근접 알림 재생기. */
+fun TestScope.alertPlayer(
+    output: FakeAlertOutput = FakeAlertOutput(SchedulerMonotonicClock(testScheduler))
+): ProximityAlertPlayer = ProximityAlertPlayer(output, output, SchedulerMonotonicClock(testScheduler), backgroundScope)

@@ -2,10 +2,13 @@ package com.a207.runkk.app.core.designsystem
 
 import android.content.Context
 import android.provider.Settings
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
@@ -13,28 +16,35 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 
-private val RunkkColorScheme = darkColorScheme(
-    primary = RunkkColors.Lime,
-    onPrimary = RunkkColors.OnLime,
-    primaryContainer = RunkkColors.LimeContainer,
-    onPrimaryContainer = RunkkColors.Lime,
-    secondary = RunkkColors.Lavender,
-    onSecondary = RunkkColors.OnLime,
-    tertiary = RunkkColors.Violet,
-    background = RunkkColors.Background,
-    onBackground = RunkkColors.TextPrimary,
-    surface = RunkkColors.Surface,
-    onSurface = RunkkColors.TextPrimary,
-    surfaceVariant = RunkkColors.Surface,
-    onSurfaceVariant = RunkkColors.TextSecondary,
-    surfaceContainer = RunkkColors.Surface,
-    surfaceContainerHigh = RunkkColors.Surface,
-    surfaceContainerHighest = RunkkColors.Border,
-    outline = RunkkColors.BorderStrong,
-    outlineVariant = RunkkColors.Border,
-    error = RunkkColors.Lavender,
-    onError = RunkkColors.OnLime
-)
+/** Material 구성 요소(대화상자·스낵바·스위치 등)가 읽는 색. 런크크 토큰 벌에서 만든다. */
+private fun RunkkColors.toColorScheme(): ColorScheme {
+    val base = if (isDark) darkColorScheme() else lightColorScheme()
+    return base.copy(
+        primary = lime,
+        onPrimary = onLime,
+        primaryContainer = limeContainer,
+        onPrimaryContainer = lime,
+        secondary = lavender,
+        onSecondary = onLime,
+        tertiary = violet,
+        background = background,
+        onBackground = textPrimary,
+        surface = surface,
+        onSurface = textPrimary,
+        surfaceVariant = surface,
+        onSurfaceVariant = textSecondary,
+        surfaceContainer = surface,
+        surfaceContainerHigh = surface,
+        surfaceContainerHighest = border,
+        outline = borderStrong,
+        outlineVariant = border,
+        error = lavender,
+        onError = onLime
+    )
+}
+
+private val DarkColorScheme = RunkkColors.dark.toColorScheme()
+private val LightColorScheme = RunkkColors.light.toColorScheme()
 
 /** 시안의 모서리 반경(12·16·20·24dp). */
 object RunkkShapes {
@@ -55,15 +65,21 @@ fun Context.prefersReducedMotion(): Boolean =
     Settings.Global.getFloat(contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
 
 /**
- * 런크크 테마(다크 하나). 라이트 테마·동적 색은 쓰지 않는다(하이파이 시안).
- * [reduceMotion]을 넘기지 않으면 기기 설정을 읽는다.
+ * 런크크 테마(FR-203). [darkTheme]이 색 벌을 고른다: 참이면 RunkkColors.dark, 거짓이면 RunkkColors.light.
+ * 앱은 설정 사본의 화면 테마(SYSTEM이면 기기 설정)로 정해 넘기고(MainActivity, D-92), 넘기지 않으면 기기 설정을 따른다.
+ * 동적 색은 쓰지 않는다(하이파이 시안). [reduceMotion]을 넘기지 않으면 기기 설정을 읽는다.
  */
 @Composable
-fun RunkkTheme(reduceMotion: Boolean? = null, content: @Composable () -> Unit) {
+fun RunkkTheme(
+    darkTheme: Boolean = isSystemInDarkTheme(),
+    reduceMotion: Boolean? = null,
+    content: @Composable () -> Unit
+) {
     val context = LocalContext.current
     val reduce = reduceMotion ?: remember(context) { context.prefersReducedMotion() }
+    val colors = if (darkTheme) RunkkColors.dark else RunkkColors.light
     MaterialTheme(
-        colorScheme = RunkkColorScheme,
+        colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme,
         typography = RunkkTypography,
         shapes = Shapes(
             extraSmall = RoundedCornerShape(8.dp),
@@ -73,6 +89,10 @@ fun RunkkTheme(reduceMotion: Boolean? = null, content: @Composable () -> Unit) {
             extraLarge = RunkkShapes.ExtraLarge
         )
     ) {
-        CompositionLocalProvider(LocalReduceMotion provides reduce, content = content)
+        CompositionLocalProvider(
+            LocalRunkkColors provides colors,
+            LocalReduceMotion provides reduce,
+            content = content
+        )
     }
 }

@@ -8,6 +8,7 @@ import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.account.AccountRepository
+import com.a207.runkk.app.domain.account.GuestSession
 import com.a207.runkk.app.domain.account.MemberSettings
 import com.a207.runkk.app.domain.account.Profile
 import com.a207.runkk.app.domain.account.ProviderToken
@@ -63,6 +64,23 @@ constructor(
         return issued
     }
 
+    /** 게스트 시작(POST /members/guest, FR-197). 토큰과 자격 증명 저장은 StartAsGuestUseCase가 한다(D-159 (1)). */
+    override suspend fun startAsGuest(consents: Map<String, Boolean>): Outcome<GuestSession> =
+        ApiErrorMapper.call { auth.startAsGuest(GuestStartRequest(consents)).toDomain() }
+
+    /**
+     * 소셜 계정 연동(POST /me/social-account, FR-198). 제공자 인증 실패(401 AUTH_FAILED)는 접근 토큰 만료가 아니므로 로그인과 같은
+     * 규칙으로 Rejected(code)로 읽는다. 토큰은 바꾸지 않는다.
+     */
+    override suspend fun linkSocialAccount(token: ProviderToken): Outcome<Unit> = try {
+        auth.linkSocialAccount(SocialLinkRequest(token.provider.name, token.token))
+        Outcome.Success(Unit)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Outcome.Failure(ApiErrorMapper.toLoginError(e))
+    }
+
     /** 서버의 갱신 토큰 폐기. 갱신 토큰이 없으면(이미 로그아웃) 보낼 것이 없다. */
     override suspend fun logout(): Outcome<Unit> {
         val refresh = tokens.refreshToken() ?: return Outcome.Success(Unit)
@@ -84,8 +102,9 @@ constructor(
         return ApiErrorMapper.call { me.profile(id).toDomain() }
     }
 
-    override suspend fun editProfile(nickname: String, intro: String?, tags: Set<String>): Outcome<Unit> =
-        ApiErrorMapper.call { me.editProfile(ProfileEditRequest(nickname, intro, tags)) }
+    /** 태그는 v0.11에서 지웠다(D-91). */
+    override suspend fun editProfile(nickname: String, intro: String?): Outcome<Unit> =
+        ApiErrorMapper.call { me.editProfile(ProfileEditRequest(nickname, intro)) }
 
     /**
      * 화면의 설정 키를 서버 요청으로 바꾼다(MemberSettings.values와 같은 키). "ALERT.알림종류"는 항목 ALERT에 알림 종류를 싣고,

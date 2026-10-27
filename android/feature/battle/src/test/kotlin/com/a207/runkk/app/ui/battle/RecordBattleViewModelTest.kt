@@ -122,20 +122,13 @@ class RecordBattleViewModelTest {
     }
 
     @Test
-    fun `출처 줄은 서버 sourceLabel을 그대로 쓰고 추정 안내만 붙인다(FR-100)`() {
+    fun `출처 줄은 서버 sourceLabel을 출처 문구 뒤에 그대로 쓰고, 없으면 줄을 두지 않는다(FR-100, H2)`() {
         val isEstimated = CandidateUi.of(celebCandidates[1])
         assertEquals(
-            uiText(R.string.battle_record_source_estimated, UiText.Plain("공개 기록 기준 · 2024 춘천마라톤")),
-            sourceLine(isEstimated)
-        )
-        assertEquals(
-            UiText.Plain("공개 기록 기준 · 2025 서울마라톤"),
+            uiText(R.string.battle_record_source, "공개 기록 기준 · 2025 서울마라톤"),
             sourceLine(CandidateUi.of(celebCandidates[0]))
         )
-        assertEquals(
-            uiText(R.string.battle_record_source_basis),
-            sourceLine(isEstimated.copy(sourceLabel = null, isEstimated = false))
-        )
+        assertNull(sourceLine(isEstimated.copy(sourceLabel = null, isEstimated = false)))
         assertEquals(UiText.Res(R.string.battle_distance_full), distanceLabel(isEstimated.distance))
     }
 }

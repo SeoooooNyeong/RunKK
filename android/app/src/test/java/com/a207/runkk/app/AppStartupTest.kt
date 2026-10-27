@@ -27,10 +27,14 @@ import com.a207.runkk.app.domain.run.HeartRateSample
 import com.a207.runkk.app.domain.run.LateHeartRates
 import com.a207.runkk.app.domain.run.LocationPermission
 import com.a207.runkk.app.domain.run.MeasurementHost
+import com.a207.runkk.app.domain.run.MeasurementRuntime
 import com.a207.runkk.app.domain.run.PendingRunRepository
 import com.a207.runkk.app.domain.run.PlanSnapshot
+import com.a207.runkk.app.domain.run.ProximityAlert
 import com.a207.runkk.app.domain.run.RunArchive
+import com.a207.runkk.app.domain.run.RunCoach
 import com.a207.runkk.app.domain.run.RunTracker
+import com.a207.runkk.app.domain.run.RunWatchBridge
 import com.a207.runkk.app.domain.run.TodayPlanCache
 import com.a207.runkk.app.domain.run.UploadScheduler
 import com.a207.runkk.app.domain.run.WatchDisplay
@@ -81,14 +85,15 @@ class AppStartupTest {
         val pending = NoPendingRuns()
         val tracker =
             RunTracker(
-                RunArchive(pending, NoUpload()),
-                watch,
-                SilentGuidance(),
-                NoLocationPermission(),
-                NoMeasurementHost(),
-                settings,
-                Clock.fixed(Instant.parse("2026-10-22T00:00:00Z"), ZoneOffset.UTC),
-                scope
+                RunArchive(pending, NoUpload(), scope),
+                RunWatchBridge(watch, scope),
+                RunCoach(SilentGuidance(), settings),
+                MeasurementRuntime(
+                    NoLocationPermission(),
+                    NoMeasurementHost(),
+                    settings,
+                    Clock.fixed(Instant.parse("2026-10-22T00:00:00Z"), ZoneOffset.UTC)
+                )
             )
         val watchHome = WatchHomeSync(tracker, FreeRunGoalUseCase(settings), todayPlans, scope)
         val disposals = SyncDisposalsUseCase(pending, RecordingDisposalRemote(events))
@@ -236,7 +241,7 @@ private class RecordingSettings(private val events: MutableList<String>) : Setti
     var refreshResult: Outcome<Unit> = Outcome.Success(Unit)
     private val snapshot =
         MutableStateFlow(
-            SettingsSnapshot.SAFE.copy(guidanceSettings = GuidanceSettings.DEFAULT.copy(shouldFollowCoachPlan = true))
+            SettingsSnapshot.SAFE.copy(guidanceSettings = GuidanceSettings.DEFAULT.copy(isFollowingCoachPlan = true))
         )
 
     override suspend fun refresh(): Outcome<Unit> {
@@ -255,6 +260,8 @@ private class RecordingSettings(private val events: MutableList<String>) : Setti
     override fun birthYear(): Int? = null
 
     override fun guidanceSettings(): GuidanceSettings = snapshot.value.guidanceSettings
+
+    override fun isGuest(): Boolean = snapshot.value.isGuest
 
     override fun changes(): Flow<SettingsSnapshot> = snapshot
 
@@ -326,6 +333,12 @@ private class TodayPlanRecords : RecordRepository {
 }
 
 private class RecordingWatch : WatchGateway {
+    override val pauseRequests: Flow<WatchGateway.PauseAction> = MutableSharedFlow()
+
+    override fun publishProximity(alert: ProximityAlert?) = Unit
+
+    override fun publishLeadChange(kind: Guidance.Kind) = Unit
+
     val published = mutableListOf<WatchDisplay>()
     override val startRequests: Flow<Unit> = MutableSharedFlow()
     override val endRequests: Flow<Unit> = MutableSharedFlow()

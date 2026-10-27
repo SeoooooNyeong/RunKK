@@ -17,6 +17,7 @@ import com.a207.runkk.app.domain.account.ProviderType
 import com.a207.runkk.app.domain.account.SessionTokens
 import com.a207.runkk.app.domain.account.SignUpForm
 import com.a207.runkk.app.domain.settings.GuidanceSettings
+import com.a207.runkk.app.domain.settings.ScreenTheme
 import com.a207.runkk.app.domain.settings.SettingsSnapshot
 import kotlin.test.AfterTest
 import kotlin.test.Test
@@ -60,12 +61,7 @@ class AccountRepositoryImplTest {
             repository.signUp(
                 SignUpForm(
                     nickname = "달리는곰",
-                    birthYear = 1995,
-                    gender = Gender.FEMALE,
-                    intro = null,
-                    consents = mapOf("TERMS" to true, "LOCATION" to true),
-                    recordVisibility = "PUBLIC",
-                    tags = setOf("MORNING")
+                    consents = mapOf("TERMS" to true, "LOCATION" to true)
                 )
             )
 
@@ -76,13 +72,13 @@ class AccountRepositoryImplTest {
         assertEquals("/api/v1/members", request.url.encodedPath)
         val body = Json.parseToJsonElement(request.body!!.utf8()).jsonObject
         assertEquals("ticket-15m", body["signUpTicket"]!!.jsonPrimitive.content)
-        assertEquals("FEMALE", body["gender"]!!.jsonPrimitive.content)
+        assertEquals("달리는곰", body["nickname"]!!.jsonPrimitive.content)
     }
 
     @Test
     fun `티켓 없이 가입하면 보내지 않고 거부한다`() = runTest {
         val result = repository.signUp(
-            SignUpForm(null, null, Gender.UNDISCLOSED, null, emptyMap(), "PUBLIC", emptySet())
+            SignUpForm(null, emptyMap())
         )
 
         assertEquals(Outcome.Failure(AppError.Rejected("SIGN_UP_TICKET_INVALID")), result)
@@ -93,7 +89,7 @@ class AccountRepositoryImplTest {
     fun `409는 서버 사유 코드로 거부된다`() = runTest {
         api.reply("""{"code":"NICKNAME_INVALID","message":"닉네임 오류"}""", code = 409)
 
-        val result = repository.editProfile("x", null, emptySet())
+        val result = repository.editProfile("x", null)
 
         assertEquals(Outcome.Failure(AppError.Rejected("NICKNAME_INVALID")), result)
     }
@@ -139,8 +135,9 @@ class AccountRepositoryImplTest {
     fun `프로필 DTO를 도메인으로 바꾼다`() = runTest {
         api.reply(
             """{"memberId":7,"displayName":"달리는곰","disclosure":"PUBLIC","tier":"GOLD","level":12,
-               |"tags":["MORNING"],"intro":"안녕","runimalType":"ENFP","faceKey":"face/7","crewName":"새벽런",
-               |"longestDistanceMeters":21097,"ageBand":"30대","gender":"FEMALE","photoUrl":"https://img/7.png"}
+               |"intro":"안녕","runimalType":"ENFP","faceKey":"face/7","crewName":"새벽런",
+               |"longestDistanceMeters":21097,"ageBand":"30대","gender":"FEMALE","photoUrl":"https://img/7.png",
+               |"avatarBackgroundKey":"SEOUL_TOWER"}
             """.trimMargin()
         )
 
@@ -153,7 +150,6 @@ class AccountRepositoryImplTest {
                 "PUBLIC",
                 "GOLD",
                 12,
-                setOf("MORNING"),
                 "안녕",
                 "ENFP",
                 "face/7",
@@ -161,7 +157,8 @@ class AccountRepositoryImplTest {
                 Distance(21_097),
                 ageBand = "30대",
                 gender = Gender.FEMALE,
-                photoUrl = "https://img/7.png"
+                photoUrl = "https://img/7.png",
+                avatarBackgroundKey = "SEOUL_TOWER"
             ),
             profile
         )
@@ -197,7 +194,6 @@ class AccountRepositoryImplTest {
         val profile = repository.profile(8).value()
 
         assertEquals(null, profile.tier)
-        assertEquals(emptySet(), profile.tags)
         assertEquals(null, profile.longestDistance)
     }
 
@@ -243,7 +239,7 @@ class AccountRepositoryImplTest {
     }
 
     @Test
-    fun `가입 요청 본문은 서버 SignUpRequest 항목 이름과 서버 enum 이름을 쓴다`() = runTest {
+    fun `TC-6443 가입 요청 본문은 signUpTicket·nickname·consents뿐이다`() = runTest {
         api.reply("""{"status":"SIGN_UP_REQUIRED","signUpTicket":"t"}""")
         api.reply("""{"memberId":9,"nickname":"달리는곰","accessToken":"a","refreshToken":"r"}""")
         repository.login(ProviderToken(ProviderType.KAKAO, "k"))
@@ -251,20 +247,14 @@ class AccountRepositoryImplTest {
         repository.signUp(
             SignUpForm(
                 nickname = null,
-                birthYear = 1995,
-                gender = Gender.UNDISCLOSED,
-                intro = null,
-                consents = mapOf("AGE_14_PLUS" to true, "TERMS" to true, "PRIVACY" to true, "LOCATION" to true),
-                recordVisibility = "PUBLIC",
-                tags = setOf("SOLO_RUN", "SHORT_DISTANCE")
+                consents = mapOf("AGE_14_PLUS" to true, "TERMS" to true, "PRIVACY" to true, "LOCATION" to true)
             )
         )
 
         api.take()
         val body = Json.parseToJsonElement(api.take().body!!.utf8()).jsonObject
-        assertEquals("UNDISCLOSED", body["gender"]!!.jsonPrimitive.content)
-        assertEquals("PUBLIC", body["recordVisibility"]!!.jsonPrimitive.content)
-        assertTrue("SOLO_RUN" in body["tags"].toString(), body["tags"].toString())
+        assertEquals(setOf("signUpTicket", "consents"), body.keys - "nickname", "출생연도·성별·사진·소개·공개 범위·태그 0개(D-90)")
+        assertEquals(4, body["consents"]!!.jsonObject.size)
     }
 
     @Test
@@ -281,12 +271,7 @@ class AccountRepositoryImplTest {
         val signedUp = repository.signUp(
             SignUpForm(
                 nickname = null,
-                birthYear = 1995,
-                gender = Gender.UNDISCLOSED,
-                intro = null,
-                consents = mapOf("AGE_14_PLUS" to true, "TERMS" to true, "PRIVACY" to true, "LOCATION" to true),
-                recordVisibility = "PUBLIC",
-                tags = setOf("SOLO_RUN")
+                consents = mapOf("AGE_14_PLUS" to true, "TERMS" to true, "PRIVACY" to true, "LOCATION" to true)
             )
         )
         assertEquals(Outcome.Failure(AppError.Rejected("TOO_MANY_ATTEMPTS")), signedUp)
@@ -321,7 +306,7 @@ class AccountRepositoryImplTest {
                         isBattleVibrationOn = false,
                         gapAlertMeters = 500,
                         isRankAlertOn = true,
-                        shouldFollowCoachPlan = true
+                        isFollowingCoachPlan = true
                     )
             ),
             snapshot
@@ -359,6 +344,7 @@ class AccountRepositoryImplTest {
                         "BATTLE_SETTINGS.voice" to "true",
                         "BATTLE_SETTINGS.vibration" to "false",
                         "BATTLE_SETTINGS.gapAlertInterval" to "M500",
+                        "BATTLE_SETTINGS.proximityAlert" to "true",
                         "ALERT.PLAN_MISSED" to "false"
                     ),
                 consents = mapOf("LOCATION" to true, "HEART_RATE" to false)
@@ -420,7 +406,7 @@ class AccountRepositoryImplTest {
         assertEquals("BATTLE_SETTINGS", body["item"]!!.jsonPrimitive.content)
         assertEquals(
             Json.parseToJsonElement(
-                """{"defaultDistance":"KM5","voice":true,"vibration":true,"gapAlertInterval":"M500"}"""
+                """{"defaultDistance":"KM5","voice":true,"vibration":true,"gapAlertInterval":"M500","proximityAlert":true}"""
             ),
             Json.parseToJsonElement(body["value"]!!.jsonPrimitive.content)
         )
@@ -453,6 +439,103 @@ class AccountRepositoryImplTest {
 
         assertTrue(!snapshot.isLocationConsented && !snapshot.isHeartRateConsented)
         assertEquals(GuidanceSettings.DEFAULT, snapshot.guidanceSettings)
+    }
+
+    @Test
+    fun `게스트 시작은 동의만 보내고 토큰과 자격 증명을 돌려준다`() = runTest {
+        api.reply(
+            """{"memberId":42,"nickname":"러너1234","accessToken":"A1","refreshToken":"R1","guestCredential":"g1.42.s"}""",
+            code = 201
+        )
+
+        val started = repository.startAsGuest(
+            mapOf("AGE_14_PLUS" to true, "TERMS" to true, "MARKETING" to false)
+        ).value()
+
+        assertEquals(SessionTokens("A1", "R1"), started.tokens)
+        assertEquals("g1.42.s", started.guestCredential)
+        val request = api.take()
+        assertEquals("POST /api/v1/members/guest", "${request.method} ${request.url.encodedPath}")
+        val body = Json.parseToJsonElement(request.body!!.utf8()).jsonObject
+        assertEquals(setOf("consents"), body.keys)
+        assertEquals(3, body["consents"]!!.jsonObject.size)
+    }
+
+    @Test
+    fun `게스트 시작 거부는 사유 코드로 돌려준다`() = runTest {
+        api.reply("""{"code":"UNDER_14","message":"만 14세 이상"}""", code = 409)
+
+        assertEquals(Outcome.Failure(AppError.Rejected("UNDER_14")), repository.startAsGuest(emptyMap()))
+    }
+
+    @Test
+    fun `소셜 계정 연동은 제공자와 토큰을 보내고 거부 사유를 그대로 돌려준다`() = runTest {
+        api.reply("""{"accountType":"LINKED","provider":"KAKAO"}""")
+        api.reply("""{"code":"ALREADY_MEMBER","message":"이미 가입된 계정"}""", code = 409)
+        api.reply("""{"code":"AUTH_FAILED","message":"인증 실패"}""", code = 401)
+        api.reply("""{"code":"PROVIDER_UNAVAILABLE","message":"잠시 후"}""", code = 503)
+
+        val kakao = ProviderToken(ProviderType.KAKAO, "kakao-token")
+        assertEquals(Outcome.Success(Unit), repository.linkSocialAccount(kakao))
+        assertEquals(Outcome.Failure(AppError.Rejected("ALREADY_MEMBER")), repository.linkSocialAccount(kakao))
+        assertEquals(Outcome.Failure(AppError.Rejected("AUTH_FAILED")), repository.linkSocialAccount(kakao))
+        assertEquals(Outcome.Failure(AppError.Rejected("PROVIDER_UNAVAILABLE")), repository.linkSocialAccount(kakao))
+        val request = api.take()
+        assertEquals("POST /api/v1/me/social-account", "${request.method} ${request.url.encodedPath}")
+        assertEquals(
+            Json.parseToJsonElement("""{"provider":"KAKAO","providerToken":"kakao-token"}"""),
+            Json.parseToJsonElement(request.body!!.utf8())
+        )
+    }
+
+    @Test
+    fun `프로필 수정은 태그를 보내지 않는다`() = runTest {
+        api.replyEmpty(200)
+
+        repository.editProfile("달리는곰", "안녕").value()
+
+        val body = Json.parseToJsonElement(api.take().body!!.utf8()).jsonObject
+        assertEquals(setOf("nickname", "intro"), body.keys)
+    }
+
+    @Test
+    fun `설정 사본에 테마·근접 알림·게스트 여부를 옮긴다(D-92, D-162)`() = runTest {
+        api.reply("""{"theme":"DARK","accountType":"GUEST","battleSettings":{"proximityAlert":false}}""")
+        api.reply("""{"theme":"SEPIA","accountType":"LINKED","linkedProvider":"KAKAO"}""")
+        api.reply("""{}""")
+
+        val remote = SettingsRemoteImpl(api.retrofit.create())
+        val guest = remote.fetch().value()
+        val linked = remote.fetch().value()
+        val empty = remote.fetch().value()
+
+        assertEquals(ScreenTheme.DARK, guest.theme)
+        assertTrue(guest.isGuest)
+        assertEquals(false, guest.guidanceSettings.isProximityAlertOn)
+        assertEquals(ScreenTheme.SYSTEM, linked.theme, "모르는 테마 이름은 SYSTEM")
+        assertEquals(false, linked.isGuest)
+        assertEquals(true, linked.guidanceSettings.isProximityAlertOn)
+        assertEquals(ScreenTheme.SYSTEM, empty.theme)
+        assertEquals(false, empty.isGuest)
+    }
+
+    @Test
+    fun `설정 화면 값에 테마와 근접 알림이 들어가고 근접 알림 변경은 대결 설정 JSON에 실린다`() = runTest {
+        api.reply("""{"theme":"LIGHT","battleSettings":{"defaultDistance":"KM3","proximityAlert":true}}""")
+        api.reply("""{"battleSettings":{"defaultDistance":"KM3","proximityAlert":true}}""")
+        api.replyEmpty()
+
+        val values = repository.settings().value().values
+        repository.changeSetting("BATTLE_SETTINGS.proximityAlert", "false").value()
+
+        assertEquals("LIGHT", values["THEME"])
+        assertEquals("true", values["BATTLE_SETTINGS.proximityAlert"])
+        api.take()
+        api.take()
+        val body = Json.parseToJsonElement(api.take().body!!.utf8()).jsonObject
+        val value = Json.parseToJsonElement(body["value"]!!.jsonPrimitive.content).jsonObject
+        assertEquals("false", value["proximityAlert"]!!.jsonPrimitive.content)
+        assertEquals("KM3", value["defaultDistance"]!!.jsonPrimitive.content)
     }
 
     private class FixedTokens : TokenProvider {

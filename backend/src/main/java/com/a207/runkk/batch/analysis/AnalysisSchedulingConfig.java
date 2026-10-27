@@ -1,5 +1,6 @@
 package com.a207.runkk.batch.analysis;
 
+import com.a207.runkk.common.ServerZone;
 import java.time.ZoneId;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -19,7 +20,7 @@ import org.springframework.scheduling.support.CronTrigger;
 @EnableConfigurationProperties(AnalysisSchedulingConfig.Schedule.class)
 public class AnalysisSchedulingConfig implements SchedulingConfigurer {
 
-    private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
+    private static final ZoneId SEOUL = ServerZone.ID;
 
     private final RankingRebuildJob rankingRebuildJob;
     private final PlanReminderJob planReminderJob;

@@ -219,4 +219,39 @@ class AvatarControllerTest extends WebTestSupport {
         mvc.perform(as(s, get("/api/v1/shop")))
                 .andExpect(jsonPath("$.items[?(@.itemId == 901)].owned").value(true));
     }
+
+    @Test
+    @DisplayName(
+            "배경(v0.11 FR-201·FR-202): 목록은 개인 랜드마크 22개, 잠긴 키 선택은 409 BACKGROUND_LOCKED, null은 기본 배경")
+    void backgrounds() throws Exception {
+        Session s = signUp();
+        mvc.perform(as(s, get("/api/v1/avatar/backgrounds")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.selectedKey").doesNotExist())
+                .andExpect(jsonPath("$.backgrounds.length()").value(22))
+                .andExpect(jsonPath("$.backgrounds[0].key").value("INCHEON"))
+                .andExpect(jsonPath("$.backgrounds[0].name").value("인천"))
+                .andExpect(jsonPath("$.backgrounds[0].stage").value("DOMESTIC"))
+                .andExpect(jsonPath("$.backgrounds[0].distanceMeters").value(60_000))
+                .andExpect(jsonPath("$.backgrounds[0].unlocked").value(false))
+                .andExpect(jsonPath("$.backgrounds[21].key").value("EARTH_LAP"));
+
+        mvc.perform(
+                        as(s, put("/api/v1/avatar/background"))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(write(Map.of("key", "BUSAN"))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("BACKGROUND_LOCKED"));
+        Map<String, Object> none = new HashMap<>();
+        none.put("key", null);
+        mvc.perform(
+                        as(s, put("/api/v1/avatar/background"))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(write(none)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.backgrounds.length()").value(22));
+        mvc.perform(as(s, get("/api/v1/avatar")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.backgroundKey").doesNotExist());
+    }
 }

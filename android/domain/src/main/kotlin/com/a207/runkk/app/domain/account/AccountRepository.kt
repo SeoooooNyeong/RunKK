@@ -15,11 +15,24 @@ interface AccountRepository {
 
     suspend fun logout(): Outcome<Unit>
 
+    /**
+     * 게스트로 시작(POST /members/guest, FR-197). [consents]의 키는 서버 ConsentItem 이름이고 가입과 같은 동의 화면이 채운다
+     * (HEART_RATE·FACE_TRANSFER는 받지 않는다). 거부는 Rejected(UNDER_14·CONSENT_MISSING 등), 접속지 한도 초과는 Server(429).
+     */
+    suspend fun startAsGuest(consents: Map<String, Boolean>): Outcome<GuestSession>
+
+    /**
+     * 게스트 계정에 소셜 계정을 연동(POST /me/social-account, FR-198). 토큰과 회원 ID는 그대로다. 다른 회원과 연동된 소셜 계정은
+     * Rejected(ALREADY_MEMBER), 이미 연동했으면 Rejected(ALREADY_LINKED).
+     */
+    suspend fun linkSocialAccount(token: ProviderToken): Outcome<Unit>
+
     suspend fun withdraw(): Outcome<Unit>
 
     suspend fun profile(memberId: Long): Outcome<Profile>
 
-    suspend fun editProfile(nickname: String, intro: String?, tags: Set<String>): Outcome<Unit>
+    /** 프로필 편집(PATCH /me/profile, FR-007). 성향 태그는 편집 항목이 아니다(D-91). */
+    suspend fun editProfile(nickname: String, intro: String?): Outcome<Unit>
 
     suspend fun changeSetting(item: String, value: String): Outcome<Unit>
 

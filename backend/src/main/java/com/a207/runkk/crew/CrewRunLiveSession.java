@@ -104,7 +104,9 @@ public class CrewRunLiveSession {
         List<RelayEntry> entries = new ArrayList<>();
         for (int i = 0; i < racing.size(); i++) {
             long id = racing.get(i);
-            entries.add(new RelayEntry(names.get(id), distanceOf(id), i + 1, connectionOf(id), id));
+            entries.add(
+                    new RelayEntry(
+                            names.get(id), distanceOf(id), i + 1, connectionOf(id), id, false));
         }
         quitters.stream()
                 .sorted()
@@ -116,7 +118,8 @@ public class CrewRunLiveSession {
                                                 distanceOf(id),
                                                 null,
                                                 RelayEntry.Connection.QUIT,
-                                                id)));
+                                                id,
+                                                false)));
         return entries;
     }
 

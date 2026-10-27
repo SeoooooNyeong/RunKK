@@ -41,9 +41,8 @@ class RecordScreenshotTest {
         view = view,
         isLoading = false,
         runs = runs,
-        dailyDistance = runs.groupBy {
-            it.startedAt.atZone(zone).toLocalDate()
-        }.mapValues { (_, l) -> l.fold(Distance.ZERO) { a, r -> a.plus(r.distance) } },
+        dailyDistance = dailyValidDistance(runs, zone),
+        excludedDays = excludedOnlyDays(runs, zone),
         pendingCount = 1,
         zone = zone
     )
@@ -51,6 +50,36 @@ class RecordScreenshotTest {
     @Test
     fun calendar() = compose.captureRunkkScreen("C1_record_calendar") {
         RecordListScreen(listState(RecordView.CALENDAR), onBack = {
+        }, onViewSelected = {}, onPreviousMonth = {}, onNextMonth = {}, onRun = {}, onRetry = {})
+    }
+
+    /** 같은 날 유효 3.09km와 집계 제외 기록이 섞인 날(26일 3.1km), 집계 제외 기록만 있는 날(25일, 흐린 점). */
+    private val mixedRuns = listOf(
+        summary("v1", 26, 3_090),
+        summary("x1", 26, 9_078_810, isValid = false),
+        summary("x2", 26, 3_140, isValid = false),
+        summary("x3", 25, 9_078_810, isValid = false)
+    )
+
+    private fun excludedState() = RecordListUiState(
+        month = YearMonth.of(2026, 10),
+        view = RecordView.CALENDAR,
+        isLoading = false,
+        runs = mixedRuns,
+        dailyDistance = dailyValidDistance(mixedRuns, zone),
+        excludedDays = excludedOnlyDays(mixedRuns, zone),
+        zone = zone
+    )
+
+    @Test
+    fun calendarExcluded() = compose.captureRunkkScreen("C1_record_calendar_excluded") {
+        RecordListScreen(excludedState(), onBack = {
+        }, onViewSelected = {}, onPreviousMonth = {}, onNextMonth = {}, onRun = {}, onRetry = {})
+    }
+
+    @Test
+    fun calendarExcludedLight() = compose.captureRunkkScreen("C1_record_calendar_excluded_light", isDarkTheme = false) {
+        RecordListScreen(excludedState(), onBack = {
         }, onViewSelected = {}, onPreviousMonth = {}, onNextMonth = {}, onRun = {}, onRetry = {})
     }
 
@@ -104,15 +133,15 @@ class RecordScreenshotTest {
     }
 
     @Test
-    fun cardFront() = compose.captureRunkkScreen("C2_record_card_front") {
+    fun cardFront() = compose.captureRunkkScreen("G1_record_card_front") {
         val card = runCard()
         val renderer = RunCardRenderer(RuntimeEnvironment.getApplication())
         RecordCardScreen(
             RecordCardUiState(
                 isLoading = false,
                 card = card,
-                front = renderer.render(card, CardSide.FRONT),
-                back = renderer.render(card, CardSide.BACK)
+                front = renderer.render(card, CardSide.FRONT, null, null),
+                back = renderer.render(card, CardSide.BACK, null, null)
             ),
             onClose = {},
             onSideSelected = {},
@@ -123,21 +152,86 @@ class RecordScreenshotTest {
     }
 
     @Test
-    fun cardBackNotShared() = compose.captureRunkkScreen("C2_record_card_back_not_shared") {
-        val card = runCard(shared = false)
+    fun cardBack() = compose.captureRunkkScreen("G2_record_card_back") {
+        val card = runCard()
         val renderer = RunCardRenderer(RuntimeEnvironment.getApplication())
         RecordCardScreen(
             RecordCardUiState(
                 isLoading = false,
                 card = card,
-                front = renderer.render(card, CardSide.FRONT),
-                back = renderer.render(card, CardSide.BACK),
+                front = renderer.render(card, CardSide.FRONT, null, null),
+                back = renderer.render(card, CardSide.BACK, null, null),
                 side = CardSide.BACK
             ),
             onClose = {},
             onSideSelected = {},
             onShare = {},
             onMessageShown = {},
+            onRetry = {}
+        )
+    }
+
+    /** G3 카드 공유: 코스 지도 공유가 꺼진 기록이라 "코스 지도 표시"가 잠겨 있다. */
+    @Test
+    fun cardShareCourseOff() = compose.captureRunkkScreen("G3_card_share_course_off") {
+        val card = runCard(shared = false)
+        val renderer = RunCardRenderer(RuntimeEnvironment.getApplication())
+        RecordCardScreen(
+            RecordCardUiState(
+                isLoading = false,
+                card = card,
+                front = renderer.render(card, CardSide.FRONT, null, null),
+                back = renderer.render(card, CardSide.BACK, null, null),
+                isShareStep = true
+            ),
+            onClose = {},
+            onSideSelected = {},
+            onShare = {},
+            onMessageShown = {},
+            onRetry = {}
+        )
+    }
+
+    // 라이트 벌(FR-203, NFR-041 화면 10개 × 테마 2).
+    @Test
+    fun listLight() = compose.captureRunkkScreen("C1_record_list_light", isDarkTheme = false) {
+        RecordListScreen(listState(RecordView.LIST), onBack = {
+        }, onViewSelected = {}, onPreviousMonth = {}, onNextMonth = {}, onRun = {}, onRetry = {})
+    }
+
+    @Test
+    fun recordDetailLight() = compose.captureRunkkScreen("C2_record_detail_light", isDarkTheme = false) {
+        val base = detail()
+        RecordDetailScreen(
+            RecordDetailUiState(
+                isLoading = false,
+                recordId = "r1",
+                detail = base.copy(
+                    route = listOf(
+                        GeoPoint(37.50, 127.00),
+                        GeoPoint(37.506, 127.008),
+                        GeoPoint(37.502, 127.016),
+                        GeoPoint(37.51, 127.024),
+                        GeoPoint(37.512, 127.03)
+                    ),
+                    unstableSegments = listOf(
+                        RecordDetail.Unstable(Duration.ofSeconds(900), Duration.ofSeconds(1_200), Distance(900))
+                    ),
+                    splitPaces = listOf(Pace(341), Pace(335), Pace(318), Pace(330), Pace(336)),
+                    fastestKm = Pace(318),
+                    averageHeartRate = 152,
+                    maxHeartRate = 178,
+                    heartRateZones = mapOf(
+                        "Z1" to Duration.ofMinutes(2),
+                        "Z2" to Duration.ofMinutes(8),
+                        "Z3" to Duration.ofMinutes(12),
+                        "Z4" to Duration.ofMinutes(5)
+                    ),
+                    newRecords = listOf("최장 거리 신기록 · 직전 4.80km")
+                )
+            ),
+            onBack = {},
+            onShare = {},
             onRetry = {}
         )
     }

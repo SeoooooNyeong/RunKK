@@ -1,7 +1,5 @@
 package com.a207.runkk.member;
 
-import com.a207.runkk.common.TagOwner;
-import com.a207.runkk.common.TagSet;
 import com.a207.runkk.common.Tier;
 import java.util.Collection;
 import java.util.HashMap;
@@ -29,7 +27,7 @@ public class MemberQueryService {
         this.memberRepository = memberRepository;
     }
 
-    /** 표시명·티어·공개 범위·태그. 한 번의 조회(N+1 방지). 탈퇴 회원은 DisplayName.WITHDRAWN. */
+    /** 표시명·티어·공개 범위. 한 번의 조회(N+1 방지). 탈퇴 회원은 DisplayName.WITHDRAWN. */
     public Map<Long, MemberSummary> summaries(Collection<Long> memberIds) {
         if (memberIds.isEmpty()) {
             return Map.of();
@@ -48,15 +46,6 @@ public class MemberQueryService {
         OptionalInt age = m.ageIn(year);
         String ageBand = age.isPresent() ? (age.getAsInt() / AGE_BAND * AGE_BAND) + "대" : null;
         return new MemberProfile(m.getLevel(), m.photoUrl(), m.intro(), ageBand, m.gender());
-    }
-
-    /** 성향 태그. 탈퇴했거나 태그가 없으면 TagSet.empty(RUNNER)(runimal, design-review.md R3). */
-    public TagSet tagsOf(long memberId) {
-        return memberRepository
-                .findById(memberId)
-                .filter(m -> m.getStatus() == MemberStatus.ACTIVE)
-                .map(Member::getTags)
-                .orElseGet(() -> TagSet.empty(TagOwner.RUNNER));
     }
 
     /** year 기준 나이. 출생연도가 없으면 비어 있음(analysis 심박 구간, design-review.md M4). */
@@ -133,5 +122,14 @@ public class MemberQueryService {
                     DisclosureLevel.of(viewerId, m.getId(), m.getStatus(), m.profileVisibility()));
         }
         return result;
+    }
+
+    /**
+     * 티어에 반영한 유효 러닝 순번(TierProgress.validRunCount). running.TierReconcileService가 running의 유효 기록 수와
+     * 비교해 빠진 순번을 찾는다(설계 6.1.2, 12.2 D3, D-108). 없는 회원은 0.
+     */
+    @Transactional(readOnly = true)
+    public int appliedValidRunCount(long memberId) {
+        return memberRepository.findById(memberId).map(Member::appliedValidRunCount).orElse(0);
     }
 }

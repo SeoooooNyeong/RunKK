@@ -3,6 +3,7 @@ package com.a207.runkk.infra.battle;
 import com.a207.runkk.battle.MatchQueue;
 import com.a207.runkk.battle.MatchStatus;
 import com.a207.runkk.battle.MatchTicket;
+import com.a207.runkk.battle.QueueRemoval;
 import com.a207.runkk.common.StandardDistance;
 import com.a207.runkk.common.Tier;
 import java.time.Duration;
@@ -56,12 +57,21 @@ public class RedisMatchQueue implements MatchQueue {
                     "redis.call('ZREM', KEYS[2], ARGV[1]) return redis.call('DEL', KEYS[1])",
                     Long.class);
 
-    /** WAITING일 때만 지우기(취소). KEYS[1] 표, KEYS[2] 정렬 집합. */
-    private static final RedisScript<Long> REMOVE_WAITING =
+    /**
+     * 취소(D-83): 상태 확인과 삭제를 한 스크립트로 한다. KEYS[1] 표, KEYS[2] 정렬 집합. 1 = WAITING이라 지움, 2 = 배정됨(지우지 않음),
+     * 0 = 표 없음.
+     */
+    private static final RedisScript<Long> REMOVE_IF_WAITING =
             new DefaultRedisScript<>(
-                    "if redis.call('HGET', KEYS[1], 'status') ~= 'WAITING' then return 0 end"
-                        + " redis.call('ZREM', KEYS[2], ARGV[1]) return redis.call('DEL', KEYS[1])",
+                    "local s = redis.call('HGET', KEYS[1], 'status')"
+                            + " if not s then return 0 end"
+                            + " if s ~= 'WAITING' then return 2 end"
+                            + " redis.call('ZREM', KEYS[2], ARGV[1]) redis.call('DEL', KEYS[1])"
+                            + " return 1",
                     Long.class);
+
+    private static final long SCRIPT_REMOVED = 1;
+    private static final long SCRIPT_ASSIGNED = 2;
 
     /** A-22: 두 표가 모두 WAITING일 때만 둘 다 ASSIGNED. */
     private static final RedisScript<Long> ASSIGN_PAIR =
@@ -120,13 +130,19 @@ public class RedisMatchQueue implements MatchQueue {
     }
 
     @Override
-    public boolean removeWaiting(long memberId) {
-        Long removed =
+    public QueueRemoval removeIfWaiting(long memberId) {
+        Long result =
                 redis.execute(
-                        REMOVE_WAITING,
+                        REMOVE_IF_WAITING,
                         List.of(ticketKey(memberId), QUEUE_KEY),
                         String.valueOf(memberId));
-        return removed != null && removed > 0;
+        if (result == null) {
+            return QueueRemoval.ABSENT;
+        }
+        if (result == SCRIPT_REMOVED) {
+            return QueueRemoval.REMOVED;
+        }
+        return result == SCRIPT_ASSIGNED ? QueueRemoval.ASSIGNED : QueueRemoval.ABSENT;
     }
 
     @Override

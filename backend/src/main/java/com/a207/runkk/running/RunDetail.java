@@ -16,6 +16,7 @@ import java.util.Map;
  * @param weather 날씨(없으면 null)
  * @param newRecords 신기록
  * @param heartRate 평균·최고 심박(심박 기록이 없으면 null, 결과 화면·카드 앞면 FR-078·FR-068)
+ * @param pauses 정지 구간(시간순, 정지가 없으면 빈 목록, FR-036)
  */
 public record RunDetail(
         RunSummary summary,
@@ -25,4 +26,5 @@ public record RunDetail(
         List<UnstableSegment> unstableSegments,
         Weather weather,
         List<NewRecordMark> newRecords,
-        HeartRateSummary heartRate) {}
+        HeartRateSummary heartRate,
+        List<PauseInterval> pauses) {}

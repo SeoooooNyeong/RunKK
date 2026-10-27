@@ -1,9 +1,13 @@
 package com.a207.runkk.watch.link
 
+import com.a207.runkk.watch.alert.ProximityAlertPlayer
 import com.a207.runkk.watch.heart.HeartRateCollector
 import com.a207.runkk.watch.heart.WatchHeartRate
 import com.a207.runkk.wear.contract.EndRequestMessage
 import com.a207.runkk.wear.contract.HeartRateBatchMessage
+import com.a207.runkk.wear.contract.LeadChangeMessage
+import com.a207.runkk.wear.contract.PauseRequestMessage
+import com.a207.runkk.wear.contract.ProximityMessage
 import com.a207.runkk.wear.contract.StartRequestMessage
 import com.a207.runkk.wear.contract.WatchDisplayMessage
 import com.a207.runkk.wear.contract.WearPaths
@@ -27,14 +31,18 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.serialization.SerializationException
+import timber.log.Timber
 
 /**
  * 폰과 메시지를 주고받는다(6.1.15, D-20). 메시지 형식은 wear.contract만 쓴다.
  *
  * - 폰 → 워치: 표시 정보(MessageClient, [WearPaths.WATCH_DISPLAY])를 [displays]로 내보내고,
  *   그 허용 플래그·러닝 여부로 [HeartRateCollector]를 켜고 끈다. 허용이 거짓이면 즉시 멈추고 보내지 않은 심박을 버린다(NFR-023).
+ * - 폰 → 워치: 근접 알림([WearPaths.PROXIMITY])·추월 역전([WearPaths.LEAD_CHANGE])은 [ProximityAlertPlayer]에 넘긴다(FR-196, FR-188).
+ *   근접 알림은 [proximity]로도 내보내 대결 화면이 격차를 보인다.
+ *   마지막 표시가 러닝 중일 때만 넘기고, 러닝이 끝났다는 표시를 받으면 재생을 멈춘다. 모르는 경로는 버린다(F.4.4).
  * - 워치 → 폰: 시작 요청(MessageClient, [WearPaths.START_REQUEST], FR-183), 종료 요청(MessageClient,
- *   [WearPaths.END_REQUEST], FR-181)과
+ *   [WearPaths.END_REQUEST], FR-181), 일시정지·재개 요청(MessageClient, [WearPaths.PAUSE_REQUEST], FR-194)과
  *   심박 묶음(DataClient, [WearPaths.HEART_RATE_BATCH] 아래 묶음마다 다른 경로, FR-043, NFR-032).
  *
  * 수신(메시지·심박)은 상태만 바꾸고 바로 돌아오며, 전송은 따로 도는 코루틴이 맡는다.
@@ -45,6 +53,7 @@ import kotlinx.serialization.SerializationException
 class PhoneLink @Inject constructor(
     private val dataLayer: WearDataLayer,
     private val collector: HeartRateCollector,
+    private val alertPlayer: ProximityAlertPlayer,
     private val clock: Clock,
     private val scope: CoroutineScope
 ) {
@@ -60,6 +69,9 @@ class PhoneLink @Inject constructor(
     private var allowGeneration = 0L
     private var batchSequence = 0L
     private var silenceWatchdog: Job? = null
+
+    /** 마지막으로 받은 표시 정보. 일시정지 요청을 보낼지(isPausable), 근접 알림을 재생할지(isRunning) 정한다. */
+    private var lastDisplay: WatchDisplayMessage? = null
 
     /** 아직 폰에 넘기지 않은 심박(측정 순서). */
     private val pending = ArrayDeque<HeartRateBatchMessage.Sample>()
@@ -85,6 +97,14 @@ class PhoneLink @Inject constructor(
 
     /** 폰 노드가 연결되어 있는지(N-21 시작 화면의 폰 연결 상태). */
     val phoneConnected: StateFlow<Boolean> = _phoneConnected.asStateFlow()
+
+    private val _proximity = MutableStateFlow<PhoneProximity?>(null)
+
+    /**
+     * 러닝 중 받은 마지막 근접 알림(대결 근접 알림 화면, FR-196). 꺼짐 메시지나 러닝이 끝났다는 표시를 받으면 null.
+     * 새 메시지가 끊긴 뒤의 만료(3초, D-158)는 화면 규칙이라 watch.ui가 받은 시각으로 판단한다.
+     */
+    val proximity: StateFlow<PhoneProximity?> = _proximity.asStateFlow()
 
     /** 폰이 수집을 허용했지만 워치 OS 심박 권한이 없다. */
     val heartRatePermissionNeeded: StateFlow<Boolean> = collector.state
@@ -142,11 +162,36 @@ class PhoneLink @Inject constructor(
     suspend fun sendEndRequest(): Boolean =
         sendToPhone(WearPaths.END_REQUEST, EndRequestMessage(requestedAtEpochMillis = clock.millis()).encode())
 
+    /**
+     * 일시정지·재개 요청(FR-194). 마지막으로 받은 표시가 러닝 중이고 isPausable이 참일 때만 보낸다(자유런 측정 중, F.4.2).
+     * 표시를 받지 않았거나(옛 폰 앱 포함) 일시정지할 수 없으면, 또는 폰과 연결되어 있지 않거나 보내지 못하면 거짓.
+     * 받은 폰이 상태를 바꾸고 다음 표시(isPaused)로 알린다. 워치는 요청만 보낸다(D-93).
+     */
+    suspend fun sendPauseRequest(action: PauseRequestMessage.Action): Boolean {
+        val isPausable = synchronized(lock) { lastDisplay?.let { it.isRunning && it.isPausable } == true }
+        if (!isPausable) return false
+        val message = PauseRequestMessage(action = action, requestedAtEpochMillis = clock.millis())
+        return sendToPhone(WearPaths.PAUSE_REQUEST, message.encode())
+    }
+
+    /** 일시정지 요청. 화면(watch.ui)이 wear.contract 형식을 몰라도 되게 둔 [sendPauseRequest]의 짧은 이름. */
+    suspend fun requestPause(): Boolean = sendPauseRequest(PauseRequestMessage.Action.PAUSE)
+
+    /** 재개 요청. [requestPause]와 같다. */
+    suspend fun requestResume(): Boolean = sendPauseRequest(PauseRequestMessage.Action.RESUME)
+
+    /** 폰 연결을 지금 다시 확인한다("다시 연결", 와이어프레임 K3). 연결된 폰 노드가 있으면 참. */
+    suspend fun recheckConnection(): Boolean = refreshConnection().isNotEmpty()
+
     private suspend fun sendToPhone(path: String, bytes: ByteArray): Boolean {
         val nodes = refreshConnection()
-        if (nodes.isEmpty()) return false
+        if (nodes.isEmpty()) {
+            Timber.w("폰 노드가 없어 %s 를 보내지 못했다", path)
+            return false
+        }
         var delivered = false
         nodes.forEach { node -> delivered = dataLayer.sendMessage(node, path, bytes) || delivered }
+        if (!delivered) Timber.w("폰에 %s 를 보내지 못했다", path)
         return delivered
     }
 
@@ -167,27 +212,67 @@ class PhoneLink @Inject constructor(
     /** OS 심박 권한 결과가 바뀌었다(권한 창 닫힘, 화면 복귀). */
     fun onHeartRatePermissionChanged() = collector.onPermissionChanged()
 
+    /** 경로로 나눈다. 모르는 경로(새 폰이 더한 경로 포함)와 해독할 수 없는 본문은 버린다(F.4.4). */
     private fun onMessage(message: WearMessage) {
-        if (message.path != WearPaths.WATCH_DISPLAY) return
-        val display = decodeOrNull(message.data) ?: return
+        when (message.path) {
+            WearPaths.WATCH_DISPLAY -> decodeOrNull(message) { WatchDisplayMessage.decode(it) }?.let(::onDisplay)
+
+            WearPaths.PROXIMITY ->
+                decodeOrNull(message) { ProximityMessage.decode(it) }
+                    ?.takeIf { isRunning() }
+                    ?.let(::onProximity)
+
+            WearPaths.LEAD_CHANGE ->
+                decodeOrNull(message) { LeadChangeMessage.decode(it) }
+                    ?.takeIf { isRunning() }
+                    ?.let(alertPlayer::onLeadChange)
+
+            else -> Unit
+        }
+    }
+
+    private fun onDisplay(display: WatchDisplayMessage) {
+        synchronized(lock) { lastDisplay = display }
         _phoneConnected.value = true
         applyCollectionRules(display)
         _lastDisplayAtMillis.value = clock.millis()
         _displays.tryEmit(display)
-        if (!display.running) flushRequests.trySend(Unit)
+        if (!display.isRunning) {
+            alertPlayer.stop()
+            _proximity.value = null
+            flushRequests.trySend(Unit)
+        }
     }
 
-    private fun decodeOrNull(bytes: ByteArray): WatchDisplayMessage? = try {
-        WatchDisplayMessage.decode(bytes)
-    } catch (_: SerializationException) {
+    /** 근접 알림은 소리·진동으로 재생하고, 화면에도 보이게 마지막 값을 남긴다. */
+    private fun onProximity(message: ProximityMessage) {
+        alertPlayer.onProximity(message)
+        _proximity.value = message.takeIf { it.isActive }?.let {
+            PhoneProximity(
+                gapMeters = it.gapMeters,
+                isAhead = it.isAhead,
+                intervalMillis = it.intervalMillis,
+                receivedAtMillis = clock.millis()
+            )
+        }
+    }
+
+    /** 마지막 표시가 러닝 중인지. 러닝이 끝난 뒤 늦게 온 근접·추월 메시지로 울리지 않게 한다. */
+    private fun isRunning(): Boolean = synchronized(lock) { lastDisplay?.isRunning == true }
+
+    private inline fun <T> decodeOrNull(message: WearMessage, decode: (ByteArray) -> T): T? = try {
+        decode(message.data)
+    } catch (e: SerializationException) {
+        Timber.w(e, "%s 본문을 해독하지 못해 버린다", message.path)
         null
-    } catch (_: IllegalArgumentException) {
+    } catch (e: IllegalArgumentException) {
+        Timber.w(e, "%s 본문을 해독하지 못해 버린다", message.path)
         null
     }
 
     /** 폰 허용 플래그가 먼저다. 허용이 거짓이면 러닝 여부와 관계없이 멈추고 보내지 않은 심박을 버린다. */
     private fun applyCollectionRules(display: WatchDisplayMessage) {
-        val allowed = display.heartRateCollectionAllowed
+        val allowed = display.isHeartRateCollectionAllowed
         synchronized(lock) {
             if (allowed && !collectionAllowed) allowedSinceMillis = clock.millis()
             if (!allowed) {
@@ -198,7 +283,7 @@ class PhoneLink @Inject constructor(
             collectionAllowed = allowed
         }
         collector.allow(allowed)
-        if (display.running && allowed) {
+        if (display.isRunning && allowed) {
             collector.start()
             restartSilenceWatchdog()
         } else {

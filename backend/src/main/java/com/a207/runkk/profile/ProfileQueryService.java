@@ -12,7 +12,6 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -69,8 +68,8 @@ public class ProfileQueryService {
                 targetId,
                 summary.displayName(),
                 avatarQuery.faceKey(targetId).orElse(null),
+                avatarQuery.backgroundKeyOf(targetId).orElse(null),
                 summary.tier(),
-                summary.tags() == null ? Set.of() : summary.tags().tags(),
                 type == null ? null : type.name(),
                 crewMembershipReader
                         .activeCrewOf(targetId)

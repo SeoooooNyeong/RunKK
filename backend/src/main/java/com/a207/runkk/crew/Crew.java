@@ -33,6 +33,9 @@ public class Crew {
     /** 정원(크루장 포함, FR-111). */
     public static final int CAPACITY = 10;
 
+    /** 운영진 상한(SRS 제안 값, FR-204, D-98, D-113). */
+    public static final int MAX_MANAGERS = 2;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -154,7 +157,9 @@ public class Crew {
         return headcount() > 1 ? ReasonCode.LEADER_MUST_TRANSFER : ReasonCode.CREW_DELETE_REQUIRED;
     }
 
-    /** 두 역할을 함께 바꾼다. to가 소속 크루원이 아니거나 from과 같으면 TARGET_INVALID. */
+    /**
+     * 두 역할을 함께 바꾼다. to가 소속 구성원(크루원·운영진)이 아니거나 from과 같으면 TARGET_INVALID. 운영진이 넘겨받으면 그 운영진 자리는 빈다.
+     */
     public void transferLeadership(long fromId, long toId) {
         CrewMembership from =
                 membershipOf(fromId)
@@ -162,16 +167,50 @@ public class Crew {
                         .orElseThrow(() -> new IllegalStateException("크루장이 아니다: " + fromId));
         CrewMembership to =
                 membershipOf(toId)
-                        .filter(m -> m.role() == CrewRole.MEMBER)
+                        .filter(m -> m.role() != CrewRole.LEADER)
                         .orElseThrow(() -> new BusinessRuleException(ReasonCode.TARGET_INVALID));
         from.demote();
         to.promote();
     }
 
+    /**
+     * 운영진 지정(FR-204). crew 행 잠금 안(CrewAccess.checkForUpdate)에서 부르고 권한은 서비스가 먼저 본다. 대상이 소속 MEMBER가
+     * 아니면(소속 아님·크루장 본인·이미 운영진) TARGET_INVALID, 활성 운영진이 이미 MAX_MANAGERS명이면 MANAGER_LIMIT.
+     */
+    public void appointManager(long targetId) {
+        CrewMembership target =
+                membershipOf(targetId)
+                        .filter(m -> m.role() == CrewRole.MEMBER)
+                        .orElseThrow(() -> new BusinessRuleException(ReasonCode.TARGET_INVALID));
+        if (managerCount() >= MAX_MANAGERS) {
+            throw new BusinessRuleException(ReasonCode.MANAGER_LIMIT);
+        }
+        target.appointManager();
+    }
+
+    /** 운영진 해제(FR-204). 대상이 소속 MANAGER가 아니면 TARGET_INVALID. 대상은 MEMBER가 된다. */
+    public void dismissManager(long targetId) {
+        membershipOf(targetId)
+                .filter(m -> m.role() == CrewRole.MANAGER)
+                .orElseThrow(() -> new BusinessRuleException(ReasonCode.TARGET_INVALID))
+                .demote();
+    }
+
+    /** 활성 운영진 수. */
+    public int managerCount() {
+        return (int) activeMembers().stream().filter(m -> m.role() == CrewRole.MANAGER).count();
+    }
+
     public CrewRelation relationOf(long memberId) {
-        return membershipOf(memberId)
-                .map(m -> m.role() == CrewRole.LEADER ? CrewRelation.LEADER : CrewRelation.MEMBER)
-                .orElse(CrewRelation.OUTSIDER);
+        return membershipOf(memberId).map(m -> relationOf(m.role())).orElse(CrewRelation.OUTSIDER);
+    }
+
+    private static CrewRelation relationOf(CrewRole role) {
+        return switch (role) {
+            case LEADER -> CrewRelation.LEADER;
+            case MANAGER -> CrewRelation.MANAGER;
+            case MEMBER -> CrewRelation.MEMBER;
+        };
     }
 
     /**

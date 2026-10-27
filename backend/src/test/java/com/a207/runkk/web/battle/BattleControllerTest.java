@@ -87,9 +87,10 @@ class BattleControllerTest extends WebTestSupport {
                                 .content(distance(5_000)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("RANKED_ONLY"));
+        // 대기 중이 아닌 취소는 SRS 4.1 ELSE 갈래대로 거부한다(D-83 ABSENT, K-1)
         mvc.perform(as(s, delete("/api/v1/battles/match")))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.waiting").value(false));
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ALREADY_MATCHED"));
         mvc.perform(post("/api/v1/battles/match")).andExpect(status().isUnauthorized());
         mvc.perform(as(s, get("/api/v1/battles/match")))
                 .andExpect(status().isOk())

@@ -2,209 +2,152 @@ package com.a207.runkk.app.ui.me
 
 import app.cash.turbine.test
 import com.a207.runkk.app.core.designsystem.RunkkErrorText
+import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.AppError
-import com.a207.runkk.app.domain.account.Gender
+import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.domain.account.SignUpForm
 import com.a207.runkk.app.domain.account.SignUpUseCase
+import com.a207.runkk.app.domain.account.StartAsGuestUseCase
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
 
+/** 동의 화면 하나(가입·게스트 공용, FR-003·FR-004·FR-028·FR-197·FR-199, D-90, D-159). */
 class SignUpViewModelTest {
     @get:Rule
     val main = MainDispatcherRule()
 
     private val account = FakeAccountRepository()
-    private val vm = SignUpViewModel(SignUpUseCase(account, FakeSessionRepository(), FakeSettingsRepository()), account)
+    private val session = FakeSessionRepository()
+    private val settings = FakeSettingsRepository()
+    private val vm =
+        SignUpViewModel(
+            SignUpUseCase(account, session, settings),
+            StartAsGuestUseCase(account, session, settings),
+            account
+        )
 
-    private fun agreeRequired() = SignUpConsents.items.filter {
-        it.isRequired
-    }.forEach { vm.onConsentChange(it.item, true) }
+    private fun agreeRequired() =
+        SignUpConsents.items.filter { it.isRequired }.forEach { vm.onConsentChange(it.item, true) }
 
     @Test
-    fun `필수 동의 4개가 모두 있어야 다음 단계로 간다(FR-003·FR-004)`() {
-        assertFalse(vm.state.value.canProceed)
+    fun `필수 동의 4개가 모두 있어야 시작할 수 있고 선택 동의는 기본 꺼짐이다(FR-003·FR-004)`() {
+        assertFalse(vm.state.value.canSubmit)
+        assertTrue(vm.state.value.consents.values.none { it })
         vm.onConsentChange("TERMS", true)
-        vm.onNext()
-        assertEquals(SignUpStep.CONSENT, vm.state.value.step)
+        assertFalse(vm.state.value.canSubmit)
         agreeRequired()
-        assertTrue(vm.state.value.canProceed)
-        vm.onNext()
-        assertEquals(SignUpStep.PROFILE, vm.state.value.step)
+        assertTrue(vm.state.value.canSubmit)
+        assertEquals(
+            listOf("AGE_14_PLUS", "TERMS", "PRIVACY", "LOCATION", "MARKETING", "LLM_TRANSFER"),
+            SignUpConsents.items.map {
+                it.item
+            }
+        )
     }
 
     @Test
     fun `전체 동의는 선택 동의까지 켜고 끈다`() {
         vm.onAllAgreedChange(true)
-        assertTrue(vm.state.value.consents.values.all { it })
         assertTrue(vm.state.value.isAllAgreed)
-        vm.onConsentChange("MARKETING", false)
-        assertFalse(vm.state.value.isAllAgreed)
         vm.onAllAgreedChange(false)
         assertTrue(vm.state.value.consents.values.none { it })
     }
 
     @Test
-    fun `닉네임은 비우거나 2~20자일 때만 넘어가고 태그는 하나 이상`() {
+    fun `가입은 닉네임 없이 동의만 보내고 홈으로 간다(D-90)`() = runTest {
         agreeRequired()
-        vm.onNext()
-        vm.onNicknameChange("곰")
-        assertFalse(vm.state.value.canProceed)
-        vm.onNicknameChange("")
-        assertTrue(vm.state.value.canProceed)
-        vm.onNicknameChange("달리는곰")
-        vm.onNext()
-        assertEquals(SignUpStep.TAGS, vm.state.value.step)
-        assertFalse(vm.state.value.canProceed)
-        vm.onTagToggled("SOLO_RUN")
-        vm.onTagToggled("SOCIAL_RUN")
-        assertEquals(setOf("SOCIAL_RUN"), vm.state.value.tags)
-        vm.onNext()
-        assertEquals(SignUpStep.AVATAR, vm.state.value.step)
-        vm.onBack()
-        assertEquals(SignUpStep.TAGS, vm.state.value.step)
-    }
-
-    @Test
-    fun `가입하면 입력값을 그대로 보내고 아바타 만들기로 간다`() = runTest {
-        agreeRequired()
-        vm.onConsentChange("LLM_TRANSFER", true)
-        vm.onNext()
-        vm.onNicknameChange("달리는곰")
-        vm.onBirthYearChange(1998)
-        vm.onGenderChange(Gender.FEMALE)
-        vm.onIntroChange("퇴근 뒤 한강")
-        vm.onVisibilityChange("CREW")
-        vm.onNext()
-        vm.onTagToggled("EVENING")
-        vm.onNext()
         vm.events.test {
-            vm.onSubmit(shouldCreateAvatar = true)
-            assertEquals(SignUpEvent.Completed(shouldCreateAvatar = true), awaitItem())
+            vm.onSubmit(isGuest = false)
+            assertEquals(SignUpEvent.Completed, awaitItem())
         }
-        val form = requireNotNull(account.lastForm)
-        assertEquals("달리는곰", form.nickname)
-        assertEquals(1998, form.birthYear)
-        assertEquals(Gender.FEMALE, form.gender)
-        assertEquals("CREW", form.recordVisibility)
-        assertEquals(setOf("EVENING"), form.tags)
-        assertEquals(true, form.consents["LLM_TRANSFER"])
-        assertEquals(false, form.consents["MARKETING"])
+        assertEquals(SignUpForm(nickname = null, consents = vm.state.value.consents), account.lastForm)
+        assertTrue(session.loggedIn.value)
     }
 
     @Test
-    fun `빈 닉네임·성별 미선택은 계정 이름·밝히지 않음으로 보낸다`() = runTest {
+    fun `필수 동의가 빠지면 보내지 않는다`() {
+        vm.onSubmit(isGuest = false)
+        vm.onSubmit(isGuest = true)
+        assertNull(account.lastForm)
+        assertNull(account.lastGuestConsents)
+    }
+
+    @Test
+    fun `가입 거부는 화면에 남기고, 가입 시간이 지났으면 로그인부터 다시 하게 한다`() {
         agreeRequired()
-        vm.onNext()
-        vm.onNext()
-        vm.onTagToggled("SOLO_RUN")
-        vm.onNext()
-        vm.onSubmit(shouldCreateAvatar = false)
-        val form = requireNotNull(account.lastForm)
-        assertEquals(null, form.nickname)
-        assertEquals(Gender.UNDISCLOSED, form.gender)
-        assertEquals(null, form.intro)
-    }
-
-    @Test
-    fun `만 14세 미만 거부는 동의 단계로 돌아가 사유를 보인다`() = runTest {
         account.failures["signUp"] = AppError.Rejected("UNDER_14")
-        agreeRequired()
-        vm.onNext()
-        vm.onNext()
-        vm.onTagToggled("SOLO_RUN")
-        vm.onNext()
-        vm.onSubmit(shouldCreateAvatar = false)
-        assertEquals(SignUpStep.CONSENT, vm.state.value.step)
+        vm.onSubmit(isGuest = false)
         assertEquals(RunkkErrorText.rejected("UNDER_14"), vm.state.value.submitError)
+        assertTrue(vm.state.value.canRetrySubmit)
+        account.failures["signUp"] = AppError.Rejected("SIGN_UP_TICKET_INVALID")
+        vm.onSubmit(isGuest = false)
+        assertFalse(vm.state.value.canRetrySubmit)
         assertFalse(vm.state.value.isSubmitting)
     }
 
     @Test
-    fun `닉네임 오류는 프로필 단계로 돌아간다`() = runTest {
-        account.failures["signUp"] = AppError.Rejected("NICKNAME_INVALID")
+    fun `게스트로 시작하면 같은 동의를 보내고 자료 유실 고지를 먼저 보인다(FR-197·FR-199)`() = runTest {
         agreeRequired()
-        vm.onNext()
-        vm.onNicknameChange("달리는곰")
-        vm.onNext()
-        vm.onTagToggled("SOLO_RUN")
-        vm.onNext()
-        vm.onSubmit(shouldCreateAvatar = true)
-        assertEquals(SignUpStep.PROFILE, vm.state.value.step)
+        vm.events.test {
+            vm.onSubmit(isGuest = true)
+            expectNoEvents()
+            assertTrue(vm.state.value.isGuestNoticeVisible)
+            assertEquals(vm.state.value.consents, account.lastGuestConsents)
+            assertTrue(session.hasGuestCredential())
+            vm.onGuestNoticeConfirmed()
+            assertEquals(SignUpEvent.Completed, awaitItem())
+        }
+        assertFalse(vm.state.value.isGuestNoticeVisible)
     }
 
     @Test
-    fun `약관 보기는 본문을 띄우고 주소면 밖에서 연다`() = runTest {
+    fun `게스트 고지에서 계정 연동을 고르면 설정의 연동으로 간다(FR-199 제안)`() = runTest {
+        agreeRequired()
+        vm.onSubmit(isGuest = true)
+        vm.events.test {
+            vm.onGuestNoticeLinkTapped()
+            assertEquals(SignUpEvent.CompletedToLink, awaitItem())
+        }
+    }
+
+    @Test
+    fun `게스트 접속지 한도(429)는 잠시 뒤 다시 하라고 알린다`() {
+        agreeRequired()
+        account.guestResult = Outcome.Failure(AppError.Server(429))
+        vm.onSubmit(isGuest = true)
+        assertEquals(UiText.Res(R.string.me_guest_too_many), vm.state.value.submitError)
+        assertFalse(vm.state.value.isGuestNoticeVisible)
+        assertFalse(session.loggedIn.value)
+    }
+
+    @Test
+    fun `약관 보기는 본문이면 대화상자, 주소면 밖에서 연다(FR-018)`() = runTest {
         vm.onViewLegal("TERMS")
         assertEquals("약관 본문", vm.state.value.legal?.body)
         vm.onLegalDismissed()
-        assertEquals(null, vm.state.value.legal)
-        account.legal = "https://runkk.example/legal/privacy"
+        account.legal = "https://runkk.example/terms"
         vm.events.test {
-            vm.onViewLegal("PRIVACY")
-            assertEquals(SignUpEvent.OpenUrl("https://runkk.example/legal/privacy"), awaitItem())
-        }
-    }
-
-    private fun reachAvatarStep() {
-        agreeRequired()
-        vm.onNext()
-        vm.onNext()
-        vm.onTagToggled("SOLO_RUN")
-        vm.onNext()
-        assertEquals(SignUpStep.AVATAR, vm.state.value.step)
-    }
-
-    @Test
-    fun `5단계에서 가입이 거부되면 사유 안내가 남고 다시 시도할 수 있다`() = runTest {
-        account.failures["signUp"] = AppError.Rejected("BAD_REQUEST")
-        reachAvatarStep()
-        vm.onSubmit(shouldCreateAvatar = true)
-        val failed = vm.state.value
-        assertEquals(SignUpStep.AVATAR, failed.step)
-        assertEquals(RunkkErrorText.rejected("BAD_REQUEST"), failed.submitError)
-        assertFalse(failed.isSubmitting)
-        assertTrue(failed.canRetrySubmit)
-
-        account.failures.clear()
-        vm.events.test {
-            vm.onRetrySubmit()
-            assertEquals(SignUpEvent.Completed(shouldCreateAvatar = true), awaitItem())
-        }
-        assertEquals(null, vm.state.value.submitError)
-    }
-
-    @Test
-    fun `네트워크 오류도 5단계에 안내가 남는다`() = runTest {
-        account.failures["signUp"] = AppError.Network
-        reachAvatarStep()
-        vm.onSubmit(shouldCreateAvatar = false)
-        assertEquals(RunkkErrorText.of(AppError.Network), vm.state.value.submitError)
-        assertTrue(vm.state.value.canRetrySubmit)
-    }
-
-    @Test
-    fun `가입 시간이 지나면 다시 시도 대신 로그인부터 다시 하게 한다`() = runTest {
-        account.failures["signUp"] = AppError.Rejected("SIGN_UP_TICKET_INVALID")
-        reachAvatarStep()
-        vm.onSubmit(shouldCreateAvatar = true)
-        assertEquals(RunkkErrorText.rejected("SIGN_UP_TICKET_INVALID"), vm.state.value.submitError)
-        assertFalse(vm.state.value.canRetrySubmit)
-        vm.events.test {
-            vm.onExit()
-            assertEquals(SignUpEvent.Exit, awaitItem())
+            vm.onViewLegal("TERMS")
+            assertEquals(SignUpEvent.OpenUrl("https://runkk.example/terms"), awaitItem())
         }
     }
 
     @Test
-    fun `안내는 이전 단계로 돌아가거나 다시 보낼 때 지워진다`() = runTest {
-        account.failures["signUp"] = AppError.Rejected("BAD_REQUEST")
-        reachAvatarStep()
-        vm.onSubmit(shouldCreateAvatar = false)
-        assertTrue(vm.state.value.submitError != null)
-        vm.onBack()
-        assertEquals(null, vm.state.value.submitError)
+    fun `AN5-D-15 고지 문서가 http 주소면 밖에서 열지 않고 본문으로 보이며 열기 실패는 안내한다`() = runTest {
+        account.legal = "http://runkk.example/terms"
+        vm.events.test {
+            vm.onViewLegal("TERMS")
+            expectNoEvents()
+        }
+        assertEquals("http://runkk.example/terms", vm.state.value.legal?.body, "암호화 없는 주소는 열지 않는다")
+
+        vm.onLegalOpenFailed()
+
+        assertEquals(UiText.Res(R.string.me_legal_open_failed), vm.state.value.error)
     }
 }

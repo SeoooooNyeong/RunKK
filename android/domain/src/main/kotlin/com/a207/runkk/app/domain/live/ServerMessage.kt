@@ -5,8 +5,8 @@ import java.time.Duration
 import java.time.Instant
 
 /**
- * 서버 → 앱 실시간 메시지(5.7.2). 서버는 type() 이름으로 직렬화하고(D-06), data.live.ServerMessageDecoder가
- * type 필드를 보고 아래 11종 가운데 하나로 해독한다. 항목 이름은 서버 battle.live·crew.live record와 같다(H-17 계약 시험).
+ * 서버 → 앱 실시간 메시지(5.7.2, F.3.2). 서버는 type() 이름으로 직렬화하고(D-06), data.live.ServerMessageDecoder가
+ * type 필드를 보고 아래 14종 가운데 하나로 해독한다. 항목 이름은 서버 battle.live·crew.live record와 같다(H-17 계약 시험).
  */
 sealed interface ServerMessage
 
@@ -95,3 +95,32 @@ data class CrewRunRelay(val postId: Long, val entries: List<Entry>) : ServerMess
 
 /** 크루런 종료. */
 data class CrewRunEnded(val postId: Long) : ServerMessage
+
+/**
+ * 크루 채팅 새 메시지(FR-208, F.3.2). [authorId]는 탈퇴한 작성자면 null, [clientMessageId]는 보낸 사람이 붙인 멱등 키다(D-101).
+ * 위치 항목이 없다(NFR-021).
+ */
+data class CrewChatPosted(
+    val crewId: Long,
+    val messageId: Long,
+    val authorId: Long?,
+    val authorName: String,
+    val content: String,
+    val sentAt: Instant,
+    val clientMessageId: String?
+) : ServerMessage
+
+/** 크루 채팅 메시지 삭제·숨김(FR-213, FR-215). 모르는 사유 상수의 메시지는 data.live가 버린다(D-85). */
+data class CrewChatRemoved(val crewId: Long, val messageId: Long, val reason: Reason) : ServerMessage {
+    enum class Reason {
+        DELETED,
+        HIDDEN
+    }
+}
+
+/**
+ * 크루 채팅 리액션 수 변화(FR-210). [reactions]의 키는 서버 ReactionKind 이름이다. domain.live는 domain.chat을 모르므로(5.1.2)
+ * ChatRoom이 domain.chat.ReactionKind로 바꾼다.
+ */
+data class CrewChatReactionChanged(val crewId: Long, val messageId: Long, val reactions: Map<String, Int>) :
+    ServerMessage

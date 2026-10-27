@@ -124,4 +124,23 @@ class HomeScreenshotTest {
             onRetry = {}
         )
     }
+
+    // 라이트 벌(FR-203, NFR-041 화면 10개 × 테마 2).
+    @Test
+    fun homeLight() = compose.captureRunkkScreen("A5_home_light", isDarkTheme = false) {
+        HomeScreen(
+            HomeUiState(
+                isLoading = false,
+                today = today,
+                dashboard = dashboard,
+                freeRunGoal = FreeRunGoal(PlanSnapshot(Distance(5_000), Pace(330)), isFromCoachPlan = true),
+                pendingCount = 1,
+                header = HomeHeader("달리는곰", "골드", 3, 1_250),
+                isHeaderLoading = false
+            ),
+            onModeSelected = {},
+            onNavigate = {},
+            onRetry = {}
+        )
+    }
 }

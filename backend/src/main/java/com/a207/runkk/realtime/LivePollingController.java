@@ -52,9 +52,10 @@ public class LivePollingController {
         }
         return serializer
                 .readInbound(body)
+                .filter(InboundProgress.class::isInstance)
                 .map(
                         inbound -> {
-                            dispatcher.dispatch(memberId, inbound);
+                            dispatcher.dispatch(memberId, (InboundProgress) inbound);
                             return ResponseEntity.noContent().<Void>build();
                         })
                 .orElseGet(() -> ResponseEntity.badRequest().build());

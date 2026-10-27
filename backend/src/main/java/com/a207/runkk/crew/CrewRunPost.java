@@ -27,13 +27,10 @@ import java.util.stream.Collectors;
  */
 @Entity
 @DiscriminatorValue("CREW_RUN")
-public class CrewRunPost extends CrewPost {
+public class CrewRunPost extends SchedulePost {
 
     /** 출발 카운트다운(FR-148). */
     static final int COUNTDOWN_SECONDS = 3;
-
-    @Column(name = "scheduled_at")
-    private LocalDateTime scheduledAt;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "distance", length = 10)
@@ -68,7 +65,7 @@ public class CrewRunPost extends CrewPost {
      * 위반이면 CREW_RUN_INVALID.
      */
     public CrewRunPost(long crewId, long authorId, CrewRunDraft draft, LocalDateTime now) {
-        super(crewId, authorId, draft.body(), now);
+        super(crewId, authorId, new Slot(draft.body(), draft.scheduledAt()), now);
         LocalDateTime deadline =
                 draft.voteDeadline() == null ? draft.scheduledAt() : draft.voteDeadline();
         if (draft.scheduledAt() == null
@@ -78,29 +75,51 @@ public class CrewRunPost extends CrewPost {
                 || deadline.isAfter(draft.scheduledAt())) {
             throw new BusinessRuleException(ReasonCode.CREW_RUN_INVALID);
         }
-        this.scheduledAt = draft.scheduledAt();
         this.distance = draft.distance();
         this.voteDeadline = deadline;
         this.status = CrewRunStatus.VOTING;
-        participations.add(new CrewRunParticipation(authorId, VoteAnswer.GOING, now));
+        participations.add(new CrewRunParticipation(authorId, AttendanceAnswer.GOING, now));
     }
 
-    /** 삭제 안 됨, now &lt; voteDeadline. 있으면 응답 변경, 없으면 추가. 마감 뒤면 VOTE_CLOSED. */
-    public void vote(long memberId, VoteAnswer answer, LocalDateTime now) {
-        if (!isVisible() || !now.isBefore(voteDeadline)) {
+    @Override
+    protected int maxBody() {
+        return SHORT_BODY;
+    }
+
+    @Override
+    public PostKind kind() {
+        return PostKind.CREW_RUN;
+    }
+
+    /**
+     * 참석 응답(v0.10 vote 개명, FR-145). 삭제 안 됨(아니면 IllegalStateException), now &lt; voteDeadline(아니면
+     * VOTE_CLOSED). 있으면 응답 변경, 없으면 추가. GOING이 크루런 참가자이고 UNDECIDED·NOT_GOING은 참가자가 아니다.
+     */
+    @Override
+    public AttendanceView answer(long memberId, AttendanceAnswer answer, LocalDateTime now) {
+        requireNotDeleted();
+        if (!now.isBefore(voteDeadline)) {
             throw new BusinessRuleException(ReasonCode.VOTE_CLOSED);
         }
         participationOf(memberId)
                 .ifPresentOrElse(
                         p -> p.changeAnswer(answer, now),
                         () -> participations.add(new CrewRunParticipation(memberId, answer, now)));
+        return AttendanceView.of(getId() == null ? 0 : getId(), answer, counts());
+    }
+
+    /** GOING·NOT_GOING·UNDECIDED 응답 수(FR-133). 탈퇴로 익명화된 참여도 센다. */
+    @Override
+    public AttendanceCounts counts() {
+        return AttendanceCounts.of(
+                participations.stream().map(CrewRunParticipation::answer).toList());
     }
 
     /** VOTING이고 now ≥ scheduledAt − 30분이면 LOBBY_OPEN, true. */
     public boolean openLobby(LocalDateTime now, CrewRunRule rule) {
         if (!isVisible()
                 || status != CrewRunStatus.VOTING
-                || now.isBefore(scheduledAt.minus(rule.lobbyOpenBefore()))) {
+                || now.isBefore(scheduledAt().minus(rule.lobbyOpenBefore()))) {
             return false;
         }
         status = CrewRunStatus.LOBBY_OPEN;
@@ -108,14 +127,14 @@ public class CrewRunPost extends CrewPost {
     }
 
     /**
-     * 대기실 개방 시각 ≤ now &lt; scheduledAt, 취소 아님. 응답이 없거나 NOT_GOING이면 GOING으로, readiness ENTERING. 이르면
-     * LOBBY_NOT_OPEN, 늦거나 시작·취소면 ALREADY_STARTED.
+     * 대기실 개방 시각 ≤ now &lt; scheduledAt, 취소 아님. 응답이 없거나 NOT_GOING·UNDECIDED이면 GOING으로 바꾸고(D-152)
+     * readiness ENTERING. 이르면 LOBBY_NOT_OPEN, 늦거나 시작·취소면 ALREADY_STARTED.
      */
     public void enterLobby(long memberId, LocalDateTime now, CrewRunRule rule) {
-        if (!isVisible() || isPastLobby() || !now.isBefore(scheduledAt)) {
+        if (!isVisible() || isPastLobby() || !now.isBefore(scheduledAt())) {
             throw new BusinessRuleException(ReasonCode.ALREADY_STARTED);
         }
-        if (now.isBefore(scheduledAt.minus(rule.lobbyOpenBefore()))) {
+        if (now.isBefore(scheduledAt().minus(rule.lobbyOpenBefore()))) {
             throw new BusinessRuleException(ReasonCode.LOBBY_NOT_OPEN);
         }
         openLobby(now, rule);
@@ -125,12 +144,12 @@ public class CrewRunPost extends CrewPost {
                                 () -> {
                                     CrewRunParticipation added =
                                             new CrewRunParticipation(
-                                                    memberId, VoteAnswer.GOING, now);
+                                                    memberId, AttendanceAnswer.GOING, now);
                                     participations.add(added);
                                     return added;
                                 });
         if (!p.isGoing()) {
-            p.changeAnswer(VoteAnswer.GOING, now);
+            p.changeAnswer(AttendanceAnswer.GOING, now);
         }
         p.enter();
     }
@@ -172,7 +191,7 @@ public class CrewRunPost extends CrewPost {
         if (reminded
                 || !isVisible()
                 || isPastLobby()
-                || now.isBefore(scheduledAt.minus(rule.reminderBefore()))) {
+                || now.isBefore(scheduledAt().minus(rule.reminderBefore()))) {
             return false;
         }
         reminded = true;
@@ -184,7 +203,7 @@ public class CrewRunPost extends CrewPost {
      * READY가 아닌 참가자는 빠진다. 아니면 CANCELLED. 조건이 아니면 NONE(A-13).
      */
     public DepartureOutcome depart(LocalDateTime now, CrewRunRule rule) {
-        if (status != CrewRunStatus.LOBBY_OPEN || now.isBefore(scheduledAt)) {
+        if (status != CrewRunStatus.LOBBY_OPEN || now.isBefore(scheduledAt())) {
             return DepartureOutcome.NONE;
         }
         List<CrewRunParticipation> ready =
@@ -194,7 +213,7 @@ public class CrewRunPost extends CrewPost {
             return DepartureOutcome.cancelled(participantsToRemind());
         }
         ready.forEach(CrewRunParticipation::markRunner);
-        departedAt = scheduledAt.plusSeconds(COUNTDOWN_SECONDS);
+        departedAt = scheduledAt().plusSeconds(COUNTDOWN_SECONDS);
         status = CrewRunStatus.RUNNING;
         return DepartureOutcome.started(departedAt, runners());
     }
@@ -251,21 +270,21 @@ public class CrewRunPost extends CrewPost {
         status = CrewRunStatus.FINISHED;
     }
 
-    /** 거리, 희망일시, 참여 인원, 본인 응답, 상태, 완주 인원, 연결 기록. */
+    /** 거리, 희망일시, 참석·불참·미정 인원, 본인 응답, 상태, 완주 인원, 연결 기록(FR-133). */
     @Override
     public PostSummary summary(long viewerId) {
         int finishers = (int) participations.stream().filter(p -> p.rank() != null).count();
         PostSummary.CrewRunInfo run =
                 new PostSummary.CrewRunInfo(
                         distance,
-                        scheduledAt,
+                        scheduledAt(),
                         voteDeadline,
                         status,
-                        participantsToRemind().size(),
+                        counts(),
                         participationOf(viewerId).map(CrewRunParticipation::answer).orElse(null),
                         finishers,
                         linkedRecordIds());
-        return baseSummary(viewerId, PostKind.CREW_RUN, run);
+        return baseSummary(viewerId).withCrewRun(run);
     }
 
     /** READY로 출발한 회원. */
@@ -307,10 +326,6 @@ public class CrewRunPost extends CrewPost {
 
     public CrewRunStatus status() {
         return status;
-    }
-
-    public LocalDateTime scheduledAt() {
-        return scheduledAt;
     }
 
     public StandardDistance distance() {

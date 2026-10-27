@@ -96,10 +96,8 @@ class EnumPolymorphismTest {
     }
 
     @Test
-    void tagOwner_allowsCategories() {
-        assertThat(TagOwner.RUNNER.allows(TagCategory.GOAL)).isTrue();
-        assertThat(TagOwner.RUNNER.allows(TagCategory.CREW_MOOD)).isFalse();
-        assertThat(TagOwner.CREW.allows(TagCategory.CREW_MOOD)).isTrue();
+    void tagOwner_onlyCrewRemains() {
+        assertThat(TagOwner.values()).containsExactly(TagOwner.CREW);
     }
 
     @Test

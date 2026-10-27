@@ -44,6 +44,15 @@ public class InMemoryMemberRepository implements MemberRepository {
     }
 
     @Override
+    public List<Member> findIdleGuests(LocalDateTime before) {
+        return members.values().stream()
+                .filter(m -> m.getAccountType() == AccountType.GUEST)
+                .filter(m -> m.getStatus() == MemberStatus.ACTIVE)
+                .filter(m -> !m.lastAccessAt().isAfter(before))
+                .toList();
+    }
+
+    @Override
     public Member save(Member member) {
         if (member.getId() == null) {
             assignId(member, ++sequence);
@@ -65,8 +74,7 @@ public class InMemoryMemberRepository implements MemberRepository {
                                                 m.getId(),
                                                 m.displayName(),
                                                 m.getTier(),
-                                                m.profileVisibility(),
-                                                m.getTags())));
+                                                m.profileVisibility())));
     }
 
     @Override

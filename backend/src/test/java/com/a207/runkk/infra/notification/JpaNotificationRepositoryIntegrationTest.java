@@ -13,8 +13,13 @@ import com.a207.runkk.notification.PushDevice;
 import com.a207.runkk.notification.Screen;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -88,6 +93,78 @@ class JpaNotificationRepositoryIntegrationTest {
         Long stored = jdbc.queryForObject("select id from notification", Long.class);
         tx.executeWithoutResult(s -> notifications.findById(stored).orElseThrow().markRead());
         assertThat(jdbc.queryForObject("select is_read from notification", Boolean.class)).isTrue();
+    }
+
+    private void collapse(long to, String target, String content, LocalDateTime at) {
+        tx.executeWithoutResult(
+                s ->
+                        notifications.saveCollapsing(
+                                new NotificationRequest(
+                                        to,
+                                        NotificationType.CREW_CHAT,
+                                        content,
+                                        new NavigationTarget(Screen.CREW_CHAT, target)),
+                                at));
+    }
+
+    private int unreadRows(long to, String target) {
+        return jdbc.queryForObject(
+                "select count(*) from notification where recipient_id = ? and target_id = ?"
+                        + " and is_read = false",
+                Integer.class,
+                to,
+                target);
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName(
+            "saveCollapsing(D-102): 같은 수신자·종류·대상의 읽지 않은 행을 고쳐 쓰고, 대상이 다르거나 읽었으면 새 행")
+    void saveCollapsing_rewritesUnreadSameTarget() {
+        collapse(1, "7", "첫 메시지", T);
+        collapse(1, "7", "둘째 메시지", T.plusMinutes(1));
+        collapse(1, "8", "다른 크루", T);
+        collapse(2, "7", "다른 회원", T);
+        assertThat(unreadRows(1, "7")).isEqualTo(1);
+        assertThat(
+                        jdbc.queryForObject(
+                                "select content from notification where recipient_id = 1"
+                                        + " and target_id = '7'",
+                                String.class))
+                .isEqualTo("둘째 메시지");
+        assertThat(jdbc.queryForObject("select count(*) from notification", Integer.class))
+                .isEqualTo(3);
+
+        jdbc.update("update notification set is_read = true where target_id = '7'");
+        collapse(1, "7", "읽은 뒤", T.plusMinutes(2));
+        assertThat(unreadRows(1, "7")).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select count(*) from notification", Integer.class))
+                .isEqualTo(4);
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName(
+            "리뷰 M4: 같은 대상의 묶음 알림이 동시에 와도 읽지 않은 행은 하나(V23 부분 유일 색인 + 충돌 시 고쳐 쓰기)")
+    void saveCollapsing_concurrentCalls_keepOneUnreadRow() throws Exception {
+        int threads = 8;
+        ExecutorService pool = Executors.newFixedThreadPool(threads);
+        CountDownLatch start = new CountDownLatch(1);
+        List<Future<?>> futures = new ArrayList<>();
+        for (int i = 0; i < threads; i++) {
+            int n = i;
+            futures.add(
+                    pool.submit(
+                            () -> {
+                                start.await();
+                                collapse(5, "7", "메시지 " + n, T.plusSeconds(n));
+                                return null;
+                            }));
+        }
+        start.countDown();
+        for (Future<?> f : futures) {
+            f.get();
+        }
+        pool.shutdown();
+        assertThat(unreadRows(5, "7")).isEqualTo(1);
     }
 
     @Test

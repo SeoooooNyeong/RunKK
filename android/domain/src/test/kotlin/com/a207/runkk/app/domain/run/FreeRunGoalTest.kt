@@ -34,21 +34,21 @@ class FreeRunGoalTest {
 
     @Test
     fun `코치 계획 따르기 켬 + 오늘 계획 있음이면 계획의 거리·페이스`() {
-        val goal = FreeRunGoal.of(plan, km3.copy(shouldFollowCoachPlan = true))
+        val goal = FreeRunGoal.of(plan, km3.copy(isFollowingCoachPlan = true))
         assertEquals(plan, goal.plan)
         assertTrue(goal.isFromCoachPlan)
     }
 
     @Test
     fun `코치 계획 따르기 꺼짐이면 오늘 계획이 있어도 설정 목표(페이스 없음)`() {
-        val goal = FreeRunGoal.of(plan, km3.copy(shouldFollowCoachPlan = false))
+        val goal = FreeRunGoal.of(plan, km3.copy(isFollowingCoachPlan = false))
         assertEquals(PlanSnapshot(Distance(3_000), null), goal.plan)
         assertFalse(goal.isFromCoachPlan)
     }
 
     @Test
     fun `코치 계획 따르기 켬인데 오늘 계획이 없으면 설정 목표`() {
-        val on = km3.copy(shouldFollowCoachPlan = true)
+        val on = km3.copy(isFollowingCoachPlan = true)
         assertEquals(FreeRunGoal(PlanSnapshot(Distance(3_000), null), false), FreeRunGoal.of(null, on))
         assertEquals(
             FreeRunGoal(PlanSnapshot(Distance(3_000), null), false),
@@ -58,7 +58,7 @@ class FreeRunGoalTest {
 
     @Test
     fun `계획에 페이스만 있으면 페이스는 계획, 거리는 설정 목표`() {
-        val goal = FreeRunGoal.of(PlanSnapshot(null, Pace(300)), km3.copy(shouldFollowCoachPlan = true))
+        val goal = FreeRunGoal.of(PlanSnapshot(null, Pace(300)), km3.copy(isFollowingCoachPlan = true))
         assertEquals(PlanSnapshot(Distance(3_000), Pace(300)), goal.plan)
         assertTrue(goal.isFromCoachPlan)
     }
@@ -85,7 +85,7 @@ class FreeRunGoalTest {
         val settings = FakeSettingsRepository(SettingsSnapshot.SAFE.copy(guidanceSettings = km3))
         val goals = FreeRunGoalUseCase(settings)
         assertEquals(PlanSnapshot(Distance(3_000), null), goals.current(plan).plan)
-        settings.snapshot = settings.snapshot.copy(guidanceSettings = km3.copy(shouldFollowCoachPlan = true))
+        settings.snapshot = settings.snapshot.copy(guidanceSettings = km3.copy(isFollowingCoachPlan = true))
         assertEquals(plan, goals.current(plan).plan)
     }
 
@@ -99,7 +99,7 @@ class FreeRunGoalTest {
         settings.snapshot = settings.snapshot.copy(guidanceSettings = km3)
         assertEquals(FreeRunGoal(PlanSnapshot(Distance(3_000), null), false), seen.last())
         todayPlan.value = plan
-        settings.snapshot = settings.snapshot.copy(guidanceSettings = km3.copy(shouldFollowCoachPlan = true))
+        settings.snapshot = settings.snapshot.copy(guidanceSettings = km3.copy(isFollowingCoachPlan = true))
         assertEquals(FreeRunGoal(plan, true), seen.last())
         assertEquals(FreeRunGoal(plan, true), FreeRunGoalUseCase(settings).observe(todayPlan).first())
         job.cancel()

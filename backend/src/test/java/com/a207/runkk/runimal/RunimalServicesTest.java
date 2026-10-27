@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -16,9 +15,6 @@ import com.a207.runkk.common.DateRange;
 import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.GeoPoint;
 import com.a207.runkk.common.ReasonCode;
-import com.a207.runkk.common.TagOwner;
-import com.a207.runkk.common.TagSet;
-import com.a207.runkk.member.MemberQueryService;
 import com.a207.runkk.member.MemberWithdrawn;
 import com.a207.runkk.policy.CourseSimilarityRule;
 import com.a207.runkk.policy.OperationPolicy;
@@ -116,7 +112,6 @@ class RunimalServicesTest {
     private final Profiles profiles = new Profiles();
     private final Verdicts verdicts = new Verdicts();
     private final RunQueryService runs = mock(RunQueryService.class);
-    private final MemberQueryService members = mock(MemberQueryService.class);
     private final OperationPolicy policy = mock(OperationPolicy.class);
     private final Clock clock = Clock.fixed(NOW.atZone(SEOUL).toInstant(), SEOUL);
     private final List<RunSampleRow> history = new ArrayList<>();
@@ -126,7 +121,6 @@ class RunimalServicesTest {
     void wire() {
         when(policy.runimalRule()).thenReturn(RunimalJudgeTest.RULE);
         when(policy.courseSimilarityRule()).thenReturn(new CourseSimilarityRule(0.8, 50, 30));
-        when(members.tagsOf(MEMBER)).thenReturn(TagSet.empty(TagOwner.RUNNER));
         when(runs.runSamples(eq(MEMBER), anyInt())).thenAnswer(inv -> List.copyOf(history));
         when(runs.runSamples(eq(MEMBER), any(DateRange.class)))
                 .thenAnswer(inv -> List.copyOf(history));
@@ -150,7 +144,6 @@ class RunimalServicesTest {
                         courses,
                         judge,
                         new RunSampleReader(runs, verdicts, none),
-                        members,
                         policy,
                         clock,
                         new RunimalTransactions(com.a207.runkk.NoTransactions.manager()));
@@ -199,7 +192,8 @@ class RunimalServicesTest {
         assertThat(service.status(MEMBER).card()).isNull();
         service.onRunSaved(saved(3, true, false));
         RunimalStatusView status = service.status(MEMBER);
-        assertThat(status.provisionalType()).isEqualTo(RunimalType.MORNING_SPARROW);
+        // 경로 없는 기록뿐이라 코스 표본이 없다: 코스 축은 탐험길(D-147)
+        assertThat(status.provisionalType()).isEqualTo(RunimalType.ALLEY_SQUIRREL);
         assertThat(status.remainingRuns()).isEqualTo(7);
         service.onRunSaved(saved(0, false, false));
         for (int i = 4; i <= 10; i++) {
@@ -245,7 +239,8 @@ class RunimalServicesTest {
         }
         when(runs.routePoints("r1")).thenReturn(line);
         service.onRunSaved(saved(1, true, true));
-        assertThat(verdicts.rows).isEmpty();
+        // 비교 대상이 없는 러닝은 같은 코스 아님으로 표본에 든다(FR-166, D-147, TC-3790)
+        assertThat(verdicts.rows.get("r1").isSameCourse()).isFalse();
 
         when(runs.routePoints("r2")).thenReturn(line);
         service.onRunSaved(saved(2, true, true));
@@ -276,6 +271,5 @@ class RunimalServicesTest {
                         runs, verdicts, beans.getBeanProvider(CrewRunParticipationQuery.class));
         RunSample sample = reader.read(MEMBER, NOW.toLocalDate());
         assertThat(sample.lastMonth()).allMatch(RunSample.SampleRun::crewRunLinked);
-        verify(members, never()).tagsOf(anyLong());
     }
 }

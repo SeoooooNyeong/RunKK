@@ -50,7 +50,7 @@ class GuidanceRuleTest {
     @Test
     fun `Pace - 코치 계획 따르기 켬, 새 1km 지점, 평균이 목표의 1·1배 이상`() {
         val plan = PlanSnapshot(null, Pace(300))
-        val on = GuidanceSettings.DEFAULT.copy(shouldFollowCoachPlan = true)
+        val on = GuidanceSettings.DEFAULT.copy(isFollowingCoachPlan = true)
         assertEquals(
             Guidance.Kind.PACE,
             PaceGuidanceRule().check(context(progress(1_000, average = Pace(330)), plan, settings = on))?.kind
@@ -61,8 +61,8 @@ class GuidanceRuleTest {
 
     @Test
     fun `Pace - 코치 계획 따르기 꺼짐이거나 목표 페이스가 없으면 안내 없음`() {
-        val off = GuidanceSettings.DEFAULT.copy(shouldFollowCoachPlan = false)
-        val on = GuidanceSettings.DEFAULT.copy(shouldFollowCoachPlan = true)
+        val off = GuidanceSettings.DEFAULT.copy(isFollowingCoachPlan = false)
+        val on = GuidanceSettings.DEFAULT.copy(isFollowingCoachPlan = true)
         val slow = progress(1_000, average = Pace(400))
         assertNull(PaceGuidanceRule().check(context(slow, PlanSnapshot(null, Pace(300)), settings = off)))
         assertNull(PaceGuidanceRule().check(context(slow, PlanSnapshot(Distance(5_000), null), settings = on)))

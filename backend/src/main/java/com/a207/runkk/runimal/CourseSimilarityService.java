@@ -13,7 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 새 기록의 코스 동일성 판정(설계 6.1.8, FR-166, SQ-10). 같은 회원의 최근 유효 30회 중 경로가 남은 기록과 비교한다(경로 파기 기록은
- * routePoints가 빈 목록). 비교 대상이 없으면 저장하지 않는다.
+ * routePoints가 빈 목록). 비교 대상이 없으면 같은 코스 아님으로 저장한다(FR-166, D-147: 코스 표본에 든다).
  */
 @Service
 public class CourseSimilarityService {
@@ -53,10 +53,9 @@ public class CourseSimilarityService {
                         .map(runQueryService::routePoints)
                         .filter(points -> !points.isEmpty())
                         .toList();
-        if (previous.isEmpty()) {
-            return;
-        }
-        boolean same = courseSimilarityJudge.isSameCourse(track, previous, rule);
+        // 비교 대상이 없는 러닝은 같은 코스가 아니다(FR-166). 표본에 들도록 거짓 판정으로 남긴다(D-147)
+        boolean same =
+                !previous.isEmpty() && courseSimilarityJudge.isSameCourse(track, previous, rule);
         courseVerdictRepository.save(
                 new CourseVerdict(recordId, memberId, same, LocalDateTime.now(clock)));
     }

@@ -7,12 +7,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
-/** 수집 중 포그라운드 서비스를 띄우는 포트. 구현 [AndroidForegroundServiceLauncher]. */
-interface ForegroundServiceLauncher {
-    /** 서비스를 띄운다. 백그라운드 시작 제한 등으로 띄우지 못했으면 거짓. */
-    fun launch(): Boolean
-}
-
 /**
  * 심박을 모으는 동안만 포그라운드 서비스([HeartRateCollectionService], 타입 health)를 띄워 앱 프로세스가 쉽게 죽지 않게 한다.
  * 프로세스가 죽으면 폰의 수집 금지 플래그를 받지 못하기 때문이다(NFR-023).

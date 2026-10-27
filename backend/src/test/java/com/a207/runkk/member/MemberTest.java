@@ -9,14 +9,12 @@ import com.a207.runkk.common.BusinessRuleException;
 import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.DistanceUnit;
-import com.a207.runkk.common.PersonalityTag;
 import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.common.RecordVisibility;
 import com.a207.runkk.common.StandardDistance;
 import com.a207.runkk.common.Tier;
 import com.a207.runkk.policy.TierBoundary;
 import java.util.List;
-import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 /** Member 상태도(2.4.9)의 전이·금지 전이와 티어 순번(14장 단위 시험). */
@@ -33,8 +31,6 @@ class MemberTest {
         assertThat(m.getTier()).isEqualTo(Tier.UNRANKED);
         assertThat(m.getLevel()).isEqualTo(1);
         assertThat(m.displayName()).isEqualTo(DisplayName.of("달리는곰"));
-        assertThat(m.getTags().tags())
-                .containsExactlyInAnyOrder(PersonalityTag.SOLO_RUN, PersonalityTag.MORNING);
         MemberSettingsView s = m.getSettings();
         assertThat(s.unit()).isEqualTo(DistanceUnit.KM);
         assertThat(s.recordVisibility()).isEqualTo(RecordVisibility.PUBLIC);
@@ -42,7 +38,7 @@ class MemberTest {
         assertThat(s.profileVisibility()).isEqualTo(ProfileVisibility.PRIVATE);
         assertThat(s.watchLinked()).isFalse();
         assertThat(s.notificationPrefs())
-                .hasSize(12)
+                .hasSize(21)
                 .containsValue(true)
                 .doesNotContainValue(false);
         assertThat(s.runSettings()).isEqualTo(RunSettings.defaults());
@@ -56,25 +52,14 @@ class MemberTest {
     }
 
     @Test
-    void signUp_introOver40_isRejected() {
-        SignUpForm form = MemberFixtures.form("달리는곰");
-        SignUpForm longIntro =
-                new SignUpForm(
-                        form.nickname(),
-                        form.birthYear(),
-                        form.gender(),
-                        null,
-                        "가".repeat(41),
-                        form.consents(),
-                        form.recordVisibility(),
-                        form.tags());
+    void editProfile_introOver40_isRejected() {
+        Member m = member("달리는곰");
         assertThatThrownBy(
                         () ->
-                                Member.signUp(
-                                        MemberFixtures.account("1"),
-                                        longIntro,
-                                        Nickname.of("달리는곰"),
-                                        NOW))
+                                m.editProfile(
+                                        new ProfileEdit(null, null, null, null, "가".repeat(41)),
+                                        null,
+                                        2026))
                 .isInstanceOf(BusinessRuleException.class)
                 .extracting(e -> ((BusinessRuleException) e).reason())
                 .isEqualTo(ReasonCode.INTRO_TOO_LONG);
@@ -180,38 +165,18 @@ class MemberTest {
     void editProfile_changesFieldsAndValidates() {
         Member m = member("달리는곰");
         m.editProfile(
-                new ProfileEdit(
-                        "빠른곰",
-                        null,
-                        Gender.MALE,
-                        null,
-                        "새 소개",
-                        Set.of(PersonalityTag.LONG_DISTANCE)),
-                Nickname.of("빠른곰"));
+                new ProfileEdit("빠른곰", null, Gender.MALE, null, "새 소개"), Nickname.of("빠른곰"), 2026);
         assertThat(m.displayName()).isEqualTo(DisplayName.of("빠른곰"));
-        assertThat(m.getTags().tags()).containsExactly(PersonalityTag.LONG_DISTANCE);
+        assertThat(m.intro()).isEqualTo("새 소개");
 
         assertThatThrownBy(
                         () ->
                                 m.editProfile(
-                                        new ProfileEdit(
-                                                null, null, null, null, "가".repeat(41), null),
-                                        null))
+                                        new ProfileEdit(null, null, null, null, "가".repeat(41)),
+                                        null,
+                                        2026))
                 .isInstanceOf(BusinessRuleException.class);
-        assertThatThrownBy(
-                        () ->
-                                m.editProfile(
-                                        new ProfileEdit(
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                Set.of(
-                                                        PersonalityTag.SOLO_RUN,
-                                                        PersonalityTag.SOCIAL_RUN)),
-                                        null))
-                .isInstanceOf(BusinessRuleException.class);
+        assertThat(m.intro()).isEqualTo("새 소개");
     }
 
     @Test
@@ -320,7 +285,6 @@ class MemberTest {
         m.withdraw(NOW);
         m.purgeResidual();
         MemberSettingsView once = m.getSettings();
-        assertThat(m.getTags().isEmpty()).isTrue();
         assertThat(m.getTier()).isEqualTo(Tier.UNRANKED);
         assertThat(m.getLevel()).isEqualTo(1);
         assertThat(once.unit()).isEqualTo(DistanceUnit.KM);

@@ -57,13 +57,32 @@ class HomeViewModelTest {
 
     @Test
     fun `홈은 오늘 날짜의 대시보드와 오늘 계획을 읽는다`() {
-        settings.guidance = km3.copy(shouldFollowCoachPlan = true)
+        settings.guidance = km3.copy(isFollowingCoachPlan = true)
         val vm = viewModel()
         val state = vm.state.value
         assertFalse(state.isLoading)
         assertEquals(sampleDashboard, state.dashboard)
         assertEquals(FreeRunGoal(PlanSnapshot(Distance(5_000), Pace(330)), isFromCoachPlan = true), state.freeRunGoal)
         assertEquals(listOf(LocalDate.of(2026, 10, 20)), records.dashboardDates)
+    }
+
+    @Test
+    fun `우리 집 배경은 아바타 배경 키, 자유런 칩은 러닝 설정의 음성·진동 값이다(A5)`() {
+        avatar.avatarResult = Outcome.Success(
+            com.a207.runkk.app.domain.avatar.Avatar(
+                null, "D1", "NORMAL", "DAY", emptyMap(), 1_250, true, emptyMap(), backgroundKey = "BUSAN"
+            )
+        )
+        account.settingsResult = Outcome.Success(
+            com.a207.runkk.app.domain.account.MemberSettings(
+                values = mapOf("RUN_SETTINGS.voice" to "false", "RUN_SETTINGS.vibration" to "true"),
+                consents = emptyMap()
+            )
+        )
+        val state = viewModel().state.value
+        assertEquals("BUSAN", state.backgroundKey)
+        assertFalse(state.isRunVoiceOn)
+        assertTrue(state.isRunVibrationOn)
     }
 
     @Test
@@ -170,7 +189,7 @@ class HomeViewModelTest {
     fun `오늘 계획이 없어도 대시보드는 보인다`() {
         records.todayPlanResult = Outcome.Failure(AppError.Network)
         val vm = viewModel()
-        settings.guidance = GuidanceSettings.DEFAULT.copy(shouldFollowCoachPlan = true)
+        settings.guidance = GuidanceSettings.DEFAULT.copy(isFollowingCoachPlan = true)
         assertEquals(FreeRunGoal.NONE, vm.state.value.freeRunGoal)
         assertEquals(sampleDashboard, vm.state.value.dashboard)
     }
@@ -190,6 +209,21 @@ class HomeViewModelTest {
         assertEquals(HomeHeader(), state.header)
         assertFalse(state.isHeaderLoading)
         assertEquals(sampleDashboard, state.dashboard)
+    }
+
+    @Test
+    fun `처음 재개는 다시 읽지 않고, 다시 보일 때마다 요약을 다시 읽는다`() {
+        records.dashboardResult = Outcome.Success(sampleDashboard)
+        val vm = viewModel()
+        vm.onResumed()
+        assertEquals(1, records.dashboardDates.size)
+
+        // 러닝을 마치고 홈으로 돌아오면 오늘·누적 거리가 새 값으로 바뀐다
+        val afterRun = sampleDashboard.copy(today = Distance(3_090), total = Distance(131_490))
+        records.dashboardResult = Outcome.Success(afterRun)
+        vm.onResumed()
+        assertEquals(2, records.dashboardDates.size)
+        assertEquals(afterRun, vm.state.value.dashboard)
     }
 
     @Test

@@ -2,6 +2,7 @@ package com.a207.runkk;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.a207.runkk.running.ValidityRule;
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -40,9 +41,9 @@ import org.junit.jupiter.api.Test;
 
 /**
  * 앱 계약 자료 동기화 시험(재발 방지). 앱 android/contract/sync_from_server.py가 서버 소스에서 뽑는 값 계약 — enum 상수, 오류 응답
- * code, web 요청·응답 record(항목 이름·필수 여부·별칭·중첩 형식) — 을 서버에서 반사(reflection)로 같은 형식으로 만들어
- * src/test/resources/contract/app/의 기준 파일과 비교한다. 서버 계약이 바뀌면 이 시험이 실패하고, 기준 파일을 갱신하면 그 변경분이 곧 앱
- * 작업자에게 넘길 계약 변경 목록이다.
+ * code, web 요청·응답 record(항목 이름·필수 여부·별칭·중첩 형식), 유효 판정 초과 시속 상한(policy/ValidityRule.txt) — 을 서버에서
+ * 반사(reflection)로 같은 형식으로 만들어 src/test/resources/contract/app/의 기준 파일과 비교한다. 서버 계약이 바뀌면 이 시험이 실패하고,
+ * 기준 파일을 갱신하면 그 변경분이 곧 앱 작업자에게 넘길 계약 변경 목록이다.
  */
 @DisplayName("앱 계약 자료(enum·오류 code·web record) 기준 파일과 서버가 같다")
 class AppContractSnapshotTest {
@@ -99,7 +100,9 @@ class AppContractSnapshotTest {
                         "Gender",
                         "ProviderType",
                         "SettingItem",
-                        "DocumentType"));
+                        "DocumentType",
+                        "AccountType",
+                        "ScreenTheme"));
         ENUMS.put("notification", List.of("NotificationType", "Screen"));
         ENUMS.put("avatar", List.of("DefaultCharacter", "BodyShape", "SkinTone", "FailureReason"));
         ENUMS.put("battle", List.of("BattleType", "Verdict"));
@@ -109,12 +112,16 @@ class AppContractSnapshotTest {
                 List.of(
                         "CrewVisibility",
                         "JoinPolicy",
-                        "VoteAnswer",
+                        "AttendanceAnswer",
                         "PostKind",
                         "CrewRole",
                         "CrewRunStatus",
                         "Readiness",
-                        "JoinRequestStatus"));
+                        "JoinRequestStatus",
+                        "PollMethod"));
+        ENUMS.put("crew.chat", List.of("ReactionKind"));
+        ENUMS.put("crew.chat.live", List.of("ChatRemovalReason"));
+        ENUMS.put("report", List.of("ReportTargetKind", "ReportReason", "ReportStatus"));
     }
 
     /** sync_from_server.py가 web 밖에서 더 따라가는 record. */
@@ -236,6 +243,10 @@ class AppContractSnapshotTest {
         Map<String, String> files = new TreeMap<>();
         enums(files);
         files.put("dto-records.json", JSON.writeValueAsString(records()) + "\n");
+        // 앱 달리는 중 거리가 같은 구간을 빼도록 초과 시속 상한을 넘긴다(FR-047 v0.10, 앱 OverspeedRule)
+        files.put(
+                "policy/ValidityRule.txt",
+                text(List.of("maxSpeedKmh " + ValidityRule.STANDARD.maxSpeedKmh())));
         return files;
     }
 

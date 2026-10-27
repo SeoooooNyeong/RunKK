@@ -4,6 +4,7 @@ import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.GeoPoint;
 import com.a207.runkk.common.Pace;
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -24,6 +25,8 @@ import java.util.Map;
  * @param newRecords 신기록 문구
  * @param crewContribution 크루 주간 거리 반영 거리(본인), 없으면 null
  * @param rewardPoints 이 기록으로 적립한 리워드(본인), 없으면 null
+ * @param pauses 정지 구간(시간순, 정지가 없으면 빈 목록, FR-036)
+ * @param pausedSeconds 정지 시간 합(초). summary의 경과 시간은 정지를 뺀 운동 시간이다
  */
 public record RecordDetailView(
         RecordRow summary,
@@ -38,7 +41,17 @@ public record RecordDetailView(
         WeatherInfo weather,
         List<String> newRecords,
         Distance crewContribution,
-        Integer rewardPoints) {
+        Integer rewardPoints,
+        List<PauseRange> pauses,
+        long pausedSeconds) {
+
+    /**
+     * 정지 구간 하나(FR-036, FR-194). web.record가 running을 import하지 않게 이 묶음으로 옮긴다(12.2 D48).
+     *
+     * @param from 정지 시작 일시
+     * @param to 재개 일시
+     */
+    public record PauseRange(LocalDateTime from, LocalDateTime to) {}
 
     /**
      * 평균·최고 심박.

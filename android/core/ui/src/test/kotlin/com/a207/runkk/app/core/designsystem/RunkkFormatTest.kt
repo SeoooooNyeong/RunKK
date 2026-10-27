@@ -23,6 +23,7 @@ class RunkkFormatTest {
     @Test
     fun `영문 오버라인·거리 라벨은 보조 기술이 한글로 읽는다`() {
         assertEquals("실시간 대결, 5킬로미터", RunkkFormat.spokenLabel(res, "LIVE BATTLE · 5km"))
+        assertEquals("일시정지, 5킬로미터", RunkkFormat.spokenLabel(res, "PAUSED · 5km"), "AN5-D-7")
         assertEquals("나와의 싸움, 하프", RunkkFormat.spokenLabel(res, "SELF BATTLE · 하프"))
         assertEquals("유명인 대결, 10킬로미터", RunkkFormat.spokenLabel(res, "CELEB BATTLE · 10km"))
         assertEquals("자유런, 목표 없음", RunkkFormat.spokenLabel(res, "FREE RUN · FREE"))

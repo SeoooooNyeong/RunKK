@@ -9,15 +9,13 @@
     <string name="runimal_saved_to_gallery">사진첩에 저장했어요</string>
     <string name="runimal_load_failed">러니멀을 불러오지 못했어요</string>
     <string name="runimal_empty_title">아직 유형이 없어요</string>
-    <string name="runimal_empty_message">유효 러닝 3번째에 임시 유형, 10번째에 정식 유형이 나와요</string>
     <string name="runimal_share_with">%1$s로 카드 공유</string>
     <string name="runimal_type_provisional">임시 유형</string>
     <string name="runimal_type_confirmed">확정 유형</string>
     <string name="runimal_axis_description">%1$s %2$d%%</string>
     <string name="runimal_percent">%1$d%%</string>
-    <string name="runimal_remaining_hint">3번째에 임시, 10번째에 정식 유형이 나와요</string>
-    <string name="runimal_all_types_title">16가지 러니멀</string>
+    <string name="runimal_all_types_title">16유형</string>
     <string name="runimal_my_type">내 유형</string>
-    <string name="runimal_title">MY 러니멀</string>
+    <string name="runimal_title">MY Runimal</string>
     <string name="runimal_overline">MY 러니멀</string>
 </resources>

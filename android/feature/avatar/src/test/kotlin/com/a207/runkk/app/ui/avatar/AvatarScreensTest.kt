@@ -2,7 +2,16 @@ package com.a207.runkk.app.ui.avatar
 
 import android.graphics.Bitmap
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasStateDescription
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onFirst
+import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -33,7 +42,7 @@ class AvatarScreensTest {
     private val calls = mutableListOf<String>()
 
     @Test
-    fun `아바타 만들기 - 캐릭터를 고르기 전에는 시작할 수 없고 셀카·나중에 버튼이 있다`() {
+    fun `얼굴 만들기 - 캐릭터를 고르기 전에는 저장할 수 없고 셀카, 앨범 버튼이 있다(J7)`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 AvatarSetupScreen(
@@ -41,31 +50,32 @@ class AvatarScreensTest {
                     onBack = {},
                     onSelfie = { calls += "selfie" },
                     onCharacter = { calls += it.name },
-                    onConfirm = {},
-                    onLater = { calls += "later" }
+                    onSave = { calls += "save" },
+                    onAlbum = { calls += "album" }
                 )
             }
         }
-        compose.onNodeWithText(str(R.string.avatar_setup_pick_prompt)).assertIsNotEnabled()
+        compose.onNodeWithText(str(R.string.avatar_setup_save)).assertIsNotEnabled()
+        compose.onNodeWithText(str(R.string.avatar_setup_selfie_daily)).assertExists()
         compose.onNodeWithText(str(R.string.avatar_setup_take_selfie)).performClick()
-        compose.onNodeWithText(str(R.string.avatar_character_bear)).performClick()
-        compose.onNodeWithText(str(R.string.avatar_setup_later)).performClick()
-        assertEquals(listOf("selfie", "BEAR", "later"), calls)
+        compose.onNodeWithText(str(R.string.avatar_setup_pick_album)).performClick()
+        compose.onNodeWithContentDescription(str(R.string.avatar_character_bear)).performClick()
+        assertEquals(listOf("selfie", "album", "BEAR"), calls)
     }
 
     @Test
-    fun `꾸미기 - 아바타를 그림 하나로 읽어 주고 아이템을 누르면 입힌다`() {
+    fun `꾸미기 - 아바타를 그림 하나로 읽어 주고 아이템을 누르면 입히고 상점, 얼굴, 저장으로 간다(J3)`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 AvatarScreen(
                     AvatarUiState(isLoading = false, avatar = avatar, items = items),
-                    onBack = {},
-                    onShop = { calls += "shop" },
-                    onFace = { calls += "face" },
-                    onSlot = {},
-                    onToggle = { calls += "toggle:${it.itemId}" },
-                    onRetry = {},
-                    onMessageShown = {}
+                    AvatarScreenActions(
+                        onShop = { calls += "shop" },
+                        onFace = { calls += "face" },
+                        onToggle = { calls += "toggle:${it.itemId}" },
+                        onBackgroundTab = { calls += "background" },
+                        onSave = { calls += "save" }
+                    )
                 )
             }
         }
@@ -77,9 +87,11 @@ class AvatarScreensTest {
             ) + str(R.string.avatar_figure_equipped_format, str(R.string.avatar_slot_top), "라임 러닝 티")
         ).assertExists()
         compose.onNodeWithText("라벤더 싱글렛").performClick()
-        compose.onNodeWithContentDescription(str(R.string.avatar_balance_open_shop, "1,240")).performClick()
+        compose.onNodeWithText(str(R.string.avatar_decorate_go_shop)).performClick()
         compose.onNodeWithText(str(R.string.avatar_decorate_change_face)).performClick()
-        assertEquals(listOf("toggle:2", "shop", "face"), calls)
+        compose.onNodeWithText(str(R.string.avatar_tab_background)).performClick()
+        compose.onNodeWithText(str(R.string.avatar_decorate_save)).performClick()
+        assertEquals(listOf("toggle:2", "shop", "face", "background", "save"), calls)
     }
 
     @Test
@@ -103,14 +115,15 @@ class AvatarScreensTest {
     }
 
     @Test
-    fun `아바타 만들기 - 기본 캐릭터 4종을 그림으로 보인다`() {
+    fun `얼굴 만들기 - 기본 캐릭터 4종을 그림으로 보인다`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
-                AvatarSetupScreen(AvatarSetupUiState(isLoading = false), {}, {}, {}, {}, {})
+                AvatarSetupScreen(AvatarSetupUiState(isLoading = false), {}, {}, {}, {})
             }
         }
         DefaultCharacter.entries.forEach {
-            compose.onNodeWithTag(runkkAvatarCharacterTag(it.name), useUnmergedTree = true).assertExists()
+            // 미리보기(고르기 전이면 기본 얼굴)와 고르기 칸에 함께 그릴 수 있다.
+            compose.onAllNodesWithTag(runkkAvatarCharacterTag(it.name), useUnmergedTree = true).onFirst().assertExists()
         }
     }
 
@@ -152,7 +165,7 @@ class AvatarScreensTest {
     }
 
     @Test
-    fun `상점 - 사기 전에 확인을 받는다`() {
+    fun `상점 - 사기 전에 가격과 구매 후 잔액으로 확인을 받는다(J5)`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 ShopScreen(
@@ -168,7 +181,11 @@ class AvatarScreensTest {
             }
         }
         compose.onNodeWithText(str(R.string.avatar_shop_confirm_title, "런 캡")).assertExists()
-        compose.onNodeWithText(str(R.string.avatar_shop_buy)).performClick()
+        compose.onNodeWithText(
+            str(R.string.avatar_shop_confirm_message, "${items[2].price}", "${1_240 - items[2].price}")
+        )
+            .assertExists()
+        compose.onAllNodesWithText(str(R.string.avatar_shop_buy)).onLast().performClick()
         assertEquals(listOf("buy"), calls)
     }
 
@@ -182,15 +199,44 @@ class AvatarScreensTest {
     }
 
     @Test
-    fun `체형·피부톤 문구`() {
+    fun `체형, 피부톤 문구`() {
         assertEquals(3, bodyStage("STAGE3"))
         assertEquals(R.string.avatar_body_4, bodyLabelRes(4))
         assertEquals(UiText.Res(R.string.avatar_skin_morning), skinLabel("MORNING"))
         assertEquals(R.string.avatar_slot_hat, ItemSlot.HAT.labelRes)
     }
+
+    @Test
+    fun `배경 탭 - 칸은 라디오로 알리고 잠김 상태를 읽으며 누르면 고른다(J3, FR-201)`() {
+        val chosen = mutableListOf<String>()
+        var defaults = 0
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                AvatarScreen(
+                    AvatarUiState(isLoading = false, avatar = avatar, items = items, isBackgroundTab = true),
+                    AvatarScreenActions(
+                        onChooseBackground = { chosen += it.key },
+                        onChooseDefaultBackground = { defaults++ }
+                    ),
+                    background = AvatarBackgroundUiState(
+                        isLoading = false,
+                        backgrounds = sampleBackgrounds.copy(selectedKey = "INCHEON")
+                    )
+                )
+            }
+        }
+        compose.onNodeWithText(str(R.string.avatar_background_unlocked_count, 2, 3)).assertExists()
+        compose.onNode(hasContentDescription("인천") and hasStateDescription("인천, 사용 중")).assertIsSelected()
+        compose.onNode(hasContentDescription("베이징") and hasStateDescription("베이징, 누적 950km에 해금"))
+            .assertIsNotSelected()
+            .performClick()
+        compose.onNodeWithContentDescription(str(R.string.avatar_background_default)).performClick()
+        assertEquals(listOf("BEIJING"), chosen)
+        assertEquals(1, defaults)
+    }
 }
 
-/** 아바타 스크린샷(F1~F3). */
+/** 아바타 스크린샷(J3~J5, J7). */
 @RunWith(RobolectricTestRunner::class)
 @Config(qualifiers = RUNKK_PHONE)
 class AvatarScreenshotTest {
@@ -198,12 +244,12 @@ class AvatarScreenshotTest {
     val compose = createComposeRule()
 
     @Test
-    fun setup() = compose.captureRunkkScreen("F1_avatar_setup") {
-        AvatarSetupScreen(AvatarSetupUiState(isLoading = false, selected = DefaultCharacter.FOX), {}, {}, {}, {}, {})
+    fun setup() = compose.captureRunkkScreen("J7_avatar_face") {
+        AvatarSetupScreen(AvatarSetupUiState(isLoading = false, selected = DefaultCharacter.FOX), {}, {}, {}, {})
     }
 
     @Test
-    fun setupSelfieLimit() = compose.captureRunkkScreen("F1_avatar_setup_selfie_limit") {
+    fun setupSelfieLimit() = compose.captureRunkkScreen("J7_avatar_face_selfie_limit") {
         AvatarSetupScreen(
             AvatarSetupUiState(
                 isLoading = false,
@@ -213,18 +259,63 @@ class AvatarScreenshotTest {
             {},
             {},
             {},
+            {}
+        )
+    }
+
+    @Test
+    fun decorate() = compose.captureRunkkScreen("J3_avatar_dress") {
+        AvatarScreen(AvatarUiState(isLoading = false, avatar = avatar, items = items), AvatarScreenActions())
+    }
+
+    @Test
+    fun shop() = compose.captureRunkkScreen("J4_shop") {
+        ShopScreen(ShopUiState(isLoading = false, shop = Shop(items, 1_240)), {}, {}, {}, {}, {}, {}, {})
+    }
+
+    @Test
+    fun shopConfirm() = compose.captureRunkkScreen("J5_shop_buy_confirm") {
+        ShopScreen(
+            ShopUiState(isLoading = false, shop = Shop(items, 1_240), confirming = items[2]),
+            {},
+            {},
+            {},
+            {},
+            {},
             {},
             {}
         )
     }
 
     @Test
-    fun decorate() = compose.captureRunkkScreen("F2_avatar_decorate") {
-        AvatarScreen(AvatarUiState(isLoading = false, avatar = avatar, items = items), {}, {}, {}, {}, {}, {}, {})
+    fun background() = compose.captureRunkkScreen("J3_avatar_dress_background") {
+        AvatarScreen(
+            AvatarUiState(isLoading = false, avatar = avatar, items = items, isBackgroundTab = true),
+            AvatarScreenActions(),
+            background = AvatarBackgroundUiState(
+                isLoading = false,
+                backgrounds = sampleBackgrounds.copy(selectedKey = "INCHEON")
+            )
+        )
     }
 
     @Test
-    fun shop() = compose.captureRunkkScreen("F3_shop") {
-        ShopScreen(ShopUiState(isLoading = false, shop = Shop(items, 1_240)), {}, {}, {}, {}, {}, {}, {})
+    fun decorateLight() = compose.captureRunkkScreen("J3_avatar_dress_light", isDarkTheme = false) {
+        AvatarScreen(
+            AvatarUiState(isLoading = false, avatar = avatar.copy(backgroundKey = "INCHEON"), items = items),
+            AvatarScreenActions()
+        )
+    }
+
+    @Test
+    fun backgroundLight() = compose.captureRunkkScreen("J3_avatar_dress_background_light", isDarkTheme = false) {
+        AvatarScreen(
+            AvatarUiState(isLoading = false, avatar = avatar, items = items, isBackgroundTab = true),
+            AvatarScreenActions(),
+            background = AvatarBackgroundUiState(
+                isLoading = false,
+                backgrounds = sampleBackgrounds.copy(selectedKey = "INCHEON")
+            )
+        )
     }
 }

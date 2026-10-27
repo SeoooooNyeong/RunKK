@@ -12,7 +12,7 @@ data class ProgressReport(
     val distanceMeters: Long,
     val elapsedSeconds: Long,
     val sentAt: Instant
-) {
+) : ClientMessage {
     enum class Channel {
         BATTLE,
         CREW_RUN

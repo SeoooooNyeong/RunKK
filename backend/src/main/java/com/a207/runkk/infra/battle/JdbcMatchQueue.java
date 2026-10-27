@@ -3,6 +3,7 @@ package com.a207.runkk.infra.battle;
 import com.a207.runkk.battle.MatchQueue;
 import com.a207.runkk.battle.MatchStatus;
 import com.a207.runkk.battle.MatchTicket;
+import com.a207.runkk.battle.QueueRemoval;
 import com.a207.runkk.common.StandardDistance;
 import com.a207.runkk.common.Tier;
 import java.sql.ResultSet;
@@ -65,11 +66,21 @@ public class JdbcMatchQueue implements MatchQueue {
 
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public boolean removeWaiting(long memberId) {
-        return jdbc.update(
+    public QueueRemoval removeIfWaiting(long memberId) {
+        int deleted =
+                jdbc.update(
                         "delete from match_ticket where member_id = ? and status = 'WAITING'",
-                        memberId)
-                > 0;
+                        memberId);
+        if (deleted > 0) {
+            return QueueRemoval.REMOVED;
+        }
+        // 지운 행이 없으면 상태를 읽어 거부 사유만 정한다(상태는 바꾸지 않는다, D-83)
+        Integer remaining =
+                jdbc.queryForObject(
+                        "select count(*) from match_ticket where member_id = ?",
+                        Integer.class,
+                        memberId);
+        return remaining != null && remaining > 0 ? QueueRemoval.ASSIGNED : QueueRemoval.ABSENT;
     }
 
     @Override

@@ -24,6 +24,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -126,6 +127,11 @@ private fun DetailBody(detail: RecordDetail) {
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         DetailBadges(detail)
+        DetailCourseCard(detail)
+        DetailStats(detail.summary)
+        if (detail.splitPaces.isNotEmpty()) SplitPaces(detail)
+        if (detail.heartRateZones.isNotEmpty() || detail.averageHeartRate != null) HeartRateCard(detail)
+        // 보드 C2에는 없지만 SRS 필수 항목(신기록 FR-186, 소모 열량 FR-079, 크루 반영·리워드 FR-078)이라 끝에 둔다.
         detail.newRecords.forEach { record ->
             RunkkBanner(record, isStrong = true) {
                 Icon(
@@ -136,10 +142,6 @@ private fun DetailBody(detail: RecordDetail) {
                 )
             }
         }
-        DetailCourseCard(detail)
-        DetailStats(detail.summary)
-        if (detail.splitPaces.isNotEmpty()) SplitPaces(detail)
-        if (detail.heartRateZones.isNotEmpty() || detail.averageHeartRate != null) HeartRateCard(detail)
         DetailExtras(detail)
     }
 }
@@ -164,7 +166,7 @@ private fun DetailBadges(detail: RecordDetail) {
             listOfNotNull(
                 dateFormat.format(s.startedAt.atZone(ZoneId.systemDefault())),
                 detail.weather
-            ).joinToString(" · "),
+            ).joinToString(", "),
             style = RunkkTextStyles.Caption,
             color = RunkkColors.TextSecondary,
             modifier = Modifier.align(Alignment.CenterVertically)
@@ -187,16 +189,6 @@ private fun DetailCourseCard(detail: RecordDetail) {
             },
             modifier = Modifier.fillMaxWidth().weight(1f)
         )
-        if (detail.route.size <
-            2
-        ) {
-            Text(
-                stringResource(R.string.record_detail_course_hidden),
-                style = RunkkTextStyles.Micro,
-                color = RunkkColors.TextSecondary,
-                modifier = Modifier.padding(8.dp)
-            )
-        }
     }
 }
 
@@ -208,6 +200,7 @@ private fun DetailStats(s: RunSummary) {
             stringResource(R.string.record_detail_stat_distance),
             StatTileValue(
                 RunkkFormat.km(s.distance),
+                unit = "km",
                 spoken = stringResource(R.string.record_distance_spoken, RunkkFormat.km(s.distance))
             ),
             style = StatTileStyle(valueStyle = RunkkTextStyles.DisplaySmall, isCentered = true),
@@ -257,8 +250,9 @@ private fun HeartRateCard(detail: RecordDetail) {
         }
         if (zones.isEmpty()) return@RunkkCard
         val total = zones.sumOf { it.second.seconds }.coerceAtLeast(1)
+        val zoneColors = zoneColors()
         RunkkSegmentBar(
-            zones.mapIndexed { i, (_, d) -> d.seconds.toFloat() / total to ZONE_COLORS[i % ZONE_COLORS.size] },
+            zones.mapIndexed { i, (_, d) -> d.seconds.toFloat() / total to zoneColors[i % zoneColors.size] },
             modifier = Modifier.semantics { contentDescription = distributionSpoken }
         )
         Text(
@@ -375,14 +369,15 @@ private fun SplitPaceRow(index: Int, pace: Pace, fastest: Pace, isBest: Boolean)
     }
 }
 
-private val ZONE_COLORS =
-    listOf(
-        RunkkColors.BorderStrong,
-        RunkkColors.BorderHover,
-        RunkkColors.LimeDim,
-        RunkkColors.Lime,
-        RunkkColors.Lavender
-    )
+/** 심박 구간 막대 색(낮은 구간부터). 지금 테마 벌에서 고른다. */
+@Composable
+private fun zoneColors(): List<Color> = listOf(
+    RunkkColors.BorderStrong,
+    RunkkColors.BorderHover,
+    RunkkColors.LimeDim,
+    RunkkColors.Lime,
+    RunkkColors.Lavender
+)
 
 @Preview(name = "C2 기록 상세", widthDp = 390, heightDp = 1000)
 @Composable
@@ -417,7 +412,7 @@ private fun RecordDetailPreview() {
                         "Z3" to Duration.ofMinutes(12),
                         "Z4" to Duration.ofMinutes(5)
                     ),
-                    newRecords = listOf("최장 거리 신기록 · 직전 4.80km"),
+                    newRecords = listOf("최장 거리 신기록, 직전 4.80km"),
                     crewContribution = Distance(5_020),
                     rewardPoints = 50,
                     weather = "12°C 맑음"

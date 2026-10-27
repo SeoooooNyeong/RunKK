@@ -96,7 +96,7 @@ public class Matchmaker {
             long memberId = ticket.getMemberId();
             if (!busy.contains(memberId)) {
                 free.add(ticket);
-            } else if (matchQueue.removeWaiting(memberId)) {
+            } else if (matchQueue.removeIfWaiting(memberId) == QueueRemoval.REMOVED) {
                 log.warn("match_ticket_dropped memberId={} reason=active_battle", memberId);
                 notifyFailed(List.of(memberId));
             }
@@ -152,7 +152,7 @@ public class Matchmaker {
     private void resolveUnpaired(MatchTicket a, MatchCondition cond, LocalDateTime now) {
         long memberId = a.getMemberId();
         if (a.isExpired(now, cond.ghostAfter().plus(GIVE_UP_MARGIN))) {
-            if (matchQueue.removeWaiting(memberId)) {
+            if (matchQueue.removeIfWaiting(memberId) == QueueRemoval.REMOVED) {
                 log.warn("match_given_up memberId={}", memberId);
                 notifyFailed(List.of(memberId));
             }

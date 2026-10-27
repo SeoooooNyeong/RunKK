@@ -105,14 +105,8 @@ public abstract class WebTestSupport {
                 ticket,
                 "nickname",
                 nickname,
-                "birthYear",
-                1995,
                 "consents",
-                Map.of("AGE_14_PLUS", true, "TERMS", true, "PRIVACY", true, "LOCATION", true),
-                "recordVisibility",
-                "PUBLIC",
-                "tags",
-                java.util.List.of("SOLO_RUN"));
+                Map.of("AGE_14_PLUS", true, "TERMS", true, "PRIVACY", true, "LOCATION", true));
     }
 
     protected MockHttpServletRequestBuilder as(Session s, MockHttpServletRequestBuilder request) {

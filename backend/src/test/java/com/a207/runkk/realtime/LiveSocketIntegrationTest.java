@@ -13,12 +13,14 @@ import com.a207.runkk.common.StandardDistance;
 import com.a207.runkk.common.Tier;
 import com.a207.runkk.crew.CrewLiveSessionStore;
 import com.a207.runkk.crew.CrewRunLiveSession;
+import com.a207.runkk.member.AccessGrant;
 import com.a207.runkk.member.MemberFixtures;
 import com.a207.runkk.member.MemberRepository;
 import com.a207.runkk.member.TokenIssuer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URI;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -29,6 +31,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpHeaders;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
@@ -53,7 +56,7 @@ class LiveSocketIntegrationTest {
 
     @LocalServerPort int port;
     @Autowired MemberRepository members;
-    @Autowired TokenIssuer tokens;
+    @MockitoSpyBean TokenIssuer tokens;
     @Autowired BattleRepository battles;
     @Autowired BattleStartService startService;
     @Autowired TransactionTemplate tx;
@@ -176,7 +179,35 @@ class LiveSocketIntegrationTest {
         assertThat(relay.get("entries").get(0).get("name").asText()).isEqualTo("크루곰");
         assertThat(relay.get("entries").get(0).get("distance").asLong()).isEqualTo(300);
         assertThat(relay.get("entries").get(0).get("rank").asInt()).isEqualTo(1);
+        // D-161: 받는 사람(bob) 줄에만 mine 참
+        assertThat(relay.get("entries").get(0).get("mine").asBoolean()).isFalse();
+        assertThat(relay.get("entries").get(1).get("memberId").asLong()).isEqualTo(bob);
+        assertThat(relay.get("entries").get(1).get("mine").asBoolean()).isTrue();
         assertThat(relay.toString()).doesNotContain("latitude", "longitude");
         crewSessions.delete(postId);
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName(
+            "T-31 TC-6771·TC-6779: 같은 회원의 새 연결은 옛 연결을 1000으로 닫고, 토큰 만료 시각에 서버가 4401 TOKEN_EXPIRED로"
+                    + " 닫는다")
+    void tokenExpiry_closesWith4401() throws Exception {
+        long runner = member("만료곰");
+        String token = tokens.issue(runner).accessToken();
+        Inbox first = new Inbox();
+        connect(first, token);
+        org.mockito.Mockito.doReturn(new AccessGrant(runner, Instant.now().plusMillis(1_500)))
+                .when(tokens)
+                .verifyGrant(token);
+        Inbox second = new Inbox();
+        connect(second, token);
+
+        CloseStatus replaced = first.closes.poll(WAIT_SECONDS, TimeUnit.SECONDS);
+        assertThat(replaced).isNotNull();
+        assertThat(replaced.getCode()).isEqualTo(CloseStatus.NORMAL.getCode());
+        CloseStatus expired = second.closes.poll(WAIT_SECONDS, TimeUnit.SECONDS);
+        assertThat(expired).as("만료 시각의 닫힘").isNotNull();
+        assertThat(expired.getCode()).isEqualTo(4401);
+        assertThat(expired.getReason()).isEqualTo("TOKEN_EXPIRED");
     }
 }

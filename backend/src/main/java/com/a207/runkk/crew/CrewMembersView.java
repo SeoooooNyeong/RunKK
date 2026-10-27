@@ -1,7 +1,6 @@
 package com.a207.runkk.crew;
 
 import com.a207.runkk.common.DisplayName;
-import com.a207.runkk.common.TagSet;
 import com.a207.runkk.common.Tier;
 import java.util.List;
 import java.util.Set;
@@ -28,14 +27,8 @@ public record CrewMembersView(long crewId, List<Line> members, Set<Long> disclos
      * @param name 표시명
      * @param role 크루 역할
      * @param crewIntro 크루 내 소개
-     * @param crewTags 크루 내 성향 태그, 비공개면 null
      * @param tier 티어, 비공개이거나 언랭이면 null
      */
     public record Line(
-            long memberId,
-            DisplayName name,
-            CrewRole role,
-            String crewIntro,
-            TagSet crewTags,
-            Tier tier) {}
+            long memberId, DisplayName name, CrewRole role, String crewIntro, Tier tier) {}
 }

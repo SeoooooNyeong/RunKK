@@ -6,7 +6,6 @@ import com.a207.runkk.policy.OperationSettingService;
 import com.a207.runkk.policy.SettingKey;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -46,7 +45,7 @@ public class OperatorBootstrap {
             OperationSettingService settingService,
             ObjectMapper objectMapper,
             Seed seed) {
-        this(policy, settingService, objectMapper, seed.bootstrapOperators());
+        this(policy, settingService, objectMapper, seed.operators());
     }
 
     OperatorBootstrap(
@@ -65,13 +64,21 @@ public class OperatorBootstrap {
         seedIfEmpty();
     }
 
-    /** 시드를 넣었으면 true. 형식 오류면 기동은 계속하고 운영 로그만 남긴다. */
+    /**
+     * 시드를 넣었으면 true(D-166, 부록 E K-5). 값이 없으면(null) 로그 없이 false, 빈 문자열(공백만 포함)이면 설정 실수일 수 있어 WARN 1줄
+     * (operator_seed_empty) 뒤 false. 형식 오류·검사 실패(제공자는 대문자 KAKAO·GOOGLE만)도 저장 0·WARN 1줄이고 예외를 던지지 않아
+     * 기동은 계속된다.
+     */
     public boolean seedIfEmpty() {
-        if (operators == null || operators.isBlank()) {
+        if (operators == null) {
             return false;
         }
         if (!policy.operatorWhitelist().accounts().isEmpty()) {
             log.info("operator_bootstrap skipped=whitelist_present");
+            return false;
+        }
+        if (operators.isBlank()) {
+            log.warn("operator_seed_empty");
             return false;
         }
         try {
@@ -79,13 +86,14 @@ public class OperatorBootstrap {
             log.info("operator_bootstrap seeded=true");
             return true;
         } catch (RuntimeException | JsonProcessingException e) {
-            log.error("operator_bootstrap_failed error={}", e.getClass().getSimpleName());
+            log.warn("operator_bootstrap_failed error={}", e.getClass().getSimpleName());
             return false;
         }
     }
 
     /**
-     * "KAKAO:1,GOOGLE:a" → {"accounts":{"GOOGLE":["a"],"KAKAO":["1"]}}. 제공자는 ProviderType 이름만 받는다.
+     * "KAKAO:1,GOOGLE:a" → {"accounts":{"GOOGLE":["a"],"KAKAO":["1"]}}. 제공자는 ProviderType 이름(대문자)만
+     * 받는다. 관리툴 검사(SettingKey.OPERATOR_WHITELIST)와 같은 허용 값이다(D-87, D-166).
      */
     private String whitelistJson() throws JsonProcessingException {
         Map<String, Set<String>> accounts = new TreeMap<>();
@@ -94,17 +102,19 @@ public class OperatorBootstrap {
             if (parts.length != 2 || parts[1].isBlank()) {
                 throw new IllegalArgumentException("RUNKK_BOOTSTRAP_OPERATORS 형식 오류");
             }
-            String provider = ProviderType.valueOf(parts[0].trim().toUpperCase(Locale.ROOT)).name();
+            String provider = ProviderType.valueOf(parts[0].trim()).name();
             accounts.computeIfAbsent(provider, p -> new TreeSet<>()).add(parts[1].trim());
         }
         return objectMapper.writeValueAsString(Map.of("accounts", accounts));
     }
 
     /**
-     * 첫 운영자 시드(runkk.operator.*, code-review U10, 코드 리뷰 2차 L1).
+     * 첫 운영자 시드(code-review U10, 코드 리뷰 2차 L1). 환경 변수 RUNKK_BOOTSTRAP_OPERATORS가 이
+     * 값(runkk.bootstrap.operators)에 그대로 묶인다. 변수가 없으면 null(시드 없음, 로그 없음)이고 빈 문자열이면 설정 실수로 보고 WARN
+     * 1줄이다(D-166). application.yml에 빈 기본값을 두지 않는다.
      *
-     * @param bootstrapOperators "KAKAO:계정ID,GOOGLE:계정ID"(비면 넣지 않는다)
+     * @param operators "KAKAO:계정ID,GOOGLE:계정ID"(없으면 넣지 않는다)
      */
-    @ConfigurationProperties("runkk.operator")
-    public record Seed(String bootstrapOperators) {}
+    @ConfigurationProperties("runkk.bootstrap")
+    public record Seed(String operators) {}
 }

@@ -7,6 +7,7 @@ import com.a207.runkk.app.core.model.GeoPoint
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.core.model.RunMode
+import com.a207.runkk.app.domain.avatar.BackgroundChoice
 import com.a207.runkk.app.domain.record.AggregationPeriod
 import com.a207.runkk.app.domain.record.Dashboard
 import com.a207.runkk.app.domain.record.Growth
@@ -196,6 +197,8 @@ class FakeSettingsRepository(var shared: Boolean = true) : SettingsRepository {
 
     override fun guidanceSettings() = GuidanceSettings.DEFAULT
 
+    override fun isGuest(): Boolean = false
+
     override fun changes(): Flow<SettingsSnapshot> = flowOf(SettingsSnapshot.SAFE)
 
     override suspend fun clear(): Outcome<Unit> = Outcome.Success(Unit)
@@ -246,3 +249,31 @@ val sampleRanking = Ranking(
     aggregatedAt = Instant.parse("2026-10-20T15:00:00Z"),
     notice = null
 )
+
+/** 러닝 카드 배경 키만 쓰는 가짜 AvatarRepository(D-140). */
+class FakeAvatarRepository(
+    var backgroundResult: Outcome<BackgroundChoice?> = Outcome.Success(BackgroundChoice("INCHEON", "DOMESTIC"))
+) : com.a207.runkk.app.domain.avatar.AvatarRepository {
+    var backgroundCalls = 0
+
+    override suspend fun backgroundChoice(): Outcome<BackgroundChoice?> {
+        backgroundCalls++
+        return backgroundResult
+    }
+
+    override suspend fun avatar() = error("unused")
+
+    override suspend fun createFromSelfie(jpeg: ByteArray) = error("unused")
+
+    override suspend fun chooseDefault(characterId: String) = error("unused")
+
+    override suspend fun equip(changes: Map<com.a207.runkk.app.domain.avatar.ItemSlot, Long?>) = error("unused")
+
+    override suspend fun shop(slot: com.a207.runkk.app.domain.avatar.ItemSlot?) = error("unused")
+
+    override suspend fun purchase(itemId: Long) = error("unused")
+
+    override suspend fun backgrounds() = error("unused")
+
+    override suspend fun chooseBackground(key: String?) = error("unused")
+}

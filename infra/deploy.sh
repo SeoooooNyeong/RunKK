@@ -50,6 +50,87 @@ else
   HEALTH_CURL=(curl -fsS "http://localhost:${NGINX_HTTP_PORT}/actuator/health")
 fi
 
+# 새 api가 Flyway로 되돌릴 수 없는 마이그레이션(예: V20의 DROP COLUMN member.tags·crew_membership.crew_tags)을 돌리기 전에
+# postgres를 덤프해 둔다(BE5-A-15). 덤프가 실패하면 배포를 멈춘다.
+# - 보관 위치는 CI 작업 폴더 밖이다(BE6-1). shell 러너는 다음 잡 시작 때 git clean으로 작업 폴더의 무시 파일까지 지우므로
+#   infra/backups/에 두면 다음 파이프라인에서 사라진다. RUNKK_BACKUP_DIR(환경 변수 > .env > 기본 $HOME/runkk-backups,
+#   절대 경로)에 쓰고 그 폴더 기준으로 최근 7개만 남긴다.
+# - 덤프에는 위치·토큰 해시가 들어 있으므로 폴더 700, 파일 600으로 만든다(BE6-2).
+# - postgres가 멈춰 있어도 데이터 볼륨이 있으면 postgres만 먼저 올려 덤프한다. 볼륨도 없을 때(처음 배포)만 건너뛴다(BE6-3).
+# 복구: gunzip -c <RUNKK_BACKUP_DIR>/<파일> | docker compose exec -T postgres psql -U <DB_USER> <DB_NAME>
+BACKUP_KEEP=7
+
+backup_dir() {
+  local dir="${RUNKK_BACKUP_DIR:-}"
+  [ -n "$dir" ] || dir="$(env_value RUNKK_BACKUP_DIR "")"
+  [ -n "$dir" ] || dir="${HOME:?HOME is not set; set RUNKK_BACKUP_DIR}/runkk-backups"
+  case "$dir" in
+    /*) echo "$dir" ;;
+    *)
+      echo "RUNKK_BACKUP_DIR must be an absolute path outside the CI work folder: $dir" >&2
+      return 1
+      ;;
+  esac
+}
+
+# compose 프로젝트 이름(docker-compose.yml의 name, COMPOSE_PROJECT_NAME이 있으면 그 값)의 postgres 데이터 볼륨이 있는가.
+# 0 있음, 1 없음, 2 확인 실패(Docker에 물을 수 없음). 확인 실패를 "없음"으로 보면 백업 없이 마이그레이션이 돌 수 있어 나눈다.
+postgres_volume_exists() {
+  local project volumes
+  project="$(compose config | sed -n 's/^name: *//p' | head -n 1)" || return 2
+  [ -n "$project" ] || return 2
+  volumes="$(docker volume ls -q)" || return 2
+  grep -Fxq "${project}_postgres-data" <<< "$volumes"
+}
+
+backup_database() {
+  local dir db_user db_name revision file
+  dir="$(backup_dir)"
+  if [ -z "$(compose ps --status running --quiet postgres)" ]; then
+    local volume_status=0
+    postgres_volume_exists || volume_status=$?
+    if [ "$volume_status" -eq 1 ]; then
+      echo "No postgres data volume yet (first deploy); skipping the pre-deploy backup."
+      return 0
+    elif [ "$volume_status" -ne 0 ]; then
+      echo "Could not check the postgres data volume; aborting the deploy before the migrations run." >&2
+      return 1
+    fi
+    echo "postgres is stopped but its data volume exists; starting postgres alone for the pre-deploy backup."
+    if ! compose up -d --no-deps postgres; then
+      echo "Could not start postgres for the backup; aborting the deploy before the migrations run." >&2
+      return 1
+    fi
+  fi
+  if ! wait_healthy postgres 12; then
+    echo "postgres is not healthy; aborting the deploy before the migrations run." >&2
+    return 1
+  fi
+
+  db_user="$(env_value DB_USER runkk)"
+  db_name="$(env_value DB_NAME runkk)"
+  revision="${CI_COMMIT_SHORT_SHA:-$(git rev-parse --short HEAD 2>/dev/null || echo unknown)}"
+  mkdir -p "$dir"
+  chmod 700 "$dir"
+  file="$dir/pre-deploy-$(date +%Y%m%d-%H%M%S)-${revision}.sql.gz"
+  # umask 077이라 gzip이 만드는 파일은 처음부터 600이다(다른 계정이 읽을 틈이 없다)
+  if ! (umask 077 && compose exec -T postgres pg_dump -U "$db_user" "$db_name" | gzip > "$file"); then
+    rm -f "$file"
+    echo "pg_dump failed; aborting the deploy before the migrations run." >&2
+    return 1
+  fi
+  chmod 600 "$file"
+  echo "Database backup written to $file"
+  local old=()
+  # 이름은 pre-deploy-<시각>-<sha>.sql.gz로 고정이라 줄 단위로 읽어도 안전하다(폴더 경로에 공백이 있어도 된다)
+  # shellcheck disable=SC2012
+  mapfile -t old < <(ls -1t "$dir"/pre-deploy-*.sql.gz | tail -n +$((BACKUP_KEEP + 1)))
+  if [ "${#old[@]}" -gt 0 ]; then
+    rm -f -- "${old[@]}"
+  fi
+}
+
+backup_database
 compose pull nginx postgres redis
 compose build api ai
 compose up -d --remove-orphans

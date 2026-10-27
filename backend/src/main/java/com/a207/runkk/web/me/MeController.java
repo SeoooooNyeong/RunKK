@@ -1,6 +1,5 @@
 package com.a207.runkk.web.me;
 
-import com.a207.runkk.common.PersonalityTag;
 import com.a207.runkk.member.ConsentItem;
 import com.a207.runkk.member.ConsentResult;
 import com.a207.runkk.member.DocumentType;
@@ -25,7 +24,6 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
-import java.util.Set;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -125,18 +123,16 @@ public class MeController {
      * @param gender 성별
      * @param photoUrl 사진 주소(빈 문자열이면 지움)
      * @param intro 소개(빈 문자열이면 지움)
-     * @param tags 성향 태그
      */
     record ProfileEditRequest(
             @Size(max = TEXT_MAX) String nickname,
             Integer birthYear,
             Gender gender,
             @Pattern(regexp = "^$|^https://[^\\s]+$") @Size(max = TEXT_MAX) String photoUrl,
-            @Size(max = TEXT_MAX) String intro,
-            Set<PersonalityTag> tags) {
+            @Size(max = TEXT_MAX) String intro) {
 
         ProfileEdit toEdit() {
-            return new ProfileEdit(nickname, birthYear, gender, photoUrl, intro, tags);
+            return new ProfileEdit(nickname, birthYear, gender, photoUrl, intro);
         }
     }
 
@@ -168,13 +164,13 @@ public class MeController {
      * @param disclosure 공개 수준
      * @param tier 티어(UNRANKED·BRONZE·SILVER·GOLD·PLATINUM·MASTER)
      * @param level 레벨
-     * @param tags 성향 태그
      * @param intro 소개
      * @param photoUrl 프로필 사진 주소
      * @param ageBand 나이대("20대")
      * @param gender 성별
      * @param runimalType Runimal 유형
      * @param faceKey 아바타 얼굴 키
+     * @param avatarBackgroundKey 아바타 랜드마크 배경 키, null이면 기본 배경(v0.11 FR-202)
      * @param crewName 소속 크루명
      * @param crew 소속 크루(ID·이름·로고)
      * @param longestDistanceMeters 최장 거리(본인만)
@@ -186,13 +182,13 @@ public class MeController {
             String disclosure,
             String tier,
             Integer level,
-            Set<PersonalityTag> tags,
             String intro,
             String photoUrl,
             String ageBand,
             Gender gender,
             String runimalType,
             String faceKey,
+            String avatarBackgroundKey,
             String crewName,
             ProfileView.Crew crew,
             Long longestDistanceMeters,
@@ -206,13 +202,13 @@ public class MeController {
                     v.disclosure().name(),
                     v.tier() == null ? null : v.tier().name(),
                     about == null ? null : about.level(),
-                    v.tags(),
                     about == null ? null : about.intro(),
                     about == null ? null : about.photoUrl(),
                     about == null ? null : about.ageBand(),
                     about == null ? null : about.gender(),
                     v.runimalType(),
                     v.faceKey(),
+                    v.avatarBackgroundKey(),
                     v.crew() == null ? null : v.crew().name(),
                     v.crew(),
                     v.longestDistance() == null ? null : v.longestDistance().meters(),

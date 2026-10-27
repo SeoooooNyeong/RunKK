@@ -1,6 +1,7 @@
 package com.a207.runkk.web.crew;
 
 import com.a207.runkk.common.AggregationPeriod;
+import com.a207.runkk.common.Distance;
 import com.a207.runkk.crew.CrewCreateResult;
 import com.a207.runkk.crew.CrewQueryService;
 import com.a207.runkk.crew.CrewRankingView;
@@ -10,7 +11,9 @@ import com.a207.runkk.crew.JoinTarget;
 import com.a207.runkk.crew.MembershipService;
 import com.a207.runkk.crew.WeeklyRaceService;
 import jakarta.validation.Valid;
+import java.time.Clock;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -21,6 +24,7 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -29,8 +33,8 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 크루 엔드포인트(설계 5.7.1): 생성, 목록·추천, 가입 신청·취소, 탈퇴, 크루 내 표시 정보, 크루원·가입 대기·랭킹·주간 현황 조회. 엔드포인트 하나를 서비스 연산
- * 하나에 잇고 요청·응답 형식만 바꾼다. 크루장 전용 변경은 CrewAdminController가 받는다.
+ * 크루 엔드포인트(설계 5.7.1): 생성, 목록, 가입 신청·취소, 탈퇴, 크루 내 표시 정보, 크루원·가입 대기·랭킹·주간 현황 조회, 공동 목표. 엔드포인트 하나를 서비스
+ * 연산 하나에 잇고 요청·응답 형식만 바꾼다. 크루장 전용 변경은 CrewAdminController가 받는다.
  */
 @RestController
 @RequestMapping("/api/v1")
@@ -43,18 +47,24 @@ public class CrewController {
     private final MembershipService membershipService;
     private final WeeklyRaceService weeklyRaceService;
     private final CrewMembersAssembler crewMembersAssembler;
+    private final CrewJoinAttemptGuard joinAttemptGuard;
+    private final Clock clock;
 
     CrewController(
             CrewService crewService,
             CrewQueryService crewQueryService,
             MembershipService membershipService,
             WeeklyRaceService weeklyRaceService,
-            CrewMembersAssembler crewMembersAssembler) {
+            CrewMembersAssembler crewMembersAssembler,
+            CrewJoinAttemptGuard joinAttemptGuard,
+            Clock clock) {
         this.crewService = crewService;
         this.crewQueryService = crewQueryService;
         this.membershipService = membershipService;
         this.weeklyRaceService = weeklyRaceService;
         this.crewMembersAssembler = crewMembersAssembler;
+        this.joinAttemptGuard = joinAttemptGuard;
+        this.clock = clock;
     }
 
     @PostMapping("/crews")
@@ -64,7 +74,7 @@ public class CrewController {
             @Valid @RequestBody CrewDtos.CrewFormRequest body) {
         CrewCreateResult result = crewService.create(memberId, body.toCommand());
         return new CrewDtos.CreatedResponse(
-                result.crewId(), result.inviteCode(), result.inviteCodeExpiresAt());
+                result.crewId(), result.inviteCode(), CrewDtos.at(result.inviteCodeExpiresAt()));
     }
 
     @GetMapping("/crews")
@@ -81,25 +91,27 @@ public class CrewController {
         return CrewDtos.MyCrewResponse.of(crewQueryService.myCrew(memberId));
     }
 
-    /** 크루 한 곳(크루 홈·정보 수정 화면). 비공개 크루는 크루원만. 설계 5.7.1에 없어 더한 조회다. */
-    @GetMapping("/crews/{id}")
+    /**
+     * 크루 한 곳(크루 홈·정보 수정 화면). 비공개 크루는 크루원만. 설계 5.7.1에 없어 더한 조회다. ID는 숫자만 받아 지운 GET
+     * /crews/recommendations가 404가 되게 한다(v0.11 F.2.4).
+     */
+    @GetMapping("/crews/{id:[0-9]+}")
     CrewDtos.CrewDetailResponse detail(
             @RequestAttribute(MEMBER_ID) long memberId, @PathVariable("id") long crewId) {
         return CrewDtos.CrewDetailResponse.of(crewQueryService.detail(memberId, crewId));
     }
 
-    @GetMapping("/crews/recommendations")
-    CrewDtos.RecommendationsResponse recommend(@RequestAttribute(MEMBER_ID) long memberId) {
-        return CrewDtos.RecommendationsResponse.of(crewQueryService.recommend(memberId));
-    }
-
+    /** 초대 코드 가입은 회원별 10분 5회 실패 제한을 MembershipService.apply 앞뒤에서 건다(429, D-132). */
     @PostMapping("/crews/join")
     CrewDtos.JoinResponse apply(
             @RequestAttribute(MEMBER_ID) long memberId,
             @RequestBody CrewDtos.JoinRequestBody body) {
+        JoinTarget target = new JoinTarget(body.crewId(), body.inviteCode());
         return joinResponse(
-                membershipService.apply(
-                        memberId, new JoinTarget(body.crewId(), body.inviteCode())));
+                joinAttemptGuard.guard(
+                        memberId,
+                        target.code().isPresent(),
+                        () -> membershipService.apply(memberId, target)));
     }
 
     @DeleteMapping("/join-requests/{id}")
@@ -167,6 +179,21 @@ public class CrewController {
                     LocalDate weekStart) {
         return CrewDtos.RaceStatusResponse.of(
                 weeklyRaceService.status(memberId, crewId, Optional.ofNullable(weekStart)),
+                memberId);
+    }
+
+    /** 이번 주 공동 목표(FR-138, 운영진 이상). 정한 즉시 합계가 목표 이상이면 그 자리에서 달성한다(FR-217). */
+    @PutMapping("/crews/{id}/goal")
+    CrewDtos.RaceStatusResponse setGoal(
+            @RequestAttribute(MEMBER_ID) long memberId,
+            @PathVariable("id") long crewId,
+            @Valid @RequestBody CrewDtos.GoalRequest body) {
+        return CrewDtos.RaceStatusResponse.of(
+                weeklyRaceService.setGoal(
+                        memberId,
+                        crewId,
+                        Distance.ofMeters(body.goalMeters()),
+                        LocalDateTime.now(clock)),
                 memberId);
     }
 

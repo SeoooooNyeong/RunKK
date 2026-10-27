@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -131,10 +133,7 @@ private fun RunimalBody(state: RunimalUiState, status: RunimalStatus, modifier: 
         if (status.type != null && card != null) {
             TypeCard(card, isProvisional = status.isProvisional)
         } else {
-            RunkkEmptyState(
-                title = stringResource(R.string.runimal_empty_title),
-                message = stringResource(R.string.runimal_empty_message)
-            )
+            RunkkEmptyState(title = stringResource(R.string.runimal_empty_title))
         }
         state.remainingLabel?.let { Remaining(it.asString(), status) }
         AllTypes(status)
@@ -269,15 +268,10 @@ private fun Remaining(label: String, status: RunimalStatus) {
     ) {
         Text(label, style = RunkkTextStyles.CardTitle, color = RunkkColors.TextPrimary)
         RunkkProgressBar(done.toFloat() / total)
-        Text(
-            stringResource(R.string.runimal_remaining_hint),
-            style = RunkkTextStyles.Caption,
-            color = RunkkColors.TextSecondary
-        )
     }
 }
 
-/** 16유형(3.6.1): 동물 그림과 한국어 이름. 내 유형을 라임으로 표시한다. */
+/** 16유형(3.6.1, J1): 동물 그림 4×4 격자. 내 유형을 라임 테두리로 표시하고 이름은 보조 기술로 읽는다. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun AllTypes(status: RunimalStatus) {
@@ -287,45 +281,44 @@ private fun AllTypes(status: RunimalStatus) {
     FlowRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
-        maxItemsInEachRow = 2
+        maxItemsInEachRow = GRID_COLUMNS
     ) {
         status.allTypes.forEach { type ->
             val mine = type == status.type || type == status.card?.title
             val art = RunimalArt.of(type)
             val name = if (art == RunimalArt.UNKNOWN) type else stringResource(art.nameRes)
-            Row(
+            Box(
                 modifier = Modifier
                     .weight(1f)
-                    .heightIn(min = 56.dp)
+                    .aspectRatio(1f)
                     .clip(RunkkShapes.Medium)
                     .background(if (mine) RunkkColors.LimeContainer else RunkkColors.Surface)
-                    .border(1.dp, if (mine) RunkkColors.Lime else RunkkColors.Border, RunkkShapes.Medium)
+                    .border(
+                        if (mine) 2.dp else 1.dp,
+                        if (mine) RunkkColors.Lime else RunkkColors.Border,
+                        RunkkShapes.Medium
+                    )
                     .clearAndSetSemantics {
                         contentDescription = name
                         selected = mine
                         if (mine) stateDescription = mineLabel
                     }
-                    .padding(horizontal = 8.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    .padding(8.dp),
+                contentAlignment = Alignment.Center
             ) {
                 Image(
                     painter = painterResource(art.drawableRes),
-                    contentDescription = name,
-                    modifier = Modifier.size(LIST_ART_SIZE)
-                )
-                Text(
-                    name,
-                    style = RunkkTextStyles.text(13, if (mine) FontWeight.Black else FontWeight.Normal),
-                    color = if (mine) RunkkColors.Lime else RunkkColors.TextSecondary
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize()
                 )
             }
         }
+        repeat((GRID_COLUMNS - status.allTypes.size % GRID_COLUMNS) % GRID_COLUMNS) { Spacer(Modifier.weight(1f)) }
     }
 }
 
 private val TYPE_ART_SIZE = 144.dp
-private val LIST_ART_SIZE = 40.dp
+private const val GRID_COLUMNS = 4
 private const val PERCENT = 100
 private const val PROVISIONAL_RUNS = 3
 private const val CONFIRM_RUNS = 10

@@ -40,15 +40,21 @@ import org.junit.jupiter.api.Test;
 import org.springframework.stereotype.Component;
 
 /**
- * 설계서 13.1 ArchUnit 규칙 10개(14장 "통합 — 구조"). 아직 클래스가 없는 패키지 때문에 규칙이 거짓 실패하지 않도록 모든 규칙에
- * allowEmptyShould(true)를 둔다. 규칙이 실제 위반을 잡는지는 {@link ArchitectureRuleNegativeTest}가 확인한다.
+ * 설계서 13.1 ArchUnit 규칙 12개(14장 "통합 — 구조", v0.11 검증으로 (11)·(12) 추가). 아직 클래스가 없는 패키지 때문에 규칙이 거짓 실패하지
+ * 않도록 모든 규칙에 allowEmptyShould(true)를 둔다. 규칙이 실제 위반을 잡는지는 {@link ArchitectureRuleNegativeTest}가
+ * 확인한다.
  */
-@org.junit.jupiter.api.DisplayName("ArchUnit 13.1 규칙 10개")
+@org.junit.jupiter.api.DisplayName("ArchUnit 13.1 규칙 12개")
 class ArchitectureTest {
 
     static final String ROOT = "com.a207.runkk";
 
-    /** 5.1.1 서버 패키지 53개 + batch.reward(코드 리뷰 2차 M4 결정: 리워드 일 단위 보정) = 54개. */
+    /**
+     * 5.1.1 서버 패키지 53개 + batch.reward(코드 리뷰 2차 M4 결정: 리워드 일 단위 보정) = 54개, + v0.11 S0 계약 고정에서 만든
+     * 5개(crew.chat, report, web.chat, web.report, web.admin.report) = 59개, + S3b infra.chat(N15),
+     * S3a web.attempt(D-132) = 61개, + S3c
+     * infra.report(N16)·report.target(D-135)·web.admin.ranking(D-136) = 64개(12장 최종 목록).
+     */
     static final List<String> PACKAGES =
             List.of(
                     "web.auth",
@@ -64,6 +70,11 @@ class ArchitectureTest {
                     "web.admin.celebrity",
                     "web.admin.setting",
                     "web.admin.audit",
+                    "web.admin.report",
+                    "web.admin.ranking",
+                    "web.chat",
+                    "web.report",
+                    "web.attempt",
                     "web.error",
                     "realtime",
                     "batch.battle",
@@ -78,6 +89,7 @@ class ArchitectureTest {
                     "bootstrap",
                     "profile",
                     "operator",
+                    "report.target",
                     "member",
                     "running",
                     "runimal",
@@ -85,6 +97,8 @@ class ArchitectureTest {
                     "reward",
                     "avatar",
                     "crew",
+                    "crew.chat",
+                    "report",
                     "analysis",
                     "policy",
                     "notification",
@@ -100,17 +114,20 @@ class ArchitectureTest {
                     "infra.reward",
                     "infra.policy",
                     "infra.notification",
+                    "infra.chat",
+                    "infra.report",
                     "infra.audit",
                     "infra.integration.auth",
                     "infra.integration.ai",
                     "infra.integration.push",
                     "infra.integration.weather");
 
-    /** 도메인·조립 패키지(5.2 조립·응용+도메인·도메인 공통 계층, 핵심 14개). */
+    /** 도메인·조립 패키지(5.2 조립·응용+도메인·도메인 공통 계층, 핵심 14개 + v0.11 crew.chat·report·report.target = 17개). */
     static final List<String> CORE =
             List.of(
                     "profile",
                     "operator",
+                    "report.target",
                     "member",
                     "running",
                     "runimal",
@@ -118,6 +135,8 @@ class ArchitectureTest {
                     "reward",
                     "avatar",
                     "crew",
+                    "crew.chat",
+                    "report",
                     "analysis",
                     "policy",
                     "notification",
@@ -144,24 +163,36 @@ class ArchitectureTest {
         m.put("notification", Set.of("member", "policy"));
         m.put("audit", Set.of());
         m.put("common", Set.of());
+        // v0.11 (부록 F F.6.2 N1~N4, N7~N9. N5·N6은 설계 검증 D-135로 report.target으로 옮겨 없다)
+        m.put("crew.chat", Set.of("crew", "member", "notification", "audit"));
+        m.put("report", Set.of("notification", "audit", "member"));
+        // 신고 대상 조립(V1~V3, D-135): crew·crew.chat의 신고용 공개 연산으로 report.ReportedContentPort를 구현
+        m.put("report.target", Set.of("crew", "crew.chat", "report"));
         // 표현 (D45~D54, D63, D64, D68~D70)
-        m.put("web.auth", Set.of("member"));
+        m.put("web.auth", Set.of("member", "web.attempt")); // + V6(D-132)
         m.put("web.me", Set.of("member", "profile"));
         m.put("web.notification", Set.of("notification"));
         m.put("web.run", Set.of("running"));
         m.put("web.record", Set.of("analysis"));
         m.put("web.battle", Set.of("battle", "reward"));
-        m.put("web.crew", Set.of("crew", "runimal"));
+        m.put("web.crew", Set.of("crew", "runimal", "web.attempt")); // + V9(D-132)
         m.put("web.runimal", Set.of("runimal"));
         m.put("web.avatar", Set.of("avatar", "reward"));
-        // + analysis·audit: 운영자 랭킹 다시 계산(RankingAdminController → RankingService.recompute, 감사
-        // RANKING_RECOMPUTED). 12.2에 없는 화살표 2개 — 설계서 갱신 요청
-        m.put("web.admin", Set.of("operator", "analysis", "audit"));
+        m.put("web.admin", Set.of("operator", "web.attempt")); // + V7
+        // D77: 운영자 랭킹 다시 계산(RankingService.recompute, 감사 RANKING_RECOMPUTED). D-136으로 web.admin에서
+        // 옮겼다
+        m.put("web.admin.ranking", Set.of("analysis", "audit"));
         m.put("web.admin.celebrity", Set.of("battle"));
         m.put("web.admin.setting", Set.of("policy"));
         m.put("web.admin.audit", Set.of("audit"));
         m.put("web.error", Set.of());
-        m.put("realtime", Set.of("battle", "crew", "member"));
+        // v0.11 (N12~N14), web.chat → web.attempt(V8, D-132)
+        m.put("web.chat", Set.of("crew.chat", "web.attempt"));
+        // web.attempt는 java.*만 import한다(Fan-Out 0, 12.2 D67 예외, 13.1 규칙 12)
+        m.put("web.attempt", Set.of());
+        m.put("web.report", Set.of("report"));
+        m.put("web.admin.report", Set.of("report"));
+        m.put("realtime", Set.of("battle", "crew", "crew.chat", "member")); // + crew.chat(N11)
         // 구동 (D55~D57, D65, D71~D74): batch.<응용> → 같은 이름의 패키지 하나
         for (String app :
                 List.of(
@@ -193,6 +224,8 @@ class ArchitectureTest {
                         "audit")) {
             m.put("infra." + domain, Set.of(domain));
         }
+        m.put("infra.chat", Set.of("crew.chat")); // v0.11 N15
+        m.put("infra.report", Set.of("report")); // v0.11 N16
         m.put("infra.integration.auth", Set.of("member", "operator"));
         m.put("infra.integration.ai", Set.of("analysis", "avatar"));
         m.put("infra.integration.push", Set.of("notification"));
@@ -200,7 +233,7 @@ class ArchitectureTest {
         // 모든 패키지 → common (D44, D53, D66, D67)
         m.replaceAll(
                 (from, to) ->
-                        from.equals("common")
+                        from.equals("common") || from.equals("web.attempt")
                                 ? to
                                 : Stream.concat(to.stream(), Stream.of("common"))
                                         .collect(Collectors.toUnmodifiableSet()));
@@ -232,7 +265,7 @@ class ArchitectureTest {
 
                 @Override
                 public String getDescription() {
-                    return "5.1.1 서버 패키지 54개(가장 긴 이름, *.live는 상위로)";
+                    return "5.1.1 서버 패키지 64개(가장 긴 이름, *.live는 상위로)";
                 }
             };
 
@@ -295,6 +328,11 @@ class ArchitectureTest {
                     .allowEmptyShould(true)
                     .because("하위 계층이 상위 계층을 import하지 않는다(5.2, 13.1 규칙 3)");
 
+    /** 도메인 패키지의 저장 구현 패키지. 대개 infra.<도메인>이고 crew.chat은 infra.chat이다(5.1.1, N15). */
+    static String infraOf(String owner) {
+        return owner.equals("crew.chat") ? "infra.chat" : "infra." + owner;
+    }
+
     private static final DescribedPredicate<JavaClass> STORAGE_PORT =
             DescribedPredicate.describe(
                     "…Repository·…Store·QuotaCounter·MatchQueue 인터페이스",
@@ -314,7 +352,7 @@ class ArchitectureTest {
                         Optional<String> user = sliceOf(dependency.getOriginClass());
                         if (user.isEmpty()
                                 || user.get().equals(owner)
-                                || user.get().equals("infra." + owner)) {
+                                || user.get().equals(infraOf(owner))) {
                             continue;
                         }
                         events.add(
@@ -350,7 +388,7 @@ class ArchitectureTest {
                         Optional<String> owner = sliceOf(target);
                         if (owner.isEmpty()
                                 || owner.equals(user)
-                                || user.get().equals("infra." + owner.get())) {
+                                || user.get().equals(infraOf(owner.get()))) {
                             continue;
                         }
                         events.add(
@@ -425,26 +463,176 @@ class ArchitectureTest {
                                 .allowEmptyShould(true));
     }
 
-    // (7) battle.live·crew.live는 자기 상위 패키지와 common만 import하고, 이들을 import하는 것도 자기 상위 패키지뿐
+    // (7) battle.live·crew.live·crew.chat.live는 자기 상위 패키지와 common만 import하고, 이들을 import하는 것도 자기 상위
+    // 패키지뿐
     static final ArchRule RULE_7_LIVE_MESSAGES_STAY_INSIDE =
             CompositeArchRule.of(liveMessagesStayInside("battle"))
                     .and(liveMessagesStayInside("crew"))
+                    .and(liveMessagesStayInside("crew.chat"))
                     .because("실시간 메시지는 만드는 패키지에 두고 realtime은 type()만 본다(D-06, 13.1 규칙 7)");
 
-    // (8) 도메인 서비스 → operator import 0
-    static final ArchRule RULE_8_DOMAIN_DOES_NOT_KNOW_OPERATOR =
-            noClasses()
+    /**
+     * 안정성 예외 쌍 하나(D-133, D-134): from 패키지가 to 패키지에서 쓰는 형식은 allowed뿐이고, calls에 적은 형식은 적은 연산만 부른다.
+     */
+    private static ArchRule narrowDependency(
+            String from, String to, Set<String> allowed, Map<String, Set<String>> calls) {
+        Set<String> allowedNames =
+                allowed.stream()
+                        .map(name -> ROOT + "." + to + "." + name)
+                        .collect(Collectors.toSet());
+        Map<String, Set<String>> allowedCalls =
+                calls.entrySet().stream()
+                        .collect(
+                                Collectors.toMap(
+                                        e -> ROOT + "." + to + "." + e.getKey(),
+                                        Map.Entry::getValue));
+        ArchCondition<JavaClass> onlyAllowedCalls =
+                new ArchCondition<>(to + " " + calls + " 말고는 부르지 않는다") {
+                    @Override
+                    public void check(JavaClass javaClass, ConditionEvents events) {
+                        javaClass.getMethodCallsFromSelf().stream()
+                                .filter(
+                                        call ->
+                                                allowedCalls.containsKey(
+                                                        call.getTargetOwner().getName()))
+                                .filter(
+                                        call ->
+                                                !allowedCalls
+                                                        .get(call.getTargetOwner().getName())
+                                                        .contains(call.getName()))
+                                .forEach(
+                                        call ->
+                                                events.add(
+                                                        SimpleConditionEvent.violated(
+                                                                call, call.getDescription())));
+                    }
+                };
+        return CompositeArchRule.of(
+                        noClasses()
+                                .that()
+                                .resideInAPackage(ROOT + "." + from + "..")
+                                .should()
+                                .dependOnClassesThat(
+                                        DescribedPredicate.describe(
+                                                to + "의 " + allowed + " 밖 형식",
+                                                (JavaClass target) ->
+                                                        (target.getPackageName() + ".")
+                                                                        .startsWith(
+                                                                                ROOT + "." + to
+                                                                                        + ".")
+                                                                && !allowedNames.contains(
+                                                                        outermost(target))))
+                                .allowEmptyShould(true))
+                .and(
+                        classes()
+                                .that()
+                                .resideInAPackage(ROOT + "." + from + "..")
+                                .should(onlyAllowedCalls)
+                                .allowEmptyShould(true));
+    }
+
+    /** 중첩 형식(Side$MemberSide)은 바깥 형식 이름으로 본다. */
+    private static String outermost(JavaClass javaClass) {
+        String name = javaClass.getName();
+        int nested = name.indexOf('$');
+        return nested < 0 ? name : name.substring(0, nested);
+    }
+
+    // (11) 안정성 예외 쌍의 import 범위: member → policy는 TierBoundary·OperationPolicy(tierBoundary 조회 하나)만
+    // (D-133), reward → battle은 BattleJudged·BattleWin·Side·BattleResultService(winsJudgedBetween
+    // 하나)만(D-134)
+    static final ArchRule RULE_11_STABILITY_EXCEPTIONS_STAY_NARROW =
+            CompositeArchRule.of(
+                            narrowDependency(
+                                    "member",
+                                    "policy",
+                                    Set.of("TierBoundary", "OperationPolicy"),
+                                    Map.of("OperationPolicy", Set.of("tierBoundary"))))
+                    .and(
+                            narrowDependency(
+                                    "reward",
+                                    "battle",
+                                    Set.of(
+                                            "BattleJudged",
+                                            "BattleWin",
+                                            "Side",
+                                            "BattleResultService"),
+                                    Map.of("BattleResultService", Set.of("winsJudgedBetween"))))
+                    .because(
+                            "안정성 역전 두 쌍은 쓰는 형식이 좁을 때만 허용한다. 넓히려면 의존 역전을 다시 검토한다"
+                                    + "(D-133, D-134, 13.1 규칙 11)");
+
+    // (12) web.attempt(시도 제한)는 java.*만 import한다(D-132). 표현 패키지
+    // 넷(web.auth·web.admin·web.chat·web.crew)만 쓴다.
+    static final ArchRule RULE_12_ATTEMPT_USES_ONLY_JDK =
+            classes()
                     .that()
-                    .resideInAnyPackage(
-                            packagesOf(
-                                    CORE.stream()
-                                            .filter(name -> !name.equals("operator"))
-                                            .toList()))
+                    .resideInAPackage(ROOT + ".web.attempt..")
                     .should()
-                    .dependOnClassesThat()
-                    .resideInAPackage(ROOT + ".operator..")
+                    .onlyDependOnClassesThat()
+                    .resideInAnyPackage(ROOT + ".web.attempt..", "java..")
                     .allowEmptyShould(true)
-                    .because("서비스는 확인된 운영자 계정 문자열(actorId)만 받는다(D-34, D-50, 13.1 규칙 8)");
+                    .because("시도 제한은 Fan-Out 0인 하위 공용 패키지다(D-132, 13.1 규칙 12)");
+
+    /** 조립 패키지(D-34, D-135): 도메인 서비스가 import하지 않는다. */
+    static final List<String> ASSEMBLIES = List.of("operator", "report.target");
+
+    /** crew·crew.chat의 신고용 공개 연산(D-135). report.target만 부른다. */
+    static final Set<String> REPORT_ONLY_METHODS =
+            Set.of("reportedView", "hideReported", "unhideReported");
+
+    static final Set<String> REPORT_ONLY_OWNERS =
+            Set.of(ROOT + ".crew.CrewPostService", ROOT + ".crew.chat.CrewChatService");
+
+    private static final ArchCondition<JavaClass> NOT_CALL_REPORT_ONLY_METHODS =
+            new ArchCondition<>("crew·crew.chat의 신고용 공개 연산을 부르지 않는다") {
+                @Override
+                public void check(JavaClass javaClass, ConditionEvents events) {
+                    javaClass.getMethodCallsFromSelf().stream()
+                            .filter(
+                                    call ->
+                                            REPORT_ONLY_OWNERS.contains(
+                                                    call.getTargetOwner().getName()))
+                            .filter(call -> REPORT_ONLY_METHODS.contains(call.getName()))
+                            .forEach(
+                                    call ->
+                                            events.add(
+                                                    SimpleConditionEvent.violated(
+                                                            call, call.getDescription())));
+                }
+            };
+
+    // (8) 도메인 서비스 → 조립 패키지(operator, report.target) import 0. 신고용 공개 연산은 report.target만 부른다
+    static final ArchRule RULE_8_DOMAIN_DOES_NOT_KNOW_OPERATOR =
+            CompositeArchRule.of(
+                            noClasses()
+                                    .that()
+                                    .resideInAnyPackage(
+                                            packagesOf(
+                                                    CORE.stream()
+                                                            .filter(
+                                                                    name ->
+                                                                            !ASSEMBLIES.contains(
+                                                                                    name))
+                                                            .toList()))
+                                    .should()
+                                    .dependOnClassesThat()
+                                    .resideInAnyPackage(packagesOf(ASSEMBLIES))
+                                    .allowEmptyShould(true))
+                    .and(
+                            classes()
+                                    .that()
+                                    .resideOutsideOfPackage(ROOT + ".report.target..")
+                                    .and()
+                                    .doNotHaveFullyQualifiedName(ROOT + ".crew.CrewPostService")
+                                    .and()
+                                    .doNotHaveFullyQualifiedName(
+                                            ROOT + ".crew.chat.CrewChatService")
+                                    .should(NOT_CALL_REPORT_ONLY_METHODS)
+                                    .allowEmptyShould(true))
+                    .because(
+                            "서비스는 확인된 운영자 계정 문자열(actorId)만 받고, 신고 대상 연결은 report.target에만 있다"
+                                    + "(D-34, D-50, D-135, 13.1 규칙 8)");
 
     /**
      * 필드 setter: set + 같은 이름의 필드가 있는 메소드. RunningGoal.setWeeklyGoal(설계 6.1.4의 업무 동사, 필드는
@@ -509,12 +697,12 @@ class ArchitectureTest {
     }
 
     @Test
-    void designPackageList_has54NamesAndEachHasAnAllowList() {
-        assertThat(Set.copyOf(PACKAGES)).hasSize(54);
+    void designPackageList_has64NamesAndEachHasAnAllowList() {
+        assertThat(Set.copyOf(PACKAGES)).hasSize(64);
         assertThat(ALLOWED.keySet()).containsExactlyInAnyOrderElementsOf(PACKAGES);
     }
 
-    /** B5 완료 조건: 5.1.1의 54개 패키지마다 서버 클래스가 하나 이상 있다(빈 패키지 0). */
+    /** B5 완료 조건: 5.1.1의 64개 패키지마다 서버 클래스가 하나 이상 있다(빈 패키지 0). */
     @Test
     void everyDesignPackage_hasMainClasses() {
         Set<String> filled =
@@ -529,7 +717,7 @@ class ArchitectureTest {
     void mainClasses_resideInDesignPackages() {
         List<String> stray =
                 classes.stream().filter(c -> sliceOf(c).isEmpty()).map(JavaClass::getName).toList();
-        assertThat(stray).as("5.1.1 패키지 54개 밖의 서버 클래스").isEmpty();
+        assertThat(stray).as("5.1.1 패키지 64개 밖의 서버 클래스").isEmpty();
     }
 
     @Test
@@ -570,6 +758,16 @@ class ArchitectureTest {
     @Test
     void rule08_domainDoesNotImportOperator() {
         RULE_8_DOMAIN_DOES_NOT_KNOW_OPERATOR.check(classes);
+    }
+
+    @Test
+    void rule11_stabilityExceptionPairsUseOnlyListedTypes() {
+        RULE_11_STABILITY_EXCEPTIONS_STAY_NARROW.check(classes);
+    }
+
+    @Test
+    void rule12_attemptLimiterUsesOnlyJdk() {
+        RULE_12_ATTEMPT_USES_ONLY_JDK.check(classes);
     }
 
     @Test

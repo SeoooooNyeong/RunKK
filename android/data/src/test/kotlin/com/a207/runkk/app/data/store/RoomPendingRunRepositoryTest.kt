@@ -12,6 +12,7 @@ import com.a207.runkk.app.core.model.SignalState
 import com.a207.runkk.app.domain.run.CompletedRun
 import com.a207.runkk.app.domain.run.HeartRateSample
 import com.a207.runkk.app.domain.run.LateHeartRates
+import com.a207.runkk.app.domain.run.PauseInterval
 import com.a207.runkk.app.domain.run.RoutePoint
 import com.a207.runkk.app.domain.run.UnstableSegment
 import com.a207.runkk.app.domain.run.UploadScheduler
@@ -61,6 +62,20 @@ class RoomPendingRunRepositoryTest {
 
         assertEquals(Outcome.Success(listOf(run)), repository.pending())
         assertEquals(listOf(run), repository.observePending().first())
+    }
+
+    @Test
+    fun `TC-6522 정지 구간 두 개를 순서와 밀리초까지 왕복한다`() = runTest {
+        val pauses =
+            listOf(
+                PauseInterval(Instant.parse("2026-10-22T10:05:00.250Z"), Instant.parse("2026-10-22T10:07:00Z")),
+                PauseInterval(Instant.parse("2026-10-22T10:15:00Z"), Instant.parse("2026-10-22T10:20:00Z"))
+            )
+        val run = completedRun("r-p").copy(pauses = pauses)
+
+        repository.save(run)
+
+        assertEquals(pauses, (repository.pending() as Outcome.Success).value.single().pauses)
     }
 
     @Test

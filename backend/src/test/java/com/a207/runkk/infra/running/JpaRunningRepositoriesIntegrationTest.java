@@ -15,11 +15,14 @@ import com.a207.runkk.running.DisposalKind;
 import com.a207.runkk.running.DisposalOrder;
 import com.a207.runkk.running.HeartRateSample;
 import com.a207.runkk.running.NewRecordMark;
+import com.a207.runkk.running.PauseInterval;
 import com.a207.runkk.running.PersonalRecordBook;
 import com.a207.runkk.running.RunFixtures;
 import com.a207.runkk.running.RunRecord;
 import com.a207.runkk.running.RunSummary;
+import com.a207.runkk.running.RunUpload;
 import com.a207.runkk.running.SkyCondition;
+import com.a207.runkk.running.ValidRunScore;
 import com.a207.runkk.running.Weather;
 import java.time.Duration;
 import java.time.LocalDate;
@@ -128,8 +131,8 @@ class JpaRunningRepositoriesIntegrationTest {
                         d -> assertThat(d.distance()).isEqualTo(Distance.ofKm(3)));
         assertThat(records.dailyDistances(List.of(1L, 2L), twoDays))
                 .containsEntry(START.toLocalDate().minusDays(1), Distance.ofKm(5));
-        assertThat(records.totals(1).count()).isEqualTo(3);
-        assertThat(records.totals(1).validDistance()).isEqualTo(Distance.ofKm(8));
+        assertThat(records.totals(1).count()).isEqualTo(2);
+        assertThat(records.totals(1).distance()).isEqualTo(Distance.ofKm(8));
         assertThat(records.totals(99).count()).isZero();
         assertThat(records.distancesByMember(List.of(1L, 2L), twoDays))
                 .containsOnlyKeys(1L)
@@ -183,5 +186,60 @@ class JpaRunningRepositoriesIntegrationTest {
         tx.executeWithoutResult(s -> orders.deleteByMember(1));
         assertThat(orders.findById(id)).isEmpty();
         assertThat(LocalDate.of(2026, 10, 20)).isEqualTo(START.toLocalDate());
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName(
+            "V21: 정지 구간(pauses·paused_millis) 왕복, validRunsAfter는 저장 일시·기록 ID 순 순번(D-108)")
+    void pausesRoundTrip_andValidRunsAfter() {
+        RunUpload base = upload(id(1), 5_000, 1_800);
+        RunUpload paused =
+                new RunUpload(
+                        base.recordId(),
+                        base.startedAt(),
+                        base.endedAt().plusMinutes(5),
+                        base.distance(),
+                        base.elapsed(),
+                        base.mode(),
+                        base.cardKind(),
+                        null,
+                        null,
+                        base.declaredPointCount(),
+                        base.points(),
+                        List.of(),
+                        List.of(),
+                        List.of(
+                                new PauseInterval(START.plusMinutes(31), START.plusMinutes(33)),
+                                new PauseInterval(
+                                        START.plusMinutes(33).plusNanos(500_000_000),
+                                        START.plusMinutes(34))));
+        RunRecord first = RunFixtures.judged(paused);
+        first.markSaved(START.plusHours(1));
+        store(first);
+        RunRecord invalid = RunFixtures.judged(upload(id(2), START.plusHours(1), 900, 300));
+        invalid.markSaved(START.plusHours(2));
+        store(invalid);
+        RunRecord third = RunFixtures.judged(upload(id(3), START.plusHours(2), 3_000, 900));
+        third.markSaved(START.plusHours(3));
+        store(third);
+
+        RunRecord loaded = tx.execute(st -> records.findById(id(1)).orElseThrow());
+        assertThat(loaded.pauses()).isEqualTo(paused.pauses());
+        assertThat(loaded.pausedTotal()).isEqualTo(Duration.ofMillis(179_500));
+        assertThat(
+                        jdbc.queryForObject(
+                                "select paused_millis from run_record where record_id = ?",
+                                Long.class,
+                                id(1)))
+                .isEqualTo(179_500L);
+
+        List<ValidRunScore> after = tx.execute(st -> records.validRunsAfter(1L, 1));
+        assertThat(after).extracting(ValidRunScore::ordinal).containsExactly(2);
+        assertThat(after.get(0).distance()).isEqualTo(Distance.ofKm(3));
+        assertThat(after.get(0).score()).isEqualTo(third.getScore().value());
+        List<ValidRunScore> all = tx.execute(st -> records.validRunsAfter(1L, 0));
+        assertThat(all).extracting(ValidRunScore::ordinal).containsExactly(1, 2);
+        List<ValidRunScore> none = tx.execute(st -> records.validRunsAfter(2L, 0));
+        assertThat(none).isEmpty();
     }
 }

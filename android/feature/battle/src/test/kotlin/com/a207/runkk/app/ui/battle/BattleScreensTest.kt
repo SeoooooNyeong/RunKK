@@ -13,6 +13,7 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -52,7 +53,8 @@ class BattleScreensTest {
         }
         compose.onNodeWithText("거리를 골라 주세요").assertIsNotEnabled()
         compose.onNodeWithContentDescription("3킬로미터, 최고 16분 0초", substring = true).performClick()
-        compose.onNodeWithContentDescription("함께 달린 기록").performClick()
+        compose.onNodeWithText("함께 달린 기록 ›").performClick()
+        compose.onNodeWithText("어떤 거리로 겨뤄 볼까요?").assertExists()
         assertEquals(listOf("select:3000", "history"), calls)
     }
 
@@ -74,24 +76,22 @@ class BattleScreensTest {
         }
         // 카드는 보조 기술용 한 문장으로 묶여 있어 그 문장(출처 줄 포함)으로 찾는다.
         compose.onNodeWithContentDescription("2025 서울마라톤", substring = true)
-            .assertContentDescriptionEquals("번개발, 10킬로미터, 42분 10초, 공개 기록 기준 · 2025 서울마라톤")
+            .assertContentDescriptionEquals("번개발, 10킬로미터, 42분 10초, 출처: 공개 기록 기준 · 2025 서울마라톤")
         compose.onAllNodesWithContentDescription("공개 기록 기준 · 공개 기록 기준", substring = true).assertCountEquals(0)
     }
 
     @Test
-    fun `유명인 - 고르면 확인 대화상자, 확인하면 시작`() {
+    fun `유명인 - 대결을 누르면 확인 없이 고르고 바로 시작한다(H2)`() {
         val celeb = celebCandidates.map(CandidateUi::of)
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 CelebBattleScreen(
                     RecordBattleUiState(
                         isLoading = false,
-                        candidates = celeb,
-                        selected = celeb[0],
-                        isConfirming = true
+                        candidates = celeb
                     ),
                     onFilter = { calls += "filter:$it" },
-                    onPick = {},
+                    onPick = { calls += "pick:${it.name}" },
                     onConfirm = { calls += "confirm" },
                     onDismissConfirm = {},
                     onHistory = {},
@@ -100,9 +100,8 @@ class BattleScreensTest {
                 )
             }
         }
-        compose.onNodeWithText("번개발와 대결할까요?").assertExists()
-        compose.onNodeWithText("대결 시작").performClick()
-        assertEquals(listOf("confirm"), calls)
+        compose.onAllNodesWithText("대결")[0].performClick()
+        assertEquals(listOf("pick:번개발", "confirm"), calls)
     }
 
     @Test
@@ -119,12 +118,12 @@ class BattleScreensTest {
             }
         }
         compose.onNodeWithContentDescription("상대를 찾고 있어요, 7초 지남").assertExists()
-        compose.onNodeWithText("매칭 취소").performClick()
+        compose.onNodeWithText("그만 찾을래요").performClick()
         assertEquals(listOf("cancel"), calls)
     }
 
     @Test
-    fun `대결 진행 - 그만두기는 짧게 안내, 길게 확인, 격차를 읽어 준다`() {
+    fun `대결 진행 - 그만두기를 누르면 포기 확인을 띄우고, 격차를 읽어 준다(D3, D5)`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 BattleRunningScreen(
@@ -143,11 +142,9 @@ class BattleScreensTest {
                 )
             }
         }
-        val forfeit = compose.onNodeWithContentDescription("대결 그만두기")
-        forfeit.performClick()
-        forfeit.performTouchInput { longClick() }
-        assertEquals(listOf("tap", "long"), calls)
-        compose.onNodeWithContentDescription("상대와 거리 차이 15미터 뒤처지는 중").assertExists()
+        compose.onNodeWithText("그만두기").performClick()
+        assertEquals(listOf("long"), calls)
+        compose.onNodeWithContentDescription("상대와 거리 차 15미터 뒤처지는 중").assertExists()
     }
 
     @Test
@@ -181,10 +178,10 @@ class BattleScreensTest {
         }
         compose.onNodeWithText("상대 연결 확인 중")
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
-        compose.onNodeWithText("LIVE BATTLE · 5km").assertContentDescriptionEquals("실시간 대결, 5킬로미터")
-        compose.onNodeWithContentDescription("화면 잠금").performClick()
+        compose.onNodeWithText("배틀런, 5km").assertExists()
+        compose.onNodeWithText("잠금").performClick()
         state = state.copy(isLocked = true)
-        compose.onNodeWithContentDescription("대결 그만두기").assertDoesNotExist()
+        compose.onNodeWithText("그만두기").assertDoesNotExist()
         val lockedTitle = RuntimeEnvironment.getApplication().getString(R.string.battle_running_locked_pane_title)
         compose.onNode(SemanticsMatcher.expectValue(SemanticsProperties.PaneTitle, lockedTitle)).assertExists()
         val unlock = compose.onNodeWithContentDescription("화면 잠금 해제")
@@ -221,8 +218,6 @@ class BattleScreensTest {
             }
         }
         compose.onNodeWithText("${history().total}건")
-            .assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
-        compose.onNodeWithText("기록 ${celebCandidates.map(CandidateUi::of).size}개")
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
     }
 

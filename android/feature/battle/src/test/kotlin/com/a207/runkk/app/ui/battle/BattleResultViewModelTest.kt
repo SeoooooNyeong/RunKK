@@ -9,9 +9,11 @@ import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.battle.BattleHistory
 import com.a207.runkk.app.ui.battle.BattleWorld.Companion.world
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
@@ -31,7 +33,7 @@ class BattleResultViewModelTest {
         assertEquals(Verdict.WIN, s.verdict)
         assertEquals(4, s.result?.rows?.size)
         assertEquals(70, s.result?.rewardPoints)
-        assertEquals("3W 1L", s.weekly?.let(::weeklyLabel))
+        assertEquals(uiText(R.string.battle_weekly_spoken, 3, 1), s.weekly?.let(::weeklyLabel))
         assertEquals(listOf("result:9"), w.battles.calls, "이번 주 전적은 결과 응답에 있어 이력을 따로 부르지 않는다")
     }
 
@@ -75,7 +77,10 @@ class BattleResultViewModelTest {
             gapLabel(java.time.Duration.ofSeconds(72))
         )
         assertEquals(uiText(R.string.battle_gap_same), gapLabel(java.time.Duration.ZERO))
-        assertEquals("3W 1L 1D", weeklyLabel(com.a207.runkk.app.domain.battle.BattleResult.Weekly(3, 1, 1)))
+        assertEquals(
+            uiText(R.string.battle_weekly_spoken_draw, 3, 1, 1),
+            weeklyLabel(com.a207.runkk.app.domain.battle.BattleResult.Weekly(3, 1, 1))
+        )
         assertEquals(
             uiText(R.string.battle_weekly_spoken, 3, 1),
             weeklySpoken(com.a207.runkk.app.domain.battle.BattleResult.Weekly(3, 1, 0))
@@ -99,6 +104,37 @@ class BattleResultViewModelTest {
         vm.load(9, isForced = true)
         runCurrent()
         assertEquals(Verdict.WIN, vm.state.value.verdict)
+    }
+
+    @Test
+    fun `보류면 판정이 나올 때까지 몇 초마다 다시 읽는다`() = runTest(main.dispatcher) {
+        val w = world()
+        w.battles.resultResult = Outcome.Success(battleResult(pending = true, verdict = null))
+        val vm = BattleResultViewModel(w.battles, w.coordinator)
+        vm.load(9)
+        runCurrent()
+        assertTrue(vm.state.value.result?.isPending == true)
+        assertTrue(vm.state.value.isAwaitingVerdict, "다시 읽는 동안은 결과를 확인하는 화면")
+        advanceTimeBy(BattleResultViewModel.PENDING_RETRY_MILLIS + 1)
+        assertEquals(2, w.battles.calls.count { it == "result:9" }, "보류면 다시 읽는다")
+        w.battles.resultResult = Outcome.Success(battleResult())
+        advanceTimeBy(BattleResultViewModel.PENDING_RETRY_MILLIS + 1)
+        assertEquals(Verdict.WIN, vm.state.value.verdict)
+        assertFalse(vm.state.value.isAwaitingVerdict)
+        advanceTimeBy(BattleResultViewModel.PENDING_RETRY_MILLIS * 3)
+        assertEquals(3, w.battles.calls.count { it == "result:9" }, "판정이 나오면 더 읽지 않는다")
+    }
+
+    @Test
+    fun `보류가 길어지면 다시 읽기를 멈추고 보류 화면에 남는다`() = runTest(main.dispatcher) {
+        val w = world()
+        w.battles.resultResult = Outcome.Success(battleResult(pending = true, verdict = null))
+        val vm = BattleResultViewModel(w.battles, w.coordinator)
+        vm.load(9)
+        advanceTimeBy(BattleResultViewModel.PENDING_RETRY_MILLIS * (BattleResultViewModel.PENDING_RETRIES + 5))
+        assertEquals(1 + BattleResultViewModel.PENDING_RETRIES, w.battles.calls.count { it == "result:9" })
+        assertTrue(vm.state.value.result?.isPending == true)
+        assertFalse(vm.state.value.isAwaitingVerdict, "다시 읽기를 멈추면 늦어짐 안내와 다시 보기")
     }
 
     @Test

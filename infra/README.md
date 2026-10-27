@@ -67,6 +67,11 @@ cd ~/S15P31A207 && git pull && cd infra && ./deploy.sh
 ```
 
 - `deploy.sh`는 `../backend`·`../ai`를 빌드해 `runkk-api`·`runkk-ai` 이미지를 만들고 스택을 올린 뒤 api와 ai 헬스체크가 모두 통과할 때까지 기다립니다. 어느 하나라도 실패하면 로그를 출력하고 실패로 끝납니다.
+- 이미지를 올리기 전에 실행 중인 postgres를 `pg_dump`로 `$RUNKK_BACKUP_DIR/pre-deploy-<시각>-<커밋>.sql.gz`에 덤프합니다(그 폴더 기준 최근 7개 유지). api가 시작하며 Flyway가 되돌릴 수 없는 마이그레이션(V20 `DROP COLUMN` 등)을 돌리기 때문입니다. 덤프가 실패하면 배포를 멈춥니다.
+- postgres가 멈춰 있어도(`docker compose down`·`stop` 뒤) 데이터 볼륨(`runkk_postgres-data`)이 있으면 postgres만 먼저 올려 healthy가 된 뒤 덤프합니다. 올리지 못하거나 healthy가 되지 않거나 볼륨 확인이 실패하면 배포를 멈춥니다. 볼륨도 없을 때(처음 배포)만 덤프를 건너뜁니다.
+- 덤프 폴더 `RUNKK_BACKUP_DIR`는 환경 변수(CI 변수) → `.env` → 기본값(배포 사용자의 `$HOME/runkk-backups`) 순으로 정해지고, 없으면 만듭니다. CI shell 러너는 다음 잡을 시작할 때 작업 폴더의 무시 파일까지 지우므로(`git clean`) 반드시 작업 폴더 밖 절대 경로여야 합니다(상대 경로면 배포를 멈춥니다). `infra/.gitignore`의 `backups/`는 예전 로컬 실행 흔적용으로만 남아 있습니다.
+- 덤프에는 닉네임·러닝 경로·토큰 해시가 들어 있으므로 폴더는 700, 파일은 600으로 만듭니다(같은 호스트의 다른 계정이 읽지 못하게). 디스크를 잃으면 DB 볼륨과 함께 사라지므로 중요한 배포 전에는 호스트 밖으로도 복사해 둡니다.
+- 복구: `gunzip -c "$RUNKK_BACKUP_DIR/<파일>" | docker compose exec -T postgres psql -U <DB_USER> <DB_NAME>`
 - `.env`를 통째로 컨테이너에 넣지 않습니다. `docker-compose.yml`의 `environment:`가 컨테이너마다 필요한 값만 고릅니다(api는 DB·Redis·Spring 값과 `AI_SERVER_URL`·`RUNKK_INTERNAL_TOKEN`, ai는 `RUNKK_*`만). 새 환경 변수는 `.env.example`과 함께 해당 서비스의 `environment:`에도 추가합니다.
 - GitLab CI의 `backend:deploy` 잡(EC2에 등록한 shell 러너, `deploy` 태그)이 CI File 변수 `INFRA_ENV`를 `infra/.env`로 복사한 뒤 이 스크립트를 실행합니다. 수동 배포도 같은 명령입니다(루트 README "CI/CD" 참고).
 - develop 브랜치용 서버라면 `.env`의 `SPRING_PROFILES_ACTIVE=develop`으로 두면 Swagger(`/docs`)가 열리고 Flyway 마이그레이션(`backend/src/main/resources/db/migration`) 뒤 DDL validate로 동작합니다. prod도 같아서 스키마 변경은 마이그레이션으로만 반영됩니다.

@@ -13,7 +13,7 @@ class PaceGuidanceRule : GuidanceRule {
     override fun check(ctx: GuidanceContext): Guidance? {
         val newPoint = points.newPoint(ctx.progress.distance)
         val settings = ctx.guidanceSettings
-        if (newPoint == null || !settings.shouldFollowCoachPlan) return null
+        if (newPoint == null || !settings.isFollowingCoachPlan) return null
         val target = ctx.todayPlan?.targetPace ?: return null
         val average = ctx.progress.averagePace ?: return null
         if (!average.isSlowerThanBy(target, SLOWER_RATIO)) return null

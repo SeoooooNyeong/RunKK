@@ -9,4 +9,8 @@ import java.util.List;
 public interface PushGateway {
 
     PushResult send(List<String> deviceTokens, NotificationType type, String content);
+
+    /** send와 같되 같은 collapseKey의 기기 알림을 하나로 묶는다(CREW_CHAT, v0.11 D-102). 기기 알림 화면이 메시지마다 쌓이지 않는다. */
+    PushResult sendCollapsing(
+            List<String> deviceTokens, NotificationType type, String content, String collapseKey);
 }

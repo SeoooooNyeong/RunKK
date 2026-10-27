@@ -11,7 +11,6 @@ import com.a207.runkk.app.core.designsystem.RunkkTags
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
-import com.a207.runkk.app.domain.crew.CrewRunCoordinator
 import com.a207.runkk.app.domain.crew.CrewRunStatus
 import com.a207.runkk.app.domain.crew.JoinPolicy
 import com.a207.runkk.app.domain.crew.PostList
@@ -19,9 +18,6 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 
 /** 크루 성향 태그 7분류(크루 전용 "크루 분위기" 포함, SRS 3.5.1). */
 internal val CREW_TAG_CATEGORIES: List<RunkkTagCategory> = RunkkTags.categories
@@ -67,7 +63,20 @@ internal object CrewErrorText {
         "VOTE_CLOSED" to R.string.crew_error_vote_closed,
         "LOBBY_NOT_OPEN" to R.string.crew_error_lobby_not_open,
         "ALREADY_STARTED" to R.string.crew_error_already_started,
-        "NOT_PARTICIPANT" to R.string.crew_error_not_participant
+        "NOT_PARTICIPANT" to R.string.crew_error_not_participant,
+        "MANAGER_LIMIT" to R.string.crew_error_manager_limit,
+        "PIN_LIMIT" to R.string.crew_error_pin_limit,
+        "POLL_CLOSED" to R.string.crew_error_poll_closed,
+        "POLL_INVALID" to R.string.crew_error_poll_invalid,
+        "SCHEDULE_INVALID" to R.string.crew_error_schedule_invalid,
+        "SCHEDULE_FULL" to R.string.crew_error_schedule_full,
+        "POST_EMPTY" to R.string.crew_error_post_empty,
+        "PHOTO_LIMIT" to R.string.crew_error_photo_limit,
+        "TOO_LARGE" to R.string.crew_error_too_large,
+        "UNSUPPORTED_IMAGE" to R.string.crew_error_unsupported_image,
+        "ALREADY_REPORTED" to R.string.crew_error_already_reported,
+        "REPORT_TARGET_NOT_FOUND" to R.string.crew_error_report_target_not_found,
+        "GOAL_INVALID" to R.string.crew_error_goal_invalid
     )
 }
 

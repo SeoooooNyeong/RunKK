@@ -5,6 +5,8 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
+    // 원형 화면 스크린샷(와이어프레임 K1~K5). 폰 화면 모듈의 runkk.android.screenshot은 라이브러리용이라 여기서 직접 붙인다.
+    alias(libs.plugins.roborazzi)
 }
 
 android {
@@ -25,6 +27,21 @@ android {
         // RunkkWatchApp이 디버그 빌드에서만 Timber.DebugTree를 심는다.
         buildConfig = true
     }
+
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+    }
+}
+
+// PNG는 src/test/snapshots/에 둔다. 기록: recordRoborazziLocalDebug, 검증: verifyRoborazziLocalDebug(폰 화면 모듈과 같은 이름).
+roborazzi {
+    outputDir.set(layout.projectDirectory.dir("src/test/snapshots"))
+}
+
+tasks.withType<Test>().configureEach {
+    // 실제 그리기(글꼴 포함)로 찍는다(runkk.android.screenshot과 같다).
+    systemProperty("robolectric.graphicsMode", "NATIVE")
+    systemProperty("robolectric.pixelCopyRenderMode", "hardware")
 }
 
 dependencies {
@@ -52,4 +69,11 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
 
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.roborazzi)
+    testImplementation(libs.roborazzi.compose)
+    testImplementation(libs.roborazzi.junit.rule)
+    testImplementation(platform(libs.androidx.compose.bom))
+    testImplementation(libs.androidx.compose.ui.test.junit4)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
 }

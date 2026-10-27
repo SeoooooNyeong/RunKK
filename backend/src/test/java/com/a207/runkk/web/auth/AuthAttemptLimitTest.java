@@ -23,7 +23,9 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
             "runkk.auth.attempts.request-window=1m",
             "runkk.auth.attempts.client-failures=3",
             "runkk.auth.attempts.credential-failures=2",
-            "runkk.auth.attempts.failure-window=10m"
+            "runkk.auth.attempts.failure-window=10m",
+            "runkk.auth.attempts.guest-starts=3",
+            "runkk.auth.attempts.guest-start-window=1h"
         })
 @DisplayName("web.auth 공개 인증 경로 시도 제한(M5)")
 class AuthAttemptLimitTest extends WebTestSupport {
@@ -124,6 +126,55 @@ class AuthAttemptLimitTest extends WebTestSupport {
                                         .contentType(MediaType.APPLICATION_JSON)
                                         .content(write(signUpBody(ticket, "제한러너"))),
                                 "203.0.113.32"))
+                .andExpect(status().isTooManyRequests());
+    }
+
+    private MockHttpServletRequestBuilder guestStart(boolean location) throws Exception {
+        return post("/api/v1/members/guest")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                        write(
+                                Map.of(
+                                        "consents",
+                                        Map.of(
+                                                "AGE_14_PLUS", true,
+                                                "TERMS", true,
+                                                "PRIVACY", true,
+                                                "LOCATION", location))));
+    }
+
+    @Test
+    @DisplayName("TC-6654 게스트 생성 한도: 같은 접속지의 생성 성공이 상한에 닿으면 429·회원 0, 다른 접속지는 영향 없음")
+    void guestStartLimit() throws Exception {
+        mvc.perform(from(guestStart(false), "203.0.113.40")).andExpect(status().isConflict());
+        for (int i = 0; i < 3; i++) {
+            mvc.perform(from(guestStart(true), "203.0.113.40")).andExpect(status().isCreated());
+        }
+        mvc.perform(from(guestStart(true), "203.0.113.40"))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.code").value("TOO_MANY_ATTEMPTS"));
+        mvc.perform(from(guestStart(true), "203.0.113.41")).andExpect(status().isCreated());
+    }
+
+    @Test
+    @DisplayName("게스트 세션 재개도 자격 증명별 실패가 상한에 닿으면 접속지를 바꿔도 429")
+    void credentialFailureLimit_onGuestSession() throws Exception {
+        String forged = "g1.1." + "A".repeat(43);
+        for (String ip : new String[] {"203.0.113.50", "203.0.113.51"}) {
+            mvc.perform(
+                            from(
+                                    post("/api/v1/auth/guest/session")
+                                            .contentType(MediaType.APPLICATION_JSON)
+                                            .content(write(Map.of("guestCredential", forged))),
+                                    ip))
+                    .andExpect(status().isUnauthorized());
+        }
+        mvc.perform(
+                        from(
+                                post("/api/v1/auth/guest/session")
+                                        .contentType(MediaType.APPLICATION_JSON)
+                                        .content(write(Map.of("guestCredential", forged))),
+                                "203.0.113.52"))
                 .andExpect(status().isTooManyRequests());
     }
 }

@@ -140,6 +140,7 @@ dependencies {
     implementation(project(":feature:record"))
     implementation(project(":feature:battle"))
     implementation(project(":feature:crew"))
+    implementation(project(":feature:chat"))
     implementation(project(":feature:runimal"))
     implementation(project(":feature:avatar"))
     implementation(project(":feature:me"))

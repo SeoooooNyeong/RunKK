@@ -11,7 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * analysis·profile이 읽는 크루 소속 공개 조회(설계 6.1.7, D-32). crew의 Repository·엔티티를 내주지 않고
+ * analysis·profile·crew.chat이 읽는 크루 소속 공개 조회(설계 6.1.7, D-32, D-101). crew의 Repository·엔티티를 내주지 않고
  * CrewSummary·ID·표시명만 준다.
  */
 @Service
@@ -35,6 +35,14 @@ public class CrewMembershipReader {
     public boolean sameCrew(long a, long b) {
         Optional<Long> crewOfA = activeCrewId(a);
         return crewOfA.isPresent() && crewOfA.equals(activeCrewId(b));
+    }
+
+    /** 회원과 크루의 관계(crew.chat이 읽을 때마다 부른다, 설계 F.6.2 N1). 크루가 없거나 소속이 아니면 OUTSIDER. */
+    public CrewRelation relationOf(long memberId, long crewId) {
+        return crewRepository
+                .findById(crewId)
+                .map(c -> c.relationOf(memberId))
+                .orElse(CrewRelation.OUTSIDER);
     }
 
     public List<Long> activeMemberIds(long crewId) {

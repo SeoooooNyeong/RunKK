@@ -33,11 +33,13 @@ class AuditServiceTest {
 
     @Test
     void auditActionAndActorRole_matchDataDictionary() {
-        assertThat(AuditAction.values()).hasSize(14); // 자료사전 11개 + 운영자 로그인 성공·실패(L25) + 랭킹 다시 계산
+        // 자료사전 11개 + 운영자 로그인 성공·실패(L25) + 랭킹 다시 계산 + v0.11 5개(운영진 지정·해제, 채팅 강제 삭제, 신고 숨김·기각)
+        assertThat(AuditAction.values()).hasSize(19);
         assertThat(ActorRole.values())
                 .containsExactly(
                         ActorRole.RUNNER,
                         ActorRole.CREW_LEADER,
+                        ActorRole.CREW_MANAGER,
                         ActorRole.OPERATOR,
                         ActorRole.SYSTEM);
     }

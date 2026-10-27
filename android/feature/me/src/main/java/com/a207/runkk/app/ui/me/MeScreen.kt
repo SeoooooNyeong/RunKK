@@ -2,14 +2,12 @@ package com.a207.runkk.app.ui.me
 
 import android.content.res.Resources
 import androidx.annotation.StringRes
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,43 +18,39 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.a207.runkk.app.core.designsystem.RunimalTypeLabel
+import com.a207.runkk.app.core.designsystem.AvatarBackdrop
+import com.a207.runkk.app.core.designsystem.RunimalArt
+import com.a207.runkk.app.core.designsystem.RunkkAvatarArt
 import com.a207.runkk.app.core.designsystem.RunkkAvatarPortrait
-import com.a207.runkk.app.core.designsystem.RunkkBadge
-import com.a207.runkk.app.core.designsystem.RunkkBadgeTone
 import com.a207.runkk.app.core.designsystem.RunkkCard
 import com.a207.runkk.app.core.designsystem.RunkkColors
-import com.a207.runkk.app.core.designsystem.RunkkConfirmDialog
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkIconButton
 import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkLoading
 import com.a207.runkk.app.core.designsystem.RunkkMenuRow
-import com.a207.runkk.app.core.designsystem.RunkkPillButton
-import com.a207.runkk.app.core.designsystem.RunkkSectionTitle
+import com.a207.runkk.app.core.designsystem.RunkkSecondaryButton
 import com.a207.runkk.app.core.designsystem.RunkkShapes
-import com.a207.runkk.app.core.designsystem.RunkkTags
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.asString
@@ -66,36 +60,23 @@ import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.account.Gender
 import com.a207.runkk.app.domain.account.Profile
 
-/** 마이 탭(프로필 요약 + 기록·설정 메뉴 + 로그아웃·탈퇴). */
+/** 마이 탭(F2): 프로필 요약, 통계, MY Runimal, 기록·아바타 메뉴. 로그아웃·탈퇴는 설정(F4)에 있다. */
 @Composable
 fun MeRoute(viewModel: MeViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val navigator = LocalRunkkNavigator.current
-    LaunchedEffect(viewModel) {
-        viewModel.events.collect { if (it == MeEvent.LoggedOut) navigator.restart(Routes.LOGIN) }
-    }
-    MeScreen(
-        state = state,
-        onNavigate = navigator::navigate,
-        onRetry = viewModel::refresh,
-        onLogout = viewModel::onLogoutConfirmed
-    )
+    MeScreen(state = state, onNavigate = navigator::navigate, onRetry = viewModel::refresh)
 }
 
 @Composable
-fun MeScreen(
-    state: MeUiState,
-    onNavigate: (String) -> Unit,
-    onRetry: () -> Unit,
-    onLogout: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    var confirmLogout by remember { mutableStateOf(false) }
+fun MeScreen(state: MeUiState, onNavigate: (String) -> Unit, onRetry: () -> Unit, modifier: Modifier = Modifier) {
     Column(
-        modifier = modifier.fillMaxSize().background(
-            RunkkColors.Background
-        ).verticalScroll(rememberScrollState()).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(24.dp)
+        modifier = modifier
+            .fillMaxSize()
+            .background(RunkkColors.Background)
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         MeTopRow(onNavigate)
         when {
@@ -103,47 +84,17 @@ fun MeScreen(
                 RunkkLoading()
             }
 
-            state.profile != null -> ProfileCard(
+            state.profile != null -> ProfileSummary(
                 state.profile,
                 state.faceLayers,
-                onEdit = { onNavigate(Routes.PROFILE_EDIT) }
+                onEdit = { onNavigate(Routes.PROFILE_EDIT) },
+                onRunimal = { onNavigate(Routes.RUNIMAL) }
             )
 
             state.error != null -> RunkkErrorState(state.error.asString(), onRetry = onRetry)
         }
-        MenuSections(onNavigate)
-        RunkkCard(contentPadding = PaddingValues(0.dp), verticalArrangement = Arrangement.Top) {
-            RunkkMenuRow(stringResource(R.string.me_menu_logout), onClick = { confirmLogout = true })
-            HorizontalDivider(color = RunkkColors.Border)
-            RunkkMenuRow(
-                stringResource(R.string.me_menu_withdraw),
-                onClick = { onNavigate(Routes.WITHDRAW) },
-                isAccent = true
-            )
-        }
+        MenuList(onNavigate)
     }
-    if (confirmLogout) {
-        LogoutDialog(
-            onConfirm = {
-                confirmLogout = false
-                onLogout()
-            },
-            onDismiss = { confirmLogout = false }
-        )
-    }
-}
-
-/** 로그아웃 확인 대화상자. */
-@Composable
-private fun LogoutDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
-    RunkkConfirmDialog(
-        title = stringResource(R.string.me_logout_title),
-        message = stringResource(R.string.me_logout_message),
-        confirmLabel = stringResource(R.string.me_logout_confirm),
-        onConfirm = onConfirm,
-        onDismiss = onDismiss,
-        isDestructive = true
-    )
 }
 
 /** 마이 제목과 알림함·설정 아이콘. */
@@ -152,11 +103,9 @@ private fun MeTopRow(onNavigate: (String) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
             stringResource(R.string.me_main_title),
-            style = RunkkTextStyles.text(24, androidx.compose.ui.text.font.FontWeight.Black),
+            style = RunkkTextStyles.text(24, FontWeight.Black),
             color = RunkkColors.TextPrimary,
-            modifier = Modifier.weight(1f).semantics {
-                heading()
-            }
+            modifier = Modifier.weight(1f).semantics { heading() }
         )
         RunkkIconButton(
             RunkkIcons.Bell,
@@ -171,200 +120,177 @@ private fun MeTopRow(onNavigate: (String) -> Unit) {
     }
 }
 
-/** 내 러닝·캐릭터·설정 메뉴 묶음. */
-@Composable
-private fun MenuSections(onNavigate: (String) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
-        MenuSection(
-            R.string.me_menu_section_running,
-            listOf(
-                R.string.me_menu_records to Routes.RECORDS,
-                R.string.me_menu_growth to Routes.GROWTH,
-                R.string.me_menu_report to Routes.REPORT,
-                R.string.me_menu_ranking to Routes.RANKING,
-                R.string.me_menu_coach to Routes.COACH,
-                R.string.me_menu_battle_history to Routes.BATTLE_HISTORY
-            ),
-            onNavigate
-        )
-        MenuSection(
-            R.string.me_menu_section_character,
-            listOf(
-                R.string.me_menu_runimal to Routes.RUNIMAL,
-                R.string.me_menu_avatar to Routes.AVATAR,
-                R.string.me_menu_shop to Routes.SHOP
-            ),
-            onNavigate
-        )
-        MenuSection(
-            R.string.me_menu_section_settings,
-            listOf(
-                R.string.me_settings_page_free_run to Routes.FREE_RUN_SETTINGS,
-                R.string.me_settings_page_notifications to Routes.NOTIFICATION_SETTINGS,
-                R.string.me_settings_page_consents to Routes.CONSENTS,
-                R.string.me_settings_page_app to Routes.SETTINGS
-            ),
-            onNavigate
-        )
-    }
-}
-
 /** 입력한 나이대·성별(FR-006). "밝히지 않음"·미입력은 빼고, 둘 다 없으면 null. */
 internal fun aboutLine(res: Resources, profile: Profile): String? = listOfNotNull(
     profile.ageBand?.takeIf { it.isNotBlank() },
     profile.gender?.takeIf { it != Gender.UNDISCLOSED }?.let { res.getString(genderLabelRes(it)) }
-).takeIf { it.isNotEmpty() }?.joinToString(" · ")
+).takeIf { it.isNotEmpty() }?.joinToString(", ")
 
+/** 프로필 머리, "프로필 편집", 통계, MY Runimal 카드. */
 @Composable
-private fun ProfileCard(profile: Profile, faceLayers: List<FaceLayer>, onEdit: () -> Unit) {
-    RunkkCard(shape = RunkkShapes.ExtraLarge, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        ProfileHeader(profile, faceLayers, onEdit)
-        ProfileDetails(profile)
+private fun ProfileSummary(profile: Profile, faceLayers: List<FaceLayer>, onEdit: () -> Unit, onRunimal: () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        ProfileHeader(profile, faceLayers)
+        RunkkSecondaryButton(
+            stringResource(R.string.me_profile_edit),
+            onClick = onEdit,
+            height = 40.dp,
+            modifier = Modifier.fillMaxWidth()
+        )
+        StatTiles(profile)
+        RunimalCard(profile.runimalType, onRunimal)
     }
 }
 
-/** 프로필 원(기본 캐릭터·셀카 얼굴), 닉네임·티어 줄·나이대·성별, 편집 버튼. */
+/** 고른 랜드마크 배경 위 아바타 얼굴(FR-202), 닉네임, "Lv.n, 티어", 나이대·성별, 한줄 소개. */
 @Composable
-private fun ProfileHeader(profile: Profile, faceLayers: List<FaceLayer>, onEdit: () -> Unit) {
+private fun ProfileHeader(profile: Profile, faceLayers: List<FaceLayer>) {
     val defaultTier = stringResource(R.string.me_profile_default_tier)
     val level = profile.level?.let { stringResource(R.string.me_profile_level, it) }
     val about = aboutLine(LocalContext.current.resources, profile)
     Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
-        RunkkAvatarPortrait(
-            profile.faceKey,
-            faceLayers,
-            modifier = Modifier.size(
-                56.dp
-            ).clip(
-                CircleShape
-            ).border(
-                2.dp,
-                RunkkColors.Lime,
-                CircleShape
-            ).padding(4.dp).clip(CircleShape).background(RunkkColors.Border).testTag(PROFILE_FACE_TAG)
-        )
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Box(
+            modifier = Modifier
+                .size(84.dp)
+                .clip(RunkkShapes.Large)
+                .border(2.dp, RunkkColors.Lime, RunkkShapes.Large),
+            contentAlignment = Alignment.Center
+        ) {
+            // 배경은 장식이다.
+            AvatarBackdrop(profile.avatarBackgroundKey, modifier = Modifier.matchParentSize())
+            RunkkAvatarPortrait(
+                // 얼굴을 고르기 전이면 기본 캐릭터 얼굴 1번(FR-155·FR-158).
+                profile.faceKey ?: RunkkAvatarArt.DEFAULT_FACE_KEY,
+                faceLayers,
+                modifier = Modifier.size(52.dp).clip(CircleShape).testTag(PROFILE_FACE_TAG)
+            )
+        }
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
                 profile.displayName,
-                style = RunkkTextStyles.text(18, androidx.compose.ui.text.font.FontWeight.Black),
+                style = RunkkTextStyles.text(18, FontWeight.Black),
                 color = RunkkColors.TextPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
             Text(
-                text = listOfNotNull(profile.tier ?: defaultTier, level, profile.crewName).joinToString(" · "),
-                style = RunkkTextStyles.Caption,
+                text = listOfNotNull(level, profile.tier ?: defaultTier).joinToString(", "),
+                style = RunkkTextStyles.Label,
                 color = RunkkColors.TextSecondary
             )
             about?.let { Text(it, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary) }
+            profile.intro?.let { Text(it, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary) }
         }
-        RunkkPillButton(stringResource(R.string.me_profile_edit), onClick = onEdit)
     }
 }
 
-/** 소개, 성향 태그, Runimal·최장 거리 칸. */
-@OptIn(ExperimentalLayoutApi::class)
+/** 통계 칸. 앱 프로필에 있는 값(최장 거리)만 보인다(누적 거리·러닝 횟수는 프로필 응답에 없다). */
 @Composable
-private fun ColumnScope.ProfileDetails(profile: Profile) {
-    profile.intro?.let { Text(it, style = RunkkTextStyles.Body, color = RunkkColors.TextPrimary) }
-    if (profile.tags.isNotEmpty()) {
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            profile.tags.forEach { RunkkBadge(RunkkTags.label(it), tone = RunkkBadgeTone.Lime) }
-        }
-    }
+private fun StatTiles(profile: Profile) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        RunimalStat(profile.runimalType, Modifier.weight(1f))
-        MiniStat(
+        StatTile(
+            profile.longestDistance?.let { stringResource(R.string.me_profile_longest_value, RunkkFormat.km(it)) }
+                ?: RunkkFormat.EMPTY,
             stringResource(R.string.me_profile_longest),
-            profile.longestDistance?.let {
-                stringResource(R.string.me_profile_longest_value, RunkkFormat.km(it))
-            } ?: RunkkFormat.EMPTY,
             Modifier.weight(1f)
         )
     }
 }
 
 @Composable
-private fun MiniStat(label: String, value: String, modifier: Modifier = Modifier) {
+private fun StatTile(value: String, label: String, modifier: Modifier = Modifier) {
     Column(
-        modifier = modifier.clip(
-            RunkkShapes.Medium
-        ).background(RunkkColors.Background).padding(12.dp).semantics(mergeDescendants = true) {
-        },
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        Text(label, style = RunkkTextStyles.Micro, color = RunkkColors.TextSecondary)
-        Text(value, style = RunkkTextStyles.BodyStrong, color = RunkkColors.TextPrimary)
-    }
-}
-
-/** 러니멀 칸: 서버 유형 값을 한국어 이름과 작은 그림으로 보인다. 아직 유형이 없으면 "판정 전". */
-@Composable
-private fun RunimalStat(type: String?, modifier: Modifier = Modifier) {
-    if (type.isNullOrBlank()) {
-        MiniStat(
-            stringResource(R.string.me_profile_runimal),
-            stringResource(R.string.me_profile_runimal_unknown),
-            modifier
-        )
-        return
-    }
-    Column(
-        modifier = modifier.clip(RunkkShapes.Medium).background(RunkkColors.Background).padding(12.dp)
+        modifier = modifier
+            .clip(RunkkShapes.Medium)
+            .background(RunkkColors.Surface)
+            .padding(vertical = 12.dp, horizontal = 4.dp)
             .semantics(mergeDescendants = true) {},
+        horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Text(
-            stringResource(R.string.me_profile_runimal),
-            style = RunkkTextStyles.Micro,
-            color = RunkkColors.TextSecondary
-        )
-        RunimalTypeLabel(
-            type,
-            artSize = 24.dp,
-            textStyle = RunkkTextStyles.BodyStrong,
-            color = RunkkColors.TextPrimary
-        )
+        Text(value, style = RunkkTextStyles.text(17, FontWeight.Black), color = RunkkColors.TextPrimary)
+        Text(label, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
     }
 }
 
+/** MY Runimal 카드(누르면 J1): 유형 그림과 이름. 아직 유형이 없으면 "판정 전". */
 @Composable
-private fun MenuSection(@StringRes title: Int, items: List<Pair<Int, String>>, onNavigate: (String) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        RunkkSectionTitle(stringResource(title), modifier = Modifier.padding(horizontal = 8.dp))
-        RunkkCard(contentPadding = PaddingValues(0.dp), verticalArrangement = Arrangement.Top) {
-            items.forEachIndexed { index, (label, route) ->
-                RunkkMenuRow(stringResource(label), onClick = { onNavigate(route) })
-                if (index < items.lastIndex) HorizontalDivider(color = RunkkColors.Border)
+private fun RunimalCard(type: String?, onClick: () -> Unit) {
+    RunkkCard(onClick = onClick, onClickLabel = stringResource(R.string.me_profile_runimal)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            val art = RunimalArt.of(type)
+            Image(
+                painterResource(art.drawableRes),
+                contentDescription = null,
+                modifier = Modifier.size(48.dp).clip(CircleShape).background(RunkkColors.Background).padding(4.dp)
+            )
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    stringResource(R.string.me_profile_runimal),
+                    style = RunkkTextStyles.Caption,
+                    color = RunkkColors.TextSecondary
+                )
+                Text(
+                    if (type.isNullOrBlank()) {
+                        stringResource(R.string.me_profile_runimal_unknown)
+                    } else {
+                        stringResource(art.nameRes)
+                    },
+                    style = RunkkTextStyles.text(15, FontWeight.Bold),
+                    color = RunkkColors.TextPrimary
+                )
             }
+            Icon(
+                RunkkIcons.ChevronRight,
+                contentDescription = null,
+                tint = RunkkColors.TextSecondary,
+                modifier = Modifier.size(16.dp)
+            )
         }
     }
 }
 
-@Preview(name = "마이", widthDp = 390, heightDp = 1200)
+/** 기록·아바타 메뉴 한 목록. */
+@Composable
+private fun MenuList(onNavigate: (String) -> Unit) {
+    RunkkCard(contentPadding = PaddingValues(0.dp), verticalArrangement = Arrangement.Top) {
+        MENU.forEachIndexed { index, (label, route) ->
+            RunkkMenuRow(stringResource(label), onClick = { onNavigate(route) })
+            if (index < MENU.lastIndex) HorizontalDivider(color = RunkkColors.Border)
+        }
+    }
+}
+
+private val MENU: List<Pair<Int, String>> = listOf(
+    R.string.me_menu_records to Routes.RECORDS,
+    R.string.me_menu_growth to Routes.GROWTH,
+    R.string.me_menu_report to Routes.REPORT,
+    R.string.me_menu_coach to Routes.COACH,
+    R.string.me_menu_ranking to Routes.RANKING,
+    R.string.me_menu_battle_history to Routes.BATTLE_HISTORY,
+    R.string.me_menu_avatar to Routes.AVATAR
+)
+
+@Preview(name = "F2 마이", widthDp = 390, heightDp = 1000)
 @Composable
 private fun MeScreenPreview() {
     RunkkTheme(reduceMotion = true) {
         MeScreen(
             state = MeUiState(
                 isLoading = false,
-                profile = Profile(
-                    7, "달리는곰", "SELF", "골드", 3,
-                    setOf(
-                        "SOCIAL_RUN",
-                        "EVENING"
-                    ),
-                    "퇴근 뒤 한강", "치타", null, "새벽크루", null
-                )
+                profile = Profile(7, "달리는곰", "SELF", "골드", 3, "퇴근 뒤 한강", "치타", null, "새벽크루", null)
             ),
             onNavigate = {},
-            onRetry = {},
-            onLogout = {}
+            onRetry = {}
         )
     }
+}
+
+@StringRes
+internal fun genderLabelRes(gender: Gender): Int = when (gender) {
+    Gender.FEMALE -> R.string.me_gender_female
+    Gender.MALE -> R.string.me_gender_male
+    Gender.UNDISCLOSED -> R.string.me_gender_undisclosed
 }
 
 /** 프로필 원(시험이 찾는 표지). */

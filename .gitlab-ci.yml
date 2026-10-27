@@ -8,6 +8,8 @@
 #   INFRA_ENV_PROD            File 타입, main 배포용 .env
 #   FCM_SERVICE_ACCOUNT       File 타입, Firebase 서비스 계정 JSON(배포 때 infra/secrets/fcm-service-account.json으로 복사,
 #                             .env에 FCM_CREDENTIALS_FILE=/run/secrets/fcm-service-account.json). 없으면 푸시 없이 로그만
+#   RUNKK_BACKUP_DIR          (선택) 배포 전 DB 덤프 폴더, 작업 폴더 밖 절대 경로. 없으면 infra/.env 값, 그것도 없으면 러너 사용자의
+#                             $HOME/runkk-backups (infra/deploy.sh, infra/README.md 3절)
 #   GOOGLE_SERVICES_JSON      File 타입, 앱 google-services.json(Android 잡이 android/app/에 복사). 없으면 FCM 없이 빌드
 #   ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD  (릴리스 AAB, 시험 APK 서명)
 #   KAKAO_NATIVE_APP_KEY, GOOGLE_WEB_CLIENT_ID  앱 로그인 키(prod 패키지 com.a207.runkk용 카카오 네이티브 앱 키)
@@ -200,6 +202,11 @@ backend:deploy:
   environment:
     name: $DEPLOY_ENV
   resource_group: runkk-server
+  # deploy.sh가 마이그레이션 전에 뜨는 DB 덤프는 작업 폴더 밖 RUNKK_BACKUP_DIR(기본 러너 사용자의 $HOME/runkk-backups)에 쌓인다.
+  # 작업 폴더(infra/backups/ 포함)는 shell 러너가 다음 잡 시작 때 git clean으로 지운다(BE6-1). 다른 호스트 경로를 쓰려면
+  # CI 변수 RUNKK_BACKUP_DIR를 두거나 아래 주석을 푼다(러너 사용자가 쓸 수 있는 절대 경로).
+  # variables:
+  #   RUNKK_BACKUP_DIR: /var/backups/runkk
   rules:
     - if: $CI_COMMIT_BRANCH =~ /^release\//
       changes: *deploy-changes
@@ -331,8 +338,10 @@ android:build:
     - ./gradlew assembleDevelopDebug
   after_script:
     - rm -f /tmp/release.jks
+  # 산출물 업로드 상한(약 100MiB) 때문에 폰은 arm64 APK만 올린다(ABI 3개 + 워치를 합치면 넘는다).
+  # 에뮬레이터용 x86_64·32비트 armeabi-v7a는 로컬에서 assembleDevelopDebug로 만든다.
   artifacts:
-    paths: [android/app/build/outputs/apk/develop/debug/*.apk, android/wear/build/outputs/apk/develop/debug/*.apk]
+    paths: [android/app/build/outputs/apk/develop/debug/*-arm64-v8a-debug.apk, android/wear/build/outputs/apk/develop/debug/*.apk]
     expire_in: 1 week
 
 # Play 업로드용 폰·워치 prod release AAB(업로드 키 서명, S15P31A207-67·213). Play Console 업로드는 사람이 한다.

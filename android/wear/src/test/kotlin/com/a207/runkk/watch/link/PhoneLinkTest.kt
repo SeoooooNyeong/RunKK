@@ -1,17 +1,24 @@
 package com.a207.runkk.watch.link
 
+import com.a207.runkk.watch.alert.ProximityAlertPlayer
 import com.a207.runkk.watch.heart.HeartRateCollector
+import com.a207.runkk.watch.testing.FakeAlertOutput
 import com.a207.runkk.watch.testing.FakeHeartRateSensor
 import com.a207.runkk.watch.testing.FakeSensorPermission
 import com.a207.runkk.watch.testing.FakeWearDataLayer
 import com.a207.runkk.watch.testing.SchedulerClock
+import com.a207.runkk.watch.testing.SchedulerMonotonicClock
 import com.a207.runkk.watch.testing.T0
+import com.a207.runkk.watch.testing.alertPlayer
 import com.a207.runkk.watch.testing.failed
 import com.a207.runkk.watch.testing.ok
 import com.a207.runkk.wear.contract.EndRequestMessage
 import com.a207.runkk.wear.contract.HeartRateBatchMessage
 import com.a207.runkk.wear.contract.HeartRateBatchMessage.Sample
 import com.a207.runkk.wear.contract.HeartRateBatchMessage.Status
+import com.a207.runkk.wear.contract.LeadChangeMessage
+import com.a207.runkk.wear.contract.PauseRequestMessage
+import com.a207.runkk.wear.contract.ProximityMessage
 import com.a207.runkk.wear.contract.StartRequestMessage
 import com.a207.runkk.wear.contract.WatchDisplayMessage
 import com.a207.runkk.wear.contract.WearPaths
@@ -38,29 +45,41 @@ class PhoneLinkTest {
     private class Harness(
         val link: PhoneLink,
         val collector: HeartRateCollector,
-        val displays: List<WatchDisplayMessage>
+        val displays: List<WatchDisplayMessage>,
+        val player: ProximityAlertPlayer,
+        val alerts: FakeAlertOutput
     )
 
     private fun TestScope.harness(): Harness {
         val collector = HeartRateCollector(sensor, permission, backgroundScope)
-        val link = PhoneLink(dataLayer, collector, SchedulerClock(testScheduler), backgroundScope)
+        val alerts = FakeAlertOutput(SchedulerMonotonicClock(testScheduler))
+        val player = alertPlayer(alerts)
+        val link = PhoneLink(dataLayer, collector, player, SchedulerClock(testScheduler), backgroundScope)
         val displays = mutableListOf<WatchDisplayMessage>()
         backgroundScope.launch { link.displays.collect { displays += it } }
         link.start()
         runCurrent()
-        return Harness(link, collector, displays)
+        return Harness(link, collector, displays, player, alerts)
     }
 
-    private fun display(running: Boolean = true, allowed: Boolean = true, notice: String? = null) = WatchDisplayMessage(
-        running = running,
+    private fun display(
+        running: Boolean = true,
+        allowed: Boolean = true,
+        notice: String? = null,
+        pausable: Boolean = false,
+        paused: Boolean = false
+    ) = WatchDisplayMessage(
+        isRunning = running,
         elapsedSeconds = 60,
         distanceMeters = 200,
         currentPaceSecondsPerKm = 300,
         heartRateBpm = 150,
         planDistanceMeters = 5_000,
         planPaceSecondsPerKm = 330,
-        heartRateCollectionAllowed = allowed,
-        notice = notice
+        isHeartRateCollectionAllowed = allowed,
+        notice = notice,
+        isPaused = paused,
+        isPausable = pausable
     )
 
     private fun TestScope.receive(message: WatchDisplayMessage) {
@@ -474,5 +493,196 @@ class PhoneLinkTest {
         runCurrent()
 
         assertEquals(1, sensor.leftoverChecks)
+    }
+
+    private fun TestScope.proximity(active: Boolean = true, intervalMillis: Long = 1_000) = ProximityMessage(
+        isActive = active,
+        gapMeters = if (active) 30 else 0,
+        intervalMillis = if (active) intervalMillis else 0,
+        isAhead = true,
+        sentAtEpochMillis = T0 + testScheduler.currentTime
+    )
+
+    private fun TestScope.receiveRaw(path: String, bytes: ByteArray) {
+        dataLayer.incoming.tryEmit(WearMessage(path, bytes))
+        runCurrent()
+    }
+
+    @Test
+    fun `TC-6568 a 일시정지할 수 있는 표시를 받았으면 PAUSE_REQUEST 경로로 요청을 보낸다`() = runTest {
+        val h = harness()
+        receive(display(pausable = true))
+        advanceTimeBy(700)
+
+        assertTrue(h.link.sendPauseRequest(PauseRequestMessage.Action.PAUSE))
+
+        val (node, path, bytes) = dataLayer.sentMessages.single()
+        assertEquals("phone", node)
+        assertEquals(WearPaths.PAUSE_REQUEST, path)
+        assertEquals(
+            PauseRequestMessage(PauseRequestMessage.Action.PAUSE, T0 + 700),
+            PauseRequestMessage.decode(bytes)
+        )
+    }
+
+    @Test
+    fun `TC-6568 b 마지막 표시가 일시정지할 수 없으면 보내지 않는다`() = runTest {
+        val h = harness()
+        receive(display(pausable = true))
+        receive(display(pausable = false))
+
+        assertFalse(h.link.sendPauseRequest(PauseRequestMessage.Action.PAUSE))
+        assertFalse(h.link.sendPauseRequest(PauseRequestMessage.Action.RESUME))
+
+        assertTrue(dataLayer.sentMessages.isEmpty())
+    }
+
+    @Test
+    fun `TC-6568 c 받은 표시가 없으면 보내지 않는다`() = runTest {
+        val h = harness()
+
+        assertFalse(h.link.sendPauseRequest(PauseRequestMessage.Action.PAUSE))
+
+        assertTrue(dataLayer.sentMessages.isEmpty())
+    }
+
+    @Test
+    fun `TC-6863 paused·pausable이 없는 옛 폰 표시를 받으면 일시정지 요청을 보내지 않는다`() = runTest {
+        val h = harness()
+        val old = """{"running":true,"elapsedSeconds":10,"distanceMeters":30,"heartRateCollectionAllowed":true}"""
+        receiveRaw(WearPaths.WATCH_DISPLAY, old.toByteArray())
+
+        assertFalse(h.displays.single().isPausable)
+        assertFalse(h.link.sendPauseRequest(PauseRequestMessage.Action.PAUSE))
+        assertTrue(dataLayer.sentMessages.isEmpty())
+    }
+
+    @Test
+    fun `재개 요청은 RESUME으로 보내고 연결이 없으면 거짓이다`() = runTest {
+        val h = harness()
+        receive(display(pausable = true, paused = true))
+
+        assertTrue(h.link.sendPauseRequest(PauseRequestMessage.Action.RESUME))
+        assertEquals(
+            PauseRequestMessage.Action.RESUME,
+            PauseRequestMessage.decode(dataLayer.sentMessages.single().third).action
+        )
+
+        dataLayer.nodes = emptyList()
+        assertFalse(h.link.sendPauseRequest(PauseRequestMessage.Action.RESUME))
+    }
+
+    @Test
+    fun `러닝 중 PROXIMITY 메시지를 받으면 근접 알림을 재생한다`() = runTest {
+        val h = harness()
+        receive(display(running = true))
+
+        receiveRaw(WearPaths.PROXIMITY, proximity(intervalMillis = 500).encode())
+        advanceTimeBy(1_100)
+        runCurrent()
+
+        assertTrue(h.player.isPlaying.value)
+        assertEquals(listOf(0L, 500L, 1_000L), h.alerts.beepTimes())
+    }
+
+    @Test
+    fun `러닝 중 LEAD_CHANGE 메시지를 받으면 1초 긴 진동을 낸다`() = runTest {
+        val h = harness()
+        receive(display(running = true))
+
+        receiveRaw(WearPaths.LEAD_CHANGE, LeadChangeMessage(LeadChangeMessage.Kind.OVERTOOK, T0).encode())
+
+        assertEquals(listOf(0L), h.alerts.longVibrationTimes(ProximityAlertPlayer.LEAD_CHANGE_VIBRATION_MILLIS))
+    }
+
+    @Test
+    fun `TC-6565 러닝이 끝났다는 표시를 받으면 근접 알림을 멈춘다`() = runTest {
+        val h = harness()
+        receive(display(running = true))
+        receiveRaw(WearPaths.PROXIMITY, proximity(intervalMillis = 300).encode())
+        assertTrue(h.player.isPlaying.value)
+
+        receive(display(running = false))
+
+        assertFalse(h.player.isPlaying.value)
+    }
+
+    @Test
+    fun `러닝 중이 아닐 때 온 근접·추월 메시지는 버린다(늦게 도착한 메시지)`() = runTest {
+        val h = harness()
+        receive(display(running = false))
+
+        receiveRaw(WearPaths.PROXIMITY, proximity().encode())
+        receiveRaw(WearPaths.LEAD_CHANGE, LeadChangeMessage(LeadChangeMessage.Kind.OVERTAKEN, T0).encode())
+        advanceTimeBy(5_000)
+        runCurrent()
+
+        assertFalse(h.player.isPlaying.value)
+        assertTrue(h.alerts.events.isEmpty())
+    }
+
+    @Test
+    fun `TC-6571 모르는 경로와 깨진 근접·추월 본문은 버리고 예외 없이 다음 메시지를 처리한다`() = runTest {
+        val h = harness()
+        receive(display(running = true))
+
+        receiveRaw("/runkk/unknown", proximity().encode())
+        receiveRaw(WearPaths.PROXIMITY, "not json".toByteArray())
+        receiveRaw(WearPaths.LEAD_CHANGE, """{"kind":"TIED","atEpochMillis":1}""".toByteArray())
+        assertTrue(h.alerts.events.isEmpty())
+        assertFalse(h.player.isPlaying.value)
+
+        receiveRaw(WearPaths.PROXIMITY, proximity().encode())
+        assertTrue(h.player.isPlaying.value)
+    }
+
+    @Test
+    fun `러닝 중이 아닌 표시면 pausable이어도 일시정지 요청을 보내지 않는다`() = runTest {
+        val h = harness()
+        receive(display(running = false, pausable = true))
+
+        assertFalse(h.link.sendPauseRequest(PauseRequestMessage.Action.PAUSE))
+        assertTrue(dataLayer.sentMessages.isEmpty())
+    }
+
+    @Test
+    fun `러닝 중 켜진 근접 알림은 화면용 proximity로도 내보내고 꺼짐이나 러닝 끝에 지운다`() = runTest {
+        val h = harness()
+        receive(display(running = true))
+
+        receiveRaw(WearPaths.PROXIMITY, proximity(intervalMillis = 800).encode())
+        assertEquals(
+            PhoneProximity(30, isAhead = true, intervalMillis = 800, receivedAtMillis = T0),
+            h.link.proximity.value
+        )
+
+        receiveRaw(WearPaths.PROXIMITY, proximity(active = false).encode())
+        assertNull(h.link.proximity.value)
+
+        receiveRaw(WearPaths.PROXIMITY, proximity().encode())
+        receive(display(running = false))
+        assertNull(h.link.proximity.value)
+    }
+
+    @Test
+    fun `러닝 중이 아닐 때 온 근접 알림은 화면에도 내보내지 않는다`() = runTest {
+        val h = harness()
+        receive(display(running = false))
+
+        receiveRaw(WearPaths.PROXIMITY, proximity().encode())
+
+        assertNull(h.link.proximity.value)
+    }
+
+    @Test
+    fun `다시 연결은 연결 상태를 바로 다시 확인한다`() = runTest {
+        val h = harness()
+        dataLayer.nodes = emptyList()
+        assertFalse(h.link.recheckConnection())
+        assertFalse(h.link.phoneConnected.value)
+
+        dataLayer.nodes = listOf("phone")
+        assertTrue(h.link.recheckConnection())
+        assertTrue(h.link.phoneConnected.value)
     }
 }

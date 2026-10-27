@@ -1,11 +1,8 @@
 package com.a207.runkk.member;
 
-import com.a207.runkk.common.PersonalityTag;
-import com.a207.runkk.common.RecordVisibility;
 import java.time.LocalDateTime;
 import java.util.EnumMap;
 import java.util.Map;
-import java.util.Set;
 
 /** member 시험용 입력 값. */
 public final class MemberFixtures {
@@ -23,16 +20,9 @@ public final class MemberFixtures {
         return consents;
     }
 
+    /** 가입 입력(v0.11 D-90: 닉네임과 동의만). */
     public static SignUpForm form(String nickname) {
-        return new SignUpForm(
-                nickname,
-                1995,
-                Gender.FEMALE,
-                null,
-                "안녕하세요",
-                requiredConsents(),
-                RecordVisibility.PUBLIC,
-                Set.of(PersonalityTag.SOLO_RUN, PersonalityTag.MORNING));
+        return new SignUpForm(nickname, requiredConsents());
     }
 
     public static SocialAccount account(String id) {
@@ -43,7 +33,14 @@ public final class MemberFixtures {
         return member(nickname, NOW);
     }
 
+    /** 가입 뒤 프로필 편집으로 출생연도 1995·여성·소개를 넣은 회원(v0.10 가입 항목은 프로필 편집으로만 넣는다, D-90). */
     public static Member member(String nickname, LocalDateTime joinedAt) {
-        return Member.signUp(account(nickname), form(nickname), Nickname.of(nickname), joinedAt);
+        Member m =
+                Member.signUp(account(nickname), form(nickname), Nickname.of(nickname), joinedAt);
+        m.editProfile(
+                new ProfileEdit(null, 1995, Gender.FEMALE, null, "안녕하세요"),
+                null,
+                joinedAt.getYear());
+        return m;
     }
 }

@@ -116,17 +116,3 @@ class HeartRateCollectionService : Service() {
         const val NOTIFICATION_ID = 1
     }
 }
-
-/** [HeartRateCollectionService]를 포그라운드 서비스로 띄운다. */
-class AndroidForegroundServiceLauncher @Inject constructor(@ApplicationContext private val context: Context) :
-    ForegroundServiceLauncher {
-    override fun launch(): Boolean = try {
-        ContextCompat.startForegroundService(context, Intent(context, HeartRateCollectionService::class.java))
-        true
-    } catch (_: IllegalStateException) {
-        // 백그라운드 시작 제한(API 31+ ForegroundServiceStartNotAllowedException).
-        false
-    } catch (_: SecurityException) {
-        false
-    }
-}

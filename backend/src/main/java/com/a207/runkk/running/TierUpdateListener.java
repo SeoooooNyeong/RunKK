@@ -1,7 +1,6 @@
 package com.a207.runkk.running;
 
 import com.a207.runkk.member.RunScoreInput;
-import com.a207.runkk.member.TierLevelService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.TransientDataAccessException;
@@ -13,9 +12,10 @@ import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 유효 러닝 저장 사건을 member의 티어 갱신 호출로 넘긴다(설계 6.1.3, D-03 예외). 저장 커밋 뒤 동기로 새 트랜잭션에서 부르고, 같은 회원 행을 함께 고쳐
- * 낙관적 잠금 충돌·잠금 대기 같은 일시 오류면 3번까지 다시 한다(코드 리뷰 2차 L16). 그래도 실패하면 운영 로그를 남기고, 다음 유효 기록의 순번이 건너뛰어 오면
- * TierProgress가 판정 지점을 놓치지 않는다(D-40).
+ * 유효 러닝 저장 사건을 member의 티어 갱신 호출로 넘긴다(설계 6.1.3, D-03 예외). 저장 커밋 뒤 동기로 새 트랜잭션에서 TierApplier로 반영하고 그
+ * 기록의 반영 표시(tier_applied)를 같은 트랜잭션에서 세운다(총괄 결정 7-3). 같은 회원 행을 함께 고쳐 낙관적 잠금 충돌·잠금 대기 같은 일시 오류면 3번까지
+ * 다시 한다(코드 리뷰 2차 L16). 그래도 실패하면 운영 로그를 남기고 표시가 서지 않은 기록을 TierReconcileService가 다음 0시 10분에
+ * 채운다(D-108).
  */
 @Component
 public class TierUpdateListener {
@@ -23,12 +23,11 @@ public class TierUpdateListener {
     private static final Logger log = LoggerFactory.getLogger(TierUpdateListener.class);
     private static final int MAX_ATTEMPTS = 3;
 
-    private final TierLevelService tierLevelService;
+    private final TierApplier tierApplier;
     private final TransactionTemplate newTransaction;
 
-    public TierUpdateListener(
-            TierLevelService tierLevelService, PlatformTransactionManager transactionManager) {
-        this.tierLevelService = tierLevelService;
+    TierUpdateListener(TierApplier tierApplier, PlatformTransactionManager transactionManager) {
+        this.tierApplier = tierApplier;
         this.newTransaction = new TransactionTemplate(transactionManager);
         this.newTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
@@ -42,7 +41,7 @@ public class TierUpdateListener {
         for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
             try {
                 newTransaction.executeWithoutResult(
-                        status -> tierLevelService.recordValidRun(e.memberId(), input));
+                        status -> tierApplier.apply(e.memberId(), e.recordId(), input));
                 return;
             } catch (TransientDataAccessException conflict) {
                 log.info("tier_update_retry memberId={} attempt={}", e.memberId(), attempt);

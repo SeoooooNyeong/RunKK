@@ -101,15 +101,14 @@ public class MatchingService {
         return memberSettingService.battleSettingsOf(memberId).defaultDistance();
     }
 
-    /** WAITING이면 지우고 대기해제. 이미 배정됐으면 ALREADY_MATCHED(FR-085). 대기 중이 아니면 대기해제(재요청 제한 없음, Q-31). */
+    /**
+     * MatchQueue.removeIfWaiting 한 번으로 정한다(D-83, 설계 부록 E.2 K-1): REMOVED면 대기해제, ASSIGNED면
+     * 거부(ALREADY_MATCHED, FR-085), ABSENT면 거부(대기 중 아님. 사유 이름은 srs 6.3 4.1 ELSE 갈래 "이미 매칭됨"을 따른다).
+     * 상태 확인과 삭제를 따로 부르지 않는다.
+     */
     public MatchAcceptance cancel(long memberId) {
-        if (queueing(() -> matchQueue.removeWaiting(memberId))) {
-            return MatchAcceptance.released(defaultDistanceOf(memberId));
-        }
-        boolean assigned =
-                queueing(() -> matchQueue.findWaiting(memberId)).isPresent()
-                        || battleRepository.existsActive(memberId);
-        if (assigned) {
+        QueueRemoval removal = queueing(() -> matchQueue.removeIfWaiting(memberId));
+        if (removal != QueueRemoval.REMOVED) {
             throw new BusinessRuleException(ReasonCode.ALREADY_MATCHED);
         }
         return MatchAcceptance.released(defaultDistanceOf(memberId));

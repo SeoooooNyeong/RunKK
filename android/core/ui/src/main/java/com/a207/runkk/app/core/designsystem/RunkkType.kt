@@ -7,6 +7,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.intl.LocaleList
+import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
@@ -42,8 +44,17 @@ object RunkkTextStyles {
         fontSize = size.sp,
         fontWeight = weight,
         lineHeight = lineHeight?.sp ?: TextUnit.Unspecified,
-        letterSpacing = if (letterSpacingEm == 0f) TextUnit.Unspecified else letterSpacingEm.em
+        letterSpacing = if (letterSpacingEm == 0f) TextUnit.Unspecified else letterSpacingEm.em,
+        localeList = KoreanLocale,
+        lineBreak = KoreanLineBreak
     )
+
+    /**
+     * 한글 줄바꿈: 기본 줄바꿈은 음절마다 끊어 "달려/요"처럼 한 글자만 다음 줄로 넘긴다. 어절(띄어쓰기) 단위로 끊고(Phrase,
+     * Android 13 이상) 줄 길이를 고르게 맞춘다. 어절 판단은 글자 로캘을 따르므로 기기 언어와 상관없이 한국어로 둔다.
+     */
+    private val KoreanLocale = LocaleList("ko-KR")
+    private val KoreanLineBreak = LineBreak.Paragraph.copy(wordBreak = LineBreak.WordBreak.Phrase)
 
     /** 디스플레이(Barlow Condensed Italic) 스타일. 기본 800. */
     fun display(

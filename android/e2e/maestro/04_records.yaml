@@ -1,4 +1,4 @@
-# 시나리오 4: 기록 목록(마이 > 기록 목록·달력)과 상세(경로·구간 페이스)를 연다.
+# 시나리오 4: 기록 목록(마이 > 러닝 기록)과 상세(경로·구간 페이스)를 연다.
 appId: ${APP_ID}
 name: 04_records
 tags: [smoke]
@@ -8,7 +8,7 @@ tags: [smoke]
     visible: "자유런 시작"
     timeout: 20000
 - tapOn: "마이"
-- tapOn: "기록 목록·달력"
+- tapOn: "러닝 기록"
 - extendedWaitUntil:
     visible:
       id: "record_row"

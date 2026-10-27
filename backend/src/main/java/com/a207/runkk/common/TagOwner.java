@@ -1,17 +1,8 @@
 package com.a207.runkk.common;
 
-/** 태그를 가진 쪽. 러너는 1~6분류, 크루는 1~7분류에서 고른다(Q-82). */
+/**
+ * 태그를 가진 쪽. 크루가 1~7분류에서 고른다(Q-82). v0.11에서 러너 성향 태그를 지워(FR-119, D-91) RUNNER 상수를 없앴고 CREW 하나만 남는다.
+ */
 public enum TagOwner {
-    RUNNER(6),
-    CREW(7);
-
-    private final int lastCategory;
-
-    TagOwner(int lastCategory) {
-        this.lastCategory = lastCategory;
-    }
-
-    public boolean allows(TagCategory category) {
-        return category.number() <= lastCategory;
-    }
+    CREW
 }

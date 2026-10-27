@@ -47,7 +47,10 @@ class CrewRunViews {
     LobbyView lobby(CrewRunPost post, LocalDateTime now) {
         List<CrewRunParticipation> going =
                 post.participations().stream()
-                        .filter(p -> p.answer() == VoteAnswer.GOING && p.memberId().isPresent())
+                        .filter(
+                                p ->
+                                        p.answer() == AttendanceAnswer.GOING
+                                                && p.memberId().isPresent())
                         .toList();
         Map<Long, MemberSummary> names =
                 memberQueryService.summaries(

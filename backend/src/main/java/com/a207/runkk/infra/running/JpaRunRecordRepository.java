@@ -6,6 +6,7 @@ import com.a207.runkk.common.Pace;
 import com.a207.runkk.running.CardKind;
 import com.a207.runkk.running.DayStats;
 import com.a207.runkk.running.OwnedRun;
+import com.a207.runkk.running.RejudgeState;
 import com.a207.runkk.running.RunMode;
 import com.a207.runkk.running.RunRecord;
 import com.a207.runkk.running.RunRecordRepository;
@@ -13,11 +14,15 @@ import com.a207.runkk.running.RunSampleRow;
 import com.a207.runkk.running.RunSummary;
 import com.a207.runkk.running.SavedRun;
 import com.a207.runkk.running.TotalStats;
+import com.a207.runkk.running.ValidRunScore;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
+import jakarta.persistence.Query;
 import jakarta.persistence.TypedQuery;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -267,17 +272,15 @@ public class JpaRunRecordRepository implements RunRecordRepository {
                 entityManager
                         .createQuery(
                                 "select coalesce(sum(r.distanceMeters), 0),"
-                                    + " coalesce(sum(r.elapsedMillis), 0), count(r),"
-                                    + " coalesce(sum(case when r.valid = true then r.distanceMeters"
-                                    + " else 0 end), 0) from RunRecord r where r.memberId = :m",
+                                    + " coalesce(sum(r.elapsedMillis), 0), count(r) from RunRecord"
+                                    + " r where r.memberId = :m and r.valid = true",
                                 Object[].class)
                         .setParameter("m", memberId)
                         .getSingleResult();
         return new TotalStats(
                 Distance.ofMeters(((Number) row[0]).longValue()),
                 Duration.ofMillis(((Number) row[1]).longValue()),
-                ((Number) row[2]).intValue(),
-                Distance.ofMeters(((Number) row[3]).longValue()));
+                ((Number) row[2]).intValue());
     }
 
     @Override
@@ -335,17 +338,106 @@ public class JpaRunRecordRepository implements RunRecordRepository {
                 .setParameter("to", to)
                 .getResultList()
                 .stream()
-                .map(
-                        row ->
-                                new SavedRun(
-                                        (String) row[0],
-                                        (Long) row[1],
-                                        (LocalDateTime) row[2],
-                                        Distance.ofMeters((Long) row[3]),
-                                        (Boolean) row[4],
-                                        (Long) row[5],
-                                        (LocalDateTime) row[6]))
+                .map(JpaRunRecordRepository::savedRun)
                 .toList();
+    }
+
+    @Override
+    public Distance validDistanceSavedBefore(long memberId, LocalDateTime cutoff) {
+        Number meters =
+                entityManager
+                        .createQuery(
+                                "select coalesce(sum(r.distanceMeters), 0) from RunRecord r"
+                                        + " where r.memberId = :m and r.valid = true"
+                                        + " and r.savedAt < :cutoff",
+                                Number.class)
+                        .setParameter("m", memberId)
+                        .setParameter("cutoff", cutoff)
+                        .getSingleResult();
+        return Distance.ofMeters(meters.longValue());
+    }
+
+    @Override
+    public List<ValidRunScore> validRunsAfter(long memberId, int ordinal) {
+        int skip = Math.max(0, ordinal);
+        List<Object[]> rows =
+                entityManager
+                        .createQuery(
+                                "select r.score, r.distanceMeters from RunRecord r"
+                                        + " where r.memberId = :m and r.valid = true"
+                                        + " order by r.savedAt, r.recordId",
+                                Object[].class)
+                        .setParameter("m", memberId)
+                        .setFirstResult(skip)
+                        .getResultList();
+        List<ValidRunScore> result = new ArrayList<>(rows.size());
+        for (int i = 0; i < rows.size(); i++) {
+            Object[] row = rows.get(i);
+            result.add(
+                    new ValidRunScore(
+                            skip + i + 1, (Double) row[0], Distance.ofMeters((Long) row[1])));
+        }
+        return result;
+    }
+
+    @Override
+    public List<SavedRun> tierPendingBetween(LocalDateTime from, LocalDateTime to) {
+        return entityManager
+                .createQuery(
+                        "select r.recordId, r.memberId, r.startedAt, r.distanceMeters, r.valid,"
+                                + " r.crewRunPostId, r.savedAt from RunRecord r"
+                                + " where r.valid = true and r.tierApplied = false"
+                                + " and r.savedAt >= :from and r.savedAt < :to"
+                                + " order by r.savedAt, r.recordId",
+                        Object[].class)
+                .setParameter("from", from)
+                .setParameter("to", to)
+                .getResultList()
+                .stream()
+                .map(JpaRunRecordRepository::savedRun)
+                .toList();
+    }
+
+    @Override
+    public Optional<ValidRunScore> validRunScoreOf(String recordId) {
+        List<Object[]> rows =
+                entityManager
+                        .createQuery(
+                                "select r.memberId, r.savedAt, r.score, r.distanceMeters from"
+                                        + " RunRecord r where r.recordId = :id and r.valid = true",
+                                Object[].class)
+                        .setParameter("id", recordId)
+                        .getResultList();
+        if (rows.isEmpty()) {
+            return Optional.empty();
+        }
+        Object[] row = rows.get(0);
+        long ordinal =
+                entityManager
+                        .createQuery(
+                                "select count(r) from RunRecord r where r.memberId = :m and"
+                                        + " r.valid = true and (r.savedAt < :s or (r.savedAt = :s"
+                                        + " and r.recordId <= :id))",
+                                Long.class)
+                        .setParameter("m", row[0])
+                        .setParameter("s", row[1])
+                        .setParameter("id", recordId)
+                        .getSingleResult();
+        return Optional.of(
+                new ValidRunScore(
+                        (int) ordinal, (Double) row[2], Distance.ofMeters((Long) row[3])));
+    }
+
+    @Override
+    public boolean markTierApplied(String recordId) {
+        // 엔티티 칼럼은 updatable = false라 조건부 갱신으로만 세운다. 행 잠금으로 리스너와 보정이 겹쳐도 한쪽만 참이다
+        return entityManager
+                        .createNativeQuery(
+                                "update run_record set tier_applied = true"
+                                        + " where record_id = :id and tier_applied = false")
+                        .setParameter("id", recordId)
+                        .executeUpdate()
+                > 0;
     }
 
     private static <T> TypedQuery<T> range(TypedQuery<T> query, DateRange range) {
@@ -369,8 +461,79 @@ public class JpaRunRecordRepository implements RunRecordRepository {
                 (Long) row[11]);
     }
 
+    private static SavedRun savedRun(Object[] row) {
+        return new SavedRun(
+                (String) row[0],
+                (Long) row[1],
+                (LocalDateTime) row[2],
+                Distance.ofMeters((Long) row[3]),
+                (Boolean) row[4],
+                (Long) row[5],
+                (LocalDateTime) row[6]);
+    }
+
     private static RunSampleRow sample(Object[] row) {
         return new RunSampleRow(
                 (String) row[0], (LocalDateTime) row[1], Distance.ofMeters((Long) row[2]));
+    }
+
+    @Override
+    public List<String> rejudgeCandidates(RejudgeState state, int limit) {
+        return entityManager
+                .createQuery(
+                        "select r.recordId from RunRecord r where r.rejudgeState = :s"
+                                + " order by r.savedAt, r.recordId",
+                        String.class)
+                .setParameter("s", state)
+                .setMaxResults(limit)
+                .getResultList();
+    }
+
+    @Override
+    public Optional<RunRecord> findForUpdate(String recordId) {
+        return Optional.ofNullable(
+                entityManager.find(RunRecord.class, recordId, LockModeType.PESSIMISTIC_WRITE));
+    }
+
+    @Override
+    public boolean storeRejudgement(RunRecord record, RejudgeState from, RejudgeState to) {
+        // 거리·시간·페이스 열은 updatable = false라 조건부 갱신으로만 쓴다(일회성 재판정, V28).
+        // 점수는 무효면 NULL이다(ck_run_record_score). 형식 없는 null 바인딩을 피해 식으로 넣는다.
+        boolean scored = record.getScore() != null;
+        Query update =
+                entityManager.createNativeQuery(
+                        "update run_record set distance_meters = :d, elapsed_millis = :t,"
+                                + " average_pace_seconds = :p, valid = :v,"
+                                + (scored ? " score = :sc," : " score = NULL,")
+                                + " excluded_meters = :xd, excluded_millis = :xt,"
+                                + " rejudge_state = :to"
+                                + " where record_id = :id and rejudge_state = :from");
+        if (scored) {
+            update.setParameter("sc", record.getScore().value());
+        }
+        return update.setParameter("d", record.getDistance().meters())
+                        .setParameter("t", record.getElapsed().toMillis())
+                        .setParameter("p", record.getAveragePace().secondsPerKm())
+                        .setParameter("v", record.isValid())
+                        .setParameter("xd", record.getExcludedDistance().meters())
+                        .setParameter("xt", record.getExcludedElapsed().toMillis())
+                        .setParameter("to", to.name())
+                        .setParameter("id", record.getRecordId())
+                        .setParameter("from", from.name())
+                        .executeUpdate()
+                > 0;
+    }
+
+    @Override
+    public boolean moveRejudgeState(String recordId, RejudgeState from, RejudgeState to) {
+        return entityManager
+                        .createNativeQuery(
+                                "update run_record set rejudge_state = :to"
+                                        + " where record_id = :id and rejudge_state = :from")
+                        .setParameter("to", to.name())
+                        .setParameter("id", recordId)
+                        .setParameter("from", from.name())
+                        .executeUpdate()
+                > 0;
     }
 }

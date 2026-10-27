@@ -166,8 +166,13 @@ class OperatorTest {
         when(policy.operatorWhitelist()).thenReturn(new OperatorWhitelist(Map.of()));
 
         assertThat(new OperatorBootstrap(policy, settings, json, "").seedIfEmpty()).isFalse();
+        assertThat(new OperatorBootstrap(policy, settings, json, (String) null).seedIfEmpty())
+                .isFalse();
+        assertThat(new OperatorBootstrap(policy, settings, json, "kakao:1").seedIfEmpty())
+                .as("소문자 제공자는 검사 실패(D-166)")
+                .isFalse();
         assertThat(
-                        new OperatorBootstrap(policy, settings, json, "kakao:1, GOOGLE:abc,KAKAO:2")
+                        new OperatorBootstrap(policy, settings, json, "KAKAO:1, GOOGLE:abc,KAKAO:2")
                                 .seedIfEmpty())
                 .isTrue();
         verify(settings)

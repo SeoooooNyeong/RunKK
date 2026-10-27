@@ -309,8 +309,9 @@ class RunningServicesTest {
         assertThat(query.dailyDistances(List.of(m, other), today))
                 .containsEntry(START.toLocalDate(), Distance.ofKm(13));
         assertThat(query.dailyDistances(List.of(), today)).isEmpty();
-        assertThat(query.totals(m).count()).isEqualTo(3);
-        assertThat(query.totals(m).validDistance()).isEqualTo(Distance.ofKm(8));
+        // 누적은 유효 기록만 센다(900m 무효 기록 제외, v0.10)
+        assertThat(query.totals(m).count()).isEqualTo(2);
+        assertThat(query.totals(m).distance()).isEqualTo(Distance.ofKm(8));
         assertThat(query.distancesByMember(List.of(m, other, 999L), today))
                 .containsEntry(m, Distance.ofKm(3))
                 .containsEntry(other, Distance.ofKm(10))
@@ -373,41 +374,55 @@ class RunningServicesTest {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
+    private TierUpdateListener listener(TierLevelService tiers) {
+        return new TierUpdateListener(
+                new TierApplier(tiers, new MemberQueryService(members), records), NO_TX);
+    }
+
     @Test
-    void tierUpdateListener_forwardsValidRunsOnly_andRetriesConflicts() {
+    void tierUpdateListener_forwardsValidRunsOnly_marksApplied_andRetriesConflicts() {
         long m = member();
         TierLevelService real =
                 new TierLevelService(
                         members, new OperationPolicy(new InMemoryOperationSettingRepository()));
-        TierUpdateListener listener = new TierUpdateListener(real, NO_TX);
         for (int i = 1; i <= 3; i++) {
             send(m, upload(id(i), START.plusHours(i), 5_000, 1_500));
         }
-        saved().forEach(listener::onRunSaved);
+        saved().forEach(listener(real)::onRunSaved);
         assertThat(members.findById(m).orElseThrow().getTier()).isEqualTo(Tier.GOLD);
+        assertThat(records.findById(id(1)).orElseThrow().isTierApplied()).isTrue();
 
+        long fresh = member();
+        send(fresh, upload(id(5), START.plusHours(5), 5_000, 1_500));
+        RunRecordSaved freshRun = saved().get(saved().size() - 1);
         TierLevelService flaky = mock(TierLevelService.class);
         when(flaky.recordValidRun(anyLong(), any()))
                 .thenThrow(new OptimisticLockingFailureException("x"))
                 .thenThrow(new OptimisticLockingFailureException("x"))
                 .thenReturn(null);
-        new TierUpdateListener(flaky, NO_TX).onRunSaved(saved().get(0));
+        listener(flaky).onRunSaved(freshRun);
         verify(flaky, times(3)).recordValidRun(anyLong(), any(RunScoreInput.class));
+        assertThat(records.findById(id(5)).orElseThrow().isTierApplied()).isTrue();
 
+        long locking = member();
+        send(locking, upload(id(6), START.plusHours(6), 5_000, 1_500));
         TierLevelService locked = mock(TierLevelService.class); // L16: 잠금 대기도 일시 오류로 다시 한다
         when(locked.recordValidRun(anyLong(), any()))
                 .thenThrow(new org.springframework.dao.CannotAcquireLockException("lock wait"))
                 .thenReturn(null);
-        new TierUpdateListener(locked, NO_TX).onRunSaved(saved().get(0));
+        listener(locked).onRunSaved(saved().get(saved().size() - 1));
         verify(locked, times(2)).recordValidRun(anyLong(), any(RunScoreInput.class));
 
+        long failing = member();
+        send(failing, upload(id(7), START.plusHours(7), 5_000, 1_500));
         TierLevelService broken = mock(TierLevelService.class);
         when(broken.recordValidRun(anyLong(), any())).thenThrow(new IllegalStateException("탈퇴"));
-        new TierUpdateListener(broken, NO_TX).onRunSaved(saved().get(0));
+        listener(broken).onRunSaved(saved().get(saved().size() - 1));
+        assertThat(records.findById(id(7)).orElseThrow().isTierApplied()).isFalse();
 
         TierLevelService unused = mock(TierLevelService.class);
         send(m, upload(id(9), START.plusDays(1), 900, 300));
-        new TierUpdateListener(unused, NO_TX).onRunSaved(saved().get(saved().size() - 1));
+        listener(unused).onRunSaved(saved().get(saved().size() - 1));
         verifyNoInteractions(unused);
     }
 

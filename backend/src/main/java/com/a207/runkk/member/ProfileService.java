@@ -2,6 +2,8 @@ package com.a207.runkk.member;
 
 import com.a207.runkk.common.BusinessRuleException;
 import com.a207.runkk.common.ReasonCode;
+import java.time.Clock;
+import java.time.LocalDate;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -12,15 +14,21 @@ public class ProfileService {
 
     private final MemberRepository memberRepository;
     private final List<ReservedNicknameChecker> reservedNicknameCheckers;
+    private final Clock clock;
 
     public ProfileService(
             MemberRepository memberRepository,
-            List<ReservedNicknameChecker> reservedNicknameCheckers) {
+            List<ReservedNicknameChecker> reservedNicknameCheckers,
+            Clock clock) {
         this.memberRepository = memberRepository;
         this.reservedNicknameCheckers = List.copyOf(reservedNicknameCheckers);
+        this.clock = clock;
     }
 
-    /** 닉네임 중복(회원·가상) 검사 → Member.editProfile. 겹치면 BusinessRuleException(NICKNAME_TAKEN). */
+    /**
+     * 닉네임 중복(회원·가상) 검사 → Member.editProfile(출생연도 만 14세 판정의 기준 연도는 오늘). 겹치면
+     * BusinessRuleException(NICKNAME_TAKEN). 태그 항목은 없다(D-91).
+     */
     @Transactional
     public ProfileEditResult editProfile(long memberId, ProfileEdit edit) {
         Member member = MemberLoader.load(memberRepository, memberId);
@@ -36,7 +44,7 @@ public class ProfileService {
                 newNickname = requested;
             }
         }
-        member.editProfile(edit, newNickname);
+        member.editProfile(edit, newNickname, LocalDate.now(clock).getYear());
         memberRepository.save(member);
         return new ProfileEditResult(
                 member.getId(),
@@ -44,7 +52,6 @@ public class ProfileService {
                 member.birthYear(),
                 member.gender(),
                 member.photoUrl(),
-                member.intro(),
-                member.getTags().tags());
+                member.intro());
     }
 }

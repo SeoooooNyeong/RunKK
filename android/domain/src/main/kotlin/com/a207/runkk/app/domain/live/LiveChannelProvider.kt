@@ -1,12 +1,10 @@
 package com.a207.runkk.app.domain.live
 
-import com.a207.runkk.app.core.model.Outcome
-import kotlinx.coroutines.flow.Flow
-
 /**
- * 실시간 채널을 고른다(D-57). 구현 data.live.FallbackLiveChannelProvider: WebSocket을 먼저 열고 핸드셰이크가
- * 404·426이거나 3번 연속 실패하면 폴링 채널을 돌려준다. 매칭 화면(ui.battle)과 BattleRunCoordinator가
- * 같은 연결을 쓰도록, 구현은 닫히기 전까지 같은 채널을 돌려준다.
+ * 실시간 연결 하나를 임대로 나눠 준다(D-57, D-103). 서버는 회원마다 연결 하나만 두고 새 연결이 이전 연결을 닫으므로
+ * 대결·크루런·채팅이 연결 하나를 함께 쓴다. open()은 그 연결에 대한 임대를 돌려주고, 임대의 close()는 자기 임대만 반납하며
+ * 참조 수가 0이 될 때만 실제 연결을 닫는다. 구현 data.live.FallbackLiveChannelProvider: WebSocket을 먼저 열고 핸드셰이크가
+ * 404·426이거나 3번 연속 실패하면 폴링 채널을 쓴다.
  */
 interface LiveChannelProvider {
     fun open(): LiveChannel

@@ -100,6 +100,7 @@ object RunkkFormat {
         "MATCHED" to R.string.core_spoken_matched,
         "BATTLE RESULT" to R.string.core_spoken_battle_result,
         "RUNNING" to R.string.core_spoken_running,
+        "PAUSED" to R.string.core_spoken_paused,
         "MY 러니멀" to R.string.core_spoken_my_runimal,
         "CREW RUN" to R.string.core_spoken_crew_run,
         "CREW RUN RESULT" to R.string.core_spoken_crew_run_result,

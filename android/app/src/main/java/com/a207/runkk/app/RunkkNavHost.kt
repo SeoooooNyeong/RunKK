@@ -1,10 +1,17 @@
 package com.a207.runkk.app
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
@@ -12,6 +19,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
@@ -22,6 +30,7 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
+import com.a207.runkk.app.core.designsystem.RUNKK_BOTTOM_BAR_HEIGHT
 import com.a207.runkk.app.core.designsystem.RunkkBottomBar
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkEmptyState
@@ -53,9 +62,10 @@ fun RunkkNavHost(
         if (!loggedIn && top !in AUTH_ROUTES) navigator.restart(Routes.LOGIN)
     }
     val provider = remember(featureEntries) {
-        entryProvider<NavKey>(fallback = { key -> NavEntry(key) { ComingSoonScreen() } }) {
+        val entries = entryProvider<NavKey>(fallback = { key -> NavEntry(key) { ComingSoonScreen() } }) {
             featureEntries.forEach { it.register(this) }
         }
+        withBottomSpace(entries)
     }
     val topRoute = (backStack.lastOrNull() as? Routes.Key)?.route
     val selectedTab = topRoute?.let(::tabOf)
@@ -69,11 +79,16 @@ fun RunkkNavHost(
                 }
             }
         ) { innerPadding ->
+            // 위·옆 여백만 여기서 띄운다. 아래(내비게이션 바·하단 탭)는 화면마다 EntryBottomSpace가 띄운다.
+            val direction = LocalLayoutDirection.current
+            val topAndSides = PaddingValues(
+                start = innerPadding.calculateStartPadding(direction),
+                top = innerPadding.calculateTopPadding(),
+                end = innerPadding.calculateEndPadding(direction)
+            )
             NavDisplay(
                 backStack = backStack,
-                // Scaffold는 키보드(IME) 인셋을 빼 준다. 하단 버튼·입력칸이 키보드에 가리지 않게 여기서 한 번만 올린다.
-                // innerPadding이 이미 띄운 내비게이션 바·하단 탭 높이는 consumeWindowInsets로 빼서 이중으로 띄우지 않는다.
-                modifier = Modifier.padding(innerPadding).consumeWindowInsets(innerPadding).imePadding(),
+                modifier = Modifier.padding(topAndSides).consumeWindowInsets(topAndSides),
                 onBack = { navigator.back() },
                 entryDecorators = listOf(
                     rememberSaveableStateHolderNavEntryDecorator(),
@@ -110,8 +125,29 @@ internal class BackStackNavigator(private val backStack: NavBackStack<NavKey>, p
     }
 }
 
+/**
+ * 화면마다 아래 여백(하단 탭 자리)을 그 화면의 경로로 정한다. 맨 위 경로로 정하면 탭 화면에서 탭이 아닌 화면으로 갈 때 하단 탭이 먼저
+ * 사라져, 전환(페이드 700ms)이 끝날 때까지 남아 있는 나가는 화면이 탭 높이만큼 늘어난다(홈 우리 집 아바타 → 아바타 꾸미기).
+ */
+private fun withBottomSpace(entries: (NavKey) -> NavEntry<NavKey>): (NavKey) -> NavEntry<NavKey> = { key ->
+    val entry = entries(key)
+    val isTab = (key as? Routes.Key)?.route?.let(::tabOf) != null
+    NavEntry(navEntry = entry) { EntryBottomSpace(isTab) { entry.Content() } }
+}
+
+/**
+ * 화면 하나의 아래 여백: 내비게이션 바, 탭 화면이면 하단 탭 높이([RUNKK_BOTTOM_BAR_HEIGHT])를 더한다. 맨 위 경로가 바뀌어도 이 화면의
+ * 여백은 그대로라 전환 중 크기가 바뀌지 않는다. 띄운 만큼은 consumeWindowInsets로 빼고, 키보드(IME)가 그보다 높으면 그만큼 올린다.
+ */
+@Composable
+private fun EntryBottomSpace(isTab: Boolean, content: @Composable () -> Unit) {
+    val navigationBar = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val bottom = PaddingValues(bottom = navigationBar + if (isTab) RUNKK_BOTTOM_BAR_HEIGHT else 0.dp)
+    Box(Modifier.fillMaxSize().padding(bottom).consumeWindowInsets(bottom).imePadding()) { content() }
+}
+
 /** 로그인하지 않은 채로 머물 수 있는 경로. */
-private val AUTH_ROUTES = setOf(Routes.LOGIN, Routes.SIGN_UP)
+private val AUTH_ROUTES = setOf(Routes.LOGIN, Routes.SIGN_UP, Routes.GUEST_START)
 
 private fun tabOf(route: String): RunkkTab? = when (route) {
     Routes.SELF -> RunkkTab.SELF

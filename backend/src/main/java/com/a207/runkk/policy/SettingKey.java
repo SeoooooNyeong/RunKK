@@ -14,6 +14,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -156,9 +157,11 @@ public enum SettingKey {
             return rule(
                     !landmarks.isEmpty()
                             && landmarks.stream().allMatch(SettingKey::isCompleteLandmark)
+                            && landmarks.stream().map(Landmark::key).distinct().count()
+                                    == landmarks.size()
                             && strictlyAscending(
                                     landmarks.stream().map(Landmark::distance).toList()),
-                    "거리 오름차순, 단계가 LandmarkStage");
+                    "거리 오름차순, 단계가 LandmarkStage, 키는 영문 대문자·숫자·밑줄이고 표 안에서 고유");
         }
     },
     VIRTUAL_RECORD_RULE(
@@ -274,6 +277,9 @@ public enum SettingKey {
     private static final int MIN_KCAL_PER_KM = 10;
     private static final int MAX_KCAL_PER_KM = 200;
 
+    /** 랜드마크 키 형식: 영문 대문자·숫자·밑줄, 1~40자(avatar_background.landmark_key VARCHAR(40), D-107). */
+    private static final Pattern LANDMARK_KEY = Pattern.compile("[A-Z0-9_]{1,40}");
+
     private static final Logger log = LoggerFactory.getLogger(SettingKey.class);
 
     private final Type valueType;
@@ -343,7 +349,9 @@ public enum SettingKey {
     }
 
     private static boolean isCompleteLandmark(Landmark landmark) {
-        return landmark.stage() != null
+        return landmark.key() != null
+                && LANDMARK_KEY.matcher(landmark.key()).matches()
+                && landmark.stage() != null
                 && landmark.name() != null
                 && !landmark.name().isBlank()
                 && landmark.distance().meters() > 0;
@@ -379,39 +387,39 @@ public enum SettingKey {
                         .disable(MapperFeature.ALLOW_COERCION_OF_SCALARS)
                         .build();
 
-        /** 왕복 랜드마크의 거리는 표의 왕복 거리다. */
+        /** 왕복 랜드마크의 거리는 표의 왕복 거리다. 키는 D-107 (1)의 목록이다. */
         static final List<Landmark> LANDMARKS =
                 List.of(
-                        domestic("인천", 60),
-                        domestic("개성", 120),
-                        domestic("대전", 280),
-                        domestic("전주", 400),
-                        domestic("여수", 650),
-                        domestic("부산", 800),
-                        domestic("제주도", 900),
-                        oneWay(LandmarkStage.EAST_ASIA, "베이징", 950),
-                        oneWay(LandmarkStage.EAST_ASIA, "도쿄", 1_150),
-                        oneWay(LandmarkStage.EAST_ASIA, "타이베이", 1_480),
-                        oneWay(LandmarkStage.EAST_ASIA, "홍콩", 2_080),
-                        oneWay(LandmarkStage.EAST_ASIA, "하노이", 2_750),
-                        oneWay(LandmarkStage.EAST_ASIA, "방콕", 3_720),
-                        oneWay(LandmarkStage.INTERCONTINENTAL, "쿠알라룸푸르", 4_600),
-                        oneWay(LandmarkStage.INTERCONTINENTAL, "호놀룰루", 7_330),
-                        oneWay(LandmarkStage.INTERCONTINENTAL, "시드니", 8_320),
-                        oneWay(LandmarkStage.INTERCONTINENTAL, "런던", 8_860),
-                        oneWay(LandmarkStage.INTERCONTINENTAL, "파리", 8_960),
-                        oneWay(LandmarkStage.INTERCONTINENTAL, "LA", 9_600),
-                        oneWay(LandmarkStage.INTERCONTINENTAL, "뉴욕", 11_050),
-                        oneWay(LandmarkStage.INTERCONTINENTAL, "산티아고", 18_300),
-                        oneWay(LandmarkStage.INTERCONTINENTAL, "지구 둘레 1바퀴", 40_075),
-                        oneWay(LandmarkStage.CREW_TOTAL, "지구 2바퀴", 80_150),
-                        oneWay(LandmarkStage.CREW_TOTAL, "10만 km", 100_000),
-                        oneWay(LandmarkStage.CREW_TOTAL, "20만 km", 200_000),
-                        oneWay(LandmarkStage.CREW_TOTAL, "달나라 진입", 380_000),
-                        oneWay(LandmarkStage.CREW_TOTAL, "달까지", 384_400),
-                        oneWay(LandmarkStage.CREW_TOTAL, "50만 km", 500_000),
-                        oneWay(LandmarkStage.CREW_TOTAL, "달 왕복", 768_800),
-                        oneWay(LandmarkStage.CREW_TOTAL, "100만 km", 1_000_000));
+                        domestic("INCHEON", "인천", 60),
+                        domestic("KAESONG", "개성", 120),
+                        domestic("DAEJEON", "대전", 280),
+                        domestic("JEONJU", "전주", 400),
+                        domestic("YEOSU", "여수", 650),
+                        domestic("BUSAN", "부산", 800),
+                        domestic("JEJU", "제주도", 900),
+                        oneWay("BEIJING", LandmarkStage.EAST_ASIA, "베이징", 950),
+                        oneWay("TOKYO", LandmarkStage.EAST_ASIA, "도쿄", 1_150),
+                        oneWay("TAIPEI", LandmarkStage.EAST_ASIA, "타이베이", 1_480),
+                        oneWay("HONG_KONG", LandmarkStage.EAST_ASIA, "홍콩", 2_080),
+                        oneWay("HANOI", LandmarkStage.EAST_ASIA, "하노이", 2_750),
+                        oneWay("BANGKOK", LandmarkStage.EAST_ASIA, "방콕", 3_720),
+                        oneWay("KUALA_LUMPUR", LandmarkStage.INTERCONTINENTAL, "쿠알라룸푸르", 4_600),
+                        oneWay("HONOLULU", LandmarkStage.INTERCONTINENTAL, "호놀룰루", 7_330),
+                        oneWay("SYDNEY", LandmarkStage.INTERCONTINENTAL, "시드니", 8_320),
+                        oneWay("LONDON", LandmarkStage.INTERCONTINENTAL, "런던", 8_860),
+                        oneWay("PARIS", LandmarkStage.INTERCONTINENTAL, "파리", 8_960),
+                        oneWay("LOS_ANGELES", LandmarkStage.INTERCONTINENTAL, "LA", 9_600),
+                        oneWay("NEW_YORK", LandmarkStage.INTERCONTINENTAL, "뉴욕", 11_050),
+                        oneWay("SANTIAGO", LandmarkStage.INTERCONTINENTAL, "산티아고", 18_300),
+                        oneWay("EARTH_LAP", LandmarkStage.INTERCONTINENTAL, "지구 둘레 1바퀴", 40_075),
+                        oneWay("EARTH_2_LAPS", LandmarkStage.CREW_TOTAL, "지구 2바퀴", 80_150),
+                        oneWay("KM_100K", LandmarkStage.CREW_TOTAL, "10만 km", 100_000),
+                        oneWay("KM_200K", LandmarkStage.CREW_TOTAL, "20만 km", 200_000),
+                        oneWay("MOON_APPROACH", LandmarkStage.CREW_TOTAL, "달나라 진입", 380_000),
+                        oneWay("MOON", LandmarkStage.CREW_TOTAL, "달까지", 384_400),
+                        oneWay("KM_500K", LandmarkStage.CREW_TOTAL, "50만 km", 500_000),
+                        oneWay("MOON_ROUND_TRIP", LandmarkStage.CREW_TOTAL, "달 왕복", 768_800),
+                        oneWay("KM_1M", LandmarkStage.CREW_TOTAL, "100만 km", 1_000_000));
 
         private Defaults() {}
 
@@ -423,12 +431,12 @@ public enum SettingKey {
             }
         }
 
-        private static Landmark domestic(String name, long km) {
-            return new Landmark(LandmarkStage.DOMESTIC, name, Distance.ofKm(km), true);
+        private static Landmark domestic(String key, String name, long km) {
+            return new Landmark(key, LandmarkStage.DOMESTIC, name, Distance.ofKm(km), true);
         }
 
-        private static Landmark oneWay(LandmarkStage stage, String name, long km) {
-            return new Landmark(stage, name, Distance.ofKm(km), false);
+        private static Landmark oneWay(String key, LandmarkStage stage, String name, long km) {
+            return new Landmark(key, stage, name, Distance.ofKm(km), false);
         }
     }
 }

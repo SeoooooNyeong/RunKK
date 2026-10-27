@@ -52,6 +52,39 @@ class RunSessionTest {
     }
 
     @Test
+    fun `순간이동처럼 시속 25km를 넘는 한 구간은 거리에 더하지 않는다(FR-047 v0_10)`() {
+        val session = running()
+        session.onLocation(normal(1, 0.0))
+        session.onLocation(normal(2, 3.0))
+        // 1초에 9,078km(남쪽으로) 순간이동
+        session.onLocation(normal(3, -9_078_000.0))
+        session.onLocation(normal(4, -9_077_997.0))
+        assertEquals(Distance(6), session.tick(at(4)).distance)
+        val run = assertIs<FinishOutcome.Saved>(session.finish(at(4))).run
+        assertEquals(Distance(6), run.distance)
+        assertEquals(4, run.route.size)
+    }
+
+    @Test
+    fun `차를 탄 것처럼 긴 초과 구간도 빼고, 다시 달리면 이어서 센다`() {
+        val session = running()
+        session.runFor(10)
+        val carMps = 40 / 3.6
+        for (t in 11L..70L) session.onLocation(normal(t, 30.0 + (t - 10) * carMps))
+        val carEnd = 30.0 + 60 * carMps
+        for (t in 71L..80L) session.onLocation(normal(t, carEnd + (t - 70) * 3.0))
+        assertEquals(Distance(57), session.tick(at(80)).distance)
+    }
+
+    @Test
+    fun `시속 25km 아래 구간은 그대로 더한다`() {
+        val session = running()
+        session.onLocation(normal(0, 0.0))
+        session.runFor(10, metersPerSecond = 24.9 / 3.6)
+        assertEquals(Distance(69), session.tick(at(10)).distance)
+    }
+
+    @Test
     fun `현재 페이스는 최근 30초, 평균 페이스는 경과 나누기 거리`() {
         val session = running()
         session.runFor(60)
