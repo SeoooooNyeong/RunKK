@@ -30,9 +30,10 @@ async def test_tool_then_answer(tools: CoachTools) -> None:
 
     conversation_id, events = await _collect(service, ChatIn(userId=USER, message="어제 러닝 어땠어?"))
 
-    assert [e.event for e in events] == ["meta", "delta", "tool", "delta", "delta", "done"]
+    # 도구를 부르기 전 혼잣말("기록을 볼게요.")은 보내지도 저장하지도 않는다
+    assert [e.event for e in events] == ["meta", "tool", "delta", "delta", "done"]
     assert events[0].data == {"conversationId": conversation_id}
-    assert events[2].data == {"name": "getSessionResult"}
+    assert events[1].data == {"name": "getSessionResult"}
     assert events[-1].data == {
         "model": "fake-haiku",
         "inputTokens": 200,
@@ -46,7 +47,7 @@ async def test_tool_then_answer(tools: CoachTools) -> None:
     saved = await store.recent(conversation_id, 10)
     assert [(m.role, m.content) for m in saved] == [
         ("user", "어제 러닝 어땠어?"),
-        ("assistant", "기록을 볼게요. 어제는 출발이 빨랐어요."),
+        ("assistant", "어제는 출발이 빨랐어요."),
     ]
     assert saved[1].tools == "getSessionResult"
     assert saved[1].input_tokens == 200
@@ -126,3 +127,15 @@ async def test_daily_caps(tools: CoachTools) -> None:
 
 def test_sse_format() -> None:
     assert ChatEvent("delta", {"text": "안녕"}).sse() == 'event: delta\ndata: {"text": "안녕"}\n\n'
+
+
+async def test_direct_answer_without_tools_is_sent(tools: CoachTools) -> None:
+    """도구 없이 바로 답한 첫 turn은 모아 두었다가 그대로 보낸다."""
+    service = make_service(tools, FakeCoachModel([Script(texts=["케이던스는 ", "조금씩 올려요."])]))
+
+    _, events = await _collect(service, ChatIn(userId=USER, message="케이던스 올리는 법"))
+
+    assert [(e.event, e.data.get("text")) for e in events[1:-1]] == [
+        ("delta", "케이던스는 "),
+        ("delta", "조금씩 올려요."),
+    ]

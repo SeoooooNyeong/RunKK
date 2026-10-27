@@ -3,7 +3,7 @@
 이벤트(SSE로 나간다)
 - meta  {"conversationId"}            맨 처음 한 번
 - tool  {"name"}                      도구를 부를 때마다(앱이 "기록 확인 중"을 띄운다)
-- delta {"text"}                      답 조각
+- delta {"text"}                      답 조각(도구를 부르기 전 혼잣말은 보내지 않는다)
 - done  {"model", "inputTokens", "outputTokens", "tools"}  정상 끝
 - error {"reason"}                    중간 실패(LLM_TIMEOUT, LLM_ERROR). 이미 보낸 delta는 버리게 한다
 
@@ -129,17 +129,25 @@ class CoachService:
                 for round_no in range(MAX_TOOL_ROUNDS + 1):
                     allow_tools = round_no < MAX_TOOL_ROUNDS
                     turn: ModelTurn | None = None
+                    # 첫 turn은 도구를 부르기 전 혼잣말("기록을 확인해 볼게요…")이 섞이기 쉬워 끝날 때까지 모아 둔다.
+                    # 도구를 골랐으면 버리고, 바로 답했으면 그때 보낸다. 도구 결과를 받은 뒤 turn은 바로 흘려보낸다
+                    held: list[str] | None = [] if round_no == 0 else None
                     async for event in model.stream(system, messages, TOOL_SPECS, allow_tools=allow_tools):
-                        if isinstance(event, TextDelta):
+                        if not isinstance(event, TextDelta):
+                            turn = event
+                        elif held is not None:
+                            held.append(event.text)
+                        else:
                             answer.append(event.text)
                             yield ChatEvent("delta", {"text": event.text})
-                        else:
-                            turn = event
                     if turn is None:
                         raise RuntimeError("모델이 turn을 끝내지 않았다")
                     tokens_in += turn.input_tokens
                     tokens_out += turn.output_tokens
                     if not turn.tool_calls or not allow_tools:
+                        for text in held or []:
+                            answer.append(text)
+                            yield ChatEvent("delta", {"text": text})
                         break
                     messages.append({"role": "assistant", "content": turn.assistant_content()})
                     results = []
