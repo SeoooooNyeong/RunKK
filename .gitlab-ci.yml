@@ -13,7 +13,8 @@
 #   ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD  (릴리스 AAB, 시험 APK 서명)
 #   KAKAO_NATIVE_APP_KEY, GOOGLE_WEB_CLIENT_ID  앱 로그인 키(prod 패키지 com.a207.runkk용 카카오 네이티브 앱 키)
 #   KAKAO_NATIVE_APP_KEY_DEVELOP  develop 패키지(com.a207.runkk.dev)용 카카오 네이티브 앱 키. android:build가 KAKAO_NATIVE_APP_KEY 대신 쓴다
-#   GRAFANA_ALERT_WEBHOOK_URL Variable, Mattermost Incoming Webhook 주소(runkk-alerts 채널). 배포가 edge.env 끝에 붙인다. 없으면 알림 없이 뜬다
+#   GRAFANA_ADMIN_PASSWORD    Variable(masked), Grafana 관리자 비밀번호. 배포가 edge.env 끝에 붙인다(INFRA_ENV_EDGE에 두지 않는다)
+#   GRAFANA_ALERT_WEBHOOK_URL Variable(masked), Mattermost Incoming Webhook 주소(runkk-alerts 채널). 배포가 edge.env 끝에 붙인다. 없으면 알림 없이 뜬다
 #   RELEASE_FREEZE            보통 Variable(보호 안 함). release/* 브랜치가 있는 동안 1, 끝나면 지운다. 1이면 develop 배포가 수동이 된다
 # protected 변수는 보호 브랜치에서만 보인다. release/* 를 보호 브랜치로 등록해야 release 배포가 INFRA_ENV를 읽는다.
 
@@ -221,7 +222,8 @@ backend:deploy:
     # GitLab 화면에서 저장한 File 변수는 줄 끝이 CRLF다. CR을 지워야 grep -x·env_value가 값을 그대로 읽는다
     - if [ "$DEPLOY_ENV" = "prod" ]; then tr -d '\r' < "$INFRA_ENV_PROD" > infra/.env; else tr -d '\r' < "$INFRA_ENV" > infra/.env; fi
     - tr -d '\r' < "$INFRA_ENV_EDGE" > infra/edge.env
-    # 장애 알림 Mattermost 웹훅은 따로 둔 masked 변수에서 붙인다(edge.env 파일 변수를 열지 않고 바꾸게)
+    # Grafana 비밀번호·장애 알림 웹훅은 따로 둔 masked 변수에서 붙인다(edge.env 파일 변수를 열지 않고 바꾸게)
+    - if [ -n "${GRAFANA_ADMIN_PASSWORD:-}" ]; then printf '\nGRAFANA_ADMIN_PASSWORD=%s\n' "$GRAFANA_ADMIN_PASSWORD" >> infra/edge.env; fi
     - if [ -n "${GRAFANA_ALERT_WEBHOOK_URL:-}" ]; then printf '\nGRAFANA_ALERT_WEBHOOK_URL=%s\n' "$GRAFANA_ALERT_WEBHOOK_URL" >> infra/edge.env; fi
     # 브랜치와 .env의 환경이 어긋나면(CI 변수를 바꿔 넣은 경우) 다른 환경을 덮지 않게 멈춘다
     - grep -qx "RUNKK_ENV=$DEPLOY_ENV" infra/.env || { echo "infra/.env RUNKK_ENV must be $DEPLOY_ENV" >&2; exit 1; }

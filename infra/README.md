@@ -161,7 +161,7 @@ docker compose -p runkk-develop down -v && docker compose -p runkk down -v   # �
 - ai 서버 지표는 아직 수집하지 않습니다. ai는 Prometheus 라이브러리가 없고 모든 경로에 내부 토큰을 요구하므로, 붙이려면 의존성·잠금 파일과 토큰 예외 경로를 함께 바꿔야 합니다.
 - 수집 대상 상태는 Grafana **Explore**에서 `up` 쿼리로 봅니다(`job="api"`의 `env="prod"`·`env="develop"`, `node`, `prometheus`가 1이면 정상). 한 환경이 아직 없으면 그 대상만 0입니다.
 
-관리자 비밀번호는 `grafana-data` 볼륨이 처음 만들어질 때만 반영됩니다. 그 뒤 바꾸려면 `INFRA_ENV_EDGE`를 고치고 서버에서 한 번 실행합니다.
+관리자 비밀번호는 `grafana-data` 볼륨이 처음 만들어질 때만 반영됩니다. 그 뒤 바꾸려면 CI 변수 `GRAFANA_ADMIN_PASSWORD`를 고치고 서버에서 한 번 실행합니다.
 
 ```bash
 docker exec runkk-grafana-1 grafana cli admin reset-admin-password '<새 비밀번호>'
@@ -254,7 +254,7 @@ docker exec runkk-prod-api-1 sh -c 'zcat /var/log/runkk/api.2026-11-03.*.log.gz 
    `docker exec runkk-postgres-1 pg_dump -U runkk -Fc runkk > ~/runkk-before-split.dump && scp`로 PC에 복사.
 2. 서버에 고정 폴더를 만듭니다: `sudo install -d -m 2775 -g docker /srv/runkk`
 3. GitLab **Settings > CI/CD > Variables**:
-   - `INFRA_ENV_EDGE`(File) 새로 추가: `SERVER_NAME`, `NGINX_HTTP_PORT`, `NGINX_HTTPS_PORT`, `NGINX_DEVELOP_PORT`, `GRAFANA_ADMIN_USER`, `GRAFANA_ADMIN_PASSWORD`.
+   - `INFRA_ENV_EDGE`(File) 새로 추가: `SERVER_NAME`, `NGINX_HTTP_PORT`, `NGINX_HTTPS_PORT`, `NGINX_DEVELOP_PORT`, `GRAFANA_ADMIN_USER`. 비밀번호는 masked 변수 `GRAFANA_ADMIN_PASSWORD`, 알림 웹훅은 `GRAFANA_ALERT_WEBHOOK_URL`로 따로 둔다.
    - `INFRA_ENV`(develop)에 `RUNKK_ENV=develop`, `POSTGRES_VOLUME=runkk_postgres-data`, `REDIS_VOLUME=runkk_redis-data`, `SELFIE_ENABLED=true`(셀카 시험 시)를 더합니다. `SERVER_NAME`·`NGINX_*`·`GRAFANA_*`는 이제 쓰지 않으니 지워도 됩니다.
    - `INFRA_ENV_PROD`(prod)를 새 값으로 채웁니다(아래 "prod 키 목록"). 다른 비밀(DB·Redis 비밀번호, JWT 키, 내부 토큰)은 develop과 다른 값으로 만듭니다.
 4. 앱: develop APK를 새로 받기 전까지 기존 develop APK(443을 봄)는 이관 뒤 prod 서버에 붙습니다. 테스터에게 이관 시각과 새 develop APK(8443)를 알립니다.
