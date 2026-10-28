@@ -268,6 +268,52 @@ backend:smoke:
   after_script:
     - rm -f infra/.env infra/edge.env
 
+# 복구 시험: 그 환경의 가장 최근 매일 덤프를 일회용 컨테이너에 복원해 운영 DB와 테이블·행 수를 비교한다(infra/restore-check.sh,
+# infra/README.md 7절). 운영 DB는 읽기만 한다. 언제든 버튼으로 돌리는 수동 잡이라 배포를 기다리지 않고, 배포와는 겹치지 않게 같은 resource_group을 쓴다.
+backup:restore-check:
+  stage: smoke
+  tags: [deploy]
+  needs: []
+  resource_group: runkk-server
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH =~ /^release\//
+      when: manual
+      allow_failure: true
+      variables:
+        DEPLOY_ENV: develop
+    - if: $CI_COMMIT_BRANCH == "main"
+      when: manual
+      allow_failure: true
+      variables:
+        DEPLOY_ENV: prod
+  script:
+    - if [ "$DEPLOY_ENV" = "prod" ]; then tr -d '\r' < "$INFRA_ENV_PROD" > infra/.env; else tr -d '\r' < "$INFRA_ENV" > infra/.env; fi
+    - infra/restore-check.sh
+  after_script:
+    - rm -f infra/.env
+
+# 서버 밖 사본: 00:00 스케줄마다 prod·develop의 가장 최근 매일 덤프를 아티팩트(7일 만료, Developer 이상만)로 올린다(infra/offsite-backup.sh,
+# infra/README.md 7절). 한 번만 돌도록 release 기간(RELEASE_FREEZE=1)에는 release 스케줄, 아니면 develop 스케줄에서 돈다.
+# 덤프 시각(04:30)이 스케줄보다 늦어 아티팩트는 전날 04:30 덤프다. 덤프가 26시간보다 오래되면 실패해 매일 백업이 멈춘 것을 알린다.
+backup:offsite:
+  stage: smoke
+  tags: [deploy]
+  needs: []
+  resource_group: runkk-server
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_COMMIT_BRANCH =~ /^release\//
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_COMMIT_BRANCH == "develop" && $RELEASE_FREEZE != "1"
+  script:
+    - tr -d '\r' < "$INFRA_ENV" > infra/.env
+    - infra/offsite-backup.sh
+  after_script:
+    - rm -f infra/.env
+  artifacts:
+    paths: [infra/offsite/]
+    expire_in: 7 days
+    access: developer
+    when: always
+
 # ---------- 안드로이드 ----------
 
 # SDK 이미지는 ci/android/Dockerfile로 EC2에서 만들어 로컬에 둔다 (android:ci-image 잡). 받아 올 곳이 없으므로

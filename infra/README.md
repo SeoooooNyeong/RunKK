@@ -28,6 +28,8 @@ infra/
 ├─ edge.env.example            에지 값 (서버에 한 벌, CI INFRA_ENV_EDGE)
 ├─ deploy.sh                   배포: 이미지 빌드 → 에지 맞추기 → 배포 직전 덤프 → 환경 스택 재시작 → 헬스체크
 ├─ smoke.sh                    배포 뒤 확인 (CI backend:smoke)
+├─ restore-check.sh            매일 덤프 복구 시험 (CI backup:restore-check, 7절)
+├─ offsite-backup.sh           매일 덤프 서버 밖 사본 (CI backup:offsite, 7절)
 ├─ lib.sh                      위 스크립트가 함께 쓰는 함수
 ├─ init-letsencrypt.sh         Let's Encrypt 인증서 1회 발급 + HTTPS 전환
 ├─ backup/pg-backup.sh         backup 컨테이너가 도는 매일 pg_dump (7절)
@@ -180,6 +182,7 @@ docker exec runkk-grafana-1 grafana cli admin reset-admin-password '<새 비밀�
 - 규칙 파일을 고치면 배포가 Grafana 관리자 API로 다시 읽힙니다. 화면에서 고친 규칙은 저장되지 않습니다.
 - 대응: 알림 스레드에 확인 시각과 복구 시각을 남깁니다. NFR-016(장애 확인 뒤 1시간 안 복구)의 기록이 됩니다.
 - 시험: Grafana **Alerting › Contact points › mattermost-runkk-alerts › Test**로 채널에 시험 메시지를 보냅니다.
+- 앱 비정상 종료는 Play Console **Android vitals**(비정상 종료·ANR)에서 봅니다. 앱에 크래시 수집 SDK를 넣지 않아 알림이 없으므로 베타 기간에는 담당이 매일 확인합니다. 집계가 하루쯤 늦고, Play 밖에서 설치한 APK의 비정상 종료는 잡지 못합니다.
 
 ### 메모리 배분 (15GiB, 4코어)
 
@@ -204,11 +207,24 @@ docker logs --tail 20 runkk-prod-backup-1                             # "ok ..."
 docker exec runkk-prod-backup-1 sh /opt/runkk-backup/pg-backup.sh now manual   # 지금 하나 뜨기
 ```
 
-호스트 밖 사본은 아직 정하지 않았습니다(서버가 통째로 사라지면 위 덤프도 함께 사라짐). 정할 때까지는 운영자가 주기적으로 PC로 내려받습니다: `scp -i K15A207T.pem 'ubuntu@k15a207.p.ssafy.io:/var/backups/runkk/prod/*.dump' <PC 폴더>/` (PC 쪽도 7일 보존을 지켜 지웁니다).
+### 서버 밖 사본
+
+00:00 스케줄 파이프라인의 **backup:offsite** 잡이 prod·develop의 가장 최근 매일 덤프를 GitLab 아티팩트로 올립니다(`offsite-backup.sh`). EC2가 통째로 사라져도 GitLab(lab.ssafy.com)에 하루 전 덤프가 남습니다.
+
+- 한 번만 돌게 release 기간(`RELEASE_FREEZE=1`)에는 release 스케줄, 아니면 develop 스케줄에서 돕니다. 스케줄이 04:30 덤프보다 먼저 돌아 아티팩트는 전날 04:30 덤프입니다.
+- 아티팩트는 7일 뒤 만료되고 Developer 이상만 내려받습니다(처리방침 "백업본 7일 보존"). **Settings › CI/CD › Artifacts › Keep artifacts from most recent successful jobs**를 꺼 둬야 마지막 사본도 7일 뒤 지워집니다.
+- 덤프가 26시간보다 오래됐으면 잡이 실패합니다(매일 백업이 멈춤). 아직 덤프가 없는 환경(prod 첫 배포 전)은 경고만 남깁니다.
+- 서버가 사라졌을 때: 마지막 성공한 backup:offsite 잡의 아티팩트를 내려받아 새 서버에서 아래 "실제 복구" 절차로 넣습니다.
 
 ### 복구 리허설 (베타 기간 1회, 운영 DB를 건드리지 않음)
 
-가장 최근 덤프를 일회용 postgres 컨테이너에 복원해 표 수와 최신 기록 시각을 봅니다. 최신 기록 시각과 덤프 시각의 차이가 24시간 안이면 NFR-019를 만족합니다.
+GitLab 파이프라인의 수동 잡 **backup:restore-check**를 누릅니다(develop·release/* 파이프라인은 develop 환경, main 파이프라인은 prod 환경). `restore-check.sh`가 가장 최근 매일 덤프(`-daily-`)를 일회용 postgres 컨테이너(망 없음)에 복원하고, 운영 DB와 테이블별 행 수를 나란히 찍은 뒤 컨테이너를 지웁니다. 운영 DB는 `count(*)`로 읽기만 합니다.
+
+- 통과: 매일 덤프가 26시간 안에 있음(NFR-019), `pg_restore` 오류 없음, 테이블 목록이 운영과 같음, 복원한 행이 1개 이상.
+- 덤프 뒤에 마이그레이션이 든 배포가 있었으면 Flyway 버전이 달라 테이블 목록은 비교하지 않고 경고만 남깁니다. 행 수는 덤프 뒤 쌓인 자료 때문에 운영 쪽이 많을 수 있어 판정에 쓰지 않습니다.
+- 결과(잡 번호, 덤프 이름, 통과 여부)는 test.md 8장에 한 줄 남깁니다.
+
+서버에서 손으로 할 때는 아래처럼 합니다(ubuntu 사용자). 최신 기록 시각과 덤프 시각의 차이가 24시간 안이면 NFR-019를 만족합니다.
 
 ```bash
 F=$(ls -t /var/backups/runkk/prod/runkk-prod-*.dump | head -n 1); echo "$F"
