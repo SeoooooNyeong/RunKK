@@ -1,5 +1,6 @@
 package com.a207.runkk.app
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -45,6 +46,7 @@ import com.a207.runkk.app.core.navigation.RunkkNavigator
  * 화면 그래프를 띄운다(6.1.14). 각 ui.* 모듈이 Hilt @IntoSet으로 등록한 FeatureEntry만 받으므로
  * app은 ui.*를 import하지 않는다(design-review.md M35). 하단 탭(셀프·셀럽·홈·크루·마이)은 맨 위 화면이 탭 경로일 때만 보인다.
  * 화면마다 ViewModel 저장소를 따로 두어(rememberViewModelStoreNavEntryDecorator) 화면을 닫으면 ViewModel도 정리된다.
+ * [lockUnreleased]가 켜지면(베타 prod 빌드) 아직 열지 않는 기능([BetaLock])은 "추후 추가 예정" 화면으로 바꾼다.
  */
 @Composable
 fun RunkkNavHost(
@@ -52,7 +54,8 @@ fun RunkkNavHost(
     startRoute: String,
     onExit: () -> Unit,
     loggedIn: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    lockUnreleased: Boolean = BuildConfig.LOCK_UNRELEASED
 ) {
     val backStack = rememberNavBackStack(Routes.Key(startRoute))
     val navigator = remember(backStack) { BackStackNavigator(backStack, onExit) }
@@ -61,11 +64,11 @@ fun RunkkNavHost(
         val top = (backStack.lastOrNull() as? Routes.Key)?.route
         if (!loggedIn && top !in AUTH_ROUTES) navigator.restart(Routes.LOGIN)
     }
-    val provider = remember(featureEntries) {
+    val provider = remember(featureEntries, lockUnreleased) {
         val entries = entryProvider<NavKey>(fallback = { key -> NavEntry(key) { ComingSoonScreen() } }) {
             featureEntries.forEach { it.register(this) }
         }
-        withBottomSpace(entries)
+        withBottomSpace(if (lockUnreleased) withBetaLock(entries) else entries)
     }
     val topRoute = (backStack.lastOrNull() as? Routes.Key)?.route
     val selectedTab = topRoute?.let(::tabOf)
@@ -166,15 +169,26 @@ private fun routeOf(tab: RunkkTab): String = when (tab) {
     RunkkTab.ME -> Routes.ME
 }
 
-/** 아직 등록되지 않은 경로(다음 단계 화면). */
+/** 베타에서 열지 않는 기능([BetaLock])은 등록된 화면 대신 "추후 추가 예정" 화면을 띄운다. */
+private fun withBetaLock(entries: (NavKey) -> NavEntry<NavKey>): (NavKey) -> NavEntry<NavKey> = { key ->
+    if (BetaLock.isLocked(key)) {
+        NavEntry(key) {
+            ComingSoonScreen(R.string.app_beta_locked_title, R.string.app_beta_locked_message)
+        }
+    } else {
+        entries(key)
+    }
+}
+
+/** 아직 등록되지 않은 경로(다음 단계 화면), 베타에서 열지 않는 기능. */
 @Composable
-private fun ComingSoonScreen() {
+private fun ComingSoonScreen(
+    @StringRes title: Int = R.string.app_coming_soon_title,
+    @StringRes message: Int = R.string.app_coming_soon_message
+) {
     val navigator = LocalRunkkNavigator.current
     Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(24.dp)) {
         RunkkTopBar(title = "", onBack = { navigator.back() })
-        RunkkEmptyState(
-            title = stringResource(R.string.app_coming_soon_title),
-            message = stringResource(R.string.app_coming_soon_message)
-        )
+        RunkkEmptyState(title = stringResource(title), message = stringResource(message))
     }
 }
