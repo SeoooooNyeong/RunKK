@@ -15,6 +15,7 @@
 #   KAKAO_NATIVE_APP_KEY_DEVELOP  develop 패키지(com.a207.runkk.dev)용 카카오 네이티브 앱 키. android:build가 KAKAO_NATIVE_APP_KEY 대신 쓴다
 #   GRAFANA_ADMIN_PASSWORD    Variable(masked), Grafana 관리자 비밀번호. 배포가 edge.env 끝에 붙인다(INFRA_ENV_EDGE에 두지 않는다)
 #   GRAFANA_ALERT_WEBHOOK_URL Variable(masked), Mattermost Incoming Webhook 주소(runkk-alerts 채널). 배포가 edge.env 끝에 붙인다. 없으면 알림 없이 뜬다
+#   SKIP_ANDROID_CHECKS       보통 Variable. 1이면 android:lint·android:test를 건너뛴다(임시). 지우면 다시 돈다
 #   RELEASE_FREEZE            보통 Variable(보호 안 함). release/* 브랜치가 있는 동안 1, 끝나면 지운다. 1이면 develop 배포가 수동이 된다
 # protected 변수는 보호 브랜치에서만 보인다. release/* 를 보호 브랜치로 등록해야 release 배포가 INFRA_ENV를 읽는다.
 
@@ -292,6 +293,11 @@ backend:smoke:
 android:lint:
   extends: .android
   stage: lint
+  # CI 변수 SKIP_ANDROID_CHECKS=1이면 lint·test를 건너뛴다(릴리스 막바지 러너 시간 절약). 끝나면 변수를 지워 다시 켠다
+  rules:
+    - if: $SKIP_ANDROID_CHECKS == "1"
+      when: never
+    - !reference [.android, rules]
   # ci/android가 바뀐 파이프라인에서는 새 SDK 이미지가 만들어진 뒤에 돈다
   needs:
     - job: android:ci-image
@@ -306,7 +312,14 @@ android:lint:
 android:test:
   extends: .android
   stage: test
-  needs: [android:lint]
+  # CI 변수 SKIP_ANDROID_CHECKS=1이면 lint·test를 건너뛴다(릴리스 막바지 러너 시간 절약). 끝나면 변수를 지워 다시 켠다
+  rules:
+    - if: $SKIP_ANDROID_CHECKS == "1"
+      when: never
+    - !reference [.android, rules]
+  needs:
+    - job: android:lint
+      optional: true
   # 단위 시험과 화면 스크린샷 비교(Roborazzi, JVM). 기준 이미지는 android/**/src/test/snapshots에 커밋돼 있고,
   # 화면을 일부러 바꿨을 때만 recordRoborazziLocalDebug로 다시 기록해 커밋한다.
   script:
@@ -327,7 +340,9 @@ android:build:
   extends: .android
   stage: build
   # APK는 시험과 함께 만든다(시험 결과를 기다리지 않는다. 실패한 시험은 MR에서 android:test로 보인다)
-  needs: [android:lint]
+  needs:
+    - job: android:lint
+      optional: true
   # 키스토어 변수가 보이는 파이프라인(protected 변수면 develop·main)에서는 그 키로 서명한다: APK를 덮어 설치할 수 있고
   # 카카오 키 해시가 고정된다. 없으면(MR 파이프라인 등) 잡 컨테이너의 임시 디버그 키로 서명된다.
   script:
@@ -401,7 +416,9 @@ android:play:
 # main 병합 시 서명된 AAB. 키스토어 변수가 없으면 잡 자체가 생기지 않는다. Play 콘솔 업로드는 수동.
 android:release:
   extends: .android-play-bundle
-  needs: [android:test]
+  needs:
+    - job: android:test
+      optional: true
   rules:
     - if: $CI_COMMIT_BRANCH == "main" && $ANDROID_KEYSTORE_BASE64
       changes: *android-changes
