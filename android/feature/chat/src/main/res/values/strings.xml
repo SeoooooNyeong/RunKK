@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 크루 채팅방(ui.chat, FR-208~FR-210, FR-213, FR-214) -->
+    <string name="chat_title">크루 채팅</string>
+    <string name="chat_back">뒤로</string>
+    <string name="chat_input_label">메시지</string>
+    <string name="chat_input_placeholder">메시지 보내기</string>
+    <string name="chat_send">보내기</string>
+    <string name="chat_count">%1$d/%2$d</string>
+    <string name="chat_over_limit">%1$d자까지 보낼 수 있어요</string>
+    <string name="chat_empty_title">아직 메시지가 없어요</string>
+    <string name="chat_load_older">이전 메시지 더 보기</string>
+    <string name="chat_me">나</string>
+    <string name="chat_removed">삭제된 메시지</string>
+    <string name="chat_sending">보내는 중</string>
+    <string name="chat_failed">보내지 못했어요</string>
+    <string name="chat_retry">다시 보내기</string>
+    <string name="chat_retry_description">다시 보내기: %1$s</string>
+    <string name="chat_new_message">새 메시지, %1$s: %2$s</string>
+    <string name="chat_message_description">%1$s, %2$s, %3$s</string>
+    <string name="chat_reaction_like">좋아요</string>
+    <string name="chat_reaction_heart">하트</string>
+    <string name="chat_reaction_description">%1$s %2$d개</string>
+    <string name="chat_reaction_on">누름</string>
+    <string name="chat_reaction_off">누르지 않음</string>
+    <string name="chat_reaction_add">%1$s 달기</string>
+    <string name="chat_reaction_remove">%1$s 떼기</string>
+    <string name="chat_menu">메시지 메뉴</string>
+    <string name="chat_day_pattern">M월 d일 (E)</string>
+    <string name="chat_time_pattern">a h:mm</string>
+    <string name="chat_delete">삭제</string>
+    <string name="chat_delete_description">%1$s 메시지 삭제</string>
+    <string name="chat_delete_title">메시지를 지울까요?</string>
+    <string name="chat_delete_message">지운 메시지는 대화에 \"삭제된 메시지\"로 남아요.</string>
+    <string name="chat_report">신고</string>
+    <string name="chat_report_description">%1$s 메시지 신고</string>
+    <string name="chat_report_title">이 메시지를 신고할까요?</string>
+    <string name="chat_report_subtitle">%1$s님의 메시지</string>
+    <string name="chat_report_detail_label">신고 내용</string>
+    <string name="chat_report_done">신고를 접수했어요</string>
+    <string name="chat_react_failed">리액션을 반영하지 못했어요. 다시 눌러 주세요</string>
+    <string name="chat_delete_failed">메시지를 지우지 못했어요. 다시 시도해 주세요</string>
+    <string name="chat_load_older_failed">이전 메시지를 불러오지 못했어요. 다시 시도해 주세요</string>
+    <string name="chat_error_chat_empty">빈 메시지는 보낼 수 없어요</string>
+    <string name="chat_error_body_too_long">500자까지 보낼 수 있어요</string>
+    <string name="chat_error_not_crew_member">크루원만 쓸 수 있어요</string>
+    <string name="chat_error_chat_message_not_found">메시지를 찾을 수 없어요</string>
+    <string name="chat_error_already_reported">이미 신고한 메시지예요</string>
+    <string name="chat_error_report_target_not_found">신고할 메시지가 없어요</string>
+    <string name="chat_error_target_invalid">내 메시지는 신고할 수 없어요</string>
+    <string name="chat_error_too_many_attempts">요청이 많아요. 잠시 후 다시 시도해 주세요</string>
+</resources>

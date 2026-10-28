@@ -1,0 +1,624 @@
+package com.a207.runkk.app.ui.battle
+
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.paneTitle
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.a207.runkk.app.core.designsystem.RunkkBanner
+import com.a207.runkk.app.core.designsystem.RunkkColors
+import com.a207.runkk.app.core.designsystem.RunkkConfirmDialog
+import com.a207.runkk.app.core.designsystem.RunkkCountdownBanner
+import com.a207.runkk.app.core.designsystem.RunkkErrorState
+import com.a207.runkk.app.core.designsystem.RunkkFormat
+import com.a207.runkk.app.core.designsystem.RunkkHint
+import com.a207.runkk.app.core.designsystem.RunkkIcons
+import com.a207.runkk.app.core.designsystem.RunkkLiveDot
+import com.a207.runkk.app.core.designsystem.RunkkLongPressButton
+import com.a207.runkk.app.core.designsystem.RunkkProgressBar
+import com.a207.runkk.app.core.designsystem.RunkkSecondaryButton
+import com.a207.runkk.app.core.designsystem.RunkkShapes
+import com.a207.runkk.app.core.designsystem.RunkkStatTile
+import com.a207.runkk.app.core.designsystem.RunkkStatusPill
+import com.a207.runkk.app.core.designsystem.RunkkTextStyles
+import com.a207.runkk.app.core.designsystem.RunkkTheme
+import com.a207.runkk.app.core.designsystem.StatTileStyle
+import com.a207.runkk.app.core.designsystem.StatTileValue
+import com.a207.runkk.app.core.designsystem.UiText
+import com.a207.runkk.app.core.designsystem.asString
+import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
+import com.a207.runkk.app.core.navigation.Routes
+import com.a207.runkk.app.domain.live.BattleGuidance
+import java.time.Duration
+import kotlin.math.abs
+
+/** 대결 진행(랜덤·고스트·나와의 싸움·유명인). 끝나면 결과 화면이 이 화면을 대신한다. */
+@Composable
+fun BattleRunningRoute(key: Routes.BattleRunning, viewModel: BattleRunningViewModel = hiltViewModel()) {
+    LaunchedEffect(key) { viewModel.bind(key) }
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val navigator = LocalRunkkNavigator.current
+    LaunchedEffect(viewModel) {
+        viewModel.events.collect { event ->
+            when (event) {
+                is BattleRunningEvent.Finished -> {
+                    navigator.back()
+                    navigator.navigate(Routes.BattleResult(event.battleId))
+                }
+            }
+        }
+    }
+    val close = {
+        viewModel.onFailureClosed()
+        navigator.back()
+    }
+    // 측정 중 뒤로가기로 대결을 떠나지 않게 안내만 한다(그만두기는 길게 누름 + 확인). 잠금 중이면 해제 안내.
+    BackHandler {
+        when {
+            state.phase == BattlePhase.FAILED -> close()
+
+            state.isLocked -> viewModel.onUnlockTapped()
+
+            // 뒤로가기는 그만두기와 같다: 포기 확인(D5)을 띄운다.
+            else -> viewModel.onForfeitLongPressed()
+        }
+    }
+    val lockActions = remember(viewModel) {
+        BattleLockActions(
+            onLock = viewModel::onLockTapped,
+            onUnlockTap = viewModel::onUnlockTapped,
+            onUnlockLongPress = viewModel::onUnlockLongPressed
+        )
+    }
+    BattleRunningScreen(
+        state = state,
+        onForfeitTap = viewModel::onForfeitTapped,
+        onForfeitLongPress = viewModel::onForfeitLongPressed,
+        onForfeitConfirm = viewModel::onForfeitConfirmed,
+        onForfeitDismiss = viewModel::onForfeitDismissed,
+        onClose = close,
+        lockActions = lockActions
+    )
+}
+
+/** 화면 잠금 누름 종류별 행동(D-49): 잠그기, 해제 짧게(안내), 해제 길게. */
+class BattleLockActions(
+    val onLock: () -> Unit = {},
+    val onUnlockTap: () -> Unit = {},
+    val onUnlockLongPress: () -> Unit = {}
+)
+
+@Composable
+fun BattleRunningScreen(
+    state: BattleRunningUiState,
+    onForfeitTap: () -> Unit,
+    onForfeitLongPress: () -> Unit,
+    onForfeitConfirm: () -> Unit,
+    onForfeitDismiss: () -> Unit,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+    lockActions: BattleLockActions = BattleLockActions()
+) {
+    if (state.isLocked && state.isMeasuring) {
+        LockedContent(state, lockActions, modifier)
+        return
+    }
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(RunkkColors.Background)
+            .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 32.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Header(state)
+        when (state.phase) {
+            BattlePhase.STARTING, BattlePhase.COUNTDOWN -> Countdown(state)
+
+            BattlePhase.FAILED -> RunkkErrorState(
+                state.error?.asString() ?: stringResource(R.string.battle_running_start_failed),
+                onRetry = onClose,
+                retryLabel = stringResource(R.string.battle_running_back),
+                modifier = Modifier.weight(1f)
+            )
+
+            else -> Running(state)
+        }
+        if (state.phase != BattlePhase.FAILED) {
+            state.hint?.let { RunkkHint(it.asString(), modifier = Modifier.align(Alignment.CenterHorizontally)) }
+            ActionButtons(state.isMeasuring, lockActions, onForfeit = onForfeitLongPress)
+        }
+    }
+    if (state.isConfirmingForfeit) ForfeitDialog(onForfeitConfirm, onForfeitDismiss)
+}
+
+/** 그만두기 확인(FR-094): 그만두면 패로 기록되고 달린 기록은 저장된다. */
+@Composable
+private fun ForfeitDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    RunkkConfirmDialog(
+        title = stringResource(R.string.battle_running_forfeit_title),
+        message = stringResource(R.string.battle_running_forfeit_message),
+        confirmLabel = stringResource(R.string.battle_running_forfeit_confirm),
+        onConfirm = onConfirm,
+        onDismiss = onDismiss,
+        dismissLabel = stringResource(R.string.battle_running_forfeit_dismiss),
+        isDestructive = true
+    )
+}
+
+/** 아래 버튼(D3): "그만두기"(누르면 포기 확인 D5, FR-094)와 "잠금"(측정 중에만, FR-182). */
+@Composable
+private fun ActionButtons(isMeasuring: Boolean, lockActions: BattleLockActions, onForfeit: () -> Unit) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        RunkkSecondaryButton(
+            stringResource(R.string.battle_running_forfeit_button),
+            onClick = onForfeit,
+            modifier = Modifier.weight(1f)
+        )
+        if (isMeasuring) {
+            RunkkSecondaryButton(
+                stringResource(R.string.battle_running_lock_button),
+                onClick = lockActions.onLock,
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+}
+
+/** 머리(D3·H3): "배틀런, 5km"(나와의 싸움, 유명인은 "vs 이름, 거리")와 상대 연결 상태. */
+@Composable
+private fun Header(state: BattleRunningUiState) {
+    val distance = distanceLabel(state.distance).asString()
+    val title = when (state.kind) {
+        OpponentKind.RANDOM -> stringResource(R.string.battle_running_title_random, distance)
+        OpponentKind.SELF -> stringResource(R.string.battle_running_title_self, distance)
+        OpponentKind.CELEBRITY -> stringResource(R.string.battle_running_title_celeb, opponentLabel(state), distance)
+    }
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        RunkkLiveDot(color = RunkkColors.Lavender)
+        Text(
+            title,
+            style = RunkkTextStyles.text(15, FontWeight.Black),
+            color = RunkkColors.Lavender,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f).semantics { heading() }
+        )
+        // 랜덤 대결은 상대 연결 상태(FR-088), 그 밖은 상대 이름. 연결 확인 중으로 바뀌면 보조 기술에 알린다.
+        RunkkStatusPill(state.connectionLabel?.asString() ?: opponentLabel(state), live = LiveRegionMode.Polite)
+    }
+}
+
+@Composable
+private fun opponentLabel(state: BattleRunningUiState): String = when (state.kind) {
+    OpponentKind.SELF -> stringResource(R.string.battle_running_opponent_self)
+    else -> state.opponentName.ifBlank { stringResource(R.string.battle_opponent) }
+}
+
+@Composable
+private fun ColumnScope.Countdown(state: BattleRunningUiState) {
+    Column(
+        modifier = Modifier.weight(1f).fillMaxWidth().semantics(mergeDescendants = true) {
+            liveRegion = LiveRegionMode.Polite
+        },
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically)
+    ) {
+        Text(
+            state.countdown?.toString() ?: stringResource(R.string.battle_running_ready),
+            style = RunkkTextStyles.display(state.countdown?.let { 160 } ?: 72),
+            color = RunkkColors.Lime
+        )
+        Text(
+            stringResource(
+                if (state.countdown !=
+                    null
+                ) {
+                    R.string.battle_running_countdown_suffix
+                } else {
+                    R.string.battle_running_preparing
+                }
+            ),
+            style = RunkkTextStyles.BodyStrong,
+            color = RunkkColors.TextPrimary
+        )
+        Text(
+            stringResource(
+                R.string.battle_running_versus,
+                opponentLabel(state),
+                distanceLabel(state.distance).asString()
+            ),
+            style = RunkkTextStyles.Caption,
+            color = RunkkColors.TextSecondary
+        )
+    }
+}
+
+@Composable
+private fun ColumnScope.Running(state: BattleRunningUiState) {
+    Column(
+        modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        GuidanceBanner(state)
+        Gap(state)
+        if (state.kind == OpponentKind.CELEBRITY) CharacterTrack(state)
+        ProgressCard(state)
+        // 보드 D3: 경과, 현재 페이스, 평균 페이스.
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            RunkkStatTile(
+                stringResource(R.string.battle_running_elapsed),
+                StatTileValue(RunkkFormat.duration(state.elapsed), spoken = RunkkFormat.durationSpoken(state.elapsed)),
+                style = StatTileStyle(valueStyle = RunkkTextStyles.DisplaySmall, isCentered = true),
+                modifier = Modifier.weight(1f)
+            )
+            RunkkStatTile(
+                stringResource(R.string.battle_running_current_pace),
+                StatTileValue(RunkkFormat.pace(state.currentPace), spoken = RunkkFormat.paceSpoken(state.currentPace)),
+                style = StatTileStyle(valueStyle = RunkkTextStyles.DisplaySmall, isCentered = true),
+                modifier = Modifier.weight(1f)
+            )
+            RunkkStatTile(
+                stringResource(R.string.battle_running_average_pace),
+                StatTileValue(RunkkFormat.pace(state.averagePace), spoken = RunkkFormat.paceSpoken(state.averagePace)),
+                style = StatTileStyle(valueStyle = RunkkTextStyles.DisplaySmall, isCentered = true),
+                modifier = Modifier.weight(1f)
+            )
+        }
+        if (state.error != null) {
+            Text(
+                state.error.asString(),
+                style = RunkkTextStyles.Caption,
+                color = RunkkColors.Lavender,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+            )
+        }
+    }
+}
+
+@Composable
+private fun GuidanceBanner(state: BattleRunningUiState) {
+    if (state.phase == BattlePhase.CLOSING) {
+        val arrived = state.arrivedName ?: stringResource(R.string.battle_opponent)
+        RunkkCountdownBanner(
+            text = stringResource(R.string.battle_running_closing, arrived, state.closingSeconds ?: 0),
+            spoken = stringResource(
+                R.string.battle_running_closing_spoken,
+                arrived,
+                state.closingLimitSeconds ?: state.closingSeconds ?: 0
+            )
+        )
+        return
+    }
+    when (state.guidance) {
+        BattleGuidance.Kind.OVERTOOK -> RunkkBanner(
+            stringResource(
+                if (state.kind ==
+                    OpponentKind.SELF
+                ) {
+                    R.string.battle_running_overtook_self
+                } else {
+                    R.string.battle_running_overtook
+                }
+            ),
+            isStrong = true,
+            modifier = Modifier.semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }
+        )
+
+        BattleGuidance.Kind.OVERTAKEN -> Text(
+            stringResource(R.string.battle_running_overtaken),
+            style = RunkkTextStyles.text(15, FontWeight.Black),
+            color = RunkkColors.Lavender,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RunkkShapes.Medium)
+                .border(1.dp, RunkkColors.Lavender, RunkkShapes.Medium)
+                .padding(16.dp)
+                .semantics { liveRegion = LiveRegionMode.Polite }
+        )
+
+        null -> Unit
+    }
+}
+
+@Composable
+private fun Gap(state: BattleRunningUiState) {
+    val gap = state.gapMeters
+    val ahead = (gap ?: 0) >= 0
+    val spoken = when {
+        gap == null -> stringResource(R.string.battle_running_gap_waiting)
+        gap >= 0 -> stringResource(R.string.battle_running_gap_ahead_spoken, gap)
+        else -> stringResource(R.string.battle_running_gap_behind_spoken, abs(gap))
+    }
+    val description = stringResource(R.string.battle_running_gap_desc, spoken)
+    Column(
+        modifier = Modifier.fillMaxWidth().clearAndSetSemantics { contentDescription = description },
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Text(
+            stringResource(R.string.battle_running_gap_title),
+            style = RunkkTextStyles.Caption,
+            color = RunkkColors.TextSecondary
+        )
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(
+                gap?.let { if (it >= 0) "+$it" else "$it" } ?: RunkkFormat.EMPTY,
+                style = RunkkTextStyles.DisplayLarge,
+                color = if (ahead) RunkkColors.Lime else RunkkColors.Lavender
+            )
+            Text(
+                "m",
+                style = RunkkTextStyles.display(36),
+                color = if (ahead) RunkkColors.Lime else RunkkColors.Lavender,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+        }
+        Text(
+            listOfNotNull(
+                when {
+                    gap == null -> null
+                    ahead -> stringResource(R.string.battle_running_ahead)
+                    else -> stringResource(R.string.battle_running_behind)
+                },
+                stringResource(R.string.battle_running_overtakes, state.overtakes)
+            ).joinToString(", "),
+            style = RunkkTextStyles.Label,
+            color = RunkkColors.TextSecondary
+        )
+    }
+}
+
+/** 유명인 대결의 캐릭터 트랙(FR-099): 두 캐릭터 사이 간격이 거리 차에 비례한다. */
+@Composable
+private fun CharacterTrack(state: BattleRunningUiState) {
+    val total = state.distance.meters.coerceAtLeast(1).toFloat()
+    val mine = (state.myDistance.meters / total).coerceIn(0f, 1f)
+    val theirs = ((state.opponentDistance?.meters ?: 0L) / total).coerceIn(0f, 1f)
+    val description = stringResource(
+        R.string.battle_running_track_desc,
+        RunkkFormat.km(state.myDistance),
+        state.opponentName,
+        RunkkFormat.km(state.opponentDistance ?: Distance.ZERO)
+    )
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(96.dp)
+            .clip(RunkkShapes.Large)
+            .background(RunkkColors.Surface)
+            .border(1.dp, RunkkColors.Border, RunkkShapes.Large)
+            .clearAndSetSemantics { contentDescription = description }
+    ) {
+        val usable = maxWidth - CHARACTER.dp - 16.dp
+        Box(
+            Modifier
+                .align(Alignment.Center)
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp)
+                .height(2.dp)
+                .background(RunkkColors.BorderStrong)
+        )
+        SdCharacter(
+            size = CHARACTER,
+            label = "SD",
+            modifier = Modifier.align(Alignment.TopStart).offset(x = 8.dp + usable * theirs, y = 8.dp)
+        )
+        MyMarker(Modifier.align(Alignment.BottomStart).offset(x = 8.dp + usable * mine, y = (-8).dp))
+    }
+}
+
+/** 트랙 위 내 표식(라임 원 안의 "나"). */
+@Composable
+private fun MyMarker(modifier: Modifier) {
+    Box(
+        modifier
+            .size(CHARACTER.dp)
+            .clip(androidx.compose.foundation.shape.CircleShape)
+            .background(RunkkColors.LimeContainer)
+            .border(2.dp, RunkkColors.Lime, androidx.compose.foundation.shape.CircleShape),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            stringResource(R.string.battle_me),
+            style = RunkkTextStyles.text(12, FontWeight.Black),
+            color = RunkkColors.Lime
+        )
+    }
+}
+
+private const val CHARACTER = 36
+
+@Composable
+private fun ProgressCard(state: BattleRunningUiState) {
+    val total = state.distance.meters.coerceAtLeast(1).toFloat()
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RunkkShapes.ExtraLarge)
+            .background(RunkkColors.Surface)
+            .border(1.dp, RunkkColors.Border, RunkkShapes.ExtraLarge)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        ProgressRow(
+            stringResource(R.string.battle_me),
+            state.myDistance,
+            state.myDistance.meters / total,
+            isMine = true
+        )
+        ProgressRow(
+            opponentLabel(state),
+            state.opponentDistance ?: Distance.ZERO,
+            (state.opponentDistance?.meters ?: 0L) / total,
+            isMine = false
+        )
+    }
+}
+
+@Composable
+private fun ProgressRow(name: String, distance: Distance, progress: Float, isMine: Boolean) {
+    val color = if (isMine) RunkkColors.Lime else RunkkColors.Lavender
+    val description = stringResource(R.string.battle_running_progress_desc, name, RunkkFormat.km(distance))
+    Column(
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.semantics(mergeDescendants = true) {
+            contentDescription = description
+        }
+    ) {
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(
+                name,
+                style = if (isMine) RunkkTextStyles.text(14, FontWeight.Black) else RunkkTextStyles.Body,
+                color = if (isMine) RunkkColors.TextPrimary else RunkkColors.TextSecondary,
+                modifier = Modifier.weight(1f)
+            )
+            Text("${RunkkFormat.km(distance)}km", style = RunkkTextStyles.display(22), color = color)
+        }
+        RunkkProgressBar(progress, height = 12.dp, color = color)
+    }
+}
+
+/**
+ * 잠금 화면(FR-182, 시안 HiRunningLocked): 해제 버튼 말고 누를 것이 없다. 격차와 내 거리·경과만 크게 보인다.
+ * 종료 카운트다운이면 배너를 함께 보인다.
+ */
+@Composable
+private fun LockedContent(state: BattleRunningUiState, actions: BattleLockActions, modifier: Modifier) {
+    val lockedTitle = stringResource(R.string.battle_running_locked_pane_title)
+    val description = stringResource(
+        R.string.battle_running_locked_desc,
+        RunkkFormat.km(state.myDistance),
+        RunkkFormat.durationSpoken(state.elapsed)
+    )
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            // 잠금 화면으로 바뀌면 보조 기술이 화면 이름을 알린다.
+            .semantics { paneTitle = lockedTitle }
+            .background(RunkkColors.BackgroundLocked)
+            .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 40.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        LockedStatusRow(state)
+        if (state.phase == BattlePhase.CLOSING) GuidanceBanner(state)
+        Column(
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterVertically)
+        ) {
+            Gap(state)
+            Text(
+                "${RunkkFormat.km(state.myDistance)}km, ${RunkkFormat.duration(state.elapsed)}",
+                style = RunkkTextStyles.display(24),
+                color = RunkkColors.TextPrimary,
+                modifier = Modifier.clearAndSetSemantics { contentDescription = description }
+            )
+        }
+        state.hint?.let { RunkkHint(it.asString(), modifier = Modifier.align(Alignment.CenterHorizontally)) }
+        UnlockButton(actions)
+    }
+}
+
+/** 잠금 화면 윗줄: "화면 잠김" 표시와 상대 연결 상태. */
+@Composable
+private fun LockedStatusRow(state: BattleRunningUiState) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        RunkkStatusPill(stringResource(R.string.battle_running_locked_pill)) {
+            Icon(
+                RunkkIcons.Lock,
+                contentDescription = null,
+                tint = RunkkColors.TextSecondary,
+                modifier = Modifier.size(14.dp)
+            )
+        }
+        Spacer(Modifier.weight(1f))
+        state.connectionLabel?.let { RunkkStatusPill(it.asString(), live = LiveRegionMode.Polite) }
+    }
+}
+
+/** 잠금 해제 버튼: 짧게 누르면 안내, 길게 누르면 해제(D-49). */
+@Composable
+private fun ColumnScope.UnlockButton(actions: BattleLockActions) {
+    RunkkLongPressButton(
+        onTap = actions.onUnlockTap,
+        onLongPress = actions.onUnlockLongPress,
+        tapLabel = stringResource(R.string.battle_running_unlock_tap_label),
+        longPressLabel = stringResource(R.string.battle_running_unlock_hold_label),
+        contentDescription = stringResource(R.string.battle_running_unlock_desc),
+        caption = stringResource(R.string.battle_running_unlock_hold),
+        borderColor = RunkkColors.BorderStrong,
+        borderWidth = 2.dp,
+        modifier = Modifier.align(Alignment.CenterHorizontally)
+    ) {
+        Icon(
+            RunkkIcons.Unlock,
+            contentDescription = null,
+            tint = RunkkColors.TextPrimary,
+            modifier = Modifier.size(32.dp)
+        )
+    }
+}
+
+@Preview(name = "대결 진행", widthDp = 390, heightDp = 844)
+@Composable
+private fun BattleRunningPreview() {
+    RunkkTheme(reduceMotion = true) {
+        BattleRunningScreen(
+            BattleRunningUiState(
+                battleId = 1,
+                opponentName = "바람처럼",
+                phase = BattlePhase.RUNNING,
+                gapMeters = 42,
+                opponentDistance = Distance(2_800),
+                myDistance = Distance(2_842),
+                elapsed = Duration.ofSeconds(940),
+                connectionLabel = UiText.Res(R.string.battle_running_connected),
+                guidance = BattleGuidance.Kind.OVERTOOK,
+                overtakes = 2
+            ),
+            {},
+            {},
+            {},
+            {},
+            {}
+        )
+    }
+}

@@ -1,0 +1,67 @@
+# HTTPS 설정. deploy.sh가 letsencrypt 볼륨에 /etc/letsencrypt/live/${SERVER_NAME}/가 있으면 이 폴더를 연결한다(NGINX_MODE=https).
+# init-letsencrypt.sh가 첫 인증서를 받은 직후에도 이 폴더로 바꾼다.
+#   80   ACME 확인 + https(443)로 301
+#   443  prod 환경(main 브랜치, api-prod) + 모니터링 /grafana/
+#   8443 develop 환경(develop 브랜치, api-develop). 같은 인증서를 쓴다
+# api 컨테이너는 배포 때마다 다시 만들어져 IP가 바뀐다. 시작 때 한 번만 풀면 502가 나므로 Docker 내장 DNS로 주기적으로 다시 푼다.
+# 공통 경로는 /etc/nginx/runkk/app-locations.conf(infra/nginx/common)에 있다.
+resolver 127.0.0.11 valid=10s ipv6=off;
+
+# Grafana Live(WebSocket)만 Upgrade로 넘기고 나머지 요청은 보통 연결로 둔다
+map $http_upgrade $grafana_connection {
+    default upgrade;
+    ''      close;
+}
+
+server {
+    listen 80;
+    server_name ${SERVER_NAME};
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+# prod(베타). 앱 prod 플레이버(com.a207.runkk)가 https://${SERVER_NAME}/ 를 쓴다
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name ${SERVER_NAME};
+
+    ssl_certificate     /etc/letsencrypt/live/${SERVER_NAME}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${SERVER_NAME}/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+
+    set $api_upstream api-prod:8080;
+    # actuator 관리 포트. 밖에는 /actuator/health 하나만 이 포트로 넘긴다
+    set $api_management_upstream api-prod:8081;
+
+    include /etc/nginx/runkk/grafana-locations.conf;
+    include /etc/nginx/runkk/app-locations.conf;
+}
+
+# develop. 앱 develop 플레이버(com.a207.runkk.dev)가 https://${SERVER_NAME}:8443/ 을 쓴다.
+# 컨테이너 안 포트는 8443으로 고정하고 호스트 포트는 NGINX_DEVELOP_PORT(기본 8443)로 연결한다
+server {
+    listen 8443 ssl;
+    http2 on;
+    server_name ${SERVER_NAME};
+
+    ssl_certificate     /etc/letsencrypt/live/${SERVER_NAME}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${SERVER_NAME}/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+
+    # 이 포트로 http:// 요청이 오면(497) 같은 포트의 https로 돌려보낸다
+    error_page 497 =301 https://$host:$server_port$request_uri;
+
+    set $api_upstream api-develop:8080;
+    set $api_management_upstream api-develop:8081;
+
+    include /etc/nginx/runkk/app-locations.conf;
+}

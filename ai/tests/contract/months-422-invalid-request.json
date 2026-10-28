@@ -1,0 +1,13 @@
+{
+  "endpoint": "GET /users/{userId}/months/{yearMonth}",
+  "scenario": "ok",
+  "request": {
+    "userId": "u_demo",
+    "yearMonth": "2026-13"
+  },
+  "status": 422,
+  "body": {
+    "reason": "INVALID_REQUEST"
+  },
+  "gateway": "요청 형식 오류. 재시도하지 않는다"
+}

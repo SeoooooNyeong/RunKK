@@ -1,0 +1,73 @@
+# 팀 위키 AppFlowy(appflowy.kktrkkt.dev). 같은 EC2에서 따로 도는 AppFlowy 스택의 nginx로 넘긴다.
+# appflowy-nginx는 AppFlowy 스택 nginx가 runkk_default 네트워크에 붙인 별칭이다.
+# 변수로 proxy_pass를 써서(resolver는 default.conf) AppFlowy 스택이 내려가 있어도 nginx는 뜨고 이 도메인만 502가 난다.
+# 파일 이름을 default.conf보다 뒤에 오게 했다. nginx는 포트마다 처음 읽은 server를 기본 서버로 쓰므로 IP나 모르는 Host 요청은 런크크로 간다.
+# 인증서는 letsencrypt 볼륨의 appflowy-interim/에 따로 넣었다. 없으면 nginx가 뜨지 않으니 볼륨을 새로 만들면 먼저 넣어야 한다.
+
+map $http_upgrade $appflowy_connection {
+    default upgrade;
+    ''      close;
+}
+
+server {
+    listen 80;
+    server_name appflowy.kktrkkt.dev;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name appflowy.kktrkkt.dev;
+
+    ssl_certificate     /etc/letsencrypt/appflowy-interim/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/appflowy-interim/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+
+    set $appflowy_upstream appflowy-nginx:80;
+
+    # 파일 업로드(minio-api)가 최대 2G까지 받는다
+    client_max_body_size 2g;
+
+    # 관리 화면은 외부에 열지 않는다. 필요하면 SSH 터널로 서버의 127.0.0.1:8081에 들어간다
+    location ^~ /console {
+        return 404;
+    }
+
+    location ^~ /pgadmin/ {
+        return 404;
+    }
+
+    location ^~ /minio/ {
+        return 404;
+    }
+
+    # GoTrue 관리자 API(사용자 생성·수정·삭제). 로그인·토큰 경로는 열어 둔다
+    location ^~ /gotrue/admin {
+        return 404;
+    }
+
+    # 문서 동기화 WebSocket(/ws/v2)과 업로드가 함께 지나가므로 버퍼링을 끄고 시간 제한을 길게 둔다
+    location / {
+        proxy_pass http://$appflowy_upstream;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $appflowy_connection;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_request_buffering off;
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
+    }
+}

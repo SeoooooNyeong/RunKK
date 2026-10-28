@@ -1,0 +1,269 @@
+package com.a207.runkk.app.ui.battle
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.a207.runkk.app.core.designsystem.UiText
+import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.navigation.Routes
+import com.a207.runkk.app.domain.battle.BattleRunCoordinator
+import com.a207.runkk.app.domain.battle.BattleRunState
+import com.a207.runkk.app.domain.battle.MyProgress
+import com.a207.runkk.app.domain.live.BattleGuidance
+import com.a207.runkk.app.domain.live.OpponentProgress
+import dagger.hilt.android.lifecycle.HiltViewModel
+import java.time.Clock
+import java.time.Duration
+import java.time.Instant
+import javax.inject.Inject
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+
+/**
+ * 대결 진행(FR-087~FR-091, FR-094, FR-098, FR-099, FR-102, FR-107, FR-182, FR-188). BattleRunCoordinator.state를 화면 상태로
+ * 바꾼다. 측정·진행값 전송·추월 판정·도착·종료는 조정자가 하고, 내 거리·경과·페이스와 잠금 여부는 조정자 상태의 MyProgress로,
+ * 상대 연결 상태는 Running.opponentConnection으로 받는다(ui.battle은 domain.run을 보지 않는다, 5.1.2).
+ * 화면은 그만두기(확인 뒤 forfeit)와 화면 잠금·해제를 누름 종류별 연산으로 넘긴다(D-49).
+ */
+@HiltViewModel
+class BattleRunningViewModel @Inject constructor(
+    private val coordinator: BattleRunCoordinator,
+    private val clock: Clock
+) : ViewModel() {
+    private val _state = MutableStateFlow(BattleRunningUiState())
+    val state: StateFlow<BattleRunningUiState> = _state.asStateFlow()
+
+    private val _events = Channel<BattleRunningEvent>(Channel.BUFFERED)
+    val events: Flow<BattleRunningEvent> = _events.receiveAsFlow()
+
+    private var bound: Long? = null
+    private var closesAt: Instant? = null
+    private var countdownTo: Instant? = null
+    private var sawRunning = false
+    private var lastGuidanceSeen: BattleGuidance.Kind? = null
+    private var tickJob: Job? = null
+    private var guidanceJob: Job? = null
+    private var hintJob: Job? = null
+    private val bindJobs = mutableListOf<Job>()
+
+    /**
+     * 진행 화면 인자를 받아 조정자 상태 구독을 시작한다. 같은 대결로 다시 부르면 무시한다.
+     * 조정자가 이 대결을 모르면(프로세스가 다시 떠 백 스택만 복원된 경우) [STALE_MILLIS] 뒤 실패 화면으로 바꿔 빠져나갈 수 있게 한다.
+     */
+    fun bind(key: Routes.BattleRunning) {
+        if (bound == key.battleId) return
+        bound = key.battleId
+        bindJobs.forEach { it.cancel() }
+        bindJobs.clear()
+        tickJob?.cancel()
+        closesAt = null
+        countdownTo = null
+        sawRunning = false
+        lastGuidanceSeen = null
+        _state.value = BattleRunningUiState(
+            battleId = key.battleId,
+            opponentName = key.opponentName,
+            distance = Distance(key.distanceMeters),
+            kind = OpponentKind.of(key.opponentKind)
+        )
+        bindJobs += viewModelScope.launch { coordinator.state.collect(::onCoordinator) }
+        bindJobs += viewModelScope.launch {
+            coordinator.failure.collect { error ->
+                if (error != null) _state.update { it.copy(error = BattleErrorText.of(error)) }
+            }
+        }
+        bindJobs += viewModelScope.launch {
+            delay(STALE_MILLIS)
+            _state.update {
+                if (it.phase == BattlePhase.STARTING) {
+                    it.copy(
+                        phase = BattlePhase.FAILED,
+                        error =
+                            it.error ?: UiText.Res(R.string.battle_running_not_found)
+                    )
+                } else {
+                    it
+                }
+            }
+        }
+    }
+
+    /** 그만두기 짧게 누름: 길게 눌러야 한다는 안내만(D-49). */
+    fun onForfeitTapped() = showHint(FORFEIT_HINT)
+
+    /** 그만두기 길게 누름: 확인을 받는다(FR-094). 잠금 중에는 받지 않는다(FR-182). */
+    fun onForfeitLongPressed() {
+        val s = _state.value
+        if (s.isLocked) return
+        if (s.phase == BattlePhase.RUNNING || s.phase == BattlePhase.CLOSING || s.phase == BattlePhase.COUNTDOWN) {
+            _state.update { it.copy(isConfirmingForfeit = true) }
+        }
+    }
+
+    fun onForfeitDismissed() = _state.update { it.copy(isConfirmingForfeit = false) }
+
+    fun onForfeitConfirmed() {
+        _state.update { it.copy(isConfirmingForfeit = false) }
+        coordinator.forfeit()
+    }
+
+    /** 화면 잠금(FR-182). 조정자가 RunTracker.lockScreen에 넘기고 상태의 잠금 여부를 바꾼다. */
+    fun onLockTapped() = coordinator.lockScreen()
+
+    /** 잠금 해제 짧게 누름: "길게 눌러 해제" 안내(D-49). */
+    fun onUnlockTapped() {
+        coordinator.onUnlockTapped()
+        showHint(UNLOCK_HINT)
+    }
+
+    /** 잠금 해제 길게 누름. */
+    fun onUnlockLongPressed() = coordinator.onUnlockLongPressed()
+
+    /** 시작하지 못하고 끝난 화면을 닫을 때. */
+    fun onFailureClosed() = coordinator.acknowledgeFinished()
+
+    private fun onCoordinator(s: BattleRunState) {
+        val battleId = _state.value.battleId
+        when (s) {
+            is BattleRunState.Countdown -> if (s.battleId == battleId) {
+                countdownTo = s.startAt
+                _state.update { it.copy(phase = BattlePhase.COUNTDOWN) }
+                tick()
+            }
+
+            is BattleRunState.Running -> if (s.battleId == battleId) onRunning(s)
+
+            is BattleRunState.Closing -> if (s.battleId == battleId) {
+                closesAt = s.endsAt
+                sawRunning = true
+                val limit = Duration.between(clock.instant(), s.endsAt).seconds.coerceAtLeast(0)
+                _state.update {
+                    it.copy(
+                        phase = BattlePhase.CLOSING,
+                        arrivedName = s.arrivedName,
+                        closingLimitSeconds = it.closingLimitSeconds ?: limit
+                    ).withMine(s.mine)
+                }
+                tick()
+            }
+
+            is BattleRunState.Finished -> if (s.battleId == battleId) onFinished(battleId)
+
+            else -> Unit
+        }
+    }
+
+    private fun onRunning(s: BattleRunState.Running) {
+        sawRunning = true
+        // 조정자는 마지막 안내를 계속 들고 있으므로 바뀐 때만 새 안내로 본다.
+        val changed = s.lastGuidance != null && s.lastGuidance != lastGuidanceSeen
+        if (changed) lastGuidanceSeen = s.lastGuidance
+        val overtook = if (changed && s.lastGuidance == BattleGuidance.Kind.OVERTOOK) 1 else 0
+        _state.update {
+            it.copy(
+                // 종료 카운트다운이 시작되면 조정자가 진행값을 계속 보내도 CLOSING을 유지한다(FR-107).
+                phase = if (it.phase == BattlePhase.CLOSING) BattlePhase.CLOSING else BattlePhase.RUNNING,
+                countdown = null,
+                gapMeters = s.gapMeters ?: it.gapMeters,
+                opponentDistance = s.opponentDistance ?: it.opponentDistance,
+                connectionLabel = s.opponentConnection?.let(::connectionLabel) ?: it.connectionLabel,
+                overtakes = it.overtakes + overtook
+            ).withMine(s.mine)
+        }
+        if (changed) showGuidance(s.lastGuidance)
+    }
+
+    private fun onFinished(battleId: Long) {
+        tickJob?.cancel()
+        if (sawRunning) {
+            _state.update { it.copy(phase = BattlePhase.FINISHED, isConfirmingForfeit = false, isLocked = false) }
+            _events.trySend(BattleRunningEvent.Finished(battleId))
+        } else {
+            _state.update {
+                it.copy(
+                    phase = BattlePhase.FAILED,
+                    isConfirmingForfeit = false,
+                    error = it.error ?: UiText.Res(R.string.battle_running_start_failed_permission)
+                )
+            }
+        }
+    }
+
+    private fun BattleRunningUiState.withMine(mine: MyProgress): BattleRunningUiState = copy(
+        myDistance = mine.distance,
+        elapsed = mine.elapsed,
+        currentPace = mine.currentPace,
+        averagePace = mine.averagePace,
+        isLocked = mine.isLocked
+    )
+
+    /** 1초마다 시작 카운트다운·종료 카운트다운 남은 초를 갱신한다. 그 밖의 단계면 멈춘다. */
+    private fun tick() {
+        if (tickJob?.isActive == true) {
+            refreshClock()
+            return
+        }
+        tickJob = viewModelScope.launch {
+            while (isActive) {
+                refreshClock()
+                val phase = _state.value.phase
+                if (phase != BattlePhase.COUNTDOWN && phase != BattlePhase.CLOSING) break
+                delay(TICK_MILLIS)
+            }
+        }
+    }
+
+    private fun refreshClock() {
+        val now = clock.instant()
+        _state.update { s ->
+            s.copy(
+                countdown = countdownTo?.takeIf {
+                    s.phase == BattlePhase.COUNTDOWN
+                }?.let { Duration.between(now, it).seconds.coerceAtLeast(0) },
+                closingSeconds = closesAt?.takeIf { s.phase == BattlePhase.CLOSING }
+                    ?.let { Duration.between(now, it).seconds.coerceAtLeast(0) }
+            )
+        }
+    }
+
+    private fun showGuidance(kind: BattleGuidance.Kind?) {
+        _state.update { it.copy(guidance = kind) }
+        guidanceJob?.cancel()
+        guidanceJob = viewModelScope.launch {
+            delay(GUIDANCE_MILLIS)
+            _state.update { it.copy(guidance = null) }
+        }
+    }
+
+    private fun showHint(text: UiText) {
+        _state.update { it.copy(hint = text) }
+        hintJob?.cancel()
+        hintJob = viewModelScope.launch {
+            delay(HINT_MILLIS)
+            _state.update { it.copy(hint = null) }
+        }
+    }
+
+    private companion object {
+        const val TICK_MILLIS = 1_000L
+        const val GUIDANCE_MILLIS = 5_000L
+        const val HINT_MILLIS = 2_500L
+        val FORFEIT_HINT = UiText.Res(R.string.battle_running_forfeit_hold)
+        val UNLOCK_HINT = UiText.Res(R.string.battle_running_unlock_hold)
+        const val STALE_MILLIS = 5_000L
+    }
+}
+
+/** 상대 연결 상태 문구(FR-088, 시안 HiBattleRunning "상대 연결됨"). */
+internal fun connectionLabel(connection: OpponentProgress.Connection): UiText = when (connection) {
+    OpponentProgress.Connection.CONNECTED -> UiText.Res(R.string.battle_running_connected)
+    OpponentProgress.Connection.CHECKING -> UiText.Res(R.string.battle_running_checking)
+}

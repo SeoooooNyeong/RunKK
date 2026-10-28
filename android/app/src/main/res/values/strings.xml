@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">런크크</string>
+    <string name="app_splash_description">런크크 시작 중</string>
+    <string name="app_coming_soon_title">준비 중인 화면이에요</string>
+    <string name="app_coming_soon_message">곧 만나요</string>
+    <string name="app_beta_locked_title">추후 추가 예정입니다</string>
+    <string name="app_beta_locked_message">베타 버전에서는 아직 쓸 수 없어요</string>
+</resources>

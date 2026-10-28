@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>런크크 · 같이 뛰는 러닝 앱</title>
+<meta name="description" content="런크크는 러닝을 기록하고, 다른 러너와 비대면으로 겨루고, 크루와 함께 달리는 Android 러닝 앱입니다.">
+<style>
+:root{--bg:#09090B;--surface:#18181B;--border:#27272A;--text:#FAFAFA;--muted:#A1A1AA;--lime:#CBEA2B;--lime-bg:#262B10;--violet:#5B4FD9;--lavender:#9C92F0;color-scheme:dark}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;min-height:100vh;display:flex;flex-direction:column;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif;font-size:16px;line-height:1.7;word-break:keep-all;overflow-wrap:anywhere}
+a{color:var(--lavender)}
+a:focus-visible{outline:2px solid var(--lime);outline-offset:2px;border-radius:4px}
+.wrap{max-width:760px;margin:0 auto;padding:0 16px;width:100%}
+main{flex:1;padding:48px 0 32px}
+.brand{display:inline-block;font-weight:800;font-size:15px;letter-spacing:.08em;color:var(--lime);background:var(--lime-bg);border:1px solid #3a4214;border-radius:999px;padding:4px 12px;margin:0 0 20px}
+h1{font-size:clamp(32px,8vw,48px);line-height:1.2;letter-spacing:-.03em;margin:0 0 12px}
+h1 em{font-style:normal;color:var(--lime)}
+.lead{color:var(--muted);font-size:18px;margin:0 0 32px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:0 0 32px;padding:0;list-style:none}
+.grid li{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:16px}
+.grid strong{display:block;font-size:17px;margin:0 0 4px}
+.grid span{color:var(--muted);font-size:15px}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--lime);margin-right:8px;vertical-align:middle}
+.dot.v{background:var(--violet)}
+.platform{color:var(--muted);font-size:14px;margin:0 0 32px}
+.docs{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin:0;padding:0;list-style:none}
+.docs a{display:block;text-decoration:none;color:var(--text);border:1px solid var(--border);border-radius:12px;padding:12px 14px;font-size:15px}
+.docs a:hover{border-color:var(--violet)}
+h2{font-size:15px;color:var(--muted);font-weight:600;margin:0 0 10px}
+footer{border-top:1px solid var(--border);color:var(--muted);font-size:14px;padding:20px 0 32px}
+</style>
+</head>
+<body>
+<main>
+  <div class="wrap">
+    <span class="brand">RUNKK</span>
+    <h1>혼자 뛰어도,<br><em>같이 뛰는</em> 러닝</h1>
+    <p class="lead">런크크는 러닝을 기록하고, 다른 러너와 비대면으로 겨루고, 크루와 함께 달리는 러닝 앱입니다.</p>
+
+    <ul class="grid">
+      <li><strong><span class="dot"></span>러닝 기록</strong><span>위치로 거리·시간·페이스를 재고 코스 지도와 날씨를 함께 남겨요.</span></li>
+      <li><strong><span class="dot v"></span>1:1 대결</strong><span>같은 티어의 러너, 내 지난 기록, 공개된 유명인 기록과 각자 있는 곳에서 겨뤄요.</span></li>
+      <li><strong><span class="dot"></span>크루 레이스</strong><span>크루원이 뛴 거리를 주마다 합산하고 크루런으로 함께 출발해요.</span></li>
+      <li><strong><span class="dot v"></span>Runimal과 아바타</strong><span>러닝 기록으로 16가지 유형을 정하고, 달리는 습관에 따라 아바타의 체형과 피부색이 바뀌어요.</span></li>
+    </ul>
+
+    <p class="platform">Android 10 이상 · Wear OS 워치 연동 · 실시간 위치는 다른 러너에게 보이지 않아요</p>
+
+    <h2>고지 문서</h2>
+    <ul class="docs">
+      <li><a href="/legal/privacy">개인정보 처리방침</a></li>
+      <li><a href="/legal/terms">서비스 이용약관</a></li>
+      <li><a href="/legal/location">위치정보 이용약관</a></li>
+      <li><a href="/legal/help">도움말·문의</a></li>
+    </ul>
+  </div>
+</main>
+<footer>
+  <div class="wrap">런크크 · A207 팀 · 문의 <a href="mailto:s15p31a207@gmail.com">s15p31a207@gmail.com</a></div>
+</footer>
+</body>
+</html>

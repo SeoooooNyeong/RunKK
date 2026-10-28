@@ -1,0 +1,528 @@
+# 런크크 CI/CD (WBS 1.5-E, Jira S15P31A207-53). 설명은 README.md "CI/CD" 절.
+#
+# 러너 2개를 같은 EC2에 등록한다.
+#   docker : docker executor, /var/run/docker.sock 바인딩 (빌드·테스트, Testcontainers)
+#   deploy : shell executor, docker 그룹 사용자 (infra/deploy.sh, 스모크)
+# CI 변수 (Settings > CI/CD > Variables, masked + protected):
+#   INFRA_ENV                 File 타입, develop 환경 infra/.env (RUNKK_ENV=develop, 8443). infra/.env.example
+#   INFRA_ENV_PROD            File 타입, prod 환경 infra/.env (RUNKK_ENV=prod, 443, main 배포·베타)
+#   INFRA_ENV_EDGE            File 타입, 에지(nginx·모니터링) infra/edge.env. develop·main 배포가 모두 쓴다. infra/edge.env.example
+#   FCM_SERVICE_ACCOUNT       File 타입, Firebase 서비스 계정 JSON(배포 때 infra/secrets/fcm-service-account.json으로 복사,
+#                             .env에 FCM_CREDENTIALS_FILE=/run/secrets/fcm-service-account.json). 없으면 푸시 없이 로그만
+#   GOOGLE_SERVICES_JSON      File 타입, 앱 google-services.json(Android 잡이 android/app/에 복사). 없으면 FCM 없이 빌드
+#   ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD  (릴리스 AAB, 시험 APK 서명)
+#   KAKAO_NATIVE_APP_KEY, GOOGLE_WEB_CLIENT_ID  앱 로그인 키(prod 패키지 com.a207.runkk용 카카오 네이티브 앱 키)
+#   KAKAO_NATIVE_APP_KEY_DEVELOP  develop 패키지(com.a207.runkk.dev)용 카카오 네이티브 앱 키. android:build가 KAKAO_NATIVE_APP_KEY 대신 쓴다
+#   GRAFANA_ADMIN_PASSWORD    Variable(masked), Grafana 관리자 비밀번호. 배포가 edge.env 끝에 붙인다(INFRA_ENV_EDGE에 두지 않는다)
+#   GRAFANA_ALERT_WEBHOOK_URL Variable(masked), Mattermost Incoming Webhook 주소(runkk-alerts 채널). 배포가 edge.env 끝에 붙인다. 없으면 알림 없이 뜬다
+#   FIREBASE_APP_DISTRIBUTION_SA  File 타입(선택), Firebase App Distribution 관리자 권한 서비스 계정 JSON. android:beta가 쓴다.
+#                             없으면 FCM_SERVICE_ACCOUNT로 올려 보고, 권한이 없으면 잡이 실패한다
+#   SKIP_ANDROID_CHECKS       보통 Variable. 1이면 android:lint·android:test·android:build를 건너뛴다(임시). 지우면 다시 돈다
+#                             매일 00:00 파이프라인 스케줄(develop, release/*)에서는 이 값과 상관없이 CI 전체가 돈다
+#   RELEASE_FREEZE            보통 Variable(보호 안 함). release/* 브랜치가 있는 동안 1, 끝나면 지운다. 1이면 develop 배포가 수동이 된다
+# protected 변수는 보호 브랜치에서만 보인다. release/* 를 보호 브랜치로 등록해야 release 배포가 INFRA_ENV를 읽는다.
+
+# 브랜치 흐름(AGENTS.md): feature·fix → develop(squash), release/vX.Y → main(merge commit, 태그 vX.Y.Z),
+# hotfix/* → main, 병합 뒤 main → develop 역병합. release/* 는 MR이 없어도 브랜치 파이프라인으로 배포까지 돈다.
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "develop"
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH =~ /^release\//
+
+# 잡은 needs로 자기 스택의 앞 잡만 기다린다(가장 느린 android:lint를 backend·ai가 기다리지 않게). stage는 표시 순서다.
+stages: [lint, test, build, deploy, smoke]
+
+# 캐시는 잡마다 따로 둔다. needs로 같은 스택의 잡이 동시에 돌면 한 키를 서로 덮어쓰기 때문이다.
+# 새 브랜치는 develop의 같은 잡 캐시로 시작한다(첫 파이프라인이 빈 캐시에서 전부 다시 받고 빌드하지 않게).
+
+variables:
+  GRADLE_USER_HOME: $CI_PROJECT_DIR/.gradle
+  GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.console=plain"
+  # lab.ssafy.com에는 컨테이너 레지스트리가 없어 이미지를 EC2 로컬 Docker에 둔다(두 러너가 같은 데몬을 쓴다)
+  ANDROID_CI_IMAGE: runkk-android-sdk:37
+  # 캐시(.gradle 수백 MB)를 풀고 묶는 시간을 줄인다
+  FF_USE_FASTZIP: "true"
+  CACHE_COMPRESSION_LEVEL: fastest
+
+.backend-changes: &backend-changes
+  - backend/**/*
+  - infra/**/*
+  - .gitlab-ci.yml
+
+.android-changes: &android-changes
+  - android/**/*
+  - .gitlab-ci.yml
+
+.ai-changes: &ai-changes
+  - ai/**/*
+  - infra/docker-compose.yml  # ai 시험이 compose의 ai·api 환경 변수 목록을 확인한다(tests/test_deploy_config.py)
+  - .gitlab-ci.yml
+
+# 배포·스모크는 api·ai 어느 쪽이 바뀌어도 돈다. deploy.sh가 두 이미지를 함께 빌드해 올린다
+.deploy-changes: &deploy-changes
+  - backend/**/*
+  - ai/**/*
+  - infra/**/*
+  - .gitlab-ci.yml
+
+# ---------- ai 서버 ----------
+
+.ai:
+  image: python:3.12-slim
+  tags: [docker]
+  interruptible: true
+  variables:
+    UV_CACHE_DIR: $CI_PROJECT_DIR/.uv-cache
+    UV_PYTHON_DOWNLOADS: never
+  cache:
+    key: $CI_JOB_NAME_SLUG-$CI_COMMIT_REF_SLUG
+    fallback_keys: [$CI_JOB_NAME_SLUG-develop]
+    paths: [.uv-cache]
+  before_script:
+    - pip install --no-cache-dir uv==0.12.5
+    - cd ai && uv sync --frozen
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: *ai-changes
+    - if: $CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH =~ /^release\//
+      changes: *ai-changes
+
+ai:lint:
+  extends: .ai
+  stage: lint
+  script:
+    - uv run ruff format --check .
+    - uv run ruff check .
+    - uv run lint-imports
+    - uv run mypy
+
+ai:test:
+  extends: .ai
+  stage: test
+  needs: [ai:lint]
+  # analytics 저장소 시험(tests/storage)용 PostgreSQL. 운영과 같은 17. 시험이 analytics 스키마를 지우고 다시 만든다
+  services:
+    - name: postgres:17-alpine
+      alias: postgres
+  variables:
+    POSTGRES_DB: runkk_test
+    POSTGRES_USER: runkk
+    POSTGRES_PASSWORD: runkk
+    RUNKK_TEST_DB_URL: postgresql://runkk:runkk@postgres:5432/runkk_test
+  script:
+    - uv run pytest --cov=runkk_ai --cov-report=term --cov-report=xml:coverage.xml --junitxml=report.xml
+  coverage: '/^TOTAL.+?(\d+(?:\.\d+)?)%$/'
+  artifacts:
+    when: always
+    reports:
+      junit: ai/report.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: ai/coverage.xml
+    expire_in: 1 week
+
+# 이미지는 EC2에서 바로 만든다. sha 태그를 남겨 롤백에 쓴다. 배포는 infra/deploy.sh가 환경별 태그(runkk-ai:develop|prod)로
+# 다시 만들어(레이어 캐시) api와 함께 올린다(backend:deploy, ai만 바뀌어도 deploy-changes로 생긴다).
+ai:build:
+  stage: build
+  tags: [deploy]
+  needs: [ai:test]
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH =~ /^release\//
+      changes: *ai-changes
+  script:
+    - docker build -t runkk-ai:$CI_COMMIT_SHORT_SHA ai
+
+# ---------- 백엔드 ----------
+
+.backend:
+  image: eclipse-temurin:21-jdk
+  tags: [docker]
+  interruptible: true
+  cache:
+    key: $CI_JOB_NAME_SLUG-$CI_COMMIT_REF_SLUG
+    fallback_keys: [$CI_JOB_NAME_SLUG-develop]
+    paths: [.gradle/caches, .gradle/wrapper]
+  before_script:
+    - cd backend && chmod +x gradlew
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: *backend-changes
+    - if: $CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH =~ /^release\//
+      changes: *backend-changes
+
+backend:lint:
+  extends: .backend
+  stage: lint
+  script:
+    - ./gradlew spotlessCheck
+
+# 단위 테스트 + ArchUnit 패키지 규칙 + Testcontainers(PostgreSQL 17, Redis 8) 통합 테스트.
+# 러너가 docker.sock을 바인딩하면 Testcontainers가 컨테이너 안에서 호스트 Docker를 찾는다.
+# 컨테이너 포트에 못 붙으면 TESTCONTAINERS_HOST_OVERRIDE에 호스트 docker0 IP(보통 172.17.0.1)를 넣는다.
+backend:test:
+  extends: .backend
+  stage: test
+  needs: [backend:lint]
+  script:
+    - ./gradlew test jacocoTestReport
+    - |
+      awk -F, 'NR>1 {m+=$4; c+=$5} END {printf "Total coverage: %.1f%%\n", ((m+c)>0 ? c*100/(m+c) : 0)}' build/reports/jacoco/test/jacocoTestReport.csv
+  coverage: '/Total coverage: \d+\.\d+%/'
+  artifacts:
+    when: always
+    reports:
+      junit: backend/build/test-results/test/TEST-*.xml
+    paths: [backend/build/reports]
+    expire_in: 1 week
+
+# 이미지는 EC2에서 바로 만든다 (infra/deploy.sh와 같은 Dockerfile). sha 태그를 남겨 롤백에 쓴다.
+# 환경별 태그(runkk-api:develop|prod)는 deploy.sh가 붙인다. 두 환경이 서로의 이미지를 덮어쓰지 않게 latest는 쓰지 않는다.
+backend:build:
+  stage: build
+  tags: [deploy]
+  needs: [backend:test]
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH =~ /^release\//
+      changes: *backend-changes
+  script:
+    - docker build -t runkk-api:$CI_COMMIT_SHORT_SHA backend
+
+# develop 브랜치 → develop 환경(프로젝트 runkk-develop, https://<도메인>:8443) 자동,
+# main 브랜치 → prod 환경(프로젝트 runkk-prod, https://<도메인>, 베타) 수동 승인. 한 EC2에 두 환경이 따로 뜬다(infra/README.md 3절).
+# release/* 는 develop 환경에 자동으로 올라가 베타 전 확인 서버가 된다. 릴리스 기간에는 CI 변수 RELEASE_FREEZE=1로
+# develop 자동 배포를 수동으로 바꿔 release 확인 서버를 덮어쓰지 않는다(AGENTS.md "브랜치 흐름").
+# 한 환경 배포는 다른 환경 컨테이너를 다시 만들지 않는다. 에지(nginx·모니터링)는 두 배포가 모두 맞추고, 바뀐 것만 다시 만들거나 검사 뒤 다시 읽힌다.
+# resource_group으로 develop·release·main 배포가 동시에 돌지 않는다(deploy.sh도 서버 잠금 파일로 막는다).
+# 롤백: GitLab에서 이전 성공 파이프라인의 backend:deploy를 다시 실행한다(그 커밋으로 다시 빌드). 급하면 서버에서 직전 이미지로
+#       docker tag runkk-api:<환경>-prev runkk-api:<환경> 뒤 같은 환경 배포 잡 재실행(infra/README.md "롤백").
+backend:deploy:
+  stage: deploy
+  tags: [deploy]
+  # 바뀐 쪽 이미지 빌드만 기다린다(infra만 바뀌면 backend:build만 있다). 안드로이드 잡은 배포를 막지 않는다
+  needs:
+    - job: backend:build
+      optional: true
+    - job: ai:build
+      optional: true
+  environment:
+    name: $DEPLOY_ENV
+  resource_group: runkk-server
+  # 마이그레이션 전 DB 덤프는 환경 스택의 backup 컨테이너가 작업 폴더 밖 BACKUP_DIR/<환경>(기본 /var/backups/runkk)에 남긴다.
+  # 작업 폴더는 shell 러너가 다음 잡 시작 때 git clean으로 지우므로 거기에 두지 않는다(BE6-1, infra/README.md 3절·7절).
+  rules:
+    - if: $CI_COMMIT_BRANCH =~ /^release\//
+      changes: *deploy-changes
+      variables:
+        DEPLOY_ENV: develop
+    - if: $CI_COMMIT_BRANCH == "develop" && $RELEASE_FREEZE == "1"
+      changes: *deploy-changes
+      when: manual
+      allow_failure: true
+      variables:
+        DEPLOY_ENV: develop
+    - if: $CI_COMMIT_BRANCH == "develop"
+      changes: *deploy-changes
+      variables:
+        DEPLOY_ENV: develop
+    - if: $CI_COMMIT_BRANCH == "main"
+      changes: *deploy-changes
+      when: manual
+      allow_failure: false
+      variables:
+        DEPLOY_ENV: prod
+  script:
+    # GitLab 화면에서 저장한 File 변수는 줄 끝이 CRLF다. CR을 지워야 grep -x·env_value가 값을 그대로 읽는다
+    - if [ "$DEPLOY_ENV" = "prod" ]; then tr -d '\r' < "$INFRA_ENV_PROD" > infra/.env; else tr -d '\r' < "$INFRA_ENV" > infra/.env; fi
+    - tr -d '\r' < "$INFRA_ENV_EDGE" > infra/edge.env
+    # Grafana 비밀번호·장애 알림 웹훅은 따로 둔 masked 변수에서 붙인다(edge.env 파일 변수를 열지 않고 바꾸게)
+    - if [ -n "${GRAFANA_ADMIN_PASSWORD:-}" ]; then printf '\nGRAFANA_ADMIN_PASSWORD=%s\n' "$GRAFANA_ADMIN_PASSWORD" >> infra/edge.env; fi
+    - if [ -n "${GRAFANA_ALERT_WEBHOOK_URL:-}" ]; then printf '\nGRAFANA_ALERT_WEBHOOK_URL=%s\n' "$GRAFANA_ALERT_WEBHOOK_URL" >> infra/edge.env; fi
+    # 브랜치와 .env의 환경이 어긋나면(CI 변수를 바꿔 넣은 경우) 다른 환경을 덮지 않게 멈춘다
+    - grep -qx "RUNKK_ENV=$DEPLOY_ENV" infra/.env || { echo "infra/.env RUNKK_ENV must be $DEPLOY_ENV" >&2; exit 1; }
+    - mkdir -p infra/secrets && if [ -n "${FCM_SERVICE_ACCOUNT:-}" ]; then cp "$FCM_SERVICE_ACCOUNT" infra/secrets/fcm-service-account.json && chmod 644 infra/secrets/fcm-service-account.json; fi
+    - cd infra && ./deploy.sh
+  # shell 러너 작업 폴더에 운영 .env가 남지 않게 잡이 끝나면(실패해도) 지운다
+  after_script:
+    - rm -f infra/.env infra/edge.env
+
+# 배포한 환경 주소로 확인한다: develop은 https://<도메인>:8443(Swagger 열림), prod는 https://<도메인>(Swagger 닫힘). infra/smoke.sh
+backend:smoke:
+  stage: smoke
+  tags: [deploy]
+  needs: [backend:deploy]
+  resource_group: runkk-server
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH =~ /^release\//
+      changes: *deploy-changes
+      variables:
+        DEPLOY_ENV: develop
+    - if: $CI_COMMIT_BRANCH == "main"
+      changes: *deploy-changes
+      variables:
+        DEPLOY_ENV: prod
+  script:
+    - if [ "$DEPLOY_ENV" = "prod" ]; then tr -d '\r' < "$INFRA_ENV_PROD" > infra/.env; else tr -d '\r' < "$INFRA_ENV" > infra/.env; fi
+    - tr -d '\r' < "$INFRA_ENV_EDGE" > infra/edge.env
+    - infra/smoke.sh
+  after_script:
+    - rm -f infra/.env infra/edge.env
+
+# 복구 시험: 그 환경의 가장 최근 매일 덤프를 일회용 컨테이너에 복원해 운영 DB와 테이블·행 수를 비교한다(infra/restore-check.sh,
+# infra/README.md 7절). 운영 DB는 읽기만 한다. 언제든 버튼으로 돌리는 수동 잡이라 배포를 기다리지 않고, 배포와는 겹치지 않게 같은 resource_group을 쓴다.
+backup:restore-check:
+  stage: smoke
+  tags: [deploy]
+  needs: []
+  resource_group: runkk-server
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH =~ /^release\//
+      when: manual
+      allow_failure: true
+      variables:
+        DEPLOY_ENV: develop
+    - if: $CI_COMMIT_BRANCH == "main"
+      when: manual
+      allow_failure: true
+      variables:
+        DEPLOY_ENV: prod
+  script:
+    - if [ "$DEPLOY_ENV" = "prod" ]; then tr -d '\r' < "$INFRA_ENV_PROD" > infra/.env; else tr -d '\r' < "$INFRA_ENV" > infra/.env; fi
+    - infra/restore-check.sh
+  after_script:
+    - rm -f infra/.env
+
+# 서버 밖 사본: 00:00 스케줄마다 prod·develop의 가장 최근 매일 덤프를 아티팩트(7일 만료, Developer 이상만)로 올린다(infra/offsite-backup.sh,
+# infra/README.md 7절). 한 번만 돌도록 release 기간(RELEASE_FREEZE=1)에는 release 스케줄, 아니면 develop 스케줄에서 돈다.
+# 덤프 시각(04:30)이 스케줄보다 늦어 아티팩트는 전날 04:30 덤프다. 덤프가 26시간보다 오래되면 실패해 매일 백업이 멈춘 것을 알린다.
+backup:offsite:
+  stage: smoke
+  tags: [deploy]
+  needs: []
+  resource_group: runkk-server
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_COMMIT_BRANCH =~ /^release\//
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_COMMIT_BRANCH == "develop" && $RELEASE_FREEZE != "1"
+  script:
+    - tr -d '\r' < "$INFRA_ENV" > infra/.env
+    - infra/offsite-backup.sh
+  after_script:
+    - rm -f infra/.env
+  artifacts:
+    paths: [infra/offsite/]
+    expire_in: 7 days
+    access: developer
+    when: always
+
+# ---------- 안드로이드 ----------
+
+# SDK 이미지는 ci/android/Dockerfile로 EC2에서 만들어 로컬에 둔다 (android:ci-image 잡). 받아 올 곳이 없으므로
+# 로컬 이미지를 그대로 쓴다(docker 러너 config.toml allowed_pull_policies에 if-not-present가 있어야 한다).
+.android:
+  image:
+    name: $ANDROID_CI_IMAGE
+    pull_policy: if-not-present
+  tags: [docker]
+  interruptible: true
+  cache:
+    key: $CI_JOB_NAME_SLUG-$CI_COMMIT_REF_SLUG
+    fallback_keys: [$CI_JOB_NAME_SLUG-develop]
+    paths: [.gradle/caches, .gradle/wrapper]
+  before_script:
+    - if [ -n "${GOOGLE_SERVICES_JSON:-}" ]; then cp "$GOOGLE_SERVICES_JSON" android/app/google-services.json; fi
+    - cd android && chmod +x gradlew
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: *android-changes
+    - if: $CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH =~ /^release\//
+      changes: *android-changes
+
+android:lint:
+  extends: .android
+  stage: lint
+  # CI 변수 SKIP_ANDROID_CHECKS=1이면 lint·test를 건너뛴다(릴리스 막바지 러너 시간 절약). 끝나면 변수를 지워 다시 켠다
+  rules:
+    - if: $SKIP_ANDROID_CHECKS == "1" && $CI_PIPELINE_SOURCE != "schedule"
+      when: never
+    - !reference [.android, rules]
+  # ci/android가 바뀐 파이프라인에서는 새 SDK 이미지가 만들어진 뒤에 돈다
+  needs:
+    - job: android:ci-image
+      optional: true
+  script:
+    - ./gradlew ktlintCheck lintLocalDebug
+  artifacts:
+    when: always
+    paths: [android/*/build/reports/lint-results-*.html, android/*/*/build/reports/lint-results-*.html]
+    expire_in: 1 week
+
+android:test:
+  extends: .android
+  stage: test
+  # CI 변수 SKIP_ANDROID_CHECKS=1이면 lint·test를 건너뛴다(릴리스 막바지 러너 시간 절약). 끝나면 변수를 지워 다시 켠다
+  rules:
+    - if: $SKIP_ANDROID_CHECKS == "1" && $CI_PIPELINE_SOURCE != "schedule"
+      when: never
+    - !reference [.android, rules]
+  needs:
+    - job: android:lint
+      optional: true
+  # 단위 시험과 화면 스크린샷 비교(Roborazzi, JVM). 기준 이미지는 android/**/src/test/snapshots에 커밋돼 있고,
+  # 화면을 일부러 바꿨을 때만 recordRoborazziLocalDebug로 다시 기록해 커밋한다.
+  script:
+    - ./gradlew testLocalDebugUnitTest verifyRoborazziLocalDebug
+  artifacts:
+    when: always
+    # 비교가 실패하면 기준·실제·차이 이미지(*_compare.png)가 build/outputs/roborazzi에 남는다. MR에서 내려받아 본다.
+    paths:
+      - android/**/build/outputs/roborazzi/
+    reports:
+      junit:
+        - android/*/build/test-results/*/TEST-*.xml
+        - android/*/*/build/test-results/*/TEST-*.xml
+    expire_in: 1 week
+
+# MR 페이지 > 아티팩트에서 APK를 받아 기기에 설치한다 (develop 플레이버 = develop 서버 접속).
+android:build:
+  extends: .android
+  stage: build
+  # SKIP_ANDROID_CHECKS=1이면 시험용 APK도 만들지 않는다(Play 번들 android:play·android:release는 그대로 돈다)
+  rules:
+    - if: $SKIP_ANDROID_CHECKS == "1" && $CI_PIPELINE_SOURCE != "schedule"
+      when: never
+    - !reference [.android, rules]
+  # APK는 시험과 함께 만든다(시험 결과를 기다리지 않는다. 실패한 시험은 MR에서 android:test로 보인다)
+  needs:
+    - job: android:lint
+      optional: true
+  # 키스토어 변수가 보이는 파이프라인(protected 변수면 develop·main)에서는 그 키로 서명한다: APK를 덮어 설치할 수 있고
+  # 카카오 키 해시가 고정된다. 없으면(MR 파이프라인 등) 잡 컨테이너의 임시 디버그 키로 서명된다.
+  script:
+    - |
+      if [ -n "${ANDROID_KEYSTORE_BASE64:-}" ]; then
+        export RUNKK_KEYSTORE_PATH=/tmp/release.jks RUNKK_KEYSTORE_PASSWORD="$ANDROID_KEYSTORE_PASSWORD" \
+          RUNKK_KEY_ALIAS="$ANDROID_KEY_ALIAS" RUNKK_KEY_PASSWORD="$ANDROID_KEY_PASSWORD"
+        echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNKK_KEYSTORE_PATH"
+      fi
+    # 카카오 네이티브 앱 키는 패키지 하나에만 묶인다. develop APK(com.a207.runkk.dev)는 develop용 키로 만든다
+    # (화면 모듈은 플레이버가 없어 빌드 한 번에 키 하나다. 이 잡은 developDebug만 만든다).
+    - if [ -n "${KAKAO_NATIVE_APP_KEY_DEVELOP:-}" ]; then export KAKAO_NATIVE_APP_KEY="$KAKAO_NATIVE_APP_KEY_DEVELOP"; fi
+    - ./gradlew assembleDevelopDebug
+  after_script:
+    - rm -f /tmp/release.jks
+  # 산출물 업로드 상한(약 100MiB) 때문에 폰은 arm64 APK만 올린다(ABI 3개 + 워치를 합치면 넘는다).
+  # 에뮬레이터용 x86_64·32비트 armeabi-v7a는 로컬에서 assembleDevelopDebug로 만든다.
+  artifacts:
+    paths: [android/app/build/outputs/apk/develop/debug/*-arm64-v8a-debug.apk, android/wear/build/outputs/apk/develop/debug/*.apk]
+    expire_in: 1 week
+
+# Play 업로드용 폰·워치 prod release AAB(업로드 키 서명, S15P31A207-67·213). Play Console 업로드는 사람이 한다.
+# 버전 코드는 프로젝트 파이프라인 번호(CI_PIPELINE_IID, 단조 증가)로 정한다: 폰 IID×10, 워치 IID×10+1(app·wear build.gradle.kts).
+# versionName은 release 브랜치를 만들 때 올린다(AGENTS.md "브랜치 흐름").
+# 로그인 키가 빠진 번들은 설치해도 로그인이 안 되므로 잡을 실패시킨다. google-services.json이 없으면 FCM 없이 만든다(경고).
+# 앱 R8 매핑(mapping.txt)도 남긴다: Play Console 앱 번들 탐색기 > 다운로드 > 난독화 해제 파일에 올리면 비정상 종료 스택이 읽힌다.
+.android-play-bundle:
+  extends: .android
+  stage: build
+  # 첫 실행(새 잡 이름·새 브랜치)은 android:build의 develop 캐시로 시작한다
+  cache:
+    key: $CI_JOB_NAME_SLUG-$CI_COMMIT_REF_SLUG
+    fallback_keys: [$CI_JOB_NAME_SLUG-develop, android-build-develop]
+    paths: [.gradle/caches, .gradle/wrapper]
+  variables:
+    RUNKK_KEYSTORE_PATH: /tmp/release.jks
+    RUNKK_KEYSTORE_PASSWORD: $ANDROID_KEYSTORE_PASSWORD
+    RUNKK_KEY_ALIAS: $ANDROID_KEY_ALIAS
+    RUNKK_KEY_PASSWORD: $ANDROID_KEY_PASSWORD
+  script:
+    - |
+      for v in KAKAO_NATIVE_APP_KEY GOOGLE_WEB_CLIENT_ID; do
+        if [ -z "$(printenv "$v")" ]; then echo "CI 변수 $v 가 이 파이프라인에 없다(보호 브랜치인지 확인)"; exit 1; fi
+      done
+    - if [ ! -f app/google-services.json ]; then echo "경고 GOOGLE_SERVICES_JSON 없음, FCM 푸시 없이 만든다"; fi
+    - echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNKK_KEYSTORE_PATH"
+    # Play 배포용은 ABI 분할·.so 압축을 끈다(android/app/build.gradle.kts splits 주석). 없으면 번들 빌드가 실패한다.
+    # playBundle이면 ABI 분할이 꺼져 assembleProdRelease가 범용 APK 하나를 만든다(Firebase App Distribution 베타용, android:beta)
+    - ./gradlew :app:bundleProdRelease :wear:bundleProdRelease :app:assembleProdRelease -Prunkk.playBundle=true -Prunkk.versionCode=$((CI_PIPELINE_IID * 10))
+    - echo "versionCode 폰 $((CI_PIPELINE_IID * 10)), 워치 $((CI_PIPELINE_IID * 10 + 1))"
+  after_script:
+    - rm -f /tmp/release.jks
+  artifacts:
+    name: runkk-play-$CI_PIPELINE_IID
+    paths:
+      - android/app/build/outputs/bundle/prodRelease/*.aab
+      - android/wear/build/outputs/bundle/prodRelease/*.aab
+      - android/app/build/outputs/apk/prod/release/*.apk
+      - android/app/build/outputs/mapping/prodRelease/mapping.txt
+    expire_in: 3 months
+
+# 베타 전 확인용: release/* 파이프라인에서 수동으로 눌러 Play 비공개 테스트에 올릴 번들을 main 병합 전에 만든다.
+# 키스토어 변수가 없으면(release/* 를 보호 브랜치로 등록하지 않은 경우) 잡이 생기지 않는다.
+android:play:
+  extends: .android-play-bundle
+  needs: []
+  interruptible: false
+  rules:
+    # 매일 00:00 release 스케줄에서는 자동으로 만든다. 그 밖의 release 파이프라인은 수동
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_COMMIT_BRANCH =~ /^release\// && $ANDROID_KEYSTORE_BASE64
+    - if: $CI_COMMIT_BRANCH =~ /^release\// && $ANDROID_KEYSTORE_BASE64
+      when: manual
+      allow_failure: true
+
+# main 병합 시 서명된 AAB. 키스토어 변수가 없으면 잡 자체가 생기지 않는다. Play 콘솔 업로드는 수동.
+android:release:
+  extends: .android-play-bundle
+  needs:
+    - job: android:test
+      optional: true
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main" && $ANDROID_KEYSTORE_BASE64
+      changes: *android-changes
+
+# 베타 테스터 배포: android:play가 만든 prod 범용 APK를 Firebase App Distribution 그룹 beta-testers에 올린다(S15P31A207-207).
+# Play 비공개 테스트가 열리기 전까지 쓴다. release/* 에서 android:play를 돌린 뒤 수동으로 누른다. 0시 스케줄에서는 만들지 않는다
+# (테스터에게 밤마다 같은 버전 알림이 가지 않게). 앱 ID는 GOOGLE_SERVICES_JSON에서 com.a207.runkk 항목을 찾아 쓴다.
+android:beta:
+  stage: deploy
+  image: node:22-slim
+  tags: [docker]
+  needs: [android:play]
+  interruptible: false
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
+    - if: $CI_COMMIT_BRANCH =~ /^release\// && $ANDROID_KEYSTORE_BASE64
+      when: manual
+      allow_failure: true
+  variables:
+    BETA_GROUP: beta-testers
+  script:
+    - export GOOGLE_APPLICATION_CREDENTIALS="${FIREBASE_APP_DISTRIBUTION_SA:-${FCM_SERVICE_ACCOUNT:-}}"
+    - if [ ! -f "$GOOGLE_APPLICATION_CREDENTIALS" ]; then echo "FIREBASE_APP_DISTRIBUTION_SA·FCM_SERVICE_ACCOUNT 둘 다 없다"; exit 1; fi
+    - if [ ! -f "${GOOGLE_SERVICES_JSON:-}" ]; then echo "GOOGLE_SERVICES_JSON 없음, 앱 ID를 알 수 없다"; exit 1; fi
+    - >-
+      APP_ID=$(node -e 'const j=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));const c=j.client.find(c=>c.client_info.android_client_info.package_name==="com.a207.runkk");if(!c)process.exit(1);console.log(c.client_info.mobilesdk_app_id)' "$GOOGLE_SERVICES_JSON")
+    - APK=$(ls android/app/build/outputs/apk/prod/release/*.apk | head -n 1)
+    - echo "올림 $APK (versionCode $((CI_PIPELINE_IID * 10)))"
+    - >-
+      npx --yes firebase-tools@15.33.0 appdistribution:distribute "$APK"
+      --app "$APP_ID" --groups "$BETA_GROUP"
+      --release-notes "런크크 베타 $CI_COMMIT_REF_NAME ($CI_COMMIT_SHORT_SHA, 파이프라인 $CI_PIPELINE_IID)"
+
+# ci/android/Dockerfile이 바뀌면 같은 파이프라인의 안드로이드 잡보다 먼저(.pre) EC2 로컬 이미지를 다시 만든다.
+# 레이어 캐시가 있어 바뀐 단계만 다시 받는다. 이미지가 없는 새 서버에서는 이 명령을 한 번 직접 실행한다(infra/README.md).
+android:ci-image:
+  stage: .pre
+  tags: [deploy]
+  rules:
+    # 스케줄 파이프라인에서는 changes가 늘 참이라 밤마다 이미지를 다시 만들게 된다
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: [ci/android/**/*]
+    - if: $CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH =~ /^release\//
+      changes: [ci/android/**/*]
+  script:
+    - docker build -t "$ANDROID_CI_IMAGE" ci/android

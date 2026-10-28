@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="runimal_share_save">기기 저장</string>
+    <string name="runimal_share_system">다른 앱</string>
+    <string name="runimal_share_story">스토리</string>
+    <string name="runimal_remaining_provisional">임시 유형까지 %1$d회</string>
+    <string name="runimal_remaining_confirm">다음 확정까지 %1$d회</string>
+    <string name="runimal_share_no_type">유형이 생기면 카드를 공유할 수 있어요</string>
+    <string name="runimal_saved_to_gallery">사진첩에 저장했어요</string>
+    <string name="runimal_load_failed">러니멀을 불러오지 못했어요</string>
+    <string name="runimal_empty_title">아직 유형이 없어요</string>
+    <string name="runimal_share_with">%1$s로 카드 공유</string>
+    <string name="runimal_type_provisional">임시 유형</string>
+    <string name="runimal_type_confirmed">확정 유형</string>
+    <string name="runimal_axis_description">%1$s %2$d%%</string>
+    <string name="runimal_percent">%1$d%%</string>
+    <string name="runimal_all_types_title">16유형</string>
+    <string name="runimal_my_type">내 유형</string>
+    <string name="runimal_title">MY Runimal</string>
+    <string name="runimal_overline">MY 러니멀</string>
+</resources>

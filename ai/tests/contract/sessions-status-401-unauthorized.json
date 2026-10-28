@@ -1,0 +1,12 @@
+{
+  "endpoint": "GET /sessions/{sessionId}/status",
+  "scenario": "no_token",
+  "request": {
+    "sessionId": "run-20261019"
+  },
+  "status": 401,
+  "body": {
+    "reason": "UNAUTHORIZED"
+  },
+  "gateway": "설정 오류(토큰 불일치)"
+}

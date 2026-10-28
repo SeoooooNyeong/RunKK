@@ -1,0 +1,12 @@
+{
+  "endpoint": "POST /faces",
+  "scenario": "reason:NO_FACE",
+  "request": {
+    "image": "jpeg"
+  },
+  "status": 422,
+  "body": {
+    "reason": "NO_FACE"
+  },
+  "gateway": "FailureReason.NO_FACE"
+}

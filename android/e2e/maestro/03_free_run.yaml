@@ -1,0 +1,65 @@
+# 시나리오 3: 자유런 → 측정 중 GPS 경로 재생(약 1.16km, 4 m/s ≈ 4분 10초/km 러닝 속도) → 길게 눌러 종료 → 결과
+# → 서버에 기록이 올라갔는지(결과 화면 "달력에 저장했어요" + 서버 대시보드 API) 확인한다. 위치 권한은 01의 launchApp이 허용했다.
+appId: ${APP_ID}
+name: 03_free_run
+tags: [smoke]
+---
+- launchApp
+- extendedWaitUntil:
+    visible: "자유런 시작"
+    timeout: 20000
+- setLocation:
+    latitude: 37.5665
+    longitude: 126.9780
+- tapOn: "자유런 시작"
+- extendedWaitUntil:
+    visible: "러닝 종료"
+    timeout: 20000
+- extendedWaitUntil:
+    visible: "GPS 좋음"
+    timeout: 30000
+# Maestro travel은 속도가 지정 값과 맞지 않아(4 m/s로 주면 실제 약 16 m/s) 쓰지 않는다. 대신 벽시계 기준으로
+# 지점을 계산해(route_next.js, 스크립트 안에서 약 1초 쉰다) setLocation을 약 1초마다 보낸다. 반복이 느려져도 이동 속도는 4 m/s로 맞는다.
+- repeat:
+    while:
+      true: ${output.route == null || output.route.done !== true}
+    times: 900
+    commands:
+      - runScript:
+          file: scripts/route_next.js
+          env:
+            SPEED_MPS: "4"
+            METERS: "1160"
+      - setLocation:
+          latitude: ${output.route.lat}
+          longitude: ${output.route.lon}
+- extendedWaitUntil:
+    visible: '1\.[0-9]{2} 킬로미터'
+    timeout: 30000
+- takeScreenshot: 03_free_run_measuring
+- longPressOn: "러닝 종료"
+- extendedWaitUntil:
+    visible: "홈으로"
+    timeout: 20000
+- assertVisible: '1\.[0-9]{2} 킬로미터'
+# 걷기가 아닌 러닝 속도로 기록됐는지(평균 페이스 3~7분대/km).
+- assertVisible: '평균 페이스 1킬로미터당 [3-7]분 .*'
+# 결과 화면은 전송이 끝나면 "보내는 중"에서 바뀐다(E2E에서 찾아 고친 결함).
+- extendedWaitUntil:
+    visible: "달력에 저장했어요"
+    timeout: 60000
+- takeScreenshot: 03_free_run_result
+- runScript:
+    file: scripts/server_login.js
+    env:
+      SERVER_URL: ${SERVER_URL}
+      KAKAO_TOKEN: ${KAKAO_TOKEN}
+- runScript:
+    file: scripts/check_run_uploaded.js
+    env:
+      SERVER_URL: ${SERVER_URL}
+      MIN_METERS: "1000"
+- tapOn: "홈으로"
+- extendedWaitUntil:
+    visible: "자유런 시작"
+    timeout: 10000

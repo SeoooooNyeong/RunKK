@@ -1,0 +1,32 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:runkk-test;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+  data:
+    redis:
+      host: localhost
+      port: ${EMBEDDED_REDIS_PORT:6371}
+
+management:
+  health:
+    redis:
+      enabled: false
+
+runkk:
+  # 시험 문맥 하나를 여러 시험 클래스가 함께 쓰고 요청이 모두 127.0.0.1이라 시도 제한을 넉넉히 둔다(AuthAttemptLimitTest가 따로 줄여 시험)
+  auth:
+    attempts:
+      client-requests: 100000
+      client-failures: 100000
+      credential-failures: 100000
+  batch:
+    battle-tick-enabled: false
+    crew-tick-enabled: false
+  embedded-redis:
+    enabled: true
+    port: ${EMBEDDED_REDIS_PORT:6371}

@@ -1,0 +1,12 @@
+{
+  "endpoint": "POST /faces",
+  "scenario": "reason:UNSUPPORTED_IMAGE",
+  "request": {
+    "image": "jpeg"
+  },
+  "status": 422,
+  "body": {
+    "reason": "UNSUPPORTED_IMAGE"
+  },
+  "gateway": "FailureReason.UNSUPPORTED_IMAGE"
+}

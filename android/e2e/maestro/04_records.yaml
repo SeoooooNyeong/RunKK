@@ -1,0 +1,29 @@
+# 시나리오 4: 기록 목록(마이 > 러닝 기록)과 상세(경로·구간 페이스)를 연다.
+appId: ${APP_ID}
+name: 04_records
+tags: [smoke]
+---
+- launchApp
+- extendedWaitUntil:
+    visible: "자유런 시작"
+    timeout: 20000
+- tapOn: "마이"
+- tapOn: "러닝 기록"
+- extendedWaitUntil:
+    visible:
+      id: "record_row"
+    timeout: 15000
+- assertVisible: '1\.[0-9]{2}km 자유런'
+- takeScreenshot: 04_records_list
+- tapOn:
+    id: "record_row"
+- extendedWaitUntil:
+    visible: "기록 상세"
+    timeout: 10000
+- assertVisible: "코스 지도"
+- assertVisible: "구간 페이스"
+- assertVisible: "1킬로미터 구간 1킬로미터당 .*"
+- assertVisible: '거리 1\.[0-9]{2}킬로미터'
+- takeScreenshot: 04_records_detail
+- tapOn: "뒤로"
+- tapOn: "뒤로"

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 카카오 로그인(C-007): 카카오계정 로그인이 끝나면 kakao{앱 키}://oauth 로 돌아온다. 스킴은 빌드 속성 KAKAO_NATIVE_APP_KEY. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <application>
+        <!-- AuthCodeHandlerActivity는 AppCompatActivity를 상속하는데 appcompat이 Kakao SDK의 실행 의존(runtime)이라 라이브러리
+             lint가 상속을 보지 못한다(Instantiatable 오탐). 앱 조립 때는 appcompat이 함께 들어간다. -->
+        <activity
+            android:name="com.kakao.sdk.auth.AuthCodeHandlerActivity"
+            android:exported="true"
+            tools:ignore="Instantiatable">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data
+                    android:host="oauth"
+                    android:scheme="${kakaoScheme}" />
+            </intent-filter>
+        </activity>
+    </application>
+
+</manifest>
