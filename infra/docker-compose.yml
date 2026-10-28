@@ -174,6 +174,11 @@ services:
       RUNKK_COACH_USER_DAILY_CAP: ${RUNKK_COACH_USER_DAILY_CAP:-}
       # 분석 결과 저장(analytics 스키마, runkk_ai 계정). 비우면 메모리 저장소(재시작하면 비움)
       RUNKK_DB_URL: ${RUNKK_DB_URL:-}
+      # writer(자체 소형 모델). writer 서비스를 켠 환경에서 http://writer:8080. 비우면 템플릿 문장 그대로
+      RUNKK_WRITER_URL: ${RUNKK_WRITER_URL:-}
+      RUNKK_WRITER_TIMEOUT_S: ${RUNKK_WRITER_TIMEOUT_S:-}
+      RUNKK_WRITER_TEMPERATURE: ${RUNKK_WRITER_TEMPERATURE:-}
+      RUNKK_WRITER_MODEL_VERSION: ${RUNKK_WRITER_MODEL_VERSION:-}
     # DB를 쓰면 기동 때 마이그레이션을 돌리므로 postgres가 준비된 뒤 뜬다(api와는 묶지 않는다)
     depends_on:
       postgres:
@@ -193,6 +198,47 @@ services:
       timeout: 3s
       retries: 6
       start_period: 10s
+
+  # writer(runkk-writer, S15P31A207-196). QLoRA로 학습한 Qwen3-4B(GGUF Q4_K_M, 약 2.5GB)를 llama.cpp로 CPU에서 돌린다.
+  # 프로필 writer라 .env에 COMPOSE_PROFILES=writer를 넣은 환경에서만 뜬다(모델 파일을 올린 서버만, 메모리 약 3GB).
+  # 모델 파일은 WRITER_MODEL_DIR(기본 /srv/runkk/models)에 둔다. ai만 내부 망으로 부르고 밖으로 열지 않는다.
+  # ai는 writer 없이도 뜬다(RUNKK_WRITER_URL을 비우거나 writer가 죽으면 템플릿 문장). 이미지는 측정에 쓴 버전으로 고정
+  writer:
+    image: ghcr.io/ggml-org/llama.cpp:server@sha256:8ee4ec7ce58a921313d07390c6699af13aa5ec083f3cdf67e5f4155767047373
+    profiles: ["writer"]
+    restart: unless-stopped
+    logging: *default-logging
+    # -np 1: 한 번에 한 건(ai도 한 건씩 보낸다). -c 2048: 지시문+요약+출력이 1,500토큰 안팎
+    command:
+      - "-m"
+      - "/models/${WRITER_MODEL_FILE:-runkk-writer-v1-qwen3-4b-q4_k_m.gguf}"
+      - "-c"
+      - "2048"
+      - "-np"
+      - "1"
+      - "-t"
+      - "${WRITER_THREADS:-4}"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "8080"
+    volumes:
+      - ${WRITER_MODEL_DIR:-/srv/runkk/models}:/models:ro
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 3500m
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health"]
+      interval: 15s
+      timeout: 3s
+      retries: 8
+      start_period: 60s
 
   # 매일 백업(NFR-018·019·037, 처리방침 "하루 1회 이상 백업, 백업본 7일 보존"). BACKUP_TIME(기본 04:30, 3시 파기 배치 뒤)에 pg_dump -Fc를 떠서
   # 호스트 폴더 BACKUP_DIR/<환경>(기본 /var/backups/runkk/<환경>)에 두고 7일 지난 덤프를 지운다. 덤프는 BACKUP_OWNER(기본 ubuntu 1000:1000) 소유 0600.

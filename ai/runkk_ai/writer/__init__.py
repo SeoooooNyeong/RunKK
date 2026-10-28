@@ -2,4 +2,10 @@
 
 brief(입력 요약)·prompt(지시문)·checks(출력 검사)는 학습 데이터와 실제 추론이 함께 쓴다.
 dataset은 학습 데이터를 만드는 오프라인 도구다(서버가 import하지 않는다).
+client(llama.cpp 서버 호출)·service(검사·재시도·템플릿 폴백)는 main이 분석 서비스에 끼운다(S15P31A207-196).
 """
+
+from runkk_ai.writer.client import CompletionClient, LlamaCppClient
+from runkk_ai.writer.service import WriterService
+
+__all__ = ["CompletionClient", "LlamaCppClient", "WriterService"]
