@@ -53,7 +53,9 @@ echo '{"min-api-version": "1.24"}' | sudo tee /etc/docker/daemon.json && sudo sy
 # UFW(기본 들어옴 거부)가 docker0로 들어오는 연결도 막아, CI 잡 컨테이너가 호스트에 연 Testcontainers 포트(Ryuk·PostgreSQL·Redis)에
 # 못 붙는다. 외부가 아닌 docker0 브리지만 허용한다(22·80·443 규칙과 SSH는 그대로)
 sudo ufw allow in on docker0 comment "CI job containers to host published ports (Testcontainers)"
-# 배포 스크립트가 실행 중인 컨테이너가 연결할 설정 파일을 복사해 두는 고정 폴더(3절). docker 그룹이면 누구나 쓴다
+# 배포 스크립트가 실행 중인 컨테이너가 연결할 설정 파일을 복사해 두는 고정 폴더(3절, RUNKK_HOME, 기본 /srv/runkk). docker 그룹이면 누구나 쓴다.
+# 지금 서버는 sudo 없이 CI 변수 RUNKK_HOME=/home/gitlab-runner/runkk를 쓴다(러너 사용자 홈이라 따로 만들 필요 없음).
+# /srv/runkk로 옮기려면 아래를 한 번 실행하고, 기존 폴더 내용을 복사한 뒤 CI 변수 RUNKK_HOME을 지운다
 sudo install -d -m 2775 -g docker /srv/runkk
 
 git clone https://lab.ssafy.com/s15-final/S15P31A207.git && cd S15P31A207/infra
@@ -99,12 +101,12 @@ SSAFY 배정 도메인(`k15a207.p.ssafy.io`)이 EC2를 가리키는지 확인한
 `deploy.sh`가 하는 일(`./deploy.sh edge`는 2번만):
 
 1. `../backend`·`../ai`로 이미지를 만듭니다. 태그는 환경별(`runkk-api:develop`·`runkk-api:prod`)이라 서로 덮어쓰지 않고, 직전 이미지는 `runkk-api:<환경>-prev`로 남깁니다.
-2. 에지를 맞춥니다. 설정 파일을 `/srv/runkk/edge/`에 복사하고(RUNKK_HOME), 새 nginx 설정을 일회용 컨테이너에서 `nginx -t`로 검사한 뒤 `up -d`로 바뀐 컨테이너만 다시 만들고, 돌고 있는 nginx는 템플릿을 다시 그려 `nginx -s reload`, Prometheus는 `/-/reload`로 다시 읽힙니다. 검사가 실패하면 돌고 있는 nginx를 건드리지 않고 멈춥니다. 분리 전 컨테이너(프로젝트 `runkk`의 api·ai·postgres·redis)가 있으면 여기서 정상 종료시켜 지웁니다(볼륨은 남김, 9절).
+2. 에지를 맞춥니다. 설정 파일을 `$RUNKK_HOME/edge/`에 복사하고(기본 `/srv/runkk`, 지금 서버는 `/home/gitlab-runner/runkk`), 새 nginx 설정을 일회용 컨테이너에서 `nginx -t`로 검사한 뒤 `up -d`로 바뀐 컨테이너만 다시 만들고, 돌고 있는 nginx는 템플릿을 다시 그려 `nginx -s reload`, Prometheus는 `/-/reload`로 다시 읽힙니다. 검사가 실패하면 돌고 있는 nginx를 건드리지 않고 멈춥니다. 분리 전 컨테이너(프로젝트 `runkk`의 api·ai·postgres·redis)가 있으면 여기서 정상 종료시켜 지웁니다(볼륨은 남김, 9절).
 3. 배포 직전 덤프를 하나 뜹니다(Flyway가 되돌릴 수 없는 마이그레이션을 돌리기 전, 7절). 이 환경 postgres 데이터 볼륨이 있으면 postgres·backup 컨테이너만 먼저 올려(분리 후 첫 배포나 `down` 뒤에도) `pg-backup.sh now predeploy`로 덤프하고, 올리지 못하거나 덤프가 실패하면 배포를 멈춥니다. 볼륨이 없을 때(처음 배포)만 건너뜁니다. 덤프는 CI 작업 폴더 밖 `/var/backups/runkk/<환경>/`에 폴더 700·파일 600으로 남습니다.
-4. 환경 스택 설정을 `/srv/runkk/<환경>/`에 복사하고, 이 환경 postgres 볼륨을 다른 프로젝트 컨테이너가 쓰고 있으면 멈춥니다(같은 데이터 폴더에 postgres 두 개가 붙으면 DB가 깨짐). 그 뒤 `up -d --remove-orphans`(자기 프로젝트만)로 올리고 api·ai healthy와 nginx를 거친 `/actuator/health`를 기다립니다.
+4. 환경 스택 설정을 `$RUNKK_HOME/<환경>/`에 복사하고, 이 환경 postgres 볼륨을 다른 프로젝트 컨테이너가 쓰고 있으면 멈춥니다(같은 데이터 폴더에 postgres 두 개가 붙으면 DB가 깨짐). 그 뒤 `up -d --remove-orphans`(자기 프로젝트만)로 올리고 api·ai healthy와 nginx를 거친 `/actuator/health`를 기다립니다.
 
-- 한 환경 배포는 다른 환경 컨테이너를 다시 만들지 않습니다. 두 배포가 겹치지 않게 CI는 `resource_group: runkk-server`, 스크립트는 `/srv/runkk/.deploy.lock`(flock)을 씁니다.
-- 실행 중인 컨테이너는 CI 작업 폴더가 아니라 `/srv/runkk/<스택>/`의 파일을 연결합니다. CI 작업 폴더는 다른 브랜치·MR 잡이 다시 받으므로(git checkout·clean) 거기를 연결하면 한 배포가 다른 환경의 설정 파일을 바꿔 버립니다. 저장소에서 파일을 지우면 `/srv/runkk/`에서도 지웁니다(복사는 덮어쓰기만 함).
+- 한 환경 배포는 다른 환경 컨테이너를 다시 만들지 않습니다. 두 배포가 겹치지 않게 CI는 `resource_group: runkk-server`, 스크립트는 `$RUNKK_HOME/.deploy.lock`(flock)을 씁니다.
+- 실행 중인 컨테이너는 CI 작업 폴더가 아니라 `$RUNKK_HOME/<스택>/`의 파일을 연결합니다. CI 작업 폴더는 다른 브랜치·MR 잡이 다시 받으므로(git checkout·clean) 거기를 연결하면 한 배포가 다른 환경의 설정 파일을 바꿔 버립니다. 저장소에서 파일을 지우면 `$RUNKK_HOME/`에서도 지웁니다(복사는 덮어쓰기만 함).
 - 에지 설정은 마지막으로 배포한 브랜치의 것이 반영됩니다. nginx·모니터링 설정을 바꾸면 develop에서 확인한 뒤 main에도 곧 반영합니다(main 배포가 옛 설정으로 되돌리지 않게).
 - `.env`를 통째로 컨테이너에 넣지 않습니다. `docker-compose.yml`의 `environment:`가 컨테이너마다 필요한 값만 고릅니다. 새 환경 변수는 `.env.example`과 함께 해당 서비스의 `environment:`에도 추가합니다.
 - prod 환경 확인: `deploy.sh`는 `RUNKK_ENV=prod`인데 `SPRING_PROFILES_ACTIVE`가 prod가 아니거나 `SWAGGER_ENABLED=true`면 멈춥니다. `smoke.sh`는 prod에서 `/v3/api-docs`가 열려 있으면 실패합니다.
@@ -116,7 +118,7 @@ SSAFY 배정 도메인(`k15a207.p.ssafy.io`)이 EC2를 가리키는지 확인한
 ### 롤백
 
 - 보통은 GitLab에서 이전 성공 파이프라인의 `backend:deploy`를 다시 실행합니다(그 커밋으로 다시 빌드해 같은 환경에 올림).
-- 빌드 없이 직전 이미지로 돌리려면 서버에서 `docker tag runkk-api:prod-prev runkk-api:prod`(ai도 같게) 뒤 `backend:deploy`를 다시 실행하지 않고 `docker compose -f /srv/runkk/prod/docker-compose.yml --env-file <prod .env> up -d --no-deps api ai`를 씁니다. CI 작업 폴더에는 `.env`가 남지 않으므로 이 경우 `INFRA_ENV_PROD` 내용을 임시 파일로 두고 끝나면 지웁니다.
+- 빌드 없이 직전 이미지로 돌리려면 서버에서 `docker tag runkk-api:prod-prev runkk-api:prod`(ai도 같게) 뒤 `backend:deploy`를 다시 실행하지 않고 `docker compose -f $RUNKK_HOME/prod/docker-compose.yml --env-file <prod .env> up -d --no-deps api ai`를 씁니다. CI 작업 폴더에는 `.env`가 남지 않으므로 이 경우 `INFRA_ENV_PROD` 내용을 임시 파일로 두고 끝나면 지웁니다.
 - DB 스키마가 바뀐 배포(Flyway)를 되돌릴 때는 배포 직전 덤프(`runkk-prod-predeploy-*.dump`)로 복구합니다(7절).
 
 ## 4. 운영 명령
@@ -268,7 +270,7 @@ docker exec runkk-prod-api-1 sh -c 'zcat /var/log/runkk/api.2026-11-03.*.log.gz 
 
 1. 현재 develop DB 덤프를 따로 떠 PC로 내립니다(이관 실패 대비):
    `docker exec runkk-postgres-1 pg_dump -U runkk -Fc runkk > ~/runkk-before-split.dump && scp`로 PC에 복사.
-2. 서버에 고정 폴더를 만듭니다: `sudo install -d -m 2775 -g docker /srv/runkk`
+2. 서버에 고정 폴더를 만듭니다: `sudo install -d -m 2775 -g docker /srv/runkk`. sudo를 쓸 수 없으면 CI 변수 `RUNKK_HOME`에 러너가 쓸 수 있는 폴더(지금 서버는 `/home/gitlab-runner/runkk`)를 넣습니다
 3. GitLab **Settings > CI/CD > Variables**:
    - `INFRA_ENV_EDGE`(File) 새로 추가: `SERVER_NAME`, `NGINX_HTTP_PORT`, `NGINX_HTTPS_PORT`, `NGINX_DEVELOP_PORT`, `GRAFANA_ADMIN_USER`. 비밀번호는 masked 변수 `GRAFANA_ADMIN_PASSWORD`, 알림 웹훅은 `GRAFANA_ALERT_WEBHOOK_URL`로 따로 둔다.
    - `INFRA_ENV`(develop)에 `RUNKK_ENV=develop`, `POSTGRES_VOLUME=runkk_postgres-data`, `REDIS_VOLUME=runkk_redis-data`, `SELFIE_ENABLED=true`(셀카 시험 시)를 더합니다. `SERVER_NAME`·`NGINX_*`·`GRAFANA_*`는 이제 쓰지 않으니 지워도 됩니다.

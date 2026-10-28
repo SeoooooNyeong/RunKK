@@ -17,6 +17,7 @@
 #   GRAFANA_ALERT_WEBHOOK_URL Variable(masked), Mattermost Incoming Webhook 주소(runkk-alerts 채널). 배포가 edge.env 끝에 붙인다. 없으면 알림 없이 뜬다
 #   FIREBASE_APP_DISTRIBUTION_SA  File 타입(선택), Firebase App Distribution 관리자 권한 서비스 계정 JSON. android:beta가 쓴다.
 #                             없으면 FCM_SERVICE_ACCOUNT로 올려 보고, 권한이 없으면 잡이 실패한다
+#   RUNKK_HOME                보통 Variable. 배포 설정 복사 폴더(infra/deploy.sh, 기본 /srv/runkk). 지금 서버는 /home/gitlab-runner/runkk
 #   SKIP_ANDROID_CHECKS       보통 Variable. 1이면 android:lint·android:test·android:build를 건너뛴다(임시). 지우면 다시 돈다
 #                             매일 00:00 파이프라인 스케줄(develop, release/*)에서는 이 값과 상관없이 CI 전체가 돈다
 #   RELEASE_FREEZE            보통 Variable(보호 안 함). release/* 브랜치가 있는 동안 1, 끝나면 지운다. 1이면 develop 배포가 수동이 된다
