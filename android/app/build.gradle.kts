@@ -120,6 +120,15 @@ androidComponents {
             tasks.configureEach { if (name == taskName) enabled = false }
         }
     }
+    // v0.9 베타(Play 업로드, prod 플레이버)에서만 크루·아바타·셀럽런을 "추후 추가 예정"으로 막는다(S15P31A207-218, BetaLock.kt).
+    // develop·local 빌드는 열려 있어 개발과 시험을 계속한다. 기능을 베타에 열 때 이 조건을 바꾼다.
+    onVariants { variant ->
+        val prod = variant.productFlavors.any { it.second == "prod" }
+        variant.buildConfigFields?.put(
+            "LOCK_UNRELEASED",
+            com.android.build.api.variant.BuildConfigField("boolean", prod.toString(), "베타에서 열지 않는 기능을 막는가")
+        )
+    }
     onVariants(selector().withName("localDebug")) { variant ->
         variant.buildConfigFields?.put(
             "E2E_KAKAO_TOKEN",
