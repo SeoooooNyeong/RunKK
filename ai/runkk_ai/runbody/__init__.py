@@ -18,7 +18,7 @@ from runkk_ai.runbody.schemas import (
     SessionResultOut,
     StatusOut,
 )
-from runkk_ai.runbody.service import Analyzer, RunbodyService
+from runkk_ai.runbody.service import Analyzer, Polisher, RunbodyService
 
 __all__ = [
     "ANALYSIS_BODY_MAX_BYTES",
@@ -29,6 +29,7 @@ __all__ = [
     "MonthlyOut",
     "MonthlyRouter",
     "MonthlyService",
+    "Polisher",
     "ResultRepository",
     "RunbodyRouter",
     "RunbodyService",

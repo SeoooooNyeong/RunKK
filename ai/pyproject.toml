@@ -176,10 +176,11 @@ source_modules = ["runkk_ai.core", "runkk_ai.comment", "runkk_ai.face", "runkk_a
 forbidden_modules = ["runkk_ai.writer"]
 
 [[tool.importlinter.contracts]]
-name = "writer: 학습 도구 → 요약·지시문·검사 한 방향"
+name = "writer: 학습 도구·서비스 → 모델 클라이언트 → 요약·지시문·검사 한 방향 (학습 도구와 서비스는 서로 모른다)"
 type = "layers"
 layers = [
-    "runkk_ai.writer.dataset",
+    "runkk_ai.writer.dataset | runkk_ai.writer.service",
+    "runkk_ai.writer.client",
     "runkk_ai.writer.brief | runkk_ai.writer.prompt | runkk_ai.writer.checks",
 ]
 

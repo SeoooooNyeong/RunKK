@@ -5,7 +5,14 @@ from __future__ import annotations
 import asyncio
 from datetime import UTC, datetime, timedelta
 
-from runkk_ai.runbody import InMemoryResultRepository, RunbodyService, SessionIn, SessionRecord, analyze_session
+from runkk_ai.runbody import (
+    InMemoryResultRepository,
+    RunbodyService,
+    SessionIn,
+    SessionRecord,
+    SessionResultOut,
+    analyze_session,
+)
 from runkk_ai.runbody.service import analyze_in_thread
 from tests.runbody.conftest import FakeAnalyzer
 
@@ -133,3 +140,40 @@ async def test_other_users_still_run_together(first_run: SessionIn, second_run: 
     assert analyzer.calls == [first_run.sessionId, other.sessionId]
     analyzer.gate.set()
     await service.aclose()
+
+
+async def test_polisher_rewrites_result_before_done(second_run: SessionIn) -> None:
+    """분석 뒤 다듬기(writer)를 거친 결과가 done으로 저장된다. 앱은 한 번만 읽으면 된다."""
+    seen: list[str] = []
+
+    async def polish(result: SessionResultOut) -> SessionResultOut:
+        seen.append(result.sessionId)
+        return result.model_copy(update={"feedback": result.feedback.model_copy(update={"headline": "다듬은 문장"})})
+
+    service = RunbodyService(InMemoryResultRepository(), polisher=polish)
+    await service.accept(second_run)
+    await service.wait(second_run.sessionId)
+
+    record = await service.get(second_run.sessionId)
+    assert record is not None
+    assert record.status == "done"
+    assert record.result is not None
+    assert record.result.feedback.headline == "다듬은 문장"
+    assert seen == [second_run.sessionId]
+
+
+async def test_polisher_failure_keeps_template_result(second_run: SessionIn) -> None:
+    """다듬기가 예외를 내도 분석은 실패가 아니다. 템플릿 결과로 done."""
+
+    async def broken(result: SessionResultOut) -> SessionResultOut:
+        raise RuntimeError("writer 버그")
+
+    service = RunbodyService(InMemoryResultRepository(), polisher=broken)
+    await service.accept(second_run)
+    await service.wait(second_run.sessionId)
+
+    record = await service.get(second_run.sessionId)
+    assert record is not None
+    assert record.status == "done"
+    assert record.result is not None
+    assert record.result.feedback.source == "template"

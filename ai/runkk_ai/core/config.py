@@ -57,6 +57,14 @@ class Settings(BaseSettings):
     coach_daily_hard_cap: int = Field(default=300, gt=0)
     coach_user_daily_cap: int = Field(default=30, gt=0)
 
+    # writer(S15P31A207-196). 학습한 소형 모델(llama.cpp 서버)이 템플릿 피드백을 자연스러운 문장으로 다시 쓴다.
+    # 비우면 템플릿 그대로. compose writer 서비스를 켠 환경에서는 http://writer:8080
+    writer_url: str | None = None
+    # 1건 전체 제한(앞 요청 대기 포함). 넘으면 템플릿으로 끝낸다. CPU 4스레드에서 1건 약 26초(-196 측정)
+    writer_timeout_s: float = Field(default=60.0, gt=0)
+    writer_temperature: float = Field(default=0.5, ge=0, le=1.5)
+    writer_model_version: str = "runkk-writer-v1-qwen3-4b"
+
     # 분석 결과 저장소(S15P31A207-163). analytics 스키마를 쓰는 runkk_ai 계정 주소.
     # 예: postgresql://runkk_ai:<비밀번호>@postgres:5432/runkk. 비우면 재시작 때 비는 메모리 저장소를 쓴다
     db_url: SecretStr | None = None

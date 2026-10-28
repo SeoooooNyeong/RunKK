@@ -39,6 +39,7 @@ from runkk_ai.runbody import (
     RunbodyService,
 )
 from runkk_ai.storage import PgCoachStore, PgResultRepository, create_engine, upgrade
+from runkk_ai.writer import LlamaCppClient, WriterService
 
 logger = logging.getLogger(__name__)
 
@@ -113,7 +114,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             max_image_pixels=settings.max_image_pixels,
         )
         repository, coach_store, storage = await _build_storage(settings, resources)
-        runbody = RunbodyService(repository)
+        writer = _build_writer(settings)
+        if writer is not None:
+            resources.push_async_callback(writer.aclose)
+        runbody = RunbodyService(repository, polisher=writer.polish if writer else None)
         resources.push_async_callback(runbody.aclose)
         app.state.runbody_service = runbody
         monthly = MonthlyService(repository)
@@ -131,7 +135,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         )
         logger.info(
             "ai_started llm_provider=%s llm_model=%s llm_key_set=%s face_impl=%s face_url_set=%s runbody_storage=%s"
-            " coach_model=%s coach_key_set=%s",
+            " coach_model=%s coach_key_set=%s writer=%s",
             settings.llm_provider,
             settings.llm_model,
             _llm_key(settings) is not None,
@@ -140,6 +144,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             storage,
             settings.coach_model,
             settings.anthropic_api_key is not None,
+            settings.writer_model_version if writer else "off",
         )
         yield
 
@@ -158,6 +163,14 @@ async def _build_storage(
     resources.push_async_callback(engine.dispose)
     await upgrade(engine)
     return PgResultRepository(engine), PgCoachStore(engine), "postgres"
+
+
+def _build_writer(settings: Settings) -> WriterService | None:
+    """주소가 없으면 writer를 쓰지 않는다(분석 피드백은 템플릿 그대로)."""
+    if not settings.writer_url:
+        return None
+    client = LlamaCppClient(settings.writer_url, temperature=settings.writer_temperature)
+    return WriterService(client, model_version=settings.writer_model_version, timeout_s=settings.writer_timeout_s)
 
 
 def _build_coach_model(settings: Settings) -> CoachModel | None:

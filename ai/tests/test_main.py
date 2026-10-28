@@ -150,3 +150,24 @@ async def test_unhandled_exception_is_500_with_reason_body() -> None:
 
     assert response.status_code == 500
     assert response.json() == {"reason": "INTERNAL_ERROR"}
+
+
+async def test_writer_is_off_without_url() -> None:
+    app = create_app(make_settings())
+
+    async with app.router.lifespan_context(app):
+        assert app.state.runbody_service._polisher is None
+
+
+async def test_writer_is_wired_into_analysis_when_url_set() -> None:
+    from runkk_ai.writer import LlamaCppClient, WriterService
+
+    app = create_app(make_settings(writer_url="http://writer:8080", writer_timeout_s=30.0))
+
+    async with app.router.lifespan_context(app):
+        polisher = app.state.runbody_service._polisher
+        writer = polisher.__self__
+        assert isinstance(writer, WriterService)
+        assert isinstance(writer._client, LlamaCppClient)
+        assert writer._timeout_s == 30.0
+        assert writer._model_version == "runkk-writer-v1-qwen3-4b"

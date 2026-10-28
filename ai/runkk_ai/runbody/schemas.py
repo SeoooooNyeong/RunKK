@@ -144,8 +144,8 @@ class FeedbackOut(BaseModel):
     moreFixes: list[str]
     ruleId: str
     goodRuleId: str
-    source: Literal["template"] = "template"
-    modelVersion: str | None = None
+    source: Literal["template", "writer"] = "template"  # writer: 자체 모델이 다듬은 문장(S15P31A207-196)
+    modelVersion: str | None = None  # writer 모델 버전. 템플릿이면 null
 
 
 class CoachingOut(BaseModel):

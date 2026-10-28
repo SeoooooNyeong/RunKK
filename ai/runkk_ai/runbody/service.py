@@ -27,6 +27,9 @@ from runkk_ai.runbody.schemas import Metrics, SessionIn, SessionResultOut
 logger = logging.getLogger(__name__)
 
 Analyzer = Callable[[SessionIn, Sequence[SessionResultOut], Metrics | None], Awaitable[SessionResultOut]]
+# 계산이 끝난 결과를 저장 전에 다듬는 단계(writer, S15P31A207-196). runbody는 writer를 모르고 main이 끼운다.
+# 실패해도 예외를 내지 않고 받은 결과를 그대로 돌려줘야 한다(그래도 예외가 나면 다듬지 않은 결과를 저장한다)
+Polisher = Callable[[SessionResultOut], Awaitable[SessionResultOut]]
 
 HISTORY_LIMIT = 3  # 회복 추세는 직전 3회, 지난 러닝 비교는 직전 1회를 본다
 MAX_CONCURRENT_ANALYSES = 2  # 계산 스레드 수. 같은 컨테이너의 /comments·/faces 응답을 막지 않게 작게 둔다
@@ -50,9 +53,11 @@ class RunbodyService:
         *,
         analyzer: Analyzer = analyze_in_thread,
         clock: Callable[[], datetime] = _now,
+        polisher: Polisher | None = None,
     ) -> None:
         self._repository = repository
         self._analyzer = analyzer
+        self._polisher = polisher
         self._clock = clock
         self._semaphore = asyncio.Semaphore(MAX_CONCURRENT_ANALYSES)
         self._tasks: dict[str, asyncio.Task[None]] = {}
@@ -103,6 +108,8 @@ class RunbodyService:
                     history = await self._repository.history(session.userId, session.startedAt, HISTORY_LIMIT)
                     load = await self._recent_load(session)
                     result = await self._analyzer(session, history, load)
+                # 계산 스레드를 놓은 뒤 다듬는다. 같은 사용자의 다음 러닝은 다듬은 결과를 이전 기록으로 본다
+                result = await self._polish(result)
                 await self._repository.save(with_status(pending, "done", self._clock(), result=result))
             self._log(session.sessionId, "done", started, len(history))
         except asyncio.CancelledError:
@@ -115,6 +122,15 @@ class RunbodyService:
             self._log(session.sessionId, "failed", started, 0, detail=type(exc).__name__)
         finally:
             self._tasks.pop(session.sessionId, None)
+
+    async def _polish(self, result: SessionResultOut) -> SessionResultOut:
+        if self._polisher is None:
+            return result
+        try:
+            return await self._polisher(result)
+        except Exception as exc:
+            logger.warning("runbody_polish session_id=%s result=error detail=%s", result.sessionId, type(exc).__name__)
+            return result
 
     @asynccontextmanager
     async def _user_turn(self, user_id: str) -> AsyncIterator[None]:

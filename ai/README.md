@@ -175,6 +175,30 @@ curl -N localhost:8000/coach/chat -H "X-Internal-Token: $RUNKK_INTERNAL_TOKEN" -
 - writer는 판단하지 않는다. 엔진 규칙이 고른 고칠 점·좋은 점과 템플릿 문장(`brief.template`)을 받아 자연스럽게 다시 쓴다. 숫자는 요약에 있는 것만 쓴다(`writer/checks.py`가 지어낸 숫자를 걸러 낸다).
 - 지시문이나 요약 형식을 바꾸면 `PROMPT_VERSION`·`BRIEF_VERSION`을 올리고 데이터를 다시 만든다.
 
+## writer 모델 서버 (S15P31A207-196)
+
+학습한 runkk-writer(Qwen3-4B QLoRA → GGUF Q4_K_M, 약 2.5GB, `notebooks/writer_qlora.ipynb`)를 llama.cpp 서버로 CPU에서 돌려
+분석 피드백 네 문장(headline·good·fix·next)을 자연스럽게 다시 쓴다. 코드는 `writer/client.py`·`writer/service.py`.
+
+- 흐름: 계산 → writer(검사 → 실패 시 1번 더 → 그래도 실패면 템플릿) → `done` 저장. 앱은 `done`이 된 결과를 한 번 읽으면 된다.
+  writer가 바꾼 결과는 `feedback.source = "writer"`, `feedback.modelVersion`에 모델 버전이 들어간다. 판단(`ruleId` 등)은 바꾸지 않는다.
+- 한 번에 한 건만 보낸다. 앞 요청 대기까지 합쳐 `RUNKK_WRITER_TIMEOUT_S`(기본 60초)를 넘기면 템플릿으로 끝낸다.
+- `RUNKK_WRITER_URL`이 비었거나 writer가 꺼져 있으면 템플릿 그대로다(분석은 실패하지 않는다). 로그 `writer_polish result=…`로 비율을 본다.
+- 프롬프트는 학습 때와 같이 assistant 차례를 빈 think 블록까지 열어 두고, 출력은 `json_schema`로 키 4개·길이 상한을 강제한다.
+
+로컬에서 띄워 보기(Docker, 모델 파일은 `data/writer/`에):
+
+```bash
+docker run --rm -p 8081:8080 -v "$PWD/data/writer:/models" ghcr.io/ggml-org/llama.cpp:server \
+  -m /models/runkk-writer-v1-qwen3-4b-q4_k_m.gguf -c 2048 -np 1 -t 4 --host 0.0.0.0
+export RUNKK_WRITER_URL=http://localhost:8081   # 그다음 ai 서버를 띄우고 분석을 보낸다
+```
+
+측정(PC, CPU 4스레드, eval 10건): 1건 평균 25.8초(최대 31.4초), 9.4 tok/s, 검사 10/10 통과, 출력은 모두 `{`로 시작.
+
+서버 배치는 compose `writer` 서비스(프로필 `writer`)다. `infra/.env`에 `COMPOSE_PROFILES=writer`, `RUNKK_WRITER_URL=http://writer:8080`을 넣고
+모델 파일을 `WRITER_MODEL_DIR`(기본 `/srv/runkk/models`)에 올린 환경에서만 뜬다. 메모리 상한 3.5GB.
+
 ## 컨테이너
 
 ```bash
