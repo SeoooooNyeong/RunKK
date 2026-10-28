@@ -10,6 +10,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.a207.runkk.battle.BattleStartService;
 import com.a207.runkk.battle.LiveBattleService;
 import com.a207.runkk.crew.CrewRunLiveService;
 import com.a207.runkk.crew.chat.CrewChatService;
@@ -182,6 +183,7 @@ class TokenExpiryTest {
                         new WebSocketMessenger(registry, serializer, mailbox),
                         serializer,
                         new ProgressDispatcher(live, mock(CrewRunLiveService.class), clock),
+                        mock(BattleStartService.class),
                         mock(CrewChatService.class),
                         new ChatPresenceRegistry(),
                         clock);
@@ -217,6 +219,7 @@ class TokenExpiryTest {
                                 mock(LiveBattleService.class),
                                 mock(CrewRunLiveService.class),
                                 clock),
+                        mock(BattleStartService.class),
                         mock(CrewChatService.class),
                         new ChatPresenceRegistry(),
                         clock);

@@ -9,6 +9,7 @@ import com.a207.runkk.app.domain.battle.BattleRunCoordinator
 import com.a207.runkk.app.domain.battle.BattleRunState
 import com.a207.runkk.app.domain.battle.MyProgress
 import com.a207.runkk.app.domain.live.BattleGuidance
+import com.a207.runkk.app.domain.live.LiveState
 import com.a207.runkk.app.domain.live.OpponentProgress
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Clock
@@ -75,6 +76,12 @@ class BattleRunningViewModel @Inject constructor(
             kind = OpponentKind.of(key.opponentKind)
         )
         bindJobs += viewModelScope.launch { coordinator.state.collect(::onCoordinator) }
+        bindJobs += viewModelScope.launch {
+            // 폴링으로 이어진 동안은 메시지가 오가므로 끊김으로 보지 않는다.
+            coordinator.liveState.collect { live ->
+                _state.update { it.copy(isLiveLost = live == LiveState.CONNECTING || live == LiveState.CLOSED) }
+            }
+        }
         bindJobs += viewModelScope.launch {
             coordinator.failure.collect { error ->
                 if (error != null) _state.update { it.copy(error = BattleErrorText.of(error)) }

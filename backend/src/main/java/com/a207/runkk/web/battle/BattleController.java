@@ -79,6 +79,17 @@ public class BattleController {
         return BattleDtos.MatchAcceptanceResponse.of(matchingService.cancel(memberId));
     }
 
+    /** 진행 중인 대결(앱 재실행 때 그만두기 안내, 배틀런 QA 7번). 없으면 204. */
+    @GetMapping("/active")
+    ResponseEntity<BattleDtos.ActiveBattleResponse> active(
+            @RequestAttribute(MEMBER_ID) long memberId) {
+        return battleHistoryService
+                .active(memberId)
+                .map(BattleDtos.ActiveBattleResponse::of)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.noContent().build());
+    }
+
     @GetMapping("/self/candidates")
     BattleDtos.CandidatesResponse selfCandidates(@RequestAttribute(MEMBER_ID) long memberId) {
         return BattleDtos.CandidatesResponse.of(recordBattleService.selfCandidates(memberId));

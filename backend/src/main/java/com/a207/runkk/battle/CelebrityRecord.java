@@ -5,6 +5,7 @@ import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.Pace;
 import com.a207.runkk.common.ReasonCode;
+import com.a207.runkk.common.StandardDistance;
 import com.a207.runkk.common.Tier;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -14,6 +15,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.Optional;
 
 /**
@@ -66,7 +68,8 @@ public class CelebrityRecord implements OpponentRecord {
 
     /**
      * 등록(srs.md 6.3 7.1). 출처명 빔 → SOURCE_REQUIRED, 익명 닉네임 빔 → ANONYMOUS_NAME_REQUIRED, 거리·시간 ≤ 0 →
-     * VALUE_INVALID, 구간이 줄어듦 → SPLITS_INVALID.
+     * VALUE_INVALID, 거리가 5·10km·하프·풀이 아님 → BATTLE_DISTANCE_INVALID(배틀런 QA 결정), 구간이 줄어듦 →
+     * SPLITS_INVALID.
      */
     public static CelebrityRecord register(CelebrityInput in, LocalDateTime now) {
         if (isBlank(in.sourceName())) {
@@ -78,10 +81,18 @@ public class CelebrityRecord implements OpponentRecord {
         if (in.distance() == null || in.distance().meters() <= 0 || !isPositive(in.finishTime())) {
             throw new BusinessRuleException(ReasonCode.VALUE_INVALID);
         }
+        if (!isCelebrityDistance(in.distance())) {
+            throw new BusinessRuleException(ReasonCode.BATTLE_DISTANCE_INVALID);
+        }
         if (!OpponentTrack.isOrdered(in.splits())) {
             throw new BusinessRuleException(ReasonCode.SPLITS_INVALID);
         }
         return new CelebrityRecord(in, OpponentTrack.of(in.splits()), now);
+    }
+
+    private static boolean isCelebrityDistance(Distance d) {
+        return Arrays.stream(StandardDistance.values())
+                .anyMatch(s -> s.isCelebrity() && s.distance().equals(d));
     }
 
     private static boolean isBlank(String value) {

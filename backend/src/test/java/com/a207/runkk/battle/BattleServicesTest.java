@@ -248,6 +248,52 @@ class BattleServicesTest {
 
         @Test
         @org.junit.jupiter.api.DisplayName(
+                "resendStart: 재연결한 회원에게만 출발 예약된 랜덤·고스트 대결의 BattleStart를 다시 보내고, 시작 보고 전 기록"
+                        + " 대결·끝난 대결은 보내지 않는다(배틀런 QA 1·2번)")
+        void resendStart_onlyScheduledRandomAndGhost() {
+            waiting(ALICE, NOW);
+            waiting(BOB, NOW.plusSeconds(1));
+            matchmaker.tick(NOW.plusSeconds(2));
+            Battle random = battles.findActive(ALICE).get(0);
+            messenger.clear();
+            startService.resendStart(ALICE);
+            assertThat(messenger.sent())
+                    .singleElement()
+                    .extracting(BattleDelivery::recipientId)
+                    .isEqualTo(ALICE);
+            BattleStart again = (BattleStart) messenger.to(ALICE, "BattleStart").get(0);
+            assertThat(again.battleId()).isEqualTo(random.getId());
+            assertThat(again.startAt()).isEqualTo(random.getStartAt().orElseThrow());
+
+            clockService.tick(random.getStartAt().orElseThrow());
+            messenger.clear();
+            startService.resendStart(ALICE);
+            assertThat(messenger.to(ALICE, "BattleStart")).hasSize(1);
+            resultService.forfeit(ALICE, random.getId());
+            messenger.clear();
+            startService.resendStart(ALICE);
+            assertThat(messenger.sent()).isEmpty();
+
+            Battle ghost =
+                    Battle.againstRecord(
+                            BattleFixtures.spec(BattleType.GHOST, Duration.ofMinutes(25)), NOW);
+            startService.announceMatch(ghost);
+            messenger.clear();
+            startService.resendStart(ALICE);
+            assertThat(((BattleStart) messenger.to(ALICE, "BattleStart").get(0)).opponentTrack())
+                    .isNotEmpty();
+            resultService.forfeit(ALICE, ghost.getId());
+
+            battles.save(
+                    Battle.againstRecord(
+                            BattleFixtures.spec(BattleType.SELF, Duration.ofMinutes(25)), NOW));
+            messenger.clear();
+            startService.resendStart(ALICE);
+            assertThat(messenger.sent()).isEmpty();
+        }
+
+        @Test
+        @org.junit.jupiter.api.DisplayName(
                 "활성 대결 1개: 대기 중 활성 대결이 생긴 회원의 표는 지우고 MatchFailed, 상대 표는 막히지 않고 남는다")
         void ticketOfMemberWithActiveBattle_isDropped() {
             battles.save(
@@ -628,6 +674,92 @@ class BattleServicesTest {
                     .isInstanceOf(com.a207.runkk.common.PermissionDeniedException.class);
             assertThatThrownBy(() -> resultService.forfeit(ALICE, 12_345L))
                     .isInstanceOf(BusinessRuleException.class);
+        }
+
+        /** 앨리스·밥을 성사시킨 랜덤 대결(출발 예약, WAITING_START). started면 출발시킨다. */
+        private Battle matchedRandom(boolean started) {
+            waiting(ALICE, NOW);
+            waiting(BOB, NOW.plusSeconds(1));
+            matchmaker.tick(NOW.plusSeconds(2));
+            return startIf(started, battles.findActive(ALICE).get(0));
+        }
+
+        /** 앨리스의 고스트 대결(출발 예약, WAITING_START). started면 출발시킨다. */
+        private Battle ghost(boolean started) {
+            Battle battle =
+                    Battle.againstRecord(
+                            BattleFixtures.spec(BattleType.GHOST, Duration.ofMinutes(25)), NOW);
+            startService.announceMatch(battle);
+            return startIf(started, battle);
+        }
+
+        private Battle startIf(boolean started, Battle battle) {
+            if (started) {
+                clockService.tick(battle.getStartAt().orElseThrow());
+            }
+            return battles.findById(battle.getId()).orElseThrow();
+        }
+
+        /** 앨리스의 나와의 싸움·유명인 대결(시작 보고 전, IN_PROGRESS·startAt 없음). */
+        private Battle unreported(BattleType type) {
+            return battles.save(
+                    Battle.againstRecord(BattleFixtures.spec(type, Duration.ofMinutes(25)), NOW));
+        }
+
+        @Test
+        @org.junit.jupiter.api.DisplayName(
+                "포기는 앱이 멈춰 있을 수 있는 활성 대결을 모두 받는다: 출발 전 랜덤·고스트와 시작 보고 전 나와의 싸움·유명인은 승패·리워드 없이"
+                        + " CANCELLED, 진행 중은 FINISHED(패). 랜덤 상대는 OPPONENT_FORFEITED를 받고, 끝나면 새 매칭을"
+                        + " 접수한다(배틀런 QA 7번)")
+        void forfeit_releasesLockInEveryActiveState() {
+            MatchingService matching =
+                    new MatchingService(members, settings, queue, battles, clock);
+            record Case(
+                    String state, java.util.function.Supplier<Battle> make, BattleStatus ends) {}
+            List<Case> cases =
+                    List.of(
+                            new Case("랜덤 출발 전", () -> matchedRandom(false), BattleStatus.CANCELLED),
+                            new Case("랜덤 진행 중", () -> matchedRandom(true), BattleStatus.FINISHED),
+                            new Case("고스트 출발 전", () -> ghost(false), BattleStatus.CANCELLED),
+                            new Case("고스트 진행 중", () -> ghost(true), BattleStatus.FINISHED),
+                            new Case(
+                                    "나와의 싸움 시작 보고 전",
+                                    () -> unreported(BattleType.SELF),
+                                    BattleStatus.CANCELLED),
+                            new Case(
+                                    "유명인 시작 보고 전",
+                                    () -> unreported(BattleType.CELEBRITY),
+                                    BattleStatus.CANCELLED));
+
+            for (Case c : cases) {
+                Battle battle = c.make().get();
+                assertThat(battle.isActive()).as(c.state()).isTrue();
+                assertThatThrownBy(() -> matching.requestMatch(ALICE, StandardDistance.KM5))
+                        .as(c.state())
+                        .extracting(e -> ((BusinessRuleException) e).reason())
+                        .isEqualTo(ReasonCode.ALREADY_IN_BATTLE);
+                events.clear();
+                messenger.clear();
+
+                resultService.forfeit(ALICE, battle.getId());
+
+                Battle ended = battles.findById(battle.getId()).orElseThrow();
+                assertThat(ended.getStatus()).as(c.state()).isEqualTo(c.ends());
+                boolean judged = c.ends() == BattleStatus.FINISHED;
+                assertThat(events).as(c.state()).hasSize(judged ? 1 : 0);
+                assertThat(ended.getJudgement().isPresent()).as(c.state()).isEqualTo(judged);
+                if (battle.getType() == BattleType.RANDOM) {
+                    assertThat(((BattleEnded) messenger.to(BOB, "BattleEnded").get(0)).status())
+                            .as(c.state())
+                            .isEqualTo(BattleEnded.Status.OPPONENT_FORFEITED);
+                    assertThat(battles.existsActive(BOB)).as(c.state()).isFalse();
+                }
+                assertThat(battles.existsActive(ALICE)).as(c.state()).isFalse();
+                assertThat(matching.requestMatch(ALICE, StandardDistance.KM5).waiting())
+                        .as(c.state())
+                        .isTrue();
+                matching.cancel(ALICE);
+            }
         }
 
         @Test

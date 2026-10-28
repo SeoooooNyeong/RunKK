@@ -176,13 +176,20 @@ public class BattleResultService {
         }
     }
 
-    /** Battle.forfeit → 상대에게 BattleEnded(OPPONENT_FORFEITED) → BattleJudged(FR-094). */
+    /**
+     * Battle.forfeit → 상대에게 BattleEnded(OPPONENT_FORFEITED) → BattleJudged(FR-094). 출발
+     * 전(WAITING_START, 시작 보고 전 기록 대결)이면 승패·리워드 없이 취소(CANCELLED)하고 랜덤 상대에게 같은 BattleEnded만 보낸다(배틀런
+     * QA 7번 결정). 앱의 BattleEnded.Status에 취소 값이 없어 상대가 그만뒀다는 OPPONENT_FORFEITED를 쓴다.
+     */
     public void forfeit(long memberId, long battleId) {
         transactions.retryingRun(
                 () -> {
                     Battle battle = participantBattle(memberId, battleId);
                     LocalDateTime now = LocalDateTime.now(clock);
-                    battle.forfeit(memberId, now);
+                    boolean cancelled = battle.cancelIfUnstarted(now);
+                    if (!cancelled) {
+                        battle.forfeit(memberId, now);
+                    }
                     battleRepository.save(battle);
                     BattleEnded ended =
                             new BattleEnded(battleId, BattleEnded.Status.OPPONENT_FORFEITED);
@@ -192,6 +199,13 @@ public class BattleResultService {
                                     rival ->
                                             AfterCommit.run(
                                                     () -> battleMessenger.send(rival, ended)));
+                    if (cancelled) {
+                        log.info(
+                                "battle_cancelled_by_forfeit battleId={} memberId={}",
+                                battleId,
+                                memberId);
+                        return;
+                    }
                     Judgement judgement = battle.getJudgement().orElseThrow();
                     eventPublisher.publish(
                             new BattleJudged(battleId, battle.getType(), judgement, now));

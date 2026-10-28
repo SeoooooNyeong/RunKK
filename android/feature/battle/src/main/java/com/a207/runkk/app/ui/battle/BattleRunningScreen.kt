@@ -221,8 +221,12 @@ private fun Header(state: BattleRunningUiState) {
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f).semantics { heading() }
         )
-        // 랜덤 대결은 상대 연결 상태(FR-088), 그 밖은 상대 이름. 연결 확인 중으로 바뀌면 보조 기술에 알린다.
-        RunkkStatusPill(state.connectionLabel?.asString() ?: opponentLabel(state), live = LiveRegionMode.Polite)
+        // 내 연결이 끊기면 그것을, 아니면 랜덤 대결은 상대 연결 상태(FR-088), 그 밖은 상대 이름. 바뀌면 보조 기술에 알린다.
+        val label = when {
+            state.isLiveLost -> stringResource(R.string.battle_running_disconnected)
+            else -> state.connectionLabel?.asString() ?: opponentLabel(state)
+        }
+        RunkkStatusPill(label, live = LiveRegionMode.Polite)
     }
 }
 

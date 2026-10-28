@@ -97,7 +97,10 @@ class FakePendingRunRepository(private val log: CallLog = CallLog()) : PendingRu
     override fun observePending(): Flow<List<CompletedRun>> = flow
 
     override suspend fun remove(recordId: String): Outcome<Unit> = result("pending.remove:$recordId").also {
-        if (it is Outcome.Success) runs.removeAll { run -> run.recordId == recordId }
+        if (it is Outcome.Success) {
+            runs.removeAll { run -> run.recordId == recordId }
+            flow.value = runs.toList()
+        }
     }
 
     override suspend fun purgeRoutes(): Outcome<Unit> = result("pending.purgeRoutes")

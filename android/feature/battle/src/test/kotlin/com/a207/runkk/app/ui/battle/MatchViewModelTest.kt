@@ -13,10 +13,12 @@ import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.battle.BattleRunState
 import com.a207.runkk.app.domain.battle.MatchAcceptance
+import com.a207.runkk.app.domain.live.BattleEnded
 import com.a207.runkk.app.domain.live.BattleStart
 import com.a207.runkk.app.domain.live.MatchFailed
 import com.a207.runkk.app.ui.battle.BattleWorld.Companion.world
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 import kotlinx.coroutines.test.TestScope
@@ -32,6 +34,22 @@ class MatchViewModelTest {
 
     private fun ViewModelCloser.vm(w: BattleWorld) =
         track(MatchViewModel(w.battles, w.coordinator, w.channels, w.clock))
+
+    @Test
+    fun `출발 전에 상대가 그만두면 그 사실을 안내하고 거리 고르기로 돌아간다(대결 취소)`() = main.runVmTest { vms ->
+        val w = world()
+        val vm = vms.vm(w)
+        vm.onStartMatching()
+        runCurrent()
+        val match = matchFound()
+        w.channels.channel.push(match)
+        w.channels.channel.push(BattleStart(match.battleId, w.clock.now.plusSeconds(10), opponentTrack = null))
+        runCurrent()
+        w.channels.channel.push(BattleEnded(match.battleId, BattleEnded.Status.OPPONENT_FORFEITED))
+        runCurrent()
+        assertEquals(MatchPhase.CHOOSING, vm.state.value.phase)
+        assertEquals(UiText.Res(R.string.battle_match_opponent_left), vm.state.value.error)
+    }
 
     @Test
     fun `거리를 골라 매칭을 요청하고 대기 시간을 센다(FR-080)`() = main.runVmTest { vms ->
@@ -56,6 +74,68 @@ class MatchViewModelTest {
         runCurrent()
         assertEquals(MatchPhase.CHOOSING, vm.state.value.phase)
         assertEquals(UiText.Res(R.string.battle_error_ranked_only), vm.state.value.error)
+    }
+
+    @Test
+    fun `QA-5 언랭 거부 뒤에는 화면을 떠날 때까지 매칭 요청을 다시 보내지 않는다`() = main.runVmTest { vms ->
+        val w = world()
+        w.battles.match = rejected("RANKED_ONLY")
+        val vm = vms.vm(w)
+        vm.onStartMatching()
+        runCurrent()
+        assertTrue(vm.state.value.isStartBlocked)
+        vm.onDistanceSelected(Distance(3_000))
+        vm.onStartMatching()
+        runCurrent()
+        assertEquals(listOf("match:5000"), w.battles.calls)
+        assertEquals(UiText.Res(R.string.battle_error_ranked_only), vm.state.value.error)
+    }
+
+    @Test
+    fun `다른 거부는 다시 요청할 수 있다`() = main.runVmTest { vms ->
+        val w = world()
+        w.battles.match = rejected("QUEUE_UNAVAILABLE")
+        val vm = vms.vm(w)
+        vm.onStartMatching()
+        runCurrent()
+        vm.onStartMatching()
+        runCurrent()
+        assertFalse(vm.state.value.isStartBlocked)
+        assertEquals(listOf("match:5000", "match:5000"), w.battles.calls)
+    }
+
+    @Test
+    fun `QA-2 성사 뒤 30초가 지나도 측정이 시작되지 않으면 그만두기를 보이고 그만두면 거리 고르기로`() = main.runVmTest { vms ->
+        val w = world()
+        val vm = vms.vm(w)
+        vm.onStartMatching()
+        runCurrent()
+        w.channels.channel.push(matchFound())
+        runCurrent()
+        advanceTimeBy(29_000)
+        assertFalse(vm.state.value.canForfeit)
+        advanceTimeBy(1_100)
+        assertTrue(vm.state.value.canForfeit)
+        vm.onForfeit()
+        runCurrent()
+        assertTrue("forfeit:9" in w.battles.calls)
+        assertEquals(MatchPhase.CHOOSING, vm.state.value.phase)
+        assertEquals(null, vm.state.value.error)
+        assertEquals(BattleRunState.Idle, w.coordinator.state.value, "새 대결을 시작할 수 있다")
+    }
+
+    @Test
+    fun `출발 시각을 알면 출발 15초 뒤까지는 그만두기를 보이지 않는다`() = main.runVmTest { vms ->
+        val w = world()
+        val vm = vms.vm(w)
+        vm.onStartMatching()
+        runCurrent()
+        val match = matchFound()
+        w.channels.channel.push(match)
+        w.channels.channel.push(BattleStart(match.battleId, w.clock.now.plusSeconds(40), opponentTrack = null))
+        runCurrent()
+        advanceTimeBy(31_000)
+        assertFalse(vm.state.value.canForfeit)
     }
 
     @Test

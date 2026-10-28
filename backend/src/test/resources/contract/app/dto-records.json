@@ -237,6 +237,28 @@
     } ],
     "file" : "web/avatar/AvatarDtos.java"
   },
+  "BattleDtos.ActiveBattleResponse" : {
+    "components" : [ {
+      "name" : "battleId",
+      "kind" : "leaf"
+    }, {
+      "name" : "type",
+      "kind" : "leaf"
+    }, {
+      "name" : "status",
+      "kind" : "leaf"
+    }, {
+      "name" : "distanceMeters",
+      "kind" : "leaf"
+    }, {
+      "name" : "opponentName",
+      "kind" : "leaf"
+    }, {
+      "name" : "startAt",
+      "kind" : "leaf"
+    } ],
+    "file" : "web/battle/BattleDtos.java"
+  },
   "BattleDtos.BattleHistoryResponse" : {
     "components" : [ {
       "name" : "entries",

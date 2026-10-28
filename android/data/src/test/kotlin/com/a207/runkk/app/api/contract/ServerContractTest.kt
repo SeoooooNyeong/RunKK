@@ -22,6 +22,7 @@ import com.a207.runkk.app.api.avatar.EquipRequest
 import com.a207.runkk.app.api.avatar.PurchaseRequest
 import com.a207.runkk.app.api.avatar.PurchaseResponse
 import com.a207.runkk.app.api.avatar.ShopResponse
+import com.a207.runkk.app.api.battle.ActiveBattleResponse
 import com.a207.runkk.app.api.battle.BattleHistoryResponse
 import com.a207.runkk.app.api.battle.BattleResultResponse
 import com.a207.runkk.app.api.battle.CandidatesResponse
@@ -329,6 +330,7 @@ class ServerContractTest {
         response(RecordBattleStartResponse.serializer(), "BattleDtos.RecordBattleStartResponse")
         response(BattleResultResponse.serializer(), "BattleDtos.BattleResultResponse")
         response(BattleHistoryResponse.serializer(), "BattleDtos.BattleHistoryResponse")
+        response(ActiveBattleResponse.serializer(), "BattleDtos.ActiveBattleResponse")
         response(CrewListResponse.serializer(), "CrewDtos.CrewListResponse")
         response(AttendanceResponse.serializer(), "CrewDtos.AttendanceResponse")
         response(ManagerResponse.serializer(), "CrewDtos.ManagerResponse")

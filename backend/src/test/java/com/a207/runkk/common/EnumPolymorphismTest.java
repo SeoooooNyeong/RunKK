@@ -44,12 +44,12 @@ class EnumPolymorphismTest {
 
     @ParameterizedTest
     @CsvSource({
-        "KM1, 1000, true, false, true, true",
-        "KM3, 3000, true, true, true, true",
-        "KM5, 5000, true, true, true, true",
-        "KM10, 10000, true, true, true, true",
-        "HALF, 21097, false, true, false, true",
-        "FULL, 42195, false, false, false, false"
+        "KM1, 1000, true, false, true, true, false",
+        "KM3, 3000, true, true, true, true, false",
+        "KM5, 5000, true, true, true, true, true",
+        "KM10, 10000, true, true, true, true, true",
+        "HALF, 21097, false, true, false, true, true",
+        "FULL, 42195, false, false, false, false, true"
     })
     void standardDistance_flags(
             StandardDistance d,
@@ -57,12 +57,14 @@ class EnumPolymorphismTest {
             boolean random,
             boolean self,
             boolean crewRun,
-            boolean recordBase) {
+            boolean recordBase,
+            boolean celebrity) {
         assertThat(d.distance()).isEqualTo(Distance.ofMeters(meters));
         assertThat(d.isRandomBattle()).isEqualTo(random);
         assertThat(d.isSelfBattle()).isEqualTo(self);
         assertThat(d.isCrewRun()).isEqualTo(crewRun);
         assertThat(d.isRecordBase()).isEqualTo(recordBase);
+        assertThat(d.isCelebrity()).isEqualTo(celebrity);
     }
 
     @Test

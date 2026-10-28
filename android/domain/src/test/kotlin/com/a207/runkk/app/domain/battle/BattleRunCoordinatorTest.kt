@@ -8,6 +8,7 @@ import com.a207.runkk.app.domain.live.BattleEnded
 import com.a207.runkk.app.domain.live.BattleGuidance
 import com.a207.runkk.app.domain.live.BattleStart
 import com.a207.runkk.app.domain.live.CountdownStarted
+import com.a207.runkk.app.domain.live.LiveState
 import com.a207.runkk.app.domain.live.MatchFound
 import com.a207.runkk.app.domain.live.OpponentProgress
 import com.a207.runkk.app.domain.live.ProgressReport
@@ -36,7 +37,9 @@ import java.time.Duration
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -88,6 +91,8 @@ private class FakeBattleRepository(private val log: CallLog) : BattleRepository 
         log.add("battle.forfeit:$battleId")
         return reportFailure?.let { Outcome.Failure(it) } ?: Outcome.Success(Unit)
     }
+
+    override suspend fun active(): Outcome<ActiveBattle?> = error("unused")
 
     override suspend fun result(battleId: Long): Outcome<BattleResult> = error("unused")
 
@@ -213,6 +218,8 @@ class BattleRunCoordinatorTest {
         val (_, coordinator) = setUp()
         coordinator.onMatched(match)
         runCurrent()
+        live.channel.messages.emit(BattleStart(battleId = 3, startAt = T0, opponentTrack = null))
+        runCurrent()
         live.channel.messages.emit(
             OpponentProgress(
                 3,
@@ -227,6 +234,59 @@ class BattleRunCoordinatorTest {
         runCurrent()
         assertEquals(Guidance.Kind.OVERTAKEN, output.played.last().kind)
         assertEquals(-20, assertIs<BattleRunState.Running>(coordinator.state.value).gapMeters)
+    }
+
+    @Test
+    fun `QA-1 측정 시작 전에 온 상대 진행값과 추월 안내는 진행 화면으로 넘기지 않는다`() = runTest {
+        val (_, coordinator) = setUp()
+        coordinator.onMatched(match)
+        runCurrent()
+        val connected = OpponentProgress.Connection.CONNECTED
+        live.channel.messages.emit(OpponentProgress(3, "상대", Distance(10), Duration.ofSeconds(5), -10, connected))
+        live.channel.messages.emit(BattleGuidance(3, BattleGuidance.Kind.OVERTAKEN, -10))
+        runCurrent()
+        assertEquals(BattleRunState.Matched(match), coordinator.state.value)
+        assertTrue(output.played.isEmpty())
+        assertTrue(watch.proximity.isEmpty())
+
+        live.channel.messages.emit(BattleStart(battleId = 3, startAt = T0.plusSeconds(10), opponentTrack = null))
+        runCurrent()
+        live.channel.messages.emit(OpponentProgress(3, "상대", Distance(20), Duration.ofSeconds(6), -20, connected))
+        runCurrent()
+        assertIs<BattleRunState.Countdown>(coordinator.state.value)
+
+        advanceTimeBy(10_001)
+        live.channel.messages.emit(OpponentProgress(3, "상대", Distance(30), Duration.ofSeconds(7), -30, connected))
+        runCurrent()
+        assertEquals(-30, assertIs<BattleRunState.Running>(coordinator.state.value).gapMeters)
+    }
+
+    @Test
+    fun `QA-7 이 프로세스가 맡은 대결인지 알려 준다 - 닫힌 회는 맡지 않은 것으로 본다`() = runTest {
+        val (_, coordinator) = setUp()
+        assertFalse(coordinator.isRunning(3))
+        coordinator.onMatched(match)
+        runCurrent()
+        assertTrue(coordinator.isRunning(3))
+        assertFalse(coordinator.isRunning(4))
+        live.channel.messages.emit(BattleEnded(3, BattleEnded.Status.FINISHED))
+        runCurrent()
+        assertFalse(coordinator.isRunning(3))
+    }
+
+    @Test
+    fun `QA-5 랜덤 대결의 실시간 연결 상태를 알리고 회가 닫히면 지운다`() = runTest {
+        val (_, coordinator) = setUp()
+        assertNull(coordinator.liveState.value)
+        coordinator.onMatched(match)
+        runCurrent()
+        assertEquals(LiveState.CONNECTED, coordinator.liveState.value)
+        live.channel.state.value = LiveState.CONNECTING
+        runCurrent()
+        assertEquals(LiveState.CONNECTING, coordinator.liveState.value)
+        live.channel.messages.emit(BattleEnded(3, BattleEnded.Status.FINISHED))
+        runCurrent()
+        assertNull(coordinator.liveState.value)
     }
 
     @Test
@@ -394,6 +454,8 @@ class BattleRunCoordinatorTest {
             )
         val (_, coordinator) = setUp()
         coordinator.onMatched(match)
+        runCurrent()
+        live.channel.messages.emit(BattleStart(battleId = 3, startAt = T0, opponentTrack = null))
         runCurrent()
         live.channel.messages.emit(BattleGuidance(3, BattleGuidance.Kind.OVERTOOK, 12))
         runCurrent()

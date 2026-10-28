@@ -10,17 +10,18 @@ import java.util.Set;
 public enum StandardDistance {
     KM1(1_000, Use.RANDOM_BATTLE, Use.CREW_RUN, Use.RECORD_BASE),
     KM3(3_000, Use.RANDOM_BATTLE, Use.SELF_BATTLE, Use.CREW_RUN, Use.RECORD_BASE),
-    KM5(5_000, Use.RANDOM_BATTLE, Use.SELF_BATTLE, Use.CREW_RUN, Use.RECORD_BASE),
-    KM10(10_000, Use.RANDOM_BATTLE, Use.SELF_BATTLE, Use.CREW_RUN, Use.RECORD_BASE),
-    HALF(21_097, Use.SELF_BATTLE, Use.RECORD_BASE),
-    FULL(42_195);
+    KM5(5_000, Use.RANDOM_BATTLE, Use.SELF_BATTLE, Use.CREW_RUN, Use.RECORD_BASE, Use.CELEBRITY),
+    KM10(10_000, Use.RANDOM_BATTLE, Use.SELF_BATTLE, Use.CREW_RUN, Use.RECORD_BASE, Use.CELEBRITY),
+    HALF(21_097, Use.SELF_BATTLE, Use.RECORD_BASE, Use.CELEBRITY),
+    FULL(42_195, Use.CELEBRITY);
 
     /** 기준 거리를 쓰는 곳. */
     private enum Use {
         RANDOM_BATTLE,
         SELF_BATTLE,
         CREW_RUN,
-        RECORD_BASE
+        RECORD_BASE,
+        CELEBRITY
     }
 
     private final Distance distance;
@@ -53,6 +54,11 @@ public enum StandardDistance {
     /** 1·3·5·10km·하프. */
     public boolean isRecordBase() {
         return uses.contains(Use.RECORD_BASE);
+    }
+
+    /** 5·10km·하프·풀(유명인 기록 거리, 배틀런 QA 결정). */
+    public boolean isCelebrity() {
+        return uses.contains(Use.CELEBRITY);
     }
 
     /** d 이하인 가장 긴 기준 거리. */

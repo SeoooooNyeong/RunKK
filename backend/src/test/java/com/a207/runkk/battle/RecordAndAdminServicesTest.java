@@ -277,6 +277,28 @@ class RecordAndAdminServicesTest {
 
     @Test
     @org.junit.jupiter.api.DisplayName(
+            "CelebrityRecord.register: 거리는 5km·10km·하프·풀만 받고 그 밖은 대결 거리 오류(배틀런 QA 결정)")
+    void celebrityRegister_standardDistancesOnly() {
+        for (long meters : List.of(5_000L, 10_000L, 21_097L, 42_195L)) {
+            assertThat(registerAt(meters).getDistance().meters()).isEqualTo(meters);
+        }
+        for (long meters : List.of(1_000L, 3_000L, 7_000L, 21_098L, 21_100L, 42_000L)) {
+            assertThatThrownBy(() -> registerAt(meters))
+                    .as(meters + "m")
+                    .extracting(e -> ((BusinessRuleException) e).reason())
+                    .isEqualTo(ReasonCode.BATTLE_DISTANCE_INVALID);
+        }
+    }
+
+    private static CelebrityRecord registerAt(long meters) {
+        return CelebrityRecord.register(
+                new CelebrityInput(
+                        "a", Distance.ofMeters(meters), Duration.ofHours(1), null, "s", null),
+                NOW);
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName(
             "CelebrityRecordService: 등록·삭제 감사(행위자 actorId·OPERATOR), 없으면 기록 없음")
     void celebrityService_audits() {
         CelebrityRecordService service = new CelebrityRecordService(celebrities, audit, clock);
@@ -360,6 +382,56 @@ class RecordAndAdminServicesTest {
         assertThat(history.history(ALICE, range, Optional.of(BattleType.RANDOM)).total())
                 .isEqualTo(2);
         assertThat(history.history(ALICE, range, Optional.of(BattleType.SELF)).total()).isZero();
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName(
+            "진행 중인 대결: 없으면 비어 있고, 랜덤은 상대 회원 표시명·출발 시각, 고스트는 GHOST 그대로, 시작 보고 전 기록 대결은"
+                    + " 출발 시각 없음(배틀런 QA 7번)")
+    void active() {
+        BattleHistoryService history = new BattleHistoryService(battles, members, celebrities);
+        assertThat(history.active(ALICE)).isEmpty();
+
+        Battle random =
+                Battle.random(
+                        BattleFixtures.assigned(ALICE, StandardDistance.KM5),
+                        BattleFixtures.assigned(BOB, StandardDistance.KM5),
+                        NOW);
+        random.scheduleStart(NOW.plusSeconds(13));
+        battles.save(random);
+        when(members.summaries(anyCollection()))
+                .thenReturn(Map.of(BOB, BattleFixtures.summary(BOB, Tier.GOLD)));
+        ActiveBattleView view = history.active(ALICE).orElseThrow();
+        assertThat(view.battleId()).isEqualTo(random.getId());
+        assertThat(view.type()).isEqualTo(BattleType.RANDOM);
+        assertThat(view.status()).isEqualTo(BattleStatus.WAITING_START);
+        assertThat(view.distance()).isEqualTo(FIVE_K);
+        assertThat(view.opponentName().value()).isEqualTo("러너" + BOB);
+        assertThat(view.startAt()).isEqualTo(NOW.plusSeconds(13));
+        random.cancelIfUnstarted(NOW.plusSeconds(5));
+        battles.save(random);
+        assertThat(history.active(ALICE)).isEmpty();
+
+        Battle ghost =
+                Battle.againstRecord(
+                        BattleFixtures.spec(BattleType.GHOST, Duration.ofMinutes(25)), NOW);
+        ghost.scheduleStart(NOW.plusSeconds(13));
+        ghost.start(NOW.plusSeconds(13));
+        battles.save(ghost);
+        ActiveBattleView running = history.active(ALICE).orElseThrow();
+        assertThat(running.type()).isEqualTo(BattleType.GHOST);
+        assertThat(running.status()).isEqualTo(BattleStatus.IN_PROGRESS);
+        assertThat(running.opponentName().value()).isEqualTo("가상러너");
+        ghost.forfeit(ALICE, NOW.plusMinutes(1));
+        battles.save(ghost);
+
+        bestFiveK();
+        long selfId = records.startSelfBattle(ALICE, StandardDistance.KM5).battleId();
+        ActiveBattleView self = history.active(ALICE).orElseThrow();
+        assertThat(self.battleId()).isEqualTo(selfId);
+        assertThat(self.type()).isEqualTo(BattleType.SELF);
+        assertThat(self.status()).isEqualTo(BattleStatus.IN_PROGRESS);
+        assertThat(self.startAt()).isNull();
     }
 
     @Test
