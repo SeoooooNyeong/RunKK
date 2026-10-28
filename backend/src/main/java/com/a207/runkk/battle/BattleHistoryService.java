@@ -17,7 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 대결 이력(설계 6.1.6, srs.md 6.3 4.7, FR-101). 랜덤 상대 표시명은 MemberQueryService.summaries 한 번으로 붙이고(N+1
  * 방지, 6.5), 회원이 없으면 "탈퇴한 사용자"다(FR-021). 기록 대결은 대결에 남긴 상대 표시명을 쓴다(FR-172). 고스트는 랜덤으로 보인다(Q-02). 기록
- * 차이는 두 도달 시간의 차이고, 유명인 출처는 유명인 기록을 한 번에 읽어 붙인다(지워진 기록은 출처 없이).
+ * 차이는 두 도달 시간의 차이고, 유명인 출처는 유명인 기록을 한 번에 읽어 붙인다(지워진 기록은 출처 없이). 진행 중인 대결 조회(active)도 같은 표시명 규칙으로
+ * 여기서 한다.
  */
 @Service
 public class BattleHistoryService {
@@ -67,6 +68,32 @@ public class BattleHistoryService {
                 (int) entries.stream().filter(BattleHistoryView.Entry::newRecord).count(),
                 slice.items(),
                 slice.nextCursor());
+    }
+
+    /**
+     * 진행 중인 대결(BattleRepository.findActive, 회원당 많아야 1개). 없으면 비어 있다. 앱 재실행 때 그만두기 안내에 쓴다(배틀런 QA 7번).
+     * 상대 표시명은 이력과 같은 규칙이고, 종류는 이력 분류가 아니라 BattleType 그대로다.
+     */
+    @Transactional(readOnly = true)
+    public Optional<ActiveBattleView> active(long memberId) {
+        return battleRepository.findActive(memberId).stream()
+                .findFirst()
+                .map(
+                        battle ->
+                                new ActiveBattleView(
+                                        battle.getId(),
+                                        battle.getType(),
+                                        battle.getStatus(),
+                                        battle.getDistance(),
+                                        OpponentNames.of(
+                                                battle, memberId, rivalNames(battle, memberId)),
+                                        battle.getStartAt().orElse(null)));
+    }
+
+    private Map<Long, MemberSummary> rivalNames(Battle battle, long memberId) {
+        return battle.rivalOf(memberId)
+                .map(rival -> memberQueryService.summaries(List.of(rival.getMemberId())))
+                .orElse(Map.of());
     }
 
     /** 유명인 대결이 있을 때만 유명인 기록을 한 번 읽는다(기록 ID 문자열 → 출처). */

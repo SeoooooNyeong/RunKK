@@ -1,8 +1,11 @@
 package com.a207.runkk.web.battle;
 
+import static org.hamcrest.Matchers.matchesPattern;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -210,6 +213,89 @@ class BattleControllerTest extends WebTestSupport {
         Session other = signUp();
         mvc.perform(as(other, get("/api/v1/battles/" + battleId + "/result")))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName(
+            "GET /battles/active: 없으면 204, 진행 중이면 200(시작 보고 전 startAt null, 뒤에는 오프셋 없는 서버 시각), 포기하면"
+                    + " 204이고 새 매칭을 받는다. 시작 보고 전 포기는 취소라 결과·이력이 없다(배틀런 QA 7번)")
+    void activeBattle_andForfeitReleasesLock() throws Exception {
+        Session s = signUp();
+        mvc.perform(as(s, get("/api/v1/battles/active")))
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""));
+        mvc.perform(get("/api/v1/battles/active")).andExpect(status().isUnauthorized());
+        for (int i = 0; i < 3; i++) {
+            upload(s, 5_000, 1_500);
+        }
+        long battleId =
+                body(mvc.perform(
+                                        as(s, post("/api/v1/battles/self"))
+                                                .contentType(MediaType.APPLICATION_JSON)
+                                                .content(distance(5_000)))
+                                .andExpect(status().isOk())
+                                .andReturn()
+                                .getResponse()
+                                .getContentAsString())
+                        .get("battleId")
+                        .asLong();
+
+        mvc.perform(as(s, get("/api/v1/battles/active")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.battleId").value(battleId))
+                .andExpect(jsonPath("$.type").value("SELF"))
+                .andExpect(jsonPath("$.status").value("IN_PROGRESS"))
+                .andExpect(jsonPath("$.distanceMeters").value(5_000))
+                .andExpect(jsonPath("$.opponentName").value("10/20의 나"))
+                .andExpect(jsonPath("$.startAt").value(nullValue()));
+        mvc.perform(
+                        as(s, post("/api/v1/battles/match"))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(distance(5_000)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ALREADY_IN_BATTLE"));
+        mvc.perform(as(s, post("/api/v1/battles/" + battleId + "/started")))
+                .andExpect(status().isNoContent());
+        mvc.perform(as(s, get("/api/v1/battles/active")))
+                .andExpect(status().isOk())
+                .andExpect(
+                        jsonPath("$.startAt")
+                                .value(
+                                        matchesPattern(
+                                                "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?")));
+
+        mvc.perform(as(s, post("/api/v1/battles/" + battleId + "/forfeit")))
+                .andExpect(status().isNoContent());
+        mvc.perform(as(s, get("/api/v1/battles/active"))).andExpect(status().isNoContent());
+
+        // 시작 보고 전 포기는 승패 없이 취소: 결과는 대결 없음, 이력에 나오지 않는다
+        long unstarted =
+                body(mvc.perform(
+                                        as(s, post("/api/v1/battles/self"))
+                                                .contentType(MediaType.APPLICATION_JSON)
+                                                .content(distance(5_000)))
+                                .andExpect(status().isOk())
+                                .andReturn()
+                                .getResponse()
+                                .getContentAsString())
+                        .get("battleId")
+                        .asLong();
+        mvc.perform(as(s, post("/api/v1/battles/" + unstarted + "/forfeit")))
+                .andExpect(status().isNoContent());
+        mvc.perform(as(s, get("/api/v1/battles/" + unstarted + "/result")))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("BATTLE_NOT_FOUND"));
+        mvc.perform(as(s, get("/api/v1/battles/history")))
+                .andExpect(jsonPath("$.total").value(1))
+                .andExpect(jsonPath("$.entries[0].battleId").value(battleId));
+        mvc.perform(as(s, get("/api/v1/battles/active"))).andExpect(status().isNoContent());
+        mvc.perform(
+                        as(s, post("/api/v1/battles/match"))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(distance(5_000)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.waiting").value(true));
+        mvc.perform(as(s, delete("/api/v1/battles/match"))).andExpect(status().isOk());
     }
 
     @Test

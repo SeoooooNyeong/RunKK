@@ -59,7 +59,10 @@ public enum ReasonCode {
     NOTIFICATION_NOT_FOUND("알림 없음"),
 
     // battle (srs.md 6.3 4.1·4.6·7.1)
-    /** 랜덤 대결 거리가 1·3·5·10km가 아니거나 나와의 싸움 거리가 3·5·10km·하프가 아님(4.1 규칙 1). */
+    /**
+     * 랜덤 대결 거리가 1·3·5·10km가 아니거나 나와의 싸움 거리가 3·5·10km·하프가 아님(4.1 규칙 1). 유명인 기록 거리가 5·10km·하프·풀이
+     * 아님(배틀런 QA 결정).
+     */
     BATTLE_DISTANCE_INVALID("대결 거리 오류"),
     /** 위치 수집 동의 없이 대결을 요청함(4.1 규칙 1, Q-74). */
     LOCATION_CONSENT_REQUIRED("위치 수집 동의 필요"),

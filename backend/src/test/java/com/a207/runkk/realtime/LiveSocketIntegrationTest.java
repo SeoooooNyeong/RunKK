@@ -149,6 +149,36 @@ class LiveSocketIntegrationTest {
 
     @Test
     @org.junit.jupiter.api.DisplayName(
+            "배틀런 QA 1·2번: 재연결하면 우편함에 없어도 출발 예약된 랜덤 대결의 BattleStart를 다시 받는다")
+    void reconnect_resendsBattleStart() throws Exception {
+        long alice = member("재연결곰");
+        long bob = member("재연결여우");
+        LocalDateTime now = LocalDateTime.now().withNano(0);
+        MatchTicket a = MatchTicket.open(alice, Tier.GOLD, StandardDistance.KM1, now);
+        MatchTicket b = MatchTicket.open(bob, Tier.GOLD, StandardDistance.KM1, now);
+        a.assign();
+        b.assign();
+        LocalDateTime startAt = now.plusSeconds(13);
+        // 출발 예약 때 보낸 BattleStart가 끊기던 연결로 나가 사라진 상황: 우편함에 없다
+        long battleId =
+                tx.execute(
+                        s -> {
+                            Battle battle = Battle.random(a, b, now);
+                            battle.scheduleStart(startAt);
+                            return battles.save(battle).getId();
+                        });
+
+        Inbox inbox = new Inbox();
+        connect(inbox, tokens.issue(alice).accessToken());
+
+        JsonNode start = inbox.next("BattleStart");
+        assertThat(start.get("battleId").asLong()).isEqualTo(battleId);
+        assertThat(LocalDateTime.parse(start.get("startAt").asText())).isEqualTo(startAt);
+        assertThat(start.get("opponentTrack").isNull()).isTrue();
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName(
             "크루런 진행값(CREW_RUN)이 다른 참가자에게 CrewRunRelay로 가고 위치 항목이 없다(5.7.2, FR-149)")
     void crewRunRelayOverWebSocket() throws Exception {
         long alice = member("크루곰");

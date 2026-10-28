@@ -4,11 +4,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.a207.runkk.battle.BattleStartService;
 import com.a207.runkk.battle.LiveBattleService;
 import com.a207.runkk.battle.live.BattleEnded;
 import com.a207.runkk.crew.CrewRunLiveService;
@@ -28,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.InOrder;
 import org.springframework.http.HttpHeaders;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
@@ -124,13 +128,16 @@ class RealtimeUnitTest {
     }
 
     @Test
-    @DisplayName("핸들러: 토큰이 없거나 위조면 정책 위반으로 닫고, 맞으면 등록해 진행값을 LiveBattleService로 넘긴다")
+    @DisplayName(
+            "핸들러: 토큰이 없거나 위조면 정책 위반으로 닫고, 맞으면 등록해 우편함 뒤 BattleStart를 다시 보내고 진행값을"
+                    + " LiveBattleService로 넘긴다")
     void handler_authenticatesAndDispatches() throws Exception {
         TokenIssuer tokens = mock(TokenIssuer.class);
         when(tokens.verifyGrant("good")).thenReturn(new AccessGrant(42L, EXPIRES));
         when(tokens.verifyGrant("bad")).thenThrow(new AuthFailureException("위조"));
         LiveBattleService live = mock(LiveBattleService.class);
         CrewRunLiveService crewLive = mock(CrewRunLiveService.class);
+        BattleStartService starts = mock(BattleStartService.class);
         SocketSessionRegistry registry = new SocketSessionRegistry(new ManualTaskScheduler());
         MessageMailbox mailbox = new MessageMailbox(Clock.system(SEOUL));
         RealtimeMessageSerializer serializer = new RealtimeMessageSerializer();
@@ -141,6 +148,7 @@ class RealtimeUnitTest {
                         new WebSocketMessenger(registry, serializer, mailbox),
                         serializer,
                         new ProgressDispatcher(live, crewLive, Clock.system(SEOUL)),
+                        starts,
                         mock(CrewChatService.class),
                         new ChatPresenceRegistry(),
                         Clock.fixed(NOW.atZone(SEOUL).toInstant(), SEOUL));
@@ -152,10 +160,18 @@ class RealtimeUnitTest {
         handler.afterConnectionEstablished(forged);
         verify(forged).close(any(CloseStatus.class));
         assertThat(registry.find(42)).isEmpty();
+        verify(starts, never()).resendStart(anyLong());
 
+        mailbox.put(42, "{\"type\":\"MatchFound\"}");
         WebSocketSession member = session("m", "Bearer good");
+        doThrow(new IllegalStateException("db")).when(starts).resendStart(42L);
         handler.afterConnectionEstablished(member);
         assertThat(registry.find(42)).isPresent();
+        // 우편함을 먼저 비우고 출발 예약 대결의 BattleStart를 다시 보낸다. 실패해도 연결은 유지한다(배틀런 QA 1·2번)
+        InOrder replay = inOrder(member, starts);
+        replay.verify(member).sendMessage(any(TextMessage.class));
+        replay.verify(starts).resendStart(42L);
+        verify(member, never()).close(any(CloseStatus.class));
         handler.handleTextMessage(member, new TextMessage(PROGRESS));
         verify(live).onProgress(eq(42L), eq(7L), any(), any());
         handler.handleTextMessage(

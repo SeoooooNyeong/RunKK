@@ -115,6 +115,20 @@ public class BattleStartService {
         return runQueryService.best(memberId, distance).flatMap(BestEntry::time);
     }
 
+    /**
+     * 재연결한 회원에게 출발 예약된 랜덤·고스트 활성 대결의 BattleStart를 다시 보낸다(배틀런 QA 1·2번). 출발 예약 때 미리 보낸 BattleStart는
+     * 앱이 다시 연결하는 사이 끊기던 연결로 나가 사라질 수 있다(보내기가 실패해야 우편함에 남는다). 앱은 같은 BattleStart를 한 번만 쓴다.
+     * realtime.LiveSocketHandler가 연결 때 우편함을 비운 뒤 부른다.
+     */
+    @Transactional(readOnly = true)
+    public void resendStart(long memberId) {
+        for (Battle battle : battleRepository.findActive(memberId)) {
+            if (!battle.getType().startsWithCountdown() && battle.getStartAt().isPresent()) {
+                battleMessenger.send(memberId, startMessage(battle));
+            }
+        }
+    }
+
     /** 기록 상대면 상대 표(초·미터), 랜덤이면 null. */
     static BattleStart startMessage(Battle battle) {
         List<TrackPoint> track =

@@ -18,6 +18,7 @@ import com.a207.runkk.app.domain.live.CrewRunRelay
 import com.a207.runkk.app.domain.live.CrewRunStart
 import com.a207.runkk.app.domain.live.LiveChannel
 import com.a207.runkk.app.domain.live.LiveChannelProvider
+import com.a207.runkk.app.domain.live.LiveState
 import com.a207.runkk.app.domain.live.MatchFailed
 import com.a207.runkk.app.domain.live.MatchFound
 import com.a207.runkk.app.domain.live.OpponentProgress
@@ -86,6 +87,11 @@ constructor(
      */
     val failure: StateFlow<AppError?> = _failure.asStateFlow()
 
+    private val _liveState = MutableStateFlow<LiveState?>(null)
+
+    /** 이 회의 실시간 채널 연결 상태(랜덤·고스트). 진행 화면이 연결 끊김을 보인다(배틀 QA 5번). 채널이 없는 회·닫힌 회는 null이다. */
+    val liveState: StateFlow<LiveState?> = _liveState.asStateFlow()
+
     @Volatile
     private var run: BattleRun? = null
 
@@ -122,6 +128,7 @@ constructor(
             _state.value = BattleRunState.Matched(m)
             val channel = liveChannelProvider.open()
             run.attach(channel)
+            run.round.scope.launch { channel.state.collect { _liveState.value = it } }
             // 연결 직후 오는 메시지(BattleStart 등)를 잃지 않게 연결 전에 구독한다.
             run.round.scope.launch(start = CoroutineStart.UNDISPATCHED) { channel.messages.collect { handle(run, it) } }
             val connected = channel.connect()
@@ -239,6 +246,11 @@ constructor(
         }
     }
 
+    /**
+     * 이 프로세스가 [battleId] 대결을 맡고 있는가(열린 회가 있는가). 앱을 다시 켜 서버에만 남은 대결을 찾을 때 쓴다(배틀 QA 7번).
+     */
+    fun isRunning(battleId: Long): Boolean = run?.battleId == battleId
+
     /** 결과 화면이 Finished를 보여 준 뒤 부른다. 다음 대결 화면이 지난 회의 종료 상태를 받지 않게 Idle로 돌린다(S-17). */
     fun acknowledgeFinished() {
         _state.update { if (it is BattleRunState.Finished) BattleRunState.Idle else it }
@@ -318,46 +330,26 @@ constructor(
     /**
      * 상대 진행값. 상대 연결 확인 중(CHECKING)이면 격차가 낡은 값이라 근접 알림을 멈추고(onGapChanged(null)) 화면의 마지막 격차는
      * 그대로 둔다. 연결로 돌아오면 새 격차로 다시 시작한다(D-145 (1)).
+     * 이 회가 측정을 시작하기 전에 온 값은 버린다: 측정 없이 진행 화면으로 넘어가 경과가 0에 멈추지 않게 한다(QA 1번).
      */
     private fun onOpponentProgress(run: BattleRun, m: OpponentProgress) {
-        if (m.battleId != run.battleId) return
+        if (m.battleId != run.battleId || !run.round.isMeasuring) return
         if (m.connection == OpponentProgress.Connection.CHECKING) {
             runTracker.onGapChanged(null)
-            updateRunning { previous ->
-                previous?.copy(opponentConnection = m.connection)
-                    ?: BattleRunState.Running(
-                        m.battleId,
-                        gapMeters = null,
-                        opponentDistance = m.opponentDistance,
-                        lastGuidance = null,
-                        opponentConnection = m.connection
-                    )
-            }
+            updateRunning { it.copy(opponentConnection = m.connection) }
             return
         }
         runTracker.onGapChanged(m.gapMeters)
-        updateRunning { previous ->
-            previous?.copy(
-                gapMeters = m.gapMeters,
-                opponentDistance = m.opponentDistance,
-                opponentConnection = m.connection
-            )
-                ?: BattleRunState.Running(
-                    m.battleId,
-                    m.gapMeters,
-                    m.opponentDistance,
-                    lastGuidance = null,
-                    opponentConnection = m.connection
-                )
+        updateRunning {
+            it.copy(gapMeters = m.gapMeters, opponentDistance = m.opponentDistance, opponentConnection = m.connection)
         }
     }
 
+    /** 서버 추월 안내. 측정 전에 온 안내는 상대 진행값과 같은 이유로 버린다. */
     private fun onBattleGuidance(run: BattleRun, m: BattleGuidance) {
-        if (m.battleId != run.battleId) return
+        if (m.battleId != run.battleId || !run.round.isMeasuring) return
         announce(m.kind, m.gapMeters)
-        updateRunning { previous ->
-            previous?.copy(lastGuidance = m.kind) ?: BattleRunState.Running(m.battleId, m.gapMeters, null, m.kind)
-        }
+        updateRunning { it.copy(lastGuidance = m.kind) }
     }
 
     private fun onCountdownStarted(run: BattleRun, m: CountdownStarted) {
@@ -373,14 +365,12 @@ constructor(
         }
     }
 
-    /** 측정 중 상태만 갱신한다. 종료 카운트다운(Closing)·종료(Finished)는 진행 메시지로 덮지 않는다(F-1). */
-    private fun updateRunning(next: (BattleRunState.Running?) -> BattleRunState.Running) {
-        _state.update { current ->
-            when (current) {
-                is BattleRunState.Closing, is BattleRunState.Finished -> current
-                else -> next(current as? BattleRunState.Running)
-            }
-        }
+    /**
+     * 측정 중(Running) 상태만 갱신한다. 종료 카운트다운(Closing)·종료(Finished)는 진행 메시지로 덮지 않고(F-1), 측정 전 상태
+     * (매칭·카운트다운)에서 진행 상태를 새로 만들지도 않는다(QA 1번). Running은 begin이 만든다.
+     */
+    private fun updateRunning(next: (BattleRunState.Running) -> BattleRunState.Running) {
+        _state.update { current -> if (current is BattleRunState.Running) next(current) else current }
     }
 
     /** 내 측정값을 진행·종료 카운트다운 상태에 반영한다. 다른 상태(카운트다운·종료)는 그대로 둔다. */
@@ -457,6 +447,7 @@ constructor(
         if (this.run !== run) return
         this.run = null
         run.channel?.close()
+        _liveState.value = null
         _state.value = BattleRunState.Finished(run.battleId, status)
         run.round.cancel()
     }
@@ -470,6 +461,7 @@ constructor(
             previous.round.cancel()
         }
         _failure.value = null
+        _liveState.value = null
         return BattleRun(battleId, distance).also { run = it }
     }
 
@@ -523,11 +515,11 @@ constructor(
             runTracker.onGapChanged(gapTracker.gapMeters)
             kind?.let { announce(it, gapTracker.gapMeters) }
             updateRunning { previous ->
-                previous?.copy(
+                previous.copy(
                     gapMeters = gapTracker.gapMeters,
                     opponentDistance = theirs,
                     lastGuidance = kind ?: previous.lastGuidance
-                ) ?: BattleRunState.Running(run.battleId, gapTracker.gapMeters, theirs, kind)
+                )
             }
         }
 

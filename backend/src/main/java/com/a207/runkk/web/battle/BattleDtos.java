@@ -1,5 +1,6 @@
 package com.a207.runkk.web.battle;
 
+import com.a207.runkk.battle.ActiveBattleView;
 import com.a207.runkk.battle.BattleHistoryView;
 import com.a207.runkk.battle.BattleType;
 import com.a207.runkk.battle.ComparisonTable;
@@ -10,6 +11,7 @@ import com.a207.runkk.battle.Source;
 import com.a207.runkk.battle.TrackSample;
 import com.a207.runkk.battle.Verdict;
 import com.a207.runkk.battle.WeeklyRecord;
+import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.PageCursor;
 import com.a207.runkk.common.StandardDistance;
 import jakarta.validation.constraints.Positive;
@@ -84,6 +86,34 @@ final class BattleDtos {
 
         private static Long metersOf(StandardDistance d) {
             return d == null ? null : d.distance().meters();
+        }
+    }
+
+    /**
+     * 진행 중인 대결(GET /battles/active, 배틀런 QA 7번). 시각은 다른 대결 응답과 같이 오프셋 없는 서버 시간대 ISO-8601이다.
+     *
+     * @param battleId 대결 ID
+     * @param type 대결 종류(RANDOM, GHOST, SELF, CELEBRITY)
+     * @param status 대결 상태(WAITING_START, IN_PROGRESS, COUNTDOWN)
+     * @param distanceMeters 대결 거리
+     * @param opponentName 상대 표시명, 없으면 null
+     * @param startAt 출발 시각, 없으면 null
+     */
+    record ActiveBattleResponse(
+            long battleId,
+            String type,
+            String status,
+            long distanceMeters,
+            String opponentName,
+            LocalDateTime startAt) {
+        static ActiveBattleResponse of(ActiveBattleView v) {
+            return new ActiveBattleResponse(
+                    v.battleId(),
+                    v.type().name(),
+                    v.status().name(),
+                    v.distance().meters(),
+                    Optional.ofNullable(v.opponentName()).map(DisplayName::value).orElse(null),
+                    v.startAt());
         }
     }
 

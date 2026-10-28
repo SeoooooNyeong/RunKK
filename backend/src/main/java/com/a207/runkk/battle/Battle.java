@@ -251,8 +251,8 @@ public class Battle {
 
     /**
      * 출발하지 못한 대결 취소: WAITING_START이거나 시작 보고 전 기록 대결만. CANCELLED(활성 아님, 판정·이력·전적 없음). 버려진 대결
-     * 정리(BattleStartService.cancelAbandoned)와 새 기록 대결이 시작 보고 전의 이전 기록 대결을 대신할
-     * 때(RecordBattleService) 부른다.
+     * 정리(BattleStartService.cancelAbandoned), 새 기록 대결이 시작 보고 전의 이전 기록 대결을 대신할
+     * 때(RecordBattleService), 출발 전 포기(cancelIfUnstarted) 때 부른다.
      */
     public void cancelUnstarted(LocalDateTime now) {
         if (status != BattleStatus.WAITING_START && !isAwaitingStartReport()) {
@@ -268,6 +268,18 @@ public class Battle {
      */
     public boolean cancelIfAwaitingStartReport(LocalDateTime now) {
         if (!isAwaitingStartReport()) {
+            return false;
+        }
+        cancelUnstarted(now);
+        return true;
+    }
+
+    /**
+     * 출발하지 못한 대결(WAITING_START, 시작 보고 전 기록 대결)이면 취소(CANCELLED)하고 true, 출발한 대결은 그대로 두고 false. 출발 전에
+     * 그만두면 승패 없이 취소한다(배틀런 QA 7번 결정, BattleResultService.forfeit).
+     */
+    public boolean cancelIfUnstarted(LocalDateTime now) {
+        if (status != BattleStatus.WAITING_START && !isAwaitingStartReport()) {
             return false;
         }
         cancelUnstarted(now);
@@ -340,7 +352,7 @@ public class Battle {
         requireParticipant(memberId).reconnect(at);
     }
 
-    /** 포기. 포기자 패, 상대(다른 참가자 또는 기록 상대) 승. FINISHED. */
+    /** 포기. 포기자 패, 상대(다른 참가자 또는 기록 상대) 승. FINISHED. 출발 전 대결은 cancelIfUnstarted로 취소한다. */
     public void forfeit(long memberId, LocalDateTime now) {
         BattleParticipant quitter = requireParticipant(memberId);
         if (!status.isRunning()) {

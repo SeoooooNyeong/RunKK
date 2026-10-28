@@ -3,6 +3,7 @@ package com.a207.runkk.app.api.battle
 import com.a207.runkk.app.api.core.ApiErrorMapper
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.domain.battle.ActiveBattle
 import com.a207.runkk.app.domain.battle.BattleHistory
 import com.a207.runkk.app.domain.battle.BattleRepository
 import com.a207.runkk.app.domain.battle.BattleResult
@@ -10,6 +11,7 @@ import com.a207.runkk.app.domain.battle.MatchAcceptance
 import com.a207.runkk.app.domain.battle.RecordBattleCandidates
 import com.a207.runkk.app.domain.battle.RecordBattleStart
 import javax.inject.Inject
+import retrofit2.HttpException
 
 /** 대결 포트를 REST로 구현한다(6.1.14 api.battle). 확인 단계는 화면이 하고 확인된 요청만 보낸다. */
 internal class BattleRepositoryImpl
@@ -37,6 +39,13 @@ constructor(private val api: BattleApi) : BattleRepository {
     override suspend fun markStarted(battleId: Long): Outcome<Unit> = ApiErrorMapper.call { api.markStarted(battleId) }
 
     override suspend fun forfeit(battleId: Long): Outcome<Unit> = ApiErrorMapper.call { api.forfeit(battleId) }
+
+    /** 204면 Success(null). 그 밖의 오류 응답은 AppError로 바꾼다. */
+    override suspend fun active(): Outcome<ActiveBattle?> = ApiErrorMapper.call {
+        val reply = api.active()
+        if (!reply.isSuccessful) throw HttpException(reply)
+        reply.body()?.toDomain()
+    }
 
     override suspend fun result(battleId: Long): Outcome<BattleResult> = ApiErrorMapper.call {
         api.result(battleId).toDomain()

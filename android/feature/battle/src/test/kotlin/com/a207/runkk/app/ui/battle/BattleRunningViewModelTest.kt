@@ -12,6 +12,7 @@ import com.a207.runkk.app.domain.live.BattleEnded
 import com.a207.runkk.app.domain.live.BattleGuidance
 import com.a207.runkk.app.domain.live.BattleStart
 import com.a207.runkk.app.domain.live.CountdownStarted
+import com.a207.runkk.app.domain.live.LiveState
 import com.a207.runkk.app.domain.live.OpponentProgress
 import com.a207.runkk.app.domain.run.LocationSample
 import com.a207.runkk.app.ui.battle.BattleWorld.Companion.world
@@ -96,6 +97,25 @@ class BattleRunningViewModelTest {
         w.channels.channel.push(progress(gap = 5, theirs = 100, connection = OpponentProgress.Connection.CHECKING))
         runCurrent()
         assertEquals(UiText.Res(R.string.battle_running_checking), vm.state.value.connectionLabel)
+    }
+
+    @Test
+    fun `QA-5 실시간 연결이 끊기면 연결 끊김을 보이고 다시 연결되면 지운다`() = main.runVmTest { vms ->
+        val w = world()
+        val vm = running(w, vms)
+        assertFalse(vm.state.value.isLiveLost)
+        w.channels.channel.state.value = LiveState.CONNECTING
+        runCurrent()
+        assertTrue(vm.state.value.isLiveLost)
+        w.channels.channel.state.value = LiveState.POLLING
+        runCurrent()
+        assertFalse(vm.state.value.isLiveLost, "폴링으로 이어지면 메시지는 오간다")
+        w.channels.channel.state.value = LiveState.CLOSED
+        runCurrent()
+        assertTrue(vm.state.value.isLiveLost)
+        w.channels.channel.state.value = LiveState.CONNECTED
+        runCurrent()
+        assertFalse(vm.state.value.isLiveLost)
     }
 
     @Test

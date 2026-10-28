@@ -100,6 +100,8 @@ fun RunkkNavHost(
                 entryProvider = provider
             )
         }
+        // 기능 화면 위 안내(남은 대결 등)는 로그인한 동안만 붙인다.
+        if (loggedIn) featureEntries.forEach { it.Overlay() }
     }
 }
 

@@ -26,6 +26,9 @@ interface BattleRepository {
     /** 그만두기(POST /battles/{id}/forfeit, design-review.md E3). */
     suspend fun forfeit(battleId: Long): Outcome<Unit>
 
+    /** 진행 중인 대결(GET /battles/active). 없으면(204) Success(null)이다. */
+    suspend fun active(): Outcome<ActiveBattle?>
+
     suspend fun result(battleId: Long): Outcome<BattleResult>
 
     /**

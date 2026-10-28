@@ -6,6 +6,7 @@ import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.domain.battle.ActiveBattle
 import com.a207.runkk.app.domain.battle.BattleHistory
 import com.a207.runkk.app.domain.battle.BattleResult
 import com.a207.runkk.app.domain.battle.MatchAcceptance
@@ -162,6 +163,42 @@ class BattleRepositoryImplTest {
             history.entries
         )
         assertEquals("/api/v1/battles/history?type=RANDOM&size=20", api.take().target)
+    }
+
+    @Test
+    fun `진행 중인 대결은 상대 이름과 출발 시각을 읽고 없으면(204) null이다(배틀 QA 7번)`() = runTest {
+        api.reply(
+            """{"battleId":12,"type":"RANDOM","status":"WAITING_START","distanceMeters":5000,"opponentName":"러너2",
+               |"startAt":"2026-10-27T16:00:13"}
+            """.trimMargin()
+        )
+        api.reply(
+            """{"battleId":13,"type":"TEAM","status":"IN_PROGRESS","distanceMeters":5000,"opponentName":null,
+               |"startAt":null}
+            """.trimMargin()
+        )
+        api.replyEmpty(204)
+
+        assertEquals(
+            Outcome.Success(
+                ActiveBattle(
+                    12,
+                    BattleHistory.Type.RANDOM,
+                    "WAITING_START",
+                    Distance(5_000),
+                    "러너2",
+                    Instant.parse("2026-10-27T07:00:13Z")
+                )
+            ),
+            repository.active()
+        )
+        assertEquals("GET /api/v1/battles/active", api.take().let { "${it.method} ${it.url.encodedPath}" })
+        assertEquals(
+            Outcome.Success(ActiveBattle(13, null, "IN_PROGRESS", Distance(5_000), null, null)),
+            repository.active(),
+            "모르는 종류여도 그만두기는 할 수 있게 읽는다"
+        )
+        assertEquals(Outcome.Success(null), repository.active())
     }
 
     @Test

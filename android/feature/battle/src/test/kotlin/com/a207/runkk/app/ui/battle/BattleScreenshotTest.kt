@@ -1,11 +1,18 @@
 package com.a207.runkk.app.ui.battle
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createComposeRule
+import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.testing.RUNKK_PHONE
 import com.a207.runkk.app.core.designsystem.testing.captureRunkkScreen
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Pace
+import com.a207.runkk.app.domain.battle.ActiveBattle
+import com.a207.runkk.app.domain.battle.BattleHistory
 import com.a207.runkk.app.domain.live.BattleGuidance
 import java.time.Duration
 import org.junit.Rule
@@ -51,6 +58,29 @@ class BattleScreenshotTest {
         }, {}, {}, {})
     }
 
+    @Test
+    fun matchFoundStuck() = compose.captureRunkkScreen("D2_match_found_forfeit") {
+        MatchScreen(
+            MatchUiState(phase = MatchPhase.MATCHED, match = matchFound(), canForfeit = true),
+            {},
+            {},
+            {},
+            {}
+        )
+    }
+
+    @Test
+    fun activeBattle() = compose.captureRunkkScreen("D0_active_battle") {
+        Box(Modifier.fillMaxSize().background(RunkkColors.Background))
+        ActiveBattleDialog(
+            ActiveBattleUiState(
+                ActiveBattle(12, BattleHistory.Type.RANDOM, "IN_PROGRESS", Distance(1_000), "단단한치타", null)
+            ),
+            {},
+            {}
+        )
+    }
+
     private val running = BattleRunningUiState(
         battleId = 9,
         opponentName = "바람처럼",
@@ -86,6 +116,11 @@ class BattleScreenshotTest {
     @Test
     fun battleRunning() = compose.captureRunkkScreen("D3_battle_running") {
         BattleRunningScreen(running, {}, {}, {}, {}, {})
+    }
+
+    @Test
+    fun battleRunningDisconnected() = compose.captureRunkkScreen("D3_battle_running_disconnected") {
+        BattleRunningScreen(running.copy(isLiveLost = true, guidance = null), {}, {}, {}, {}, {})
     }
 
     @Test

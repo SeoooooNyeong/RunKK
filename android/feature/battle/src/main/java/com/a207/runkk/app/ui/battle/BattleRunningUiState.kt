@@ -24,6 +24,8 @@ data class BattleRunningUiState(
     val averagePace: Pace? = null,
     /** 랜덤 대결 상대 연결 상태 문구(FR-088). 기록 상대·첫 상대 진행값 전이면 null. */
     val connectionLabel: UiText? = null,
+    /** 내 실시간 연결이 끊겨 다시 잇는 중(배틀 QA 5번). 상대 진행값이 낡았을 수 있다. */
+    val isLiveLost: Boolean = false,
     /** 화면 잠금(FR-182). 잠기면 해제 버튼만 누를 수 있다. */
     val isLocked: Boolean = false,
     /** 방금 바뀐 앞뒤 순서 안내(잠깐 보인다, FR-188). */

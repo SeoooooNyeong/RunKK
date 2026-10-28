@@ -90,7 +90,8 @@ fun MatchRoute(quickDistance: Distance? = null, viewModel: MatchViewModel = hilt
         onDistanceSelected = viewModel::onDistanceSelected,
         onStart = viewModel::onStartMatching,
         onCancel = viewModel::onCancel,
-        onBack = viewModel::onCancel
+        onBack = viewModel::onCancel,
+        onForfeit = viewModel::onForfeit
     )
 }
 
@@ -101,7 +102,8 @@ fun MatchScreen(
     onStart: () -> Unit,
     onCancel: () -> Unit,
     onBack: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onForfeit: () -> Unit = {}
 ) {
     Column(
         modifier = modifier
@@ -112,7 +114,7 @@ fun MatchScreen(
         when (state.phase) {
             MatchPhase.CHOOSING, MatchPhase.REQUESTING -> Choosing(state, onDistanceSelected, onStart, onBack)
             MatchPhase.WAITING, MatchPhase.CANCELLING -> Waiting(state, onCancel)
-            MatchPhase.MATCHED -> state.match?.let { Matched(it, state.startsInSeconds) }
+            MatchPhase.MATCHED -> state.match?.let { Matched(it, state.startsInSeconds, state.canForfeit, onForfeit) }
         }
     }
 }
@@ -273,7 +275,12 @@ private fun radarWave(): Float {
 }
 
 @Composable
-private fun androidx.compose.foundation.layout.ColumnScope.Matched(match: MatchFound, startsIn: Long?) {
+private fun androidx.compose.foundation.layout.ColumnScope.Matched(
+    match: MatchFound,
+    startsIn: Long?,
+    canForfeit: Boolean,
+    onForfeit: () -> Unit
+) {
     Overline(stringResource(R.string.battle_match_title)) { RunkkStatusPill(RunkkFormat.targetLabel(match.distance)) }
     Column(
         modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -290,6 +297,14 @@ private fun androidx.compose.foundation.layout.ColumnScope.Matched(match: MatchF
         MatchedBest(match)
     }
     StartCountdown(startsIn)
+    // 측정이 늦어지면(배틀 QA 2번) 뒤로가기가 막힌 이 화면에서 나갈 길을 준다.
+    if (canForfeit) {
+        RunkkSecondaryButton(
+            stringResource(R.string.battle_match_forfeit),
+            onClick = onForfeit,
+            modifier = Modifier.fillMaxWidth().padding(top = 16.dp)
+        )
+    }
 }
 
 /** 나 VS 상대. 성사 순간 한 번 알린다(고정 문구). */

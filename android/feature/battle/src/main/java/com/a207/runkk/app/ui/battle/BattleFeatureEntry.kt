@@ -1,5 +1,6 @@
 package com.a207.runkk.app.ui.battle
 
+import androidx.compose.runtime.Composable
 import androidx.navigation3.runtime.EntryProviderScope
 import androidx.navigation3.runtime.NavKey
 import com.a207.runkk.app.core.model.Distance
@@ -10,7 +11,7 @@ import javax.inject.Inject
 
 /**
  * 대결 경로를 그래프에 등록한다(FeatureEntry 구현, 6.1.14): 셀프 탭(나와의 싸움), 셀럽 탭(유명인), 배틀런 매칭,
- * 대결 진행·결과, 함께 달린 기록.
+ * 대결 진행·결과, 함께 달린 기록. 앱 화면 위에는 서버에 남은 진행 중 대결 안내를 붙인다(배틀 QA 7번).
  */
 class BattleFeatureEntry @Inject constructor() : FeatureEntry {
     override val route: String = Routes.BATTLE_RANDOM
@@ -26,4 +27,7 @@ class BattleFeatureEntry @Inject constructor() : FeatureEntry {
         builder.addEntryProvider(Routes.BattleRunning::class) { key -> BattleRunningRoute(key) }
         builder.addEntryProvider(Routes.BattleResult::class) { key -> BattleResultRoute(key.battleId) }
     }
+
+    @Composable
+    override fun Overlay() = ActiveBattleOverlay()
 }

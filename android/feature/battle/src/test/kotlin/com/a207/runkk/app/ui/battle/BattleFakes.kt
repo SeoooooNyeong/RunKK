@@ -6,7 +6,10 @@ import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.core.model.RunMode
+import com.a207.runkk.app.domain.battle.ActiveBattle
 import com.a207.runkk.app.domain.battle.BattleHistory
+import com.a207.runkk.app.domain.battle.BattleRecordUploads
 import com.a207.runkk.app.domain.battle.BattleRepository
 import com.a207.runkk.app.domain.battle.BattleResult
 import com.a207.runkk.app.domain.battle.BattleRunCoordinator
@@ -55,7 +58,6 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.takeWhile
@@ -167,9 +169,20 @@ class FakeBattleRepository : BattleRepository {
         return Outcome.Success(Unit)
     }
 
+    /** forfeit 응답(그만두기 실패 시험). */
+    var forfeitResult: Outcome<Unit> = Outcome.Success(Unit)
+
     override suspend fun forfeit(battleId: Long): Outcome<Unit> {
         calls += "forfeit:$battleId"
-        return Outcome.Success(Unit)
+        return forfeitResult
+    }
+
+    /** GET /battles/active 응답. 기본은 진행 중인 대결 없음(204). */
+    var activeResult: Outcome<ActiveBattle?> = Outcome.Success(null)
+
+    override suspend fun active(): Outcome<ActiveBattle?> {
+        calls += "active"
+        return activeResult
     }
 
     override suspend fun result(battleId: Long): Outcome<BattleResult> {
@@ -237,7 +250,8 @@ class FakeLiveChannel : LiveChannel {
         if (m is ProgressReport) sent += m
     }
 
-    override val state: StateFlow<LiveState> = MutableStateFlow(LiveState.CONNECTED)
+    /** 연결 상태. 시험이 바꿔 끊김·재연결을 흉내 낸다. */
+    override val state: MutableStateFlow<LiveState> = MutableStateFlow(LiveState.CONNECTED)
 
     override val messages: Flow<ServerMessage> = flow.takeWhile { it != null }.filterNotNull()
 
@@ -259,7 +273,8 @@ class FakeLocationPermission(var granted: Boolean = true) : LocationPermission {
     override fun granted() = granted
 }
 
-private class NoPendingRuns : PendingRunRepository {
+/** 미전송 기록 가짜. [runs]를 바꿔 기록 저장·업로드를 흉내 낸다. */
+class NoPendingRuns : PendingRunRepository {
     val runs = MutableStateFlow<List<CompletedRun>>(emptyList())
 
     override suspend fun save(run: CompletedRun): Outcome<Unit> {
@@ -271,7 +286,10 @@ private class NoPendingRuns : PendingRunRepository {
 
     override fun observePending(): Flow<List<CompletedRun>> = runs
 
-    override suspend fun remove(recordId: String) = Outcome.Success(Unit)
+    override suspend fun remove(recordId: String): Outcome<Unit> {
+        runs.value = runs.value.filterNot { it.recordId == recordId }
+        return Outcome.Success(Unit)
+    }
 
     override suspend fun purgeRoutes() = Outcome.Success(Unit)
 
@@ -348,9 +366,11 @@ class BattleWorld(
     val channels: FakeLiveChannels = FakeLiveChannels()
 ) {
     private val silent = Silent()
+    val pendingRuns = NoPendingRuns()
+    val uploads = BattleRecordUploads(pendingRuns)
     val tracker =
         RunTracker(
-            RunArchive(NoPendingRuns(), silent, scope),
+            RunArchive(pendingRuns, silent, scope),
             RunWatchBridge(NoWatch(), scope),
             RunCoach(silent, ConsentedSettings()),
             MeasurementRuntime(permission, silent, ConsentedSettings(), clock)
@@ -416,6 +436,22 @@ fun recordStart(distance: Distance, kind: CardKind, name: String) = RecordBattle
     distance = distance,
     track = OpponentTrack.uniform(distance, Duration.ofSeconds(1_650)),
     cardKind = kind
+)
+
+/** 아직 올라가지 않은 대결 기록(미전송 목록에 둘 것). */
+fun pendingBattleRun(battleId: Long = 9) = CompletedRun(
+    recordId = "rec-$battleId",
+    mode = RunMode.BATTLE,
+    cardKind = CardKind.BATTLE_RUN,
+    battleId = battleId,
+    crewRunPostId = null,
+    startedAt = start,
+    elapsed = Duration.ofMinutes(5),
+    distance = Distance(1_000),
+    route = emptyList(),
+    unstable = emptyList(),
+    heartRates = emptyList(),
+    savedAt = start
 )
 
 fun matchFound(battleId: Long = 9) = MatchFound(

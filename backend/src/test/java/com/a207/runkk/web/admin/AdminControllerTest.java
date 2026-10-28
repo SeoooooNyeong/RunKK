@@ -344,6 +344,17 @@ class AdminControllerTest extends WebTestSupport {
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(write(badUrl)))
                 .andExpect(status().isBadRequest());
+        // 배틀런 QA 결정: 유명인 기록 거리는 5km·10km·하프·풀만
+        java.util.Map<String, Object> threeK = new java.util.HashMap<>(celebrity());
+        threeK.put("distanceMeters", 3_000);
+        threeK.put("splits", List.of());
+        mvc.perform(
+                        post("/api/v1/admin/celebrities")
+                                .header("Authorization", bearer)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(write(threeK)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("BATTLE_DISTANCE_INVALID"));
         mvc.perform(
                         delete("/api/v1/admin/celebrities")
                                 .header("Authorization", bearer)

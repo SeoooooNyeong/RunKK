@@ -1,5 +1,6 @@
 package com.a207.runkk.app.api.battle
 
+import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
@@ -35,6 +36,10 @@ internal interface BattleApi {
 
     @POST("battles/{id}/forfeit")
     suspend fun forfeit(@Path("id") battleId: Long)
+
+    /** 진행 중인 대결이 없으면 204(본문 없음)다. */
+    @GET("battles/active")
+    suspend fun active(): Response<ActiveBattleResponse>
 
     @GET("battles/{id}/result")
     suspend fun result(@Path("id") battleId: Long): BattleResultResponse

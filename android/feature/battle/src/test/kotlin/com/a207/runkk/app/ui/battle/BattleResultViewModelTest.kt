@@ -26,7 +26,7 @@ class BattleResultViewModelTest {
     @Test
     fun `결과 비교표·판정·리워드와 이번 주 전적을 보인다(FR-093)`() = runTest(main.dispatcher) {
         val w = world()
-        val vm = BattleResultViewModel(w.battles, w.coordinator)
+        val vm = BattleResultViewModel(w.battles, w.coordinator, w.uploads)
         vm.load(9)
         runCurrent()
         val s = vm.state.value
@@ -35,6 +35,91 @@ class BattleResultViewModelTest {
         assertEquals(70, s.result?.rewardPoints)
         assertEquals(uiText(R.string.battle_weekly_spoken, 3, 1), s.weekly?.let(::weeklyLabel))
         assertEquals(listOf("result:9"), w.battles.calls, "이번 주 전적은 결과 응답에 있어 이력을 따로 부르지 않는다")
+    }
+
+    @Test
+    fun `QA-5 그만두기 뒤 비교표 없이 온 결과는 내 기록이 올라가면 다시 읽는다`() = runTest(main.dispatcher) {
+        val w = world()
+        w.pendingRuns.runs.value = listOf(pendingBattleRun(9))
+        w.battles.resultResult =
+            Outcome.Success(battleResult(verdict = "LOSE", recordId = null).copy(rows = emptyList()))
+        val vm = BattleResultViewModel(w.battles, w.coordinator, w.uploads)
+        vm.load(9)
+        runCurrent()
+        assertEquals(emptyList(), vm.state.value.result?.rows)
+        w.battles.resultResult = Outcome.Success(battleResult(verdict = "LOSE"))
+        w.pendingRuns.remove("rec-9")
+        runCurrent()
+        assertEquals(4, vm.state.value.result?.rows?.size)
+        assertEquals(2, w.battles.calls.count { it == "result:9" })
+        w.pendingRuns.runs.value = listOf(pendingBattleRun(10))
+        w.pendingRuns.runs.value = emptyList()
+        runCurrent()
+        assertEquals(2, w.battles.calls.count { it == "result:9" }, "기록이 있는 결과는 다시 읽지 않는다")
+    }
+
+    @Test
+    fun `QA-5 오프라인이라 읽지 못한 결과는 기록이 올라가면 다시 읽는다`() = runTest(main.dispatcher) {
+        val w = world()
+        w.pendingRuns.runs.value = listOf(pendingBattleRun(9))
+        w.battles.resultResult = Outcome.Failure(AppError.Network)
+        val vm = BattleResultViewModel(w.battles, w.coordinator, w.uploads)
+        vm.load(9)
+        runCurrent()
+        assertNotNull(vm.state.value.error)
+        w.battles.resultResult = Outcome.Success(battleResult(verdict = "LOSE"))
+        w.pendingRuns.remove("rec-9")
+        runCurrent()
+        assertNull(vm.state.value.error)
+        assertEquals(Verdict.LOSE, vm.state.value.verdict)
+    }
+
+    @Test
+    fun `QA-5 네트워크 오류는 몇 초마다 다시 읽고 거부는 다시 읽지 않는다`() = runTest(main.dispatcher) {
+        val w = world()
+        w.battles.resultResult = Outcome.Failure(AppError.Network)
+        val vm = BattleResultViewModel(w.battles, w.coordinator, w.uploads)
+        vm.load(9)
+        runCurrent()
+        advanceTimeBy(BattleResultViewModel.OFFLINE_RETRY_MILLIS + 1)
+        assertEquals(2, w.battles.calls.count { it == "result:9" })
+        w.battles.resultResult = Outcome.Success(battleResult())
+        advanceTimeBy(BattleResultViewModel.OFFLINE_RETRY_MILLIS + 1)
+        assertEquals(Verdict.WIN, vm.state.value.verdict)
+        assertNull(vm.state.value.error)
+        advanceTimeBy(BattleResultViewModel.OFFLINE_RETRY_MILLIS * 5)
+        assertEquals(3, w.battles.calls.count { it == "result:9" })
+
+        val rejectedWorld = world()
+        rejectedWorld.battles.resultResult = rejected("BATTLE_NOT_FOUND")
+        val gone = BattleResultViewModel(rejectedWorld.battles, rejectedWorld.coordinator, rejectedWorld.uploads)
+        gone.load(9)
+        advanceTimeBy(BattleResultViewModel.OFFLINE_RETRY_MILLIS * 5)
+        assertEquals(1, rejectedWorld.battles.calls.count { it == "result:9" })
+    }
+
+    @Test
+    fun `QA-6 패배는 상대가 실제로 먼저 도착했을 때만 상대와 시간 차를 쓰고 나머지는 대결에서 졌어요`() {
+        val lost = battleResult(verdict = "LOSE")
+        val generic = uiText(R.string.battle_result_lose)
+        // 내 기록 무효·포기·미도착: 내 도달 시간이 없다.
+        assertEquals(generic, verdictMessage(Verdict.LOSE, lost.copy(myReach = null)))
+        // 상대가 도착하지 못했다(내가 빨랐는데 무효 등).
+        assertEquals(generic, verdictMessage(Verdict.LOSE, lost.copy(opponentReach = null)))
+        // 둘 다 도착했지만 내가 더 빨랐다(판정 사유를 앱이 모른다).
+        assertEquals(generic, verdictMessage(Verdict.LOSE, lost))
+        assertEquals(generic, verdictMessage(Verdict.LOSE, null))
+        assertEquals(
+            generic,
+            verdictMessage(
+                Verdict.LOSE,
+                lost.copy(
+                    opponentName = null,
+                    myReach = java.time.Duration.ofSeconds(1_757),
+                    opponentReach = java.time.Duration.ofSeconds(1_692)
+                )
+            )
+        )
     }
 
     @Test
@@ -95,7 +180,7 @@ class BattleResultViewModelTest {
     fun `보류 결과를 보이고 다시 불러올 수 있다(FR-108)`() = runTest(main.dispatcher) {
         val w = world()
         w.battles.resultResult = Outcome.Success(battleResult(pending = true, verdict = null))
-        val vm = BattleResultViewModel(w.battles, w.coordinator)
+        val vm = BattleResultViewModel(w.battles, w.coordinator, w.uploads)
         vm.load(9)
         runCurrent()
         assertTrue(vm.state.value.result?.isPending == true)
@@ -110,7 +195,7 @@ class BattleResultViewModelTest {
     fun `보류면 판정이 나올 때까지 몇 초마다 다시 읽는다`() = runTest(main.dispatcher) {
         val w = world()
         w.battles.resultResult = Outcome.Success(battleResult(pending = true, verdict = null))
-        val vm = BattleResultViewModel(w.battles, w.coordinator)
+        val vm = BattleResultViewModel(w.battles, w.coordinator, w.uploads)
         vm.load(9)
         runCurrent()
         assertTrue(vm.state.value.result?.isPending == true)
@@ -129,7 +214,7 @@ class BattleResultViewModelTest {
     fun `보류가 길어지면 다시 읽기를 멈추고 보류 화면에 남는다`() = runTest(main.dispatcher) {
         val w = world()
         w.battles.resultResult = Outcome.Success(battleResult(pending = true, verdict = null))
-        val vm = BattleResultViewModel(w.battles, w.coordinator)
+        val vm = BattleResultViewModel(w.battles, w.coordinator, w.uploads)
         vm.load(9)
         advanceTimeBy(BattleResultViewModel.PENDING_RETRY_MILLIS * (BattleResultViewModel.PENDING_RETRIES + 5))
         assertEquals(1 + BattleResultViewModel.PENDING_RETRIES, w.battles.calls.count { it == "result:9" })
@@ -141,7 +226,7 @@ class BattleResultViewModelTest {
     fun `결과를 불러오지 못하면 오류, 같은 대결은 다시 부르면 다시 읽는다`() = runTest(main.dispatcher) {
         val w = world()
         w.battles.resultResult = rejected("BATTLE_NOT_FOUND")
-        val vm = BattleResultViewModel(w.battles, w.coordinator)
+        val vm = BattleResultViewModel(w.battles, w.coordinator, w.uploads)
         vm.load(9)
         runCurrent()
         assertEquals(UiText.Res(R.string.battle_error_not_found), vm.state.value.error)

@@ -4,6 +4,7 @@ import com.a207.runkk.app.api.core.ServerTime
 import com.a207.runkk.app.api.core.enumByName
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.domain.battle.ActiveBattle
 import com.a207.runkk.app.domain.battle.BattleHistory
 import com.a207.runkk.app.domain.battle.BattleResult
 import com.a207.runkk.app.domain.battle.MatchAcceptance
@@ -40,6 +41,16 @@ internal fun RecordBattleStartResponse.toDomain(): RecordBattleStart = RecordBat
     distance = Distance(distanceMeters),
     track = OpponentTrack.from(TrackTable(track.map { TrackPoint(it.elapsedSeconds, it.distanceMeters) })),
     cardKind = enumByName<CardKind>(cardKind) ?: CardKind.SELF_RUN
+)
+
+/** 모르는 대결 종류도 그만두기는 할 수 있게 type만 null로 두고 읽는다. */
+internal fun ActiveBattleResponse.toDomain(): ActiveBattle = ActiveBattle(
+    battleId = battleId,
+    type = enumByName<BattleHistory.Type>(type),
+    status = status,
+    distance = Distance(distanceMeters),
+    opponentName = opponentName?.takeIf { it.isNotBlank() },
+    startAt = startAt?.let(ServerTime::parse)
 )
 
 internal fun BattleResultResponse.toDomain(): BattleResult = BattleResult(

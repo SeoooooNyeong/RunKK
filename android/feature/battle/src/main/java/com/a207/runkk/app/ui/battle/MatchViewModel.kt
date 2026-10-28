@@ -10,6 +10,7 @@ import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.battle.BattleRepository
 import com.a207.runkk.app.domain.battle.BattleRunCoordinator
 import com.a207.runkk.app.domain.battle.BattleRunState
+import com.a207.runkk.app.domain.live.BattleEnded
 import com.a207.runkk.app.domain.live.BattleStart
 import com.a207.runkk.app.domain.live.LiveChannel
 import com.a207.runkk.app.domain.live.LiveChannelProvider
@@ -45,6 +46,7 @@ import kotlinx.coroutines.launch
  * 조정자 상태(Matched → Countdown → Running)를 따라 보인다. 15초 뒤 고스트 전환은 서버가 하고 화면은 같은 흐름이다(Q-02).
  * 들어오면 GET /battles/match로 기본 대결 거리(FR-109)를 거리 고르기 기본값으로 두고, 이미 대기 중이면 대기 화면을 잇는다.
  * 서버가 대결을 만들지 못해 MatchFailed를 보내면(이미 대기열에서 빠진 상태) 취소를 보내지 않고 거리 고르기로 돌아가 안내한다.
+ * 성사 뒤 출발 시각 15초가 지나도(출발 시각을 모르면 성사 30초 뒤) 측정이 시작되지 않으면 그만두기를 보인다(배틀 QA 2번).
  */
 @HiltViewModel
 class MatchViewModel @Inject constructor(
@@ -81,9 +83,12 @@ class MatchViewModel @Inject constructor(
 
     fun onErrorShown() = _state.update { it.copy(error = null) }
 
-    /** 매칭 요청(FR-080). 거부(언랭·이미 대기 중·동의 없음)는 문구로 보이고 거리 고르기로 남는다. */
+    /**
+     * 매칭 요청(FR-080). 거부(언랭·이미 대기 중·동의 없음)는 문구로 보이고 거리 고르기로 남는다. 언랭 거부는 다시 보내도 같으므로
+     * 화면을 떠날 때까지 요청을 막는다(배틀 QA 5번).
+     */
     fun onStartMatching() {
-        if (_state.value.phase != MatchPhase.CHOOSING) return
+        if (_state.value.phase != MatchPhase.CHOOSING || _state.value.isStartBlocked) return
         _state.update { it.copy(phase = MatchPhase.REQUESTING, error = null) }
         viewModelScope.launch {
             // 조정자가 applicationScope에서 보낸다: 요청 중 화면이 사라져도 이탈 취소가 요청 뒤에 나간다.
@@ -91,7 +96,11 @@ class MatchViewModel @Inject constructor(
                 is Outcome.Success -> startWaiting()
 
                 is Outcome.Failure -> _state.update {
-                    it.copy(phase = MatchPhase.CHOOSING, error = BattleErrorText.of(accepted.error))
+                    it.copy(
+                        phase = MatchPhase.CHOOSING,
+                        error = BattleErrorText.of(accepted.error),
+                        isStartBlocked = accepted.error == AppError.Rejected(RANKED_ONLY)
+                    )
                 }
             }
         }
@@ -126,6 +135,14 @@ class MatchViewModel @Inject constructor(
             // 요청 중·성사 뒤에는 뒤로 가지 않는다(자동 출발, FR-087).
             else -> Unit
         }
+    }
+
+    /** 성사 뒤 측정이 늦어져 보인 그만두기(배틀 QA 2번). 포기를 보내고 이 회를 닫으면 거리 고르기로 돌아가 새 대결을 할 수 있다. */
+    fun onForfeit() {
+        if (!_state.value.canForfeit) return
+        forfeiting = true
+        _state.update { it.copy(canForfeit = false) }
+        coordinator.forfeit()
     }
 
     private fun startWaiting() {
@@ -219,8 +236,19 @@ class MatchViewModel @Inject constructor(
         _state.update { it.copy(phase = MatchPhase.MATCHED, match = match, distance = match.distance) }
         coordinator.onMatched(match)
         matchedBattleId = match.battleId
+        watchStuck(clock.instant().plus(MATCHED_STUCK))
         earlyStart?.let(::forwardStart)
         follow(match)
+    }
+
+    /** [deadline]까지 측정이 시작되지 않으면 그만두기를 보인다. 새 기한이 오면(출발 예약) 다시 잰다. */
+    private fun watchStuck(deadline: java.time.Instant) {
+        stuckJob?.cancel()
+        stuckJob = viewModelScope.launch {
+            val wait = Duration.between(clock.instant(), deadline)
+            if (!wait.isNegative) delay(wait.toMillis())
+            _state.update { if (it.phase == MatchPhase.MATCHED && !navigated) it.copy(canForfeit = true) else it }
+        }
     }
 
     /** 대기 채널의 BattleStart를 받는다. 연결 전에 구독해야 MatchFound 직후에 오는 출발 예약도 받는다. */
@@ -268,14 +296,23 @@ class MatchViewModel @Inject constructor(
                         releaseWaitingLease()
                         val reason = coordinator.failure.value
                         countdownJob?.cancel()
+                        stuckJob?.cancel()
                         waitJob?.cancel()
                         handedOver = false
-                        _state.update {
-                            MatchUiState(
-                                distance = it.distance,
-                                error =
-                                    reason?.let(BattleErrorText::of) ?: UiText.Res(R.string.battle_match_start_failed)
+                        // 그만두기로 끝났으면 안내 없이 거리 고르기로(보고가 끝내 실패했을 때만 그 사유).
+                        // 출발 전에 상대가 그만두면 서버는 대결을 취소하고 OPPONENT_FORFEITED를 보낸다(결과 없음).
+                        val fallback = when {
+                            forfeiting -> null
+
+                            s.status == BattleEnded.Status.OPPONENT_FORFEITED -> UiText.Res(
+                                R.string.battle_match_opponent_left
                             )
+
+                            else -> UiText.Res(R.string.battle_match_start_failed)
+                        }
+                        forfeiting = false
+                        _state.update {
+                            MatchUiState(distance = it.distance, error = reason?.let(BattleErrorText::of) ?: fallback)
                         }
                         coordinator.acknowledgeFinished()
                         followJob?.cancel()
@@ -288,11 +325,14 @@ class MatchViewModel @Inject constructor(
     }
 
     private var countdownJob: Job? = null
+    private var stuckJob: Job? = null
+    private var forfeiting = false
 
     private var startAt: java.time.Instant? = null
 
     private fun countdownTo(s: BattleRunState.Countdown) {
         startAt = s.startAt
+        watchStuck(s.startAt.plus(START_STUCK))
         countdownJob?.cancel()
         countdownJob = viewModelScope.launch {
             while (isActive) {
@@ -310,6 +350,7 @@ class MatchViewModel @Inject constructor(
         if (navigated) return
         navigated = true
         countdownJob?.cancel()
+        stuckJob?.cancel()
         _events.trySend(
             MatchEvent.Started(
                 Routes.BattleRunning(
@@ -402,6 +443,11 @@ class MatchViewModel @Inject constructor(
 
     private companion object {
         const val TICK_MILLIS = 1_000L
+        const val RANKED_ONLY = "RANKED_ONLY"
+
+        /** 출발 예약을 받지 못한 채 성사 화면에 머무는 한도와, 출발 시각이 지나고도 측정이 시작되지 않는 한도(배틀 QA 2번). */
+        val MATCHED_STUCK: Duration = Duration.ofSeconds(30)
+        val START_STUCK: Duration = Duration.ofSeconds(15)
 
         /** 서버 대기열에 들어갔거나 들어가는 중인 단계(요청 중이면 응답 뒤 대기열에 남을 수 있다). */
         val QUEUED = setOf(MatchPhase.REQUESTING, MatchPhase.WAITING, MatchPhase.CANCELLING)
