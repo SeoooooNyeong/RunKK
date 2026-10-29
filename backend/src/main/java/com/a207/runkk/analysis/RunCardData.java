@@ -21,6 +21,7 @@ import java.util.List;
  * @param newRecords 신기록 문구
  * @param route 뒷면 경로 좌표(파기 뒤 빈 목록)
  * @param courseMapShared 코스지도공유 설정
+ * @param weather 날씨(없으면 null, 카드 앞면, v0.14 D-235)
  */
 public record RunCardData(
         String recordId,
@@ -32,4 +33,5 @@ public record RunCardData(
         Integer averageHeartRate,
         List<String> newRecords,
         List<GeoPoint> route,
-        boolean courseMapShared) {}
+        boolean courseMapShared,
+        RecordDetailView.WeatherInfo weather) {}

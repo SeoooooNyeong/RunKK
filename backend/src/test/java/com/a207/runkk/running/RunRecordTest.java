@@ -240,8 +240,7 @@ class RunRecordTest {
                 .hasValueSatisfying(t -> assertThat(t.toSeconds()).isCloseTo(3600, within(1L)));
 
         assertThat(book.apply(RunFixtures.judged(upload(id(4), 900, 300)))).isEmpty();
-        assertThatThrownBy(() -> book.best(StandardDistance.FULL))
-                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(book.best(StandardDistance.FULL)).as("풀은 v0.14부터 최고 기록 장부 거리다(D-238)").isEmpty();
     }
 
     @Test
