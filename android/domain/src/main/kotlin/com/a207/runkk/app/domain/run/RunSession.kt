@@ -84,9 +84,10 @@ class RunSession(val spec: RunStartSpec) {
      * 포인트를 반영한다. 정지 중이면 버린다(D-93 (1)). NORMAL이면 직전 정상 포인트와의 거리를 더하고, UNSTABLE이면 거리를 더하지 않고
      * 불안정 구간을 남긴다(Q-18). 재개 뒤 첫 포인트는 직전 정상 포인트가 없어 거리를 더하지 않는다.
      * 직전 포인트와의 시속이 25km/h를 넘으면(순간이동·차량 이동) 그 구간 거리도 더하지 않는다(FR-047 v0.10, [OverspeedRule]).
+     * 경로에 남겼으면 참이다(RunTracker가 경로선에 같은 점을 더한다, D-261).
      */
-    fun onLocation(p: FilteredPoint) {
-        if (!isActive || isPaused) return
+    fun onLocation(p: FilteredPoint): Boolean {
+        if (!isActive || isPaused) return false
         points += RoutePoint(p.at, p.point, p.state)
         lastSignal = p.state
         val previous = lastNormal
@@ -105,6 +106,7 @@ class RunSession(val spec: RunStartSpec) {
         while (window.size > 1 && window.first().first.isBefore(windowStart)) {
             window.removeFirst()
         }
+        return true
     }
 
     /** 심박을 남긴다. 정지 중에도 남긴다(D-93 (1)). */

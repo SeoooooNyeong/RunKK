@@ -2,6 +2,7 @@ package com.a207.runkk.app.domain.run
 
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.core.model.RouteLine
 import com.a207.runkk.app.core.model.RunMode
 import java.time.Duration
 import java.time.Instant
@@ -22,6 +23,7 @@ import kotlinx.coroutines.flow.asStateFlow
  * 실행 환경(MeasurementRuntime). 시각은 MeasurementRuntime.now()에서 읽어 RunSession에 매개변수로 넘긴다.
  * 화면 입력은 누름 종류마다 다른 연산으로, 조정자의 종료는 endRun으로 받는다(D-36, D-49). 일시정지·재개는 폰 버튼·워치 요청이
  * 같은 RunSession.pause·resume으로 모인다(D-256). 앱 화면 잠금과 정지 자동 종료는 없다(FR-182·FR-195 삭제).
+ * 잠금 화면 진행 알림 값([notice], D-258)과 측정 중 경로선([routeLine], D-261)도 여기서 낸다.
  * 위치 콜백·1초 시계·워치 요청이 서로 다른 스레드에서 올 수 있어 측정 상태는 lock으로 보호한다.
  */
 @Singleton
@@ -46,6 +48,23 @@ constructor(
 
     private val _progress = MutableStateFlow(RunProgress.INITIAL)
     val progress: StateFlow<RunProgress> = _progress.asStateFlow()
+
+    private val _notice = MutableStateFlow<ProgressNotice?>(null)
+
+    /**
+     * 잠금 화면 진행 알림 값(D-258). 측정을 시작하면 첫 값을 내고 1초 tick·정지·재개마다 갱신하며, 측정이 끝나거나 취소되면 null이다.
+     * data.device.MeasurementService가 구독해 같은 알림 ID로 다시 그린다.
+     */
+    val notice: StateFlow<ProgressNotice?> = _notice.asStateFlow()
+
+    private val _routeLine = MutableStateFlow(RouteLine.EMPTY)
+
+    /** 측정 중 경로선(D-261). 거른 위치가 경로에 남을 때마다 점이 하나 는다. 새 측정을 시작하면 비운다. */
+    val routeLine: StateFlow<RouteLine> = _routeLine.asStateFlow()
+
+    /** 진행 알림의 대결 격차. 연결 확인 중(null)이면 비운다(RunSession은 마지막 격차를 안내용으로 남긴다). */
+    @Volatile
+    private var noticeGap: Int? = null
 
     private val _consentRequired = MutableStateFlow(false)
     val consentRequired: StateFlow<Boolean> = _consentRequired.asStateFlow()
@@ -119,13 +138,21 @@ constructor(
                     unclaimedEnd = null
                     locationFilter = LocationFilter()
                     coach.begin(spec.mode)
+                    noticeGap = null
                     _progress.value = RunProgress.INITIAL
+                    _routeLine.value = RouteLine.EMPTY
+                    _notice.value = ProgressNotice.of(spec, RunProgress.INITIAL, gapMeters = null)
                 }
             }
         watchBridge.resetProximity()
         val hosted = runtime.startForeground()
         if (hosted is Outcome.Failure) {
-            synchronized(lock) { if (session === created) session = null }
+            synchronized(lock) {
+                if (session === created) {
+                    session = null
+                    _notice.value = null
+                }
+            }
             return hosted
         }
         return Outcome.Success(Unit)
@@ -134,7 +161,8 @@ constructor(
     fun onLocationSample(s: LocationSample) {
         synchronized(lock) {
             val active = session?.takeIf { it.isActive } ?: return
-            locationFilter.accept(s)?.let(active::onLocation)
+            val point = locationFilter.accept(s) ?: return
+            if (active.onLocation(point)) _routeLine.value = _routeLine.value + point.point
         }
     }
 
@@ -147,7 +175,7 @@ constructor(
             synchronized(lock) {
                 val active = session?.takeIf { it.isActive } ?: return
                 // 정지·재개의 진행값 방출과 순서가 뒤바뀌지 않도록 방출은 락 안에서 한다.
-                active to active.tick(now).also { _progress.value = it }
+                active to active.tick(now).also(::emitProgress)
             }
         if (!progress.isPaused) coach.guide(progress, active)
         publishWhileActive(active, progress)
@@ -168,6 +196,12 @@ constructor(
 
     /** 폰 재개 버튼(FR-194). PAUSED일 때만 재개한다. */
     fun onResumeTapped() = resume()
+
+    /** 진행 알림의 "일시정지" 버튼(FR-224, D-260). 폰 버튼과 같은 길이고 자유런 RUNNING일 때만 정지한다. */
+    fun onNotificationPauseTapped() = pause()
+
+    /** 진행 알림의 "재개" 버튼(FR-224, D-260). PAUSED일 때만 재개한다. */
+    fun onNotificationResumeTapped() = resume()
 
     fun onFinishTapped() {
         val hint = synchronized(lock) { session?.takeIf { it.isActive }?.hintFinish() }
@@ -215,6 +249,7 @@ constructor(
     fun onGapChanged(meters: Int?) {
         synchronized(lock) {
             val active = session?.takeIf { it.isActive } ?: return
+            noticeGap = meters
             if (meters != null) active.updateGap(meters)
         }
         val alert = coach.proximityOf(meters, watchBridge.isWatchConnected())
@@ -267,11 +302,17 @@ constructor(
             synchronized(lock) {
                 val active = session?.takeIf { it.isActive } ?: return
                 if (!change(active, now)) return
-                active to active.tick(now).also { _progress.value = it }
+                active to active.tick(now).also(::emitProgress)
             }
         coach.play(Guidance.screenOnly(Guidance.Kind.PAUSE, message))
         // 그 사이 다른 스레드가 끝내고 시작 화면을 보냈으면 늦은 표시로 덮지 않는다(AN5-C-7).
         publishWhileActive(active, progress)
+    }
+
+    /** 진행값과 알림 값을 함께 낸다. lock 안에서만 부른다. */
+    private fun emitProgress(progress: RunProgress) {
+        _progress.value = progress
+        session?.let { _notice.value = ProgressNotice.of(it.spec, progress, noticeGap) }
     }
 
     /** 측정 중인 세션을 확정한다. 없으면 null. */
@@ -294,6 +335,7 @@ constructor(
         runtime.stop()
         // 구독자 확인·보관·방출을 한 lock 안에서 한다: 그 사이 화면이 구독하면 방출로 받고, 아니면 takeUnclaimedEnd로 꺼낸다.
         synchronized(lock) {
+            _notice.value = null
             if (isClaimable && outcome is FinishOutcome.Saved && _ended.subscriptionCount.value == 0) {
                 unclaimedEnd = outcome to runtime.now()
             }

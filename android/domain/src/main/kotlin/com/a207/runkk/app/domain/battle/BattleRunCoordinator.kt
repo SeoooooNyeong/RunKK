@@ -122,7 +122,7 @@ constructor(
 
     /** 랜덤·고스트 매칭 성사. 매칭 화면·애니메이션은 ui.battle이 그린다(design-review.md M25). */
     fun onMatched(m: MatchFound) {
-        val run = openRun(m.battleId, m.distance)
+        val run = openRun(m.battleId, m.distance, m.opponentName)
         run.round.scope.launch {
             _state.value = BattleRunState.Matched(m)
             val channel = liveChannelProvider.open()
@@ -143,7 +143,7 @@ constructor(
 
     /** 나와의 싸움·유명인: 3초 카운트다운 뒤 측정을 시작하고 시작을 서버에 알린다(design-review.md M34). */
     fun onRecordBattleStart(s: RecordBattleStart) {
-        val run = openRun(s.battleId, s.distance)
+        val run = openRun(s.battleId, s.distance, s.opponentName)
         run.round.scope.launch {
             run.schedule(s.track, s.cardKind)
             _state.value = BattleRunState.Countdown(s.battleId, clock.instant().plus(RECORD_COUNTDOWN))
@@ -248,7 +248,8 @@ constructor(
                 mode = RunMode.BATTLE,
                 cardKind = run.cardKind,
                 battleId = run.battleId,
-                todayPlan = PlanSnapshot(targetDistance = run.distance, targetPace = null)
+                todayPlan = PlanSnapshot(targetDistance = run.distance, targetPace = null),
+                opponentName = run.opponentName
             )
         val started = run.round.begin(spec) { progress(run, it) }
         if (started is Outcome.Failure) {
@@ -369,8 +370,9 @@ constructor(
         }
     }
 
-    /** 진행값 → 내 측정값. */
-    private fun RunProgress.toMine(): MyProgress = MyProgress(distance, elapsed, currentPace, averagePace)
+    /** 진행값 → 내 측정값. 경로선은 RunTracker의 지금 값을 옮긴다(D-261). */
+    private fun RunProgress.toMine(): MyProgress =
+        MyProgress(distance, elapsed, currentPace, averagePace, route = runTracker.routeLine.value)
 
     /**
      * 매칭 요청이 취소됐으면(이탈 취소가 요청을 끊음) null. 부른 코루틴 자신이 취소된 것이면 null로 삼키지 않고 취소를 잇는다(리뷰 N-9).
@@ -415,7 +417,7 @@ constructor(
     }
 
     /** 이전 회가 남아 있으면 정리(측정 중이면 endRun, 채널 닫기, 범위 취소)하고 새 회를 연다. */
-    private fun openRun(battleId: Long, distance: Distance): BattleRun {
+    private fun openRun(battleId: Long, distance: Distance, opponentName: String): BattleRun {
         run?.let { previous ->
             run = null
             previous.round.endMeasuring()
@@ -424,14 +426,14 @@ constructor(
         }
         _failure.value = null
         _liveState.value = null
-        return BattleRun(battleId, distance).also { run = it }
+        return BattleRun(battleId, distance, opponentName).also { run = it }
     }
 
     /**
      * 대결 한 회. 범위·측정 여부는 CoordinatedRound가, 예약·상대 종류 전이는 schedule이 맡는다(O-3).
-     * 범위 안의 처리되지 않은 예외는 앱을 죽이지 않고 이 회를 연결 실패로 닫는다.
+     * 범위 안의 처리되지 않은 예외는 앱을 죽이지 않고 이 회를 연결 실패로 닫는다. [opponentName]은 진행 알림 "vs [상대]"에 싣는다(D-258).
      */
-    private inner class BattleRun(val battleId: Long, val distance: Distance) {
+    private inner class BattleRun(val battleId: Long, val distance: Distance, val opponentName: String) {
         val round = CoordinatedRound(applicationScope, runTracker) { fail(this, AppError.Network) }
 
         @Volatile

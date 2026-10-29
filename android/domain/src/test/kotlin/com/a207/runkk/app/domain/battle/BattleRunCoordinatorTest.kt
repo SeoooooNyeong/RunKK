@@ -15,6 +15,7 @@ import com.a207.runkk.app.domain.live.ProgressReport
 import com.a207.runkk.app.domain.live.TrackPoint
 import com.a207.runkk.app.domain.live.TrackTable
 import com.a207.runkk.app.domain.run.Guidance
+import com.a207.runkk.app.domain.run.ProgressNotice
 import com.a207.runkk.app.domain.run.RunArchive
 import com.a207.runkk.app.domain.run.RunProgress
 import com.a207.runkk.app.domain.run.RunTracker
@@ -601,6 +602,21 @@ class BattleRunCoordinatorTest {
         val closing = assertIs<BattleRunState.Closing>(coordinator.state.value)
         assertEquals(Duration.ofSeconds(8), closing.mine.elapsed)
         assertEquals(tracker.progress.value.distance, closing.mine.distance)
+    }
+
+    @Test
+    fun `기록 대결 측정은 상대 이름을 진행 알림에 싣고 경로선을 내 측정값에 옮긴다(D-258, D-261)`() = runTest {
+        val (tracker, coordinator) = setUp()
+        coordinator.onRecordBattleStart(selfStart)
+        advanceTimeBy(3_001)
+        tracker.runTo(1, 0.0)
+        tracker.runTo(5, 20.0)
+        runCurrent()
+        val notice = assertIs<ProgressNotice.Battle>(tracker.notice.value)
+        assertEquals("10/02의 나", notice.opponentName)
+        assertEquals(Distance(100), notice.progressEnd)
+        val mine = assertIs<BattleRunState.Running>(coordinator.state.value).mine
+        assertEquals(2, mine.route.points.size)
     }
 
     @Test
