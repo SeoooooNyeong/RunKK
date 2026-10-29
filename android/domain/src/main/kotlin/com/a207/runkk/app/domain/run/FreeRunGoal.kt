@@ -5,9 +5,15 @@ import com.a207.runkk.app.domain.settings.GuidanceSettings
 /**
  * 자유런 한 회의 목표(FR-048 자유런 설정, FR-049 목표거리도달안내, FR-044 페이스 안내).
  * plan은 RunStartSpec.todayPlan에 실을 목표 거리·목표 페이스이고 null이면 목표 없이 달린다.
- * isFromCoachPlan은 오늘 계획을 따른 목표인지(홈 자유런 카드 문구가 쓴다).
+ * isFromCoachPlan은 오늘 계획을 따른 목표인지(카운트다운 요약 "코치보이스"가 쓴다). isVoiceOn·isVibrationOn은 러닝 음성·진동 안내
+ * 설정이고 카운트다운 요약 줄 "5km · 음성 · 진동 · 코치보이스"(D-264)가 쓴다.
  */
-data class FreeRunGoal(val plan: PlanSnapshot?, val isFromCoachPlan: Boolean) {
+data class FreeRunGoal(
+    val plan: PlanSnapshot?,
+    val isFromCoachPlan: Boolean,
+    val isVoiceOn: Boolean = true,
+    val isVibrationOn: Boolean = true
+) {
     companion object {
         /** 목표 없이 달리기. */
         val NONE = FreeRunGoal(plan = null, isFromCoachPlan = false)
@@ -25,11 +31,18 @@ data class FreeRunGoal(val plan: PlanSnapshot?, val isFromCoachPlan: Boolean) {
             if (coach != null) {
                 return FreeRunGoal(
                     PlanSnapshot(coach.targetDistance ?: settings.freeRunTarget, coach.targetPace),
-                    isFromCoachPlan = true
+                    isFromCoachPlan = true,
+                    isVoiceOn = settings.isRunVoiceOn,
+                    isVibrationOn = settings.isRunVibrationOn
                 )
             }
-            val target = settings.freeRunTarget ?: return NONE
-            return FreeRunGoal(PlanSnapshot(target, null), isFromCoachPlan = false)
+            val target = settings.freeRunTarget
+            return FreeRunGoal(
+                plan = target?.let { PlanSnapshot(it, null) },
+                isFromCoachPlan = false,
+                isVoiceOn = settings.isRunVoiceOn,
+                isVibrationOn = settings.isRunVibrationOn
+            )
         }
     }
 }

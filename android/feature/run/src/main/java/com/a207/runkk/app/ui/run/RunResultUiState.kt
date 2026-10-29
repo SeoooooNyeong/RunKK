@@ -3,11 +3,13 @@ package com.a207.runkk.app.ui.run
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
-import com.a207.runkk.app.core.model.GeoPoint
 import com.a207.runkk.app.core.model.Pace
 import java.time.Duration
 import java.time.Instant
 
+/**
+ * 러닝 결과(B-6, D-282) 화면 값. 가장 빠른 1km·소모 열량·날씨와 유효·집계 제외 표시는 결과 화면에 없다(기록 상세에서 본다, D-26·D29).
+ */
 data class RunResultUiState(
     val isLoading: Boolean = true,
     val recordId: String? = null,
@@ -17,19 +19,15 @@ data class RunResultUiState(
     val elapsed: Duration? = null,
     val averagePace: Pace? = null,
     val averageHeartRate: Int? = null,
-    val route: List<GeoPoint> = emptyList(),
-    val weather: String? = null,
-    val calories: Int? = null,
+    /** 1km 구간 페이스(서버 splitPaces). 서버에 올라가기 전에는 비어 있다. */
+    val splitPaces: List<Pace> = emptyList(),
     val newRecords: List<String> = emptyList(),
     val heartRateZones: List<Pair<String, Duration>> = emptyList(),
-    /** 정지 구간 합계(기기 보관 기록의 정지 구간, FR-194). 모르거나 정지가 없으면 null. */
+    /** 이 러닝의 리워드 적립 합계(서버 rewardPoints, "리워드 +n"). */
+    val rewardPoints: Int? = null,
+    /** 정지 구간 합계("휴식 n분 n초", FR-194). 기기 보관 기록의 정지 구간이나 서버 pausedSeconds. 없거나 0이면 null. */
     val pausedTotal: Duration? = null,
-    /** 서버에 저장된 기록(날씨·칼로리·신기록이 붙음)인가. 거짓이면 기기 보관 기록이고 전송 대기 중이다. */
+    /** 서버에 저장된 기록(구간 페이스·신기록·리워드가 붙음)인가. 거짓이면 기기 보관 기록이고 전송 대기 중이다. */
     val isUploaded: Boolean = false,
-    /**
-     * 서버가 무효로 판정해 집계에서 뺀 기록인가(FR-047). 서버 기록을 읽은 뒤에만 참이 될 수 있다: 미전송(판정 전)이면 거짓이다.
-     * 참이면 "집계 제외"를 보이고 칼로리는 보이지 않는다.
-     */
-    val isExcluded: Boolean = false,
     val error: UiText? = null
 )

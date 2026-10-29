@@ -8,6 +8,7 @@ import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.GeoPoint
 import com.a207.runkk.app.core.model.Pace
+import com.a207.runkk.app.core.model.RouteLine
 import com.a207.runkk.app.core.model.SignalState
 import com.a207.runkk.app.domain.run.HeartRateSample
 import com.a207.runkk.app.domain.run.RunProgress
@@ -34,14 +35,26 @@ class RunScreenshotTest {
         heartRate = HeartRateSample(start, 152)
     )
 
+    /** 북동쪽으로 휘는 짧은 경로(측정 화면 B2·B4). */
+    private val route = RouteLine(
+        listOf(
+            GeoPoint(37.5000, 127.0000),
+            GeoPoint(37.5006, 127.0004),
+            GeoPoint(37.5012, 127.0012),
+            GeoPoint(37.5016, 127.0024),
+            GeoPoint(37.5024, 127.0031)
+        )
+    )
+
     @Test
     fun countdown() = compose.captureRunkkScreen("B1_countdown") {
         RunScreen(
             RunUiState(
                 phase = RunPhase.COUNTDOWN,
-                countdown = 3,
+                countdown = 2,
                 targetDistance = Distance(5_000),
-                targetPace = Pace(330)
+                targetPace = Pace(330),
+                isFromCoachPlan = true
             ),
             RunActions()
         )
@@ -67,6 +80,7 @@ class RunScreenshotTest {
             RunUiState(
                 phase = RunPhase.RUNNING,
                 progress = progress,
+                route = route,
                 targetDistance = Distance(5_000),
                 splitBanner = UiText.Plain("2km, 11:04, 평균 페이스 5:32")
             ),
@@ -92,8 +106,8 @@ class RunScreenshotTest {
             RunUiState(
                 phase = RunPhase.RUNNING,
                 progress = progress.copy(currentPace = null, isPaused = true),
-                targetDistance = Distance(5_000),
-                pausedFor = Duration.ofSeconds(192)
+                route = route,
+                targetDistance = Distance(5_000)
             ),
             RunActions()
         )
@@ -119,8 +133,8 @@ class RunScreenshotTest {
             RunUiState(
                 phase = RunPhase.RUNNING,
                 progress = progress.copy(currentPace = null, isPaused = true),
+                route = route,
                 targetDistance = Distance(5_000),
-                pausedFor = Duration.ofSeconds(192),
                 isDiscardConfirming = true
             ),
             RunActions()
@@ -130,7 +144,7 @@ class RunScreenshotTest {
     @Test
     fun runningLight() = compose.captureRunkkScreen("B2_running_light", isDarkTheme = false) {
         RunScreen(
-            RunUiState(phase = RunPhase.RUNNING, progress = progress, targetDistance = Distance(5_000)),
+            RunUiState(phase = RunPhase.RUNNING, progress = progress, route = route, targetDistance = Distance(5_000)),
             RunActions()
         )
     }
@@ -141,8 +155,8 @@ class RunScreenshotTest {
             RunUiState(
                 phase = RunPhase.RUNNING,
                 progress = progress.copy(currentPace = null, isPaused = true),
-                targetDistance = Distance(5_000),
-                pausedFor = Duration.ofSeconds(192)
+                route = route,
+                targetDistance = Distance(5_000)
             ),
             RunActions()
         )
@@ -160,8 +174,11 @@ class RunScreenshotTest {
                 elapsed = Duration.ofSeconds(1_668),
                 averagePace = Pace(332),
                 averageHeartRate = 152,
-                route = listOf(GeoPoint(37.50, 127.00), GeoPoint(37.505, 127.01), GeoPoint(37.51, 127.03)),
+                splitPaces = listOf(Pace(380), Pace(368), Pace(362), Pace(371), Pace(341)),
                 heartRateZones = listOf("Z1" to Duration.ofMinutes(2), "Z3" to Duration.ofMinutes(9)),
+                newRecords = listOf("최장 거리 신기록 · 직전 4.80km"),
+                rewardPoints = 52,
+                pausedTotal = Duration.ofSeconds(185),
                 isUploaded = true
             ),
             onCard = {},
@@ -182,15 +199,9 @@ class RunScreenshotTest {
                 elapsed = Duration.ofSeconds(1_668),
                 averagePace = Pace(332),
                 averageHeartRate = 152,
-                route = listOf(
-                    GeoPoint(37.50, 127.00),
-                    GeoPoint(37.505, 127.01),
-                    GeoPoint(37.502, 127.02),
-                    GeoPoint(37.51, 127.03)
-                ),
-                weather = "12°C 맑음",
-                calories = 312,
-                newRecords = listOf("최장 거리 신기록, 직전 4.80km"),
+                splitPaces = listOf(Pace(380), Pace(368), Pace(362), Pace(371), Pace(341)),
+                newRecords = listOf("최장 거리 신기록 · 직전 4.80km"),
+                rewardPoints = 52,
                 pausedTotal = Duration.ofMinutes(3),
                 heartRateZones = listOf(
                     "Z1" to Duration.ofMinutes(2),
@@ -205,31 +216,6 @@ class RunScreenshotTest {
             onHome = {},
             onRetry = {}
         )
-    }
-
-    /** 서버가 무효로 판정한 기록(순간이동만 있는 기록): "집계 제외" 표시, 칼로리 없음. */
-    private fun excludedResult() = RunResultUiState(
-        isLoading = false,
-        recordId = "rec-2",
-        cardKind = CardKind.FREE_RUN,
-        startedAt = start,
-        distance = Distance(360),
-        elapsed = Duration.ofSeconds(120),
-        averagePace = Pace(333),
-        route = listOf(GeoPoint(37.50, 127.00), GeoPoint(37.502, 127.004)),
-        weather = "12°C 맑음",
-        isUploaded = true,
-        isExcluded = true
-    )
-
-    @Test
-    fun resultExcluded() = compose.captureRunkkScreen("B4_run_result_excluded") {
-        RunResultScreen(excludedResult(), onCard = {}, onHome = {}, onRetry = {})
-    }
-
-    @Test
-    fun resultExcludedLight() = compose.captureRunkkScreen("B4_run_result_excluded_light", isDarkTheme = false) {
-        RunResultScreen(excludedResult(), onCard = {}, onHome = {}, onRetry = {})
     }
 
     @Test

@@ -60,7 +60,7 @@ class RunViewModelTest {
 
     private fun TestScope.started(): Pair<RunViewModel, RunTracker> {
         val tracker = tracker()
-        val vm = RunViewModel(tracker, records, goals, clock)
+        val vm = RunViewModel(tracker, records, goals)
         runCurrent()
         advanceUntilIdle()
         return vm to tracker
@@ -76,7 +76,7 @@ class RunViewModelTest {
     fun `코치 계획 따르기가 켜져 있으면 카운트다운이 끝난 뒤 오늘 계획으로 자유런을 시작한다`() = runTest(main.dispatcher) {
         settings.guidance = km3.copy(isFollowingCoachPlan = true)
         val tracker = tracker()
-        val vm = RunViewModel(tracker, records, goals, clock)
+        val vm = RunViewModel(tracker, records, goals)
         runCurrent()
         assertEquals(RunPhase.COUNTDOWN, vm.state.value.phase)
         assertEquals(3, vm.state.value.countdown)
@@ -118,22 +118,21 @@ class RunViewModelTest {
     }
 
     @Test
-    fun `카운트다운 중 설정에서 목표를 바꾸고 돌아오면 바꾼 목표로 다시 센다`() = runTest(main.dispatcher) {
+    fun `TC-9727 카운트다운 요약은 목표·음성·진동·코치 설정을 담는다`() = runTest(main.dispatcher) {
         records.todayPlanResult = Outcome.Success(null)
-        val vm = RunViewModel(tracker(), records, goals, clock)
+        settings.guidance = GuidanceSettings.DEFAULT.copy(freeRunTarget = Distance(5_000), isRunVibrationOn = false)
+        val vm = RunViewModel(tracker(), records, goals)
         runCurrent()
-        assertEquals(null, vm.state.value.targetDistance)
-        vm.onSettingsTapped()
-        settings.guidance = GuidanceSettings.DEFAULT.copy(freeRunTarget = Distance(10_000))
-        vm.onResumed()
-        advanceUntilIdle()
-        assertEquals(RunPhase.RUNNING, vm.state.value.phase)
-        assertEquals(Distance(10_000), vm.state.value.targetDistance)
+        val s = vm.state.value
+        assertEquals(RunPhase.COUNTDOWN, s.phase)
+        assertEquals(Distance(5_000), s.targetDistance)
+        assertEquals(true to false, s.isVoiceOn to s.isVibrationOn)
+        assertEquals(false, s.isFromCoachPlan)
     }
 
     @Test
     fun `숫자를 누르면 바로 시작한다`() = runTest(main.dispatcher) {
-        val vm = RunViewModel(tracker(), records, goals, clock)
+        val vm = RunViewModel(tracker(), records, goals)
         runCurrent()
         vm.onCountdownTapped()
         runCurrent()
@@ -142,7 +141,7 @@ class RunViewModelTest {
 
     @Test
     fun `카운트다운 중 취소하면 시작하지 않고 나간다`() = runTest(main.dispatcher) {
-        val vm = RunViewModel(tracker(), records, goals, clock)
+        val vm = RunViewModel(tracker(), records, goals)
         runCurrent()
         vm.events.test {
             vm.onCancelCountdown()
@@ -155,7 +154,7 @@ class RunViewModelTest {
     @Test
     fun `위치 동의가 없으면 카운트다운 전에 재동의를 보인다(FR-031)`() = runTest(main.dispatcher) {
         settings.consented = false
-        val vm = RunViewModel(tracker(), records, goals, clock)
+        val vm = RunViewModel(tracker(), records, goals)
         advanceUntilIdle()
         assertEquals(RunPhase.PREPARING, vm.state.value.phase)
         assertTrue(vm.state.value.isConsentRequired)
@@ -222,25 +221,12 @@ class RunViewModelTest {
                 cardKind = com.a207.runkk.app.core.model.CardKind.FREE_RUN
             )
         )
-        val vm = RunViewModel(tracker, records, goals, clock)
+        val vm = RunViewModel(tracker, records, goals)
         runCurrent()
         vm.onCountdownTapped()
         runCurrent()
         assertEquals(RunPhase.RUNNING, vm.state.value.phase)
         assertEquals(1, host.started)
-    }
-
-    @Test
-    fun `카운트다운 중 설정으로 가면 멈추고 돌아오면 다시 센다`() = runTest(main.dispatcher) {
-        val vm = RunViewModel(tracker(), records, goals, clock)
-        runCurrent()
-        vm.onSettingsTapped()
-        advanceUntilIdle()
-        assertEquals(RunPhase.PREPARING, vm.state.value.phase)
-        assertEquals(0, host.started)
-        vm.onResumed()
-        runCurrent()
-        assertEquals(RunPhase.COUNTDOWN, vm.state.value.phase)
     }
 
     @Test
@@ -297,6 +283,16 @@ class RunViewModelTest {
     }
 
     @Test
+    fun `측정 중 경로선은 RunTracker 경로를 따른다(D-261)`() = runTest(main.dispatcher) {
+        val (vm, tracker) = started()
+        tracker.walk(1, 37.5)
+        tracker.walk(120, 37.5045)
+        runCurrent()
+        assertEquals(2, vm.state.value.route.points.size)
+        assertEquals(tracker.routeLine.value, vm.state.value.route)
+    }
+
+    @Test
     fun `정지 중에도 길게 눌러 끝내면 저장하고 결과로 간다(FR-036)`() = runTest(main.dispatcher) {
         val (vm, tracker) = started()
         tracker.walk(1, 37.5)
@@ -309,22 +305,6 @@ class RunViewModelTest {
             expectNoEvents()
         }
         assertEquals(RunPhase.FINISHING, vm.state.value.phase)
-    }
-
-    @Test
-    fun `정지한 지 시간을 센다(B2-2)`() = runTest(main.dispatcher) {
-        val (vm, tracker) = started()
-        tracker.walk(1, 37.5)
-        tracker.walk(120, 37.5045)
-        vm.onPauseTapped()
-        runCurrent()
-        assertEquals(java.time.Duration.ZERO, vm.state.value.pausedFor)
-        clock.now = clock.now.plusSeconds(192)
-        advanceTimeBy(1_001)
-        assertEquals(java.time.Duration.ofSeconds(192), vm.state.value.pausedFor)
-        vm.onResumeTapped()
-        runCurrent()
-        assertEquals(null, vm.state.value.pausedFor)
     }
 
     @Test
@@ -353,7 +333,7 @@ class RunViewModelTest {
         tracker.walk(120, 37.5045)
         watch.endRequests.emit(Unit)
         runCurrent()
-        val vm = RunViewModel(tracker, records, goals, clock)
+        val vm = RunViewModel(tracker, records, goals)
         vm.events.test {
             runCurrent()
             assertTrue(awaitItem() is RunEvent.Finished)

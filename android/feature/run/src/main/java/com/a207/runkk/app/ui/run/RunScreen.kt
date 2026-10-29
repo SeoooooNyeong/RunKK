@@ -1,7 +1,9 @@
 package com.a207.runkk.app.ui.run
 
 import android.Manifest
+import android.content.Context
 import android.content.pm.PackageManager
+import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -11,32 +13,38 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.CutCornerShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -46,39 +54,39 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.a207.runkk.app.core.designsystem.AvatarExpression
 import com.a207.runkk.app.core.designsystem.LocalReduceMotion
+import com.a207.runkk.app.core.designsystem.RouteCanvas
+import com.a207.runkk.app.core.designsystem.RouteMarker
+import com.a207.runkk.app.core.designsystem.RunkkAvatar
 import com.a207.runkk.app.core.designsystem.RunkkBanner
-import com.a207.runkk.app.core.designsystem.RunkkBigNumber
-import com.a207.runkk.app.core.designsystem.RunkkCard
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkConfirmDialog
 import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkHint
-import com.a207.runkk.app.core.designsystem.RunkkIconButton
 import com.a207.runkk.app.core.designsystem.RunkkIcons
-import com.a207.runkk.app.core.designsystem.RunkkInfoChip
-import com.a207.runkk.app.core.designsystem.RunkkLiveDot
 import com.a207.runkk.app.core.designsystem.RunkkLongPressButton
 import com.a207.runkk.app.core.designsystem.RunkkPillButton
-import com.a207.runkk.app.core.designsystem.RunkkProgressBar
 import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
-import com.a207.runkk.app.core.designsystem.RunkkStatTile
 import com.a207.runkk.app.core.designsystem.RunkkStatusPill
-import com.a207.runkk.app.core.designsystem.RunkkTextLink
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
-import com.a207.runkk.app.core.designsystem.StatTileValue
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.GeoPoint
 import com.a207.runkk.app.core.model.Pace
+import com.a207.runkk.app.core.model.RouteLine
 import com.a207.runkk.app.core.model.SignalState
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
@@ -88,7 +96,7 @@ import com.a207.runkk.app.domain.run.RunProgress
 import java.time.Duration
 import java.time.Instant
 
-/** 자유런 시작 카운트다운(B1)·러닝 측정(B2). */
+/** 자유런 시작 카운트다운(B1)·러닝 측정(B2)·일시정지(B4). 앱 화면 잠금은 없다(D-256). */
 @Composable
 fun RunRoute(viewModel: RunViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -98,7 +106,8 @@ fun RunRoute(viewModel: RunViewModel = hiltViewModel()) {
             viewModel.onRetryStart()
         }
     RunEventEffect(viewModel, navigator)
-    // 동의 관리·자유런 설정에서 돌아오면 준비 단계를 다시 확인한다.
+    NotificationPermissionEffect(state.phase)
+    // 동의 관리에서 돌아오면 준비 단계를 다시 확인한다.
     LifecycleResumeEffect(viewModel) {
         viewModel.onResumed()
         onPauseOrDispose { }
@@ -110,10 +119,6 @@ fun RunRoute(viewModel: RunViewModel = hiltViewModel()) {
         RunActions(
             onCancel = viewModel::onCancelCountdown,
             onCountdownTapped = viewModel::onCountdownTapped,
-            onSettings = {
-                viewModel.onSettingsTapped()
-                navigator.navigate(Routes.FREE_RUN_SETTINGS)
-            },
             onFinishTap = viewModel::onFinishTapped,
             onFinishLongPress = viewModel::onFinishLongPressed,
             onPause = viewModel::onPauseTapped,
@@ -142,8 +147,35 @@ private val LOCATION_PERMISSIONS =
     arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
 
 /** 기기 위치 권한(정밀·대략 중 하나)이 있는가. */
-private fun hasLocationPermission(context: android.content.Context): Boolean = LOCATION_PERMISSIONS.any {
+private fun hasLocationPermission(context: Context): Boolean = LOCATION_PERMISSIONS.any {
     context.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED
+}
+
+/** 알림 권한이 생긴 API 수준(Android 13). */
+private const val NOTIFICATION_PERMISSION_API = 33
+
+/**
+ * 진행 알림 권한을 물을 때인가(D-259 기본값, TC-9620): Android 13 이상이고, 권한이 없고, 이 화면에서 아직 묻지 않았을 때다.
+ * 위치 권한·동의가 끝나 카운트다운에 들어선 뒤(위치 권한 다음) 한 번 묻는다. 거부해도 측정은 한다.
+ */
+internal fun shouldAskNotificationPermission(sdkInt: Int, isGranted: Boolean, isAsked: Boolean): Boolean =
+    sdkInt >= NOTIFICATION_PERMISSION_API && !isGranted && !isAsked
+
+/** 카운트다운에 들어서면 알림 권한을 한 번 묻는다. 결과와 관계없이 측정은 이어 간다. */
+@Composable
+private fun NotificationPermissionEffect(phase: RunPhase) {
+    val context = LocalContext.current
+    var isAsked by rememberSaveable { mutableStateOf(false) }
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    LaunchedEffect(phase) {
+        if (phase != RunPhase.COUNTDOWN || Build.VERSION.SDK_INT < NOTIFICATION_PERMISSION_API) return@LaunchedEffect
+        val isGranted = context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
+        if (shouldAskNotificationPermission(Build.VERSION.SDK_INT, isGranted, isAsked)) {
+            isAsked = true
+            launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
 }
 
 /** 화면 이벤트(저장됨·저장 안 함·나감)를 이동으로 바꾼다. */
@@ -181,7 +213,6 @@ private fun RunBackHandler(phase: RunPhase, viewModel: RunViewModel) {
 data class RunActions(
     val onCancel: () -> Unit = {},
     val onCountdownTapped: () -> Unit = {},
-    val onSettings: () -> Unit = {},
     val onFinishTap: () -> Unit = {},
     val onFinishLongPress: () -> Unit = {},
     val onPause: () -> Unit = {},
@@ -206,7 +237,7 @@ fun RunScreen(state: RunUiState, actions: RunActions, modifier: Modifier = Modif
             actions.onErrorShown()
         }
     }
-    Box(modifier = modifier.fillMaxSize()) {
+    Box(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
         when (state.phase) {
             RunPhase.PREPARING, RunPhase.COUNTDOWN -> CountdownContent(state, actions)
             RunPhase.RUNNING, RunPhase.FINISHING -> RunningContent(state, actions)
@@ -238,145 +269,94 @@ fun RunScreen(state: RunUiState, actions: RunActions, modifier: Modifier = Modif
     }
 }
 
-/** 모드 이름 줄: 목표가 있으면 "자유런, 목표 5km", 없으면 "자유런". */
+/** 머리 알약 "● 자유런 · 5km"(목표가 없으면 "● 자유런"). */
 @Composable
-private fun modeTitle(target: Distance?): String = target?.let {
-    stringResource(R.string.run_mode_free_target, RunkkFormat.targetLabel(it))
-} ?: stringResource(R.string.run_mode_free)
-
-@Composable
-private fun gpsLabel(signal: SignalState?): String = stringResource(
-    when (signal) {
-        SignalState.NORMAL -> R.string.run_gps_good
-        SignalState.UNSTABLE -> R.string.run_gps_weak
-        null -> R.string.run_gps_searching
+private fun ModePill(target: Distance?, isLive: Boolean = true) {
+    val label = target?.let { stringResource(R.string.run_mode_pill, RunkkFormat.targetLabel(it)) }
+        ?: stringResource(R.string.run_mode_free)
+    RunkkStatusPill(label, modifier = Modifier.semantics { heading() }) {
+        if (isLive) {
+            Box(Modifier.size(8.dp).clip(CircleShape).background(RunkkColors.TextPrimary))
+        }
     }
-)
+}
 
+/**
+ * 카운트다운 설정 요약 한 줄(D-264): 목표 거리, 음성·진동 안내가 켜져 있으면 "음성"·"진동", 오늘 코치 계획을 따르면 "코치보이스".
+ * 꺼진 항목은 빼고 " · "로 잇는다. 모두 빠지면 빈 줄이다.
+ */
+@Composable
+internal fun countdownSummary(state: RunUiState): String = listOfNotNull(
+    state.targetDistance?.let { RunkkFormat.targetLabel(it) },
+    stringResource(R.string.run_countdown_voice).takeIf { state.isVoiceOn },
+    stringResource(R.string.run_countdown_vibration).takeIf { state.isVibrationOn },
+    stringResource(R.string.run_countdown_coach_voice).takeIf { state.isFromCoachPlan }
+).joinToString(SUMMARY_SEPARATOR)
+
+/** 카운트다운(B1): 머리 알약, 큰 숫자 원, 설정 요약 한 줄. 위치·워치 상태와 눌러 설정 바꾸기는 없다(D-264). */
 @Composable
 private fun CountdownContent(state: RunUiState, actions: RunActions) {
-    Column(
-        modifier = Modifier.fillMaxSize().background(
-            RunkkColors.Background
-        ).padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 40.dp)
-    ) {
-        CountdownTopBar(state.progress.signal, actions.onCancel)
-        CountdownCenter(state, actions, modifier = Modifier.weight(1f).fillMaxWidth())
-        CountdownPlanCard(state, actions.onSettings)
-    }
-}
-
-/** 카운트다운 위쪽 줄: 취소와 "자유런, GPS 신호 좋음". */
-@Composable
-private fun CountdownTopBar(signal: SignalState?, onCancel: () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        RunkkPillButton(stringResource(R.string.run_countdown_cancel), onClick = onCancel)
-        Spacer(Modifier.weight(1f))
-        val gps = stringResource(
-            when (signal) {
-                SignalState.NORMAL -> R.string.run_countdown_gps_good
-                SignalState.UNSTABLE -> R.string.run_countdown_gps_weak
-                null -> R.string.run_gps_searching
-            }
-        )
-        RunkkStatusPill(stringResource(R.string.run_countdown_status, stringResource(R.string.run_mode_free), gps)) {
-            RunkkLiveDot(color = if (signal == SignalState.UNSTABLE) RunkkColors.Lavender else RunkkColors.Lime)
-        }
-    }
-}
-
-/** 카운트다운 가운데: 숫자 원(준비 단계에서는 다시 시도). */
-@Composable
-private fun CountdownCenter(state: RunUiState, actions: RunActions, modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier,
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterVertically)
-    ) {
-        if (state.phase == RunPhase.COUNTDOWN) {
-            CountdownBall(state.countdown, actions.onCountdownTapped)
-        } else {
-            RunkkPillButton(stringResource(R.string.run_countdown_retry), onClick = actions.onRetry)
-        }
-    }
-}
-
-/** 카운트다운 아래 카드: 지난번 설정(또는 오늘 계획) 요약 칩과 설정 바꾸기. */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun CountdownPlanCard(state: RunUiState, onSettings: () -> Unit) {
-    RunkkCard(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 40.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                stringResource(
-                    if (state.isFromCoachPlan) R.string.run_countdown_plan else R.string.run_countdown_last_settings
-                ),
-                style = RunkkTextStyles.Caption,
-                color = RunkkColors.TextSecondary,
-                modifier = Modifier.weight(1f)
-            )
-            RunkkTextLink(
-                stringResource(R.string.run_countdown_change),
-                onClick = onSettings,
-                contentDescription = stringResource(R.string.run_countdown_change_desc)
-            )
-        }
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            RunkkInfoChip(
-                state.targetDistance?.let {
-                    stringResource(R.string.run_countdown_target_distance, RunkkFormat.km(it).trimEnd('0').trimEnd('.'))
-                } ?: stringResource(R.string.run_countdown_target_none),
-                isHighlighted =
-                    state.targetDistance != null
-            )
-            state.targetPace?.let {
-                RunkkInfoChip(
-                    stringResource(R.string.run_countdown_target_pace, RunkkFormat.pace(it)),
-                    spoken = stringResource(R.string.run_countdown_target_pace, RunkkFormat.paceSpoken(it))
-                )
+            ModePill(state.targetDistance)
+            Spacer(Modifier.weight(1f))
+            if (state.phase == RunPhase.PREPARING) {
+                RunkkPillButton(stringResource(R.string.run_countdown_cancel), onClick = actions.onCancel)
             }
-            RunkkInfoChip(stringResource(R.string.run_countdown_split_guide))
+        }
+        Column(
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterVertically)
+        ) {
+            if (state.phase == RunPhase.COUNTDOWN) {
+                CountdownBall(state.countdown, actions.onCountdownTapped)
+            } else {
+                RunkkPillButton(stringResource(R.string.run_countdown_retry), onClick = actions.onRetry)
+            }
+            Text(countdownSummary(state), style = RunkkTextStyles.Body, color = RunkkColors.TextPrimary)
         }
     }
 }
 
-/** 큰 숫자 원(240dp). 누르면 바로 시작(FR-180). 동작 줄이기가 아니면 고리가 퍼진다. */
+/** 큰 숫자 원(220dp). 고리가 남은 초만큼 줄고 누르면 바로 시작한다(FR-180). 동작 줄이기면 고리가 움직이지 않는다. */
 @Composable
 private fun CountdownBall(number: Int, onTap: () -> Unit) {
     val reduce = LocalReduceMotion.current
-    val ring = if (reduce) {
-        0f
+    val sweep = if (reduce) {
+        1f
     } else {
         val transition = rememberInfiniteTransition(label = "countdownRing")
         val value by transition.animateFloat(
-            0f,
             1f,
+            0f,
             InfiniteRepeatableSpec(tween(RING_MILLIS), RepeatMode.Restart),
             label = "ring"
         )
         value
     }
     val startNow = stringResource(R.string.run_countdown_start_now)
-    val ringColor = RunkkColors.Lime
+    val outer = RunkkColors.Lime
+    val ring = RunkkColors.LimeContainer
     Box(
         modifier = Modifier
-            .size(240.dp)
-            .drawBehind {
-                if (ring >
-                    0f
-                ) {
-                    drawCircle(
-                        ringColor.copy(alpha = (1f - ring) * RING_ALPHA),
-                        radius =
-                            size.minDimension / 2 + 32.dp.toPx() * ring
-                    )
-                }
-            }
+            .size(220.dp)
             .clip(CircleShape)
-            .background(RunkkColors.Lime)
+            .drawBehind {
+                drawCircle(outer)
+                val stroke = 8.dp.toPx()
+                val inset = 14.dp.toPx()
+                drawArc(
+                    color = ring,
+                    startAngle = -90f,
+                    sweepAngle = 360f * sweep,
+                    useCenter = false,
+                    topLeft = Offset(inset, inset),
+                    size = Size(size.width - 2 * inset, size.height - 2 * inset),
+                    style = Stroke(width = stroke)
+                )
+                drawCircle(ring, radius = size.minDimension / 2 - 30.dp.toPx())
+            }
             .clickable(role = Role.Button, onClickLabel = startNow, onClick = onTap)
             .semantics {
                 contentDescription = "$number"
@@ -384,243 +364,233 @@ private fun CountdownBall(number: Int, onTap: () -> Unit) {
             },
         contentAlignment = Alignment.Center
     ) {
-        Text("$number", style = RunkkTextStyles.display(168, lineHeightRatio = 1f), color = RunkkColors.OnLime)
-    }
-}
-
-@Composable
-private fun RunningContent(state: RunUiState, actions: RunActions) {
-    Column(
-        modifier = Modifier.fillMaxSize().background(
-            RunkkColors.Background
-        ).padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 32.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        RunningTopBar(state)
-        if (state.isPaused) {
-            PausedNotice(state.pausedFor)
-        } else {
-            state.splitBanner?.let {
-                RunkkBanner(it.asString(), modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
-            }
-        }
-        RunningDistance(state)
-        RunningStats(state.progress)
-        Spacer(Modifier.weight(1f))
-        state.hint?.let { RunkkHint(it.asString(), modifier = Modifier.align(Alignment.CenterHorizontally)) }
-        RunningControls(state.isPaused, actions)
-    }
-}
-
-/** 측정 위쪽 줄: "자유런, 목표 5km"와 GPS·워치 연결 알약. 정지 중에는 라벤더 글자. */
-@Composable
-private fun RunningTopBar(state: RunUiState) {
-    val progress = state.progress
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-        if (!state.isPaused) RunkkLiveDot()
         Text(
-            modeTitle(state.targetDistance),
-            style = RunkkTextStyles.text(15, FontWeight.Black),
-            color = if (state.isPaused) RunkkColors.Lavender else RunkkColors.Lime,
-            modifier = Modifier.weight(1f).semantics { heading() }
+            "$number",
+            style = RunkkTextStyles.display(120, lineHeightRatio = 1f).copy(fontStyle = FontStyle.Italic),
+            color = RunkkColors.TextPrimary
         )
-        RunkkStatusPill(gpsLabel(progress.signal))
-        // 워치 심박이 들어오면 워치가 연결된 것으로 본다.
-        if (progress.heartRate != null) RunkkStatusPill(stringResource(R.string.run_watch_connected))
-    }
-}
-
-/** 측정 가운데: "거리" 라벨, 큰 거리 숫자와 목표 진행 막대. 정지 중에는 "거리 (멈춤)". */
-@Composable
-private fun RunningDistance(state: RunUiState) {
-    val progress = state.progress
-    val distanceSpoken = stringResource(R.string.run_distance_spoken, RunkkFormat.km(progress.distance))
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Text(
-            stringResource(if (state.isPaused) R.string.run_running_distance_paused else R.string.run_running_distance),
-            style = RunkkTextStyles.Caption,
-            color = RunkkColors.TextSecondary
-        )
-        RunkkBigNumber(
-            value = RunkkFormat.km(progress.distance),
-            caption = "km",
-            modifier = Modifier.semantics(mergeDescendants = true) {
-                contentDescription = distanceSpoken
-            }
-        )
-        state.targetProgress?.let { ratio ->
-            RunkkProgressBar(ratio, modifier = Modifier.padding(top = 16.dp))
-            Text(
-                text = state.remaining?.let { stringResource(R.string.run_running_remaining, RunkkFormat.km(it)) }
-                    ?: stringResource(R.string.run_running_goal_done),
-                style = RunkkTextStyles.Caption,
-                color = RunkkColors.TextSecondary,
-                modifier = Modifier.align(Alignment.End)
-            )
-        }
-    }
-}
-
-/** 측정 값 4칸: 경과(운동) 시간, 현재 페이스(최근 30초), 평균 페이스, 심박. 정지 중에는 멈춤 표시. */
-@Composable
-private fun RunningStats(progress: RunProgress) {
-    val paused = progress.isPaused
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        RunkkStatTile(
-            stringResource(if (paused) R.string.run_running_elapsed_paused else R.string.run_running_elapsed),
-            StatTileValue(
-                RunkkFormat.duration(progress.elapsed),
-                spoken = RunkkFormat.durationSpoken(progress.elapsed)
-            ),
-            modifier = Modifier.weight(1f)
-        )
-        RunkkStatTile(
-            stringResource(if (paused) R.string.run_running_current_pace_paused else R.string.run_running_current_pace),
-            StatTileValue(
-                if (paused) PAUSED_PACE else RunkkFormat.pace(progress.currentPace),
-                spoken = if (paused) null else RunkkFormat.paceSpoken(progress.currentPace)
-            ),
-            modifier = Modifier.weight(1f)
-        )
-    }
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        RunkkStatTile(
-            stringResource(R.string.run_stat_avg_pace),
-            StatTileValue(
-                RunkkFormat.pace(progress.averagePace),
-                spoken = RunkkFormat.paceSpoken(progress.averagePace)
-            ),
-            modifier = Modifier.weight(1f)
-        )
-        RunkkStatTile(
-            stringResource(if (paused) R.string.run_running_heart_rate_paused else R.string.run_running_heart_rate),
-            StatTileValue(progress.heartRate?.bpm?.toString() ?: RunkkFormat.EMPTY),
-            modifier = Modifier.weight(1f)
-        )
-    }
-}
-
-/** 정지 중 표시(B2-2, FR-194): "일시정지"와 정지한 지 얼마나 됐는지. 정지로 바뀌면 보조 기술이 "일시정지"를 알린다. */
-@Composable
-private fun PausedNotice(pausedFor: Duration?) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(RunkkColors.Surface)
-            .border(1.dp, RunkkColors.Lavender, RoundedCornerShape(16.dp))
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            stringResource(R.string.run_paused_label),
-            style = RunkkTextStyles.text(16, FontWeight.Black),
-            color = RunkkColors.Lavender,
-            modifier = Modifier.weight(1f).semantics { liveRegion = LiveRegionMode.Polite }
-        )
-        if (pausedFor != null) {
-            Text(
-                stringResource(R.string.run_paused_for, RunkkFormat.duration(pausedFor)),
-                style = RunkkTextStyles.Caption,
-                color = RunkkColors.TextSecondary
-            )
-        }
     }
 }
 
 /**
- * 측정 아래 버튼 줄(FR-194, FR-181): 측정 중에는 취소, 길게 눌러 종료, 일시정지. 정지 중에는 취소, 재개, 길게 눌러 종료.
- * 정지 중에도 길게 눌러 끝낼 수 있다(FR-036). 취소는 확인을 거쳐 기록을 남기지 않고 끝낸다.
+ * 측정(B2)·일시정지(B4): 머리 알약, 큰 거리(km), 시간·평균 페이스·심박 세 칸, 경로선과 내 아바타, 아래 버튼.
+ * 현재 페이스는 폰 화면에 없다(워치 표시용으로 진행값에만 남는다, D-263). 정지 중에는 반투명 막을 덮고 종료·재개만 받는다.
  */
 @Composable
-private fun RunningControls(isPaused: Boolean, actions: RunActions) {
+private fun RunningContent(state: RunUiState, actions: RunActions) {
+    Box(Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            ModePill(state.targetDistance, isLive = !state.isPaused)
+            RunningDistance(state.progress.distance)
+            RunningStats(state.progress)
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                RunningRoute(state.route)
+                state.splitBanner?.takeIf { !state.isPaused }?.let {
+                    RunkkBanner(
+                        it.asString(),
+                        modifier = Modifier.align(Alignment.TopCenter).semantics {
+                            liveRegion = LiveRegionMode.Polite
+                        }
+                    )
+                }
+                state.hint?.let { RunkkHint(it.asString(), modifier = Modifier.align(Alignment.BottomCenter)) }
+            }
+            if (!state.isPaused) RunningControls(actions)
+        }
+        if (state.isPaused) PausedOverlay(actions)
+    }
+}
+
+/** 큰 거리 "2.14"와 오른쪽 아래 작은 "km". */
+@Composable
+private fun RunningDistance(distance: Distance) {
+    val spoken = stringResource(R.string.run_distance_spoken, RunkkFormat.km(distance))
+    Row(
+        modifier = Modifier.fillMaxWidth().clearAndSetSemantics { contentDescription = spoken },
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.Bottom
+    ) {
+        Text(RunkkFormat.km(distance), style = RunkkTextStyles.DisplayHuge, color = RunkkColors.TextPrimary)
+        Text(
+            stringResource(R.string.run_unit_km),
+            style = RunkkTextStyles.text(18),
+            color = RunkkColors.TextSecondary,
+            modifier = Modifier.padding(start = 4.dp, bottom = 12.dp)
+        )
+    }
+}
+
+/** 지표 세 칸: 시간(운동 시간), 평균 페이스, 심박(bpm, 워치가 없으면 "--"). */
+@Composable
+private fun RunningStats(progress: RunProgress) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+        StatColumn(
+            RunkkFormat.duration(progress.elapsed),
+            stringResource(R.string.run_stat_time),
+            RunkkFormat.durationSpoken(progress.elapsed)
+        )
+        StatColumn(
+            RunkkFormat.pace(progress.averagePace),
+            stringResource(R.string.run_stat_avg_pace),
+            RunkkFormat.paceSpoken(progress.averagePace)
+        )
+        StatColumn(progress.heartRate?.bpm?.toString() ?: NO_HEART_RATE, stringResource(R.string.run_stat_heart_rate))
+    }
+}
+
+@Composable
+private fun StatColumn(value: String, label: String, spoken: String? = null) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.semantics(mergeDescendants = true) {
+            spoken?.let { contentDescription = "$label $it" }
+        }
+    ) {
+        Text(value, style = RunkkTextStyles.display(28), color = RunkkColors.TextPrimary)
+        Text(label, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
+    }
+}
+
+/** 경로선과 경로 끝의 내 아바타(D-261). 경로가 아직 없으면 아바타만 가운데에 둔다. */
+@Composable
+private fun RunningRoute(route: RouteLine) {
+    val me = route.points.lastOrNull()
+    if (me == null) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            RunkkAvatar(faceKey = null, expression = AvatarExpression.JOY, modifier = Modifier.size(72.dp))
+        }
+        return
+    }
+    RouteCanvas(route = route, markers = listOf(RouteMarker(point = me)), modifier = Modifier.fillMaxSize())
+}
+
+/**
+ * 측정 아래 버튼(FR-181, FR-194): 취소(기록 없이 끝내기, 디자인 요청 중이라 기존 자리 유지, D-263), 길게 눌러 종료, 일시정지.
+ */
+@Composable
+private fun RunningControls(actions: RunActions) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.Top
     ) {
-        CaptionedIconButton(
-            RunkkIcons.Close,
-            caption = stringResource(R.string.run_discard_caption),
-            contentDescription = stringResource(R.string.run_discard_desc),
-            onClick = actions.onDiscard
+        DiscardButton(actions.onDiscard)
+        FinishButton(actions)
+        RoundButton(
+            icon = RunkkIcons.Pause,
+            contentDescription = stringResource(R.string.run_pause_desc),
+            onClick = actions.onPause,
+            background = RunkkColors.Lime,
+            tint = RunkkColors.OnLime,
+            shape = CutCornerShape(percent = OCTAGON_CUT)
         )
-        if (isPaused) {
-            CaptionedIconButton(
-                RunkkIcons.Play,
-                caption = stringResource(R.string.run_resume_desc),
+    }
+}
+
+/** 일시정지(B4): 반투명 막 위에 취소·종료·재개. 보조 기술에는 "일시정지" 화면으로 알린다. */
+@Composable
+private fun PausedOverlay(actions: RunActions) {
+    val paneTitle = stringResource(R.string.run_paused_label)
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = PAUSE_SCRIM_ALPHA))
+            .semantics { this.paneTitle = paneTitle }
+            .padding(start = 16.dp, end = 16.dp, bottom = 32.dp),
+        contentAlignment = Alignment.BottomCenter
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.Top
+        ) {
+            DiscardButton(actions.onDiscard)
+            FinishButton(actions)
+            RoundButton(
+                icon = RunkkIcons.Play,
                 contentDescription = stringResource(R.string.run_resume_desc),
                 onClick = actions.onResume,
-                isAccent = true
-            )
-            FinishButton(actions, caption = stringResource(R.string.run_hold_to_finish))
-        } else {
-            FinishButton(actions, caption = stringResource(R.string.run_hold_to_finish))
-            CaptionedIconButton(
-                RunkkIcons.Pause,
-                caption = stringResource(R.string.run_pause_desc),
-                contentDescription = stringResource(R.string.run_pause_desc),
-                onClick = actions.onPause
+                background = RunkkColors.Surface,
+                tint = RunkkColors.TextPrimary
             )
         }
     }
 }
 
-/** 길게 눌러 종료 버튼(짧게 누르면 안내, D-49). */
+/** 길게 눌러 종료 버튼(짧게 누르면 안내, D-49): 흰 원 안 검은 둥근 사각형, 아래 "길게 눌러 종료". */
 @Composable
-private fun FinishButton(actions: RunActions, caption: String) {
+private fun FinishButton(actions: RunActions) {
     RunkkLongPressButton(
         onTap = actions.onFinishTap,
         onLongPress = actions.onFinishLongPress,
         tapLabel = stringResource(R.string.run_running_finish_tap),
         longPressLabel = stringResource(R.string.run_hold_to_finish),
         contentDescription = stringResource(R.string.run_running_finish_desc),
-        caption = caption
+        caption = stringResource(R.string.run_hold_to_finish),
+        size = BIG_BUTTON,
+        borderColor = RunkkColors.Surface,
+        borderWidth = 0.dp,
+        background = RunkkColors.Surface
     ) {
-        Box(Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).background(RunkkColors.Lavender))
+        Box(Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).background(RunkkColors.TextPrimary))
     }
 }
 
-/** 원형 아이콘 버튼(64dp)과 아래 글자("취소", "잠금", "일시정지", "재개"). 글자는 버튼 이름과 같아 따로 읽지 않는다. */
+/** 취소(기록 없이 끝내기, FR-219). 확인을 거친다. */
 @Composable
-private fun CaptionedIconButton(
-    icon: ImageVector,
-    caption: String,
-    contentDescription: String,
-    onClick: () -> Unit,
-    isAccent: Boolean = false
-) {
-    Column(
-        modifier = Modifier.padding(top = 16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        RunkkIconButton(
-            icon,
-            contentDescription = contentDescription,
+private fun DiscardButton(onClick: () -> Unit) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(top = 20.dp)) {
+        RoundButton(
+            icon = RunkkIcons.Close,
+            contentDescription = stringResource(R.string.run_discard_desc),
             onClick = onClick,
-            visualSize = 64.dp,
-            iconSize = 24.dp,
-            borderColor = if (isAccent) RunkkColors.Lime else RunkkColors.BorderStrong
+            background = RunkkColors.Surface,
+            tint = RunkkColors.TextSecondary,
+            size = SMALL_BUTTON
         )
         Text(
-            caption,
+            stringResource(R.string.run_discard_caption),
             style = RunkkTextStyles.Caption,
             color = RunkkColors.TextSecondary,
-            modifier = Modifier.clearAndSetSemantics {}
+            modifier = Modifier.padding(top = 8.dp).clearAndSetSemantics {}
         )
     }
 }
 
-/** 정지 중 현재 페이스 자리(보드 "—"). */
-private const val PAUSED_PACE = "—"
+/** 둥근(또는 팔각) 아이콘 버튼. */
+@Composable
+private fun RoundButton(
+    icon: ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit,
+    background: Color,
+    tint: Color,
+    shape: Shape = CircleShape,
+    size: Dp = BIG_BUTTON
+) {
+    Box(
+        modifier = Modifier
+            .size(size)
+            .clip(shape)
+            .background(background)
+            .clickable(role = Role.Button, onClickLabel = contentDescription, onClick = onClick)
+            .semantics { this.contentDescription = contentDescription },
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(size / 3))
+    }
+}
 
 private const val RING_MILLIS = 1_000
-private const val RING_ALPHA = 0.5f
+private const val OCTAGON_CUT = 30
+private const val PAUSE_SCRIM_ALPHA = 0.45f
+private const val SUMMARY_SEPARATOR = " · "
+private const val NO_HEART_RATE = "--"
+private val BIG_BUTTON = 88.dp
+private val SMALL_BUTTON = 48.dp
 
 private val previewProgress = RunProgress(
     elapsed = Duration.ofSeconds(712),
@@ -629,6 +599,15 @@ private val previewProgress = RunProgress(
     averagePace = Pace(332),
     signal = SignalState.NORMAL,
     heartRate = HeartRateSample(Instant.EPOCH, 152)
+)
+
+private val previewRoute = RouteLine(
+    listOf(
+        GeoPoint(37.5000, 127.0000),
+        GeoPoint(37.5012, 127.0010),
+        GeoPoint(37.5020, 127.0030),
+        GeoPoint(37.5035, 127.0042)
+    )
 )
 
 @Preview(name = "B1 시작 카운트다운", widthDp = 390, heightDp = 844)
@@ -647,8 +626,25 @@ private fun RunningPreview() {
             RunUiState(
                 phase = RunPhase.RUNNING,
                 progress = previewProgress,
+                route = previewRoute,
                 targetDistance = Distance(5_000),
                 splitBanner = UiText.Plain("2km, 11:04, 평균 페이스 5:32")
+            ),
+            RunActions()
+        )
+    }
+}
+
+@Preview(name = "B4 일시정지", widthDp = 390, heightDp = 844)
+@Composable
+private fun PausedPreview() {
+    RunkkTheme(reduceMotion = true) {
+        RunScreen(
+            RunUiState(
+                phase = RunPhase.RUNNING,
+                progress = previewProgress.copy(isPaused = true),
+                route = previewRoute,
+                targetDistance = Distance(5_000)
             ),
             RunActions()
         )

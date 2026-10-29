@@ -157,4 +157,18 @@
     <string name="core_location_consent_close">닫기</string>
     <string name="core_location_consent_agree">동의하고 시작</string>
     <string name="core_avatar_description">내 아바타</string>
+    <!-- 러닝 결과 상세(D-282, 피그마 B-6). 자유런 결과와 대결 결과 2쪽이 함께 쓴다. -->
+    <string name="result_detail_km">km</string>
+    <string name="result_detail_distance_spoken">%1$s 킬로미터</string>
+    <string name="result_detail_time">시간</string>
+    <string name="result_detail_rest">휴식 %1$d분 %2$d초</string>
+    <string name="result_detail_avg_pace">평균 페이스</string>
+    <string name="result_detail_avg_heart">평균 심박</string>
+    <string name="result_detail_split_title">구간 페이스</string>
+    <string name="result_detail_split_km">%1$dkm</string>
+    <string name="result_detail_split_spoken">%1$d킬로미터 구간 %2$s</string>
+    <string name="result_detail_zone_title">심박 구간</string>
+    <string name="result_detail_zone_watch">워치</string>
+    <string name="result_detail_zone_spoken">심박 구간 분포(분): %1$s</string>
+    <string name="result_detail_reward">리워드 +%1$d</string>
 </resources>

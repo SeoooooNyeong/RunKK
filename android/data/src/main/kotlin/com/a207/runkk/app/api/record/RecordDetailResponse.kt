@@ -20,7 +20,9 @@ internal data class RecordDetailResponse(
     val splitPaces: List<Int> = emptyList(),
     val fastestKmSecondsPerKm: Int? = null,
     val averageHeartRate: Int? = null,
-    val maxHeartRate: Int? = null
+    val maxHeartRate: Int? = null,
+    /** 정지 구간 합(초). 결과 화면 "휴식 n분 n초"(D-282). 옛 서버면 없다. */
+    val pausedSeconds: Long? = null
 ) {
     /** 신호 불안정 구간. 서버가 빠뜨린 항목은 0으로 읽어 기록 상세 전체가 실패하지 않게 한다. */
     @Serializable

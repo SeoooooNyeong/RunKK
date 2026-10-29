@@ -86,7 +86,8 @@ internal fun RecordDetailResponse.toDomain(): RecordDetail = RecordDetail(
     splitPaces = splitPaces.mapNotNull { it.toPace() },
     fastestKm = fastestKmSecondsPerKm.toPace(),
     averageHeartRate = averageHeartRate,
-    maxHeartRate = maxHeartRate
+    maxHeartRate = maxHeartRate,
+    paused = pausedSeconds?.let(Duration::ofSeconds)
 )
 
 internal fun GrowthResponse.toDomain(): Growth = Growth(

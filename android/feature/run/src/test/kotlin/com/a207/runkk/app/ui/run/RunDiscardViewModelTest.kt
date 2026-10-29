@@ -41,7 +41,7 @@ class RunDiscardViewModelTest {
             RunCoach(FakeGuidanceOutput(), settings),
             MeasurementRuntime(FakeLocationPermission(), host, settings, clock)
         )
-        val vm = RunViewModel(tracker, FakeRecordRepository(), FreeRunGoalUseCase(settings), clock)
+        val vm = RunViewModel(tracker, FakeRecordRepository(), FreeRunGoalUseCase(settings))
         runCurrent()
         advanceUntilIdle()
         assertEquals(RunPhase.RUNNING, vm.state.value.phase)
