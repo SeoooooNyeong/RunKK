@@ -52,6 +52,10 @@ class ResultRepository(Protocol):
         """user_id의 완료된 러닝 중 가장 이른 시작 시각(ACWR을 켜는 날짜 계산용)."""
         ...
 
+    async def purge_user(self, user_id: str) -> int:
+        """user_id의 기록을 상태와 무관하게 모두 지우고 지운 수를 돌려준다(탈퇴 파기, S15P31A207-219)."""
+        ...
+
 
 class InMemoryResultRepository:
     def __init__(self, max_records: int = MEMORY_MAX_RECORDS) -> None:
@@ -94,6 +98,13 @@ class InMemoryResultRepository:
 
     async def first_started_at(self, user_id: str) -> datetime | None:
         return min((r.started_at for r in self._done(user_id)), default=None)
+
+    async def purge_user(self, user_id: str) -> int:
+        async with self._lock:
+            mine = [sid for sid, r in self._records.items() if r.user_id == user_id]
+            for sid in mine:
+                del self._records[sid]
+        return len(mine)
 
     def _done(self, user_id: str) -> list[SessionRecord]:
         return [r for r in self._records.values() if r.user_id == user_id and r.status == "done"]

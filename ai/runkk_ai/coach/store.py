@@ -40,6 +40,10 @@ class CoachMessageStore(Protocol):
 
     async def append(self, message: CoachMessage) -> None: ...
 
+    async def purge_user(self, user_id: str) -> int:
+        """user_id의 대화(모든 메시지)를 지우고 지운 메시지 수를 돌려준다(탈퇴 파기, S15P31A207-219)."""
+        ...
+
 
 class InMemoryCoachStore:
     def __init__(self, max_conversations: int = MEMORY_MAX_CONVERSATIONS) -> None:
@@ -60,3 +64,9 @@ class InMemoryCoachStore:
             self._conversations.move_to_end(message.conversation_id)
             while len(self._conversations) > self._max:
                 self._conversations.popitem(last=False)
+
+    async def purge_user(self, user_id: str) -> int:
+        async with self._lock:
+            mine = [cid for cid, messages in self._conversations.items() if messages and messages[0].user_id == user_id]
+            count = sum(len(self._conversations.pop(cid)) for cid in mine)
+        return count

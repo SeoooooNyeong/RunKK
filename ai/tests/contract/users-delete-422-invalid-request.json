@@ -1,0 +1,12 @@
+{
+  "endpoint": "DELETE /users/{userId}",
+  "scenario": "ok",
+  "request": {
+    "userId": "a:b"
+  },
+  "status": 422,
+  "body": {
+    "reason": "INVALID_REQUEST"
+  },
+  "gateway": "userId 형식(영문·숫자·_·- 1~128자) 위반. 재시도하지 않는다"
+}

@@ -1,0 +1,12 @@
+{
+  "endpoint": "DELETE /users/{userId}",
+  "scenario": "no_token",
+  "request": {
+    "userId": "42"
+  },
+  "status": 401,
+  "body": {
+    "reason": "UNAUTHORIZED"
+  },
+  "gateway": "토큰 설정 오류, 오류 로그"
+}

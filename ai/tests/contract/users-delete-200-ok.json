@@ -1,0 +1,13 @@
+{
+  "endpoint": "DELETE /users/{userId}",
+  "scenario": "ok",
+  "request": {
+    "userId": "42"
+  },
+  "status": 200,
+  "body": {
+    "sessionResults": 0,
+    "coachMessages": 0
+  },
+  "gateway": "멱등. 숫자는 지운 행 수(없던 사용자도 200에 0). 탈퇴 리스너·파기 배치가 부른다"
+}

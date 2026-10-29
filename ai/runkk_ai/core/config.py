@@ -68,6 +68,9 @@ class Settings(BaseSettings):
     # 예: postgresql://runkk_ai:<비밀번호>@postgres:5432/runkk. 비우면 재시작 때 비는 메모리 저장소를 쓴다
     db_url: SecretStr | None = None
 
+    # 탈퇴 파기 DELETE /users/{userId}(S15P31A207-219) 전체 제한. api 쪽 읽기 제한보다 짧게
+    purge_timeout_s: float = Field(default=10.0, gt=0)
+
     # 운영에서는 /docs·/openapi.json을 열지 않는다
     expose_docs: bool = False
 

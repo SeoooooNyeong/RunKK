@@ -57,3 +57,20 @@ async def test_memory_store_drops_oldest_conversation() -> None:
     await store.append(_msg("new", 0))
 
     assert await store.owner("old") is None
+
+
+async def test_purge_user_removes_every_conversation_of_that_user(store: CoachMessageStore) -> None:
+    """탈퇴 파기(S15P31A207-219): 사용자의 대화를 모두 지운다. 다른 사용자의 대화는 그대로다. 다시 불러도 0."""
+    for i in range(4):
+        await store.append(_msg("c1", i, user="u1"))
+    await store.append(_msg("c2", 0, user="u1"))
+    await store.append(_msg("c3", 0, user="u2"))
+
+    deleted = await store.purge_user("u1")
+
+    assert deleted == 5
+    assert await store.owner("c1") is None
+    assert await store.recent("c1", 10) == []
+    assert await store.owner("c2") is None
+    assert await store.owner("c3") == "u2"
+    assert await store.purge_user("u1") == 0

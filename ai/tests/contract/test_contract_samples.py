@@ -21,6 +21,7 @@ import httpx
 import pytest
 from fastapi import FastAPI
 
+from runkk_ai.coach import InMemoryCoachStore
 from runkk_ai.runbody import InMemoryResultRepository, RunbodyService, SessionIn, SessionResultOut, get_runbody_service
 from runkk_ai.runbody.schemas import Metrics
 from tests.conftest import JPEG_HEAD, FakeAvatarClient, FakeLlmClient
@@ -33,6 +34,7 @@ FACE_ENDPOINTS = (
     "GET /users/{userId}/faces/latest",
     "GET /avatar/bodies/{bodyId}",
 )
+PURGE_ENDPOINT = "DELETE /users/{userId}"
 SESSION_ENDPOINTS = (
     "POST /sessions/{sessionId}/analyze",
     "GET /sessions/{sessionId}/status",
@@ -68,6 +70,9 @@ def _load(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))  # type: ignore[no-any-return]
 
 
+app_purge_error = [False]
+
+
 def _arrange(sample: dict[str, Any], llm: FakeLlmClient, face: FakeAvatarClient) -> None:
     from runkk_ai.face import AvatarError
 
@@ -78,6 +83,8 @@ def _arrange(sample: dict[str, Any], llm: FakeLlmClient, face: FakeAvatarClient)
         llm.error = TimeoutError()
     elif scenario.startswith("reason:"):
         face.error = AvatarError(scenario.removeprefix("reason:"))  # type: ignore[arg-type]
+    elif scenario == "purge_error":
+        app_purge_error[0] = True
     elif scenario.startswith("job:"):
         face.job_status = scenario.removeprefix("job:")
         if face.job_status == "FAILED":
@@ -148,6 +155,23 @@ async def _call_faces(sample: dict[str, Any], caller: httpx.AsyncClient) -> http
     )
 
 
+class _BrokenPurger:
+    async def purge_user(self, user_id: str) -> int:
+        raise RuntimeError("down")
+
+
+async def _call_purge(sample: dict[str, Any], caller: httpx.AsyncClient, app: FastAPI) -> httpx.Response:
+    from runkk_ai.privacy import WithdrawalService, get_withdrawal_service
+
+    broken = app_purge_error[0]
+    app_purge_error[0] = False
+    purgers: dict[str, Any] = {"sessionResults": InMemoryResultRepository(), "coachMessages": InMemoryCoachStore()}
+    if broken:
+        purgers["coachMessages"] = _BrokenPurger()
+    app.dependency_overrides[get_withdrawal_service] = lambda: WithdrawalService(purgers, timeout_s=1.0)
+    return await caller.delete(_fill(sample["endpoint"], sample["request"]))
+
+
 @pytest.mark.parametrize("path", SAMPLES, ids=[p.stem for p in SAMPLES])
 async def test_response_matches_sample(
     path: Path,
@@ -166,6 +190,8 @@ async def test_response_matches_sample(
         response = await _call_sessions(sample, caller, client, app, runbody_service)
     elif sample["endpoint"] == "POST /comments":
         response = await caller.post("/comments", json=sample["request"]["json"])
+    elif sample["endpoint"] == PURGE_ENDPOINT:
+        response = await _call_purge(sample, caller, app)
     else:
         response = await _call_faces(sample, caller)
 
@@ -219,7 +245,13 @@ def test_samples_cover_every_session_status() -> None:
     }
 
 
-@pytest.mark.parametrize("endpoint", ["POST /comments", *FACE_ENDPOINTS, *SESSION_ENDPOINTS])
+def test_samples_cover_every_purge_status() -> None:
+    statuses = {_load(p)["status"] for p in SAMPLES if _load(p)["endpoint"] == PURGE_ENDPOINT}
+
+    assert statuses == {200, 401, 422, 503}
+
+
+@pytest.mark.parametrize("endpoint", ["POST /comments", *FACE_ENDPOINTS, PURGE_ENDPOINT, *SESSION_ENDPOINTS])
 def test_every_endpoint_has_unauthorized_sample(endpoint: str) -> None:
     """토큰 불일치 401도 다른 실패와 같은 {"reason"} 본문이다. 서버 Gateway는 이 표본으로 설정 오류를 구분한다."""
     bodies = [_load(p)["body"] for p in SAMPLES if _load(p)["endpoint"] == endpoint and _load(p)["status"] == 401]
