@@ -131,6 +131,9 @@ class RecordControllerTest extends WebTestSupport {
         JsonNode card = getJson(me, "/api/v1/runs/" + recordId + "/card");
         assertThat(card.get("cardKind").asText()).isEqualTo("FREE_RUN");
         assertThat(card.get("route")).isNotEmpty();
+        assertThat(card.get("nickname").asText()).startsWith("웹러너");
+        assertThat(own.get("recordVisibility").asText()).isEqualTo("PUBLIC");
+        assertThat(theirs.get("recordVisibility").isNull()).isTrue();
         mvc.perform(as(other, get("/api/v1/runs/" + recordId + "/card")))
                 .andExpect(status().isForbidden());
 

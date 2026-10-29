@@ -165,6 +165,10 @@ internal class BackStackNavigator(private val backStack: NavBackStack<NavKey>, p
         if (backStack.size > 1) backStack.removeAt(backStack.lastIndex) else onExit()
     }
 
+    override fun replace(key: NavKey) {
+        if (backStack.isEmpty()) backStack.add(key) else backStack[backStack.lastIndex] = key
+    }
+
     override fun selectTab(route: String) {
         backStack.clear()
         backStack.add(Routes.Key(Routes.HOME))

@@ -24,7 +24,7 @@ internal fun inboxDestination(screen: String?, targetId: String?): NavKey? {
         "CREW_SCHEDULE" -> Routes.Key(Routes.CREW_SCHEDULE)
         "CREW_CHAT" -> id?.let(Routes::CrewChat) ?: Routes.Key(Routes.CREW_CHAT)
         "CREW_RUN_RECRUIT" -> Routes.Key(Routes.CREW)
-        "BATTLE_RESULT" -> id?.let(Routes::BattleResult) ?: Routes.Key(Routes.BATTLE_HISTORY)
+        "BATTLE_RESULT" -> id?.let(Routes::BattleResult) ?: Routes.Key(Routes.RECORDS_BATTLES)
         else -> null
     }
 }

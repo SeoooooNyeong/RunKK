@@ -1,5 +1,6 @@
 package com.a207.runkk.app.ui.record
 
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -10,6 +11,8 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import com.a207.runkk.app.core.designsystem.LocalReleaseScope
+import com.a207.runkk.app.core.designsystem.ReleaseScope
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.testing.RUNKK_PHONE
 import com.a207.runkk.app.core.designsystem.testing.captureRunkkScreen
@@ -47,21 +50,42 @@ class AnalysisScreensTest {
     )
 
     @Test
-    fun `랭킹 탭을 누르면 크루·월간으로 바꾼다`() {
+    fun `TC-9742 랭킹은 크루가 닫혀 있으면 개인만, 주간·월간 칩과 누적 유효 거리 기준을 보인다`() {
+        val calls = mutableListOf<Any>()
+        compose.setContent {
+            CompositionLocalProvider(LocalReleaseScope provides ReleaseScope.FIRST_RELEASE) {
+                RunkkTheme(reduceMotion = true) {
+                    RankingScreen(
+                        RankingUiState(isLoading = false, ranking = sampleRanking),
+                        onScope = { calls += it },
+                        onPeriod = { calls += it },
+                        onRetry = {}
+                    )
+                }
+            }
+        }
+        compose.onNodeWithText("크루").assertDoesNotExist()
+        compose.onNodeWithText("개인").assertDoesNotExist()
+        compose.onNodeWithText("누적 유효 거리").assertExists()
+        compose.onNodeWithText("월간").performClick()
+        assertEquals(listOf<Any>(AggregationPeriod.MONTHLY), calls)
+    }
+
+    @Test
+    fun `랭킹은 크루가 열려 있으면 개인·크루 분절을 보인다(2차 배포)`() {
         val calls = mutableListOf<Any>()
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
-                RankingScreen(RankingUiState(isLoading = false, ranking = sampleRanking), {
-                }, onScope = { calls += it }, onPeriod = {
-                    calls +=
-                        it
-                }, onRetry = {})
+                RankingScreen(
+                    RankingUiState(isLoading = false, ranking = sampleRanking),
+                    onScope = { calls += it },
+                    onPeriod = {},
+                    onRetry = {}
+                )
             }
         }
         compose.onNodeWithText("크루").performClick()
-        compose.onNodeWithText("월간").performClick()
-        assertEquals(listOf<Any>(RankingScope.CREW, AggregationPeriod.MONTHLY), calls)
-        compose.onNodeWithText("한 단계 위까지 6.80km").assertExists()
+        assertEquals(listOf<Any>(RankingScope.CREW), calls)
     }
 
     @Test
@@ -102,44 +126,52 @@ class AnalysisScreensTest {
     }
 
     @Test
-    fun `집계 스냅숏이 없으면 집계 준비 중으로 보인다`() {
+    fun `TC-9742 랭킹 행은 순위·아바타·닉네임·거리만, 남은 거리·집계 시각·티어는 그리지 않는다`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                RankingScreen(RankingUiState(isLoading = false, ranking = sampleRanking), {}, {}, {})
+            }
+        }
+        compose.onNodeWithText("한 단계 위까지", substring = true).assertDoesNotExist()
+        compose.onNodeWithText("집계", substring = true).assertDoesNotExist()
+        compose.onNodeWithText("골드").assertDoesNotExist()
+    }
+
+    @Test
+    fun `순위가 없으면 아직 순위가 없다고 보인다`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 RankingScreen(
-                    RankingUiState(
-                        isLoading = false,
-                        ranking = sampleRanking.copy(entries = emptyList(), mine = null, aggregatedAt = null)
-                    ),
-                    {},
+                    RankingUiState(isLoading = false, ranking = sampleRanking.copy(entries = emptyList(), mine = null)),
                     {},
                     {},
                     {}
                 )
             }
         }
-        compose.onNodeWithText("집계 준비 중", substring = true).assertExists()
+        compose.onNodeWithText("아직 순위가 없어요").assertExists()
     }
 
     @Test
     fun `랭킹 줄은 순위·이름·거리를 한 문장으로 읽는다`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
-                RankingScreen(RankingUiState(isLoading = false, ranking = sampleRanking), {}, {}, {}, {})
+                RankingScreen(RankingUiState(isLoading = false, ranking = sampleRanking), {}, {}, {})
             }
         }
         compose.onNodeWithContentDescription("1위 바람, 48.00킬로미터").assertExists()
-        compose.onNodeWithContentDescription("2위 달리는곰, 41.20킬로미터, 나").assertExists()
+        compose.onNodeWithContentDescription("2위 나, 41.20킬로미터, 나").assertExists()
     }
 
     @Test
     fun `랭킹 범위·기간을 바꾸면 내 순위 카드가 바뀐 결과를 알린다`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
-                RankingScreen(RankingUiState(isLoading = false, ranking = sampleRanking), {}, {}, {}, {})
+                RankingScreen(RankingUiState(isLoading = false, ranking = sampleRanking), {}, {}, {})
             }
         }
         compose.onNode(
-            androidx.compose.ui.test.hasText("내 순위", substring = true) and
+            androidx.compose.ui.test.hasContentDescription("2위 나", substring = true) and
                 androidx.compose.ui.test.SemanticsMatcher.expectValue(
                     androidx.compose.ui.semantics.SemanticsProperties.LiveRegion,
                     androidx.compose.ui.semantics.LiveRegionMode.Polite
@@ -167,7 +199,7 @@ class AnalysisScreensTest {
 
     @Test
     fun rankingShot() = compose.captureRunkkScreen("record_ranking") {
-        RankingScreen(RankingUiState(isLoading = false, ranking = sampleRanking), {}, {}, {}, {})
+        RankingScreen(RankingUiState(isLoading = false, ranking = sampleRanking), {}, {}, {})
     }
 
     @Test

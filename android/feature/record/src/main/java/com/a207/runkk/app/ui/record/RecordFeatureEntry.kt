@@ -13,6 +13,7 @@ class RecordFeatureEntry @Inject constructor() : FeatureEntry {
 
     override fun register(builder: EntryProviderScope<NavKey>) {
         builder.route(Routes.RECORDS) { RecordListRoute() }
+        builder.route(Routes.RECORDS_BATTLES) { RecordListRoute(initialView = RecordView.BATTLE) }
         builder.route(Routes.GROWTH) { GrowthRoute() }
         builder.route(Routes.REPORT) { ReportRoute() }
         builder.route(Routes.RANKING) { RankingRoute() }

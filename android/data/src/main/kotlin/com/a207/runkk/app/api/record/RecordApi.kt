@@ -2,6 +2,7 @@ package com.a207.runkk.app.api.record
 
 import retrofit2.Response
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.PUT
 import retrofit2.http.Path
@@ -21,6 +22,10 @@ internal interface RecordApi {
 
     @GET("runs/{id}")
     suspend fun run(@Path("id") recordId: String): RecordDetailResponse
+
+    /** 집계 제외 기록 삭제(FR-225). 204(본문 없음)다. 거부는 409·403 + 본문 code(D-290). */
+    @DELETE("runs/{id}")
+    suspend fun delete(@Path("id") recordId: String): Response<Unit>
 
     @GET("runs/{id}/card")
     suspend fun card(@Path("id") recordId: String): RunCardResponse

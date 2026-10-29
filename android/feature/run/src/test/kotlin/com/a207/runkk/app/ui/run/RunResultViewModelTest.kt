@@ -1,9 +1,11 @@
 package com.a207.runkk.app.ui.run
 
+import app.cash.turbine.test
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.Pace
+import com.a207.runkk.app.domain.record.Evaluation
 import com.a207.runkk.app.domain.run.HeartRateSample
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -132,5 +134,28 @@ class RunResultViewModelTest {
         vm.load("missing")
         advanceUntilIdle()
         assertNotNull(vm.state.value.error)
+    }
+
+    @Test
+    fun `서버 기록에 티어 평가가 있으면 평가 화면 이동을 한 번만 보낸다(D-284)`() = runTest(main.dispatcher) {
+        val evaluation = Evaluation(Evaluation.Kind.FIRST_PLACEMENT, "SILVER", 3, null)
+        records.runResult = Outcome.Success(recordDetail().copy(evaluation = evaluation))
+        val vm = RunResultViewModel(pending, records)
+        vm.events.test {
+            vm.load("rec-1")
+            assertEquals(RunResultEvent.NavigateEvaluation(evaluation), awaitItem())
+            vm.load("rec-1", isForced = true)
+            expectNoEvents()
+        }
+    }
+
+    @Test
+    fun `서버 기록에 평가가 없으면 평가 화면으로 가지 않는다`() = runTest(main.dispatcher) {
+        records.runResult = Outcome.Success(recordDetail())
+        val vm = RunResultViewModel(pending, records)
+        vm.events.test {
+            vm.load("rec-1")
+            expectNoEvents()
+        }
     }
 }

@@ -4,9 +4,7 @@ name: 07_inbox
 tags: [smoke]
 ---
 - launchApp
-- extendedWaitUntil:
-    visible: "자유런 시작"
-    timeout: 20000
+- runFlow: common/home_ready.yaml
 - tapOn: "알림함"
 - extendedWaitUntil:
     visible: "새 알림이 없어요"

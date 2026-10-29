@@ -294,7 +294,8 @@ final class RecordDtos {
     /**
      * 기록 상세(앱 RecordDetailResponse + 구간 페이스·심박 요약·날씨 항목). v0.11: 정지 구간(pauses)과 정지
      * 합계(pausedSeconds)를 더했다(V21). 경과 시간은 정지를 뺀 운동 시간이다. v0.14: 삭제 가능(deletable, 본인이고 집계 제외 기록,
-     * D-235)과 평가 표시(evaluation, D-291)를 더했다. 가장 빠른 1km 구간 번호는 splitPaces로 앱이 정한다.
+     * D-235)과 평가 표시(evaluation, D-291)를 더했다. 가장 빠른 1km 구간 번호는 splitPaces로 앱이 정한다. recordVisibility는
+     * 본인 기록일 때만 싣는다(기록 공개 범위 이름, 남의 기록이면 null).
      */
     record RecordDetailResponse(
             RunSummaryDto summary,
@@ -317,7 +318,8 @@ final class RecordDtos {
             List<PauseDto> pauses,
             long pausedSeconds,
             boolean deletable,
-            EvaluationDto evaluation) {
+            EvaluationDto evaluation,
+            String recordVisibility) {
 
         static RecordDetailResponse of(RecordDetailView v) {
             return of(v, null);
@@ -364,11 +366,15 @@ final class RecordDtos {
                             .toList(),
                     v.pausedSeconds(),
                     v.deletable(),
-                    evaluation == null ? null : EvaluationDto.of(evaluation));
+                    evaluation == null ? null : EvaluationDto.of(evaluation),
+                    v.recordVisibility() == null ? null : v.recordVisibility().name());
         }
     }
 
-    /** 러닝 카드 값(앱 RunCardResponse + 평균 심박·신기록). v0.14: 앞면 날씨 temperatureC·sky(D-235). */
+    /**
+     * 러닝 카드 값(앱 RunCardResponse + 평균 심박·신기록). v0.14: 앞면 날씨 temperatureC·sky(D-235), 서명용 nickname(기록
+     * 주인 표시명).
+     */
     record RunCardResponse(
             String recordId,
             String cardKind,
@@ -381,7 +387,8 @@ final class RecordDtos {
             List<GeoPointDto> route,
             boolean courseMapShared,
             Integer temperatureC,
-            String sky) {
+            String sky,
+            String nickname) {
 
         static RunCardResponse of(RunCardData c) {
             return new RunCardResponse(
@@ -396,7 +403,8 @@ final class RecordDtos {
                     GeoPointDto.of(c.route()),
                     c.courseMapShared(),
                     c.weather() == null ? null : c.weather().temperatureC(),
-                    c.weather() == null ? null : c.weather().sky());
+                    c.weather() == null ? null : c.weather().sky(),
+                    c.nickname());
         }
     }
 

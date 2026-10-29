@@ -16,7 +16,10 @@ internal data class DashboardResponse(
     val weekly: WeeklyDto? = null,
     val grassLevels: Map<String, Int> = emptyMap(),
     /** 리워드 잔액(v0.14, 서버 D-236). 옛 서버는 주지 않는다(D-289). 가정: 계약 자료 갱신 전 서버 대조 필요. */
-    val rewardBalance: Int? = null
+    val rewardBalance: Int? = null,
+    /** baseDate 달의 유효 러닝 횟수·거리(v0.14 기록 화면 월 요약, 서버 D-236). 옛 서버는 주지 않는다(D-289). */
+    val monthRuns: Int? = null,
+    val monthMeters: Long? = null
 ) {
     /** 이번 주 목표·실적. 서버가 빠뜨린 항목은 0으로 읽어 대시보드 전체가 실패하지 않게 한다. */
     @Serializable

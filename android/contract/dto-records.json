@@ -2978,6 +2978,10 @@
     "kind": "record",
     "name": "evaluation",
     "ref": "RecordDtos.EvaluationDto"
+   },
+   {
+    "kind": "leaf",
+    "name": "recordVisibility"
    }
   ],
   "file": "web/record/RecordDtos.java"
@@ -3103,6 +3107,10 @@
    {
     "kind": "leaf",
     "name": "sky"
+   },
+   {
+    "kind": "leaf",
+    "name": "nickname"
    }
   ],
   "file": "web/record/RecordDtos.java"
@@ -3564,6 +3572,10 @@
    {
     "kind": "leaf",
     "name": "percent"
+   },
+   {
+    "kind": "leaf",
+    "name": "lean"
    }
   ],
   "file": "web/runimal/RunimalController.java"

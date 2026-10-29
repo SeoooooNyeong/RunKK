@@ -2,6 +2,7 @@ package com.a207.runkk.analysis;
 
 import com.a207.runkk.common.BusinessRuleException;
 import com.a207.runkk.common.DateRange;
+import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.GeoPoint;
 import com.a207.runkk.common.PermissionDeniedException;
@@ -13,6 +14,7 @@ import com.a207.runkk.crew.CrewMembershipReader;
 import com.a207.runkk.crew.WeeklyRaceService;
 import com.a207.runkk.member.MemberPreference;
 import com.a207.runkk.member.MemberQueryService;
+import com.a207.runkk.member.MemberSummary;
 import com.a207.runkk.policy.OperationPolicy;
 import com.a207.runkk.reward.AccrualReason;
 import com.a207.runkk.reward.RewardService;
@@ -130,7 +132,8 @@ public class RecordQueryService {
                         .map(PauseInterval::duration)
                         .reduce(Duration.ZERO, Duration::plus)
                         .toSeconds(),
-                self && detail.deletable());
+                self && detail.deletable(),
+                self ? owner.recordVisibility() : null);
     }
 
     /** 본인 기록만(srs.md 6.3 3.5). 앞면 값 + 뒷면 경로 + 코스지도공유 값. */
@@ -153,7 +156,13 @@ public class RecordQueryService {
                 newRecordLabels(detail.newRecords()),
                 route,
                 memberQueryService.preferenceOf(memberId).courseMapShared(),
-                weatherOf(detail));
+                weatherOf(detail),
+                nicknameOf(memberId));
+    }
+
+    private String nicknameOf(long memberId) {
+        MemberSummary summary = memberQueryService.summaries(List.of(memberId)).get(memberId);
+        return (summary == null ? DisplayName.WITHDRAWN : summary.displayName()).value();
     }
 
     /** srs.md 6.3 3.2 규칙 1~4: 본인 → 전부, 비공개 → 거부, 크루 공개인데 다른 크루 → 거부, 나머지 허용. */

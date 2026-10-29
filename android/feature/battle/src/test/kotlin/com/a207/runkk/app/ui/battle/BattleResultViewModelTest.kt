@@ -317,15 +317,35 @@ class BattleResultViewModelTest {
     }
 
     @Test
-    fun `함께 달린 기록 - 종류로 거르고 고스트는 랜덤 라벨(FR-101)`() = runTest(main.dispatcher) {
+    fun `TC-9739 대결 탭 - 배틀런 칩은 RANDOM으로 묻고 종류는 배틀런·친구 대결·셀프런·셀럽런으로 적는다(FR-101)`() = runTest(main.dispatcher) {
         val w = world()
         val vm = BattleHistoryViewModel(w.battles)
         runCurrent()
         assertEquals(12, vm.state.value.history?.total)
+        vm.onFilter(1)
+        runCurrent()
         vm.onFilter(2)
         runCurrent()
-        assertEquals(listOf("history:null", "history:SELF"), w.battles.calls)
-        assertEquals(R.string.battle_type_random, typeLabel(BattleHistory.Type.GHOST))
+        vm.onFilter(3)
+        runCurrent()
+        assertEquals(
+            listOf("history:null", "history:RANDOM", "history:SELF", "history:CELEBRITY"),
+            w.battles.calls
+        )
+        assertEquals(
+            listOf(
+                R.string.battle_filter_all,
+                R.string.battle_history_type_battle,
+                R.string.battle_history_type_self,
+                R.string.battle_history_type_celeb
+            ),
+            HISTORY_FILTERS.map { it.first }
+        )
+        assertEquals(R.string.battle_history_type_battle, typeLabel(BattleHistory.Type.RANDOM))
+        assertEquals(R.string.battle_history_type_battle, typeLabel(BattleHistory.Type.GHOST))
+        assertEquals(R.string.battle_history_type_friend, typeLabel(BattleHistory.Type.FRIEND))
+        assertEquals(R.string.battle_history_type_self, typeLabel(BattleHistory.Type.SELF))
+        assertEquals(R.string.battle_history_type_celeb, typeLabel(BattleHistory.Type.CELEBRITY))
     }
 
     @Test
