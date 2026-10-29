@@ -90,6 +90,11 @@ runkk:
   avatar:
     # 배경 해금 조회 채우기 기준 시각(D-176): V25 적용 시각. 이 시각 이전에 저장한 유효 기록의 거리만 알림 없이 채운다. 배포 때 실제 적용 시각으로 맞춘다.
     backfill-cutoff: ${AVATAR_BACKFILL_CUTOFF:2026-10-22T00:00:00}
+  # 친구 대결 초대 링크 앞부분(v0.14 D-219, web.battle.FriendInviteLinks). 링크 = link-base + "/" + 토큰.
+  # release(8443) 환경은 그 환경 주소로 덮어쓴다(FRIEND_INVITE_LINK_BASE). Android App Links는 이 도메인의 /.well-known/assetlinks.json을 본다
+  battle:
+    friend-invite:
+      link-base: ${FRIEND_INVITE_LINK_BASE:https://k15a207.p.ssafy.io/invite/battle}
   # 법정 고지 문서 공개 주소(FR-018, member.LegalDocumentCatalog)
   legal:
     terms-url: ${LEGAL_TERMS_URL:https://k15a207.p.ssafy.io/legal/terms}
@@ -149,6 +154,13 @@ runkk:
     battle-tick-interval: 1s
     # 출발하지 못한 대결 정리(시작 보고 없이 10분 지난 기록 대결 등 → CANCELLED, 활성 대결 1개 불변식 결정)
     battle-abandon-interval: 1m
+    # 친구 대결 초대 만료 정리(생성 + 5분 지난 대기 초대 → EXPIRED, 초대한 앱에 FriendInviteExpired, v0.14 D-221)
+    friend-invite-expiry-interval: 5s
+    # Runimal 유형 비율 재계산(16유형 상세의 "러너 중 n%", v0.14 D-246)
+    runimal-share-cron: "0 0 0 * * *"
+    # 기동 뒤 기록 목록 썸네일 경로 모양 되채우기(v0.14 D-234). 끝나면 남은 것이 없어 조회 한 번으로 끝난다
+    route-shape-backfill:
+      enabled: ${ROUTE_SHAPE_BACKFILL_ENABLED:true}
     withdrawal-purge-cron: "0 0 3 * * *"
     # 만료된 갱신 토큰 폐기 목록 행 정리(M6 후속 결정, refresh_token_revocation)
     revocation-purge-cron: "0 0 3 * * *"

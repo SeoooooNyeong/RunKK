@@ -53,7 +53,9 @@ class ArchitectureTest {
      * 5.1.1 서버 패키지 53개 + batch.reward(코드 리뷰 2차 M4 결정: 리워드 일 단위 보정) = 54개, + v0.11 S0 계약 고정에서 만든
      * 5개(crew.chat, report, web.chat, web.report, web.admin.report) = 59개, + S3b infra.chat(N15),
      * S3a web.attempt(D-132) = 61개, + S3c
-     * infra.report(N16)·report.target(D-135)·web.admin.ranking(D-136) = 64개(12장 최종 목록).
+     * infra.report(N16)·report.target(D-135)·web.admin.ranking(D-136) = 64개, + v0.14
+     * batch.runimal(D-246, 유형 비율 0시 작업) = 65개(12장 최종 목록, design-review.md 18장 구조 시험 고정 조건 1,
+     * TC-9856).
      */
     static final List<String> PACKAGES =
             List.of(
@@ -86,6 +88,7 @@ class ArchitectureTest {
                     "batch.audit",
                     "batch.notification",
                     "batch.reward",
+                    "batch.runimal",
                     "bootstrap",
                     "profile",
                     "operator",
@@ -173,8 +176,11 @@ class ArchitectureTest {
         m.put("web.me", Set.of("member", "profile"));
         m.put("web.notification", Set.of("notification"));
         m.put("web.run", Set.of("running"));
-        m.put("web.record", Set.of("analysis"));
-        m.put("web.battle", Set.of("battle", "reward"));
+        // v0.14 W1·W2: 기록 목록 대결 결과(BattleHistoryService.outcomesOf), 기록
+        // 삭제(RunDeletionService.delete)
+        m.put("web.record", Set.of("analysis", "battle", "running"));
+        // v0.14 W5: 대결 결과의 평가 표시(RunQueryService.evaluationOf, D-291·D-300)
+        m.put("web.battle", Set.of("battle", "reward", "running"));
         m.put("web.crew", Set.of("crew", "runimal", "web.attempt")); // + V9(D-132)
         m.put("web.runimal", Set.of("runimal"));
         m.put("web.avatar", Set.of("avatar", "reward"));
@@ -204,7 +210,9 @@ class ArchitectureTest {
                         "member",
                         "audit",
                         "notification",
-                        "reward")) {
+                        "reward",
+                        "runimal")) { // v0.14 W3·W4: batch.runimal → runimal(RunimalShareJob),
+            // common
             m.put("batch." + app, Set.of(app));
         }
         m.put("bootstrap", Set.of());
@@ -697,12 +705,12 @@ class ArchitectureTest {
     }
 
     @Test
-    void designPackageList_has64NamesAndEachHasAnAllowList() {
-        assertThat(Set.copyOf(PACKAGES)).hasSize(64);
+    void designPackageList_has65NamesAndEachHasAnAllowList() {
+        assertThat(Set.copyOf(PACKAGES)).hasSize(65);
         assertThat(ALLOWED.keySet()).containsExactlyInAnyOrderElementsOf(PACKAGES);
     }
 
-    /** B5 완료 조건: 5.1.1의 64개 패키지마다 서버 클래스가 하나 이상 있다(빈 패키지 0). */
+    /** B5 완료 조건: 5.1.1의 65개 패키지마다 서버 클래스가 하나 이상 있다(빈 패키지 0). */
     @Test
     void everyDesignPackage_hasMainClasses() {
         Set<String> filled =
@@ -717,7 +725,7 @@ class ArchitectureTest {
     void mainClasses_resideInDesignPackages() {
         List<String> stray =
                 classes.stream().filter(c -> sliceOf(c).isEmpty()).map(JavaClass::getName).toList();
-        assertThat(stray).as("5.1.1 패키지 64개 밖의 서버 클래스").isEmpty();
+        assertThat(stray).as("5.1.1 패키지 65개 밖의 서버 클래스").isEmpty();
     }
 
     @Test
