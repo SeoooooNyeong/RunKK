@@ -247,9 +247,82 @@ public final class InMemoryRunningRepositories {
         }
 
         @Override
-        public boolean markTierApplied(String recordId) {
+        public boolean markTierApplied(String recordId, Optional<EvaluationView> evaluation) {
             RunRecord r = rows.get(recordId);
-            return r != null && r.markTierApplied();
+            if (r == null || !r.markTierApplied()) {
+                return false;
+            }
+            evaluation.ifPresent(e -> r.markEvaluation(e.kind(), e.tier().name(), e.validRuns()));
+            return true;
+        }
+
+        /** 묘비(기록 삭제, v0.14 D-232): 기록 ID → 회원 ID. */
+        private final Map<String, Long> tombstones = new LinkedHashMap<>();
+
+        /** 다음 묘비 저장 한 번을 이 예외로 실패시킨다(TC-9353 롤백 시험). */
+        public RuntimeException nextBuryFailure;
+
+        @Override
+        public void delete(RunRecord r) {
+            rows.remove(r.getRecordId());
+        }
+
+        @Override
+        public void bury(String recordId, long memberId, java.time.LocalDateTime at) {
+            if (nextBuryFailure != null) {
+                RuntimeException failure = nextBuryFailure;
+                nextBuryFailure = null;
+                throw failure;
+            }
+            tombstones.put(recordId, memberId);
+        }
+
+        @Override
+        public boolean isBuried(String recordId) {
+            return tombstones.containsKey(recordId);
+        }
+
+        /** 묘비 수(시험 확인용). */
+        public int tombstoneCount() {
+            return tombstones.size();
+        }
+
+        /** listRows 호출 수(N+1 확인, TC-9428). */
+        public int listRowsCalls;
+
+        @Override
+        public List<RunListRow> listRows(long memberId, DateRange range) {
+            listRowsCalls++;
+            return findByMemberBetween(memberId, range).stream()
+                    .map(
+                            r ->
+                                    new RunListRow(
+                                            r.summary(),
+                                            r.getNewRecords(),
+                                            r.getRouteShape().orElse(null)))
+                    .toList();
+        }
+
+        @Override
+        public List<RunRecord> findMissingShape(int limit) {
+            return rows.values().stream()
+                    .filter(
+                            r ->
+                                    r.getRouteShape().isEmpty()
+                                            && r.hasRoute()
+                                            && r.routePoints().size() >= 2)
+                    .limit(limit)
+                    .toList();
+        }
+
+        @Override
+        public Optional<EvaluationView> evaluationOf(String recordId) {
+            return findById(recordId).flatMap(RunRecord::evaluation);
+        }
+
+        @Override
+        public void noteRunimalType(String recordId, String runimalType) {
+            findById(recordId).ifPresent(r -> r.markEvaluationRunimalType(runimalType));
         }
 
         @Override
@@ -301,7 +374,12 @@ public final class InMemoryRunningRepositories {
         }
 
         private static RunSampleRow sample(RunRecord r) {
-            return new RunSampleRow(r.getRecordId(), r.getStartedAt(), r.getDistance());
+            return RunSampleRow.of(
+                    r.getRecordId(),
+                    r.getStartedAt(),
+                    r.getDistance(),
+                    r.getCardKind(),
+                    r.summary().battleId());
         }
     }
 

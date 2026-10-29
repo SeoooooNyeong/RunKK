@@ -5,6 +5,7 @@ import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.Tier;
 import com.a207.runkk.member.MemberPreference;
 import com.a207.runkk.member.MemberProfile;
+import java.util.List;
 
 /**
  * 거르기 전 프로필 항목 전부(설계 6.1.5 ProfileDisclosure.filter의 입력). ProfileQueryService가 다른 패키지 조회 결과로 모은다.
@@ -30,11 +31,30 @@ public record ProfileData(
         ProfileView.Crew crew,
         Distance longestDistance,
         MemberPreference settings,
-        MemberProfile about) {
+        MemberProfile about,
+        Distance totalDistance,
+        int runCount,
+        List<RecentRun> recentRuns) {
+
+    public ProfileData {
+        recentRuns = recentRuns == null ? List.of() : List.copyOf(recentRuns);
+    }
 
     /** 탈퇴 회원(다른 항목을 모으지 않는다). */
     static ProfileData withdrawn(long memberId) {
         return new ProfileData(
-                memberId, DisplayName.WITHDRAWN, null, null, null, null, null, null, null, null);
+                memberId,
+                DisplayName.WITHDRAWN,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                List.of());
     }
 }

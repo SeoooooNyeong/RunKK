@@ -58,23 +58,17 @@ class MemberAccountServicesTest {
         ProfileService service =
                 new ProfileService(repository, List.of(n -> n.equals("가상곰")), clock);
 
-        assertThatThrownBy(
-                        () -> service.editProfile(a, new ProfileEdit("곰B", null, null, null, null)))
+        assertThatThrownBy(() -> service.editProfile(a, new ProfileEdit("곰B", null, null, null)))
                 .extracting(e -> ((BusinessRuleException) e).reason())
                 .isEqualTo(ReasonCode.NICKNAME_TAKEN);
-        assertThatThrownBy(
-                        () ->
-                                service.editProfile(
-                                        a, new ProfileEdit("가상곰", null, null, null, null)))
+        assertThatThrownBy(() -> service.editProfile(a, new ProfileEdit("가상곰", null, null, null)))
                 .isInstanceOf(BusinessRuleException.class);
 
-        ProfileEditResult same =
-                service.editProfile(a, new ProfileEdit("곰A", 2000, null, "", "소개"));
+        ProfileEditResult same = service.editProfile(a, new ProfileEdit("곰A", 2000, null, "소개"));
         assertThat(same.nickname()).isEqualTo("곰A");
         assertThat(same.birthYear()).isEqualTo(2000);
         assertThat(same.photoUrl()).isNull();
-        ProfileEditResult renamed =
-                service.editProfile(a, new ProfileEdit("곰C", null, null, null, null));
+        ProfileEditResult renamed = service.editProfile(a, new ProfileEdit("곰C", null, null, null));
         assertThat(renamed.nickname()).isEqualTo("곰C");
     }
 
@@ -241,7 +235,8 @@ class MemberAccountServicesTest {
                 .containsEntry(a, DisclosureLevel.SELF)
                 .containsEntry(b, DisclosureLevel.PUBLIC)
                 .containsEntry(c, DisclosureLevel.WITHDRAWN);
-        assertThat(query.disclosureOf(b, List.of(a))).containsEntry(a, DisclosureLevel.PRIVATE);
+        // v0.14 D-241: 다른 러너는 늘 PUBLIC 수준이고 나이대·성별만 항목별로 감춘다
+        assertThat(query.disclosureOf(b, List.of(a))).containsEntry(a, DisclosureLevel.PUBLIC);
         assertThat(query.disclosureOf(a, List.of())).isEmpty();
         assertThat(query.ghostEligibleOwners(Set.of(Tier.UNRANKED), a).keySet()).containsExactly(b);
         assertThat(query.ghostEligibleOwners(Set.of(), a)).isEmpty();

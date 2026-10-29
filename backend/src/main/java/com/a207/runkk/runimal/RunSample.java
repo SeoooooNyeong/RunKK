@@ -42,7 +42,8 @@ record RunSample(List<SampleRun> recent, List<SampleRun> lastMonth) {
                                         r.startedAt(),
                                         r.distance(),
                                         verdicts.get(r.recordId()),
-                                        linked.contains(r.recordId())))
+                                        linked.contains(r.recordId()),
+                                        r.battleRun()))
                 .toList();
     }
 
@@ -60,5 +61,12 @@ record RunSample(List<SampleRun> recent, List<SampleRun> lastMonth) {
             LocalDateTime startedAt,
             Distance distance,
             Boolean sameCourse,
-            boolean crewRunLinked) {}
+            boolean crewRunLinked,
+            boolean battleRun) {
+
+        /** 크루런 연결이나 배틀런으로 "함께 달린 러닝"인가(v0.14 D-247). 둘 다여도 한 번만 센다. */
+        boolean ranTogether() {
+            return crewRunLinked || battleRun;
+        }
+    }
 }

@@ -5,6 +5,7 @@ import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.Tier;
 import com.a207.runkk.member.MemberPreference;
 import com.a207.runkk.member.MemberProfile;
+import java.util.List;
 
 /**
  * 프로필 화면(설계 6.1.5 ProfileView, FR-005, FR-006). 공개 수준(disclosure)이 보이지 않게 정한 항목은 null·빈 값이다.
@@ -34,7 +35,14 @@ public record ProfileView(
         Crew crew,
         Distance longestDistance,
         MemberPreference settings,
-        MemberProfile about) {
+        MemberProfile about,
+        Distance totalDistance,
+        int runCount,
+        List<RecentRun> recentRuns) {
+
+    public ProfileView {
+        recentRuns = recentRuns == null ? List.of() : List.copyOf(recentRuns);
+    }
 
     /**
      * 소속 크루.

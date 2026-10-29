@@ -20,9 +20,21 @@ public record CelebrityInput(
         Duration finishTime,
         List<TrackSample> splits,
         String sourceName,
-        String sourceUrl) {
+        String sourceUrl,
+        RealNameConsent realNameConsent) {
 
     public CelebrityInput {
         splits = splits == null ? List.of() : List.copyOf(splits);
+    }
+
+    /** 실명 동의 없는(익명) 입력. */
+    public CelebrityInput(
+            String anonymousName,
+            Distance distance,
+            Duration finishTime,
+            List<TrackSample> splits,
+            String sourceName,
+            String sourceUrl) {
+        this(anonymousName, distance, finishTime, splits, sourceName, sourceUrl, null);
     }
 }

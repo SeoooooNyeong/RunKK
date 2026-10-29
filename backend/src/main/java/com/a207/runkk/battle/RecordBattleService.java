@@ -103,9 +103,23 @@ public class RecordBattleService {
                                                 c.getFinishTime(),
                                                 null,
                                                 c.getSource(),
-                                                c.isEstimated()))
+                                                c.isEstimated(),
+                                                myBest(memberId, c.getDistance())))
                         .toList();
         return new RecordBattleCandidates(candidates);
+    }
+
+    /**
+     * 그 거리의 내 최고 기록(셀럽 카운트다운의 "첫 도전" 판정, v0.14 D-238). 기준 거리가 아니거나 기록이 없으면 null. 거리마다 장부를 한 번
+     * 읽는다(후보는 거리 4종이라 많아야 네 번).
+     */
+    private Duration myBest(long memberId, Distance distance) {
+        return Arrays.stream(StandardDistance.values())
+                .filter(d -> d.distance().meters() == distance.meters())
+                .findFirst()
+                .flatMap(d -> runQueryService.best(memberId, d))
+                .flatMap(BestEntry::time)
+                .orElse(null);
     }
 
     /** d.isSelfBattle, 위치 동의 → 그 거리 최고 기록(없으면 NO_RECORD) → "MM/DD의 나" 상대로 SELF 대결. */

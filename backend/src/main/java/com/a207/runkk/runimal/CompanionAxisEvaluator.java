@@ -18,7 +18,8 @@ class CompanionAxisEvaluator implements AxisEvaluator {
         if (s.lastMonth().isEmpty()) {
             return OptionalDouble.empty();
         }
-        long linked = s.lastMonth().stream().filter(RunSample.SampleRun::crewRunLinked).count();
-        return OptionalDouble.of(1 - (double) linked / s.lastMonth().size());
+        // 함께 달린 러닝 = 배틀런 또는 크루 공개 뒤의 크루런 연결 기록(v0.14 D-247). 크루 공개 전에는 RunSampleReader가 크루런을 비운다
+        long together = s.lastMonth().stream().filter(RunSample.SampleRun::ranTogether).count();
+        return OptionalDouble.of(1 - (double) together / s.lastMonth().size());
     }
 }

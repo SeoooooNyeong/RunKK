@@ -24,6 +24,7 @@ import java.time.LocalDateTime;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.OptionalInt;
 import java.util.regex.Pattern;
@@ -72,8 +73,9 @@ public class Member {
     @Column(name = "gender", length = 12)
     private Gender gender;
 
-    @Column(name = "photo_url", length = 500)
-    private String photoUrl;
+    /** 첫 사용 가이드를 봤는가(FR-231, v0.14 D-244). 기존 회원도 거짓으로 시작해 새 앱에서 한 번 본다. */
+    @Column(name = "guide_seen", nullable = false)
+    private boolean guideSeen;
 
     @Column(name = "intro", length = INTRO_MAX)
     private String intro;
@@ -132,7 +134,7 @@ public class Member {
     }
 
     /**
-     * 가입. 설정 기본값(srs.md 6.3 1.2, 기록 공개 범위 PUBLIC, FR-028), 동의 이력 기록, 티어 UNRANKED, 레벨 1, LINKED,
+     * 가입. 설정 기본값(srs.md 6.3 1.2, 기록 공개 범위 PUBLIC, FR-010), 동의 이력 기록, 티어 UNRANKED, 레벨 1, LINKED,
      * lastAccessAt = now. form.validate는 서비스가 먼저 부른다.
      */
     public static Member signUp(
@@ -235,10 +237,9 @@ public class Member {
         if (edit.gender() != null) {
             this.gender = edit.gender();
         }
-        if (edit.photoUrl() != null) {
-            this.photoUrl = blankToNull(edit.photoUrl());
-        }
         this.intro = newIntro;
+        // 프로필 편집 화면에서 나이대·성별 공개 여부를 함께 정한다(FR-012, v0.14 D-241). 사진은 받지 않는다(D-242)
+        settings.changeItemVisibility(edit.ageBandVisibility(), edit.genderVisibility());
     }
 
     /**
@@ -298,12 +299,20 @@ public class Member {
         requireActive();
         Tier previousTier = tier;
         int previousLevel = level;
+        Optional<TierEvaluation> evaluation =
+                TierProgress.evaluationBetween(
+                        tierProgress.validRunCount(), input.validRunOrdinal());
         OptionalDouble average = tierProgress.addValidRun(input);
         if (average.isPresent()) {
             this.tier = boundary.tierOf(average.getAsDouble());
         }
         this.level = 1 + (int) (tierProgress.totalValidDistance().meters() / METERS_PER_LEVEL);
-        return new TierChange(previousTier, tier, previousLevel, level);
+        return new TierChange(
+                previousTier,
+                tier,
+                previousLevel,
+                level,
+                average.isPresent() ? evaluation.orElse(null) : null);
     }
 
     /**
@@ -326,7 +335,6 @@ public class Member {
         this.guestCredentialHash = null;
         this.birthYear = null;
         this.gender = null;
-        this.photoUrl = null;
         this.intro = null;
         this.consents.wipe();
         this.status = MemberStatus.WITHDRAWN;
@@ -409,8 +417,21 @@ public class Member {
         return gender;
     }
 
-    String photoUrl() {
-        return photoUrl;
+    /** 첫 사용 가이드를 봤다고 표시한다(멱등, D-244). */
+    public void markGuideSeen() {
+        this.guideSeen = true;
+    }
+
+    public boolean isGuideSeen() {
+        return guideSeen;
+    }
+
+    ProfileVisibility ageBandVisibility() {
+        return settings.ageBandVisibility();
+    }
+
+    ProfileVisibility genderVisibility() {
+        return settings.genderVisibility();
     }
 
     String intro() {

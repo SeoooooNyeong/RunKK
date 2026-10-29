@@ -281,7 +281,7 @@ class AvatarServicesTest {
                                 map.put(
                                         (Long) id,
                                         (Long) id == ALICE
-                                                ? com.a207.runkk.member.DisclosureLevel.PRIVATE
+                                                ? com.a207.runkk.member.DisclosureLevel.PUBLIC
                                                 : com.a207.runkk.member.DisclosureLevel.WITHDRAWN);
                             }
                             return map;

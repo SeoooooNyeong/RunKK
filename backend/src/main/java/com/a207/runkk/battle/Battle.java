@@ -173,6 +173,26 @@ public class Battle {
         return battle;
     }
 
+    /**
+     * 친구 대결(FR-229, D-222). 초대가 ACCEPTED이고 참가한 회원이 있어야 한다. FRIEND, WAITING_START, 참가자는 초대한 회원·참가한
+     * 회원, 거리는 초대 거리. 아니면 IllegalStateException.
+     */
+    public static Battle friend(FriendInvite invite, LocalDateTime now) {
+        if (invite.getStatus() != FriendInviteStatus.ACCEPTED || invite.getJoinerId().isEmpty()) {
+            throw new IllegalStateException("참가된 초대로만 친구 대결을 만든다");
+        }
+        Battle battle =
+                new Battle(
+                        BattleType.FRIEND,
+                        invite.getDistance().distance(),
+                        BattleStatus.WAITING_START,
+                        now);
+        battle.participants.add(new BattleParticipant(invite.getInviterId()));
+        battle.participants.add(new BattleParticipant(invite.getJoinerId().orElseThrow()));
+        battle.moveTo(battle.status);
+        return battle;
+    }
+
     /** 기록 대결. GHOST는 WAITING_START, SELF·CELEBRITY는 IN_PROGRESS(앱 시작 보고 전이라 startAt 없음). */
     public static Battle againstRecord(RecordBattleSpec spec, LocalDateTime now) {
         BattleStatus initial =
@@ -284,6 +304,28 @@ public class Battle {
         }
         cancelUnstarted(now);
         return true;
+    }
+
+    /**
+     * 포기를 취소로 처리할 수 있으면 CANCELLED(closedAt = now, 활성 칸 비움)로 바꾸고 true(v0.14 D-228): 출발
+     * 전(cancelIfUnstarted 조건)이거나, 셀프런·셀럽런(type.cancelsOnForfeit)이 활성이면 취소다. 그 밖(랜덤·고스트·친구 대결의 진행 중
+     * 포기, 끝난 대결)은 그대로 두고 false이고 부르는 쪽이 forfeit(패)로 처리한다.
+     */
+    public boolean cancelOnForfeit(LocalDateTime now) {
+        if (cancelIfUnstarted(now)) {
+            return true;
+        }
+        if (!type.cancelsOnForfeit() || !status.isActive()) {
+            return false;
+        }
+        closedAt = now;
+        moveTo(BattleStatus.CANCELLED);
+        return true;
+    }
+
+    /** 그 참가자의 기록 ID를 비운다(기록 삭제, v0.14 D-232). 참가자가 아니면 아무것도 하지 않는다. */
+    public void forgetRecord(long memberId) {
+        participant(memberId).ifPresent(BattleParticipant::forgetRecord);
     }
 
     public boolean isCancelled() {

@@ -18,6 +18,7 @@ import com.a207.runkk.running.BestEntry;
 import com.a207.runkk.running.CurvePoint;
 import com.a207.runkk.running.RunCurve;
 import com.a207.runkk.running.RunQueryService;
+import com.a207.runkk.running.RunRecordDeleted;
 import com.a207.runkk.running.RunRecordSaved;
 import java.time.Clock;
 import java.time.Duration;
@@ -178,15 +179,16 @@ public class BattleResultService {
 
     /**
      * Battle.forfeit → 상대에게 BattleEnded(OPPONENT_FORFEITED) → BattleJudged(FR-094). 출발
-     * 전(WAITING_START, 시작 보고 전 기록 대결)이면 승패·리워드 없이 취소(CANCELLED)하고 랜덤 상대에게 같은 BattleEnded만 보낸다(배틀런
-     * QA 7번 결정). 앱의 BattleEnded.Status에 취소 값이 없어 상대가 그만뒀다는 OPPONENT_FORFEITED를 쓴다.
+     * 전(WAITING_START, 시작 보고 전 기록 대결)이거나 셀프런·셀럽런 진행 중이면(Battle.cancelOnForfeit, v0.14 D-228) 승패·리워드
+     * 없이 취소(CANCELLED)하고 랜덤 상대에게 같은 BattleEnded만 보낸다(배틀런 QA 7번 결정). 앱의 BattleEnded.Status에 취소 값이 없어
+     * 상대가 그만뒀다는 OPPONENT_FORFEITED를 쓴다.
      */
     public void forfeit(long memberId, long battleId) {
         transactions.retryingRun(
                 () -> {
                     Battle battle = participantBattle(memberId, battleId);
                     LocalDateTime now = LocalDateTime.now(clock);
-                    boolean cancelled = battle.cancelIfUnstarted(now);
+                    boolean cancelled = battle.cancelOnForfeit(now); // 출발 전, 셀프런·셀럽런 진행 중(D-228)
                     if (!cancelled) {
                         battle.forfeit(memberId, now);
                     }
@@ -210,6 +212,34 @@ public class BattleResultService {
                     eventPublisher.publish(
                             new BattleJudged(battleId, battle.getType(), judgement, now));
                 });
+    }
+
+    /**
+     * 기록이 삭제되면(v0.14 D-232) 그 대결 참가자의 기록 ID를 비운다. 결과의 myRecordId가 null이 되고 비교값은 "공개 안 됨"이다. 판정·이력은
+     * 그대로다.
+     */
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onRunDeleted(RunRecordDeleted e) {
+        if (e.battleId() == null) {
+            return;
+        }
+        try {
+            transactions.retryingRun(
+                    () ->
+                            battleRepository
+                                    .findById(e.battleId())
+                                    .ifPresent(
+                                            battle -> {
+                                                battle.forgetRecord(e.memberId());
+                                                battleRepository.save(battle);
+                                            }));
+        } catch (RuntimeException failure) {
+            log.error(
+                    "battle_record_forget_failed battleId={} error={}",
+                    e.battleId(),
+                    failure.getClass().getSimpleName(),
+                    failure);
+        }
     }
 
     /**
@@ -269,8 +299,16 @@ public class BattleResultService {
         if (mine.isEmpty()) {
             return new ComparisonTable(List.of());
         }
-        return ComparisonTable.of(
-                battle.getType(), runQueryService.comparisonOf(mine.get()), theirs(battle, me), me);
+        try {
+            return ComparisonTable.of(
+                    battle.getType(),
+                    runQueryService.comparisonOf(mine.get()),
+                    theirs(battle, me),
+                    me);
+        } catch (BusinessRuleException removed) {
+            // 내 기록이 지워졌는데 기록 ID 정리(onRunDeleted)가 아직 안 됐다(D-232). 비교표 없이 결과를 보인다
+            return new ComparisonTable(List.of());
+        }
     }
 
     private ComparisonValues theirs(Battle battle, BattleParticipant me) {

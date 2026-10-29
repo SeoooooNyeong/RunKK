@@ -31,7 +31,10 @@ public record DashboardView(
         Grass grass,
         WeeklyAchievement weekly,
         CrewArea crew,
-        Map<LocalDate, List<CalendarRun>> calendar) {
+        Map<LocalDate, List<CalendarRun>> calendar,
+        int rewardBalance,
+        int monthRuns,
+        Distance monthMeters) {
 
     /**
      * 거리·시간·횟수 합.

@@ -112,10 +112,12 @@ class RecordAndAdminServicesTest {
         bestFiveK();
         List<RecordBattleCandidates.Candidate> candidates =
                 records.selfCandidates(ALICE).candidates();
-        assertThat(candidates).hasSize(4);
+        assertThat(candidates).hasSize(5); // 1·3·5·10km·하프(v0.14 D-238)
+        assertThat(candidates.get(0).distance()).isEqualTo(StandardDistance.KM1.distance());
         assertThat(candidates.get(0).displayName()).isEqualTo(RecordBattleService.NO_RECORD_YET);
-        assertThat(candidates.get(1).displayName()).isEqualTo("10/03의 나");
-        assertThat(candidates.get(1).finishTime()).isEqualTo(Duration.ofMinutes(25));
+        assertThat(candidates.get(1).displayName()).isEqualTo(RecordBattleService.NO_RECORD_YET);
+        assertThat(candidates.get(2).displayName()).isEqualTo("10/03의 나");
+        assertThat(candidates.get(2).finishTime()).isEqualTo(Duration.ofMinutes(25));
     }
 
     @Test
@@ -133,7 +135,7 @@ class RecordAndAdminServicesTest {
     @org.junit.jupiter.api.DisplayName(
             "나와의 싸움 시작: 거리·동의·기록 검사 → IN_PROGRESS(시작 보고 대기) → markStarted")
     void startSelfBattle_andMarkStarted() {
-        assertThatThrownBy(() -> records.startSelfBattle(ALICE, StandardDistance.KM1))
+        assertThatThrownBy(() -> records.startSelfBattle(ALICE, StandardDistance.FULL))
                 .extracting(e -> ((BusinessRuleException) e).reason())
                 .isEqualTo(ReasonCode.BATTLE_DISTANCE_INVALID);
         assertThatThrownBy(() -> records.startSelfBattle(ALICE, StandardDistance.KM5))
@@ -180,7 +182,7 @@ class RecordAndAdminServicesTest {
                 .satisfies(
                         c -> {
                             assertThat(c.estimated()).isTrue();
-                            assertThat(c.source().label()).isEqualTo("공개 기록 기준 · 대회 공식 기록");
+                            assertThat(c.source().label()).isEqualTo("출처: 대회 공식 기록"); // v0.14 D-239
                         });
         assertThat(
                         records.celebrityCandidates(ALICE, Optional.of(StandardDistance.KM10))
@@ -369,7 +371,7 @@ class RecordAndAdminServicesTest {
                         new DateRange(NOW.toLocalDate(), NOW.toLocalDate()),
                         Optional.of(BattleType.CELEBRITY));
         assertThat(bob.entries()).hasSize(1);
-        assertThat(bob.entries().get(0).sourceLabel()).isEqualTo("공개 기록 기준 · 대회 공식 기록");
+        assertThat(bob.entries().get(0).sourceLabel()).isEqualTo("출처: 대회 공식 기록");
         assertThat(bob.entries().get(0).gap()).isNull();
         DateRange range = new DateRange(NOW.toLocalDate().minusDays(1), NOW.toLocalDate());
         BattleHistoryView all = history.history(ALICE, range, Optional.empty());
@@ -476,7 +478,10 @@ class RecordAndAdminServicesTest {
         assertThat(guard.check(ALICE)).isEmpty();
         queue.enqueue(MatchTicket.open(ALICE, Tier.GOLD, StandardDistance.KM5, NOW));
         assertThat(guard.check(ALICE)).contains(ReasonCode.BATTLE_IN_PROGRESS);
-        new BattleWithdrawalListener(queue).onMemberWithdrawn(new MemberWithdrawn(ALICE, NOW));
+        FriendInviteService invites = org.mockito.Mockito.mock(FriendInviteService.class);
+        new BattleWithdrawalListener(queue, invites)
+                .onMemberWithdrawn(new MemberWithdrawn(ALICE, NOW));
+        org.mockito.Mockito.verify(invites).cancelOpenOf(ALICE); // 탈퇴하면 대기 초대 취소(D-223)
         assertThat(guard.check(ALICE)).isEmpty();
         battles.save(
                 Battle.againstRecord(

@@ -31,24 +31,25 @@ public class MatchingService {
     private final MemberQueryService memberQueryService;
     private final MemberSettingService memberSettingService;
     private final MatchQueue matchQueue;
-    private final BattleRepository battleRepository;
+    private final RunnerAvailability runnerAvailability;
     private final Clock clock;
 
     public MatchingService(
             MemberQueryService memberQueryService,
             MemberSettingService memberSettingService,
             MatchQueue matchQueue,
-            BattleRepository battleRepository,
+            RunnerAvailability runnerAvailability,
             Clock clock) {
         this.memberQueryService = memberQueryService;
         this.memberSettingService = memberSettingService;
         this.matchQueue = matchQueue;
-        this.battleRepository = battleRepository;
+        this.runnerAvailability = runnerAvailability;
         this.clock = clock;
     }
 
     /**
-     * 4.1 의사결정표: 거리·위치 동의 → 언랭 → 이미 대기·대결 중 → 대기 등록 + 기본 대결 거리 기억. 대기열을 쓸 수 없으면 QUEUE_UNAVAILABLE.
+     * 4.1 의사결정표: 거리·위치 동의 → 언랭 → 이미 대기·대결·초대 대기 중 → 대기 등록 + 기본 대결 거리 기억. 대기열을 쓸 수 없으면
+     * QUEUE_UNAVAILABLE.
      */
     @Transactional
     public MatchAcceptance requestMatch(long memberId, StandardDistance distance) {
@@ -78,8 +79,7 @@ public class MatchingService {
 
     private boolean enqueueIfFree(
             long memberId, Tier tier, StandardDistance distance, LocalDateTime now) {
-        if (matchQueue.findWaiting(memberId).isPresent()
-                || battleRepository.existsActive(memberId)) {
+        if (runnerAvailability.isBusy(memberId, now)) { // 친구 대결 초대 대기 중도 바쁘다(FR-080, D-220)
             return false;
         }
         return matchQueue.enqueue(MatchTicket.open(memberId, tier, distance, now));

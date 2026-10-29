@@ -61,6 +61,10 @@ public class RunUploadService {
         if (runRecordRepository.exists(upload.recordId())) {
             return alreadyStored(memberId, upload.recordId());
         }
+        if (runRecordRepository.isBuried(upload.recordId())) {
+            // 삭제한 기록을 앱 미전송 보관함이 다시 올렸다. 되살리지 않고 저장된 것으로 알린다(FR-225, FR-040, D-232)
+            return UploadResult.alreadyStored(upload.recordId());
+        }
         if (!upload.heartRates().isEmpty()
                 && !memberQueryService.hasConsent(memberId, ConsentItem.HEART_RATE)) {
             upload = upload.withoutHeartRates();

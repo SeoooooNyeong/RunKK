@@ -193,6 +193,16 @@ public enum SettingKey {
             return ValidationResult.ok();
         }
     },
+    /**
+     * 크루(2차 배포 기능) 공개 여부(FR-223, v0.14 D-247·D-248). 거짓이면 Runimal 동행 축이 크루런을 세지 않는다. 행이 없으면 기본
+     * false(V2 규칙).
+     */
+    CREW_RELEASED(Boolean.class, "false") {
+        @Override
+        ValidationResult checkRange(Object value) {
+            return ValidationResult.ok();
+        }
+    },
     SELFIE_LIMIT(SelfieLimit.class, "{\"perDay\":1}") {
         @Override
         ValidationResult checkRange(Object value) {

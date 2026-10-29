@@ -4,6 +4,7 @@ import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.GeoPoint;
 import com.a207.runkk.common.Pace;
 import com.a207.runkk.common.StandardDistance;
+import com.a207.runkk.common.Tier;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -154,6 +155,26 @@ public class RunRecord {
     @Column(name = "rejudge_state", length = 8, insertable = false, updatable = false)
     private RejudgeState rejudgeState;
 
+    /** 목록 썸네일 경로 모양(RouteShape.encode, 경로 없으면 null, v0.14 D-234). 되채우기 작업이 기존 기록에 채운다. */
+    @Column(name = "route_shape", columnDefinition = "text")
+    private String routeShape;
+
+    /**
+     * 이 기록이 일으킨 티어 평가(v0.14 D-291·D-294). 종류·티어·유효 러닝 순번은 TierApplier가 반영 표시와 같은 조건부 갱신으로, Runimal
+     * 확정 유형은 RunEvaluationNote가 한 열 갱신으로 쓴다. 엔티티 저장으로는 바꾸지 않는다.
+     */
+    @Column(name = "evaluation_kind", length = 20, insertable = false, updatable = false)
+    private String evaluationKind;
+
+    @Column(name = "evaluation_tier", length = 10, insertable = false, updatable = false)
+    private String evaluationTier;
+
+    @Column(name = "evaluation_valid_runs", insertable = false, updatable = false)
+    private Integer evaluationValidRuns;
+
+    @Column(name = "evaluation_runimal_type", length = 20, insertable = false, updatable = false)
+    private String evaluationRunimalType;
+
     @Transient private RunTrack track;
 
     @Transient private List<PauseInterval> pauses;
@@ -185,6 +206,8 @@ public class RunRecord {
         this.pausesData = encodePauses(pauses);
         this.pausedMillis = pauses.stream().mapToLong(p -> p.duration().toMillis()).sum();
         storeTrack();
+        RouteShape shape = RouteShape.of(routePoints());
+        this.routeShape = shape.isEmpty() ? null : shape.encode();
         if (!upload.heartRates().isEmpty()) {
             this.heartRates = HeartRateSeries.of(startedAt, upload.heartRates());
             storeHeartRates();
@@ -424,6 +447,51 @@ public class RunRecord {
         this.savedAt = at;
     }
 
+    /**
+     * 삭제할 수 있는 기록인가(FR-225, v0.14 D-231): 집계 제외(무효)이고 일회성 재판정이 아직 끝나지 않은(PENDING) 기록이나 유효로 바뀌는
+     * 중인(VALID) 기록이 아니다.
+     */
+    public boolean isDeletable() {
+        return !valid && rejudgeState != RejudgeState.PENDING && rejudgeState != RejudgeState.VALID;
+    }
+
+    /** 목록 썸네일 모양(없으면 비어 있음, D-234). */
+    public Optional<RouteShape> getRouteShape() {
+        return routeShape == null ? Optional.empty() : Optional.of(RouteShape.decode(routeShape));
+    }
+
+    /** 경로 모양을 붙인다(되채우기용, RouteShapeBackfillService). 빈 모양이면 붙이지 않는다. */
+    public void attachRouteShape(RouteShape shape) {
+        if (shape != null && !shape.isEmpty()) {
+            this.routeShape = shape.encode();
+        }
+    }
+
+    /** 이 기록이 일으킨 평가(없으면 비어 있음, D-291). */
+    Optional<EvaluationView> evaluation() {
+        if (evaluationKind == null) {
+            return Optional.empty();
+        }
+        return Optional.of(
+                new EvaluationView(
+                        evaluationKind,
+                        evaluationTier == null ? null : Tier.valueOf(evaluationTier),
+                        evaluationValidRuns == null ? 0 : evaluationValidRuns,
+                        evaluationRunimalType));
+    }
+
+    /** 메모리 위 엔티티의 평가 표시를 쓴다. 저장소 구현이 조건부 갱신과 함께 부른다(시험의 인메모리 저장소). */
+    void markEvaluation(String kind, String tier, int validRuns) {
+        this.evaluationKind = kind;
+        this.evaluationTier = tier;
+        this.evaluationValidRuns = validRuns;
+    }
+
+    /** 메모리 위 엔티티의 Runimal 확정 유형을 쓴다(시험의 인메모리 저장소). */
+    void markEvaluationRunimalType(String type) {
+        this.evaluationRunimalType = type;
+    }
+
     /** 티어에 반영했는가(총괄 결정 7-3). */
     public boolean isTierApplied() {
         return tierApplied;
@@ -646,7 +714,7 @@ public class RunRecord {
                 .collect(Collectors.joining("\n"));
     }
 
-    private static List<NewRecordMark> decodeMarks(String data) {
+    static List<NewRecordMark> decodeMarks(String data) {
         if (data == null || data.isEmpty()) {
             return List.of();
         }

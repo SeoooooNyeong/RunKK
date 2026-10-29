@@ -57,7 +57,7 @@ class MemberTest {
         assertThatThrownBy(
                         () ->
                                 m.editProfile(
-                                        new ProfileEdit(null, null, null, null, "가".repeat(41)),
+                                        new ProfileEdit(null, null, null, "가".repeat(41)),
                                         null,
                                         2026))
                 .isInstanceOf(BusinessRuleException.class)
@@ -164,15 +164,14 @@ class MemberTest {
     @Test
     void editProfile_changesFieldsAndValidates() {
         Member m = member("달리는곰");
-        m.editProfile(
-                new ProfileEdit("빠른곰", null, Gender.MALE, null, "새 소개"), Nickname.of("빠른곰"), 2026);
+        m.editProfile(new ProfileEdit("빠른곰", null, Gender.MALE, "새 소개"), Nickname.of("빠른곰"), 2026);
         assertThat(m.displayName()).isEqualTo(DisplayName.of("빠른곰"));
         assertThat(m.intro()).isEqualTo("새 소개");
 
         assertThatThrownBy(
                         () ->
                                 m.editProfile(
-                                        new ProfileEdit(null, null, null, null, "가".repeat(41)),
+                                        new ProfileEdit(null, null, null, "가".repeat(41)),
                                         null,
                                         2026))
                 .isInstanceOf(BusinessRuleException.class);

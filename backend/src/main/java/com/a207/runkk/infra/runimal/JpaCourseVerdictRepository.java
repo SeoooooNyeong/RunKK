@@ -41,6 +41,14 @@ public class JpaCourseVerdictRepository implements CourseVerdictRepository {
     }
 
     @Override
+    public void deleteByRecord(String recordId) {
+        entityManager
+                .createQuery("delete from CourseVerdict v where v.recordId = :record")
+                .setParameter("record", recordId)
+                .executeUpdate();
+    }
+
+    @Override
     public void deleteByMember(long memberId) {
         entityManager
                 .createQuery("delete from CourseVerdict v where v.memberId = :member")
