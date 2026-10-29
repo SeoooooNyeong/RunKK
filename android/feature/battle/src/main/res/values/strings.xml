@@ -10,12 +10,11 @@
     <string name="battle_no_record">기록 없음</string>
     <string name="battle_no_record_yet">아직 기록이 없어요</string>
     <string name="battle_filter_all">전체</string>
-    <string name="battle_type_self">나와의 싸움</string>
     <string name="battle_distance_half">하프</string>
     <string name="battle_distance_full">풀</string>
     <string name="battle_distance_half_marathon">하프 마라톤</string>
     <string name="battle_distance_full_marathon">풀 마라톤</string>
-    <string name="battle_error_ranked_only">유효 러닝 3회 뒤 랜덤 대결 가능, 나와의 싸움은 지금 가능</string>
+    <string name="battle_error_ranked_only">유효 러닝 3회 뒤 랜덤 대결 가능, 셀프런은 지금 가능</string>
     <string name="battle_error_already_in_battle">이미 매칭을 기다리거나 대결 중이에요</string>
     <string name="battle_error_already_matched">이미 상대를 찾았어요. 곧 출발해요</string>
     <string name="battle_error_match_failed">대결을 만들지 못했어요. 다시 시도해 주세요</string>
@@ -88,7 +87,6 @@
     <string name="battle_running_forfeit_confirm">포기하기</string>
     <string name="battle_running_forfeit_button">그만두기</string>
     <string name="battle_running_title_random">배틀런, %1$s</string>
-    <string name="battle_running_title_self">나와의 싸움, %1$s</string>
     <string name="battle_running_title_celeb">vs %1$s, %2$s</string>
     <string name="battle_running_ready">준비</string>
     <string name="battle_running_forfeit_dismiss">계속 달리기</string>

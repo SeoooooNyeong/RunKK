@@ -2,8 +2,9 @@ package com.a207.runkk.app.ui.battle
 
 import android.app.Activity
 import android.content.ActivityNotFoundException
+import android.content.res.Resources
 import android.net.Uri
-import com.a207.runkk.app.core.designsystem.RunkkFormat
+import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.domain.battle.FriendInvite
 import com.kakao.sdk.common.util.KakaoCustomTabsClient
 import com.kakao.sdk.share.ShareClient
@@ -12,6 +13,7 @@ import com.kakao.sdk.template.model.Button
 import com.kakao.sdk.template.model.Content
 import com.kakao.sdk.template.model.FeedTemplate
 import com.kakao.sdk.template.model.Link
+import java.util.Locale
 import javax.inject.Inject
 import kotlin.coroutines.resume
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -23,7 +25,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
  * SDK 호출이 실패하고 [ShareResult.FAILED]다.
  */
 class KakaoInviteSharer @Inject constructor() : InviteSharer {
-    override suspend fun share(activity: Activity, invite: FriendInvite, inviterName: String): ShareResult {
+    override suspend fun share(activity: Activity, invite: FriendInvite, inviterName: String?): ShareResult {
         val template = templateOf(invite, inviterName, activity)
         return try {
             if (ShareClient.instance.isKakaoTalkSharingAvailable(
@@ -77,8 +79,7 @@ class KakaoInviteSharer @Inject constructor() : InviteSharer {
         ShareResult.FAILED
     }
 
-    private fun templateOf(invite: FriendInvite, inviterName: String, activity: Activity): FeedTemplate {
-        val distance = RunkkFormat.targetLabel(invite.distance)
+    private fun templateOf(invite: FriendInvite, inviterName: String?, activity: Activity): FeedTemplate {
         val web = Link(webUrl = invite.inviteUrl, mobileWebUrl = invite.inviteUrl)
         val app = Link(
             webUrl = invite.inviteUrl,
@@ -87,7 +88,7 @@ class KakaoInviteSharer @Inject constructor() : InviteSharer {
         )
         return FeedTemplate(
             content = Content(
-                title = activity.getString(R.string.battle_invite_share_title, inviterName, distance),
+                title = inviteShareTitle(activity.resources, inviterName, invite.distance),
                 imageUrl = INVITE_CARD_IMAGE,
                 link = web,
                 description = activity.getString(R.string.battle_invite_share_description)
@@ -100,7 +101,24 @@ class KakaoInviteSharer @Inject constructor() : InviteSharer {
         /** 실행 링크 쿼리 이름(kakao{앱 키}://kakaolink?invite=토큰). app InviteLinkReader가 같은 이름을 읽는다. */
         const val INVITE_PARAM = "invite"
 
-        /** 초대 카드 그림(서버 D-293 nginx 정적 파일). */
-        const val INVITE_CARD_IMAGE = "https://k15a207.p.ssafy.io/invite/battle/card.png"
+        /**
+         * 초대 카드 그림(서버 D-293 nginx 정적 파일). 앱 링크 경로(/invite/battle/) 밖에 두어 그림을 눌러도 앱 링크로 잡히지 않는다(AN8-9).
+         */
+        const val INVITE_CARD_IMAGE = "https://k15a207.p.ssafy.io/invite/card.png"
+    }
+}
+
+private const val METERS_PER_KM = 1_000.0
+
+/**
+ * 초대 메시지 제목(D-270, TC-9673): "바람처럼님이 5 km 대결을 신청했어요"(SRS 띄어쓰기). 내 닉네임을 못 읽었으면 이름 없는 제목(AN8-2).
+ */
+internal fun inviteShareTitle(resources: Resources, inviterName: String?, distance: Distance): String {
+    val km = distance.meters / METERS_PER_KM
+    val label = if (km % 1.0 == 0.0) km.toLong().toString() else String.format(Locale.US, "%.1f", km)
+    return if (inviterName.isNullOrBlank()) {
+        resources.getString(R.string.battle_invite_share_title_anonymous, label)
+    } else {
+        resources.getString(R.string.battle_invite_share_title, inviterName, label)
     }
 }

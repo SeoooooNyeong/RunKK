@@ -129,6 +129,8 @@ constructor(
 
     /** 랜덤·고스트 매칭 성사. 매칭 화면·애니메이션은 ui.battle이 그린다(design-review.md M25). */
     fun onMatched(m: MatchFound) {
+        // 성사된 친구 초대는 끝났다: 화면을 떠나도 취소하지 않는다(AN8-16).
+        inviteJob = null
         val run = openRun(m.battleId, m.distance, m.opponentName)
         run.round.scope.launch {
             _state.value = BattleRunState.Matched(m)
@@ -232,6 +234,11 @@ constructor(
             val created = pending.awaitOrNull() as? Outcome.Success ?: return@launch
             cancelInvite(created.value.inviteId).await()
         }
+    }
+
+    /** 만료·거절로 끝난 초대를 잊는다(AN8-16). 화면을 떠나도 끝난 초대에 취소를 다시 보내지 않는다. */
+    fun forgetInvite() {
+        inviteJob = null
     }
 
     /** 대결에 참가할 수 없을 만큼 바쁜가: 열린 회가 있거나 자유런 등 측정 중이다(친구 대결 참가 전 확인, D-273). */
