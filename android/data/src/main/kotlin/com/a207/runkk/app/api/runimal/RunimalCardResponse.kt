@@ -15,5 +15,5 @@ internal data class RunimalCardResponse(
 ) {
     /** 축 막대 하나(서버 AxisResponse): 축, 우세 성향 이름(예: 솔로런), 그 비율(%). */
     @Serializable
-    data class AxisDto(val axis: String, val label: String, val percent: Int = 0)
+    data class AxisDto(val axis: String = "", val label: String = "", val percent: Int = 0)
 }

@@ -89,9 +89,8 @@ fun RecordListRoute(initialView: RecordView = RecordView.CALENDAR, viewModel: Re
     }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val navigator = LocalRunkkNavigator.current
-    RecordListScreen(
-        state = state,
-        actions = RecordListActions(
+    val actions = remember(viewModel, navigator) {
+        RecordListActions(
             onBack = navigator::back,
             onViewSelected = viewModel::onViewSelected,
             onPreviousMonth = viewModel::onPreviousMonth,
@@ -101,7 +100,8 @@ fun RecordListRoute(initialView: RecordView = RecordView.CALENDAR, viewModel: Re
             onRetry = viewModel::refresh,
             onRetryRecent = viewModel::loadRecent
         )
-    )
+    }
+    RecordListScreen(state = state, actions = actions)
 }
 
 @Composable
@@ -235,9 +235,11 @@ private fun Calendar(
     selected: LocalDate?,
     onDateSelected: (LocalDate) -> Unit
 ) {
-    val lead = month.atDay(1).dayOfWeek.value % DAYS_IN_WEEK
-    val cells: List<LocalDate?> = List(lead) { null } + (1..month.lengthOfMonth()).map { month.atDay(it) }
-    val rows = cells.chunked(DAYS_IN_WEEK).map { it + List(DAYS_IN_WEEK - it.size) { null } }
+    val rows = remember(month) {
+        val lead = month.atDay(1).dayOfWeek.value % DAYS_IN_WEEK
+        val cells: List<LocalDate?> = List(lead) { null } + (1..month.lengthOfMonth()).map { month.atDay(it) }
+        cells.chunked(DAYS_IN_WEEK).map { it + List(DAYS_IN_WEEK - it.size) { null } }
+    }
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             WEEKDAYS.forEach {

@@ -97,12 +97,14 @@ fun RecordDetailRoute(recordId: String, viewModel: RecordDetailViewModel = hiltV
             onBack = navigator::back,
             onShare = { navigator.navigate(Routes.RecordCard(recordId)) },
             onRetry = { viewModel.load(recordId, isForced = true) },
-            deleteActions = RecordDeleteActions(
-                onDelete = viewModel::onDeleteTapped,
-                onConfirm = viewModel::onDeleteConfirmed,
-                onDismiss = viewModel::onDeleteDismissed,
-                onMessageShown = viewModel::onMessageShown
-            )
+            deleteActions = remember(viewModel) {
+                RecordDeleteActions(
+                    onDelete = viewModel::onDeleteTapped,
+                    onConfirm = viewModel::onDeleteConfirmed,
+                    onDismiss = viewModel::onDeleteDismissed,
+                    onMessageShown = viewModel::onMessageShown
+                )
+            }
         )
     }
 }

@@ -144,7 +144,16 @@ class RecordListViewModel @Inject constructor(
     }
 
     private fun moveMonth(delta: Long) {
-        _state.update { it.copy(month = it.month.plusMonths(delta), selectedDate = null) }
+        // 새 달 응답이 올 때까지 이전 달 요약·칸이 새 달 머리 아래 남지 않게 비운다.
+        _state.update {
+            it.copy(
+                month = it.month.plusMonths(delta),
+                selectedDate = null,
+                runs = emptyList(),
+                dailyDistance = emptyMap(),
+                summary = null
+            )
+        }
         refresh()
     }
 
