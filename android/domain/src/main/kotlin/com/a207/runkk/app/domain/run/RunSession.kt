@@ -10,20 +10,15 @@ import kotlin.math.roundToLong
 /**
  * 한 번의 러닝 측정 상태를 보관한다(6.1.14, A-02). 시각은 모두 매개변수로 받는다.
  *
- * 상태 전이(상태도 2.4.7 v0.11): COUNTDOWN → start → RUNNING ⇄ (pause / resume) PAUSED, RUNNING ⇄ (lock / unlock) LOCKED,
- * LOCKED ⇄ PAUSED_LOCKED(워치 정지·재개), PAUSED → PAUSED_LOCKED(lock), PAUSED_LOCKED → PAUSED(unlock),
- * 측정 중 네 상태 → finish·end → FINISHED, 자유런 RUNNING·PAUSED → discard(취소, 기록 없음) → FINISHED.
- * hintFinish·hintUnlock은 상태를 바꾸지 않는다(D-49).
- * 폰 버튼(pause·resume)은 RUNNING ⇄ PAUSED만, 워치 요청(pauseFromWatch·resumeFromWatch)은 잠금 중에도 받는다(D-120, D-157).
- * "정지 중"은 [isPaused](PAUSED 또는 PAUSED_LOCKED) 하나로 판정한다(D-157 (2)).
+ * 상태 전이(상태도 2.4.7 v0.14): COUNTDOWN → start → RUNNING ⇄ (pause / resume) PAUSED, 측정 중 두 상태 → finish·end → FINISHED,
+ * 자유런 RUNNING·PAUSED → discard(취소, 기록 없음) → FINISHED. hintFinish는 상태를 바꾸지 않는다(D-49).
+ * 폰 버튼·워치 요청·알림 버튼의 정지·재개는 모두 pause·resume 하나로 모인다(D-256, D-260). 앱 화면 잠금은 없다(FR-182 삭제).
  */
 class RunSession(val spec: RunStartSpec) {
     enum class State {
         COUNTDOWN,
         RUNNING,
         PAUSED,
-        LOCKED,
-        PAUSED_LOCKED,
         FINISHED
     }
 
@@ -54,7 +49,7 @@ class RunSession(val spec: RunStartSpec) {
     val pauses: List<PauseInterval>
         get() = closedPauses.toList()
 
-    /** 열린 정지 구간의 시작 시각. 정지 중(PAUSED·PAUSED_LOCKED)일 때만 값이 있다. */
+    /** 열린 정지 구간의 시작 시각. 정지 중(PAUSED)일 때만 값이 있다. */
     private var pausedSince: Instant? = null
 
     private var distanceMeters = 0.0
@@ -71,17 +66,13 @@ class RunSession(val spec: RunStartSpec) {
     private var lastSignal: SignalState? = null
     private var lastCurrentPace: Pace? = null
 
-    /** 측정 중(정지·잠금 포함). 시작 전과 종료 뒤는 거짓이다. */
+    /** 측정 중(정지 포함). 시작 전과 종료 뒤는 거짓이다. */
     val isActive: Boolean
-        get() = state == State.RUNNING || state == State.LOCKED || isPaused
+        get() = state == State.RUNNING || isPaused
 
-    /** 정지 중(PAUSED 또는 PAUSED_LOCKED, D-157 (2)). */
+    /** 정지 중(PAUSED). */
     val isPaused: Boolean
-        get() = state == State.PAUSED || state == State.PAUSED_LOCKED
-
-    /** 화면 잠금 중(LOCKED 또는 PAUSED_LOCKED). */
-    val isLocked: Boolean
-        get() = state == State.LOCKED || state == State.PAUSED_LOCKED
+        get() = state == State.PAUSED
 
     fun start(at: Instant) {
         check(state == State.COUNTDOWN) { "cannot start in state $state" }
@@ -138,7 +129,6 @@ class RunSession(val spec: RunStartSpec) {
                 currentPace = null,
                 averagePace = average,
                 signal = lastSignal,
-                isLocked = isLocked,
                 heartRate = heartRates.lastOrNull(),
                 isPaused = true
             )
@@ -150,12 +140,11 @@ class RunSession(val spec: RunStartSpec) {
             currentPace = lastCurrentPace,
             averagePace = average,
             signal = lastSignal,
-            isLocked = isLocked,
             heartRate = heartRates.lastOrNull()?.takeIf { Duration.between(it.at, now) <= HEART_RATE_FRESHNESS }
         )
     }
 
-    /** 지금 정지 길이. 정지 중이 아니면 null(FR-195 정지 한도 검사). */
+    /** 지금 정지 길이. 정지 중이 아니면 null. 정지 길이에는 상한이 없다(FR-195 삭제, D-257). */
     fun currentPause(now: Instant): Duration? = pausedSince?.let { Duration.between(it, maxOf(now, it)) }
 
     /** 정지 합(닫힌 구간 + 열린 구간). 운동 시간 계산에 쓴다. */
@@ -165,7 +154,10 @@ class RunSession(val spec: RunStartSpec) {
         return sum.plus(currentPause(now) ?: Duration.ZERO)
     }
 
-    /** 폰 일시정지 버튼(FR-194): 자유런 RUNNING → PAUSED. 그 밖의 모드·상태면 거짓이고 상태는 그대로다(D-93 (3), D-137). */
+    /**
+     * 일시정지(FR-194): 자유런 RUNNING → PAUSED. 폰 버튼·워치 요청·알림 버튼이 모두 이 연산을 쓴다(D-256, D-260). [at]은 폰 처리 시각이다.
+     * 그 밖의 모드·상태면 거짓이고 상태는 그대로다(D-93 (3), D-137).
+     */
     fun pause(at: Instant): Boolean {
         if (!spec.mode.isPausable) return false
         if (state != State.RUNNING) return false
@@ -174,7 +166,7 @@ class RunSession(val spec: RunStartSpec) {
         return true
     }
 
-    /** 폰 재개 버튼(FR-194): PAUSED → RUNNING. 그 밖의 상태(PAUSED_LOCKED 포함)면 거짓이다. */
+    /** 재개(FR-194): PAUSED → RUNNING. 그 밖의 상태면 거짓이다. */
     fun resume(at: Instant): Boolean {
         if (state != State.PAUSED) return false
         closePause(at)
@@ -182,87 +174,26 @@ class RunSession(val spec: RunStartSpec) {
         return true
     }
 
-    /** 워치 일시정지 요청(D-157 (1)): RUNNING → PAUSED, LOCKED → PAUSED_LOCKED(잠금 유지, D-120). [at]은 폰 처리 시각이다. */
-    fun pauseFromWatch(at: Instant): Boolean {
-        if (!spec.mode.isPausable) return false
-        state =
-            when (state) {
-                State.RUNNING -> State.PAUSED
-                State.LOCKED -> State.PAUSED_LOCKED
-                else -> return false
-            }
-        pausedSince = at
-        return true
-    }
-
-    /** 워치 재개 요청(D-157 (1)): PAUSED → RUNNING, PAUSED_LOCKED → LOCKED. */
-    fun resumeFromWatch(at: Instant): Boolean {
-        if (!isPaused) return false
-        closePause(at)
-        state = if (state == State.PAUSED_LOCKED) State.LOCKED else State.RUNNING
-        return true
-    }
-
-    /** 화면 잠금: RUNNING → LOCKED, PAUSED → PAUSED_LOCKED(D-120). 잠금 중 finish·설정 조작은 거부한다(FR-182). */
-    fun lock() {
-        state =
-            when (state) {
-                State.RUNNING -> State.LOCKED
-                State.PAUSED -> State.PAUSED_LOCKED
-                else -> error("cannot lock in state $state")
-            }
-    }
-
-    fun hintUnlock(): Guidance = Guidance.screenOnly(Guidance.Kind.UNLOCK_HINT, GuidanceMessage.UNLOCK_HINT)
-
-    /** 잠금 해제(길게 누름): LOCKED → RUNNING, PAUSED_LOCKED → PAUSED(D-120). */
-    fun unlock() {
-        state =
-            when (state) {
-                State.LOCKED -> State.RUNNING
-                State.PAUSED_LOCKED -> State.PAUSED
-                else -> error("cannot unlock in state $state")
-            }
-    }
-
     fun hintFinish(): Guidance = Guidance.screenOnly(Guidance.Kind.FINISH_HINT, GuidanceMessage.FINISH_HINT)
 
-    /** 잠글 수 있으면(RUNNING·PAUSED) 잠그고 참. 그 밖의 상태면 아무것도 하지 않고 거짓(RunTracker가 상태 값을 보지 않게, O-4). */
-    fun tryLock(): Boolean {
-        if (state != State.RUNNING && state != State.PAUSED) return false
-        lock()
-        return true
-    }
-
-    /** 잠금 중이면 해제하고 참. 그 밖의 상태면 거짓(O-4). */
-    fun tryUnlock(): Boolean {
-        if (!isLocked) return false
-        unlock()
-        return true
-    }
-
-    /** 잠금 중이면 해제 안내, 아니면 null. 상태는 바꾸지 않는다(O-4). */
-    fun unlockHintIfLocked(): Guidance? = if (isLocked) hintUnlock() else null
-
-    /** 화면의 종료(길게 누름). 잠금 중(PAUSED_LOCKED 포함)이면 거부한다(FR-182, D-157 (3)). 정지 중에도 끝낼 수 있다(FR-036). */
+    /** 화면·워치의 종료(길게 누름). 정지 중에도 끝낼 수 있다(FR-036). */
     fun finish(now: Instant): FinishOutcome {
         check(isActive) { "cannot finish in state $state" }
-        if (isLocked) return FinishOutcome.Rejected
         return complete(now)
     }
 
-    /** 조정자·자동 종료. 화면 입력이 아니라 잠금과 무관하게 확정한다(D-36, FR-195). */
+    /** 조정자의 종료(대결 종료 신호·도착·그만두기, D-36). */
     fun end(now: Instant): FinishOutcome {
         check(isActive) { "cannot end in state $state" }
         return complete(now)
     }
 
     /**
-     * 화면의 취소(기록을 남기지 않는 종료). 취소할 수 있는 모드([isDiscardable], 자유런)이고 측정 중이며 잠금 중이 아닐 때만
+     * 화면의 취소(기록을 남기지 않는 종료). 취소할 수 있는 모드([isDiscardable], 자유런)이고 측정 중일 때만
      * FINISHED로 바꾸고 참이다. 기록(CompletedRun)을 만들지 않는다. 정지 중에도 취소할 수 있고 열린 정지 구간은 버린다.
      */
     fun discard(): Boolean {
-        if (!spec.mode.isDiscardable || !isActive || isLocked) return false
+        if (!spec.mode.isDiscardable || !isActive) return false
         pausedSince = null
         state = State.FINISHED
         return true

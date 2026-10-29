@@ -17,7 +17,8 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * RunSession 일시정지(A-02, D-93, D-120, D-121, D-144, D-157): 시험 문서 2.2.13 TC-6301~TC-6320, 2.2.16 TC-6361~TC-6368.
+ * RunSession 일시정지(A-02, D-93, D-121, D-144, D-256): 시험 문서 2.2.13 TC-6301~TC-6319, 2.2.16 TC-6363·TC-6366·TC-6367,
+ * v0.14 TC-9623·TC-9624(잠금 상태 삭제, 상태도 2.4.7 v0.14). 잠금 관련 TC-6320·TC-6361·TC-6362·TC-6364·TC-6365·TC-6368·TC-6331은 폐기했다.
  * 시각 표기 "10:mm:ss"는 측정 시작(T0)을 10:00:00으로 본 값이다.
  */
 class RunSessionPauseTest {
@@ -66,18 +67,15 @@ class RunSessionPauseTest {
 
     @Test
     fun `TC-6303 RUNNING이 아니면 pause는 거짓이고 열린 정지 시작을 덮어쓰지 않는다`() {
-        val locked = session().also { it.lock() }
         val paused = session().also { it.pause(t(10)) }
         val countdown = RunSession(freeSpec())
         val finished = session().also { it.end(t(5)) }
-        val pausedLocked = session().also { it.pause(t(10)) }.also { it.lock() }
-        listOf(locked, paused, countdown, finished, pausedLocked).forEach { s ->
+        listOf(paused, countdown, finished).forEach { s ->
             val before = s.state
             assertFalse(s.pause(t(12)))
             assertEquals(before, s.state)
         }
         assertEquals(Duration.ofMinutes(2), paused.currentPause(t(12)))
-        assertEquals(Duration.ofMinutes(2), pausedLocked.currentPause(t(12)))
     }
 
     @Test
@@ -93,10 +91,9 @@ class RunSessionPauseTest {
     @Test
     fun `TC-6305 PAUSED가 아니면 resume은 거짓이다`() {
         val running = session()
-        val locked = session().also { it.lock() }
         val countdown = RunSession(freeSpec())
         val finished = session().also { it.end(t(5)) }
-        listOf(running, locked, countdown, finished).forEach { s ->
+        listOf(running, countdown, finished).forEach { s ->
             val before = s.state
             assertFalse(s.resume(t(15)))
             assertEquals(before, s.state)
@@ -134,25 +131,21 @@ class RunSessionPauseTest {
 
     @Test
     fun `TC-6308 정지 중 tick은 지표를 고정하고 현재 페이스는 빈 값, 심박은 갱신한다`() {
-        for (lockAfterPause in listOf(false, true)) {
-            val s = session()
-            s.onLocation(normal(9 * 60 + 30, 0.0))
-            s.onLocation(normal(10 * 60, 200.0))
-            s.onHeartRate(HeartRateSample(t(9, 59), 150))
-            assertEquals(Pace(150), s.tick(t(10)).currentPace)
-            s.pause(t(10))
-            if (lockAfterPause) s.lock()
-            s.onHeartRate(HeartRateSample(t(11), 160))
-            for (now in listOf(t(12), t(14))) {
-                val p = s.tick(now)
-                assertEquals(Duration.ofSeconds(600), p.elapsed)
-                assertEquals(Distance(200), p.distance)
-                assertEquals(Pace(3_000), p.averagePace)
-                assertNull(p.currentPace)
-                assertEquals(160, p.heartRate?.bpm)
-                assertTrue(p.isPaused)
-                assertEquals(lockAfterPause, p.isLocked)
-            }
+        val s = session()
+        s.onLocation(normal(9 * 60 + 30, 0.0))
+        s.onLocation(normal(10 * 60, 200.0))
+        s.onHeartRate(HeartRateSample(t(9, 59), 150))
+        assertEquals(Pace(150), s.tick(t(10)).currentPace)
+        s.pause(t(10))
+        s.onHeartRate(HeartRateSample(t(11), 160))
+        for (now in listOf(t(12), t(14))) {
+            val p = s.tick(now)
+            assertEquals(Duration.ofSeconds(600), p.elapsed)
+            assertEquals(Distance(200), p.distance)
+            assertEquals(Pace(3_000), p.averagePace)
+            assertNull(p.currentPace)
+            assertEquals(160, p.heartRate?.bpm)
+            assertTrue(p.isPaused)
         }
     }
 
@@ -221,19 +214,16 @@ class RunSessionPauseTest {
 
     @Test
     fun `TC-6314 정지 중 포인트는 버린다`() {
-        for (lock in listOf(false, true)) {
-            val s = session()
-            s.walk(from = 1, count = 2, startMeters = 0.0, step = 1_000.0)
-            s.pause(t(10))
-            if (lock) s.lock()
-            s.onLocation(normal(11 * 60, 1_000.0))
-            s.onLocation(normal(11 * 60 + 1, 1_005.0))
-            s.onLocation(unstable(11 * 60 + 2, 1_010.0))
-            assertEquals(Distance(1_000), s.tick(t(12)).distance)
-            val run = assertIs<FinishOutcome.Saved>(s.end(t(12))).run
-            assertEquals(2, run.route.size)
-            assertEquals(emptyList(), run.unstable)
-        }
+        val s = session()
+        s.walk(from = 1, count = 2, startMeters = 0.0, step = 1_000.0)
+        s.pause(t(10))
+        s.onLocation(normal(11 * 60, 1_000.0))
+        s.onLocation(normal(11 * 60 + 1, 1_005.0))
+        s.onLocation(unstable(11 * 60 + 2, 1_010.0))
+        assertEquals(Distance(1_000), s.tick(t(12)).distance)
+        val run = assertIs<FinishOutcome.Saved>(s.end(t(12))).run
+        assertEquals(2, run.route.size)
+        assertEquals(emptyList(), run.unstable)
     }
 
     @Test
@@ -295,73 +285,7 @@ class RunSessionPauseTest {
         assertTrue(HeartRateSample(t(12), 150) in run.heartRates)
     }
 
-    // ---------- 워치 요청 (TC-6320) ----------
-
-    @Test
-    fun `TC-6320 워치 정지는 RUNNING·LOCKED만, 워치 재개는 PAUSED·PAUSED_LOCKED만 받는다`() {
-        val a = session()
-        assertTrue(a.pauseFromWatch(t(10)))
-        assertEquals(RunSession.State.PAUSED, a.state)
-        assertEquals(Duration.ZERO, a.currentPause(t(10)))
-
-        val b = session().also { it.lock() }
-        assertTrue(b.pauseFromWatch(t(10)))
-        assertEquals(RunSession.State.PAUSED_LOCKED, b.state)
-        assertTrue(b.isPaused)
-
-        val c = session(RunMode.BATTLE)
-        assertFalse(c.pauseFromWatch(t(10)))
-        assertEquals(RunSession.State.RUNNING, c.state)
-
-        val d = session().also { it.pause(t(5)) }
-        assertFalse(d.pauseFromWatch(t(10)))
-        assertEquals(Duration.ofMinutes(5), d.currentPause(t(10)))
-
-        val e = RunSession(freeSpec())
-        assertFalse(e.pauseFromWatch(t(10)))
-        assertEquals(RunSession.State.COUNTDOWN, e.state)
-
-        val f = session().also { it.pause(t(10)) }
-        assertTrue(f.resumeFromWatch(t(15)))
-        assertEquals(RunSession.State.RUNNING, f.state)
-        assertEquals(listOf(PauseInterval(t(10), t(15))), f.pauses)
-        assertEquals(t(15), f.lastResumedAt)
-
-        val g = session().also { it.lock() }.also { it.pauseFromWatch(t(10)) }
-        assertTrue(g.resumeFromWatch(t(15)))
-        assertEquals(RunSession.State.LOCKED, g.state)
-        assertEquals(listOf(PauseInterval(t(10), t(15))), g.pauses)
-
-        val h = session()
-        val i = session().also { it.lock() }
-        listOf(h, i).forEach { s ->
-            val before = s.state
-            assertFalse(s.resumeFromWatch(t(15)))
-            assertEquals(before, s.state)
-            assertEquals(emptyList(), s.pauses)
-        }
-    }
-
-    // ---------- 상태 전이 (TC-6361~TC-6368) ----------
-
-    @Test
-    fun `TC-6361 PAUSED에서 lock하면 PAUSED_LOCKED이고 정지는 이어진다`() {
-        val s = session().also { it.pause(t(10)) }
-        s.lock()
-        assertEquals(RunSession.State.PAUSED_LOCKED, s.state)
-        assertEquals(Duration.ofMinutes(1), s.currentPause(t(11)))
-        val p = s.tick(t(11))
-        assertTrue(p.isPaused)
-        assertTrue(p.isLocked)
-    }
-
-    @Test
-    fun `TC-6362 PAUSED_LOCKED에서 unlock하면 PAUSED로 정지를 이어 간다`() {
-        val s = session().also { it.pause(t(10)) }.also { it.lock() }
-        s.unlock()
-        assertEquals(RunSession.State.PAUSED, s.state)
-        assertEquals(Duration.ofMinutes(2), s.currentPause(t(12)))
-    }
+    // ---------- 상태 전이 (TC-6363·TC-6366·TC-6367, TC-9623·TC-9624) ----------
 
     @Test
     fun `TC-6363 PAUSED에서 finish하면 마지막 정지를 종료 시각에 닫고 운동 시간으로 저장한다`() {
@@ -374,26 +298,6 @@ class RunSessionPauseTest {
         assertEquals(Distance(1_000), run.distance)
         assertEquals(RunSession.State.FINISHED, s.state)
         assertNull(s.currentPause(t(12)))
-    }
-
-    @Test
-    fun `TC-6364 PAUSED_LOCKED에서 end는 잠금과 무관하게 저장한다`() {
-        val s = session()
-        s.walk(from = 1, count = 2, startMeters = 0.0, step = 2_000.0)
-        s.lock()
-        s.pauseFromWatch(t(10))
-        val run = assertIs<FinishOutcome.Saved>(s.end(t(70))).run
-        assertEquals(listOf(PauseInterval(t(10), t(70))), run.pauses)
-        assertEquals(Duration.ofSeconds(600), run.elapsed)
-        assertEquals(RunSession.State.FINISHED, s.state)
-    }
-
-    @Test
-    fun `TC-6365 PAUSED_LOCKED에서 finish는 거부하고 정지를 이어 간다`() {
-        val s = session().also { it.pause(t(10)) }.also { it.lock() }
-        assertEquals(FinishOutcome.Rejected, s.finish(t(12)))
-        assertEquals(RunSession.State.PAUSED_LOCKED, s.state)
-        assertEquals(Duration.ofMinutes(2), s.currentPause(t(12)))
     }
 
     @Test
@@ -418,24 +322,54 @@ class RunSessionPauseTest {
     }
 
     @Test
-    fun `TC-6368 상태도에 없는 전이는 예외이고 상태가 그대로다`() {
-        val pausedLocked = session().also { it.pause(t(10)) }.also { it.lock() }
-        assertFailsWith<IllegalStateException> { pausedLocked.lock() }
-        assertEquals(RunSession.State.PAUSED_LOCKED, pausedLocked.state)
-        val paused = session().also { it.pause(t(10)) }
-        assertFailsWith<IllegalStateException> { paused.unlock() }
-        assertEquals(RunSession.State.PAUSED, paused.state)
+    fun `TC-9623 RunSession 상태는 COUNTDOWN·RUNNING·PAUSED·FINISHED 넷이고 잠금 연산이 없다`() {
+        assertEquals(
+            listOf("COUNTDOWN", "RUNNING", "PAUSED", "FINISHED"),
+            RunSession.State.entries.map { it.name }
+        )
+        val names = RunSession::class.java.declaredMethods.map { it.name }.toSet()
+        val removed = setOf(
+            "lock",
+            "unlock",
+            "tryLock",
+            "tryUnlock",
+            "hintUnlock",
+            "unlockHintIfLocked",
+            "isLocked",
+            "pauseFromWatch",
+            "resumeFromWatch"
+        )
+        assertEquals(emptySet(), names intersect removed)
+    }
+
+    @Test
+    fun `TC-9624 상태도 2_4_7 v0_14에 없는 전이는 거부하고 상태가 그대로다`() {
+        val countdown = RunSession(freeSpec())
+        assertFalse(countdown.pause(t(1)))
+        assertEquals(RunSession.State.COUNTDOWN, countdown.state)
+
+        val finished = session().also { it.end(t(5)) }
+        assertFalse(finished.pause(t(6)))
+        assertFalse(finished.resume(t(6)))
+        assertFailsWith<IllegalStateException> { finished.finish(t(6)) }
+        assertEquals(RunSession.State.FINISHED, finished.state)
+
+        val running = session()
+        assertFalse(running.resume(t(6)))
+        assertEquals(RunSession.State.RUNNING, running.state)
+
+        // 허용: COUNTDOWN → RUNNING ⇄ PAUSED → FINISHED
+        val allowed = RunSession(freeSpec())
+        allowed.start(T0)
+        assertTrue(allowed.pause(t(1)))
+        assertTrue(allowed.resume(t(2)))
+        assertTrue(allowed.pause(t(3)))
+        allowed.finish(t(4))
+        assertEquals(RunSession.State.FINISHED, allowed.state)
     }
 
     @Test
     fun `isPausable은 자유런만 참이다 (D-137)`() {
         assertEquals(listOf(true, false, false), RunMode.entries.map { it.isPausable })
-    }
-
-    @Test
-    fun `TC-6331 정지 한도는 55분 경고 60분 종료다`() {
-        assertEquals(Duration.ofMinutes(55), PauseLimit.WARN_AFTER)
-        assertEquals(Duration.ofMinutes(60), PauseLimit.END_AFTER)
-        assertTrue(PauseLimit.WARN_AFTER < PauseLimit.END_AFTER)
     }
 }

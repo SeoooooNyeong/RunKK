@@ -13,7 +13,6 @@ import com.a207.runkk.app.domain.run.GuidanceMessage
 import com.a207.runkk.app.domain.run.HeartRateSample
 import com.a207.runkk.app.domain.run.LocationSample
 import com.a207.runkk.app.domain.run.MeasurementRuntime
-import com.a207.runkk.app.domain.run.PauseLimit
 import com.a207.runkk.app.domain.run.RunArchive
 import com.a207.runkk.app.domain.run.RunCoach
 import com.a207.runkk.app.domain.run.RunStartSpec
@@ -203,21 +202,6 @@ class RunViewModelTest {
     }
 
     @Test
-    fun `잠금 중에는 해제 짧게 누름이 안내만, 길게 누름이 해제한다(FR-182)`() = runTest(main.dispatcher) {
-        val (vm, _) = started()
-        vm.onLockTapped()
-        runCurrent()
-        assertEquals(RunPhase.LOCKED, vm.state.value.phase)
-        vm.onUnlockTapped()
-        runCurrent()
-        assertEquals(RunPhase.LOCKED, vm.state.value.phase)
-        assertEquals(UiText.Res(R.string.run_hold_to_unlock), vm.state.value.hint)
-        vm.onUnlockLongPressed()
-        runCurrent()
-        assertEquals(RunPhase.RUNNING, vm.state.value.phase)
-    }
-
-    @Test
     fun `1km를 넘을 때 구간 배너를 보인다`() = runTest(main.dispatcher) {
         val (vm, tracker) = started()
         tracker.walk(1, 37.5)
@@ -313,40 +297,6 @@ class RunViewModelTest {
     }
 
     @Test
-    fun `잠금 중에는 일시정지 버튼이 동작하지 않는다(FR-182)`() = runTest(main.dispatcher) {
-        val (vm, tracker) = started()
-        vm.onLockTapped()
-        runCurrent()
-        vm.onPauseTapped()
-        tracker.onPauseTapped()
-        runCurrent()
-        assertEquals(RunPhase.LOCKED, vm.state.value.phase)
-        assertFalse(vm.state.value.isPaused)
-    }
-
-    @Test
-    fun `잠금 중 워치 정지는 잠금을 유지하고 길게 눌러 종료는 거부해 해제를 안내한다(D-120, D-157)`() = runTest(main.dispatcher) {
-        val (vm, tracker) = started()
-        tracker.walk(1, 37.5)
-        tracker.walk(60, 37.5027)
-        vm.onLockTapped()
-        runCurrent()
-        watch.pauseRequests.emit(WatchGateway.PauseAction.PAUSE)
-        runCurrent()
-        assertEquals(RunPhase.LOCKED, vm.state.value.phase)
-        assertTrue(vm.state.value.isPaused)
-        vm.events.test {
-            vm.onFinishLongPressed()
-            runCurrent()
-            expectNoEvents()
-        }
-        assertEquals(UiText.Res(R.string.run_hold_to_unlock), vm.state.value.hint)
-        vm.onResumeTapped()
-        runCurrent()
-        assertTrue(vm.state.value.isPaused)
-    }
-
-    @Test
     fun `정지 중에도 길게 눌러 끝내면 저장하고 결과로 간다(FR-036)`() = runTest(main.dispatcher) {
         val (vm, tracker) = started()
         tracker.walk(1, 37.5)
@@ -362,40 +312,19 @@ class RunViewModelTest {
     }
 
     @Test
-    fun `정지한 지 시간을 세고 55분이 넘으면 자동 종료까지 남은 시간을 보인다(B2-2, B2-3)`() = runTest(main.dispatcher) {
+    fun `정지한 지 시간을 센다(B2-2)`() = runTest(main.dispatcher) {
         val (vm, tracker) = started()
         tracker.walk(1, 37.5)
         tracker.walk(120, 37.5045)
         vm.onPauseTapped()
         runCurrent()
         assertEquals(java.time.Duration.ZERO, vm.state.value.pausedFor)
-        assertEquals(null, vm.state.value.autoEndIn)
         clock.now = clock.now.plusSeconds(192)
         advanceTimeBy(1_001)
         assertEquals(java.time.Duration.ofSeconds(192), vm.state.value.pausedFor)
-        clock.now = clock.now.plus(PauseLimit.WARN_AFTER)
-        advanceTimeBy(1_001)
-        assertEquals(PauseLimit.END_AFTER.minus(PauseLimit.WARN_AFTER).minusSeconds(192), vm.state.value.autoEndIn)
         vm.onResumeTapped()
         runCurrent()
         assertEquals(null, vm.state.value.pausedFor)
-        assertEquals(null, vm.state.value.autoEndIn)
-    }
-
-    @Test
-    fun `정지가 60분이 되면 자동으로 끝나 결과로 간다(FR-195)`() = runTest(main.dispatcher) {
-        val (vm, tracker) = started()
-        tracker.walk(1, 37.5)
-        tracker.walk(120, 37.5045)
-        vm.onPauseTapped()
-        runCurrent()
-        vm.events.test {
-            clock.now = clock.now.plus(PauseLimit.END_AFTER)
-            tracker.tick(clock.now)
-            runCurrent()
-            assertTrue(awaitItem() is RunEvent.Finished)
-        }
-        assertTrue(guidance.played.any { it.message == GuidanceMessage.PAUSE_AUTO_ENDED })
     }
 
     @Test

@@ -11,15 +11,9 @@ import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 
-/** 내 측정값(RunTracker.progress에서 옮긴 값). [isLocked]는 화면 잠금(FR-182) 상태다. */
-data class MyProgress(
-    val distance: Distance,
-    val elapsed: Duration,
-    val currentPace: Pace?,
-    val averagePace: Pace?,
-    val isLocked: Boolean
-) {
+/** 내 측정값(RunTracker.progress에서 옮긴 값). 앱 화면 잠금은 없다(D-256). */
+data class MyProgress(val distance: Distance, val elapsed: Duration, val currentPace: Pace?, val averagePace: Pace?) {
     companion object {
-        val ZERO = MyProgress(Distance.ZERO, Duration.ZERO, currentPace = null, averagePace = null, isLocked = false)
+        val ZERO = MyProgress(Distance.ZERO, Duration.ZERO, currentPace = null, averagePace = null)
     }
 }

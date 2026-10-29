@@ -3,7 +3,6 @@ package com.a207.runkk.app.ui.run
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Pace
-import com.a207.runkk.app.domain.run.PauseLimit
 import com.a207.runkk.app.domain.run.RunProgress
 import java.time.Duration
 
@@ -20,7 +19,7 @@ data class RunUiState(
     val isConsentRequired: Boolean = false,
     /** 재동의 안내를 뒤로가기·바깥 누름으로 닫았다. 다시 시도하면 다시 보인다. */
     val isConsentDialogDismissed: Boolean = false,
-    /** 누름 안내("길게 눌러 종료"·"길게 눌러 해제"). 잠깐 보였다 사라진다. */
+    /** 누름 안내("길게 눌러 종료"). 잠깐 보였다 사라진다. */
     val hint: UiText? = null,
     /** 새 1km 지점 배너("2km, 11:04, 평균 페이스 5:32"). */
     val splitBanner: UiText? = null,
@@ -28,7 +27,7 @@ data class RunUiState(
     val isDiscardConfirming: Boolean = false,
     val error: UiText? = null
 ) {
-    /** 일시정지 중(PAUSED·PAUSED_LOCKED, FR-194). 진행값의 정지 여부를 그대로 보인다(D-157). */
+    /** 일시정지 중(PAUSED, FR-194). 진행값의 정지 여부를 그대로 보인다. */
     val isPaused: Boolean get() = progress.isPaused
 
     /** 목표까지 남은 거리. 목표가 없거나 넘었으면 null. */
@@ -38,14 +37,8 @@ data class RunUiState(
     val isConsentDialogVisible: Boolean get() = phase == RunPhase.PREPARING && isConsentRequired &&
         !isConsentDialogDismissed
 
-    /** 취소 확인 대화상자를 보일 때(측정·정지 화면). 잠금·종료 중에는 숨긴다(FR-182). */
+    /** 취소 확인 대화상자를 보일 때(측정·정지 화면). 종료 중에는 숨긴다. */
     val isDiscardDialogVisible: Boolean get() = isDiscardConfirming && phase == RunPhase.RUNNING
-
-    /** 정지 자동 종료까지 남은 시간(B2-3). 정지가 예고 시점(55분)을 넘었을 때만 있다(FR-195). */
-    val autoEndIn: Duration?
-        get() = pausedFor?.takeIf { isPaused && it >= PauseLimit.WARN_AFTER }?.let {
-            PauseLimit.END_AFTER.minus(it).coerceAtLeast(Duration.ZERO)
-        }
 
     val targetProgress: Float? get() = targetDistance?.takeIf { it.meters > 0 }?.let {
         (

@@ -119,24 +119,6 @@ class BattleRunningViewModelTest {
     }
 
     @Test
-    fun `화면 잠금 - 잠그면 잠금 화면, 짧게 누르면 안내, 길게 누르면 해제(FR-182, D-49)`() = main.runVmTest { vms ->
-        val w = world()
-        val vm = running(w, vms)
-        w.runTo(1, 0.0)
-        runCurrent()
-        vm.onLockTapped()
-        runCurrent()
-        assertTrue(vm.state.value.isLocked)
-        vm.onUnlockTapped()
-        runCurrent()
-        assertEquals(UiText.Res(R.string.battle_running_unlock_hold), vm.state.value.hint)
-        assertTrue(vm.state.value.isLocked)
-        vm.onUnlockLongPressed()
-        runCurrent()
-        assertFalse(vm.state.value.isLocked)
-    }
-
-    @Test
     fun `추월 안내는 바뀐 때만 보이고 횟수를 센다(FR-188)`() = main.runVmTest { vms ->
         val w = world()
         val vm = running(w, vms)

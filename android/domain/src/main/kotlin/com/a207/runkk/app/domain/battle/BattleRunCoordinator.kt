@@ -62,8 +62,7 @@ import kotlinx.coroutines.launch
  * GapTracker로 추월·도착을 판정한다(D-05). 종료 카운트다운(Closing)이 시작되면 진행 메시지가 그 상태를 덮지 않는다(F-1).
  * 서버 보고(시작·그만두기)를 다시 보내도 실패하거나 채널에 연결하지 못하면 failure로 알린다(F-3, O-6).
  *
- * ui.battle은 domain.run을 보지 않으므로(5.1.2) 내 측정값(RunTracker 진행값)을 상태의 MyProgress로 옮기고, 화면 잠금은
- * 누름 종류별 연산(lockScreen·onUnlockTapped·onUnlockLongPressed, D-49)을 RunTracker에 넘긴다.
+ * ui.battle은 domain.run을 보지 않으므로(5.1.2) 내 측정값(RunTracker 진행값)을 상태의 MyProgress로 옮긴다. 앱 화면 잠금은 없다(D-256).
  */
 @Singleton
 class BattleRunCoordinator
@@ -175,40 +174,12 @@ constructor(
 
     /**
      * 확인 뒤 그만두기(POST /battles/{id}/forfeit) → 기록 저장. 보고가 끝내 실패해도 기기 측정은 끝내고 failure로 알린다.
-     * 화면 잠금 중이면(FR-182) 화면이 막지 못한 입력이어도 받지 않는다.
      */
     fun forfeit() {
         val run = run ?: return
         run.round.scope.launch {
-            if (runTracker.progress.value.isLocked) return@launch
             report(run) { battleRepository.forfeit(run.battleId) }
             finish(run, status = null)
-        }
-    }
-
-    /** 화면 잠금(FR-182). 측정 중일 때만 잠그고 상태의 mine.locked에 바로 반영한다. */
-    fun lockScreen() {
-        val run = run ?: return
-        run.round.scope.launch {
-            if (!run.round.isMeasuring) return@launch
-            runTracker.lockScreen()
-            syncLock(run)
-        }
-    }
-
-    /** 잠금 해제 짧게 누름: 길게 눌러야 한다는 안내만(D-49). */
-    fun onUnlockTapped() {
-        val run = run ?: return
-        run.round.scope.launch { if (run.round.isMeasuring) runTracker.onUnlockTapped() }
-    }
-
-    /** 잠금 해제 길게 누름. */
-    fun onUnlockLongPressed() {
-        val run = run ?: return
-        run.round.scope.launch {
-            if (!run.round.isMeasuring) return@launch
-            runTracker.onUnlockLongPressed()
-            syncLock(run)
         }
     }
 
@@ -398,17 +369,8 @@ constructor(
         }
     }
 
-    private fun syncLock(run: BattleRun) {
-        val locked = runTracker.progress.value.isLocked
-        updateMine(run) { it.copy(isLocked = locked) }
-    }
-
-    /**
-     * 진행값 → 내 측정값. 잠금 여부는 진행값이 아니라 RunTracker의 지금 값을 쓴다: 잠그기 전에 방출된 진행값이 잠근 뒤에
-     * 처리되면 잠금을 되돌릴 수 있다(잠금만 바뀐 방출은 경과가 같아 accept가 버린다).
-     */
-    private fun RunProgress.toMine(): MyProgress =
-        MyProgress(distance, elapsed, currentPace, averagePace, isLocked = runTracker.progress.value.isLocked)
+    /** 진행값 → 내 측정값. */
+    private fun RunProgress.toMine(): MyProgress = MyProgress(distance, elapsed, currentPace, averagePace)
 
     /**
      * 매칭 요청이 취소됐으면(이탈 취소가 요청을 끊음) null. 부른 코루틴 자신이 취소된 것이면 null로 삼키지 않고 취소를 잇는다(리뷰 N-9).

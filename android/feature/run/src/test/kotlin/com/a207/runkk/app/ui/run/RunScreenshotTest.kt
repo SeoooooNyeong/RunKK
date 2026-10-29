@@ -31,7 +31,6 @@ class RunScreenshotTest {
         currentPace = Pace(321),
         averagePace = Pace(332),
         signal = SignalState.NORMAL,
-        isLocked = false,
         heartRate = HeartRateSample(start, 152)
     )
 
@@ -88,18 +87,6 @@ class RunScreenshotTest {
     }
 
     @Test
-    fun locked() = compose.captureRunkkScreen("B3_running_locked") {
-        RunScreen(
-            RunUiState(
-                phase = RunPhase.LOCKED,
-                progress = progress.copy(isLocked = true),
-                targetDistance = Distance(5_000)
-            ),
-            RunActions()
-        )
-    }
-
-    @Test
     fun paused() = compose.captureRunkkScreen("B2_running_paused") {
         RunScreen(
             RunUiState(
@@ -107,32 +94,6 @@ class RunScreenshotTest {
                 progress = progress.copy(currentPace = null, isPaused = true),
                 targetDistance = Distance(5_000),
                 pausedFor = Duration.ofSeconds(192)
-            ),
-            RunActions()
-        )
-    }
-
-    /** B2-3 장시간 정지 자동 종료 안내(정지 55분 12초). */
-    @Test
-    fun pauseAutoEnd() = compose.captureRunkkScreen("B2_running_pause_auto_end") {
-        RunScreen(
-            RunUiState(
-                phase = RunPhase.RUNNING,
-                progress = progress.copy(currentPace = null, isPaused = true),
-                targetDistance = Distance(5_000),
-                pausedFor = Duration.ofMinutes(55).plusSeconds(12)
-            ),
-            RunActions()
-        )
-    }
-
-    @Test
-    fun pausedLocked() = compose.captureRunkkScreen("B3_running_locked_paused") {
-        RunScreen(
-            RunUiState(
-                phase = RunPhase.LOCKED,
-                progress = progress.copy(currentPace = null, isLocked = true, isPaused = true),
-                targetDistance = Distance(5_000)
             ),
             RunActions()
         )

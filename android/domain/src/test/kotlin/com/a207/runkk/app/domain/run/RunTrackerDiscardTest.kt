@@ -86,20 +86,6 @@ class RunTrackerDiscardTest {
     }
 
     @Test
-    fun `잠금 중(LOCKED, PAUSED_LOCKED)이면 discard는 거짓이고 상태가 그대로다`() {
-        val locked = session().also { it.lock() }
-        assertFalse(locked.discard())
-        assertEquals(RunSession.State.LOCKED, locked.state)
-
-        val pausedLocked = session().also {
-            it.pause(at(10))
-            it.lock()
-        }
-        assertFalse(pausedLocked.discard())
-        assertEquals(RunSession.State.PAUSED_LOCKED, pausedLocked.state)
-    }
-
-    @Test
     fun `대결(셀프·셀럽 대결 포함)·크루런은 discard가 거짓이고 측정을 이어 간다`() {
         for (mode in RunMode.entries.filter { it != RunMode.FREE }) {
             val s = session(mode)
@@ -157,28 +143,17 @@ class RunTrackerDiscardTest {
     }
 
     @Test
-    fun `정지 중에도 취소할 수 있고 정지 한도 자동 종료가 뒤에 저장하지 않는다`() = runTest {
+    fun `정지 중에도 취소할 수 있고 뒤의 tick이 저장하지 않는다`() = runTest {
         val tracker = started()
         tracker.runFor(30)
         tracker.onPauseTapped()
         assertTrue(tracker.progress.value.isPaused)
         assertTrue(tracker.discardRun())
-        clock.advanceSeconds(PauseLimit.END_AFTER.seconds + 1)
+        clock.advanceSeconds(3_601)
         tracker.tick(clock.now)
         runCurrent()
         assertTrue(log.calls.isEmpty())
         assertEquals(1, host.stopped)
-    }
-
-    @Test
-    fun `잠금 중에는 취소를 받지 않고 측정을 이어 간다`() = runTest {
-        val tracker = started()
-        tracker.runFor(10)
-        tracker.lockScreen()
-        assertFalse(tracker.discardRun())
-        assertEquals(0, host.stopped)
-        assertTrue(watch.published.isEmpty() || watch.published.last().isRunning)
-        assertIs<FinishOutcome.Rejected>(tracker.onFinishLongPressed())
     }
 
     @Test

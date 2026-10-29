@@ -33,9 +33,6 @@ class RunScreensTest {
     private val actions = RunActions(
         onCancel = { calls += "cancel" },
         onCountdownTapped = { calls += "skip" },
-        onLock = { calls += "lock" },
-        onUnlockTap = { calls += "unlockTap" },
-        onUnlockLongPress = { calls += "unlockLong" },
         onFinishTap = { calls += "finishTap" },
         onFinishLongPress = { calls += "finishLong" },
         onPause = { calls += "pause" },
@@ -60,7 +57,7 @@ class RunScreensTest {
     }
 
     @Test
-    fun `측정 중 종료는 짧게 안내, 길게 종료, 잠금은 따로`() {
+    fun `측정 중 종료는 짧게 안내, 길게 종료이고 잠금 버튼이 없다(D-256)`() {
         show(
             RunUiState(
                 phase = RunPhase.RUNNING,
@@ -71,26 +68,10 @@ class RunScreensTest {
         val finish = compose.onNodeWithContentDescription("러닝 종료")
         finish.performClick()
         finish.performTouchInput { longClick() }
-        compose.onNodeWithContentDescription("화면 잠금").performClick()
-        assertEquals(listOf("finishTap", "finishLong", "lock"), calls)
+        compose.onNodeWithContentDescription("화면 잠금").assertDoesNotExist()
+        assertEquals(listOf("finishTap", "finishLong"), calls)
         compose.onNodeWithContentDescription("2.14 킬로미터").assertExists()
         compose.onNodeWithText("목표까지 2.86km").assertExists()
-    }
-
-    @Test
-    fun `잠금 화면은 해제만 받는다(짧게 안내, 길게 해제)`() {
-        show(RunUiState(phase = RunPhase.LOCKED, progress = RunProgress.INITIAL.copy(isLocked = true)))
-        val unlock = compose.onNodeWithContentDescription("화면 잠금 해제")
-        unlock.performClick()
-        unlock.performSemanticsAction(SemanticsActions.OnLongClick)
-        compose.onNodeWithText("화면 잠김").assertExists()
-        compose.onNode(
-            androidx.compose.ui.test.SemanticsMatcher.expectValue(
-                androidx.compose.ui.semantics.SemanticsProperties.PaneTitle,
-                RuntimeEnvironment.getApplication().getString(R.string.run_locked_pane_title)
-            )
-        ).assertExists()
-        assertEquals(listOf("unlockTap", "unlockLong"), calls)
     }
 
     @Test
@@ -151,30 +132,5 @@ class RunScreensTest {
         compose.onNodeWithText("거리 (멈춤)").assertExists()
         compose.onNodeWithContentDescription("러닝 종료").performTouchInput { longClick() }
         assertEquals(listOf("pause", "resume", "finishLong"), calls)
-    }
-
-    @Test
-    fun `잠금 중에는 일시정지 버튼이 없고, 워치 정지면 해제를 안내한다(D-120)`() {
-        show(RunUiState(phase = RunPhase.LOCKED, progress = RunProgress.INITIAL.copy(isLocked = true, isPaused = true)))
-        compose.onNodeWithContentDescription("일시정지").assertDoesNotExist()
-        compose.onNodeWithContentDescription("재개").assertDoesNotExist()
-        compose.onNodeWithText("일시정지").assertExists()
-    }
-
-    @Test
-    fun `정지 55분이 넘으면 자동 종료 안내에서 지금 종료나 재개를 고른다(B2-3)`() {
-        show(
-            RunUiState(
-                phase = RunPhase.RUNNING,
-                progress = RunProgress.INITIAL.copy(isPaused = true),
-                pausedFor = java.time.Duration.ofMinutes(55).plusSeconds(12)
-            )
-        )
-        compose.onNodeWithText("5분 뒤 러닝을 자동으로 종료해요").assertExists()
-        compose.onNodeWithText("55분째 일시정지 중이에요.").assertExists()
-        compose.onNodeWithText("자동 종료까지 04:48").assertExists()
-        compose.onNodeWithText("지금 종료").performClick()
-        compose.onNodeWithText("재개").performClick()
-        assertEquals(listOf("finishLong", "resume"), calls)
     }
 }

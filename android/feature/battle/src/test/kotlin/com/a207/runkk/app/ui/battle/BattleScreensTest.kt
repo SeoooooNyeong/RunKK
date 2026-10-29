@@ -148,7 +148,7 @@ class BattleScreensTest {
     }
 
     @Test
-    fun `대결 진행 - 화면 잠금 버튼과 상대 연결 상태, 잠금 화면에서는 길게 눌러 해제`() {
+    fun `대결 진행 - 상대 연결 상태를 알리고 잠금 버튼이 없다(D-256)`() {
         var state by mutableStateOf(
             BattleRunningUiState(
                 battleId = 9,
@@ -167,27 +167,16 @@ class BattleScreensTest {
                     onForfeitLongPress = {},
                     onForfeitConfirm = {},
                     onForfeitDismiss = {},
-                    onClose = {},
-                    lockActions = BattleLockActions(
-                        onLock = { calls += "lock" },
-                        onUnlockTap = { calls += "unlockTap" },
-                        onUnlockLongPress = { calls += "unlockLong" }
-                    )
+                    onClose = {}
                 )
             }
         }
         compose.onNodeWithText("상대 연결 확인 중")
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
         compose.onNodeWithText("배틀런, 5km").assertExists()
-        compose.onNodeWithText("잠금").performClick()
-        state = state.copy(isLocked = true)
-        compose.onNodeWithText("그만두기").assertDoesNotExist()
-        val lockedTitle = RuntimeEnvironment.getApplication().getString(R.string.battle_running_locked_pane_title)
-        compose.onNode(SemanticsMatcher.expectValue(SemanticsProperties.PaneTitle, lockedTitle)).assertExists()
-        val unlock = compose.onNodeWithContentDescription("화면 잠금 해제")
-        unlock.performClick()
-        unlock.performTouchInput { longClick() }
-        assertEquals(listOf("lock", "unlockTap", "unlockLong"), calls)
+        compose.onNodeWithText("잠금").assertDoesNotExist()
+        compose.onNodeWithText("그만두기").assertExists()
+        assertEquals(emptyList(), calls)
     }
 
     @Test
