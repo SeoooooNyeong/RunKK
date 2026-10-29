@@ -165,7 +165,7 @@ private fun RecentRuns(runs: List<RecentRun>) {
                         color = RunkkColors.TextPrimary
                     )
                     Text(
-                        stringResource(R.string.me_other_run_date, run.startedOn.format(RUN_DATE)),
+                        run.startedOn.format(RUN_DATE),
                         style = RunkkTextStyles.Caption,
                         color = RunkkColors.TextSecondary
                     )

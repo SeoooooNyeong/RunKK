@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -149,11 +150,13 @@ private fun Traits(traits: List<String>) {
             color = RunkkColors.TextPrimary,
             modifier = Modifier.semantics { heading() }
         )
+        // 앞의 "·"는 보이기만 하고 보조 기술은 특성 문구만 읽는다(AN8-17).
         traits.forEach {
             Text(
                 stringResource(R.string.runimal_type_trait, it),
                 style = RunkkTextStyles.Body,
-                color = RunkkColors.TextSecondary
+                color = RunkkColors.TextSecondary,
+                modifier = Modifier.semantics { contentDescription = it }
             )
         }
     }

@@ -21,6 +21,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -37,6 +38,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.a207.runkk.app.core.designsystem.AvatarExpression
 import com.a207.runkk.app.core.designsystem.RunimalArt
@@ -64,6 +66,10 @@ import com.a207.runkk.app.domain.account.Profile
  */
 @Composable
 fun MeRoute(viewModel: MeViewModel = hiltViewModel()) {
+    LifecycleResumeEffect(viewModel) {
+        viewModel.onResumed()
+        onPauseOrDispose {}
+    }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val navigator = LocalRunkkNavigator.current
     MeScreen(state = state, onNavigate = navigator::navigate, onRetry = viewModel::refresh)
@@ -188,8 +194,10 @@ private fun RunimalLink(type: String?, onClick: () -> Unit) {
     } else {
         stringResource(RunimalArt.of(type).nameRes)
     }
+    // 글자 줄 높이(약 30dp)만으로는 누르기 어려워 최소 터치 크기(48dp)를 둔다(AN8-17).
     Row(
         modifier = Modifier
+            .minimumInteractiveComponentSize()
             .clip(RoundedCornerShape(8.dp))
             .clickable(
                 role = Role.Button,

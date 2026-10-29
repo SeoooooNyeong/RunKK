@@ -151,10 +151,12 @@ private fun RunimalBody(
             Text(it.asString(), style = RunkkTextStyles.Body, color = RunkkColors.TextPrimary)
         }
         if (status.type != null && card != null) Tendency(card)
+        // "›"를 보조 기술이 "보다 큼"으로 읽지 않게 읽을 이름을 따로 준다(AN8-17).
+        val showTypesSpoken = stringResource(R.string.runimal_show_types_spoken)
         RunkkPrimaryButton(
             stringResource(R.string.runimal_show_types),
             onClick = onShowTypes,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth().semantics { contentDescription = showTypesSpoken }
         )
         AllTypes(status)
     }

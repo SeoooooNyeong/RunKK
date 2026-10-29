@@ -18,6 +18,7 @@
     <string name="runimal_title">MY Runimal</string>
     <string name="runimal_tendency_title">성향</string>
     <string name="runimal_show_types">16유형 ›</string>
+    <string name="runimal_show_types_spoken">16유형 보기</string>
     <string name="runimal_axis_solo">솔로</string>
     <string name="runimal_axis_social">소셜</string>
     <string name="runimal_axis_short_distance">단거리</string>

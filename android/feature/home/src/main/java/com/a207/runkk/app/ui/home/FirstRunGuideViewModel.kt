@@ -27,11 +27,15 @@ class FirstRunGuideViewModel @Inject constructor(
     private val _state = MutableStateFlow(FirstRunGuideUiState())
     val state: StateFlow<FirstRunGuideUiState> = _state.asStateFlow()
 
+    /** 이번 실행에서 끝냈는가. 기기 사본 쓰기까지 실패해도 이번 실행 동안은 다시 띄우지 않는다(AN8-15). */
+    private var isFinished = false
+
     init {
         viewModelScope.launch {
             session.loggedIn.collectLatest { loggedIn ->
                 // 보이는 중에 로그인 상태가 다시 참으로 오면(세션 갱신) 진행을 처음으로 돌리지 않는다.
                 if (loggedIn && _state.value.isVisible) return@collectLatest
+                if (isFinished) return@collectLatest
                 val isShown = guide.shouldShow(loggedIn)
                 _state.value = FirstRunGuideUiState(isVisible = isShown, index = 0)
             }
@@ -51,6 +55,7 @@ class FirstRunGuideViewModel @Inject constructor(
     }
 
     private fun finish() {
+        isFinished = true
         _state.update { it.copy(isVisible = false) }
         // 서버 저장 실패는 FirstRunGuide가 기기 사본으로 남겨 다음 시작 때 다시 보낸다. 화면이 바로 정리돼도
         // 사본 쓰기가 끊기지 않게 취소하지 않는다(끊기면 가이드가 다시 뜬다).

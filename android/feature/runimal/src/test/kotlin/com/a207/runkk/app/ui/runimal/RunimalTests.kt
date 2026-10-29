@@ -261,6 +261,8 @@ class RunimalScreenTest {
         }
         compose.onNodeWithText("16유형 ›").performScrollTo().performClick()
         assertEquals(1, shown)
+        // AN8-17: 보조 기술은 "›" 대신 읽을 이름을 읽는다.
+        compose.onNodeWithContentDescription("16유형 보기").assertExists()
     }
 
     @Test

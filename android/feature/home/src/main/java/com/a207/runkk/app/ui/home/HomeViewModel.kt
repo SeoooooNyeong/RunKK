@@ -84,11 +84,12 @@ class HomeViewModel @Inject constructor(
             val face = me?.faceKey?.let { account.faceLayers(it).getOrNull() }.orEmpty()
             val summary = dashboardResult.getOrNull()
             _state.update {
+                // 대시보드·프로필을 못 읽었으면 그 값은 지난 값을 남긴다(AN8-11). 읽었는데 잔액이 없으면(옛 서버) 비운다.
+                val balance = if (dashboardResult is Outcome.Success) summary?.rewardBalance else it.header.balance
                 it.withSummary(summary).copy(
                     isLoading = false,
-                    // 프로필을 못 읽었으면 지난 값을 남긴다(대시보드와 같은 규칙).
-                    header = me?.let { p -> HomeHeader(p.displayName, p.tier, p.level, summary?.rewardBalance) }
-                        ?: it.header.copy(balance = summary?.rewardBalance ?: it.header.balance),
+                    header = me?.let { p -> HomeHeader(p.displayName, p.tier, p.level, balance) }
+                        ?: it.header.copy(balance = balance),
                     isHeaderLoading = false,
                     faceKey = if (me != null) me.faceKey else it.faceKey,
                     faceLayers = if (me != null) face else it.faceLayers,
