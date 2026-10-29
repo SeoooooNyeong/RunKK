@@ -131,3 +131,24 @@ async def test_first_started_at_counts_done_only(repo: ResultRepository, result:
 
     assert await repo.first_started_at("u1") == T0
     assert await repo.first_started_at("u2") is None
+
+
+async def test_purge_user_removes_only_that_user(repo: ResultRepository, result: SessionResultOut) -> None:
+    """탈퇴 파기(S15P31A207-219): 그 사용자의 결과(진행 중 포함)만 지운다. 다른 사용자는 그대로, 다시 불러도 0."""
+    await _done(repo, result, "s1", 0)
+    await _done(repo, result, "s2", 10)
+    await repo.claim(_pending("s3", minutes=20))  # 아직 pending
+    other = _pending("o1", user_id="u2")
+    await repo.claim(other)
+    await repo.save(with_status(other, "done", T0, result=result))
+
+    deleted = await repo.purge_user("u1")
+
+    assert deleted == 3
+    assert await repo.get("s1") is None
+    assert await repo.get("s3") is None
+    assert await repo.history("u1", T0 + timedelta(days=1), 10) == []
+    assert await repo.first_started_at("u1") is None
+    assert await repo.get("o1") is not None
+    assert await repo.purge_user("u1") == 0
+    assert await repo.purge_user("nobody") == 0
