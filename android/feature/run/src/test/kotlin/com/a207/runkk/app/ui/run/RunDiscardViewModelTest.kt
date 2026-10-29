@@ -41,7 +41,7 @@ class RunDiscardViewModelTest {
             RunCoach(FakeGuidanceOutput(), settings),
             MeasurementRuntime(FakeLocationPermission(), host, settings, clock)
         )
-        val vm = RunViewModel(tracker, FakeRecordRepository(), FreeRunGoalUseCase(settings), clock)
+        val vm = RunViewModel(tracker, FakeRecordRepository(), FreeRunGoalUseCase(settings))
         runCurrent()
         advanceUntilIdle()
         assertEquals(RunPhase.RUNNING, vm.state.value.phase)
@@ -110,37 +110,5 @@ class RunDiscardViewModelTest {
         runCurrent()
         assertTrue(pending.runs.value.isEmpty())
         assertEquals(1, host.stopped)
-    }
-
-    @Test
-    fun `잠금 중에는 취소를 받지 않는다(FR-182)`() = runTest(main.dispatcher) {
-        val (vm, tracker) = started()
-        tracker.runHalfKm()
-        vm.onLockTapped()
-        runCurrent()
-        assertEquals(RunPhase.LOCKED, vm.state.value.phase)
-        vm.onDiscardTapped()
-        assertFalse(vm.state.value.isDiscardDialogVisible)
-        vm.events.test {
-            vm.onDiscardConfirmed()
-            runCurrent()
-            expectNoEvents()
-        }
-        assertEquals(0, host.stopped)
-    }
-
-    @Test
-    fun `확인을 묻는 동안 잠기면 대화상자를 숨기고 확인해도 끝내지 않는다`() = runTest(main.dispatcher) {
-        val (vm, tracker) = started()
-        tracker.runHalfKm()
-        vm.onDiscardTapped()
-        tracker.lockScreen()
-        runCurrent()
-        assertEquals(RunPhase.LOCKED, vm.state.value.phase)
-        assertFalse(vm.state.value.isDiscardDialogVisible)
-        vm.onDiscardConfirmed()
-        runCurrent()
-        assertEquals(0, host.stopped)
-        assertEquals(RunPhase.LOCKED, vm.state.value.phase)
     }
 }

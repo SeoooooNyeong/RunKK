@@ -15,6 +15,7 @@ import com.a207.runkk.app.domain.live.ProgressReport
 import com.a207.runkk.app.domain.live.TrackPoint
 import com.a207.runkk.app.domain.live.TrackTable
 import com.a207.runkk.app.domain.run.Guidance
+import com.a207.runkk.app.domain.run.ProgressNotice
 import com.a207.runkk.app.domain.run.RunArchive
 import com.a207.runkk.app.domain.run.RunProgress
 import com.a207.runkk.app.domain.run.RunTracker
@@ -604,52 +605,30 @@ class BattleRunCoordinatorTest {
     }
 
     @Test
-    fun `화면 잠금 - 조정자가 RunTracker 잠금 연산을 위임하고 누름 종류별로 해제한다(D-49)`() = runTest {
+    fun `기록 대결 측정은 상대 이름을 진행 알림에 싣고 경로선을 내 측정값에 옮긴다(D-258, D-261)`() = runTest {
+        val (tracker, coordinator) = setUp()
+        coordinator.onRecordBattleStart(selfStart)
+        advanceTimeBy(3_001)
+        tracker.runTo(1, 0.0)
+        tracker.runTo(5, 20.0)
+        runCurrent()
+        val notice = assertIs<ProgressNotice.Battle>(tracker.notice.value)
+        assertEquals("10/02의 나", notice.opponentName)
+        assertEquals(Distance(100), notice.progressEnd)
+        val mine = assertIs<BattleRunState.Running>(coordinator.state.value).mine
+        assertEquals(2, mine.route.points.size)
+    }
+
+    @Test
+    fun `그만두기는 측정 중이면 바로 서버에 보고한다(잠금 없음, D-256)`() = runTest {
         val (tracker, coordinator) = setUp()
         coordinator.onRecordBattleStart(selfStart)
         advanceTimeBy(3_001)
         tracker.runTo(1, 0.0)
         runCurrent()
-        coordinator.lockScreen()
-        runCurrent()
-        assertTrue(assertIs<BattleRunState.Running>(coordinator.state.value).mine.isLocked)
-        coordinator.onUnlockTapped()
-        runCurrent()
-        assertEquals(Guidance.Kind.UNLOCK_HINT, output.played.last().kind, "짧게 누르면 안내만")
-        assertTrue(assertIs<BattleRunState.Running>(coordinator.state.value).mine.isLocked)
-        coordinator.onUnlockLongPressed()
-        runCurrent()
-        assertEquals(false, assertIs<BattleRunState.Running>(coordinator.state.value).mine.isLocked)
-    }
-
-    @Test
-    fun `잠금 중 그만두기는 조정자에서도 받지 않는다(FR-182)`() = runTest {
-        val (tracker, coordinator) = setUp()
-        coordinator.onRecordBattleStart(selfStart)
-        advanceTimeBy(3_001)
-        tracker.runTo(1, 0.0)
-        runCurrent()
-        coordinator.lockScreen()
-        runCurrent()
         coordinator.forfeit()
         runCurrent()
-        assertTrue(log.calls.none { it.startsWith("battle.forfeit") }, "잠긴 화면에서 온 그만두기: ${log.calls}")
-        assertIs<BattleRunState.Running>(coordinator.state.value)
-        coordinator.onUnlockLongPressed()
-        runCurrent()
-        coordinator.forfeit()
-        runCurrent()
-        assertTrue(log.calls.any { it.startsWith("battle.forfeit") }, "해제 뒤에는 그만둔다")
-    }
-
-    @Test
-    fun `측정 전에는 잠그지 않는다`() = runTest {
-        val (_, coordinator) = setUp()
-        coordinator.onMatched(match)
-        runCurrent()
-        coordinator.lockScreen()
-        runCurrent()
-        assertEquals(BattleRunState.Matched(match), coordinator.state.value)
+        assertTrue(log.calls.any { it.startsWith("battle.forfeit") }, "${log.calls}")
     }
 
     @Test
@@ -685,20 +664,6 @@ class BattleRunCoordinatorTest {
         advanceTimeBy(10_000)
         runCurrent()
         assertEquals(listOf("battle.cancel", "battle.requestMatch:5000"), log.calls, "새 대기열 등록을 지우지 않는다")
-    }
-
-    @Test
-    fun `잠근 뒤 늦게 처리된 진행값이 잠금을 되돌리지 않는다`() = runTest {
-        val (tracker, coordinator) = setUp()
-        coordinator.onRecordBattleStart(selfStart)
-        advanceTimeBy(3_001)
-        tracker.runTo(1, 0.0)
-        runCurrent()
-        coordinator.lockScreen()
-        runCurrent()
-        coordinator.onProgress(RunProgress.INITIAL.copy(elapsed = Duration.ofSeconds(30), isLocked = false))
-        runCurrent()
-        assertTrue(assertIs<BattleRunState.Running>(coordinator.state.value).mine.isLocked)
     }
 
     private val match =

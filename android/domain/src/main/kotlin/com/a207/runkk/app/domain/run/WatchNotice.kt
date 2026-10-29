@@ -9,11 +9,5 @@ enum class WatchNotice {
     OPEN_RUN_SCREEN,
 
     /** 대결·크루런은 폰에서만 끝낼 수 있다. */
-    END_ON_PHONE,
-
-    /** 정지 55분: 곧 자동 종료된다(FR-195). 재개 또는 종료까지 표시에 남는다(D-157 (7)). */
-    AUTO_END_SOON,
-
-    /** 정지 60분: 자동 종료했다(FR-195). */
-    AUTO_ENDED
+    END_ON_PHONE
 }

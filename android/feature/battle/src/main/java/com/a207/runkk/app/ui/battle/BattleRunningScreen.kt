@@ -90,23 +90,14 @@ fun BattleRunningRoute(key: Routes.BattleRunning, viewModel: BattleRunningViewMo
         viewModel.onFailureClosed()
         navigator.back()
     }
-    // 측정 중 뒤로가기로 대결을 떠나지 않게 안내만 한다(그만두기는 길게 누름 + 확인). 잠금 중이면 해제 안내.
+    // 측정 중 뒤로가기로 대결을 떠나지 않게 안내만 한다(그만두기는 길게 누름 + 확인).
     BackHandler {
         when {
             state.phase == BattlePhase.FAILED -> close()
 
-            state.isLocked -> viewModel.onUnlockTapped()
-
             // 뒤로가기는 그만두기와 같다: 포기 확인(D5)을 띄운다.
             else -> viewModel.onForfeitLongPressed()
         }
-    }
-    val lockActions = remember(viewModel) {
-        BattleLockActions(
-            onLock = viewModel::onLockTapped,
-            onUnlockTap = viewModel::onUnlockTapped,
-            onUnlockLongPress = viewModel::onUnlockLongPressed
-        )
     }
     BattleRunningScreen(
         state = state,
@@ -114,17 +105,9 @@ fun BattleRunningRoute(key: Routes.BattleRunning, viewModel: BattleRunningViewMo
         onForfeitLongPress = viewModel::onForfeitLongPressed,
         onForfeitConfirm = viewModel::onForfeitConfirmed,
         onForfeitDismiss = viewModel::onForfeitDismissed,
-        onClose = close,
-        lockActions = lockActions
+        onClose = close
     )
 }
-
-/** 화면 잠금 누름 종류별 행동(D-49): 잠그기, 해제 짧게(안내), 해제 길게. */
-class BattleLockActions(
-    val onLock: () -> Unit = {},
-    val onUnlockTap: () -> Unit = {},
-    val onUnlockLongPress: () -> Unit = {}
-)
 
 @Composable
 fun BattleRunningScreen(
@@ -134,13 +117,8 @@ fun BattleRunningScreen(
     onForfeitConfirm: () -> Unit,
     onForfeitDismiss: () -> Unit,
     onClose: () -> Unit,
-    modifier: Modifier = Modifier,
-    lockActions: BattleLockActions = BattleLockActions()
+    modifier: Modifier = Modifier
 ) {
-    if (state.isLocked && state.isMeasuring) {
-        LockedContent(state, lockActions, modifier)
-        return
-    }
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -163,7 +141,7 @@ fun BattleRunningScreen(
         }
         if (state.phase != BattlePhase.FAILED) {
             state.hint?.let { RunkkHint(it.asString(), modifier = Modifier.align(Alignment.CenterHorizontally)) }
-            ActionButtons(state.isMeasuring, lockActions, onForfeit = onForfeitLongPress)
+            ActionButtons(onForfeit = onForfeitLongPress)
         }
     }
     if (state.isConfirmingForfeit) ForfeitDialog(onForfeitConfirm, onForfeitDismiss)
@@ -183,22 +161,15 @@ private fun ForfeitDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
     )
 }
 
-/** 아래 버튼(D3): "그만두기"(누르면 포기 확인 D5, FR-094)와 "잠금"(측정 중에만, FR-182). */
+/** 아래 버튼(D3): "그만두기"(누르면 포기 확인 D5, FR-094). 앱 화면 잠금은 없다(D-256). */
 @Composable
-private fun ActionButtons(isMeasuring: Boolean, lockActions: BattleLockActions, onForfeit: () -> Unit) {
+private fun ActionButtons(onForfeit: () -> Unit) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         RunkkSecondaryButton(
             stringResource(R.string.battle_running_forfeit_button),
             onClick = onForfeit,
             modifier = Modifier.weight(1f)
         )
-        if (isMeasuring) {
-            RunkkSecondaryButton(
-                stringResource(R.string.battle_running_lock_button),
-                onClick = lockActions.onLock,
-                modifier = Modifier.weight(1f)
-            )
-        }
     }
 }
 
@@ -517,87 +488,6 @@ private fun ProgressRow(name: String, distance: Distance, progress: Float, isMin
             Text("${RunkkFormat.km(distance)}km", style = RunkkTextStyles.display(22), color = color)
         }
         RunkkProgressBar(progress, height = 12.dp, color = color)
-    }
-}
-
-/**
- * 잠금 화면(FR-182, 시안 HiRunningLocked): 해제 버튼 말고 누를 것이 없다. 격차와 내 거리·경과만 크게 보인다.
- * 종료 카운트다운이면 배너를 함께 보인다.
- */
-@Composable
-private fun LockedContent(state: BattleRunningUiState, actions: BattleLockActions, modifier: Modifier) {
-    val lockedTitle = stringResource(R.string.battle_running_locked_pane_title)
-    val description = stringResource(
-        R.string.battle_running_locked_desc,
-        RunkkFormat.km(state.myDistance),
-        RunkkFormat.durationSpoken(state.elapsed)
-    )
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            // 잠금 화면으로 바뀌면 보조 기술이 화면 이름을 알린다.
-            .semantics { paneTitle = lockedTitle }
-            .background(RunkkColors.BackgroundLocked)
-            .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 40.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        LockedStatusRow(state)
-        if (state.phase == BattlePhase.CLOSING) GuidanceBanner(state)
-        Column(
-            modifier = Modifier.weight(1f).fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterVertically)
-        ) {
-            Gap(state)
-            Text(
-                "${RunkkFormat.km(state.myDistance)}km, ${RunkkFormat.duration(state.elapsed)}",
-                style = RunkkTextStyles.display(24),
-                color = RunkkColors.TextPrimary,
-                modifier = Modifier.clearAndSetSemantics { contentDescription = description }
-            )
-        }
-        state.hint?.let { RunkkHint(it.asString(), modifier = Modifier.align(Alignment.CenterHorizontally)) }
-        UnlockButton(actions)
-    }
-}
-
-/** 잠금 화면 윗줄: "화면 잠김" 표시와 상대 연결 상태. */
-@Composable
-private fun LockedStatusRow(state: BattleRunningUiState) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        RunkkStatusPill(stringResource(R.string.battle_running_locked_pill)) {
-            Icon(
-                RunkkIcons.Lock,
-                contentDescription = null,
-                tint = RunkkColors.TextSecondary,
-                modifier = Modifier.size(14.dp)
-            )
-        }
-        Spacer(Modifier.weight(1f))
-        state.connectionLabel?.let { RunkkStatusPill(it.asString(), live = LiveRegionMode.Polite) }
-    }
-}
-
-/** 잠금 해제 버튼: 짧게 누르면 안내, 길게 누르면 해제(D-49). */
-@Composable
-private fun ColumnScope.UnlockButton(actions: BattleLockActions) {
-    RunkkLongPressButton(
-        onTap = actions.onUnlockTap,
-        onLongPress = actions.onUnlockLongPress,
-        tapLabel = stringResource(R.string.battle_running_unlock_tap_label),
-        longPressLabel = stringResource(R.string.battle_running_unlock_hold_label),
-        contentDescription = stringResource(R.string.battle_running_unlock_desc),
-        caption = stringResource(R.string.battle_running_unlock_hold),
-        borderColor = RunkkColors.BorderStrong,
-        borderWidth = 2.dp,
-        modifier = Modifier.align(Alignment.CenterHorizontally)
-    ) {
-        Icon(
-            RunkkIcons.Unlock,
-            contentDescription = null,
-            tint = RunkkColors.TextPrimary,
-            modifier = Modifier.size(32.dp)
-        )
     }
 }
 

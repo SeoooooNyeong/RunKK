@@ -4,6 +4,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 /**
@@ -28,6 +30,9 @@ constructor(
     /** 구독을 시작한다(지금 목표로 한 번 보내고, 목표가 바뀔 때마다 다시 보낸다). 두 번째부터는 아무것도 하지 않는다. */
     fun start() {
         if (!started.compareAndSet(false, true)) return
-        scope.launch { goals.observe(todayPlan.plan).collect { goal -> tracker.publishWatchHome(goal.plan) } }
+        // 목표에는 음성·진동 설정도 있어(카운트다운 요약용) 계획이 같으면 다시 보내지 않게 계획만 거른다.
+        scope.launch {
+            goals.observe(todayPlan.plan).map { it.plan }.distinctUntilChanged().collect(tracker::publishWatchHome)
+        }
     }
 }

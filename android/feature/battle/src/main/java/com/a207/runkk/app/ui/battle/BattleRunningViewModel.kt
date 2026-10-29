@@ -106,10 +106,9 @@ class BattleRunningViewModel @Inject constructor(
     /** 그만두기 짧게 누름: 길게 눌러야 한다는 안내만(D-49). */
     fun onForfeitTapped() = showHint(FORFEIT_HINT)
 
-    /** 그만두기 길게 누름: 확인을 받는다(FR-094). 잠금 중에는 받지 않는다(FR-182). */
+    /** 그만두기 길게 누름: 확인을 받는다(FR-094). */
     fun onForfeitLongPressed() {
         val s = _state.value
-        if (s.isLocked) return
         if (s.phase == BattlePhase.RUNNING || s.phase == BattlePhase.CLOSING || s.phase == BattlePhase.COUNTDOWN) {
             _state.update { it.copy(isConfirmingForfeit = true) }
         }
@@ -121,18 +120,6 @@ class BattleRunningViewModel @Inject constructor(
         _state.update { it.copy(isConfirmingForfeit = false) }
         coordinator.forfeit()
     }
-
-    /** 화면 잠금(FR-182). 조정자가 RunTracker.lockScreen에 넘기고 상태의 잠금 여부를 바꾼다. */
-    fun onLockTapped() = coordinator.lockScreen()
-
-    /** 잠금 해제 짧게 누름: "길게 눌러 해제" 안내(D-49). */
-    fun onUnlockTapped() {
-        coordinator.onUnlockTapped()
-        showHint(UNLOCK_HINT)
-    }
-
-    /** 잠금 해제 길게 누름. */
-    fun onUnlockLongPressed() = coordinator.onUnlockLongPressed()
 
     /** 시작하지 못하고 끝난 화면을 닫을 때. */
     fun onFailureClosed() = coordinator.acknowledgeFinished()
@@ -191,7 +178,7 @@ class BattleRunningViewModel @Inject constructor(
     private fun onFinished(battleId: Long) {
         tickJob?.cancel()
         if (sawRunning) {
-            _state.update { it.copy(phase = BattlePhase.FINISHED, isConfirmingForfeit = false, isLocked = false) }
+            _state.update { it.copy(phase = BattlePhase.FINISHED, isConfirmingForfeit = false) }
             _events.trySend(BattleRunningEvent.Finished(battleId))
         } else {
             _state.update {
@@ -208,8 +195,7 @@ class BattleRunningViewModel @Inject constructor(
         myDistance = mine.distance,
         elapsed = mine.elapsed,
         currentPace = mine.currentPace,
-        averagePace = mine.averagePace,
-        isLocked = mine.isLocked
+        averagePace = mine.averagePace
     )
 
     /** 1초마다 시작 카운트다운·종료 카운트다운 남은 초를 갱신한다. 그 밖의 단계면 멈춘다. */
@@ -264,7 +250,6 @@ class BattleRunningViewModel @Inject constructor(
         const val GUIDANCE_MILLIS = 5_000L
         const val HINT_MILLIS = 2_500L
         val FORFEIT_HINT = UiText.Res(R.string.battle_running_forfeit_hold)
-        val UNLOCK_HINT = UiText.Res(R.string.battle_running_unlock_hold)
         const val STALE_MILLIS = 5_000L
     }
 }

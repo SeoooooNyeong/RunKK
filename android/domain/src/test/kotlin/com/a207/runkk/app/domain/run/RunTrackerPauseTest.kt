@@ -30,8 +30,10 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 
 /**
- * RunTracker 일시정지·정지 한도(6.1.14, A-02, D-93, D-120, D-157): 시험 문서 2.2.14 TC-6321~TC-6333, 2.2.16 TC-6371~TC-6381,
- * 일시정지 중 구간 안내 생략 TC-6391~TC-6393. 시각 표기 "10:mm:ss"는 T0를 10:00:00으로 본 값이다.
+ * RunTracker 일시정지(6.1.14, A-02, D-93, D-256, D-257): 시험 문서 2.2.14 TC-6321·TC-6322·TC-6330·TC-6332, 2.2.16 TC-6371·TC-6372·
+ * TC-6374·TC-6378~TC-6380, 일시정지 중 구간 안내 생략 TC-6391~TC-6393, v0.14 정지 상한 없음 TC-9621·TC-9625.
+ * 정지 한도(TC-6323~TC-6329·TC-6333)와 잠금(TC-6373·TC-6375~TC-6377·TC-6381)은 FR-195·FR-182 삭제로 폐기했다.
+ * 시각 표기 "10:mm:ss"는 T0를 10:00:00으로 본 값이다.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class RunTrackerPauseTest {
@@ -91,7 +93,7 @@ class RunTrackerPauseTest {
     private fun pauseGuidances(message: GuidanceMessage): Int =
         output.played.count { it.kind == Guidance.Kind.PAUSE && it.message == message }
 
-    // ---------- 2.2.14 tick 정지 한도 ----------
+    // ---------- 2.2.14 tick ----------
 
     @Test
     fun `TC-6321 세션이 없으면 tick은 아무것도 하지 않는다`() = runTest {
@@ -117,145 +119,50 @@ class RunTrackerPauseTest {
     }
 
     @Test
-    fun `TC-6323 정지 60분 전 1초는 끝내지 않고, 60분 정각과 그 뒤는 자동 종료한다`() = runTest {
-        for (endTick in listOf(t(60), t(60, 1))) {
-            val tracker = started(startAt = t(-30))
-            tracker.point(-1_700, 0.0)
-            tracker.point(-1_100, 3_000.0)
-            tracker.pauseAt(t(0))
-            tracker.tick(t(59, 59))
-            assertEquals(0, host.stopped)
-            val before = watch.published.size
-            tracker.tick(endTick)
-            runCurrent()
-            val run = pending.runs.last()
-            assertEquals(listOf(PauseInterval(t(0), endTick)), run.pauses)
-            assertEquals(Duration.ofSeconds(1_800), run.elapsed)
-            assertEquals(Distance(3_000), run.distance)
-            assertEquals(1, host.stopped)
-            assertEquals(1, pauseGuidances(GuidanceMessage.PAUSE_AUTO_ENDED))
-            assertEquals(1, watch.published.size - before)
-            assertFalse(watch.published.last().isRunning)
-            assertEquals(WatchNotice.AUTO_ENDED, watch.published.last().notice)
-            tracker.tick(endTick.plusSeconds(1))
-            assertEquals(before + 1, watch.published.size, "세션 없음")
-            host.stopped = 0
-            output.played.clear()
-        }
-    }
-
-    @Test
-    fun `TC-6324 정지 54분 59초는 예고 없이 정지 표시만 보낸다`() = runTest {
-        val tracker = started()
+    fun `TC-9621 정지 시간에는 상한이 없어 옛 55·60분 둘레와 5시간 뒤에도 끝내거나 안내하지 않는다`() = runTest {
+        val tracker = started(startAt = t(-30))
+        tracker.point(-1_700, 0.0)
+        tracker.point(-1_100, 3_000.0)
         tracker.pauseAt(t(0))
-        tracker.tick(t(54, 59))
-        assertEquals(0, pauseGuidances(GuidanceMessage.PAUSE_AUTO_END_SOON))
-        assertTrue(watch.published.last().isPaused)
-        assertNull(watch.published.last().notice)
-        assertEquals(0, host.stopped)
-    }
-
-    @Test
-    fun `TC-6325 55분 예고는 정지마다 한 번이고 워치 안내는 남는다`() = runTest {
-        val tracker = started()
-        tracker.pauseAt(t(0))
-        for (now in listOf(t(55), t(55, 1), t(56))) {
+        output.played.clear()
+        for (now in listOf(t(54, 59), t(55), t(59, 59), t(60), t(60, 1), t(300))) {
             tracker.tick(now)
-            assertEquals(WatchNotice.AUTO_END_SOON, watch.published.last().notice)
+            runCurrent()
+            assertTrue(tracker.progress.value.isPaused, "$now")
+            assertNull(watch.published.last().notice)
+            assertTrue(watch.published.last().isRunning)
         }
-        assertEquals(1, pauseGuidances(GuidanceMessage.PAUSE_AUTO_END_SOON))
+        assertTrue(output.played.isEmpty(), "경고 안내 0")
+        assertEquals(0, host.stopped, "endRun 0")
+        assertTrue(pending.runs.isEmpty(), "저장 0")
+        clock.now = t(300, 1)
+        val run = assertIs<FinishOutcome.Saved>(tracker.onFinishLongPressed()).run
+        assertEquals(listOf(PauseInterval(t(0), t(300, 1))), run.pauses, "정지 구간은 열린 채 이어졌다")
     }
 
     @Test
-    fun `TC-6326 첫 tick이 55분 정각을 건너뛰어도 예고한다`() = runTest {
-        val expected = mapOf(t(54, 59) to 0, t(55) to 1, t(55, 1) to 1)
-        for ((first, count) in expected) {
-            output.played.clear()
-            val tracker = started()
-            tracker.pauseAt(t(0))
-            tracker.tick(first)
-            assertEquals(count, pauseGuidances(GuidanceMessage.PAUSE_AUTO_END_SOON), "$first")
-            tracker.endRun()
-        }
-    }
-
-    @Test
-    fun `TC-6327 한도는 지금 정지만 세고 재개하면 예고 표시를 지운다`() = runTest {
+    fun `TC-9625 정지 중 종료 길게 누름은 묻지 않고 저장하고 짧게 누름은 안내만 낸다`() = runTest {
         val tracker = started()
         tracker.point(1, 0.0)
-        tracker.point(401, 2_000.0)
-        tracker.pauseAt(t(0))
-        tracker.tick(t(55))
-        clock.now = t(56)
-        tracker.onResumeTapped()
-        assertNull(watch.published.last().notice)
-        tracker.pauseAt(t(60))
-        tracker.tick(t(114, 59))
-        assertEquals(1, pauseGuidances(GuidanceMessage.PAUSE_AUTO_END_SOON))
-        tracker.tick(t(115))
-        assertEquals(2, pauseGuidances(GuidanceMessage.PAUSE_AUTO_END_SOON))
-        tracker.tick(t(119, 59))
+        tracker.point(201, 1_000.0)
+        tracker.pauseAt(t(10))
+        output.played.clear()
+        tracker.onFinishTapped()
+        assertEquals(listOf(Guidance.Kind.FINISH_HINT), output.played.map { it.kind })
         assertEquals(0, host.stopped)
+        clock.now = t(12)
+        val run = assertIs<FinishOutcome.Saved>(tracker.onFinishLongPressed()).run
+        assertEquals(Duration.ofSeconds(600), run.elapsed, "경과 = 운동 시간")
+        assertTrue(output.played.none { it.message.name == "UNLOCK_HINT" })
     }
 
     @Test
-    fun `TC-6328 잠금 중 워치 정지도 같은 한도로 끝낸다`() = runTest {
-        val tracker = started()
-        tracker.point(1, 0.0)
-        tracker.point(401, 2_000.0)
-        tracker.lockScreen()
-        clock.now = t(0, 3)
-        watch.pauseRequests.emit(WatchGateway.PauseAction.PAUSE)
-        runCurrent()
-        assertTrue(tracker.progress.value.isPaused)
-        tracker.tick(t(55, 3))
-        assertEquals(1, pauseGuidances(GuidanceMessage.PAUSE_AUTO_END_SOON))
-        tracker.tick(t(60, 3))
-        runCurrent()
-        assertEquals(1, pending.runs.size)
-    }
-
-    @Test
-    fun `TC-6329 거리 0이면 자동 종료해도 저장하지 않고 안내만 낸다`() = runTest {
-        val tracker = started()
-        tracker.pauseAt(t(0, 10))
-        tracker.tick(t(60, 10))
-        runCurrent()
-        assertTrue(pending.runs.isEmpty())
-        assertTrue(log.calls.none { it == "pending.save" })
-        assertEquals(1, host.stopped)
-        assertEquals(1, pauseGuidances(GuidanceMessage.PAUSE_AUTO_ENDED))
-        assertEquals(WatchNotice.AUTO_ENDED, watch.published.last().notice)
-    }
-
-    @Test
-    fun `정지 60분 자동 종료는 ended로 끝난 결과를 알린다 (러닝 화면이 결과·홈으로 간다, FR-195)`() = runTest {
+    fun `워치 종료도 ended로 끝난 결과를 알린다`() = runTest {
         val tracker = started()
         val ended = mutableListOf<FinishOutcome>()
         backgroundScope.launch { tracker.ended.collect { ended += it } }
         runCurrent()
-        tracker.point(1, 0.0)
-        tracker.point(101, 500.0)
-        tracker.pauseAt(t(0, 3))
-        tracker.tick(t(60, 3))
-        runCurrent()
-        assertEquals(1, ended.size)
-        assertIs<FinishOutcome.Saved>(ended.single())
-    }
-
-    @Test
-    fun `거리 0 자동 종료와 워치 종료도 ended로 알리고, 잠금 중 거부는 알리지 않는다`() = runTest {
-        val tracker = started()
-        val ended = mutableListOf<FinishOutcome>()
-        backgroundScope.launch { tracker.ended.collect { ended += it } }
-        runCurrent()
-        tracker.lockScreen()
         watch.endRequests.emit(Unit)
-        runCurrent()
-        assertTrue(ended.isEmpty())
-        tracker.onUnlockLongPressed()
-        tracker.pauseAt(t(0, 10))
-        tracker.tick(t(60, 10))
         runCurrent()
         assertEquals(listOf<FinishOutcome>(FinishOutcome.NotSaved), ended)
     }
@@ -277,51 +184,21 @@ class RunTrackerPauseTest {
 
     @Test
     fun `TC-6332 정지 중 워치 표시는 폰 진행값과 같고 현재 페이스는 비며 심박은 갱신한다`() = runTest {
-        for (lock in listOf(false, true)) {
-            watch.published.clear()
-            val tracker = started()
-            tracker.point(6 * 60 + 40, 0.0)
-            tracker.point(10 * 60, 1_000.0)
-            tracker.tick(t(10))
-            tracker.pauseAt(t(10))
-            if (lock) tracker.lockScreen()
-            watch.heartRates.emit(listOf(HeartRateSample(t(11), 160)))
-            runCurrent()
-            tracker.tick(t(12))
-            val display = watch.published.last()
-            assertNull(display.currentPace)
-            assertEquals(160, display.heartRateBpm)
-            assertTrue(display.isPaused)
-            assertTrue(display.isPausable)
-            assertEquals(Duration.ofSeconds(600), display.elapsed)
-            assertEquals(tracker.progress.value.heartRate?.bpm, display.heartRateBpm)
-            tracker.endRun()
-        }
-    }
-
-    @Test
-    fun `TC-6333 예고 뒤 폰 재개와 워치 재개 모두 다음 표시의 안내를 지운다`() = runTest {
-        val phone = started()
-        phone.pauseAt(t(0))
-        phone.tick(t(55))
-        clock.now = t(55, 30)
-        phone.onResumeTapped()
-        phone.tick(t(56))
-        assertNull(watch.published.last().notice)
-        phone.endRun()
-
-        val viaWatch = started()
-        viaWatch.lockScreen()
-        clock.now = t(0)
-        watch.pauseRequests.emit(WatchGateway.PauseAction.PAUSE)
+        val tracker = started()
+        tracker.point(6 * 60 + 40, 0.0)
+        tracker.point(10 * 60, 1_000.0)
+        tracker.tick(t(10))
+        tracker.pauseAt(t(10))
+        watch.heartRates.emit(listOf(HeartRateSample(t(11), 160)))
         runCurrent()
-        viaWatch.tick(t(55))
-        assertEquals(WatchNotice.AUTO_END_SOON, watch.published.last().notice)
-        clock.now = t(55, 30)
-        watch.pauseRequests.emit(WatchGateway.PauseAction.RESUME)
-        runCurrent()
-        viaWatch.tick(t(56))
-        assertNull(watch.published.last().notice)
+        tracker.tick(t(12))
+        val display = watch.published.last()
+        assertNull(display.currentPace)
+        assertEquals(160, display.heartRateBpm)
+        assertTrue(display.isPaused)
+        assertTrue(display.isPausable)
+        assertEquals(Duration.ofSeconds(600), display.elapsed)
+        assertEquals(tracker.progress.value.heartRate?.bpm, display.heartRateBpm)
     }
 
     // ---------- 2.2.16 일시정지·재개 ----------
@@ -350,16 +227,6 @@ class RunTrackerPauseTest {
     }
 
     @Test
-    fun `TC-6373 잠금 중 폰 일시정지 버튼은 받지 않는다`() = runTest {
-        val tracker = started()
-        tracker.lockScreen()
-        tracker.pauseAt(t(10))
-        assertFalse(tracker.progress.value.isPaused)
-        assertTrue(tracker.progress.value.isLocked)
-        assertTrue(output.played.isEmpty())
-    }
-
-    @Test
     fun `TC-6374 폰 재개는 정지 구간을 닫고 RESUMED 안내와 표시를 보낸다`() = runTest {
         val tracker = started()
         tracker.point(1, 0.0)
@@ -370,56 +237,6 @@ class RunTrackerPauseTest {
         assertFalse(tracker.progress.value.isPaused)
         assertEquals(GuidanceMessage.RESUMED, output.played.last().message)
         assertFalse(watch.published.last().isPaused)
-        clock.now = t(20)
-        tracker.onFinishLongPressed()
-        runCurrent()
-        assertEquals(listOf(PauseInterval(t(10), t(15))), pending.runs.single().pauses)
-    }
-
-    @Test
-    fun `TC-6375 PAUSED_LOCKED에서는 폰 재개·정지 버튼을 받지 않는다`() = runTest {
-        val tracker = started()
-        tracker.pauseAt(t(10))
-        tracker.lockScreen()
-        output.played.clear()
-        clock.now = t(11)
-        tracker.onResumeTapped()
-        tracker.onPauseTapped()
-        assertTrue(tracker.progress.value.isPaused)
-        assertTrue(tracker.progress.value.isLocked)
-        assertTrue(output.played.isEmpty())
-    }
-
-    @Test
-    fun `TC-6376 잠금 중 워치 정지는 잠금을 유지한 정지다`() = runTest {
-        val tracker = started()
-        tracker.lockScreen()
-        clock.now = t(10)
-        watch.pauseRequests.emit(WatchGateway.PauseAction.PAUSE)
-        runCurrent()
-        assertTrue(tracker.progress.value.isPaused)
-        assertTrue(tracker.progress.value.isLocked)
-        assertEquals(GuidanceMessage.PAUSED, output.played.single().message)
-        assertTrue(watch.published.last().isPaused)
-    }
-
-    @Test
-    fun `TC-6377 PAUSED_LOCKED에서 워치 재개는 잠금으로 돌아간다`() = runTest {
-        val tracker = started()
-        tracker.point(1, 0.0)
-        tracker.point(201, 1_000.0)
-        tracker.lockScreen()
-        clock.now = t(10)
-        watch.pauseRequests.emit(WatchGateway.PauseAction.PAUSE)
-        runCurrent()
-        clock.now = t(15)
-        watch.pauseRequests.emit(WatchGateway.PauseAction.RESUME)
-        runCurrent()
-        assertFalse(tracker.progress.value.isPaused)
-        assertTrue(tracker.progress.value.isLocked)
-        assertEquals(GuidanceMessage.RESUMED, output.played.last().message)
-        assertFalse(watch.published.last().isPaused)
-        tracker.onUnlockLongPressed()
         clock.now = t(20)
         tracker.onFinishLongPressed()
         runCurrent()
@@ -470,23 +287,6 @@ class RunTrackerPauseTest {
         assertTrue(log.calls.isEmpty(), "저장은 applicationScope에서 뒤에 돈다")
         runCurrent()
         assertEquals(listOf("pending.save", "upload.requestUpload"), log.calls)
-    }
-
-    @Test
-    fun `TC-6381 PAUSED_LOCKED에서 폰·워치 종료는 거부하고 해제 안내를 낸다`() = runTest {
-        val tracker = started()
-        tracker.point(1, 0.0)
-        tracker.point(201, 1_000.0)
-        tracker.pauseAt(t(10))
-        tracker.lockScreen()
-        assertEquals(FinishOutcome.Rejected, tracker.onFinishLongPressed())
-        assertEquals(Guidance.Kind.UNLOCK_HINT, output.played.last().kind)
-        output.played.clear()
-        watch.endRequests.emit(Unit)
-        runCurrent()
-        assertEquals(Guidance.Kind.UNLOCK_HINT, output.played.single().kind)
-        assertEquals(0, host.stopped)
-        assertTrue(log.calls.isEmpty())
     }
 
     // ---------- 일시정지 중 구간 안내 생략 (TC-6391~TC-6393) ----------
@@ -558,5 +358,16 @@ class RunTrackerPauseTest {
             assertEquals(expected, output.played.count { it.kind == Guidance.Kind.PACE }, "도착 $arriveAt")
             tracker.endRun()
         }
+    }
+
+    @Test
+    fun `TC-9622 정지 자동 종료 요소가 남아 있지 않다`() {
+        val missing = runCatching { Class.forName("com.a207.runkk.app.domain.run.PauseLimit") }
+        assertTrue(missing.isFailure, "PauseLimit 클래스 0개")
+        val messages = GuidanceMessage.entries.map { it.name }
+        assertTrue("PAUSE_AUTO_END_SOON" !in messages && "PAUSE_AUTO_ENDED" !in messages && "UNLOCK_HINT" !in messages)
+        val notices = WatchNotice.entries.map { it.name }
+        assertTrue("AUTO_END_SOON" !in notices && "AUTO_ENDED" !in notices)
+        assertTrue("UNLOCK_HINT" !in Guidance.Kind.entries.map { it.name })
     }
 }

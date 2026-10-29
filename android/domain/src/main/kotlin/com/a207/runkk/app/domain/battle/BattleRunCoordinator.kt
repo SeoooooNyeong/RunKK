@@ -62,8 +62,7 @@ import kotlinx.coroutines.launch
  * GapTracker로 추월·도착을 판정한다(D-05). 종료 카운트다운(Closing)이 시작되면 진행 메시지가 그 상태를 덮지 않는다(F-1).
  * 서버 보고(시작·그만두기)를 다시 보내도 실패하거나 채널에 연결하지 못하면 failure로 알린다(F-3, O-6).
  *
- * ui.battle은 domain.run을 보지 않으므로(5.1.2) 내 측정값(RunTracker 진행값)을 상태의 MyProgress로 옮기고, 화면 잠금은
- * 누름 종류별 연산(lockScreen·onUnlockTapped·onUnlockLongPressed, D-49)을 RunTracker에 넘긴다.
+ * ui.battle은 domain.run을 보지 않으므로(5.1.2) 내 측정값(RunTracker 진행값)을 상태의 MyProgress로 옮긴다. 앱 화면 잠금은 없다(D-256).
  */
 @Singleton
 class BattleRunCoordinator
@@ -123,7 +122,7 @@ constructor(
 
     /** 랜덤·고스트 매칭 성사. 매칭 화면·애니메이션은 ui.battle이 그린다(design-review.md M25). */
     fun onMatched(m: MatchFound) {
-        val run = openRun(m.battleId, m.distance)
+        val run = openRun(m.battleId, m.distance, m.opponentName)
         run.round.scope.launch {
             _state.value = BattleRunState.Matched(m)
             val channel = liveChannelProvider.open()
@@ -144,7 +143,7 @@ constructor(
 
     /** 나와의 싸움·유명인: 3초 카운트다운 뒤 측정을 시작하고 시작을 서버에 알린다(design-review.md M34). */
     fun onRecordBattleStart(s: RecordBattleStart) {
-        val run = openRun(s.battleId, s.distance)
+        val run = openRun(s.battleId, s.distance, s.opponentName)
         run.round.scope.launch {
             run.schedule(s.track, s.cardKind)
             _state.value = BattleRunState.Countdown(s.battleId, clock.instant().plus(RECORD_COUNTDOWN))
@@ -175,40 +174,12 @@ constructor(
 
     /**
      * 확인 뒤 그만두기(POST /battles/{id}/forfeit) → 기록 저장. 보고가 끝내 실패해도 기기 측정은 끝내고 failure로 알린다.
-     * 화면 잠금 중이면(FR-182) 화면이 막지 못한 입력이어도 받지 않는다.
      */
     fun forfeit() {
         val run = run ?: return
         run.round.scope.launch {
-            if (runTracker.progress.value.isLocked) return@launch
             report(run) { battleRepository.forfeit(run.battleId) }
             finish(run, status = null)
-        }
-    }
-
-    /** 화면 잠금(FR-182). 측정 중일 때만 잠그고 상태의 mine.locked에 바로 반영한다. */
-    fun lockScreen() {
-        val run = run ?: return
-        run.round.scope.launch {
-            if (!run.round.isMeasuring) return@launch
-            runTracker.lockScreen()
-            syncLock(run)
-        }
-    }
-
-    /** 잠금 해제 짧게 누름: 길게 눌러야 한다는 안내만(D-49). */
-    fun onUnlockTapped() {
-        val run = run ?: return
-        run.round.scope.launch { if (run.round.isMeasuring) runTracker.onUnlockTapped() }
-    }
-
-    /** 잠금 해제 길게 누름. */
-    fun onUnlockLongPressed() {
-        val run = run ?: return
-        run.round.scope.launch {
-            if (!run.round.isMeasuring) return@launch
-            runTracker.onUnlockLongPressed()
-            syncLock(run)
         }
     }
 
@@ -277,7 +248,8 @@ constructor(
                 mode = RunMode.BATTLE,
                 cardKind = run.cardKind,
                 battleId = run.battleId,
-                todayPlan = PlanSnapshot(targetDistance = run.distance, targetPace = null)
+                todayPlan = PlanSnapshot(targetDistance = run.distance, targetPace = null),
+                opponentName = run.opponentName
             )
         val started = run.round.begin(spec) { progress(run, it) }
         if (started is Outcome.Failure) {
@@ -398,17 +370,9 @@ constructor(
         }
     }
 
-    private fun syncLock(run: BattleRun) {
-        val locked = runTracker.progress.value.isLocked
-        updateMine(run) { it.copy(isLocked = locked) }
-    }
-
-    /**
-     * 진행값 → 내 측정값. 잠금 여부는 진행값이 아니라 RunTracker의 지금 값을 쓴다: 잠그기 전에 방출된 진행값이 잠근 뒤에
-     * 처리되면 잠금을 되돌릴 수 있다(잠금만 바뀐 방출은 경과가 같아 accept가 버린다).
-     */
+    /** 진행값 → 내 측정값. 경로선은 RunTracker의 지금 값을 옮긴다(D-261). */
     private fun RunProgress.toMine(): MyProgress =
-        MyProgress(distance, elapsed, currentPace, averagePace, isLocked = runTracker.progress.value.isLocked)
+        MyProgress(distance, elapsed, currentPace, averagePace, route = runTracker.routeLine.value)
 
     /**
      * 매칭 요청이 취소됐으면(이탈 취소가 요청을 끊음) null. 부른 코루틴 자신이 취소된 것이면 null로 삼키지 않고 취소를 잇는다(리뷰 N-9).
@@ -453,7 +417,7 @@ constructor(
     }
 
     /** 이전 회가 남아 있으면 정리(측정 중이면 endRun, 채널 닫기, 범위 취소)하고 새 회를 연다. */
-    private fun openRun(battleId: Long, distance: Distance): BattleRun {
+    private fun openRun(battleId: Long, distance: Distance, opponentName: String): BattleRun {
         run?.let { previous ->
             run = null
             previous.round.endMeasuring()
@@ -462,14 +426,14 @@ constructor(
         }
         _failure.value = null
         _liveState.value = null
-        return BattleRun(battleId, distance).also { run = it }
+        return BattleRun(battleId, distance, opponentName).also { run = it }
     }
 
     /**
      * 대결 한 회. 범위·측정 여부는 CoordinatedRound가, 예약·상대 종류 전이는 schedule이 맡는다(O-3).
-     * 범위 안의 처리되지 않은 예외는 앱을 죽이지 않고 이 회를 연결 실패로 닫는다.
+     * 범위 안의 처리되지 않은 예외는 앱을 죽이지 않고 이 회를 연결 실패로 닫는다. [opponentName]은 진행 알림 "vs [상대]"에 싣는다(D-258).
      */
-    private inner class BattleRun(val battleId: Long, val distance: Distance) {
+    private inner class BattleRun(val battleId: Long, val distance: Distance, val opponentName: String) {
         val round = CoordinatedRound(applicationScope, runTracker) { fail(this, AppError.Network) }
 
         @Volatile

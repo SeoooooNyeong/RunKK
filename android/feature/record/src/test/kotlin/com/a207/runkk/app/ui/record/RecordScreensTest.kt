@@ -169,4 +169,72 @@ class RecordScreensTest {
         compose.onNodeWithText("더 보기").performClick()
         assertEquals(listOf(CardShareKind.SAVE, CardShareKind.SYSTEM), shares)
     }
+
+    @Test
+    fun `B-7 카드 앞면은 날짜·날씨·거리·신기록·세 지표·서명이고 종류 라벨이 없다(FR-068)`() {
+        val bitmap = android.graphics.Bitmap.createBitmap(8, 10, android.graphics.Bitmap.Config.ARGB_8888)
+        val card = runCard().copy(
+            averageHeartRate = 152,
+            newRecords = listOf("최장 거리 신기록"),
+            weather = com.a207.runkk.app.domain.record.CardWeather(
+                14,
+                com.a207.runkk.app.domain.record.CardWeather.Sky.CLEAR
+            ),
+            ownerName = "달리는곰"
+        )
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                androidx.compose.runtime.CompositionLocalProvider(
+                    com.a207.runkk.app.core.designsystem.LocalReleaseScope provides
+                        com.a207.runkk.app.core.designsystem.ReleaseScope.FIRST_RELEASE
+                ) {
+                    RecordCardScreen(
+                        RecordCardUiState(isLoading = false, card = card, front = bitmap, back = bitmap),
+                        onClose = {},
+                        onSideSelected = {},
+                        onShare = {},
+                        onMessageShown = {},
+                        onRetry = {}
+                    )
+                }
+            }
+        }
+        compose.onNodeWithText("맑음 14°", useUnmergedTree = true).assertExists()
+        compose.onNodeWithText("신기록", useUnmergedTree = true).assertExists()
+        compose.onNodeWithText("운동 시간", useUnmergedTree = true).assertExists()
+        compose.onNodeWithText("평균 페이스", useUnmergedTree = true).assertExists()
+        compose.onNodeWithText("평균 심박", useUnmergedTree = true).assertExists()
+        compose.onNodeWithText("152", useUnmergedTree = true).assertExists()
+        compose.onNodeWithText("달리는곰, 런크크", useUnmergedTree = true).assertExists()
+        compose.onNodeWithText("자유런", useUnmergedTree = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun `TC-9699 카드 공유가 닫히면 공유 버튼과 뒤집기가 없고 닫기만 있다`() {
+        val bitmap = android.graphics.Bitmap.createBitmap(8, 10, android.graphics.Bitmap.Config.ARGB_8888)
+        val sides = mutableListOf<com.a207.runkk.app.ui.share.CardSide>()
+        var closed = 0
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                androidx.compose.runtime.CompositionLocalProvider(
+                    com.a207.runkk.app.core.designsystem.LocalReleaseScope provides
+                        com.a207.runkk.app.core.designsystem.ReleaseScope.FIRST_RELEASE
+                ) {
+                    RecordCardScreen(
+                        RecordCardUiState(isLoading = false, card = runCard(), front = bitmap, back = bitmap),
+                        onClose = { closed++ },
+                        onSideSelected = { sides += it },
+                        onShare = {},
+                        onMessageShown = {},
+                        onRetry = {}
+                    )
+                }
+            }
+        }
+        compose.onNodeWithText("공유").assertDoesNotExist()
+        compose.onNodeWithContentDescription("러닝 카드 앞면", substring = true).performClick()
+        compose.onNodeWithText("닫기").performClick()
+        assertEquals(emptyList(), sides, "뒤집기 없음")
+        assertEquals(1, closed)
+    }
 }
