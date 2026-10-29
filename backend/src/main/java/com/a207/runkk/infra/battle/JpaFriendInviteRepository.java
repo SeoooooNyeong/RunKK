@@ -39,6 +39,14 @@ public class JpaFriendInviteRepository implements FriendInviteRepository {
     }
 
     @Override
+    public int deleteByMember(long memberId) {
+        return entityManager
+                .createQuery("delete from FriendInvite i where i.inviterId = :m or i.joinerId = :m")
+                .setParameter("m", memberId)
+                .executeUpdate();
+    }
+
+    @Override
     public Optional<FriendInvite> findById(long id) {
         return Optional.ofNullable(entityManager.find(FriendInvite.class, id));
     }

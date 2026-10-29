@@ -187,13 +187,14 @@ public class JpaRunRecordRepository implements RunRecordRepository {
     }
 
     @Override
-    public List<RunRecord> findMissingShape(int limit) {
+    public List<RunRecord> findMissingShape(String afterRecordId, int limit) {
         return entityManager
                 .createQuery(
                         "select r from RunRecord r where r.routeShape is null"
                                 + " and r.routePurged = false and r.pointCount >= 2"
-                                + " order by r.savedAt, r.recordId",
+                                + " and r.recordId > :after order by r.recordId",
                         RunRecord.class)
+                .setParameter("after", afterRecordId)
                 .setMaxResults(limit)
                 .getResultList();
     }

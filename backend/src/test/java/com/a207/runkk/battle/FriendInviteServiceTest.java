@@ -577,7 +577,7 @@ class FriendInviteServiceTest {
         FriendInviteRepository racing = mock(FriendInviteRepository.class);
         when(racing.findPending(INVITER)).thenReturn(Optional.empty());
         when(racing.saveImmediately(org.mockito.ArgumentMatchers.any()))
-                .thenThrow(new org.springframework.dao.DataIntegrityViolationException("uq"));
+                .thenThrow(integrityViolation("23505"));
         FriendInviteService raced =
                 new FriendInviteService(
                         racing,
@@ -592,5 +592,103 @@ class FriendInviteServiceTest {
                 () -> raced.invite(INVITER, StandardDistance.KM5),
                 ReasonCode.INVITE_ALREADY_PENDING);
         verify(settings, times(0)).rememberBattleDistance(INVITER, StandardDistance.KM5);
+    }
+
+    private static org.springframework.dao.DataIntegrityViolationException integrityViolation(
+            String sqlState) {
+        return new org.springframework.dao.DataIntegrityViolationException(
+                "could not execute statement", new java.sql.SQLException("violation", sqlState));
+    }
+
+    @Test
+    @DisplayName(
+            "BE8-5 invite: 고유 제약이 아닌 무결성 위반(NOT NULL 23502·CHECK 23514)은 INVITE_ALREADY_PENDING으로"
+                    + " 바꾸지 않고 그대로 올린다")
+    void be8_5_otherIntegrityViolationsPropagate() {
+        for (String sqlState : java.util.List.of("23502", "23514")) {
+            FriendInviteRepository broken = mock(FriendInviteRepository.class);
+            when(broken.findPending(INVITER)).thenReturn(Optional.empty());
+            when(broken.saveImmediately(org.mockito.ArgumentMatchers.any()))
+                    .thenThrow(integrityViolation(sqlState));
+            FriendInviteService service =
+                    new FriendInviteService(
+                            broken,
+                            new RunnerAvailability(queue, battles, broken),
+                            members,
+                            settings,
+                            startService,
+                            messenger,
+                            tx,
+                            clock);
+            assertThatThrownBy(() -> service.invite(INVITER, StandardDistance.KM5))
+                    .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+        }
+    }
+
+    @Test
+    @DisplayName("BE8-4 invite: 기한 지난 자기 초대를 정리하는 쪽과 겹쳐 낙관적 잠금이 한 번 충돌해도 다시 읽어 새 초대를 만든다")
+    void be8_4_expiryRaceRetries() {
+        FriendInviteIssue old = invite();
+        now(5, 1);
+        FriendInviteRepository racing = mock(FriendInviteRepository.class);
+        FriendInvite stale = invites.findById(old.inviteId()).orElseThrow();
+        when(racing.findPending(INVITER))
+                .thenReturn(Optional.of(stale))
+                .thenReturn(Optional.empty());
+        when(racing.saveImmediately(stale))
+                .thenThrow(
+                        new org.springframework.orm.ObjectOptimisticLockingFailureException(
+                                FriendInvite.class, old.inviteId()));
+        when(racing.saveImmediately(org.mockito.ArgumentMatchers.argThat(i -> i != stale)))
+                .thenAnswer(a -> invites.saveImmediately(a.getArgument(0)));
+        FriendInviteService raced =
+                new FriendInviteService(
+                        racing,
+                        new RunnerAvailability(queue, battles, racing),
+                        members,
+                        settings,
+                        startService,
+                        messenger,
+                        tx,
+                        clock);
+
+        FriendInviteIssue fresh = raced.invite(INVITER, StandardDistance.KM5);
+
+        assertThat(fresh.inviteId()).isNotEqualTo(old.inviteId());
+    }
+
+    @Test
+    @DisplayName("탈퇴 파기: eraseOf는 그 회원이 보낸 초대와 참가한 초대를 지운다")
+    void eraseOf_deletesInvitesOfMember() {
+        FriendInviteIssue sent = invite();
+        service.accept(JOINER, sent.token());
+        long other = 77L;
+        FriendInviteIssue unrelated = service.invite(other, StandardDistance.KM1);
+
+        service.eraseOf(JOINER);
+
+        assertThat(invites.findById(sent.inviteId())).isEmpty();
+        assertThat(invites.findById(unrelated.inviteId())).isPresent();
+    }
+
+    @Test
+    @DisplayName("TC-9805 만료 경계: 4:59 수락 성공, 5:00·5:01은 정리 작업 전이라도 INVITE_EXPIRED")
+    void tc9805_expiryBoundary() {
+        FriendInviteIssue early = invite();
+        now(4, 59);
+        assertThat(service.accept(JOINER, early.token())).isPositive();
+
+        for (int seconds : new int[] {0, 1}) {
+            // 새 초대 한 쌍씩: 초대한 쪽이 다른 대결 중이 아니도록 다른 회원으로 만든다
+            long inviter = 500L + seconds;
+            now(0, 0);
+            FriendInviteIssue issue = service.invite(inviter, StandardDistance.KM3);
+            now(5, seconds);
+            assertReason(
+                    () -> service.accept(JOINER + 10, issue.token()), ReasonCode.INVITE_EXPIRED);
+            assertThat(invites.findById(issue.inviteId()).orElseThrow().getStatus())
+                    .as("정리 작업 전이라 저장 상태는 PENDING 그대로")
+                    .isEqualTo(FriendInviteStatus.PENDING);
+        }
     }
 }

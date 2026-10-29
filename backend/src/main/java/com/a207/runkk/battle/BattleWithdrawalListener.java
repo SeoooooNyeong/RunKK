@@ -18,7 +18,7 @@ public class BattleWithdrawalListener {
         this.friendInviteService = friendInviteService;
     }
 
-    /** 대기열에서 빼고 대기 중인 친구 대결 초대를 취소한다(v0.14 D-223). */
+    /** 대기열에서 빼고 대기 중인 친구 대결 초대를 취소한 뒤 그 회원의 초대 행을 지운다(v0.14 D-223, 탈퇴 파기). */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onMemberWithdrawn(MemberWithdrawn e) {
         try {
@@ -26,6 +26,7 @@ public class BattleWithdrawalListener {
         } finally {
             // 대기열(Redis) 장애가 초대 취소를 막지 않게 한다
             friendInviteService.cancelOpenOf(e.memberId());
+            friendInviteService.eraseOf(e.memberId());
         }
     }
 }

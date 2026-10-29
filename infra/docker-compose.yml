@@ -70,6 +70,8 @@ services:
       LEGAL_PRIVACY_POLICY_URL: ${LEGAL_PRIVACY_POLICY_URL:-https://k15a207.p.ssafy.io/legal/privacy}
       LEGAL_LOCATION_TERMS_URL: ${LEGAL_LOCATION_TERMS_URL:-https://k15a207.p.ssafy.io/legal/location}
       LEGAL_HELP_URL: ${LEGAL_HELP_URL:-https://k15a207.p.ssafy.io/legal/help}
+      # 친구 대결 초대 링크 앞부분. 환경마다 다르므로 기본값이 없다(develop·release 8443은 https://k15a207.p.ssafy.io:8443/invite/battle, prod 443은 https://k15a207.p.ssafy.io/invite/battle). 비면 api가 기동을 멈춘다
+      FRIEND_INVITE_LINK_BASE: ${FRIEND_INVITE_LINK_BASE:?set FRIEND_INVITE_LINK_BASE in .env}
       # 외부 연동. 비우면 그 연동만 꺼진다(카카오·구글 로그인 거부, 푸시는 로그만, 날씨 없이 저장)
       KAKAO_APP_ID: ${KAKAO_APP_ID:-}
       GOOGLE_CLIENT_IDS: ${GOOGLE_CLIENT_IDS:-}

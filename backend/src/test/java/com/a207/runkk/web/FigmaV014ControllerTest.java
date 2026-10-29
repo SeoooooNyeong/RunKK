@@ -365,4 +365,49 @@ class FigmaV014ControllerTest extends WebTestSupport {
                 .andExpect(jsonPath("$.genderVisibility").value("PRIVATE"))
                 .andExpect(jsonPath("$.recentRuns", hasSize(0)));
     }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.a207.runkk.reward.RewardReconcileService rewardReconcile;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.a207.runkk.battle.BattleRepository battleRepository;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.transaction.support.TransactionTemplate tx;
+
+    @Test
+    @DisplayName(
+            "TC-9814 친구 대결 승리는 BATTLE_WIN 0: 결과 응답 rewardPoints 0·totalRewardPoints 0, 다음 날 0시 10분"
+                    + " 보정 뒤에도 0")
+    void friendWinHasNoBattleReward() throws Exception {
+        Session a = signUp();
+        Session b = signUp();
+        String token = invite(a, 5_000).get("token").asText();
+        mvc.perform(as(b, post(INVITES + "/by-token/" + token + "/accept")))
+                .andExpect(status().isOk());
+        long battleId = activeBattle(a);
+        // 출발 전 포기는 취소라 결과가 없다(TC-9303). 출발시킨 뒤 포기해 승패를 낸다
+        tx.executeWithoutResult(
+                status -> {
+                    com.a207.runkk.battle.Battle battle =
+                            battleRepository.findById(battleId).orElseThrow();
+                    LocalDateTime now = LocalDateTime.now();
+                    battle.scheduleStart(now);
+                    battle.start(now);
+                    battleRepository.save(battle);
+                });
+        mvc.perform(as(a, post("/api/v1/battles/" + battleId + "/forfeit")))
+                .andExpect(status().isNoContent());
+
+        for (int round = 0; round < 2; round++) {
+            mvc.perform(as(b, get("/api/v1/battles/" + battleId + "/result")))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.type").value("FRIEND"))
+                    .andExpect(jsonPath("$.verdict").value("WIN"))
+                    .andExpect(jsonPath("$.rewardPoints").value(0))
+                    .andExpect(jsonPath("$.totalRewardPoints").value(0));
+            rewardReconcile.reconcile(
+                    LocalDateTime.now().plusDays(1).toLocalDate().atStartOfDay().plusMinutes(10));
+        }
+    }
 }

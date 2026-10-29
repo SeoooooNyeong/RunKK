@@ -311,19 +311,19 @@ docker exec runkk-prod-api-1 sh -c 'zcat /var/log/runkk/api.2026-11-03.*.log.gz 
 
 ### prod 키 목록 (`INFRA_ENV_PROD`)
 
-필수: `RUNKK_ENV=prod`, `POSTGRES_VOLUME=runkk-prod_postgres-data`, `REDIS_VOLUME=runkk-prod_redis-data`, `SPRING_PROFILES_ACTIVE=prod`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `REDIS_PASSWORD`, `JWT_SECRET`, `ADMIN_JWT_SECRET`, `RUNKK_INTERNAL_TOKEN`.
+필수: `RUNKK_ENV=prod`, `POSTGRES_VOLUME=runkk-prod_postgres-data`, `REDIS_VOLUME=runkk-prod_redis-data`, `SPRING_PROFILES_ACTIVE=prod`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `REDIS_PASSWORD`, `JWT_SECRET`, `ADMIN_JWT_SECRET`, `RUNKK_INTERNAL_TOKEN`, `FRIEND_INVITE_LINK_BASE=https://k15a207.p.ssafy.io/invite/battle`.
 연동(비우면 그 연동만 꺼짐): `KAKAO_APP_ID`(prod 패키지 com.a207.runkk 앱), `GOOGLE_CLIENT_IDS`, `FCM_PROJECT_ID`, `FCM_CREDENTIALS_FILE=/run/secrets/fcm-service-account.json`, `KMA_SERVICE_KEY`, `RUNKK_BOOTSTRAP_OPERATORS`, ai의 `RUNKK_LLM_*`·`RUNKK_ANTHROPIC_*`·`RUNKK_FACE_*`.
 넣지 않음: `SWAGGER_ENABLED`(넣으면 false만), `SELFIE_ENABLED`(기본 꺼짐), `SERVER_NAME`·`NGINX_*`·`GRAFANA_*`(에지 값).
 선택: `DB_POOL_SIZE`, `SCHEDULER_POOL_SIZE`, `AUTH_CLIENT_REQUESTS_PER_MINUTE`, `RUNKK_QUEUE`, `RUNKK_LIVE`, `API_MEM_LIMIT`, `API_JAVA_OPTS`, `BACKUP_TIME`, `BACKUP_KEEP_DAYS`, `BACKUP_DIR`, `BACKUP_OWNER`, `LEGAL_*`.
 
 ## 10. 친구 대결 초대 링크 (v0.14, 설계 05-06 D-219, 05-08 D-293·6절)
 
-초대 링크는 `https://k15a207.p.ssafy.io/invite/battle/{token}`이고 앞부분은 api 설정 `runkk.battle.friend-invite.link-base`(환경 변수 `FRIEND_INVITE_LINK_BASE`, 기본 `https://k15a207.p.ssafy.io/invite/battle`)다. release(8443) 환경은 그 환경 주소로 덮어쓴다. nginx는 아래 세 경로를 정적 파일로 준다(`nginx/common/app-locations.conf`, api로 넘기지 않는다).
+초대 링크는 `https://k15a207.p.ssafy.io/invite/battle/{token}`이고 앞부분은 api 설정 `runkk.battle.friend-invite.link-base`(환경 변수 `FRIEND_INVITE_LINK_BASE`)다. 기본값이 없는 필수 값이라 환경마다 `.env`(CI `INFRA_ENV`, `INFRA_ENV_PROD`)에 넣는다. develop·release(8443)는 `https://k15a207.p.ssafy.io:8443/invite/battle`, prod(443)는 `https://k15a207.p.ssafy.io/invite/battle`이고, 비면 compose가 막고 api도 기동하지 않는다. 로컬(local 프로필)과 시험만 기본값이 있다. nginx 접근 로그는 `/invite/battle/{token}`과 by-token 경로의 토큰을 `***`로 가려 남긴다. nginx는 아래 세 경로를 정적 파일로 준다(`nginx/common/app-locations.conf`, api로 넘기지 않는다).
 
 | 경로 | 파일 | 용도 |
 |------|------|------|
 | `/.well-known/assetlinks.json` | `nginx/static/.well-known/assetlinks.json` | Android App Links 도메인 검증(앱이 있으면 링크가 앱으로 열린다) |
-| `/invite/battle/card.png` | `nginx/static/invite/battle/card.png` | 카카오톡 공유 카드 이미지(디자인 n-c11-kakao의 카드 그림, 233×115) |
+| `/invite/card.png` | `nginx/static/invite/card.png` | 카카오톡 공유 카드 이미지(앱 링크 경로 `/invite/battle/` 밖에 둔다. 안에 두면 앱 링크가 그림 주소를 가로챈다. 디자인 n-c11-kakao의 카드 그림, 233×115) |
 | `/invite/battle/{token}` | `nginx/static/invite/battle/index.html` | 앱이 없을 때 보이는 스토어 안내 페이지(Android에서는 intent로 앱 열기를 다시 시도) |
 
 **배포 전에 할 일**: `assetlinks.json`의 지문은 자리표시(`REPLACE_WITH_…`)다. 실제 SHA-256 지문으로 바꿔 커밋한다.

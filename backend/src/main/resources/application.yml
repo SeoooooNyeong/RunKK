@@ -91,10 +91,11 @@ runkk:
     # 배경 해금 조회 채우기 기준 시각(D-176): V25 적용 시각. 이 시각 이전에 저장한 유효 기록의 거리만 알림 없이 채운다. 배포 때 실제 적용 시각으로 맞춘다.
     backfill-cutoff: ${AVATAR_BACKFILL_CUTOFF:2026-10-22T00:00:00}
   # 친구 대결 초대 링크 앞부분(v0.14 D-219, web.battle.FriendInviteLinks). 링크 = link-base + "/" + 토큰.
-  # release(8443) 환경은 그 환경 주소로 덮어쓴다(FRIEND_INVITE_LINK_BASE). Android App Links는 이 도메인의 /.well-known/assetlinks.json을 본다
+  # 기본값이 없다. develop·prod는 환경마다(release 8443, prod 443) FRIEND_INVITE_LINK_BASE를 넣어야 하고 비면 기동이 실패한다(FriendInviteLinks).
+  # local은 아래 프로필에서, 시험은 application-test·integration.yml에서 채운다. Android App Links는 이 도메인의 /.well-known/assetlinks.json을 본다
   battle:
     friend-invite:
-      link-base: ${FRIEND_INVITE_LINK_BASE:https://k15a207.p.ssafy.io/invite/battle}
+      link-base: ${FRIEND_INVITE_LINK_BASE:}
   # 법정 고지 문서 공개 주소(FR-018, member.LegalDocumentCatalog)
   legal:
     terms-url: ${LEGAL_TERMS_URL:https://k15a207.p.ssafy.io/legal/terms}
@@ -225,6 +226,9 @@ management:
       enabled: false
 
 runkk:
+  battle:
+    friend-invite:
+      link-base: ${FRIEND_INVITE_LINK_BASE:http://10.0.2.2:8080/invite/battle}
   embedded-redis:
     enabled: true
     port: ${EMBEDDED_REDIS_PORT:6370}

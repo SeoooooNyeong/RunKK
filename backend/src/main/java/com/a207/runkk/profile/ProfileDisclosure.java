@@ -2,6 +2,7 @@ package com.a207.runkk.profile;
 
 import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.member.DisclosureLevel;
+import com.a207.runkk.member.MemberPreference;
 import com.a207.runkk.member.MemberProfile;
 import com.a207.runkk.member.ProfileVisibility;
 import java.util.List;
@@ -15,7 +16,7 @@ public enum ProfileDisclosure {
     SELF {
         @Override
         public ProfileView filter(ProfileData data) {
-            return view(this, data, data.about(), true, List.of());
+            return view(this, data, new Shown(data.about(), data.settings(), List.of()));
         }
     },
     /**
@@ -25,7 +26,7 @@ public enum ProfileDisclosure {
     PUBLIC {
         @Override
         public ProfileView filter(ProfileData data) {
-            return view(this, data, publicAbout(data.about()), false, data.recentRuns());
+            return view(this, data, new Shown(publicAbout(data.about()), null, data.recentRuns()));
         }
     },
     /** 표시명 "탈퇴한 사용자"만(FR-006). */
@@ -58,12 +59,11 @@ public enum ProfileDisclosure {
     /** 이 수준이 보이는 항목만 남긴 프로필. */
     public abstract ProfileView filter(ProfileData data);
 
-    private static ProfileView view(
-            ProfileDisclosure level,
-            ProfileData data,
-            MemberProfile about,
-            boolean settings,
-            List<RecentRun> recentRuns) {
+    /** 수준마다 달라지는 항목 묶음. 설정이 null이면 싣지 않는다. */
+    private record Shown(
+            MemberProfile about, MemberPreference settings, List<RecentRun> recentRuns) {}
+
+    private static ProfileView view(ProfileDisclosure level, ProfileData data, Shown shown) {
         return new ProfileView(
                 data.memberId(),
                 level,
@@ -74,11 +74,11 @@ public enum ProfileDisclosure {
                 data.runimalType(),
                 data.crew(),
                 data.longestDistance(),
-                settings ? data.settings() : null,
-                about,
+                shown.settings(),
+                shown.about(),
                 data.totalDistance(),
                 data.runCount(),
-                recentRuns);
+                shown.recentRuns());
     }
 
     /** 나이대·성별을 항목 공개 값으로 감추고 공개 값 두 개는 뺀다(v0.14 D-241). 소개는 늘 보인다. */
