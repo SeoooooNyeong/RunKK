@@ -1,170 +1,155 @@
-"""FaceRouter: octet-stream 본문, 413·415, reason별 실패(14장 단위(ai 서버), D-59)."""
+"""아바타 라우터: 셀카 접수(202)·작업 상태·결과·최신 머리·기본 몸. 입력 검사와 reason별 상태(14장, D-59)."""
 
 from __future__ import annotations
 
-import asyncio
-import base64
-from collections.abc import AsyncIterator, Awaitable, Callable
-
 import httpx
 import pytest
-from starlette.requests import Request
 
-from runkk_ai.face import FacePart, FaceTransformError, FaceTransformService
-from runkk_ai.face.router import create
-from tests.conftest import JPEG_HEAD, PNG_1X1, FakeFaceTransformer
+from runkk_ai.face import AvatarError
+from tests.conftest import BODY_SAMPLE, HEAD_ID, HEAD_SAMPLE, JOB_ID, JPEG_HEAD, PNG_1X1, FakeAvatarClient
 
 OCTET = {"Content-Type": "application/octet-stream"}
+JOBS = "/users/42/faces/jobs"
 
 
-async def test_jpeg_returns_all_parts_as_base64_png(client: httpx.AsyncClient, fake_face: FakeFaceTransformer) -> None:
-    response = await client.post("/faces", content=JPEG_HEAD, headers=OCTET)
+async def test_jpeg_is_accepted_as_a_job(client: httpx.AsyncClient, fake_face: FakeAvatarClient) -> None:
+    response = await client.post(JOBS, content=JPEG_HEAD, headers=OCTET)
 
-    assert response.status_code == 200
-    parts = response.json()["parts"]
-    assert set(parts) == {p.value for p in FacePart} == {"EYES", "NOSE", "MOUTH", "EARS", "HAIR"}
-    assert all(base64.b64decode(v) == PNG_1X1 for v in parts.values())
-    assert fake_face.received == [len(JPEG_HEAD)]
+    assert response.status_code == 202
+    assert response.json() == {"jobId": JOB_ID, "status": "QUEUED", "headId": None, "error": None}
+    assert fake_face.submitted[0][0] == "42"
+    assert fake_face.submitted[0][2] == len(JPEG_HEAD)
 
 
 async def test_png_is_accepted(client: httpx.AsyncClient) -> None:
-    response = await client.post("/faces", content=PNG_1X1, headers=OCTET)
-
-    assert response.status_code == 200
+    assert (await client.post(JOBS, content=PNG_1X1, headers=OCTET)).status_code == 202
 
 
-async def test_declared_length_over_limit_is_413_without_converting(
-    client: httpx.AsyncClient, fake_face: FakeFaceTransformer
+async def test_declared_length_over_limit_is_413_without_calling_upstream(
+    client: httpx.AsyncClient, fake_face: FakeAvatarClient
 ) -> None:
     body = JPEG_HEAD + b"\x00" * (1024 * 1024)
 
-    response = await client.post("/faces", content=body, headers=OCTET)
+    response = await client.post(JOBS, content=body, headers=OCTET)
 
-    assert response.status_code == 413
-    assert response.json() == {"reason": "TOO_LARGE"}
-    assert fake_face.received == []
+    assert (response.status_code, response.json()) == (413, {"reason": "TOO_LARGE"})
+    assert fake_face.submitted == []
 
 
-async def test_exactly_limit_is_accepted(client: httpx.AsyncClient) -> None:
-    body = JPEG_HEAD + b"\x00" * (1024 * 1024 - len(JPEG_HEAD))
+async def test_wrong_media_type_is_415(client: httpx.AsyncClient) -> None:
+    response = await client.post(JOBS, content=JPEG_HEAD, headers={"Content-Type": "image/jpeg"})
 
-    response = await client.post("/faces", content=body, headers=OCTET)
+    assert (response.status_code, response.json()) == (415, {"reason": "UNSUPPORTED_IMAGE"})
+
+
+async def test_gif_is_415(client: httpx.AsyncClient) -> None:
+    response = await client.post(JOBS, content=b"GIF89a" + b"\x00" * 10, headers=OCTET)
+
+    assert (response.status_code, response.json()) == (415, {"reason": "UNSUPPORTED_IMAGE"})
+
+
+async def test_broken_header_is_422_unsupported(client: httpx.AsyncClient) -> None:
+    response = await client.post(JOBS, content=b"\xff\xd8\xff" + b"\x00" * 8, headers=OCTET)
+
+    assert (response.status_code, response.json()) == (422, {"reason": "UNSUPPORTED_IMAGE"})
+
+
+async def test_too_many_pixels_is_422_too_large(client: httpx.AsyncClient, fake_face: FakeAvatarClient) -> None:
+    huge = bytearray(JPEG_HEAD)
+    huge[0x19:0x1D] = (40000).to_bytes(2, "big") + (40000).to_bytes(2, "big")  # SOF0 높이·너비
+
+    response = await client.post(JOBS, content=bytes(huge), headers=OCTET)
+
+    assert (response.status_code, response.json()) == (422, {"reason": "TOO_LARGE"})
+    assert fake_face.submitted == []
+
+
+@pytest.mark.parametrize(("reason", "status"), [("UPSTREAM_FAILED", 503), ("TIMEOUT", 504)])
+async def test_submit_failures(
+    client: httpx.AsyncClient, fake_face: FakeAvatarClient, reason: str, status: int
+) -> None:
+    fake_face.error = AvatarError(reason)  # type: ignore[arg-type]
+
+    response = await client.post(JOBS, content=JPEG_HEAD, headers=OCTET)
+
+    assert (response.status_code, response.json()) == (status, {"reason": reason})
+
+
+async def test_job_status_and_result(client: httpx.AsyncClient, fake_face: FakeAvatarClient) -> None:
+    fake_face.job_status = "SUCCEEDED"
+
+    status = await client.get(f"{JOBS}/{JOB_ID}")
+    result = await client.get(f"{JOBS}/{JOB_ID}/result")
+
+    assert status.json() == {"jobId": JOB_ID, "status": "SUCCEEDED", "headId": HEAD_ID, "error": None}
+    assert result.status_code == 200
+    assert result.json() == HEAD_SAMPLE
+
+
+async def test_failed_job_status_is_200_with_error(client: httpx.AsyncClient, fake_face: FakeAvatarClient) -> None:
+    """실패도 '상태 조회'는 200이다(Node와 같다). 앱은 error.code로 안내 문구를 고른다."""
+    fake_face.job_status = "FAILED"
+
+    response = await client.get(f"{JOBS}/{JOB_ID}")
 
     assert response.status_code == 200
+    assert response.json()["status"] == "FAILED"
 
 
-async def test_streamed_body_over_limit_is_413(client: httpx.AsyncClient, fake_face: FakeFaceTransformer) -> None:
-    """Content-Length 없이(chunked) 보내도 상한에서 끊는다."""
+async def test_result_before_done_is_409(client: httpx.AsyncClient, fake_face: FakeAvatarClient) -> None:
+    fake_face.error = AvatarError("JOB_NOT_READY")
 
-    async def chunks() -> AsyncIterator[bytes]:
-        yield JPEG_HEAD
-        for _ in range(20):
-            yield b"\x00" * 65536
+    response = await client.get(f"{JOBS}/{JOB_ID}/result")
 
-    response = await client.post("/faces", content=chunks(), headers=OCTET)
-
-    assert response.status_code == 413
-    assert fake_face.received == []
+    assert (response.status_code, response.json()) == (409, {"reason": "JOB_NOT_READY"})
 
 
 @pytest.mark.parametrize(
-    ("content_type", "body"),
+    ("path", "reason"),
     [
-        ("multipart/form-data; boundary=x", JPEG_HEAD),
-        ("image/jpeg", JPEG_HEAD),
-        ("application/json", b"{}"),
-        ("application/octet-stream", b"GIF89a" + b"\x00" * 10),
-        ("application/octet-stream", b""),
-        ("application/octet-stream", b"\xff\xd8"),
+        (f"{JOBS}/{JOB_ID}", "JOB_NOT_FOUND"),
+        ("/users/42/faces/latest", "HEAD_NOT_FOUND"),
+        ("/avatar/bodies/daily", "BODY_NOT_FOUND"),
     ],
-    ids=["multipart", "image-jpeg-header", "json", "gif", "empty", "truncated-jpeg"],
 )
-async def test_non_jpeg_png_is_415(
-    client: httpx.AsyncClient, fake_face: FakeFaceTransformer, content_type: str, body: bytes
+async def test_not_found_reasons(
+    client: httpx.AsyncClient, fake_face: FakeAvatarClient, path: str, reason: str
 ) -> None:
-    response = await client.post("/faces", content=body, headers={"Content-Type": content_type})
+    fake_face.error = AvatarError(reason)  # type: ignore[arg-type]
 
-    assert response.status_code == 415
-    assert response.json() == {"reason": "UNSUPPORTED_IMAGE"}
-    assert fake_face.received == []
+    response = await client.get(path)
+
+    assert (response.status_code, response.json()) == (404, {"reason": reason})
 
 
-async def test_missing_content_type_is_415(client: httpx.AsyncClient) -> None:
-    response = await client.post("/faces", content=JPEG_HEAD)  # 원시 bytes는 Content-Type을 붙이지 않는다
+async def test_latest_and_body(client: httpx.AsyncClient) -> None:
+    latest = await client.get("/users/42/faces/latest")
+    body = await client.get("/avatar/bodies/daily")
 
-    assert response.status_code == 415
+    assert latest.json() == HEAD_SAMPLE
+    assert body.json() == BODY_SAMPLE
 
 
 @pytest.mark.parametrize(
-    ("reason", "status"),
+    "path",
     [
-        ("NO_FACE", 422),
-        ("MULTIPLE_FACES", 422),
-        ("UNSUPPORTED_IMAGE", 422),
-        ("TOO_LARGE", 422),
-        ("UPSTREAM_FAILED", 503),
-        ("TIMEOUT", 504),
+        "/users/a:b/faces/latest",  # Node 허용 문자 밖(영문·숫자·_·-)
+        "/users/" + "x" * 129 + "/faces/latest",
+        f"{JOBS}/not-a-uuid",
+        "/avatar/bodies/Daily!",
     ],
 )
-async def test_transformer_reason_maps_to_status(
-    client: httpx.AsyncClient, fake_face: FakeFaceTransformer, reason: str, status: int
+async def test_bad_path_params_are_422_without_calling_upstream(
+    client: httpx.AsyncClient, fake_face: FakeAvatarClient, path: str
 ) -> None:
-    fake_face.error = FaceTransformError(reason)  # type: ignore[arg-type]
+    response = await client.get(path)
 
-    response = await client.post("/faces", content=JPEG_HEAD, headers=OCTET)
-
-    assert response.status_code == status
-    assert response.json() == {"reason": reason}
+    assert (response.status_code, response.json()) == (422, {"reason": "INVALID_REQUEST"})
+    assert fake_face.calls == []
 
 
-async def test_unexpected_error_is_upstream_failed(client: httpx.AsyncClient, fake_face: FakeFaceTransformer) -> None:
-    fake_face.error = RuntimeError("model crashed")
+async def test_upstream_down_on_reads_is_503(client: httpx.AsyncClient, fake_face: FakeAvatarClient) -> None:
+    fake_face.error = AvatarError("UPSTREAM_FAILED")
 
-    response = await client.post("/faces", content=JPEG_HEAD, headers=OCTET)
-
-    assert response.status_code == 503
-    assert response.json() == {"reason": "UPSTREAM_FAILED"}
-
-
-async def test_slow_transformer_is_timeout(client: httpx.AsyncClient, fake_face: FakeFaceTransformer) -> None:
-    fake_face.delay_s = 5.0  # 픽스처의 face_service 제한은 1초
-
-    response = await client.post("/faces", content=JPEG_HEAD, headers=OCTET)
-
-    assert response.status_code == 504
-    assert response.json() == {"reason": "TIMEOUT"}
-
-
-def _stream_request(receive: Callable[[], Awaitable[dict[str, object]]]) -> Request:
-    scope = {
-        "type": "http",
-        "method": "POST",
-        "path": "/faces",
-        "headers": [(b"content-type", b"application/octet-stream")],
-    }
-    return Request(scope, receive)  # type: ignore[arg-type]
-
-
-async def test_client_disconnect_while_uploading_is_not_an_error(face_service: FaceTransformService) -> None:
-    """업로드 중 연결이 끊기면 500 대신 조용히 끝낸다(N4)."""
-
-    async def receive() -> dict[str, object]:
-        return {"type": "http.disconnect"}
-
-    response = await create(_stream_request(receive), face_service)
-
-    assert response.status_code == 499  # type: ignore[union-attr]
-
-
-async def test_slow_upload_times_out_as_504(fake_face: FakeFaceTransformer) -> None:
-    """본문 읽기도 face_timeout_s 안에 끝나야 한다(N4)."""
-    service = FaceTransformService(transformer=fake_face, timeout_s=0.05, max_image_bytes=1024)
-
-    async def receive() -> dict[str, object]:
-        await asyncio.sleep(5)
-        return {"type": "http.request", "body": b"", "more_body": False}
-
-    response = await create(_stream_request(receive), service)
-
-    assert response.status_code == 504  # type: ignore[union-attr]
-    assert bytes(response.body) == b'{"reason":"TIMEOUT"}'  # type: ignore[union-attr]
+    assert (await client.get("/users/42/faces/latest")).status_code == 503
+    assert (await client.get("/avatar/bodies/daily")).status_code == 503

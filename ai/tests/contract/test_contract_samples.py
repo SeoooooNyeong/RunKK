@@ -1,6 +1,6 @@
 """응답 계약 회귀 시험(ai-regression-testing, 14장 계약 시험).
 
-tests/contract/*.json은 서버 AiServerCommentGateway·AiServerFaceGateway 계약 시험이 그대로 읽는 표본이다.
+tests/contract/*.json은 서버 AiServerCommentGateway·AiServerAvatarGateway 계약 시험이 그대로 읽는 표본이다.
 ai 응답이 표본과 한 글자라도 달라지면 여기서 먼저 실패한다. 표본을 고칠 때는 서버 Gateway 시험도 같이 고친다.
 
 sessions-*.json(RUN바디 1회 분석)·months-*.json(월간 RUN바디)은
@@ -23,9 +23,16 @@ from fastapi import FastAPI
 
 from runkk_ai.runbody import InMemoryResultRepository, RunbodyService, SessionIn, SessionResultOut, get_runbody_service
 from runkk_ai.runbody.schemas import Metrics
-from tests.conftest import JPEG_HEAD, FakeFaceTransformer, FakeLlmClient
+from tests.conftest import JPEG_HEAD, FakeAvatarClient, FakeLlmClient
 
 FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures"
+FACE_ENDPOINTS = (
+    "POST /users/{userId}/faces/jobs",
+    "GET /users/{userId}/faces/jobs/{jobId}",
+    "GET /users/{userId}/faces/jobs/{jobId}/result",
+    "GET /users/{userId}/faces/latest",
+    "GET /avatar/bodies/{bodyId}",
+)
 SESSION_ENDPOINTS = (
     "POST /sessions/{sessionId}/analyze",
     "GET /sessions/{sessionId}/status",
@@ -35,12 +42,25 @@ SESSION_ENDPOINTS = (
 
 SAMPLES_DIR = Path(__file__).parent
 SAMPLES = sorted(SAMPLES_DIR.glob("*.json"))
-FACE_REASONS = {"NO_FACE", "MULTIPLE_FACES", "UNSUPPORTED_IMAGE", "TOO_LARGE", "UPSTREAM_FAILED", "TIMEOUT"}
+FACE_REASONS = {
+    "UNSUPPORTED_IMAGE",
+    "TOO_LARGE",
+    "UPSTREAM_FAILED",
+    "TIMEOUT",
+    "JOB_NOT_FOUND",
+    "JOB_NOT_READY",
+    "HEAD_NOT_FOUND",
+    "BODY_NOT_FOUND",
+}
 
+_HUGE = bytearray(JPEG_HEAD)
+_HUGE[0x19:0x1D] = (40000).to_bytes(2, "big") * 2  # SOF0 높이·너비
 IMAGES = {
     "jpeg": JPEG_HEAD,
     "gif": b"GIF89a" + b"\x00" * 10,
     "oversized": JPEG_HEAD + b"\x00" * (1024 * 1024),
+    "broken": b"\xff\xd8\xff" + b"\x00" * 8,
+    "huge_pixels": bytes(_HUGE),
 }
 
 
@@ -48,8 +68,8 @@ def _load(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))  # type: ignore[no-any-return]
 
 
-def _arrange(sample: dict[str, Any], llm: FakeLlmClient, face: FakeFaceTransformer) -> None:
-    from runkk_ai.face import FaceTransformError
+def _arrange(sample: dict[str, Any], llm: FakeLlmClient, face: FakeAvatarClient) -> None:
+    from runkk_ai.face import AvatarError
 
     scenario: str = sample["scenario"]
     if scenario == "llm_error":
@@ -57,7 +77,11 @@ def _arrange(sample: dict[str, Any], llm: FakeLlmClient, face: FakeFaceTransform
     elif scenario == "llm_timeout":
         llm.error = TimeoutError()
     elif scenario.startswith("reason:"):
-        face.error = FaceTransformError(scenario.removeprefix("reason:"))  # type: ignore[arg-type]
+        face.error = AvatarError(scenario.removeprefix("reason:"))  # type: ignore[arg-type]
+    elif scenario.startswith("job:"):
+        face.job_status = scenario.removeprefix("job:")
+        if face.job_status == "FAILED":
+            face.job_error = sample["body"]["error"]
     elif scenario == "ok" and sample["endpoint"] == "POST /comments" and sample["status"] == 200:
         llm.text = sample["body"]["text"]
 
@@ -107,6 +131,23 @@ async def _call_sessions(
     return response
 
 
+def _fill(endpoint: str, request: dict[str, Any]) -> str:
+    path = endpoint.split(" ", 1)[1]
+    for name, value in request.items():
+        if isinstance(value, str):
+            path = path.replace("{" + name + "}", value)
+    return path
+
+
+async def _call_faces(sample: dict[str, Any], caller: httpx.AsyncClient) -> httpx.Response:
+    path = _fill(sample["endpoint"], sample["request"])
+    if sample["endpoint"].startswith("GET"):
+        return await caller.get(path)
+    return await caller.post(
+        path, content=IMAGES[sample["request"]["image"]], headers={"Content-Type": "application/octet-stream"}
+    )
+
+
 @pytest.mark.parametrize("path", SAMPLES, ids=[p.stem for p in SAMPLES])
 async def test_response_matches_sample(
     path: Path,
@@ -115,7 +156,7 @@ async def test_response_matches_sample(
     app: FastAPI,
     runbody_service: RunbodyService,
     fake_llm: FakeLlmClient,
-    fake_face: FakeFaceTransformer,
+    fake_face: FakeAvatarClient,
 ) -> None:
     sample = _load(path)
     _arrange(sample, fake_llm, fake_face)
@@ -126,11 +167,7 @@ async def test_response_matches_sample(
     elif sample["endpoint"] == "POST /comments":
         response = await caller.post("/comments", json=sample["request"]["json"])
     else:
-        response = await caller.post(
-            "/faces",
-            content=IMAGES[sample["request"]["image"]],
-            headers={"Content-Type": "application/octet-stream"},
-        )
+        response = await _call_faces(sample, caller)
 
     assert response.status_code == sample["status"]
     assert response.json() == sample["body"]
@@ -141,10 +178,25 @@ def test_samples_cover_every_face_reason() -> None:
     reasons = {
         _load(p)["body"].get("reason")
         for p in SAMPLES
-        if _load(p)["endpoint"] == "POST /faces" and _load(p)["status"] != 401
+        if _load(p)["endpoint"] in FACE_ENDPOINTS and _load(p)["status"] != 401
     }
 
     assert reasons - {None} == FACE_REASONS
+
+
+def test_samples_cover_every_face_status() -> None:
+    statuses = {
+        endpoint: {_load(p)["status"] for p in SAMPLES if _load(p)["endpoint"] == endpoint}
+        for endpoint in FACE_ENDPOINTS
+    }
+
+    assert statuses == {
+        "POST /users/{userId}/faces/jobs": {202, 401, 413, 415, 422, 503, 504},
+        "GET /users/{userId}/faces/jobs/{jobId}": {200, 401, 404},
+        "GET /users/{userId}/faces/jobs/{jobId}/result": {200, 401, 404, 409},
+        "GET /users/{userId}/faces/latest": {200, 401, 404},
+        "GET /avatar/bodies/{bodyId}": {200, 401, 404},
+    }
 
 
 def test_samples_cover_every_comment_status() -> None:
@@ -167,7 +219,7 @@ def test_samples_cover_every_session_status() -> None:
     }
 
 
-@pytest.mark.parametrize("endpoint", ["POST /comments", "POST /faces", *SESSION_ENDPOINTS])
+@pytest.mark.parametrize("endpoint", ["POST /comments", *FACE_ENDPOINTS, *SESSION_ENDPOINTS])
 def test_every_endpoint_has_unauthorized_sample(endpoint: str) -> None:
     """토큰 불일치 401도 다른 실패와 같은 {"reason"} 본문이다. 서버 Gateway는 이 표본으로 설정 오류를 구분한다."""
     bodies = [_load(p)["body"] for p in SAMPLES if _load(p)["endpoint"] == endpoint and _load(p)["status"] == 401]

@@ -1,0 +1,16 @@
+{
+  "endpoint": "POST /users/{userId}/faces/jobs",
+  "scenario": "ok",
+  "request": {
+    "userId": "42",
+    "image": "jpeg"
+  },
+  "status": 202,
+  "body": {
+    "jobId": "6f1c2a3e-9b4d-4c8e-8a1f-2d3e4f5a6b7c",
+    "status": "QUEUED",
+    "headId": null,
+    "error": null
+  },
+  "gateway": "jobId를 저장하고 상태를 폴링(GET .../jobs/{jobId})"
+}

@@ -1,0 +1,13 @@
+{
+  "endpoint": "POST /users/{userId}/faces/jobs",
+  "scenario": "no_token",
+  "request": {
+    "userId": "42",
+    "image": "jpeg"
+  },
+  "status": 401,
+  "body": {
+    "reason": "UNAUTHORIZED"
+  },
+  "gateway": "FailureReason.UPSTREAM_FAILED (토큰 설정 오류, 오류 로그)"
+}

@@ -5,9 +5,9 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from runkk_ai.face import FaceTransformService
+from runkk_ai.face import AvatarService
 from runkk_ai.face.schemas import DEFAULT_MAX_IMAGE_PIXELS, JPEG_SIGNATURE, PNG_SIGNATURE, image_dimensions
-from tests.conftest import JPEG_HEAD, PNG_1X1, FakeFaceTransformer
+from tests.conftest import JPEG_HEAD, PNG_1X1, FakeAvatarClient
 
 OCTET = {"Content-Type": "application/octet-stream"}
 
@@ -63,33 +63,31 @@ def test_broken_header_is_none(image: bytes) -> None:
 
 def test_default_limit_is_4096_squared() -> None:
     assert DEFAULT_MAX_IMAGE_PIXELS == 4096 * 4096
-    service = FaceTransformService(transformer=FakeFaceTransformer(), timeout_s=1.0, max_image_bytes=1024)
+    service = AvatarService(client=FakeAvatarClient(), timeout_s=1.0, max_image_bytes=1024)
     assert service.max_image_pixels == DEFAULT_MAX_IMAGE_PIXELS
 
 
 async def test_pixels_over_limit_are_422_too_large_without_converting(
-    client: httpx.AsyncClient, fake_face: FakeFaceTransformer
+    client: httpx.AsyncClient, fake_face: FakeAvatarClient
 ) -> None:
-    """1MB 안이라도 가로 × 세로가 상한을 넘으면 외부 변환 API로 넘기지 않는다."""
-    response = await client.post("/faces", content=_png(4097, 4096), headers=OCTET)
+    """1MB 안이라도 가로 × 세로가 상한을 넘으면 아바타 서버로 넘기지 않는다."""
+    response = await client.post("/users/42/faces/jobs", content=_png(4097, 4096), headers=OCTET)
 
     assert response.status_code == 422
     assert response.json() == {"reason": "TOO_LARGE"}
-    assert fake_face.received == []
+    assert fake_face.submitted == []
 
 
-async def test_pixels_at_limit_are_converted(client: httpx.AsyncClient, fake_face: FakeFaceTransformer) -> None:
-    response = await client.post("/faces", content=_jpeg(4096, 4096), headers=OCTET)
+async def test_pixels_at_limit_are_converted(client: httpx.AsyncClient, fake_face: FakeAvatarClient) -> None:
+    response = await client.post("/users/42/faces/jobs", content=_jpeg(4096, 4096), headers=OCTET)
 
-    assert response.status_code == 200
-    assert len(fake_face.received) == 1
+    assert response.status_code == 202
+    assert len(fake_face.submitted) == 1
 
 
-async def test_broken_header_is_422_unsupported_image(
-    client: httpx.AsyncClient, fake_face: FakeFaceTransformer
-) -> None:
-    response = await client.post("/faces", content=JPEG_SIGNATURE + b"\xe0" + b"\x00" * 10, headers=OCTET)
+async def test_broken_header_is_422_unsupported_image(client: httpx.AsyncClient, fake_face: FakeAvatarClient) -> None:
+    response = await client.post("/users/42/faces/jobs", content=JPEG_SIGNATURE + b"\xe0" + b"\x00" * 10, headers=OCTET)
 
     assert response.status_code == 422
     assert response.json() == {"reason": "UNSUPPORTED_IMAGE"}
-    assert fake_face.received == []
+    assert fake_face.submitted == []

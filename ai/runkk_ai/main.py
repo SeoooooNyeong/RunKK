@@ -29,7 +29,7 @@ from runkk_ai.coach import (
 )
 from runkk_ai.comment import COMMENT_TIMEOUT_S, ClaudeClient, CommentRouter, CommentService, LlmClient, OpenAiClient
 from runkk_ai.core import HealthRouter, InternalTokenMiddleware, Settings
-from runkk_ai.face import ExternalFaceApi, FaceRouter, FaceTransformer, FaceTransformService
+from runkk_ai.face import AvatarClient, AvatarService, FaceRouter, NodeAvatarClient
 from runkk_ai.runbody import (
     InMemoryResultRepository,
     MonthlyRouter,
@@ -111,11 +111,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     async with AsyncExitStack() as resources:
         llm = _build_llm_client(settings)
         resources.push_async_callback(llm.aclose)
-        transformer = _build_face_transformer(settings)
-        resources.push_async_callback(transformer.aclose)
+        avatar = _build_avatar_client(settings)
+        resources.push_async_callback(avatar.aclose)
         app.state.comment_service = CommentService(llm=llm, daily_cap=settings.llm_daily_hard_cap)
-        app.state.face_service = FaceTransformService(
-            transformer=transformer,
+        app.state.face_service = AvatarService(
+            client=avatar,
             timeout_s=settings.face_timeout_s,
             max_image_bytes=settings.max_image_bytes,
             max_image_pixels=settings.max_image_pixels,
@@ -142,12 +142,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             timeout_s=settings.coach_timeout_s,
         )
         logger.info(
-            "ai_started llm_provider=%s llm_model=%s llm_key_set=%s face_impl=%s face_url_set=%s runbody_storage=%s"
+            "ai_started llm_provider=%s llm_model=%s llm_key_set=%s face_url_set=%s runbody_storage=%s"
             " coach_model=%s coach_key_set=%s writer=%s",
             settings.llm_provider,
             settings.llm_model,
             _llm_key(settings) is not None,
-            settings.face_impl,
             bool(settings.face_api_url),
             storage,
             settings.coach_model,
@@ -219,7 +218,7 @@ def _check_llm_timeout(settings: Settings) -> None:
 
 
 def _configure_logging() -> None:
-    """runkk_ai.* 호출 지표 로그(llm_call, face_transform)를 표준 오류로 낸다. uvicorn은 이 로거를 설정하지 않는다."""
+    """runkk_ai.* 호출 지표 로그(llm_call, avatar_call)를 표준 오류로 낸다. uvicorn은 이 로거를 설정하지 않는다."""
     package_logger = logging.getLogger("runkk_ai")
     package_logger.setLevel(logging.INFO)
     if not any(getattr(h, "name", None) == "runkk_ai" for h in package_logger.handlers):
@@ -245,12 +244,9 @@ def _build_llm_client(settings: Settings) -> LlmClient:
     )
 
 
-def _build_face_transformer(settings: Settings) -> FaceTransformer:
-    if settings.face_impl == "local":
-        # LocalSdModel은 C-011에서 팀 운영 모델로 정하면 모델 적재와 함께 연결한다(부록 E E-04, A-003)
-        raise RuntimeError("face_impl=local은 C-011 모델 선정 뒤에 연결한다")
-    key = settings.face_api_key.get_secret_value() if settings.face_api_key else None
-    return ExternalFaceApi(base_url=settings.face_api_url, api_key=key, timeout_s=settings.face_timeout_s)
+def _build_avatar_client(settings: Settings) -> AvatarClient:
+    """아바타(Node) 서버 주소가 비면 모든 /faces 호출이 503 UPSTREAM_FAILED다(아바타 컨테이너를 안 켠 환경)."""
+    return NodeAvatarClient(base_url=settings.face_api_url, timeout_s=settings.face_timeout_s)
 
 
 async def _invalid_request(request: Request, exc: Exception) -> JSONResponse:

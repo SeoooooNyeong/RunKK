@@ -1,4 +1,4 @@
-"""FaceTransformService: 시간 제한, 결과 검증, 셀카를 로그·디스크에 남기지 않음(FR-156, D-59, T-17)."""
+"""AvatarService: 멱등 키, 시간 제한, 오류 변환, 셀카를 로그·디스크에 남기지 않음(FR-156, D-59, T-17)."""
 
 from __future__ import annotations
 
@@ -6,103 +6,118 @@ import base64
 import builtins
 import logging
 import tempfile
+import uuid
 from typing import Any
 
 import httpx
 import pytest
 
-from runkk_ai.face import FacePart, FaceTransformError, FaceTransformService
-from tests.conftest import JPEG_HEAD, PNG_1X1, FakeFaceTransformer, all_parts
+from runkk_ai.face import AvatarError, AvatarService
+from tests.conftest import HEAD_ID, JOB_ID, JPEG_HEAD, PNG_1X1, FakeAvatarClient
 
 SELFIE = JPEG_HEAD + b"SELFIE-SECRET-PIXELS" * 10
 
 
-async def test_success_returns_images() -> None:
-    service = FaceTransformService(transformer=FakeFaceTransformer(), timeout_s=1.0, max_image_bytes=1024)
-
-    result = await service.transform(SELFIE)
-
-    assert result.reason is None
-    assert result.images is not None
-    assert set(result.images.images) == set(FacePart)
+def _service(client: FakeAvatarClient, **kwargs: Any) -> AvatarService:
+    kwargs.setdefault("timeout_s", 1.0)
+    kwargs.setdefault("max_image_bytes", 1024 * 1024)
+    return AvatarService(client=client, **kwargs)
 
 
-def test_exposes_max_image_bytes() -> None:
-    service = FaceTransformService(transformer=FakeFaceTransformer(), timeout_s=1.0, max_image_bytes=4321)
+async def test_submit_passes_user_and_returns_job() -> None:
+    client = FakeAvatarClient()
 
-    assert service.max_image_bytes == 4321
+    job = await _service(client).submit("42", SELFIE)
 
-
-async def test_timeout_is_timeout_reason() -> None:
-    service = FaceTransformService(transformer=FakeFaceTransformer(delay_s=1.0), timeout_s=0.05, max_image_bytes=1024)
-
-    result = await service.transform(SELFIE)
-
-    assert (result.images, result.reason) == (None, "TIMEOUT")
+    assert (job.jobId, job.status) == (JOB_ID, "QUEUED")
+    assert client.submitted[0][0] == "42"
+    assert client.submitted[0][2] == len(SELFIE)
 
 
-async def test_transformer_timeout_error_is_timeout_reason() -> None:
-    service = FaceTransformService(
-        transformer=FakeFaceTransformer(error=TimeoutError()), timeout_s=1.0, max_image_bytes=1024
-    )
+async def test_same_user_and_photo_give_the_same_request_id() -> None:
+    """api가 같은 요청을 다시 보내도 Node가 같은 작업을 돌려주게(이미지 생성 과금 중복 방지) 키를 내용에서 만든다."""
+    client = FakeAvatarClient()
+    service = _service(client)
 
-    assert (await service.transform(SELFIE)).reason == "TIMEOUT"
+    await service.submit("42", SELFIE)
+    await service.submit("42", SELFIE)
+    await service.submit("42", SELFIE + b"x")
+    await service.submit("43", SELFIE)
 
-
-async def test_missing_part_is_upstream_failed() -> None:
-    parts = all_parts()
-    del parts[FacePart.HAIR]
-    service = FaceTransformService(transformer=FakeFaceTransformer(parts=parts), timeout_s=1.0, max_image_bytes=1024)
-
-    assert (await service.transform(SELFIE)).reason == "UPSTREAM_FAILED"
-
-
-async def test_non_png_part_is_upstream_failed() -> None:
-    parts = all_parts()
-    parts[FacePart.EYES] = b"\xff\xd8\xff not png"
-    service = FaceTransformService(transformer=FakeFaceTransformer(parts=parts), timeout_s=1.0, max_image_bytes=1024)
-
-    assert (await service.transform(SELFIE)).reason == "UPSTREAM_FAILED"
+    keys = [k for _, k, _ in client.submitted]
+    assert keys[0] == keys[1]
+    assert len({keys[0], keys[2], keys[3]}) == 3
+    assert all(uuid.UUID(k).version == 5 for k in keys)
 
 
-async def test_known_reason_is_passed_through() -> None:
-    service = FaceTransformService(
-        transformer=FakeFaceTransformer(error=FaceTransformError("MULTIPLE_FACES")), timeout_s=1.0, max_image_bytes=1024
-    )
+def test_exposes_limits() -> None:
+    service = _service(FakeAvatarClient(), max_image_bytes=4321, max_image_pixels=99)
 
-    assert (await service.transform(SELFIE)).reason == "MULTIPLE_FACES"
+    assert (service.max_image_bytes, service.max_image_pixels, service.timeout_s) == (4321, 99, 1.0)
 
 
-def test_unknown_reason_is_rejected() -> None:
-    with pytest.raises(ValueError, match="reason"):
-        FaceTransformError("SOMETHING_ELSE")  # type: ignore[arg-type]
+async def test_slow_upstream_is_timeout() -> None:
+    service = _service(FakeAvatarClient(delay_s=1.0), timeout_s=0.05)
+
+    with pytest.raises(AvatarError) as info:
+        await service.submit("42", SELFIE)
+    assert info.value.reason == "TIMEOUT"
 
 
-async def test_log_has_result_but_no_image(caplog: pytest.LogCaptureFixture) -> None:
+async def test_client_timeout_error_is_timeout() -> None:
+    service = _service(FakeAvatarClient(error=TimeoutError()))
+
+    with pytest.raises(AvatarError) as info:
+        await service.latest("42")
+    assert info.value.reason == "TIMEOUT"
+
+
+async def test_known_reason_passes_through() -> None:
+    service = _service(FakeAvatarClient(error=AvatarError("JOB_NOT_READY")))
+
+    with pytest.raises(AvatarError) as info:
+        await service.result("42", JOB_ID)
+    assert info.value.reason == "JOB_NOT_READY"
+
+
+async def test_unexpected_exception_is_upstream_failed_and_logs_only_type(caplog: pytest.LogCaptureFixture) -> None:
     caplog.set_level(logging.DEBUG)
-    service = FaceTransformService(transformer=FakeFaceTransformer(), timeout_s=1.0, max_image_bytes=1024)
+    service = _service(FakeAvatarClient(error=RuntimeError("SELFIE-SECRET in message")))
 
-    await service.transform(SELFIE)
+    with pytest.raises(AvatarError) as info:
+        await service.submit("42", SELFIE)
 
-    assert "result=ok" in caplog.text
-    assert "SELFIE-SECRET" not in caplog.text
-    assert base64.b64encode(SELFIE).decode()[:16] not in caplog.text
-    assert base64.b64encode(PNG_1X1).decode()[:16] not in caplog.text
-
-
-async def test_failure_log_names_only_exception_type(caplog: pytest.LogCaptureFixture) -> None:
-    caplog.set_level(logging.DEBUG)
-    service = FaceTransformService(
-        transformer=FakeFaceTransformer(error=RuntimeError("SELFIE-SECRET in message")),
-        timeout_s=1.0,
-        max_image_bytes=1024,
-    )
-
-    await service.transform(SELFIE)
-
+    assert info.value.reason == "UPSTREAM_FAILED"
     assert "result=UPSTREAM_FAILED" in caplog.text
     assert "RuntimeError" in caplog.text
     assert "SELFIE-SECRET" not in caplog.text
+
+
+async def test_log_has_result_but_no_image_or_user(caplog: pytest.LogCaptureFixture) -> None:
+    caplog.set_level(logging.DEBUG)
+    client = FakeAvatarClient(job_status="SUCCEEDED")
+    service = _service(client)
+
+    await service.submit("42", SELFIE)
+    await service.result("42", JOB_ID)
+
+    assert "avatar_call op=submit result=ok" in caplog.text
+    assert f"job_id={JOB_ID}" in caplog.text
+    assert "SELFIE-SECRET" not in caplog.text
+    assert base64.b64encode(SELFIE).decode()[:16] not in caplog.text
+    assert base64.b64encode(PNG_1X1).decode()[:16] not in caplog.text
+    assert "user_id=42" not in caplog.text  # 회원 식별자는 로그에 남기지 않는다
+
+
+async def test_result_and_latest_and_body(caplog: pytest.LogCaptureFixture) -> None:
+    client = FakeAvatarClient(job_status="SUCCEEDED")
+    service = _service(client)
+
+    assert (await service.job("42", JOB_ID)).headId == HEAD_ID
+    assert (await service.result("42", JOB_ID)).headId == HEAD_ID
+    assert (await service.latest("42")).headId == HEAD_ID
+    assert (await service.body("daily")).pack["id"] == "daily"
+    assert client.calls == ["job", "result", "latest", "body"]
 
 
 async def test_selfie_never_touches_disk(
@@ -126,8 +141,10 @@ async def test_selfie_never_touches_disk(
     for name in ("TemporaryFile", "NamedTemporaryFile", "SpooledTemporaryFile", "mkstemp"):
         monkeypatch.setattr(tempfile, name, forbidden)
 
-    response = await client.post("/faces", content=SELFIE, headers={"Content-Type": "application/octet-stream"})
+    response = await client.post(
+        "/users/42/faces/jobs", content=SELFIE, headers={"Content-Type": "application/octet-stream"}
+    )
 
-    assert response.status_code == 200
+    assert response.status_code == 202
     assert writes == []
     assert "SELFIE-SECRET" not in caplog.text

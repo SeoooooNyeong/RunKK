@@ -1,0 +1,53 @@
+{
+  "endpoint": "GET /users/{userId}/faces/latest",
+  "scenario": "ok",
+  "request": {
+    "userId": "42"
+  },
+  "status": 200,
+  "body": {
+    "headId": "0b2c4d6e-8f1a-4b3c-9d5e-7f8a9b0c1d2e",
+    "userId": "42",
+    "faceImage": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgAAACAAFUok9dAAAAAElFTkSuQmCC",
+    "eyesImage": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgAAACAAFUok9dAAAAAElFTkSuQmCC",
+    "hairImage": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgAAACAAFUok9dAAAAAElFTkSuQmCC",
+    "traits": {
+      "hair": "검은색 가르마 머리",
+      "eyes": "둥근 갈색 눈",
+      "eyebrows": "완만한 눈썹",
+      "nose": "작은 코",
+      "mouth": "작은 미소",
+      "face": "둥근 얼굴",
+      "skin_tone": "밝고 따뜻한 색감",
+      "accessories": "없음",
+      "hair_length": "short"
+    },
+    "hairLength": "short",
+    "alignment": {
+      "pivotX": 0.5,
+      "pivotY": 0.9,
+      "skin": 0,
+      "estimated": false
+    },
+    "mobile": {
+      "canvas": [
+        1024,
+        1024
+      ],
+      "anchor": [
+        0.5,
+        0.88
+      ],
+      "renderFaceImage": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgAAACAAFUok9dAAAAAElFTkSuQmCC",
+      "displayHeight": 493.3,
+      "neckRemoved": true,
+      "skinColor": [
+        245,
+        207,
+        188
+      ]
+    },
+    "createdAt": "2026-10-29T01:53:02.761Z"
+  },
+  "gateway": "사용자의 가장 최근 머리"
+}

@@ -6,7 +6,11 @@
 |---|---|
 | `GET /health` | 상태 확인(토큰 검사 없음) |
 | `POST /comments` | 체력 요약 집계값 → AI 코멘트. 200 `{"text"}` / 503·504·422 `{"reason"}` |
-| `POST /faces` | 셀카(`application/octet-stream`) → 부위별 base64 PNG. 200 `{"parts"}` / 413·415·422·503·504 `{"reason"}` |
+| `POST /users/{userId}/faces/jobs` | 셀카(`application/octet-stream`) → 아바타 머리 생성 작업 접수. 202 `{"jobId","status","headId","error"}` / 413·415·422·503·504 `{"reason"}` |
+| `GET /users/{userId}/faces/jobs/{jobId}` | 작업 상태 `QUEUED`·`RUNNING`·`SUCCEEDED`·`FAILED`(실패도 200 + `error.code`). 404 `JOB_NOT_FOUND` |
+| `GET /users/{userId}/faces/jobs/{jobId}/result` | 완성된 머리: `faceImage`·`eyesImage`·`hairImage`(1024×1024 PNG Data URL)와 `traits`·`alignment`·`mobile`. 404 / 409 `JOB_NOT_READY` |
+| `GET /users/{userId}/faces/latest` | 사용자의 가장 최근 머리. 404 `HEAD_NOT_FOUND` |
+| `GET /avatar/bodies/{bodyId}` | 기본 몸 프리셋(`pack.mobile`로 앱이 머리와 합성). 404 `BODY_NOT_FOUND` |
 | `POST /sessions/{sessionId}/analyze` | 러닝 1회 원본(1초 센서·GPS·회복 심박) → RUN바디 분석 접수. 202 `{"sessionId","status","engineVersion"}` / 409·413·422 `{"reason"}` |
 | `GET /sessions/{sessionId}/status` | 분석 상태 `pending`·`done`·`failed`. 200 / 404 `{"reason"}` |
 | `GET /sessions/{sessionId}` | RUN바디 1회 결과(5각 점수·판정 라벨·코칭 플래그·km 랩·피드백 문장). 200 / 404·409 `{"reason"}` |
@@ -44,8 +48,8 @@ export RUNKK_INTERNAL_TOKEN=local-dev-token-0123456789 RUNKK_EXPOSE_DOCS=true
 uv run uvicorn --factory runkk_ai.main:create_app --port 8000
 ```
 
-제공자 키(`RUNKK_ANTHROPIC_API_KEY` 등)·얼굴 API 주소가 없어도 뜬다. 그때 `/comments`는 503 `LLM_UNAVAILABLE`,
-`/faces`는 503 `UPSTREAM_FAILED`를 돌려주고 api가 규칙 문구·기본 캐릭터로 대체한다. 환경 변수 목록은 `.env.example`.
+제공자 키(`RUNKK_ANTHROPIC_API_KEY` 등)·아바타 서버 주소가 없어도 뜬다. 그때 `/comments`는 503 `LLM_UNAVAILABLE`,
+`/users/{userId}/faces/*`는 503 `UPSTREAM_FAILED`를 돌려주고 api가 규칙 문구·기본 캐릭터로 대체한다. 환경 변수 목록은 `.env.example`.
 
 ### RUN바디 분석 해 보기
 
@@ -227,6 +231,26 @@ curl localhost:8000/models -H "X-Internal-Token: $T"
   `RUNKK_WRITER_MODEL_VERSION` 이름으로 등록한다(처음이면 바로 켜지고, 이미 켠 모델이 있으면 주소만 고친다).
 - 그래서 운영자가 바꿔 둔 모델은 **재시작해도 그대로 남는다**(`RUNKK_DB_URL`이 있을 때. 메모리 저장소면 재시작마다 환경 변수 모델로 돌아간다).
 - 폴백은 그대로다: 켜진 모델 → (검사 실패 시 1번 더) → 템플릿 문장.
+
+## 아바타 중계 (S15P31A207-164)
+
+얼굴은 ai가 만들지 않는다. 안선영 님의 Node 아바타 서버(명세 `RunKK_Node_API_Spec_v1.2`, 기준 경로 `/api/v1`)가
+셀카 → 특징 분석(gpt-4.1-mini) → 머리 1장 생성(gpt-image-2.5) → 코드 마스크로 **face(코·입·귀·피부)·eyes·hair(눈썹 포함)** 3레이어로
+나눠 저장하고, ai는 그 앞에서 입력 검사와 오류 형식 통일만 한다. 한 건에 약 54초가 걸려 **비동기**다(분석과 같은 폴링 패턴).
+
+```
+api  POST /users/{userId}/faces/jobs (셀카)      → ai → Node POST /head-jobs (multipart userId·clientRequestId·selfie) → 202 jobId
+api  GET  /users/{userId}/faces/jobs/{jobId}     → ai → Node GET /head-jobs/{id}?userId=    (SUCCEEDED가 될 때까지 폴링)
+api  GET  /users/{userId}/faces/jobs/{jobId}/result → ai → Node GET /head-jobs/{id}/result?userId=
+api  GET  /users/{userId}/faces/latest           → ai → Node GET /heads/latest?userId=
+api  GET  /avatar/bodies/{bodyId}                → ai → Node GET /bodies/{id}
+```
+
+- `clientRequestId`는 ai가 `uuid5(userId:sha256(셀카))`로 만든다. 같은 사용자가 같은 셀카를 다시 보내면 Node가 같은 작업을 돌려줘 이미지 생성 과금이 겹치지 않는다.
+- Node 오류 `code`는 `JOB_NOT_FOUND`·`HEAD_NOT_FOUND`·`BODY_NOT_FOUND`(404)·`JOB_NOT_READY`(409)·`UPSTREAM_TIMEOUT`(504 `TIMEOUT`)만 그대로 옮기고 나머지는 503 `UPSTREAM_FAILED`다.
+  작업 자체의 실패(`SELFIE_QUALITY_REJECTED`, `NO_FACE_DETECTED` 등)는 HTTP 오류가 아니라 상태 조회 200의 `error.code`로 온다.
+- 셀카는 메모리에서만 다루고(UploadFile·임시 파일 없음) 로그에는 사용자 식별자·이미지를 남기지 않는다. `metrics`(과금 지표)는 응답에서 뺀다.
+- 설정은 `RUNKK_FACE_API_URL` 하나다(compose `avatar` 프로필을 켠 환경에서 `http://avatar:3000/api/v1`). 컨테이너 구성은 `infra/docker-compose.yml`의 `avatar` 서비스.
 
 ## 컨테이너
 

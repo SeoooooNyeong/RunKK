@@ -1,7 +1,7 @@
 [project]
 name = "runkk-ai"
 version = "0.1.0"
-description = "런크크 ai 서버: AI 코멘트(/comments), 셀카 얼굴 변환(/faces), RUN바디 1회 분석(/sessions). api 컨테이너만 부르는 내부 서비스"
+description = "런크크 ai 서버: AI 코멘트(/comments), 셀카 아바타 중계(/users/{userId}/faces), RUN바디 1회 분석(/sessions). api 컨테이너만 부르는 내부 서비스"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "fastapi==0.150.0",
@@ -117,12 +117,12 @@ layers = [
 ]
 
 [[tool.importlinter.contracts]]
-name = "face: 라우터 → 서비스 → 추상 변환기 한 방향"
+name = "face: 라우터 → 서비스 → 아바타 클라이언트 → 응답 형식 한 방향"
 type = "layers"
 layers = [
     "runkk_ai.face.router",
     "runkk_ai.face.service",
-    "runkk_ai.face.transformer",
+    "runkk_ai.face.client",
     "runkk_ai.face.schemas",
 ]
 
