@@ -54,6 +54,15 @@ fun RunResultRoute(recordId: String, viewModel: RunResultViewModel = hiltViewMod
     LaunchedEffect(recordId) { viewModel.load(recordId) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val navigator = LocalRunkkNavigator.current
+    LaunchedEffect(viewModel) {
+        viewModel.events.collect { event ->
+            when (event) {
+                is RunResultEvent.NavigateEvaluation -> event.evaluation.let {
+                    navigator.navigate(Routes.Evaluation(it.tier, it.validRuns, it.runimalType))
+                }
+            }
+        }
+    }
     RunResultScreen(
         state = state,
         onCard = { navigator.navigate(Routes.RecordCard(recordId)) },
