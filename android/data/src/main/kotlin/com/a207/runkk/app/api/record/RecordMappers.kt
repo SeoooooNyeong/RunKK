@@ -61,7 +61,8 @@ internal fun DashboardResponse.toDomain(): Dashboard = Dashboard(
             distancePercent = it.distancePercent
         )
     },
-    grassLevels = grassLevels.entries.associate { (date, level) -> ServerTime.parseDate(date) to level }
+    grassLevels = grassLevels.entries.associate { (date, level) -> ServerTime.parseDate(date) to level },
+    rewardBalance = rewardBalance
 )
 
 internal fun RecordListResponse.toDomain(): RecordList = RecordList(runs.map { it.toDomain() })

@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -12,6 +11,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -27,8 +27,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.a207.runkk.app.core.designsystem.RunkkCard
 import com.a207.runkk.app.core.designsystem.RunkkColors
+import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkLoading
 import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
 import com.a207.runkk.app.core.designsystem.RunkkSwitchRow
@@ -52,7 +52,8 @@ fun ProfileEditRoute(viewModel: ProfileEditViewModel = hiltViewModel()) {
         onIntroChange = viewModel::onIntroChange,
         onSave = viewModel::onSave,
         onErrorShown = viewModel::onErrorShown,
-        onProfilePublicChange = viewModel::onProfilePublicChange
+        onAgePublicChange = viewModel::onAgePublicChange,
+        onGenderPublicChange = viewModel::onGenderPublicChange
     )
 }
 
@@ -65,7 +66,8 @@ fun ProfileEditScreen(
     onSave: () -> Unit,
     onErrorShown: () -> Unit,
     modifier: Modifier = Modifier,
-    onProfilePublicChange: (Boolean) -> Unit = {}
+    onAgePublicChange: (Boolean) -> Unit = {},
+    onGenderPublicChange: (Boolean) -> Unit = {}
 ) {
     val snackbar = remember { SnackbarHostState() }
     val errorText = state.error?.asString()
@@ -87,7 +89,8 @@ fun ProfileEditScreen(
                     state = state,
                     onNicknameChange = onNicknameChange,
                     onIntroChange = onIntroChange,
-                    onProfilePublicChange = onProfilePublicChange,
+                    onAgePublicChange = onAgePublicChange,
+                    onGenderPublicChange = onGenderPublicChange,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -112,13 +115,14 @@ private fun SaveAction(state: ProfileEditUiState, onSave: () -> Unit) {
     }
 }
 
-/** 닉네임·한줄 소개 입력칸과 나이대·성별·소개 공개. 성향 태그는 편집 항목에서 뺐다(FR-007, D-91). */
+/** 닉네임·한줄 소개 입력칸과 나이·성별 공개 스위치(G-2). 사진 칸과 성향 태그는 편집 항목에서 뺐다(D-287, D-91). */
 @Composable
 private fun ProfileEditForm(
     state: ProfileEditUiState,
     onNicknameChange: (String) -> Unit,
     onIntroChange: (String) -> Unit,
-    onProfilePublicChange: (Boolean) -> Unit,
+    onAgePublicChange: (Boolean) -> Unit,
+    onGenderPublicChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -145,15 +149,29 @@ private fun ProfileEditForm(
             ),
             imeAction = ImeAction.Done
         )
-        state.isProfilePublic?.let { isPublic ->
-            RunkkCard(contentPadding = PaddingValues(0.dp), verticalArrangement = Arrangement.Top) {
-                RunkkSwitchRow(
-                    title = stringResource(R.string.me_profile_public_title),
-                    isChecked = isPublic,
-                    onCheckedChange = onProfilePublicChange
-                )
-            }
-        }
+        val public = stringResource(R.string.me_profile_public)
+        val private = stringResource(R.string.me_profile_private)
+        RunkkSwitchRow(
+            title = stringResource(R.string.me_profile_age_title),
+            description = stringResource(
+                R.string.me_profile_visibility_value,
+                state.ageBand ?: RunkkFormat.EMPTY,
+                if (state.isAgePublic) public else private
+            ),
+            isChecked = state.isAgePublic,
+            onCheckedChange = onAgePublicChange
+        )
+        HorizontalDivider(color = RunkkColors.Border)
+        RunkkSwitchRow(
+            title = stringResource(R.string.me_profile_gender_title),
+            description = stringResource(
+                R.string.me_profile_visibility_value,
+                state.gender?.let { stringResource(genderLabelRes(it)) } ?: RunkkFormat.EMPTY,
+                if (state.isGenderPublic) public else private
+            ),
+            isChecked = state.isGenderPublic,
+            onCheckedChange = onGenderPublicChange
+        )
     }
 }
 
@@ -166,7 +184,9 @@ private fun ProfileEditPreview() {
                 isLoading = false,
                 nickname = "달리는곰",
                 intro = "퇴근 뒤 한강",
-                isProfilePublic = true
+                ageBand = "20대",
+                gender = com.a207.runkk.app.domain.account.Gender.FEMALE,
+                isAgePublic = true
             ),
             onBack = {},
             onNicknameChange = {},

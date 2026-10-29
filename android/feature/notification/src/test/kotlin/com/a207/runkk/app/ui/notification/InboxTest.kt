@@ -203,7 +203,7 @@ class InboxTest {
             .map { it.name }
             .toSet()
         val keys = Routes::class.java.declaredClasses.map { it.simpleName }.toSet()
-        assertEquals(V010_CONSTANTS + V011_CONSTANTS, constants)
+        assertEquals(V010_CONSTANTS + V011_CONSTANTS + V014_CONSTANTS, constants)
         assertEquals(V010_KEYS + V011_KEYS + WIRE_V010_KEYS, keys)
     }
 
@@ -228,6 +228,9 @@ class InboxTest {
             "CREW_SCHEDULE",
             "CREW_CHAT"
         )
+
+        /** v0.14 하단 탭 재구성(D-250)과 배틀런 화면(D-268)이 더한 경로. */
+        val V014_CONSTANTS = setOf("RECORD_RUN", "BATTLE_MODE")
         val V010_KEYS = setOf(
             "Key", "RunResult", "RecordDetail", "RecordCard", "BattleRunning", "BattleQuickMatch", "BattleResult",
             "CrewHome", "CrewManage", "CrewRunWrite", "CrewRunLobby", "CrewRunResult"

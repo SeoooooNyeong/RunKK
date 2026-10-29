@@ -1,0 +1,42 @@
+package com.a207.runkk.app.core.designsystem
+
+import androidx.annotation.DrawableRes
+import androidx.compose.foundation.Image
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
+import com.a207.runkk.app.core.model.FaceLayer
+
+/**
+ * 아바타 한 칸(D-254). 아바타 꾸미기(AVATAR_CUSTOMIZE)가 닫혀 있으면 [faceKey]를 무시하고 기본 아바타의 [expression] 그림을 그리고,
+ * 열려 있으면 기존 얼굴 그림([RunkkAvatarPortrait])을 쓴다. 홈·마이·결과·랭킹 행·매칭 성공 등이 모두 이 하나를 부른다.
+ * 장식이므로 읽기 정보는 부르는 쪽이 붙인다.
+ */
+@Composable
+fun RunkkAvatar(
+    faceKey: String?,
+    expression: AvatarExpression,
+    modifier: Modifier = Modifier,
+    faceLayers: List<FaceLayer> = emptyList()
+) {
+    if (LocalReleaseScope.current.isOpen(UnreleasedFeature.AVATAR_CUSTOMIZE)) {
+        RunkkAvatarPortrait(faceKey ?: RunkkAvatarArt.DEFAULT_FACE_KEY, faceLayers, modifier)
+    } else {
+        Image(
+            painterResource(defaultAvatarOf(expression)),
+            contentDescription = null,
+            modifier = modifier.testTag(DEFAULT_AVATAR_TAG + expression.name)
+        )
+    }
+}
+
+/** 기본 아바타 그림(표정별 2종). */
+@DrawableRes
+fun defaultAvatarOf(expression: AvatarExpression): Int = when (expression) {
+    AvatarExpression.JOY -> R.drawable.avatar_default_joy
+    AvatarExpression.SAD -> R.drawable.avatar_default_sad
+}
+
+/** 기본 아바타 그림의 시험 표지 접두어(뒤에 표정 이름). */
+const val DEFAULT_AVATAR_TAG = "default-avatar-"

@@ -76,7 +76,10 @@ class MeScreenshotTest {
                 isLoading = false,
                 nickname = "달리는곰",
                 intro = "퇴근 뒤 한강",
-                isProfilePublic = false
+                ageBand = "20대",
+                gender = com.a207.runkk.app.domain.account.Gender.FEMALE,
+                isAgePublic = true,
+                isGenderPublic = false
             ),
             onBack = {},
             onNicknameChange = {},

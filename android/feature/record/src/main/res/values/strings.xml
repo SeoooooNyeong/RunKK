@@ -85,7 +85,7 @@
     <string name="record_growth_bests_title">거리별 최고 기록</string>
     <string name="record_distance_half">하프</string>
     <string name="record_distance_full">풀</string>
-    <string name="record_report_title">리포트</string>
+    <string name="record_report_title">런바디</string>
     <string name="record_report_summary_title">이번 주 요약</string>
     <string name="record_report_comment_title">코치 코멘트</string>
     <string name="record_report_rule_based">규칙 기반 문구예요</string>

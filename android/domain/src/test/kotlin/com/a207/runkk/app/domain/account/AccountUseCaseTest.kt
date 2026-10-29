@@ -35,7 +35,7 @@ internal class FakeAccountRepository(private val log: CallLog) : AccountReposito
 
     override suspend fun profile(memberId: Long): Outcome<Profile> = error("unused")
 
-    override suspend fun editProfile(nickname: String, intro: String?): Outcome<Unit> = call("editProfile", Unit)
+    override suspend fun editProfile(edit: ProfileEdit): Outcome<Unit> = call("editProfile", Unit)
 
     override suspend fun changeSetting(item: String, value: String): Outcome<Unit> =
         call("changeSetting:$item=$value", Unit)

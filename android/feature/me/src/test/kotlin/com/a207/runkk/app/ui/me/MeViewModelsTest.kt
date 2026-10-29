@@ -8,8 +8,10 @@ import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.account.ChangeSettingUseCase
+import com.a207.runkk.app.domain.account.Gender
 import com.a207.runkk.app.domain.account.LinkSocialAccountUseCase
 import com.a207.runkk.app.domain.account.LogoutUseCase
+import com.a207.runkk.app.domain.account.ProfileEdit
 import com.a207.runkk.app.domain.account.ProviderType
 import com.a207.runkk.app.domain.account.WithdrawUseCase
 import kotlin.test.assertEquals
@@ -95,7 +97,7 @@ class MeViewModelsTest {
 
     @Test
     fun `닉네임 2~20자는 코드 포인트로 센다 - 이모지 1자는 저장하지 않고 20자는 자르지 않는다(D-143)`() = runTest {
-        val vm = ProfileEditViewModel(account, ChangeSettingUseCase(account, settingsCopy))
+        val vm = ProfileEditViewModel(account)
         val emoji = "\uD83C\uDFC3"
 
         vm.onNicknameChange(emoji)
@@ -122,21 +124,43 @@ class MeViewModelsTest {
     }
 
     @Test
-    fun `프로필 편집은 현재 값을 채우고 바꾼 값을 저장한다(FR-007)`() = runTest {
-        val vm = ProfileEditViewModel(account, ChangeSettingUseCase(account, settingsCopy))
+    fun `TC-9740 프로필 편집은 현재 값을 채우고 닉네임·소개·나이대·성별 공개를 함께 저장한다(FR-007, D-287)`() = runTest {
+        val vm = ProfileEditViewModel(account)
         assertEquals("달리는곰", vm.state.value.nickname)
+        assertEquals(true, vm.state.value.isAgePublic)
+        assertEquals(false, vm.state.value.isGenderPublic)
+        assertEquals("30대", vm.state.value.ageBand)
+        assertEquals(Gender.FEMALE, vm.state.value.gender)
         vm.onNicknameChange("빠른곰")
+        vm.onAgePublicChange(false)
+        vm.onGenderPublicChange(true)
         vm.events.test {
             vm.onSave()
             assertEquals(ProfileEditEvent.Saved, awaitItem())
         }
-        assertEquals("빠른곰" to "퇴근 뒤 한강", account.lastEdit)
+        assertEquals(ProfileEdit("빠른곰", "퇴근 뒤 한강", isAgePublic = false, isGenderPublic = true), account.lastEdit)
+        assertFalse(account.calls.any { it.startsWith("changeSetting") })
+    }
+
+    @Test
+    fun `TC-9740 한줄 소개는 40자까지 받고 41자째는 막는다`() {
+        val vm = ProfileEditViewModel(account)
+        vm.onIntroChange("가".repeat(41))
+        assertEquals(40, vm.state.value.intro.length)
+    }
+
+    @Test
+    fun `옛 서버라 공개 여부가 없으면 비공개로 둔다(가정, D-289)`() {
+        account.profile = sampleProfile.copy(isAgePublic = null, isGenderPublic = null)
+        val vm = ProfileEditViewModel(account)
+        assertEquals(false, vm.state.value.isAgePublic)
+        assertEquals(false, vm.state.value.isGenderPublic)
     }
 
     @Test
     fun `프로필 저장이 거부되면 사유를 보이고 머문다`() {
         account.failures["editProfile"] = AppError.Rejected("NICKNAME_INVALID")
-        val vm = ProfileEditViewModel(account, ChangeSettingUseCase(account, settingsCopy))
+        val vm = ProfileEditViewModel(account)
         vm.onSave()
         assertEquals(RunkkErrorText.rejected("NICKNAME_INVALID"), vm.state.value.error)
         assertFalse(vm.state.value.isSaving)
@@ -217,18 +241,6 @@ class MeViewModelsTest {
     @Test
     fun `소셜 계정 연동 화면은 내 닉네임을 보인다(F9)`() {
         assertEquals(sampleProfile.displayName, settingsViewModel().state.value.nickname)
-    }
-
-    @Test
-    fun `프로필 편집에서 공개를 바꾸면 저장할 때 개인정보 공개 설정을 함께 보낸다(F3, FR-010)`() = runTest {
-        val vm = ProfileEditViewModel(account, ChangeSettingUseCase(account, settingsCopy))
-        assertEquals(false, vm.state.value.isProfilePublic)
-        vm.onProfilePublicChange(true)
-        vm.events.test {
-            vm.onSave()
-            assertEquals(ProfileEditEvent.Saved, awaitItem())
-        }
-        assertTrue("changeSetting:PROFILE_VISIBILITY=PUBLIC" in account.calls)
     }
 
     @Test

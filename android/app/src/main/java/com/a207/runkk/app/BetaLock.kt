@@ -4,10 +4,10 @@ import androidx.navigation3.runtime.NavKey
 import com.a207.runkk.app.core.navigation.Routes
 
 /**
- * v0.9 베타(Play, prod 플레이버)에서 열지 않는 기능(S15P31A207-218): 크루(채팅 포함), 아바타(상점·배경 포함), 셀럽런.
- * 기능 코드는 그대로 두고 [RunkkNavHost]가 이 경로들을 "추후 추가 예정" 화면으로 바꾼다. 하단 탭·홈·마이·알림함 진입이 모두
- * 화면 그래프를 지나므로 여기 한 곳에서 막힌다. 켜고 끄는 값은 app/build.gradle.kts의 LOCK_UNRELEASED다.
- * release 빌드는 R8이 클래스 이름을 바꾸므로 이름이 아니라 타입으로 고른다.
+ * 1차 배포(LOCK_UNRELEASED 참인 빌드)에서 경로로 막는 기능(D-251, FR-223): 크루(하위 경로·인자 키·채팅·알림 이동 크루 화면 포함)와
+ * 아바타(만들기·상점·배경 고르기 포함). 보통의 진입점은 화면이 ReleaseScope로 숨기고(D-252), 이 목록은 알림·딥링크로 들어오는
+ * 우회 진입을 막는 방어선이다. [RunkkNavHost]가 잠긴 경로 대신 LockedFeatureDialog를 띄우고 뒤로 돌린다(D-253).
+ * 셀럽런은 1차 배포 대상이라 목록에서 뺐다. release 빌드는 R8이 클래스 이름을 바꾸므로 이름이 아니라 타입으로 고른다.
  */
 internal object BetaLock {
     fun isLocked(key: NavKey): Boolean = when (key) {
@@ -29,8 +29,7 @@ internal object BetaLock {
         else -> false
     }
 
-    private fun isLockedRoute(route: String): Boolean = route == Routes.CELEB ||
-        route == Routes.CREW ||
+    private fun isLockedRoute(route: String): Boolean = route == Routes.CREW ||
         route.startsWith("${Routes.CREW}/") ||
         route == Routes.AVATAR ||
         route.startsWith("${Routes.AVATAR}/")
