@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 기록 화면 대결 탭(BattleHistoryTab, D-281). 다른 대결 화면 문자열과 나눠 둔다. -->
+<resources>
+    <string name="battle_history_type_battle">배틀런</string>
+    <string name="battle_history_type_friend">친구 대결</string>
+    <string name="battle_history_type_self">셀프런</string>
+    <string name="battle_history_type_celeb">셀럽런</string>
+    <string name="battle_history_row_caption">%1$s · %2$s · %3$s</string>
+    <string name="battle_history_date_pattern">M월 d일</string>
+    <string name="battle_history_tab_empty_message">배틀런이나 셀프런을 시작해 보세요</string>
+</resources>

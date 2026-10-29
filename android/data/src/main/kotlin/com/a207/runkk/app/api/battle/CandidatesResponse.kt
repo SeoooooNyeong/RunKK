@@ -2,7 +2,10 @@ package com.a207.runkk.app.api.battle
 
 import kotlinx.serialization.Serializable
 
-/** 나와의 싸움·유명인 후보(서버 battle.RecordBattleCandidates). id는 유명인 기록 ID(나와의 싸움은 null). */
+/**
+ * 나와의 싸움·유명인 후보(서버 battle.RecordBattleCandidates). id는 유명인 기록 ID(나와의 싸움은 null). myBestSeconds는 유명인 후보의
+ * 그 거리 내 최고 기록(초, v0.14 서버 D-238)이고 없으면 null이다.
+ */
 @Serializable
 internal data class CandidatesResponse(val candidates: List<Candidate> = emptyList()) {
     @Serializable
@@ -13,6 +16,7 @@ internal data class CandidatesResponse(val candidates: List<Candidate> = emptyLi
         val finishSeconds: Long? = null,
         val recordedOn: String? = null,
         val sourceLabel: String? = null,
-        val estimated: Boolean = false
+        val estimated: Boolean = false,
+        val myBestSeconds: Long? = null
     )
 }

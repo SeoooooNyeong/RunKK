@@ -16,6 +16,12 @@ interface RecordRepository {
 
     suspend fun run(recordId: String): Outcome<RecordDetail>
 
+    /**
+     * 집계 제외 기록 삭제(DELETE /runs/{id}, FR-225, D-280). 되돌릴 수 없다. 유효·재판정 대기 기록은 Rejected(RECORD_VALID_NOT_DELETABLE),
+     * 이미 없으면 Rejected(RECORD_NOT_FOUND), 남의 기록은 Rejected(PERMISSION_DENIED)다.
+     */
+    suspend fun delete(recordId: String): Outcome<Unit>
+
     suspend fun growth(period: AggregationPeriod): Outcome<Growth>
 
     suspend fun report(): Outcome<Report>

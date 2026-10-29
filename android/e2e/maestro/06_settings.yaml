@@ -4,9 +4,7 @@ name: 06_settings
 tags: [smoke]
 ---
 - launchApp
-- extendedWaitUntil:
-    visible: "자유런 시작"
-    timeout: 20000
+- runFlow: common/home_ready.yaml
 - tapOn: "마이"
 - tapOn: "설정"
 - extendedWaitUntil:
@@ -34,9 +32,7 @@ tags: [smoke]
     id: "setting_course_map_shared"
     checked: true
 - launchApp
-- extendedWaitUntil:
-    visible: "자유런 시작"
-    timeout: 20000
+- runFlow: common/home_ready.yaml
 - tapOn: "마이"
 - tapOn: "설정"
 - extendedWaitUntil:

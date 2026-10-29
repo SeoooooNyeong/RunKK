@@ -19,6 +19,9 @@ interface RunkkNavigator {
     /** 한 화면 뒤로. */
     fun back()
 
+    /** 맨 위 화면을 [key]로 바꾼다. 뒤로 가면 바꾸기 전 화면 아래로 돌아간다(평가 결과 → 유형 상세). 맨 위 하나뿐이어도 앱을 닫지 않는다. */
+    fun replace(key: NavKey)
+
     /** 하단 탭으로 옮긴다(홈 위에 탭 화면 하나만 남긴다). */
     fun selectTab(route: String)
 
@@ -32,6 +35,8 @@ interface RunkkNavigator {
         override fun navigate(key: NavKey) = Unit
 
         override fun back() = Unit
+
+        override fun replace(key: NavKey) = Unit
 
         override fun selectTab(route: String) = Unit
 

@@ -30,7 +30,9 @@ fun RunkkAppContent(
     featureEntries: Set<FeatureEntry>,
     loggedIn: Boolean?,
     onExit: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    pendingInvite: String? = null,
+    onInviteOpened: () -> Unit = {}
 ) {
     var startRoute by remember { mutableStateOf<String?>(null) }
     if (startRoute == null && loggedIn != null) startRoute = startRouteFor(loggedIn)
@@ -44,7 +46,9 @@ fun RunkkAppContent(
             onExit = onExit,
             modifier = modifier,
             loggedIn =
-                loggedIn ?: false
+                loggedIn ?: false,
+            pendingInvite = pendingInvite,
+            onInviteOpened = onInviteOpened
         )
     }
 }

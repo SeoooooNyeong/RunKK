@@ -3,8 +3,10 @@ package com.a207.runkk.app.ui.battle
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Pace
+import com.a207.runkk.app.core.model.RouteLine
 import com.a207.runkk.app.domain.live.BattleGuidance
 import java.time.Duration
+import java.time.LocalDate
 
 data class BattleRunningUiState(
     val battleId: Long = 0,
@@ -37,9 +39,17 @@ data class BattleRunningUiState(
     val closingLimitSeconds: Long? = null,
     val isConfirmingForfeit: Boolean = false,
     val hint: UiText? = null,
-    val error: UiText? = null
+    val error: UiText? = null,
+    /** 내 경로선(측정 중, D-261). 상대 마커는 이 경로 위 "내 거리 + 격차" 지점이다(D-262). */
+    val route: RouteLine = RouteLine.EMPTY,
+    /** 상대 기록(셀프런 과거의 나, 셀럽): 카운트다운 "5km 기록 30:12"(D-264). */
+    val opponentRecord: Duration? = null,
+    /** 과거의 나 기록 날짜("10월 2일의 나"). */
+    val opponentRecordedOn: LocalDate? = null,
+    /** 셀럽런 카운트다운의 그 거리 내 최고 기록(없으면 "첫 도전"). */
+    val myBest: Duration? = null
 ) {
-    /** 측정 중인가(진행·종료 카운트다운). 잠금 버튼은 이때만 보인다. */
+    /** 측정 중인가(진행·종료 카운트다운). */
     val isMeasuring: Boolean get() = phase == BattlePhase.RUNNING || phase == BattlePhase.CLOSING
 
     private companion object {

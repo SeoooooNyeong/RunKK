@@ -11,13 +11,34 @@
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/Theme.Runkk">
+        <!-- singleTask: 외부 앱(카카오톡·브라우저)에서 초대 링크로 열어도 화면 그래프가 하나다(D-272). 새 링크는 onNewIntent로 받는다. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTask"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- 친구 대결 초대 앱 링크(D-272): https://k15a207.p.ssafy.io/invite/battle/{token}. 검증 파일은 서버 nginx assetlinks.json. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="https"
+                    android:host="k15a207.p.ssafy.io"
+                    android:pathPrefix="/invite/battle/" />
+            </intent-filter>
+            <!-- 카카오톡 초대 메시지의 실행 링크(D-270): kakao{앱 키}://kakaolink?invite={token}. 스킴은 빌드 속성 KAKAO_NATIVE_APP_KEY. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="${kakaoScheme}"
+                    android:host="kakaolink" />
             </intent-filter>
         </activity>
     </application>

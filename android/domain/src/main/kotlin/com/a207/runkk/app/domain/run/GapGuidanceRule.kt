@@ -7,7 +7,8 @@ import java.time.ZoneOffset
 import kotlin.math.abs
 
 /**
- * 대결: 중간 알림 간격(500m/1km)의 새 지점에서 음성이 켜져 있으면 격차와 남은 거리(FR-189). 진동은 대결 진동 설정을 따른다(F-2).
+ * 대결: 중간 알림 간격(500m/1km)의 새 지점에서 격차와 남은 거리(FR-189). 음성은 대결 음성 설정, 진동은 대결 진동 설정을 따로
+ * 따르고 둘 다 꺼져 있을 때만 안내하지 않는다(D-265).
  * 남은 거리는 todayPlan.targetDistance(조정자가 넣은 대결 거리)가 있을 때만 붙인다.
  */
 class GapGuidanceRule : GuidanceRule {
@@ -23,7 +24,8 @@ class GapGuidanceRule : GuidanceRule {
                 ?: PointCrossing(interval, start).also { crossing = it }
         val newPoint = points.newPoint(ctx.progress.distance)
         val gap = ctx.gapMeters
-        if (newPoint == null || gap == null || !settings.isBattleVoiceOn) return null
+        if (newPoint == null || gap == null) return null
+        if (!settings.isBattleVoiceOn && !settings.isBattleVibrationOn) return null
         val isAhead = gap >= 0
         val remaining = ctx.todayPlan?.targetDistance?.minus(ctx.progress.distance)
         val message =
@@ -33,6 +35,12 @@ class GapGuidanceRule : GuidanceRule {
                 else -> GuidanceMessage.GAP_BEHIND_REMAINING
             }
         val args = listOfNotNull<Any>(abs(gap), remaining?.meters)
-        return Guidance(Guidance.Kind.GAP, message, args, hasVoice = true, hasVibration = settings.isBattleVibrationOn)
+        return Guidance(
+            Guidance.Kind.GAP,
+            message,
+            args,
+            hasVoice = settings.isBattleVoiceOn,
+            hasVibration = settings.isBattleVibrationOn
+        )
     }
 }

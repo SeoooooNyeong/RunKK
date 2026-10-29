@@ -36,4 +36,22 @@ interface BattleRepository {
      * 결과의 nextCursor가 null이면 끝이다.
      */
     suspend fun history(filter: BattleHistory.Type?, cursor: Long? = null): Outcome<BattleHistory>
+
+    /** 친구 대결 초대 만들기(POST /battles/friend-invites, D-270). 거부는 Rejected(INVITE_ALREADY_PENDING 등). */
+    suspend fun createFriendInvite(distance: Distance): Outcome<FriendInvite>
+
+    /** 내가 보낸 열린 초대(GET /battles/friend-invites/mine, D-271). 없으면(204) Success(null)이다. */
+    suspend fun myFriendInvite(): Outcome<FriendInvite?>
+
+    /** 초대 취소(DELETE /battles/friend-invites/{inviteId}). 끝난 초대도 성공이다. 이미 참가했으면 Rejected(INVITE_ALREADY_JOINED). */
+    suspend fun cancelFriendInvite(inviteId: Long): Outcome<Unit>
+
+    /** 받은 초대의 참가 확인 정보(GET …/by-token/{token}, D-273). 없는 토큰은 Rejected(INVITE_NOT_FOUND). */
+    suspend fun friendInvite(token: String): Outcome<FriendInviteView>
+
+    /** 참가(POST …/by-token/{token}/accept, D-274). 성공하면 대결 ID이고, 서버가 이어서 MatchFound·BattleStart를 보낸다. */
+    suspend fun acceptFriendInvite(token: String): Outcome<Long>
+
+    /** 거절(POST …/by-token/{token}/decline, D-273). */
+    suspend fun declineFriendInvite(token: String): Outcome<Unit>
 }

@@ -1,26 +1,29 @@
-# 시나리오 4: 기록 목록(마이 > 러닝 기록 > 목록)과 상세(코스 지도·구간 페이스)를 연다.
+# 시나리오 4: 기록 화면(마이 > 러닝 기록, 달력 | 목록 | 대결 탭)의 목록 탭과 기록 상세(코스 지도·구간 페이스)를 연다.
 appId: ${APP_ID}
 name: 04_records
 tags: [smoke]
 ---
 - launchApp
-- extendedWaitUntil:
-    visible: "자유런 시작"
-    timeout: 20000
+- runFlow: common/home_ready.yaml
 - tapOn: "마이"
 - tapOn: "러닝 기록"
+- extendedWaitUntil:
+    visible: "목록"
+    timeout: 15000
+- tapOn: "목록"
 - extendedWaitUntil:
     visible:
       id: "record_row"
     timeout: 15000
-- assertVisible: '1\.[0-9]{2}km, 자유런'
+# 목록 행은 거리("1.16km"), 태그(자유런), 날짜·시간·페이스 줄을 한 덩어리로 읽는다.
+- assertVisible: '1\.[0-9]{2}km.*'
 - takeScreenshot: 04_records_list
 - tapOn:
     id: "record_row"
 - extendedWaitUntil:
     visible: "기록 상세"
     timeout: 10000
-- assertVisible: "코스 지도"
+- assertVisible: '코스 지도.*'
 - scrollUntilVisible:
     element: "구간 페이스"
     direction: DOWN

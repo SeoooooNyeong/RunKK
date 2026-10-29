@@ -14,11 +14,14 @@ import java.time.Duration
 import javax.inject.Inject
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.mapNotNull
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -28,6 +31,7 @@ import kotlinx.coroutines.withTimeoutOrNull
  * 서버에 올라갔으면 RecordRepository.run의 구간 페이스·신기록·심박 구간·리워드 적립을 더한다. 계산은 서버가 한다.
  * 거리·시간·페이스는 서버가 초과 시속 구간을 뺀 값이다(FR-047). 유효·집계 제외는 화면에 보이지 않는다(D29).
  * 휴식(정지 구간 합)은 기기 보관 기록의 정지 구간이나 서버 pausedSeconds로 보인다.
+ * 서버 기록에 티어 평가(evaluation)가 실리면 평가 화면으로 한 번 이동한다(대결 결과와 같은 방식, D-284).
  */
 @HiltViewModel
 class RunResultViewModel @Inject constructor(
@@ -37,7 +41,13 @@ class RunResultViewModel @Inject constructor(
     private val _state = MutableStateFlow(RunResultUiState())
     val state: StateFlow<RunResultUiState> = _state.asStateFlow()
 
+    private val _events = Channel<RunResultEvent>(Channel.BUFFERED)
+    val events: Flow<RunResultEvent> = _events.receiveAsFlow()
+
     private var loadJob: Job? = null
+
+    /** 평가 화면은 이 화면에서 한 번만 연다(다시 읽기·보관함 비움 뒤 재조회에도 다시 열지 않는다). */
+    private var isEvaluationShown = false
 
     /**
      * [recordId]의 결과를 읽는다. 같은 기록을 다시 부르면 무시하고, [isForced]면 다시 읽는다.
@@ -96,8 +106,14 @@ class RunResultViewModel @Inject constructor(
                         newRecords = detail.newRecords,
                         heartRateZones = detail.heartRateZones.toList(),
                         rewardPoints = detail.rewardPoints,
-                        pausedTotal = detail.paused?.takeIf { paused -> !paused.isZero } ?: it.pausedTotal
+                        pausedTotal = detail.paused.takeIf { paused -> !paused.isZero } ?: it.pausedTotal
                     )
+                }
+                detail.evaluation?.let { evaluation ->
+                    if (!isEvaluationShown) {
+                        isEvaluationShown = true
+                        _events.trySend(RunResultEvent.NavigateEvaluation(evaluation))
+                    }
                 }
                 true
             }

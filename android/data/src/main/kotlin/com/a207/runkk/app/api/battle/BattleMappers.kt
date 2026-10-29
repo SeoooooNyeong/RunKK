@@ -7,6 +7,8 @@ import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.domain.battle.ActiveBattle
 import com.a207.runkk.app.domain.battle.BattleHistory
 import com.a207.runkk.app.domain.battle.BattleResult
+import com.a207.runkk.app.domain.battle.FriendInvite
+import com.a207.runkk.app.domain.battle.FriendInviteView
 import com.a207.runkk.app.domain.battle.MatchAcceptance
 import com.a207.runkk.app.domain.battle.OpponentTrack
 import com.a207.runkk.app.domain.battle.RecordBattleCandidates
@@ -29,7 +31,8 @@ internal fun CandidatesResponse.toDomain(): RecordBattleCandidates = RecordBattl
             finishTime = it.finishSeconds?.let(Duration::ofSeconds),
             recordedOn = it.recordedOn?.let(ServerTime::parseDate),
             sourceLabel = it.sourceLabel,
-            isEstimated = it.estimated
+            isEstimated = it.estimated,
+            myBest = it.myBestSeconds?.let(Duration::ofSeconds)
         )
     }
 )
@@ -64,7 +67,34 @@ internal fun BattleResultResponse.toDomain(): BattleResult = BattleResult(
     recordId = recordId?.takeIf { it.isNotBlank() },
     myReach = myReachSeconds?.let(Duration::ofSeconds),
     opponentReach = opponentReachSeconds?.let(Duration::ofSeconds),
-    weekly = weekly?.let { BattleResult.Weekly(it.wins, it.losses, it.draws) }
+    type = enumByName<BattleHistory.Type>(type),
+    totalRewardPoints = totalRewardPoints,
+    evaluation = evaluation?.toDomain()
+)
+
+/** tier가 없으면(옛 서버·깨진 값) 평가 없음으로 본다(D-289). */
+private fun BattleResultResponse.EvaluationDto.toDomain(): BattleResult.Evaluation? {
+    val tier = tier?.takeIf { it.isNotBlank() } ?: return null
+    return BattleResult.Evaluation(kind.orEmpty(), tier, validRuns, runimalType)
+}
+
+internal fun InviteResponse.toDomain(): FriendInvite = FriendInvite(
+    inviteId = inviteId,
+    token = token,
+    inviteUrl = inviteUrl,
+    distance = Distance(distanceMeters),
+    expiresAt = ServerTime.parse(expiresAt)
+)
+
+internal fun InviteViewResponse.toDomain(): FriendInviteView = FriendInviteView(
+    inviteId = inviteId,
+    status = status,
+    distance = Distance(distanceMeters),
+    expiresAt = ServerTime.parse(expiresAt),
+    inviter = FriendInviteView.Inviter(inviter.name, inviter.tier, inviter.bestSeconds),
+    myTier = me.tier,
+    myBestSeconds = me.bestSeconds,
+    blockedReason = blockedReason?.takeIf { it.isNotBlank() }
 )
 
 internal fun BattleHistoryResponse.toDomain(): BattleHistory = BattleHistory(
