@@ -30,6 +30,7 @@ from runkk_ai.coach import (
 from runkk_ai.comment import COMMENT_TIMEOUT_S, ClaudeClient, CommentRouter, CommentService, LlmClient, OpenAiClient
 from runkk_ai.core import HealthRouter, InternalTokenMiddleware, Settings
 from runkk_ai.face import AvatarClient, AvatarService, FaceRouter, NodeAvatarClient
+from runkk_ai.privacy import PrivacyRouter, WithdrawalService
 from runkk_ai.runbody import (
     InMemoryResultRepository,
     MonthlyRouter,
@@ -101,6 +102,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(MonthlyRouter)
     app.include_router(CoachRouter)
     app.include_router(ModelsRouter)
+    app.include_router(PrivacyRouter)
     return app
 
 
@@ -130,6 +132,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.runbody_service = runbody
         monthly = MonthlyService(repository)
         app.state.monthly_service = monthly
+        # 탈퇴 파기(S15P31A207-219): 회원별 행을 가진 저장소를 모두 등록한다. 새 테이블이 생기면 여기에도 더한다
+        app.state.withdrawal_service = WithdrawalService(
+            {"sessionResults": repository, "coachMessages": coach_store}, timeout_s=settings.purge_timeout_s
+        )
         coach_model = _build_coach_model(settings)
         if coach_model is not None:
             resources.push_async_callback(coach_model.aclose)

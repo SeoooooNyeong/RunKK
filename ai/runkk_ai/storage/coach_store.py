@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import Row, select
+from sqlalchemy import Row, delete, select
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from runkk_ai.coach.store import CoachMessage
@@ -58,3 +58,8 @@ class PgCoachStore:
                     created_at=message.at,
                 )
             )
+
+    async def purge_user(self, user_id: str) -> int:
+        async with self._engine.begin() as conn:
+            deleted = (await conn.execute(delete(coach_message).where(_c.user_id == user_id))).rowcount
+        return int(deleted)

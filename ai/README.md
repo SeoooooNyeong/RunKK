@@ -15,6 +15,7 @@
 | `GET /sessions/{sessionId}/status` | 분석 상태 `pending`·`done`·`failed`. 200 / 404 `{"reason"}` |
 | `GET /sessions/{sessionId}` | RUN바디 1회 결과(5각 점수·판정 라벨·코칭 플래그·km 랩·피드백 문장). 200 / 404·409 `{"reason"}` |
 | `GET /users/{userId}/months/{yearMonth}` | 월간 RUN바디(월 요약·5각 평균·최고 기록·주간 거리·최근 부하·개인 기준값·아바타 입력값). 200 / 422 `{"reason"}` |
+| `DELETE /users/{userId}` | 탈퇴 회원 파기(-219). 그 사용자의 분석 결과·코치 대화를 지우고 `{"sessionResults": n, "coachMessages": m}`. 멱등(없어도 200에 0) / 503 `STORAGE_UNAVAILABLE` · 504 `STORAGE_TIMEOUT` |
 | `POST /coach/chat` | AI 코치 대화(F5). `{"userId","conversationId"?,"message"}` → 200 `text/event-stream`(meta·tool·delta·done·error) / 404·413·422·429·503 `{"reason"}` |
 
 `/health` 말고는 모두 `X-Internal-Token` 헤더가 필요하다. 미들웨어가 본문을 읽기 전에 검사해 틀리면 401 `{"reason": "UNAUTHORIZED"}`
@@ -251,6 +252,17 @@ api  GET  /avatar/bodies/{bodyId}                → ai → Node GET /bodies/{id
   작업 자체의 실패(`SELFIE_QUALITY_REJECTED`, `NO_FACE_DETECTED` 등)는 HTTP 오류가 아니라 상태 조회 200의 `error.code`로 온다.
 - 셀카는 메모리에서만 다루고(UploadFile·임시 파일 없음) 로그에는 사용자 식별자·이미지를 남기지 않는다. `metrics`(과금 지표)는 응답에서 뺀다.
 - 설정은 `RUNKK_FACE_API_URL` 하나다(compose `avatar` 프로필을 켠 환경에서 `http://avatar:3000/api/v1`). 컨테이너 구성은 `infra/docker-compose.yml`의 `avatar` 서비스.
+
+## 탈퇴 회원 파기 (S15P31A207-219)
+
+분석 결과(`analytics.session_result`·`analysis_event`)와 코치 대화(`coach_message`)는 회원별 개인정보라 처리방침의 파기 대상이다.
+테이블은 ai가 Alembic으로 관리하므로 **api가 직접 지우지 않고** `DELETE /users/{userId}`를 부른다.
+
+- api는 `MemberWithdrawn` 리스너와 파기 배치(잔여 7일 뒤)에서 부른다. **멱등**이라 두 번 불러도 안전하고, 503이면 다시 부르면 된다
+  (한 저장소라도 실패하면 503이고, 이미 지운 저장소는 다음 호출에 0을 돌려준다).
+- 응답의 숫자는 지운 행 수다. 로그에는 결과와 행 수만 남고 회원 식별자는 남지 않는다.
+- 백업 덤프(infra `backup`, 7일 보존)에는 파기 전 행이 남을 수 있다. 처리방침의 "백업본 7일 보존" 문구가 이걸 가리킨다.
+- 새 회원별 테이블을 만들면 `main.py`의 `WithdrawalService` 등록에 저장소를 더한다(`purge_user(user_id)`를 구현하면 된다).
 
 ## 컨테이너
 
