@@ -16,18 +16,27 @@ object Routes {
     /** 게스트로 시작(FR-197): 가입과 같은 동의 화면 하나를 게스트 갈래로 보인다. */
     const val GUEST_START = "signup/guest"
 
-    // 하단 탭 다섯 개(셀프·셀럽·홈·크루·마이, SRS 5.1)
+    // 하단 탭 다섯 개(크루·기록런·홈·랭킹·마이, v0.14 D-250)
 
-    /** 셀프 탭: 나와의 싸움 선택(ui.battle). */
-    const val SELF = "battle/self"
+    /** 크루 탭: 내 크루 또는 크루 찾기(ui.crew). 1차 배포에서는 잠긴 탭이다(D-253). */
+    const val CREW = "crew"
 
-    /** 셀럽 탭: 유명인 선택(ui.battle). */
-    const val CELEB = "battle/celeb"
+    /** 기록런 탭: 셀프런 | 셀럽런 분절 하나(ui.battle RecordRunScreen, D-250). */
+    const val RECORD_RUN = "battle/record"
     const val HOME = "home"
 
-    /** 크루 탭: 내 크루 또는 크루 찾기(ui.crew). */
-    const val CREW = "crew"
+    /** 랭킹 탭: 개인 랭킹(ui.record RankingScreen, D-250, D-286). v0.14에서 값을 "records/ranking"에서 바꿨다. */
+    const val RANKING = "ranking"
     const val ME = "me"
+
+    /** 배틀런 화면(랜덤 | 친구 분절, ui.battle BattleModeScreen, D-268). 탭이 아니지만 하단 탭을 보이고 홈을 고른 상태로 둔다. */
+    const val BATTLE_MODE = "battle/mode"
+
+    /** 셀프 탭(v0.13): 나와의 싸움 선택(ui.battle). v0.14에서 탭에서 뺐다. 기록런 화면이 대신하면 지운다(D-250, A3). */
+    const val SELF = "battle/self"
+
+    /** 셀럽 탭(v0.13): 유명인 선택(ui.battle). v0.14에서 탭에서 뺐다. 기록런 화면이 대신하면 지운다(D-250, A3). */
+    const val CELEB = "battle/celeb"
 
     // 러닝(ui.run)
 
@@ -47,8 +56,9 @@ object Routes {
     // 기록(ui.record)
     const val RECORDS = "records"
     const val GROWTH = "records/growth"
+
+    /** 런바디(v0.14에서 리포트 화면 제목을 바꿨다, CR-32). 경로 이름은 그대로다. */
     const val REPORT = "records/report"
-    const val RANKING = "records/ranking"
     const val COACH = "records/coach"
 
     // 알림(ui.notification)
@@ -56,9 +66,12 @@ object Routes {
 
     // 대결(ui.battle), 크루(ui.crew), Runimal(ui.runimal), 아바타(ui.avatar): 화면은 A3b 단계가 등록한다.
 
-    /** 배틀런(랜덤 대결) 거리 고르기·매칭 대기. 거리 기본값은 기본 대결 거리(GET /battles/match)다. */
+    /**
+     * 배틀런(랜덤 대결) 거리 고르기·매칭 대기(v0.13). v0.14는 배틀런 화면(BATTLE_MODE)이 대신한다. A3가 대체 화면을 만들면 지운다.
+     */
     const val BATTLE_RANDOM = "battle/random"
 
+    /** 대결 이력 화면(v0.13). v0.14는 기록 화면의 대결 탭 칸(SlotKey.RECORD_BATTLES)이 대신한다. A4가 지운다(D-281). */
     const val BATTLE_HISTORY = "battle/history"
     const val RUNIMAL = "runimal"
     const val AVATAR = "avatar"
@@ -70,8 +83,8 @@ object Routes {
     /** 아바타 랜드마크 배경 고르기(FR-201, FR-202). 알림 Screen.AVATAR_BACKGROUND가 여기로 온다. */
     const val AVATAR_BACKGROUND = "avatar/background"
 
-    /** 하단 탭 경로(왼쪽부터). */
-    val TABS: List<String> = listOf(SELF, CELEB, HOME, CREW, ME)
+    /** 하단 탭 경로(왼쪽부터, D-250). */
+    val TABS: List<String> = listOf(CREW, RECORD_RUN, HOME, RANKING, ME)
 
     /** Navigation 3 백 스택에 올리는 경로 키. 경로 이름 문자열 하나를 담는다. */
     @Serializable

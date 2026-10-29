@@ -17,6 +17,7 @@ class BattleFeatureEntry @Inject constructor() : FeatureEntry {
     override val route: String = Routes.BATTLE_RANDOM
 
     override fun register(builder: EntryProviderScope<NavKey>) {
+        builder.route(Routes.RECORD_RUN) { RecordRunRoute() }
         builder.route(Routes.SELF) { SelfBattleRoute() }
         builder.route(Routes.CELEB) { CelebBattleRoute() }
         builder.route(Routes.BATTLE_RANDOM) { MatchRoute() }
@@ -29,5 +30,5 @@ class BattleFeatureEntry @Inject constructor() : FeatureEntry {
     }
 
     @Composable
-    override fun Overlay() = ActiveBattleOverlay()
+    override fun Overlay(top: NavKey?) = ActiveBattleOverlay()
 }
