@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     CheckConstraint,
     Column,
     DateTime,
@@ -83,4 +84,19 @@ coach_message = Table(
     CheckConstraint("role IN ('user', 'assistant')", name="ck_coach_message_role"),
     Index("ix_coach_message_conversation", "conversation_id", "id"),
     Index("ix_coach_message_user_created", "user_id", "created_at"),
+)
+
+# writer 모델 등록부(S15P31A207-197). 켜진 모델은 하나 이하(부분 유일 인덱스가 DB에서 지킨다).
+# 모델 파일 자체는 writer 컨테이너가 들고 있고 여기에는 '어느 주소를 부를지'만 둔다
+llm_model = Table(
+    "llm_model",
+    metadata,
+    Column("model_id", Text, primary_key=True),
+    Column("base_url", Text, nullable=False),
+    Column("note", Text),
+    Column("registered_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+    Column("activated_at", DateTime(timezone=True)),  # 한 번도 켠 적이 없으면 NULL
+    Column("active", Boolean, nullable=False, server_default=text("false")),
+    CheckConstraint("(active = false) OR (activated_at IS NOT NULL)", name="ck_llm_model_active_has_time"),
+    Index("ux_llm_model_active", "active", unique=True, postgresql_where=text("active")),
 )

@@ -199,6 +199,35 @@ export RUNKK_WRITER_URL=http://localhost:8081   # 그다음 ai 서버를 띄우�
 서버 배치는 compose `writer` 서비스(프로필 `writer`)다. `infra/.env`에 `COMPOSE_PROFILES=writer`, `RUNKK_WRITER_URL=http://writer:8080`을 넣고
 모델 파일을 `WRITER_MODEL_DIR`(기본 `/srv/runkk/models`)에 올린 환경에서만 뜬다. 메모리 상한 3.5GB.
 
+## writer 모델 관리 (S15P31A207-197)
+
+어느 모델을 쓸지는 등록부(`analytics.llm_model`)가 정한다. 운영자가 직접 부른다(앱·api가 아니라 사람이 쓰는 API다).
+
+llama.cpp 서버는 기동할 때 모델 파일 하나로 고정된다. 그래서 **활성화는 파일을 바꿔 끼우는 게 아니라 ai가 어느 writer 주소를 부를지 바꾸는 것**이다.
+새 모델을 올릴 때 writer 컨테이너를 하나 더 띄워 두면(compose `writer-v2` 등) 재배포 없이 전환·롤백이 된다.
+
+| 연산 | 뜻 |
+|---|---|
+| `GET /models` | 등록한 모델과 지금 켜진 모델 |
+| `POST /models` | 등록. `{"modelId", "baseUrl", "note"}`. 첫 모델은 바로 켜지고, 같은 id를 다시 등록하면 주소·메모만 고친다 |
+| `POST /models/{modelId}/activate` | 켠다. 모르는 id면 404 `MODEL_NOT_FOUND` |
+| `POST /models/rollback` | 직전에 켰던 모델로 되돌린다. 없으면 409 `NO_PREVIOUS_MODEL` |
+
+```bash
+T=$RUNKK_INTERNAL_TOKEN
+curl -X POST localhost:8000/models -H "X-Internal-Token: $T" -H 'Content-Type: application/json' \
+  -d '{"modelId":"v2-qwen3-1.7b","baseUrl":"http://writer-v2:8080","note":"통과율 0.97, 1건 30초"}'
+curl -X POST localhost:8000/models/v2-qwen3-1.7b/activate -H "X-Internal-Token: $T"   # 새 모델로
+curl -X POST localhost:8000/models/rollback -H "X-Internal-Token: $T"                 # 문제 있으면 되돌리기
+curl localhost:8000/models -H "X-Internal-Token: $T"
+```
+
+- 켜진 모델은 **하나 이하**다(부분 유일 인덱스가 DB에서도 지킨다). 없으면 writer를 부르지 않고 템플릿 문장을 그대로 둔다.
+- `RUNKK_WRITER_URL`이 **writer 전체 스위치**다. 비우면 등록부에 뭐가 있든 writer를 쓰지 않는다. 값이 있으면 기동할 때
+  `RUNKK_WRITER_MODEL_VERSION` 이름으로 등록한다(처음이면 바로 켜지고, 이미 켠 모델이 있으면 주소만 고친다).
+- 그래서 운영자가 바꿔 둔 모델은 **재시작해도 그대로 남는다**(`RUNKK_DB_URL`이 있을 때. 메모리 저장소면 재시작마다 환경 변수 모델로 돌아간다).
+- 폴백은 그대로다: 켜진 모델 → (검사 실패 시 1번 더) → 템플릿 문장.
+
 ## 컨테이너
 
 ```bash

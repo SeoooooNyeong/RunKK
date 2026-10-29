@@ -153,21 +153,47 @@ async def test_unhandled_exception_is_500_with_reason_body() -> None:
 
 
 async def test_writer_is_off_without_url() -> None:
+    """RUNKK_WRITER_URL이 writer 전체 스위치다. 비우면 등록부도 비어 있고 피드백은 템플릿 그대로."""
     app = create_app(make_settings())
 
     async with app.router.lifespan_context(app):
         assert app.state.runbody_service._polisher is None
+        assert await app.state.model_registry.models() == []
 
 
-async def test_writer_is_wired_into_analysis_when_url_set() -> None:
-    from runkk_ai.writer import LlamaCppClient, WriterService
+async def test_writer_url_registers_and_activates_the_model() -> None:
+    from runkk_ai.writer import InMemoryModelRegistry, WriterService
 
     app = create_app(make_settings(writer_url="http://writer:8080", writer_timeout_s=30.0))
 
     async with app.router.lifespan_context(app):
-        polisher = app.state.runbody_service._polisher
-        writer = polisher.__self__
+        writer = app.state.runbody_service._polisher.__self__
+        registry = app.state.model_registry
+        active = await registry.active()
         assert isinstance(writer, WriterService)
-        assert isinstance(writer._client, LlamaCppClient)
+        assert isinstance(registry, InMemoryModelRegistry)
         assert writer._timeout_s == 30.0
-        assert writer._model_version == "runkk-writer-v1-qwen3-4b"
+        assert active is not None
+        assert (active.model_id, active.base_url) == ("runkk-writer-v1-qwen3-4b", "http://writer:8080")
+
+
+async def test_restart_keeps_the_model_an_operator_activated() -> None:
+    """운영자가 /models로 v2를 켜 둔 뒤 다시 뜨면, 환경 변수의 v1이 아니라 v2가 그대로 켜져 있다."""
+    from runkk_ai.writer import InMemoryModelRegistry
+
+    registry = InMemoryModelRegistry()
+    app = create_app(make_settings(writer_url="http://writer:8080"))
+    app.state.model_registry = registry
+
+    async with app.router.lifespan_context(app):
+        await app.state.model_registry.register("v2", "http://writer-v2:8080")
+        await app.state.model_registry.activate("v2")
+        kept = app.state.model_registry
+
+    app = create_app(make_settings(writer_url="http://writer:8080"))
+    async with app.router.lifespan_context(app):
+        app.state.model_registry = kept  # PostgreSQL 저장소처럼 등록부가 재시작을 넘어 남은 경우
+        active = await kept.active()
+
+    assert active is not None
+    assert active.model_id == "v2"
