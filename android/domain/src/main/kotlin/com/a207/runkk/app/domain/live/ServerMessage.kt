@@ -6,7 +6,7 @@ import java.time.Instant
 
 /**
  * 서버 → 앱 실시간 메시지(5.7.2, F.3.2). 서버는 type() 이름으로 직렬화하고(D-06), data.live.ServerMessageDecoder가
- * type 필드를 보고 아래 14종 가운데 하나로 해독한다. 항목 이름은 서버 battle.live·crew.live record와 같다(H-17 계약 시험).
+ * type 필드를 보고 아래 16종 가운데 하나로 해독한다. 항목 이름은 서버 battle.live·crew.live record와 같다(H-17 계약 시험).
  */
 sealed interface ServerMessage
 
@@ -64,6 +64,12 @@ data class BattleEnded(val battleId: Long, val status: Status) : ServerMessage {
         OPPONENT_FORFEITED
     }
 }
+
+/** 친구가 초대를 거절했다(초대한 쪽에만 온다, D-269). */
+data class FriendInviteDeclined(val inviteId: Long) : ServerMessage
+
+/** 아무도 참가하지 않아 초대가 만료됐다(초대한 쪽에만 온다, D-269). */
+data class FriendInviteExpired(val inviteId: Long) : ServerMessage
 
 /** 크루런 출발(모집 일시, 3초 카운트다운 뒤 시작, FR-148). */
 data class CrewRunStart(val postId: Long, val startAt: Instant, val participantNames: List<String>) : ServerMessage

@@ -16,6 +16,8 @@ import com.a207.runkk.app.domain.live.CrewRunCancelled
 import com.a207.runkk.app.domain.live.CrewRunEnded
 import com.a207.runkk.app.domain.live.CrewRunRelay
 import com.a207.runkk.app.domain.live.CrewRunStart
+import com.a207.runkk.app.domain.live.FriendInviteDeclined
+import com.a207.runkk.app.domain.live.FriendInviteExpired
 import com.a207.runkk.app.domain.live.LiveChannel
 import com.a207.runkk.app.domain.live.LiveChannelProvider
 import com.a207.runkk.app.domain.live.LiveState
@@ -32,6 +34,7 @@ import com.a207.runkk.app.domain.run.PlanSnapshot
 import com.a207.runkk.app.domain.run.RunProgress
 import com.a207.runkk.app.domain.run.RunStartSpec
 import com.a207.runkk.app.domain.run.RunTracker
+import com.a207.runkk.app.domain.run.isDiscardable
 import java.time.Clock
 import java.time.Duration
 import javax.inject.Inject
@@ -55,7 +58,7 @@ import kotlinx.coroutines.launch
 /**
  * 대결 러닝의 측정과 실시간 메시지를 잇는다(6.1.14). 화면이 아니라 대결 한 회와 수명을 같이 한다:
  * onMatched·onRecordBattleStart 때 주입받은 applicationScope 아래에 자기 범위(SupervisorJob)를 만들고
- * endRun·forfeit 뒤 닫는다(5.1.2, design-review.md M44). 상태 변경은 모두 그 범위의 직렬 디스패처에서 돈다.
+ * endRun·forfeit 뒤 닫는다(5.1.2, design-review.md M44). 셀프런·셀럽런 그만두기는 기록을 버리고 닫는다(D-266). 상태 변경은 모두 그 범위의 직렬 디스패처에서 돈다.
  *
  * 상대 진행은 상대 종류마다 다른 OpponentFeed가 맡는다(리뷰 O-5): 랜덤 대결은 1초마다 진행값을 채널로 보내고 서버의
  * OpponentProgress·BattleGuidance를 반영하며, 기록 상대(고스트·나와의 싸움·유명인)는 OpponentTrack으로 상대 거리를 보간하고
@@ -173,15 +176,36 @@ constructor(
     }
 
     /**
-     * 확인 뒤 그만두기(POST /battles/{id}/forfeit) → 기록 저장. 보고가 끝내 실패해도 기기 측정은 끝내고 failure로 알린다.
+     * 확인 뒤 그만두기(POST /battles/{id}/forfeit). 보고가 끝내 실패해도 기기 측정은 끝내고 failure로 알린다.
+     * 셀프런·셀럽런([CardKind.isDiscardable])은 서버가 대결을 취소하므로 기록을 버리고 [BattleRunState.Discarded]로 닫는다(D-266).
+     * 출발 전(카운트다운 "다시 고르기")이면 측정이 없어 버릴 것 없이 닫는다. 배틀런(랜덤·고스트·친구)은 기록을 저장하고 Finished다.
      */
     fun forfeit() {
         val run = run ?: return
         run.round.scope.launch {
             report(run) { battleRepository.forfeit(run.battleId) }
-            finish(run, status = null)
+            if (run.cardKind.isDiscardable) discard(run) else finish(run, status = null)
         }
     }
+
+    /**
+     * 친구 대결 초대 취소(DELETE /battles/friend-invites/{inviteId}, D-271). 화면이 사라져도 보내도록 applicationScope에서 보내고,
+     * 네트워크 실패는 1·2초 뒤 두 번 더 보내며 거부(403, INVITE_NOT_FOUND, INVITE_ALREADY_JOINED)는 다시 보내지 않는다.
+     * 결과를 기다릴 수 있다(취소 버튼은 INVITE_ALREADY_JOINED면 취소를 접고 MatchFound를 기다린다).
+     */
+    fun cancelInvite(inviteId: Long): Deferred<Outcome<Unit>> = applicationScope.async {
+        var attempt = 1
+        var result = battleRepository.cancelFriendInvite(inviteId)
+        while (result is Outcome.Failure && result.error !is AppError.Rejected && attempt < CANCEL_ATTEMPTS) {
+            delay(CANCEL_RETRY_MILLIS * attempt)
+            result = battleRepository.cancelFriendInvite(inviteId)
+            attempt++
+        }
+        result
+    }
+
+    /** 대결에 참가할 수 없을 만큼 바쁜가: 열린 회가 있거나 자유런 등 측정 중이다(친구 대결 참가 전 확인, D-273). */
+    fun isBusy(): Boolean = run != null || runTracker.isMeasuring
 
     /**
      * 랜덤 매칭 요청(POST /battles/match, FR-080). applicationScope에서 보내 화면이 사라져도 응답을 받는다. 앞선 이탈의 취소
@@ -222,9 +246,17 @@ constructor(
      */
     fun isRunning(battleId: Long): Boolean = run?.battleId == battleId
 
-    /** 결과 화면이 Finished를 보여 준 뒤 부른다. 다음 대결 화면이 지난 회의 종료 상태를 받지 않게 Idle로 돌린다(S-17). */
+    /** 결과 화면이 Finished를(기록런 탭이 Discarded를) 받은 뒤 부른다. 다음 대결 화면이 지난 회의 종료 상태를 받지 않게 Idle로 돌린다(S-17). */
     fun acknowledgeFinished() {
-        _state.update { if (it is BattleRunState.Finished) BattleRunState.Idle else it }
+        _state.update {
+            if (it is BattleRunState.Finished ||
+                it is BattleRunState.Discarded
+            ) {
+                BattleRunState.Idle
+            } else {
+                it
+            }
+        }
         _failure.value = null
     }
 
@@ -289,8 +321,8 @@ constructor(
 
             is BattleEnded -> if (m.battleId == run.battleId) finish(run, m.status)
 
-            // 매칭 성사·실패는 매칭 화면이 받는다(성사 뒤에야 이 조정자가 맡는다).
-            is MatchFound, is MatchFailed -> Unit
+            // 매칭 성사·실패와 친구 초대 끝 알림은 매칭 화면이 받는다(성사 뒤에야 이 조정자가 맡는다).
+            is MatchFound, is MatchFailed, is FriendInviteDeclined, is FriendInviteExpired -> Unit
 
             is CrewRunStart, is CrewRunCancelled, is CrewRunRelay, is CrewRunEnded -> Unit
 
@@ -401,18 +433,28 @@ constructor(
         close(run, status)
     }
 
+    /** 측정 중이면 기록을 버린 뒤(RunTracker.discardRun) 이 회를 Discarded로 닫는다(D-266). */
+    private fun discard(run: BattleRun) {
+        run.round.discardMeasuring()
+        close(run, BattleRunState.Discarded(run.battleId))
+    }
+
     /** 이 회를 실패로 닫는다(연결 실패·시작 거부·범위 안 예외). */
     private fun fail(run: BattleRun, error: AppError) {
         _failure.value = error
         finish(run, status = null)
     }
 
-    private fun close(run: BattleRun, status: BattleEnded.Status?) {
+    private fun close(run: BattleRun, status: BattleEnded.Status?) =
+        close(run, BattleRunState.Finished(run.battleId, status))
+
+    /** 이 회를 [end] 상태로 닫는다(채널 반납, 범위 취소). 이미 다른 회가 열렸으면 아무것도 하지 않는다. */
+    private fun close(run: BattleRun, end: BattleRunState) {
         if (this.run !== run) return
         this.run = null
         run.channel?.close()
         _liveState.value = null
-        _state.value = BattleRunState.Finished(run.battleId, status)
+        _state.value = end
         run.round.cancel()
     }
 

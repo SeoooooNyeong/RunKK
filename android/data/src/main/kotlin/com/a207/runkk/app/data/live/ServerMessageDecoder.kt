@@ -14,7 +14,8 @@ import timber.log.Timber
 
 /**
  * 서버 → 앱 실시간 메시지를 해독한다(6.1.14 data.live, 5.7.2). 서버 RealtimeMessageSerializer는 메시지 record의 type() 값을
- * type 항목에 쓰고 나머지 구성요소를 그대로 직렬화하므로(D-06), type으로 14종 가운데 하나를 고른다(채팅 3종 v0.11, F.3.2).
+ * type 항목에 쓰고 나머지 구성요소를 그대로 직렬화하므로(D-06), type으로 16종 가운데 하나를 고른다(채팅 3종 v0.11, F.3.2,
+ * 친구 초대 끝 2종 v0.14 D-269).
  * 모르는 type, 깨진 JSON, 범위 밖 값(음수 거리, 모르는 상태 이름)은 null로 버린다. 연결은 끊지 않는다. 사유 항목(CrewChatRemoved.reason)이
  * 모르는 상수면 그 메시지를 버리고 경고 로그를 남긴다(D-85).
  * 크루런 중계의 본인 줄(CrewRunRelay.Entry.isMe)은 서버 mine이 있으면 그 값, 없으면 [selfId](접근 토큰의 회원 ID, SelfMember)와
@@ -42,6 +43,16 @@ class ServerMessageDecoder internal constructor(private val selfId: () -> Long? 
                 "MatchFound" -> liveJson.decodeFromJsonElement(MatchFoundJson.serializer(), message).toDomain()
 
                 "MatchFailed" -> liveJson.decodeFromJsonElement(MatchFailedJson.serializer(), message).toDomain()
+
+                "FriendInviteDeclined" -> liveJson.decodeFromJsonElement(
+                    FriendInviteDeclinedJson.serializer(),
+                    message
+                ).toDomain()
+
+                "FriendInviteExpired" -> liveJson.decodeFromJsonElement(
+                    FriendInviteExpiredJson.serializer(),
+                    message
+                ).toDomain()
 
                 "BattleStart" -> liveJson.decodeFromJsonElement(BattleStartJson.serializer(), message).toDomain()
 

@@ -44,6 +44,26 @@ internal interface BattleApi {
     @GET("battles/{id}/result")
     suspend fun result(@Path("id") battleId: Long): BattleResultResponse
 
+    /** 친구 대결 초대 만들기(201). 본문은 랜덤 매칭과 같은 {distanceMeters}(서버 BattleDtos.DistanceRequest)다. */
+    @POST("battles/friend-invites")
+    suspend fun createFriendInvite(@Body body: MatchRequest): InviteResponse
+
+    /** 열린 초대가 없으면 204(본문 없음)다. */
+    @GET("battles/friend-invites/mine")
+    suspend fun myFriendInvite(): Response<InviteResponse>
+
+    @DELETE("battles/friend-invites/{inviteId}")
+    suspend fun cancelFriendInvite(@Path("inviteId") inviteId: Long): Response<Unit>
+
+    @GET("battles/friend-invites/by-token/{token}")
+    suspend fun friendInvite(@Path("token") token: String): InviteViewResponse
+
+    @POST("battles/friend-invites/by-token/{token}/accept")
+    suspend fun acceptFriendInvite(@Path("token") token: String): AcceptResponse
+
+    @POST("battles/friend-invites/by-token/{token}/decline")
+    suspend fun declineFriendInvite(@Path("token") token: String): Response<Unit>
+
     @GET("battles/history")
     suspend fun history(
         @Query("type") type: String?,
