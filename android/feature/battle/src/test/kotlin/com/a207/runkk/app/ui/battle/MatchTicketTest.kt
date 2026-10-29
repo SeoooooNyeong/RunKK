@@ -42,7 +42,7 @@ class MatchTicketTest {
     @Test
     fun `TC-9662 FriendInviteTicket - 초대 만들기, 이 초대의 거절·만료·성사만 끝, MatchFailed는 무시, 기한은 만료 시각`() = runTest {
         val w = world()
-        val ticket = FriendInviteTicket(Distance(5_000), w.battles, w.coordinator)
+        val ticket = FriendInviteTicket(Distance(5_000), w.coordinator)
         assertNull(ticket.deadline)
         ticket.open()
         assertEquals(friendInvite().expiresAt, ticket.deadline)

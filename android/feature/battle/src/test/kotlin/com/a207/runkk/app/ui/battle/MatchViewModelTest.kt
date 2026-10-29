@@ -474,6 +474,85 @@ class MatchViewModelTest {
         }
     }
 
+    @Test
+    fun `초대 만들기가 위치 동의로 거부된 뒤 시트를 닫으면 머물지 않고 이전 화면으로`() = main.runVmTest { vms ->
+        val w = world()
+        w.battles.createInviteResult = rejected("LOCATION_CONSENT_REQUIRED")
+        val vm = invite(w, vms)
+        assertTrue(vm.state.value.isConsentSheetVisible)
+        vm.events.test {
+            vm.onConsentClosed()
+            assertEquals(MatchEvent.Exit, awaitItem())
+        }
+    }
+
+    @Test
+    fun `초대 만들기가 거부된 뒤 동의 주기도 실패하면 사유 안내(확인하면 이전 화면)`() = main.runVmTest { vms ->
+        val w = world()
+        w.battles.createInviteResult = rejected("LOCATION_CONSENT_REQUIRED")
+        accounts.consentResult = rejected("QUEUE_UNAVAILABLE")
+        val vm = invite(w, vms)
+        vm.onConsentAgreed()
+        runCurrent()
+        assertEquals(UiText.Res(R.string.battle_error_queue_unavailable), vm.state.value.notice)
+    }
+
+    @Test
+    fun `요청 중에 뒤로 가면 서버 대기를 정리하고 이전 화면으로`() = main.runVmTest { vms ->
+        val w = world()
+        w.channels.channel.connectGate = CompletableDeferred()
+        val vm = vms.vm(w)
+        vm.startQuick(Distance(5_000))
+        runCurrent()
+        assertEquals(MatchPhase.REQUESTING, vm.state.value.phase)
+        vm.events.test {
+            vm.onCancel()
+            runCurrent()
+            assertEquals(MatchEvent.Exit, awaitItem())
+        }
+        assertTrue("cancel" in w.battles.calls)
+    }
+
+    @Test
+    fun `연결이 끊겨 정리한 대기는 화면이 지워질 때 다시 정리하지 않는다`() = main.runVmTest {
+        val w = world()
+        val store = ViewModelStore()
+        val vm = ViewModelProvider.create(store, factory(w))[MatchViewModel::class]
+        vm.startQuick(Distance(5_000))
+        runCurrent()
+        w.channels.channel.endMessages()
+        runCurrent()
+        store.clear()
+        runCurrent()
+        assertEquals(1, w.battles.calls.count { it == "cancel" })
+    }
+
+    @Test
+    fun `초대를 만드는 중에 화면이 사라져도 만들어진 초대를 취소한다(D-271)`() = main.runVmTest {
+        val w = world()
+        w.battles.createGate = CompletableDeferred()
+        val store = ViewModelStore()
+        val vm = ViewModelProvider.create(store, factory(w))[MatchViewModel::class]
+        vm.startInvite(Distance(5_000))
+        runCurrent()
+        store.clear()
+        runCurrent()
+        w.battles.createGate?.complete(Unit)
+        runCurrent()
+        assertEquals(1, w.battles.calls.count { it == "cancelInvite:41" })
+    }
+
+    @Test
+    fun `기기 시계가 서버보다 크게 앞서도 초대를 바로 끝내지 않는다(만료 5분 + 2초를 만든 때부터 잰다)`() = main.runVmTest { vms ->
+        val w = world()
+        w.clock.now = start.plusSeconds(600)
+        val vm = invite(w, vms)
+        advanceTimeBy(60_000)
+        assertEquals(MatchPhase.INVITING, vm.state.value.phase)
+        advanceTimeBy(242_100)
+        assertEquals(MatchPhase.INVITE_ENDED, vm.state.value.phase)
+    }
+
     // ---------- 받은 초대 참가 ----------
 
     private fun TestScope.join(w: BattleWorld, vms: ViewModelCloser): MatchViewModel = vms.vm(w).also {

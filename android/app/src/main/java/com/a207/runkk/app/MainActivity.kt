@@ -40,7 +40,9 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var settings: SettingsRepository
 
-    private val inviteLinks = InviteLinkReader("kakao" + BuildConfig.KAKAO_NATIVE_APP_KEY)
+    /** 앱 키가 없으면 카카오 실행 링크를 받지 않는다(빈 스킴, 매니페스트도 쓰지 않는 스킴을 둔다). */
+    private val inviteLinks =
+        InviteLinkReader(BuildConfig.KAKAO_NATIVE_APP_KEY.takeIf { it.isNotBlank() }?.let { "kakao$it" }.orEmpty())
 
     /**
      * 초대 링크로 열렸을 때 아직 열지 않은 초대 토큰(D-272). 회전·재생성에도 남도록 저장 상태에 둔다. 링크를 처음 받을 때만 인텐트에서 읽고,

@@ -19,6 +19,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -50,6 +51,7 @@ import com.a207.runkk.app.domain.live.MatchFound
 import java.time.Duration
 import java.time.Instant
 import java.util.Locale
+import kotlinx.coroutines.launch
 
 /**
  * 매칭 대기·초대 대기·참가 확인·성사(C-2·C-3·C-10·C-12). 측정이 시작되면 대결 진행으로 바뀐다. 초대 공유(ShareInvite)는 Activity가
@@ -60,6 +62,7 @@ fun MatchRoute(start: MatchStart, sharer: InviteSharer, viewModel: MatchViewMode
     val state by viewModel.state.collectAsStateWithLifecycle()
     val navigator = LocalRunkkNavigator.current
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     LaunchedEffect(viewModel, start) {
         when (start) {
             is MatchStart.Quick -> viewModel.startQuick(start.distance)
@@ -77,7 +80,8 @@ fun MatchRoute(start: MatchStart, sharer: InviteSharer, viewModel: MatchViewMode
 
                 MatchEvent.Exit -> navigator.back()
 
-                is MatchEvent.ShareInvite -> {
+                // 공유 화면이 열리고 닫히기를 기다리는 동안 다음 이벤트(성사·안내)를 막지 않게 따로 띄운다.
+                is MatchEvent.ShareInvite -> scope.launch {
                     val activity = context as? Activity
                     val shared =
                         activity?.let { sharer.share(it, event.invite, event.inviterName) } ?: ShareResult.FAILED

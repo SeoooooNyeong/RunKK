@@ -240,8 +240,12 @@ class FakeBattleRepository : BattleRepository {
     var acceptResult: Outcome<Long> = Outcome.Success(9L)
     var declineResult: Outcome<Unit> = Outcome.Success(Unit)
 
+    /** 있으면 초대 만들기 응답을 이 신호까지 늦춘다(만드는 중에 떠나는 시험). */
+    var createGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+
     override suspend fun createFriendInvite(distance: Distance): Outcome<FriendInvite> {
         calls += "invite:${distance.meters}"
+        createGate?.await()
         return createInviteResult
     }
 
@@ -382,8 +386,12 @@ class FakeLiveChannel : LiveChannel {
     /** null은 메시지 흐름의 끝(채널 종료)이다. */
     private val flow = MutableSharedFlow<ServerMessage?>(extraBufferCapacity = 64)
 
+    /** 있으면 connect가 이것이 끝날 때까지 기다린다(핸드셰이크가 늦은 연결). */
+    var connectGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+
     override suspend fun connect(): Outcome<Unit> {
         connects++
+        connectGate?.await()
         return connectFailure?.let { Outcome.Failure(it) } ?: Outcome.Success(Unit)
     }
 

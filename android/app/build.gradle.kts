@@ -42,7 +42,9 @@ android {
         // 카카오 SDK 초기화(D-275)와 카카오톡 실행 링크 intent-filter(D-272)가 쓰는 앱 키. 저장소에 넣지 않는다(local.properties·
         // Gradle 속성·환경 변수 KAKAO_NATIVE_APP_KEY, ui.me 로그인과 같은 값). 비면 초기화를 건너뛰고 스킴은 "kakao"만 남는다.
         buildConfigField("String", "KAKAO_NATIVE_APP_KEY", buildConfigString(kakaoNativeAppKey))
-        manifestPlaceholders["kakaoScheme"] = "kakao$kakaoNativeAppKey"
+        // 키가 비면 아무 앱도 쓰지 않는 스킴을 둬 kakao://kakaolink 링크를 받지 않는다(보안 리뷰).
+        manifestPlaceholders["kakaoScheme"] =
+            if (kakaoNativeAppKey.isBlank()) "runkk-kakao-disabled" else "kakao$kakaoNativeAppKey"
         // 폰은 IID×10, 워치는 IID×10+1로 Play 버전 코드 충돌을 막는다.
         versionCode = providers.gradleProperty("runkk.versionCode").orElse("10").get().toInt()
         versionName = "0.9.0"

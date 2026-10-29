@@ -50,13 +50,10 @@ class RandomTicket(private val distance: Distance, private val coordinator: Batt
 
 /**
  * 친구 대결 초대(FR-227, FR-228). 초대를 만들고 [invite]로 들고 있다. 성사(MatchFound), 거절·만료 알림 가운데 이 초대의 것만 끝으로
- * 보고, 친구 대결은 고스트로 넘어가지 않으므로 MatchFailed는 보지 않는다. 떠나면 조정자가 초대를 취소한다(D-271).
+ * 보고, 친구 대결은 고스트로 넘어가지 않으므로 MatchFailed는 보지 않는다. 만들기는 조정자가 applicationScope에서 보내고, 떠나면
+ * 만드는 중이어도 만들어진 뒤에 조정자가 초대를 취소한다(D-271).
  */
-class FriendInviteTicket(
-    private val distance: Distance,
-    private val battles: BattleRepository,
-    private val coordinator: BattleRunCoordinator
-) : MatchTicket {
+class FriendInviteTicket(private val distance: Distance, private val coordinator: BattleRunCoordinator) : MatchTicket {
     override val opponentKind: OpponentKind = OpponentKind.FRIEND
 
     /** 만든 초대. 만들기 전이면 null이다. */
@@ -65,7 +62,7 @@ class FriendInviteTicket(
 
     override val deadline: Instant? get() = invite?.expiresAt
 
-    override suspend fun open(): Outcome<Unit> = when (val created = battles.createFriendInvite(distance)) {
+    override suspend fun open(): Outcome<Unit> = when (val created = coordinator.createInvite(distance)) {
         is Outcome.Success -> {
             invite = created.value
             Outcome.Success(Unit)
@@ -81,9 +78,7 @@ class FriendInviteTicket(
         else -> null
     }
 
-    override fun abandon() {
-        invite?.let { coordinator.cancelInvite(it.inviteId) }
-    }
+    override fun abandon() = coordinator.abandonInvite()
 }
 
 /** 받은 초대에 참가(FR-229). 참가 응답 뒤 서버가 보내는 MatchFound만 끝이다. 떠나도 정리할 것이 없다. */

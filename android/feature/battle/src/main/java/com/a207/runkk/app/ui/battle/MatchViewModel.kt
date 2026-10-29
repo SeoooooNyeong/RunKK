@@ -119,7 +119,7 @@ class MatchViewModel @Inject constructor(
         viewModelScope.launch {
             inviterName = (account.profile(AccountRepository.SELF) as? Outcome.Success)?.value?.displayName.orEmpty()
         }
-        begin(FriendInviteTicket(distance, battles, coordinator), MatchPhase.REQUESTING)
+        begin(FriendInviteTicket(distance, coordinator), MatchPhase.REQUESTING)
     }
 
     /**
@@ -204,22 +204,38 @@ class MatchViewModel @Inject constructor(
 
     private var pendingConsent: (() -> Unit)? = null
 
+    /** 대기를 여는 요청이 위치 동의로 거부돼 띄운 시트인가. 닫거나 동의가 실패하면 머물 단계가 없어 화면을 떠난다. */
+    private var isRefusedConsent = false
+
     /** 위치 동의 시트 "동의하고 시작": 동의를 주고 누른 동작을 이어 간다. 실패하면 안내만 한다. */
     fun onConsentAgreed() {
         if (consentJob?.isActive == true) return
         _state.update { it.copy(isConsentSheetVisible = false) }
         consentJob = viewModelScope.launch {
-            when (val given = consent.give()) {
-                is Outcome.Success -> pendingConsent?.invoke()
-                is Outcome.Failure -> _state.update { it.copy(error = BattleErrorText.of(given.error)) }
-            }
+            val next = pendingConsent
             pendingConsent = null
+            val refused = isRefusedConsent
+            isRefusedConsent = false
+            when (val given = consent.give()) {
+                is Outcome.Success -> next?.invoke()
+
+                is Outcome.Failure ->
+                    if (refused) {
+                        showNotice(BattleErrorText.of(given.error))
+                    } else {
+                        _state.update { it.copy(error = BattleErrorText.of(given.error)) }
+                    }
+            }
         }
     }
 
     fun onConsentClosed() {
         pendingConsent = null
         _state.update { it.copy(isConsentSheetVisible = false) }
+        if (isRefusedConsent) {
+            isRefusedConsent = false
+            _events.trySend(MatchEvent.Exit)
+        }
     }
 
     /**
@@ -231,6 +247,13 @@ class MatchViewModel @Inject constructor(
             MatchPhase.WAITING -> cancelQueue()
 
             MatchPhase.INVITING -> cancelInvite()
+
+            // 연결·요청 중에 떠나면 서버 대기를 정리한다(랜덤은 요청 뒤 대기열 취소, 초대는 만든 뒤 취소).
+            MatchPhase.REQUESTING -> {
+                ticket?.abandon()
+                stopWaiting()
+                _events.trySend(MatchEvent.Exit)
+            }
 
             MatchPhase.CONFIRMING, MatchPhase.INVITE_ENDED -> _events.trySend(MatchEvent.Exit)
 
@@ -347,8 +370,7 @@ class MatchViewModel @Inject constructor(
                 }
                 onOpened(next)
                 next.deadline?.let { deadline ->
-                    val wait = Duration.between(clock.instant(), deadline.plus(EXPIRY_GRACE))
-                    if (!wait.isNegative) delay(wait.toMillis())
+                    delay(untilExpiry(deadline).plus(EXPIRY_GRACE).toMillis())
                     ends.trySend(WaitEnd.Expired)
                 }
             }
@@ -357,6 +379,15 @@ class MatchViewModel @Inject constructor(
                 opening.cancel()
             }
         }
+
+    /**
+     * 서버 만료 시각까지 남은 시간. 기기 시계가 서버와 크게 어긋나 남은 시간이 0보다 작거나 초대 수명(5분)보다 길면 만든 때부터
+     * 5분으로 잰다(시계가 앞선 기기에서 바로 끝나지 않게).
+     */
+    private fun untilExpiry(deadline: Instant): Duration {
+        val left = Duration.between(clock.instant(), deadline)
+        return if (left.isNegative || left > INVITE_LIFETIME) INVITE_LIFETIME else left
+    }
 
     /** 대기가 열렸다: 랜덤은 대기, 초대는 초대 대기와 공유, 참가는 MatchFound 확인 타이머. */
     private fun onOpened(opened: MatchTicket) {
@@ -429,8 +460,10 @@ class MatchViewModel @Inject constructor(
         closeWaiting()
         val code = (error as? AppError.Rejected)?.code
         val current = ticket
+        ticket = null
         if (code == LOCATION_CONSENT_REQUIRED && current != null && current !is FriendJoinTicket) {
             pendingConsent = { begin(current, MatchPhase.REQUESTING) }
+            isRefusedConsent = true
             _state.update { it.copy(isConsentSheetVisible = true) }
             return
         }
@@ -443,6 +476,7 @@ class MatchViewModel @Inject constructor(
      */
     private fun failWaiting(error: AppError?) {
         ticket?.abandon()
+        ticket = null
         closeWaiting()
         val text = if (error == AppError.Unauthorized) {
             BattleErrorText.of(AppError.Unauthorized)
@@ -458,6 +492,7 @@ class MatchViewModel @Inject constructor(
      */
     private fun onMatchFailed(failed: MatchFailed) {
         closeWaiting()
+        ticket = null
         val text = BattleErrorText.REJECTED[failed.code]?.let { UiText.Res(it) }
             ?: failed.message.takeIf { it.isNotBlank() }?.let { UiText.Plain(it) }
             ?: BattleErrorText.of(AppError.Rejected(failed.code))
@@ -643,6 +678,9 @@ class MatchViewModel @Inject constructor(
 
         /** 초대 만료 유예(D-271 기본값): 서버 만료 알림이 연결 끊김으로 사라져도 만료 + 2초에 끝낸다. */
         val EXPIRY_GRACE: Duration = Duration.ofSeconds(2)
+
+        /** 초대 수명(서버 만료 = 만든 때 + 5분, D-271). */
+        val INVITE_LIFETIME: Duration = Duration.ofMinutes(5)
 
         /** 참가 응답 뒤 MatchFound를 기다리는 한도(D-274). */
         val JOIN_CONFIRM: Duration = Duration.ofSeconds(10)

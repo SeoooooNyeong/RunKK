@@ -107,7 +107,16 @@ private class FakeBattleRepository(private val log: CallLog) : BattleRepository 
     /** cancelFriendInvite가 차례로 돌려줄 실패(비면 성공). */
     val cancelInviteFailures = ArrayDeque<AppError>()
 
-    override suspend fun createFriendInvite(distance: Distance): Outcome<FriendInvite> = error("unused")
+    /** createFriendInvite를 붙잡아 두는 문(만드는 중에 화면을 떠나는 경우). */
+    var createGate: CompletableDeferred<Unit>? = null
+
+    override suspend fun createFriendInvite(distance: Distance): Outcome<FriendInvite> {
+        log.add("battle.createInvite:${distance.meters}")
+        createGate?.await()
+        return Outcome.Success(
+            FriendInvite(41, "tok", "https://k15a207.p.ssafy.io/invite/battle/tok", distance, T0.plusSeconds(300))
+        )
+    }
 
     override suspend fun myFriendInvite(): Outcome<FriendInvite?> = error("unused")
 
@@ -492,6 +501,47 @@ class BattleRunCoordinatorTest {
         val outcome = coordinator.cancelInvite(11).await()
         assertEquals(Outcome.Failure(AppError.Rejected("INVITE_ALREADY_JOINED")), outcome)
         assertEquals(listOf("battle.cancelInvite:11"), log.calls)
+    }
+
+    @Test
+    fun `초대를 만드는 중에 화면을 떠나면 만들어진 뒤에 그 초대를 취소한다(D-271)`() = runTest {
+        val (_, coordinator) = setUp()
+        repository.createGate = CompletableDeferred()
+        val screen = backgroundScope.launch { coordinator.createInvite(Distance(5_000)) }
+        runCurrent()
+        screen.cancel()
+        coordinator.abandonInvite()
+        runCurrent()
+        assertEquals(listOf("battle.createInvite:5000"), log.calls, "만들기 전에는 취소할 초대가 없다")
+        repository.createGate?.complete(Unit)
+        runCurrent()
+        assertEquals(listOf("battle.createInvite:5000", "battle.cancelInvite:41"), log.calls)
+    }
+
+    @Test
+    fun `만든 초대를 떠나면 취소하고 떠날 초대가 없으면 아무것도 하지 않는다`() = runTest {
+        val (_, coordinator) = setUp()
+        coordinator.abandonInvite()
+        runCurrent()
+        assertTrue(log.calls.isEmpty())
+        assertIs<Outcome.Success<FriendInvite>>(coordinator.createInvite(Distance(3_000)))
+        coordinator.abandonInvite()
+        coordinator.abandonInvite()
+        runCurrent()
+        assertEquals(1, log.calls.count { it == "battle.cancelInvite:41" }, "한 번만 취소한다")
+    }
+
+    @Test
+    fun `그만두기를 두 번 눌러도 보고는 한 번이다`() = runTest {
+        val (tracker, coordinator) = setUp()
+        coordinator.onRecordBattleStart(selfStart)
+        advanceTimeBy(3_001)
+        tracker.runTo(1, 0.0)
+        runCurrent()
+        coordinator.forfeit()
+        coordinator.forfeit()
+        runCurrent()
+        assertEquals(1, log.calls.count { it == "battle.forfeit:7" })
     }
 
     private suspend fun TestScope.startRandom(tracker: RunTracker, coordinator: BattleRunCoordinator) {

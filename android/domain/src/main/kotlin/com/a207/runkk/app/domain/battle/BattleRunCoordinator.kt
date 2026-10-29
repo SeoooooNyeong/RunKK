@@ -101,6 +101,10 @@ constructor(
     @Volatile
     private var requestJob: Deferred<Outcome<MatchAcceptance>>? = null
 
+    /** 서버에 가 있거나 만들어진 친구 초대(화면을 떠나면 취소한다). */
+    @Volatile
+    private var inviteJob: Deferred<Outcome<FriendInvite>>? = null
+
     /** 이탈 뒤 대기열 취소(재시도 포함). 새 요청이 오면 멈춘다. */
     @Volatile
     private var abandonJob: Job? = null
@@ -183,6 +187,9 @@ constructor(
     fun forfeit() {
         val run = run ?: return
         run.round.scope.launch {
+            // 두 번 눌러도(확인·다시 고르기 연타) 보고는 한 번이다. 직렬 디스패처라 표시만으로 막힌다.
+            if (run.isForfeiting) return@launch
+            run.isForfeiting = true
             report(run) { battleRepository.forfeit(run.battleId) }
             if (run.cardKind.isDiscardable) discard(run) else finish(run, status = null)
         }
@@ -202,6 +209,29 @@ constructor(
             attempt++
         }
         result
+    }
+
+    /**
+     * 친구 대결 초대 만들기(POST /battles/friend-invites, D-270). 매칭 요청처럼 applicationScope에서 보내 화면이 사라져도 응답을 받고,
+     * 그 사이 화면이 떠났으면 [abandonInvite]가 만들어진 초대를 취소한다(남은 초대가 랜덤 매칭을 막지 않게, D-271).
+     */
+    suspend fun createInvite(distance: Distance): Outcome<FriendInvite> {
+        val created = applicationScope.async { battleRepository.createFriendInvite(distance) }
+        inviteJob = created
+        return created.await()
+    }
+
+    /**
+     * 초대 대기 화면을 떠났다(ViewModel이 지워짐, D-271). 만드는 중이면 끝난 뒤에, 이미 만들었으면 바로 그 초대를 [cancelInvite]로
+     * 취소한다. 만들지 못했거나 떠날 초대가 없으면 아무것도 하지 않는다. 여러 번 불러도 한 번만 취소한다.
+     */
+    fun abandonInvite() {
+        val pending = inviteJob ?: return
+        inviteJob = null
+        applicationScope.launch {
+            val created = pending.awaitOrNull() as? Outcome.Success ?: return@launch
+            cancelInvite(created.value.inviteId).await()
+        }
     }
 
     /** 대결에 참가할 수 없을 만큼 바쁜가: 열린 회가 있거나 자유런 등 측정 중이다(친구 대결 참가 전 확인, D-273). */
@@ -409,7 +439,7 @@ constructor(
     /**
      * 매칭 요청이 취소됐으면(이탈 취소가 요청을 끊음) null. 부른 코루틴 자신이 취소된 것이면 null로 삼키지 않고 취소를 잇는다(리뷰 N-9).
      */
-    private suspend fun Deferred<Outcome<MatchAcceptance>>.awaitOrNull(): Outcome<MatchAcceptance>? = try {
+    private suspend fun <T> Deferred<Outcome<T>>.awaitOrNull(): Outcome<T>? = try {
         await()
     } catch (e: CancellationException) {
         currentCoroutineContext().ensureActive()
@@ -487,6 +517,9 @@ constructor(
 
         var feed: OpponentFeed = liveOpponentFeed
             private set
+
+        /** 그만두기를 보냈는가(연타 막기). 이 회의 직렬 디스패처에서만 읽고 쓴다. */
+        var isForfeiting = false
 
         /** 시작 예약을 받았는가. 같은 시작 신호(onStart·BattleStart 재전송)가 두 번 와도 한 번만 시작한다. */
         private var isScheduled = false
