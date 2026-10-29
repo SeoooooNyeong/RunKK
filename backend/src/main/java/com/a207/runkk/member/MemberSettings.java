@@ -66,9 +66,23 @@ public class MemberSettings {
     @Column(name = "course_map_shared", nullable = false)
     private boolean courseMapShared;
 
+    /**
+     * 옛 설정 항목 PROFILE_VISIBILITY 값(옛 앱 호환, v0.14 D-241). 열이 NOT NULL로 남아 있어 함께 쓴다: 두 항목이 모두 공개면
+     * PUBLIC, 아니면 PRIVATE. 공개 판정에는 쓰지 않는다.
+     */
     @Enumerated(EnumType.STRING)
     @Column(name = "profile_visibility", nullable = false, length = 10)
     private ProfileVisibility profileVisibility;
+
+    /** 나이대 공개 여부(FR-006, FR-012, v0.14 D-241). */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "age_band_visibility", nullable = false, length = 10)
+    private ProfileVisibility ageBandVisibility;
+
+    /** 성별 공개 여부(FR-006, FR-012, v0.14 D-241). */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "gender_visibility", nullable = false, length = 10)
+    private ProfileVisibility genderVisibility;
 
     /** 꺼진 알림 종류 이름(쉼표 구분). 비면 모두 켜짐. */
     @Column(name = "muted_notification_types", nullable = false, length = 400)
@@ -92,6 +106,8 @@ public class MemberSettings {
         this.recordVisibility = chosen;
         this.courseMapShared = false;
         this.profileVisibility = ProfileVisibility.PRIVATE;
+        this.ageBandVisibility = ProfileVisibility.PRIVATE;
+        this.genderVisibility = ProfileVisibility.PRIVATE;
         this.mutedNotificationTypes = "";
         this.watchLinked = false;
         this.runSettings = RunSettings.defaults();
@@ -99,7 +115,7 @@ public class MemberSettings {
         this.theme = ScreenTheme.SYSTEM;
     }
 
-    /** 가입 기본값(srs.md 6.3 1.2). 가입·게스트 시작 모두 PUBLIC을 넘긴다(FR-028). 탈퇴 정리는 PRIVATE. */
+    /** 가입 기본값(srs.md 6.3 1.2). 가입·게스트 시작 모두 PUBLIC을 넘긴다(FR-010). 탈퇴 정리는 PRIVATE. */
     public static MemberSettings defaults(RecordVisibility chosen) {
         if (chosen == null) {
             throw new IllegalArgumentException("기록 공개 범위가 비었다");
@@ -205,8 +221,33 @@ public class MemberSettings {
         this.courseMapShared = shared;
     }
 
+    /** 옛 앱의 PROFILE_VISIBILITY 변경: 나이대·성별 두 항목에 같은 값을 쓴다(v0.14 D-241). */
     void changeProfileVisibility(ProfileVisibility visibility) {
-        this.profileVisibility = visibility;
+        changeItemVisibility(visibility, visibility);
+    }
+
+    /** 항목별 공개 여부를 바꾼다. null 항목은 그대로 둔다(v0.14 D-241). */
+    void changeItemVisibility(ProfileVisibility ageBand, ProfileVisibility gender) {
+        if (ageBand != null) {
+            this.ageBandVisibility = ageBand;
+        }
+        if (gender != null) {
+            this.genderVisibility = gender;
+        }
+        boolean bothPublic =
+                ageBandVisibility() == ProfileVisibility.PUBLIC
+                        && genderVisibility() == ProfileVisibility.PUBLIC;
+        this.profileVisibility = bothPublic ? ProfileVisibility.PUBLIC : ProfileVisibility.PRIVATE;
+    }
+
+    /** 나이대 공개 여부. V30 전에 메모리에 올라온 값처럼 비어 있으면 PRIVATE다. */
+    ProfileVisibility ageBandVisibility() {
+        return ageBandVisibility == null ? ProfileVisibility.PRIVATE : ageBandVisibility;
+    }
+
+    /** 성별 공개 여부. 비어 있으면 PRIVATE다. */
+    ProfileVisibility genderVisibility() {
+        return genderVisibility == null ? ProfileVisibility.PRIVATE : genderVisibility;
     }
 
     void changeWatchLinked(boolean linked) {

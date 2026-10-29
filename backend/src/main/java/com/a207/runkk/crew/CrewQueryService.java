@@ -88,7 +88,7 @@ public class CrewQueryService {
                 ids.stream()
                         .filter(
                                 id ->
-                                        levels.getOrDefault(id, DisclosureLevel.PRIVATE)
+                                        levels.getOrDefault(id, DisclosureLevel.WITHDRAWN)
                                                 .showsProfile())
                         .collect(Collectors.toSet());
         List<CrewMembersView.Line> lines = new ArrayList<>();

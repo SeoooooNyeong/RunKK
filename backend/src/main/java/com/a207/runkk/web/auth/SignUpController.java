@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 회원 가입(설계 5.7.1: POST /members → SignUpService.signUp, FR-003, FR-004, FR-028, 요청 축소 D-90)과 v0.11
+ * 회원 가입(설계 5.7.1: POST /members → SignUpService.signUp, FR-003, FR-004, FR-010, 요청 축소 D-90)과 v0.11
  * 게스트 시작(POST /members/guest, FR-197). 거부는 BusinessRuleException(사유)을 ApiExceptionHandler가 409로
  * 바꾼다.
  */
