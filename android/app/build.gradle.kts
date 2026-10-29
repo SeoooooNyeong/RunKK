@@ -31,12 +31,18 @@ fun googleServicesPackages(json: File): Set<String> =
         }
         .toSet()
 
+val kakaoNativeAppKey = secretProperty("KAKAO_NATIVE_APP_KEY")
+
 android {
     // 패키지 루트는 설계서 0.1의 com.a207.runkk.app. applicationId는 스토어 식별자라 그대로 둔다.
     namespace = "com.a207.runkk.app"
 
     defaultConfig {
         applicationId = "com.a207.runkk"
+        // 카카오 SDK 초기화(D-275)와 카카오톡 실행 링크 intent-filter(D-272)가 쓰는 앱 키. 저장소에 넣지 않는다(local.properties·
+        // Gradle 속성·환경 변수 KAKAO_NATIVE_APP_KEY, ui.me 로그인과 같은 값). 비면 초기화를 건너뛰고 스킴은 "kakao"만 남는다.
+        buildConfigField("String", "KAKAO_NATIVE_APP_KEY", buildConfigString(kakaoNativeAppKey))
+        manifestPlaceholders["kakaoScheme"] = "kakao$kakaoNativeAppKey"
         // 폰은 IID×10, 워치는 IID×10+1로 Play 버전 코드 충돌을 막는다.
         versionCode = providers.gradleProperty("runkk.versionCode").orElse("10").get().toInt()
         versionName = "0.9.0"
@@ -159,6 +165,8 @@ dependencies {
     implementation(project(":feature:share"))
 
     implementation(libs.androidx.core.ktx)
+    // 카카오 SDK 초기화(KakaoSdkStartup, D-275). 로그인(v2-user)·공유(v2-share)와 같은 판이다.
+    implementation(libs.kakao.sdk.common)
     implementation(libs.androidx.activity.compose)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)

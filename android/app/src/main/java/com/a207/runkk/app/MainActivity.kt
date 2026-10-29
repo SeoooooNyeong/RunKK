@@ -1,5 +1,6 @@
 package com.a207.runkk.app
 
+import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -39,8 +40,21 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var settings: SettingsRepository
 
+    private val inviteLinks = InviteLinkReader("kakao" + BuildConfig.KAKAO_NATIVE_APP_KEY)
+
+    /**
+     * 초대 링크로 열렸을 때 아직 열지 않은 초대 토큰(D-272). 회전·재생성에도 남도록 저장 상태에 둔다. 링크를 처음 받을 때만 인텐트에서 읽고,
+     * 다시 만들어질 때는 저장 상태를 쓴다(같은 인텐트로 초대를 두 번 열지 않게). RunkkNavHost가 열면 비운다.
+     */
+    private var pendingInvite by mutableStateOf<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        pendingInvite = if (savedInstanceState == null) {
+            inviteLinks.read(intent)
+        } else {
+            savedInstanceState.getString(PENDING_INVITE)
+        }
         enableEdgeToEdge()
         setContent {
             // 저장된 화면 테마를 읽기 전(null)에는 아무것도 그리지 않고 창 배경을 둔다(A4: 첫 프레임에 SYSTEM 벌을 그렸다가 저장된
@@ -67,11 +81,29 @@ class MainActivity : ComponentActivity() {
                     featureEntries = featureEntries,
                     loggedIn = loggedIn,
                     onExit = ::finish,
+                    pendingInvite = pendingInvite,
+                    onInviteOpened = { pendingInvite = null },
                     // Modifier.testTag를 UI Automator 리소스 ID로 내보낸다(E2E Maestro 선택자 id:, android/e2e/maestro).
                     // debug 빌드에서만 켠다: release에서는 testTag를 접근성 트리에 리소스 ID로 내보이지 않는다(리뷰 N-1).
                     modifier = Modifier.semantics { testTagsAsResourceId = BuildConfig.DEBUG }
                 )
             }
         }
+    }
+
+    /** singleTask라 앱이 떠 있는 동안 온 초대 링크는 여기로 온다. */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        inviteLinks.read(intent)?.let { pendingInvite = it }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putString(PENDING_INVITE, pendingInvite)
+    }
+
+    private companion object {
+        const val PENDING_INVITE = "runkk.pendingInvite"
     }
 }
