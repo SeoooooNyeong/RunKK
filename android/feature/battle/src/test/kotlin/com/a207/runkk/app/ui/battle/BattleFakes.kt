@@ -7,12 +7,23 @@ import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.RunMode
+import com.a207.runkk.app.domain.account.AccountRepository
+import com.a207.runkk.app.domain.account.GuestSession
+import com.a207.runkk.app.domain.account.LocationConsentUseCase
+import com.a207.runkk.app.domain.account.MemberSettings
+import com.a207.runkk.app.domain.account.Profile
+import com.a207.runkk.app.domain.account.ProfileEdit
+import com.a207.runkk.app.domain.account.ProviderToken
+import com.a207.runkk.app.domain.account.SessionTokens
+import com.a207.runkk.app.domain.account.SignUpForm
 import com.a207.runkk.app.domain.battle.ActiveBattle
 import com.a207.runkk.app.domain.battle.BattleHistory
 import com.a207.runkk.app.domain.battle.BattleRecordUploads
 import com.a207.runkk.app.domain.battle.BattleRepository
 import com.a207.runkk.app.domain.battle.BattleResult
 import com.a207.runkk.app.domain.battle.BattleRunCoordinator
+import com.a207.runkk.app.domain.battle.FriendInvite
+import com.a207.runkk.app.domain.battle.FriendInviteView
 import com.a207.runkk.app.domain.battle.MatchAcceptance
 import com.a207.runkk.app.domain.battle.OpponentTrack
 import com.a207.runkk.app.domain.battle.RecordBattleCandidates
@@ -24,6 +35,8 @@ import com.a207.runkk.app.domain.live.LiveState
 import com.a207.runkk.app.domain.live.MatchFound
 import com.a207.runkk.app.domain.live.ProgressReport
 import com.a207.runkk.app.domain.live.ServerMessage
+import com.a207.runkk.app.domain.record.RecordDetail
+import com.a207.runkk.app.domain.record.RunSummary
 import com.a207.runkk.app.domain.run.CompletedRun
 import com.a207.runkk.app.domain.run.Guidance
 import com.a207.runkk.app.domain.run.GuidanceOutput
@@ -219,7 +232,135 @@ class FakeBattleRepository : BattleRepository {
         calls += "history:${filter?.name}"
         return historyResult
     }
+
+    var createInviteResult: Outcome<FriendInvite> = Outcome.Success(friendInvite())
+    var myInviteResult: Outcome<FriendInvite?> = Outcome.Success(null)
+    var cancelInviteResults = ArrayDeque<Outcome<Unit>>()
+    var inviteViewResult: Outcome<FriendInviteView> = Outcome.Success(inviteView())
+    var acceptResult: Outcome<Long> = Outcome.Success(9L)
+    var declineResult: Outcome<Unit> = Outcome.Success(Unit)
+
+    override suspend fun createFriendInvite(distance: Distance): Outcome<FriendInvite> {
+        calls += "invite:${distance.meters}"
+        return createInviteResult
+    }
+
+    override suspend fun myFriendInvite(): Outcome<FriendInvite?> {
+        calls += "myInvite"
+        return myInviteResult
+    }
+
+    override suspend fun cancelFriendInvite(inviteId: Long): Outcome<Unit> {
+        calls += "cancelInvite:$inviteId"
+        return cancelInviteResults.removeFirstOrNull() ?: Outcome.Success(Unit)
+    }
+
+    override suspend fun friendInvite(token: String): Outcome<FriendInviteView> {
+        calls += "inviteView:$token"
+        return inviteViewResult
+    }
+
+    override suspend fun acceptFriendInvite(token: String): Outcome<Long> {
+        calls += "accept:$token"
+        return acceptResult
+    }
+
+    override suspend fun declineFriendInvite(token: String): Outcome<Unit> {
+        calls += "decline:$token"
+        return declineResult
+    }
 }
+
+/** 내가 만든 초대(5km, 만료 = 시작 + 5분). */
+fun friendInvite(inviteId: Long = 41) = FriendInvite(
+    inviteId = inviteId,
+    token = "aB3-_xY0aB3-_xY0aB3-_x",
+    inviteUrl = "https://k15a207.p.ssafy.io/invite/battle/aB3-_xY0aB3-_xY0aB3-_x",
+    distance = Distance(5_000),
+    expiresAt = start.plusSeconds(300)
+)
+
+/** 받은 초대(초대한 "바람처럼" GOLD 29:48, 나 UNRANKED 30:12). */
+fun inviteView(blockedReason: String? = null) = FriendInviteView(
+    inviteId = 41,
+    status = "PENDING",
+    distance = Distance(5_000),
+    expiresAt = start.plusSeconds(300),
+    inviter = FriendInviteView.Inviter("바람처럼", "GOLD", 1_788),
+    myTier = "UNRANKED",
+    myBestSeconds = 1_812,
+    blockedReason = blockedReason
+)
+
+/** 계정 가짜: 내 프로필(닉네임)과 위치 동의 주기만 쓴다. */
+class FakeAccounts : AccountRepository {
+    val consents = mutableListOf<String>()
+    var consentResult: Outcome<Unit> = Outcome.Success(Unit)
+
+    override suspend fun profile(memberId: Long): Outcome<Profile> =
+        Outcome.Success(Profile(7, "달리는곰", "PUBLIC", "GOLD", 3, null, null, null, null, null))
+
+    override suspend fun giveConsent(item: String): Outcome<Unit> {
+        consents += item
+        return consentResult
+    }
+
+    override suspend fun login(token: ProviderToken): Outcome<SessionTokens> = unused()
+
+    override suspend fun signUp(form: SignUpForm): Outcome<SessionTokens> = unused()
+
+    override suspend fun logout(): Outcome<Unit> = unused()
+
+    override suspend fun startAsGuest(consents: Map<String, Boolean>): Outcome<GuestSession> = unused()
+
+    override suspend fun linkSocialAccount(token: ProviderToken): Outcome<Unit> = unused()
+
+    override suspend fun withdraw(): Outcome<Unit> = unused()
+
+    override suspend fun editProfile(edit: ProfileEdit): Outcome<Unit> = unused()
+
+    override suspend fun changeSetting(item: String, value: String): Outcome<Unit> = unused()
+
+    override suspend fun withdrawConsent(item: String): Outcome<Unit> = unused()
+
+    override suspend fun legalDocument(type: String): Outcome<String> = unused()
+
+    override suspend fun settings(): Outcome<MemberSettings> = unused()
+
+    private fun <T> unused(): Outcome<T> = Outcome.Failure(AppError.Rejected("UNUSED"))
+}
+
+/** 위치 동의 사본을 바꿀 수 있는 설정 가짜. refresh가 [consentAfterRefresh]를 사본에 반영한다. */
+class FakeConsentSettings(var isConsented: Boolean = true) : SettingsRepository {
+    var consentAfterRefresh = true
+
+    override suspend fun refresh(): Outcome<Unit> {
+        isConsented = consentAfterRefresh
+        return Outcome.Success(Unit)
+    }
+
+    override fun locationConsented() = isConsented
+
+    override fun heartRateConsented() = false
+
+    override fun watchLinked() = false
+
+    override fun courseMapShared() = false
+
+    override fun birthYear(): Int? = null
+
+    override fun guidanceSettings() = GuidanceSettings.DEFAULT
+
+    override fun isGuest(): Boolean = false
+
+    override fun changes(): Flow<SettingsSnapshot> = flowOf(SettingsSnapshot.SAFE)
+
+    override suspend fun clear(): Outcome<Unit> = Outcome.Success(Unit)
+}
+
+/** 위치 동의 UseCase를 가짜 포트로 조립한다. */
+fun consentOf(settings: FakeConsentSettings = FakeConsentSettings(), accounts: FakeAccounts = FakeAccounts()) =
+    LocationConsentUseCase(accounts, settings)
 
 /** 실시간 채널 가짜: [push]로 서버 메시지를 넣는다. 닫히기 전까지 같은 채널을 돌려준다(D-57). */
 class FakeLiveChannels : LiveChannelProvider {
@@ -480,7 +621,8 @@ fun battleResult(pending: Boolean = false, verdict: String? = "WIN", recordId: S
     recordId = recordId,
     myReach = java.time.Duration.ofSeconds(1_650),
     opponentReach = java.time.Duration.ofSeconds(1_692),
-    weekly = BattleResult.Weekly(3, 1, 0)
+    type = BattleHistory.Type.RANDOM,
+    totalRewardPoints = 52
 )
 
 fun history(nextCursor: Long? = null) = BattleHistory(
@@ -521,3 +663,25 @@ fun history(nextCursor: Long? = null) = BattleHistory(
 )
 
 fun rejected(code: String) = Outcome.Failure(AppError.Rejected(code))
+
+/** 대결 본인 기록 상세(결과 2쪽). */
+fun recordDetail(recordId: String = "rec-9") = RecordDetail(
+    summary = RunSummary(
+        recordId = recordId,
+        startedAt = start,
+        distance = Distance(5_000),
+        elapsed = Duration.ofSeconds(1_650),
+        averagePace = null,
+        isValid = true,
+        mode = RunMode.BATTLE,
+        cardKind = CardKind.BATTLE_RUN
+    ),
+    route = emptyList(),
+    unstableSegments = emptyList(),
+    calories = null,
+    heartRateZones = emptyMap(),
+    newRecords = emptyList(),
+    crewContribution = null,
+    rewardPoints = 12,
+    weather = null
+)

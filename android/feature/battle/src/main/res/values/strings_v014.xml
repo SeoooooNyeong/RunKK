@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v0.14 배틀런 화면·친구 대결·기록런·대결 진행·대결 결과 문구(피그마 C·D·E, 설계 D-264~D-288). -->
+<resources>
+    <!-- 머리 -->
+    <string name="battle_header_battle">배틀런 · %1$s</string>
+    <string name="battle_header_friend">배틀런 · 친구 대결 · %1$s</string>
+    <string name="battle_header_self">셀프런 · %1$s</string>
+    <string name="battle_header_celeb">셀럽런 · %1$s</string>
+    <string name="battle_header_battle_name">배틀런</string>
+    <string name="battle_header_self_name">셀프런</string>
+    <string name="battle_header_celeb_name">셀럽런</string>
+    <string name="battle_best_line">%1$s 최고 %2$s</string>
+    <string name="battle_record_line">%1$s 기록 %2$s</string>
+    <string name="battle_past_self">%1$s의 나</string>
+    <string name="battle_tier_unranked">언랭</string>
+    <string name="battle_versus_desc">%1$s 대 %2$s</string>
+    <string name="battle_notice_confirm">확인</string>
+
+    <!-- 배틀런 화면(C-1·C-9) -->
+    <string name="battle_mode_title">배틀런</string>
+    <string name="battle_mode_random">랜덤 대결</string>
+    <string name="battle_mode_friend">친구 대결</string>
+    <string name="battle_mode_headline_random">오늘의 상대를 만나 볼까요?</string>
+    <string name="battle_mode_headline_friend">친구와 같은 거리로 겨뤄 볼까요?</string>
+    <string name="battle_mode_random_slot">랜덤 상대</string>
+    <string name="battle_mode_friend_slot">친구</string>
+    <string name="battle_mode_best">내 최고 기록</string>
+    <string name="battle_mode_random_start">%1$s 랜덤 매칭 시작</string>
+    <string name="battle_mode_invite">카카오톡으로 친구 초대</string>
+    <string name="battle_card_desc">%1$s, 내 최고 기록 %2$s, %3$s</string>
+
+    <!-- 매칭·초대 대기(C-2·C-10) -->
+    <string name="battle_waiting_desc">%1$s, %2$s 지남</string>
+    <string name="battle_invite_waiting">친구가 들어오길 기다리고 있어요</string>
+    <string name="battle_invite_resend">카카오톡으로 다시 보내기</string>
+    <string name="battle_invite_cancel">취소</string>
+    <string name="battle_invite_expired">친구가 들어오지 않았어요</string>
+    <string name="battle_invite_declined">친구가 대결을 거절했어요</string>
+    <string name="battle_invite_reinvite">다시 초대하기</string>
+    <string name="battle_invite_share_failed">카카오톡으로 초대를 보낼 수 없어요</string>
+    <string name="battle_invite_already_pending">이미 보낸 초대가 있어요</string>
+    <string name="battle_invite_busy">진행 중인 대결이 있어요</string>
+
+    <!-- 카카오톡 초대 메시지(C-11) -->
+    <string name="battle_invite_share_title">%1$s님이 %2$s 대결을 신청했어요</string>
+    <string name="battle_invite_share_description">런크크 배틀런 친구 대결</string>
+    <string name="battle_invite_share_button">대결 참가하기</string>
+
+    <!-- 참가 확인(C-12) -->
+    <string name="battle_join_headline">친구가 대결을 신청했어요</string>
+    <string name="battle_join_decline">거절</string>
+    <string name="battle_join_accept">참가하기</string>
+    <string name="battle_join_ended">이미 끝난 초대예요. 친구에게 다시 초대해 달라고 해 주세요</string>
+    <string name="battle_join_already_joined">이미 다른 친구가 참가한 초대예요</string>
+    <string name="battle_join_own">내가 보낸 초대예요</string>
+    <string name="battle_join_busy">진행 중인 대결이 있어 참가할 수 없어요</string>
+
+    <!-- 셀프런·셀럽런 카운트다운(D-2·E-2) -->
+    <string name="battle_countdown_self_title">과거의 나와 대결해요</string>
+    <string name="battle_countdown_celeb_title">%1$s%2$s 달려요</string>
+    <string name="battle_countdown_first_try">첫 도전</string>
+    <string name="battle_countdown_reselect">다시 고르기</string>
+
+    <!-- 대결 진행(C-4·D-3·E-3) -->
+    <string name="battle_running_hold_to_end">길게 눌러 종료</string>
+    <string name="battle_running_distance_spoken">%1$s킬로미터</string>
+    <string name="battle_running_unit_km">km</string>
+
+    <!-- 그만두기 확인(C-6·D-5·E-5) -->
+    <string name="battle_forfeit_title_self">셀프런을 그만둘까요?</string>
+    <string name="battle_forfeit_message_self">그만두면 이번 도전은 기록되지 않아요.</string>
+    <string name="battle_forfeit_title_celeb">셀럽런을 그만둘까요?</string>
+    <string name="battle_forfeit_message_celeb">그만두면 이번 기록은 저장되지 않아요.</string>
+    <string name="battle_forfeit_confirm_quit">그만두기</string>
+
+    <!-- 기록런(D-1·E-1) -->
+    <string name="battle_record_run_title">기록런</string>
+    <string name="battle_self_headline">어제의 나를 이겨 볼까요?</string>
+    <string name="battle_self_break">%1$s 기록 깨러 가기</string>
+
+    <!-- 대결 결과(C-7·C-8·D-6·D-7·E-6·E-7) -->
+    <string name="battle_result_title_self">셀프런 결과</string>
+    <string name="battle_result_title_celeb">셀럽런 결과</string>
+    <string name="battle_result_headline_new_record">신기록!</string>
+    <string name="battle_result_win_self">%1$s보다 %2$s 빨랐어요</string>
+    <string name="battle_result_lose_self">%1$s보다 %2$s 늦었어요</string>
+    <string name="battle_result_win_celeb">%1$s보다 %2$s 먼저 도착했어요</string>
+    <string name="battle_result_lose_celeb">%1$s보다 %2$s 늦게 도착했어요</string>
+    <string name="battle_result_swipe_detail">밀어서 상세 결과 보기 ›</string>
+    <string name="battle_result_back_to_verdict">‹ 대결 결과로</string>
+    <string name="battle_result_detail_waiting">상세 기록을 불러오고 있어요</string>
+    <string name="battle_result_date_pattern">M.dd E · a h:mm</string>
+    <string name="battle_result_page_desc">%2$d쪽 중 %1$d쪽</string>
+</resources>

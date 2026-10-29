@@ -93,7 +93,7 @@ val HISTORY_FILTERS: List<Pair<Int, BattleHistory.Type?>> = listOf(
 
 @StringRes
 internal fun typeLabel(type: BattleHistory.Type): Int = when (type) {
-    BattleHistory.Type.RANDOM, BattleHistory.Type.GHOST -> R.string.battle_type_random
+    BattleHistory.Type.RANDOM, BattleHistory.Type.GHOST, BattleHistory.Type.FRIEND -> R.string.battle_type_random
     BattleHistory.Type.SELF -> R.string.battle_type_self
     BattleHistory.Type.CELEBRITY -> R.string.battle_type_celebrity
 }

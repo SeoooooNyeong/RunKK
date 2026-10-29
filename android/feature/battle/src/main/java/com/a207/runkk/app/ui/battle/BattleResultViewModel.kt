@@ -11,15 +11,19 @@ import com.a207.runkk.app.domain.battle.BattleRunCoordinator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * 대결 결과(FR-093·FR-103·FR-108): BattleRepository.result 비교표·판정(상대 표시명·도달 시간 차)·적립 리워드·이번 주 전적을 보인다.
+ * 대결 결과(FR-093·FR-103·FR-108, D-283): BattleRepository.result 판정(상대 표시명·도달 시간 차)·셀프런 비교표·적립 합계를 1쪽에,
+ * 본인 기록 상세(RunDetailSource)를 2쪽에 보인다. 결과에 티어 평가가 실리면 평가 화면을 한 번 띄운다(D-284).
  * 결과를 보인 뒤 BattleRunCoordinator.acknowledgeFinished를 불러 다음 대결 화면이 지난 회의 종료 상태를 받지 않게 한다.
  * 그만두기·오프라인 종료 뒤에는 내 기록이 아직 서버에 없어 비교표 없는 결과나 네트워크 오류가 먼저 온다. 이 대결 기록이 올라가면
  * (BattleRecordUploads) 다시 읽고, 네트워크 오류는 몇 초마다 다시 읽는다(배틀 QA 5번).
@@ -28,10 +32,18 @@ import kotlinx.coroutines.launch
 class BattleResultViewModel @Inject constructor(
     private val battles: BattleRepository,
     private val coordinator: BattleRunCoordinator,
-    private val uploads: BattleRecordUploads
+    private val uploads: BattleRecordUploads,
+    private val runDetails: RunDetailSource
 ) : ViewModel() {
     private val _state = MutableStateFlow(BattleResultUiState())
     val state: StateFlow<BattleResultUiState> = _state.asStateFlow()
+
+    private val _events = Channel<BattleResultEvent>(Channel.BUFFERED)
+    val events: Flow<BattleResultEvent> = _events.receiveAsFlow()
+
+    /** 평가 화면을 이미 띄웠는가(한 번만, D-284). */
+    private var isEvaluationShown = false
+    private var detailJob: Job? = null
     private var job: Job? = null
     private var uploadJob: Job? = null
     private var lastError: AppError? = null
@@ -94,12 +106,33 @@ class BattleResultViewModel @Inject constructor(
                 lastError = null
                 _state.update { it.copy(isLoading = false, result = result.value, error = null) }
                 coordinator.acknowledgeFinished()
+                onResult(result.value)
             }
 
             is Outcome.Failure -> {
                 lastError = result.error
                 _state.update { it.copy(isLoading = false, error = BattleErrorText.of(result.error)) }
             }
+        }
+    }
+
+    /**
+     * 판정이 나온 결과: 본인 기록이 있으면 2쪽 상세를 읽고(한 번), 그 기록이 티어 평가를 일으켰으면 평가 화면을 한 번 띄운다(D-284).
+     */
+    private fun onResult(result: BattleResult) {
+        if (result.isPending) return
+        val recordId = result.recordId
+        if (recordId != null && _state.value.detail == null && detailJob?.isActive != true) {
+            detailJob = viewModelScope.launch {
+                (runDetails.detail(recordId) as? Outcome.Success)?.let { read ->
+                    _state.update { it.copy(detail = read.value) }
+                }
+            }
+        }
+        val evaluation = result.evaluation
+        if (evaluation != null && !isEvaluationShown) {
+            isEvaluationShown = true
+            _events.trySend(BattleResultEvent.NavigateEvaluation(evaluation))
         }
     }
 

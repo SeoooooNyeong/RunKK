@@ -68,7 +68,7 @@ class BetaLockTest {
     }
 
     @Test
-    fun `TC-9692 홈·러닝·배틀런·기록런·랭킹·마이·셀럽런은 열려 있다`() {
+    fun `TC-9692 홈·러닝·배틀런·기록런(셀럽런 포함)·랭킹·마이·친구 대결 참가는 열려 있다`() {
         listOf<NavKey>(
             Routes.Key(Routes.HOME),
             Routes.Key(Routes.RUN),
@@ -76,7 +76,7 @@ class BetaLockTest {
             Routes.Key(Routes.RECORD_RUN),
             Routes.Key(Routes.RANKING),
             Routes.Key(Routes.ME),
-            Routes.Key(Routes.CELEB),
+            Routes.FriendInviteJoin("tok"),
             Routes.Key(Routes.RUNIMAL),
             Routes.Key(Routes.RECORDS),
             Routes.RunResult("r1"),
@@ -89,7 +89,7 @@ class BetaLockTest {
         assertEquals(listOf(Routes.CREW, Routes.RECORD_RUN, Routes.HOME, Routes.RANKING, Routes.ME), Routes.TABS)
         Routes.TABS.forEach { assertEquals(it, tabOf(it)?.let(::routeOf)) }
         assertEquals(Routes.HOME, tabOf(Routes.BATTLE_MODE)?.let(::routeOf))
-        assertEquals(null, tabOf(Routes.SELF))
+        assertEquals(null, tabOf("battle/self"))
         assertEquals("ranking", Routes.RANKING)
     }
 

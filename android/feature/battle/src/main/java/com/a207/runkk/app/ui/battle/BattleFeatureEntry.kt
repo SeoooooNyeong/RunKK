@@ -10,19 +10,23 @@ import com.a207.runkk.app.core.navigation.route
 import javax.inject.Inject
 
 /**
- * 대결 경로를 그래프에 등록한다(FeatureEntry 구현, 6.1.14): 셀프 탭(나와의 싸움), 셀럽 탭(유명인), 배틀런 매칭,
- * 대결 진행·결과, 함께 달린 기록. 앱 화면 위에는 서버에 남은 진행 중 대결 안내를 붙인다(배틀 QA 7번).
+ * 대결 경로를 그래프에 등록한다(FeatureEntry 구현, 6.1.14): 기록런 탭(셀프런 | 셀럽런), 배틀런 화면(랜덤 | 친구 대결),
+ * 매칭 대기·친구 초대 대기·초대 참가 확인, 대결 진행·결과, 함께 달린 기록. 앱 화면 위에는 서버에 남은 진행 중 대결 안내를 붙인다(배틀 QA 7번).
  */
-class BattleFeatureEntry @Inject constructor() : FeatureEntry {
+class BattleFeatureEntry @Inject constructor(private val sharer: InviteSharer) : FeatureEntry {
     override val route: String = Routes.BATTLE_RANDOM
 
     override fun register(builder: EntryProviderScope<NavKey>) {
         builder.route(Routes.RECORD_RUN) { RecordRunRoute() }
-        builder.route(Routes.SELF) { SelfBattleRoute() }
-        builder.route(Routes.CELEB) { CelebBattleRoute() }
-        builder.route(Routes.BATTLE_RANDOM) { MatchRoute() }
+        builder.route(Routes.BATTLE_MODE) { BattleModeRoute() }
         builder.addEntryProvider(Routes.BattleQuickMatch::class) { key ->
-            MatchRoute(quickDistance = Distance(key.distanceMeters))
+            MatchRoute(MatchStart.Quick(Distance(key.distanceMeters)), sharer)
+        }
+        builder.addEntryProvider(Routes.FriendInviteWait::class) { key ->
+            MatchRoute(MatchStart.Invite(Distance(key.distanceMeters)), sharer)
+        }
+        builder.addEntryProvider(Routes.FriendInviteJoin::class) { key ->
+            MatchRoute(MatchStart.Join(key.token), sharer)
         }
         builder.route(Routes.BATTLE_HISTORY) { BattleHistoryRoute() }
         builder.addEntryProvider(Routes.BattleRunning::class) { key -> BattleRunningRoute(key) }

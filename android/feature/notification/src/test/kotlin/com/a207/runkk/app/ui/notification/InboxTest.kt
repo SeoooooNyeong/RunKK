@@ -204,7 +204,7 @@ class InboxTest {
             .toSet()
         val keys = Routes::class.java.declaredClasses.map { it.simpleName }.toSet()
         assertEquals(V010_CONSTANTS + V011_CONSTANTS + V014_CONSTANTS, constants)
-        assertEquals(V010_KEYS + V011_KEYS + WIRE_V010_KEYS, keys)
+        assertEquals(V010_KEYS + V011_KEYS + WIRE_V010_KEYS + V014_BATTLE_KEYS, keys)
     }
 
     @Test
@@ -215,7 +215,7 @@ class InboxTest {
 
     private companion object {
         val V010_CONSTANTS = setOf(
-            "LOGIN", "SIGN_UP", "SELF", "CELEB", "HOME", "CREW", "ME", "RUN", "PROFILE_EDIT", "SETTINGS",
+            "LOGIN", "SIGN_UP", "HOME", "CREW", "ME", "RUN", "PROFILE_EDIT", "SETTINGS",
             "FREE_RUN_SETTINGS", "NOTIFICATION_SETTINGS", "CONSENTS", "WITHDRAW", "RECORDS", "GROWTH", "REPORT",
             "RANKING", "COACH", "NOTIFICATIONS", "BATTLE_RANDOM", "BATTLE_HISTORY", "RUNIMAL", "AVATAR", "AVATAR_SETUP",
             "SHOP", "CREW_CREATE"
@@ -239,5 +239,8 @@ class InboxTest {
 
         /** 와이어프레임 v0.10 반영에서 더한 인자 키(F8 다른 러너 프로필, M1 공지 쓰기, M3 투표, M7 대면 모임, M8 공동 목표). */
         val WIRE_V010_KEYS = setOf("MemberProfile", "CrewNoticeWrite", "CrewPoll", "CrewMeetupDetail", "CrewGoalSet")
+
+        /** v0.14 친구 대결 초대 대기·참가 확인(D-269, D-272) 인자 키. 셀프·셀럽 탭 경로(SELF·CELEB)는 기록런이 대신해 지웠다. */
+        val V014_BATTLE_KEYS = setOf("FriendInviteWait", "FriendInviteJoin")
     }
 }

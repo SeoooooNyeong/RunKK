@@ -32,12 +32,6 @@ object Routes {
     /** 배틀런 화면(랜덤 | 친구 분절, ui.battle BattleModeScreen, D-268). 탭이 아니지만 하단 탭을 보이고 홈을 고른 상태로 둔다. */
     const val BATTLE_MODE = "battle/mode"
 
-    /** 셀프 탭(v0.13): 나와의 싸움 선택(ui.battle). v0.14에서 탭에서 뺐다. 기록런 화면이 대신하면 지운다(D-250, A3). */
-    const val SELF = "battle/self"
-
-    /** 셀럽 탭(v0.13): 유명인 선택(ui.battle). v0.14에서 탭에서 뺐다. 기록런 화면이 대신하면 지운다(D-250, A3). */
-    const val CELEB = "battle/celeb"
-
     // 러닝(ui.run)
 
     /** 자유런 카운트다운·측정·화면 잠금(한 화면, RunViewModel). */
@@ -109,9 +103,11 @@ object Routes {
     // 대결(ui.battle) 인자 화면(A3b)
 
     /**
-     * 대결 진행(랜덤·고스트·나와의 싸움·유명인). 상대 표시명·대결 거리는 매칭 성사(MatchFound)·기록 대결 시작 정보에서 넘긴다.
-     * [opponentKind]는 RANDOM·SELF·CELEBRITY(고스트는 RANDOM으로 보인다, Q-02). [startAtEpochMillis]는 매칭 화면이 이미 받은
+     * 대결 진행(랜덤·고스트·친구·나와의 싸움·유명인). 상대 표시명·대결 거리는 매칭 성사(MatchFound)·기록 대결 시작 정보에서 넘긴다.
+     * [opponentKind]는 RANDOM·FRIEND·SELF·CELEBRITY(고스트는 RANDOM으로 보인다, Q-02). [startAtEpochMillis]는 매칭 화면이 이미 받은
      * 시작 시각(측정 중에 화면을 넘겨받을 때 경과 시간 기준)이고 모르면 null이다.
+     * 셀프런·셀럽런 카운트다운(D-264)이 쓰는 값: [opponentRecordSeconds]는 상대 기록(과거의 나·셀럽), [opponentRecordedOnEpochDay]는
+     * 과거의 나 기록 날짜("10월 2일의 나"), [myBestSeconds]는 셀럽런의 그 거리 내 최고 기록(없으면 "첫 도전")이다.
      */
     @Serializable
     data class BattleRunning(
@@ -119,8 +115,19 @@ object Routes {
         val opponentName: String,
         val distanceMeters: Long,
         val opponentKind: String,
-        val startAtEpochMillis: Long? = null
+        val startAtEpochMillis: Long? = null,
+        val opponentRecordSeconds: Long? = null,
+        val opponentRecordedOnEpochDay: Long? = null,
+        val myBestSeconds: Long? = null
     ) : NavKey
+
+    /** 친구 대결 초대 대기(C-10, D-269). 배틀런 화면 친구 분절에서 고른 거리로 초대를 만들고 기다린다. */
+    @Serializable
+    data class FriendInviteWait(val distanceMeters: Long) : NavKey
+
+    /** 받은 친구 대결 초대의 참가 확인(C-12, D-272·D-273). 초대 링크로 앱을 열면 홈 위에 연다. */
+    @Serializable
+    data class FriendInviteJoin(val token: String) : NavKey
 
     /**
      * 홈의 배틀런 시작(FR-080): 홈 배틀런 탭에서 고른 대결 거리(1·3·5·10km, 처음엔 기본 대결 거리 FR-109)로 바로 매칭을 요청한다.
