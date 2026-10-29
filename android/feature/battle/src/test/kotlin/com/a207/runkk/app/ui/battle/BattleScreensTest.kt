@@ -180,34 +180,28 @@ class BattleScreensTest {
     }
 
     @Test
-    fun `함께 달린 기록·셀럽 후보는 필터 결과 건수를 보조 기술에 알린다`() {
+    fun `TC-9739 대결 탭은 대결·승·패 수, 필터 칩, 날짜·종류·거리·상대·승패 배지를 보이고 누르면 대결 결과로 간다`() {
+        val filters = mutableListOf<Int>()
+        val opened = mutableListOf<Long>()
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
-                androidx.compose.foundation.layout.Column {
-                    BattleHistoryScreen(
-                        BattleHistoryUiState(isLoading = false, history = history()),
-                        {},
-                        {},
-                        {},
-                        {},
-                        modifier = androidx.compose.ui.Modifier.weight(1f)
-                    )
-                    CelebBattleScreen(
-                        RecordBattleUiState(isLoading = false, candidates = celebCandidates.map(CandidateUi::of)),
-                        {},
-                        {},
-                        {},
-                        {},
-                        {},
-                        {},
-                        {},
-                        modifier = androidx.compose.ui.Modifier.weight(1f)
-                    )
-                }
+                BattleHistoryTabContent(
+                    BattleHistoryUiState(isLoading = false, history = history()),
+                    onFilter = { filters += it },
+                    onEntry = { opened += it },
+                    onRetry = {}
+                )
             }
         }
-        compose.onNodeWithText("${history().total}건")
-            .assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
+        compose.onNodeWithText("대결").assertExists()
+        listOf("전체", "배틀런", "셀프런", "셀럽런").forEach { compose.onNodeWithText(it).assertExists() }
+        compose.onAllNodesWithText("배틀런", substring = true).assertCountEquals(2)
+        compose.onNodeWithText("바람처럼").assertExists()
+        compose.onNodeWithText("셀프런").performClick()
+        assertEquals(listOf(2), filters)
+        compose.onNodeWithText("바람처럼").performClick()
+        assertEquals(listOf(9L), opened)
+        compose.onNodeWithText("이번 주 전적", substring = true).assertDoesNotExist()
     }
 
     @Test

@@ -96,7 +96,7 @@ class RunResultViewModel @Inject constructor(
                         newRecords = detail.newRecords,
                         heartRateZones = detail.heartRateZones.toList(),
                         rewardPoints = detail.rewardPoints,
-                        pausedTotal = detail.paused?.takeIf { paused -> !paused.isZero } ?: it.pausedTotal
+                        pausedTotal = detail.paused.takeIf { paused -> !paused.isZero } ?: it.pausedTotal
                     )
                 }
                 true

@@ -55,6 +55,9 @@ object Routes {
 
     // 기록(ui.record)
     const val RECORDS = "records"
+
+    /** 기록 화면을 "대결" 탭으로 연다(D-281). 대결 결과·기록런·알림함의 "함께 달린 기록"이 여기로 온다. */
+    const val RECORDS_BATTLES = "records/battles"
     const val GROWTH = "records/growth"
 
     /** 런바디(v0.14에서 리포트 화면 제목을 바꿨다, CR-32). 경로 이름은 그대로다. */
@@ -70,10 +73,10 @@ object Routes {
      * 배틀런(랜덤 대결) 거리 고르기·매칭 대기(v0.13). v0.14는 배틀런 화면(BATTLE_MODE)이 대신한다. A3가 대체 화면을 만들면 지운다.
      */
     const val BATTLE_RANDOM = "battle/random"
-
-    /** 대결 이력 화면(v0.13). v0.14는 기록 화면의 대결 탭 칸(SlotKey.RECORD_BATTLES)이 대신한다. A4가 지운다(D-281). */
-    const val BATTLE_HISTORY = "battle/history"
     const val RUNIMAL = "runimal"
+
+    /** Runimal 16유형(G-5, ui.runimal RunimalTypesScreen, D-285). */
+    const val RUNIMAL_TYPES = "runimal/types"
     const val AVATAR = "avatar"
 
     /** 아바타 만들기(가입 5단계에서 이어진다, FR-155·FR-158). */
@@ -128,6 +131,17 @@ object Routes {
      */
     @Serializable
     data class BattleQuickMatch(val distanceMeters: Long) : NavKey
+
+    /** Runimal 유형 상세(G-6, D-285). [type]은 서버 RunimalType 이름. */
+    @Serializable
+    data class RunimalType(val type: String) : NavKey
+
+    /**
+     * 평가 결과(G-11, ui.runimal EvaluationScreen, D-284). 러닝·대결 결과 응답의 evaluation이 있을 때 한 번 연다.
+     * [tier]는 서버 Tier 이름, [validRuns]는 evaluation.validRuns, [runimalType]은 확정 유형(첫 배치·미확정이면 null).
+     */
+    @Serializable
+    data class Evaluation(val tier: String, val validRuns: Int, val runimalType: String?) : NavKey
 
     /** 대결 결과(비교표, FR-093·FR-108). */
     @Serializable

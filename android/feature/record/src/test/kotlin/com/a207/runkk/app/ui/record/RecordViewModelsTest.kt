@@ -41,6 +41,7 @@ private class CountingTarget(private val outcome: ShareOutcome = ShareOutcome.Sh
     }
 }
 
+/** 기록 카드 팝업·공유 ViewModel(FR-068·FR-069). 목록·상세는 RecordListViewModelTest·RecordDetailViewModelTest가 맡는다. */
 @RunWith(RobolectricTestRunner::class)
 class RecordViewModelsTest {
     @get:Rule
@@ -49,85 +50,6 @@ class RecordViewModelsTest {
     private val records = FakeRecordRepository()
     private val pending = FakePendingRunRepository()
     private val clock = Clock.fixed(Instant.parse("2026-10-20T01:00:00Z"), ZoneId.of("Asia/Seoul"))
-
-    @Test
-    fun `기록 목록은 이번 달 본인 기록을 읽고 날짜별로 더한다(FR-057·FR-058)`() {
-        val vm = RecordListViewModel(records, pending, clock)
-        val s = vm.state.value
-        assertEquals(YearMonth.of(2026, 10), s.month)
-        assertEquals(
-            Triple(RecordRepository.SELF, LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 31)),
-            records.runsCalls.single()
-        )
-        // 14일: 유효 10.2km + 집계 제외 2km → 달력 칸은 유효 기록만 더한다(FR-057)
-        assertEquals(Distance(10_200), s.dailyDistance[LocalDate.of(2026, 10, 14)])
-        assertEquals(emptySet(), s.excludedDays)
-        assertEquals(3, s.runs.size)
-        assertEquals(listOf("r3", "r2", "r1"), s.runs.map { it.recordId })
-        assertEquals(2, s.validCount)
-        assertEquals(Distance(15_220), s.validDistance)
-    }
-
-    @Test
-    fun `달력 칸은 유효 기록 거리만 더하고, 집계 제외 기록만 있는 날은 거리 없이 표시만 남긴다`() {
-        records.runsResult = Outcome.Success(
-            RecordList(
-                listOf(
-                    summary("valid", 26, 3_090),
-                    summary("teleport", 26, 9_078_810, isValid = false),
-                    summary("jump", 26, 3_140, isValid = false),
-                    summary("only", 25, 9_078_810, isValid = false)
-                )
-            )
-        )
-        val s = RecordListViewModel(records, pending, clock).state.value
-        assertEquals(mapOf(LocalDate.of(2026, 10, 26) to Distance(3_090)), s.dailyDistance)
-        assertEquals(setOf(LocalDate.of(2026, 10, 25)), s.excludedDays)
-        assertEquals(1, s.validCount)
-        assertEquals(Distance(3_090), s.validDistance)
-    }
-
-    @Test
-    fun `달을 옮기면 그 달을 읽는다`() {
-        val vm = RecordListViewModel(records, pending, clock)
-        vm.onPreviousMonth()
-        assertEquals(YearMonth.of(2026, 9), vm.state.value.month)
-        assertEquals(LocalDate.of(2026, 9, 1), records.runsCalls.last().second)
-        vm.onNextMonth()
-        vm.onNextMonth()
-        assertEquals(YearMonth.of(2026, 11), vm.state.value.month)
-    }
-
-    @Test
-    fun `미전송 기록 수를 함께 보이고 목록 오류는 다시 읽는다(FR-039)`() {
-        pending.runs.value = listOf(pendingRun("p1"))
-        records.runsResult = Outcome.Failure(AppError.Network)
-        val vm = RecordListViewModel(records, pending, clock)
-        assertEquals(1, vm.state.value.pendingCount)
-        assertNotNull(vm.state.value.error)
-        records.runsResult = Outcome.Success(com.a207.runkk.app.domain.record.RecordList(emptyList()))
-        vm.refresh()
-        assertNull(vm.state.value.error)
-    }
-
-    @Test
-    fun `보기를 달력·목록으로 바꾼다`() {
-        val vm = RecordListViewModel(records, pending, clock)
-        vm.onViewSelected(RecordView.LIST)
-        assertEquals(RecordView.LIST, vm.state.value.view)
-    }
-
-    @Test
-    fun `기록 상세를 읽고 실패하면 오류를 보인다(FR-059)`() {
-        val vm = RecordDetailViewModel(records)
-        vm.load("r1")
-        assertEquals("12°C 맑음", vm.state.value.detail?.weather)
-        records.runResult = Outcome.Failure(AppError.Network)
-        val failing = RecordDetailViewModel(records)
-        failing.load("r9")
-        assertNull(failing.state.value.detail)
-        assertEquals(RunkkErrorText.of(AppError.Network), failing.state.value.error)
-    }
 
     private val avatars = FakeAvatarRepository()
 

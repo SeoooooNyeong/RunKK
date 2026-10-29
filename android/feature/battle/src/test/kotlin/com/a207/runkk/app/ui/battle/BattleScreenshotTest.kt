@@ -192,8 +192,8 @@ class BattleScreenshotTest {
     }
 
     @Test
-    fun historyScreen() = compose.captureRunkkScreen("D5_battle_history") {
-        BattleHistoryScreen(BattleHistoryUiState(isLoading = false, history = history()), {}, {}, {}, {})
+    fun historyTab() = compose.captureRunkkScreen("G10_record_battles_tab") {
+        BattleHistoryTabContent(BattleHistoryUiState(isLoading = false, history = history()), {}, {}, {})
     }
 
     // 라이트 벌(FR-203, NFR-041 화면 10개 × 테마 2).
