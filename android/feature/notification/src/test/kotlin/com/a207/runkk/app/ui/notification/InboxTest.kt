@@ -184,7 +184,7 @@ class InboxTest {
         assertEquals(Routes.Key(Routes.AVATAR_BACKGROUND), inboxDestination("AVATAR_BACKGROUND", null))
         assertEquals(Routes.CrewHome(7), inboxDestination("CREW_HOME", "7"))
         assertEquals(Routes.BattleResult(12), inboxDestination("BATTLE_RESULT", "12"))
-        assertEquals(Routes.Key(Routes.BATTLE_HISTORY), inboxDestination("BATTLE_RESULT", "x"))
+        assertEquals(Routes.Key(Routes.RECORDS_BATTLES), inboxDestination("BATTLE_RESULT", "x"))
         assertEquals(Routes.CrewManage(4), inboxDestination("CREW_MANAGE", "4"))
         assertEquals(null, inboxDestination("CREW_BOARD", "3"))
         assertEquals(null, inboxDestination("SOMETHING_NEW", null))
@@ -204,7 +204,7 @@ class InboxTest {
             .toSet()
         val keys = Routes::class.java.declaredClasses.map { it.simpleName }.toSet()
         assertEquals(V010_CONSTANTS + V011_CONSTANTS + V014_CONSTANTS, constants)
-        assertEquals(V010_KEYS + V011_KEYS + WIRE_V010_KEYS, keys)
+        assertEquals(V010_KEYS + V011_KEYS + WIRE_V010_KEYS + V014_KEYS, keys)
     }
 
     @Test
@@ -217,7 +217,7 @@ class InboxTest {
         val V010_CONSTANTS = setOf(
             "LOGIN", "SIGN_UP", "SELF", "CELEB", "HOME", "CREW", "ME", "RUN", "PROFILE_EDIT", "SETTINGS",
             "FREE_RUN_SETTINGS", "NOTIFICATION_SETTINGS", "CONSENTS", "WITHDRAW", "RECORDS", "GROWTH", "REPORT",
-            "RANKING", "COACH", "NOTIFICATIONS", "BATTLE_RANDOM", "BATTLE_HISTORY", "RUNIMAL", "AVATAR", "AVATAR_SETUP",
+            "RANKING", "COACH", "NOTIFICATIONS", "BATTLE_RANDOM", "RUNIMAL", "AVATAR", "AVATAR_SETUP",
             "SHOP", "CREW_CREATE"
         )
         val V011_CONSTANTS = setOf(
@@ -229,8 +229,11 @@ class InboxTest {
             "CREW_CHAT"
         )
 
-        /** v0.14 하단 탭 재구성(D-250)과 배틀런 화면(D-268)이 더한 경로. */
-        val V014_CONSTANTS = setOf("RECORD_RUN", "BATTLE_MODE")
+        /**
+         * v0.14 하단 탭 재구성(D-250), 배틀런 화면(D-268), 기록 화면 대결 탭(D-281, BATTLE_HISTORY를 대신함),
+         * Runimal 16유형(D-285)이 더한 경로.
+         */
+        val V014_CONSTANTS = setOf("RECORD_RUN", "BATTLE_MODE", "RECORDS_BATTLES", "RUNIMAL_TYPES")
         val V010_KEYS = setOf(
             "Key", "RunResult", "RecordDetail", "RecordCard", "BattleRunning", "BattleQuickMatch", "BattleResult",
             "CrewHome", "CrewManage", "CrewRunWrite", "CrewRunLobby", "CrewRunResult"
@@ -239,5 +242,8 @@ class InboxTest {
 
         /** 와이어프레임 v0.10 반영에서 더한 인자 키(F8 다른 러너 프로필, M1 공지 쓰기, M3 투표, M7 대면 모임, M8 공동 목표). */
         val WIRE_V010_KEYS = setOf("MemberProfile", "CrewNoticeWrite", "CrewPoll", "CrewMeetupDetail", "CrewGoalSet")
+
+        /** v0.14 유형 상세(D-285)와 평가 결과(D-284) 인자 키. */
+        val V014_KEYS = setOf("RunimalType", "Evaluation")
     }
 }

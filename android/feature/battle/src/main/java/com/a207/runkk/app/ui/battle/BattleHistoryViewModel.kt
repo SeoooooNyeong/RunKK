@@ -16,7 +16,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * 함께 달린 기록(FR-101): 통계 + 종류별(전체·랜덤·나와의 싸움·유명인) 최신순 목록. 고스트는 랜덤으로 보인다(Q-02).
+ * 기록 화면 대결 탭(FR-101, D-281): 통계 + 종류별(전체·배틀런·셀프런·셀럽런) 최신순 목록. 고스트는 배틀런으로 보인다(Q-02).
  * 끝까지 내리면 다음 쪽(nextCursor)을 이어 받는다.
  */
 @HiltViewModel
@@ -83,18 +83,18 @@ class BattleHistoryViewModel @Inject constructor(private val battles: BattleRepo
     }
 }
 
-/** 이력 거르기 라벨 → 종류(전체는 null). RANDOM이면 서버가 GHOST도 함께 준다. */
+/** 이력 거르기 라벨 → 종류(전체는 null). 배틀런(RANDOM)이면 서버가 고스트와 친구 대결도 함께 준다(D-281, 서버 D-230). */
 val HISTORY_FILTERS: List<Pair<Int, BattleHistory.Type?>> = listOf(
     R.string.battle_filter_all to null,
-    R.string.battle_type_random to BattleHistory.Type.RANDOM,
-    R.string.battle_type_self to BattleHistory.Type.SELF,
-    R.string.battle_type_celebrity to BattleHistory.Type.CELEBRITY
+    R.string.battle_history_type_battle to BattleHistory.Type.RANDOM,
+    R.string.battle_history_type_self to BattleHistory.Type.SELF,
+    R.string.battle_history_type_celeb to BattleHistory.Type.CELEBRITY
 )
 
 @StringRes
 internal fun typeLabel(type: BattleHistory.Type): Int = when (type) {
-    BattleHistory.Type.RANDOM, BattleHistory.Type.GHOST -> R.string.battle_type_random
-    BattleHistory.Type.FRIEND -> R.string.battle_type_friend
-    BattleHistory.Type.SELF -> R.string.battle_type_self
-    BattleHistory.Type.CELEBRITY -> R.string.battle_type_celebrity
+    BattleHistory.Type.RANDOM, BattleHistory.Type.GHOST -> R.string.battle_history_type_battle
+    BattleHistory.Type.FRIEND -> R.string.battle_history_type_friend
+    BattleHistory.Type.SELF -> R.string.battle_history_type_self
+    BattleHistory.Type.CELEBRITY -> R.string.battle_history_type_celeb
 }

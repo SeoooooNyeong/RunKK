@@ -84,7 +84,7 @@ fun SelfBattleRoute(viewModel: SelfBattleViewModel = hiltViewModel()) {
         state = state,
         onSelect = viewModel::onSelect,
         onStart = viewModel::onStart,
-        onHistory = { navigator.navigate(Routes.BATTLE_HISTORY) },
+        onHistory = { navigator.navigate(Routes.RECORDS_BATTLES) },
         onRetry = viewModel::load,
         onMessageShown = viewModel::onMessageShown
     )
@@ -147,7 +147,7 @@ fun CelebBattleRoute(viewModel: CelebBattleViewModel = hiltViewModel()) {
         onPick = viewModel::onPick,
         onConfirm = viewModel::onStart,
         onDismissConfirm = viewModel::onDismissConfirm,
-        onHistory = { navigator.navigate(Routes.BATTLE_HISTORY) },
+        onHistory = { navigator.navigate(Routes.RECORDS_BATTLES) },
         onRetry = viewModel::load,
         onMessageShown = viewModel::onMessageShown
     )
