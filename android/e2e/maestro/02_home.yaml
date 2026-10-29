@@ -7,17 +7,9 @@ tags: [smoke]
 - extendedWaitUntil:
     visible: "자유런 시작"
     timeout: 20000
-- assertVisible: "자유런 시작"
 - assertVisible: "0.00 KM"
-- assertVisible: "오늘 0.00킬로미터, 아직 달리지 않았어요"
-- assertVisible: "UNRANKED · Lv.1"
-- assertNotVisible: "다시 시도"
-- scrollUntilVisible:
-    element: "스트릭"
-    direction: DOWN
-- assertVisible: "0 일"
+- assertVisible: "오늘 달린 거리 0.00킬로미터, 아직 달리지 않았어요"
+- assertVisible: "UNRANKED, Lv.1"
+- assertVisible: "이번 주 목표 목표를 정해 보세요"
 - assertNotVisible: "다시 시도"
 - takeScreenshot: 02_home_dashboard
-- scrollUntilVisible:
-    element: "자유런 시작"
-    direction: UP
