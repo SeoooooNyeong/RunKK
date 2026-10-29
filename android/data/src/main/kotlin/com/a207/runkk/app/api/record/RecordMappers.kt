@@ -116,8 +116,9 @@ internal fun RecordDetailResponse.toDomain(): RecordDetail = RecordDetail(
     fastestKm = fastestKmSecondsPerKm.toPace(),
     averageHeartRate = averageHeartRate,
     maxHeartRate = maxHeartRate,
-    // 옛 서버(deletable 없음)는 본인 기록이고 집계 제외일 때만 삭제할 수 있다고 본다(D-280, D-289).
-    isDeletable = deletable ?: (owner != false && !summary.valid),
+    // 옛 서버(deletable 없음)는 본인 기록(owner 참)이고 집계 제외일 때만 삭제할 수 있다고 본다(D-280, D-289).
+    // owner도 없으면 남의 기록일 수 있으므로 버튼을 띄우지 않는다(AN8-13).
+    isDeletable = deletable ?: (owner == true && !summary.valid),
     evaluation = evaluation?.toDomain(),
     temperatureC = temperatureC,
     sky = sky,

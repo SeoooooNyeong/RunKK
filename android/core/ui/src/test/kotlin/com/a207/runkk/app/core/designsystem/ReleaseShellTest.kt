@@ -2,6 +2,9 @@ package com.a207.runkk.app.core.designsystem
 
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
@@ -11,6 +14,8 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
+import com.a207.runkk.app.core.model.Distance
+import java.time.Duration
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
@@ -23,7 +28,7 @@ import org.robolectric.RuntimeEnvironment
 
 /**
  * 1차 배포 앱 셸의 공용 부품(D-250~D-254, D-267, D-277): 하단 탭 순서·잠금, 숨김 판정, 기본 아바타, 위치 동의 시트, 가이드 앵커.
- * 시험 설계 10-06 TC-9694, TC-9697, TC-9701, TC-9685.
+ * 시험 설계 10-06 TC-9694, TC-9697, TC-9698(결과 크루 줄), TC-9701, TC-9685.
  */
 @RunWith(RobolectricTestRunner::class)
 class ReleaseShellTest {
@@ -116,5 +121,19 @@ class ReleaseShellTest {
         compose.onNodeWithText("닫기").performClick()
         compose.onNodeWithText("동의하고 시작").performClick()
         assertEquals(listOf("close", "agree"), picked)
+    }
+
+    @Test
+    fun `TC-9698 결과 화면 크루 반영 줄은 CREW가 닫혀 있으면 그리지 않고 열리면 그린다`() {
+        var scope by mutableStateOf(ReleaseScope.FIRST_RELEASE)
+        val state = RunResultDetailState(Distance(5_000), "10.16 목", Duration.ofMinutes(30), crewLine = "크루 레이스 반영")
+        compose.setContent {
+            CompositionLocalProvider(LocalReleaseScope provides scope) {
+                RunkkTheme(reduceMotion = true) { RunResultDetail(state) }
+            }
+        }
+        compose.onNodeWithText("크루 레이스 반영").assertDoesNotExist()
+        scope = ReleaseScope.ALL_OPEN
+        compose.onNodeWithText("크루 레이스 반영").assertExists()
     }
 }

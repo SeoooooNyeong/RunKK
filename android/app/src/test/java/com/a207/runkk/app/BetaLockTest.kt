@@ -43,7 +43,7 @@ private object LockEntries : FeatureEntry {
 
 /**
  * 1차 배포 잠금(D-251~D-253, FR-223): 크루·아바타 경로만 막고 나머지(셀럽런 포함)는 연다. 크루 탭은 이동 없이 잠긴 기능 안내만 띄운다.
- * 시험 설계 10-06 TC-9691·TC-9692·TC-9695~TC-9697, 10-07 TC-9859(가짜 서버 없이 화면 그래프만, 등록된 가짜 화면은 서버를 부르지 않는다).
+ * 시험 설계 10-06 TC-9691~TC-9697, 10-07 TC-9859(가짜 서버 없이 화면 그래프만, 등록된 가짜 화면은 서버를 부르지 않는다).
  */
 @RunWith(RobolectricTestRunner::class)
 class BetaLockTest {
@@ -127,6 +127,15 @@ class BetaLockTest {
         compose.onNodeWithText("홈 화면 크루 공개 true").assertExists()
         compose.onNodeWithText("크루").performClick()
         compose.onNodeWithText("크루 화면").assertExists()
+    }
+
+    @Test
+    fun `TC-9693 잠그지 않는 빌드는 잠금 경로로 바로 들어와도 안내 없이 연다`() {
+        show(lockUnreleased = false)
+
+        compose.onNodeWithText("크루 알림 열기").performClick()
+        compose.onNodeWithText("크루 홈 화면").assertExists()
+        compose.onNodeWithText("추후 추가 예정").assertDoesNotExist()
     }
 
     private fun show(lockUnreleased: Boolean) {

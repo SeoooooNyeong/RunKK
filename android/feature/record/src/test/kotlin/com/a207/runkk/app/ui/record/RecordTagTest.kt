@@ -50,6 +50,16 @@ class RecordTagTest {
     }
 
     @Test
+    fun `AN8-12 크루가 닫힌 1차 배포에서는 크루런 태그를 붙이지 않고 신기록은 남긴다`() {
+        val crew = summary("cr", 20, 5_000, kind = CardKind.CREW_RUN).copy(isNewRecord = true)
+        assertEquals(
+            listOf(res(R.string.record_tag_crew), res(R.string.record_tag_new_record)),
+            RecordTag.textsOf(crew, isCrewOpen = true)
+        )
+        assertEquals(listOf(res(R.string.record_tag_new_record)), RecordTag.textsOf(crew, isCrewOpen = false))
+    }
+
+    @Test
     fun `TC-9743 옛 서버라 대결 종류가 없으면 카드 종류로 정한다`() {
         assertEquals(RecordTag.BATTLE, RecordTag.kindOf(summary("b", 20, 5_000, kind = CardKind.BATTLE_RUN)))
         assertEquals(RecordTag.SELF, RecordTag.kindOf(summary("s", 20, 5_000, kind = CardKind.SELF_RUN)))
@@ -57,7 +67,7 @@ class RecordTagTest {
     }
 
     @Test
-    fun `TC-9732 대결이 아닌 신기록은 종류 문구를, 종류가 없으면 신기록만 붙인다`() {
+    fun `TC-9732 U8-3 신기록은 러닝 종류와 관계없이 종류 문구를, 종류가 없으면 신기록만 붙인다`() {
         val marked = summary("n", 20, 10_000).copy(
             isNewRecord = true,
             newRecords = listOf(
@@ -79,7 +89,32 @@ class RecordTagTest {
             RecordTag.textsOf(marked)
         )
         assertEquals(listOf(res(R.string.record_tag_new_record)), RecordTag.textsOf(plain))
-        assertEquals(listOf(res(R.string.record_tag_battle_win)), RecordTag.textsOf(battle))
+        assertEquals(
+            listOf(res(R.string.record_tag_battle_win), res(R.string.record_tag_new_record)),
+            RecordTag.textsOf(battle)
+        )
+    }
+
+    @Test
+    fun `U8-3 D52 셀프런·셀럽런도 신기록이면 종류 태그 뒤에 신기록을 붙인다`() {
+        val self = summary("s", 20, 5_000, kind = CardKind.SELF_RUN)
+            .copy(battleType = RecordBattleType.SELF, verdict = RecordVerdict.WIN, isNewRecord = true)
+        val celeb = summary("c", 20, 5_000, kind = CardKind.CELEB_RUN).copy(
+            battleType = RecordBattleType.CELEBRITY,
+            isNewRecord = true,
+            newRecords = listOf(NewRecordMark(NewRecordMark.Kind.BASE_DISTANCE, "KM5"))
+        )
+        val selfPlain = summary("sp", 20, 5_000, kind = CardKind.SELF_RUN).copy(battleType = RecordBattleType.SELF)
+
+        assertEquals(
+            listOf(res(R.string.record_tag_self), res(R.string.record_tag_new_record)),
+            RecordTag.textsOf(self)
+        )
+        assertEquals(
+            listOf(res(R.string.record_tag_celeb), res(R.string.record_tag_best_at, UiText.Plain("5km"))),
+            RecordTag.textsOf(celeb)
+        )
+        assertEquals(listOf(res(R.string.record_tag_self)), RecordTag.textsOf(selfPlain))
     }
 
     @Test

@@ -174,20 +174,22 @@ class RecordRepositoryV014Test {
     }
 
     @Test
-    fun `TC-9735 deletable이 없으면 본인 기록이고 집계 제외일 때만 삭제할 수 있다`() = runTest {
+    fun `TC-9735 AN8-13 deletable이 없으면 본인 기록(owner 참)이고 집계 제외일 때만 삭제할 수 있다`() = runTest {
         fun detail(valid: Boolean, extra: String) =
             """{"summary":{"recordId":"r","startedAt":"2026-10-20T07:00:00+09:00","distanceMeters":10,"elapsedSeconds":10,
                |"valid":$valid,"mode":"FREE","cardKind":"FREE_RUN"}$extra}
             """.trimMargin()
-        api.reply(detail(valid = false, extra = ""))
-        api.reply(detail(valid = true, extra = ""))
+        api.reply(detail(valid = false, extra = ""","owner":true"""))
+        api.reply(detail(valid = true, extra = ""","owner":true"""))
         api.reply(detail(valid = false, extra = ""","owner":false"""))
+        api.reply(detail(valid = false, extra = ""))
         api.reply(detail(valid = false, extra = ""","deletable":false"""))
         api.reply(detail(valid = true, extra = ""","deletable":true"""))
 
         assertTrue(repository.run("r").value().isDeletable)
         assertFalse(repository.run("r").value().isDeletable)
         assertFalse(repository.run("r").value().isDeletable)
+        assertFalse(repository.run("r").value().isDeletable, "owner도 없으면(옛 서버) 남의 기록일 수 있어 숨긴다")
         assertFalse(repository.run("r").value().isDeletable)
         assertTrue(repository.run("r").value().isDeletable)
     }
