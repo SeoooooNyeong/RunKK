@@ -13,6 +13,8 @@ import com.a207.runkk.app.domain.live.CrewRunCancelled
 import com.a207.runkk.app.domain.live.CrewRunEnded
 import com.a207.runkk.app.domain.live.CrewRunRelay
 import com.a207.runkk.app.domain.live.CrewRunStart
+import com.a207.runkk.app.domain.live.FriendInviteDeclined
+import com.a207.runkk.app.domain.live.FriendInviteExpired
 import com.a207.runkk.app.domain.live.MatchFailed
 import com.a207.runkk.app.domain.live.MatchFound
 import com.a207.runkk.app.domain.live.OpponentProgress
@@ -36,7 +38,7 @@ import kotlinx.serialization.json.JsonPrimitive
  * 실시간 메시지 계약 시험(14장, 5.7.2, design-review.md H-17). 두 방향을 고정 표본으로 확인한다.
  *
  * 표본은 src/test/resources/contract/realtime/ 에 있고 백엔드 계약 시험이 같은 파일을 쓴다(한쪽만 고치지 않는다).
- * - 서버 → 앱 10종(<type>.json, BattleStart-random.json): 서버 RealtimeMessageSerializer가 battle.live·crew.live record를
+ * - 서버 → 앱 12종(<type>.json, BattleStart-random.json, v0.14 친구 초대 2종 포함): 서버 RealtimeMessageSerializer가 battle.live·crew.live record를
  *   직렬화한 결과와 JSON이 같아야 하고(서버 시험), 앱 ServerMessageDecoder가 아래 기대 도메인 값으로 읽어야 한다(이 시험).
  * - 앱 → 서버(inbound-progress-offset.json): 앱 ProgressReport 직렬화가 이 JSON과 같아야 하고(이 시험), 서버 realtime.InboundProgress가
  *   이 JSON을 읽어야 한다(서버 시험). inbound-progress.json은 오프셋 없는 옛 형식(LocalDateTime)으로, 서버가 계속 받는 호환 표본이라
@@ -49,7 +51,7 @@ class RealtimeContractTest {
     private val decoder = ServerMessageDecoder()
 
     @Test
-    fun `서버 메시지 표본 11종을 해독한다`() {
+    fun `서버 메시지 표본 13종을 해독한다(TC-9687 친구 초대 2종 포함)`() {
         val expected: Map<String, ServerMessage> =
             mapOf(
                 "MatchFound" to
@@ -108,14 +110,16 @@ class RealtimeContractTest {
                         )
                     ),
                 "CrewRunEnded" to CrewRunEnded(77),
-                "MatchFailed" to MatchFailed("MATCH_FAILED", "대결을 만들지 못했어요. 다시 시도해 주세요")
+                "MatchFailed" to MatchFailed("MATCH_FAILED", "대결을 만들지 못했어요. 다시 시도해 주세요"),
+                "FriendInviteDeclined" to FriendInviteDeclined(41),
+                "FriendInviteExpired" to FriendInviteExpired(42)
             )
 
         expected.forEach { (sample, message) ->
             assertEquals(message, decoder.decode(read("$sample.json")), "표본 $sample")
         }
         val types = expected.values.map { it::class.simpleName }.toSet()
-        assertEquals(11, types.size, "서버 → 앱 메시지 11종을 모두 덮는다")
+        assertEquals(13, types.size, "서버 → 앱 메시지 13종을 모두 덮는다")
     }
 
     @Test
@@ -315,6 +319,8 @@ class RealtimeContractTest {
                 "CrewRunRelay.json",
                 "CrewRunEnded.json",
                 "MatchFailed.json",
+                "FriendInviteDeclined.json",
+                "FriendInviteExpired.json",
                 "inbound-progress.json",
                 "inbound-progress-offset.json",
                 "CrewChatPosted.json",

@@ -44,4 +44,10 @@ sealed interface BattleRunState {
     ) : BattleRunState
 
     data class Finished(val battleId: Long, val status: BattleEnded.Status?) : BattleRunState
+
+    /**
+     * 셀프런·셀럽런을 그만둬 기록을 버리고 끝났다(D-266). 서버는 대결을 취소해 결과·이력·리워드가 없으므로 화면은 결과 화면 없이
+     * 기록런 탭으로 돌아간다.
+     */
+    data class Discarded(val battleId: Long) : BattleRunState
 }

@@ -28,9 +28,9 @@
     <string name="battle_verdict_win">승</string>
     <string name="battle_verdict_lose">패</string>
     <string name="battle_verdict_draw">무</string>
-    <string name="battle_result_win_name_gap">%1$s님보다 %2$s 먼저 도착했어요!</string>
-    <string name="battle_result_win_name">%1$s님보다 먼저 도착했어요!</string>
-    <string name="battle_result_win">상대보다 먼저 도착했어요!</string>
+    <string name="battle_result_win_name_gap">%1$s님보다 %2$s 먼저 도착했어요</string>
+    <string name="battle_result_win_name">%1$s님보다 먼저 도착했어요</string>
+    <string name="battle_result_win">상대보다 먼저 도착했어요</string>
     <string name="battle_result_lose_name_gap">%1$s님이 %2$s 먼저 도착했어요. 다음 대결에서 다시 만나요</string>
     <string name="battle_result_lose">대결에서 졌어요</string>
     <string name="battle_result_draw_name">%1$s님과 1초 안에 함께 도착했어요. 무승부!</string>
@@ -56,7 +56,7 @@
     <string name="battle_result_weekly">이번 주 전적</string>
     <string name="battle_result_weekly_none">이번 주 전적 없음</string>
     <string name="battle_result_title">대결 결과</string>
-    <string name="battle_result_headline_win">승리</string>
+    <string name="battle_result_headline_win">승리!</string>
     <string name="battle_result_headline_lose">패배</string>
     <string name="battle_result_headline_draw">무승부</string>
     <string name="battle_result_history_link">함께 달린 기록 보기 ›</string>
@@ -124,7 +124,7 @@
     <string name="battle_match_finding">상대를 찾고 있어요</string>
     <string name="battle_match_finding_desc">상대를 찾고 있어요, %1$d초 지남</string>
     <string name="battle_match_cancelling">취소하는 중</string>
-    <string name="battle_match_cancel">그만 찾을래요</string>
+    <string name="battle_match_cancel">취소</string>
     <string name="battle_match_found">상대를 찾았어요</string>
     <string name="battle_match_found_desc">상대를 찾았어요. %1$s, %2$s</string>
     <string name="battle_match_best_desc">%1$s 최고 기록, 나 %2$s, 상대 %3$s</string>
@@ -156,6 +156,6 @@
     <string name="battle_record_average_spoken">평균 %1$s</string>
     <string name="battle_record_challenge_label">%1$s와 대결하기</string>
     <string name="battle_record_source">출처: %1$s</string>
-    <string name="battle_record_run_self">셀프런</string>
+    <string name="battle_record_run_self">나와의 대결</string>
     <string name="battle_record_run_celeb">셀럽런</string>
 </resources>

@@ -65,9 +65,15 @@ class RunTrackerDiscardTest {
         clock.advanceSeconds(seconds)
     }
 
-    private fun session(mode: RunMode = RunMode.FREE): RunSession = RunSession(
-        RunStartSpec(mode = mode, cardKind = CardKind.FREE_RUN, recordId = "rec-1")
+    private fun session(kind: CardKind = CardKind.FREE_RUN): RunSession = RunSession(
+        RunStartSpec(mode = modeOf(kind), cardKind = kind, recordId = "rec-1")
     ).also { it.start(T0) }
+
+    private fun modeOf(kind: CardKind): RunMode = when (kind) {
+        CardKind.FREE_RUN -> RunMode.FREE
+        CardKind.CREW_RUN -> RunMode.CREW_RUN
+        else -> RunMode.BATTLE
+    }
 
     // ---------- RunSession.discard ----------
 
@@ -86,11 +92,34 @@ class RunTrackerDiscardTest {
     }
 
     @Test
-    fun `대결(셀프·셀럽 대결 포함)·크루런은 discard가 거짓이고 측정을 이어 간다`() {
-        for (mode in RunMode.entries.filter { it != RunMode.FREE }) {
-            val s = session(mode)
-            assertFalse(s.discard(), "$mode")
+    fun `TC-9631 CardKind isDiscardable - 자유런·셀프런·셀럽런만 참이다`() {
+        assertEquals(
+            mapOf(
+                CardKind.FREE_RUN to true,
+                CardKind.SELF_RUN to true,
+                CardKind.CELEB_RUN to true,
+                CardKind.BATTLE_RUN to false,
+                CardKind.CREW_RUN to false
+            ),
+            CardKind.entries.associateWith { it.isDiscardable }
+        )
+    }
+
+    @Test
+    fun `배틀런(랜덤·고스트·친구)·크루런은 discard가 거짓이고 측정을 이어 간다`() {
+        for (kind in listOf(CardKind.BATTLE_RUN, CardKind.CREW_RUN)) {
+            val s = session(kind)
+            assertFalse(s.discard(), "$kind")
             assertEquals(RunSession.State.RUNNING, s.state)
+        }
+    }
+
+    @Test
+    fun `셀프런·셀럽런은 대결 모드여도 카드 종류로 discard한다(D-266)`() {
+        for (kind in listOf(CardKind.SELF_RUN, CardKind.CELEB_RUN)) {
+            val s = session(kind)
+            assertTrue(s.discard(), "$kind")
+            assertEquals(RunSession.State.FINISHED, s.state)
         }
     }
 
@@ -154,6 +183,16 @@ class RunTrackerDiscardTest {
         runCurrent()
         assertTrue(log.calls.isEmpty())
         assertEquals(1, host.stopped)
+    }
+
+    @Test
+    fun `측정 중이면 isMeasuring이 참이고 취소하면 거짓이다`() = runTest {
+        val tracker = tracker()
+        assertFalse(tracker.isMeasuring)
+        tracker.startRun(freeSpec())
+        assertTrue(tracker.isMeasuring)
+        tracker.discardRun()
+        assertFalse(tracker.isMeasuring)
     }
 
     @Test

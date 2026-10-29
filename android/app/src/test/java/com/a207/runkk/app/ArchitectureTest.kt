@@ -391,7 +391,9 @@ class ArchitectureTest {
                 "ui.run" to CORE_UI + setOf("domain.run", "domain.record"),
                 // domain.avatar 추가: 러닝 카드 배경 키·단계(AvatarRepository.backgroundChoice, D-140, D-185).
                 "ui.record" to CORE_UI + setOf("domain.record", "domain.run", "domain.avatar", "ui.share"),
-                "ui.battle" to CORE_UI + setOf("domain.battle", "domain.live"),
+                // v0.14: domain.account는 위치 동의 시트(LocationConsentUseCase, D-267)와 초대 메시지의 내 닉네임(D-270),
+                // domain.record는 대결 결과 2쪽의 본인 기록 상세(RunDetailSource, D-283)다.
+                "ui.battle" to CORE_UI + setOf("domain.battle", "domain.live", "domain.account", "domain.record"),
                 "ui.runimal" to CORE_UI + setOf("domain.runimal", "ui.share"),
                 // domain.report(신고 대화상자)·ui.share(축하 카드 공유) 추가(v0.11 F.6.4, D-140).
                 "ui.crew" to CORE_UI + setOf("domain.crew", "domain.report", "ui.share"),

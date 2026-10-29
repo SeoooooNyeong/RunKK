@@ -215,7 +215,7 @@ class InboxTest {
 
     private companion object {
         val V010_CONSTANTS = setOf(
-            "LOGIN", "SIGN_UP", "SELF", "CELEB", "HOME", "CREW", "ME", "RUN", "PROFILE_EDIT", "SETTINGS",
+            "LOGIN", "SIGN_UP", "HOME", "CREW", "ME", "RUN", "PROFILE_EDIT", "SETTINGS",
             "FREE_RUN_SETTINGS", "NOTIFICATION_SETTINGS", "CONSENTS", "WITHDRAW", "RECORDS", "GROWTH", "REPORT",
             "RANKING", "COACH", "NOTIFICATIONS", "BATTLE_RANDOM", "RUNIMAL", "AVATAR", "AVATAR_SETUP",
             "SHOP", "CREW_CREATE"
@@ -243,7 +243,10 @@ class InboxTest {
         /** 와이어프레임 v0.10 반영에서 더한 인자 키(F8 다른 러너 프로필, M1 공지 쓰기, M3 투표, M7 대면 모임, M8 공동 목표). */
         val WIRE_V010_KEYS = setOf("MemberProfile", "CrewNoticeWrite", "CrewPoll", "CrewMeetupDetail", "CrewGoalSet")
 
-        /** v0.14 유형 상세(D-285)와 평가 결과(D-284) 인자 키. */
-        val V014_KEYS = setOf("RunimalType", "Evaluation")
+        /**
+         * v0.14 유형 상세(D-285)·평가 결과(D-284)와 친구 대결 초대 대기·참가 확인(D-269, D-272) 인자 키.
+         * 셀프·셀럽 탭 경로(SELF·CELEB)는 기록런이 대신해 지웠다.
+         */
+        val V014_KEYS = setOf("RunimalType", "Evaluation", "FriendInviteWait", "FriendInviteJoin")
     }
 }

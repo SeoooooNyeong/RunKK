@@ -5,9 +5,11 @@ package com.a207.runkk.app.ui.battle
 import app.cash.turbine.test
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.AppError
+import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.GeoPoint
 import com.a207.runkk.app.core.navigation.Routes
+import com.a207.runkk.app.domain.battle.BattleRunState
 import com.a207.runkk.app.domain.live.BattleEnded
 import com.a207.runkk.app.domain.live.BattleGuidance
 import com.a207.runkk.app.domain.live.BattleStart
@@ -257,6 +259,111 @@ class BattleRunningViewModelTest {
         vm.bind(key.copy(startAtEpochMillis = start.toEpochMilli()))
         runCurrent()
         assertEquals(Duration.ofSeconds(20), vm.state.value.elapsed)
+    }
+
+    /** 셀프런을 측정 중까지 진행한 진행 화면 ViewModel(과거의 나 10월 2일 기록 27:30). */
+    private fun TestScope.selfRunning(
+        w: BattleWorld,
+        vms: ViewModelCloser,
+        kind: CardKind = CardKind.SELF_RUN
+    ): BattleRunningViewModel {
+        val vm = vms.track(BattleRunningViewModel(w.coordinator, w.clock))
+        w.coordinator.onRecordBattleStart(recordStart(Distance(5_000), kind, "10월 2일의 나"))
+        val opponent = if (kind == CardKind.SELF_RUN) OpponentKind.SELF else OpponentKind.CELEBRITY
+        vm.bind(
+            Routes.BattleRunning(
+                42,
+                "10월 2일의 나",
+                5_000,
+                opponent.name,
+                opponentRecordSeconds = 1_650,
+                opponentRecordedOnEpochDay = java.time.LocalDate.of(2026, 10, 2).toEpochDay()
+            )
+        )
+        runCurrent()
+        return vm
+    }
+
+    @Test
+    fun `D-264 카운트다운에 상대 기록과 날짜를 담는다`() = main.runVmTest { vms ->
+        val w = world()
+        val vm = selfRunning(w, vms)
+        val s = vm.state.value
+        assertEquals(BattlePhase.COUNTDOWN, s.phase)
+        assertEquals(Duration.ofSeconds(1_650), s.opponentRecord)
+        assertEquals(java.time.LocalDate.of(2026, 10, 2), s.opponentRecordedOn)
+    }
+
+    @Test
+    fun `TC-9638 셀프런 카운트다운 다시 고르기 - forfeit만 보내고 기록 없이 기록런 탭으로`() = main.runVmTest { vms ->
+        val w = world()
+        val vm = selfRunning(w, vms)
+        vm.events.test {
+            vm.onReselect()
+            runCurrent()
+            assertEquals(BattleRunningEvent.Discarded, awaitItem())
+        }
+        assertTrue("forfeit:42" in w.battles.calls)
+        assertTrue(w.pendingRuns.runs.value.isEmpty(), "기록을 저장하지 않는다")
+        assertEquals(BattleRunState.Idle, w.coordinator.state.value, "다음 대결을 위해 비운다")
+    }
+
+    @Test
+    fun `TC-9636 셀프런 진행 중 그만두기를 확인하면 결과 화면 없이 기록런 탭으로(Discarded)`() = main.runVmTest { vms ->
+        val w = world()
+        val vm = selfRunning(w, vms)
+        w.clock.now = w.clock.now.plusSeconds(3)
+        advanceTimeBy(3_100)
+        runCurrent()
+        assertEquals(BattlePhase.RUNNING, vm.state.value.phase)
+        vm.events.test {
+            vm.onForfeitLongPressed()
+            assertTrue(vm.state.value.isConfirmingForfeit)
+            vm.onForfeitConfirmed()
+            runCurrent()
+            assertEquals(BattleRunningEvent.Discarded, awaitItem())
+        }
+        assertTrue(w.pendingRuns.runs.value.isEmpty(), "셀프런 그만두기는 기록을 올리지 않는다")
+    }
+
+    @Test
+    fun `TC-9637 그만두기 문구는 상대 종류마다 다르고 취소는 계속 달리기다`() {
+        assertEquals(R.string.battle_running_forfeit_title, OpponentKind.RANDOM.forfeitTitle)
+        assertEquals(R.string.battle_running_forfeit_title, OpponentKind.FRIEND.forfeitTitle)
+        assertEquals(R.string.battle_running_forfeit_message, OpponentKind.FRIEND.forfeitMessage)
+        assertEquals(R.string.battle_running_forfeit_confirm, OpponentKind.RANDOM.forfeitConfirm)
+        assertEquals(R.string.battle_forfeit_title_self, OpponentKind.SELF.forfeitTitle)
+        assertEquals(R.string.battle_forfeit_message_self, OpponentKind.SELF.forfeitMessage)
+        assertEquals(R.string.battle_forfeit_title_celeb, OpponentKind.CELEBRITY.forfeitTitle)
+        assertEquals(R.string.battle_forfeit_message_celeb, OpponentKind.CELEBRITY.forfeitMessage)
+        assertEquals(R.string.battle_forfeit_confirm_quit, OpponentKind.CELEBRITY.forfeitConfirm)
+    }
+
+    @Test
+    fun `랜덤 대결은 다시 고르기가 없다`() = main.runVmTest { vms ->
+        val w = world()
+        val vm = running(w, vms)
+        vm.onReselect()
+        runCurrent()
+        assertFalse("forfeit:9" in w.battles.calls)
+    }
+
+    @Test
+    fun `D-261 진행 상태에 내 경로선을 담는다`() = main.runVmTest { vms ->
+        val w = world()
+        val vm = running(w, vms)
+        w.runTo(1, 0.0)
+        w.runTo(15, 45.0)
+        runCurrent()
+        assertEquals(w.tracker.routeLine.value, vm.state.value.route)
+        assertTrue(vm.state.value.route.points.isNotEmpty())
+    }
+
+    @Test
+    fun `TC-9646 거리 차 표기는 +42 m 앞서는 중, -118 m 뒤처지는 중이다`() {
+        assertEquals("+42 m", gapMetersLabel(42))
+        assertEquals("-118 m", gapMetersLabel(-118))
+        assertEquals("+0 m", gapMetersLabel(0))
     }
 
     private companion object {

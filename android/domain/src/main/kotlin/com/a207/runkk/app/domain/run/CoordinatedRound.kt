@@ -71,6 +71,11 @@ internal class CoordinatedRound(
         if (measuring.compareAndSet(true, false)) tracker.endRun()
     }
 
+    /** 측정 중이면 기록을 남기지 않고 끝낸다(RunTracker.discardRun, D-266). 여러 번 불러도 한 번만 버린다. */
+    fun discardMeasuring() {
+        if (measuring.compareAndSet(true, false)) tracker.discardRun()
+    }
+
     fun cancel() {
         scope.cancel()
     }

@@ -59,7 +59,7 @@ import com.a207.runkk.app.core.navigation.collectSlots
  * 화면마다 ViewModel 저장소를 따로 두어(rememberViewModelStoreNavEntryDecorator) 화면을 닫으면 ViewModel도 정리된다.
  * [lockUnreleased]가 켜지면(1차 배포 빌드, D-251) 크루 탭에 자물쇠를 달고 누르면 [LockedFeatureDialog]만 띄우며(D-253),
  * 잠긴 경로([BetaLock])로 들어오면 안내를 띄우고 뒤로 돌린다. 화면 숨김 판정(LocalReleaseScope), 가이드 앵커 표
- * (LocalGuideAnchors), 칸 기여 표(LocalSlots)도 여기서 넣는다.
+ * (LocalGuideAnchors), 칸 기여 표(LocalSlots)도 여기서 넣는다. 초대 링크로 받은 [pendingInvite]는 홈이 맨 위가 되면 참가 확인으로 연다.
  */
 @Composable
 fun RunkkNavHost(
@@ -68,10 +68,20 @@ fun RunkkNavHost(
     onExit: () -> Unit,
     loggedIn: Boolean,
     modifier: Modifier = Modifier,
-    lockUnreleased: Boolean = BuildConfig.LOCK_UNRELEASED
+    lockUnreleased: Boolean = BuildConfig.LOCK_UNRELEASED,
+    pendingInvite: String? = null,
+    onInviteOpened: () -> Unit = {}
 ) {
     val backStack = rememberNavBackStack(Routes.Key(startRoute))
     val navigator = remember(backStack) { BackStackNavigator(backStack, onExit) }
+    // 초대 링크(D-272): 로그인 상태이고 홈이 맨 위일 때 참가 확인을 연다. 로그인·가입 중이거나 측정 중이면 홈이 맨 위가 될 때까지 기다린다.
+    val current = backStack.lastOrNull()
+    LaunchedEffect(pendingInvite, loggedIn, current) {
+        inviteToOpen(pendingInvite, loggedIn, current)?.let { token ->
+            navigator.navigate(Routes.FriendInviteJoin(token))
+            onInviteOpened()
+        }
+    }
     // 로그인 상태가 풀리면(로그아웃·토큰 갱신 실패 → TokenProvider.clear, 6.1.14) 로그인·가입 화면이 아닌 한 로그인으로 돌린다.
     LaunchedEffect(loggedIn) {
         val top = (backStack.lastOrNull() as? Routes.Key)?.route
@@ -134,6 +144,10 @@ fun RunkkNavHost(
         if (isLockedNoticeVisible) LockedFeatureDialog(onDismiss = { isLockedNoticeVisible = false })
     }
 }
+
+/** 지금 열 초대 토큰: 받은 토큰이 있고 로그인 상태이며 홈이 맨 위일 때만(D-272). 그 밖에는 null(기다린다). */
+internal fun inviteToOpen(pendingInvite: String?, loggedIn: Boolean, top: NavKey?): String? =
+    pendingInvite?.takeIf { loggedIn && top == Routes.Key(Routes.HOME) }
 
 /** 1차 배포에서 잠그는 하단 탭(D-253). */
 private val LOCKED_TABS: Set<RunkkTab> = setOf(RunkkTab.CREW)

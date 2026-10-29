@@ -231,8 +231,12 @@ constructor(
         return outcome
     }
 
+    /** 측정 중인가(정지 포함). 친구 대결 참가 전 확인(BattleRunCoordinator.isBusy, D-273)이 읽는다. */
+    val isMeasuring: Boolean
+        get() = synchronized(lock) { session?.isActive == true }
+
     /**
-     * 화면의 취소(자유런, 기록을 남기지 않는 종료). 대결·크루런이거나 측정 중이 아니면 거짓이고 아무것도 하지 않는다.
+     * 기록을 남기지 않는 종료(자유런 취소, 셀프런·셀럽런 그만두기, D-266). 배틀런·크루런이거나 측정 중이 아니면 거짓이고 아무것도 하지 않는다.
      * 취소하면 측정 서비스를 멈추고 워치를 시작 화면으로 돌린 뒤(워치 측정도 끝난다) ended로 NotSaved를 보낸다. 보관(RunArchive),
      * 남긴 결과(takeUnclaimedEnd), 늦은 심박 창(lastFinished) 어디에도 남기지 않아 기록·집계에 들어가지 않는다.
      */

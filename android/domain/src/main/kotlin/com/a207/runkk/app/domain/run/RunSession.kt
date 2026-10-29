@@ -191,11 +191,11 @@ class RunSession(val spec: RunStartSpec) {
     }
 
     /**
-     * 화면의 취소(기록을 남기지 않는 종료). 취소할 수 있는 모드([isDiscardable], 자유런)이고 측정 중일 때만
+     * 기록을 남기지 않는 종료(자유런 취소, 셀프런·셀럽런 그만두기, D-266). 버릴 수 있는 카드 종류([isDiscardable])이고 측정 중일 때만
      * FINISHED로 바꾸고 참이다. 기록(CompletedRun)을 만들지 않는다. 정지 중에도 취소할 수 있고 열린 정지 구간은 버린다.
      */
     fun discard(): Boolean {
-        if (!spec.mode.isDiscardable || !isActive) return false
+        if (!spec.cardKind.isDiscardable || !isActive) return false
         pausedSince = null
         state = State.FINISHED
         return true

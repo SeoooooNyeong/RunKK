@@ -98,6 +98,8 @@ androidx-credentials = { group = "androidx.credentials", name = "credentials", v
 androidx-credentials-play-services-auth = { group = "androidx.credentials", name = "credentials-play-services-auth", version.ref = "credentials" }
 google-googleid = { group = "com.google.android.libraries.identity.googleid", name = "googleid", version.ref = "googleId" }
 kakao-sdk-user = { group = "com.kakao.sdk", name = "v2-user", version.ref = "kakaoSdk" }
+kakao-sdk-share = { group = "com.kakao.sdk", name = "v2-share", version.ref = "kakaoSdk" }
+kakao-sdk-common = { group = "com.kakao.sdk", name = "v2-common", version.ref = "kakaoSdk" }
 kakao-maps = { group = "com.kakao.maps.open", name = "android", version.ref = "kakaoMap" }
 androidx-lifecycle-service = { group = "androidx.lifecycle", name = "lifecycle-service", version.ref = "lifecycle" }
 firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging", version.ref = "firebaseMessaging" }
