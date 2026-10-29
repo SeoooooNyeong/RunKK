@@ -304,11 +304,13 @@ public final class InMemoryRunningRepositories {
         }
 
         @Override
-        public List<RunRecord> findMissingShape(int limit) {
+        public List<RunRecord> findMissingShape(String afterRecordId, int limit) {
             return rows.values().stream()
+                    .sorted(java.util.Comparator.comparing(RunRecord::getRecordId))
                     .filter(
                             r ->
-                                    r.getRouteShape().isEmpty()
+                                    r.getRecordId().compareTo(afterRecordId) > 0
+                                            && r.getRouteShape().isEmpty()
                                             && r.hasRoute()
                                             && r.routePoints().size() >= 2)
                     .limit(limit)

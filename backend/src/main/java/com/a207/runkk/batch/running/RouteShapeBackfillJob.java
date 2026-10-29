@@ -37,11 +37,13 @@ public class RouteShapeBackfillJob {
     public void run() {
         try {
             int total = 0;
-            int filled;
-            do {
-                filled = routeShapeBackfillService.fillMissing(BATCH);
-                total += filled;
-            } while (filled > 0);
+            String cursor = "";
+            while (cursor != null) {
+                RouteShapeBackfillService.Batch batch =
+                        routeShapeBackfillService.fillMissing(cursor, BATCH);
+                total += batch.filled();
+                cursor = batch.lastRecordId();
+            }
             log.info("route_shape_backfill_done filled={}", total);
         } catch (RuntimeException e) {
             log.error("route_shape_backfill_failed error={}", e.getClass().getSimpleName(), e);

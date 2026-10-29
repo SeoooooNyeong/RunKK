@@ -27,11 +27,24 @@ public class RouteShapeBackfillService {
         this.transaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
-    /** 모양이 없고 경로가 남은 기록을 limit개까지 채운다. 채운 수(0이면 남은 것이 없다). */
-    public int fillMissing(int limit) {
+    /**
+     * 한 묶음의 결과.
+     *
+     * @param filled 이 묶음에서 채운 수
+     * @param lastRecordId 이 묶음에서 마지막으로 본 기록 ID(다음 묶음의 시작점). 볼 후보가 없었으면 null이고 끝났다는 뜻이다
+     */
+    public record Batch(int filled, String lastRecordId) {}
+
+    /**
+     * afterRecordId 뒤의 모양 없는 기록을 limit개까지 시도한다. 채우지 못한 기록(경로 해제 실패, 점이 모자람)도 지나가므로 그런 기록이 limit개 넘게
+     * 쌓여도 뒤 기록까지 간다.
+     */
+    public Batch fillMissing(String afterRecordId, int limit) {
         int filled = 0;
-        for (RunRecord candidate : runRecordRepository.findMissingShape(limit)) {
+        String last = null;
+        for (RunRecord candidate : runRecordRepository.findMissingShape(afterRecordId, limit)) {
             String recordId = candidate.getRecordId();
+            last = recordId;
             try {
                 Boolean done = transaction.execute(status -> fillOne(recordId));
                 if (Boolean.TRUE.equals(done)) {
@@ -44,7 +57,7 @@ public class RouteShapeBackfillService {
                         e.getClass().getSimpleName());
             }
         }
-        return filled;
+        return new Batch(filled, last);
     }
 
     private boolean fillOne(String recordId) {

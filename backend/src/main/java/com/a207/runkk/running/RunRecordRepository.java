@@ -49,8 +49,11 @@ public interface RunRecordRepository {
     /** 기간 안 기록 목록 줄(무효 포함), 최신순. 위치·심박 열은 읽지 않는다. */
     List<RunListRow> listRows(long memberId, DateRange r);
 
-    /** 경로 모양이 없고 경로가 남은 기록, 저장 순으로 limit개(되채우기). */
-    List<RunRecord> findMissingShape(int limit);
+    /**
+     * 경로 모양이 없고 경로가 남은 기록 중 기록 ID가 afterRecordId보다 큰 것을 ID 순으로 limit개(되채우기). 채우지 못한 기록이 앞에 쌓여도
+     * 마지막으로 본 ID부터 이어 가므로 뒤 기록이 막히지 않는다.
+     */
+    List<RunRecord> findMissingShape(String afterRecordId, int limit);
 
     // v0.14 평가 표시(D-291·D-294)
 

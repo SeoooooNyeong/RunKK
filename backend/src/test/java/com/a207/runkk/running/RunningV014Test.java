@@ -256,10 +256,36 @@ class RunningV014Test {
         second.purgeRoute();
         RouteShapeBackfillService backfill =
                 new RouteShapeBackfillService(records, RunningServicesTest.NO_TX);
-        assertThat(backfill.fillMissing(10)).isEqualTo(1);
+        RouteShapeBackfillService.Batch batch = backfill.fillMissing("", 10);
+        assertThat(batch.filled()).isEqualTo(1);
         assertThat(first.getRouteShape()).isPresent();
         assertThat(second.getRouteShape()).isEmpty();
-        assertThat(backfill.fillMissing(10)).isZero();
+        assertThat(backfill.fillMissing(batch.lastRecordId(), 10).lastRecordId()).isNull();
+    }
+
+    @Test
+    @DisplayName("BE8-11 되채우기: 마지막으로 본 기록 ID부터 이어 가 한 번에 한 건씩 봐도 뒤 기록까지 채운다")
+    void be8_11_backfillCursorMovesOn() {
+        long m = member();
+        send(m, upload(id(1), 5_000, 1_500));
+        send(m, upload(id(2), START.plusHours(1), 3_000, 900));
+        for (String id : List.of(id(1), id(2))) {
+            org.springframework.test.util.ReflectionTestUtils.setField(
+                    records.findById(id).orElseThrow(), "routeShape", null);
+        }
+        RouteShapeBackfillService backfill =
+                new RouteShapeBackfillService(records, RunningServicesTest.NO_TX);
+        int total = 0;
+        int batches = 0;
+        String cursor = "";
+        while (cursor != null) {
+            RouteShapeBackfillService.Batch batch = backfill.fillMissing(cursor, 1);
+            total += batch.filled();
+            cursor = batch.lastRecordId();
+            batches++;
+        }
+        assertThat(total).isEqualTo(2);
+        assertThat(batches).isEqualTo(3); // 두 건과 끝을 알리는 빈 묶음
     }
 
     @Test
