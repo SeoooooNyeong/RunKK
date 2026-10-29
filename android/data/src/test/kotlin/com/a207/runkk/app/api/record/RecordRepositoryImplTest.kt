@@ -73,7 +73,7 @@ class RecordRepositoryImplTest {
                |"crew":{"crewName":"새벽런","streakDays":9,"grass":{"2026-10-20":12000},"landmark":null},
                |"todaySeconds":1100,"todayRuns":2,"grassLevels":{"2026-10-19":3,"2026-10-20":2},
                |"weekly":{"weekStart":"2026-10-19","goalRuns":4,"goalMeters":20000,"actualRuns":2,"actualMeters":12000,
-               |"runsPercent":50,"distancePercent":60}}
+               |"runsPercent":50,"distancePercent":60},"rewardBalance":1250}
             """.trimMargin()
         )
 
@@ -101,11 +101,19 @@ class RecordRepositoryImplTest {
                     runsPercent = 50,
                     distancePercent = 60
                 ),
-                grassLevels = mapOf(LocalDate.of(2026, 10, 19) to 3, LocalDate.of(2026, 10, 20) to 2)
+                grassLevels = mapOf(LocalDate.of(2026, 10, 19) to 3, LocalDate.of(2026, 10, 20) to 2),
+                rewardBalance = 1_250
             ),
             dashboard
         )
         assertEquals("/api/v1/dashboard?baseDate=2026-10-20", api.take().target)
+    }
+
+    @Test
+    fun `TC-9743 옛 서버 대시보드는 리워드 잔액 없이 해독된다`() = runTest {
+        api.reply("""{"todayMeters":0,"totalMeters":0}""")
+
+        assertEquals(null, repository.dashboard(LocalDate.of(2026, 10, 20)).value().rewardBalance)
     }
 
     @Test

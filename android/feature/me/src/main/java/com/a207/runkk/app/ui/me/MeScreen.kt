@@ -2,13 +2,12 @@ package com.a207.runkk.app.ui.me
 
 import android.content.res.Resources
 import androidx.annotation.StringRes
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -16,19 +15,21 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -37,11 +38,9 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.a207.runkk.app.core.designsystem.AvatarBackdrop
+import com.a207.runkk.app.core.designsystem.AvatarExpression
 import com.a207.runkk.app.core.designsystem.RunimalArt
-import com.a207.runkk.app.core.designsystem.RunkkAvatarArt
-import com.a207.runkk.app.core.designsystem.RunkkAvatarPortrait
-import com.a207.runkk.app.core.designsystem.RunkkCard
+import com.a207.runkk.app.core.designsystem.RunkkAvatar
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkFormat
@@ -49,18 +48,20 @@ import com.a207.runkk.app.core.designsystem.RunkkIconButton
 import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkLoading
 import com.a207.runkk.app.core.designsystem.RunkkMenuRow
-import com.a207.runkk.app.core.designsystem.RunkkSecondaryButton
-import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.asString
+import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.account.Gender
 import com.a207.runkk.app.domain.account.Profile
 
-/** 마이 탭(F2): 프로필 요약, 통계, MY Runimal, 기록·아바타 메뉴. 로그아웃·탈퇴는 설정(F4)에 있다. */
+/**
+ * 마이 탭(G-1, D-287): 알림 종·설정, 아바타·닉네임·"Lv.[n] · [티어]"·"편집"·"[Runimal] ›", 누적 거리·최장 거리·러닝 횟수,
+ * 메뉴 "러닝 기록"·"성장 분석"·"런바디"·"목표·러닝 코치". 소개·나이대·성별은 보이지 않는다. 로그아웃·탈퇴는 설정에 있다.
+ */
 @Composable
 fun MeRoute(viewModel: MeViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -84,12 +85,15 @@ fun MeScreen(state: MeUiState, onNavigate: (String) -> Unit, onRetry: () -> Unit
                 RunkkLoading()
             }
 
-            state.profile != null -> ProfileSummary(
-                state.profile,
-                state.faceLayers,
-                onEdit = { onNavigate(Routes.PROFILE_EDIT) },
-                onRunimal = { onNavigate(Routes.RUNIMAL) }
-            )
+            state.profile != null -> {
+                ProfileHeader(
+                    state.profile,
+                    state.faceLayers,
+                    onEdit = { onNavigate(Routes.PROFILE_EDIT) },
+                    onRunimal = { onNavigate(Routes.RUNIMAL) }
+                )
+                StatTiles(state.profile)
+            }
 
             state.error != null -> RunkkErrorState(state.error.asString(), onRetry = onRetry)
         }
@@ -120,165 +124,168 @@ private fun MeTopRow(onNavigate: (String) -> Unit) {
     }
 }
 
-/** 입력한 나이대·성별(FR-006). "밝히지 않음"·미입력은 빼고, 둘 다 없으면 null. */
+/** 입력한 나이대·성별(FR-006). "밝히지 않음"·미입력은 빼고, 둘 다 없으면 null. 다른 러너 프로필이 쓴다. */
 internal fun aboutLine(res: Resources, profile: Profile): String? = listOfNotNull(
     profile.ageBand?.takeIf { it.isNotBlank() },
     profile.gender?.takeIf { it != Gender.UNDISCLOSED }?.let { res.getString(genderLabelRes(it)) }
 ).takeIf { it.isNotEmpty() }?.joinToString(", ")
 
-/** 프로필 머리, "프로필 편집", 통계, MY Runimal 카드. */
+/** 아바타(기본 아바타, 꾸미기가 열리면 얼굴 그림), 닉네임·"Lv.[n] · [티어]", "편집", "[Runimal] ›". */
 @Composable
-private fun ProfileSummary(profile: Profile, faceLayers: List<FaceLayer>, onEdit: () -> Unit, onRunimal: () -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        ProfileHeader(profile, faceLayers)
-        RunkkSecondaryButton(
-            stringResource(R.string.me_profile_edit),
-            onClick = onEdit,
-            height = 40.dp,
-            modifier = Modifier.fillMaxWidth()
-        )
-        StatTiles(profile)
-        RunimalCard(profile.runimalType, onRunimal)
-    }
-}
-
-/** 고른 랜드마크 배경 위 아바타 얼굴(FR-202), 닉네임, "Lv.n, 티어", 나이대·성별, 한줄 소개. */
-@Composable
-private fun ProfileHeader(profile: Profile, faceLayers: List<FaceLayer>) {
-    val defaultTier = stringResource(R.string.me_profile_default_tier)
-    val level = profile.level?.let { stringResource(R.string.me_profile_level, it) }
-    val about = aboutLine(LocalContext.current.resources, profile)
+private fun ProfileHeader(profile: Profile, faceLayers: List<FaceLayer>, onEdit: () -> Unit, onRunimal: () -> Unit) {
+    val tier = profile.tier ?: stringResource(R.string.me_profile_default_tier)
+    val levelTier = stringResource(R.string.me_profile_level_tier, profile.level ?: RunkkFormat.EMPTY, tier)
     Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(
             modifier = Modifier
-                .size(84.dp)
-                .clip(RunkkShapes.Large)
-                .border(2.dp, RunkkColors.Lime, RunkkShapes.Large),
+                .size(72.dp)
+                .clip(CircleShape)
+                .background(RunkkColors.SurfacePressed)
+                .border(1.dp, RunkkColors.Border, CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            // 배경은 장식이다.
-            AvatarBackdrop(profile.avatarBackgroundKey, modifier = Modifier.matchParentSize())
-            RunkkAvatarPortrait(
-                // 얼굴을 고르기 전이면 기본 캐릭터 얼굴 1번(FR-155·FR-158).
-                profile.faceKey ?: RunkkAvatarArt.DEFAULT_FACE_KEY,
-                faceLayers,
-                modifier = Modifier.size(52.dp).clip(CircleShape).testTag(PROFILE_FACE_TAG)
+            RunkkAvatar(
+                profile.faceKey,
+                AvatarExpression.JOY,
+                modifier = Modifier.size(64.dp).testTag(PROFILE_FACE_TAG),
+                faceLayers = faceLayers
             )
         }
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(
+                modifier = Modifier.semantics(mergeDescendants = true) {},
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    profile.displayName,
+                    style = RunkkTextStyles.text(18, FontWeight.Black),
+                    color = RunkkColors.TextPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+                Text(levelTier, style = RunkkTextStyles.Label, color = RunkkColors.TextSecondary)
+            }
+            RunimalLink(profile.runimalType, onRunimal)
+        }
+        val editDescription = stringResource(R.string.me_main_edit_description)
+        TextButton(onClick = onEdit, modifier = Modifier.semantics { contentDescription = editDescription }) {
             Text(
-                profile.displayName,
-                style = RunkkTextStyles.text(18, FontWeight.Black),
-                color = RunkkColors.TextPrimary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                stringResource(R.string.me_main_edit),
+                style = RunkkTextStyles.BodyStrong,
+                color = RunkkColors.TextPrimary
             )
-            Text(
-                text = listOfNotNull(level, profile.tier ?: defaultTier).joinToString(", "),
-                style = RunkkTextStyles.Label,
-                color = RunkkColors.TextSecondary
-            )
-            about?.let { Text(it, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary) }
-            profile.intro?.let { Text(it, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary) }
         }
     }
 }
 
-/** 통계 칸. 앱 프로필에 있는 값(최장 거리)만 보인다(누적 거리·러닝 횟수는 프로필 응답에 없다). */
+/** "[Runimal] ›": 유형 이름(없으면 "판정 전")을 누르면 MY Runimal로 간다. */
+@Composable
+private fun RunimalLink(type: String?, onClick: () -> Unit) {
+    val name = if (type.isNullOrBlank()) {
+        stringResource(R.string.me_profile_runimal_unknown)
+    } else {
+        stringResource(RunimalArt.of(type).nameRes)
+    }
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(
+                role = Role.Button,
+                onClickLabel = stringResource(R.string.me_profile_runimal),
+                onClick = onClick
+            )
+            .padding(vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(name, style = RunkkTextStyles.text(15, FontWeight.Bold), color = RunkkColors.TextPrimary)
+        Icon(
+            RunkkIcons.ChevronRight,
+            contentDescription = null,
+            tint = RunkkColors.TextPrimary,
+            modifier = Modifier.size(16.dp)
+        )
+    }
+}
+
+/** 누적 거리·최장 거리·러닝 횟수 칸 세 개. 모르는 값은 "-". */
 @Composable
 private fun StatTiles(profile: Profile) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        StatTile(kmValue(profile.totalDistance), stringResource(R.string.me_profile_total), Modifier.weight(1f))
+        StatTile(kmValue(profile.longestDistance), stringResource(R.string.me_profile_longest), Modifier.weight(1f))
         StatTile(
-            profile.longestDistance?.let { stringResource(R.string.me_profile_longest_value, RunkkFormat.km(it)) }
-                ?: RunkkFormat.EMPTY,
-            stringResource(R.string.me_profile_longest),
+            profile.runCount?.let { stringResource(R.string.me_profile_runs_value, it) } ?: RunkkFormat.EMPTY,
+            stringResource(R.string.me_profile_runs),
             Modifier.weight(1f)
         )
     }
 }
 
 @Composable
+private fun kmValue(distance: Distance?): String =
+    distance?.let { stringResource(R.string.me_profile_km_value, RunkkFormat.kmShort(it)) } ?: RunkkFormat.EMPTY
+
+@Composable
 private fun StatTile(value: String, label: String, modifier: Modifier = Modifier) {
+    val shape = RoundedCornerShape(24.dp)
     Column(
         modifier = modifier
-            .clip(RunkkShapes.Medium)
+            .clip(shape)
             .background(RunkkColors.Surface)
-            .padding(vertical = 12.dp, horizontal = 4.dp)
+            .border(1.dp, RunkkColors.Border, shape)
+            .padding(vertical = 14.dp, horizontal = 4.dp)
             .semantics(mergeDescendants = true) {},
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Text(value, style = RunkkTextStyles.text(17, FontWeight.Black), color = RunkkColors.TextPrimary)
+        Text(value, style = RunkkTextStyles.text(17, FontWeight.Black), color = RunkkColors.TextPrimary, maxLines = 1)
         Text(label, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
     }
 }
 
-/** MY Runimal 카드(누르면 J1): 유형 그림과 이름. 아직 유형이 없으면 "판정 전". */
-@Composable
-private fun RunimalCard(type: String?, onClick: () -> Unit) {
-    RunkkCard(onClick = onClick, onClickLabel = stringResource(R.string.me_profile_runimal)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            val art = RunimalArt.of(type)
-            Image(
-                painterResource(art.drawableRes),
-                contentDescription = null,
-                modifier = Modifier.size(48.dp).clip(CircleShape).background(RunkkColors.Background).padding(4.dp)
-            )
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    stringResource(R.string.me_profile_runimal),
-                    style = RunkkTextStyles.Caption,
-                    color = RunkkColors.TextSecondary
-                )
-                Text(
-                    if (type.isNullOrBlank()) {
-                        stringResource(R.string.me_profile_runimal_unknown)
-                    } else {
-                        stringResource(art.nameRes)
-                    },
-                    style = RunkkTextStyles.text(15, FontWeight.Bold),
-                    color = RunkkColors.TextPrimary
-                )
-            }
-            Icon(
-                RunkkIcons.ChevronRight,
-                contentDescription = null,
-                tint = RunkkColors.TextSecondary,
-                modifier = Modifier.size(16.dp)
-            )
-        }
-    }
-}
-
-/** 기록·아바타 메뉴 한 목록. */
+/** 메뉴 네 줄(구분선). */
 @Composable
 private fun MenuList(onNavigate: (String) -> Unit) {
-    RunkkCard(contentPadding = PaddingValues(0.dp), verticalArrangement = Arrangement.Top) {
-        MENU.forEachIndexed { index, (label, route) ->
+    Column {
+        MENU.forEach { (label, route) ->
             RunkkMenuRow(stringResource(label), onClick = { onNavigate(route) })
-            if (index < MENU.lastIndex) HorizontalDivider(color = RunkkColors.Border)
+            HorizontalDivider(color = RunkkColors.Border)
         }
     }
 }
 
+/** 마이 메뉴(G-1). 런바디는 기존 리포트 화면이다(CR-32). 랭킹은 하단 탭, 대결 이력은 기록 화면의 대결 탭이 맡는다. */
 private val MENU: List<Pair<Int, String>> = listOf(
     R.string.me_menu_records to Routes.RECORDS,
     R.string.me_menu_growth to Routes.GROWTH,
     R.string.me_menu_report to Routes.REPORT,
-    R.string.me_menu_coach to Routes.COACH,
-    R.string.me_menu_ranking to Routes.RANKING,
-    R.string.me_menu_battle_history to Routes.BATTLE_HISTORY,
-    R.string.me_menu_avatar to Routes.AVATAR
+    R.string.me_menu_coach to Routes.COACH
 )
 
-@Preview(name = "F2 마이", widthDp = 390, heightDp = 1000)
+@Preview(name = "G-1 마이", widthDp = 390, heightDp = 844)
 @Composable
 private fun MeScreenPreview() {
     RunkkTheme(reduceMotion = true) {
         MeScreen(
             state = MeUiState(
                 isLoading = false,
-                profile = Profile(7, "달리는곰", "SELF", "골드", 3, "퇴근 뒤 한강", "치타", null, "새벽크루", null)
+                profile = Profile(
+                    7,
+                    "달리는곰",
+                    "SELF",
+                    "골드",
+                    3,
+                    "퇴근 뒤 한강",
+                    "MORNING_SPARROW",
+                    null,
+                    "새벽크루",
+                    Distance(21_097),
+                    totalDistance = Distance(128_400),
+                    runCount = 42
+                )
             ),
             onNavigate = {},
             onRetry = {}

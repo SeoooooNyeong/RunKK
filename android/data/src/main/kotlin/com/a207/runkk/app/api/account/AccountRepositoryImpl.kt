@@ -11,6 +11,7 @@ import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.account.GuestSession
 import com.a207.runkk.app.domain.account.MemberSettings
 import com.a207.runkk.app.domain.account.Profile
+import com.a207.runkk.app.domain.account.ProfileEdit
 import com.a207.runkk.app.domain.account.ProviderToken
 import com.a207.runkk.app.domain.account.SessionTokens
 import com.a207.runkk.app.domain.account.SignUpForm
@@ -102,9 +103,9 @@ constructor(
         return ApiErrorMapper.call { me.profile(id).toDomain() }
     }
 
-    /** 태그는 v0.11에서 지웠다(D-91). */
-    override suspend fun editProfile(nickname: String, intro: String?): Outcome<Unit> =
-        ApiErrorMapper.call { me.editProfile(ProfileEditRequest(nickname, intro)) }
+    /** 태그는 v0.11에서 지웠다(D-91). 나이대·성별 공개를 함께 보낸다(D-287). */
+    override suspend fun editProfile(edit: ProfileEdit): Outcome<Unit> =
+        ApiErrorMapper.call { me.editProfile(edit.toRequest()) }
 
     /**
      * 화면의 설정 키를 서버 요청으로 바꾼다(MemberSettings.values와 같은 키). "ALERT.알림종류"는 항목 ALERT에 알림 종류를 싣고,

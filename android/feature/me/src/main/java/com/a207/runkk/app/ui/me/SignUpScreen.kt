@@ -112,7 +112,7 @@ fun SignUpScreen(state: SignUpUiState, isGuest: Boolean, actions: SignUpActions,
     }
     state.legal?.let { LegalDialog(it, actions.onLegalDismissed) }
     if (state.isGuestNoticeVisible) {
-        GuestNoticeDialog(
+        GuestNoticeSheet(
             nickname = state.guestNickname,
             onConfirm = actions.onGuestNoticeConfirmed,
             onLink = actions.onGuestNoticeLink

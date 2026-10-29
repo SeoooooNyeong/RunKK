@@ -31,8 +31,8 @@ interface AccountRepository {
 
     suspend fun profile(memberId: Long): Outcome<Profile>
 
-    /** 프로필 편집(PATCH /me/profile, FR-007). 성향 태그는 편집 항목이 아니다(D-91). */
-    suspend fun editProfile(nickname: String, intro: String?): Outcome<Unit>
+    /** 프로필 편집(PATCH /me/profile, FR-007, D-287). 성향 태그(D-91)와 사진은 편집 항목이 아니다. */
+    suspend fun editProfile(edit: ProfileEdit): Outcome<Unit>
 
     suspend fun changeSetting(item: String, value: String): Outcome<Unit>
 
