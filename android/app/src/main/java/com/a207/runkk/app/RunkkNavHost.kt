@@ -51,6 +51,7 @@ import com.a207.runkk.app.core.navigation.LocalSlots
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.core.navigation.RunkkNavigator
 import com.a207.runkk.app.core.navigation.collectSlots
+import java.time.Instant
 
 /**
  * 화면 그래프를 띄운다(6.1.14). 각 ui.* 모듈이 Hilt @IntoSet으로 등록한 FeatureEntry만 받으므로
@@ -60,6 +61,7 @@ import com.a207.runkk.app.core.navigation.collectSlots
  * [lockUnreleased]가 켜지면(1차 배포 빌드, D-251) 크루 탭에 자물쇠를 달고 누르면 [LockedFeatureDialog]만 띄우며(D-253),
  * 잠긴 경로([BetaLock])로 들어오면 안내를 띄우고 뒤로 돌린다. 화면 숨김 판정(LocalReleaseScope), 가이드 앵커 표
  * (LocalGuideAnchors), 칸 기여 표(LocalSlots)도 여기서 넣는다. 초대 링크로 받은 [pendingInvite]는 홈이 맨 위가 되면 참가 확인으로 연다.
+ * 열었거나 버렸으면(받은 지 5분, 로그아웃) [onInviteDone]으로 비운다.
  */
 @Composable
 fun RunkkNavHost(
@@ -69,21 +71,31 @@ fun RunkkNavHost(
     loggedIn: Boolean,
     modifier: Modifier = Modifier,
     lockUnreleased: Boolean = BuildConfig.LOCK_UNRELEASED,
-    pendingInvite: String? = null,
-    onInviteOpened: () -> Unit = {}
+    pendingInvite: PendingInvite? = null,
+    onInviteDone: () -> Unit = {}
 ) {
     val backStack = rememberNavBackStack(Routes.Key(startRoute))
     val navigator = remember(backStack) { BackStackNavigator(backStack, onExit) }
     // 초대 링크(D-272): 로그인 상태이고 홈이 맨 위일 때 참가 확인을 연다. 로그인·가입 중이거나 측정 중이면 홈이 맨 위가 될 때까지 기다린다.
+    // 받은 지 5분이 지난 초대는 열지 않고 버린다(AN8-8).
     val current = backStack.lastOrNull()
     LaunchedEffect(pendingInvite, loggedIn, current) {
-        inviteToOpen(pendingInvite, loggedIn, current)?.let { token ->
+        val now = Instant.now()
+        if (pendingInvite != null && !pendingInvite.isFresh(now)) {
+            onInviteDone()
+            return@LaunchedEffect
+        }
+        inviteToOpen(pendingInvite, loggedIn, current, now)?.let { token ->
             navigator.navigate(Routes.FriendInviteJoin(token))
-            onInviteOpened()
+            onInviteDone()
         }
     }
     // 로그인 상태가 풀리면(로그아웃·토큰 갱신 실패 → TokenProvider.clear, 6.1.14) 로그인·가입 화면이 아닌 한 로그인으로 돌린다.
+    // 로그인한 동안 받아 둔 보류 초대도 버린다(AN8-8: 다른 계정으로 로그인했을 때 열리지 않게).
+    var wasLoggedIn by remember { mutableStateOf(loggedIn) }
     LaunchedEffect(loggedIn) {
+        if (pendingInvite != null && pendingAfterSession(pendingInvite, wasLoggedIn, loggedIn) == null) onInviteDone()
+        wasLoggedIn = loggedIn
         val top = (backStack.lastOrNull() as? Routes.Key)?.route
         if (!loggedIn && top !in AUTH_ROUTES) navigator.restart(Routes.LOGIN)
     }
@@ -145,9 +157,16 @@ fun RunkkNavHost(
     }
 }
 
-/** 지금 열 초대 토큰: 받은 토큰이 있고 로그인 상태이며 홈이 맨 위일 때만(D-272). 그 밖에는 null(기다린다). */
-internal fun inviteToOpen(pendingInvite: String?, loggedIn: Boolean, top: NavKey?): String? =
-    pendingInvite?.takeIf { loggedIn && top == Routes.Key(Routes.HOME) }
+/** 지금 열 초대 토큰: 받은 지 5분이 안 된 초대가 있고 로그인 상태이며 홈이 맨 위일 때만(D-272, AN8-8). 그 밖에는 null(기다린다). */
+internal fun inviteToOpen(pendingInvite: PendingInvite?, loggedIn: Boolean, top: NavKey?, now: Instant): String? =
+    pendingInvite?.takeIf { loggedIn && top == Routes.Key(Routes.HOME) && it.isFresh(now) }?.token
+
+/** 로그인 상태가 바뀐 뒤 남길 보류 초대: 로그아웃(참 → 거짓)이면 버리고, 로그인 전에 받은 초대는 로그인 뒤까지 남긴다(AN8-8). */
+internal fun pendingAfterSession(
+    pendingInvite: PendingInvite?,
+    wasLoggedIn: Boolean,
+    loggedIn: Boolean
+): PendingInvite? = pendingInvite?.takeUnless { wasLoggedIn && !loggedIn }
 
 /** 1차 배포에서 잠그는 하단 탭(D-253). */
 private val LOCKED_TABS: Set<RunkkTab> = setOf(RunkkTab.CREW)

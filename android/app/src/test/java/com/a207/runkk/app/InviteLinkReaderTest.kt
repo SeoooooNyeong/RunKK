@@ -3,9 +3,12 @@ package com.a207.runkk.app
 import android.content.Intent
 import android.net.Uri
 import com.a207.runkk.app.core.navigation.Routes
+import java.time.Duration
+import java.time.Instant
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -16,6 +19,7 @@ import org.robolectric.RuntimeEnvironment
 class InviteLinkReaderTest {
     private val reader = InviteLinkReader("kakaoabc123")
     private val token = "aB3-_xY0aB3-_xY0aB3-_x"
+    private val received = Instant.parse("2026-10-30T10:00:00Z")
 
     private fun view(link: String) = Intent(Intent.ACTION_VIEW, Uri.parse(link))
 
@@ -53,11 +57,44 @@ class InviteLinkReaderTest {
 
     @Test
     fun `TC-9676 로그인 상태이고 홈이 맨 위일 때만 연다`() {
-        assertEquals(token, inviteToOpen(token, loggedIn = true, top = Routes.Key(Routes.HOME)))
-        assertNull(inviteToOpen(token, loggedIn = false, top = Routes.Key(Routes.LOGIN)), "로그인 전이면 기다린다")
-        assertNull(inviteToOpen(token, loggedIn = true, top = Routes.Key(Routes.SIGN_UP)), "가입 중이면 기다린다")
-        assertNull(inviteToOpen(token, loggedIn = true, top = Routes.Key(Routes.RUN)), "측정 중이면 기다린다")
-        assertNull(inviteToOpen(null, loggedIn = true, top = Routes.Key(Routes.HOME)))
+        val pending = PendingInvite(token, received)
+        assertEquals(token, inviteToOpen(pending, loggedIn = true, top = Routes.Key(Routes.HOME), now = received))
+        assertNull(inviteToOpen(pending, false, Routes.Key(Routes.LOGIN), received), "로그인 전이면 기다린다")
+        assertNull(inviteToOpen(pending, true, Routes.Key(Routes.SIGN_UP), received), "가입 중이면 기다린다")
+        assertNull(inviteToOpen(pending, true, Routes.Key(Routes.RUN), received), "측정 중이면 기다린다")
+        assertNull(inviteToOpen(null, loggedIn = true, top = Routes.Key(Routes.HOME), now = received))
+    }
+
+    @Test
+    fun `AN8-8 받은 지 5분이 지난 보류 초대는 열지 않고 버린다`() {
+        val pending = PendingInvite(token, received)
+        val almost = received.plus(Duration.ofMinutes(5)).minusMillis(1)
+        val expired = received.plus(Duration.ofMinutes(5))
+        assertTrue(pending.isFresh(almost))
+        assertEquals(token, inviteToOpen(pending, loggedIn = true, top = Routes.Key(Routes.HOME), now = almost))
+        assertFalse(pending.isFresh(expired))
+        assertNull(inviteToOpen(pending, loggedIn = true, top = Routes.Key(Routes.HOME), now = expired))
+    }
+
+    @Test
+    fun `AN8-8 로그아웃하면 보류 초대를 지우고 로그인 전에 받은 초대는 로그인 뒤까지 남긴다`() {
+        val pending = PendingInvite(token, received)
+        assertNull(pendingAfterSession(pending, wasLoggedIn = true, loggedIn = false), "로그아웃")
+        assertEquals(pending, pendingAfterSession(pending, wasLoggedIn = false, loggedIn = true), "로그인")
+        assertEquals(pending, pendingAfterSession(pending, wasLoggedIn = false, loggedIn = false), "로그인 전")
+        assertEquals(pending, pendingAfterSession(pending, wasLoggedIn = true, loggedIn = true))
+    }
+
+    @Test
+    fun `AN8-7 최근 앱에서 다시 연 인텐트는 읽지 않고, 처리한 링크는 인텐트에서 비운다`() {
+        val link = view("https://k15a207.p.ssafy.io/invite/battle/$token")
+        assertEquals(token, reader.readNew(link))
+        val fromHistory = Intent(link).addFlags(Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY)
+        assertNull(reader.readNew(fromHistory))
+        val consumed = InviteLinkReader.consumed(link)
+        assertNull(consumed.data)
+        assertNull(reader.read(consumed))
+        assertEquals(Intent.ACTION_VIEW, consumed.action)
     }
 
     @Test
