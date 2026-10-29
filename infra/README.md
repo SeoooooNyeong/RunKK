@@ -36,7 +36,7 @@ infra/
 ├─ nginx/http/                 HTTP 설정(인증서 전·로컬): 80 → prod, 8443 → develop(평문)
 ├─ nginx/https/                HTTPS 설정: 80 → 301, 443 → prod, 8443 → develop. wiki.conf.template은 팀 위키 프록시
 ├─ nginx/common/               두 모드 공통 location 조각(api 경로, /grafana/)
-├─ nginx/static/               공개 홈(/)과 법정 고지 문서(/legal/*)
+├─ nginx/static/               공개 홈(/), 법정 고지 문서(/legal/*), 친구 대결 초대 안내(/invite/battle/*), App Links 검증(/.well-known/assetlinks.json)
 └─ monitoring/                 Prometheus 수집 설정, Grafana 데이터소스·대시보드 (6절)
 ```
 
@@ -315,3 +315,21 @@ docker exec runkk-prod-api-1 sh -c 'zcat /var/log/runkk/api.2026-11-03.*.log.gz 
 연동(비우면 그 연동만 꺼짐): `KAKAO_APP_ID`(prod 패키지 com.a207.runkk 앱), `GOOGLE_CLIENT_IDS`, `FCM_PROJECT_ID`, `FCM_CREDENTIALS_FILE=/run/secrets/fcm-service-account.json`, `KMA_SERVICE_KEY`, `RUNKK_BOOTSTRAP_OPERATORS`, ai의 `RUNKK_LLM_*`·`RUNKK_ANTHROPIC_*`·`RUNKK_FACE_*`.
 넣지 않음: `SWAGGER_ENABLED`(넣으면 false만), `SELFIE_ENABLED`(기본 꺼짐), `SERVER_NAME`·`NGINX_*`·`GRAFANA_*`(에지 값).
 선택: `DB_POOL_SIZE`, `SCHEDULER_POOL_SIZE`, `AUTH_CLIENT_REQUESTS_PER_MINUTE`, `RUNKK_QUEUE`, `RUNKK_LIVE`, `API_MEM_LIMIT`, `API_JAVA_OPTS`, `BACKUP_TIME`, `BACKUP_KEEP_DAYS`, `BACKUP_DIR`, `BACKUP_OWNER`, `LEGAL_*`.
+
+## 10. 친구 대결 초대 링크 (v0.14, 설계 05-06 D-219, 05-08 D-293·6절)
+
+초대 링크는 `https://k15a207.p.ssafy.io/invite/battle/{token}`이고 앞부분은 api 설정 `runkk.battle.friend-invite.link-base`(환경 변수 `FRIEND_INVITE_LINK_BASE`, 기본 `https://k15a207.p.ssafy.io/invite/battle`)다. release(8443) 환경은 그 환경 주소로 덮어쓴다. nginx는 아래 세 경로를 정적 파일로 준다(`nginx/common/app-locations.conf`, api로 넘기지 않는다).
+
+| 경로 | 파일 | 용도 |
+|------|------|------|
+| `/.well-known/assetlinks.json` | `nginx/static/.well-known/assetlinks.json` | Android App Links 도메인 검증(앱이 있으면 링크가 앱으로 열린다) |
+| `/invite/battle/card.png` | `nginx/static/invite/battle/card.png` | 카카오톡 공유 카드 이미지(디자인 n-c11-kakao의 카드 그림, 233×115) |
+| `/invite/battle/{token}` | `nginx/static/invite/battle/index.html` | 앱이 없을 때 보이는 스토어 안내 페이지(Android에서는 intent로 앱 열기를 다시 시도) |
+
+**배포 전에 할 일**: `assetlinks.json`의 지문은 자리표시(`REPLACE_WITH_…`)다. 실제 SHA-256 지문으로 바꿔 커밋한다.
+
+- `com.a207.runkk`(prod): Play Console > 앱 무결성 > 앱 서명의 **앱 서명 키** 지문과 **업로드 키** 지문
+- `com.a207.runkk.dev`: 업로드 키(또는 dev 서명 키) 지문, 필요하면 디버그 키
+- `com.a207.runkk.local`: 디버그 키 지문(`keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android`)
+
+확인: `curl -s https://k15a207.p.ssafy.io/.well-known/assetlinks.json`이 JSON(`Content-Type: application/json`)을 주고, 리다이렉트가 없어야 한다. 기기에서는 `adb shell pm get-app-links com.a207.runkk`로 `verified`를 본다. 카드 이미지가 더 큰 해상도로 필요하면 같은 이름으로 바꾸면 된다(앱은 주소만 쓴다).
