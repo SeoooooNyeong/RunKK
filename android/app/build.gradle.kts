@@ -120,13 +120,15 @@ androidComponents {
             tasks.configureEach { if (name == taskName) enabled = false }
         }
     }
-    // v0.9 베타(Play 업로드, prod 플레이버)에서만 크루·아바타·셀럽런을 "추후 추가 예정"으로 막는다(S15P31A207-218, BetaLock.kt).
-    // develop·local 빌드는 열려 있어 개발과 시험을 계속한다. 기능을 베타에 열 때 이 조건을 바꾼다.
+    // 1차 배포 잠금(D-251, BetaLock.kt·ReleaseScope): prod·develop 플레이버는 참(팀 시험 빌드도 출시 모습), local은 거짓이다.
+    // Gradle 속성 -Prunkk.lockUnreleased=true|false가 있으면 플레이버 기본값보다 앞선다(2차 배포 기능 개발용).
+    val lockUnreleasedOverride = providers.gradleProperty("runkk.lockUnreleased").orNull?.toBooleanStrictOrNull()
     onVariants { variant ->
-        val prod = variant.productFlavors.any { it.second == "prod" }
+        val local = variant.productFlavors.any { it.second == "local" }
+        val lock = lockUnreleasedOverride ?: !local
         variant.buildConfigFields?.put(
             "LOCK_UNRELEASED",
-            com.android.build.api.variant.BuildConfigField("boolean", prod.toString(), "베타에서 열지 않는 기능을 막는가")
+            com.android.build.api.variant.BuildConfigField("boolean", lock.toString(), "1차 배포에서 열지 않는 기능을 막는가")
         )
     }
     onVariants(selector().withName("localDebug")) { variant ->

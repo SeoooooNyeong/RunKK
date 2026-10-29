@@ -40,7 +40,10 @@ import com.a207.runkk.app.domain.run.UploadScheduler
 import com.a207.runkk.app.domain.run.WatchDisplay
 import com.a207.runkk.app.domain.run.WatchGateway
 import com.a207.runkk.app.domain.run.WatchHomeSync
+import com.a207.runkk.app.domain.settings.FirstRunGuide
 import com.a207.runkk.app.domain.settings.GuidanceSettings
+import com.a207.runkk.app.domain.settings.GuideCopy
+import com.a207.runkk.app.domain.settings.GuideRemote
 import com.a207.runkk.app.domain.settings.SettingsRepository
 import com.a207.runkk.app.domain.settings.SettingsSnapshot
 import com.a207.runkk.app.domain.sync.DisposalOrder
@@ -102,7 +105,8 @@ class AppStartupTest {
                 override val loggedIn: StateFlow<Boolean> = login
             }
         val push = PushTokenSync(pushRemote, FixedPushToken("fcm-token"), loginState, scope)
-        return AppStartup(disposals, settings, push, loginState, records, todayPlans, watchHome, scope)
+        val guide = FirstRunGuide(settings, RecordingGuideRemote(events))
+        return AppStartup(disposals, settings, push, loginState, records, todayPlans, watchHome, guide, scope)
     }
 
     @Test
@@ -146,6 +150,17 @@ class AppStartupTest {
         advanceUntilIdle()
 
         assertEquals(listOf("disposals", "settings.refresh", "push.register"), events)
+    }
+
+    @Test
+    fun `TC-9715 서버에 알리지 못한 가이드 끝냄은 시작 때 다시 보낸다`() = runTest {
+        settings.guide = GuideCopy.SEEN_UNSENT
+
+        startup().start()
+        advanceUntilIdle()
+
+        assertEquals(listOf("disposals", "settings.refresh", "push.register", "guide.markSeen"), events)
+        assertEquals(GuideCopy.SEEN, settings.guide)
     }
 
     @Test
@@ -267,6 +282,24 @@ private class RecordingSettings(private val events: MutableList<String>) : Setti
 
     override suspend fun clear(): Outcome<Unit> {
         events += "settings.clear"
+        return Outcome.Success(Unit)
+    }
+
+    var guide: GuideCopy = GuideCopy.NONE
+
+    override suspend fun guideCopy(): GuideCopy = guide
+
+    override suspend fun saveGuideCopy(copy: GuideCopy): Outcome<Unit> {
+        guide = copy
+        return Outcome.Success(Unit)
+    }
+}
+
+private class RecordingGuideRemote(private val events: MutableList<String>) : GuideRemote {
+    override suspend fun seen(): Outcome<Boolean> = Outcome.Success(false)
+
+    override suspend fun markSeen(): Outcome<Unit> {
+        events += "guide.markSeen"
         return Outcome.Success(Unit)
     }
 }

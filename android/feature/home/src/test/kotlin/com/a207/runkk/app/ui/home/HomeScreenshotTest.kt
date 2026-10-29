@@ -1,146 +1,110 @@
 package com.a207.runkk.app.ui.home
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.test.junit4.createComposeRule
+import com.a207.runkk.app.core.designsystem.GuideStep
+import com.a207.runkk.app.core.designsystem.LocalReleaseScope
+import com.a207.runkk.app.core.designsystem.ReleaseScope
 import com.a207.runkk.app.core.designsystem.RunkkErrorText
 import com.a207.runkk.app.core.designsystem.testing.RUNKK_PHONE
 import com.a207.runkk.app.core.designsystem.testing.captureRunkkScreen
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
-import com.a207.runkk.app.core.model.Pace
-import com.a207.runkk.app.domain.record.Dashboard
-import com.a207.runkk.app.domain.run.FreeRunGoal
-import com.a207.runkk.app.domain.run.PlanSnapshot
-import java.time.LocalDate
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
-/** 홈(A5) 스크린샷(가짜 UiState, 390×844dp 다크). */
+/** 홈(A-4)과 첫 사용 가이드(J-1) 스크린샷(가짜 UiState, 390×844dp). 1차 배포(아바타 꾸미기 닫힘) 모습이다. */
 @RunWith(RobolectricTestRunner::class)
 @Config(qualifiers = RUNKK_PHONE)
 class HomeScreenshotTest {
     @get:Rule
     val compose = createComposeRule()
 
-    private val today = LocalDate.of(2026, 10, 21)
-    private val dashboard = Dashboard(
-        today = Distance(3_020),
-        total = Distance(128_400),
-        landmark = "한강 다리 12개",
-        streakDays = 4,
-        grass = (0L..27L).filter { it % 3 != 0L }.associate { today.minusDays(it) to Distance(4_000) },
-        weeklyAchievement = 0.6,
-        crew = Dashboard.CrewArea("새벽크루", 9, emptyMap(), "남산 3바퀴"),
-        todayElapsed = java.time.Duration.ofSeconds(1_004),
-        todayRuns = 1,
-        grassLevels = (0L..27L).filter { it % 3 != 0L }.associate { today.minusDays(it) to (it % 4 + 1).toInt() }
+    private val loaded = HomeUiState(
+        isLoading = false,
+        header = HomeHeader("달리는곰", "골드", 3, 1_250),
+        isHeaderLoading = false,
+        weeklyDistance = Distance(12_000),
+        weeklyGoal = Distance(20_000),
+        streakDays = 4
     )
 
     @Test
-    fun home() = compose.captureRunkkScreen("A5_home") {
-        HomeScreen(
-            HomeUiState(
-                isLoading = false,
-                today = today,
-                dashboard = dashboard,
-                freeRunGoal = FreeRunGoal(PlanSnapshot(Distance(5_000), Pace(330)), isFromCoachPlan = true),
-                pendingCount = 1,
-                header = HomeHeader("달리는곰", "골드", 3, 1_250),
-                isHeaderLoading = false
-            ),
-            onModeSelected = {},
-            onNavigate = {},
-            onRetry = {}
-        )
-    }
-
-    /** 오늘 계획을 따르지 않을 때: 자유런 설정 목표(3km)와 "지난번 설정 그대로"(FR-048). */
-    @Test
-    fun homeFreeRunTarget() = compose.captureRunkkScreen("A5_home_free_run_target") {
-        HomeScreen(
-            HomeUiState(
-                isLoading = false,
-                today = today,
-                dashboard = dashboard,
-                freeRunGoal = FreeRunGoal(PlanSnapshot(Distance(3_000), null), isFromCoachPlan = false),
-                header = HomeHeader("달리는곰", "골드", 3, 1_250),
-                isHeaderLoading = false
-            ),
-            onModeSelected = {},
-            onNavigate = {},
-            onRetry = {}
-        )
-    }
-
-    /** 서버 시연 계정 모양: 기본 캐릭터 곰(faceKey "default:BEAR"). 상단 프로필 원과 우리 집 자리에 곰 그림. */
-    @Test
-    fun homeDefaultCharacter() = compose.captureRunkkScreen("A5_home_default_character") {
-        HomeScreen(
-            HomeUiState(
-                isLoading = false,
-                today = today,
-                dashboard = dashboard,
-                freeRunGoal = FreeRunGoal(PlanSnapshot(Distance(5_000), Pace(330)), isFromCoachPlan = true),
-                header = HomeHeader("러너0632", "실버", 4, 100),
-                isHeaderLoading = false,
-                faceKey = "default:BEAR"
-            ),
-            onModeSelected = {},
-            onNavigate = {},
-            onRetry = {}
-        )
+    fun home() = compose.captureRunkkScreen("A4_home") {
+        FirstRelease { HomeScreen(loaded, HomeActions()) }
     }
 
     @Test
-    fun homeLoading() = compose.captureRunkkScreen("A5_home_loading") {
-        HomeScreen(HomeUiState(), onModeSelected = {}, onNavigate = {}, onRetry = {})
+    fun homeLoading() = compose.captureRunkkScreen("A4_home_loading") {
+        FirstRelease { HomeScreen(HomeUiState(), HomeActions()) }
     }
 
     @Test
-    fun homeBattleTab() = compose.captureRunkkScreen("A5_home_battle_tab") {
-        HomeScreen(
-            HomeUiState(
-                isLoading = false,
-                today = today,
-                dashboard = dashboard,
-                mode = HomeRunMode.BATTLE,
-                header = HomeHeader("달리는곰", null, 1, 0),
-                isHeaderLoading = false
-            ),
-            onModeSelected = {},
-            onNavigate = {},
-            onRetry = {}
-        )
+    fun homeOffline() = compose.captureRunkkScreen("A4_home_error") {
+        FirstRelease {
+            HomeScreen(
+                HomeUiState(isLoading = false, isHeaderLoading = false, error = RunkkErrorText.of(AppError.Network)),
+                HomeActions()
+            )
+        }
     }
 
     @Test
-    fun homeOffline() = compose.captureRunkkScreen("A5_home_error") {
-        HomeScreen(
-            HomeUiState(isLoading = false, isHeaderLoading = false, error = RunkkErrorText.of(AppError.Network)),
-            onModeSelected = {},
-            onNavigate = {},
-            onRetry = {}
-        )
+    fun homeLocationConsent() = compose.captureRunkkScreen("A6_location_consent") {
+        FirstRelease { HomeScreen(loaded.copy(isConsentSheetVisible = true), HomeActions()) }
     }
 
     // 라이트 벌(FR-203, NFR-041 화면 10개 × 테마 2).
     @Test
-    fun homeLight() = compose.captureRunkkScreen("A5_home_light", isDarkTheme = false) {
-        HomeScreen(
-            HomeUiState(
-                isLoading = false,
-                today = today,
-                dashboard = dashboard,
-                freeRunGoal = FreeRunGoal(PlanSnapshot(Distance(5_000), Pace(330)), isFromCoachPlan = true),
-                pendingCount = 1,
-                header = HomeHeader("달리는곰", "골드", 3, 1_250),
-                isHeaderLoading = false
-            ),
-            onModeSelected = {},
-            onNavigate = {},
-            onRetry = {}
-        )
+    fun homeLight() = compose.captureRunkkScreen("A4_home_light", isDarkTheme = false) {
+        FirstRelease { HomeScreen(loaded, HomeActions()) }
     }
+
+    /** 가이드 1단계(자유런 카드 앵커 자리 가정, 1/6). */
+    @Test
+    fun guideFirstStep() = compose.captureRunkkScreen("J1_guide_free_run") {
+        FirstRelease {
+            Box(Modifier.fillMaxSize()) {
+                HomeScreen(loaded, HomeActions())
+                FirstRunGuideOverlay(
+                    step = GuideStep.FREE_RUN,
+                    index = 0,
+                    stepCount = 6,
+                    anchor = Rect(42f, 470f, 520f, 700f),
+                    onNext = {},
+                    onSkip = {}
+                )
+            }
+        }
+    }
+
+    /** 가이드 마지막 단계(마이 탭, 6/6): "시작하기"만. */
+    @Test
+    fun guideLastStep() = compose.captureRunkkScreen("J7_guide_me") {
+        FirstRelease {
+            Box(Modifier.fillMaxSize()) {
+                HomeScreen(loaded, HomeActions())
+                FirstRunGuideOverlay(
+                    step = GuideStep.ME,
+                    index = 5,
+                    stepCount = 6,
+                    anchor = Rect(860f, 2380f, 1060f, 2580f),
+                    onNext = {},
+                    onSkip = {}
+                )
+            }
+        }
+    }
+}
+
+@androidx.compose.runtime.Composable
+private fun FirstRelease(content: @androidx.compose.runtime.Composable () -> Unit) {
+    CompositionLocalProvider(LocalReleaseScope provides ReleaseScope.FIRST_RELEASE, content = content)
 }

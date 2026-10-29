@@ -2,16 +2,20 @@ package com.a207.runkk.app.ui.me
 
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.codePointLength
+import com.a207.runkk.app.domain.account.Gender
 
 /**
- * 프로필 편집(F3, FR-007): 닉네임 2~20자, 소개 40자, 나이대·성별·소개 공개(설정 PROFILE_VISIBILITY). 성향 태그는 편집 항목이 아니다(D-91).
- * [isProfilePublic]이 null이면 설정을 아직 읽지 못했다(스위치를 뺀다).
+ * 프로필 편집(G-2, D-287, FR-007·FR-012): 닉네임 2~20자, 한줄 소개 40자, 나이대·성별 공개 스위치 하나씩. 사진 칸과 프로필 공개 하나는
+ * v0.14에서 지웠다. 나이대·성별 값([ageBand], [gender])은 보이기만 하고 편집하지 않는다(가입 때 정한 값).
  */
 data class ProfileEditUiState(
     val isLoading: Boolean = true,
     val nickname: String = "",
     val intro: String = "",
-    val isProfilePublic: Boolean? = null,
+    val ageBand: String? = null,
+    val gender: Gender? = null,
+    val isAgePublic: Boolean = false,
+    val isGenderPublic: Boolean = false,
     val isSaving: Boolean = false,
     val error: UiText? = null
 ) {

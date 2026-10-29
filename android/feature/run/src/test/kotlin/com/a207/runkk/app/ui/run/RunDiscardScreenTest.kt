@@ -51,12 +51,6 @@ class RunDiscardScreenTest {
     }
 
     @Test
-    fun `잠금 화면에는 취소 버튼이 없다`() {
-        show(RunUiState(phase = RunPhase.LOCKED, progress = RunProgress.INITIAL.copy(isLocked = true)))
-        compose.onNodeWithContentDescription("러닝 취소").assertDoesNotExist()
-    }
-
-    @Test
     fun `확인 대화상자는 제목, 한 줄 본문, 계속 달리기와 취소하기를 보인다`() {
         show(RunUiState(phase = RunPhase.RUNNING, isDiscardConfirming = true))
         compose.onNodeWithText("러닝을 취소할까요?").assertExists()
@@ -67,14 +61,8 @@ class RunDiscardScreenTest {
     }
 
     @Test
-    fun `종료 중이거나 잠기면 확인 대화상자를 보이지 않는다`() {
-        show(
-            RunUiState(
-                phase = RunPhase.LOCKED,
-                progress = RunProgress.INITIAL.copy(isLocked = true),
-                isDiscardConfirming = true
-            )
-        )
+    fun `종료 중이면 확인 대화상자를 보이지 않는다`() {
+        show(RunUiState(phase = RunPhase.FINISHING, isDiscardConfirming = true))
         compose.onNodeWithText("러닝을 취소할까요?").assertDoesNotExist()
     }
 }

@@ -118,35 +118,17 @@ class RunTrackerTest {
     }
 
     @Test
-    fun `잠금 중 종료 길게 누름은 거부하고 해제 안내를 낸다`() = runTest {
-        val tracker = started()
-        tracker.runFor(5)
-        tracker.lockScreen()
-        assertTrue(tracker.progress.value.isLocked)
-        assertEquals(FinishOutcome.Rejected, tracker.onFinishLongPressed())
-        runCurrent()
-        assertTrue(log.calls.isEmpty())
-        assertEquals(Guidance.Kind.UNLOCK_HINT, output.played.last().kind)
-    }
-
-    @Test
-    fun `짧게 누름은 안내만, 해제 길게 누름은 해제`() = runTest {
+    fun `종료 짧게 누름은 안내만 낸다`() = runTest {
         val tracker = started()
         tracker.onFinishTapped()
         assertEquals(Guidance.Kind.FINISH_HINT, output.played.last().kind)
-        tracker.lockScreen()
-        tracker.onUnlockTapped()
-        assertEquals(Guidance.Kind.UNLOCK_HINT, output.played.last().kind)
-        assertTrue(tracker.progress.value.isLocked)
-        tracker.onUnlockLongPressed()
-        assertFalse(tracker.progress.value.isLocked)
+        assertEquals(0, host.stopped)
     }
 
     @Test
-    fun `조정자의 endRun은 잠금과 무관하게 저장하고 전송을 요청한다`() = runTest {
+    fun `조정자의 endRun은 저장하고 전송을 요청한다`() = runTest {
         val tracker = started()
         tracker.runFor(5)
-        tracker.lockScreen()
         assertIs<FinishOutcome.Saved>(tracker.endRun())
         runCurrent()
         assertEquals(listOf("pending.save", "upload.requestUpload"), log.calls)
@@ -345,17 +327,6 @@ class RunTrackerTest {
         tracker.endRun()
         runCurrent()
         assertNull(tracker.takeUnclaimedEnd(), "조정자 종료는 그 화면이 처리한다")
-    }
-
-    @Test
-    fun `워치 종료 요청 - 잠금 중이면 거부하고 해제 안내를 낸다`() = runTest {
-        val tracker = started()
-        tracker.runFor(10)
-        tracker.lockScreen()
-        watch.endRequests.emit(Unit)
-        runCurrent()
-        assertTrue(log.calls.isEmpty())
-        assertEquals(Guidance.Kind.UNLOCK_HINT, output.played.last().kind)
     }
 
     @Test

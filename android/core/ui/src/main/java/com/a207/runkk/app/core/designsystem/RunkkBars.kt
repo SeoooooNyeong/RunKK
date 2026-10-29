@@ -1,7 +1,7 @@
 package com.a207.runkk.app.core.designsystem
 
-import androidx.annotation.StringRes
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,17 +15,20 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -35,6 +38,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -126,23 +130,21 @@ fun RunkkStepTopBar(title: String, step: Int, total: Int, modifier: Modifier = M
     }
 }
 
-/** 하단 탭 다섯 개(셀프·셀럽·홈·크루·마이, SRS 5.1). 경로 이름과의 대응은 app이 정한다. */
-enum class RunkkTab(@StringRes val labelRes: Int, val icon: ImageVector) {
-    SELF(R.string.core_tab_self, RunkkIcons.History),
-    CELEB(R.string.core_tab_celeb, RunkkIcons.Star),
-    HOME(R.string.core_tab_home, RunkkIcons.Home),
-    CREW(R.string.core_tab_crew, RunkkIcons.Users),
-    ME(R.string.core_tab_me, RunkkIcons.User)
-}
-
 /** 하단 탭 바의 높이(구분선 1 + 탭 줄 79). 시스템 내비게이션 영역은 따로 더한다. 탭 화면의 아래 여백이 이 값을 쓴다. */
 val RUNKK_BOTTOM_BAR_HEIGHT: Dp = 80.dp
 
 /**
- * 하단 탭 바(높이 [RUNKK_BOTTOM_BAR_HEIGHT] + 시스템 내비게이션 영역). 고른 탭은 라임 + 굵게. 보조 기술에는 탭으로 보인다.
+ * 하단 탭 바(높이 [RUNKK_BOTTOM_BAR_HEIGHT] + 시스템 내비게이션 영역, J-0). 고른 탭은 라임 + 굵게, 가운데 홈은 원형 버튼이다.
+ * [lockedTabs]의 탭은 아이콘 오른쪽 아래에 자물쇠를 겹치고 아이콘·라벨을 흐리게 한다(D-253). 잠긴 탭을 눌러도 [onSelect]는
+ * 불리고, 이동 대신 안내를 띄우는 것은 부르는 쪽(RunkkNavHost)이 정한다. 탭은 첫 사용 가이드 앵커를 적는다(D-277).
  */
 @Composable
-fun RunkkBottomBar(selected: RunkkTab?, onSelect: (RunkkTab) -> Unit, modifier: Modifier = Modifier) {
+fun RunkkBottomBar(
+    selected: RunkkTab?,
+    onSelect: (RunkkTab) -> Unit,
+    modifier: Modifier = Modifier,
+    lockedTabs: Set<RunkkTab> = emptySet()
+) {
     Column(
         modifier = modifier.fillMaxWidth().background(
             RunkkColors.Background
@@ -152,32 +154,78 @@ fun RunkkBottomBar(selected: RunkkTab?, onSelect: (RunkkTab) -> Unit, modifier: 
         Row(
             modifier = Modifier.fillMaxWidth().height(
                 RUNKK_BOTTOM_BAR_HEIGHT - BOTTOM_BAR_DIVIDER
-            ).padding(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 16.dp).selectableGroup(),
+            ).padding(start = 8.dp, end = 8.dp, top = 6.dp, bottom = 8.dp).selectableGroup(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             RunkkTab.entries.forEach { tab ->
-                val isSelected = tab == selected
-                val color = if (isSelected) RunkkColors.Lime else RunkkColors.TextSecondary
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .clip(RunkkShapes.Medium)
-                        .selectable(selected = isSelected, role = Role.Tab, onClick = { onSelect(tab) }),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically)
-                ) {
-                    Icon(tab.icon, contentDescription = null, tint = color, modifier = Modifier.size(24.dp))
-                    Text(
-                        text = stringResource(tab.labelRes),
-                        style = RunkkTextStyles.text(11, if (isSelected) FontWeight.Bold else FontWeight.Normal),
-                        color = color
-                    )
-                }
+                BottomTab(
+                    tab = tab,
+                    isSelected = tab == selected,
+                    isLocked = tab in lockedTabs,
+                    onClick = { onSelect(tab) },
+                    modifier = Modifier.weight(1f).fillMaxHeight()
+                )
             }
         }
     }
 }
+
+/** 하단 탭 하나: 아이콘(홈은 원 안) + 라벨. 잠긴 탭은 자물쇠와 흐린 색, 보조 기술에는 "잠김"으로 읽힌다. */
+@Composable
+private fun BottomTab(
+    tab: RunkkTab,
+    isSelected: Boolean,
+    isLocked: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val color = if (isSelected) RunkkColors.Lime else RunkkColors.TextSecondary
+    val lockedState = stringResource(R.string.core_tab_locked)
+    val anchor = tab.guideStep?.let { Modifier.guideAnchor(it) } ?: Modifier
+    Column(
+        modifier = modifier
+            .then(anchor)
+            .clip(RunkkShapes.Medium)
+            .selectable(selected = isSelected, role = Role.Tab, onClick = onClick)
+            .semantics { if (isLocked) stateDescription = lockedState }
+            .alpha(if (isLocked) LOCKED_ALPHA else 1f),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            if (tab == RunkkTab.HOME) {
+                Box(
+                    modifier = Modifier
+                        .size(HOME_CIRCLE)
+                        .clip(CircleShape)
+                        .background(RunkkColors.Surface)
+                        .border(1.dp, if (isSelected) RunkkColors.Lime else RunkkColors.Border, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(tab.icon, contentDescription = null, tint = color, modifier = Modifier.size(24.dp))
+                }
+            } else {
+                Icon(tab.icon, contentDescription = null, tint = color, modifier = Modifier.size(24.dp))
+            }
+            if (isLocked) {
+                Icon(
+                    RunkkIcons.Lock,
+                    contentDescription = null,
+                    tint = RunkkColors.TextPrimary,
+                    modifier = Modifier.align(Alignment.BottomEnd).offset(x = 6.dp, y = 4.dp).size(12.dp)
+                )
+            }
+        }
+        Text(
+            text = stringResource(tab.labelRes),
+            style = RunkkTextStyles.text(11, if (isSelected) FontWeight.Bold else FontWeight.Normal),
+            color = color
+        )
+    }
+}
+
+private const val LOCKED_ALPHA = 0.4f
+private val HOME_CIRCLE: Dp = 44.dp
 
 private val BOTTOM_BAR_DIVIDER: Dp = 1.dp
 
@@ -272,7 +320,9 @@ private fun RunkkBarsPreview() {
             RunkkStepTopBar(title = "회원 가입", step = 1, total = 5, onBack = {})
             RunkkMenuRow("설정", onClick = {}, icon = RunkkIcons.Settings, value = "km")
             RunkkSectionTitle("최신순", modifier = Modifier.padding(horizontal = 16.dp))
-            Box(Modifier.fillMaxWidth()) { RunkkBottomBar(selected = RunkkTab.HOME, onSelect = {}) }
+            Box(Modifier.fillMaxWidth()) {
+                RunkkBottomBar(selected = RunkkTab.HOME, onSelect = {}, lockedTabs = setOf(RunkkTab.CREW))
+            }
         }
     }
 }

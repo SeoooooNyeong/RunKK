@@ -21,7 +21,6 @@ internal fun GuidanceMessage.textRes(): Int = GUIDANCE_TEXTS.getValue(this)
  */
 private val GUIDANCE_TEXTS: Map<GuidanceMessage, Int> = mapOf(
     GuidanceMessage.FINISH_HINT to R.string.guidance_finish_hint,
-    GuidanceMessage.UNLOCK_HINT to R.string.guidance_unlock_hint,
     GuidanceMessage.SPLIT to R.string.guidance_split,
     GuidanceMessage.TARGET_REACHED to R.string.guidance_target_reached,
     GuidanceMessage.PACE_SLOW to R.string.guidance_pace_slow,
@@ -36,7 +35,5 @@ private val GUIDANCE_TEXTS: Map<GuidanceMessage, Int> = mapOf(
     GuidanceMessage.SAVE_FAILED to R.string.guidance_save_failed,
     GuidanceMessage.REPORT_FAILED to R.string.guidance_report_failed,
     GuidanceMessage.PAUSED to R.string.guidance_paused,
-    GuidanceMessage.RESUMED to R.string.guidance_resumed,
-    GuidanceMessage.PAUSE_AUTO_END_SOON to R.string.guidance_pause_auto_end_soon,
-    GuidanceMessage.PAUSE_AUTO_ENDED to R.string.guidance_pause_auto_ended
+    GuidanceMessage.RESUMED to R.string.guidance_resumed
 )

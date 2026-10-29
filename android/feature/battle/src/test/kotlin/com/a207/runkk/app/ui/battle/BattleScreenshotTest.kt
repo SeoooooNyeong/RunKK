@@ -97,23 +97,6 @@ class BattleScreenshotTest {
     )
 
     @Test
-    fun battleLocked() = compose.captureRunkkScreen("D3_battle_locked") {
-        BattleRunningScreen(
-            running.copy(
-                isLocked = true,
-                guidance = null,
-                hint = UiText.Res(R.string.battle_running_unlock_hold)
-            ),
-            {
-            },
-            {},
-            {},
-            {},
-            {}
-        )
-    }
-
-    @Test
     fun battleRunning() = compose.captureRunkkScreen("D3_battle_running") {
         BattleRunningScreen(running, {}, {}, {}, {}, {})
     }

@@ -37,27 +37,28 @@ class RunResultViewModelTest {
         assertEquals(Distance(5_020), s.distance)
         assertEquals(Pace.of(java.time.Duration.ofSeconds(1_668), Distance(5_020)), s.averagePace)
         assertEquals(152, s.averageHeartRate)
-        assertEquals(2, s.route.size)
         assertFalse(s.isUploaded)
         assertNull(s.error)
     }
 
     @Test
-    fun `서버 기록이 있으면 날씨·칼로리·신기록·심박 구간을 더한다(FR-184~FR-186)`() {
+    fun `TC-9729 서버 기록이 있으면 구간 페이스·심박 구간·신기록·리워드·휴식을 더한다(FR-078, FR-079)`() {
         pending.runs.value = listOf(completedRun())
         records.runResult = Outcome.Success(recordDetail())
         val vm = RunResultViewModel(pending, records)
         vm.load("rec-1")
         val s = vm.state.value
         assertTrue(s.isUploaded)
-        assertEquals("12°C 맑음", s.weather)
-        assertEquals(312, s.calories)
+        assertEquals(5, s.splitPaces.size)
         assertEquals(listOf("최장 거리 신기록 · 직전 4.80km"), s.newRecords)
         assertEquals(2, s.heartRateZones.size)
+        assertEquals(50, s.rewardPoints)
+        assertEquals(151, s.averageHeartRate)
+        assertEquals(java.time.Duration.ofSeconds(185), s.pausedTotal)
     }
 
     @Test
-    fun `서버가 무효로 판정한 기록이면 집계 제외를 보이고 칼로리는 빼며, 거리는 서버 값이다`() {
+    fun `TC-9730 서버가 무효로 판정해도 결과 상태에는 집계 제외 값이 없고 거리는 서버 값이다`() {
         pending.runs.value = listOf(completedRun())
         val base = recordDetail()
         records.runResult = Outcome.Success(
@@ -67,23 +68,13 @@ class RunResultViewModelTest {
         vm.load("rec-1")
         val s = vm.state.value
         assertTrue(s.isUploaded)
-        assertTrue(s.isExcluded)
-        assertNull(s.calories)
         assertEquals(Distance(360), s.distance)
-    }
-
-    @Test
-    fun `유효 기록과 서버 판정 전(미전송) 기록은 집계 제외를 보이지 않는다`() {
-        pending.runs.value = listOf(completedRun())
-        records.runResult = Outcome.Success(recordDetail())
-        val uploaded = RunResultViewModel(pending, records).also { it.load("rec-1") }.state.value
-        assertFalse(uploaded.isExcluded)
-        assertEquals(312, uploaded.calories)
-
-        records.runResult = Outcome.Failure(AppError.Network)
-        val local = RunResultViewModel(pending, records).also { it.load("rec-1") }.state.value
-        assertFalse(local.isUploaded)
-        assertFalse(local.isExcluded)
+        assertTrue(
+            RunResultUiState::class.java.declaredFields.none {
+                it.name in
+                    setOf("isExcluded", "calories", "weather")
+            }
+        )
     }
 
     @Test
@@ -131,7 +122,7 @@ class RunResultViewModelTest {
         advanceUntilIdle()
 
         assertTrue(vm.state.value.isUploaded)
-        assertEquals(312, vm.state.value.calories)
+        assertEquals(50, vm.state.value.rewardPoints)
     }
 
     @Test

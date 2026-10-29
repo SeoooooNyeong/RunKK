@@ -6,8 +6,8 @@ import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.core.model.RunMode
-import com.a207.runkk.app.domain.avatar.AvatarBackgrounds
-import com.a207.runkk.app.domain.avatar.BackgroundChoice
+import com.a207.runkk.app.domain.account.SessionRepository
+import com.a207.runkk.app.domain.account.SessionTokens
 import com.a207.runkk.app.domain.record.AggregationPeriod
 import com.a207.runkk.app.domain.record.Dashboard
 import com.a207.runkk.app.domain.record.Growth
@@ -24,6 +24,8 @@ import com.a207.runkk.app.domain.run.HeartRateSample
 import com.a207.runkk.app.domain.run.LateHeartRates
 import com.a207.runkk.app.domain.run.PendingRunRepository
 import com.a207.runkk.app.domain.settings.GuidanceSettings
+import com.a207.runkk.app.domain.settings.GuideCopy
+import com.a207.runkk.app.domain.settings.GuideRemote
 import com.a207.runkk.app.domain.settings.SettingsRepository
 import com.a207.runkk.app.domain.settings.SettingsSnapshot
 import java.time.Duration
@@ -54,7 +56,16 @@ val sampleDashboard = Dashboard(
     streakDays = 4,
     grass = mapOf(LocalDate.of(2026, 10, 19) to Distance(5_000)),
     weeklyAchievement = 0.6,
-    crew = null
+    crew = null,
+    weekly = com.a207.runkk.app.domain.record.WeeklyGoalProgress(
+        goalRuns = 4,
+        goalDistance = Distance(20_000),
+        actualRuns = 2,
+        actualDistance = Distance(12_000),
+        runsPercent = 50,
+        distancePercent = 60
+    ),
+    rewardBalance = 1_250
 )
 
 class FakeRecordRepository : RecordRepository {
@@ -160,7 +171,7 @@ class FakeAccountRepository : com.a207.runkk.app.domain.account.AccountRepositor
 
     override suspend fun withdraw() = unusedOutcome<Unit>()
 
-    override suspend fun editProfile(nickname: String, intro: String?) = unusedOutcome<Unit>()
+    override suspend fun editProfile(edit: com.a207.runkk.app.domain.account.ProfileEdit) = unusedOutcome<Unit>()
 
     val changedSettings = mutableListOf<Pair<String, String>>()
 
@@ -169,7 +180,13 @@ class FakeAccountRepository : com.a207.runkk.app.domain.account.AccountRepositor
         return unusedOutcome()
     }
 
-    override suspend fun giveConsent(item: String) = unusedOutcome<Unit>()
+    val consents = mutableListOf<String>()
+    var consentResult: Outcome<Unit> = Outcome.Success(Unit)
+
+    override suspend fun giveConsent(item: String): Outcome<Unit> {
+        consents += item
+        return consentResult
+    }
 
     override suspend fun withdrawConsent(item: String) = unusedOutcome<Unit>()
 
@@ -184,43 +201,9 @@ class FakeAccountRepository : com.a207.runkk.app.domain.account.AccountRepositor
     }
 }
 
-class FakeAvatarRepository : com.a207.runkk.app.domain.avatar.AvatarRepository {
-    var avatarResult: Outcome<com.a207.runkk.app.domain.avatar.Avatar> = Outcome.Success(
-        com.a207.runkk.app.domain.avatar.Avatar(null, "D1", "NORMAL", "DAY", emptyMap(), 1_250, true, emptyMap())
-    )
-
-    override suspend fun avatar() = avatarResult
-
-    override suspend fun createFromSelfie(jpeg: ByteArray) = unusedOutcome<com.a207.runkk.app.domain.avatar.Avatar>()
-
-    override suspend fun chooseDefault(characterId: String) = unusedOutcome<com.a207.runkk.app.domain.avatar.Avatar>()
-
-    override suspend fun equip(changes: Map<com.a207.runkk.app.domain.avatar.ItemSlot, Long?>) =
-        unusedOutcome<com.a207.runkk.app.domain.avatar.Avatar>()
-
-    override suspend fun shop(slot: com.a207.runkk.app.domain.avatar.ItemSlot?) =
-        unusedOutcome<com.a207.runkk.app.domain.avatar.Shop>()
-
-    override suspend fun backgrounds(): Outcome<AvatarBackgrounds> = error("unused")
-
-    override suspend fun chooseBackground(key: String?): Outcome<Unit> = error("unused")
-
-    override suspend fun backgroundChoice(): Outcome<BackgroundChoice?> = error("unused")
-
-    override suspend fun purchase(itemId: Long) = unusedOutcome<Int>()
-
-    var faceResult: Outcome<List<com.a207.runkk.app.core.model.FaceLayer>> = Outcome.Success(emptyList())
-    val faceKeys = mutableListOf<String?>()
-
-    override suspend fun faceLayers(faceKey: String?): Outcome<List<com.a207.runkk.app.core.model.FaceLayer>> {
-        faceKeys += faceKey
-        return faceResult
-    }
-}
-
 fun <T> unusedOutcome(): Outcome<T> = Outcome.Failure(AppError.Rejected("UNUSED"))
 
-/** 설정 사본(자유런 목표·코치 계획 따르기). guidance를 바꾸면 changes()가 바로 방출한다. */
+/** 설정 사본(위치 동의·가이드 사본). 값을 바꾸면 changes()가 바로 방출한다. refresh가 [consentAfterRefresh]를 사본에 반영한다. */
 class FakeSettingsRepository : SettingsRepository {
     private val snapshot = MutableStateFlow(SettingsSnapshot.SAFE)
 
@@ -230,9 +213,17 @@ class FakeSettingsRepository : SettingsRepository {
             snapshot.value = snapshot.value.copy(guidanceSettings = value)
         }
 
-    override suspend fun refresh(): Outcome<Unit> = Outcome.Success(Unit)
+    var isLocationConsented = false
+    var consentAfterRefresh = true
+    var refreshCalls = 0
 
-    override fun locationConsented() = false
+    override suspend fun refresh(): Outcome<Unit> {
+        refreshCalls++
+        isLocationConsented = consentAfterRefresh
+        return Outcome.Success(Unit)
+    }
+
+    override fun locationConsented() = isLocationConsented
 
     override fun heartRateConsented() = false
 
@@ -249,4 +240,45 @@ class FakeSettingsRepository : SettingsRepository {
     override fun changes(): Flow<SettingsSnapshot> = snapshot
 
     override suspend fun clear(): Outcome<Unit> = Outcome.Success(Unit)
+
+    var guide: GuideCopy = GuideCopy.NONE
+
+    override suspend fun guideCopy(): GuideCopy = guide
+
+    override suspend fun saveGuideCopy(copy: GuideCopy): Outcome<Unit> {
+        guide = copy
+        return Outcome.Success(Unit)
+    }
+}
+
+/** 첫 사용 가이드 서버 값(GET·PUT /me/guide). */
+class FakeGuideRemote : GuideRemote {
+    var seen: Outcome<Boolean> = Outcome.Success(false)
+    var seenCalls = 0
+    var markCalls = 0
+
+    override suspend fun seen(): Outcome<Boolean> {
+        seenCalls++
+        return seen
+    }
+
+    override suspend fun markSeen(): Outcome<Unit> {
+        markCalls++
+        return Outcome.Success(Unit)
+    }
+}
+
+/** 로그인 상태만 쓰는 세션. */
+class FakeSessionRepository(initial: Boolean = true) : SessionRepository {
+    override val loggedIn = MutableStateFlow(initial)
+
+    override suspend fun save(tokens: SessionTokens) = unusedOutcome<Unit>()
+
+    override suspend fun clear() = unusedOutcome<Unit>()
+
+    override suspend fun saveGuestCredential(credential: String) = unusedOutcome<Unit>()
+
+    override suspend fun clearGuestCredential() = unusedOutcome<Unit>()
+
+    override suspend fun hasGuestCredential() = false
 }

@@ -1,6 +1,6 @@
 package com.a207.runkk.app
 
-import androidx.annotation.StringRes
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,7 +18,11 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
@@ -31,7 +35,11 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
+import com.a207.runkk.app.core.designsystem.GuideAnchors
+import com.a207.runkk.app.core.designsystem.LocalGuideAnchors
+import com.a207.runkk.app.core.designsystem.LocalReleaseScope
 import com.a207.runkk.app.core.designsystem.RUNKK_BOTTOM_BAR_HEIGHT
+import com.a207.runkk.app.core.designsystem.ReleaseScope
 import com.a207.runkk.app.core.designsystem.RunkkBottomBar
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkEmptyState
@@ -39,14 +47,19 @@ import com.a207.runkk.app.core.designsystem.RunkkTab
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
 import com.a207.runkk.app.core.navigation.FeatureEntry
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
+import com.a207.runkk.app.core.navigation.LocalSlots
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.core.navigation.RunkkNavigator
+import com.a207.runkk.app.core.navigation.collectSlots
 
 /**
  * 화면 그래프를 띄운다(6.1.14). 각 ui.* 모듈이 Hilt @IntoSet으로 등록한 FeatureEntry만 받으므로
- * app은 ui.*를 import하지 않는다(design-review.md M35). 하단 탭(셀프·셀럽·홈·크루·마이)은 맨 위 화면이 탭 경로일 때만 보인다.
+ * app은 ui.*를 import하지 않는다(design-review.md M35). 하단 탭(크루·기록런·홈·랭킹·마이, D-250)은 맨 위 화면이 탭 경로이거나
+ * 배틀런 화면(홈을 고른 상태)일 때만 보인다.
  * 화면마다 ViewModel 저장소를 따로 두어(rememberViewModelStoreNavEntryDecorator) 화면을 닫으면 ViewModel도 정리된다.
- * [lockUnreleased]가 켜지면(베타 prod 빌드) 아직 열지 않는 기능([BetaLock])은 "추후 추가 예정" 화면으로 바꾼다.
+ * [lockUnreleased]가 켜지면(1차 배포 빌드, D-251) 크루 탭에 자물쇠를 달고 누르면 [LockedFeatureDialog]만 띄우며(D-253),
+ * 잠긴 경로([BetaLock])로 들어오면 안내를 띄우고 뒤로 돌린다. 화면 숨김 판정(LocalReleaseScope), 가이드 앵커 표
+ * (LocalGuideAnchors), 칸 기여 표(LocalSlots)도 여기서 넣는다.
  */
 @Composable
 fun RunkkNavHost(
@@ -70,15 +83,31 @@ fun RunkkNavHost(
         }
         withBottomSpace(if (lockUnreleased) withBetaLock(entries) else entries)
     }
-    val topRoute = (backStack.lastOrNull() as? Routes.Key)?.route
-    val selectedTab = topRoute?.let(::tabOf)
-    CompositionLocalProvider(LocalRunkkNavigator provides navigator) {
+    val top = backStack.lastOrNull()
+    val selectedTab = (top as? Routes.Key)?.route?.let(::tabOf)
+    val lockedTabs = if (lockUnreleased) LOCKED_TABS else emptySet()
+    var isLockedNoticeVisible by rememberSaveable { mutableStateOf(false) }
+    val guideAnchors = remember { GuideAnchors() }
+    val slots = remember(featureEntries) { featureEntries.collectSlots() }
+    CompositionLocalProvider(
+        LocalRunkkNavigator provides navigator,
+        LocalReleaseScope provides ReleaseScope.of(lockUnreleased),
+        LocalGuideAnchors provides guideAnchors,
+        LocalSlots provides slots
+    ) {
         Scaffold(
             modifier = modifier.fillMaxSize(),
             containerColor = RunkkColors.Background,
             bottomBar = {
                 if (selectedTab != null) {
-                    RunkkBottomBar(selected = selectedTab, onSelect = { navigator.selectTab(routeOf(it)) })
+                    RunkkBottomBar(
+                        selected = selectedTab,
+                        onSelect = { tab ->
+                            // 잠긴 탭은 이동하지 않고 안내만 띄운다(서버 요청 없음, D-253).
+                            if (tab in lockedTabs) isLockedNoticeVisible = true else navigator.selectTab(routeOf(tab))
+                        },
+                        lockedTabs = lockedTabs
+                    )
                 }
             }
         ) { innerPadding ->
@@ -100,10 +129,14 @@ fun RunkkNavHost(
                 entryProvider = provider
             )
         }
-        // 기능 화면 위 안내(남은 대결 등)는 로그인한 동안만 붙인다.
-        if (loggedIn) featureEntries.forEach { it.Overlay() }
+        // 기능 화면 위 안내(남은 대결, 홈 위 첫 사용 가이드 등)는 로그인한 동안만 붙인다. 맨 위 경로를 넘긴다(D-255).
+        if (loggedIn) featureEntries.forEach { it.Overlay(top) }
+        if (isLockedNoticeVisible) LockedFeatureDialog(onDismiss = { isLockedNoticeVisible = false })
     }
 }
+
+/** 1차 배포에서 잠그는 하단 탭(D-253). */
+private val LOCKED_TABS: Set<RunkkTab> = setOf(RunkkTab.CREW)
 
 /** 백 스택 하나로 RunkkNavigator를 구현한다. 마지막 화면에서 뒤로 가면 앱을 닫는다. */
 internal class BackStackNavigator(private val backStack: NavBackStack<NavKey>, private val onExit: () -> Unit) :
@@ -154,43 +187,46 @@ private fun EntryBottomSpace(isTab: Boolean, content: @Composable () -> Unit) {
 /** 로그인하지 않은 채로 머물 수 있는 경로. */
 private val AUTH_ROUTES = setOf(Routes.LOGIN, Routes.SIGN_UP, Routes.GUEST_START)
 
-private fun tabOf(route: String): RunkkTab? = when (route) {
-    Routes.SELF -> RunkkTab.SELF
-    Routes.CELEB -> RunkkTab.CELEB
-    Routes.HOME -> RunkkTab.HOME
+/** 경로 → 하단 탭(D-250). 배틀런 화면은 탭이 아니지만 홈을 고른 상태로 하단 탭을 보인다. */
+internal fun tabOf(route: String): RunkkTab? = when (route) {
     Routes.CREW -> RunkkTab.CREW
+    Routes.RECORD_RUN -> RunkkTab.RECORD_RUN
+    Routes.HOME, Routes.BATTLE_MODE -> RunkkTab.HOME
+    Routes.RANKING -> RunkkTab.RANKING
     Routes.ME -> RunkkTab.ME
     else -> null
 }
 
-private fun routeOf(tab: RunkkTab): String = when (tab) {
-    RunkkTab.SELF -> Routes.SELF
-    RunkkTab.CELEB -> Routes.CELEB
-    RunkkTab.HOME -> Routes.HOME
+internal fun routeOf(tab: RunkkTab): String = when (tab) {
     RunkkTab.CREW -> Routes.CREW
+    RunkkTab.RECORD_RUN -> Routes.RECORD_RUN
+    RunkkTab.HOME -> Routes.HOME
+    RunkkTab.RANKING -> Routes.RANKING
     RunkkTab.ME -> Routes.ME
 }
 
-/** 베타에서 열지 않는 기능([BetaLock])은 등록된 화면 대신 "추후 추가 예정" 화면을 띄운다. */
+/** 1차 배포에서 잠근 경로([BetaLock])는 등록된 화면 대신 잠긴 기능 안내를 띄우고 뒤로 돌린다(우회 진입 방어, D-251). */
 private fun withBetaLock(entries: (NavKey) -> NavEntry<NavKey>): (NavKey) -> NavEntry<NavKey> = { key ->
-    if (BetaLock.isLocked(key)) {
-        NavEntry(key) {
-            ComingSoonScreen(R.string.app_beta_locked_title, R.string.app_beta_locked_message)
-        }
-    } else {
-        entries(key)
-    }
+    if (BetaLock.isLocked(key)) NavEntry(key) { LockedRouteScreen() } else entries(key)
 }
 
-/** 아직 등록되지 않은 경로(다음 단계 화면), 베타에서 열지 않는 기능. */
+/** 잠긴 경로 자리: 빈 바탕 위 잠긴 기능 안내. 닫으면 한 화면 뒤로. */
 @Composable
-private fun ComingSoonScreen(
-    @StringRes title: Int = R.string.app_coming_soon_title,
-    @StringRes message: Int = R.string.app_coming_soon_message
-) {
+private fun LockedRouteScreen() {
+    val navigator = LocalRunkkNavigator.current
+    Box(Modifier.fillMaxSize().background(RunkkColors.Background))
+    LockedFeatureDialog(onDismiss = { navigator.back() })
+}
+
+/** 아직 등록되지 않은 경로(다음 단계 화면). */
+@Composable
+private fun ComingSoonScreen() {
     val navigator = LocalRunkkNavigator.current
     Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(24.dp)) {
         RunkkTopBar(title = "", onBack = { navigator.back() })
-        RunkkEmptyState(title = stringResource(title), message = stringResource(message))
+        RunkkEmptyState(
+            title = stringResource(R.string.app_coming_soon_title),
+            message = stringResource(R.string.app_coming_soon_message)
+        )
     }
 }

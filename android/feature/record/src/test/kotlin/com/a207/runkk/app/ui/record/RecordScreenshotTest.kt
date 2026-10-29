@@ -134,7 +134,15 @@ class RecordScreenshotTest {
 
     @Test
     fun cardFront() = compose.captureRunkkScreen("G1_record_card_front") {
-        val card = runCard()
+        val card = runCard().copy(
+            averageHeartRate = 152,
+            newRecords = listOf("최장 거리 신기록"),
+            weather = com.a207.runkk.app.domain.record.CardWeather(
+                14,
+                com.a207.runkk.app.domain.record.CardWeather.Sky.CLEAR
+            ),
+            ownerName = "달리는곰"
+        )
         val renderer = RunCardRenderer(RuntimeEnvironment.getApplication())
         RecordCardScreen(
             RecordCardUiState(
@@ -150,6 +158,40 @@ class RecordScreenshotTest {
             onRetry = {}
         )
     }
+
+    /** B-7 1차 배포 카드 팝업: 앞면만, 공유·뒤집기 없음. */
+    @Test
+    fun cardFrontFirstRelease() =
+        compose.captureRunkkScreen("B7_record_card_front_first_release", isDarkTheme = false) {
+            val card = runCard().copy(
+                averageHeartRate = 152,
+                newRecords = listOf("최장 거리 신기록"),
+                weather = com.a207.runkk.app.domain.record.CardWeather(
+                    14,
+                    com.a207.runkk.app.domain.record.CardWeather.Sky.CLEAR
+                ),
+                ownerName = "달리는곰"
+            )
+            val renderer = RunCardRenderer(RuntimeEnvironment.getApplication())
+            androidx.compose.runtime.CompositionLocalProvider(
+                com.a207.runkk.app.core.designsystem.LocalReleaseScope provides
+                    com.a207.runkk.app.core.designsystem.ReleaseScope.FIRST_RELEASE
+            ) {
+                RecordCardScreen(
+                    RecordCardUiState(
+                        isLoading = false,
+                        card = card,
+                        front = renderer.render(card, CardSide.FRONT, null, null),
+                        back = renderer.render(card, CardSide.BACK, null, null)
+                    ),
+                    onClose = {},
+                    onSideSelected = {},
+                    onShare = {},
+                    onMessageShown = {},
+                    onRetry = {}
+                )
+            }
+        }
 
     @Test
     fun cardBack() = compose.captureRunkkScreen("G2_record_card_back") {

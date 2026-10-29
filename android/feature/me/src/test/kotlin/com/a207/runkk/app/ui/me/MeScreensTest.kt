@@ -1,8 +1,10 @@
 package com.a207.runkk.app.ui.me
 
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -17,14 +19,20 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.dp
+import com.a207.runkk.app.core.designsystem.LocalReleaseScope
 import com.a207.runkk.app.core.designsystem.RUNKK_AVATAR_FACE_TAG
+import com.a207.runkk.app.core.designsystem.ReleaseScope
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.runkkAvatarCharacterTag
+import com.a207.runkk.app.core.model.CardKind
+import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.account.Gender
 import com.a207.runkk.app.domain.account.MemberSettings
 import com.a207.runkk.app.domain.account.ProviderType
+import com.a207.runkk.app.domain.account.RecentRun
+import java.time.LocalDate
 import kotlin.test.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -89,20 +97,104 @@ class MeScreensTest {
     }
 
     @Test
-    fun `마이 프로필은 입력한 나이대, 성별을 보이고 밝히지 않음은 뺀다(FR-006)`() {
+    fun `TC-9741 마이는 레벨·티어·Runimal·누적 거리·최장 거리·러닝 횟수와 메뉴 넷을 보이고 소개·나이대·성별은 숨긴다`() {
         val res = RuntimeEnvironment.getApplication().resources
-        assertEquals(
-            "30대, ${res.getString(R.string.me_gender_female)}",
-            aboutLine(res, sampleProfile)
-        )
-        assertEquals("30대, 여성", aboutLine(res, sampleProfile))
+        assertEquals("30대, ${res.getString(R.string.me_gender_female)}", aboutLine(res, sampleProfile))
         assertEquals(null, aboutLine(res, sampleProfile.copy(ageBand = null, gender = Gender.UNDISCLOSED)))
+        val routes = mutableListOf<String>()
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
-                MeScreen(MeUiState(isLoading = false, profile = sampleProfile), onNavigate = {}, onRetry = {})
+                MeScreen(
+                    MeUiState(isLoading = false, profile = sampleProfile.copy(longestDistance = Distance(21_097))),
+                    onNavigate = { routes += it },
+                    onRetry = {}
+                )
             }
         }
-        compose.onNodeWithText("30대, 여성").assertExists()
+        compose.onNodeWithText("Lv.3 · 골드").assertExists()
+        compose.onNodeWithText("128.4km").assertExists()
+        compose.onNodeWithText("21.1km").assertExists()
+        compose.onNodeWithText("42회").assertExists()
+        compose.onNodeWithText("30대, 여성").assertDoesNotExist()
+        compose.onNodeWithText("퇴근 뒤 한강").assertDoesNotExist()
+        listOf("러닝 기록", "성장 분석", "런바디", "목표·러닝 코치").forEach { compose.onNodeWithText(it).performClick() }
+        compose.onNodeWithText("랭킹").assertDoesNotExist()
+        compose.onNodeWithText("아바타 꾸미기").assertDoesNotExist()
+        compose.onNodeWithContentDescription("프로필 편집").performClick()
+        assertEquals(
+            listOf(Routes.RECORDS, Routes.GROWTH, Routes.REPORT, Routes.COACH, Routes.PROFILE_EDIT),
+            routes
+        )
+    }
+
+    @Test
+    fun `TC-9741 다른 러너 프로필은 최근 러닝 3건만 보이고 1차 배포에서는 크루명을 숨긴다`() {
+        val runs = (1..4).map {
+            RecentRun(CardKind.FREE_RUN, LocalDate.of(2026, 10, 20 - it), Distance(5_020))
+        }
+        compose.setContent {
+            CompositionLocalProvider(LocalReleaseScope provides ReleaseScope.FIRST_RELEASE) {
+                RunkkTheme(reduceMotion = true) {
+                    OtherProfileScreen(
+                        OtherProfileUiState(isLoading = false, profile = sampleProfile.copy(recentRuns = runs)),
+                        onBack = {},
+                        onRetry = {}
+                    )
+                }
+            }
+        }
+        compose.onNodeWithText("최근 러닝").assertExists()
+        compose.onAllNodesWithText("5.02km").assertCountEquals(3)
+        compose.onNodeWithText("[10.19]").assertExists()
+        compose.onNodeWithText("[10.16]").assertDoesNotExist()
+        compose.onNodeWithText("새벽크루").assertDoesNotExist()
+        compose.onNodeWithText("30대, 여성", substring = true).assertExists()
+    }
+
+    @Test
+    fun `TC-9741 최근 러닝이 없으면 영역이 없고 크루가 열리면 크루명을 보인다`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                OtherProfileScreen(
+                    OtherProfileUiState(isLoading = false, profile = sampleProfile),
+                    onBack = {},
+                    onRetry = {}
+                )
+            }
+        }
+        compose.onNodeWithText("최근 러닝").assertDoesNotExist()
+        compose.onNodeWithText("새벽크루").assertExists()
+    }
+
+    @Test
+    fun `TC-9740 프로필 편집은 사진 칸 없이 나이·성별 공개 스위치를 보인다`() {
+        val toggled = mutableListOf<String>()
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                ProfileEditScreen(
+                    ProfileEditUiState(
+                        isLoading = false,
+                        nickname = "달리는곰",
+                        ageBand = "20대",
+                        gender = Gender.FEMALE,
+                        isAgePublic = true
+                    ),
+                    onBack = {},
+                    onNicknameChange = {},
+                    onIntroChange = {},
+                    onSave = {},
+                    onErrorShown = {},
+                    onAgePublicChange = { toggled += "age:$it" },
+                    onGenderPublicChange = { toggled += "gender:$it" }
+                )
+            }
+        }
+        compose.onNodeWithText("2~20자").assertExists()
+        compose.onNodeWithText("20대 · 공개").assertExists()
+        compose.onNodeWithText("여성 · 비공개").performClick()
+        compose.onNodeWithText("20대 · 공개").performClick()
+        compose.onNodeWithText("사진").assertDoesNotExist()
+        assertEquals(listOf("gender:true", "age:false"), toggled)
     }
 
     @Test
@@ -165,7 +257,7 @@ class MeScreensTest {
     private fun startButton() = compose.onNode(hasText("시작하기") and hasClickAction())
 
     @Test
-    fun `게스트 시작 직후 안내는 닉네임을 보이고 나중에, 지금 연동하기를 고른다(A8, FR-199)`() {
+    fun `TC-9717 게스트 시작 직후 안내 시트는 닉네임과 고지를 보이고 나중에, 지금 연동하기를 고른다(A-3, FR-199)`() {
         val picked = mutableListOf<String>()
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
@@ -180,6 +272,7 @@ class MeScreensTest {
         }
         compose.onNodeWithText("게스트로 시작했어요").assertExists()
         compose.onNodeWithText("러너1234").assertExists()
+        compose.onNodeWithText("소셜 계정을 연동하지 않으면 앱 삭제, 기기 변경, 로그아웃 때 기록을 되살릴 수 없어요.").assertExists()
         compose.onNodeWithText("지금 연동하기").performClick()
         compose.onNodeWithText("나중에").performClick()
         assertEquals(listOf("link", "later"), picked)

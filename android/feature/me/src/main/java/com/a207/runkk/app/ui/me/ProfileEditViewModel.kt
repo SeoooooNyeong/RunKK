@@ -5,10 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.designsystem.RunkkErrorText
 import com.a207.runkk.app.core.designsystem.takeCodePoints
 import com.a207.runkk.app.core.model.Outcome
-import com.a207.runkk.app.core.model.getOrNull
 import com.a207.runkk.app.domain.account.AccountRepository
-import com.a207.runkk.app.domain.account.ChangeSettingUseCase
-import com.a207.runkk.app.domain.account.SettingChangeRequest
+import com.a207.runkk.app.domain.account.ProfileEdit
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.channels.Channel
@@ -21,22 +19,17 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * 프로필 편집(F3, FR-007): 닉네임·소개와 나이대·성별·소개 공개. 검증(중복·길이)은 서버가 하고 거부 사유를 보인다.
- * 공개 여부는 설정 항목(PROFILE_VISIBILITY, FR-010)이라 저장할 때 바뀌었으면 ChangeSettingUseCase로 함께 보낸다.
+ * 프로필 편집(G-2, D-287, FR-007·FR-012): 닉네임·소개와 나이대·성별 공개 스위치를 한 번에 PATCH /me/profile로 보낸다
+ * (AccountRepository.editProfile(ProfileEdit)). 검증(중복·길이)은 서버가 하고 거부 사유를 보인다.
+ * 공개 여부는 본인 프로필 응답의 ageBandVisibility·genderVisibility로 채우고, 옛 서버라 없으면 비공개로 둔다(D-289).
  */
 @HiltViewModel
-class ProfileEditViewModel @Inject constructor(
-    private val account: AccountRepository,
-    private val changeSetting: ChangeSettingUseCase
-) : ViewModel() {
+class ProfileEditViewModel @Inject constructor(private val account: AccountRepository) : ViewModel() {
     private val _state = MutableStateFlow(ProfileEditUiState())
     val state: StateFlow<ProfileEditUiState> = _state.asStateFlow()
 
     private val _events = Channel<ProfileEditEvent>(Channel.BUFFERED)
     val events: Flow<ProfileEditEvent> = _events.receiveAsFlow()
-
-    /** 읽어 온 공개 여부(저장할 때 바뀌었는지 본다). */
-    private var loadedPublic: Boolean? = null
 
     init {
         load()
@@ -45,20 +38,17 @@ class ProfileEditViewModel @Inject constructor(
     fun load() {
         _state.update { it.copy(isLoading = true, error = null) }
         viewModelScope.launch {
-            val key = SettingKeys.PROFILE_VISIBILITY
-            val isPublic = account.settings().getOrNull()?.let {
-                (it.values[key] ?: SettingKeys.DEFAULTS[key]) == PUBLIC
-            }
-            loadedPublic = isPublic
-            _state.update { it.copy(isProfilePublic = isPublic) }
-        }
-        viewModelScope.launch {
             when (val result = account.profile(AccountRepository.SELF)) {
                 is Outcome.Success -> _state.update {
+                    val me = result.value
                     it.copy(
                         isLoading = false,
-                        nickname = result.value.displayName,
-                        intro = result.value.intro.orEmpty()
+                        nickname = me.displayName,
+                        intro = me.intro.orEmpty(),
+                        ageBand = me.ageBand,
+                        gender = me.gender,
+                        isAgePublic = me.isAgePublic ?: false,
+                        isGenderPublic = me.isGenderPublic ?: false
                     )
                 }
 
@@ -75,7 +65,9 @@ class ProfileEditViewModel @Inject constructor(
 
     fun onIntroChange(value: String) = _state.update { it.copy(intro = value.take(ProfileEditUiState.INTRO_MAX)) }
 
-    fun onProfilePublicChange(isPublic: Boolean) = _state.update { it.copy(isProfilePublic = isPublic) }
+    fun onAgePublicChange(isPublic: Boolean) = _state.update { it.copy(isAgePublic = isPublic) }
+
+    fun onGenderPublicChange(isPublic: Boolean) = _state.update { it.copy(isGenderPublic = isPublic) }
 
     fun onErrorShown() = _state.update { it.copy(error = null) }
 
@@ -84,16 +76,13 @@ class ProfileEditViewModel @Inject constructor(
         if (s.isSaving) return
         _state.update { it.copy(isSaving = true, error = null) }
         viewModelScope.launch {
-            val result = account.editProfile(s.nickname.trim(), s.intro.trim().ifEmpty { null })
-            val visibility = s.isProfilePublic
-            val saved = if (result is Outcome.Success && visibility != null && visibility != loadedPublic) {
-                changeSetting(
-                    SettingChangeRequest.Change(SettingKeys.PROFILE_VISIBILITY, if (visibility) PUBLIC else PRIVATE)
-                )
-            } else {
-                result
-            }
-            when (saved) {
+            val edit = ProfileEdit(
+                nickname = s.nickname.trim(),
+                intro = s.intro.trim().ifEmpty { null },
+                isAgePublic = s.isAgePublic,
+                isGenderPublic = s.isGenderPublic
+            )
+            when (val saved = account.editProfile(edit)) {
                 is Outcome.Success -> {
                     _state.update { it.copy(isSaving = false) }
                     _events.send(ProfileEditEvent.Saved)
@@ -104,10 +93,5 @@ class ProfileEditViewModel @Inject constructor(
                 }
             }
         }
-    }
-
-    private companion object {
-        const val PUBLIC = "PUBLIC"
-        const val PRIVATE = "PRIVATE"
     }
 }

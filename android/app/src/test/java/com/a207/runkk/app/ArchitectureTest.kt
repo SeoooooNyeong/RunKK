@@ -385,9 +385,9 @@ class ArchitectureTest {
                         "core.model",
                         "core.designsystem"
                     ),
-                // 하이파이 HiHome 상단(닉네임·티어·Lv, 리워드 잔액) 때문에 domain.account(Profile)·domain.avatar(Avatar.balance)를 더했다.
-                // 설계서 5.1.2 표 ui.home 행에 함께 올라 있다(A3a 결정).
-                "ui.home" to CORE_UI + setOf("domain.record", "domain.run", "domain.account", "domain.avatar"),
+                // v0.14(D-276, D-277, 18장 146개 허용 표): 리워드 잔액은 대시보드 rewardBalance로 읽어 domain.avatar를 뺐고,
+                // 첫 사용 가이드(FirstRunGuide) 때문에 domain.settings를 더했다. domain.account는 상단 프로필·위치 동의·로그인 상태다.
+                "ui.home" to CORE_UI + setOf("domain.record", "domain.run", "domain.account", "domain.settings"),
                 "ui.run" to CORE_UI + setOf("domain.run", "domain.record"),
                 // domain.avatar 추가: 러닝 카드 배경 키·단계(AvatarRepository.backgroundChoice, D-140, D-185).
                 "ui.record" to CORE_UI + setOf("domain.record", "domain.run", "domain.avatar", "ui.share"),
