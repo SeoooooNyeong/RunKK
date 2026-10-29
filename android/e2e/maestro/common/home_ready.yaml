@@ -1,0 +1,13 @@
+# 공용 하위 흐름: 홈(v0.14)이 뜰 때까지 기다리고, 첫 사용 가이드가 떠 있으면 "건너뛰기"로 닫는다.
+# 홈 표지는 자유런 카드다(보조 기술 이름 "자유런, 음성 켬, 진동 끔" 꼴, 홈 HomeScreen RunCard).
+# 이 폴더는 config.yaml의 flows("*.yaml", 맨 위 폴더만)에 잡히지 않는다. 각 단계가 runFlow로 부른다.
+appId: ${APP_ID}
+---
+- extendedWaitUntil:
+    visible: "자유런, .*"
+    timeout: 20000
+- runFlow:
+    when:
+      visible: "건너뛰기"
+    commands:
+      - tapOn: "건너뛰기"

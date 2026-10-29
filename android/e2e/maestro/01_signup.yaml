@@ -1,6 +1,7 @@
 # 시나리오 1: 카카오 버튼 로그인 → 가입 동의 화면(만 14세·약관·개인정보·위치 필수 동의, 선택 항목은 두고) → "시작하기" → 홈.
 # 앱은 E2E 빌드(RUNKK_E2E_KAKAO_TOKEN)라 Kakao SDK 대신 시험 토큰을 서버로 보내고, 서버는 카카오 스텁으로 검증한다.
 # 이미 가입된 계정이면(같은 서버로 다시 돌릴 때) 로그인 뒤 바로 홈이 뜨고 동의 화면은 건너뛴다.
+# 홈(v0.14)은 자유런·배틀런 카드가 있는 화면이고, 처음 들어오면 첫 사용 가이드가 뜬다(공용 하위 흐름이 건너뛴다).
 appId: ${APP_ID}
 name: 01_signup
 tags: [smoke]
@@ -14,7 +15,7 @@ tags: [smoke]
     timeout: 20000
 - tapOn: "카카오로 시작하기"
 - extendedWaitUntil:
-    visible: "서비스 이용에 동의해 주세요|자유런 시작"
+    visible: "서비스 이용에 동의해 주세요|자유런, .*"
     timeout: 15000
 - runFlow:
     when:
@@ -28,7 +29,5 @@ tags: [smoke]
       - tapOn:
           text: "시작하기"
           index: 1
-- extendedWaitUntil:
-    visible: "자유런 시작"
-    timeout: 15000
+- runFlow: common/home_ready.yaml
 - takeScreenshot: 01_signup_home
