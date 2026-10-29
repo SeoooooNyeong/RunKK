@@ -87,9 +87,12 @@ object Routes {
     @Serializable
     data class Key(val route: String) : NavKey
 
-    /** 러닝 결과(B4). 측정이 끝난 기록 ID(앱이 만든 UUID). */
+    /**
+     * 러닝 결과(B4). 측정이 끝난 기록 ID(앱이 만든 UUID). [isJustFinished]는 측정을 끝낸 직후 측정 화면이 열 때만 참이고,
+     * 그때만 평가 화면을 한 번 띄운다(D-284, U8-6).
+     */
     @Serializable
-    data class RunResult(val recordId: String) : NavKey
+    data class RunResult(val recordId: String, val isJustFinished: Boolean = false) : NavKey
 
     /** 기록 상세(C2). */
     @Serializable
@@ -144,15 +147,18 @@ object Routes {
     data class RunimalType(val type: String) : NavKey
 
     /**
-     * 평가 결과(G-11, ui.runimal EvaluationScreen, D-284). 러닝·대결 결과 응답의 evaluation이 있을 때 한 번 연다.
+     * 평가 결과(G-11, ui.runimal EvaluationScreen, D-284). 끝낸 직후 연 러닝·대결 결과 응답에 evaluation이 있을 때 한 번 연다.
      * [tier]는 서버 Tier 이름, [validRuns]는 evaluation.validRuns, [runimalType]은 확정 유형(첫 배치·미확정이면 null).
      */
     @Serializable
     data class Evaluation(val tier: String, val validRuns: Int, val runimalType: String?) : NavKey
 
-    /** 대결 결과(비교표, FR-093·FR-108). */
+    /**
+     * 대결 결과(비교표, FR-093·FR-108). [isJustFinished]는 대결을 끝낸 직후 대결 진행 화면이 열 때만 참이다. 기록 대결 탭·알림함에서
+     * 다시 열면 거짓이고 평가 화면을 띄우지 않는다(D-284, U8-6).
+     */
     @Serializable
-    data class BattleResult(val battleId: Long) : NavKey
+    data class BattleResult(val battleId: Long, val isJustFinished: Boolean = false) : NavKey
 
     // 크루(ui.crew) 화면(A3b)
 

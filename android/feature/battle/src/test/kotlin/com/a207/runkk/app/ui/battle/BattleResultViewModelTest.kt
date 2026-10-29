@@ -2,6 +2,8 @@
 
 package com.a207.runkk.app.ui.battle
 
+import com.a207.runkk.app.core.designsystem.AvatarExpression
+import com.a207.runkk.app.core.designsystem.RunResultDetailState
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.uiText
 import com.a207.runkk.app.core.model.AppError
@@ -59,6 +61,16 @@ class BattleResultViewModelTest {
     }
 
     @Test
+    fun `TC-9702 결과 화면 표정은 패배만 SAD이고 자유런 완료·승리·신기록·무승부는 JOY다`() {
+        assertEquals(AvatarExpression.JOY, resultExpression(null), "판정 없음(자유런 완료와 같은 기본)")
+        assertEquals(AvatarExpression.JOY, resultExpression(Verdict.WIN), "승리, 셀프런 승리(신기록)")
+        assertEquals(AvatarExpression.JOY, resultExpression(Verdict.DRAW))
+        assertEquals(AvatarExpression.SAD, resultExpression(Verdict.LOSE))
+        val freeRun = RunResultDetailState(com.a207.runkk.app.core.model.Distance(5_000), "", java.time.Duration.ZERO)
+        assertEquals(AvatarExpression.JOY, freeRun.expression, "자유런 결과 상세 기본")
+    }
+
+    @Test
     fun `TC-9651 큰 제목은 승리!·패배·무승부, 셀프런 승리는 신기록!`() {
         assertEquals(R.string.battle_result_headline_win, headlineRes(OpponentKind.RANDOM, Verdict.WIN))
         assertEquals(R.string.battle_result_headline_win, headlineRes(OpponentKind.FRIEND, Verdict.WIN))
@@ -68,9 +80,25 @@ class BattleResultViewModelTest {
     }
 
     @Test
-    fun `D-284 평가가 실린 결과는 평가 화면 이동을 한 번만 낸다`() = runTest(main.dispatcher) {
+    fun `D-284 끝낸 직후 연 결과는 평가 화면 이동을 한 번만 낸다`() = runTest(main.dispatcher) {
         val w = world()
         val evaluation = com.a207.runkk.app.domain.battle.BattleResult.Evaluation("FIRST_PLACEMENT", "SILVER", 3, null)
+        w.battles.resultResult = Outcome.Success(battleResult().copy(evaluation = evaluation))
+        val vm = BattleResultViewModel(w.battles, w.coordinator, w.uploads, details)
+        val events = mutableListOf<BattleResultEvent>()
+        backgroundScope.launch { vm.events.collect { events += it } }
+        vm.load(9, opensEvaluation = true)
+        runCurrent()
+        vm.load(9, isForced = true)
+        runCurrent()
+        assertEquals(listOf<BattleResultEvent>(BattleResultEvent.NavigateEvaluation(evaluation)), events)
+    }
+
+    @Test
+    fun `AN8-1 U8-6 기록 대결 탭·알림함에서 다시 연 결과는 평가가 실려 있어도 평가 화면을 열지 않는다`() = runTest(main.dispatcher) {
+        val w = world()
+        val evaluation =
+            com.a207.runkk.app.domain.battle.BattleResult.Evaluation("FIRST_PLACEMENT", "SILVER", 3, null)
         w.battles.resultResult = Outcome.Success(battleResult().copy(evaluation = evaluation))
         val vm = BattleResultViewModel(w.battles, w.coordinator, w.uploads, details)
         val events = mutableListOf<BattleResultEvent>()
@@ -79,7 +107,7 @@ class BattleResultViewModelTest {
         runCurrent()
         vm.load(9, isForced = true)
         runCurrent()
-        assertEquals(listOf<BattleResultEvent>(BattleResultEvent.NavigateEvaluation(evaluation)), events)
+        assertEquals(emptyList(), events)
     }
 
     @Test

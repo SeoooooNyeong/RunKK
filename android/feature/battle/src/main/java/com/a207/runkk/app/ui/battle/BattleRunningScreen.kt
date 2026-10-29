@@ -1,6 +1,11 @@
 package com.a207.runkk.app.ui.battle
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -18,10 +23,14 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -36,6 +45,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.a207.runkk.app.core.designsystem.AvatarExpression
 import com.a207.runkk.app.core.designsystem.CelebrityFigure
+import com.a207.runkk.app.core.designsystem.NOTIFICATION_PERMISSION_API
 import com.a207.runkk.app.core.designsystem.OPPONENT_MARKER_TAG
 import com.a207.runkk.app.core.designsystem.OpponentMarkerPlacer
 import com.a207.runkk.app.core.designsystem.RouteCanvas
@@ -56,6 +66,7 @@ import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.asString
+import com.a207.runkk.app.core.designsystem.shouldAskNotificationPermission
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
@@ -64,21 +75,40 @@ import java.time.Duration
 import kotlin.math.abs
 
 /**
+ * 대결 진행 화면이 열리면 진행 알림 권한을 한 번 묻는다(AN8-5, D-259 "첫 러닝 시작 때"). 첫 러닝이 배틀런·친구 대결·셀프런·셀럽런이어도
+ * 진행 알림을 띄울 수 있게 자유런 카운트다운과 같은 규칙(core shouldAskNotificationPermission)을 쓴다. 거부해도 대결은 이어 간다.
+ */
+@Composable
+private fun NotificationPermissionEffect() {
+    val context = LocalContext.current
+    var isAsked by rememberSaveable { mutableStateOf(false) }
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT < NOTIFICATION_PERMISSION_API) return@LaunchedEffect
+        val isGranted = context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
+        if (shouldAskNotificationPermission(Build.VERSION.SDK_INT, isGranted, isAsked)) {
+            isAsked = true
+            launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+}
+
+/**
  * 대결 진행(C-4·D-3·E-3)과 셀프런·셀럽런 카운트다운(D-2·E-2). 끝나면 결과 화면이 이 화면을 대신하고, 셀프런·셀럽런을 그만두면
  * 결과 없이 기록런 탭으로 돌아간다(D-266).
  */
 @Composable
 fun BattleRunningRoute(key: Routes.BattleRunning, viewModel: BattleRunningViewModel = hiltViewModel()) {
     LaunchedEffect(key) { viewModel.bind(key) }
+    NotificationPermissionEffect()
     val state by viewModel.state.collectAsStateWithLifecycle()
     val navigator = LocalRunkkNavigator.current
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             when (event) {
-                is BattleRunningEvent.Finished -> {
-                    navigator.back()
-                    navigator.navigate(Routes.BattleResult(event.battleId))
-                }
+                is BattleRunningEvent.Finished ->
+                    navigator.replace(Routes.BattleResult(event.battleId, isJustFinished = true))
 
                 BattleRunningEvent.Discarded -> navigator.selectTab(Routes.RECORD_RUN)
             }

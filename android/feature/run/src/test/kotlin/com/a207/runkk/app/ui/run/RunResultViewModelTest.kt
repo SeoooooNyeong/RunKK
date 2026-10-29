@@ -137,13 +137,25 @@ class RunResultViewModelTest {
     }
 
     @Test
-    fun `서버 기록에 티어 평가가 있으면 평가 화면 이동을 한 번만 보낸다(D-284)`() = runTest(main.dispatcher) {
+    fun `측정 직후 연 결과는 서버 기록에 티어 평가가 있으면 평가 화면 이동을 한 번만 보낸다(D-284)`() = runTest(main.dispatcher) {
+        val evaluation = Evaluation(Evaluation.Kind.FIRST_PLACEMENT, "SILVER", 3, null)
+        records.runResult = Outcome.Success(recordDetail().copy(evaluation = evaluation))
+        val vm = RunResultViewModel(pending, records)
+        vm.events.test {
+            vm.load("rec-1", opensEvaluation = true)
+            assertEquals(RunResultEvent.NavigateEvaluation(evaluation), awaitItem())
+            vm.load("rec-1", isForced = true)
+            expectNoEvents()
+        }
+    }
+
+    @Test
+    fun `AN8-1 U8-6 측정 직후가 아닌 진입은 평가가 실려 있어도 평가 화면을 열지 않는다`() = runTest(main.dispatcher) {
         val evaluation = Evaluation(Evaluation.Kind.FIRST_PLACEMENT, "SILVER", 3, null)
         records.runResult = Outcome.Success(recordDetail().copy(evaluation = evaluation))
         val vm = RunResultViewModel(pending, records)
         vm.events.test {
             vm.load("rec-1")
-            assertEquals(RunResultEvent.NavigateEvaluation(evaluation), awaitItem())
             vm.load("rec-1", isForced = true)
             expectNoEvents()
         }

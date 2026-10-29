@@ -15,6 +15,7 @@ import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.designsystem.RunkkTheme
+import com.a207.runkk.app.core.designsystem.shouldAskNotificationPermission
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.domain.run.RunProgress
 import kotlin.test.assertEquals

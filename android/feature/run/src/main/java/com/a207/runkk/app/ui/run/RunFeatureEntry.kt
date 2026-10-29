@@ -13,6 +13,6 @@ class RunFeatureEntry @Inject constructor() : FeatureEntry {
 
     override fun register(builder: EntryProviderScope<NavKey>) {
         builder.route(Routes.RUN) { RunRoute() }
-        builder.addEntryProvider(Routes.RunResult::class) { key -> RunResultRoute(key.recordId) }
+        builder.addEntryProvider(Routes.RunResult::class) { key -> RunResultRoute(key.recordId, key.isJustFinished) }
     }
 }

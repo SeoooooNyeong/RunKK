@@ -30,10 +30,7 @@ fun CrewChatEntryRoute(viewModel: CrewFindViewModel = hiltViewModel()) {
     val navigator = LocalRunkkNavigator.current
     val crewId = state.mine?.crewId
     LaunchedEffect(crewId) {
-        if (crewId != null) {
-            navigator.back()
-            navigator.navigate(Routes.CrewChat(crewId))
-        }
+        if (crewId != null) navigator.replace(Routes.CrewChat(crewId))
     }
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         RunkkTopBar(title = stringResource(R.string.crew_home_chat), onBack = navigator::back)
