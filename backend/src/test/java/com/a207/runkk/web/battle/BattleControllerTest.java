@@ -153,7 +153,8 @@ class BattleControllerTest extends WebTestSupport {
         Session s = signUp();
         mvc.perform(as(s, get("/api/v1/battles/self/candidates")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.candidates.length()").value(4))
+                .andExpect(jsonPath("$.candidates.length()").value(5)) // 1km 추가(v0.14 D-238)
+                .andExpect(jsonPath("$.candidates[0].distanceMeters").value(1_000))
                 .andExpect(jsonPath("$.candidates[0].displayName").value("아직 기록이 없어요"));
         mvc.perform(
                         as(s, post("/api/v1/battles/self"))
@@ -181,20 +182,16 @@ class BattleControllerTest extends WebTestSupport {
                 .andExpect(status().isNoContent());
         mvc.perform(as(s, post("/api/v1/battles/" + battleId + "/forfeit")))
                 .andExpect(status().isNoContent());
+        // v0.14 D-228: 셀프런 진행 중 포기는 취소라 결과·이력·리워드가 없다(TC-9310)
         mvc.perform(as(s, get("/api/v1/battles/" + battleId + "/result")))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.verdict").value("LOSE"))
-                .andExpect(jsonPath("$.pending").value(false))
-                .andExpect(jsonPath("$.type").value("SELF"))
-                .andExpect(jsonPath("$.opponentName").value("10/20의 나"))
-                .andExpect(jsonPath("$.recordId").doesNotExist());
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("BATTLE_NOT_FOUND"));
         mvc.perform(as(s, get("/api/v1/battles/history").param("type", "SELF")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.total").value(1))
-                .andExpect(jsonPath("$.losses").value(1))
-                .andExpect(jsonPath("$.entries[0].opponentName").value("10/20의 나"));
+                .andExpect(jsonPath("$.total").value(0))
+                .andExpect(jsonPath("$.losses").value(0));
         mvc.perform(as(s, get("/api/v1/battles/history").param("size", "1")))
-                .andExpect(jsonPath("$.entries.length()").value(1))
+                .andExpect(jsonPath("$.entries.length()").value(0))
                 .andExpect(jsonPath("$.nextCursor").doesNotExist());
         mvc.perform(as(s, get("/api/v1/battles/history").param("size", "0")))
                 .andExpect(status().isBadRequest());
@@ -212,7 +209,7 @@ class BattleControllerTest extends WebTestSupport {
 
         Session other = signUp();
         mvc.perform(as(other, get("/api/v1/battles/" + battleId + "/result")))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isConflict());
     }
 
     @Test
@@ -285,9 +282,8 @@ class BattleControllerTest extends WebTestSupport {
         mvc.perform(as(s, get("/api/v1/battles/" + unstarted + "/result")))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("BATTLE_NOT_FOUND"));
-        mvc.perform(as(s, get("/api/v1/battles/history")))
-                .andExpect(jsonPath("$.total").value(1))
-                .andExpect(jsonPath("$.entries[0].battleId").value(battleId));
+        // 진행 중 셀프런 포기도 v0.14부터 취소라 이력에 없다(D-228)
+        mvc.perform(as(s, get("/api/v1/battles/history"))).andExpect(jsonPath("$.total").value(0));
         mvc.perform(as(s, get("/api/v1/battles/active"))).andExpect(status().isNoContent());
         mvc.perform(
                         as(s, post("/api/v1/battles/match"))

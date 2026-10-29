@@ -105,6 +105,11 @@ public class BattleParticipant {
     }
 
     /** 24시간이 지나도 기록이 없으면 무효로 본다(A-10 expirePending). */
+    /** 기록이 삭제되었다(v0.14 D-232). 판정·도달 시간은 그대로 두고 기록 ID만 비운다. */
+    void forgetRecord() {
+        this.recordId = null;
+    }
+
     void markMissingRecordInvalid() {
         if (verified == null) {
             verified = false;

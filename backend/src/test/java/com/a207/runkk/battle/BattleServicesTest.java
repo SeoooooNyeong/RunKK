@@ -72,6 +72,7 @@ class BattleServicesTest {
     private final InMemoryBattleStores.Queue queue = new InMemoryBattleStores.Queue();
     private final InMemoryBattleStores.Sessions sessions = new InMemoryBattleStores.Sessions();
     private final InMemoryBattleStores.Virtuals virtuals = new InMemoryBattleStores.Virtuals();
+    private final InMemoryBattleStores.Invites invites = new InMemoryBattleStores.Invites();
     private final InMemoryBattleStores.Messenger messenger = new InMemoryBattleStores.Messenger();
     private final List<DomainEvent> events = new ArrayList<>();
     private final DomainEventPublisher publisher = events::add;
@@ -163,7 +164,12 @@ class BattleServicesTest {
     class Matching {
 
         private MatchingService matching() {
-            return new MatchingService(members, settings, queue, battles, clock);
+            return new MatchingService(
+                    members,
+                    settings,
+                    queue,
+                    new RunnerAvailability(queue, battles, invites),
+                    clock);
         }
 
         @Test
@@ -392,7 +398,12 @@ class BattleServicesTest {
                                     "달빛여우",
                                     Duration.ofMinutes(26))));
             MatchingService matching =
-                    new MatchingService(members, settings, queue, battles, clock);
+                    new MatchingService(
+                            members,
+                            settings,
+                            queue,
+                            new RunnerAvailability(queue, battles, invites),
+                            clock);
             List<Throwable> cancelOutcome = new ArrayList<>();
             when(members.ghostEligibleOwners(any(), anyLong()))
                     .thenAnswer(
@@ -713,7 +724,12 @@ class BattleServicesTest {
                         + " 접수한다(배틀런 QA 7번)")
         void forfeit_releasesLockInEveryActiveState() {
             MatchingService matching =
-                    new MatchingService(members, settings, queue, battles, clock);
+                    new MatchingService(
+                            members,
+                            settings,
+                            queue,
+                            new RunnerAvailability(queue, battles, invites),
+                            clock);
             record Case(
                     String state, java.util.function.Supplier<Battle> make, BattleStatus ends) {}
             List<Case> cases =
@@ -800,7 +816,7 @@ class BattleServicesTest {
             BattleResultView view = resultService.result(BOB, battle.getId());
             assertThat(view.verdict()).isEqualTo(Verdict.WIN);
             assertThat(view.corrected()).isTrue();
-            assertThat(view.comparison().rows()).hasSize(4);
+            assertThat(view.comparison().rows()).as("랜덤 대결은 비교표가 없다(v0.14 D-229)").isEmpty();
             assertThat(view.weekly().wins()).isEqualTo(1);
             assertThat(view.myRecordId()).isEqualTo("b");
             assertThat(view.opponentName().value()).isEqualTo("러너" + ALICE);

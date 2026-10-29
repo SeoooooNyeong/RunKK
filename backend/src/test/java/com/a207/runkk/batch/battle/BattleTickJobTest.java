@@ -45,16 +45,21 @@ class BattleTickJobTest {
     }
 
     @Test
-    @DisplayName("스케줄 설정은 1초 시계와 1분 버려진 대결 정리, 고정 간격 작업 둘을 등록한다")
+    @DisplayName("스케줄 설정은 1초 시계, 1분 버려진 대결 정리, 5초 친구 대결 초대 만료(D-221) 고정 간격 작업 셋을 등록한다")
     void schedulingConfig_registersFixedDelay() {
         ScheduledTaskRegistrar registrar = new ScheduledTaskRegistrar();
         new BattleSchedulingConfig(
                         mock(BattleTickJob.class),
                         mock(AbandonedBattleJob.class),
+                        mock(FriendInviteExpiryJob.class),
                         new BattleSchedulingConfig.Schedule(
-                                Duration.ofSeconds(1), Duration.ofMinutes(1)))
+                                Duration.ofSeconds(1),
+                                Duration.ofMinutes(1),
+                                Duration.ofSeconds(5)))
                 .configureTasks(registrar);
-        assertThat(registrar.getFixedDelayTaskList()).hasSize(2);
+        assertThat(registrar.getFixedDelayTaskList()).hasSize(3);
+        assertThat(registrar.getFixedDelayTaskList().get(2).getIntervalDuration())
+                .isEqualTo(Duration.ofSeconds(5));
     }
 
     @Test

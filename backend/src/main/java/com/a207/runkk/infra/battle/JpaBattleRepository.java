@@ -65,6 +65,17 @@ public class JpaBattleRepository implements BattleRepository {
     }
 
     @Override
+    public List<Battle> findAllById(Collection<Long> ids) {
+        if (ids.isEmpty()) {
+            return List.of();
+        }
+        return entityManager
+                .createQuery("select b from Battle b where b.id in :ids", Battle.class)
+                .setParameter("ids", List.copyOf(ids))
+                .getResultList();
+    }
+
+    @Override
     public List<Battle> findActive(long memberId) {
         return entityManager
                 .createQuery(
@@ -195,10 +206,12 @@ public class JpaBattleRepository implements BattleRepository {
                 .createQuery(
                         "select b.id, b.winnerMemberId, b.judgedAt from Battle b"
                                 + " where b.status = :finished and b.winnerMemberId is not null"
+                                + " and b.type in :rewarding"
                                 + " and b.judgedAt >= :from and b.judgedAt < :to"
                                 + " order by b.judgedAt, b.id",
                         Object[].class)
                 .setParameter("finished", BattleStatus.FINISHED)
+                .setParameter("rewarding", List.copyOf(BattleType.winRewarded()))
                 .setParameter("from", from)
                 .setParameter("to", to)
                 .getResultList()

@@ -34,5 +34,27 @@ public record RecordBattleCandidates(List<Candidate> candidates) {
             Duration finishTime,
             LocalDate recordedOn,
             Source source,
-            boolean estimated) {}
+            boolean estimated,
+            Duration myBest) {
+
+        /** 내 최고 기록을 모르는 후보(나와의 싸움 후보 등). */
+        public Candidate(
+                Long celebrityId,
+                String displayName,
+                Distance distance,
+                Duration finishTime,
+                LocalDate recordedOn,
+                Source source,
+                boolean estimated) {
+            this(
+                    celebrityId,
+                    displayName,
+                    distance,
+                    finishTime,
+                    recordedOn,
+                    source,
+                    estimated,
+                    null);
+        }
+    }
 }
