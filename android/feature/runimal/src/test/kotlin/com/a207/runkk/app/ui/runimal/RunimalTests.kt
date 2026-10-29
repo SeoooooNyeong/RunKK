@@ -78,6 +78,10 @@ private class FakeRunimal : RunimalRepository {
         cardCalls++
         return cardResult
     }
+
+    override suspend fun types() = Outcome.Failure(com.a207.runkk.app.core.model.AppError.Network)
+
+    override suspend fun type(type: String) = Outcome.Failure(com.a207.runkk.app.core.model.AppError.Network)
 }
 
 private class RecordingTarget(val name: String, val calls: MutableList<String>) : ShareTarget {

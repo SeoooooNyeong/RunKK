@@ -40,6 +40,12 @@ constructor(private val api: RecordApi, private val self: SelfMember) :
         api.run(recordId).toDomain()
     }
 
+    /** 204면 성공. 거부 응답은 본문 code로 Rejected(code)가 된다(ApiErrorMapper). */
+    override suspend fun delete(recordId: String): Outcome<Unit> = ApiErrorMapper.call {
+        val reply = api.delete(recordId)
+        if (!reply.isSuccessful) throw HttpException(reply)
+    }
+
     override suspend fun growth(period: AggregationPeriod): Outcome<Growth> =
         ApiErrorMapper.call { api.growth(period.name).toDomain() }
 

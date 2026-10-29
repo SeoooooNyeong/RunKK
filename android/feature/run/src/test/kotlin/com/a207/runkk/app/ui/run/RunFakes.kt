@@ -196,6 +196,8 @@ class FakeRecordRepository : RecordRepository {
 
     override suspend fun run(recordId: String): Outcome<RecordDetail> = runResult
 
+    override suspend fun delete(recordId: String): Outcome<Unit> = Outcome.Success(Unit)
+
     override suspend fun growth(period: AggregationPeriod): Outcome<Growth> = unused()
 
     override suspend fun report(): Outcome<Report> = unused()

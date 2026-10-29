@@ -107,6 +107,14 @@ class FakeRecordRepository : RecordRepository {
 
     override suspend fun run(recordId: String): Outcome<RecordDetail> = runResult
 
+    var deleteResult: Outcome<Unit> = Outcome.Success(Unit)
+    val deleteCalls = mutableListOf<String>()
+
+    override suspend fun delete(recordId: String): Outcome<Unit> {
+        deleteCalls += recordId
+        return deleteResult
+    }
+
     var growthResult: Outcome<Growth> = Outcome.Success(sampleGrowth)
     var reportResult: Outcome<Report> = Outcome.Success(Report("이번 주 3회, 15.2km", null, null))
     var rankingResult: Outcome<Ranking> = Outcome.Success(sampleRanking)

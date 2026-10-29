@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 기록 화면 대결 탭(BattleHistoryTab, D-281). 다른 대결 화면 문자열과 나눠 둔다. -->
+<resources>
+    <string name="battle_type_friend">친구 대결</string>
+</resources>

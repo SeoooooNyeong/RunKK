@@ -83,6 +83,8 @@ import com.a207.runkk.app.api.run.RunUploadRequest
 import com.a207.runkk.app.api.run.UploadResponse
 import com.a207.runkk.app.api.runimal.RunimalCardResponse
 import com.a207.runkk.app.api.runimal.RunimalStatusResponse
+import com.a207.runkk.app.api.runimal.RunimalTypeResponse
+import com.a207.runkk.app.api.runimal.RunimalTypesResponse
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.RunMode
 import com.a207.runkk.app.core.model.SignalState
@@ -131,13 +133,10 @@ private fun enumNames(name: String): Set<String> =
 private fun names(entries: Collection<Enum<*>>): Set<String> = entries.map { it.name }.toSet()
 
 /**
- * v0.14 서버 조각(D-241·D-242)이 더하는 요청 항목인데 계약 자료(android/contract)가 아직 서버에서 다시 뽑히지 않은 것.
- * 앱은 05-08 API 표대로 보낸다(가정, 서버 대조 필요). 서버 작업이 합쳐져 `sync_from_server.py`로 자료를 갱신하면 이 목록을 비운다.
+ * 서버 계약 자료에 아직 없는 요청 항목(서버 작업이 늦게 합쳐질 때만 잠시 둔다). v0.14 서버가 합쳐져 비었다(A4).
+ * 서버 작업이 합쳐져 `sync_from_server.py`로 자료를 갱신하면 이 목록을 비운다.
  */
-private val PENDING_SERVER_FIELDS: Set<String> = setOf(
-    "MeController.ProfileEditRequest.ageBandVisibility",
-    "MeController.ProfileEditRequest.genderVisibility"
-)
+private val PENDING_SERVER_FIELDS: Set<String> = emptySet()
 
 /**
  * 앱 :data가 서버와 주고받는 값을 서버 계약 자료와 대조한다(재발 방지). 대상: (1) 앱 enum 이름이 서버 enum 이름 목록 안에 있는가,
@@ -375,6 +374,9 @@ class ServerContractTest {
         response(DisposalOrderResponse.serializer(), "DisposalOrderView")
         response(RunimalStatusResponse.serializer(), "RunimalController.StatusResponse")
         response(RunimalCardResponse.serializer(), "RunimalController.CardResponse")
+        // TC-9851 v0.14 새 DTO(D-289)
+        response(RunimalTypesResponse.serializer(), "RunimalController.TypesResponse")
+        response(RunimalTypeResponse.serializer(), "RunimalController.TypeDetailResponse")
         response(ProfileResponse.serializer(), "MeController.ProfileResponse")
         response(DashboardResponse.serializer(), "RecordDtos.DashboardResponse")
         response(RecordListResponse.serializer(), "RecordDtos.RecordListResponse")
