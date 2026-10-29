@@ -28,7 +28,9 @@ internal data class RecordDetailResponse(
     val pauses: List<PauseDto> = emptyList(),
     val pausedSeconds: Long = 0,
     val deletable: Boolean? = null,
-    val evaluation: EvaluationDto? = null
+    val evaluation: EvaluationDto? = null,
+    // 본인 기록일 때만 RecordVisibility 이름(서버 BE2). 남의 기록·옛 서버는 null.
+    val recordVisibility: String? = null
 ) {
     /** 정지 구간 하나(서버 PauseDto). 화면은 개수만 쓴다. */
     @Serializable

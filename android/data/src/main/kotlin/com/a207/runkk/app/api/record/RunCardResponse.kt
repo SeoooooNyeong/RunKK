@@ -4,7 +4,7 @@ import kotlinx.serialization.Serializable
 
 /**
  * 공유 카드 값(서버 running.RunCardData). route는 코스지도 공유가 켜졌거나 본인일 때만 온다.
- * temperatureC·sky는 v0.14 앞면 날씨(서버 D-235), nickname은 앞면 서명 "[닉네임], 런크크"용 앱 요청 값이다(서버 미반영이면 없다).
+ * temperatureC·sky는 v0.14 앞면 날씨(서버 D-235), nickname은 앞면 서명 "[닉네임], 런크크"용 기록 주인 표시명이다(서버 BE2, 그 이전 서버면 없다).
  */
 @Serializable
 internal data class RunCardResponse(

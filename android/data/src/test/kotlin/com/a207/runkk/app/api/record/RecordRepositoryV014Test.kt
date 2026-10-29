@@ -137,7 +137,7 @@ class RecordRepositoryV014Test {
     fun `TC-9852 기록 상세는 삭제 가능·평가·날씨·정지 구간을 읽는다`() = runTest {
         api.reply(
             """{"summary":{"recordId":"r-1","startedAt":"2026-10-20T07:00:00+09:00","distanceMeters":5010,"elapsedSeconds":1620,
-               |"valid":false,"mode":"FREE","cardKind":"FREE_RUN"},"owner":true,"calories":320,
+               |"valid":false,"mode":"FREE","cardKind":"FREE_RUN"},"owner":true,"calories":320,"recordVisibility":"CREW",
                |"temperatureC":12,"sky":"CLEAR","pauses":[{"from":"2026-10-20T07:10:00+09:00","to":"2026-10-20T07:12:00+09:00"},
                |{"from":"2026-10-20T07:20:00+09:00","to":"2026-10-20T07:21:00+09:00"}],"pausedSeconds":180,"deletable":true,
                |"evaluation":{"kind":"REEVALUATION","tier":"GOLD","validRuns":20,"runimalType":"COMMUTER_TURTLE"}}
@@ -152,6 +152,7 @@ class RecordRepositoryV014Test {
         assertEquals("CLEAR", detail.sky)
         assertEquals(2, detail.pauseCount)
         assertEquals(Duration.ofSeconds(180), detail.paused)
+        assertEquals("CREW", detail.recordVisibility)
     }
 
     @Test
@@ -206,6 +207,7 @@ class RecordRepositoryV014Test {
         assertEquals(null, detail.sky)
         assertEquals(0, detail.pauseCount)
         assertEquals(Duration.ZERO, detail.paused)
+        assertEquals(null, detail.recordVisibility)
     }
 
     @Test

@@ -207,6 +207,26 @@ class RecordScreensTest {
         compose.onNodeWithText("12°C 맑음", substring = true).assertExists()
         compose.onNodeWithText("정지 구간 2회, 3분").performScrollTo().assertExists()
         compose.onNodeWithText("소모 열량").performScrollTo().assertExists()
+        compose.onNodeWithText("전체 공개").assertDoesNotExist()
+    }
+
+    @Test
+    fun `기록 상세는 본인 기록의 공개 범위를 칩으로 보인다(서버 recordVisibility)`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                RecordDetailScreen(
+                    RecordDetailUiState(
+                        isLoading = false,
+                        recordId = "r1",
+                        detail = detail().copy(recordVisibility = "CREW")
+                    ),
+                    onBack = {},
+                    onShare = {},
+                    onRetry = {}
+                )
+            }
+        }
+        compose.onNodeWithText("크루 공개").assertExists()
     }
 
     @Test

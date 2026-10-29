@@ -191,7 +191,7 @@ private fun DetailBody(detail: RecordDetail, isDeleting: Boolean, onDelete: () -
     }
 }
 
-/** 맨 위 줄: 종류와 "[날짜 시각], 12°C 맑음". */
+/** 맨 위 줄: 종류, 본인 기록이면 공개 범위 칩(서버 recordVisibility, 없으면 칩 없음), "[날짜 시각], 12°C 맑음". */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun DetailHeader(detail: RecordDetail) {
@@ -199,6 +199,7 @@ private fun DetailHeader(detail: RecordDetail) {
     val dateFormat = rememberDateFormatter(R.string.record_detail_date_pattern)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         RunkkBadge(kindLabel(s.cardKind))
+        VISIBILITY_NAMES[detail.recordVisibility]?.let { RunkkBadge(stringResource(it), tone = RunkkBadgeTone.Muted) }
         Text(
             listOfNotNull(dateFormat.format(s.startedAt.atZone(ZoneId.systemDefault())), weatherText(detail))
                 .joinToString(", "),
@@ -220,6 +221,13 @@ private fun weatherText(detail: RecordDetail): String? {
         detail.weather
     }
 }
+
+/** 기록 공개 범위(서버 RecordVisibility 이름) → 칩 문구. 설정 화면의 공개 범위 선택지와 같은 말을 쓴다. */
+private val VISIBILITY_NAMES = mapOf(
+    "PUBLIC" to R.string.record_visibility_public,
+    "CREW" to R.string.record_visibility_crew,
+    "PRIVATE" to R.string.record_visibility_private
+)
 
 private val SKY_NAMES = mapOf(
     "CLEAR" to R.string.record_sky_clear,

@@ -122,7 +122,8 @@ internal fun RecordDetailResponse.toDomain(): RecordDetail = RecordDetail(
     temperatureC = temperatureC,
     sky = sky,
     pauseCount = pauses.size,
-    paused = Duration.ofSeconds(pausedSeconds)
+    paused = Duration.ofSeconds(pausedSeconds),
+    recordVisibility = recordVisibility
 )
 
 internal fun GrowthResponse.toDomain(): Growth = Growth(
