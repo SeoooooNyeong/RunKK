@@ -61,6 +61,18 @@ fun summary(id: String, day: Int, meters: Long, isValid: Boolean = true, kind: C
         cardKind = kind
     )
 
+fun dashboard(monthRuns: Int? = null, monthMeters: Long? = null, streakDays: Int = 4) = Dashboard(
+    today = Distance.ZERO,
+    total = Distance(152_300),
+    landmark = null,
+    streakDays = streakDays,
+    grass = emptyMap(),
+    weeklyAchievement = null,
+    crew = null,
+    monthRuns = monthRuns,
+    monthDistance = monthMeters?.let(::Distance)
+)
+
 fun detail(id: String = "r1") = RecordDetail(
     summary = summary(id, 20, 5_020),
     route = listOf(GeoPoint(37.5, 127.0), GeoPoint(37.51, 127.01)),
@@ -98,7 +110,16 @@ class FakeRecordRepository : RecordRepository {
     var cardResult: Outcome<RunCard> = Outcome.Success(runCard())
     val runsCalls = mutableListOf<Triple<Long, LocalDate, LocalDate>>()
 
-    override suspend fun dashboard(baseDate: LocalDate): Outcome<Dashboard> = unused()
+    /** 기준일 → 대시보드. 기본은 그 달 12회·61.3km, 연속 4일. */
+    var dashboardOf: (
+        LocalDate
+    ) -> Outcome<Dashboard> = { Outcome.Success(dashboard(monthRuns = 12, monthMeters = 61_300)) }
+    val dashboardCalls = mutableListOf<LocalDate>()
+
+    override suspend fun dashboard(baseDate: LocalDate): Outcome<Dashboard> {
+        dashboardCalls += baseDate
+        return dashboardOf(baseDate)
+    }
 
     override suspend fun runs(ownerId: Long, from: LocalDate, to: LocalDate): Outcome<RecordList> {
         runsCalls += Triple(ownerId, from, to)
@@ -110,8 +131,12 @@ class FakeRecordRepository : RecordRepository {
     var deleteResult: Outcome<Unit> = Outcome.Success(Unit)
     val deleteCalls = mutableListOf<String>()
 
+    /** 있으면 삭제 응답을 이 값이 끝날 때까지 미룬다(연타 시험). */
+    var deleteGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+
     override suspend fun delete(recordId: String): Outcome<Unit> {
         deleteCalls += recordId
+        deleteGate?.await()
         return deleteResult
     }
 

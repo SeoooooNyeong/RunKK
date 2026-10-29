@@ -36,67 +36,52 @@ class RecordScreenshotTest {
         summary("r1", 8, 2_000, isValid = false)
     )
 
+    private val today = java.time.LocalDate.of(2026, 10, 20)
+
     private fun listState(view: RecordView) = RecordListUiState(
         month = YearMonth.of(2026, 10),
+        today = today,
+        zone = zone,
         view = view,
         isLoading = false,
         runs = runs,
         dailyDistance = dailyValidDistance(runs, zone),
-        excludedDays = excludedOnlyDays(runs, zone),
-        pendingCount = 1,
-        zone = zone
+        summary = RecordListUiState.MonthSummary(11, Distance(54_800), 7),
+        selectedDate = java.time.LocalDate.of(2026, 10, 20),
+        recentRuns = runs,
+        pendingCount = 1
     )
 
     @Test
-    fun calendar() = compose.captureRunkkScreen("C1_record_calendar") {
-        RecordListScreen(listState(RecordView.CALENDAR), onBack = {
-        }, onViewSelected = {}, onPreviousMonth = {}, onNextMonth = {}, onRun = {}, onRetry = {})
-    }
-
-    /** 같은 날 유효 3.09km와 집계 제외 기록이 섞인 날(26일 3.1km), 집계 제외 기록만 있는 날(25일, 흐린 점). */
-    private val mixedRuns = listOf(
-        summary("v1", 26, 3_090),
-        summary("x1", 26, 9_078_810, isValid = false),
-        summary("x2", 26, 3_140, isValid = false),
-        summary("x3", 25, 9_078_810, isValid = false)
-    )
-
-    private fun excludedState() = RecordListUiState(
-        month = YearMonth.of(2026, 10),
-        view = RecordView.CALENDAR,
-        isLoading = false,
-        runs = mixedRuns,
-        dailyDistance = dailyValidDistance(mixedRuns, zone),
-        excludedDays = excludedOnlyDays(mixedRuns, zone),
-        zone = zone
-    )
-
-    @Test
-    fun calendarExcluded() = compose.captureRunkkScreen("C1_record_calendar_excluded") {
-        RecordListScreen(excludedState(), onBack = {
-        }, onViewSelected = {}, onPreviousMonth = {}, onNextMonth = {}, onRun = {}, onRetry = {})
+    fun calendar() = compose.captureRunkkScreen("G7_record_calendar") {
+        RecordListScreen(listState(RecordView.CALENDAR), RecordListActions())
     }
 
     @Test
-    fun calendarExcludedLight() = compose.captureRunkkScreen("C1_record_calendar_excluded_light", isDarkTheme = false) {
-        RecordListScreen(excludedState(), onBack = {
-        }, onViewSelected = {}, onPreviousMonth = {}, onNextMonth = {}, onRun = {}, onRetry = {})
+    fun calendarLight() = compose.captureRunkkScreen("G7_record_calendar_light", isDarkTheme = false) {
+        RecordListScreen(listState(RecordView.CALENDAR), RecordListActions())
     }
 
     @Test
-    fun list() = compose.captureRunkkScreen("C1_record_list") {
-        RecordListScreen(listState(RecordView.LIST), onBack = {
-        }, onViewSelected = {}, onPreviousMonth = {}, onNextMonth = {}, onRun = {}, onRetry = {})
+    fun list() = compose.captureRunkkScreen("G8_record_list") {
+        RecordListScreen(listState(RecordView.LIST), RecordListActions())
     }
 
     @Test
-    fun emptyMonth() = compose.captureRunkkScreen("C1_record_empty") {
-        RecordListScreen(RecordListUiState(month = YearMonth.of(2026, 9), isLoading = false, zone = zone), {
-        }, {}, {}, {}, {}, {})
+    fun listLight() = compose.captureRunkkScreen("G8_record_list_light", isDarkTheme = false) {
+        RecordListScreen(listState(RecordView.LIST), RecordListActions())
     }
 
     @Test
-    fun recordDetail() = compose.captureRunkkScreen("C2_record_detail") {
+    fun emptyMonth() = compose.captureRunkkScreen("G7_record_empty") {
+        RecordListScreen(
+            RecordListUiState(month = YearMonth.of(2026, 9), today = today, zone = zone, isLoading = false),
+            RecordListActions()
+        )
+    }
+
+    @Test
+    fun recordDetail() = compose.captureRunkkScreen("G9_record_detail") {
         val base = detail()
         RecordDetailScreen(
             RecordDetailUiState(
@@ -194,13 +179,7 @@ class RecordScreenshotTest {
 
     // 라이트 벌(FR-203, NFR-041 화면 10개 × 테마 2).
     @Test
-    fun listLight() = compose.captureRunkkScreen("C1_record_list_light", isDarkTheme = false) {
-        RecordListScreen(listState(RecordView.LIST), onBack = {
-        }, onViewSelected = {}, onPreviousMonth = {}, onNextMonth = {}, onRun = {}, onRetry = {})
-    }
-
-    @Test
-    fun recordDetailLight() = compose.captureRunkkScreen("C2_record_detail_light", isDarkTheme = false) {
+    fun recordDetailLight() = compose.captureRunkkScreen("G9_record_detail_light", isDarkTheme = false) {
         val base = detail()
         RecordDetailScreen(
             RecordDetailUiState(
