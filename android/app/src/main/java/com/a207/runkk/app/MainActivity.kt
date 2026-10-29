@@ -23,6 +23,7 @@ import com.a207.runkk.app.domain.account.SessionRepository
 import com.a207.runkk.app.domain.settings.ScreenTheme
 import com.a207.runkk.app.domain.settings.SettingsRepository
 import dagger.hilt.android.AndroidEntryPoint
+import java.time.Instant
 import javax.inject.Inject
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -45,18 +46,15 @@ class MainActivity : ComponentActivity() {
         InviteLinkReader(BuildConfig.KAKAO_NATIVE_APP_KEY.takeIf { it.isNotBlank() }?.let { "kakao$it" }.orEmpty())
 
     /**
-     * 초대 링크로 열렸을 때 아직 열지 않은 초대 토큰(D-272). 회전·재생성에도 남도록 저장 상태에 둔다. 링크를 처음 받을 때만 인텐트에서 읽고,
-     * 다시 만들어질 때는 저장 상태를 쓴다(같은 인텐트로 초대를 두 번 열지 않게). RunkkNavHost가 열면 비운다.
+     * 초대 링크로 열렸을 때 아직 열지 않은 초대와 받은 시각(D-272, AN8-8). 회전·재생성에도 남도록 저장 상태에 둔다. 링크를 처음 받을 때만
+     * 인텐트에서 읽고 읽은 링크는 인텐트에서 비운다(AN8-7). 다시 만들어질 때는 저장 상태를 쓴다(같은 인텐트로 초대를 두 번 열지 않게).
+     * RunkkNavHost가 열거나 버리면 비운다.
      */
-    private var pendingInvite by mutableStateOf<String?>(null)
+    private var pendingInvite by mutableStateOf<PendingInvite?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        pendingInvite = if (savedInstanceState == null) {
-            inviteLinks.read(intent)
-        } else {
-            savedInstanceState.getString(PENDING_INVITE)
-        }
+        pendingInvite = if (savedInstanceState == null) takeInvite(intent) else restoreInvite(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             // 저장된 화면 테마를 읽기 전(null)에는 아무것도 그리지 않고 창 배경을 둔다(A4: 첫 프레임에 SYSTEM 벌을 그렸다가 저장된
@@ -84,7 +82,7 @@ class MainActivity : ComponentActivity() {
                     loggedIn = loggedIn,
                     onExit = ::finish,
                     pendingInvite = pendingInvite,
-                    onInviteOpened = { pendingInvite = null },
+                    onInviteDone = { pendingInvite = null },
                     // Modifier.testTag를 UI Automator 리소스 ID로 내보낸다(E2E Maestro 선택자 id:, android/e2e/maestro).
                     // debug 빌드에서만 켠다: release에서는 testTag를 접근성 트리에 리소스 ID로 내보이지 않는다(리뷰 N-1).
                     modifier = Modifier.semantics { testTagsAsResourceId = BuildConfig.DEBUG }
@@ -97,15 +95,31 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        inviteLinks.read(intent)?.let { pendingInvite = it }
+        takeInvite(intent)?.let { pendingInvite = it }
+    }
+
+    /** 새로 받은 초대 링크를 읽고(최근 앱에서 다시 연 실행은 빼고) 인텐트에서 링크를 비운다(AN8-7). */
+    private fun takeInvite(intent: Intent): PendingInvite? {
+        val token = inviteLinks.readNew(intent) ?: return null
+        setIntent(InviteLinkReader.consumed(intent))
+        return PendingInvite(token, Instant.now())
+    }
+
+    private fun restoreInvite(saved: Bundle): PendingInvite? {
+        val token = saved.getString(PENDING_INVITE) ?: return null
+        return PendingInvite(token, Instant.ofEpochMilli(saved.getLong(PENDING_INVITE_AT)))
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
-        outState.putString(PENDING_INVITE, pendingInvite)
+        pendingInvite?.let {
+            outState.putString(PENDING_INVITE, it.token)
+            outState.putLong(PENDING_INVITE_AT, it.receivedAt.toEpochMilli())
+        }
     }
 
     private companion object {
         const val PENDING_INVITE = "runkk.pendingInvite"
+        const val PENDING_INVITE_AT = "runkk.pendingInviteAt"
     }
 }

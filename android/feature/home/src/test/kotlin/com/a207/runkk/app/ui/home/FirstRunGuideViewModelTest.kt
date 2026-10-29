@@ -77,4 +77,17 @@ class FirstRunGuideViewModelTest {
         assertFalse(vm.state.value.isVisible)
         assertEquals(GuideCopy.SEEN_UNSENT, settings.guide)
     }
+
+    @Test
+    fun `AN8-15 사본 쓰기와 서버 저장이 모두 실패해도 이번 실행 동안은 다시 띄우지 않는다`() {
+        settings.isGuideSaveFailing = true
+        val failing = object : GuideRemote by remote {
+            override suspend fun markSeen(): Outcome<Unit> = Outcome.Failure(AppError.Network)
+        }
+        val vm = viewModel(failing)
+        vm.onSkip()
+        session.loggedIn.value = false
+        session.loggedIn.value = true
+        assertFalse(vm.state.value.isVisible)
+    }
 }

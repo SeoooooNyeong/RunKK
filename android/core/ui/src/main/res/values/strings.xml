@@ -73,8 +73,8 @@
     <string name="core_spoken_pace">1킬로미터당 %1$d분 %2$d초</string>
     <string name="core_spoken_km">%1$s킬로미터</string>
     <string name="core_spoken_live_battle">실시간 대결</string>
-    <string name="core_spoken_self_battle">나와의 싸움</string>
-    <string name="core_spoken_celeb_battle">유명인 대결</string>
+    <string name="core_spoken_self_battle">셀프런</string>
+    <string name="core_spoken_celeb_battle">셀럽런</string>
     <string name="core_spoken_battle_run">배틀런</string>
     <string name="core_spoken_matched">매칭 성사</string>
     <string name="core_spoken_battle_result">대결 결과</string>

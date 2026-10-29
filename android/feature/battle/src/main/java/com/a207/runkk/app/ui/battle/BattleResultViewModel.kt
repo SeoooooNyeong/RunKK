@@ -23,7 +23,8 @@ import kotlinx.coroutines.launch
 
 /**
  * 대결 결과(FR-093·FR-103·FR-108, D-283): BattleRepository.result 판정(상대 표시명·도달 시간 차)·셀프런 비교표·적립 합계를 1쪽에,
- * 본인 기록 상세(RunDetailSource)를 2쪽에 보인다. 결과에 티어 평가가 실리면 평가 화면을 한 번 띄운다(D-284).
+ * 본인 기록 상세(RunDetailSource)를 2쪽에 보인다. 대결을 끝낸 직후 연 결과에 티어 평가가 실리면 평가 화면을 한 번 띄운다(D-284).
+ * 기록 대결 탭·알림함에서 다시 연 결과는 평가가 실려 있어도 띄우지 않는다(U8-6).
  * 결과를 보인 뒤 BattleRunCoordinator.acknowledgeFinished를 불러 다음 대결 화면이 지난 회의 종료 상태를 받지 않게 한다.
  * 그만두기·오프라인 종료 뒤에는 내 기록이 아직 서버에 없어 비교표 없는 결과나 네트워크 오류가 먼저 온다. 이 대결 기록이 올라가면
  * (BattleRecordUploads) 다시 읽고, 네트워크 오류는 몇 초마다 다시 읽는다(배틀 QA 5번).
@@ -41,14 +42,19 @@ class BattleResultViewModel @Inject constructor(
     private val _events = Channel<BattleResultEvent>(Channel.BUFFERED)
     val events: Flow<BattleResultEvent> = _events.receiveAsFlow()
 
-    /** 평가 화면을 이미 띄웠는가(한 번만, D-284). */
-    private var isEvaluationShown = false
+    /** 이 화면이 평가 화면을 띄울 차례인가: 끝낸 직후 진입이고 아직 띄우지 않았다(한 번만, D-284, U8-6). */
+    private var isEvaluationDue = false
     private var detailJob: Job? = null
     private var job: Job? = null
     private var uploadJob: Job? = null
     private var lastError: AppError? = null
 
-    fun load(battleId: Long, isForced: Boolean = false) {
+    /**
+     * [battleId]의 결과를 읽는다. [opensEvaluation]은 대결을 끝낸 직후의 첫 읽기에서만 참으로 넘긴다(그 결과에 평가가 실리면 평가 화면).
+     * [isForced]면 같은 대결도 다시 읽는다(다시 읽기는 평가 화면 여부를 바꾸지 않는다).
+     */
+    fun load(battleId: Long, opensEvaluation: Boolean = false, isForced: Boolean = false) {
+        if (opensEvaluation && _state.value.battleId == null) isEvaluationDue = true
         if (!isForced && _state.value.battleId == battleId && _state.value.error == null) return
         job?.cancel()
         _state.update { it.copy(isLoading = true, battleId = battleId, error = null) }
@@ -130,8 +136,8 @@ class BattleResultViewModel @Inject constructor(
             }
         }
         val evaluation = result.evaluation
-        if (evaluation != null && !isEvaluationShown) {
-            isEvaluationShown = true
+        if (evaluation != null && isEvaluationDue) {
+            isEvaluationDue = false
             _events.trySend(BattleResultEvent.NavigateEvaluation(evaluation))
         }
     }

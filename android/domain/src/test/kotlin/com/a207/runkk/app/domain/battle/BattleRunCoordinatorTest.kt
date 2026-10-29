@@ -532,6 +532,22 @@ class BattleRunCoordinatorTest {
     }
 
     @Test
+    fun `AN8-16 성사되거나 만료·거절로 끝난 초대는 떠나도 다시 취소하지 않는다`() = runTest {
+        val (_, coordinator) = setUp()
+        assertIs<Outcome.Success<FriendInvite>>(coordinator.createInvite(Distance(3_000)))
+        coordinator.onMatched(match)
+        coordinator.abandonInvite()
+        runCurrent()
+        assertEquals(0, log.calls.count { it.startsWith("battle.cancelInvite") }, "성사된 초대")
+
+        assertIs<Outcome.Success<FriendInvite>>(coordinator.createInvite(Distance(3_000)))
+        coordinator.forgetInvite()
+        coordinator.abandonInvite()
+        runCurrent()
+        assertEquals(0, log.calls.count { it.startsWith("battle.cancelInvite") }, "만료·거절된 초대")
+    }
+
+    @Test
     fun `그만두기를 두 번 눌러도 보고는 한 번이다`() = runTest {
         val (tracker, coordinator) = setUp()
         coordinator.onRecordBattleStart(selfStart)

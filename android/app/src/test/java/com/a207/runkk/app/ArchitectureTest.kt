@@ -152,6 +152,13 @@ class ArchitectureTest {
         assertEquals(emptyList(), violations)
     }
 
+    @Test
+    fun `AN8-4 화면을 바꿀 때 back() 뒤 navigate 대신 replace를 쓴다`() {
+        val backThenNavigate = Regex("""\.back\(\)\s*\n\s*\w+\.navigate\(""")
+        val violations = files.filter { backThenNavigate.containsMatchIn(it.text) }.map { it.path }
+        assertEquals(emptyList(), violations)
+    }
+
     /** D-112: 최상위 타입이 둘 이상이면 sealed 계층(부모와 하위 타입)이거나 private 함수를 나누는 짝 UseCase여야 한다. */
     private fun oneFileViolations(file: KoFileDeclaration): List<String> {
         val types: List<KoNameProvider> =

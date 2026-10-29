@@ -4,6 +4,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.a207.runkk.app.core.designsystem.RunkkTheme
@@ -172,6 +173,8 @@ class RunimalTypesScreenTest {
         compose.onNodeWithText(str(R.string.runimal_type_traits_title)).assertExists()
         compose.onNodeWithText("· 혼자 정해 둔 코스를 반복해서 달려요").assertExists()
         compose.onNodeWithText("· 비슷한 요일과 시간대에 꾸준히 기록을 남겨요").assertExists()
+        // AN8-17: 보조 기술은 앞의 "·" 없이 특성 문구만 읽는다.
+        compose.onNodeWithContentDescription("혼자 정해 둔 코스를 반복해서 달려요").assertExists()
         compose.onNodeWithText("러너 중 33%가 이 유형이에요").assertExists()
     }
 

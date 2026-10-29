@@ -31,7 +31,7 @@ import kotlinx.coroutines.withTimeoutOrNull
  * 서버에 올라갔으면 RecordRepository.run의 구간 페이스·신기록·심박 구간·리워드 적립을 더한다. 계산은 서버가 한다.
  * 거리·시간·페이스는 서버가 초과 시속 구간을 뺀 값이다(FR-047). 유효·집계 제외는 화면에 보이지 않는다(D29).
  * 휴식(정지 구간 합)은 기기 보관 기록의 정지 구간이나 서버 pausedSeconds로 보인다.
- * 서버 기록에 티어 평가(evaluation)가 실리면 평가 화면으로 한 번 이동한다(대결 결과와 같은 방식, D-284).
+ * 측정 직후 연 결과에서 서버 기록에 티어 평가(evaluation)가 실리면 평가 화면으로 한 번 이동한다(대결 결과와 같은 방식, D-284, U8-6).
  */
 @HiltViewModel
 class RunResultViewModel @Inject constructor(
@@ -46,14 +46,18 @@ class RunResultViewModel @Inject constructor(
 
     private var loadJob: Job? = null
 
-    /** 평가 화면은 이 화면에서 한 번만 연다(다시 읽기·보관함 비움 뒤 재조회에도 다시 열지 않는다). */
-    private var isEvaluationShown = false
+    /**
+     * 평가 화면을 띄울 차례인가: 측정 직후 진입이고 아직 띄우지 않았다. 한 번만 연다(다시 읽기·보관함 비움 뒤 재조회에도 다시 열지 않는다).
+     */
+    private var isEvaluationDue = false
 
     /**
-     * [recordId]의 결과를 읽는다. 같은 기록을 다시 부르면 무시하고, [isForced]면 다시 읽는다.
+     * [recordId]의 결과를 읽는다. 같은 기록을 다시 부르면 무시하고, [isForced]면 다시 읽는다. [opensEvaluation]은 측정 직후의 첫 읽기에서만
+     * 참으로 넘긴다(U8-6).
      * 종료 직후에는 보관함 저장(RunTracker의 비동기 저장)이 아직 끝나지 않았을 수 있어 보관함에 나타날 때까지 잠깐 기다린다.
      */
-    fun load(recordId: String, isForced: Boolean = false) {
+    fun load(recordId: String, opensEvaluation: Boolean = false, isForced: Boolean = false) {
+        if (opensEvaluation && _state.value.recordId == null) isEvaluationDue = true
         if (!isForced && _state.value.recordId == recordId) return
         loadJob?.cancel()
         _state.value = RunResultUiState(recordId = recordId)
@@ -110,8 +114,8 @@ class RunResultViewModel @Inject constructor(
                     )
                 }
                 detail.evaluation?.let { evaluation ->
-                    if (!isEvaluationShown) {
-                        isEvaluationShown = true
+                    if (isEvaluationDue) {
+                        isEvaluationDue = false
                         _events.trySend(RunResultEvent.NavigateEvaluation(evaluation))
                     }
                 }

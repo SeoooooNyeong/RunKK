@@ -114,6 +114,15 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun `AN8-11 다시 읽을 때 대시보드만 실패하면 리워드 잔액은 지난 값을 남긴다`() {
+        val vm = viewModel()
+        records.dashboardResult = Outcome.Failure(AppError.Network)
+        vm.refresh()
+        assertEquals(1_250, vm.state.value.header.balance)
+        assertEquals("달리는곰", vm.state.value.header.nickname)
+    }
+
+    @Test
     fun `프로필을 못 읽어도 홈은 보이고 그 자리는 비운다`() {
         account.profileResult = Outcome.Failure(AppError.Network)
         val state = viewModel().state.value

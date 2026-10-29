@@ -191,14 +191,19 @@ private fun DetailBody(detail: RecordDetail, isDeleting: Boolean, onDelete: () -
     }
 }
 
-/** 맨 위 줄: 종류, 본인 기록이면 공개 범위 칩(서버 recordVisibility, 없으면 칩 없음), "[날짜 시각], 12°C 맑음". */
+/**
+ * 맨 위 줄: 종류(크루가 닫힌 1차 배포에서는 크루런 배지를 뺀다, AN8-12), 본인 기록이면 공개 범위 칩(서버 recordVisibility, 없으면 칩 없음),
+ * "[날짜 시각], 12°C 맑음".
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun DetailHeader(detail: RecordDetail) {
     val s = detail.summary
     val dateFormat = rememberDateFormatter(R.string.record_detail_date_pattern)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        RunkkBadge(kindLabel(s.cardKind))
+        if (s.cardKind != CardKind.CREW_RUN || LocalReleaseScope.current.isOpen(UnreleasedFeature.CREW)) {
+            RunkkBadge(kindLabel(s.cardKind))
+        }
         VISIBILITY_NAMES[detail.recordVisibility]?.let { RunkkBadge(stringResource(it), tone = RunkkBadgeTone.Muted) }
         Text(
             listOfNotNull(dateFormat.format(s.startedAt.atZone(ZoneId.systemDefault())), weatherText(detail))
@@ -269,7 +274,7 @@ private fun CaloriesCard(calories: Int) {
     }
 }
 
-/** 코스 지도 카드. 경로가 없으면 공개 범위 안내를 덧붙인다. */
+/** 코스 지도 카드. GPS가 불안정했던 구간은 경로 위에 따로 표시한다. */
 @Composable
 private fun DetailCourseCard(detail: RecordDetail) {
     RunkkCard(

@@ -31,8 +31,8 @@ fun RunkkAppContent(
     loggedIn: Boolean?,
     onExit: () -> Unit,
     modifier: Modifier = Modifier,
-    pendingInvite: String? = null,
-    onInviteOpened: () -> Unit = {}
+    pendingInvite: PendingInvite? = null,
+    onInviteDone: () -> Unit = {}
 ) {
     var startRoute by remember { mutableStateOf<String?>(null) }
     if (startRoute == null && loggedIn != null) startRoute = startRouteFor(loggedIn)
@@ -48,7 +48,7 @@ fun RunkkAppContent(
             loggedIn =
                 loggedIn ?: false,
             pendingInvite = pendingInvite,
-            onInviteOpened = onInviteOpened
+            onInviteDone = onInviteDone
         )
     }
 }

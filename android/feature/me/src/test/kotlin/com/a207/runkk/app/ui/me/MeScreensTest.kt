@@ -128,7 +128,7 @@ class MeScreensTest {
     }
 
     @Test
-    fun `TC-9741 다른 러너 프로필은 최근 러닝 3건만 보이고 1차 배포에서는 크루명을 숨긴다`() {
+    fun `TC-9741 TC-9698 다른 러너 프로필은 최근 러닝 3건만 보이고 1차 배포에서는 크루명을 숨긴다`() {
         val runs = (1..4).map {
             RecentRun(CardKind.FREE_RUN, LocalDate.of(2026, 10, 20 - it), Distance(5_020))
         }
@@ -145,14 +145,16 @@ class MeScreensTest {
         }
         compose.onNodeWithText("최근 러닝").assertExists()
         compose.onAllNodesWithText("5.02km").assertCountEquals(3)
-        compose.onNodeWithText("[10.19]").assertExists()
-        compose.onNodeWithText("[10.16]").assertDoesNotExist()
+        // AN8-10: 피그마의 [ ]는 변수 자리 표시라 글자로 그리지 않는다.
+        compose.onNodeWithText("10.19").assertExists()
+        compose.onNodeWithText("[10.19]").assertDoesNotExist()
+        compose.onNodeWithText("10.16").assertDoesNotExist()
         compose.onNodeWithText("새벽크루").assertDoesNotExist()
         compose.onNodeWithText("30대, 여성", substring = true).assertExists()
     }
 
     @Test
-    fun `TC-9741 최근 러닝이 없으면 영역이 없고 크루가 열리면 크루명을 보인다`() {
+    fun `TC-9741 TC-9698 최근 러닝이 없으면 영역이 없고 크루가 열리면 크루명을 보인다`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 OtherProfileScreen(

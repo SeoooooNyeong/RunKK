@@ -73,10 +73,7 @@ fun MatchRoute(start: MatchStart, sharer: InviteSharer, viewModel: MatchViewMode
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             when (event) {
-                is MatchEvent.Started -> {
-                    navigator.back()
-                    navigator.navigate(event.key)
-                }
+                is MatchEvent.Started -> navigator.replace(event.key)
 
                 MatchEvent.Exit -> navigator.back()
 

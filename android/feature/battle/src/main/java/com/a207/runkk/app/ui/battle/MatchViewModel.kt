@@ -12,6 +12,7 @@ import com.a207.runkk.app.domain.account.LocationConsentUseCase
 import com.a207.runkk.app.domain.battle.BattleRepository
 import com.a207.runkk.app.domain.battle.BattleRunCoordinator
 import com.a207.runkk.app.domain.battle.BattleRunState
+import com.a207.runkk.app.domain.battle.FriendInvite
 import com.a207.runkk.app.domain.live.BattleEnded
 import com.a207.runkk.app.domain.live.BattleStart
 import com.a207.runkk.app.domain.live.LiveChannel
@@ -24,7 +25,9 @@ import java.time.Duration
 import java.time.Instant
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -40,6 +43,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * 매칭 대기·성사(FR-080~FR-087, FR-227~FR-230, D-269). 대기 종류(랜덤 매칭, 친구 초대, 받은 초대 참가)는 [MatchTicket]이 정하고
@@ -80,7 +84,9 @@ class MatchViewModel @Inject constructor(
     private var navigated = false
     private var forfeiting = false
     private var startAt: Instant? = null
-    private var inviterName: String = ""
+
+    /** 초대를 보낼 때 실을 내 닉네임(친구 초대 시작 때 읽기 시작한다). 비었거나 못 읽으면 null이다. */
+    private var inviterName: Deferred<String?>? = null
 
     /**
      * 대기 채널에서 받은 출발 예약. 서버는 MatchFound와 BattleStart를 잇따라 보내는데 실시간 채널은 지난 메시지를 다시 주지 않아,
@@ -116,8 +122,10 @@ class MatchViewModel @Inject constructor(
     fun startInvite(distance: Distance) {
         if (!claimStart()) return
         _state.update { it.copy(distance = distance, opponentKind = OpponentKind.FRIEND) }
-        viewModelScope.launch {
-            inviterName = (account.profile(AccountRepository.SELF) as? Outcome.Success)?.value?.displayName.orEmpty()
+        inviterName = viewModelScope.async {
+            (account.profile(AccountRepository.SELF) as? Outcome.Success)?.value?.displayName?.takeIf {
+                it.isNotBlank()
+            }
         }
         begin(FriendInviteTicket(distance, coordinator), MatchPhase.REQUESTING)
     }
@@ -178,7 +186,16 @@ class MatchViewModel @Inject constructor(
     fun onResend() {
         if (_state.value.phase != MatchPhase.INVITING) return
         val invite = (ticket as? FriendInviteTicket)?.invite ?: return
-        _events.trySend(MatchEvent.ShareInvite(invite, inviterName))
+        viewModelScope.launch { share(invite) }
+    }
+
+    /**
+     * 초대를 공유한다(AN8-2): 내 닉네임 읽기가 끝나기를 [INVITER_NAME_WAIT]까지 기다린다. 초대 응답이 프로필 응답보다 먼저 와도 제목에
+     * 이름이 빠지지 않는다. 못 읽으면 이름 없는 제목으로 보낸다. 기다리는 동안 대기가 끝났으면 보내지 않는다.
+     */
+    private suspend fun share(invite: FriendInvite) {
+        val name = withTimeoutOrNull(INVITER_NAME_WAIT.toMillis()) { inviterName?.await() }
+        if (_state.value.phase == MatchPhase.INVITING) _events.send(MatchEvent.ShareInvite(invite, name))
     }
 
     /** 카카오톡도 웹 공유도 열지 못했다(D-270): 초대를 취소하고 안내 뒤 배틀런 화면으로. */
@@ -404,7 +421,7 @@ class MatchViewModel @Inject constructor(
 
             is FriendInviteTicket -> {
                 _state.update { it.copy(phase = MatchPhase.INVITING, waitingSeconds = 0) }
-                opened.invite?.let { _events.trySend(MatchEvent.ShareInvite(it, inviterName)) }
+                opened.invite?.let { invite -> viewModelScope.launch { share(invite) } }
             }
 
             is FriendJoinTicket -> watchJoined(opened)
@@ -503,6 +520,7 @@ class MatchViewModel @Inject constructor(
     private fun endInvite(end: MatchUiState.InviteEnd) {
         closeWaiting()
         ticket = null
+        coordinator.forgetInvite()
         _state.update { it.copy(phase = MatchPhase.INVITE_ENDED, inviteEnd = end) }
     }
 
@@ -666,8 +684,11 @@ class MatchViewModel @Inject constructor(
         if (_state.value.phase in OPEN) ticket?.abandon()
     }
 
-    private companion object {
+    internal companion object {
         const val TICK_MILLIS = 1_000L
+
+        /** 초대를 공유하기 전에 내 닉네임 읽기를 기다리는 한도(AN8-2). 넘으면 이름 없는 제목으로 보낸다. */
+        val INVITER_NAME_WAIT: Duration = Duration.ofSeconds(3)
         const val ALREADY_IN_BATTLE = "ALREADY_IN_BATTLE"
         const val INVITE_ALREADY_JOINED = "INVITE_ALREADY_JOINED"
         const val LOCATION_CONSENT_REQUIRED = "LOCATION_CONSENT_REQUIRED"

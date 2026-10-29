@@ -1,5 +1,6 @@
 package com.a207.runkk.app.ui.home
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -53,6 +54,7 @@ import kotlin.math.roundToInt
  * 첫 사용 가이드 막(J-1~J-8, D-277): 화면을 어둡게 덮고 지금 단계의 앵커([anchor], 루트 좌표)만 뚫어 강조한 뒤, 앵커 아래(앵커가
  * 화면 아래쪽이면 위)에 말풍선을 띄운다. 말풍선은 문구, "n/전체", "건너뛰기"·"다음"이고 마지막 단계는 "시작하기"만이다.
  * 막은 아래 화면으로 가는 누름을 모두 받아 버린다(가이드 중에는 홈을 누를 수 없다). 앵커를 아직 모르면 가운데에 띄운다.
+ * 뒤로 가기는 앱을 닫지 않고 건너뛰기와 같다(AN8-15).
  */
 @Composable
 fun FirstRunGuideOverlay(
@@ -64,6 +66,7 @@ fun FirstRunGuideOverlay(
     onSkip: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    BackHandler(onBack = onSkip)
     val isLast = index >= stepCount - 1
     val highlight = RunkkColors.Lavender
     // 보조 기술이 아래 홈보다 말풍선을 먼저 읽게 한다(터치는 막이 받아 버린다).

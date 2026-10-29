@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.a207.runkk.app.core.designsystem.LocalReleaseScope
 import com.a207.runkk.app.core.designsystem.RouteThumbnail
 import com.a207.runkk.app.core.designsystem.RunkkCard
 import com.a207.runkk.app.core.designsystem.RunkkColors
@@ -60,6 +61,7 @@ import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
+import com.a207.runkk.app.core.designsystem.UnreleasedFeature
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
@@ -394,7 +396,7 @@ private fun LazyListScope.runGroup(
 @Composable
 private fun ListRunRow(run: RunSummary, zone: ZoneId, onClick: () -> Unit) {
     val dateFormat = rememberDateFormatter(R.string.record_list_row_date_pattern)
-    val tags = RecordTag.textsOf(run)
+    val tags = RecordTag.textsOf(run, LocalReleaseScope.current.isOpen(UnreleasedFeature.CREW))
     RunRowFrame(run, onClick) {
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),

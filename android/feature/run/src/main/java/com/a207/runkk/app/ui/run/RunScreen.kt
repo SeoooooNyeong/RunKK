@@ -66,6 +66,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.a207.runkk.app.core.designsystem.AvatarExpression
 import com.a207.runkk.app.core.designsystem.LocalReduceMotion
+import com.a207.runkk.app.core.designsystem.NOTIFICATION_PERMISSION_API
 import com.a207.runkk.app.core.designsystem.RouteCanvas
 import com.a207.runkk.app.core.designsystem.RouteMarker
 import com.a207.runkk.app.core.designsystem.RunkkAvatar
@@ -83,6 +84,7 @@ import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.asString
+import com.a207.runkk.app.core.designsystem.shouldAskNotificationPermission
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.GeoPoint
 import com.a207.runkk.app.core.model.Pace
@@ -151,17 +153,10 @@ private fun hasLocationPermission(context: Context): Boolean = LOCATION_PERMISSI
     context.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED
 }
 
-/** 알림 권한이 생긴 API 수준(Android 13). */
-private const val NOTIFICATION_PERMISSION_API = 33
-
 /**
- * 진행 알림 권한을 물을 때인가(D-259 기본값, TC-9620): Android 13 이상이고, 권한이 없고, 이 화면에서 아직 묻지 않았을 때다.
- * 위치 권한·동의가 끝나 카운트다운에 들어선 뒤(위치 권한 다음) 한 번 묻는다. 거부해도 측정은 한다.
+ * 카운트다운에 들어서면(위치 권한·동의 다음) 알림 권한을 한 번 묻는다(core shouldAskNotificationPermission). 결과와 관계없이 측정은
+ * 이어 간다.
  */
-internal fun shouldAskNotificationPermission(sdkInt: Int, isGranted: Boolean, isAsked: Boolean): Boolean =
-    sdkInt >= NOTIFICATION_PERMISSION_API && !isGranted && !isAsked
-
-/** 카운트다운에 들어서면 알림 권한을 한 번 묻는다. 결과와 관계없이 측정은 이어 간다. */
 @Composable
 private fun NotificationPermissionEffect(phase: RunPhase) {
     val context = LocalContext.current
@@ -186,7 +181,7 @@ private fun RunEventEffect(viewModel: RunViewModel, navigator: RunkkNavigator) {
             when (event) {
                 is RunEvent.Finished -> {
                     navigator.restart(Routes.HOME)
-                    navigator.navigate(Routes.RunResult(event.recordId))
+                    navigator.navigate(Routes.RunResult(event.recordId, isJustFinished = true))
                 }
 
                 RunEvent.NotSaved -> navigator.restart(Routes.HOME)

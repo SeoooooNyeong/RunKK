@@ -27,6 +27,11 @@ import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.job
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
@@ -234,6 +239,34 @@ class MatchViewModelTest {
     }
 
     @Test
+    fun `TC-9772 출발 시각 15초 뒤까지 측정이 시작되지 않으면 그만두기를 보인다(14·9초 없음, 15초 보임)`() = main.runVmTest { vms ->
+        // 조정자를 따로 멈춘 스케줄러에 두어 출발 시각이 지나도 측정이 시작되지 않는 기기를 흉내 낸다.
+        val stalled = TestCoroutineScheduler()
+        val w = BattleWorld(CoroutineScope(StandardTestDispatcher(stalled) + Job(backgroundScope.coroutineContext.job)))
+        fun settle() {
+            repeat(3) {
+                runCurrent()
+                stalled.runCurrent()
+            }
+        }
+        val vm = vms.vm(w)
+        vm.startQuick(Distance(5_000))
+        settle()
+        val match = matchFound()
+        w.channels.channel.push(match)
+        settle()
+        w.channels.channel.push(BattleStart(match.battleId, w.clock.now.plusSeconds(10), opponentTrack = null))
+        settle()
+        assertIs<BattleRunState.Countdown>(w.coordinator.state.value)
+        advanceTimeBy(24_900)
+        runCurrent()
+        assertFalse(vm.state.value.canForfeit, "출발 시각 + 14.9초")
+        advanceTimeBy(100)
+        runCurrent()
+        assertTrue(vm.state.value.canForfeit, "출발 시각 + 15초")
+    }
+
+    @Test
     fun `출발 전에 상대가 그만두면 그 사실을 안내한다(대결 취소)`() = main.runVmTest { vms ->
         val w = world()
         val vm = quick(w, vms)
@@ -323,6 +356,50 @@ class MatchViewModelTest {
         assertEquals(OpponentKind.FRIEND, vm.state.value.opponentKind)
         assertEquals(listOf("invite:5000"), w.battles.calls)
         assertEquals(1, w.channels.channel.connects)
+    }
+
+    @Test
+    fun `TC-9673 AN8-2 초대 응답이 프로필보다 먼저 와도 공유 메시지는 내 닉네임을 기다려 싣는다`() = main.runVmTest { vms ->
+        val w = world()
+        val gate = CompletableDeferred<Unit>()
+        accounts.profileGate = gate
+        val vm = vms.vm(w)
+        vm.events.test {
+            vm.startInvite(Distance(5_000))
+            runCurrent()
+            assertEquals(MatchPhase.INVITING, vm.state.value.phase, "초대 대기는 바로 보인다")
+            expectNoEvents()
+            gate.complete(Unit)
+            runCurrent()
+            assertEquals("달리는곰", assertIs<MatchEvent.ShareInvite>(awaitItem()).inviterName)
+            vm.onResend()
+            runCurrent()
+            assertEquals("달리는곰", assertIs<MatchEvent.ShareInvite>(awaitItem()).inviterName, "다시 보내기도 같은 이름")
+        }
+    }
+
+    @Test
+    fun `TC-9673 AN8-2 닉네임을 못 읽으면(실패·응답 없음) 이름 없이 공유한다`() = main.runVmTest { vms ->
+        val failed = world()
+        val named = accounts.profileResult
+        accounts.profileResult = Outcome.Failure(AppError.Network)
+        val vm = vms.vm(failed)
+        vm.events.test {
+            vm.startInvite(Distance(5_000))
+            runCurrent()
+            assertNull(assertIs<MatchEvent.ShareInvite>(awaitItem()).inviterName, "읽기 실패")
+        }
+        val slow = world()
+        accounts.profileResult = named
+        accounts.profileGate = CompletableDeferred()
+        val waiting = vms.vm(slow)
+        waiting.events.test {
+            waiting.startInvite(Distance(5_000))
+            runCurrent()
+            expectNoEvents()
+            advanceTimeBy(MatchViewModel.INVITER_NAME_WAIT.toMillis() + 1)
+            assertNull(assertIs<MatchEvent.ShareInvite>(awaitItem()).inviterName, "응답 없음")
+        }
     }
 
     @Test
@@ -615,6 +692,29 @@ class MatchViewModelTest {
         vm2.onDecline()
         runCurrent()
         assertEquals(UiText.Res(R.string.battle_join_ended), vm2.state.value.notice)
+    }
+
+    @Test
+    fun `TC-9773 참가 확인 화면은 스스로 만료하지 않고 4분 59초면 참가, 5분에 서버가 만료로 거부하면 끝난 초대 안내`() = main.runVmTest { vms ->
+        val early = world()
+        val joined = join(early, vms)
+        early.clock.now = early.clock.now.plusSeconds(299)
+        advanceTimeBy(299_000)
+        joined.onAccept()
+        runCurrent()
+        assertEquals(MatchPhase.JOINING, joined.state.value.phase, "4:59 참가")
+
+        val late = world()
+        val vm = join(late, vms)
+        late.clock.now = late.clock.now.plusSeconds(300)
+        advanceTimeBy(300_000)
+        runCurrent()
+        assertEquals(MatchPhase.CONFIRMING, vm.state.value.phase, "앱이 자체 만료하지 않는다")
+        assertNull(vm.state.value.notice)
+        late.battles.acceptResult = rejected("INVITE_EXPIRED")
+        vm.onAccept()
+        runCurrent()
+        assertEquals(UiText.Res(R.string.battle_join_ended), vm.state.value.notice, "5:00 서버 409 INVITE_EXPIRED")
     }
 
     @Test

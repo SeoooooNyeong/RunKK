@@ -16,6 +16,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -50,14 +53,17 @@ import java.util.Locale
 
 /** 러닝 결과(B-6). "기록 카드"는 ui.record의 카드 팝업으로, "홈으로"는 홈으로 간다. */
 @Composable
-fun RunResultRoute(recordId: String, viewModel: RunResultViewModel = hiltViewModel()) {
-    LaunchedEffect(recordId) { viewModel.load(recordId) }
+fun RunResultRoute(recordId: String, isJustFinished: Boolean = false, viewModel: RunResultViewModel = hiltViewModel()) {
+    // 평가 화면은 측정 직후 진입에서 한 번만(U8-6). 연 적이 있는지는 화면 상태로 저장해 백 스택이 복원돼도 다시 열지 않는다.
+    var isEvaluationOpened by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(recordId) { viewModel.load(recordId, opensEvaluation = isJustFinished && !isEvaluationOpened) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val navigator = LocalRunkkNavigator.current
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             when (event) {
                 is RunResultEvent.NavigateEvaluation -> event.evaluation.let {
+                    isEvaluationOpened = true
                     navigator.navigate(Routes.Evaluation(it.tier, it.validRuns, it.runimalType))
                 }
             }

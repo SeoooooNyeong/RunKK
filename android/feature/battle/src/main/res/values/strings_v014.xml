@@ -42,7 +42,8 @@
     <string name="battle_invite_busy">진행 중인 대결이 있어요</string>
 
     <!-- 카카오톡 초대 메시지(C-11) -->
-    <string name="battle_invite_share_title">%1$s님이 %2$s 대결을 신청했어요</string>
+    <string name="battle_invite_share_title">%1$s님이 %2$s km 대결을 신청했어요</string>
+    <string name="battle_invite_share_title_anonymous">친구가 %1$s km 대결을 신청했어요</string>
     <string name="battle_invite_share_description">런크크 배틀런 친구 대결</string>
     <string name="battle_invite_share_button">대결 참가하기</string>
 

@@ -126,4 +126,34 @@ class BattleModeViewModelTest {
         runCurrent()
         assertTrue(none.battles.calls.none { it.startsWith("cancelInvite") })
     }
+
+    @Test
+    fun `AN8-22 초대 대기로 넘어가면 늦게 끝난 남은 초대 조회가 방금 만든 초대를 지우지 않는다`() = main.runVmTest { vms ->
+        val w = world()
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        w.battles.myInviteGate = gate
+        val vm = vms.vm(w)
+        vm.onResumed()
+        runCurrent()
+        vm.onInviteTapped()
+        w.battles.myInviteResult = Outcome.Success(friendInvite(inviteId = 88))
+        gate.complete(Unit)
+        runCurrent()
+        assertTrue(w.battles.calls.none { it.startsWith("cancelInvite") })
+    }
+
+    @Test
+    fun `AN8-22 랜덤 매칭으로 넘어갈 때는 남은 초대 조회를 끝까지 두어 정리한다`() = main.runVmTest { vms ->
+        val w = world()
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        w.battles.myInviteGate = gate
+        w.battles.myInviteResult = Outcome.Success(friendInvite(inviteId = 77))
+        val vm = vms.vm(w)
+        vm.onResumed()
+        runCurrent()
+        vm.onRandomStartTapped()
+        gate.complete(Unit)
+        runCurrent()
+        assertEquals(1, w.battles.calls.count { it == "cancelInvite:77" })
+    }
 }

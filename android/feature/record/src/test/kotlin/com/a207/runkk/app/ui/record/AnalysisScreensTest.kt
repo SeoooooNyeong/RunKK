@@ -50,7 +50,7 @@ class AnalysisScreensTest {
     )
 
     @Test
-    fun `TC-9742 랭킹은 크루가 닫혀 있으면 개인만, 주간·월간 칩과 누적 유효 거리 기준을 보인다`() {
+    fun `TC-9742 TC-9698 랭킹은 크루가 닫혀 있으면 개인만, 주간·월간 칩과 누적 유효 거리 기준을 보인다`() {
         val calls = mutableListOf<Any>()
         compose.setContent {
             CompositionLocalProvider(LocalReleaseScope provides ReleaseScope.FIRST_RELEASE) {
@@ -72,7 +72,7 @@ class AnalysisScreensTest {
     }
 
     @Test
-    fun `랭킹은 크루가 열려 있으면 개인·크루 분절을 보인다(2차 배포)`() {
+    fun `TC-9698 랭킹은 크루가 열려 있으면 개인·크루 분절을 보인다(2차 배포)`() {
         val calls = mutableListOf<Any>()
         compose.setContent {
             RunkkTheme(reduceMotion = true) {

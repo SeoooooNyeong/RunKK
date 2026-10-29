@@ -23,7 +23,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -70,20 +73,25 @@ import kotlinx.coroutines.launch
 
 /**
  * 대결 결과(C-7·C-8, D-6·D-7, E-6·E-7, D-283). "기록 카드"는 결과의 본인 기록 ID로 러닝 카드를 열고, 기록 ID가 아직 없으면(업로드 대기)
- * "기록 목록"으로 간다. "홈으로"는 홈으로 간다. 결과에 티어 평가가 실리면 [onEvaluation]을 한 번 부른다(D-284, 평가 화면 경로는
- * ui.runimal 작업이 더한다).
+ * "기록 목록"으로 간다. "홈으로"는 홈으로 간다. 대결을 끝낸 직후([isJustFinished]) 연 결과에 티어 평가가 실리면 [onEvaluation]을
+ * 한 번 부른다(D-284, U8-6). 연 적이 있는지는 화면 상태로 저장해 프로세스가 다시 떠 백 스택이 복원돼도 다시 열지 않는다.
  */
 @Composable
 fun BattleResultRoute(
     battleId: Long,
+    isJustFinished: Boolean = false,
     viewModel: BattleResultViewModel = hiltViewModel(),
     onEvaluation: (BattleResult.Evaluation) -> Unit = {}
 ) {
-    LaunchedEffect(battleId) { viewModel.load(battleId) }
+    var isEvaluationOpened by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(battleId) { viewModel.load(battleId, opensEvaluation = isJustFinished && !isEvaluationOpened) }
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             when (event) {
-                is BattleResultEvent.NavigateEvaluation -> onEvaluation(event.evaluation)
+                is BattleResultEvent.NavigateEvaluation -> {
+                    isEvaluationOpened = true
+                    onEvaluation(event.evaluation)
+                }
             }
         }
     }
@@ -208,7 +216,7 @@ private fun VerdictPage(state: BattleResultUiState, result: BattleResult, onDeta
 /** 내 아바타와 상대 그림(D-254): 배틀런 상대는 기본 아바타, 과거의 나는 반투명 기본 아바타, 셀럽은 공통 SD. */
 @Composable
 private fun Figures(kind: OpponentKind, verdict: Verdict?) {
-    val expression = if (verdict == Verdict.LOSE) AvatarExpression.SAD else AvatarExpression.JOY
+    val expression = resultExpression(verdict)
     val opponent = when (kind) {
         OpponentKind.SELF -> Figure.PAST_SELF
         OpponentKind.CELEBRITY -> Figure.CELEBRITY
@@ -317,7 +325,7 @@ private fun RecordDetail.toDetailState(verdict: Verdict?, result: BattleResult):
         heartRateZones = heartRateZones.toList(),
         newRecords = newRecords,
         rewardPoints = result.totalRewardPoints ?: rewardPoints,
-        expression = if (verdict == Verdict.LOSE) AvatarExpression.SAD else AvatarExpression.JOY
+        expression = resultExpression(verdict)
     )
 
 /** "10.16 목 · 오전 7:12 · 배틀런". */
@@ -441,3 +449,7 @@ private fun BattleResultPreview() {
         )
     }
 }
+
+/** 결과 화면 표정(TC-9702): 패배만 SAD, 승리·신기록(셀프런 승리)·무승부·판정 없음은 JOY. */
+internal fun resultExpression(verdict: Verdict?): AvatarExpression =
+    if (verdict == Verdict.LOSE) AvatarExpression.SAD else AvatarExpression.JOY

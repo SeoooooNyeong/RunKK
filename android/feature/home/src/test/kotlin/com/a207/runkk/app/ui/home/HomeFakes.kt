@@ -245,9 +245,13 @@ class FakeSettingsRepository : SettingsRepository {
 
     var guide: GuideCopy = GuideCopy.NONE
 
+    /** 참이면 사본 쓰기가 실패한다(저장소 오류). */
+    var isGuideSaveFailing = false
+
     override suspend fun guideCopy(): GuideCopy = guide
 
     override suspend fun saveGuideCopy(copy: GuideCopy): Outcome<Unit> {
+        if (isGuideSaveFailing) return Outcome.Failure(com.a207.runkk.app.core.model.AppError.Storage)
         guide = copy
         return Outcome.Success(Unit)
     }

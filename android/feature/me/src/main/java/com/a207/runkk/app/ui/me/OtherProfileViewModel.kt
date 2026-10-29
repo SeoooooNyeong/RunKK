@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/** 다른 러너 프로필(F8, FR-005): GET /members/{id}/profile을 읽는다. 최근 러닝은 ui.me가 기록 도메인을 쓰지 않아 보이지 않는다. */
+/** 다른 러너 프로필(F8, FR-005, D-287): GET /members/{id}/profile을 읽는다. 최근 러닝은 그 응답의 recentRuns로 보인다. */
 @HiltViewModel
 class OtherProfileViewModel @Inject constructor(private val account: AccountRepository) : ViewModel() {
     private val _state = MutableStateFlow(OtherProfileUiState())

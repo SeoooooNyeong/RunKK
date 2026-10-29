@@ -31,7 +31,6 @@
     <string name="me_main_edit">편집</string>
     <string name="me_main_edit_description">프로필 편집</string>
     <string name="me_other_recent_runs">최근 러닝</string>
-    <string name="me_other_run_date">[%1$s]</string>
     <string name="me_other_run_distance">%1$skm</string>
     <string name="me_run_kind_free">자유런</string>
     <string name="me_run_kind_battle">배틀런</string>

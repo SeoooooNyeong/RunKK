@@ -17,6 +17,15 @@ class InviteLinkReader(private val kakaoScheme: String) {
         return intent.data?.let(::read)
     }
 
+    /**
+     * 새로 받은 링크에서만 토큰을 꺼낸다(AN8-7). 최근 앱 목록에서 다시 연 실행(FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY)은 처음 실행 인텐트를
+     * 그대로 다시 주므로 이미 처리한 초대로 보고 읽지 않는다.
+     */
+    fun readNew(intent: Intent?): String? {
+        if (intent == null || intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0) return null
+        return read(intent)
+    }
+
     fun read(uri: Uri): String? {
         val scheme = uri.scheme?.lowercase() ?: return null
         val token = when {
@@ -43,5 +52,8 @@ class InviteLinkReader(private val kakaoScheme: String) {
         const val INVITE_PARAM = "invite"
 
         private val TOKEN = Regex("[A-Za-z0-9_-]{1,64}")
+
+        /** 처리한 링크를 비운 인텐트(AN8-7). Activity.setIntent로 바꿔 두어 다시 읽어도 같은 초대가 다시 열리지 않게 한다. */
+        fun consumed(intent: Intent): Intent = Intent(intent).setData(null)
     }
 }

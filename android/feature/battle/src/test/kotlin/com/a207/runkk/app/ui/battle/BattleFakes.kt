@@ -249,8 +249,12 @@ class FakeBattleRepository : BattleRepository {
         return createInviteResult
     }
 
+    /** 있으면 남은 초대 조회 응답을 이 신호까지 늦춘다(조회가 새 초대보다 늦게 끝나는 경합 시험). */
+    var myInviteGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+
     override suspend fun myFriendInvite(): Outcome<FriendInvite?> {
         calls += "myInvite"
+        myInviteGate?.await()
         return myInviteResult
     }
 
@@ -300,9 +304,16 @@ fun inviteView(blockedReason: String? = null) = FriendInviteView(
 class FakeAccounts : AccountRepository {
     val consents = mutableListOf<String>()
     var consentResult: Outcome<Unit> = Outcome.Success(Unit)
-
-    override suspend fun profile(memberId: Long): Outcome<Profile> =
+    var profileResult: Outcome<Profile> =
         Outcome.Success(Profile(7, "달리는곰", "PUBLIC", "GOLD", 3, null, null, null, null, null))
+
+    /** 있으면 프로필 응답을 이 신호까지 늦춘다(초대 응답이 먼저 오는 경합 시험). */
+    var profileGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+
+    override suspend fun profile(memberId: Long): Outcome<Profile> {
+        profileGate?.await()
+        return profileResult
+    }
 
     override suspend fun giveConsent(item: String): Outcome<Unit> {
         consents += item

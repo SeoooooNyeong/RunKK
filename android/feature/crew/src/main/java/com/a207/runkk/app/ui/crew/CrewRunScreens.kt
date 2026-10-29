@@ -287,11 +287,7 @@ fun CrewRunRoute(key: Routes.CrewRunLobby, viewModel: CrewRunViewModel = hiltVie
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             when (event) {
-                is CrewRunEvent.Finished -> {
-                    navigator.back()
-                    navigator.navigate(Routes.CrewRunResult(event.postId))
-                }
-
+                is CrewRunEvent.Finished -> navigator.replace(Routes.CrewRunResult(event.postId))
                 CrewRunEvent.Left -> navigator.back()
             }
         }

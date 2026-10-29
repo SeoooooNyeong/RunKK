@@ -12,7 +12,8 @@ import com.a207.runkk.app.domain.record.RunSummary
 
 /**
  * 기록 목록·달력 줄의 태그(D-279). 자유런이 아니면 종류 태그 하나(배틀런·친구 대결은 승패가 정해졌을 때 승패를 붙인다,
- * 보류면 종류만), 대결이 아닌 신기록이면 신기록 종류 문구("최장 거리", "10km 최고")를, 종류가 없으면 "신기록"만 붙인다.
+ * 보류면 종류만), 신기록이면 러닝 종류와 관계없이(셀프런·셀럽런·대결 포함, 사용자 결정 D52, U8-3) 신기록 종류 문구
+ * ("최장 거리", "10km 최고")를, 종류가 없으면 "신기록"만 붙인다.
  * 유효·집계 제외는 태그로 보이지 않는다(D29).
  */
 enum class RecordTag(@StringRes val labelRes: Int) {
@@ -42,11 +43,10 @@ enum class RecordTag(@StringRes val labelRes: Int) {
             }
         }
 
-        /** 행에 붙일 태그 문구 전부(종류, 신기록). */
-        fun textsOf(run: RunSummary): List<UiText> {
-            val kind = kindOf(run)
-            val isBattle = kind != null && kind != CREW
-            val records = if (run.isNewRecord && !isBattle) newRecordTexts(run.newRecords) else emptyList()
+        /** 행에 붙일 태그 문구 전부(종류, 신기록). 크루가 닫혀 있으면([isCrewOpen] 거짓, 1차 배포) 크루런 태그는 뺀다(AN8-12). */
+        fun textsOf(run: RunSummary, isCrewOpen: Boolean = true): List<UiText> {
+            val kind = kindOf(run)?.takeUnless { it == CREW && !isCrewOpen }
+            val records = if (run.isNewRecord) newRecordTexts(run.newRecords) else emptyList()
             return listOfNotNull(kind?.let { UiText.Res(it.labelRes) }) + records
         }
 

@@ -71,7 +71,7 @@ class BattleModeViewModel @Inject constructor(
         _state.update { it.copy(isConsentSheetVisible = false) }
         consentJob = viewModelScope.launch {
             when (val given = consent.give()) {
-                is Outcome.Success -> pending?.let { _events.send(it) }
+                is Outcome.Success -> pending?.let { open(it) }
                 is Outcome.Failure -> _state.update { it.copy(message = BattleErrorText.of(given.error)) }
             }
             pending = null
@@ -87,11 +87,20 @@ class BattleModeViewModel @Inject constructor(
 
     private fun request(event: BattleModeEvent) {
         if (consent.isGranted()) {
-            _events.trySend(event)
+            open(event)
         } else {
             pending = event
             _state.update { it.copy(isConsentSheetVisible = true) }
         }
+    }
+
+    /**
+     * 매칭·초대 대기로 넘어간다. 초대 대기로 갈 때만 아직 도는 남은 초대 조회를 멈춘다(AN8-22): 조회가 늦게 끝나면 방금 만든 새 초대를
+     * 남은 초대로 보고 지울 수 있다. 랜덤 매칭은 남은 초대가 매칭을 막으므로 조회·정리를 끝까지 둔다.
+     */
+    private fun open(event: BattleModeEvent) {
+        if ((event as? BattleModeEvent.Open)?.key is Routes.FriendInviteWait) recoverJob?.cancel()
+        _events.trySend(event)
     }
 
     private suspend fun loadDefaultDistance() {

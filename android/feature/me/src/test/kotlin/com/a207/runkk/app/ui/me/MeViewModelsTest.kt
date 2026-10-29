@@ -63,6 +63,17 @@ class MeViewModelsTest {
     }
 
     @Test
+    fun `AN8-3 프로필 편집을 저장하고 돌아와 화면이 재개되면 다시 읽는다(첫 재개는 건너뛴다)`() {
+        val vm = MeViewModel(account)
+        vm.onResumed()
+        assertEquals(listOf("profile:${AccountRepository.SELF}"), account.calls, "처음 표시는 init이 읽었다")
+        account.profile = sampleProfile.copy(displayName = "새이름")
+        vm.onResumed()
+        assertEquals("새이름", vm.state.value.profile?.displayName)
+        assertEquals(2, account.calls.count { it == "profile:${AccountRepository.SELF}" })
+    }
+
+    @Test
     fun `프로필이 셀카 얼굴이면 부위 그림을 받아 원 안에 그린다`() {
         val layer = com.a207.runkk.app.core.model.FaceLayer(com.a207.runkk.app.core.model.FacePart.EYES, byteArrayOf(1))
         account.profile = sampleProfile.copy(faceKey = "selfie:face/7/s1")
