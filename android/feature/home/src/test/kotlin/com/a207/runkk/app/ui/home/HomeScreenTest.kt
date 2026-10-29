@@ -1,235 +1,147 @@
 package com.a207.runkk.app.ui.home
 
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHasClickAction
-import androidx.compose.ui.test.assertIsNotSelected
-import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollTo
-import com.a207.runkk.app.core.designsystem.RunkkAvatarArt
+import com.a207.runkk.app.core.designsystem.AvatarExpression
+import com.a207.runkk.app.core.designsystem.DEFAULT_AVATAR_TAG
+import com.a207.runkk.app.core.designsystem.LocalReleaseScope
+import com.a207.runkk.app.core.designsystem.ReleaseScope
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.runkkAvatarCharacterTag
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.navigation.Routes
-import com.a207.runkk.app.domain.record.WeeklyGoalProgress
-import com.a207.runkk.app.domain.run.FreeRunGoal
-import com.a207.runkk.app.domain.run.PlanSnapshot
-import java.time.Duration
-import java.time.LocalDate
 import kotlin.test.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
-import org.robolectric.RuntimeEnvironment
 
+/** 홈 화면(A-4, D-276). 시험 설계 10-06 TC-9721, TC-9700(아바타 꾸미기 닫힘), TC-9701(기본 아바타), TC-9685(위치 동의 시트). */
 @RunWith(RobolectricTestRunner::class)
 class HomeScreenTest {
     @get:Rule
     val compose = createComposeRule()
 
     private val routes = mutableListOf<String>()
+    private var freeRuns = 0
 
-    private fun show(state: HomeUiState, onMode: (HomeRunMode) -> Unit = {}) {
+    private val loaded = HomeUiState(
+        isLoading = false,
+        header = HomeHeader("달리는곰", "골드", 3, 1_250),
+        isHeaderLoading = false,
+        weeklyDistance = Distance(12_000),
+        weeklyGoal = Distance(20_000),
+        streakDays = 4,
+        faceKey = "default:BEAR"
+    )
+
+    private fun show(state: HomeUiState, scope: ReleaseScope = ReleaseScope.FIRST_RELEASE) {
         compose.setContent {
-            RunkkTheme(reduceMotion = true) {
-                HomeScreen(state, onModeSelected = onMode, onNavigate = {
-                    routes +=
-                        it
-                }, onRetry = {})
-            }
-        }
-    }
-
-    @Test
-    fun `자유런 시작은 러닝 화면으로, 설정은 자유런 설정으로 간다`() {
-        show(
-            HomeUiState(
-                isLoading = false,
-                dashboard = sampleDashboard,
-                today = LocalDate.of(2026, 10, 20),
-                freeRunGoal = FreeRunGoal(PlanSnapshot(Distance(5_000), null), isFromCoachPlan = true)
-            )
-        )
-        compose.onNodeWithText("자유런 시작").performScrollTo().performClick()
-        compose.onNodeWithContentDescription("자유런 설정").performScrollTo().performClick()
-        assertEquals(listOf(Routes.RUN, Routes.FREE_RUN_SETTINGS), routes)
-        compose.onNodeWithText("5km").assertExists()
-    }
-
-    @Test
-    fun `알림함·로고에 접근성 라벨이 있다`() {
-        show(HomeUiState(isLoading = false))
-        compose.onNodeWithContentDescription("RRun 런크크").assertExists()
-        compose.onNodeWithContentDescription("알림함").performClick()
-        assertEquals(listOf(Routes.NOTIFICATIONS), routes)
-    }
-
-    @Test
-    fun `배틀런 탭 - 거리 칩을 누르면 선택이 바뀌고, 시작을 눌러야 고른 거리로 매칭한다(FR-080)`() {
-        val started = mutableListOf<Distance>()
-        compose.setContent {
-            var state by remember {
-                mutableStateOf(
-                    HomeUiState(isLoading = false, mode = HomeRunMode.BATTLE, battleDistance = Distance(5_000))
-                )
-            }
-            RunkkTheme(reduceMotion = true) {
-                HomeScreen(
-                    state,
-                    onModeSelected = {},
-                    onNavigate = { routes += it },
-                    onRetry = {},
-                    onBattleDistanceSelected = { state = state.copy(battleDistance = it) },
-                    onBattleStart = { started += it }
-                )
-            }
-        }
-        listOf("1킬로미터", "3킬로미터", "5킬로미터", "10킬로미터").forEach {
-            compose.onNodeWithContentDescription(it).performScrollTo().assertExists()
-        }
-        compose.onNodeWithContentDescription("5킬로미터").assertIsSelected()
-        compose.onNodeWithContentDescription("3킬로미터").assertIsNotSelected().performClick()
-        compose.onNodeWithContentDescription("3킬로미터").assertIsSelected()
-        compose.onNodeWithContentDescription("5킬로미터").assertIsNotSelected()
-        assertEquals(emptyList(), started, "거리를 고르는 것만으로 매칭을 시작하지 않는다")
-        compose.onNodeWithText("랜덤 매칭 시작").performScrollTo().performClick()
-        assertEquals(listOf(Distance(3_000)), started)
-        assertEquals(emptyList(), routes)
-    }
-
-    @Test
-    fun `배틀런 시작 경로는 고른 거리를 매칭 화면 인자로 넘긴다`() {
-        assertEquals(Routes.BattleQuickMatch(3_000), battleQuickMatchKey(Distance(3_000)))
-    }
-
-    @Test
-    fun `배틀런 거리 칩은 대결 거리 라디오 묶음이고 km로 보이고 킬로미터로 읽는다`() {
-        show(HomeUiState(isLoading = false, mode = HomeRunMode.BATTLE, battleDistance = Distance(10_000)))
-        compose.onNodeWithContentDescription("대결 거리").performScrollTo().assertExists()
-        listOf("1km", "3km", "5km", "10km").forEach { compose.onNodeWithText(it).assertExists() }
-        compose.onNodeWithContentDescription("10킬로미터").assertIsSelected()
-        compose.onNodeWithContentDescription("1킬로미터").assertIsNotSelected()
-    }
-
-    @Test
-    fun `자유런 칩은 러닝 설정의 음성·진동을 보이고, 오늘 칸을 누르면 기록 목록으로 간다`() {
-        show(HomeUiState(isLoading = false, isRunVoiceOn = true, isRunVibrationOn = false, pendingCount = 2))
-        compose.onNodeWithText("음성 켬").performScrollTo().assertExists()
-        compose.onNodeWithText("진동 끔").performScrollTo().assertExists()
-        compose.onNodeWithContentDescription("오늘 달린 거리 0.00킬로미터, 아직 달리지 않았어요")
-            .performScrollTo()
-            .performClick()
-        assertEquals(listOf(Routes.RECORDS), routes)
-        compose.onNodeWithText("미전송 기록", substring = true).assertDoesNotExist()
-    }
-
-    @Test
-    fun `오늘 칸은 시간·횟수를, 이번 주 칸은 거리 달성률(비율 × 100)을 보인다`() {
-        val dashboard = sampleDashboard.copy(
-            todayElapsed = Duration.ofSeconds(1_100),
-            todayRuns = 2,
-            weekly = WeeklyGoalProgress(4, Distance(20_000), 2, Distance(12_000), 50, 60)
-        )
-        show(HomeUiState(isLoading = false, dashboard = dashboard, isHeaderLoading = false))
-        compose.onNodeWithContentDescription("오늘 달린 거리 3.02킬로미터, 18분 20초, 2회").performScrollTo().assertExists()
-        compose.onNodeWithContentDescription("이번 주 목표 거리 60% 달성, 4회 중 2회")
-            .performScrollTo()
-            .assertHasClickAction()
-    }
-
-    @Test
-    fun `오늘 기록이 없으면 안내 문구, 목표가 없으면 목표 안내를 읽는다`() {
-        val res = RuntimeEnvironment.getApplication().resources
-        assertEquals(res.getString(R.string.home_today_not_run), todayCaption(res, sampleDashboard))
-        assertEquals("아직 달리지 않았어요", todayCaption(res, sampleDashboard))
-        assertEquals(
-            res.getString(R.string.home_summary_set_goal),
-            weeklySpoken(res, sampleDashboard.copy(weeklyAchievement = null))
-        )
-        assertEquals("목표를 정해 보세요", weeklySpoken(res, sampleDashboard.copy(weeklyAchievement = null)))
-        assertEquals(
-            res.getString(R.string.home_week_spoken_distance, 135),
-            weeklySpoken(res, sampleDashboard.copy(weeklyAchievement = 1.35))
-        )
-        assertEquals("거리 135% 달성", weeklySpoken(res, sampleDashboard.copy(weeklyAchievement = 1.35)))
-    }
-
-    @Test
-    fun `오늘 계획 칩은 거리·페이스를 말로 읽는다`() {
-        show(
-            HomeUiState(
-                isLoading = false,
-                isHeaderLoading = false,
-                freeRunGoal =
-                    FreeRunGoal(
-                        PlanSnapshot(Distance(5_000), com.a207.runkk.app.core.model.Pace(330)),
-                        isFromCoachPlan = true
+            CompositionLocalProvider(LocalReleaseScope provides scope) {
+                RunkkTheme(reduceMotion = true) {
+                    HomeScreen(
+                        state,
+                        HomeActions(onNavigate = { routes += it }, onFreeRun = { freeRuns++ })
                     )
-            )
-        )
-        compose.onNodeWithContentDescription("오늘 목표 5킬로미터").performScrollTo().assertExists()
-        compose.onNodeWithContentDescription("목표 페이스 1킬로미터당 5분 30초").performScrollTo().assertExists()
+                }
+            }
+        }
     }
 
     @Test
-    fun `설정 목표면 목표 거리 칩을 보인다(FR-048)`() {
-        show(
-            HomeUiState(
-                isLoading = false,
-                isHeaderLoading = false,
-                freeRunGoal = FreeRunGoal(PlanSnapshot(Distance(3_000), null), isFromCoachPlan = false)
-            )
-        )
-        compose.onNodeWithText("3km").performScrollTo().assertExists()
-        compose.onNodeWithContentDescription("목표 3킬로미터").performScrollTo().assertExists()
-    }
-
-    @Test
-    fun `계획이 없으면 목표 없이 달리기 칩`() {
-        val res = RuntimeEnvironment.getApplication().resources
-        assertEquals(listOf(res.getString(R.string.home_plan_none)), planChips(res, null))
-        assertEquals(listOf("목표 없이 달리기"), planChips(res, null))
-        assertEquals(listOf("5km"), planChips(res, PlanSnapshot(Distance(5_000), null)))
-    }
-
-    @Test
-    fun `상단은 닉네임·티어·레벨과 리워드 잔액(상점으로)을 보인다`() {
-        show(HomeUiState(isLoading = false, isHeaderLoading = false, header = HomeHeader("달리는곰", "골드", 3, 1_250)))
+    fun `TC-9721 상단·주간 막대·연속·두 카드를 디자인 문구로 보인다`() {
+        show(loaded)
         compose.onNodeWithText("달리는곰").assertExists()
         compose.onNodeWithText("골드, Lv.3").assertExists()
-        compose.onNodeWithContentDescription("리워드 잔액 1,250").performClick()
-        assertEquals(listOf(Routes.SHOP), routes)
+        compose.onNodeWithText("1,250 P", useUnmergedTree = true).assertExists()
+        compose.onNodeWithContentDescription("이번 주 12킬로미터, 목표 20킬로미터, 4일 연속").assertExists()
+        compose.onNodeWithContentDescription("자유런, 음성 켬, 진동 켬").assertExists()
+        compose.onNodeWithContentDescription("배틀런, 랜덤 또는 친구와 대결").assertExists()
     }
 
     @Test
-    fun `기본 캐릭터면 상단 프로필 원과 우리 집 아바타 자리에 캐릭터 그림을 그린다`() {
-        show(HomeUiState(isLoading = false, isHeaderLoading = false, faceKey = "default:BEAR"))
-        compose.onAllNodesWithTag(runkkAvatarCharacterTag("BEAR"), useUnmergedTree = true).assertCountEquals(2)
-    }
-
-    @Test
-    fun `얼굴이 없거나 모르는 값이면 캐릭터 그림 없이 자리 그림이다`() {
-        show(HomeUiState(isLoading = false, isHeaderLoading = false, faceKey = "default:DRAGON"))
-        compose.onNodeWithText("아바타").assertExists()
-        RunkkAvatarArt.characters.keys.forEach {
-            compose.onNodeWithTag(runkkAvatarCharacterTag(it), useUnmergedTree = true).assertDoesNotExist()
+    fun `TC-9721 오늘·누적 요약, 랜드마크, 잔디, 횟수 달성률은 보이지 않는다`() {
+        show(loaded)
+        listOf("오늘 달린 거리", "이번 주 목표", "첫 랜드마크를 향해", "우리 집", "자유런 시작", "랜덤 매칭 시작").forEach {
+            compose.onNodeWithText(it).assertDoesNotExist()
         }
     }
 
     @Test
-    fun `프로필을 못 읽었으면 자리를 기본 문구로 채운다`() {
-        show(HomeUiState(isLoading = false, isHeaderLoading = false))
+    fun `자유런 카드는 시작을 부르고 배틀런 카드는 배틀런 화면, 해 버튼은 러닝 설정, 종은 알림함으로 간다`() {
+        show(loaded)
+        compose.onNodeWithContentDescription("자유런, 음성 켬, 진동 켬").performClick()
+        compose.onNodeWithContentDescription("배틀런, 랜덤 또는 친구와 대결").performClick()
+        compose.onNodeWithContentDescription("러닝 설정").performClick()
+        compose.onNodeWithContentDescription("알림함").performClick()
+        assertEquals(1, freeRuns)
+        assertEquals(listOf(Routes.BATTLE_MODE, Routes.FREE_RUN_SETTINGS, Routes.NOTIFICATIONS), routes)
+    }
+
+    @Test
+    fun `음성·진동이 꺼져 있으면 off로 보인다`() {
+        show(loaded.copy(isRunVoiceOn = false, isRunVibrationOn = true))
+        compose.onNodeWithText("음성 off · 진동 on", useUnmergedTree = true).assertExists()
+    }
+
+    @Test
+    fun `TC-9700 TC-9701 1차 배포는 기본 아바타를 그리고 아바타·잔액을 눌러도 이동하지 않는다`() {
+        show(loaded)
+        compose.onAllNodesWithTag(DEFAULT_AVATAR_TAG + AvatarExpression.JOY.name, useUnmergedTree = true)
+            .assertCountEquals(2)
+        compose.onNodeWithTag(runkkAvatarCharacterTag("BEAR"), useUnmergedTree = true).assertDoesNotExist()
+        compose.onNodeWithContentDescription("내 아바타").assertHasNoClickAction()
+        compose.onNodeWithContentDescription("리워드 잔액 1,250 포인트").assertHasNoClickAction()
+    }
+
+    @Test
+    fun `TC-9700 아바타 꾸미기가 열리면 얼굴 그림을 쓰고 아바타는 꾸미기, 잔액은 상점으로 간다`() {
+        show(loaded, ReleaseScope.ALL_OPEN)
+        compose.onNodeWithContentDescription("내 아바타").assertHasClickAction().performClick()
+        compose.onNodeWithContentDescription("리워드 잔액 1,250 포인트").performClick()
+        assertEquals(listOf(Routes.AVATAR, Routes.SHOP), routes)
+    }
+
+    @Test
+    fun `TC-9743 목표가 없거나 잔액을 모르면 그 자리를 비운다`() {
+        show(loaded.copy(weeklyGoal = null, header = HomeHeader("달리는곰", null, null, null)))
+        compose.onNodeWithText("- P", useUnmergedTree = true).assertExists()
         compose.onNodeWithText("언랭, Lv.-").assertExists()
-        compose.onNodeWithContentDescription("리워드 잔액 -").assertExists()
+        compose.onNodeWithContentDescription("이번 주 12킬로미터, 목표 없음, 4일 연속").assertExists()
+    }
+
+    @Test
+    fun `TC-9685 위치 동의 시트는 디자인 문구로 보이고 버튼이 행동을 부른다`() {
+        var agreed = 0
+        var closed = 0
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                HomeScreen(
+                    loaded.copy(isConsentSheetVisible = true),
+                    HomeActions(onConsentAgree = { agreed++ }, onConsentClose = { closed++ })
+                )
+            }
+        }
+        compose.onNodeWithText("위치 정보 동의가 필요해요").assertExists()
+        compose.onNodeWithText("러닝을 기록하려면 위치 정보 수집에 동의해 주세요.").assertExists()
+        compose.onNodeWithText("동의하고 시작").performClick()
+        compose.onNodeWithText("닫기").performClick()
+        assertEquals(1, agreed)
+        assertEquals(1, closed)
+    }
+
+    @Test
+    fun `주간 km는 정수면 정수, 아니면 소수 한 자리다`() {
+        assertEquals("12", compactKm(Distance(12_000)))
+        assertEquals("12.5", compactKm(Distance(12_480)))
+        assertEquals("0", compactKm(Distance.ZERO))
     }
 }
