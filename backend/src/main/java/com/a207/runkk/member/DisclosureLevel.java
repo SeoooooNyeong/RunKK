@@ -7,8 +7,7 @@ package com.a207.runkk.member;
 public enum DisclosureLevel {
     SELF(true),
     WITHDRAWN(false),
-    PUBLIC(true),
-    PRIVATE(false);
+    PUBLIC(true);
 
     private final boolean showsProfile;
 
@@ -16,16 +15,18 @@ public enum DisclosureLevel {
         this.showsProfile = showsProfile;
     }
 
-    /** 본인 → 탈퇴 → 공개 → 비공개 순으로 처음 맞는 수준. */
-    public static DisclosureLevel of(
-            long viewerId, long targetId, MemberStatus status, ProfileVisibility visibility) {
+    /**
+     * 본인 → 탈퇴 → 공개 순으로 처음 맞는 수준. 다른 러너에게 닉네임·아바타·레벨·티어·Runimal·누적 거리·최장 거리·러닝 횟수·소개는 늘 보이고, 나이대·성별만
+     * 항목별 공개 값으로 감춘다(FR-006, v0.14 D-241. PRIVATE 수준은 지웠다).
+     */
+    public static DisclosureLevel of(long viewerId, long targetId, MemberStatus status) {
         if (viewerId == targetId) {
             return SELF;
         }
         if (status == MemberStatus.WITHDRAWN) {
             return WITHDRAWN;
         }
-        return visibility == ProfileVisibility.PUBLIC ? PUBLIC : PRIVATE;
+        return PUBLIC;
     }
 
     /** 크루원 목록 등에서 프로필(Runimal 유형 등)을 보일지. */

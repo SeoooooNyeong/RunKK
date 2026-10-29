@@ -51,7 +51,21 @@ public class ProfileService {
                 member.nickname().value(),
                 member.birthYear(),
                 member.gender(),
-                member.photoUrl(),
+                null, // 프로필 사진은 없앴다(D-242). 응답 형식은 옛 앱을 위해 남긴다
                 member.intro());
+    }
+
+    /** 첫 사용 가이드를 봤다고 표시한다(FR-231, v0.14 D-244). 여러 번 불러도 같다. */
+    @Transactional
+    public void markGuideSeen(long memberId) {
+        Member member = MemberLoader.load(memberRepository, memberId);
+        member.markGuideSeen();
+        memberRepository.save(member);
+    }
+
+    /** 첫 사용 가이드를 봤는가(FR-231). */
+    @Transactional(readOnly = true)
+    public boolean guideSeen(long memberId) {
+        return MemberLoader.load(memberRepository, memberId).isGuideSeen();
     }
 }

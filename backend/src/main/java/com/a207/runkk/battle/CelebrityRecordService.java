@@ -45,7 +45,10 @@ public class CelebrityRecordService {
                         AuditAction.CELEBRITY_REGISTER,
                         String.valueOf(saved.getId()),
                         null,
-                        saved.getAnonymousName()));
+                        // 등록 감사에 실명 동의 여부를 함께 남긴다(v0.14 D-240)
+                        saved.isRealName()
+                                ? saved.getAnonymousName() + " (실명 동의)"
+                                : saved.getAnonymousName()));
         return new CelebrityResult(saved.getId(), CelebrityResult.Outcome.REGISTERED);
     }
 

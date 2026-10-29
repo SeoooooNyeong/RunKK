@@ -45,7 +45,13 @@ public class MemberQueryService {
         Member m = MemberLoader.load(memberRepository, memberId);
         OptionalInt age = m.ageIn(year);
         String ageBand = age.isPresent() ? (age.getAsInt() / AGE_BAND * AGE_BAND) + "대" : null;
-        return new MemberProfile(m.getLevel(), m.photoUrl(), m.intro(), ageBand, m.gender());
+        return new MemberProfile(
+                m.getLevel(),
+                m.intro(),
+                ageBand,
+                m.gender(),
+                m.ageBandVisibility(),
+                m.genderVisibility());
     }
 
     /** year 기준 나이. 출생연도가 없으면 비어 있음(analysis 심박 구간, design-review.md M4). */
@@ -117,9 +123,7 @@ public class MemberQueryService {
         }
         Map<Long, DisclosureLevel> result = new HashMap<>();
         for (Member m : memberRepository.findAllById(targetIds)) {
-            result.put(
-                    m.getId(),
-                    DisclosureLevel.of(viewerId, m.getId(), m.getStatus(), m.profileVisibility()));
+            result.put(m.getId(), DisclosureLevel.of(viewerId, m.getId(), m.getStatus()));
         }
         return result;
     }

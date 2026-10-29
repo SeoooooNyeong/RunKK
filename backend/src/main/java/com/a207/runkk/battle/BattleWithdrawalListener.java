@@ -10,13 +10,22 @@ import org.springframework.transaction.event.TransactionalEventListener;
 public class BattleWithdrawalListener {
 
     private final MatchQueue matchQueue;
+    private final FriendInviteService friendInviteService;
 
-    public BattleWithdrawalListener(MatchQueue matchQueue) {
+    public BattleWithdrawalListener(
+            MatchQueue matchQueue, FriendInviteService friendInviteService) {
         this.matchQueue = matchQueue;
+        this.friendInviteService = friendInviteService;
     }
 
+    /** 대기열에서 빼고 대기 중인 친구 대결 초대를 취소한다(v0.14 D-223). */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onMemberWithdrawn(MemberWithdrawn e) {
-        matchQueue.remove(e.memberId());
+        try {
+            matchQueue.remove(e.memberId());
+        } finally {
+            // 대기열(Redis) 장애가 초대 취소를 막지 않게 한다
+            friendInviteService.cancelOpenOf(e.memberId());
+        }
     }
 }

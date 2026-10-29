@@ -60,7 +60,7 @@ class OperationPolicyTest {
 
         assertThat(policy.selfieLimit().perDay()).isEqualTo(3);
         assertThat(policy.selfieLimit().perDay()).isEqualTo(3);
-        assertThat(policy.features()).isEqualTo(new FeatureToggles(true, false));
+        assertThat(policy.features()).isEqualTo(new FeatureToggles(true, false, false));
         assertThat(policy.crewRunRule())
                 .isEqualTo(
                         new CrewRunRule(
@@ -68,10 +68,10 @@ class OperationPolicyTest {
                                 java.time.Duration.ofMinutes(5),
                                 3,
                                 12));
-        // 저장된 항목은 시작 때 채운 캐시에서, 없는 항목(SELFIE_ENABLED)은 한 번 읽은 뒤 캐시에서 읽는다
-        assertThat(repository.findCalls()).isEqualTo(callsAfterStart + 1);
+        // 저장된 항목은 시작 때 채운 캐시에서, 없는 항목(SELFIE_ENABLED, CREW_RELEASED)은 한 번 읽은 뒤 캐시에서 읽는다
+        assertThat(repository.findCalls()).isEqualTo(callsAfterStart + 2);
         policy.features();
-        assertThat(repository.findCalls()).isEqualTo(callsAfterStart + 1);
+        assertThat(repository.findCalls()).isEqualTo(callsAfterStart + 2);
     }
 
     @Test

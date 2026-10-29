@@ -112,6 +112,15 @@ public class CrewRunParticipation {
         return true;
     }
 
+    /** 연결한 기록이 recordId면 연결을 비우고 true(기록 삭제, v0.14 D-232). */
+    boolean unlink(String recordId) {
+        if (recordId == null || !recordId.equals(linkedRecordId)) {
+            return false;
+        }
+        linkedRecordId = null;
+        return true;
+    }
+
     void rankAs(Integer value) {
         rank = value;
     }

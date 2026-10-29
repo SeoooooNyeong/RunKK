@@ -181,7 +181,11 @@ class AuthControllerTest extends WebTestSupport {
                                                 .MockMvcRequestBuilders.patch("/api/v1/me/profile"))
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(write(Map.of("photoUrl", "http://plain.example/p.png"))))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().is2xxSuccessful()) // v0.14 D-242: 사진은 받아도 버린다
+                .andExpect(
+                        org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
+                                        "$.photoUrl")
+                                .doesNotExist());
         mvc.perform(
                         as(
                                         s,

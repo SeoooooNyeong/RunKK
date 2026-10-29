@@ -156,9 +156,22 @@ public final class InMemoryBattleStores {
                     .toList();
         }
 
+        /** findAllById 호출 수(기록 목록 대결 결과 N+1 확인, TC-9317). */
+        public int findAllByIdCalls;
+
+        @Override
+        public List<Battle> findAllById(Collection<Long> ids) {
+            findAllByIdCalls++;
+            return ids.stream().map(rows::get).filter(java.util.Objects::nonNull).toList();
+        }
+
         @Override
         public List<BattleWin> findMemberWinsJudgedBetween(LocalDateTime from, LocalDateTime to) {
-            return where(b -> b.getStatus() == BattleStatus.FINISHED).stream()
+            return where(
+                            b ->
+                                    b.getStatus() == BattleStatus.FINISHED
+                                            && BattleType.winRewarded().contains(b.getType()))
+                    .stream()
                     .flatMap(b -> b.getJudgement().stream().map(j -> Map.entry(b, j)))
                     .filter(
                             e ->
@@ -195,6 +208,86 @@ public final class InMemoryBattleStores {
     }
 
     /** 대기열. */
+    /** 친구 대결 초대 저장소(v0.14 D-218). 저장 때 ID를 붙인다. */
+    public static final class Invites implements FriendInviteRepository {
+        private final Map<Long, FriendInvite> rows = new LinkedHashMap<>();
+        private final AtomicLong sequence = new AtomicLong();
+        private final java.util.Set<Long> failingSaves = new java.util.HashSet<>();
+        private int saves;
+
+        /** 그 초대 ID의 다음 저장을 저장소 장애로 실패시킨다(만료 부분 실패 시험, TC-9253). */
+        public void failNextSaveOf(long inviteId) {
+            failingSaves.add(inviteId);
+        }
+
+        /** 저장 횟수(시험 확인용). */
+        public int saves() {
+            return saves;
+        }
+
+        @Override
+        public FriendInvite save(FriendInvite invite) {
+            if (invite.getId() != null && failingSaves.remove(invite.getId())) {
+                throw new org.springframework.dao.DataAccessResourceFailureException("db down");
+            }
+            if (invite.getId() == null) {
+                ReflectionTestUtils.setField(invite, "id", sequence.incrementAndGet());
+            }
+            saves++;
+            rows.put(invite.getId(), invite);
+            return invite;
+        }
+
+        @Override
+        public FriendInvite saveImmediately(FriendInvite invite) {
+            if (invite.getId() == null
+                    && invite.getStatus() == FriendInviteStatus.PENDING
+                    && findPending(invite.getInviterId()).isPresent()) {
+                // uq_friend_invite_pending 흉내
+                throw new org.springframework.dao.DataIntegrityViolationException(
+                        "uq_friend_invite_pending");
+            }
+            return save(invite);
+        }
+
+        @Override
+        public Optional<FriendInvite> findById(long id) {
+            return Optional.ofNullable(rows.get(id));
+        }
+
+        @Override
+        public Optional<FriendInvite> findByToken(String token) {
+            return rows.values().stream().filter(i -> i.getToken().equals(token)).findFirst();
+        }
+
+        @Override
+        public Optional<FriendInvite> findPending(long inviterId) {
+            return rows.values().stream()
+                    .filter(i -> i.getInviterId() == inviterId)
+                    .filter(i -> i.getStatus() == FriendInviteStatus.PENDING)
+                    .findFirst();
+        }
+
+        @Override
+        public boolean existsOpen(long inviterId, LocalDateTime now) {
+            return findPending(inviterId).filter(i -> i.isOpen(now)).isPresent();
+        }
+
+        @Override
+        public List<FriendInvite> findDuePending(LocalDateTime now, int limit) {
+            return rows.values().stream()
+                    .filter(i -> i.getStatus() == FriendInviteStatus.PENDING)
+                    .filter(i -> !now.isBefore(i.getExpiresAt()))
+                    .sorted(Comparator.comparing(FriendInvite::getExpiresAt))
+                    .limit(limit)
+                    .toList();
+        }
+
+        public List<FriendInvite> all() {
+            return List.copyOf(rows.values());
+        }
+    }
+
     public static final class Queue implements MatchQueue {
         private final Map<Long, MatchTicket> tickets = new LinkedHashMap<>();
         private boolean broken;

@@ -7,6 +7,7 @@ import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Deque;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.OptionalInt;
 import java.util.stream.Collectors;
@@ -92,6 +93,23 @@ public class TierProgress {
             return OptionalInt.of(PLACEMENT);
         }
         return OptionalInt.empty();
+    }
+
+    /**
+     * lastOrdinal에서 newOrdinal로 넘어갈 때 일어나는 평가(v0.14 D-294). 창이 10이면 재평가(그 10의 배수 회차), 3이면 첫
+     * 배치(3회째), 판정 지점이 없으면 비어 있다. evaluationWindowBetween과 같은 규칙이다.
+     */
+    public static Optional<TierEvaluation> evaluationBetween(int lastOrdinal, int newOrdinal) {
+        OptionalInt window = evaluationWindowBetween(lastOrdinal, newOrdinal);
+        if (window.isEmpty()) {
+            return Optional.empty();
+        }
+        if (window.getAsInt() == WINDOW) {
+            return Optional.of(
+                    new TierEvaluation(
+                            EvaluationKind.REEVALUATION, (newOrdinal / WINDOW) * WINDOW));
+        }
+        return Optional.of(new TierEvaluation(EvaluationKind.FIRST_PLACEMENT, PLACEMENT));
     }
 
     /**

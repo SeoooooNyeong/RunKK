@@ -2,7 +2,9 @@ package com.a207.runkk.running;
 
 import com.a207.runkk.member.MemberQueryService;
 import com.a207.runkk.member.RunScoreInput;
+import com.a207.runkk.member.TierChange;
 import com.a207.runkk.member.TierLevelService;
+import java.util.Optional;
 import org.springframework.stereotype.Component;
 
 /**
@@ -31,12 +33,25 @@ class TierApplier {
      * 점수·거리만)으로 넘긴 뒤 표시를 세운다. 이미 서 있으면 IllegalStateException.
      */
     void apply(long memberId, String recordId, RunScoreInput input) {
-        if (input.validRunOrdinal() > memberQueryService.appliedValidRunCount(memberId)) {
-            tierLevelService.recordValidRun(memberId, input);
-        } else {
-            tierLevelService.recordLateValidRun(memberId, input);
-        }
-        if (!runRecordRepository.markTierApplied(recordId)) {
+        TierChange change =
+                input.validRunOrdinal() > memberQueryService.appliedValidRunCount(memberId)
+                        ? tierLevelService.recordValidRun(memberId, input)
+                        : tierLevelService.recordLateValidRun(memberId, input);
+        // 평가(첫 배치·재평가)는 member.TierProgress가 정하고 여기서는 반영 표시와 함께 저장만 한다(v0.14 D-291·D-294)
+        // infra.running은 member를 읽지 않으므로 running 값(EvaluationView)으로 넘긴다(13.1 규칙 1)
+        Optional<EvaluationView> evaluation =
+                change == null
+                        ? Optional.empty()
+                        : change.evaluation()
+                                .map(
+                                        e ->
+                                                new EvaluationView(
+                                                        e.kind().name(),
+                                                        change.tier(),
+                                                        e.validRuns(),
+                                                        null));
+        boolean marked = runRecordRepository.markTierApplied(recordId, evaluation);
+        if (!marked) {
             throw new IllegalStateException("이미 티어에 반영한 기록");
         }
     }

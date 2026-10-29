@@ -37,7 +37,8 @@ class RunimalJudgeTest {
                 DAY.plusDays(index).withHour(hour),
                 Distance.ofMeters(meters),
                 same,
-                crew);
+                crew,
+                false);
     }
 
     private static RunSample sample(List<RunSample.SampleRun> runs) {

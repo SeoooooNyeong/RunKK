@@ -54,6 +54,14 @@ public class CelebrityRecord implements OpponentRecord {
     @Column(name = "registered_at", nullable = false)
     private LocalDateTime registeredAt;
 
+    /** 실명 등록 동의 일시(v0.14 D-240). 근거와 둘 다 있거나 둘 다 없다(V30 CHECK). */
+    @Column(name = "real_name_consented_at")
+    private LocalDateTime realNameConsentedAt;
+
+    /** 실명 등록 동의 근거. */
+    @Column(name = "real_name_consent_basis", length = 200)
+    private String realNameConsentBasis;
+
     protected CelebrityRecord() {}
 
     private CelebrityRecord(CelebrityInput in, OpponentTrack track, LocalDateTime now) {
@@ -64,6 +72,10 @@ public class CelebrityRecord implements OpponentRecord {
         this.sourceName = in.sourceName().strip();
         this.sourceUrl = in.sourceUrl();
         this.registeredAt = now;
+        if (in.realNameConsent() != null) {
+            this.realNameConsentedAt = in.realNameConsent().consentedAt();
+            this.realNameConsentBasis = in.realNameConsent().basis().strip();
+        }
     }
 
     /**
@@ -72,6 +84,10 @@ public class CelebrityRecord implements OpponentRecord {
      * SPLITS_INVALID.
      */
     public static CelebrityRecord register(CelebrityInput in, LocalDateTime now) {
+        // 실명 등록은 코치 동의 일시·근거가 함께 있어야 한다(FR-170, v0.14 D-240). 이름 칸은 표시명 그대로 쓴다
+        if (in.realNameConsent() != null && !in.realNameConsent().isComplete()) {
+            throw new BusinessRuleException(ReasonCode.REAL_NAME_CONSENT_REQUIRED);
+        }
         if (isBlank(in.sourceName())) {
             throw new BusinessRuleException(ReasonCode.SOURCE_REQUIRED);
         }
@@ -158,6 +174,11 @@ public class CelebrityRecord implements OpponentRecord {
 
     public String getAnonymousName() {
         return anonymousName;
+    }
+
+    /** 실명 동의를 받아 실명으로 등록한 기록인가(v0.14 D-240). */
+    public boolean isRealName() {
+        return realNameConsentedAt != null;
     }
 
     public Distance getDistance() {

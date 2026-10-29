@@ -5,6 +5,7 @@ import static com.a207.runkk.runimal.AxisLean.B;
 
 import java.util.Arrays;
 import java.util.EnumMap;
+import java.util.List;
 import java.util.Map;
 
 /** Runimal 16유형(srs.md 3.6.1, 결정 Q-68). 아이콘은 동물 이름 텍스트다(FR-151). 축 순서는 동행·거리·코스·습관. */
@@ -76,5 +77,48 @@ public enum RunimalType {
 
     public AxisLean lean(RunimalAxis axis) {
         return leans.get(axis);
+    }
+
+    /** 유형 상세의 특징 3줄(srs 3.6.1 특징 열, FR-226, v0.14 D-246). */
+    public List<String> traits() {
+        return switch (this) {
+            case MORNING_SPARROW ->
+                    List.of(
+                            "매일 비슷한 시간에 집 가까이에서 시작해요",
+                            "3km가 안 되는 가벼운 거리를 달려요",
+                            "익숙한 동네 코스를 혼자 반복해요");
+            case WHEEL_HAMSTER ->
+                    List.of("생각날 때 불쑥 나가서 달려요", "짧은 거리를 가볍게 마무리해요", "늘 달리던 코스를 혼자 한 바퀴 돌아요");
+            case ALLEY_SQUIRREL ->
+                    List.of("정해 둔 시간에 맞춰 혼자 나서요", "짧은 거리 안에서 부지런히 움직여요", "갈 때마다 다른 골목을 골라 달려요");
+            case STROLLING_CAT ->
+                    List.of("내킬 때만 불쑥 혼자 나와요", "짧은 거리를 슬쩍 달리고 돌아와요", "처음 가 보는 길을 기웃거려요");
+            case COMMUTER_TURTLE ->
+                    List.of(
+                            "혼자 정해 둔 코스를 반복해서 달려요",
+                            "5km 이상 긴 거리를 편하게 소화해요",
+                            "비슷한 요일·시간대에 꾸준히 기록을 남겨요");
+            case STEADY_CAMEL ->
+                    List.of("시간을 정하지 않고 생각나면 혼자 나가요", "5km 이상 긴 거리를 오래 달려요", "익숙한 길을 묵묵히 반복해요");
+            case SKY_EAGLE ->
+                    List.of("계획한 날과 시간에 맞춰 혼자 출발해요", "5km 이상 먼 거리를 소화해요", "안 가 본 길로 코스를 넓혀 가요");
+            case LONE_WOLF ->
+                    List.of("정해진 때 없이 마음 내킬 때 혼자 나가요", "멀리까지 오래 달려요", "아무도 모르는 새 길을 찾아다녀요");
+            case WALKING_PUPPY ->
+                    List.of("매일 비슷한 시간에 친구와 만나 달려요", "3km가 안 되는 가벼운 거리를 즐겨요", "같이 달리던 동네 코스를 반복해요");
+            case PLAYGROUND_MONKEY ->
+                    List.of("번개처럼 모여서 즉흥적으로 달려요", "짧은 거리를 신나게 달려요", "함께 달리던 익숙한 코스를 자주 써요");
+            case EXPLORER_OTTER ->
+                    List.of("정해진 날 친구와 함께 모여요", "짧은 거리를 다 같이 달려요", "함께 새로운 동네를 찾아다녀요");
+            case PICNIC_RABBIT -> List.of("갑자기 모여서 함께 달려요", "짧고 가벼운 거리를 즐겨요", "낯선 길을 같이 둘러봐요");
+            case PILLAR_ELEPHANT ->
+                    List.of("늘 같은 시간에 사람들과 함께 달려요", "5km 이상 긴 거리를 끝까지 함께해요", "익숙한 코스를 든든하게 지켜요");
+            case PENGUIN_SQUAD ->
+                    List.of("모이면 바로 함께 달려요", "5km 이상 긴 거리를 다 같이 가요", "익숙한 코스를 줄지어 반복해요");
+            case LEADER_BIRD ->
+                    List.of("일정을 미리 정해 함께 출발해요", "5km 이상 먼 거리를 이끌어요", "새 코스를 직접 찾아 앞장서요");
+            case WILD_HORSE ->
+                    List.of("기분 내키면 친구들과 바로 나가요", "5km 이상 먼 거리를 신나게 달려요", "낯선 길로 거침없이 달려 나가요");
+        };
     }
 }

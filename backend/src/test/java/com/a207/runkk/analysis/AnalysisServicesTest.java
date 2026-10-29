@@ -140,7 +140,8 @@ class AnalysisServicesTest {
     @Test
     @org.junit.jupiter.api.DisplayName("대시보드: 오늘·누적·랜드마크·스트릭·주간 달성률·크루 영역·달력(srs.md 6.3 3.1)")
     void dashboard() {
-        DashboardService service = new DashboardService(runs, goals, crews, members, policy, clock);
+        DashboardService service =
+                new DashboardService(runs, goals, crews, members, policy, rewards, clock);
         RunSummary today = run(ME, NOW.withHour(7), 5_000, 1_500);
         when(runs.summariesBetween(eq(ME), any())).thenReturn(List.of(today));
         when(runs.dailyStats(eq(ME), any()))
@@ -278,9 +279,24 @@ class AnalysisServicesTest {
     void list() {
         RecordQueryService service = records();
         RunSummary a = run(OTHER, NOW.minusDays(1), 5_000, 1_500);
-        when(runs.summariesBetween(eq(OTHER), any())).thenReturn(List.of(a));
+        when(runs.listRows(eq(OTHER), any()))
+                .thenReturn(
+                        List.of(
+                                new com.a207.runkk.running.RunListRow(
+                                        a,
+                                        List.of(),
+                                        com.a207.runkk.running.RouteShape.of(
+                                                List.of(
+                                                        new com.a207.runkk.common.GeoPoint(
+                                                                37.5, 127.0),
+                                                        new com.a207.runkk.common.GeoPoint(
+                                                                37.6, 127.1))))));
         preference(OTHER, RecordVisibility.PUBLIC, false);
         DateRange month = new DateRange(TODAY.minusDays(30), TODAY);
+        assertThat(service.list(ME, OTHER, month).runs().get(0).routeShape())
+                .as("코스지도공유가 꺼진 다른 러너에게는 경로 모양을 감춘다(D-234)")
+                .isNull();
+        assertThat(service.list(OTHER, OTHER, month).runs().get(0).routeShape()).isNotNull();
         assertThat(service.list(ME, OTHER, month).runs())
                 .extracting(RecordRow::recordId)
                 .containsExactly(a.recordId());
@@ -322,7 +338,7 @@ class AnalysisServicesTest {
         assertThat(view.bests().get(StandardDistance.KM5).time()).isEqualTo(Duration.ofMinutes(25));
         assertThat(view.bests().get(StandardDistance.KM5).hasUnstable()).isTrue();
         assertThat(view.longest().distance()).isEqualTo(Distance.ofKm(12));
-        verify(runs, never()).best(ME, StandardDistance.FULL);
+        verify(runs).best(ME, StandardDistance.FULL); // 풀 최고 기록도 성장 화면에 싣는다(v0.14 D-238)
     }
 
     @Test

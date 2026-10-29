@@ -8,7 +8,8 @@ package com.a207.runkk.battle;
  */
 public record Source(String name, String url) {
 
-    private static final String LABEL_PREFIX = "공개 기록 기준 · ";
+    /** 출처 표기 "출처: {name}"(FR-100, v0.14 D-239). */
+    private static final String LABEL_PREFIX = "출처: ";
 
     public Source {
         if (name == null || name.isBlank()) {
@@ -16,7 +17,7 @@ public record Source(String name, String url) {
         }
     }
 
-    /** "공개 기록 기준 · {name}"(FR-100). */
+    /** "출처: {name}"(FR-100, v0.14 D-239). */
     public String label() {
         return LABEL_PREFIX + name;
     }

@@ -12,4 +12,7 @@ public interface CourseVerdictRepository {
     Map<String, Boolean> findByRecords(Collection<String> recordIds);
 
     void deleteByMember(long memberId);
+
+    /** 기록 하나의 판정 행을 지운다(기록 삭제, v0.14 D-232). 없으면 아무것도 하지 않는다. */
+    void deleteByRecord(String recordId);
 }

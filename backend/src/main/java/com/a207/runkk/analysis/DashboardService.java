@@ -8,6 +8,7 @@ import com.a207.runkk.crew.CrewSummary;
 import com.a207.runkk.member.MemberQueryService;
 import com.a207.runkk.policy.LandmarkTable;
 import com.a207.runkk.policy.OperationPolicy;
+import com.a207.runkk.reward.RewardService;
 import com.a207.runkk.running.DayStats;
 import com.a207.runkk.running.RunQueryService;
 import com.a207.runkk.running.RunSummary;
@@ -42,6 +43,7 @@ public class DashboardService {
     private final CrewMembershipReader crewMembershipReader;
     private final MemberQueryService memberQueryService;
     private final OperationPolicy policy;
+    private final RewardService rewardService;
     private final Clock clock;
 
     public DashboardService(
@@ -50,12 +52,14 @@ public class DashboardService {
             CrewMembershipReader crewMembershipReader,
             MemberQueryService memberQueryService,
             OperationPolicy policy,
+            RewardService rewardService,
             Clock clock) {
         this.runQueryService = runQueryService;
         this.runningGoalRepository = runningGoalRepository;
         this.crewMembershipReader = crewMembershipReader;
         this.memberQueryService = memberQueryService;
         this.policy = policy;
+        this.rewardService = rewardService;
         this.clock = clock;
     }
 
@@ -79,7 +83,14 @@ public class DashboardService {
                 Grass.of(dailyDistance, grassRange),
                 weeklyOf(memberId, base, daily),
                 crewAreaOf(memberId, base, landmarks),
-                calendarOf(monthRuns));
+                calendarOf(monthRuns),
+                rewardService.balanceOf(memberId),
+                (int) monthRuns.stream().filter(RunSummary::valid).count(),
+                Distance.ofMeters(
+                        monthRuns.stream()
+                                .filter(RunSummary::valid)
+                                .mapToLong(r -> r.distance().meters())
+                                .sum()));
     }
 
     /** 오늘 달린 거리·시간·횟수. 유효 기록만 센다(집계 제외 기록은 달력·누적과 같이 뺀다, v0.10). */

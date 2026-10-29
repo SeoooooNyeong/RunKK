@@ -43,7 +43,8 @@ public record RecordDetailView(
         Distance crewContribution,
         Integer rewardPoints,
         List<PauseRange> pauses,
-        long pausedSeconds) {
+        long pausedSeconds,
+        boolean deletable) {
 
     /**
      * 정지 구간 하나(FR-036, FR-194). web.record가 running을 import하지 않게 이 묶음으로 옮긴다(12.2 D48).

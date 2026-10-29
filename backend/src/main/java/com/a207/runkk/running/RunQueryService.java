@@ -97,7 +97,21 @@ public class RunQueryService {
                 record.getWeather(),
                 record.getNewRecords(),
                 record.heartRateSummary(),
-                record.pauses());
+                record.pauses(),
+                record.isDeletable());
+    }
+
+    /**
+     * 기간 안 기록 목록 줄(무효 포함), 최신순(v0.14 D-233·D-234·D-292). 신기록 종류와 경로 모양을 함께 읽고 위치·심박 열은 읽지 않는다(한 번의
+     * 조회, N+1 없음).
+     */
+    public List<RunListRow> listRows(long memberId, DateRange r) {
+        return runRecordRepository.listRows(memberId, r);
+    }
+
+    /** 그 기록이 일으킨 티어 평가(없으면 비어 있다, v0.14 D-291). 기록 상세와 대결 결과가 붙인다. */
+    public Optional<EvaluationView> evaluationOf(String recordId) {
+        return runRecordRepository.evaluationOf(recordId);
     }
 
     /** 대결 결과 비교표용(R5). 없으면 RECORD_NOT_FOUND. */

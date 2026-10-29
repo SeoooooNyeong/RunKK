@@ -27,7 +27,7 @@ public record RecordBattleSpec(
         Objects.requireNonNull(opponent, "opponent");
         Objects.requireNonNull(track, "track");
         Objects.requireNonNull(opponentValues, "opponentValues");
-        if (type == BattleType.RANDOM) {
+        if (!type.isAgainstRecord()) { // RANDOM·FRIEND는 실시간 상대라 기록 대결이 아니다(D-225)
             throw new IllegalArgumentException("기록 대결 종류가 아니다: " + type);
         }
     }

@@ -7,8 +7,20 @@ package com.a207.runkk.member;
  * @param nickname 새 닉네임
  * @param birthYear 출생연도(4자리, 만 14세 이하면 UNDER_14)
  * @param gender 성별
- * @param photoUrl 프로필 사진 주소
+ * @param ageBandVisibility 나이대 공개 여부(null이면 그대로, v0.14 D-241)
+ * @param genderVisibility 성별 공개 여부(null이면 그대로)
  * @param intro 프로필 소개(40자 이하)
  */
 public record ProfileEdit(
-        String nickname, Integer birthYear, Gender gender, String photoUrl, String intro) {}
+        String nickname,
+        Integer birthYear,
+        Gender gender,
+        String intro,
+        ProfileVisibility ageBandVisibility,
+        ProfileVisibility genderVisibility) {
+
+    /** 공개 여부를 바꾸지 않는 편집. */
+    public ProfileEdit(String nickname, Integer birthYear, Gender gender, String intro) {
+        this(nickname, birthYear, gender, intro, null, null);
+    }
+}

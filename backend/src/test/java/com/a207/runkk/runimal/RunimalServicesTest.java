@@ -87,6 +87,11 @@ class RunimalServicesTest {
         final Map<String, CourseVerdict> rows = new HashMap<>();
 
         @Override
+        public void deleteByRecord(String recordId) {
+            rows.remove(recordId);
+        }
+
+        @Override
         public void save(CourseVerdict verdict) {
             rows.put(verdict.getRecordId(), verdict);
         }
@@ -113,6 +118,8 @@ class RunimalServicesTest {
     private final Verdicts verdicts = new Verdicts();
     private final RunQueryService runs = mock(RunQueryService.class);
     private final OperationPolicy policy = mock(OperationPolicy.class);
+    private final com.a207.runkk.running.RunEvaluationNote notes =
+            mock(com.a207.runkk.running.RunEvaluationNote.class);
     private final Clock clock = Clock.fixed(NOW.atZone(SEOUL).toInstant(), SEOUL);
     private final List<RunSampleRow> history = new ArrayList<>();
     private RunimalService service;
@@ -120,6 +127,8 @@ class RunimalServicesTest {
     @BeforeEach
     void wire() {
         when(policy.runimalRule()).thenReturn(RunimalJudgeTest.RULE);
+        when(policy.features())
+                .thenReturn(new com.a207.runkk.policy.FeatureToggles(true, true, false));
         when(policy.courseSimilarityRule()).thenReturn(new CourseSimilarityRule(0.8, 50, 30));
         when(runs.runSamples(eq(MEMBER), anyInt())).thenAnswer(inv -> List.copyOf(history));
         when(runs.runSamples(eq(MEMBER), any(DateRange.class)))
@@ -143,10 +152,12 @@ class RunimalServicesTest {
                         profiles,
                         courses,
                         judge,
-                        new RunSampleReader(runs, verdicts, none),
+                        new RunSampleReader(runs, verdicts, none, policy),
                         policy,
                         clock,
-                        new RunimalTransactions(com.a207.runkk.NoTransactions.manager()));
+                        new RunimalTransactions(com.a207.runkk.NoTransactions.manager()),
+                        notes,
+                        verdicts);
     }
 
     @Test
@@ -260,15 +271,20 @@ class RunimalServicesTest {
     }
 
     @Test
-    @org.junit.jupiter.api.DisplayName("크루런 참가 조회가 있으면 동행 축 표본에 쓴다")
+    @org.junit.jupiter.api.DisplayName("크루 공개(CREW_RELEASED) 뒤 크루런 참가 조회가 있으면 동행 축 표본에 쓴다(TC-9411)")
     void participationQuery_isUsedWhenPresent() {
+        when(policy.features())
+                .thenReturn(new com.a207.runkk.policy.FeatureToggles(true, true, true));
         StaticListableBeanFactory beans = new StaticListableBeanFactory();
         CrewRunParticipationQuery crew = (member, range) -> Set.of("r1");
         beans.addBean("crew", crew);
         history.add(new RunSampleRow("r1", NOW, Distance.ofMeters(1_000)));
         RunSampleReader reader =
                 new RunSampleReader(
-                        runs, verdicts, beans.getBeanProvider(CrewRunParticipationQuery.class));
+                        runs,
+                        verdicts,
+                        beans.getBeanProvider(CrewRunParticipationQuery.class),
+                        policy);
         RunSample sample = reader.read(MEMBER, NOW.toLocalDate());
         assertThat(sample.lastMonth()).allMatch(RunSample.SampleRun::crewRunLinked);
     }
