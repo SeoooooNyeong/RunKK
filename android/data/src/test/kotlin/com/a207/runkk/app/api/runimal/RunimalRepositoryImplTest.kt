@@ -103,7 +103,7 @@ class RunimalRepositoryImplTest {
     }
 
     @Test
-    fun `카드 축 막대는 서버 성향 이름으로 기운 쪽을 정한다`() = runTest {
+    fun `lean이 없는 옛 서버 카드 축 막대는 성향 이름으로 기운 쪽을 정한다`() = runTest {
         api.reply(
             """{"type":"COMMUTER_TURTLE","title":"출근도장 거북이","description":"…","axisRatios":{"COMPANION":0.78},
                |"axes":[{"axis":"COMPANION","label":"솔로런","percent":78},{"axis":"DISTANCE","label":"장거리","percent":64},
@@ -118,6 +118,26 @@ class RunimalRepositoryImplTest {
                 RunimalCard.AxisBar("DISTANCE", AxisLean.B, 64),
                 RunimalCard.AxisBar("COURSE", AxisLean.A, 71),
                 RunimalCard.AxisBar("HABIT", AxisLean.B, 58)
+            ),
+            repository.card().value().axes
+        )
+    }
+
+    @Test
+    fun `카드 축 막대는 서버 lean이 있으면 성향 이름보다 lean을 따른다`() = runTest {
+        api.reply(
+            """{"type":"COMMUTER_TURTLE","title":"출근도장 거북이","description":"…",
+               |"axes":[{"axis":"COMPANION","label":"솔로런","percent":78,"lean":"B"},
+               |{"axis":"DISTANCE","label":"새 이름","percent":64,"lean":"A"},
+               |{"axis":"COURSE","label":"단골길","percent":71,"lean":"X"}]}
+            """.trimMargin()
+        )
+
+        assertEquals(
+            listOf(
+                RunimalCard.AxisBar("COMPANION", AxisLean.B, 78),
+                RunimalCard.AxisBar("DISTANCE", AxisLean.A, 64),
+                RunimalCard.AxisBar("COURSE", AxisLean.A, 71)
             ),
             repository.card().value().axes
         )
