@@ -2,16 +2,14 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 import httpx
 import pytest
 
 from runkk_ai import main as main_module
 from runkk_ai.comment import ClaudeClient, CommentService, OpenAiClient
-from runkk_ai.face import ExternalFaceApi, FaceTransformer, FaceTransformService, SdFacePartImages
+from runkk_ai.face import AvatarService, NodeAvatarClient
 from runkk_ai.main import create_app
-from tests.conftest import AUTH, JPEG_HEAD, VALID_SUMMARY, FakeLlmClient, make_settings
+from tests.conftest import AUTH, JPEG_HEAD, VALID_SUMMARY, FakeAvatarClient, FakeLlmClient, make_settings
 
 
 async def test_lifespan_builds_services_from_settings_values() -> None:
@@ -23,8 +21,8 @@ async def test_lifespan_builds_services_from_settings_values() -> None:
         assert isinstance(comment_service, CommentService)
         assert isinstance(comment_service._llm, ClaudeClient)
         assert comment_service._daily_cap == 7
-        assert isinstance(face_service, FaceTransformService)
-        assert isinstance(face_service._transformer, ExternalFaceApi)
+        assert isinstance(face_service, AvatarService)
+        assert isinstance(face_service._client, NodeAvatarClient)
         assert face_service.max_image_bytes == 2048
         assert face_service._timeout_s == 3.0
 
@@ -43,10 +41,10 @@ async def test_lifespan_closes_clients_on_shutdown() -> None:
 
     async with app.router.lifespan_context(app):
         llm = app.state.comment_service._llm
-        transformer = app.state.face_service._transformer
+        avatar = app.state.face_service._client
 
     assert llm._client is None or llm._client.is_closed()
-    assert transformer._client.is_closed
+    assert avatar._client.is_closed
 
 
 @pytest.mark.parametrize(
@@ -68,59 +66,45 @@ async def test_provider_gets_only_its_own_key(provider: str, model: str, keys: d
         assert (llm._client is not None) is has_sdk
 
 
-@dataclass
-class _ClosingTransformer(FaceTransformer):
-    closed: bool = False
-
-    async def convert(self, image: bytes) -> SdFacePartImages:
-        raise NotImplementedError
-
-    async def aclose(self) -> None:
-        self.closed = True
-
-
 class _BrokenCloseLlm(FakeLlmClient):
     async def aclose(self) -> None:
         raise RuntimeError("close failed")
 
 
-async def test_llm_is_closed_when_face_transformer_cannot_be_built(monkeypatch: pytest.MonkeyPatch) -> None:
+def _broken_build(_settings: object) -> FakeAvatarClient:
+    raise RuntimeError("avatar build failed")
+
+
+async def test_llm_is_closed_when_avatar_client_cannot_be_built(monkeypatch: pytest.MonkeyPatch) -> None:
     """두 번째 자원 생성이 실패해도 먼저 만든 LLM 클라이언트를 닫는다(L1)."""
     llm = FakeLlmClient()
     monkeypatch.setattr(main_module, "_build_llm_client", lambda _settings: llm)
-    app = create_app(make_settings(face_impl="local"))
+    monkeypatch.setattr(main_module, "_build_avatar_client", _broken_build)
+    app = create_app(make_settings())
 
-    with pytest.raises(RuntimeError, match="C-011"):
+    with pytest.raises(RuntimeError, match="avatar build failed"):
         async with app.router.lifespan_context(app):
             pass
 
     assert llm.closed
 
 
-async def test_transformer_is_closed_even_if_llm_close_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_avatar_client_is_closed_even_if_llm_close_fails(monkeypatch: pytest.MonkeyPatch) -> None:
     """한 자원의 aclose()가 실패해도 다른 자원은 닫는다(L1)."""
-    transformer = _ClosingTransformer()
+    avatar = FakeAvatarClient()
     monkeypatch.setattr(main_module, "_build_llm_client", lambda _settings: _BrokenCloseLlm())
-    monkeypatch.setattr(main_module, "_build_face_transformer", lambda _settings: transformer)
+    monkeypatch.setattr(main_module, "_build_avatar_client", lambda _settings: avatar)
     app = create_app(make_settings())
 
     with pytest.raises(RuntimeError, match="close failed"):
         async with app.router.lifespan_context(app):
             pass
 
-    assert transformer.closed
-
-
-async def test_local_face_model_is_refused_until_selected() -> None:
-    app = create_app(make_settings(face_impl="local"))
-
-    with pytest.raises(RuntimeError, match="C-011"):
-        async with app.router.lifespan_context(app):
-            pass
+    assert avatar.closed
 
 
 async def test_app_starts_without_provider_keys_and_falls_back() -> None:
-    """제공자 키·얼굴 API 주소가 없어도 뜨고, 호출은 실패 응답(api가 규칙 문구·기본 캐릭터로 대체)."""
+    """제공자 키·아바타 서버 주소가 없어도 뜨고, 호출은 실패 응답(api가 규칙 문구·기본 캐릭터로 대체)."""
     app = create_app(make_settings(anthropic_api_key=None, face_api_url=None))
 
     async with (
@@ -129,7 +113,9 @@ async def test_app_starts_without_provider_keys_and_falls_back() -> None:
     ):
         health = await c.get("/health")
         comment = await c.post("/comments", json=VALID_SUMMARY)
-        face = await c.post("/faces", content=JPEG_HEAD, headers={"Content-Type": "application/octet-stream"})
+        face = await c.post(
+            "/users/42/faces/jobs", content=JPEG_HEAD, headers={"Content-Type": "application/octet-stream"}
+        )
 
     assert health.status_code == 200
     assert (comment.status_code, comment.json()) == (503, {"reason": "LLM_UNAVAILABLE"})

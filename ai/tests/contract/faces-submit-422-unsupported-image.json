@@ -1,0 +1,13 @@
+{
+  "endpoint": "POST /users/{userId}/faces/jobs",
+  "scenario": "ok",
+  "request": {
+    "userId": "42",
+    "image": "broken"
+  },
+  "status": 422,
+  "body": {
+    "reason": "UNSUPPORTED_IMAGE"
+  },
+  "gateway": "FailureReason.UNSUPPORTED_IMAGE (머리 정보 손상)"
+}

@@ -1,0 +1,12 @@
+{
+  "endpoint": "GET /users/{userId}/faces/latest",
+  "scenario": "reason:HEAD_NOT_FOUND",
+  "request": {
+    "userId": "42"
+  },
+  "status": 404,
+  "body": {
+    "reason": "HEAD_NOT_FOUND"
+  },
+  "gateway": "아직 만든 머리가 없다. 기본 캐릭터"
+}

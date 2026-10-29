@@ -1,8 +1,8 @@
 {
-  "endpoint": "POST /faces",
+  "endpoint": "GET /users/{userId}/faces/latest",
   "scenario": "no_token",
   "request": {
-    "image": "jpeg"
+    "userId": "42"
   },
   "status": 401,
   "body": {

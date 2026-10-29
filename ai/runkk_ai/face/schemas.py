@@ -1,22 +1,35 @@
-"""얼굴 변환 응답 형식(6.1.16, D-59). 부위 이름은 api avatar.FacePart와 같다(6.1.11)."""
+"""아바타(Node) 중계 응답 형식. 안선영 님 RunKK Node API 명세 v1.2의 HeadJob·SavedHead·BodyPack을 그대로 따른다.
+
+이미지 머리 검사(image_dimensions)는 셀카 접수 전 입력 검사용이다(L28).
+"""
 
 from __future__ import annotations
 
-from enum import StrEnum
-from typing import Literal, get_args
+from typing import Any, Literal, get_args
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-# api avatar.FailureReason과 같은 이름(6.1.11 FaceTransformGateway)
-FaceFailureReason = Literal["NO_FACE", "MULTIPLE_FACES", "UNSUPPORTED_IMAGE", "TOO_LARGE", "UPSTREAM_FAILED", "TIMEOUT"]
+# {"reason"} 오류 본문의 값. api avatar 쪽 FailureReason과 이름을 맞춘다(6.1.11)
+FaceFailureReason = Literal[
+    "UNSUPPORTED_IMAGE",
+    "TOO_LARGE",
+    "UPSTREAM_FAILED",
+    "TIMEOUT",
+    "JOB_NOT_FOUND",
+    "JOB_NOT_READY",
+    "HEAD_NOT_FOUND",
+    "BODY_NOT_FOUND",
+]
 FACE_FAILURE_REASONS: frozenset[str] = frozenset(get_args(FaceFailureReason))
 
-# 이미지 형식 시그니처. 라우터(입력 검사)와 서비스(결과 검사)가 같은 값을 쓴다
+JobStatus = Literal["QUEUED", "RUNNING", "SUCCEEDED", "FAILED"]
+
+# 이미지 형식 시그니처. 라우터(입력 검사)가 쓴다
 JPEG_SIGNATURE = b"\xff\xd8\xff"
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 # 이미지 머리 정보에서 가로·세로만 읽는다(디코드하지 않는다). 압축 폭탄처럼 1MB 안에 큰 픽셀 수를 담은 입력을
-# 외부 변환 API로 넘기지 않으려는 것이다(코드 리뷰 2차 L28)
+# 아바타 서버로 넘기지 않으려는 것이다(코드 리뷰 2차 L28)
 DEFAULT_MAX_IMAGE_PIXELS = 4096 * 4096
 _PNG_IHDR = b"IHDR"
 _PNG_HEADER_END = 24
@@ -72,15 +85,50 @@ def _positive(width: int, height: int) -> tuple[int, int] | None:
     return (width, height) if width > 0 and height > 0 else None
 
 
-class FacePart(StrEnum):
-    EYES = "EYES"
-    NOSE = "NOSE"
-    MOUTH = "MOUTH"
-    EARS = "EARS"
-    HAIR = "HAIR"
+class JobErrorOut(BaseModel):
+    """Node 작업 실패 사유. code는 Node 명세 8장(SELFIE_QUALITY_REJECTED, NO_FACE_DETECTED, UPSTREAM_TIMEOUT …)."""
+
+    code: str
+    message: str
 
 
-class FaceOut(BaseModel):
-    """부위별 base64 PNG. 저장 키는 ai 서버가 만들지 않는다(api FacePartImageStore가 만든다)."""
+class HeadJobOut(BaseModel):
+    """머리 생성 작업(HeadJob). Node의 userId·statusPath·resultPath 등 나머지 필드는 api가 쓰지 않아 뺀다."""
 
-    parts: dict[FacePart, str]
+    jobId: str
+    status: JobStatus
+    headId: str | None = None
+    error: JobErrorOut | None = None
+
+
+class HeadOut(BaseModel):
+    """완성된 머리(SavedHead). 레이어 3장(face·eyes·hair)은 1024×1024 PNG Data URL이다.
+
+    traits·alignment·mobile 등 나머지는 Node가 주는 그대로 넘긴다(extra=allow). Node가 필드를 더해도 ai를 고치지 않는다.
+    Node의 id는 headId로 읽고, 과금 지표 metrics는 응답에서 뺀다(로그·정산용이지 앱이 쓸 값이 아니다).
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    headId: str
+    faceImage: str = Field(pattern=r"^data:image/png;base64,")
+    eyesImage: str = Field(pattern=r"^data:image/png;base64,")
+    hairImage: str = Field(pattern=r"^data:image/png;base64,")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        values = dict(data)
+        values.pop("metrics", None)
+        if "headId" not in values and "id" in values:
+            values["headId"] = values["id"]
+        values.pop("id", None)
+        return values
+
+
+class BodyOut(BaseModel):
+    """기본 몸 프리셋(BodyPack). pack 안은 Node 명세 4.9·4.8(mobile 합성 계약)대로 그대로 넘긴다."""
+
+    pack: dict[str, Any]

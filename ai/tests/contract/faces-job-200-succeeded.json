@@ -1,0 +1,16 @@
+{
+  "endpoint": "GET /users/{userId}/faces/jobs/{jobId}",
+  "scenario": "job:SUCCEEDED",
+  "request": {
+    "userId": "42",
+    "jobId": "6f1c2a3e-9b4d-4c8e-8a1f-2d3e4f5a6b7c"
+  },
+  "status": 200,
+  "body": {
+    "jobId": "6f1c2a3e-9b4d-4c8e-8a1f-2d3e4f5a6b7c",
+    "status": "SUCCEEDED",
+    "headId": "0b2c4d6e-8f1a-4b3c-9d5e-7f8a9b0c1d2e",
+    "error": null
+  },
+  "gateway": "SUCCEEDED면 GET .../result. QUEUED·RUNNING이면 잠시 뒤 다시 조회"
+}

@@ -26,7 +26,11 @@ async def test_health_answers_without_token(anon_client: httpx.AsyncClient) -> N
     ("method", "path", "kwargs"),
     [
         ("POST", "/comments", {"json": VALID_SUMMARY}),
-        ("POST", "/faces", {"content": b"\xff\xd8\xff", "headers": {"Content-Type": "application/octet-stream"}}),
+        (
+            "POST",
+            "/users/42/faces/jobs",
+            {"content": b"\xff\xd8\xff", "headers": {"Content-Type": "application/octet-stream"}},
+        ),
     ],
     ids=["comments", "faces"],
 )
@@ -65,7 +69,7 @@ async def test_token_check_runs_before_json_parsing(anon_client: httpx.AsyncClie
 async def test_face_body_is_not_read_without_token(anon_client: httpx.AsyncClient) -> None:
     """토큰이 없으면 큰 본문이어도 413이 아니라 401이다(본문을 읽기 전에 끊는다)."""
     response = await anon_client.post(
-        "/faces",
+        "/users/42/faces/jobs",
         content=b"\xff\xd8\xff" + b"\x00" * (2 * 1024 * 1024),
         headers={"Content-Type": "application/octet-stream"},
     )
@@ -81,17 +85,21 @@ def _protected_operations() -> list[tuple[str, str]]:
 
 def test_protected_operations_are_the_designed_ones() -> None:
     assert _protected_operations() == [
+        ("GET", "/avatar/bodies/{body_id}"),
         ("GET", "/models"),
         ("GET", "/sessions/{session_id}"),
         ("GET", "/sessions/{session_id}/status"),
+        ("GET", "/users/{user_id}/faces/jobs/{job_id}"),
+        ("GET", "/users/{user_id}/faces/jobs/{job_id}/result"),
+        ("GET", "/users/{user_id}/faces/latest"),
         ("GET", "/users/{user_id}/months/{year_month}"),
         ("POST", "/coach/chat"),
         ("POST", "/comments"),
-        ("POST", "/faces"),
         ("POST", "/models"),
         ("POST", "/models/rollback"),
         ("POST", "/models/{model_id}/activate"),
         ("POST", "/sessions/{session_id}/analyze"),
+        ("POST", "/users/{user_id}/faces/jobs"),
     ]
 
 
@@ -140,7 +148,7 @@ async def test_docs_can_be_exposed_for_local_development() -> None:
 
     assert response.status_code == 200
     assert docs.status_code == 200
-    assert {"/comments", "/faces", "/health"} <= set(response.json()["paths"])
+    assert {"/comments", "/users/{user_id}/faces/jobs", "/health"} <= set(response.json()["paths"])
 
 
 def test_settings_defaults_follow_design() -> None:
@@ -151,7 +159,6 @@ def test_settings_defaults_follow_design() -> None:
     assert settings.llm_max_tokens == 200
     assert settings.llm_daily_hard_cap == 240
     assert settings.max_image_bytes == 1024 * 1024
-    assert settings.face_impl == "external"
     assert settings.face_timeout_s < 15.0  # api AiServerClient 읽기 제한(face 15초)보다 짧아야 한다
     assert settings.expose_docs is False
     assert settings.internal_token.get_secret_value() == TOKEN
@@ -247,7 +254,7 @@ def test_create_app_accepts_llm_timeout_below_route_timeout() -> None:
 def test_faces_does_not_take_multipart_upload() -> None:
     """셀카를 UploadFile(1MB 넘으면 임시 파일)로 받지 않는다(D-59). 본문은 라우터가 직접 읽는다."""
     app = create_app(make_settings(expose_docs=True))
-    operation = app.openapi()["paths"]["/faces"]["post"]
+    operation = app.openapi()["paths"]["/users/{user_id}/faces/jobs"]["post"]
 
     assert "requestBody" not in operation
 

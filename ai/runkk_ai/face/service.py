@@ -1,33 +1,32 @@
-"""얼굴 변환 조정(6.1.16, D-59). 원본 bytes는 지역 변수로만 다루고 디스크·로그에 쓰지 않는다(FR-156)."""
+"""아바타 중계 조정. 멱등 키·시간 제한·오류 변환·호출 지표 로그(사용자 식별자·셀카는 남기지 않는다, FR-156)."""
 
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 import time
-from dataclasses import dataclass
+import uuid
+from collections.abc import Awaitable, Callable
 
-from runkk_ai.face.schemas import DEFAULT_MAX_IMAGE_PIXELS, PNG_SIGNATURE, FaceFailureReason, FacePart
-from runkk_ai.face.transformer import FaceTransformer, FaceTransformError, SdFacePartImages
+from runkk_ai.face.client import AvatarClient, AvatarError
+from runkk_ai.face.schemas import DEFAULT_MAX_IMAGE_PIXELS, BodyOut, HeadJobOut, HeadOut
 
 logger = logging.getLogger(__name__)
 
-
-@dataclass(frozen=True, slots=True)
-class FaceResult:
-    images: SdFacePartImages | None = None
-    reason: FaceFailureReason | None = None
+# clientRequestId 이름공간. 같은 사용자·같은 셀카면 Node가 같은 작업을 돌려준다(이미지 생성 과금 중복 방지)
+_REQUEST_ID_NAMESPACE = uuid.UUID("2f0d8c7a-5b1e-4e2f-9a3c-1d6b7e8f9a0b")
 
 
-class FaceTransformService:
+class AvatarService:
     def __init__(
         self,
-        transformer: FaceTransformer,
+        client: AvatarClient,
         timeout_s: float,
         max_image_bytes: int,
         max_image_pixels: int = DEFAULT_MAX_IMAGE_PIXELS,
     ) -> None:
-        self._transformer = transformer
+        self._client = client
         self._timeout_s = timeout_s
         self._max_image_bytes = max_image_bytes
         self._max_image_pixels = max_image_pixels
@@ -44,35 +43,59 @@ class FaceTransformService:
     def max_image_pixels(self) -> int:
         return self._max_image_pixels
 
-    async def transform(self, image: bytes) -> FaceResult:
+    async def submit(self, user_id: str, image: bytes) -> HeadJobOut:
+        key = request_id(user_id, image)
+        job = await self._call("submit", lambda: self._client.submit_head(user_id, key, image), size=len(image))
+        return job
+
+    async def job(self, user_id: str, job_id: str) -> HeadJobOut:
+        return await self._call("job", lambda: self._client.job(user_id, job_id), job_id=job_id)
+
+    async def result(self, user_id: str, job_id: str) -> HeadOut:
+        return await self._call("result", lambda: self._client.job_result(user_id, job_id), job_id=job_id)
+
+    async def latest(self, user_id: str) -> HeadOut:
+        return await self._call("latest", lambda: self._client.latest_head(user_id))
+
+    async def body(self, body_id: str) -> BodyOut:
+        return await self._call("body", lambda: self._client.body(body_id))
+
+    async def aclose(self) -> None:
+        await self._client.aclose()
+
+    async def _call[T](self, op: str, call: Callable[[], Awaitable[T]], *, job_id: str = "", size: int = 0) -> T:
         started = time.perf_counter()
-        size = len(image)
         detail = ""
+        error: AvatarError | None = None
+        value: T | None = None
         try:
             async with asyncio.timeout(self._timeout_s):
-                images = await self._transformer.convert(image)
-        except FaceTransformError as exc:
-            result = FaceResult(reason=exc.reason)
+                value = await call()
+        except AvatarError as exc:
+            error = exc
         except TimeoutError:
-            result = FaceResult(reason="TIMEOUT")
+            error = AvatarError("TIMEOUT")
         except Exception as exc:
             detail = type(exc).__name__  # 예외 문구에는 외부 응답 본문이 섞일 수 있어 남기지 않는다
-            result = FaceResult(reason="UPSTREAM_FAILED")
-        else:
-            if _complete(images):
-                result = FaceResult(images=images)
-            else:
-                detail = "invalid_parts"
-                result = FaceResult(reason="UPSTREAM_FAILED")
+            error = AvatarError("UPSTREAM_FAILED")
+        if isinstance(value, HeadJobOut):
+            job_id = value.jobId
         logger.info(
-            "face_transform result=%s detail=%s size_bytes=%d latency_ms=%d",
-            result.reason or "ok",
+            "avatar_call op=%s result=%s detail=%s job_id=%s size_bytes=%d latency_ms=%d",
+            op,
+            error.reason if error else "ok",
             detail,
+            job_id,
             size,
             int((time.perf_counter() - started) * 1000),
         )
-        return result
+        if error is not None:
+            raise error
+        assert value is not None  # noqa: S101 - 예외가 없으면 호출이 값을 돌려줬다
+        return value
 
 
-def _complete(images: SdFacePartImages) -> bool:
-    return set(images.images) == set(FacePart) and all(png.startswith(PNG_SIGNATURE) for png in images.images.values())
+def request_id(user_id: str, image: bytes) -> str:
+    """사용자와 셀카 내용으로 정해지는 UUID v5. 셀카 자체는 쓰지 않고 해시만 쓴다."""
+    digest = hashlib.sha256(image).hexdigest()
+    return str(uuid.uuid5(_REQUEST_ID_NAMESPACE, f"{user_id}:{digest}"))

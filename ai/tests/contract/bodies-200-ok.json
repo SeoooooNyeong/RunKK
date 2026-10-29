@@ -1,0 +1,49 @@
+{
+  "endpoint": "GET /avatar/bodies/{bodyId}",
+  "scenario": "ok",
+  "request": {
+    "bodyId": "daily"
+  },
+  "status": 200,
+  "body": {
+    "pack": {
+      "format": "runkk-body-pack",
+      "version": 2,
+      "rigVersion": "runkk-front-v1",
+      "renderer": "seamless-mesh-v1",
+      "id": "daily",
+      "name": "기본 러닝복",
+      "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgAAACAAFUok9dAAAAAElFTkSuQmCC",
+      "neck": [
+        0.5,
+        0.083
+      ],
+      "skinZones": [
+        {
+          "rect": [
+            0.4,
+            0.0,
+            0.2,
+            0.1
+          ]
+        }
+      ],
+      "preserveArt": true,
+      "mobile": {
+        "canvas": [
+          633,
+          1110
+        ],
+        "neck": [
+          0.5,
+          0.083
+        ],
+        "neckWidth": 120,
+        "neckHeight": 60,
+        "neckTop": 30,
+        "neckDetected": true
+      }
+    }
+  },
+  "gateway": "pack.mobile(neck·canvas)으로 머리와 합성(Node 명세 4.8)"
+}
