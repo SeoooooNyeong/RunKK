@@ -38,8 +38,14 @@ from runkk_ai.runbody import (
     RunbodyRouter,
     RunbodyService,
 )
-from runkk_ai.storage import PgCoachStore, PgResultRepository, create_engine, upgrade
-from runkk_ai.writer import LlamaCppClient, WriterService
+from runkk_ai.storage import PgCoachStore, PgModelRegistry, PgResultRepository, create_engine, upgrade
+from runkk_ai.writer import (
+    InMemoryModelRegistry,
+    LlamaCppClient,
+    ModelRegistry,
+    ModelsRouter,
+    WriterService,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +100,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(RunbodyRouter)
     app.include_router(MonthlyRouter)
     app.include_router(CoachRouter)
+    app.include_router(ModelsRouter)
     return app
 
 
@@ -113,8 +120,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             max_image_bytes=settings.max_image_bytes,
             max_image_pixels=settings.max_image_pixels,
         )
-        repository, coach_store, storage = await _build_storage(settings, resources)
-        writer = _build_writer(settings)
+        repository, coach_store, model_registry, storage = await _build_storage(settings, resources)
+        app.state.model_registry = model_registry
+        writer = await _build_writer(settings, model_registry)
         if writer is not None:
             resources.push_async_callback(writer.aclose)
         runbody = RunbodyService(repository, polisher=writer.polish if writer else None)
@@ -144,33 +152,46 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             storage,
             settings.coach_model,
             settings.anthropic_api_key is not None,
-            settings.writer_model_version if writer else "off",
+            await _active_model(model_registry) if writer else "off",
         )
         yield
 
 
 async def _build_storage(
     settings: Settings, resources: AsyncExitStack
-) -> tuple[ResultRepository, CoachMessageStore, str]:
+) -> tuple[ResultRepository, CoachMessageStore, ModelRegistry, str]:
     """RUNKK_DB_URL이 있으면 analytics 테이블을 최신으로 맞추고 PostgreSQL 저장소(분석 결과·코치 대화)를 쓴다.
 
     연결이나 마이그레이션이 실패하면 예외가 올라가 기동을 멈춘다. 설정해 둔 DB를 두고 조용히 메모리로 뜨면
     재시작 때마다 결과가 사라지는 것을 아무도 모른다.
     """
     if settings.db_url is None:
-        return InMemoryResultRepository(), InMemoryCoachStore(), "memory"
+        return InMemoryResultRepository(), InMemoryCoachStore(), InMemoryModelRegistry(), "memory"
     engine = create_engine(settings.db_url.get_secret_value())
     resources.push_async_callback(engine.dispose)
     await upgrade(engine)
-    return PgResultRepository(engine), PgCoachStore(engine), "postgres"
+    return PgResultRepository(engine), PgCoachStore(engine), PgModelRegistry(engine), "postgres"
 
 
-def _build_writer(settings: Settings) -> WriterService | None:
-    """주소가 없으면 writer를 쓰지 않는다(분석 피드백은 템플릿 그대로)."""
+async def _build_writer(settings: Settings, registry: ModelRegistry) -> WriterService | None:
+    """RUNKK_WRITER_URL이 writer 전체 스위치다. 비우면 등록부에 뭐가 있든 템플릿 문장을 그대로 둔다.
+
+    주소가 있으면 그 모델을 등록부에 넣는다(처음이면 바로 켜지고, 이미 켠 모델이 있으면 주소만 고친다).
+    그래서 운영자가 /models로 바꿔 둔 모델은 재시작해도 그대로 남는다(PostgreSQL 저장소일 때).
+    """
     if not settings.writer_url:
         return None
-    client = LlamaCppClient(settings.writer_url, temperature=settings.writer_temperature)
-    return WriterService(client, model_version=settings.writer_model_version, timeout_s=settings.writer_timeout_s)
+    await registry.register(settings.writer_model_version, settings.writer_url)
+    return WriterService(
+        registry,
+        client_for=lambda base_url: LlamaCppClient(base_url, temperature=settings.writer_temperature),
+        timeout_s=settings.writer_timeout_s,
+    )
+
+
+async def _active_model(registry: ModelRegistry) -> str:
+    active = await registry.active()
+    return active.model_id if active else "none"
 
 
 def _build_coach_model(settings: Settings) -> CoachModel | None:

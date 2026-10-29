@@ -6,6 +6,25 @@ client(llama.cpp 서버 호출)·service(검사·재시도·템플릿 폴백)는
 """
 
 from runkk_ai.writer.client import CompletionClient, LlamaCppClient
+from runkk_ai.writer.registry import (
+    InMemoryModelRegistry,
+    ModelNotFound,
+    ModelRegistry,
+    NoPreviousModel,
+    WriterModel,
+)
+from runkk_ai.writer.router import ModelsRouter, get_model_registry
 from runkk_ai.writer.service import WriterService
 
-__all__ = ["CompletionClient", "LlamaCppClient", "WriterService"]
+__all__ = [
+    "CompletionClient",
+    "InMemoryModelRegistry",
+    "LlamaCppClient",
+    "ModelNotFound",
+    "ModelRegistry",
+    "ModelsRouter",
+    "NoPreviousModel",
+    "WriterModel",
+    "WriterService",
+    "get_model_registry",
+]

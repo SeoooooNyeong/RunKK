@@ -81,12 +81,16 @@ def _protected_operations() -> list[tuple[str, str]]:
 
 def test_protected_operations_are_the_designed_ones() -> None:
     assert _protected_operations() == [
+        ("GET", "/models"),
         ("GET", "/sessions/{session_id}"),
         ("GET", "/sessions/{session_id}/status"),
         ("GET", "/users/{user_id}/months/{year_month}"),
         ("POST", "/coach/chat"),
         ("POST", "/comments"),
         ("POST", "/faces"),
+        ("POST", "/models"),
+        ("POST", "/models/rollback"),
+        ("POST", "/models/{model_id}/activate"),
         ("POST", "/sessions/{session_id}/analyze"),
     ]
 

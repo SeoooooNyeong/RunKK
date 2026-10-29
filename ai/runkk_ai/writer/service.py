@@ -1,5 +1,6 @@
 """분석 결과의 템플릿 피드백을 writer 문장으로 다듬는다(S15P31A207-196·197).
 
+- 쓸 모델은 등록부(registry)가 정한다. 켜진 모델이 없으면 writer를 부르지 않고 템플릿 문장을 그대로 둔다.
 - 판단(ruleId·goodRuleId·moreFixes)과 다른 결과는 그대로 두고 headline·good·fix·next 네 문장만 바꾼다.
 - 출력은 학습 데이터를 거른 것과 같은 checks로 검사한다(지어낸 숫자·금칙어·길이 등). 못 넘으면 한 번 더 쓰게 하고,
   그래도 못 넘으면 템플릿을 그대로 둔다.
@@ -14,12 +15,14 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from collections.abc import Callable
 
 from runkk_ai.runbody import SessionResultOut
 from runkk_ai.writer.brief import writer_brief
 from runkk_ai.writer.checks import KEYS, check
 from runkk_ai.writer.client import CompletionClient
 from runkk_ai.writer.prompt import SYSTEM, user_message
+from runkk_ai.writer.registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -27,28 +30,46 @@ MAX_ATTEMPTS = 2
 
 
 class WriterService:
-    def __init__(self, client: CompletionClient, *, model_version: str, timeout_s: float = 60.0) -> None:
-        self._client = client
-        self._model_version = model_version
+    def __init__(
+        self,
+        registry: ModelRegistry,
+        *,
+        client_for: Callable[[str], CompletionClient],
+        timeout_s: float = 60.0,
+    ) -> None:
+        self._registry = registry
+        self._client_for = client_for
+        self._clients: dict[str, CompletionClient] = {}
         self._timeout_s = timeout_s
         self._turn = asyncio.Lock()
+
+    def _client(self, base_url: str) -> CompletionClient:
+        """주소마다 클라이언트 하나를 만들어 둔다(연결을 다시 맺지 않게)."""
+        client = self._clients.get(base_url)
+        if client is None:
+            client = self._clients[base_url] = self._client_for(base_url)
+        return client
 
     async def polish(self, result: SessionResultOut) -> SessionResultOut:
         started = time.perf_counter()
         attempts, reasons = 0, ""
+        model = await self._registry.active()
+        if model is None:
+            return result
+        client = self._client(model.base_url)
         try:
             brief = writer_brief(result)
             async with asyncio.timeout(self._timeout_s):
                 async with self._turn:
                     for attempts in range(1, MAX_ATTEMPTS + 1):
-                        checked = check(await self._client.complete(SYSTEM, user_message(brief)), brief)
+                        checked = check(await client.complete(SYSTEM, user_message(brief)), brief)
                         if checked.ok and checked.output is not None:
                             self._log(result.sessionId, "writer", attempts, started)
                             feedback = result.feedback.model_copy(
                                 update={
                                     **{key: checked.output[key] for key in KEYS},
                                     "source": "writer",
-                                    "modelVersion": self._model_version,
+                                    "modelVersion": model.model_id,
                                 }
                             )
                             return result.model_copy(update={"feedback": feedback})
@@ -61,7 +82,9 @@ class WriterService:
         return result
 
     async def aclose(self) -> None:
-        await self._client.aclose()
+        for client in self._clients.values():
+            await client.aclose()
+        self._clients.clear()
 
     @staticmethod
     def _log(session_id: str, outcome: str, attempts: int, started: float, detail: str = "") -> None:

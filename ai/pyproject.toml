@@ -165,24 +165,40 @@ forbidden_modules = [
 name = "storage: 저장소·마이그레이션 → 연결·테이블 한 방향"
 type = "layers"
 layers = [
-    "runkk_ai.storage.pg_repository | runkk_ai.storage.coach_store | runkk_ai.storage.migrate",
+    "runkk_ai.storage.pg_repository | runkk_ai.storage.coach_store | runkk_ai.storage.model_store | runkk_ai.storage.migrate",
     "runkk_ai.storage.engine | runkk_ai.storage.tables",
 ]
 
 [[tool.importlinter.contracts]]
 name = "writer는 runbody 결과를 읽기만 한다. 서버 모듈은 writer 학습 도구(dataset)를 모른다"
 type = "forbidden"
-source_modules = ["runkk_ai.core", "runkk_ai.comment", "runkk_ai.face", "runkk_ai.runbody", "runkk_ai.storage"]
+source_modules = ["runkk_ai.core", "runkk_ai.comment", "runkk_ai.face", "runkk_ai.runbody"]
 forbidden_modules = ["runkk_ai.writer"]
 
 [[tool.importlinter.contracts]]
-name = "writer: 학습 도구·서비스 → 모델 클라이언트 → 요약·지시문·검사 한 방향 (학습 도구와 서비스는 서로 모른다)"
+name = "writer: 라우터 → 학습 도구·서비스 → 모델 클라이언트·등록부 → 요약·지시문·검사 한 방향"
 type = "layers"
 layers = [
+    "runkk_ai.writer.router",
     "runkk_ai.writer.dataset | runkk_ai.writer.service",
-    "runkk_ai.writer.client",
+    "runkk_ai.writer.client | runkk_ai.writer.registry",
     "runkk_ai.writer.brief | runkk_ai.writer.prompt | runkk_ai.writer.checks",
 ]
+
+[[tool.importlinter.contracts]]
+name = "storage는 writer 모델 등록부 규약(writer.registry)만 구현한다"
+type = "forbidden"
+source_modules = ["runkk_ai.storage"]
+forbidden_modules = [
+    "runkk_ai.writer.router",
+    "runkk_ai.writer.service",
+    "runkk_ai.writer.client",
+    "runkk_ai.writer.dataset",
+    "runkk_ai.writer.brief",
+    "runkk_ai.writer.prompt",
+    "runkk_ai.writer.checks",
+]
+allow_indirect_imports = true
 
 [[tool.importlinter.contracts]]
 name = "coach는 runbody 결과를 읽기만 한다. 다른 모듈은 coach를 모른다"
