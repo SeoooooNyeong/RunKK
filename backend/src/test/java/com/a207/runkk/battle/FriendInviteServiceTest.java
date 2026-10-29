@@ -670,4 +670,25 @@ class FriendInviteServiceTest {
         assertThat(invites.findById(sent.inviteId())).isEmpty();
         assertThat(invites.findById(unrelated.inviteId())).isPresent();
     }
+
+    @Test
+    @DisplayName("TC-9805 만료 경계: 4:59 수락 성공, 5:00·5:01은 정리 작업 전이라도 INVITE_EXPIRED")
+    void tc9805_expiryBoundary() {
+        FriendInviteIssue early = invite();
+        now(4, 59);
+        assertThat(service.accept(JOINER, early.token())).isPositive();
+
+        for (int seconds : new int[] {0, 1}) {
+            // 새 초대 한 쌍씩: 초대한 쪽이 다른 대결 중이 아니도록 다른 회원으로 만든다
+            long inviter = 500L + seconds;
+            now(0, 0);
+            FriendInviteIssue issue = service.invite(inviter, StandardDistance.KM3);
+            now(5, seconds);
+            assertReason(
+                    () -> service.accept(JOINER + 10, issue.token()), ReasonCode.INVITE_EXPIRED);
+            assertThat(invites.findById(issue.inviteId()).orElseThrow().getStatus())
+                    .as("정리 작업 전이라 저장 상태는 PENDING 그대로")
+                    .isEqualTo(FriendInviteStatus.PENDING);
+        }
+    }
 }

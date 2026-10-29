@@ -437,4 +437,35 @@ class BattleV014Test {
         assertThat(battle.participant(BOB).orElseThrow().getRecordId()).contains("r-b");
         results.onRunDeleted(new RunRecordDeleted("r-x", ALICE, null, null, NOW));
     }
+
+    @Test
+    @DisplayName(
+            "TC-9359·TC-9825 기록 삭제 뒤 결과 조회: 200, 내 기록 ID는 null, 상대 기록이 지워졌으면 비교값은 공개 안 됨, 판정은 그대로")
+    void tc9359_resultAfterRecordDeleted() {
+        Battle battle = finished(Battle.friend(accepted(), NOW), NOW, BOB); // 앨리스 승
+        battle.verify(ALICE, "r-a", true, Duration.ofMinutes(25));
+        battle.verify(BOB, "r-b", true, Duration.ofMinutes(26));
+        when(runs.comparisonOf(org.mockito.ArgumentMatchers.anyString()))
+                .thenThrow(new BusinessRuleException(ReasonCode.RECORD_NOT_FOUND));
+
+        // TC-9359: 상대(밥) 기록이 지워져 비교값을 못 읽어도 오류 없이 결과를 낸다
+        BattleResultView vsDeletedRival = results.result(ALICE, battle.getId());
+        assertThat(vsDeletedRival.verdict()).isEqualTo(Verdict.WIN);
+        assertThat(vsDeletedRival.myRecordId()).isEqualTo("r-a");
+
+        // TC-9825: 내 기록을 지운 뒤 결과 조회
+        results.onRunDeleted(new RunRecordDeleted("r-a", ALICE, battle.getId(), null, NOW));
+        BattleResultView afterDelete = results.result(ALICE, battle.getId());
+        assertThat(afterDelete.myRecordId()).isNull();
+        assertThat(afterDelete.comparison().rows()).isEmpty();
+        assertThat(afterDelete.verdict()).isEqualTo(Verdict.WIN);
+        assertThat(afterDelete.myReach()).isEqualTo(Duration.ofMinutes(25));
+        assertThat(
+                        history.history(
+                                        ALICE,
+                                        new DateRange(NOW.toLocalDate(), NOW.toLocalDate()),
+                                        Optional.empty())
+                                .entries())
+                .hasSize(1);
+    }
 }
