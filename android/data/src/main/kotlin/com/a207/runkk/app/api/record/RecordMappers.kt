@@ -7,6 +7,7 @@ import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.GeoPoint
 import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.core.model.RunMode
+import com.a207.runkk.app.domain.record.CardWeather
 import com.a207.runkk.app.domain.record.Dashboard
 import com.a207.runkk.app.domain.record.Growth
 import com.a207.runkk.app.domain.record.PlanProgress
@@ -142,5 +143,13 @@ internal fun RunCardResponse.toDomain(): RunCard = RunCard(
     elapsed = Duration.ofSeconds(elapsedSeconds),
     averagePace = averagePaceSecondsPerKm.toPace(),
     route = route.map { it.toDomain() },
-    isCourseMapShared = courseMapShared
+    isCourseMapShared = courseMapShared,
+    averageHeartRate = averageHeartRate,
+    newRecords = newRecords,
+    weather = if (temperatureC == null && sky == null) {
+        null
+    } else {
+        CardWeather(temperatureC, sky?.let { enumByName<CardWeather.Sky>(it) })
+    },
+    ownerName = nickname?.takeIf { it.isNotBlank() }
 )

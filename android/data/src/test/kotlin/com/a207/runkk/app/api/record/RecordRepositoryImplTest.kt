@@ -12,6 +12,7 @@ import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.core.model.RunMode
 import com.a207.runkk.app.domain.record.AggregationPeriod
+import com.a207.runkk.app.domain.record.CardWeather
 import com.a207.runkk.app.domain.record.Dashboard
 import com.a207.runkk.app.domain.record.Ranking
 import com.a207.runkk.app.domain.record.RecordDetail
@@ -245,5 +246,37 @@ class RecordRepositoryImplTest {
             ),
             card
         )
+    }
+
+    @Test
+    fun `카드 앞면 값 - 평균 심박·신기록·날씨·닉네임을 읽고 모르는 하늘 상태는 비운다(D-235)`() = runTest {
+        api.reply(
+            """{"recordId":"r-3","cardKind":"FREE_RUN","startedAt":"2026-10-21T19:12:00+09:00","distanceMeters":5020,
+               |"elapsedSeconds":1721,"averagePaceSecondsPerKm":343,"averageHeartRate":152,"newRecords":["최장 거리 신기록"],
+               |"route":[],"courseMapShared":false,"temperatureC":14,"sky":"CLEAR","nickname":"달리는곰"}
+            """.trimMargin()
+        )
+        val card = repository.card("r-3").value()
+        assertEquals(152, card.averageHeartRate)
+        assertEquals(listOf("최장 거리 신기록"), card.newRecords)
+        assertEquals(CardWeather(14, CardWeather.Sky.CLEAR), card.weather)
+        assertEquals("달리는곰", card.ownerName)
+
+        api.reply(
+            """{"recordId":"r-4","cardKind":"FREE_RUN","startedAt":"2026-10-21T19:12:00+09:00","distanceMeters":10,
+               |"elapsedSeconds":10,"sky":"HAIL"}
+            """.trimMargin()
+        )
+        assertEquals(CardWeather(null, null), repository.card("r-4").value().weather)
+    }
+
+    @Test
+    fun `결과 휴식은 서버 pausedSeconds로 읽고 없으면 비운다(D-282)`() = runTest {
+        api.reply(
+            """{"summary":{"recordId":"r-5","startedAt":"2026-10-21T19:12:00+09:00","distanceMeters":5020,"elapsedSeconds":1668,
+               |"valid":true,"mode":"FREE","cardKind":"FREE_RUN"},"pausedSeconds":185}
+            """.trimMargin()
+        )
+        assertEquals(Duration.ofSeconds(185), repository.run("r-5").value().paused)
     }
 }

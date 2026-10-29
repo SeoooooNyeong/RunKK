@@ -40,6 +40,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.a207.runkk.app.core.designsystem.LocalReleaseScope
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkErrorText
@@ -55,6 +56,7 @@ import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
 import com.a207.runkk.app.core.designsystem.UiText
+import com.a207.runkk.app.core.designsystem.UnreleasedFeature
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
@@ -127,17 +129,21 @@ fun RecordCardScreen(
     }
 }
 
-/** 팝업(G1·G2): 카드 한 장(누르면 뒤집기), 면 표시 점 두 개, "공유"·"닫기". */
+/**
+ * 팝업(B-7·G1·G2): 카드 앞면(RecordCardFront), "공유"·"닫기". 카드 공유(CARD_SHARE)가 닫혀 있으면(1차 배포) 뒤집기·면 점·공유가 없고
+ * "닫기"만 있다(D-252, TC-9699). 열려 있으면 카드를 눌러 코스 면(그린 이미지)으로 뒤집는다.
+ */
 @Composable
 private fun CardPopup(state: RecordCardUiState, onFlip: () -> Unit, onShare: () -> Unit, onClose: () -> Unit) {
     val resources = LocalContext.current.resources
+    val isShareOpen = LocalReleaseScope.current.isOpen(UnreleasedFeature.CARD_SHARE)
     Column(
         modifier = Modifier.fillMaxSize().padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-            val bitmap = if (state.side == CardSide.FRONT) state.front else state.back
+            val card = state.card
             val flipLabel = stringResource(
                 if (state.side ==
                     CardSide.FRONT
@@ -147,25 +153,39 @@ private fun CardPopup(state: RecordCardUiState, onFlip: () -> Unit, onShare: () 
                     R.string.record_card_flip_to_front
                 }
             )
-            if (bitmap != null) {
+            val flip = if (isShareOpen) {
+                Modifier.clickable(role = Role.Button, onClickLabel = flipLabel, onClick = onFlip)
+            } else {
+                Modifier
+            }
+            val back = state.back
+            if (isShareOpen && state.side == CardSide.BACK && back != null) {
                 Image(
-                    bitmap = bitmap.asImageBitmap(),
-                    contentDescription = state.card?.let { cardDescription(resources, it, state.side) }
-                        ?: stringResource(sideDescriptionRes(state.side)),
+                    bitmap = back.asImageBitmap(),
+                    contentDescription = card?.let { cardDescription(resources, it, CardSide.BACK) }
+                        ?: stringResource(sideDescriptionRes(CardSide.BACK)),
+                    modifier = Modifier.aspectRatio(CARD_RATIO).clip(RunkkShapes.ExtraLarge).then(flip)
+                )
+            } else if (card != null) {
+                val description = cardDescription(resources, card, CardSide.FRONT)
+                RecordCardFront(
+                    card,
                     modifier = Modifier
-                        .aspectRatio(CARD_RATIO)
-                        .clip(RunkkShapes.ExtraLarge)
-                        .clickable(role = Role.Button, onClickLabel = flipLabel, onClick = onFlip)
+                        .fillMaxWidth()
+                        .then(flip)
+                        .semantics { contentDescription = description }
                 )
             }
         }
-        SideDots(state.side)
+        if (isShareOpen) SideDots(state.side)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            RunkkPrimaryButton(
-                stringResource(R.string.record_card_share),
-                onClick = onShare,
-                modifier = Modifier.weight(1f)
-            )
+            if (isShareOpen) {
+                RunkkPrimaryButton(
+                    stringResource(R.string.record_card_share),
+                    onClick = onShare,
+                    modifier = Modifier.weight(1f)
+                )
+            }
             RunkkSecondaryButton(
                 stringResource(R.string.record_card_close),
                 onClick = onClose,
