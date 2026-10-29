@@ -252,6 +252,7 @@ class AnalysisServicesTest {
                             assertThat(p.to()).isEqualTo(summary.startedAt().plusMinutes(12));
                         });
         assertThat(own.pausedSeconds()).isEqualTo(120);
+        assertThat(own.recordVisibility()).isEqualTo(RecordVisibility.PRIVATE);
         verify(runs).detail(summary.recordId(), OptionalInt.of(190));
 
         assertThatThrownBy(() -> service.detail(ME, summary.recordId()))
@@ -272,6 +273,7 @@ class AnalysisServicesTest {
         assertThat(other.heartRateZones()).isEmpty();
         assertThat(other.crewContribution()).isNull();
         assertThat(other.rewardPoints()).isNull();
+        assertThat(other.recordVisibility()).isNull();
     }
 
     @Test
@@ -313,7 +315,17 @@ class AnalysisServicesTest {
     void cardData() {
         RunSummary summary = ownersRun();
         preference(OTHER, RecordVisibility.PUBLIC, true);
+        when(members.summaries(List.of(OTHER)))
+                .thenReturn(
+                        Map.of(
+                                OTHER,
+                                new MemberSummary(
+                                        OTHER,
+                                        DisplayName.of("달리는곰"),
+                                        Tier.BRONZE,
+                                        ProfileVisibility.PUBLIC)));
         RunCardData card = records().cardData(OTHER, summary.recordId());
+        assertThat(card.nickname()).isEqualTo("달리는곰");
         assertThat(card.cardKind()).isEqualTo("FREE_RUN");
         assertThat(card.averageHeartRate()).isEqualTo(150);
         assertThat(card.route()).hasSize(1);

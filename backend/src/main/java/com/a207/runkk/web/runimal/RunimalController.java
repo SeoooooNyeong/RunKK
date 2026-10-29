@@ -201,7 +201,10 @@ public class RunimalController {
                             .map(
                                     bar ->
                                             new AxisResponse(
-                                                    bar.axis().name(), bar.label(), bar.percent()))
+                                                    bar.axis().name(),
+                                                    bar.label(),
+                                                    bar.percent(),
+                                                    bar.lean().name()))
                             .toList());
         }
     }
@@ -212,6 +215,7 @@ public class RunimalController {
      * @param axis 축
      * @param label 우세 성향 이름
      * @param percent 비율(%)
+     * @param lean 우세 쪽(A·B, 라벨 문자열 대신 이 값으로 가른다)
      */
-    record AxisResponse(String axis, String label, int percent) {}
+    record AxisResponse(String axis, String label, int percent, String lean) {}
 }
