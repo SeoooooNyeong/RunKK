@@ -63,6 +63,31 @@ class RouteLineTest {
         assertTrue(ahead.longitude > east.longitude)
     }
 
+    @Test
+    fun `덧붙인 뒤에도 앞선 값은 그대로이고 갈라진 경로는 서로 섞이지 않는다`() {
+        val base = RouteLine.EMPTY + north(0.0) + north(10.0)
+        val longer = base + north(20.0)
+        val branch = base + north(5.0)
+        assertEquals(2, base.points.size)
+        assertEquals(10.0, base.lengthMeters, 0.01)
+        assertEquals(20.0, longer.lengthMeters, 0.01)
+        assertEquals(15.0, branch.lengthMeters, 0.01)
+        assertEquals(north(20.0), longer.points.last())
+        assertEquals(0, RouteLine.EMPTY.points.size, "EMPTY는 바뀌지 않는다")
+        assertTrue(longer != branch)
+        assertEquals(base, RouteLine(listOf(north(0.0), north(10.0))))
+    }
+
+    @Test
+    fun `점 1만 개를 덧붙여도 길이·범위·보간이 맞다`() {
+        var line = RouteLine.EMPTY
+        for (i in 0..10_000) line += north(i.toDouble())
+        assertEquals(10_001, line.points.size)
+        assertEquals(10_000.0, line.lengthMeters, 0.5)
+        assertEquals(north(10_000.0).latitude, assertNotNull(line.bounds()).maxLatitude, 1e-9)
+        assertEquals(5_000.0, north(0.0).metersTo(assertNotNull(line.pointAt(Distance(5_000)))), 0.5)
+    }
+
     private companion object {
         const val METERS_PER_DEGREE = 6_371_000.0 * Math.PI / 180.0
     }

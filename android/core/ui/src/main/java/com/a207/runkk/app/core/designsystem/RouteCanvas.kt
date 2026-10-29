@@ -49,19 +49,28 @@ fun RouteCanvas(route: RouteLine, markers: List<RouteMarker>, modifier: Modifier
     BoxWithConstraints(modifier = modifier.testTag(ROUTE_CANVAS_TAG)) {
         val density = LocalDensity.current
         val padPx = with(density) { (markerSize / 2).toPx() }
-        val width = constraints.maxWidth.toFloat()
-        val height = constraints.maxHeight.toFloat()
-        val projection = remember(route, markers.map { it.point }, width, height, padPx) {
-            RouteProjection.fit(route.points + markers.map { it.point }, width, height, padPx)
+        val width = if (constraints.hasBoundedWidth) constraints.maxWidth.toFloat() else 0f
+        val height = if (constraints.hasBoundedHeight) constraints.maxHeight.toFloat() else 0f
+        // 투영은 경로 범위(덧붙일 때 계산해 둔 값)와 마커 지점만 보고, 범위가 그대로면 다시 계산하지 않는다.
+        val bounds = route.bounds()
+        val markerPoints = markers.map { it.point }
+        val projection = remember(bounds, markerPoints, width, height, padPx) {
+            val corners = bounds?.let {
+                listOf(GeoPoint(it.minLatitude, it.minLongitude), GeoPoint(it.maxLatitude, it.maxLongitude))
+            }.orEmpty()
+            RouteProjection.fit(corners + markerPoints, width, height, padPx)
+        }
+        val path = remember(route, projection) {
+            Path().apply {
+                route.points.forEachIndexed { i, p ->
+                    val o = projection.project(p)
+                    if (i == 0) moveTo(o.x, o.y) else lineTo(o.x, o.y)
+                }
+            }
         }
         Canvas(Modifier.fillMaxSize()) {
             val points = route.points
             if (points.size >= 2) {
-                val path = Path()
-                points.forEachIndexed { i, p ->
-                    val o = projection.project(p)
-                    if (i == 0) path.moveTo(o.x, o.y) else path.lineTo(o.x, o.y)
-                }
                 drawPath(
                     path,
                     color = lineColor,

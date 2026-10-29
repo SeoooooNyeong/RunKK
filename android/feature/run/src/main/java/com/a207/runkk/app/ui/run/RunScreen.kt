@@ -464,7 +464,8 @@ private fun RunningRoute(route: RouteLine) {
         }
         return
     }
-    RouteCanvas(route = route, markers = listOf(RouteMarker(point = me)), modifier = Modifier.fillMaxSize())
+    val markers = remember(me) { listOf(RouteMarker(point = me)) }
+    RouteCanvas(route = route, markers = markers, modifier = Modifier.fillMaxSize())
 }
 
 /**

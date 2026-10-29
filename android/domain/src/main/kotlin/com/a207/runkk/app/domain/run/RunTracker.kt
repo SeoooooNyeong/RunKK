@@ -59,7 +59,7 @@ constructor(
 
     private val _routeLine = MutableStateFlow(RouteLine.EMPTY)
 
-    /** 측정 중 경로선(D-261). 거른 위치가 경로에 남을 때마다 점이 하나 는다. 새 측정을 시작하면 비운다. */
+    /** 측정 중 경로선(D-261). 거른 위치가 경로에 남을 때마다 점이 하나 는다. 측정이 끝나거나 새로 시작하면 비운다. */
     val routeLine: StateFlow<RouteLine> = _routeLine.asStateFlow()
 
     /** 진행 알림의 대결 격차. 연결 확인 중(null)이면 비운다(RunSession은 마지막 격차를 안내용으로 남긴다). */
@@ -336,6 +336,8 @@ constructor(
         // 구독자 확인·보관·방출을 한 lock 안에서 한다: 그 사이 화면이 구독하면 방출로 받고, 아니면 takeUnclaimedEnd로 꺼낸다.
         synchronized(lock) {
             _notice.value = null
+            // 끝난 측정의 경로는 화면이 더 쓰지 않는다(결과는 보관·서버 기록으로 본다). 싱글턴에 수천 점을 남기지 않는다.
+            _routeLine.value = RouteLine.EMPTY
             if (isClaimable && outcome is FinishOutcome.Saved && _ended.subscriptionCount.value == 0) {
                 unclaimedEnd = outcome to runtime.now()
             }

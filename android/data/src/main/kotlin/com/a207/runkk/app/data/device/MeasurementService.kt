@@ -83,8 +83,8 @@ class MeasurementService : LifecycleService() {
             onResume = runTracker::onNotificationResumeTapped
         )
         if (isAction) {
-            // 측정이 끝난 뒤 남은 알림 버튼으로 깨어났으면 바로 내린다.
-            if (ticking == null) stopSelf()
+            // 측정이 끝난 뒤 남은 알림 버튼으로 깨어났으면 바로 내린다. 측정 중(시작 인텐트가 아직 처리되기 전 포함)이면 두지 않는다.
+            if (ticking == null && runTracker.notice.value == null) stopSelf()
             return START_NOT_STICKY
         }
         if (!enterForeground() || !locationGranted()) {

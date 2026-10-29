@@ -178,7 +178,7 @@ class RunTrackerNoticeTest {
     }
 
     @Test
-    fun `routeLine은 받아들인 포인트로 늘고 정지 중 포인트는 넣지 않으며 새 측정이면 비운다`() = runTest {
+    fun `routeLine은 받아들인 포인트로 늘고 정지 중 포인트는 넣지 않으며 끝나면 비운다`() = runTest {
         val tracker = started()
         tracker.onLocationSample(sample(1, 0.0))
         tracker.onLocationSample(sample(5, 20.0))
@@ -189,6 +189,7 @@ class RunTrackerNoticeTest {
         tracker.onLocationSample(sample(7, 25.0))
         assertEquals(2, tracker.routeLine.value.points.size)
         tracker.endRun()
+        assertEquals(0, tracker.routeLine.value.points.size, "끝나면 비운다")
         tracker.startRun(freeSpec())
         assertEquals(0, tracker.routeLine.value.points.size)
         assertEquals(Duration.ZERO, tracker.progress.value.elapsed)
