@@ -1,30 +1,23 @@
-"""셀카 → SD 얼굴 부위 변환(FR-155, FR-156).
+"""셀카 → SD 아바타 머리(안선영 님 Node 아바타 서버) 중계(FR-155, FR-156).
 
-라우터 → 서비스 → 추상 변환기 한 방향. Settings를 import하지 않는다(D-60).
+라우터 → 서비스 → 클라이언트 → 응답 형식 한 방향. Settings를 import하지 않는다(D-60).
 """
 
+from runkk_ai.face.client import AvatarClient, AvatarError, NodeAvatarClient
 from runkk_ai.face.router import FaceRouter, get_face_service
-from runkk_ai.face.schemas import FaceFailureReason, FaceOut, FacePart
-from runkk_ai.face.service import FaceResult, FaceTransformService
-from runkk_ai.face.transformer import (
-    ExternalFaceApi,
-    FaceTransformer,
-    FaceTransformError,
-    LocalSdModel,
-    SdFacePartImages,
-)
+from runkk_ai.face.schemas import BodyOut, FaceFailureReason, HeadJobOut, HeadOut, JobErrorOut
+from runkk_ai.face.service import AvatarService
 
 __all__ = [
-    "ExternalFaceApi",
+    "AvatarClient",
+    "AvatarError",
+    "AvatarService",
+    "BodyOut",
     "FaceFailureReason",
-    "FaceOut",
-    "FacePart",
-    "FaceResult",
     "FaceRouter",
-    "FaceTransformError",
-    "FaceTransformService",
-    "FaceTransformer",
-    "LocalSdModel",
-    "SdFacePartImages",
+    "HeadJobOut",
+    "HeadOut",
+    "JobErrorOut",
+    "NodeAvatarClient",
     "get_face_service",
 ]

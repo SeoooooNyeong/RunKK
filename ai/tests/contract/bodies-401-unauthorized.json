@@ -1,0 +1,12 @@
+{
+  "endpoint": "GET /avatar/bodies/{bodyId}",
+  "scenario": "no_token",
+  "request": {
+    "bodyId": "daily"
+  },
+  "status": 401,
+  "body": {
+    "reason": "UNAUTHORIZED"
+  },
+  "gateway": "FailureReason.UPSTREAM_FAILED (토큰 설정 오류, 오류 로그)"
+}

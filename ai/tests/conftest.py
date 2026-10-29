@@ -2,15 +2,16 @@
 
 실제 LLM·얼굴 변환 API를 부르지 않는다. 라우터 시험은 13.3·14장대로
 `app.dependency_overrides`로 get_comment_service·get_face_service·get_runbody_service를 덮어
-가짜 LlmClient·FaceTransformer를 가진 서비스와 메모리 저장소를 쓰는 RUN바디 서비스를 끼운다.
+가짜 LlmClient·AvatarClient를 가진 서비스와 메모리 저장소를 쓰는 RUN바디 서비스를 끼운다.
 """
 
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator, Callable, Mapping
+from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from typing import Any
 
 import httpx
 import pytest
@@ -19,10 +20,11 @@ from fastapi import FastAPI
 from runkk_ai.comment import CommentService, LlmClient, LlmReply, get_comment_service
 from runkk_ai.core import Settings
 from runkk_ai.face import (
-    FacePart,
-    FaceTransformer,
-    FaceTransformService,
-    SdFacePartImages,
+    AvatarClient,
+    AvatarService,
+    BodyOut,
+    HeadJobOut,
+    HeadOut,
     get_face_service,
 )
 from runkk_ai.main import create_app
@@ -103,26 +105,109 @@ class FakeLlmClient(LlmClient):
         self.closed = True
 
 
-def all_parts(png: bytes = PNG_1X1) -> dict[FacePart, bytes]:
-    return dict.fromkeys(FacePart, png)
+# 아바타(Node) 계약 표본. tests/contract/faces-*.json과 글자까지 같아야 한다
+DATA_URL_PNG = "data:image/png;base64," + __import__("base64").b64encode(PNG_1X1).decode("ascii")
+JOB_ID = "6f1c2a3e-9b4d-4c8e-8a1f-2d3e4f5a6b7c"
+HEAD_ID = "0b2c4d6e-8f1a-4b3c-9d5e-7f8a9b0c1d2e"
+DEMO_USER = "42"
+HEAD_SAMPLE: dict[str, Any] = {
+    "headId": HEAD_ID,
+    "userId": DEMO_USER,
+    "faceImage": DATA_URL_PNG,
+    "eyesImage": DATA_URL_PNG,
+    "hairImage": DATA_URL_PNG,
+    "traits": {
+        "hair": "검은색 가르마 머리",
+        "eyes": "둥근 갈색 눈",
+        "eyebrows": "완만한 눈썹",
+        "nose": "작은 코",
+        "mouth": "작은 미소",
+        "face": "둥근 얼굴",
+        "skin_tone": "밝고 따뜻한 색감",
+        "accessories": "없음",
+        "hair_length": "short",
+    },
+    "hairLength": "short",
+    "alignment": {"pivotX": 0.5, "pivotY": 0.9, "skin": 0, "estimated": False},
+    "mobile": {
+        "canvas": [1024, 1024],
+        "anchor": [0.5, 0.88],
+        "renderFaceImage": DATA_URL_PNG,
+        "displayHeight": 493.3,
+        "neckRemoved": True,
+        "skinColor": [245, 207, 188],
+    },
+    "createdAt": "2026-10-29T01:53:02.761Z",
+}
+BODY_SAMPLE: dict[str, Any] = {
+    "pack": {
+        "format": "runkk-body-pack",
+        "version": 2,
+        "rigVersion": "runkk-front-v1",
+        "renderer": "seamless-mesh-v1",
+        "id": "daily",
+        "name": "기본 러닝복",
+        "image": DATA_URL_PNG,
+        "neck": [0.5, 0.083],
+        "skinZones": [{"rect": [0.4, 0.0, 0.2, 0.1]}],
+        "preserveArt": True,
+        "mobile": {
+            "canvas": [633, 1110],
+            "neck": [0.5, 0.083],
+            "neckWidth": 120,
+            "neckHeight": 60,
+            "neckTop": 30,
+            "neckDetected": True,
+        },
+    }
+}
 
 
 @dataclass
-class FakeFaceTransformer(FaceTransformer):
-    """정해 둔 부위 이미지를 돌려주거나 예외를 던지는 가짜 변환기."""
+class FakeAvatarClient(AvatarClient):
+    """정해 둔 작업·머리·몸을 돌려주거나 예외를 던지는 가짜 아바타 서버 클라이언트."""
 
-    parts: Mapping[FacePart, bytes] = field(default_factory=all_parts)
+    job_status: str = "QUEUED"
+    job_error: dict[str, Any] | None = None
+    head: dict[str, Any] = field(default_factory=lambda: dict(HEAD_SAMPLE))
+    body_pack: dict[str, Any] = field(default_factory=lambda: dict(BODY_SAMPLE))
     error: BaseException | None = None
     delay_s: float = 0.0
-    received: list[int] = field(default_factory=list)
+    submitted: list[tuple[str, str, int]] = field(default_factory=list)  # (userId, clientRequestId, 바이트 수)
+    calls: list[str] = field(default_factory=list)
+    closed: bool = False
 
-    async def convert(self, image: bytes) -> SdFacePartImages:
-        self.received.append(len(image))
+    async def _gate(self, name: str) -> None:
+        self.calls.append(name)
         if self.delay_s:
             await asyncio.sleep(self.delay_s)
         if self.error is not None:
             raise self.error
-        return SdFacePartImages(images=dict(self.parts))
+
+    async def submit_head(self, user_id: str, client_request_id: str, image: bytes) -> HeadJobOut:
+        self.submitted.append((user_id, client_request_id, len(image)))
+        await self._gate("submit")
+        return HeadJobOut(jobId=JOB_ID, status=self.job_status)  # type: ignore[arg-type]
+
+    async def job(self, user_id: str, job_id: str) -> HeadJobOut:
+        await self._gate("job")
+        head_id = HEAD_ID if self.job_status == "SUCCEEDED" else None
+        return HeadJobOut(jobId=job_id, status=self.job_status, headId=head_id, error=self.job_error)  # type: ignore[arg-type]
+
+    async def job_result(self, user_id: str, job_id: str) -> HeadOut:
+        await self._gate("result")
+        return HeadOut.model_validate(self.head)
+
+    async def latest_head(self, user_id: str) -> HeadOut:
+        await self._gate("latest")
+        return HeadOut.model_validate(self.head)
+
+    async def body(self, body_id: str) -> BodyOut:
+        await self._gate("body")
+        return BodyOut.model_validate(self.body_pack)
+
+    async def aclose(self) -> None:
+        self.closed = True
 
 
 @pytest.fixture
@@ -131,8 +216,8 @@ def fake_llm() -> FakeLlmClient:
 
 
 @pytest.fixture
-def fake_face() -> FakeFaceTransformer:
-    return FakeFaceTransformer()
+def fake_face() -> FakeAvatarClient:
+    return FakeAvatarClient()
 
 
 @pytest.fixture
@@ -141,8 +226,8 @@ def comment_service(fake_llm: FakeLlmClient) -> CommentService:
 
 
 @pytest.fixture
-def face_service(fake_face: FakeFaceTransformer) -> FaceTransformService:
-    return FaceTransformService(transformer=fake_face, timeout_s=1.0, max_image_bytes=1024 * 1024)
+def face_service(fake_face: FakeAvatarClient) -> AvatarService:
+    return AvatarService(client=fake_face, timeout_s=1.0, max_image_bytes=1024 * 1024)
 
 
 # 계약 표본의 updatedAt을 고정하려고 서비스 시계를 멈춘다
@@ -170,7 +255,7 @@ async def runbody_service(runbody_repository: InMemoryResultRepository) -> Async
 @pytest.fixture
 def app(
     comment_service: CommentService,
-    face_service: FaceTransformService,
+    face_service: AvatarService,
     runbody_service: RunbodyService,
     monthly_service: MonthlyService,
 ) -> FastAPI:

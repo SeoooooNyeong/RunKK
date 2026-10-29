@@ -1,0 +1,13 @@
+{
+  "endpoint": "POST /users/{userId}/faces/jobs",
+  "scenario": "ok",
+  "request": {
+    "userId": "42",
+    "image": "huge_pixels"
+  },
+  "status": 422,
+  "body": {
+    "reason": "TOO_LARGE"
+  },
+  "gateway": "FailureReason.TOO_LARGE (픽셀 수 상한 초과)"
+}

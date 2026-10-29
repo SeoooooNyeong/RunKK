@@ -2,7 +2,7 @@
 # 같은 EC2에 prod(main 브랜치, 프로젝트 runkk-prod)와 develop(develop 브랜치, 프로젝트 runkk-develop)이 이 파일로 따로 뜬다.
 # DB·Redis·api·ai·백업이 환경마다 따로라 자료가 섞이지 않는다. postgres·redis·ai는 프로젝트 전용 망에만 있고,
 # api만 에지 스택(docker-compose.edge.yml, 프로젝트 runkk)의 망 runkk_default에 api-<환경> 별칭으로 붙어 nginx·Prometheus가 부른다.
-# 컨테이너마다 필요한 값만 넘긴다(env_file 없음): ai는 RUNKK_*만, api는 LLM·얼굴 API 키를 받지 않는다.
+# 컨테이너마다 필요한 값만 넘긴다(env_file 없음): ai는 RUNKK_*만, api는 LLM·GMS 키를 받지 않는다. avatar(Node)는 프로필로 켠다.
 # 사용: cp .env.example .env (RUNKK_ENV 등 채우기) && cp edge.env.example edge.env && ./deploy.sh   (README 3절)
 name: runkk-${RUNKK_ENV:?set RUNKK_ENV (develop|prod) in .env}
 
@@ -159,10 +159,9 @@ services:
       # Anthropic SDK가 직접 읽는 주소(SSAFY GMS 같은 호환 프록시). 빈 문자열이면 SDK가 그대로 써서 깨지므로 기본값을 둔다
       ANTHROPIC_BASE_URL: ${RUNKK_ANTHROPIC_BASE_URL:-https://api.anthropic.com}
       RUNKK_OPENAI_API_KEY: ${RUNKK_OPENAI_API_KEY:-}
-      RUNKK_FACE_IMPL: ${RUNKK_FACE_IMPL:-}
+      # 아바타(Node) 서버 기준 경로. avatar 서비스를 켠 환경에서 http://avatar:3000/api/v1. 비우면 /faces가 503(기본 캐릭터)
       RUNKK_FACE_TIMEOUT_S: ${RUNKK_FACE_TIMEOUT_S:-}
       RUNKK_FACE_API_URL: ${RUNKK_FACE_API_URL:-}
-      RUNKK_FACE_API_KEY: ${RUNKK_FACE_API_KEY:-}
       RUNKK_MAX_IMAGE_BYTES: ${RUNKK_MAX_IMAGE_BYTES:-}
       RUNKK_MAX_IMAGE_PIXELS: ${RUNKK_MAX_IMAGE_PIXELS:-}
       RUNKK_EXPOSE_DOCS: ${RUNKK_EXPOSE_DOCS:-}
@@ -183,6 +182,10 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    # avatar는 전용 망 avatar에만 있고 ai만 그 망에 같이 붙는다(Node 명세 1장: ai와 avatar만 붙는 전용 bridge)
+    networks:
+      default: {}
+      avatar: {}
     read_only: true
     tmpfs:
       - /tmp:size=16m,mode=1777
@@ -240,6 +243,37 @@ services:
       retries: 8
       start_period: 60s
 
+  # 아바타 서버(안선영 님 Node, S15P31A207-164). 셀카 → 특징 분석(gpt-4.1-mini) → 머리 1장 생성(gpt-image-2.5) → 코드 마스크로
+  # face·eyes·hair 3레이어로 나눠 저장한다. 프로필 avatar라 .env에 COMPOSE_PROFILES에 avatar를 넣은 환경에서만 뜬다.
+  # ai만 전용 망 avatar로 부르고(기준 경로 http://avatar:3000/api/v1) 밖으로 열지 않는다. GMS 호출이 필요해 internal 망은 아니다.
+  # 결과는 named volume(/app/data, 사용자별 폴더)에 남는다. deploy.sh가 ../avatar(Dockerfile)로 환경별 태그를 만든다.
+  avatar:
+    image: runkk-avatar:${RUNKK_ENV}
+    profiles: ["avatar"]
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      HOST: 0.0.0.0
+      PORT: "3000"
+      # OpenAI 호환 GMS 주소와 키. 키는 .env로만 넘긴다(채팅·커밋 금지)
+      GMS_BASE_URL: ${AVATAR_GMS_BASE_URL:-https://gms.ssafy.io/gmsapi/api.openai.com/v1}
+      GMS_KEY: ${AVATAR_GMS_KEY:-}
+    networks:
+      avatar: {}
+    volumes:
+      - avatar-data:/app/data
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 768m  # 1024×1024 PNG를 메모리에서 자른다
+    expose:
+      - "3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
   # 매일 백업(NFR-018·019·037, 처리방침 "하루 1회 이상 백업, 백업본 7일 보존"). BACKUP_TIME(기본 04:30, 3시 파기 배치 뒤)에 pg_dump -Fc를 떠서
   # 호스트 폴더 BACKUP_DIR/<환경>(기본 /var/backups/runkk/<환경>)에 두고 7일 지난 덤프를 지운다. 덤프는 BACKUP_OWNER(기본 ubuntu 1000:1000) 소유 0600.
   # deploy.sh는 배포 직전에도 한 번 뜬다(Flyway 마이그레이션 전). 지금 바로 뜨려면: docker exec runkk-<환경>-backup-1 sh /opt/runkk-backup/pg-backup.sh now
@@ -268,6 +302,8 @@ services:
 
 networks:
   default: {}
+  # ai ↔ avatar 전용 망. 프로젝트 안에서 만들며 두 서비스만 붙는다
+  avatar: {}
   # 에지 스택(docker-compose.edge.yml)이 만드는 망. deploy.sh가 에지를 먼저 올린다
   edge:
     name: ${EDGE_NETWORK:-runkk_default}
@@ -280,4 +316,6 @@ volumes:
     name: ${POSTGRES_VOLUME:?set POSTGRES_VOLUME in .env (develop은 runkk_postgres-data)}
   redis-data:
     name: ${REDIS_VOLUME:?set REDIS_VOLUME in .env (develop은 runkk_redis-data)}
+  # 아바타 결과(사용자별 머리·작업 기록). 환경마다 따로다
+  avatar-data: {}
   api-logs:

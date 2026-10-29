@@ -40,11 +40,10 @@ class Settings(BaseSettings):
     anthropic_api_key: SecretStr | None = None
     openai_api_key: SecretStr | None = None
 
-    # 얼굴 변환(D-59). 구현은 C-011 선정 결과로 고른다
-    face_impl: Literal["external", "local"] = "external"
+    # 아바타(D-59, S15P31A207-164). 안선영 님 Node 아바타 서버의 기준 경로. compose avatar 서비스를 켠 환경에서는
+    # http://avatar:3000/api/v1. 비우면 /faces가 모두 503 UPSTREAM_FAILED. 접수·조회만 중계하므로 응답은 빠르다
     face_timeout_s: float = Field(default=12.0, gt=0, lt=15.0)  # api AiServerClient 읽기 제한 15초 안
     face_api_url: str | None = None
-    face_api_key: SecretStr | None = None
     max_image_bytes: int = Field(default=1024 * 1024, gt=0)
     # 셀카 가로 × 세로 상한(머리 정보로 확인, L28). 기본 4096 × 4096
     max_image_pixels: int = Field(default=4096 * 4096, gt=0)
