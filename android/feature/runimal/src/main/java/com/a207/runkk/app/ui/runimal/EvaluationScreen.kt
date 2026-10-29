@@ -40,7 +40,8 @@ import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
 
 /**
- * 평가 결과(G-11, D-284). 경로 인자만 그린다. "유형 보기"는 평가 화면을 닫고 유형 상세로, "확인"은 닫는다.
+ * 평가 결과(G-11, D-284). 경로 인자만 그린다. "유형 보기"는 평가 화면 자리를 유형 상세로 바꾸고(백 스택에 평가 화면 하나뿐이어도
+ * 앱이 닫히지 않는다), "확인"은 닫는다.
  */
 @Composable
 fun EvaluationRoute(tier: String, validRuns: Int, runimalType: String?) {
@@ -49,10 +50,7 @@ fun EvaluationRoute(tier: String, validRuns: Int, runimalType: String?) {
         tier = tier,
         validRuns = validRuns,
         runimalType = runimalType,
-        onShowType = { type ->
-            navigator.back()
-            navigator.navigate(Routes.RunimalType(type))
-        },
+        onShowType = { type -> navigator.replace(Routes.RunimalType(type)) },
         onConfirm = navigator::back
     )
 }
