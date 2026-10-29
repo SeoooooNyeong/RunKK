@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 알림함 제목(서버 NotificationType별, 서버는 내용만 준다)과 측정 서비스 알림 문구(3차 리뷰 N3-1). -->
+<!-- 알림함 제목(서버 NotificationType별, 서버는 내용만 준다)과 측정 서비스 진행 알림 문구(D-259). -->
 <resources>
     <string name="inbox_title_default">알림</string>
     <string name="inbox_title_plan_missed">계획 미이행</string>
@@ -17,8 +17,18 @@
 
     <string name="measurement_channel_name">러닝 측정</string>
     <string name="push_channel_name">런크크 알림</string>
-    <string name="measurement_notification_title">러닝 측정 중</string>
-    <string name="measurement_notification_text">화면을 꺼도 거리와 시간을 계속 잽니다</string>
+    <!-- 잠금 화면 진행 알림(FR-224, D-259). 문구는 피그마 B-3·C-5 그대로다. -->
+    <string name="progress_notice_free_title">자유런 · %1$s 경과</string>
+    <string name="progress_notice_battle_title">vs %1$s · %2$s 경과</string>
+    <string name="progress_notice_distance">%1$s km</string>
+    <string name="progress_notice_goal_remaining">목표까지 %1$skm</string>
+    <string name="progress_notice_goal_reached">목표 달성</string>
+    <string name="progress_notice_ahead">앞서는 중 +%1$d m</string>
+    <string name="progress_notice_behind">뒤처지는 중 -%1$d m</string>
+    <string name="progress_notice_gap_ahead_chip">+%1$d m</string>
+    <string name="progress_notice_gap_behind_chip">-%1$d m</string>
+    <string name="progress_notice_pause">일시정지</string>
+    <string name="progress_notice_resume">재개</string>
     <string name="inbox_title_crew_notice">크루 공지</string>
     <string name="inbox_title_crew_poll">크루 투표</string>
     <string name="inbox_title_poll_closing_soon">투표 마감 임박</string>
