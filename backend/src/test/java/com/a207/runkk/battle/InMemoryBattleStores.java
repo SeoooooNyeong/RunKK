@@ -245,9 +245,23 @@ public final class InMemoryBattleStores {
                     && findPending(invite.getInviterId()).isPresent()) {
                 // uq_friend_invite_pending 흉내
                 throw new org.springframework.dao.DataIntegrityViolationException(
-                        "uq_friend_invite_pending");
+                        "uq_friend_invite_pending",
+                        new java.sql.SQLException("duplicate key", "23505"));
             }
             return save(invite);
+        }
+
+        @Override
+        public int deleteByMember(long memberId) {
+            int before = rows.size();
+            rows.values()
+                    .removeIf(
+                            i ->
+                                    i.getInviterId() == memberId
+                                            || i.getJoinerId()
+                                                    .filter(j -> j == memberId)
+                                                    .isPresent());
+            return before - rows.size();
         }
 
         @Override

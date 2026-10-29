@@ -25,6 +25,9 @@ public interface FriendInviteRepository {
     /** 그 회원이 보낸 열린 대기 초대(PENDING이고 now &lt; expiresAt)가 있는가. */
     boolean existsOpen(long inviterId, LocalDateTime now);
 
+    /** 그 회원이 보낸 초대와 받은(참가한) 초대를 모두 지운다(탈퇴 파기). 지운 수. */
+    int deleteByMember(long memberId);
+
     /** 기한이 지난(expiresAt ≤ now) PENDING 초대, 만료 시각 순으로 limit개. */
     List<FriendInvite> findDuePending(LocalDateTime now, int limit);
 }

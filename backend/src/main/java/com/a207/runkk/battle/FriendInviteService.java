@@ -19,7 +19,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 친구 대결 초대의 생성, 취소, 거절, 참가, 만료(설계 5.6.2, SQ-31·SQ-32, D-218~D-223). 바쁨 판정은 RunnerAvailability, 대결
@@ -64,10 +63,14 @@ public class FriendInviteService {
     /**
      * 초대를 만든다(D-220). 검사 순서: 거리(1·3·5·10km, 아니면 BATTLE_DISTANCE_INVALID) → 위치
      * 동의(LOCATION_CONSENT_REQUIRED) → 기한 남은 대기 초대(INVITE_ALREADY_PENDING, 기한 지난 것은 EXPIRED로 바꾸고 진행)
-     * → 바쁨(ALREADY_IN_BATTLE, 대기열 장애는 QUEUE_UNAVAILABLE). 저장 뒤 그 거리를 기본 대결 거리로 기억한다. 티어는 보지 않는다.
+     * → 바쁨(ALREADY_IN_BATTLE, 대기열 장애는 QUEUE_UNAVAILABLE). 저장 뒤 그 거리를 기본 대결 거리로 기억한다. 티어는 보지 않는다. 기한
+     * 지난 자기 초대를 정리하는 작업과 같은 행을 두고 겹쳐 낙관적 잠금이 충돌하면 다시 읽어 한 번 더 한다(그 행은 이미 EXPIRED).
      */
-    @Transactional
     public FriendInviteIssue invite(long memberId, StandardDistance distance) {
+        return transactions.retrying(() -> tryInvite(memberId, distance));
+    }
+
+    private FriendInviteIssue tryInvite(long memberId, StandardDistance distance) {
         if (distance == null || !distance.isRandomBattle()) {
             throw new BusinessRuleException(ReasonCode.BATTLE_DISTANCE_INVALID);
         }
@@ -97,6 +100,9 @@ public class FriendInviteService {
                     friendInviteRepository.saveImmediately(
                             FriendInvite.open(memberId, distance, now));
         } catch (DataIntegrityViolationException racing) {
+            if (!UniqueViolations.isUniqueViolation(racing)) {
+                throw racing; // NOT NULL·CHECK 위반은 경합이 아니다(코드 리뷰 8차 BE8-5)
+            }
             // 같은 회원의 동시 요청: uq_friend_invite_pending이 둘째를 막는다(TC-9804)
             throw new BusinessRuleException(ReasonCode.INVITE_ALREADY_PENDING);
         }
@@ -157,6 +163,9 @@ public class FriendInviteService {
         try {
             outcome = transactions.retrying(() -> tryAccept(memberId, token));
         } catch (DataIntegrityViolationException racing) {
+            if (!UniqueViolations.isUniqueViolation(racing)) {
+                throw racing; // 고유 제약이 아닌 위반은 다시 실행하지 않는다(코드 리뷰 8차 BE8-5)
+            }
             // 동시 수락: 늦은 쪽이 활성 대결 칸(V15) 고유 제약에 걸렸다. 다시 읽어 거부 사유를 정한다(TC-9803)
             outcome = transactions.retrying(() -> tryAccept(memberId, token));
         }
@@ -246,6 +255,12 @@ public class FriendInviteService {
                                                 friendInviteRepository.save(invite);
                                             }
                                         }));
+    }
+
+    /** 탈퇴 파기: 그 회원이 보낸 초대와 참가한 초대 행을 지운다(대결 기록은 남는다). 실패하면 로그만 남긴다. */
+    public void eraseOf(long memberId) {
+        transactions.once(
+                "friend_invite_erase", () -> friendInviteRepository.deleteByMember(memberId));
     }
 
     private FriendInvite byToken(String token) {
