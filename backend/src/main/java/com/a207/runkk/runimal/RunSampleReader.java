@@ -1,6 +1,7 @@
 package com.a207.runkk.runimal;
 
 import com.a207.runkk.common.DateRange;
+import com.a207.runkk.policy.OperationPolicy;
 import com.a207.runkk.running.RunQueryService;
 import com.a207.runkk.running.RunSampleRow;
 import java.time.LocalDate;
@@ -26,14 +27,17 @@ class RunSampleReader {
     private final RunQueryService runQueryService;
     private final CourseVerdictRepository courseVerdictRepository;
     private final ObjectProvider<CrewRunParticipationQuery> participationQuery;
+    private final OperationPolicy operationPolicy;
 
     RunSampleReader(
             RunQueryService runQueryService,
             CourseVerdictRepository courseVerdictRepository,
-            ObjectProvider<CrewRunParticipationQuery> participationQuery) {
+            ObjectProvider<CrewRunParticipationQuery> participationQuery,
+            OperationPolicy operationPolicy) {
         this.runQueryService = runQueryService;
         this.courseVerdictRepository = courseVerdictRepository;
         this.participationQuery = participationQuery;
+        this.operationPolicy = operationPolicy;
     }
 
     /** 최근 10회 + 최근 한 달(동행 축) + 코스 판정 + 크루런 연결 기록. */
@@ -47,10 +51,13 @@ class RunSampleReader {
                         .collect(Collectors.toSet());
         Map<String, Boolean> verdicts =
                 ids.isEmpty() ? Map.of() : courseVerdictRepository.findByRecords(ids);
+        // 크루 공개(운영 기준 CREW_RELEASED) 전에는 크루런을 동행 축에 넣지 않는다(FR-153, v0.14 D-247)
         Set<String> linked =
-                participationQuery
-                        .getIfAvailable(() -> (member, range) -> Set.of())
-                        .linkedRecordIds(memberId, month);
+                operationPolicy.features().crewReleased()
+                        ? participationQuery
+                                .getIfAvailable(() -> (member, range) -> Set.of())
+                                .linkedRecordIds(memberId, month)
+                        : Set.of();
         return RunSample.of(recent, lastMonth, verdicts, linked);
     }
 }
