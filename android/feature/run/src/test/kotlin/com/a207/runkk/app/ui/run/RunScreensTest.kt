@@ -1,5 +1,6 @@
 package com.a207.runkk.app.ui.run
 
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -14,6 +15,9 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
+import com.a207.runkk.app.core.designsystem.DEFAULT_AVATAR_TAG
+import com.a207.runkk.app.core.designsystem.LocalReleaseScope
+import com.a207.runkk.app.core.designsystem.ReleaseScope
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.shouldAskNotificationPermission
 import com.a207.runkk.app.core.model.Distance
@@ -113,31 +117,35 @@ class RunScreensTest {
     @Test
     fun `TC-9729 결과 화면은 시간·휴식·평균 페이스·평균 심박·구간·신기록·리워드이고 열량·날씨·집계 제외가 없다`() {
         compose.setContent {
-            RunkkTheme(reduceMotion = true) {
-                RunResultScreen(
-                    RunResultUiState(
-                        isLoading = false,
-                        recordId = "r",
-                        cardKind = com.a207.runkk.app.core.model.CardKind.FREE_RUN,
-                        distance = Distance(5_210),
-                        elapsed = java.time.Duration.ofSeconds(1_668),
-                        averagePace = com.a207.runkk.app.core.model.Pace(332),
-                        averageHeartRate = 152,
-                        splitPaces = listOf(com.a207.runkk.app.core.model.Pace(380)),
-                        heartRateZones = listOf("Z2" to java.time.Duration.ofMinutes(8)),
-                        newRecords = listOf("최장 거리 신기록 · 직전 4.80km"),
-                        rewardPoints = 52,
-                        pausedTotal = java.time.Duration.ofSeconds(185),
-                        startedAt = start,
-                        isUploaded = true
-                    ),
-                    onCard = {},
-                    onHome = {},
-                    onRetry = {}
-                )
+            CompositionLocalProvider(LocalReleaseScope provides ReleaseScope.FIRST_RELEASE) {
+                RunkkTheme(reduceMotion = true) {
+                    RunResultScreen(
+                        RunResultUiState(
+                            isLoading = false,
+                            recordId = "r",
+                            cardKind = com.a207.runkk.app.core.model.CardKind.FREE_RUN,
+                            distance = Distance(5_210),
+                            elapsed = java.time.Duration.ofSeconds(1_668),
+                            averagePace = com.a207.runkk.app.core.model.Pace(332),
+                            averageHeartRate = 152,
+                            splitPaces = listOf(com.a207.runkk.app.core.model.Pace(380)),
+                            heartRateZones = listOf("Z2" to java.time.Duration.ofMinutes(8)),
+                            newRecords = listOf("최장 거리 신기록 · 직전 4.80km"),
+                            rewardPoints = 52,
+                            pausedTotal = java.time.Duration.ofSeconds(185),
+                            startedAt = start,
+                            isUploaded = true
+                        ),
+                        onCard = {},
+                        onHome = {},
+                        onRetry = {}
+                    )
+                }
             }
         }
         compose.onNodeWithText("러닝 결과").assertExists()
+        // 결과 상세는 뛰어오르는 아바타다(D84, 피그마 B-6)
+        compose.onNodeWithTag(DEFAULT_AVATAR_TAG + "JUMP", useUnmergedTree = true).assertExists()
         compose.onNodeWithText("휴식 3분 5초", useUnmergedTree = true).assertExists()
         compose.onNodeWithText("평균 페이스", useUnmergedTree = true).assertExists()
         compose.onNodeWithText("평균 심박", useUnmergedTree = true).assertExists()

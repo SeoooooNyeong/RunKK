@@ -163,7 +163,7 @@ private fun headerText(state: MatchUiState): String {
     }
 }
 
-/** 랜덤 대기(C-2)와 초대 대기(C-10): 가운데 아바타, 안내, 경과, 아래 버튼. */
+/** 랜덤 대기(C-2)와 초대 대기(C-10): 가운데 찾는 자세 아바타(D84), 안내, 경과, 아래 버튼. */
 @Composable
 private fun ColumnScope.Waiting(state: MatchUiState, actions: MatchActions) {
     val isInvite = state.opponentKind == OpponentKind.FRIEND
@@ -174,7 +174,7 @@ private fun ColumnScope.Waiting(state: MatchUiState, actions: MatchActions) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically)
     ) {
-        RunkkAvatar(null, AvatarExpression.STAND, Modifier.size(220.dp))
+        RunkkAvatar(null, AvatarExpression.SEARCH, Modifier.size(width = 150.dp, height = 240.dp))
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -301,7 +301,7 @@ private fun InviteVersus(invite: FriendInviteView) {
     )
 }
 
-/** 성사(C-3): "상대를 찾았어요", 나 VS 상대(티어, 최고 기록), 자동 출발 고리. 측정이 늦어지면 그만두기(배틀 QA 2번). */
+/** 성사(C-3): "상대를 찾았어요", 나(티어, R2-10) VS 상대(티어, 최고 기록), 자동 출발 고리. 측정이 늦어지면 그만두기(배틀 QA 2번). */
 @Composable
 private fun ColumnScope.Matched(match: MatchFound, state: MatchUiState, onForfeit: () -> Unit) {
     val distance = distanceLabel(match.distance).asString()
@@ -322,7 +322,14 @@ private fun ColumnScope.Matched(match: MatchFound, state: MatchUiState, onForfei
             }
         )
         Versus(
-            mine = { Contender(stringResource(R.string.battle_me), it, caption = bestLine(distance, match.myBest)) },
+            mine = {
+                Contender(
+                    stringResource(R.string.battle_me),
+                    it,
+                    tier = state.myTier?.let { tier -> tierLabel(tier) },
+                    caption = bestLine(distance, match.myBest)
+                )
+            },
             theirs = {
                 Contender(
                     match.opponentName,

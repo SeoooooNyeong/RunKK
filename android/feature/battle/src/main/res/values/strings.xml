@@ -154,6 +154,6 @@
     <string name="battle_record_average_spoken">평균 %1$s</string>
     <string name="battle_record_challenge_label">%1$s와 대결하기</string>
     <string name="battle_record_source">출처: %1$s</string>
-    <string name="battle_record_run_self">나와의 대결</string>
+    <string name="battle_record_run_self">셀프런</string>
     <string name="battle_record_run_celeb">셀럽런</string>
 </resources>

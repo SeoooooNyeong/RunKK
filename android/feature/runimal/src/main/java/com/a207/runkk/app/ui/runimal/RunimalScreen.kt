@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
@@ -193,7 +192,7 @@ private fun ShareBar(isSharing: Boolean, onShare: (RunimalShareKind) -> Unit) {
     }
 }
 
-/** 유형 카드(FR-151): 임시·확정 표시, 유형 동물 그림, 이름, 한 줄 설명. */
+/** 유형 카드(FR-151): 임시 유형 배지, 연한 둥근 네모 위 유형 동물 그림(G-4), 이름, 한 줄 설명. */
 @Composable
 private fun TypeCard(card: RunimalCard, isProvisional: Boolean) {
     Column(
@@ -206,19 +205,13 @@ private fun TypeCard(card: RunimalCard, isProvisional: Boolean) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        RunkkBadge(
-            stringResource(if (isProvisional) R.string.runimal_type_provisional else R.string.runimal_type_confirmed),
-            tone = if (isProvisional) RunkkBadgeTone.Muted else RunkkBadgeTone.Lime
-        )
+        // 확정 유형은 배지 없이 보이고(R2-19, D90), 아직 임시인 유형만 배지로 알린다.
+        if (isProvisional) RunkkBadge(stringResource(R.string.runimal_type_provisional), tone = RunkkBadgeTone.Muted)
         val art = RunimalArt.of(card.type)
-        Image(
-            painter = painterResource(art.drawableRes),
-            contentDescription = if (art == RunimalArt.UNKNOWN) card.title else stringResource(art.nameRes),
-            modifier = Modifier
-                .size(TYPE_ART_SIZE)
-                .clip(CircleShape)
-                .background(RunkkColors.Background)
-                .padding(12.dp)
+        RunimalArtTile(
+            art,
+            size = TYPE_ART_SIZE,
+            contentDescription = if (art == RunimalArt.UNKNOWN) card.title else stringResource(art.nameRes)
         )
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -352,7 +345,7 @@ private fun AxisBar(axis: String, ratio: Double, isLime: Boolean) {
 }
 
 /**
- * 16유형(3.6.1, J1): 동물 그림 작은 격자(한 줄 8칸). 내 유형을 라임 테두리로 표시하고 이름은 보조 기술로 읽는다.
+ * 16유형(3.6.1, J1): 동물 그림 작은 격자(한 줄 8칸, 피그마 G-4의 연한 둥근 네모). 내 유형을 라임 테두리로 표시하고 이름은 보조 기술로 읽는다.
  * FlowRow는 그림의 고유 너비로 줄을 나눠 칸이 커지므로 줄을 직접 나눈다.
  */
 @Composable
@@ -370,12 +363,12 @@ private fun AllTypes(status: RunimalStatus) {
                         modifier = Modifier
                             .weight(1f)
                             .aspectRatio(1f)
-                            .clip(RunkkShapes.Medium)
-                            .background(if (mine) RunkkColors.LimeContainer else RunkkColors.Surface)
+                            .clip(SMALL_TILE_SHAPE)
+                            .background(RunimalTileFill)
                             .border(
                                 if (mine) 2.dp else 1.dp,
-                                if (mine) RunkkColors.Lime else RunkkColors.Border,
-                                RunkkShapes.Medium
+                                if (mine) RunkkColors.Lime else RunimalTileBorder,
+                                SMALL_TILE_SHAPE
                             )
                             .clearAndSetSemantics {
                                 contentDescription = name
@@ -399,6 +392,7 @@ private fun AllTypes(status: RunimalStatus) {
 }
 
 private val TYPE_ART_SIZE = 120.dp
+private val SMALL_TILE_SHAPE = RoundedCornerShape(12.dp)
 private val LEAN_BAR_HEIGHT = 10.dp
 private const val GRID_COLUMNS = 8
 private const val PERCENT = 100

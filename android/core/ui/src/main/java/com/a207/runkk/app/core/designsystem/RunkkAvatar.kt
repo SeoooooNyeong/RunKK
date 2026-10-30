@@ -49,13 +49,15 @@ fun RivalAvatar(modifier: Modifier = Modifier) {
 /** 배틀런 상대 그림의 시험 표지. */
 const val RIVAL_AVATAR_TAG = "rival-avatar"
 
-/** 기본 아바타 그림(장면별 5종). */
+/** 기본 아바타 그림(장면별 7종). */
 @DrawableRes
 fun defaultAvatarOf(expression: AvatarExpression): Int = when (expression) {
     AvatarExpression.JOY -> R.drawable.avatar_default_joy
     AvatarExpression.SAD -> R.drawable.avatar_default_sad
     AvatarExpression.STAND -> R.drawable.avatar_default_stand
     AvatarExpression.RUN -> R.drawable.avatar_default_run
+    AvatarExpression.SEARCH -> R.drawable.avatar_default_search
+    AvatarExpression.JUMP -> R.drawable.avatar_default_jump
     AvatarExpression.FACE -> R.drawable.avatar_default_face
 }
 

@@ -193,6 +193,15 @@ class MatchViewModelTest {
     }
 
     @Test
+    fun `TC-9663 성사 화면의 내 티어는 내 프로필 티어이고 못 읽으면 비운다(R2-10)`() = main.runVmTest { vms ->
+        val vm = quick(world(), vms)
+        assertEquals("GOLD", vm.state.value.myTier)
+        accounts.profileResult = Outcome.Failure(AppError.Network)
+        val failed = quick(world(), vms)
+        assertNull(failed.state.value.myTier)
+    }
+
+    @Test
     fun `성사와 출발 예약이 잇따라 와도 출발 예약을 놓치지 않는다`() = main.runVmTest { vms ->
         val w = world()
         val vm = quick(w, vms)
@@ -660,6 +669,12 @@ class MatchViewModelTest {
         val missing = world()
         missing.battles.inviteViewResult = rejected("INVITE_NOT_FOUND")
         assertEquals(UiText.Res(R.string.battle_join_ended), join(missing, vms).state.value.notice)
+    }
+
+    @Test
+    fun `TC-9663 참가하는 쪽의 내 티어는 참가 확인 정보의 내 티어다(R2-10)`() = main.runVmTest { vms ->
+        val vm = join(world(), vms)
+        assertEquals("UNRANKED", vm.state.value.myTier)
     }
 
     @Test

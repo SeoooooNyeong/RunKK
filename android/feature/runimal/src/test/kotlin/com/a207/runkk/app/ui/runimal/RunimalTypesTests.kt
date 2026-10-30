@@ -35,6 +35,28 @@ class RunimalTypesViewModelTest {
     private val repo = FakeRunimal()
 
     @Test
+    fun `TC-9738 16유형 격자는 서버 순서를 열 단위로 놓는다(G-5, R2-14)`() {
+        val rows = columnMajorRows(typeBoard.types.map { it.type }, columns = 4)
+        assertEquals(
+            listOf("MORNING_SPARROW", "COMMUTER_TURTLE", "WALKING_PUPPY", "PILLAR_ELEPHANT"),
+            rows[0],
+            "1행: 각 열의 첫 유형"
+        )
+        assertEquals(
+            listOf("STROLLING_CAT", "LONE_WOLF", "PICNIC_RABBIT", "WILD_HORSE"),
+            rows[3],
+            "4행: 각 열의 마지막 유형"
+        )
+        assertEquals(
+            listOf("MORNING_SPARROW", "WHEEL_HAMSTER", "ALLEY_SQUIRREL", "STROLLING_CAT"),
+            rows.map { it[0] },
+            "1열: 아침 참새, 쳇바퀴 햄스터, 골목 탐험 다람쥐, 마실 나온 고양이"
+        )
+        assertEquals(listOf(listOf("A", "C"), listOf("B", null)), columnMajorRows(listOf("A", "B", "C"), columns = 2))
+        assertEquals(emptyList(), columnMajorRows(emptyList<String>(), columns = 4))
+    }
+
+    @Test
     fun `TC-9738 지금 유형과 예전 확정 유형은 흐리지 않고 한 번도 확정받지 않은 유형은 흐린다`() {
         val s = RunimalTypesViewModel(repo).state.value
         assertFalse(s.isLoading)

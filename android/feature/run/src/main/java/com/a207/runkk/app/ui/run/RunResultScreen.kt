@@ -138,7 +138,7 @@ fun RunResultScreen(
     }
 }
 
-/** 화면 값 → 결과 상세 한 장. 거리·시간이 아직 없으면 null(읽는 중·오류). 자유런 완료는 기쁜 표정이다(D-254). */
+/** 화면 값 → 결과 상세 한 장. 거리·시간이 아직 없으면 null(읽는 중·오류). 자유런 완료는 뛰어오르는 아바타다(D84, 피그마 B-6). */
 @Composable
 private fun RunResultUiState.toDetail(): RunResultDetailState? {
     val distance = distance ?: return null
@@ -154,7 +154,7 @@ private fun RunResultUiState.toDetail(): RunResultDetailState? {
         heartRateZones = heartRateZones,
         newRecords = newRecords,
         rewardPoints = rewardPoints,
-        expression = AvatarExpression.JOY
+        expression = AvatarExpression.JUMP
     )
 }
 

@@ -164,27 +164,33 @@ class RunScreenshotTest {
 
     @Test
     fun resultLight() = compose.captureRunkkScreen("B4_run_result_light", isDarkTheme = false) {
-        RunResultScreen(
-            RunResultUiState(
-                isLoading = false,
-                recordId = "rec-1",
-                cardKind = CardKind.FREE_RUN,
-                startedAt = start,
-                distance = Distance(5_020),
-                elapsed = Duration.ofSeconds(1_668),
-                averagePace = Pace(332),
-                averageHeartRate = 152,
-                splitPaces = listOf(Pace(380), Pace(368), Pace(362), Pace(371), Pace(341)),
-                heartRateZones = listOf("Z1" to Duration.ofMinutes(2), "Z3" to Duration.ofMinutes(9)),
-                newRecords = listOf("최장 거리 신기록 · 직전 4.80km"),
-                rewardPoints = 52,
-                pausedTotal = Duration.ofSeconds(185),
-                isUploaded = true
-            ),
-            onCard = {},
-            onHome = {},
-            onRetry = {}
-        )
+        // 1차 배포(아바타 꾸미기 닫힘): 결과 상세는 뛰어오르는 기본 아바타다(D84).
+        androidx.compose.runtime.CompositionLocalProvider(
+            com.a207.runkk.app.core.designsystem.LocalReleaseScope provides
+                com.a207.runkk.app.core.designsystem.ReleaseScope.FIRST_RELEASE
+        ) {
+            RunResultScreen(
+                RunResultUiState(
+                    isLoading = false,
+                    recordId = "rec-1",
+                    cardKind = CardKind.FREE_RUN,
+                    startedAt = start,
+                    distance = Distance(5_020),
+                    elapsed = Duration.ofSeconds(1_668),
+                    averagePace = Pace(332),
+                    averageHeartRate = 152,
+                    splitPaces = listOf(Pace(380), Pace(368), Pace(362), Pace(371), Pace(341)),
+                    heartRateZones = listOf("Z1" to Duration.ofMinutes(2), "Z3" to Duration.ofMinutes(9)),
+                    newRecords = listOf("최장 거리 신기록 · 직전 4.80km"),
+                    rewardPoints = 52,
+                    pausedTotal = Duration.ofSeconds(185),
+                    isUploaded = true
+                ),
+                onCard = {},
+                onHome = {},
+                onRetry = {}
+            )
+        }
     }
 
     @Test

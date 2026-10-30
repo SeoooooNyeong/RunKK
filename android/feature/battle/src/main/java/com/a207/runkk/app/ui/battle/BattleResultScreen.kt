@@ -30,6 +30,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
@@ -114,7 +115,10 @@ fun BattleResultRoute(
     )
 }
 
-/** 결과 쪽(1)과 상세 쪽(2)을 옆으로 넘긴다. 판정 전·보류·오류는 결과 쪽 자리에 그 상태를 보인다(배틀 QA 5번, FR-108). */
+/**
+ * 결과 쪽(1)과 상세 쪽(2)을 옆으로 넘긴다. 판정 전·보류·오류는 결과 쪽 자리에 그 상태를 보인다(배틀 QA 5번, FR-108).
+ * 배경 그림은 결과 쪽에만 있고 상세 쪽으로 넘기는 만큼 흐려져 상세 쪽은 화면 전체가 단색 바탕이다(R2-17, D90).
+ */
 @Composable
 fun BattleResultScreen(
     state: BattleResultUiState,
@@ -127,7 +131,12 @@ fun BattleResultScreen(
     val result = state.result
     val isDecided = result != null && !result.isPending
     Box(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
-        if (isDecided) AvatarBackdrop(backgroundKey = null, modifier = Modifier.fillMaxSize())
+        if (isDecided) {
+            AvatarBackdrop(
+                backgroundKey = null,
+                modifier = Modifier.fillMaxSize().graphicsLayer { alpha = verdictPageVisibility(pagerState) }
+            )
+        }
         Column(modifier = Modifier.fillMaxSize()) {
             Text(
                 stringResource(resultTitleRes(state.kind)),
@@ -311,7 +320,7 @@ private fun DetailPage(state: BattleResultUiState, result: BattleResult, onBack:
     }
 }
 
-/** 기록 상세 → 결과 상세 한 장. 리워드 줄은 서버 적립 합계(totalRewardPoints, 옛 서버면 기록 리워드)다. 표정은 결과 쪽과 같다. */
+/** 기록 상세 → 결과 상세 한 장. 리워드 줄은 서버 적립 합계(totalRewardPoints, 옛 서버면 기록 리워드)다. 표정은 [detailExpression]이다. */
 @Composable
 private fun RecordDetail.toDetailState(verdict: Verdict?, result: BattleResult): RunResultDetailState =
     RunResultDetailState(
@@ -325,7 +334,7 @@ private fun RecordDetail.toDetailState(verdict: Verdict?, result: BattleResult):
         heartRateZones = heartRateZones.toList(),
         newRecords = newRecords,
         rewardPoints = result.totalRewardPoints ?: rewardPoints,
-        expression = resultExpression(verdict)
+        expression = detailExpression(verdict)
     )
 
 /** "10.16 목 · 오전 7:12 · 배틀런". */
@@ -420,6 +429,10 @@ private fun BottomActions(hasRecord: Boolean, onCard: () -> Unit, onHome: () -> 
 
 private const val PAGES = 2
 
+/** 결과 쪽이 보이는 정도(0~1). 상세 쪽으로 넘어가면 0이다. */
+private fun verdictPageVisibility(pagerState: PagerState): Float =
+    (1f - (pagerState.currentPage + pagerState.currentPageOffsetFraction)).coerceIn(0f, 1f)
+
 @Preview(name = "대결 결과", widthDp = 390, heightDp = 844)
 @Composable
 private fun BattleResultPreview() {
@@ -453,3 +466,7 @@ private fun BattleResultPreview() {
 /** 결과 화면 표정(TC-9702): 패배만 SAD, 승리·신기록(셀프런 승리)·무승부·판정 없음은 JOY. */
 internal fun resultExpression(verdict: Verdict?): AvatarExpression =
     if (verdict == Verdict.LOSE) AvatarExpression.SAD else AvatarExpression.JOY
+
+/** 상세 장 표정(D84, 피그마 C-8·D-7): 뛰어오르기, 패배만 SAD. */
+internal fun detailExpression(verdict: Verdict?): AvatarExpression =
+    if (verdict == Verdict.LOSE) AvatarExpression.SAD else AvatarExpression.JUMP

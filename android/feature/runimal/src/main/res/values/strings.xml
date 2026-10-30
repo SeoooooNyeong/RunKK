@@ -11,7 +11,6 @@
     <string name="runimal_empty_title">아직 유형이 없어요</string>
     <string name="runimal_share_with">%1$s로 카드 공유</string>
     <string name="runimal_type_provisional">임시 유형</string>
-    <string name="runimal_type_confirmed">확정 유형</string>
     <string name="runimal_axis_description">%1$s %2$d%%</string>
     <string name="runimal_percent">%1$d%%</string>
     <string name="runimal_my_type">내 유형</string>

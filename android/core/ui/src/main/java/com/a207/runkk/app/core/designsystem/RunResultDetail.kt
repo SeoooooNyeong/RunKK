@@ -37,6 +37,7 @@ import java.util.Locale
  * 러닝 결과 상세 한 장의 값(D-282). 자유런 결과(B-6)가 그리고, 대결 결과 2쪽(상세, D-283)도 같은 것을 그린다.
  * [dateLine]은 부르는 쪽이 만든 "10.16 목 · 오전 7:12 · 자유런"이다. [rest]는 정지 구간 합("휴식 n분 n초")이고 없으면 줄이 없다.
  * [crewLine]은 크루 반영 줄이고 CREW가 닫혀 있으면(1차 배포) 그리지 않는다. 가장 빠른 1km·소모 열량·날씨는 싣지 않는다(D-26).
+ * [expression]은 뛰어오르는 아바타가 기본이고(D84, 피그마 B-6·C-8) 패배 상세만 부르는 쪽이 SAD를 넘긴다.
  */
 @Immutable
 data class RunResultDetailState(
@@ -51,7 +52,7 @@ data class RunResultDetailState(
     val newRecords: List<String> = emptyList(),
     val crewLine: String? = null,
     val rewardPoints: Int? = null,
-    val expression: AvatarExpression = AvatarExpression.JOY
+    val expression: AvatarExpression = AvatarExpression.JUMP
 )
 
 /**
@@ -93,7 +94,7 @@ private fun DistanceHeader(state: RunResultDetailState) {
             }
             Text(state.dateLine, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
         }
-        RunkkAvatar(faceKey = null, expression = state.expression, modifier = Modifier.size(104.dp))
+        RunkkAvatar(faceKey = null, expression = state.expression, modifier = Modifier.size(110.dp))
     }
 }
 

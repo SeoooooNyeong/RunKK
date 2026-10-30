@@ -24,10 +24,25 @@ class EvaluationScreenTest {
     private val shown = mutableListOf<String>()
     private var confirmed = 0
 
-    private fun show(tier: String, validRuns: Int, runimalType: String?) = compose.setContent {
-        RunkkTheme(reduceMotion = true) {
-            EvaluationScreen(tier, validRuns, runimalType, onShowType = { shown += it }, onConfirm = { confirmed++ })
+    private fun show(tier: String, validRuns: Int, runimalType: String?, description: String? = null) =
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                EvaluationScreen(
+                    tier,
+                    validRuns,
+                    runimalType,
+                    onShowType = { shown += it },
+                    onConfirm = { confirmed++ },
+                    runimalDescription = description
+                )
+            }
         }
+
+    @Test
+    fun `TC-9737 Runimal 확정 카드는 유형 이름 아래 한 줄 설명을 보인다(G-11, R2-15)`() {
+        show("GOLD", 20, "COMMUTER_TURTLE", description = "같은 길을 같은 시간에, 오래 꾸준히 달려요")
+        compose.onNodeWithText("출근도장 거북이").assertExists()
+        compose.onNodeWithText("같은 길을 같은 시간에, 오래 꾸준히 달려요").assertExists()
     }
 
     @Test
@@ -89,6 +104,13 @@ class EvaluationScreenshotTest {
 
     @Test
     fun reevaluationWithType() = compose.captureRunkkScreen("G11_evaluation") {
-        EvaluationScreen("GOLD", 20, "COMMUTER_TURTLE", onShowType = {}, onConfirm = {})
+        EvaluationScreen(
+            "GOLD",
+            20,
+            "COMMUTER_TURTLE",
+            onShowType = {},
+            onConfirm = {},
+            runimalDescription = "같은 길을 같은 시간에, 오래 꾸준히 달려요"
+        )
     }
 }

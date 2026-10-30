@@ -6,8 +6,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -48,7 +46,7 @@ import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.runimal.AxisLean
 import com.a207.runkk.app.domain.runimal.RunimalTypeBoard
 
-/** Runimal 16유형(G-5, D-285): 축 범례와 4×4 격자. 확정받은 적 없는 유형은 흐리지만 눌러 상세로 갈 수 있다. */
+/** Runimal 16유형(G-5, D-285): 축 범례와 4×4 격자(열 단위 배치). 확정받은 적 없는 유형은 흐리지만 눌러 상세로 갈 수 있다. */
 @Composable
 fun RunimalTypesRoute(viewModel: RunimalTypesViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -124,62 +122,90 @@ private fun LegendSide(name: String, isLeaning: Boolean) {
     )
 }
 
-/** 16유형 4×4 격자: 그림과 이름. 지금 유형은 라임 테두리, 확정받은 적 없는 유형은 흐리게. */
-@OptIn(ExperimentalLayoutApi::class)
+/**
+ * 16유형 4×4 격자(G-5): 그림과 이름. 서버가 보낸 순서를 열 단위로 놓는다(1열 아침 참새·쳇바퀴 햄스터·골목 탐험 다람쥐·마실 나온 고양이,
+ * R2-14). 지금 유형은 라임 테두리, 확정받은 적 없는 유형은 흐리게.
+ */
 @Composable
 private fun TypeGrid(state: RunimalTypesUiState, board: RunimalTypeBoard, onSelect: (String) -> Unit) {
-    val mineLabel = stringResource(R.string.runimal_my_type)
-    val neverLabel = stringResource(R.string.runimal_types_never_confirmed)
-    FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-        maxItemsInEachRow = GRID_COLUMNS
-    ) {
-        board.types.forEach { entry ->
-            val isMine = entry.type == board.current
-            val isDimmed = state.isDimmed(entry)
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    // 배경·테두리까지 흐리게 하려면 alpha가 그리기 수정자보다 앞에 와야 한다.
-                    .alpha(if (isDimmed) DIMMED_ALPHA else 1f)
-                    .clip(RunkkShapes.Large)
-                    .background(if (isMine) RunkkColors.LimeContainer else RunkkColors.Surface)
-                    .border(
-                        if (isMine) 2.dp else 1.dp,
-                        if (isMine) RunkkColors.Lime else RunkkColors.Border,
-                        RunkkShapes.Large
-                    )
-                    .clickable(role = Role.Button) { onSelect(entry.type) }
-                    .semantics {
-                        if (isMine) {
-                            stateDescription = mineLabel
-                        } else if (isDimmed) {
-                            stateDescription = neverLabel
-                        }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        columnMajorRows(board.types, GRID_COLUMNS).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                row.forEach { entry ->
+                    if (entry == null) {
+                        Spacer(Modifier.weight(1f))
+                    } else {
+                        TypeCell(
+                            entry = entry,
+                            isMine = entry.type == board.current,
+                            isDimmed = state.isDimmed(entry),
+                            onSelect = onSelect,
+                            modifier = Modifier.weight(1f)
+                        )
                     }
-                    .padding(horizontal = 4.dp, vertical = 12.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Image(
-                    painter = painterResource(RunimalArt.of(entry.type).drawableRes),
-                    contentDescription = null,
-                    modifier = Modifier.size(ART_SIZE)
-                )
-                Text(
-                    entry.displayName,
-                    style = RunkkTextStyles.text(11, if (isMine) FontWeight.Bold else FontWeight.Normal),
-                    color = RunkkColors.TextPrimary,
-                    textAlign = TextAlign.Center,
-                    minLines = 2,
-                    maxLines = 2,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                }
             }
         }
-        repeat((GRID_COLUMNS - board.types.size % GRID_COLUMNS) % GRID_COLUMNS) { Spacer(Modifier.weight(1f)) }
     }
+}
+
+@Composable
+private fun TypeCell(
+    entry: RunimalTypeBoard.Entry,
+    isMine: Boolean,
+    isDimmed: Boolean,
+    onSelect: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val mineLabel = stringResource(R.string.runimal_my_type)
+    val neverLabel = stringResource(R.string.runimal_types_never_confirmed)
+    Column(
+        modifier = modifier
+            // 배경·테두리까지 흐리게 하려면 alpha가 그리기 수정자보다 앞에 와야 한다.
+            .alpha(if (isDimmed) DIMMED_ALPHA else 1f)
+            .clip(RunkkShapes.Large)
+            .background(if (isMine) RunkkColors.LimeContainer else RunkkColors.Surface)
+            .border(
+                if (isMine) 2.dp else 1.dp,
+                if (isMine) RunkkColors.Lime else RunkkColors.Border,
+                RunkkShapes.Large
+            )
+            .clickable(role = Role.Button) { onSelect(entry.type) }
+            .semantics {
+                if (isMine) {
+                    stateDescription = mineLabel
+                } else if (isDimmed) {
+                    stateDescription = neverLabel
+                }
+            }
+            .padding(horizontal = 4.dp, vertical = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Image(
+            painter = painterResource(RunimalArt.of(entry.type).drawableRes),
+            contentDescription = null,
+            modifier = Modifier.size(ART_SIZE)
+        )
+        Text(
+            entry.displayName,
+            style = RunkkTextStyles.text(11, if (isMine) FontWeight.Bold else FontWeight.Normal),
+            color = RunkkColors.TextPrimary,
+            textAlign = TextAlign.Center,
+            minLines = 2,
+            maxLines = 2,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+/**
+ * [items]를 [columns]열 격자의 행 목록으로 바꾼다. 순서는 열 단위다(첫 열을 위에서 아래로 채운 뒤 다음 열). 빈 칸은 null이다.
+ */
+internal fun <T> columnMajorRows(items: List<T>, columns: Int): List<List<T?>> {
+    if (items.isEmpty()) return emptyList()
+    val rows = (items.size + columns - 1) / columns
+    return List(rows) { row -> List(columns) { column -> items.getOrNull(column * rows + row) } }
 }
 
 private val ART_SIZE = 48.dp
