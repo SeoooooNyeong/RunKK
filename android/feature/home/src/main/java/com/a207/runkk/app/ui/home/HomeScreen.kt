@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -540,7 +541,8 @@ private fun RoomAvatar(state: HomeUiState, isAvatarOpen: Boolean, onAvatar: () -
         }
     }
     BoxWithConstraints(
-        modifier = modifier.fillMaxWidth().padding(bottom = AVATAR_GROUND_GAP),
+        // 발을 아래로 [AVATAR_GROUND_SINK]만큼 더 내려 트랙에 세운다(솟은 홈 탭 원은 두 발 사이에 온다)
+        modifier = modifier.fillMaxWidth().offset(y = AVATAR_GROUND_SINK),
         contentAlignment = Alignment.BottomCenter
     ) {
         val height = maxHeight.coerceIn(AVATAR_MIN_HEIGHT, AVATAR_MAX_HEIGHT)
@@ -577,8 +579,8 @@ private val HOP_HEIGHT = 36.dp
 private const val HOP_UP_MS = 180
 private const val HOP_DAMPING = 0.45f
 
-/** 발과 홈 탭의 솟은 원 사이 여백. 원(20dp) 바로 위까지 내려 트랙에 서게 한다(사용자 요청 2026-10-30). */
-private val AVATAR_GROUND_GAP = 8.dp
+/** 발을 남은 자리 바닥보다 더 내리는 거리. 솟은 홈 탭 원(20dp)과 신발이 조금 겹친다(사용자 요청 2026-10-30). */
+private val AVATAR_GROUND_SINK = 8.dp
 
 /** 서 있는 그림 칸의 가로세로 비(그림은 칸 바닥에 붙어 그려지므로 칸이 조금 넓어도 된다). */
 private const val AVATAR_ASPECT = 0.6f
