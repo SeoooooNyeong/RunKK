@@ -62,7 +62,47 @@ class ColorContrastTest {
     fun `두 벌은 같은 토큰을 갖고 글자 토큰을 찾는다`() {
         val light = tokensOf(RunkkColors.light)
         assertEquals(tokensOf(RunkkColors.dark).keys, light.keys)
-        assertEquals(setOf("textPrimary", "textSecondary", "onLime", "lime", "lavender"), textTokens(light))
+        assertEquals(
+            setOf(
+                "textPrimary",
+                "textSecondary",
+                "onLime",
+                "lime",
+                "lavender",
+                "onLimeFill",
+                "onSelectedFill",
+                "onTabSelected",
+                "onBackButton"
+            ),
+            textTokens(light)
+        )
+    }
+
+    @Test
+    fun `R2-05 라이트 벌의 채움 강조는 라임에 검은 글자, 뒤로 버튼은 보라 원이고 글자·선 강조는 올리브로 남는다`() {
+        val light = RunkkColors.light
+        val lime = Color(0xFFCBEA2B)
+        assertEquals(listOf(lime, lime, lime), listOf(light.limeFill, light.selectedFill, light.tabSelected))
+        assertEquals(Color(0xFF171B12), light.onLimeFill)
+        assertEquals(Color(0xFF5C4BDB), light.backButton)
+        assertEquals(Color.White, light.onBackButton)
+        assertEquals(Color(0xFF3F6212), light.lime)
+    }
+
+    @Test
+    fun `R2-05 다크 벌의 새 토큰은 바꾸기 전 색 그대로다`() {
+        val dark = RunkkColors.dark
+        assertEquals(dark.lime, dark.limeFill)
+        assertEquals(dark.limePressed, dark.limeFillPressed)
+        assertEquals(dark.onLime, dark.onLimeFill)
+        assertEquals(dark.limeContainer, dark.selectedFill)
+        assertEquals(dark.lime, dark.onSelectedFill)
+        assertEquals(dark.lime, dark.selectedBorder)
+        assertEquals(dark.border, dark.tabSelected)
+        assertEquals(dark.textPrimary, dark.onTabSelected)
+        assertEquals(dark.surface, dark.backButton)
+        assertEquals(dark.textPrimary, dark.onBackButton)
+        assertEquals(dark.border, dark.backButtonBorder)
     }
 
     /** 글자 토큰: text·on으로 시작하는 이름과 강조 글자에도 쓰는 lime·lavender. */
@@ -127,6 +167,11 @@ class ColorContrastTest {
                 "onLime" to "lime",
                 "onLime" to "limePressed",
                 "onLime" to "lavender",
+                "onLimeFill" to "limeFill",
+                "onLimeFill" to "limeFillPressed",
+                "onSelectedFill" to "selectedFill",
+                "onTabSelected" to "tabSelected",
+                "onBackButton" to "backButton",
                 "lavender" to "background",
                 "lavender" to "surface",
                 "lavender" to "backgroundLocked"

@@ -70,22 +70,23 @@ fun RunkkChoiceChip(
                 .heightIn(min = 40.dp)
                 .runkkPressScale(interaction)
                 .clip(shape)
-                .background(if (isSelected) RunkkColors.Lime else RunkkColors.Surface)
-                .border(1.dp, if (isSelected) RunkkColors.Lime else RunkkColors.BorderStrong, shape)
+                .background(if (isSelected) RunkkColors.LimeFill else RunkkColors.Surface)
+                .border(1.dp, if (isSelected) RunkkColors.LimeFill else RunkkColors.BorderStrong, shape)
                 .padding(horizontal = 16.dp),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = label,
                 style = RunkkTextStyles.text(13, if (isSelected) FontWeight.Black else FontWeight.Normal),
-                color = if (isSelected) RunkkColors.OnLime else RunkkColors.TextSecondary
+                color = if (isSelected) RunkkColors.OnLimeFill else RunkkColors.TextSecondary
             )
         }
     }
 }
 
 /**
- * 하나만 고르는 선택지(높이 40, 모서리 12): 공개 범위처럼 고른 것은 라임 테두리 + 어두운 라임 배경.
+ * 하나만 고르는 선택지(높이 40, 모서리 12): 공개 범위처럼 고른 칸은 [RunkkColors.SelectedFill]로 칠한다
+ * (다크는 라임 테두리 + 어두운 라임 배경, 라이트는 라임 채움 + 검은 글자, D85).
  * 여러 개를 [RunkkSegmentRow]로 묶으면 라디오 묶음이 된다.
  */
 @Composable
@@ -116,14 +117,14 @@ fun RunkkSegmentOption(
                 .heightIn(min = height)
                 .runkkPressScale(interaction)
                 .clip(shape)
-                .background(if (isSelected) RunkkColors.LimeContainer else Color.Transparent)
-                .border(1.dp, if (isSelected) RunkkColors.Lime else RunkkColors.BorderStrong, shape),
+                .background(if (isSelected) RunkkColors.SelectedFill else Color.Transparent)
+                .border(1.dp, if (isSelected) RunkkColors.SelectedBorder else RunkkColors.BorderStrong, shape),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = label,
                 style = RunkkTextStyles.text(13, if (isSelected) FontWeight.Bold else FontWeight.Normal),
-                color = if (isSelected) RunkkColors.Lime else RunkkColors.TextSecondary,
+                color = if (isSelected) RunkkColors.OnSelectedFill else RunkkColors.TextSecondary,
                 textAlign = TextAlign.Center
             )
         }
@@ -290,7 +291,8 @@ fun RunkkBadge(label: String, modifier: Modifier = Modifier, tone: RunkkBadgeTon
 }
 
 /**
- * 탭 전환(자유런/배틀런, 달력/목록). [isCompact]면 높이 32(상단 바 안), 아니면 40.
+ * 탭 전환(자유런/배틀런, 달력/목록). [isCompact]면 높이 32(상단 바 안), 아니면 40. 고른 탭은 [RunkkColors.TabSelected]
+ * (다크는 회색, 라이트는 라임 채움, D85).
  * 보조 기술에는 탭으로 보인다.
  */
 @Composable
@@ -322,7 +324,7 @@ fun RunkkSegmentedTabs(
                         .then(if (isCompact) Modifier else Modifier.fillMaxWidth())
                         .heightIn(min = if (isCompact) 32.dp else 40.dp)
                         .clip(inner)
-                        .background(if (isSelected) RunkkColors.Border else Color.Transparent)
+                        .background(if (isSelected) RunkkColors.TabSelected else Color.Transparent)
                         .padding(horizontal = 16.dp),
                     contentAlignment = Alignment.Center
                 ) {
@@ -333,7 +335,7 @@ fun RunkkSegmentedTabs(
                         } else {
                             RunkkTextStyles.text(15, if (isSelected) FontWeight.Black else FontWeight.Normal)
                         },
-                        color = if (isSelected) RunkkColors.TextPrimary else RunkkColors.TextSecondary
+                        color = if (isSelected) RunkkColors.OnTabSelected else RunkkColors.TextSecondary
                     )
                 }
             }
@@ -368,13 +370,13 @@ fun RunkkTabRow(options: List<String>, selectedIndex: Int, onSelect: (Int) -> Un
                         .fillMaxWidth()
                         .heightIn(min = 40.dp)
                         .clip(RoundedCornerShape(12.dp))
-                        .background(if (isSelected) RunkkColors.Lime else Color.Transparent),
+                        .background(if (isSelected) RunkkColors.LimeFill else Color.Transparent),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         label,
                         style = RunkkTextStyles.text(13, if (isSelected) FontWeight.Black else FontWeight.Normal),
-                        color = if (isSelected) RunkkColors.OnLime else RunkkColors.TextSecondary,
+                        color = if (isSelected) RunkkColors.OnLimeFill else RunkkColors.TextSecondary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
