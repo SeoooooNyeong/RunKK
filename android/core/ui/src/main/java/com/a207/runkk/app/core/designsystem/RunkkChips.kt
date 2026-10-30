@@ -204,6 +204,8 @@ fun RunkkSegmentRow(
                     label = label,
                     isSelected = index == selectedIndex,
                     onClick = { onSelect(index) },
+                    // 칸이 5개 이상이면 칸이 좁아 체크를 넣으면 글자("7회")가 잘린다
+                    isCheckShown = options.size <= MAX_OPTIONS_WITH_CHECK,
                     modifier = Modifier
                         .weight(1f)
                         .then(if (spoken != null) Modifier.semantics { contentDescription = spoken } else Modifier)
@@ -453,3 +455,6 @@ private fun RunkkChipsPreview() {
         }
     }
 }
+
+/** 체크를 붙일 수 있는 한 줄 선택지 수의 상한. 넘으면 칸이 좁아 체크를 뺀다. */
+private const val MAX_OPTIONS_WITH_CHECK = 4

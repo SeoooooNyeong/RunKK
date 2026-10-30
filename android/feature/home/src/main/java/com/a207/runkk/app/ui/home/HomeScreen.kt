@@ -547,8 +547,10 @@ private fun RoomAvatar(state: HomeUiState, isAvatarOpen: Boolean, onAvatar: () -
         contentAlignment = Alignment.BottomCenter
     ) {
         val height = maxHeight.coerceIn(AVATAR_MIN_HEIGHT, AVATAR_MAX_HEIGHT)
+        // 뛰어오를 때 칸째로 옮긴다(칸 안에서 그림만 옮기면 둥근 모서리 자르기에 머리가 잘린다)
         Box(
             modifier = Modifier
+                .graphicsLayer { translationY = -hop.value * HOP_HEIGHT.toPx() }
                 .clip(RoundedCornerShape(32.dp))
                 .then(press)
                 .semantics { contentDescription = description }
@@ -558,8 +560,7 @@ private fun RoomAvatar(state: HomeUiState, isAvatarOpen: Boolean, onAvatar: () -
                 if (isCheering) AvatarExpression.JOY else AvatarExpression.STAND,
                 Modifier
                     .height(height)
-                    .aspectRatio(AVATAR_ASPECT)
-                    .graphicsLayer { translationY = -hop.value * HOP_HEIGHT.toPx() },
+                    .aspectRatio(AVATAR_ASPECT),
                 state.faceLayers
             )
         }
