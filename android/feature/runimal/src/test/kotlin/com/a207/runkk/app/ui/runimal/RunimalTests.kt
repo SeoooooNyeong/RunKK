@@ -5,6 +5,9 @@ import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.asImageBitmap
@@ -234,6 +237,18 @@ class RunimalScreenTest {
         compose.onNodeWithText(str(R.string.runimal_share_save)).performClick()
         compose.onNodeWithText(str(R.string.runimal_share_system)).performClick()
         assertEquals(listOf(RunimalShareKind.STORY, RunimalShareKind.SAVE, RunimalShareKind.SYSTEM), calls)
+    }
+
+    @Test
+    fun `유형 카드에 확정 유형 배지가 없고 임시 유형만 배지로 알린다(G-4, R2-19)`() {
+        var state by mutableStateOf(RunimalUiState(isLoading = false, status = confirmed))
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) { RunimalScreen(state, {}, {}, {}, {}, {}) }
+        }
+        compose.onNodeWithText("확정 유형").assertDoesNotExist()
+        compose.onNodeWithText(str(R.string.runimal_type_provisional)).assertDoesNotExist()
+        state = RunimalUiState(isLoading = false, status = confirmed.copy(isProvisional = true))
+        compose.onNodeWithText(str(R.string.runimal_type_provisional)).assertExists()
     }
 
     @Test

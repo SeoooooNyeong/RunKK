@@ -1,6 +1,5 @@
 package com.a207.runkk.app.ui.runimal
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -12,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -21,7 +19,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -92,7 +89,7 @@ fun RunimalTypeScreen(
     }
 }
 
-/** 유형 카드: 그림, 이름, 기운 쪽 4축 칩(솔로·장거리 등), 한 줄 설명. */
+/** 유형 카드: 연한 둥근 네모 위 그림(G-6), 이름, 기운 쪽 4축 칩(솔로·장거리 등), 한 줄 설명. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun TypeCard(detail: RunimalTypeDetail) {
@@ -106,15 +103,7 @@ private fun TypeCard(detail: RunimalTypeDetail) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Image(
-            painter = painterResource(RunimalArt.of(detail.type).drawableRes),
-            contentDescription = null,
-            modifier = Modifier
-                .size(ART_SIZE)
-                .clip(CircleShape)
-                .background(RunkkColors.Background)
-                .padding(12.dp)
-        )
+        RunimalArtTile(RunimalArt.of(detail.type), size = ART_SIZE)
         Text(
             detail.displayName,
             style = RunkkTextStyles.text(22, FontWeight.Black),
