@@ -156,7 +156,8 @@ internal fun StartRing(seconds: Long?, total: Long, modifier: Modifier = Modifie
     ) {
         if (seconds != null) {
             val sweep = (seconds.toFloat() / total.coerceAtLeast(1)).coerceIn(0f, 1f)
-            val outer = RunkkColors.Lime
+            // 바깥 원은 채움이라 라이트에서도 라임이다(D85).
+            val outer = RunkkColors.LimeFill
             val ring = RunkkColors.LimeContainer
             Box(
                 modifier = Modifier
