@@ -251,7 +251,10 @@ public class BattleResultService {
         return battleRepository.findMemberWinsJudgedBetween(from, to);
     }
 
-    /** 참가자만. 보류면 "보류" + 기록이 없는 본인에게 재시도 안내. 아니면 판정, 비교표, 이번 주 전적(FR-093, FR-108). */
+    /**
+     * 참가자만. 보류면 "보류" + 기록이 없는 본인에게 재시도 안내. 아니면 판정, 비교표, 이번 주 전적(FR-093, FR-108). 내 기록 ID가 지워진
+     * 기록이면(삭제 사건 수신자가 실패해 남은 경우) null로 낸다. 앱은 "기록 카드" 대신 "기록 목록"을 보인다(결정 D67).
+     */
     @Transactional(readOnly = true)
     public BattleResultView result(long memberId, long battleId) {
         Battle battle = participantBattle(memberId, battleId);
@@ -277,7 +280,7 @@ public class BattleResultService {
                 weekly,
                 me.isNewRecord() && verdict == Verdict.WIN,
                 OpponentNames.of(battle, memberId, rivalNames(battle, memberId)),
-                me.getRecordId().orElse(null));
+                me.getRecordId().filter(id -> !runQueryService.isDeleted(id)).orElse(null));
     }
 
     private Map<Long, MemberSummary> rivalNames(Battle battle, long memberId) {

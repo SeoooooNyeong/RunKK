@@ -49,6 +49,11 @@ public class RunQueryService {
         this.clock = clock;
     }
 
+    /** 회원이 지운 기록인가(묘비가 있다). 삭제 사건 수신자가 실패해 남은 기록 ID를 읽는 쪽이 거를 때 쓴다(결정 D67, U8-6). */
+    public boolean isDeleted(String recordId) {
+        return runRecordRepository.isBuried(recordId);
+    }
+
     /** 기록 요약. 없으면 BusinessRuleException(RECORD_NOT_FOUND). */
     public RunSummary summary(String recordId) {
         return runRecordRepository

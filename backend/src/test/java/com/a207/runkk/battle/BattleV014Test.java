@@ -468,4 +468,21 @@ class BattleV014Test {
                                 .entries())
                 .hasSize(1);
     }
+
+    @Test
+    @DisplayName("D67 삭제 사건 수신자가 실패해 기록 ID가 남아도, 지워진 기록이면 결과의 내 기록 ID는 null")
+    void d67_resultHidesBuriedRecordWhenForgetFailed() {
+        Battle battle = finished(Battle.friend(accepted(), NOW), NOW, BOB);
+        battle.verify(ALICE, "r-a", true, Duration.ofMinutes(25));
+        battle.verify(BOB, "r-b", true, Duration.ofMinutes(26));
+        when(runs.isDeleted("r-a")).thenReturn(true);
+        when(runs.comparisonOf(org.mockito.ArgumentMatchers.anyString()))
+                .thenThrow(new BusinessRuleException(ReasonCode.RECORD_NOT_FOUND));
+
+        BattleResultView view = results.result(ALICE, battle.getId());
+
+        assertThat(battle.participant(ALICE).orElseThrow().getRecordId()).contains("r-a");
+        assertThat(view.myRecordId()).isNull();
+        assertThat(view.verdict()).isEqualTo(Verdict.WIN);
+    }
 }
