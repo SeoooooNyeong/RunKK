@@ -81,6 +81,7 @@ import com.a207.runkk.app.core.designsystem.LocalReduceMotion
 import com.a207.runkk.app.core.designsystem.LocalReleaseScope
 import com.a207.runkk.app.core.designsystem.LocationConsentSheet
 import com.a207.runkk.app.core.designsystem.RUNKK_BOTTOM_BAR_HEIGHT
+import com.a207.runkk.app.core.designsystem.RUNKK_BOTTOM_BAR_RISE
 import com.a207.runkk.app.core.designsystem.RunkkAvatar
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
@@ -192,11 +193,14 @@ fun HomeScreen(state: HomeUiState, actions: HomeActions, modifier: Modifier = Mo
                             Header(state, actions.onNavigate)
                         }
                     },
-                    fill = { Room(state, actions, bottomSpace = bleed) }
+                    fill = { Room(state, actions, bottomSpace = bleed + RUNKK_BOTTOM_BAR_RISE) }
                 )
             }
         }
-        RunkkSnackbarHost(snackbar, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp))
+        RunkkSnackbarHost(
+            snackbar,
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp + RUNKK_BOTTOM_BAR_RISE)
+        )
     }
     if (state.isConsentSheetVisible) {
         LocationConsentSheet(onAgree = actions.onConsentAgree, onClose = actions.onConsentClose)
@@ -362,7 +366,7 @@ private fun SkeletonBar(width: Int, height: Int) {
 
 /**
  * 기본 배경 위 방(A-4): 이번 주 막대 줄, 자유런·배틀런 카드, 가운데 아바타. 배경은 아바타 꾸미기가 닫혀 있으면 기본 배경이다(D-254).
- * 방은 하단 탭 바 뒤까지 이어지므로 내용 아래에 [bottomSpace]를 비워 둔다(내용이 탭 바에 가리지 않게).
+ * 방은 하단 탭 바 뒤까지 이어지므로 내용 아래에 [bottomSpace]를 비워 둔다(내용이 탭 바와 솟은 탭 원에 가리지 않게, D100).
  */
 @Composable
 private fun Room(state: HomeUiState, actions: HomeActions, bottomSpace: Dp) {

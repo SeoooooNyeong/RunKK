@@ -5,9 +5,12 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -38,6 +41,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.a207.runkk.app.core.designsystem.CelebrityFigure
+import com.a207.runkk.app.core.designsystem.RUNKK_BOTTOM_BAR_RISE
 import com.a207.runkk.app.core.designsystem.RunkkChoiceChip
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkEmptyState
@@ -184,6 +188,8 @@ fun SelfBattleScreen(
                     modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
                 )
             }
+            // 기록런은 탭 화면이라 솟은 탭 원 높이만큼 아래를 비운다(D100).
+            Spacer(Modifier.height(RUNKK_BOTTOM_BAR_RISE))
         }
     }
 }
@@ -219,7 +225,11 @@ fun CelebBattleScreen(
                         title = stringResource(R.string.battle_celeb_empty_title)
                     )
 
-                    else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    else -> LazyColumn(
+                        // 목록 끝은 솟은 탭 원에 가리지 않게 비운다(D100).
+                        contentPadding = PaddingValues(bottom = 16.dp + RUNKK_BOTTOM_BAR_RISE),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
                         items(state.candidates, key = { it.celebrityId ?: it.name.hashCode().toLong() }) { candidate ->
                             CelebCandidateCard(candidate, isStarting = state.isStarting, onClick = {
                                 onPick(candidate)
@@ -250,7 +260,10 @@ private fun RecordBattleFrame(
     }
     Box(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
         content()
-        RunkkSnackbarHost(snackbar, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp))
+        RunkkSnackbarHost(
+            snackbar,
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp + RUNKK_BOTTOM_BAR_RISE)
+        )
     }
 }
 

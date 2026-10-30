@@ -274,7 +274,7 @@ class RunkkComponentsTest {
     }
 
     @Test
-    fun `D96 고른 탭은 표면 위로 솟은 원에 들어가고 라벨은 표면 안에 있다`() {
+    fun `D96 D100 고른 탭은 탭 바 위로 넘쳐 솟은 원에 들어가고 라벨은 표면 안에 있다`() {
         val anchors = GuideAnchors()
         compose.setContent {
             CompositionLocalProvider(LocalGuideAnchors provides anchors) {
@@ -283,7 +283,9 @@ class RunkkComponentsTest {
                 }
             }
         }
-        assertEquals(102.dp, RUNKK_BOTTOM_BAR_HEIGHT, "솟는 원 20 + 표면 70 + 아래 틈 12")
+        // D100: 탭 화면이 비켜 주는 높이는 표면 70 + 아래 틈 12다. 솟은 원 20은 내용 위에 겹쳐 그린다.
+        assertEquals(82.dp, RUNKK_BOTTOM_BAR_HEIGHT, "표면 70 + 아래 틈 12")
+        assertEquals(20.dp, RUNKK_BOTTOM_BAR_RISE, "원이 표면 위로 솟는 높이")
         val bar = compose.onNodeWithTag("bar").getUnclippedBoundsInRoot()
         val surface = compose.onNodeWithTag(BOTTOM_BAR_SURFACE_TAG).getUnclippedBoundsInRoot()
         val circle = compose.onNodeWithTag(BOTTOM_BAR_INDICATOR_TAG).getUnclippedBoundsInRoot()
@@ -292,6 +294,8 @@ class RunkkComponentsTest {
         assertEquals(12f, (bar.bottom - surface.bottom).value, 0.5f, "아래 틈")
         assertEquals(46f, (circle.right - circle.left).value, 0.5f, "원 지름")
         assertEquals(20f, (surface.top - circle.top).value, 0.5f, "원이 표면 위로 20 솟는다")
+        assertEquals(bar.top.value, surface.top.value, 0.5f, "표면이 탭 바 맨 위다")
+        assertEquals(20f, (bar.top - circle.top).value, 0.5f, "원은 탭 바 위로 넘쳐 그린다")
         assertEquals(
             ((home.left + home.right) / 2).value,
             ((circle.left + circle.right) / 2).value,

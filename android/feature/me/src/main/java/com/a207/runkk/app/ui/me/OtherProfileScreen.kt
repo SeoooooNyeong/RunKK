@@ -70,7 +70,7 @@ fun OtherProfileScreen(
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
-        RunkkTopBar(title = stringResource(R.string.me_other_profile_title), onBack = onBack)
+        RunkkTopBar(title = stringResource(R.string.me_other_profile_title), onBack = onBack, isTitleCentered = true)
         val profile = state.profile
         when {
             profile == null && state.isLoading -> RunkkLoading(Modifier.weight(1f))

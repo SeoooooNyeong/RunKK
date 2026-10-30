@@ -1,9 +1,13 @@
 package com.a207.runkk.app.ui.me
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.assertHeightIsAtLeast
@@ -12,6 +16,7 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isHeading
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -22,11 +27,13 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.designsystem.AvatarExpression
 import com.a207.runkk.app.core.designsystem.DEFAULT_AVATAR_TAG
 import com.a207.runkk.app.core.designsystem.LocalReleaseScope
 import com.a207.runkk.app.core.designsystem.RUNKK_AVATAR_FACE_TAG
+import com.a207.runkk.app.core.designsystem.RUNKK_BOTTOM_BAR_RISE
 import com.a207.runkk.app.core.designsystem.ReleaseScope
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.UiText
@@ -227,6 +234,35 @@ class MeScreensTest {
         val avatar = compose.onNodeWithTag(PROFILE_EDIT_AVATAR_TAG).getUnclippedBoundsInRoot()
         val nickname = compose.onNodeWithText("달리는곰").getUnclippedBoundsInRoot()
         assertTrue(avatar.bottom <= nickname.top, "아바타가 닉네임 칸보다 위에 있다")
+    }
+
+    @Test
+    fun `D100 마이 목록 끝은 솟은 탭 원에 가리지 않게 원 높이만큼 더 비운다`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                Box(Modifier.height(400.dp)) {
+                    MeScreen(MeUiState(isLoading = false, profile = sampleProfile), onNavigate = {}, onRetry = {})
+                }
+            }
+        }
+        compose.onNode(hasScrollAction()).performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, 100_000f) }
+        compose.waitForIdle()
+        val screen = compose.onRoot().getUnclippedBoundsInRoot()
+        val last = compose.onNodeWithText("목표·러닝 코치").getUnclippedBoundsInRoot()
+        assertTrue(screen.bottom - last.bottom >= 16.dp + RUNKK_BOTTOM_BAR_RISE, "끝 여백 16 + 솟은 원 20")
+    }
+
+    @Test
+    fun `D101 다른 러너 프로필 제목은 바 가운데에 있다(G-3)`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                OtherProfileScreen(OtherProfileUiState(isLoading = false, profile = sampleProfile), onBack = {
+                }, onRetry = {})
+            }
+        }
+        val screen = compose.onRoot().getUnclippedBoundsInRoot()
+        val title = compose.onNode(hasText("프로필") and isHeading()).getUnclippedBoundsInRoot()
+        assertEquals((screen.left + screen.right).value / 2f, (title.left + title.right).value / 2f, 1f)
     }
 
     @Test

@@ -211,8 +211,8 @@ private fun withBottomSpace(entries: (NavKey) -> NavEntry<NavKey>): (NavKey) -> 
 }
 
 /**
- * 화면 하나의 아래 여백: 내비게이션 바, 탭 화면이면 하단 탭 높이([RUNKK_BOTTOM_BAR_HEIGHT])를 더한다. 맨 위 경로가 바뀌어도 이 화면의
- * 여백은 그대로라 전환 중 크기가 바뀌지 않는다. 띄운 만큼은 consumeWindowInsets로 빼고, 키보드(IME)가 그보다 높으면 그만큼 올린다.
+ * 화면 하나의 아래 여백: 내비게이션 바, 탭 화면이면 하단 탭 높이([RUNKK_BOTTOM_BAR_HEIGHT])를 더한다. 고른 탭 원이 솟는 부분은 비키지
+ * 않고 화면 위에 겹친다(D100). 맨 위 경로가 바뀌어도 이 화면의 여백은 그대로라 전환 중 크기가 바뀌지 않는다. 띄운 만큼은 consumeWindowInsets로 빼고, 키보드(IME)가 그보다 높으면 그만큼 올린다.
  */
 @Composable
 private fun EntryBottomSpace(isTab: Boolean, content: @Composable () -> Unit) {

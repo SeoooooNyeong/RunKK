@@ -109,7 +109,7 @@ fun RunimalScreen(
     val isShareOpen = LocalReleaseScope.current.isOpen(UnreleasedFeature.RUNIMAL_SHARE)
     Box(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
         Column(modifier = Modifier.fillMaxSize()) {
-            RunkkTopBar(title = stringResource(R.string.runimal_title), onBack = onBack)
+            RunkkTopBar(title = stringResource(R.string.runimal_title), onBack = onBack, isTitleCentered = true)
             val status = state.status
             when {
                 status == null && state.isLoading -> RunkkLoading(modifier = Modifier.weight(1f))

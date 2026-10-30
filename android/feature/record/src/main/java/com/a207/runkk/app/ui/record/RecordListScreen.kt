@@ -109,7 +109,7 @@ fun RecordListRoute(initialView: RecordView = RecordView.CALENDAR, viewModel: Re
 @Composable
 fun RecordListScreen(state: RecordListUiState, actions: RecordListActions, modifier: Modifier = Modifier) {
     Column(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
-        RunkkTopBar(title = stringResource(R.string.record_list_title), onBack = actions.onBack)
+        RunkkTopBar(title = stringResource(R.string.record_list_title), onBack = actions.onBack, isTitleCentered = true)
         RunkkSegmentedTabs(
             VIEW_LABELS.map { stringResource(it) },
             selectedIndex = state.view.ordinal,
