@@ -41,9 +41,12 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.a207.runkk.app.core.designsystem.AvatarExpression
+import com.a207.runkk.app.core.designsystem.LocalReleaseScope
 import com.a207.runkk.app.core.designsystem.RUNKK_BOTTOM_BAR_RISE
 import com.a207.runkk.app.core.designsystem.RunimalArt
 import com.a207.runkk.app.core.designsystem.RunkkAvatar
+import com.a207.runkk.app.core.designsystem.RunkkBadge
+import com.a207.runkk.app.core.designsystem.RunkkBadgeTone
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkFormat
@@ -53,13 +56,14 @@ import com.a207.runkk.app.core.designsystem.RunkkLoading
 import com.a207.runkk.app.core.designsystem.RunkkMenuRow
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
+import com.a207.runkk.app.core.designsystem.UnreleasedFeature
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.designsystem.tierName
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.FaceLayer
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
-import com.a207.runkk.app.domain.account.Gender
 import com.a207.runkk.app.domain.account.Profile
 
 /**
@@ -139,11 +143,11 @@ internal fun aboutLine(res: Resources, profile: Profile): String? = listOfNotNul
     profile.gender?.takeIf { it != Gender.UNDISCLOSED }?.let { res.getString(genderLabelRes(it)) }
 ).takeIf { it.isNotEmpty() }?.joinToString(", ")
 
-/** 아바타(기본 아바타, 꾸미기가 열리면 얼굴 그림), 닉네임·"Lv.[n] · [티어]", "편집", "[Runimal] ›". */
+/** 아바타(기본 아바타, 꾸미기가 열리면 얼굴 그림), 닉네임·레벨 배지·티어 배지, "편집", "[Runimal] ›". */
 @Composable
 private fun ProfileHeader(profile: Profile, faceLayers: List<FaceLayer>, onEdit: () -> Unit, onRunimal: () -> Unit) {
     val tier = tierName(profile.tier) ?: stringResource(R.string.me_profile_default_tier)
-    val levelTier = stringResource(R.string.me_profile_level_tier, profile.level ?: RunkkFormat.EMPTY, tier)
+    val level = stringResource(R.string.me_profile_level, profile.level ?: RunkkFormat.EMPTY)
     Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(
             modifier = Modifier
@@ -174,7 +178,8 @@ private fun ProfileHeader(profile: Profile, faceLayers: List<FaceLayer>, onEdit:
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false)
                 )
-                Text(levelTier, style = RunkkTextStyles.Label, color = RunkkColors.TextSecondary)
+                RunkkBadge(level)
+                RunkkBadge(tier, tone = RunkkBadgeTone.Lime)
             }
             RunimalLink(profile.runimalType, onRunimal)
         }
@@ -189,7 +194,7 @@ private fun ProfileHeader(profile: Profile, faceLayers: List<FaceLayer>, onEdit:
     }
 }
 
-/** "[Runimal] ›": 유형 이름(없으면 "판정 전")을 누르면 MY Runimal로 간다. */
+/** "[Runimal] ›": 유형 이름(없으면 "아직 유형이 없어요")을 누르면 MY Runimal로 간다. */
 @Composable
 private fun RunimalLink(type: String?, onClick: () -> Unit) {
     val name = if (type.isNullOrBlank()) {
@@ -257,18 +262,19 @@ private fun StatTile(value: String, label: String, modifier: Modifier = Modifier
     }
 }
 
-/** 메뉴 네 줄(구분선). */
+/** 메뉴 줄(구분선). 1차 배포에서는 런바디를 숨긴다(UnreleasedFeature.RUNBODY). */
 @Composable
 private fun MenuList(onNavigate: (String) -> Unit) {
+    val isRunBodyOpen = LocalReleaseScope.current.isOpen(UnreleasedFeature.RUNBODY)
     Column {
-        MENU.forEach { (label, route) ->
+        MENU.filter { (_, route) -> isRunBodyOpen || route != Routes.REPORT }.forEach { (label, route) ->
             RunkkMenuRow(stringResource(label), onClick = { onNavigate(route) })
             HorizontalDivider(color = RunkkColors.Border)
         }
     }
 }
 
-/** 마이 메뉴(G-1). 런바디는 기존 리포트 화면이다(CR-32). 랭킹은 하단 탭, 대결 이력은 기록 화면의 대결 탭이 맡는다. */
+/** 마이 메뉴(G-1). 런바디는 기존 리포트 화면이고(CR-32) 2차 배포에서 연다(사용자 결정 2026-10-31). 랭킹은 하단 탭, 대결 이력은 기록 화면의 대결 탭이 맡는다. */
 private val MENU: List<Pair<Int, String>> = listOf(
     R.string.me_menu_records to Routes.RECORDS,
     R.string.me_menu_growth to Routes.GROWTH,

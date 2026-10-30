@@ -9,7 +9,7 @@ import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.testing.RUNKK_PHONE
 import com.a207.runkk.app.core.designsystem.testing.captureRunkkScreen
 import com.a207.runkk.app.core.model.AppError
-import com.a207.runkk.app.domain.account.Gender
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.domain.account.MemberSettings
 import org.junit.Rule
 import org.junit.Test
@@ -81,7 +81,7 @@ class MeScreenshotTest {
                 nickname = "달리는곰",
                 intro = "퇴근 뒤 한강",
                 ageBand = "20대",
-                gender = com.a207.runkk.app.domain.account.Gender.FEMALE,
+                gender = Gender.FEMALE,
                 isAgePublic = true,
                 isGenderPublic = false
             ),

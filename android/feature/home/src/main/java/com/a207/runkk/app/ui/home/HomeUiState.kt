@@ -17,8 +17,8 @@ data class HomeUiState(
     val weeklyDistance: Distance = Distance.ZERO,
     /** 이번 주 목표 거리(weekly.goalMeters). 목표가 없거나 옛 서버면 null이다. */
     val weeklyGoal: Distance? = null,
-    /** 오늘 기준 연속 일수(streakDays). */
-    val streakDays: Int = 0,
+    /** 오늘 기준 연속 주 수(streakWeeks). 홈은 주 단위만 보인다(사용자 요청 2026-10-31). */
+    val streakWeeks: Int = 0,
     /** 러닝 설정의 음성·진동 안내(자유런 카드). 읽지 못하면 서버 기본값(켬)이다. */
     val isRunVoiceOn: Boolean = true,
     val isRunVibrationOn: Boolean = true,

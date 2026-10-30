@@ -27,7 +27,7 @@ import kotlinx.coroutines.launch
 
 /**
  * 기록 화면 3탭(G-7·G-8, D-279, FR-057·FR-058). 달력 탭은 그 달 본인 기록(RecordRepository.runs)과 월 요약(GET /dashboard의
- * monthRuns·monthMeters, 연속은 오늘 기준 streakDays)을, 목록 탭은 최근 [RECENT_DAYS]일 기록을 읽는다. 기기의 미전송 기록 수
+ * monthRuns·monthMeters, 연속은 오늘 기준 streakWeeks·streakDays)을, 목록 탭은 최근 [RECENT_DAYS]일 기록을 읽는다. 기기의 미전송 기록 수
  * (PendingRunRepository.observePending)를 함께 보인다. 상세에서 기록을 지우고 돌아오면 [onResumed]로 다시 읽는다(D-280).
  */
 @HiltViewModel
@@ -82,7 +82,7 @@ class RecordListViewModel @Inject constructor(
             val todayDashboard = if (base == today) monthDashboard else async { records.dashboard(today) }
             val result = records.runs(RecordRepository.SELF, month.atDay(1), month.atEndOfMonth())
             val monthValue = (monthDashboard.await() as? Outcome.Success)?.value
-            val streak = (todayDashboard.await() as? Outcome.Success)?.value?.streakDays
+            val todayValue = (todayDashboard.await() as? Outcome.Success)?.value
             _state.update { s ->
                 if (s.month != month) {
                     s
@@ -94,7 +94,7 @@ class RecordListViewModel @Inject constructor(
                                 isLoading = false,
                                 runs = runs,
                                 dailyDistance = dailyValidDistance(runs, s.zone),
-                                summary = monthSummary(monthValue, runs, streak),
+                                summary = monthSummary(monthValue, runs, todayValue),
                                 selectedDate = s.selectedDate?.takeIf { YearMonth.from(it) == month }
                                     ?: runs.firstOrNull()?.startedAt?.atZone(s.zone)?.toLocalDate()
                             )
@@ -163,12 +163,17 @@ class RecordListViewModel @Inject constructor(
 }
 
 /** 월 요약: 서버 값이 있으면 그대로, 옛 서버면 받은 유효 기록으로 센다(D-289). */
-private fun monthSummary(dashboard: Dashboard?, runs: List<RunSummary>, streak: Int?): RecordListUiState.MonthSummary {
+private fun monthSummary(
+    dashboard: Dashboard?,
+    runs: List<RunSummary>,
+    today: Dashboard?
+): RecordListUiState.MonthSummary {
     val valid = runs.filter { it.isValid }
     return RecordListUiState.MonthSummary(
         runs = dashboard?.monthRuns ?: valid.size,
         distance = dashboard?.monthDistance ?: valid.fold(Distance.ZERO) { acc, run -> acc.plus(run.distance) },
-        streakDays = streak
+        streakDays = today?.streakDays,
+        streakWeeks = today?.streakWeeks
     )
 }
 

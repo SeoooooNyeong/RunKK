@@ -17,7 +17,9 @@ data class CandidateUi(
     val sourceLabel: String?,
     val isEstimated: Boolean,
     /** 셀럽 후보의 그 거리 내 최고 기록(셀럽런 카운트다운, 없으면 "첫 도전"). */
-    val myBest: Duration? = null
+    val myBest: Duration? = null,
+    /** 셀럽 그림 키(서버 celebrityFigure, 없으면 공통 그림). */
+    val celebrityFigure: String? = null
 ) {
     /** 고를 수 있는가(기록이 없으면 "기록 없음"이고 누를 수 없다, FR-096, D-288). */
     val isSelectable: Boolean get() = finishTime != null
@@ -32,7 +34,8 @@ data class CandidateUi(
             averagePace = c.finishTime?.takeIf { c.distance.meters > 0 }?.let { Pace.of(it, c.distance) },
             sourceLabel = c.sourceLabel,
             isEstimated = c.isEstimated,
-            myBest = c.myBest
+            myBest = c.myBest,
+            celebrityFigure = c.celebrityFigure
         )
     }
 }

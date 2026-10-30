@@ -4,6 +4,7 @@ import com.a207.runkk.app.api.core.ServerTime
 import com.a207.runkk.app.api.core.enumByName
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.domain.battle.ActiveBattle
 import com.a207.runkk.app.domain.battle.BattleHistory
 import com.a207.runkk.app.domain.battle.BattleResult
@@ -32,7 +33,8 @@ internal fun CandidatesResponse.toDomain(): RecordBattleCandidates = RecordBattl
             recordedOn = it.recordedOn?.let(ServerTime::parseDate),
             sourceLabel = it.sourceLabel,
             isEstimated = it.estimated,
-            myBest = it.myBestSeconds?.let(Duration::ofSeconds)
+            myBest = it.myBestSeconds?.let(Duration::ofSeconds),
+            celebrityFigure = it.celebrityFigure.figureKey()
         )
     }
 )
@@ -43,7 +45,8 @@ internal fun RecordBattleStartResponse.toDomain(): RecordBattleStart = RecordBat
     opponentName = opponentName,
     distance = Distance(distanceMeters),
     track = OpponentTrack.from(TrackTable(track.map { TrackPoint(it.elapsedSeconds, it.distanceMeters) })),
-    cardKind = enumByName<CardKind>(cardKind) ?: CardKind.SELF_RUN
+    cardKind = enumByName<CardKind>(cardKind) ?: CardKind.SELF_RUN,
+    celebrityFigure = celebrityFigure.figureKey()
 )
 
 /** 모르는 대결 종류도 그만두기는 할 수 있게 type만 null로 두고 읽는다. */
@@ -53,7 +56,9 @@ internal fun ActiveBattleResponse.toDomain(): ActiveBattle = ActiveBattle(
     status = status,
     distance = Distance(distanceMeters),
     opponentName = opponentName?.takeIf { it.isNotBlank() },
-    startAt = startAt?.let(ServerTime::parse)
+    startAt = startAt?.let(ServerTime::parse),
+    opponentGender = enumByName<Gender>(opponentGender),
+    celebrityFigure = celebrityFigure.figureKey()
 )
 
 internal fun BattleResultResponse.toDomain(): BattleResult = BattleResult(
@@ -69,8 +74,13 @@ internal fun BattleResultResponse.toDomain(): BattleResult = BattleResult(
     opponentReach = opponentReachSeconds?.let(Duration::ofSeconds),
     type = enumByName<BattleHistory.Type>(type),
     totalRewardPoints = totalRewardPoints,
-    evaluation = evaluation?.toDomain()
+    evaluation = evaluation?.toDomain(),
+    opponentGender = enumByName<Gender>(opponentGender),
+    celebrityFigure = celebrityFigure.figureKey()
 )
+
+/** 셀럽 그림 키는 문자열 그대로 넘긴다(그림 고르기는 화면 몫). 빈 값은 없음으로 본다. */
+private fun String?.figureKey(): String? = this?.trim()?.takeIf { it.isNotEmpty() }
 
 /** tier가 없으면(옛 서버·깨진 값) 평가 없음으로 본다(D-289). */
 private fun BattleResultResponse.EvaluationDto.toDomain(): BattleResult.Evaluation? {

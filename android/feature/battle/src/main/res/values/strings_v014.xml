@@ -2,10 +2,6 @@
 <!-- v0.14 배틀런 화면·친구 대결·기록런·대결 진행·대결 결과 문구(피그마 C·D·E, 설계 D-264~D-288). -->
 <resources>
     <!-- 머리 -->
-    <string name="battle_header_battle">배틀런 · %1$s</string>
-    <string name="battle_header_friend">배틀런 · 친구 대결 · %1$s</string>
-    <string name="battle_header_self">셀프런 · %1$s</string>
-    <string name="battle_header_celeb">셀럽런 · %1$s</string>
     <string name="battle_header_battle_name">배틀런</string>
     <string name="battle_header_self_name">셀프런</string>
     <string name="battle_header_celeb_name">셀럽런</string>
@@ -25,6 +21,10 @@
     <string name="battle_mode_friend_slot">친구</string>
     <string name="battle_mode_best">내 최고 기록</string>
     <string name="battle_mode_random_start">%1$s 랜덤 매칭 시작</string>
+    <string name="battle_mode_random_locked">잠김</string>
+    <string name="battle_mode_random_locked_title">러닝을 %1$d번 더 뛰면 배틀런이 가능해요!</string>
+    <string name="battle_mode_random_locked_title_unknown">러닝을 더 뛰면 배틀런이 가능해요!</string>
+    <string name="battle_mode_random_locked_confirm">확인</string>
     <string name="battle_mode_invite">카카오톡으로 친구 초대</string>
     <string name="battle_card_desc">%1$s, 내 최고 기록 %2$s, %3$s</string>
 
@@ -68,9 +68,9 @@
 
     <!-- 그만두기 확인(C-6·D-5·E-5) -->
     <string name="battle_forfeit_title_self">셀프런을 그만둘까요?</string>
-    <string name="battle_forfeit_message_self">그만두면 이번 도전은 기록되지 않아요.</string>
+    <string name="battle_forfeit_message_self">그만두면 패배로 기록되고, 지금까지 달린 기록은 남아요.</string>
     <string name="battle_forfeit_title_celeb">셀럽런을 그만둘까요?</string>
-    <string name="battle_forfeit_message_celeb">그만두면 이번 기록은 저장되지 않아요.</string>
+    <string name="battle_forfeit_message_celeb">그만두면 패배로 기록되고, 지금까지 달린 기록은 남아요.</string>
     <string name="battle_forfeit_confirm_quit">그만두기</string>
 
     <!-- 기록런(D-1·E-1) -->
@@ -91,4 +91,9 @@
     <string name="battle_result_detail_waiting">상세 기록을 불러오고 있어요</string>
     <string name="battle_result_date_pattern">M.dd E · a h:mm</string>
     <string name="battle_result_page_desc">%2$d쪽 중 %1$d쪽</string>
+    <string name="battle_cancel_desc">러닝 취소</string>
+    <string name="battle_cancel_caption">취소</string>
+    <string name="battle_cancel_title">러닝을 취소할까요?</string>
+    <string name="battle_cancel_message">기록이 남지 않아요.</string>
+    <string name="battle_cancel_confirm">취소하기</string>
 </resources>

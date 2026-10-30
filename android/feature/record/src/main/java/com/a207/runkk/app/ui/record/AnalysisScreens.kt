@@ -494,7 +494,10 @@ fun CoachScreen(state: CoachUiState, actions: CoachActions) {
             onRetry = actions.onRetry
         ) {
             CoachWeekCard(state)
-            TodayPlanCard(isSaving = state.isSaving, onTodayPlan = actions.onTodayPlan)
+            TodayPlanCard(
+                planned = state.progress?.days?.firstOrNull { it.date == state.today }?.planned,
+                onTodayPlan = actions.onTodayPlan
+            )
             WeeklyGoalCard(state, actions)
         }
         RunkkSnackbarHost(snackbar, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp))
@@ -564,23 +567,22 @@ private fun CoachDayRow(day: PlanProgress.Day, isToday: Boolean) {
     }
 }
 
-/** 오늘 계획 정하기 카드: 거리 알약 버튼. */
-@OptIn(ExperimentalLayoutApi::class)
+/** 오늘 계획 정하기 카드: 주간 목표 거리와 같은 고르기 줄. 오늘 정해 둔 거리([planned])가 선택돼 보인다. */
 @Composable
-private fun TodayPlanCard(isSaving: Boolean, onTodayPlan: (Distance) -> Unit) {
+private fun TodayPlanCard(planned: Distance?, onTodayPlan: (Distance) -> Unit) {
     RunkkCard(Modifier.fillMaxWidth()) {
         Text(
             stringResource(R.string.record_coach_today_title),
             style = RunkkTextStyles.CardTitle,
             color = RunkkColors.TextPrimary
         )
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            PLAN_CHOICES.forEach { km ->
-                RunkkPillButton(stringResource(R.string.record_km_int_value, km), onClick = {
-                    onTodayPlan(Distance.ofKm(km.toDouble()))
-                }, isEnabled = !isSaving)
-            }
-        }
+        val distances = PLAN_CHOICES.map { Distance.ofKm(it.toDouble()) }
+        RunkkSegmentRow(
+            options = PLAN_CHOICES.map { stringResource(R.string.record_km_int_value, it) },
+            selectedIndex = distances.indexOf(planned),
+            onSelect = { onTodayPlan(distances[it]) },
+            spokenLabels = PLAN_CHOICES.map { stringResource(R.string.record_goal_distance_spoken, it) }
+        )
     }
 }
 

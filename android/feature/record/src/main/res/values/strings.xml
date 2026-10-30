@@ -79,8 +79,6 @@
     <string name="record_card_sky_overcast">흐림</string>
     <string name="record_card_sky_rain">비</string>
     <string name="record_card_sky_snow">눈</string>
-    <string name="record_card_signature">%1$s, 런크크</string>
-    <string name="record_card_brand">런크크</string>
     <string name="record_growth_title">성장 분석</string>
     <string name="record_growth_empty_title">아직 분석할 기록이 없어요</string>
     <string name="record_growth_empty_message">몇 번 더 달리면 변화가 보여요</string>
@@ -128,6 +126,7 @@
     <string name="record_summary_distance_value">%1$skm</string>
     <string name="record_summary_streak_label">연속</string>
     <string name="record_summary_streak_value">%1$d일째</string>
+    <string name="record_summary_streak_weeks_value">%1$d주째</string>
     <string name="record_summary_unknown">-</string>
     <string name="record_day_row_pattern">M월 d일 (E) · a h:mm</string>
     <string name="record_row_stats">%1$skm · %2$s · %3$s</string>
@@ -147,6 +146,7 @@
     <string name="record_tag_friend_draw">친구 대결 · 무승부</string>
     <string name="record_tag_self">셀프런</string>
     <string name="record_tag_celeb">셀럽런</string>
+    <string name="record_tag_excluded">집계 제외</string>
     <string name="record_tag_crew">크루런</string>
     <string name="record_tag_new_record">신기록</string>
     <string name="record_tag_longest">최장 거리</string>

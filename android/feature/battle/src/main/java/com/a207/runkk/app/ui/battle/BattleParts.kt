@@ -19,6 +19,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -33,6 +34,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.a207.runkk.app.core.designsystem.AvatarCharacter
 import com.a207.runkk.app.core.designsystem.AvatarExpression
 import com.a207.runkk.app.core.designsystem.CelebrityFigure
 import com.a207.runkk.app.core.designsystem.RivalAvatar
@@ -45,41 +47,29 @@ import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import java.time.Duration
 import java.time.LocalDate
 
-/** 화면 머리 "● 배틀런 · 5km"(C-2·C-3·C-10·C-12·D-2·E-2). */
-@Composable
-internal fun BattleHeader(text: String, modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier
-            .clip(RunkkShapes.ExtraLarge)
-            .background(RunkkColors.Surface)
-            .padding(horizontal = 12.dp, vertical = 6.dp)
-            .semantics(mergeDescendants = true) { heading() },
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        RunkkLiveDot(color = RunkkColors.TextPrimary, size = 8.dp)
-        Text(text, style = RunkkTextStyles.text(13, FontWeight.Bold), color = RunkkColors.TextPrimary)
-    }
-}
-
-/** 상대 그림 종류(D-254): 기본 아바타, 반투명 기본 아바타(과거의 나), 공통 SD(셀럽). */
+/** 상대 그림 종류(D-254): 기본 아바타, 반투명 기본 아바타(과거의 나), 셀럽 그림(전용 캐릭터, 키가 없으면 공통 SD). */
 internal enum class Figure { AVATAR, RIVAL, PAST_SELF, CELEBRITY }
 
-/** 한쪽 대결자 카드: 그림 칸, 이름, 티어 칩(있으면), 기록 줄(있으면). 그림은 장식이라 읽기 정보는 이름·줄이 맡는다. */
+/**
+ * 한쪽 대결자 카드: 그림 칸, 이름, 티어 칩(있으면), 기록 줄(있으면). 그림은 장식이라 읽기 정보는 이름·줄이 맡는다.
+ * [character]는 상대 그림(RIVAL)의 남녀(상대 성별)이고 [celebrityFigure]는 셀럽 그림(CELEBRITY)의 키다.
+ */
 @Composable
 internal fun Contender(
     name: String,
     modifier: Modifier = Modifier,
     figure: Figure = Figure.AVATAR,
     tier: String? = null,
-    caption: String? = null
+    caption: String? = null,
+    character: AvatarCharacter = AvatarCharacter.MALE,
+    celebrityFigure: String? = null
 ) {
     Column(
         modifier = modifier.semantics(mergeDescendants = true) {},
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        FigureCard(figure)
+        FigureCard(figure, character, celebrityFigure)
         Text(
             name,
             style = RunkkTextStyles.text(16, FontWeight.Black),
@@ -105,7 +95,7 @@ internal fun Contender(
 }
 
 @Composable
-private fun FigureCard(figure: Figure) {
+private fun FigureCard(figure: Figure, character: AvatarCharacter, celebrityFigure: String?) {
     // 피그마 C-3, D-2, E-2: 그림 뒤에 연두색 카드를 두지 않는다
     Box(
         Modifier
@@ -113,18 +103,36 @@ private fun FigureCard(figure: Figure) {
             .clearAndSetSemantics {},
         contentAlignment = Alignment.Center
     ) {
-        OpponentFigure(figure, size = 96.dp)
+        OpponentFigure(figure, size = 96.dp, character = character, celebrityFigure = celebrityFigure)
     }
 }
 
-/** 대결자 그림 하나. 나는 기본 아바타, 배틀런 상대는 공통 상대 그림, 과거의 나는 반투명 기본 아바타, 셀럽은 공통 흐린 그림이다(D-254, D73·D74). */
+/**
+ * 대결자 그림 하나. 나는 기본 아바타, 배틀런 상대는 상대 성별([character])의 상대 그림, 과거의 나는 반투명 기본 아바타, 셀럽은
+ * 키([celebrityFigure])의 전용 캐릭터이고 키가 없으면 공통 흐린 그림이다(D-254, D73·D74, 사용자 결정 2026-10-31).
+ */
 @Composable
-internal fun OpponentFigure(figure: Figure, size: Dp, expression: AvatarExpression = AvatarExpression.STAND) {
+internal fun OpponentFigure(
+    figure: Figure,
+    size: Dp,
+    expression: AvatarExpression = AvatarExpression.STAND,
+    colorFilter: ColorFilter? = null,
+    character: AvatarCharacter = AvatarCharacter.MALE,
+    celebrityFigure: String? = null
+) {
     when (figure) {
-        Figure.AVATAR -> RunkkAvatar(null, expression, Modifier.size(size))
-        Figure.RIVAL -> RivalAvatar(Modifier.size(size))
-        Figure.PAST_SELF -> RunkkAvatar(null, AvatarExpression.STAND, Modifier.size(size).alpha(PAST_SELF_ALPHA))
-        Figure.CELEBRITY -> CelebrityFigure(size = size)
+        Figure.AVATAR -> RunkkAvatar(null, expression, Modifier.size(size), colorFilter = colorFilter)
+
+        Figure.RIVAL -> RivalAvatar(Modifier.size(size), colorFilter, character)
+
+        Figure.PAST_SELF -> RunkkAvatar(
+            null,
+            AvatarExpression.STAND,
+            Modifier.size(size).alpha(PAST_SELF_ALPHA),
+            colorFilter = colorFilter
+        )
+
+        Figure.CELEBRITY -> CelebrityFigure(size = size, figureKey = celebrityFigure, colorFilter = colorFilter)
     }
 }
 

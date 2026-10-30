@@ -4,10 +4,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.core.model.getOrNull
 import com.a207.runkk.app.core.navigation.Routes
+import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.account.LocationConsentUseCase
 import com.a207.runkk.app.domain.battle.BattleRepository
 import com.a207.runkk.app.domain.battle.BattleRunCoordinator
+import com.a207.runkk.app.domain.battle.RandomBattleGate
+import com.a207.runkk.app.domain.runimal.RunimalRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.Job
@@ -29,7 +33,9 @@ import kotlinx.coroutines.launch
 class BattleModeViewModel @Inject constructor(
     private val battles: BattleRepository,
     private val coordinator: BattleRunCoordinator,
-    private val consent: LocationConsentUseCase
+    private val consent: LocationConsentUseCase,
+    private val account: AccountRepository,
+    private val runimals: RunimalRepository
 ) : ViewModel() {
     private val _state = MutableStateFlow(BattleModeUiState())
     val state: StateFlow<BattleModeUiState> = _state.asStateFlow()
@@ -44,6 +50,7 @@ class BattleModeViewModel @Inject constructor(
     init {
         viewModelScope.launch { loadDefaultDistance() }
         viewModelScope.launch { loadBests() }
+        viewModelScope.launch { loadRandomLock() }
     }
 
     /** 화면에 돌아올 때마다(초대 대기에서 돌아옴 포함) 남은 초대를 확인한다. */
@@ -59,8 +66,16 @@ class BattleModeViewModel @Inject constructor(
         _state.update { it.copy(distance = distance) }
     }
 
-    /** "n km 랜덤 매칭 시작". */
-    fun onRandomStartTapped() = request(BattleModeEvent.Open(Routes.BattleQuickMatch(_state.value.distance.meters)))
+    /** "n km 랜덤 매칭 시작". 언랭이면 매칭 대신 남은 유효 러닝 수를 알린다. */
+    fun onRandomStartTapped() {
+        if (_state.value.randomRunsLeft != null) {
+            _state.update { it.copy(isRandomLockNoticeVisible = true) }
+            return
+        }
+        request(BattleModeEvent.Open(Routes.BattleQuickMatch(_state.value.distance.meters)))
+    }
+
+    fun onRandomLockNoticeClosed() = _state.update { it.copy(isRandomLockNoticeVisible = false) }
 
     /** "카카오톡으로 친구 초대". */
     fun onInviteTapped() = request(BattleModeEvent.Open(Routes.FriendInviteWait(_state.value.distance.meters)))
@@ -118,6 +133,13 @@ class BattleModeViewModel @Inject constructor(
             BattleModeUiState.DistanceCard(distance, best?.finishTime, best?.recordedOn)
         }
         _state.update { it.copy(cards = cards) }
+    }
+
+    /** 내 티어와 유효 러닝 수로 랜덤 대결 잠금을 정한다. 프로필을 못 읽으면 잠그지 않는다(서버가 RANKED_ONLY로 막는다). */
+    private suspend fun loadRandomLock() {
+        val tier = account.profile(AccountRepository.SELF).getOrNull()?.tier
+        val validRuns = runimals.status().getOrNull()?.validRunCount
+        _state.update { it.copy(randomRunsLeft = RandomBattleGate.runsLeft(tier, validRuns)) }
     }
 
     /** 앱이 강제 종료돼 남은 초대(최대 5분 동안 랜덤 매칭을 막는다)를 취소한다(D-271). */

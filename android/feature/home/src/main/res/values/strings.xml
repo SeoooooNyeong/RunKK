@@ -1,19 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="home_logo_description">RRun 런크크</string>
     <string name="home_header_default_nickname">러너</string>
     <string name="home_header_default_tier">언랭</string>
-    <string name="home_header_tier_level">%1$s, Lv.%2$s</string>
+    <string name="home_header_tier_level">%1$s Lv.%2$s</string>
     <string name="home_header_notifications">알림함</string>
     <string name="home_balance_open_shop">상점 열기</string>
     <string name="home_balance_value">%1$s P</string>
     <string name="home_balance_description">리워드 잔액 %1$s 포인트</string>
     <string name="home_house_edit_avatar">아바타 꾸미기</string>
     <string name="home_week_label">이번 주</string>
+    <string name="home_open_goal_coach">주간 목표 정하기</string>
+    <string name="home_open_profile_edit">프로필 편집</string>
     <string name="home_week_goal">%1$skm</string>
     <string name="home_week_spoken">이번 주 %1$s킬로미터, 목표 %2$s킬로미터</string>
     <string name="home_week_spoken_no_goal">이번 주 %1$s킬로미터, 목표 없음</string>
-    <string name="home_streak">%1$d일 연속</string>
+    <string name="home_streak">%1$d주 연속</string>
     <string name="home_run_settings">러닝 설정</string>
     <string name="home_free_title">자유런</string>
     <string name="home_free_options">음성 %1$s · 진동 %2$s</string>

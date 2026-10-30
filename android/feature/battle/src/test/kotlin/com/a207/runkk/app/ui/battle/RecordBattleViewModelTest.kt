@@ -99,7 +99,7 @@ class RecordBattleViewModelTest {
         val vm = CelebBattleViewModel(w.battles, w.coordinator)
         runCurrent()
         vm.events.test {
-            vm.onPick(vm.state.value.candidates[0])
+            vm.onSelect(vm.state.value.candidates[0])
             vm.onStart()
             runCurrent()
             val event = assertIs<RecordBattleEvent.Start>(awaitItem())
@@ -110,24 +110,26 @@ class RecordBattleViewModelTest {
     }
 
     @Test
-    fun `유명인 - 거리로 거르면 그 거리로 다시 조회한다(FR-097)`() = runTest(main.dispatcher) {
+    fun `유명인 - 거리로 거르면 그 거리로 다시 조회하고 그 거리에 없는 선택은 푼다(FR-097)`() = runTest(main.dispatcher) {
         val w = world()
         val vm = CelebBattleViewModel(w.battles, w.coordinator)
         runCurrent()
+        vm.onSelect(vm.state.value.candidates.first())
         vm.onFilter(3)
+        assertNull(vm.state.value.selected, "10km 셀럽은 하프 목록에 없다")
         runCurrent()
         assertEquals(listOf("celeb:null", "celeb:21097"), w.battles.calls)
         assertEquals(3, vm.state.value.filterIndex)
     }
 
     @Test
-    fun `유명인 - 고르면 확인을 받은 뒤 시작한다`() = runTest(main.dispatcher) {
+    fun `유명인 - 처음엔 고른 셀럽이 없고 카드를 고른 뒤 대결하기로 시작한다(D-288)`() = runTest(main.dispatcher) {
         val w = world()
         val vm = CelebBattleViewModel(w.battles, w.coordinator)
         runCurrent()
-        vm.onPick(vm.state.value.candidates.first())
-        assertTrue(vm.state.value.isConfirming)
-        assertFalse(w.battles.calls.any { it.startsWith("startCeleb") }, "확인 전에는 시작하지 않는다")
+        assertNull(vm.state.value.selected, "카드를 눌러야 대결하기가 보인다")
+        vm.onSelect(vm.state.value.candidates.first())
+        assertFalse(w.battles.calls.any { it.startsWith("startCeleb") }, "고르기만 해서는 시작하지 않는다")
         vm.events.test {
             vm.onStart()
             runCurrent()
@@ -135,7 +137,6 @@ class RecordBattleViewModelTest {
             assertEquals(OpponentKind.CELEBRITY.name, event.key.opponentKind)
         }
         assertTrue("startCeleb:7" in w.battles.calls)
-        assertFalse(vm.state.value.isConfirming)
     }
 
     @Test
@@ -144,7 +145,7 @@ class RecordBattleViewModelTest {
         w.battles.startResult = rejected("CELEBRITY_REMOVED")
         val vm = CelebBattleViewModel(w.battles, w.coordinator)
         runCurrent()
-        vm.onPick(vm.state.value.candidates.first())
+        vm.onSelect(vm.state.value.candidates.first())
         vm.onStart()
         runCurrent()
         assertEquals(UiText.Res(R.string.battle_error_celebrity_removed), vm.state.value.message)

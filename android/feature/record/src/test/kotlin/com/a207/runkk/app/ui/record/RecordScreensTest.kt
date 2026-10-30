@@ -7,6 +7,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasText
@@ -122,7 +123,8 @@ class RecordScreensTest {
         compose.onNodeWithText("배틀런").performScrollTo().assertExists()
         compose.onNodeWithText("셀프런").performScrollTo().assertExists()
         compose.onNodeWithText("자유런").assertDoesNotExist()
-        compose.onNodeWithText("집계 제외", substring = true).assertDoesNotExist()
+        // 집계 제외 기록은 행에 "집계 제외"를 붙인다(D29 번복, 2026-10-30)
+        compose.onNodeWithText("집계 제외").performScrollTo().assertExists()
         compose.onNodeWithText("10/20 화 · 28:49 · 5'32\"").assertExists()
     }
 
@@ -197,7 +199,7 @@ class RecordScreensTest {
     }
 
     @Test
-    fun `TC-9735 TC-9730 기록 상세는 유효 배지 없이 카드 공유를 보이고, 삭제할 수 있는 기록에만 기록 삭제와 확인 대화상자를 보인다`() {
+    fun `TC-9735 TC-9730 기록 상세는 유효 기록에 배지 없이 카드 공유를 보이고, 삭제할 수 있는 기록에만 기록 삭제와 확인 대화상자를 보인다`() {
         var state by mutableStateOf(
             RecordDetailUiState(isLoading = false, recordId = "r1", detail = detail().copy(isDeletable = true))
         )
@@ -376,13 +378,15 @@ class RecordScreensTest {
         state = state.copy(isShareStep = true)
         compose.onNodeWithText("카드 공유").assertExists()
         compose.onNodeWithText("코스 지도 표시").assertIsNotEnabled()
+        // 공유는 그려진 앞면을 찍어 보낸다(D113). 시험 환경은 누르기 전에 한 번 그려 둔다.
+        compose.onRoot().captureToImage()
         compose.onNodeWithText("기기에 저장").performClick()
         compose.onNodeWithText("더 보기").performClick()
         assertEquals(listOf(CardShareKind.SAVE, CardShareKind.SYSTEM), shares)
     }
 
     @Test
-    fun `B-7 카드 앞면은 날짜·날씨·거리·신기록·세 지표·서명이고 종류 라벨이 없다(FR-068)`() {
+    fun `B-7 카드 앞면은 날짜·날씨·거리·신기록·세 지표이고 서명 줄(D113)과 종류 라벨이 없다(FR-068)`() {
         val bitmap = android.graphics.Bitmap.createBitmap(8, 10, android.graphics.Bitmap.Config.ARGB_8888)
         val card = runCard().copy(
             averageHeartRate = 152,
@@ -416,7 +420,7 @@ class RecordScreensTest {
         compose.onNodeWithText("평균 페이스", useUnmergedTree = true).assertExists()
         compose.onNodeWithText("평균 심박", useUnmergedTree = true).assertExists()
         compose.onNodeWithText("152", useUnmergedTree = true).assertExists()
-        compose.onNodeWithText("달리는곰, 런크크", useUnmergedTree = true).assertExists()
+        compose.onNodeWithText("달리는곰, 런크크", useUnmergedTree = true).assertDoesNotExist()
         compose.onNodeWithText("자유런", useUnmergedTree = true).assertDoesNotExist()
     }
 
@@ -476,6 +480,8 @@ class RecordScreensTest {
             }
         }
         compose.onNodeWithText("코스 지도 표시").assertDoesNotExist()
+        // 공유는 그려진 앞면을 찍어 보낸다(D113). 시험 환경은 누르기 전에 한 번 그려 둔다.
+        compose.onRoot().captureToImage()
         compose.onNodeWithText("더 보기").performClick()
         assertEquals(listOf(CardShareKind.SYSTEM), kinds)
         scope = ReleaseScope.ALL_OPEN

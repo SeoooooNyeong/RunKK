@@ -66,7 +66,14 @@ class BattleScreenshotTest {
 
     @Test
     fun celebBattle() = compose.captureRunkkScreen("D1_celeb_battle") {
-        CelebBattleScreen(RecordBattleUiState(isLoading = false, candidates = celeb), {}, {}, {}, {})
+        CelebBattleScreen(
+            RecordBattleUiState(isLoading = false, candidates = celeb, selected = celeb[0]),
+            {},
+            {},
+            {},
+            {},
+            {}
+        )
     }
 
     @Test

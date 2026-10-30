@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Icon
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -50,9 +51,11 @@ import androidx.navigation3.runtime.NavKey
 import com.a207.runkk.app.core.designsystem.AvatarExpression
 import com.a207.runkk.app.core.designsystem.LocationConsentSheet
 import com.a207.runkk.app.core.designsystem.RUNKK_BOTTOM_BAR_RISE
+import com.a207.runkk.app.core.designsystem.RunkkActionDialog
 import com.a207.runkk.app.core.designsystem.RunkkAvatar
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkFormat
+import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkPrimaryButton
 import com.a207.runkk.app.core.designsystem.RunkkSegmentedTabs
 import com.a207.runkk.app.core.designsystem.RunkkShapes
@@ -60,6 +63,7 @@ import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.asString
+import com.a207.runkk.app.core.designsystem.runkkDashedBorder
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import java.time.Duration
@@ -107,6 +111,7 @@ fun BattleModeRoute(viewModel: BattleModeViewModel = hiltViewModel()) {
             onSegment = viewModel::onSegmentSelected,
             onDistance = viewModel::onDistanceSelected,
             onRandomStart = viewModel::onRandomStartTapped,
+            onRandomLockClose = viewModel::onRandomLockNoticeClosed,
             onInvite = viewModel::onInviteTapped,
             onConsentAgree = viewModel::onConsentAgreed,
             onConsentClose = viewModel::onConsentClosed,
@@ -123,6 +128,7 @@ data class BattleModeActions(
     val onSegment: (BattleModeUiState.Segment) -> Unit = {},
     val onDistance: (Distance) -> Unit = {},
     val onRandomStart: () -> Unit = {},
+    val onRandomLockClose: () -> Unit = {},
     val onInvite: () -> Unit = {},
     val onConsentAgree: () -> Unit = {},
     val onConsentClose: () -> Unit = {},
@@ -182,18 +188,46 @@ fun BattleModeScreen(state: BattleModeUiState, actions: BattleModeActions, modif
                 }
             }
             val distance = RunkkFormat.targetLabel(state.distance)
-            RunkkPrimaryButton(
-                text = if (isFriend) {
-                    stringResource(R.string.battle_mode_invite)
-                } else {
-                    stringResource(R.string.battle_mode_random_start, distance)
-                },
-                onClick = if (isFriend) actions.onInvite else actions.onRandomStart,
+            // 언랭의 랜덤 대결은 자물쇠를 달고, 누르면 남은 유효 러닝 수를 알린다(친구 대결은 잠그지 않는다)
+            val isRandomLocked = !isFriend && state.randomRunsLeft != null
+            Box(
                 // 솟은 탭 원 위에 16을 둔다(D100).
-                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp + RUNKK_BOTTOM_BAR_RISE)
-            )
+                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp + RUNKK_BOTTOM_BAR_RISE),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                RunkkPrimaryButton(
+                    text = if (isFriend) {
+                        stringResource(R.string.battle_mode_invite)
+                    } else {
+                        stringResource(R.string.battle_mode_random_start, distance)
+                    },
+                    onClick = if (isFriend) actions.onInvite else actions.onRandomStart,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (isRandomLocked) {
+                    Icon(
+                        RunkkIcons.Lock,
+                        contentDescription = stringResource(R.string.battle_mode_random_locked),
+                        tint = RunkkColors.OnLimeFill,
+                        modifier = Modifier.padding(start = 20.dp).size(20.dp)
+                    )
+                }
+            }
         }
         RunkkSnackbarHost(snackbar, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 80.dp))
+    }
+    val runsLeft = state.randomRunsLeft
+    if (state.isRandomLockNoticeVisible && runsLeft != null) {
+        RunkkActionDialog(
+            title = if (runsLeft > 0) {
+                stringResource(R.string.battle_mode_random_locked_title, runsLeft)
+            } else {
+                stringResource(R.string.battle_mode_random_locked_title_unknown)
+            },
+            confirmLabel = stringResource(R.string.battle_mode_random_locked_confirm),
+            onConfirm = actions.onRandomLockClose,
+            onDismissRequest = actions.onRandomLockClose
+        )
     }
     if (state.isConsentSheetVisible) {
         LocationConsentSheet(
@@ -213,14 +247,14 @@ internal fun ModeVersus(opponent: String, opponentFigure: Figure = Figure.RIVAL)
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        VersusSlot { RunkkAvatar(null, AvatarExpression.STAND, Modifier.size(64.dp)) }
+        VersusSlot { RunkkAvatar(null, AvatarExpression.STAND, Modifier.size(VERSUS_FIGURE)) }
         Text(
             "VS",
             style = RunkkTextStyles.display(28),
             color = RunkkColors.TextSecondary,
             modifier = Modifier.padding(horizontal = 20.dp)
         )
-        VersusSlot(isFaded = true) { OpponentFigure(opponentFigure, size = 64.dp) }
+        VersusSlot(isFaded = true) { OpponentFigure(opponentFigure, size = VERSUS_FIGURE) }
     }
 }
 
@@ -228,14 +262,15 @@ internal fun ModeVersus(opponent: String, opponentFigure: Figure = Figure.RIVAL)
 private fun VersusSlot(isFaded: Boolean = false, content: @Composable () -> Unit) {
     Box(
         modifier = Modifier
-            .size(width = 72.dp, height = 140.dp)
-            .clip(RunkkShapes.Small)
-            .background(RunkkColors.LimeContainer)
-            .border(1.dp, RunkkColors.Border, RunkkShapes.Small)
+            .size(width = 120.dp, height = 168.dp)
+            .runkkDashedBorder()
             .alpha(if (isFaded) FADED else 1f),
         contentAlignment = Alignment.Center
     ) { content() }
 }
+
+/** VS 칸 안 캐릭터 크기(칸 높이에 맞춰 크게). */
+private val VERSUS_FIGURE = 148.dp
 
 /** 거리 카드: 거리 칩, "내 최고 기록"과 기록(없으면 "기록 없음"), 날짜. 고르면 테두리가 짙어진다. */
 @Composable
@@ -297,7 +332,7 @@ internal fun DistanceCardRow(
     }
 }
 
-private const val FADED = 0.4f
+internal const val FADED = 0.4f
 
 @Preview(name = "배틀런 화면", widthDp = 390, heightDp = 844)
 @Composable

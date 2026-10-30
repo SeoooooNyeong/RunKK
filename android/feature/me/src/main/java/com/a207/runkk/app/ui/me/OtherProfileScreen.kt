@@ -46,8 +46,8 @@ import com.a207.runkk.app.core.designsystem.tierName
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.FaceLayer
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
-import com.a207.runkk.app.domain.account.Gender
 import com.a207.runkk.app.domain.account.Profile
 import com.a207.runkk.app.domain.account.RecentRun
 import java.time.LocalDate

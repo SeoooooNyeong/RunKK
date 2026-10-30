@@ -40,8 +40,8 @@ import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.runkkAvatarCharacterTag
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.navigation.Routes
-import com.a207.runkk.app.domain.account.Gender
 import com.a207.runkk.app.domain.account.MemberSettings
 import com.a207.runkk.app.domain.account.ProviderType
 import com.a207.runkk.app.domain.account.RecentRun
@@ -93,7 +93,7 @@ class MeScreensTest {
     }
 
     @Test
-    fun `프로필 러니멀 칸 - 모르는 값은 알 수 없는 유형, 없으면 판정 전`() {
+    fun `프로필 러니멀 칸 - 모르는 값은 알 수 없는 유형, 없으면 아직 유형이 없어요`() {
         var type by mutableStateOf<String?>("CHEETAH")
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
@@ -107,7 +107,7 @@ class MeScreensTest {
         compose.onNodeWithText("알 수 없는 유형").assertExists()
         compose.onNodeWithText("CHEETAH").assertDoesNotExist()
         compose.runOnIdle { type = null }
-        compose.onNodeWithText("판정 전").assertExists()
+        compose.onNodeWithText("아직 유형이 없어요").assertExists()
     }
 
     @Test
@@ -125,7 +125,8 @@ class MeScreensTest {
                 )
             }
         }
-        compose.onNodeWithText("Lv.3 · 골드").assertExists()
+        compose.onNodeWithText("Lv.3").assertExists()
+        compose.onNodeWithText("골드").assertExists()
         compose.onNodeWithText("128.4km").assertExists()
         compose.onNodeWithText("21.1km").assertExists()
         compose.onNodeWithText("42회").assertExists()

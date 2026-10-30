@@ -15,5 +15,8 @@ enum class UnreleasedFeature {
     RUNIMAL_SHARE,
 
     /** 아바타 꾸미기(홈 아바타 눌러 꾸미기, 상점·배경 선택 진입, 셀카 얼굴, 가이드 포인트 단계). */
-    AVATAR_CUSTOMIZE
+    AVATAR_CUSTOMIZE,
+
+    /** 런바디(마이 메뉴 "런바디", 리포트 화면). 2차 배포로 미룬다(사용자 결정 2026-10-31). */
+    RUNBODY
 }

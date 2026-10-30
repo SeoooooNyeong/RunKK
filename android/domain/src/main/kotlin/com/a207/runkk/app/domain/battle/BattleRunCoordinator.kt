@@ -34,7 +34,6 @@ import com.a207.runkk.app.domain.run.PlanSnapshot
 import com.a207.runkk.app.domain.run.RunProgress
 import com.a207.runkk.app.domain.run.RunStartSpec
 import com.a207.runkk.app.domain.run.RunTracker
-import com.a207.runkk.app.domain.run.isDiscardable
 import java.time.Clock
 import java.time.Duration
 import javax.inject.Inject
@@ -183,17 +182,30 @@ constructor(
 
     /**
      * 확인 뒤 그만두기(POST /battles/{id}/forfeit). 보고가 끝내 실패해도 기기 측정은 끝내고 failure로 알린다.
-     * 셀프런·셀럽런([CardKind.isDiscardable])은 서버가 대결을 취소하므로 기록을 버리고 [BattleRunState.Discarded]로 닫는다(D-266).
-     * 출발 전(카운트다운 "다시 고르기")이면 측정이 없어 버릴 것 없이 닫는다. 배틀런(랜덤·고스트·친구)은 기록을 저장하고 Finished다.
+     * 모든 대결(셀프런·셀럽런 포함)에서 서버는 패배로 판정하고 기기는 지금까지 달린 기록을 저장해 Finished로 닫는다(사용자 요청 2026-10-30,
+     * 예전에는 셀프런·셀럽런 그만두기가 기록을 버렸다). 기록 없이 끝내려면 [cancel]이다.
      */
-    fun forfeit() {
+    fun forfeit() = end { run ->
+        report(run) { battleRepository.forfeit(run.battleId) }
+        finish(run, status = null)
+    }
+
+    /**
+     * 셀프런·셀럽런 취소(POST /battles/{id}/cancel, 출발 전 카운트다운 "다시 고르기" 포함): 서버는 승패 없이 대결을 취소하고 기기는 기록을
+     * 버린 뒤 [BattleRunState.Discarded]로 닫는다(D-266, 사용자 요청 2026-10-30).
+     */
+    fun cancel() = end { run ->
+        report(run) { battleRepository.cancel(run.battleId) }
+        discard(run)
+    }
+
+    /** 그만두기·취소를 한 번만 한다(확인·다시 고르기 연타). 직렬 디스패처라 표시만으로 막힌다. */
+    private fun end(block: suspend (BattleRun) -> Unit) {
         val run = run ?: return
         run.round.scope.launch {
-            // 두 번 눌러도(확인·다시 고르기 연타) 보고는 한 번이다. 직렬 디스패처라 표시만으로 막힌다.
             if (run.isForfeiting) return@launch
             run.isForfeiting = true
-            report(run) { battleRepository.forfeit(run.battleId) }
-            if (run.cardKind.isDiscardable) discard(run) else finish(run, status = null)
+            block(run)
         }
     }
 

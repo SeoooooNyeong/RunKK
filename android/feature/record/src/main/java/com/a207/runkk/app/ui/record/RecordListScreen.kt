@@ -177,8 +177,7 @@ private fun MonthHeader(month: YearMonth, onPreviousMonth: () -> Unit, onNextMon
         RunkkIconButton(
             RunkkIcons.Back,
             contentDescription = stringResource(R.string.record_list_previous_month),
-            onClick = onPreviousMonth,
-            borderColor = RunkkColors.Background
+            onClick = onPreviousMonth
         )
         Text(
             monthFormat.format(month),
@@ -190,13 +189,12 @@ private fun MonthHeader(month: YearMonth, onPreviousMonth: () -> Unit, onNextMon
         RunkkIconButton(
             RunkkIcons.ChevronRight,
             contentDescription = stringResource(R.string.record_list_next_month),
-            onClick = onNextMonth,
-            borderColor = RunkkColors.Lime
+            onClick = onNextMonth
         )
     }
 }
 
-/** 월 요약 세 칸: 횟수 n번, 거리 n km, 연속 n일째(서버 값을 그대로 쓴다, D-279). 모르면 "-". */
+/** 월 요약 세 칸: 횟수 n번, 거리 n km, 연속 n주째와 그 아래 n일째(서버 값을 그대로 쓴다, D-279). 모르면 "-". */
 @Composable
 private fun MonthSummaryRow(summary: RecordListUiState.MonthSummary?) {
     val unknown = stringResource(R.string.record_summary_unknown)
@@ -210,15 +208,21 @@ private fun MonthSummaryRow(summary: RecordListUiState.MonthSummary?) {
             summary?.let { stringResource(R.string.record_summary_distance_value, RunkkFormat.kmShort(it.distance)) }
                 ?: unknown
         )
+        // 연속은 주 단위를 크게, 일 단위를 아래 작게 보인다(사용자 요청 2026-10-31)
         SummaryCell(
             R.string.record_summary_streak_label,
-            summary?.streakDays?.let { stringResource(R.string.record_summary_streak_value, it) } ?: unknown
+            summary?.streakWeeks?.let { stringResource(R.string.record_summary_streak_weeks_value, it) } ?: unknown,
+            sub = summary?.streakDays?.let { stringResource(R.string.record_summary_streak_value, it) }
         )
     }
 }
 
 @Composable
-private fun androidx.compose.foundation.layout.RowScope.SummaryCell(@StringRes label: Int, value: String) {
+private fun androidx.compose.foundation.layout.RowScope.SummaryCell(
+    @StringRes label: Int,
+    value: String,
+    sub: String? = null
+) {
     Column(
         modifier = Modifier.weight(1f).semantics(mergeDescendants = true) {},
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -226,6 +230,7 @@ private fun androidx.compose.foundation.layout.RowScope.SummaryCell(@StringRes l
     ) {
         Text(stringResource(label), style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
         Text(value, style = RunkkTextStyles.text(20, FontWeight.Black), color = RunkkColors.TextPrimary)
+        sub?.let { Text(it, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary) }
     }
 }
 

@@ -139,6 +139,24 @@ androidComponents {
             com.android.build.api.variant.BuildConfigField("boolean", lock.toString(), "1차 배포에서 열지 않는 기능을 막는가")
         )
     }
+    // 카카오 네이티브 앱 키는 패키지마다 따로 있다(콘솔: 기본 = 운영, _DEVELOP = .dev, _LOCAL = .local). 플레이버 키가 비면 기본 키를 쓴다.
+    // 지도(KakaoMapSdk)·공유·초대 링크 스킴이 이 값을 쓴다.
+    val kakaoKeyByFlavor = mapOf(
+        "local" to secretProperty("KAKAO_NATIVE_APP_KEY_LOCAL"),
+        "develop" to secretProperty("KAKAO_NATIVE_APP_KEY_DEVELOP")
+    )
+    onVariants { variant ->
+        val flavor = variant.productFlavors.firstOrNull()?.second
+        val kakaoKey = kakaoKeyByFlavor[flavor]?.takeIf { it.isNotBlank() } ?: kakaoNativeAppKey
+        variant.buildConfigFields?.put(
+            "KAKAO_NATIVE_APP_KEY",
+            com.android.build.api.variant.BuildConfigField("String", buildConfigString(kakaoKey), "카카오 네이티브 앱 키(플레이버별)")
+        )
+        variant.manifestPlaceholders.put(
+            "kakaoScheme",
+            if (kakaoKey.isBlank()) "runkk-kakao-disabled" else "kakao$kakaoKey"
+        )
+    }
     onVariants(selector().withName("localDebug")) { variant ->
         variant.buildConfigFields?.put(
             "E2E_KAKAO_TOKEN",

@@ -2,6 +2,7 @@ package com.a207.runkk.app.ui.battle
 
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.core.model.RouteLine
 import com.a207.runkk.app.domain.live.BattleGuidance
@@ -38,6 +39,8 @@ data class BattleRunningUiState(
     /** 종료 카운트다운이 시작될 때의 남은 초(보조 기술에 한 번 알리는 제한 시간, 매초 읽지 않게 고정). */
     val closingLimitSeconds: Long? = null,
     val isConfirmingForfeit: Boolean = false,
+    /** 셀프런·셀럽런 취소 확인 창(기록 없이 끝내기, 사용자 요청 2026-10-30). */
+    val isConfirmingCancel: Boolean = false,
     val hint: UiText? = null,
     val error: UiText? = null,
     /** 내 경로선(측정 중, D-261). 상대 마커는 이 경로 위 "내 거리 + 격차" 지점이다(D-262). */
@@ -47,7 +50,11 @@ data class BattleRunningUiState(
     /** 과거의 나 기록 날짜("10월 2일의 나"). */
     val opponentRecordedOn: LocalDate? = null,
     /** 셀럽런 카운트다운의 그 거리 내 최고 기록(없으면 "첫 도전"). */
-    val myBest: Duration? = null
+    val myBest: Duration? = null,
+    /** 상대 성별(지도 위 상대 그림). 셀럽·과거의 나·모르면 null(남자 그림). */
+    val opponentGender: Gender? = null,
+    /** 셀럽 그림 키(카운트다운·지도 위 셀럽 그림). 없으면 공통 그림. */
+    val celebrityFigure: String? = null
 ) {
     /** 측정 중인가(진행·종료 카운트다운). */
     val isMeasuring: Boolean get() = phase == BattlePhase.RUNNING || phase == BattlePhase.CLOSING

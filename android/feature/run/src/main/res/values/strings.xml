@@ -4,8 +4,6 @@
     <string name="run_consent_message">러닝을 기록하려면 위치 정보 수집에 동의해 주세요.</string>
     <string name="run_consent_go">동의하러 가기</string>
     <string name="run_consent_close">닫기</string>
-    <string name="run_mode_free">자유런</string>
-    <string name="run_mode_pill">자유런 · %1$s</string>
     <string name="run_countdown_voice">음성</string>
     <string name="run_countdown_vibration">진동</string>
     <string name="run_countdown_coach_voice">코치보이스</string>

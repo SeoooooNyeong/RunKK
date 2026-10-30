@@ -12,6 +12,7 @@ import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -32,8 +33,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -46,7 +49,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
@@ -65,6 +70,9 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.a207.runkk.app.core.designsystem.AvatarExpression
+import com.a207.runkk.app.core.designsystem.KakaoRunMap
+import com.a207.runkk.app.core.designsystem.LocalAvatarCharacter
+import com.a207.runkk.app.core.designsystem.LocalKakaoMapKey
 import com.a207.runkk.app.core.designsystem.LocalReduceMotion
 import com.a207.runkk.app.core.designsystem.NOTIFICATION_PERMISSION_API
 import com.a207.runkk.app.core.designsystem.RouteCanvas
@@ -78,12 +86,18 @@ import com.a207.runkk.app.core.designsystem.RunkkHint
 import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkLongPressButton
 import com.a207.runkk.app.core.designsystem.RunkkPillButton
+import com.a207.runkk.app.core.designsystem.RunkkRunningFigure
 import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
 import com.a207.runkk.app.core.designsystem.RunkkStatusPill
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.asString
+import com.a207.runkk.app.core.designsystem.canShowKakaoMap
+import com.a207.runkk.app.core.designsystem.rememberHeadingLeft
+import com.a207.runkk.app.core.designsystem.rememberIsMoving
+import com.a207.runkk.app.core.designsystem.runCycleOf
+import com.a207.runkk.app.core.designsystem.runFrameMillis
 import com.a207.runkk.app.core.designsystem.shouldAskNotificationPermission
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.GeoPoint
@@ -97,6 +111,7 @@ import com.a207.runkk.app.domain.run.HeartRateSample
 import com.a207.runkk.app.domain.run.RunProgress
 import java.time.Duration
 import java.time.Instant
+import kotlinx.coroutines.delay
 
 /** 자유런 시작 카운트다운(B1)·러닝 측정(B2)·일시정지(B4). 앱 화면 잠금은 없다(D-256). */
 @Composable
@@ -264,18 +279,6 @@ fun RunScreen(state: RunUiState, actions: RunActions, modifier: Modifier = Modif
     }
 }
 
-/** 머리 알약 "● 자유런 · 5km"(목표가 없으면 "● 자유런"). */
-@Composable
-private fun ModePill(target: Distance?, isLive: Boolean = true) {
-    val label = target?.let { stringResource(R.string.run_mode_pill, RunkkFormat.targetLabel(it)) }
-        ?: stringResource(R.string.run_mode_free)
-    RunkkStatusPill(label, modifier = Modifier.semantics { heading() }) {
-        if (isLive) {
-            Box(Modifier.size(8.dp).clip(CircleShape).background(RunkkColors.TextPrimary))
-        }
-    }
-}
-
 /**
  * 카운트다운 설정 요약 한 줄(D-264): 목표 거리, 음성·진동 안내가 켜져 있으면 "음성"·"진동", 오늘 코치 계획을 따르면 "코치보이스".
  * 꺼진 항목은 빼고 " · "로 잇는다. 모두 빠지면 빈 줄이다.
@@ -288,12 +291,11 @@ internal fun countdownSummary(state: RunUiState): String = listOfNotNull(
     stringResource(R.string.run_countdown_coach_voice).takeIf { state.isFromCoachPlan }
 ).joinToString(SUMMARY_SEPARATOR)
 
-/** 카운트다운(B1): 머리 알약, 큰 숫자 원, 설정 요약 한 줄. 위치·워치 상태와 눌러 설정 바꾸기는 없다(D-264). */
+/** 카운트다운(B1): 큰 숫자 원, 설정 요약 한 줄. 위치·워치 상태와 눌러 설정 바꾸기는 없다(D-264). */
 @Composable
 private fun CountdownContent(state: RunUiState, actions: RunActions) {
     Column(modifier = Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 40.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            ModePill(state.targetDistance)
             Spacer(Modifier.weight(1f))
             if (state.phase == RunPhase.PREPARING) {
                 RunkkPillButton(stringResource(R.string.run_countdown_cancel), onClick = actions.onCancel)
@@ -369,7 +371,7 @@ private fun CountdownBall(number: Int, onTap: () -> Unit) {
 }
 
 /**
- * 측정(B2)·일시정지(B4): 머리 알약, 큰 거리(km), 시간·평균 페이스·심박 세 칸, 경로선과 내 아바타, 아래 버튼.
+ * 측정(B2)·일시정지(B4): 큰 거리(km), 시간·평균 페이스·심박 세 칸, 경로선과 내 아바타, 아래 버튼.
  * 현재 페이스는 폰 화면에 없다(워치 표시용으로 진행값에만 남는다, D-263). 정지 중에는 반투명 막을 덮고 종료·재개만 받는다.
  */
 @Composable
@@ -379,11 +381,10 @@ private fun RunningContent(state: RunUiState, actions: RunActions) {
             modifier = Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            ModePill(state.targetDistance, isLive = !state.isPaused)
             RunningDistance(state.progress.distance)
             RunningStats(state.progress)
             Box(Modifier.weight(1f).fillMaxWidth()) {
-                RunningRoute(state.route)
+                RunningRoute(state.route, state.progress, isPaused = state.isPaused)
                 state.splitBanner?.takeIf { !state.isPaused }?.let {
                     RunkkBanner(
                         it.asString(),
@@ -450,18 +451,34 @@ private fun StatColumn(value: String, label: String, spoken: String? = null) {
     }
 }
 
-/** 경로선과 경로 끝의 내 아바타(D-261). 경로가 아직 없으면 아바타만 가운데에 둔다. */
+/**
+ * 경로선과 경로 끝의 내 아바타(D-261). 경로가 아직 없으면 아바타만 가운데에 둔다. 아바타는 경로 전후 같은 그림이다:
+ * 움직이는 동안 달리기 동작을 현재 페이스 빠르기로 넘기고, 멈춰 있거나 일시정지면 서 있는다.
+ */
 @Composable
-private fun RunningRoute(route: RouteLine) {
+private fun RunningRoute(route: RouteLine, progress: RunProgress, isPaused: Boolean) {
     val me = route.points.lastOrNull()
-    if (me == null) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            RunkkAvatar(faceKey = null, expression = AvatarExpression.RUN, modifier = Modifier.size(72.dp))
+    val isMoving = rememberIsMoving(progress.distance) && !isPaused && progress.currentPace != null
+    val frameMillis = runFrameMillis(progress.currentPace)
+    val isLeft = rememberHeadingLeft(route)
+    // Kakao 지도를 띄울 수 있으면(키 + 지도 라이브러리) 지도 위에서 카메라가 나를 따라가고, 아니면 격자 바탕 경로선이다.
+    if (canShowKakaoMap(LocalKakaoMapKey.current)) {
+        KakaoRunMap(route = route, modifier = Modifier.fillMaxSize()) {
+            RunkkRunningFigure(isMoving, frameMillis, isFacingLeft = isLeft)
         }
         return
     }
-    val markers = remember(me) { listOf(RouteMarker(point = me)) }
-    RouteCanvas(route = route, markers = markers, modifier = Modifier.fillMaxSize())
+    val markers = remember(me, isMoving, frameMillis, isLeft) {
+        listOfNotNull(
+            me?.let {
+                RouteMarker(point = it, figure = { RunkkRunningFigure(isMoving, frameMillis, isFacingLeft = isLeft) })
+            }
+        )
+    }
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        RouteCanvas(route = route, markers = markers, modifier = Modifier.fillMaxSize())
+        if (me == null) Box(Modifier.size(72.dp)) { RunkkRunningFigure(isMoving, frameMillis, isFacingLeft = isLeft) }
+    }
 }
 
 /**

@@ -201,11 +201,11 @@ private fun FreeRunSettings(state: SettingsUiState, actions: SettingsActions) {
         SettingsDivider()
         RunkkSwitchRow(stringResource(R.string.me_settings_voice_title), state.flag(SettingKeys.RUN_VOICE), {
             actions.setValue(SettingKeys.RUN_VOICE, it.toString())
-        })
+        }, description = stringResource(R.string.me_settings_run_voice_description))
         SettingsDivider()
         RunkkSwitchRow(stringResource(R.string.me_settings_vibration_title), state.flag(SettingKeys.RUN_VIBRATION), {
             actions.setValue(SettingKeys.RUN_VIBRATION, it.toString())
-        })
+        }, description = stringResource(R.string.me_settings_run_vibration_description))
         SettingsDivider()
         RunkkSwitchRow(
             stringResource(R.string.me_settings_follow_plan_title),

@@ -464,7 +464,8 @@ class MatchViewModel @Inject constructor(
                 distance = active.distance,
                 myBest = null,
                 opponentBest = null,
-                animationSeconds = 0
+                animationSeconds = 0,
+                opponentGender = active.opponentGender
             )
             onMatched(match)
             active.startAt?.let { forwardStart(BattleStart(active.battleId, it, opponentTrack = null)) }
@@ -660,7 +661,8 @@ class MatchViewModel @Inject constructor(
                     match.opponentName,
                     match.distance.meters,
                     _state.value.opponentKind.name,
-                    startAtEpochMillis = startAt?.toEpochMilli()
+                    startAtEpochMillis = startAt?.toEpochMilli(),
+                    opponentGender = match.opponentGender?.name
                 )
             )
         )

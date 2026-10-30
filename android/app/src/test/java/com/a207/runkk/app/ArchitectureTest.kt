@@ -400,13 +400,22 @@ class ArchitectureTest {
                 "ui.record" to CORE_UI + setOf("domain.record", "domain.run", "domain.avatar", "ui.share"),
                 // v0.14: domain.account는 위치 동의 시트(LocationConsentUseCase, D-267)와 초대 메시지의 내 닉네임(D-270),
                 // domain.record는 대결 결과 2쪽의 본인 기록 상세(RunDetailSource, D-283)다.
-                "ui.battle" to CORE_UI + setOf("domain.battle", "domain.live", "domain.account", "domain.record"),
+                // domain.runimal은 랜덤 대결 잠금의 유효 러닝 수(RunimalRepository.status, D115)다. 설계서 5.1.2 표에는 아직 없다(갱신 요청).
+                "ui.battle" to
+                    CORE_UI + setOf(
+                        "domain.battle",
+                        "domain.live",
+                        "domain.account",
+                        "domain.record",
+                        "domain.runimal"
+                    ),
                 "ui.runimal" to CORE_UI + setOf("domain.runimal", "ui.share"),
                 // domain.report(신고 대화상자)·ui.share(축하 카드 공유) 추가(v0.11 F.6.4, D-140).
                 "ui.crew" to CORE_UI + setOf("domain.crew", "domain.report", "ui.share"),
                 "ui.chat" to CORE_UI + setOf("domain.chat", "domain.report"),
                 "ui.avatar" to CORE_UI + "domain.avatar",
-                "ui.me" to CORE_UI + "domain.account",
+                // domain.settings는 프로필 편집의 출생연도(SettingsRepository.birthYear, D106)다. 설계서 5.1.2 표에는 아직 없다(갱신 요청).
+                "ui.me" to CORE_UI + setOf("domain.account", "domain.settings"),
                 "ui.notification" to CORE_UI + "domain.notification",
                 // core.model 추가: 시작 작업(AppStartup)이 UseCase·포트의 Outcome을 받아 실패를 기록한다.
                 // domain.run·domain.record 추가: 시작·로그인 때 오늘 계획을 읽어(RecordRepository.todayPlan) 워치 시작 화면을

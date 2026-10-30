@@ -96,6 +96,11 @@ private class FakeBattleRepository(private val log: CallLog) : BattleRepository 
         return reportFailure?.let { Outcome.Failure(it) } ?: Outcome.Success(Unit)
     }
 
+    override suspend fun cancel(battleId: Long): Outcome<Unit> {
+        log.add("battle.cancel:$battleId")
+        return reportFailure?.let { Outcome.Failure(it) } ?: Outcome.Success(Unit)
+    }
+
     override suspend fun active(): Outcome<ActiveBattle?> = error("unused")
 
     override suspend fun result(battleId: Long): Outcome<BattleResult> = error("unused")
@@ -392,7 +397,7 @@ class BattleRunCoordinatorTest {
     }
 
     @Test
-    fun `TC-9632 셀프런 그만두기 - forfeit 보고 뒤 기록을 버리고 Discarded로 닫는다(업로드 0)`() = runTest {
+    fun `TC-9632 D119 셀프런 그만두기 - forfeit 보고 뒤 패배로 기록을 남기고 Finished로 닫는다`() = runTest {
         val (tracker, coordinator) = setUp()
         coordinator.onRecordBattleStart(selfStart)
         advanceTimeBy(3_001)
@@ -401,7 +406,26 @@ class BattleRunCoordinatorTest {
         runCurrent()
         coordinator.forfeit()
         runCurrent()
-        assertEquals(listOf("battle.markStarted:7", "battle.forfeit:7"), log.calls)
+        assertEquals(
+            listOf("battle.markStarted:7", "battle.forfeit:7", "pending.save", "upload.requestUpload"),
+            log.calls
+        )
+        assertEquals(1, host.stopped)
+        assertIs<BattleRunState.Finished>(coordinator.state.value)
+        assertTrue(parentJob.children.none())
+    }
+
+    @Test
+    fun `D119 셀프런 취소 - cancel 보고 뒤 기록을 버리고 Discarded로 닫는다(업로드 0)`() = runTest {
+        val (tracker, coordinator) = setUp()
+        coordinator.onRecordBattleStart(selfStart)
+        advanceTimeBy(3_001)
+        tracker.runTo(1, 0.0)
+        tracker.runTo(5, 12.0)
+        runCurrent()
+        coordinator.cancel()
+        runCurrent()
+        assertEquals(listOf("battle.markStarted:7", "battle.cancel:7"), log.calls)
         assertEquals(1, host.stopped)
         assertEquals(BattleRunState.Discarded(7), coordinator.state.value)
         assertFalse(tracker.isMeasuring)
@@ -410,27 +434,27 @@ class BattleRunCoordinatorTest {
     }
 
     @Test
-    fun `TC-9633 셀럽런 그만두기도 기록을 버리고 Discarded로 닫는다`() = runTest {
+    fun `TC-9633 D119 셀럽런 취소도 기록을 버리고 Discarded로 닫는다`() = runTest {
         val (tracker, coordinator) = setUp()
         coordinator.onRecordBattleStart(selfStart.copy(battleId = 8, cardKind = CardKind.CELEB_RUN))
         advanceTimeBy(3_001)
         tracker.runTo(1, 0.0)
         runCurrent()
-        coordinator.forfeit()
+        coordinator.cancel()
         runCurrent()
-        assertEquals(listOf("battle.markStarted:8", "battle.forfeit:8"), log.calls)
+        assertEquals(listOf("battle.markStarted:8", "battle.cancel:8"), log.calls)
         assertEquals(BattleRunState.Discarded(8), coordinator.state.value)
     }
 
     @Test
-    fun `TC-9638 셀프런 카운트다운 중 다시 고르기 - 측정 없이 forfeit만 보내고 Discarded로 닫는다`() = runTest {
+    fun `TC-9638 셀프런 카운트다운 중 다시 고르기 - 측정 없이 cancel만 보내고 Discarded로 닫는다(D119)`() = runTest {
         val (_, coordinator) = setUp()
         coordinator.onRecordBattleStart(selfStart)
         runCurrent()
-        coordinator.forfeit()
+        coordinator.cancel()
         runCurrent()
         advanceTimeBy(5_000)
-        assertEquals(listOf("battle.forfeit:7"), log.calls)
+        assertEquals(listOf("battle.cancel:7"), log.calls)
         assertEquals(0, host.started)
         assertEquals(BattleRunState.Discarded(7), coordinator.state.value)
     }
@@ -685,7 +709,7 @@ class BattleRunCoordinatorTest {
         assertEquals(3, log.calls.count { it == "battle.forfeit:7" })
         assertEquals(AppError.Network, coordinator.failure.value)
         assertEquals(1, host.stopped, "기기 측정은 사용자의 그만두기대로 끝낸다")
-        assertEquals(BattleRunState.Discarded(7), coordinator.state.value, "셀프런은 보고가 실패해도 기록을 버린다")
+        assertIs<BattleRunState.Finished>(coordinator.state.value, "셀프런 그만두기는 보고가 실패해도 기록을 남긴다(D119)")
     }
 
     @Test

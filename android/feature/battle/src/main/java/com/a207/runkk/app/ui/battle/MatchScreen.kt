@@ -33,6 +33,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.a207.runkk.app.core.designsystem.AvatarCharacter
 import com.a207.runkk.app.core.designsystem.AvatarExpression
 import com.a207.runkk.app.core.designsystem.LocationConsentSheet
 import com.a207.runkk.app.core.designsystem.RunkkActionDialog
@@ -124,7 +125,6 @@ fun MatchScreen(state: MatchUiState, actions: MatchActions, modifier: Modifier =
             .background(RunkkColors.Background)
             .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 32.dp)
     ) {
-        BattleHeader(headerText(state))
         when (state.phase) {
             MatchPhase.REQUESTING, MatchPhase.WAITING, MatchPhase.CANCELLING, MatchPhase.INVITING ->
                 Waiting(state, actions)
@@ -149,17 +149,6 @@ fun MatchScreen(state: MatchUiState, actions: MatchActions, modifier: Modifier =
             onAgree = actions.onConsentAgree,
             onClose = actions.onConsentClose
         )
-    }
-}
-
-/** "배틀런 · 5km" 또는 "배틀런 · 친구 대결 · 5km". */
-@Composable
-private fun headerText(state: MatchUiState): String {
-    val distance = distanceLabel(state.distance).asString()
-    return if (state.opponentKind == OpponentKind.FRIEND) {
-        stringResource(R.string.battle_header_friend, distance)
-    } else {
-        stringResource(R.string.battle_header_battle, distance)
     }
 }
 
@@ -336,7 +325,8 @@ private fun ColumnScope.Matched(match: MatchFound, state: MatchUiState, onForfei
                     it,
                     figure = Figure.RIVAL,
                     tier = tierLabel(match.opponentTier),
-                    caption = bestLine(distance, match.opponentBest)
+                    caption = bestLine(distance, match.opponentBest),
+                    character = AvatarCharacter.of(match.opponentGender)
                 )
             }
         )

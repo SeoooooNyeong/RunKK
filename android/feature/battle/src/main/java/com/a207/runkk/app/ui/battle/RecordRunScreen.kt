@@ -2,6 +2,7 @@ package com.a207.runkk.app.ui.battle
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,11 +28,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -48,7 +52,6 @@ import com.a207.runkk.app.core.designsystem.RunkkEmptyState
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkLoading
-import com.a207.runkk.app.core.designsystem.RunkkPillButton
 import com.a207.runkk.app.core.designsystem.RunkkPrimaryButton
 import com.a207.runkk.app.core.designsystem.RunkkSegmentedTabs
 import com.a207.runkk.app.core.designsystem.RunkkShapes
@@ -113,10 +116,8 @@ fun CelebBattleRoute(viewModel: CelebBattleViewModel = hiltViewModel()) {
     CelebBattleScreen(
         state = state,
         onFilter = viewModel::onFilter,
-        onPick = { candidate ->
-            viewModel.onPick(candidate)
-            viewModel.onStart()
-        },
+        onSelect = viewModel::onSelect,
+        onStart = viewModel::onStart,
         onRetry = viewModel::load,
         onMessageShown = viewModel::onMessageShown
     )
@@ -194,12 +195,16 @@ fun SelfBattleScreen(
     }
 }
 
-/** 셀럽런(E-1, D-288): 거리 칩, 셀럽 카드(SD 그림, 이름, 거리, 기록, 서버 출처 표기 그대로), "대결". */
+/**
+ * 셀럽런(E-1, D-288): 거리 칩, 셀럽 카드(SD 그림, 이름, 거리, 기록, 서버 출처 표기 그대로). 셀프런과 같이 처음엔 고른 셀럽이 없고
+ * 카드를 눌러야 "대결하기"가 보인다.
+ */
 @Composable
 fun CelebBattleScreen(
     state: RecordBattleUiState,
     onFilter: (Int) -> Unit,
-    onPick: (CandidateUi) -> Unit,
+    onSelect: (CandidateUi) -> Unit,
+    onStart: () -> Unit,
     onRetry: () -> Unit,
     onMessageShown: () -> Unit,
     modifier: Modifier = Modifier
@@ -226,18 +231,29 @@ fun CelebBattleScreen(
                     )
 
                     else -> LazyColumn(
-                        // 목록 끝은 솟은 탭 원에 가리지 않게 비운다(D100).
-                        contentPadding = PaddingValues(bottom = 16.dp + RUNKK_BOTTOM_BAR_RISE),
+                        contentPadding = PaddingValues(bottom = 16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         items(state.candidates, key = { it.celebrityId ?: it.name.hashCode().toLong() }) { candidate ->
-                            CelebCandidateCard(candidate, isStarting = state.isStarting, onClick = {
-                                onPick(candidate)
-                            })
+                            CelebCandidateCard(
+                                candidate,
+                                isSelected = candidate == state.selected,
+                                onClick = { onSelect(candidate) }
+                            )
                         }
                     }
                 }
             }
+            state.selected?.let {
+                RunkkPrimaryButton(
+                    text = stringResource(R.string.battle_celeb_go),
+                    onClick = onStart,
+                    isLoading = state.isStarting,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+                )
+            }
+            // 셀프런과 같이 솟은 탭 원 높이만큼 아래를 비운다(D100).
+            Spacer(Modifier.height(RUNKK_BOTTOM_BAR_RISE))
         }
     }
 }
@@ -288,9 +304,9 @@ private fun CandidateBody(
     }
 }
 
-/** 셀럽 카드 한 장(E-1). */
+/** 셀럽 카드 한 장(E-1). 고르기·선택 표시는 셀프런 거리 카드(DistanceCardRow)와 같다. */
 @Composable
-private fun CelebCandidateCard(candidate: CandidateUi, isStarting: Boolean, onClick: () -> Unit) {
+private fun CelebCandidateCard(candidate: CandidateUi, isSelected: Boolean, onClick: () -> Unit) {
     val time = candidate.finishTime?.let(RunkkFormat::duration)
     val source = sourceLine(candidate)?.asString()
     val distance = distanceLabel(candidate.distance).asString()
@@ -300,14 +316,24 @@ private fun CelebCandidateCard(candidate: CandidateUi, isStarting: Boolean, onCl
             .fillMaxWidth()
             .clip(RunkkShapes.Large)
             .background(RunkkColors.Surface)
-            .border(1.dp, RunkkColors.Border, RunkkShapes.Large)
-            .padding(16.dp),
+            .border(
+                if (isSelected) 2.dp else 1.dp,
+                if (isSelected) RunkkColors.TextSecondary else RunkkColors.Border,
+                RunkkShapes.Large
+            )
+            .clickable(enabled = candidate.isSelectable, role = Role.RadioButton, onClick = onClick)
+            .alpha(if (candidate.isSelectable) 1f else FADED)
+            .padding(16.dp)
+            .semantics(mergeDescendants = true) {
+                contentDescription = description
+                selected = isSelected
+            },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        CelebrityFigure(size = 56.dp)
+        CelebrityFigure(size = 56.dp, figureKey = candidate.celebrityFigure)
         Column(
-            modifier = Modifier.weight(1f).semantics(mergeDescendants = true) { contentDescription = description },
+            modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Text(
@@ -327,11 +353,6 @@ private fun CelebCandidateCard(candidate: CandidateUi, isStarting: Boolean, onCl
             }
             source?.let { Text(it, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary) }
         }
-        RunkkPillButton(
-            stringResource(R.string.battle_celeb_start),
-            onClick = onClick,
-            isEnabled = candidate.isSelectable && !isStarting
-        )
     }
 }
 

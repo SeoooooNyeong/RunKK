@@ -14,6 +14,10 @@ data class BattleModeUiState(
     val distance: Distance = MatchUiState.DEFAULT_DISTANCE,
     val cards: List<DistanceCard> = MatchUiState.DISTANCES.map { DistanceCard(it, best = null, recordedOn = null) },
     val isConsentSheetVisible: Boolean = false,
+    /** 랜덤 대결 잠금: 남은 유효 러닝 수(모르면 0). null이면 랜덤 대결이 열려 있다(RandomBattleGate). 친구 대결은 잠그지 않는다. */
+    val randomRunsLeft: Int? = null,
+    /** 잠긴 랜덤 대결을 눌렀을 때 남은 횟수 안내. */
+    val isRandomLockNoticeVisible: Boolean = false,
     val message: UiText? = null
 ) {
     enum class Segment { RANDOM, FRIEND }

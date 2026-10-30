@@ -8,8 +8,10 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -18,7 +20,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
+import com.a207.runkk.app.core.designsystem.AvatarCharacter
+import com.a207.runkk.app.core.designsystem.LocalAvatarCharacter
+import com.a207.runkk.app.core.designsystem.LocalKakaoMapKey
 import com.a207.runkk.app.core.navigation.FeatureEntry
+import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.account.SessionRepository
 import com.a207.runkk.app.domain.settings.ScreenTheme
 import com.a207.runkk.app.domain.settings.SettingsRepository
@@ -40,6 +46,10 @@ class MainActivity : ComponentActivity() {
     /** 설정 사본(5.1.2 app → domain.settings). 화면 테마(theme)를 구독해 RunkkTheme을 다시 그린다(FR-203, D-92). */
     @Inject
     lateinit var settings: SettingsRepository
+
+    /** 내 성별(domain.account). 여성이면 기본 캐릭터를 여자로 그린다(LocalAvatarCharacter, 2026-10-30). */
+    @Inject
+    lateinit var account: AccountRepository
 
     /** 앱 키가 없으면 카카오 실행 링크를 받지 않는다(빈 스킴, 매니페스트도 쓰지 않는 스킴을 둔다). */
     private val inviteLinks =
@@ -77,16 +87,24 @@ class MainActivity : ComponentActivity() {
                 val loggedIn by produceState<Boolean?>(initialValue = null, session) {
                     session.loggedIn.collect { value = it }
                 }
-                RunkkAppContent(
-                    featureEntries = featureEntries,
-                    loggedIn = loggedIn,
-                    onExit = ::finish,
-                    pendingInvite = pendingInvite,
-                    onInviteDone = { pendingInvite = null },
-                    // Modifier.testTag를 UI Automator 리소스 ID로 내보낸다(E2E Maestro 선택자 id:, android/e2e/maestro).
-                    // debug 빌드에서만 켠다: release에서는 testTag를 접근성 트리에 리소스 ID로 내보이지 않는다(리뷰 N-1).
-                    modifier = Modifier.semantics { testTagsAsResourceId = BuildConfig.DEBUG }
-                )
+                val gender by account.myGender.collectAsState()
+                val character = AvatarCharacter.of(gender)
+                // Kakao 지도 키는 플레이버별 값(패키지마다 다른 네이티브 앱 키)을 화면 전체에 넣는다(LocalKakaoMapKey).
+                CompositionLocalProvider(
+                    LocalAvatarCharacter provides character,
+                    LocalKakaoMapKey provides BuildConfig.KAKAO_NATIVE_APP_KEY
+                ) {
+                    RunkkAppContent(
+                        featureEntries = featureEntries,
+                        loggedIn = loggedIn,
+                        onExit = ::finish,
+                        pendingInvite = pendingInvite,
+                        onInviteDone = { pendingInvite = null },
+                        // Modifier.testTag를 UI Automator 리소스 ID로 내보낸다(E2E Maestro 선택자 id:, android/e2e/maestro).
+                        // debug 빌드에서만 켠다: release에서는 testTag를 접근성 트리에 리소스 ID로 내보이지 않는다(리뷰 N-1).
+                        modifier = Modifier.semantics { testTagsAsResourceId = BuildConfig.DEBUG }
+                    )
+                }
             }
         }
     }

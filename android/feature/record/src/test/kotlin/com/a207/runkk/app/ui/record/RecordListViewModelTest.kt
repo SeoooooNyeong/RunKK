@@ -43,7 +43,7 @@ class RecordListViewModelTest {
     fun `TC-9731 이번 달 월 요약은 서버 monthRuns·monthMeters와 오늘 기준 연속 일수를 그대로 쓴다`() {
         val s = viewModel().state.value
         assertEquals(listOf(today), records.dashboardCalls)
-        assertEquals(RecordListUiState.MonthSummary(12, Distance(61_300), 4), s.summary)
+        assertEquals(RecordListUiState.MonthSummary(12, Distance(61_300), 4, 0), s.summary)
     }
 
     @Test
@@ -61,13 +61,13 @@ class RecordListViewModelTest {
         records.dashboardCalls.clear()
         vm.onPreviousMonth()
         assertEquals(setOf(LocalDate.of(2026, 9, 1), today), records.dashboardCalls.toSet())
-        assertEquals(RecordListUiState.MonthSummary(3, Distance(9_000), 4), vm.state.value.summary)
+        assertEquals(RecordListUiState.MonthSummary(3, Distance(9_000), 4, 0), vm.state.value.summary)
     }
 
     @Test
     fun `TC-9743 옛 서버라 월 요약이 없으면 받은 유효 기록으로 세고 대시보드를 못 읽으면 연속 일수는 비운다`() {
         records.dashboardOf = { Outcome.Success(dashboard(monthRuns = null, monthMeters = null, streakDays = 2)) }
-        assertEquals(RecordListUiState.MonthSummary(2, Distance(15_220), 2), viewModel().state.value.summary)
+        assertEquals(RecordListUiState.MonthSummary(2, Distance(15_220), 2, 0), viewModel().state.value.summary)
         records.dashboardOf = { Outcome.Failure(AppError.Network) }
         assertEquals(RecordListUiState.MonthSummary(2, Distance(15_220), null), viewModel().state.value.summary)
     }

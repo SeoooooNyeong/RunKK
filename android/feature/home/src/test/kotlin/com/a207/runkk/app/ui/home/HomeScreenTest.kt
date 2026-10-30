@@ -47,7 +47,7 @@ class HomeScreenTest {
         isHeaderLoading = false,
         weeklyDistance = Distance(12_000),
         weeklyGoal = Distance(20_000),
-        streakDays = 4,
+        streakWeeks = 4,
         faceKey = "default:BEAR"
     )
 
@@ -68,9 +68,9 @@ class HomeScreenTest {
     fun `TC-9721 상단·주간 막대·연속·두 카드를 디자인 문구로 보인다`() {
         show(loaded)
         compose.onNodeWithText("달리는곰").assertExists()
-        compose.onNodeWithText("골드, Lv.3").assertExists()
+        compose.onNodeWithText("골드 Lv.3").assertExists()
         compose.onNodeWithText("1,250 P", useUnmergedTree = true).assertExists()
-        compose.onNodeWithContentDescription("이번 주 12킬로미터, 목표 20킬로미터, 4일 연속").assertExists()
+        compose.onNodeWithContentDescription("이번 주 12킬로미터, 목표 20킬로미터, 4주 연속").assertExists()
         compose.onNodeWithContentDescription("자유런, 음성 켬, 진동 켬").assertExists()
         compose.onNodeWithContentDescription("배틀런, 랜덤 또는 친구와 대결").assertExists()
     }
@@ -126,8 +126,8 @@ class HomeScreenTest {
         show(loaded.copy(weeklyGoal = null, header = HomeHeader("달리는곰", null, null, null)))
         compose.onNodeWithText("0 P", useUnmergedTree = true).assertExists()
         compose.onNodeWithText("- P", useUnmergedTree = true).assertDoesNotExist()
-        compose.onNodeWithText("언랭, Lv.-").assertExists()
-        compose.onNodeWithContentDescription("이번 주 12킬로미터, 목표 없음, 4일 연속").assertExists()
+        compose.onNodeWithText("언랭 Lv.-").assertExists()
+        compose.onNodeWithContentDescription("이번 주 12킬로미터, 목표 없음, 4주 연속").assertExists()
     }
 
     @Test

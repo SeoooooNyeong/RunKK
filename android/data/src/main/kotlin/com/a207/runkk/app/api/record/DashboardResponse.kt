@@ -8,6 +8,8 @@ internal data class DashboardResponse(
     val totalMeters: Long,
     val landmark: String? = null,
     val streakDays: Int = 0,
+    /** 연속 러닝 주 수(유효 러닝이 1번 이상인 주, 사용자 요청 2026-10-31). 옛 서버는 주지 않는다. */
+    val streakWeeks: Int = 0,
     val grass: Map<String, Long> = emptyMap(),
     val weeklyAchievement: Double? = null,
     val crew: CrewArea? = null,

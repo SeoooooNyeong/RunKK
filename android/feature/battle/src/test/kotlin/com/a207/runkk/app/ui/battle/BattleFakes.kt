@@ -54,6 +54,11 @@ import com.a207.runkk.app.domain.run.RunWatchBridge
 import com.a207.runkk.app.domain.run.UploadScheduler
 import com.a207.runkk.app.domain.run.WatchDisplay
 import com.a207.runkk.app.domain.run.WatchGateway
+import com.a207.runkk.app.domain.runimal.RunimalCard
+import com.a207.runkk.app.domain.runimal.RunimalRepository
+import com.a207.runkk.app.domain.runimal.RunimalStatus
+import com.a207.runkk.app.domain.runimal.RunimalTypeBoard
+import com.a207.runkk.app.domain.runimal.RunimalTypeDetail
 import com.a207.runkk.app.domain.settings.GuidanceSettings
 import com.a207.runkk.app.domain.settings.SettingsRepository
 import com.a207.runkk.app.domain.settings.SettingsSnapshot
@@ -187,6 +192,11 @@ class FakeBattleRepository : BattleRepository {
 
     override suspend fun forfeit(battleId: Long): Outcome<Unit> {
         calls += "forfeit:$battleId"
+        return forfeitResult
+    }
+
+    override suspend fun cancel(battleId: Long): Outcome<Unit> {
+        calls += "cancel:$battleId"
         return forfeitResult
     }
 
@@ -704,3 +714,15 @@ fun recordDetail(recordId: String = "rec-9") = RecordDetail(
     rewardPoints = 12,
     weather = null
 )
+
+/** 배틀런 화면은 유효 러닝 수(status.validRunCount)만 읽는다(랜덤 대결 잠금). */
+class FakeRunimals(var validRuns: Int? = 1) : RunimalRepository {
+    override suspend fun status(): Outcome<RunimalStatus> =
+        Outcome.Success(RunimalStatus(null, false, null, null, emptyList(), validRuns))
+
+    override suspend fun card(): Outcome<RunimalCard> = Outcome.Failure(AppError.Rejected("UNUSED"))
+
+    override suspend fun types(): Outcome<RunimalTypeBoard> = Outcome.Failure(AppError.Rejected("UNUSED"))
+
+    override suspend fun type(type: String): Outcome<RunimalTypeDetail> = Outcome.Failure(AppError.Rejected("UNUSED"))
+}

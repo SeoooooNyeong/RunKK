@@ -32,7 +32,7 @@ data class RecordListUiState(
      * 월 요약: 횟수·거리는 서버 monthRuns·monthMeters(유효 기록만, 옛 서버면 받은 유효 기록으로 센다), 연속은 오늘 기준
      * streakDays(못 읽으면 null)다.
      */
-    data class MonthSummary(val runs: Int, val distance: Distance, val streakDays: Int?)
+    data class MonthSummary(val runs: Int, val distance: Distance, val streakDays: Int?, val streakWeeks: Int? = null)
 
     /** 고른 날의 기록 줄(최신순). 유효 여부와 관계없이 보인다. */
     val dayRuns: List<RunSummary>

@@ -295,7 +295,7 @@ class BattleRunningViewModelTest {
     }
 
     @Test
-    fun `TC-9638 셀프런 카운트다운 다시 고르기 - forfeit만 보내고 기록 없이 기록런 탭으로`() = main.runVmTest { vms ->
+    fun `TC-9638 셀프런 카운트다운 다시 고르기 - cancel만 보내고 기록 없이 기록런 탭으로(D119)`() = main.runVmTest { vms ->
         val w = world()
         val vm = selfRunning(w, vms)
         vm.events.test {
@@ -303,13 +303,14 @@ class BattleRunningViewModelTest {
             runCurrent()
             assertEquals(BattleRunningEvent.Discarded, awaitItem())
         }
-        assertTrue("forfeit:42" in w.battles.calls)
+        assertTrue("cancel:42" in w.battles.calls)
+        assertFalse(w.battles.calls.any { it.startsWith("forfeit") }, "다시 고르기는 그만두기(패배)가 아니다")
         assertTrue(w.pendingRuns.runs.value.isEmpty(), "기록을 저장하지 않는다")
         assertEquals(BattleRunState.Idle, w.coordinator.state.value, "다음 대결을 위해 비운다")
     }
 
     @Test
-    fun `TC-9636 셀프런 진행 중 그만두기를 확인하면 결과 화면 없이 기록런 탭으로(Discarded)`() = main.runVmTest { vms ->
+    fun `TC-9636 D119 셀프런 진행 중 그만두기를 확인하면 패배로 판정하고 결과 화면으로(Finished)`() = main.runVmTest { vms ->
         val w = world()
         val vm = selfRunning(w, vms)
         w.clock.now = w.clock.now.plusSeconds(3)
@@ -321,9 +322,28 @@ class BattleRunningViewModelTest {
             assertTrue(vm.state.value.isConfirmingForfeit)
             vm.onForfeitConfirmed()
             runCurrent()
+            assertEquals(BattleRunningEvent.Finished(42), awaitItem())
+        }
+        assertTrue("forfeit:42" in w.battles.calls)
+    }
+
+    @Test
+    fun `D119 셀프런 진행 중 취소를 확인하면 결과 화면 없이 기록런 탭으로(Discarded)`() = main.runVmTest { vms ->
+        val w = world()
+        val vm = selfRunning(w, vms)
+        w.clock.now = w.clock.now.plusSeconds(3)
+        advanceTimeBy(3_100)
+        runCurrent()
+        assertEquals(BattlePhase.RUNNING, vm.state.value.phase)
+        vm.events.test {
+            vm.onCancelTapped()
+            assertTrue(vm.state.value.isConfirmingCancel)
+            vm.onCancelConfirmed()
+            runCurrent()
             assertEquals(BattleRunningEvent.Discarded, awaitItem())
         }
-        assertTrue(w.pendingRuns.runs.value.isEmpty(), "셀프런 그만두기는 기록을 올리지 않는다")
+        assertTrue("cancel:42" in w.battles.calls)
+        assertTrue(w.pendingRuns.runs.value.isEmpty(), "셀프런 취소는 기록을 올리지 않는다")
     }
 
     @Test

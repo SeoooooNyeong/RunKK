@@ -2,9 +2,9 @@ package com.a207.runkk.app.ui.me
 
 import android.content.Context
 import com.a207.runkk.app.core.model.AppError
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.account.AccountRepository
-import com.a207.runkk.app.domain.account.Gender
 import com.a207.runkk.app.domain.account.GuestSession
 import com.a207.runkk.app.domain.account.MemberSettings
 import com.a207.runkk.app.domain.account.Profile
@@ -185,7 +185,9 @@ class FakeSettingsRepository : SettingsRepository {
 
     override fun courseMapShared() = false
 
-    override fun birthYear(): Int? = null
+    var birthYearValue: Int? = null
+
+    override fun birthYear(): Int? = birthYearValue
 
     override fun guidanceSettings() = GuidanceSettings.DEFAULT
 

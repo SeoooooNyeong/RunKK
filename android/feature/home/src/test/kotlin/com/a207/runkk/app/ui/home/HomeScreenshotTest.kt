@@ -46,7 +46,7 @@ class HomeScreenshotTest {
         isHeaderLoading = false,
         weeklyDistance = Distance(12_000),
         weeklyGoal = Distance(20_000),
-        streakDays = 4
+        streakWeeks = 4
     )
 
     @Test

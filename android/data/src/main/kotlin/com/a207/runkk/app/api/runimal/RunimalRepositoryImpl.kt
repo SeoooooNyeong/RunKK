@@ -47,7 +47,7 @@ private val SIDE_A_LABELS = setOf("솔로런", "단거리", "단골길", "루틴
 private val SIDE_B_LABELS = setOf("소셜런", "장거리", "탐험길", "즉흥런")
 
 internal fun RunimalStatusResponse.toDomain(): RunimalStatus =
-    RunimalStatus(type, provisional, remainingRuns, card?.toDomain(), allTypes)
+    RunimalStatus(type, provisional, remainingRuns, card?.toDomain(), allTypes, validRunCount)
 
 /** 모르는 축 값(A·B 밖)은 버린다. */
 private fun Map<String, String>.toLeans(): Map<String, AxisLean> =

@@ -1,6 +1,7 @@
 package com.a207.runkk.app.domain.account
 
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.Gender
 
 /**
  * 회원 프로필(GET /members/{id}/profile, 서버 profile.ProfileView). 공개 수준에 따라 서버가 걸러 보낸 항목만 채운다(D-52).

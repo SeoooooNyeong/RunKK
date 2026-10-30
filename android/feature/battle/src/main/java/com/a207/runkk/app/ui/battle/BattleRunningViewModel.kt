@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.battle.BattleRunCoordinator
 import com.a207.runkk.app.domain.battle.BattleRunState
@@ -78,7 +79,9 @@ class BattleRunningViewModel @Inject constructor(
             kind = OpponentKind.of(key.opponentKind),
             opponentRecord = key.opponentRecordSeconds?.let(Duration::ofSeconds),
             opponentRecordedOn = key.opponentRecordedOnEpochDay?.let(LocalDate::ofEpochDay),
-            myBest = key.myBestSeconds?.let(Duration::ofSeconds)
+            myBest = key.myBestSeconds?.let(Duration::ofSeconds),
+            opponentGender = Gender.entries.firstOrNull { it.name == key.opponentGender },
+            celebrityFigure = key.celebrityFigure
         )
         bindJobs += viewModelScope.launch { coordinator.state.collect(::onCoordinator) }
         bindJobs += viewModelScope.launch {
@@ -121,19 +124,35 @@ class BattleRunningViewModel @Inject constructor(
 
     fun onForfeitDismissed() = _state.update { it.copy(isConfirmingForfeit = false) }
 
+    /** 셀프런·셀럽런 취소 버튼: 기록 없이 끝낼지 확인을 받는다. */
+    fun onCancelTapped() {
+        val s = _state.value
+        if (s.kind.isCancellable && (s.phase == BattlePhase.RUNNING || s.phase == BattlePhase.CLOSING)) {
+            _state.update { it.copy(isConfirmingCancel = true) }
+        }
+    }
+
+    fun onCancelDismissed() = _state.update { it.copy(isConfirmingCancel = false) }
+
+    /** 취소 확인: 서버는 대결을 취소하고 기기는 기록을 버린다(Discarded). */
+    fun onCancelConfirmed() {
+        _state.update { it.copy(isConfirmingCancel = false) }
+        coordinator.cancel()
+    }
+
     fun onForfeitConfirmed() {
         _state.update { it.copy(isConfirmingForfeit = false) }
         coordinator.forfeit()
     }
 
     /**
-     * 셀프런 카운트다운 "다시 고르기"(D-264): 출발 전 그만두기라 서버는 대결을 취소하고(D-200) 조정자는 기록 없이 닫는다(Discarded).
+     * 셀프런 카운트다운 "다시 고르기"(D-264): 출발 전 취소라 서버는 대결을 취소하고(D-200) 조정자는 기록 없이 닫는다(Discarded).
      * 닫히면 기록런 탭으로 돌아간다.
      */
     fun onReselect() {
         val s = _state.value
         if (s.kind != OpponentKind.SELF || (s.phase != BattlePhase.COUNTDOWN && s.phase != BattlePhase.STARTING)) return
-        coordinator.forfeit()
+        coordinator.cancel()
     }
 
     /** 시작하지 못하고 끝난 화면을 닫을 때. */

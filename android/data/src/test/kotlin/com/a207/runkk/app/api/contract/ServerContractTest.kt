@@ -89,10 +89,10 @@ import com.a207.runkk.app.api.runimal.RunimalStatusResponse
 import com.a207.runkk.app.api.runimal.RunimalTypeResponse
 import com.a207.runkk.app.api.runimal.RunimalTypesResponse
 import com.a207.runkk.app.core.model.CardKind
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.RunMode
 import com.a207.runkk.app.core.model.SignalState
 import com.a207.runkk.app.domain.account.AccountType
-import com.a207.runkk.app.domain.account.Gender
 import com.a207.runkk.app.domain.account.ProviderType
 import com.a207.runkk.app.domain.avatar.ItemSlot
 import com.a207.runkk.app.domain.battle.BattleHistory

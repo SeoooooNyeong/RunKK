@@ -1,7 +1,9 @@
 package com.a207.runkk.app.domain.account
 
 import com.a207.runkk.app.core.model.FaceLayer
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Outcome
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -9,6 +11,9 @@ import kotlinx.coroutines.flow.StateFlow
  * 가입 전 로그인은 Failure(Rejected(SIGN_UP_REQUIRED))이고, 가입 티켓은 구현이 보관한다(D-19).
  */
 interface AccountRepository {
+    /** 내 성별(기본 캐릭터 남녀를 고른다). 내 프로필을 읽거나 고치면 갱신한다. 아직 모르면 null. */
+    val myGender: StateFlow<Gender?> get() = UNKNOWN_GENDER
+
     suspend fun login(token: ProviderToken): Outcome<SessionTokens>
 
     suspend fun signUp(form: SignUpForm): Outcome<SessionTokens>
@@ -57,3 +62,5 @@ interface AccountRepository {
         const val SELF: Long = 0L
     }
 }
+
+private val UNKNOWN_GENDER: StateFlow<Gender?> = MutableStateFlow(null)

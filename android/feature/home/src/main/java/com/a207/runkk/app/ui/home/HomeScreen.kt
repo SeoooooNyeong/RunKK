@@ -9,6 +9,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -49,11 +50,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -61,6 +72,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
@@ -80,6 +92,7 @@ import com.a207.runkk.app.core.designsystem.AvatarExpression
 import com.a207.runkk.app.core.designsystem.GuideStep
 import com.a207.runkk.app.core.designsystem.LocalReduceMotion
 import com.a207.runkk.app.core.designsystem.LocalReleaseScope
+import com.a207.runkk.app.core.designsystem.LocalRunkkColors
 import com.a207.runkk.app.core.designsystem.LocationConsentSheet
 import com.a207.runkk.app.core.designsystem.RUNKK_BOTTOM_BAR_HEIGHT
 import com.a207.runkk.app.core.designsystem.RUNKK_BOTTOM_BAR_RISE
@@ -88,8 +101,6 @@ import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkIcons
-import com.a207.runkk.app.core.designsystem.RunkkLogo
-import com.a207.runkk.app.core.designsystem.RunkkLogoKind
 import com.a207.runkk.app.core.designsystem.RunkkProgressBar
 import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
@@ -97,6 +108,7 @@ import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.UnreleasedFeature
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.designsystem.guideAnchor
+import com.a207.runkk.app.core.designsystem.sceneAvatarFilter
 import com.a207.runkk.app.core.designsystem.tierName
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
@@ -171,7 +183,33 @@ fun HomeScreen(state: HomeUiState, actions: HomeActions, modifier: Modifier = Mo
     }
     // 배경 장면 카드는 하단 탭 바 뒤로 화면 아래 끝까지 이어진다(R2-06, D86). 홈 자리 아래(탭 바·내비게이션 바)만큼 넘겨 그린다.
     val bleed = RUNKK_BOTTOM_BAR_HEIGHT + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val isAvatarOpen = LocalReleaseScope.current.isOpen(UnreleasedFeature.AVATAR_CUSTOMIZE)
     Box(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
+        // 피그마 A-4: 배경 사진이 로고·헤더 뒤부터 탭 바 뒤까지 화면 전체에 깔린다(흰 바탕 없음)
+        AvatarBackdrop(
+            if (isAvatarOpen) state.backgroundKey else null,
+            modifier = Modifier.fillMaxSize().extendBottom(bleed)
+        )
+        // 점선 방 바깥은 사진 위에 반투명 막을 덮는다(라이트 흰 막, 다크 검은 막). 방 안 장면은 그대로 둔다
+        var roomBounds by remember { mutableStateOf<Rect?>(null) }
+        var overlayOrigin by remember { mutableStateOf(Offset.Zero) }
+        val scrim = if (LocalRunkkColors.current.isDark) Color.Black else Color.White
+        Canvas(
+            Modifier
+                .fillMaxSize()
+                .extendBottom(bleed)
+                .onGloballyPositioned { overlayOrigin = it.positionInRoot() }
+        ) {
+            val outside = Path().apply {
+                fillType = PathFillType.EvenOdd
+                addRect(Rect(Offset.Zero, size))
+                roomBounds?.let { room ->
+                    val corner = ROOM_CORNER.toPx()
+                    addRoundRect(RoundRect(room.translate(-overlayOrigin), CornerRadius(corner, corner)))
+                }
+            }
+            drawPath(outside, scrim.copy(alpha = OUTSIDE_SCRIM_ALPHA))
+        }
         BoxWithConstraints(modifier = Modifier.fillMaxSize().extendBottom(bleed)) {
             val viewport = maxHeight
             Column(
@@ -184,17 +222,16 @@ fun HomeScreen(state: HomeUiState, actions: HomeActions, modifier: Modifier = Mo
                     minHeight = viewport - 16.dp - ROOM_BOTTOM_GAP,
                     fillMinHeight = ROOM_MIN_HEIGHT,
                     gap = 12.dp,
-                    top = {
-                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            RunkkLogo(
-                                RunkkLogoKind.WordmarkRrun,
-                                height = 28.dp,
-                                contentDescription = stringResource(R.string.home_logo_description)
-                            )
-                            Header(state, actions.onNavigate)
-                        }
-                    },
-                    fill = { Room(state, actions, bottomSpace = bleed + RUNKK_BOTTOM_BAR_RISE) }
+                    // 상단 RRun 로고는 두지 않는다(사용자 요청 2026-10-30).
+                    top = { Header(state, actions.onNavigate) },
+                    fill = {
+                        Room(
+                            state,
+                            actions,
+                            bottomSpace = bleed + RUNKK_BOTTOM_BAR_RISE,
+                            modifier = Modifier.onGloballyPositioned { roomBounds = it.boundsInRoot() }
+                        )
+                    }
                 )
             }
         }
@@ -212,14 +249,28 @@ fun HomeScreen(state: HomeUiState, actions: HomeActions, modifier: Modifier = Mo
 @Composable
 private fun Header(state: HomeUiState, onNavigate: (String) -> Unit) {
     val isAvatarOpen = LocalReleaseScope.current.isOpen(UnreleasedFeature.AVATAR_CUSTOMIZE)
+    val editProfile = stringResource(R.string.home_open_profile_edit)
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(
-            modifier = Modifier.size(48.dp).clip(CircleShape).background(RunkkColors.SurfacePressed),
-            contentAlignment = Alignment.Center
+        // 프로필(얼굴과 닉네임)을 누르면 프로필 편집으로 간다
+        // 얼굴과 닉네임은 둥근 바탕(라이트 흰색, 다크 검은색) 위에 둔다
+        Row(
+            modifier = Modifier
+                .weight(1f, fill = false)
+                .clip(RoundedCornerShape(30.dp))
+                .background(RunkkColors.Surface)
+                .clickable(role = Role.Button, onClickLabel = editProfile) { onNavigate(Routes.PROFILE_EDIT) }
+                .padding(start = 4.dp, top = 4.dp, bottom = 4.dp, end = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            RunkkAvatar(state.faceKey, AvatarExpression.FACE, Modifier.size(44.dp), state.faceLayers)
+            Box(
+                modifier = Modifier.size(48.dp).clip(CircleShape).background(RunkkColors.SurfacePressed),
+                contentAlignment = Alignment.Center
+            ) {
+                RunkkAvatar(state.faceKey, AvatarExpression.FACE, Modifier.size(44.dp), state.faceLayers)
+            }
+            HeaderIdentity(state, modifier = Modifier.weight(1f))
         }
-        HeaderIdentity(state, modifier = Modifier.weight(1f))
         // 상점은 아바타 꾸미기와 함께 연다. 닫혀 있으면 잔액만 보인다(D-252, TC-9700).
         BalancePill(
             balance = state.header.balance,
@@ -371,22 +422,23 @@ private fun SkeletonBar(width: Int, height: Int) {
  * 방은 하단 탭 바 뒤까지 이어지므로 내용 아래에 [bottomSpace]를 비워 둔다(내용이 탭 바와 솟은 탭 원에 가리지 않게, D100).
  */
 @Composable
-private fun Room(state: HomeUiState, actions: HomeActions, bottomSpace: Dp) {
+private fun Room(state: HomeUiState, actions: HomeActions, bottomSpace: Dp, modifier: Modifier = Modifier) {
     val isAvatarOpen = LocalReleaseScope.current.isOpen(UnreleasedFeature.AVATAR_CUSTOMIZE)
-    val shape = RoundedCornerShape(28.dp)
+    // 사진은 화면 전체 배경에 있고, 방은 테두리 없이 바깥 반투명 막으로만 구분한다
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .testTag(HOME_ROOM_TAG)
-            .clip(shape)
-            .border(1.dp, RunkkColors.Border, shape)
     ) {
-        AvatarBackdrop(if (isAvatarOpen) state.backgroundKey else null, modifier = Modifier.matchParentSize())
         Column(
             modifier = Modifier.matchParentSize().padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            WeekRow(state, onSettings = { actions.onNavigate(Routes.FREE_RUN_SETTINGS) })
+            WeekRow(
+                state,
+                onSettings = { actions.onNavigate(Routes.FREE_RUN_SETTINGS) },
+                onGoal = { actions.onNavigate(Routes.COACH) }
+            )
             RunCards(state, actions)
             // 대시보드를 못 읽었으면 막대 아래에 다시 읽기를 둔다(지난 값은 그대로 보인다).
             state.error?.let { error ->
@@ -402,14 +454,15 @@ private fun Room(state: HomeUiState, actions: HomeActions, bottomSpace: Dp) {
     }
 }
 
-/** "이번 주 [n] / [n]km" 막대와 "[n]일 연속"(흰 알약, 가이드 앵커 WEEKLY_GOAL), 러닝 설정(해 모양) 버튼. */
+/** "이번 주 [n] / [n]km" 막대와 "[n]주 연속"(흰 알약, 가이드 앵커 WEEKLY_GOAL), 러닝 설정(해 모양) 버튼. */
 @Composable
-private fun WeekRow(state: HomeUiState, onSettings: () -> Unit) {
+private fun WeekRow(state: HomeUiState, onSettings: () -> Unit, onGoal: () -> Unit) {
+    val openGoal = stringResource(R.string.home_open_goal_coach)
     val actual = compactKm(state.weeklyDistance)
     val goal = state.weeklyGoal?.let(::compactKm)
     val spoken = goal?.let { stringResource(R.string.home_week_spoken, actual, it) }
         ?: stringResource(R.string.home_week_spoken_no_goal, actual)
-    val streak = stringResource(R.string.home_streak, state.streakDays)
+    val streak = stringResource(R.string.home_streak, state.streakWeeks)
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
         Row(
             modifier = Modifier
@@ -417,7 +470,16 @@ private fun WeekRow(state: HomeUiState, onSettings: () -> Unit) {
                 .guideAnchor(GuideStep.WEEKLY_GOAL)
                 .clip(RoundedCornerShape(24.dp))
                 .background(RunkkColors.Surface)
-                .clearAndSetSemantics { contentDescription = "$spoken, $streak" }
+                // 이번 주 막대를 누르면 주간 목표를 정하는 목표·러닝 코치로 간다
+                .clickable(role = Role.Button, onClickLabel = openGoal, onClick = onGoal)
+                .clearAndSetSemantics {
+                    contentDescription = "$spoken, $streak"
+                    role = Role.Button
+                    onClick(label = openGoal) {
+                        onGoal()
+                        true
+                    }
+                }
                 .padding(horizontal = 14.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -547,6 +609,19 @@ private fun RoomAvatar(state: HomeUiState, isAvatarOpen: Boolean, onAvatar: () -
         contentAlignment = Alignment.BottomCenter
     ) {
         val height = maxHeight.coerceIn(AVATAR_MIN_HEIGHT, AVATAR_MAX_HEIGHT)
+        // 발밑 그림자(납작한 동그라미, 장식). 뛰어오르면 바닥에 남아 작고 옅어진다
+        Box(
+            Modifier
+                .offset(y = SHADOW_HEIGHT / 2)
+                .size(width = height * SHADOW_WIDTH_RATIO, height = SHADOW_HEIGHT)
+                .graphicsLayer {
+                    scaleX = 1f - SHADOW_SHRINK * hop.value
+                    scaleY = 1f - SHADOW_SHRINK * hop.value
+                    alpha = 1f - SHADOW_FADE * hop.value
+                }
+                .drawBehind { drawOval(Color.Black.copy(alpha = SHADOW_ALPHA)) }
+                .clearAndSetSemantics {}
+        )
         // 뛰어오를 때 칸째로 옮긴다(칸 안에서 그림만 옮기면 둥근 모서리 자르기에 머리가 잘린다)
         Box(
             modifier = Modifier
@@ -561,7 +636,8 @@ private fun RoomAvatar(state: HomeUiState, isAvatarOpen: Boolean, onAvatar: () -
                 Modifier
                     .height(height)
                     .aspectRatio(AVATAR_ASPECT),
-                state.faceLayers
+                state.faceLayers,
+                colorFilter = sceneAvatarFilter()
             )
         }
     }
@@ -575,6 +651,13 @@ internal fun compactKm(distance: Distance): String {
 
 private val AVATAR_MIN_HEIGHT = 160.dp
 private val AVATAR_MAX_HEIGHT = 360.dp
+
+/** 발밑 그림자 크기와 진하기(키에 비례한 너비), 뛰어오를 때 줄어드는 정도. */
+private const val SHADOW_WIDTH_RATIO = 0.46f
+private val SHADOW_HEIGHT = 14.dp
+private const val SHADOW_ALPHA = 0.28f
+private const val SHADOW_SHRINK = 0.3f
+private const val SHADOW_FADE = 0.5f
 
 /** 눌렀을 때 뛰어오르는 높이와 박자. */
 private val HOP_HEIGHT = 36.dp
@@ -605,9 +688,13 @@ private fun HomeScreenPreview() {
                 isHeaderLoading = false,
                 weeklyDistance = Distance(12_000),
                 weeklyGoal = Distance(20_000),
-                streakDays = 4
+                streakWeeks = 4
             ),
             actions = HomeActions()
         )
     }
 }
+
+/** 점선 방 모서리와 바깥 막의 진하기. */
+private val ROOM_CORNER = 28.dp
+private const val OUTSIDE_SCRIM_ALPHA = 0.4f

@@ -15,8 +15,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.designsystem.RunkkColors
-import com.a207.runkk.app.core.designsystem.RunkkLogo
-import com.a207.runkk.app.core.designsystem.RunkkLogoKind
+import com.a207.runkk.app.core.designsystem.RunkkHoppingWordmark
 import com.a207.runkk.app.core.navigation.FeatureEntry
 import com.a207.runkk.app.core.navigation.Routes
 
@@ -35,10 +34,12 @@ fun RunkkAppContent(
     onInviteDone: () -> Unit = {}
 ) {
     var startRoute by remember { mutableStateOf<String?>(null) }
+    // 스플래시 워드마크가 한 번 다 뛸 때까지는 시작 경로를 알아도 스플래시를 둔다.
+    var isIntroDone by remember { mutableStateOf(false) }
     if (startRoute == null && loggedIn != null) startRoute = startRouteFor(loggedIn)
     val start = startRoute
-    if (start == null) {
-        RunkkSplash(modifier)
+    if (start == null || !isIntroDone) {
+        RunkkSplash(modifier, onIntroDone = { isIntroDone = true })
     } else {
         RunkkNavHost(
             featureEntries = featureEntries,
@@ -56,9 +57,12 @@ fun RunkkAppContent(
 /** 로그인 상태 → 시작 경로. */
 internal fun startRouteFor(loggedIn: Boolean): String = if (loggedIn) Routes.HOME else Routes.LOGIN
 
-/** 스플래시: 창 배경과 같은 색 위에 RR 아이콘. */
+/**
+ * 스플래시: 창 배경과 같은 색 위에 "런크크" 워드마크(RR 아이콘은 쓰지 않는다, 사용자 요청 2026-10-30).
+ * 글자가 차례로 한 번 뛰어오르고 끝나면 [onIntroDone]을 부른다.
+ */
 @Composable
-internal fun RunkkSplash(modifier: Modifier = Modifier) {
+internal fun RunkkSplash(modifier: Modifier = Modifier, onIntroDone: () -> Unit = {}) {
     val description = stringResource(R.string.app_splash_description)
     Box(
         modifier = modifier.fillMaxSize().background(RunkkColors.Background).semantics {
@@ -66,6 +70,6 @@ internal fun RunkkSplash(modifier: Modifier = Modifier) {
         },
         contentAlignment = Alignment.Center
     ) {
-        RunkkLogo(RunkkLogoKind.Icon, height = 48.dp, contentDescription = null)
+        RunkkHoppingWordmark(width = 200.dp, onFinished = onIntroDone)
     }
 }

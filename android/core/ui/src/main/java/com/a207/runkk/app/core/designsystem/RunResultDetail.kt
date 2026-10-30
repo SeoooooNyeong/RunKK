@@ -1,5 +1,10 @@
 package com.a207.runkk.app.core.designsystem
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,10 +22,16 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -32,6 +43,7 @@ import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Pace
 import java.time.Duration
 import java.util.Locale
+import kotlinx.coroutines.delay
 
 /**
  * 러닝 결과 상세 한 장의 값(D-282). 자유런 결과(B-6)가 그리고, 대결 결과 2쪽(상세, D-283)도 같은 것을 그린다.
@@ -94,9 +106,50 @@ private fun DistanceHeader(state: RunResultDetailState) {
             }
             Text(state.dateLine, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
         }
-        RunkkAvatar(faceKey = null, expression = state.expression, modifier = Modifier.size(110.dp))
+        if (state.expression == AvatarExpression.JUMP) {
+            CheeringAvatar()
+        } else {
+            RunkkAvatar(
+                faceKey = null,
+                expression = state.expression,
+                modifier = Modifier.size(110.dp),
+                colorFilter = sceneAvatarFilter()
+            )
+        }
     }
 }
+
+/**
+ * 기뻐하는 결과 아바타: 서 있다가 뛰어오르기를 계속 되풀이한다(사용자 요청 2026-10-30). 뛰는 모양은 홈 아바타 탭과 같다
+ * (오르기 tween, 내리기 spring). 움직임 줄이기면 뛰어오른 그림에 멈춰 있다.
+ */
+@Composable
+private fun CheeringAvatar() {
+    val reduceMotion = LocalReduceMotion.current
+    val hop = remember { Animatable(0f) }
+    var isJumping by remember { mutableStateOf(reduceMotion) }
+    LaunchedEffect(reduceMotion) {
+        if (reduceMotion) return@LaunchedEffect
+        while (true) {
+            delay(CHEER_STAND_MILLIS)
+            isJumping = true
+            hop.animateTo(1f, tween(durationMillis = CHEER_UP_MILLIS, easing = FastOutSlowInEasing))
+            hop.animateTo(0f, spring(dampingRatio = CHEER_DAMPING, stiffness = Spring.StiffnessMediumLow))
+            isJumping = false
+        }
+    }
+    RunkkAvatar(
+        faceKey = null,
+        expression = if (isJumping) AvatarExpression.JUMP else AvatarExpression.STAND,
+        modifier = Modifier.size(110.dp).graphicsLayer { translationY = -hop.value * CHEER_HOP_HEIGHT.toPx() },
+        colorFilter = sceneAvatarFilter()
+    )
+}
+
+private const val CHEER_STAND_MILLIS = 900L
+private const val CHEER_UP_MILLIS = 240
+private const val CHEER_DAMPING = 0.55f
+private val CHEER_HOP_HEIGHT = 22.dp
 
 /** 세 칸: 시간(아래 휴식), 평균 페이스, 평균 심박. */
 @Composable

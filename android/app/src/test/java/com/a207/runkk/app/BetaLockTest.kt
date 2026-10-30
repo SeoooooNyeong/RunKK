@@ -61,6 +61,7 @@ class BetaLockTest {
             Routes.Key(Routes.AVATAR_SETUP),
             Routes.Key(Routes.SHOP),
             Routes.Key(Routes.AVATAR_BACKGROUND),
+            Routes.Key(Routes.REPORT),
             Routes.CrewHome(1),
             Routes.CrewChat(1),
             Routes.CrewRunLobby(1)

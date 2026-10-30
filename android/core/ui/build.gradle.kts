@@ -29,6 +29,9 @@ dependencies {
     api(libs.androidx.navigation3.runtime)
     api(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.kotlinx.serialization.json)
+    // 측정 화면 지도(C-005): 기록 상세와 같은 Kakao 지도 SDK v2
+    implementation(libs.kakao.maps)
+    implementation(libs.androidx.lifecycle.runtime.compose)
     debugImplementation(libs.androidx.compose.ui.tooling)
 
     testImplementation(platform(libs.androidx.compose.bom))

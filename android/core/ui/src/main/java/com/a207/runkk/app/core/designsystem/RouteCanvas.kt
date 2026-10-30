@@ -2,6 +2,7 @@ package com.a207.runkk.app.core.designsystem
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -17,6 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -46,6 +48,7 @@ fun RouteCanvas(route: RouteLine, markers: List<RouteMarker>, modifier: Modifier
     val lineColor = RunkkColors.Lime
     val startColor = RunkkColors.Surface
     val startBorder = RunkkColors.Lime
+    val gridColor = RunkkColors.Border.copy(alpha = GRID_ALPHA)
     BoxWithConstraints(modifier = modifier.testTag(ROUTE_CANVAS_TAG)) {
         val density = LocalDensity.current
         val padPx = with(density) { (markerSize / 2).toPx() }
@@ -66,6 +69,27 @@ fun RouteCanvas(route: RouteLine, markers: List<RouteMarker>, modifier: Modifier
                     val o = projection.project(p)
                     if (i == 0) moveTo(o.x, o.y) else lineTo(o.x, o.y)
                 }
+            }
+        }
+        // 지도 영역: 둥근 경계선 안에 옅은 격자를 깐다. 마커가 잘리지 않게 자르기는 바탕 캔버스에만 건다.
+        Canvas(
+            Modifier
+                .fillMaxSize()
+                .clip(MAP_SHAPE)
+                .background(RunkkColors.Surface)
+                .border(1.dp, RunkkColors.Border, MAP_SHAPE)
+        ) {
+            val step = GRID_STEP.toPx()
+            val gridStroke = 1.dp.toPx()
+            var x = step
+            while (x < size.width) {
+                drawLine(gridColor, Offset(x, 0f), Offset(x, size.height), gridStroke)
+                x += step
+            }
+            var y = step
+            while (y < size.height) {
+                drawLine(gridColor, Offset(0f, y), Offset(size.width, y), gridStroke)
+                y += step
             }
         }
         Canvas(Modifier.fillMaxSize()) {
@@ -121,3 +145,7 @@ private fun MarkerAt(at: Offset, marker: RouteMarker, size: Dp) {
 
 /** RouteCanvas 시험 표지. */
 const val ROUTE_CANVAS_TAG = "route-canvas"
+
+private val MAP_SHAPE = RoundedCornerShape(20.dp)
+private val GRID_STEP = 32.dp
+private const val GRID_ALPHA = 0.6f

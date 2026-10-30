@@ -5,6 +5,7 @@ import com.a207.runkk.app.api.core.value
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.battle.ActiveBattle
 import com.a207.runkk.app.domain.battle.BattleHistory
@@ -54,7 +55,7 @@ class BattleRepositoryImplTest {
             """{"battleId":9,"type":"FRIEND","pending":false,"retryUpload":false,"verdict":"WIN","corrected":false,
                |"myReachSeconds":1650,"opponentReachSeconds":1692,"rows":[],
                |"weekly":{"wins":3,"losses":1,"draws":0},"rewardPoints":0,"newRecord":false,"opponentName":"바람처럼",
-               |"recordId":"5b2c-uuid","totalRewardPoints":12,
+               |"recordId":"5b2c-uuid","totalRewardPoints":12,"opponentGender":"FEMALE",
                |"evaluation":{"kind":"FIRST_PLACEMENT","tier":"SILVER","validRuns":3,"runimalType":null}}
             """.trimMargin()
         )
@@ -73,6 +74,8 @@ class BattleRepositoryImplTest {
         assertEquals(null, pending.recordId)
         assertEquals(null, pending.totalRewardPoints, "옛 서버면 합계 없음")
         assertEquals(null, pending.evaluation)
+        assertEquals(Gender.FEMALE, won.opponentGender)
+        assertEquals(null, pending.opponentGender, "옛 서버면 상대 성별 없음")
     }
 
     @Test
@@ -279,7 +282,7 @@ class BattleRepositoryImplTest {
     fun `진행 중인 대결은 상대 이름과 출발 시각을 읽고 없으면(204) null이다(배틀 QA 7번)`() = runTest {
         api.reply(
             """{"battleId":12,"type":"RANDOM","status":"WAITING_START","distanceMeters":5000,"opponentName":"러너2",
-               |"startAt":"2026-10-27T16:00:13"}
+               |"startAt":"2026-10-27T16:00:13","opponentGender":"MALE"}
             """.trimMargin()
         )
         api.reply(
@@ -297,7 +300,8 @@ class BattleRepositoryImplTest {
                     "WAITING_START",
                     Distance(5_000),
                     "러너2",
-                    Instant.parse("2026-10-27T07:00:13Z")
+                    Instant.parse("2026-10-27T07:00:13Z"),
+                    Gender.MALE
                 )
             ),
             repository.active()

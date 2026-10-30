@@ -54,6 +54,7 @@ val sampleDashboard = Dashboard(
     total = Distance(128_400),
     landmark = "한강 다리 12개",
     streakDays = 4,
+    streakWeeks = 4,
     grass = mapOf(LocalDate.of(2026, 10, 19) to Distance(5_000)),
     weeklyAchievement = 0.6,
     crew = null,

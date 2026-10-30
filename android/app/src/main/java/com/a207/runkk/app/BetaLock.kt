@@ -32,5 +32,6 @@ internal object BetaLock {
     private fun isLockedRoute(route: String): Boolean = route == Routes.CREW ||
         route.startsWith("${Routes.CREW}/") ||
         route == Routes.AVATAR ||
-        route.startsWith("${Routes.AVATAR}/")
+        route.startsWith("${Routes.AVATAR}/") ||
+        route == Routes.REPORT
 }

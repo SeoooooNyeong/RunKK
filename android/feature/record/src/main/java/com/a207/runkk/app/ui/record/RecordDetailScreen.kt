@@ -91,23 +91,21 @@ fun RecordDetailRoute(recordId: String, viewModel: RecordDetailViewModel = hiltV
         // 지워졌거나 이미 없으면 목록으로 돌아간다. 목록은 다시 보일 때 새로 읽는다.
         viewModel.events.collect { if (it == RecordDetailEvent.DELETED) navigator.back() }
     }
-    // 실제 화면에서만 Kakao 지도 키를 넣는다(시험·스크린샷은 기본값 빈 문자열 → Canvas 경로선).
-    CompositionLocalProvider(LocalKakaoMapKey provides BuildConfig.KAKAO_NATIVE_APP_KEY) {
-        RecordDetailScreen(
-            state = state,
-            onBack = navigator::back,
-            onShare = { navigator.navigate(Routes.RecordCard(recordId)) },
-            onRetry = { viewModel.load(recordId, isForced = true) },
-            deleteActions = remember(viewModel) {
-                RecordDeleteActions(
-                    onDelete = viewModel::onDeleteTapped,
-                    onConfirm = viewModel::onDeleteConfirmed,
-                    onDismiss = viewModel::onDeleteDismissed,
-                    onMessageShown = viewModel::onMessageShown
-                )
-            }
-        )
-    }
+    // Kakao 지도 키는 앱이 플레이버별 값으로 넣는다(LocalKakaoMapKey, 시험·스크린샷은 기본값 빈 문자열 → Canvas 경로선).
+    RecordDetailScreen(
+        state = state,
+        onBack = navigator::back,
+        onShare = { navigator.navigate(Routes.RecordCard(recordId)) },
+        onRetry = { viewModel.load(recordId, isForced = true) },
+        deleteActions = remember(viewModel) {
+            RecordDeleteActions(
+                onDelete = viewModel::onDeleteTapped,
+                onConfirm = viewModel::onDeleteConfirmed,
+                onDismiss = viewModel::onDeleteDismissed,
+                onMessageShown = viewModel::onMessageShown
+            )
+        }
+    )
 }
 
 @Composable
@@ -208,6 +206,8 @@ private fun DetailHeader(detail: RecordDetail) {
         if (s.cardKind != CardKind.CREW_RUN || LocalReleaseScope.current.isOpen(UnreleasedFeature.CREW)) {
             RunkkBadge(kindLabel(s.cardKind))
         }
+        // 집계 제외 기록은 표시한다(D29 번복, 사용자 요청 2026-10-30)
+        if (!s.isValid) RunkkBadge(stringResource(R.string.record_tag_excluded), tone = RunkkBadgeTone.Muted)
         VISIBILITY_NAMES[detail.recordVisibility]?.let { RunkkBadge(stringResource(it), tone = RunkkBadgeTone.Muted) }
         Text(
             listOfNotNull(dateFormat.format(s.startedAt.atZone(ZoneId.systemDefault())), weatherText(detail))

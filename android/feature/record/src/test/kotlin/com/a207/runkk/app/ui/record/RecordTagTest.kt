@@ -138,4 +138,10 @@ class RecordTagTest {
         assertEquals("6'09\"", paceMarks(Pace(369)))
         assertEquals("-'--\"", paceMarks(null))
     }
+
+    @Test
+    fun `집계 제외 기록은 맨 앞에 집계 제외를 붙인다`() {
+        val excluded = summary("x", 8, 840, isValid = false)
+        assertEquals(listOf(res(R.string.record_tag_excluded)), RecordTag.textsOf(excluded))
+    }
 }

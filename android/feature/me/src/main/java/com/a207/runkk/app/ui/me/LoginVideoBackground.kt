@@ -22,7 +22,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.a207.runkk.app.core.designsystem.LocalReduceMotion
 
 /**
- * 로그인 배경 영상(피그마 A-1 메모: 무음, 1초부터 끝까지 반복). 첫 장면 그림을 먼저 깔고 그 위에 영상을 화면에 꽉 차게(잘라서) 튼다.
+ * 로그인 배경 영상(피그마 A-1 메모: 무음, 1초부터 끝까지 반복. 그 구간만 잘라 둔 파일을 반복한다). 첫 장면 그림을 먼저 깔고 그 위에 영상을 화면에 꽉 차게(잘라서) 튼다.
  * 움직임 줄이기 설정이나 미리보기에서는 그림만 보인다. 장식이므로 읽기 정보가 없다.
  */
 @Composable
@@ -44,7 +44,10 @@ internal fun LoginVideoBackground(@RawRes video: Int, @DrawableRes poster: Int, 
     }
 }
 
-/** 화면 크기에 맞춰 영상을 가운데 기준으로 잘라 그리고, 끝나면 [START_MS]로 돌아가 다시 튼다. 표면이 생길 때 재생기를 만든다. */
+/**
+ * 화면 크기에 맞춰 영상을 가운데 기준으로 잘라 그리고 시스템 반복 재생으로 끊김 없이 돌린다. 영상 파일은 원본의 1초~끝 구간만
+ * 잘라 첫 프레임을 기준 프레임으로 다시 만든 것이라(소리 없음) 되감기 없이 처음부터 반복하면 된다. 표면이 생길 때 재생기를 만든다.
+ */
 private class LoopingVideoView(context: Context, @RawRes private val video: Int) :
     TextureView(context),
     TextureView.SurfaceTextureListener {
@@ -64,14 +67,10 @@ private class LoopingVideoView(context: Context, @RawRes private val video: Int)
             setDataSource(context, Uri.parse("android.resource://${context.packageName}/$video"))
             setSurface(target)
             setVolume(0f, 0f)
+            isLooping = true
             setOnPreparedListener { prepared ->
                 cropToFill(prepared.videoWidth, prepared.videoHeight)
-                prepared.seekTo(START_MS)
                 prepared.start()
-            }
-            setOnCompletionListener { done ->
-                done.seekTo(START_MS)
-                done.start()
             }
             prepareAsync()
         }
@@ -101,10 +100,5 @@ private class LoopingVideoView(context: Context, @RawRes private val video: Int)
         val matrix = Matrix()
         matrix.setScale(scale * videoWidth / width, scale * videoHeight / height, width / 2f, height / 2f)
         setTransform(matrix)
-    }
-
-    private companion object {
-        /** 반복 구간 시작(피그마 메모 "1초부터 끝까지"). */
-        const val START_MS = 1_000
     }
 }

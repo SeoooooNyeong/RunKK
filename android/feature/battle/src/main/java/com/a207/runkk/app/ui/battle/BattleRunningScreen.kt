@@ -8,6 +8,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,7 +19,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -33,6 +36,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
@@ -43,13 +47,19 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.a207.runkk.app.core.designsystem.AvatarCharacter
 import com.a207.runkk.app.core.designsystem.AvatarExpression
+import com.a207.runkk.app.core.designsystem.CelebrityCharacter
 import com.a207.runkk.app.core.designsystem.CelebrityFigure
+import com.a207.runkk.app.core.designsystem.KakaoRunMap
+import com.a207.runkk.app.core.designsystem.LocalAvatarCharacter
+import com.a207.runkk.app.core.designsystem.LocalKakaoMapKey
 import com.a207.runkk.app.core.designsystem.NOTIFICATION_PERMISSION_API
 import com.a207.runkk.app.core.designsystem.OPPONENT_MARKER_TAG
 import com.a207.runkk.app.core.designsystem.OpponentMarkerPlacer
 import com.a207.runkk.app.core.designsystem.RouteCanvas
 import com.a207.runkk.app.core.designsystem.RouteMarker
+import com.a207.runkk.app.core.designsystem.RunMapMarker
 import com.a207.runkk.app.core.designsystem.RunkkAvatar
 import com.a207.runkk.app.core.designsystem.RunkkBanner
 import com.a207.runkk.app.core.designsystem.RunkkColors
@@ -58,7 +68,9 @@ import com.a207.runkk.app.core.designsystem.RunkkCountdownBanner
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkHint
+import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkLongPressButton
+import com.a207.runkk.app.core.designsystem.RunkkRunningFigure
 import com.a207.runkk.app.core.designsystem.RunkkSecondaryButton
 import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkStatusPill
@@ -66,6 +78,10 @@ import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.asString
+import com.a207.runkk.app.core.designsystem.canShowKakaoMap
+import com.a207.runkk.app.core.designsystem.rememberHeadingLeft
+import com.a207.runkk.app.core.designsystem.rememberIsMoving
+import com.a207.runkk.app.core.designsystem.runFrameMillis
 import com.a207.runkk.app.core.designsystem.shouldAskNotificationPermission
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
@@ -129,6 +145,9 @@ fun BattleRunningRoute(key: Routes.BattleRunning, viewModel: BattleRunningViewMo
             onForfeitLongPress = viewModel::onForfeitLongPressed,
             onForfeitConfirm = viewModel::onForfeitConfirmed,
             onForfeitDismiss = viewModel::onForfeitDismissed,
+            onCancelTap = viewModel::onCancelTapped,
+            onCancelConfirm = viewModel::onCancelConfirmed,
+            onCancelDismiss = viewModel::onCancelDismissed,
             onReselect = viewModel::onReselect,
             onClose = close
         )
@@ -141,6 +160,9 @@ data class BattleRunningActions(
     val onForfeitLongPress: () -> Unit = {},
     val onForfeitConfirm: () -> Unit = {},
     val onForfeitDismiss: () -> Unit = {},
+    val onCancelTap: () -> Unit = {},
+    val onCancelConfirm: () -> Unit = {},
+    val onCancelDismiss: () -> Unit = {},
     val onReselect: () -> Unit = {},
     val onClose: () -> Unit = {}
 )
@@ -169,6 +191,7 @@ fun BattleRunningScreen(state: BattleRunningUiState, actions: BattleRunningActio
         }
     }
     if (state.isConfirmingForfeit) ForfeitDialog(state.kind, actions.onForfeitConfirm, actions.onForfeitDismiss)
+    if (state.isConfirmingCancel) CancelDialog(actions.onCancelConfirm, actions.onCancelDismiss)
 }
 
 /** 그만두기 확인(FR-094, D-266): 문구는 상대 종류마다 다르고 취소는 모두 "계속 달리기"다. */
@@ -185,11 +208,24 @@ private fun ForfeitDialog(kind: OpponentKind, onConfirm: () -> Unit, onDismiss: 
     )
 }
 
-/** 머리 "● 배틀런 · 5km"(셀프런·셀럽런은 그 이름). 오른쪽은 내 연결 끊김 또는 랜덤 대결 상대 연결 상태(FR-088, 배틀 QA 5번). */
+/** 셀프런·셀럽런 취소 확인: 기록 없이 끝낸다(자유런 취소와 같은 문구, 사용자 요청 2026-10-30). */
+@Composable
+private fun CancelDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    RunkkConfirmDialog(
+        title = stringResource(R.string.battle_cancel_title),
+        message = stringResource(R.string.battle_cancel_message),
+        confirmLabel = stringResource(R.string.battle_cancel_confirm),
+        onConfirm = onConfirm,
+        onDismiss = onDismiss,
+        dismissLabel = stringResource(R.string.battle_running_forfeit_dismiss),
+        isDestructive = true
+    )
+}
+
+/** 머리: 오른쪽에 내 연결 끊김 또는 랜덤 대결 상대 연결 상태(FR-088, 배틀 QA 5번). 모드 이름 알약은 두지 않는다(사용자 요청 2026-10-30). */
 @Composable
 private fun Header(state: BattleRunningUiState) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-        BattleHeader(headerTitle(state.kind, distanceLabel(state.distance).asString()))
         Spacer(Modifier.weight(1f))
         val label = when {
             state.isLiveLost -> stringResource(R.string.battle_running_disconnected)
@@ -199,11 +235,34 @@ private fun Header(state: BattleRunningUiState) {
     }
 }
 
+/** 취소 버튼(자유런 취소와 같은 모양): 작은 원 X와 "취소". */
 @Composable
-internal fun headerTitle(kind: OpponentKind, distance: String): String = when (kind) {
-    OpponentKind.RANDOM, OpponentKind.FRIEND -> stringResource(R.string.battle_header_battle, distance)
-    OpponentKind.SELF -> stringResource(R.string.battle_header_self, distance)
-    OpponentKind.CELEBRITY -> stringResource(R.string.battle_header_celeb, distance)
+private fun CancelButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val description = stringResource(R.string.battle_cancel_desc)
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier) {
+        Box(
+            modifier = Modifier
+                .size(56.dp)
+                .clip(CircleShape)
+                .background(RunkkColors.Surface)
+                .clickable(role = Role.Button, onClickLabel = description, onClick = onClick)
+                .semantics { contentDescription = description },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                RunkkIcons.Close,
+                contentDescription = null,
+                tint = RunkkColors.TextSecondary,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+        Text(
+            stringResource(R.string.battle_cancel_caption),
+            style = RunkkTextStyles.Caption,
+            color = RunkkColors.TextSecondary,
+            modifier = Modifier.padding(top = 8.dp).clearAndSetSemantics {}
+        )
+    }
 }
 
 /** 상대 표시 이름: 과거의 나는 "10월 2일의 나"(날짜를 모르면 "과거의 나"), 나머지는 서버 표시명. */
@@ -246,6 +305,7 @@ private fun ColumnScope.Countdown(state: BattleRunningUiState, onReselect: () ->
                         opponent,
                         it,
                         figure = if (state.kind == OpponentKind.SELF) Figure.PAST_SELF else Figure.CELEBRITY,
+                        celebrityFigure = state.celebrityFigure,
                         caption = state.opponentRecord?.let { record ->
                             stringResource(R.string.battle_record_line, distance, RunkkFormat.duration(record))
                         }
@@ -296,20 +356,26 @@ private fun ColumnScope.Running(state: BattleRunningUiState, actions: BattleRunn
         )
     }
     state.hint?.let { RunkkHint(it.asString(), modifier = Modifier.align(Alignment.CenterHorizontally)) }
-    RunkkLongPressButton(
-        onTap = actions.onForfeitTap,
-        onLongPress = actions.onForfeitLongPress,
-        tapLabel = stringResource(R.string.battle_running_forfeit_tap_label),
-        longPressLabel = stringResource(R.string.battle_running_hold_to_end),
-        contentDescription = stringResource(R.string.battle_running_forfeit_desc),
-        caption = stringResource(R.string.battle_running_hold_to_end),
-        size = 88.dp,
-        borderColor = RunkkColors.Surface,
-        borderWidth = 0.dp,
-        background = RunkkColors.Surface,
-        modifier = Modifier.align(Alignment.CenterHorizontally)
-    ) {
-        Box(Modifier.size(28.dp).clip(RoundedCornerShape(8.dp)).background(RunkkColors.TextPrimary))
+    // 자유런처럼 왼쪽에 취소(기록 없음, 셀프런·셀럽런만), 가운데에 길게 눌러 그만두기(패배로 기록)
+    Box(modifier = Modifier.fillMaxWidth()) {
+        if (state.kind.isCancellable) {
+            CancelButton(actions.onCancelTap, Modifier.align(Alignment.CenterStart).padding(start = 24.dp))
+        }
+        RunkkLongPressButton(
+            onTap = actions.onForfeitTap,
+            onLongPress = actions.onForfeitLongPress,
+            tapLabel = stringResource(R.string.battle_running_forfeit_tap_label),
+            longPressLabel = stringResource(R.string.battle_running_hold_to_end),
+            contentDescription = stringResource(R.string.battle_running_forfeit_desc),
+            caption = stringResource(R.string.battle_running_hold_to_end),
+            size = 88.dp,
+            borderColor = RunkkColors.Surface,
+            borderWidth = 0.dp,
+            background = RunkkColors.Surface,
+            modifier = Modifier.align(Alignment.Center)
+        ) {
+            Box(Modifier.size(28.dp).clip(RoundedCornerShape(8.dp)).background(RunkkColors.TextPrimary))
+        }
     }
 }
 
@@ -365,45 +431,95 @@ private fun Stat(value: String, label: String, spoken: String) {
 }
 
 /**
- * 경로선과 마커(D-261, D-262): 경로 끝에 "나", 상대는 내 경로 위 "내 거리 + 격차" 지점(OpponentMarkerPlacer, 격차를 모르거나 경로가
- * 짧으면 그리지 않는다). 과거의 나는 반투명, 셀럽은 공통 SD 그림이다(D-254). 경로가 아직 없으면 내 아바타만 가운데에 둔다.
+ * 경로선과 마커(D-261, D-262): 경로 끝에 "나", 상대는 내 경로 위 격차만큼 떨어진 지점(OpponentMarkerPlacer: 뒤면 경로를 거슬러,
+ * 앞이면 내가 가던 방향으로 연장. 격차를 모르거나 경로가 짧으면 그리지 않는다). 자유런과 같이 Kakao 지도를 띄울 수 있으면 지도 위에,
+ * 아니면 격자 바탕 경로선에 그린다. 내 아바타와 상대(과거의 나는 반투명 내 캐릭터, 랜덤·친구는 상대 성별 캐릭터, 모르면 남자)는 움직이면
+ * 달리기 동작, 멈추면 서 있다. 셀럽은 키가 있으면 전용 캐릭터가 같은 방식으로 달리고, 없으면 공통 SD 그림이다(D-254, 사용자 결정
+ * 2026-10-31). 경로가 아직 없으면 내 아바타만 가운데에 둔다(사용자 요청 2026-10-30).
  */
 @Composable
 private fun BattleRoute(state: BattleRunningUiState) {
     val route = state.route
     val me = route.points.lastOrNull()
-    if (me == null) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            RunkkAvatar(faceKey = null, expression = AvatarExpression.RUN, modifier = Modifier.size(72.dp))
-        }
-        return
-    }
+    val isMoving = rememberIsMoving(state.myDistance) && state.isMeasuring && state.currentPace != null
+    val frameMillis = runFrameMillis(state.currentPace)
+    val isLeft = rememberHeadingLeft(route)
+    val isTheirsMoving = rememberIsMoving(state.opponentDistance) && state.isMeasuring
     val mine = stringResource(R.string.battle_me)
     val opponentName = opponentLabel(state)
     val theirs = OpponentMarkerPlacer.place(route, state.myDistance, state.gapMeters)
     val kind = state.kind
-    val markers = remember(me, theirs, opponentName, kind, mine) {
+    val character = LocalAvatarCharacter.current
+    val opponentCharacter = if (kind == OpponentKind.SELF) character else AvatarCharacter.of(state.opponentGender)
+    val celebrity = CelebrityCharacter.of(state.celebrityFigure)
+    val opponentFigure: @Composable (alpha: Float) -> Unit = { alpha ->
+        when {
+            kind != OpponentKind.CELEBRITY -> RunkkRunningFigure(
+                isTheirsMoving,
+                runFrameMillis(null),
+                character = opponentCharacter,
+                alpha = alpha,
+                isFacingLeft = isLeft
+            )
+
+            celebrity != null -> RunkkRunningFigure(
+                isTheirsMoving,
+                runFrameMillis(null),
+                alpha = alpha,
+                isFacingLeft = isLeft,
+                stand = celebrity.stand,
+                runCycle = celebrity.runCycle
+            )
+
+            else -> CelebrityFigure(Modifier.fillMaxSize())
+        }
+    }
+    val opponentAlpha = if (kind == OpponentKind.SELF) PAST_SELF_ALPHA else 1f
+    if (canShowKakaoMap(LocalKakaoMapKey.current)) {
+        KakaoRunMap(
+            route = route,
+            modifier = Modifier.fillMaxSize(),
+            others = listOfNotNull(
+                theirs?.let {
+                    RunMapMarker(it, label = opponentName, figure = { opponentFigure(opponentAlpha) })
+                }
+            ),
+            myLabel = mine
+        ) { RunkkRunningFigure(isMoving, frameMillis, isFacingLeft = isLeft) }
+        return
+    }
+    if (me == null) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(72.dp)) { RunkkRunningFigure(isMoving, frameMillis, isFacingLeft = isLeft) }
+        }
+        return
+    }
+    val markers = remember(
+        me,
+        theirs,
+        opponentName,
+        kind,
+        opponentCharacter,
+        celebrity,
+        mine,
+        isMoving,
+        frameMillis,
+        isTheirsMoving,
+        isLeft
+    ) {
         listOfNotNull(
             theirs?.let { point ->
-                when (kind) {
-                    OpponentKind.CELEBRITY -> RouteMarker(
-                        point,
-                        label = opponentName,
-                        tag = OPPONENT_MARKER_TAG,
-                        figure = { CelebrityFigure(Modifier.fillMaxSize()) }
-                    )
-
-                    OpponentKind.SELF -> RouteMarker(
-                        point,
-                        label = opponentName,
-                        alpha = PAST_SELF_ALPHA,
-                        tag = OPPONENT_MARKER_TAG
-                    )
-
-                    else -> RouteMarker(point, label = opponentName, tag = OPPONENT_MARKER_TAG)
-                }
+                RouteMarker(
+                    point,
+                    label = opponentName,
+                    alpha = opponentAlpha,
+                    tag = OPPONENT_MARKER_TAG,
+                    figure = { opponentFigure(1f) }
+                )
             },
-            RouteMarker(point = me, label = mine)
+            RouteMarker(point = me, label = mine, figure = {
+                RunkkRunningFigure(isMoving, frameMillis, isFacingLeft = isLeft)
+            })
         )
     }
     RouteCanvas(route = route, markers = markers, modifier = Modifier.fillMaxSize())

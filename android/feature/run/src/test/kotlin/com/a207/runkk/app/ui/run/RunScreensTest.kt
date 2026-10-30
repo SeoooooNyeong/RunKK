@@ -62,7 +62,7 @@ class RunScreensTest {
                 isFromCoachPlan = true
             )
         )
-        compose.onNodeWithText("자유런 · 5km").assertExists()
+        compose.onNodeWithText("자유런 · 5km").assertDoesNotExist()
         compose.onNodeWithText("5km · 음성 · 진동 · 코치보이스").assertExists()
         compose.onNodeWithText("GPS", substring = true).assertDoesNotExist()
         compose.onNodeWithText("워치", substring = true).assertDoesNotExist()
@@ -75,7 +75,7 @@ class RunScreensTest {
     @Test
     fun `카운트다운 요약은 꺼진 설정과 목표 자유를 뺀다`() {
         show(RunUiState(phase = RunPhase.COUNTDOWN, isVoiceOn = false))
-        compose.onNodeWithText("자유런").assertExists()
+        compose.onNodeWithText("자유런").assertDoesNotExist()
         compose.onNodeWithText("진동").assertExists()
     }
 
@@ -196,7 +196,7 @@ class RunScreensTest {
         state = RunUiState(phase = RunPhase.RUNNING, progress = RunProgress.INITIAL.copy(isPaused = true))
         compose.onNodeWithContentDescription("재개").performClick()
         compose.onNodeWithContentDescription("일시정지").assertDoesNotExist()
-        compose.onNodeWithText("자유런").assertExists()
+        compose.onNodeWithText("자유런").assertDoesNotExist()
         compose.onNodeWithContentDescription("러닝 종료").performTouchInput { longClick() }
         assertEquals(listOf("pause", "resume", "finishLong"), calls)
     }

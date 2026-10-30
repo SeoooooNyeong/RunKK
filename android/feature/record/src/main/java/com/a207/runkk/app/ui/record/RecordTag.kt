@@ -14,7 +14,7 @@ import com.a207.runkk.app.domain.record.RunSummary
  * 기록 목록·달력 줄의 태그(D-279). 자유런이 아니면 종류 태그 하나(배틀런·친구 대결은 승패가 정해졌을 때 승패를 붙인다,
  * 보류면 종류만), 신기록이면 러닝 종류와 관계없이(셀프런·셀럽런·대결 포함, 사용자 결정 D52, U8-3) 신기록 종류 문구
  * ("최장 거리", "10km 최고")를, 종류가 없으면 "신기록"만 붙인다.
- * 유효·집계 제외는 태그로 보이지 않는다(D29).
+ * 집계 제외 기록은 맨 앞에 "집계 제외"를 붙인다(D29 번복, 사용자 요청 2026-10-30). 유효 기록에는 따로 붙이지 않는다.
  */
 enum class RecordTag(@StringRes val labelRes: Int) {
     BATTLE(R.string.record_tag_battle),
@@ -28,7 +28,8 @@ enum class RecordTag(@StringRes val labelRes: Int) {
     SELF(R.string.record_tag_self),
     CELEB(R.string.record_tag_celeb),
     CREW(R.string.record_tag_crew),
-    NEW_RECORD(R.string.record_tag_new_record);
+    NEW_RECORD(R.string.record_tag_new_record),
+    EXCLUDED(R.string.record_tag_excluded);
 
     companion object {
         /** 종류 태그. 자유런은 null. 서버 battleType이 없으면(옛 서버) 카드 종류로 정한다(D-289). */
@@ -47,7 +48,8 @@ enum class RecordTag(@StringRes val labelRes: Int) {
         fun textsOf(run: RunSummary, isCrewOpen: Boolean = true): List<UiText> {
             val kind = kindOf(run)?.takeUnless { it == CREW && !isCrewOpen }
             val records = if (run.isNewRecord) newRecordTexts(run.newRecords) else emptyList()
-            return listOfNotNull(kind?.let { UiText.Res(it.labelRes) }) + records
+            val excluded = if (run.isValid) null else UiText.Res(EXCLUDED.labelRes)
+            return listOfNotNull(excluded, kind?.let { UiText.Res(it.labelRes) }) + records
         }
 
         private fun battleTypeOf(kind: CardKind): RecordBattleType? = when (kind) {

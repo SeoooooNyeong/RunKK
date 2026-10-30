@@ -37,6 +37,10 @@ internal interface BattleApi {
     @POST("battles/{id}/forfeit")
     suspend fun forfeit(@Path("id") battleId: Long)
 
+    /** 셀프런·셀럽런 취소(204). */
+    @POST("battles/{id}/cancel")
+    suspend fun cancel(@Path("id") battleId: Long)
+
     /** 진행 중인 대결이 없으면 204(본문 없음)다. */
     @GET("battles/active")
     suspend fun active(): Response<ActiveBattleResponse>

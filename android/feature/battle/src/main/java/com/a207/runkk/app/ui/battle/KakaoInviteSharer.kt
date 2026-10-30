@@ -39,6 +39,9 @@ class KakaoInviteSharer @Inject constructor() : InviteSharer {
         } catch (e: IllegalStateException) {
             // 카카오 SDK가 초기화되지 않았다(앱 키 없음).
             ShareResult.FAILED
+        } catch (e: UninitializedPropertyAccessException) {
+            // 초기화 전 SDK는 KakaoSdk.hosts(lateinit)를 읽다 이 예외를 던진다(IllegalStateException이 아니다).
+            ShareResult.FAILED
         }
     }
 

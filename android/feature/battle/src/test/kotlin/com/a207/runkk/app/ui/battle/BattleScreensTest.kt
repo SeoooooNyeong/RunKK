@@ -1,6 +1,9 @@
 package com.a207.runkk.app.ui.battle
 
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
@@ -151,20 +154,27 @@ class BattleScreensTest {
     }
 
     @Test
-    fun `셀럽런 - 출처는 서버 문구 그대로, 대결을 누르면 고르고 시작한다(D-288)`() {
+    fun `셀럽런 - 출처는 서버 문구 그대로, 카드를 고르면 대결하기로 시작한다(D-288)`() {
+        val candidates = celebCandidates.map(CandidateUi::of)
+        var state by mutableStateOf(RecordBattleUiState(isLoading = false, candidates = candidates))
         show {
             CelebBattleScreen(
-                RecordBattleUiState(isLoading = false, candidates = celebCandidates.map(CandidateUi::of)),
+                state,
                 onFilter = {},
-                onPick = { calls += "pick:${it.celebrityId}" },
+                onSelect = {
+                    calls += "select:${it.celebrityId}"
+                    state = state.copy(selected = it)
+                },
+                onStart = { calls += "start" },
                 onRetry = {},
                 onMessageShown = {}
             )
         }
         compose.onNodeWithText("공개 기록 기준 · 2025 서울마라톤").assertExists()
-        compose.onNodeWithContentDescription("번개발", substring = true).assertExists()
-        compose.onAllNodesWithText("대결")[0].performClick()
-        assertEquals(listOf("pick:7"), calls)
+        compose.onNodeWithText("대결하기").assertDoesNotExist()
+        compose.onNodeWithContentDescription("번개발", substring = true).performClick()
+        compose.onNodeWithText("대결하기").performClick()
+        assertEquals(listOf("select:7", "start"), calls)
     }
 
     @Test
@@ -178,7 +188,7 @@ class BattleScreensTest {
                 })
             )
         }
-        compose.onNodeWithText("배틀런 · 5km").assertExists()
+        compose.onNodeWithText("배틀런 · 5km").assertDoesNotExist()
         compose.onNodeWithContentDescription("상대를 찾고 있어요, 0:07 지남").assertExists()
         // 이마에 손 얹고 찾는 자세(D84, 피그마 C-2)
         compose.onNodeWithTag(DEFAULT_AVATAR_TAG + "SEARCH", useUnmergedTree = true).assertExists()
@@ -217,7 +227,7 @@ class BattleScreensTest {
                 MatchActions(onResend = { calls += "resend" }, onCancel = { calls += "cancel" })
             )
         }
-        compose.onNodeWithText("배틀런 · 친구 대결 · 5km").assertExists()
+        compose.onNodeWithText("배틀런 · 친구 대결 · 5km").assertDoesNotExist()
         compose.onNodeWithText("친구가 들어오길 기다리고 있어요").assertExists()
         compose.onNodeWithText("5:00").assertExists()
         compose.onNodeWithTag(DEFAULT_AVATAR_TAG + "SEARCH", useUnmergedTree = true).assertExists()
@@ -301,7 +311,7 @@ class BattleScreensTest {
                 BattleRunningActions()
             )
         }
-        compose.onNodeWithText("배틀런 · 5km").assertExists()
+        compose.onNodeWithText("배틀런 · 5km").assertDoesNotExist()
         compose.onNodeWithContentDescription("상대와 거리 차 42미터 앞서는 중").assertExists()
         compose.onNodeWithText("2.80", substring = true).assertDoesNotExist()
         compose.onNodeWithTag(OPPONENT_MARKER_TAG, useUnmergedTree = true).assertExists()
@@ -366,7 +376,7 @@ class BattleScreensTest {
     }
 
     @Test
-    fun `TC-9637 셀프런 그만두기 확인 문구와 계속 달리기(D-5)`() {
+    fun `TC-9637 셀프런 그만두기 확인 문구(패배로 기록, D119)와 계속 달리기(D-5)`() {
         show {
             BattleRunningScreen(
                 BattleRunningUiState(kind = OpponentKind.SELF, phase = BattlePhase.RUNNING, isConfirmingForfeit = true),
@@ -374,7 +384,7 @@ class BattleScreensTest {
             )
         }
         compose.onNodeWithText("셀프런을 그만둘까요?").assertExists()
-        compose.onNodeWithText("그만두면 이번 도전은 기록되지 않아요.").assertExists()
+        compose.onNodeWithText("그만두면 패배로 기록되고, 지금까지 달린 기록은 남아요.").assertExists()
         compose.onNodeWithText("계속 달리기").performClick()
         assertEquals(listOf("keep"), calls)
     }

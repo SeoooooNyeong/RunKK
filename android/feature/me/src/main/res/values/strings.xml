@@ -18,13 +18,12 @@
     <string name="me_profile_level">Lv.%1$s</string>
     <string name="me_profile_edit">프로필 편집</string>
     <string name="me_profile_runimal">MY Runimal</string>
-    <string name="me_profile_runimal_unknown">판정 전</string>
+    <string name="me_profile_runimal_unknown">아직 유형이 없어요</string>
     <string name="me_profile_longest">최장 거리</string>
     <string name="me_profile_km_value">%1$skm</string>
     <string name="me_profile_total">누적 거리</string>
     <string name="me_profile_runs">러닝</string>
     <string name="me_profile_runs_value">%1$d회</string>
-    <string name="me_profile_level_tier">Lv.%1$s · %2$s</string>
     <string name="me_main_edit">편집</string>
     <string name="me_main_edit_description">프로필 편집</string>
     <string name="me_other_recent_runs">최근 러닝</string>
@@ -84,10 +83,12 @@
     <string name="me_settings_target_title">목표 거리</string>
     <string name="me_settings_voice_title">음성 안내</string>
     <string name="me_settings_vibration_title">진동 안내</string>
+    <string name="me_settings_run_voice_description">1km 구간 기록, 페이스 코칭</string>
+    <string name="me_settings_run_vibration_description">1km마다, 목표 거리에 닿을 때</string>
     <string name="me_settings_follow_plan_title">코치 계획 따르기</string>
     <string name="me_settings_section_battle">대결</string>
     <string name="me_settings_battle_voice_description">상대와의 거리 차</string>
-    <string name="me_settings_battle_vibration_description">중간 알림 때</string>
+    <string name="me_settings_battle_vibration_description">중간 알림, 추월과 역전 때</string>
     <string name="me_settings_battle_distance_title">기본 대결 거리</string>
     <string name="me_settings_gap_title">중간 알림 간격</string>
     <string name="me_consents_location_title">위치 정보 수집</string>
@@ -171,6 +172,8 @@
     <string name="me_profile_edit_nickname_length">2~20자</string>
     <string name="me_profile_intro_count">%1$d/%2$d</string>
     <string name="me_profile_age_title">나이</string>
+    <string name="me_profile_birth_year_label">출생연도</string>
+    <string name="me_profile_birth_year_option">%1$d년</string>
     <string name="me_profile_gender_title">성별</string>
     <string name="me_profile_visibility_value">%1$s · %2$s</string>
     <string name="me_profile_public">공개</string>

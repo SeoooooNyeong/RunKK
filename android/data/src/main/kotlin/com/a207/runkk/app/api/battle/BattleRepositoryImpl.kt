@@ -43,6 +43,8 @@ constructor(private val api: BattleApi) : BattleRepository {
 
     override suspend fun forfeit(battleId: Long): Outcome<Unit> = ApiErrorMapper.call { api.forfeit(battleId) }
 
+    override suspend fun cancel(battleId: Long): Outcome<Unit> = ApiErrorMapper.call { api.cancel(battleId) }
+
     /** 204면 Success(null). 그 밖의 오류 응답은 AppError로 바꾼다. */
     override suspend fun active(): Outcome<ActiveBattle?> = ApiErrorMapper.call {
         val reply = api.active()

@@ -331,6 +331,14 @@
    {
     "kind": "leaf",
     "name": "startAt"
+   },
+   {
+    "kind": "leaf",
+    "name": "opponentGender"
+   },
+   {
+    "kind": "leaf",
+    "name": "celebrityFigure"
    }
   ],
   "file": "web/battle/BattleDtos.java"
@@ -433,6 +441,14 @@
     "kind": "record",
     "name": "evaluation",
     "ref": "BattleDtos.EvaluationDto"
+   },
+   {
+    "kind": "leaf",
+    "name": "opponentGender"
+   },
+   {
+    "kind": "leaf",
+    "name": "celebrityFigure"
    }
   ],
   "file": "web/battle/BattleDtos.java"
@@ -470,6 +486,10 @@
    {
     "kind": "leaf",
     "name": "myBestSeconds"
+   },
+   {
+    "kind": "leaf",
+    "name": "celebrityFigure"
    }
   ],
   "file": "web/battle/BattleDtos.java"
@@ -636,6 +656,10 @@
    {
     "kind": "leaf",
     "name": "estimated"
+   },
+   {
+    "kind": "leaf",
+    "name": "celebrityFigure"
    }
   ],
   "file": "web/battle/BattleDtos.java"
@@ -753,6 +777,10 @@
     "kind": "record",
     "name": "realNameConsent",
     "ref": "CelebrityAdminController.RealNameConsentRequest"
+   },
+   {
+    "kind": "leaf",
+    "name": "figureKey"
    }
   ],
   "file": "web/admin/celebrity/CelebrityAdminController.java"
@@ -2651,6 +2679,10 @@
    {
     "kind": "leaf",
     "name": "monthMeters"
+   },
+   {
+    "kind": "leaf",
+    "name": "streakWeeks"
    }
   ],
   "file": "web/record/RecordDtos.java"

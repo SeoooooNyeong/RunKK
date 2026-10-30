@@ -1,6 +1,7 @@
 package com.a207.runkk.app.data.live
 
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.domain.live.BattleEnded
 import com.a207.runkk.app.domain.live.BattleGuidance
 import com.a207.runkk.app.domain.live.BattleStart
@@ -62,7 +63,8 @@ class RealtimeContractTest {
                         distance = Distance(5_000),
                         myBest = Duration.ofSeconds(1_625),
                         opponentBest = Duration.ofSeconds(1_580),
-                        animationSeconds = 3
+                        animationSeconds = 3,
+                        opponentGender = Gender.FEMALE
                     ),
                 "BattleStart" to
                     BattleStart(

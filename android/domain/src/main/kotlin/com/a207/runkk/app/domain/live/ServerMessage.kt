@@ -1,6 +1,7 @@
 package com.a207.runkk.app.domain.live
 
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.Gender
 import java.time.Duration
 import java.time.Instant
 
@@ -10,7 +11,10 @@ import java.time.Instant
  */
 sealed interface ServerMessage
 
-/** 매칭 성사(BattleStartService.announceMatch). 고스트도 랜덤과 같은 항목만 가진다(Q-02). */
+/**
+ * 매칭 성사(BattleStartService.announceMatch). 고스트도 랜덤과 같은 항목만 가진다(Q-02). [opponentGender]는 상대 성별(회원이면 그
+ * 회원 성별, 가상 상대는 서버가 정한 값)이고 옛 서버·모르는 값이면 null이다.
+ */
 data class MatchFound(
     val battleId: Long,
     val opponentName: String,
@@ -18,7 +22,8 @@ data class MatchFound(
     val distance: Distance,
     val myBest: Duration?,
     val opponentBest: Duration?,
-    val animationSeconds: Int
+    val animationSeconds: Int,
+    val opponentGender: Gender? = null
 ) : ServerMessage
 
 /**

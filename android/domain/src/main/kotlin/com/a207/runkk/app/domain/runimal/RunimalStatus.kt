@@ -8,5 +8,7 @@ data class RunimalStatus(
     val isProvisional: Boolean,
     val remainingRuns: Int?,
     val card: RunimalCard?,
-    val allTypes: List<String>
+    val allTypes: List<String>,
+    /** 지금까지 유효 러닝 횟수. 옛 서버면 null. 홈이 랜덤 대결(유효 3회 뒤)까지 남은 횟수를 셀 때 쓴다. */
+    val validRunCount: Int? = null
 )

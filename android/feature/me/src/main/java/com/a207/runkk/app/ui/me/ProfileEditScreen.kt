@@ -23,6 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
@@ -35,6 +36,8 @@ import com.a207.runkk.app.core.designsystem.RunkkAvatar
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkLoading
+import com.a207.runkk.app.core.designsystem.RunkkSegmentRow
+import com.a207.runkk.app.core.designsystem.RunkkSelectField
 import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
 import com.a207.runkk.app.core.designsystem.RunkkSwitchRow
 import com.a207.runkk.app.core.designsystem.RunkkTextField
@@ -42,7 +45,9 @@ import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
 import com.a207.runkk.app.core.designsystem.asString
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
+import java.time.Year
 
 /** 프로필 편집(F3, FR-007). */
 @Composable
@@ -58,7 +63,9 @@ fun ProfileEditRoute(viewModel: ProfileEditViewModel = hiltViewModel()) {
         onSave = viewModel::onSave,
         onErrorShown = viewModel::onErrorShown,
         onAgePublicChange = viewModel::onAgePublicChange,
-        onGenderPublicChange = viewModel::onGenderPublicChange
+        onGenderPublicChange = viewModel::onGenderPublicChange,
+        onGenderChange = viewModel::onGenderChange,
+        onBirthYearChange = viewModel::onBirthYearChange
     )
 }
 
@@ -72,7 +79,9 @@ fun ProfileEditScreen(
     onErrorShown: () -> Unit,
     modifier: Modifier = Modifier,
     onAgePublicChange: (Boolean) -> Unit = {},
-    onGenderPublicChange: (Boolean) -> Unit = {}
+    onGenderPublicChange: (Boolean) -> Unit = {},
+    onGenderChange: (Gender) -> Unit = {},
+    onBirthYearChange: (Int?) -> Unit = {}
 ) {
     val snackbar = remember { SnackbarHostState() }
     val errorText = state.error?.asString()
@@ -100,6 +109,8 @@ fun ProfileEditScreen(
                     onIntroChange = onIntroChange,
                     onAgePublicChange = onAgePublicChange,
                     onGenderPublicChange = onGenderPublicChange,
+                    onGenderChange = onGenderChange,
+                    onBirthYearChange = onBirthYearChange,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -135,6 +146,8 @@ private fun ProfileEditForm(
     onIntroChange: (String) -> Unit,
     onAgePublicChange: (Boolean) -> Unit,
     onGenderPublicChange: (Boolean) -> Unit,
+    onGenderChange: (Gender) -> Unit,
+    onBirthYearChange: (Int?) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -162,6 +175,17 @@ private fun ProfileEditForm(
             ),
             imeAction = ImeAction.Done
         )
+        // 나이 묶음(출생연도 + 공개)도 성별 묶음처럼 구분선으로 나눈다.
+        HorizontalDivider(color = RunkkColors.Border)
+        val resources = LocalContext.current.resources
+        val thisYear = remember { Year.now().value }
+        RunkkSelectField(
+            label = stringResource(R.string.me_profile_birth_year_label),
+            options = remember(thisYear) { (thisYear downTo OLDEST_BIRTH_YEAR).toList() },
+            selected = state.birthYear,
+            optionLabel = { resources.getString(R.string.me_profile_birth_year_option, it) },
+            onSelect = { onBirthYearChange(it) }
+        )
         val public = stringResource(R.string.me_profile_public)
         val private = stringResource(R.string.me_profile_private)
         RunkkSwitchRow(
@@ -175,6 +199,13 @@ private fun ProfileEditForm(
             onCheckedChange = onAgePublicChange
         )
         HorizontalDivider(color = RunkkColors.Border)
+        // 성별 고르기(여성이면 기본 캐릭터가 여자)
+        RunkkSegmentRow(
+            options = GENDER_CHOICES.map { stringResource(genderLabelRes(it)) },
+            selectedIndex = GENDER_CHOICES.indexOf(state.gender),
+            onSelect = { onGenderChange(GENDER_CHOICES[it]) },
+            groupLabel = stringResource(R.string.me_profile_gender_title)
+        )
         RunkkSwitchRow(
             title = stringResource(R.string.me_profile_gender_title),
             description = stringResource(
@@ -220,7 +251,7 @@ private fun ProfileEditPreview() {
                 nickname = "달리는곰",
                 intro = "퇴근 뒤 한강",
                 ageBand = "20대",
-                gender = com.a207.runkk.app.domain.account.Gender.FEMALE,
+                gender = Gender.FEMALE,
                 isAgePublic = true
             ),
             onBack = {},
@@ -231,3 +262,7 @@ private fun ProfileEditPreview() {
         )
     }
 }
+
+private val GENDER_CHOICES = listOf(Gender.MALE, Gender.FEMALE, Gender.UNDISCLOSED)
+
+private const val OLDEST_BIRTH_YEAR = 1930

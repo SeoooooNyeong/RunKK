@@ -1,7 +1,9 @@
 package com.a207.runkk.app.data.live
 
 import com.a207.runkk.app.api.core.ServerTime
+import com.a207.runkk.app.api.core.enumByName
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.domain.live.BattleEnded
 import com.a207.runkk.app.domain.live.BattleGuidance
 import com.a207.runkk.app.domain.live.BattleStart
@@ -39,7 +41,8 @@ internal data class MatchFoundJson(
     val distance: Long,
     val myBest: Long? = null,
     val opponentBest: Long? = null,
-    val animationSeconds: Int
+    val animationSeconds: Int,
+    val opponentGender: String? = null
 ) {
     fun toDomain(): MatchFound = MatchFound(
         battleId = battleId,
@@ -48,6 +51,7 @@ internal data class MatchFoundJson(
         distance = Distance(distance),
         myBest = myBest?.let(Duration::ofSeconds),
         opponentBest = opponentBest?.let(Duration::ofSeconds),
-        animationSeconds = animationSeconds
+        animationSeconds = animationSeconds,
+        opponentGender = enumByName<Gender>(opponentGender)
     )
 }

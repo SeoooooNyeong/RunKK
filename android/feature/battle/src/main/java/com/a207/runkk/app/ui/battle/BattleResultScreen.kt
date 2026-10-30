@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.a207.runkk.app.core.designsystem.AvatarBackdrop
+import com.a207.runkk.app.core.designsystem.AvatarCharacter
 import com.a207.runkk.app.core.designsystem.AvatarExpression
 import com.a207.runkk.app.core.designsystem.RunResultDetail
 import com.a207.runkk.app.core.designsystem.RunResultDetailState
@@ -60,6 +61,7 @@ import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.asString
+import com.a207.runkk.app.core.designsystem.sceneAvatarFilter
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
@@ -204,7 +206,7 @@ private fun VerdictPage(state: BattleResultUiState, result: BattleResult, onDeta
                 liveRegion = LiveRegionMode.Polite
             }
         )
-        Figures(kind, verdict)
+        Figures(kind, verdict, AvatarCharacter.of(result.opponentGender), result.celebrityFigure)
         Text(
             message,
             style = RunkkTextStyles.text(17, FontWeight.Black),
@@ -222,9 +224,12 @@ private fun VerdictPage(state: BattleResultUiState, result: BattleResult, onDeta
     }
 }
 
-/** 내 아바타와 상대 그림(D-254): 배틀런 상대는 공통 상대 그림, 과거의 나는 반투명 기본 아바타, 셀럽은 공통 흐린 그림. */
+/**
+ * 내 아바타와 상대 그림(D-254): 배틀런 상대는 상대 성별([rival])의 상대 그림, 과거의 나는 반투명 기본 아바타, 셀럽은 결과 응답의
+ * 셀럽 그림 키([celebrity])로 고른 전용 캐릭터(없으면 공통 흐린 그림).
+ */
 @Composable
-private fun Figures(kind: OpponentKind, verdict: Verdict?) {
+private fun Figures(kind: OpponentKind, verdict: Verdict?, rival: AvatarCharacter, celebrity: String?) {
     val expression = resultExpression(verdict)
     val opponent = when (kind) {
         OpponentKind.SELF -> Figure.PAST_SELF
@@ -233,9 +238,17 @@ private fun Figures(kind: OpponentKind, verdict: Verdict?) {
     }
     Box(modifier = Modifier.size(width = 260.dp, height = 220.dp).clearAndSetSemantics {}) {
         Box(Modifier.align(Alignment.CenterStart)) {
-            OpponentFigure(Figure.AVATAR, size = 180.dp, expression = expression)
+            OpponentFigure(Figure.AVATAR, size = 180.dp, expression = expression, colorFilter = sceneAvatarFilter())
         }
-        Box(Modifier.align(Alignment.CenterEnd).offset(y = 12.dp)) { OpponentFigure(opponent, size = 110.dp) }
+        Box(Modifier.align(Alignment.CenterEnd).offset(y = 12.dp)) {
+            OpponentFigure(
+                opponent,
+                size = 110.dp,
+                colorFilter = sceneAvatarFilter(),
+                character = rival,
+                celebrityFigure = celebrity
+            )
+        }
     }
 }
 

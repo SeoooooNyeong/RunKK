@@ -143,7 +143,7 @@
     <string name="battle_self_start">%1$s 대결 시작</string>
     <string name="battle_self_choose_distance">거리를 골라 주세요</string>
     <string name="battle_celeb_title">셀럽과 달리기</string>
-    <string name="battle_celeb_start">대결</string>
+    <string name="battle_celeb_go">대결하기</string>
     <string name="battle_celeb_record">%1$s, %2$s</string>
     <string name="battle_celeb_empty_title">이 거리의 셀럽 기록이 없어요</string>
     <string name="battle_record_count">기록 %1$d개</string>

@@ -6,6 +6,7 @@ import app.cash.turbine.test
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.navigation.Routes
+import com.a207.runkk.app.domain.account.Profile
 import com.a207.runkk.app.domain.battle.MatchAcceptance
 import com.a207.runkk.app.domain.battle.RecordBattleCandidates
 import com.a207.runkk.app.ui.battle.BattleWorld.Companion.world
@@ -25,9 +26,27 @@ class BattleModeViewModelTest {
 
     private val settings = FakeConsentSettings()
     private val accounts = FakeAccounts()
+    private val runimals = FakeRunimals()
 
     private fun ViewModelCloser.vm(w: BattleWorld) =
-        track(BattleModeViewModel(w.battles, w.coordinator, consentOf(settings, accounts)))
+        track(BattleModeViewModel(w.battles, w.coordinator, consentOf(settings, accounts), accounts, runimals))
+
+    @Test
+    fun `언랭이면 랜덤 시작 대신 남은 유효 러닝 수를 알리고 친구 초대는 막지 않는다`() = main.runVmTest { vms ->
+        accounts.profileResult =
+            Outcome.Success(Profile(7, "달리는곰", "PUBLIC", "UNRANKED", 1, null, null, null, null, null))
+        runimals.validRuns = 1
+        val vm = vms.vm(world())
+        runCurrent()
+        assertEquals(2, vm.state.value.randomRunsLeft)
+        vm.onRandomStartTapped()
+        assertTrue(vm.state.value.isRandomLockNoticeVisible)
+        vm.onRandomLockNoticeClosed()
+        vm.events.test {
+            vm.onInviteTapped()
+            assertTrue(awaitItem() is BattleModeEvent.Open)
+        }
+    }
 
     @Test
     fun `기본 거리는 서버 기본 대결 거리이고 카드마다 셀프런 후보의 최고 기록을 보인다`() = main.runVmTest { vms ->

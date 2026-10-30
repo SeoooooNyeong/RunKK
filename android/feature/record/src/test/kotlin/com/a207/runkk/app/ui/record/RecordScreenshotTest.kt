@@ -46,7 +46,7 @@ class RecordScreenshotTest {
         isLoading = false,
         runs = runs,
         dailyDistance = dailyValidDistance(runs, zone),
-        summary = RecordListUiState.MonthSummary(11, Distance(54_800), 7),
+        summary = RecordListUiState.MonthSummary(11, Distance(54_800), streakDays = 7, streakWeeks = 2),
         selectedDate = java.time.LocalDate.of(2026, 10, 20),
         recentRuns = runs,
         pendingCount = 1

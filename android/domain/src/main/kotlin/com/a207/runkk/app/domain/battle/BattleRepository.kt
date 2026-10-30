@@ -23,8 +23,11 @@ interface BattleRepository {
     /** 기록 대결 시작 보고(POST /battles/{id}/started, R-02). */
     suspend fun markStarted(battleId: Long): Outcome<Unit>
 
-    /** 그만두기(POST /battles/{id}/forfeit, design-review.md E3). */
+    /** 그만두기(POST /battles/{id}/forfeit, design-review.md E3). 출발한 대결은 패배로 판정한다(셀프런·셀럽런 포함, 2026-10-30). */
     suspend fun forfeit(battleId: Long): Outcome<Unit>
+
+    /** 셀프런·셀럽런 취소(POST /battles/{id}/cancel): 승패·기록 없이 대결을 취소한다(사용자 요청 2026-10-30). */
+    suspend fun cancel(battleId: Long): Outcome<Unit>
 
     /** 진행 중인 대결(GET /battles/active). 없으면(204) Success(null)이다. */
     suspend fun active(): Outcome<ActiveBattle?>

@@ -4,8 +4,8 @@ import com.a207.runkk.app.api.core.ServerTime
 import com.a207.runkk.app.api.core.enumByName
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.domain.account.AccountType
-import com.a207.runkk.app.domain.account.Gender
 import com.a207.runkk.app.domain.account.GuestSession
 import com.a207.runkk.app.domain.account.MemberSettings
 import com.a207.runkk.app.domain.account.Profile
@@ -67,7 +67,9 @@ internal fun ProfileEdit.toRequest(): ProfileEditRequest = ProfileEditRequest(
     nickname = nickname,
     intro = intro,
     ageBandVisibility = if (isAgePublic) VISIBILITY_PUBLIC else VISIBILITY_PRIVATE,
-    genderVisibility = if (isGenderPublic) VISIBILITY_PUBLIC else VISIBILITY_PRIVATE
+    genderVisibility = if (isGenderPublic) VISIBILITY_PUBLIC else VISIBILITY_PRIVATE,
+    gender = gender?.name,
+    birthYear = birthYear
 )
 
 private const val VISIBILITY_PUBLIC = "PUBLIC"

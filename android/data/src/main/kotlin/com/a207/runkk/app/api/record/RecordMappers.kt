@@ -73,6 +73,7 @@ internal fun DashboardResponse.toDomain(): Dashboard = Dashboard(
     total = Distance(totalMeters),
     landmark = landmark,
     streakDays = streakDays,
+    streakWeeks = streakWeeks,
     grass = grass.toGrass(),
     weeklyAchievement = weeklyAchievement,
     crew = crew?.let { Dashboard.CrewArea(it.crewName, it.streakDays, it.grass.toGrass(), it.landmark) },

@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -23,11 +24,13 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.a207.runkk.app.core.designsystem.AvatarBackdrop
 import com.a207.runkk.app.core.designsystem.AvatarExpression
 import com.a207.runkk.app.core.designsystem.RunkkAvatar
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
+import com.a207.runkk.app.core.designsystem.sceneAvatarFilter
 import com.a207.runkk.app.core.designsystem.splitPace
 import com.a207.runkk.app.domain.record.CardWeather
 import com.a207.runkk.app.domain.record.RunCard
@@ -36,8 +39,9 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /**
- * 기록 카드 앞면(B-7, FR-068): 날짜·시각과 날씨, 기본 아바타, 큰 거리와 "신기록", 운동 시간·평균 페이스·평균 심박,
- * "[닉네임], 런크크" 서명. 종류 라벨은 없다. 뒷면(코스)은 CARD_BACK이 열릴 때만 있다(D-252, D93).
+ * 기록 카드 앞면(B-7, FR-068): 날짜·시각과 날씨, 배경 장면 위 기본 아바타, 큰 거리와 "신기록", 운동 시간·평균 페이스·평균 심박.
+ * 종류 라벨과 서명 줄은 없다(서명은 사용자 요청 2026-10-30로 뺐다). 뒷면(코스)은 CARD_BACK이 열릴 때만 있다(D-252, D93).
+ * 공유 단계도 이 앞면을 그대로 그려 찍은 이미지를 보낸다.
  */
 @Composable
 fun RecordCardFront(card: RunCard, modifier: Modifier = Modifier) {
@@ -59,19 +63,29 @@ fun RecordCardFront(card: RunCard, modifier: Modifier = Modifier) {
                 Text(it, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
             }
         }
+        // 아바타 칸은 홈과 같은 배경 장면 위에 서 있는 모양이다(사용자 요청 2026-10-30, 예전 라임 바탕 대신).
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(AVATAR_BOX_RATIO)
-                .clip(RoundedCornerShape(24.dp))
-                .background(RunkkColors.LimeContainer),
-            contentAlignment = Alignment.Center
+                .clip(RoundedCornerShape(24.dp)),
+            contentAlignment = Alignment.BottomCenter
         ) {
-            RunkkAvatar(faceKey = null, expression = AvatarExpression.JOY, modifier = Modifier.size(120.dp))
+            AvatarBackdrop(
+                backgroundKey = null,
+                modifier = Modifier.matchParentSize(),
+                alignment = Alignment.BottomCenter
+            )
+            // 캐릭터는 칸 높이에 맞춰 키운다(고정 크기면 장면에 비해 작아 보인다)
+            RunkkAvatar(
+                faceKey = null,
+                expression = AvatarExpression.JOY,
+                modifier = Modifier.padding(bottom = 6.dp).fillMaxWidth().fillMaxHeight(AVATAR_HEIGHT_FRACTION),
+                colorFilter = sceneAvatarFilter()
+            )
         }
         DistanceRow(card)
         StatsRow(card)
-        Text(signature(card.ownerName), style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
     }
 }
 
@@ -164,10 +178,6 @@ private fun skyLabelRes(sky: CardWeather.Sky): Int = when (sky) {
     CardWeather.Sky.SNOW -> R.string.record_card_sky_snow
 }
 
-/** "[닉네임], 런크크". 닉네임을 모르면(서버가 아직 주지 않음) "런크크"만. */
-@Composable
-private fun signature(ownerName: String?): String = ownerName?.let {
-    stringResource(R.string.record_card_signature, it)
-} ?: stringResource(R.string.record_card_brand)
-
-private const val AVATAR_BOX_RATIO = 1.75f
+/** 아바타 칸 가로:세로. 장면 그림(세로 1:2)이 너무 확대되지 않게 납작하지 않은 비율로 둔다. */
+private const val AVATAR_BOX_RATIO = 1.2f
+private const val AVATAR_HEIGHT_FRACTION = 0.85f

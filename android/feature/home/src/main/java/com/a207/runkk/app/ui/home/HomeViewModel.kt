@@ -142,6 +142,6 @@ private fun HomeUiState.withSummary(summary: Dashboard?): HomeUiState = if (summ
     copy(
         weeklyDistance = summary.weekly?.actualDistance ?: Distance.ZERO,
         weeklyGoal = summary.weekly?.goalDistance?.takeIf { it.meters > 0 },
-        streakDays = summary.streakDays
+        streakWeeks = summary.streakWeeks
     )
 }

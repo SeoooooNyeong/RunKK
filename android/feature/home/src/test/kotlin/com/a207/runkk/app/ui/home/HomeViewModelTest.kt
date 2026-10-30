@@ -59,7 +59,7 @@ class HomeViewModelTest {
         assertFalse(state.isLoading)
         assertEquals(Distance(12_000), state.weeklyDistance)
         assertEquals(Distance(20_000), state.weeklyGoal)
-        assertEquals(4, state.streakDays)
+        assertEquals(4, state.streakWeeks)
         assertEquals(listOf(LocalDate.of(2026, 10, 20)), records.dashboardDates)
     }
 
@@ -110,7 +110,7 @@ class HomeViewModelTest {
         records.dashboardResult = Outcome.Success(sampleDashboard)
         vm.refresh()
         assertNull(vm.state.value.error)
-        assertEquals(4, vm.state.value.streakDays)
+        assertEquals(4, vm.state.value.streakWeeks)
     }
 
     @Test
@@ -135,10 +135,10 @@ class HomeViewModelTest {
         val vm = viewModel()
         vm.onResumed()
         assertEquals(1, records.dashboardDates.size)
-        records.dashboardResult = Outcome.Success(sampleDashboard.copy(streakDays = 5))
+        records.dashboardResult = Outcome.Success(sampleDashboard.copy(streakWeeks = 5))
         vm.onResumed()
         assertEquals(2, records.dashboardDates.size)
-        assertEquals(5, vm.state.value.streakDays)
+        assertEquals(5, vm.state.value.streakWeeks)
     }
 
     @Test

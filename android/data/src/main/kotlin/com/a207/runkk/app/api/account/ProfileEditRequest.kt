@@ -11,5 +11,9 @@ internal data class ProfileEditRequest(
     val nickname: String,
     val intro: String?,
     val ageBandVisibility: String,
-    val genderVisibility: String
+    val genderVisibility: String,
+    /** 성별(FEMALE·MALE·UNDISCLOSED). null이면 서버가 그대로 둔다. */
+    val gender: String? = null,
+    /** 출생연도(4자리). null이면 서버가 그대로 둔다. */
+    val birthYear: Int? = null
 )
