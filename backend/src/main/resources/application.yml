@@ -250,6 +250,10 @@ spring:
     password: ${DB_PASSWORD}
   flyway:
     enabled: true
+    # V29가 만드는 ai 전용 DB 계정 runkk_ai의 비밀번호(S15P31A207-172). 기본값이 없어 빠지면 기동이 멈춘다.
+    # ai .env의 RUNKK_DB_URL과 같은 값이어야 한다
+    placeholders:
+      runkk_ai_password: ${RUNKK_AI_DB_PASSWORD}
   jpa:
     hibernate:
       ddl-auto: validate
@@ -287,6 +291,10 @@ spring:
     password: ${DB_PASSWORD}
   flyway:
     enabled: true
+    # V29가 만드는 ai 전용 DB 계정 runkk_ai의 비밀번호(S15P31A207-172). 기본값이 없어 빠지면 기동이 멈춘다.
+    # ai .env의 RUNKK_DB_URL과 같은 값이어야 한다
+    placeholders:
+      runkk_ai_password: ${RUNKK_AI_DB_PASSWORD}
   jpa:
     hibernate:
       ddl-auto: validate
