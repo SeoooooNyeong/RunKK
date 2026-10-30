@@ -44,6 +44,7 @@ import com.a207.runkk.app.core.designsystem.RunkkSecondaryButton
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.asString
+import com.a207.runkk.app.core.designsystem.tierName
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.domain.battle.FriendInviteView
@@ -346,14 +347,12 @@ private fun ColumnScope.Matched(match: MatchFound, state: MatchUiState, onForfei
 
 /** 티어 표기. 배치 전(UNRANKED)은 랜덤 대결의 배치 전 표기를 그대로 쓴다(D-274). */
 @Composable
-private fun tierLabel(tier: String): String =
-    if (tier == UNRANKED) stringResource(R.string.battle_tier_unranked) else tier
+private fun tierLabel(tier: String): String = tierName(tier) ?: tier
 
 internal fun waitLabel(seconds: Long): String =
     String.format(Locale.US, "%d:%02d", seconds / SECONDS_PER_MINUTE, seconds % SECONDS_PER_MINUTE)
 
 private const val SECONDS_PER_MINUTE = 60
-private const val UNRANKED = "UNRANKED"
 
 /** 성사 뒤 자동 출발까지(성사 화면 10초, 서버 startAt = 성사 + 3초 + 10초). 고리 몫의 분모다. */
 private const val MATCH_START_SECONDS = 10L

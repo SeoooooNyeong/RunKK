@@ -53,6 +53,7 @@ import com.a207.runkk.app.core.designsystem.RunkkMenuRow
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.asString
+import com.a207.runkk.app.core.designsystem.tierName
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
@@ -139,7 +140,7 @@ internal fun aboutLine(res: Resources, profile: Profile): String? = listOfNotNul
 /** 아바타(기본 아바타, 꾸미기가 열리면 얼굴 그림), 닉네임·"Lv.[n] · [티어]", "편집", "[Runimal] ›". */
 @Composable
 private fun ProfileHeader(profile: Profile, faceLayers: List<FaceLayer>, onEdit: () -> Unit, onRunimal: () -> Unit) {
-    val tier = profile.tier ?: stringResource(R.string.me_profile_default_tier)
+    val tier = tierName(profile.tier) ?: stringResource(R.string.me_profile_default_tier)
     val levelTier = stringResource(R.string.me_profile_level_tier, profile.level ?: RunkkFormat.EMPTY, tier)
     Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(

@@ -174,7 +174,9 @@ class BattleScreensTest {
         }
         compose.onNodeWithText("친구가 대결을 신청했어요").assertExists()
         compose.onNodeWithText("바람처럼").assertExists()
-        compose.onNodeWithText("GOLD").assertExists()
+        // 서버 티어 코드는 한글 이름으로 보인다(R2-11)
+        compose.onNodeWithText("골드").assertExists()
+        compose.onNodeWithText("GOLD").assertDoesNotExist()
         compose.onNodeWithText("언랭").assertExists()
         compose.onNodeWithText("5km 최고 30:12").assertExists()
         compose.onNodeWithText("5km 최고 29:48").assertExists()

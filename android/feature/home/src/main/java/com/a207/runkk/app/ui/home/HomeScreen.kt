@@ -71,6 +71,7 @@ import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.UnreleasedFeature
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.designsystem.guideAnchor
+import com.a207.runkk.app.core.designsystem.tierName
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
@@ -192,7 +193,7 @@ private fun HeaderIdentity(state: HomeUiState, modifier: Modifier = Modifier) {
     val header = state.header
     val tierLevel = stringResource(
         R.string.home_header_tier_level,
-        header.tier ?: stringResource(R.string.home_header_default_tier),
+        tierName(header.tier) ?: stringResource(R.string.home_header_default_tier),
         header.level ?: RunkkFormat.EMPTY
     )
     Column(

@@ -617,7 +617,7 @@ fun pendingBattleRun(battleId: Long = 9) = CompletedRun(
 fun matchFound(battleId: Long = 9) = MatchFound(
     battleId = battleId,
     opponentName = "바람처럼",
-    opponentTier = "실버",
+    opponentTier = "SILVER",
     distance = Distance(5_000),
     myBest = Duration.ofSeconds(1_812),
     opponentBest = Duration.ofSeconds(1_788),

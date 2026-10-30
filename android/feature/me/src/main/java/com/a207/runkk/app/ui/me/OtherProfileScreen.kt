@@ -42,6 +42,7 @@ import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
 import com.a207.runkk.app.core.designsystem.UnreleasedFeature
 import com.a207.runkk.app.core.designsystem.asString
+import com.a207.runkk.app.core.designsystem.tierName
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.FaceLayer
@@ -108,7 +109,7 @@ private fun OtherProfileBody(profile: Profile, faceLayers: List<FaceLayer>, modi
             modifier = Modifier.semantics { heading() }
         )
         Text(
-            listOfNotNull(profile.tier ?: defaultTier, level).joinToString(", "),
+            listOfNotNull(tierName(profile.tier) ?: defaultTier, level).joinToString(", "),
             style = RunkkTextStyles.Label,
             color = RunkkColors.TextSecondary
         )

@@ -12,7 +12,6 @@
     <string name="battle_best_line">%1$s 최고 %2$s</string>
     <string name="battle_record_line">%1$s 기록 %2$s</string>
     <string name="battle_past_self">%1$s의 나</string>
-    <string name="battle_tier_unranked">언랭</string>
     <string name="battle_versus_desc">%1$s 대 %2$s</string>
     <string name="battle_notice_confirm">확인</string>
 
