@@ -20,6 +20,7 @@ import com.a207.runkk.app.core.designsystem.CELEBRITY_FIGURE_TAG
 import com.a207.runkk.app.core.designsystem.DEFAULT_AVATAR_TAG
 import com.a207.runkk.app.core.designsystem.LocalReleaseScope
 import com.a207.runkk.app.core.designsystem.OPPONENT_MARKER_TAG
+import com.a207.runkk.app.core.designsystem.RIVAL_AVATAR_TAG
 import com.a207.runkk.app.core.designsystem.ReleaseScope
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.UiText
@@ -370,8 +371,9 @@ class BattleScreensTest {
         }
         compose.onNodeWithText("대결 결과").assertExists()
         compose.onNodeWithContentDescription("승리!. 바람처럼님보다 42초 먼저 도착했어요").assertExists()
-        // 내 아바타(승리 JOY)와 배틀런 상대(기본 아바타).
-        compose.onAllNodesWithTag(DEFAULT_AVATAR_TAG + "JOY", useUnmergedTree = true).assertCountEquals(2)
+        // 내 아바타(승리 JOY)와 배틀런 상대(공통 상대 그림, D73).
+        compose.onAllNodesWithTag(DEFAULT_AVATAR_TAG + "JOY", useUnmergedTree = true).assertCountEquals(1)
+        compose.onAllNodesWithTag(RIVAL_AVATAR_TAG, useUnmergedTree = true).assertCountEquals(1)
         compose.onNodeWithText("밀어서 상세 결과 보기 ›").assertExists()
         compose.onNodeWithText("이번 주", substring = true).assertDoesNotExist()
         compose.onNodeWithText("함께 달린 기록", substring = true).assertDoesNotExist()

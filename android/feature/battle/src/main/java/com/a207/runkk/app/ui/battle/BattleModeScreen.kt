@@ -201,9 +201,9 @@ fun BattleModeScreen(state: BattleModeUiState, actions: BattleModeActions, modif
     }
 }
 
-/** 나 VS 상대 자리(상대는 아직 모르므로 흐린 기본 아바타). */
+/** 나 VS 상대 자리(상대는 아직 모르므로 흐린 상대 그림). */
 @Composable
-internal fun ModeVersus(opponent: String, opponentFigure: Figure = Figure.AVATAR) {
+internal fun ModeVersus(opponent: String, opponentFigure: Figure = Figure.RIVAL) {
     val me = stringResource(R.string.battle_me)
     val description = stringResource(R.string.battle_versus_desc, me, opponent)
     Row(

@@ -213,14 +213,14 @@ private fun VerdictPage(state: BattleResultUiState, result: BattleResult, onDeta
     }
 }
 
-/** 내 아바타와 상대 그림(D-254): 배틀런 상대는 기본 아바타, 과거의 나는 반투명 기본 아바타, 셀럽은 공통 SD. */
+/** 내 아바타와 상대 그림(D-254): 배틀런 상대는 공통 상대 그림, 과거의 나는 반투명 기본 아바타, 셀럽은 공통 흐린 그림. */
 @Composable
 private fun Figures(kind: OpponentKind, verdict: Verdict?) {
     val expression = resultExpression(verdict)
     val opponent = when (kind) {
         OpponentKind.SELF -> Figure.PAST_SELF
         OpponentKind.CELEBRITY -> Figure.CELEBRITY
-        else -> Figure.AVATAR
+        else -> Figure.RIVAL
     }
     Box(modifier = Modifier.size(width = 260.dp, height = 220.dp).clearAndSetSemantics {}) {
         Box(Modifier.align(Alignment.CenterStart)) {

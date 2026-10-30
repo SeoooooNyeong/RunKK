@@ -292,6 +292,7 @@ private fun InviteVersus(invite: FriendInviteView) {
             Contender(
                 invite.inviter.name,
                 it,
+                figure = Figure.RIVAL,
                 tier = tierLabel(invite.inviter.tier),
                 caption = bestLine(distance, invite.inviter.bestSeconds?.let(Duration::ofSeconds))
             )
@@ -325,6 +326,7 @@ private fun ColumnScope.Matched(match: MatchFound, state: MatchUiState, onForfei
                 Contender(
                     match.opponentName,
                     it,
+                    figure = Figure.RIVAL,
                     tier = tierLabel(match.opponentTier),
                     caption = bestLine(distance, match.opponentBest)
                 )

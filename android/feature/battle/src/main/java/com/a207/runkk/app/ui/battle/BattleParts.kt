@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.designsystem.AvatarExpression
 import com.a207.runkk.app.core.designsystem.CelebrityFigure
+import com.a207.runkk.app.core.designsystem.RivalAvatar
 import com.a207.runkk.app.core.designsystem.RunkkAvatar
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkFormat
@@ -62,7 +63,7 @@ internal fun BattleHeader(text: String, modifier: Modifier = Modifier) {
 }
 
 /** 상대 그림 종류(D-254): 기본 아바타, 반투명 기본 아바타(과거의 나), 공통 SD(셀럽). */
-internal enum class Figure { AVATAR, PAST_SELF, CELEBRITY }
+internal enum class Figure { AVATAR, RIVAL, PAST_SELF, CELEBRITY }
 
 /** 한쪽 대결자 카드: 그림 칸, 이름, 티어 칩(있으면), 기록 줄(있으면). 그림은 장식이라 읽기 정보는 이름·줄이 맡는다. */
 @Composable
@@ -118,11 +119,12 @@ private fun FigureCard(figure: Figure) {
     }
 }
 
-/** 대결자 그림 하나. 나·배틀런 상대는 기본 아바타, 과거의 나는 반투명 기본 아바타, 셀럽은 공통 SD 그림이다(D-254). */
+/** 대결자 그림 하나. 나는 기본 아바타, 배틀런 상대는 공통 상대 그림, 과거의 나는 반투명 기본 아바타, 셀럽은 공통 흐린 그림이다(D-254, D73·D74). */
 @Composable
 internal fun OpponentFigure(figure: Figure, size: Dp, expression: AvatarExpression = AvatarExpression.JOY) {
     when (figure) {
         Figure.AVATAR -> RunkkAvatar(null, expression, Modifier.size(size))
+        Figure.RIVAL -> RivalAvatar(Modifier.size(size))
         Figure.PAST_SELF -> RunkkAvatar(null, expression, Modifier.size(size).alpha(PAST_SELF_ALPHA))
         Figure.CELEBRITY -> CelebrityFigure(size = size)
     }

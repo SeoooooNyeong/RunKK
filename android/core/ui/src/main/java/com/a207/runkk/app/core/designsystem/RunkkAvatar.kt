@@ -31,6 +31,19 @@ fun RunkkAvatar(
     }
 }
 
+/** 배틀런 상대 그림(피그마 C-7 상대 캐릭터). 상대의 아바타를 받지 않으므로 모든 상대가 같은 그림이다. 장식이다. */
+@Composable
+fun RivalAvatar(modifier: Modifier = Modifier) {
+    Image(
+        painterResource(R.drawable.avatar_rival),
+        contentDescription = null,
+        modifier = modifier.testTag(RIVAL_AVATAR_TAG)
+    )
+}
+
+/** 배틀런 상대 그림의 시험 표지. */
+const val RIVAL_AVATAR_TAG = "rival-avatar"
+
 /** 기본 아바타 그림(표정별 2종). */
 @DrawableRes
 fun defaultAvatarOf(expression: AvatarExpression): Int = when (expression) {

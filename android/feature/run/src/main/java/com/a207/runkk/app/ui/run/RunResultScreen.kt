@@ -29,6 +29,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.a207.runkk.app.core.designsystem.AvatarBackdrop
 import com.a207.runkk.app.core.designsystem.AvatarExpression
 import com.a207.runkk.app.core.designsystem.RunResultDetail
 import com.a207.runkk.app.core.designsystem.RunResultDetailState
@@ -79,7 +80,7 @@ fun RunResultRoute(recordId: String, isJustFinished: Boolean = false, viewModel:
 
 /**
  * 러닝 결과(D-282, 피그마 B-6): 제목 "러닝 결과", 결과 상세 한 장(core.designsystem RunResultDetail, 대결 결과 2쪽과 같다),
- * 버튼 "기록 카드"·"홈으로". 자유런은 상세 한 장이고 옆으로 넘기는 결과 쪽은 대결만 있다(D-283).
+ * 버튼 "기록 카드"·"홈으로", 결과가 있으면 피그마 배경 그림(D73). 자유런은 상세 한 장이고 옆으로 넘기는 결과 쪽은 대결만 있다(D-283).
  * 기록 카드는 서버에 올라간 뒤에 열 수 있다(카드 값은 서버가 준다).
  */
 @Composable
@@ -90,46 +91,49 @@ fun RunResultScreen(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
-        Text(
-            stringResource(R.string.run_result_title),
-            style = RunkkTextStyles.TopBarTitle,
-            color = RunkkColors.TextPrimary,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 8.dp).semantics { heading() }
-        )
-        Column(
-            modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            val detail = state.toDetail()
-            when {
-                detail != null -> RunResultDetail(detail, modifier = Modifier.padding(vertical = 8.dp))
+    Box(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
+        if (state.toDetail() != null) AvatarBackdrop(backgroundKey = null, modifier = Modifier.fillMaxSize())
+        Column(modifier = Modifier.fillMaxSize()) {
+            Text(
+                stringResource(R.string.run_result_title),
+                style = RunkkTextStyles.TopBarTitle,
+                color = RunkkColors.TextPrimary,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 8.dp).semantics { heading() }
+            )
+            Column(
+                modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                val detail = state.toDetail()
+                when {
+                    detail != null -> RunResultDetail(detail, modifier = Modifier.padding(vertical = 8.dp))
 
-                state.isLoading -> Box(Modifier.fillMaxWidth().height(240.dp)) { RunkkLoading() }
+                    state.isLoading -> Box(Modifier.fillMaxWidth().height(240.dp)) { RunkkLoading() }
 
-                else -> RunkkErrorState(
-                    state.error?.asString() ?: stringResource(R.string.run_result_not_found),
-                    onRetry = onRetry
+                    else -> RunkkErrorState(
+                        state.error?.asString() ?: stringResource(R.string.run_result_not_found),
+                        onRetry = onRetry
+                    )
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 32.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                RunkkSecondaryButton(
+                    stringResource(R.string.run_result_card),
+                    onClick = onCard,
+                    isEnabled = state.isUploaded,
+                    modifier = Modifier.weight(1f)
+                )
+                RunkkPrimaryButton(
+                    stringResource(R.string.run_result_home),
+                    onClick = onHome,
+                    modifier = Modifier.weight(1f)
                 )
             }
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 32.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            RunkkSecondaryButton(
-                stringResource(R.string.run_result_card),
-                onClick = onCard,
-                isEnabled = state.isUploaded,
-                modifier = Modifier.weight(1f)
-            )
-            RunkkPrimaryButton(
-                stringResource(R.string.run_result_home),
-                onClick = onHome,
-                modifier = Modifier.weight(1f)
-            )
         }
     }
 }
