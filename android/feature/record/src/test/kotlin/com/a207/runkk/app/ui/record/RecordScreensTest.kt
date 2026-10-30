@@ -7,11 +7,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.designsystem.LocalReleaseScope
 import com.a207.runkk.app.core.designsystem.ReleaseScope
 import com.a207.runkk.app.core.designsystem.RunkkTheme
@@ -31,6 +34,7 @@ import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -378,5 +382,29 @@ class RecordScreensTest {
         compose.onNodeWithText("닫기").performClick()
         assertEquals(emptyList(), sides, "뒤집기 없음")
         assertEquals(1, closed)
+    }
+
+    @Test
+    fun `R2-18 카드 팝업은 배경 장면 위에 있고 닫기는 카드 바로 아래다(B-7)`() {
+        val bitmap = android.graphics.Bitmap.createBitmap(8, 10, android.graphics.Bitmap.Config.ARGB_8888)
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                CompositionLocalProvider(LocalReleaseScope provides ReleaseScope.FIRST_RELEASE) {
+                    RecordCardScreen(
+                        RecordCardUiState(isLoading = false, card = runCard(), front = bitmap, back = bitmap),
+                        onClose = {},
+                        onSideSelected = {},
+                        onShare = {},
+                        onMessageShown = {},
+                        onRetry = {}
+                    )
+                }
+            }
+        }
+        compose.onNodeWithTag(RECORD_CARD_BACKDROP_TAG).assertExists()
+        val card = compose.onNodeWithContentDescription("러닝 카드 앞면", substring = true).getBoundsInRoot()
+        val close = compose.onNodeWithText("닫기").getBoundsInRoot()
+        val gap = close.top - card.bottom
+        assertTrue(gap >= 0.dp && gap <= 40.dp, "카드와 닫기 사이 $gap")
     }
 }

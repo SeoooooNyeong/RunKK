@@ -29,6 +29,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -40,6 +41,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.a207.runkk.app.core.designsystem.AvatarBackdrop
 import com.a207.runkk.app.core.designsystem.LocalReleaseScope
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
@@ -130,19 +132,21 @@ fun RecordCardScreen(
 }
 
 /**
- * 팝업(B-7·G1·G2): 카드 앞면(RecordCardFront), "공유"·"닫기". 카드 공유(CARD_SHARE)가 닫혀 있으면(1차 배포) 뒤집기·면 점·공유가 없고
- * "닫기"만 있다(D-252, TC-9699). 열려 있으면 카드를 눌러 코스 면(그린 이미지)으로 뒤집는다.
+ * 팝업(B-7·G1·G2): 배경 장면(AvatarBackdrop) 위 카드 앞면(RecordCardFront)과 그 바로 아래 "공유"·"닫기"(R2-18, D90).
+ * 카드 공유(CARD_SHARE)가 닫혀 있으면(1차 배포) 뒤집기·면 점·공유가 없고 "닫기"만 있다(D-252, TC-9699). 열려 있으면 카드를 눌러
+ * 코스 면(그린 이미지)으로 뒤집는다.
  */
 @Composable
 private fun CardPopup(state: RecordCardUiState, onFlip: () -> Unit, onShare: () -> Unit, onClose: () -> Unit) {
     val resources = LocalContext.current.resources
     val isShareOpen = LocalReleaseScope.current.isOpen(UnreleasedFeature.CARD_SHARE)
+    AvatarBackdrop(backgroundKey = null, modifier = Modifier.fillMaxSize().testTag(RECORD_CARD_BACKDROP_TAG))
     Column(
-        modifier = Modifier.fillMaxSize().padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 32.dp),
+        modifier = Modifier.fillMaxSize().padding(start = 28.dp, end = 28.dp, top = 24.dp, bottom = 32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically)
     ) {
-        Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+        Box(Modifier.weight(1f, fill = false).fillMaxWidth(), contentAlignment = Alignment.Center) {
             val card = state.card
             val flipLabel = stringResource(
                 if (state.side ==
@@ -289,6 +293,9 @@ private fun ShareTargetButton(icon: ImageVector, label: String, isSharing: Boole
 }
 
 private const val CARD_RATIO = 1_080f / 1_350f
+
+/** 카드 팝업 배경 장면의 시험 표지. */
+internal const val RECORD_CARD_BACKDROP_TAG = "record-card-backdrop"
 
 @StringRes
 private fun sideDescriptionRes(side: CardSide): Int =
