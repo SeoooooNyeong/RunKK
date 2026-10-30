@@ -577,8 +577,8 @@ private val HOP_HEIGHT = 36.dp
 private const val HOP_UP_MS = 180
 private const val HOP_DAMPING = 0.45f
 
-/** 발과 탭 바 사이 트랙 여백(피그마 A-4). */
-private val AVATAR_GROUND_GAP = 40.dp
+/** 발과 홈 탭의 솟은 원 사이 여백. 원(20dp) 바로 위까지 내려 트랙에 서게 한다(사용자 요청 2026-10-30). */
+private val AVATAR_GROUND_GAP = 8.dp
 
 /** 서 있는 그림 칸의 가로세로 비(그림은 칸 바닥에 붙어 그려지므로 칸이 조금 넓어도 된다). */
 private const val AVATAR_ASPECT = 0.6f
