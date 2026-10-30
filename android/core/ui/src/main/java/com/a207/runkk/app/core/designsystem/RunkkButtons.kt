@@ -92,7 +92,7 @@ fun RunkkPrimaryButton(
             .heightIn(min = size.height)
             .runkkPressScale(interaction)
             .clip(shape)
-            .background(if (pressed) RunkkColors.LimePressed else RunkkColors.Lime)
+            .background(if (pressed) RunkkColors.LimeFillPressed else RunkkColors.LimeFill)
             .runkkDisabledAlpha(isEnabled)
             .clickable(
                 interactionSource = interaction,
@@ -108,7 +108,7 @@ fun RunkkPrimaryButton(
         if (isLoading) {
             CircularProgressIndicator(
                 modifier = Modifier.size(24.dp).clearAndSetSemantics {},
-                color = RunkkColors.OnLime,
+                color = RunkkColors.OnLimeFill,
                 strokeWidth = 3.dp
             )
         } else {
@@ -129,17 +129,17 @@ private fun RunkkPrimaryButtonContent(text: String, size: RunkkButtonSize, hasTr
         } else {
             RunkkTextStyles.Button
         },
-        color = RunkkColors.OnLime
+        color = RunkkColors.OnLimeFill
     )
     if (hasTrailingArrow) {
         Box(
-            modifier = Modifier.size(40.dp).clip(CircleShape).background(RunkkColors.OnLime),
+            modifier = Modifier.size(40.dp).clip(CircleShape).background(RunkkColors.OnLimeFill),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 RunkkIcons.ArrowRight,
                 contentDescription = null,
-                tint = RunkkColors.Lime,
+                tint = RunkkColors.LimeFill,
                 modifier = Modifier.size(20.dp)
             )
         }
@@ -314,22 +314,27 @@ fun RunkkLimePillButton(
                 // 꺼지면 배경까지 흐리게(alpha는 뒤에 오는 그리기에만 걸린다).
                 .runkkDisabledAlpha(isEnabled)
                 .clip(RoundedCornerShape(20.dp))
-                .background(RunkkColors.Lime)
+                .background(RunkkColors.LimeFill)
                 .padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (leadingIcon != null) {
-                Icon(leadingIcon, contentDescription = null, tint = RunkkColors.OnLime, modifier = Modifier.size(16.dp))
+                Icon(
+                    leadingIcon,
+                    contentDescription = null,
+                    tint = RunkkColors.OnLimeFill,
+                    modifier = Modifier.size(16.dp)
+                )
             }
-            Text(text, style = RunkkTextStyles.text(13, FontWeight.Black), color = RunkkColors.OnLime)
+            Text(text, style = RunkkTextStyles.text(13, FontWeight.Black), color = RunkkColors.OnLimeFill)
         }
     }
 }
 
 /**
  * 원형 아이콘 버튼(보이는 크기 40dp, 터치 영역 48dp). [hasBadge]가 참이면 오른쪽 위에 라벤더 점을 단다(새 알림).
- * [contentDescription]은 필수다(아이콘만 있는 버튼).
+ * [contentDescription]은 필수다(아이콘만 있는 버튼). 원 색은 [containerColor], 아이콘 색은 [iconTint]다.
  */
 @Composable
 fun RunkkIconButton(
@@ -340,7 +345,9 @@ fun RunkkIconButton(
     hasBadge: Boolean = false,
     visualSize: Dp = 40.dp,
     iconSize: Dp = 20.dp,
-    borderColor: Color = RunkkColors.Border
+    borderColor: Color = RunkkColors.Border,
+    containerColor: Color = RunkkColors.Surface,
+    iconTint: Color = RunkkColors.TextPrimary
 ) {
     val interaction = remember { MutableInteractionSource() }
     val newBadgeDescription = stringResource(R.string.core_buttons_new_badge)
@@ -359,11 +366,11 @@ fun RunkkIconButton(
                 .size(visualSize)
                 .runkkPressScale(interaction, pressedScale = 0.95f)
                 .clip(CircleShape)
-                .background(RunkkColors.Surface)
+                .background(containerColor)
                 .border(1.dp, borderColor, CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, contentDescription = null, tint = RunkkColors.TextPrimary, modifier = Modifier.size(iconSize))
+            Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(iconSize))
             if (hasBadge) {
                 Box(
                     modifier = Modifier

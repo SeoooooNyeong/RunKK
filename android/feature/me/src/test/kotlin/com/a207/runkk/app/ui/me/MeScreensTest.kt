@@ -5,20 +5,26 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isHeading
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.dp
+import com.a207.runkk.app.core.designsystem.AvatarExpression
+import com.a207.runkk.app.core.designsystem.DEFAULT_AVATAR_TAG
 import com.a207.runkk.app.core.designsystem.LocalReleaseScope
 import com.a207.runkk.app.core.designsystem.RUNKK_AVATAR_FACE_TAG
 import com.a207.runkk.app.core.designsystem.ReleaseScope
@@ -34,6 +40,7 @@ import com.a207.runkk.app.domain.account.ProviderType
 import com.a207.runkk.app.domain.account.RecentRun
 import java.time.LocalDate
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -197,6 +204,77 @@ class MeScreensTest {
         compose.onNodeWithText("20대 · 공개").performClick()
         compose.onNodeWithText("사진").assertDoesNotExist()
         assertEquals(listOf("gender:true", "age:false"), toggled)
+    }
+
+    @Test
+    fun `R2-04 프로필 편집 맨 위에 내 아바타 얼굴을 보이고 눌러도 아무 일이 없다(G-2)`() {
+        compose.setContent {
+            CompositionLocalProvider(LocalReleaseScope provides ReleaseScope.FIRST_RELEASE) {
+                RunkkTheme(reduceMotion = true) {
+                    ProfileEditScreen(
+                        ProfileEditUiState(isLoading = false, nickname = "달리는곰", faceKey = "default:BEAR"),
+                        onBack = {},
+                        onNicknameChange = {},
+                        onIntroChange = {},
+                        onSave = {},
+                        onErrorShown = {}
+                    )
+                }
+            }
+        }
+        compose.onNodeWithTag(DEFAULT_AVATAR_TAG + AvatarExpression.FACE.name, useUnmergedTree = true).assertExists()
+        compose.onNodeWithTag(PROFILE_EDIT_AVATAR_TAG).assertHasNoClickAction()
+        val avatar = compose.onNodeWithTag(PROFILE_EDIT_AVATAR_TAG).getUnclippedBoundsInRoot()
+        val nickname = compose.onNodeWithText("달리는곰").getUnclippedBoundsInRoot()
+        assertTrue(avatar.bottom <= nickname.top, "아바타가 닉네임 칸보다 위에 있다")
+    }
+
+    @Test
+    fun `R2-07 동의 항목은 카드 없이 필수 넷, 구분선, 선택 둘 순서이고 제목은 가운데다(A-2)`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) { SignUpScreen(SignUpUiState(), isGuest = false, SignUpActions()) }
+        }
+        val divider = compose.onNodeWithTag(CONSENT_DIVIDER_TAG).getUnclippedBoundsInRoot()
+        val lastRequired = compose.onNodeWithText("위치 정보 수집", substring = true).getUnclippedBoundsInRoot()
+        val firstOptional = compose.onNodeWithText("마케팅 정보 수신", substring = true).getUnclippedBoundsInRoot()
+        assertTrue(lastRequired.bottom <= divider.top && divider.bottom <= firstOptional.top, "필수, 구분선, 선택 순서")
+        val screen = compose.onRoot().getUnclippedBoundsInRoot()
+        val title = compose.onNode(hasText("시작하기") and isHeading()).getUnclippedBoundsInRoot()
+        assertEquals((screen.left + screen.right).value / 2f, (title.left + title.right).value / 2f, 1f)
+    }
+
+    @Test
+    fun `R2-08 게스트 안내는 양옆을 띄운 가운데 대화상자이고 닉네임 앞에 얼굴 아바타가 있다(A-3)`() {
+        compose.setContent {
+            CompositionLocalProvider(LocalReleaseScope provides ReleaseScope.FIRST_RELEASE) {
+                RunkkTheme(reduceMotion = true) {
+                    SignUpScreen(
+                        SignUpUiState(isGuestNoticeVisible = true, guestNickname = "러너1234"),
+                        isGuest = true,
+                        SignUpActions()
+                    )
+                }
+            }
+        }
+        compose.onNodeWithTag(DEFAULT_AVATAR_TAG + AvatarExpression.FACE.name, useUnmergedTree = true).assertExists()
+        // 카드 양옆 28dp + 안쪽 20dp
+        val title = compose.onNodeWithText("게스트로 시작했어요").getUnclippedBoundsInRoot()
+        assertEquals(48f, title.left.value, 1f)
+    }
+
+    @Test
+    fun `R2-09 자유런 목표 거리 첫 칸은 자유다(A-5)`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                SettingsScreen(
+                    page = SettingsPage.FREE_RUN,
+                    state = SettingsUiState(isLoading = false, settings = MemberSettings(emptyMap(), emptyMap())),
+                    actions = SettingsActions()
+                )
+            }
+        }
+        compose.onNodeWithText("자유").assertExists()
+        compose.onNodeWithText("목표 없음").assertDoesNotExist()
     }
 
     @Test

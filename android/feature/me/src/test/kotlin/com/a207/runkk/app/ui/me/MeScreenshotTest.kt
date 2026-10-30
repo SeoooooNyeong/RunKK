@@ -1,11 +1,15 @@
 package com.a207.runkk.app.ui.me
 
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.junit4.createComposeRule
+import com.a207.runkk.app.core.designsystem.LocalReleaseScope
+import com.a207.runkk.app.core.designsystem.ReleaseScope
 import com.a207.runkk.app.core.designsystem.RunkkErrorText
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.testing.RUNKK_PHONE
 import com.a207.runkk.app.core.designsystem.testing.captureRunkkScreen
 import com.a207.runkk.app.core.model.AppError
+import com.a207.runkk.app.domain.account.Gender
 import com.a207.runkk.app.domain.account.MemberSettings
 import org.junit.Rule
 import org.junit.Test
@@ -186,6 +190,38 @@ class MeScreenshotTest {
             SettingsUiState(isLoading = false, settings = settings),
             SettingsActions()
         )
+    }
+
+    @Test
+    fun profileEditLight() = compose.captureRunkkScreen("me_profile_edit_light", isDarkTheme = false) {
+        CompositionLocalProvider(LocalReleaseScope provides ReleaseScope.FIRST_RELEASE) {
+            ProfileEditScreen(
+                ProfileEditUiState(
+                    isLoading = false,
+                    nickname = "달리는곰",
+                    intro = "퇴근 뒤 한강",
+                    ageBand = "20대",
+                    gender = Gender.FEMALE,
+                    isAgePublic = true
+                ),
+                onBack = {},
+                onNicknameChange = {},
+                onIntroChange = {},
+                onSave = {},
+                onErrorShown = {}
+            )
+        }
+    }
+
+    @Test
+    fun guestNoticeLight() = compose.captureRunkkScreen("A8_guest_notice_light", isDarkTheme = false) {
+        CompositionLocalProvider(LocalReleaseScope provides ReleaseScope.FIRST_RELEASE) {
+            SignUpScreen(
+                SignUpUiState(isGuestNoticeVisible = true, guestNickname = "러너1234"),
+                isGuest = true,
+                SignUpActions()
+            )
+        }
     }
 
     @Test

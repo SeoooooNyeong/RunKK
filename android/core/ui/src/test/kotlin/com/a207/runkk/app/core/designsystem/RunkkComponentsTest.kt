@@ -1,5 +1,7 @@
 package com.a207.runkk.app.core.designsystem
 
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsActions
@@ -7,21 +9,25 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertHasClickAction
+import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.unit.dp
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import org.junit.Rule
@@ -246,6 +252,32 @@ class RunkkComponentsTest {
         compose.onNodeWithText("홈").assertIsSelected()
         compose.onNodeWithText("크루").performClick()
         assertEquals(RunkkTab.CREW, picked)
+    }
+
+    @Test
+    fun `R2-06 하단 탭 바는 정해진 높이 안에서 양옆과 아래를 띄운 떠 있는 줄이다`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                RunkkBottomBar(selected = RunkkTab.HOME, onSelect = {}, modifier = Modifier.testTag("bar"))
+            }
+        }
+        compose.onNodeWithTag("bar").assertHeightIsEqualTo(RUNKK_BOTTOM_BAR_HEIGHT)
+        val bar = compose.onNodeWithTag("bar").getUnclippedBoundsInRoot()
+        val crew = compose.onNodeWithText("크루").getUnclippedBoundsInRoot()
+        assertTrue(crew.left - bar.left >= 18.dp, "탭 줄이 양옆을 띄운다")
+    }
+
+    @Test
+    fun `R2-07 가운데 제목 상단 바는 뒤로 버튼이 있어도 제목을 바 가운데에 둔다`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                RunkkTopBar(title = "시작하기", onBack = {}, isTitleCentered = true, modifier = Modifier.testTag("top"))
+            }
+        }
+        val bar = compose.onNodeWithTag("top").getUnclippedBoundsInRoot()
+        val title = compose.onNodeWithText("시작하기").getUnclippedBoundsInRoot()
+        assertEquals(((bar.left + bar.right) / 2).value, ((title.left + title.right) / 2).value, 1f)
+        compose.onNodeWithContentDescription("뒤로").assertExists()
     }
 
     @Test

@@ -19,10 +19,12 @@ import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 
 /**
  * 안내 카드 대화상자(A-3 게스트 안내, A-6 위치 동의, 잠긴 기능 안내): 둥근 표면 카드에 제목, [content], 아래 줄의
  * 글자 버튼([dismissLabel], 있으면)과 라임 알약 버튼([confirmLabel]). 바깥 누름·뒤로가기는 [onDismissRequest]다.
+ * 카드는 화면 가운데에 양옆 28dp를 띄워 놓는다(A-3, R2-08).
  */
 @Composable
 fun RunkkActionDialog(
@@ -35,9 +37,10 @@ fun RunkkActionDialog(
     onDismiss: () -> Unit = onDismissRequest,
     content: @Composable ColumnScope.() -> Unit = {}
 ) {
-    Dialog(onDismissRequest = onDismissRequest) {
+    Dialog(onDismissRequest = onDismissRequest, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Column(
             modifier = modifier
+                .padding(horizontal = DIALOG_SIDE)
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(24.dp))
                 .background(RunkkColors.Surface)
@@ -71,3 +74,5 @@ fun RunkkActionDialog(
         }
     }
 }
+
+private val DIALOG_SIDE = 28.dp

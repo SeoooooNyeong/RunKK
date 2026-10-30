@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -212,8 +213,8 @@ fun RunkkSwitchRow(
             onCheckedChange = null,
             enabled = isEnabled,
             colors = SwitchDefaults.colors(
-                checkedThumbColor = RunkkColors.OnLime,
-                checkedTrackColor = RunkkColors.Lime,
+                checkedThumbColor = RunkkColors.OnLimeFill,
+                checkedTrackColor = RunkkColors.LimeFill,
                 uncheckedThumbColor = RunkkColors.TextSecondary,
                 uncheckedTrackColor = RunkkColors.Border,
                 uncheckedBorderColor = RunkkColors.BorderStrong
@@ -264,7 +265,7 @@ private fun RunkkSelectBox(
 
 /**
  * 체크 한 줄(약관 동의): [tag]("[필수]" 라임 / "[선택]" 보조색) + 문구 + 오른쪽 "보기"(선택).
- * [isHighlighted]면 "전체 동의"처럼 라임 테두리 상자로 그린다.
+ * [isHighlighted]면 "전체 동의"처럼 표면색 둥근 칸에 옅은 테두리로 그린다(A-2, R2-07).
  */
 @Composable
 fun RunkkCheckRow(
@@ -297,8 +298,8 @@ fun RunkkCheckRow(
                 checked = isChecked,
                 onCheckedChange = null,
                 colors = CheckboxDefaults.colors(
-                    checkedColor = RunkkColors.Lime,
-                    checkmarkColor = RunkkColors.OnLime,
+                    checkedColor = RunkkColors.LimeFill,
+                    checkmarkColor = RunkkColors.OnLimeFill,
                     uncheckedColor = RunkkColors.InputBorder
                 )
             )
@@ -314,12 +315,12 @@ fun RunkkCheckRow(
     }
 }
 
-/** 강조 체크 줄("전체 동의")은 라임 테두리 상자로 그린다. */
+/** 강조 체크 줄("전체 동의")은 표면색 둥근 칸(모서리 27)에 옅은 테두리로 그린다(A-2). */
 @Composable
 private fun checkRowBox(isHighlighted: Boolean): Modifier {
-    val shape = RunkkShapes.Medium
+    val shape = RoundedCornerShape(27.dp)
     return if (isHighlighted) {
-        Modifier.clip(shape).background(RunkkColors.LimeContainer).border(1.dp, RunkkColors.Lime, shape)
+        Modifier.clip(shape).background(RunkkColors.Surface).border(1.dp, RunkkColors.Border, shape)
     } else {
         Modifier
     }
