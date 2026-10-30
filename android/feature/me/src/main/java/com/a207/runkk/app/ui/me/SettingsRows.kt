@@ -108,7 +108,8 @@ internal fun InlineChoiceRow(
                     isSelected = value == selected,
                     onClick = { onSelect(value) },
                     modifier = Modifier.width(optionWidth),
-                    height = 32.dp
+                    height = 32.dp,
+                    isCheckShown = false
                 )
             }
         }
