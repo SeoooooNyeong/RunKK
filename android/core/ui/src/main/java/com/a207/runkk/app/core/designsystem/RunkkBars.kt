@@ -66,7 +66,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 
 /**
- * 상단 바(높이 64): 뒤로 버튼(있으면) + 제목(18, 900) + 오른쪽 [actions]. [isTitleCentered]면 제목을 바 가운데에 둔다(A-2).
+ * 상단 바(높이 64): 뒤로 버튼(있으면) + 제목(18, 900) + 오른쪽 [actions]. [isTitleCentered]면 제목을 바 가운데에 둔다(A-2, 피그마에서 가운데인 제목, D101).
  */
 @Composable
 fun RunkkTopBar(
@@ -154,12 +154,22 @@ fun RunkkStepTopBar(title: String, step: Int, total: Int, modifier: Modifier = M
     }
 }
 
-/** 하단 탭 바의 높이(고른 탭 원이 솟는 20 + 떠 있는 표면 70 + 아래 틈 12). 시스템 내비게이션 영역은 따로 더한다. 탭 화면의 아래 여백이 이 값을 쓴다. */
-val RUNKK_BOTTOM_BAR_HEIGHT: Dp = 102.dp
+/**
+ * 하단 탭 바의 높이(떠 있는 표면 70 + 아래 틈 12, D100). 시스템 내비게이션 영역은 따로 더한다. 탭 화면의 아래 여백이 이 값을 쓴다.
+ * 고른 탭 원이 솟는 [RUNKK_BOTTOM_BAR_RISE]는 이 높이에 넣지 않고 탭 화면 내용 위에 겹쳐 그린다.
+ */
+val RUNKK_BOTTOM_BAR_HEIGHT: Dp = 82.dp
+
+/**
+ * 고른 탭 원이 표면 위로 솟는 높이(D100). 원은 탭 화면 내용 위에 겹치므로, 탭 화면은 스크롤 목록 끝·바닥에 붙은 버튼·스낵바 아래에
+ * 이만큼을 더 비워 원에 가리지 않게 한다.
+ */
+val RUNKK_BOTTOM_BAR_RISE: Dp = 20.dp
 
 /**
  * 하단 탭 바(높이 [RUNKK_BOTTOM_BAR_HEIGHT] + 시스템 내비게이션 영역, 피그마 Navigation/Floating, D96). 양옆·아래를 띄운 둥근 표면 위에
  * 탭을 놓고, 고른 탭은 표면 위로 솟은 흰 원(그림자) 안에 아이콘을 두며 그 아래 라벨을 보라 굵게 쓴다. 표면은 원 아래를 오목하게 판다.
+ * 원은 탭 바 영역 위로 [RUNKK_BOTTOM_BAR_RISE]만큼 넘쳐 내용 위에 겹쳐 그린다(D100). 잘리지 않게 이 바와 감싸는 쪽은 자르지 않는다.
  * 고른 탭이 바뀌면 원과 오목한 자리가 함께 옮긴다(300ms, 움직임 줄이기면 바로).
  * [lockedTabs]의 탭은 아이콘 오른쪽 아래에 자물쇠를 겹치고 아이콘·라벨을 흐리게 한다(D-253). 잠긴 탭을 눌러도 [onSelect]는
  * 불리고, 이동 대신 안내를 띄우는 것은 부르는 쪽(RunkkNavHost)이 정한다. 탭은 표면 안 자기 칸을 첫 사용 가이드 앵커로 적는다(D-277).
@@ -194,7 +204,6 @@ fun RunkkBottomBar(
         val surfaceShape = FloatingBarShape(notchCenter = if (center < 0f) null else centerX)
         Box(
             modifier = Modifier
-                .padding(top = BOTTOM_BAR_RISE)
                 .fillMaxWidth()
                 .height(BOTTOM_BAR_SURFACE)
                 .testTag(BOTTOM_BAR_SURFACE_TAG)
@@ -206,7 +215,7 @@ fun RunkkBottomBar(
         if (center >= 0f) {
             Box(
                 modifier = Modifier
-                    .offset(x = centerX - INDICATOR_SIZE / 2)
+                    .offset(x = centerX - INDICATOR_SIZE / 2, y = -RUNKK_BOTTOM_BAR_RISE)
                     .size(INDICATOR_SIZE)
                     .testTag(BOTTOM_BAR_INDICATOR_TAG)
                     .dropShadow(CircleShape, IndicatorShadow)
@@ -217,7 +226,6 @@ fun RunkkBottomBar(
         }
         Row(
             modifier = Modifier
-                .padding(top = BOTTOM_BAR_RISE)
                 .fillMaxWidth()
                 .height(BOTTOM_BAR_SURFACE)
                 .selectableGroup()
@@ -333,7 +341,6 @@ private const val HALF = 0.5f
 private const val NO_SELECTION = -1f
 private const val INDICATOR_MILLIS = 300
 
-private val BOTTOM_BAR_RISE: Dp = 20.dp
 private val BOTTOM_BAR_SURFACE: Dp = 70.dp
 private val BOTTOM_BAR_CORNER: Dp = 24.dp
 private val BOTTOM_BAR_SIDE: Dp = 18.dp
@@ -441,7 +448,7 @@ private fun RunkkBarsPreview() {
             RunkkStepTopBar(title = "회원 가입", step = 1, total = 5, onBack = {})
             RunkkMenuRow("설정", onClick = {}, icon = RunkkIcons.Settings, value = "km")
             RunkkSectionTitle("최신순", modifier = Modifier.padding(horizontal = 16.dp))
-            Box(Modifier.fillMaxWidth()) {
+            Box(Modifier.fillMaxWidth().padding(top = RUNKK_BOTTOM_BAR_RISE)) {
                 RunkkBottomBar(selected = RunkkTab.HOME, onSelect = {}, lockedTabs = setOf(RunkkTab.CREW))
             }
         }

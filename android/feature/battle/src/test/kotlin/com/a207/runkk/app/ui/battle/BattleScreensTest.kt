@@ -7,6 +7,7 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -14,13 +15,16 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.designsystem.CELEBRITY_FIGURE_TAG
 import com.a207.runkk.app.core.designsystem.DEFAULT_AVATAR_TAG
 import com.a207.runkk.app.core.designsystem.LocalReleaseScope
 import com.a207.runkk.app.core.designsystem.OPPONENT_MARKER_TAG
 import com.a207.runkk.app.core.designsystem.RIVAL_AVATAR_TAG
+import com.a207.runkk.app.core.designsystem.RUNKK_BOTTOM_BAR_RISE
 import com.a207.runkk.app.core.designsystem.ReleaseScope
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.UiText
@@ -64,6 +68,31 @@ class BattleScreensTest {
         compose.onNodeWithText("5km 랜덤 매칭 시작").performClick()
         compose.onNodeWithContentDescription("3km, 내 최고 기록 기록 없음", substring = true).performClick()
         assertEquals(listOf("random", "d:3000"), calls)
+    }
+
+    @Test
+    fun `D100 배틀런 시작 버튼은 솟은 탭 원 위에 16을 두고 놓인다(C-1)`() {
+        show { BattleModeScreen(BattleModeUiState(), BattleModeActions()) }
+        val screen = compose.onRoot().getUnclippedBoundsInRoot()
+        val button = compose.onNodeWithText("5km 랜덤 매칭 시작").getUnclippedBoundsInRoot()
+        assertEquals((16.dp + RUNKK_BOTTOM_BAR_RISE).value, (screen.bottom - button.bottom).value, 1f)
+    }
+
+    @Test
+    fun `D100 기록 깨러 가기 버튼은 솟은 탭 원 위에 16을 두고 놓인다(D-1)`() {
+        val candidates = selfCandidates.map(CandidateUi::of)
+        show {
+            SelfBattleScreen(
+                RecordBattleUiState(isLoading = false, candidates = candidates, selected = candidates[1]),
+                onSelect = {},
+                onStart = {},
+                onRetry = {},
+                onMessageShown = {}
+            )
+        }
+        val screen = compose.onRoot().getUnclippedBoundsInRoot()
+        val button = compose.onNodeWithText("5km 기록 깨러 가기").getUnclippedBoundsInRoot()
+        assertEquals((16.dp + RUNKK_BOTTOM_BAR_RISE).value, (screen.bottom - button.bottom).value, 1f)
     }
 
     @Test

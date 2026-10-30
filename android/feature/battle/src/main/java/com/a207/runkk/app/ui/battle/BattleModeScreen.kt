@@ -49,6 +49,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation3.runtime.NavKey
 import com.a207.runkk.app.core.designsystem.AvatarExpression
 import com.a207.runkk.app.core.designsystem.LocationConsentSheet
+import com.a207.runkk.app.core.designsystem.RUNKK_BOTTOM_BAR_RISE
 import com.a207.runkk.app.core.designsystem.RunkkAvatar
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkFormat
@@ -188,7 +189,8 @@ fun BattleModeScreen(state: BattleModeUiState, actions: BattleModeActions, modif
                     stringResource(R.string.battle_mode_random_start, distance)
                 },
                 onClick = if (isFriend) actions.onInvite else actions.onRandomStart,
-                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+                // 솟은 탭 원 위에 16을 둔다(D100).
+                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp + RUNKK_BOTTOM_BAR_RISE)
             )
         }
         RunkkSnackbarHost(snackbar, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 80.dp))

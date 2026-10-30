@@ -41,6 +41,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.a207.runkk.app.core.designsystem.AvatarExpression
+import com.a207.runkk.app.core.designsystem.RUNKK_BOTTOM_BAR_RISE
 import com.a207.runkk.app.core.designsystem.RunimalArt
 import com.a207.runkk.app.core.designsystem.RunkkAvatar
 import com.a207.runkk.app.core.designsystem.RunkkColors
@@ -83,7 +84,8 @@ fun MeScreen(state: MeUiState, onNavigate: (String) -> Unit, onRetry: () -> Unit
             .fillMaxSize()
             .background(RunkkColors.Background)
             .verticalScroll(rememberScrollState())
-            .padding(16.dp),
+            // 목록 끝은 솟은 탭 원에 가리지 않게 원 높이만큼 더 비운다(D100).
+            .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 16.dp + RUNKK_BOTTOM_BAR_RISE),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         MeTopRow(onNavigate)

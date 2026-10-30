@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.a207.runkk.app.core.designsystem.RUNKK_BOTTOM_BAR_RISE
 import com.a207.runkk.app.core.designsystem.RunkkBadge
 import com.a207.runkk.app.core.designsystem.RunkkBadgeTone
 import com.a207.runkk.app.core.designsystem.RunkkCard
@@ -206,13 +207,23 @@ fun CrewFindScreen(state: CrewFindUiState, actions: CrewFindActions, modifier: M
             else -> LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
+                // 목록 끝은 솟은 탭 원에 가리지 않게 원 높이만큼 더 비운다(D100).
+                contentPadding = PaddingValues(
+                    start = 16.dp,
+                    end = 16.dp,
+                    top = 16.dp,
+                    bottom =
+                        16.dp + RUNKK_BOTTOM_BAR_RISE
+                ),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 crewFindItems(state, actions)
             }
         }
-        RunkkSnackbarHost(snackbar, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp))
+        RunkkSnackbarHost(
+            snackbar,
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp + RUNKK_BOTTOM_BAR_RISE)
+        )
     }
     state.confirmCancel?.let { request ->
         RunkkConfirmDialog(
