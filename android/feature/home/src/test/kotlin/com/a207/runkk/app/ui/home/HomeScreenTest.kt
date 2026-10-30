@@ -1,9 +1,14 @@
 package com.a207.runkk.app.ui.home
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertHasNoClickAction
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -13,9 +18,11 @@ import androidx.compose.ui.test.performClick
 import com.a207.runkk.app.core.designsystem.AvatarExpression
 import com.a207.runkk.app.core.designsystem.DEFAULT_AVATAR_TAG
 import com.a207.runkk.app.core.designsystem.LocalReleaseScope
+import com.a207.runkk.app.core.designsystem.RUNKK_BOTTOM_BAR_HEIGHT
 import com.a207.runkk.app.core.designsystem.ReleaseScope
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.runkkAvatarCharacterTag
+import com.a207.runkk.app.core.designsystem.testing.RUNKK_PHONE
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.navigation.Routes
 import kotlin.test.assertEquals
@@ -23,6 +30,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
 /** 홈 화면(A-4, D-276). 시험 설계 10-06 TC-9721, TC-9700(아바타 꾸미기 닫힘), TC-9701(기본 아바타), TC-9685(위치 동의 시트). */
 @RunWith(RobolectricTestRunner::class)
@@ -139,6 +147,24 @@ class HomeScreenTest {
         compose.onNodeWithText("닫기").performClick()
         assertEquals(1, agreed)
         assertEquals(1, closed)
+    }
+
+    @Test
+    @Config(qualifiers = RUNKK_PHONE)
+    fun `R2-06 배경 장면 카드는 하단 탭 바 뒤로 화면 아래 끝 가까이까지 이어진다`() {
+        compose.setContent {
+            CompositionLocalProvider(LocalReleaseScope provides ReleaseScope.FIRST_RELEASE) {
+                RunkkTheme(reduceMotion = true) {
+                    // 앱처럼 홈 자리는 하단 탭 높이만큼 위에서 끝난다(RunkkNavHost EntryBottomSpace).
+                    Box(Modifier.fillMaxSize()) {
+                        HomeScreen(loaded, HomeActions(), Modifier.padding(bottom = RUNKK_BOTTOM_BAR_HEIGHT))
+                    }
+                }
+            }
+        }
+        val room = compose.onNodeWithTag(HOME_ROOM_TAG).getUnclippedBoundsInRoot()
+        // 화면 844dp, 카드 아래 끝은 화면 끝에서 8dp 위(탭 바 자리 80dp를 넘어선다).
+        assertEquals(836f, room.bottom.value, 1f)
     }
 
     @Test

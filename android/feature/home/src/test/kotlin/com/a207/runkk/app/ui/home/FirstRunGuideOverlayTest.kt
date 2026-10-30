@@ -1,6 +1,9 @@
 package com.a207.runkk.app.ui.home
 
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.test.assertWidthIsEqualTo
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -9,6 +12,7 @@ import com.a207.runkk.app.core.designsystem.GuideStep
 import com.a207.runkk.app.core.designsystem.ReleaseScope
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.UnreleasedFeature
+import com.a207.runkk.app.core.designsystem.testing.RUNKK_PHONE
 import com.a207.runkk.app.core.navigation.Routes
 import kotlin.test.assertEquals
 import org.junit.Rule
@@ -16,6 +20,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import org.robolectric.annotation.Config
 
 /** 첫 사용 가이드 막(J-1~J-8, D-277). 시험 설계 10-06 TC-9711~TC-9713, TC-9716. */
 @RunWith(RobolectricTestRunner::class)
@@ -26,14 +31,14 @@ class FirstRunGuideOverlayTest {
     private var nexts = 0
     private var skips = 0
 
-    private fun show(step: GuideStep, index: Int, count: Int) {
+    private fun show(step: GuideStep, index: Int, count: Int, anchor: Rect = Rect(40f, 400f, 500f, 600f)) {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 FirstRunGuideOverlay(
                     step = step,
                     index = index,
                     stepCount = count,
-                    anchor = Rect(40f, 400f, 500f, 600f),
+                    anchor = anchor,
                     onNext = { nexts++ },
                     onSkip = { skips++ }
                 )
@@ -94,6 +99,61 @@ class FirstRunGuideOverlayTest {
         compose.onNodeWithText("건너뛰기").assertDoesNotExist()
         compose.onNodeWithText("시작하기").performClick()
         assertEquals(1, nexts)
+    }
+
+    @Test
+    fun `R2-16 앵커가 위쪽이면 말풍선은 앵커 바로 아래에 꼬리를 위로 달고 꼬리는 앵커 가운데를 가리킨다`() {
+        val hole = Rect(20f, 180f, 200f, 280f)
+        val place = bubblePlacement(
+            hole = hole,
+            screen = Size(390f, 844f),
+            bubble = Size(300f, 150f),
+            margin = 16f,
+            gap = 6f,
+            tailInset = 28f
+        )
+        assertEquals(GuideTail.UP, place.tail)
+        assertEquals(286f, place.top)
+        assertEquals(16f, place.left)
+        assertEquals(300f, place.width)
+        assertEquals(hole.center.x, place.left + place.tailX)
+    }
+
+    @Test
+    fun `R2-16 앵커가 아래쪽이면 말풍선은 앵커 바로 위에 꼬리를 아래로 달고 화면 오른쪽 여백 안에 든다`() {
+        val hole = Rect(300f, 760f, 370f, 830f)
+        val place = bubblePlacement(
+            hole = hole,
+            screen = Size(390f, 844f),
+            bubble = Size(300f, 150f),
+            margin = 16f,
+            gap = 6f,
+            tailInset = 28f
+        )
+        assertEquals(GuideTail.DOWN, place.tail)
+        assertEquals(760f - 6f - 150f, place.top)
+        assertEquals(390f - 16f - 300f, place.left)
+        assertEquals(hole.center.x, place.left + place.tailX)
+    }
+
+    @Test
+    fun `R2-16 앵커를 모르면 꼬리 없이 가운데에 띄운다`() {
+        val place = bubblePlacement(null, Size(390f, 844f), Size(300f, 150f), 16f, 6f, 28f)
+        assertEquals(GuideTail.NONE, place.tail)
+        assertEquals(45f, place.left)
+        assertEquals((844f - 150f) / 2f, place.top)
+    }
+
+    @Test
+    @Config(qualifiers = RUNKK_PHONE)
+    fun `R2-16 말풍선은 너비 300dp이고 꼬리가 앵커 쪽에 붙는다`() {
+        show(GuideStep.FREE_RUN, index = 0, count = 6, anchor = Rect(20f, 40f, 160f, 120f))
+        compose.onNodeWithTag(GUIDE_BUBBLE_TAG).assertWidthIsEqualTo(BUBBLE_WIDTH)
+        compose.onNodeWithTag(GUIDE_TAIL_TAG).assertExists()
+        val density = compose.density.density
+        val bubbleTop = compose.onNodeWithTag(GUIDE_BUBBLE_TAG).getUnclippedBoundsInRoot().top.value * density
+        // 강조 자리(앵커 + 6dp) 바로 아래 6dp에 붙는다.
+        assertEquals(120f + 12f * density, bubbleTop, 1f)
     }
 
     @Test

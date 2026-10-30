@@ -9,12 +9,17 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -34,7 +39,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -48,6 +56,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -57,6 +67,7 @@ import com.a207.runkk.app.core.designsystem.AvatarExpression
 import com.a207.runkk.app.core.designsystem.GuideStep
 import com.a207.runkk.app.core.designsystem.LocalReleaseScope
 import com.a207.runkk.app.core.designsystem.LocationConsentSheet
+import com.a207.runkk.app.core.designsystem.RUNKK_BOTTOM_BAR_HEIGHT
 import com.a207.runkk.app.core.designsystem.RunkkAvatar
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
@@ -142,18 +153,34 @@ fun HomeScreen(state: HomeUiState, actions: HomeActions, modifier: Modifier = Mo
             actions.onMessageShown()
         }
     }
+    // 배경 장면 카드는 하단 탭 바 뒤로 화면 아래 끝까지 이어진다(R2-06, D86). 홈 자리 아래(탭 바·내비게이션 바)만큼 넘겨 그린다.
+    val bleed = RUNKK_BOTTOM_BAR_HEIGHT + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     Box(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
-        Column(
-            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            RunkkLogo(
-                RunkkLogoKind.WordmarkRrun,
-                height = 28.dp,
-                contentDescription = stringResource(R.string.home_logo_description)
-            )
-            Header(state, actions.onNavigate)
-            Room(state, actions)
+        BoxWithConstraints(modifier = Modifier.fillMaxSize().extendBottom(bleed)) {
+            val viewport = maxHeight
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = ROOM_BOTTOM_GAP)
+            ) {
+                FillRemaining(
+                    minHeight = viewport - 16.dp - ROOM_BOTTOM_GAP,
+                    fillMinHeight = ROOM_MIN_HEIGHT,
+                    gap = 12.dp,
+                    top = {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            RunkkLogo(
+                                RunkkLogoKind.WordmarkRrun,
+                                height = 28.dp,
+                                contentDescription = stringResource(R.string.home_logo_description)
+                            )
+                            Header(state, actions.onNavigate)
+                        }
+                    },
+                    fill = { Room(state, actions, bottomSpace = bleed) }
+                )
+            }
         }
         RunkkSnackbarHost(snackbar, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp))
     }
@@ -218,6 +245,37 @@ private fun HeaderIdentity(state: HomeUiState, modifier: Modifier = Modifier) {
     }
 }
 
+/** 아래로 [extra]만큼 더 크게 그린다. 자리 크기는 그대로라 넘친 부분은 아래(하단 탭 바 뒤)에 겹친다. */
+private fun Modifier.extendBottom(extra: Dp): Modifier = layout { measurable, constraints ->
+    val extraPx = extra.roundToPx()
+    val height = if (constraints.hasBoundedHeight) constraints.maxHeight + extraPx else constraints.maxHeight
+    val placeable = measurable.measure(constraints.copy(minHeight = height, maxHeight = height))
+    layout(placeable.width, constraints.maxHeight.coerceAtMost(placeable.height)) { placeable.place(0, 0) }
+}
+
+/** [top]을 위에 두고 그 아래 [fill]이 남은 높이(전체 [minHeight]까지, 적어도 [fillMinHeight])를 채운다. 사이는 [gap]이다. */
+@Composable
+private fun FillRemaining(
+    minHeight: Dp,
+    fillMinHeight: Dp,
+    gap: Dp,
+    top: @Composable () -> Unit,
+    fill: @Composable () -> Unit
+) {
+    Layout(contents = listOf(top, fill)) { (tops, fills), constraints ->
+        val loose = constraints.copy(minHeight = 0, maxHeight = Constraints.Infinity)
+        val topPlaceable = tops.single().measure(loose)
+        val gapPx = gap.roundToPx()
+        val used = topPlaceable.height + gapPx
+        val fillHeight = maxOf(fillMinHeight.roundToPx(), minHeight.roundToPx() - used)
+        val fillPlaceable = fills.single().measure(loose.copy(minHeight = fillHeight))
+        layout(constraints.maxWidth, used + fillPlaceable.height) {
+            topPlaceable.place(0, 0)
+            fillPlaceable.place(0, used)
+        }
+    }
+}
+
 /** 리워드 잔액 알약 "n,nnn P". [onClick]이 없으면 누를 수 없는 표시다. 잔액을 모르면 "-". */
 @Composable
 private fun BalancePill(balance: Int?, onClick: (() -> Unit)?) {
@@ -243,11 +301,11 @@ private fun BalancePill(balance: Int?, onClick: (() -> Unit)?) {
         Text(
             stringResource(R.string.home_balance_value, amount),
             style = RunkkTextStyles.text(15, FontWeight.Bold),
-            color = RunkkColors.OnLime,
+            color = RunkkColors.OnLimeFill,
             modifier = Modifier
                 .height(40.dp)
                 .clip(RoundedCornerShape(20.dp))
-                .background(RunkkColors.Lime)
+                .background(RunkkColors.LimeFill)
                 .padding(horizontal = 16.dp, vertical = 9.dp)
         )
     }
@@ -290,15 +348,16 @@ private fun SkeletonBar(width: Int, height: Int) {
 
 /**
  * 기본 배경 위 방(A-4): 이번 주 막대 줄, 자유런·배틀런 카드, 가운데 아바타. 배경은 아바타 꾸미기가 닫혀 있으면 기본 배경이다(D-254).
+ * 방은 하단 탭 바 뒤까지 이어지므로 내용 아래에 [bottomSpace]를 비워 둔다(내용이 탭 바에 가리지 않게).
  */
 @Composable
-private fun Room(state: HomeUiState, actions: HomeActions) {
+private fun Room(state: HomeUiState, actions: HomeActions, bottomSpace: Dp) {
     val isAvatarOpen = LocalReleaseScope.current.isOpen(UnreleasedFeature.AVATAR_CUSTOMIZE)
     val shape = RoundedCornerShape(28.dp)
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = ROOM_MIN_HEIGHT)
+            .testTag(HOME_ROOM_TAG)
             .clip(shape)
             .border(1.dp, RunkkColors.Border, shape)
     ) {
@@ -315,6 +374,7 @@ private fun Room(state: HomeUiState, actions: HomeActions) {
                 )
             }
             RoomAvatar(state, isAvatarOpen, onAvatar = { actions.onNavigate(Routes.AVATAR) })
+            Spacer(Modifier.height(bottomSpace))
         }
     }
 }
@@ -384,8 +444,8 @@ private fun RunCards(state: HomeUiState, actions: HomeActions) {
                 if (state.isRunVoiceOn) spokenOn else spokenOff,
                 if (state.isRunVibrationOn) spokenOn else spokenOff
             ),
-            container = RunkkColors.Lime,
-            content = RunkkColors.OnLime,
+            container = RunkkColors.LimeFill,
+            content = RunkkColors.OnLimeFill,
             onClick = actions.onFreeRun,
             modifier = Modifier.weight(1f).guideAnchor(GuideStep.FREE_RUN)
         )
@@ -460,6 +520,12 @@ internal fun compactKm(distance: Distance): String {
 
 private val AVATAR_SIZE = 240.dp
 private val ROOM_MIN_HEIGHT = 560.dp
+
+/** 배경 장면 카드(방)의 시험 표지. */
+internal const val HOME_ROOM_TAG = "home-room"
+
+/** 방 카드 아래 끝과 화면 아래 끝 사이. */
+private val ROOM_BOTTOM_GAP = 8.dp
 
 @Preview(name = "A-4 홈", widthDp = 390, heightDp = 844)
 @Composable

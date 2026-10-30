@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -26,9 +28,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -42,6 +46,7 @@ import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.traversalIndex
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.designsystem.GuideStep
@@ -51,9 +56,10 @@ import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import kotlin.math.roundToInt
 
 /**
- * 첫 사용 가이드 막(J-1~J-8, D-277): 화면을 어둡게 덮고 지금 단계의 앵커([anchor], 루트 좌표)만 뚫어 강조한 뒤, 앵커 아래(앵커가
- * 화면 아래쪽이면 위)에 말풍선을 띄운다. 말풍선은 문구, "n/전체", "건너뛰기"·"다음"이고 마지막 단계는 "시작하기"만이다.
- * 막은 아래 화면으로 가는 누름을 모두 받아 버린다(가이드 중에는 홈을 누를 수 없다). 앵커를 아직 모르면 가운데에 띄운다.
+ * 첫 사용 가이드 막(J-1~J-8, D-277): 화면을 어둡게 덮고 지금 단계의 앵커([anchor], 루트 좌표)만 뚫어 흰 테두리로 강조한 뒤,
+ * 앵커 바로 아래(앵커가 화면 아래쪽이면 위)에 꼬리 달린 좁은 말풍선(너비 300dp)을 띄운다(R2-16, D90).
+ * 꼬리는 앵커 가운데를 가리킨다. 말풍선은 문구, "n/전체", "건너뛰기"·"다음"이고 마지막 단계는 "시작하기"만이다.
+ * 막은 아래 화면으로 가는 누름을 모두 받아 버린다(가이드 중에는 홈을 누를 수 없다). 앵커를 아직 모르면 꼬리 없이 가운데에 띄운다.
  * 뒤로 가기는 앱을 닫지 않고 건너뛰기와 같다(AN8-15).
  */
 @Composable
@@ -68,7 +74,6 @@ fun FirstRunGuideOverlay(
 ) {
     BackHandler(onBack = onSkip)
     val isLast = index >= stepCount - 1
-    val highlight = RunkkColors.Lavender
     // 보조 기술이 아래 홈보다 말풍선을 먼저 읽게 한다(터치는 막이 받아 버린다).
     BoxWithConstraints(
         modifier = modifier
@@ -79,6 +84,8 @@ fun FirstRunGuideOverlay(
                 traversalIndex = -1f
             }
     ) {
+        val density = LocalDensity.current
+        val hole = anchor?.inflate(with(density) { HOLE_PADDING.toPx() })
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
@@ -87,81 +94,138 @@ fun FirstRunGuideOverlay(
                 .clearAndSetSemantics { }
         ) {
             drawRect(Color.Black.copy(alpha = DIM_ALPHA))
-            if (anchor != null) {
-                val hole = anchor.inflate(HOLE_PADDING.toPx())
+            if (hole != null) {
                 val radius = CornerRadius(HOLE_CORNER.toPx())
                 drawRoundRect(Color.Transparent, hole.topLeft, hole.size, radius, blendMode = BlendMode.Clear)
-                drawRoundRect(highlight, hole.topLeft, hole.size, radius, style = Stroke(width = 3.dp.toPx()))
+                drawRoundRect(Color.White, hole.topLeft, hole.size, radius, style = Stroke(width = RING_WIDTH.toPx()))
             }
         }
-        val density = LocalDensity.current
         var bubbleHeight by remember { mutableIntStateOf(0) }
-        val screenHeight = with(density) { maxHeight.toPx() }
-        val gap = with(density) { BUBBLE_GAP.toPx() }
-        val top = when {
-            anchor == null -> (screenHeight - bubbleHeight) / 2f
-            anchor.center.y < screenHeight / 2f -> anchor.bottom + gap
-            else -> anchor.top - gap - bubbleHeight
-        }.coerceIn(0f, (screenHeight - bubbleHeight).coerceAtLeast(0f))
+        val place = with(density) {
+            bubblePlacement(
+                hole = hole,
+                screen = Size(maxWidth.toPx(), maxHeight.toPx()),
+                bubble = Size(
+                    minOf(BUBBLE_WIDTH.toPx(), maxWidth.toPx() - 2 * SCREEN_MARGIN.toPx()),
+                    bubbleHeight.toFloat()
+                ),
+                margin = SCREEN_MARGIN.toPx(),
+                gap = BUBBLE_GAP.toPx(),
+                tailInset = TAIL_INSET.toPx()
+            )
+        }
         GuideBubble(
             step = step,
             page = stringResource(R.string.home_guide_page, index + 1, stepCount),
             isLast = isLast,
+            tail = place.tail,
+            tailX = with(density) { place.tailX.toDp() },
             onNext = onNext,
             onSkip = onSkip,
             modifier = Modifier
-                .offset { IntOffset(0, top.roundToInt()) }
-                .padding(horizontal = 16.dp)
+                .offset { IntOffset(place.left.roundToInt(), place.top.roundToInt()) }
+                .width(with(density) { place.width.toDp() })
                 .onSizeChanged { bubbleHeight = it.height }
         )
     }
 }
 
-/** 말풍선: 문구, 쪽수, 버튼 줄. 보조 기술에는 화면 조각 제목으로 문구를 알린다. */
+/** 말풍선: 꼬리, 문구, 쪽수, 버튼 줄. 보조 기술에는 화면 조각 제목으로 문구를 알린다. */
 @Composable
 private fun GuideBubble(
     step: GuideStep,
     page: String,
     isLast: Boolean,
+    tail: GuideTail,
+    tailX: Dp,
     onNext: () -> Unit,
     onSkip: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val text = stringResource(step.textRes)
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
-            .background(RunkkColors.Surface)
-            .semantics { paneTitle = text }
-            .padding(start = 20.dp, end = 16.dp, top = 20.dp, bottom = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Text(text, style = RunkkTextStyles.text(16, FontWeight.Bold), color = RunkkColors.TextPrimary)
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(page, style = RunkkTextStyles.Label, color = RunkkColors.TextSecondary)
-            Spacer(Modifier.weight(1f))
-            if (!isLast) {
-                TextButton(onClick = onSkip) {
-                    Text(
-                        stringResource(R.string.home_guide_skip),
-                        style = RunkkTextStyles.BodyStrong,
-                        color = RunkkColors.TextPrimary
-                    )
-                }
-            }
-            RunkkLimePillButton(
-                stringResource(if (isLast) R.string.home_guide_start else R.string.home_guide_next),
-                onClick = onNext
+    val color = RunkkColors.Surface
+    Column(modifier = modifier.testTag(GUIDE_BUBBLE_TAG)) {
+        if (tail == GuideTail.UP) BubbleTail(isUp = true, x = tailX, color = color)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(BUBBLE_CORNER))
+                .background(color)
+                .semantics { paneTitle = text }
+                .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text,
+                style = RunkkTextStyles.text(16, FontWeight.Medium, lineHeight = 24),
+                color = RunkkColors.TextPrimary
             )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(page, style = RunkkTextStyles.Label, color = RunkkColors.TextSecondary)
+                Spacer(Modifier.weight(1f))
+                if (!isLast) {
+                    TextButton(onClick = onSkip) {
+                        Text(
+                            stringResource(R.string.home_guide_skip),
+                            style = RunkkTextStyles.text(14, FontWeight.Medium),
+                            color = RunkkColors.TextPrimary
+                        )
+                    }
+                }
+                RunkkLimePillButton(
+                    stringResource(if (isLast) R.string.home_guide_start else R.string.home_guide_next),
+                    onClick = onNext
+                )
+            }
         }
+        if (tail == GuideTail.DOWN) BubbleTail(isUp = false, x = tailX, color = color)
+    }
+}
+
+/** 말풍선 꼬리(너비 18, 높이 9 삼각형). [x]는 말풍선 안에서 꼬리 가운데의 가로 위치다. */
+@Composable
+private fun BubbleTail(isUp: Boolean, x: Dp, color: Color) {
+    Canvas(
+        modifier = Modifier
+            .testTag(GUIDE_TAIL_TAG)
+            .offset(x = x - TAIL_WIDTH / 2)
+            .size(TAIL_WIDTH, TAIL_HEIGHT)
+    ) {
+        val path = Path().apply {
+            if (isUp) {
+                moveTo(0f, size.height)
+                lineTo(size.width / 2f, 0f)
+                lineTo(size.width, size.height)
+            } else {
+                moveTo(0f, 0f)
+                lineTo(size.width / 2f, size.height)
+                lineTo(size.width, 0f)
+            }
+            close()
+        }
+        drawPath(path, color)
     }
 }
 
 /** 가이드 막의 시험 표지. */
 internal const val GUIDE_OVERLAY_TAG = "first-run-guide"
 
+/** 말풍선(꼬리 포함)과 꼬리의 시험 표지. */
+internal const val GUIDE_BUBBLE_TAG = "first-run-guide-bubble"
+internal const val GUIDE_TAIL_TAG = "first-run-guide-tail"
+
+/** 말풍선 너비(J-1~J-7 Coachmark 300). */
+internal val BUBBLE_WIDTH = 300.dp
+
 private const val DIM_ALPHA = 0.6f
-private val HOLE_PADDING = 4.dp
-private val HOLE_CORNER = 20.dp
-private val BUBBLE_GAP = 12.dp
+private val HOLE_PADDING = 6.dp
+private val HOLE_CORNER = 30.dp
+private val RING_WIDTH = 2.dp
+private val BUBBLE_GAP = 6.dp
+private val BUBBLE_CORNER = 20.dp
+private val SCREEN_MARGIN = 16.dp
+private val TAIL_WIDTH = 18.dp
+private val TAIL_HEIGHT = 9.dp
+
+/** 꼬리가 말풍선 둥근 모서리에 걸리지 않게 띄우는 최소 거리. */
+private val TAIL_INSET = 28.dp
