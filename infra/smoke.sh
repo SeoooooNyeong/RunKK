@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 배포 뒤 스모크(CI backend:smoke). infra/ 폴더의 .env(RUNKK_ENV)·edge.env로 그 환경 주소를 정해 확인한다.
 #   prod    https://<SERVER_NAME>/actuator/health = UP, ai healthy, Swagger(/v3/api-docs) 닫힘
-#   develop https://<SERVER_NAME>:8443/actuator/health = UP, ai healthy, Swagger(/docs) 열림
+#   develop https://<SERVER_NAME>:8443/actuator/health = UP, ai healthy, Swagger는 밖에서 닫힘(nginx)·컨테이너 안에서 열림
 # 서버(배포 러너)에서 127.0.0.1로 붙고 인증서 이름으로 검증한다(--resolve).
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -26,7 +26,10 @@ if [ "$RUNKK_ENV" = prod ]; then
   fi
   echo "prod swagger: closed"
 else
-  # springdoc이 /docs를 swagger-ui 주소로 돌려보낸다
-  health_curl develop /docs -L >/dev/null
-  echo "develop swagger: open"
+  # develop은 문서를 켜 두되 nginx가 밖에서 막는다(결정 D80). 밖은 닫힘, api 컨테이너 안은 열림을 함께 본다
+  if health_curl develop /v3/api-docs >/dev/null 2>&1; then
+    die "develop nginx serves /v3/api-docs (must be blocked outside)"
+  fi
+  docker exec "$APP_PROJECT-api-1" curl -fsS --max-time 10 http://localhost:8080/v3/api-docs >/dev/null     || die "develop api docs are off inside the container"
+  echo "develop swagger: closed outside, open inside"
 fi
