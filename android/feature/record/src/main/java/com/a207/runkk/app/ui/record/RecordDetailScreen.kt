@@ -129,7 +129,11 @@ fun RecordDetailScreen(
     }
     Box(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
         Column(modifier = Modifier.fillMaxSize()) {
-            RunkkTopBar(title = stringResource(R.string.record_detail_title), onBack = onBack) {
+            RunkkTopBar(
+                title = stringResource(R.string.record_detail_title),
+                onBack = onBack,
+                isTitleCentered = true
+            ) {
                 if (state.detail != null) {
                     RunkkPillButton(
                         stringResource(R.string.record_detail_share),

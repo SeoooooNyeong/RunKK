@@ -231,7 +231,7 @@ private fun ShareStep(
     val resources = LocalContext.current.resources
     val isBackOpen = LocalReleaseScope.current.isOpen(UnreleasedFeature.CARD_BACK)
     Column(modifier = Modifier.fillMaxSize()) {
-        RunkkTopBar(title = stringResource(R.string.record_card_share_title), onBack = onBack)
+        RunkkTopBar(title = stringResource(R.string.record_card_share_title), onBack = onBack, isTitleCentered = true)
         Column(
             modifier = Modifier.weight(1f).padding(horizontal = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,

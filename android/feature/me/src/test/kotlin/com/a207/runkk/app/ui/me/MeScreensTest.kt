@@ -253,6 +253,19 @@ class MeScreensTest {
     }
 
     @Test
+    fun `D101 다른 러너 프로필 제목은 바 가운데에 있다(G-3)`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                OtherProfileScreen(OtherProfileUiState(isLoading = false, profile = sampleProfile), onBack = {
+                }, onRetry = {})
+            }
+        }
+        val screen = compose.onRoot().getUnclippedBoundsInRoot()
+        val title = compose.onNode(hasText("프로필") and isHeading()).getUnclippedBoundsInRoot()
+        assertEquals((screen.left + screen.right).value / 2f, (title.left + title.right).value / 2f, 1f)
+    }
+
+    @Test
     fun `G-2 프로필 편집 제목은 바 가운데에 있다`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {

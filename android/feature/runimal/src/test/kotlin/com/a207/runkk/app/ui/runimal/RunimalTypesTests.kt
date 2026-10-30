@@ -3,9 +3,14 @@ package com.a207.runkk.app.ui.runimal
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isHeading
+import androidx.compose.ui.test.junit4.ComposeContentTestRule
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.testing.RUNKK_PHONE
@@ -215,6 +220,18 @@ class RunimalTypesScreenTest {
     }
 
     @Test
+    fun `D101 16유형 제목은 바 가운데에 있다(G-5)`() {
+        compose.setContent { RunkkTheme(reduceMotion = true) { RunimalTypesScreen(loadedTypes, {}, {}, {}) } }
+        compose.assertTitleCentered(str(R.string.runimal_types_title))
+    }
+
+    @Test
+    fun `D101 유형 상세 제목은 바 가운데에 있다(G-6)`() {
+        compose.setContent { RunkkTheme(reduceMotion = true) { RunimalTypeScreen(loadedType, {}, {}) } }
+        compose.assertTitleCentered(str(R.string.runimal_type_title))
+    }
+
+    @Test
     fun `TC-9738 러너 비율이 null이면 그 줄이 없다`() {
         val noShare = loadedType.copy(detail = turtleDetail.copy(sharePercent = null))
         compose.setContent { RunkkTheme(reduceMotion = true) { RunimalTypeScreen(noShare, {}, {}) } }
@@ -235,4 +252,11 @@ class RunimalTypesScreenshotTest {
 
     @Test
     fun type() = compose.captureRunkkScreen("G6_runimal_type") { RunimalTypeScreen(loadedType, {}, {}) }
+}
+
+/** [title] 제목(heading)의 가로 가운데가 화면 가운데에 있는지 본다(D101). */
+internal fun ComposeContentTestRule.assertTitleCentered(title: String) {
+    val screen = onRoot().getUnclippedBoundsInRoot()
+    val bar = onNode(hasText(title) and isHeading()).getUnclippedBoundsInRoot()
+    assertEquals((screen.left + screen.right).value / 2f, (bar.left + bar.right).value / 2f, 1f, "$title 제목 가운데")
 }

@@ -8,10 +8,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.getBoundsInRoot
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isHeading
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.dp
@@ -120,6 +124,64 @@ class RecordScreensTest {
         compose.onNodeWithText("자유런").assertDoesNotExist()
         compose.onNodeWithText("집계 제외", substring = true).assertDoesNotExist()
         compose.onNodeWithText("10/20 화 · 28:49 · 5'32\"").assertExists()
+    }
+
+    @Test
+    fun `D101 기록 제목은 바 가운데에 있다(G-7, G-8, G-10)`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                RecordListScreen(listState(RecordView.LIST, emptyList()), RecordListActions())
+            }
+        }
+        assertTitleCentered("기록")
+    }
+
+    @Test
+    fun `D101 기록 상세 제목은 바 가운데에 있다(G-9)`() {
+        compose.setContent {
+            CompositionLocalProvider(LocalReleaseScope provides ReleaseScope.FIRST_RELEASE) {
+                RunkkTheme(reduceMotion = true) {
+                    RecordDetailScreen(
+                        RecordDetailUiState(isLoading = false, recordId = "r1", detail = detail()),
+                        onBack = {},
+                        onShare = {},
+                        onRetry = {},
+                        deleteActions = RecordDeleteActions(onDelete = {}, onConfirm = {}, onDismiss = {})
+                    )
+                }
+            }
+        }
+        assertTitleCentered("기록 상세")
+    }
+
+    @Test
+    fun `D101 카드 공유 제목은 바 가운데에 있다(B-8)`() {
+        val bitmap = android.graphics.Bitmap.createBitmap(8, 10, android.graphics.Bitmap.Config.ARGB_8888)
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                RecordCardScreen(
+                    RecordCardUiState(
+                        isLoading = false,
+                        card = runCard(shared = true),
+                        front = bitmap,
+                        isShareStep = true
+                    ),
+                    onClose = {},
+                    onSideSelected = {},
+                    onShare = {},
+                    onMessageShown = {},
+                    onRetry = {}
+                )
+            }
+        }
+        assertTitleCentered("카드 공유")
+    }
+
+    /** [title] 제목(heading)의 가로 가운데가 화면 가운데에 있는지 본다(D101). */
+    private fun assertTitleCentered(title: String) {
+        val screen = compose.onRoot().getUnclippedBoundsInRoot()
+        val bar = compose.onNode(hasText(title) and isHeading()).getUnclippedBoundsInRoot()
+        assertEquals((screen.left + screen.right).value / 2f, (bar.left + bar.right).value / 2f, 1f, "$title 제목 가운데")
     }
 
     @Test

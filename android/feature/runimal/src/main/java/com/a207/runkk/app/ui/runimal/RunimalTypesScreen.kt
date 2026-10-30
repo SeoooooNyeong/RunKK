@@ -69,7 +69,7 @@ fun RunimalTypesScreen(
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
-        RunkkTopBar(title = stringResource(R.string.runimal_types_title), onBack = onBack)
+        RunkkTopBar(title = stringResource(R.string.runimal_types_title), onBack = onBack, isTitleCentered = true)
         val board = state.board
         when {
             board == null && state.isLoading -> RunkkLoading(modifier = Modifier.weight(1f))

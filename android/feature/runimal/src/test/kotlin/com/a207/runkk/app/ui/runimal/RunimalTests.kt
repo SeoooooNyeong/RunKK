@@ -267,6 +267,16 @@ class RunimalScreenTest {
     }
 
     @Test
+    fun `D101 MY Runimal 제목은 바 가운데에 있다(G-4)`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                RunimalScreen(RunimalUiState(isLoading = false, status = confirmed), {}, {}, {}, {}, {})
+            }
+        }
+        compose.assertTitleCentered(str(R.string.runimal_title))
+    }
+
+    @Test
     fun `TC-9878 16유형 버튼을 누르면 16유형 화면으로 가는 콜백을 부른다`() {
         var shown = 0
         compose.setContent {
