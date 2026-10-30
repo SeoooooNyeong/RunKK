@@ -364,10 +364,10 @@ private fun AllTypes(status: RunimalStatus) {
                             .weight(1f)
                             .aspectRatio(1f)
                             .clip(SMALL_TILE_SHAPE)
-                            .background(RunimalTileFill)
+                            .background(RunkkColors.RunimalTile)
                             .border(
                                 if (mine) 2.dp else 1.dp,
-                                if (mine) RunkkColors.Lime else RunimalTileBorder,
+                                if (mine) RunkkColors.Lime else RunkkColors.RunimalTileBorder,
                                 SMALL_TILE_SHAPE
                             )
                             .clearAndSetSemantics {

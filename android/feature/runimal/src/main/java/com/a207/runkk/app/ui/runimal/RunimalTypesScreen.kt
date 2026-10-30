@@ -30,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.a207.runkk.app.core.designsystem.RunimalArt
@@ -124,7 +125,7 @@ private fun LegendSide(name: String, isLeaning: Boolean) {
 
 /**
  * 16유형 4×4 격자(G-5): 그림과 이름. 서버가 보낸 순서를 열 단위로 놓는다(1열 아침 참새·쳇바퀴 햄스터·골목 탐험 다람쥐·마실 나온 고양이,
- * R2-14). 지금 유형은 라임 테두리, 확정받은 적 없는 유형은 흐리게.
+ * R2-14). 지금 유형은 진한 테두리와 굵은 글자, 확정받은 적 없는 유형은 흐리게(D94, [RunimalTypeCellLook]).
  */
 @Composable
 private fun TypeGrid(state: RunimalTypesUiState, board: RunimalTypeBoard, onSelect: (String) -> Unit) {
@@ -159,15 +160,16 @@ private fun TypeCell(
 ) {
     val mineLabel = stringResource(R.string.runimal_my_type)
     val neverLabel = stringResource(R.string.runimal_types_never_confirmed)
+    val look = RunimalTypeCellLook.of(isMine = isMine, isDimmed = isDimmed)
     Column(
         modifier = modifier
             // 배경·테두리까지 흐리게 하려면 alpha가 그리기 수정자보다 앞에 와야 한다.
-            .alpha(if (isDimmed) DIMMED_ALPHA else 1f)
+            .alpha(look.alpha)
             .clip(RunkkShapes.Large)
-            .background(if (isMine) RunkkColors.LimeContainer else RunkkColors.Surface)
+            .background(RunkkColors.Surface)
             .border(
-                if (isMine) 2.dp else 1.dp,
-                if (isMine) RunkkColors.Lime else RunkkColors.Border,
+                1.dp,
+                if (look.isStrongBorder) RunkkColors.RunimalTileBorder else RunkkColors.Border,
                 RunkkShapes.Large
             )
             .clickable(role = Role.Button) { onSelect(entry.type) }
@@ -189,7 +191,8 @@ private fun TypeCell(
         )
         Text(
             entry.displayName,
-            style = RunkkTextStyles.text(11, if (isMine) FontWeight.Bold else FontWeight.Normal),
+            style = RunkkTextStyles.text(11, if (look.isBold) FontWeight.Bold else FontWeight.Normal)
+                .copy(fontSize = look.fontSizeSp.sp, lineHeight = (look.fontSizeSp * LINE_HEIGHT_RATIO).sp),
             color = RunkkColors.TextPrimary,
             textAlign = TextAlign.Center,
             minLines = 2,
@@ -210,7 +213,7 @@ internal fun <T> columnMajorRows(items: List<T>, columns: Int): List<List<T?>> {
 
 private val ART_SIZE = 48.dp
 private const val GRID_COLUMNS = 4
-private const val DIMMED_ALPHA = 0.4f
+private const val LINE_HEIGHT_RATIO = 1.25f
 
 @Preview(name = "Runimal 16유형", widthDp = 390, heightDp = 844)
 @Composable

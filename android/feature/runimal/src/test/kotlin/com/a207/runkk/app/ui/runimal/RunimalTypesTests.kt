@@ -35,6 +35,20 @@ class RunimalTypesViewModelTest {
     private val repo = FakeRunimal()
 
     @Test
+    fun `D94 내 유형 칸은 진한 테두리와 굵은 글자, 확정 이력 없는 유형은 30%로 흐리다(G-5)`() {
+        val mine = RunimalTypeCellLook.of(isMine = true, isDimmed = false)
+        assertTrue(mine.isStrongBorder)
+        assertTrue(mine.isBold)
+        assertEquals(11.5f, mine.fontSizeSp)
+        assertEquals(1f, mine.alpha)
+        val other = RunimalTypeCellLook.of(isMine = false, isDimmed = false)
+        assertFalse(other.isStrongBorder)
+        assertFalse(other.isBold)
+        assertEquals(10.5f, other.fontSizeSp)
+        assertEquals(0.3f, RunimalTypeCellLook.of(isMine = false, isDimmed = true).alpha)
+    }
+
+    @Test
     fun `TC-9738 16유형 격자는 서버 순서를 열 단위로 놓는다(G-5, R2-14)`() {
         val rows = columnMajorRows(typeBoard.types.map { it.type }, columns = 4)
         assertEquals(
