@@ -79,7 +79,8 @@ import java.util.Locale
 
 /**
  * 기록 상세(G-9, D-280): 종류, 날짜·날씨, 코스 지도, 거리·운동 시간·평균 페이스, 정지 구간, 구간 페이스와 가장 빠른 1km, 소모 열량,
- * 심박. 유효·집계 제외는 보이지 않는다. 삭제할 수 있는 기록(집계 제외)에만 아래에 "기록 삭제"를 둔다. "카드 공유"는 CARD_SHARE로 숨긴다.
+ * 심박. 유효·집계 제외는 보이지 않는다. 삭제할 수 있는 기록(집계 제외)에만 아래에 "기록 삭제"를 둔다. "카드 공유"(앞면)는 1차 배포에서도
+ * 보인다(D93).
  */
 @Composable
 fun RecordDetailRoute(recordId: String, viewModel: RecordDetailViewModel = hiltViewModel()) {
@@ -126,11 +127,10 @@ fun RecordDetailScreen(
             deleteActions.onMessageShown()
         }
     }
-    val canShare = LocalReleaseScope.current.isOpen(UnreleasedFeature.CARD_SHARE)
     Box(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
         Column(modifier = Modifier.fillMaxSize()) {
             RunkkTopBar(title = stringResource(R.string.record_detail_title), onBack = onBack) {
-                if (state.detail != null && canShare) {
+                if (state.detail != null) {
                     RunkkPillButton(
                         stringResource(R.string.record_detail_share),
                         onClick = onShare,

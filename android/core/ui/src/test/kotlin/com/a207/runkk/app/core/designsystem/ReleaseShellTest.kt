@@ -45,7 +45,15 @@ class ReleaseShellTest {
         }
         val crewOnly = ReleaseScope.opened(setOf(UnreleasedFeature.CREW))
         assertTrue(crewOnly.isOpen(UnreleasedFeature.CREW))
-        assertFalse(crewOnly.isOpen(UnreleasedFeature.CARD_SHARE))
+        assertFalse(crewOnly.isOpen(UnreleasedFeature.CARD_BACK))
+    }
+
+    @Test
+    fun `D93 기록 카드 앞면 공유는 잠금 항목이 아니고 뒷면과 Runimal 공유만 잠근다`() {
+        assertEquals(
+            listOf("CREW", "CARD_BACK", "RUNIMAL_SHARE", "AVATAR_CUSTOMIZE"),
+            UnreleasedFeature.entries.map { it.name }
+        )
     }
 
     @Test
