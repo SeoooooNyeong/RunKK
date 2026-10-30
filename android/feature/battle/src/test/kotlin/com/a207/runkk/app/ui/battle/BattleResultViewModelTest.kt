@@ -67,7 +67,15 @@ class BattleResultViewModelTest {
         assertEquals(AvatarExpression.JOY, resultExpression(Verdict.DRAW))
         assertEquals(AvatarExpression.SAD, resultExpression(Verdict.LOSE))
         val freeRun = RunResultDetailState(com.a207.runkk.app.core.model.Distance(5_000), "", java.time.Duration.ZERO)
-        assertEquals(AvatarExpression.JOY, freeRun.expression, "자유런 결과 상세 기본")
+        assertEquals(AvatarExpression.JUMP, freeRun.expression, "자유런 결과 상세 기본(뛰어오르기, D84)")
+    }
+
+    @Test
+    fun `TC-9702 상세 장 표정은 패배만 SAD이고 나머지는 뛰어오르기다`() {
+        assertEquals(AvatarExpression.JUMP, detailExpression(null))
+        assertEquals(AvatarExpression.JUMP, detailExpression(Verdict.WIN))
+        assertEquals(AvatarExpression.JUMP, detailExpression(Verdict.DRAW))
+        assertEquals(AvatarExpression.SAD, detailExpression(Verdict.LOSE))
     }
 
     @Test

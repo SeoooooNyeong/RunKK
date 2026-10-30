@@ -12,6 +12,11 @@ data class MatchUiState(
     /** 대기 시작 뒤 경과 초(시안 "0:07"). 랜덤 대기와 초대 대기가 센다. */
     val waitingSeconds: Long = 0,
     val match: MatchFound? = null,
+    /**
+     * 성사 화면(C-3) "나" 아래 티어 칩의 서버 티어 코드(R2-10). 성사 메시지(MatchFound)에는 내 티어가 없어 랜덤·초대는 내 프로필
+     * (GET /members/me/profile)의 tier, 참가하는 쪽은 참가 확인 정보의 myTier를 쓴다. 못 읽으면 null이고 칩을 그리지 않는다.
+     */
+    val myTier: String? = null,
     /** 자동 출발까지 남은 초. 시작 예약(BattleStart)을 받기 전이면 null. */
     val startsInSeconds: Long? = null,
     /** 대기 화면 아래 짧은 안내(취소가 거부됨 등). */

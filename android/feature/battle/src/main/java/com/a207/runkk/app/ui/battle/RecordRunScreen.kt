@@ -59,7 +59,7 @@ import java.time.Duration
 import java.time.LocalDate
 
 /**
- * 기록런 탭(D-1·E-1, D-250): 제목 "기록런"과 나와의 대결 | 셀럽런 분절. 고른 분절은 rememberSaveable로 지킨다. 분절 안은
+ * 기록런 탭(D-1·E-1, D-250): 제목 "기록런"과 셀프런 | 셀럽런 분절(D89). 고른 분절은 rememberSaveable로 지킨다. 분절 안은
  * SelfBattleViewModel·CelebBattleViewModel이 그대로 맡는다.
  */
 @Composable

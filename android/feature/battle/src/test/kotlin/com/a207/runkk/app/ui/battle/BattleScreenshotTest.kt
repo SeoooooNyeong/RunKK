@@ -76,7 +76,10 @@ class BattleScreenshotTest {
 
     @Test
     fun matchFoundScreen() = compose.captureRunkkScreen("D2_match_found") {
-        MatchScreen(MatchUiState(phase = MatchPhase.MATCHED, match = matchFound(), startsInSeconds = 7), MatchActions())
+        MatchScreen(
+            MatchUiState(phase = MatchPhase.MATCHED, match = matchFound(), startsInSeconds = 7, myTier = "GOLD"),
+            MatchActions()
+        )
     }
 
     @Test
@@ -351,4 +354,42 @@ class BattleScreenshotTest {
     fun resultWinLight() = compose.captureRunkkScreen("D4_battle_result_win_light", isDarkTheme = false) {
         BattleResultScreen(BattleResultUiState(isLoading = false, result = battleResult()), {}, {}, {})
     }
+
+    @Test
+    fun resultDetailLight() = compose.captureRunkkScreen("D4_battle_result_detail_light", isDarkTheme = false) {
+        FirstRelease {
+            BattleResultScreen(
+                BattleResultUiState(isLoading = false, result = battleResult(), detail = recordDetail()),
+                {},
+                {},
+                {},
+                pagerState = rememberPagerState(initialPage = 1) { 2 }
+            )
+        }
+    }
+
+    @Test
+    fun matchWaitingLight() = compose.captureRunkkScreen("D2_match_waiting_first_release_light", isDarkTheme = false) {
+        FirstRelease { MatchScreen(MatchUiState(phase = MatchPhase.WAITING, waitingSeconds = 7), MatchActions()) }
+    }
+
+    @Test
+    fun matchFoundLight() = compose.captureRunkkScreen("D2_match_found_first_release_light", isDarkTheme = false) {
+        FirstRelease {
+            MatchScreen(
+                MatchUiState(phase = MatchPhase.MATCHED, match = matchFound(), startsInSeconds = 7, myTier = "GOLD"),
+                MatchActions()
+            )
+        }
+    }
+}
+
+/** 1차 배포 범위(아바타 꾸미기 닫힘): 기본 아바타 그림이 보인다. */
+@androidx.compose.runtime.Composable
+private fun FirstRelease(content: @androidx.compose.runtime.Composable () -> Unit) {
+    androidx.compose.runtime.CompositionLocalProvider(
+        com.a207.runkk.app.core.designsystem.LocalReleaseScope provides
+            com.a207.runkk.app.core.designsystem.ReleaseScope.FIRST_RELEASE,
+        content = content
+    )
 }

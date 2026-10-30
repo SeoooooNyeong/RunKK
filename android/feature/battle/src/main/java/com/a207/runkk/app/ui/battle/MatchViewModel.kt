@@ -9,6 +9,7 @@ import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.account.LocationConsentUseCase
+import com.a207.runkk.app.domain.account.Profile
 import com.a207.runkk.app.domain.battle.BattleRepository
 import com.a207.runkk.app.domain.battle.BattleRunCoordinator
 import com.a207.runkk.app.domain.battle.BattleRunState
@@ -85,8 +86,11 @@ class MatchViewModel @Inject constructor(
     private var forfeiting = false
     private var startAt: Instant? = null
 
-    /** 초대를 보낼 때 실을 내 닉네임(친구 초대 시작 때 읽기 시작한다). 비었거나 못 읽으면 null이다. */
-    private var inviterName: Deferred<String?>? = null
+    /**
+     * 내 프로필(랜덤 매칭·친구 초대 시작 때 한 번 읽는다). 닉네임은 초대 공유 제목에, 티어는 성사 화면 "나"의 티어 칩(R2-10)에 쓴다.
+     * 못 읽으면 null이다.
+     */
+    private var me: Deferred<Profile?>? = null
 
     /**
      * 대기 채널에서 받은 출발 예약. 서버는 MatchFound와 BattleStart를 잇따라 보내는데 실시간 채널은 지난 메시지를 다시 주지 않아,
@@ -104,6 +108,7 @@ class MatchViewModel @Inject constructor(
     fun startQuick(distance: Distance) {
         if (!claimStart()) return
         _state.update { it.copy(distance = distance, opponentKind = OpponentKind.RANDOM) }
+        loadMe()
         if (distance !in MatchUiState.DISTANCES) {
             showNotice(UiText.Res(R.string.battle_error_distance_invalid))
             return
@@ -122,11 +127,7 @@ class MatchViewModel @Inject constructor(
     fun startInvite(distance: Distance) {
         if (!claimStart()) return
         _state.update { it.copy(distance = distance, opponentKind = OpponentKind.FRIEND) }
-        inviterName = viewModelScope.async {
-            (account.profile(AccountRepository.SELF) as? Outcome.Success)?.value?.displayName?.takeIf {
-                it.isNotBlank()
-            }
-        }
+        loadMe()
         begin(FriendInviteTicket(distance, coordinator), MatchPhase.REQUESTING)
     }
 
@@ -149,7 +150,7 @@ class MatchViewModel @Inject constructor(
                     ) {
                         showNotice(joinNotice(AppError.Rejected(blocked)))
                     } else {
-                        _state.update { it.copy(invite = view) }
+                        _state.update { it.copy(invite = view, myTier = view.myTier) }
                     }
                 }
 
@@ -194,7 +195,8 @@ class MatchViewModel @Inject constructor(
      * 이름이 빠지지 않는다. 못 읽으면 이름 없는 제목으로 보낸다. 기다리는 동안 대기가 끝났으면 보내지 않는다.
      */
     private suspend fun share(invite: FriendInvite) {
-        val name = withTimeoutOrNull(INVITER_NAME_WAIT.toMillis()) { inviterName?.await() }
+        val profile = withTimeoutOrNull(INVITER_NAME_WAIT.toMillis()) { me?.await() }
+        val name = profile?.displayName?.takeIf { it.isNotBlank() }
         if (_state.value.phase == MatchPhase.INVITING) _events.send(MatchEvent.ShareInvite(invite, name))
     }
 
@@ -285,6 +287,15 @@ class MatchViewModel @Inject constructor(
         forfeiting = true
         _state.update { it.copy(canForfeit = false) }
         coordinator.forfeit()
+    }
+
+    /** 내 프로필을 읽기 시작하고 티어를 화면 값에 싣는다. */
+    private fun loadMe() {
+        me = viewModelScope.async {
+            val profile = (account.profile(AccountRepository.SELF) as? Outcome.Success)?.value
+            profile?.tier?.let { tier -> _state.update { it.copy(myTier = tier) } }
+            profile
+        }
     }
 
     private fun claimStart(): Boolean {

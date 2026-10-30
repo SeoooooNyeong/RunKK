@@ -80,6 +80,13 @@ class BattleScreensTest {
     }
 
     @Test
+    fun `기록런 분절은 셀프런과 셀럽런이다(D89, R2-13)`() {
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        assertEquals("셀프런", context.getString(R.string.battle_record_run_self))
+        assertEquals("셀럽런", context.getString(R.string.battle_record_run_celeb))
+    }
+
+    @Test
     fun `나와의 대결 - 처음엔 시작 버튼이 없고 기록 없는 거리는 누를 수 없다(D-288)`() {
         val candidates = selfCandidates.map(CandidateUi::of)
         show {
@@ -144,8 +151,33 @@ class BattleScreensTest {
         }
         compose.onNodeWithText("배틀런 · 5km").assertExists()
         compose.onNodeWithContentDescription("상대를 찾고 있어요, 0:07 지남").assertExists()
+        // 이마에 손 얹고 찾는 자세(D84, 피그마 C-2)
+        compose.onNodeWithTag(DEFAULT_AVATAR_TAG + "SEARCH", useUnmergedTree = true).assertExists()
         compose.onNodeWithText("취소").performClick()
         assertEquals(listOf("cancel"), calls)
+    }
+
+    @Test
+    fun `TC-9663 성사 - 나와 상대 모두 한글 티어 칩이 있다(C-3, R2-10)`() {
+        show {
+            MatchScreen(
+                MatchUiState(phase = MatchPhase.MATCHED, match = matchFound(), startsInSeconds = 7, myTier = "GOLD"),
+                MatchActions()
+            )
+        }
+        compose.onNodeWithText("상대를 찾았어요").assertExists()
+        compose.onNodeWithText("골드").assertExists()
+        compose.onNodeWithText("실버").assertExists()
+        compose.onNodeWithText("GOLD").assertDoesNotExist()
+    }
+
+    @Test
+    fun `TC-9663 성사 - 내 티어를 모르면 내 칩은 비운다`() {
+        show {
+            MatchScreen(MatchUiState(phase = MatchPhase.MATCHED, match = matchFound()), MatchActions())
+        }
+        compose.onNodeWithText("실버").assertExists()
+        compose.onNodeWithText("골드").assertDoesNotExist()
     }
 
     @Test
@@ -159,6 +191,7 @@ class BattleScreensTest {
         compose.onNodeWithText("배틀런 · 친구 대결 · 5km").assertExists()
         compose.onNodeWithText("친구가 들어오길 기다리고 있어요").assertExists()
         compose.onNodeWithText("5:00").assertExists()
+        compose.onNodeWithTag(DEFAULT_AVATAR_TAG + "SEARCH", useUnmergedTree = true).assertExists()
         compose.onNodeWithText("카카오톡으로 다시 보내기").performClick()
         compose.onNodeWithText("취소").performClick()
         assertEquals(listOf("resend", "cancel"), calls)
