@@ -107,6 +107,13 @@ class MeViewModelsTest {
     }
 
     @Test
+    fun `R2-04 프로필 편집은 내 아바타 얼굴 키를 읽어 둔다`() = runTest {
+        account.profile = sampleProfile.copy(faceKey = "default:BEAR")
+        val vm = ProfileEditViewModel(account)
+        assertEquals("default:BEAR", vm.state.value.faceKey)
+    }
+
+    @Test
     fun `닉네임 2~20자는 코드 포인트로 센다 - 이모지 1자는 저장하지 않고 20자는 자르지 않는다(D-143)`() = runTest {
         val vm = ProfileEditViewModel(account)
         val emoji = "\uD83C\uDFC3"

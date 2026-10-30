@@ -2,14 +2,18 @@ package com.a207.runkk.app.ui.me
 
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.codePointLength
+import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.domain.account.Gender
 
 /**
  * 프로필 편집(G-2, D-287, FR-007·FR-012): 닉네임 2~20자, 한줄 소개 40자, 나이대·성별 공개 스위치 하나씩. 사진 칸과 프로필 공개 하나는
  * v0.14에서 지웠다. 나이대·성별 값([ageBand], [gender])은 보이기만 하고 편집하지 않는다(가입 때 정한 값).
+ * 맨 위 아바타 얼굴([faceKey], [faceLayers])도 보기만 한다(R2-04, D86).
  */
 data class ProfileEditUiState(
     val isLoading: Boolean = true,
+    val faceKey: String? = null,
+    val faceLayers: List<FaceLayer> = emptyList(),
     val nickname: String = "",
     val intro: String = "",
     val ageBand: String? = null,

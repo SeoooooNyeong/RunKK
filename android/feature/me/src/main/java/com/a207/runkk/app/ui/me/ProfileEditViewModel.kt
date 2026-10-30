@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.designsystem.RunkkErrorText
 import com.a207.runkk.app.core.designsystem.takeCodePoints
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.core.model.getOrNull
 import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.account.ProfileEdit
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -43,6 +44,7 @@ class ProfileEditViewModel @Inject constructor(private val account: AccountRepos
                     val me = result.value
                     it.copy(
                         isLoading = false,
+                        faceKey = me.faceKey,
                         nickname = me.displayName,
                         intro = me.intro.orEmpty(),
                         ageBand = me.ageBand,
@@ -56,6 +58,10 @@ class ProfileEditViewModel @Inject constructor(private val account: AccountRepos
                     it.copy(isLoading = false, error = RunkkErrorText.of(result.error))
                 }
             }
+            // 아바타 꾸미기가 열렸을 때 쓰는 얼굴 층. 못 읽으면 기본 얼굴이다.
+            val faceKey = _state.value.faceKey ?: return@launch
+            val face = account.faceLayers(faceKey).getOrNull().orEmpty()
+            _state.update { it.copy(faceLayers = face) }
         }
     }
 

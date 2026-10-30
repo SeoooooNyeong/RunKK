@@ -26,12 +26,13 @@ import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 
 /**
- * 게스트 시작 직후 안내(A-3, D-278, FR-199): 자동으로 붙은 닉네임(보기만)과 자료 유실 고지. "나중에"([onConfirm])면 홈으로,
- * "지금 연동하기"([onLink])면 소셜 계정 연동으로. 바깥을 눌러도 "나중에"와 같다. 닫힌 뒤 홈에서 첫 사용 가이드가 뜬다(D-277).
+ * 게스트 시작 직후 안내(A-3, D-278, FR-199): 화면 가운데 대화상자(R2-08)에 자동으로 붙은 닉네임(보기만)과 자료 유실 고지.
+ * "나중에"([onConfirm])면 홈으로, "지금 연동하기"([onLink])면 소셜 계정 연동으로. 바깥을 눌러도 "나중에"와 같다.
+ * 닫힌 뒤 홈에서 첫 사용 가이드가 뜬다(D-277).
  * [nickname]을 아직 못 읽었으면 닉네임 칸을 뺀다.
  */
 @Composable
-internal fun GuestNoticeSheet(nickname: String?, onConfirm: () -> Unit, onLink: () -> Unit) {
+internal fun GuestNoticeDialog(nickname: String?, onConfirm: () -> Unit, onLink: () -> Unit) {
     RunkkActionDialog(
         title = stringResource(R.string.me_guest_notice_title),
         confirmLabel = stringResource(R.string.me_guest_notice_link),
@@ -48,7 +49,7 @@ internal fun GuestNoticeSheet(nickname: String?, onConfirm: () -> Unit, onLink: 
     }
 }
 
-/** "내 닉네임" 칸: 기본 아바타 원과 자동 닉네임. */
+/** "내 닉네임" 칸: 왼쪽 둥근 얼굴 아바타와 자동 닉네임. */
 @Composable
 private fun NicknameBox(nickname: String) {
     Row(

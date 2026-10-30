@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -21,12 +22,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.a207.runkk.app.core.designsystem.AvatarExpression
+import com.a207.runkk.app.core.designsystem.RunkkAvatar
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkLoading
@@ -115,7 +120,10 @@ private fun SaveAction(state: ProfileEditUiState, onSave: () -> Unit) {
     }
 }
 
-/** 닉네임·한줄 소개 입력칸과 나이·성별 공개 스위치(G-2). 사진 칸과 성향 태그는 편집 항목에서 뺐다(D-287, D-91). */
+/**
+ * 맨 위 내 아바타 얼굴(보기만, R2-04·D86), 닉네임·한줄 소개 입력칸과 나이·성별 공개 스위치(G-2).
+ * 사진 칸과 성향 태그는 편집 항목에서 뺐다(D-287, D-91).
+ */
 @Composable
 private fun ProfileEditForm(
     state: ProfileEditUiState,
@@ -129,6 +137,7 @@ private fun ProfileEditForm(
         modifier = modifier.verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        ProfileAvatar(state)
         RunkkTextField(
             value = state.nickname,
             onValueChange = onNicknameChange,
@@ -174,6 +183,28 @@ private fun ProfileEditForm(
         )
     }
 }
+
+/** 내 아바타 얼굴(지름 88dp). 누를 수 없는 장식이다. */
+@Composable
+private fun ProfileAvatar(state: ProfileEditUiState) {
+    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        Box(
+            modifier = Modifier
+                .testTag(PROFILE_EDIT_AVATAR_TAG)
+                .size(AVATAR_SIZE)
+                .clip(CircleShape)
+                .background(RunkkColors.SurfacePressed),
+            contentAlignment = Alignment.Center
+        ) {
+            RunkkAvatar(state.faceKey, AvatarExpression.FACE, Modifier.size(AVATAR_SIZE), state.faceLayers)
+        }
+    }
+}
+
+/** 프로필 편집 맨 위 아바타의 시험 표지. */
+internal const val PROFILE_EDIT_AVATAR_TAG = "profile-edit-avatar"
+
+private val AVATAR_SIZE = 88.dp
 
 @Preview(name = "F3 프로필 편집", widthDp = 390, heightDp = 844)
 @Composable
