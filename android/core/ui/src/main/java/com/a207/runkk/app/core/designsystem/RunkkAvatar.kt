@@ -3,6 +3,7 @@ package com.a207.runkk.app.core.designsystem
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
@@ -28,6 +29,8 @@ fun RunkkAvatar(
             painterResource(defaultAvatarOf(expression)),
             contentDescription = null,
             contentScale = if (expression == AvatarExpression.FACE) ContentScale.Crop else ContentScale.Fit,
+            // 전신 그림은 칸 바닥에 발을 붙인다(가운데 맞춤이면 발밑이 떠 보인다). 얼굴은 가운데
+            alignment = if (expression == AvatarExpression.FACE) Alignment.Center else Alignment.BottomCenter,
             modifier = modifier.testTag(DEFAULT_AVATAR_TAG + expression.name)
         )
     }

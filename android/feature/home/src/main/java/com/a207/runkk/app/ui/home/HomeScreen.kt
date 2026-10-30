@@ -4,9 +4,15 @@ import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -15,6 +21,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -34,11 +41,16 @@ import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
@@ -65,6 +77,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.a207.runkk.app.core.designsystem.AvatarBackdrop
 import com.a207.runkk.app.core.designsystem.AvatarExpression
 import com.a207.runkk.app.core.designsystem.GuideStep
+import com.a207.runkk.app.core.designsystem.LocalReduceMotion
 import com.a207.runkk.app.core.designsystem.LocalReleaseScope
 import com.a207.runkk.app.core.designsystem.LocationConsentSheet
 import com.a207.runkk.app.core.designsystem.RUNKK_BOTTOM_BAR_HEIGHT
@@ -87,6 +100,7 @@ import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
 import java.util.Locale
+import kotlinx.coroutines.launch
 
 /** 홈(A-4): 상단(프로필 원·닉네임·티어·Lv, 리워드 잔액, 알림함), 이번 주 막대·연속·러닝 설정, 자유런·배틀런 카드, 가운데 아바타. */
 @Composable
@@ -362,7 +376,10 @@ private fun Room(state: HomeUiState, actions: HomeActions, bottomSpace: Dp) {
             .border(1.dp, RunkkColors.Border, shape)
     ) {
         AvatarBackdrop(if (isAvatarOpen) state.backgroundKey else null, modifier = Modifier.matchParentSize())
-        Column(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(
+            modifier = Modifier.matchParentSize().padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
             WeekRow(state, onSettings = { actions.onNavigate(Routes.FREE_RUN_SETTINGS) })
             RunCards(state, actions)
             // 대시보드를 못 읽었으면 막대 아래에 다시 읽기를 둔다(지난 값은 그대로 보인다).
@@ -373,7 +390,7 @@ private fun Room(state: HomeUiState, actions: HomeActions, bottomSpace: Dp) {
                     modifier = Modifier.clip(RoundedCornerShape(20.dp)).background(RunkkColors.Surface)
                 )
             }
-            RoomAvatar(state, isAvatarOpen, onAvatar = { actions.onNavigate(Routes.AVATAR) })
+            RoomAvatar(state, isAvatarOpen, onAvatar = { actions.onNavigate(Routes.AVATAR) }, Modifier.weight(1f))
             Spacer(Modifier.height(bottomSpace))
         }
     }
@@ -490,24 +507,54 @@ private fun RunCard(
     }
 }
 
-/** 가운데 아바타. 아바타 꾸미기가 열려 있을 때만 눌러 꾸미기로 간다(1차 배포는 눌러도 반응 없음, D-252). */
+/**
+ * 아바타. 카드 아래 남은 자리의 바닥(트랙)에 발을 붙여 세운다(피그마 A-4). 키는 남은 높이에 맞추되 [AVATAR_MAX_HEIGHT]를 넘지 않는다.
+ * 아바타 꾸미기가 열려 있을 때만 눌러 꾸미기로 간다(1차 배포는 눌러도 반응 없음, D-252).
+ */
 @Composable
-private fun RoomAvatar(state: HomeUiState, isAvatarOpen: Boolean, onAvatar: () -> Unit) {
+private fun RoomAvatar(state: HomeUiState, isAvatarOpen: Boolean, onAvatar: () -> Unit, modifier: Modifier = Modifier) {
     val description = stringResource(R.string.home_avatar_description)
     val editLabel = stringResource(R.string.home_house_edit_avatar)
+    val reduceMotion = LocalReduceMotion.current
+    val hop = remember { Animatable(0f) }
+    var isCheering by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    // 1차 배포는 눌러도 이동하지 않고, 기쁜 자세로 바뀌며 한 번 뛰었다 내려온다(장식이라 읽기 동작은 두지 않는다)
     val press = if (isAvatarOpen) {
         Modifier.clickable(role = Role.Button, onClickLabel = editLabel, onClick = onAvatar)
     } else {
-        Modifier
+        Modifier.pointerInput(reduceMotion) {
+            detectTapGestures {
+                if (reduceMotion || hop.isRunning) return@detectTapGestures
+                scope.launch {
+                    isCheering = true
+                    hop.animateTo(1f, tween(durationMillis = HOP_UP_MS, easing = FastOutSlowInEasing))
+                    hop.animateTo(0f, spring(dampingRatio = HOP_DAMPING, stiffness = Spring.StiffnessMediumLow))
+                    isCheering = false
+                }
+            }
+        }
     }
-    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp), contentAlignment = Alignment.Center) {
+    BoxWithConstraints(
+        modifier = modifier.fillMaxWidth().padding(bottom = AVATAR_GROUND_GAP),
+        contentAlignment = Alignment.BottomCenter
+    ) {
+        val height = maxHeight.coerceIn(AVATAR_MIN_HEIGHT, AVATAR_MAX_HEIGHT)
         Box(
             modifier = Modifier
                 .clip(RoundedCornerShape(32.dp))
                 .then(press)
                 .semantics { contentDescription = description }
         ) {
-            RunkkAvatar(state.faceKey, AvatarExpression.STAND, Modifier.size(AVATAR_SIZE), state.faceLayers)
+            RunkkAvatar(
+                state.faceKey,
+                if (isCheering) AvatarExpression.JOY else AvatarExpression.STAND,
+                Modifier
+                    .height(height)
+                    .aspectRatio(AVATAR_ASPECT)
+                    .graphicsLayer { translationY = -hop.value * HOP_HEIGHT.toPx() },
+                state.faceLayers
+            )
         }
     }
 }
@@ -518,7 +565,19 @@ internal fun compactKm(distance: Distance): String {
     return text.removeSuffix(".0")
 }
 
-private val AVATAR_SIZE = 240.dp
+private val AVATAR_MIN_HEIGHT = 160.dp
+private val AVATAR_MAX_HEIGHT = 360.dp
+
+/** 눌렀을 때 뛰어오르는 높이와 박자. */
+private val HOP_HEIGHT = 36.dp
+private const val HOP_UP_MS = 180
+private const val HOP_DAMPING = 0.45f
+
+/** 발과 탭 바 사이 트랙 여백(피그마 A-4). */
+private val AVATAR_GROUND_GAP = 40.dp
+
+/** 서 있는 그림 칸의 가로세로 비(그림은 칸 바닥에 붙어 그려지므로 칸이 조금 넓어도 된다). */
+private const val AVATAR_ASPECT = 0.6f
 private val ROOM_MIN_HEIGHT = 560.dp
 
 /** 배경 장면 카드(방)의 시험 표지. */
