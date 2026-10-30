@@ -252,7 +252,7 @@ class RunimalScreenTest {
     }
 
     @Test
-    fun `1차 배포(CARD_SHARE 닫힘)에서는 공유 버튼이 없고 다음 확정까지 남은 횟수는 보인다`() {
+    fun `1차 배포(RUNIMAL_SHARE 닫힘)에서는 공유 버튼이 없고 다음 확정까지 남은 횟수는 보인다`() {
         compose.setContent {
             CompositionLocalProvider(LocalReleaseScope provides ReleaseScope.FIRST_RELEASE) {
                 RunkkTheme(reduceMotion = true) {

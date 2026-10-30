@@ -331,7 +331,8 @@ private fun CountdownBall(number: Int, onTap: () -> Unit) {
         value
     }
     val startNow = stringResource(R.string.run_countdown_start_now)
-    val outer = RunkkColors.Lime
+    // 바깥 원은 채움이라 라이트에서도 라임이다(D85).
+    val outer = RunkkColors.LimeFill
     val ring = RunkkColors.LimeContainer
     Box(
         modifier = Modifier
@@ -479,8 +480,8 @@ private fun RunningControls(actions: RunActions) {
             icon = RunkkIcons.Pause,
             contentDescription = stringResource(R.string.run_pause_desc),
             onClick = actions.onPause,
-            background = RunkkColors.Lime,
-            tint = RunkkColors.OnLime,
+            background = RunkkColors.LimeFill,
+            tint = RunkkColors.OnLimeFill,
             shape = CutCornerShape(percent = OCTAGON_CUT)
         )
     }

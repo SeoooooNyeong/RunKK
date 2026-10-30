@@ -105,6 +105,16 @@ class ColorContrastTest {
         assertEquals(dark.border, dark.backButtonBorder)
     }
 
+    @Test
+    fun `D95 Runimal 그림 바탕은 라이트에서 피그마 연두 네모, 다크에서 어두운 카드색에 옅은 테두리다`() {
+        val light = RunkkColors.light
+        assertEquals(Color(0xFFE9EEDC), light.runimalTile)
+        assertEquals(Color(0xFFD3D9C6), light.runimalTileBorder)
+        val dark = RunkkColors.dark
+        assertEquals(dark.surface, dark.runimalTile)
+        assertEquals(dark.borderStrong, dark.runimalTileBorder)
+    }
+
     /** 글자 토큰: text·on으로 시작하는 이름과 강조 글자에도 쓰는 lime·lavender. */
     private fun textTokens(tokens: Map<String, Color>): Set<String> =
         tokens.keys.filter { it.startsWith("text") || ON_PREFIX.matches(it) || it in ACCENT_TEXT }.toSet()

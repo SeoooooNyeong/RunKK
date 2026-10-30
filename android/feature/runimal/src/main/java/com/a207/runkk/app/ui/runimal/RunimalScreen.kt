@@ -72,7 +72,7 @@ import com.a207.runkk.app.domain.runimal.RunimalCard
 import com.a207.runkk.app.domain.runimal.RunimalStatus
 import kotlin.math.roundToInt
 
-/** MY 러니멀(G-4): 유형 카드·남은 횟수·성향 막대·16유형·카드 공유(CARD_SHARE가 열려 있을 때만). */
+/** MY 러니멀(G-4): 유형 카드·남은 횟수·성향 막대·16유형·카드 공유(RUNIMAL_SHARE가 열려 있을 때만). */
 @Composable
 fun RunimalRoute(viewModel: RunimalViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -105,8 +105,8 @@ fun RunimalScreen(
             onMessageShown()
         }
     }
-    // 카드 공유는 1차 배포에서 닫는다(D-252, D-285).
-    val isShareOpen = LocalReleaseScope.current.isOpen(UnreleasedFeature.CARD_SHARE)
+    // Runimal 카드 공유는 1차 배포에서 닫는다(D-252, D-285, D93).
+    val isShareOpen = LocalReleaseScope.current.isOpen(UnreleasedFeature.RUNIMAL_SHARE)
     Box(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
         Column(modifier = Modifier.fillMaxSize()) {
             RunkkTopBar(title = stringResource(R.string.runimal_title), onBack = onBack)
@@ -364,10 +364,10 @@ private fun AllTypes(status: RunimalStatus) {
                             .weight(1f)
                             .aspectRatio(1f)
                             .clip(SMALL_TILE_SHAPE)
-                            .background(RunimalTileFill)
+                            .background(RunkkColors.RunimalTile)
                             .border(
                                 if (mine) 2.dp else 1.dp,
-                                if (mine) RunkkColors.Lime else RunimalTileBorder,
+                                if (mine) RunkkColors.Lime else RunkkColors.RunimalTileBorder,
                                 SMALL_TILE_SHAPE
                             )
                             .clearAndSetSemantics {

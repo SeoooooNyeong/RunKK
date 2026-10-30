@@ -68,6 +68,10 @@ class RunkkColors(
     val onBackButton: Color,
     /** 뒤로 버튼 테두리. */
     val backButtonBorder: Color,
+    /** Runimal 그림 바탕(연한 둥근 네모, G-4·G-6·G-11). 다크는 카드색이다(D95). */
+    val runimalTile: Color,
+    /** Runimal 그림 바탕 테두리와 16유형 "내 유형" 칸 테두리(G-5). 다크는 옅은 회색이다. */
+    val runimalTileBorder: Color,
     /** 상대·실시간·종료·그만두기 강조. */
     val lavender: Color,
     /** 브랜드 바이올렛. */
@@ -108,6 +112,8 @@ class RunkkColors(
                 backButton = Color(0xFF18181B),
                 onBackButton = Color(0xFFFAFAFA),
                 backButtonBorder = Color(0xFF27272A),
+                runimalTile = Color(0xFF18181B),
+                runimalTileBorder = Color(0xFF3F3F46),
                 lavender = Color(0xFF9C92F0),
                 violet = Color(0xFF5B4FD9),
                 ink = Color(0xFF1C2112),
@@ -148,6 +154,8 @@ class RunkkColors(
                 backButton = Color(0xFF5C4BDB),
                 onBackButton = Color(0xFFFFFFFF),
                 backButtonBorder = Color(0xFF5C4BDB),
+                runimalTile = Color(0xFFE9EEDC),
+                runimalTileBorder = Color(0xFFD3D9C6),
                 lavender = Color(0xFF5B4FD9),
                 violet = Color(0xFF5B4FD9),
                 ink = Color(0xFF1C2112),
@@ -263,6 +271,14 @@ class RunkkColors(
         val BackButtonBorder: Color
             @Composable @ReadOnlyComposable
             get() = LocalRunkkColors.current.backButtonBorder
+
+        val RunimalTile: Color
+            @Composable @ReadOnlyComposable
+            get() = LocalRunkkColors.current.runimalTile
+
+        val RunimalTileBorder: Color
+            @Composable @ReadOnlyComposable
+            get() = LocalRunkkColors.current.runimalTileBorder
 
         val Lavender: Color
             @Composable @ReadOnlyComposable

@@ -84,7 +84,11 @@ fun ProfileEditScreen(
     }
     Box(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
         Column(modifier = Modifier.fillMaxSize()) {
-            RunkkTopBar(title = stringResource(R.string.me_profile_edit_title), onBack = onBack) {
+            RunkkTopBar(
+                title = stringResource(R.string.me_profile_edit_title),
+                onBack = onBack,
+                isTitleCentered = true
+            ) {
                 SaveAction(state, onSave)
             }
             if (state.isLoading) {

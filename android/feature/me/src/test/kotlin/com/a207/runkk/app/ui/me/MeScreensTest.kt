@@ -230,6 +230,25 @@ class MeScreensTest {
     }
 
     @Test
+    fun `G-2 프로필 편집 제목은 바 가운데에 있다`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                ProfileEditScreen(
+                    ProfileEditUiState(isLoading = false, nickname = "달리는곰"),
+                    onBack = {},
+                    onNicknameChange = {},
+                    onIntroChange = {},
+                    onSave = {},
+                    onErrorShown = {}
+                )
+            }
+        }
+        val screen = compose.onRoot().getUnclippedBoundsInRoot()
+        val title = compose.onNode(hasText("프로필 편집") and isHeading()).getUnclippedBoundsInRoot()
+        assertEquals((screen.left + screen.right).value / 2f, (title.left + title.right).value / 2f, 1f)
+    }
+
+    @Test
     fun `R2-07 동의 항목은 카드 없이 필수 넷, 구분선, 선택 둘 순서이고 제목은 가운데다(A-2)`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) { SignUpScreen(SignUpUiState(), isGuest = false, SignUpActions()) }
@@ -263,7 +282,7 @@ class MeScreensTest {
     }
 
     @Test
-    fun `R2-09 자유런 목표 거리 첫 칸은 자유다(A-5)`() {
+    fun `R2-09 자유런 목표 거리 첫 칸은 자유이고 제목은 가운데다(A-5)`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 SettingsScreen(
@@ -275,6 +294,10 @@ class MeScreensTest {
         }
         compose.onNodeWithText("자유").assertExists()
         compose.onNodeWithText("목표 없음").assertDoesNotExist()
+        // 제목은 바 가운데(A-5)
+        val screen = compose.onRoot().getUnclippedBoundsInRoot()
+        val title = compose.onNode(hasText("러닝 설정") and isHeading()).getUnclippedBoundsInRoot()
+        assertEquals((screen.left + screen.right).value / 2f, (title.left + title.right).value / 2f, 1f)
     }
 
     @Test

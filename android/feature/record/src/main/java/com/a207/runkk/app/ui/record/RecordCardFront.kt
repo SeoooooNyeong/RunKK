@@ -37,7 +37,7 @@ import java.util.Locale
 
 /**
  * 기록 카드 앞면(B-7, FR-068): 날짜·시각과 날씨, 기본 아바타, 큰 거리와 "신기록", 운동 시간·평균 페이스·평균 심박,
- * "[닉네임], 런크크" 서명. 종류 라벨은 없다. 뒷면(코스)과 공유는 CARD_SHARE가 열릴 때만 있다(D-252).
+ * "[닉네임], 런크크" 서명. 종류 라벨은 없다. 뒷면(코스)은 CARD_BACK이 열릴 때만 있다(D-252, D93).
  */
 @Composable
 fun RecordCardFront(card: RunCard, modifier: Modifier = Modifier) {
