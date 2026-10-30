@@ -323,13 +323,13 @@ docker exec runkk-prod-api-1 sh -c 'zcat /var/log/runkk/api.2026-11-03.*.log.gz 
 | 경로 | 파일 | 용도 |
 |------|------|------|
 | `/.well-known/assetlinks.json` | `nginx/static/.well-known/assetlinks.json` | Android App Links 도메인 검증(앱이 있으면 링크가 앱으로 열린다) |
-| `/invite/card.png` | `nginx/static/invite/card.png` | 카카오톡 공유 카드 이미지(앱 링크 경로 `/invite/battle/` 밖에 둔다. 안에 두면 앱 링크가 그림 주소를 가로챈다. 디자인 n-c11-kakao의 카드 그림, 233×115) |
+| `/invite/card.png` | `nginx/static/invite/card.png` | 카카오톡 공유 카드 이미지(앱 링크 경로 `/invite/battle/` 밖에 둔다. 안에 두면 앱 링크가 그림 주소를 가로챈다. 피그마 C-11 카카오톡 초대 카드 그림(61002:2174), 800×400) |
 | `/invite/battle/{token}` | `nginx/static/invite/battle/index.html` | 앱이 없을 때 보이는 스토어 안내 페이지(Android에서는 intent로 앱 열기를 다시 시도) |
 
-**배포 전에 할 일**: `assetlinks.json`의 지문은 자리표시(`REPLACE_WITH_…`)다. 실제 SHA-256 지문으로 바꿔 커밋한다.
+**배포 전에 할 일**: `assetlinks.json`에는 운영 앱과 베타 앱만 둔다(결정 D66, 디버그 키와 `.local`은 넣지 않는다). Play 앱 서명 키 지문 3개와 업로드 키 지문을 채웠다(2026-10-30 Play Console 앱 서명 화면). 키를 바꾸면 이 파일도 바꾼다. 8443 링크도 포트를 구분하지 않으므로 이 파일로 검증된다.
 
 - `com.a207.runkk`(prod): Play Console > 앱 무결성 > 앱 서명의 **앱 서명 키** 지문과 **업로드 키** 지문
-- `com.a207.runkk.dev`: 업로드 키(또는 dev 서명 키) 지문, 필요하면 디버그 키
-- `com.a207.runkk.local`: 디버그 키 지문(`keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android`)
+- `com.a207.runkk.dev`: 업로드 키 지문(CI가 업로드 키로 서명한다)
+- `com.a207.runkk.local`: 넣지 않는다. 로컬 빌드에서 초대 링크는 브라우저 안내 페이지로 열린다
 
 확인: `curl -s https://k15a207.p.ssafy.io/.well-known/assetlinks.json`이 JSON(`Content-Type: application/json`)을 주고, 리다이렉트가 없어야 한다. 기기에서는 `adb shell pm get-app-links com.a207.runkk`로 `verified`를 본다. 카드 이미지가 더 큰 해상도로 필요하면 같은 이름으로 바꾸면 된다(앱은 주소만 쓴다).
