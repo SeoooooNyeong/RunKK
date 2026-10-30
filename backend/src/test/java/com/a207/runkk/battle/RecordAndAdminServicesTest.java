@@ -26,6 +26,7 @@ import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.common.StandardDistance;
 import com.a207.runkk.common.Tier;
 import com.a207.runkk.member.ConsentItem;
+import com.a207.runkk.member.Gender;
 import com.a207.runkk.member.MemberQueryService;
 import com.a207.runkk.member.MemberWithdrawn;
 import com.a207.runkk.policy.OperationPolicy;
@@ -202,6 +203,72 @@ class RecordAndAdminServicesTest {
         assertThatThrownBy(() -> records.startCelebrityBattle(ALICE, 404L))
                 .extracting(e -> ((BusinessRuleException) e).reason())
                 .isEqualTo(ReasonCode.CELEBRITY_REMOVED);
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName(
+            "셀럽 캐릭터(2026-10-31 결정): 그림 키가 후보·대결 시작·진행 중 대결에 실리고 대결에 남는다. 없거나 빈 키는 null(공통 그림),"
+                    + " 20자를 넘으면 VALUE_INVALID")
+    void celebrityFigure() {
+        CelebrityRecord lee =
+                celebrities.save(
+                        CelebrityRecord.register(
+                                new CelebrityInput(
+                                        "이O주",
+                                        FIVE_K,
+                                        Duration.ofMinutes(15),
+                                        List.of(),
+                                        "출처",
+                                        null,
+                                        null,
+                                        " lee "),
+                                NOW));
+        assertThat(lee.figureKey()).contains("lee");
+        assertThat(celebrity(List.of()).figureKey()).isEmpty();
+        assertThat(
+                        CelebrityRecord.register(
+                                        new CelebrityInput(
+                                                "a",
+                                                FIVE_K,
+                                                Duration.ofHours(1),
+                                                null,
+                                                "s",
+                                                null,
+                                                null,
+                                                "  "),
+                                        NOW)
+                                .figureKey())
+                .isEmpty();
+        assertThatThrownBy(
+                        () ->
+                                CelebrityRecord.register(
+                                        new CelebrityInput(
+                                                "a",
+                                                FIVE_K,
+                                                Duration.ofHours(1),
+                                                null,
+                                                "s",
+                                                null,
+                                                null,
+                                                "x".repeat(21)),
+                                        NOW))
+                .extracting(e -> ((BusinessRuleException) e).reason())
+                .isEqualTo(ReasonCode.VALUE_INVALID);
+
+        assertThat(records.celebrityCandidates(ALICE, Optional.empty()).candidates())
+                .extracting(RecordBattleCandidates.Candidate::figureKey)
+                .containsExactlyInAnyOrder("lee", null);
+        RecordBattleStart start = records.startCelebrityBattle(ALICE, lee.getId());
+        assertThat(start.figureKey()).isEqualTo("lee");
+        assertThat(battles.findById(start.battleId()).orElseThrow().getOpponentFigure())
+                .contains("lee");
+        BattleHistoryService history = new BattleHistoryService(battles, members, celebrities);
+        assertThat(history.active(ALICE).orElseThrow().celebrityFigure()).isEqualTo("lee");
+
+        bestFiveK();
+        RecordBattleStart self = records.startSelfBattle(ALICE, StandardDistance.KM5);
+        assertThat(self.figureKey()).isNull();
+        assertThat(history.active(ALICE).orElseThrow().celebrityFigure()).isNull();
     }
 
     @Test
@@ -400,6 +467,7 @@ class RecordAndAdminServicesTest {
                         BattleFixtures.assigned(BOB, StandardDistance.KM5),
                         NOW);
         random.scheduleStart(NOW.plusSeconds(13));
+        random.showMemberAs(BOB, Gender.MALE);
         battles.save(random);
         when(members.summaries(anyCollection()))
                 .thenReturn(Map.of(BOB, BattleFixtures.summary(BOB, Tier.GOLD)));
@@ -409,6 +477,7 @@ class RecordAndAdminServicesTest {
         assertThat(view.status()).isEqualTo(BattleStatus.WAITING_START);
         assertThat(view.distance()).isEqualTo(FIVE_K);
         assertThat(view.opponentName().value()).isEqualTo("러너" + BOB);
+        assertThat(view.opponentGender()).as("상대 캐릭터 성별(2026-10-31 결정)").isEqualTo("MALE");
         assertThat(view.startAt()).isEqualTo(NOW.plusSeconds(13));
         random.cancelIfUnstarted(NOW.plusSeconds(5));
         battles.save(random);
@@ -417,6 +486,7 @@ class RecordAndAdminServicesTest {
         Battle ghost =
                 Battle.againstRecord(
                         BattleFixtures.spec(BattleType.GHOST, Duration.ofMinutes(25)), NOW);
+        ghost.showOpponentAs(Gender.FEMALE);
         ghost.scheduleStart(NOW.plusSeconds(13));
         ghost.start(NOW.plusSeconds(13));
         battles.save(ghost);
@@ -424,6 +494,7 @@ class RecordAndAdminServicesTest {
         assertThat(running.type()).isEqualTo(BattleType.GHOST);
         assertThat(running.status()).isEqualTo(BattleStatus.IN_PROGRESS);
         assertThat(running.opponentName().value()).isEqualTo("가상러너");
+        assertThat(running.opponentGender()).isEqualTo("FEMALE");
         ghost.forfeit(ALICE, NOW.plusMinutes(1));
         battles.save(ghost);
 
@@ -434,6 +505,7 @@ class RecordAndAdminServicesTest {
         assertThat(self.type()).isEqualTo(BattleType.SELF);
         assertThat(self.status()).isEqualTo(BattleStatus.IN_PROGRESS);
         assertThat(self.startAt()).isNull();
+        assertThat(self.opponentGender()).as("과거의 나는 성별을 정하지 않는다").isNull();
     }
 
     @Test

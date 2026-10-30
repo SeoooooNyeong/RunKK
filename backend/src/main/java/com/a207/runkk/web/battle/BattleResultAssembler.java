@@ -63,6 +63,8 @@ class BattleResultAssembler {
                 view.opponentName().value(),
                 myRecordId,
                 rewardPoints + runPoints,
-                evaluation);
+                evaluation,
+                view.opponentGender(),
+                view.celebrityFigure());
     }
 }

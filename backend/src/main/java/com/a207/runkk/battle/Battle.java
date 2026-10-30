@@ -5,6 +5,7 @@ import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.Pace;
 import com.a207.runkk.common.StandardDistance;
 import com.a207.runkk.common.Tier;
+import com.a207.runkk.member.Gender;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -118,6 +119,15 @@ public class Battle {
     @Column(name = "opponent_fastest_km_seconds", updatable = false)
     private Integer opponentFastestKmSeconds;
 
+    /** 유명인 캐릭터 그림 키(2026-10-31 결정). 유명인 기록이 지워져도 결과 화면이 같은 그림이도록 남긴다. */
+    @Column(name = "opponent_figure", length = 20, updatable = false)
+    private String opponentFigure;
+
+    /** 기록 상대 캐릭터 성별(2026-10-31 결정). 고스트만 매칭 때 정하고 셀럽·나와의 싸움은 null이다. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "opponent_gender", length = 6)
+    private Gender opponentGender;
+
     @Column(name = "opponent_arrives_at")
     private LocalDateTime opponentArrivesAt;
 
@@ -203,6 +213,7 @@ public class Battle {
         battle.participants.add(new BattleParticipant(spec.memberId()));
         battle.keepOpponent(spec.opponent(), spec.track());
         battle.keepOpponentValues(spec.opponentValues());
+        battle.opponentFigure = spec.opponentFigure();
         if (initial == BattleStatus.IN_PROGRESS) {
             battle.maxEndsAt = now.plus(battle.maxDuration());
         }
@@ -222,6 +233,38 @@ public class Battle {
     private void keepOpponentValues(ComparisonValues values) {
         opponentPaceSeconds = values.averagePaceValue().map(Pace::secondsPerKm).orElse(null);
         opponentFastestKmSeconds = values.fastestKmValue().map(Pace::secondsPerKm).orElse(null);
+    }
+
+    /**
+     * 기록 상대 캐릭터 성별을 정한다(GhostMatcher, 2026-10-31 결정). 한 번만 정하고 남·여만 받는다. 기록 상대가 없거나 이미 정했으면
+     * IllegalStateException.
+     */
+    public void showOpponentAs(Gender gender) {
+        requireShown(gender);
+        if (opponentKind == null || opponentGender != null) {
+            throw new IllegalStateException("기록 상대 성별을 정할 수 없다: " + opponentKind);
+        }
+        opponentGender = gender;
+    }
+
+    /** 다른 참가자에게 보이는 그 참가자의 캐릭터 성별을 정한다(랜덤·친구 대결 성사, BattleStartService.announceMatch). */
+    public void showMemberAs(long memberId, Gender gender) {
+        requireShown(gender);
+        requireParticipant(memberId).showAs(gender);
+    }
+
+    private static void requireShown(Gender gender) {
+        if (gender != Gender.MALE && gender != Gender.FEMALE) {
+            throw new IllegalArgumentException("상대 성별은 남·여만: " + gender);
+        }
+    }
+
+    /** 회원이 보는 상대 캐릭터 성별: 기록 상대면 대결에 남긴 값, 랜덤·친구 대결이면 다른 참가자의 값. 정하지 않았으면 비어 있다. */
+    public Optional<Gender> opponentGenderFor(long memberId) {
+        if (opponentKind != null) {
+            return Optional.ofNullable(opponentGender);
+        }
+        return rivalOf(memberId).flatMap(BattleParticipant::getShownGender);
     }
 
     /** 출발 시각(성사 + 3초 + 10초, D-17). WAITING_START만. */
@@ -307,20 +350,19 @@ public class Battle {
     }
 
     /**
-     * 포기를 취소로 처리할 수 있으면 CANCELLED(closedAt = now, 활성 칸 비움)로 바꾸고 true(v0.14 D-228): 출발
-     * 전(cancelIfUnstarted 조건)이거나, 셀프런·셀럽런(type.cancelsOnForfeit)이 활성이면 취소다. 그 밖(랜덤·고스트·친구 대결의 진행 중
-     * 포기, 끝난 대결)은 그대로 두고 false이고 부르는 쪽이 forfeit(패)로 처리한다.
+     * 러너의 대결 취소(BattleResultService.cancel, 2026-10-30 결정). 셀프런·셀럽런(type.allowsCancel)의 활성 대결을 출발
+     * 여부와 상관없이 CANCELLED(closedAt = now, 활성 칸 비움)로 바꾼다. 판정·이력·전적·리워드가 없다. 취소할 수 없는 종류이거나 활성이 아니면
+     * IllegalStateException이다(종류 거부는 서비스가 사유 코드로 먼저 막는다).
      */
-    public boolean cancelOnForfeit(LocalDateTime now) {
-        if (cancelIfUnstarted(now)) {
-            return true;
+    public void cancelByRunner(LocalDateTime now) {
+        if (!type.allowsCancel()) {
+            throw new IllegalStateException("취소할 수 없는 대결 종류: " + type);
         }
-        if (!type.cancelsOnForfeit() || !status.isActive()) {
-            return false;
+        if (!status.isActive()) {
+            throw new IllegalStateException("활성 대결만 취소할 수 있다: " + status);
         }
         closedAt = now;
         moveTo(BattleStatus.CANCELLED);
-        return true;
     }
 
     /** 그 참가자의 기록 ID를 비운다(기록 삭제, v0.14 D-232). 참가자가 아니면 아무것도 하지 않는다. */
@@ -394,7 +436,10 @@ public class Battle {
         requireParticipant(memberId).reconnect(at);
     }
 
-    /** 포기. 포기자 패, 상대(다른 참가자 또는 기록 상대) 승. FINISHED. 출발 전 대결은 cancelIfUnstarted로 취소한다. */
+    /**
+     * 포기. 포기자 패, 상대(다른 참가자 또는 기록 상대) 승. FINISHED. 셀프런·셀럽런도 같다(2026-10-30 결정). 출발 전 대결은
+     * cancelIfUnstarted로 취소한다.
+     */
     public void forfeit(long memberId, LocalDateTime now) {
         BattleParticipant quitter = requireParticipant(memberId);
         if (!status.isRunning()) {
@@ -682,6 +727,11 @@ public class Battle {
                         DisplayName.of(opponentName),
                         opponentTier,
                         Duration.ofMillis(opponentArrivalMillis)));
+    }
+
+    /** 유명인 캐릭터 그림 키. 유명인 대결이 아니거나 키 없이 등록한 유명인이면 비어 있다. */
+    public Optional<String> getOpponentFigure() {
+        return Optional.ofNullable(opponentFigure);
     }
 
     /** 기록 상대 표(BattleStart·기록 대결 시작 정보). 랜덤 대결이면 비어 있다. */

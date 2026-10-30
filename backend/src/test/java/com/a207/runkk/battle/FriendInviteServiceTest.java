@@ -22,6 +22,7 @@ import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.common.StandardDistance;
 import com.a207.runkk.common.Tier;
 import com.a207.runkk.member.ConsentItem;
+import com.a207.runkk.member.Gender;
 import com.a207.runkk.member.MemberQueryService;
 import com.a207.runkk.member.MemberSettingService;
 import com.a207.runkk.member.MemberSummary;
@@ -117,7 +118,8 @@ class FriendInviteServiceTest {
                         });
         availability = new RunnerAvailability(queue, battles, invites);
         startService =
-                new BattleStartService(battles, members, runs, messenger, sessions, clock, tx);
+                new BattleStartService(
+                        battles, members, runs, messenger, sessions, clock, tx, () -> -1L);
         service =
                 new FriendInviteService(
                         invites,
@@ -275,6 +277,25 @@ class FriendInviteServiceTest {
         assertThat(toJoiner.opponentTier()).isEqualTo(Tier.GOLD);
         assertThat(messenger.to(INVITER, "BattleStart")).hasSize(1);
         assertThat(messenger.to(JOINER, "BattleStart")).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("친구 대결 수락: 서로 상대(친구) 회원의 성별을 MatchFound에 싣는다(2026-10-31 결정)")
+    void accept_sendsFriendGender() {
+        when(members.publicGendersOf(anyCollection()))
+                .thenReturn(Map.of(INVITER, Gender.FEMALE, JOINER, Gender.MALE));
+        FriendInviteIssue issue = invite();
+        now(1, 0);
+
+        long battleId = service.accept(JOINER, issue.token());
+
+        MatchFound toJoiner = (MatchFound) messenger.to(JOINER, "MatchFound").get(0);
+        MatchFound toInviter = (MatchFound) messenger.to(INVITER, "MatchFound").get(0);
+        assertThat(toJoiner.opponentGender()).isEqualTo("FEMALE");
+        assertThat(toInviter.opponentGender()).isEqualTo("MALE");
+        Battle battle = battles.findById(battleId).orElseThrow();
+        assertThat(battle.opponentGenderFor(JOINER)).contains(Gender.FEMALE);
+        assertThat(battle.opponentGenderFor(INVITER)).contains(Gender.MALE);
     }
 
     private static BestEntry best(String recordId, Duration time) {

@@ -29,6 +29,9 @@ public class CelebrityRecord implements OpponentRecord {
     /** 익명 닉네임 최대 길이(대결 표시명). */
     static final int NAME_MAX = 20;
 
+    /** 캐릭터 그림 키 최대 길이(V32). */
+    static final int FIGURE_KEY_MAX = 20;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -62,6 +65,10 @@ public class CelebrityRecord implements OpponentRecord {
     @Column(name = "real_name_consent_basis", length = 200)
     private String realNameConsentBasis;
 
+    /** 앱 전용 캐릭터 그림 키(2026-10-31 결정). null이면 앱이 공통 셀럽 그림을 쓴다. */
+    @Column(name = "figure_key", length = FIGURE_KEY_MAX)
+    private String figureKey;
+
     protected CelebrityRecord() {}
 
     private CelebrityRecord(CelebrityInput in, OpponentTrack track, LocalDateTime now) {
@@ -76,12 +83,13 @@ public class CelebrityRecord implements OpponentRecord {
             this.realNameConsentedAt = in.realNameConsent().consentedAt();
             this.realNameConsentBasis = in.realNameConsent().basis().strip();
         }
+        this.figureKey = isBlank(in.figureKey()) ? null : in.figureKey().strip();
     }
 
     /**
      * 등록(srs.md 6.3 7.1). 출처명 빔 → SOURCE_REQUIRED, 익명 닉네임 빔 → ANONYMOUS_NAME_REQUIRED, 거리·시간 ≤ 0 →
      * VALUE_INVALID, 거리가 5·10km·하프·풀이 아님 → BATTLE_DISTANCE_INVALID(배틀런 QA 결정), 구간이 줄어듦 →
-     * SPLITS_INVALID.
+     * SPLITS_INVALID. 캐릭터 그림 키가 20자를 넘으면 VALUE_INVALID, 비어 있으면 없는 것으로 본다.
      */
     public static CelebrityRecord register(CelebrityInput in, LocalDateTime now) {
         // 실명 등록은 코치 동의 일시·근거가 함께 있어야 한다(FR-170, v0.14 D-240). 이름 칸은 표시명 그대로 쓴다
@@ -94,7 +102,10 @@ public class CelebrityRecord implements OpponentRecord {
         if (isBlank(in.anonymousName()) || in.anonymousName().strip().length() > NAME_MAX) {
             throw new BusinessRuleException(ReasonCode.ANONYMOUS_NAME_REQUIRED);
         }
-        if (in.distance() == null || in.distance().meters() <= 0 || !isPositive(in.finishTime())) {
+        if (in.distance() == null
+                || in.distance().meters() <= 0
+                || !isPositive(in.finishTime())
+                || (!isBlank(in.figureKey()) && in.figureKey().strip().length() > FIGURE_KEY_MAX)) {
             throw new BusinessRuleException(ReasonCode.VALUE_INVALID);
         }
         if (!isCelebrityDistance(in.distance())) {
@@ -129,6 +140,11 @@ public class CelebrityRecord implements OpponentRecord {
 
     private Optional<OpponentTrack> storedSplits() {
         return Optional.ofNullable(splits).map(OpponentTrack::decode);
+    }
+
+    @Override
+    public Optional<String> figureKey() {
+        return Optional.ofNullable(figureKey);
     }
 
     /** 구간 기록이 없어 평균 페이스로 추정한 표인가(화면 "평균 페이스로 추정", A-006). */

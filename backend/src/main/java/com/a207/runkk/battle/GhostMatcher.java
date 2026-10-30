@@ -2,6 +2,7 @@ package com.a207.runkk.battle;
 
 import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.Tier;
+import com.a207.runkk.member.Gender;
 import com.a207.runkk.member.GhostOwner;
 import com.a207.runkk.member.MemberQueryService;
 import com.a207.runkk.running.OwnedRun;
@@ -18,7 +19,8 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 15초 넘게 상대를 못 찾은 대기자에게 고스트 대결을 만든다(설계 6.1.6, A-07, srs.md 6.3 4.6, SQ-06). 같은 티어 → 인접 → 전체 순으로 다른
  * 러너의 전체공개 유효 기록(경로 남음)을 찾고, 세 단계 모두 없으면 같은 티어 가상 기록 5개 중 하나를 쓴다(Q-61). 고스트 후보는
- * MemberQueryService·RunQueryService 조합으로 구한다(D-32, D-51).
+ * MemberQueryService·RunQueryService 조합으로 구한다(D-32, D-51). 상대 캐릭터 성별은 러너 기록이면 기록 주인 성별(없으면 무작위), 가상
+ * 기록이면 무작위로 정해 대결에 남긴다(2026-10-31 결정).
  */
 @Service
 public class GhostMatcher {
@@ -49,16 +51,21 @@ public class GhostMatcher {
     @Transactional
     public Battle match(MatchTicket ticket, LocalDateTime now) {
         Distance distance = ticket.getDistance().distance();
-        OpponentRecord opponent =
-                findRunner(ticket).orElseGet(() -> virtualOf(ticket.getTier(), ticket));
+        Ghost ghost = findRunner(ticket).orElseGet(() -> virtualOf(ticket.getTier(), ticket));
         RecordBattleSpec spec =
-                RecordBattleSpec.of(BattleType.GHOST, ticket.getMemberId(), distance, opponent);
-        Battle battle = battleRepository.save(Battle.againstRecord(spec, now));
+                RecordBattleSpec.of(
+                        BattleType.GHOST, ticket.getMemberId(), distance, ghost.record());
+        Battle created = Battle.againstRecord(spec, now);
+        created.showOpponentAs(ghost.gender());
+        Battle battle = battleRepository.save(created);
         battleStartService.announceMatch(battle);
         return battle;
     }
 
-    private Optional<OpponentRecord> findRunner(MatchTicket ticket) {
+    /** 고른 상대 기록과 그 캐릭터 성별. */
+    private record Ghost(OpponentRecord record, Gender gender) {}
+
+    private Optional<Ghost> findRunner(MatchTicket ticket) {
         for (Set<Tier> tiers : ticket.getTier().searchLadder()) {
             Map<Long, GhostOwner> owners =
                     memberQueryService.ghostEligibleOwners(tiers, ticket.getMemberId());
@@ -69,7 +76,14 @@ public class GhostMatcher {
                     runQueryService.validRunsReaching(ticket.getDistance(), owners.keySet());
             if (!candidates.isEmpty()) {
                 OwnedRun chosen = candidates.get(random.nextInt(candidates.size()));
-                return Optional.of(opponentOf(chosen, owners.get(chosen.memberId()), ticket));
+                Gender gender =
+                        memberQueryService
+                                .publicGendersOf(List.of(chosen.memberId()))
+                                .get(chosen.memberId());
+                return Optional.of(
+                        new Ghost(
+                                opponentOf(chosen, owners.get(chosen.memberId()), ticket),
+                                OpponentGenders.of(gender, random)));
             }
         }
         return Optional.empty();
@@ -84,12 +98,13 @@ public class GhostMatcher {
     }
 
     /** 가상 기록은 늘 있다(Q-61, 서버 시작 때 100개). */
-    private OpponentRecord virtualOf(Tier tier, MatchTicket ticket) {
+    private Ghost virtualOf(Tier tier, MatchTicket ticket) {
         List<VirtualRecord> records =
                 virtualRecordRepository.findByTierAndDistance(tier, ticket.getDistance());
         if (records.isEmpty()) {
             throw new IllegalStateException("가상 기록이 없다: " + tier + " " + ticket.getDistance());
         }
-        return records.get(random.nextInt(records.size()));
+        VirtualRecord chosen = records.get(random.nextInt(records.size()));
+        return new Ghost(chosen, OpponentGenders.random(random));
     }
 }

@@ -10,6 +10,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.a207.runkk.common.StandardDistance;
+import com.a207.runkk.member.Gender;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -382,6 +383,52 @@ class BattleTest {
             battle.start(NOW.plusSeconds(13));
             battle.forfeit(ALICE, NOW.plusMinutes(1));
             assertThat(battle.getJudgement().orElseThrow().winnerSide()).contains(Side.OPPONENT);
+        }
+    }
+
+    @Nested
+    @DisplayName("상대 캐릭터 성별(2026-10-31 결정)")
+    class OpponentGender {
+
+        @Test
+        @DisplayName("기록 상대는 대결에 남긴 성별이고 한 번만 정한다. 정하지 않은 셀럽·나와의 싸움은 비어 있다")
+        void recordOpponent_keepsShownGender() {
+            Battle ghost =
+                    Battle.againstRecord(spec(BattleType.GHOST, Duration.ofMinutes(25)), NOW);
+            ghost.showOpponentAs(Gender.FEMALE);
+            assertThat(ghost.opponentGenderFor(ALICE)).contains(Gender.FEMALE);
+            assertThatThrownBy(() -> ghost.showOpponentAs(Gender.MALE))
+                    .isInstanceOf(IllegalStateException.class);
+            assertThat(ghost.opponentGenderFor(ALICE)).contains(Gender.FEMALE);
+
+            Battle celebrity =
+                    Battle.againstRecord(spec(BattleType.CELEBRITY, Duration.ofMinutes(25)), NOW);
+            assertThat(celebrity.opponentGenderFor(ALICE)).isEmpty();
+        }
+
+        @Test
+        @DisplayName("랜덤·친구 대결은 다른 참가자에게 보이는 성별이라 두 사람이 서로 다른 값을 본다")
+        void liveRival_seesOtherParticipant() {
+            Battle battle = startedRandom();
+            assertThat(battle.opponentGenderFor(ALICE)).isEmpty();
+            battle.showMemberAs(ALICE, Gender.FEMALE);
+            battle.showMemberAs(BOB, Gender.MALE);
+            assertThat(battle.opponentGenderFor(ALICE)).contains(Gender.MALE);
+            assertThat(battle.opponentGenderFor(BOB)).contains(Gender.FEMALE);
+            assertThatThrownBy(() -> battle.showOpponentAs(Gender.MALE))
+                    .as("랜덤 대결에는 기록 상대가 없다")
+                    .isInstanceOf(IllegalStateException.class);
+        }
+
+        @Test
+        @DisplayName("남·여가 아닌 값은 그림을 고를 수 없어 거부한다")
+        void undisclosed_isRejected() {
+            Battle ghost =
+                    Battle.againstRecord(spec(BattleType.GHOST, Duration.ofMinutes(25)), NOW);
+            assertThatThrownBy(() -> ghost.showOpponentAs(Gender.UNDISCLOSED))
+                    .isInstanceOf(IllegalArgumentException.class);
+            assertThatThrownBy(() -> startedRandom().showMemberAs(ALICE, Gender.UNDISCLOSED))
+                    .isInstanceOf(IllegalArgumentException.class);
         }
     }
 }

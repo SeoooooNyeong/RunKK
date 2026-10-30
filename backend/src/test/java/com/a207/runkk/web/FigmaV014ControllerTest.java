@@ -396,6 +396,10 @@ class FigmaV014ControllerTest extends WebTestSupport {
                     battle.start(now);
                     battleRepository.save(battle);
                 });
+        // 취소는 셀프런·셀럽런만이다(2026-10-30 결정). 친구 대결은 그만두기로 끝낸다
+        mvc.perform(as(a, post("/api/v1/battles/" + battleId + "/cancel")))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ALREADY_MATCHED"));
         mvc.perform(as(a, post("/api/v1/battles/" + battleId + "/forfeit")))
                 .andExpect(status().isNoContent());
 

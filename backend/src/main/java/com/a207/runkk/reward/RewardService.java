@@ -87,7 +87,8 @@ public class RewardService {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onBattleJudged(BattleJudged e) {
         if (!e.rewardsWin()) {
-            return; // 친구 대결 승리는 리워드가 없다(FR-230, v0.14 검증 D-296). 거리 적립(VALID_RUN)은 그대로다
+            // 친구 대결 승리는 리워드가 없다(FR-230, D-296). 기록은 자유런처럼 뛴 만큼 VALID_RUN으로 적립한다(2026-10-30 결정)
+            return;
         }
         e.winnerSide()
                 .filter(Side.MemberSide.class::isInstance)

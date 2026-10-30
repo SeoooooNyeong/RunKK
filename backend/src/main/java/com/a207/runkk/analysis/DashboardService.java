@@ -73,13 +73,14 @@ public class DashboardService {
         LandmarkTable landmarks = policy.landmarkTable();
         DateRange month = monthOf(base);
         List<RunSummary> monthRuns = runQueryService.summariesBetween(memberId, month);
+        Set<LocalDate> runDays = runDays(dailyDistance);
         return new DashboardView(
                 base,
                 memberQueryService.preferenceOf(memberId).unit(),
                 todayOf(monthRuns, base),
                 new DashboardView.Totals(totals.distance(), totals.elapsed(), totals.count()),
                 landmarks.personalProgressOf(totals.distance()).label(),
-                Streak.countBack(runDays(dailyDistance), base),
+                Streak.countBack(runDays, base),
                 Grass.of(dailyDistance, grassRange),
                 weeklyOf(memberId, base, daily),
                 crewAreaOf(memberId, base, landmarks),
@@ -90,7 +91,8 @@ public class DashboardService {
                         monthRuns.stream()
                                 .filter(RunSummary::valid)
                                 .mapToLong(r -> r.distance().meters())
-                                .sum()));
+                                .sum()),
+                Streak.countWeeksBack(runDays, base));
     }
 
     /** 오늘 달린 거리·시간·횟수. 유효 기록만 센다(집계 제외 기록은 달력·누적과 같이 뺀다, v0.10). */

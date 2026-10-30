@@ -35,6 +35,23 @@ public class MemberQueryService {
         return memberRepository.summaries(memberIds);
     }
 
+    /**
+     * 성별 공개(genderVisibility = PUBLIC)인 회원의 성별을 한 번의 조회로 읽는다. battle이 대결 상대 캐릭터 성별을 정할 때
+     * 쓴다(2026-10-31 결정). 성별이 없거나 비공개인 회원·없는 ID는 맵에 없다(부르는 쪽이 무작위로 정한다).
+     */
+    public Map<Long, Gender> publicGendersOf(Collection<Long> memberIds) {
+        if (memberIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, Gender> result = new HashMap<>();
+        for (Member m : memberRepository.findAllById(memberIds)) {
+            if (m.gender() != null && m.genderVisibility() == ProfileVisibility.PUBLIC) {
+                result.put(m.getId(), m.gender());
+            }
+        }
+        return result;
+    }
+
     /** analysis·profile이 엔티티 대신 읽는 설정 투영. */
     public MemberPreference preferenceOf(long memberId) {
         return MemberLoader.load(memberRepository, memberId).preference();

@@ -214,6 +214,12 @@ spring:
     hibernate:
       ddl-auto: create-drop
     show-sql: true
+    properties:
+      hibernate:
+        hbm2ddl:
+          # import.sql(local·test 공통) 다음에 local 전용 초기 데이터(셀럽 기록, Flyway V32와 같은 행)를 넣는다. 한글이 있어 UTF-8로 읽는다
+          import_files: import.sql,import-local.sql
+          charset_name: UTF-8
   data:
     redis:
       host: localhost

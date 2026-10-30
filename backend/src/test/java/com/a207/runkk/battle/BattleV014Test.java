@@ -44,8 +44,8 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 /**
  * v0.14 대결 변경(D-225~D-230, D-232): BattleType FRIEND 다형 메소드,
- * Battle.friend·cancelOnForfeit·forgetRecord, 셀프런·셀럽런 진행 중 포기 = 취소, 이력 필터 묶음, 기록 목록 대결
- * 결과(outcomesOf). test.md 12.2.3 TC-9291~TC-9317, 기초 경로 TC-9521~TC-9524.
+ * Battle.friend·cancelByRunner·forgetRecord, 셀프런·셀럽런 포기 = 패·취소 = 기록 없음(2026-10-30), 이력 필터 묶음, 기록 목록
+ * 대결 결과(outcomesOf). test.md 12.2.3 TC-9291~TC-9317, 기초 경로 TC-9521~TC-9524.
  */
 @DisplayName("v0.14 대결 종류·포기·이력")
 class BattleV014Test {
@@ -84,7 +84,7 @@ class BattleV014Test {
                 .containsExactlyInAnyOrder(
                         BattleType.RANDOM, BattleType.GHOST, BattleType.SELF, BattleType.CELEBRITY);
         assertThat(BattleType.values())
-                .filteredOn(BattleType::cancelsOnForfeit)
+                .filteredOn(BattleType::allowsCancel)
                 .containsExactly(BattleType.SELF, BattleType.CELEBRITY);
         assertThat(BattleType.SELF.comparisonItems())
                 .containsExactly(ComparisonItem.RECORD_TIME, ComparisonItem.AVERAGE_PACE);
@@ -111,7 +111,7 @@ class BattleV014Test {
                         "historyGroup",
                         "filterGroup",
                         "rewardsWin",
-                        "cancelsOnForfeit",
+                        "allowsCancel",
                         "comparisonItems");
         for (BattleType t : BattleType.values()) {
             for (String name : names) {
@@ -162,53 +162,88 @@ class BattleV014Test {
 
     @Test
     @DisplayName(
-            "TC-9303~TC-9309·TC-9521~TC-9524 cancelOnForfeit: 출발 전 모두 취소, 셀프·셀럽 진행 중 취소, 랜덤·고스트·친구"
-                    + " 진행 중은 거짓")
-    void tc9303_cancelOnForfeit() {
+            "TC-9303~TC-9309 cancelIfUnstarted·forfeit(2026-10-30): 출발 전은 종류와 상관없이 취소, 출발한 대결은"
+                    + " 셀프·셀럽도 포기자 패(FINISHED)")
+    void tc9303_forfeitAfterStartLoses() {
         Battle waiting =
                 Battle.random(
                         BattleFixtures.assigned(ALICE, StandardDistance.KM5),
                         BattleFixtures.assigned(BOB, StandardDistance.KM5),
                         NOW);
-        assertThat(waiting.cancelOnForfeit(NOW.plusSeconds(5))).isTrue();
+        assertThat(waiting.cancelIfUnstarted(NOW.plusSeconds(5))).isTrue();
         assertThat(waiting.getStatus()).isEqualTo(BattleStatus.CANCELLED);
-        assertThat(waiting.getParticipants()).allMatch(p -> !waiting.isActive());
-
-        Battle random = BattleFixtures.startedRandom();
-        assertThat(random.cancelOnForfeit(NOW.plusMinutes(1))).isFalse();
-        assertThat(random.getStatus()).isEqualTo(BattleStatus.IN_PROGRESS);
+        assertThat(waiting.isActive()).isFalse();
 
         Battle friendWaiting = Battle.friend(accepted(), NOW);
-        assertThat(friendWaiting.cancelOnForfeit(NOW.plusSeconds(5))).isTrue();
+        assertThat(friendWaiting.cancelIfUnstarted(NOW.plusSeconds(5))).isTrue();
+        Battle selfUnreported =
+                Battle.againstRecord(
+                        BattleFixtures.spec(BattleType.SELF, Duration.ofMinutes(25)), NOW);
+        assertThat(selfUnreported.cancelIfUnstarted(NOW.plusSeconds(2))).isTrue();
+
         Battle friendRunning = startedFriend();
-        assertThat(friendRunning.cancelOnForfeit(NOW.plusMinutes(1))).isFalse();
+        assertThat(friendRunning.cancelIfUnstarted(NOW.plusMinutes(1))).isFalse();
         friendRunning.forfeit(ALICE, NOW.plusMinutes(1));
         assertThat(friendRunning.getStatus()).isEqualTo(BattleStatus.FINISHED);
 
         Battle self = reported(BattleType.SELF);
-        assertThat(self.cancelOnForfeit(NOW.plusMinutes(2))).isTrue();
-        assertThat(self.getStatus()).isEqualTo(BattleStatus.CANCELLED);
-        assertThat(self.isActive()).isFalse();
+        assertThat(self.cancelIfUnstarted(NOW.plusMinutes(2))).isFalse();
+        self.forfeit(ALICE, NOW.plusMinutes(2));
+        assertThat(self.getStatus()).isEqualTo(BattleStatus.FINISHED);
+        assertThat(self.participant(ALICE).orElseThrow().getVerdict()).contains(Verdict.LOSE);
+        assertThat(self.getJudgement().orElseThrow().winnerSide()).contains(Side.OPPONENT);
 
         Battle celeb = reported(BattleType.CELEBRITY);
         celeb.recordArrival(Side.OPPONENT, NOW.plusMinutes(20));
         assertThat(celeb.getStatus()).isEqualTo(BattleStatus.COUNTDOWN);
-        assertThat(celeb.cancelOnForfeit(NOW.plusMinutes(20).plusSeconds(1))).isTrue();
-        assertThat(celeb.getStatus()).isEqualTo(BattleStatus.CANCELLED);
-        assertThat(reported(BattleType.CELEBRITY).cancelOnForfeit(NOW.plusMinutes(1))).isTrue();
+        celeb.forfeit(ALICE, NOW.plusMinutes(20).plusSeconds(1));
+        assertThat(celeb.getStatus()).isEqualTo(BattleStatus.FINISHED);
+        assertThat(celeb.participant(ALICE).orElseThrow().getVerdict()).contains(Verdict.LOSE);
+    }
 
+    @Test
+    @DisplayName(
+            "cancelByRunner(2026-10-30): 셀프·셀럽은 시작 보고 전·진행 중·카운트다운 모두 CANCELLED(판정 없음, 활성 칸 비움)."
+                    + " 랜덤·고스트·친구와 끝난·취소된 대결은 IllegalStateException")
+    void cancelByRunner_onlyActiveRecordBattles() {
+        Battle unreported =
+                Battle.againstRecord(
+                        BattleFixtures.spec(BattleType.SELF, Duration.ofMinutes(25)), NOW);
+        unreported.cancelByRunner(NOW.plusSeconds(2));
+        assertThat(unreported.getStatus()).isEqualTo(BattleStatus.CANCELLED);
+
+        Battle self = reported(BattleType.SELF);
+        self.cancelByRunner(NOW.plusMinutes(2));
+        assertThat(self.getStatus()).isEqualTo(BattleStatus.CANCELLED);
+        assertThat(self.isActive()).isFalse();
+        assertThat(self.getJudgement()).isEmpty();
+        assertThatThrownBy(() -> self.cancelByRunner(NOW.plusMinutes(3)))
+                .as("이미 취소")
+                .isInstanceOf(IllegalStateException.class);
+
+        Battle celeb = reported(BattleType.CELEBRITY);
+        celeb.recordArrival(Side.OPPONENT, NOW.plusMinutes(20));
+        celeb.cancelByRunner(NOW.plusMinutes(20).plusSeconds(1));
+        assertThat(celeb.getStatus()).isEqualTo(BattleStatus.CANCELLED);
+
+        Battle finished = reported(BattleType.SELF);
+        finished.forfeit(ALICE, NOW.plusMinutes(1));
+        assertThatThrownBy(() -> finished.cancelByRunner(NOW.plusMinutes(2)))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(finished.getStatus()).isEqualTo(BattleStatus.FINISHED);
+
+        Battle random = BattleFixtures.startedRandom();
+        assertThatThrownBy(() -> random.cancelByRunner(NOW.plusMinutes(1)))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(random.getStatus()).isEqualTo(BattleStatus.IN_PROGRESS);
         Battle ghost =
                 Battle.againstRecord(
                         BattleFixtures.spec(BattleType.GHOST, Duration.ofMinutes(25)), NOW);
-        ghost.scheduleStart(NOW.plusSeconds(13));
-        ghost.start(NOW.plusSeconds(13));
-        assertThat(ghost.cancelOnForfeit(NOW.plusMinutes(1))).isFalse();
-
-        assertThat(self.cancelOnForfeit(NOW.plusMinutes(3))).as("이미 취소").isFalse();
-        Battle finished = reported(BattleType.SELF);
-        finished.forfeit(ALICE, NOW.plusMinutes(1));
-        assertThat(finished.cancelOnForfeit(NOW.plusMinutes(2))).isFalse();
-        assertThat(finished.getStatus()).isEqualTo(BattleStatus.FINISHED);
+        assertThatThrownBy(() -> ghost.cancelByRunner(NOW.plusSeconds(5)))
+                .isInstanceOf(IllegalStateException.class);
+        Battle friend = startedFriend();
+        assertThatThrownBy(() -> friend.cancelByRunner(NOW.plusMinutes(1)))
+                .isInstanceOf(IllegalStateException.class);
     }
 
     @Test
@@ -274,12 +309,57 @@ class BattleV014Test {
     @EnumSource(
             value = BattleType.class,
             names = {"SELF", "CELEBRITY"})
-    @DisplayName("TC-9310 셀프런·셀럽런 진행 중 포기는 취소: 판정 사건 0, 이력 0, 결과 조회 BATTLE_NOT_FOUND, 활성 칸 비움")
-    void tc9310_recordForfeitCancels(BattleType type) {
+    @DisplayName(
+            "TC-9310(2026-10-30) 셀프런·셀럽런 진행 중 포기는 포기자 패: FINISHED, 판정 사건 1(기록 상대 승), 이력 1, 결과 LOSE,"
+                    + " 활성 칸 비움")
+    void tc9310_recordForfeitLoses(BattleType type) {
         Battle battle = battles.save(reported(type));
         results.forfeit(ALICE, battle.getId());
-        assertThat(battles.findById(battle.getId()).orElseThrow().getStatus())
-                .isEqualTo(BattleStatus.CANCELLED);
+        Battle done = battles.findById(battle.getId()).orElseThrow();
+        assertThat(done.getStatus()).isEqualTo(BattleStatus.FINISHED);
+        assertThat(done.participant(ALICE).orElseThrow().getVerdict()).contains(Verdict.LOSE);
+        assertThat(events).singleElement().isInstanceOf(BattleJudged.class);
+        assertThat(((BattleJudged) events.get(0)).winnerSide()).contains(Side.OPPONENT);
+        assertThat(battles.existsActive(ALICE)).isFalse();
+        assertThat(
+                        history.history(
+                                        ALICE,
+                                        new DateRange(
+                                                LocalDate.of(2000, 1, 1), LocalDate.of(2100, 1, 1)),
+                                        Optional.empty())
+                                .entries())
+                .hasSize(1);
+        assertThat(results.result(ALICE, battle.getId()).verdict()).isEqualTo(Verdict.LOSE);
+    }
+
+    @ParameterizedTest(name = "셀프·셀럽 취소 {0}")
+    @EnumSource(
+            value = BattleType.class,
+            names = {"SELF", "CELEBRITY"})
+    @DisplayName(
+            "cancel(2026-10-30): 셀프런·셀럽런은 진행 중·시작 보고 전 모두 CANCELLED, 판정 사건 0, 이력 0, 결과 조회"
+                    + " BATTLE_NOT_FOUND, 활성 칸 비움, 다시 취소하면 BATTLE_NOT_FOUND")
+    void cancel_recordBattleLeavesNoResult(BattleType type) {
+        Battle started = battles.save(reported(type));
+        Battle unreported =
+                battles.save(
+                        Battle.againstRecord(
+                                BattleFixtures.spec(type, Duration.ofMinutes(25)),
+                                NOW.plusMinutes(1)));
+        for (Battle battle : List.of(started, unreported)) {
+            results.cancel(ALICE, battle.getId());
+            assertThat(battles.findById(battle.getId()).orElseThrow().getStatus())
+                    .isEqualTo(BattleStatus.CANCELLED);
+            assertThat(battles.findById(battle.getId()).orElseThrow().getJudgement()).isEmpty();
+            assertThatThrownBy(() -> results.result(ALICE, battle.getId()))
+                    .isInstanceOf(BusinessRuleException.class)
+                    .extracting(e -> ((BusinessRuleException) e).reason())
+                    .isEqualTo(ReasonCode.BATTLE_NOT_FOUND);
+            assertThatThrownBy(() -> results.cancel(ALICE, battle.getId()))
+                    .isInstanceOf(BusinessRuleException.class)
+                    .extracting(e -> ((BusinessRuleException) e).reason())
+                    .isEqualTo(ReasonCode.BATTLE_NOT_FOUND);
+        }
         assertThat(events).isEmpty();
         assertThat(battles.existsActive(ALICE)).isFalse();
         assertThat(
@@ -290,10 +370,40 @@ class BattleV014Test {
                                         Optional.empty())
                                 .entries())
                 .isEmpty();
-        assertThatThrownBy(() -> results.result(ALICE, battle.getId()))
-                .isInstanceOf(BusinessRuleException.class)
-                .extracting(e -> ((BusinessRuleException) e).reason())
-                .isEqualTo(ReasonCode.BATTLE_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName(
+            "cancel(2026-10-30): 랜덤·고스트·친구 대결은 ALREADY_MATCHED로 거부하고 그대로 둔다, 끝난 셀프런은"
+                    + " IllegalStateException, 참가자가 아니면 권한 없음")
+    void cancel_rejectsMatchedBattles() {
+        Battle random = battles.save(BattleFixtures.startedRandom());
+        Battle ghost =
+                battles.save(
+                        Battle.againstRecord(
+                                BattleFixtures.spec(BattleType.GHOST, Duration.ofMinutes(25)),
+                                NOW));
+        Battle friend = battles.save(Battle.friend(accepted(), NOW));
+        for (Battle battle : List.of(random, ghost, friend)) {
+            BattleStatus before = battle.getStatus();
+            assertThatThrownBy(() -> results.cancel(ALICE, battle.getId()))
+                    .as(battle.getType().name())
+                    .isInstanceOf(BusinessRuleException.class)
+                    .extracting(e -> ((BusinessRuleException) e).reason())
+                    .isEqualTo(ReasonCode.ALREADY_MATCHED);
+            assertThat(battles.findById(battle.getId()).orElseThrow().getStatus())
+                    .as(battle.getType().name())
+                    .isEqualTo(before);
+        }
+        assertThat(messenger.to(BOB, "BattleEnded")).isEmpty();
+
+        Battle finished = battles.save(reported(BattleType.SELF));
+        finished.forfeit(ALICE, NOW.plusMinutes(1));
+        assertThatThrownBy(() -> results.cancel(ALICE, finished.getId()))
+                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> results.cancel(BOB, finished.getId()))
+                .isInstanceOf(com.a207.runkk.common.PermissionDeniedException.class);
+        assertThat(events).isEmpty();
     }
 
     @Test
@@ -403,7 +513,7 @@ class BattleV014Test {
         Battle pending = battles.save(reported(BattleType.SELF));
         pending.closeCountdown(NOW.plusHours(2));
         Battle cancelled = battles.save(Battle.friend(accepted(), NOW));
-        cancelled.cancelOnForfeit(NOW);
+        cancelled.cancelIfUnstarted(NOW);
 
         Map<Long, BattleOutcome> outcomes =
                 history.outcomesOf(

@@ -115,7 +115,9 @@ public class BattleHistoryService {
                                         battle.getDistance(),
                                         OpponentNames.of(
                                                 battle, memberId, rivalNames(battle, memberId)),
-                                        battle.getStartAt().orElse(null)));
+                                        OpponentGenders.nameFor(battle, memberId),
+                                        battle.getStartAt().orElse(null),
+                                        battle.getOpponentFigure().orElse(null)));
     }
 
     private Map<Long, MemberSummary> rivalNames(Battle battle, long memberId) {

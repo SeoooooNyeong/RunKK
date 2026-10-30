@@ -12,6 +12,7 @@ import java.util.Objects;
  * @param opponent 기록 상대 값
  * @param track 상대 표(대결 거리에서 자름). 앱이 보간한다(D-05)
  * @param opponentValues 비교표 상대 값. 기록이 지워져도 결과 화면이 남도록 대결에 함께 남긴다(FR-172)
+ * @param opponentFigure 유명인 캐릭터 그림 키, 없으면 null(2026-10-31 결정). 기록이 지워져도 결과 화면이 같은 그림이도록 대결에 남긴다
  */
 public record RecordBattleSpec(
         BattleType type,
@@ -19,7 +20,8 @@ public record RecordBattleSpec(
         Distance distance,
         OpponentRef opponent,
         OpponentTrack track,
-        ComparisonValues opponentValues) {
+        ComparisonValues opponentValues,
+        String opponentFigure) {
 
     public RecordBattleSpec {
         Objects.requireNonNull(type, "type");
@@ -30,6 +32,17 @@ public record RecordBattleSpec(
         if (!type.isAgainstRecord()) { // RANDOM·FRIEND는 실시간 상대라 기록 대결이 아니다(D-225)
             throw new IllegalArgumentException("기록 대결 종류가 아니다: " + type);
         }
+    }
+
+    /** 캐릭터 그림 키가 없는 입력. */
+    public RecordBattleSpec(
+            BattleType type,
+            long memberId,
+            Distance distance,
+            OpponentRef opponent,
+            OpponentTrack track,
+            ComparisonValues opponentValues) {
+        this(type, memberId, distance, opponent, track, opponentValues, null);
     }
 
     /**
@@ -51,6 +64,12 @@ public record RecordBattleSpec(
                                                 new IllegalArgumentException(
                                                         "상대 기록이 대결 거리에 닿지 않는다")));
         return new RecordBattleSpec(
-                type, memberId, distance, ref, track, record.comparisonValues(distance));
+                type,
+                memberId,
+                distance,
+                ref,
+                track,
+                record.comparisonValues(distance),
+                record.figureKey().orElse(null));
     }
 }

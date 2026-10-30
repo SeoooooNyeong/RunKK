@@ -6,6 +6,7 @@ import com.a207.runkk.battle.live.TrackPoint;
 import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.StandardDistance;
 import com.a207.runkk.common.Tier;
+import com.a207.runkk.member.Gender;
 import com.a207.runkk.member.MemberQueryService;
 import com.a207.runkk.member.MemberSummary;
 import com.a207.runkk.running.BestEntry;
@@ -17,6 +18,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.random.RandomGenerator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -47,6 +49,7 @@ public class BattleStartService {
     private final LiveSessionStore liveSessionStore;
     private final Clock clock;
     private final BattleTransactions transactions;
+    private final RandomGenerator random;
 
     public BattleStartService(
             BattleRepository battleRepository,
@@ -55,7 +58,8 @@ public class BattleStartService {
             BattleMessenger battleMessenger,
             LiveSessionStore liveSessionStore,
             Clock clock,
-            BattleTransactions transactions) {
+            BattleTransactions transactions,
+            RandomGenerator battleRandom) {
         this.battleRepository = battleRepository;
         this.memberQueryService = memberQueryService;
         this.runQueryService = runQueryService;
@@ -63,13 +67,20 @@ public class BattleStartService {
         this.liveSessionStore = liveSessionStore;
         this.clock = clock;
         this.transactions = transactions;
+        this.random = battleRandom;
     }
 
-    /** 양쪽 최고 기록을 붙여 MatchFound → 출발 예약(now + 13초) → BattleStart를 미리 보낸다. */
+    /**
+     * 양쪽 최고 기록을 붙여 MatchFound → 출발 예약(now + 13초) → BattleStart를 미리 보낸다. 랜덤·친구 대결은 이때 서로에게 보일 캐릭터
+     * 성별을 정해 남긴다(2026-10-31 결정).
+     */
     @Transactional
     public void announceMatch(Battle b) {
         LocalDateTime now = LocalDateTime.now(clock);
         b.scheduleStart(now.plus(START_DELAY));
+        if (b.getType().hasLiveRival()) {
+            showMembers(b);
+        }
         Battle battle = battleRepository.save(b);
         Map<Long, MemberSummary> members = memberQueryService.summaries(battle.memberIds());
         Map<Long, MatchFound> found = new LinkedHashMap<>();
@@ -97,6 +108,14 @@ public class BattleStartService {
         return battle;
     }
 
+    /** 회원 성별, 없거나 밝히지 않았으면 무작위(OpponentGenders). */
+    private void showMembers(Battle battle) {
+        Map<Long, Gender> genders = memberQueryService.publicGendersOf(battle.memberIds());
+        for (long memberId : battle.memberIds()) {
+            battle.showMemberAs(memberId, OpponentGenders.of(genders.get(memberId), random));
+        }
+    }
+
     private MatchFound matchFoundFor(
             Battle battle, long memberId, Map<Long, MemberSummary> members) {
         Optional<StandardDistance> standard = battle.standardDistance();
@@ -108,6 +127,7 @@ public class BattleStartService {
                     battle.getId(),
                     ref.displayName(),
                     ref.displayTier(),
+                    OpponentGenders.nameFor(battle, memberId),
                     battle.getDistance(),
                     myBest,
                     ref.arrivalElapsed(),
@@ -119,6 +139,7 @@ public class BattleStartService {
                 battle.getId(),
                 rival == null ? DisplayName.WITHDRAWN : rival.displayName(),
                 rival == null ? Tier.UNRANKED : rival.tier(),
+                OpponentGenders.nameFor(battle, memberId),
                 battle.getDistance(),
                 myBest,
                 standard.flatMap(each -> bestTime(rivalId, each)).orElse(null),

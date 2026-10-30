@@ -99,6 +99,20 @@ class RunRecordTest {
     }
 
     @Test
+    @org.junit.jupiter.api.DisplayName(
+            "2026-10-30 결정: 친구 대결 기록(BATTLE·BATTLE_RUN·대결 ID)은 같은 경로의 자유런과 유효 판정·점수·거리가 같다")
+    void judgeValidity_friendBattleRunLikeFreeRun() {
+        RunUpload free = upload(id(1), 5_000, 1_500);
+        RunRecord freeRun = RunFixtures.judged(free);
+        RunRecord battleRun =
+                RunFixtures.judged(with(free, RunMode.BATTLE, CardKind.BATTLE_RUN, 12L, null));
+        assertThat(battleRun.isValid()).isTrue().isEqualTo(freeRun.isValid());
+        assertThat(battleRun.getScore().value()).isEqualTo(freeRun.getScore().value());
+        assertThat(battleRun.getDistance()).isEqualTo(freeRun.getDistance());
+        assertThat(battleRun.getElapsed()).isEqualTo(freeRun.getElapsed());
+    }
+
+    @Test
     void judgeValidity_invalidRuns() {
         assertThat(RunFixtures.judged(upload(id(1), 900, 300)).isValid()).isFalse();
         assertThat(RunFixtures.judged(upload(id(2), 1_000, 170)).isValid()).isFalse();

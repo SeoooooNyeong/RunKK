@@ -100,7 +100,8 @@ public class RecordBattleService {
                                                 null,
                                                 c.getSource(),
                                                 c.isEstimated(),
-                                                myBest(memberId, c.getDistance())))
+                                                myBest(memberId, c.getDistance()),
+                                                c.figureKey().orElse(null)))
                         .toList();
         return new RecordBattleCandidates(candidates);
     }
@@ -145,7 +146,8 @@ public class RecordBattleService {
                 battle.getDistance(),
                 battle.getOpponentTrack().orElseThrow(),
                 null,
-                false);
+                false,
+                null);
     }
 
     /** 위치 동의 → 유명인 기록(없으면 CELEBRITY_REMOVED) → CELEBRITY 대결. 대결 거리 = 기록 거리. */
@@ -164,7 +166,8 @@ public class RecordBattleService {
                 battle.getDistance(),
                 battle.getOpponentTrack().orElseThrow(),
                 celebrity.getSource(),
-                celebrity.isEstimated());
+                celebrity.isEstimated(),
+                battle.getOpponentFigure().orElse(null));
     }
 
     /**

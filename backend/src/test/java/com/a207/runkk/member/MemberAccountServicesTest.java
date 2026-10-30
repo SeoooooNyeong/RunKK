@@ -22,6 +22,7 @@ import java.time.Clock;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
@@ -240,5 +241,9 @@ class MemberAccountServicesTest {
         assertThat(query.disclosureOf(a, List.of())).isEmpty();
         assertThat(query.ghostEligibleOwners(Set.of(Tier.UNRANKED), a).keySet()).containsExactly(b);
         assertThat(query.ghostEligibleOwners(Set.of(), a)).isEmpty();
+        // 대결 상대 캐릭터 성별(2026-10-31 결정): 성별 공개(b)만 싣는다. 비공개(a, 기본값)·성별 없음(탈퇴한 c)·없는 회원은 맵에 없다
+        assertThat(query.publicGendersOf(List.of(a, b, c, 999L)))
+                .containsOnly(Map.entry(b, Gender.FEMALE));
+        assertThat(query.publicGendersOf(List.of())).isEmpty();
     }
 }

@@ -39,6 +39,7 @@ public class CelebrityAdminController {
     private static final int NAME_MAX = 40;
     private static final int TEXT_MAX = 500;
     private static final int SPLITS_MAX = 200;
+    private static final int FIGURE_KEY_MAX = 20;
 
     private final CelebrityRecordService celebrityRecordService;
 
@@ -71,6 +72,7 @@ public class CelebrityAdminController {
      * @param sourceUrl 출처 주소, 없으면 null
      * @param realNameConsent 실명 등록 코치 동의(있으면 anonymousName에 실명을 받는다, 반쪽이면 409
      *     REAL_NAME_CONSENT_REQUIRED, v0.14 D-240)
+     * @param figureKey 앱 전용 캐릭터 그림 키(영문 소문자·숫자·_·-, "lee"), 없으면 null(공통 셀럽 그림, 2026-10-31 결정)
      */
     record RegisterRequest(
             @Size(max = NAME_MAX) String anonymousName,
@@ -79,7 +81,8 @@ public class CelebrityAdminController {
             @Size(max = SPLITS_MAX) List<@Valid @NotNull Split> splits,
             @Size(max = TEXT_MAX) String sourceName,
             @Size(max = TEXT_MAX) @Pattern(regexp = "^https?://[^ ]+$") String sourceUrl,
-            @Valid RealNameConsentRequest realNameConsent) {
+            @Valid RealNameConsentRequest realNameConsent,
+            @Size(max = FIGURE_KEY_MAX) @Pattern(regexp = "^[a-z0-9_-]+$") String figureKey) {
 
         CelebrityInput toInput() {
             return new CelebrityInput(
@@ -89,7 +92,8 @@ public class CelebrityAdminController {
                     splits == null ? List.of() : splits.stream().map(Split::toSample).toList(),
                     sourceName,
                     sourceUrl,
-                    realNameConsent == null ? null : realNameConsent.toConsent());
+                    realNameConsent == null ? null : realNameConsent.toConsent(),
+                    figureKey);
         }
     }
 

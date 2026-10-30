@@ -35,6 +35,7 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Random;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -99,7 +100,8 @@ class AbandonedBattleTest {
                 new InMemoryBattleStores.Messenger(),
                 new InMemoryBattleStores.Sessions(),
                 at(t),
-                InMemoryBattleStores.transactions());
+                InMemoryBattleStores.transactions(),
+                new Random(1));
     }
 
     private Battle selfBattle(LocalDateTime t) {

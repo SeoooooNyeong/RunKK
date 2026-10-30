@@ -6,8 +6,8 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * 대결 종류(설계 6.1.6, 다형성 enum 6.4): 실시간 상대 여부, 비교표 항목, 이력 행 종류·필터 묶음, 승리 리워드, 진행 중 포기 처리, 시작 방식. 종류별
- * 차이는 상수 메소드에 모은다(v0.14 D-225).
+ * 대결 종류(설계 6.1.6, 다형성 enum 6.4): 실시간 상대 여부, 비교표 항목, 이력 행 종류·필터 묶음, 승리 리워드, 러너 취소 허용, 시작 방식. 종류별 차이는
+ * 상수 메소드에 모은다(v0.14 D-225).
  */
 public enum BattleType {
     RANDOM {
@@ -32,7 +32,7 @@ public enum BattleType {
         }
 
         @Override
-        public boolean cancelsOnForfeit() {
+        public boolean allowsCancel() {
             return false;
         }
 
@@ -64,7 +64,7 @@ public enum BattleType {
         }
 
         @Override
-        public boolean cancelsOnForfeit() {
+        public boolean allowsCancel() {
             return false;
         }
 
@@ -73,7 +73,10 @@ public enum BattleType {
             return false;
         }
     },
-    /** 친구 대결(FR-227~FR-230). 실시간 상대가 있고 승리 리워드가 없다. 이력 행은 FRIEND, 필터는 배틀런에 함께 보인다(D-225, D-230). */
+    /**
+     * 친구 대결(FR-227~FR-230). 실시간 상대가 있고 승리 리워드가 없다. 기록은 자유런처럼 유효 판정·거리 적립(VALID_RUN)·티어·주간 거리에 그대로
+     * 들어가고 승패만 따로 낸다(2026-10-30 결정). 이력 행은 FRIEND, 필터는 배틀런에 함께 보인다(D-225, D-230).
+     */
     FRIEND {
         @Override
         public boolean hasLiveRival() {
@@ -96,7 +99,7 @@ public enum BattleType {
         }
 
         @Override
-        public boolean cancelsOnForfeit() {
+        public boolean allowsCancel() {
             return false;
         }
 
@@ -132,7 +135,7 @@ public enum BattleType {
         }
 
         @Override
-        public boolean cancelsOnForfeit() {
+        public boolean allowsCancel() {
             return true;
         }
 
@@ -163,7 +166,7 @@ public enum BattleType {
         }
 
         @Override
-        public boolean cancelsOnForfeit() {
+        public boolean allowsCancel() {
             return true;
         }
 
@@ -199,8 +202,12 @@ public enum BattleType {
     /** 승리 리워드(BATTLE_WIN)를 주는가(FR-230, D-226). 친구 대결만 거짓. */
     public abstract boolean rewardsWin();
 
-    /** 진행 중 포기를 대결 취소로 처리하는가(CR-27, D-228). 셀프런·셀럽런만 참. */
-    public abstract boolean cancelsOnForfeit();
+    /**
+     * 러너가 승패·기록 없이 대결을 취소할 수 있는가(POST /battles/{id}/cancel, 2026-10-30 결정). 셀프런·셀럽런만 참이다. 그만두기(포기)는
+     * 종류와 상관없이 출발한 대결이면 포기자 패로 판정해 이력에 남기고, 취소는 출발 여부와 상관없이 대결을 지운다(CR-27·D-228의 "셀프런·셀럽런 진행 중 포기 =
+     * 취소"를 대신한다).
+     */
+    public abstract boolean allowsCancel();
 
     /** true면 앱의 3초 카운트다운 뒤 시작 보고(markStarted), false면 성사 13초 뒤 자동 출발(D-17). */
     public abstract boolean startsWithCountdown();

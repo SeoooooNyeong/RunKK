@@ -13,6 +13,8 @@ import java.util.List;
  * @param splits 구간 기록(경과 시간, 누적 거리). 없으면 빈 목록
  * @param sourceName 출처명
  * @param sourceUrl 출처 주소, 없으면 null
+ * @param realNameConsent 실명 등록 동의, 익명이면 null
+ * @param figureKey 앱 전용 캐릭터 그림 키("lee" 등), 없으면 null(공통 셀럽 그림, 2026-10-31 결정)
  */
 public record CelebrityInput(
         String anonymousName,
@@ -21,10 +23,31 @@ public record CelebrityInput(
         List<TrackSample> splits,
         String sourceName,
         String sourceUrl,
-        RealNameConsent realNameConsent) {
+        RealNameConsent realNameConsent,
+        String figureKey) {
 
     public CelebrityInput {
         splits = splits == null ? List.of() : List.copyOf(splits);
+    }
+
+    /** 전용 캐릭터 그림이 없는 입력. */
+    public CelebrityInput(
+            String anonymousName,
+            Distance distance,
+            Duration finishTime,
+            List<TrackSample> splits,
+            String sourceName,
+            String sourceUrl,
+            RealNameConsent realNameConsent) {
+        this(
+                anonymousName,
+                distance,
+                finishTime,
+                splits,
+                sourceName,
+                sourceUrl,
+                realNameConsent,
+                null);
     }
 
     /** 실명 동의 없는(익명) 입력. */
@@ -35,6 +58,6 @@ public record CelebrityInput(
             List<TrackSample> splits,
             String sourceName,
             String sourceUrl) {
-        this(anonymousName, distance, finishTime, splits, sourceName, sourceUrl, null);
+        this(anonymousName, distance, finishTime, splits, sourceName, sourceUrl, null, null);
     }
 }

@@ -69,6 +69,7 @@ class RealtimeContractTest {
                         101,
                         wind,
                         Tier.GOLD,
+                        "MALE",
                         Distance.ofMeters(5_000),
                         Duration.ofSeconds(1_625),
                         Duration.ofSeconds(1_580),

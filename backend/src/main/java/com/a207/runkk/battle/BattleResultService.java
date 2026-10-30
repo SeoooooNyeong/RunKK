@@ -178,17 +178,17 @@ public class BattleResultService {
     }
 
     /**
-     * Battle.forfeit → 상대에게 BattleEnded(OPPONENT_FORFEITED) → BattleJudged(FR-094). 출발
-     * 전(WAITING_START, 시작 보고 전 기록 대결)이거나 셀프런·셀럽런 진행 중이면(Battle.cancelOnForfeit, v0.14 D-228) 승패·리워드
-     * 없이 취소(CANCELLED)하고 랜덤 상대에게 같은 BattleEnded만 보낸다(배틀런 QA 7번 결정). 앱의 BattleEnded.Status에 취소 값이 없어
-     * 상대가 그만뒀다는 OPPONENT_FORFEITED를 쓴다.
+     * Battle.forfeit → 상대에게 BattleEnded(OPPONENT_FORFEITED) → BattleJudged(FR-094). 셀프런·셀럽런도 출발했으면
+     * 포기자 패로 판정해 이력에 남긴다(2026-10-30 결정, v0.14 D-228의 "진행 중 포기 = 취소"를 대신한다. 기록 없이 끝내려면 cancel). 출발
+     * 전(WAITING_START, 시작 보고 전 기록 대결)이면 승패·리워드 없이 취소(CANCELLED)하고 랜덤 상대에게 같은 BattleEnded만 보낸다(배틀런
+     * QA 7번 결정). 앱의 BattleEnded.Status에 취소 값이 없어 상대가 그만뒀다는 OPPONENT_FORFEITED를 쓴다.
      */
     public void forfeit(long memberId, long battleId) {
         transactions.retryingRun(
                 () -> {
                     Battle battle = participantBattle(memberId, battleId);
                     LocalDateTime now = LocalDateTime.now(clock);
-                    boolean cancelled = battle.cancelOnForfeit(now); // 출발 전, 셀프런·셀럽런 진행 중(D-228)
+                    boolean cancelled = battle.cancelIfUnstarted(now); // 출발 전(배틀런 QA 7번)
                     if (!cancelled) {
                         battle.forfeit(memberId, now);
                     }
@@ -211,6 +211,28 @@ public class BattleResultService {
                     Judgement judgement = battle.getJudgement().orElseThrow();
                     eventPublisher.publish(
                             new BattleJudged(battleId, battle.getType(), judgement, now));
+                });
+    }
+
+    /**
+     * 셀프런·셀럽런 취소(POST /battles/{id}/cancel, 2026-10-30 결정). 출발 여부와 상관없이 승패·리워드·이력 없이 CANCELLED로 바꾸고
+     * 활성 칸을 비운다(Battle.cancelByRunner). 실시간 상대가 없어 BattleEnded는 보내지 않는다. 뒤에 같은 대결 ID로 올라온 기록은 대결에
+     * 붙지 않는다(applyRecord가 취소된 대결을 건너뛴다). 랜덤·고스트·친구 대결은 ALREADY_MATCHED로 거부한다(성사된 대결은 그만두기로만 끝낸다).
+     * 끝난 대결은 IllegalStateException, 이미 취소된 대결은 BATTLE_NOT_FOUND다.
+     */
+    public void cancel(long memberId, long battleId) {
+        transactions.retryingRun(
+                () -> {
+                    Battle battle = participantBattle(memberId, battleId);
+                    if (!battle.getType().allowsCancel()) {
+                        throw new BusinessRuleException(ReasonCode.ALREADY_MATCHED);
+                    }
+                    battle.cancelByRunner(LocalDateTime.now(clock));
+                    battleRepository.save(battle);
+                    log.info(
+                            "battle_cancelled_by_runner battleId={} memberId={}",
+                            battleId,
+                            memberId);
                 });
     }
 
@@ -280,7 +302,9 @@ public class BattleResultService {
                 weekly,
                 me.isNewRecord() && verdict == Verdict.WIN,
                 OpponentNames.of(battle, memberId, rivalNames(battle, memberId)),
-                me.getRecordId().filter(id -> !runQueryService.isDeleted(id)).orElse(null));
+                me.getRecordId().filter(id -> !runQueryService.isDeleted(id)).orElse(null),
+                OpponentGenders.nameFor(battle, memberId),
+                battle.getOpponentFigure().orElse(null));
     }
 
     private Map<Long, MemberSummary> rivalNames(Battle battle, long memberId) {

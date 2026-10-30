@@ -168,7 +168,7 @@ final class RecordDtos {
 
     /**
      * 대시보드(앱 DashboardResponse + 시간·횟수·주간 목표·달력·잔디 단계). v0.14: 리워드 잔액(rewardBalance), baseDate 달의
-     * 유효 러닝 횟수·거리(monthRuns·monthMeters)를 더했다(D-236).
+     * 유효 러닝 횟수·거리(monthRuns·monthMeters)를 더했다(D-236). 주 단위 연속(streakWeeks)을 더했다(2026-10-31 결정).
      */
     record DashboardResponse(
             LocalDate baseDate,
@@ -189,7 +189,8 @@ final class RecordDtos {
             Map<String, List<CalendarRun>> calendar,
             int rewardBalance,
             int monthRuns,
-            long monthMeters) {
+            long monthMeters,
+            int streakWeeks) {
 
         static DashboardResponse of(DashboardView v) {
             Map<String, List<CalendarRun>> calendar = new LinkedHashMap<>();
@@ -225,7 +226,8 @@ final class RecordDtos {
                     calendar,
                     v.rewardBalance(),
                     v.monthRuns(),
-                    v.monthMeters().meters());
+                    v.monthMeters().meters(),
+                    v.streakWeeks());
         }
     }
 

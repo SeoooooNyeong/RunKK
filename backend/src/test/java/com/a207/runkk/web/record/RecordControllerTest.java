@@ -100,6 +100,7 @@ class RecordControllerTest extends WebTestSupport {
         assertThat(dashboard.get("todayMeters").asLong()).isEqualTo(5_000);
         assertThat(dashboard.get("todayRuns").asInt()).isEqualTo(1);
         assertThat(dashboard.get("streakDays").asInt()).isEqualTo(1);
+        assertThat(dashboard.get("streakWeeks").asInt()).isEqualTo(1);
         assertThat(dashboard.get("landmark").asText()).isNotBlank();
         assertThat(dashboard.get("grass").get(TODAY.toString()).asLong()).isEqualTo(5_000);
         assertThat(dashboard.get("calendar").get(TODAY.toString()).get(0).get("recordId").asText())

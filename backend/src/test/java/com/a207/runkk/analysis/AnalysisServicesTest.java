@@ -172,6 +172,7 @@ class AnalysisServicesTest {
         assertThat(view.total().distance()).isEqualTo(Distance.ofKm(14));
         assertThat(view.landmark()).contains("인천").contains("50%");
         assertThat(view.streakDays()).isEqualTo(2);
+        assertThat(view.streakWeeks()).as("어제·오늘은 같은 주(10/19 월요일 시작)").isEqualTo(1);
         assertThat(view.weekly().actualCount()).isEqualTo(2);
         assertThat(view.weekly().distancePercent()).isEqualTo(50);
         assertThat(view.crew().crewName()).isEqualTo("새벽크루");

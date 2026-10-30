@@ -3,6 +3,7 @@ package com.a207.runkk.battle;
 import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.Tier;
+import java.util.Optional;
 
 /**
  * 기록 상대(설계 6.1.6, 6.3 인터페이스 추출). 다른 러너 기록·가상 기록·유명인 기록이 같은 메시지에 다르게 답해 매칭 통지·보간·비교표·이력 표시명·고스트 표시
@@ -25,4 +26,9 @@ public interface OpponentRecord {
 
     /** 비교표 상대 값. 공개되지 않은 항목은 비어 있다(FR-093). */
     ComparisonValues comparisonValues(Distance battleDistance);
+
+    /** 앱 전용 캐릭터 그림 키(2026-10-31 결정). 유명인 기록만 가질 수 있고 나머지는 비어 있다. */
+    default Optional<String> figureKey() {
+        return Optional.empty();
+    }
 }
