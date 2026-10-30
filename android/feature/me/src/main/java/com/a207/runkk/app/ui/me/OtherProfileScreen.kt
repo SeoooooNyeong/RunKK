@@ -100,7 +100,7 @@ private fun OtherProfileBody(profile: Profile, faceLayers: List<FaceLayer>, modi
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        RunkkAvatar(profile.faceKey, AvatarExpression.JOY, Modifier.size(120.dp), faceLayers)
+        RunkkAvatar(profile.faceKey, AvatarExpression.RUN, Modifier.size(120.dp), faceLayers)
         Text(
             profile.displayName,
             style = RunkkTextStyles.text(20, FontWeight.Black),

@@ -62,7 +62,7 @@ private fun NicknameBox(nickname: String) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(Modifier.size(36.dp).clip(CircleShape).background(RunkkColors.SurfacePressed), Alignment.Center) {
-            RunkkAvatar(faceKey = null, expression = AvatarExpression.JOY, modifier = Modifier.size(32.dp))
+            RunkkAvatar(faceKey = null, expression = AvatarExpression.FACE, modifier = Modifier.size(32.dp))
         }
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(

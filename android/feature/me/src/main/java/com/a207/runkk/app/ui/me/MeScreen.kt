@@ -152,7 +152,7 @@ private fun ProfileHeader(profile: Profile, faceLayers: List<FaceLayer>, onEdit:
         ) {
             RunkkAvatar(
                 profile.faceKey,
-                AvatarExpression.JOY,
+                AvatarExpression.FACE,
                 modifier = Modifier.size(64.dp).testTag(PROFILE_FACE_TAG),
                 faceLayers = faceLayers
             )

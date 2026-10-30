@@ -200,16 +200,16 @@ class MeScreensTest {
     }
 
     @Test
-    fun `로그인은 로고 라벨과 두 제공자 버튼을 보인다`() {
+    fun `로그인은 로고 없이 두 브랜드 버튼을 보인다(피그마 A-1)`() {
         val tapped = mutableListOf<ProviderType>()
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 LoginScreen(LoginUiState(), onProvider = { tapped += it }, onErrorShown = {})
             }
         }
-        compose.onNodeWithContentDescription("런크크").assertExists()
-        compose.onNodeWithText("카카오로 시작하기").performClick()
-        compose.onNodeWithText("Google로 시작하기").performClick()
+        compose.onNodeWithContentDescription("런크크").assertDoesNotExist()
+        compose.onNodeWithContentDescription("카카오톡으로 시작하기").assertHeightIsAtLeast(48.dp).performClick()
+        compose.onNodeWithContentDescription("구글 계정으로 시작하기").assertHeightIsAtLeast(48.dp).performClick()
         assertEquals(listOf(ProviderType.KAKAO, ProviderType.GOOGLE), tapped)
     }
 
