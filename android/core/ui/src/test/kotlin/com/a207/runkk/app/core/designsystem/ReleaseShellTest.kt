@@ -100,6 +100,17 @@ class ReleaseShellTest {
     }
 
     @Test
+    fun `TC-9701 매칭 대기는 찾는 자세, 결과 상세는 뛰어오르는 자세 그림이다`() {
+        assertEquals(R.drawable.avatar_default_search, defaultAvatarOf(AvatarExpression.SEARCH))
+        assertEquals(R.drawable.avatar_default_jump, defaultAvatarOf(AvatarExpression.JUMP))
+        assertEquals(
+            AvatarExpression.JUMP,
+            RunResultDetailState(Distance(5_000), "", Duration.ZERO).expression,
+            "결과 상세 기본"
+        )
+    }
+
+    @Test
     fun `TC-9701 아바타 꾸미기가 열려 있으면 기존 얼굴 그림을 쓴다`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) { RunkkAvatar("default:BEAR", AvatarExpression.JOY, Modifier.size(40.dp)) }
