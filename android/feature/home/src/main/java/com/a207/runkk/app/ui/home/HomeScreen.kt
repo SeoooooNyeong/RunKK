@@ -298,7 +298,8 @@ private fun FillRemaining(
 /** 리워드 잔액 알약 "n,nnn P". [onClick]이 없으면 누를 수 없는 표시다. 잔액을 모르면 "-". */
 @Composable
 private fun BalancePill(balance: Int?, onClick: (() -> Unit)?) {
-    val amount = balance?.let { String.format(Locale.US, "%,d", it) } ?: RunkkFormat.EMPTY
+    // 잔액을 모르면(아직 적립이 없거나 못 읽음) 0으로 보인다(사용자 요청 2026-10-30)
+    val amount = String.format(Locale.US, "%,d", balance ?: 0)
     val description = stringResource(R.string.home_balance_description, amount)
     val openShop = stringResource(R.string.home_balance_open_shop)
     val clickable = if (onClick != null) {

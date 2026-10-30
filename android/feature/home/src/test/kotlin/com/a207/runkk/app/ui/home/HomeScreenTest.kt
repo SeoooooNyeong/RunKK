@@ -122,9 +122,10 @@ class HomeScreenTest {
     }
 
     @Test
-    fun `TC-9743 목표가 없거나 잔액을 모르면 그 자리를 비운다`() {
+    fun `TC-9743 목표가 없으면 그 자리를 비우고 잔액을 모르면 0 P로 보인다`() {
         show(loaded.copy(weeklyGoal = null, header = HomeHeader("달리는곰", null, null, null)))
-        compose.onNodeWithText("- P", useUnmergedTree = true).assertExists()
+        compose.onNodeWithText("0 P", useUnmergedTree = true).assertExists()
+        compose.onNodeWithText("- P", useUnmergedTree = true).assertDoesNotExist()
         compose.onNodeWithText("언랭, Lv.-").assertExists()
         compose.onNodeWithContentDescription("이번 주 12킬로미터, 목표 없음, 4일 연속").assertExists()
     }
