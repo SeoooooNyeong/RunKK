@@ -21,8 +21,8 @@ import org.testcontainers.utility.DockerImageName;
 
 /**
  * V30 피그마 v0.14 마이그레이션(설계 5.6.4, test.md TC-9857): V28까지 올린 PostgreSQL에 기존 회원·Runimal 확정 유형을 두고
- * V30을 적용하면 새 표·열이 생기고 기존 값이 옮겨지며, 새 CHECK·부분 고유 인덱스가 규칙을 지킨다. V29는 다른 MR이 쓰므로 비어 있다. Docker가 없으면
- * 건너뛴다.
+ * V30을 적용하면 새 표·열이 생기고 기존 값이 옮겨지며, 새 CHECK·부분 고유 인덱스가 규칙을 지킨다. V29는 MR !49(analytics)이고 V30이 그 뒤에
+ * 온다. Docker가 없으면 건너뛴다.
  */
 @Testcontainers(disabledWithoutDocker = true)
 @DisplayName("V30 피그마 v0.14 마이그레이션(PostgreSQL)")
@@ -53,6 +53,9 @@ class FigmaV30MigrationIntegrationTest {
         Flyway.configure()
                 .dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
                 .locations("classpath:db/migration")
+                // V29(analytics, MR !49)가 ai 계정 비밀번호를 플레이스홀더로 받는다(application-integration.yml과 같은
+                // 값)
+                .placeholders(Map.of("runkk_ai_password", "integration-test"))
                 .target(version)
                 .load()
                 .migrate();
@@ -90,8 +93,8 @@ class FigmaV30MigrationIntegrationTest {
 
     @Test
     @DisplayName(
-            "TC-9857 기존 값 이동: 공개 두 항목 = profile_visibility, 사진 비움, 가이드 거짓, 확정 이력 = 확정 유형, V29 비어"
-                    + " 있음")
+            "TC-9857 기존 값 이동: 공개 두 항목 = profile_visibility, 사진 비움, 가이드 거짓, 확정 이력 = 확정 유형, V29 다음"
+                    + " V30 있음")
     void migratesExistingRows() {
         long open = member("공개곰", "PUBLIC", "https://cdn/p.png");
         long closed = member("비공개곰", "PRIVATE", null);
@@ -125,7 +128,7 @@ class FigmaV30MigrationIntegrationTest {
                         "SELECT version FROM flyway_schema_history WHERE success ORDER BY"
                                 + " installed_rank",
                         String.class);
-        assertThat(versions).contains("28", "30").doesNotContain("29");
+        assertThat(versions).containsSubsequence("28", "29", "30");
         assertThat(
                         jdbc.queryForObject(
                                 "SELECT count(*) FROM information_schema.columns WHERE"
