@@ -173,7 +173,7 @@ private fun ColumnScope.Waiting(state: MatchUiState, actions: MatchActions) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically)
     ) {
-        RunkkAvatar(null, AvatarExpression.JOY, Modifier.size(220.dp))
+        RunkkAvatar(null, AvatarExpression.STAND, Modifier.size(220.dp))
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(8.dp),

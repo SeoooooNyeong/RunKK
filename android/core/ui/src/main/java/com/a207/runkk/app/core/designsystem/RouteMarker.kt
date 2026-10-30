@@ -55,7 +55,7 @@ const val MY_MARKER_TAG = "route-marker-mine"
 /** 상대 마커의 시험 표지(ui.battle이 RouteMarker(tag = OPPONENT_MARKER_TAG)로 넘긴다). */
 const val OPPONENT_MARKER_TAG = "route-marker-opponent"
 
-/** 기본 마커 그림(기쁜 기본 아바타). 마커마다 새 람다를 만들지 않게 하나를 함께 쓴다. */
+/** 기본 마커 그림(기본 아바타 얼굴). 마커마다 새 람다를 만들지 않게 하나를 함께 쓴다. */
 private val DefaultMarkerFigure: @Composable () -> Unit = {
-    RunkkAvatar(faceKey = null, expression = AvatarExpression.JOY, modifier = Modifier.fillMaxSize())
+    RunkkAvatar(faceKey = null, expression = AvatarExpression.FACE, modifier = Modifier.fillMaxSize())
 }

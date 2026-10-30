@@ -95,8 +95,11 @@ class HomeScreenTest {
     @Test
     fun `TC-9700 TC-9701 1차 배포는 기본 아바타를 그리고 아바타·잔액을 눌러도 이동하지 않는다`() {
         show(loaded)
-        compose.onAllNodesWithTag(DEFAULT_AVATAR_TAG + AvatarExpression.JOY.name, useUnmergedTree = true)
-            .assertCountEquals(2)
+        // 상단은 얼굴, 가운데는 서 있는 모습(피그마 A-4, D82)
+        compose.onAllNodesWithTag(DEFAULT_AVATAR_TAG + AvatarExpression.FACE.name, useUnmergedTree = true)
+            .assertCountEquals(1)
+        compose.onAllNodesWithTag(DEFAULT_AVATAR_TAG + AvatarExpression.STAND.name, useUnmergedTree = true)
+            .assertCountEquals(1)
         compose.onNodeWithTag(runkkAvatarCharacterTag("BEAR"), useUnmergedTree = true).assertDoesNotExist()
         compose.onNodeWithContentDescription("내 아바타").assertHasNoClickAction()
         compose.onNodeWithContentDescription("리워드 잔액 1,250 포인트").assertHasNoClickAction()

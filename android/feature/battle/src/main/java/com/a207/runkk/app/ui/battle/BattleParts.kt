@@ -106,12 +106,10 @@ internal fun Contender(
 
 @Composable
 private fun FigureCard(figure: Figure) {
+    // 피그마 C-3, D-2, E-2: 그림 뒤에 연두색 카드를 두지 않는다
     Box(
         Modifier
             .size(width = 104.dp, height = 112.dp)
-            .clip(RunkkShapes.ExtraLarge)
-            .background(RunkkColors.LimeContainer)
-            .border(1.dp, RunkkColors.Border, RunkkShapes.ExtraLarge)
             .clearAndSetSemantics {},
         contentAlignment = Alignment.Center
     ) {
@@ -121,11 +119,11 @@ private fun FigureCard(figure: Figure) {
 
 /** 대결자 그림 하나. 나는 기본 아바타, 배틀런 상대는 공통 상대 그림, 과거의 나는 반투명 기본 아바타, 셀럽은 공통 흐린 그림이다(D-254, D73·D74). */
 @Composable
-internal fun OpponentFigure(figure: Figure, size: Dp, expression: AvatarExpression = AvatarExpression.JOY) {
+internal fun OpponentFigure(figure: Figure, size: Dp, expression: AvatarExpression = AvatarExpression.STAND) {
     when (figure) {
         Figure.AVATAR -> RunkkAvatar(null, expression, Modifier.size(size))
         Figure.RIVAL -> RivalAvatar(Modifier.size(size))
-        Figure.PAST_SELF -> RunkkAvatar(null, expression, Modifier.size(size).alpha(PAST_SELF_ALPHA))
+        Figure.PAST_SELF -> RunkkAvatar(null, AvatarExpression.STAND, Modifier.size(size).alpha(PAST_SELF_ALPHA))
         Figure.CELEBRITY -> CelebrityFigure(size = size)
     }
 }

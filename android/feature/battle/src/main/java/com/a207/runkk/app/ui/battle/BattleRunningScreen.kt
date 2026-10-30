@@ -374,7 +374,7 @@ private fun BattleRoute(state: BattleRunningUiState) {
     val me = route.points.lastOrNull()
     if (me == null) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            RunkkAvatar(faceKey = null, expression = AvatarExpression.JOY, modifier = Modifier.size(72.dp))
+            RunkkAvatar(faceKey = null, expression = AvatarExpression.RUN, modifier = Modifier.size(72.dp))
         }
         return
     }

@@ -4,6 +4,7 @@ import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import com.a207.runkk.app.core.model.FaceLayer
@@ -26,16 +27,20 @@ fun RunkkAvatar(
         Image(
             painterResource(defaultAvatarOf(expression)),
             contentDescription = null,
+            contentScale = if (expression == AvatarExpression.FACE) ContentScale.Crop else ContentScale.Fit,
             modifier = modifier.testTag(DEFAULT_AVATAR_TAG + expression.name)
         )
     }
 }
 
-/** 배틀런 상대 그림(피그마 C-7 상대 캐릭터). 상대의 아바타를 받지 않으므로 모든 상대가 같은 그림이다. 장식이다. */
+/**
+ * 배틀런 상대 그림(피그마 C-3의 기본 남자 아바타). 상대의 아바타를 받지 않으므로 모든 상대가 같은 그림이다. 피그마 결과 화면(C-7)의
+ * 3D SD 남자 캐릭터는 잘못 들어간 것이라 쓰지 않는다(사용자 확인 2026-10-30). 장식이다.
+ */
 @Composable
 fun RivalAvatar(modifier: Modifier = Modifier) {
     Image(
-        painterResource(R.drawable.avatar_rival),
+        painterResource(R.drawable.avatar_rival_stand),
         contentDescription = null,
         modifier = modifier.testTag(RIVAL_AVATAR_TAG)
     )
@@ -44,11 +49,14 @@ fun RivalAvatar(modifier: Modifier = Modifier) {
 /** 배틀런 상대 그림의 시험 표지. */
 const val RIVAL_AVATAR_TAG = "rival-avatar"
 
-/** 기본 아바타 그림(표정별 2종). */
+/** 기본 아바타 그림(장면별 5종). */
 @DrawableRes
 fun defaultAvatarOf(expression: AvatarExpression): Int = when (expression) {
     AvatarExpression.JOY -> R.drawable.avatar_default_joy
     AvatarExpression.SAD -> R.drawable.avatar_default_sad
+    AvatarExpression.STAND -> R.drawable.avatar_default_stand
+    AvatarExpression.RUN -> R.drawable.avatar_default_run
+    AvatarExpression.FACE -> R.drawable.avatar_default_face
 }
 
 /** 기본 아바타 그림의 시험 표지 접두어(뒤에 표정 이름). */

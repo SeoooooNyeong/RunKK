@@ -170,7 +170,7 @@ private fun Header(state: HomeUiState, onNavigate: (String) -> Unit) {
             modifier = Modifier.size(48.dp).clip(CircleShape).background(RunkkColors.SurfacePressed),
             contentAlignment = Alignment.Center
         ) {
-            RunkkAvatar(state.faceKey, AvatarExpression.JOY, Modifier.size(44.dp), state.faceLayers)
+            RunkkAvatar(state.faceKey, AvatarExpression.FACE, Modifier.size(44.dp), state.faceLayers)
         }
         HeaderIdentity(state, modifier = Modifier.weight(1f))
         // 상점은 아바타 꾸미기와 함께 연다. 닫혀 있으면 잔액만 보인다(D-252, TC-9700).
@@ -446,7 +446,7 @@ private fun RoomAvatar(state: HomeUiState, isAvatarOpen: Boolean, onAvatar: () -
                 .then(press)
                 .semantics { contentDescription = description }
         ) {
-            RunkkAvatar(state.faceKey, AvatarExpression.JOY, Modifier.size(AVATAR_SIZE), state.faceLayers)
+            RunkkAvatar(state.faceKey, AvatarExpression.STAND, Modifier.size(AVATAR_SIZE), state.faceLayers)
         }
     }
 }

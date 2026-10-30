@@ -211,7 +211,7 @@ internal fun ModeVersus(opponent: String, opponentFigure: Figure = Figure.RIVAL)
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        VersusSlot { RunkkAvatar(null, AvatarExpression.JOY, Modifier.size(64.dp)) }
+        VersusSlot { RunkkAvatar(null, AvatarExpression.STAND, Modifier.size(64.dp)) }
         Text(
             "VS",
             style = RunkkTextStyles.display(28),

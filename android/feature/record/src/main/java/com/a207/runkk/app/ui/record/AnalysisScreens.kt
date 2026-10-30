@@ -417,7 +417,7 @@ private fun RankingLine(entry: Ranking.Entry, isMine: Boolean, modifier: Modifie
         )
         RunkkAvatar(
             faceKey = null,
-            expression = AvatarExpression.JOY,
+            expression = AvatarExpression.FACE,
             modifier = Modifier.size(36.dp).clip(CircleShape).background(RunkkColors.Surface)
         )
         Text(
