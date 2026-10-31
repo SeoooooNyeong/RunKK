@@ -14,6 +14,18 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- 대결 근접 알림·추월 긴 진동(FR-196, FR-188, watch.alert). -->
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- 워치 단독 측정(D-383, FR-245): 위치와 포그라운드 서비스 타입 location. 측정은 앱 화면에서 시작하므로 백그라운드 위치 권한은
+         두지 않는다(C-022, W05). 인터넷·네트워크 상태는 공용 :data 매니페스트가 합친다. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+
+    <!-- 음성 안내(FR-253, watch.guide): API 30+ 패키지 가시성. TTS 엔진을 찾으려면 엔진 서비스 질의를 선언해야 한다. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+    </queries>
 
     <application
         android:name="com.a207.runkk.watch.ui.RunkkWatchApp"
@@ -22,7 +34,7 @@
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.DeviceDefault">
-        <!-- 폰 앱이 있어야 동작한다(측정·기록은 폰, C-002). -->
+        <!-- 로그인 정보는 폰 앱이 보낸다(D-383, W06): 폰 없이 설치한 사용자가 로그인할 길이 없어 단독 앱으로 두지 않는다. -->
         <meta-data
             android:name="com.google.android.wearable.standalone"
             android:value="false" />
@@ -43,7 +55,14 @@
             android:exported="false"
             android:foregroundServiceType="health" />
 
-        <!-- 폰 메시지. 프로세스가 죽어 있어도 받으며, 뜬 프로세스는 남은 운동 세션부터 끝낸다(D-20, NFR-023). -->
+        <!-- 워치 단독 측정(D-368). 위치는 늘, 심박은 권한이 있을 때 타입 health를 함께 단다. -->
+        <service
+            android:name="com.a207.runkk.watch.run.WatchMeasurementService"
+            android:exported="false"
+            android:foregroundServiceType="health|location" />
+
+        <!-- 폰 메시지. 프로세스가 죽어 있어도 받으며, 뜬 프로세스는 남은 운동 세션부터 끝낸다(D-20, NFR-023).
+             로그아웃 표시는 DataClient 항목이라 DATA_CHANGED로 받는다(D-371). -->
         <service
             android:name="com.a207.runkk.watch.link.PhoneMessageService"
             android:exported="true">
@@ -52,6 +71,13 @@
                 <data
                     android:host="*"
                     android:pathPrefix="/runkk/"
+                    android:scheme="wear" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.DATA_CHANGED" />
+                <data
+                    android:host="*"
+                    android:pathPrefix="/runkk/session-revoked"
                     android:scheme="wear" />
             </intent-filter>
         </service>
