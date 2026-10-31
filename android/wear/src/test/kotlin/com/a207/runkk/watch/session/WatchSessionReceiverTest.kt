@@ -55,6 +55,7 @@ class WatchSessionReceiverTest {
             FakePendingRunRepository(),
             cache,
             FakeUploadScheduler(),
+            FakeSettingsRepository(),
             prefs,
             backgroundScope
         )

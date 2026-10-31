@@ -3,6 +3,7 @@ package com.a207.runkk.watch.session
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
+import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.account.AccountType
@@ -10,6 +11,7 @@ import com.a207.runkk.app.domain.account.SessionRepository
 import com.a207.runkk.app.domain.account.SessionTokens
 import com.a207.runkk.app.domain.run.PendingRunRepository
 import com.a207.runkk.app.domain.run.UploadScheduler
+import com.a207.runkk.app.domain.settings.SettingsRepository
 import com.a207.runkk.watch.cache.OpponentRecordCache
 import com.a207.runkk.wear.contract.SessionRevokedMessage
 import com.a207.runkk.wear.contract.WatchSessionMessage
@@ -39,6 +41,8 @@ import timber.log.Timber
  *   진행 중 기록이 새 회원 보관함에 들어가지 않게 하고, 결과를 닫은 뒤 다시 요청하면 폰이 다시 보낸다.
  * - 로그아웃(revoke·completeRevoke)은 서버 로그아웃(최선 노력) → 상대 기록 → 토큰 순으로 지운다. 미전송 기록은 남긴다(FR-241).
  * - 공용 :data TokenAuthenticator가 갱신을 거부당해 토큰을 지우면 None이 된다(상태도 "갱신 실패").
+ * - 서버 설정 사본(위치 수집 동의·안내 설정 등, D-379)은 회원 사본이라 로그인 정보와 수명을 같이 한다: 화면이 메인을 열 때
+ *   [refreshSettings]로 맞추고(폰 LoginUseCase가 로그인 뒤 맞추는 것과 같다), 로그아웃·다른 회원 로그인 때 지운다.
  * 모든 바꾸기는 [mutex] 하나로 한 줄로 세운다.
  */
 @Singleton
@@ -48,6 +52,7 @@ class WatchSessionStore internal constructor(
     private val pendingRuns: PendingRunRepository,
     private val cache: OpponentRecordCache,
     private val uploads: UploadScheduler,
+    private val settings: SettingsRepository,
     private val prefs: SharedPreferences,
     scope: CoroutineScope
 ) {
@@ -59,6 +64,7 @@ class WatchSessionStore internal constructor(
         pendingRuns: PendingRunRepository,
         cache: OpponentRecordCache,
         uploads: UploadScheduler,
+        settings: SettingsRepository,
         scope: CoroutineScope
     ) : this(
         tokens,
@@ -66,6 +72,7 @@ class WatchSessionStore internal constructor(
         pendingRuns,
         cache,
         uploads,
+        settings,
         context.getSharedPreferences(FILE, Context.MODE_PRIVATE),
         scope
     )
@@ -144,6 +151,15 @@ class WatchSessionStore internal constructor(
         finishRevoke(storedLong(KEY_REVOKED_AT) ?: 0L)
     }
 
+    /**
+     * 서버 설정 사본을 맞춘다(D-379, 메인을 열 때). 로그인 정보가 없으면 부르지 않고 Unauthorized다. 실패하면 이전 사본을 그대로 둔다.
+     * 바꾸기와 겹치지 않게 같은 잠금 안에서 부른다(로그아웃 직후 늦게 온 사본이 남지 않게).
+     */
+    suspend fun refreshSettings(): Outcome<Unit> = mutex.withLock {
+        if (_state.value !is WatchSession.Active) return@withLock Outcome.Failure(AppError.Unauthorized)
+        settings.refresh()
+    }
+
     /** 받아 둔 세션보다 이른 표시(H-55)이거나 다른 회원의 표시. */
     private fun isStale(m: SessionRevokedMessage): Boolean {
         val issuedAt = storedLong(KEY_ISSUED_AT)
@@ -160,6 +176,7 @@ class WatchSessionStore internal constructor(
             Timber.i("서버 로그아웃을 마치지 못했다. 기기 정리는 한다")
         }
         cache.clear()
+        settings.clear()
         val cleared = tokens.clear()
         accounts.forgetMyGender()
         prefs.edit(commit = true) {
@@ -179,6 +196,7 @@ class WatchSessionStore internal constructor(
             return purged
         }
         cache.clear()
+        settings.clear()
         accounts.forgetMyGender()
         return tokens.clear()
     }

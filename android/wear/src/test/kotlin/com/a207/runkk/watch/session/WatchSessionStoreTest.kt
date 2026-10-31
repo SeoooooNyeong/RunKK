@@ -2,6 +2,7 @@ package com.a207.runkk.watch.session
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.account.AccountType
 import com.a207.runkk.app.domain.account.SessionTokens
@@ -11,6 +12,7 @@ import com.a207.runkk.watch.testing.FakeAccountRepository
 import com.a207.runkk.watch.testing.FakeBattleRepository
 import com.a207.runkk.watch.testing.FakePendingRunRepository
 import com.a207.runkk.watch.testing.FakeSessionRepository
+import com.a207.runkk.watch.testing.FakeSettingsRepository
 import com.a207.runkk.watch.testing.FakeUploadScheduler
 import com.a207.runkk.watch.testing.SchedulerClock
 import com.a207.runkk.watch.testing.selfTrack
@@ -44,6 +46,7 @@ class WatchSessionStoreTest {
     private val accounts = FakeAccountRepository(events)
     private val pendingRuns = FakePendingRunRepository(events)
     private val uploads = FakeUploadScheduler()
+    private val settings = FakeSettingsRepository()
     private val battles = FakeBattleRepository()
     private val prefs: SharedPreferences =
         RuntimeEnvironment.getApplication().getSharedPreferences("watch-session-test", Context.MODE_PRIVATE)
@@ -62,7 +65,7 @@ class WatchSessionStoreTest {
         val describe = { "(cache=${cache.selfCandidates().size})" }
         pendingRuns.describeOnClear = describe
         tokens.describeOnClear = describe
-        return WatchSessionStore(tokens, accounts, pendingRuns, cache, uploads, prefs, backgroundScope)
+        return WatchSessionStore(tokens, accounts, pendingRuns, cache, uploads, settings, prefs, backgroundScope)
     }
 
     private fun session(memberId: Long, issuedAt: Long, accountType: String = "SOCIAL") =
@@ -231,5 +234,19 @@ class WatchSessionStoreTest {
         runCurrent()
 
         assertEquals(WatchSession.None, store.state.value)
+    }
+
+    @Test
+    fun `로그인 정보가 있을 때만 서버 설정 사본을 맞추고 로그아웃하면 지운다(D-379)`() = runTest {
+        val store = store()
+        assertEquals(Outcome.Failure(AppError.Unauthorized), store.refreshSettings())
+        assertEquals(0, settings.refreshes)
+
+        store.accept(WatchSessionMessage(1, "SOCIAL", "a", "r", 100))
+        assertEquals(Outcome.Success(Unit), store.refreshSettings())
+        assertEquals(1, settings.refreshes)
+
+        store.revoke(SessionRevokedMessage(1, 200))
+        assertEquals(1, settings.clears)
     }
 }
