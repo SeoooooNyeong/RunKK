@@ -664,6 +664,54 @@
   ],
   "file": "web/battle/BattleDtos.java"
  },
+ "BattleDtos.RecordTrackResponse": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "celebrityId"
+   },
+   {
+    "kind": "leaf",
+    "name": "opponentName"
+   },
+   {
+    "kind": "leaf",
+    "name": "distanceMeters"
+   },
+   {
+    "kind": "leaf",
+    "name": "finishSeconds"
+   },
+   {
+    "kind": "list",
+    "name": "track",
+    "ref": "BattleDtos.TrackPointResponse"
+   },
+   {
+    "kind": "leaf",
+    "name": "sourceLabel"
+   },
+   {
+    "kind": "leaf",
+    "name": "estimated"
+   },
+   {
+    "kind": "leaf",
+    "name": "celebrityFigure"
+   }
+  ],
+  "file": "web/battle/BattleDtos.java"
+ },
+ "BattleDtos.RecordTracksResponse": {
+  "components": [
+   {
+    "kind": "list",
+    "name": "tracks",
+    "ref": "BattleDtos.RecordTrackResponse"
+   }
+  ],
+  "file": "web/battle/BattleDtos.java"
+ },
  "BattleDtos.Row": {
   "components": [
    {
