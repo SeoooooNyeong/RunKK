@@ -38,7 +38,8 @@ class PlayServicesTransportTest {
                 SupervisorJob() + UnconfinedTestDispatcher() + CoroutineExceptionHandler { _, e -> failures += e }
             )
         try {
-            val link = WatchLink(context, NoSettings, scope, java.time.Clock.systemUTC())
+            val link =
+                WatchLink(PlayServicesTransport(context, scope), NoSettings, scope, clock = java.time.Clock.systemUTC())
             link.publish(
                 WatchDisplay(
                     isRunning = false,

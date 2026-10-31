@@ -216,6 +216,12 @@ class WatchLinkTest {
             sent += path to payload
         }
 
+        override suspend fun sendNow(path: String, payload: ByteArray, nodeId: String?): Boolean = false
+
+        override suspend fun putItem(path: String, payload: ByteArray): Boolean = false
+
+        override suspend fun deleteItems(path: String): Boolean = false
+
         fun receive(path: String, payload: ByteArray) {
             check(incoming.tryEmit(WatchLink.Incoming(path, payload)))
         }

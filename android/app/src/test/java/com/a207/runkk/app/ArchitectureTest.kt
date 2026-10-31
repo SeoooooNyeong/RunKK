@@ -44,15 +44,16 @@ class ArchitectureTest {
 
     /**
      * 12.4 구조 합격 조건(design-review 19장 R51·R52, D-335): 모듈 Fan-Out 7 이하. 허용 표 화살표는 v0.22(설계 5절·9.1, D-394)로
-     * 폰 153개·워치 26개다. 워치 26개 가운데 새 패키지(watch.run·guide·session·cache)와 새 화살표는 2·3단계 코드가 채운다
+     * 폰 153개·워치 26개였고, 2단계 A2가 data.watch → core.model 하나를 더해(issueWatchSession이 Outcome을 돌려준다) 폰 154개다.
+     * 워치 26개 가운데 새 패키지(watch.run·guide·session·cache)와 새 화살표는 2·3단계 코드가 채운다
      * (지금 워치 코드가 쓰는 화살표는 6400955a의 5개 그대로다).
      */
     @Test
-    fun `모듈 Fan-Out은 7 이하이고 허용 표는 폰 153개·워치 26개다`() {
+    fun `모듈 Fan-Out은 7 이하이고 허용 표는 폰 154개·워치 26개다`() {
         val over = ALLOWED.filterValues { it.size > MAX_FAN_OUT }.mapValues { it.value.size }
         assertEquals(emptyMap(), over)
         val (watch, phone) = ALLOWED.entries.partition { it.key.startsWith("watch.") || it.key == "wear.contract" }
-        assertEquals(153, phone.sumOf { it.value.size })
+        assertEquals(154, phone.sumOf { it.value.size })
         assertEquals(26, watch.sumOf { it.value.size })
     }
 
@@ -494,8 +495,9 @@ class ArchitectureTest {
                 "data.settings" to setOf("domain.settings", "core.model"),
                 "data.sync" to setOf("domain.sync", "domain.run", "core.model"),
                 // domain.account 추가(v0.22 R71, D-392): WatchSessionPublisher가 로그인 상태를 구독하고 issueWatchSession으로 워치용
-                // 토큰을 받는다(api.account 직접 호출 없음). 그 클래스는 2단계(폰 로그인 전달)가 만든다.
-                "data.watch" to setOf("domain.run", "domain.settings", "wear.contract", "domain.account"),
+                // 토큰을 받는다(api.account 직접 호출 없음).
+                // core.model 추가(2단계 A2 결정): issueWatchSession의 결과(Outcome)와 발급 한도 초과(AppError)를 가려 읽는다.
+                "data.watch" to setOf("domain.run", "domain.settings", "wear.contract", "domain.account", "core.model"),
                 "data.live" to setOf("domain.live", "api.core", "api.live", "core.model"),
                 // domain.chat 추가: OpenChatRoomTracker가 OpenChatRoomRegistry를 구현한다(D-130).
                 "data.push" to setOf("domain.notification", "domain.chat"),

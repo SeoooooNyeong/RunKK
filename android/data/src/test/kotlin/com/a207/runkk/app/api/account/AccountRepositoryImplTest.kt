@@ -210,6 +210,13 @@ class AccountRepositoryImplTest {
 
         assertEquals(Outcome.Failure(AppError.Unauthorized), loggedOut.profile(AccountRepository.SELF))
         assertEquals(Outcome.Failure(AppError.Unauthorized), loggedOut.mySummary())
+        assertEquals(null, loggedOut.selfMemberId())
+        assertEquals(0, api.server.requestCount)
+    }
+
+    @Test
+    fun `본인 회원 ID는 서버 호출 없이 접근 토큰에서 읽는다(워치 로그인 정보, SQ-43)`() {
+        assertEquals(7L, repository.selfMemberId())
         assertEquals(0, api.server.requestCount)
     }
 

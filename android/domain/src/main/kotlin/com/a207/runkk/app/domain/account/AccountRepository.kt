@@ -30,6 +30,12 @@ interface AccountRepository {
     suspend fun issueWatchSession(): Outcome<SessionTokens>
 
     /**
+     * 로그인한 본인의 회원 ID(기기에 있는 접근 토큰에서 읽는다, 서버 호출 없음). 토큰이 없으면 null. WatchSessionPublisher가 워치에 보낼
+     * 로그인 정보의 회원 ID와 "이미 보낸 회원인가"를 이것으로 정한다(SQ-43: watch-session 응답에는 토큰 쌍뿐이다). 구현이 없으면 null.
+     */
+    fun selfMemberId(): Long? = null
+
+    /**
      * 게스트로 시작(POST /members/guest, FR-197). [consents]의 키는 서버 ConsentItem 이름이고 가입과 같은 동의 화면이 채운다
      * (HEART_RATE·FACE_TRANSFER는 받지 않는다). 거부는 Rejected(UNDER_14·CONSENT_MISSING 등), 접속지 한도 초과는 Server(429).
      */

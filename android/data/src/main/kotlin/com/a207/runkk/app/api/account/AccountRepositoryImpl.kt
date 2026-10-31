@@ -92,6 +92,8 @@ constructor(
     override suspend fun issueWatchSession(): Outcome<SessionTokens> =
         ApiErrorMapper.call { auth.watchSession().toDomain() }
 
+    override fun selfMemberId(): Long? = self.memberId()
+
     /** 서버의 갱신 토큰 폐기. 갱신 토큰이 없으면(이미 로그아웃) 보낼 것이 없다. */
     override suspend fun logout(): Outcome<Unit> {
         val refresh = tokens.refreshToken() ?: return Outcome.Success(Unit)
