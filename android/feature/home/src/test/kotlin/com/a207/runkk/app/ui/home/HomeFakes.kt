@@ -173,6 +173,8 @@ class FakeAccountRepository : com.a207.runkk.app.domain.account.AccountRepositor
 
     override suspend fun logout() = unusedOutcome<Unit>()
 
+    override suspend fun issueWatchSession() = unusedOutcome<SessionTokens>()
+
     override suspend fun startAsGuest(consents: Map<String, Boolean>) =
         unusedOutcome<com.a207.runkk.app.domain.account.GuestSession>()
 

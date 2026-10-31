@@ -28,7 +28,9 @@ import com.a207.runkk.app.domain.battle.FriendInviteView
 import com.a207.runkk.app.domain.battle.MatchAcceptance
 import com.a207.runkk.app.domain.battle.OpponentTrack
 import com.a207.runkk.app.domain.battle.RecordBattleCandidates
+import com.a207.runkk.app.domain.battle.RecordBattleKind
 import com.a207.runkk.app.domain.battle.RecordBattleStart
+import com.a207.runkk.app.domain.battle.RecordTrack
 import com.a207.runkk.app.domain.live.ClientMessage
 import com.a207.runkk.app.domain.live.LiveChannel
 import com.a207.runkk.app.domain.live.LiveChannelProvider
@@ -167,6 +169,9 @@ class FakeBattleRepository : BattleRepository {
         calls += "celeb:${distance?.meters}"
         return celebResult
     }
+
+    override suspend fun recordTracks(kind: RecordBattleKind): Outcome<List<RecordTrack>> =
+        Outcome.Failure(AppError.Rejected("UNUSED"))
 
     override suspend fun startSelfBattle(distance: Distance): Outcome<RecordBattleStart> {
         calls += "startSelf:${distance.meters}"
@@ -340,6 +345,8 @@ class FakeAccounts : AccountRepository {
     override suspend fun signUp(form: SignUpForm): Outcome<SessionTokens> = unused()
 
     override suspend fun logout(): Outcome<Unit> = unused()
+
+    override suspend fun issueWatchSession(): Outcome<SessionTokens> = unused()
 
     override suspend fun startAsGuest(consents: Map<String, Boolean>): Outcome<GuestSession> = unused()
 

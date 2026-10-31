@@ -25,6 +25,10 @@ internal interface BattleApi {
     @GET("battles/celebrity/candidates")
     suspend fun celebrityCandidates(@Query("distanceMeters") distanceMeters: Long?): CandidatesResponse
 
+    /** 셀프·셀럽 상대 기록과 구간 기록(읽기 전용, 대결을 만들지 않는다). kind는 SELF 또는 CELEBRITY(D-377). */
+    @GET("battles/record-tracks")
+    suspend fun recordTracks(@Query("kind") kind: String): RecordTracksResponse
+
     @POST("battles/self")
     suspend fun startSelfBattle(@Body body: SelfBattleRequest): RecordBattleStartResponse
 
