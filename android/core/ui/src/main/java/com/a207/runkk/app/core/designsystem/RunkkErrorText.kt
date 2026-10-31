@@ -27,6 +27,7 @@ object RunkkErrorText {
         AppError.Rejected.LOCATION_CONSENT to R.string.core_error_location_consent,
         AppError.Rejected.RUN_IN_PROGRESS to R.string.core_error_run_in_progress,
         AppError.Rejected.SIGN_UP_REQUIRED to R.string.core_error_sign_up_required,
+        AppError.Rejected.WATCH_MEASURING to R.string.core_error_watch_measuring,
         "NOT_FOUND" to R.string.core_error_not_found,
         "BAD_REQUEST" to R.string.core_error_bad_request,
         "PERMISSION_DENIED" to R.string.core_error_permission_denied,

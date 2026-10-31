@@ -6,6 +6,7 @@
     <string name="core_error_network">네트워크에 연결할 수 없어요. 연결을 확인하고 다시 시도해 주세요</string>
     <string name="core_error_location_consent">러닝을 측정하려면 위치 권한과 위치 수집 동의가 필요해요</string>
     <string name="core_error_run_in_progress">이미 러닝을 측정하고 있어요</string>
+    <string name="core_error_watch_measuring">워치에서 러닝 중이에요</string>
     <string name="core_error_sign_up_required">가입이 필요해요</string>
     <string name="core_error_not_found">찾을 수 없어요. 이미 지워졌거나 없는 항목이에요</string>
     <string name="core_error_bad_request">요청 내용을 확인한 뒤 다시 시도해 주세요</string>

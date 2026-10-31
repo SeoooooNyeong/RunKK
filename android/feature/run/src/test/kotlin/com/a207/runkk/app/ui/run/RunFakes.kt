@@ -126,6 +126,11 @@ class FakeWatchGateway : WatchGateway {
     }
 
     override fun isConnected() = false
+
+    /** 짝지은 워치가 스스로 측정 중인가(FR-252). 시험이 바꾼다. */
+    var isMeasuringOnWatch = false
+
+    override fun isWatchMeasuring(): Boolean = isMeasuringOnWatch
 }
 
 class FakeGuidanceOutput : GuidanceOutput {

@@ -24,6 +24,7 @@
     <string name="battle_error_celebrity_removed">고를 수 없는 기록이에요. 목록을 새로 불러왔어요</string>
     <string name="battle_error_not_found">대결을 찾지 못했어요</string>
     <string name="battle_error_location_permission">대결하려면 위치 권한과 위치 수집 동의가 필요해요</string>
+    <string name="battle_error_watch_measuring">워치에서 러닝 중이에요</string>
     <string name="battle_verdict_win">승</string>
     <string name="battle_verdict_lose">패</string>
     <string name="battle_verdict_draw">무</string>

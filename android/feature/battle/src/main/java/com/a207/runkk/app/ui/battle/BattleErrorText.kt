@@ -22,6 +22,7 @@ internal object BattleErrorText {
         "NO_RECORD" to R.string.battle_no_record_yet,
         "CELEBRITY_REMOVED" to R.string.battle_error_celebrity_removed,
         "BATTLE_NOT_FOUND" to R.string.battle_error_not_found,
-        AppError.Rejected.LOCATION_CONSENT to R.string.battle_error_location_permission
+        AppError.Rejected.LOCATION_CONSENT to R.string.battle_error_location_permission,
+        AppError.Rejected.WATCH_MEASURING to R.string.battle_error_watch_measuring
     )
 }
