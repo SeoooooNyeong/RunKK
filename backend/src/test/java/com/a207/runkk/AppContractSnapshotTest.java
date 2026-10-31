@@ -109,7 +109,9 @@ class AppContractSnapshotTest {
         ENUMS.put("notification", List.of("NotificationType", "Screen"));
         ENUMS.put("avatar", List.of("DefaultCharacter", "BodyShape", "SkinTone", "FailureReason"));
         ENUMS.put("battle", List.of("BattleType", "Verdict"));
-        ENUMS.put("running", List.of("CardKind", "RunMode", "SignalState", "DisposalKind"));
+        ENUMS.put(
+                "running",
+                List.of("CardKind", "RunMode", "SignalState", "DisposalKind", "StartDevice"));
         ENUMS.put(
                 "crew",
                 List.of(

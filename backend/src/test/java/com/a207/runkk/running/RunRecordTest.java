@@ -35,6 +35,40 @@ class RunRecordTest {
                 u.heartRates());
     }
 
+    private static RunUpload startedOn(RunUpload u, StartDevice device) {
+        return new RunUpload(
+                u.recordId(),
+                u.startedAt(),
+                u.endedAt(),
+                u.distance(),
+                u.elapsed(),
+                u.mode(),
+                u.cardKind(),
+                u.battleId(),
+                u.crewRunPostId(),
+                u.declaredPointCount(),
+                u.points(),
+                u.unstableSegments(),
+                u.heartRates(),
+                u.pauses(),
+                device);
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("W23·D-378: 시작 기기는 보낸 값으로 저장하고, 없으면(옛 앱) PHONE이다")
+    void receive_keepsStartDevice() {
+        RunUpload phone = upload(id(1), 5_000, 1_500);
+        assertThat(phone.startDevice()).isEqualTo(StartDevice.PHONE);
+        assertThat(startedOn(phone, null).startDevice()).isEqualTo(StartDevice.PHONE);
+        assertThat(RunRecord.receive(1, phone).getStartDevice()).isEqualTo(StartDevice.PHONE);
+
+        RunUpload watch = startedOn(phone, StartDevice.WATCH);
+        assertThat(RunRecord.receive(1, watch).getStartDevice()).isEqualTo(StartDevice.WATCH);
+        assertThat(watch.withoutHeartRates().startDevice())
+                .as("심박 동의가 없어 심박을 뺀 사본도 시작 기기를 지킨다")
+                .isEqualTo(StartDevice.WATCH);
+    }
+
     @Test
     void receive_validatesInput() {
         RunUpload ok = upload(id(1), 5_000, 1_500);
