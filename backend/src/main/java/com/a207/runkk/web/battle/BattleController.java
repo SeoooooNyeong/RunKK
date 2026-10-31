@@ -2,6 +2,7 @@ package com.a207.runkk.web.battle;
 
 import com.a207.runkk.battle.BattleHistoryService;
 import com.a207.runkk.battle.BattleResultService;
+import com.a207.runkk.battle.BattleType;
 import com.a207.runkk.battle.MatchingService;
 import com.a207.runkk.battle.RecordBattleService;
 import com.a207.runkk.common.BusinessRuleException;
@@ -103,6 +104,16 @@ public class BattleController {
                 Optional.ofNullable(distanceMeters).map(BattleController::standard);
         return BattleDtos.CandidatesResponse.of(
                 recordBattleService.celebrityCandidates(memberId, filter));
+    }
+
+    /**
+     * 워치가 미리 받는 셀프·셀럽 상대 기록(v0.21 D-377, FR-260). kind는 SELF·CELEBRITY만, 그 밖의 값·없음은 400
+     * BAD_REQUEST. 대결을 만들지 않는다.
+     */
+    @GetMapping("/record-tracks")
+    BattleDtos.RecordTracksResponse recordTracks(
+            @RequestAttribute(MEMBER_ID) long memberId, @RequestParam BattleType kind) {
+        return BattleDtos.RecordTracksResponse.of(recordBattleService.recordTracks(memberId, kind));
     }
 
     @PostMapping("/self")

@@ -7,6 +7,7 @@ import com.a207.runkk.battle.ComparisonTable;
 import com.a207.runkk.battle.MatchAcceptance;
 import com.a207.runkk.battle.RecordBattleCandidates;
 import com.a207.runkk.battle.RecordBattleStart;
+import com.a207.runkk.battle.RecordTrack;
 import com.a207.runkk.battle.Source;
 import com.a207.runkk.battle.TrackSample;
 import com.a207.runkk.battle.Verdict;
@@ -204,6 +205,51 @@ final class BattleDtos {
                     Optional.ofNullable(s.source()).map(Source::label).orElse(null),
                     s.estimated(),
                     s.figureKey());
+        }
+    }
+
+    /**
+     * 워치 상대 기록 미리 받기(GET /battles/record-tracks, v0.21 D-377). 거리 → 완주 시간 오름차순.
+     *
+     * @param tracks 상대 기록
+     */
+    record RecordTracksResponse(List<RecordTrackResponse> tracks) {
+        static RecordTracksResponse of(List<RecordTrack> tracks) {
+            return new RecordTracksResponse(tracks.stream().map(RecordTrackResponse::of).toList());
+        }
+    }
+
+    /**
+     * 워치 상대 기록 하나. track은 기록 대결 시작 정보(RecordBattleStartResponse.track)와 같은 형식이다.
+     *
+     * @param celebrityId 유명인 기록 ID, 나와의 싸움이면 null
+     * @param opponentName 상대 표시명(RecordBattleStartResponse.opponentName과 같은 규칙)
+     * @param distanceMeters 대결 거리
+     * @param finishSeconds 상대 기록 완주 시간(초)
+     * @param track 상대 경과 시간·누적 거리 표
+     * @param sourceLabel 출처 표기(유명인), 나와의 싸움이면 null
+     * @param estimated 구간 기록이 없어 균등 페이스로 만든 표(A-006)
+     * @param celebrityFigure 유명인 캐릭터 그림 키, 없거나 나와의 싸움이면 null
+     */
+    record RecordTrackResponse(
+            Long celebrityId,
+            String opponentName,
+            long distanceMeters,
+            long finishSeconds,
+            List<TrackPointResponse> track,
+            String sourceLabel,
+            boolean estimated,
+            String celebrityFigure) {
+        static RecordTrackResponse of(RecordTrack t) {
+            return new RecordTrackResponse(
+                    t.celebrityId(),
+                    t.opponentName().value(),
+                    t.distance().meters(),
+                    t.finishTime().toSeconds(),
+                    t.track().wholeSeconds().stream().map(TrackPointResponse::of).toList(),
+                    Optional.ofNullable(t.source()).map(Source::label).orElse(null),
+                    t.estimated(),
+                    t.figureKey());
         }
     }
 

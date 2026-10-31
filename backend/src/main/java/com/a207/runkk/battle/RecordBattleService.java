@@ -17,8 +17,12 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,6 +44,10 @@ public class RecordBattleService {
     static final String NO_RECORD_YET = "아직 기록이 없어요";
 
     private static final DateTimeFormatter SELF_LABEL = DateTimeFormatter.ofPattern("MM/dd의 나");
+
+    /** 워치 상대 기록 순서: 거리 → 완주 시간 오름차순(D-377). */
+    private static final Comparator<RecordTrack> TRACK_ORDER =
+            Comparator.comparing(RecordTrack::distance).thenComparing(RecordTrack::finishTime);
 
     private final MemberQueryService memberQueryService;
     private final RunQueryService runQueryService;
@@ -130,14 +138,7 @@ public class RecordBattleService {
                 runQueryService
                         .best(memberId, d)
                         .orElseThrow(() -> new BusinessRuleException(ReasonCode.NO_RECORD));
-        RunRecordOpponent self =
-                new RunRecordOpponent(
-                        best.recordId(),
-                        runQueryService.comparisonOf(best.recordId()),
-                        runQueryService.curve(best.recordId(), d.distance()),
-                        new RunRecordOpponent.Owner(
-                                DisplayName.of(SELF_LABEL.format(best.achievedOn())),
-                                tierOf(memberId)));
+        RunRecordOpponent self = selfOpponent(best, d, tierOf(memberId));
         Battle battle = create(BattleType.SELF, memberId, d.distance(), self);
         return new RecordBattleStart(
                 battle.getId(),
@@ -148,6 +149,16 @@ public class RecordBattleService {
                 null,
                 false,
                 null);
+    }
+
+    /** 나와의 싸움 상대: 그 거리 최고 기록의 1초 표본, 표시명 "MM/dd의 나"(POST /battles/self와 워치 미리 받기가 함께 쓴다). */
+    private RunRecordOpponent selfOpponent(BestEntry best, StandardDistance d, Tier tier) {
+        return new RunRecordOpponent(
+                best.recordId(),
+                runQueryService.comparisonOf(best.recordId()),
+                runQueryService.curve(best.recordId(), d.distance()),
+                new RunRecordOpponent.Owner(
+                        DisplayName.of(SELF_LABEL.format(best.achievedOn())), tier));
     }
 
     /** 위치 동의 → 유명인 기록(없으면 CELEBRITY_REMOVED) → CELEBRITY 대결. 대결 거리 = 기록 거리. */
@@ -168,6 +179,111 @@ public class RecordBattleService {
                 celebrity.getSource(),
                 celebrity.isEstimated(),
                 battle.getOpponentFigure().orElse(null));
+    }
+
+    /**
+     * 워치가 미리 받아 두는 기록 대결 상대(v0.21 D-377, FR-260, SQ-46). 읽기만 하고 대결을 만들지 않는다. SELF: 나와의 싸움
+     * 거리(1·3·5·10km·하프)마다 최고 기록이 있으면 하나. CELEBRITY: 등록된 유명인 기록 전부(후보 목록과 같은 범위). 상대 표는 POST
+     * /battles/self·celebrity와 같은 OpponentRecord.track으로 만든다. 표를 만들 수 없는 기록(경로 파기·기록 없음, 대결 거리에 닿지
+     * 않는 표)은 시작할 때도 거부되므로 뺀다. 거리 → 완주 시간 오름차순. 시작이 아니라 위치 동의는 보지 않는다.
+     *
+     * @throws IllegalArgumentException kind가 SELF·CELEBRITY가 아님
+     */
+    @Transactional(readOnly = true)
+    public List<RecordTrack> recordTracks(long memberId, BattleType kind) {
+        List<RecordTrack> tracks =
+                switch (kind) {
+                    case SELF -> selfTracks(memberId);
+                    case CELEBRITY -> celebrityTracks();
+                    default ->
+                            throw new IllegalArgumentException(
+                                    "기록 상대 미리 받기는 SELF·CELEBRITY만 받는다: " + kind);
+                };
+        return tracks.stream().sorted(TRACK_ORDER).toList();
+    }
+
+    private List<RecordTrack> selfTracks(long memberId) {
+        Map<StandardDistance, BestEntry> bests = new EnumMap<>(StandardDistance.class);
+        for (StandardDistance d : StandardDistance.values()) {
+            if (d.isSelfBattle()) {
+                runQueryService
+                        .best(memberId, d)
+                        .filter(b -> b.time().isPresent())
+                        .ifPresent(b -> bests.put(d, b));
+            }
+        }
+        if (bests.isEmpty()) {
+            return List.of();
+        }
+        Tier tier = tierOf(memberId);
+        List<RecordTrack> tracks = new ArrayList<>();
+        bests.forEach((d, best) -> selfTrack(best, d, tier).ifPresent(tracks::add));
+        return tracks;
+    }
+
+    private Optional<RecordTrack> selfTrack(BestEntry best, StandardDistance d, Tier tier) {
+        if (!runQueryService.hasCurve(best.recordId())) {
+            // 경로 파기·기록 없음: POST /battles/self도 거부하는 기록이다
+            log.info(
+                    "record_track_skipped recordId={} distance={} reason=no_curve",
+                    best.recordId(),
+                    d);
+            return Optional.empty();
+        }
+        return recordTrack(
+                BattleType.SELF,
+                null,
+                selfOpponent(best, d, tier),
+                d.distance(),
+                best.time().orElseThrow(),
+                null,
+                false);
+    }
+
+    private List<RecordTrack> celebrityTracks() {
+        return celebrityRecordRepository.findAll(Optional.empty()).stream()
+                .map(
+                        c ->
+                                recordTrack(
+                                        BattleType.CELEBRITY,
+                                        c.getId(),
+                                        c,
+                                        c.getDistance(),
+                                        c.getFinishTime(),
+                                        c.getSource(),
+                                        c.isEstimated()))
+                .flatMap(Optional::stream)
+                .toList();
+    }
+
+    /** 상대 표가 대결 거리에 닿아야 한다(RecordBattleSpec.of와 같은 조건). 닿지 않으면 비어 있다. */
+    private static Optional<RecordTrack> recordTrack(
+            BattleType type,
+            Long celebrityId,
+            OpponentRecord opponent,
+            Distance distance,
+            Duration finishTime,
+            Source source,
+            boolean estimated) {
+        OpponentTrack track = opponent.track(distance);
+        if (track.arrivalTime(distance).isEmpty()) {
+            log.info(
+                    "record_track_skipped recordId={} distance={} reason=track_short",
+                    opponent.recordId(),
+                    distance.meters());
+            return Optional.empty();
+        }
+        return Optional.of(
+                new RecordTrack(
+                        type,
+                        celebrityId,
+                        opponent.displayName(),
+                        distance,
+                        finishTime,
+                        track,
+                        source,
+                        estimated,
+                        opponent.figureKey().orElse(null)));
     }
 
     /**
