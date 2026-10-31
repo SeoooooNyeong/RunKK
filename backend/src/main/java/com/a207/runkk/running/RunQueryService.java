@@ -260,6 +260,14 @@ public class RunQueryService {
         return new RunCurve(samples, cut);
     }
 
+    /**
+     * curve·comparisonOf를 예외 없이 부를 수 있는가(기록이 있고 경로가 파기되지 않음). 읽기 트랜잭션에 참여한 호출에서 업무 예외를 잡으면 트랜잭션이
+     * rollback-only가 되므로, 건너뛸 기록은 이것으로 먼저 거른다(워치 상대 기록 미리 받기, D-377).
+     */
+    public boolean hasCurve(String recordId) {
+        return runRecordRepository.findById(recordId).filter(r -> !r.isRoutePurged()).isPresent();
+    }
+
     /** d에 처음 닿은 경과 시간(크루런 도착 시각, 대결 검증). */
     public Optional<Duration> timeToReach(String recordId, Distance d) {
         return load(recordId).timeToReach(d);
