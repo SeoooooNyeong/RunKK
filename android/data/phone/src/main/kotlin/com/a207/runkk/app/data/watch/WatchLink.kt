@@ -3,7 +3,7 @@ package com.a207.runkk.app.data.watch
 import android.content.Context
 import android.net.Uri
 import androidx.annotation.StringRes
-import com.a207.runkk.app.api.core.R
+import com.a207.runkk.app.data.phone.R
 import com.a207.runkk.app.domain.run.Guidance
 import com.a207.runkk.app.domain.run.HeartRateSample
 import com.a207.runkk.app.domain.run.ProximityAlert

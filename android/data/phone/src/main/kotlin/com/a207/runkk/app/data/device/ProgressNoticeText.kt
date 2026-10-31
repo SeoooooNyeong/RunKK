@@ -1,8 +1,8 @@
 package com.a207.runkk.app.data.device
 
 import android.content.Context
-import com.a207.runkk.app.api.core.R
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.data.phone.R
 import com.a207.runkk.app.domain.run.FreeRunGoalState
 import com.a207.runkk.app.domain.run.ProgressNotice
 import java.time.Duration

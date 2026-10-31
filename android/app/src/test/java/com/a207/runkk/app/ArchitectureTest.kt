@@ -42,13 +42,13 @@ class ArchitectureTest {
         assertEquals(emptyList(), violations)
     }
 
-    /** 12.4 구조 합격 조건(design-review 19장 R51·R52, D-335): 모듈 Fan-Out 7 이하, 허용 표 화살표 폰 150개·워치 5개. */
+    /** 12.4 구조 합격 조건(design-review 19장 R51·R52, D-335): 모듈 Fan-Out 7 이하, 허용 표 화살표 폰 152개·워치 5개. */
     @Test
-    fun `모듈 Fan-Out은 7 이하이고 허용 표는 폰 150개·워치 5개다`() {
+    fun `모듈 Fan-Out은 7 이하이고 허용 표는 폰 152개·워치 5개다`() {
         val over = ALLOWED.filterValues { it.size > MAX_FAN_OUT }.mapValues { it.value.size }
         assertEquals(emptyMap(), over)
         val (watch, phone) = ALLOWED.entries.partition { it.key.startsWith("watch.") || it.key == "wear.contract" }
-        assertEquals(150, phone.sumOf { it.value.size })
+        assertEquals(152, phone.sumOf { it.value.size })
         assertEquals(5, watch.sumOf { it.value.size })
     }
 
@@ -249,13 +249,9 @@ class ArchitectureTest {
             .mapNotNull { imported ->
                 val to = moduleOf(imported.substringBeforeLast('.')) ?: moduleOf(imported)
                 when {
+                    isOwnResources(from, imported) -> null
                     to == null -> "$from → $imported (${file.name})"
-
-                    to == from || to in allowed || isE2eException(
-                        file,
-                        imported
-                    ) || isOwnResources(from, imported) -> null
-
+                    to == from || to in allowed || isE2eException(file, imported) -> null
                     else -> "$from → $to (${file.name})"
                 }
             }
@@ -271,11 +267,12 @@ class ArchitectureTest {
             imported in E2E_TOKEN_IMPORTS
 
     /**
-     * :data Gradle 모듈의 R(문자열 리소스)은 namespace 때문에 api.core 패키지에 생기지만 api.core 코드가 아니다.
-     * data.*가 같은 Gradle 모듈의 리소스를 읽는 것은 표의 화살표로 치지 않는다(2차 리뷰 M-3: 도메인 안내 문구).
+     * :data Gradle 모듈의 R(문자열 리소스)은 namespace 때문에 api.core 패키지에 생기지만 api.core 코드가 아니다. :data:phone의 R은
+     * 5.1.2 표 밖 이름(data.phone)에 생긴다(D-365). data.*가 자기 Gradle 모듈의 리소스를 읽는 것은 표의 화살표로 치지 않는다
+     * (2차 리뷰 M-3: 도메인 안내 문구).
      */
     private fun isOwnResources(from: String, imported: String): Boolean =
-        from.startsWith("data.") && imported == "$APP.api.core.R"
+        from.startsWith("data.") && imported in setOf("$APP.api.core.R", "$APP.data.phone.R")
 
     private fun isAppOrUi(module: String?): Boolean = module == "app" || module?.startsWith("ui.") == true
 
@@ -328,7 +325,7 @@ class ArchitectureTest {
                 "chat",
                 "report"
             )
-        private val DATAS = listOf("store", "settings", "sync", "watch", "live", "device", "push", "session")
+        private val DATAS = listOf("store", "settings", "sync", "watch", "live", "device", "push", "session", "guide")
         private val UIS =
             listOf(
                 "share",
@@ -411,7 +408,10 @@ class ArchitectureTest {
                 "api.chat" to setOf("api.core", "domain.chat", "core.model"),
                 "api.report" to setOf("api.core", "domain.report", "core.model"),
                 "data.store" to setOf("domain.run", "core.model"),
-                "data.device" to setOf("domain.run", "core.model"),
+                // data.guide 추가(v0.22 R66, D-387): 안내 문구 표 GuidanceTexts를 공용 :data로 옮겼다.
+                "data.device" to setOf("domain.run", "core.model", "data.guide"),
+                // GuidanceTexts는 Guidance·GuidanceMessage(domain.run)만 받아 문구를 돌려준다(core.model 없음, M81).
+                "data.guide" to setOf("domain.run"),
                 "data.settings" to setOf("domain.settings", "core.model"),
                 "data.sync" to setOf("domain.sync", "domain.run", "core.model"),
                 "data.watch" to setOf("domain.run", "domain.settings", "wear.contract"),

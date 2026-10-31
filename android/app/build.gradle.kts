@@ -172,6 +172,7 @@ dependencies {
     implementation(project(":core:ui"))
     implementation(project(":domain"))
     implementation(project(":data"))
+    implementation(project(":data:phone"))
     implementation(project(":feature:home"))
     implementation(project(":feature:run"))
     implementation(project(":feature:record"))
