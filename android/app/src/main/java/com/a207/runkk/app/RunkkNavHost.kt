@@ -40,6 +40,7 @@ import com.a207.runkk.app.core.designsystem.LocalGuideAnchors
 import com.a207.runkk.app.core.designsystem.LocalReleaseScope
 import com.a207.runkk.app.core.designsystem.RUNKK_BOTTOM_BAR_HEIGHT
 import com.a207.runkk.app.core.designsystem.ReleaseScope
+import com.a207.runkk.app.core.designsystem.RunkkBackgroundMusic
 import com.a207.runkk.app.core.designsystem.RunkkBottomBar
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkEmptyState
@@ -153,6 +154,8 @@ fun RunkkNavHost(
         }
         // 기능 화면 위 안내(남은 대결, 홈 위 첫 사용 가이드 등)는 로그인한 동안만 붙인다. 맨 위 경로를 넘긴다(D-255).
         if (loggedIn) featureEntries.forEach { it.Overlay(top) }
+        // 홈 배경 음악은 로그인한 동안 화면을 옮겨 다녀도 이어진다. 로그인·가입 화면(자기 음악)과 측정 중(음성 안내)에는 멈춘다(사용자 요청 2026-10-31)
+        if (loggedIn) RunkkBackgroundMusic(R.raw.home_bgm, isPlaying = isMusicRoute(top))
         if (isLockedNoticeVisible) LockedFeatureDialog(onDismiss = { isLockedNoticeVisible = false })
     }
 }
@@ -223,6 +226,13 @@ private fun EntryBottomSpace(isTab: Boolean, content: @Composable () -> Unit) {
 
 /** 로그인하지 않은 채로 머물 수 있는 경로. */
 private val AUTH_ROUTES = setOf(Routes.LOGIN, Routes.SIGN_UP, Routes.GUEST_START)
+
+/** 홈 배경 음악을 트는 화면인가: 로그인·가입 화면과 측정 화면(자유런, 대결 카운트다운·진행, 크루런)이 아니면 튼다. */
+internal fun isMusicRoute(top: NavKey?): Boolean = when (top) {
+    is Routes.Key -> top.route !in AUTH_ROUTES && top.route != Routes.RUN
+    is Routes.BattleRunning, is Routes.CrewRunLobby -> false
+    else -> true
+}
 
 /** 경로 → 하단 탭(D-250). 배틀런 화면은 탭이 아니지만 홈을 고른 상태로 하단 탭을 보인다. */
 internal fun tabOf(route: String): RunkkTab? = when (route) {

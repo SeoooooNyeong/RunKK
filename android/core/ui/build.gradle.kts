@@ -32,6 +32,8 @@ dependencies {
     // 측정 화면 지도(C-005): 기록 상세와 같은 Kakao 지도 SDK v2
     implementation(libs.kakao.maps)
     implementation(libs.androidx.lifecycle.runtime.compose)
+    // 배경 음악·로그인 배경 영상 반복 재생(다음 반복을 미리 읽어 이음매 없이 잇는다, 사용자 요청 2026-10-31)
+    implementation(libs.androidx.media3.exoplayer)
     debugImplementation(libs.androidx.compose.ui.tooling)
 
     testImplementation(platform(libs.androidx.compose.bom))

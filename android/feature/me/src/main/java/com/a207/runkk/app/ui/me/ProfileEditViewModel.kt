@@ -117,7 +117,8 @@ class ProfileEditViewModel @Inject constructor(
                 is Outcome.Success -> {
                     // 호흡 안내 심박 기준이 출생연도를 쓰므로 설정 사본을 새로 읽는다.
                     if (edit.birthYear != null) settings.refresh()
-                    _state.update { it.copy(isSaving = false) }
+                    // 저장 중 상태를 풀지 않는다: 화면이 닫히는 전환 사이 저장을 또 누르면 한 번 더 뒤로 가 홈에서 앱이 닫혔다
+                    // (사용자 확인 2026-10-31). 이 화면은 곧 닫힌다.
                     _events.send(ProfileEditEvent.Saved)
                 }
 

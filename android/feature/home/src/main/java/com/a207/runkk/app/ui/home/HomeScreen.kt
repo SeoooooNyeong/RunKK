@@ -88,8 +88,11 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.a207.runkk.app.core.designsystem.AvatarBackdrop
+import com.a207.runkk.app.core.designsystem.AvatarCharacter
 import com.a207.runkk.app.core.designsystem.AvatarExpression
 import com.a207.runkk.app.core.designsystem.GuideStep
+import com.a207.runkk.app.core.designsystem.HoldSplashUntil
+import com.a207.runkk.app.core.designsystem.LocalAvatarCharacter
 import com.a207.runkk.app.core.designsystem.LocalReduceMotion
 import com.a207.runkk.app.core.designsystem.LocalReleaseScope
 import com.a207.runkk.app.core.designsystem.LocalRunkkColors
@@ -101,6 +104,7 @@ import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkIcons
+import com.a207.runkk.app.core.designsystem.RunkkLimePill
 import com.a207.runkk.app.core.designsystem.RunkkProgressBar
 import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
@@ -108,6 +112,7 @@ import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.UnreleasedFeature
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.designsystem.guideAnchor
+import com.a207.runkk.app.core.designsystem.rememberSoundEffects
 import com.a207.runkk.app.core.designsystem.sceneAvatarFilter
 import com.a207.runkk.app.core.designsystem.tierName
 import com.a207.runkk.app.core.model.Distance
@@ -181,6 +186,8 @@ fun HomeScreen(state: HomeUiState, actions: HomeActions, modifier: Modifier = Mo
             actions.onMessageShown()
         }
     }
+    // 앱을 처음 열 때는 첫 읽기(닉네임·성별)가 끝날 때까지 스플래시 아래에 미리 그려 둔다(남자→여자로 바뀌어 보이지 않게)
+    HoldSplashUntil(isReady = !state.isLoading)
     // 배경 장면 카드는 하단 탭 바 뒤로 화면 아래 끝까지 이어진다(R2-06, D86). 홈 자리 아래(탭 바·내비게이션 바)만큼 넘겨 그린다.
     val bleed = RUNKK_BOTTOM_BAR_HEIGHT + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val isAvatarOpen = LocalReleaseScope.current.isOpen(UnreleasedFeature.AVATAR_CUSTOMIZE)
@@ -369,15 +376,10 @@ private fun BalancePill(balance: Int?, onClick: (() -> Unit)?) {
         },
         contentAlignment = Alignment.Center
     ) {
-        Text(
+        // 디자인 시스템 라임 알약: 기기 글자 크기에 맞춰 커진다(고정 높이 40에서 글자 아래가 잘렸다, 사용자 확인 2026-10-31)
+        RunkkLimePill(
             stringResource(R.string.home_balance_value, amount),
-            style = RunkkTextStyles.text(15, FontWeight.Bold),
-            color = RunkkColors.OnLimeFill,
-            modifier = Modifier
-                .height(40.dp)
-                .clip(RoundedCornerShape(20.dp))
-                .background(RunkkColors.LimeFill)
-                .padding(horizontal = 16.dp, vertical = 9.dp)
+            textStyle = RunkkTextStyles.text(15, FontWeight.Bold)
         )
     }
 }
@@ -578,6 +580,7 @@ private fun RunCard(
 /**
  * 아바타. 카드 아래 남은 자리의 바닥(트랙)에 발을 붙여 세운다(피그마 A-4). 키는 남은 높이에 맞추되 [AVATAR_MAX_HEIGHT]를 넘지 않는다.
  * 아바타 꾸미기가 열려 있을 때만 눌러 꾸미기로 간다(1차 배포는 눌러도 반응 없음, D-252).
+ * 본인 요약(성별)을 처음 읽기 전에는 그리지 않는다(자리만 둔다): 로그인 직후 남자 그림이 잠깐 보였다가 바뀌지 않게.
  */
 @Composable
 private fun RoomAvatar(state: HomeUiState, isAvatarOpen: Boolean, onAvatar: () -> Unit, modifier: Modifier = Modifier) {
@@ -587,13 +590,20 @@ private fun RoomAvatar(state: HomeUiState, isAvatarOpen: Boolean, onAvatar: () -
     val hop = remember { Animatable(0f) }
     var isCheering by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    // 1차 배포는 눌러도 이동하지 않고, 기쁜 자세로 바뀌며 한 번 뛰었다 내려온다(장식이라 읽기 동작은 두지 않는다)
+    val sounds = rememberSoundEffects(R.raw.home_jump_female, R.raw.home_jump_male)
+    val jumpSound = if (LocalAvatarCharacter.current == AvatarCharacter.FEMALE) {
+        R.raw.home_jump_female
+    } else {
+        R.raw.home_jump_male
+    }
+    // 1차 배포는 눌러도 이동하지 않고, 기쁜 자세로 바뀌며 소리와 함께 한 번 뛰었다 내려온다(장식이라 읽기 동작은 두지 않는다)
     val press = if (isAvatarOpen) {
         Modifier.clickable(role = Role.Button, onClickLabel = editLabel, onClick = onAvatar)
     } else {
-        Modifier.pointerInput(reduceMotion) {
+        Modifier.pointerInput(reduceMotion, jumpSound) {
             detectTapGestures {
                 if (reduceMotion || hop.isRunning) return@detectTapGestures
+                sounds.play(jumpSound)
                 scope.launch {
                     isCheering = true
                     hop.animateTo(1f, tween(durationMillis = HOP_UP_MS, easing = FastOutSlowInEasing))
@@ -625,7 +635,10 @@ private fun RoomAvatar(state: HomeUiState, isAvatarOpen: Boolean, onAvatar: () -
         // 뛰어오를 때 칸째로 옮긴다(칸 안에서 그림만 옮기면 둥근 모서리 자르기에 머리가 잘린다)
         Box(
             modifier = Modifier
-                .graphicsLayer { translationY = -hop.value * HOP_HEIGHT.toPx() }
+                .graphicsLayer {
+                    translationY = -hop.value * HOP_HEIGHT.toPx()
+                    alpha = if (state.isHeaderLoading) 0f else 1f
+                }
                 .clip(RoundedCornerShape(32.dp))
                 .then(press)
                 .semantics { contentDescription = description }

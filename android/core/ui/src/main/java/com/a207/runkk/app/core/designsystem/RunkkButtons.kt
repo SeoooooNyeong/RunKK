@@ -43,6 +43,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -329,6 +330,28 @@ fun RunkkLimePillButton(
             }
             Text(text, style = RunkkTextStyles.text(13, FontWeight.Black), color = RunkkColors.OnLimeFill)
         }
+    }
+}
+
+/**
+ * 라임 알약 표시(누르지 않는 값 알약, 홈 리워드 잔액 등): [RunkkLimePillButton]과 같은 모양(최소 높이 40, 모서리 20).
+ * 높이를 고정하지 않아 기기 글자 크기를 키우면 알약도 함께 커진다(고정 높이 안에서 글자가 잘리지 않게, 사용자 요청 2026-10-31).
+ */
+@Composable
+fun RunkkLimePill(
+    text: String,
+    modifier: Modifier = Modifier,
+    textStyle: TextStyle = RunkkTextStyles.text(13, FontWeight.Black)
+) {
+    Box(
+        modifier = modifier
+            .heightIn(min = 40.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(RunkkColors.LimeFill)
+            .padding(horizontal = 16.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(text, style = textStyle, color = RunkkColors.OnLimeFill)
     }
 }
 

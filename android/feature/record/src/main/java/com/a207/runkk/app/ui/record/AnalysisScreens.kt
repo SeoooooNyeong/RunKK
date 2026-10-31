@@ -58,6 +58,7 @@ import com.a207.runkk.app.core.designsystem.RunkkProgressBar
 import com.a207.runkk.app.core.designsystem.RunkkSectionTitle
 import com.a207.runkk.app.core.designsystem.RunkkSegmentRow
 import com.a207.runkk.app.core.designsystem.RunkkSegmentedTabs
+import com.a207.runkk.app.core.designsystem.RunkkSelectField
 import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
 import com.a207.runkk.app.core.designsystem.RunkkStatTile
@@ -69,6 +70,7 @@ import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.UnreleasedFeature
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.domain.record.AggregationPeriod
 import com.a207.runkk.app.domain.record.Growth
@@ -454,6 +456,7 @@ internal fun rankingSpoken(entry: Ranking.Entry, isMine: Boolean): String = list
 class CoachActions(
     val onBack: () -> Unit = {},
     val onTodayPlan: (Distance) -> Unit = {},
+    val onTodayPace: (Pace?) -> Unit = {},
     val onGoalRuns: (Int) -> Unit = {},
     val onGoalDistance: (Distance) -> Unit = {},
     val onSaveGoal: () -> Unit = {},
@@ -469,6 +472,7 @@ fun CoachRoute(viewModel: CoachViewModel = hiltViewModel()) {
         CoachActions(
             onBack = navigator::back,
             onTodayPlan = viewModel::onTodayPlan,
+            onTodayPace = viewModel::onTodayPace,
             onGoalRuns = viewModel::onGoalRunsSelected,
             onGoalDistance = viewModel::onGoalDistanceSelected,
             onSaveGoal = viewModel::onSaveWeeklyGoal,
@@ -500,7 +504,9 @@ fun CoachScreen(state: CoachUiState, actions: CoachActions) {
             CoachWeekCard(state)
             TodayPlanCard(
                 planned = state.progress?.days?.firstOrNull { it.date == state.today }?.planned,
-                onTodayPlan = actions.onTodayPlan
+                pace = state.todayPace,
+                onTodayPlan = actions.onTodayPlan,
+                onTodayPace = actions.onTodayPace
             )
             WeeklyGoalCard(state, actions)
         }
@@ -571,10 +577,18 @@ private fun CoachDayRow(day: PlanProgress.Day, isToday: Boolean) {
     }
 }
 
-/** 오늘 계획 정하기 카드: 주간 목표 거리와 같은 고르기 줄. 오늘 정해 둔 거리([planned])가 선택돼 보인다. */
+/**
+ * 오늘 계획 정하기 카드: 거리와 목표 페이스 고르기 줄. 오늘 정해 둔 거리([planned])·페이스([pace])가 선택돼 보인다.
+ * 목표 페이스는 코치 계획 따르기가 켜져 있을 때 1km마다 느리면 알려 준다(FR-044, 사용자 요청 2026-10-31).
+ */
 @Composable
-private fun TodayPlanCard(planned: Distance?, onTodayPlan: (Distance) -> Unit) {
-    RunkkCard(Modifier.fillMaxWidth()) {
+private fun TodayPlanCard(
+    planned: Distance?,
+    pace: Pace?,
+    onTodayPlan: (Distance) -> Unit,
+    onTodayPace: (Pace?) -> Unit
+) {
+    RunkkCard(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(
             stringResource(R.string.record_coach_today_title),
             style = RunkkTextStyles.CardTitle,
@@ -585,7 +599,19 @@ private fun TodayPlanCard(planned: Distance?, onTodayPlan: (Distance) -> Unit) {
             options = PLAN_CHOICES.map { stringResource(R.string.record_km_int_value, it) },
             selectedIndex = distances.indexOf(planned),
             onSelect = { onTodayPlan(distances[it]) },
+            groupLabel = stringResource(R.string.record_coach_today_distance),
             spokenLabels = PLAN_CHOICES.map { stringResource(R.string.record_goal_distance_spoken, it) }
+        )
+        // 드롭다운(사용자 요청 2026-10-31: 선택지가 적다). 맨 앞은 페이스 없음(거리만 따른다)
+        val none = stringResource(R.string.record_coach_pace_none)
+        val paceLabel = stringResource(R.string.record_coach_pace_option)
+        RunkkSelectField(
+            label = stringResource(R.string.record_coach_today_pace),
+            options = listOf<Pace?>(null) + PACE_CHOICES.map(::Pace),
+            selected = pace,
+            optionLabel = { p -> p?.let { paceLabel.format(it.secondsPerKm / 60, it.secondsPerKm % 60) } ?: none },
+            onSelect = onTodayPace,
+            placeholder = none
         )
     }
 }
@@ -626,5 +652,8 @@ private fun WeeklyGoalCard(state: CoachUiState, actions: CoachActions) {
 }
 
 private val PLAN_CHOICES = listOf(3, 5, 7, 10)
+
+/** 오늘 계획 목표 페이스 선택지(초/km): 3:00부터 10:00까지 10초 간격. */
+private val PACE_CHOICES = (180..600 step 10).toList()
 private val GOAL_CHOICES = listOf(10, 20, 30, 40)
 private val PERIOD_DATE = DateTimeFormatter.ofPattern("M/d", Locale.KOREAN)

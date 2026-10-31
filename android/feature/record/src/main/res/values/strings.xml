@@ -111,6 +111,11 @@
     <string name="record_coach_supplement">보충 거리 %1$skm 추천</string>
     <string name="record_coach_today_title">오늘 계획 정하기</string>
     <string name="record_coach_today_plan_saved">오늘 계획을 %1$skm로 정했어요</string>
+    <string name="record_coach_today_plan_pace_saved">오늘 계획을 %1$skm, %2$s/km로 정했어요</string>
+    <string name="record_coach_today_distance">거리</string>
+    <string name="record_coach_today_pace">목표 페이스</string>
+    <string name="record_coach_pace_none">없음</string>
+    <string name="record_coach_pace_option">%1$d:%2$02d</string>
     <string name="record_coach_goal_title">이번 주 목표</string>
     <string name="record_coach_goal_saved">이번 주 목표를 주 %1$d회 · %2$skm로 정했어요</string>
     <string name="record_goal_runs_option">%1$d회</string>

@@ -120,6 +120,12 @@
     <string name="me_logout_guest_message">로그아웃하면 이 기기의 기록이 지워져요.</string>
     <string name="me_settings_section_account">계정</string>
     <string name="me_settings_section_display">표시</string>
+    <string name="me_settings_section_sound">소리</string>
+    <string name="me_settings_music_volume">배경음악</string>
+    <string name="me_settings_effect_volume">효과음</string>
+    <string name="me_settings_volume_spoken">%1$s, %2$d퍼센트</string>
+    <string name="me_settings_volume_mute">%1$s 끄기</string>
+    <string name="me_settings_volume_unmute">%1$s 켜기</string>
     <string name="me_settings_theme_title">화면 테마</string>
     <string name="me_choice_theme_system">기기 설정</string>
     <string name="me_choice_theme_light">라이트</string>

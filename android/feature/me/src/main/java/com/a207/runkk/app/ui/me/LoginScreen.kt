@@ -40,6 +40,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.a207.runkk.app.core.designsystem.RunkkBackgroundMusic
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkSecondaryButton
 import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
@@ -106,6 +107,8 @@ fun LoginScreen(
             onErrorShown()
         }
     }
+    // 로그인 배경 음악(사용자 요청 2026-10-31). 원본 음량 그대로 튼다
+    RunkkBackgroundMusic(R.raw.login_bgm)
     // 피그마 A-1: 배경 영상 위에 버튼만 둔다(로고와 소개 문구 없음)
     Box(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
         LoginVideoBackground(R.raw.login_background, R.drawable.login_video_poster, Modifier.fillMaxSize())

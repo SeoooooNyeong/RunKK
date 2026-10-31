@@ -7,6 +7,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -30,17 +32,33 @@ fun RunkkAvatar(
     if (LocalReleaseScope.current.isOpen(UnreleasedFeature.AVATAR_CUSTOMIZE)) {
         RunkkAvatarPortrait(faceKey ?: RunkkAvatarArt.DEFAULT_FACE_KEY, faceLayers, modifier)
     } else {
+        val isFace = expression == AvatarExpression.FACE
+        // 여자 전신 그림은 머리가 작고 다리가 길어 같은 키로 그리면 남자보다 커 보인다: 발을 붙인 채 조금 줄여 비슷한 크기로 맞춘다
+        // (사용자 요청 2026-10-31). 얼굴(프로필 원)은 그대로다.
+        val scale = if (character == AvatarCharacter.FEMALE && !isFace) FEMALE_FIGURE_SCALE else 1f
         Image(
             painterResource(defaultAvatarOf(expression, character)),
             contentDescription = null,
-            contentScale = if (expression == AvatarExpression.FACE) ContentScale.Crop else ContentScale.Fit,
+            contentScale = if (isFace) ContentScale.Crop else ContentScale.Fit,
             // 전신 그림은 칸 바닥에 발을 붙인다(가운데 맞춤이면 발밑이 떠 보인다). 얼굴은 가운데
-            alignment = if (expression == AvatarExpression.FACE) Alignment.Center else Alignment.BottomCenter,
+            alignment = if (isFace) Alignment.Center else Alignment.BottomCenter,
             colorFilter = colorFilter,
-            modifier = modifier.testTag(DEFAULT_AVATAR_TAG + expression.name)
+            modifier = modifier
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                    transformOrigin = FEET
+                }
+                .testTag(DEFAULT_AVATAR_TAG + expression.name)
         )
     }
 }
+
+/** 여자 전신 그림을 남자와 같은 칸에 그릴 때의 크기 비. */
+internal const val FEMALE_FIGURE_SCALE = 0.9f
+
+/** 전신 그림을 줄일 때 기준점(칸 아래 가운데, 발밑). */
+private val FEET = TransformOrigin(0.5f, 1f)
 
 /**
  * 배틀런 상대 그림(피그마 C-3의 기본 아바타). 상대의 아바타를 받지 않으므로 상대 성별([character])로 남녀 기본 그림만 가른다

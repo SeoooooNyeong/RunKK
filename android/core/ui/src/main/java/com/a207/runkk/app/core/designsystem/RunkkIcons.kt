@@ -137,6 +137,17 @@ object RunkkIcons {
         "M3 10h18"
     )
     val Alert: ImageVector = line("Alert", circle(12f, 12f, 10f), "M12 8v4", "M12 16h.01")
+
+    /** 소리 켜짐(스피커와 소리 물결, 설정의 소리 크기). */
+    val Volume: ImageVector = line(
+        "Volume",
+        "M11 5L6 9H2v6h4l5 4V5z",
+        "M15.54 8.46a5 5 0 0 1 0 7.07",
+        "M19.07 4.93a10 10 0 0 1 0 14.14"
+    )
+
+    /** 소리 꺼짐(스피커와 X). */
+    val VolumeOff: ImageVector = line("VolumeOff", "M11 5L6 9H2v6h4l5 4V5z", "M23 9l-6 6", "M17 9l6 6")
     val CloudOff: ImageVector = line(
         "CloudOff",
         "M2 2L22 22",

@@ -1,12 +1,5 @@
 package com.a207.runkk.app.ui.me
 
-import android.content.Context
-import android.graphics.Matrix
-import android.graphics.SurfaceTexture
-import android.media.MediaPlayer
-import android.net.Uri
-import android.view.Surface
-import android.view.TextureView
 import androidx.annotation.DrawableRes
 import androidx.annotation.RawRes
 import androidx.compose.foundation.Image
@@ -18,11 +11,12 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.viewinterop.AndroidView
 import com.a207.runkk.app.core.designsystem.LocalReduceMotion
+import com.a207.runkk.app.core.designsystem.RunkkLoopingVideo
 
 /**
  * 로그인 배경 영상(피그마 A-1 메모: 무음, 1초부터 끝까지 반복. 그 구간만 잘라 둔 파일을 반복한다). 첫 장면 그림을 먼저 깔고 그 위에 영상을 화면에 꽉 차게(잘라서) 튼다.
+ * 반복하는 곳에서 멈칫하지 않게 다음 반복을 미리 읽는 재생기(RunkkLoopingVideo)로 튼다(사용자 요청 2026-10-31).
  * 움직임 줄이기 설정이나 미리보기에서는 그림만 보인다. 장식이므로 읽기 정보가 없다.
  */
 @Composable
@@ -35,70 +29,7 @@ internal fun LoginVideoBackground(@RawRes video: Int, @DrawableRes poster: Int, 
             modifier = Modifier.fillMaxSize()
         )
         if (!LocalInspectionMode.current && !LocalReduceMotion.current) {
-            AndroidView(
-                factory = { context -> LoopingVideoView(context, video) },
-                onRelease = LoopingVideoView::release,
-                modifier = Modifier.fillMaxSize()
-            )
+            RunkkLoopingVideo(video, Modifier.fillMaxSize())
         }
-    }
-}
-
-/**
- * 화면 크기에 맞춰 영상을 가운데 기준으로 잘라 그리고 시스템 반복 재생으로 끊김 없이 돌린다. 영상 파일은 원본의 1초~끝 구간만
- * 잘라 첫 프레임을 기준 프레임으로 다시 만든 것이라(소리 없음) 되감기 없이 처음부터 반복하면 된다. 표면이 생길 때 재생기를 만든다.
- */
-private class LoopingVideoView(context: Context, @RawRes private val video: Int) :
-    TextureView(context),
-    TextureView.SurfaceTextureListener {
-
-    private var player: MediaPlayer? = null
-    private var surface: Surface? = null
-
-    init {
-        surfaceTextureListener = this
-        isOpaque = false
-    }
-
-    override fun onSurfaceTextureAvailable(texture: SurfaceTexture, width: Int, height: Int) {
-        val target = Surface(texture)
-        surface = target
-        player = MediaPlayer().apply {
-            setDataSource(context, Uri.parse("android.resource://${context.packageName}/$video"))
-            setSurface(target)
-            setVolume(0f, 0f)
-            isLooping = true
-            setOnPreparedListener { prepared ->
-                cropToFill(prepared.videoWidth, prepared.videoHeight)
-                prepared.start()
-            }
-            prepareAsync()
-        }
-    }
-
-    override fun onSurfaceTextureSizeChanged(texture: SurfaceTexture, width: Int, height: Int) {
-        player?.let { cropToFill(it.videoWidth, it.videoHeight) }
-    }
-
-    override fun onSurfaceTextureDestroyed(texture: SurfaceTexture): Boolean {
-        release()
-        return true
-    }
-
-    override fun onSurfaceTextureUpdated(texture: SurfaceTexture) = Unit
-
-    fun release() {
-        player?.release()
-        player = null
-        surface?.release()
-        surface = null
-    }
-
-    private fun cropToFill(videoWidth: Int, videoHeight: Int) {
-        if (videoWidth <= 0 || videoHeight <= 0 || width <= 0 || height <= 0) return
-        val scale = maxOf(width.toFloat() / videoWidth, height.toFloat() / videoHeight)
-        val matrix = Matrix()
-        matrix.setScale(scale * videoWidth / width, scale * videoHeight / height, width / 2f, height / 2f)
-        setTransform(matrix)
     }
 }

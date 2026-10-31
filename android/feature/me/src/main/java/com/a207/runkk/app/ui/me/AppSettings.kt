@@ -38,6 +38,7 @@ internal fun AppSettings(state: SettingsUiState, actions: SettingsActions) {
     var isConfirmingLogout by remember { mutableStateOf(false) }
     AccountSection(state, actions)
     DisplaySection(state, actions)
+    SoundSection()
     VisibilitySection(state, actions, onChooseVisibility = { isChoosingVisibility = true })
     ConsentSection(state, actions)
     DeviceSection(

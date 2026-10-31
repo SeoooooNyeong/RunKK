@@ -8,6 +8,7 @@ import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.uiText
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.domain.record.RecordRepository
 import com.a207.runkk.app.domain.run.PlanSnapshot
 import com.a207.runkk.app.domain.run.TodayPlanCache
@@ -17,6 +18,7 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.temporal.TemporalAdjusters
 import javax.inject.Inject
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -45,22 +47,47 @@ class CoachViewModel @Inject constructor(
     fun refresh() {
         _state.update { it.copy(isLoading = true, error = null) }
         viewModelScope.launch {
-            when (val result = records.planProgress(weekStart, weekStart.plusDays(DAYS_IN_WEEK - 1L))) {
-                is Outcome.Success -> _state.update { it.copy(isLoading = false, progress = result.value) }
+            // 이행 현황에는 페이스가 없어 오늘 계획의 목표 페이스는 오늘 계획에서 읽는다. 못 읽으면 지난 값을 둔다
+            val plan = async { records.todayPlan() }
+            val progress = records.planProgress(weekStart, weekStart.plusDays(DAYS_IN_WEEK - 1L))
+            val pace = (plan.await() as? Outcome.Success)?.let { it.value?.pace }
+            when (progress) {
+                is Outcome.Success -> _state.update {
+                    it.copy(isLoading = false, progress = progress.value, todayPace = pace ?: it.todayPace)
+                }
 
                 is Outcome.Failure -> _state.update {
-                    it.copy(isLoading = false, error = RunkkErrorText.of(result.error))
+                    it.copy(isLoading = false, error = RunkkErrorText.of(progress.error))
                 }
             }
         }
     }
 
-    fun onTodayPlan(distance: Distance) =
-        save(uiText(R.string.record_coach_today_plan_saved, km(distance)), shouldReload = true) {
-            records.putPlan(today, distance, null).also { result ->
-                if (result is Outcome.Success) todayPlans.put(PlanSnapshot(distance, null))
+    /** 오늘 계획 거리를 고르면 고른 목표 페이스와 함께 저장한다. */
+    fun onTodayPlan(distance: Distance) = saveTodayPlan(distance, _state.value.todayPace)
+
+    /**
+     * 오늘 계획 목표 페이스(사용자 요청 2026-10-31: 코치 계획 따르기의 페이스 안내). null이면 페이스 없음.
+     * 오늘 계획 거리가 있으면 바로 저장하고, 없으면 골라 두었다가 거리를 고를 때 함께 저장한다.
+     */
+    fun onTodayPace(pace: Pace?) {
+        _state.update { it.copy(todayPace = pace) }
+        val planned = _state.value.progress?.days?.firstOrNull { it.date == today }?.planned ?: return
+        saveTodayPlan(planned, pace)
+    }
+
+    private fun saveTodayPlan(distance: Distance, pace: Pace?) {
+        val done = if (pace == null) {
+            uiText(R.string.record_coach_today_plan_saved, km(distance))
+        } else {
+            uiText(R.string.record_coach_today_plan_pace_saved, km(distance), RunkkFormat.pace(pace))
+        }
+        save(done, shouldReload = true) {
+            records.putPlan(today, distance, pace).also { result ->
+                if (result is Outcome.Success) todayPlans.put(PlanSnapshot(distance, pace))
             }
         }
+    }
 
     fun onGoalRunsSelected(runs: Int) {
         if (runs in CoachUiState.GOAL_RUNS) _state.update { it.copy(goalRuns = runs) }
