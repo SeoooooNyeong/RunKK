@@ -13,6 +13,7 @@ import com.a207.runkk.app.domain.battle.OpponentTrack
 import com.a207.runkk.app.domain.battle.RecordBattleKind
 import com.a207.runkk.app.domain.run.PendingRunRepository
 import com.a207.runkk.app.domain.run.RunProgress
+import com.a207.runkk.app.domain.run.RunStartSpec
 import com.a207.runkk.watch.cache.CachedTrack
 import com.a207.runkk.watch.cache.OpponentRecordCache
 import com.a207.runkk.watch.link.MatchWaiter
@@ -30,6 +31,7 @@ import kotlinx.coroutines.flow.runningFold
  * 대결 시작·취소를 domain에 넘기고 대결 상태를 WatchFlow 값으로 바꾼다(3.5, D-386 R65). 상태를 갖지 않는다: 대결 한 회의 상태는
  * BattleRunCoordinator가, 매칭 대기 연결은 watch.link의 MatchWaiter가, 상대 기록은 OpponentRecordCache가 갖는다.
  * 셀프·셀럽런을 서버 대결로 할지(연결 있음) 워치에서만 할지(연결 없음)는 WatchFlowViewModel이 고른다(R72).
+ * 여기서 연 대결은 모두 워치가 시작한 회라 시작 기기 WATCH로 조정자에 넘긴다(FR-245, D-378).
  */
 class WatchBattleFlow @Inject constructor(
     private val coordinator: BattleRunCoordinator,
@@ -60,7 +62,7 @@ class WatchBattleFlow @Inject constructor(
      */
     suspend fun awaitMatch(): Boolean = when (val end = waiter.awaitEnd()) {
         is MatchWaiter.End.Found -> {
-            coordinator.onMatched(end.match)
+            coordinator.onMatched(end.match, RunStartSpec.StartDevice.WATCH)
             waiter.forwardStarts(end.match.battleId, coordinator::onStart)
             true
         }
@@ -97,7 +99,7 @@ class WatchBattleFlow @Inject constructor(
         }
         return when (started) {
             is Outcome.Success -> {
-                coordinator.onRecordBattleStart(started.value)
+                coordinator.onRecordBattleStart(started.value, RunStartSpec.StartDevice.WATCH)
                 Outcome.Success(Unit)
             }
 

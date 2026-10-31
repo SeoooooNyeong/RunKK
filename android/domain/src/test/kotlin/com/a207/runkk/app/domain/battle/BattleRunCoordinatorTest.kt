@@ -586,8 +586,13 @@ class BattleRunCoordinatorTest {
         assertEquals(1, log.calls.count { it == "battle.forfeit:7" })
     }
 
-    private suspend fun TestScope.startRandom(tracker: RunTracker, coordinator: BattleRunCoordinator) {
-        coordinator.onMatched(match)
+    /** 랜덤 대결을 측정 중까지 연다. [startDevice]가 null이면 폰 화면처럼 기기를 넘기지 않는다(기본값). */
+    private suspend fun TestScope.startRandom(
+        tracker: RunTracker,
+        coordinator: BattleRunCoordinator,
+        startDevice: RunStartSpec.StartDevice? = null
+    ) {
+        if (startDevice == null) coordinator.onMatched(match) else coordinator.onMatched(match, startDevice)
         runCurrent()
         live.channel.messages.emit(BattleStart(battleId = 3, startAt = T0.plusSeconds(13), opponentTrack = null))
         runCurrent()
@@ -1006,6 +1011,69 @@ class BattleRunCoordinatorTest {
         assertTrue(log.calls.isEmpty(), "${log.calls}")
         assertIs<BattleRunState.Discarded>(coordinator.state.value)
         assertFalse(tracker.isMeasuring)
+    }
+
+    @Test
+    fun `FR-245 워치에서 시작한 랜덤 대결은 시작 기기 WATCH로 기록한다`() = runTest {
+        val (tracker, coordinator) = setUp()
+        startRandom(tracker, coordinator, RunStartSpec.StartDevice.WATCH)
+
+        coordinator.forfeit()
+        runCurrent()
+
+        val run = pending.runs.single()
+        assertEquals(RunMode.BATTLE, run.mode)
+        assertEquals(RunStartSpec.StartDevice.WATCH, run.startDevice)
+    }
+
+    @Test
+    fun `FR-245 워치에서 시작한 서버 셀프런과 셀럽런은 시작 기기 WATCH로 기록한다`() = runTest {
+        val (tracker, coordinator) = setUp()
+        listOf(selfStart, selfStart.copy(battleId = 8, cardKind = CardKind.CELEB_RUN)).forEach { start ->
+            coordinator.onRecordBattleStart(start, RunStartSpec.StartDevice.WATCH)
+            runForfeitedRecord(tracker, coordinator)
+        }
+
+        assertEquals(listOf(CardKind.SELF_RUN, CardKind.CELEB_RUN), pending.runs.map { it.cardKind })
+        assertEquals(List(2) { RunStartSpec.StartDevice.WATCH }, pending.runs.map { it.startDevice })
+    }
+
+    @Test
+    fun `폰에서 시작한 랜덤 대결과 기록 대결은 그대로 시작 기기 PHONE으로 기록한다`() = runTest {
+        val (tracker, coordinator) = setUp()
+        startRandom(tracker, coordinator)
+        coordinator.forfeit()
+        runCurrent()
+        coordinator.acknowledgeFinished()
+
+        coordinator.onRecordBattleStart(selfStart)
+        runForfeitedRecord(tracker, coordinator)
+
+        assertEquals(List(2) { RunStartSpec.StartDevice.PHONE }, pending.runs.map { it.startDevice })
+    }
+
+    @Test
+    fun `D-377 오프라인 기록 대결은 시작 기기 WATCH로 기록한다`() = runTest {
+        val (tracker, coordinator) = setUp()
+        coordinator.onOfflineRecordBattle(offlineSelf)
+        advanceTimeBy(3_001)
+        tracker.runTo(1, 0.0)
+        tracker.runTo(30, 101.0)
+        runCurrent()
+
+        assertEquals(RunStartSpec.StartDevice.WATCH, pending.runs.single().startDevice)
+    }
+
+    /** 기록 대결 카운트다운을 지나 지금 시각부터 조금 달린 뒤 그만두고 결과를 확인한다(기록이 남는다). */
+    private fun TestScope.runForfeitedRecord(tracker: RunTracker, coordinator: BattleRunCoordinator) {
+        advanceTimeBy(3_001)
+        val second = clock.now.epochSecond - T0.epochSecond
+        tracker.runTo(second + 1, 0.0)
+        tracker.runTo(second + 5, 12.0)
+        runCurrent()
+        coordinator.forfeit()
+        runCurrent()
+        coordinator.acknowledgeFinished()
     }
 
     private val match =

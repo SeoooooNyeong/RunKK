@@ -126,11 +126,14 @@ constructor(
             override fun hasArrived(run: BattleRun, mine: Distance): Boolean = mine.isAtLeast(run.distance)
         }
 
-    /** 랜덤·고스트 매칭 성사. 매칭 화면·애니메이션은 ui.battle이 그린다(design-review.md M25). */
-    fun onMatched(m: MatchFound) {
+    /**
+     * 랜덤·고스트 매칭 성사. 매칭 화면·애니메이션은 ui.battle이 그린다(design-review.md M25).
+     * [startDevice]는 매칭을 시작한 기기다. 워치에서 시작한 대결은 WATCH로 기록하고(FR-245, D-378) 폰 화면은 넘기지 않는다(PHONE).
+     */
+    fun onMatched(m: MatchFound, startDevice: RunStartSpec.StartDevice = RunStartSpec.StartDevice.PHONE) {
         // 성사된 친구 초대는 끝났다: 화면을 떠나도 취소하지 않는다(AN8-16).
         inviteJob = null
-        val run = openRun(m.battleId, m.distance, m.opponentName)
+        val run = openRun(m.battleId, m.distance, m.opponentName, startDevice)
         run.round.scope.launch {
             _state.value = BattleRunState.Matched(m)
             val channel = liveChannelProvider.open()
@@ -149,9 +152,15 @@ constructor(
         run.round.scope.launch { start(run, s) }
     }
 
-    /** 나와의 싸움·유명인: 3초 카운트다운 뒤 측정을 시작하고 시작을 서버에 알린다(design-review.md M34). */
-    fun onRecordBattleStart(s: RecordBattleStart) {
-        val run = openRun(s.battleId, s.distance, s.opponentName)
+    /**
+     * 나와의 싸움·유명인: 3초 카운트다운 뒤 측정을 시작하고 시작을 서버에 알린다(design-review.md M34).
+     * [startDevice]는 [onMatched]와 같다(워치 시작은 WATCH, 폰은 기본값 PHONE).
+     */
+    fun onRecordBattleStart(
+        s: RecordBattleStart,
+        startDevice: RunStartSpec.StartDevice = RunStartSpec.StartDevice.PHONE
+    ) {
+        val run = openRun(s.battleId, s.distance, s.opponentName, startDevice)
         run.round.scope.launch {
             run.schedule(s.track, s.cardKind)
             _state.value = BattleRunState.Countdown(s.battleId, clock.instant().plus(RECORD_COUNTDOWN))
@@ -166,7 +175,14 @@ constructor(
      * 기록은 대결 ID 없는 자유런으로 확정해 보통 자유런처럼 보낸다. 상태(BattleRunState)의 battleId 자리는 0이다.
      */
     fun onOfflineRecordBattle(b: OfflineRecordBattle) {
-        val run = openRun(OFFLINE_BATTLE_ID, b.distance, opponentName = null, isOffline = true)
+        val run =
+            openRun(
+                OFFLINE_BATTLE_ID,
+                b.distance,
+                opponentName = null,
+                RunStartSpec.StartDevice.WATCH,
+                isOffline = true
+            )
         run.round.scope.launch {
             run.schedule(b.track, CardKind.FREE_RUN)
             _state.value = BattleRunState.Countdown(OFFLINE_BATTLE_ID, clock.instant().plus(RECORD_COUNTDOWN))
@@ -361,13 +377,14 @@ constructor(
                 RunStartSpec(
                     mode = RunMode.FREE,
                     cardKind = CardKind.FREE_RUN,
-                    startDevice = RunStartSpec.StartDevice.WATCH,
+                    startDevice = run.startDevice,
                     todayPlan = plan
                 )
             } else {
                 RunStartSpec(
                     mode = RunMode.BATTLE,
                     cardKind = run.cardKind,
+                    startDevice = run.startDevice,
                     battleId = run.battleId,
                     todayPlan = plan,
                     opponentName = run.opponentName
@@ -554,6 +571,7 @@ constructor(
         battleId: Long,
         distance: Distance,
         opponentName: String?,
+        startDevice: RunStartSpec.StartDevice,
         isOffline: Boolean = false
     ): BattleRun {
         run?.let { previous ->
@@ -564,18 +582,19 @@ constructor(
         }
         _failure.value = null
         _liveState.value = null
-        return BattleRun(battleId, distance, opponentName, isOffline).also { run = it }
+        return BattleRun(battleId, distance, opponentName, startDevice, isOffline).also { run = it }
     }
 
     /**
      * 대결 한 회. 범위·측정 여부는 CoordinatedRound가, 예약·상대 종류 전이는 schedule이 맡는다(O-3).
      * 범위 안의 처리되지 않은 예외는 앱을 죽이지 않고 이 회를 연결 실패로 닫는다. [opponentName]은 진행 알림 "vs [상대]"에 싣는다(D-258).
-     * [isOffline]이면 서버 대결 없이 워치에서만 진행하는 기록 대결이다(D-377).
+     * [startDevice]는 이 회를 시작한 기기로 기록에 남는다(D-378). [isOffline]이면 서버 대결 없이 워치에서만 진행하는 기록 대결이다(D-377).
      */
     private inner class BattleRun(
         val battleId: Long,
         val distance: Distance,
         val opponentName: String?,
+        val startDevice: RunStartSpec.StartDevice,
         val isOffline: Boolean
     ) {
         val round = CoordinatedRound(applicationScope, runTracker) { fail(this, AppError.Network) }
