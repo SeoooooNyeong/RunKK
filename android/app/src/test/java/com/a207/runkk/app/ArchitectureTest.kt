@@ -44,16 +44,16 @@ class ArchitectureTest {
 
     /**
      * 12.4 구조 합격 조건(design-review 19장 R51·R52, D-335): 모듈 Fan-Out 7 이하. 허용 표 화살표는 v0.22(설계 5절·9.1, D-394)로
-     * 폰 153개·워치 26개다. 워치 26개 가운데 새 패키지(watch.run·guide·session·cache)와 새 화살표는 2·3단계 코드가 채운다
-     * (지금 워치 코드가 쓰는 화살표는 6400955a의 5개 그대로다).
+     * 폰 153개·워치 26개에 W1 결정 하나(watch.cache → domain.live: 상대 기록 파일의 진행표를 TrackTable로 되살린다)를 더해 워치 27개다.
+     * 워치의 core.model은 설계 5절처럼 화살표로 세지 않는다([isWatchFoundation]).
      */
     @Test
-    fun `모듈 Fan-Out은 7 이하이고 허용 표는 폰 153개·워치 26개다`() {
+    fun `모듈 Fan-Out은 7 이하이고 허용 표는 폰 153개·워치 27개다`() {
         val over = ALLOWED.filterValues { it.size > MAX_FAN_OUT }.mapValues { it.value.size }
         assertEquals(emptyMap(), over)
         val (watch, phone) = ALLOWED.entries.partition { it.key.startsWith("watch.") || it.key == "wear.contract" }
         assertEquals(153, phone.sumOf { it.value.size })
-        assertEquals(26, watch.sumOf { it.value.size })
+        assertEquals(27, watch.sumOf { it.value.size })
     }
 
     @Test
@@ -160,12 +160,15 @@ class ArchitectureTest {
 
     /**
      * D-183: 한 파일 규칙의 적용 범위는 워치(:wear, 6.1.15 watch.*)까지다. v0.22(9.1)의 새 패키지 넷(run·guide·session·cache)도
-     * filesIn("watch.")에 들어간다. 새 패키지에 파일이 있는지 보는 확인(watch.run)은 그 코드가 생기는 2단계에서 더한다.
+     * filesIn("watch.")에 들어간다. 9.1대로 새 패키지에 파일이 있는지 본다(watch.alert에 더해 watch.run, 2단계 W1이 채운 넷).
      */
     @Test
     fun `TC-6583 워치 소스도 한 파일 규칙을 지킨다 (D-112, D-183)`() {
         val watch = filesIn("watch.")
         assertTrue(watch.any { moduleOf(it.packageName()) == "watch.alert" }, "watch.alert 파일이 없다")
+        listOf("run", "guide", "session", "cache").forEach { name ->
+            assertTrue(watch.any { moduleOf(it.packageName()) == "watch.$name" }, "watch.$name 파일이 없다")
+        }
         assertTrue(
             listOf("run", "guide", "session", "cache").all { moduleOf("$WATCH.$it") == "watch.$it" },
             "v0.22 워치 패키지가 5.1.2 표에 있다"
@@ -323,7 +326,7 @@ class ArchitectureTest {
             .mapNotNull { imported ->
                 val to = moduleOf(imported.substringBeforeLast('.')) ?: moduleOf(imported)
                 when {
-                    isOwnResources(from, imported) -> null
+                    isOwnResources(from, imported) || isWatchFoundation(from, to) -> null
                     to == null -> "$from → $imported (${file.name})"
                     to == from || to in allowed || isE2eException(file, imported) -> null
                     else -> "$from → $to (${file.name})"
@@ -346,7 +349,15 @@ class ArchitectureTest {
      * (2차 리뷰 M-3: 도메인 안내 문구).
      */
     private fun isOwnResources(from: String, imported: String): Boolean =
-        from.startsWith("data.") && imported in setOf("$APP.api.core.R", "$APP.data.phone.R")
+        (from.startsWith("data.") && imported in setOf("$APP.api.core.R", "$APP.data.phone.R")) ||
+            (from.startsWith("watch.") && imported == "$WATCH.ui.R")
+
+    /**
+     * 워치(:wear)는 :core:model에 Gradle 의존하고(설계 2.1) Outcome·Distance·GeoPoint 같은 값 형식을 domain 포트 시그니처로 받는다.
+     * 설계 5절 워치 표(26개)는 core.model을 화살표로 세지 않았으므로 구조 시험도 워치의 core.model import를 표 밖으로 보지 않는다
+     * (W1 결정, 설계서 갱신 요청). :wear의 R이 namespace 때문에 watch.ui에 생기는 것은 [isOwnResources]가 다룬다.
+     */
+    private fun isWatchFoundation(from: String, to: String?): Boolean = from.startsWith("watch.") && to == "core.model"
 
     private fun isAppOrUi(module: String?): Boolean = module == "app" || module?.startsWith("ui.") == true
 
@@ -542,7 +553,7 @@ class ArchitectureTest {
                         "core.navigation",
                         "core.designsystem"
                     ),
-                // 워치(설계 v0.22 5절 2차 구조, design-review 22.6): 8줄 26개. run·guide·session·cache와 새 화살표는 2·3단계 코드가 쓴다.
+                // 워치(설계 v0.22 5절 2차 구조, design-review 22.6): 8줄 26개 + W1 결정 1개(watch.cache → domain.live) = 27개.
                 "watch.heart" to emptySet(),
                 "watch.alert" to setOf("wear.contract"),
                 // session: 받은 로그인 정보·로그아웃 표시를 넘긴다. domain.run: WatchMeasuringReporter가 RunTracker.isMeasuring을 구독한다(M77).
@@ -561,8 +572,9 @@ class ArchitectureTest {
                 "watch.run" to setOf("watch.alert", "wear.contract", "domain.run", "domain.settings"),
                 "watch.guide" to setOf("watch.alert", "domain.run", "domain.settings", "data.guide"),
                 "watch.session" to setOf("watch.cache", "wear.contract", "domain.run", "domain.account"),
-                // 회원ID는 부르는 쪽이 넘긴다: cache는 watch.session을 모른다(M78, 순환 0).
-                "watch.cache" to setOf("domain.battle")
+                // 회원ID는 부르는 쪽이 넘긴다: cache는 watch.session을 모른다(M78, 순환 0). domain.live(W1 결정): OpponentTrack은 표본을
+                // 밖에 내지 않아 파일에 둔 진행표를 OpponentTrack.from(TrackTable)로 되살린다.
+                "watch.cache" to setOf("domain.battle", "domain.live")
             )
 
         /** 패키지 이름이 속한 5.1.2 모듈. app은 com.a207.runkk.app 바로 아래(하위 패키지 없음)만이다. */

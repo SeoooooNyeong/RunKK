@@ -33,4 +33,9 @@
     <string name="collecting_channel">심박 수집</string>
     <string name="collecting_title">러닝 중 심박 수집</string>
     <string name="collecting_status">심박 재는 중</string>
+    <!-- 워치 단독 측정 진행 중 활동(FR-255, watch.run WatchMeasurementService) -->
+    <string name="measuring_channel">러닝 기록</string>
+    <string name="measuring_title">러닝 기록 중</string>
+    <string name="measuring_status">%1$skm 러닝 기록 중</string>
+    <string name="measuring_return">탭해서 돌아가기</string>
 </resources>
