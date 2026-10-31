@@ -2,8 +2,8 @@ package com.a207.runkk.wear.contract
 
 /**
  * 폰–워치 Wearable Data Layer 경로 이름(D-20, 6.1.15, F.4.1). 경로는 더하기만 한다(D-97).
- * 심박 묶음만 DataClient(끊겨도 쌓였다가 전달, NFR-032)이고 나머지는 MessageClient다.
- * 경로 7개는 서로 겹치지 않는다(계약 시험). 받는 쪽은 모르는 경로를 버린다(F.4.4).
+ * 심박 묶음과 로그아웃 표시만 DataClient(끊겨도 쌓였다가 전달, NFR-032, D-371)이고 나머지는 MessageClient다([DATA_ITEM_PATHS]).
+ * 경로 11개는 서로 겹치지 않는다(계약 시험). 받는 쪽은 모르는 경로를 버린다(F.4.4).
  */
 object WearPaths {
     /** 워치 → 폰: 자유런 시작 요청(MessageClient, FR-183). */
@@ -35,4 +35,22 @@ object WearPaths {
 
     /** 폰 → 워치: 추월·역전 순간(MessageClient, LeadChangeMessage, FR-188, FR-196). */
     const val LEAD_CHANGE = "/runkk/lead-change"
+
+    /** 워치 → 폰: 로그인 정보 요청(MessageClient, 본문 없음, FR-242, D-371). 워치가 로그인 정보 없이 열렸을 때 보낸다. */
+    const val SESSION_REQUEST = "/runkk/session-request"
+
+    /** 폰 → 워치: 로그인 정보(MessageClient만, WatchSessionMessage, FR-240, D-371). 토큰을 실으므로 DataClient로 보내지 않는다(NFR-050). */
+    const val WATCH_SESSION = "/runkk/watch-session"
+
+    /** 폰 → 워치: 로그아웃 표시(DataClient 항목, SessionRevokedMessage, FR-241, D-371). 비밀값은 없다. */
+    const val SESSION_REVOKED = "/runkk/session-revoked"
+
+    /** 워치 → 폰: 워치 측정 중 여부(MessageClient, WatchMeasuringMessage, FR-252, D-371, D-373). */
+    const val WATCH_MEASURING = "/runkk/watch-measuring"
+
+    /**
+     * DataClient 항목으로 주고받는 경로(접두어). 항목은 Data Layer 저장소에 남으므로 비밀값을 싣는 경로(WATCH_SESSION)는 여기 두지 않는다
+     * (NFR-050, 계약 시험). 그 밖의 경로는 MessageClient다.
+     */
+    val DATA_ITEM_PATHS: Set<String> = setOf(HEART_RATE_BATCH, SESSION_REVOKED)
 }
