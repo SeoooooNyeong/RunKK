@@ -80,6 +80,8 @@ class BattleRepositoryImplTest {
         assertEquals("lee", tracks.first().celebrityFigure)
         assertEquals(null, tracks.last().celebrityFigure, "빈 그림 키는 없음으로 본다")
         assertEquals(Distance(2_500), tracks.last().track.distanceAt(Duration.ofSeconds(800)))
+        assertEquals(Distance.ZERO, tracks.first().track.distanceAt(Duration.ofSeconds(800)), "빈 구간 기록은 0m에 머문다")
+        assertEquals(null, tracks.first().track.arrivalTime(Distance(5_000)), "빈 구간 기록은 도착하지 않는다")
     }
 
     @Test
