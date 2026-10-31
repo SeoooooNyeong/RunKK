@@ -11,7 +11,9 @@ import com.a207.runkk.app.domain.battle.FriendInvite
 import com.a207.runkk.app.domain.battle.FriendInviteView
 import com.a207.runkk.app.domain.battle.MatchAcceptance
 import com.a207.runkk.app.domain.battle.RecordBattleCandidates
+import com.a207.runkk.app.domain.battle.RecordBattleKind
 import com.a207.runkk.app.domain.battle.RecordBattleStart
+import com.a207.runkk.app.domain.battle.RecordTrack
 import javax.inject.Inject
 import retrofit2.HttpException
 import retrofit2.Response
@@ -32,6 +34,9 @@ constructor(private val api: BattleApi) : BattleRepository {
 
     override suspend fun celebrityCandidates(distance: Distance?): Outcome<RecordBattleCandidates> =
         ApiErrorMapper.call { api.celebrityCandidates(distance?.meters).toDomain() }
+
+    override suspend fun recordTracks(kind: RecordBattleKind): Outcome<List<RecordTrack>> =
+        ApiErrorMapper.call { api.recordTracks(kind.name).tracks.map { it.toDomain(kind) } }
 
     override suspend fun startSelfBattle(distance: Distance): Outcome<RecordBattleStart> =
         ApiErrorMapper.call { api.startSelfBattle(SelfBattleRequest(distance.meters)).toDomain() }

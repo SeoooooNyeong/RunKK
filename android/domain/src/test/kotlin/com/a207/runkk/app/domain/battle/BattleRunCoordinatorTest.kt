@@ -82,6 +82,8 @@ private class FakeBattleRepository(private val log: CallLog) : BattleRepository 
 
     override suspend fun celebrityCandidates(distance: Distance?): Outcome<RecordBattleCandidates> = error("unused")
 
+    override suspend fun recordTracks(kind: RecordBattleKind): Outcome<List<RecordTrack>> = error("unused")
+
     override suspend fun startSelfBattle(distance: Distance): Outcome<RecordBattleStart> = error("unused")
 
     override suspend fun startCelebrityBattle(celebrityId: Long): Outcome<RecordBattleStart> = error("unused")
@@ -891,6 +893,98 @@ class BattleRunCoordinatorTest {
         advanceTimeBy(10_000)
         runCurrent()
         assertEquals(listOf("battle.cancel", "battle.requestMatch:5000"), log.calls, "새 대기열 등록을 지우지 않는다")
+    }
+
+    @Test
+    fun `D-373 워치가 측정 중이면 매칭 요청을 서버에 보내지 않고 WATCH_MEASURING으로 거부한다`() = runTest {
+        val (_, coordinator) = setUp()
+        watch.watchMeasuring = true
+
+        val result = coordinator.requestMatch(Distance(1_000))
+
+        assertEquals(Outcome.Failure(AppError.Rejected(AppError.Rejected.WATCH_MEASURING)), result)
+        assertTrue(log.calls.isEmpty(), "서버 대기열에 등록하지 않는다")
+    }
+
+    private val offlineSelf =
+        OfflineRecordBattle(
+            kind = RecordBattleKind.SELF,
+            distance = Distance(100),
+            celebrityId = null,
+            track = OpponentTrack.uniform(Distance(100), Duration.ofSeconds(50))
+        )
+
+    @Test
+    fun `D-377 오프라인 기록 대결 - 3초 카운트다운 뒤 측정하고 구간 기록으로 격차를 내며 서버에 보고하지 않는다`() = runTest {
+        val (tracker, coordinator) = setUp()
+        coordinator.onOfflineRecordBattle(offlineSelf)
+        runCurrent()
+        assertIs<BattleRunState.Countdown>(coordinator.state.value)
+        assertEquals(0, host.started)
+
+        advanceTimeBy(3_001)
+        tracker.runTo(1, 0.0)
+        tracker.runTo(10, 30.0)
+        runCurrent()
+
+        assertEquals(1, host.started)
+        // 10초에 나 30m, 상대(50초 100m 균등) 20m → +10m
+        val running = assertIs<BattleRunState.Running>(coordinator.state.value)
+        assertEquals(Distance(20), running.opponentDistance)
+        assertEquals(10, running.gapMeters)
+        assertTrue(live.channel.sent.isEmpty())
+        assertTrue(log.calls.none { it.startsWith("battle.") }, "서버 대결 REST를 부르지 않는다: ${log.calls}")
+    }
+
+    @Test
+    fun `D-377 오프라인 기록 대결 - 도착하면 대결 ID 없는 자유런 기록으로 저장하고 Finished로 닫는다`() = runTest {
+        val (tracker, coordinator) = setUp()
+        coordinator.onOfflineRecordBattle(offlineSelf)
+        advanceTimeBy(3_001)
+        tracker.runTo(1, 0.0)
+        tracker.runTo(30, 101.0)
+        runCurrent()
+
+        assertIs<BattleRunState.Finished>(coordinator.state.value)
+        val run = pending.runs.single()
+        assertEquals(RunMode.FREE, run.mode)
+        assertEquals(CardKind.FREE_RUN, run.cardKind)
+        assertNull(run.battleId)
+        assertEquals(listOf("pending.save", "upload.requestUpload"), log.calls)
+        assertEquals(1, host.stopped)
+        assertTrue(parentJob.children.none())
+    }
+
+    @Test
+    fun `D-377 오프라인 기록 대결 그만두기 - 서버에 보고하지 않고 기록을 남긴다`() = runTest {
+        val (tracker, coordinator) = setUp()
+        coordinator.onOfflineRecordBattle(offlineSelf)
+        advanceTimeBy(3_001)
+        tracker.runTo(1, 0.0)
+        tracker.runTo(5, 12.0)
+        runCurrent()
+
+        coordinator.forfeit()
+        runCurrent()
+
+        assertEquals(listOf("pending.save", "upload.requestUpload"), log.calls)
+        assertIs<BattleRunState.Finished>(coordinator.state.value)
+    }
+
+    @Test
+    fun `D-377 오프라인 기록 대결 취소 - 서버에 보고하지 않고 기록을 버린다`() = runTest {
+        val (tracker, coordinator) = setUp()
+        coordinator.onOfflineRecordBattle(offlineSelf)
+        advanceTimeBy(3_001)
+        tracker.runTo(1, 0.0)
+        runCurrent()
+
+        coordinator.cancel()
+        runCurrent()
+
+        assertTrue(log.calls.isEmpty(), "${log.calls}")
+        assertIs<BattleRunState.Discarded>(coordinator.state.value)
+        assertFalse(tracker.isMeasuring)
     }
 
     private val match =

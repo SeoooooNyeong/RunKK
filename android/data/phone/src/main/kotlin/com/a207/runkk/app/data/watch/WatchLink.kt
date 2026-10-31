@@ -3,7 +3,7 @@ package com.a207.runkk.app.data.watch
 import android.content.Context
 import android.net.Uri
 import androidx.annotation.StringRes
-import com.a207.runkk.app.api.core.R
+import com.a207.runkk.app.data.phone.R
 import com.a207.runkk.app.domain.run.Guidance
 import com.a207.runkk.app.domain.run.HeartRateSample
 import com.a207.runkk.app.domain.run.ProximityAlert
@@ -227,14 +227,10 @@ internal fun WatchDisplay.toMessage(
     isPausable = isPausable
 )
 
-/** 근접 알림 → 워치 메시지. null은 끔이다(isActive 거짓, 격차·간격 0, F.4.2). */
-internal fun ProximityAlert?.toMessage(sentAtEpochMillis: Long): ProximityMessage = ProximityMessage(
-    isActive = this != null,
-    gapMeters = this?.gapMeters ?: 0,
-    intervalMillis = this?.interval?.toMillis() ?: 0,
-    isAhead = this?.isAhead ?: false,
-    sentAtEpochMillis = sentAtEpochMillis
-)
+/** 근접 알림 → 워치 메시지. null은 끔이다(isActive 거짓, 격차·간격 0, F.4.2). 변환 규칙은 wear.contract 한 곳에 있다(D-393, H-58). */
+internal fun ProximityAlert?.toMessage(sentAtEpochMillis: Long): ProximityMessage =
+    this?.let { ProximityMessage.of(it.gapMeters, it.interval.toMillis(), it.isAhead, sentAtEpochMillis) }
+        ?: ProximityMessage.off(sentAtEpochMillis)
 
 internal fun PauseRequestMessage.Action.toDomain(): WatchGateway.PauseAction = when (this) {
     PauseRequestMessage.Action.PAUSE -> WatchGateway.PauseAction.PAUSE

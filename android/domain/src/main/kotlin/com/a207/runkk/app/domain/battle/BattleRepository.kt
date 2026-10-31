@@ -16,6 +16,12 @@ interface BattleRepository {
 
     suspend fun celebrityCandidates(distance: Distance?): Outcome<RecordBattleCandidates>
 
+    /**
+     * 셀프·셀럽 상대 기록과 진행용 구간 기록을 미리 받는다(GET /battles/record-tracks?kind=, D-377, U3 (나)). 서버에 대결을 만들지 않는다.
+     * 셀프런은 거리별 내 최고 기록(기록 없는 거리는 없음), 셀럽런은 공개된 셀럽 기록 전부다. 거리 오름차순, 같은 거리는 완주 시간 오름차순.
+     */
+    suspend fun recordTracks(kind: RecordBattleKind): Outcome<List<RecordTrack>>
+
     suspend fun startSelfBattle(distance: Distance): Outcome<RecordBattleStart>
 
     suspend fun startCelebrityBattle(celebrityId: Long): Outcome<RecordBattleStart>

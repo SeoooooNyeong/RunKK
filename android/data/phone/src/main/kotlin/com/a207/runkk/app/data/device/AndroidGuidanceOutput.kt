@@ -9,6 +9,7 @@ import android.os.Vibrator
 import android.os.VibratorManager
 import android.speech.tts.TextToSpeech
 import android.widget.Toast
+import com.a207.runkk.app.data.guide.GuidanceTexts
 import com.a207.runkk.app.domain.run.Guidance
 import com.a207.runkk.app.domain.run.GuidanceOutput
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -36,7 +37,7 @@ constructor(@ApplicationContext private val context: Context) : GuidanceOutput {
     }
 
     private fun deliver(g: Guidance) {
-        val text = g.text(context.resources)
+        val text = GuidanceTexts.text(g, context.resources)
         if (g.hasVibration) vibrate()
         if (g.hasVoice) speak(text)
         if (!g.hasVoice && !g.hasVibration) Toast.makeText(context, text, Toast.LENGTH_SHORT).show()

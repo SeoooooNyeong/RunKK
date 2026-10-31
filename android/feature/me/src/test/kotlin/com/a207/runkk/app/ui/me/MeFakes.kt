@@ -95,6 +95,10 @@ class FakeAccountRepository : AccountRepository {
 
     override suspend fun logout(): Outcome<Unit> = call("logout") {}
 
+    override suspend fun issueWatchSession(): Outcome<SessionTokens> = call("issueWatchSession") {
+        SessionTokens("wa", "wr")
+    }
+
     var lastGuestConsents: Map<String, Boolean>? = null
     var guestResult: Outcome<GuestSession>? = null
 

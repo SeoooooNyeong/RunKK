@@ -180,7 +180,7 @@ class ProgressNotificationTest {
 
     @Test
     fun `TC-9622 정지 자동 종료·잠금 해제·고정 측정 알림 문자열이 없다`() {
-        val names = com.a207.runkk.app.api.core.R.string::class.java.fields.map { it.name }.toSet()
+        val names = com.a207.runkk.app.data.phone.R.string::class.java.fields.map { it.name }.toSet()
         val removed = setOf(
             "guidance_pause_auto_end_soon",
             "guidance_pause_auto_ended",

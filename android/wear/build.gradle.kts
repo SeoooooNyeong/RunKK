@@ -1,4 +1,5 @@
-// 워치 앱(5.1.2 watch.heart·watch.link·watch.ui, 6.1.15). 기록을 만들지 않고 표시·시작 요청·심박 수집만 한다(C-002).
+// 워치 앱(5.1.2 watch.heart·watch.link·watch.ui, 6.1.15). 폰 러닝의 동행 표시·심박 수집(C-002)에 더해, v0.21부터 domain과 공용 :data를
+// 조립해 워치 단독 러닝을 측정·기록·전송한다(D-366). 폰 전용 :data:phone은 쓰지 않는다(D-365, Hilt 중복 바인딩).
 // 의존 방향: watch.ui → watch.link → watch.heart, watch.link → wear.contract. Application·Activity는 watch.ui, Hilt 바인딩은 watch.link.
 plugins {
     alias(libs.plugins.runkk.android.application)
@@ -46,6 +47,10 @@ tasks.withType<Test>().configureEach {
 
 dependencies {
     implementation(project(":wear-contract"))
+    // 워치 단독 러닝(D-366): domain 클래스를 그대로 조립하고 공용 :data의 REST·실시간·보관함·전송·설정을 쓴다.
+    implementation(project(":domain"))
+    implementation(project(":data"))
+    implementation(project(":core:model"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)

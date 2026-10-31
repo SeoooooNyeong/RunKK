@@ -9,7 +9,7 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
-import com.a207.runkk.app.api.core.R
+import com.a207.runkk.app.data.phone.R
 import com.a207.runkk.app.domain.notification.GatedFeature
 import com.a207.runkk.app.domain.notification.PushTokenSync
 import com.a207.runkk.app.domain.notification.ReleaseLock

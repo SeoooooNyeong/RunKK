@@ -1,11 +1,9 @@
-package com.a207.runkk.app.data.device
+package com.a207.runkk.app.data.guide
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
-import com.a207.runkk.app.data.watch.textRes
 import com.a207.runkk.app.domain.run.Guidance
 import com.a207.runkk.app.domain.run.GuidanceMessage
-import com.a207.runkk.app.domain.run.WatchNotice
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -17,8 +15,10 @@ import org.robolectric.RobolectricTestRunner
 class GuidanceTextsTest {
     private val resources = ApplicationProvider.getApplicationContext<Context>().resources
 
-    private fun text(message: GuidanceMessage, vararg args: Any) =
-        Guidance(Guidance.Kind.SPLIT, message, args.toList(), hasVoice = true, hasVibration = false).text(resources)
+    private fun text(message: GuidanceMessage, vararg args: Any) = GuidanceTexts.text(
+        Guidance(Guidance.Kind.SPLIT, message, args.toList(), hasVoice = true, hasVibration = false),
+        resources
+    )
 
     @Test
     fun `인자를 넣어 도메인이 만들던 문구와 같게 바꾼다`() {
@@ -36,8 +36,9 @@ class GuidanceTextsTest {
     }
 
     @Test
-    fun `모든 안내 키와 워치 안내 키에 문구가 있다`() {
-        GuidanceMessage.entries.forEach { assertTrue(resources.getString(it.textRes()).isNotBlank(), it.name) }
-        WatchNotice.entries.forEach { assertTrue(resources.getString(it.textRes()).isNotBlank(), it.name) }
+    fun `모든 안내 키에 문구가 있다`() {
+        GuidanceMessage.entries.forEach {
+            assertTrue(resources.getString(GuidanceTexts.textRes(it)).isNotBlank(), it.name)
+        }
     }
 }

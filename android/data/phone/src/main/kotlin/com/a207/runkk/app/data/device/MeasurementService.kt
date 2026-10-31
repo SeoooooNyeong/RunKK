@@ -17,11 +17,11 @@ import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
-import com.a207.runkk.app.api.core.R
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.GeoPoint
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.data.phone.R
 import com.a207.runkk.app.domain.run.FreeRunGoalState
 import com.a207.runkk.app.domain.run.LocationSample
 import com.a207.runkk.app.domain.run.MeasurementHost

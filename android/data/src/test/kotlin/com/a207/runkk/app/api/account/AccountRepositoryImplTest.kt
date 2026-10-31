@@ -111,6 +111,27 @@ class AccountRepositoryImplTest {
     }
 
     @Test
+    fun `워치 세션은 본문 없이 POST auth·watch-session을 보내고 새 토큰 쌍을 돌려준다(D-372)`() = runTest {
+        api.reply("""{"accessToken":"watch-a","refreshToken":"watch-r"}""")
+
+        val result = repository.issueWatchSession()
+
+        assertEquals(Outcome.Success(SessionTokens("watch-a", "watch-r")), result)
+        val sent = api.take()
+        assertEquals("POST /api/v1/auth/watch-session", "${sent.method} ${sent.url.encodedPath}")
+        assertEquals(0L, sent.bodySize)
+    }
+
+    @Test
+    fun `워치 세션 발급이 401이면 Unauthorized, 연결 실패는 Network다`() = runTest {
+        api.reply("""{"code":"UNAUTHORIZED"}""", code = 401)
+        assertEquals(Outcome.Failure(AppError.Unauthorized), repository.issueWatchSession())
+
+        api.close()
+        assertEquals(Outcome.Failure(AppError.Network), repository.issueWatchSession())
+    }
+
+    @Test
     fun `로그아웃은 갱신 토큰을 보낸다`() = runTest {
         api.replyEmpty(200)
 

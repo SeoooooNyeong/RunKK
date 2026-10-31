@@ -33,6 +33,8 @@ import com.a207.runkk.app.api.battle.InviteViewResponse
 import com.a207.runkk.app.api.battle.MatchAcceptanceResponse
 import com.a207.runkk.app.api.battle.MatchRequest
 import com.a207.runkk.app.api.battle.RecordBattleStartResponse
+import com.a207.runkk.app.api.battle.RecordTrackResponse
+import com.a207.runkk.app.api.battle.RecordTracksResponse
 import com.a207.runkk.app.api.battle.SelfBattleRequest
 import com.a207.runkk.app.api.chat.ChatMessageItem
 import com.a207.runkk.app.api.chat.ChatPageResponse
@@ -340,6 +342,9 @@ class ServerContractTest {
         response(MatchAcceptanceResponse.serializer(), "BattleDtos.MatchAcceptanceResponse")
         response(CandidatesResponse.serializer(), "BattleDtos.CandidatesResponse")
         response(RecordBattleStartResponse.serializer(), "BattleDtos.RecordBattleStartResponse")
+        // 워치 v2(D-377, contract-v2 2절): 셀프·셀럽 상대 기록 미리 받기
+        response(RecordTracksResponse.serializer(), "BattleDtos.RecordTracksResponse")
+        response(RecordTrackResponse.serializer(), "BattleDtos.RecordTrackResponse")
         response(BattleResultResponse.serializer(), "BattleDtos.BattleResultResponse")
         response(BattleHistoryResponse.serializer(), "BattleDtos.BattleHistoryResponse")
         response(ActiveBattleResponse.serializer(), "BattleDtos.ActiveBattleResponse")
