@@ -35,6 +35,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.a207.runkk.app.core.designsystem.LocalReleaseScope
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkEmptyState
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
@@ -118,21 +119,27 @@ fun InboxScreen(
 
 @Composable
 private fun InboxContent(state: InboxUiState, onBack: () -> Unit, onItem: (Inbox.Item) -> Unit, onRetry: () -> Unit) {
+    // 1차 배포에서 닫은 기능(크루, 아바타)의 알림은 목록에서 뺀다
+    val scope = LocalReleaseScope.current
+    val groups = remember(state.groups, scope) {
+        state.groups.map { group -> group.copy(items = group.items.filter { InboxLabels.isVisibleIn(it.type, scope) }) }
+            .filter { it.items.isNotEmpty() }
+    }
     Column(modifier = Modifier.fillMaxSize().background(RunkkColors.Background)) {
         RunkkTopBar(title = stringResource(R.string.notification_inbox_title), onBack = onBack)
         when {
-            state.isLoading && state.groups.isEmpty() -> RunkkLoading(modifier = Modifier.weight(1f))
+            state.isLoading && groups.isEmpty() -> RunkkLoading(modifier = Modifier.weight(1f))
 
             state.error != null -> RunkkErrorState(state.error.asString(), onRetry = onRetry)
 
-            state.groups.isEmpty() -> RunkkEmptyState(stringResource(R.string.notification_empty_title))
+            groups.isEmpty() -> RunkkEmptyState(stringResource(R.string.notification_empty_title))
 
             else -> LazyColumn(
                 modifier = Modifier.weight(1f),
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 32.dp)
             ) {
                 // 보드(F7)는 묶음 제목 없이 최신순 한 목록이다.
-                val items = state.groups.flatMap { it.items }
+                val items = groups.flatMap { it.items }
                 itemsIndexed(items, key = { _, item -> item.id }) { index, item ->
                     InboxRow(item, state, onClick = { onItem(item) })
                     if (index < items.lastIndex) HorizontalDivider(color = RunkkColors.Border)

@@ -1,0 +1,13 @@
+{
+  "endpoint": "POST /users/{userId}/faces/jobs",
+  "scenario": "ok",
+  "request": {
+    "userId": "42",
+    "image": "gif"
+  },
+  "status": 415,
+  "body": {
+    "reason": "UNSUPPORTED_IMAGE"
+  },
+  "gateway": "FailureReason.UNSUPPORTED_IMAGE"
+}

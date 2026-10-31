@@ -100,6 +100,7 @@ class RecordControllerTest extends WebTestSupport {
         assertThat(dashboard.get("todayMeters").asLong()).isEqualTo(5_000);
         assertThat(dashboard.get("todayRuns").asInt()).isEqualTo(1);
         assertThat(dashboard.get("streakDays").asInt()).isEqualTo(1);
+        assertThat(dashboard.get("streakWeeks").asInt()).isEqualTo(1);
         assertThat(dashboard.get("landmark").asText()).isNotBlank();
         assertThat(dashboard.get("grass").get(TODAY.toString()).asLong()).isEqualTo(5_000);
         assertThat(dashboard.get("calendar").get(TODAY.toString()).get(0).get("recordId").asText())
@@ -131,6 +132,9 @@ class RecordControllerTest extends WebTestSupport {
         JsonNode card = getJson(me, "/api/v1/runs/" + recordId + "/card");
         assertThat(card.get("cardKind").asText()).isEqualTo("FREE_RUN");
         assertThat(card.get("route")).isNotEmpty();
+        assertThat(card.get("nickname").asText()).startsWith("웹러너");
+        assertThat(own.get("recordVisibility").asText()).isEqualTo("PUBLIC");
+        assertThat(theirs.get("recordVisibility").isNull()).isTrue();
         mvc.perform(as(other, get("/api/v1/runs/" + recordId + "/card")))
                 .andExpect(status().isForbidden());
 

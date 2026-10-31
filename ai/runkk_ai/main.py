@@ -29,7 +29,8 @@ from runkk_ai.coach import (
 )
 from runkk_ai.comment import COMMENT_TIMEOUT_S, ClaudeClient, CommentRouter, CommentService, LlmClient, OpenAiClient
 from runkk_ai.core import HealthRouter, InternalTokenMiddleware, Settings
-from runkk_ai.face import ExternalFaceApi, FaceRouter, FaceTransformer, FaceTransformService
+from runkk_ai.face import AvatarClient, AvatarService, FaceRouter, NodeAvatarClient
+from runkk_ai.privacy import PrivacyRouter, WithdrawalService
 from runkk_ai.runbody import (
     InMemoryResultRepository,
     MonthlyRouter,
@@ -38,7 +39,14 @@ from runkk_ai.runbody import (
     RunbodyRouter,
     RunbodyService,
 )
-from runkk_ai.storage import PgCoachStore, PgResultRepository, create_engine, upgrade
+from runkk_ai.storage import PgCoachStore, PgModelRegistry, PgResultRepository, create_engine, upgrade
+from runkk_ai.writer import (
+    InMemoryModelRegistry,
+    LlamaCppClient,
+    ModelRegistry,
+    ModelsRouter,
+    WriterService,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +101,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(RunbodyRouter)
     app.include_router(MonthlyRouter)
     app.include_router(CoachRouter)
+    app.include_router(ModelsRouter)
+    app.include_router(PrivacyRouter)
     return app
 
 
@@ -103,21 +113,29 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     async with AsyncExitStack() as resources:
         llm = _build_llm_client(settings)
         resources.push_async_callback(llm.aclose)
-        transformer = _build_face_transformer(settings)
-        resources.push_async_callback(transformer.aclose)
+        avatar = _build_avatar_client(settings)
+        resources.push_async_callback(avatar.aclose)
         app.state.comment_service = CommentService(llm=llm, daily_cap=settings.llm_daily_hard_cap)
-        app.state.face_service = FaceTransformService(
-            transformer=transformer,
+        app.state.face_service = AvatarService(
+            client=avatar,
             timeout_s=settings.face_timeout_s,
             max_image_bytes=settings.max_image_bytes,
             max_image_pixels=settings.max_image_pixels,
         )
-        repository, coach_store, storage = await _build_storage(settings, resources)
-        runbody = RunbodyService(repository)
+        repository, coach_store, model_registry, storage = await _build_storage(settings, resources)
+        app.state.model_registry = model_registry
+        writer = await _build_writer(settings, model_registry)
+        if writer is not None:
+            resources.push_async_callback(writer.aclose)
+        runbody = RunbodyService(repository, polisher=writer.polish if writer else None)
         resources.push_async_callback(runbody.aclose)
         app.state.runbody_service = runbody
         monthly = MonthlyService(repository)
         app.state.monthly_service = monthly
+        # 탈퇴 파기(S15P31A207-219): 회원별 행을 가진 저장소를 모두 등록한다. 새 테이블이 생기면 여기에도 더한다
+        app.state.withdrawal_service = WithdrawalService(
+            {"sessionResults": repository, "coachMessages": coach_store}, timeout_s=settings.purge_timeout_s
+        )
         coach_model = _build_coach_model(settings)
         if coach_model is not None:
             resources.push_async_callback(coach_model.aclose)
@@ -130,34 +148,55 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             timeout_s=settings.coach_timeout_s,
         )
         logger.info(
-            "ai_started llm_provider=%s llm_model=%s llm_key_set=%s face_impl=%s face_url_set=%s runbody_storage=%s"
-            " coach_model=%s coach_key_set=%s",
+            "ai_started llm_provider=%s llm_model=%s llm_key_set=%s face_url_set=%s runbody_storage=%s"
+            " coach_model=%s coach_key_set=%s writer=%s",
             settings.llm_provider,
             settings.llm_model,
             _llm_key(settings) is not None,
-            settings.face_impl,
             bool(settings.face_api_url),
             storage,
             settings.coach_model,
             settings.anthropic_api_key is not None,
+            await _active_model(model_registry) if writer else "off",
         )
         yield
 
 
 async def _build_storage(
     settings: Settings, resources: AsyncExitStack
-) -> tuple[ResultRepository, CoachMessageStore, str]:
+) -> tuple[ResultRepository, CoachMessageStore, ModelRegistry, str]:
     """RUNKK_DB_URL이 있으면 analytics 테이블을 최신으로 맞추고 PostgreSQL 저장소(분석 결과·코치 대화)를 쓴다.
 
     연결이나 마이그레이션이 실패하면 예외가 올라가 기동을 멈춘다. 설정해 둔 DB를 두고 조용히 메모리로 뜨면
     재시작 때마다 결과가 사라지는 것을 아무도 모른다.
     """
     if settings.db_url is None:
-        return InMemoryResultRepository(), InMemoryCoachStore(), "memory"
+        return InMemoryResultRepository(), InMemoryCoachStore(), InMemoryModelRegistry(), "memory"
     engine = create_engine(settings.db_url.get_secret_value())
     resources.push_async_callback(engine.dispose)
     await upgrade(engine)
-    return PgResultRepository(engine), PgCoachStore(engine), "postgres"
+    return PgResultRepository(engine), PgCoachStore(engine), PgModelRegistry(engine), "postgres"
+
+
+async def _build_writer(settings: Settings, registry: ModelRegistry) -> WriterService | None:
+    """RUNKK_WRITER_URL이 writer 전체 스위치다. 비우면 등록부에 뭐가 있든 템플릿 문장을 그대로 둔다.
+
+    주소가 있으면 그 모델을 등록부에 넣는다(처음이면 바로 켜지고, 이미 켠 모델이 있으면 주소만 고친다).
+    그래서 운영자가 /models로 바꿔 둔 모델은 재시작해도 그대로 남는다(PostgreSQL 저장소일 때).
+    """
+    if not settings.writer_url:
+        return None
+    await registry.register(settings.writer_model_version, settings.writer_url)
+    return WriterService(
+        registry,
+        client_for=lambda base_url: LlamaCppClient(base_url, temperature=settings.writer_temperature),
+        timeout_s=settings.writer_timeout_s,
+    )
+
+
+async def _active_model(registry: ModelRegistry) -> str:
+    active = await registry.active()
+    return active.model_id if active else "none"
 
 
 def _build_coach_model(settings: Settings) -> CoachModel | None:
@@ -185,7 +224,7 @@ def _check_llm_timeout(settings: Settings) -> None:
 
 
 def _configure_logging() -> None:
-    """runkk_ai.* 호출 지표 로그(llm_call, face_transform)를 표준 오류로 낸다. uvicorn은 이 로거를 설정하지 않는다."""
+    """runkk_ai.* 호출 지표 로그(llm_call, avatar_call)를 표준 오류로 낸다. uvicorn은 이 로거를 설정하지 않는다."""
     package_logger = logging.getLogger("runkk_ai")
     package_logger.setLevel(logging.INFO)
     if not any(getattr(h, "name", None) == "runkk_ai" for h in package_logger.handlers):
@@ -211,12 +250,9 @@ def _build_llm_client(settings: Settings) -> LlmClient:
     )
 
 
-def _build_face_transformer(settings: Settings) -> FaceTransformer:
-    if settings.face_impl == "local":
-        # LocalSdModel은 C-011에서 팀 운영 모델로 정하면 모델 적재와 함께 연결한다(부록 E E-04, A-003)
-        raise RuntimeError("face_impl=local은 C-011 모델 선정 뒤에 연결한다")
-    key = settings.face_api_key.get_secret_value() if settings.face_api_key else None
-    return ExternalFaceApi(base_url=settings.face_api_url, api_key=key, timeout_s=settings.face_timeout_s)
+def _build_avatar_client(settings: Settings) -> AvatarClient:
+    """아바타(Node) 서버 주소가 비면 모든 /faces 호출이 503 UPSTREAM_FAILED다(아바타 컨테이너를 안 켠 환경)."""
+    return NodeAvatarClient(base_url=settings.face_api_url, timeout_s=settings.face_timeout_s)
 
 
 async def _invalid_request(request: Request, exc: Exception) -> JSONResponse:

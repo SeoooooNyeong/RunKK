@@ -38,9 +38,7 @@ public final class MemberFixtures {
         Member m =
                 Member.signUp(account(nickname), form(nickname), Nickname.of(nickname), joinedAt);
         m.editProfile(
-                new ProfileEdit(null, 1995, Gender.FEMALE, null, "안녕하세요"),
-                null,
-                joinedAt.getYear());
+                new ProfileEdit(null, 1995, Gender.FEMALE, "안녕하세요"), null, joinedAt.getYear());
         return m;
     }
 }

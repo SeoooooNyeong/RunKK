@@ -4,6 +4,8 @@ import com.a207.runkk.common.BusinessRuleException;
 import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.policy.OperationPolicy;
 import com.a207.runkk.policy.RunimalRule;
+import com.a207.runkk.running.RunEvaluationNote;
+import com.a207.runkk.running.RunRecordDeleted;
 import com.a207.runkk.running.RunRecordSaved;
 import java.time.Clock;
 import java.time.LocalDateTime;
@@ -32,6 +34,8 @@ public class RunimalService {
     private final OperationPolicy operationPolicy;
     private final Clock clock;
     private final RunimalTransactions transactions;
+    private final RunEvaluationNote runEvaluationNote;
+    private final CourseVerdictRepository courseVerdictRepository;
 
     RunimalService(
             RunimalProfileRepository runimalProfileRepository,
@@ -40,7 +44,9 @@ public class RunimalService {
             RunSampleReader runSampleReader,
             OperationPolicy operationPolicy,
             Clock clock,
-            RunimalTransactions transactions) {
+            RunimalTransactions transactions,
+            RunEvaluationNote runEvaluationNote,
+            CourseVerdictRepository courseVerdictRepository) {
         this.runimalProfileRepository = runimalProfileRepository;
         this.courseSimilarityService = courseSimilarityService;
         this.runimalJudge = runimalJudge;
@@ -48,6 +54,26 @@ public class RunimalService {
         this.operationPolicy = operationPolicy;
         this.clock = clock;
         this.transactions = transactions;
+        this.runEvaluationNote = runEvaluationNote;
+        this.courseVerdictRepository = courseVerdictRepository;
+    }
+
+    /** 기록이 삭제되면(v0.14 D-232) 그 기록의 코스 판정 행을 지운다. 없으면 아무 일도 없다. */
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onRunDeleted(RunRecordDeleted e) {
+        try {
+            transactions.retrying(
+                    () -> {
+                        courseVerdictRepository.deleteByRecord(e.recordId());
+                        return Boolean.TRUE;
+                    });
+        } catch (RuntimeException failure) {
+            log.error(
+                    "runimal_verdict_delete_failed recordId={} error={}",
+                    e.recordId(),
+                    failure.getClass().getSimpleName(),
+                    failure);
+        }
     }
 
     /**
@@ -82,12 +108,12 @@ public class RunimalService {
         RunimalProfile profile = runimalProfileRepository.findOrCreate(e.memberId());
         JudgeTrigger trigger = profile.onValidRun(e.validRunOrdinal());
         if (trigger != JudgeTrigger.NONE) {
-            judge(profile, trigger);
+            judge(profile, trigger, e.recordId());
         }
         runimalProfileRepository.save(profile);
     }
 
-    private void judge(RunimalProfile profile, JudgeTrigger trigger) {
+    private void judge(RunimalProfile profile, JudgeTrigger trigger, String recordId) {
         LocalDateTime now = LocalDateTime.now(clock);
         RunSample sample = runSampleReader.read(profile.getMemberId(), now.toLocalDate());
         RunimalRule rule = operationPolicy.runimalRule();
@@ -98,6 +124,8 @@ public class RunimalService {
         }
         Judged judged = runimalJudge.judgeConfirmed(sample, rule);
         boolean changed = profile.confirm(judged.type(), judged.ratios(), now);
+        // 평가를 일으킨 기록에 확정 유형을 적는다(재평가 화면의 Runimal, v0.14 D-291). 첫 배치(3회째)는 확정하지 않는다(FR-153)
+        runEvaluationNote.noteRunimalType(recordId, judged.type().name());
         log.info("runimal_confirmed changed={}", changed);
     }
 

@@ -86,9 +86,11 @@ class BattleValuesTest {
             "BattleType: 비교표 항목·이력 분류·시작 방식(6.4), 비교표는 공개 안 된 값을 \"공개 안 됨\"으로")
     void battleTypeAndComparison() {
         assertThat(BattleType.GHOST.historyGroup()).isEqualTo(BattleType.RANDOM);
-        assertThat(BattleType.GHOST.comparisonItems()).contains(ComparisonItem.OVERTAKES);
-        assertThat(BattleType.SELF.comparisonItems()).contains(ComparisonItem.MAX_LEAD);
-        assertThat(BattleType.CELEBRITY.comparisonItems()).contains(ComparisonItem.MAX_GAP);
+        // v0.14 D-229: 비교표는 셀프런만 기록 시간·평균 페이스 두 줄이다
+        assertThat(BattleType.GHOST.comparisonItems()).isEmpty();
+        assertThat(BattleType.SELF.comparisonItems())
+                .containsExactly(ComparisonItem.RECORD_TIME, ComparisonItem.AVERAGE_PACE);
+        assertThat(BattleType.CELEBRITY.comparisonItems()).isEmpty();
         assertThat(BattleType.SELF.startsWithCountdown()).isTrue();
         assertThat(BattleType.RANDOM.startsWithCountdown()).isFalse();
         assertThat(BattleType.RANDOM.isAgainstRecord()).isFalse();
@@ -96,15 +98,26 @@ class BattleValuesTest {
         Battle battle = BattleFixtures.startedRandom();
         BattleParticipant me = battle.participant(BattleFixtures.ALICE).orElseThrow();
         battle.recordOvertakes(BattleFixtures.ALICE, 2);
+        assertThat(
+                        ComparisonTable.of(
+                                        BattleType.RANDOM,
+                                        new RunComparison(
+                                                Duration.ofSeconds(3_725),
+                                                new Pace(330),
+                                                new Pace(310)),
+                                        ComparisonValues.undisclosed(),
+                                        me)
+                                .rows())
+                .isEmpty();
         ComparisonTable table =
                 ComparisonTable.of(
-                        BattleType.RANDOM,
+                        BattleType.SELF,
                         new RunComparison(Duration.ofSeconds(3_725), new Pace(330), new Pace(310)),
                         ComparisonValues.undisclosed(),
                         me);
         assertThat(table.rows())
                 .extracting(ComparisonTable.Row::mine)
-                .containsExactly("1:02:05", "5'30\"", "5'10\"", "2회");
+                .containsExactly("1:02:05", "5'30\"");
         assertThat(table.rows())
                 .extracting(ComparisonTable.Row::theirs)
                 .containsOnly(ComparisonItem.NOT_DISCLOSED);

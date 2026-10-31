@@ -18,6 +18,9 @@ management:
       enabled: false
 
 runkk:
+  battle:
+    friend-invite:
+      link-base: https://k15a207.p.ssafy.io/invite/battle
   # 시험 문맥 하나를 여러 시험 클래스가 함께 쓰고 요청이 모두 127.0.0.1이라 시도 제한을 넉넉히 둔다(AuthAttemptLimitTest가 따로 줄여 시험)
   auth:
     attempts:
@@ -27,6 +30,9 @@ runkk:
   batch:
     battle-tick-enabled: false
     crew-tick-enabled: false
+    # 기동 뒤 경로 모양 되채우기(D-234)는 시험이 직접 부른다
+    route-shape-backfill:
+      enabled: false
   embedded-redis:
     enabled: true
     port: ${EMBEDDED_REDIS_PORT:6371}

@@ -17,6 +17,7 @@ import com.a207.runkk.member.MemberFixtures;
 import com.a207.runkk.member.MemberRepository;
 import com.a207.runkk.member.MemberWithdrawn;
 import com.a207.runkk.running.RunMode;
+import com.a207.runkk.running.RunRecordDeleted;
 import com.a207.runkk.running.RunRecordSaved;
 import java.time.Duration;
 import java.time.LocalDate;
@@ -226,6 +227,22 @@ class CrewScenarioTest {
         assertThat(sessions.load(run)).isEmpty();
         assertThat(race.contributionOf("quit-record-000000000000000000000001"))
                 .isEqualTo(Distance.ZERO);
+
+        // TC-9357 기록 삭제 사건: 크루런 ID가 없으면 아무 일도 없고, 있으면 그 참가의 연결을 비운다
+        DateRange linkedRange = new DateRange(LocalDate.now(), at.toLocalDate());
+        crewRuns.onRunDeleted(
+                new RunRecordDeleted(
+                        "quit-record-000000000000000000000001",
+                        a,
+                        null,
+                        null,
+                        LocalDateTime.now()));
+        assertThat(participationReader.linkedRecordIds(a, linkedRange))
+                .containsExactly("quit-record-000000000000000000000001");
+        crewRuns.onRunDeleted(
+                new RunRecordDeleted(
+                        "quit-record-000000000000000000000001", a, null, run, LocalDateTime.now()));
+        assertThat(participationReader.linkedRecordIds(a, linkedRange)).isEmpty();
     }
 
     @Test

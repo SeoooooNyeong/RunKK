@@ -246,8 +246,6 @@ internal fun WatchNotice.textRes(): Int = when (this) {
     WatchNotice.ALREADY_MEASURING -> R.string.watch_notice_already_measuring
     WatchNotice.OPEN_RUN_SCREEN -> R.string.watch_notice_open_run_screen
     WatchNotice.END_ON_PHONE -> R.string.watch_notice_end_on_phone
-    WatchNotice.AUTO_END_SOON -> R.string.watch_notice_auto_end_soon
-    WatchNotice.AUTO_ENDED -> R.string.watch_notice_auto_ended
 }
 
 internal fun HeartRateBatchMessage.Sample.toDomain(): HeartRateSample =

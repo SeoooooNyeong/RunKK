@@ -13,6 +13,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.navigation3.runtime.EntryProviderScope
 import androidx.navigation3.runtime.NavKey
+import com.a207.runkk.app.core.designsystem.HoldSplashUntil
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.navigation.FeatureEntry
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
@@ -39,6 +40,18 @@ private object FakeEntries : FeatureEntry {
             }
         }
         builder.route(Routes.ME) { Text("마이 화면") }
+    }
+}
+
+/** 홈이 [isReady]가 참이 될 때까지 스플래시를 붙잡는 가짜 화면(FR-239, D-352). */
+private class HoldingEntries(private val isReady: () -> Boolean) : FeatureEntry {
+    override val route: String = Routes.HOME
+
+    override fun register(builder: EntryProviderScope<NavKey>) {
+        builder.route(Routes.HOME) {
+            HoldSplashUntil(isReady = isReady())
+            Text("홈 화면")
+        }
     }
 }
 
@@ -88,6 +101,38 @@ class RunkkAppContentTest {
         compose.onNodeWithText("준비 중인 화면이에요").assertExists()
         loggedIn = false
         compose.onNodeWithText("로그인 화면").assertExists()
+    }
+
+    @Test
+    fun `첫 화면이 다 읽을 때까지 스플래시를 두고 다 읽으면 걷는다(FR-239)`() {
+        var isReady by mutableStateOf(false)
+        loggedIn = true
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                RunkkAppContent(setOf(HoldingEntries { isReady }), loggedIn = loggedIn, onExit = {})
+            }
+        }
+        compose.onNodeWithContentDescription("런크크 시작 중").assertExists()
+        compose.onNodeWithText("홈 화면").assertDoesNotExist() // 덮인 동안은 보조 기술에서 숨긴다(AN11-4)
+        isReady = true
+        compose.waitForIdle()
+        compose.onNodeWithContentDescription("런크크 시작 중").assertDoesNotExist()
+        compose.onNodeWithText("홈 화면").assertExists()
+    }
+
+    @Test
+    fun `첫 화면이 계속 붙잡아도 4초 뒤에는 스플래시를 걷는다(FR-239)`() {
+        loggedIn = true
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                RunkkAppContent(setOf(HoldingEntries { false }), loggedIn = loggedIn, onExit = {})
+            }
+        }
+        compose.mainClock.advanceTimeBy(3_000)
+        compose.onNodeWithContentDescription("런크크 시작 중").assertExists()
+        compose.mainClock.advanceTimeBy(1_500)
+        compose.onNodeWithContentDescription("런크크 시작 중").assertDoesNotExist()
     }
 
     @Test

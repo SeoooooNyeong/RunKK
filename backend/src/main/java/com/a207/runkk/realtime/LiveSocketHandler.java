@@ -1,5 +1,6 @@
 package com.a207.runkk.realtime;
 
+import com.a207.runkk.battle.BattleStartService;
 import com.a207.runkk.common.BusinessRuleException;
 import com.a207.runkk.crew.chat.CrewChatService;
 import com.a207.runkk.member.AccessGrant;
@@ -21,11 +22,11 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 /**
  * WebSocket 메시지를 받아 채널별 서비스로 넘긴다(설계 6.1.13, 5.7.2). 연결 때 TokenHandshakeInterceptor가 붙인 회원 ID와 접근 토큰
  * 만료 시각으로 SocketSessionRegistry.register를 부르고(만료 시각에 4401 예약, D-110), 속성이 없으면 핸드셰이크 Authorization
- * 헤더를 member.TokenIssuer.verifyGrant로 다시 확인하며(design-review.md E1) 실패하면 정책 위반 코드로 닫는다. 메시지를 받을 때마다
- * 먼저 만료를 확인해 지났으면 4401 TOKEN_EXPIRED로 닫는다(예약 작업이 늦을 때의 방어). 본문은 InboundMessage로 읽어 진행값은
- * ProgressDispatcher로, 채팅방 입장(InboundChatPresence)은 crew.chat의 checkRoomAccess를 통과할 때만
- * ChatPresenceRegistry에 반영한다(크루 밖이면 기록하지 않고 연결은 유지, N11). 소켓이 닫히면 그 세션이 남긴 방 입장 상태를 모두 지운다. 형식이 틀린
- * 메시지는 버린다. 토큰·진행값은 로그에 남기지 않는다.
+ * 헤더를 member.TokenIssuer.verifyGrant로 다시 확인하며(design-review.md E1) 실패하면 정책 위반 코드로 닫는다. 등록하면 우편함을
+ * 비우고 출발 예약된 대결의 BattleStart를 다시 보낸다(배틀런 QA 1·2번). 메시지를 받을 때마다 먼저 만료를 확인해 지났으면 4401 TOKEN_EXPIRED로
+ * 닫는다(예약 작업이 늦을 때의 방어). 본문은 InboundMessage로 읽어 진행값은 ProgressDispatcher로, 채팅방
+ * 입장(InboundChatPresence)은 crew.chat의 checkRoomAccess를 통과할 때만 ChatPresenceRegistry에 반영한다(크루 밖이면
+ * 기록하지 않고 연결은 유지, N11). 소켓이 닫히면 그 세션이 남긴 방 입장 상태를 모두 지운다. 형식이 틀린 메시지는 버린다. 토큰·진행값은 로그에 남기지 않는다.
  */
 @Component
 @ConditionalOnProperty(name = "runkk.live", havingValue = "websocket", matchIfMissing = true)
@@ -46,6 +47,7 @@ public class LiveSocketHandler extends TextWebSocketHandler {
     private final WebSocketMessenger messenger;
     private final RealtimeMessageSerializer serializer;
     private final ProgressDispatcher dispatcher;
+    private final BattleStartService battleStartService;
     private final CrewChatService chatService;
     private final ChatPresenceRegistry chatPresence;
     private final Clock clock;
@@ -56,6 +58,7 @@ public class LiveSocketHandler extends TextWebSocketHandler {
             WebSocketMessenger messenger,
             RealtimeMessageSerializer serializer,
             ProgressDispatcher dispatcher,
+            BattleStartService battleStartService,
             CrewChatService chatService,
             ChatPresenceRegistry chatPresence,
             Clock clock) {
@@ -64,6 +67,7 @@ public class LiveSocketHandler extends TextWebSocketHandler {
         this.messenger = messenger;
         this.serializer = serializer;
         this.dispatcher = dispatcher;
+        this.battleStartService = battleStartService;
         this.chatService = chatService;
         this.chatPresence = chatPresence;
         this.clock = clock;
@@ -71,7 +75,7 @@ public class LiveSocketHandler extends TextWebSocketHandler {
 
     /**
      * 핸드셰이크가 붙인 회원 ID·만료 시각을 쓴다(TokenHandshakeInterceptor). 없으면(인터셉터 없이 연결) 헤더로 다시 확인한다. 등록이 만료 시각에
-     * 4401로 닫는 작업을 예약한다(D-110).
+     * 4401로 닫는 작업을 예약한다(D-110). 우편함을 비운 뒤 BattleStart를 다시 보낸다(resendStart).
      */
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws IOException {
@@ -85,6 +89,16 @@ public class LiveSocketHandler extends TextWebSocketHandler {
         session.getAttributes().put(EXPIRES_AT, grant.get().expiresAt());
         registry.register(memberId, session, grant.get().expiresAt());
         messenger.flush(memberId);
+        resendStart(memberId);
+    }
+
+    /** 출발 예약 때 보낸 BattleStart가 재연결 사이에 사라졌을 수 있어 다시 보낸다. 실패해도 연결은 유지한다. */
+    private void resendStart(long memberId) {
+        try {
+            battleStartService.resendStart(memberId);
+        } catch (RuntimeException e) {
+            log.warn("socket_battle_start_resend_failed error={}", e.getClass().getSimpleName(), e);
+        }
     }
 
     private Optional<AccessGrant> grantOf(WebSocketSession session) {

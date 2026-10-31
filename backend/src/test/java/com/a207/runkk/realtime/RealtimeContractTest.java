@@ -7,6 +7,8 @@ import com.a207.runkk.battle.live.BattleEnded;
 import com.a207.runkk.battle.live.BattleGuidance;
 import com.a207.runkk.battle.live.BattleStart;
 import com.a207.runkk.battle.live.CountdownStarted;
+import com.a207.runkk.battle.live.FriendInviteDeclined;
+import com.a207.runkk.battle.live.FriendInviteExpired;
 import com.a207.runkk.battle.live.MatchFailed;
 import com.a207.runkk.battle.live.MatchFound;
 import com.a207.runkk.battle.live.OpponentProgress;
@@ -67,6 +69,7 @@ class RealtimeContractTest {
                         101,
                         wind,
                         Tier.GOLD,
+                        "MALE",
                         Distance.ofMeters(5_000),
                         Duration.ofSeconds(1_625),
                         Duration.ofSeconds(1_580),
@@ -97,11 +100,17 @@ class RealtimeContractTest {
                 "BattleEnded",
                 new BattleEnded(101, BattleEnded.Status.OPPONENT_FORFEITED),
                 "MatchFailed",
-                new MatchFailed("MATCH_FAILED", "대결을 만들지 못했어요. 다시 시도해 주세요"));
+                new MatchFailed("MATCH_FAILED", "대결을 만들지 못했어요. 다시 시도해 주세요"),
+                // v0.14 친구 대결 초대(D-221·D-223, TC-9853): 초대한 앱에만 가는 inviteId 하나
+                "FriendInviteDeclined",
+                new FriendInviteDeclined(41),
+                "FriendInviteExpired",
+                new FriendInviteExpired(42));
     }
 
     @Test
-    @org.junit.jupiter.api.DisplayName("대결 메시지 6종(표본 7개)을 앱 표본과 같은 JSON으로 직렬화한다")
+    @org.junit.jupiter.api.DisplayName(
+            "대결 메시지 9종(표본 10개, v0.14 친구 대결 초대 2종 포함)을 앱 표본과 같은 JSON으로 직렬화한다")
     void serverMessages_matchAppSamples() throws IOException {
         Map<String, BattleMessage> messages = serverMessages();
         for (Map.Entry<String, BattleMessage> e : messages.entrySet()) {
@@ -109,7 +118,7 @@ class RealtimeContractTest {
             JsonNode actual = JSON.readTree(serializer.serialize(e.getValue()));
             assertThat(actual).as("표본 " + e.getKey()).isEqualTo(expected);
         }
-        assertThat(messages.values().stream().map(BattleMessage::type).distinct()).hasSize(7);
+        assertThat(messages.values().stream().map(BattleMessage::type).distinct()).hasSize(9);
     }
 
     @Test

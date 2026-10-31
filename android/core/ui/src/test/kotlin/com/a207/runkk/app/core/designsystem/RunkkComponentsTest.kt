@@ -1,27 +1,39 @@
 package com.a207.runkk.app.core.designsystem
 
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHasClickAction
+import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.unit.dp
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import org.junit.Rule
@@ -246,6 +258,103 @@ class RunkkComponentsTest {
         compose.onNodeWithText("홈").assertIsSelected()
         compose.onNodeWithText("크루").performClick()
         assertEquals(RunkkTab.CREW, picked)
+    }
+
+    @Test
+    fun `R2-06 하단 탭 바는 정해진 높이 안에서 양옆과 아래를 띄운 떠 있는 줄이다`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                RunkkBottomBar(selected = RunkkTab.HOME, onSelect = {}, modifier = Modifier.testTag("bar"))
+            }
+        }
+        compose.onNodeWithTag("bar").assertHeightIsEqualTo(RUNKK_BOTTOM_BAR_HEIGHT)
+        val bar = compose.onNodeWithTag("bar").getUnclippedBoundsInRoot()
+        val crew = compose.onNodeWithText("크루").getUnclippedBoundsInRoot()
+        assertTrue(crew.left - bar.left >= 18.dp, "탭 줄이 양옆을 띄운다")
+    }
+
+    @Test
+    fun `D96 D100 고른 탭은 탭 바 위로 넘쳐 솟은 원에 들어가고 라벨은 표면 안에 있다`() {
+        val anchors = GuideAnchors()
+        compose.setContent {
+            CompositionLocalProvider(LocalGuideAnchors provides anchors) {
+                RunkkTheme(reduceMotion = true) {
+                    RunkkBottomBar(selected = RunkkTab.HOME, onSelect = {}, modifier = Modifier.testTag("bar"))
+                }
+            }
+        }
+        // D100: 탭 화면이 비켜 주는 높이는 표면 70 + 아래 틈 12다. 솟은 원 20은 내용 위에 겹쳐 그린다.
+        assertEquals(82.dp, RUNKK_BOTTOM_BAR_HEIGHT, "표면 70 + 아래 틈 12")
+        assertEquals(20.dp, RUNKK_BOTTOM_BAR_RISE, "원이 표면 위로 솟는 높이")
+        val bar = compose.onNodeWithTag("bar").getUnclippedBoundsInRoot()
+        val surface = compose.onNodeWithTag(BOTTOM_BAR_SURFACE_TAG).getUnclippedBoundsInRoot()
+        val circle = compose.onNodeWithTag(BOTTOM_BAR_INDICATOR_TAG).getUnclippedBoundsInRoot()
+        val home = compose.onNodeWithText("홈", useUnmergedTree = true).getUnclippedBoundsInRoot()
+        assertEquals(70f, (surface.bottom - surface.top).value, 0.5f, "표면 높이")
+        assertEquals(12f, (bar.bottom - surface.bottom).value, 0.5f, "아래 틈")
+        assertEquals(46f, (circle.right - circle.left).value, 0.5f, "원 지름")
+        assertEquals(20f, (surface.top - circle.top).value, 0.5f, "원이 표면 위로 20 솟는다")
+        assertEquals(bar.top.value, surface.top.value, 0.5f, "표면이 탭 바 맨 위다")
+        assertEquals(20f, (bar.top - circle.top).value, 0.5f, "원은 탭 바 위로 넘쳐 그린다")
+        assertEquals(
+            ((home.left + home.right) / 2).value,
+            ((circle.left + circle.right) / 2).value,
+            1f,
+            "원은 고른 탭 가운데"
+        )
+        assertTrue(home.top >= circle.bottom, "라벨은 원 아래")
+        assertTrue(home.bottom <= surface.bottom, "라벨은 표면 안")
+        // 가이드 강조 구멍(J7)은 솟은 원 자리가 아니라 표면 안의 탭 칸이다.
+        compose.waitForIdle()
+        val me = anchors[GuideStep.ME]!!
+        val density = compose.density.density
+        assertEquals(surface.top.value, me.top / density, 1f, "마이 앵커 위")
+        assertEquals(surface.bottom.value, me.bottom / density, 1f, "마이 앵커 아래")
+    }
+
+    @Test
+    fun `D96 고른 탭이 바뀌면 원이 그 탭으로 옮긴다`() {
+        var selected by mutableStateOf(RunkkTab.HOME)
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) { RunkkBottomBar(selected = selected, onSelect = { selected = it }) }
+        }
+        compose.onNodeWithText("마이").performClick()
+        compose.waitForIdle()
+        val circle = compose.onNodeWithTag(BOTTOM_BAR_INDICATOR_TAG).getUnclippedBoundsInRoot()
+        val me = compose.onNodeWithText("마이", useUnmergedTree = true).getUnclippedBoundsInRoot()
+        assertEquals(((me.left + me.right) / 2).value, ((circle.left + circle.right) / 2).value, 1f)
+        compose.onNodeWithText("마이").assertIsSelected()
+    }
+
+    @Test
+    fun `고른 칩과 고른 선택지에는 체크 아이콘이 붙고 고르지 않은 칸에는 없다(A-5)`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                androidx.compose.foundation.layout.Column {
+                    RunkkSegmentRow(listOf("자유", "3km", "5km"), selectedIndex = 2, onSelect = {})
+                    RunkkChoiceChip("함께가 좋아요", isSelected = true, onSelectedChange = {})
+                    RunkkChoiceChip("혼자가 편해요", isSelected = false, onSelectedChange = {})
+                }
+            }
+        }
+        compose.onAllNodesWithTag(CHIP_CHECK_TAG, useUnmergedTree = true).assertCountEquals(2)
+        val check = compose.onAllNodesWithTag(CHIP_CHECK_TAG, useUnmergedTree = true)[0].getUnclippedBoundsInRoot()
+        val label = compose.onNodeWithText("5km", useUnmergedTree = true).getUnclippedBoundsInRoot()
+        assertTrue(check.right <= label.left, "체크는 글자 앞")
+        assertEquals(18f, (check.right - check.left).value, 0.5f)
+    }
+
+    @Test
+    fun `R2-07 가운데 제목 상단 바는 뒤로 버튼이 있어도 제목을 바 가운데에 둔다`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                RunkkTopBar(title = "시작하기", onBack = {}, isTitleCentered = true, modifier = Modifier.testTag("top"))
+            }
+        }
+        val bar = compose.onNodeWithTag("top").getUnclippedBoundsInRoot()
+        val title = compose.onNodeWithText("시작하기").getUnclippedBoundsInRoot()
+        assertEquals(((bar.left + bar.right) / 2).value, ((title.left + title.right) / 2).value, 1f)
+        compose.onNodeWithContentDescription("뒤로").assertExists()
     }
 
     @Test

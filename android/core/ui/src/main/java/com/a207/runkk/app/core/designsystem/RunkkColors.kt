@@ -36,7 +36,7 @@ class RunkkColors(
     val textPrimary: Color,
     /** 보조 글자. */
     val textSecondary: Color,
-    /** 포인트 색(기본 CTA, 선택, 강조 글자). 다크는 라임, 라이트는 짙은 올리브다. */
+    /** 포인트 색(강조 글자·선·테두리). 다크는 라임, 라이트는 짙은 올리브다. 채움은 [limeFill]을 쓴다. */
     val lime: Color,
     /** 포인트 눌림(hover 근사). */
     val limePressed: Color,
@@ -46,6 +46,32 @@ class RunkkColors(
     val onLime: Color,
     /** 선택 칩·강조 배너 배경. */
     val limeContainer: Color,
+    /** 라임 채움(주 버튼·자유런 카드·포인트 칩·고른 칩·켜진 스위치). 두 벌 모두 라임이다(R2-05, D85). */
+    val limeFill: Color,
+    /** 라임 채움 눌림. */
+    val limeFillPressed: Color,
+    /** 라임 채움 위 글자. */
+    val onLimeFill: Color,
+    /** 하나만 고르는 선택지([RunkkSegmentOption])의 고른 칸 배경. 다크는 어두운 라임, 라이트는 라임 채움이다. */
+    val selectedFill: Color,
+    /** 고른 칸 글자. */
+    val onSelectedFill: Color,
+    /** 고른 칸 테두리. */
+    val selectedBorder: Color,
+    /** 탭 전환([RunkkSegmentedTabs])의 고른 탭 배경. 다크는 회색, 라이트는 라임 채움이다. */
+    val tabSelected: Color,
+    /** 고른 탭 글자. */
+    val onTabSelected: Color,
+    /** 상단 바 뒤로 버튼 원. 다크는 표면, 라이트는 보라 채움이다. */
+    val backButton: Color,
+    /** 뒤로 버튼 화살표. */
+    val onBackButton: Color,
+    /** 뒤로 버튼 테두리. */
+    val backButtonBorder: Color,
+    /** Runimal 그림 바탕(연한 둥근 네모, G-4·G-6·G-11). 다크는 카드색이다(D95). */
+    val runimalTile: Color,
+    /** Runimal 그림 바탕 테두리와 16유형 "내 유형" 칸 테두리(G-5). 다크는 옅은 회색이다. */
+    val runimalTileBorder: Color,
     /** 상대·실시간·종료·그만두기 강조. */
     val lavender: Color,
     /** 브랜드 바이올렛. */
@@ -75,6 +101,19 @@ class RunkkColors(
                 limeDim = Color(0xFFA3BD22),
                 onLime = Color(0xFF09090B),
                 limeContainer = Color(0xFF262B10),
+                limeFill = Color(0xFFCBEA2B),
+                limeFillPressed = Color(0xFFD6F04F),
+                onLimeFill = Color(0xFF09090B),
+                selectedFill = Color(0xFF262B10),
+                onSelectedFill = Color(0xFFCBEA2B),
+                selectedBorder = Color(0xFFCBEA2B),
+                tabSelected = Color(0xFF27272A),
+                onTabSelected = Color(0xFFFAFAFA),
+                backButton = Color(0xFF18181B),
+                onBackButton = Color(0xFFFAFAFA),
+                backButtonBorder = Color(0xFF27272A),
+                runimalTile = Color(0xFF18181B),
+                runimalTileBorder = Color(0xFF3F3F46),
                 lavender = Color(0xFF9C92F0),
                 violet = Color(0xFF5B4FD9),
                 ink = Color(0xFF1C2112),
@@ -82,7 +121,8 @@ class RunkkColors(
             )
 
         /**
-         * 밝은 바탕 벌. 라임(#CBEA2B)은 흰 바탕 위 글자 대비가 1.4:1이라 포인트 색을 짙은 올리브로 옮기고 그 위 글자를 흰색으로 둔다.
+         * 밝은 바탕 벌. 라임(#CBEA2B)은 흰 바탕 위 글자 대비가 1.4:1이라 글자·선에 쓰는 포인트 색([lime])은 짙은 올리브로 둔다.
+         * 채움(주 버튼·고른 칩·켜진 스위치)은 피그마대로 라임에 검은 글자다([limeFill], R2-05·D85). 뒤로 버튼은 보라 채움 원이고
          * 상대 강조는 브랜드 바이올렛을 쓴다.
          */
         val light =
@@ -103,6 +143,19 @@ class RunkkColors(
                 limeDim = Color(0xFF5F8A1C),
                 onLime = Color(0xFFFFFFFF),
                 limeContainer = Color(0xFFECF5D0),
+                limeFill = Color(0xFFCBEA2B),
+                limeFillPressed = Color(0xFFB9D624),
+                onLimeFill = Color(0xFF171B12),
+                selectedFill = Color(0xFFCBEA2B),
+                onSelectedFill = Color(0xFF171B12),
+                selectedBorder = Color(0xFFCBEA2B),
+                tabSelected = Color(0xFFCBEA2B),
+                onTabSelected = Color(0xFF171B12),
+                backButton = Color(0xFF5C4BDB),
+                onBackButton = Color(0xFFFFFFFF),
+                backButtonBorder = Color(0xFF5C4BDB),
+                runimalTile = Color(0xFFE9EEDC),
+                runimalTileBorder = Color(0xFFD3D9C6),
                 lavender = Color(0xFF5B4FD9),
                 violet = Color(0xFF5B4FD9),
                 ink = Color(0xFF1C2112),
@@ -174,6 +227,58 @@ class RunkkColors(
         val LimeContainer: Color
             @Composable @ReadOnlyComposable
             get() = LocalRunkkColors.current.limeContainer
+
+        val LimeFill: Color
+            @Composable @ReadOnlyComposable
+            get() = LocalRunkkColors.current.limeFill
+
+        val LimeFillPressed: Color
+            @Composable @ReadOnlyComposable
+            get() = LocalRunkkColors.current.limeFillPressed
+
+        val OnLimeFill: Color
+            @Composable @ReadOnlyComposable
+            get() = LocalRunkkColors.current.onLimeFill
+
+        val SelectedFill: Color
+            @Composable @ReadOnlyComposable
+            get() = LocalRunkkColors.current.selectedFill
+
+        val OnSelectedFill: Color
+            @Composable @ReadOnlyComposable
+            get() = LocalRunkkColors.current.onSelectedFill
+
+        val SelectedBorder: Color
+            @Composable @ReadOnlyComposable
+            get() = LocalRunkkColors.current.selectedBorder
+
+        val TabSelected: Color
+            @Composable @ReadOnlyComposable
+            get() = LocalRunkkColors.current.tabSelected
+
+        val OnTabSelected: Color
+            @Composable @ReadOnlyComposable
+            get() = LocalRunkkColors.current.onTabSelected
+
+        val BackButton: Color
+            @Composable @ReadOnlyComposable
+            get() = LocalRunkkColors.current.backButton
+
+        val OnBackButton: Color
+            @Composable @ReadOnlyComposable
+            get() = LocalRunkkColors.current.onBackButton
+
+        val BackButtonBorder: Color
+            @Composable @ReadOnlyComposable
+            get() = LocalRunkkColors.current.backButtonBorder
+
+        val RunimalTile: Color
+            @Composable @ReadOnlyComposable
+            get() = LocalRunkkColors.current.runimalTile
+
+        val RunimalTileBorder: Color
+            @Composable @ReadOnlyComposable
+            get() = LocalRunkkColors.current.runimalTileBorder
 
         val Lavender: Color
             @Composable @ReadOnlyComposable

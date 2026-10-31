@@ -99,7 +99,9 @@ public class OperationPolicy {
     public FeatureToggles features() {
         return new FeatureToggles(
                 selfieAllowed && valueOf(SettingKey.SELFIE_ENABLED, Boolean.class),
-                valueOf(SettingKey.AI_COMMENT_ENABLED, Boolean.class));
+                valueOf(SettingKey.AI_COMMENT_ENABLED, Boolean.class),
+                valueOf(SettingKey.CREW_RELEASED, Boolean.class),
+                valueOf(SettingKey.AVATAR_RELEASED, Boolean.class));
     }
 
     public SelfieLimit selfieLimit() {

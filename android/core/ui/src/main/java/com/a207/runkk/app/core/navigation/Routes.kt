@@ -16,18 +16,21 @@ object Routes {
     /** 게스트로 시작(FR-197): 가입과 같은 동의 화면 하나를 게스트 갈래로 보인다. */
     const val GUEST_START = "signup/guest"
 
-    // 하단 탭 다섯 개(셀프·셀럽·홈·크루·마이, SRS 5.1)
+    // 하단 탭 다섯 개(크루·기록런·홈·랭킹·마이, v0.14 D-250)
 
-    /** 셀프 탭: 나와의 싸움 선택(ui.battle). */
-    const val SELF = "battle/self"
+    /** 크루 탭: 내 크루 또는 크루 찾기(ui.crew). 1차 배포에서는 잠긴 탭이다(D-253). */
+    const val CREW = "crew"
 
-    /** 셀럽 탭: 유명인 선택(ui.battle). */
-    const val CELEB = "battle/celeb"
+    /** 기록런 탭: 셀프런 | 셀럽런 분절 하나(ui.battle RecordRunScreen, D-250). */
+    const val RECORD_RUN = "battle/record"
     const val HOME = "home"
 
-    /** 크루 탭: 내 크루 또는 크루 찾기(ui.crew). */
-    const val CREW = "crew"
+    /** 랭킹 탭: 개인 랭킹(ui.record RankingScreen, D-250, D-286). v0.14에서 값을 "records/ranking"에서 바꿨다. */
+    const val RANKING = "ranking"
     const val ME = "me"
+
+    /** 배틀런 화면(랜덤 | 친구 분절, ui.battle BattleModeScreen, D-268). 탭이 아니지만 하단 탭을 보이고 홈을 고른 상태로 둔다. */
+    const val BATTLE_MODE = "battle/mode"
 
     // 러닝(ui.run)
 
@@ -46,9 +49,13 @@ object Routes {
 
     // 기록(ui.record)
     const val RECORDS = "records"
+
+    /** 기록 화면을 "대결" 탭으로 연다(D-281). 대결 결과·기록런·알림함의 "함께 달린 기록"이 여기로 온다. */
+    const val RECORDS_BATTLES = "records/battles"
     const val GROWTH = "records/growth"
+
+    /** 런바디(v0.14에서 리포트 화면 제목을 바꿨다, CR-32). 경로 이름은 그대로다. */
     const val REPORT = "records/report"
-    const val RANKING = "records/ranking"
     const val COACH = "records/coach"
 
     // 알림(ui.notification)
@@ -56,11 +63,14 @@ object Routes {
 
     // 대결(ui.battle), 크루(ui.crew), Runimal(ui.runimal), 아바타(ui.avatar): 화면은 A3b 단계가 등록한다.
 
-    /** 배틀런(랜덤 대결) 거리 고르기·매칭 대기. 거리 기본값은 기본 대결 거리(GET /battles/match)다. */
+    /**
+     * 배틀런(랜덤 대결) 거리 고르기·매칭 대기(v0.13). v0.14는 배틀런 화면(BATTLE_MODE)이 대신한다. A3가 대체 화면을 만들면 지운다.
+     */
     const val BATTLE_RANDOM = "battle/random"
-
-    const val BATTLE_HISTORY = "battle/history"
     const val RUNIMAL = "runimal"
+
+    /** Runimal 16유형(G-5, ui.runimal RunimalTypesScreen, D-285). */
+    const val RUNIMAL_TYPES = "runimal/types"
     const val AVATAR = "avatar"
 
     /** 아바타 만들기(가입 5단계에서 이어진다, FR-155·FR-158). */
@@ -70,16 +80,19 @@ object Routes {
     /** 아바타 랜드마크 배경 고르기(FR-201, FR-202). 알림 Screen.AVATAR_BACKGROUND가 여기로 온다. */
     const val AVATAR_BACKGROUND = "avatar/background"
 
-    /** 하단 탭 경로(왼쪽부터). */
-    val TABS: List<String> = listOf(SELF, CELEB, HOME, CREW, ME)
+    /** 하단 탭 경로(왼쪽부터, D-250). */
+    val TABS: List<String> = listOf(CREW, RECORD_RUN, HOME, RANKING, ME)
 
     /** Navigation 3 백 스택에 올리는 경로 키. 경로 이름 문자열 하나를 담는다. */
     @Serializable
     data class Key(val route: String) : NavKey
 
-    /** 러닝 결과(B4). 측정이 끝난 기록 ID(앱이 만든 UUID). */
+    /**
+     * 러닝 결과(B4). 측정이 끝난 기록 ID(앱이 만든 UUID). [isJustFinished]는 측정을 끝낸 직후 측정 화면이 열 때만 참이고,
+     * 그때만 평가 화면을 한 번 띄운다(D-284, U8-6).
+     */
     @Serializable
-    data class RunResult(val recordId: String) : NavKey
+    data class RunResult(val recordId: String, val isJustFinished: Boolean = false) : NavKey
 
     /** 기록 상세(C2). */
     @Serializable
@@ -96,9 +109,13 @@ object Routes {
     // 대결(ui.battle) 인자 화면(A3b)
 
     /**
-     * 대결 진행(랜덤·고스트·나와의 싸움·유명인). 상대 표시명·대결 거리는 매칭 성사(MatchFound)·기록 대결 시작 정보에서 넘긴다.
-     * [opponentKind]는 RANDOM·SELF·CELEBRITY(고스트는 RANDOM으로 보인다, Q-02). [startAtEpochMillis]는 매칭 화면이 이미 받은
+     * 대결 진행(랜덤·고스트·친구·나와의 싸움·유명인). 상대 표시명·대결 거리는 매칭 성사(MatchFound)·기록 대결 시작 정보에서 넘긴다.
+     * [opponentKind]는 RANDOM·FRIEND·SELF·CELEBRITY(고스트는 RANDOM으로 보인다, Q-02). [startAtEpochMillis]는 매칭 화면이 이미 받은
      * 시작 시각(측정 중에 화면을 넘겨받을 때 경과 시간 기준)이고 모르면 null이다.
+     * 셀프런·셀럽런 카운트다운(D-264)이 쓰는 값: [opponentRecordSeconds]는 상대 기록(과거의 나·셀럽), [opponentRecordedOnEpochDay]는
+     * 과거의 나 기록 날짜("10월 2일의 나"), [myBestSeconds]는 셀럽런의 그 거리 내 최고 기록(없으면 "첫 도전")이다.
+     * [opponentGender]는 상대 성별 이름(MALE·FEMALE, 지도 위 상대 그림을 고른다)이고 셀럽·과거의 나·모르면 null이다.
+     * [celebrityFigure]는 셀럽런의 셀럽 그림 키(서버 celebrityFigure, 카운트다운·지도 위 셀럽 그림을 고른다)이고 없으면 공통 그림이다.
      */
     @Serializable
     data class BattleRunning(
@@ -106,8 +123,21 @@ object Routes {
         val opponentName: String,
         val distanceMeters: Long,
         val opponentKind: String,
-        val startAtEpochMillis: Long? = null
+        val startAtEpochMillis: Long? = null,
+        val opponentRecordSeconds: Long? = null,
+        val opponentRecordedOnEpochDay: Long? = null,
+        val myBestSeconds: Long? = null,
+        val opponentGender: String? = null,
+        val celebrityFigure: String? = null
     ) : NavKey
+
+    /** 친구 대결 초대 대기(C-10, D-269). 배틀런 화면 친구 분절에서 고른 거리로 초대를 만들고 기다린다. */
+    @Serializable
+    data class FriendInviteWait(val distanceMeters: Long) : NavKey
+
+    /** 받은 친구 대결 초대의 참가 확인(C-12, D-272·D-273). 초대 링크로 앱을 열면 홈 위에 연다. */
+    @Serializable
+    data class FriendInviteJoin(val token: String) : NavKey
 
     /**
      * 홈의 배틀런 시작(FR-080): 홈 배틀런 탭에서 고른 대결 거리(1·3·5·10km, 처음엔 기본 대결 거리 FR-109)로 바로 매칭을 요청한다.
@@ -116,9 +146,23 @@ object Routes {
     @Serializable
     data class BattleQuickMatch(val distanceMeters: Long) : NavKey
 
-    /** 대결 결과(비교표, FR-093·FR-108). */
+    /** Runimal 유형 상세(G-6, D-285). [type]은 서버 RunimalType 이름. */
     @Serializable
-    data class BattleResult(val battleId: Long) : NavKey
+    data class RunimalType(val type: String) : NavKey
+
+    /**
+     * 평가 결과(G-11, ui.runimal EvaluationScreen, D-284). 끝낸 직후 연 러닝·대결 결과 응답에 evaluation이 있을 때 한 번 연다.
+     * [tier]는 서버 Tier 이름, [validRuns]는 evaluation.validRuns, [runimalType]은 확정 유형(첫 배치·미확정이면 null).
+     */
+    @Serializable
+    data class Evaluation(val tier: String, val validRuns: Int, val runimalType: String?) : NavKey
+
+    /**
+     * 대결 결과(비교표, FR-093·FR-108). [isJustFinished]는 대결을 끝낸 직후 대결 진행 화면이 열 때만 참이다. 기록 대결 탭·알림함에서
+     * 다시 열면 거짓이고 평가 화면을 띄우지 않는다(D-284, U8-6).
+     */
+    @Serializable
+    data class BattleResult(val battleId: Long, val isJustFinished: Boolean = false) : NavKey
 
     // 크루(ui.crew) 화면(A3b)
 

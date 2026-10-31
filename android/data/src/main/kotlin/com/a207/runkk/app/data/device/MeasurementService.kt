@@ -5,24 +5,27 @@ import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.location.Location
+import android.os.Build
 import android.os.Looper
-import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import com.a207.runkk.app.api.core.R
 import com.a207.runkk.app.core.model.AppError
+import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.GeoPoint
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.domain.run.FreeRunGoalState
 import com.a207.runkk.app.domain.run.LocationSample
 import com.a207.runkk.app.domain.run.MeasurementHost
+import com.a207.runkk.app.domain.run.ProgressNotice
 import com.a207.runkk.app.domain.run.RunTracker
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
@@ -32,17 +35,21 @@ import com.google.android.gms.location.Priority
 import dagger.hilt.android.AndroidEntryPoint
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import javax.inject.Inject
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
  * 측정 중 앱을 살려 두는 포그라운드 서비스(6.1.14 data.device, 타입 location, C-010, FR-035).
  * 업무 규칙이 없다: FusedLocationProvider 1초 구독을 RunTracker.onLocationSample로, 1초 시계를 RunTracker.tick으로 넘긴다(D-56).
- * 상단 알림을 띄우고, 위치·시각 값은 로그에 쓰지 않는다.
+ * 잠금 화면 진행 알림(FR-224, D-259)은 RunTracker.notice를 구독해 같은 알림 ID로 다시 그리고, 표현은 시작할 때 OS 판으로 고른다
+ * ([ProgressNotificationStyle.choose]). 알림의 일시정지·재개 버튼은 action과 함께 이 서비스를 부르고, 그때는 포그라운드 진입을
+ * 다시 하지 않고 RunTracker의 알림 연산만 부른다(D-260). 위치·시각 값은 로그에 쓰지 않는다.
  */
 @AndroidEntryPoint
 class MeasurementService : LifecycleService() {
@@ -54,6 +61,12 @@ class MeasurementService : LifecycleService() {
 
     private val locations by lazy { LocationServices.getFusedLocationProviderClient(this) }
     private var ticking: Job? = null
+    private var publishing: Job? = null
+    private val style: ProgressNotificationStyle by lazy {
+        ProgressNotificationStyle.choose(this, Build.VERSION.SDK_INT) {
+            NotificationManagerCompat.from(this).canPostPromotedNotifications()
+        }
+    }
 
     private val callback =
         object : LocationCallback() {
@@ -64,6 +77,16 @@ class MeasurementService : LifecycleService() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
+        val isAction = routeAction(
+            intent?.action,
+            onPause = runTracker::onNotificationPauseTapped,
+            onResume = runTracker::onNotificationResumeTapped
+        )
+        if (isAction) {
+            // 측정이 끝난 뒤 남은 알림 버튼으로 깨어났으면 바로 내린다. 측정 중(시작 인텐트가 아직 처리되기 전 포함)이면 두지 않는다.
+            if (ticking == null && runTracker.notice.value == null) stopSelf()
+            return START_NOT_STICKY
+        }
         if (!enterForeground() || !locationGranted()) {
             // 포그라운드로 오르지 못했거나 위치 권한이 없다: 측정 세션을 끝내(거리 0이면 저장하지 않음) 측정 중으로 남지 않게 한다.
             runTracker.endRun()
@@ -71,12 +94,14 @@ class MeasurementService : LifecycleService() {
             return START_NOT_STICKY
         }
         startMeasuring()
+        startPublishing()
         return START_NOT_STICKY
     }
 
     override fun onDestroy() {
         locations.removeLocationUpdates(callback)
         ticking?.cancel()
+        publishing?.cancel()
         super.onDestroy()
     }
 
@@ -85,7 +110,7 @@ class MeasurementService : LifecycleService() {
         ServiceCompat.startForeground(
             this,
             NOTIFICATION_ID,
-            notification(),
+            firstNotification(),
             ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
         )
         true
@@ -114,7 +139,31 @@ class MeasurementService : LifecycleService() {
             }
     }
 
-    private fun notification(): Notification {
+    /** RunTracker.notice를 따라 같은 알림 ID로 다시 그린다. 측정이 끝나 null이면 알림을 내린다. */
+    private fun startPublishing() {
+        if (publishing != null) return
+        val manager = NotificationManagerCompat.from(this)
+        publishing =
+            lifecycleScope.launch {
+                followNotices(
+                    runTracker.notice,
+                    style,
+                    post = { manager.notifyIfAllowed(it) },
+                    remove = {
+                        ServiceCompat.stopForeground(this@MeasurementService, ServiceCompat.STOP_FOREGROUND_REMOVE)
+                    }
+                )
+            }
+    }
+
+    /** 알림 권한이 없으면(Android 13+ 거부) 갱신만 건너뛴다. 측정은 이어 간다(D-259). */
+    @SuppressLint("MissingPermission") // areNotificationsEnabled로 먼저 확인한다.
+    private fun NotificationManagerCompat.notifyIfAllowed(notification: Notification) {
+        if (areNotificationsEnabled()) notify(NOTIFICATION_ID, notification)
+    }
+
+    /** 포그라운드 진입 알림: 채널(중요도 LOW)을 만들고 지금 진행 알림 값으로 첫 장을 그린다. */
+    private fun firstNotification(): Notification {
         val manager = getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(
             NotificationChannel(
@@ -123,18 +172,7 @@ class MeasurementService : LifecycleService() {
                 NotificationManager.IMPORTANCE_LOW
             )
         )
-        val open =
-            packageManager.getLaunchIntentForPackage(packageName)?.let {
-                PendingIntent.getActivity(this, 0, it, PendingIntent.FLAG_IMMUTABLE)
-            }
-        return NotificationCompat
-            .Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_menu_mylocation)
-            .setContentTitle(getString(R.string.measurement_notification_title))
-            .setContentText(getString(R.string.measurement_notification_text))
-            .setOngoing(true)
-            .setContentIntent(open)
-            .build()
+        return style.build(runTracker.notice.value ?: EMPTY_NOTICE)
     }
 
     private fun Location.toSample(): LocationSample = LocationSample(
@@ -170,8 +208,65 @@ class MeasurementService : LifecycleService() {
     companion object {
         /** 포그라운드 측정 서비스를 띄우지 못함(사유 코드). */
         const val MEASUREMENT_UNAVAILABLE = "MEASUREMENT_UNAVAILABLE"
-        private const val NOTIFICATION_ID = 31
-        private const val CHANNEL_ID = "runkk-measurement"
+
+        /** 진행 알림 "일시정지" 버튼(D-260). */
+        const val ACTION_PAUSE = "com.a207.runkk.app.action.MEASUREMENT_PAUSE"
+
+        /** 진행 알림 "재개" 버튼(D-260). */
+        const val ACTION_RESUME = "com.a207.runkk.app.action.MEASUREMENT_RESUME"
+
+        /** 진행 알림 ID. 갱신은 모두 이 ID 하나로 한다. */
+        const val NOTIFICATION_ID = 31
+
+        /** 측정 알림 채널(중요도 LOW). */
+        const val CHANNEL_ID = "runkk-measurement"
         private const val INTERVAL_MILLIS = 1_000L
+
+        private val EMPTY_NOTICE: ProgressNotice =
+            ProgressNotice.Free(Duration.ZERO, Distance.ZERO, FreeRunGoalState.None, isPaused = false)
+
+        /**
+         * 알림 버튼 action을 RunTracker 연산으로 넘긴다. 알림 버튼이면 참이고 포그라운드 진입을 다시 하지 않는다(TC-9616).
+         * action이 없거나 모르는 값이면 거짓(측정 시작 요청)이다.
+         */
+        internal fun routeAction(action: String?, onPause: () -> Unit, onResume: () -> Unit): Boolean = when (action) {
+            ACTION_PAUSE -> {
+                onPause()
+                true
+            }
+
+            ACTION_RESUME -> {
+                onResume()
+                true
+            }
+
+            else -> false
+        }
+
+        /**
+         * 진행 알림 값마다 [post]로 다시 그리고, 그린 뒤 null(측정 끝·취소)이 오면 [remove]로 한 번 내린다.
+         * 같은 값은 StateFlow가 거르고, 그리기 전의 null(측정 전)은 무시한다.
+         */
+        internal suspend fun followNotices(
+            notices: Flow<ProgressNotice?>,
+            style: ProgressNotificationStyle,
+            post: (Notification) -> Unit,
+            remove: () -> Unit
+        ) {
+            var isShown = false
+            notices.collect { notice ->
+                when {
+                    notice != null -> {
+                        post(style.build(notice))
+                        isShown = true
+                    }
+
+                    isShown -> {
+                        remove()
+                        isShown = false
+                    }
+                }
+            }
+        }
     }
 }

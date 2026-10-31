@@ -1,0 +1,12 @@
+{
+  "endpoint": "DELETE /users/{userId}",
+  "scenario": "purge_error",
+  "request": {
+    "userId": "42"
+  },
+  "status": 503,
+  "body": {
+    "reason": "STORAGE_UNAVAILABLE"
+  },
+  "gateway": "재시도하거나 파기 배치에서 다시 부른다(이미 지운 저장소는 다시 불러도 0)"
+}

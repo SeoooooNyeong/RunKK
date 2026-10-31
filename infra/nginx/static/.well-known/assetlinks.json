@@ -1,0 +1,29 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.a207.runkk",
+      "sha256_cert_fingerprints": [
+        "9E:20:41:52:87:53:78:CA:6D:B5:B0:19:17:B8:03:23:75:EE:34:3F:FB:21:A1:1C:9A:FF:B6:92:CF:D9:69:C7",
+        "3A:C7:0D:B3:7F:99:47:FC:93:3C:23:54:F1:D4:0E:34:CC:FA:48:55:CA:07:76:8C:34:EA:BC:73:A4:9E:98:FD",
+        "D6:34:31:7F:84:A9:72:67:24:AA:3E:C4:2F:C9:9F:8B:C9:6D:0F:4E:BA:86:1A:35:E7:C8:32:74:3D:98:FA:0D",
+        "A9:CE:3C:1A:0B:EB:9B:D9:1B:04:CC:B4:89:9F:09:29:B0:C9:1F:0A:E2:27:98:89:E9:EA:A5:51:2A:87:A6:E1"
+      ]
+    }
+  },
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.a207.runkk.dev",
+      "sha256_cert_fingerprints": [
+        "A9:CE:3C:1A:0B:EB:9B:D9:1B:04:CC:B4:89:9F:09:29:B0:C9:1F:0A:E2:27:98:89:E9:EA:A5:51:2A:87:A6:E1"
+      ]
+    }
+  }
+]

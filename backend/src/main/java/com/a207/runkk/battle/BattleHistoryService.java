@@ -5,6 +5,7 @@ import com.a207.runkk.common.PageCursor;
 import com.a207.runkk.member.MemberQueryService;
 import com.a207.runkk.member.MemberSummary;
 import java.time.Duration;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -17,7 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 대결 이력(설계 6.1.6, srs.md 6.3 4.7, FR-101). 랜덤 상대 표시명은 MemberQueryService.summaries 한 번으로 붙이고(N+1
  * 방지, 6.5), 회원이 없으면 "탈퇴한 사용자"다(FR-021). 기록 대결은 대결에 남긴 상대 표시명을 쓴다(FR-172). 고스트는 랜덤으로 보인다(Q-02). 기록
- * 차이는 두 도달 시간의 차이고, 유명인 출처는 유명인 기록을 한 번에 읽어 붙인다(지워진 기록은 출처 없이).
+ * 차이는 두 도달 시간의 차이고, 유명인 출처는 유명인 기록을 한 번에 읽어 붙인다(지워진 기록은 출처 없이). 진행 중인 대결 조회(active)도 같은 표시명 규칙으로
+ * 여기서 한다.
  */
 @Service
 public class BattleHistoryService {
@@ -35,7 +37,9 @@ public class BattleHistoryService {
         this.celebrityRecordRepository = celebrityRecordRepository;
     }
 
-    /** FINISHED·RESULT_PENDING 최신순 전부. 필터 RANDOM은 GHOST를 포함한다(BattleType.historyGroup). */
+    /**
+     * FINISHED·RESULT_PENDING 최신순 전부. 필터 RANDOM은 GHOST·FRIEND를 포함한다(BattleType.filterGroup, D-230).
+     */
     @Transactional(readOnly = true)
     public BattleHistoryView history(long memberId, DateRange range, Optional<BattleType> filter) {
         return history(memberId, range, filter, PageCursor.all());
@@ -47,7 +51,7 @@ public class BattleHistoryService {
             long memberId, DateRange range, Optional<BattleType> filter, PageCursor page) {
         List<Battle> battles =
                 battleRepository.findHistory(memberId, range).stream()
-                        .filter(b -> filter.isEmpty() || b.getType().historyGroup() == filter.get())
+                        .filter(b -> filter.isEmpty() || b.getType().filterGroup() == filter.get())
                         .toList();
         Set<Long> rivals =
                 battles.stream()
@@ -67,6 +71,59 @@ public class BattleHistoryService {
                 (int) entries.stream().filter(BattleHistoryView.Entry::newRecord).count(),
                 slice.items(),
                 slice.nextCursor());
+    }
+
+    /**
+     * 기록 목록 행에 붙일 대결 결과(v0.14 D-233): FINISHED·RESULT_PENDING만, 취소된 대결과 없는 ID는 빠진다. type은 이력 행 종류다.
+     * 저장소를 한 번 읽는다(N+1 없음).
+     */
+    @Transactional(readOnly = true)
+    public Map<Long, BattleOutcome> outcomesOf(long memberId, Collection<Long> battleIds) {
+        if (battleIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, BattleOutcome> outcomes = new HashMap<>();
+        for (Battle battle : battleRepository.findAllById(battleIds)) {
+            boolean finished = battle.getStatus() == BattleStatus.FINISHED;
+            boolean pending = battle.getStatus() == BattleStatus.RESULT_PENDING;
+            Optional<BattleParticipant> me = battle.participant(memberId);
+            if ((!finished && !pending) || me.isEmpty()) {
+                continue;
+            }
+            Verdict verdict = finished ? me.get().getVerdict().orElse(null) : null;
+            outcomes.put(
+                    battle.getId(),
+                    new BattleOutcome(battle.getType().historyGroup(), verdict, pending));
+        }
+        return outcomes;
+    }
+
+    /**
+     * 진행 중인 대결(BattleRepository.findActive, 회원당 많아야 1개). 없으면 비어 있다. 앱 재실행 때 그만두기 안내에 쓴다(배틀런 QA 7번).
+     * 상대 표시명은 이력과 같은 규칙이고, 종류는 이력 분류가 아니라 BattleType 그대로다.
+     */
+    @Transactional(readOnly = true)
+    public Optional<ActiveBattleView> active(long memberId) {
+        return battleRepository.findActive(memberId).stream()
+                .findFirst()
+                .map(
+                        battle ->
+                                new ActiveBattleView(
+                                        battle.getId(),
+                                        battle.getType(),
+                                        battle.getStatus(),
+                                        battle.getDistance(),
+                                        OpponentNames.of(
+                                                battle, memberId, rivalNames(battle, memberId)),
+                                        OpponentGenders.nameFor(battle, memberId),
+                                        battle.getStartAt().orElse(null),
+                                        battle.getOpponentFigure().orElse(null)));
+    }
+
+    private Map<Long, MemberSummary> rivalNames(Battle battle, long memberId) {
+        return battle.rivalOf(memberId)
+                .map(rival -> memberQueryService.summaries(List.of(rival.getMemberId())))
+                .orElse(Map.of());
     }
 
     /** 유명인 대결이 있을 때만 유명인 기록을 한 번 읽는다(기록 ID 문자열 → 출처). */

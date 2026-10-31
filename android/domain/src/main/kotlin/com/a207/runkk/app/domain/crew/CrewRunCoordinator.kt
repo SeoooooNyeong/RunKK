@@ -16,6 +16,8 @@ import com.a207.runkk.app.domain.live.CrewRunCancelled
 import com.a207.runkk.app.domain.live.CrewRunEnded
 import com.a207.runkk.app.domain.live.CrewRunRelay
 import com.a207.runkk.app.domain.live.CrewRunStart
+import com.a207.runkk.app.domain.live.FriendInviteDeclined
+import com.a207.runkk.app.domain.live.FriendInviteExpired
 import com.a207.runkk.app.domain.live.LiveChannel
 import com.a207.runkk.app.domain.live.LiveChannelProvider
 import com.a207.runkk.app.domain.live.MatchFailed
@@ -201,6 +203,8 @@ constructor(
 
             // 대결 메시지는 이 조정자와 무관하다. 메시지 종류가 늘면 컴파일러가 여기를 알린다(S-10).
             is MatchFound, is MatchFailed, is BattleStart, is OpponentProgress -> Unit
+
+            is FriendInviteDeclined, is FriendInviteExpired -> Unit
 
             // 채팅은 같은 연결을 쓰는 ChatRoom이 받는다(D-103).
             is CrewChatPosted, is CrewChatRemoved, is CrewChatReactionChanged -> Unit

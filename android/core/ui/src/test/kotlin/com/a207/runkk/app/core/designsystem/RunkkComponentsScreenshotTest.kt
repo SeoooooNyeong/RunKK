@@ -100,7 +100,7 @@ class RunkkComponentsScreenshotTest {
                 RunkkErrorState("네트워크에 연결할 수 없어요", onRetry = {})
             }
             Box(Modifier.weight(1f))
-            RunkkBottomBar(selected = RunkkTab.HOME, onSelect = {})
+            RunkkBottomBar(selected = RunkkTab.HOME, onSelect = {}, lockedTabs = setOf(RunkkTab.CREW))
         }
     }
 

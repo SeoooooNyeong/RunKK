@@ -5,11 +5,12 @@ import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.Pace
-import com.a207.runkk.app.domain.run.FreeRunGoal
-import com.a207.runkk.app.domain.run.FreeRunGoalUseCase
+import com.a207.runkk.app.domain.account.AccountRepository
+import com.a207.runkk.app.domain.account.LocationConsentUseCase
+import com.a207.runkk.app.domain.account.MemberSettings
+import com.a207.runkk.app.domain.account.MySummary
 import com.a207.runkk.app.domain.run.PlanSnapshot
 import com.a207.runkk.app.domain.run.TodayPlanCache
-import com.a207.runkk.app.domain.settings.GuidanceSettings
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
@@ -18,27 +19,24 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
 
+/** 홈(A-4, D-276): 상단·주간 막대·연속·리워드 잔액과 자유런 시작 전 위치 동의(D-267). 시험 설계 10-06 TC-9721·TC-9684·TC-9685. */
 class HomeViewModelTest {
     @get:Rule
     val main = MainDispatcherRule()
 
     private val records = FakeRecordRepository()
-    private val pending = FakePendingRunRepository()
     private val clock = Clock.fixed(Instant.parse("2026-10-20T01:00:00Z"), ZoneId.of("Asia/Seoul"))
-
     private val account = FakeAccountRepository()
-    private val avatar = FakeAvatarRepository()
-
     private val settings = FakeSettingsRepository()
-    private val km3 = GuidanceSettings.DEFAULT.copy(freeRunTarget = Distance(3_000))
-
     private val todayPlans = TodayPlanCache()
 
     private fun viewModel() =
-        HomeViewModel(records, pending, account, avatar, FreeRunGoalUseCase(settings), todayPlans, clock)
+        HomeViewModel(records, account, LocationConsentUseCase(account, settings), todayPlans, clock)
 
     @Test
     fun `오늘 계획을 읽으면 앱의 오늘 계획 사본에 알린다(워치 시작 화면, FR-042)`() {
@@ -56,121 +54,51 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `홈은 오늘 날짜의 대시보드와 오늘 계획을 읽는다`() {
-        settings.guidance = km3.copy(isFollowingCoachPlan = true)
-        val vm = viewModel()
-        val state = vm.state.value
+    fun `TC-9721 홈은 오늘 날짜의 대시보드에서 이번 주 거리와 목표, 연속 일수를 읽는다`() {
+        val state = viewModel().state.value
         assertFalse(state.isLoading)
-        assertEquals(sampleDashboard, state.dashboard)
-        assertEquals(FreeRunGoal(PlanSnapshot(Distance(5_000), Pace(330)), isFromCoachPlan = true), state.freeRunGoal)
+        assertEquals(Distance(12_000), state.weeklyDistance)
+        assertEquals(Distance(20_000), state.weeklyGoal)
+        assertEquals(4, state.streakWeeks)
         assertEquals(listOf(LocalDate.of(2026, 10, 20)), records.dashboardDates)
     }
 
     @Test
-    fun `우리 집 배경은 아바타 배경 키, 자유런 칩은 러닝 설정의 음성·진동 값이다(A5)`() {
-        avatar.avatarResult = Outcome.Success(
-            com.a207.runkk.app.domain.avatar.Avatar(
-                null, "D1", "NORMAL", "DAY", emptyMap(), 1_250, true, emptyMap(), backgroundKey = "BUSAN"
-            )
-        )
+    fun `TC-9721 상단은 본인 닉네임·티어·레벨과 대시보드의 리워드 잔액이다(D-276)`() {
+        val header = viewModel().state.value.header
+        assertEquals(HomeHeader(nickname = "달리는곰", tier = "골드", level = 3, balance = 1_250), header)
+        assertEquals(1, account.summaryCalls)
+        assertEquals(emptyList(), account.profileIds, "프로필 전체를 읽지 않는다(R53)")
+    }
+
+    @Test
+    fun `TC-9743 옛 서버라 잔액·주간 목표가 없으면 그 자리를 비운다`() {
+        records.dashboardResult = Outcome.Success(sampleDashboard.copy(weekly = null, rewardBalance = null))
+        val state = viewModel().state.value
+        assertNull(state.header.balance)
+        assertNull(state.weeklyGoal)
+        assertEquals(Distance.ZERO, state.weeklyDistance)
+    }
+
+    @Test
+    fun `자유런 카드의 음성·진동은 러닝 설정 값이다`() {
         account.settingsResult = Outcome.Success(
-            com.a207.runkk.app.domain.account.MemberSettings(
+            MemberSettings(
                 values = mapOf("RUN_SETTINGS.voice" to "false", "RUN_SETTINGS.vibration" to "true"),
                 consents = emptyMap()
             )
         )
         val state = viewModel().state.value
-        assertEquals("BUSAN", state.backgroundKey)
         assertFalse(state.isRunVoiceOn)
         assertTrue(state.isRunVibrationOn)
     }
 
     @Test
-    fun `오늘 계획이 없으면 자유런 카드는 설정 목표 3km를 보인다(FR-048)`() {
-        records.todayPlanResult = Outcome.Success(null)
-        settings.guidance = km3
-        val vm = viewModel()
-        assertEquals(
-            FreeRunGoal(PlanSnapshot(Distance(3_000), null), isFromCoachPlan = false),
-            vm.state.value.freeRunGoal
-        )
-    }
-
-    @Test
-    fun `코치 계획 따르기가 꺼져 있으면 오늘 계획이 있어도 설정 목표를 보인다`() {
-        settings.guidance = km3
-        val vm = viewModel()
-        assertEquals(
-            FreeRunGoal(PlanSnapshot(Distance(3_000), null), isFromCoachPlan = false),
-            vm.state.value.freeRunGoal
-        )
-    }
-
-    @Test
-    fun `설정을 바꾸고 홈으로 돌아오면 다시 읽지 않아도 목표가 바로 바뀐다`() {
-        records.todayPlanResult = Outcome.Success(null)
-        val vm = viewModel()
-        assertEquals(FreeRunGoal.NONE, vm.state.value.freeRunGoal)
-        settings.guidance = GuidanceSettings.DEFAULT.copy(freeRunTarget = Distance(10_000))
-        assertEquals(PlanSnapshot(Distance(10_000), null), vm.state.value.freeRunGoal.plan)
-        settings.guidance = GuidanceSettings.DEFAULT
-        assertEquals(FreeRunGoal.NONE, vm.state.value.freeRunGoal)
-    }
-
-    @Test
-    fun `우리 집 아바타는 셀카 얼굴이면 부위 그림을 받고 아니면 받지 않는다`() {
-        val plain = viewModel()
-        assertEquals(emptyList(), plain.state.value.faceLayers)
-        assertEquals(emptyList(), avatar.faceKeys)
-
-        val layer = com.a207.runkk.app.core.model.FaceLayer(com.a207.runkk.app.core.model.FacePart.HAIR, byteArrayOf(1))
-        avatar.avatarResult = com.a207.runkk.app.core.model.Outcome.Success(
-            com.a207.runkk.app.domain.avatar.Avatar(
-                "selfie:face/7/s1",
-                null,
-                "NORMAL",
-                "DAY",
-                emptyMap(),
-                10,
-                true,
-                emptyMap()
-            )
-        )
-        avatar.faceResult = com.a207.runkk.app.core.model.Outcome.Success(listOf(layer))
-        val selfie = viewModel()
-        assertEquals(listOf(layer), selfie.state.value.faceLayers)
-        assertEquals(listOf<String?>("selfie:face/7/s1"), avatar.faceKeys)
-    }
-
-    @Test
-    fun `우리 집·상단 아바타는 서버 얼굴 키(기본 캐릭터 default 키)를 그대로 넘긴다`() {
-        // 서버 GET /avatar 모양: 기본 캐릭터면 faceKey "default:BEAR"와 defaultCharacterId "BEAR"가 함께 온다.
-        avatar.avatarResult = Outcome.Success(
-            com.a207.runkk.app.domain.avatar.Avatar(
-                "default:BEAR",
-                "BEAR",
-                "STAGE1",
-                "DAYTIME",
-                mapOf(
-                    com.a207.runkk.app.domain.avatar.ItemSlot.TOP to 101L,
-                    com.a207.runkk.app.domain.avatar.ItemSlot.HAT to 401L
-                ),
-                100,
-                true,
-                emptyMap()
-            )
-        )
-        val vm = viewModel()
-        assertEquals("default:BEAR", vm.state.value.faceKey)
-        assertEquals(emptyList(), vm.state.value.faceLayers)
-    }
-
-    @Test
-    fun `미전송 기록 수는 보관함 변화를 따라간다(FR-039)`() {
-        val vm = viewModel()
-        assertEquals(0, vm.state.value.pendingCount)
-        pending.pendingRuns.value = listOf(completedRun("a"), completedRun("b"))
-        assertEquals(2, vm.state.value.pendingCount)
+    fun `아바타 얼굴·배경 키는 본인 프로필 값이다(아바타 꾸미기가 열렸을 때만 그린다)`() {
+        account.summaryResult = Outcome.Success(MySummary("달리는곰", "골드", 3, "default:BEAR", "BUSAN", 12))
+        val state = viewModel().state.value
+        assertEquals("default:BEAR", state.faceKey)
+        assertEquals("BUSAN", state.backgroundKey)
     }
 
     @Test
@@ -178,104 +106,79 @@ class HomeViewModelTest {
         records.dashboardResult = Outcome.Failure(AppError.Network)
         val vm = viewModel()
         assertEquals(RunkkErrorText.of(AppError.Network), vm.state.value.error)
-        assertNull(vm.state.value.dashboard)
         records.dashboardResult = Outcome.Success(sampleDashboard)
         vm.refresh()
         assertNull(vm.state.value.error)
-        assertEquals(sampleDashboard, vm.state.value.dashboard)
+        assertEquals(4, vm.state.value.streakWeeks)
     }
 
     @Test
-    fun `오늘 계획이 없어도 대시보드는 보인다`() {
-        records.todayPlanResult = Outcome.Failure(AppError.Network)
+    fun `AN8-11 다시 읽을 때 대시보드만 실패하면 리워드 잔액은 지난 값을 남긴다`() {
         val vm = viewModel()
-        settings.guidance = GuidanceSettings.DEFAULT.copy(isFollowingCoachPlan = true)
-        assertEquals(FreeRunGoal.NONE, vm.state.value.freeRunGoal)
-        assertEquals(sampleDashboard, vm.state.value.dashboard)
+        records.dashboardResult = Outcome.Failure(AppError.Network)
+        vm.refresh()
+        assertEquals(1_250, vm.state.value.header.balance)
+        assertEquals("달리는곰", vm.state.value.header.nickname)
     }
 
     @Test
-    fun `상단에 본인 닉네임·티어·레벨과 리워드 잔액을 보인다(HiHome)`() {
-        val header = viewModel().state.value.header
-        assertEquals(HomeHeader(nickname = "달리는곰", tier = "골드", level = 3, balance = 1_250), header)
-        assertEquals(listOf(com.a207.runkk.app.domain.account.AccountRepository.SELF), account.profileIds)
-    }
-
-    @Test
-    fun `프로필·잔액을 못 읽어도 홈은 보이고 그 자리는 비운다`() {
-        account.profileResult = Outcome.Failure(AppError.Network)
-        avatar.avatarResult = Outcome.Failure(AppError.Network)
+    fun `프로필을 못 읽어도 홈은 보이고 그 자리는 비운다`() {
+        account.summaryResult = Outcome.Failure(AppError.Network)
         val state = viewModel().state.value
-        assertEquals(HomeHeader(), state.header)
+        assertEquals(HomeHeader(balance = 1_250), state.header)
         assertFalse(state.isHeaderLoading)
-        assertEquals(sampleDashboard, state.dashboard)
     }
 
     @Test
-    fun `처음 재개는 다시 읽지 않고, 다시 보일 때마다 요약을 다시 읽는다`() {
-        records.dashboardResult = Outcome.Success(sampleDashboard)
+    fun `처음 재개는 다시 읽지 않고, 다시 보일 때마다 다시 읽는다`() {
         val vm = viewModel()
         vm.onResumed()
         assertEquals(1, records.dashboardDates.size)
-
-        // 러닝을 마치고 홈으로 돌아오면 오늘·누적 거리가 새 값으로 바뀐다
-        val afterRun = sampleDashboard.copy(today = Distance(3_090), total = Distance(131_490))
-        records.dashboardResult = Outcome.Success(afterRun)
+        records.dashboardResult = Outcome.Success(sampleDashboard.copy(streakWeeks = 5))
         vm.onResumed()
         assertEquals(2, records.dashboardDates.size)
-        assertEquals(afterRun, vm.state.value.dashboard)
+        assertEquals(5, vm.state.value.streakWeeks)
     }
 
     @Test
-    fun `러닝 종류 탭을 바꾼다`() {
+    fun `TC-9685 위치 동의가 있으면 자유런 카드는 바로 시작한다`() = runTest {
+        settings.isLocationConsented = true
         val vm = viewModel()
-        assertEquals(HomeRunMode.FREE, vm.state.value.mode)
-        vm.onModeSelected(HomeRunMode.BATTLE)
-        assertEquals(HomeRunMode.BATTLE, vm.state.value.mode)
-    }
-
-    private fun battleSettings(defaultDistance: String) = Outcome.Success(
-        com.a207.runkk.app.domain.account.MemberSettings(
-            mapOf(com.a207.runkk.app.domain.account.MemberSettings.BATTLE_DEFAULT_DISTANCE to defaultDistance),
-            emptyMap()
-        )
-    )
-
-    @Test
-    fun `배틀런 거리는 처음엔 대결 설정의 기본 대결 거리를 고른다(FR-080·FR-109)`() {
-        account.settingsResult = battleSettings("KM3")
-        val vm = viewModel()
-        assertEquals(Distance(3_000), vm.state.value.battleDistance)
+        vm.onFreeRunTapped()
+        assertEquals(HomeEvent.StartRun, vm.events.first())
+        assertFalse(vm.state.value.isConsentSheetVisible)
     }
 
     @Test
-    fun `기본 대결 거리를 읽지 못하면 5km를 고른다(FR-109 기본값)`() {
-        account.settingsResult = Outcome.Failure(AppError.Network)
+    fun `TC-9685 위치 동의가 없으면 시작 전에 시트를 띄우고 닫기는 시작하지 않는다`() {
         val vm = viewModel()
-        assertEquals(Distance(5_000), vm.state.value.battleDistance)
+        vm.onFreeRunTapped()
+        assertTrue(vm.state.value.isConsentSheetVisible)
+        vm.onConsentClosed()
+        assertFalse(vm.state.value.isConsentSheetVisible)
+        assertEquals(emptyList(), account.consents)
     }
 
     @Test
-    fun `배틀런 거리를 고르면 선택이 바뀌고, 다시 읽어도 고른 거리를 덮지 않는다`() {
-        account.settingsResult = battleSettings("KM5")
+    fun `TC-9685 동의하고 시작이면 위치 동의를 주고 사본을 갱신한 뒤 시작한다`() = runTest {
         val vm = viewModel()
-        vm.onBattleDistanceSelected(Distance(10_000))
-        assertEquals(Distance(10_000), vm.state.value.battleDistance)
-        vm.refresh()
-        assertEquals(Distance(10_000), vm.state.value.battleDistance)
+        vm.onFreeRunTapped()
+        vm.onConsentAgreed()
+        assertEquals(listOf("LOCATION"), account.consents)
+        assertEquals(1, settings.refreshCalls)
+        assertFalse(vm.state.value.isConsentSheetVisible)
+        assertEquals(HomeEvent.StartRun, vm.events.first())
     }
 
     @Test
-    fun `랜덤 대결 거리가 아니면 고르지 않는다`() {
+    fun `TC-9684 동의가 실패하면 시작하지 않고 실패를 알린다`() {
+        account.consentResult = Outcome.Failure(AppError.Network)
         val vm = viewModel()
-        vm.onBattleDistanceSelected(Distance(21_097))
-        assertEquals(Distance(5_000), vm.state.value.battleDistance)
-    }
-
-    @Test
-    fun `거리를 고르는 것만으로 설정을 바꾸지 않는다 - 기본 대결 거리는 매칭 요청 때 서버가 저장한다(FR-080)`() {
-        val vm = viewModel()
-        vm.onBattleDistanceSelected(Distance(1_000))
-        assertEquals(emptyList(), account.changedSettings)
+        vm.onFreeRunTapped()
+        vm.onConsentAgreed()
+        assertEquals(RunkkErrorText.of(AppError.Network), vm.state.value.message)
+        assertEquals(0, settings.refreshCalls)
+        vm.onMessageShown()
+        assertNull(vm.state.value.message)
     }
 }

@@ -1,0 +1,13 @@
+{
+  "endpoint": "POST /users/{userId}/faces/jobs",
+  "scenario": "reason:TIMEOUT",
+  "request": {
+    "userId": "42",
+    "image": "jpeg"
+  },
+  "status": 504,
+  "body": {
+    "reason": "TIMEOUT"
+  },
+  "gateway": "FailureReason.TIMEOUT"
+}

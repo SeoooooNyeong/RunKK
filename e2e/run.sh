@@ -107,6 +107,9 @@ if ! "$ADB" devices | grep -q "^$SERIAL[[:space:]]*device"; then
   until [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ]; do sleep 2; done
 fi
 log "기기 $SERIAL 준비됨"
+# 에뮬레이터 이미지의 Bluetooth 서비스가 비정상 종료되면 시스템 창이 앱 화면을 가린다. 시험에 쓰지 않으므로 끈다.
+adb shell cmd bluetooth_manager disable >/dev/null 2>&1 || true
+adb shell pm disable-user --user 0 com.android.bluetooth >/dev/null 2>&1 || true
 
 # 2. 카카오 스텁
 log "카카오 스텁 :$STUB_PORT (app_id=$KAKAO_APP_ID)"
@@ -134,7 +137,9 @@ if [ "${E2E_SKIP_APP_BUILD:-0}" != 1 ]; then
     -PRUNKK_LOCAL_API_URL="http://10.0.2.2:$SERVER_PORT/api/v1/" \
     -PRUNKK_LOCAL_WS_URL="ws://10.0.2.2:$SERVER_PORT/ws")
 fi
-APK="$ROOT/android/app/build/outputs/apk/local/debug/app-local-debug.apk"
+# 앱은 ABI별 APK로 나뉜다(android/app/build.gradle.kts splits). 기기 ABI에 맞는 것을 고른다.
+ABI="$(adb shell getprop ro.product.cpu.abi | tr -d '\r')"
+APK="$ROOT/android/app/build/outputs/apk/local/debug/app-local-$ABI-debug.apk"
 log "앱 설치"
 adb install -r -g "$(native_path "$APK")" >/dev/null
 

@@ -16,6 +16,7 @@ import java.util.Map;
  * @param total 누적 요약(무효 포함)
  * @param landmark 누적 유효 거리 랜드마크 문구(1~3단계)
  * @param streakDays 개인 스트릭
+ * @param streakWeeks 개인 주 단위 연속(월요일 시작, 그 주에 유효 러닝 1번 이상, 2026-10-31 결정)
  * @param grass 개인 잔디(최근 12주)
  * @param weekly 이번 주 목표 달성률, 목표가 없으면 null(목표 설정 안내)
  * @param crew 크루 영역, 크루가 없으면 null
@@ -31,7 +32,11 @@ public record DashboardView(
         Grass grass,
         WeeklyAchievement weekly,
         CrewArea crew,
-        Map<LocalDate, List<CalendarRun>> calendar) {
+        Map<LocalDate, List<CalendarRun>> calendar,
+        int rewardBalance,
+        int monthRuns,
+        Distance monthMeters,
+        int streakWeeks) {
 
     /**
      * 거리·시간·횟수 합.

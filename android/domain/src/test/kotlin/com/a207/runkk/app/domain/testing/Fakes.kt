@@ -20,6 +20,7 @@ import com.a207.runkk.app.domain.run.UploadScheduler
 import com.a207.runkk.app.domain.run.WatchDisplay
 import com.a207.runkk.app.domain.run.WatchGateway
 import com.a207.runkk.app.domain.settings.GuidanceSettings
+import com.a207.runkk.app.domain.settings.GuideCopy
 import com.a207.runkk.app.domain.settings.SettingsRepository
 import com.a207.runkk.app.domain.settings.SettingsSnapshot
 import java.time.Clock
@@ -97,7 +98,10 @@ class FakePendingRunRepository(private val log: CallLog = CallLog()) : PendingRu
     override fun observePending(): Flow<List<CompletedRun>> = flow
 
     override suspend fun remove(recordId: String): Outcome<Unit> = result("pending.remove:$recordId").also {
-        if (it is Outcome.Success) runs.removeAll { run -> run.recordId == recordId }
+        if (it is Outcome.Success) {
+            runs.removeAll { run -> run.recordId == recordId }
+            flow.value = runs.toList()
+        }
     }
 
     override suspend fun purgeRoutes(): Outcome<Unit> = result("pending.purgeRoutes")
@@ -269,6 +273,17 @@ class FakeSettingsRepository(
 
     override suspend fun clear(): Outcome<Unit> {
         log.add("settings.clear")
+        return Outcome.Success(Unit)
+    }
+
+    /** 첫 사용 가이드 기기 사본(D-277). */
+    var guide: GuideCopy = GuideCopy.NONE
+
+    override suspend fun guideCopy(): GuideCopy = guide
+
+    override suspend fun saveGuideCopy(copy: GuideCopy): Outcome<Unit> {
+        log.add("settings.saveGuideCopy:$copy")
+        guide = copy
         return Outcome.Success(Unit)
     }
 }

@@ -3,11 +3,17 @@ spring:
   flyway:
     enabled: true
     baseline-on-migrate: true
+    # V29 runkk_ai 계정 비밀번호(시험용 고정값)
+    placeholders:
+      runkk_ai_password: integration-test
   jpa:
     hibernate:
       ddl-auto: validate
 
 runkk:
+  battle:
+    friend-invite:
+      link-base: https://k15a207.p.ssafy.io/invite/battle
   batch:
     battle-tick-enabled: false
     crew-tick-enabled: false

@@ -1,7 +1,7 @@
 [project]
 name = "runkk-ai"
 version = "0.1.0"
-description = "런크크 ai 서버: AI 코멘트(/comments), 셀카 얼굴 변환(/faces), RUN바디 1회 분석(/sessions). api 컨테이너만 부르는 내부 서비스"
+description = "런크크 ai 서버: AI 코멘트(/comments), 셀카 아바타 중계(/users/{userId}/faces), RUN바디 1회 분석(/sessions). api 컨테이너만 부르는 내부 서비스"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "fastapi==0.150.0",
@@ -88,9 +88,9 @@ plugins = ["pydantic.mypy"]
 root_package = "runkk_ai"
 
 [[tool.importlinter.contracts]]
-name = "core·comment·face·runbody는 서로 import하지 않는다 (D-60)"
+name = "core·comment·face·runbody·privacy는 서로 import하지 않는다 (D-60)"
 type = "independence"
-modules = ["runkk_ai.core", "runkk_ai.comment", "runkk_ai.face", "runkk_ai.runbody"]
+modules = ["runkk_ai.core", "runkk_ai.comment", "runkk_ai.face", "runkk_ai.runbody", "runkk_ai.privacy"]
 
 [[tool.importlinter.contracts]]
 name = "core·comment·face·runbody·storage는 main을 import하지 않는다 (main → 기능 모듈 한 방향)"
@@ -103,8 +103,14 @@ source_modules = [
     "runkk_ai.storage",
     "runkk_ai.writer",
     "runkk_ai.coach",
+    "runkk_ai.privacy",
 ]
 forbidden_modules = ["runkk_ai.main"]
+
+[[tool.importlinter.contracts]]
+name = "privacy: 라우터 → 서비스 한 방향. 저장소는 purge_user 규약으로만 안다"
+type = "layers"
+layers = ["runkk_ai.privacy.router", "runkk_ai.privacy.service"]
 
 [[tool.importlinter.contracts]]
 name = "comment: 라우터 → 서비스 → 추상 클라이언트 한 방향"
@@ -117,12 +123,12 @@ layers = [
 ]
 
 [[tool.importlinter.contracts]]
-name = "face: 라우터 → 서비스 → 추상 변환기 한 방향"
+name = "face: 라우터 → 서비스 → 아바타 클라이언트 → 응답 형식 한 방향"
 type = "layers"
 layers = [
     "runkk_ai.face.router",
     "runkk_ai.face.service",
-    "runkk_ai.face.transformer",
+    "runkk_ai.face.client",
     "runkk_ai.face.schemas",
 ]
 
@@ -142,7 +148,7 @@ layers = [
 [[tool.importlinter.contracts]]
 name = "storage는 runbody 규약(repository·schemas)을 구현한다. 어느 기능 모듈도 storage를 모른다 (main이 끼운다)"
 type = "forbidden"
-source_modules = ["runkk_ai.core", "runkk_ai.comment", "runkk_ai.face", "runkk_ai.runbody"]
+source_modules = ["runkk_ai.core", "runkk_ai.comment", "runkk_ai.face", "runkk_ai.runbody", "runkk_ai.privacy"]
 forbidden_modules = ["runkk_ai.storage"]
 
 [[tool.importlinter.contracts]]
@@ -165,28 +171,45 @@ forbidden_modules = [
 name = "storage: 저장소·마이그레이션 → 연결·테이블 한 방향"
 type = "layers"
 layers = [
-    "runkk_ai.storage.pg_repository | runkk_ai.storage.coach_store | runkk_ai.storage.migrate",
+    "runkk_ai.storage.pg_repository | runkk_ai.storage.coach_store | runkk_ai.storage.model_store | runkk_ai.storage.migrate",
     "runkk_ai.storage.engine | runkk_ai.storage.tables",
 ]
 
 [[tool.importlinter.contracts]]
 name = "writer는 runbody 결과를 읽기만 한다. 서버 모듈은 writer 학습 도구(dataset)를 모른다"
 type = "forbidden"
-source_modules = ["runkk_ai.core", "runkk_ai.comment", "runkk_ai.face", "runkk_ai.runbody", "runkk_ai.storage"]
+source_modules = ["runkk_ai.core", "runkk_ai.comment", "runkk_ai.face", "runkk_ai.runbody"]
 forbidden_modules = ["runkk_ai.writer"]
 
 [[tool.importlinter.contracts]]
-name = "writer: 학습 도구 → 요약·지시문·검사 한 방향"
+name = "writer: 라우터 → 학습 도구·서비스 → 모델 클라이언트·등록부 → 요약·지시문·검사 한 방향"
 type = "layers"
 layers = [
-    "runkk_ai.writer.dataset",
+    "runkk_ai.writer.router",
+    "runkk_ai.writer.dataset | runkk_ai.writer.service",
+    "runkk_ai.writer.client | runkk_ai.writer.registry",
     "runkk_ai.writer.brief | runkk_ai.writer.prompt | runkk_ai.writer.checks",
 ]
 
 [[tool.importlinter.contracts]]
+name = "storage는 writer 모델 등록부 규약(writer.registry)만 구현한다"
+type = "forbidden"
+source_modules = ["runkk_ai.storage"]
+forbidden_modules = [
+    "runkk_ai.writer.router",
+    "runkk_ai.writer.service",
+    "runkk_ai.writer.client",
+    "runkk_ai.writer.dataset",
+    "runkk_ai.writer.brief",
+    "runkk_ai.writer.prompt",
+    "runkk_ai.writer.checks",
+]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
 name = "coach는 runbody 결과를 읽기만 한다. 다른 모듈은 coach를 모른다"
 type = "forbidden"
-source_modules = ["runkk_ai.core", "runkk_ai.comment", "runkk_ai.face", "runkk_ai.runbody", "runkk_ai.writer"]
+source_modules = ["runkk_ai.core", "runkk_ai.comment", "runkk_ai.face", "runkk_ai.runbody", "runkk_ai.writer", "runkk_ai.privacy"]
 forbidden_modules = ["runkk_ai.coach"]
 
 [[tool.importlinter.contracts]]

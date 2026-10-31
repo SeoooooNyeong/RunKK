@@ -1,0 +1,12 @@
+{
+  "endpoint": "GET /avatar/bodies/{bodyId}",
+  "scenario": "reason:BODY_NOT_FOUND",
+  "request": {
+    "bodyId": "daily"
+  },
+  "status": 404,
+  "body": {
+    "reason": "BODY_NOT_FOUND"
+  },
+  "gateway": "없는 프리셋 id"
+}

@@ -1,0 +1,19 @@
+{
+  "endpoint": "GET /users/{userId}/faces/jobs/{jobId}",
+  "scenario": "job:FAILED",
+  "request": {
+    "userId": "42",
+    "jobId": "6f1c2a3e-9b4d-4c8e-8a1f-2d3e4f5a6b7c"
+  },
+  "status": 200,
+  "body": {
+    "jobId": "6f1c2a3e-9b4d-4c8e-8a1f-2d3e4f5a6b7c",
+    "status": "FAILED",
+    "headId": null,
+    "error": {
+      "code": "SELFIE_QUALITY_REJECTED",
+      "message": "얼굴이 너무 어둡거나 작아요. 밝은 곳에서 정면으로 다시 찍어 주세요."
+    }
+  },
+  "gateway": "error.code로 앱 안내 문구를 고른다(SELFIE_QUALITY_REJECTED·NO_FACE_DETECTED·UPSTREAM_TIMEOUT·INTERNAL_ERROR)"
+}

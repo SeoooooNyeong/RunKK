@@ -280,7 +280,7 @@ fun RunkkBanner(
         modifier = modifier
             .fillMaxWidth()
             .clip(RunkkShapes.Medium)
-            .background(if (isStrong) RunkkColors.Lime else RunkkColors.LimeContainer)
+            .background(if (isStrong) RunkkColors.LimeFill else RunkkColors.LimeContainer)
             .then(if (isStrong) Modifier else Modifier.border(1.dp, RunkkColors.Lime, RunkkShapes.Medium))
             .padding(16.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -297,7 +297,7 @@ fun RunkkBanner(
             } else {
                 RunkkTextStyles.BodyStrong
             },
-            color = if (isStrong) RunkkColors.OnLime else RunkkColors.Lime
+            color = if (isStrong) RunkkColors.OnLimeFill else RunkkColors.Lime
         )
     }
 }

@@ -196,6 +196,8 @@ class FakeRecordRepository : RecordRepository {
 
     override suspend fun run(recordId: String): Outcome<RecordDetail> = runResult
 
+    override suspend fun delete(recordId: String): Outcome<Unit> = Outcome.Success(Unit)
+
     override suspend fun growth(period: AggregationPeriod): Outcome<Growth> = unused()
 
     override suspend fun report(): Outcome<Report> = unused()
@@ -256,5 +258,9 @@ fun recordDetail(id: String = "rec-1") = RecordDetail(
     newRecords = listOf("최장 거리 신기록 · 직전 4.80km"),
     crewContribution = null,
     rewardPoints = 50,
-    weather = "12°C 맑음"
+    weather = "12°C 맑음",
+    splitPaces = listOf(Pace(380), Pace(368), Pace(362), Pace(371), Pace(341)),
+    fastestKm = Pace(341),
+    averageHeartRate = 151,
+    paused = Duration.ofSeconds(185)
 )

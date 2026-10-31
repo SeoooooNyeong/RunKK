@@ -1,0 +1,13 @@
+{
+  "endpoint": "POST /users/{userId}/faces/jobs",
+  "scenario": "ok",
+  "request": {
+    "userId": "42",
+    "image": "oversized"
+  },
+  "status": 413,
+  "body": {
+    "reason": "TOO_LARGE"
+  },
+  "gateway": "FailureReason.TOO_LARGE"
+}

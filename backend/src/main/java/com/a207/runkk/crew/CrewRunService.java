@@ -4,6 +4,7 @@ import com.a207.runkk.common.BusinessRuleException;
 import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.policy.CrewRunRule;
 import com.a207.runkk.policy.OperationPolicy;
+import com.a207.runkk.running.RunRecordDeleted;
 import com.a207.runkk.running.RunRecordSaved;
 import com.a207.runkk.running.SavedRun;
 import java.time.Clock;
@@ -152,6 +153,29 @@ public class CrewRunService {
                         crewPostRepository
                                 .findCrewRunByIdForUpdate(e.crewRunPostId())
                                 .ifPresent(post -> link(post, SavedRun.of(e))));
+    }
+
+    /**
+     * 기록이 삭제되면(v0.14 D-232) 그 크루런 참가의 기록 연결(linked_record_id)을 비운다. 크루런 ID가 없으면 아무 일도 없다. 집계 제외
+     * 기록이라 크루 주간 거리는 바뀌지 않는다.
+     */
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onRunDeleted(RunRecordDeleted e) {
+        if (e.crewRunPostId() == null) {
+            return;
+        }
+        transactions.afterCommit(
+                "crew_run_unlink",
+                e.recordId(),
+                () ->
+                        crewPostRepository
+                                .findCrewRunByIdForUpdate(e.crewRunPostId())
+                                .ifPresent(
+                                        post -> {
+                                            if (post.unlinkRun(e.memberId(), e.recordId())) {
+                                                crewPostRepository.save(post);
+                                            }
+                                        }));
     }
 
     /**

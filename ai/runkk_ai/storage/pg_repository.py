@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Row, func, select
+from sqlalchemy import Row, delete, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
@@ -106,6 +106,12 @@ class PgResultRepository:
         async with self._engine.connect() as conn:
             first: datetime | None = (await conn.execute(query)).scalar_one()
         return first
+
+    async def purge_user(self, user_id: str) -> int:
+        """analysis_event는 FK ON DELETE CASCADE로 함께 지워진다."""
+        async with self._engine.begin() as conn:
+            deleted = (await conn.execute(delete(session_result).where(_t.user_id == user_id))).rowcount
+        return int(deleted)
 
     async def _results(self, query: Any) -> list[SessionResultOut]:
         async with self._engine.connect() as conn:

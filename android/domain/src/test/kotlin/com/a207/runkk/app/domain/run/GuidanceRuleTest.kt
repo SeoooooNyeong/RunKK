@@ -130,9 +130,34 @@ class GuidanceRuleTest {
     }
 
     @Test
-    fun `Gap - 음성 꺼짐이거나 격차가 없으면 안내 없음`() {
-        val off = GuidanceSettings.DEFAULT.copy(isBattleVoiceOn = false)
-        assertNull(GapGuidanceRule().check(context(progress(1_000), gapMeters = 70, settings = off)))
+    fun `TC-9626 Gap - 음성·진동 설정 2x2, 둘 다 꺼야 안내 없음(D-265)`() {
+        for (voice in listOf(true, false)) {
+            for (vibration in listOf(true, false)) {
+                val settings = GuidanceSettings.DEFAULT.copy(
+                    gapAlertMeters = 500,
+                    isBattleVoiceOn = voice,
+                    isBattleVibrationOn = vibration
+                )
+                val g = GapGuidanceRule().check(context(progress(500), gapMeters = 70, settings = settings))
+                if (!voice && !vibration) {
+                    assertNull(g)
+                } else {
+                    assertNotNull(g, "voice=$voice vibration=$vibration")
+                    assertEquals(voice, g.hasVoice)
+                    assertEquals(vibration, g.hasVibration)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `TC-9627 Gap - 500m 간격 지점에서만 안내하고 격차가 없으면 안내 없음`() {
+        val settings = GuidanceSettings.DEFAULT.copy(gapAlertMeters = 500, isBattleVoiceOn = false)
+        val rule = GapGuidanceRule()
+        assertNull(rule.check(context(progress(499), gapMeters = 70, settings = settings)))
+        assertNotNull(rule.check(context(progress(500), gapMeters = 70, settings = settings)))
+        assertNull(rule.check(context(progress(501), gapMeters = 70, settings = settings)))
+        assertNotNull(rule.check(context(progress(1_000), gapMeters = 70, settings = settings)))
         assertNull(GapGuidanceRule().check(context(progress(1_000))))
     }
 

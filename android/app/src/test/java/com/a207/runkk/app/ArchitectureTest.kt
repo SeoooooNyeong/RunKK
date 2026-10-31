@@ -42,6 +42,16 @@ class ArchitectureTest {
         assertEquals(emptyList(), violations)
     }
 
+    /** 12.4 구조 합격 조건(design-review 19장 R51·R52, D-335): 모듈 Fan-Out 7 이하, 허용 표 화살표 폰 150개·워치 5개. */
+    @Test
+    fun `모듈 Fan-Out은 7 이하이고 허용 표는 폰 150개·워치 5개다`() {
+        val over = ALLOWED.filterValues { it.size > MAX_FAN_OUT }.mapValues { it.value.size }
+        assertEquals(emptyMap(), over)
+        val (watch, phone) = ALLOWED.entries.partition { it.key.startsWith("watch.") || it.key == "wear.contract" }
+        assertEquals(150, phone.sumOf { it.value.size })
+        assertEquals(5, watch.sumOf { it.value.size })
+    }
+
     @Test
     fun `domain은 android·androidx(room 포함)·retrofit2·okhttp3·dagger(hilt 포함)를 import하지 않는다`() {
         val forbidden = listOf("android.", "androidx.", "retrofit2.", "okhttp3.", "dagger.")
@@ -101,6 +111,26 @@ class ArchitectureTest {
         assertEquals(1, fixture("TwoDataClassesFixture").size)
     }
 
+    /**
+     * 설계 검토 R59(C1): core.designsystem 안에서 재생(media3·android.media)과 기기 저장(SharedPreferences) import는 하위 패키지
+     * core.designsystem.media에만 둔다. 나머지 디자인 시스템 부품은 그리기만 한다.
+     */
+    @Test
+    fun `R59 디자인 시스템의 재생·기기 저장 import는 media 하위 패키지에만 있다`() {
+        val media = "$APP.core.designsystem.media"
+        assertTrue(files.any { it.packageName() == media }, "core.designsystem.media 파일이 없다")
+        val violations = files
+            .filter { moduleOf(it.packageName()) == "core.designsystem" && it.packageName() != media }
+            .flatMap { file ->
+                file.importNames()
+                    .filter {
+                        it.startsWith("androidx.media3.") || it.startsWith("android.media.") || it == SHARED_PREFS
+                    }
+                    .map { "${file.path} $it" }
+            }
+        assertEquals(emptyList(), violations)
+    }
+
     /** D-112는 앱 전체 규칙이다. 도메인(A1)과 데이터 계층 api.*·data.*(A2)에 건다. 표현 계층은 아래 시험이 건다. */
     @Test
     fun `TC-6583 domain·api·data 소스는 한 파일 규칙을 지킨다 (D-112)`() {
@@ -149,6 +179,13 @@ class ArchitectureTest {
     @Test
     fun `GlobalScope를 쓰지 않는다`() {
         val violations = files.filter { it.text.contains("GlobalScope") }.map { it.path }
+        assertEquals(emptyList(), violations)
+    }
+
+    @Test
+    fun `AN8-4 화면을 바꿀 때 back() 뒤 navigate 대신 replace를 쓴다`() {
+        val backThenNavigate = Regex("""\.back\(\)\s*\n\s*\w+\.navigate\(""")
+        val violations = files.filter { backThenNavigate.containsMatchIn(it.text) }.map { it.path }
         assertEquals(emptyList(), violations)
     }
 
@@ -253,6 +290,9 @@ class ArchitectureTest {
         const val APP = "$ROOT.app"
         const val WATCH = "$ROOT.watch"
 
+        /** 기기 저장 import 이름(R59 C1). */
+        const val SHARED_PREFS = "android.content.SharedPreferences"
+
         /** E2E 토큰 창구와 그 창구를 대체 자리에 넣는 Hilt 모듈(D-112로 파일을 나눴다). */
         val E2E_TOKEN_FILES = setOf("E2eKakaoTokenSource", "E2eLoginModule")
         val E2E_TOKEN_IMPORTS = setOf("$APP.ui.me.KakaoAccessTokenSource", "$APP.ui.me.KakaoTokenOverride")
@@ -318,6 +358,9 @@ class ArchitectureTest {
 
         private val CORE_UI = setOf("core.designsystem", "core.navigation", "core.model")
 
+        /** 모듈 Fan-Out 상한(12.4, design-review 구조 합격 조건). */
+        const val MAX_FAN_OUT = 7
+
         /** 한 파일 규칙(D-112)을 건 표현 계층 모듈: core 표현 두 패키지, app, 5.1.2 표의 ui.* 전부. */
         private val ONE_FILE_PRESENTATION_MODULES: List<String> =
             listOf("core.designsystem", "core.navigation", "app") + UIS.map { "ui.$it" }
@@ -347,7 +390,10 @@ class ArchitectureTest {
                 "domain.chat" to setOf("domain.live", "core.model"),
                 "domain.notification" to setOf("core.model"),
                 "domain.run" to setOf("domain.settings", "core.model"),
-                "domain.sync" to setOf("domain.run", "core.model"),
+                // v0.17(D-332): 기기 사본 조정자 DeviceCopySync가 설정 사본(domain.settings), 푸시 토큰(domain.notification),
+                // 오늘 계획(domain.record)을 서버와 맞춘다. 네 모듈 모두 domain.sync를 모른다(순환 0).
+                "domain.sync" to
+                    setOf("domain.run", "domain.settings", "domain.notification", "domain.record", "core.model"),
                 "domain.account" to setOf("domain.run", "domain.settings", "core.model"),
                 "domain.battle" to setOf("domain.run", "domain.live", "core.model"),
                 "domain.crew" to setOf("domain.run", "domain.live", "core.model"),
@@ -385,32 +431,33 @@ class ArchitectureTest {
                         "core.model",
                         "core.designsystem"
                     ),
-                // 하이파이 HiHome 상단(닉네임·티어·Lv, 리워드 잔액) 때문에 domain.account(Profile)·domain.avatar(Avatar.balance)를 더했다.
-                // 설계서 5.1.2 표 ui.home 행에 함께 올라 있다(A3a 결정).
-                "ui.home" to CORE_UI + setOf("domain.record", "domain.run", "domain.account", "domain.avatar"),
+                // v0.14(D-276, D-277, 18장 146개 허용 표): 리워드 잔액은 대시보드 rewardBalance로 읽어 domain.avatar를 뺐고,
+                // 첫 사용 가이드(FirstRunGuide) 때문에 domain.settings를 더했다. domain.account는 상단 프로필·위치 동의·로그인 상태다.
+                "ui.home" to CORE_UI + setOf("domain.record", "domain.run", "domain.account", "domain.settings"),
                 "ui.run" to CORE_UI + setOf("domain.run", "domain.record"),
                 // domain.avatar 추가: 러닝 카드 배경 키·단계(AvatarRepository.backgroundChoice, D-140, D-185).
                 "ui.record" to CORE_UI + setOf("domain.record", "domain.run", "domain.avatar", "ui.share"),
-                "ui.battle" to CORE_UI + setOf("domain.battle", "domain.live"),
+                // v0.14: domain.account는 위치 동의 시트(LocationConsentUseCase, D-267)와 본인 요약(MySummary: 초대 메시지의
+                // 내 닉네임 D-270, 티어, 랜덤 대결 잠금의 유효 러닝 수 D-331), domain.record는 대결 결과 2쪽의 본인 기록 상세
+                // (RunDetailSource, D-283)다. v0.17(D-331, R51): 유효 러닝 수를 본인 요약에서 받아 domain.runimal을 뺐다.
+                "ui.battle" to CORE_UI + setOf("domain.battle", "domain.live", "domain.account", "domain.record"),
                 "ui.runimal" to CORE_UI + setOf("domain.runimal", "ui.share"),
                 // domain.report(신고 대화상자)·ui.share(축하 카드 공유) 추가(v0.11 F.6.4, D-140).
                 "ui.crew" to CORE_UI + setOf("domain.crew", "domain.report", "ui.share"),
                 "ui.chat" to CORE_UI + setOf("domain.chat", "domain.report"),
                 "ui.avatar" to CORE_UI + "domain.avatar",
-                "ui.me" to CORE_UI + "domain.account",
+                // domain.settings는 프로필 편집의 출생연도(SettingsRepository.birthYear, D106)다(v0.16 5.1.2).
+                "ui.me" to CORE_UI + setOf("domain.account", "domain.settings"),
                 "ui.notification" to CORE_UI + "domain.notification",
-                // core.model 추가: 시작 작업(AppStartup)이 UseCase·포트의 Outcome을 받아 실패를 기록한다.
-                // domain.run·domain.record 추가: 시작·로그인 때 오늘 계획을 읽어(RecordRepository.todayPlan) 워치 시작 화면을
-                // 맞춘다(TodayPlanCache·WatchHomeSync, FR-042). 설계서 5.1.2 표 app 행에는 아직 없다(갱신 요청).
+                // core.model: 시작 작업(AppStartup)이 기기 사본 실패(AppError)를 기록한다. v0.17(D-332, R52): 시작·로그인 때
+                // 기기 사본 맞추기는 domain.sync의 DeviceCopySync가 하고, 로그인 상태는 SessionRepository(domain.account)로 본다.
+                // domain.settings는 화면 테마(ScreenTheme)다. domain.run·domain.record·domain.notification을 뺐다(Fan-Out 9 → 6).
                 "app" to
                     setOf(
                         "core.model",
-                        "domain.run",
-                        "domain.record",
                         "domain.sync",
                         "domain.account",
                         "domain.settings",
-                        "domain.notification",
                         "core.navigation",
                         "core.designsystem"
                     ),

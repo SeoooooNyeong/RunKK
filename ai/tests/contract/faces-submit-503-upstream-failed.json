@@ -1,0 +1,13 @@
+{
+  "endpoint": "POST /users/{userId}/faces/jobs",
+  "scenario": "reason:UPSTREAM_FAILED",
+  "request": {
+    "userId": "42",
+    "image": "jpeg"
+  },
+  "status": 503,
+  "body": {
+    "reason": "UPSTREAM_FAILED"
+  },
+  "gateway": "FailureReason.UPSTREAM_FAILED (아바타 서버 꺼짐·오류)"
+}

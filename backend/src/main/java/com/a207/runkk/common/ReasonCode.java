@@ -39,6 +39,8 @@ public enum ReasonCode {
     RECORD_NOT_FOUND("기록 없음"),
     /** 위치 경로가 파기된 기록(FR-026). */
     ROUTE_PURGED("경로 파기된 기록"),
+    /** 유효 기록이거나 재판정 대기 기록이라 삭제할 수 없음(FR-225, D-231). */
+    RECORD_VALID_NOT_DELETABLE("삭제할 수 없는 기록"),
     /** 파기 지시가 없음(FR-026, FR-029). */
     DISPOSAL_ORDER_NOT_FOUND("파기 지시 없음"),
 
@@ -59,7 +61,10 @@ public enum ReasonCode {
     NOTIFICATION_NOT_FOUND("알림 없음"),
 
     // battle (srs.md 6.3 4.1·4.6·7.1)
-    /** 랜덤 대결 거리가 1·3·5·10km가 아니거나 나와의 싸움 거리가 3·5·10km·하프가 아님(4.1 규칙 1). */
+    /**
+     * 랜덤 대결 거리가 1·3·5·10km가 아니거나 나와의 싸움 거리가 3·5·10km·하프가 아님(4.1 규칙 1). 유명인 기록 거리가 5·10km·하프·풀이
+     * 아님(배틀런 QA 결정).
+     */
     BATTLE_DISTANCE_INVALID("대결 거리 오류"),
     /** 위치 수집 동의 없이 대결을 요청함(4.1 규칙 1, Q-74). */
     LOCATION_CONSENT_REQUIRED("위치 수집 동의 필요"),
@@ -85,6 +90,22 @@ public enum ReasonCode {
     ANONYMOUS_NAME_REQUIRED("익명 닉네임 필요"),
     /** 유명인 구간 기록의 누적 거리가 줄어듦(7.1). */
     SPLITS_INVALID("구간 오류"),
+    /** 셀럽 실명 등록에 코치 동의 일시·근거가 함께 있지 않음(FR-170, D-240). */
+    REAL_NAME_CONSENT_REQUIRED("실명 등록 동의 기록 필요"),
+
+    // battle 친구 대결 (FR-227~FR-229, v0.14 D-227)
+    /** 초대 토큰·ID가 없음. */
+    INVITE_NOT_FOUND("초대 없음"),
+    /** 이미 기한이 남은 대기 초대가 있음(D-220). */
+    INVITE_ALREADY_PENDING("이미 보낸 초대가 있음"),
+    /** 본인이 보낸 초대에 참가·거절함. */
+    INVITE_OWN("내가 보낸 초대"),
+    /** 초대 만료(생성 + 5분, D-221). */
+    INVITE_EXPIRED("만료된 초대"),
+    /** 초대한 사람이 취소했거나 받는 사람이 거절한 초대. */
+    INVITE_CANCELLED("취소된 초대"),
+    /** 이미 다른 러너가 참가한 초대. */
+    INVITE_ALREADY_JOINED("이미 참가한 초대"),
 
     // runimal (FR-168)
     /** 판정된 Runimal 유형이 없어 카드를 만들 수 없음. */

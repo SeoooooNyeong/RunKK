@@ -10,5 +10,7 @@ internal data class RunimalStatusResponse(
     val provisional: Boolean = false,
     val remainingRuns: Int? = null,
     val card: RunimalCardResponse? = null,
-    val allTypes: List<String> = emptyList()
+    val allTypes: List<String> = emptyList(),
+    /** 유효 러닝 횟수(서버 StatusResponse.validRunCount). */
+    val validRunCount: Int? = null
 )

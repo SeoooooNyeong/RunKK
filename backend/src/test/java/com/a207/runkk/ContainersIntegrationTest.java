@@ -36,4 +36,33 @@ class ContainersIntegrationTest {
         redisTemplate.opsForValue().set("ci:ping", "pong");
         assertThat(redisTemplate.opsForValue().get("ci:ping")).isEqualTo("pong");
     }
+
+    /** V29: analytics 스키마는 runkk_ai가 소유하고, runkk_ai는 public을 읽기만 한다(S15P31A207-172). */
+    @Test
+    void analyticsSchema_isOwnedByAiRole_andPublicIsReadOnly() {
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+        assertThat(
+                        jdbc.queryForObject(
+                                "select pg_get_userbyid(nspowner) from pg_namespace where nspname ="
+                                        + " 'analytics'",
+                                String.class))
+                .isEqualTo("runkk_ai");
+        assertThat(
+                        jdbc.queryForObject(
+                                "select rolcanlogin from pg_roles where rolname = 'runkk_ai'",
+                                Boolean.class))
+                .isTrue();
+        assertThat(
+                        jdbc.queryForObject(
+                                "select has_table_privilege('runkk_ai', 'public.run_record',"
+                                        + " 'SELECT')",
+                                Boolean.class))
+                .isTrue();
+        assertThat(
+                        jdbc.queryForObject(
+                                "select has_table_privilege('runkk_ai', 'public.run_record',"
+                                        + " 'INSERT')",
+                                Boolean.class))
+                .isFalse();
+    }
 }

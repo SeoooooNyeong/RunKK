@@ -125,18 +125,17 @@ class MemberValuesTest {
     }
 
     @Test
-    void disclosureLevel_fourRows() {
-        assertThat(DisclosureLevel.of(1, 1, MemberStatus.ACTIVE, ProfileVisibility.PRIVATE))
-                .isEqualTo(DisclosureLevel.SELF);
-        assertThat(DisclosureLevel.of(1, 2, MemberStatus.WITHDRAWN, ProfileVisibility.PUBLIC))
+    void disclosureLevel_threeRows() {
+        // v0.14 D-241: PRIVATE 수준을 지웠다. 본인 → 탈퇴 → 공개
+        assertThat(DisclosureLevel.of(1, 1, MemberStatus.ACTIVE)).isEqualTo(DisclosureLevel.SELF);
+        assertThat(DisclosureLevel.of(1, 2, MemberStatus.WITHDRAWN))
                 .isEqualTo(DisclosureLevel.WITHDRAWN);
-        assertThat(DisclosureLevel.of(1, 2, MemberStatus.ACTIVE, ProfileVisibility.PUBLIC))
-                .isEqualTo(DisclosureLevel.PUBLIC);
-        assertThat(DisclosureLevel.of(1, 2, MemberStatus.ACTIVE, ProfileVisibility.PRIVATE))
-                .isEqualTo(DisclosureLevel.PRIVATE);
+        assertThat(DisclosureLevel.of(1, 2, MemberStatus.ACTIVE)).isEqualTo(DisclosureLevel.PUBLIC);
+        assertThat(DisclosureLevel.values())
+                .containsExactly(
+                        DisclosureLevel.SELF, DisclosureLevel.WITHDRAWN, DisclosureLevel.PUBLIC);
         assertThat(DisclosureLevel.SELF.showsProfile()).isTrue();
         assertThat(DisclosureLevel.PUBLIC.showsProfile()).isTrue();
-        assertThat(DisclosureLevel.PRIVATE.showsProfile()).isFalse();
         assertThat(DisclosureLevel.WITHDRAWN.showsProfile()).isFalse();
     }
 

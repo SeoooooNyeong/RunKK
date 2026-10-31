@@ -6,6 +6,7 @@ import com.a207.runkk.battle.live.TrackPoint;
 import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.StandardDistance;
 import com.a207.runkk.common.Tier;
+import com.a207.runkk.member.Gender;
 import com.a207.runkk.member.MemberQueryService;
 import com.a207.runkk.member.MemberSummary;
 import com.a207.runkk.running.BestEntry;
@@ -65,11 +66,17 @@ public class BattleStartService {
         this.transactions = transactions;
     }
 
-    /** 양쪽 최고 기록을 붙여 MatchFound → 출발 예약(now + 13초) → BattleStart를 미리 보낸다. */
+    /**
+     * 양쪽 최고 기록을 붙여 MatchFound → 출발 예약(now + 13초) → BattleStart를 미리 보낸다. 랜덤·친구 대결은 이때 서로에게 보일 캐릭터
+     * 성별을 정해 남긴다(2026-10-31 결정).
+     */
     @Transactional
     public void announceMatch(Battle b) {
         LocalDateTime now = LocalDateTime.now(clock);
         b.scheduleStart(now.plus(START_DELAY));
+        if (b.getType().hasLiveRival()) {
+            showMembers(b);
+        }
         Battle battle = battleRepository.save(b);
         Map<Long, MemberSummary> members = memberQueryService.summaries(battle.memberIds());
         Map<Long, MatchFound> found = new LinkedHashMap<>();
@@ -83,6 +90,28 @@ public class BattleStartService {
                 });
     }
 
+    /**
+     * 친구 대결을 만든다(v0.14 검증 D-299): Battle.friend 저장 뒤 announceMatch(MatchFound, 출발 예약, BattleStart).
+     * 부르는 쪽(FriendInviteService.accept) 트랜잭션 안에서 돈다. 친구 대결은 대기열을 거치지 않으므로 고스트로 넘어가지 않는다.
+     */
+    @Transactional
+    public Battle startFriend(FriendInvite invite, LocalDateTime now) {
+        // 영속성 문맥 전체를 flush하지 않는다(초대가 ACCEPTED인데 battle_id가 없으면 ck_friend_invite_accepted에 걸린다).
+        // IDENTITY 키라 persist가 대결 행만 바로 넣어 ID를 주고, 성사 알림의 조회가 flush를 부르기 전에 초대를 대결에 잇는다
+        Battle battle = battleRepository.save(Battle.friend(invite, now));
+        invite.linkBattle(battle.getId());
+        announceMatch(battle);
+        return battle;
+    }
+
+    /** 참가자마다 표시 성별(MemberQueryService.shownGendersOf, D-336). 매칭 때 한 번 정해 대결에 남긴다. */
+    private void showMembers(Battle battle) {
+        Map<Long, Gender> shown = memberQueryService.shownGendersOf(battle.memberIds());
+        for (long memberId : battle.memberIds()) {
+            battle.showMemberAs(memberId, OpponentGenders.shownOf(shown, memberId));
+        }
+    }
+
     private MatchFound matchFoundFor(
             Battle battle, long memberId, Map<Long, MemberSummary> members) {
         Optional<StandardDistance> standard = battle.standardDistance();
@@ -94,6 +123,7 @@ public class BattleStartService {
                     battle.getId(),
                     ref.displayName(),
                     ref.displayTier(),
+                    OpponentGenders.nameFor(battle, memberId),
                     battle.getDistance(),
                     myBest,
                     ref.arrivalElapsed(),
@@ -105,6 +135,7 @@ public class BattleStartService {
                 battle.getId(),
                 rival == null ? DisplayName.WITHDRAWN : rival.displayName(),
                 rival == null ? Tier.UNRANKED : rival.tier(),
+                OpponentGenders.nameFor(battle, memberId),
                 battle.getDistance(),
                 myBest,
                 standard.flatMap(each -> bestTime(rivalId, each)).orElse(null),
@@ -113,6 +144,20 @@ public class BattleStartService {
 
     private Optional<Duration> bestTime(long memberId, StandardDistance distance) {
         return runQueryService.best(memberId, distance).flatMap(BestEntry::time);
+    }
+
+    /**
+     * 재연결한 회원에게 출발 예약된 랜덤·고스트 활성 대결의 BattleStart를 다시 보낸다(배틀런 QA 1·2번). 출발 예약 때 미리 보낸 BattleStart는
+     * 앱이 다시 연결하는 사이 끊기던 연결로 나가 사라질 수 있다(보내기가 실패해야 우편함에 남는다). 앱은 같은 BattleStart를 한 번만 쓴다.
+     * realtime.LiveSocketHandler가 연결 때 우편함을 비운 뒤 부른다.
+     */
+    @Transactional(readOnly = true)
+    public void resendStart(long memberId) {
+        for (Battle battle : battleRepository.findActive(memberId)) {
+            if (!battle.getType().startsWithCountdown() && battle.getStartAt().isPresent()) {
+                battleMessenger.send(memberId, startMessage(battle));
+            }
+        }
     }
 
     /** 기록 상대면 상대 표(초·미터), 랜덤이면 null. */
@@ -147,7 +192,7 @@ public class BattleStartService {
         Battle battle = battleRepository.findById(battleId).orElseThrow();
         battle.start(now);
         battleRepository.save(battle);
-        if (battle.getType() == BattleType.RANDOM) {
+        if (battle.getType().hasLiveRival()) { // 랜덤·친구 대결(D-225)
             LiveBattleSession session = openSession(battle, now);
             AfterCommit.run(() -> liveSessionStore.save(session));
         }

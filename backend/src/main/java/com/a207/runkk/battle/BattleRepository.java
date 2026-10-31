@@ -18,6 +18,9 @@ public interface BattleRepository {
 
     Optional<Battle> findById(long id);
 
+    /** ID들의 대결(없는 ID는 빠진다). 기록 목록의 대결 결과를 한 번에 읽는다(D-233). */
+    List<Battle> findAllById(Collection<Long> ids);
+
     /** 회원이 참가한 활성 대결(WAITING_START, IN_PROGRESS, COUNTDOWN)이 있는가. */
     boolean existsActive(long memberId);
 
@@ -45,7 +48,10 @@ public interface BattleRepository {
     /** 회원이 참가한 FINISHED·RESULT_PENDING 대결, 생성 일시 최신순(FR-101). */
     List<Battle> findHistory(long memberId, DateRange range);
 
-    /** 판정 시각이 [from, to)이고 회원이 이긴 FINISHED 대결, 판정 순(reward 일 단위 보정). */
+    /**
+     * 판정 시각이 [from, to)이고 회원이 이긴 FINISHED 대결, 판정 순(reward 일 단위 보정). 승리 리워드를 주는
+     * 종류(BattleType.winRewarded, 친구 대결 제외, D-226)만.
+     */
     List<BattleWin> findMemberWinsJudgedBetween(LocalDateTime from, LocalDateTime to);
 
     /** 이번 주 전적(FR-093 주간 전적). */

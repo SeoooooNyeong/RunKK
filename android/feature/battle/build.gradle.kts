@@ -18,6 +18,8 @@ dependencies {
     ksp(libs.hilt.compiler)
     implementation(libs.hilt.lifecycle.viewmodel.compose)
     implementation(libs.androidx.activity.compose)
+    // 친구 대결 초대를 카카오톡으로 보낸다(D-270). 로그인 SDK(v2-user)와 같은 판이다.
+    implementation(libs.kakao.sdk.share)
 
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.turbine)

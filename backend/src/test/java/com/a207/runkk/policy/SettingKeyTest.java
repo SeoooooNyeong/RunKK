@@ -15,9 +15,16 @@ class SettingKeyTest {
 
     @Test
     void has21SettingItemsPlusOperatorWhitelist() {
-        assertThat(SettingKey.values()).hasSize(22);
+        // v0.14 CREW_RELEASED(FR-223, D-247), AVATAR_RELEASED(D138)
+        assertThat(SettingKey.values()).hasSize(24);
         assertThat(Arrays.stream(SettingKey.values()).map(Enum::name))
-                .contains("OPERATOR_WHITELIST", "LLM_DAILY_LIMIT", "SHOP_ITEMS", "ITEM_PRICES");
+                .contains(
+                        "OPERATOR_WHITELIST",
+                        "LLM_DAILY_LIMIT",
+                        "SHOP_ITEMS",
+                        "ITEM_PRICES",
+                        "CREW_RELEASED",
+                        "AVATAR_RELEASED");
     }
 
     @ParameterizedTest

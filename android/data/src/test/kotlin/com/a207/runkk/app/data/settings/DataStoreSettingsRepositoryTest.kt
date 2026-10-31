@@ -9,6 +9,7 @@ import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.settings.GuidanceSettings
+import com.a207.runkk.app.domain.settings.GuideCopy
 import com.a207.runkk.app.domain.settings.ScreenTheme
 import com.a207.runkk.app.domain.settings.SettingsRemote
 import com.a207.runkk.app.domain.settings.SettingsSnapshot
@@ -282,6 +283,22 @@ class DataStoreSettingsRepositoryTest {
 
         val stored = repository.changes().first { it.isLocationConsented }
         assertEquals(ScreenTheme.SYSTEM, stored.theme)
+    }
+
+    @Test
+    fun `가이드 사본은 refresh가 덮지 않고 다시 열어도 남으며 clear가 지운다(D-277)`() = runTest {
+        val first = open()
+        assertEquals(GuideCopy.NONE, first.guideCopy())
+        assertEquals(Outcome.Success(Unit), first.saveGuideCopy(GuideCopy.SEEN_UNSENT))
+        remote.next += Outcome.Success(CONSENTED)
+        first.refresh()
+        assertEquals(GuideCopy.SEEN_UNSENT, first.guideCopy())
+        closeAll()
+
+        val reopened = open()
+        assertEquals(GuideCopy.SEEN_UNSENT, reopened.guideCopy())
+        reopened.clear()
+        assertEquals(GuideCopy.NONE, reopened.guideCopy())
     }
 
     private fun open(): DataStoreSettingsRepository {

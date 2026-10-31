@@ -11,14 +11,12 @@ import kotlinx.coroutines.launch
 
 /**
  * 측정 흐름과 워치 사이의 메시지를 옮긴다(RunTracker 협력 객체, D-95). WatchGateway는 이 클래스만 부른다.
- * - 표시: [publishNotice]로 받은 안내(정지 자동 종료 예고 등)를 다음 표시부터 싣고 null을 받으면 지운다(D-157 (7)).
  * - 근접 알림: 마지막으로 보낸 값·시각을 갖고 ProximityAlertRule.shouldSend가 참일 때만 보낸다(D-119). 회마다 [resetProximity].
  */
 class RunWatchBridge
 @Inject
 constructor(private val gateway: WatchGateway, private val scope: CoroutineScope) {
     private val lock = Any()
-    private var notice: WatchNotice? = null
     private var lastSent: ProximityAlert? = null
     private var lastSentAt: Instant? = null
 
@@ -54,10 +52,9 @@ constructor(private val gateway: WatchGateway, private val scope: CoroutineScope
         }
     }
 
-    /** 표시를 보낸다. 표시에 안내가 없으면 [publishNotice]로 받은 안내를 싣는다. */
+    /** 표시를 보낸다. */
     fun publish(display: WatchDisplay) {
-        val pending = synchronized(lock) { notice }
-        gateway.publish(if (display.notice == null) display.copy(notice = pending) else display)
+        gateway.publish(display)
     }
 
     /** 워치 시작 화면(오늘 계획, 측정 아님). */
@@ -73,11 +70,6 @@ constructor(private val gateway: WatchGateway, private val scope: CoroutineScope
                 notice = null
             )
         )
-    }
-
-    /** 다음 표시부터 실을 안내. null이면 지운다(보내지는 않는다). */
-    fun publishNotice(notice: WatchNotice?) {
-        synchronized(lock) { this.notice = notice }
     }
 
     /** 근접 알림을 보낼 때면 보낸다. null은 끔이다. [now]는 마지막 전송 뒤 지난 시간을 재는 시각이다(시각은 매개변수, 6.1.14). */

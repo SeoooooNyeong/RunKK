@@ -237,6 +237,34 @@
     } ],
     "file" : "web/avatar/AvatarDtos.java"
   },
+  "BattleDtos.ActiveBattleResponse" : {
+    "components" : [ {
+      "name" : "battleId",
+      "kind" : "leaf"
+    }, {
+      "name" : "type",
+      "kind" : "leaf"
+    }, {
+      "name" : "status",
+      "kind" : "leaf"
+    }, {
+      "name" : "distanceMeters",
+      "kind" : "leaf"
+    }, {
+      "name" : "opponentName",
+      "kind" : "leaf"
+    }, {
+      "name" : "startAt",
+      "kind" : "leaf"
+    }, {
+      "name" : "opponentGender",
+      "kind" : "leaf"
+    }, {
+      "name" : "celebrityFigure",
+      "kind" : "leaf"
+    } ],
+    "file" : "web/battle/BattleDtos.java"
+  },
   "BattleDtos.BattleHistoryResponse" : {
     "components" : [ {
       "name" : "entries",
@@ -305,6 +333,19 @@
     }, {
       "name" : "recordId",
       "kind" : "leaf"
+    }, {
+      "name" : "totalRewardPoints",
+      "kind" : "leaf"
+    }, {
+      "name" : "evaluation",
+      "kind" : "record",
+      "ref" : "BattleDtos.EvaluationDto"
+    }, {
+      "name" : "opponentGender",
+      "kind" : "leaf"
+    }, {
+      "name" : "celebrityFigure",
+      "kind" : "leaf"
     } ],
     "file" : "web/battle/BattleDtos.java"
   },
@@ -329,6 +370,12 @@
       "kind" : "leaf"
     }, {
       "name" : "estimated",
+      "kind" : "leaf"
+    }, {
+      "name" : "myBestSeconds",
+      "kind" : "leaf"
+    }, {
+      "name" : "celebrityFigure",
       "kind" : "leaf"
     } ],
     "file" : "web/battle/BattleDtos.java"
@@ -382,6 +429,22 @@
       "kind" : "leaf"
     }, {
       "name" : "sourceLabel",
+      "kind" : "leaf"
+    } ],
+    "file" : "web/battle/BattleDtos.java"
+  },
+  "BattleDtos.EvaluationDto" : {
+    "components" : [ {
+      "name" : "kind",
+      "kind" : "leaf"
+    }, {
+      "name" : "tier",
+      "kind" : "leaf"
+    }, {
+      "name" : "validRuns",
+      "kind" : "leaf"
+    }, {
+      "name" : "runimalType",
       "kind" : "leaf"
     } ],
     "file" : "web/battle/BattleDtos.java"
@@ -441,6 +504,9 @@
     }, {
       "name" : "estimated",
       "kind" : "leaf"
+    }, {
+      "name" : "celebrityFigure",
+      "kind" : "leaf"
     } ],
     "file" : "web/battle/BattleDtos.java"
   },
@@ -497,6 +563,16 @@
     } ],
     "file" : "web/admin/celebrity/CelebrityAdminController.java"
   },
+  "CelebrityAdminController.RealNameConsentRequest" : {
+    "components" : [ {
+      "name" : "consentedAt",
+      "kind" : "leaf"
+    }, {
+      "name" : "basis",
+      "kind" : "leaf"
+    } ],
+    "file" : "web/admin/celebrity/CelebrityAdminController.java"
+  },
   "CelebrityAdminController.RegisterRequest" : {
     "components" : [ {
       "name" : "anonymousName",
@@ -516,6 +592,13 @@
       "kind" : "leaf"
     }, {
       "name" : "sourceUrl",
+      "kind" : "leaf"
+    }, {
+      "name" : "realNameConsent",
+      "kind" : "record",
+      "ref" : "CelebrityAdminController.RealNameConsentRequest"
+    }, {
+      "name" : "figureKey",
       "kind" : "leaf"
     } ],
     "file" : "web/admin/celebrity/CelebrityAdminController.java"
@@ -1508,6 +1591,89 @@
     } ],
     "file" : "web/error/ErrorResponse.java"
   },
+  "FriendInviteDtos.AcceptResponse" : {
+    "components" : [ {
+      "name" : "battleId",
+      "kind" : "leaf"
+    } ],
+    "file" : "web/battle/FriendInviteDtos.java"
+  },
+  "FriendInviteDtos.InviteResponse" : {
+    "components" : [ {
+      "name" : "inviteId",
+      "kind" : "leaf"
+    }, {
+      "name" : "token",
+      "kind" : "leaf"
+    }, {
+      "name" : "inviteUrl",
+      "kind" : "leaf"
+    }, {
+      "name" : "distanceMeters",
+      "kind" : "leaf"
+    }, {
+      "name" : "expiresAt",
+      "kind" : "leaf"
+    } ],
+    "file" : "web/battle/FriendInviteDtos.java"
+  },
+  "FriendInviteDtos.InviteViewResponse" : {
+    "components" : [ {
+      "name" : "inviteId",
+      "kind" : "leaf"
+    }, {
+      "name" : "status",
+      "kind" : "leaf"
+    }, {
+      "name" : "distanceMeters",
+      "kind" : "leaf"
+    }, {
+      "name" : "expiresAt",
+      "kind" : "leaf"
+    }, {
+      "name" : "inviter",
+      "kind" : "record",
+      "ref" : "FriendInviteDtos.Inviter"
+    }, {
+      "name" : "me",
+      "kind" : "record",
+      "ref" : "FriendInviteDtos.Me"
+    }, {
+      "name" : "blockedReason",
+      "kind" : "leaf"
+    } ],
+    "file" : "web/battle/FriendInviteDtos.java"
+  },
+  "FriendInviteDtos.Inviter" : {
+    "components" : [ {
+      "name" : "name",
+      "kind" : "leaf"
+    }, {
+      "name" : "tier",
+      "kind" : "leaf"
+    }, {
+      "name" : "bestSeconds",
+      "kind" : "leaf"
+    } ],
+    "file" : "web/battle/FriendInviteDtos.java"
+  },
+  "FriendInviteDtos.Me" : {
+    "components" : [ {
+      "name" : "tier",
+      "kind" : "leaf"
+    }, {
+      "name" : "bestSeconds",
+      "kind" : "leaf"
+    } ],
+    "file" : "web/battle/FriendInviteDtos.java"
+  },
+  "FriendInviteLinks" : {
+    "components" : [ {
+      "name" : "linkBase",
+      "kind" : "leaf"
+    } ],
+    "file" : "web/battle/FriendInviteLinks.java"
+  },
   "InboxView" : {
     "components" : [ {
       "name" : "items",
@@ -1549,6 +1715,13 @@
     } ],
     "file" : "member/LegalDocument.java"
   },
+  "MeController.GuideResponse" : {
+    "components" : [ {
+      "name" : "seen",
+      "kind" : "leaf"
+    } ],
+    "file" : "web/me/MeController.java"
+  },
   "MeController.ProfileEditRequest" : {
     "components" : [ {
       "name" : "nickname",
@@ -1564,6 +1737,12 @@
       "kind" : "leaf"
     }, {
       "name" : "intro",
+      "kind" : "leaf"
+    }, {
+      "name" : "ageBandVisibility",
+      "kind" : "leaf"
+    }, {
+      "name" : "genderVisibility",
       "kind" : "leaf"
     } ],
     "file" : "web/me/MeController.java"
@@ -1619,6 +1798,38 @@
       "name" : "settings",
       "kind" : "record",
       "ref" : "MemberPreference"
+    }, {
+      "name" : "totalDistanceMeters",
+      "kind" : "leaf"
+    }, {
+      "name" : "runCount",
+      "kind" : "leaf"
+    }, {
+      "name" : "recentRuns",
+      "kind" : "list",
+      "ref" : "MeController.RecentRunDto"
+    }, {
+      "name" : "ageBandVisibility",
+      "kind" : "leaf"
+    }, {
+      "name" : "genderVisibility",
+      "kind" : "leaf"
+    }, {
+      "name" : "shownGender",
+      "kind" : "leaf"
+    } ],
+    "file" : "web/me/MeController.java"
+  },
+  "MeController.RecentRunDto" : {
+    "components" : [ {
+      "name" : "kind",
+      "kind" : "leaf"
+    }, {
+      "name" : "startedOn",
+      "kind" : "leaf"
+    }, {
+      "name" : "distanceMeters",
+      "kind" : "leaf"
     } ],
     "file" : "web/me/MeController.java"
   },
@@ -1837,6 +2048,18 @@
     }, {
       "name" : "calendar",
       "kind" : "map"
+    }, {
+      "name" : "rewardBalance",
+      "kind" : "leaf"
+    }, {
+      "name" : "monthRuns",
+      "kind" : "leaf"
+    }, {
+      "name" : "monthMeters",
+      "kind" : "leaf"
+    }, {
+      "name" : "streakWeeks",
+      "kind" : "leaf"
     } ],
     "file" : "web/record/RecordDtos.java"
   },
@@ -1881,6 +2104,25 @@
     }, {
       "name" : "distanceMeters",
       "kind" : "leaf"
+    }, {
+      "name" : "shownGender",
+      "kind" : "leaf"
+    } ],
+    "file" : "web/record/RecordDtos.java"
+  },
+  "RecordDtos.EvaluationDto" : {
+    "components" : [ {
+      "name" : "kind",
+      "kind" : "leaf"
+    }, {
+      "name" : "tier",
+      "kind" : "leaf"
+    }, {
+      "name" : "validRuns",
+      "kind" : "leaf"
+    }, {
+      "name" : "runimalType",
+      "kind" : "leaf"
     } ],
     "file" : "web/record/RecordDtos.java"
   },
@@ -1915,6 +2157,16 @@
       "name" : "longest",
       "kind" : "record",
       "ref" : "RecordDtos.BestDto"
+    } ],
+    "file" : "web/record/RecordDtos.java"
+  },
+  "RecordDtos.NewRecordDto" : {
+    "components" : [ {
+      "name" : "kind",
+      "kind" : "leaf"
+    }, {
+      "name" : "distance",
+      "kind" : "leaf"
     } ],
     "file" : "web/record/RecordDtos.java"
   },
@@ -2055,6 +2307,16 @@
     }, {
       "name" : "pausedSeconds",
       "kind" : "leaf"
+    }, {
+      "name" : "deletable",
+      "kind" : "leaf"
+    }, {
+      "name" : "evaluation",
+      "kind" : "record",
+      "ref" : "RecordDtos.EvaluationDto"
+    }, {
+      "name" : "recordVisibility",
+      "kind" : "leaf"
     } ],
     "file" : "web/record/RecordDtos.java"
   },
@@ -2144,6 +2406,15 @@
     }, {
       "name" : "courseMapShared",
       "kind" : "leaf"
+    }, {
+      "name" : "temperatureC",
+      "kind" : "leaf"
+    }, {
+      "name" : "sky",
+      "kind" : "leaf"
+    }, {
+      "name" : "nickname",
+      "kind" : "leaf"
     } ],
     "file" : "web/record/RecordDtos.java"
   },
@@ -2172,6 +2443,25 @@
     }, {
       "name" : "cardKind",
       "kind" : "leaf"
+    }, {
+      "name" : "battleType",
+      "kind" : "leaf"
+    }, {
+      "name" : "verdict",
+      "kind" : "leaf"
+    }, {
+      "name" : "pending",
+      "kind" : "leaf"
+    }, {
+      "name" : "newRecord",
+      "kind" : "leaf"
+    }, {
+      "name" : "newRecords",
+      "kind" : "list",
+      "ref" : "RecordDtos.NewRecordDto"
+    }, {
+      "name" : "routeShape",
+      "kind" : "list-leaf"
     } ],
     "file" : "web/record/RecordDtos.java"
   },
@@ -2481,6 +2771,9 @@
     }, {
       "name" : "percent",
       "kind" : "leaf"
+    }, {
+      "name" : "lean",
+      "kind" : "leaf"
     } ],
     "file" : "web/runimal/RunimalController.java"
   },
@@ -2530,6 +2823,67 @@
     }, {
       "name" : "allTypes",
       "kind" : "list-leaf"
+    } ],
+    "file" : "web/runimal/RunimalController.java"
+  },
+  "RunimalController.TypeDetailResponse" : {
+    "components" : [ {
+      "name" : "type",
+      "kind" : "leaf"
+    }, {
+      "name" : "displayName",
+      "kind" : "leaf"
+    }, {
+      "name" : "icon",
+      "kind" : "leaf"
+    }, {
+      "name" : "description",
+      "kind" : "leaf"
+    }, {
+      "name" : "axes",
+      "kind" : "map"
+    }, {
+      "name" : "traits",
+      "kind" : "list-leaf"
+    }, {
+      "name" : "sharePercent",
+      "kind" : "leaf"
+    }, {
+      "name" : "computedAt",
+      "kind" : "leaf"
+    } ],
+    "file" : "web/runimal/RunimalController.java"
+  },
+  "RunimalController.TypeEntry" : {
+    "components" : [ {
+      "name" : "type",
+      "kind" : "leaf"
+    }, {
+      "name" : "displayName",
+      "kind" : "leaf"
+    }, {
+      "name" : "icon",
+      "kind" : "leaf"
+    }, {
+      "name" : "description",
+      "kind" : "leaf"
+    }, {
+      "name" : "axes",
+      "kind" : "map"
+    }, {
+      "name" : "everConfirmed",
+      "kind" : "leaf"
+    } ],
+    "file" : "web/runimal/RunimalController.java"
+  },
+  "RunimalController.TypesResponse" : {
+    "components" : [ {
+      "name" : "current",
+      "kind" : "leaf"
+    }, {
+      "name" : "types",
+      "kind" : "list",
+      "ref" : "RunimalController.TypeEntry"
     } ],
     "file" : "web/runimal/RunimalController.java"
   },

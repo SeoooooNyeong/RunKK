@@ -6,17 +6,24 @@ import com.a207.runkk.app.api.core.SelfMember
 import com.a207.runkk.app.api.core.TokenProvider
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.FaceLayer
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.core.model.map
 import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.account.GuestSession
 import com.a207.runkk.app.domain.account.MemberSettings
+import com.a207.runkk.app.domain.account.MySummary
 import com.a207.runkk.app.domain.account.Profile
+import com.a207.runkk.app.domain.account.ProfileEdit
 import com.a207.runkk.app.domain.account.ProviderToken
 import com.a207.runkk.app.domain.account.SessionTokens
 import com.a207.runkk.app.domain.account.SignUpForm
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * 계정·회원 포트를 REST로 구현한다(6.1.14 api.account). 가입 전 로그인이면 서버가 준 가입 티켓을 이 객체가 보관하고
@@ -97,14 +104,29 @@ constructor(
     }
 
     /** memberId가 SELF면 접근 토큰의 회원 ID로 바꿔 부른다. 본인 ID를 모르면(토큰 없음) Unauthorized. */
-    override suspend fun profile(memberId: Long): Outcome<Profile> {
-        val id = self.resolve(memberId, AccountRepository.SELF) ?: return Outcome.Failure(AppError.Unauthorized)
-        return ApiErrorMapper.call { me.profile(id).toDomain() }
+    private val currentGender = MutableStateFlow<Gender?>(null)
+    override val myGender: StateFlow<Gender?> = currentGender.asStateFlow()
+
+    override fun forgetMyGender() {
+        currentGender.value = null
     }
 
-    /** 태그는 v0.11에서 지웠다(D-91). */
-    override suspend fun editProfile(nickname: String, intro: String?): Outcome<Unit> =
-        ApiErrorMapper.call { me.editProfile(ProfileEditRequest(nickname, intro)) }
+    override suspend fun profile(memberId: Long): Outcome<Profile> {
+        val id = self.resolve(memberId, AccountRepository.SELF) ?: return Outcome.Failure(AppError.Unauthorized)
+        val result = ApiErrorMapper.call { me.profile(id).toDomain() }
+        if (memberId == AccountRepository.SELF && result is Outcome.Success) currentGender.value = result.value.gender
+        return result
+    }
+
+    /** 본인 프로필 응답 하나에서 요약을 옮긴다(D-331). profile(SELF)를 거치므로 내 성별도 함께 갱신한다. */
+    override suspend fun mySummary(): Outcome<MySummary> = profile(AccountRepository.SELF).map { it.toMySummary() }
+
+    /** 태그는 v0.11에서 지웠다(D-91). 나이대·성별 공개를 함께 보낸다(D-287). */
+    override suspend fun editProfile(edit: ProfileEdit): Outcome<Unit> {
+        val result = ApiErrorMapper.call { me.editProfile(edit.toRequest()) }
+        if (result is Outcome.Success && edit.gender != null) currentGender.value = edit.gender
+        return result
+    }
 
     /**
      * 화면의 설정 키를 서버 요청으로 바꾼다(MemberSettings.values와 같은 키). "ALERT.알림종류"는 항목 ALERT에 알림 종류를 싣고,

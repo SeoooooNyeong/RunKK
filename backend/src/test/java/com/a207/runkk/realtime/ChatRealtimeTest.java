@@ -11,6 +11,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.a207.runkk.battle.BattleStartService;
 import com.a207.runkk.battle.LiveBattleService;
 import com.a207.runkk.common.BusinessRuleException;
 import com.a207.runkk.common.ReasonCode;
@@ -67,6 +68,7 @@ class ChatRealtimeTest {
                                 mock(LiveBattleService.class),
                                 mock(CrewRunLiveService.class),
                                 clock),
+                        mock(BattleStartService.class),
                         chatService,
                         presence,
                         clock);

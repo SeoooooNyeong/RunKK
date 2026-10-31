@@ -4,18 +4,23 @@ import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.core.model.RunMode
 import com.a207.runkk.app.domain.live.BattleEnded
 import com.a207.runkk.app.domain.live.BattleGuidance
 import com.a207.runkk.app.domain.live.BattleStart
 import com.a207.runkk.app.domain.live.CountdownStarted
+import com.a207.runkk.app.domain.live.LiveState
 import com.a207.runkk.app.domain.live.MatchFound
 import com.a207.runkk.app.domain.live.OpponentProgress
 import com.a207.runkk.app.domain.live.ProgressReport
 import com.a207.runkk.app.domain.live.TrackPoint
 import com.a207.runkk.app.domain.live.TrackTable
+import com.a207.runkk.app.domain.run.CoordinatedRound
 import com.a207.runkk.app.domain.run.Guidance
+import com.a207.runkk.app.domain.run.ProgressNotice
 import com.a207.runkk.app.domain.run.RunArchive
 import com.a207.runkk.app.domain.run.RunProgress
+import com.a207.runkk.app.domain.run.RunStartSpec
 import com.a207.runkk.app.domain.run.RunTracker
 import com.a207.runkk.app.domain.run.sample
 import com.a207.runkk.app.domain.settings.GuidanceSettings
@@ -36,7 +41,9 @@ import java.time.Duration
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -89,11 +96,45 @@ private class FakeBattleRepository(private val log: CallLog) : BattleRepository 
         return reportFailure?.let { Outcome.Failure(it) } ?: Outcome.Success(Unit)
     }
 
+    override suspend fun cancel(battleId: Long): Outcome<Unit> {
+        log.add("battle.cancel:$battleId")
+        return reportFailure?.let { Outcome.Failure(it) } ?: Outcome.Success(Unit)
+    }
+
+    override suspend fun active(): Outcome<ActiveBattle?> = error("unused")
+
     override suspend fun result(battleId: Long): Outcome<BattleResult> = error("unused")
 
     override suspend fun history(filter: BattleHistory.Type?, cursor: Long?): Outcome<BattleHistory> = error("unused")
 
     override suspend fun matchStatus(): Outcome<MatchAcceptance> = error("unused")
+
+    /** cancelFriendInvite가 차례로 돌려줄 실패(비면 성공). */
+    val cancelInviteFailures = ArrayDeque<AppError>()
+
+    /** createFriendInvite를 붙잡아 두는 문(만드는 중에 화면을 떠나는 경우). */
+    var createGate: CompletableDeferred<Unit>? = null
+
+    override suspend fun createFriendInvite(distance: Distance): Outcome<FriendInvite> {
+        log.add("battle.createInvite:${distance.meters}")
+        createGate?.await()
+        return Outcome.Success(
+            FriendInvite(41, "tok", "https://k15a207.p.ssafy.io/invite/battle/tok", distance, T0.plusSeconds(300))
+        )
+    }
+
+    override suspend fun myFriendInvite(): Outcome<FriendInvite?> = error("unused")
+
+    override suspend fun cancelFriendInvite(inviteId: Long): Outcome<Unit> {
+        log.add("battle.cancelInvite:$inviteId")
+        return cancelInviteFailures.removeFirstOrNull()?.let { Outcome.Failure(it) } ?: Outcome.Success(Unit)
+    }
+
+    override suspend fun friendInvite(token: String): Outcome<FriendInviteView> = error("unused")
+
+    override suspend fun acceptFriendInvite(token: String): Outcome<Long> = error("unused")
+
+    override suspend fun declineFriendInvite(token: String): Outcome<Unit> = error("unused")
 }
 
 /** BattleRunCoordinator(6.1.14): 기록 대결 시작 보고, TrackTable → OpponentTrack, 범위 닫힘. */
@@ -213,6 +254,8 @@ class BattleRunCoordinatorTest {
         val (_, coordinator) = setUp()
         coordinator.onMatched(match)
         runCurrent()
+        live.channel.messages.emit(BattleStart(battleId = 3, startAt = T0, opponentTrack = null))
+        runCurrent()
         live.channel.messages.emit(
             OpponentProgress(
                 3,
@@ -227,6 +270,59 @@ class BattleRunCoordinatorTest {
         runCurrent()
         assertEquals(Guidance.Kind.OVERTAKEN, output.played.last().kind)
         assertEquals(-20, assertIs<BattleRunState.Running>(coordinator.state.value).gapMeters)
+    }
+
+    @Test
+    fun `QA-1 측정 시작 전에 온 상대 진행값과 추월 안내는 진행 화면으로 넘기지 않는다`() = runTest {
+        val (_, coordinator) = setUp()
+        coordinator.onMatched(match)
+        runCurrent()
+        val connected = OpponentProgress.Connection.CONNECTED
+        live.channel.messages.emit(OpponentProgress(3, "상대", Distance(10), Duration.ofSeconds(5), -10, connected))
+        live.channel.messages.emit(BattleGuidance(3, BattleGuidance.Kind.OVERTAKEN, -10))
+        runCurrent()
+        assertEquals(BattleRunState.Matched(match), coordinator.state.value)
+        assertTrue(output.played.isEmpty())
+        assertTrue(watch.proximity.isEmpty())
+
+        live.channel.messages.emit(BattleStart(battleId = 3, startAt = T0.plusSeconds(10), opponentTrack = null))
+        runCurrent()
+        live.channel.messages.emit(OpponentProgress(3, "상대", Distance(20), Duration.ofSeconds(6), -20, connected))
+        runCurrent()
+        assertIs<BattleRunState.Countdown>(coordinator.state.value)
+
+        advanceTimeBy(10_001)
+        live.channel.messages.emit(OpponentProgress(3, "상대", Distance(30), Duration.ofSeconds(7), -30, connected))
+        runCurrent()
+        assertEquals(-30, assertIs<BattleRunState.Running>(coordinator.state.value).gapMeters)
+    }
+
+    @Test
+    fun `QA-7 이 프로세스가 맡은 대결인지 알려 준다 - 닫힌 회는 맡지 않은 것으로 본다`() = runTest {
+        val (_, coordinator) = setUp()
+        assertFalse(coordinator.isRunning(3))
+        coordinator.onMatched(match)
+        runCurrent()
+        assertTrue(coordinator.isRunning(3))
+        assertFalse(coordinator.isRunning(4))
+        live.channel.messages.emit(BattleEnded(3, BattleEnded.Status.FINISHED))
+        runCurrent()
+        assertFalse(coordinator.isRunning(3))
+    }
+
+    @Test
+    fun `QA-5 랜덤 대결의 실시간 연결 상태를 알리고 회가 닫히면 지운다`() = runTest {
+        val (_, coordinator) = setUp()
+        assertNull(coordinator.liveState.value)
+        coordinator.onMatched(match)
+        runCurrent()
+        assertEquals(LiveState.CONNECTED, coordinator.liveState.value)
+        live.channel.state.value = LiveState.CONNECTING
+        runCurrent()
+        assertEquals(LiveState.CONNECTING, coordinator.liveState.value)
+        live.channel.messages.emit(BattleEnded(3, BattleEnded.Status.FINISHED))
+        runCurrent()
+        assertNull(coordinator.liveState.value)
     }
 
     @Test
@@ -289,7 +385,19 @@ class BattleRunCoordinatorTest {
     }
 
     @Test
-    fun `그만두기 - forfeit 보고 뒤 endRun하고 범위를 닫는다`() = runTest {
+    fun `TC-9634 랜덤 대결 그만두기 - forfeit 보고 뒤 endRun(기록 업로드)하고 Finished로 닫는다`() = runTest {
+        val (tracker, coordinator) = setUp()
+        startRandom(tracker, coordinator)
+        coordinator.forfeit()
+        runCurrent()
+        assertEquals(listOf("battle.forfeit:3", "pending.save", "upload.requestUpload"), log.calls)
+        assertEquals(1, host.stopped)
+        assertIs<BattleRunState.Finished>(coordinator.state.value)
+        assertTrue(parentJob.children.none())
+    }
+
+    @Test
+    fun `TC-9632 D119 셀프런 그만두기 - forfeit 보고 뒤 패배로 기록을 남기고 Finished로 닫는다`() = runTest {
         val (tracker, coordinator) = setUp()
         coordinator.onRecordBattleStart(selfStart)
         advanceTimeBy(3_001)
@@ -305,6 +413,186 @@ class BattleRunCoordinatorTest {
         assertEquals(1, host.stopped)
         assertIs<BattleRunState.Finished>(coordinator.state.value)
         assertTrue(parentJob.children.none())
+    }
+
+    @Test
+    fun `D119 셀프런 취소 - cancel 보고 뒤 기록을 버리고 Discarded로 닫는다(업로드 0)`() = runTest {
+        val (tracker, coordinator) = setUp()
+        coordinator.onRecordBattleStart(selfStart)
+        advanceTimeBy(3_001)
+        tracker.runTo(1, 0.0)
+        tracker.runTo(5, 12.0)
+        runCurrent()
+        coordinator.cancel()
+        runCurrent()
+        assertEquals(listOf("battle.markStarted:7", "battle.cancel:7"), log.calls)
+        assertEquals(1, host.stopped)
+        assertEquals(BattleRunState.Discarded(7), coordinator.state.value)
+        assertFalse(tracker.isMeasuring)
+        assertNull(tracker.takeUnclaimedEnd())
+        assertTrue(parentJob.children.none())
+    }
+
+    @Test
+    fun `TC-9633 D119 셀럽런 취소도 기록을 버리고 Discarded로 닫는다`() = runTest {
+        val (tracker, coordinator) = setUp()
+        coordinator.onRecordBattleStart(selfStart.copy(battleId = 8, cardKind = CardKind.CELEB_RUN))
+        advanceTimeBy(3_001)
+        tracker.runTo(1, 0.0)
+        runCurrent()
+        coordinator.cancel()
+        runCurrent()
+        assertEquals(listOf("battle.markStarted:8", "battle.cancel:8"), log.calls)
+        assertEquals(BattleRunState.Discarded(8), coordinator.state.value)
+    }
+
+    @Test
+    fun `TC-9638 셀프런 카운트다운 중 다시 고르기 - 측정 없이 cancel만 보내고 Discarded로 닫는다(D119)`() = runTest {
+        val (_, coordinator) = setUp()
+        coordinator.onRecordBattleStart(selfStart)
+        runCurrent()
+        coordinator.cancel()
+        runCurrent()
+        advanceTimeBy(5_000)
+        assertEquals(listOf("battle.cancel:7"), log.calls)
+        assertEquals(0, host.started)
+        assertEquals(BattleRunState.Discarded(7), coordinator.state.value)
+    }
+
+    @Test
+    fun `TC-9635 discardMeasuring은 두 번 불러도 한 번만 버린다`() = runTest {
+        val (tracker, _) = setUp()
+        val round = CoordinatedRound(CoroutineScope(StandardTestDispatcher(testScheduler) + parentJob), tracker) {}
+        round.begin(RunStartSpec(mode = RunMode.BATTLE, cardKind = CardKind.SELF_RUN, battleId = 1)) {}
+        round.discardMeasuring()
+        round.discardMeasuring()
+        assertEquals(1, host.stopped)
+        assertFalse(round.isMeasuring)
+        assertFalse(tracker.isMeasuring)
+        assertTrue(log.calls.isEmpty())
+        round.cancel()
+    }
+
+    @Test
+    fun `S-17 기록을 버린 회도 결과 화면 없이 확인하면 Idle로 돌아간다`() = runTest {
+        val (_, coordinator) = setUp()
+        coordinator.onRecordBattleStart(selfStart)
+        runCurrent()
+        coordinator.forfeit()
+        runCurrent()
+        coordinator.acknowledgeFinished()
+        assertEquals(BattleRunState.Idle, coordinator.state.value)
+    }
+
+    @Test
+    fun `isBusy - 열린 회가 있거나 자유런 측정 중이면 참이다(D-273)`() = runTest {
+        val (tracker, coordinator) = setUp()
+        assertFalse(coordinator.isBusy())
+        coordinator.onRecordBattleStart(selfStart)
+        runCurrent()
+        assertTrue(coordinator.isBusy())
+        coordinator.forfeit()
+        runCurrent()
+        assertFalse(coordinator.isBusy())
+        tracker.startRun(RunStartSpec(mode = RunMode.FREE, cardKind = CardKind.FREE_RUN))
+        assertTrue(coordinator.isBusy())
+    }
+
+    @Test
+    fun `TC-9669 초대 취소 - 일시 오류면 1초·2초 뒤 두 번 더 보내고 거부는 다시 보내지 않는다`() = runTest {
+        val (_, coordinator) = setUp()
+        repository.cancelInviteFailures += listOf(AppError.Network, AppError.Network)
+        coordinator.cancelInvite(9)
+        runCurrent()
+        assertEquals(listOf("battle.cancelInvite:9"), log.calls)
+        advanceTimeBy(1_001)
+        assertEquals(2, log.calls.size)
+        advanceTimeBy(2_001)
+        assertEquals(List(3) { "battle.cancelInvite:9" }, log.calls)
+        assertTrue(parentJob.children.none())
+
+        log.calls.clear()
+        repository.cancelInviteFailures += AppError.Rejected("PERMISSION_DENIED")
+        coordinator.cancelInvite(10)
+        advanceTimeBy(5_000)
+        assertEquals(listOf("battle.cancelInvite:10"), log.calls)
+    }
+
+    @Test
+    fun `초대 취소 결과를 기다릴 수 있고 INVITE_ALREADY_JOINED는 거부로 그대로 알린다`() = runTest {
+        val (_, coordinator) = setUp()
+        repository.cancelInviteFailures += AppError.Rejected("INVITE_ALREADY_JOINED")
+        val outcome = coordinator.cancelInvite(11).await()
+        assertEquals(Outcome.Failure(AppError.Rejected("INVITE_ALREADY_JOINED")), outcome)
+        assertEquals(listOf("battle.cancelInvite:11"), log.calls)
+    }
+
+    @Test
+    fun `초대를 만드는 중에 화면을 떠나면 만들어진 뒤에 그 초대를 취소한다(D-271)`() = runTest {
+        val (_, coordinator) = setUp()
+        repository.createGate = CompletableDeferred()
+        val screen = backgroundScope.launch { coordinator.createInvite(Distance(5_000)) }
+        runCurrent()
+        screen.cancel()
+        coordinator.abandonInvite()
+        runCurrent()
+        assertEquals(listOf("battle.createInvite:5000"), log.calls, "만들기 전에는 취소할 초대가 없다")
+        repository.createGate?.complete(Unit)
+        runCurrent()
+        assertEquals(listOf("battle.createInvite:5000", "battle.cancelInvite:41"), log.calls)
+    }
+
+    @Test
+    fun `만든 초대를 떠나면 취소하고 떠날 초대가 없으면 아무것도 하지 않는다`() = runTest {
+        val (_, coordinator) = setUp()
+        coordinator.abandonInvite()
+        runCurrent()
+        assertTrue(log.calls.isEmpty())
+        assertIs<Outcome.Success<FriendInvite>>(coordinator.createInvite(Distance(3_000)))
+        coordinator.abandonInvite()
+        coordinator.abandonInvite()
+        runCurrent()
+        assertEquals(1, log.calls.count { it == "battle.cancelInvite:41" }, "한 번만 취소한다")
+    }
+
+    @Test
+    fun `AN8-16 성사되거나 만료·거절로 끝난 초대는 떠나도 다시 취소하지 않는다`() = runTest {
+        val (_, coordinator) = setUp()
+        assertIs<Outcome.Success<FriendInvite>>(coordinator.createInvite(Distance(3_000)))
+        coordinator.onMatched(match)
+        coordinator.abandonInvite()
+        runCurrent()
+        assertEquals(0, log.calls.count { it.startsWith("battle.cancelInvite") }, "성사된 초대")
+
+        assertIs<Outcome.Success<FriendInvite>>(coordinator.createInvite(Distance(3_000)))
+        coordinator.forgetInvite()
+        coordinator.abandonInvite()
+        runCurrent()
+        assertEquals(0, log.calls.count { it.startsWith("battle.cancelInvite") }, "만료·거절된 초대")
+    }
+
+    @Test
+    fun `그만두기를 두 번 눌러도 보고는 한 번이다`() = runTest {
+        val (tracker, coordinator) = setUp()
+        coordinator.onRecordBattleStart(selfStart)
+        advanceTimeBy(3_001)
+        tracker.runTo(1, 0.0)
+        runCurrent()
+        coordinator.forfeit()
+        coordinator.forfeit()
+        runCurrent()
+        assertEquals(1, log.calls.count { it == "battle.forfeit:7" })
+    }
+
+    private suspend fun TestScope.startRandom(tracker: RunTracker, coordinator: BattleRunCoordinator) {
+        coordinator.onMatched(match)
+        runCurrent()
+        live.channel.messages.emit(BattleStart(battleId = 3, startAt = T0.plusSeconds(13), opponentTrack = null))
+        runCurrent()
+        advanceTimeBy(13_001)
+        tracker.runTo(1, 0.0)
+        tracker.runTo(5, 12.0)
+        runCurrent()
     }
 
     @Test
@@ -395,6 +683,8 @@ class BattleRunCoordinatorTest {
         val (_, coordinator) = setUp()
         coordinator.onMatched(match)
         runCurrent()
+        live.channel.messages.emit(BattleStart(battleId = 3, startAt = T0, opponentTrack = null))
+        runCurrent()
         live.channel.messages.emit(BattleGuidance(3, BattleGuidance.Kind.OVERTOOK, 12))
         runCurrent()
         val played = output.played.last()
@@ -419,7 +709,7 @@ class BattleRunCoordinatorTest {
         assertEquals(3, log.calls.count { it == "battle.forfeit:7" })
         assertEquals(AppError.Network, coordinator.failure.value)
         assertEquals(1, host.stopped, "기기 측정은 사용자의 그만두기대로 끝낸다")
-        assertIs<BattleRunState.Finished>(coordinator.state.value)
+        assertIs<BattleRunState.Finished>(coordinator.state.value, "셀프런 그만두기는 보고가 실패해도 기록을 남긴다(D119)")
     }
 
     @Test
@@ -542,52 +832,30 @@ class BattleRunCoordinatorTest {
     }
 
     @Test
-    fun `화면 잠금 - 조정자가 RunTracker 잠금 연산을 위임하고 누름 종류별로 해제한다(D-49)`() = runTest {
+    fun `기록 대결 측정은 상대 이름을 진행 알림에 싣고 경로선을 내 측정값에 옮긴다(D-258, D-261)`() = runTest {
+        val (tracker, coordinator) = setUp()
+        coordinator.onRecordBattleStart(selfStart)
+        advanceTimeBy(3_001)
+        tracker.runTo(1, 0.0)
+        tracker.runTo(5, 20.0)
+        runCurrent()
+        val notice = assertIs<ProgressNotice.Battle>(tracker.notice.value)
+        assertEquals("10/02의 나", notice.opponentName)
+        assertEquals(Distance(100), notice.progressEnd)
+        val mine = assertIs<BattleRunState.Running>(coordinator.state.value).mine
+        assertEquals(2, mine.route.points.size)
+    }
+
+    @Test
+    fun `그만두기는 측정 중이면 바로 서버에 보고한다(잠금 없음, D-256)`() = runTest {
         val (tracker, coordinator) = setUp()
         coordinator.onRecordBattleStart(selfStart)
         advanceTimeBy(3_001)
         tracker.runTo(1, 0.0)
         runCurrent()
-        coordinator.lockScreen()
-        runCurrent()
-        assertTrue(assertIs<BattleRunState.Running>(coordinator.state.value).mine.isLocked)
-        coordinator.onUnlockTapped()
-        runCurrent()
-        assertEquals(Guidance.Kind.UNLOCK_HINT, output.played.last().kind, "짧게 누르면 안내만")
-        assertTrue(assertIs<BattleRunState.Running>(coordinator.state.value).mine.isLocked)
-        coordinator.onUnlockLongPressed()
-        runCurrent()
-        assertEquals(false, assertIs<BattleRunState.Running>(coordinator.state.value).mine.isLocked)
-    }
-
-    @Test
-    fun `잠금 중 그만두기는 조정자에서도 받지 않는다(FR-182)`() = runTest {
-        val (tracker, coordinator) = setUp()
-        coordinator.onRecordBattleStart(selfStart)
-        advanceTimeBy(3_001)
-        tracker.runTo(1, 0.0)
-        runCurrent()
-        coordinator.lockScreen()
-        runCurrent()
         coordinator.forfeit()
         runCurrent()
-        assertTrue(log.calls.none { it.startsWith("battle.forfeit") }, "잠긴 화면에서 온 그만두기: ${log.calls}")
-        assertIs<BattleRunState.Running>(coordinator.state.value)
-        coordinator.onUnlockLongPressed()
-        runCurrent()
-        coordinator.forfeit()
-        runCurrent()
-        assertTrue(log.calls.any { it.startsWith("battle.forfeit") }, "해제 뒤에는 그만둔다")
-    }
-
-    @Test
-    fun `측정 전에는 잠그지 않는다`() = runTest {
-        val (_, coordinator) = setUp()
-        coordinator.onMatched(match)
-        runCurrent()
-        coordinator.lockScreen()
-        runCurrent()
-        assertEquals(BattleRunState.Matched(match), coordinator.state.value)
+        assertTrue(log.calls.any { it.startsWith("battle.forfeit") }, "${log.calls}")
     }
 
     @Test
@@ -623,20 +891,6 @@ class BattleRunCoordinatorTest {
         advanceTimeBy(10_000)
         runCurrent()
         assertEquals(listOf("battle.cancel", "battle.requestMatch:5000"), log.calls, "새 대기열 등록을 지우지 않는다")
-    }
-
-    @Test
-    fun `잠근 뒤 늦게 처리된 진행값이 잠금을 되돌리지 않는다`() = runTest {
-        val (tracker, coordinator) = setUp()
-        coordinator.onRecordBattleStart(selfStart)
-        advanceTimeBy(3_001)
-        tracker.runTo(1, 0.0)
-        runCurrent()
-        coordinator.lockScreen()
-        runCurrent()
-        coordinator.onProgress(RunProgress.INITIAL.copy(elapsed = Duration.ofSeconds(30), isLocked = false))
-        runCurrent()
-        assertTrue(assertIs<BattleRunState.Running>(coordinator.state.value).mine.isLocked)
     }
 
     private val match =

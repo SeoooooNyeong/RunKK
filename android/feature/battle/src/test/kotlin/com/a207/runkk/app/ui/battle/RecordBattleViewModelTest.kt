@@ -10,6 +10,7 @@ import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.battle.BattleRunState
+import com.a207.runkk.app.domain.battle.RecordBattleCandidates
 import com.a207.runkk.app.ui.battle.BattleWorld.Companion.world
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -28,12 +29,13 @@ class RecordBattleViewModelTest {
     val main = MainDispatcherRule()
 
     @Test
-    fun `나와의 싸움 - 거리별 최고 기록을 보이고 기록 없는 거리는 고를 수 없다(FR-096)`() = runTest(main.dispatcher) {
+    fun `나와의 싸움 - 거리별 최고 기록을 보이고 처음엔 고른 거리가 없으며 기록 없는 거리는 고를 수 없다(FR-096, D-288)`() = runTest(main.dispatcher) {
         val w = world()
         val vm = SelfBattleViewModel(w.battles, w.coordinator)
         runCurrent()
         val s = vm.state.value
         assertFalse(s.isLoading)
+        assertNull(s.selected, "카드를 눌러야 기록 깨러 가기가 보인다")
         assertEquals(4, s.candidates.size)
         assertEquals(Distance(5_000), s.candidates[1].distance)
         assertNotNull(s.candidates[1].averagePace)
@@ -53,7 +55,18 @@ class RecordBattleViewModelTest {
             vm.onStart()
             runCurrent()
             val event = assertIs<RecordBattleEvent.Start>(awaitItem())
-            assertEquals(Routes.BattleRunning(42, "과거의 나", 5_000, OpponentKind.SELF.name), event.key)
+            assertEquals(
+                Routes.BattleRunning(
+                    42,
+                    "과거의 나",
+                    5_000,
+                    OpponentKind.SELF.name,
+                    opponentRecordSeconds = 1_650,
+                    opponentRecordedOnEpochDay = java.time.LocalDate.of(2026, 10, 12).toEpochDay()
+                ),
+                event.key,
+                "카운트다운이 과거의 나 기록·날짜를 그린다(D-264)"
+            )
         }
         assertTrue("startSelf:5000" in w.battles.calls)
         assertIs<BattleRunState.Countdown>(w.coordinator.state.value)
@@ -78,24 +91,45 @@ class RecordBattleViewModelTest {
     }
 
     @Test
-    fun `유명인 - 거리로 거르면 그 거리로 다시 조회한다(FR-097)`() = runTest(main.dispatcher) {
+    fun `셀럽런 시작 - 내 최고 기록을 카운트다운 인자로 넘긴다(D-264, 없으면 첫 도전)`() = runTest(main.dispatcher) {
+        val w = world()
+        w.battles.celebResult = Outcome.Success(
+            RecordBattleCandidates(listOf(celebCandidates[0].copy(myBest = java.time.Duration.ofSeconds(3_730))))
+        )
+        val vm = CelebBattleViewModel(w.battles, w.coordinator)
+        runCurrent()
+        vm.events.test {
+            vm.onSelect(vm.state.value.candidates[0])
+            vm.onStart()
+            runCurrent()
+            val event = assertIs<RecordBattleEvent.Start>(awaitItem())
+            assertEquals(3_730L, event.key.myBestSeconds)
+            assertEquals(OpponentKind.CELEBRITY.name, event.key.opponentKind)
+        }
+        advanceTimeBy(3_100)
+    }
+
+    @Test
+    fun `유명인 - 거리로 거르면 그 거리로 다시 조회하고 그 거리에 없는 선택은 푼다(FR-097)`() = runTest(main.dispatcher) {
         val w = world()
         val vm = CelebBattleViewModel(w.battles, w.coordinator)
         runCurrent()
+        vm.onSelect(vm.state.value.candidates.first())
         vm.onFilter(3)
+        assertNull(vm.state.value.selected, "10km 셀럽은 하프 목록에 없다")
         runCurrent()
         assertEquals(listOf("celeb:null", "celeb:21097"), w.battles.calls)
         assertEquals(3, vm.state.value.filterIndex)
     }
 
     @Test
-    fun `유명인 - 고르면 확인을 받은 뒤 시작한다`() = runTest(main.dispatcher) {
+    fun `유명인 - 처음엔 고른 셀럽이 없고 카드를 고른 뒤 대결하기로 시작한다(D-288)`() = runTest(main.dispatcher) {
         val w = world()
         val vm = CelebBattleViewModel(w.battles, w.coordinator)
         runCurrent()
-        vm.onPick(vm.state.value.candidates.first())
-        assertTrue(vm.state.value.isConfirming)
-        assertFalse(w.battles.calls.any { it.startsWith("startCeleb") }, "확인 전에는 시작하지 않는다")
+        assertNull(vm.state.value.selected, "카드를 눌러야 대결하기가 보인다")
+        vm.onSelect(vm.state.value.candidates.first())
+        assertFalse(w.battles.calls.any { it.startsWith("startCeleb") }, "고르기만 해서는 시작하지 않는다")
         vm.events.test {
             vm.onStart()
             runCurrent()
@@ -103,7 +137,6 @@ class RecordBattleViewModelTest {
             assertEquals(OpponentKind.CELEBRITY.name, event.key.opponentKind)
         }
         assertTrue("startCeleb:7" in w.battles.calls)
-        assertFalse(vm.state.value.isConfirming)
     }
 
     @Test
@@ -112,7 +145,7 @@ class RecordBattleViewModelTest {
         w.battles.startResult = rejected("CELEBRITY_REMOVED")
         val vm = CelebBattleViewModel(w.battles, w.coordinator)
         runCurrent()
-        vm.onPick(vm.state.value.candidates.first())
+        vm.onSelect(vm.state.value.candidates.first())
         vm.onStart()
         runCurrent()
         assertEquals(UiText.Res(R.string.battle_error_celebrity_removed), vm.state.value.message)
@@ -122,10 +155,10 @@ class RecordBattleViewModelTest {
     }
 
     @Test
-    fun `출처 줄은 서버 sourceLabel을 출처 문구 뒤에 그대로 쓰고, 없으면 줄을 두지 않는다(FR-100, H2)`() {
+    fun `출처 줄은 서버 sourceLabel을 그대로 쓰고, 없으면 줄을 두지 않는다(FR-100, D-288)`() {
         val isEstimated = CandidateUi.of(celebCandidates[1])
         assertEquals(
-            uiText(R.string.battle_record_source, "공개 기록 기준 · 2025 서울마라톤"),
+            UiText.Plain("공개 기록 기준 · 2025 서울마라톤"),
             sourceLine(CandidateUi.of(celebCandidates[0]))
         )
         assertNull(sourceLine(isEstimated.copy(sourceLabel = null, isEstimated = false)))

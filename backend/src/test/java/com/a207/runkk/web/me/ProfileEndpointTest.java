@@ -35,10 +35,11 @@ class ProfileEndpointTest extends WebTestSupport {
                 .andExpect(jsonPath("$.ageBand").isNotEmpty());
         mvc.perform(as(me, get("/api/v1/members/" + other.memberId() + "/profile")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.disclosure").value("PRIVATE"))
+                // v0.14 D-241: 비공개 회원도 PUBLIC 수준이고 나이대·성별만 감춘다
+                .andExpect(jsonPath("$.disclosure").value("PUBLIC"))
                 .andExpect(jsonPath("$.displayName").isNotEmpty())
                 .andExpect(jsonPath("$.settings").doesNotExist())
-                .andExpect(jsonPath("$.level").doesNotExist())
+                .andExpect(jsonPath("$.level").value(1))
                 .andExpect(jsonPath("$.ageBand").doesNotExist())
                 .andExpect(jsonPath("$.tags").doesNotExist());
         mvc.perform(

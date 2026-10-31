@@ -7,6 +7,7 @@ runbody는 이 모듈을 모른다. runbody.repository.ResultRepository 규약�
 from runkk_ai.storage.coach_store import PgCoachStore
 from runkk_ai.storage.engine import create_engine
 from runkk_ai.storage.migrate import upgrade
+from runkk_ai.storage.model_store import PgModelRegistry
 from runkk_ai.storage.pg_repository import PgResultRepository
 
-__all__ = ["PgCoachStore", "PgResultRepository", "create_engine", "upgrade"]
+__all__ = ["PgCoachStore", "PgModelRegistry", "PgResultRepository", "create_engine", "upgrade"]

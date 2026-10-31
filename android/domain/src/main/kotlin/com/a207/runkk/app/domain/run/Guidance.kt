@@ -15,7 +15,6 @@ data class Guidance(
 ) {
     enum class Kind {
         FINISH_HINT,
-        UNLOCK_HINT,
         SPLIT,
         TARGET_REACHED,
         PACE,
@@ -31,7 +30,7 @@ data class Guidance(
         /** 대결 시작·그만두기를 서버에 알리지 못함(다시 보내도 실패, 리뷰 F-3). */
         REPORT_FAILED,
 
-        /** 일시정지·재개·정지 자동 종료 안내(FR-194, FR-195). */
+        /** 일시정지·재개 안내(FR-194). */
         PAUSE
     }
 

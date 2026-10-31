@@ -7,9 +7,8 @@ data class RecordBattleUiState(
     val candidates: List<CandidateUi> = emptyList(),
     /** 유명인 거리 거르기(전체·5km·10km·하프·풀). 나와의 싸움은 쓰지 않는다. */
     val filterIndex: Int = 0,
-    /** 고른 후보. 나와의 싸움은 바로 아래 "대결 시작"에, 유명인은 확인 대화상자에 쓴다. */
+    /** 고른 후보. 고르면 화면 아래 시작 버튼(셀프런 "n km 기록 깨러 가기", 셀럽런 "대결하기")이 보인다. */
     val selected: CandidateUi? = null,
-    val isConfirming: Boolean = false,
     val isStarting: Boolean = false,
     val message: UiText? = null,
     val error: UiText? = null

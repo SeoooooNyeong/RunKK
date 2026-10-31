@@ -1,0 +1,13 @@
+{
+  "endpoint": "GET /users/{userId}/faces/jobs/{jobId}/result",
+  "scenario": "reason:JOB_NOT_FOUND",
+  "request": {
+    "userId": "42",
+    "jobId": "6f1c2a3e-9b4d-4c8e-8a1f-2d3e4f5a6b7c"
+  },
+  "status": 404,
+  "body": {
+    "reason": "JOB_NOT_FOUND"
+  },
+  "gateway": "다른 사용자의 작업이거나 없는 jobId"
+}

@@ -8,6 +8,7 @@ import com.a207.runkk.crew.CrewSummary;
 import com.a207.runkk.member.MemberQueryService;
 import com.a207.runkk.policy.LandmarkTable;
 import com.a207.runkk.policy.OperationPolicy;
+import com.a207.runkk.reward.RewardService;
 import com.a207.runkk.running.DayStats;
 import com.a207.runkk.running.RunQueryService;
 import com.a207.runkk.running.RunSummary;
@@ -17,11 +18,14 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,11 +41,15 @@ public class DashboardService {
     /** 크루 누적 거리를 셀 때 시작일(전체 기간). */
     private static final LocalDate ALL_TIME_START = LocalDate.EPOCH;
 
+    /** 연속이 잔디 범위 밖으로 이어질 때 한 번에 더 읽는 주 수(D136). */
+    private static final int STREAK_LOOKBACK_WEEKS = 52;
+
     private final RunQueryService runQueryService;
     private final RunningGoalRepository runningGoalRepository;
     private final CrewMembershipReader crewMembershipReader;
     private final MemberQueryService memberQueryService;
     private final OperationPolicy policy;
+    private final RewardService rewardService;
     private final Clock clock;
 
     public DashboardService(
@@ -50,12 +58,14 @@ public class DashboardService {
             CrewMembershipReader crewMembershipReader,
             MemberQueryService memberQueryService,
             OperationPolicy policy,
+            RewardService rewardService,
             Clock clock) {
         this.runQueryService = runQueryService;
         this.runningGoalRepository = runningGoalRepository;
         this.crewMembershipReader = crewMembershipReader;
         this.memberQueryService = memberQueryService;
         this.policy = policy;
+        this.rewardService = rewardService;
         this.clock = clock;
     }
 
@@ -69,17 +79,32 @@ public class DashboardService {
         LandmarkTable landmarks = policy.landmarkTable();
         DateRange month = monthOf(base);
         List<RunSummary> monthRuns = runQueryService.summariesBetween(memberId, month);
+        Set<LocalDate> runDays =
+                untilBroken(
+                        runDays(dailyDistance),
+                        grassRange.start(),
+                        base,
+                        range -> distancesOf(runQueryService.dailyStats(memberId, range)),
+                        true);
         return new DashboardView(
                 base,
                 memberQueryService.preferenceOf(memberId).unit(),
                 todayOf(monthRuns, base),
                 new DashboardView.Totals(totals.distance(), totals.elapsed(), totals.count()),
                 landmarks.personalProgressOf(totals.distance()).label(),
-                Streak.countBack(runDays(dailyDistance), base),
+                Streak.countBack(runDays, base),
                 Grass.of(dailyDistance, grassRange),
                 weeklyOf(memberId, base, daily),
                 crewAreaOf(memberId, base, landmarks),
-                calendarOf(monthRuns));
+                calendarOf(monthRuns),
+                rewardService.balanceOf(memberId),
+                (int) monthRuns.stream().filter(RunSummary::valid).count(),
+                Distance.ofMeters(
+                        monthRuns.stream()
+                                .filter(RunSummary::valid)
+                                .mapToLong(r -> r.distance().meters())
+                                .sum()),
+                Streak.countWeeksBack(runDays, base));
     }
 
     /** 오늘 달린 거리·시간·횟수. 유효 기록만 센다(집계 제외 기록은 달력·누적과 같이 뺀다, v0.10). */
@@ -140,9 +165,44 @@ public class DashboardService {
         return new DashboardView.CrewArea(
                 crew.crewId(),
                 crew.name(),
-                Streak.countBack(runDays(daily), base),
+                Streak.countBack(
+                        untilBroken(
+                                runDays(daily),
+                                grassRange.start(),
+                                base,
+                                range -> runQueryService.dailyDistances(memberIds, range),
+                                false),
+                        base),
                 Grass.of(daily, grassRange),
                 landmarks.crewProgressOf(total).label());
+    }
+
+    /**
+     * 연속 일·주가 읽은 범위(처음은 잔디 12주) 첫날에 닿으면 그 앞 52주를 더 읽어 끊긴 곳까지 러닝 날짜를 모은다(D136, 상한 없음). 회원 한 명의 날짜별
+     * 집계를 52주씩 읽으므로 1년 연속마다 한 번 더 읽는다. 연속이 끊기면 더 읽지 않는다.
+     *
+     * @param weekly 주 연속도 볼지(개인 대시보드). 크루는 일 연속만 쓴다
+     */
+    private static Set<LocalDate> untilBroken(
+            Set<LocalDate> loaded,
+            LocalDate loadedFrom,
+            LocalDate base,
+            Function<DateRange, Map<LocalDate, Distance>> reader,
+            boolean weekly) {
+        Set<LocalDate> days = new HashSet<>(loaded);
+        LocalDate from = loadedFrom;
+        while (reaches(Streak.firstDayBack(days, base), from)
+                || (weekly && reaches(Streak.firstWeekBack(days, base), from))) {
+            DateRange earlier =
+                    new DateRange(from.minusWeeks(STREAK_LOOKBACK_WEEKS), from.minusDays(1));
+            days.addAll(runDays(reader.apply(earlier)));
+            from = earlier.start();
+        }
+        return days;
+    }
+
+    private static boolean reaches(Optional<LocalDate> streakStart, LocalDate loadedFrom) {
+        return streakStart.filter(start -> !start.isAfter(loadedFrom)).isPresent();
     }
 
     private static Map<LocalDate, List<DashboardView.CalendarRun>> calendarOf(

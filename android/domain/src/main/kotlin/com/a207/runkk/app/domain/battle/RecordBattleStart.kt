@@ -13,12 +13,13 @@ import java.time.LocalDate
 
 /**
  * 나와의 싸움·유명인 대결 시작 정보(POST /battles/self·celebrity 응답, design-review.md M34).
- * cardKind는 SELF_RUN 또는 CELEB_RUN이다.
+ * cardKind는 SELF_RUN 또는 CELEB_RUN이다. [celebrityFigure]는 셀럽 그림 키(서버 celebrityFigure, 셀프런·없으면 null)다.
  */
 data class RecordBattleStart(
     val battleId: Long,
     val opponentName: String,
     val distance: Distance,
     val track: OpponentTrack,
-    val cardKind: CardKind
+    val cardKind: CardKind,
+    val celebrityFigure: String? = null
 )

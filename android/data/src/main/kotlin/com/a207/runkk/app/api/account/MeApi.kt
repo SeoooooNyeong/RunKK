@@ -33,4 +33,12 @@ internal interface MeApi {
 
     @DELETE("me")
     suspend fun withdraw()
+
+    /** 첫 사용 가이드를 봤는가(D-277, 서버 D-244). */
+    @GET("me/guide")
+    suspend fun guide(): GuideResponse
+
+    /** 첫 사용 가이드를 끝냈다(204, 멱등). */
+    @PUT("me/guide")
+    suspend fun markGuideSeen()
 }

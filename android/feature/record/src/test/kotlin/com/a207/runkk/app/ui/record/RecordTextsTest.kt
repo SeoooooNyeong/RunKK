@@ -3,6 +3,7 @@ package com.a207.runkk.app.ui.record
 import androidx.test.core.app.ApplicationProvider
 import com.a207.runkk.app.core.designsystem.RunkkErrorText
 import com.a207.runkk.app.core.designsystem.UiText
+import com.a207.runkk.app.core.designsystem.kakaoMapEnabled
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.domain.record.RecordDetail
@@ -37,10 +38,10 @@ class RecordTextsTest {
     }
 
     @Test
-    fun `Kakao 지도는 키가 있고 arm 기기일 때만 띄운다(없으면 Canvas 경로선)`() {
-        assertEquals(false, kakaoMapEnabled("", listOf("arm64-v8a")))
-        assertEquals(false, kakaoMapEnabled("key", listOf("x86_64")))
-        assertEquals(true, kakaoMapEnabled("key", listOf("x86_64", "arm64-v8a")))
+    fun `Kakao 지도는 키가 있고 지도 라이브러리를 불러올 수 있을 때만 띄운다(없으면 Canvas 경로선)`() {
+        assertEquals(false, kakaoMapEnabled("", hasMapLibrary = true))
+        assertEquals(false, kakaoMapEnabled("key", hasMapLibrary = false), "x86_64 APK에는 지도 라이브러리가 없다")
+        assertEquals(true, kakaoMapEnabled("key", hasMapLibrary = true))
     }
 
     @Test

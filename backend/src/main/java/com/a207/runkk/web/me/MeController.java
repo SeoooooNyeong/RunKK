@@ -12,6 +12,7 @@ import com.a207.runkk.member.MemberSettingsView;
 import com.a207.runkk.member.ProfileEdit;
 import com.a207.runkk.member.ProfileEditResult;
 import com.a207.runkk.member.ProfileService;
+import com.a207.runkk.member.ProfileVisibility;
 import com.a207.runkk.member.SettingChange;
 import com.a207.runkk.member.SettingItem;
 import com.a207.runkk.member.SettingResult;
@@ -22,8 +23,10 @@ import com.a207.runkk.profile.ProfileView;
 import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import java.time.LocalDate;
+import java.util.List;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -32,6 +35,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -63,7 +67,7 @@ public class MeController {
         this.profileQueryService = profileQueryService;
     }
 
-    /** 회원 프로필(FR-005, FR-006). 공개 수준(SELF·PUBLIC·PRIVATE·WITHDRAWN)이 정한 항목만 담긴다. 없는 회원은 400. */
+    /** 회원 프로필(FR-005, FR-006). 공개 수준(SELF·PUBLIC·WITHDRAWN)이 정한 항목만 담긴다. 없는 회원은 400. */
     @GetMapping("/members/{id}/profile")
     ProfileResponse profile(
             @RequestAttribute(MEMBER_ID) long memberId, @PathVariable("id") long targetId) {
@@ -75,6 +79,19 @@ public class MeController {
             @RequestAttribute(MEMBER_ID) long memberId,
             @Valid @RequestBody ProfileEditRequest request) {
         return profileService.editProfile(memberId, request.toEdit());
+    }
+
+    /** 첫 사용 가이드를 봤는가(FR-231, v0.14 D-244). */
+    @GetMapping("/me/guide")
+    GuideResponse guide(@RequestAttribute(MEMBER_ID) long memberId) {
+        return new GuideResponse(profileService.guideSeen(memberId));
+    }
+
+    /** 첫 사용 가이드를 봤다고 표시한다(멱등, 204). */
+    @PutMapping("/me/guide")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void markGuideSeen(@RequestAttribute(MEMBER_ID) long memberId) {
+        profileService.markGuideSeen(memberId);
     }
 
     @GetMapping("/me/settings")
@@ -121,20 +138,41 @@ public class MeController {
      * @param nickname 닉네임
      * @param birthYear 출생연도
      * @param gender 성별
-     * @param photoUrl 사진 주소(빈 문자열이면 지움)
+     * @param photoUrl 사진 주소. 받아도 버린다(옛 앱 호환, v0.14 D-242)
      * @param intro 소개(빈 문자열이면 지움)
+     * @param ageBandVisibility 나이대 공개 여부(null이면 그대로, v0.14 D-241)
+     * @param genderVisibility 성별 공개 여부(null이면 그대로)
      */
     record ProfileEditRequest(
             @Size(max = TEXT_MAX) String nickname,
             Integer birthYear,
             Gender gender,
-            @Pattern(regexp = "^$|^https://[^\\s]+$") @Size(max = TEXT_MAX) String photoUrl,
-            @Size(max = TEXT_MAX) String intro) {
+            @Size(max = TEXT_MAX) String photoUrl,
+            @Size(max = TEXT_MAX) String intro,
+            ProfileVisibility ageBandVisibility,
+            ProfileVisibility genderVisibility) {
 
         ProfileEdit toEdit() {
-            return new ProfileEdit(nickname, birthYear, gender, photoUrl, intro);
+            return new ProfileEdit(
+                    nickname, birthYear, gender, intro, ageBandVisibility, genderVisibility);
         }
     }
+
+    /**
+     * 첫 사용 가이드 확인 여부(FR-231).
+     *
+     * @param seen 가이드를 봤는가
+     */
+    record GuideResponse(boolean seen) {}
+
+    /**
+     * 다른 러너 프로필의 최근 러닝(FR-060, v0.14 D-243).
+     *
+     * @param kind 카드 종류(FREE_RUN·BATTLE_RUN·SELF_RUN·CELEB_RUN·CREW_RUN)
+     * @param startedOn 러닝 날짜
+     * @param distanceMeters 거리
+     */
+    record RecentRunDto(String kind, LocalDate startedOn, long distanceMeters) {}
 
     /**
      * 설정 변경 요청(동의가 아닌 항목만). value는 문자열이거나, 러닝설정·대결설정이면 JSON 객체다.
@@ -157,7 +195,7 @@ public class MeController {
 
     /**
      * 프로필 응답(앱 api.me 형식). 공개 수준이 감춘 항목은 null·빈 값이다. disclosure는 member.DisclosureLevel
-     * 이름(SELF·PUBLIC· PRIVATE·WITHDRAWN) 그대로다.
+     * 이름(SELF·PUBLIC·WITHDRAWN) 그대로다. 필드는 더하기만 한다(v0.14 D-229, 옛 앱 보호).
      *
      * @param memberId 회원 ID
      * @param displayName 표시명
@@ -165,7 +203,7 @@ public class MeController {
      * @param tier 티어(UNRANKED·BRONZE·SILVER·GOLD·PLATINUM·MASTER)
      * @param level 레벨
      * @param intro 소개
-     * @param photoUrl 프로필 사진 주소
+     * @param photoUrl 프로필 사진 주소. 늘 null(v0.14 D-242)
      * @param ageBand 나이대("20대")
      * @param gender 성별
      * @param runimalType Runimal 유형
@@ -173,8 +211,14 @@ public class MeController {
      * @param avatarBackgroundKey 아바타 랜드마크 배경 키, null이면 기본 배경(v0.11 FR-202)
      * @param crewName 소속 크루명
      * @param crew 소속 크루(ID·이름·로고)
-     * @param longestDistanceMeters 최장 거리(본인만)
+     * @param longestDistanceMeters 최장 거리(v0.14부터 다른 러너도, FR-006)
      * @param settings 설정(본인만)
+     * @param totalDistanceMeters 누적 유효 거리(v0.14 D-243)
+     * @param runCount 유효 러닝 횟수
+     * @param recentRuns 최근 유효 러닝 3건(다른 러너, 기록 공개 범위를 통과할 때만. 본인은 빈 목록)
+     * @param ageBandVisibility 나이대 공개 여부(본인만)
+     * @param genderVisibility 성별 공개 여부(본인만)
+     * @param shownGender 다른 러너에게 보이는 표시 성별(MALE·FEMALE, D-327). 앱이 다른 러너 캐릭터를 이 값으로 그린다. 탈퇴면 null
      */
     record ProfileResponse(
             long memberId,
@@ -192,7 +236,13 @@ public class MeController {
             String crewName,
             ProfileView.Crew crew,
             Long longestDistanceMeters,
-            MemberPreference settings) {
+            MemberPreference settings,
+            Long totalDistanceMeters,
+            int runCount,
+            List<RecentRunDto> recentRuns,
+            ProfileVisibility ageBandVisibility,
+            ProfileVisibility genderVisibility,
+            Gender shownGender) {
 
         static ProfileResponse of(ProfileView v) {
             MemberProfile about = v.about();
@@ -203,7 +253,7 @@ public class MeController {
                     v.tier() == null ? null : v.tier().name(),
                     about == null ? null : about.level(),
                     about == null ? null : about.intro(),
-                    about == null ? null : about.photoUrl(),
+                    null,
                     about == null ? null : about.ageBand(),
                     about == null ? null : about.gender(),
                     v.runimalType(),
@@ -212,7 +262,20 @@ public class MeController {
                     v.crew() == null ? null : v.crew().name(),
                     v.crew(),
                     v.longestDistance() == null ? null : v.longestDistance().meters(),
-                    v.settings());
+                    v.settings(),
+                    v.totalDistance() == null ? null : v.totalDistance().meters(),
+                    v.runCount(),
+                    v.recentRuns().stream()
+                            .map(
+                                    r ->
+                                            new RecentRunDto(
+                                                    r.kindName(),
+                                                    r.startedOn(),
+                                                    r.distance().meters()))
+                            .toList(),
+                    about == null ? null : about.ageBandVisibility(),
+                    about == null ? null : about.genderVisibility(),
+                    v.shownGender());
         }
     }
 }

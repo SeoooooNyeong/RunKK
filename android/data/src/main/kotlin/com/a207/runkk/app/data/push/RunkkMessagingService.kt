@@ -10,7 +10,9 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.a207.runkk.app.api.core.R
+import com.a207.runkk.app.domain.notification.GatedFeature
 import com.a207.runkk.app.domain.notification.PushTokenSync
+import com.a207.runkk.app.domain.notification.ReleaseLock
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import dagger.hilt.android.AndroidEntryPoint
@@ -21,6 +23,8 @@ import javax.inject.Inject
  * - onNewToken → PushTokenSync.onTokenChanged. 토큰 값은 로그에 쓰지 않는다.
  * - 앱이 뒤에 있으면 FCM 알림 메시지는 OS가 띄운다. 앱이 앞에 있으면 OS가 띄우지 않으므로 여기서 띄우되, 표시 전에
  *   OpenChatRoomTracker에 묻는다: 열린 채팅방 크루의 CREW_CHAT은 띄우지 않는다(FR-218). 같은 묶음 키의 알림은 하나로 묶는다.
+ * - 1차 배포 잠금 빌드(ReleaseLock)에서는 닫힌 기능(GatedFeature: 아바타·크루)의 알림을 띄우지 않는다. 알림함·알림 설정에서
+ *   숨긴 것과 맞춘다(D-339, 코드 리뷰 U10-A2). 앱이 뒤에 있을 때 FCM 알림 메시지는 OS가 띄우므로 여기서 막을 수 없다.
  * google-services.json이 없는 빌드에서는 Firebase가 초기화되지 않아 이 서비스가 불리지 않는다.
  */
 @AndroidEntryPoint
@@ -31,12 +35,16 @@ class RunkkMessagingService : FirebaseMessagingService() {
     @Inject
     lateinit var openChatRooms: OpenChatRoomTracker
 
+    @Inject
+    lateinit var releaseLock: ReleaseLock
+
     override fun onNewToken(token: String) {
         pushTokenSync.onTokenChanged(token)
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
         val notification = message.notification ?: return
+        if (!isReleased(message.data[TYPE], releaseLock)) return
         if (!openChatRooms.shouldDisplay(message.data[TYPE], message.collapseKey)) return
         if (!canPost()) return
         val manager = getSystemService(NotificationManager::class.java)
@@ -81,3 +89,6 @@ class RunkkMessagingService : FirebaseMessagingService() {
         const val NOTIFICATION_ID = 1
     }
 }
+
+/** 시스템 알림으로 띄울 종류인가: 잠금 빌드에서는 닫힌 기능(GatedFeature)에 딸린 종류를 뺀다(D-339). */
+internal fun isReleased(type: String?, lock: ReleaseLock): Boolean = !lock.isLocked() || GatedFeature.of(type) == null

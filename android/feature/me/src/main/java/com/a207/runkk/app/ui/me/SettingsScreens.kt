@@ -128,7 +128,12 @@ fun SettingsScreen(
     }
     Box(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
         Column(modifier = Modifier.fillMaxSize()) {
-            RunkkTopBar(title = stringResource(page.titleRes), onBack = actions.onBack)
+            // 러닝 설정(A-5)은 피그마대로 제목을 가운데에 둔다.
+            RunkkTopBar(
+                title = stringResource(page.titleRes),
+                onBack = actions.onBack,
+                isTitleCentered = page == SettingsPage.FREE_RUN
+            )
             when {
                 state.isLoading -> RunkkLoading(modifier = Modifier.weight(1f))
 
@@ -196,11 +201,11 @@ private fun FreeRunSettings(state: SettingsUiState, actions: SettingsActions) {
         SettingsDivider()
         RunkkSwitchRow(stringResource(R.string.me_settings_voice_title), state.flag(SettingKeys.RUN_VOICE), {
             actions.setValue(SettingKeys.RUN_VOICE, it.toString())
-        })
+        }, description = stringResource(R.string.me_settings_run_voice_description))
         SettingsDivider()
         RunkkSwitchRow(stringResource(R.string.me_settings_vibration_title), state.flag(SettingKeys.RUN_VIBRATION), {
             actions.setValue(SettingKeys.RUN_VIBRATION, it.toString())
-        })
+        }, description = stringResource(R.string.me_settings_run_vibration_description))
         SettingsDivider()
         RunkkSwitchRow(
             stringResource(R.string.me_settings_follow_plan_title),

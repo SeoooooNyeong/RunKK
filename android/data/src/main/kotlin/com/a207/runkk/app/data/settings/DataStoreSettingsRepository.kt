@@ -15,6 +15,7 @@ import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.settings.GuidanceSettings
+import com.a207.runkk.app.domain.settings.GuideCopy
 import com.a207.runkk.app.domain.settings.ScreenTheme
 import com.a207.runkk.app.domain.settings.SettingsRemote
 import com.a207.runkk.app.domain.settings.SettingsRepository
@@ -128,6 +129,30 @@ class DataStoreSettingsRepository internal constructor(
     override fun isGuest(): Boolean = current().isGuest
 
     /**
+     * 첫 사용 가이드 기기 사본(D-277). 서버 설정 사본과 같은 파일에 두고 refresh가 덮지 않으며 [clear]가 함께 지운다.
+     * 기기 파일을 읽지 못하면 사본 없음이다(서버 값을 다시 읽는다).
+     */
+    override suspend fun guideCopy(): GuideCopy {
+        val stored =
+            try {
+                dataStore.data.first()[GUIDE]
+            } catch (e: IOException) {
+                Timber.w(e, "가이드 사본 읽기 실패")
+                null
+            }
+        return GuideCopy.entries.firstOrNull { it.name == stored } ?: GuideCopy.NONE
+    }
+
+    override suspend fun saveGuideCopy(copy: GuideCopy): Outcome<Unit> = writing.withLock {
+        try {
+            dataStore.edit { it[GUIDE] = copy.name }
+            Outcome.Success(Unit)
+        } catch (e: IOException) {
+            Outcome.Failure(AppError.Storage)
+        }
+    }
+
+    /**
      * 기기 사본을 처음 읽기 전(isSettled 거짓)에는 내보내지 않는다(A4): 앱 시작 때 저장된 화면 테마 앞에 안전한 값(SYSTEM)이
      * 먼저 나가 첫 프레임 테마가 깜빡이지 않게, 동의 구독자(WatchLink)가 잠깐 철회로 보지 않게 한다. 사본이 없으면 그때 SAFE다.
      */
@@ -179,7 +204,10 @@ class DataStoreSettingsRepository internal constructor(
     }
 
     private fun MutablePreferences.write(s: SettingsSnapshot) {
+        // 가이드 사본은 서버 설정 응답에 없으므로 덮어쓰지 않고 남긴다.
+        val guide = this[GUIDE]
         clear()
+        guide?.let { this[GUIDE] = it }
         this[HAS_COPY] = true
         this[LOCATION] = s.isLocationConsented
         this[HEART_RATE] = s.isHeartRateConsented
@@ -229,5 +257,8 @@ class DataStoreSettingsRepository internal constructor(
         val PROXIMITY_ALERT = booleanPreferencesKey("proximity_alert")
         val THEME = stringPreferencesKey("theme")
         val GUEST = booleanPreferencesKey("guest")
+
+        /** 첫 사용 가이드 기기 사본(GuideCopy 이름, D-277). */
+        val GUIDE = stringPreferencesKey("guide_copy")
     }
 }

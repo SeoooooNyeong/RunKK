@@ -65,6 +65,20 @@ android {
     }
 }
 
+// 1차 배포 잠금(D-251, D-339): 앱(:app)의 LOCK_UNRELEASED와 같은 규칙이다. prod·develop은 참, local은 거짓이고 Gradle 속성
+// -Prunkk.lockUnreleased가 있으면 그 값이다. 시스템 푸시(RunkkMessagingService)가 닫힌 기능의 알림을 띄우지 않을 때 읽는다.
+val lockUnreleasedOverride = providers.gradleProperty("runkk.lockUnreleased").orNull?.toBooleanStrictOrNull()
+androidComponents {
+    onVariants { variant ->
+        val local = variant.productFlavors.any { it.second == "local" }
+        val lock = lockUnreleasedOverride ?: !local
+        variant.buildConfigFields?.put(
+            "LOCK_UNRELEASED",
+            com.android.build.api.variant.BuildConfigField("boolean", lock.toString(), "1차 배포에서 열지 않는 기능을 막는가")
+        )
+    }
+}
+
 ksp {
     // Room 스키마를 저장소에 남겨 이후 이전(migration) 시험의 기준으로 쓴다.
     arg("room.schemaLocation", "$projectDir/schemas")
