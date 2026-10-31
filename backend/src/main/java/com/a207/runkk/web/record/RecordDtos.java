@@ -539,24 +539,34 @@ final class RecordDtos {
             return new RankingResponse(
                     v.kind().name(),
                     v.period().name(),
-                    v.entries().stream().map(Entry::of).toList(),
-                    v.mine() == null ? null : Entry.of(v.mine()),
+                    v.entries().stream().map(e -> Entry.of(e, v.shownGenderOf(e))).toList(),
+                    v.mine() == null ? null : Entry.of(v.mine(), v.shownGenderOf(v.mine())),
                     meters(v.gapToNext()),
                     seoul(v.aggregatedAt()),
                     v.notice());
         }
     }
 
-    /** 랭킹 한 줄(앱 RankingResponse.Entry + subjectId·tier). */
-    record Entry(int rank, long subjectId, String name, String tier, long distanceMeters) {
+    /**
+     * 랭킹 한 줄(앱 RankingResponse.Entry + subjectId·tier). shownGender는 개인 랭킹 줄 회원의 표시 성별(MALE·FEMALE,
+     * D-327), 크루 줄은 null이다.
+     */
+    record Entry(
+            int rank,
+            long subjectId,
+            String name,
+            String tier,
+            long distanceMeters,
+            String shownGender) {
 
-        static Entry of(RankEntry e) {
+        static Entry of(RankEntry e, String shownGender) {
             return new Entry(
                     e.rank(),
                     e.subjectId(),
                     e.displayName().value(),
                     e.tier() == null ? null : e.tier().name(),
-                    e.distance().meters());
+                    e.distance().meters(),
+                    shownGender);
         }
     }
 

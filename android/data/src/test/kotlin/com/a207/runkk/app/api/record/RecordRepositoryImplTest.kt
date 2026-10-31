@@ -7,6 +7,7 @@ import com.a207.runkk.app.api.core.jwtOf
 import com.a207.runkk.app.api.core.value
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.GeoPoint
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.Pace
@@ -179,6 +180,20 @@ class RecordRepositoryImplTest {
             ranking
         )
         assertEquals("/api/v1/rankings/personal?period=WEEKLY", api.take().target)
+    }
+
+    @Test
+    fun `랭킹 줄의 표시 성별을 읽고 모르는 이름·크루 줄은 null이다(D-327)`() = runTest {
+        api.reply(
+            """{"entries":[{"rank":1,"name":"바람","distanceMeters":42000,"shownGender":"FEMALE"},
+               |{"rank":2,"name":"구름","distanceMeters":30000,"shownGender":"OTHER"},
+               |{"rank":3,"name":"새벽크루","distanceMeters":20000}],"aggregatedAt":"2026-10-20T06:00:00"}
+            """.trimMargin()
+        )
+
+        val entries = repository.personalRanking(AggregationPeriod.WEEKLY).value().entries
+
+        assertEquals(listOf(Gender.FEMALE, null, null), entries.map { it.shownGender })
     }
 
     @Test

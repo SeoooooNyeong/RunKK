@@ -76,14 +76,12 @@ public class GhostMatcher {
                     runQueryService.validRunsReaching(ticket.getDistance(), owners.keySet());
             if (!candidates.isEmpty()) {
                 OwnedRun chosen = candidates.get(random.nextInt(candidates.size()));
-                Gender gender =
-                        memberQueryService
-                                .publicGendersOf(List.of(chosen.memberId()))
-                                .get(chosen.memberId());
+                Map<Long, Gender> shown =
+                        memberQueryService.shownGendersOf(List.of(chosen.memberId()));
                 return Optional.of(
                         new Ghost(
                                 opponentOf(chosen, owners.get(chosen.memberId()), ticket),
-                                OpponentGenders.of(gender, random)));
+                                OpponentGenders.shownOf(shown, chosen.memberId())));
             }
         }
         return Optional.empty();

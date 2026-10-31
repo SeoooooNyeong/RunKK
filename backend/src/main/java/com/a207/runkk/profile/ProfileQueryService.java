@@ -4,6 +4,7 @@ import com.a207.runkk.avatar.AvatarQuery;
 import com.a207.runkk.common.ViewerRelation;
 import com.a207.runkk.crew.CrewMembershipReader;
 import com.a207.runkk.member.DisclosureLevel;
+import com.a207.runkk.member.Gender;
 import com.a207.runkk.member.MemberPreference;
 import com.a207.runkk.member.MemberQueryService;
 import com.a207.runkk.member.MemberSummary;
@@ -63,7 +64,8 @@ public class ProfileQueryService {
         if (disclosure == ProfileDisclosure.WITHDRAWN) {
             return disclosure.filter(ProfileData.withdrawn(targetId));
         }
-        return disclosure.filter(collect(viewerId, targetId));
+        Gender shown = memberQueryService.shownGendersOf(List.of(targetId)).get(targetId);
+        return disclosure.filter(collect(viewerId, targetId)).withShownGender(shown);
     }
 
     private ProfileData collect(long viewerId, long targetId) {

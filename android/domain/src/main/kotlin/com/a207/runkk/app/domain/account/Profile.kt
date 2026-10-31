@@ -30,5 +30,10 @@ data class Profile(
     /** 나이대 공개(본인 응답 ageBandVisibility가 PUBLIC). 본인이 아니거나 옛 서버면 null이다. */
     val isAgePublic: Boolean? = null,
     /** 성별 공개(본인 응답 genderVisibility가 PUBLIC). 본인이 아니거나 옛 서버면 null이다. */
-    val isGenderPublic: Boolean? = null
+    val isGenderPublic: Boolean? = null,
+    /**
+     * 다른 러너에게 보이는 표시 성별(D-327·D-336): 성별 공개인 남·여면 그 값, 아니면 회원 ID 고정 대체값. 다른 러너 프로필이 이 값으로
+     * 그 러너의 캐릭터를 그린다. 옛 서버면 null(남자 그림).
+     */
+    val shownGender: Gender? = null
 )

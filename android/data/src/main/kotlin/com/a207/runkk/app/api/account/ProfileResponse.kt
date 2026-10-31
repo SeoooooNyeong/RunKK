@@ -27,7 +27,9 @@ internal data class ProfileResponse(
     val runCount: Int? = null,
     val recentRuns: List<RecentRunDto> = emptyList(),
     val ageBandVisibility: String? = null,
-    val genderVisibility: String? = null
+    val genderVisibility: String? = null,
+    /** 다른 러너에게 보이는 표시 성별(MALE·FEMALE, D-327·D-336). 옛 서버면 null. */
+    val shownGender: String? = null
 ) {
     /** 최근 러닝 한 줄(종류, 시작 날짜 yyyy-MM-dd, 거리 m). */
     @Serializable

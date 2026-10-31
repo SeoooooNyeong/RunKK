@@ -118,8 +118,7 @@ class FriendInviteServiceTest {
                         });
         availability = new RunnerAvailability(queue, battles, invites);
         startService =
-                new BattleStartService(
-                        battles, members, runs, messenger, sessions, clock, tx, () -> -1L);
+                new BattleStartService(battles, members, runs, messenger, sessions, clock, tx);
         service =
                 new FriendInviteService(
                         invites,
@@ -282,7 +281,7 @@ class FriendInviteServiceTest {
     @Test
     @DisplayName("친구 대결 수락: 서로 상대(친구) 회원의 성별을 MatchFound에 싣는다(2026-10-31 결정)")
     void accept_sendsFriendGender() {
-        when(members.publicGendersOf(anyCollection()))
+        when(members.shownGendersOf(anyCollection()))
                 .thenReturn(Map.of(INVITER, Gender.FEMALE, JOINER, Gender.MALE));
         FriendInviteIssue issue = invite();
         now(1, 0);

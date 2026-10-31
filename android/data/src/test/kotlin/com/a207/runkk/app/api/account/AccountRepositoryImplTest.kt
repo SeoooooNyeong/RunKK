@@ -559,6 +559,13 @@ class AccountRepositoryImplTest {
     }
 
     @Test
+    fun `다른 러너 프로필의 표시 성별을 읽는다(D-327)`() = runTest {
+        api.reply("""{"memberId":8,"displayName":"바람","disclosure":"PUBLIC","shownGender":"FEMALE"}""")
+
+        assertEquals(Gender.FEMALE, repository.profile(8).value().shownGender)
+    }
+
+    @Test
     fun `TC-9743 옛 서버 프로필은 새 항목 없이 해독된다`() = runTest {
         api.reply("""{"memberId":7,"displayName":"나","disclosure":"PUBLIC"}""")
 
@@ -568,6 +575,7 @@ class AccountRepositoryImplTest {
         assertEquals(null, profile.runCount)
         assertEquals(emptyList(), profile.recentRuns)
         assertEquals(null, profile.isAgePublic)
+        assertEquals(null, profile.shownGender)
     }
 
     @Test

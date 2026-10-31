@@ -47,7 +47,8 @@ public enum ProfileDisclosure {
                     null,
                     null,
                     0,
-                    List.of());
+                    List.of(),
+                    null);
         }
     };
 
@@ -78,7 +79,8 @@ public enum ProfileDisclosure {
                 shown.about(),
                 data.totalDistance(),
                 data.runCount(),
-                shown.recentRuns());
+                shown.recentRuns(),
+                null);
     }
 
     /** 나이대·성별을 항목 공개 값으로 감추고 공개 값 두 개는 뺀다(v0.14 D-241). 소개는 늘 보인다. */

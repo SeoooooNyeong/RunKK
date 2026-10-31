@@ -36,18 +36,20 @@ public class MemberQueryService {
     }
 
     /**
-     * 성별 공개(genderVisibility = PUBLIC)인 회원의 성별을 한 번의 조회로 읽는다. battle이 대결 상대 캐릭터 성별을 정할 때
-     * 쓴다(2026-10-31 결정). 성별이 없거나 비공개인 회원·없는 ID는 맵에 없다(부르는 쪽이 무작위로 정한다).
+     * 다른 러너에게 보이는 표시 성별(ShownGender, D-327·D-336)을 한 번의 조회로 읽는다. 넘긴 ID마다 값이 있다: 성별 공개인 남·여는 그 값, 그
+     * 밖(비공개·미입력·밝히지 않음·없는 회원)은 ShownGender.fallbackOf(ID). battle의 대결 상대 성별, analysis 랭킹 행, profile
+     * 다른 러너 프로필이 같은 규칙을 쓴다.
      */
-    public Map<Long, Gender> publicGendersOf(Collection<Long> memberIds) {
+    public Map<Long, Gender> shownGendersOf(Collection<Long> memberIds) {
         if (memberIds.isEmpty()) {
             return Map.of();
         }
         Map<Long, Gender> result = new HashMap<>();
         for (Member m : memberRepository.findAllById(memberIds)) {
-            if (m.gender() != null && m.genderVisibility() == ProfileVisibility.PUBLIC) {
-                result.put(m.getId(), m.gender());
-            }
+            result.put(m.getId(), ShownGender.of(m.getId(), m.gender(), m.genderVisibility()));
+        }
+        for (Long id : memberIds) {
+            result.computeIfAbsent(id, ShownGender::fallbackOf);
         }
         return result;
     }

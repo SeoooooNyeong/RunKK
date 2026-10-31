@@ -13,6 +13,7 @@ import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -168,11 +169,35 @@ public class RankingService {
                 transactions.read(
                         () -> snapshotRepository.latestPage(kind, period, TOP, subjectId));
         if (latest.isEmpty()) {
-            return new RankingView(kind, period, null, List.of(), null, null, notice);
+            return new RankingView(kind, period, null, List.of(), null, null, notice, Map.of());
         }
         RankingPage page = latest.get();
         return new RankingView(
-                kind, period, page.computedAt(), page.top(), page.mine(), page.gapToNext(), notice);
+                kind,
+                period,
+                page.computedAt(),
+                page.top(),
+                page.mine(),
+                page.gapToNext(),
+                notice,
+                kind == RankingKind.PERSONAL ? shownGendersOf(page) : Map.of());
+    }
+
+    /**
+     * 개인 랭킹 줄 회원의 표시 성별(D-327). 스냅숏(RankEntry)에 저장하지 않고 읽을 때 붙여, 회원이 성별 공개를 끄면 다음 재계산을 기다리지 않고 바로
+     * 대체값이 된다(D-334, design-review R55).
+     */
+    private Map<Long, String> shownGendersOf(RankingPage page) {
+        Set<Long> ids = new HashSet<>();
+        page.top().forEach(e -> ids.add(e.subjectId()));
+        if (page.mine() != null) {
+            ids.add(page.mine().subjectId());
+        }
+        Map<Long, String> names = new HashMap<>();
+        memberQueryService
+                .shownGendersOf(ids)
+                .forEach((id, gender) -> names.put(id, gender.name()));
+        return names;
     }
 
     private static List<RankScore> personalScores(

@@ -29,6 +29,7 @@ import com.a207.runkk.common.Tier;
 import com.a207.runkk.crew.CrewMembershipReader;
 import com.a207.runkk.crew.CrewSummary;
 import com.a207.runkk.crew.WeeklyRaceService;
+import com.a207.runkk.member.Gender;
 import com.a207.runkk.member.MemberPreference;
 import com.a207.runkk.member.MemberQueryService;
 import com.a207.runkk.member.MemberSummary;
@@ -484,10 +485,17 @@ class AnalysisServicesTest {
         assertThat(personal.mine().rank()).isEqualTo(2);
         assertThat(personal.gapToNext()).isEqualTo(Distance.ofKm(10));
         assertThat(personal.notice()).isNull();
+        assertThat(personal.shownGenders()).as("표시 성별은 조회 때 붙인다(스냅숏 밖, D-334)").isEmpty();
+        when(members.shownGendersOf(anyCollection()))
+                .thenReturn(Map.of(ME, Gender.FEMALE, OTHER, Gender.MALE));
+        RankingView shown = service.personalRanking(ME, AggregationPeriod.WEEKLY);
+        assertThat(shown.shownGenderOf(shown.entries().get(0))).isEqualTo("MALE");
+        assertThat(shown.shownGenderOf(shown.mine())).isEqualTo("FEMALE");
         when(crews.activeCrewOf(ME)).thenReturn(Optional.of(new CrewSummary(7, "새벽크루", null)));
         RankingView crew = service.crewRanking(ME, AggregationPeriod.MONTHLY);
         assertThat(crew.mine().distance()).isEqualTo(Distance.ofKm(7));
         assertThat(crew.mine().displayName().value()).isEqualTo("새벽크루");
+        assertThat(crew.shownGenders()).as("크루 줄에는 표시 성별이 없다").isEmpty();
 
         preference(ME, RecordVisibility.PRIVATE, false);
         assertThat(service.personalRanking(ME, AggregationPeriod.WEEKLY).notice())

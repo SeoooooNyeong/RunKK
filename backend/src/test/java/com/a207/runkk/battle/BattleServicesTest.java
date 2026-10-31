@@ -37,6 +37,7 @@ import com.a207.runkk.member.Gender;
 import com.a207.runkk.member.GhostOwner;
 import com.a207.runkk.member.MemberQueryService;
 import com.a207.runkk.member.MemberSettingService;
+import com.a207.runkk.member.ShownGender;
 import com.a207.runkk.notification.NotificationRequest;
 import com.a207.runkk.notification.NotificationService;
 import com.a207.runkk.notification.NotificationType;
@@ -113,8 +114,7 @@ class BattleServicesTest {
                             return map;
                         });
         startService =
-                new BattleStartService(
-                        battles, members, runs, messenger, sessions, clock, tx, FEMALE_PICK);
+                new BattleStartService(battles, members, runs, messenger, sessions, clock, tx);
         GhostMatcher ghost =
                 new GhostMatcher(members, runs, virtuals, battles, startService, new Random(3));
         matchmaker = new Matchmaker(queue, battles, startService, ghost, policy, tx, messenger);
@@ -260,22 +260,23 @@ class BattleServicesTest {
 
         @Test
         @org.junit.jupiter.api.DisplayName(
-                "랜덤 대결 성사: 상대 회원 성별을 MatchFound에 싣고, 성별이 없는 회원은 무작위로 정해 대결에 남긴다. 결과도 같은 값이다"
-                        + "(2026-10-31 결정)")
+                "랜덤 대결 성사: 상대 회원의 표시 성별을 MatchFound에 싣고 대결에 남긴다. 맵에 없는 회원은 회원 ID 고정"
+                        + " 대체값이다. 결과도 같은 값이다(2026-10-31 결정, D-336)")
         void randomMatch_sendsRivalGender() {
-            when(members.publicGendersOf(anyCollection())).thenReturn(Map.of(ALICE, Gender.MALE));
+            when(members.shownGendersOf(anyCollection())).thenReturn(Map.of(ALICE, Gender.MALE));
             waiting(ALICE, NOW);
             waiting(BOB, NOW.plusSeconds(1));
             matchmaker.tick(NOW.plusSeconds(2));
 
             Battle battle = battles.all().get(0);
+            String bobShown = ShownGender.fallbackOf(BOB).name();
             MatchFound toAlice = (MatchFound) messenger.to(ALICE, "MatchFound").get(0);
             MatchFound toBob = (MatchFound) messenger.to(BOB, "MatchFound").get(0);
-            assertThat(toAlice.opponentGender()).as("밥은 성별이 없어 무작위").isEqualTo("FEMALE");
-            assertThat(toBob.opponentGender()).as("앨리스 회원 성별").isEqualTo("MALE");
-            assertThat(battle.opponentGenderFor(ALICE)).contains(Gender.FEMALE);
+            assertThat(toAlice.opponentGender()).as("밥은 대체값").isEqualTo(bobShown);
+            assertThat(toBob.opponentGender()).as("앨리스 표시 성별").isEqualTo("MALE");
+            assertThat(battle.opponentGenderFor(ALICE)).contains(ShownGender.fallbackOf(BOB));
             assertThat(resultService.result(ALICE, battle.getId()).opponentGender())
-                    .isEqualTo("FEMALE");
+                    .isEqualTo(bobShown);
             assertThat(resultService.result(BOB, battle.getId()).opponentGender())
                     .isEqualTo("MALE");
         }
@@ -546,7 +547,9 @@ class BattleServicesTest {
             assertThat(ref.displayName()).isEqualTo(DisplayName.of("새벽곰"));
             assertThat(ref.arrivalElapsed()).isEqualTo(Duration.ofMinutes(24));
             assertThat(ghost.opponentValues().orElseThrow().averagePace()).isEqualTo(new Pace(288));
-            assertThat(ghost.opponentGenderFor(ALICE)).as("기록 주인 성별이 없으면 무작위").isNotEmpty();
+            assertThat(ghost.opponentGenderFor(ALICE))
+                    .as("기록 주인 표시 성별을 못 읽으면 회원 ID 대체값")
+                    .contains(ShownGender.fallbackOf(7L));
         }
 
         @Test
@@ -554,7 +557,7 @@ class BattleServicesTest {
         void runnerGhost_usesOwnerGender() {
             GhostOwner owner = new GhostOwner(7L, DisplayName.of("새벽곰"), Tier.GOLD);
             when(members.ghostEligibleOwners(any(), anyLong())).thenReturn(Map.of(7L, owner));
-            when(members.publicGendersOf(List.of(7L))).thenReturn(Map.of(7L, Gender.MALE));
+            when(members.shownGendersOf(List.of(7L))).thenReturn(Map.of(7L, Gender.MALE));
             when(runs.validRunsReaching(eq(StandardDistance.KM5), anyCollection()))
                     .thenReturn(List.of(new OwnedRun("rec-7", 7L)));
             when(runs.comparisonOf("rec-7"))

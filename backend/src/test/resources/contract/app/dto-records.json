@@ -1814,6 +1814,9 @@
     }, {
       "name" : "genderVisibility",
       "kind" : "leaf"
+    }, {
+      "name" : "shownGender",
+      "kind" : "leaf"
     } ],
     "file" : "web/me/MeController.java"
   },
@@ -2100,6 +2103,9 @@
       "kind" : "leaf"
     }, {
       "name" : "distanceMeters",
+      "kind" : "leaf"
+    }, {
+      "name" : "shownGender",
       "kind" : "leaf"
     } ],
     "file" : "web/record/RecordDtos.java"

@@ -2,6 +2,7 @@ package com.a207.runkk.app.domain.record
 
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.GeoPoint
 import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.core.model.RunMode
@@ -17,5 +18,6 @@ data class Ranking(
     val aggregatedAt: Instant?,
     val notice: String?
 ) {
-    data class Entry(val rank: Int, val name: String, val distance: Distance)
+    /** 한 줄. [shownGender]는 그 회원의 표시 성별(D-327: 다른 러너의 캐릭터를 이 값으로 그린다), 크루 줄·옛 서버는 null. */
+    data class Entry(val rank: Int, val name: String, val distance: Distance, val shownGender: Gender? = null)
 }
