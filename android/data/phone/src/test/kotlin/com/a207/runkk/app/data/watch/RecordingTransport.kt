@@ -14,6 +14,9 @@ internal class RecordingTransport : WatchLink.Transport {
     override val incoming = MutableSharedFlow<WatchLink.Incoming>(extraBufferCapacity = 16)
     var isReachable = true
 
+    /** 거짓이면 DataClient 항목 넣기가 실패한다(Play 서비스 오류). */
+    var canPutItems = true
+
     class Event(val kind: String, val path: String, val payload: ByteArray?, val nodeId: String? = null)
 
     override fun send(path: String, payload: ByteArray) {
@@ -27,6 +30,7 @@ internal class RecordingTransport : WatchLink.Transport {
     }
 
     override suspend fun putItem(path: String, payload: ByteArray): Boolean {
+        if (!canPutItems) return false
         events += Event("put", path, payload)
         return true
     }

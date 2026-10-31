@@ -19,7 +19,6 @@ import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
@@ -40,7 +39,7 @@ import timber.log.Timber
  * 토큰은 DataClient로 보내지 않는다(항목이 Data Layer 저장소에 남는다, NFR-050).
  *
  * 로그아웃·탈퇴(로그인 상태가 거짓이 됨)와 워치연동 끄기(FR-019) 때는 SESSION_REVOKED(DataClient 항목, revokedAt)를 넣는다. 워치에 보낸
- * 회원이 없으면 넣지 않는다. 게스트도 같다(계정 유형 GUEST). 회원 ID와 계정 유형은 서버 응답이 아니라 폰이 아는 값이다(SQ-43, BE1).
+ * 회원이 없으면 넣지 않는다. 넣지 못하면 보낸 회원 기억을 남겨 다음 앱 시작·워치 연결 때 다시 넣는다. 게스트도 같다(계정 유형 GUEST). 회원 ID와 계정 유형은 서버 응답이 아니라 폰이 아는 값이다(SQ-43, BE1).
  * 연산들은 하나의 Mutex로 차례로 돈다(발급과 로그아웃 표시가 엇갈리지 않게).
  */
 @Singleton
@@ -85,19 +84,27 @@ class WatchSessionPublisher internal constructor(
                 .mapNotNull { it.sourceNodeId }
                 .collect { onSessionRequested(it) }
         }
+        // 로그인·워치연동·워치 연결을 한 흐름으로 본다(따로 구독하면 시작 직후 노드 조회와 엇갈려 첫 연결을 놓칠 수 있다).
+        // 보낼 수 있고 워치가 닿으면 보내고, 보낼 수 없으면 로그아웃 표시를 넣는다. 워치가 다시 닿을 때도 다시 보므로 넣지 못했던
+        // 로그아웃 표시를 다시 넣는다. 두 연산 모두 이미 한 일이면 아무것도 하지 않는다.
         scope.launch {
-            combine(sessionRepository.loggedIn, settings.changes().map { it.isWatchLinked }) { loggedIn, linked ->
-                loggedIn && linked
-            }.distinctUntilChanged()
-                .collect { isAllowed -> if (isAllowed) publishIfNeeded() else revokePublished() }
-        }
-        scope.launch {
-            transport.connected
-                .drop(1)
-                .filter { it }
-                .collect { publishIfNeeded() }
+            combine(
+                sessionRepository.loggedIn,
+                settings.changes().map { it.isWatchLinked },
+                transport.connected
+            ) { loggedIn, linked, connected -> Gate(isAllowed = loggedIn && linked, isReachable = connected) }
+                .distinctUntilChanged()
+                .collect { gate ->
+                    when {
+                        !gate.isAllowed -> revokePublished()
+                        gate.isReachable -> publishIfNeeded()
+                    }
+                }
         }
     }
+
+    /** 보내도 되는가(로그인·워치연동)와 워치가 닿는가. */
+    private data class Gate(val isAllowed: Boolean, val isReachable: Boolean)
 
     /** 워치가 로그인 정보를 요청했다(FR-242): 이미 보냈어도 새로 받아 그 워치에 보낸다. 로그아웃·워치연동 꺼짐이면 보내지 않는다. */
     suspend fun onSessionRequested(nodeId: String) = lock.withLock {
@@ -159,9 +166,12 @@ class WatchSessionPublisher internal constructor(
 
     private suspend fun revoke(memberId: Long) {
         val revoked = SessionRevokedMessage(memberId, clock.millis())
-        if (transport.putItem(WearPaths.SESSION_REVOKED, revoked.encode())) {
-            if (memory.publishedMemberId() == memberId) memory.forget()
+        if (!transport.putItem(WearPaths.SESSION_REVOKED, revoked.encode())) {
+            // 보낸 회원 기억을 남겨 다음 앱 시작·워치 연결 때 다시 넣는다(워치에 갱신 토큰이 남지 않게, FR-019).
+            Timber.w("워치 로그아웃 표시를 넣지 못했다: 다음 시작·연결 때 다시 넣는다")
+            return
         }
+        if (memory.publishedMemberId() == memberId) memory.forget()
     }
 
     /** 앱 전용 SharedPreferences에 보낸 회원 ID만 둔다. 토큰은 두지 않는다. */

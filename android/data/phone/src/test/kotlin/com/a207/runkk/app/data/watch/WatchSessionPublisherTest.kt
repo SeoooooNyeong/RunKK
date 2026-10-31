@@ -217,6 +217,23 @@ class WatchSessionPublisherTest {
     }
 
     @Test
+    fun `로그아웃 표시를 넣지 못하면 기억을 남겨 워치가 다시 닿을 때 넣는다(FR-019)`() = runTest {
+        publisher().start()
+        transport.canPutItems = false
+
+        session.loggedIn.value = false
+        assertEquals(7L, memory.memberId)
+
+        transport.canPutItems = true
+        transport.connected.value = false
+        transport.connected.value = true
+
+        assertEquals(1, transport.of("put", WearPaths.SESSION_REVOKED).size)
+        assertNull(memory.memberId)
+        assertEquals(1, accounts.issued)
+    }
+
+    @Test
     fun `보낸 적이 없으면 로그아웃해도 로그아웃 표시를 넣지 않는다`() = runTest {
         session.loggedIn.value = false
         settings.state.value = SettingsSnapshot.SAFE
