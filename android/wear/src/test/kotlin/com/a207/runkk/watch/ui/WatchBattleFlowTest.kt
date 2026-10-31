@@ -95,6 +95,25 @@ class WatchBattleFlowTest {
     }
 
     @Test
+    fun `기본 대결 거리는 서버 기본값이고 대기 중이면 대기 거리이며 읽지 못하면 null이다(FR-109)`() = runTest {
+        val h = harness()
+        assertNull(h.flow.defaultDistance())
+
+        battles.matchStatusAnswer =
+            Outcome.Success(MatchAcceptance(isWaiting = false, distance = null, defaultDistance = Distance(3_000)))
+        assertEquals(Distance(3_000), h.flow.defaultDistance())
+
+        battles.matchStatusAnswer = Outcome.Success(
+            MatchAcceptance(isWaiting = true, distance = Distance(10_000), defaultDistance = Distance(3_000))
+        )
+        assertEquals(Distance(10_000), h.flow.defaultDistance())
+
+        battles.matchStatusAnswer =
+            Outcome.Success(MatchAcceptance(isWaiting = true, distance = null, defaultDistance = Distance(3_000)))
+        assertEquals(Distance(3_000), h.flow.defaultDistance())
+    }
+
+    @Test
     fun `대기 채널을 연결하지 못하면 매칭을 요청하지 않는다`() = runTest {
         live.isConnectFailing = true
         val h = harness()

@@ -250,7 +250,10 @@ class FakeBattleRepository : BattleRepository {
         return tracks[kind]?.let { Outcome.Success(it) } ?: Outcome.Failure(AppError.Network)
     }
 
-    override suspend fun matchStatus(): Outcome<MatchAcceptance> = unused()
+    /** 매칭 상태 응답(기본 대결 거리, FR-109). 기본은 Network 실패다. */
+    var matchStatusAnswer: Outcome<MatchAcceptance> = Outcome.Failure(AppError.Network)
+
+    override suspend fun matchStatus(): Outcome<MatchAcceptance> = matchStatusAnswer
 
     override suspend fun requestMatch(distance: Distance): Outcome<MatchAcceptance> {
         matchRequests += distance
