@@ -14,6 +14,7 @@ import com.a207.runkk.app.domain.run.HeartRateSample
 import com.a207.runkk.app.domain.run.LateHeartRates
 import com.a207.runkk.app.domain.run.PauseInterval
 import com.a207.runkk.app.domain.run.RoutePoint
+import com.a207.runkk.app.domain.run.RunStartSpec
 import com.a207.runkk.app.domain.run.UnstableSegment
 import com.a207.runkk.app.domain.run.UploadScheduler
 import com.a207.runkk.app.domain.run.UploadState
@@ -76,6 +77,15 @@ class RoomPendingRunRepositoryTest {
         repository.save(run)
 
         assertEquals(pauses, (repository.pending() as Outcome.Success).value.single().pauses)
+    }
+
+    @Test
+    fun `워치에서 시작한 기록의 시작 기기를 왕복한다(D-378)`() = runTest {
+        val run = completedRun("r-w").copy(startDevice = RunStartSpec.StartDevice.WATCH)
+
+        repository.save(run)
+
+        assertEquals(Outcome.Success(listOf(run)), repository.pending())
     }
 
     @Test

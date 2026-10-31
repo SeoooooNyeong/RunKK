@@ -515,6 +515,10 @@ private class NoWatch : WatchGateway {
     override fun publish(d: WatchDisplay) = Unit
 
     override fun isConnected() = false
+
+    var isMeasuringOnWatch = false
+
+    override fun isWatchMeasuring(): Boolean = isMeasuringOnWatch
 }
 
 private class ConsentedSettings : SettingsRepository {
@@ -548,12 +552,20 @@ class BattleWorld(
     val channels: FakeLiveChannels = FakeLiveChannels()
 ) {
     private val silent = Silent()
+    private val watch = NoWatch()
+
+    /** 짝지은 워치가 스스로 측정 중인가(FR-252). 시험이 바꾼다. */
+    var isWatchMeasuring: Boolean
+        get() = watch.isMeasuringOnWatch
+        set(value) {
+            watch.isMeasuringOnWatch = value
+        }
     val pendingRuns = NoPendingRuns()
     val uploads = BattleRecordUploads(pendingRuns)
     val tracker =
         RunTracker(
             RunArchive(pendingRuns, silent, scope),
-            RunWatchBridge(NoWatch(), scope),
+            RunWatchBridge(watch, scope),
             RunCoach(silent, ConsentedSettings()),
             MeasurementRuntime(permission, silent, ConsentedSettings(), clock)
         )

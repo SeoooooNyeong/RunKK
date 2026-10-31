@@ -14,6 +14,7 @@ import com.a207.runkk.running.RunUpload;
 import com.a207.runkk.running.RunUploadCommand;
 import com.a207.runkk.running.RunUploadService;
 import com.a207.runkk.running.SignalState;
+import com.a207.runkk.running.StartDevice;
 import com.a207.runkk.running.UnstableSegment;
 import com.a207.runkk.running.UploadResult;
 import jakarta.validation.Valid;
@@ -120,6 +121,7 @@ public class RunController {
      * @param heartRates 심박
      * @param pauses 자유 러닝 정지 구간(v0.11 FR-036, D-93), null·빈 목록이면 정지 없음. 규칙 위반은 RunUpload 생성자가
      *     IllegalArgumentException(400)으로 거부한다(F.2.2, D-163)
+     * @param startDevice 기록을 시작한 기기(선택, W23, D-378). 없거나 null이면 PHONE(옛 앱), 모르는 값은 400
      */
     record RunUploadRequest(
             @NotBlank @Size(max = 36) String recordId,
@@ -135,7 +137,8 @@ public class RunController {
             @NotNull @Size(max = MAX_POINTS) List<@Valid @NotNull PointRequest> points,
             @Size(max = MAX_POINTS) List<@Valid @NotNull SegmentRequest> unstableSegments,
             @Size(max = MAX_POINTS) List<@Valid @NotNull HeartRateRequest> heartRates,
-            @Size(max = RunUpload.MAX_PAUSES) List<@Valid @NotNull PauseRequest> pauses) {
+            @Size(max = RunUpload.MAX_PAUSES) List<@Valid @NotNull PauseRequest> pauses,
+            StartDevice startDevice) {
 
         RunUpload toUpload(ZoneId zone) {
             return new RunUpload(
@@ -158,7 +161,8 @@ public class RunController {
                             : heartRates.stream().map(h -> h.toSample(zone)).toList(),
                     pauses == null
                             ? List.of()
-                            : pauses.stream().map(p -> p.toInterval(zone)).toList());
+                            : pauses.stream().map(p -> p.toInterval(zone)).toList(),
+                    startDevice);
         }
     }
 

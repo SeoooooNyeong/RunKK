@@ -18,18 +18,11 @@ import com.a207.runkk.wear.contract.PauseRequestMessage
 import com.a207.runkk.wear.contract.ProximityMessage
 import com.a207.runkk.wear.contract.StartRequestMessage
 import com.a207.runkk.wear.contract.WatchDisplayMessage
+import com.a207.runkk.wear.contract.WatchMeasuringMessage
 import com.a207.runkk.wear.contract.WearPaths
-import com.google.android.gms.wearable.CapabilityClient
-import com.google.android.gms.wearable.CapabilityInfo
-import com.google.android.gms.wearable.DataClient
-import com.google.android.gms.wearable.DataEvent
-import com.google.android.gms.wearable.DataEventBuffer
-import com.google.android.gms.wearable.MessageClient
-import com.google.android.gms.wearable.MessageEvent
-import com.google.android.gms.wearable.PutDataRequest
-import com.google.android.gms.wearable.Wearable
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -75,13 +68,21 @@ class WatchLink internal constructor(
     private val noticeText: (WatchNotice) -> String = { it.name },
     private val clock: Clock = Clock.systemUTC()
 ) : WatchGateway {
+    /**
+     * 운영 조립. 송수신(PlayServicesTransport)은 WatchSessionPublisher와 같은 객체를 나눠 쓴다. WatchLink는 앱 시작 때
+     * (WatchHomeSync → RunTracker → RunWatchBridge) 만들어지므로 여기서 워치 로그인 정보 보내기를 시작한다(A2 결정).
+     */
     @Inject
-    constructor(
+    internal constructor(
         @ApplicationContext context: Context,
+        transport: PlayServicesTransport,
         settings: SettingsRepository,
         scope: CoroutineScope,
-        clock: Clock
-    ) : this(PlayServicesTransport(context, scope), settings, scope, { context.getString(it.textRes()) }, clock)
+        clock: Clock,
+        sessionPublisher: WatchSessionPublisher
+    ) : this(transport, settings, scope, { context.getString(it.textRes()) }, clock) {
+        sessionPublisher.start()
+    }
 
     /** Data Layer 송수신. 운영은 Play 서비스, 시험은 가짜다. */
     internal interface Transport {
@@ -91,13 +92,29 @@ class WatchLink internal constructor(
         val connected: StateFlow<Boolean>
 
         fun send(path: String, payload: ByteArray)
+
+        /**
+         * 줄을 서지 않고 바로 보내고 끝날 때까지 기다린다(로그인 정보 WATCH_SESSION, MessageClient만, D-371). [nodeId]가 있으면 그 워치에만,
+         * 없으면 닿는 모든 워치에 보낸다. 한 곳에라도 보냈으면 참이다.
+         */
+        suspend fun sendNow(path: String, payload: ByteArray, nodeId: String?): Boolean
+
+        /** DataClient 항목을 넣는다(로그아웃 표시 SESSION_REVOKED, 비밀값 없음). 연결이 끊긴 동안에도 남았다가 전달된다. 넣었으면 참. */
+        suspend fun putItem(path: String, payload: ByteArray): Boolean
+
+        /** 이 경로의 DataClient 항목을 지운다(새 로그인 정보를 보낸 뒤 옛 로그아웃 표시, D-390). 지웠으면 참. */
+        suspend fun deleteItems(path: String): Boolean
     }
 
-    /** 워치에서 온 메시지·데이터 항목 하나(경로, 내용). */
-    internal class Incoming(val path: String, val payload: ByteArray)
+    /** 워치에서 온 메시지·데이터 항목 하나(경로, 내용, 보낸 워치 노드). */
+    internal class Incoming(val path: String, val payload: ByteArray, val sourceNodeId: String? = null)
 
     private val lock = Any()
     private var lastDisplay: WatchDisplay? = null
+
+    /** 마지막으로 받은 워치 측정 중 여부와 받은 시각(폰 시계). lock 안에서만 쓴다(D-373 (2), D-390). */
+    private var lastWatchMeasuring: WatchMeasuringMessage? = null
+    private var lastMeasuringAt: Instant? = null
 
     /** 이미 넘긴 심박의 측정 시각(밀리초). 워치가 같은 묶음을 다시 넣어도(DataItem 재동기화) 한 번만 넘긴다. lock 안에서만 쓴다. */
     private val seenHeartRates = LinkedHashSet<Long>()
@@ -130,6 +147,12 @@ class WatchLink internal constructor(
                 .distinctUntilChanged()
                 .collect { allowed -> resend(allowed) }
         }
+        scope.launch {
+            transport.incoming
+                .filter { it.path == WearPaths.WATCH_MEASURING }
+                .mapNotNull { decodeOrNull { WatchMeasuringMessage.decode(it.payload) } }
+                .collect(::onWatchMeasuring)
+        }
         // 워치가 (다시) 연결되면 시작 화면·진행 표시와 수집 허용 여부를 바로 맞춘다.
         scope.launch {
             transport.connected
@@ -145,6 +168,25 @@ class WatchLink internal constructor(
     }
 
     override fun isConnected(): Boolean = transport.connected.value
+
+    /**
+     * 짝지은 워치가 스스로 측정 중인가(FR-252, D-373 (2), 3.6). 마지막으로 받은 WATCH_MEASURING이 참이고, 받은 지 [MEASURING_TTL] 안이고,
+     * 워치가 닿을 때만 참이다. 워치 앱이 강제 종료돼 거짓이 오지 않아도 폰 측정이 막힌 채 남지 않는다(D-390, H-57). 시각은 워치 시계가
+     * 아니라 폰이 받은 시각([clock])으로 잰다(두 기기 시계 차이와 무관하게).
+     */
+    override fun isWatchMeasuring(): Boolean {
+        val (last, at) = synchronized(lock) { lastWatchMeasuring to lastMeasuringAt }
+        if (last?.isMeasuring != true || at == null || !transport.connected.value) return false
+        return Duration.between(at, clock.instant()) <= MEASURING_TTL
+    }
+
+    /** 워치 측정 중 여부를 받았다. 늦게 도착한 옛 메시지(보낸 시각이 마지막 값보다 이름)는 버린다. */
+    private fun onWatchMeasuring(message: WatchMeasuringMessage) = synchronized(lock) {
+        val last = lastWatchMeasuring
+        if (last != null && message.atEpochMillis < last.atEpochMillis) return@synchronized
+        lastWatchMeasuring = message
+        lastMeasuringAt = clock.instant()
+    }
 
     /** 워치 일시정지·재개 요청(FR-194). 모르는 action(해독 실패)은 버리고 경고 로그를 남긴다(D-157 (6)). 시각은 폰이 처리 때 정한다. */
     override val pauseRequests: Flow<WatchGateway.PauseAction> =
@@ -205,6 +247,9 @@ class WatchLink internal constructor(
     private companion object {
         /** 심박 1초 간격으로 1시간 남짓. */
         const val SEEN_LIMIT = 4_096
+
+        /** 워치 측정 중(참)을 믿는 시간 (제안) 90초. 워치는 측정 중 30초마다 다시 보낸다(D-390, R69 H-57). */
+        val MEASURING_TTL: Duration = Duration.ofSeconds(90)
     }
 }
 

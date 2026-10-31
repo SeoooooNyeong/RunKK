@@ -36,7 +36,8 @@ internal fun CompletedRun.toRequest(): RunUploadRequest = RunUploadRequest(
     heartRates = heartRates.map { it.toRequest() },
     pauses = pauses.map {
         RunUploadRequest.Pause(ServerTime.formatWithOffset(it.from), ServerTime.formatWithOffset(it.to))
-    }
+    },
+    startDevice = startDevice.name
 )
 
 /** 정지 시간 합. */

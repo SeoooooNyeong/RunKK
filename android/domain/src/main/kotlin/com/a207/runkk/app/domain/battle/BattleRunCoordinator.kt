@@ -245,6 +245,10 @@ constructor(
      * 그 사이 화면이 떠났으면 [abandonInvite]가 만들어진 초대를 취소한다(남은 초대가 랜덤 매칭을 막지 않게, D-271).
      */
     suspend fun createInvite(distance: Distance): Outcome<FriendInvite> {
+        // 짝지은 워치가 측정 중이면 초대를 만들지 않는다(FR-252, D-373 (2)): 상대가 참가한 뒤 카운트다운 끝에 거부되지 않게.
+        if (runTracker.isWatchMeasuring) {
+            return Outcome.Failure(AppError.Rejected(AppError.Rejected.WATCH_MEASURING))
+        }
         val created = applicationScope.async { battleRepository.createFriendInvite(distance) }
         inviteJob = created
         return created.await()
@@ -267,6 +271,13 @@ constructor(
     fun forgetInvite() {
         inviteJob = null
     }
+
+    /**
+     * 짝지은 워치가 스스로 측정 중인가(FR-252, D-373 (2)). 서버에 대결을 만들기 전(나와의 싸움·유명인 시작, 친구 초대 참가)에 화면이 읽어
+     * 3초 카운트다운 뒤 RunTracker.startRun에서 거부되지 않게 한다.
+     */
+    val isWatchMeasuring: Boolean
+        get() = runTracker.isWatchMeasuring
 
     /** 대결에 참가할 수 없을 만큼 바쁜가: 열린 회가 있거나 자유런 등 측정 중이다(친구 대결 참가 전 확인, D-273). */
     fun isBusy(): Boolean = run != null || runTracker.isMeasuring

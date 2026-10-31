@@ -183,6 +183,11 @@ class RunViewModel @Inject constructor(
                 isVibrationOn = current.isVibrationOn
             )
         }
+        // 짝지은 워치가 스스로 측정 중이면 카운트다운에 들어가지 않는다(FR-252, D-373): 3초 뒤 startRun에서 거부되지 않게 먼저 본다.
+        if (tracker.isWatchMeasuring) {
+            _state.update { it.copy(error = RunkkErrorText.rejected(AppError.Rejected.WATCH_MEASURING)) }
+            return
+        }
         val startable = tracker.checkStartable()
         if (startable is Outcome.Failure) {
             // 권한·동의 없음은 RunTracker가 consentRequired를 참으로 두고 화면이 재동의 안내를 보인다(design-review.md M25).

@@ -2751,6 +2751,9 @@
       "name" : "pauses",
       "kind" : "list",
       "ref" : "RunController.PauseRequest"
+    }, {
+      "name" : "startDevice",
+      "kind" : "leaf"
     } ],
     "file" : "web/run/RunController.java"
   },

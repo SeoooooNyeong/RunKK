@@ -906,6 +906,27 @@ class BattleRunCoordinatorTest {
         assertTrue(log.calls.isEmpty(), "서버 대기열에 등록하지 않는다")
     }
 
+    @Test
+    fun `D-373 워치가 측정 중이면 친구 초대를 만들지 않고 WATCH_MEASURING으로 거부한다`() = runTest {
+        val (_, coordinator) = setUp()
+        watch.watchMeasuring = true
+
+        val result = coordinator.createInvite(Distance(1_000))
+
+        assertEquals(Outcome.Failure(AppError.Rejected(AppError.Rejected.WATCH_MEASURING)), result)
+        assertTrue(log.calls.isEmpty(), "서버에 초대를 만들지 않는다")
+    }
+
+    @Test
+    fun `D-373 대결 화면이 시작 전에 워치 측정 중인지 읽는다`() = runTest {
+        val (_, coordinator) = setUp()
+        assertFalse(coordinator.isWatchMeasuring)
+
+        watch.watchMeasuring = true
+
+        assertTrue(coordinator.isWatchMeasuring)
+    }
+
     private val offlineSelf =
         OfflineRecordBattle(
             kind = RecordBattleKind.SELF,

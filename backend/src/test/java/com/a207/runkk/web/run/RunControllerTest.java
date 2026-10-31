@@ -1,5 +1,6 @@
 package com.a207.runkk.web.run;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -9,6 +10,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.a207.runkk.running.LocationPoint;
 import com.a207.runkk.running.RunFixtures;
+import com.a207.runkk.running.RunRecordRepository;
+import com.a207.runkk.running.StartDevice;
 import com.a207.runkk.web.WebTestSupport;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -18,6 +21,7 @@ import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 
 /** POST /runs, POST /runs/{id}/heart-rates, GET /me/disposals, POST /me/disposals/{id}/confirm. */
@@ -25,6 +29,8 @@ import org.springframework.http.MediaType;
 class RunControllerTest extends WebTestSupport {
 
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
+
+    @Autowired private RunRecordRepository runs;
     private static final LocalDateTime START = LocalDateTime.of(2026, 10, 20, 7, 0);
 
     private static String at(LocalDateTime t) {
@@ -246,6 +252,33 @@ class RunControllerTest extends WebTestSupport {
                     .andExpect(status().isConflict())
                     .andExpect(jsonPath("$.code").value("RECORD_NOT_FOUND"));
         }
+    }
+
+    @Test
+    @DisplayName("W23: startDevice(PHONE·WATCH)는 선택 항목이고 없거나 null이면 PHONE으로 저장한다, 모르는 값은 400")
+    void upload_startDevice() throws Exception {
+        Session s = signUp();
+        String watchId = UUID.randomUUID().toString();
+        Map<String, Object> watch = run(watchId, 5_000, 1_500);
+        watch.put("startDevice", "WATCH");
+        expectStatus(s, watch, 200);
+        String oldAppId = UUID.randomUUID().toString();
+        expectStatus(s, run(oldAppId, 5_000, 1_500), 200);
+        String nullId = UUID.randomUUID().toString();
+        Map<String, Object> nullDevice = run(nullId, 5_000, 1_500);
+        nullDevice.put("startDevice", null);
+        expectStatus(s, nullDevice, 200);
+
+        assertThat(runs.findById(watchId).orElseThrow().getStartDevice())
+                .isEqualTo(StartDevice.WATCH);
+        assertThat(runs.findById(oldAppId).orElseThrow().getStartDevice())
+                .isEqualTo(StartDevice.PHONE);
+        assertThat(runs.findById(nullId).orElseThrow().getStartDevice())
+                .isEqualTo(StartDevice.PHONE);
+
+        Map<String, Object> unknown = run(UUID.randomUUID().toString(), 5_000, 1_500);
+        unknown.put("startDevice", "TABLET");
+        expectStatus(s, unknown, 400);
     }
 
     @Test

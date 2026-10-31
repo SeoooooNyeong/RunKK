@@ -2,22 +2,6 @@ package com.a207.runkk.app.data.watch
 
 import android.content.Context
 import android.net.Uri
-import androidx.annotation.StringRes
-import com.a207.runkk.app.data.phone.R
-import com.a207.runkk.app.domain.run.Guidance
-import com.a207.runkk.app.domain.run.HeartRateSample
-import com.a207.runkk.app.domain.run.ProximityAlert
-import com.a207.runkk.app.domain.run.WatchDisplay
-import com.a207.runkk.app.domain.run.WatchGateway
-import com.a207.runkk.app.domain.run.WatchNotice
-import com.a207.runkk.app.domain.settings.SettingsRepository
-import com.a207.runkk.wear.contract.EndRequestMessage
-import com.a207.runkk.wear.contract.HeartRateBatchMessage
-import com.a207.runkk.wear.contract.LeadChangeMessage
-import com.a207.runkk.wear.contract.PauseRequestMessage
-import com.a207.runkk.wear.contract.ProximityMessage
-import com.a207.runkk.wear.contract.StartRequestMessage
-import com.a207.runkk.wear.contract.WatchDisplayMessage
 import com.a207.runkk.wear.contract.WearPaths
 import com.google.android.gms.wearable.CapabilityClient
 import com.google.android.gms.wearable.CapabilityInfo
@@ -29,37 +13,35 @@ import com.google.android.gms.wearable.MessageEvent
 import com.google.android.gms.wearable.PutDataRequest
 import com.google.android.gms.wearable.Wearable
 import dagger.hilt.android.qualifiers.ApplicationContext
-import java.time.Clock
-import java.time.Instant
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.drop
-import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
-import kotlinx.serialization.SerializationException
 import timber.log.Timber
 
 /**
  * Play 서비스 Wearable API 송수신. 앱 프로세스가 살아 있는 동안 리스너를 단다(측정 중에는 MeasurementService가 프로세스를 살린다).
  * 심박 데이터 항목은 읽은 뒤 지워 다시 오지 않게 하고, 앱이 꺼져 있던 동안 쌓인 항목은 시작 때 한 번 읽는다.
  * 워치가 없거나 Play 서비스가 없으면 보내기는 조용히 버린다(측정은 폰만으로 계속된다).
+ * WatchLink와 WatchSessionPublisher가 한 객체를 나눠 쓴다(리스너·노드 목록을 한 벌만 둔다).
  */
-internal class PlayServicesTransport(context: Context, private val scope: CoroutineScope) : WatchLink.Transport {
+@Singleton
+internal class PlayServicesTransport
+@Inject
+constructor(
+    @ApplicationContext context: Context,
+    private val scope: CoroutineScope
+) : WatchLink.Transport {
     private val messages: MessageClient = Wearable.getMessageClient(context)
     private val data: DataClient = Wearable.getDataClient(context)
     private val capabilities: CapabilityClient = Wearable.getCapabilityClient(context)
@@ -113,6 +95,24 @@ internal class PlayServicesTransport(context: Context, private val scope: Corout
         wakeUp.trySend(Unit)
     }
 
+    override suspend fun sendNow(path: String, payload: ByteArray, nodeId: String?): Boolean {
+        if (nodeId == null && nodeIds.isEmpty()) quietly { refreshNodes() }
+        val targets = nodeId?.let(::listOf) ?: nodeIds
+        val delivered = targets.count { node -> quietly { messages.sendMessage(node, path, payload).await() } != null }
+        return delivered > 0
+    }
+
+    override suspend fun putItem(path: String, payload: ByteArray): Boolean = quietly {
+        data.putDataItem(PutDataRequest.create(path).setData(payload).setUrgent()).await()
+        true
+    } ?: false
+
+    override suspend fun deleteItems(path: String): Boolean = quietly {
+        // 노드(host)를 비운 주소는 모든 노드의 같은 경로 항목을 가리킨다.
+        data.deleteDataItems(Uri.Builder().scheme(PutDataRequest.WEAR_URI_SCHEME).path(path).build()).await()
+        true
+    } ?: false
+
     /** 워치가 없으면(닿는 노드 0) 보내지 않고 버린다. 노드 목록은 능력 변화·워치 메시지로 갱신된다. */
     private suspend fun deliver(path: String, payload: ByteArray) {
         nodeIds.forEach { nodeId -> messages.sendMessage(nodeId, path, payload).await() }
@@ -121,7 +121,7 @@ internal class PlayServicesTransport(context: Context, private val scope: Corout
     /** 워치가 보낸 메시지는 그 노드가 닿는다는 뜻이다(능력 알림보다 먼저 올 수 있다). */
     private fun onMessage(event: MessageEvent) {
         if (event.sourceNodeId !in nodeIds) updateNodes(nodeIds + event.sourceNodeId)
-        received.tryEmit(WatchLink.Incoming(event.path, event.data))
+        received.tryEmit(WatchLink.Incoming(event.path, event.data, event.sourceNodeId))
     }
 
     private fun onCapabilityChanged(info: CapabilityInfo) {
@@ -162,17 +162,17 @@ internal class PlayServicesTransport(context: Context, private val scope: Corout
         }
     }
 
-    private suspend fun quietly(block: suspend () -> Unit) {
-        try {
-            block()
-        } catch (e: CancellationException) {
-            throw e
-        } catch (
-            @Suppress("TooGenericExceptionCaught") e: Exception
-        ) {
-            // Play 서비스·워치 없음(ApiException), 연결 끊김: 워치 없이도 측정은 계속된다. 원인은 기록으로 남긴다(리뷰 N-6).
-            Timber.d(e, "워치 통신 실패")
-        }
+    /** 실패하면 기록만 하고 null을 돌려준다. */
+    private suspend fun <T> quietly(block: suspend () -> T): T? = try {
+        block()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (
+        @Suppress("TooGenericExceptionCaught") e: Exception
+    ) {
+        // Play 서비스·워치 없음(ApiException), 연결 끊김: 워치 없이도 측정은 계속된다. 원인은 기록으로 남긴다(리뷰 N-6).
+        Timber.d(e, "워치 통신 실패")
+        null
     }
 
     private companion object {

@@ -9,6 +9,7 @@ import com.a207.runkk.app.domain.run.CompletedRun
 import com.a207.runkk.app.domain.run.HeartRateSample
 import com.a207.runkk.app.domain.run.PauseInterval
 import com.a207.runkk.app.domain.run.RoutePoint
+import com.a207.runkk.app.domain.run.RunStartSpec
 import com.a207.runkk.app.domain.run.UnstableSegment
 import com.a207.runkk.app.domain.run.UploadState
 import java.io.ByteArrayInputStream
@@ -43,7 +44,8 @@ internal fun CompletedRun.toEntity(): PendingRunEntity = PendingRunEntity(
     uploadState = uploadState.name,
     savedAtMillis = savedAt.toEpochMilli(),
     sentAtMillis = null,
-    pauses = encodePauses(pauses)
+    pauses = encodePauses(pauses),
+    startDevice = startDevice.name
 )
 
 internal fun PendingRunEntity.toDomain(): CompletedRun = CompletedRun(
@@ -59,6 +61,7 @@ internal fun PendingRunEntity.toDomain(): CompletedRun = CompletedRun(
     unstable = decodeUnstable(unstable),
     heartRates = decodeHeartRates(heartRates),
     pauses = decodePauses(pauses),
+    startDevice = RunStartSpec.StartDevice.valueOf(startDevice),
     uploadState = UploadState.valueOf(uploadState),
     savedAt = Instant.ofEpochMilli(savedAtMillis)
 )
