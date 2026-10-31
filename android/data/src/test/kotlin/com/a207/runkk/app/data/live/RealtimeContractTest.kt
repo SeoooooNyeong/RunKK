@@ -64,7 +64,7 @@ class RealtimeContractTest {
                         myBest = Duration.ofSeconds(1_625),
                         opponentBest = Duration.ofSeconds(1_580),
                         animationSeconds = 3,
-                        opponentGender = Gender.FEMALE
+                        opponentGender = Gender.MALE
                     ),
                 "BattleStart" to
                     BattleStart(

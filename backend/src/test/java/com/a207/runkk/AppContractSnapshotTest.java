@@ -3,6 +3,7 @@ package com.a207.runkk;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.a207.runkk.member.TierProgress;
+import com.a207.runkk.notification.NotificationType;
 import com.a207.runkk.running.ValidityRule;
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -43,9 +44,9 @@ import org.junit.jupiter.api.Test;
 /**
  * 앱 계약 자료 동기화 시험(재발 방지). 앱 android/contract/sync_from_server.py가 서버 소스에서 뽑는 값 계약 — enum 상수, 오류 응답
  * code, web 요청·응답 record(항목 이름·필수 여부·별칭·중첩 형식), 유효 판정 초과 시속 상한(policy/ValidityRule.txt), 첫 티어 배치
- * 횟수(policy/TierPlacement.txt) — 을 서버에서 반사(reflection)로 같은 형식으로 만들어
- * src/test/resources/contract/app/의 기준 파일과 비교한다. 서버 계약이 바뀌면 이 시험이 실패하고, 기준 파일을 갱신하면 그 변경분이 곧 앱
- * 작업자에게 넘길 계약 변경 목록이다.
+ * 횟수(policy/TierPlacement.txt), 닫힌 기능 알림 분류(policy/GatedNotification.txt) — 을 서버에서 반사(reflection)로
+ * 같은 형식으로 만들어 src/test/resources/contract/app/의 기준 파일과 비교한다. 서버 계약이 바뀌면 이 시험이 실패하고, 기준 파일을 갱신하면 그
+ * 변경분이 곧 앱 작업자에게 넘길 계약 변경 목록이다.
  */
 @DisplayName("앱 계약 자료(enum·오류 code·web record) 기준 파일과 서버가 같다")
 class AppContractSnapshotTest {
@@ -251,7 +252,22 @@ class AppContractSnapshotTest {
                 text(List.of("maxSpeedKmh " + ValidityRule.STANDARD.maxSpeedKmh())));
         // 앱 랜덤 대결 잠금(RandomBattleGate.PLACEMENT_RUNS)이 같은 첫 배치 횟수로 남은 횟수를 세도록 넘긴다(H-44, D-333)
         files.put("policy/TierPlacement.txt", text(List.of("placementRuns " + tierPlacement())));
+        // 앱 GatedFeature(알림함·시스템 푸시 숨김)가 서버 푸시 차단(D138)과 같은 종류 집합을 쓰도록 넘긴다(H-47). 딸린 기능이 없으면 "-"
+        files.put("policy/GatedNotification.txt", text(gatedNotifications()));
         return files;
+    }
+
+    /** "알림종류 미공개기능" 줄(NotificationType 순서). 딸린 기능이 없으면 "-". */
+    private static List<String> gatedNotifications() {
+        return Arrays.stream(NotificationType.values())
+                .map(
+                        t ->
+                                t.name()
+                                        + " "
+                                        + (t.gatedFeature() == null
+                                                ? "-"
+                                                : t.gatedFeature().name()))
+                .toList();
     }
 
     /** member.TierProgress.PLACEMENT(패키지 밖에서 보이지 않는 상수라 반사로 읽는다). */

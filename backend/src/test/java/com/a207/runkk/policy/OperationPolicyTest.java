@@ -30,6 +30,8 @@ class OperationPolicyTest {
         assertThat(policy.rewardRule()).isEqualTo(new RewardRule(10, 20, 200));
         assertThat(policy.selfieLimit()).isEqualTo(new SelfieLimit(1));
         assertThat(policy.features()).isEqualTo(new FeatureToggles(true, true));
+        assertThat(policy.features().crewReleased()).as("1차 배포는 크루 닫힘").isFalse();
+        assertThat(policy.features().avatarReleased()).as("1차 배포는 아바타 꾸미기 닫힘(D138)").isFalse();
         assertThat(policy.shopCatalog().items()).isEmpty();
         assertThat(policy.matchCondition().tierWindow()).isZero();
         assertThat(policy.coachingRule().defaultBpm()).isEqualTo(180);
@@ -68,10 +70,12 @@ class OperationPolicyTest {
                                 java.time.Duration.ofMinutes(5),
                                 3,
                                 12));
-        // 저장된 항목은 시작 때 채운 캐시에서, 없는 항목(SELFIE_ENABLED, CREW_RELEASED)은 한 번 읽은 뒤 캐시에서 읽는다
-        assertThat(repository.findCalls()).isEqualTo(callsAfterStart + 2);
+        // 저장된 항목은 시작 때 채운 캐시에서, 없는 항목(SELFIE_ENABLED, CREW_RELEASED, AVATAR_RELEASED)은 한 번 읽은 뒤
+        // 캐시에서
+        // 읽는다
+        assertThat(repository.findCalls()).isEqualTo(callsAfterStart + 3);
         policy.features();
-        assertThat(repository.findCalls()).isEqualTo(callsAfterStart + 2);
+        assertThat(repository.findCalls()).isEqualTo(callsAfterStart + 3);
     }
 
     @Test

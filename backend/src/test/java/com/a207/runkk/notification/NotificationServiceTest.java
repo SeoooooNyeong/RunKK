@@ -17,6 +17,8 @@ import com.a207.runkk.member.SettingItem;
 import com.a207.runkk.policy.InMemoryOperationSettingRepository;
 import com.a207.runkk.policy.NotificationRetention;
 import com.a207.runkk.policy.OperationPolicy;
+import com.a207.runkk.policy.OperationSetting;
+import com.a207.runkk.policy.SettingKey;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -66,13 +68,35 @@ class NotificationServiceTest {
                 }
             };
 
+    /** 크루·아바타 공개 뒤(CREW_RELEASED·AVATAR_RELEASED 켜짐) 운영 기준. 닫힌 기능 시험은 closedSettings를 쓴다. */
+    private final InMemoryOperationSettingRepository settings =
+            released(new InMemoryOperationSettingRepository());
+
+    private final InMemoryOperationSettingRepository closedSettings =
+            new InMemoryOperationSettingRepository();
+
+    private static InMemoryOperationSettingRepository released(
+            InMemoryOperationSettingRepository repository) {
+        for (SettingKey key : List.of(SettingKey.CREW_RELEASED, SettingKey.AVATAR_RELEASED)) {
+            OperationSetting setting = OperationSetting.initial(key, NOW);
+            setting.change("true", "KAKAO:1", NOW);
+            repository.save(setting);
+        }
+        return repository;
+    }
+
     private NotificationService serviceAt(LocalDateTime now) {
+        return serviceAt(now, settings);
+    }
+
+    private NotificationService serviceAt(
+            LocalDateTime now, InMemoryOperationSettingRepository operationSettings) {
         return new NotificationService(
                 notifications,
                 devices,
                 new MemberQueryService(members),
                 gateway,
-                new OperationPolicy(new InMemoryOperationSettingRepository()),
+                new OperationPolicy(operationSettings),
                 Clock.fixed(now.atZone(SEOUL).toInstant(), SEOUL));
     }
 
@@ -223,6 +247,70 @@ class NotificationServiceTest {
         service.notifyCollapsing(
                 new NotificationRequest(gone, NotificationType.CREW_CHAT, "메시지", crew7));
         assertThat(notifications.size()).isEqualTo(1);
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName(
+            "D138: 크루·아바타 공개 전(운영 기준 기본 false)에는 그 종류를 알림함에만 저장하고 푸시하지 않는다, 그 밖의 종류는 푸시한다")
+    void notify_unreleasedFeature_savesWithoutPush() {
+        NotificationService closed = serviceAt(NOW, closedSettings);
+        long id = member("곰A");
+        closed.registerDevice(id, "t");
+        NavigationTarget crew7 = new NavigationTarget(Screen.CREW_CHAT, "7");
+
+        for (NotificationType type : NotificationType.values()) {
+            if (type.gatedFeature() != null) {
+                closed.notify(request(id, type));
+            }
+        }
+        closed.notifyCollapsing(
+                new NotificationRequest(id, NotificationType.CREW_CHAT, "메시지", crew7));
+        assertThat(pushed).isEmpty();
+        assertThat(collapseKeys).isEmpty();
+        assertThat(closed.inbox(id, Optional.empty()).items()).hasSize(19); // 닫힌 18종 + 묶음 1
+
+        closed.notify(request(id, NotificationType.OPPONENT_ARRIVED));
+        closed.notify(request(id, NotificationType.PLAN_MISSED));
+        assertThat(pushed).hasSize(2);
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("D138: 크루만 공개하면 크루 알림은 푸시하고 아바타 알림은 여전히 저장만 한다")
+    void notify_crewReleasedOnly_pushesCrewButNotAvatar() {
+        OperationSetting crew = OperationSetting.initial(SettingKey.CREW_RELEASED, NOW);
+        crew.change("true", "KAKAO:1", NOW);
+        closedSettings.save(crew);
+        NotificationService crewOnly = serviceAt(NOW, closedSettings);
+        long id = member("곰A");
+        crewOnly.registerDevice(id, "t");
+
+        crewOnly.notify(request(id, NotificationType.JOIN_DECIDED));
+        crewOnly.notify(request(id, NotificationType.BODY_SHAPE_CHANGED));
+        crewOnly.notify(request(id, NotificationType.BACKGROUND_UNLOCKED));
+
+        assertThat(pushed).hasSize(1);
+        assertThat(notifications.size()).isEqualTo(3);
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName(
+            "D138: 닫힌 기능 분류는 아바타 2종(체형·배경)과 크루 16종이다(앱 GatedFeature와 같은 집합)")
+    void gatedFeature_classification() {
+        assertThat(
+                        Arrays.stream(NotificationType.values())
+                                .filter(t -> t.gatedFeature() == GatedFeature.AVATAR_CUSTOMIZE)
+                                .toList())
+                .containsExactly(
+                        NotificationType.BODY_SHAPE_CHANGED, NotificationType.BACKGROUND_UNLOCKED);
+        assertThat(
+                        Arrays.stream(NotificationType.values())
+                                .filter(t -> t.gatedFeature() == GatedFeature.CREW))
+                .hasSize(16);
+        assertThat(Arrays.stream(NotificationType.values()).filter(t -> t.gatedFeature() == null))
+                .containsExactlyInAnyOrder(
+                        NotificationType.PLAN_MISSED,
+                        NotificationType.OPPONENT_ARRIVED,
+                        NotificationType.BATTLE_CORRECTED);
     }
 
     @Test

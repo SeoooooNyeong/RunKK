@@ -1,16 +1,26 @@
 package com.a207.runkk.policy;
 
 /**
- * 축소 운영 스위치 두 개(설계 6.1.9, plan.md 3.1.1).
+ * 축소 운영 스위치(설계 6.1.9, plan.md 3.1.1)와 2차 배포 기능 공개 스위치.
  *
  * @param selfieEnabled 셀카 생성 사용
  * @param aiCommentEnabled AI 코멘트 사용
+ * @param crewReleased 크루 공개(CREW_RELEASED, 기본 false)
+ * @param avatarReleased 아바타 꾸미기 공개(AVATAR_RELEASED, 기본 false, D138)
  */
 public record FeatureToggles(
-        boolean selfieEnabled, boolean aiCommentEnabled, boolean crewReleased) {
+        boolean selfieEnabled,
+        boolean aiCommentEnabled,
+        boolean crewReleased,
+        boolean avatarReleased) {
 
-    /** 크루 공개 전(crewReleased 거짓) 값. */
+    /** 크루·아바타 공개 전 값. */
     public FeatureToggles(boolean selfieEnabled, boolean aiCommentEnabled) {
-        this(selfieEnabled, aiCommentEnabled, false);
+        this(selfieEnabled, aiCommentEnabled, false, false);
+    }
+
+    /** 아바타 공개 전 값. */
+    public FeatureToggles(boolean selfieEnabled, boolean aiCommentEnabled, boolean crewReleased) {
+        this(selfieEnabled, aiCommentEnabled, crewReleased, false);
     }
 }

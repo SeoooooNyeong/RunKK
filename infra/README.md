@@ -115,6 +115,17 @@ SSAFY 배정 도메인(`k15a207.p.ssafy.io`)이 EC2를 가리키는지 확인한
 
 `SELFIE_ENABLED`(api 환경 변수, `application.yml runkk.features.selfie-enabled`)는 서버 스위치입니다. false면 관리툴의 운영 기준값 "셀카생성사용"이 켜져 있어도 셀카 변환을 막고(SELFIE_DISABLED) 앱에는 셀카 단추가 보이지 않습니다. compose 기본값은 꺼짐이라 prod `.env`에 넣지 않아도 꺼지고, 셀카를 시험하는 develop `.env`에만 `SELFIE_ENABLED=true`를 둡니다. 로컬 실행(local 프로필)과 시험은 켜진 채입니다.
 
+### 2차 배포 기능 공개 스위치
+
+크루와 아바타 꾸미기(체형·배경)는 환경 변수가 아니라 관리툴 운영 기준값으로 엽니다. `.env`와 compose에는 넣지 않습니다.
+
+| 운영 기준값 | 기본값 | 꺼져 있을 때 |
+|-------------|--------|--------------|
+| `CREW_RELEASED` | false | Runimal 동행 축이 크루런을 세지 않고, 크루 알림 16종은 알림함에만 저장하고 FCM 푸시를 보내지 않습니다 |
+| `AVATAR_RELEASED` | false | 체형 변화(`BODY_SHAPE_CHANGED`)·배경 해금(`BACKGROUND_UNLOCKED`) 알림을 알림함에만 저장하고 FCM 푸시를 보내지 않습니다 |
+
+DB에 행이 없으면 기본값(false)을 쓰므로 1차 배포(develop·prod)는 따로 넣지 않아도 닫혀 있습니다. 2차 배포에서 기능을 열 때 관리툴에서 true로 바꿉니다. 앱의 1차 배포 잠금 빌드(`LOCK_UNRELEASED`)도 같은 알림 종류를 숨기며, 두 분류는 계약 파일 `policy/GatedNotification.txt`로 대조합니다.
+
 ### 롤백
 
 - 보통은 GitLab에서 이전 성공 파이프라인의 `backend:deploy`를 다시 실행합니다(그 커밋으로 다시 빌드해 같은 환경에 올림).

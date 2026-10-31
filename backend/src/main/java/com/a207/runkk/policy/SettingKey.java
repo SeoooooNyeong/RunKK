@@ -194,10 +194,20 @@ public enum SettingKey {
         }
     },
     /**
-     * 크루(2차 배포 기능) 공개 여부(FR-223, v0.14 D-247·D-248). 거짓이면 Runimal 동행 축이 크루런을 세지 않는다. 행이 없으면 기본
-     * false(V2 규칙).
+     * 크루(2차 배포 기능) 공개 여부(FR-223, v0.14 D-247·D-248). 거짓이면 Runimal 동행 축이 크루런을 세지 않고, 크루 알림을 알림함에만
+     * 저장하고 푸시하지 않는다(D138). 행이 없으면 기본 false(V2 규칙).
      */
     CREW_RELEASED(Boolean.class, "false") {
+        @Override
+        ValidationResult checkRange(Object value) {
+            return ValidationResult.ok();
+        }
+    },
+    /**
+     * 아바타 꾸미기(체형·배경, 2차 배포 기능) 공개 여부(D138). 거짓이면 체형 변화·배경 해금 알림을 알림함에만 저장하고 푸시하지 않는다. 행이 없으면 기본
+     * false(CREW_RELEASED와 같다).
+     */
+    AVATAR_RELEASED(Boolean.class, "false") {
         @Override
         ValidationResult checkRange(Object value) {
             return ValidationResult.ok();

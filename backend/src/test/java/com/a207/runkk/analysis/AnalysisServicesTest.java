@@ -190,6 +190,91 @@ class AnalysisServicesTest {
         assertThat(alone.weekly()).isNull();
     }
 
+    /** 기록 저장소처럼 요청 범위 안 러닝 날짜만 돌려준다. 요청한 범위를 모은다. */
+    private List<DateRange> storedRunDays(Set<LocalDate> days) {
+        List<DateRange> asked = new ArrayList<>();
+        when(runs.dailyStats(eq(ME), any()))
+                .thenAnswer(
+                        inv -> {
+                            DateRange range = inv.getArgument(1);
+                            asked.add(range);
+                            Map<LocalDate, DayStats> result = new java.util.HashMap<>();
+                            days.stream()
+                                    .filter(range::contains)
+                                    .forEach(
+                                            d ->
+                                                    result.put(
+                                                            d,
+                                                            new DayStats(
+                                                                    d,
+                                                                    Distance.ofKm(3),
+                                                                    Duration.ofMinutes(18),
+                                                                    1)));
+                            return result;
+                        });
+        return asked;
+    }
+
+    /** 이번 주(TODAY가 속한 주)부터 거꾸로 weeks주 동안 매주 월요일 하루씩. skipThisWeek면 지난주부터. */
+    private static Set<LocalDate> mondays(int weeks, boolean skipThisWeek) {
+        LocalDate monday = TODAY.with(java.time.DayOfWeek.MONDAY);
+        if (skipThisWeek) {
+            monday = monday.minusWeeks(1);
+        }
+        Set<LocalDate> days = new java.util.HashSet<>();
+        for (int i = 0; i < weeks; i++) {
+            days.add(monday.minusWeeks(i));
+        }
+        return days;
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest(name = "{0}주 연속, 이번 주 기록 없음={1}")
+    @org.junit.jupiter.params.provider.CsvSource({
+        "11, false",
+        "12, false",
+        "13, false",
+        "53, false",
+        "130, false",
+        "11, true",
+        "12, true",
+        "13, true",
+        "53, true"
+    })
+    @org.junit.jupiter.api.DisplayName("대시보드 주 연속: 잔디 범위(12주)에 묶이지 않고 끊길 때까지 센다(D136, BE10-2)")
+    void dashboard_streakWeeks_isNotCappedByGrassRange(int weeks, boolean skipThisWeek) {
+        Set<LocalDate> days = mondays(weeks, skipThisWeek);
+        // 연속 바로 앞 주는 비우고 그 앞에 기록을 하나 더 둔다(끊긴 뒤 기록은 세지 않는다)
+        LocalDate oldest = days.stream().min(LocalDate::compareTo).orElseThrow();
+        days.add(oldest.minusWeeks(2));
+        List<DateRange> asked = storedRunDays(days);
+        DashboardService service =
+                new DashboardService(runs, goals, crews, members, policy, rewards, clock);
+
+        DashboardView view = service.dashboard(ME, null);
+
+        assertThat(view.streakWeeks()).isEqualTo(weeks);
+        assertThat(view.grass().cells()).as("잔디는 그대로 12주(11주 + 이번 주 월~수)").hasSize(80);
+        assertThat(asked).as("회원 한 명 조회는 잔디 1번 + 52주씩 몇 번").hasSizeLessThanOrEqualTo(4);
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("대시보드 일 연속: 12주(84일)를 넘는 연속도 끊길 때까지 센다(D136)")
+    void dashboard_streakDays_isNotCappedByGrassRange() {
+        Set<LocalDate> days = new java.util.HashSet<>();
+        for (int i = 0; i < 100; i++) {
+            days.add(TODAY.minusDays(i));
+        }
+        days.add(TODAY.minusDays(110)); // 7/3(금), 그 다음 주(7/6~7/12)는 비어 주 연속도 끊긴다
+        storedRunDays(days);
+        DashboardService service =
+                new DashboardService(runs, goals, crews, members, policy, rewards, clock);
+
+        DashboardView view = service.dashboard(ME, null);
+
+        assertThat(view.streakDays()).isEqualTo(100);
+        assertThat(view.streakWeeks()).as("7/13 주 ~ 10/19 주").isEqualTo(15);
+    }
+
     private RecordQueryService records() {
         return new RecordQueryService(runs, members, crews, races, rewards, policy, clock);
     }
