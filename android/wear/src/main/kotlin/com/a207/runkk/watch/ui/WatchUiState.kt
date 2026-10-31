@@ -1,9 +1,9 @@
 package com.a207.runkk.watch.ui
 
 /**
- * 워치 화면 상태. [WatchViewModel]이 만들고 [WatchHomeScreen]·[WatchRunDisplay]는 그리기만 한다.
- * isRunning이 참이면 러닝 중 화면(정지 중이면 일시정지 화면, 근접 알림 중이면 대결 화면), 거짓이면 시작 화면(오늘 계획·시작 버튼,
- * FR-042, N-21)이고 폰과 연결되어 있지 않으면 미연결 화면이다(와이어프레임 K1~K5).
+ * 폰에서 시작한 러닝의 동행 표시 상태(FR-042, D-380). [WatchViewModel]이 만들고 [WatchRunDisplay]는 그리기만 한다.
+ * 정지 중이면 일시정지 화면, 근접 알림 중이면 대결 화면이다(와이어프레임 K2·K4·K5). 워치 화면 흐름은 [WatchFlow]가 정하고,
+ * 폰이 측정 중일 때([WatchFlow.Companion])만 이 상태를 그린다.
  */
 data class WatchUiState(
     val isPhoneConnected: Boolean = false,
@@ -17,8 +17,6 @@ data class WatchUiState(
     val planPaceSecondsPerKm: Int? = null,
     /** 러닝 중 폰과 연결이 끊겼다(6.1.15 "연결 끊김 표시"). */
     val isLinkLost: Boolean = false,
-    /** 시작 요청을 보내고 폰이 측정을 시작하기를 기다린다. */
-    val isStartPending: Boolean = false,
     /** 폰이 수집을 허용했지만 워치 OS 심박 권한이 없다. */
     val isHeartRatePermissionNeeded: Boolean = false,
     /** 안내(폰의 notice 또는 "폰과 연결 필요", FR-183). */

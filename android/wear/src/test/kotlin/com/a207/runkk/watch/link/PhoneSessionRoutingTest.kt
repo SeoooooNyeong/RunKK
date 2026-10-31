@@ -71,6 +71,7 @@ class PhoneSessionRoutingTest {
             FakePendingRunRepository(),
             cache,
             FakeUploadScheduler(),
+            FakeSettingsRepository(),
             prefs,
             backgroundScope
         )

@@ -44,17 +44,18 @@ class ArchitectureTest {
 
     /**
      * 12.4 구조 합격 조건(design-review 19장 R51·R52, D-335): 모듈 Fan-Out 7 이하. 허용 표 화살표는 v0.22(설계 5절·9.1, D-394)로
-     * 폰 153개·워치 26개에서 2단계 두 결정이 하나씩 더했다: W1 watch.cache → domain.live(상대 기록 파일의 진행표를 TrackTable로 되살린다),
-     * A2 data.watch → core.model(issueWatchSession이 Outcome을 돌려준다). 그래서 폰 154개·워치 27개다.
+     * 폰 153개·워치 26개에서 결정 넷이 하나씩 더했다. 폰: A2 data.watch → core.model(issueWatchSession이 Outcome을 돌려준다).
+     * 워치: W1 watch.cache → domain.live(상대 기록 파일의 진행표를 TrackTable로 되살린다), W2 watch.link → domain.live(매칭 대기 실시간 채널),
+     * W2 watch.session → domain.settings(회원 설정 사본). 그래서 폰 154개·워치 29개다.
      * 워치의 core.model은 설계 5절처럼 화살표로 세지 않는다([isWatchFoundation]).
      */
     @Test
-    fun `모듈 Fan-Out은 7 이하이고 허용 표는 폰 154개·워치 27개다`() {
+    fun `모듈 Fan-Out은 7 이하이고 허용 표는 폰 154개·워치 29개다`() {
         val over = ALLOWED.filterValues { it.size > MAX_FAN_OUT }.mapValues { it.value.size }
         assertEquals(emptyMap(), over)
         val (watch, phone) = ALLOWED.entries.partition { it.key.startsWith("watch.") || it.key == "wear.contract" }
         assertEquals(154, phone.sumOf { it.value.size })
-        assertEquals(27, watch.sumOf { it.value.size })
+        assertEquals(29, watch.sumOf { it.value.size })
     }
 
     @Test
@@ -555,11 +556,15 @@ class ArchitectureTest {
                         "core.navigation",
                         "core.designsystem"
                     ),
-                // 워치(설계 v0.22 5절 2차 구조, design-review 22.6): 8줄 26개 + W1 결정 1개(watch.cache → domain.live) = 27개.
+                // 워치(설계 v0.22 5절 2차 구조, design-review 22.6): 8줄 26개 + W1 결정 1개(watch.cache → domain.live)
+                // + W2 결정 2개(watch.link → domain.live, watch.session → domain.settings) = 29개.
                 "watch.heart" to emptySet(),
                 "watch.alert" to setOf("wear.contract"),
                 // session: 받은 로그인 정보·로그아웃 표시를 넘긴다. domain.run: WatchMeasuringReporter가 RunTracker.isMeasuring을 구독한다(M77).
-                "watch.link" to setOf("wear.contract", "watch.heart", "watch.alert", "watch.session", "domain.run"),
+                // domain.live(W2 결정): 배틀런 매칭 대기의 서버 실시간 채널(MatchWaiter). watch.ui가 domain.live를 쓰면 Fan-Out 8이라
+                // 실시간 메시지 형식은 link에서만 다룬다(설계 22.6 "중간 계층").
+                "watch.link" to
+                    setOf("wear.contract", "watch.heart", "watch.alert", "watch.session", "domain.run", "domain.live"),
                 // 상한 7(J-8, R65). 더 늘리려면 domain 형식을 watch.ui 안 표시 값으로 바꾸는 중간 계층을 먼저 둔다(22.6).
                 "watch.ui" to
                     setOf(
@@ -573,7 +578,10 @@ class ArchitectureTest {
                     ),
                 "watch.run" to setOf("watch.alert", "wear.contract", "domain.run", "domain.settings"),
                 "watch.guide" to setOf("watch.alert", "domain.run", "domain.settings", "data.guide"),
-                "watch.session" to setOf("watch.cache", "wear.contract", "domain.run", "domain.account"),
+                // domain.settings(W2 결정): 서버 설정 사본은 회원 사본이라 로그인 정보와 수명을 같이 한다(메인을 열 때 refreshSettings,
+                // 로그아웃 때 clear). watch.ui는 domain.settings를 쓰지 않는다(Fan-Out 7 유지).
+                "watch.session" to
+                    setOf("watch.cache", "wear.contract", "domain.run", "domain.account", "domain.settings"),
                 // 회원ID는 부르는 쪽이 넘긴다: cache는 watch.session을 모른다(M78, 순환 0). domain.live(W1 결정): OpponentTrack은 표본을
                 // 밖에 내지 않아 파일에 둔 진행표를 OpponentTrack.from(TrackTable)로 되살린다.
                 "watch.cache" to setOf("domain.battle", "domain.live")

@@ -55,11 +55,11 @@ fun WatchRunDisplay(state: WatchUiState, actions: WatchActions, modifier: Modifi
             state.notice?.let { notice -> item { NoticeText(notice) } }
             item {
                 RunActions(
-                    onEndTapped = actions.onEndTapped,
-                    onEndLongPressed = actions.onEndLongPressed,
+                    onEndTapped = actions.onCompanionEndTapped,
+                    onEndLongPressed = actions.onCompanionEndLongPressed,
                     modifier = Modifier.padding(top = 4.dp),
                     leading = if (state.pauseControl == PauseControl.PAUSE) {
-                        { PauseButton(onPause = actions.onPauseTapped) }
+                        { PauseButton(onPause = actions.onCompanionPauseTapped) }
                     } else {
                         null
                     }
@@ -118,7 +118,8 @@ private const val DISTANCE_ITEM_INDEX = 2
 private fun WatchRunDisplayPreview() {
     WatchTheme {
         WatchRoot(
-            state = WatchUiState(
+            flow = WatchFlow.Companion,
+            companion = WatchUiState(
                 isPhoneConnected = true,
                 isRunning = true,
                 elapsedSeconds = 1_421,

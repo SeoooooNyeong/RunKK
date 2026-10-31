@@ -1,20 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">RunKK</string>
+    <string name="logo_description">런크크</string>
+
+    <!-- 동행 표시(폰에서 시작한 러닝, FR-042, 와이어프레임 K2·K4·K5) -->
     <string name="phone_connected">폰 연결됨</string>
-    <string name="phone_disconnected">폰 연결 안 됨</string>
     <string name="phone_not_connected">폰과 연결 필요</string>
-    <string name="no_link_title">폰과 연결해야\n시작할 수 있어요</string>
-    <string name="reconnect">다시 연결</string>
-    <string name="today_plan">오늘 계획</string>
-    <string name="no_today_plan">오늘 계획 없음</string>
-    <string name="plan_distance">%1$skm</string>
-    <string name="plan_distance_pace">%1$skm, %2$s/km</string>
     <string name="unit_km">km</string>
-    <string name="start">시작</string>
-    <string name="start_pending">폰에서 시작하는 중</string>
-    <string name="free_run">자유런</string>
-    <string name="allow_heart_rate">심박 권한 허용</string>
     <string name="label_pace">현재 페이스</string>
     <string name="label_heart_rate">심박</string>
     <string name="hold_to_end">길게 눌러 종료</string>
@@ -33,9 +25,91 @@
     <string name="collecting_channel">심박 수집</string>
     <string name="collecting_title">러닝 중 심박 수집</string>
     <string name="collecting_status">심박 재는 중</string>
+
     <!-- 워치 단독 측정 진행 중 활동(FR-255, watch.run WatchMeasurementService) -->
     <string name="measuring_channel">러닝 기록</string>
     <string name="measuring_title">러닝 기록 중</string>
     <string name="measuring_status">%1$skm 러닝 기록 중</string>
     <string name="measuring_return">탭해서 돌아가기</string>
+
+    <!-- 미로그인 안내(FR-242) -->
+    <string name="not_logged_in">폰에서 런크크에 로그인해 주세요</string>
+
+    <!-- 메인 4안(FR-243, 피그마 Q1~Q4) -->
+    <string name="mode_free">자유런</string>
+    <string name="mode_battle">배틀런</string>
+    <string name="mode_self">셀프런</string>
+    <string name="mode_celeb">셀럽런</string>
+    <string name="mode_free_description">제한 없이 내 페이스로</string>
+    <string name="mode_battle_description">1:1 랜덤 매칭 달리기</string>
+    <string name="mode_self_description">내 최고 기록에 도전</string>
+    <string name="mode_celeb_description">유명인과 함께 달리기</string>
+
+    <!-- 거리 선택(FR-244, FR-257~FR-259, 피그마 F1·B1·S1) -->
+    <string name="goal_unlimited">무제한 목표 없음</string>
+    <string name="goal_distance">KM 목표 거리</string>
+    <string name="run_start">달리기 시작</string>
+    <string name="match_start">매칭 시작</string>
+    <string name="distance_decrease">거리 줄이기</string>
+    <string name="distance_increase">거리 늘리기</string>
+    <string name="unlimited">무제한</string>
+    <string name="distance_km">%1$skm</string>
+    <string name="distance_half">하프</string>
+    <string name="distance_full">풀</string>
+    <string name="self_title">내 기록</string>
+    <string name="record_none">기록 없음</string>
+    <string name="celeb_count">%1$d명</string>
+
+    <!-- 매칭(FR-257, 피그마 BMA·BMB) -->
+    <string name="matching">상대를 찾고 있어요</string>
+    <string name="matching_cancel">취소</string>
+    <string name="matched">매칭 상대를 찾았어요!</string>
+    <string name="matched_me">나</string>
+    <string name="matched_vs">VS</string>
+    <string name="tier_unranked">언랭</string>
+    <string name="tier_bronze">브론즈</string>
+    <string name="tier_silver">실버</string>
+    <string name="tier_gold">골드</string>
+    <string name="tier_platinum">플래티넘</string>
+    <string name="tier_master">마스터</string>
+
+    <!-- 카운트다운(FR-180, FR-087, 피그마 FC3·BC1·SC3) -->
+    <string name="countdown_header">%1$s %2$s</string>
+    <string name="countdown_go">GO</string>
+
+    <!-- 측정 중(FR-246, 피그마 FR∞·FR3·BR1·SR3) -->
+    <string name="run_goal">목표 %1$s km</string>
+    <string name="run_lap">LAP %1$d</string>
+    <string name="label_time">시간</string>
+    <string name="label_run_pace">페이스</string>
+    <string name="lead_changed">역전!</string>
+    <string name="run_pause_action">일시정지</string>
+    <string name="run_end_action">종료</string>
+
+    <!-- 자유런 일시정지(FR-247, 피그마 FP∞·FP3) -->
+    <string name="paused_continue">계속</string>
+    <string name="paused_end">종료</string>
+
+    <!-- 결과(FR-249 표, 피그마 FF∞·FG3·FS3·BW1·BL1·BS1·SW3·SL3·SS3) -->
+    <string name="result_goal">목표를 달성했어요</string>
+    <string name="result_win_meters">%1$s보다 %2$dm 먼저 들어왔어요</string>
+    <string name="result_win_seconds">%1$s보다 %2$d초 먼저 들어왔어요</string>
+    <string name="result_lose_seconds">%1$s보다 %2$d초 늦게 들어왔어요</string>
+    <string name="result_best">최고 기록을 %1$d초 단축했어요</string>
+    <string name="result_good">최고 기록까지 %1$d초 모자랐어요</string>
+    <string name="result_pending">결과를 확인하고 있어요</string>
+    <string name="result_distance">거리 km</string>
+    <string name="result_time">시간</string>
+    <string name="result_pace">평균 페이스</string>
+    <string name="result_heart_rate">평균 심박</string>
+    <string name="result_done">완료</string>
+
+    <!-- 안내(FR-245, FR-251, FR-252) -->
+    <string name="notice_location_consent">폰에서 위치 수집 동의를 해 주세요</string>
+    <string name="notice_location_permission">위치 권한을 허용해 주세요</string>
+    <string name="notice_phone_running">폰에서 러닝 중이에요</string>
+    <string name="notice_battle_offline">연결되면 배틀런을 할 수 있어요</string>
+    <string name="notice_match_failed">매칭하지 못했어요</string>
+    <string name="notice_start_failed">측정을 시작하지 못했어요</string>
+    <string name="notice_measurement_stopped">측정이 중단됐어요</string>
 </resources>

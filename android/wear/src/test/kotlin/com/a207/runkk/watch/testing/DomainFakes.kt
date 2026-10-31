@@ -2,6 +2,7 @@ package com.a207.runkk.watch.testing
 
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.account.GuestSession
@@ -60,7 +61,15 @@ class FakeSettingsRepository(
     var isWatchLinked: Boolean = true,
     var guidance: GuidanceSettings = GuidanceSettings.DEFAULT
 ) : SettingsRepository {
-    override suspend fun refresh(): Outcome<Unit> = Outcome.Success(Unit)
+    var refreshes: Int = 0
+        private set
+    var clears: Int = 0
+        private set
+
+    override suspend fun refresh(): Outcome<Unit> {
+        refreshes++
+        return Outcome.Success(Unit)
+    }
 
     override fun locationConsented(): Boolean = isLocationConsented
 
@@ -78,7 +87,10 @@ class FakeSettingsRepository(
 
     override fun changes(): Flow<SettingsSnapshot> = emptyFlow()
 
-    override suspend fun clear(): Outcome<Unit> = Outcome.Success(Unit)
+    override suspend fun clear(): Outcome<Unit> {
+        clears++
+        return Outcome.Success(Unit)
+    }
 }
 
 /** 미전송 기록 보관함(가짜). [clear]는 [events]에 남기고, [isClearFailing]이면 Storage 실패다. */
@@ -165,10 +177,15 @@ class FakeSessionRepository(private val events: MutableList<String> = mutableLis
     override suspend fun hasGuestCredential(): Boolean = false
 }
 
-/** 계정 REST(가짜). 워치는 logout만 부른다. */
+/** 계정 REST(가짜). 워치는 logout·mySummary(티어, 성별)만 부른다. */
 class FakeAccountRepository(private val events: MutableList<String> = mutableListOf()) : AccountRepository {
     var logouts: Int = 0
         private set
+
+    /** mySummary가 돌려줄 본인 요약. null이면 Network 실패. */
+    var summary: MySummary? = MySummary("러너", "SILVER", 3, null, null, 10)
+    val gender = MutableStateFlow<Gender?>(null)
+    override val myGender: StateFlow<Gender?> = gender
 
     override suspend fun logout(): Outcome<Unit> {
         logouts++
@@ -190,7 +207,8 @@ class FakeAccountRepository(private val events: MutableList<String> = mutableLis
 
     override suspend fun profile(memberId: Long): Outcome<Profile> = unused()
 
-    override suspend fun mySummary(): Outcome<MySummary> = unused()
+    override suspend fun mySummary(): Outcome<MySummary> =
+        summary?.let { Outcome.Success(it) } ?: Outcome.Failure(AppError.Network)
 
     override suspend fun editProfile(edit: ProfileEdit): Outcome<Unit> = unused()
 
@@ -213,6 +231,19 @@ class FakeBattleRepository : BattleRepository {
     /** 있으면 recordTracks가 이 신호를 받을 때까지 멈춘다(받는 동안 다른 일이 끼어드는 경우). */
     var gate: CompletableDeferred<Unit>? = null
 
+    /** 매칭 요청 응답(null이면 Network 실패)과 요청한 거리. */
+    var matchAnswer: Outcome<MatchAcceptance> = Outcome.Success(MatchAcceptance(isWaiting = true, distance = null))
+    val matchRequests = mutableListOf<Distance>()
+    var cancels: Int = 0
+        private set
+
+    /** 서버 기록 대결 시작 응답(셀프·셀럽 공통). 없으면 Network 실패다. */
+    var recordStart: RecordBattleStart? = null
+    val forfeits = mutableListOf<Long>()
+
+    /** 대결 결과 응답. */
+    var results: MutableMap<Long, BattleResult> = mutableMapOf()
+
     override suspend fun recordTracks(kind: RecordBattleKind): Outcome<List<RecordTrack>> {
         calls += kind
         gate?.await()
@@ -221,27 +252,39 @@ class FakeBattleRepository : BattleRepository {
 
     override suspend fun matchStatus(): Outcome<MatchAcceptance> = unused()
 
-    override suspend fun requestMatch(distance: Distance): Outcome<MatchAcceptance> = unused()
+    override suspend fun requestMatch(distance: Distance): Outcome<MatchAcceptance> {
+        matchRequests += distance
+        return matchAnswer
+    }
 
-    override suspend fun cancel(): Outcome<MatchAcceptance> = unused()
+    override suspend fun cancel(): Outcome<MatchAcceptance> {
+        cancels++
+        return Outcome.Success(MatchAcceptance(isWaiting = false, distance = null))
+    }
 
     override suspend fun selfCandidates(): Outcome<RecordBattleCandidates> = unused()
 
     override suspend fun celebrityCandidates(distance: Distance?): Outcome<RecordBattleCandidates> = unused()
 
-    override suspend fun startSelfBattle(distance: Distance): Outcome<RecordBattleStart> = unused()
+    override suspend fun startSelfBattle(distance: Distance): Outcome<RecordBattleStart> =
+        recordStart?.let { Outcome.Success(it) } ?: Outcome.Failure(AppError.Network)
 
-    override suspend fun startCelebrityBattle(celebrityId: Long): Outcome<RecordBattleStart> = unused()
+    override suspend fun startCelebrityBattle(celebrityId: Long): Outcome<RecordBattleStart> =
+        recordStart?.let { Outcome.Success(it) } ?: Outcome.Failure(AppError.Network)
 
-    override suspend fun markStarted(battleId: Long): Outcome<Unit> = unused()
+    override suspend fun markStarted(battleId: Long): Outcome<Unit> = Outcome.Success(Unit)
 
-    override suspend fun forfeit(battleId: Long): Outcome<Unit> = unused()
+    override suspend fun forfeit(battleId: Long): Outcome<Unit> {
+        forfeits += battleId
+        return Outcome.Success(Unit)
+    }
 
     override suspend fun cancel(battleId: Long): Outcome<Unit> = unused()
 
     override suspend fun active(): Outcome<ActiveBattle?> = unused()
 
-    override suspend fun result(battleId: Long): Outcome<BattleResult> = unused()
+    override suspend fun result(battleId: Long): Outcome<BattleResult> =
+        results[battleId]?.let { Outcome.Success(it) } ?: Outcome.Failure(AppError.Network)
 
     override suspend fun history(filter: BattleHistory.Type?, cursor: Long?): Outcome<BattleHistory> = unused()
 

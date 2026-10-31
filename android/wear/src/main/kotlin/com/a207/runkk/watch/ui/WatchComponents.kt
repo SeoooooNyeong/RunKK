@@ -109,16 +109,19 @@ internal fun RoundIconButton(
     modifier: Modifier = Modifier,
     icon: @Composable (Color) -> Unit
 ) {
+    // 보이는 원은 40dp, 누르는 영역은 워치 최소 터치 크기 48dp다.
     Box(
         modifier = modifier
-            .size(40.dp)
+            .size(48.dp)
             .clip(CircleShape)
-            .border(1.dp, WatchColors.Border, CircleShape)
             .clickable(role = Role.Button, onClick = onClick)
             .semantics { this.contentDescription = contentDescription },
         contentAlignment = Alignment.Center
     ) {
-        icon(WatchColors.OnSurface)
+        Box(
+            modifier = Modifier.size(40.dp).border(1.dp, WatchColors.Border, CircleShape),
+            contentAlignment = Alignment.Center
+        ) { icon(WatchColors.OnSurface) }
     }
 }
 
