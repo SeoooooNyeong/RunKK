@@ -71,6 +71,29 @@ object RunkkIcons {
         "M16 3.13a4 4 0 0 1 0 7.75"
     )
     val User: ImageVector = line("User", "M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2", circle(12f, 7f, 4f))
+
+    /** 걷는 사람(하단 기록런 탭, J-0). */
+    val Walk: ImageVector = line(
+        "Walk",
+        circle(13f, 4f, 2f),
+        "M7 11l3-3 4 1 3 3",
+        "M10 8l-1 6 3 2v6",
+        "M9 14l-3 7"
+    )
+
+    /** 해(홈 러닝 설정 버튼, A-4). */
+    val Sun: ImageVector = line(
+        "Sun",
+        circle(12f, 12f, 4f),
+        "M12 2v2",
+        "M12 20v2",
+        "m4.93 4.93 1.41 1.41",
+        "m17.66 17.66 1.41 1.41",
+        "M2 12h2",
+        "M20 12h2",
+        "m6.34 17.66-1.41 1.41",
+        "m19.07 4.93-1.41 1.41"
+    )
     val Settings: ImageVector = line(
         "Settings",
         circle(12f, 12f, 3f),
@@ -114,6 +137,17 @@ object RunkkIcons {
         "M3 10h18"
     )
     val Alert: ImageVector = line("Alert", circle(12f, 12f, 10f), "M12 8v4", "M12 16h.01")
+
+    /** 소리 켜짐(스피커와 소리 물결, 설정의 소리 크기). */
+    val Volume: ImageVector = line(
+        "Volume",
+        "M11 5L6 9H2v6h4l5 4V5z",
+        "M15.54 8.46a5 5 0 0 1 0 7.07",
+        "M19.07 4.93a10 10 0 0 1 0 14.14"
+    )
+
+    /** 소리 꺼짐(스피커와 X). */
+    val VolumeOff: ImageVector = line("VolumeOff", "M11 5L6 9H2v6h4l5 4V5z", "M23 9l-6 6", "M17 9l6 6")
     val CloudOff: ImageVector = line(
         "CloudOff",
         "M2 2L22 22",

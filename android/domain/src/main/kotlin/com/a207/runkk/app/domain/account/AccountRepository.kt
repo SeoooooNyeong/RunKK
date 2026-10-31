@@ -1,7 +1,9 @@
 package com.a207.runkk.app.domain.account
 
 import com.a207.runkk.app.core.model.FaceLayer
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Outcome
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -9,6 +11,12 @@ import kotlinx.coroutines.flow.StateFlow
  * 가입 전 로그인은 Failure(Rejected(SIGN_UP_REQUIRED))이고, 가입 티켓은 구현이 보관한다(D-19).
  */
 interface AccountRepository {
+    /** 내 성별(기본 캐릭터 남녀를 고른다). 내 프로필을 읽거나 고치면 갱신한다. 아직 모르면 null. */
+    val myGender: StateFlow<Gender?> get() = UNKNOWN_GENDER
+
+    /** 로그아웃하면 내 성별 사본을 비운다(다음 회원이 이전 회원의 기본 캐릭터를 잠깐 보지 않게, 리뷰 AN10-5). */
+    fun forgetMyGender() {}
+
     suspend fun login(token: ProviderToken): Outcome<SessionTokens>
 
     suspend fun signUp(form: SignUpForm): Outcome<SessionTokens>
@@ -31,8 +39,14 @@ interface AccountRepository {
 
     suspend fun profile(memberId: Long): Outcome<Profile>
 
-    /** 프로필 편집(PATCH /me/profile, FR-007). 성향 태그는 편집 항목이 아니다(D-91). */
-    suspend fun editProfile(nickname: String, intro: String?): Outcome<Unit>
+    /**
+     * 본인 요약(D-331, R35): 본인 프로필 응답에서 홈·배틀런이 쓰는 값만 옮긴다. 요청은 profile(SELF)와 같은 하나이고,
+     * 읽으면 [myGender]도 갱신한다. 본인 ID를 모르면(토큰 없음) Unauthorized.
+     */
+    suspend fun mySummary(): Outcome<MySummary>
+
+    /** 프로필 편집(PATCH /me/profile, FR-007, D-287). 성향 태그(D-91)와 사진은 편집 항목이 아니다. */
+    suspend fun editProfile(edit: ProfileEdit): Outcome<Unit>
 
     suspend fun changeSetting(item: String, value: String): Outcome<Unit>
 
@@ -57,3 +71,5 @@ interface AccountRepository {
         const val SELF: Long = 0L
     }
 }
+
+private val UNKNOWN_GENDER: StateFlow<Gender?> = MutableStateFlow(null)

@@ -320,6 +320,80 @@ class AdminControllerTest extends WebTestSupport {
     }
 
     @Test
+    @DisplayName(
+            "셀럽 캐릭터(2026-10-31 결정): 등록한 figureKey가 후보·대결 시작·진행 중·결과 응답의 celebrityFigure로 나가고,"
+                    + " 키 형식이 틀리면 400")
+    void celebrityFigure_flowsToRunnerResponses() throws Exception {
+        String bearer = "Bearer " + login(OPERATOR);
+        java.util.Map<String, Object> badKey = new java.util.HashMap<>(celebrity());
+        badKey.put("figureKey", "Lee Bong");
+        mvc.perform(
+                        post("/api/v1/admin/celebrities")
+                                .header("Authorization", bearer)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(write(badKey)))
+                .andExpect(status().isBadRequest());
+        java.util.Map<String, Object> lee = new java.util.HashMap<>(celebrity());
+        lee.put("figureKey", "lee");
+        lee.put("splits", List.of()); // 5km까지인 구간은 10km 대결 표가 되지 않는다
+        long celebrityId =
+                body(mvc.perform(
+                                        post("/api/v1/admin/celebrities")
+                                                .header("Authorization", bearer)
+                                                .contentType(MediaType.APPLICATION_JSON)
+                                                .content(write(lee)))
+                                .andExpect(status().isCreated())
+                                .andReturn()
+                                .getResponse()
+                                .getContentAsString())
+                        .get("celebrityId")
+                        .asLong();
+
+        Session runner = signUp();
+        JsonNode candidates =
+                body(
+                        mvc.perform(
+                                        as(runner, get("/api/v1/battles/celebrity/candidates"))
+                                                .param("distanceMeters", "10000"))
+                                .andExpect(status().isOk())
+                                .andReturn()
+                                .getResponse()
+                                .getContentAsString());
+        JsonNode candidate = null;
+        for (JsonNode each : candidates.get("candidates")) {
+            if (each.get("id").asLong() == celebrityId) {
+                candidate = each;
+            }
+        }
+        assertThat(candidate).isNotNull();
+        assertThat(candidate.get("celebrityFigure").asText()).isEqualTo("lee");
+
+        long battleId =
+                body(mvc.perform(
+                                        as(runner, post("/api/v1/battles/celebrity"))
+                                                .contentType(MediaType.APPLICATION_JSON)
+                                                .content(write(Map.of("celebrityId", celebrityId))))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.celebrityFigure").value("lee"))
+                                .andReturn()
+                                .getResponse()
+                                .getContentAsString())
+                        .get("battleId")
+                        .asLong();
+        mvc.perform(as(runner, get("/api/v1/battles/active")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.celebrityFigure").value("lee"));
+        mvc.perform(as(runner, post("/api/v1/battles/" + battleId + "/started")))
+                .andExpect(status().isNoContent());
+        mvc.perform(as(runner, post("/api/v1/battles/" + battleId + "/forfeit")))
+                .andExpect(status().isNoContent());
+        mvc.perform(as(runner, get("/api/v1/battles/" + battleId + "/result")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.type").value("CELEBRITY"))
+                .andExpect(jsonPath("$.celebrityFigure").value("lee"));
+    }
+
+    @Test
     @DisplayName("운영자 토큰으로 유명인 등록·삭제와 기준값 변경을 하면 actorId가 감사 기록에 남는다")
     void operatorActions_areAuditedWithActorId() throws Exception {
         String bearer = "Bearer " + login(OPERATOR);

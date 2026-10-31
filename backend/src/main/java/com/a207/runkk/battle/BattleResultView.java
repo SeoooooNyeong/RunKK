@@ -21,6 +21,8 @@ import java.util.Optional;
  * @param newRecord 나와의 싸움에서 이겨 최고 기록이 바뀌었는가
  * @param opponentName 상대 표시명(결과 문구 "○○ 님보다 …", FR-093)
  * @param myRecordId 본인 러닝 기록 ID(기록 카드 FR-068로 가는 길), 아직 없으면 null
+ * @param opponentGender 상대 캐릭터 성별(MALE, FEMALE), 셀럽·나와의 싸움이면 null(2026-10-31 결정)
+ * @param celebrityFigure 유명인 캐릭터 그림 키, 유명인 대결이 아니거나 키가 없으면 null(2026-10-31 결정)
  */
 public record BattleResultView(
         long battleId,
@@ -35,7 +37,9 @@ public record BattleResultView(
         WeeklyRecord weekly,
         boolean newRecord,
         DisplayName opponentName,
-        String myRecordId) {
+        String myRecordId,
+        String opponentGender,
+        String celebrityFigure) {
 
     public Optional<Verdict> verdictValue() {
         return Optional.ofNullable(verdict);

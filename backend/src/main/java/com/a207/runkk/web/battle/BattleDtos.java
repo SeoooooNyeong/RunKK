@@ -14,6 +14,7 @@ import com.a207.runkk.battle.WeeklyRecord;
 import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.PageCursor;
 import com.a207.runkk.common.StandardDistance;
+import com.a207.runkk.running.EvaluationView;
 import jakarta.validation.constraints.Positive;
 import java.time.Duration;
 import java.time.LocalDate;
@@ -98,6 +99,8 @@ final class BattleDtos {
      * @param distanceMeters 대결 거리
      * @param opponentName 상대 표시명, 없으면 null
      * @param startAt 출발 시각, 없으면 null
+     * @param opponentGender 상대 캐릭터 성별(MALE, FEMALE), 셀럽·나와의 싸움이면 null(2026-10-31 결정)
+     * @param celebrityFigure 유명인 캐릭터 그림 키, 유명인 대결이 아니거나 키가 없으면 null(앱 공통 셀럽 그림, 2026-10-31 결정)
      */
     record ActiveBattleResponse(
             long battleId,
@@ -105,7 +108,9 @@ final class BattleDtos {
             String status,
             long distanceMeters,
             String opponentName,
-            LocalDateTime startAt) {
+            LocalDateTime startAt,
+            String opponentGender,
+            String celebrityFigure) {
         static ActiveBattleResponse of(ActiveBattleView v) {
             return new ActiveBattleResponse(
                     v.battleId(),
@@ -113,7 +118,9 @@ final class BattleDtos {
                     v.status().name(),
                     v.distance().meters(),
                     Optional.ofNullable(v.opponentName()).map(DisplayName::value).orElse(null),
-                    v.startAt());
+                    v.startAt(),
+                    v.opponentGender(),
+                    v.celebrityFigure());
         }
     }
 
@@ -137,8 +144,10 @@ final class BattleDtos {
      * @param distanceMeters 거리
      * @param finishSeconds 완주 시간(초), 기록이 없으면 null
      * @param recordedOn 기록일
-     * @param sourceLabel 출처 표기("공개 기록 기준 · …")
+     * @param sourceLabel 출처 표기("출처: …", v0.14 D-239)
      * @param estimated 평균 페이스로 추정
+     * @param myBestSeconds 그 거리 내 최고 기록(초), 없으면 null(셀럽 카운트다운의 "첫 도전", v0.14 D-238)
+     * @param celebrityFigure 유명인 캐릭터 그림 키, 없거나 나와의 싸움 후보면 null(2026-10-31 결정)
      */
     record Candidate(
             Long id,
@@ -147,7 +156,9 @@ final class BattleDtos {
             Long finishSeconds,
             LocalDate recordedOn,
             String sourceLabel,
-            boolean estimated) {
+            boolean estimated,
+            Long myBestSeconds,
+            String celebrityFigure) {
         static Candidate of(RecordBattleCandidates.Candidate c) {
             return new Candidate(
                     c.celebrityId(),
@@ -156,7 +167,9 @@ final class BattleDtos {
                     seconds(c.finishTime()),
                     c.recordedOn(),
                     Optional.ofNullable(c.source()).map(Source::label).orElse(null),
-                    c.estimated());
+                    c.estimated(),
+                    seconds(c.myBest()),
+                    c.figureKey());
         }
     }
 
@@ -170,6 +183,7 @@ final class BattleDtos {
      * @param cardKind 러닝 카드 종류(SELF_RUN, CELEB_RUN)
      * @param sourceLabel 출처 표기(유명인)
      * @param estimated 평균 페이스로 추정
+     * @param celebrityFigure 유명인 캐릭터 그림 키, 없거나 나와의 싸움이면 null(2026-10-31 결정)
      */
     record RecordBattleStartResponse(
             long battleId,
@@ -178,7 +192,8 @@ final class BattleDtos {
             List<TrackPointResponse> track,
             String cardKind,
             String sourceLabel,
-            boolean estimated) {
+            boolean estimated,
+            String celebrityFigure) {
         static RecordBattleStartResponse of(RecordBattleStart s) {
             return new RecordBattleStartResponse(
                     s.battleId(),
@@ -187,7 +202,8 @@ final class BattleDtos {
                     s.track().wholeSeconds().stream().map(TrackPointResponse::of).toList(),
                     s.type() == BattleType.SELF ? SELF_CARD : CELEBRITY_CARD,
                     Optional.ofNullable(s.source()).map(Source::label).orElse(null),
-                    s.estimated());
+                    s.estimated(),
+                    s.figureKey());
         }
     }
 
@@ -204,10 +220,12 @@ final class BattleDtos {
     }
 
     /**
-     * 대결 결과(FR-093, FR-108). rewardPoints는 BattleResultAssembler가 붙인다(D-33).
+     * 대결 결과(FR-093, FR-108). rewardPoints·totalRewardPoints·evaluation은 BattleResultAssembler가
+     * 붙인다(D-33, v0.14 D-229·D-291, 12.2 W5). rows는 SELF만 두 줄이고 나머지는 빈 목록이다. weekly는 옛 앱용으로 남긴다(폐기
+     * 예정). 필드는 더하기만 한다.
      *
      * @param battleId 대결 ID
-     * @param type 대결 종류(이력 분류, 고스트는 RANDOM)
+     * @param type 대결 종류(이력 분류, 고스트는 RANDOM, 친구 대결은 FRIEND)
      * @param pending 결과 보류
      * @param retryUpload 기록 업로드 재시도 안내
      * @param verdict 판정
@@ -219,7 +237,12 @@ final class BattleDtos {
      * @param rewardPoints 이 대결로 적립한 리워드(BATTLE_WIN), 없으면 0
      * @param newRecord 신기록
      * @param opponentName 상대 표시명
-     * @param recordId 본인 러닝 기록 ID(기록 카드), 아직 없으면 null
+     * @param recordId 본인 러닝 기록 ID(기록 카드), 아직 없거나 기록을 지웠으면 null
+     * @param totalRewardPoints 이 대결로 적립한 합계 = BATTLE_WIN(대결) + VALID_RUN(본인 기록), v0.14 D-229. 친구
+     *     대결은 거리 적립만
+     * @param evaluation 본인 기록이 일으킨 티어 평가(없으면 null, v0.14 D-291)
+     * @param opponentGender 상대 캐릭터 성별(MALE, FEMALE), 셀럽·나와의 싸움이면 null(2026-10-31 결정)
+     * @param celebrityFigure 유명인 캐릭터 그림 키, 유명인 대결이 아니거나 키가 없으면 null(2026-10-31 결정)
      */
     record BattleResultResponse(
             long battleId,
@@ -235,7 +258,30 @@ final class BattleDtos {
             Integer rewardPoints,
             boolean newRecord,
             String opponentName,
-            String recordId) {}
+            String recordId,
+            int totalRewardPoints,
+            EvaluationDto evaluation,
+            String opponentGender,
+            String celebrityFigure) {}
+
+    /**
+     * 이 러닝이 일으킨 티어 평가(v0.14 D-291·D-294).
+     *
+     * @param kind FIRST_PLACEMENT 또는 REEVALUATION
+     * @param tier 평가 뒤 티어
+     * @param validRuns 평가를 일으킨 유효 러닝 순번(3, 10의 배수)
+     * @param runimalType 그 판정에서 확정된 Runimal 유형(첫 배치·미확정이면 null)
+     */
+    record EvaluationDto(String kind, String tier, int validRuns, String runimalType) {
+
+        static EvaluationDto of(EvaluationView v) {
+            return new EvaluationDto(
+                    v.kind(),
+                    v.tier() == null ? null : v.tier().name(),
+                    v.validRuns(),
+                    v.runimalType());
+        }
+    }
 
     /**
      * 비교표 한 줄.

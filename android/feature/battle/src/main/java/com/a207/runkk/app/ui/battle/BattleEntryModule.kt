@@ -13,4 +13,8 @@ internal interface BattleEntryModule {
     @Binds
     @IntoSet
     fun bindBattleEntry(entry: BattleFeatureEntry): FeatureEntry
+
+    /** 친구 대결 초대 공유(D-270). */
+    @Binds
+    fun bindInviteSharer(sharer: KakaoInviteSharer): InviteSharer
 }

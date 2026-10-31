@@ -2,7 +2,6 @@ package com.a207.runkk.app.ui.me
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +20,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -32,7 +32,6 @@ import com.a207.runkk.app.core.designsystem.RunkkCheckRow
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkPrimaryButton
-import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
@@ -95,7 +94,11 @@ fun SignUpScreen(state: SignUpUiState, isGuest: Boolean, actions: SignUpActions,
     }
     Box(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
         Column(modifier = Modifier.fillMaxSize()) {
-            RunkkTopBar(title = stringResource(R.string.me_signup_title), onBack = actions.onBack)
+            RunkkTopBar(
+                title = stringResource(R.string.me_signup_title),
+                onBack = actions.onBack,
+                isTitleCentered = true
+            )
             Column(
                 modifier = Modifier
                     .weight(1f)
@@ -134,7 +137,7 @@ private fun SubmitError(state: SignUpUiState, message: String, actions: SignUpAc
     }
 }
 
-/** 제목, 전체 동의, 필수 묶음(만 14세 확인 + 필수 3종), 선택 묶음(선택 2종, 기본 꺼짐). */
+/** 제목, 전체 동의, 카드로 묶지 않은 목록: 필수(만 14세 확인 + 필수 3종), 구분선, 선택(선택 2종, 기본 꺼짐)(A-2, R2-07). */
 @Composable
 private fun ConsentBody(state: SignUpUiState, actions: SignUpActions) {
     Text(
@@ -149,35 +152,33 @@ private fun ConsentBody(state: SignUpUiState, actions: SignUpActions) {
         onCheckedChange = actions.onAllAgreedChange,
         isHighlighted = true
     )
-    ConsentGroup(SignUpConsents.items.filter { it.isRequired }, state, actions)
-    ConsentGroup(SignUpConsents.items.filterNot { it.isRequired }, state, actions)
-}
-
-/** 동의 항목 묶음 하나(필수 또는 선택). */
-@Composable
-private fun ConsentGroup(lines: List<ConsentLine>, state: SignUpUiState, actions: SignUpActions) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(RunkkColors.Surface, RunkkShapes.Medium)
-            .border(1.dp, RunkkColors.Border, RunkkShapes.Medium)
-            .padding(horizontal = 16.dp, vertical = 8.dp)
-    ) {
-        lines.forEachIndexed { index, line ->
-            RunkkCheckRow(
-                label = stringResource(line.labelRes),
-                isChecked = state.consents[line.item] == true,
-                onCheckedChange = { actions.onConsentChange(line.item, it) },
-                tag = stringResource(
-                    if (line.isRequired) R.string.me_signup_tag_required else R.string.me_signup_tag_optional
-                ),
-                isTagHighlighted = line.isRequired,
-                onView = line.legalType?.let { { actions.onViewLegal(line.item) } }
-            )
-            if (index < lines.lastIndex) HorizontalDivider(color = RunkkColors.Border)
-        }
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
+        SignUpConsents.items.filter { it.isRequired }.forEach { ConsentRow(it, state, actions) }
+        HorizontalDivider(
+            color = RunkkColors.Border,
+            modifier = Modifier.padding(vertical = 6.dp).testTag(CONSENT_DIVIDER_TAG)
+        )
+        SignUpConsents.items.filterNot { it.isRequired }.forEach { ConsentRow(it, state, actions) }
     }
 }
+
+/** 동의 항목 한 줄(필수 또는 선택). */
+@Composable
+private fun ConsentRow(line: ConsentLine, state: SignUpUiState, actions: SignUpActions) {
+    RunkkCheckRow(
+        label = stringResource(line.labelRes),
+        isChecked = state.consents[line.item] == true,
+        onCheckedChange = { actions.onConsentChange(line.item, it) },
+        tag = stringResource(
+            if (line.isRequired) R.string.me_signup_tag_required else R.string.me_signup_tag_optional
+        ),
+        isTagHighlighted = line.isRequired,
+        onView = line.legalType?.let { { actions.onViewLegal(line.item) } }
+    )
+}
+
+/** 필수와 선택 사이 구분선의 시험 표지. */
+internal const val CONSENT_DIVIDER_TAG = "signup-consent-divider"
 
 /** 아래 버튼 하나: "시작하기". 소셜 로그인에서 왔으면 가입, 게스트로 시작에서 왔으면 게스트로 시작한다. */
 @Composable

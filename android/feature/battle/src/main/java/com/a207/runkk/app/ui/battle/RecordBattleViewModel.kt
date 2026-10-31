@@ -21,7 +21,9 @@ import kotlinx.coroutines.launch
 
 /**
  * 나와의 싸움·유명인 대결 공통 흐름(FR-096·FR-097·FR-100): 후보 조회 → 고르기 → 시작 요청 →
- * BattleRunCoordinator.onRecordBattleStart(3초 카운트다운 뒤 측정, design-review.md M34) → 대결 진행 화면.
+ * BattleRunCoordinator.onRecordBattleStart(3초 카운트다운 뒤 측정, design-review.md M34) → 대결 진행 화면. 진행 화면의 카운트다운(D-2·E-2)이
+ * 상대 기록·날짜·내 최고 기록을 그리도록 고른 후보의 값을 경로 인자로 넘긴다. 셀럽 그림 키는 시작 응답 값, 없으면 후보 값이다.
+ * 처음에는 고른 후보가 없다(D-288).
  */
 abstract class RecordBattleViewModel(
     protected val battles: BattleRepository,
@@ -72,7 +74,7 @@ abstract class RecordBattleViewModel(
         val s = mutableState.value
         val candidate = s.selected ?: return
         if (s.isStarting) return
-        mutableState.update { it.copy(isStarting = true, isConfirming = false) }
+        mutableState.update { it.copy(isStarting = true) }
         viewModelScope.launch {
             when (val started = begin(candidate)) {
                 is Outcome.Success -> {
@@ -81,7 +83,16 @@ abstract class RecordBattleViewModel(
                     // 진행 화면으로 넘어갈 때까지 다시 누르지 못하게 isStarting을 둔다. 화면에 돌아오면 onScreenResumed가 푼다.
                     _events.trySend(
                         RecordBattleEvent.Start(
-                            Routes.BattleRunning(start.battleId, start.opponentName, start.distance.meters, kind.name)
+                            Routes.BattleRunning(
+                                start.battleId,
+                                start.opponentName,
+                                start.distance.meters,
+                                kind.name,
+                                opponentRecordSeconds = candidate.finishTime?.seconds,
+                                opponentRecordedOnEpochDay = candidate.recordedOn?.toEpochDay(),
+                                myBestSeconds = candidate.myBest?.seconds,
+                                celebrityFigure = start.celebrityFigure ?: candidate.celebrityFigure
+                            )
                         )
                     )
                 }

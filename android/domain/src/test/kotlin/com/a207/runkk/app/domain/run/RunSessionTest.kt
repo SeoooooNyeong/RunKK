@@ -103,20 +103,9 @@ class RunSessionTest {
     }
 
     @Test
-    fun `잠금 중 finish는 거부한다`() {
+    fun `end는 조정자 종료로 확정한다`() {
         val session = running()
         session.runFor(5)
-        session.lock()
-        assertEquals(FinishOutcome.Rejected, session.finish(at(5)))
-        assertEquals(RunSession.State.LOCKED, session.state)
-        assertTrue(session.tick(at(5)).isLocked)
-    }
-
-    @Test
-    fun `end는 잠금과 무관하게 확정한다`() {
-        val session = running()
-        session.runFor(5)
-        session.lock()
         val run = assertIs<FinishOutcome.Saved>(session.end(at(5))).run
         assertEquals(Distance(12), run.distance)
         assertEquals(Duration.ofSeconds(5), run.elapsed)
@@ -132,21 +121,10 @@ class RunSessionTest {
     }
 
     @Test
-    fun `해제 짧게 누름은 상태 불변, 길게 누름은 해제`() {
-        val session = running()
-        session.lock()
-        assertEquals(Guidance.Kind.UNLOCK_HINT, session.hintUnlock().kind)
-        assertEquals(RunSession.State.LOCKED, session.state)
-        session.unlock()
-        assertEquals(RunSession.State.RUNNING, session.state)
-    }
-
-    @Test
     fun `금지 전이는 IllegalStateException`() {
         val session = running()
-        assertFailsWith<IllegalStateException> { session.unlock() }
         session.finish(at(1))
-        assertFailsWith<IllegalStateException> { session.lock() }
+        assertFailsWith<IllegalStateException> { session.finish(at(2)) }
         assertFailsWith<IllegalStateException> { session.end(at(2)) }
     }
 

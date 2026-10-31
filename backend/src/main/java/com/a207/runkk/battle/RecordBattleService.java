@@ -12,7 +12,6 @@ import com.a207.runkk.member.MemberQueryService;
 import com.a207.runkk.member.MemberSummary;
 import com.a207.runkk.running.BestEntry;
 import com.a207.runkk.running.RunQueryService;
-import java.sql.SQLException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDate;
@@ -36,9 +35,6 @@ import org.springframework.transaction.annotation.Transactional;
 public class RecordBattleService {
 
     private static final Logger log = LoggerFactory.getLogger(RecordBattleService.class);
-
-    /** PostgreSQL·H2 고유 제약 위반 SQLSTATE. */
-    private static final String UNIQUE_VIOLATION = "23505";
 
     /** 기록이 없는 나와의 싸움 거리의 후보 문구(FR-096). */
     static final String NO_RECORD_YET = "아직 기록이 없어요";
@@ -103,9 +99,24 @@ public class RecordBattleService {
                                                 c.getFinishTime(),
                                                 null,
                                                 c.getSource(),
-                                                c.isEstimated()))
+                                                c.isEstimated(),
+                                                myBest(memberId, c.getDistance()),
+                                                c.figureKey().orElse(null)))
                         .toList();
         return new RecordBattleCandidates(candidates);
+    }
+
+    /**
+     * 그 거리의 내 최고 기록(셀럽 카운트다운의 "첫 도전" 판정, v0.14 D-238). 기준 거리가 아니거나 기록이 없으면 null. 거리마다 장부를 한 번
+     * 읽는다(후보는 거리 4종이라 많아야 네 번).
+     */
+    private Duration myBest(long memberId, Distance distance) {
+        return Arrays.stream(StandardDistance.values())
+                .filter(d -> d.distance().meters() == distance.meters())
+                .findFirst()
+                .flatMap(d -> runQueryService.best(memberId, d))
+                .flatMap(BestEntry::time)
+                .orElse(null);
     }
 
     /** d.isSelfBattle, 위치 동의 → 그 거리 최고 기록(없으면 NO_RECORD) → "MM/DD의 나" 상대로 SELF 대결. */
@@ -135,7 +146,8 @@ public class RecordBattleService {
                 battle.getDistance(),
                 battle.getOpponentTrack().orElseThrow(),
                 null,
-                false);
+                false,
+                null);
     }
 
     /** 위치 동의 → 유명인 기록(없으면 CELEBRITY_REMOVED) → CELEBRITY 대결. 대결 거리 = 기록 거리. */
@@ -154,7 +166,8 @@ public class RecordBattleService {
                 battle.getDistance(),
                 battle.getOpponentTrack().orElseThrow(),
                 celebrity.getSource(),
-                celebrity.isEstimated());
+                celebrity.isEstimated(),
+                battle.getOpponentFigure().orElse(null));
     }
 
     /**
@@ -180,7 +193,7 @@ public class RecordBattleService {
         } catch (OptimisticLockingFailureException e) {
             throw lostCreateRace(memberId, e); // 같은 이전 대결을 다른 요청이 먼저 대신했다
         } catch (DataIntegrityViolationException e) {
-            if (!isUniqueViolation(e)) {
+            if (!UniqueViolations.isUniqueViolation(e)) {
                 throw e; // NOT NULL·길이 같은 다른 무결성 위반은 경합이 아니다(코드 리뷰 3차 B-L3)
             }
             throw lostCreateRace(memberId, e); // 활성 칸 고유 제약: 다른 생성 요청이 먼저 들어갔다
@@ -194,19 +207,6 @@ public class RecordBattleService {
                 e.getClass().getSimpleName(),
                 e);
         return new BusinessRuleException(ReasonCode.ALREADY_IN_BATTLE);
-    }
-
-    /**
-     * 고유 제약 위반(SQLSTATE 23505)인가. 새 대결 행이 닿는 고유 제약은 활성 칸(uq_battle_participant_active_member)뿐이라 이름
-     * 대신 SQLSTATE로 본다(H2 create-drop은 제약 이름을 Hibernate가 지어 PostgreSQL과 다르다).
-     */
-    private static boolean isUniqueViolation(DataIntegrityViolationException e) {
-        for (Throwable cause = e; cause != null; cause = cause.getCause()) {
-            if (cause instanceof SQLException sql && sql.getSQLState() != null) {
-                return UNIQUE_VIOLATION.equals(sql.getSQLState());
-            }
-        }
-        return false;
     }
 
     /** 앱의 3초 카운트다운이 끝났다는 보고 → Battle.start(now)(R-02). 기록 대결만, 같은 보고를 다시 받으면 무시한다. */

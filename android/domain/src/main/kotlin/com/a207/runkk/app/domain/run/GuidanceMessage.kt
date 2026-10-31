@@ -8,9 +8,6 @@ enum class GuidanceMessage {
     /** 짧게 누른 종료: 길게 눌러 끝내라는 안내. */
     FINISH_HINT,
 
-    /** 잠금 중 누름: 길게 눌러 해제하라는 안내. */
-    UNLOCK_HINT,
-
     /** 1km 지점. 인자: km. */
     SPLIT,
 
@@ -54,11 +51,5 @@ enum class GuidanceMessage {
     PAUSED,
 
     /** 다시 측정한다(FR-194). */
-    RESUMED,
-
-    /** 정지가 55분이 되어 5분 뒤 자동 종료된다(FR-195). */
-    PAUSE_AUTO_END_SOON,
-
-    /** 정지가 60분이 되어 자동 종료했다(FR-195). */
-    PAUSE_AUTO_ENDED
+    RESUMED
 }

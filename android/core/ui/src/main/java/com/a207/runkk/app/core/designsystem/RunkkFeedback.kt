@@ -1,10 +1,14 @@
 package com.a207.runkk.app.core.designsystem
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.InfiniteRepeatableSpec
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -23,13 +27,17 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -45,6 +53,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * 실시간 점(8dp): 측정 중·실시간 대결 표시. 1.6초 주기로 바깥 고리가 퍼진다. 동작 줄이기면 멈춘 점만 그린다.
@@ -82,13 +93,16 @@ fun RunkkLiveDot(modifier: Modifier = Modifier, color: Color = RunkkColors.Lime,
     )
 }
 
-/** 로고 종류. 다크 배경용 라임 버전만 둔다. */
+/** 로고 종류. 라임 버전을 기본으로 두고, 한글 워드마크는 라이트 벌에서 검은 글자 그림을 쓴다. */
 enum class RunkkLogoKind(internal val aspect: Float) {
     /** 한글 워드마크(로그인, 너비 240dp). */
     WordmarkKo(1539f / 735f),
 
     /** RRun 워드마크(홈 상단, 높이 24dp). */
     WordmarkRrun(1817f / 596f),
+
+    /** RRun 워드마크 어두운 글자(홈 사진 배경 위, 피그마 A-4). */
+    WordmarkRrunOnPhoto(1817f / 596f),
 
     /** RR 아이콘(러닝 결과, 높이 24dp). */
     Icon(1052f / 712f)
@@ -103,9 +117,11 @@ fun RunkkLogo(
     height: Dp? = null,
     contentDescription: String? = stringResource(R.string.core_feedback_logo)
 ) {
+    val isLight = !LocalRunkkColors.current.isDark
     val res = when (kind) {
-        RunkkLogoKind.WordmarkKo -> R.drawable.logo_wordmark_ko_lime
+        RunkkLogoKind.WordmarkKo -> if (isLight) R.drawable.logo_wordmark_ko_dark else R.drawable.logo_wordmark_ko_lime
         RunkkLogoKind.WordmarkRrun -> R.drawable.logo_wordmark_rrun_lime
+        RunkkLogoKind.WordmarkRrunOnPhoto -> R.drawable.logo_wordmark_rrun_dark
         RunkkLogoKind.Icon -> R.drawable.logo_icon_rr_lime
     }
     val sized = when {
@@ -114,7 +130,9 @@ fun RunkkLogo(
         else -> Modifier.height(24.dp).width(24.dp * kind.aspect)
     }
     // 로고 그림은 라임 한 색이다. 라이트 벌에서는 흰 바탕 대비가 낮아 지금 벌의 포인트 색으로 칠한다(FR-203).
-    val tint = if (LocalRunkkColors.current.isDark) null else ColorFilter.tint(RunkkColors.Lime)
+    // 사진 위 로고와 라이트 벌 한글 워드마크(스플래시)는 검은 글자 그림이라 색(검정·보라)을 그대로 둔다.
+    val isTinted = isLight && kind != RunkkLogoKind.WordmarkRrunOnPhoto && kind != RunkkLogoKind.WordmarkKo
+    val tint = if (isTinted) ColorFilter.tint(RunkkColors.Lime) else null
     Image(
         painter = painterResource(res),
         contentDescription = contentDescription,
@@ -123,6 +141,57 @@ fun RunkkLogo(
         modifier = modifier.then(sized)
     )
 }
+
+/**
+ * 한글 워드마크(스플래시)에서 "런", "ㅋ", "ㅋ"이 차례로 한 번씩 뛰어오른다. 글자별 층 그림(원본과 같은 크기)을 겹쳐 그리고,
+ * 다 뛰면 [onFinished]를 부른다. 움직임 줄이기면 뛰지 않고 바로 부른다. 뛰는 모양은 홈 아바타 탭과 같다(오르기 tween, 내리기 spring).
+ */
+@Composable
+fun RunkkHoppingWordmark(width: Dp, onFinished: () -> Unit, modifier: Modifier = Modifier) {
+    val isLight = !LocalRunkkColors.current.isDark
+    val layers = listOf(
+        if (isLight) R.drawable.logo_wordmark_ko_part_run_dark else R.drawable.logo_wordmark_ko_part_run_lime,
+        R.drawable.logo_wordmark_ko_part_k1,
+        R.drawable.logo_wordmark_ko_part_k2
+    )
+    val hops = remember { List(layers.size) { Animatable(0f) } }
+    val reduceMotion = LocalReduceMotion.current
+    val finish by rememberUpdatedState(onFinished)
+    LaunchedEffect(Unit) {
+        if (!reduceMotion) {
+            coroutineScope {
+                hops.forEachIndexed { i, hop ->
+                    launch {
+                        delay(i * WORDMARK_HOP_STAGGER_MS)
+                        hop.animateTo(1f, tween(durationMillis = WORDMARK_HOP_UP_MS, easing = FastOutSlowInEasing))
+                        hop.animateTo(
+                            0f,
+                            spring(dampingRatio = WORDMARK_HOP_DAMPING, stiffness = Spring.StiffnessMediumLow)
+                        )
+                    }
+                }
+            }
+        }
+        finish()
+    }
+    Box(modifier = modifier.width(width).height(width / RunkkLogoKind.WordmarkKo.aspect)) {
+        layers.forEachIndexed { i, res ->
+            Image(
+                painter = painterResource(res),
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.fillMaxSize().graphicsLayer {
+                    translationY = -hops[i].value * WORDMARK_HOP_HEIGHT.toPx()
+                }
+            )
+        }
+    }
+}
+
+private const val WORDMARK_HOP_STAGGER_MS = 140L
+private const val WORDMARK_HOP_UP_MS = 220
+private const val WORDMARK_HOP_DAMPING = 0.45f
+private val WORDMARK_HOP_HEIGHT = 18.dp
 
 /** 불러오는 중(가운데 라임 원). 보조 기술에 [label]을 알린다. */
 @Composable

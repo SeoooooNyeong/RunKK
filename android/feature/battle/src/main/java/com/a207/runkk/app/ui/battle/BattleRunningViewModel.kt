@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.battle.BattleRunCoordinator
 import com.a207.runkk.app.domain.battle.BattleRunState
@@ -15,6 +16,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
+import java.time.LocalDate
 import javax.inject.Inject
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
@@ -30,9 +32,10 @@ import kotlinx.coroutines.launch
 
 /**
  * 대결 진행(FR-087~FR-091, FR-094, FR-098, FR-099, FR-102, FR-107, FR-182, FR-188). BattleRunCoordinator.state를 화면 상태로
- * 바꾼다. 측정·진행값 전송·추월 판정·도착·종료는 조정자가 하고, 내 거리·경과·페이스와 잠금 여부는 조정자 상태의 MyProgress로,
+ * 바꾼다. 측정·진행값 전송·추월 판정·도착·종료는 조정자가 하고, 내 거리·경과·페이스·경로선은 조정자 상태의 MyProgress로,
  * 상대 연결 상태는 Running.opponentConnection으로 받는다(ui.battle은 domain.run을 보지 않는다, 5.1.2).
- * 화면은 그만두기(확인 뒤 forfeit)와 화면 잠금·해제를 누름 종류별 연산으로 넘긴다(D-49).
+ * 화면은 그만두기(짧게 누르면 안내, 길게 누르면 확인 뒤 forfeit, D-49)와 셀프런 카운트다운 "다시 고르기"(D-264)를 넘긴다.
+ * 셀프런·셀럽런 그만두기는 조정자가 기록을 버리고 Discarded로 닫으며 결과 화면 없이 기록런 탭으로 돌아간다(D-266).
  */
 @HiltViewModel
 class BattleRunningViewModel @Inject constructor(
@@ -73,7 +76,12 @@ class BattleRunningViewModel @Inject constructor(
             battleId = key.battleId,
             opponentName = key.opponentName,
             distance = Distance(key.distanceMeters),
-            kind = OpponentKind.of(key.opponentKind)
+            kind = OpponentKind.of(key.opponentKind),
+            opponentRecord = key.opponentRecordSeconds?.let(Duration::ofSeconds),
+            opponentRecordedOn = key.opponentRecordedOnEpochDay?.let(LocalDate::ofEpochDay),
+            myBest = key.myBestSeconds?.let(Duration::ofSeconds),
+            opponentGender = Gender.entries.firstOrNull { it.name == key.opponentGender },
+            celebrityFigure = key.celebrityFigure
         )
         bindJobs += viewModelScope.launch { coordinator.state.collect(::onCoordinator) }
         bindJobs += viewModelScope.launch {
@@ -106,33 +114,53 @@ class BattleRunningViewModel @Inject constructor(
     /** 그만두기 짧게 누름: 길게 눌러야 한다는 안내만(D-49). */
     fun onForfeitTapped() = showHint(FORFEIT_HINT)
 
-    /** 그만두기 길게 누름: 확인을 받는다(FR-094). 잠금 중에는 받지 않는다(FR-182). */
+    /**
+     * 그만두기 길게 누름·뒤로가기: 확인을 받는다(FR-094). 셀프런·셀럽런이 아직 출발 전(시작 대기·카운트다운)이면 그만두기(패)가 아니라
+     * 취소 확인을 띄운다(D-324, D-337, 코드 리뷰 AN10-1): 확인하면 cancel → 기록 없이 Discarded.
+     */
     fun onForfeitLongPressed() {
         val s = _state.value
-        if (s.isLocked) return
-        if (s.phase == BattlePhase.RUNNING || s.phase == BattlePhase.CLOSING || s.phase == BattlePhase.COUNTDOWN) {
-            _state.update { it.copy(isConfirmingForfeit = true) }
+        when {
+            s.kind.isCancellable && (s.phase == BattlePhase.STARTING || s.phase == BattlePhase.COUNTDOWN) ->
+                _state.update { it.copy(isConfirmingCancel = true) }
+
+            s.phase == BattlePhase.RUNNING || s.phase == BattlePhase.CLOSING || s.phase == BattlePhase.COUNTDOWN ->
+                _state.update { it.copy(isConfirmingForfeit = true) }
         }
     }
 
     fun onForfeitDismissed() = _state.update { it.copy(isConfirmingForfeit = false) }
+
+    /** 셀프런·셀럽런 취소 버튼: 기록 없이 끝낼지 확인을 받는다. */
+    fun onCancelTapped() {
+        val s = _state.value
+        if (s.kind.isCancellable && (s.phase == BattlePhase.RUNNING || s.phase == BattlePhase.CLOSING)) {
+            _state.update { it.copy(isConfirmingCancel = true) }
+        }
+    }
+
+    fun onCancelDismissed() = _state.update { it.copy(isConfirmingCancel = false) }
+
+    /** 취소 확인: 서버는 대결을 취소하고 기기는 기록을 버린다(Discarded). */
+    fun onCancelConfirmed() {
+        _state.update { it.copy(isConfirmingCancel = false) }
+        coordinator.cancel()
+    }
 
     fun onForfeitConfirmed() {
         _state.update { it.copy(isConfirmingForfeit = false) }
         coordinator.forfeit()
     }
 
-    /** 화면 잠금(FR-182). 조정자가 RunTracker.lockScreen에 넘기고 상태의 잠금 여부를 바꾼다. */
-    fun onLockTapped() = coordinator.lockScreen()
-
-    /** 잠금 해제 짧게 누름: "길게 눌러 해제" 안내(D-49). */
-    fun onUnlockTapped() {
-        coordinator.onUnlockTapped()
-        showHint(UNLOCK_HINT)
+    /**
+     * 셀프런 카운트다운 "다시 고르기"(D-264): 출발 전 취소라 서버는 대결을 취소하고(D-200) 조정자는 기록 없이 닫는다(Discarded).
+     * 닫히면 기록런 탭으로 돌아간다.
+     */
+    fun onReselect() {
+        val s = _state.value
+        if (s.kind != OpponentKind.SELF || (s.phase != BattlePhase.COUNTDOWN && s.phase != BattlePhase.STARTING)) return
+        coordinator.cancel()
     }
-
-    /** 잠금 해제 길게 누름. */
-    fun onUnlockLongPressed() = coordinator.onUnlockLongPressed()
 
     /** 시작하지 못하고 끝난 화면을 닫을 때. */
     fun onFailureClosed() = coordinator.acknowledgeFinished()
@@ -164,6 +192,8 @@ class BattleRunningViewModel @Inject constructor(
 
             is BattleRunState.Finished -> if (s.battleId == battleId) onFinished(battleId)
 
+            is BattleRunState.Discarded -> if (s.battleId == battleId) onDiscarded()
+
             else -> Unit
         }
     }
@@ -191,7 +221,7 @@ class BattleRunningViewModel @Inject constructor(
     private fun onFinished(battleId: Long) {
         tickJob?.cancel()
         if (sawRunning) {
-            _state.update { it.copy(phase = BattlePhase.FINISHED, isConfirmingForfeit = false, isLocked = false) }
+            _state.update { it.copy(phase = BattlePhase.FINISHED, isConfirmingForfeit = false) }
             _events.trySend(BattleRunningEvent.Finished(battleId))
         } else {
             _state.update {
@@ -204,12 +234,20 @@ class BattleRunningViewModel @Inject constructor(
         }
     }
 
+    /** 기록을 버리고 닫혔다(D-266): 결과 화면 없이 기록런 탭으로 돌아가고 조정자를 다음 대결을 위해 비운다. */
+    private fun onDiscarded() {
+        tickJob?.cancel()
+        _state.update { it.copy(phase = BattlePhase.FINISHED, isConfirmingForfeit = false) }
+        coordinator.acknowledgeFinished()
+        _events.trySend(BattleRunningEvent.Discarded)
+    }
+
     private fun BattleRunningUiState.withMine(mine: MyProgress): BattleRunningUiState = copy(
         myDistance = mine.distance,
         elapsed = mine.elapsed,
         currentPace = mine.currentPace,
         averagePace = mine.averagePace,
-        isLocked = mine.isLocked
+        route = mine.route
     )
 
     /** 1초마다 시작 카운트다운·종료 카운트다운 남은 초를 갱신한다. 그 밖의 단계면 멈춘다. */
@@ -264,7 +302,6 @@ class BattleRunningViewModel @Inject constructor(
         const val GUIDANCE_MILLIS = 5_000L
         const val HINT_MILLIS = 2_500L
         val FORFEIT_HINT = UiText.Res(R.string.battle_running_forfeit_hold)
-        val UNLOCK_HINT = UiText.Res(R.string.battle_running_unlock_hold)
         const val STALE_MILLIS = 5_000L
     }
 }

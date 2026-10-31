@@ -1,6 +1,7 @@
 package com.a207.runkk.battle;
 
 import com.a207.runkk.common.Distance;
+import com.a207.runkk.member.Gender;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
 import jakarta.persistence.ElementCollection;
@@ -67,6 +68,11 @@ public class BattleParticipant {
     @Column(name = "new_record", nullable = false)
     private boolean newRecord;
 
+    /** 다른 참가자에게 보이는 캐릭터 성별(랜덤·친구 대결, 2026-10-31 결정). 성사 때 정하고 기록 대결은 null이다. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "shown_gender", length = 6)
+    private Gender shownGender;
+
     /** 활성 대결이면 회원 ID, 아니면 null. 고유 제약이 회원별 활성 대결 1개를 지킨다(Battle.moveTo가 맞춘다). */
     @Column(name = "active_member_id", unique = true)
     private Long activeMemberId;
@@ -104,6 +110,11 @@ public class BattleParticipant {
         this.reachMillis = reachElapsed == null ? null : reachElapsed.toMillis();
     }
 
+    /** 기록이 삭제되었다(v0.14 D-232). 판정·도달 시간은 그대로 두고 기록 ID만 비운다. */
+    void forgetRecord() {
+        this.recordId = null;
+    }
+
     /** 24시간이 지나도 기록이 없으면 무효로 본다(A-10 expirePending). */
     void markMissingRecordInvalid() {
         if (verified == null) {
@@ -113,6 +124,14 @@ public class BattleParticipant {
 
     void forfeit() {
         forfeited = true;
+    }
+
+    /** 한 번만 정한다(다시 연결·결과 화면에서도 같은 그림). */
+    void showAs(Gender gender) {
+        if (shownGender != null) {
+            throw new IllegalStateException("이미 정한 성별: " + shownGender);
+        }
+        shownGender = gender;
     }
 
     void recordOvertakes(int count) {
@@ -198,6 +217,10 @@ public class BattleParticipant {
 
     public Optional<Verdict> getVerdict() {
         return Optional.ofNullable(verdict);
+    }
+
+    public Optional<Gender> getShownGender() {
+        return Optional.ofNullable(shownGender);
     }
 
     public boolean isNewRecord() {

@@ -49,6 +49,28 @@ class AnalysisDomainTest {
             assertThat(Streak.countBack(days, MONDAY.plusDays(4))).isZero();
             assertThat(Streak.countBack(Set.of(), MONDAY)).isZero();
         }
+
+        @Test
+        @org.junit.jupiter.api.DisplayName(
+                "주 단위(월요일 시작): 이번 주에 기록이 있으면 이번 주부터, 없으면 지난주부터 끊길 때까지(2026-10-31 결정)")
+        void countsWeeksBackFromBaseWeekOrLastWeek() {
+            // 지지난주 일요일, 지난주 월요일, 이번 주 수요일: 주마다 하루씩이면 이어진다
+            Set<LocalDate> days =
+                    Set.of(MONDAY.minusDays(8), MONDAY.minusDays(7), MONDAY.plusDays(2));
+            assertThat(Streak.countWeeksBack(days, MONDAY.plusDays(6))).isEqualTo(3);
+            assertThat(Streak.countWeeksBack(days, MONDAY.plusDays(2))).isEqualTo(3);
+            assertThat(Streak.countWeeksBack(days, MONDAY))
+                    .as("base 뒤의 기록은 세지 않아 이번 주 기록 전이면 지난주부터")
+                    .isEqualTo(2);
+            assertThat(Streak.countWeeksBack(days, MONDAY.plusDays(7)))
+                    .as("이번 주(다음 주 월요일) 기록이 없어도 지난주부터 센다")
+                    .isEqualTo(3);
+            assertThat(Streak.countWeeksBack(days, MONDAY.plusDays(14))).as("한 주를 쉬면 끊긴다").isZero();
+            assertThat(Streak.countWeeksBack(Set.of(MONDAY.minusDays(14), MONDAY), MONDAY))
+                    .as("지난주가 비면 이번 주만")
+                    .isEqualTo(1);
+            assertThat(Streak.countWeeksBack(Set.of(), MONDAY)).isZero();
+        }
     }
 
     @Nested

@@ -25,6 +25,14 @@ public record BattleJudged(long battleId, BattleType type, Judgement judgement, 
         return judgement.winnerSide();
     }
 
+    /**
+     * 이 대결 종류가 승리 리워드를 주는가(type.rewardsWin(), 친구 대결만 거짓). reward가 BattleType을 import하지 않게 대신
+     * 답한다(v0.14 검증 D-296, 13.1 규칙 11).
+     */
+    public boolean rewardsWin() {
+        return type.rewardsWin();
+    }
+
     /** 판정 자체의 시각(Judgement.at). 정정 사건이면 사건 시각 at과 다를 수 있다. */
     public LocalDateTime judgedAt() {
         return judgement.at();

@@ -1,13 +1,18 @@
 package com.a207.runkk.app.api.account
 
+import com.a207.runkk.app.api.core.ServerTime
 import com.a207.runkk.app.api.core.enumByName
+import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.domain.account.AccountType
-import com.a207.runkk.app.domain.account.Gender
 import com.a207.runkk.app.domain.account.GuestSession
 import com.a207.runkk.app.domain.account.MemberSettings
+import com.a207.runkk.app.domain.account.MySummary
 import com.a207.runkk.app.domain.account.Profile
+import com.a207.runkk.app.domain.account.ProfileEdit
 import com.a207.runkk.app.domain.account.ProviderToken
+import com.a207.runkk.app.domain.account.RecentRun
 import com.a207.runkk.app.domain.account.SessionTokens
 import com.a207.runkk.app.domain.account.SignUpForm
 import com.a207.runkk.app.domain.settings.GuidanceSettings
@@ -44,9 +49,43 @@ internal fun ProfileResponse.toDomain(): Profile = Profile(
     longestDistance = longestDistanceMeters?.let(::Distance),
     ageBand = ageBand,
     gender = enumByName<Gender>(gender),
-    photoUrl = photoUrl,
-    avatarBackgroundKey = avatarBackgroundKey
+    avatarBackgroundKey = avatarBackgroundKey,
+    totalDistance = totalDistanceMeters?.let(::Distance),
+    runCount = runCount,
+    recentRuns = recentRuns.mapNotNull { it.toDomain() },
+    isAgePublic = ageBandVisibility?.let { it == VISIBILITY_PUBLIC },
+    isGenderPublic = genderVisibility?.let { it == VISIBILITY_PUBLIC },
+    shownGender = enumByName<Gender>(shownGender)
 )
+
+/** 본인 프로필 → 본인 요약(D-331). 유효 러닝 수는 runCount(유효 기록만 센다, v0.12 D29)다. */
+internal fun Profile.toMySummary(): MySummary = MySummary(
+    displayName = displayName,
+    tier = tier,
+    level = level,
+    faceKey = faceKey,
+    avatarBackgroundKey = avatarBackgroundKey,
+    validRuns = runCount
+)
+
+/** 날짜를 읽지 못한 줄은 버린다(프로필 전체를 실패시키지 않는다). */
+private fun ProfileResponse.RecentRunDto.toDomain(): RecentRun? =
+    runCatching { ServerTime.parseDate(startedOn) }.getOrNull()?.let { date ->
+        RecentRun(kind = enumByName<CardKind>(kind), startedOn = date, distance = Distance(distanceMeters))
+    }
+
+/** 프로필 편집 요청(D-287): 스위치 켬 = PUBLIC. */
+internal fun ProfileEdit.toRequest(): ProfileEditRequest = ProfileEditRequest(
+    nickname = nickname,
+    intro = intro,
+    ageBandVisibility = if (isAgePublic) VISIBILITY_PUBLIC else VISIBILITY_PRIVATE,
+    genderVisibility = if (isGenderPublic) VISIBILITY_PUBLIC else VISIBILITY_PRIVATE,
+    gender = gender?.name,
+    birthYear = birthYear
+)
+
+private const val VISIBILITY_PUBLIC = "PUBLIC"
+private const val VISIBILITY_PRIVATE = "PRIVATE"
 
 /**
  * 서버 설정 원본 → 앱 사본(D-53). 동의는 consents의 LOCATION·HEART_RATE(없으면 거짓).

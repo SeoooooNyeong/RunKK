@@ -103,6 +103,72 @@ class RewardServicesTest {
     }
 
     @Test
+    @DisplayName("TC-9314 친구 대결 승리는 BATTLE_WIN을 적립하지 않고 랜덤 승리는 적립한다(FR-230, D-226·D-296)")
+    void tc9314_friendWinHasNoReward() {
+        rewards.onBattleJudged(
+                new BattleJudged(
+                        12,
+                        BattleType.FRIEND,
+                        new Judgement(
+                                Map.of(
+                                        Side.member(ALICE),
+                                        Verdict.WIN,
+                                        Side.member(BOB),
+                                        Verdict.LOSE),
+                                Side.member(ALICE),
+                                false,
+                                NOW),
+                        NOW));
+        rewards.onBattleJudged(judged(13, Side.member(ALICE), false));
+
+        assertThat(rewards.accruedFor(AccrualReason.BATTLE_WIN, "12", ALICE)).isZero();
+        assertThat(rewards.accruedFor(AccrualReason.BATTLE_WIN, "13", ALICE)).isEqualTo(20);
+    }
+
+    @Test
+    @DisplayName(
+            "2026-10-30 결정: 친구 대결 기록은 자유런처럼 뛴 만큼(VALID_RUN ⌊km × 10⌋) 적립하고 승리 적립은 더하지 않는다. 같은 거리"
+                    + " 자유런과 적립이 같다")
+    void friendBattleRunEarnsLikeFreeRun() {
+        rewards.onRunSaved(saved("free", 5_678, true));
+        RunRecordSaved free = saved("friend-run", 5_678, true);
+        RunRecordSaved friendRun =
+                new RunRecordSaved(
+                        free.recordId(),
+                        BOB,
+                        free.startedAt(),
+                        free.distance(),
+                        free.elapsed(),
+                        true,
+                        free.score(),
+                        RunMode.BATTLE,
+                        12L,
+                        null,
+                        true,
+                        1,
+                        free.occurredAt());
+        rewards.onRunSaved(friendRun);
+        rewards.onBattleJudged(
+                new BattleJudged(
+                        12,
+                        BattleType.FRIEND,
+                        new Judgement(
+                                Map.of(
+                                        Side.member(BOB),
+                                        Verdict.WIN,
+                                        Side.member(ALICE),
+                                        Verdict.LOSE),
+                                Side.member(BOB),
+                                false,
+                                NOW),
+                        NOW));
+
+        assertThat(rewards.accruedFor(AccrualReason.VALID_RUN, "friend-run", BOB)).isEqualTo(56);
+        assertThat(rewards.accruedFor(AccrualReason.BATTLE_WIN, "12", BOB)).isZero();
+        assertThat(rewards.balanceOf(BOB)).isEqualTo(rewards.balanceOf(ALICE)).isEqualTo(56);
+    }
+
+    @Test
     @DisplayName("대결 승자에게 20, 정정으로 승자가 바뀌면 새 승자에게 적립하고 회수하지 않는다, 무승부는 없음")
     void onBattleJudged_correctionWithoutDoubleAccrual() {
         rewards.onBattleJudged(judged(9, Side.member(ALICE), false));

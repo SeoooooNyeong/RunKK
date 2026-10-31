@@ -66,6 +66,7 @@ import com.a207.runkk.app.core.designsystem.RunkkStatTile
 import com.a207.runkk.app.core.designsystem.RunkkTextField
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
+import com.a207.runkk.app.core.designsystem.SelectLabel
 import com.a207.runkk.app.core.designsystem.StatTileStyle
 import com.a207.runkk.app.core.designsystem.StatTileValue
 import com.a207.runkk.app.core.designsystem.asString
@@ -204,7 +205,9 @@ private fun MeetupPlaceFields(state: CrewRunWriteUiState, onPlace: (String) -> U
         label = stringResource(R.string.crew_meetup_capacity_label),
         options = capacities,
         selected = state.capacity,
-        optionLabel = { it?.let { n -> resources.getString(R.string.crew_meetup_capacity_option, n) } ?: crewDefault },
+        optionLabel = {
+            SelectLabel(it?.let { n -> resources.getString(R.string.crew_meetup_capacity_option, n) } ?: crewDefault)
+        },
         onSelect = onCapacity,
         placeholder = crewDefault
     )
@@ -249,7 +252,7 @@ private fun RunWriteSchedule(state: CrewRunWriteUiState, onDay: (Int) -> Unit, o
             label = stringResource(R.string.crew_run_write_date_label),
             options = (0 until CrewRunWriteUiState.DAYS).toList(),
             selected = state.dayOffset,
-            optionLabel = { offset -> dayLabel(resources, state.today, offset) },
+            optionLabel = { offset -> SelectLabel(dayLabel(resources, state.today, offset)) },
             onSelect = onDay,
             modifier = Modifier.weight(1f)
         )
@@ -257,7 +260,7 @@ private fun RunWriteSchedule(state: CrewRunWriteUiState, onDay: (Int) -> Unit, o
             label = stringResource(R.string.crew_run_write_time_label),
             options = CrewRunWriteUiState.TIMES,
             selected = state.time,
-            optionLabel = { it.format(TIME) },
+            optionLabel = { SelectLabel(it.format(TIME)) },
             onSelect = onTime,
             modifier = Modifier.weight(1f)
         )
@@ -287,11 +290,7 @@ fun CrewRunRoute(key: Routes.CrewRunLobby, viewModel: CrewRunViewModel = hiltVie
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             when (event) {
-                is CrewRunEvent.Finished -> {
-                    navigator.back()
-                    navigator.navigate(Routes.CrewRunResult(event.postId))
-                }
-
+                is CrewRunEvent.Finished -> navigator.replace(Routes.CrewRunResult(event.postId))
                 CrewRunEvent.Left -> navigator.back()
             }
         }

@@ -1,0 +1,76 @@
+package com.a207.runkk.running;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
+
+/**
+ * 경로 모양이 없는 기존 기록에 목록 썸네일 모양을 채운다(설계 5.6.2, D-234). batch.running.RouteShapeBackfillJob이 기동 뒤 남은 것이
+ * 없을 때까지 부른다. 기록마다 새 트랜잭션이라 한 건의 실패가 다른 건을 막지 않는다.
+ */
+@Service
+public class RouteShapeBackfillService {
+
+    private static final Logger log = LoggerFactory.getLogger(RouteShapeBackfillService.class);
+
+    private final RunRecordRepository runRecordRepository;
+    private final TransactionTemplate transaction;
+
+    public RouteShapeBackfillService(
+            RunRecordRepository runRecordRepository,
+            PlatformTransactionManager transactionManager) {
+        this.runRecordRepository = runRecordRepository;
+        this.transaction = new TransactionTemplate(transactionManager);
+        this.transaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+    }
+
+    /**
+     * 한 묶음의 결과.
+     *
+     * @param filled 이 묶음에서 채운 수
+     * @param lastRecordId 이 묶음에서 마지막으로 본 기록 ID(다음 묶음의 시작점). 볼 후보가 없었으면 null이고 끝났다는 뜻이다
+     */
+    public record Batch(int filled, String lastRecordId) {}
+
+    /**
+     * afterRecordId 뒤의 모양 없는 기록을 limit개까지 시도한다. 채우지 못한 기록(경로 해제 실패, 점이 모자람)도 지나가므로 그런 기록이 limit개 넘게
+     * 쌓여도 뒤 기록까지 간다.
+     */
+    public Batch fillMissing(String afterRecordId, int limit) {
+        int filled = 0;
+        String last = null;
+        for (RunRecord candidate : runRecordRepository.findMissingShape(afterRecordId, limit)) {
+            String recordId = candidate.getRecordId();
+            last = recordId;
+            try {
+                Boolean done = transaction.execute(status -> fillOne(recordId));
+                if (Boolean.TRUE.equals(done)) {
+                    filled++;
+                }
+            } catch (RuntimeException e) {
+                log.warn(
+                        "route_shape_backfill_failed recordId={} error={}",
+                        recordId,
+                        e.getClass().getSimpleName());
+            }
+        }
+        return new Batch(filled, last);
+    }
+
+    private boolean fillOne(String recordId) {
+        RunRecord record = runRecordRepository.findById(recordId).orElse(null);
+        if (record == null || !record.hasRoute() || record.getRouteShape().isPresent()) {
+            return false;
+        }
+        RouteShape shape = RouteShape.of(record.routePoints());
+        if (shape.isEmpty()) {
+            return false;
+        }
+        record.attachRouteShape(shape);
+        runRecordRepository.save(record);
+        return true;
+    }
+}

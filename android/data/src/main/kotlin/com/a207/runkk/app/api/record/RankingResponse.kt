@@ -11,5 +11,11 @@ internal data class RankingResponse(
     val notice: String? = null
 ) {
     @Serializable
-    data class Entry(val rank: Int, val name: String, val distanceMeters: Long)
+    data class Entry(
+        val rank: Int,
+        val name: String,
+        val distanceMeters: Long,
+        /** 개인 랭킹 줄 회원의 표시 성별(MALE·FEMALE, D-327), 크루 줄·옛 서버는 null. */
+        val shownGender: String? = null
+    )
 }

@@ -22,6 +22,7 @@ import java.time.Clock;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
@@ -58,23 +59,17 @@ class MemberAccountServicesTest {
         ProfileService service =
                 new ProfileService(repository, List.of(n -> n.equals("가상곰")), clock);
 
-        assertThatThrownBy(
-                        () -> service.editProfile(a, new ProfileEdit("곰B", null, null, null, null)))
+        assertThatThrownBy(() -> service.editProfile(a, new ProfileEdit("곰B", null, null, null)))
                 .extracting(e -> ((BusinessRuleException) e).reason())
                 .isEqualTo(ReasonCode.NICKNAME_TAKEN);
-        assertThatThrownBy(
-                        () ->
-                                service.editProfile(
-                                        a, new ProfileEdit("가상곰", null, null, null, null)))
+        assertThatThrownBy(() -> service.editProfile(a, new ProfileEdit("가상곰", null, null, null)))
                 .isInstanceOf(BusinessRuleException.class);
 
-        ProfileEditResult same =
-                service.editProfile(a, new ProfileEdit("곰A", 2000, null, "", "소개"));
+        ProfileEditResult same = service.editProfile(a, new ProfileEdit("곰A", 2000, null, "소개"));
         assertThat(same.nickname()).isEqualTo("곰A");
         assertThat(same.birthYear()).isEqualTo(2000);
         assertThat(same.photoUrl()).isNull();
-        ProfileEditResult renamed =
-                service.editProfile(a, new ProfileEdit("곰C", null, null, null, null));
+        ProfileEditResult renamed = service.editProfile(a, new ProfileEdit("곰C", null, null, null));
         assertThat(renamed.nickname()).isEqualTo("곰C");
     }
 
@@ -241,9 +236,18 @@ class MemberAccountServicesTest {
                 .containsEntry(a, DisclosureLevel.SELF)
                 .containsEntry(b, DisclosureLevel.PUBLIC)
                 .containsEntry(c, DisclosureLevel.WITHDRAWN);
-        assertThat(query.disclosureOf(b, List.of(a))).containsEntry(a, DisclosureLevel.PRIVATE);
+        // v0.14 D-241: 다른 러너는 늘 PUBLIC 수준이고 나이대·성별만 항목별로 감춘다
+        assertThat(query.disclosureOf(b, List.of(a))).containsEntry(a, DisclosureLevel.PUBLIC);
         assertThat(query.disclosureOf(a, List.of())).isEmpty();
         assertThat(query.ghostEligibleOwners(Set.of(Tier.UNRANKED), a).keySet()).containsExactly(b);
         assertThat(query.ghostEligibleOwners(Set.of(), a)).isEmpty();
+        // 표시 성별(D-327·D-336): 성별 공개(b)는 그 값, 비공개(a, 기본값)·성별 없음(탈퇴한 c)·없는 회원은 회원 ID 고정 대체값
+        assertThat(query.shownGendersOf(List.of(a, b, c, 999L)))
+                .containsOnly(
+                        Map.entry(a, ShownGender.fallbackOf(a)),
+                        Map.entry(b, Gender.FEMALE),
+                        Map.entry(c, ShownGender.fallbackOf(c)),
+                        Map.entry(999L, ShownGender.fallbackOf(999L)));
+        assertThat(query.shownGendersOf(List.of())).isEmpty();
     }
 }

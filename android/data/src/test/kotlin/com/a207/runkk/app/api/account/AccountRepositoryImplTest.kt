@@ -6,19 +6,24 @@ import com.a207.runkk.app.api.core.TokenProvider
 import com.a207.runkk.app.api.core.jwtOf
 import com.a207.runkk.app.api.core.value
 import com.a207.runkk.app.core.model.AppError
+import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.account.AccountRepository
-import com.a207.runkk.app.domain.account.Gender
 import com.a207.runkk.app.domain.account.MemberSettings
+import com.a207.runkk.app.domain.account.MySummary
 import com.a207.runkk.app.domain.account.Profile
+import com.a207.runkk.app.domain.account.ProfileEdit
 import com.a207.runkk.app.domain.account.ProviderToken
 import com.a207.runkk.app.domain.account.ProviderType
+import com.a207.runkk.app.domain.account.RecentRun
 import com.a207.runkk.app.domain.account.SessionTokens
 import com.a207.runkk.app.domain.account.SignUpForm
 import com.a207.runkk.app.domain.settings.GuidanceSettings
 import com.a207.runkk.app.domain.settings.ScreenTheme
 import com.a207.runkk.app.domain.settings.SettingsSnapshot
+import java.time.LocalDate
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -89,7 +94,7 @@ class AccountRepositoryImplTest {
     fun `409는 서버 사유 코드로 거부된다`() = runTest {
         api.reply("""{"code":"NICKNAME_INVALID","message":"닉네임 오류"}""", code = 409)
 
-        val result = repository.editProfile("x", null)
+        val result = repository.editProfile(ProfileEdit("x", null, isAgePublic = false, isGenderPublic = false))
 
         assertEquals(Outcome.Failure(AppError.Rejected("NICKNAME_INVALID")), result)
     }
@@ -157,7 +162,6 @@ class AccountRepositoryImplTest {
                 Distance(21_097),
                 ageBand = "30대",
                 gender = Gender.FEMALE,
-                photoUrl = "https://img/7.png",
                 avatarBackgroundKey = "SEOUL_TOWER"
             ),
             profile
@@ -184,7 +188,43 @@ class AccountRepositoryImplTest {
             AccountRepositoryImpl(api.retrofit.create(), api.retrofit.create(), noToken, SelfMember(noToken), api.faces)
 
         assertEquals(Outcome.Failure(AppError.Unauthorized), loggedOut.profile(AccountRepository.SELF))
+        assertEquals(Outcome.Failure(AppError.Unauthorized), loggedOut.mySummary())
         assertEquals(0, api.server.requestCount)
+    }
+
+    @Test
+    fun `본인 요약은 본인 프로필 응답 하나에서 쓰는 값만 옮기고 유효 러닝 수는 runCount다(D-331)`() = runTest {
+        api.reply(
+            """{"memberId":7,"displayName":"달리는곰","disclosure":"PUBLIC","tier":"UNRANKED","level":3,
+               |"faceKey":"default:BEAR","avatarBackgroundKey":"BUSAN","runCount":2,"gender":"FEMALE",
+               |"totalDistanceMeters":9000}
+            """.trimMargin()
+        )
+
+        val summary = repository.mySummary().value()
+
+        assertEquals(MySummary("달리는곰", "UNRANKED", 3, "default:BEAR", "BUSAN", 2), summary)
+        assertEquals(Gender.FEMALE, repository.myGender.value)
+        assertEquals("/api/v1/members/7/profile", api.take().url.encodedPath)
+        assertEquals(1, api.server.requestCount)
+    }
+
+    @Test
+    fun `로그아웃하면 내 성별 사본을 비운다(리뷰 AN10-5)`() = runTest {
+        api.reply("""{"memberId":7,"displayName":"나","disclosure":"PUBLIC","tier":"UNRANKED","gender":"FEMALE"}""")
+        repository.mySummary().value()
+        assertEquals(Gender.FEMALE, repository.myGender.value)
+
+        repository.forgetMyGender()
+
+        assertEquals(null, repository.myGender.value)
+    }
+
+    @Test
+    fun `옛 서버가 runCount를 주지 않으면 본인 요약의 유효 러닝 수는 null이다(D-331)`() = runTest {
+        api.reply("""{"memberId":7,"displayName":"나","disclosure":"PUBLIC","tier":"UNRANKED"}""")
+
+        assertEquals(null, repository.mySummary().value().validRuns)
     }
 
     @Test
@@ -489,13 +529,79 @@ class AccountRepositoryImplTest {
     }
 
     @Test
-    fun `프로필 수정은 태그를 보내지 않는다`() = runTest {
+    fun `TC-9740 프로필 수정은 닉네임·소개·나이대·성별 공개만 보내고 사진·태그는 보내지 않는다`() = runTest {
         api.replyEmpty(200)
 
-        repository.editProfile("달리는곰", "안녕").value()
+        repository.editProfile(ProfileEdit("달리는곰", "안녕", isAgePublic = true, isGenderPublic = false)).value()
 
-        val body = Json.parseToJsonElement(api.take().body!!.utf8()).jsonObject
-        assertEquals(setOf("nickname", "intro"), body.keys)
+        val body = Json.parseToJsonElement(api.take().body!!.utf8())
+        assertEquals(
+            Json.parseToJsonElement(
+                """{"nickname":"달리는곰","intro":"안녕","ageBandVisibility":"PUBLIC","genderVisibility":"PRIVATE"}"""
+            ),
+            body
+        )
+    }
+
+    @Test
+    fun `프로필의 누적 거리·러닝 횟수·최근 러닝·공개 여부를 읽는다(D-287)`() = runTest {
+        api.reply(
+            """{"memberId":7,"displayName":"나","disclosure":"PUBLIC","totalDistanceMeters":128400,"runCount":42,
+               |"recentRuns":[{"kind":"FREE_RUN","startedOn":"2026-10-20","distanceMeters":5020},
+               |{"kind":"NEW_KIND","startedOn":"2026-10-18","distanceMeters":5000},
+               |{"kind":"BATTLE_RUN","startedOn":"bad","distanceMeters":1}],
+               |"ageBandVisibility":"PUBLIC","genderVisibility":"PRIVATE","photoUrl":null}
+            """.trimMargin()
+        )
+
+        val profile = repository.profile(7).value()
+
+        assertEquals(Distance(128_400), profile.totalDistance)
+        assertEquals(42, profile.runCount)
+        assertEquals(
+            listOf(
+                RecentRun(CardKind.FREE_RUN, LocalDate.of(2026, 10, 20), Distance(5_020)),
+                RecentRun(null, LocalDate.of(2026, 10, 18), Distance(5_000))
+            ),
+            profile.recentRuns
+        )
+        assertEquals(true, profile.isAgePublic)
+        assertEquals(false, profile.isGenderPublic)
+    }
+
+    @Test
+    fun `다른 러너 프로필의 표시 성별을 읽는다(D-327)`() = runTest {
+        api.reply("""{"memberId":8,"displayName":"바람","disclosure":"PUBLIC","shownGender":"FEMALE"}""")
+
+        assertEquals(Gender.FEMALE, repository.profile(8).value().shownGender)
+    }
+
+    @Test
+    fun `TC-9743 옛 서버 프로필은 새 항목 없이 해독된다`() = runTest {
+        api.reply("""{"memberId":7,"displayName":"나","disclosure":"PUBLIC"}""")
+
+        val profile = repository.profile(7).value()
+
+        assertEquals(null, profile.totalDistance)
+        assertEquals(null, profile.runCount)
+        assertEquals(emptyList(), profile.recentRuns)
+        assertEquals(null, profile.isAgePublic)
+        assertEquals(null, profile.shownGender)
+    }
+
+    @Test
+    fun `첫 사용 가이드 서버 값을 읽고 끝냄을 알린다(D-277)`() = runTest {
+        api.reply("""{"seen":true}""")
+        api.replyEmpty(204)
+        api.reply("""{}""")
+
+        val remote = GuideRemoteImpl(api.retrofit.create())
+
+        assertEquals(Outcome.Success(true), remote.seen())
+        assertEquals("GET /api/v1/me/guide", api.take().let { "${it.method} ${it.url.encodedPath}" })
+        assertEquals(Outcome.Success(Unit), remote.markSeen())
+        assertEquals("PUT /api/v1/me/guide", api.take().let { "${it.method} ${it.url.encodedPath}" })
+        assertEquals(Outcome.Success(false), remote.seen())
     }
 
     @Test

@@ -11,9 +11,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -22,6 +25,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -30,10 +34,18 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.a207.runkk.app.core.designsystem.AvatarCharacter
+import com.a207.runkk.app.core.designsystem.AvatarExpression
+import com.a207.runkk.app.core.designsystem.LocalAvatarCharacter
+import com.a207.runkk.app.core.designsystem.LocalReleaseScope
+import com.a207.runkk.app.core.designsystem.RunkkAvatar
 import com.a207.runkk.app.core.designsystem.RunkkCard
+import com.a207.runkk.app.core.designsystem.RunkkChoiceChip
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkEmptyState
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
@@ -46,16 +58,20 @@ import com.a207.runkk.app.core.designsystem.RunkkProgressBar
 import com.a207.runkk.app.core.designsystem.RunkkSectionTitle
 import com.a207.runkk.app.core.designsystem.RunkkSegmentRow
 import com.a207.runkk.app.core.designsystem.RunkkSegmentedTabs
+import com.a207.runkk.app.core.designsystem.RunkkSelectField
 import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
 import com.a207.runkk.app.core.designsystem.RunkkStatTile
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
+import com.a207.runkk.app.core.designsystem.SelectLabel
 import com.a207.runkk.app.core.designsystem.StatTileStyle
 import com.a207.runkk.app.core.designsystem.StatTileValue
 import com.a207.runkk.app.core.designsystem.UiText
+import com.a207.runkk.app.core.designsystem.UnreleasedFeature
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.domain.record.AggregationPeriod
 import com.a207.runkk.app.domain.record.Growth
@@ -80,7 +96,7 @@ private fun AnalysisScaffold(
     title: String,
     isLoading: Boolean,
     error: UiText?,
-    onBack: () -> Unit,
+    onBack: (() -> Unit)?,
     onRetry: () -> Unit,
     header: @Composable ColumnScope.() -> Unit = {},
     content: @Composable ColumnScope.() -> Unit
@@ -299,150 +315,129 @@ private fun ReportCommentCard(comment: String, hasComment: Boolean, source: Stri
 @Composable
 fun RankingRoute(viewModel: RankingViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val navigator = LocalRunkkNavigator.current
     RankingScreen(
         state,
-        onBack = navigator::back,
         onScope = viewModel::onScopeSelected,
         onPeriod = viewModel::onPeriodSelected,
         onRetry = viewModel::refresh
     )
 }
 
+/**
+ * 랭킹 탭(D-286, FR-070): 분절 "개인 | 크루"(크루는 CREW가 닫혀 있으면 분절째 숨겨 개인만), 기간 칩 "주간"·"월간", 기준
+ * "누적 유효 거리", 내 순위 카드, 행(순위·아바타·닉네임·거리). 다음 순위까지 남은 거리·집계 시각·티어는 그리지 않는다.
+ * 서버 응답에 아바타 키가 없어 모든 행이 기본 아바타다.
+ */
 @Composable
 fun RankingScreen(
     state: RankingUiState,
-    onBack: () -> Unit,
     onScope: (RankingScope) -> Unit,
     onPeriod: (AggregationPeriod) -> Unit,
     onRetry: () -> Unit
 ) {
+    val isCrewOpen = LocalReleaseScope.current.isOpen(UnreleasedFeature.CREW)
     AnalysisScaffold(
         title = stringResource(R.string.record_ranking_title),
         isLoading = state.isLoading && state.ranking == null,
         error = state.error,
-        onBack = onBack,
+        onBack = null,
         onRetry = onRetry,
-        header = { RankingTabs(state.scope, state.period, onScope, onPeriod) }
+        header = { RankingTabs(state.scope, state.period, isCrewOpen, onScope, onPeriod) }
     ) {
         val ranking = state.ranking ?: return@AnalysisScaffold
-        ranking.mine?.let { RankingMineCard(state.scope, ranking, it) }
-        val aggregatedFormat = rememberDateFormatter(R.string.record_ranking_aggregated_pattern)
-        RunkkSectionTitle(
-            ranking.aggregatedAt?.let {
-                stringResource(
-                    R.string.record_ranking_aggregated_at,
-                    aggregatedFormat.format(it.atZone(ZoneId.systemDefault()))
-                )
-            } ?: stringResource(R.string.record_ranking_aggregating)
-        )
-        ranking.notice?.let { Text(it, style = RunkkTextStyles.Caption, color = RunkkColors.Lavender) }
-        if (ranking.entries.isEmpty()) {
-            RunkkEmptyState(
-                stringResource(
-                    if (ranking.aggregatedAt == null) R.string.record_ranking_waiting else R.string.record_ranking_empty
-                )
-            )
-        }
+        ranking.mine?.let { RankingMineCard(it) }
+        if (ranking.entries.isEmpty()) RunkkEmptyState(stringResource(R.string.record_ranking_empty))
         ranking.entries.forEach { entry -> RankingEntryRow(entry, isMine = entry == ranking.mine) }
     }
 }
 
-/** 랭킹 위쪽 탭 두 줄: 개인·크루, 주간·월간. */
+/** 랭킹 위쪽: 개인·크루 분절(크루가 열려 있을 때만), 주간·월간 칩과 기준 "누적 유효 거리". */
 @Composable
 private fun RankingTabs(
     scope: RankingScope,
     period: AggregationPeriod,
+    isCrewOpen: Boolean,
     onScope: (RankingScope) -> Unit,
     onPeriod: (AggregationPeriod) -> Unit
 ) {
-    RunkkSegmentedTabs(
-        RankingScope.entries.map { stringResource(it.labelRes) },
-        scope.ordinal,
-        onSelect = {
-            onScope(RankingScope.entries[it])
-        },
-        modifier = Modifier.fillMaxWidth()
-    )
-    RunkkSegmentedTabs(
-        periodLabels(),
-        PERIODS.indexOfFirst {
-            it.first == period
-        },
-        onSelect = { onPeriod(PERIODS[it].first) },
-        isCompact = true
-    )
-}
-
-/** 내 순위(또는 우리 크루 순위) 카드. 범위·기간을 바꾸면 순위가 바뀐 것을 보조 기술에 알린다. */
-@Composable
-private fun RankingMineCard(scope: RankingScope, ranking: Ranking, mine: Ranking.Entry) {
-    RunkkCard(
-        Modifier.fillMaxWidth().semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
-        borderColor = RunkkColors.Lime,
-        background = RunkkColors.LimeContainer
-    ) {
-        Text(
-            stringResource(
-                if (scope == RankingScope.CREW) R.string.record_ranking_mine_crew else R.string.record_ranking_mine
-            ),
-            style = RunkkTextStyles.Caption,
-            color = RunkkColors.Lime
+    if (isCrewOpen) {
+        RunkkSegmentedTabs(
+            RankingScope.entries.map { stringResource(it.labelRes) },
+            scope.ordinal,
+            onSelect = { onScope(RankingScope.entries[it]) },
+            modifier = Modifier.fillMaxWidth()
         )
-        Row(verticalAlignment = Alignment.Bottom) {
-            RunkkNumberText(
-                "${mine.rank}",
-                unit = stringResource(R.string.record_ranking_unit_rank),
-                style = RunkkTextStyles.display(40),
-                color = RunkkColors.Lime,
-                modifier = Modifier.weight(1f)
-            )
-            Text(
-                stringResource(R.string.record_km_value, RunkkFormat.km(mine.distance)),
-                style = RunkkTextStyles.display(24),
-                color = RunkkColors.TextPrimary
-            )
+    }
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        val labels = periodLabels()
+        PERIODS.forEachIndexed { index, (value, _) ->
+            RunkkChoiceChip(labels[index], isSelected = value == period, onSelectedChange = { onPeriod(value) })
         }
-        ranking.gapToNext?.let {
-            Text(
-                stringResource(R.string.record_ranking_gap, RunkkFormat.km(it)),
-                style = RunkkTextStyles.Caption,
-                color = RunkkColors.TextSecondary
-            )
-        }
+        Text(
+            stringResource(R.string.record_ranking_metric),
+            style = RunkkTextStyles.Caption,
+            color = RunkkColors.TextSecondary,
+            textAlign = TextAlign.End,
+            modifier = Modifier.weight(1f)
+        )
     }
 }
 
-/** 랭킹 한 줄: 순위, 이름, 거리. 보조 기술에는 한 줄로 읽어 준다. */
+/** 내 순위 고정 카드: "[128] (아바타) 나 [18.4]km". 기간을 바꾸면 바뀐 순위를 보조 기술에 알린다. */
+@Composable
+private fun RankingMineCard(mine: Ranking.Entry) {
+    val me = stringResource(R.string.record_ranking_me)
+    RunkkCard(
+        Modifier.fillMaxWidth().semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
+        borderColor = RunkkColors.BorderStrong,
+        shape = RunkkShapes.ExtraLarge
+    ) {
+        RankingLine(mine.copy(name = me), isMine = true)
+    }
+}
+
+/** 랭킹 한 줄: 순위, 기본 아바타, 이름, 거리. 보조 기술에는 한 줄로 읽어 준다. */
 @Composable
 private fun RankingEntryRow(entry: Ranking.Entry, isMine: Boolean) {
+    Column {
+        RankingLine(entry, isMine, Modifier.padding(vertical = 8.dp))
+        HorizontalDivider(color = RunkkColors.Border)
+    }
+}
+
+@Composable
+private fun RankingLine(entry: Ranking.Entry, isMine: Boolean, modifier: Modifier = Modifier) {
     val spoken = rankingSpoken(entry, isMine)
     Row(
-        modifier = Modifier.fillMaxWidth().clearAndSetSemantics { contentDescription = spoken },
+        modifier = modifier.fillMaxWidth().clearAndSetSemantics { contentDescription = spoken },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text(
             "${entry.rank}",
-            style = RunkkTextStyles.display(20),
-            color = if (entry.rank <=
-                PODIUM
-            ) {
-                RunkkColors.Lime
-            } else {
-                RunkkColors.TextSecondary
-            },
-            modifier = Modifier.width(32.dp)
+            style = RunkkTextStyles.text(16, FontWeight.Bold),
+            color = RunkkColors.TextPrimary,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.width(40.dp)
+        )
+        RunkkAvatar(
+            faceKey = null,
+            expression = AvatarExpression.FACE,
+            modifier = Modifier.size(36.dp).clip(CircleShape).background(RunkkColors.Surface),
+            // 내 줄은 내 캐릭터, 다른 러너 줄은 그 러너의 표시 성별(D-327)
+            character = if (isMine) LocalAvatarCharacter.current else AvatarCharacter.of(entry.shownGender)
         )
         Text(
             entry.name,
-            style = RunkkTextStyles.text(15, if (isMine) FontWeight.Black else FontWeight.Medium),
+            style = RunkkTextStyles.text(15, if (isMine) FontWeight.Bold else FontWeight.Normal),
             color = RunkkColors.TextPrimary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f)
         )
         Text(
-            stringResource(R.string.record_km_value, RunkkFormat.km(entry.distance)),
-            style = RunkkTextStyles.display(18),
+            stringResource(R.string.record_ranking_km, RunkkFormat.kmShort(entry.distance)),
+            style = RunkkTextStyles.text(16, FontWeight.Bold),
             color = RunkkColors.TextPrimary
         )
     }
@@ -462,6 +457,7 @@ internal fun rankingSpoken(entry: Ranking.Entry, isMine: Boolean): String = list
 class CoachActions(
     val onBack: () -> Unit = {},
     val onTodayPlan: (Distance) -> Unit = {},
+    val onTodayPace: (Pace?) -> Unit = {},
     val onGoalRuns: (Int) -> Unit = {},
     val onGoalDistance: (Distance) -> Unit = {},
     val onSaveGoal: () -> Unit = {},
@@ -477,6 +473,7 @@ fun CoachRoute(viewModel: CoachViewModel = hiltViewModel()) {
         CoachActions(
             onBack = navigator::back,
             onTodayPlan = viewModel::onTodayPlan,
+            onTodayPace = viewModel::onTodayPace,
             onGoalRuns = viewModel::onGoalRunsSelected,
             onGoalDistance = viewModel::onGoalDistanceSelected,
             onSaveGoal = viewModel::onSaveWeeklyGoal,
@@ -506,7 +503,12 @@ fun CoachScreen(state: CoachUiState, actions: CoachActions) {
             onRetry = actions.onRetry
         ) {
             CoachWeekCard(state)
-            TodayPlanCard(isSaving = state.isSaving, onTodayPlan = actions.onTodayPlan)
+            TodayPlanCard(
+                planned = state.progress?.days?.firstOrNull { it.date == state.today }?.planned,
+                pace = state.todayPace,
+                onTodayPlan = actions.onTodayPlan,
+                onTodayPace = actions.onTodayPace
+            )
             WeeklyGoalCard(state, actions)
         }
         RunkkSnackbarHost(snackbar, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp))
@@ -576,23 +578,45 @@ private fun CoachDayRow(day: PlanProgress.Day, isToday: Boolean) {
     }
 }
 
-/** 오늘 계획 정하기 카드: 거리 알약 버튼. */
-@OptIn(ExperimentalLayoutApi::class)
+/**
+ * 오늘 계획 정하기 카드: 거리와 목표 페이스 고르기 줄. 오늘 정해 둔 거리([planned])·페이스([pace])가 선택돼 보인다.
+ * 목표 페이스는 코치 계획 따르기가 켜져 있을 때 1km마다 느리면 알려 준다(FR-044, 사용자 요청 2026-10-31).
+ */
 @Composable
-private fun TodayPlanCard(isSaving: Boolean, onTodayPlan: (Distance) -> Unit) {
-    RunkkCard(Modifier.fillMaxWidth()) {
+private fun TodayPlanCard(
+    planned: Distance?,
+    pace: Pace?,
+    onTodayPlan: (Distance) -> Unit,
+    onTodayPace: (Pace?) -> Unit
+) {
+    RunkkCard(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(
             stringResource(R.string.record_coach_today_title),
             style = RunkkTextStyles.CardTitle,
             color = RunkkColors.TextPrimary
         )
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            PLAN_CHOICES.forEach { km ->
-                RunkkPillButton(stringResource(R.string.record_km_int_value, km), onClick = {
-                    onTodayPlan(Distance.ofKm(km.toDouble()))
-                }, isEnabled = !isSaving)
-            }
-        }
+        val distances = PLAN_CHOICES.map { Distance.ofKm(it.toDouble()) }
+        RunkkSegmentRow(
+            options = PLAN_CHOICES.map { stringResource(R.string.record_km_int_value, it) },
+            selectedIndex = distances.indexOf(planned),
+            onSelect = { onTodayPlan(distances[it]) },
+            groupLabel = stringResource(R.string.record_coach_today_distance),
+            spokenLabels = PLAN_CHOICES.map { stringResource(R.string.record_goal_distance_spoken, it) }
+        )
+        // 드롭다운(사용자 요청 2026-10-31: 선택지가 적다). 맨 앞은 페이스 없음(거리만 따른다)
+        val none = stringResource(R.string.record_coach_pace_none)
+        val resources = LocalContext.current.resources
+        RunkkSelectField(
+            label = stringResource(R.string.record_coach_today_pace),
+            options = listOf<Pace?>(null) + PACE_CHOICES.map(::Pace),
+            selected = pace,
+            // 화면은 "5:30", 보조 기술은 "1킬로미터당 5분 30초"로 읽는다(D-364, 리뷰 AN11-7: 페이스 표기는 RunkkFormat 하나로)
+            optionLabel = { p ->
+                p?.let { SelectLabel(RunkkFormat.pace(it), RunkkFormat.paceSpoken(resources, it)) } ?: SelectLabel(none)
+            },
+            onSelect = onTodayPace,
+            placeholder = none
+        )
     }
 }
 
@@ -631,7 +655,9 @@ private fun WeeklyGoalCard(state: CoachUiState, actions: CoachActions) {
     }
 }
 
-private const val PODIUM = 3
 private val PLAN_CHOICES = listOf(3, 5, 7, 10)
+
+/** 오늘 계획 목표 페이스 선택지(초/km): 3:00부터 10:00까지 10초 간격. */
+private val PACE_CHOICES = (180..600 step 10).toList()
 private val GOAL_CHOICES = listOf(10, 20, 30, 40)
 private val PERIOD_DATE = DateTimeFormatter.ofPattern("M/d", Locale.KOREAN)

@@ -2,6 +2,7 @@ package com.a207.runkk.analysis;
 
 import com.a207.runkk.common.BusinessRuleException;
 import com.a207.runkk.common.DateRange;
+import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.GeoPoint;
 import com.a207.runkk.common.PermissionDeniedException;
@@ -13,6 +14,7 @@ import com.a207.runkk.crew.CrewMembershipReader;
 import com.a207.runkk.crew.WeeklyRaceService;
 import com.a207.runkk.member.MemberPreference;
 import com.a207.runkk.member.MemberQueryService;
+import com.a207.runkk.member.MemberSummary;
 import com.a207.runkk.policy.OperationPolicy;
 import com.a207.runkk.reward.AccrualReason;
 import com.a207.runkk.reward.RewardService;
@@ -48,6 +50,7 @@ public class RecordQueryService {
 
     private static final String LONGEST_LABEL = "최장 거리 신기록";
     private static final String HALF_LABEL = "하프";
+    private static final String FULL_LABEL = "풀";
 
     /** 최대 심박 = 220 − 나이(FR-185). */
     private static final int MAX_HEART_RATE_BASE = 220;
@@ -82,11 +85,19 @@ public class RecordQueryService {
         if (ChronoUnit.DAYS.between(range.start(), range.end()) >= MAX_LIST_DAYS) {
             throw new IllegalArgumentException("조회 기간은 366일까지");
         }
-        requireVisible(viewerId, ownerId, memberQueryService.preferenceOf(ownerId));
+        MemberPreference owner = memberQueryService.preferenceOf(ownerId);
+        requireVisible(viewerId, ownerId, owner);
+        // 경로 모양은 위치를 드러내지 않지만 코스 지도 공개 규칙과 같게 둔다(D-234)
+        boolean showShape = viewerId == ownerId || owner.courseMapShared();
         return new RecordListView(
                 ownerId,
-                runQueryService.summariesBetween(ownerId, range).stream()
-                        .map(RecordRow::of)
+                runQueryService.listRows(ownerId, range).stream()
+                        .map(
+                                row ->
+                                        RecordRow.of(
+                                                row.summary(),
+                                                row.newRecords(),
+                                                showShape ? row.routeShape() : null))
                         .toList());
     }
 
@@ -120,7 +131,9 @@ public class RecordQueryService {
                 detail.pauses().stream()
                         .map(PauseInterval::duration)
                         .reduce(Duration.ZERO, Duration::plus)
-                        .toSeconds());
+                        .toSeconds(),
+                self && detail.deletable(),
+                self ? owner.recordVisibility() : null);
     }
 
     /** 본인 기록만(srs.md 6.3 3.5). 앞면 값 + 뒷면 경로 + 코스지도공유 값. */
@@ -142,7 +155,14 @@ public class RecordQueryService {
                 heart == null ? null : heart.average(),
                 newRecordLabels(detail.newRecords()),
                 route,
-                memberQueryService.preferenceOf(memberId).courseMapShared());
+                memberQueryService.preferenceOf(memberId).courseMapShared(),
+                weatherOf(detail),
+                nicknameOf(memberId));
+    }
+
+    private String nicknameOf(long memberId) {
+        MemberSummary summary = memberQueryService.summaries(List.of(memberId)).get(memberId);
+        return (summary == null ? DisplayName.WITHDRAWN : summary.displayName()).value();
     }
 
     /** srs.md 6.3 3.2 규칙 1~4: 본인 → 전부, 비공개 → 거부, 크루 공개인데 다른 크루 → 거부, 나머지 허용. */
@@ -220,8 +240,12 @@ public class RecordQueryService {
     }
 
     private static String baseLabel(StandardDistance distance) {
-        return distance == StandardDistance.HALF
-                ? HALF_LABEL
-                : distance.distance().meters() / Distance.METERS_PER_KM + " km";
+        if (distance == StandardDistance.HALF) {
+            return HALF_LABEL;
+        }
+        if (distance == StandardDistance.FULL) {
+            return FULL_LABEL; // 풀 최고 기록(v0.14 D-238)
+        }
+        return distance.distance().meters() / Distance.METERS_PER_KM + " km";
     }
 }

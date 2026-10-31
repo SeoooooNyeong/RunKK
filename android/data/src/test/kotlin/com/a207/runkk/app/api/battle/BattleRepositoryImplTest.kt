@@ -5,10 +5,13 @@ import com.a207.runkk.app.api.core.value
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.battle.ActiveBattle
 import com.a207.runkk.app.domain.battle.BattleHistory
 import com.a207.runkk.app.domain.battle.BattleResult
+import com.a207.runkk.app.domain.battle.FriendInvite
+import com.a207.runkk.app.domain.battle.FriendInviteView
 import com.a207.runkk.app.domain.battle.MatchAcceptance
 import com.a207.runkk.app.domain.battle.RecordBattleCandidates
 import java.time.Duration
@@ -47,12 +50,13 @@ class BattleRepositoryImplTest {
     }
 
     @Test
-    fun `대결 결과는 상대 표시명·본인 기록 ID·도달 시간·이번 주 전적을 읽는다`() = runTest {
+    fun `대결 결과는 상대 표시명·본인 기록 ID·도달 시간·종류·적립 합계·평가를 읽는다(D-283, D-284)`() = runTest {
         api.reply(
-            """{"battleId":9,"type":"RANDOM","pending":false,"retryUpload":false,"verdict":"WIN","corrected":false,
-               |"myReachSeconds":1650,"opponentReachSeconds":1692,"rows":[{"item":"기록","mine":"27:30","theirs":"28:12"}],
-               |"weekly":{"wins":3,"losses":1,"draws":0},"rewardPoints":40,"newRecord":false,"opponentName":"바람처럼",
-               |"recordId":"5b2c-uuid"}
+            """{"battleId":9,"type":"FRIEND","pending":false,"retryUpload":false,"verdict":"WIN","corrected":false,
+               |"myReachSeconds":1650,"opponentReachSeconds":1692,"rows":[],
+               |"weekly":{"wins":3,"losses":1,"draws":0},"rewardPoints":0,"newRecord":false,"opponentName":"바람처럼",
+               |"recordId":"5b2c-uuid","totalRewardPoints":12,"opponentGender":"FEMALE",
+               |"evaluation":{"kind":"FIRST_PLACEMENT","tier":"SILVER","validRuns":3,"runimalType":null}}
             """.trimMargin()
         )
         api.reply("""{"battleId":10,"pending":true,"recordId":null,"opponentName":null}""")
@@ -64,9 +68,117 @@ class BattleRepositoryImplTest {
         assertEquals("5b2c-uuid", won.recordId)
         assertEquals(Duration.ofSeconds(1_650), won.myReach)
         assertEquals(Duration.ofSeconds(1_692), won.opponentReach)
-        assertEquals(BattleResult.Weekly(3, 1, 0), won.weekly)
+        assertEquals(BattleHistory.Type.FRIEND, won.type)
+        assertEquals(12, won.totalRewardPoints)
+        assertEquals(BattleResult.Evaluation("FIRST_PLACEMENT", "SILVER", 3, null), won.evaluation)
         assertEquals(null, pending.recordId)
-        assertEquals(null, pending.weekly)
+        assertEquals(null, pending.totalRewardPoints, "옛 서버면 합계 없음")
+        assertEquals(null, pending.evaluation)
+        assertEquals(Gender.FEMALE, won.opponentGender)
+        assertEquals(null, pending.opponentGender, "옛 서버면 상대 성별 없음")
+    }
+
+    @Test
+    fun `친구 초대 만들기는 거리를 보내고 링크·만료 시각을 읽는다(D-270)`() = runTest {
+        api.reply(
+            """{"inviteId":41,"token":"aB3-_xY0aB3-_xY0aB3-_x",
+               |"inviteUrl":"https://k15a207.p.ssafy.io/invite/battle/aB3-_xY0aB3-_xY0aB3-_x",
+               |"distanceMeters":5000,"expiresAt":"2026-10-30T10:05:00"}
+            """.trimMargin(),
+            code = 201
+        )
+
+        val invite = repository.createFriendInvite(Distance(5_000)).value()
+
+        assertEquals(
+            FriendInvite(
+                41,
+                "aB3-_xY0aB3-_xY0aB3-_x",
+                "https://k15a207.p.ssafy.io/invite/battle/aB3-_xY0aB3-_xY0aB3-_x",
+                Distance(5_000),
+                Instant.parse("2026-10-30T01:05:00Z")
+            ),
+            invite
+        )
+        val request = api.take()
+        assertEquals("POST /api/v1/battles/friend-invites", "${request.method} ${request.url.encodedPath}")
+        assertEquals("""{"distanceMeters":5000}""", request.body!!.utf8())
+    }
+
+    @Test
+    fun `내 열린 초대는 200이면 초대, 204면 null이다(D-271)`() = runTest {
+        api.reply(
+            """{"inviteId":41,"token":"t1","inviteUrl":"https://k15a207.p.ssafy.io/invite/battle/t1",
+               |"distanceMeters":3000,"expiresAt":"2026-10-30T10:05:00"}
+            """.trimMargin()
+        )
+        api.replyEmpty(204)
+
+        assertEquals(41L, repository.myFriendInvite().value()?.inviteId)
+        assertEquals("GET /api/v1/battles/friend-invites/mine", api.take().let { "${it.method} ${it.url.encodedPath}" })
+        assertEquals(Outcome.Success(null), repository.myFriendInvite())
+    }
+
+    @Test
+    fun `초대 취소는 DELETE이고 거부는 본문 code로 온다(TC-9669, TC-9686)`() = runTest {
+        api.replyEmpty(204)
+        api.reply("""{"code":"INVITE_ALREADY_JOINED","message":"이미 참가했어요"}""", code = 409)
+        api.reply("""{"code":"PERMISSION_DENIED"}""", code = 403)
+
+        assertEquals(Outcome.Success(Unit), repository.cancelFriendInvite(41))
+        assertEquals(
+            "DELETE /api/v1/battles/friend-invites/41",
+            api.take().let { "${it.method} ${it.url.encodedPath}" }
+        )
+        assertEquals(Outcome.Failure(AppError.Rejected("INVITE_ALREADY_JOINED")), repository.cancelFriendInvite(41))
+        assertEquals(Outcome.Failure(AppError.Rejected("PERMISSION_DENIED")), repository.cancelFriendInvite(41))
+    }
+
+    @Test
+    fun `받은 초대는 me를 펴서 읽고 없는 토큰은 INVITE_NOT_FOUND다(D-273)`() = runTest {
+        api.reply(
+            """{"inviteId":41,"status":"PENDING","distanceMeters":5000,"expiresAt":"2026-10-30T10:05:00",
+               |"inviter":{"name":"바람처럼","tier":"GOLD","bestSeconds":1788},"me":{"tier":"UNRANKED","bestSeconds":null},
+               |"blockedReason":null}
+            """.trimMargin()
+        )
+        api.reply("""{"code":"INVITE_NOT_FOUND"}""", code = 409)
+
+        assertEquals(
+            FriendInviteView(
+                inviteId = 41,
+                status = "PENDING",
+                distance = Distance(5_000),
+                expiresAt = Instant.parse("2026-10-30T01:05:00Z"),
+                inviter = FriendInviteView.Inviter("바람처럼", "GOLD", 1_788),
+                myTier = "UNRANKED",
+                myBestSeconds = null,
+                blockedReason = null
+            ),
+            repository.friendInvite("aB3-_x").value()
+        )
+        assertEquals(
+            "GET /api/v1/battles/friend-invites/by-token/aB3-_x",
+            api.take().let { "${it.method} ${it.url.encodedPath}" }
+        )
+        assertEquals(Outcome.Failure(AppError.Rejected("INVITE_NOT_FOUND")), repository.friendInvite("zz"))
+    }
+
+    @Test
+    fun `참가는 대결 ID를 읽고 거절은 204다(D-273, D-274)`() = runTest {
+        api.reply("""{"battleId":77}""")
+        api.replyEmpty(204)
+
+        assertEquals(Outcome.Success(77L), repository.acceptFriendInvite("tok"))
+        assertEquals(
+            "POST /api/v1/battles/friend-invites/by-token/tok/accept",
+            api.take().let { "${it.method} ${it.url.encodedPath}" }
+        )
+        assertEquals(Outcome.Success(Unit), repository.declineFriendInvite("tok"))
+        assertEquals(
+            "POST /api/v1/battles/friend-invites/by-token/tok/decline",
+            api.take().let { "${it.method} ${it.url.encodedPath}" }
+        )
     }
 
     @Test
@@ -112,7 +224,7 @@ class BattleRepositoryImplTest {
         api.reply(
             """{"candidates":[{"displayName":"나","distanceMeters":5000},
                |{"id":3,"displayName":"익명 마라토너","distanceMeters":10000,"finishSeconds":2700,
-               |"recordedOn":"2025-04-06","sourceLabel":"대회 기록","estimated":true}]}
+               |"recordedOn":"2025-04-06","sourceLabel":"대회 기록","estimated":true,"myBestSeconds":3730}]}
             """.trimMargin()
         )
 
@@ -129,7 +241,8 @@ class BattleRepositoryImplTest {
                         Duration.ofSeconds(2_700),
                         LocalDate.of(2025, 4, 6),
                         "대회 기록",
-                        true
+                        true,
+                        myBest = Duration.ofSeconds(3_730)
                     )
                 )
             ),
@@ -169,7 +282,7 @@ class BattleRepositoryImplTest {
     fun `진행 중인 대결은 상대 이름과 출발 시각을 읽고 없으면(204) null이다(배틀 QA 7번)`() = runTest {
         api.reply(
             """{"battleId":12,"type":"RANDOM","status":"WAITING_START","distanceMeters":5000,"opponentName":"러너2",
-               |"startAt":"2026-10-27T16:00:13"}
+               |"startAt":"2026-10-27T16:00:13","opponentGender":"MALE"}
             """.trimMargin()
         )
         api.reply(
@@ -187,7 +300,8 @@ class BattleRepositoryImplTest {
                     "WAITING_START",
                     Distance(5_000),
                     "러너2",
-                    Instant.parse("2026-10-27T07:00:13Z")
+                    Instant.parse("2026-10-27T07:00:13Z"),
+                    Gender.MALE
                 )
             ),
             repository.active()

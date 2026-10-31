@@ -300,6 +300,11 @@ public class CrewRunPost extends SchedulePost {
         return participationOf(memberId).filter(CrewRunParticipation::isRunner);
     }
 
+    /** 그 회원 참여의 기록 연결을 비운다(기록 삭제, v0.14 D-232). 비웠으면 true. */
+    public boolean unlinkRun(long memberId, String recordId) {
+        return participationOf(memberId).map(p -> p.unlink(recordId)).orElse(false);
+    }
+
     public Optional<CrewRunParticipation> participationOf(long memberId) {
         return participations.stream().filter(p -> p.belongsTo(memberId)).findFirst();
     }

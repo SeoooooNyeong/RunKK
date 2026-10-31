@@ -33,9 +33,11 @@ import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.common.StandardDistance;
 import com.a207.runkk.common.Tier;
 import com.a207.runkk.member.ConsentItem;
+import com.a207.runkk.member.Gender;
 import com.a207.runkk.member.GhostOwner;
 import com.a207.runkk.member.MemberQueryService;
 import com.a207.runkk.member.MemberSettingService;
+import com.a207.runkk.member.ShownGender;
 import com.a207.runkk.notification.NotificationRequest;
 import com.a207.runkk.notification.NotificationService;
 import com.a207.runkk.notification.NotificationType;
@@ -57,6 +59,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
+import java.util.random.RandomGenerator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -72,6 +75,7 @@ class BattleServicesTest {
     private final InMemoryBattleStores.Queue queue = new InMemoryBattleStores.Queue();
     private final InMemoryBattleStores.Sessions sessions = new InMemoryBattleStores.Sessions();
     private final InMemoryBattleStores.Virtuals virtuals = new InMemoryBattleStores.Virtuals();
+    private final InMemoryBattleStores.Invites invites = new InMemoryBattleStores.Invites();
     private final InMemoryBattleStores.Messenger messenger = new InMemoryBattleStores.Messenger();
     private final List<DomainEvent> events = new ArrayList<>();
     private final DomainEventPublisher publisher = events::add;
@@ -82,6 +86,9 @@ class BattleServicesTest {
     private final OperationPolicy policy = mock(OperationPolicy.class);
     private final BattleTransactions tx = InMemoryBattleStores.transactions();
     private final Clock clock = Clock.fixed(NOW.atZone(SEOUL).toInstant(), SEOUL);
+
+    /** nextBoolean이 늘 true인 생성기: 무작위 성별은 FEMALE(OpponentGenders.random). */
+    private static final RandomGenerator FEMALE_PICK = () -> -1L;
 
     private BattleStartService startService;
     private Matchmaker matchmaker;
@@ -163,7 +170,12 @@ class BattleServicesTest {
     class Matching {
 
         private MatchingService matching() {
-            return new MatchingService(members, settings, queue, battles, clock);
+            return new MatchingService(
+                    members,
+                    settings,
+                    queue,
+                    new RunnerAvailability(queue, battles, invites),
+                    clock);
         }
 
         @Test
@@ -244,6 +256,29 @@ class BattleServicesTest {
             assertThat(found.animationSeconds()).isEqualTo(3);
             BattleStart start = (BattleStart) messenger.to(BOB, "BattleStart").get(0);
             assertThat(start.opponentTrack()).isNull();
+        }
+
+        @Test
+        @org.junit.jupiter.api.DisplayName(
+                "랜덤 대결 성사: 상대 회원의 표시 성별을 MatchFound에 싣고 대결에 남긴다. 맵에 없는 회원은 회원 ID 고정"
+                        + " 대체값이다. 결과도 같은 값이다(2026-10-31 결정, D-336)")
+        void randomMatch_sendsRivalGender() {
+            when(members.shownGendersOf(anyCollection())).thenReturn(Map.of(ALICE, Gender.MALE));
+            waiting(ALICE, NOW);
+            waiting(BOB, NOW.plusSeconds(1));
+            matchmaker.tick(NOW.plusSeconds(2));
+
+            Battle battle = battles.all().get(0);
+            String bobShown = ShownGender.fallbackOf(BOB).name();
+            MatchFound toAlice = (MatchFound) messenger.to(ALICE, "MatchFound").get(0);
+            MatchFound toBob = (MatchFound) messenger.to(BOB, "MatchFound").get(0);
+            assertThat(toAlice.opponentGender()).as("밥은 대체값").isEqualTo(bobShown);
+            assertThat(toBob.opponentGender()).as("앨리스 표시 성별").isEqualTo("MALE");
+            assertThat(battle.opponentGenderFor(ALICE)).contains(ShownGender.fallbackOf(BOB));
+            assertThat(resultService.result(ALICE, battle.getId()).opponentGender())
+                    .isEqualTo(bobShown);
+            assertThat(resultService.result(BOB, battle.getId()).opponentGender())
+                    .isEqualTo("MALE");
         }
 
         @Test
@@ -392,7 +427,12 @@ class BattleServicesTest {
                                     "달빛여우",
                                     Duration.ofMinutes(26))));
             MatchingService matching =
-                    new MatchingService(members, settings, queue, battles, clock);
+                    new MatchingService(
+                            members,
+                            settings,
+                            queue,
+                            new RunnerAvailability(queue, battles, invites),
+                            clock);
             List<Throwable> cancelOutcome = new ArrayList<>();
             when(members.ghostEligibleOwners(any(), anyLong()))
                     .thenAnswer(
@@ -449,6 +489,29 @@ class BattleServicesTest {
         }
 
         @Test
+        @org.junit.jupiter.api.DisplayName("가상 상대 고스트: 매칭 때 무작위로 정한 성별을 대결에 남기고 MatchFound에 싣는다")
+        void virtualGhost_getsRandomGender() {
+            virtuals.replaceAll(
+                    List.of(
+                            new VirtualRecord(
+                                    Tier.GOLD,
+                                    StandardDistance.KM5,
+                                    "달빛여우",
+                                    Duration.ofMinutes(26))));
+            when(members.ghostEligibleOwners(any(), anyLong())).thenReturn(Map.of());
+            GhostMatcher ghost =
+                    new GhostMatcher(members, runs, virtuals, battles, startService, FEMALE_PICK);
+
+            Battle battle = ghost.match(waiting(ALICE, NOW), NOW.plusSeconds(16));
+
+            assertThat(battle.opponentGenderFor(ALICE)).contains(Gender.FEMALE);
+            MatchFound found = (MatchFound) messenger.to(ALICE, "MatchFound").get(0);
+            assertThat(found.opponentGender()).isEqualTo("FEMALE");
+            assertThat(resultService.result(ALICE, battle.getId()).opponentGender())
+                    .isEqualTo("FEMALE");
+        }
+
+        @Test
         @org.junit.jupiter.api.DisplayName("고스트: 같은 티어 러너 기록이 있으면 그 기록(좌표 없는 표본)으로, 인접 티어로 넓혀 찾는다")
         void ghost_usesRunnerRecord_withLadder() {
             GhostOwner owner = new GhostOwner(7L, DisplayName.of("새벽곰"), Tier.SILVER);
@@ -484,6 +547,42 @@ class BattleServicesTest {
             assertThat(ref.displayName()).isEqualTo(DisplayName.of("새벽곰"));
             assertThat(ref.arrivalElapsed()).isEqualTo(Duration.ofMinutes(24));
             assertThat(ghost.opponentValues().orElseThrow().averagePace()).isEqualTo(new Pace(288));
+            assertThat(ghost.opponentGenderFor(ALICE))
+                    .as("기록 주인 표시 성별을 못 읽으면 회원 ID 대체값")
+                    .contains(ShownGender.fallbackOf(7L));
+        }
+
+        @Test
+        @org.junit.jupiter.api.DisplayName("러너 기록 고스트: 기록 주인 회원의 성별을 상대 성별로 남긴다")
+        void runnerGhost_usesOwnerGender() {
+            GhostOwner owner = new GhostOwner(7L, DisplayName.of("새벽곰"), Tier.GOLD);
+            when(members.ghostEligibleOwners(any(), anyLong())).thenReturn(Map.of(7L, owner));
+            when(members.shownGendersOf(List.of(7L))).thenReturn(Map.of(7L, Gender.MALE));
+            when(runs.validRunsReaching(eq(StandardDistance.KM5), anyCollection()))
+                    .thenReturn(List.of(new OwnedRun("rec-7", 7L)));
+            when(runs.comparisonOf("rec-7"))
+                    .thenReturn(
+                            new RunComparison(
+                                    Duration.ofMinutes(24), new Pace(288), new Pace(280)));
+            when(runs.curve(eq("rec-7"), any()))
+                    .thenReturn(
+                            new RunCurve(
+                                    List.of(
+                                            new CurvePoint(
+                                                    Duration.ofMinutes(12),
+                                                    Distance.ofMeters(2_500)),
+                                            new CurvePoint(
+                                                    Duration.ofMinutes(24),
+                                                    Distance.ofMeters(5_000))),
+                                    Distance.ofMeters(5_000)));
+            GhostMatcher ghost =
+                    new GhostMatcher(members, runs, virtuals, battles, startService, FEMALE_PICK);
+
+            Battle battle = ghost.match(waiting(ALICE, NOW), NOW.plusSeconds(16));
+
+            assertThat(battle.opponentGenderFor(ALICE)).contains(Gender.MALE);
+            MatchFound found = (MatchFound) messenger.to(ALICE, "MatchFound").get(0);
+            assertThat(found.opponentGender()).isEqualTo("MALE");
         }
 
         @Test
@@ -713,7 +812,12 @@ class BattleServicesTest {
                         + " 접수한다(배틀런 QA 7번)")
         void forfeit_releasesLockInEveryActiveState() {
             MatchingService matching =
-                    new MatchingService(members, settings, queue, battles, clock);
+                    new MatchingService(
+                            members,
+                            settings,
+                            queue,
+                            new RunnerAvailability(queue, battles, invites),
+                            clock);
             record Case(
                     String state, java.util.function.Supplier<Battle> make, BattleStatus ends) {}
             List<Case> cases =
@@ -800,7 +904,7 @@ class BattleServicesTest {
             BattleResultView view = resultService.result(BOB, battle.getId());
             assertThat(view.verdict()).isEqualTo(Verdict.WIN);
             assertThat(view.corrected()).isTrue();
-            assertThat(view.comparison().rows()).hasSize(4);
+            assertThat(view.comparison().rows()).as("랜덤 대결은 비교표가 없다(v0.14 D-229)").isEmpty();
             assertThat(view.weekly().wins()).isEqualTo(1);
             assertThat(view.myRecordId()).isEqualTo("b");
             assertThat(view.opponentName().value()).isEqualTo("러너" + ALICE);

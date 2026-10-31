@@ -2,6 +2,10 @@ package com.a207.runkk.profile;
 
 import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.member.DisclosureLevel;
+import com.a207.runkk.member.MemberPreference;
+import com.a207.runkk.member.MemberProfile;
+import com.a207.runkk.member.ProfileVisibility;
+import java.util.List;
 
 /**
  * 공개 수준별 프로필 항목 거르기(설계 6.1.5 ProfileDisclosure, 6.4 다형성, D-52). 어느 수준인지는 정하지
@@ -12,32 +16,17 @@ public enum ProfileDisclosure {
     SELF {
         @Override
         public ProfileView filter(ProfileData data) {
-            return view(this, data, true, true);
+            return view(this, data, new Shown(data.about(), data.settings(), List.of()));
         }
     },
-    /** 설정·최장 거리를 뺀 항목. */
+    /**
+     * 다른 러너(v0.14 D-241·D-243): 닉네임·아바타·레벨·티어·Runimal·누적 거리·최장 거리·러닝 횟수·소개는 늘 보이고, 나이대·성별은 각 공개 값이
+     * PRIVATE면 감추며 공개 값 두 개는 싣지 않는다. 최근 러닝은 ProfileQueryService가 기록 공개 범위로 거른 값이다. 설정은 싣지 않는다.
+     */
     PUBLIC {
         @Override
         public ProfileView filter(ProfileData data) {
-            return view(this, data, false, false);
-        }
-    },
-    /** 표시명, 아바타 얼굴·배경, 티어, 소속 크루(Q-69, FR-202). */
-    PRIVATE {
-        @Override
-        public ProfileView filter(ProfileData data) {
-            return new ProfileView(
-                    data.memberId(),
-                    this,
-                    data.displayName(),
-                    data.faceKey(),
-                    data.avatarBackgroundKey(),
-                    data.tier(),
-                    null,
-                    data.crew(),
-                    null,
-                    null,
-                    null);
+            return view(this, data, new Shown(publicAbout(data.about()), null, data.recentRuns()));
         }
     },
     /** 표시명 "탈퇴한 사용자"만(FR-006). */
@@ -55,6 +44,10 @@ public enum ProfileDisclosure {
                     null,
                     null,
                     null,
+                    null,
+                    null,
+                    0,
+                    List.of(),
                     null);
         }
     };
@@ -67,8 +60,11 @@ public enum ProfileDisclosure {
     /** 이 수준이 보이는 항목만 남긴 프로필. */
     public abstract ProfileView filter(ProfileData data);
 
-    private static ProfileView view(
-            ProfileDisclosure level, ProfileData data, boolean longest, boolean settings) {
+    /** 수준마다 달라지는 항목 묶음. 설정이 null이면 싣지 않는다. */
+    private record Shown(
+            MemberProfile about, MemberPreference settings, List<RecentRun> recentRuns) {}
+
+    private static ProfileView view(ProfileDisclosure level, ProfileData data, Shown shown) {
         return new ProfileView(
                 data.memberId(),
                 level,
@@ -78,8 +74,26 @@ public enum ProfileDisclosure {
                 data.tier(),
                 data.runimalType(),
                 data.crew(),
-                longest ? data.longestDistance() : null,
-                settings ? data.settings() : null,
-                data.about());
+                data.longestDistance(),
+                shown.settings(),
+                shown.about(),
+                data.totalDistance(),
+                data.runCount(),
+                shown.recentRuns(),
+                null);
+    }
+
+    /** 나이대·성별을 항목 공개 값으로 감추고 공개 값 두 개는 뺀다(v0.14 D-241). 소개는 늘 보인다. */
+    private static MemberProfile publicAbout(MemberProfile about) {
+        if (about == null) {
+            return null;
+        }
+        return new MemberProfile(
+                about.level(),
+                about.intro(),
+                about.ageBandVisibility() == ProfileVisibility.PUBLIC ? about.ageBand() : null,
+                about.genderVisibility() == ProfileVisibility.PUBLIC ? about.gender() : null,
+                null,
+                null);
     }
 }

@@ -37,6 +37,29 @@ class ActiveBattleViewModelTest {
     }
 
     @Test
+    fun `AN10-2 셀프런·셀럽런이 남았으면 취소로 끝내고 그 밖·종류 모름은 그만두기다(D-338)`() = main.runVmTest { vms ->
+        val expected =
+            mapOf(
+                BattleHistory.Type.SELF to "cancel:9",
+                BattleHistory.Type.CELEBRITY to "cancel:9",
+                BattleHistory.Type.RANDOM to "forfeit:9",
+                BattleHistory.Type.GHOST to "forfeit:9",
+                BattleHistory.Type.FRIEND to "forfeit:9",
+                null to "forfeit:9"
+            )
+        expected.forEach { (type, call) ->
+            val w = world()
+            w.battles.activeResult = Outcome.Success(active.copy(type = type))
+            val vm = vms.vm(w)
+            runCurrent()
+            vm.onForfeit()
+            runCurrent()
+            assertEquals(listOf("active", call), w.battles.calls, "종류 $type")
+            assertNull(vm.state.value.battle)
+        }
+    }
+
+    @Test
     fun `지금 달리고 있는 대결이면 안내하지 않는다`() = main.runVmTest { vms ->
         val w = world()
         w.coordinator.onMatched(matchFound(battleId = 9))

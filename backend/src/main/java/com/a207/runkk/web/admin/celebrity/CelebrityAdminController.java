@@ -3,6 +3,7 @@ package com.a207.runkk.web.admin.celebrity;
 import com.a207.runkk.battle.CelebrityInput;
 import com.a207.runkk.battle.CelebrityRecordService;
 import com.a207.runkk.battle.CelebrityResult;
+import com.a207.runkk.battle.RealNameConsent;
 import com.a207.runkk.battle.TrackSample;
 import com.a207.runkk.common.Distance;
 import jakarta.validation.Valid;
@@ -13,6 +14,7 @@ import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -37,6 +39,7 @@ public class CelebrityAdminController {
     private static final int NAME_MAX = 40;
     private static final int TEXT_MAX = 500;
     private static final int SPLITS_MAX = 200;
+    private static final int FIGURE_KEY_MAX = 20;
 
     private final CelebrityRecordService celebrityRecordService;
 
@@ -59,7 +62,7 @@ public class CelebrityAdminController {
     }
 
     /**
-     * 유명인 기록 입력(자료사전 유명인기록입력). 실명·사진 항목이 없다(FR-171).
+     * 유명인 기록 입력(자료사전 유명인기록입력). 사진 항목이 없고, 실명은 코치 동의가 있을 때만 이름 칸에 받는다(FR-170, D-240).
      *
      * @param anonymousName 익명 닉네임("마라토너 K")
      * @param distanceMeters 기록 거리(미터)
@@ -67,6 +70,9 @@ public class CelebrityAdminController {
      * @param splits 구간 기록, 없으면 빈 목록
      * @param sourceName 출처명
      * @param sourceUrl 출처 주소, 없으면 null
+     * @param realNameConsent 실명 등록 코치 동의(있으면 anonymousName에 실명을 받는다, 반쪽이면 409
+     *     REAL_NAME_CONSENT_REQUIRED, v0.14 D-240)
+     * @param figureKey 앱 전용 캐릭터 그림 키(영문 소문자·숫자·_·-, "lee"), 없으면 null(공통 셀럽 그림, 2026-10-31 결정)
      */
     record RegisterRequest(
             @Size(max = NAME_MAX) String anonymousName,
@@ -74,7 +80,9 @@ public class CelebrityAdminController {
             @Positive long finishSeconds,
             @Size(max = SPLITS_MAX) List<@Valid @NotNull Split> splits,
             @Size(max = TEXT_MAX) String sourceName,
-            @Size(max = TEXT_MAX) @Pattern(regexp = "^https?://[^ ]+$") String sourceUrl) {
+            @Size(max = TEXT_MAX) @Pattern(regexp = "^https?://[^ ]+$") String sourceUrl,
+            @Valid RealNameConsentRequest realNameConsent,
+            @Size(max = FIGURE_KEY_MAX) @Pattern(regexp = "^[a-z0-9_-]+$") String figureKey) {
 
         CelebrityInput toInput() {
             return new CelebrityInput(
@@ -83,7 +91,22 @@ public class CelebrityAdminController {
                     Duration.ofSeconds(finishSeconds),
                     splits == null ? List.of() : splits.stream().map(Split::toSample).toList(),
                     sourceName,
-                    sourceUrl);
+                    sourceUrl,
+                    realNameConsent == null ? null : realNameConsent.toConsent(),
+                    figureKey);
+        }
+    }
+
+    /**
+     * 실명 등록 동의(FR-170).
+     *
+     * @param consentedAt 동의 일시
+     * @param basis 동의 근거
+     */
+    record RealNameConsentRequest(LocalDateTime consentedAt, @Size(max = 200) String basis) {
+
+        RealNameConsent toConsent() {
+            return new RealNameConsent(consentedAt, basis);
         }
     }
 

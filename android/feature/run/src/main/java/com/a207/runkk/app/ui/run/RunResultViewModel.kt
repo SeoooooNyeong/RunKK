@@ -14,21 +14,24 @@ import java.time.Duration
 import javax.inject.Inject
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.mapNotNull
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
- * 러닝 결과(B4, FR-078·FR-079·FR-184~FR-186). 방금 끝난 기록을 기기 보관함(PendingRunRepository.pending)에서 먼저 보이고,
- * 서버에 올라갔으면 RecordRepository.run의 날씨·칼로리·신기록·심박 구간을 더한다. 계산은 서버가 한다.
- * 서버가 무효로 판정한 기록이면 "집계 제외"를 보이고 칼로리는 뺀다(서버 판정 전, 곧 보관함 기록만 있을 때는 보이지 않는다).
- * 거리·시간·페이스는 서버가 초과 시속 구간을 뺀 값이다(FR-047).
- * 정지 구간 합계("일시정지 n분 제외")는 기기 보관 기록에만 있어(서버 기록 상세에 없음) 보관함에서 읽은 경우에만 보인다.
+ * 러닝 결과(B-6, D-282, FR-078·FR-079·FR-184~FR-186). 방금 끝난 기록을 기기 보관함(PendingRunRepository.pending)에서 먼저 보이고,
+ * 서버에 올라갔으면 RecordRepository.run의 구간 페이스·신기록·심박 구간·리워드 적립을 더한다. 계산은 서버가 한다.
+ * 거리·시간·페이스는 서버가 초과 시속 구간을 뺀 값이다(FR-047). 유효·집계 제외는 화면에 보이지 않는다(D29).
+ * 휴식(정지 구간 합)은 기기 보관 기록의 정지 구간이나 서버 pausedSeconds로 보인다.
+ * 측정 직후 연 결과에서 서버 기록에 티어 평가(evaluation)가 실리면 평가 화면으로 한 번 이동한다(대결 결과와 같은 방식, D-284, U8-6).
  */
 @HiltViewModel
 class RunResultViewModel @Inject constructor(
@@ -38,13 +41,23 @@ class RunResultViewModel @Inject constructor(
     private val _state = MutableStateFlow(RunResultUiState())
     val state: StateFlow<RunResultUiState> = _state.asStateFlow()
 
+    private val _events = Channel<RunResultEvent>(Channel.BUFFERED)
+    val events: Flow<RunResultEvent> = _events.receiveAsFlow()
+
     private var loadJob: Job? = null
 
     /**
-     * [recordId]의 결과를 읽는다. 같은 기록을 다시 부르면 무시하고, [isForced]면 다시 읽는다.
+     * 평가 화면을 띄울 차례인가: 측정 직후 진입이고 아직 띄우지 않았다. 한 번만 연다(다시 읽기·보관함 비움 뒤 재조회에도 다시 열지 않는다).
+     */
+    private var isEvaluationDue = false
+
+    /**
+     * [recordId]의 결과를 읽는다. 같은 기록을 다시 부르면 무시하고, [isForced]면 다시 읽는다. [opensEvaluation]은 측정 직후의 첫 읽기에서만
+     * 참으로 넘긴다(U8-6).
      * 종료 직후에는 보관함 저장(RunTracker의 비동기 저장)이 아직 끝나지 않았을 수 있어 보관함에 나타날 때까지 잠깐 기다린다.
      */
-    fun load(recordId: String, isForced: Boolean = false) {
+    fun load(recordId: String, opensEvaluation: Boolean = false, isForced: Boolean = false) {
+        if (opensEvaluation && _state.value.recordId == null) isEvaluationDue = true
         if (!isForced && _state.value.recordId == recordId) return
         loadJob?.cancel()
         _state.value = RunResultUiState(recordId = recordId)
@@ -63,7 +76,6 @@ class RunResultViewModel @Inject constructor(
                         averageHeartRate = local.heartRates.takeIf { hr ->
                             hr.isNotEmpty()
                         }?.map { hr -> hr.bpm }?.average()?.roundToInt(),
-                        route = local.route.map { p -> p.point },
                         pausedTotal = local.pauses
                             .fold(Duration.ZERO) { sum, p -> sum.plus(Duration.between(p.from, p.to)) }
                             .takeIf { total -> !total.isZero }
@@ -93,14 +105,19 @@ class RunResultViewModel @Inject constructor(
                         distance = summary.distance,
                         elapsed = summary.elapsed,
                         averagePace = summary.averagePace ?: averagePace(summary.elapsed, summary.distance),
-                        route = detail.route.ifEmpty { it.route },
-                        weather = detail.weather,
-                        // 무효(집계 제외) 기록은 칼로리를 보이지 않는다(사용자 결정, 순간이동 거리로 센 값이 나오지 않게).
-                        isExcluded = !summary.isValid,
-                        calories = detail.calories.takeIf { summary.isValid },
+                        averageHeartRate = detail.averageHeartRate ?: it.averageHeartRate,
+                        splitPaces = detail.splitPaces,
                         newRecords = detail.newRecords,
-                        heartRateZones = detail.heartRateZones.toList()
+                        heartRateZones = detail.heartRateZones.toList(),
+                        rewardPoints = detail.rewardPoints,
+                        pausedTotal = detail.paused.takeIf { paused -> !paused.isZero } ?: it.pausedTotal
                     )
+                }
+                detail.evaluation?.let { evaluation ->
+                    if (isEvaluationDue) {
+                        isEvaluationDue = false
+                        _events.trySend(RunResultEvent.NavigateEvaluation(evaluation))
+                    }
                 }
                 true
             }

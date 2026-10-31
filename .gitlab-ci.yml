@@ -249,7 +249,7 @@ backend:deploy:
   after_script:
     - rm -f infra/.env infra/edge.env
 
-# 배포한 환경 주소로 확인한다: develop은 https://<도메인>:8443(Swagger 열림), prod는 https://<도메인>(Swagger 닫힘). infra/smoke.sh
+# 배포한 환경 주소로 확인한다: develop은 https://<도메인>:8443(Swagger는 밖에서 닫힘, 컨테이너 안에서 열림), prod는 https://<도메인>(Swagger 닫힘). infra/smoke.sh
 backend:smoke:
   stage: smoke
   tags: [deploy]

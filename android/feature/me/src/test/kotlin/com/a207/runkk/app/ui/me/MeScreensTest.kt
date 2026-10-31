@@ -1,31 +1,53 @@
 package com.a207.runkk.app.ui.me
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isHeading
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.unit.dp
+import com.a207.runkk.app.core.designsystem.AvatarExpression
+import com.a207.runkk.app.core.designsystem.DEFAULT_AVATAR_TAG
+import com.a207.runkk.app.core.designsystem.LocalReleaseScope
 import com.a207.runkk.app.core.designsystem.RUNKK_AVATAR_FACE_TAG
+import com.a207.runkk.app.core.designsystem.RUNKK_BOTTOM_BAR_RISE
+import com.a207.runkk.app.core.designsystem.ReleaseScope
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.runkkAvatarCharacterTag
+import com.a207.runkk.app.core.model.CardKind
+import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.navigation.Routes
-import com.a207.runkk.app.domain.account.Gender
 import com.a207.runkk.app.domain.account.MemberSettings
 import com.a207.runkk.app.domain.account.ProviderType
+import com.a207.runkk.app.domain.account.RecentRun
+import java.time.LocalDate
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -71,7 +93,7 @@ class MeScreensTest {
     }
 
     @Test
-    fun `프로필 러니멀 칸 - 모르는 값은 알 수 없는 유형, 없으면 판정 전`() {
+    fun `프로필 러니멀 칸 - 모르는 값은 알 수 없는 유형, 없으면 아직 유형이 없어요`() {
         var type by mutableStateOf<String?>("CHEETAH")
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
@@ -85,37 +107,247 @@ class MeScreensTest {
         compose.onNodeWithText("알 수 없는 유형").assertExists()
         compose.onNodeWithText("CHEETAH").assertDoesNotExist()
         compose.runOnIdle { type = null }
-        compose.onNodeWithText("판정 전").assertExists()
+        compose.onNodeWithText("아직 유형이 없어요").assertExists()
     }
 
     @Test
-    fun `마이 프로필은 입력한 나이대, 성별을 보이고 밝히지 않음은 뺀다(FR-006)`() {
+    fun `TC-9741 마이는 레벨·티어·Runimal·누적 거리·최장 거리·러닝 횟수와 메뉴 넷을 보이고 소개·나이대·성별은 숨긴다`() {
         val res = RuntimeEnvironment.getApplication().resources
-        assertEquals(
-            "30대, ${res.getString(R.string.me_gender_female)}",
-            aboutLine(res, sampleProfile)
-        )
-        assertEquals("30대, 여성", aboutLine(res, sampleProfile))
+        assertEquals("30대, ${res.getString(R.string.me_gender_female)}", aboutLine(res, sampleProfile))
         assertEquals(null, aboutLine(res, sampleProfile.copy(ageBand = null, gender = Gender.UNDISCLOSED)))
+        val routes = mutableListOf<String>()
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
-                MeScreen(MeUiState(isLoading = false, profile = sampleProfile), onNavigate = {}, onRetry = {})
+                MeScreen(
+                    MeUiState(isLoading = false, profile = sampleProfile.copy(longestDistance = Distance(21_097))),
+                    onNavigate = { routes += it },
+                    onRetry = {}
+                )
             }
         }
-        compose.onNodeWithText("30대, 여성").assertExists()
+        compose.onNodeWithText("Lv.3").assertExists()
+        compose.onNodeWithText("골드").assertExists()
+        compose.onNodeWithText("128.4km").assertExists()
+        compose.onNodeWithText("21.1km").assertExists()
+        compose.onNodeWithText("42회").assertExists()
+        compose.onNodeWithText("30대, 여성").assertDoesNotExist()
+        compose.onNodeWithText("퇴근 뒤 한강").assertDoesNotExist()
+        listOf("러닝 기록", "성장 분석", "런바디", "목표·러닝 코치").forEach { compose.onNodeWithText(it).performClick() }
+        compose.onNodeWithText("랭킹").assertDoesNotExist()
+        compose.onNodeWithText("아바타 꾸미기").assertDoesNotExist()
+        compose.onNodeWithContentDescription("프로필 편집").performClick()
+        assertEquals(
+            listOf(Routes.RECORDS, Routes.GROWTH, Routes.REPORT, Routes.COACH, Routes.PROFILE_EDIT),
+            routes
+        )
     }
 
     @Test
-    fun `로그인은 로고 라벨과 두 제공자 버튼을 보인다`() {
+    fun `TC-9741 TC-9698 다른 러너 프로필은 최근 러닝 3건만 보이고 1차 배포에서는 크루명을 숨긴다`() {
+        val runs = (1..4).map {
+            RecentRun(CardKind.FREE_RUN, LocalDate.of(2026, 10, 20 - it), Distance(5_020))
+        }
+        compose.setContent {
+            CompositionLocalProvider(LocalReleaseScope provides ReleaseScope.FIRST_RELEASE) {
+                RunkkTheme(reduceMotion = true) {
+                    OtherProfileScreen(
+                        OtherProfileUiState(isLoading = false, profile = sampleProfile.copy(recentRuns = runs)),
+                        onBack = {},
+                        onRetry = {}
+                    )
+                }
+            }
+        }
+        compose.onNodeWithText("최근 러닝").assertExists()
+        compose.onAllNodesWithText("5.02km").assertCountEquals(3)
+        // AN8-10: 피그마의 [ ]는 변수 자리 표시라 글자로 그리지 않는다.
+        compose.onNodeWithText("10.19").assertExists()
+        compose.onNodeWithText("[10.19]").assertDoesNotExist()
+        compose.onNodeWithText("10.16").assertDoesNotExist()
+        compose.onNodeWithText("새벽크루").assertDoesNotExist()
+        compose.onNodeWithText("30대, 여성", substring = true).assertExists()
+    }
+
+    @Test
+    fun `TC-9741 TC-9698 최근 러닝이 없으면 영역이 없고 크루가 열리면 크루명을 보인다`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                OtherProfileScreen(
+                    OtherProfileUiState(isLoading = false, profile = sampleProfile),
+                    onBack = {},
+                    onRetry = {}
+                )
+            }
+        }
+        compose.onNodeWithText("최근 러닝").assertDoesNotExist()
+        compose.onNodeWithText("새벽크루").assertExists()
+    }
+
+    @Test
+    fun `TC-9740 프로필 편집은 사진 칸 없이 나이·성별 공개 스위치를 보인다`() {
+        val toggled = mutableListOf<String>()
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                ProfileEditScreen(
+                    ProfileEditUiState(
+                        isLoading = false,
+                        nickname = "달리는곰",
+                        ageBand = "20대",
+                        gender = Gender.FEMALE,
+                        isAgePublic = true
+                    ),
+                    onBack = {},
+                    onNicknameChange = {},
+                    onIntroChange = {},
+                    onSave = {},
+                    onErrorShown = {},
+                    onAgePublicChange = { toggled += "age:$it" },
+                    onGenderPublicChange = { toggled += "gender:$it" }
+                )
+            }
+        }
+        compose.onNodeWithText("2~20자").assertExists()
+        compose.onNodeWithText("20대 · 공개").assertExists()
+        compose.onNodeWithText("여성 · 비공개").performClick()
+        compose.onNodeWithText("20대 · 공개").performClick()
+        compose.onNodeWithText("사진").assertDoesNotExist()
+        assertEquals(listOf("gender:true", "age:false"), toggled)
+    }
+
+    @Test
+    fun `R2-04 프로필 편집 맨 위에 내 아바타 얼굴을 보이고 눌러도 아무 일이 없다(G-2)`() {
+        compose.setContent {
+            CompositionLocalProvider(LocalReleaseScope provides ReleaseScope.FIRST_RELEASE) {
+                RunkkTheme(reduceMotion = true) {
+                    ProfileEditScreen(
+                        ProfileEditUiState(isLoading = false, nickname = "달리는곰", faceKey = "default:BEAR"),
+                        onBack = {},
+                        onNicknameChange = {},
+                        onIntroChange = {},
+                        onSave = {},
+                        onErrorShown = {}
+                    )
+                }
+            }
+        }
+        compose.onNodeWithTag(DEFAULT_AVATAR_TAG + AvatarExpression.FACE.name, useUnmergedTree = true).assertExists()
+        compose.onNodeWithTag(PROFILE_EDIT_AVATAR_TAG).assertHasNoClickAction()
+        val avatar = compose.onNodeWithTag(PROFILE_EDIT_AVATAR_TAG).getUnclippedBoundsInRoot()
+        val nickname = compose.onNodeWithText("달리는곰").getUnclippedBoundsInRoot()
+        assertTrue(avatar.bottom <= nickname.top, "아바타가 닉네임 칸보다 위에 있다")
+    }
+
+    @Test
+    fun `D100 마이 목록 끝은 솟은 탭 원에 가리지 않게 원 높이만큼 더 비운다`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                Box(Modifier.height(400.dp)) {
+                    MeScreen(MeUiState(isLoading = false, profile = sampleProfile), onNavigate = {}, onRetry = {})
+                }
+            }
+        }
+        compose.onNode(hasScrollAction()).performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, 100_000f) }
+        compose.waitForIdle()
+        val screen = compose.onRoot().getUnclippedBoundsInRoot()
+        val last = compose.onNodeWithText("목표·러닝 코치").getUnclippedBoundsInRoot()
+        assertTrue(screen.bottom - last.bottom >= 16.dp + RUNKK_BOTTOM_BAR_RISE, "끝 여백 16 + 솟은 원 20")
+    }
+
+    @Test
+    fun `D101 다른 러너 프로필 제목은 바 가운데에 있다(G-3)`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                OtherProfileScreen(OtherProfileUiState(isLoading = false, profile = sampleProfile), onBack = {
+                }, onRetry = {})
+            }
+        }
+        val screen = compose.onRoot().getUnclippedBoundsInRoot()
+        val title = compose.onNode(hasText("프로필") and isHeading()).getUnclippedBoundsInRoot()
+        assertEquals((screen.left + screen.right).value / 2f, (title.left + title.right).value / 2f, 1f)
+    }
+
+    @Test
+    fun `G-2 프로필 편집 제목은 바 가운데에 있다`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                ProfileEditScreen(
+                    ProfileEditUiState(isLoading = false, nickname = "달리는곰"),
+                    onBack = {},
+                    onNicknameChange = {},
+                    onIntroChange = {},
+                    onSave = {},
+                    onErrorShown = {}
+                )
+            }
+        }
+        val screen = compose.onRoot().getUnclippedBoundsInRoot()
+        val title = compose.onNode(hasText("프로필 편집") and isHeading()).getUnclippedBoundsInRoot()
+        assertEquals((screen.left + screen.right).value / 2f, (title.left + title.right).value / 2f, 1f)
+    }
+
+    @Test
+    fun `R2-07 동의 항목은 카드 없이 필수 넷, 구분선, 선택 둘 순서이고 제목은 가운데다(A-2)`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) { SignUpScreen(SignUpUiState(), isGuest = false, SignUpActions()) }
+        }
+        val divider = compose.onNodeWithTag(CONSENT_DIVIDER_TAG).getUnclippedBoundsInRoot()
+        val lastRequired = compose.onNodeWithText("위치 정보 수집", substring = true).getUnclippedBoundsInRoot()
+        val firstOptional = compose.onNodeWithText("마케팅 정보 수신", substring = true).getUnclippedBoundsInRoot()
+        assertTrue(lastRequired.bottom <= divider.top && divider.bottom <= firstOptional.top, "필수, 구분선, 선택 순서")
+        val screen = compose.onRoot().getUnclippedBoundsInRoot()
+        val title = compose.onNode(hasText("시작하기") and isHeading()).getUnclippedBoundsInRoot()
+        assertEquals((screen.left + screen.right).value / 2f, (title.left + title.right).value / 2f, 1f)
+    }
+
+    @Test
+    fun `R2-08 게스트 안내는 양옆을 띄운 가운데 대화상자이고 닉네임 앞에 얼굴 아바타가 있다(A-3)`() {
+        compose.setContent {
+            CompositionLocalProvider(LocalReleaseScope provides ReleaseScope.FIRST_RELEASE) {
+                RunkkTheme(reduceMotion = true) {
+                    SignUpScreen(
+                        SignUpUiState(isGuestNoticeVisible = true, guestNickname = "러너1234"),
+                        isGuest = true,
+                        SignUpActions()
+                    )
+                }
+            }
+        }
+        compose.onNodeWithTag(DEFAULT_AVATAR_TAG + AvatarExpression.FACE.name, useUnmergedTree = true).assertExists()
+        // 카드 양옆 28dp + 안쪽 20dp
+        val title = compose.onNodeWithText("게스트로 시작했어요").getUnclippedBoundsInRoot()
+        assertEquals(48f, title.left.value, 1f)
+    }
+
+    @Test
+    fun `R2-09 자유런 목표 거리 첫 칸은 자유이고 제목은 가운데다(A-5)`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                SettingsScreen(
+                    page = SettingsPage.FREE_RUN,
+                    state = SettingsUiState(isLoading = false, settings = MemberSettings(emptyMap(), emptyMap())),
+                    actions = SettingsActions()
+                )
+            }
+        }
+        compose.onNodeWithText("자유").assertExists()
+        compose.onNodeWithText("목표 없음").assertDoesNotExist()
+        // 제목은 바 가운데(A-5)
+        val screen = compose.onRoot().getUnclippedBoundsInRoot()
+        val title = compose.onNode(hasText("러닝 설정") and isHeading()).getUnclippedBoundsInRoot()
+        assertEquals((screen.left + screen.right).value / 2f, (title.left + title.right).value / 2f, 1f)
+    }
+
+    @Test
+    fun `로그인은 로고 없이 두 브랜드 버튼을 보인다(피그마 A-1)`() {
         val tapped = mutableListOf<ProviderType>()
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 LoginScreen(LoginUiState(), onProvider = { tapped += it }, onErrorShown = {})
             }
         }
-        compose.onNodeWithContentDescription("런크크").assertExists()
-        compose.onNodeWithText("카카오로 시작하기").performClick()
-        compose.onNodeWithText("Google로 시작하기").performClick()
+        compose.onNodeWithContentDescription("런크크").assertDoesNotExist()
+        compose.onNodeWithContentDescription("카카오톡으로 시작하기").assertHeightIsAtLeast(48.dp).performClick()
+        compose.onNodeWithContentDescription("구글 계정으로 시작하기").assertHeightIsAtLeast(48.dp).performClick()
         assertEquals(listOf(ProviderType.KAKAO, ProviderType.GOOGLE), tapped)
     }
 
@@ -165,7 +397,7 @@ class MeScreensTest {
     private fun startButton() = compose.onNode(hasText("시작하기") and hasClickAction())
 
     @Test
-    fun `게스트 시작 직후 안내는 닉네임을 보이고 나중에, 지금 연동하기를 고른다(A8, FR-199)`() {
+    fun `TC-9717 게스트 시작 직후 안내 시트는 닉네임과 고지를 보이고 나중에, 지금 연동하기를 고른다(A-3, FR-199)`() {
         val picked = mutableListOf<String>()
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
@@ -180,6 +412,7 @@ class MeScreensTest {
         }
         compose.onNodeWithText("게스트로 시작했어요").assertExists()
         compose.onNodeWithText("러너1234").assertExists()
+        compose.onNodeWithText("소셜 계정을 연동하지 않으면 앱 삭제, 기기 변경, 로그아웃 때 기록을 되살릴 수 없어요.").assertExists()
         compose.onNodeWithText("지금 연동하기").performClick()
         compose.onNodeWithText("나중에").performClick()
         assertEquals(listOf("link", "later"), picked)

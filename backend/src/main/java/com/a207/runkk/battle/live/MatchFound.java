@@ -12,6 +12,7 @@ import java.time.Duration;
  * @param battleId 대결 ID
  * @param opponentName 상대 표시명
  * @param opponentTier 상대 티어
+ * @param opponentGender 상대 캐릭터 성별(MALE·FEMALE), 셀럽·나와의 싸움이면 null(2026-10-31 결정)
  * @param distance 대결 거리(미터)
  * @param myBest 본인 그 거리 최고 기록(초), 없으면 null
  * @param opponentBest 상대 최고 기록(초), 없으면 null
@@ -21,6 +22,7 @@ public record MatchFound(
         long battleId,
         DisplayName opponentName,
         Tier opponentTier,
+        String opponentGender,
         Distance distance,
         Duration myBest,
         Duration opponentBest,

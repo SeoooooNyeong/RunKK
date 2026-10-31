@@ -3,6 +3,7 @@ package com.a207.runkk.analysis;
 import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.GeoPoint;
 import com.a207.runkk.common.Pace;
+import com.a207.runkk.common.RecordVisibility;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -27,6 +28,8 @@ import java.util.Map;
  * @param rewardPoints 이 기록으로 적립한 리워드(본인), 없으면 null
  * @param pauses 정지 구간(시간순, 정지가 없으면 빈 목록, FR-036)
  * @param pausedSeconds 정지 시간 합(초). summary의 경과 시간은 정지를 뺀 운동 시간이다
+ * @param deletable 삭제 가능(본인이고 집계 제외 기록)
+ * @param recordVisibility 기록 주인의 기록 공개 범위(본인 열람일 때만, 남의 기록이면 null)
  */
 public record RecordDetailView(
         RecordRow summary,
@@ -43,7 +46,9 @@ public record RecordDetailView(
         Distance crewContribution,
         Integer rewardPoints,
         List<PauseRange> pauses,
-        long pausedSeconds) {
+        long pausedSeconds,
+        boolean deletable,
+        RecordVisibility recordVisibility) {
 
     /**
      * 정지 구간 하나(FR-036, FR-194). web.record가 running을 import하지 않게 이 묶음으로 옮긴다(12.2 D48).

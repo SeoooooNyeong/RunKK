@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -150,7 +151,7 @@ fun <T> RunkkSelectField(
     label: String,
     options: List<T>,
     selected: T?,
-    optionLabel: (T) -> String,
+    optionLabel: (T) -> SelectLabel,
     onSelect: (T) -> Unit,
     modifier: Modifier = Modifier,
     placeholder: String = stringResource(R.string.core_fields_select)
@@ -167,7 +168,13 @@ fun <T> RunkkSelectField(
                 options.forEach { option ->
                     DropdownMenuItem(
                         text = {
-                            Text(optionLabel(option), style = RunkkTextStyles.Body, color = RunkkColors.TextPrimary)
+                            val shown = optionLabel(option)
+                            Text(
+                                shown.text,
+                                style = RunkkTextStyles.Body,
+                                color = RunkkColors.TextPrimary,
+                                modifier = Modifier.semantics { contentDescription = shown.spoken }
+                            )
                         },
                         onClick = {
                             isExpanded = false
@@ -212,8 +219,8 @@ fun RunkkSwitchRow(
             onCheckedChange = null,
             enabled = isEnabled,
             colors = SwitchDefaults.colors(
-                checkedThumbColor = RunkkColors.OnLime,
-                checkedTrackColor = RunkkColors.Lime,
+                checkedThumbColor = RunkkColors.OnLimeFill,
+                checkedTrackColor = RunkkColors.LimeFill,
                 uncheckedThumbColor = RunkkColors.TextSecondary,
                 uncheckedTrackColor = RunkkColors.Border,
                 uncheckedBorderColor = RunkkColors.BorderStrong
@@ -226,7 +233,7 @@ fun RunkkSwitchRow(
 @Composable
 private fun RunkkSelectBox(
     label: String,
-    selectedText: String?,
+    selected: SelectLabel?,
     placeholder: String,
     selectActionLabel: String,
     onOpen: () -> Unit
@@ -242,15 +249,15 @@ private fun RunkkSelectBox(
             .clickable(role = Role.DropdownList, onClickLabel = selectActionLabel, onClick = onOpen)
             .semantics {
                 contentDescription = label
-                stateDescription = selectedText ?: placeholder
+                stateDescription = selected?.spoken ?: placeholder
             }
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = selectedText ?: placeholder,
+            text = selected?.text ?: placeholder,
             style = RunkkTextStyles.text(15),
-            color = if (selectedText == null) RunkkColors.TextSecondary else RunkkColors.TextPrimary,
+            color = if (selected == null) RunkkColors.TextSecondary else RunkkColors.TextPrimary,
             modifier = Modifier.weight(1f)
         )
         Icon(
@@ -264,7 +271,7 @@ private fun RunkkSelectBox(
 
 /**
  * 체크 한 줄(약관 동의): [tag]("[필수]" 라임 / "[선택]" 보조색) + 문구 + 오른쪽 "보기"(선택).
- * [isHighlighted]면 "전체 동의"처럼 라임 테두리 상자로 그린다.
+ * [isHighlighted]면 "전체 동의"처럼 표면색 둥근 칸에 옅은 테두리로 그린다(A-2, R2-07).
  */
 @Composable
 fun RunkkCheckRow(
@@ -297,8 +304,8 @@ fun RunkkCheckRow(
                 checked = isChecked,
                 onCheckedChange = null,
                 colors = CheckboxDefaults.colors(
-                    checkedColor = RunkkColors.Lime,
-                    checkmarkColor = RunkkColors.OnLime,
+                    checkedColor = RunkkColors.LimeFill,
+                    checkmarkColor = RunkkColors.OnLimeFill,
                     uncheckedColor = RunkkColors.InputBorder
                 )
             )
@@ -314,12 +321,12 @@ fun RunkkCheckRow(
     }
 }
 
-/** 강조 체크 줄("전체 동의")은 라임 테두리 상자로 그린다. */
+/** 강조 체크 줄("전체 동의")은 표면색 둥근 칸(모서리 27)에 옅은 테두리로 그린다(A-2). */
 @Composable
 private fun checkRowBox(isHighlighted: Boolean): Modifier {
-    val shape = RunkkShapes.Medium
+    val shape = RoundedCornerShape(27.dp)
     return if (isHighlighted) {
-        Modifier.clip(shape).background(RunkkColors.LimeContainer).border(1.dp, RunkkColors.Lime, shape)
+        Modifier.clip(shape).background(RunkkColors.Surface).border(1.dp, RunkkColors.Border, shape)
     } else {
         Modifier
     }
@@ -410,7 +417,7 @@ private fun RunkkFieldsPreview() {
             RunkkTextField(value = "", onValueChange = {}, label = "닉네임 · 2~20자, 비우면 계정 이름", placeholder = "닉네임")
             RunkkTextField(value = "가", onValueChange = {}, label = "닉네임", error = "2자 이상 입력해 주세요")
             RunkkSelectField(label = "출생연도 (선택)", options = listOf(1990, 1991), selected = null, optionLabel = {
-                "${it}년"
+                SelectLabel("${it}년")
             }, onSelect = {})
             RunkkCheckRow(label = "전체 동의", isChecked = true, onCheckedChange = {}, isHighlighted = true)
             RunkkCheckRow(label = "서비스 이용약관", isChecked = true, onCheckedChange = {

@@ -1,5 +1,6 @@
 package com.a207.runkk.app.ui.record
 
+import android.graphics.Bitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.designsystem.UiText
@@ -91,9 +92,10 @@ class RecordCardViewModel internal constructor(
 
     fun onMessageShown() = _state.update { it.copy(message = null) }
 
-    fun onShare(kind: CardShareKind) {
+    /** [captured]는 공유 단계가 화면 카드 앞면을 그대로 찍은 이미지다. 있으면 앞면 공유에 그것을 쓴다(기록 카드와 같은 모양). */
+    fun onShare(kind: CardShareKind, captured: Bitmap? = null) {
         val s = _state.value
-        val bitmap = (if (s.side == CardSide.FRONT) s.front else s.back) ?: return
+        val bitmap = (if (s.side == CardSide.FRONT) captured ?: s.front else s.back) ?: return
         if (s.isSharing) return
         _state.update { it.copy(isSharing = true) }
         viewModelScope.launch {

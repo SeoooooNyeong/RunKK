@@ -22,11 +22,14 @@ import com.a207.runkk.app.api.avatar.EquipRequest
 import com.a207.runkk.app.api.avatar.PurchaseRequest
 import com.a207.runkk.app.api.avatar.PurchaseResponse
 import com.a207.runkk.app.api.avatar.ShopResponse
+import com.a207.runkk.app.api.battle.AcceptResponse
 import com.a207.runkk.app.api.battle.ActiveBattleResponse
 import com.a207.runkk.app.api.battle.BattleHistoryResponse
 import com.a207.runkk.app.api.battle.BattleResultResponse
 import com.a207.runkk.app.api.battle.CandidatesResponse
 import com.a207.runkk.app.api.battle.CelebrityBattleRequest
+import com.a207.runkk.app.api.battle.InviteResponse
+import com.a207.runkk.app.api.battle.InviteViewResponse
 import com.a207.runkk.app.api.battle.MatchAcceptanceResponse
 import com.a207.runkk.app.api.battle.MatchRequest
 import com.a207.runkk.app.api.battle.RecordBattleStartResponse
@@ -83,11 +86,13 @@ import com.a207.runkk.app.api.run.RunUploadRequest
 import com.a207.runkk.app.api.run.UploadResponse
 import com.a207.runkk.app.api.runimal.RunimalCardResponse
 import com.a207.runkk.app.api.runimal.RunimalStatusResponse
+import com.a207.runkk.app.api.runimal.RunimalTypeResponse
+import com.a207.runkk.app.api.runimal.RunimalTypesResponse
 import com.a207.runkk.app.core.model.CardKind
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.RunMode
 import com.a207.runkk.app.core.model.SignalState
 import com.a207.runkk.app.domain.account.AccountType
-import com.a207.runkk.app.domain.account.Gender
 import com.a207.runkk.app.domain.account.ProviderType
 import com.a207.runkk.app.domain.avatar.ItemSlot
 import com.a207.runkk.app.domain.battle.BattleHistory
@@ -129,6 +134,12 @@ private fun enumNames(name: String): Set<String> =
     File(contractDir, "enums/$name.txt").readLines().filter { it.isNotBlank() }.map { it.substringBefore(' ') }.toSet()
 
 private fun names(entries: Collection<Enum<*>>): Set<String> = entries.map { it.name }.toSet()
+
+/**
+ * 서버 계약 자료에 아직 없는 요청 항목(서버 작업이 늦게 합쳐질 때만 잠시 둔다). v0.14 서버가 합쳐져 비었다(A4).
+ * 서버 작업이 합쳐져 `sync_from_server.py`로 자료를 갱신하면 이 목록을 비운다.
+ */
+private val PENDING_SERVER_FIELDS: Set<String> = emptySet()
 
 /**
  * 앱 :data가 서버와 주고받는 값을 서버 계약 자료와 대조한다(재발 방지). 대상: (1) 앱 enum 이름이 서버 enum 이름 목록 안에 있는가,
@@ -242,7 +253,8 @@ class ServerContractTest {
             val name = descriptor.getElementName(i)
             val component = byName[name]
             if (component == null) {
-                if (direction == Direction.REQUEST || !descriptor.isElementOptional(i)) {
+                val isPendingServer = "$serverKey.$name" in PENDING_SERVER_FIELDS
+                if (!isPendingServer && (direction == Direction.REQUEST || !descriptor.isElementOptional(i))) {
                     problems += "$path.$name: 서버 $serverKey 에 없는 항목(${direction.name})"
                 }
                 continue
@@ -331,6 +343,9 @@ class ServerContractTest {
         response(BattleResultResponse.serializer(), "BattleDtos.BattleResultResponse")
         response(BattleHistoryResponse.serializer(), "BattleDtos.BattleHistoryResponse")
         response(ActiveBattleResponse.serializer(), "BattleDtos.ActiveBattleResponse")
+        response(InviteResponse.serializer(), "FriendInviteDtos.InviteResponse")
+        response(InviteViewResponse.serializer(), "FriendInviteDtos.InviteViewResponse")
+        response(AcceptResponse.serializer(), "FriendInviteDtos.AcceptResponse")
         response(CrewListResponse.serializer(), "CrewDtos.CrewListResponse")
         response(AttendanceResponse.serializer(), "CrewDtos.AttendanceResponse")
         response(ManagerResponse.serializer(), "CrewDtos.ManagerResponse")
@@ -365,6 +380,9 @@ class ServerContractTest {
         response(DisposalOrderResponse.serializer(), "DisposalOrderView")
         response(RunimalStatusResponse.serializer(), "RunimalController.StatusResponse")
         response(RunimalCardResponse.serializer(), "RunimalController.CardResponse")
+        // TC-9851 v0.14 새 DTO(D-289)
+        response(RunimalTypesResponse.serializer(), "RunimalController.TypesResponse")
+        response(RunimalTypeResponse.serializer(), "RunimalController.TypeDetailResponse")
         response(ProfileResponse.serializer(), "MeController.ProfileResponse")
         response(DashboardResponse.serializer(), "RecordDtos.DashboardResponse")
         response(RecordListResponse.serializer(), "RecordDtos.RecordListResponse")

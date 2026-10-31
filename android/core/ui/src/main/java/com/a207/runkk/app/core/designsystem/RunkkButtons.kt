@@ -43,6 +43,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -92,7 +93,7 @@ fun RunkkPrimaryButton(
             .heightIn(min = size.height)
             .runkkPressScale(interaction)
             .clip(shape)
-            .background(if (pressed) RunkkColors.LimePressed else RunkkColors.Lime)
+            .background(if (pressed) RunkkColors.LimeFillPressed else RunkkColors.LimeFill)
             .runkkDisabledAlpha(isEnabled)
             .clickable(
                 interactionSource = interaction,
@@ -108,7 +109,7 @@ fun RunkkPrimaryButton(
         if (isLoading) {
             CircularProgressIndicator(
                 modifier = Modifier.size(24.dp).clearAndSetSemantics {},
-                color = RunkkColors.OnLime,
+                color = RunkkColors.OnLimeFill,
                 strokeWidth = 3.dp
             )
         } else {
@@ -129,17 +130,17 @@ private fun RunkkPrimaryButtonContent(text: String, size: RunkkButtonSize, hasTr
         } else {
             RunkkTextStyles.Button
         },
-        color = RunkkColors.OnLime
+        color = RunkkColors.OnLimeFill
     )
     if (hasTrailingArrow) {
         Box(
-            modifier = Modifier.size(40.dp).clip(CircleShape).background(RunkkColors.OnLime),
+            modifier = Modifier.size(40.dp).clip(CircleShape).background(RunkkColors.OnLimeFill),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 RunkkIcons.ArrowRight,
                 contentDescription = null,
-                tint = RunkkColors.Lime,
+                tint = RunkkColors.LimeFill,
                 modifier = Modifier.size(20.dp)
             )
         }
@@ -309,27 +310,54 @@ fun RunkkLimePillButton(
     ) {
         Row(
             modifier = Modifier
-                .heightIn(min = 40.dp)
+                .heightIn(min = LIME_PILL_MIN_HEIGHT)
                 .runkkPressScale(interaction)
                 // 꺼지면 배경까지 흐리게(alpha는 뒤에 오는 그리기에만 걸린다).
                 .runkkDisabledAlpha(isEnabled)
-                .clip(RoundedCornerShape(20.dp))
-                .background(RunkkColors.Lime)
-                .padding(horizontal = 16.dp),
+                .clip(LIME_PILL_SHAPE)
+                .background(RunkkColors.LimeFill)
+                .padding(horizontal = LIME_PILL_PADDING),
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (leadingIcon != null) {
-                Icon(leadingIcon, contentDescription = null, tint = RunkkColors.OnLime, modifier = Modifier.size(16.dp))
+                Icon(
+                    leadingIcon,
+                    contentDescription = null,
+                    tint = RunkkColors.OnLimeFill,
+                    modifier = Modifier.size(16.dp)
+                )
             }
-            Text(text, style = RunkkTextStyles.text(13, FontWeight.Black), color = RunkkColors.OnLime)
+            Text(text, style = RunkkTextStyles.text(13, FontWeight.Black), color = RunkkColors.OnLimeFill)
         }
     }
 }
 
 /**
+ * 라임 알약 표시(누르지 않는 값 알약, 홈 리워드 잔액 등): [RunkkLimePillButton]과 같은 모양(최소 높이 40, 모서리 20).
+ * 높이를 고정하지 않아 기기 글자 크기를 키우면 알약도 함께 커진다(고정 높이 안에서 글자가 잘리지 않게, 사용자 요청 2026-10-31).
+ */
+@Composable
+fun RunkkLimePill(
+    text: String,
+    modifier: Modifier = Modifier,
+    textStyle: TextStyle = RunkkTextStyles.text(13, FontWeight.Black)
+) {
+    Box(
+        modifier = modifier
+            .heightIn(min = LIME_PILL_MIN_HEIGHT)
+            .clip(LIME_PILL_SHAPE)
+            .background(RunkkColors.LimeFill)
+            .padding(horizontal = LIME_PILL_PADDING),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(text, style = textStyle, color = RunkkColors.OnLimeFill)
+    }
+}
+
+/**
  * 원형 아이콘 버튼(보이는 크기 40dp, 터치 영역 48dp). [hasBadge]가 참이면 오른쪽 위에 라벤더 점을 단다(새 알림).
- * [contentDescription]은 필수다(아이콘만 있는 버튼).
+ * [contentDescription]은 필수다(아이콘만 있는 버튼). 원 색은 [containerColor], 아이콘 색은 [iconTint]다.
  */
 @Composable
 fun RunkkIconButton(
@@ -340,7 +368,9 @@ fun RunkkIconButton(
     hasBadge: Boolean = false,
     visualSize: Dp = 40.dp,
     iconSize: Dp = 20.dp,
-    borderColor: Color = RunkkColors.Border
+    borderColor: Color = RunkkColors.Border,
+    containerColor: Color = RunkkColors.Surface,
+    iconTint: Color = RunkkColors.TextPrimary
 ) {
     val interaction = remember { MutableInteractionSource() }
     val newBadgeDescription = stringResource(R.string.core_buttons_new_badge)
@@ -359,11 +389,11 @@ fun RunkkIconButton(
                 .size(visualSize)
                 .runkkPressScale(interaction, pressedScale = 0.95f)
                 .clip(CircleShape)
-                .background(RunkkColors.Surface)
+                .background(containerColor)
                 .border(1.dp, borderColor, CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, contentDescription = null, tint = RunkkColors.TextPrimary, modifier = Modifier.size(iconSize))
+            Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(iconSize))
             if (hasBadge) {
                 Box(
                     modifier = Modifier
@@ -519,3 +549,8 @@ private fun RunkkButtonsPreview() {
         }
     }
 }
+
+/** 라임 알약 모양(버튼과 표시 알약이 함께 쓴다, 리뷰 AN11-8): 최소 높이 40, 모서리 20, 좌우 여백 16. */
+private val LIME_PILL_MIN_HEIGHT = 40.dp
+private val LIME_PILL_SHAPE = RoundedCornerShape(20.dp)
+private val LIME_PILL_PADDING = 16.dp

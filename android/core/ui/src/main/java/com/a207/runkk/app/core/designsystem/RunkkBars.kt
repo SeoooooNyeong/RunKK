@@ -1,10 +1,15 @@
 package com.a207.runkk.app.core.designsystem
 
-import androidx.annotation.StringRes
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.EaseOut
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -15,68 +20,104 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.dropShadow
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathOperation
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpOffset
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.lerp
 
 /**
- * 상단 바(높이 64): 뒤로 버튼(있으면) + 제목(18, 900) + 오른쪽 [actions].
+ * 상단 바(높이 64): 뒤로 버튼(있으면) + 제목(18, 900) + 오른쪽 [actions]. [isTitleCentered]면 제목을 바 가운데에 둔다(A-2, 피그마에서 가운데인 제목, D101).
  */
 @Composable
 fun RunkkTopBar(
     title: String,
     modifier: Modifier = Modifier,
     onBack: (() -> Unit)? = null,
+    isTitleCentered: Boolean = false,
     actions: @Composable RowScope.() -> Unit = {}
 ) {
-    Row(
-        modifier = modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        if (onBack != null) {
-            RunkkIconButton(
-                RunkkIcons.Back,
-                contentDescription = stringResource(R.string.core_bars_back),
-                onClick = onBack,
-                modifier = Modifier.padding(end = 0.dp)
-            )
+    Box(modifier = modifier.fillMaxWidth().heightIn(min = 64.dp), contentAlignment = Alignment.Center) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (onBack != null) RunkkBackButton(onClick = onBack)
+            if (!isTitleCentered) TopBarTitle(title)
+            Spacer(Modifier.weight(1f))
+            actions()
         }
-        Text(
-            text = title,
-            style = RunkkTextStyles.TopBarTitle,
-            color = RunkkColors.TextPrimary,
-            modifier = Modifier.semantics {
-                heading()
-            }
-        )
-        Spacer(Modifier.weight(1f))
-        actions()
+        if (isTitleCentered) TopBarTitle(title)
     }
+}
+
+@Composable
+private fun TopBarTitle(title: String) {
+    Text(
+        text = title,
+        style = RunkkTextStyles.TopBarTitle,
+        color = RunkkColors.TextPrimary,
+        modifier = Modifier.semantics { heading() }
+    )
+}
+
+/** 뒤로 버튼(보이는 크기 40dp, 터치 48dp). 라이트는 보라 채움 원에 흰 화살표, 다크는 표면 원이다(R2-05, D85). */
+@Composable
+fun RunkkBackButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    RunkkIconButton(
+        RunkkIcons.Back,
+        contentDescription = stringResource(R.string.core_bars_back),
+        onClick = onClick,
+        modifier = modifier,
+        borderColor = RunkkColors.BackButtonBorder,
+        containerColor = RunkkColors.BackButton,
+        iconTint = RunkkColors.OnBackButton
+    )
 }
 
 /**
@@ -91,15 +132,7 @@ fun RunkkStepTopBar(title: String, step: Int, total: Int, modifier: Modifier = M
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (onBack !=
-                null
-            ) {
-                RunkkIconButton(
-                    RunkkIcons.Back,
-                    contentDescription = stringResource(R.string.core_bars_back),
-                    onClick = onBack
-                )
-            }
+            if (onBack != null) RunkkBackButton(onClick = onBack)
             Text(
                 text = title,
                 style = RunkkTextStyles.StepTitle,
@@ -126,60 +159,250 @@ fun RunkkStepTopBar(title: String, step: Int, total: Int, modifier: Modifier = M
     }
 }
 
-/** 하단 탭 다섯 개(셀프·셀럽·홈·크루·마이, SRS 5.1). 경로 이름과의 대응은 app이 정한다. */
-enum class RunkkTab(@StringRes val labelRes: Int, val icon: ImageVector) {
-    SELF(R.string.core_tab_self, RunkkIcons.History),
-    CELEB(R.string.core_tab_celeb, RunkkIcons.Star),
-    HOME(R.string.core_tab_home, RunkkIcons.Home),
-    CREW(R.string.core_tab_crew, RunkkIcons.Users),
-    ME(R.string.core_tab_me, RunkkIcons.User)
-}
-
-/** 하단 탭 바의 높이(구분선 1 + 탭 줄 79). 시스템 내비게이션 영역은 따로 더한다. 탭 화면의 아래 여백이 이 값을 쓴다. */
-val RUNKK_BOTTOM_BAR_HEIGHT: Dp = 80.dp
+/**
+ * 하단 탭 바의 높이(떠 있는 표면 70 + 아래 틈 12, D100). 시스템 내비게이션 영역은 따로 더한다. 탭 화면의 아래 여백이 이 값을 쓴다.
+ * 고른 탭 원이 솟는 [RUNKK_BOTTOM_BAR_RISE]는 이 높이에 넣지 않고 탭 화면 내용 위에 겹쳐 그린다.
+ */
+val RUNKK_BOTTOM_BAR_HEIGHT: Dp = 82.dp
 
 /**
- * 하단 탭 바(높이 [RUNKK_BOTTOM_BAR_HEIGHT] + 시스템 내비게이션 영역). 고른 탭은 라임 + 굵게. 보조 기술에는 탭으로 보인다.
+ * 고른 탭 원이 표면 위로 솟는 높이(D100). 원은 탭 화면 내용 위에 겹치므로, 탭 화면은 스크롤 목록 끝·바닥에 붙은 버튼·스낵바 아래에
+ * 이만큼을 더 비워 원에 가리지 않게 한다.
+ */
+val RUNKK_BOTTOM_BAR_RISE: Dp = 20.dp
+
+/**
+ * 하단 탭 바(높이 [RUNKK_BOTTOM_BAR_HEIGHT] + 시스템 내비게이션 영역, 피그마 Navigation/Floating, D96). 양옆·아래를 띄운 둥근 표면 위에
+ * 탭을 놓고, 고른 탭은 표면 위로 솟은 흰 원(그림자) 안에 아이콘을 두며 그 아래 라벨을 보라 굵게 쓴다. 표면은 원 아래를 오목하게 판다.
+ * 원은 탭 바 영역 위로 [RUNKK_BOTTOM_BAR_RISE]만큼 넘쳐 내용 위에 겹쳐 그린다(D100). 잘리지 않게 이 바와 감싸는 쪽은 자르지 않는다.
+ * 고른 탭이 바뀌면 원은 옆으로 미끄러지지 않고 새 탭 자리 아래에서 위로 솟으며, 오목한 자리도 그만큼 깊어진다
+ * (300ms, 움직임 줄이기면 바로, 사용자 요청 2026-10-30). 처음 그릴 때는 솟지 않는다.
+ * [lockedTabs]의 탭은 아이콘 오른쪽 아래에 자물쇠를 겹치고 아이콘·라벨을 흐리게 한다(D-253). 잠긴 탭을 눌러도 [onSelect]는
+ * 불리고, 이동 대신 안내를 띄우는 것은 부르는 쪽(RunkkNavHost)이 정한다. 탭은 표면 안 자기 칸을 첫 사용 가이드 앵커로 적는다(D-277).
  */
 @Composable
-fun RunkkBottomBar(selected: RunkkTab?, onSelect: (RunkkTab) -> Unit, modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier.fillMaxWidth().background(
-            RunkkColors.Background
-        ).windowInsetsPadding(WindowInsets.navigationBars)
+fun RunkkBottomBar(
+    selected: RunkkTab?,
+    onSelect: (RunkkTab) -> Unit,
+    modifier: Modifier = Modifier,
+    lockedTabs: Set<RunkkTab> = emptySet()
+) {
+    val tabs = RunkkTab.entries
+    val selectedIndex = selected?.let(tabs::indexOf) ?: -1
+    // 고른 탭 가운데의 가로 위치(표면 너비에 대한 비율). 고른 탭이 없으면 원과 오목한 자리를 그리지 않는다.
+    val center = if (selectedIndex < 0) NO_SELECTION else (selectedIndex + HALF) / tabs.size
+    val isReduced = LocalReduceMotion.current
+    // 솟은 정도(0 = 표면 안, 1 = 다 솟음). 고른 탭이 바뀔 때만 0에서 다시 올린다.
+    val rise = remember { Animatable(1f) }
+    val shownIndex = remember { mutableIntStateOf(selectedIndex) }
+    // 탭이 바뀐 바로 그 프레임부터 0으로 본다. 효과가 돌기 전 한 프레임 동안 새 자리에 다 솟은 원이 보였다가
+    // 내려갔다 다시 솟는 출렁임을 막는다.
+    val isChanging = !isReduced && selectedIndex >= 0 && selectedIndex != shownIndex.intValue
+    LaunchedEffect(selectedIndex) {
+        val previous = shownIndex.intValue
+        if (isReduced || selectedIndex < 0 || previous == selectedIndex) {
+            rise.snapTo(1f)
+            shownIndex.intValue = selectedIndex
+        } else {
+            rise.snapTo(0f)
+            shownIndex.intValue = selectedIndex
+            rise.animateTo(1f, tween(INDICATOR_MILLIS, easing = EaseOut))
+        }
+    }
+    val risen = if (isChanging) 0f else rise.value
+    val isDark = LocalRunkkColors.current.isDark
+    // 바깥은 비워 두고 표면만 그린다(떠 있는 탭 바). 홈 배경 장면이 탭 바 뒤로 이어 보인다(R2-06, D86).
+    BoxWithConstraints(
+        modifier = modifier
+            .fillMaxWidth()
+            .windowInsetsPadding(WindowInsets.navigationBars)
+            .height(RUNKK_BOTTOM_BAR_HEIGHT)
+            .padding(start = BOTTOM_BAR_SIDE, end = BOTTOM_BAR_SIDE, bottom = BOTTOM_BAR_GAP)
     ) {
-        HorizontalDivider(thickness = BOTTOM_BAR_DIVIDER, color = RunkkColors.Border)
-        Row(
-            modifier = Modifier.fillMaxWidth().height(
-                RUNKK_BOTTOM_BAR_HEIGHT - BOTTOM_BAR_DIVIDER
-            ).padding(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 16.dp).selectableGroup(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            RunkkTab.entries.forEach { tab ->
-                val isSelected = tab == selected
-                val color = if (isSelected) RunkkColors.Lime else RunkkColors.TextSecondary
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .clip(RunkkShapes.Medium)
-                        .selectable(selected = isSelected, role = Role.Tab, onClick = { onSelect(tab) }),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically)
-                ) {
-                    Icon(tab.icon, contentDescription = null, tint = color, modifier = Modifier.size(24.dp))
-                    Text(
-                        text = stringResource(tab.labelRes),
-                        style = RunkkTextStyles.text(11, if (isSelected) FontWeight.Bold else FontWeight.Normal),
-                        color = color
+        val centerX = maxWidth * center
+        val surfaceShape = FloatingBarShape(
+            notchCenter = if (center <
+                0f
+            ) {
+                null
+            } else {
+                centerX
+            },
+            depthFraction = risen
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(BOTTOM_BAR_SURFACE)
+                .testTag(BOTTOM_BAR_SURFACE_TAG)
+                .dropShadow(surfaceShape, SurfaceShadow)
+                .clip(surfaceShape)
+                .background(RunkkColors.Surface)
+                .then(if (isDark) Modifier.border(1.dp, RunkkColors.Border, surfaceShape) else Modifier)
+        )
+        if (center >= 0f) {
+            Box(
+                modifier = Modifier
+                    .offset(
+                        x = centerX - INDICATOR_SIZE / 2,
+                        y = lerp(INDICATOR_START_Y, -RUNKK_BOTTOM_BAR_RISE, risen)
                     )
-                }
+                    .graphicsLayer { alpha = risen }
+                    .size(INDICATOR_SIZE)
+                    .testTag(BOTTOM_BAR_INDICATOR_TAG)
+                    .dropShadow(CircleShape, IndicatorShadow)
+                    .clip(CircleShape)
+                    .background(RunkkColors.Surface)
+                    .then(if (isDark) Modifier.border(1.dp, RunkkColors.Border, CircleShape) else Modifier)
+            )
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(BOTTOM_BAR_SURFACE)
+                .selectableGroup()
+        ) {
+            tabs.forEach { tab ->
+                BottomTab(
+                    tab = tab,
+                    isSelected = tab == selected,
+                    lift = if (tab == selected) risen else 0f,
+                    isLocked = tab in lockedTabs,
+                    onClick = { onSelect(tab) },
+                    modifier = Modifier.weight(1f).fillMaxHeight()
+                )
             }
         }
     }
 }
 
-private val BOTTOM_BAR_DIVIDER: Dp = 1.dp
+/**
+ * 하단 탭 하나(표면 높이 70 칸): 아이콘(위 14) + 라벨(위 40). 고른 탭은 아이콘을 솟은 원 가운데로 올리고 라벨을 보라 굵게 쓴다.
+ * 잠긴 탭은 자물쇠와 흐린 색, 보조 기술에는 "잠김"으로 읽힌다.
+ */
+@Composable
+private fun BottomTab(
+    tab: RunkkTab,
+    isSelected: Boolean,
+    isLocked: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    lift: Float = if (isSelected) 1f else 0f
+) {
+    val lockedState = stringResource(R.string.core_tab_locked)
+    val anchor = tab.guideStep?.let { Modifier.guideAnchor(it) } ?: Modifier
+    val interaction = remember { MutableInteractionSource() }
+    Column(
+        modifier = modifier
+            .then(anchor)
+            // 탭 칸 모양의 네모 리플 대신 살짝 작아지는 눌림만 보인다(다른 버튼과 같은 눌림)
+            .selectable(
+                selected = isSelected,
+                interactionSource = interaction,
+                indication = null,
+                role = Role.Tab,
+                onClick = onClick
+            )
+            .runkkPressScale(interaction)
+            .semantics { if (isLocked) stateDescription = lockedState }
+            .alpha(if (isLocked) LOCKED_ALPHA else 1f)
+            .padding(top = TAB_ICON_TOP),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(TAB_LABEL_GAP)
+    ) {
+        Box(
+            // 고른 아이콘은 솟는 원과 함께 올라간다
+            modifier = Modifier.offset(y = -SELECTED_ICON_LIFT * lift),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                tab.icon,
+                contentDescription = null,
+                tint = if (isSelected) RunkkColors.TextPrimary else RunkkColors.TextSecondary,
+                modifier = Modifier.size(TAB_ICON)
+            )
+            if (isLocked) {
+                Icon(
+                    RunkkIcons.Lock,
+                    contentDescription = null,
+                    tint = RunkkColors.TextPrimary,
+                    modifier = Modifier.align(Alignment.BottomEnd).offset(x = 6.dp, y = 4.dp).size(12.dp)
+                )
+            }
+        }
+        Text(
+            text = stringResource(tab.labelRes),
+            style = RunkkTextStyles.text(11, if (isSelected) FontWeight.Bold else FontWeight.Normal),
+            color = if (isSelected) RunkkColors.Lavender else RunkkColors.TextSecondary
+        )
+    }
+}
+
+/**
+ * 떠 있는 표면 모양: 모서리 24 둥근 네모에서 [notchCenter] 아래를 오목하게 판다(피그마 Concave, 폭 78, 깊이 32). 오목한 자리가 끝 탭에
+ * 걸리면 둥근 네모 밖은 잘린다. [notchCenter]가 null이면 둥근 네모다.
+ */
+private class FloatingBarShape(private val notchCenter: Dp?, private val depthFraction: Float = 1f) : Shape {
+    override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline =
+        with(density) {
+            val corner = BOTTOM_BAR_CORNER.toPx()
+            val rounded = Path().apply {
+                addRoundRect(RoundRect(0f, 0f, size.width, size.height, CornerRadius(corner)))
+            }
+            val center = notchCenter?.toPx() ?: return Outline.Generic(rounded)
+            val half = NOTCH_HALF.toPx()
+            val depth = NOTCH_DEPTH.toPx() * depthFraction
+            val near = NOTCH_NEAR.toPx()
+            val far = NOTCH_FAR.toPx()
+            val notched = Path().apply {
+                moveTo(-half, 0f)
+                lineTo(center - half, 0f)
+                cubicTo(center - near, 0f, center - far, depth, center, depth)
+                cubicTo(center + far, depth, center + near, 0f, center + half, 0f)
+                lineTo(size.width + half, 0f)
+                lineTo(size.width + half, size.height)
+                lineTo(-half, size.height)
+                close()
+            }
+            Outline.Generic(Path.combine(PathOperation.Intersect, rounded, notched))
+        }
+}
+
+/** 표면 그림자(피그마 0 6 10, #261F33 14%). */
+private val SurfaceShadow = Shadow(radius = 10.dp, color = Color(0x24261F33), offset = DpOffset(0.dp, 6.dp))
+
+/** 솟은 원 그림자(피그마 0 2 8, #261F33 8%). */
+private val IndicatorShadow = Shadow(radius = 8.dp, color = Color(0x14261F33), offset = DpOffset(0.dp, 2.dp))
+
+/** 하단 탭 바 표면의 시험 표지. */
+internal const val BOTTOM_BAR_SURFACE_TAG = "runkk-bottom-bar-surface"
+
+/** 고른 탭 원의 시험 표지. */
+internal const val BOTTOM_BAR_INDICATOR_TAG = "runkk-bottom-bar-indicator"
+
+private const val LOCKED_ALPHA = 0.4f
+private const val HALF = 0.5f
+private const val NO_SELECTION = -1f
+
+/** 솟기 시작하는 원의 세로 위치(표면 안쪽, 아래로 원 지름의 절반). */
+private val INDICATOR_START_Y: Dp get() = INDICATOR_SIZE / 2
+private const val INDICATOR_MILLIS = 300
+
+private val BOTTOM_BAR_SURFACE: Dp = 70.dp
+private val BOTTOM_BAR_CORNER: Dp = 24.dp
+private val BOTTOM_BAR_SIDE: Dp = 18.dp
+private val BOTTOM_BAR_GAP: Dp = 12.dp
+private val INDICATOR_SIZE: Dp = 46.dp
+private val NOTCH_HALF: Dp = 39.dp
+private val NOTCH_DEPTH: Dp = 32.dp
+private val NOTCH_NEAR: Dp = 29.dp
+private val NOTCH_FAR: Dp = 32.dp
+private val TAB_ICON: Dp = 24.dp
+private val TAB_ICON_TOP: Dp = 14.dp
+private val TAB_LABEL_GAP: Dp = 2.dp
+
+/** 고른 탭 아이콘을 원 가운데(표면 위 -9)로 올리는 거리. */
+private val SELECTED_ICON_LIFT: Dp = 23.dp
 
 /** 메뉴 한 줄(마이·설정): 아이콘(선택) + 제목 + 값(선택) + 오른쪽 화살표. 높이 56 이상. */
 @Composable
@@ -272,7 +495,9 @@ private fun RunkkBarsPreview() {
             RunkkStepTopBar(title = "회원 가입", step = 1, total = 5, onBack = {})
             RunkkMenuRow("설정", onClick = {}, icon = RunkkIcons.Settings, value = "km")
             RunkkSectionTitle("최신순", modifier = Modifier.padding(horizontal = 16.dp))
-            Box(Modifier.fillMaxWidth()) { RunkkBottomBar(selected = RunkkTab.HOME, onSelect = {}) }
+            Box(Modifier.fillMaxWidth().padding(top = RUNKK_BOTTOM_BAR_RISE)) {
+                RunkkBottomBar(selected = RunkkTab.HOME, onSelect = {}, lockedTabs = setOf(RunkkTab.CREW))
+            }
         }
     }
 }

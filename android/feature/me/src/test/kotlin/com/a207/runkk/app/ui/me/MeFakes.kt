@@ -2,12 +2,14 @@ package com.a207.runkk.app.ui.me
 
 import android.content.Context
 import com.a207.runkk.app.core.model.AppError
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.account.AccountRepository
-import com.a207.runkk.app.domain.account.Gender
 import com.a207.runkk.app.domain.account.GuestSession
 import com.a207.runkk.app.domain.account.MemberSettings
+import com.a207.runkk.app.domain.account.MySummary
 import com.a207.runkk.app.domain.account.Profile
+import com.a207.runkk.app.domain.account.ProfileEdit
 import com.a207.runkk.app.domain.account.ProviderToken
 import com.a207.runkk.app.domain.account.ProviderType
 import com.a207.runkk.app.domain.account.SessionRepository
@@ -55,7 +57,11 @@ val sampleProfile = Profile(
     crewName = "새벽크루",
     longestDistance = null,
     ageBand = "30대",
-    gender = Gender.FEMALE
+    gender = Gender.FEMALE,
+    totalDistance = com.a207.runkk.app.core.model.Distance(128_400),
+    runCount = 42,
+    isAgePublic = true,
+    isGenderPublic = false
 )
 
 /** 호출을 기록하고 연산마다 실패를 끼울 수 있는 가짜 AccountRepository. */
@@ -70,7 +76,7 @@ class FakeAccountRepository : AccountRepository {
     )
     var legal: String = "약관 본문"
     var lastForm: SignUpForm? = null
-    var lastEdit: Pair<String, String?>? = null
+    var lastEdit: ProfileEdit? = null
 
     private fun <T> call(name: String, value: () -> T): Outcome<T> {
         calls += name
@@ -103,8 +109,10 @@ class FakeAccountRepository : AccountRepository {
 
     override suspend fun profile(memberId: Long): Outcome<Profile> = call("profile:$memberId") { profile }
 
-    override suspend fun editProfile(nickname: String, intro: String?): Outcome<Unit> {
-        lastEdit = nickname to intro
+    override suspend fun mySummary(): Outcome<MySummary> = error("ui.me는 본인 요약을 쓰지 않는다")
+
+    override suspend fun editProfile(edit: ProfileEdit): Outcome<Unit> {
+        lastEdit = edit
         return call("editProfile") {}
     }
 
@@ -180,7 +188,9 @@ class FakeSettingsRepository : SettingsRepository {
 
     override fun courseMapShared() = false
 
-    override fun birthYear(): Int? = null
+    var birthYearValue: Int? = null
+
+    override fun birthYear(): Int? = birthYearValue
 
     override fun guidanceSettings() = GuidanceSettings.DEFAULT
 

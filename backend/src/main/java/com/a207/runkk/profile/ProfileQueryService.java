@@ -1,13 +1,17 @@
 package com.a207.runkk.profile;
 
 import com.a207.runkk.avatar.AvatarQuery;
+import com.a207.runkk.common.ViewerRelation;
 import com.a207.runkk.crew.CrewMembershipReader;
 import com.a207.runkk.member.DisclosureLevel;
+import com.a207.runkk.member.Gender;
+import com.a207.runkk.member.MemberPreference;
 import com.a207.runkk.member.MemberQueryService;
 import com.a207.runkk.member.MemberSummary;
 import com.a207.runkk.runimal.RunimalQuery;
 import com.a207.runkk.runimal.RunimalType;
 import com.a207.runkk.running.RunQueryService;
+import com.a207.runkk.running.TotalStats;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
@@ -30,6 +34,9 @@ public class ProfileQueryService {
     private final CrewMembershipReader crewMembershipReader;
     private final RunQueryService runQueryService;
     private final Clock clock;
+
+    /** 다른 러너 프로필의 최근 러닝 수(FR-060). */
+    static final int RECENT_RUNS = 3;
 
     public ProfileQueryService(
             MemberQueryService memberQueryService,
@@ -57,10 +64,13 @@ public class ProfileQueryService {
         if (disclosure == ProfileDisclosure.WITHDRAWN) {
             return disclosure.filter(ProfileData.withdrawn(targetId));
         }
-        return disclosure.filter(collect(targetId));
+        Gender shown = memberQueryService.shownGendersOf(List.of(targetId)).get(targetId);
+        return disclosure.filter(collect(viewerId, targetId)).withShownGender(shown);
     }
 
-    private ProfileData collect(long targetId) {
+    private ProfileData collect(long viewerId, long targetId) {
+        TotalStats totals = runQueryService.totals(targetId);
+        MemberPreference preference = memberQueryService.preferenceOf(targetId);
         MemberSummary summary = memberQueryService.summaries(List.of(targetId)).get(targetId);
         Map<Long, RunimalType> types = runimalQuery.typesOf(List.of(targetId));
         RunimalType type = types.get(targetId);
@@ -76,7 +86,24 @@ public class ProfileQueryService {
                         .map(c -> new ProfileView.Crew(c.crewId(), c.name(), c.logoUrl()))
                         .orElse(null),
                 runQueryService.longestDistance(targetId).orElse(null),
-                memberQueryService.preferenceOf(targetId),
-                memberQueryService.profileOf(targetId, LocalDate.now(clock).getYear()));
+                preference,
+                memberQueryService.profileOf(targetId, LocalDate.now(clock).getYear()),
+                totals.distance(),
+                totals.count(),
+                viewerId == targetId ? List.of() : recentRuns(viewerId, targetId, preference));
+    }
+
+    /** 다른 러너의 최근 유효 러닝 3건(FR-060, v0.14 D-243). 대상의 기록 공개 범위를 통과할 때만, 아니면 빈 목록. */
+    private List<RecentRun> recentRuns(long viewerId, long targetId, MemberPreference target) {
+        ViewerRelation relation =
+                crewMembershipReader.sameCrew(viewerId, targetId)
+                        ? ViewerRelation.SAME_CREW
+                        : ViewerRelation.OTHER;
+        if (!target.recordVisibility().allows(relation)) {
+            return List.of();
+        }
+        return runQueryService.recentSummaries(targetId, RECENT_RUNS).stream()
+                .map(s -> new RecentRun(s.cardKind(), s.startedAt().toLocalDate(), s.distance()))
+                .toList();
     }
 }

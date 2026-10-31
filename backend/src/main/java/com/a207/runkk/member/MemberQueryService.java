@@ -35,6 +35,25 @@ public class MemberQueryService {
         return memberRepository.summaries(memberIds);
     }
 
+    /**
+     * 다른 러너에게 보이는 표시 성별(ShownGender, D-327·D-336)을 한 번의 조회로 읽는다. 넘긴 ID마다 값이 있다: 성별 공개인 남·여는 그 값, 그
+     * 밖(비공개·미입력·밝히지 않음·없는 회원)은 ShownGender.fallbackOf(ID). battle의 대결 상대 성별, analysis 랭킹 행, profile
+     * 다른 러너 프로필이 같은 규칙을 쓴다.
+     */
+    public Map<Long, Gender> shownGendersOf(Collection<Long> memberIds) {
+        if (memberIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, Gender> result = new HashMap<>();
+        for (Member m : memberRepository.findAllById(memberIds)) {
+            result.put(m.getId(), ShownGender.of(m.getId(), m.gender(), m.genderVisibility()));
+        }
+        for (Long id : memberIds) {
+            result.computeIfAbsent(id, ShownGender::fallbackOf);
+        }
+        return result;
+    }
+
     /** analysis·profile이 엔티티 대신 읽는 설정 투영. */
     public MemberPreference preferenceOf(long memberId) {
         return MemberLoader.load(memberRepository, memberId).preference();
@@ -45,7 +64,13 @@ public class MemberQueryService {
         Member m = MemberLoader.load(memberRepository, memberId);
         OptionalInt age = m.ageIn(year);
         String ageBand = age.isPresent() ? (age.getAsInt() / AGE_BAND * AGE_BAND) + "대" : null;
-        return new MemberProfile(m.getLevel(), m.photoUrl(), m.intro(), ageBand, m.gender());
+        return new MemberProfile(
+                m.getLevel(),
+                m.intro(),
+                ageBand,
+                m.gender(),
+                m.ageBandVisibility(),
+                m.genderVisibility());
     }
 
     /** year 기준 나이. 출생연도가 없으면 비어 있음(analysis 심박 구간, design-review.md M4). */
@@ -117,9 +142,7 @@ public class MemberQueryService {
         }
         Map<Long, DisclosureLevel> result = new HashMap<>();
         for (Member m : memberRepository.findAllById(targetIds)) {
-            result.put(
-                    m.getId(),
-                    DisclosureLevel.of(viewerId, m.getId(), m.getStatus(), m.profileVisibility()));
+            result.put(m.getId(), DisclosureLevel.of(viewerId, m.getId(), m.getStatus()));
         }
         return result;
     }

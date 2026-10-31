@@ -7,22 +7,28 @@ import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.navigation.Routes
+import com.a207.runkk.app.domain.account.AccountRepository
+import com.a207.runkk.app.domain.account.LocationConsentUseCase
+import com.a207.runkk.app.domain.account.MySummary
 import com.a207.runkk.app.domain.battle.BattleRepository
 import com.a207.runkk.app.domain.battle.BattleRunCoordinator
 import com.a207.runkk.app.domain.battle.BattleRunState
+import com.a207.runkk.app.domain.battle.FriendInvite
 import com.a207.runkk.app.domain.live.BattleEnded
 import com.a207.runkk.app.domain.live.BattleStart
 import com.a207.runkk.app.domain.live.LiveChannel
 import com.a207.runkk.app.domain.live.LiveChannelProvider
 import com.a207.runkk.app.domain.live.MatchFailed
 import com.a207.runkk.app.domain.live.MatchFound
-import com.a207.runkk.app.domain.live.ServerMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Clock
 import java.time.Duration
+import java.time.Instant
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -33,27 +39,30 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.mapNotNull
-import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
- * 랜덤 매칭 대기·성사(FR-080~FR-087, FR-095). requestMatch로 대기열에 들어가고 실시간 채널에서 MatchFound를 받으면
- * BattleRunCoordinator.onMatched로 넘긴다(채널은 LiveChannelProvider가 같은 연결을 돌려준다, D-57). 이후 시작 예약·측정 시작은
- * 조정자 상태(Matched → Countdown → Running)를 따라 보인다. 15초 뒤 고스트 전환은 서버가 하고 화면은 같은 흐름이다(Q-02).
- * 들어오면 GET /battles/match로 기본 대결 거리(FR-109)를 거리 고르기 기본값으로 두고, 이미 대기 중이면 대기 화면을 잇는다.
- * 서버가 대결을 만들지 못해 MatchFailed를 보내면(이미 대기열에서 빠진 상태) 취소를 보내지 않고 거리 고르기로 돌아가 안내한다.
+ * 매칭 대기·성사(FR-080~FR-087, FR-227~FR-230, D-269). 대기 종류(랜덤 매칭, 친구 초대, 받은 초대 참가)는 [MatchTicket]이 정하고
+ * 대기 → 성사 → 자동 출발 흐름은 하나다: 실시간 채널을 열어 구독·연결한 뒤 ticket.open으로 대기를 열고, 끝 메시지(MatchFound 등)를
+ * 기다린다. 성사되면 BattleRunCoordinator.onMatched로 넘기고 조정자 상태(Matched → Countdown → Running)를 따라 보인다.
+ * 실시간 채널은 지난 메시지를 다시 주지 않으므로 참가 요청·초대 전에 연결해야 MatchFound를 놓치지 않는다(D-274).
+ * 거부·연결 끊김·끝난 초대는 [MatchUiState.notice] 안내를 띄우고 확인하면 이전 화면으로 간다.
  * 성사 뒤 출발 시각 15초가 지나도(출발 시각을 모르면 성사 30초 뒤) 측정이 시작되지 않으면 그만두기를 보인다(배틀 QA 2번).
+ * 화면을 떠나면(ViewModel이 지워지면) ticket.abandon이 서버를 정리한다. 카카오톡 공유로 앱이 잠시 뒤로 가는 것은 떠남이 아니다(D-271).
  */
 @HiltViewModel
 class MatchViewModel @Inject constructor(
     private val battles: BattleRepository,
     private val coordinator: BattleRunCoordinator,
     private val channels: LiveChannelProvider,
-    private val clock: Clock
+    private val clock: Clock,
+    private val consent: LocationConsentUseCase,
+    private val account: AccountRepository
 ) : ViewModel() {
     private val _state = MutableStateFlow(MatchUiState())
     val state: StateFlow<MatchUiState> = _state.asStateFlow()
@@ -61,11 +70,27 @@ class MatchViewModel @Inject constructor(
     private val _events = Channel<MatchEvent>(Channel.BUFFERED)
     val events: Flow<MatchEvent> = _events.receiveAsFlow()
 
+    private var ticket: MatchTicket? = null
+    private var joinToken: String? = null
+    private var started = false
     private var channel: LiveChannel? = null
     private var waitJob: Job? = null
     private var tickJob: Job? = null
     private var followJob: Job? = null
+    private var countdownJob: Job? = null
+    private var stuckJob: Job? = null
+    private var joinCheckJob: Job? = null
+    private var consentJob: Job? = null
     private var handedOver = false
+    private var navigated = false
+    private var forfeiting = false
+    private var startAt: Instant? = null
+
+    /**
+     * 본인 요약(랜덤 매칭·친구 초대 시작 때 한 번 읽는다, D-331). 닉네임은 초대 공유 제목에, 티어는 성사 화면 "나"의 티어 칩(R2-10)에 쓴다.
+     * 못 읽으면 null이다.
+     */
+    private var me: Deferred<MySummary?>? = null
 
     /**
      * 대기 채널에서 받은 출발 예약. 서버는 MatchFound와 BattleStart를 잇따라 보내는데 실시간 채널은 지난 메시지를 다시 주지 않아,
@@ -76,68 +101,187 @@ class MatchViewModel @Inject constructor(
     private var earlyStart: BattleStart? = null
     private var matchedBattleId: Long? = null
 
-    fun onDistanceSelected(distance: Distance) {
-        if (_state.value.phase != MatchPhase.CHOOSING || distance !in MatchUiState.DISTANCES) return
-        _state.update { it.copy(distance = distance) }
+    /**
+     * 랜덤 매칭(FR-080): 배틀런 화면에서 고른 [distance]로 요청한다. 이미 대기열에 있으면(앱을 다시 연 경우) 다시 요청하지 않고
+     * 대기 화면을 잇는다. 랜덤 대결 거리(1·3·5·10km)가 아니면 요청하지 않고 안내한다.
+     */
+    fun startQuick(distance: Distance) {
+        if (!claimStart()) return
+        _state.update { it.copy(distance = distance, opponentKind = OpponentKind.RANDOM) }
+        loadMe()
+        if (distance !in MatchUiState.DISTANCES) {
+            showNotice(UiText.Res(R.string.battle_error_distance_invalid))
+            return
+        }
+        viewModelScope.launch {
+            val status = (battles.matchStatus() as? Outcome.Success)?.value
+            val isWaiting = status?.isWaiting == true
+            val resumed = status?.distance?.takeIf { isWaiting }
+            if (resumed != null) _state.update { it.copy(distance = resumed) }
+            val waitingPhase = if (isWaiting) MatchPhase.WAITING else MatchPhase.REQUESTING
+            begin(RandomTicket(resumed ?: distance, coordinator), waitingPhase, isResumed = isWaiting)
+        }
+    }
+
+    /** 친구 대결 초대(FR-227): 채널 연결 → 초대 만들기 → 카카오톡 공유(ShareInvite). */
+    fun startInvite(distance: Distance) {
+        if (!claimStart()) return
+        _state.update { it.copy(distance = distance, opponentKind = OpponentKind.FRIEND) }
+        loadMe()
+        begin(FriendInviteTicket(distance, coordinator), MatchPhase.REQUESTING)
+    }
+
+    /**
+     * 받은 초대(FR-229, D-273). 참가 확인 정보를 읽어 blockedReason이 없으면 참가 확인(CONFIRMING)을 보이고, 있으면 그 사유 안내를
+     * 보인다. 서버가 막지 않아도 이 기기가 이미 대결 중이거나 측정 중이면 참가할 수 없다.
+     */
+    fun startJoin(token: String) {
+        if (!claimStart()) return
+        joinToken = token
+        _state.update { it.copy(phase = MatchPhase.CONFIRMING, opponentKind = OpponentKind.FRIEND) }
+        viewModelScope.launch {
+            when (val read = battles.friendInvite(token)) {
+                is Outcome.Success -> {
+                    val view = read.value
+                    _state.update { it.copy(distance = view.distance) }
+                    val blocked = view.blockedReason ?: ALREADY_IN_BATTLE.takeIf { coordinator.isBusy() }
+                    if (blocked !=
+                        null
+                    ) {
+                        showNotice(joinNotice(AppError.Rejected(blocked)))
+                    } else {
+                        _state.update { it.copy(invite = view, myTier = view.myTier) }
+                    }
+                }
+
+                is Outcome.Failure -> showNotice(joinNotice(read.error))
+            }
+        }
+    }
+
+    /** 참가하기(D-274): 위치 동의(D-267)를 확인한 뒤 채널을 연결하고 참가를 보낸다. */
+    fun onAccept() {
+        val token = joinToken ?: return
+        if (_state.value.phase != MatchPhase.CONFIRMING || _state.value.invite == null) return
+        if (!consent.isGranted()) {
+            pendingConsent = ::onAccept
+            _state.update { it.copy(isConsentSheetVisible = true) }
+            return
+        }
+        begin(FriendJoinTicket(token, battles), MatchPhase.JOINING)
+    }
+
+    /** 거절(D-273): 거절을 보내고 홈으로. 거부되면(이미 끝난 초대 등) 그 사유 안내 뒤 홈. */
+    fun onDecline() {
+        val token = joinToken ?: return
+        if (_state.value.phase != MatchPhase.CONFIRMING) return
+        viewModelScope.launch {
+            when (val declined = battles.declineFriendInvite(token)) {
+                is Outcome.Success -> _events.send(MatchEvent.Exit)
+                is Outcome.Failure -> showNotice(joinNotice(declined.error))
+            }
+        }
+    }
+
+    /** 카카오톡으로 다시 보내기(D-271): 같은 초대로 다시 공유한다. 만료를 늘리지 않는다. */
+    fun onResend() {
+        if (_state.value.phase != MatchPhase.INVITING) return
+        val invite = (ticket as? FriendInviteTicket)?.invite ?: return
+        viewModelScope.launch { share(invite) }
+    }
+
+    /**
+     * 초대를 공유한다(AN8-2): 내 닉네임 읽기가 끝나기를 [INVITER_NAME_WAIT]까지 기다린다. 초대 응답이 프로필 응답보다 먼저 와도 제목에
+     * 이름이 빠지지 않는다. 못 읽으면 이름 없는 제목으로 보낸다. 기다리는 동안 대기가 끝났으면 보내지 않는다.
+     */
+    private suspend fun share(invite: FriendInvite) {
+        val summary = withTimeoutOrNull(INVITER_NAME_WAIT.toMillis()) { me?.await() }
+        val name = summary?.displayName?.takeIf { it.isNotBlank() }
+        if (_state.value.phase == MatchPhase.INVITING) _events.send(MatchEvent.ShareInvite(invite, name))
+    }
+
+    /** 카카오톡도 웹 공유도 열지 못했다(D-270): 초대를 취소하고 안내 뒤 배틀런 화면으로. */
+    fun onShareFailed() {
+        if (_state.value.phase != MatchPhase.INVITING) return
+        ticket?.abandon()
+        stopWaiting()
+        showNotice(UiText.Res(R.string.battle_invite_share_failed))
+    }
+
+    /** 초대가 끝난 안내(만료 "다시 초대하기", 거절 "확인")를 누르면 배틀런 화면 친구 분절로 돌아간다. */
+    fun onInviteEndedConfirmed() {
+        if (_state.value.phase == MatchPhase.INVITE_ENDED) _events.trySend(MatchEvent.Exit)
+    }
+
+    /** 안내 확인: 이전 화면으로. */
+    fun onNoticeConfirmed() {
+        _state.update { it.copy(notice = null) }
+        _events.trySend(MatchEvent.Exit)
     }
 
     fun onErrorShown() = _state.update { it.copy(error = null) }
 
-    /**
-     * 매칭 요청(FR-080). 거부(언랭·이미 대기 중·동의 없음)는 문구로 보이고 거리 고르기로 남는다. 언랭 거부는 다시 보내도 같으므로
-     * 화면을 떠날 때까지 요청을 막는다(배틀 QA 5번).
-     */
-    fun onStartMatching() {
-        if (_state.value.phase != MatchPhase.CHOOSING || _state.value.isStartBlocked) return
-        _state.update { it.copy(phase = MatchPhase.REQUESTING, error = null) }
-        viewModelScope.launch {
-            // 조정자가 applicationScope에서 보낸다: 요청 중 화면이 사라져도 이탈 취소가 요청 뒤에 나간다.
-            when (val accepted = coordinator.requestMatch(_state.value.distance)) {
-                is Outcome.Success -> startWaiting()
+    private var pendingConsent: (() -> Unit)? = null
 
-                is Outcome.Failure -> _state.update {
-                    it.copy(
-                        phase = MatchPhase.CHOOSING,
-                        error = BattleErrorText.of(accepted.error),
-                        isStartBlocked = accepted.error == AppError.Rejected(RANKED_ONLY)
-                    )
-                }
+    /** 대기를 여는 요청이 위치 동의로 거부돼 띄운 시트인가. 닫거나 동의가 실패하면 머물 단계가 없어 화면을 떠난다. */
+    private var isRefusedConsent = false
+
+    /** 위치 동의 시트 "동의하고 시작": 동의를 주고 누른 동작을 이어 간다. 실패하면 안내만 한다. */
+    fun onConsentAgreed() {
+        if (consentJob?.isActive == true) return
+        _state.update { it.copy(isConsentSheetVisible = false) }
+        consentJob = viewModelScope.launch {
+            val next = pendingConsent
+            pendingConsent = null
+            val refused = isRefusedConsent
+            isRefusedConsent = false
+            when (val given = consent.give()) {
+                is Outcome.Success -> next?.invoke()
+
+                is Outcome.Failure ->
+                    if (refused) {
+                        showNotice(BattleErrorText.of(given.error))
+                    } else {
+                        _state.update { it.copy(error = BattleErrorText.of(given.error)) }
+                    }
             }
         }
     }
 
-    /** 대기 취소(FR-085). 이미 배정됐으면 서버가 거부하고 성사 화면을 기다린다. */
+    fun onConsentClosed() {
+        pendingConsent = null
+        _state.update { it.copy(isConsentSheetVisible = false) }
+        if (isRefusedConsent) {
+            isRefusedConsent = false
+            _events.trySend(MatchEvent.Exit)
+        }
+    }
+
+    /**
+     * 취소(FR-085, FR-228). 랜덤 대기는 대기열에서 빼고(이미 배정되면 성사를 기다린다), 초대 대기는 초대를 취소한다. 받은 사람이 그 사이
+     * 참가했으면(INVITE_ALREADY_JOINED) 취소를 접고 성사를 기다린다. 참가 확인과 초대 끝 안내는 그냥 떠난다.
+     */
     fun onCancel() {
         when (_state.value.phase) {
-            MatchPhase.CHOOSING -> _events.trySend(MatchEvent.Exit)
+            MatchPhase.WAITING -> cancelQueue()
 
-            MatchPhase.WAITING -> {
-                _state.update { it.copy(phase = MatchPhase.CANCELLING) }
-                viewModelScope.launch {
-                    when (val cancelled = battles.cancel()) {
-                        // 기다리는 사이 성사됐으면(MATCHED) 취소 응답을 무시한다.
-                        is Outcome.Success -> if (_state.value.phase == MatchPhase.CANCELLING) {
-                            stopWaiting()
-                            _events.trySend(MatchEvent.Exit)
-                        }
+            MatchPhase.INVITING -> cancelInvite()
 
-                        // 이미 배정됨(ALREADY_MATCHED)이면 곧 MatchFound가 온다. 그 밖의 실패도 대기를 이어 간다.
-                        is Outcome.Failure -> _state.update {
-                            it.copy(
-                                phase = if (it.phase == MatchPhase.CANCELLING) MatchPhase.WAITING else it.phase,
-                                error = BattleErrorText.of(cancelled.error)
-                            )
-                        }
-                    }
-                }
+            // 연결·요청 중에 떠나면 서버 대기를 정리한다(랜덤은 요청 뒤 대기열 취소, 초대는 만든 뒤 취소).
+            MatchPhase.REQUESTING -> {
+                ticket?.abandon()
+                stopWaiting()
+                _events.trySend(MatchEvent.Exit)
             }
 
-            // 요청 중·성사 뒤에는 뒤로 가지 않는다(자동 출발, FR-087).
+            MatchPhase.CONFIRMING, MatchPhase.INVITE_ENDED -> _events.trySend(MatchEvent.Exit)
+
+            // 요청 중·참가 중·성사 뒤에는 뒤로 가지 않는다(자동 출발, FR-087).
             else -> Unit
         }
     }
 
-    /** 성사 뒤 측정이 늦어져 보인 그만두기(배틀 QA 2번). 포기를 보내고 이 회를 닫으면 거리 고르기로 돌아가 새 대결을 할 수 있다. */
+    /** 성사 뒤 측정이 늦어져 보인 그만두기(배틀 QA 2번). 포기를 보내고 이 회를 닫으면 이전 화면으로 돌아간다. */
     fun onForfeit() {
         if (!_state.value.canForfeit) return
         forfeiting = true
@@ -145,83 +289,251 @@ class MatchViewModel @Inject constructor(
         coordinator.forfeit()
     }
 
-    private fun startWaiting() {
-        waitJob?.cancel()
-        tickJob?.cancel()
-        _state.update { it.copy(phase = MatchPhase.WAITING, waitingSeconds = 0) }
-        val opened = channels.open().also { channel = it }
-        collectStarts(opened)
-        waitJob = viewModelScope.launch {
-            when (val end = awaitWaitEnd(opened)) {
-                is WaitEnd.Found -> onMatched(end.match)
-
-                is WaitEnd.Failed -> onMatchFailed(end.failed)
-
-                // 연결 실패·채널 종료: 대기열에서 빼고 거리 고르기로 돌아간다(앱을 죽이지 않는다).
-                is WaitEnd.Lost -> failWaiting(end.error)
-            }
+    /** 본인 요약을 읽기 시작하고 티어를 화면 값에 싣는다. */
+    private fun loadMe() {
+        me = viewModelScope.async {
+            val summary = (account.mySummary() as? Outcome.Success)?.value
+            summary?.tier?.let { tier -> _state.update { it.copy(myTier = tier) } }
+            summary
         }
-        tickJob = viewModelScope.launch {
-            while (isActive) {
-                delay(TICK_MILLIS)
-                _state.update {
-                    if (it.phase ==
-                        MatchPhase.WAITING
-                    ) {
-                        it.copy(waitingSeconds = it.waitingSeconds + 1)
-                    } else {
-                        it
-                    }
+    }
+
+    private fun claimStart(): Boolean {
+        if (started) return false
+        started = true
+        return true
+    }
+
+    private fun cancelQueue() {
+        _state.update { it.copy(phase = MatchPhase.CANCELLING) }
+        viewModelScope.launch {
+            when (val cancelled = battles.cancel()) {
+                // 기다리는 사이 성사됐으면(MATCHED) 취소 응답을 무시한다.
+                is Outcome.Success -> if (_state.value.phase == MatchPhase.CANCELLING) {
+                    stopWaiting()
+                    _events.trySend(MatchEvent.Exit)
+                }
+
+                // 이미 배정됨(ALREADY_MATCHED)이면 곧 MatchFound가 온다. 그 밖의 실패도 대기를 이어 간다.
+                is Outcome.Failure -> _state.update {
+                    it.copy(
+                        phase = if (it.phase == MatchPhase.CANCELLING) MatchPhase.WAITING else it.phase,
+                        error = BattleErrorText.of(cancelled.error)
+                    )
                 }
             }
         }
     }
 
-    /**
-     * 대기가 끝나는 첫 사건을 값으로 돌려준다(M-4: 예상된 연결 실패를 예외로 흐름 제어하지 않는다). 연결이 Failure로 끝나면
-     * Lost(error), 메시지 흐름이 결과 없이 끝나면 Lost(null), MatchFound·MatchFailed가 오면 그 메시지다. 연결 코루틴은 끝에 거둔다.
-     */
-    private suspend fun awaitWaitEnd(opened: LiveChannel): WaitEnd = coroutineScope {
-        val lost = Channel<WaitEnd>(Channel.CONFLATED)
-        val connecting = launch {
-            (opened.connect() as? Outcome.Failure)?.let { lost.trySend(WaitEnd.Lost(it.error)) }
+    private fun cancelInvite() {
+        val invite = (ticket as? FriendInviteTicket)?.invite ?: return
+        _state.update { it.copy(phase = MatchPhase.CANCELLING) }
+        viewModelScope.launch {
+            val cancelled = coordinator.cancelInvite(invite.inviteId).await()
+            if (_state.value.phase != MatchPhase.CANCELLING) return@launch
+            val isJoined = cancelled is Outcome.Failure && cancelled.error == AppError.Rejected(INVITE_ALREADY_JOINED)
+            if (isJoined) {
+                _state.update { it.copy(phase = MatchPhase.INVITING) }
+            } else {
+                stopWaiting()
+                _events.trySend(MatchEvent.Exit)
+            }
         }
-        val results =
-            opened.messages
-                .mapNotNull(WaitEnd::of)
-                .onCompletion { cause -> if (cause == null) emit(WaitEnd.Lost(null)) }
-        merge(results, lost.receiveAsFlow()).first().also { connecting.cancel() }
     }
 
     /**
-     * 대기 채널을 열지 못했다: 대기열에서 빼고 거리 고르기로 돌아간다. 대기열 취소는 조정자가 applicationScope에서 보낸다(이 화면이
-     * 곧 사라져도 대기열에 남지 않게). 인증이 풀렸으면(/ws 401, 갱신 실패) 로그인 안내, 그 밖에는 연결 끊김 안내다.
+     * 대기를 연다: 채널을 열어 출발 예약·끝 메시지를 먼저 구독하고 연결한 뒤 [MatchTicket.open]을 보낸다. [isResumed]면 서버에
+     * 이미 대기가 있어 다시 열지 않는다.
+     */
+    private fun begin(next: MatchTicket, phase: MatchPhase, isResumed: Boolean = false) {
+        ticket = next
+        _state.update { it.copy(phase = phase, opponentKind = next.opponentKind, error = null, waitingSeconds = 0) }
+        val opened = channels.open().also { channel = it }
+        collectStarts(opened)
+        if (phase == MatchPhase.WAITING) startTicking()
+        waitJob = viewModelScope.launch {
+            when (val end = awaitWaitEnd(opened, next, isResumed)) {
+                is WaitEnd.Found -> onMatched(end.match)
+
+                is WaitEnd.Failed -> onMatchFailed(end.failed)
+
+                WaitEnd.Declined -> endInvite(MatchUiState.InviteEnd.DECLINED)
+
+                WaitEnd.Expired -> endInvite(MatchUiState.InviteEnd.EXPIRED)
+
+                is WaitEnd.Refused -> onRefused(end.error)
+
+                // 연결 실패·채널 종료: 서버 대기를 정리하고 안내한다(앱을 죽이지 않는다).
+                is WaitEnd.Lost -> failWaiting(end.error)
+            }
+        }
+    }
+
+    /**
+     * 대기가 끝나는 첫 사건을 값으로 돌려준다(M-4: 예상된 연결 실패를 예외로 흐름 제어하지 않는다). 메시지 구독을 먼저 붙이고 연결이
+     * 끝난 뒤 대기를 연다. 대기가 열리면 종류별 후속(초대 공유, 만료 타이머, 참가 확인 타이머)을 건다.
+     */
+    private suspend fun awaitWaitEnd(opened: LiveChannel, next: MatchTicket, isResumed: Boolean): WaitEnd =
+        coroutineScope {
+            val ends = Channel<WaitEnd>(Channel.CONFLATED)
+            val listening = launch(start = CoroutineStart.UNDISPATCHED) {
+                val end = opened.messages
+                    .mapNotNull(next::endOf)
+                    .onCompletion { cause -> if (cause == null) emit(WaitEnd.Lost(null)) }
+                    .first()
+                ends.trySend(end)
+            }
+            val opening = launch {
+                val connected = opened.connect()
+                if (connected is Outcome.Failure) {
+                    ends.trySend(WaitEnd.Lost(connected.error))
+                    return@launch
+                }
+                if (!isResumed) {
+                    val result = next.open()
+                    if (result is Outcome.Failure) {
+                        ends.trySend(WaitEnd.Refused(result.error))
+                        return@launch
+                    }
+                }
+                onOpened(next)
+                next.deadline?.let { deadline ->
+                    delay(untilExpiry(deadline).plus(EXPIRY_GRACE).toMillis())
+                    ends.trySend(WaitEnd.Expired)
+                }
+            }
+            ends.receive().also {
+                listening.cancel()
+                opening.cancel()
+            }
+        }
+
+    /**
+     * 서버 만료 시각까지 남은 시간. 기기 시계가 서버와 크게 어긋나 남은 시간이 0보다 작거나 초대 수명(5분)보다 길면 만든 때부터
+     * 5분으로 잰다(시계가 앞선 기기에서 바로 끝나지 않게).
+     */
+    private fun untilExpiry(deadline: Instant): Duration {
+        val left = Duration.between(clock.instant(), deadline)
+        return if (left.isNegative || left > INVITE_LIFETIME) INVITE_LIFETIME else left
+    }
+
+    /** 대기가 열렸다: 랜덤은 대기, 초대는 초대 대기와 공유, 참가는 MatchFound 확인 타이머. */
+    private fun onOpened(opened: MatchTicket) {
+        when (opened) {
+            is RandomTicket -> _state.update {
+                if (it.phase ==
+                    MatchPhase.REQUESTING
+                ) {
+                    it.copy(phase = MatchPhase.WAITING)
+                } else {
+                    it
+                }
+            }
+
+            is FriendInviteTicket -> {
+                _state.update { it.copy(phase = MatchPhase.INVITING, waitingSeconds = 0) }
+                opened.invite?.let { invite -> viewModelScope.launch { share(invite) } }
+            }
+
+            is FriendJoinTicket -> watchJoined(opened)
+        }
+        startTicking()
+    }
+
+    /**
+     * 참가가 받아들여졌는데 [JOIN_CONFIRM] 안에 MatchFound가 오지 않으면 진행 중인 대결을 확인한다(D-274): 그 대결이 있으면 그 값으로
+     * 성사 흐름에 합류하고, 없으면 실패 안내 뒤 홈이다.
+     */
+    private fun watchJoined(joined: FriendJoinTicket) {
+        joinCheckJob?.cancel()
+        joinCheckJob = viewModelScope.launch {
+            delay(JOIN_CONFIRM.toMillis())
+            if (_state.value.phase != MatchPhase.JOINING) return@launch
+            val active = (battles.active() as? Outcome.Success)?.value
+            if (active == null || active.battleId != joined.battleId) {
+                waitJob?.cancel()
+                stopWaiting()
+                showNotice(UiText.Res(R.string.battle_match_start_failed))
+                return@launch
+            }
+            waitJob?.cancel()
+            val match = MatchFound(
+                battleId = active.battleId,
+                opponentName = active.opponentName.orEmpty(),
+                opponentTier = _state.value.invite?.inviter?.tier.orEmpty(),
+                distance = active.distance,
+                myBest = null,
+                opponentBest = null,
+                animationSeconds = 0,
+                opponentGender = active.opponentGender
+            )
+            onMatched(match)
+            active.startAt?.let { forwardStart(BattleStart(active.battleId, it, opponentTrack = null)) }
+        }
+    }
+
+    private fun startTicking() {
+        if (tickJob?.isActive == true) return
+        tickJob = viewModelScope.launch {
+            while (isActive) {
+                delay(TICK_MILLIS)
+                _state.update {
+                    if (it.phase in TICKING) it.copy(waitingSeconds = it.waitingSeconds + 1) else it
+                }
+            }
+        }
+    }
+
+    /** 대기를 여는 요청이 거부됐다. 위치 동의가 없으면 시트(동의하면 다시 연다), 그 밖에는 사유 안내 뒤 이전 화면이다. */
+    private fun onRefused(error: AppError) {
+        closeWaiting()
+        val code = (error as? AppError.Rejected)?.code
+        val current = ticket
+        ticket = null
+        if (code == LOCATION_CONSENT_REQUIRED && current != null && current !is FriendJoinTicket) {
+            pendingConsent = { begin(current, MatchPhase.REQUESTING) }
+            isRefusedConsent = true
+            _state.update { it.copy(isConsentSheetVisible = true) }
+            return
+        }
+        showNotice(if (current is FriendJoinTicket) joinNotice(error) else refusedNotice(error))
+    }
+
+    /**
+     * 대기 채널을 열지 못했다: 서버 대기를 정리하고(랜덤은 대기열 취소, 초대는 초대 취소, 조정자가 applicationScope에서 보낸다) 안내한다.
+     * 인증이 풀렸으면(/ws 401, 갱신 실패) 로그인 안내, 그 밖에는 연결 끊김 안내다.
      */
     private fun failWaiting(error: AppError?) {
-        tickJob?.cancel()
-        startsJob?.cancel()
-        channel?.close()
-        channel = null
-        coordinator.abandonMatching()
-        val isAuthLost = error == AppError.Unauthorized
-        val connectionLost = UiText.Res(R.string.battle_match_connection_lost)
-        val text = if (isAuthLost) BattleErrorText.of(AppError.Unauthorized) else connectionLost
-        _state.update { MatchUiState(distance = it.distance, error = text) }
+        ticket?.abandon()
+        ticket = null
+        closeWaiting()
+        val text = if (error == AppError.Unauthorized) {
+            BattleErrorText.of(AppError.Unauthorized)
+        } else {
+            UiText.Res(R.string.battle_match_connection_lost)
+        }
+        showNotice(text)
     }
 
     /**
-     * 매칭 실패(MatchFailed): 서버가 이미 대기열에서 뺐으므로 취소를 보내지 않고 채널을 닫은 뒤 거리 고르기로 돌아가 안내한다.
+     * 매칭 실패(MatchFailed): 서버가 이미 대기열에서 뺐으므로 취소를 보내지 않고 채널을 닫은 뒤 안내한다.
      * 사유 코드를 아는 문구가 있으면 그 문구, 모르면 서버 문구를 보인다.
      */
     private fun onMatchFailed(failed: MatchFailed) {
-        tickJob?.cancel()
-        startsJob?.cancel()
-        channel?.close()
-        channel = null
+        closeWaiting()
+        ticket = null
         val text = BattleErrorText.REJECTED[failed.code]?.let { UiText.Res(it) }
             ?: failed.message.takeIf { it.isNotBlank() }?.let { UiText.Plain(it) }
             ?: BattleErrorText.of(AppError.Rejected(failed.code))
-        _state.update { MatchUiState(distance = it.distance, error = text) }
+        showNotice(text)
+    }
+
+    /** 초대가 거절·만료로 끝났다(D-271). 서버가 이미 끝냈으므로 취소를 보내지 않는다. */
+    private fun endInvite(end: MatchUiState.InviteEnd) {
+        closeWaiting()
+        ticket = null
+        coordinator.forgetInvite()
+        _state.update { it.copy(phase = MatchPhase.INVITE_ENDED, inviteEnd = end) }
     }
 
     /**
@@ -230,10 +542,11 @@ class MatchViewModel @Inject constructor(
      */
     private fun onMatched(match: MatchFound) {
         tickJob?.cancel()
+        joinCheckJob?.cancel()
         handedOver = true
         waitingLease = channel
         channel = null
-        _state.update { it.copy(phase = MatchPhase.MATCHED, match = match, distance = match.distance) }
+        _state.update { it.copy(phase = MatchPhase.MATCHED, match = match, distance = match.distance, error = null) }
         coordinator.onMatched(match)
         matchedBattleId = match.battleId
         watchStuck(clock.instant().plus(MATCHED_STUCK))
@@ -242,7 +555,7 @@ class MatchViewModel @Inject constructor(
     }
 
     /** [deadline]까지 측정이 시작되지 않으면 그만두기를 보인다. 새 기한이 오면(출발 예약) 다시 잰다. */
-    private fun watchStuck(deadline: java.time.Instant) {
+    private fun watchStuck(deadline: Instant) {
         stuckJob?.cancel()
         stuckJob = viewModelScope.launch {
             val wait = Duration.between(clock.instant(), deadline)
@@ -291,32 +604,7 @@ class MatchViewModel @Inject constructor(
                         started(match)
                     }
 
-                    is BattleRunState.Finished -> if (s.battleId == match.battleId && !navigated) {
-                        // 시작 전에 끝남(연결 실패·시작 거부). 결과가 없으니 안내하고 거리 고르기로 돌린다.
-                        releaseWaitingLease()
-                        val reason = coordinator.failure.value
-                        countdownJob?.cancel()
-                        stuckJob?.cancel()
-                        waitJob?.cancel()
-                        handedOver = false
-                        // 그만두기로 끝났으면 안내 없이 거리 고르기로(보고가 끝내 실패했을 때만 그 사유).
-                        // 출발 전에 상대가 그만두면 서버는 대결을 취소하고 OPPONENT_FORFEITED를 보낸다(결과 없음).
-                        val fallback = when {
-                            forfeiting -> null
-
-                            s.status == BattleEnded.Status.OPPONENT_FORFEITED -> UiText.Res(
-                                R.string.battle_match_opponent_left
-                            )
-
-                            else -> UiText.Res(R.string.battle_match_start_failed)
-                        }
-                        forfeiting = false
-                        _state.update {
-                            MatchUiState(distance = it.distance, error = reason?.let(BattleErrorText::of) ?: fallback)
-                        }
-                        coordinator.acknowledgeFinished()
-                        followJob?.cancel()
-                    }
+                    is BattleRunState.Finished -> if (s.battleId == match.battleId && !navigated) endedBeforeStart(s)
 
                     else -> Unit
                 }
@@ -324,11 +612,28 @@ class MatchViewModel @Inject constructor(
         }
     }
 
-    private var countdownJob: Job? = null
-    private var stuckJob: Job? = null
-    private var forfeiting = false
-
-    private var startAt: java.time.Instant? = null
+    /**
+     * 시작 전에 끝남(연결 실패·시작 거부·그만두기). 결과가 없으니 안내하고 이전 화면으로 돌아간다. 그만두기로 끝났으면 안내 없이 떠나고
+     * (보고가 끝내 실패했을 때만 그 사유), 출발 전에 상대가 그만두면 서버가 대결을 취소하고 OPPONENT_FORFEITED를 보낸다(결과 없음).
+     */
+    private fun endedBeforeStart(s: BattleRunState.Finished) {
+        releaseWaitingLease()
+        val reason = coordinator.failure.value
+        countdownJob?.cancel()
+        stuckJob?.cancel()
+        waitJob?.cancel()
+        handedOver = false
+        val fallback = when {
+            forfeiting -> null
+            s.status == BattleEnded.Status.OPPONENT_FORFEITED -> UiText.Res(R.string.battle_match_opponent_left)
+            else -> UiText.Res(R.string.battle_match_start_failed)
+        }
+        val text = reason?.let(BattleErrorText::of) ?: fallback
+        forfeiting = false
+        coordinator.acknowledgeFinished()
+        followJob?.cancel()
+        if (text == null) _events.trySend(MatchEvent.Exit) else showNotice(text)
+    }
 
     private fun countdownTo(s: BattleRunState.Countdown) {
         startAt = s.startAt
@@ -344,8 +649,6 @@ class MatchViewModel @Inject constructor(
         }
     }
 
-    private var navigated = false
-
     private fun started(match: MatchFound) {
         if (navigated) return
         navigated = true
@@ -357,99 +660,85 @@ class MatchViewModel @Inject constructor(
                     match.battleId,
                     match.opponentName,
                     match.distance.meters,
-                    OpponentKind.RANDOM.name,
-                    startAtEpochMillis = startAt?.toEpochMilli()
+                    _state.value.opponentKind.name,
+                    startAtEpochMillis = startAt?.toEpochMilli(),
+                    opponentGender = match.opponentGender?.name
                 )
             )
         )
     }
 
-    private fun stopWaiting() {
-        waitJob?.cancel()
+    private fun showNotice(text: UiText) = _state.update { it.copy(notice = text) }
+
+    /** 대기 채널과 시계를 정리한다(서버 정리는 하지 않는다). */
+    private fun closeWaiting() {
         tickJob?.cancel()
         startsJob?.cancel()
+        joinCheckJob?.cancel()
         channel?.close()
         channel = null
-        _state.update { MatchUiState(distance = it.distance) }
     }
 
-    // 다른 속성이 모두 초기화된 뒤에 시작한다(즉시 실행 디스패처에서도 대기 화면을 이을 수 있게).
-    private val statusJob: Job = viewModelScope.launch { loadStatus() }
-    private var quickStarted = false
-
-    /**
-     * 기본 대결 거리와 대기 여부(GET /battles/match, FR-109). 기본 거리를 거리 고르기 기본값으로 두고, 이미 대기열에 있으면
-     * (앱을 다시 연 경우) 대기 화면을 잇는다. 읽지 못하면 5km로 둔다.
-     */
-    private suspend fun loadStatus() {
-        val status = battles.matchStatus()
-        if (status !is Outcome.Success) return
-        val s = status.value
-        if (_state.value.phase != MatchPhase.CHOOSING) return
-        val preferred = (if (s.isWaiting) s.distance else s.defaultDistance)?.takeIf { it in MatchUiState.DISTANCES }
-        if (preferred != null) _state.update { it.copy(distance = preferred) }
-        if (s.isWaiting) startWaiting()
-    }
-
-    /**
-     * 홈의 배틀런 시작(FR-080): 러너가 홈 배틀런 탭에서 고른 [distance](처음엔 기본 대결 거리)로 바로 요청한다. 서버는 요청한 거리를
-     * 기본 대결 거리로 저장한다(rememberBattleDistance). 대기 여부를 먼저 읽어 이미 대기 중이면 다시 요청하지 않고 대기 화면을 잇고,
-     * 랜덤 대결 거리(1·3·5·10km)가 아니면 요청하지 않고 거리 고르기에 남는다.
-     */
-    fun startQuick(distance: Distance) {
-        if (quickStarted) return
-        quickStarted = true
-        viewModelScope.launch {
-            statusJob.join()
-            if (_state.value.phase != MatchPhase.CHOOSING) return@launch
-            if (distance !in MatchUiState.DISTANCES) {
-                _state.update { it.copy(error = UiText.Res(R.string.battle_error_distance_invalid)) }
-                return@launch
-            }
-            _state.update { it.copy(distance = distance) }
-            onStartMatching()
-        }
+    private fun stopWaiting() {
+        waitJob?.cancel()
+        closeWaiting()
+        ticket = null
     }
 
     override fun onCleared() {
-        // 성사 전에 화면을 떠나면(시스템 제스처·탭 이동으로 ViewModel이 지워지면) 대기 채널을 닫고, 서버 대기열에서도 뺀다.
-        // viewModelScope는 이미 취소됐으므로 조정자가 applicationScope에서 보낸다(FR-085). 성사 뒤 채널·대결은 조정자가 갖는다.
+        // 성사 전에 화면을 떠나면(시스템 제스처·탭 이동으로 ViewModel이 지워지면) 대기 채널을 닫고 서버 대기를 정리한다.
+        // viewModelScope는 이미 취소됐으므로 조정자가 applicationScope에서 보낸다(FR-085, D-271). 성사 뒤 채널·대결은 조정자가 갖는다.
         if (handedOver) {
             releaseWaitingLease()
             return
         }
         channel?.close()
         channel = null
-        if (_state.value.phase in QUEUED) coordinator.abandonMatching()
+        if (_state.value.phase in OPEN) ticket?.abandon()
     }
 
-    /** 매칭 대기가 끝난 까닭. */
-    private sealed interface WaitEnd {
-        data class Found(val match: MatchFound) : WaitEnd
-
-        data class Failed(val failed: MatchFailed) : WaitEnd
-
-        /** 연결 실패(error) 또는 결과 없이 채널이 끝남(null). */
-        data class Lost(val error: AppError?) : WaitEnd
-
-        companion object {
-            fun of(message: ServerMessage): WaitEnd? = when (message) {
-                is MatchFound -> Found(message)
-                is MatchFailed -> Failed(message)
-                else -> null
-            }
-        }
-    }
-
-    private companion object {
+    internal companion object {
         const val TICK_MILLIS = 1_000L
-        const val RANKED_ONLY = "RANKED_ONLY"
+
+        /** 초대를 공유하기 전에 내 닉네임 읽기를 기다리는 한도(AN8-2). 넘으면 이름 없는 제목으로 보낸다. */
+        val INVITER_NAME_WAIT: Duration = Duration.ofSeconds(3)
+        const val ALREADY_IN_BATTLE = "ALREADY_IN_BATTLE"
+        const val INVITE_ALREADY_JOINED = "INVITE_ALREADY_JOINED"
+        const val LOCATION_CONSENT_REQUIRED = "LOCATION_CONSENT_REQUIRED"
 
         /** 출발 예약을 받지 못한 채 성사 화면에 머무는 한도와, 출발 시각이 지나고도 측정이 시작되지 않는 한도(배틀 QA 2번). */
         val MATCHED_STUCK: Duration = Duration.ofSeconds(30)
         val START_STUCK: Duration = Duration.ofSeconds(15)
 
-        /** 서버 대기열에 들어갔거나 들어가는 중인 단계(요청 중이면 응답 뒤 대기열에 남을 수 있다). */
-        val QUEUED = setOf(MatchPhase.REQUESTING, MatchPhase.WAITING, MatchPhase.CANCELLING)
+        /** 초대 만료 유예(D-271 기본값): 서버 만료 알림이 연결 끊김으로 사라져도 만료 + 2초에 끝낸다. */
+        val EXPIRY_GRACE: Duration = Duration.ofSeconds(2)
+
+        /** 초대 수명(서버 만료 = 만든 때 + 5분, D-271). */
+        val INVITE_LIFETIME: Duration = Duration.ofMinutes(5)
+
+        /** 참가 응답 뒤 MatchFound를 기다리는 한도(D-274). */
+        val JOIN_CONFIRM: Duration = Duration.ofSeconds(10)
+
+        /** 대기 시간을 세는 단계. */
+        val TICKING = setOf(MatchPhase.WAITING, MatchPhase.INVITING)
+
+        /** 서버에 대기가 열렸거나 열리는 중인 단계(떠나면 정리한다). */
+        val OPEN = setOf(MatchPhase.REQUESTING, MatchPhase.WAITING, MatchPhase.INVITING, MatchPhase.CANCELLING)
     }
+}
+
+/** 받은 초대의 참가 막힘 사유 문구(D-273, FR-229 예외 흐름). 모르는 사유는 대결 오류 문구다. */
+internal fun joinNotice(error: AppError): UiText = when ((error as? AppError.Rejected)?.code) {
+    "INVITE_NOT_FOUND", "INVITE_EXPIRED", "INVITE_CANCELLED" -> UiText.Res(R.string.battle_join_ended)
+    "INVITE_ALREADY_JOINED" -> UiText.Res(R.string.battle_join_already_joined)
+    "INVITE_OWN" -> UiText.Res(R.string.battle_join_own)
+    "ALREADY_IN_BATTLE" -> UiText.Res(R.string.battle_join_busy)
+    else -> BattleErrorText.of(error)
+}
+
+/** 랜덤 매칭·초대 만들기 거부 문구(D-270). 초대 쪽 사유는 친구 대결 문구, 나머지는 대결 오류 문구다. */
+internal fun refusedNotice(error: AppError): UiText = when ((error as? AppError.Rejected)?.code) {
+    "INVITE_ALREADY_PENDING" -> UiText.Res(R.string.battle_invite_already_pending)
+    "ALREADY_IN_BATTLE" -> UiText.Res(R.string.battle_invite_busy)
+    else -> BattleErrorText.of(error)
 }

@@ -4,6 +4,8 @@ import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.Pace
+import com.a207.runkk.app.domain.account.SessionRepository
+import com.a207.runkk.app.domain.account.SessionTokens
 import com.a207.runkk.app.domain.notification.LoginState
 import com.a207.runkk.app.domain.notification.PushTokenRemote
 import com.a207.runkk.app.domain.notification.PushTokenSource
@@ -40,9 +42,14 @@ import com.a207.runkk.app.domain.run.UploadScheduler
 import com.a207.runkk.app.domain.run.WatchDisplay
 import com.a207.runkk.app.domain.run.WatchGateway
 import com.a207.runkk.app.domain.run.WatchHomeSync
+import com.a207.runkk.app.domain.settings.FirstRunGuide
 import com.a207.runkk.app.domain.settings.GuidanceSettings
+import com.a207.runkk.app.domain.settings.GuideCopy
+import com.a207.runkk.app.domain.settings.GuideRemote
 import com.a207.runkk.app.domain.settings.SettingsRepository
 import com.a207.runkk.app.domain.settings.SettingsSnapshot
+import com.a207.runkk.app.domain.sync.DeviceCopy
+import com.a207.runkk.app.domain.sync.DeviceCopySync
 import com.a207.runkk.app.domain.sync.DisposalOrder
 import com.a207.runkk.app.domain.sync.DisposalRemote
 import com.a207.runkk.app.domain.sync.SyncDisposalsUseCase
@@ -82,6 +89,11 @@ class AppStartupTest {
 
     private fun TestScope.startup(): AppStartup {
         val scope = CoroutineScope(StandardTestDispatcher(testScheduler))
+        return AppStartup(deviceCopies(scope), LoginSession(login), scope)
+    }
+
+    /** 실제 DeviceCopySync(D-332)에 기록하는 가짜 포트를 물린다. */
+    private fun deviceCopies(scope: CoroutineScope): DeviceCopySync {
         val pending = NoPendingRuns()
         val tracker =
             RunTracker(
@@ -102,7 +114,43 @@ class AppStartupTest {
                 override val loggedIn: StateFlow<Boolean> = login
             }
         val push = PushTokenSync(pushRemote, FixedPushToken("fcm-token"), loginState, scope)
-        return AppStartup(disposals, settings, push, loginState, records, todayPlans, watchHome, scope)
+        val guide = FirstRunGuide(settings, RecordingGuideRemote(events))
+        return DeviceCopySync(disposals, settings, push, records, todayPlans, watchHome, guide)
+    }
+
+    @Test
+    fun `D-332 회원 사본 정리는 설정 사본을 지우고 오늘 계획 사본을 비운다`() = runTest {
+        todayPlans.put(PlanSnapshot(Distance(5_000), Pace(330)))
+
+        val failures = deviceCopies(CoroutineScope(StandardTestDispatcher(testScheduler))).clearAccount()
+
+        assertEquals(emptyMap(), failures)
+        assertEquals(listOf("settings.clear"), events)
+        assertNull(todayPlans.plan.value)
+    }
+
+    @Test
+    fun `D-332 오늘 계획을 못 읽으면 아는 계획을 두고 실패로 알리며 가이드 끝냄은 그대로 다시 보낸다`() = runTest {
+        val known = PlanSnapshot(Distance(7_000), null)
+        todayPlans.put(known)
+        records.todayPlanResult = Outcome.Failure(AppError.Network)
+        settings.guide = GuideCopy.SEEN_UNSENT
+
+        val failures = deviceCopies(CoroutineScope(StandardTestDispatcher(testScheduler))).syncAccount()
+
+        assertEquals(mapOf(DeviceCopy.TODAY_PLAN to AppError.Network), failures)
+        assertEquals(known, todayPlans.plan.value)
+        assertEquals(listOf("guide.markSeen"), events)
+    }
+
+    @Test
+    fun `D-332 기기 사본 맞추기는 설정 갱신이 실패해도 푸시 토큰까지 하고 실패한 사본을 알린다`() = runTest {
+        settings.refreshResult = Outcome.Failure(AppError.Network)
+
+        val failures = deviceCopies(CoroutineScope(StandardTestDispatcher(testScheduler))).syncDevice()
+
+        assertEquals(mapOf(DeviceCopy.SETTINGS to AppError.Network), failures)
+        assertEquals(listOf("disposals", "settings.refresh", "push.register"), events)
     }
 
     @Test
@@ -146,6 +194,17 @@ class AppStartupTest {
         advanceUntilIdle()
 
         assertEquals(listOf("disposals", "settings.refresh", "push.register"), events)
+    }
+
+    @Test
+    fun `TC-9715 서버에 알리지 못한 가이드 끝냄은 시작 때 다시 보낸다`() = runTest {
+        settings.guide = GuideCopy.SEEN_UNSENT
+
+        startup().start()
+        advanceUntilIdle()
+
+        assertEquals(listOf("disposals", "settings.refresh", "push.register", "guide.markSeen"), events)
+        assertEquals(GuideCopy.SEEN, settings.guide)
     }
 
     @Test
@@ -214,6 +273,21 @@ class AppStartupTest {
     }
 }
 
+/** 로그인 상태만 쓰는 세션 포트(AppStartup은 SessionRepository.loggedIn으로 전환을 본다, D-332). */
+private class LoginSession(override val loggedIn: StateFlow<Boolean>) : SessionRepository {
+    override suspend fun save(tokens: SessionTokens): Outcome<Unit> = unused()
+
+    override suspend fun clear(): Outcome<Unit> = unused()
+
+    override suspend fun saveGuestCredential(credential: String): Outcome<Unit> = unused()
+
+    override suspend fun clearGuestCredential(): Outcome<Unit> = unused()
+
+    override suspend fun hasGuestCredential(): Boolean = unused()
+
+    private fun <T> unused(): T = throw UnsupportedOperationException("이 시험은 로그인 상태만 읽는다")
+}
+
 private class RecordingDisposalRemote(private val events: MutableList<String>) : DisposalRemote {
     override suspend fun pending(): Outcome<List<DisposalOrder>> {
         events += "disposals"
@@ -269,6 +343,24 @@ private class RecordingSettings(private val events: MutableList<String>) : Setti
         events += "settings.clear"
         return Outcome.Success(Unit)
     }
+
+    var guide: GuideCopy = GuideCopy.NONE
+
+    override suspend fun guideCopy(): GuideCopy = guide
+
+    override suspend fun saveGuideCopy(copy: GuideCopy): Outcome<Unit> {
+        guide = copy
+        return Outcome.Success(Unit)
+    }
+}
+
+private class RecordingGuideRemote(private val events: MutableList<String>) : GuideRemote {
+    override suspend fun seen(): Outcome<Boolean> = Outcome.Success(false)
+
+    override suspend fun markSeen(): Outcome<Unit> {
+        events += "guide.markSeen"
+        return Outcome.Success(Unit)
+    }
 }
 
 /** 파기 지시가 없는 시험이라 보관함은 건드리지 않는다. */
@@ -301,10 +393,11 @@ private class NoPendingRuns : PendingRunRepository {
 /** 오늘 계획 5km·5분 30초. 오늘 계획 말고는 쓰지 않는다. */
 private class TodayPlanRecords : RecordRepository {
     var todayPlanCalls = 0
+    var todayPlanResult: Outcome<TodayPlan?> = Outcome.Success(TodayPlan(Distance(5_000), Pace(330)))
 
     override suspend fun todayPlan(): Outcome<TodayPlan?> {
         todayPlanCalls++
-        return Outcome.Success(TodayPlan(Distance(5_000), Pace(330)))
+        return todayPlanResult
     }
 
     override suspend fun dashboard(baseDate: LocalDate): Outcome<Dashboard> = unused()
@@ -312,6 +405,8 @@ private class TodayPlanRecords : RecordRepository {
     override suspend fun runs(ownerId: Long, from: LocalDate, to: LocalDate): Outcome<RecordList> = unused()
 
     override suspend fun run(recordId: String): Outcome<RecordDetail> = unused()
+
+    override suspend fun delete(recordId: String): Outcome<Unit> = unused()
 
     override suspend fun growth(period: AggregationPeriod): Outcome<Growth> = unused()
 

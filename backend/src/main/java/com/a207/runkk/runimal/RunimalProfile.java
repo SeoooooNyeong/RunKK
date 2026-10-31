@@ -1,17 +1,24 @@
 package com.a207.runkk.runimal;
 
+import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Table;
 import jakarta.persistence.Transient;
 import jakarta.persistence.Version;
 import java.time.LocalDateTime;
 import java.util.EnumMap;
+import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * 회원의 Runimal 판정 상태(설계 6.1.8, 상태도 2.4.11). 판정 시점은 running이 정한 유효 러닝 순번으로 정하고 validRunCount는 직전 반영
@@ -62,6 +69,15 @@ public class RunimalProfile {
     @Column(name = "version", nullable = false)
     private Long version;
 
+    /** 확정받은 적 있는 유형(v0.14 D-245, 표 runimal_confirmed_history). confirm이 넣는다. */
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(
+            name = "runimal_confirmed_history",
+            joinColumns = @JoinColumn(name = "member_id"))
+    @Enumerated(EnumType.STRING)
+    @Column(name = "type", length = 20)
+    private Set<RunimalType> confirmedHistory = new HashSet<>();
+
     /** 직전 onValidRun 결과. assignProvisional·confirm의 사전 조건. 저장하지 않는다. */
     @Transient private JudgeTrigger pendingTrigger = JudgeTrigger.NONE;
 
@@ -110,8 +126,19 @@ public class RunimalProfile {
         requireTrigger(JudgeTrigger.CONFIRM);
         boolean changed = confirmedType != t;
         confirmedType = t;
+        confirmedHistory.add(t);
         keep(r, now);
         return changed;
+    }
+
+    /** 이 유형으로 한 번이라도 확정받았는가(16유형 목록의 흐림, FR-226, v0.14 D-245). */
+    public boolean hasEverConfirmed(RunimalType t) {
+        return confirmedHistory.contains(t);
+    }
+
+    /** 확정받은 적 있는 유형(불변 사본). */
+    public Set<RunimalType> confirmedHistory() {
+        return confirmedHistory.isEmpty() ? Set.of() : Set.copyOf(EnumSet.copyOf(confirmedHistory));
     }
 
     private void requireTrigger(JudgeTrigger expected) {

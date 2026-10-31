@@ -1,6 +1,7 @@
 package com.a207.runkk.app.ui.me
 
 import com.a207.runkk.app.core.designsystem.testing.ContractEnums
+import com.a207.runkk.app.core.model.Gender
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -107,7 +108,7 @@ class ServerContractTest {
     fun `가입 입력의 성별은 서버 Gender다`() {
         assertEquals(
             ContractEnums.names("Gender"),
-            com.a207.runkk.app.domain.account.Gender.entries.map {
+            Gender.entries.map {
                 it.name
             }.toSet()
         )

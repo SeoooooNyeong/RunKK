@@ -227,10 +227,7 @@ class RunCollaboratorsTest {
         paused.onPauseTapped()
         paused.tick(T0.plusSeconds(3))
         seen += watch.published.last().isPausable to watch.published.last().isPaused
-        paused.lockScreen()
-        paused.tick(T0.plusSeconds(4))
-        seen += watch.published.last().isPausable to watch.published.last().isPaused
-        assertEquals(listOf(true to false, false to false, false to false, true to true, true to true), seen)
+        assertEquals(listOf(true to false, false to false, false to false, true to true), seen)
     }
 
     @Test
@@ -366,20 +363,6 @@ class RunCollaboratorsTest {
         kept.publishProximity(alert(50, 1_110), T0)
         kept.publishProximity(alert(50, 1_110), T0.plusSeconds(1))
         assertEquals(1, watch.proximity.size)
-    }
-
-    @Test
-    fun `publishNotice로 받은 안내는 지울 때까지 표시에 싣는다 (D-157)`() = runTest {
-        val bridge = RunWatchBridge(watch, backgroundScope)
-        bridge.publishNotice(WatchNotice.AUTO_END_SOON)
-        bridge.publishHome(null)
-        bridge.publishHome(null)
-        bridge.publishNotice(null)
-        bridge.publishHome(null)
-        assertEquals(
-            listOf(WatchNotice.AUTO_END_SOON, WatchNotice.AUTO_END_SOON, null),
-            watch.published.map { it.notice }
-        )
     }
 
     @Test

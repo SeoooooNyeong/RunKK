@@ -2,6 +2,8 @@
 
 package com.a207.runkk.app.ui.battle
 
+import com.a207.runkk.app.core.designsystem.AvatarExpression
+import com.a207.runkk.app.core.designsystem.RunResultDetailState
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.uiText
 import com.a207.runkk.app.core.model.AppError
@@ -13,6 +15,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -23,18 +26,96 @@ class BattleResultViewModelTest {
     @get:Rule
     val main = MainDispatcherRule()
 
+    private val detailCalls = mutableListOf<String>()
+    private val details = RunDetailSource { recordId ->
+        detailCalls += recordId
+        Outcome.Success(recordDetail(recordId))
+    }
+
     @Test
-    fun `결과 비교표·판정·리워드와 이번 주 전적을 보인다(FR-093)`() = runTest(main.dispatcher) {
+    fun `결과 판정·적립 합계와 2쪽 기록 상세를 보인다(FR-093, D-283)`() = runTest(main.dispatcher) {
         val w = world()
-        val vm = BattleResultViewModel(w.battles, w.coordinator, w.uploads)
+        val vm = BattleResultViewModel(w.battles, w.coordinator, w.uploads, details)
         vm.load(9)
         runCurrent()
         val s = vm.state.value
         assertEquals(Verdict.WIN, s.verdict)
-        assertEquals(4, s.result?.rows?.size)
-        assertEquals(70, s.result?.rewardPoints)
-        assertEquals(uiText(R.string.battle_weekly_spoken, 3, 1), s.weekly?.let(::weeklyLabel))
-        assertEquals(listOf("result:9"), w.battles.calls, "이번 주 전적은 결과 응답에 있어 이력을 따로 부르지 않는다")
+        assertEquals(OpponentKind.RANDOM, s.kind)
+        assertEquals(52, s.result?.totalRewardPoints)
+        assertEquals(listOf("rec-9"), detailCalls, "본인 기록 상세를 한 번 읽는다")
+        assertEquals("rec-9", s.detail?.summary?.recordId)
+        assertEquals(listOf("result:9"), w.battles.calls, "이번 주 전적·이력을 따로 부르지 않는다")
+    }
+
+    @Test
+    fun `TC-9688 결과 종류는 서버 type으로 고르고 친구 대결도 대결 결과로 그린다`() {
+        fun kindOf(type: BattleHistory.Type?) = BattleResultUiState(result = battleResult().copy(type = type)).kind
+        assertEquals(OpponentKind.FRIEND, kindOf(BattleHistory.Type.FRIEND))
+        assertEquals(OpponentKind.RANDOM, kindOf(BattleHistory.Type.GHOST))
+        assertEquals(OpponentKind.SELF, kindOf(BattleHistory.Type.SELF))
+        assertEquals(OpponentKind.CELEBRITY, kindOf(BattleHistory.Type.CELEBRITY))
+        assertEquals(OpponentKind.RANDOM, kindOf(null), "옛 서버")
+        assertEquals(R.string.battle_result_title, resultTitleRes(OpponentKind.FRIEND))
+        assertEquals(R.string.battle_result_title_self, resultTitleRes(OpponentKind.SELF))
+        assertEquals(R.string.battle_result_title_celeb, resultTitleRes(OpponentKind.CELEBRITY))
+    }
+
+    @Test
+    fun `TC-9702 결과 화면 표정은 패배만 SAD이고 자유런 완료·승리·신기록·무승부는 JOY다`() {
+        assertEquals(AvatarExpression.JOY, resultExpression(null), "판정 없음(자유런 완료와 같은 기본)")
+        assertEquals(AvatarExpression.JOY, resultExpression(Verdict.WIN), "승리, 셀프런 승리(신기록)")
+        assertEquals(AvatarExpression.JOY, resultExpression(Verdict.DRAW))
+        assertEquals(AvatarExpression.SAD, resultExpression(Verdict.LOSE))
+        val freeRun = RunResultDetailState(com.a207.runkk.app.core.model.Distance(5_000), "", java.time.Duration.ZERO)
+        assertEquals(AvatarExpression.JUMP, freeRun.expression, "자유런 결과 상세 기본(뛰어오르기, D84)")
+    }
+
+    @Test
+    fun `TC-9702 상세 장 표정은 패배만 SAD이고 나머지는 뛰어오르기다`() {
+        assertEquals(AvatarExpression.JUMP, detailExpression(null))
+        assertEquals(AvatarExpression.JUMP, detailExpression(Verdict.WIN))
+        assertEquals(AvatarExpression.JUMP, detailExpression(Verdict.DRAW))
+        assertEquals(AvatarExpression.SAD, detailExpression(Verdict.LOSE))
+    }
+
+    @Test
+    fun `TC-9651 큰 제목은 승리!·패배·무승부, 셀프런 승리는 신기록!`() {
+        assertEquals(R.string.battle_result_headline_win, headlineRes(OpponentKind.RANDOM, Verdict.WIN))
+        assertEquals(R.string.battle_result_headline_win, headlineRes(OpponentKind.FRIEND, Verdict.WIN))
+        assertEquals(R.string.battle_result_headline_new_record, headlineRes(OpponentKind.SELF, Verdict.WIN))
+        assertEquals(R.string.battle_result_headline_lose, headlineRes(OpponentKind.CELEBRITY, Verdict.LOSE))
+        assertEquals(R.string.battle_result_headline_draw, headlineRes(OpponentKind.RANDOM, Verdict.DRAW))
+    }
+
+    @Test
+    fun `D-284 끝낸 직후 연 결과는 평가 화면 이동을 한 번만 낸다`() = runTest(main.dispatcher) {
+        val w = world()
+        val evaluation = com.a207.runkk.app.domain.battle.BattleResult.Evaluation("FIRST_PLACEMENT", "SILVER", 3, null)
+        w.battles.resultResult = Outcome.Success(battleResult().copy(evaluation = evaluation))
+        val vm = BattleResultViewModel(w.battles, w.coordinator, w.uploads, details)
+        val events = mutableListOf<BattleResultEvent>()
+        backgroundScope.launch { vm.events.collect { events += it } }
+        vm.load(9, opensEvaluation = true)
+        runCurrent()
+        vm.load(9, isForced = true)
+        runCurrent()
+        assertEquals(listOf<BattleResultEvent>(BattleResultEvent.NavigateEvaluation(evaluation)), events)
+    }
+
+    @Test
+    fun `AN8-1 U8-6 기록 대결 탭·알림함에서 다시 연 결과는 평가가 실려 있어도 평가 화면을 열지 않는다`() = runTest(main.dispatcher) {
+        val w = world()
+        val evaluation =
+            com.a207.runkk.app.domain.battle.BattleResult.Evaluation("FIRST_PLACEMENT", "SILVER", 3, null)
+        w.battles.resultResult = Outcome.Success(battleResult().copy(evaluation = evaluation))
+        val vm = BattleResultViewModel(w.battles, w.coordinator, w.uploads, details)
+        val events = mutableListOf<BattleResultEvent>()
+        backgroundScope.launch { vm.events.collect { events += it } }
+        vm.load(9)
+        runCurrent()
+        vm.load(9, isForced = true)
+        runCurrent()
+        assertEquals(emptyList(), events)
     }
 
     @Test
@@ -43,7 +124,7 @@ class BattleResultViewModelTest {
         w.pendingRuns.runs.value = listOf(pendingBattleRun(9))
         w.battles.resultResult =
             Outcome.Success(battleResult(verdict = "LOSE", recordId = null).copy(rows = emptyList()))
-        val vm = BattleResultViewModel(w.battles, w.coordinator, w.uploads)
+        val vm = BattleResultViewModel(w.battles, w.coordinator, w.uploads, details)
         vm.load(9)
         runCurrent()
         assertEquals(emptyList(), vm.state.value.result?.rows)
@@ -63,7 +144,7 @@ class BattleResultViewModelTest {
         val w = world()
         w.pendingRuns.runs.value = listOf(pendingBattleRun(9))
         w.battles.resultResult = Outcome.Failure(AppError.Network)
-        val vm = BattleResultViewModel(w.battles, w.coordinator, w.uploads)
+        val vm = BattleResultViewModel(w.battles, w.coordinator, w.uploads, details)
         vm.load(9)
         runCurrent()
         assertNotNull(vm.state.value.error)
@@ -78,7 +159,7 @@ class BattleResultViewModelTest {
     fun `QA-5 네트워크 오류는 몇 초마다 다시 읽고 거부는 다시 읽지 않는다`() = runTest(main.dispatcher) {
         val w = world()
         w.battles.resultResult = Outcome.Failure(AppError.Network)
-        val vm = BattleResultViewModel(w.battles, w.coordinator, w.uploads)
+        val vm = BattleResultViewModel(w.battles, w.coordinator, w.uploads, details)
         vm.load(9)
         runCurrent()
         advanceTimeBy(BattleResultViewModel.OFFLINE_RETRY_MILLIS + 1)
@@ -92,7 +173,8 @@ class BattleResultViewModelTest {
 
         val rejectedWorld = world()
         rejectedWorld.battles.resultResult = rejected("BATTLE_NOT_FOUND")
-        val gone = BattleResultViewModel(rejectedWorld.battles, rejectedWorld.coordinator, rejectedWorld.uploads)
+        val gone =
+            BattleResultViewModel(rejectedWorld.battles, rejectedWorld.coordinator, rejectedWorld.uploads, details)
         gone.load(9)
         advanceTimeBy(BattleResultViewModel.OFFLINE_RETRY_MILLIS * 5)
         assertEquals(1, rejectedWorld.battles.calls.count { it == "result:9" })
@@ -103,15 +185,16 @@ class BattleResultViewModelTest {
         val lost = battleResult(verdict = "LOSE")
         val generic = uiText(R.string.battle_result_lose)
         // 내 기록 무효·포기·미도착: 내 도달 시간이 없다.
-        assertEquals(generic, verdictMessage(Verdict.LOSE, lost.copy(myReach = null)))
+        assertEquals(generic, verdictMessage(OpponentKind.RANDOM, Verdict.LOSE, lost.copy(myReach = null)))
         // 상대가 도착하지 못했다(내가 빨랐는데 무효 등).
-        assertEquals(generic, verdictMessage(Verdict.LOSE, lost.copy(opponentReach = null)))
+        assertEquals(generic, verdictMessage(OpponentKind.RANDOM, Verdict.LOSE, lost.copy(opponentReach = null)))
         // 둘 다 도착했지만 내가 더 빨랐다(판정 사유를 앱이 모른다).
-        assertEquals(generic, verdictMessage(Verdict.LOSE, lost))
-        assertEquals(generic, verdictMessage(Verdict.LOSE, null))
+        assertEquals(generic, verdictMessage(OpponentKind.RANDOM, Verdict.LOSE, lost))
+        assertEquals(generic, verdictMessage(OpponentKind.RANDOM, Verdict.LOSE, null))
         assertEquals(
             generic,
             verdictMessage(
+                OpponentKind.RANDOM,
                 Verdict.LOSE,
                 lost.copy(
                     opponentName = null,
@@ -127,7 +210,7 @@ class BattleResultViewModelTest {
         val won = battleResult()
         assertEquals(
             uiText(R.string.battle_result_win_name_gap, "바람처럼", uiText(R.string.battle_gap_seconds, 42L)),
-            verdictMessage(Verdict.WIN, won)
+            verdictMessage(OpponentKind.RANDOM, Verdict.WIN, won)
         )
         assertEquals(
             uiText(
@@ -136,6 +219,7 @@ class BattleResultViewModelTest {
                 uiText(R.string.battle_gap_minutes_seconds, 1L, 5L)
             ),
             verdictMessage(
+                OpponentKind.RANDOM,
                 Verdict.LOSE,
                 won.copy(
                     myReach = java.time.Duration.ofSeconds(1_757),
@@ -143,16 +227,59 @@ class BattleResultViewModelTest {
                 )
             )
         )
-        assertEquals(uiText(R.string.battle_result_draw_name, "바람처럼"), verdictMessage(Verdict.DRAW, won))
-        assertEquals(uiText(R.string.battle_result_win), verdictMessage(Verdict.WIN, won.copy(opponentName = null)))
+        assertEquals(
+            uiText(R.string.battle_result_draw_name, "바람처럼"),
+            verdictMessage(OpponentKind.RANDOM, Verdict.DRAW, won)
+        )
+        assertEquals(
+            uiText(R.string.battle_result_win),
+            verdictMessage(OpponentKind.RANDOM, Verdict.WIN, won.copy(opponentName = null))
+        )
         assertEquals(
             uiText(R.string.battle_result_win_name, "바람처럼"),
-            verdictMessage(Verdict.WIN, won.copy(myReach = null))
+            verdictMessage(OpponentKind.RANDOM, Verdict.WIN, won.copy(myReach = null))
         )
     }
 
     @Test
-    fun `이력의 기록 차이는 빠름·느림으로, 이번 주 전적은 무승부가 있으면 더한다`() {
+    fun `TC-9647 TC-9648 셀프런·셀럽런 문구는 이름에 님을 붙이지 않고 종류마다 다르다(D-283)`() {
+        val self = battleResult().copy(opponentName = "10월 2일의 나", myReach = java.time.Duration.ofSeconds(1_798))
+            .copy(opponentReach = java.time.Duration.ofSeconds(1_812))
+        val fourteen = uiText(R.string.battle_gap_seconds, 14L)
+        assertEquals(
+            uiText(R.string.battle_result_win_self, "10월 2일의 나", fourteen),
+            verdictMessage(OpponentKind.SELF, Verdict.WIN, self)
+        )
+        val slower = self.copy(myReach = java.time.Duration.ofSeconds(1_826))
+        assertEquals(
+            uiText(R.string.battle_result_lose_self, "10월 2일의 나", fourteen),
+            verdictMessage(OpponentKind.SELF, Verdict.LOSE, slower)
+        )
+        val celeb = battleResult().copy(
+            opponentName = "김선교 대공",
+            myReach = java.time.Duration.ofSeconds(3_640),
+            opponentReach = java.time.Duration.ofSeconds(3_500)
+        )
+        assertEquals(
+            uiText(R.string.battle_result_lose_celeb, "김선교 대공", uiText(R.string.battle_gap_minutes_seconds, 2L, 20L)),
+            verdictMessage(OpponentKind.CELEBRITY, Verdict.LOSE, celeb)
+        )
+        assertEquals(
+            uiText(R.string.battle_result_win_name_gap, "바람처럼", uiText(R.string.battle_gap_seconds, 42L)),
+            verdictMessage(OpponentKind.FRIEND, Verdict.WIN, battleResult())
+        )
+    }
+
+    @Test
+    fun `TC-9650 시간 차 표기는 분까지만 올린다`() {
+        assertEquals(uiText(R.string.battle_gap_seconds, 59L), gapText(java.time.Duration.ofSeconds(59)))
+        assertEquals(uiText(R.string.battle_gap_minutes, 1L), gapText(java.time.Duration.ofSeconds(60)))
+        assertEquals(uiText(R.string.battle_gap_minutes_seconds, 1L, 1L), gapText(java.time.Duration.ofSeconds(61)))
+        assertEquals(uiText(R.string.battle_gap_minutes, 60L), gapText(java.time.Duration.ofSeconds(3_600)))
+    }
+
+    @Test
+    fun `이력의 기록 차이는 빠름·느림으로 보인다`() {
         assertEquals(
             uiText(R.string.battle_gap_faster, uiText(R.string.battle_gap_seconds, 42L)),
             gapLabel(java.time.Duration.ofSeconds(-42))
@@ -162,25 +289,13 @@ class BattleResultViewModelTest {
             gapLabel(java.time.Duration.ofSeconds(72))
         )
         assertEquals(uiText(R.string.battle_gap_same), gapLabel(java.time.Duration.ZERO))
-        assertEquals(
-            uiText(R.string.battle_weekly_spoken_draw, 3, 1, 1),
-            weeklyLabel(com.a207.runkk.app.domain.battle.BattleResult.Weekly(3, 1, 1))
-        )
-        assertEquals(
-            uiText(R.string.battle_weekly_spoken, 3, 1),
-            weeklySpoken(com.a207.runkk.app.domain.battle.BattleResult.Weekly(3, 1, 0))
-        )
-        assertEquals(
-            uiText(R.string.battle_weekly_spoken_draw, 3, 1, 1),
-            weeklySpoken(com.a207.runkk.app.domain.battle.BattleResult.Weekly(3, 1, 1))
-        )
     }
 
     @Test
     fun `보류 결과를 보이고 다시 불러올 수 있다(FR-108)`() = runTest(main.dispatcher) {
         val w = world()
         w.battles.resultResult = Outcome.Success(battleResult(pending = true, verdict = null))
-        val vm = BattleResultViewModel(w.battles, w.coordinator, w.uploads)
+        val vm = BattleResultViewModel(w.battles, w.coordinator, w.uploads, details)
         vm.load(9)
         runCurrent()
         assertTrue(vm.state.value.result?.isPending == true)
@@ -195,7 +310,7 @@ class BattleResultViewModelTest {
     fun `보류면 판정이 나올 때까지 몇 초마다 다시 읽는다`() = runTest(main.dispatcher) {
         val w = world()
         w.battles.resultResult = Outcome.Success(battleResult(pending = true, verdict = null))
-        val vm = BattleResultViewModel(w.battles, w.coordinator, w.uploads)
+        val vm = BattleResultViewModel(w.battles, w.coordinator, w.uploads, details)
         vm.load(9)
         runCurrent()
         assertTrue(vm.state.value.result?.isPending == true)
@@ -214,7 +329,7 @@ class BattleResultViewModelTest {
     fun `보류가 길어지면 다시 읽기를 멈추고 보류 화면에 남는다`() = runTest(main.dispatcher) {
         val w = world()
         w.battles.resultResult = Outcome.Success(battleResult(pending = true, verdict = null))
-        val vm = BattleResultViewModel(w.battles, w.coordinator, w.uploads)
+        val vm = BattleResultViewModel(w.battles, w.coordinator, w.uploads, details)
         vm.load(9)
         advanceTimeBy(BattleResultViewModel.PENDING_RETRY_MILLIS * (BattleResultViewModel.PENDING_RETRIES + 5))
         assertEquals(1 + BattleResultViewModel.PENDING_RETRIES, w.battles.calls.count { it == "result:9" })
@@ -226,7 +341,7 @@ class BattleResultViewModelTest {
     fun `결과를 불러오지 못하면 오류, 같은 대결은 다시 부르면 다시 읽는다`() = runTest(main.dispatcher) {
         val w = world()
         w.battles.resultResult = rejected("BATTLE_NOT_FOUND")
-        val vm = BattleResultViewModel(w.battles, w.coordinator, w.uploads)
+        val vm = BattleResultViewModel(w.battles, w.coordinator, w.uploads, details)
         vm.load(9)
         runCurrent()
         assertEquals(UiText.Res(R.string.battle_error_not_found), vm.state.value.error)
@@ -238,15 +353,35 @@ class BattleResultViewModelTest {
     }
 
     @Test
-    fun `함께 달린 기록 - 종류로 거르고 고스트는 랜덤 라벨(FR-101)`() = runTest(main.dispatcher) {
+    fun `TC-9739 대결 탭 - 배틀런 칩은 RANDOM으로 묻고 종류는 배틀런·친구 대결·셀프런·셀럽런으로 적는다(FR-101)`() = runTest(main.dispatcher) {
         val w = world()
         val vm = BattleHistoryViewModel(w.battles)
         runCurrent()
         assertEquals(12, vm.state.value.history?.total)
+        vm.onFilter(1)
+        runCurrent()
         vm.onFilter(2)
         runCurrent()
-        assertEquals(listOf("history:null", "history:SELF"), w.battles.calls)
-        assertEquals(R.string.battle_type_random, typeLabel(BattleHistory.Type.GHOST))
+        vm.onFilter(3)
+        runCurrent()
+        assertEquals(
+            listOf("history:null", "history:RANDOM", "history:SELF", "history:CELEBRITY"),
+            w.battles.calls
+        )
+        assertEquals(
+            listOf(
+                R.string.battle_filter_all,
+                R.string.battle_history_type_battle,
+                R.string.battle_history_type_self,
+                R.string.battle_history_type_celeb
+            ),
+            HISTORY_FILTERS.map { it.first }
+        )
+        assertEquals(R.string.battle_history_type_battle, typeLabel(BattleHistory.Type.RANDOM))
+        assertEquals(R.string.battle_history_type_battle, typeLabel(BattleHistory.Type.GHOST))
+        assertEquals(R.string.battle_history_type_friend, typeLabel(BattleHistory.Type.FRIEND))
+        assertEquals(R.string.battle_history_type_self, typeLabel(BattleHistory.Type.SELF))
+        assertEquals(R.string.battle_history_type_celeb, typeLabel(BattleHistory.Type.CELEBRITY))
     }
 
     @Test

@@ -14,6 +14,7 @@ import com.a207.runkk.common.Distance;
  * @param track 상대 경과 시간·누적 거리 표(D-05)
  * @param source 유명인 출처, 나와의 싸움이면 null
  * @param estimated 평균 페이스로 추정한 표인가(A-006)
+ * @param figureKey 유명인 캐릭터 그림 키, 없거나 나와의 싸움이면 null(2026-10-31 결정)
  */
 public record RecordBattleStart(
         long battleId,
@@ -22,4 +23,5 @@ public record RecordBattleStart(
         Distance distance,
         OpponentTrack track,
         Source source,
-        boolean estimated) {}
+        boolean estimated,
+        String figureKey) {}

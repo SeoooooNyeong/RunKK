@@ -2,9 +2,12 @@ package com.a207.runkk.app.ui.battle
 
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Pace
+import com.a207.runkk.app.core.model.RouteLine
 import com.a207.runkk.app.domain.live.BattleGuidance
 import java.time.Duration
+import java.time.LocalDate
 
 data class BattleRunningUiState(
     val battleId: Long = 0,
@@ -26,8 +29,6 @@ data class BattleRunningUiState(
     val connectionLabel: UiText? = null,
     /** 내 실시간 연결이 끊겨 다시 잇는 중(배틀 QA 5번). 상대 진행값이 낡았을 수 있다. */
     val isLiveLost: Boolean = false,
-    /** 화면 잠금(FR-182). 잠기면 해제 버튼만 누를 수 있다. */
-    val isLocked: Boolean = false,
     /** 방금 바뀐 앞뒤 순서 안내(잠깐 보인다, FR-188). */
     val guidance: BattleGuidance.Kind? = null,
     /** 이 화면에서 본 추월 횟수. 공식 횟수는 결과 비교표(서버)다. */
@@ -38,10 +39,24 @@ data class BattleRunningUiState(
     /** 종료 카운트다운이 시작될 때의 남은 초(보조 기술에 한 번 알리는 제한 시간, 매초 읽지 않게 고정). */
     val closingLimitSeconds: Long? = null,
     val isConfirmingForfeit: Boolean = false,
+    /** 셀프런·셀럽런 취소 확인 창(기록 없이 끝내기, 사용자 요청 2026-10-30). */
+    val isConfirmingCancel: Boolean = false,
     val hint: UiText? = null,
-    val error: UiText? = null
+    val error: UiText? = null,
+    /** 내 경로선(측정 중, D-261). 상대 마커는 이 경로 위 "내 거리 + 격차" 지점이다(D-262). */
+    val route: RouteLine = RouteLine.EMPTY,
+    /** 상대 기록(셀프런 과거의 나, 셀럽): 카운트다운 "5km 기록 30:12"(D-264). */
+    val opponentRecord: Duration? = null,
+    /** 과거의 나 기록 날짜("10월 2일의 나"). */
+    val opponentRecordedOn: LocalDate? = null,
+    /** 셀럽런 카운트다운의 그 거리 내 최고 기록(없으면 "첫 도전"). */
+    val myBest: Duration? = null,
+    /** 상대 성별(지도 위 상대 그림). 셀럽·과거의 나·모르면 null(남자 그림). */
+    val opponentGender: Gender? = null,
+    /** 셀럽 그림 키(카운트다운·지도 위 셀럽 그림). 없으면 공통 그림. */
+    val celebrityFigure: String? = null
 ) {
-    /** 측정 중인가(진행·종료 카운트다운). 잠금 버튼은 이때만 보인다. */
+    /** 측정 중인가(진행·종료 카운트다운). */
     val isMeasuring: Boolean get() = phase == BattlePhase.RUNNING || phase == BattlePhase.CLOSING
 
     private companion object {

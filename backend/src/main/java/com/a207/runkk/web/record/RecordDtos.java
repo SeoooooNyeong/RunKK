@@ -12,10 +12,14 @@ import com.a207.runkk.analysis.ReportView;
 import com.a207.runkk.analysis.RunCardData;
 import com.a207.runkk.analysis.TodayPlanView;
 import com.a207.runkk.analysis.WeeklyAchievement;
+import com.a207.runkk.battle.BattleOutcome;
 import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.GeoPoint;
 import com.a207.runkk.common.Pace;
 import com.a207.runkk.common.ServerZone;
+import com.a207.runkk.running.EvaluationView;
+import com.a207.runkk.running.NewRecordMark;
+import com.a207.runkk.running.RouteShape;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -64,7 +68,17 @@ final class RecordDtos {
         return levels;
     }
 
-    /** 기록 한 줄(앱 RunSummaryDto). */
+    /**
+     * 기록 한 줄(앱 RunSummaryDto). v0.14에 목록 태그 값을 더했다(D-233·D-234·D-292, 필드는 더하기만, D-229). valid는 옛 앱과
+     * 달력 칸 집계용으로 남긴다.
+     *
+     * @param battleType 대결 행 종류(RANDOM·FRIEND·SELF·CELEBRITY, 대결 기록이 아니거나 취소된 대결이면 null)
+     * @param verdict 배틀 판정(WIN·LOSE·DRAW, 보류·대결 아님이면 null)
+     * @param pending 대결 결과 보류 중
+     * @param newRecord 신기록 표시(옛 앱, newRecords가 비어 있지 않으면 참)
+     * @param newRecords 신기록 종류(kind: LONGEST·BASE_DISTANCE, distance: StandardDistance 이름 또는 null)
+     * @param routeShape 경로 모양 [[x, y]…](0~1, 최대 24점, 없거나 감추면 null)
+     */
     record RunSummaryDto(
             String recordId,
             OffsetDateTime startedAt,
@@ -73,9 +87,19 @@ final class RecordDtos {
             Integer averagePaceSecondsPerKm,
             boolean valid,
             String mode,
-            String cardKind) {
+            String cardKind,
+            String battleType,
+            String verdict,
+            boolean pending,
+            boolean newRecord,
+            List<NewRecordDto> newRecords,
+            List<List<Double>> routeShape) {
 
         static RunSummaryDto of(RecordRow row) {
+            return of(row, null);
+        }
+
+        static RunSummaryDto of(RecordRow row, BattleOutcome outcome) {
             return new RunSummaryDto(
                     row.recordId(),
                     seoul(row.startedAt()),
@@ -84,7 +108,53 @@ final class RecordDtos {
                     seconds(row.averagePace()),
                     row.valid(),
                     row.mode(),
-                    row.cardKind());
+                    row.cardKind(),
+                    outcome == null ? null : outcome.type().name(),
+                    outcome == null || outcome.verdict() == null ? null : outcome.verdict().name(),
+                    outcome != null && outcome.pending(),
+                    row.newRecord(),
+                    row.newRecords().stream().map(NewRecordDto::of).toList(),
+                    shapeOf(row.routeShape()));
+        }
+
+        private static List<List<Double>> shapeOf(RouteShape shape) {
+            if (shape == null) {
+                return null;
+            }
+            return shape.points().stream().map(p -> List.of(p.x(), p.y())).toList();
+        }
+    }
+
+    /**
+     * 신기록 종류 하나(v0.14 D-292·D-295). 이름은 running.NewRecordMark.Kind와 StandardDistance 상수 그대로다.
+     *
+     * @param kind LONGEST 또는 BASE_DISTANCE
+     * @param distance 기준 거리 이름(KM1·KM3·KM5·KM10·HALF·FULL), LONGEST면 null
+     */
+    record NewRecordDto(String kind, String distance) {
+
+        static NewRecordDto of(NewRecordMark mark) {
+            return new NewRecordDto(
+                    mark.kind().name(), mark.distance() == null ? null : mark.distance().name());
+        }
+    }
+
+    /**
+     * 이 러닝이 일으킨 티어 평가(v0.14 D-291·D-294). 평가가 없으면 응답의 evaluation이 null이다.
+     *
+     * @param kind FIRST_PLACEMENT 또는 REEVALUATION
+     * @param tier 평가 뒤 티어
+     * @param validRuns 평가를 일으킨 유효 러닝 순번(3, 10의 배수)
+     * @param runimalType 그 판정에서 확정된 Runimal 유형(첫 배치·미확정이면 null)
+     */
+    record EvaluationDto(String kind, String tier, int validRuns, String runimalType) {
+
+        static EvaluationDto of(EvaluationView v) {
+            return new EvaluationDto(
+                    v.kind(),
+                    v.tier() == null ? null : v.tier().name(),
+                    v.validRuns(),
+                    v.runimalType());
         }
     }
 
@@ -96,7 +166,10 @@ final class RecordDtos {
         }
     }
 
-    /** 대시보드(앱 DashboardResponse + 시간·횟수·주간 목표·달력·잔디 단계). */
+    /**
+     * 대시보드(앱 DashboardResponse + 시간·횟수·주간 목표·달력·잔디 단계). v0.14: 리워드 잔액(rewardBalance), baseDate 달의
+     * 유효 러닝 횟수·거리(monthRuns·monthMeters)를 더했다(D-236). 주 단위 연속(streakWeeks)을 더했다(2026-10-31 결정).
+     */
     record DashboardResponse(
             LocalDate baseDate,
             String unit,
@@ -113,7 +186,11 @@ final class RecordDtos {
             Double weeklyAchievement,
             WeeklyDto weekly,
             CrewArea crew,
-            Map<String, List<CalendarRun>> calendar) {
+            Map<String, List<CalendarRun>> calendar,
+            int rewardBalance,
+            int monthRuns,
+            long monthMeters,
+            int streakWeeks) {
 
         static DashboardResponse of(DashboardView v) {
             Map<String, List<CalendarRun>> calendar = new LinkedHashMap<>();
@@ -146,7 +223,11 @@ final class RecordDtos {
                     v.weekly() == null ? null : v.weekly().distancePercent() / PERCENT,
                     v.weekly() == null ? null : WeeklyDto.of(v.weekly()),
                     v.crew() == null ? null : CrewArea.of(v.crew()),
-                    calendar);
+                    calendar,
+                    v.rewardBalance(),
+                    v.monthRuns(),
+                    v.monthMeters().meters(),
+                    v.streakWeeks());
         }
     }
 
@@ -214,7 +295,9 @@ final class RecordDtos {
 
     /**
      * 기록 상세(앱 RecordDetailResponse + 구간 페이스·심박 요약·날씨 항목). v0.11: 정지 구간(pauses)과 정지
-     * 합계(pausedSeconds)를 더했다(V21). 경과 시간은 정지를 뺀 운동 시간이다.
+     * 합계(pausedSeconds)를 더했다(V21). 경과 시간은 정지를 뺀 운동 시간이다. v0.14: 삭제 가능(deletable, 본인이고 집계 제외 기록,
+     * D-235)과 평가 표시(evaluation, D-291)를 더했다. 가장 빠른 1km 구간 번호는 splitPaces로 앱이 정한다. recordVisibility는
+     * 본인 기록일 때만 싣는다(기록 공개 범위 이름, 남의 기록이면 null).
      */
     record RecordDetailResponse(
             RunSummaryDto summary,
@@ -235,9 +318,17 @@ final class RecordDtos {
             Integer temperatureC,
             String sky,
             List<PauseDto> pauses,
-            long pausedSeconds) {
+            long pausedSeconds,
+            boolean deletable,
+            EvaluationDto evaluation,
+            String recordVisibility) {
 
         static RecordDetailResponse of(RecordDetailView v) {
+            return of(v, null);
+        }
+
+        /** evaluation은 본인 기록의 평가 표시(없으면 null, D-291). */
+        static RecordDetailResponse of(RecordDetailView v, EvaluationView evaluation) {
             Map<String, Long> zones = new LinkedHashMap<>();
             v.heartRateZones().forEach((zone, time) -> zones.put(zone, time.toSeconds()));
             RecordDetailView.WeatherInfo w = v.weather();
@@ -275,11 +366,17 @@ final class RecordDtos {
                     v.pauses().stream()
                             .map(p -> new PauseDto(seoul(p.from()), seoul(p.to())))
                             .toList(),
-                    v.pausedSeconds());
+                    v.pausedSeconds(),
+                    v.deletable(),
+                    evaluation == null ? null : EvaluationDto.of(evaluation),
+                    v.recordVisibility() == null ? null : v.recordVisibility().name());
         }
     }
 
-    /** 러닝 카드 값(앱 RunCardResponse + 평균 심박·신기록). */
+    /**
+     * 러닝 카드 값(앱 RunCardResponse + 평균 심박·신기록). v0.14: 앞면 날씨 temperatureC·sky(D-235), 서명용 nickname(기록
+     * 주인 표시명).
+     */
     record RunCardResponse(
             String recordId,
             String cardKind,
@@ -290,7 +387,10 @@ final class RecordDtos {
             Integer averageHeartRate,
             List<String> newRecords,
             List<GeoPointDto> route,
-            boolean courseMapShared) {
+            boolean courseMapShared,
+            Integer temperatureC,
+            String sky,
+            String nickname) {
 
         static RunCardResponse of(RunCardData c) {
             return new RunCardResponse(
@@ -303,7 +403,10 @@ final class RecordDtos {
                     c.averageHeartRate(),
                     c.newRecords(),
                     GeoPointDto.of(c.route()),
-                    c.courseMapShared());
+                    c.courseMapShared(),
+                    c.weather() == null ? null : c.weather().temperatureC(),
+                    c.weather() == null ? null : c.weather().sky(),
+                    c.nickname());
         }
     }
 
@@ -436,24 +539,34 @@ final class RecordDtos {
             return new RankingResponse(
                     v.kind().name(),
                     v.period().name(),
-                    v.entries().stream().map(Entry::of).toList(),
-                    v.mine() == null ? null : Entry.of(v.mine()),
+                    v.entries().stream().map(e -> Entry.of(e, v.shownGenderOf(e))).toList(),
+                    v.mine() == null ? null : Entry.of(v.mine(), v.shownGenderOf(v.mine())),
                     meters(v.gapToNext()),
                     seoul(v.aggregatedAt()),
                     v.notice());
         }
     }
 
-    /** 랭킹 한 줄(앱 RankingResponse.Entry + subjectId·tier). */
-    record Entry(int rank, long subjectId, String name, String tier, long distanceMeters) {
+    /**
+     * 랭킹 한 줄(앱 RankingResponse.Entry + subjectId·tier). shownGender는 개인 랭킹 줄 회원의 표시 성별(MALE·FEMALE,
+     * D-327), 크루 줄은 null이다.
+     */
+    record Entry(
+            int rank,
+            long subjectId,
+            String name,
+            String tier,
+            long distanceMeters,
+            String shownGender) {
 
-        static Entry of(RankEntry e) {
+        static Entry of(RankEntry e, String shownGender) {
             return new Entry(
                     e.rank(),
                     e.subjectId(),
                     e.displayName().value(),
                     e.tier() == null ? null : e.tier().name(),
-                    e.distance().meters());
+                    e.distance().meters(),
+                    shownGender);
         }
     }
 

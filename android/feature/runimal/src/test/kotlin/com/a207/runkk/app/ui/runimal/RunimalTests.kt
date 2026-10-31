@@ -4,14 +4,23 @@ import android.content.Context
 import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
+import com.a207.runkk.app.core.designsystem.LocalReleaseScope
+import com.a207.runkk.app.core.designsystem.ReleaseScope
 import com.a207.runkk.app.core.designsystem.RunimalArt
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.UiText
@@ -20,8 +29,8 @@ import com.a207.runkk.app.core.designsystem.testing.captureRunkkScreen
 import com.a207.runkk.app.core.designsystem.uiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.domain.runimal.AxisLean
 import com.a207.runkk.app.domain.runimal.RunimalCard
-import com.a207.runkk.app.domain.runimal.RunimalRepository
 import com.a207.runkk.app.domain.runimal.RunimalStatus
 import com.a207.runkk.app.domain.settings.GuidanceSettings
 import com.a207.runkk.app.domain.settings.SettingsRepository
@@ -67,18 +76,17 @@ private val types = RunimalArt.entries.filter { it != RunimalArt.UNKNOWN }.map {
 private val confirmed =
     RunimalStatus("MORNING_SPARROW", isProvisional = false, remainingRuns = 4, card = card, allTypes = types)
 
-private class FakeRunimal : RunimalRepository {
-    var status: Outcome<RunimalStatus> = Outcome.Success(confirmed)
-    var cardResult: Outcome<RunimalCard> = Outcome.Success(card)
-    var cardCalls = 0
+/** 서버가 축 막대(axes)를 보내는 카드: 솔로런 78%, 장거리 64%, 단골길 71%, 루틴런 58%. */
+private val cardWithAxes = card.copy(
+    axes = listOf(
+        RunimalCard.AxisBar("COMPANION", AxisLean.A, 78),
+        RunimalCard.AxisBar("DISTANCE", AxisLean.B, 64),
+        RunimalCard.AxisBar("COURSE", AxisLean.A, 71),
+        RunimalCard.AxisBar("HABIT", AxisLean.A, 58)
+    )
+)
 
-    override suspend fun status() = status
-
-    override suspend fun card(): Outcome<RunimalCard> {
-        cardCalls++
-        return cardResult
-    }
-}
+private val confirmedWithAxes = confirmed.copy(card = cardWithAxes)
 
 private class RecordingTarget(val name: String, val calls: MutableList<String>) : ShareTarget {
     override fun share(context: Context, image: Uri): ShareOutcome {
@@ -114,7 +122,7 @@ private class Settings : SettingsRepository {
 @RunWith(RobolectricTestRunner::class)
 class RunimalViewModelTest {
     private val dispatcher = UnconfinedTestDispatcher()
-    private val repo = FakeRunimal()
+    private val repo = FakeRunimal(status = Outcome.Success(confirmed), cardResult = Outcome.Success(card))
     private val shared = mutableListOf<String>()
 
     @Before
@@ -216,7 +224,7 @@ class RunimalScreenTest {
         val calls = mutableListOf<RunimalShareKind>()
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
-                RunimalScreen(RunimalUiState(isLoading = false, status = confirmed), {}, { calls += it }, {}, {})
+                RunimalScreen(RunimalUiState(isLoading = false, status = confirmed), {}, { calls += it }, {}, {}, {})
             }
         }
         compose.onNodeWithContentDescription(str(R.string.runimal_axis_description, "동행", 78)).assertExists()
@@ -230,6 +238,85 @@ class RunimalScreenTest {
         compose.onNodeWithText(str(R.string.runimal_share_system)).performClick()
         assertEquals(listOf(RunimalShareKind.STORY, RunimalShareKind.SAVE, RunimalShareKind.SYSTEM), calls)
     }
+
+    @Test
+    fun `유형 카드에 확정 유형 배지가 없고 임시 유형만 배지로 알린다(G-4, R2-19)`() {
+        var state by mutableStateOf(RunimalUiState(isLoading = false, status = confirmed))
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) { RunimalScreen(state, {}, {}, {}, {}, {}) }
+        }
+        compose.onNodeWithText("확정 유형").assertDoesNotExist()
+        compose.onNodeWithText(str(R.string.runimal_type_provisional)).assertDoesNotExist()
+        state = RunimalUiState(isLoading = false, status = confirmed.copy(isProvisional = true))
+        compose.onNodeWithText(str(R.string.runimal_type_provisional)).assertExists()
+    }
+
+    @Test
+    fun `1차 배포(RUNIMAL_SHARE 닫힘)에서는 공유 버튼이 없고 다음 확정까지 남은 횟수는 보인다`() {
+        compose.setContent {
+            CompositionLocalProvider(LocalReleaseScope provides ReleaseScope.FIRST_RELEASE) {
+                RunkkTheme(reduceMotion = true) {
+                    RunimalScreen(RunimalUiState(isLoading = false, status = confirmed), {}, {}, {}, {}, {})
+                }
+            }
+        }
+        compose.onNodeWithText("다음 확정까지 4회").assertExists()
+        compose.onNodeWithText(str(R.string.runimal_share_with, str(R.string.runimal_share_story)))
+            .assertDoesNotExist()
+        compose.onNodeWithText(str(R.string.runimal_share_save)).assertDoesNotExist()
+    }
+
+    @Test
+    fun `D101 MY Runimal 제목은 바 가운데에 있다(G-4)`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                RunimalScreen(RunimalUiState(isLoading = false, status = confirmed), {}, {}, {}, {}, {})
+            }
+        }
+        compose.assertTitleCentered(str(R.string.runimal_title))
+    }
+
+    @Test
+    fun `TC-9878 16유형 버튼을 누르면 16유형 화면으로 가는 콜백을 부른다`() {
+        var shown = 0
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                RunimalScreen(RunimalUiState(isLoading = false, status = confirmed), {}, {}, {}, {}, { shown++ })
+            }
+        }
+        compose.onNodeWithText("16유형 ›").performScrollTo().performClick()
+        assertEquals(1, shown)
+        // AN8-17: 보조 기술은 "›" 대신 읽을 이름을 읽는다.
+        compose.onNodeWithContentDescription("16유형 보기").assertExists()
+    }
+
+    @Test
+    fun `TC-9738 4축 막대는 우세한 쪽 이름과 비율을 읽고 그쪽에서부터 찬다`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                RunimalScreen(RunimalUiState(isLoading = false, status = confirmedWithAxes), {}, {}, {}, {}, {})
+            }
+        }
+        compose.onNodeWithText(str(R.string.runimal_tendency_title)).assertExists()
+        listOf("솔로런" to 78, "장거리" to 64, "단골길" to 71, "루틴런" to 58).forEach { (side, percent) ->
+            compose.onNodeWithContentDescription(str(R.string.runimal_axis_description, side, percent))
+                .assertExists()
+        }
+        // 서버 axes가 있으면 옛 축 비율 막대(동행 78%)는 그리지 않는다.
+        compose.onNodeWithContentDescription(str(R.string.runimal_axis_description, "동행", 78)).assertDoesNotExist()
+        // A 우세(솔로런)는 왼쪽에서, B 우세(장거리)는 오른쪽에서 찬다.
+        val soloTrack = bounds("runimal_axis_track_COMPANION")
+        val soloFill = bounds("runimal_axis_fill_COMPANION")
+        assertEquals(soloTrack.left, soloFill.left, 1f)
+        assertEquals(0.78f, soloFill.width / soloTrack.width, 0.02f)
+        val distanceTrack = bounds("runimal_axis_track_DISTANCE")
+        val distanceFill = bounds("runimal_axis_fill_DISTANCE")
+        assertEquals(distanceTrack.right, distanceFill.right, 1f)
+        assertEquals(0.64f, distanceFill.width / distanceTrack.width, 0.02f)
+    }
+
+    private fun bounds(tag: String): Rect =
+        compose.onNodeWithTag(tag, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
 }
 
 /** MY 러니멀 스크린샷(E1): 유형 카드·유형 없음·공유 카드. */
@@ -241,7 +328,15 @@ class RunimalScreenshotTest {
 
     @Test
     fun confirmedType() = compose.captureRunkkScreen("E1_runimal_type_card") {
-        RunimalScreen(RunimalUiState(isLoading = false, status = confirmed), {}, {}, {}, {})
+        RunimalScreen(RunimalUiState(isLoading = false, status = confirmed), {}, {}, {}, {}, {})
+    }
+
+    /** MY Runimal(G-4): 서버 축 막대, 16유형 버튼, 1차 배포라 공유 없음. */
+    @Test
+    fun myRunimal() = compose.captureRunkkScreen("G4_my_runimal") {
+        CompositionLocalProvider(LocalReleaseScope provides ReleaseScope.FIRST_RELEASE) {
+            RunimalScreen(RunimalUiState(isLoading = false, status = confirmedWithAxes), {}, {}, {}, {}, {})
+        }
     }
 
     /** 공유 카드 이미지(ui.share RunimalCardRenderer)가 유형 그림과 한국어 축 이름을 넣어 그린다. */
@@ -259,6 +354,6 @@ class RunimalScreenshotTest {
     @Test
     fun noTypeYet() = compose.captureRunkkScreen("E1_runimal_no_type") {
         RunimalScreen(RunimalUiState(isLoading = false, status = RunimalStatus(null, true, 2, null, types)), {
-        }, {}, {}, {})
+        }, {}, {}, {}, {})
     }
 }

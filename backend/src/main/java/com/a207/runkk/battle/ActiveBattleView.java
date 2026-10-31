@@ -12,7 +12,9 @@ import java.time.LocalDateTime;
  * @param status 활성 상태(WAITING_START, IN_PROGRESS, COUNTDOWN)
  * @param distance 대결 거리
  * @param opponentName 상대 표시명(탈퇴면 "탈퇴한 사용자")
+ * @param opponentGender 상대 캐릭터 성별(MALE, FEMALE), 셀럽·나와의 싸움이면 null(2026-10-31 결정)
  * @param startAt 출발 시각, 시작 보고 전 기록 대결이면 null
+ * @param celebrityFigure 유명인 캐릭터 그림 키, 유명인 대결이 아니거나 키가 없으면 null(2026-10-31 결정)
  */
 public record ActiveBattleView(
         long battleId,
@@ -20,4 +22,6 @@ public record ActiveBattleView(
         BattleStatus status,
         Distance distance,
         DisplayName opponentName,
-        LocalDateTime startAt) {}
+        String opponentGender,
+        LocalDateTime startAt,
+        String celebrityFigure) {}

@@ -26,6 +26,8 @@ public record RecordBattleCandidates(List<Candidate> candidates) {
      * @param recordedOn 기록일(나와의 싸움)
      * @param source 출처(유명인)
      * @param estimated 구간 기록 없이 평균 페이스로 추정(A-006)
+     * @param myBest 그 거리 내 최고 기록, 없으면 null
+     * @param figureKey 유명인 캐릭터 그림 키, 없으면 null(2026-10-31 결정)
      */
     public record Candidate(
             Long celebrityId,
@@ -34,5 +36,50 @@ public record RecordBattleCandidates(List<Candidate> candidates) {
             Duration finishTime,
             LocalDate recordedOn,
             Source source,
-            boolean estimated) {}
+            boolean estimated,
+            Duration myBest,
+            String figureKey) {
+
+        /** 캐릭터 그림 키가 없는 후보. */
+        public Candidate(
+                Long celebrityId,
+                String displayName,
+                Distance distance,
+                Duration finishTime,
+                LocalDate recordedOn,
+                Source source,
+                boolean estimated,
+                Duration myBest) {
+            this(
+                    celebrityId,
+                    displayName,
+                    distance,
+                    finishTime,
+                    recordedOn,
+                    source,
+                    estimated,
+                    myBest,
+                    null);
+        }
+
+        /** 내 최고 기록을 모르는 후보(나와의 싸움 후보 등). */
+        public Candidate(
+                Long celebrityId,
+                String displayName,
+                Distance distance,
+                Duration finishTime,
+                LocalDate recordedOn,
+                Source source,
+                boolean estimated) {
+            this(
+                    celebrityId,
+                    displayName,
+                    distance,
+                    finishTime,
+                    recordedOn,
+                    source,
+                    estimated,
+                    null);
+        }
+    }
 }

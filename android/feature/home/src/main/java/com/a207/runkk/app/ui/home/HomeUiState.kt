@@ -3,42 +3,43 @@ package com.a207.runkk.app.ui.home
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.FaceLayer
-import com.a207.runkk.app.domain.record.Dashboard
-import com.a207.runkk.app.domain.run.FreeRunGoal
-import java.time.LocalDate
 
+/**
+ * 홈(A-4, D-276): 상단(닉네임·티어·Lv, 리워드 잔액), 이번 주 거리 막대와 연속 일수, 자유런 카드의 음성·진동, 아바타.
+ * 오늘·누적 요약, 랜드마크, 잔디, 횟수 달성률은 v0.14에서 홈에서 뺐다.
+ */
 data class HomeUiState(
     val isLoading: Boolean = true,
-    val dashboard: Dashboard? = null,
-    /** 자유런 카드의 목표(코치 계획 따르기 켬 + 오늘 계획 → 오늘 계획, 그 밖 → 자유런 설정 목표, FR-048). */
-    val freeRunGoal: FreeRunGoal = FreeRunGoal.NONE,
-    val pendingCount: Int = 0,
-    /** 고른 랜드마크 배경 키(FR-202). 우리 집 배경으로 깐다. null이면 기본 배경이다. */
-    val backgroundKey: String? = null,
-    /** 러닝 설정의 음성·진동 안내(자유런 칩 "음성 켬"·"진동 켬"). 읽지 못하면 서버 기본값(켬)이다. */
-    val isRunVoiceOn: Boolean = true,
-    val isRunVibrationOn: Boolean = true,
-    val mode: HomeRunMode = HomeRunMode.FREE,
     val error: UiText? = null,
-    val today: LocalDate? = null,
     val header: HomeHeader = HomeHeader(),
     val isHeaderLoading: Boolean = true,
-    /** 아바타 얼굴 키(서버 renderKey: "default:<캐릭터>" 또는 "selfie:…"). 상단 프로필 원과 우리 집 아바타 자리가 그린다. */
-    val faceKey: String? = null,
-    /** 셀카 얼굴 부위 그림(셀카 얼굴일 때만). 기본 캐릭터도 셀카 그림도 없으면 "아바타" 자리 그림. */
-    val faceLayers: List<FaceLayer> = emptyList(),
     /**
-     * 배틀런 탭에서 고른 대결 거리(FR-080). 처음엔 대결 설정의 기본 대결 거리(지난번 매칭 거리, FR-109)이고 읽기 전·읽지 못하면 5km다.
-     * "배틀런 시작"을 누르면 이 거리로 매칭을 요청한다.
+     * 본인 요약(성별)을 한 번이라도 읽었는가. 읽기 전에는 아바타 자리를 비운다: 첫 읽기가 실패한 채 남자로 그렸다가 다시 읽은 뒤
+     * 여자로 바뀌지 않게 한다(FR-162, 시험 TF-V12-02).
      */
-    val battleDistance: Distance = DEFAULT_BATTLE_DISTANCE
+    val isAvatarReady: Boolean = false,
+    /** 이번 주 달린 거리(weekly.actualMeters). 읽기 전·목표 없음이면 0이다. */
+    val weeklyDistance: Distance = Distance.ZERO,
+    /** 이번 주 목표 거리(weekly.goalMeters). 목표가 없거나 옛 서버면 null이다. */
+    val weeklyGoal: Distance? = null,
+    /** 오늘 기준 연속 주 수(streakWeeks). 홈은 주 단위만 보인다(사용자 요청 2026-10-31). */
+    val streakWeeks: Int = 0,
+    /** 러닝 설정의 음성·진동 안내(자유런 카드). 읽지 못하면 서버 기본값(켬)이다. */
+    val isRunVoiceOn: Boolean = true,
+    val isRunVibrationOn: Boolean = true,
+    /** 본인 아바타 얼굴 키·부위 그림·배경 키. 아바타 꾸미기(AVATAR_CUSTOMIZE)가 열려 있을 때만 화면이 쓴다(D-254). */
+    val faceKey: String? = null,
+    val faceLayers: List<FaceLayer> = emptyList(),
+    val backgroundKey: String? = null,
+    /** 자유런 시작 전 위치 동의 시트(A-6, D-267). */
+    val isConsentSheetVisible: Boolean = false,
+    /** 한 번 보이고 지우는 안내(위치 동의 실패 등). */
+    val message: UiText? = null
 ) {
-    companion object {
-        /** 랜덤 대결 거리(FR-080: 1·3·5·10km). */
-        val BATTLE_DISTANCES: List<Distance> =
-            listOf(Distance(1_000), Distance(3_000), Distance(5_000), Distance(10_000))
-
-        /** 기본 대결 거리의 기본값(FR-109). */
-        val DEFAULT_BATTLE_DISTANCE: Distance = Distance(5_000)
-    }
+    /** 이번 주 목표 대비 달린 비율(0~1). 목표가 없으면 0이다. */
+    val weeklyProgress: Float
+        get() {
+            val goal = weeklyGoal?.meters?.takeIf { it > 0 } ?: return 0f
+            return (weeklyDistance.meters.toFloat() / goal).coerceIn(0f, 1f)
+        }
 }

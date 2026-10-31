@@ -381,16 +381,17 @@ class CrewThreadIntegrationTest {
         Map<Long, DisclosureLevel> levels =
                 memberQueries.disclosureOf(leader, List.of(hidden, shown, leader));
 
-        assertThat(levels.get(hidden)).isEqualTo(DisclosureLevel.PRIVATE);
+        // v0.14 D-241: 옛 PROFILE_VISIBILITY=PRIVATE는 나이대·성별만 감추고 프로필 수준은 PUBLIC이다
+        assertThat(levels.get(hidden)).isEqualTo(DisclosureLevel.PUBLIC);
         assertThat(view.disclosedMemberIds())
-                .containsExactlyInAnyOrder(shown, leader)
+                .containsExactlyInAnyOrder(hidden, shown, leader)
                 .allMatch(id -> levels.get(id).showsProfile());
         CrewMembersView.Line hiddenLine =
                 view.members().stream()
                         .filter(l -> l.memberId() == hidden)
                         .findFirst()
                         .orElseThrow();
-        assertThat(hiddenLine.tier()).isNull();
+        assertThat(hiddenLine.tier()).isNotNull();
         assertThat(hiddenLine.name()).isNotNull();
 
         // B5: 프로필 화면(ProfileQueryService)도 같은 DisclosureLevel을 쓴다(D-52)

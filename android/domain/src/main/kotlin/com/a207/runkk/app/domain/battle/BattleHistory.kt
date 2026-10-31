@@ -20,9 +20,11 @@ data class BattleHistory(
     val selfNewRecords: Int,
     val nextCursor: Long? = null
 ) {
+    /** 서버 BattleType. 이력 응답은 고스트를 RANDOM으로 묶어 보내고, 배틀런 필터(RANDOM)는 FRIEND도 함께 받는다(D-281, 서버 D-230). */
     enum class Type {
         RANDOM,
         GHOST,
+        FRIEND,
         SELF,
         CELEBRITY
     }

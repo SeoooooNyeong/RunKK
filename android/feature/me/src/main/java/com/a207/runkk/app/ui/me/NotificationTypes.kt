@@ -1,5 +1,7 @@
 package com.a207.runkk.app.ui.me
 
+import com.a207.runkk.app.core.designsystem.UnreleasedFeature
+
 /**
  * 알림 설정 묶음(F5, FR-008, FR-175): 자료사전 알림종류(서버 이름)를 화면 스위치 9개로 묶는다. 키는 SettingKeys.alert(종류)다.
  * "이벤트, 공지"는 알림 종류가 아니라 마케팅 수신 동의다.
@@ -16,7 +18,8 @@ object NotificationTypes {
         NotificationGroup(
             R.string.me_alert_group_avatar,
             R.string.me_alert_group_avatar_description,
-            listOf("BODY_SHAPE_CHANGED", "BACKGROUND_UNLOCKED")
+            listOf("BODY_SHAPE_CHANGED", "BACKGROUND_UNLOCKED"),
+            requiredFeature = UnreleasedFeature.AVATAR_CUSTOMIZE
         )
     )
 
@@ -34,20 +37,33 @@ object NotificationTypes {
                 "KICKED",
                 "MANAGER_CHANGED",
                 "REPORT_RESOLVED"
-            )
+            ),
+            requiredFeature = UnreleasedFeature.CREW
         ),
         NotificationGroup(
             R.string.me_alert_group_crew_notice,
             R.string.me_alert_group_crew_notice_description,
-            listOf("CREW_NOTICE", "CREW_SCHEDULE", "CREW_RUN_RECRUIT", "CREW_RUN_SOON")
+            listOf("CREW_NOTICE", "CREW_SCHEDULE", "CREW_RUN_RECRUIT", "CREW_RUN_SOON"),
+            requiredFeature = UnreleasedFeature.CREW
         ),
         NotificationGroup(
             R.string.me_alert_group_crew_poll,
             R.string.me_alert_group_crew_poll_description,
-            listOf("CREW_POLL", "POLL_CLOSING_SOON")
+            listOf("CREW_POLL", "POLL_CLOSING_SOON"),
+            requiredFeature = UnreleasedFeature.CREW
         ),
-        NotificationGroup(R.string.me_alert_group_crew_chat, null, listOf("CREW_CHAT")),
-        NotificationGroup(R.string.me_alert_group_crew_goal, null, listOf("CREW_GOAL_ACHIEVED"))
+        NotificationGroup(
+            R.string.me_alert_group_crew_chat,
+            null,
+            listOf("CREW_CHAT"),
+            requiredFeature = UnreleasedFeature.CREW
+        ),
+        NotificationGroup(
+            R.string.me_alert_group_crew_goal,
+            null,
+            listOf("CREW_GOAL_ACHIEVED"),
+            requiredFeature = UnreleasedFeature.CREW
+        )
     )
 
     /** 기타 묶음. */

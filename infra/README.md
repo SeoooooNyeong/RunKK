@@ -36,7 +36,7 @@ infra/
 ├─ nginx/http/                 HTTP 설정(인증서 전·로컬): 80 → prod, 8443 → develop(평문)
 ├─ nginx/https/                HTTPS 설정: 80 → 301, 443 → prod, 8443 → develop. wiki.conf.template은 팀 위키 프록시
 ├─ nginx/common/               두 모드 공통 location 조각(api 경로, /grafana/)
-├─ nginx/static/               공개 홈(/)과 법정 고지 문서(/legal/*)
+├─ nginx/static/               공개 홈(/), 법정 고지 문서(/legal/*), 친구 대결 초대 안내(/invite/battle/*), App Links 검증(/.well-known/assetlinks.json)
 └─ monitoring/                 Prometheus 수집 설정, Grafana 데이터소스·대시보드 (6절)
 ```
 
@@ -114,6 +114,17 @@ SSAFY 배정 도메인(`k15a207.p.ssafy.io`)이 EC2를 가리키는지 확인한
 ### 셀카 변환 스위치
 
 `SELFIE_ENABLED`(api 환경 변수, `application.yml runkk.features.selfie-enabled`)는 서버 스위치입니다. false면 관리툴의 운영 기준값 "셀카생성사용"이 켜져 있어도 셀카 변환을 막고(SELFIE_DISABLED) 앱에는 셀카 단추가 보이지 않습니다. compose 기본값은 꺼짐이라 prod `.env`에 넣지 않아도 꺼지고, 셀카를 시험하는 develop `.env`에만 `SELFIE_ENABLED=true`를 둡니다. 로컬 실행(local 프로필)과 시험은 켜진 채입니다.
+
+### 2차 배포 기능 공개 스위치
+
+크루와 아바타 꾸미기(체형·배경)는 환경 변수가 아니라 관리툴 운영 기준값으로 엽니다. `.env`와 compose에는 넣지 않습니다.
+
+| 운영 기준값 | 기본값 | 꺼져 있을 때 |
+|-------------|--------|--------------|
+| `CREW_RELEASED` | false | Runimal 동행 축이 크루런을 세지 않고, 크루 알림 16종은 알림함에만 저장하고 FCM 푸시를 보내지 않습니다 |
+| `AVATAR_RELEASED` | false | 체형 변화(`BODY_SHAPE_CHANGED`)·배경 해금(`BACKGROUND_UNLOCKED`) 알림을 알림함에만 저장하고 FCM 푸시를 보내지 않습니다 |
+
+DB에 행이 없으면 기본값(false)을 쓰므로 1차 배포(develop·prod)는 따로 넣지 않아도 닫혀 있습니다. 2차 배포에서 기능을 열 때 관리툴에서 true로 바꿉니다. 앱의 1차 배포 잠금 빌드(`LOCK_UNRELEASED`)도 같은 알림 종류를 숨기며, 두 분류는 계약 파일 `policy/GatedNotification.txt`로 대조합니다.
 
 ### 롤백
 
@@ -311,7 +322,25 @@ docker exec runkk-prod-api-1 sh -c 'zcat /var/log/runkk/api.2026-11-03.*.log.gz 
 
 ### prod 키 목록 (`INFRA_ENV_PROD`)
 
-필수: `RUNKK_ENV=prod`, `POSTGRES_VOLUME=runkk-prod_postgres-data`, `REDIS_VOLUME=runkk-prod_redis-data`, `SPRING_PROFILES_ACTIVE=prod`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `REDIS_PASSWORD`, `JWT_SECRET`, `ADMIN_JWT_SECRET`, `RUNKK_INTERNAL_TOKEN`.
+필수: `RUNKK_ENV=prod`, `POSTGRES_VOLUME=runkk-prod_postgres-data`, `REDIS_VOLUME=runkk-prod_redis-data`, `SPRING_PROFILES_ACTIVE=prod`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `REDIS_PASSWORD`, `JWT_SECRET`, `ADMIN_JWT_SECRET`, `RUNKK_INTERNAL_TOKEN`, `FRIEND_INVITE_LINK_BASE=https://k15a207.p.ssafy.io/invite/battle`.
 연동(비우면 그 연동만 꺼짐): `KAKAO_APP_ID`(prod 패키지 com.a207.runkk 앱), `GOOGLE_CLIENT_IDS`, `FCM_PROJECT_ID`, `FCM_CREDENTIALS_FILE=/run/secrets/fcm-service-account.json`, `KMA_SERVICE_KEY`, `RUNKK_BOOTSTRAP_OPERATORS`, ai의 `RUNKK_LLM_*`·`RUNKK_ANTHROPIC_*`·`RUNKK_FACE_*`.
 넣지 않음: `SWAGGER_ENABLED`(넣으면 false만), `SELFIE_ENABLED`(기본 꺼짐), `SERVER_NAME`·`NGINX_*`·`GRAFANA_*`(에지 값).
 선택: `DB_POOL_SIZE`, `SCHEDULER_POOL_SIZE`, `AUTH_CLIENT_REQUESTS_PER_MINUTE`, `RUNKK_QUEUE`, `RUNKK_LIVE`, `API_MEM_LIMIT`, `API_JAVA_OPTS`, `BACKUP_TIME`, `BACKUP_KEEP_DAYS`, `BACKUP_DIR`, `BACKUP_OWNER`, `LEGAL_*`.
+
+## 10. 친구 대결 초대 링크 (v0.14, 설계 05-06 D-219, 05-08 D-293·6절)
+
+초대 링크는 `https://k15a207.p.ssafy.io/invite/battle/{token}`이고 앞부분은 api 설정 `runkk.battle.friend-invite.link-base`(환경 변수 `FRIEND_INVITE_LINK_BASE`)다. 기본값이 없는 필수 값이라 환경마다 `.env`(CI `INFRA_ENV`, `INFRA_ENV_PROD`)에 넣는다. develop·release(8443)는 `https://k15a207.p.ssafy.io:8443/invite/battle`, prod(443)는 `https://k15a207.p.ssafy.io/invite/battle`이고, 비면 compose가 막고 api도 기동하지 않는다. 로컬(local 프로필)과 시험만 기본값이 있다. nginx 접근 로그는 `/invite/battle/{token}`과 by-token 경로의 토큰을 `***`로 가려 남긴다. nginx는 아래 세 경로를 정적 파일로 준다(`nginx/common/app-locations.conf`, api로 넘기지 않는다).
+
+| 경로 | 파일 | 용도 |
+|------|------|------|
+| `/.well-known/assetlinks.json` | `nginx/static/.well-known/assetlinks.json` | Android App Links 도메인 검증(앱이 있으면 링크가 앱으로 열린다) |
+| `/invite/card.png` | `nginx/static/invite/card.png` | 카카오톡 공유 카드 이미지(앱 링크 경로 `/invite/battle/` 밖에 둔다. 안에 두면 앱 링크가 그림 주소를 가로챈다. 피그마 C-11 카카오톡 초대 카드 그림(61002:2174), 800×400) |
+| `/invite/battle/{token}` | `nginx/static/invite/battle/index.html` | 앱이 없을 때 보이는 스토어 안내 페이지(Android에서는 intent로 앱 열기를 다시 시도) |
+
+**배포 전에 할 일**: `assetlinks.json`에는 운영 앱과 베타 앱만 둔다(결정 D66, 디버그 키와 `.local`은 넣지 않는다). Play 앱 서명 키 지문 3개와 업로드 키 지문을 채웠다(2026-10-30 Play Console 앱 서명 화면). 키를 바꾸면 이 파일도 바꾼다. 8443 링크도 포트를 구분하지 않으므로 이 파일로 검증된다.
+
+- `com.a207.runkk`(prod): Play Console > 앱 무결성 > 앱 서명의 **앱 서명 키** 지문과 **업로드 키** 지문
+- `com.a207.runkk.dev`: 업로드 키 지문(CI가 업로드 키로 서명한다)
+- `com.a207.runkk.local`: 넣지 않는다. 로컬 빌드에서 초대 링크는 브라우저 안내 페이지로 열린다
+
+확인: `curl -s https://k15a207.p.ssafy.io/.well-known/assetlinks.json`이 JSON(`Content-Type: application/json`)을 주고, 리다이렉트가 없어야 한다. 기기에서는 `adb shell pm get-app-links com.a207.runkk`로 `verified`를 본다. 카드 이미지가 더 큰 해상도로 필요하면 같은 이름으로 바꾸면 된다(앱은 주소만 쓴다).

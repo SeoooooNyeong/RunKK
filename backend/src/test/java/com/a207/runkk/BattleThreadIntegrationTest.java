@@ -245,7 +245,7 @@ class BattleThreadIntegrationTest {
         BattleResultView view = results.result(alice, battle.getId());
         assertThat(view.verdict()).isEqualTo(Verdict.WIN);
         assertThat(view.corrected()).isFalse();
-        assertThat(view.comparison().rows()).hasSize(4);
+        assertThat(view.comparison().rows()).as("랜덤 대결은 비교표가 없다(v0.14 D-229)").isEmpty();
         assertThat(results.result(bob, battle.getId()).verdict()).isEqualTo(Verdict.LOSE);
         Integer notifications =
                 jdbc.queryForObject(

@@ -8,5 +8,7 @@ data class RunimalStatus(
     val isProvisional: Boolean,
     val remainingRuns: Int?,
     val card: RunimalCard?,
-    val allTypes: List<String>
+    val allTypes: List<String>,
+    /** 지금까지 Runimal 판정에 반영한 유효 러닝 순번. 옛 서버면 null. 랜덤 대결 잠금은 이 값 대신 본인 요약의 유효 러닝 수를 쓴다(D-331). */
+    val validRunCount: Int? = null
 )

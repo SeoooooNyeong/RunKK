@@ -128,10 +128,22 @@ public class BattleController {
         return ResponseEntity.noContent().build();
     }
 
+    /** 그만두기. 출발한 대결은 종류와 상관없이 포기자 패로 판정해 이력에 남고, 출발 전 대결은 승패 없이 취소된다(2026-10-30 결정). 204. */
     @PostMapping("/{id}/forfeit")
     ResponseEntity<Void> forfeit(
             @RequestAttribute(MEMBER_ID) long memberId, @PathVariable long id) {
         battleResultService.forfeit(memberId, id);
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * 셀프런·셀럽런 취소(2026-10-30 결정). 출발 여부와 상관없이 승패·리워드·이력 없이 대결을 지운다. 204. 랜덤·고스트·친구 대결은
+     * ALREADY_MATCHED(409).
+     */
+    @PostMapping("/{id}/cancel")
+    ResponseEntity<Void> cancelBattle(
+            @RequestAttribute(MEMBER_ID) long memberId, @PathVariable long id) {
+        battleResultService.cancel(memberId, id);
         return ResponseEntity.noContent().build();
     }
 

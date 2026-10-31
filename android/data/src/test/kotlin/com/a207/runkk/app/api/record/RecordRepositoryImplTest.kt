@@ -7,11 +7,13 @@ import com.a207.runkk.app.api.core.jwtOf
 import com.a207.runkk.app.api.core.value
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.GeoPoint
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.core.model.RunMode
 import com.a207.runkk.app.domain.record.AggregationPeriod
+import com.a207.runkk.app.domain.record.CardWeather
 import com.a207.runkk.app.domain.record.Dashboard
 import com.a207.runkk.app.domain.record.Ranking
 import com.a207.runkk.app.domain.record.RecordDetail
@@ -73,7 +75,7 @@ class RecordRepositoryImplTest {
                |"crew":{"crewName":"새벽런","streakDays":9,"grass":{"2026-10-20":12000},"landmark":null},
                |"todaySeconds":1100,"todayRuns":2,"grassLevels":{"2026-10-19":3,"2026-10-20":2},
                |"weekly":{"weekStart":"2026-10-19","goalRuns":4,"goalMeters":20000,"actualRuns":2,"actualMeters":12000,
-               |"runsPercent":50,"distancePercent":60}}
+               |"runsPercent":50,"distancePercent":60},"rewardBalance":1250}
             """.trimMargin()
         )
 
@@ -101,11 +103,19 @@ class RecordRepositoryImplTest {
                     runsPercent = 50,
                     distancePercent = 60
                 ),
-                grassLevels = mapOf(LocalDate.of(2026, 10, 19) to 3, LocalDate.of(2026, 10, 20) to 2)
+                grassLevels = mapOf(LocalDate.of(2026, 10, 19) to 3, LocalDate.of(2026, 10, 20) to 2),
+                rewardBalance = 1_250
             ),
             dashboard
         )
         assertEquals("/api/v1/dashboard?baseDate=2026-10-20", api.take().target)
+    }
+
+    @Test
+    fun `TC-9743 옛 서버 대시보드는 리워드 잔액 없이 해독된다`() = runTest {
+        api.reply("""{"todayMeters":0,"totalMeters":0}""")
+
+        assertEquals(null, repository.dashboard(LocalDate.of(2026, 10, 20)).value().rewardBalance)
     }
 
     @Test
@@ -173,6 +183,20 @@ class RecordRepositoryImplTest {
     }
 
     @Test
+    fun `랭킹 줄의 표시 성별을 읽고 모르는 이름·크루 줄은 null이다(D-327)`() = runTest {
+        api.reply(
+            """{"entries":[{"rank":1,"name":"바람","distanceMeters":42000,"shownGender":"FEMALE"},
+               |{"rank":2,"name":"구름","distanceMeters":30000,"shownGender":"OTHER"},
+               |{"rank":3,"name":"새벽크루","distanceMeters":20000}],"aggregatedAt":"2026-10-20T06:00:00"}
+            """.trimMargin()
+        )
+
+        val entries = repository.personalRanking(AggregationPeriod.WEEKLY).value().entries
+
+        assertEquals(listOf(Gender.FEMALE, null, null), entries.map { it.shownGender })
+    }
+
+    @Test
     fun `집계 전 랭킹은 집계 시각이 없다`() = runTest {
         api.reply("""{"entries":[],"aggregatedAt":null,"notice":null}""")
 
@@ -237,5 +261,37 @@ class RecordRepositoryImplTest {
             ),
             card
         )
+    }
+
+    @Test
+    fun `카드 앞면 값 - 평균 심박·신기록·날씨·닉네임을 읽고 모르는 하늘 상태는 비운다(D-235)`() = runTest {
+        api.reply(
+            """{"recordId":"r-3","cardKind":"FREE_RUN","startedAt":"2026-10-21T19:12:00+09:00","distanceMeters":5020,
+               |"elapsedSeconds":1721,"averagePaceSecondsPerKm":343,"averageHeartRate":152,"newRecords":["최장 거리 신기록"],
+               |"route":[],"courseMapShared":false,"temperatureC":14,"sky":"CLEAR","nickname":"달리는곰"}
+            """.trimMargin()
+        )
+        val card = repository.card("r-3").value()
+        assertEquals(152, card.averageHeartRate)
+        assertEquals(listOf("최장 거리 신기록"), card.newRecords)
+        assertEquals(CardWeather(14, CardWeather.Sky.CLEAR), card.weather)
+        assertEquals("달리는곰", card.ownerName)
+
+        api.reply(
+            """{"recordId":"r-4","cardKind":"FREE_RUN","startedAt":"2026-10-21T19:12:00+09:00","distanceMeters":10,
+               |"elapsedSeconds":10,"sky":"HAIL"}
+            """.trimMargin()
+        )
+        assertEquals(CardWeather(null, null), repository.card("r-4").value().weather)
+    }
+
+    @Test
+    fun `결과 휴식은 서버 pausedSeconds로 읽고 없으면 비운다(D-282)`() = runTest {
+        api.reply(
+            """{"summary":{"recordId":"r-5","startedAt":"2026-10-21T19:12:00+09:00","distanceMeters":5020,"elapsedSeconds":1668,
+               |"valid":true,"mode":"FREE","cardKind":"FREE_RUN"},"pausedSeconds":185}
+            """.trimMargin()
+        )
+        assertEquals(Duration.ofSeconds(185), repository.run("r-5").value().paused)
     }
 }

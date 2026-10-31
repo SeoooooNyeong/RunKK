@@ -4,9 +4,7 @@ name: 05_crew
 tags: [smoke]
 ---
 - launchApp
-- extendedWaitUntil:
-    visible: "자유런 시작"
-    timeout: 20000
+- runFlow: common/home_ready.yaml
 - tapOn: "크루"
 - extendedWaitUntil:
     visible: "크루 찾기|.*1/10명.*"
@@ -33,7 +31,7 @@ tags: [smoke]
 - assertVisible: ${CREW_NAME}
 - tapOn: "홈"
 - extendedWaitUntil:
-    visible: "자유런 시작"
+    visible: "자유런, .*"
     timeout: 10000
 - tapOn: "크루"
 - extendedWaitUntil:

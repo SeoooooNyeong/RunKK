@@ -6,6 +6,7 @@ import com.a207.runkk.common.PermissionDeniedException;
 import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.member.MemberQueryService;
 import com.a207.runkk.member.PushDecision;
+import com.a207.runkk.policy.FeatureToggles;
 import com.a207.runkk.policy.OperationPolicy;
 import java.time.Clock;
 import java.time.LocalDateTime;
@@ -22,7 +23,8 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 /**
  * 알림 저장·발송·조회 유스케이스를 조정한다(설계 6.1.10, SQ-14). 수신 설정과 관계없이 알림함에 저장하고(W-03), 그 종류를 켠 회원에게만 푸시를
- * 보낸다(FR-175). 푸시 실패는 운영 로그만 남기고 다시 보내지 않는다. Member 엔티티를 받지 않는다(A62).
+ * 보낸다(FR-175). 닫힌 기능(크루·아바타 꾸미기)의 알림은 공개 전까지 푸시하지 않는다(D138). 푸시 실패는 운영 로그만 남기고 다시 보내지 않는다. Member
+ * 엔티티를 받지 않는다(A62).
  */
 @Service
 public class NotificationService {
@@ -61,7 +63,7 @@ public class NotificationService {
             return;
         }
         notificationRepository.save(Notification.of(req, LocalDateTime.now(clock)));
-        if (decision != PushDecision.ALLOWED) {
+        if (decision != PushDecision.ALLOWED || unreleased(req.type())) {
             return;
         }
         List<String> tokens = pushDeviceRepository.tokensOf(req.recipientId());
@@ -98,7 +100,7 @@ public class NotificationService {
                         Notification.fit(req.content()),
                         req.target()),
                 LocalDateTime.now(clock));
-        if (decision != PushDecision.ALLOWED) {
+        if (decision != PushDecision.ALLOWED || unreleased(req.type())) {
             return;
         }
         List<String> tokens = pushDeviceRepository.tokensOf(req.recipientId());
@@ -114,6 +116,27 @@ public class NotificationService {
                                 () ->
                                         pushGateway.sendCollapsing(
                                                 tokens, req.type(), req.content(), collapseKey)));
+    }
+
+    /**
+     * 딸린 기능이 아직 닫혀 있는 종류인지(D138). 1차 배포에서는 크루·아바타 꾸미기가 닫혀 있어(운영 기준 CREW_RELEASED·AVATAR_RELEASED 기본
+     * false) 그 알림은 알림함에만 저장하고 푸시하지 않는다.
+     */
+    private boolean unreleased(NotificationType type) {
+        GatedFeature gate = type.gatedFeature();
+        if (gate == null) {
+            return false;
+        }
+        FeatureToggles features = policy.features();
+        boolean released =
+                switch (gate) {
+                    case CREW -> features.crewReleased();
+                    case AVATAR_CUSTOMIZE -> features.avatarReleased();
+                };
+        if (!released) {
+            log.debug("push_skipped type={} reason=unreleased", type);
+        }
+        return !released;
     }
 
     /**

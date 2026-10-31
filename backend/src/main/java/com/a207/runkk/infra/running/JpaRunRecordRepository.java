@@ -3,10 +3,13 @@ package com.a207.runkk.infra.running;
 import com.a207.runkk.common.DateRange;
 import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.Pace;
+import com.a207.runkk.common.Tier;
 import com.a207.runkk.running.CardKind;
 import com.a207.runkk.running.DayStats;
+import com.a207.runkk.running.EvaluationView;
 import com.a207.runkk.running.OwnedRun;
 import com.a207.runkk.running.RejudgeState;
+import com.a207.runkk.running.RunListRow;
 import com.a207.runkk.running.RunMode;
 import com.a207.runkk.running.RunRecord;
 import com.a207.runkk.running.RunRecordRepository;
@@ -44,7 +47,12 @@ public class JpaRunRecordRepository implements RunRecordRepository {
                     + " r.averagePaceSeconds, r.valid, r.score, r.mode, r.cardKind, r.battleId,"
                     + " r.crewRunPostId from RunRecord r";
     private static final String SAMPLE_COLUMNS =
-            "select r.recordId, r.startedAt, r.distanceMeters from RunRecord r";
+            "select r.recordId, r.startedAt, r.distanceMeters, r.cardKind, r.battleId from"
+                    + " RunRecord r";
+    private static final String LIST_COLUMNS =
+            "select r.recordId, r.memberId, r.startedAt, r.distanceMeters, r.elapsedMillis,"
+                    + " r.averagePaceSeconds, r.valid, r.score, r.mode, r.cardKind, r.battleId,"
+                    + " r.crewRunPostId, r.newRecordsData, r.routeShape from RunRecord r";
     private static final String IN_RANGE = " r.startedAt >= :from and r.startedAt < :to";
 
     private final EntityManager entityManager;
@@ -126,6 +134,99 @@ public class JpaRunRecordRepository implements RunRecordRepository {
         entityManager
                 .createQuery("delete from RunRecord r where r.memberId = :m")
                 .setParameter("m", memberId)
+                .executeUpdate();
+        entityManager
+                .createNativeQuery("delete from run_record_tombstone where member_id = :m")
+                .setParameter("m", memberId)
+                .executeUpdate();
+    }
+
+    @Override
+    public void delete(RunRecord r) {
+        entityManager.remove(entityManager.contains(r) ? r : entityManager.merge(r));
+        entityManager.flush();
+    }
+
+    @Override
+    public void bury(String recordId, long memberId, LocalDateTime at) {
+        entityManager
+                .createNativeQuery(
+                        "insert into run_record_tombstone (record_id, member_id, deleted_at)"
+                                + " values (:id, :m, :at)")
+                .setParameter("id", recordId)
+                .setParameter("m", memberId)
+                .setParameter("at", at)
+                .executeUpdate();
+    }
+
+    @Override
+    public boolean isBuried(String recordId) {
+        return !entityManager
+                .createNativeQuery(
+                        "select record_id from run_record_tombstone where record_id = :id")
+                .setParameter("id", recordId)
+                .getResultList()
+                .isEmpty();
+    }
+
+    @Override
+    public List<RunListRow> listRows(long memberId, DateRange range) {
+        return range(
+                        entityManager.createQuery(
+                                LIST_COLUMNS
+                                        + " where r.memberId = :m and"
+                                        + IN_RANGE
+                                        + " order by r.startedAt desc",
+                                Object[].class),
+                        range)
+                .setParameter("m", memberId)
+                .getResultList()
+                .stream()
+                .map(row -> RunListRow.of(summary(row), (String) row[12], (String) row[13]))
+                .toList();
+    }
+
+    @Override
+    public List<RunRecord> findMissingShape(String afterRecordId, int limit) {
+        return entityManager
+                .createQuery(
+                        "select r from RunRecord r where r.routeShape is null"
+                                + " and r.routePurged = false and r.pointCount >= 2"
+                                + " and r.recordId > :after order by r.recordId",
+                        RunRecord.class)
+                .setParameter("after", afterRecordId)
+                .setMaxResults(limit)
+                .getResultList();
+    }
+
+    @Override
+    public Optional<EvaluationView> evaluationOf(String recordId) {
+        return entityManager
+                .createQuery(
+                        "select r.evaluationKind, r.evaluationTier, r.evaluationValidRuns,"
+                                + " r.evaluationRunimalType from RunRecord r"
+                                + " where r.recordId = :id and r.evaluationKind is not null",
+                        Object[].class)
+                .setParameter("id", recordId)
+                .getResultList()
+                .stream()
+                .findFirst()
+                .map(
+                        row ->
+                                new EvaluationView(
+                                        (String) row[0],
+                                        row[1] == null ? null : Tier.valueOf((String) row[1]),
+                                        row[2] == null ? 0 : (Integer) row[2],
+                                        (String) row[3]));
+    }
+
+    @Override
+    public void noteRunimalType(String recordId, String runimalType) {
+        entityManager
+                .createNativeQuery(
+                        "update run_record set evaluation_runimal_type = :t where record_id = :id")
+                .setParameter("t", runimalType)
+                .setParameter("id", recordId)
                 .executeUpdate();
     }
 
@@ -429,12 +530,27 @@ public class JpaRunRecordRepository implements RunRecordRepository {
     }
 
     @Override
-    public boolean markTierApplied(String recordId) {
+    public boolean markTierApplied(String recordId, Optional<EvaluationView> evaluation) {
         // 엔티티 칼럼은 updatable = false라 조건부 갱신으로만 세운다. 행 잠금으로 리스너와 보정이 겹쳐도 한쪽만 참이다
+        if (evaluation.isEmpty()) {
+            return entityManager
+                            .createNativeQuery(
+                                    "update run_record set tier_applied = true"
+                                            + " where record_id = :id and tier_applied = false")
+                            .setParameter("id", recordId)
+                            .executeUpdate()
+                    > 0;
+        }
+        // 평가 표시(v0.14 D-291)를 반영 표시와 같은 갱신에 얹는다. 이미 반영했으면 둘 다 바뀌지 않는다(멱등)
         return entityManager
                         .createNativeQuery(
-                                "update run_record set tier_applied = true"
+                                "update run_record set tier_applied = true,"
+                                        + " evaluation_kind = :kind, evaluation_tier = :tier,"
+                                        + " evaluation_valid_runs = :runs"
                                         + " where record_id = :id and tier_applied = false")
+                        .setParameter("kind", evaluation.get().kind())
+                        .setParameter("tier", evaluation.get().tier().name())
+                        .setParameter("runs", evaluation.get().validRuns())
                         .setParameter("id", recordId)
                         .executeUpdate()
                 > 0;
@@ -473,8 +589,12 @@ public class JpaRunRecordRepository implements RunRecordRepository {
     }
 
     private static RunSampleRow sample(Object[] row) {
-        return new RunSampleRow(
-                (String) row[0], (LocalDateTime) row[1], Distance.ofMeters((Long) row[2]));
+        return RunSampleRow.of(
+                (String) row[0],
+                (LocalDateTime) row[1],
+                Distance.ofMeters((Long) row[2]),
+                (CardKind) row[3],
+                (Long) row[4]);
     }
 
     @Override

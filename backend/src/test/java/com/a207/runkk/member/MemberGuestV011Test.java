@@ -413,24 +413,20 @@ class MemberGuestV011Test {
     @DisplayName("TC-6220 editProfile 출생연도: 만 14세 이하 UNDER_14, 4자리 아님 400")
     void editProfile_birthYear() {
         Member m = linked("나이곰");
-        m.editProfile(new ProfileEdit(null, 2011, null, null, null), null, 2026);
+        m.editProfile(new ProfileEdit(null, 2011, null, null), null, 2026);
         assertThat(m.ageIn(2026)).hasValue(15);
         for (int year : new int[] {2012, 2013}) {
             assertThatThrownBy(
                             () ->
                                     m.editProfile(
-                                            new ProfileEdit(null, year, null, null, null),
-                                            null,
-                                            2026))
+                                            new ProfileEdit(null, year, null, null), null, 2026))
                     .satisfies(e -> assertThat(reasonOf(e)).isEqualTo(ReasonCode.UNDER_14));
         }
         for (int year : new int[] {201, 20111}) {
             assertThatThrownBy(
                             () ->
                                     m.editProfile(
-                                            new ProfileEdit(null, year, null, null, null),
-                                            null,
-                                            2026))
+                                            new ProfileEdit(null, year, null, null), null, 2026))
                     .isInstanceOf(IllegalArgumentException.class);
         }
         assertThat(m.ageIn(2026)).hasValue(15);
