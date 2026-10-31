@@ -10,6 +10,8 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.Build
+import android.os.PowerManager
+import android.os.SystemClock
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
@@ -96,14 +98,20 @@ class WatchMeasurementService : LifecycleService() {
     }
 
     /**
-     * 누적 거리 표시가 바뀔 때마다 진행 중 활동 상태를 고친다(1초 tick마다 많아야 한 번). 알림 권한이 없으면(API 33+ 거부) 갱신만
-     * 건너뛴다. 측정은 이어 간다(폰 MeasurementService와 같다).
+     * 누적 거리 표시가 바뀔 때마다 진행 중 활동 상태를 고친다(1초 tick마다 많아야 한 번, FR-255). 화면이 꺼졌거나 저전력 표시(ambient)면
+     * [AMBIENT_UPDATE_MILLIS](1분, FR-256 제안)에 한 번만 고친다(D-382, NFR-048). 측정(위치 받기)은 화면 상태와 관계없이 이어 간다.
+     * 알림 권한이 없으면(API 33+ 거부) 갱신만 건너뛴다. 측정은 이어 간다(폰 MeasurementService와 같다).
      */
     private suspend fun followDistance(ongoing: OngoingActivity) {
+        val power = getSystemService(PowerManager::class.java)
+        var shownAtMillis: Long? = null
         runTracker.progress
             .map { kmText(it.distance.meters) }
             .distinctUntilChanged()
             .collect { km ->
+                val now = SystemClock.elapsedRealtime()
+                if (!shouldUpdate(power?.isInteractive != false, shownAtMillis, now)) return@collect
+                shownAtMillis = now
                 try {
                     ongoing.update(this, status(km))
                 } catch (_: SecurityException) {
@@ -195,6 +203,13 @@ class WatchMeasurementService : LifecycleService() {
         private const val METERS_PER_KM = 1_000.0
         private const val API_BAKLAVA = 36
         private const val READ_HEART_RATE = "android.permission.health.READ_HEART_RATE"
+
+        /** 저전력 표시(화면 꺼짐·ambient)일 때 진행 중 활동 상태를 고치는 간격(D-382, FR-256 제안 1분). */
+        internal const val AMBIENT_UPDATE_MILLIS = 60_000L
+
+        /** 진행 중 활동을 지금 고칠까: 화면이 켜져 있으면 늘, 저전력이면 마지막으로 고친 뒤 1분이 지났을 때만. */
+        internal fun shouldUpdate(isInteractive: Boolean, shownAtMillis: Long?, nowMillis: Long): Boolean =
+            isInteractive || shownAtMillis == null || nowMillis - shownAtMillis >= AMBIENT_UPDATE_MILLIS
 
         private fun kmText(meters: Long): String = String.format(Locale.ROOT, "%.2f", meters / METERS_PER_KM)
 

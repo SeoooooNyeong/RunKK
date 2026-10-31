@@ -115,4 +115,15 @@ class WatchMeasurementServiceTest {
         @SuppressLint("RestrictedApi")
         val OTHER_APP_STATUS = ExerciseTrackedStatus.OTHER_APP_IN_PROGRESS
     }
+
+    @Test
+    fun `저전력 표시면 진행 중 활동을 1분에 한 번만 고치고 화면이 켜져 있으면 늘 고친다(D-382, FR-256)`() {
+        val minute = WatchMeasurementService.AMBIENT_UPDATE_MILLIS
+        assertTrue(WatchMeasurementService.shouldUpdate(isInteractive = true, shownAtMillis = 1_000, nowMillis = 1_001))
+        assertTrue(WatchMeasurementService.shouldUpdate(isInteractive = false, shownAtMillis = null, nowMillis = 5))
+        kotlin.test.assertFalse(
+            WatchMeasurementService.shouldUpdate(isInteractive = false, shownAtMillis = 0, nowMillis = minute - 1)
+        )
+        assertTrue(WatchMeasurementService.shouldUpdate(isInteractive = false, shownAtMillis = 0, nowMillis = minute))
+    }
 }
