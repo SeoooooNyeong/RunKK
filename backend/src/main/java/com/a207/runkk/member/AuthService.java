@@ -112,6 +112,25 @@ public class AuthService {
      */
     public TokenPair refresh(String refreshToken) {
         long memberId = tokenIssuer.redeemRefreshToken(refreshToken);
+        requireActive(memberId);
+        recordAccess(memberId);
+        return tokenIssuer.issue(memberId);
+    }
+
+    /**
+     * POST /auth/watch-session(FR-240, D-372, SQ-43). 인증된 회원(게스트 포함)에게 로그인 때와 같은 issue로 새 토큰 쌍(접근
+     * 1시간, 갱신 14일)을 준다. 워치는 자기 갱신 토큰으로 따로 회전하므로 폰의 토큰 쌍은 폐기하지 않는다. 마지막 접속은 기록하지 않는다(폰의 로그인·갱신이 이미
+     * 기록한다).
+     *
+     * @throws AuthFailureException 탈퇴했거나 없는 회원
+     */
+    public TokenPair issueWatchSession(long memberId) {
+        requireActive(memberId);
+        log.info("watch_session_issued memberId={}", memberId);
+        return tokenIssuer.issue(memberId);
+    }
+
+    private void requireActive(long memberId) {
         boolean active =
                 memberRepository
                         .findById(memberId)
@@ -120,8 +139,6 @@ public class AuthService {
         if (!active) {
             throw new AuthFailureException("탈퇴했거나 없는 회원");
         }
-        recordAccess(memberId);
-        return tokenIssuer.issue(memberId);
     }
 
     /**

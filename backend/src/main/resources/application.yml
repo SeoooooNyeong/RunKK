@@ -121,6 +121,9 @@ runkk:
       # 게스트 생성(POST /members/guest) 접속지별 한도(FR-197, D-89 (4)): 1시간에 10회
       guest-starts: 10
       guest-start-window: 1h
+      # 워치 세션 발급(POST /auth/watch-session, D-372) 회원별 한도: 1시간에 20회. 접근 토큰 하나로 갱신 토큰을 끝없이 만들지 못하게 한다
+      watch-sessions: 20
+      watch-session-window: 1h
     google:
       base-url: ${GOOGLE_TOKENINFO_BASE_URL:https://oauth2.googleapis.com}
       # ID 토큰 aud로 받을 OAuth 클라이언트 ID(쉼표 구분). 비면 구글 로그인을 거부한다.

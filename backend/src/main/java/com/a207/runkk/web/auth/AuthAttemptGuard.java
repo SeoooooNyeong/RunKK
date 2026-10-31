@@ -17,10 +17,10 @@ import org.springframework.stereotype.Component;
 
 /**
  * 공개 인증 경로(POST /auth/login, /auth/refresh, /members, v0.11 /members/guest, /auth/guest/session,
- * /me/social-account) 시도 제한(코드 리뷰 2차 M5, D-89). 관리툴 로그인·초대 코드와 같은 AttemptLimiter 방식이다. 세 가지를 센다:
- * 접속지별 요청 수(로그인 요청마다 카카오·구글 호출이 나가므로 폭주를 막는다), 접속지별 실패 수(무차별 대입), 자격(제공자 토큰·갱신 토큰·가입 티켓·게스트 자격 증명)별
- * 실패 수(접속지를 바꿔 가며 같은 자격을 시험하는 것). 넘으면 429 TOO_MANY_ATTEMPTS다. 자격은 SHA-256 앞부분만 키로 남겨 토큰 원문을 메모리에 두지
- * 않는다. 메모리 값이라 재시작하면 비워진다(5.4 인스턴스 1개).
+ * /me/social-account, v0.21 /auth/watch-session) 시도 제한(코드 리뷰 2차 M5, D-89). 관리툴 로그인·초대 코드와 같은
+ * AttemptLimiter 방식이다. 세 가지를 센다: 접속지별 요청 수(로그인 요청마다 카카오·구글 호출이 나가므로 폭주를 막는다), 접속지별 실패 수(무차별 대입),
+ * 자격(제공자 토큰·갱신 토큰·가입 티켓·게스트 자격 증명)별 실패 수(접속지를 바꿔 가며 같은 자격을 시험하는 것). 넘으면 429 TOO_MANY_ATTEMPTS다. 자격은
+ * SHA-256 앞부분만 키로 남겨 토큰 원문을 메모리에 두지 않는다. 메모리 값이라 재시작하면 비워진다(5.4 인스턴스 1개).
  */
 @Component
 public class AuthAttemptGuard {
@@ -34,6 +34,7 @@ public class AuthAttemptGuard {
     private final AttemptLimiter clientFailures;
     private final AttemptLimiter credentialFailures;
     private final AttemptLimiter guestStarts;
+    private final AttemptLimiter watchSessions;
 
     AuthAttemptGuard(Limits limits, Clock clock) {
         this.clientRequests =
@@ -44,6 +45,8 @@ public class AuthAttemptGuard {
                 new AttemptLimiter(limits.credentialFailures(), limits.failureWindow(), clock);
         this.guestStarts =
                 new AttemptLimiter(limits.guestStarts(), limits.guestStartWindow(), clock);
+        this.watchSessions =
+                new AttemptLimiter(limits.watchSessions(), limits.watchSessionWindow(), clock);
     }
 
     /** 요청 한 번을 받아들인다. 접속지나 자격이 막혀 있으면 TOO_MANY_ATTEMPTS. 받아들인 요청은 접속지 요청 수에 더한다. */
@@ -72,6 +75,17 @@ public class AuthAttemptGuard {
             throw new BusinessRuleException(ReasonCode.TOO_MANY_ATTEMPTS);
         }
         return attempt;
+    }
+
+    /**
+     * 워치 세션 발급 한 번(POST /auth/watch-session, v0.21 D-372). 접속지 요청 수에 더해 회원별 발급 한도(기본 1시간 20회)를 넘으면
+     * TOO_MANY_ATTEMPTS. 접근 토큰 하나로 갱신 토큰(14일)을 끝없이 만들지 못하게 한다. 발급 실패(탈퇴)도 자리를 돌려주지 않는다.
+     */
+    void admitWatchSession(HttpServletRequest http, long memberId) {
+        admit(http, null);
+        if (!watchSessions.tryAcquire(String.valueOf(memberId))) {
+            throw new BusinessRuleException(ReasonCode.TOO_MANY_ATTEMPTS);
+        }
     }
 
     /**
@@ -122,7 +136,8 @@ public class AuthAttemptGuard {
 
     /**
      * 시도 제한 값(runkk.auth.attempts, 생성자 바인딩). 기본: 접속지마다 1분에 요청 30번, 10분에 실패 10번, 자격마다 10분에 실패 5번,
-     * 접속지마다 1시간에 게스트 생성 10번(FR-197). 앱 계약 자료에 들어가지 않게 record가 아닌 설정 형식이다.
+     * 접속지마다 1시간에 게스트 생성 10번(FR-197), 회원마다 1시간에 워치 세션 발급 20번(D-372). 앱 계약 자료에 들어가지 않게 record가 아닌 설정
+     * 형식이다.
      */
     @ConfigurationProperties("runkk.auth.attempts")
     static final class Limits {
@@ -133,6 +148,8 @@ public class AuthAttemptGuard {
         private final Duration failureWindow;
         private final int guestStarts;
         private final Duration guestStartWindow;
+        private final int watchSessions;
+        private final Duration watchSessionWindow;
 
         Limits(
                 @DefaultValue("30") int clientRequests,
@@ -141,7 +158,9 @@ public class AuthAttemptGuard {
                 @DefaultValue("5") int credentialFailures,
                 @DefaultValue("10m") Duration failureWindow,
                 @DefaultValue("10") int guestStarts,
-                @DefaultValue("1h") Duration guestStartWindow) {
+                @DefaultValue("1h") Duration guestStartWindow,
+                @DefaultValue("20") int watchSessions,
+                @DefaultValue("1h") Duration watchSessionWindow) {
             this.clientRequests = clientRequests;
             this.requestWindow = requestWindow;
             this.clientFailures = clientFailures;
@@ -149,6 +168,8 @@ public class AuthAttemptGuard {
             this.failureWindow = failureWindow;
             this.guestStarts = guestStarts;
             this.guestStartWindow = guestStartWindow;
+            this.watchSessions = watchSessions;
+            this.watchSessionWindow = watchSessionWindow;
         }
 
         int clientRequests() {
@@ -177,6 +198,14 @@ public class AuthAttemptGuard {
 
         Duration guestStartWindow() {
             return guestStartWindow;
+        }
+
+        int watchSessions() {
+            return watchSessions;
+        }
+
+        Duration watchSessionWindow() {
+            return watchSessionWindow;
         }
     }
 }

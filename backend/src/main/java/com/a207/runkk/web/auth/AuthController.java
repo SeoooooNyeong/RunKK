@@ -27,8 +27,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * 로그인·로그아웃·토큰 갱신(설계 5.7.1: POST /auth/login, /auth/logout, /auth/refresh → AuthService), v0.11 게스트
- * 세션 재개(POST /auth/guest/session)와 소셜 계정 연동(POST /me/social-account). 요청 DTO를 서비스 입력으로, 결과를 응답 DTO로
- * 바꾸기만 한다. 로그인 실패는 401(인증 실패)·503(제공자 무응답)과 공통 오류 응답(code·message)이다.
+ * 세션 재개(POST /auth/guest/session)와 소셜 계정 연동(POST /me/social-account), v0.21 워치용 토큰 쌍(POST
+ * /auth/watch-session). 요청 DTO를 서비스 입력으로, 결과를 응답 DTO로 바꾸기만 한다. 로그인 실패는 401(인증 실패)·503(제공자 무응답)과 공통
+ * 오류 응답(code·message)이다.
  */
 @RestController
 @RequestMapping("/api/v1")
@@ -101,6 +102,21 @@ public class AuthController {
         } catch (ProviderUnavailableException e) {
             // 갱신은 제공자를 부르지 않는다: 원인은 서버 저장소라 "로그인 제공자 연결 실패"가 아니다(B-L6)
             throw new BusinessRuleException(ReasonCode.TEMPORARILY_UNAVAILABLE);
+        }
+    }
+
+    /**
+     * 워치용 토큰 쌍(v0.21 FR-240, D-372, 인증 필요, 본문 없음). 폰의 토큰 쌍은 그대로 유효하다. 탈퇴 회원은 인증 필터가 401로 막고, 그 사이에
+     * 탈퇴했으면 갱신 실패와 같은 401(본문 없음)이다. 갱신 토큰을 새로 만드는 경로라 접속지별 요청 상한과 회원별 발급 한도를 센다(넘으면 429).
+     */
+    @PostMapping("/auth/watch-session")
+    ResponseEntity<TokenResponse> watchSession(
+            @RequestAttribute(AuthFilter.MEMBER_ID) long memberId, HttpServletRequest http) {
+        attempts.admitWatchSession(http, memberId);
+        try {
+            return ResponseEntity.ok(TokenResponse.of(authService.issueWatchSession(memberId)));
+        } catch (AuthFailureException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
     }
 
