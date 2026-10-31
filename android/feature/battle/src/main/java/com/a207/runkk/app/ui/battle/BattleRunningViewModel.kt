@@ -114,11 +114,18 @@ class BattleRunningViewModel @Inject constructor(
     /** 그만두기 짧게 누름: 길게 눌러야 한다는 안내만(D-49). */
     fun onForfeitTapped() = showHint(FORFEIT_HINT)
 
-    /** 그만두기 길게 누름: 확인을 받는다(FR-094). */
+    /**
+     * 그만두기 길게 누름·뒤로가기: 확인을 받는다(FR-094). 셀프런·셀럽런이 아직 출발 전(시작 대기·카운트다운)이면 그만두기(패)가 아니라
+     * 취소 확인을 띄운다(D-324, D-337, 코드 리뷰 AN10-1): 확인하면 cancel → 기록 없이 Discarded.
+     */
     fun onForfeitLongPressed() {
         val s = _state.value
-        if (s.phase == BattlePhase.RUNNING || s.phase == BattlePhase.CLOSING || s.phase == BattlePhase.COUNTDOWN) {
-            _state.update { it.copy(isConfirmingForfeit = true) }
+        when {
+            s.kind.isCancellable && (s.phase == BattlePhase.STARTING || s.phase == BattlePhase.COUNTDOWN) ->
+                _state.update { it.copy(isConfirmingCancel = true) }
+
+            s.phase == BattlePhase.RUNNING || s.phase == BattlePhase.CLOSING || s.phase == BattlePhase.COUNTDOWN ->
+                _state.update { it.copy(isConfirmingForfeit = true) }
         }
     }
 
