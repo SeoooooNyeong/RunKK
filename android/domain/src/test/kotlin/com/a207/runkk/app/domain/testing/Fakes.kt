@@ -171,6 +171,9 @@ class FakeWatchGateway : WatchGateway {
     override val heartRates = MutableSharedFlow<List<HeartRateSample>>()
     var connected = true
 
+    /** 짝지은 워치가 스스로 측정 중인가(WATCH_MEASURING, D-373). */
+    var watchMeasuring = false
+
     /** publishProximity로 보낸 값(null = 끔). */
     val proximity = mutableListOf<ProximityAlert?>()
     val leadChanges = mutableListOf<Guidance.Kind>()
@@ -180,6 +183,8 @@ class FakeWatchGateway : WatchGateway {
     }
 
     override fun isConnected(): Boolean = connected
+
+    override fun isWatchMeasuring(): Boolean = watchMeasuring
 
     override fun publishProximity(alert: ProximityAlert?) {
         proximity += alert

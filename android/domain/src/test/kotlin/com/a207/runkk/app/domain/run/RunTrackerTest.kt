@@ -72,6 +72,33 @@ class RunTrackerTest {
     }
 
     @Test
+    fun `D-373 워치가 측정 중이면 startRun을 WATCH_MEASURING으로 거부하고 측정 서비스를 띄우지 않는다`() = runTest {
+        watch.watchMeasuring = true
+        val tracker = tracker(backgroundScope)
+
+        val started = tracker.startRun(freeSpec())
+
+        assertEquals(Outcome.Failure(AppError.Rejected(AppError.Rejected.WATCH_MEASURING)), started)
+        assertTrue(tracker.isWatchMeasuring)
+        assertFalse(tracker.isMeasuring)
+        assertFalse(tracker.consentRequired.value, "위치 동의 안내로 잘못 보내지 않는다")
+        assertEquals(0, host.started)
+    }
+
+    @Test
+    fun `D-373 워치 측정이 끝나면(거짓) 폰에서 다시 시작할 수 있다`() = runTest {
+        watch.watchMeasuring = true
+        val tracker = tracker(backgroundScope)
+        assertIs<Outcome.Failure>(tracker.startRun(freeSpec()))
+
+        watch.watchMeasuring = false
+
+        assertIs<Outcome.Success<Unit>>(tracker.startRun(freeSpec()))
+        assertFalse(tracker.isWatchMeasuring)
+        assertEquals(1, host.started)
+    }
+
+    @Test
     fun `서버 위치 동의가 없으면 startRun도 거부하고 측정을 시작하지 않는다`() = runTest {
         settings.snapshot = settings.snapshot.copy(isLocationConsented = false)
         val tracker = tracker(backgroundScope)
