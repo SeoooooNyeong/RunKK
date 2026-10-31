@@ -353,6 +353,8 @@ class WatchFlowViewModel @Inject constructor(
         }
         val distance = picker.current.distance ?: return
         beginRound(Round(WatchMode.BATTLE, distance))
+        matchingJob?.cancel()
+        waitingJob?.cancel()
         _flow.value = WatchFlow.Matching(myTier, distance)
         waitingJob = viewModelScope.launch {
             while (true) {
@@ -367,8 +369,9 @@ class WatchFlowViewModel @Inject constructor(
                 is Outcome.Failure -> noticeOf(accepted.error, fallback = WatchFlow.Notice.MATCH_FAILED)
                 is Outcome.Success -> if (battleFlow.awaitMatch()) null else WatchFlow.Notice.MATCH_FAILED
             }
-            if (failure != null && _flow.value is WatchFlow.Matching) {
-                waitingJob?.cancel()
+            if (failure == null) return@launch
+            waitingJob?.cancel()
+            if (_flow.value is WatchFlow.Matching) {
                 round = null
                 _flow.value = battlePicker(selectedDistance = distance).copy(notice = failure)
             }
@@ -395,6 +398,7 @@ class WatchFlowViewModel @Inject constructor(
             if (started.error == AppError.Network) {
                 battleFlow.startRecordOffline(track)
             } else {
+                countdownJob?.cancel()
                 round = null
                 _flow.value = withNotice(picker, noticeOf(started.error))
             }
@@ -511,13 +515,20 @@ class WatchFlowViewModel @Inject constructor(
         val active = round ?: return
         val current = _flow.value
         if (current !is WatchFlow.Countdown) return
+        val progress = runTracker.progress.value
+        val isPausable = active.mode == WatchMode.FREE
+        // GO 동안 일시정지됐으면 바로 일시정지 화면이다(GO 동안은 진행값을 화면에 옮기지 않는다).
+        if (isPausable && progress.isPaused) {
+            _flow.value = WatchFlow.Paused(progress, active.goal)
+            return
+        }
         _flow.value = WatchFlow.Running(
             mode = active.mode,
-            progress = runTracker.progress.value,
+            progress = progress,
             goal = active.goal,
             gapMeters = lastGap,
             banner = guidance.banner.value?.text,
-            isPausable = active.mode == WatchMode.FREE
+            isPausable = isPausable
         )
     }
 
@@ -554,6 +565,7 @@ class WatchFlowViewModel @Inject constructor(
             _flow.value = withNotice(picker, WatchFlow.Notice.START_FAILED)
             return
         }
+        resultJob?.cancel()
         resultJob = viewModelScope.launch {
             val outcome = endedOutcome.value
                 ?: withTimeoutOrNull(OUTCOME_WAIT_MILLIS) { endedOutcome.filterNotNull().first() }

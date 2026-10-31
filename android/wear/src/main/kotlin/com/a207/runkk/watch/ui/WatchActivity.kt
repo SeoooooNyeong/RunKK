@@ -87,8 +87,8 @@ class WatchActivity : ComponentActivity() {
             }
             val actions = remember { actions() }
             WatchTheme {
-                // 저전력 표시에서는 1분 박자(ambientTick)가 바뀔 때만 측정 화면을 다시 그린다.
-                val shown = if (isAmbient) remember(ambientTick) { flow } else flow
+                // 저전력 표시에서는 1분 박자(ambientTick)가 바뀔 때만 다시 그린다. 화면 종류가 바뀌면(결과 등) 바로 그린다.
+                val shown = if (isAmbient) remember(ambientTick, flow::class) { flow } else flow
                 WatchRoot(flow = shown, companion = companion, actions = actions, isAmbient = isAmbient)
             }
         }

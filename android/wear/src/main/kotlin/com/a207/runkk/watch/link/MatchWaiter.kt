@@ -9,6 +9,7 @@ import com.a207.runkk.app.domain.live.MatchFailed
 import com.a207.runkk.app.domain.live.MatchFound
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
@@ -67,9 +68,15 @@ class MatchWaiter @Inject constructor(private val channels: LiveChannelProvider,
                     }
             }
         }
-        val connected = opened.connect()
+        // 연결 중에 취소되거나 실패하면 이 임대를 반납한다(취소가 open보다 먼저 닫기를 불러 놓친 경우도 여기서 닫는다).
+        val connected = try {
+            opened.connect()
+        } catch (e: CancellationException) {
+            closeIfCurrent(opened)
+            throw e
+        }
         if (connected is Outcome.Failure) {
-            close()
+            closeIfCurrent(opened)
             return connected
         }
         return Outcome.Success(Unit)
@@ -86,14 +93,23 @@ class MatchWaiter @Inject constructor(private val channels: LiveChannelProvider,
      * 조정자가 한 번만 시작한다(BattleRun.schedule).
      */
     fun forwardStarts(battleId: Long, onStart: (BattleStart) -> Unit) {
-        val opened = synchronized(lock) { channel } ?: return
-        synchronized(lock) { earlyStart }?.takeIf { it.battleId == battleId }?.let(onStart)
-        starts?.cancel()
-        starts = scope.launch(start = CoroutineStart.UNDISPATCHED) {
-            opened.messages.collect { message ->
-                if (message is BattleStart && message.battleId == battleId) onStart(message)
+        val early = synchronized(lock) {
+            val opened = channel ?: return
+            starts?.cancel()
+            starts = scope.launch(start = CoroutineStart.UNDISPATCHED) {
+                opened.messages.collect { message ->
+                    if (message is BattleStart && message.battleId == battleId) onStart(message)
+                }
             }
+            earlyStart
         }
+        early?.takeIf { it.battleId == battleId }?.let(onStart)
+    }
+
+    /** [opened]가 아직 지금 대기 채널이면 닫는다. 바뀌었으면 바꾼 쪽(새 open의 close)이 이미 반납했다. */
+    private fun closeIfCurrent(opened: LiveChannel) {
+        val isCurrent = synchronized(lock) { channel === opened }
+        if (isCurrent) close()
     }
 
     /** 대기 임대를 반납한다(서버 대기열 정리는 하지 않는다). 거듭 불러도 된다. */
