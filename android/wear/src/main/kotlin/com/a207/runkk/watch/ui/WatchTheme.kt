@@ -21,6 +21,21 @@ internal object WatchColors {
     val Muted = Color(0xFFA1A1AA)
     val Lime = Color(0xFFCBEA2B)
     val Lavender = Color(0xFF9C92F0)
+
+    /** 뒤처짐·STOP·LOSE(피그마 BR1 "−6m", SS3 "STOP"). */
+    val Orange = Color(0xFFF2A46B)
+
+    /** 심박 하트(피그마 FR3 "♥ 151"). */
+    val Heart = Color(0xFFF2735F)
+
+    /** 진한 남색 바탕 위 버튼·고리 바탕(피그마 F1 "−"·"+", 측정 고리 남은 부분). */
+    val Dark = Color(0xFF1C2620)
+
+    /** 카운트다운 숫자·라임 위 글자(피그마 FC3). */
+    val Ink = Color(0xFF1F2A22)
+
+    /** 트랙 그림 위에 글자가 잘 보이게 까는 막(피그마 F1·FR3의 푸른 톤). */
+    val Scrim = Color(0x8C203A55)
 }
 
 /**
