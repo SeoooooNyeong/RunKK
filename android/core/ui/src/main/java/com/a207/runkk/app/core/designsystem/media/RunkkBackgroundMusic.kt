@@ -1,4 +1,4 @@
-package com.a207.runkk.app.core.designsystem
+package com.a207.runkk.app.core.designsystem.media
 
 import android.content.Context
 import android.media.AudioManager
@@ -8,7 +8,6 @@ import androidx.annotation.RawRes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
-import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalInspectionMode
@@ -20,9 +19,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.RawResourceDataSource
 import androidx.media3.exoplayer.ExoPlayer
-
-/** 앱 첫 화면을 스플래시가 아직 덮고 있는가(RunkkAppContent). 덮인 동안은 배경 음악을 틀지 않는다. */
-val LocalCoveredBySplash = compositionLocalOf { false }
+import com.a207.runkk.app.core.designsystem.LocalCoveredBySplash
 
 /**
  * 배경 음악(사용자 요청 2026-10-31: 로그인 화면, 로그인한 뒤 모든 화면). 앱이 보이는 동안(재개 상태, 스플래시에 덮이지 않음,

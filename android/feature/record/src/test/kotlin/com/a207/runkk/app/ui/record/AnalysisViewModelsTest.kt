@@ -5,13 +5,18 @@ import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.domain.record.AggregationPeriod
+import com.a207.runkk.app.domain.record.PlanProgress
+import com.a207.runkk.app.domain.record.TodayPlan
 import com.a207.runkk.app.domain.run.PlanSnapshot
 import com.a207.runkk.app.domain.run.TodayPlanCache
 import java.time.Clock
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -26,6 +31,43 @@ class AnalysisViewModelsTest {
     private val records = FakeRecordRepository()
     private val clock = Clock.fixed(Instant.parse("2026-10-21T03:00:00Z"), ZoneId.of("Asia/Seoul"))
     private val todayPlans = TodayPlanCache()
+
+    private companion object {
+        /** clock의 날짜(한국 시각 2026-10-21 낮 12시). */
+        val TODAY: LocalDate = LocalDate.of(2026, 10, 21)
+    }
+
+    @Test
+    fun `오늘 계획 거리가 없으면 고른 목표 페이스를 두었다가 거리를 고를 때 함께 저장한다(D146)`() {
+        val vm = CoachViewModel(records, todayPlans, clock)
+        vm.onTodayPace(Pace(240))
+        assertFalse(records.calls.any { it.startsWith("plan:") }, "거리가 없으면 아직 보내지 않는다")
+        assertEquals(Pace(240), vm.state.value.todayPace)
+        vm.onTodayPlan(Distance(5_000))
+        assertTrue("plan:2026-10-21=5000:240" in records.calls)
+        assertEquals(PlanSnapshot(Distance(5_000), Pace(240)), todayPlans.plan.value)
+    }
+
+    @Test
+    fun `오늘 계획 거리가 있으면 목표 페이스를 고르는 즉시 저장한다(D146)`() {
+        records.extraProgressDays = listOf(PlanProgress.Day(TODAY, Distance(3_000), Distance.ZERO, null))
+        val vm = CoachViewModel(records, todayPlans, clock)
+        vm.onTodayPace(Pace(300))
+        assertTrue("plan:2026-10-21=3000:300" in records.calls)
+        assertEquals(PlanSnapshot(Distance(3_000), Pace(300)), todayPlans.plan.value)
+    }
+
+    @Test
+    fun `목표 페이스를 저장하지 못하면 고르기 전 페이스로 되돌린다(리뷰 AN11-6)`() {
+        records.extraProgressDays = listOf(PlanProgress.Day(TODAY, Distance(3_000), Distance.ZERO, null))
+        records.todayPlanResult = Outcome.Success(TodayPlan(Distance(3_000), Pace(360)))
+        records.planResult = Outcome.Failure(AppError.Rejected("PAST_DATE"))
+        val vm = CoachViewModel(records, todayPlans, clock)
+        assertEquals(Pace(360), vm.state.value.todayPace, "오늘 계획의 페이스를 읽어 채운다")
+        vm.onTodayPace(Pace(300))
+        assertEquals(Pace(360), vm.state.value.todayPace)
+        assertNull(todayPlans.plan.value)
+    }
 
     @Test
     fun `오늘 계획을 정하면 앱의 오늘 계획 사본도 바꾼다(워치 시작 화면, FR-042)`() {

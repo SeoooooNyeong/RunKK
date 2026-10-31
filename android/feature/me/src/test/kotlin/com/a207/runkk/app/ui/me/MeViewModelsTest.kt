@@ -180,6 +180,20 @@ class MeViewModelsTest {
     }
 
     @Test
+    fun `저장에 성공하면 화면이 닫힐 때까지 다시 저장하지 않는다(연타로 뒤로가 두 번 실행돼 앱이 닫혔다, D147)`() = runTest {
+        val vm = ProfileEditViewModel(account, settingsCopy)
+        vm.onNicknameChange("빠른곰")
+        vm.events.test {
+            vm.onSave()
+            assertEquals(ProfileEditEvent.Saved, awaitItem())
+            assertTrue(vm.state.value.isSaving, "저장 중 상태를 풀지 않는다")
+            vm.onSave()
+            expectNoEvents()
+        }
+        assertEquals(1, account.calls.count { it.startsWith("editProfile") })
+    }
+
+    @Test
     fun `출생연도가 없으면 바꾸지 않는다`() {
         val vm = ProfileEditViewModel(account, settingsCopy)
         assertNull(vm.state.value.birthYear)

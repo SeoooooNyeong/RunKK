@@ -171,18 +171,25 @@ class FakeRecordRepository : RecordRepository {
     }
 
     override suspend fun putPlan(date: LocalDate, distance: Distance, pace: Pace?): Outcome<Unit> {
-        calls += "plan:$date=${distance.meters}"
+        calls += "plan:$date=${distance.meters}" + (pace?.let { ":${it.secondsPerKm}" } ?: "")
         return planResult
     }
+
+    /** 이행 현황에 더할 날(오늘 계획 거리가 있는 경우를 시험한다). */
+    var extraProgressDays: List<PlanProgress.Day> = emptyList()
 
     override suspend fun planProgress(from: LocalDate, to: LocalDate): Outcome<PlanProgress> {
         calls += "progress:$from..$to"
         return Outcome.Success(
-            PlanProgress(listOf(PlanProgress.Day(from, Distance(5_000), Distance(3_000), Distance(2_000))))
+            PlanProgress(
+                listOf(PlanProgress.Day(from, Distance(5_000), Distance(3_000), Distance(2_000))) + extraProgressDays
+            )
         )
     }
 
-    override suspend fun todayPlan(): Outcome<TodayPlan?> = unused()
+    var todayPlanResult: Outcome<TodayPlan?> = unused()
+
+    override suspend fun todayPlan(): Outcome<TodayPlan?> = todayPlanResult
 
     override suspend fun card(recordId: String): Outcome<RunCard> = cardResult
 

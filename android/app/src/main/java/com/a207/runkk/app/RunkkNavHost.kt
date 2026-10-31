@@ -36,16 +36,17 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import com.a207.runkk.app.core.designsystem.GuideAnchors
+import com.a207.runkk.app.core.designsystem.LocalCoveredBySplash
 import com.a207.runkk.app.core.designsystem.LocalGuideAnchors
 import com.a207.runkk.app.core.designsystem.LocalReleaseScope
 import com.a207.runkk.app.core.designsystem.RUNKK_BOTTOM_BAR_HEIGHT
 import com.a207.runkk.app.core.designsystem.ReleaseScope
-import com.a207.runkk.app.core.designsystem.RunkkBackgroundMusic
 import com.a207.runkk.app.core.designsystem.RunkkBottomBar
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkEmptyState
 import com.a207.runkk.app.core.designsystem.RunkkTab
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
+import com.a207.runkk.app.core.designsystem.media.RunkkBackgroundMusic
 import com.a207.runkk.app.core.navigation.FeatureEntry
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.LocalSlots
@@ -153,7 +154,8 @@ fun RunkkNavHost(
             )
         }
         // 기능 화면 위 안내(남은 대결, 홈 위 첫 사용 가이드 등)는 로그인한 동안만 붙인다. 맨 위 경로를 넘긴다(D-255).
-        if (loggedIn) featureEntries.forEach { it.Overlay(top) }
+        // 스플래시에 덮인 동안은 붙이지 않는다: 남은 대결 대화상자(별도 창)가 스플래시 위에 떴다(리뷰 AN11-4)
+        if (loggedIn && !LocalCoveredBySplash.current) featureEntries.forEach { it.Overlay(top) }
         // 홈 배경 음악은 로그인한 동안 화면을 옮겨 다녀도 이어진다. 로그인·가입 화면(자기 음악)과 측정 중(음성 안내)에는 멈춘다(사용자 요청 2026-10-31)
         if (loggedIn) RunkkBackgroundMusic(R.raw.home_bgm, isPlaying = isMusicRoute(top))
         if (isLockedNoticeVisible) LockedFeatureDialog(onDismiss = { isLockedNoticeVisible = false })
@@ -230,7 +232,7 @@ private val AUTH_ROUTES = setOf(Routes.LOGIN, Routes.SIGN_UP, Routes.GUEST_START
 /** 홈 배경 음악을 트는 화면인가: 로그인·가입 화면과 측정 화면(자유런, 대결 카운트다운·진행, 크루런)이 아니면 튼다. */
 internal fun isMusicRoute(top: NavKey?): Boolean = when (top) {
     is Routes.Key -> top.route !in AUTH_ROUTES && top.route != Routes.RUN
-    is Routes.BattleRunning, is Routes.CrewRunLobby -> false
+    is Routes.BattleRunning, is Routes.CrewRunLobby, is Routes.CrewRunResult -> false
     else -> true
 }
 

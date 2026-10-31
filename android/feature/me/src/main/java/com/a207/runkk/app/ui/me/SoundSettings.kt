@@ -23,7 +23,7 @@ import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkIconButton
 import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
-import com.a207.runkk.app.core.designsystem.rememberSoundVolume
+import com.a207.runkk.app.core.designsystem.media.rememberSoundVolume
 import kotlin.math.roundToInt
 
 /**

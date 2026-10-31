@@ -1,4 +1,4 @@
-package com.a207.runkk.app.core.designsystem
+package com.a207.runkk.app.core.designsystem.media
 
 import android.content.Context
 import android.content.SharedPreferences

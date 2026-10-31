@@ -44,6 +44,7 @@ class HomeScreenshotTest {
         isLoading = false,
         header = HomeHeader("달리는곰", "골드", 3, 1_250),
         isHeaderLoading = false,
+        isAvatarReady = true,
         weeklyDistance = Distance(12_000),
         weeklyGoal = Distance(20_000),
         streakWeeks = 4

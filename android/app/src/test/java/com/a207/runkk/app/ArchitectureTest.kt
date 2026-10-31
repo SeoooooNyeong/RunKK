@@ -111,6 +111,26 @@ class ArchitectureTest {
         assertEquals(1, fixture("TwoDataClassesFixture").size)
     }
 
+    /**
+     * 설계 검토 R59(C1): core.designsystem 안에서 재생(media3·android.media)과 기기 저장(SharedPreferences) import는 하위 패키지
+     * core.designsystem.media에만 둔다. 나머지 디자인 시스템 부품은 그리기만 한다.
+     */
+    @Test
+    fun `R59 디자인 시스템의 재생·기기 저장 import는 media 하위 패키지에만 있다`() {
+        val media = "$APP.core.designsystem.media"
+        assertTrue(files.any { it.packageName() == media }, "core.designsystem.media 파일이 없다")
+        val violations = files
+            .filter { moduleOf(it.packageName()) == "core.designsystem" && it.packageName() != media }
+            .flatMap { file ->
+                file.importNames()
+                    .filter {
+                        it.startsWith("androidx.media3.") || it.startsWith("android.media.") || it == SHARED_PREFS
+                    }
+                    .map { "${file.path} $it" }
+            }
+        assertEquals(emptyList(), violations)
+    }
+
     /** D-112는 앱 전체 규칙이다. 도메인(A1)과 데이터 계층 api.*·data.*(A2)에 건다. 표현 계층은 아래 시험이 건다. */
     @Test
     fun `TC-6583 domain·api·data 소스는 한 파일 규칙을 지킨다 (D-112)`() {
@@ -269,6 +289,9 @@ class ArchitectureTest {
         const val ROOT = "com.a207.runkk"
         const val APP = "$ROOT.app"
         const val WATCH = "$ROOT.watch"
+
+        /** 기기 저장 import 이름(R59 C1). */
+        const val SHARED_PREFS = "android.content.SharedPreferences"
 
         /** E2E 토큰 창구와 그 창구를 대체 자리에 넣는 Hilt 모듈(D-112로 파일을 나눴다). */
         val E2E_TOKEN_FILES = setOf("E2eKakaoTokenSource", "E2eLoginModule")

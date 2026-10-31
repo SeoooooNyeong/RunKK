@@ -112,7 +112,7 @@ import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.UnreleasedFeature
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.designsystem.guideAnchor
-import com.a207.runkk.app.core.designsystem.rememberSoundEffects
+import com.a207.runkk.app.core.designsystem.media.rememberSoundEffects
 import com.a207.runkk.app.core.designsystem.sceneAvatarFilter
 import com.a207.runkk.app.core.designsystem.tierName
 import com.a207.runkk.app.core.model.Distance
@@ -274,7 +274,10 @@ private fun Header(state: HomeUiState, onNavigate: (String) -> Unit) {
                 modifier = Modifier.size(48.dp).clip(CircleShape).background(RunkkColors.SurfacePressed),
                 contentAlignment = Alignment.Center
             ) {
-                RunkkAvatar(state.faceKey, AvatarExpression.FACE, Modifier.size(44.dp), state.faceLayers)
+                // 성별을 읽기 전에는 얼굴도 그리지 않는다(남자 얼굴이 보였다가 바뀌지 않게, TF-V12-02)
+                if (state.isAvatarReady) {
+                    RunkkAvatar(state.faceKey, AvatarExpression.FACE, Modifier.size(44.dp), state.faceLayers)
+                }
             }
             HeaderIdentity(state, modifier = Modifier.weight(1f))
         }
@@ -637,11 +640,11 @@ private fun RoomAvatar(state: HomeUiState, isAvatarOpen: Boolean, onAvatar: () -
             modifier = Modifier
                 .graphicsLayer {
                     translationY = -hop.value * HOP_HEIGHT.toPx()
-                    alpha = if (state.isHeaderLoading) 0f else 1f
+                    alpha = if (state.isAvatarReady) 1f else 0f
                 }
                 .clip(RoundedCornerShape(32.dp))
-                .then(press)
-                .semantics { contentDescription = description }
+                // 숨긴 동안은 누르지도 읽지도 않는다(리뷰 AN11-5)
+                .then(if (state.isAvatarReady) press.semantics { contentDescription = description } else Modifier)
         ) {
             RunkkAvatar(
                 state.faceKey,
@@ -699,6 +702,7 @@ private fun HomeScreenPreview() {
                 isLoading = false,
                 header = HomeHeader("달리는곰", "골드", 3, 1_250),
                 isHeaderLoading = false,
+                isAvatarReady = true,
                 weeklyDistance = Distance(12_000),
                 weeklyGoal = Distance(20_000),
                 streakWeeks = 4

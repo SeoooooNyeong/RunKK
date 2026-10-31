@@ -13,6 +13,11 @@ data class HomeUiState(
     val error: UiText? = null,
     val header: HomeHeader = HomeHeader(),
     val isHeaderLoading: Boolean = true,
+    /**
+     * 본인 요약(성별)을 한 번이라도 읽었는가. 읽기 전에는 아바타 자리를 비운다: 첫 읽기가 실패한 채 남자로 그렸다가 다시 읽은 뒤
+     * 여자로 바뀌지 않게 한다(FR-162, 시험 TF-V12-02).
+     */
+    val isAvatarReady: Boolean = false,
     /** 이번 주 달린 거리(weekly.actualMeters). 읽기 전·목표 없음이면 0이다. */
     val weeklyDistance: Distance = Distance.ZERO,
     /** 이번 주 목표 거리(weekly.goalMeters). 목표가 없거나 옛 서버면 null이다. */

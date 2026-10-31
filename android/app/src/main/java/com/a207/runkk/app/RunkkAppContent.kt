@@ -15,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -72,7 +73,15 @@ fun RunkkAppContent(
                     featureEntries = featureEntries,
                     startRoute = start,
                     onExit = onExit,
-                    modifier = Modifier.fillMaxSize(),
+                    // 덮인 동안은 보조 기술에서도 숨긴다(TalkBack이 스플래시 아래 홈을 누르지 못하게, 리뷰 AN11-4)
+                    modifier = Modifier.fillMaxSize().then(
+                        if (isRevealed) {
+                            Modifier
+                        } else {
+                            Modifier.clearAndSetSemantics {
+                            }
+                        }
+                    ),
                     loggedIn =
                         loggedIn ?: false,
                     pendingInvite = pendingInvite,

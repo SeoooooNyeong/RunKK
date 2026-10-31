@@ -12,7 +12,7 @@ import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import com.a207.runkk.app.core.designsystem.LocalReduceMotion
-import com.a207.runkk.app.core.designsystem.RunkkLoopingVideo
+import com.a207.runkk.app.core.designsystem.media.RunkkLoopingVideo
 
 /**
  * 로그인 배경 영상(피그마 A-1 메모: 무음, 1초부터 끝까지 반복. 그 구간만 잘라 둔 파일을 반복한다). 첫 장면 그림을 먼저 깔고 그 위에 영상을 화면에 꽉 차게(잘라서) 튼다.

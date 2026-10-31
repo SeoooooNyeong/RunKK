@@ -3,6 +3,7 @@ package com.a207.runkk.app.core.designsystem
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -30,3 +31,6 @@ fun HoldSplashUntil(isReady: Boolean) {
         onDispose { gate.isHeld = false }
     }
 }
+
+/** 앱 첫 화면을 스플래시가 아직 덮고 있는가(RunkkAppContent). 덮인 동안은 배경 음악을 틀지 않고 기능 화면 위 안내를 붙이지 않는다. */
+val LocalCoveredBySplash = compositionLocalOf { false }

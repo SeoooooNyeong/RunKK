@@ -91,6 +91,7 @@ class HomeViewModel @Inject constructor(
                     header = me?.let { p -> HomeHeader(p.displayName, p.tier, p.level, balance) }
                         ?: it.header.copy(balance = balance),
                     isHeaderLoading = false,
+                    isAvatarReady = it.isAvatarReady || me != null,
                     faceKey = if (me != null) me.faceKey else it.faceKey,
                     faceLayers = if (me != null) face else it.faceLayers,
                     backgroundKey = if (me != null) me.avatarBackgroundKey else it.backgroundKey,

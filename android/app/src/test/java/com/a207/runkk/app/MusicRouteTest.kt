@@ -28,5 +28,6 @@ class MusicRouteTest {
         assertFalse(isMusicRoute(Routes.Key(Routes.RUN)))
         assertFalse(isMusicRoute(Routes.BattleRunning(1L, "이O주", 1_000L, "CELEBRITY")))
         assertFalse(isMusicRoute(Routes.CrewRunLobby(1L)))
+        assertFalse(isMusicRoute(Routes.CrewRunResult(1L)), "크루런 결과도 크루런 경로라 멈춘다(srs J-7, TF-V12-01)")
     }
 }
