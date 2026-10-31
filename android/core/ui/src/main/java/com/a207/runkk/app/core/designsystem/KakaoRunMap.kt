@@ -64,6 +64,8 @@ data class RunMapMarker(
  * 끌기·회전·기울이기는 막고 확대·축소만 받으며, 확대·축소해도 가운데(내 위치)는 그대로다. 새 위치가 와도 사용자가 정한 확대 단계는 지킨다.
  * 내 아바타([figure])와 [others](대결 상대)는 지도 좌표 → 화면 위치(toScreenPoint)로 놓아 확대·축소에도 지도 위 제자리를 지킨다
  * (카메라가 움직이는 동안은 매 프레임 다시 놓는다). 지도를 띄울 수 없으면(키·지도 라이브러리 없음, canShowKakaoMap) 부르는 쪽이 RouteCanvas를 그린다.
+ * 실행 중 지도 오류(잘못된 키·네트워크, MapLifeCycleCallback.onMapError)면 [onMapError]를 알리고, 부르는 쪽이 그 상태를
+ * canShowKakaoMap(key, isMapFailed)에 넘겨 격자 바탕 RouteCanvas로 바꾼다(FR-034, D-322 (3), D-340).
  * 기록 상세 KakaoCourseMap과 같이 화면 수명에 맞춰 지도를 이어 그리고 멈추며, 화면을 떠나면 닫는다.
  */
 @Composable
@@ -73,6 +75,7 @@ fun KakaoRunMap(
     markerSize: Dp = 72.dp,
     others: List<RunMapMarker> = emptyList(),
     myLabel: String? = null,
+    onMapError: () -> Unit = {},
     figure: @Composable () -> Unit
 ) {
     val context = LocalContext.current
@@ -91,6 +94,7 @@ fun KakaoRunMap(
     var isZoomSet by remember { mutableStateOf(false) }
     val latestOthers by rememberUpdatedState(others)
     val latestRoute by rememberUpdatedState(route)
+    val latestOnMapError by rememberUpdatedState(onMapError)
     fun place(ready: KakaoMap) {
         fun screen(point: GeoPoint): IntOffset? =
             ready.toScreenPoint(LatLng.from(point.latitude, point.longitude))?.let { IntOffset(it.x, it.y) }
@@ -102,7 +106,10 @@ fun KakaoRunMap(
             object : MapLifeCycleCallback() {
                 override fun onMapDestroy() = Unit
 
-                override fun onMapError(error: Exception) = Unit
+                // 지도 SDK가 다른 스레드에서 부를 수 있어 화면 스레드로 넘긴다
+                override fun onMapError(error: Exception) {
+                    mapView.post { latestOnMapError() }
+                }
             },
             object : KakaoMapReadyCallback() {
                 override fun onMapReady(ready: KakaoMap) {

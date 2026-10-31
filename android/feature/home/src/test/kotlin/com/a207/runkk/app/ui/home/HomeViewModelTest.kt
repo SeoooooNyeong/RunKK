@@ -8,7 +8,7 @@ import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.account.LocationConsentUseCase
 import com.a207.runkk.app.domain.account.MemberSettings
-import com.a207.runkk.app.domain.account.Profile
+import com.a207.runkk.app.domain.account.MySummary
 import com.a207.runkk.app.domain.run.PlanSnapshot
 import com.a207.runkk.app.domain.run.TodayPlanCache
 import java.time.Clock
@@ -67,7 +67,8 @@ class HomeViewModelTest {
     fun `TC-9721 상단은 본인 닉네임·티어·레벨과 대시보드의 리워드 잔액이다(D-276)`() {
         val header = viewModel().state.value.header
         assertEquals(HomeHeader(nickname = "달리는곰", tier = "골드", level = 3, balance = 1_250), header)
-        assertEquals(listOf(AccountRepository.SELF), account.profileIds)
+        assertEquals(1, account.summaryCalls)
+        assertEquals(emptyList(), account.profileIds, "프로필 전체를 읽지 않는다(R53)")
     }
 
     @Test
@@ -94,9 +95,7 @@ class HomeViewModelTest {
 
     @Test
     fun `아바타 얼굴·배경 키는 본인 프로필 값이다(아바타 꾸미기가 열렸을 때만 그린다)`() {
-        account.profileResult = Outcome.Success(
-            Profile(7, "달리는곰", "SELF", "골드", 3, null, null, "default:BEAR", null, null, avatarBackgroundKey = "BUSAN")
-        )
+        account.summaryResult = Outcome.Success(MySummary("달리는곰", "골드", 3, "default:BEAR", "BUSAN", 12))
         val state = viewModel().state.value
         assertEquals("default:BEAR", state.faceKey)
         assertEquals("BUSAN", state.backgroundKey)
@@ -124,7 +123,7 @@ class HomeViewModelTest {
 
     @Test
     fun `프로필을 못 읽어도 홈은 보이고 그 자리는 비운다`() {
-        account.profileResult = Outcome.Failure(AppError.Network)
+        account.summaryResult = Outcome.Failure(AppError.Network)
         val state = viewModel().state.value
         assertEquals(HomeHeader(balance = 1_250), state.header)
         assertFalse(state.isHeaderLoading)

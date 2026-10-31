@@ -218,6 +218,7 @@ public class MeController {
      * @param recentRuns 최근 유효 러닝 3건(다른 러너, 기록 공개 범위를 통과할 때만. 본인은 빈 목록)
      * @param ageBandVisibility 나이대 공개 여부(본인만)
      * @param genderVisibility 성별 공개 여부(본인만)
+     * @param shownGender 다른 러너에게 보이는 표시 성별(MALE·FEMALE, D-327). 앱이 다른 러너 캐릭터를 이 값으로 그린다. 탈퇴면 null
      */
     record ProfileResponse(
             long memberId,
@@ -240,7 +241,8 @@ public class MeController {
             int runCount,
             List<RecentRunDto> recentRuns,
             ProfileVisibility ageBandVisibility,
-            ProfileVisibility genderVisibility) {
+            ProfileVisibility genderVisibility,
+            Gender shownGender) {
 
         static ProfileResponse of(ProfileView v) {
             MemberProfile about = v.about();
@@ -272,7 +274,8 @@ public class MeController {
                                                     r.distance().meters()))
                             .toList(),
                     about == null ? null : about.ageBandVisibility(),
-                    about == null ? null : about.genderVisibility());
+                    about == null ? null : about.genderVisibility(),
+                    v.shownGender());
         }
     }
 }

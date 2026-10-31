@@ -3,6 +3,7 @@ package com.a207.runkk.app.ui.notification
 import androidx.annotation.StringRes
 import com.a207.runkk.app.core.designsystem.ReleaseScope
 import com.a207.runkk.app.core.designsystem.UnreleasedFeature
+import com.a207.runkk.app.domain.notification.GatedFeature
 
 /** 알림 종류(서버 NotificationType 이름) → 알림함 줄 위 작은 종류 라벨(F7). 모르는 종류는 null(서버 제목을 쓴다). */
 internal object InboxLabels {
@@ -33,24 +34,13 @@ internal object InboxLabels {
     @StringRes
     fun of(type: String): Int? = labels[type]
 
-    /** 1차 배포에서 닫은 기능의 알림인가: 아바타(체형·배경)와 크루 알림은 그 기능이 열려야 보인다(사용자 요청 2026-10-31). */
-    fun isVisibleIn(type: String, scope: ReleaseScope): Boolean = when {
-        type == "BODY_SHAPE_CHANGED" || type == "BACKGROUND_UNLOCKED" -> scope.isOpen(
-            UnreleasedFeature.AVATAR_CUSTOMIZE
-        )
-
-        labels[type] in CREW_LABELS -> scope.isOpen(UnreleasedFeature.CREW)
-
-        else -> true
+    /**
+     * 1차 배포에서 닫은 기능의 알림인가: 아바타(체형·배경)와 크루 알림은 그 기능이 열려야 보인다(사용자 요청 2026-10-31). 종류 분류는
+     * 시스템 푸시와 같은 domain.notification.GatedFeature다(D-339).
+     */
+    fun isVisibleIn(type: String, scope: ReleaseScope): Boolean = when (GatedFeature.of(type)) {
+        GatedFeature.AVATAR_CUSTOMIZE -> scope.isOpen(UnreleasedFeature.AVATAR_CUSTOMIZE)
+        GatedFeature.CREW -> scope.isOpen(UnreleasedFeature.CREW)
+        null -> true
     }
-
-    private val CREW_LABELS = setOf(
-        R.string.notification_label_crew,
-        R.string.notification_label_crew_run,
-        R.string.notification_label_crew_notice,
-        R.string.notification_label_crew_poll,
-        R.string.notification_label_crew_schedule,
-        R.string.notification_label_crew_chat,
-        R.string.notification_label_crew_goal
-    )
 }

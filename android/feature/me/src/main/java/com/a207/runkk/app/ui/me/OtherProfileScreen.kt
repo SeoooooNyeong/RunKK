@@ -29,6 +29,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.a207.runkk.app.core.designsystem.AvatarCharacter
 import com.a207.runkk.app.core.designsystem.AvatarExpression
 import com.a207.runkk.app.core.designsystem.LocalReleaseScope
 import com.a207.runkk.app.core.designsystem.RunkkAvatar
@@ -101,7 +102,13 @@ private fun OtherProfileBody(profile: Profile, faceLayers: List<FaceLayer>, modi
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        RunkkAvatar(profile.faceKey, AvatarExpression.RUN, Modifier.size(120.dp), faceLayers)
+        RunkkAvatar(
+            profile.faceKey,
+            AvatarExpression.RUN,
+            Modifier.size(120.dp),
+            faceLayers,
+            character = AvatarCharacter.of(profile.shownGender)
+        )
         Text(
             profile.displayName,
             style = RunkkTextStyles.text(20, FontWeight.Black),

@@ -9,7 +9,7 @@ import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.account.LocationConsentUseCase
-import com.a207.runkk.app.domain.account.Profile
+import com.a207.runkk.app.domain.account.MySummary
 import com.a207.runkk.app.domain.battle.BattleRepository
 import com.a207.runkk.app.domain.battle.BattleRunCoordinator
 import com.a207.runkk.app.domain.battle.BattleRunState
@@ -87,10 +87,10 @@ class MatchViewModel @Inject constructor(
     private var startAt: Instant? = null
 
     /**
-     * 내 프로필(랜덤 매칭·친구 초대 시작 때 한 번 읽는다). 닉네임은 초대 공유 제목에, 티어는 성사 화면 "나"의 티어 칩(R2-10)에 쓴다.
+     * 본인 요약(랜덤 매칭·친구 초대 시작 때 한 번 읽는다, D-331). 닉네임은 초대 공유 제목에, 티어는 성사 화면 "나"의 티어 칩(R2-10)에 쓴다.
      * 못 읽으면 null이다.
      */
-    private var me: Deferred<Profile?>? = null
+    private var me: Deferred<MySummary?>? = null
 
     /**
      * 대기 채널에서 받은 출발 예약. 서버는 MatchFound와 BattleStart를 잇따라 보내는데 실시간 채널은 지난 메시지를 다시 주지 않아,
@@ -195,8 +195,8 @@ class MatchViewModel @Inject constructor(
      * 이름이 빠지지 않는다. 못 읽으면 이름 없는 제목으로 보낸다. 기다리는 동안 대기가 끝났으면 보내지 않는다.
      */
     private suspend fun share(invite: FriendInvite) {
-        val profile = withTimeoutOrNull(INVITER_NAME_WAIT.toMillis()) { me?.await() }
-        val name = profile?.displayName?.takeIf { it.isNotBlank() }
+        val summary = withTimeoutOrNull(INVITER_NAME_WAIT.toMillis()) { me?.await() }
+        val name = summary?.displayName?.takeIf { it.isNotBlank() }
         if (_state.value.phase == MatchPhase.INVITING) _events.send(MatchEvent.ShareInvite(invite, name))
     }
 
@@ -289,12 +289,12 @@ class MatchViewModel @Inject constructor(
         coordinator.forfeit()
     }
 
-    /** 내 프로필을 읽기 시작하고 티어를 화면 값에 싣는다. */
+    /** 본인 요약을 읽기 시작하고 티어를 화면 값에 싣는다. */
     private fun loadMe() {
         me = viewModelScope.async {
-            val profile = (account.profile(AccountRepository.SELF) as? Outcome.Success)?.value
-            profile?.tier?.let { tier -> _state.update { it.copy(myTier = tier) } }
-            profile
+            val summary = (account.mySummary() as? Outcome.Success)?.value
+            summary?.tier?.let { tier -> _state.update { it.copy(myTier = tier) } }
+            summary
         }
     }
 

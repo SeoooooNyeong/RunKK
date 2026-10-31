@@ -160,6 +160,7 @@ class ProfileTest {
                         runs,
                         java.time.Clock.systemDefaultZone());
         when(members.disclosureOf(1, List.of(5L))).thenReturn(Map.of(5L, DisclosureLevel.PUBLIC));
+        when(members.shownGendersOf(List.of(5L))).thenReturn(Map.of(5L, Gender.FEMALE));
         when(members.disclosureOf(5, List.of(5L))).thenReturn(Map.of(5L, DisclosureLevel.SELF));
         when(members.summaries(List.of(5L)))
                 .thenReturn(
@@ -233,6 +234,9 @@ class ProfileTest {
                         new RecentRun(
                                 CardKind.BATTLE_RUN, LocalDate.of(2026, 10, 27), Distance.ofKm(5)));
         assertThat(view.recentRuns().get(0).kindName()).isEqualTo("BATTLE_RUN");
+        assertThat(view.shownGender())
+                .as("표시 성별은 읽을 때 shownGendersOf로 붙인다(D-327)")
+                .isEqualTo(Gender.FEMALE);
 
         ProfileView mine = service.view(5, 5);
         assertThat(mine.recentRuns()).isEmpty();
@@ -242,6 +246,7 @@ class ProfileTest {
         when(members.disclosureOf(1, List.of(6L)))
                 .thenReturn(Map.of(6L, DisclosureLevel.WITHDRAWN));
         assertThat(service.view(1, 6).displayName().value()).isEqualTo("탈퇴한 사용자");
+        assertThat(service.view(1, 6).shownGender()).isNull();
         verify(avatars, never()).faceKey(6);
 
         when(members.disclosureOf(any(Long.class), any())).thenReturn(Map.of());

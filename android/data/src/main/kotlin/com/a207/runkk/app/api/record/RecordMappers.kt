@@ -4,6 +4,7 @@ import com.a207.runkk.app.api.core.ServerTime
 import com.a207.runkk.app.api.core.enumByName
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.GeoPoint
 import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.core.model.RunMode
@@ -144,7 +145,8 @@ internal fun GrowthResponse.toDomain(): Growth = Growth(
 
 internal fun ReportResponse.toDomain(): Report = Report(summary, comment, commentSource, message)
 
-internal fun RankingResponse.Entry.toDomain(): Ranking.Entry = Ranking.Entry(rank, name, Distance(distanceMeters))
+internal fun RankingResponse.Entry.toDomain(): Ranking.Entry =
+    Ranking.Entry(rank, name, Distance(distanceMeters), enumByName<Gender>(shownGender))
 
 internal fun RankingResponse.toDomain(): Ranking = Ranking(
     entries = entries.map { it.toDomain() },

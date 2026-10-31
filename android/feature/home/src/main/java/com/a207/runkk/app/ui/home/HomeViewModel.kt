@@ -29,7 +29,7 @@ import kotlinx.coroutines.launch
 
 /**
  * 홈(A-4, D-276, FR-050~FR-053): 대시보드(RecordRepository.dashboard)의 이번 주 거리·목표, 연속 일수, 리워드 잔액과
- * 본인 프로필(닉네임·티어·레벨, 얼굴·배경 키), 러닝 설정의 음성·진동을 모은다. 리워드 잔액은 대시보드 rewardBalance라
+ * 본인 요약(MySummary: 닉네임·티어·레벨, 얼굴·배경 키, D-331), 러닝 설정의 음성·진동을 모은다. 리워드 잔액은 대시보드 rewardBalance라
  * domain.avatar에 기대지 않는다(D-276).
  * 오늘 계획을 읽으면 TodayPlanCache에도 알려 워치 시작 화면이 같은 계획을 보이게 한다(WatchHomeSync, FR-042).
  * 자유런 카드는 위치 수집 동의를 먼저 본다(D-267): 동의가 없으면 시트를 띄우고, "동의하고 시작"이면 동의를 준 뒤 시작한다.
@@ -72,7 +72,7 @@ class HomeViewModel @Inject constructor(
         refreshJob = viewModelScope.launch {
             val dashboard = async { records.dashboard(today) }
             val plan = async { records.todayPlan() }
-            val profile = async { account.profile(AccountRepository.SELF).getOrNull() }
+            val profile = async { account.mySummary().getOrNull() }
             val settings = async { account.settings().getOrNull() }
             val dashboardResult = dashboard.await()
             val planResult = plan.await()

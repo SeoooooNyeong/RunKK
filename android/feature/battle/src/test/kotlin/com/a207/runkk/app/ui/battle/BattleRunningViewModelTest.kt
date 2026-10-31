@@ -310,6 +310,24 @@ class BattleRunningViewModelTest {
     }
 
     @Test
+    fun `AN10-1 셀럽런 카운트다운 뒤로가기는 취소 확인이고 확인하면 cancel만 보내 기록 없이 기록런 탭으로(D-337)`() = main.runVmTest { vms ->
+        val w = world()
+        val vm = selfRunning(w, vms, CardKind.CELEB_RUN)
+        assertEquals(BattlePhase.COUNTDOWN, vm.state.value.phase)
+        vm.events.test {
+            vm.onForfeitLongPressed()
+            assertTrue(vm.state.value.isConfirmingCancel)
+            assertFalse(vm.state.value.isConfirmingForfeit, "출발 전 기록 대결은 그만두기(패) 확인이 아니다")
+            vm.onCancelConfirmed()
+            runCurrent()
+            assertEquals(BattleRunningEvent.Discarded, awaitItem())
+        }
+        assertEquals(1, w.battles.calls.count { it == "cancel:42" })
+        assertFalse(w.battles.calls.any { it.startsWith("forfeit") })
+        assertTrue(w.pendingRuns.runs.value.isEmpty(), "기록을 저장하지 않는다")
+    }
+
+    @Test
     fun `TC-9636 D119 셀프런 진행 중 그만두기를 확인하면 패배로 판정하고 결과 화면으로(Finished)`() = main.runVmTest { vms ->
         val w = world()
         val vm = selfRunning(w, vms)

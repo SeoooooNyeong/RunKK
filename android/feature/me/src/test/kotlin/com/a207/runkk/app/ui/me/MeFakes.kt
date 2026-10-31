@@ -7,6 +7,7 @@ import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.account.GuestSession
 import com.a207.runkk.app.domain.account.MemberSettings
+import com.a207.runkk.app.domain.account.MySummary
 import com.a207.runkk.app.domain.account.Profile
 import com.a207.runkk.app.domain.account.ProfileEdit
 import com.a207.runkk.app.domain.account.ProviderToken
@@ -107,6 +108,8 @@ class FakeAccountRepository : AccountRepository {
     override suspend fun withdraw(): Outcome<Unit> = call("withdraw") {}
 
     override suspend fun profile(memberId: Long): Outcome<Profile> = call("profile:$memberId") { profile }
+
+    override suspend fun mySummary(): Outcome<MySummary> = error("ui.me는 본인 요약을 쓰지 않는다")
 
     override suspend fun editProfile(edit: ProfileEdit): Outcome<Unit> {
         lastEdit = edit

@@ -26,7 +26,11 @@ fun ActiveBattleDialog(state: ActiveBattleUiState, onForfeit: () -> Unit, onDism
     RunkkConfirmDialog(
         title = stringResource(R.string.battle_active_title),
         message = message,
-        confirmLabel = stringResource(R.string.battle_active_forfeit),
+        // 셀프런·셀럽런은 취소로 끝낸다(D-338): 확인 단추도 "취소하기"
+        confirmLabel =
+            stringResource(
+                if (battle.isCancellable) R.string.battle_cancel_confirm else R.string.battle_active_forfeit
+            ),
         onConfirm = onForfeit,
         onDismiss = onDismiss,
         dismissLabel = stringResource(R.string.battle_active_close),

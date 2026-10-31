@@ -39,7 +39,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.a207.runkk.app.core.designsystem.AvatarCharacter
 import com.a207.runkk.app.core.designsystem.AvatarExpression
+import com.a207.runkk.app.core.designsystem.LocalAvatarCharacter
 import com.a207.runkk.app.core.designsystem.LocalReleaseScope
 import com.a207.runkk.app.core.designsystem.RunkkAvatar
 import com.a207.runkk.app.core.designsystem.RunkkCard
@@ -418,7 +420,9 @@ private fun RankingLine(entry: Ranking.Entry, isMine: Boolean, modifier: Modifie
         RunkkAvatar(
             faceKey = null,
             expression = AvatarExpression.FACE,
-            modifier = Modifier.size(36.dp).clip(CircleShape).background(RunkkColors.Surface)
+            modifier = Modifier.size(36.dp).clip(CircleShape).background(RunkkColors.Surface),
+            // 내 줄은 내 캐릭터, 다른 러너 줄은 그 러너의 표시 성별(D-327)
+            character = if (isMine) LocalAvatarCharacter.current else AvatarCharacter.of(entry.shownGender)
         )
         Text(
             entry.name,

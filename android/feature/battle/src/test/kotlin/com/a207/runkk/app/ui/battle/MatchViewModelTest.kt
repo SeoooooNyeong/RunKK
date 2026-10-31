@@ -196,7 +196,7 @@ class MatchViewModelTest {
     fun `TC-9663 성사 화면의 내 티어는 내 프로필 티어이고 못 읽으면 비운다(R2-10)`() = main.runVmTest { vms ->
         val vm = quick(world(), vms)
         assertEquals("GOLD", vm.state.value.myTier)
-        accounts.profileResult = Outcome.Failure(AppError.Network)
+        accounts.summaryResult = Outcome.Failure(AppError.Network)
         val failed = quick(world(), vms)
         assertNull(failed.state.value.myTier)
     }
@@ -371,7 +371,7 @@ class MatchViewModelTest {
     fun `TC-9673 AN8-2 초대 응답이 프로필보다 먼저 와도 공유 메시지는 내 닉네임을 기다려 싣는다`() = main.runVmTest { vms ->
         val w = world()
         val gate = CompletableDeferred<Unit>()
-        accounts.profileGate = gate
+        accounts.summaryGate = gate
         val vm = vms.vm(w)
         vm.events.test {
             vm.startInvite(Distance(5_000))
@@ -390,8 +390,8 @@ class MatchViewModelTest {
     @Test
     fun `TC-9673 AN8-2 닉네임을 못 읽으면(실패·응답 없음) 이름 없이 공유한다`() = main.runVmTest { vms ->
         val failed = world()
-        val named = accounts.profileResult
-        accounts.profileResult = Outcome.Failure(AppError.Network)
+        val named = accounts.summaryResult
+        accounts.summaryResult = Outcome.Failure(AppError.Network)
         val vm = vms.vm(failed)
         vm.events.test {
             vm.startInvite(Distance(5_000))
@@ -399,8 +399,8 @@ class MatchViewModelTest {
             assertNull(assertIs<MatchEvent.ShareInvite>(awaitItem()).inviterName, "읽기 실패")
         }
         val slow = world()
-        accounts.profileResult = named
-        accounts.profileGate = CompletableDeferred()
+        accounts.summaryResult = named
+        accounts.summaryGate = CompletableDeferred()
         val waiting = vms.vm(slow)
         waiting.events.test {
             waiting.startInvite(Distance(5_000))

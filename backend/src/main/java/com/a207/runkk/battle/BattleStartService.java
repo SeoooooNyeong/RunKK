@@ -18,7 +18,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.random.RandomGenerator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -49,7 +48,6 @@ public class BattleStartService {
     private final LiveSessionStore liveSessionStore;
     private final Clock clock;
     private final BattleTransactions transactions;
-    private final RandomGenerator random;
 
     public BattleStartService(
             BattleRepository battleRepository,
@@ -58,8 +56,7 @@ public class BattleStartService {
             BattleMessenger battleMessenger,
             LiveSessionStore liveSessionStore,
             Clock clock,
-            BattleTransactions transactions,
-            RandomGenerator battleRandom) {
+            BattleTransactions transactions) {
         this.battleRepository = battleRepository;
         this.memberQueryService = memberQueryService;
         this.runQueryService = runQueryService;
@@ -67,7 +64,6 @@ public class BattleStartService {
         this.liveSessionStore = liveSessionStore;
         this.clock = clock;
         this.transactions = transactions;
-        this.random = battleRandom;
     }
 
     /**
@@ -108,11 +104,11 @@ public class BattleStartService {
         return battle;
     }
 
-    /** 회원 성별, 없거나 밝히지 않았으면 무작위(OpponentGenders). */
+    /** 참가자마다 표시 성별(MemberQueryService.shownGendersOf, D-336). 매칭 때 한 번 정해 대결에 남긴다. */
     private void showMembers(Battle battle) {
-        Map<Long, Gender> genders = memberQueryService.publicGendersOf(battle.memberIds());
+        Map<Long, Gender> shown = memberQueryService.shownGendersOf(battle.memberIds());
         for (long memberId : battle.memberIds()) {
-            battle.showMemberAs(memberId, OpponentGenders.of(genders.get(memberId), random));
+            battle.showMemberAs(memberId, OpponentGenders.shownOf(shown, memberId));
         }
     }
 

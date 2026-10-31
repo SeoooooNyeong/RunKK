@@ -11,6 +11,7 @@ import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.account.GuestSession
 import com.a207.runkk.app.domain.account.LocationConsentUseCase
 import com.a207.runkk.app.domain.account.MemberSettings
+import com.a207.runkk.app.domain.account.MySummary
 import com.a207.runkk.app.domain.account.Profile
 import com.a207.runkk.app.domain.account.ProfileEdit
 import com.a207.runkk.app.domain.account.ProviderToken
@@ -54,11 +55,6 @@ import com.a207.runkk.app.domain.run.RunWatchBridge
 import com.a207.runkk.app.domain.run.UploadScheduler
 import com.a207.runkk.app.domain.run.WatchDisplay
 import com.a207.runkk.app.domain.run.WatchGateway
-import com.a207.runkk.app.domain.runimal.RunimalCard
-import com.a207.runkk.app.domain.runimal.RunimalRepository
-import com.a207.runkk.app.domain.runimal.RunimalStatus
-import com.a207.runkk.app.domain.runimal.RunimalTypeBoard
-import com.a207.runkk.app.domain.runimal.RunimalTypeDetail
 import com.a207.runkk.app.domain.settings.GuidanceSettings
 import com.a207.runkk.app.domain.settings.SettingsRepository
 import com.a207.runkk.app.domain.settings.SettingsSnapshot
@@ -310,19 +306,28 @@ fun inviteView(blockedReason: String? = null) = FriendInviteView(
     blockedReason = blockedReason
 )
 
-/** 계정 가짜: 내 프로필(닉네임)과 위치 동의 주기만 쓴다. */
+/**
+ * 계정 가짜: 본인 요약(닉네임·티어·유효 러닝 수, D-331)과 위치 동의 주기만 쓴다. 배틀런은 프로필 전체를 읽지 않는다(R53):
+ * profile()은 실패를 돌려주고 부른 횟수를 센다.
+ */
 class FakeAccounts : AccountRepository {
     val consents = mutableListOf<String>()
     var consentResult: Outcome<Unit> = Outcome.Success(Unit)
-    var profileResult: Outcome<Profile> =
-        Outcome.Success(Profile(7, "달리는곰", "PUBLIC", "GOLD", 3, null, null, null, null, null))
+    var summaryResult: Outcome<MySummary> =
+        Outcome.Success(MySummary("달리는곰", "GOLD", 3, null, null, 12))
+    var profileCalls = 0
 
-    /** 있으면 프로필 응답을 이 신호까지 늦춘다(초대 응답이 먼저 오는 경합 시험). */
-    var profileGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+    /** 있으면 요약 응답을 이 신호까지 늦춘다(초대 응답이 먼저 오는 경합 시험). */
+    var summaryGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+
+    override suspend fun mySummary(): Outcome<MySummary> {
+        summaryGate?.await()
+        return summaryResult
+    }
 
     override suspend fun profile(memberId: Long): Outcome<Profile> {
-        profileGate?.await()
-        return profileResult
+        profileCalls++
+        return unused()
     }
 
     override suspend fun giveConsent(item: String): Outcome<Unit> {
@@ -714,15 +719,3 @@ fun recordDetail(recordId: String = "rec-9") = RecordDetail(
     rewardPoints = 12,
     weather = null
 )
-
-/** 배틀런 화면은 유효 러닝 수(status.validRunCount)만 읽는다(랜덤 대결 잠금). */
-class FakeRunimals(var validRuns: Int? = 1) : RunimalRepository {
-    override suspend fun status(): Outcome<RunimalStatus> =
-        Outcome.Success(RunimalStatus(null, false, null, null, emptyList(), validRuns))
-
-    override suspend fun card(): Outcome<RunimalCard> = Outcome.Failure(AppError.Rejected("UNUSED"))
-
-    override suspend fun types(): Outcome<RunimalTypeBoard> = Outcome.Failure(AppError.Rejected("UNUSED"))
-
-    override suspend fun type(type: String): Outcome<RunimalTypeDetail> = Outcome.Failure(AppError.Rejected("UNUSED"))
-}

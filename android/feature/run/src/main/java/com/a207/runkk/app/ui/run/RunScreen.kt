@@ -462,8 +462,10 @@ private fun RunningRoute(route: RouteLine, progress: RunProgress, isPaused: Bool
     val frameMillis = runFrameMillis(progress.currentPace)
     val isLeft = rememberHeadingLeft(route)
     // Kakao 지도를 띄울 수 있으면(키 + 지도 라이브러리) 지도 위에서 카메라가 나를 따라가고, 아니면 격자 바탕 경로선이다.
-    if (canShowKakaoMap(LocalKakaoMapKey.current)) {
-        KakaoRunMap(route = route, modifier = Modifier.fillMaxSize()) {
+    // 실행 중 지도 오류가 나면 격자로 바꾼다(D-340).
+    var isMapFailed by remember { mutableStateOf(false) }
+    if (canShowKakaoMap(LocalKakaoMapKey.current, isMapFailed)) {
+        KakaoRunMap(route = route, modifier = Modifier.fillMaxSize(), onMapError = { isMapFailed = true }) {
             RunkkRunningFigure(isMoving, frameMillis, isFacingLeft = isLeft)
         }
         return

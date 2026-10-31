@@ -1,23 +1,25 @@
 package com.a207.runkk.battle;
 
 import com.a207.runkk.member.Gender;
+import com.a207.runkk.member.ShownGender;
+import java.util.Map;
 import java.util.random.RandomGenerator;
 
 /**
- * 대결 상대 캐릭터 성별(2026-10-31 결정). 앱이 이 값으로 상대 캐릭터 그림을 고른다. 회원 상대(고스트 러너 기록 주인, 랜덤·친구 대결 상대)는 그 회원 성별,
- * 성별이 없거나 밝히지 않았거나 성별 공개가 아니면(MemberQueryService.publicGendersOf) 가상 상대처럼 남·여 중 무작위다. 셀럽·나와의 싸움은
- * 정하지 않는다(null). 매칭 때 한 번 정해 대결에 남기므로 다시 연결·결과 화면에서도 같은 그림이다.
+ * 대결 상대 캐릭터 성별(2026-10-31 결정, D-336). 앱이 이 값으로 상대 캐릭터 그림을 고른다. 회원 상대(고스트 러너 기록 주인, 랜덤·친구 대결 상대)는 그
+ * 회원의 표시 성별(MemberQueryService.shownGendersOf: 공개 남·여면 그 값, 아니면 회원 ID 고정 대체값)이고, 가상 상대만 남·여 중 무작위다.
+ * 셀럽·나와의 싸움은 정하지 않는다(null). 매칭 때 한 번 정해 대결에 남기므로 다시 연결·결과 화면에서도 같은 그림이다.
  */
 final class OpponentGenders {
 
     private OpponentGenders() {}
 
-    /** 회원 성별이 남·여면 그대로, 아니면 무작위. */
-    static Gender of(Gender memberGender, RandomGenerator random) {
-        if (memberGender == Gender.MALE || memberGender == Gender.FEMALE) {
-            return memberGender;
-        }
-        return random(random);
+    /** 표시 성별 맵에서 회원 값. 맵에 없으면(조회 누락) 같은 규칙의 대체값이다. */
+    static Gender shownOf(Map<Long, Gender> shown, long memberId) {
+        Gender gender = shown.get(memberId);
+        return gender == Gender.MALE || gender == Gender.FEMALE
+                ? gender
+                : ShownGender.fallbackOf(memberId);
     }
 
     /**

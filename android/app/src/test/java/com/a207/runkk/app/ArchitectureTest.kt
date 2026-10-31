@@ -42,6 +42,16 @@ class ArchitectureTest {
         assertEquals(emptyList(), violations)
     }
 
+    /** 12.4 구조 합격 조건(design-review 19장 R51·R52, D-335): 모듈 Fan-Out 7 이하, 허용 표 화살표 폰 150개·워치 5개. */
+    @Test
+    fun `모듈 Fan-Out은 7 이하이고 허용 표는 폰 150개·워치 5개다`() {
+        val over = ALLOWED.filterValues { it.size > MAX_FAN_OUT }.mapValues { it.value.size }
+        assertEquals(emptyMap(), over)
+        val (watch, phone) = ALLOWED.entries.partition { it.key.startsWith("watch.") || it.key == "wear.contract" }
+        assertEquals(150, phone.sumOf { it.value.size })
+        assertEquals(5, watch.sumOf { it.value.size })
+    }
+
     @Test
     fun `domain은 android·androidx(room 포함)·retrofit2·okhttp3·dagger(hilt 포함)를 import하지 않는다`() {
         val forbidden = listOf("android.", "androidx.", "retrofit2.", "okhttp3.", "dagger.")
@@ -325,6 +335,9 @@ class ArchitectureTest {
 
         private val CORE_UI = setOf("core.designsystem", "core.navigation", "core.model")
 
+        /** 모듈 Fan-Out 상한(12.4, design-review 구조 합격 조건). */
+        const val MAX_FAN_OUT = 7
+
         /** 한 파일 규칙(D-112)을 건 표현 계층 모듈: core 표현 두 패키지, app, 5.1.2 표의 ui.* 전부. */
         private val ONE_FILE_PRESENTATION_MODULES: List<String> =
             listOf("core.designsystem", "core.navigation", "app") + UIS.map { "ui.$it" }
@@ -354,7 +367,10 @@ class ArchitectureTest {
                 "domain.chat" to setOf("domain.live", "core.model"),
                 "domain.notification" to setOf("core.model"),
                 "domain.run" to setOf("domain.settings", "core.model"),
-                "domain.sync" to setOf("domain.run", "core.model"),
+                // v0.17(D-332): 기기 사본 조정자 DeviceCopySync가 설정 사본(domain.settings), 푸시 토큰(domain.notification),
+                // 오늘 계획(domain.record)을 서버와 맞춘다. 네 모듈 모두 domain.sync를 모른다(순환 0).
+                "domain.sync" to
+                    setOf("domain.run", "domain.settings", "domain.notification", "domain.record", "core.model"),
                 "domain.account" to setOf("domain.run", "domain.settings", "core.model"),
                 "domain.battle" to setOf("domain.run", "domain.live", "core.model"),
                 "domain.crew" to setOf("domain.run", "domain.live", "core.model"),
@@ -398,37 +414,27 @@ class ArchitectureTest {
                 "ui.run" to CORE_UI + setOf("domain.run", "domain.record"),
                 // domain.avatar 추가: 러닝 카드 배경 키·단계(AvatarRepository.backgroundChoice, D-140, D-185).
                 "ui.record" to CORE_UI + setOf("domain.record", "domain.run", "domain.avatar", "ui.share"),
-                // v0.14: domain.account는 위치 동의 시트(LocationConsentUseCase, D-267)와 초대 메시지의 내 닉네임(D-270),
-                // domain.record는 대결 결과 2쪽의 본인 기록 상세(RunDetailSource, D-283)다.
-                // domain.runimal은 랜덤 대결 잠금의 유효 러닝 수(RunimalRepository.status, D115)다. 설계서 5.1.2 표에는 아직 없다(갱신 요청).
-                "ui.battle" to
-                    CORE_UI + setOf(
-                        "domain.battle",
-                        "domain.live",
-                        "domain.account",
-                        "domain.record",
-                        "domain.runimal"
-                    ),
+                // v0.14: domain.account는 위치 동의 시트(LocationConsentUseCase, D-267)와 본인 요약(MySummary: 초대 메시지의
+                // 내 닉네임 D-270, 티어, 랜덤 대결 잠금의 유효 러닝 수 D-331), domain.record는 대결 결과 2쪽의 본인 기록 상세
+                // (RunDetailSource, D-283)다. v0.17(D-331, R51): 유효 러닝 수를 본인 요약에서 받아 domain.runimal을 뺐다.
+                "ui.battle" to CORE_UI + setOf("domain.battle", "domain.live", "domain.account", "domain.record"),
                 "ui.runimal" to CORE_UI + setOf("domain.runimal", "ui.share"),
                 // domain.report(신고 대화상자)·ui.share(축하 카드 공유) 추가(v0.11 F.6.4, D-140).
                 "ui.crew" to CORE_UI + setOf("domain.crew", "domain.report", "ui.share"),
                 "ui.chat" to CORE_UI + setOf("domain.chat", "domain.report"),
                 "ui.avatar" to CORE_UI + "domain.avatar",
-                // domain.settings는 프로필 편집의 출생연도(SettingsRepository.birthYear, D106)다. 설계서 5.1.2 표에는 아직 없다(갱신 요청).
+                // domain.settings는 프로필 편집의 출생연도(SettingsRepository.birthYear, D106)다(v0.16 5.1.2).
                 "ui.me" to CORE_UI + setOf("domain.account", "domain.settings"),
                 "ui.notification" to CORE_UI + "domain.notification",
-                // core.model 추가: 시작 작업(AppStartup)이 UseCase·포트의 Outcome을 받아 실패를 기록한다.
-                // domain.run·domain.record 추가: 시작·로그인 때 오늘 계획을 읽어(RecordRepository.todayPlan) 워치 시작 화면을
-                // 맞춘다(TodayPlanCache·WatchHomeSync, FR-042). 설계서 5.1.2 표 app 행에는 아직 없다(갱신 요청).
+                // core.model: 시작 작업(AppStartup)이 기기 사본 실패(AppError)를 기록한다. v0.17(D-332, R52): 시작·로그인 때
+                // 기기 사본 맞추기는 domain.sync의 DeviceCopySync가 하고, 로그인 상태는 SessionRepository(domain.account)로 본다.
+                // domain.settings는 화면 테마(ScreenTheme)다. domain.run·domain.record·domain.notification을 뺐다(Fan-Out 9 → 6).
                 "app" to
                     setOf(
                         "core.model",
-                        "domain.run",
-                        "domain.record",
                         "domain.sync",
                         "domain.account",
                         "domain.settings",
-                        "domain.notification",
                         "core.navigation",
                         "core.designsystem"
                     ),

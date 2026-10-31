@@ -6,7 +6,7 @@ import app.cash.turbine.test
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.navigation.Routes
-import com.a207.runkk.app.domain.account.Profile
+import com.a207.runkk.app.domain.account.MySummary
 import com.a207.runkk.app.domain.battle.MatchAcceptance
 import com.a207.runkk.app.domain.battle.RecordBattleCandidates
 import com.a207.runkk.app.ui.battle.BattleWorld.Companion.world
@@ -26,19 +26,17 @@ class BattleModeViewModelTest {
 
     private val settings = FakeConsentSettings()
     private val accounts = FakeAccounts()
-    private val runimals = FakeRunimals()
 
     private fun ViewModelCloser.vm(w: BattleWorld) =
-        track(BattleModeViewModel(w.battles, w.coordinator, consentOf(settings, accounts), accounts, runimals))
+        track(BattleModeViewModel(w.battles, w.coordinator, consentOf(settings, accounts), accounts))
 
     @Test
     fun `언랭이면 랜덤 시작 대신 남은 유효 러닝 수를 알리고 친구 초대는 막지 않는다`() = main.runVmTest { vms ->
-        accounts.profileResult =
-            Outcome.Success(Profile(7, "달리는곰", "PUBLIC", "UNRANKED", 1, null, null, null, null, null))
-        runimals.validRuns = 1
+        accounts.summaryResult = Outcome.Success(MySummary("달리는곰", "UNRANKED", 1, null, null, 1))
         val vm = vms.vm(world())
         runCurrent()
         assertEquals(2, vm.state.value.randomRunsLeft)
+        assertEquals(0, accounts.profileCalls, "프로필 전체를 읽지 않는다(R53)")
         vm.onRandomStartTapped()
         assertTrue(vm.state.value.isRandomLockNoticeVisible)
         vm.onRandomLockNoticeClosed()
@@ -46,6 +44,18 @@ class BattleModeViewModelTest {
             vm.onInviteTapped()
             assertTrue(awaitItem() is BattleModeEvent.Open)
         }
+    }
+
+    @Test
+    fun `유효 러닝 수를 모르면(옛 서버) 남은 수 없이 잠그고, 티어가 있으면 잠그지 않는다(D-331)`() = main.runVmTest { vms ->
+        accounts.summaryResult = Outcome.Success(MySummary("달리는곰", "UNRANKED", 1, null, null, null))
+        val unknown = vms.vm(world())
+        runCurrent()
+        assertEquals(0, unknown.state.value.randomRunsLeft)
+        accounts.summaryResult = Outcome.Success(MySummary("달리는곰", "GOLD", 3, null, null, 12))
+        val ranked = vms.vm(world())
+        runCurrent()
+        assertNull(ranked.state.value.randomRunsLeft)
     }
 
     @Test
