@@ -118,6 +118,15 @@ class WatchBattleFlow @Inject constructor(
     /** 대결 도착 전 끝내기(FR-248): 배틀런 포기, 셀프·셀럽런 그만두기. 기록은 남는다(FR-094). */
     fun forfeit() = coordinator.forfeit()
 
+    /**
+     * 기본 대결 거리(FR-109, GET /battles/match): 마지막으로 매칭을 요청한 거리이고 처음이면 서버 기본값이다. 매칭 대기 중이면 그 거리다.
+     * 읽지 못하면 null이다.
+     */
+    suspend fun defaultDistance(): Distance? = when (val status = battleRepository.matchStatus()) {
+        is Outcome.Success -> status.value.run { distance?.takeIf { isWaiting } ?: defaultDistance }
+        is Outcome.Failure -> null
+    }
+
     /** 결과 화면이 대결 끝(Finished·Discarded)을 받았다. 다음 대결이 지난 끝 상태를 받지 않게 한다. */
     fun acknowledge() = coordinator.acknowledgeFinished()
 

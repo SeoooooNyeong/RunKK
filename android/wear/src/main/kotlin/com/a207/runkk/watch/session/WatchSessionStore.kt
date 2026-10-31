@@ -9,7 +9,9 @@ import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.account.AccountType
 import com.a207.runkk.app.domain.account.SessionRepository
 import com.a207.runkk.app.domain.account.SessionTokens
+import com.a207.runkk.app.domain.run.FreeRunGoal
 import com.a207.runkk.app.domain.run.PendingRunRepository
+import com.a207.runkk.app.domain.run.PlanSnapshot
 import com.a207.runkk.app.domain.run.UploadScheduler
 import com.a207.runkk.app.domain.settings.SettingsRepository
 import com.a207.runkk.watch.cache.OpponentRecordCache
@@ -42,7 +44,8 @@ import timber.log.Timber
  * - 로그아웃(revoke·completeRevoke)은 서버 로그아웃(최선 노력) → 상대 기록 → 토큰 순으로 지운다. 미전송 기록은 남긴다(FR-241).
  * - 공용 :data TokenAuthenticator가 갱신을 거부당해 토큰을 지우면 None이 된다(상태도 "갱신 실패").
  * - 서버 설정 사본(위치 수집 동의·안내 설정 등, D-379)은 회원 사본이라 로그인 정보와 수명을 같이 한다: 화면이 메인을 열 때
- *   [refreshSettings]로 맞추고(폰 LoginUseCase가 로그인 뒤 맞추는 것과 같다), 로그아웃·다른 회원 로그인 때 지운다.
+ *   [refreshSettings]로 맞추고(폰 LoginUseCase가 로그인 뒤 맞추는 것과 같다), 로그아웃·다른 회원 로그인 때 지운다. 화면은 이 사본을
+ *   직접 보지 않고 [freeRunGoal]로 자유런 목표만 받는다(watch.ui Fan-Out 7 유지).
  * 모든 바꾸기는 [mutex] 하나로 한 줄로 세운다.
  */
 @Singleton
@@ -159,6 +162,12 @@ class WatchSessionStore internal constructor(
         if (_state.value !is WatchSession.Active) return@withLock Outcome.Failure(AppError.Unauthorized)
         settings.refresh()
     }
+
+    /**
+     * 설정 사본으로 고른 자유런 목표(FR-048, FR-244). 규칙은 폰과 같은 domain FreeRunGoal.of다: 코치 계획 따르기가 켜져 있고
+     * [todayPlan]이 있으면 그 계획, 아니면 자유런 설정의 목표 거리다. 사본이 없으면 목표 없음(GuidanceSettings.DEFAULT)이다.
+     */
+    fun freeRunGoal(todayPlan: PlanSnapshot?): FreeRunGoal = FreeRunGoal.of(todayPlan, settings.guidanceSettings())
 
     /** 받아 둔 세션보다 이른 표시(H-55)이거나 다른 회원의 표시. */
     private fun isStale(m: SessionRevokedMessage): Boolean {
