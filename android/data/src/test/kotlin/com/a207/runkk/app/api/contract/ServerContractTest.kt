@@ -111,6 +111,7 @@ import com.a207.runkk.app.domain.live.CrewChatRemoved
 import com.a207.runkk.app.domain.report.ReportReason
 import com.a207.runkk.app.domain.report.ReportStatus
 import com.a207.runkk.app.domain.report.ReportTargetKind
+import com.a207.runkk.app.domain.run.RunStartSpec
 import com.a207.runkk.app.domain.settings.ScreenTheme
 import com.a207.runkk.app.domain.sync.DisposalOrder
 import java.io.File
@@ -189,6 +190,7 @@ class ServerContractTest {
         assertEquals(enumNames("CardKind"), names(CardKind.entries))
         assertEquals(enumNames("RunMode"), names(RunMode.entries))
         assertEquals(enumNames("SignalState"), names(SignalState.entries))
+        assertEquals(enumNames("StartDevice"), names(RunStartSpec.StartDevice.entries))
         assertEquals(enumNames("ItemSlot"), names(ItemSlot.entries))
         assertEquals(enumNames("CrewVisibility"), names(CrewVisibility.entries))
         assertEquals(enumNames("JoinPolicy"), names(JoinPolicy.entries))

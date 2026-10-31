@@ -259,6 +259,7 @@ class RunSession(val spec: RunStartSpec) {
                 unstable = unstable.toList(),
                 heartRates = heartRates.toList(),
                 pauses = closedPauses.toList(),
+                startDevice = spec.startDevice,
                 savedAt = now
             )
         )

@@ -12,6 +12,7 @@ import com.a207.runkk.app.domain.run.CompletedRun
 import com.a207.runkk.app.domain.run.HeartRateSample
 import com.a207.runkk.app.domain.run.PauseInterval
 import com.a207.runkk.app.domain.run.RoutePoint
+import com.a207.runkk.app.domain.run.RunStartSpec
 import com.a207.runkk.app.domain.run.UnstableSegment
 import com.a207.runkk.app.domain.sync.DisposalOrder
 import com.a207.runkk.app.domain.sync.UploadReceipt
@@ -58,10 +59,17 @@ class RunUploadRemoteImplTest {
                 unstableSegments =
                     listOf(RunUploadRequest.Segment("2026-10-20T07:01:40+09:00", "2026-10-20T07:01:55+09:00", 42)),
                 heartRates = listOf(RunUploadRequest.HeartRate("2026-10-20T07:00:10+09:00", 130)),
-                pauses = emptyList()
+                pauses = emptyList(),
+                startDevice = "PHONE"
             ),
             request
         )
+    }
+
+    @Test
+    fun `시작 기기를 서버 StartDevice 이름으로 보낸다(W23, D-378)`() {
+        assertEquals("WATCH", RUN.copy(startDevice = RunStartSpec.StartDevice.WATCH).toRequest().startDevice)
+        assertEquals("PHONE", RUN.toRequest().startDevice)
     }
 
     @Test
@@ -109,7 +117,8 @@ class RunUploadRemoteImplTest {
                 "points",
                 "unstableSegments",
                 "heartRates",
-                "pauses"
+                "pauses",
+                "startDevice"
             ),
             keys
         )
