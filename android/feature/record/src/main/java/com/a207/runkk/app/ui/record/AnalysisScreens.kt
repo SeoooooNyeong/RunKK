@@ -64,6 +64,7 @@ import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
 import com.a207.runkk.app.core.designsystem.RunkkStatTile
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
+import com.a207.runkk.app.core.designsystem.SelectLabel
 import com.a207.runkk.app.core.designsystem.StatTileStyle
 import com.a207.runkk.app.core.designsystem.StatTileValue
 import com.a207.runkk.app.core.designsystem.UiText
@@ -604,12 +605,15 @@ private fun TodayPlanCard(
         )
         // 드롭다운(사용자 요청 2026-10-31: 선택지가 적다). 맨 앞은 페이스 없음(거리만 따른다)
         val none = stringResource(R.string.record_coach_pace_none)
-        val paceLabel = stringResource(R.string.record_coach_pace_option)
+        val resources = LocalContext.current.resources
         RunkkSelectField(
             label = stringResource(R.string.record_coach_today_pace),
             options = listOf<Pace?>(null) + PACE_CHOICES.map(::Pace),
             selected = pace,
-            optionLabel = { p -> p?.let { paceLabel.format(it.secondsPerKm / 60, it.secondsPerKm % 60) } ?: none },
+            // 화면은 "5:30", 보조 기술은 "1킬로미터당 5분 30초"로 읽는다(D-364, 리뷰 AN11-7: 페이스 표기는 RunkkFormat 하나로)
+            optionLabel = { p ->
+                p?.let { SelectLabel(RunkkFormat.pace(it), RunkkFormat.paceSpoken(resources, it)) } ?: SelectLabel(none)
+            },
             onSelect = onTodayPace,
             placeholder = none
         )

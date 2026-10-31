@@ -151,7 +151,7 @@ fun <T> RunkkSelectField(
     label: String,
     options: List<T>,
     selected: T?,
-    optionLabel: (T) -> String,
+    optionLabel: (T) -> SelectLabel,
     onSelect: (T) -> Unit,
     modifier: Modifier = Modifier,
     placeholder: String = stringResource(R.string.core_fields_select)
@@ -168,7 +168,13 @@ fun <T> RunkkSelectField(
                 options.forEach { option ->
                     DropdownMenuItem(
                         text = {
-                            Text(optionLabel(option), style = RunkkTextStyles.Body, color = RunkkColors.TextPrimary)
+                            val shown = optionLabel(option)
+                            Text(
+                                shown.text,
+                                style = RunkkTextStyles.Body,
+                                color = RunkkColors.TextPrimary,
+                                modifier = Modifier.semantics { contentDescription = shown.spoken }
+                            )
                         },
                         onClick = {
                             isExpanded = false
@@ -227,7 +233,7 @@ fun RunkkSwitchRow(
 @Composable
 private fun RunkkSelectBox(
     label: String,
-    selectedText: String?,
+    selected: SelectLabel?,
     placeholder: String,
     selectActionLabel: String,
     onOpen: () -> Unit
@@ -243,15 +249,15 @@ private fun RunkkSelectBox(
             .clickable(role = Role.DropdownList, onClickLabel = selectActionLabel, onClick = onOpen)
             .semantics {
                 contentDescription = label
-                stateDescription = selectedText ?: placeholder
+                stateDescription = selected?.spoken ?: placeholder
             }
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = selectedText ?: placeholder,
+            text = selected?.text ?: placeholder,
             style = RunkkTextStyles.text(15),
-            color = if (selectedText == null) RunkkColors.TextSecondary else RunkkColors.TextPrimary,
+            color = if (selected == null) RunkkColors.TextSecondary else RunkkColors.TextPrimary,
             modifier = Modifier.weight(1f)
         )
         Icon(
@@ -411,7 +417,7 @@ private fun RunkkFieldsPreview() {
             RunkkTextField(value = "", onValueChange = {}, label = "닉네임 · 2~20자, 비우면 계정 이름", placeholder = "닉네임")
             RunkkTextField(value = "가", onValueChange = {}, label = "닉네임", error = "2자 이상 입력해 주세요")
             RunkkSelectField(label = "출생연도 (선택)", options = listOf(1990, 1991), selected = null, optionLabel = {
-                "${it}년"
+                SelectLabel("${it}년")
             }, onSelect = {})
             RunkkCheckRow(label = "전체 동의", isChecked = true, onCheckedChange = {}, isHighlighted = true)
             RunkkCheckRow(label = "서비스 이용약관", isChecked = true, onCheckedChange = {

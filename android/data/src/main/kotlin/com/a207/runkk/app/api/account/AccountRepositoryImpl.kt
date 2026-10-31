@@ -107,6 +107,10 @@ constructor(
     private val currentGender = MutableStateFlow<Gender?>(null)
     override val myGender: StateFlow<Gender?> = currentGender.asStateFlow()
 
+    override fun forgetMyGender() {
+        currentGender.value = null
+    }
+
     override suspend fun profile(memberId: Long): Outcome<Profile> {
         val id = self.resolve(memberId, AccountRepository.SELF) ?: return Outcome.Failure(AppError.Unauthorized)
         val result = ApiErrorMapper.call { me.profile(id).toDomain() }

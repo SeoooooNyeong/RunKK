@@ -310,13 +310,13 @@ fun RunkkLimePillButton(
     ) {
         Row(
             modifier = Modifier
-                .heightIn(min = 40.dp)
+                .heightIn(min = LIME_PILL_MIN_HEIGHT)
                 .runkkPressScale(interaction)
                 // 꺼지면 배경까지 흐리게(alpha는 뒤에 오는 그리기에만 걸린다).
                 .runkkDisabledAlpha(isEnabled)
-                .clip(RoundedCornerShape(20.dp))
+                .clip(LIME_PILL_SHAPE)
                 .background(RunkkColors.LimeFill)
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = LIME_PILL_PADDING),
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -345,10 +345,10 @@ fun RunkkLimePill(
 ) {
     Box(
         modifier = modifier
-            .heightIn(min = 40.dp)
-            .clip(RoundedCornerShape(20.dp))
+            .heightIn(min = LIME_PILL_MIN_HEIGHT)
+            .clip(LIME_PILL_SHAPE)
             .background(RunkkColors.LimeFill)
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = LIME_PILL_PADDING),
         contentAlignment = Alignment.Center
     ) {
         Text(text, style = textStyle, color = RunkkColors.OnLimeFill)
@@ -549,3 +549,8 @@ private fun RunkkButtonsPreview() {
         }
     }
 }
+
+/** 라임 알약 모양(버튼과 표시 알약이 함께 쓴다, 리뷰 AN11-8): 최소 높이 40, 모서리 20, 좌우 여백 16. */
+private val LIME_PILL_MIN_HEIGHT = 40.dp
+private val LIME_PILL_SHAPE = RoundedCornerShape(20.dp)
+private val LIME_PILL_PADDING = 16.dp

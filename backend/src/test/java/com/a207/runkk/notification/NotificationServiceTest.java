@@ -275,6 +275,55 @@ class NotificationServiceTest {
     }
 
     @Test
+    @org.junit.jupiter.api.DisplayName(
+            "notifyCollapsing: 크루 공개 전에는 크루 채팅을 알림함에 묶어 저장만 하고 푸시하지 않는다, 닫히지 않은 종류는 묶음 키로 푸시하고 크루를"
+                    + " 공개하면 크루 채팅도 푸시한다(D138, BE11-3)")
+    void notifyCollapsing_unreleasedCrew_savesWithoutPush() {
+        NotificationService closed = serviceAt(NOW, closedSettings);
+        long id = member("곰A");
+        closed.registerDevice(id, "t");
+        NavigationTarget crew7 = new NavigationTarget(Screen.CREW_CHAT, "7");
+
+        closed.notifyCollapsing(
+                new NotificationRequest(id, NotificationType.CREW_CHAT, "메시지 1", crew7));
+        serviceAt(NOW.plusMinutes(1), closedSettings)
+                .notifyCollapsing(
+                        new NotificationRequest(id, NotificationType.CREW_CHAT, "메시지 2", crew7));
+
+        assertThat(pushed).isEmpty();
+        assertThat(collapseKeys).isEmpty();
+        assertThat(notifications.size()).as("닫혀 있어도 묶음 저장은 한다").isEqualTo(1);
+        assertThat(closed.inbox(id, Optional.empty()).items().get(0).content()).isEqualTo("메시지 2");
+
+        closed.notifyCollapsing(
+                new NotificationRequest(
+                        id,
+                        NotificationType.BACKGROUND_UNLOCKED,
+                        "새 배경",
+                        new NavigationTarget(Screen.AVATAR_BACKGROUND, "3")));
+        assertThat(collapseKeys).as("아바타 꾸미기도 닫혀 있다").isEmpty();
+
+        closed.notifyCollapsing(
+                new NotificationRequest(
+                        id,
+                        NotificationType.OPPONENT_ARRIVED,
+                        "상대 도착",
+                        new NavigationTarget(Screen.BATTLE_RESULT, "9")));
+        assertThat(collapseKeys).as("닫힌 기능이 아닌 종류").containsExactly("opponent_arrived_9");
+
+        OperationSetting crew = OperationSetting.initial(SettingKey.CREW_RELEASED, NOW);
+        crew.change("true", "KAKAO:1", NOW);
+        closedSettings.save(crew);
+        serviceAt(NOW.plusMinutes(2), closedSettings)
+                .notifyCollapsing(
+                        new NotificationRequest(id, NotificationType.CREW_CHAT, "메시지 3", crew7));
+
+        assertThat(collapseKeys).containsExactly("opponent_arrived_9", "crew_chat_7");
+        assertThat(pushed).hasSize(2);
+        assertThat(notifications.size()).as("공개 뒤 메시지도 읽지 않은 같은 행에 묶인다").isEqualTo(3);
+    }
+
+    @Test
     @org.junit.jupiter.api.DisplayName("D138: 크루만 공개하면 크루 알림은 푸시하고 아바타 알림은 여전히 저장만 한다")
     void notify_crewReleasedOnly_pushesCrewButNotAvatar() {
         OperationSetting crew = OperationSetting.initial(SettingKey.CREW_RELEASED, NOW);

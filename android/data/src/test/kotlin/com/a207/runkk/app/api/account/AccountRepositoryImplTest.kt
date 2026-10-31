@@ -210,6 +210,17 @@ class AccountRepositoryImplTest {
     }
 
     @Test
+    fun `로그아웃하면 내 성별 사본을 비운다(리뷰 AN10-5)`() = runTest {
+        api.reply("""{"memberId":7,"displayName":"나","disclosure":"PUBLIC","tier":"UNRANKED","gender":"FEMALE"}""")
+        repository.mySummary().value()
+        assertEquals(Gender.FEMALE, repository.myGender.value)
+
+        repository.forgetMyGender()
+
+        assertEquals(null, repository.myGender.value)
+    }
+
+    @Test
     fun `옛 서버가 runCount를 주지 않으면 본인 요약의 유효 러닝 수는 null이다(D-331)`() = runTest {
         api.reply("""{"memberId":7,"displayName":"나","disclosure":"PUBLIC","tier":"UNRANKED"}""")
 

@@ -43,10 +43,8 @@ fun RunkkLoopingVideo(@RawRes video: Int, modifier: Modifier = Modifier) {
 
 @OptIn(UnstableApi::class)
 private fun openLoopingVideo(context: Context, @RawRes video: Int): ExoPlayer? = try {
-    ExoPlayer.Builder(context).build().apply {
+    openLoopingPlayer(context, video).apply {
         volume = 0f
-        setMediaItem(MediaItem.fromUri(RawResourceDataSource.buildRawResourceUri(video)))
-        repeatMode = Player.REPEAT_MODE_ONE
         prepare()
     }
 } catch (e: Exception) {

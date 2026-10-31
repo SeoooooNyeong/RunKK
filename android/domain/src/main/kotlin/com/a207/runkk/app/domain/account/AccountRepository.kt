@@ -14,6 +14,9 @@ interface AccountRepository {
     /** 내 성별(기본 캐릭터 남녀를 고른다). 내 프로필을 읽거나 고치면 갱신한다. 아직 모르면 null. */
     val myGender: StateFlow<Gender?> get() = UNKNOWN_GENDER
 
+    /** 로그아웃하면 내 성별 사본을 비운다(다음 회원이 이전 회원의 기본 캐릭터를 잠깐 보지 않게, 리뷰 AN10-5). */
+    fun forgetMyGender() {}
+
     suspend fun login(token: ProviderToken): Outcome<SessionTokens>
 
     suspend fun signUp(form: SignUpForm): Outcome<SessionTokens>

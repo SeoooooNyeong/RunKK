@@ -33,9 +33,15 @@ fun RunkkAvatar(
         RunkkAvatarPortrait(faceKey ?: RunkkAvatarArt.DEFAULT_FACE_KEY, faceLayers, modifier)
     } else {
         val isFace = expression == AvatarExpression.FACE
-        // 여자 전신 그림은 머리가 작고 다리가 길어 같은 키로 그리면 남자보다 커 보인다: 발을 붙인 채 조금 줄여 비슷한 크기로 맞춘다
-        // (사용자 요청 2026-10-31). 얼굴(프로필 원)은 그대로다.
-        val scale = if (character == AvatarCharacter.FEMALE && !isFace) FEMALE_FIGURE_SCALE else 1f
+        // 여자 서기·기쁨은 남자와 같은 짧은 체형으로 다시 그렸다(사용자 요청 2026-10-31). 아직 머리가 작고 다리가 긴 점프·달리기
+        // 그림만 같은 키로 그리면 남자보다 커 보여 발을 붙인 채 조금 줄인다. 얼굴(프로필 원)·슬픔·찾기는 그대로다.
+        val scale = if (character == AvatarCharacter.FEMALE &&
+            expression in FEMALE_TALL_POSES
+        ) {
+            FEMALE_FIGURE_SCALE
+        } else {
+            1f
+        }
         Image(
             painterResource(defaultAvatarOf(expression, character)),
             contentDescription = null,
@@ -54,8 +60,11 @@ fun RunkkAvatar(
     }
 }
 
-/** 여자 전신 그림을 남자와 같은 칸에 그릴 때의 크기 비. */
+/** 아직 긴 체형인 여자 전신 그림([FEMALE_TALL_POSES])을 남자와 같은 칸에 그릴 때의 크기 비. */
 internal const val FEMALE_FIGURE_SCALE = 0.9f
+
+/** 남자와 체형이 다른(머리가 작고 다리가 긴) 여자 그림 자세. 서기·기쁨은 짧은 체형으로 다시 그려 빠졌다. */
+private val FEMALE_TALL_POSES = setOf(AvatarExpression.JUMP, AvatarExpression.RUN)
 
 /** 전신 그림을 줄일 때 기준점(칸 아래 가운데, 발밑). */
 private val FEET = TransformOrigin(0.5f, 1f)

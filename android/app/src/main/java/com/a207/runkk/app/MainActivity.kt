@@ -87,6 +87,8 @@ class MainActivity : ComponentActivity() {
                 val loggedIn by produceState<Boolean?>(initialValue = null, session) {
                     session.loggedIn.collect { value = it }
                 }
+                // 로그아웃하면 내 성별 사본을 비운다(다음 회원이 이전 회원의 기본 캐릭터를 보지 않게, 리뷰 AN10-5)
+                LaunchedEffect(loggedIn) { if (loggedIn == false) account.forgetMyGender() }
                 val gender by account.myGender.collectAsState()
                 val character = AvatarCharacter.of(gender)
                 // Kakao 지도 키는 플레이버별 값(패키지마다 다른 네이티브 앱 키)을 화면 전체에 넣는다(LocalKakaoMapKey).

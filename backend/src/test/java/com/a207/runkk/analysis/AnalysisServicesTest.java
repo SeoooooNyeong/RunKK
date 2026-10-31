@@ -275,6 +275,63 @@ class AnalysisServicesTest {
         assertThat(view.streakWeeks()).as("7/13 주 ~ 10/19 주").isEqualTo(15);
     }
 
+    @org.junit.jupiter.params.ParameterizedTest(name = "{0}일 연속, 오늘 기록={1}, 조회 {2}번")
+    @org.junit.jupiter.params.provider.CsvSource({
+        "79, true, 1",
+        "80, true, 2",
+        "81, true, 2",
+        "100, true, 2",
+        "443, true, 2",
+        "444, true, 3",
+        "445, true, 3",
+        "78, false, 1",
+        "79, false, 2",
+        "443, false, 3"
+    })
+    @org.junit.jupiter.api.DisplayName(
+            "대시보드 크루 일 연속: 잔디 범위(12주) 첫날에 닿으면 52주씩 더 읽어 끊긴 날까지 센다, 끊긴 날 앞 기록은 세지 않는다(D136, D-341,"
+                    + " BE11-3)")
+    void dashboard_crewStreakDays_isNotCappedByGrassRange(
+            int streak, boolean ranToday, int expectedReads) {
+        List<Long> crewMembers = List.of(ME, OTHER);
+        when(crews.activeCrewOf(ME)).thenReturn(Optional.of(new CrewSummary(7, "새벽크루", null)));
+        when(crews.activeMemberIds(7)).thenReturn(crewMembers);
+        when(runs.distancesByMember(any(), any())).thenReturn(Map.of());
+        LocalDate latest = ranToday ? TODAY : TODAY.minusDays(1);
+        Set<LocalDate> days = new java.util.HashSet<>();
+        for (int i = 0; i < streak; i++) {
+            days.add(latest.minusDays(i));
+        }
+        LocalDate oldest = latest.minusDays(streak - 1L);
+        days.add(oldest.minusDays(2)); // 하루 비우고 그 앞에 기록 하나
+        List<DateRange> asked = new ArrayList<>();
+        when(runs.dailyDistances(eq(crewMembers), any()))
+                .thenAnswer(
+                        inv -> {
+                            DateRange range = inv.getArgument(1);
+                            asked.add(range);
+                            Map<LocalDate, Distance> result = new java.util.HashMap<>();
+                            days.stream()
+                                    .filter(range::contains)
+                                    .forEach(d -> result.put(d, Distance.ofKm(5)));
+                            return result;
+                        });
+        DashboardService service =
+                new DashboardService(runs, goals, crews, members, policy, rewards, clock);
+
+        DashboardView view = service.dashboard(ME, null);
+
+        assertThat(view.crew().streakDays()).isEqualTo(streak);
+        assertThat(view.crew().grass().cells()).as("크루 잔디는 그대로 12주").hasSize(80);
+        assertThat(asked).as("잔디 1번 + 52주씩").hasSize(expectedReads);
+        for (int i = 1; i < asked.size(); i++) {
+            assertThat(asked.get(i).end())
+                    .as("앞 범위 바로 전날까지 이어 읽는다")
+                    .isEqualTo(asked.get(i - 1).start().minusDays(1));
+            assertThat(asked.get(i).start()).isEqualTo(asked.get(i - 1).start().minusWeeks(52));
+        }
+    }
+
     private RecordQueryService records() {
         return new RecordQueryService(runs, members, crews, races, rewards, policy, clock);
     }

@@ -24,7 +24,6 @@ import com.a207.runkk.app.core.designsystem.RunkkIconButton
 import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.media.rememberSoundVolume
-import kotlin.math.roundToInt
 
 /**
  * 소리 묶음(사용자 요청 2026-10-31): 배경 음악과 효과음 크기. 기기에만 저장하는 값(RunkkSoundVolume)이라 서버 설정을 거치지 않고,
@@ -53,12 +52,10 @@ internal fun SoundSection() {
 /** 크기 한 줄의 행동: 끌기, 손 떼기(저장), 스피커 아이콘(끄기·켜기). */
 private class VolumeActions(val onChange: (Float) -> Unit, val onDone: () -> Unit, val onToggle: () -> Unit)
 
-/** 스피커 아이콘(끄기·켜기) + 제목 + 끌어 정하는 크기 막대 한 줄. 막대 읽기 정보는 "제목, n퍼센트"다. */
+/** 스피커 아이콘(끄기·켜기) + 제목 + 끌어 정하는 크기 막대 한 줄. 막대는 제목을 읽고 퍼센트는 막대 진행 값이 읽는다. */
 @Composable
 private fun VolumeRow(@StringRes title: Int, level: Float, actions: VolumeActions, tag: String) {
     val titleText = stringResource(title)
-    val percent = (level * PERCENT).roundToInt()
-    val spoken = stringResource(R.string.me_settings_volume_spoken, titleText, percent)
     val isMuted = level <= 0f
     Row(
         modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 56.dp).padding(start = 8.dp, end = 16.dp),
@@ -90,12 +87,11 @@ private fun VolumeRow(@StringRes title: Int, level: Float, actions: VolumeAction
                 activeTrackColor = RunkkColors.Lime,
                 inactiveTrackColor = RunkkColors.Border
             ),
-            modifier = Modifier.weight(1f).testTag(tag).semantics { contentDescription = spoken }
+            // 읽기 문구는 제목만 둔다: 퍼센트는 막대의 진행 값이 읽는다(두 번 읽지 않게, D-364)
+            modifier = Modifier.weight(1f).testTag(tag).semantics { contentDescription = titleText }
         )
     }
 }
-
-private const val PERCENT = 100
 
 internal const val MUSIC_VOLUME_TAG = "settings-music-volume"
 internal const val EFFECT_VOLUME_TAG = "settings-effect-volume"

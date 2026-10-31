@@ -44,6 +44,7 @@ import com.a207.runkk.app.core.designsystem.RunkkTextField
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
+import com.a207.runkk.app.core.designsystem.SelectLabel
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
@@ -183,7 +184,7 @@ private fun ProfileEditForm(
             label = stringResource(R.string.me_profile_birth_year_label),
             options = remember(thisYear) { (thisYear downTo OLDEST_BIRTH_YEAR).toList() },
             selected = state.birthYear,
-            optionLabel = { resources.getString(R.string.me_profile_birth_year_option, it) },
+            optionLabel = { SelectLabel(resources.getString(R.string.me_profile_birth_year_option, it)) },
             onSelect = { onBirthYearChange(it) }
         )
         val public = stringResource(R.string.me_profile_public)

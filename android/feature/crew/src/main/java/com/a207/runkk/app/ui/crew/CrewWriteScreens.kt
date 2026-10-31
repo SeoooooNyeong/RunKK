@@ -59,6 +59,7 @@ import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
 import com.a207.runkk.app.core.designsystem.RunkkTextField
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
+import com.a207.runkk.app.core.designsystem.SelectLabel
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.designsystem.codePointLength
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
@@ -181,7 +182,7 @@ fun CrewPollWriteScreen(
                     label = stringResource(R.string.crew_poll_write_date_label),
                     options = (0 until CrewPollWriteUiState.DAYS).toList(),
                     selected = state.dayOffset,
-                    optionLabel = { offset -> dayLabel(resources, state.today, offset) },
+                    optionLabel = { offset -> SelectLabel(dayLabel(resources, state.today, offset)) },
                     onSelect = onDay,
                     modifier = Modifier.weight(1f)
                 )
@@ -189,7 +190,7 @@ fun CrewPollWriteScreen(
                     label = stringResource(R.string.crew_poll_write_time_label),
                     options = CrewRunWriteUiState.TIMES,
                     selected = state.time,
-                    optionLabel = { it.format(TIME) },
+                    optionLabel = { SelectLabel(it.format(TIME)) },
                     onSelect = onTime,
                     modifier = Modifier.weight(1f)
                 )

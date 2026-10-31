@@ -54,7 +54,7 @@ private class LoopingMusic(private val player: ExoPlayer, private val audio: Aud
 
     fun play() {
         if (player.playWhenReady) return
-        if (!hasPlayed && audio?.isMusicActive == true && ownPlaying == 0) return
+        if (!mayStartMusic(hasPlayed, audio?.isMusicActive == true, ownPlaying)) return
         hasPlayed = true
         player.play()
         count(true)
@@ -86,10 +86,8 @@ private class LoopingMusic(private val player: ExoPlayer, private val audio: Aud
 
         @OptIn(UnstableApi::class)
         fun open(context: Context, @RawRes music: Int): LoopingMusic? = try {
-            val player = ExoPlayer.Builder(context).build().apply {
+            val player = openLoopingPlayer(context, music).apply {
                 setAudioAttributes(MUSIC, false)
-                setMediaItem(MediaItem.fromUri(RawResourceDataSource.buildRawResourceUri(music)))
-                repeatMode = Player.REPEAT_MODE_ONE
                 prepare()
             }
             LoopingMusic(player, context.getSystemService(AudioManager::class.java))
@@ -107,3 +105,10 @@ private val MUSIC: AudioAttributes =
         .build()
 
 private const val TAG = "RunkkBackgroundMusic"
+
+/**
+ * 배경 음악을 틀어도 되는가(D-346, FR-235): 이미 한 번 틀었으면(멈췄다 다시 틀기) 늘 된다. 처음이면 다른 앱 음악이 나오는 중일 때만
+ * 양보한다. 기기에서 음악이 나오더라도 우리 재생기([ownPlaying] > 0, 앞 화면 음악)가 내는 것이면 다른 앱 음악으로 보지 않는다.
+ */
+internal fun mayStartMusic(hasPlayed: Boolean, isMusicActive: Boolean, ownPlaying: Int): Boolean =
+    hasPlayed || !isMusicActive || ownPlaying > 0
