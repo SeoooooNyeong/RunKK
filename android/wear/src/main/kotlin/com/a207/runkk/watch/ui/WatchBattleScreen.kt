@@ -123,7 +123,8 @@ private const val GAP_ITEM_INDEX = 1
 private fun WatchBattleScreenPreview() {
     WatchTheme {
         WatchRoot(
-            state = WatchUiState(
+            flow = WatchFlow.Companion,
+            companion = WatchUiState(
                 isPhoneConnected = true,
                 isRunning = true,
                 elapsedSeconds = 940,

@@ -52,7 +52,6 @@ class WatchViewModel @Inject constructor(
     private data class LocalEvents(
         val notice: WatchNotice? = null,
         val noticeAtMillis: Long = 0,
-        val startRequestedAtMillis: Long? = null,
         val isNotificationPromptPending: Boolean = false
     )
 
@@ -124,25 +123,6 @@ class WatchViewModel @Inject constructor(
         }
     }
 
-    /**
-     * 시작 버튼(FR-183). 폰과 연결되지 않았으면 [WatchNotice.PhoneNotConnected]("폰과 연결 필요")를 보인다.
-     * 측정은 폰이 시작한다(C-002).
-     */
-    fun onStartTapped() {
-        events.update { it.copy(startRequestedAtMillis = clock.millis(), notice = null) }
-        viewModelScope.launch {
-            if (!phoneLink.sendStartRequest()) {
-                events.update {
-                    it.copy(
-                        startRequestedAtMillis = null,
-                        notice = WatchNotice.PhoneNotConnected,
-                        noticeAtMillis = clock.millis()
-                    )
-                }
-            }
-        }
-    }
-
     /** 종료 버튼을 짧게 눌렀다(FR-181). 요청은 보내지 않고 "길게 눌러 종료"를 안내한다. */
     fun onEndTapped() {
         events.update { it.copy(notice = WatchNotice.HoldToEnd, noticeAtMillis = clock.millis()) }
@@ -179,11 +159,6 @@ class WatchViewModel @Inject constructor(
         }
     }
 
-    /** "다시 연결"(와이어프레임 K3). 폰 연결을 바로 다시 확인하고, 연결되면 시작 화면으로 바뀐다. */
-    fun onReconnectTapped() {
-        viewModelScope.launch { phoneLink.recheckConnection() }
-    }
-
     /** 알림 권한 창을 띄웠다. 결과(허용·거절)와 관계없이 다시 묻지 않고, 심박 수집은 계속한다. */
     fun onNotificationPromptShown() {
         notificationGate.markAsked()
@@ -203,13 +178,7 @@ class WatchViewModel @Inject constructor(
         events.update { current ->
             when {
                 phoneNotice != null ->
-                    current.copy(
-                        notice = WatchNotice.FromPhone(phoneNotice),
-                        noticeAtMillis = display.atMillis,
-                        startRequestedAtMillis = null
-                    )
-
-                display.isRunning -> current.copy(startRequestedAtMillis = null)
+                    current.copy(notice = WatchNotice.FromPhone(phoneNotice), noticeAtMillis = display.atMillis)
 
                 else -> current
             }
@@ -224,7 +193,6 @@ class WatchViewModel @Inject constructor(
             ?.takeIf { now - it.measuredAtEpochMillis <= HEART_RATE_STALE_MILLIS }
             ?.bpm
         val displayStale = display == null || now - display.atMillis > LINK_LOST_MILLIS
-        val requestedAt = inputs.events.startRequestedAtMillis
         return WatchUiState(
             isPhoneConnected = inputs.isConnected,
             isRunning = isRunning,
@@ -235,7 +203,6 @@ class WatchViewModel @Inject constructor(
             planDistanceMeters = display?.planDistanceMeters,
             planPaceSecondsPerKm = display?.planPaceSecondsPerKm,
             isLinkLost = isRunning && (!inputs.isConnected || displayStale),
-            isStartPending = !isRunning && requestedAt != null && now - requestedAt < START_PENDING_MILLIS,
             isHeartRatePermissionNeeded = inputs.isPermissionNeeded,
             notice = inputs.events.notice?.takeIf { now - inputs.events.noticeAtMillis < NOTICE_MILLIS },
             isNotificationPermissionNeeded = inputs.events.isNotificationPromptPending,
@@ -259,9 +226,6 @@ class WatchViewModel @Inject constructor(
 
         /** 근접 알림 화면을 남기는 시간. 소리·진동처럼 마지막 메시지 뒤 3초가 되면(정각 포함) 내린다(D-158). */
         const val PROXIMITY_EXPIRY_MILLIS = 3_000L
-
-        /** 시작 요청 뒤 폰의 응답을 기다리는 시간. */
-        const val START_PENDING_MILLIS = 10_000L
 
         private const val TICK_MILLIS = 1_000L
         private const val STOP_TIMEOUT_MILLIS = 5_000L

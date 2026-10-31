@@ -154,56 +154,11 @@ class WatchViewModelTest {
     }
 
     @Test
-    fun `폰과 연결되지 않은 채 시작을 누르면 폰과 연결 필요를 보인다`() = runTest {
-        dataLayer.nodes = emptyList()
+    fun `폰이 보낸 안내는 잠시 보였다가 사라진다`() = runTest {
         val vm = viewModel()
-
-        vm.onStartTapped()
-        runCurrent()
-
-        val state = vm.uiState.value
-        assertEquals(WatchNotice.PhoneNotConnected, state.notice)
-        assertFalse(state.isStartPending)
-        assertTrue(dataLayer.sentMessages.isEmpty())
-    }
-
-    @Test
-    fun `시작을 누르면 폰에 요청을 보내고 러닝 표시가 올 때까지 기다린다`() = runTest {
-        val vm = viewModel()
-        receive(display(running = false))
-
-        vm.onStartTapped()
-        runCurrent()
-        assertTrue(vm.uiState.value.isStartPending)
-        assertEquals(WearPaths.START_REQUEST, dataLayer.sentMessages.single().second)
-
-        receive(display(running = true))
-
-        assertFalse(vm.uiState.value.isStartPending)
-        assertTrue(vm.uiState.value.isRunning)
-    }
-
-    @Test
-    fun `폰이 시작하지 않으면 기다림을 일정 시간 뒤 푼다`() = runTest {
-        val vm = viewModel()
-        vm.onStartTapped()
-        runCurrent()
-
-        advanceTimeBy(WatchViewModel.START_PENDING_MILLIS + 1_000)
-        runCurrent()
-
-        assertFalse(vm.uiState.value.isStartPending)
-    }
-
-    @Test
-    fun `폰이 보낸 안내는 기다림을 풀고 잠시 보였다가 사라진다`() = runTest {
-        val vm = viewModel()
-        vm.onStartTapped()
-        runCurrent()
 
         receive(display(running = false, notice = "폰에서 러닝 화면을 여세요"))
         assertEquals(WatchNotice.FromPhone("폰에서 러닝 화면을 여세요"), vm.uiState.value.notice)
-        assertFalse(vm.uiState.value.isStartPending)
 
         advanceTimeBy(WatchViewModel.NOTICE_MILLIS + 1_000)
         runCurrent()
@@ -474,18 +429,5 @@ class WatchViewModelTest {
         advanceTimeBy(1_000)
         runCurrent()
         assertNull(vm.uiState.value.proximity)
-    }
-
-    @Test
-    fun `다시 연결을 누르면 연결을 바로 다시 확인해 시작 화면으로 바꾼다(K3)`() = runTest {
-        dataLayer.nodes = emptyList()
-        val vm = viewModel()
-        assertFalse(vm.uiState.value.isPhoneConnected)
-
-        dataLayer.nodes = listOf("phone")
-        vm.onReconnectTapped()
-        runCurrent()
-
-        assertTrue(vm.uiState.value.isPhoneConnected)
     }
 }
