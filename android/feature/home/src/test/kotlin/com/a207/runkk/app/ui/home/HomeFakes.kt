@@ -148,14 +148,21 @@ fun completedRun(id: String) = CompletedRun(
 )
 
 class FakeAccountRepository : com.a207.runkk.app.domain.account.AccountRepository {
-    var profileResult: Outcome<com.a207.runkk.app.domain.account.Profile> = Outcome.Success(
-        com.a207.runkk.app.domain.account.Profile(7, "달리는곰", "SELF", "골드", 3, null, null, null, null, null)
+    /** 홈 상단은 본인 요약만 읽는다(D-331, R35). 프로필 전체를 읽으면 profileIds에 남는다. */
+    var summaryResult: Outcome<com.a207.runkk.app.domain.account.MySummary> = Outcome.Success(
+        com.a207.runkk.app.domain.account.MySummary("달리는곰", "골드", 3, null, null, 12)
     )
+    var summaryCalls = 0
     val profileIds = mutableListOf<Long>()
+
+    override suspend fun mySummary(): Outcome<com.a207.runkk.app.domain.account.MySummary> {
+        summaryCalls++
+        return summaryResult
+    }
 
     override suspend fun profile(memberId: Long): Outcome<com.a207.runkk.app.domain.account.Profile> {
         profileIds += memberId
-        return profileResult
+        return unusedOutcome()
     }
 
     override suspend fun login(token: com.a207.runkk.app.domain.account.ProviderToken) =

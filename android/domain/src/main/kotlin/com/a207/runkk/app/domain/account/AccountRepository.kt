@@ -36,6 +36,12 @@ interface AccountRepository {
 
     suspend fun profile(memberId: Long): Outcome<Profile>
 
+    /**
+     * 본인 요약(D-331, R35): 본인 프로필 응답에서 홈·배틀런이 쓰는 값만 옮긴다. 요청은 profile(SELF)와 같은 하나이고,
+     * 읽으면 [myGender]도 갱신한다. 본인 ID를 모르면(토큰 없음) Unauthorized.
+     */
+    suspend fun mySummary(): Outcome<MySummary>
+
     /** 프로필 편집(PATCH /me/profile, FR-007, D-287). 성향 태그(D-91)와 사진은 편집 항목이 아니다. */
     suspend fun editProfile(edit: ProfileEdit): Outcome<Unit>
 

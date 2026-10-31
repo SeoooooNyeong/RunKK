@@ -11,7 +11,6 @@ import com.a207.runkk.app.domain.account.LocationConsentUseCase
 import com.a207.runkk.app.domain.battle.BattleRepository
 import com.a207.runkk.app.domain.battle.BattleRunCoordinator
 import com.a207.runkk.app.domain.battle.RandomBattleGate
-import com.a207.runkk.app.domain.runimal.RunimalRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.Job
@@ -34,8 +33,7 @@ class BattleModeViewModel @Inject constructor(
     private val battles: BattleRepository,
     private val coordinator: BattleRunCoordinator,
     private val consent: LocationConsentUseCase,
-    private val account: AccountRepository,
-    private val runimals: RunimalRepository
+    private val account: AccountRepository
 ) : ViewModel() {
     private val _state = MutableStateFlow(BattleModeUiState())
     val state: StateFlow<BattleModeUiState> = _state.asStateFlow()
@@ -135,11 +133,13 @@ class BattleModeViewModel @Inject constructor(
         _state.update { it.copy(cards = cards) }
     }
 
-    /** 내 티어와 유효 러닝 수로 랜덤 대결 잠금을 정한다. 프로필을 못 읽으면 잠그지 않는다(서버가 RANKED_ONLY로 막는다). */
+    /**
+     * 본인 요약의 티어와 유효 러닝 수(본인 프로필 runCount, D-331)로 랜덤 대결 잠금을 정한다. 요약을 못 읽으면 잠그지 않는다
+     * (서버가 RANKED_ONLY로 막는다).
+     */
     private suspend fun loadRandomLock() {
-        val tier = account.profile(AccountRepository.SELF).getOrNull()?.tier
-        val validRuns = runimals.status().getOrNull()?.validRunCount
-        _state.update { it.copy(randomRunsLeft = RandomBattleGate.runsLeft(tier, validRuns)) }
+        val me = account.mySummary().getOrNull()
+        _state.update { it.copy(randomRunsLeft = RandomBattleGate.runsLeft(me?.tier, me?.validRuns)) }
     }
 
     /** 앱이 강제 종료돼 남은 초대(최대 5분 동안 랜덤 매칭을 막는다)를 취소한다(D-271). */

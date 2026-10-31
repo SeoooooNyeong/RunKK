@@ -12,6 +12,7 @@ import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.account.MemberSettings
+import com.a207.runkk.app.domain.account.MySummary
 import com.a207.runkk.app.domain.account.Profile
 import com.a207.runkk.app.domain.account.ProfileEdit
 import com.a207.runkk.app.domain.account.ProviderToken
@@ -187,7 +188,32 @@ class AccountRepositoryImplTest {
             AccountRepositoryImpl(api.retrofit.create(), api.retrofit.create(), noToken, SelfMember(noToken), api.faces)
 
         assertEquals(Outcome.Failure(AppError.Unauthorized), loggedOut.profile(AccountRepository.SELF))
+        assertEquals(Outcome.Failure(AppError.Unauthorized), loggedOut.mySummary())
         assertEquals(0, api.server.requestCount)
+    }
+
+    @Test
+    fun `본인 요약은 본인 프로필 응답 하나에서 쓰는 값만 옮기고 유효 러닝 수는 runCount다(D-331)`() = runTest {
+        api.reply(
+            """{"memberId":7,"displayName":"달리는곰","disclosure":"PUBLIC","tier":"UNRANKED","level":3,
+               |"faceKey":"default:BEAR","avatarBackgroundKey":"BUSAN","runCount":2,"gender":"FEMALE",
+               |"totalDistanceMeters":9000}
+            """.trimMargin()
+        )
+
+        val summary = repository.mySummary().value()
+
+        assertEquals(MySummary("달리는곰", "UNRANKED", 3, "default:BEAR", "BUSAN", 2), summary)
+        assertEquals(Gender.FEMALE, repository.myGender.value)
+        assertEquals("/api/v1/members/7/profile", api.take().url.encodedPath)
+        assertEquals(1, api.server.requestCount)
+    }
+
+    @Test
+    fun `옛 서버가 runCount를 주지 않으면 본인 요약의 유효 러닝 수는 null이다(D-331)`() = runTest {
+        api.reply("""{"memberId":7,"displayName":"나","disclosure":"PUBLIC","tier":"UNRANKED"}""")
+
+        assertEquals(null, repository.mySummary().value().validRuns)
     }
 
     @Test

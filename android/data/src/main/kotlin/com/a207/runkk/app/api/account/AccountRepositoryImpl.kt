@@ -8,9 +8,11 @@ import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.core.model.map
 import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.account.GuestSession
 import com.a207.runkk.app.domain.account.MemberSettings
+import com.a207.runkk.app.domain.account.MySummary
 import com.a207.runkk.app.domain.account.Profile
 import com.a207.runkk.app.domain.account.ProfileEdit
 import com.a207.runkk.app.domain.account.ProviderToken
@@ -111,6 +113,9 @@ constructor(
         if (memberId == AccountRepository.SELF && result is Outcome.Success) currentGender.value = result.value.gender
         return result
     }
+
+    /** 본인 프로필 응답 하나에서 요약을 옮긴다(D-331). profile(SELF)를 거치므로 내 성별도 함께 갱신한다. */
+    override suspend fun mySummary(): Outcome<MySummary> = profile(AccountRepository.SELF).map { it.toMySummary() }
 
     /** 태그는 v0.11에서 지웠다(D-91). 나이대·성별 공개를 함께 보낸다(D-287). */
     override suspend fun editProfile(edit: ProfileEdit): Outcome<Unit> {

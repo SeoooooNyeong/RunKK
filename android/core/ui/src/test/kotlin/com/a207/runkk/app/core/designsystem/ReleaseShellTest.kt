@@ -51,7 +51,7 @@ class ReleaseShellTest {
     @Test
     fun `D93 기록 카드 앞면 공유는 잠금 항목이 아니고 뒷면과 Runimal 공유만 잠근다`() {
         assertEquals(
-            listOf("CREW", "CARD_BACK", "RUNIMAL_SHARE", "AVATAR_CUSTOMIZE"),
+            listOf("CREW", "CARD_BACK", "RUNIMAL_SHARE", "AVATAR_CUSTOMIZE", "RUNBODY"),
             UnreleasedFeature.entries.map { it.name }
         )
     }

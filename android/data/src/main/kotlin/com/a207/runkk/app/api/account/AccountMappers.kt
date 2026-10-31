@@ -8,6 +8,7 @@ import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.domain.account.AccountType
 import com.a207.runkk.app.domain.account.GuestSession
 import com.a207.runkk.app.domain.account.MemberSettings
+import com.a207.runkk.app.domain.account.MySummary
 import com.a207.runkk.app.domain.account.Profile
 import com.a207.runkk.app.domain.account.ProfileEdit
 import com.a207.runkk.app.domain.account.ProviderToken
@@ -54,6 +55,16 @@ internal fun ProfileResponse.toDomain(): Profile = Profile(
     recentRuns = recentRuns.mapNotNull { it.toDomain() },
     isAgePublic = ageBandVisibility?.let { it == VISIBILITY_PUBLIC },
     isGenderPublic = genderVisibility?.let { it == VISIBILITY_PUBLIC }
+)
+
+/** 본인 프로필 → 본인 요약(D-331). 유효 러닝 수는 runCount(유효 기록만 센다, v0.12 D29)다. */
+internal fun Profile.toMySummary(): MySummary = MySummary(
+    displayName = displayName,
+    tier = tier,
+    level = level,
+    faceKey = faceKey,
+    avatarBackgroundKey = avatarBackgroundKey,
+    validRuns = runCount
 )
 
 /** 날짜를 읽지 못한 줄은 버린다(프로필 전체를 실패시키지 않는다). */
