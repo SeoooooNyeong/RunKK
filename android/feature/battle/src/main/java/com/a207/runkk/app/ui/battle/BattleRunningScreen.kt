@@ -134,7 +134,7 @@ fun BattleRunningRoute(key: Routes.BattleRunning, viewModel: BattleRunningViewMo
         viewModel.onFailureClosed()
         navigator.back()
     }
-    // 뒤로가기는 그만두기와 같다: 포기 확인을 띄운다. 시작하지 못한 화면은 닫는다.
+    // 뒤로가기는 그만두기와 같다: 포기 확인을 띄운다(셀프런·셀럽런 출발 전이면 취소 확인, D-337). 시작하지 못한 화면은 닫는다.
     BackHandler {
         if (state.phase == BattlePhase.FAILED) close() else viewModel.onForfeitLongPressed()
     }
@@ -475,7 +475,9 @@ private fun BattleRoute(state: BattleRunningUiState) {
         }
     }
     val opponentAlpha = if (kind == OpponentKind.SELF) PAST_SELF_ALPHA else 1f
-    if (canShowKakaoMap(LocalKakaoMapKey.current)) {
+    // 실행 중 지도 오류가 나면 격자로 바꾼다(D-340)
+    var isMapFailed by remember { mutableStateOf(false) }
+    if (canShowKakaoMap(LocalKakaoMapKey.current, isMapFailed)) {
         KakaoRunMap(
             route = route,
             modifier = Modifier.fillMaxSize(),
@@ -484,7 +486,8 @@ private fun BattleRoute(state: BattleRunningUiState) {
                     RunMapMarker(it, label = opponentName, figure = { opponentFigure(opponentAlpha) })
                 }
             ),
-            myLabel = mine
+            myLabel = mine,
+            onMapError = { isMapFailed = true }
         ) { RunkkRunningFigure(isMoving, frameMillis, isFacingLeft = isLeft) }
         return
     }

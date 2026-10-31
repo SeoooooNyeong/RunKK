@@ -10,14 +10,19 @@ import com.kakao.vectormap.KakaoMapSdk
  */
 val LocalKakaoMapKey = staticCompositionLocalOf { "" }
 
-/** 키가 있고 지도 SDK 네이티브 라이브러리를 불러올 수 있으면 참. 아니면 Canvas 경로선을 그린다(C-005 대체). */
-fun kakaoMapEnabled(key: String, hasMapLibrary: Boolean): Boolean = key.isNotBlank() && hasMapLibrary
+/**
+ * 키가 있고 지도 SDK 네이티브 라이브러리를 불러올 수 있고 실행 중 지도 오류가 없었으면 참. 아니면 Canvas 경로선을 그린다
+ * (C-005 대체, FR-034, D-322 (3)·D-340).
+ */
+fun kakaoMapEnabled(key: String, hasMapLibrary: Boolean, isMapFailed: Boolean = false): Boolean =
+    key.isNotBlank() && hasMapLibrary && !isMapFailed
 
 /**
  * 이 앱에서 지도를 띄울 수 있는가. 지도 SDK는 arm 라이브러리만 있어 x86_64 APK에는 들어가지 않는다. 기기 ABI 목록은
  * arm 번역이 있는 에뮬레이터에서 arm64를 함께 내므로 믿지 않고, 라이브러리를 실제로 불러 본다.
  */
-fun canShowKakaoMap(key: String): Boolean = kakaoMapEnabled(key, kakaoMapLibraryLoadable)
+fun canShowKakaoMap(key: String, isMapFailed: Boolean = false): Boolean =
+    kakaoMapEnabled(key, kakaoMapLibraryLoadable, isMapFailed)
 
 /** 지도 SDK를 한 번만 초기화한다. */
 fun ensureKakaoMap(context: Context, appKey: String) = KakaoMapInit.ensure(context, appKey)
