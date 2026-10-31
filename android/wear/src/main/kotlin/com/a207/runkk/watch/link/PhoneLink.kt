@@ -10,6 +10,7 @@ import com.a207.runkk.wear.contract.PauseRequestMessage
 import com.a207.runkk.wear.contract.ProximityMessage
 import com.a207.runkk.wear.contract.StartRequestMessage
 import com.a207.runkk.wear.contract.WatchDisplayMessage
+import com.a207.runkk.wear.contract.WatchMeasuringMessage
 import com.a207.runkk.wear.contract.WearPaths
 import java.time.Clock
 import javax.inject.Inject
@@ -41,6 +42,8 @@ import timber.log.Timber
  * - 폰 → 워치: 근접 알림([WearPaths.PROXIMITY])·추월 역전([WearPaths.LEAD_CHANGE])은 [ProximityAlertPlayer]에 넘긴다(FR-196, FR-188).
  *   근접 알림은 [proximity]로도 내보내 대결 화면이 격차를 보인다.
  *   마지막 표시가 러닝 중일 때만 넘기고, 러닝이 끝났다는 표시를 받으면 재생을 멈춘다. 모르는 경로는 버린다(F.4.4).
+ * - 워치 → 폰: 로그인 정보 요청([requestSession], FR-242)과 워치 측정 중 여부([sendMeasuring], FR-252, D-371). 로그인 정보·로그아웃
+ *   표시는 토큰을 이 클래스에 두지 않도록 PhoneMessageService가 watch.session으로 바로 넘긴다.
  * - 워치 → 폰: 시작 요청(MessageClient, [WearPaths.START_REQUEST], FR-183), 종료 요청(MessageClient,
  *   [WearPaths.END_REQUEST], FR-181), 일시정지·재개 요청(MessageClient, [WearPaths.PAUSE_REQUEST], FR-194)과
  *   심박 묶음(DataClient, [WearPaths.HEART_RATE_BATCH] 아래 묶음마다 다른 경로, FR-043, NFR-032).
@@ -179,6 +182,21 @@ class PhoneLink @Inject constructor(
 
     /** 재개 요청. [requestPause]와 같다. */
     suspend fun requestResume(): Boolean = sendPauseRequest(PauseRequestMessage.Action.RESUME)
+
+    /**
+     * 로그인 정보 요청(SESSION_REQUEST, 본문 없음, FR-242, D-371). 워치가 로그인 정보 없이 열렸을 때 화면이 부른다. 폰은 같은 노드로
+     * WATCH_SESSION을 보내고, 그 메시지는 PhoneMessageService가 watch.session으로 넘긴다. 연결되어 있지 않거나 보내지 못하면 거짓.
+     */
+    suspend fun requestSession(): Boolean = sendToPhone(WearPaths.SESSION_REQUEST, ByteArray(0))
+
+    /**
+     * 워치 측정 중 여부(WATCH_MEASURING, FR-252, D-373). WatchMeasuringReporter가 바뀔 때와 측정 중 30초마다 부른다.
+     * 연결되어 있지 않거나 보내지 못하면 거짓(다음 주기에 다시 보낸다).
+     */
+    suspend fun sendMeasuring(isMeasuring: Boolean): Boolean = sendToPhone(
+        WearPaths.WATCH_MEASURING,
+        WatchMeasuringMessage(isMeasuring = isMeasuring, atEpochMillis = clock.millis()).encode()
+    )
 
     /** 폰 연결을 지금 다시 확인한다("다시 연결", 와이어프레임 K3). 연결된 폰 노드가 있으면 참. */
     suspend fun recheckConnection(): Boolean = refreshConnection().isNotEmpty()
