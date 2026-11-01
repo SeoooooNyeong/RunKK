@@ -173,6 +173,9 @@ class FakeBattleRepository : BattleRepository {
     override suspend fun recordTracks(kind: RecordBattleKind): Outcome<List<RecordTrack>> =
         Outcome.Failure(AppError.Rejected("UNUSED"))
 
+    override suspend fun celebrityTrack(celebrityId: Long): Outcome<RecordTrack> =
+        Outcome.Failure(AppError.Rejected("UNUSED"))
+
     override suspend fun startSelfBattle(distance: Distance): Outcome<RecordBattleStart> {
         calls += "startSelf:${distance.meters}"
         return startResult ?: Outcome.Success(recordStart(distance, CardKind.SELF_RUN, "과거의 나"))

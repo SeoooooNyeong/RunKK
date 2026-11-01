@@ -85,6 +85,36 @@ class BattleRepositoryImplTest {
     }
 
     @Test
+    fun `셀럽 기록 하나는 경로에 셀럽 ID를 넣어 받고 구간 기록을 OpponentTrack으로 바꾼다(W31)`() = runTest {
+        api.reply(
+            """{"celebrityId":3,"opponentName":"이**","distanceMeters":5000,"finishSeconds":1500,
+               |"track":[{"elapsedSeconds":750,"distanceMeters":2500},{"elapsedSeconds":1500,"distanceMeters":5000}],
+               |"sourceLabel":"2024 춘천마라톤","estimated":true,"celebrityFigure":"lee"}
+            """.trimMargin()
+        )
+
+        val celebrity = repository.celebrityTrack(3).value()
+
+        val sent = api.take()
+        assertEquals("GET /api/v1/battles/record-tracks/celebrity/3", "${sent.method} ${sent.url.encodedPath}")
+        assertEquals(RecordBattleKind.CELEBRITY, celebrity.kind)
+        assertEquals(3L, celebrity.celebrityId)
+        assertEquals("이**", celebrity.displayName)
+        assertEquals("2024 춘천마라톤", celebrity.sourceLabel)
+        assertEquals("lee", celebrity.celebrityFigure)
+        assertEquals(Duration.ofSeconds(1_500), celebrity.track.arrivalTime(Distance(5_000)))
+    }
+
+    @Test
+    fun `셀럽 기록 하나가 없으면(404) 본문 code의 Rejected이고 code가 없으면 NOT_FOUND다(W31)`() = runTest {
+        api.reply("""{"code":"CELEBRITY_NOT_FOUND","message":"없음"}""", code = 404)
+        api.reply("", code = 404)
+
+        assertEquals(Outcome.Failure(AppError.Rejected("CELEBRITY_NOT_FOUND")), repository.celebrityTrack(9))
+        assertEquals(Outcome.Failure(AppError.Rejected("NOT_FOUND")), repository.celebrityTrack(9))
+    }
+
+    @Test
     fun `상대 기록이 없으면 빈 목록이고 잘못된 kind 거부(400)는 Rejected다`() = runTest {
         api.reply("""{"tracks":[]}""")
         api.reply("""{"code":"BAD_REQUEST"}""", code = 400)

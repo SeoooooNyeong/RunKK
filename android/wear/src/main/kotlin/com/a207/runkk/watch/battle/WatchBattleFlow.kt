@@ -31,7 +31,8 @@ import kotlinx.coroutines.flow.runningFold
  * 바꾼다(3.5, D-386 R65). watch.ui와 domain.battle·watch.cache 사이의 중간 계층이다(design-review 23장 R75 결정, W30): watch.ui는
  * domain.battle·watch.cache를 이 클래스 너머로만 본다. 상태를 갖지 않는다: 대결 한 회의 상태는 BattleRunCoordinator가, 매칭 대기 연결은
  * watch.link의 MatchWaiter가, 상대 기록은 OpponentRecordCache가, 지금 연 기록 대결의 상대는 RecordBattleMemory(WR13-2)가 갖는다. 셀프·셀럽런을 서버 대결로 할지(연결 있음) 워치에서만 할지
- * (연결 없음)는 WatchFlowViewModel이 고른다(R72). 여기서 연 대결은 모두 워치가 시작한 회라 시작 기기 WATCH로 조정자에 넘긴다(FR-245, D-378).
+ * (연결 없음)는 WatchFlowViewModel이 고른다(R72). 셀럽 상대는 고를 때 구간 기록을 받는다([readyCelebrity]·[fetchCelebrity], W31).
+ * 여기서 연 대결은 모두 워치가 시작한 회라 시작 기기 WATCH로 조정자에 넘긴다(FR-245, D-378).
  */
 class WatchBattleFlow @Inject constructor(
     private val coordinator: BattleRunCoordinator,
@@ -188,6 +189,25 @@ class WatchBattleFlow @Inject constructor(
     fun selfCandidates(): List<RecordOpponent> = cache.selfCandidates().map(::RecordOpponent)
 
     fun celebrityCandidates(d: Distance): List<RecordOpponent> = cache.celebrityCandidates(d).map(::RecordOpponent)
+
+    /**
+     * 셀럽 상대를 구간 기록까지 받아 두었으면 그 상대(W31). 목록 화면이 가진 [c]는 목록을 열 때의 값이라 구간 기록이 없을 수 있어
+     * 셀럽 ID로 캐시를 다시 본다. 받아 두지 않았으면 null이다.
+     */
+    fun readyCelebrity(c: RecordOpponent): RecordOpponent? =
+        c.cached.record.celebrityId?.let(cache::readyCelebrity)?.let(::RecordOpponent)
+
+    /**
+     * 셀럽 상대의 구간 기록을 받아 캐시에 두고 그 상대를 돌려준다(W31). 실패는 사유 그대로다: 연결 없음 Network, 없는 기록(404)
+     * Rejected. 셀럽 ID가 없는 기록은 받지 않고 Rejected다.
+     */
+    suspend fun fetchCelebrity(c: RecordOpponent): Outcome<RecordOpponent> {
+        val celebrityId = c.cached.record.celebrityId ?: return Outcome.Failure(AppError.Rejected(NO_CELEBRITY))
+        return when (val fetched = cache.fetchCelebrityTrack(celebrityId)) {
+            is Outcome.Success -> Outcome.Success(RecordOpponent(fetched.value))
+            is Outcome.Failure -> fetched
+        }
+    }
 
     /** 상대 기록을 다시 받는다(메인을 열 때와 기록 전송 뒤, FR-260). 회원ID는 부르는 쪽이 넘긴다(M78). */
     suspend fun refreshCache(memberId: Long) {

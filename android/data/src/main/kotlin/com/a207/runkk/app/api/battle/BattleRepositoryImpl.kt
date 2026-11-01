@@ -38,6 +38,9 @@ constructor(private val api: BattleApi) : BattleRepository {
     override suspend fun recordTracks(kind: RecordBattleKind): Outcome<List<RecordTrack>> =
         ApiErrorMapper.call { api.recordTracks(kind.name).tracks.map { it.toDomain(kind) } }
 
+    override suspend fun celebrityTrack(celebrityId: Long): Outcome<RecordTrack> =
+        ApiErrorMapper.call { api.celebrityRecordTrack(celebrityId).toDomain(RecordBattleKind.CELEBRITY) }
+
     override suspend fun startSelfBattle(distance: Distance): Outcome<RecordBattleStart> =
         ApiErrorMapper.call { api.startSelfBattle(SelfBattleRequest(distance.meters)).toDomain() }
 

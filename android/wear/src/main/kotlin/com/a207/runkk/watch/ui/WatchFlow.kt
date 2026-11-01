@@ -68,7 +68,8 @@ sealed interface WatchFlow {
         val distance: Distance,
         val celebrities: List<RecordOpponent>,
         val selected: Int = 0,
-        val notice: Notice? = null
+        val notice: Notice? = null,
+        val fetching: RecordOpponent? = null
     ) : WatchFlow
 
     /** 배틀런 매칭 중(BMA, FR-257): 내 티어, 대결 거리, 기다린 초. */
@@ -155,6 +156,12 @@ sealed interface WatchFlow {
 
         /** 셀럽런 서버 시작 거부: 내려간 셀럽 기록(CELEBRITY_REMOVED). */
         CELEBRITY_REMOVED,
+
+        /** 셀럽 구간 기록을 받아 두지 않았는데 연결이 없음(W31). */
+        CELEB_OFFLINE,
+
+        /** 서버가 잠시 답하지 못함(셀럽 구간 기록 받기 5xx 등, W31). */
+        RETRY_LATER,
 
         /** 측정을 시작하지 못함(포그라운드 서비스 거부 등). */
         START_FAILED,
