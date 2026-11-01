@@ -69,8 +69,8 @@ public class FakeTokenIssuer implements TokenIssuer {
         String[] parts = refreshToken.split("-");
         long memberId = Long.parseLong(parts[1]);
         return isWatch(refreshToken)
-                ? RefreshGrant.watch(memberId, generationOf(refreshToken))
-                : RefreshGrant.phone(memberId);
+                ? new RefreshGrant.Watch(memberId, generationOf(refreshToken))
+                : new RefreshGrant.Phone(memberId);
     }
 
     @Override
@@ -81,15 +81,33 @@ public class FakeTokenIssuer implements TokenIssuer {
 
     @Override
     public TokenPair reissue(RefreshGrant grant) {
-        return grant.isWatch()
-                ? watchPair(grant.memberId(), grant.watchGeneration().getAsLong())
-                : issue(grant.memberId());
+        return switch (grant) {
+            case RefreshGrant.Watch w -> watchPair(w.memberId(), w.generation());
+            case RefreshGrant.Phone p -> issue(p.memberId());
+        };
     }
 
     @Override
     public void revokeWatchSessions(long memberId) {
         checkWatchStore();
         watchGenerations.merge(memberId, 1L, Long::sum);
+    }
+
+    @Override
+    public void revokeExistingWatchSessions(long memberId) {
+        checkWatchStore();
+        watchGenerations.computeIfPresent(memberId, (id, g) -> g + 1);
+    }
+
+    @Override
+    public void forgetWatchSessions(long memberId) {
+        checkWatchStore();
+        watchGenerations.remove(memberId);
+    }
+
+    /** 그 회원의 워치 세션 세대 행이 있는가. */
+    public boolean hasWatchGenerationRow(long memberId) {
+        return watchGenerations.containsKey(memberId);
     }
 
     private TokenPair watchPair(long memberId, long generation) {

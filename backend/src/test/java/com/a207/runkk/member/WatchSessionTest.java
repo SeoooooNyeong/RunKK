@@ -147,9 +147,32 @@ class WatchSessionTest {
     }
 
     @Test
-    @DisplayName("탈퇴 사건을 받으면 그 회원의 워치 세션을 폐기한다")
-    void withdrawal_revokesWatchSessions() {
-        Member m = social("떠난곰");
+    @DisplayName("탈퇴 사건 처리 중 폐기 저장소 장애는 삼키고 남긴다(탈퇴 회원은 갱신에서 어차피 막힌다)")
+    void withdrawal_storeDown_isSwallowed() {
+        Member m = social("장애곰");
+        tokens.watchStoreDown();
+
+        new WatchSessionWithdrawalListener(auth)
+                .onMemberWithdrawn(new MemberWithdrawn(m.getId(), NOW));
+    }
+
+    @Test
+    @DisplayName("BE13-2: 한 번도 폐기한 적 없는 회원이 탈퇴해도 세대 행을 새로 만들지 않는다")
+    void withdrawal_doesNotCreateGenerationRow() {
+        Member m = social("무행곰");
+        auth.issueWatchSession(m.getId());
+
+        new WatchSessionWithdrawalListener(auth)
+                .onMemberWithdrawn(new MemberWithdrawn(m.getId(), NOW));
+
+        assertThat(tokens.hasWatchGenerationRow(m.getId())).isFalse();
+    }
+
+    @Test
+    @DisplayName("BE13-2: 이미 행이 있는 회원이 탈퇴하면 세대를 올려 워치 토큰을 끊는다")
+    void withdrawal_advancesExistingRow() {
+        Member m = social("유행곰");
+        auth.revokeWatchSessions(m.getId());
         TokenPair watch = auth.issueWatchSession(m.getId());
 
         new WatchSessionWithdrawalListener(auth)
@@ -159,12 +182,23 @@ class WatchSessionTest {
     }
 
     @Test
-    @DisplayName("탈퇴 사건 처리 중 폐기 저장소 장애는 삼키고 남긴다(탈퇴 회원은 갱신에서 어차피 막힌다)")
-    void withdrawal_storeDown_isSwallowed() {
-        Member m = social("장애곰");
+    @DisplayName("BE13-2: 회원 자료를 파기하면(MemberPurged) 그 회원의 세대 행을 지운다")
+    void purge_forgetsGenerationRow() {
+        Member m = social("파기곰");
+        auth.revokeWatchSessions(m.getId());
+        assertThat(tokens.hasWatchGenerationRow(m.getId())).isTrue();
+
+        new WatchSessionWithdrawalListener(auth).onMemberPurged(new MemberPurged(m.getId(), NOW));
+
+        assertThat(tokens.hasWatchGenerationRow(m.getId())).isFalse();
+    }
+
+    @Test
+    @DisplayName("BE13-2: 파기 중 세대 저장소 장애는 삼킨다(다음 파기 때 다시 지운다)")
+    void purge_storeDown_isSwallowed() {
+        Member m = social("장애파기곰");
         tokens.watchStoreDown();
 
-        new WatchSessionWithdrawalListener(auth)
-                .onMemberWithdrawn(new MemberWithdrawn(m.getId(), NOW));
+        new WatchSessionWithdrawalListener(auth).onMemberPurged(new MemberPurged(m.getId(), NOW));
     }
 }

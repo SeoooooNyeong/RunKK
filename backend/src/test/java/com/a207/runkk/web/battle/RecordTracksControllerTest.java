@@ -14,6 +14,8 @@ import com.a207.runkk.running.LocationPoint;
 import com.a207.runkk.running.RunFixtures;
 import com.a207.runkk.web.WebTestSupport;
 import com.fasterxml.jackson.databind.JsonNode;
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -22,6 +24,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.zip.GZIPOutputStream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -237,6 +240,50 @@ class RecordTracksControllerTest extends WebTestSupport {
                             tracks.findValues("celebrityId")
                                     .indexOf(withSplits.get("celebrityId")));
             mvc.perform(as(s, get("/api/v1/battles/active"))).andExpect(status().isNoContent());
+        } finally {
+            ids.forEach(id -> celebrityRecordService.delete(OPERATOR, id, "시험 정리"));
+        }
+    }
+
+    /**
+     * BE13-3 상한(압축 뒤 바이트). 측정값(원문 7,041,088바이트, gzip 823,949바이트)에 약 10% 여유를 둔 값이다. 넘으면 본문 크기(개수·표본
+     * 간격)를 다시 따져 보라는 신호이고, 개수 상한 자체는 사용자 결정 전이라 만들지 않았다.
+     */
+    private static final int GZIP_LIMIT_BYTES = 910_000;
+
+    @Test
+    @DisplayName("BE13-3: 구간 없는 풀 마라톤 셀럽 20건(1초 1점)의 본문은 압축 뒤 상한 안이다")
+    void celebrity_twentyFullMarathons_gzippedSizeWithinLimit() throws Exception {
+        List<Long> ids = new ArrayList<>();
+        try {
+            for (int i = 0; i < 20; i++) {
+                ids.add(
+                        register(
+                                new CelebrityInput(
+                                        "풀전설" + i,
+                                        Distance.ofMeters(42_195),
+                                        Duration.ofSeconds(7_200 + i * 37L),
+                                        List.of(),
+                                        "대회 공식 기록",
+                                        null)));
+            }
+            Session s = signUp();
+            byte[] plain =
+                    mvc.perform(as(s, get(PATH).param("kind", "CELEBRITY")))
+                            .andExpect(status().isOk())
+                            .andReturn()
+                            .getResponse()
+                            .getContentAsString()
+                            .getBytes(StandardCharsets.UTF_8);
+            ByteArrayOutputStream packed = new ByteArrayOutputStream();
+            try (GZIPOutputStream gzip = new GZIPOutputStream(packed)) {
+                gzip.write(plain);
+            }
+            System.out.printf(
+                    "BE13-3 record-tracks 셀럽 20건: 원문 %d바이트, gzip %d바이트%n",
+                    plain.length, packed.size());
+
+            assertThat(packed.size()).isLessThanOrEqualTo(GZIP_LIMIT_BYTES);
         } finally {
             ids.forEach(id -> celebrityRecordService.delete(OPERATOR, id, "시험 정리"));
         }

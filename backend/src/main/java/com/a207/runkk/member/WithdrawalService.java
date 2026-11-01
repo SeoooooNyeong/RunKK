@@ -134,6 +134,7 @@ public class WithdrawalService {
         for (Member member : members) {
             member.purgeResidual();
             memberRepository.save(member);
+            eventPublisher.publish(new MemberPurged(member.getId(), now));
         }
         log.info("withdrawal_purged count={}", members.size());
         return members.size();

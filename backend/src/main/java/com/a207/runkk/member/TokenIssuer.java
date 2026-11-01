@@ -71,6 +71,21 @@ public interface TokenIssuer {
     void revokeWatchSessions(long memberId);
 
     /**
+     * 탈퇴한 회원의 워치용 갱신 토큰을 폐기한다. revokeWatchSessions와 달리 세대 행이 이미 있을 때만 올리고 없으면 아무것도 하지 않는다(탈퇴 회원의 행을
+     * 새로 만들지 않는다: 탈퇴 회원의 갱신은 회원 상태 확인이 이미 막는다, 코드 리뷰 13차 BE13-2).
+     *
+     * @throws ProviderUnavailableException 워치 세션 세대를 기록할 수 없음
+     */
+    void revokeExistingWatchSessions(long memberId);
+
+    /**
+     * 회원 자료를 파기할 때 그 회원의 워치 세션 세대 행을 지운다(없으면 아무것도 하지 않는다, BE13-2).
+     *
+     * @throws ProviderUnavailableException 워치 세션 세대를 지울 수 없음
+     */
+    void forgetWatchSessions(long memberId);
+
+    /**
      * 토큰 만료가 지난 폐기 목록 행을 지우고 지운 수를 돌려준다(M6 후속 결정). batch.member의 RevocationPurgeJob이
      * AuthService.purgeExpiredRevocations로 부른다.
      */

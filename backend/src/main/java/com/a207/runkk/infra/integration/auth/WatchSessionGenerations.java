@@ -16,4 +16,10 @@ interface WatchSessionGenerations {
 
     /** 회원의 워치 세션 세대를 하나 올린다(그 전 세대의 워치용 갱신 토큰이 모두 무효가 된다). */
     void advance(long memberId, Instant at);
+
+    /** 행이 이미 있을 때만 세대를 하나 올린다. 없으면 만들지 않는다(탈퇴 회원의 행을 새로 만들지 않기 위해, BE13-2). */
+    void advanceExisting(long memberId, Instant at);
+
+    /** 회원의 행을 지운다(회원 자료 파기 때, BE13-2). 없으면 아무것도 하지 않는다. */
+    void forget(long memberId);
 }

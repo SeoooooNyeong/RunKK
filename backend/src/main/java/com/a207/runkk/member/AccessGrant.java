@@ -18,7 +18,10 @@ public record AccessGrant(long memberId, Instant expiresAt, boolean watch) {
         }
     }
 
-    /** 폰(로그인·게스트 재개·폰 갱신)에서 발급한 접근 토큰. */
+    /**
+     * 웹소켓 연결 전용: 핸드셰이크가 속성에 담아 둔 회원과 만료 시각을 되살릴 때만 쓴다(접근 토큰 검증 결과가 아니다). 웹소켓은 워치용인지를 가리지 않으므로
+     * watch는 false로 둔다.
+     */
     public AccessGrant(long memberId, Instant expiresAt) {
         this(memberId, expiresAt, false);
     }

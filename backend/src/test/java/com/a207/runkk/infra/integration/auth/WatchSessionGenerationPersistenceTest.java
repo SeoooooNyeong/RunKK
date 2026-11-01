@@ -58,6 +58,25 @@ class WatchSessionGenerationPersistenceTest {
     }
 
     @Test
+    @DisplayName("BE13-2: advanceExisting은 행이 없으면 만들지 않고, forget은 그 회원의 행만 지운다")
+    void advanceExisting_and_forget() {
+        store.advanceExisting(1, T0);
+        assertThat(jdbc.queryForObject("select count(*) from watch_session_generation", Long.class))
+                .isZero();
+
+        store.advance(1, T0);
+        store.advance(2, T0);
+        store.advanceExisting(1, T0.plusSeconds(1));
+        assertThat(store.current(1)).isEqualTo(2);
+
+        store.forget(1);
+        assertThat(jdbc.queryForObject("select count(*) from watch_session_generation", Long.class))
+                .isEqualTo(1);
+        assertThat(store.current(1)).isZero();
+        assertThat(store.current(2)).isEqualTo(1);
+    }
+
+    @Test
     @DisplayName("같은 회원을 동시에 처음 올려도 올린 수만큼 늘어난다")
     void concurrentFirstAdvance_losesNothing() throws Exception {
         ExecutorService pool = Executors.newFixedThreadPool(RACERS);

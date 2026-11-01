@@ -25,6 +25,8 @@ class JdbcWatchSessionGenerations implements WatchSessionGenerations {
             "insert into watch_session_generation (member_id, generation, revoked_at)"
                     + " values (?, 1, ?) on conflict do nothing";
 
+    private static final String DELETE = "delete from watch_session_generation where member_id = ?";
+
     private final JdbcTemplate jdbc;
 
     JdbcWatchSessionGenerations(JdbcTemplate jdbc) {
@@ -47,5 +49,15 @@ class JdbcWatchSessionGenerations implements WatchSessionGenerations {
             return;
         }
         jdbc.update(UPDATE, when, memberId); // 동시에 처음 올린 요청이 행을 먼저 만들었다
+    }
+
+    @Override
+    public void advanceExisting(long memberId, Instant at) {
+        jdbc.update(UPDATE, OffsetDateTime.ofInstant(at, ZoneOffset.UTC), memberId);
+    }
+
+    @Override
+    public void forget(long memberId) {
+        jdbc.update(DELETE, memberId);
     }
 }
