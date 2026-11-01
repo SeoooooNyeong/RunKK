@@ -11,6 +11,7 @@ import com.a207.runkk.member.ConsentItem;
 import com.a207.runkk.member.MemberQueryService;
 import com.a207.runkk.member.MemberSummary;
 import com.a207.runkk.running.BestEntry;
+import com.a207.runkk.running.RunCurve;
 import com.a207.runkk.running.RunQueryService;
 import java.time.Clock;
 import java.time.Duration;
@@ -138,7 +139,11 @@ public class RecordBattleService {
                 runQueryService
                         .best(memberId, d)
                         .orElseThrow(() -> new BusinessRuleException(ReasonCode.NO_RECORD));
-        RunRecordOpponent self = selfOpponent(best, d, tierOf(memberId));
+        RunRecordOpponent self =
+                selfOpponent(
+                        best,
+                        runQueryService.curve(best.recordId(), d.distance()),
+                        tierOf(memberId));
         Battle battle = create(BattleType.SELF, memberId, d.distance(), self);
         return new RecordBattleStart(
                 battle.getId(),
@@ -152,11 +157,11 @@ public class RecordBattleService {
     }
 
     /** 나와의 싸움 상대: 그 거리 최고 기록의 1초 표본, 표시명 "MM/dd의 나"(POST /battles/self와 워치 미리 받기가 함께 쓴다). */
-    private RunRecordOpponent selfOpponent(BestEntry best, StandardDistance d, Tier tier) {
+    private RunRecordOpponent selfOpponent(BestEntry best, RunCurve curve, Tier tier) {
         return new RunRecordOpponent(
                 best.recordId(),
                 runQueryService.comparisonOf(best.recordId()),
-                runQueryService.curve(best.recordId(), d.distance()),
+                curve,
                 new RunRecordOpponent.Owner(
                         DisplayName.of(SELF_LABEL.format(best.achievedOn())), tier));
     }
@@ -218,72 +223,82 @@ public class RecordBattleService {
         Tier tier = tierOf(memberId);
         List<RecordTrack> tracks = new ArrayList<>();
         bests.forEach((d, best) -> selfTrack(best, d, tier).ifPresent(tracks::add));
+        log.info(
+                "record_tracks memberId={} kind=SELF returned={} skipped={}",
+                memberId,
+                tracks.size(),
+                bests.size() - tracks.size());
         return tracks;
     }
 
+    /** 경로 파기·기록 없음(POST /battles/self도 거부하는 기록)이거나 표가 거리에 닿지 않으면 비어 있다. */
     private Optional<RecordTrack> selfTrack(BestEntry best, StandardDistance d, Tier tier) {
-        if (!runQueryService.hasCurve(best.recordId())) {
-            // 경로 파기·기록 없음: POST /battles/self도 거부하는 기록이다
-            log.info(
+        Optional<RunCurve> curve = runQueryService.curveOf(best.recordId(), d.distance());
+        if (curve.isEmpty()) {
+            log.debug(
                     "record_track_skipped recordId={} distance={} reason=no_curve",
                     best.recordId(),
                     d);
             return Optional.empty();
         }
-        return recordTrack(
-                BattleType.SELF,
-                null,
-                selfOpponent(best, d, tier),
-                d.distance(),
-                best.time().orElseThrow(),
-                null,
-                false);
+        RunRecordOpponent opponent = selfOpponent(best, curve.get(), tier);
+        return reachableTrack(opponent, d.distance())
+                .map(
+                        track ->
+                                new RecordTrack(
+                                        BattleType.SELF,
+                                        null,
+                                        opponent.displayName(),
+                                        d.distance(),
+                                        best.time().orElseThrow(),
+                                        track,
+                                        null,
+                                        false,
+                                        opponent.figureKey().orElse(null)));
     }
 
     private List<RecordTrack> celebrityTracks() {
-        return celebrityRecordRepository.findAll(Optional.empty()).stream()
-                .map(
-                        c ->
-                                recordTrack(
-                                        BattleType.CELEBRITY,
-                                        c.getId(),
-                                        c,
-                                        c.getDistance(),
-                                        c.getFinishTime(),
-                                        c.getSource(),
-                                        c.isEstimated()))
-                .flatMap(Optional::stream)
-                .toList();
+        List<CelebrityRecord> celebrities = celebrityRecordRepository.findAll(Optional.empty());
+        List<RecordTrack> tracks =
+                celebrities.stream()
+                        .map(
+                                c ->
+                                        reachableTrack(c, c.getDistance())
+                                                .map(track -> celebrityTrack(c, track)))
+                        .flatMap(Optional::stream)
+                        .toList();
+        log.info(
+                "record_tracks kind=CELEBRITY returned={} skipped={}",
+                tracks.size(),
+                celebrities.size() - tracks.size());
+        return tracks;
+    }
+
+    private static RecordTrack celebrityTrack(CelebrityRecord c, OpponentTrack track) {
+        return new RecordTrack(
+                BattleType.CELEBRITY,
+                c.getId(),
+                c.displayName(),
+                c.getDistance(),
+                c.getFinishTime(),
+                track,
+                c.getSource(),
+                c.isEstimated(),
+                c.figureKey().orElse(null));
     }
 
     /** 상대 표가 대결 거리에 닿아야 한다(RecordBattleSpec.of와 같은 조건). 닿지 않으면 비어 있다. */
-    private static Optional<RecordTrack> recordTrack(
-            BattleType type,
-            Long celebrityId,
-            OpponentRecord opponent,
-            Distance distance,
-            Duration finishTime,
-            Source source,
-            boolean estimated) {
+    private static Optional<OpponentTrack> reachableTrack(
+            OpponentRecord opponent, Distance distance) {
         OpponentTrack track = opponent.track(distance);
         if (track.arrivalTime(distance).isEmpty()) {
-            log.info(
+            log.debug(
                     "record_track_skipped recordId={} distance={} reason=track_short",
                     opponent.recordId(),
                     distance.meters());
             return Optional.empty();
         }
-        return Optional.of(
-                new RecordTrack(
-                        type,
-                        celebrityId,
-                        opponent.displayName(),
-                        distance,
-                        finishTime,
-                        track,
-                        source,
-                        estimated,
-                        opponent.figureKey().orElse(null)));
+        return Optional.of(track);
     }
 
     /**

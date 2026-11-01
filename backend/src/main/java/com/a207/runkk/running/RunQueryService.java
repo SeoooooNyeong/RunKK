@@ -249,6 +249,21 @@ public class RunQueryService {
         if (record.isRoutePurged()) {
             throw new BusinessRuleException(ReasonCode.ROUTE_PURGED);
         }
+        return curveOf(record, cut);
+    }
+
+    /**
+     * curve와 같은 표본을 예외 없이 준다. 기록이 없거나 경로가 파기되었으면 비어 있다. 읽기 트랜잭션에 참여한 호출에서 업무 예외를 잡으면 트랜잭션이
+     * rollback-only가 되므로, 건너뛸 기록은 이것으로 거른다(워치 상대 기록 미리 받기 D-377, 코드 리뷰 12차 BE12-5).
+     */
+    public Optional<RunCurve> curveOf(String recordId, Distance cut) {
+        return runRecordRepository
+                .findById(recordId)
+                .filter(r -> !r.isRoutePurged())
+                .map(r -> curveOf(r, cut));
+    }
+
+    private static RunCurve curveOf(RunRecord record, Distance cut) {
         RunTrack track = record.track();
         // 정지 구간과 제외 구간(초과 시속 쌍, FR-047 v0.10)을 같이 잘라 낸다
         List<PauseInterval> stops = record.stops();
@@ -258,14 +273,6 @@ public class RunQueryService {
                         .map(p -> new CurvePoint(p.elapsed(), min(p.distance(), cut)))
                         .toList();
         return new RunCurve(samples, cut);
-    }
-
-    /**
-     * curve·comparisonOf를 예외 없이 부를 수 있는가(기록이 있고 경로가 파기되지 않음). 읽기 트랜잭션에 참여한 호출에서 업무 예외를 잡으면 트랜잭션이
-     * rollback-only가 되므로, 건너뛸 기록은 이것으로 먼저 거른다(워치 상대 기록 미리 받기, D-377).
-     */
-    public boolean hasCurve(String recordId) {
-        return runRecordRepository.findById(recordId).filter(r -> !r.isRoutePurged()).isPresent();
     }
 
     /** d에 처음 닿은 경과 시간(크루런 도착 시각, 대결 검증). */

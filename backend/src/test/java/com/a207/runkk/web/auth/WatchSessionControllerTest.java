@@ -13,15 +13,22 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
-/** POST /auth/watch-session(D-372, FR-240, SQ-43): 워치용 토큰 쌍. 폰 토큰은 그대로 유효하다. */
+/**
+ * POST /auth/watch-session(D-372, FR-240, SQ-43): 워치용 토큰 쌍. 폰 토큰은 그대로 유효하다. DELETE
+ * /auth/watch-session·로그아웃·탈퇴는 그 회원의 워치용 갱신 토큰을 모두 폐기한다(2026-11-01 사용자 결정 W25, contract-v2 4절).
+ */
 @DisplayName("web.auth POST /auth/watch-session")
 class WatchSessionControllerTest extends WebTestSupport {
 
     private static final String PATH = "/api/v1/auth/watch-session";
     private static final AtomicInteger CLIENT = new AtomicInteger();
+
+    @Autowired JdbcTemplate jdbc;
 
     /** 공유 문맥의 접속지별 요청 한도에 걸리지 않게 시험마다 다른 접속지로 보낸다. */
     private static String nextClient() {
@@ -122,5 +129,146 @@ class WatchSessionControllerTest extends WebTestSupport {
         mvc.perform(watchSession(s.accessToken(), nextClient()))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    private String watchRefreshOf(String accessToken) throws Exception {
+        return issue(accessToken).get("refreshToken").asText();
+    }
+
+    private String refreshed(String refreshToken) throws Exception {
+        return body(mvc.perform(refresh(refreshToken))
+                        .andExpect(status().isOk())
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString())
+                .get("refreshToken")
+                .asText();
+    }
+
+    private MockHttpServletRequestBuilder revokeWatch(String accessToken) {
+        return delete(PATH).header("Authorization", "Bearer " + accessToken);
+    }
+
+    @Test
+    @DisplayName("DELETE 204: 회전한 것까지 워치용 갱신 토큰은 401, 폰 갱신은 되고, 다시 연동하면 새 워치 세션을 쓴다")
+    void delete_revokesWatchTokensOnly() throws Exception {
+        Session phone = signUp();
+        String unused = watchRefreshOf(phone.accessToken());
+        String rotated = refreshed(watchRefreshOf(phone.accessToken()));
+
+        mvc.perform(revokeWatch(phone.accessToken()))
+                .andExpect(status().isNoContent())
+                .andExpect(result -> assertThat(result.getResponse().getContentLength()).isZero());
+
+        mvc.perform(refresh(unused)).andExpect(status().isUnauthorized());
+        mvc.perform(refresh(rotated)).andExpect(status().isUnauthorized());
+        mvc.perform(refresh(phone.refreshToken())).andExpect(status().isOk());
+        mvc.perform(refresh(watchRefreshOf(phone.accessToken()))).andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("DELETE는 다른 회원의 워치 세션을 건드리지 않는다")
+    void delete_leavesOtherMembers() throws Exception {
+        Session me = signUp();
+        Session other = signUp();
+        String othersWatch = watchRefreshOf(other.accessToken());
+
+        mvc.perform(revokeWatch(me.accessToken())).andExpect(status().isNoContent());
+
+        mvc.perform(refresh(othersWatch)).andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("로그아웃(폰)은 그 회원의 워치용 갱신 토큰도 폐기한다")
+    void logout_revokesWatchTokens() throws Exception {
+        Session phone = signUp();
+        String watch = watchRefreshOf(phone.accessToken());
+
+        mvc.perform(
+                        as(phone, post("/api/v1/auth/logout"))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(write(Map.of("refreshToken", phone.refreshToken()))))
+                .andExpect(status().isNoContent());
+
+        mvc.perform(refresh(watch)).andExpect(status().isUnauthorized());
+        mvc.perform(refresh(phone.refreshToken())).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("게스트도 DELETE 204이고 워치용 갱신 토큰이 폐기된다")
+    void guest_delete() throws Exception {
+        JsonNode guest = startGuest();
+        String access = guest.get("accessToken").asText();
+        String watch = watchRefreshOf(access);
+
+        mvc.perform(revokeWatch(access)).andExpect(status().isNoContent());
+
+        mvc.perform(refresh(watch)).andExpect(status().isUnauthorized());
+        mvc.perform(refresh(guest.get("refreshToken").asText())).andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("탈퇴하면 그 회원의 워치 세션 세대가 올라가 워치용 갱신 토큰이 폐기된다")
+    void withdrawal_revokesWatchTokens() throws Exception {
+        Session s = signUp();
+        String watch = watchRefreshOf(s.accessToken());
+
+        mvc.perform(as(s, delete("/api/v1/me"))).andExpect(status().isOk());
+
+        assertThat(
+                        jdbc.queryForObject(
+                                "select generation from watch_session_generation where member_id"
+                                        + " = ?",
+                                Long.class,
+                                s.memberId()))
+                .isEqualTo(1L);
+        mvc.perform(refresh(watch)).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("DELETE 401: 토큰 없음·위조")
+    void delete_unauthorized() throws Exception {
+        mvc.perform(delete(PATH))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+        mvc.perform(revokeWatch("forged")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("BE12-7: 인증 필터를 지난 뒤 그 사이 탈퇴했으면 401 본문 없음")
+    void withdrawnBetweenAuthAndIssue_is401WithoutBody() throws Exception {
+        Session s = signUp();
+        // 인증 필터의 ACTIVE 확인(30초 캐시)을 채운 뒤 탈퇴 사건 없이 상태만 바꿔 경합을 흉내 낸다
+        mvc.perform(as(s, get("/api/v1/me/settings"))).andExpect(status().isOk());
+        jdbc.update("update member set status = 'WITHDRAWN' where id = ?", s.memberId());
+
+        mvc.perform(watchSession(s.accessToken(), nextClient()))
+                .andExpect(status().isUnauthorized())
+                .andExpect(result -> assertThat(result.getResponse().getContentLength()).isZero());
+    }
+
+    private JsonNode startGuest() throws Exception {
+        return body(
+                mvc.perform(
+                                post("/api/v1/members/guest")
+                                        .header("X-Real-IP", nextClient())
+                                        .contentType(MediaType.APPLICATION_JSON)
+                                        .content(
+                                                write(
+                                                        Map.of(
+                                                                "consents",
+                                                                Map.of(
+                                                                        "AGE_14_PLUS",
+                                                                        true,
+                                                                        "TERMS",
+                                                                        true,
+                                                                        "PRIVACY",
+                                                                        true,
+                                                                        "LOCATION",
+                                                                        true)))))
+                        .andExpect(status().isCreated())
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString());
     }
 }

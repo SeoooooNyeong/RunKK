@@ -65,19 +65,25 @@ class RecordTracksTest {
         String id = "best-" + d.distance().meters();
         when(runs.best(ALICE, d))
                 .thenReturn(Optional.of(new BestEntry(id, time.toMillis(), null, on, false)));
-        when(runs.hasCurve(id)).thenReturn(true);
         when(runs.comparisonOf(id))
                 .thenReturn(new RunComparison(time, new Pace(300), new Pace(290)));
-        when(runs.curve(id, d.distance()))
-                .thenReturn(
-                        new RunCurve(
-                                List.of(
-                                        new CurvePoint(Duration.ZERO, Distance.ZERO),
-                                        new CurvePoint(
-                                                time.dividedBy(2),
-                                                Distance.ofMeters(d.distance().meters() / 2)),
-                                        new CurvePoint(time, d.distance())),
-                                d.distance()));
+        curve(
+                id,
+                d,
+                new RunCurve(
+                        List.of(
+                                new CurvePoint(Duration.ZERO, Distance.ZERO),
+                                new CurvePoint(
+                                        time.dividedBy(2),
+                                        Distance.ofMeters(d.distance().meters() / 2)),
+                                new CurvePoint(time, d.distance())),
+                        d.distance()));
+    }
+
+    /** 기록 표본(curve는 시작용, curveOf는 미리 받기용으로 같은 값). */
+    private void curve(String id, StandardDistance d, RunCurve curve) {
+        when(runs.curve(id, d.distance())).thenReturn(curve);
+        when(runs.curveOf(id, d.distance())).thenReturn(Optional.of(curve));
     }
 
     private CelebrityRecord celebrity(
@@ -126,7 +132,7 @@ class RecordTracksTest {
     void self_skipsPurgedRoute() {
         best(StandardDistance.KM5, Duration.ofMinutes(25), LocalDate.of(2026, 10, 3));
         best(StandardDistance.KM10, Duration.ofMinutes(55), LocalDate.of(2026, 10, 4));
-        when(runs.hasCurve("best-10000")).thenReturn(false);
+        when(runs.curveOf("best-10000", TEN_K)).thenReturn(Optional.empty());
         when(runs.curve("best-10000", TEN_K))
                 .thenThrow(new BusinessRuleException(ReasonCode.ROUTE_PURGED));
 
@@ -200,5 +206,40 @@ class RecordTracksTest {
             assertThatThrownBy(() -> records.recordTracks(ALICE, kind))
                     .isInstanceOf(IllegalArgumentException.class);
         }
+    }
+
+    @Test
+    @DisplayName("BE12-7 SELF: 표본이 대결 거리에 닿지 않는 기록은 뺀다(POST /battles/self도 거부)")
+    void self_skipsCurveShorterThanDistance() {
+        best(StandardDistance.KM1, Duration.ofMinutes(4), LocalDate.of(2026, 9, 30));
+        best(StandardDistance.KM5, Duration.ofMinutes(25), LocalDate.of(2026, 10, 3));
+        curve(
+                "best-5000",
+                StandardDistance.KM5,
+                new RunCurve(
+                        List.of(
+                                new CurvePoint(Duration.ZERO, Distance.ZERO),
+                                new CurvePoint(Duration.ofMinutes(20), Distance.ofMeters(4_000))),
+                        FIVE_K));
+
+        assertThat(records.recordTracks(ALICE, BattleType.SELF))
+                .extracting(RecordTrack::distance)
+                .containsExactly(ONE_K);
+    }
+
+    @Test
+    @DisplayName("BE12-7 CELEBRITY: 구간 기록이 대결 거리에 닿지 않는 셀럽 기록은 뺀다")
+    void celebrity_skipsTrackShorterThanDistance() {
+        CelebrityRecord full = celebrity("완주전설", FIVE_K, Duration.ofMinutes(15), List.of(), null);
+        celebrity(
+                "짧은전설",
+                FIVE_K,
+                Duration.ofMinutes(16),
+                List.of(new TrackSample(Duration.ofMinutes(8), Distance.ofMeters(2_500))),
+                null);
+
+        assertThat(records.recordTracks(ALICE, BattleType.CELEBRITY))
+                .extracting(RecordTrack::celebrityId)
+                .containsExactly(full.getId());
     }
 }
