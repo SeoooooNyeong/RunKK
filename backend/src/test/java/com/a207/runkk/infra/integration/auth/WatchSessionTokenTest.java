@@ -39,13 +39,13 @@ class WatchSessionTokenTest {
         RefreshGrant watch = issuer.redeemRefreshToken(issuer.issueWatch(7).refreshToken());
 
         assertThat(phone.memberId()).isEqualTo(7);
-        assertThat(phone.isWatch()).isFalse();
+        assertThat(phone).isInstanceOf(RefreshGrant.Phone.class);
         assertThat(watch.memberId()).isEqualTo(7);
-        assertThat(watch.isWatch()).isTrue();
-        assertThat(issuer.redeemRefreshToken(issuer.reissue(watch).refreshToken()).isWatch())
-                .isTrue();
-        assertThat(issuer.redeemRefreshToken(issuer.reissue(phone).refreshToken()).isWatch())
-                .isFalse();
+        assertThat(watch).isInstanceOf(RefreshGrant.Watch.class);
+        assertThat(issuer.redeemRefreshToken(issuer.reissue(watch).refreshToken()))
+                .isInstanceOf(RefreshGrant.Watch.class);
+        assertThat(issuer.redeemRefreshToken(issuer.reissue(phone).refreshToken()))
+                .isInstanceOf(RefreshGrant.Phone.class);
     }
 
     @Test
@@ -72,8 +72,34 @@ class WatchSessionTokenTest {
                 .isInstanceOf(AuthFailureException.class);
         assertThat(issuer.redeemRefreshToken(phone.refreshToken()).memberId()).isEqualTo(7);
         assertThat(issuer.redeemRefreshToken(others.refreshToken()).memberId()).isEqualTo(8);
-        assertThat(issuer.redeemRefreshToken(issuer.issueWatch(7).refreshToken()).isWatch())
-                .isTrue();
+        assertThat(issuer.redeemRefreshToken(issuer.issueWatch(7).refreshToken()))
+                .isInstanceOf(RefreshGrant.Watch.class);
+    }
+
+    @Test
+    @DisplayName("BE13-2: revokeExistingWatchSessions는 행이 없으면 만들지 않고, 있으면 세대를 올린다")
+    void revokeExisting_neverCreatesRow() {
+        issuer.revokeExistingWatchSessions(7);
+        assertThat(generations.hasRow(7)).isFalse();
+
+        issuer.revokeWatchSessions(7);
+        TokenPair watch = issuer.issueWatch(7);
+        issuer.revokeExistingWatchSessions(7);
+
+        assertThatThrownBy(() -> issuer.redeemRefreshToken(watch.refreshToken()))
+                .isInstanceOf(AuthFailureException.class);
+    }
+
+    @Test
+    @DisplayName("BE13-2: forgetWatchSessions는 그 회원의 행만 지운다")
+    void forget_removesOnlyThatMembersRow() {
+        issuer.revokeWatchSessions(7);
+        issuer.revokeWatchSessions(8);
+
+        issuer.forgetWatchSessions(7);
+
+        assertThat(generations.hasRow(7)).isFalse();
+        assertThat(generations.hasRow(8)).isTrue();
     }
 
     @Test
@@ -112,11 +138,13 @@ class WatchSessionTokenTest {
                 .isInstanceOf(ProviderUnavailableException.class);
         assertThatThrownBy(() -> issuer.revokeWatchSessions(7))
                 .isInstanceOf(ProviderUnavailableException.class);
-        assertThat(issuer.redeemRefreshToken(phone.refreshToken()).isWatch()).isFalse();
+        assertThat(issuer.redeemRefreshToken(phone.refreshToken()))
+                .isInstanceOf(RefreshGrant.Phone.class);
 
         // 장애 동안 쓰지 못한 워치 토큰은 복구 뒤 그대로 쓸 수 있다
         generations.available();
-        assertThat(issuer.redeemRefreshToken(watch.refreshToken()).isWatch()).isTrue();
+        assertThat(issuer.redeemRefreshToken(watch.refreshToken()))
+                .isInstanceOf(RefreshGrant.Watch.class);
     }
 
     @Test

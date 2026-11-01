@@ -121,6 +121,25 @@ public class AuthService {
     }
 
     /**
+     * 탈퇴한 회원의 워치용 갱신 토큰을 폐기한다. 세대 행이 없으면 만들지 않는다(BE13-2).
+     *
+     * @throws ProviderUnavailableException 워치 세션 세대를 기록할 수 없음
+     */
+    public void revokeWatchSessionsOfWithdrawn(long memberId) {
+        tokenIssuer.revokeExistingWatchSessions(memberId);
+        log.info("watch_sessions_revoked_on_withdrawal memberId={}", memberId);
+    }
+
+    /**
+     * 회원 자료 파기 때 그 회원의 워치 세션 세대 행을 지운다(BE13-2).
+     *
+     * @throws ProviderUnavailableException 워치 세션 세대를 지울 수 없음
+     */
+    public void forgetWatchSessions(long memberId) {
+        tokenIssuer.forgetWatchSessions(memberId);
+    }
+
+    /**
      * 접근 토큰 재발급(D-19). 갱신 토큰은 한 번만 쓴다(회전). 워치용 갱신 토큰이면 새 쌍도 워치용이다(W25). 탈퇴한 회원이면
      * AuthFailureException. 발급 때 마지막 접속을 기록한다.
      *

@@ -33,6 +33,22 @@ final class InMemoryWatchSessionGenerations implements WatchSessionGenerations {
         rows.merge(memberId, 1L, Long::sum);
     }
 
+    @Override
+    public void advanceExisting(long memberId, Instant at) {
+        check();
+        rows.computeIfPresent(memberId, (id, g) -> g + 1);
+    }
+
+    @Override
+    public void forget(long memberId) {
+        check();
+        rows.remove(memberId);
+    }
+
+    boolean hasRow(long memberId) {
+        return rows.containsKey(memberId);
+    }
+
     private void check() {
         if (down) {
             throw new DataAccessResourceFailureException("db down");

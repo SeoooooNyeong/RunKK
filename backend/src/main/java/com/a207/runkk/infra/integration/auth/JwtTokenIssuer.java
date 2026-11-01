@@ -112,10 +112,10 @@ public class JwtTokenIssuer implements TokenIssuer {
 
     @Override
     public TokenPair reissue(RefreshGrant grant) {
-        OptionalLong generation = grant.watchGeneration();
-        return generation.isPresent()
-                ? watchPair(grant.memberId(), generation.getAsLong())
-                : issue(grant.memberId());
+        return switch (grant) {
+            case RefreshGrant.Watch w -> watchPair(w.memberId(), w.generation());
+            case RefreshGrant.Phone p -> issue(p.memberId());
+        };
     }
 
     @Override
@@ -124,6 +124,24 @@ public class JwtTokenIssuer implements TokenIssuer {
             watchSessions.advance(memberId, clock.instant());
         } catch (DataAccessException e) {
             throw unavailable("watch_revoke", e);
+        }
+    }
+
+    @Override
+    public void revokeExistingWatchSessions(long memberId) {
+        try {
+            watchSessions.advanceExisting(memberId, clock.instant());
+        } catch (DataAccessException e) {
+            throw unavailable("watch_revoke_existing", e);
+        }
+    }
+
+    @Override
+    public void forgetWatchSessions(long memberId) {
+        try {
+            watchSessions.forget(memberId);
+        } catch (DataAccessException e) {
+            throw unavailable("watch_forget", e);
         }
     }
 
@@ -208,7 +226,9 @@ public class JwtTokenIssuer implements TokenIssuer {
         if (!first) {
             throw new AuthFailureException("폐기된 갱신 토큰");
         }
-        return new RefreshGrant(memberId, generation);
+        return generation.isPresent()
+                ? new RefreshGrant.Watch(memberId, generation.getAsLong())
+                : new RefreshGrant.Phone(memberId);
     }
 
     /** 워치용 갱신 토큰이면 발급 때의 워치 세션 세대, 폰 토큰이면 비어 있다. 워치 표시가 있는데 세대가 없거나 모르는 표시면 거부한다. */

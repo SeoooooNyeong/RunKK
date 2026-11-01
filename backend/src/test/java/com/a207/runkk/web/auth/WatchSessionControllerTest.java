@@ -209,7 +209,7 @@ class WatchSessionControllerTest extends WebTestSupport {
     }
 
     @Test
-    @DisplayName("탈퇴하면 그 회원의 워치 세션 세대가 올라가 워치용 갱신 토큰이 폐기된다")
+    @DisplayName("탈퇴하면 워치용 갱신 토큰이 거부되고, 세대 행은 새로 만들지 않는다(BE13-2)")
     void withdrawal_revokesWatchTokens() throws Exception {
         Session s = signUp();
         String watch = watchRefreshOf(s.accessToken());
@@ -218,11 +218,10 @@ class WatchSessionControllerTest extends WebTestSupport {
 
         assertThat(
                         jdbc.queryForObject(
-                                "select generation from watch_session_generation where member_id"
-                                        + " = ?",
+                                "select count(*) from watch_session_generation where member_id = ?",
                                 Long.class,
                                 s.memberId()))
-                .isEqualTo(1L);
+                .isZero();
         mvc.perform(refresh(watch)).andExpect(status().isUnauthorized());
     }
 

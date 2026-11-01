@@ -191,6 +191,7 @@ class MemberAccountServicesTest {
         assertThat(service.purgeWithdrawn(NOW)).isEqualTo(1);
         assertThat(repository.findById(early).orElseThrow().getSettings().recordVisibility())
                 .isEqualTo(RecordVisibility.PRIVATE);
+        assertThat(published).containsExactly(new MemberPurged(early, NOW));
     }
 
     @Test
