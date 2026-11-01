@@ -4,6 +4,9 @@ import android.app.Application
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Looper
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.CardKind
@@ -1047,6 +1050,42 @@ class WatchFlowViewModelTest {
 
         assertEquals(WatchFlow.Notice.MEASUREMENT_STOPPED, (h.flow as WatchFlow.Main).notice)
         assertTrue(tts.isShutdown)
+    }
+
+    @Test
+    fun `결과 화면에서 화면이 사라지면 도착 안내를 끊지 않게 음성 엔진을 닫지 않는다(WR13-3)`() = flowTest {
+        val app = RuntimeEnvironment.getApplication()
+        shadowOf(app.packageManager).setSystemFeature(PackageManager.FEATURE_AUDIO_OUTPUT, true)
+        ShadowTextToSpeech.addLanguageAvailability(Locale.KOREAN)
+        val h = open()
+        h.vm.onModeSelected(WatchMode.FREE)
+        h.vm.onStartPressed()
+        passCountdown()
+        h.guidance.play(
+            Guidance(Guidance.Kind.SPLIT, GuidanceMessage.SPLIT, listOf("1"), hasVoice = true, hasVibration = false)
+        )
+        shadowOf(Looper.getMainLooper()).idle()
+        val tts = shadowOf(checkNotNull(ShadowTextToSpeech.getLastTextToSpeechInstance()))
+        runNorth(h.tracker, meters = 200)
+        h.vm.onEndLongPressed()
+        runCurrent()
+        assertIs<WatchFlow.Result>(h.flow)
+
+        clearViewModel(h.vm)
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertFalse(tts.isShutdown)
+    }
+
+    /** 화면(액티비티)이 끝나 ViewModel이 지워진다(onCleared). */
+    private fun clearViewModel(vm: WatchFlowViewModel) {
+        val store = ViewModelStore()
+        val factory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T = vm as T
+        }
+        ViewModelProvider(store, factory)[WatchFlowViewModel::class.java]
+        store.clear()
     }
 
     @Test

@@ -139,10 +139,11 @@ class WatchBattleFlow @Inject constructor(
     fun activeDistance(): Distance? = coordinator.activeDistance
 
     /**
-     * 열린 회가 이 워치에서 연 셀프·셀럽 기록 대결이면 그 상대 기록, 배틀런이거나 열린 회가 없으면 null(코드 리뷰 WR13-2). 측정 중이나
-     * 카운트다운 중에 화면을 다시 열 때 셀프·셀럽 맥락을 되살린다.
+     * 열린 회(카운트다운·측정·종료 카운트다운)가 이 워치에서 연 셀프·셀럽 기록 대결이면 그 상대 기록, 배틀런이거나 열린 회가 없으면
+     * null(코드 리뷰 WR13-2). 측정 중이나 카운트다운 중에 화면을 다시 열 때 셀프·셀럽 맥락을 되살린다. 끝난 회를 화면이 확인하기 전에
+     * 사라져 기억이 남아 있어도 끝 상태(Finished·Discarded)에서는 돌려주지 않는다.
      */
-    fun activeRecord(): RecordOpponent? = memory.opponent?.takeIf { step() != BattleStep.Idle }
+    fun activeRecord(): RecordOpponent? = memory.opponent?.takeIf { step().isOpen }
 
     /** 결과 화면이 대결 끝(Finished·Discarded)을 받았다. 다음 대결이 지난 끝 상태를 받지 않게 한다. */
     fun acknowledge() {

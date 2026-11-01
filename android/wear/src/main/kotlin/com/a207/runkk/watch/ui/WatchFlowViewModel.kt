@@ -282,8 +282,9 @@ class WatchFlowViewModel @Inject constructor(
     override fun onCleared() {
         // 성사 전에 화면이 사라지면 서버 대기열에서 뺀다(FR-085). 성사 뒤 대결은 조정자가 갖는다.
         if (_flow.value is WatchFlow.Matching) battleFlow.cancelMatching()
-        // 측정 중이 아니면 이 화면이 더 안내할 일이 없다: TTS를 닫는다(WR13-3). 측정 중이면 측정 서비스의 안내가 이어 쓴다.
-        if (!runTracker.isMeasuring) guidance.shutdown()
+        // 측정 중이 아니면 이 화면이 더 안내할 일이 없다: TTS를 닫는다(WR13-3). 측정 중이면 측정 서비스의 안내가 이어 쓰고, 결과 화면이면
+        // 도착 안내가 아직 말하는 중일 수 있어 닫지 않는다(onResultClosed와 같은 이유).
+        if (!runTracker.isMeasuring && _flow.value !is WatchFlow.Result) guidance.shutdown()
     }
 
     private fun initialFlow(): WatchFlow {

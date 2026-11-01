@@ -214,6 +214,26 @@ class WatchBattleFlowTest {
 
         assertEquals(Duration.ofSeconds(880), h.flow.selfCandidates().single().finishTime)
     }
+
+    @Test
+    fun `연 기록 대결의 상대는 회가 열려 있는 동안만 돌려주고 끝난 뒤 확인 전이어도 돌려주지 않는다(WR13-2)`() = runTest {
+        battles.tracks[RecordBattleKind.SELF] = listOf(selfTrack(distanceMeters = 3_000, finishSeconds = 900))
+        val h = harness()
+        h.flow.refreshCache(memberId = 1)
+        runCurrent()
+        val opponent = h.flow.selfCandidates().single()
+
+        h.flow.startRecordOffline(opponent)
+        runCurrent()
+        assertIs<BattleStep.Countdown>(h.flow.step())
+        assertEquals(opponent, h.flow.activeRecord())
+
+        // 화면이 결과를 확인(acknowledge)하기 전에 사라져 끝 상태가 남아 있어도 다음 재진입이 기록 대결로 보지 않는다.
+        h.flow.forfeit()
+        runCurrent()
+        assertFalse(h.flow.step().isOpen)
+        assertNull(h.flow.activeRecord())
+    }
 }
 
 /** observePending이 [emit]한 개수만큼의 기록 목록을 내는 미전송 기록 보관함. */
