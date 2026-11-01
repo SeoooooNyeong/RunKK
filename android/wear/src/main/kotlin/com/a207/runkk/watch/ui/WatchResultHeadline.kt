@@ -8,8 +8,8 @@ import com.a207.runkk.app.domain.run.FinishOutcome
 
 /**
  * 워치 결과 화면의 머리말과 결과 문구(3.5, D-381, D-388, FR-249 표). 결과 종류마다 객체가 자기 머리말([title])과 문구([subtitle])를 낸다.
- * 흐름마다 자기 종류를 알므로 팩토리 셋으로 고른다: 자유런 [forFree], 배틀런 [forBattle], 셀프·셀럽런 [forRecord]. 문구 표는 이 파일
- * 한 곳에만 있다.
+ * 흐름마다 자기 종류를 알므로 팩토리로 고른다: 자유런 [forFree], 배틀런 [forBattle], 셀프·셀럽런은 서버 대결이면 [forRecordVerdict]
+ * (서버 판정, W27), 서버에 닿지 않은 회면 [forRecord](워치 계산). 문구 표는 이 파일 한 곳에만 있다.
  */
 sealed interface WatchResultHeadline {
     /** 머리말(FINISH, GOAL, STOP, WIN, LOSE, BEST, GOOD). 판정을 기다리는 중([Pending])이면 빈 문자열이다. */
@@ -51,26 +51,39 @@ sealed interface WatchResultHeadline {
         }
     }
 
-    /** 짐(상대가 먼저 도착). [gapSeconds]는 늦게 들어온 시간이고 모르면 문구가 없다. */
+    /**
+     * 짐(상대가 먼저 도착, 셀럽런은 같은 시간 포함, W28). [gapSeconds]는 늦게 들어온 시간이고 모르면 문구가 없다. 0이면(같은 시간)
+     * "n초 늦게" 대신 "먼저 들어오지 못했어요"다.
+     */
     data class Lose(val opponentName: String, val gapSeconds: Long?) : WatchResultHeadline {
         override fun title(): String = "LOSE"
 
-        override fun subtitle(res: Resources): String? =
-            gapSeconds?.let { res.getString(R.string.result_lose_seconds, opponentName, it) }
+        override fun subtitle(res: Resources): String? = when (gapSeconds) {
+            null -> null
+            0L -> res.getString(R.string.result_lose_same, opponentName)
+            else -> res.getString(R.string.result_lose_seconds, opponentName, gapSeconds)
+        }
     }
 
-    /** 셀프런 최고 기록보다 빠름. */
-    data class Best(val gapSeconds: Long) : WatchResultHeadline {
+    /** 셀프런 최고 기록보다 빠름. [gapSeconds]는 단축한 시간이고 모르면 문구가 없다. */
+    data class Best(val gapSeconds: Long?) : WatchResultHeadline {
         override fun title(): String = "BEST"
 
-        override fun subtitle(res: Resources): String = res.getString(R.string.result_best, gapSeconds)
+        override fun subtitle(res: Resources): String? = gapSeconds?.let { res.getString(R.string.result_best, it) }
     }
 
-    /** 셀프런 최고 기록보다 느림(같음 포함). */
-    data class Good(val gapSeconds: Long) : WatchResultHeadline {
+    /**
+     * 셀프런 최고 기록보다 느림(같은 시간 포함, W28). [gapSeconds]는 모자란 시간이고 모르면 문구가 없다. 0이면(같은 시간)
+     * "최고 기록과 같았어요"다.
+     */
+    data class Good(val gapSeconds: Long?) : WatchResultHeadline {
         override fun title(): String = "GOOD"
 
-        override fun subtitle(res: Resources): String = res.getString(R.string.result_good, gapSeconds)
+        override fun subtitle(res: Resources): String? = when (gapSeconds) {
+            null -> null
+            0L -> res.getString(R.string.result_good_same)
+            else -> res.getString(R.string.result_good, gapSeconds)
+        }
     }
 
     /** 배틀런 결과 보류(FR-108). 머리말 대신 "결과를 확인하고 있어요"를 보이고 판정이 오면 바꾼다. */
@@ -104,24 +117,47 @@ sealed interface WatchResultHeadline {
         }
 
         /**
-         * 셀프·셀럽런: [gapSeconds]는 상대 완주 시간 − 내 도착 시간(양수면 내가 빠름)이고 도착 전에 끝냈으면 null(STOP)이다.
-         * 셀프런은 BEST·GOOD, 셀럽런은 [opponentName](셀럽 표시명)으로 WIN·LOSE다.
+         * 서버에 닿지 않은 셀프·셀럽런(워치 계산, FR-250): [gapSeconds]는 상대 완주 시간 − 내 도착 시간(초, 양수면 내가 빠름)이고
+         * 도착 전에 끝냈으면 null(STOP)이다. 같은 시간(0)은 진 것이다(W28): 셀프런 GOOD, 셀럽런 LOSE. 셀프런은 BEST·GOOD,
+         * 셀럽런은 [opponentName](셀럽 표시명)으로 WIN·LOSE다.
          */
         fun forRecord(kind: RecordBattleKind, gapSeconds: Long?, opponentName: String): WatchResultHeadline {
             if (gapSeconds == null) return Stop
-            val isFaster = gapSeconds > 0
-            val gap = kotlin.math.abs(gapSeconds)
-            return when (kind) {
-                RecordBattleKind.SELF -> if (isFaster) Best(gap) else Good(gap)
+            return recordHeadline(kind, isWin = gapSeconds > 0, gapSeconds = kotlin.math.abs(gapSeconds), opponentName)
+        }
 
-                RecordBattleKind.CELEBRITY -> if (isFaster) {
-                    Win(
-                        opponentName,
-                        gapSeconds = gap
-                    )
-                } else {
-                    Lose(opponentName, gap)
-                }
+        /**
+         * 서버 대결로 달린 셀프·셀럽런(서버 판정, W27, FR-250): 결과가 없거나 보류면 [Pending], 내가 도착하지 않았으면 STOP, 판정 WIN이면
+         * 셀프 BEST·셀럽 WIN, LOSE면 셀프 GOOD·셀럽 LOSE다. 시간 차는 도달 시간 차이고 판정과 어긋나면(검증 무효 등) 문구가 없다.
+         * 비김(DRAW)은 FR-249 표에 없어 배틀런처럼 FINISH다. 이름은 고른 카드의 [opponentName]을 쓴다(워치 계산과 같은 이름).
+         */
+        fun forRecordVerdict(kind: RecordBattleKind, result: BattleResult?, opponentName: String): WatchResultHeadline {
+            if (result == null || result.isPending) return Pending
+            val mine = result.myReach ?: return Stop
+            // 화면에 보이는 초 단위로 견준다(워치 계산과 같다).
+            val lead = result.opponentReach?.let { it.seconds - mine.seconds }
+            return when (result.verdict) {
+                VERDICT_WIN -> recordHeadline(kind, isWin = true, lead?.takeIf { it > 0 }, opponentName)
+                VERDICT_LOSE -> recordHeadline(kind, isWin = false, lead?.let { -it }?.takeIf { it >= 0 }, opponentName)
+                else -> Finish
+            }
+        }
+
+        private fun recordHeadline(
+            kind: RecordBattleKind,
+            isWin: Boolean,
+            gapSeconds: Long?,
+            opponentName: String
+        ): WatchResultHeadline = when (kind) {
+            RecordBattleKind.SELF -> if (isWin) Best(gapSeconds) else Good(gapSeconds)
+
+            RecordBattleKind.CELEBRITY -> if (isWin) {
+                Win(
+                    opponentName,
+                    gapSeconds = gapSeconds
+                )
+            } else {
+                Lose(opponentName, gapSeconds)
             }
         }
 

@@ -12,6 +12,7 @@ import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.battle.BattleRunState
 import com.a207.runkk.app.domain.battle.RandomBattleGate
 import com.a207.runkk.app.domain.battle.RecordBattleKind
+import com.a207.runkk.app.domain.battle.RecordTrack
 import com.a207.runkk.app.domain.run.FinishOutcome
 import com.a207.runkk.app.domain.run.FreeRunGoal
 import com.a207.runkk.app.domain.run.PlanSnapshot
@@ -650,9 +651,10 @@ class WatchFlowViewModel @Inject constructor(
                 ?: withTimeoutOrNull(OUTCOME_WAIT_MILLIS) { endedOutcome.filterNotNull().first() }
                 ?: FinishOutcome.NotSaved
             val summary = RunSummaryView.of(outcome)
+            val id = active.battleId ?: battleId
             when (active.mode) {
-                WatchMode.BATTLE -> showBattleResult(active.battleId ?: battleId, outcome, summary)
-                else -> showRecordResult(active, outcome, summary)
+                WatchMode.BATTLE -> showBattleResult(id, outcome, summary)
+                else -> showRecordResult(active, id, outcome, summary)
             }
         }
     }
@@ -664,31 +666,73 @@ class WatchFlowViewModel @Inject constructor(
             _flow.value = WatchFlow.Result(WatchResultHeadline.forFree(outcome, goal = null), summary)
             return
         }
-        _flow.value = WatchFlow.Result(WatchResultHeadline.Pending, summary)
-        repeat(RESULT_ATTEMPTS) { attempt ->
-            val headline = WatchResultHeadline.forBattle(battleFlow.result(battleId), lastGap)
-            if (_flow.value !is WatchFlow.Result) return
-            _flow.value = WatchFlow.Result(headline, summary)
-            if (headline != WatchResultHeadline.Pending) return
-            if (attempt < RESULT_ATTEMPTS - 1) delay(RESULT_RETRY_MILLIS)
-        }
+        val headline = awaitVerdict(RESULT_ATTEMPTS, summary) {
+            WatchResultHeadline.forBattle(battleFlow.result(battleId), lastGap)
+        } ?: return
+        _flow.value = WatchFlow.Result(headline, summary)
     }
 
-    /** 셀프·셀럽런 결과: 상대 완주 시간과 내 도착 시간 차로 워치가 정한다(오프라인은 워치에서만 보인다, W18). */
-    private fun showRecordResult(active: Round, outcome: FinishOutcome, summary: RunSummaryView) {
+    /**
+     * 셀프·셀럽런 결과. 서버 대결로 달린 회(battleId가 0이 아님)는 서버 판정을 보인다(W27, FR-250, WR12-4): 기다리는 동안 보류이고,
+     * [RECORD_RESULT_ATTEMPTS]번 안에 받지 못하면 워치 계산으로 보인다. 서버에 닿지 않은 회는 워치 계산이다(W18).
+     * 서버 판정 BEST는 상대 기록 사본을 여기서 바꾸지 않는다: 판정이 났으면 기록이 이미 서버에 올라가 있어 전송 신호(uploadsSent)로
+     * 사본을 다시 받는다(FR-260). 끝내 보류로 끝나면 awaitVerdict가 중단점 없이 돌아와 결과 화면에 있는 채로 워치 계산을 쓴다.
+     */
+    private suspend fun showRecordResult(
+        active: Round,
+        battleId: Long,
+        outcome: FinishOutcome,
+        summary: RunSummaryView
+    ) {
         val opponent = active.opponent?.record
         if (opponent == null) {
             _flow.value = WatchFlow.Result(WatchResultHeadline.forFree(outcome, goal = null), summary)
             return
         }
+        if (battleId != OFFLINE_BATTLE_ID) {
+            val verdict = awaitVerdict(RECORD_RESULT_ATTEMPTS, summary) {
+                WatchResultHeadline.forRecordVerdict(opponent.kind, battleFlow.result(battleId), opponent.displayName)
+            } ?: return
+            if (verdict != WatchResultHeadline.Pending) {
+                _flow.value = WatchFlow.Result(verdict, summary)
+                return
+            }
+        }
+        _flow.value = WatchFlow.Result(watchVerdict(opponent, outcome), summary)
+    }
+
+    /**
+     * 워치 계산 머리말(FR-250): 상대 완주 시간과 내 도착 시간을 화면에 보이는 초 단위로 견준다(같은 초는 진 것, W28). 셀프런을
+     * 새로 앞섰으면 상대 기록 사본도 바꾼다(FR-260).
+     */
+    private fun watchVerdict(opponent: RecordTrack, outcome: FinishOutcome): WatchResultHeadline {
         val run = (outcome as? FinishOutcome.Saved)?.run
         val gapSeconds = run?.takeIf { it.distance.isAtLeast(opponent.distance) }
-            ?.let { opponent.finishTime.minus(it.elapsed).seconds }
+            ?.let { opponent.finishTime.seconds - it.elapsed.seconds }
         val headline = WatchResultHeadline.forRecord(opponent.kind, gapSeconds, opponent.displayName)
         if (opponent.kind == RecordBattleKind.SELF && headline is WatchResultHeadline.Best && run != null) {
             battleFlow.onNewSelfBest(opponent.distance, run.elapsed)
         }
-        _flow.value = WatchFlow.Result(headline, summary)
+        return headline
+    }
+
+    /**
+     * 서버 판정을 [attempts]번까지 [RESULT_RETRY_MILLIS] 간격으로 묻는다(FR-108). 묻는 동안 결과 화면은 보류 머리말이다. 판정 머리말을
+     * 받으면 그것을, 끝내 보류면 [WatchResultHeadline.Pending]을 돌려준다. 그 사이 결과 화면을 떠났으면 null이다.
+     */
+    private suspend fun awaitVerdict(
+        attempts: Int,
+        summary: RunSummaryView,
+        headlineOf: suspend () -> WatchResultHeadline
+    ): WatchResultHeadline? {
+        _flow.value = WatchFlow.Result(WatchResultHeadline.Pending, summary)
+        repeat(attempts) { attempt ->
+            val headline = headlineOf()
+            if (_flow.value !is WatchFlow.Result) return null
+            if (headline != WatchResultHeadline.Pending) return headline
+            if (attempt < attempts - 1) delay(RESULT_RETRY_MILLIS)
+        }
+        return WatchResultHeadline.Pending
     }
 
     private fun showNotice(notice: WatchFlow.Notice) {
@@ -784,8 +828,16 @@ class WatchFlowViewModel @Inject constructor(
 
         /** 대결 끝(Finished) 뒤 종료 요약을 기다리는 상한. */
         const val OUTCOME_WAIT_MILLIS = 2_000L
+
+        /** 배틀런 판정을 묻는 횟수와 간격(3초 × 10, D-409). */
         const val RESULT_ATTEMPTS = 10
         const val RESULT_RETRY_MILLIS = 3_000L
+
+        /**
+         * 서버 대결 셀프·셀럽런 판정을 묻는 횟수(폰 결과 화면 BattleResultViewModel.PENDING_RETRIES와 같은 3초 × 20, W27).
+         * 넘으면 워치 계산으로 보인다.
+         */
+        const val RECORD_RESULT_ATTEMPTS = 20
         const val OFFLINE_BATTLE_ID = 0L
         const val HALF_MARATHON_METERS = 21_097L
         const val FULL_MARATHON_METERS = 42_195L

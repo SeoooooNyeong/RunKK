@@ -42,17 +42,18 @@ class WatchResultHeadlineTest {
         )
     )
 
-    private fun battle(verdict: String?, mine: Long?, theirs: Long?, isPending: Boolean = false) = BattleResult(
-        battleId = 7,
-        isPending = isPending,
-        verdict = verdict,
-        rows = emptyList(),
-        rewardPoints = null,
-        isNewRecord = false,
-        opponentName = "민준",
-        myReach = mine?.let { Duration.ofSeconds(it) },
-        opponentReach = theirs?.let { Duration.ofSeconds(it) }
-    )
+    private fun battle(verdict: String?, mine: Long?, theirs: Long?, isPending: Boolean = false, name: String? = "민준") =
+        BattleResult(
+            battleId = 7,
+            isPending = isPending,
+            verdict = verdict,
+            rows = emptyList(),
+            rewardPoints = null,
+            isNewRecord = false,
+            opponentName = name,
+            myReach = mine?.let { Duration.ofSeconds(it) },
+            opponentReach = theirs?.let { Duration.ofSeconds(it) }
+        )
 
     private fun assertHeadline(expectedTitle: String, expectedSubtitle: String?, actual: WatchResultHeadline) {
         assertEquals(expectedTitle, actual.title())
@@ -155,6 +156,122 @@ class WatchResultHeadlineTest {
         )
         assertNull(
             WatchResultHeadline.forBattle(battle("WIN", mine = 390, theirs = null), gapMeters = null).subtitle(res)
+        )
+    }
+
+    @Test
+    fun `셀프런 최고 기록과 같은 시간은 진 것이라 GOOD 최고 기록과 같았어요(W28)`() {
+        assertHeadline("GOOD", "최고 기록과 같았어요", WatchResultHeadline.forRecord(RecordBattleKind.SELF, 0, "내 기록"))
+    }
+
+    @Test
+    fun `셀럽런 셀럽 기록과 같은 시간은 진 것이라 LOSE 셀럽 표시명보다 먼저 들어오지 못했어요(W28)`() {
+        assertHeadline(
+            "LOSE",
+            "김*수보다 먼저 들어오지 못했어요",
+            WatchResultHeadline.forRecord(RecordBattleKind.CELEBRITY, 0, "김*수")
+        )
+    }
+
+    @Test
+    fun `서버 판정 셀프런 WIN은 BEST이고 도달 시간 차로 단축한 초를 쓴다(W27)`() {
+        assertHeadline(
+            "BEST",
+            "최고 기록을 20초 단축했어요",
+            WatchResultHeadline.forRecordVerdict(RecordBattleKind.SELF, battle("WIN", mine = 880, theirs = 900), "내 기록")
+        )
+    }
+
+    @Test
+    fun `서버 판정 셀프런 LOSE는 GOOD이고 모자란 초를 쓴다(W27)`() {
+        assertHeadline(
+            "GOOD",
+            "최고 기록까지 7초 모자랐어요",
+            WatchResultHeadline.forRecordVerdict(
+                RecordBattleKind.SELF,
+                battle("LOSE", mine = 907, theirs = 900),
+                "내 기록"
+            )
+        )
+    }
+
+    @Test
+    fun `서버 판정 셀럽런 WIN과 LOSE는 카드의 셀럽 표시명으로 문구를 낸다(W27)`() {
+        assertHeadline(
+            "WIN",
+            "김*수보다 30초 먼저 들어왔어요",
+            WatchResultHeadline.forRecordVerdict(
+                RecordBattleKind.CELEBRITY,
+                battle("WIN", mine = 1_470, theirs = 1_500, name = "김선수"),
+                "김*수"
+            )
+        )
+        assertHeadline(
+            "LOSE",
+            "김*수보다 4초 늦게 들어왔어요",
+            WatchResultHeadline.forRecordVerdict(
+                RecordBattleKind.CELEBRITY,
+                battle("LOSE", mine = 1_504, theirs = 1_500, name = null),
+                "김*수"
+            )
+        )
+    }
+
+    @Test
+    fun `서버 판정이 없거나 보류면 머리말 대신 결과를 확인하고 있어요(W27)`() {
+        assertEquals(
+            WatchResultHeadline.Pending,
+            WatchResultHeadline.forRecordVerdict(RecordBattleKind.SELF, null, "내 기록")
+        )
+        assertEquals(
+            WatchResultHeadline.Pending,
+            WatchResultHeadline.forRecordVerdict(
+                RecordBattleKind.CELEBRITY,
+                battle(null, mine = 1_470, theirs = 1_500, isPending = true),
+                "김*수"
+            )
+        )
+    }
+
+    @Test
+    fun `서버 판정에서 내가 도착하지 않았으면 STOP이고 비김은 표에 없어 FINISH다`() {
+        assertEquals(
+            WatchResultHeadline.Stop,
+            WatchResultHeadline.forRecordVerdict(
+                RecordBattleKind.SELF,
+                battle("LOSE", mine = null, theirs = 900),
+                "내 기록"
+            )
+        )
+        assertEquals(
+            WatchResultHeadline.Finish,
+            WatchResultHeadline.forRecordVerdict(
+                RecordBattleKind.CELEBRITY,
+                battle("DRAW", mine = 1_500, theirs = 1_500),
+                "김*수"
+            )
+        )
+    }
+
+    @Test
+    fun `서버가 먼저 도착한 기록을 LOSE로 판정하면(검증 무효) 시간 차 없이 머리말만 보인다`() {
+        assertHeadline(
+            "GOOD",
+            null,
+            WatchResultHeadline.forRecordVerdict(
+                RecordBattleKind.SELF,
+                battle("LOSE", mine = 880, theirs = 900),
+                "내 기록"
+            )
+        )
+        assertHeadline(
+            "LOSE",
+            null,
+            WatchResultHeadline.forRecordVerdict(
+                RecordBattleKind.CELEBRITY,
+                battle("LOSE", mine = 1_470, theirs = 1_500),
+                "김*수"
+            )
         )
     }
 }
