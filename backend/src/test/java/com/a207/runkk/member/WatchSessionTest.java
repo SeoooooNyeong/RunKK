@@ -12,7 +12,10 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.support.TransactionOperations;
 
-/** 워치용 토큰 쌍 발급(D-372, FR-240, SQ-43): AuthService.issueWatchSession. 폰 토큰을 무효로 만들지 않는다. */
+/**
+ * 워치용 토큰 쌍 발급(D-372, FR-240, SQ-43): AuthService.issueWatchSession. 폰 토큰을 무효로 만들지 않는다. 워치용 갱신 토큰은
+ * 회전해도 워치용이고, 워치연동 끄기·로그아웃·탈퇴 때 그 회원의 워치용 갱신 토큰만 모두 폐기한다(2026-11-01 사용자 결정 W25, 코드 리뷰 12차 U12-6).
+ */
 @DisplayName("AuthService.issueWatchSession: 워치용 토큰 쌍")
 class WatchSessionTest {
 
@@ -78,5 +81,90 @@ class WatchSessionTest {
         assertThatThrownBy(() -> auth.issueWatchSession(999_999L))
                 .isInstanceOf(AuthFailureException.class);
         assertThat(tokens.issuedCount()).isEqualTo(issued);
+    }
+
+    @Test
+    @DisplayName("워치용 갱신 토큰은 갱신해도 워치용 토큰 쌍을 받는다(폰 토큰은 폰용)")
+    void watchRefresh_staysWatch() {
+        Member m = social("회전곰");
+        TokenPair phone = tokens.issue(m.getId());
+        TokenPair watch = auth.issueWatchSession(m.getId());
+
+        assertThat(tokens.isWatch(auth.refresh(watch.refreshToken()).refreshToken())).isTrue();
+        assertThat(tokens.isWatch(auth.refresh(phone.refreshToken()).refreshToken())).isFalse();
+    }
+
+    @Test
+    @DisplayName("revokeWatchSessions: 회전한 것까지 그 회원의 워치용 갱신 토큰만 모두 폐기하고 폰과 다른 회원은 그대로다")
+    void revokeWatchSessions_revokesOnlyThatMembersWatchTokens() {
+        Member m = social("끄기곰");
+        Member other = social("남곰");
+        TokenPair phone = tokens.issue(m.getId());
+        TokenPair rotated = auth.refresh(auth.issueWatchSession(m.getId()).refreshToken());
+        TokenPair second = auth.issueWatchSession(m.getId());
+        TokenPair othersWatch = auth.issueWatchSession(other.getId());
+
+        auth.revokeWatchSessions(m.getId());
+
+        assertThatThrownBy(() -> auth.refresh(rotated.refreshToken()))
+                .isInstanceOf(AuthFailureException.class);
+        assertThatThrownBy(() -> auth.refresh(second.refreshToken()))
+                .isInstanceOf(AuthFailureException.class);
+        assertThat(auth.refresh(phone.refreshToken()).accessToken())
+                .isEqualTo("access-" + m.getId());
+        assertThat(auth.refresh(othersWatch.refreshToken()).accessToken())
+                .isEqualTo("access-" + other.getId());
+        // 폐기 뒤 다시 연동하면 새 워치 세션은 쓸 수 있다
+        assertThat(auth.refresh(auth.issueWatchSession(m.getId()).refreshToken()).accessToken())
+                .isEqualTo("access-" + m.getId());
+    }
+
+    @Test
+    @DisplayName("로그아웃은 폰 갱신 토큰과 그 회원의 워치용 갱신 토큰을 함께 폐기한다")
+    void logout_alsoRevokesWatchSessions() {
+        Member m = social("로그아웃곰");
+        TokenPair phone = tokens.issue(m.getId());
+        TokenPair watch = auth.issueWatchSession(m.getId());
+
+        auth.logout(m.getId(), phone.refreshToken());
+
+        assertThat(tokens.isRevoked(phone.refreshToken())).isTrue();
+        assertThatThrownBy(() -> auth.refresh(watch.refreshToken()))
+                .isInstanceOf(AuthFailureException.class);
+    }
+
+    @Test
+    @DisplayName("게스트의 워치 세션도 폐기한다")
+    void guest_watchSessionsAreRevoked() {
+        Member guest =
+                repository.save(Member.guest(Nickname.of("러너0043"), requiredConsents(), NOW));
+        TokenPair watch = auth.issueWatchSession(guest.getId());
+
+        auth.revokeWatchSessions(guest.getId());
+
+        assertThatThrownBy(() -> auth.refresh(watch.refreshToken()))
+                .isInstanceOf(AuthFailureException.class);
+    }
+
+    @Test
+    @DisplayName("탈퇴 사건을 받으면 그 회원의 워치 세션을 폐기한다")
+    void withdrawal_revokesWatchSessions() {
+        Member m = social("떠난곰");
+        TokenPair watch = auth.issueWatchSession(m.getId());
+
+        new WatchSessionWithdrawalListener(auth)
+                .onMemberWithdrawn(new MemberWithdrawn(m.getId(), NOW));
+
+        assertThat(tokens.isWatchSessionRevoked(watch.refreshToken())).isTrue();
+    }
+
+    @Test
+    @DisplayName("탈퇴 사건 처리 중 폐기 저장소 장애는 삼키고 남긴다(탈퇴 회원은 갱신에서 어차피 막힌다)")
+    void withdrawal_storeDown_isSwallowed() {
+        Member m = social("장애곰");
+        tokens.watchStoreDown();
+
+        new WatchSessionWithdrawalListener(auth)
+                .onMemberWithdrawn(new MemberWithdrawn(m.getId(), NOW));
     }
 }
