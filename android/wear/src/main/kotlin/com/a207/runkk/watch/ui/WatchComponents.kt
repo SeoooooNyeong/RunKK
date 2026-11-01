@@ -82,19 +82,27 @@ internal fun PillButton(
         PillTone.STOP -> WatchColors.Lavender
     }
     val isCompact = textSize < 15.sp
-    Row(
+    // 보이는 알약은 글자가 작으면 40dp로 줄이고, 누르는 영역은 늘 워치 최소 터치 크기 48dp다(WR12-3, RoundIconButton과 같은 방식).
+    Box(
         modifier = modifier
-            .heightIn(min = if (isCompact) 40.dp else 48.dp)
+            .heightIn(min = 48.dp)
             .clip(shape)
-            .background(if (isEnabled) container else WatchColors.Surface)
-            .border(1.dp, border, shape)
-            .combinedClickable(enabled = isEnabled, role = Role.Button, onClick = onClick, onLongClick = onLongClick)
-            .padding(horizontal = if (isCompact) 12.dp else 20.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally)
+            .combinedClickable(enabled = isEnabled, role = Role.Button, onClick = onClick, onLongClick = onLongClick),
+        contentAlignment = Alignment.Center
     ) {
-        icon?.invoke(content)
-        Text(text = text, style = labelStyle(color = content, size = textSize), textAlign = TextAlign.Center)
+        Row(
+            modifier = Modifier
+                .heightIn(min = if (isCompact) 40.dp else 48.dp)
+                .clip(shape)
+                .background(if (isEnabled) container else WatchColors.Surface)
+                .border(1.dp, border, shape)
+                .padding(horizontal = if (isCompact) 12.dp else 20.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally)
+        ) {
+            icon?.invoke(content)
+            Text(text = text, style = labelStyle(color = content, size = textSize), textAlign = TextAlign.Center)
+        }
     }
 }
 

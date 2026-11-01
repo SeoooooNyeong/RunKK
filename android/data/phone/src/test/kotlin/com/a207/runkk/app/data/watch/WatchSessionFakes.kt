@@ -15,6 +15,8 @@ import com.a207.runkk.app.domain.settings.SettingsRepository
 import com.a207.runkk.app.domain.settings.SettingsSnapshot
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.filterNotNull
 
 /** WatchSessionPublisher 시험 가짜(발행기 시험과 수신 서비스 시험이 함께 쓴다). */
 internal val WATCH_TOKENS = SessionTokens("watch-access", "watch-refresh")
@@ -47,8 +49,13 @@ internal class FakeWatchSession(loggedIn: Boolean) : SessionRepository {
     override suspend fun hasGuestCredential(): Boolean = false
 }
 
+/**
+ * 설정 사본(가짜). [isSettled]가 거짓이면 운영 DataStoreSettingsRepository처럼 기기 사본을 아직 읽지 못한 상태다: 읽기 연산은 안전한 값
+ * (워치연동 꺼짐)을 돌려주고 changes()는 아무것도 내지 않는다.
+ */
 internal class FakeWatchSettings(initial: SettingsSnapshot) : SettingsRepository {
     val state = MutableStateFlow(initial)
+    val isSettled = MutableStateFlow(true)
 
     override suspend fun refresh(): Outcome<Unit> = Outcome.Success(Unit)
 
@@ -56,7 +63,7 @@ internal class FakeWatchSettings(initial: SettingsSnapshot) : SettingsRepository
 
     override fun heartRateConsented() = state.value.isHeartRateConsented
 
-    override fun watchLinked() = state.value.isWatchLinked
+    override fun watchLinked() = isSettled.value && state.value.isWatchLinked
 
     override fun courseMapShared() = state.value.isCourseMapShared
 
@@ -66,7 +73,8 @@ internal class FakeWatchSettings(initial: SettingsSnapshot) : SettingsRepository
 
     override fun isGuest(): Boolean = state.value.isGuest
 
-    override fun changes(): Flow<SettingsSnapshot> = state
+    override fun changes(): Flow<SettingsSnapshot> =
+        combine(state, isSettled) { snapshot, settled -> snapshot.takeIf { settled } }.filterNotNull()
 
     override suspend fun clear(): Outcome<Unit> = Outcome.Success(Unit)
 }

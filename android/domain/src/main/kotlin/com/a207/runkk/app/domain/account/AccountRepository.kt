@@ -37,9 +37,10 @@ interface AccountRepository {
 
     /**
      * 로그인한 본인의 회원 ID(기기에 있는 접근 토큰에서 읽는다, 서버 호출 없음). 토큰이 없으면 null. WatchSessionPublisher가 워치에 보낼
-     * 로그인 정보의 회원 ID와 "이미 보낸 회원인가"를 이것으로 정한다(SQ-43: watch-session 응답에는 토큰 쌍뿐이다). 구현이 없으면 null.
+     * 로그인 정보의 회원 ID와 "이미 보낸 회원인가"를 이것으로 정한다(SQ-43: watch-session 응답에는 토큰 쌍뿐이다). 기본 구현을 두지 않는다
+     * (빠뜨리면 발행기가 아무것도 보내지 않고 조용히 끝난다, 코드 리뷰 AN12-3).
      */
-    fun selfMemberId(): Long? = null
+    fun selfMemberId(): Long?
 
     /**
      * 게스트로 시작(POST /members/guest, FR-197). [consents]의 키는 서버 ConsentItem 이름이고 가입과 같은 동의 화면이 채운다

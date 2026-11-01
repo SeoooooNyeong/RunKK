@@ -72,6 +72,13 @@ class WatchMeasurementService : LifecycleService() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
+        if (intent?.action == ACTION_STOP) {
+            // 시작 명령 뒤에 차례로 온다: 시작 명령이 포그라운드로 올린 뒤에 내리고 멈춘다(WR12-10). 이 명령 뒤에 새 시작 명령이
+            // 와 있으면 멈추지 않는다(stopSelf(startId)).
+            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+            stopSelf(startId)
+            return START_NOT_STICKY
+        }
         if (ticking != null) return START_NOT_STICKY
         val ongoing = enterForeground()
         if (ongoing == null) {
@@ -185,12 +192,27 @@ class WatchMeasurementService : LifecycleService() {
             Outcome.Failure(AppError.Rejected(MEASUREMENT_UNAVAILABLE))
         }
 
+        /**
+         * 정지도 서비스 명령([ACTION_STOP])으로 보낸다(남은 위험 M5, 코드 리뷰 WR12-10). stopService는 시작 명령이 처리되기 전에 서비스를
+         * 없애 포그라운드 5초 제한(startForeground 미호출)에 걸릴 수 있다. 명령은 시작 명령 뒤에 차례로 처리된다. 서비스를 시작할 수 없으면
+         * (백그라운드 시작 제한) 그대로 멈춘다.
+         */
         override fun stop() {
-            context.stopService(Intent(context, WatchMeasurementService::class.java))
+            val service = Intent(context, WatchMeasurementService::class.java)
+            try {
+                context.startService(Intent(service).setAction(ACTION_STOP))
+            } catch (_: IllegalStateException) {
+                context.stopService(service)
+            } catch (_: SecurityException) {
+                context.stopService(service)
+            }
         }
     }
 
     companion object {
+        /** 측정 서비스 정지 명령(Host.stop). */
+        const val ACTION_STOP = "com.a207.runkk.watch.action.MEASUREMENT_STOP"
+
         /** 포그라운드 측정 서비스를 띄우지 못함(사유 코드, 폰 MeasurementService와 같은 값). */
         const val MEASUREMENT_UNAVAILABLE = "MEASUREMENT_UNAVAILABLE"
 

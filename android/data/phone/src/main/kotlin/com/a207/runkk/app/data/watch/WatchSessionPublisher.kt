@@ -19,10 +19,12 @@ import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeoutOrNull
 import timber.log.Timber
 
 /**
@@ -105,9 +107,14 @@ class WatchSessionPublisher internal constructor(
     private data class Gate(val isAllowed: Boolean, val isReachable: Boolean)
 
     /** 워치가 로그인 정보를 요청했다(FR-242): 이미 보냈어도 새로 받아 그 워치에 보낸다. 로그아웃·워치연동 꺼짐이면 보내지 않는다. */
-    suspend fun onSessionRequested(nodeId: String) = lock.withLock {
-        val memberId = allowedMemberId() ?: return@withLock
-        issueAndSend(memberId, nodeId)
+    suspend fun onSessionRequested(nodeId: String) {
+        // 수신 서비스가 프로세스를 막 띄웠으면 설정 사본을 기기에서 읽기 전이라 워치연동이 거짓으로 읽힌다. 사본이 정해질 때까지
+        // 기다린 뒤 판정한다(상한을 넘으면 지금 값으로 판정한다).
+        withTimeoutOrNull(SETTINGS_SETTLE_MILLIS) { settings.changes().first() }
+        lock.withLock {
+            val memberId = allowedMemberId() ?: return@withLock
+            issueAndSend(memberId, nodeId)
+        }
     }
 
     /** [memberId]의 로그아웃 표시를 넣는다(SQ-48). 넣었으면 보낸 회원 기억을 지운다. */
@@ -207,6 +214,8 @@ class WatchSessionPublisher internal constructor(
     }
 
     private companion object {
+        /** 콜드 스타트에서 설정 사본(기기 파일 한 번 읽기)을 기다리는 상한. */
+        const val SETTINGS_SETTLE_MILLIS = 5_000L
         const val TOO_MANY_REQUESTS = 429
         const val TOO_MANY_ATTEMPTS = "TOO_MANY_ATTEMPTS"
     }

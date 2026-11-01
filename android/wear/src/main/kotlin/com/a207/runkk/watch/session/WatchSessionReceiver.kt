@@ -58,13 +58,14 @@ class WatchSessionReceiver @Inject constructor(
         }
     }
 
+    /** 해독 실패는 예외 종류만 남긴다. 예외 메시지에 본문 조각(토큰)이 실릴 수 있다(NFR-050, 코드 리뷰 WR12-5). */
     private inline fun <T> decodeOrNull(what: String, decode: () -> T): T? = try {
         decode()
     } catch (e: SerializationException) {
-        Timber.w(e, "%s 본문을 해독하지 못해 버린다", what)
+        Timber.w("%s 본문을 해독하지 못해 버린다(%s)", what, e::class.simpleName)
         null
     } catch (e: IllegalArgumentException) {
-        Timber.w(e, "%s 본문을 해독하지 못해 버린다", what)
+        Timber.w("%s 본문을 해독하지 못해 버린다(%s)", what, e::class.simpleName)
         null
     }
 }

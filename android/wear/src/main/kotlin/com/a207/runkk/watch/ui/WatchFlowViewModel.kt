@@ -235,9 +235,13 @@ class WatchFlowViewModel @Inject constructor(
         if (active.mode == WatchMode.FREE) runTracker.onFinishLongPressed() else battleFlow.forfeit()
     }
 
-    /** 결과의 "완료"(FR-249). 메인(또는 로그아웃 대기였으면 미로그인 안내)으로 간다. */
+    /**
+     * 결과의 "완료"(FR-249). 메인(또는 로그아웃 대기였으면 미로그인 안내)으로 간다. 이 회의 안내가 끝났으니 TTS 엔진을 닫는다(3.2
+     * shutdown, NFR-048, 코드 리뷰 WR12-6). 다음 회의 첫 음성 안내가 다시 연다. 결과에 들어갈 때 닫지 않는 것은 도착 안내를 끊지 않기 위해서다.
+     */
     fun onResultClosed() {
         if (_flow.value !is WatchFlow.Result) return
+        guidance.shutdown()
         resultJob?.cancel()
         battleFlow.acknowledge()
         round = null
@@ -311,8 +315,10 @@ class WatchFlowViewModel @Inject constructor(
     private fun onSession(session: WatchSession) {
         when (session) {
             WatchSession.None -> {
-                // 이전 회원의 오늘 계획이 다음 회원의 첫 카드가 되지 않게 지운다.
+                // 이전 회원의 오늘 계획·티어·배틀런 잠금이 다음 회원에게 남지 않게 지운다.
                 phonePlan = null
+                myTier = null
+                randomRunsLeft = null
                 if (isIdle(_flow.value) && _flow.value !is WatchFlow.Companion) _flow.value = WatchFlow.NotLoggedIn
                 viewModelScope.launch { phoneLink.requestSession() }
             }

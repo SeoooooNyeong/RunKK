@@ -51,8 +51,10 @@ class WatchMeasurementServiceTest {
         assertEquals(WatchMeasurementService::class.java.name, started.component?.className)
 
         host.stop()
-        val stopped: Intent = shadowOf(context).nextStoppedService
+        // 정지도 서비스 명령으로 보낸다: 시작 명령보다 먼저 서비스를 멈춰 포그라운드 5초 제한에 걸리지 않게(남은 위험 M5, WR12-10).
+        val stopped: Intent = shadowOf(context).nextStartedService
         assertEquals(WatchMeasurementService::class.java.name, stopped.component?.className)
+        assertEquals(WatchMeasurementService.ACTION_STOP, stopped.action)
     }
 
     @Test

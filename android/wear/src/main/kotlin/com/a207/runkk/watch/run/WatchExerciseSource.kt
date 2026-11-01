@@ -37,6 +37,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.guava.await
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import timber.log.Timber
 
 /**
@@ -81,17 +83,31 @@ class WatchExerciseSource internal constructor(
 
     private val receiver = MetricsReceiver()
 
+    /**
+     * 열기·끝내기를 한 줄로 세운다(남은 위험 M2, 코드 리뷰 WR12-9). 끝내기가 끝나기 전에 새 세션을 열면 늦게 끝난 끝내기가 새 세션의
+     * 콜백을 풀어 버린다.
+     */
+    private val sessionLock = Mutex()
+
+    /** 이 앱이 연 세션이 열려 있다. 끝낸 뒤 늦게 온 운동 끝 알림은 [ended]로 보내지 않는다. */
+    @Volatile
+    private var isOpen = false
+
     /** 세션을 연다. 다른 앱이 운동 중이면 Failure(Rejected(EXERCISE_IN_USE)), Health Services 오류는 Failure(Rejected(EXERCISE_FAILED)). */
-    suspend fun start(): Outcome<Unit> = try {
-        open()
-    } catch (e: CancellationException) {
-        throw e
-    } catch (e: Exception) {
-        Timber.w(e, "운동 세션을 열지 못했다")
-        Outcome.Failure(AppError.Rejected(EXERCISE_FAILED))
+    suspend fun start(): Outcome<Unit> = sessionLock.withLock {
+        try {
+            open()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Timber.w(e, "운동 세션을 열지 못했다")
+            Outcome.Failure(AppError.Rejected(EXERCISE_FAILED))
+        }
     }
 
     private suspend fun open(): Outcome<Unit> {
+        // 끝내지 않은 이 앱 세션을 아래에서 끝낼 때 오는 끝 알림을 새 측정의 끝으로 보내지 않는다.
+        isOpen = false
         when (exerciseOwnerOf(exerciseClient.getCurrentExerciseInfoAsync().await().exerciseTrackedStatus)) {
             Owner.OTHER_APP -> return Outcome.Failure(AppError.Rejected(EXERCISE_IN_USE))
             Owner.THIS_APP -> exerciseClient.endExerciseAsync().await()
@@ -118,6 +134,7 @@ class WatchExerciseSource internal constructor(
             attempt { exerciseClient.clearUpdateCallbackAsync(receiver).await() }
             throw e
         }
+        isOpen = true
         return Outcome.Success(Unit)
     }
 
@@ -136,7 +153,8 @@ class WatchExerciseSource internal constructor(
     }
 
     /** 세션을 끝내고 콜백을 푼다. 실패해도 예외를 올리지 않는다(다음 [start]가 남은 세션을 끝낸다). */
-    suspend fun end() {
+    suspend fun end() = sessionLock.withLock {
+        isOpen = false
         attempt { exerciseClient.endExerciseAsync().await() }
         attempt { exerciseClient.clearUpdateCallbackAsync(receiver).await() }
     }
@@ -156,7 +174,12 @@ class WatchExerciseSource internal constructor(
     internal inner class MetricsReceiver : ExerciseUpdateCallback {
         override fun onExerciseUpdateReceived(update: ExerciseUpdate) {
             onMetrics(update.latestMetrics)
-            if (update.exerciseStateInfo.state.isEnded) endedSignals.tryEmit(Unit)
+            onState(update.exerciseStateInfo.state.isEnded)
+        }
+
+        /** 운동 세션 상태. 이 앱이 연 세션이 열려 있는데 끝났을 때만 알린다(끝낸 뒤 늦게 온 알림은 버린다). */
+        fun onState(isEnded: Boolean) {
+            if (isEnded && isOpen) endedSignals.tryEmit(Unit)
         }
 
         fun onMetrics(container: DataPointContainer) {

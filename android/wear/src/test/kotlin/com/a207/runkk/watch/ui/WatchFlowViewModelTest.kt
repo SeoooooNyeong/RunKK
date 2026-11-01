@@ -2,6 +2,8 @@ package com.a207.runkk.watch.ui
 
 import android.app.Application
 import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Looper
 import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.CardKind
@@ -17,6 +19,8 @@ import com.a207.runkk.app.domain.battle.RecordBattleStart
 import com.a207.runkk.app.domain.live.BattleStart
 import com.a207.runkk.app.domain.live.MatchFailed
 import com.a207.runkk.app.domain.live.MatchFound
+import com.a207.runkk.app.domain.run.Guidance
+import com.a207.runkk.app.domain.run.GuidanceMessage
 import com.a207.runkk.app.domain.run.LocationSample
 import com.a207.runkk.app.domain.run.RunStartSpec
 import com.a207.runkk.app.domain.run.RunTracker
@@ -57,11 +61,13 @@ import com.a207.runkk.wear.contract.WatchSessionMessage
 import com.a207.runkk.wear.contract.WearPaths
 import java.io.File
 import java.time.Duration
+import java.util.Locale
 import kotlin.io.path.createTempDirectory
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -80,7 +86,9 @@ import kotlinx.coroutines.test.setMain
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowTextToSpeech
 
 /**
  * WatchFlowViewModel 상태 전이(상태도 2.4.25, D-374, SQ-44~SQ-46). 협력 객체는 실제 domain 클래스(RunTracker·BattleRunCoordinator)와
@@ -108,7 +116,8 @@ class WatchFlowViewModelTest {
         val vm: WatchFlowViewModel,
         val tracker: RunTracker,
         val coordinator: BattleRunCoordinator,
-        val store: WatchSessionStore
+        val store: WatchSessionStore,
+        val guidance: WatchGuidanceOutput
     ) {
         val flow: WatchFlow get() = vm.flow.value
     }
@@ -176,7 +185,7 @@ class WatchFlowViewModelTest {
             WatchBattleFlow(coordinator, battles, cache, MatchWaiter(live, backgroundScope), pendingRuns, clock)
         val vm = WatchFlowViewModel(runs, battleFlow, store, link, network, guidance, accounts)
         runCurrent()
-        return Harness(vm, runs, coordinator, store)
+        return Harness(vm, runs, coordinator, store, guidance)
     }
 
     private fun session() = WatchSessionMessage(MEMBER, "SOCIAL", "access", "refresh", T0)
@@ -858,6 +867,32 @@ class WatchFlowViewModelTest {
         runCurrent()
         h.vm.back()
         assertIs<WatchFlow.Result>(h.flow)
+    }
+
+    @Test
+    fun `결과를 완료로 닫으면 안내 음성 엔진을 닫는다(WR12-6, NFR-048)`() = flowTest {
+        val app = RuntimeEnvironment.getApplication()
+        shadowOf(app.packageManager).setSystemFeature(PackageManager.FEATURE_AUDIO_OUTPUT, true)
+        ShadowTextToSpeech.addLanguageAvailability(Locale.KOREAN)
+        val h = open()
+        h.vm.onModeSelected(WatchMode.FREE)
+        h.vm.onStartPressed()
+        passCountdown()
+        h.guidance.play(
+            Guidance(Guidance.Kind.SPLIT, GuidanceMessage.SPLIT, listOf("1"), hasVoice = true, hasVibration = false)
+        )
+        shadowOf(Looper.getMainLooper()).idle()
+        val tts = shadowOf(checkNotNull(ShadowTextToSpeech.getLastTextToSpeechInstance()))
+        runNorth(h.tracker, meters = 200)
+        h.vm.onEndLongPressed()
+        runCurrent()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertFalse(tts.isShutdown)
+
+        h.vm.onResultClosed()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertTrue(tts.isShutdown)
     }
 
     private companion object {

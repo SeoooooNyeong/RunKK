@@ -28,13 +28,14 @@ class PhoneWatchListenerServiceTest {
     private val transport = RecordingTransport()
     private val accounts = FakeWatchAccounts(memberId = 7)
     private val memory = FakeWatchMemory().apply { memberId = 7 }
+    private val settings = FakeWatchSettings(LINKED)
 
     private fun TestScope.service(): PhoneWatchListenerService {
         val scope = CoroutineScope(backgroundScope.coroutineContext + UnconfinedTestDispatcher(testScheduler))
         val publisher = WatchSessionPublisher(
             transport,
             FakeWatchSession(loggedIn = true),
-            FakeWatchSettings(LINKED),
+            settings,
             accounts,
             memory,
             Clock.fixed(Instant.parse("2026-11-01T01:00:00Z"), ZoneOffset.UTC),
@@ -52,6 +53,19 @@ class PhoneWatchListenerServiceTest {
         val service = service()
 
         service.onMessageReceived(message(WearPaths.SESSION_REQUEST, "watch-1"))
+
+        assertEquals(1, accounts.issued)
+        assertEquals("watch-1", transport.of("sendNow", WearPaths.WATCH_SESSION).single().nodeId)
+    }
+
+    @Test
+    fun `앱이 막 떠서 설정 사본을 아직 읽지 못했으면 읽을 때까지 기다렸다가 보낸다(콜드 스타트)`() = runTest {
+        settings.isSettled.value = false
+        val service = service()
+
+        service.onMessageReceived(message(WearPaths.SESSION_REQUEST, "watch-1"))
+        assertEquals(0, accounts.issued)
+        settings.isSettled.value = true
 
         assertEquals(1, accounts.issued)
         assertEquals("watch-1", transport.of("sendNow", WearPaths.WATCH_SESSION).single().nodeId)

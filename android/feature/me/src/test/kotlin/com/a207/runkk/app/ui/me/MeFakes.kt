@@ -101,6 +101,8 @@ class FakeAccountRepository : AccountRepository {
 
     override suspend fun revokeWatchSession(): Outcome<Unit> = call("revokeWatchSession") {}
 
+    override fun selfMemberId(): Long? = null
+
     var lastGuestConsents: Map<String, Boolean>? = null
     var guestResult: Outcome<GuestSession>? = null
 
