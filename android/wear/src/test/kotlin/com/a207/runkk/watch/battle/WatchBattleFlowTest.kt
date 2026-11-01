@@ -69,7 +69,15 @@ class WatchBattleFlowTest {
             StandardTestDispatcher(testScheduler)
         )
         val pending = PendingRuns()
-        val flow = WatchBattleFlow(coordinator, battles, cache, MatchWaiter(live, backgroundScope), pending, clock)
+        val flow = WatchBattleFlow(
+            coordinator,
+            battles,
+            cache,
+            MatchWaiter(live, backgroundScope),
+            pending,
+            RecordBattleMemory(),
+            clock
+        )
         return Harness(flow, coordinator, pending)
     }
 

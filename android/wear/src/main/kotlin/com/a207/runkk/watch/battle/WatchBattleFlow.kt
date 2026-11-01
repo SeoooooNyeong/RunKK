@@ -30,7 +30,7 @@ import kotlinx.coroutines.flow.runningFold
  * 대결 시작·취소를 domain에 넘기고 대결 상태·상대 기록·결과를 watch.ui 표시 값([BattleStep], [RecordOpponent], [WatchResultHeadline])으로
  * 바꾼다(3.5, D-386 R65). watch.ui와 domain.battle·watch.cache 사이의 중간 계층이다(design-review 23장 R75 결정, W30): watch.ui는
  * domain.battle·watch.cache를 이 클래스 너머로만 본다. 상태를 갖지 않는다: 대결 한 회의 상태는 BattleRunCoordinator가, 매칭 대기 연결은
- * watch.link의 MatchWaiter가, 상대 기록은 OpponentRecordCache가 갖는다. 셀프·셀럽런을 서버 대결로 할지(연결 있음) 워치에서만 할지
+ * watch.link의 MatchWaiter가, 상대 기록은 OpponentRecordCache가, 지금 연 기록 대결의 상대는 RecordBattleMemory(WR13-2)가 갖는다. 셀프·셀럽런을 서버 대결로 할지(연결 있음) 워치에서만 할지
  * (연결 없음)는 WatchFlowViewModel이 고른다(R72). 여기서 연 대결은 모두 워치가 시작한 회라 시작 기기 WATCH로 조정자에 넘긴다(FR-245, D-378).
  */
 class WatchBattleFlow @Inject constructor(
@@ -39,6 +39,7 @@ class WatchBattleFlow @Inject constructor(
     private val cache: OpponentRecordCache,
     private val waiter: MatchWaiter,
     private val pendingRuns: PendingRunRepository,
+    private val memory: RecordBattleMemory,
     private val clock: Clock
 ) {
     /** 대결 한 회의 단계(BattleRunCoordinator.state를 화면 값으로 옮김). */
@@ -52,6 +53,7 @@ class WatchBattleFlow @Inject constructor(
      * 받아들여지면 [awaitMatch]로 성사를 기다린다.
      */
     suspend fun startMatching(distance: Distance): Outcome<MatchAcceptance> {
+        memory.opponent = null
         val opened = waiter.open()
         if (opened is Outcome.Failure) return opened
         val accepted = coordinator.requestMatch(distance)
@@ -103,6 +105,7 @@ class WatchBattleFlow @Inject constructor(
         }
         return when (started) {
             is Outcome.Success -> {
+                memory.opponent = opponent
                 coordinator.onRecordBattleStart(started.value, RunStartSpec.StartDevice.WATCH)
                 Outcome.Success(Unit)
             }
@@ -114,6 +117,7 @@ class WatchBattleFlow @Inject constructor(
     /** 워치에서만 하는 기록 대결(연결 없음, D-377 U3 (나)): 미리 받은 상대 기록으로 진행하고 기록은 자유런으로 올린다. */
     fun startRecordOffline(opponent: RecordOpponent) {
         val record = opponent.cached.record
+        memory.opponent = opponent
         coordinator.onOfflineRecordBattle(
             OfflineRecordBattle(record.kind, record.distance, record.celebrityId, record.track)
         )
@@ -134,8 +138,17 @@ class WatchBattleFlow @Inject constructor(
     /** 열린 대결의 거리(BattleRunCoordinator.activeDistance). 성사~출발 사이에 화면을 다시 열 때 쓴다(WR12-2). */
     fun activeDistance(): Distance? = coordinator.activeDistance
 
+    /**
+     * 열린 회가 이 워치에서 연 셀프·셀럽 기록 대결이면 그 상대 기록, 배틀런이거나 열린 회가 없으면 null(코드 리뷰 WR13-2). 측정 중이나
+     * 카운트다운 중에 화면을 다시 열 때 셀프·셀럽 맥락을 되살린다.
+     */
+    fun activeRecord(): RecordOpponent? = memory.opponent?.takeIf { step() != BattleStep.Idle }
+
     /** 결과 화면이 대결 끝(Finished·Discarded)을 받았다. 다음 대결이 지난 끝 상태를 받지 않게 한다. */
-    fun acknowledge() = coordinator.acknowledgeFinished()
+    fun acknowledge() {
+        memory.opponent = null
+        coordinator.acknowledgeFinished()
+    }
 
     /** 배틀런 결과 머리말(FR-249): 서버 판정과 도착 때 상대와의 거리 차([gapMeters]). 판정을 받지 못하면 보류다. */
     suspend fun battleHeadline(battleId: Long, gapMeters: Int?): WatchResultHeadline =
