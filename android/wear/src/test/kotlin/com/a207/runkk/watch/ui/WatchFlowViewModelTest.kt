@@ -4,6 +4,9 @@ import android.app.Application
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Looper
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.CardKind
@@ -26,6 +29,9 @@ import com.a207.runkk.app.domain.run.LocationSample
 import com.a207.runkk.app.domain.run.RunStartSpec
 import com.a207.runkk.app.domain.run.RunTracker
 import com.a207.runkk.app.domain.settings.GuidanceSettings
+import com.a207.runkk.watch.battle.RecordBattleMemory
+import com.a207.runkk.watch.battle.WatchBattleFlow
+import com.a207.runkk.watch.battle.WatchResultHeadline
 import com.a207.runkk.watch.cache.OpponentRecordCache
 import com.a207.runkk.watch.guide.WatchGuidanceOutput
 import com.a207.runkk.watch.heart.HeartRateCollector
@@ -118,7 +124,8 @@ class WatchFlowViewModelTest {
         val tracker: RunTracker,
         val coordinator: BattleRunCoordinator,
         val store: WatchSessionStore,
-        val guidance: WatchGuidanceOutput
+        val guidance: WatchGuidanceOutput,
+        val memory: RecordBattleMemory
     ) {
         val flow: WatchFlow get() = vm.flow.value
     }
@@ -182,11 +189,13 @@ class WatchFlowViewModelTest {
             FakeAlertOutput(SchedulerMonotonicClock(testScheduler)),
             clock
         )
+        // 기록 대결 상대 기억은 앱 범위(싱글턴)라 다시 연 화면과 나눈다(WR13-2).
+        val memory = shared?.memory ?: RecordBattleMemory()
         val battleFlow =
-            WatchBattleFlow(coordinator, battles, cache, MatchWaiter(live, backgroundScope), pendingRuns, clock)
+            WatchBattleFlow(coordinator, battles, cache, MatchWaiter(live, backgroundScope), pendingRuns, memory, clock)
         val vm = WatchFlowViewModel(runs, battleFlow, store, link, network, guidance, accounts)
         runCurrent()
-        return Harness(vm, runs, coordinator, store, guidance)
+        return Harness(vm, runs, coordinator, store, guidance, memory)
     }
 
     private fun session() = WatchSessionMessage(MEMBER, "SOCIAL", "access", "refresh", T0)
@@ -515,7 +524,7 @@ class WatchFlowViewModelTest {
 
         h.vm.onDistanceSelected(Distance(5_000))
         val list = h.flow as WatchFlow.CelebList
-        assertEquals("셀럽1", list.celebrities.single().record.displayName)
+        assertEquals("셀럽1", list.celebrities.single().displayName)
         h.vm.back()
         assertIs<WatchFlow.CelebDistance>(h.flow)
 
@@ -1019,7 +1028,151 @@ class WatchFlowViewModelTest {
         assertTrue(tts.isShutdown)
     }
 
+    @Test
+    fun `결과 없이 측정이 끝나도 안내 음성 엔진을 닫는다(WR13-3, NFR-048)`() = flowTest {
+        val app = RuntimeEnvironment.getApplication()
+        shadowOf(app.packageManager).setSystemFeature(PackageManager.FEATURE_AUDIO_OUTPUT, true)
+        ShadowTextToSpeech.addLanguageAvailability(Locale.KOREAN)
+        val h = open()
+        h.vm.onModeSelected(WatchMode.FREE)
+        h.vm.onStartPressed()
+        passCountdown()
+        h.guidance.play(
+            Guidance(Guidance.Kind.SPLIT, GuidanceMessage.SPLIT, listOf("1"), hasVoice = true, hasVibration = false)
+        )
+        shadowOf(Looper.getMainLooper()).idle()
+        val tts = shadowOf(checkNotNull(ShadowTextToSpeech.getLastTextToSpeechInstance()))
+
+        // 측정 서비스가 기록 없이 끝냈다(운동 세션 실패): 결과 화면 없이 메인으로 간다.
+        h.tracker.endRun()
+        runCurrent()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertEquals(WatchFlow.Notice.MEASUREMENT_STOPPED, (h.flow as WatchFlow.Main).notice)
+        assertTrue(tts.isShutdown)
+    }
+
+    @Test
+    fun `결과 화면에서 화면이 사라지면 도착 안내를 끊지 않게 음성 엔진을 닫지 않는다(WR13-3)`() = flowTest {
+        val app = RuntimeEnvironment.getApplication()
+        shadowOf(app.packageManager).setSystemFeature(PackageManager.FEATURE_AUDIO_OUTPUT, true)
+        ShadowTextToSpeech.addLanguageAvailability(Locale.KOREAN)
+        val h = open()
+        h.vm.onModeSelected(WatchMode.FREE)
+        h.vm.onStartPressed()
+        passCountdown()
+        h.guidance.play(
+            Guidance(Guidance.Kind.SPLIT, GuidanceMessage.SPLIT, listOf("1"), hasVoice = true, hasVibration = false)
+        )
+        shadowOf(Looper.getMainLooper()).idle()
+        val tts = shadowOf(checkNotNull(ShadowTextToSpeech.getLastTextToSpeechInstance()))
+        runNorth(h.tracker, meters = 200)
+        h.vm.onEndLongPressed()
+        runCurrent()
+        assertIs<WatchFlow.Result>(h.flow)
+
+        clearViewModel(h.vm)
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertFalse(tts.isShutdown)
+    }
+
+    /** 화면(액티비티)이 끝나 ViewModel이 지워진다(onCleared). */
+    private fun clearViewModel(vm: WatchFlowViewModel) {
+        val store = ViewModelStore()
+        val factory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T = vm as T
+        }
+        ViewModelProvider(store, factory)[WatchFlowViewModel::class.java]
+        store.clear()
+    }
+
+    @Test
+    fun `미로그인 동안 폰 연결이 새로 닿으면 로그인 정보를 다시 요청한다(WR13-1, D-404)`() = flowTest {
+        dataLayer.nodes = emptyList()
+        val h = open(isLoggedIn = false)
+        assertEquals(WatchFlow.NotLoggedIn, h.flow)
+        assertEquals(0, sessionRequests())
+
+        dataLayer.nodes = listOf("phone")
+        advanceTimeBy(CONNECTION_POLL_MILLIS)
+        runCurrent()
+
+        assertEquals(1, sessionRequests())
+    }
+
+    @Test
+    fun `미로그인 화면의 로그인 정보 요청은 간격 안에서는 한 번이고 간격이 지나 다시 닿으면 또 보낸다(WR13-1)`() = flowTest {
+        open(isLoggedIn = false)
+        // 앱 시작(세션 None)과 미로그인 화면 진입이 겹쳐도 한 번이다.
+        assertEquals(1, sessionRequests())
+
+        reconnectPhone()
+        assertEquals(1, sessionRequests())
+
+        advanceTimeBy(WatchFlowViewModel.SESSION_REQUEST_GAP_MILLIS)
+        reconnectPhone()
+        assertEquals(2, sessionRequests())
+    }
+
+    @Test
+    fun `연결 없는 셀프런 측정 중에 앱을 다시 열면 셀프런으로 이어 가고 도착 전에 끝내면 STOP이다(WR13-2)`() = flowTest {
+        online.value = false
+        val first = open()
+        first.vm.onModeSelected(WatchMode.SELF)
+        first.vm.onDistanceSelected(Distance(3_000))
+        passCountdown()
+        assertIs<WatchFlow.Running>(first.flow)
+
+        val reopened = open(shared = first)
+        val running = reopened.flow as WatchFlow.Running
+        assertEquals(WatchMode.SELF, running.mode)
+        assertFalse(running.isPausable)
+
+        runNorth(reopened.tracker, meters = 300)
+        reopened.vm.onEndLongPressed()
+        runCurrent()
+
+        // 배틀런으로 되살리면 오프라인 대결 ID 0이라 자유런 FINISH였다.
+        assertEquals(WatchResultHeadline.Stop, reopened.headline)
+    }
+
+    @Test
+    fun `서버 셀럽런 카운트다운 중에 앱을 다시 열면 셀럽런으로 이어 가고 결과는 셀럽 판정이다(WR13-2)`() = flowTest {
+        battles.results[7] = verdict("LOSE", mine = 1_600, theirs = 1_500)
+        val first = open()
+        battles.recordStart = recordStart(CardKind.CELEB_RUN, meters = 5_000)
+        first.vm.onModeSelected(WatchMode.CELEB)
+        first.vm.onDistanceSelected(Distance(5_000))
+        first.vm.onCelebritySelected((first.flow as WatchFlow.CelebList).celebrities.single())
+        runCurrent()
+
+        val reopened = open(shared = first)
+        assertEquals(WatchFlow.Countdown(WatchMode.CELEB, Distance(5_000), 3), reopened.flow)
+        passCountdown()
+        assertEquals(WatchMode.CELEB, (reopened.flow as WatchFlow.Running).mode)
+        runAndEnd(reopened)
+
+        assertEquals(WatchResultHeadline.Lose("셀럽1", 100), reopened.headline)
+    }
+
+    private fun sessionRequests(): Int = dataLayer.sentMessages.count { it.second == WearPaths.SESSION_REQUEST }
+
+    /** 폰 연결이 끊겼다가 다시 닿는다(PhoneLink가 5초마다 노드를 다시 본다). */
+    private fun TestScope.reconnectPhone() {
+        dataLayer.nodes = emptyList()
+        advanceTimeBy(CONNECTION_POLL_MILLIS)
+        runCurrent()
+        dataLayer.nodes = listOf("phone")
+        advanceTimeBy(CONNECTION_POLL_MILLIS)
+        runCurrent()
+    }
+
     private companion object {
+        /** PhoneLink가 폰 노드를 다시 보는 주기(5초)보다 조금 길게. */
+        const val CONNECTION_POLL_MILLIS = 5_100L
+
         const val MEMBER = 7L
         const val PREFS = "watch-flow-test"
         const val COUNTDOWN_MILLIS = 3_000L + WatchFlowViewModel.GO_MILLIS + 100

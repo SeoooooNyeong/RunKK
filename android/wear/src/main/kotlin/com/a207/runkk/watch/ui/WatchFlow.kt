@@ -3,7 +3,8 @@ package com.a207.runkk.watch.ui
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.domain.run.RunProgress
-import com.a207.runkk.watch.cache.CachedTrack
+import com.a207.runkk.watch.battle.RecordOpponent
+import com.a207.runkk.watch.battle.WatchResultHeadline
 import java.time.Duration
 
 /**
@@ -65,7 +66,7 @@ sealed interface WatchFlow {
     /** 고른 거리의 셀럽 기록 목록(FR-259, W09). */
     data class CelebList(
         val distance: Distance,
-        val celebrities: List<CachedTrack>,
+        val celebrities: List<RecordOpponent>,
         val selected: Int = 0,
         val notice: Notice? = null
     ) : WatchFlow

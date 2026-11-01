@@ -46,16 +46,18 @@ class ArchitectureTest {
      * 12.4 구조 합격 조건(design-review 19장 R51·R52, D-335): 모듈 Fan-Out 7 이하. 허용 표 화살표는 v0.22(설계 5절·9.1, D-394)로
      * 폰 153개·워치 26개에서 결정 넷이 하나씩 더했다. 폰: A2 data.watch → core.model(issueWatchSession이 Outcome을 돌려준다).
      * 워치: W1 watch.cache → domain.live(상대 기록 파일의 진행표를 TrackTable로 되살린다), W2 watch.link → domain.live(매칭 대기 실시간 채널),
-     * W2 watch.session → domain.settings(회원 설정 사본). 그래서 폰 154개·워치 29개다.
-     * 워치의 core.model은 설계 5절처럼 화살표로 세지 않는다([isWatchFoundation]).
+     * W2 watch.session → domain.settings(회원 설정 사본). 그래서 폰 154개다.
+     * 워치는 design-review 23장 R75 사용자 결정 (가)로 core.model을 폰과 같이 센다(기준 하나). 그러면 watch.ui가 8이라 대결 흐름을
+     * watch.battle로 옮겼다(W30): ui → domain.battle·watch.cache 둘이 ui → watch.battle 하나가 되고 watch.battle이 다섯을 갖는다.
+     * R76으로 쓰지 않는 watch.guide → domain.settings를 뺐다. 워치 코드 28 + core.model 다섯 줄 + battle 다섯 − ui 하나 = 37개다.
      */
     @Test
-    fun `모듈 Fan-Out은 7 이하이고 허용 표는 폰 154개·워치 29개다`() {
+    fun `모듈 Fan-Out은 7 이하이고 허용 표는 폰 154개·워치 37개다`() {
         val over = ALLOWED.filterValues { it.size > MAX_FAN_OUT }.mapValues { it.value.size }
         assertEquals(emptyMap(), over)
         val (watch, phone) = ALLOWED.entries.partition { it.key.startsWith("watch.") || it.key == "wear.contract" }
         assertEquals(154, phone.sumOf { it.value.size })
-        assertEquals(29, watch.sumOf { it.value.size })
+        assertEquals(37, watch.sumOf { it.value.size })
     }
 
     @Test
@@ -161,19 +163,19 @@ class ArchitectureTest {
     }
 
     /**
-     * D-183: 한 파일 규칙의 적용 범위는 워치(:wear, 6.1.15 watch.*)까지다. v0.22(9.1)의 새 패키지 넷(run·guide·session·cache)도
-     * filesIn("watch.")에 들어간다. 9.1대로 새 패키지에 파일이 있는지 본다(watch.alert에 더해 watch.run, 2단계 W1이 채운 넷).
+     * D-183: 한 파일 규칙의 적용 범위는 워치(:wear, 6.1.15 watch.*)까지다. v0.22(9.1)의 새 패키지 넷(run·guide·session·cache)과
+     * R75 결정의 watch.battle도 filesIn("watch.")에 들어간다. 새 패키지에 파일이 있는지 본다.
      */
     @Test
     fun `TC-6583 워치 소스도 한 파일 규칙을 지킨다 (D-112, D-183)`() {
         val watch = filesIn("watch.")
         assertTrue(watch.any { moduleOf(it.packageName()) == "watch.alert" }, "watch.alert 파일이 없다")
-        listOf("run", "guide", "session", "cache").forEach { name ->
+        WATCH_PACKAGES_SINCE_V022.forEach { name ->
             assertTrue(watch.any { moduleOf(it.packageName()) == "watch.$name" }, "watch.$name 파일이 없다")
         }
         assertTrue(
-            listOf("run", "guide", "session", "cache").all { moduleOf("$WATCH.$it") == "watch.$it" },
-            "v0.22 워치 패키지가 5.1.2 표에 있다"
+            WATCH_PACKAGES_SINCE_V022.all { moduleOf("$WATCH.$it") == "watch.$it" },
+            "v0.22 이후 워치 패키지가 5.1.2 표에 있다"
         )
         assertEquals(emptyList(), watch.flatMap(::oneFileViolations))
     }
@@ -328,7 +330,7 @@ class ArchitectureTest {
             .mapNotNull { imported ->
                 val to = moduleOf(imported.substringBeforeLast('.')) ?: moduleOf(imported)
                 when {
-                    isOwnResources(from, imported) || isWatchFoundation(from, to) -> null
+                    isOwnResources(from, imported) -> null
                     to == null -> "$from → $imported (${file.name})"
                     to == from || to in allowed || isE2eException(file, imported) -> null
                     else -> "$from → $to (${file.name})"
@@ -354,13 +356,6 @@ class ArchitectureTest {
         (from.startsWith("data.") && imported in setOf("$APP.api.core.R", "$APP.data.phone.R")) ||
             (from.startsWith("watch.") && imported == "$WATCH.ui.R")
 
-    /**
-     * 워치(:wear)는 :core:model에 Gradle 의존하고(설계 2.1) Outcome·Distance·GeoPoint 같은 값 형식을 domain 포트 시그니처로 받는다.
-     * 설계 5절 워치 표(26개)는 core.model을 화살표로 세지 않았으므로 구조 시험도 워치의 core.model import를 표 밖으로 보지 않는다
-     * (W1 결정, 설계서 갱신 요청). :wear의 R이 namespace 때문에 watch.ui에 생기는 것은 [isOwnResources]가 다룬다.
-     */
-    private fun isWatchFoundation(from: String, to: String?): Boolean = from.startsWith("watch.") && to == "core.model"
-
     private fun isAppOrUi(module: String?): Boolean = module == "app" || module?.startsWith("ui.") == true
 
     private fun isDataLayer(import: String): Boolean = import.startsWith("$APP.api.") || import.startsWith("$APP.data.")
@@ -383,6 +378,9 @@ class ArchitectureTest {
         /** E2E 토큰 창구와 그 창구를 대체 자리에 넣는 Hilt 모듈(D-112로 파일을 나눴다). */
         val E2E_TOKEN_FILES = setOf("E2eKakaoTokenSource", "E2eLoginModule")
         val E2E_TOKEN_IMPORTS = setOf("$APP.ui.me.KakaoAccessTokenSource", "$APP.ui.me.KakaoTokenOverride")
+
+        /** v0.22(9.1)에 생긴 워치 패키지 넷과 R75 결정(W30)의 battle. */
+        private val WATCH_PACKAGES_SINCE_V022 = listOf("run", "guide", "session", "cache", "battle")
 
         private val DOMAINS =
             listOf(
@@ -440,8 +438,8 @@ class ArchitectureTest {
                 DATAS.forEach { put("data.$it", "$APP.data.$it") }
                 UIS.forEach { put("ui.$it", "$APP.ui.$it") }
                 put("wear.contract", "$ROOT.wear.contract")
-                // v0.22(9.1, D-394): 워치 단독 러닝 패키지 run·guide·session·cache
-                listOf("heart", "alert", "link", "ui", "run", "guide", "session", "cache")
+                // v0.22(9.1, D-394): 워치 단독 러닝 패키지 run·guide·session·cache. R75 결정(W30): 대결 흐름 battle
+                (listOf("heart", "alert", "link", "ui") + WATCH_PACKAGES_SINCE_V022)
                     .forEach { put("watch.$it", "$WATCH.$it") }
             }
 
@@ -557,34 +555,56 @@ class ArchitectureTest {
                         "core.designsystem"
                     ),
                 // 워치(설계 v0.22 5절 2차 구조, design-review 22.6): 8줄 26개 + W1 결정 1개(watch.cache → domain.live)
-                // + W2 결정 2개(watch.link → domain.live, watch.session → domain.settings) = 29개.
+                // + W2 결정 2개(watch.link → domain.live, watch.session → domain.settings) = 29개. R76: 쓰지 않는 watch.guide →
+                // domain.settings를 빼 28개. R75 결정 (가): core.model을 폰처럼 센다(cache·link·run·session·ui 다섯 줄) → 33개.
+                // W30: 대결 흐름을 watch.battle로 옮겨 ui → domain.battle·watch.cache가 ui → watch.battle이 되고(−1)
+                // watch.battle 다섯 줄이 생긴다(+5) = 37개.
                 "watch.heart" to emptySet(),
                 "watch.alert" to setOf("wear.contract"),
                 // session: 받은 로그인 정보·로그아웃 표시를 넘긴다. domain.run: WatchMeasuringReporter가 RunTracker.isMeasuring을 구독한다(M77).
-                // domain.live(W2 결정): 배틀런 매칭 대기의 서버 실시간 채널(MatchWaiter). watch.ui가 domain.live를 쓰면 Fan-Out 8이라
-                // 실시간 메시지 형식은 link에서만 다룬다(설계 22.6 "중간 계층").
+                // domain.live(W2 결정): 배틀런 매칭 대기의 서버 실시간 채널(MatchWaiter). watch.ui가 domain.live를 쓰면 Fan-Out이 넘어
+                // 실시간 메시지 형식은 link에서만 다룬다(설계 22.6 "중간 계층"). core.model: MatchWaiter의 Outcome·AppError(상한 7).
                 "watch.link" to
-                    setOf("wear.contract", "watch.heart", "watch.alert", "watch.session", "domain.run", "domain.live"),
-                // 상한 7(J-8, R65). 더 늘리려면 domain 형식을 watch.ui 안 표시 값으로 바꾸는 중간 계층을 먼저 둔다(22.6).
+                    setOf(
+                        "wear.contract",
+                        "watch.heart",
+                        "watch.alert",
+                        "watch.session",
+                        "domain.run",
+                        "domain.live",
+                        "core.model"
+                    ),
+                // 상한 7(J-8, R65, R75). 대결(domain.battle)과 상대 기록(watch.cache)은 watch.battle 너머에서만 본다(W30).
                 "watch.ui" to
                     setOf(
                         "watch.link",
                         "watch.guide",
                         "watch.session",
-                        "watch.cache",
+                        "watch.battle",
                         "domain.run",
-                        "domain.battle",
-                        "domain.account"
+                        "domain.account",
+                        "core.model"
                     ),
-                "watch.run" to setOf("watch.alert", "wear.contract", "domain.run", "domain.settings"),
-                "watch.guide" to setOf("watch.alert", "domain.run", "domain.settings", "data.guide"),
+                // W30(R75 결정 (가)): 대결 시작·취소·결과와 상대 기록을 watch.ui 표시 값(BattleStep, RecordOpponent,
+                // WatchResultHeadline)으로 바꾸는 중간 계층. watch.ui를 모른다(R 리소스만, 순환 0).
+                "watch.battle" to setOf("watch.link", "watch.cache", "domain.battle", "domain.run", "core.model"),
+                "watch.run" to setOf("watch.alert", "wear.contract", "domain.run", "domain.settings", "core.model"),
+                // R76: 안내 출력은 설정을 보지 않는다(D-408 (3), Guidance.hasVoice·hasVibration이 정함).
+                "watch.guide" to setOf("watch.alert", "domain.run", "data.guide"),
                 // domain.settings(W2 결정): 서버 설정 사본은 회원 사본이라 로그인 정보와 수명을 같이 한다(메인을 열 때 refreshSettings,
                 // 로그아웃 때 clear). watch.ui는 domain.settings를 쓰지 않는다(Fan-Out 7 유지).
                 "watch.session" to
-                    setOf("watch.cache", "wear.contract", "domain.run", "domain.account", "domain.settings"),
+                    setOf(
+                        "watch.cache",
+                        "wear.contract",
+                        "domain.run",
+                        "domain.account",
+                        "domain.settings",
+                        "core.model"
+                    ),
                 // 회원ID는 부르는 쪽이 넘긴다: cache는 watch.session을 모른다(M78, 순환 0). domain.live(W1 결정): OpponentTrack은 표본을
                 // 밖에 내지 않아 파일에 둔 진행표를 OpponentTrack.from(TrackTable)로 되살린다.
-                "watch.cache" to setOf("domain.battle", "domain.live")
+                "watch.cache" to setOf("domain.battle", "domain.live", "core.model")
             )
 
         /** 패키지 이름이 속한 5.1.2 모듈. app은 com.a207.runkk.app 바로 아래(하위 패키지 없음)만이다. */

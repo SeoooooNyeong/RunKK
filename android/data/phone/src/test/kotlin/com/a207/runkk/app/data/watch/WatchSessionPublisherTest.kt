@@ -237,6 +237,31 @@ class WatchSessionPublisherTest {
     }
 
     @Test
+    fun `다른 회원에게 보낸 기억이 남은 채 로그인하고 설정 사본이 오기 전이면 서버 폐기를 요청하지 않는다(AN13-1)`() = runTest {
+        // 회원 3의 로그아웃 표시를 넣지 못해 기억이 남았고, 지금은 회원 7로 로그인했으나 설정 사본(워치연동)이 아직 거짓이다.
+        memory.memberId = 3
+        settings.state.value = SettingsSnapshot.SAFE
+
+        publisher().start()
+
+        assertEquals(0, accounts.revokes)
+        assertEquals(
+            SessionRevokedMessage(3, NOW.toEpochMilli()),
+            SessionRevokedMessage.decode(transport.of("put", WearPaths.SESSION_REVOKED).single().payload!!)
+        )
+    }
+
+    @Test
+    fun `같은 회원에게 보낸 기억이 남은 채 워치연동이 꺼진 상태로 시작하면 서버 폐기를 요청한다(AN13-1)`() = runTest {
+        memory.memberId = 7
+        settings.state.value = LINKED.copy(isWatchLinked = false)
+
+        publisher().start()
+
+        assertEquals(1, accounts.revokes)
+    }
+
+    @Test
     fun `앱 안 리스너로 온 SESSION_REQUEST로는 발급하지 않는다(수신 서비스가 받는다, 중복 발급 방지)`() = runTest {
         memory.memberId = 7
         publisher().start()

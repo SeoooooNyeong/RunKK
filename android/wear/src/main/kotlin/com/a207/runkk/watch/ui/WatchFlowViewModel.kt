@@ -5,21 +5,21 @@ import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.core.model.RunMode
 import com.a207.runkk.app.domain.account.AccountRepository
-import com.a207.runkk.app.domain.battle.BattleRunState
-import com.a207.runkk.app.domain.battle.RandomBattleGate
-import com.a207.runkk.app.domain.battle.RecordBattleKind
-import com.a207.runkk.app.domain.battle.RecordTrack
 import com.a207.runkk.app.domain.run.FinishOutcome
 import com.a207.runkk.app.domain.run.FreeRunGoal
 import com.a207.runkk.app.domain.run.PlanSnapshot
 import com.a207.runkk.app.domain.run.RunProgress
 import com.a207.runkk.app.domain.run.RunStartSpec
 import com.a207.runkk.app.domain.run.RunTracker
-import com.a207.runkk.watch.cache.CachedTrack
+import com.a207.runkk.watch.battle.BattleStep
+import com.a207.runkk.watch.battle.RecordOpponent
+import com.a207.runkk.watch.battle.WatchBattleFlow
+import com.a207.runkk.watch.battle.WatchResultHeadline
 import com.a207.runkk.watch.guide.WatchGuidanceOutput
 import com.a207.runkk.watch.link.NetworkState
 import com.a207.runkk.watch.link.PhoneLink
@@ -52,11 +52,13 @@ import kotlinx.coroutines.withTimeoutOrNull
  *   않으면 시작하지 않는다(FR-251). 배틀런은 언랭이면 매칭을 요청하기 전에 잠근다(FR-080, 폰 RandomBattleGate와 같은 규칙). 서버 거부는
  *   사유 코드마다 폰 BattleErrorText와 같은 뜻의 안내를 보인다(코드 리뷰 WR12-1). 셀프·셀럽런은 서버에 닿으면 서버 대결, 아니면 미리 받은 상대 기록으로 워치에서만 한다(D-377, R72).
  * - 자유런은 이 ViewModel이 3·2·1·GO 뒤 RunTracker.startRun을 부르고, 대결은 BattleRunCoordinator가 출발을 정한다.
- * - 끝: 자유런은 RunTracker.ended, 대결은 BattleRunState.Finished로 결과(WatchResultHeadline)를 만든다. 측정 서비스가 밖에서 끝내면
+ * - 끝: 자유런은 RunTracker.ended, 대결은 BattleStep.Finished로 결과(WatchResultHeadline)를 만든다. 측정 서비스가 밖에서 끝내면
  *   (운동 세션 실패) 기록이 있으면 결과, 없으면 "측정이 중단됐어요"로 메인에 돌아간다.
- * - 로그인: 로그인 정보가 없으면 폰에 요청하고(SESSION_REQUEST) 미로그인 안내를 보인다(FR-242). 결과를 닫을 때 로그아웃 대기였으면
+ * - 로그인: 로그인 정보가 없으면 폰에 요청하고(SESSION_REQUEST) 미로그인 안내를 보인다(FR-242). 미로그인 안내에 들어올 때와 그 동안
+ *   폰 연결이 새로 닿을 때 다시 요청한다(D-404, WR13-1, 폰에 닿은 요청 뒤 30초 간격). 결과를 닫을 때 로그아웃 대기였으면
  *   지운다(completeRevoke). 메인을 열 때 서버 설정·본인 요약·기본 대결 거리·상대 기록을 맞춘다(D-379, FR-109, FR-260).
  * - 다시 열기: 측정 중이면 측정 화면, 대결 성사~출발 사이(Matched·Countdown)면 그 화면과 대결 맥락을 되살린다(코드 리뷰 WR12-2).
+ *   셀프·셀럽 기록 대결은 이 워치가 연 상대 기록으로 모드와 결과 머리말을 잇는다(WR13-2).
  * - 첫 카드: 자유런은 설정 사본의 목표(FR-048, WatchSessionStore.freeRunGoal)이고, 오늘 계획은 폰이 보낸 시작 화면 표시(FR-042)로
  *   안다(폰이 없으면 저장값만). 계획 거리가 네 카드에 없으면 카드를 하나 더 둔다(FR-244). 배틀런은 기본 대결 거리다(FR-109, FR-257).
  */
@@ -74,7 +76,7 @@ class WatchFlowViewModel @Inject constructor(
     private data class Round(
         val mode: WatchMode,
         val goal: Distance?,
-        val opponent: CachedTrack? = null,
+        val opponent: RecordOpponent? = null,
         val battleId: Long? = null,
         val hasStarted: Boolean = false,
         val isEndedByUser: Boolean = false
@@ -84,7 +86,7 @@ class WatchFlowViewModel @Inject constructor(
     private var lastMode = WatchMode.FREE
     private var myTier: String? = null
 
-    /** 랜덤 대결까지 남은 유효 러닝 수(RandomBattleGate.runsLeft). null이면 열림 또는 모름(서버가 판정한다). */
+    /** 랜덤 대결까지 남은 유효 러닝 수(WatchBattleFlow.randomRunsLeft). null이면 열림 또는 모름(서버가 판정한다). */
     private var randomRunsLeft: Int? = null
     private var isPhoneRunning = false
     private var lastGap: Int? = null
@@ -109,6 +111,9 @@ class WatchFlowViewModel @Inject constructor(
     private var resultJob: Job? = null
     private var leadJob: Job? = null
     private var noticeJob: Job? = null
+
+    /** 로그인 정보 요청. 폰에 닿은 요청 뒤 [SESSION_REQUEST_GAP_MILLIS] 동안 살아 있어 그 사이 요청을 건너뛴다(WR13-1). */
+    private var sessionRequestJob: Job? = null
 
     private val _flow = MutableStateFlow(initialFlow())
     val flow: StateFlow<WatchFlow> = _flow.asStateFlow()
@@ -136,7 +141,16 @@ class WatchFlowViewModel @Inject constructor(
                 .collect { (progress, banner) -> onProgress(progress, banner) }
         }
         viewModelScope.launch { runTracker.ended.collect(::onEnded) }
-        viewModelScope.launch { battleFlow.state.collect(::onBattleState) }
+        viewModelScope.launch { battleFlow.steps.collect(::onBattleStep) }
+        // 미로그인 안내에 들어올 때와 그 동안 폰 연결이 새로 닿을 때 로그인 정보를 다시 요청한다(D-404, 코드 리뷰 WR13-1).
+        viewModelScope.launch {
+            _flow.map { it is WatchFlow.NotLoggedIn }.distinctUntilChanged().filter { it }.collect { requestSession() }
+        }
+        viewModelScope.launch {
+            phoneLink.phoneConnected.filter {
+                it
+            }.collect { if (_flow.value is WatchFlow.NotLoggedIn) requestSession() }
+        }
         // 기록을 보낸 뒤 상대 기록을 다시 받는다(SQ-46). 회원이 바뀌면 이전 구독을 끊는다.
         viewModelScope.launch {
             sessionStore.state.collectLatest { session ->
@@ -170,12 +184,7 @@ class WatchFlowViewModel @Inject constructor(
             }
 
             is WatchFlow.SelfDistance -> {
-                val track = d?.let { distance ->
-                    battleFlow.selfCandidates().firstOrNull {
-                        it.record.distance ==
-                            distance
-                    }
-                }
+                val track = d?.let { distance -> battleFlow.selfCandidates().firstOrNull { it.distance == distance } }
                 if (track != null) startRecord(track, WatchMode.SELF)
             }
 
@@ -189,7 +198,7 @@ class WatchFlowViewModel @Inject constructor(
     }
 
     /** 셀럽 기록 하나를 골랐다(FR-259). 카운트다운으로 간다. */
-    fun onCelebritySelected(c: CachedTrack) {
+    fun onCelebritySelected(c: RecordOpponent) {
         if (_flow.value !is WatchFlow.CelebList) return
         startRecord(c, WatchMode.CELEB)
     }
@@ -273,14 +282,20 @@ class WatchFlowViewModel @Inject constructor(
     override fun onCleared() {
         // 성사 전에 화면이 사라지면 서버 대기열에서 뺀다(FR-085). 성사 뒤 대결은 조정자가 갖는다.
         if (_flow.value is WatchFlow.Matching) battleFlow.cancelMatching()
+        // 측정 중이 아니면 이 화면이 더 안내할 일이 없다: TTS를 닫는다(WR13-3). 측정 중이면 측정 서비스의 안내가 이어 쓰고, 결과 화면이면
+        // 도착 안내가 아직 말하는 중일 수 있어 닫지 않는다(onResultClosed와 같은 이유).
+        if (!runTracker.isMeasuring && _flow.value !is WatchFlow.Result) guidance.shutdown()
     }
 
     private fun initialFlow(): WatchFlow {
         if (runTracker.isMeasuring) {
-            // 워치가 측정 중에 앱을 다시 열었다(2.4.25 [*] → Running). 화면 맥락은 진행 알림 값과 대결 상태로 되살린다.
-            val isFree = battleFlow.state.value is BattleRunState.Idle
+            // 워치가 측정 중에 앱을 다시 열었다(2.4.25 [*] → Running). 화면 맥락은 진행 알림 값과 대결 상태, 이 워치가 연 기록 대결의
+            // 상대(WR13-2)로 되살린다.
+            val isFree = battleFlow.step() is BattleStep.Idle
+            val record = if (isFree) null else battleFlow.activeRecord()
+            val mode = if (isFree) WatchMode.FREE else modeOf(record)
             val goal = runTracker.notice.value?.progressEnd
-            val restored = Round(if (isFree) WatchMode.FREE else WatchMode.BATTLE, goal, hasStarted = true)
+            val restored = Round(mode, goal, opponent = record, hasStarted = true)
             round = restored
             val progress = runTracker.progress.value
             return if (isFree && progress.isPaused) {
@@ -295,22 +310,32 @@ class WatchFlowViewModel @Inject constructor(
 
     /**
      * 대결 성사 뒤 출발 전(Matched·Countdown)에 앱을 다시 열었다(WR12-2). 조정자는 앱 범위에서 대결을 이어 가므로 화면 맥락(round)을
-     * 되살려야 이어서 오는 Countdown·Running·Finished를 버리지 않는다. 기록 대결도 같은 상태를 지나지만 맥락을 몰라 배틀런으로 둔다
-     * (측정 중 재진입과 같은 범주). 카운트다운 숫자는 상태 구독(onBattleState → countdownTo)이 맞춘다.
+     * 되살려야 이어서 오는 Countdown·Running·Finished를 버리지 않는다. 셀프·셀럽 기록 대결은 Matched 없이 Countdown으로 오고, 이 워치가
+     * 연 상대 기록(WatchBattleFlow.activeRecord)으로 모드와 상대를 되살린다(WR13-2). 카운트다운 숫자는 상태 구독(onBattleStep →
+     * countdownTo)이 맞춘다.
      */
-    private fun restoredBattle(): WatchFlow? = when (val state = battleFlow.state.value) {
-        is BattleRunState.Matched -> {
-            round = Round(WatchMode.BATTLE, state.match.distance, battleId = state.match.battleId)
-            battleFlow.toFlow(state)
+    private fun restoredBattle(): WatchFlow? = when (val step = battleFlow.step()) {
+        is BattleStep.Matched -> {
+            round = Round(WatchMode.BATTLE, step.distance, battleId = step.battleId)
+            matchedFlow(step, tier = null, myGender = null)
         }
 
-        is BattleRunState.Countdown -> {
-            val goal = battleFlow.activeDistance()
-            round = Round(WatchMode.BATTLE, goal, battleId = state.battleId)
-            WatchFlow.Countdown(WatchMode.BATTLE, goal, COUNTDOWN_SECONDS)
+        is BattleStep.Countdown -> {
+            val record = battleFlow.activeRecord()
+            val mode = modeOf(record)
+            val goal = record?.distance ?: battleFlow.activeDistance()
+            round = Round(mode, goal, opponent = record, battleId = step.battleId)
+            WatchFlow.Countdown(mode, goal, COUNTDOWN_SECONDS)
         }
 
         else -> null
+    }
+
+    /** 열린 대결의 화면 모드: 이 워치가 연 기록 대결이면 셀프·셀럽, 아니면 배틀런이다. */
+    private fun modeOf(record: RecordOpponent?): WatchMode = when {
+        record == null -> WatchMode.BATTLE
+        record.isCelebrity -> WatchMode.CELEB
+        else -> WatchMode.SELF
     }
 
     private fun onSession(session: WatchSession) {
@@ -321,7 +346,7 @@ class WatchFlowViewModel @Inject constructor(
                 myTier = null
                 randomRunsLeft = null
                 if (isIdle(_flow.value) && _flow.value !is WatchFlow.Companion) _flow.value = WatchFlow.NotLoggedIn
-                viewModelScope.launch { phoneLink.requestSession() }
+                requestSession()
             }
 
             is WatchSession.Active -> {
@@ -336,6 +361,18 @@ class WatchFlowViewModel @Inject constructor(
                 // 측정 중 받은 로그아웃을 결과를 닫지 못한 채 앱이 다시 떴다: 지금 지운다.
                 viewModelScope.launch { sessionStore.completeRevoke() }
             }
+        }
+    }
+
+    /**
+     * 폰에 로그인 정보를 요청한다(SESSION_REQUEST, FR-242, D-404). 폰은 요청마다 워치용 토큰을 새로 발급받으므로(서버 한도 1시간 20회)
+     * 폰에 닿은 요청 뒤 [SESSION_REQUEST_GAP_MILLIS] 동안은 다시 보내지 않는다. 닿지 못한 요청(폰 노드 없음)은 간격을 두지 않아 연결이
+     * 닿으면 바로 다시 보낸다(WR13-1).
+     */
+    private fun requestSession() {
+        if (sessionRequestJob?.isActive == true) return
+        sessionRequestJob = viewModelScope.launch {
+            if (phoneLink.requestSession()) delay(SESSION_REQUEST_GAP_MILLIS)
         }
     }
 
@@ -371,7 +408,7 @@ class WatchFlowViewModel @Inject constructor(
             sessionStore.refreshSettings()
             (accounts.mySummary() as? Outcome.Success)?.value?.let { me ->
                 me.tier?.let { myTier = it }
-                randomRunsLeft = RandomBattleGate.runsLeft(me.tier, me.validRuns)
+                randomRunsLeft = battleFlow.randomRunsLeft(me.tier, me.validRuns)
             }
             battleFlow.refreshCache(memberId)
         }
@@ -459,13 +496,13 @@ class WatchFlowViewModel @Inject constructor(
     }
 
     /** 셀프·셀럽런 시작: 서버에 닿으면 서버 대결, 아니면(또는 서버에 닿지 못하면) 워치에서만 한다(D-377, R72). */
-    private fun startRecord(track: CachedTrack, mode: WatchMode) {
+    private fun startRecord(track: RecordOpponent, mode: WatchMode) {
         blockedNotice()?.let { notice ->
             showNotice(notice)
             return
         }
         val picker = _flow.value
-        val distance = track.record.distance
+        val distance = track.distance
         beginRound(Round(mode, distance, opponent = track))
         _flow.value = WatchFlow.Countdown(mode, distance, COUNTDOWN_SECONDS)
         if (!connectivity.isOnline.value) {
@@ -518,38 +555,48 @@ class WatchFlowViewModel @Inject constructor(
         }
     }
 
-    private fun onBattleState(state: BattleRunState) {
+    private fun onBattleStep(step: BattleStep) {
         val active = round ?: return
         if (active.mode == WatchMode.FREE) return
-        when (state) {
-            is BattleRunState.Matched -> {
+        when (step) {
+            is BattleStep.Matched -> {
                 waitingJob?.cancel()
-                round = active.copy(battleId = state.match.battleId)
-                (battleFlow.toFlow(state) as? WatchFlow.Matched)?.let {
-                    _flow.value = it.copy(tier = myTier, myGender = accounts.myGender.value)
-                }
+                round = active.copy(battleId = step.battleId)
+                _flow.value = matchedFlow(step, tier = myTier, myGender = accounts.myGender.value)
             }
 
-            is BattleRunState.Countdown -> {
-                round = active.copy(battleId = state.battleId)
-                countdownTo(active.mode, active.goal, state.startAt)
+            is BattleStep.Countdown -> {
+                round = active.copy(battleId = step.battleId)
+                countdownTo(active.mode, active.goal, step.startAt)
             }
 
-            is BattleRunState.Running -> onBattleRunning(active, state.gapMeters, state.lastGuidance)
+            is BattleStep.Running -> onBattleRunning(active, step.gapMeters, step.lead)
 
-            is BattleRunState.Closing -> onBattleRunning(active, lastGap, lastLead)
+            BattleStep.Closing -> onBattleRunning(active, lastGap, lastLead)
 
-            is BattleRunState.Finished -> onBattleFinished(state.battleId)
+            is BattleStep.Finished -> onBattleFinished(step.battleId)
 
-            is BattleRunState.Discarded -> {
+            BattleStep.Discarded -> {
+                // 셀프·셀럽런을 그만둬 결과 없이 끝났다(D-266): 결과를 닫는 때가 없으니 지금 TTS를 닫는다(WR13-3).
+                guidance.shutdown()
                 battleFlow.acknowledge()
                 round = null
                 enterHome(refresh = false)
             }
 
-            BattleRunState.Idle -> Unit
+            BattleStep.Idle -> Unit
         }
     }
+
+    /** 매칭 완료 화면(FR-087): 상대 이름·성별·거리에 화면 흐름이 아는 내 티어·성별을 채운다. */
+    private fun matchedFlow(step: BattleStep.Matched, tier: String?, myGender: Gender?): WatchFlow.Matched =
+        WatchFlow.Matched(
+            tier = tier,
+            distance = step.distance,
+            opponentName = step.opponentName,
+            myGender = myGender,
+            opponentGender = step.opponentGender
+        )
 
     /** 대결 출발 3·2·1(FR-087): 출발 시각까지 3초가 남을 때부터 센다. 측정 시작(Running)이 오면 GO 뒤 측정 화면이다. */
     private fun countdownTo(mode: WatchMode, goal: Distance?, startAt: Instant) {
@@ -617,7 +664,7 @@ class WatchFlowViewModel @Inject constructor(
         val active = round ?: return
         if (active.mode != WatchMode.FREE) {
             // 측정 서비스가 밖에서 끝냈다(운동 세션 실패): 대결 회도 닫는다(조정자는 측정 끝을 따로 알지 못한다).
-            if (!active.isEndedByUser && battleFlow.state.value.isOpen()) battleFlow.forfeit()
+            if (!active.isEndedByUser && battleFlow.step().isOpen) battleFlow.forfeit()
             return
         }
         countdownJob?.cancel()
@@ -627,9 +674,12 @@ class WatchFlowViewModel @Inject constructor(
                 _flow.value =
                     WatchFlow.Result(WatchResultHeadline.forFree(outcome, active.goal), RunSummaryView.of(outcome))
 
-            active.isEndedByUser -> enterHome(refresh = false)
-
-            else -> enterHome(refresh = false, notice = WatchFlow.Notice.MEASUREMENT_STOPPED)
+            else -> {
+                // 결과 없이 끝났다(거리 0이라 저장하지 않음, 측정 서비스가 밖에서 끝냄): 결과를 닫는 때가 없으니 지금 TTS를 닫는다(WR13-3).
+                guidance.shutdown()
+                val notice = WatchFlow.Notice.MEASUREMENT_STOPPED.takeUnless { active.isEndedByUser }
+                enterHome(refresh = false, notice = notice)
+            }
         }
     }
 
@@ -666,9 +716,7 @@ class WatchFlowViewModel @Inject constructor(
             _flow.value = WatchFlow.Result(WatchResultHeadline.forFree(outcome, goal = null), summary)
             return
         }
-        val headline = awaitVerdict(RESULT_ATTEMPTS, summary) {
-            WatchResultHeadline.forBattle(battleFlow.result(battleId), lastGap)
-        } ?: return
+        val headline = awaitVerdict(RESULT_ATTEMPTS, summary) { battleFlow.battleHeadline(battleId, lastGap) } ?: return
         _flow.value = WatchFlow.Result(headline, summary)
     }
 
@@ -684,36 +732,21 @@ class WatchFlowViewModel @Inject constructor(
         outcome: FinishOutcome,
         summary: RunSummaryView
     ) {
-        val opponent = active.opponent?.record
+        val opponent = active.opponent
         if (opponent == null) {
             _flow.value = WatchFlow.Result(WatchResultHeadline.forFree(outcome, goal = null), summary)
             return
         }
         if (battleId != OFFLINE_BATTLE_ID) {
             val verdict = awaitVerdict(RECORD_RESULT_ATTEMPTS, summary) {
-                WatchResultHeadline.forRecordVerdict(opponent.kind, battleFlow.result(battleId), opponent.displayName)
+                battleFlow.recordVerdictHeadline(opponent, battleId)
             } ?: return
             if (verdict != WatchResultHeadline.Pending) {
                 _flow.value = WatchFlow.Result(verdict, summary)
                 return
             }
         }
-        _flow.value = WatchFlow.Result(watchVerdict(opponent, outcome), summary)
-    }
-
-    /**
-     * 워치 계산 머리말(FR-250): 상대 완주 시간과 내 도착 시간을 화면에 보이는 초 단위로 견준다(같은 초는 진 것, W28). 셀프런을
-     * 새로 앞섰으면 상대 기록 사본도 바꾼다(FR-260).
-     */
-    private fun watchVerdict(opponent: RecordTrack, outcome: FinishOutcome): WatchResultHeadline {
-        val run = (outcome as? FinishOutcome.Saved)?.run
-        val gapSeconds = run?.takeIf { it.distance.isAtLeast(opponent.distance) }
-            ?.let { opponent.finishTime.seconds - it.elapsed.seconds }
-        val headline = WatchResultHeadline.forRecord(opponent.kind, gapSeconds, opponent.displayName)
-        if (opponent.kind == RecordBattleKind.SELF && headline is WatchResultHeadline.Best && run != null) {
-            battleFlow.onNewSelfBest(opponent.distance, run.elapsed)
-        }
-        return headline
+        _flow.value = WatchFlow.Result(battleFlow.recordWatchHeadline(opponent, outcome), summary)
     }
 
     /**
@@ -761,7 +794,7 @@ class WatchFlowViewModel @Inject constructor(
         WatchMode.SELF -> {
             val records = battleFlow.selfCandidates()
             val choices = SELF_DISTANCES.map { distance ->
-                val record = records.firstOrNull { it.record.distance == distance }?.record?.finishTime
+                val record = records.firstOrNull { it.distance == distance }?.finishTime
                 WatchFlow.Choice(distance, record = record, isEnabled = record != null)
             }
             WatchFlow.SelfDistance(choices, selected = firstEnabled(choices))
@@ -826,6 +859,9 @@ class WatchFlowViewModel @Inject constructor(
         /** 측정 중 안내("길게 눌러 종료" 등)를 보이는 시간. */
         const val NOTICE_MILLIS = 2_000L
 
+        /** 폰에 닿은 로그인 정보 요청 뒤 다시 보내지 않는 간격(D-404 보충, WR13-1). */
+        const val SESSION_REQUEST_GAP_MILLIS = 30_000L
+
         /** 대결 끝(Finished) 뒤 종료 요약을 기다리는 상한. */
         const val OUTCOME_WAIT_MILLIS = 2_000L
 
@@ -854,10 +890,6 @@ class WatchFlowViewModel @Inject constructor(
         /** 거리 선택·카운트다운 전 화면(동행 표시로 바꿔도 되는 화면). */
         private fun isIdle(flow: WatchFlow): Boolean = flow is WatchFlow.NotLoggedIn || flow is WatchFlow.Main ||
             flow is WatchFlow.Picker || flow is WatchFlow.CelebList || flow is WatchFlow.Companion
-
-        private fun BattleRunState.isOpen(): Boolean =
-            this is BattleRunState.Running || this is BattleRunState.Closing ||
-                this is BattleRunState.Countdown
 
         /**
          * 시작·매칭 거부 사유 코드 → 안내(WR12-1). 서버 코드는 폰 BattleErrorText(:feature:battle internal, :wear가 쓸 수 없다)와 같은

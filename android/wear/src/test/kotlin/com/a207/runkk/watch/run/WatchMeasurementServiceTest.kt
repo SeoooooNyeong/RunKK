@@ -1,5 +1,6 @@
 package com.a207.runkk.watch.run
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.os.Bundle
@@ -21,6 +22,8 @@ import com.a207.runkk.watch.testing.runTracker
 import java.time.Duration
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
@@ -29,6 +32,7 @@ import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.runner.RunWith
+import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
@@ -56,6 +60,43 @@ class WatchMeasurementServiceTest {
         assertEquals(WatchMeasurementService::class.java.name, stopped.component?.className)
         assertEquals(WatchMeasurementService.ACTION_STOP, stopped.action)
     }
+
+    @Test
+    fun `막 만들어진 서비스가 정지 명령을 받으면 포그라운드를 내리고 그 명령 번호로 멈춘다(WR13-4, M5)`() {
+        val controller = Robolectric.buildService(WatchMeasurementService::class.java, stopCommand()).create()
+
+        controller.startCommand(0, 1)
+
+        val service = shadowOf(controller.get())
+        assertTrue(service.isForegroundStopped)
+        assertTrue(service.notificationShouldRemoved)
+        assertTrue(service.isStoppedBySelf)
+        assertEquals(1, service.stopSelfId)
+    }
+
+    @Test
+    fun `시작 명령으로 포그라운드에 오른 뒤 정지 명령을 받으면 내리고 정지 명령 번호로만 멈춘다(WR13-4, stopSelf(startId))`() {
+        shadowOf(
+            context
+        ).grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.POST_NOTIFICATIONS)
+        val controller = Robolectric.buildService(WatchMeasurementService::class.java).create()
+        val service = controller.get()
+
+        service.onStartCommand(Intent(context, WatchMeasurementService::class.java), 0, 1)
+        assertNotNull(shadowOf(service).lastForegroundNotification)
+        assertFalse(shadowOf(service).isForegroundStopped)
+
+        // 정지 명령(2번) 뒤에 새 시작 명령(3번)이 와 있어도 OS는 2번까지만 멈춘다: stopSelf()가 아니라 stopSelf(2)여야 한다.
+        service.onStartCommand(stopCommand(), 0, 2)
+
+        assertTrue(shadowOf(service).isForegroundStopped)
+        assertTrue(shadowOf(service).isStoppedBySelf)
+        assertEquals(2, shadowOf(service).stopSelfId)
+        controller.destroy()
+    }
+
+    private fun stopCommand(): Intent =
+        Intent(context, WatchMeasurementService::class.java).setAction(WatchMeasurementService.ACTION_STOP)
 
     @Test
     fun `측정 중 1초마다 tick하고 심박을 게이트웨이로 넘기며 일시정지를 운동 세션에 맞춘다`() = runTest {

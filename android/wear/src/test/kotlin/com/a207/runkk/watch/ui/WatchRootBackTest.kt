@@ -9,6 +9,7 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.domain.run.RunProgress
+import com.a207.runkk.watch.battle.WatchResultHeadline
 import java.time.Duration
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

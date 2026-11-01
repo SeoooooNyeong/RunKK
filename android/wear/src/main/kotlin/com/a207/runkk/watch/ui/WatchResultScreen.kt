@@ -21,6 +21,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material3.Text
+import com.a207.runkk.watch.battle.WatchResultHeadline
 
 /**
  * 결과(FR-249, 피그마 FF∞·FG3·FS3·BW1·BL1·BS1·SW3·SL3·SS3): 머리말(FINISH·GOAL·STOP·WIN·LOSE·BEST·GOOD)과 결과 문구, 거리·시간·

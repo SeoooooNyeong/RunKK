@@ -29,7 +29,7 @@ import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
 import androidx.wear.compose.foundation.rotary.RotaryScrollableDefaults
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
-import com.a207.runkk.watch.cache.CachedTrack
+import com.a207.runkk.watch.battle.RecordOpponent
 
 /**
  * 셀럽 기록 목록(FR-259, W09). 셀프런 거리 목록과 같은 틀이다(W03, 피그마 S1-3). 항목은 셀럽 표시명(가림 이름), 완주 시간, 출처다.
@@ -38,7 +38,7 @@ import com.a207.runkk.watch.cache.CachedTrack
 @Composable
 fun WatchCelebListScreen(
     state: WatchFlow.CelebList,
-    onCelebritySelected: (CachedTrack) -> Unit,
+    onCelebritySelected: (RecordOpponent) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val listState = rememberScalingLazyListState(initialCenterItemIndex = state.selected + 1)
@@ -68,9 +68,8 @@ fun WatchCelebListScreen(
 }
 
 @Composable
-private fun CelebRow(celebrity: CachedTrack, isHighlighted: Boolean, onClick: () -> Unit) {
+private fun CelebRow(record: RecordOpponent, isHighlighted: Boolean, onClick: () -> Unit) {
     val shape = RoundedCornerShape(14.dp)
-    val record = celebrity.record
     val time = WatchFormat.elapsed(record.finishTime.seconds)
     val ink = if (isHighlighted) WatchColors.Ink else WatchColors.OnSurface
     Row(
