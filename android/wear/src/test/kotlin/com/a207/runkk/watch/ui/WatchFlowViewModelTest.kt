@@ -11,6 +11,7 @@ import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.GeoPoint
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.account.MySummary
+import com.a207.runkk.app.domain.battle.BattleResult
 import com.a207.runkk.app.domain.battle.BattleRunCoordinator
 import com.a207.runkk.app.domain.battle.MatchAcceptance
 import com.a207.runkk.app.domain.battle.OpponentTrack
@@ -708,6 +709,129 @@ class WatchFlowViewModelTest {
         assertEquals(listOf(CardKind.SELF_RUN, CardKind.CELEB_RUN), pendingRuns.saved.map { it.cardKind })
         assertEquals(List(2) { RunStartSpec.StartDevice.WATCH }, pendingRuns.saved.map { it.startDevice })
         assertEquals(listOf(7L, 7L), battles.forfeits)
+    }
+
+    /** 서버 대결 7번의 판정(셀프·셀럽 공통). */
+    private fun verdict(verdict: String, mine: Long?, theirs: Long) = BattleResult(
+        battleId = 7,
+        isPending = false,
+        verdict = verdict,
+        rows = emptyList(),
+        rewardPoints = null,
+        isNewRecord = false,
+        opponentName = "상대",
+        myReach = mine?.let { Duration.ofSeconds(it) },
+        opponentReach = Duration.ofSeconds(theirs)
+    )
+
+    /** 서버 대결로 셀프런 3km를 시작해 측정 화면까지 간다. */
+    private fun TestScope.startOnlineSelf(h: Harness) {
+        battles.recordStart = recordStart(CardKind.SELF_RUN, meters = 3_000)
+        h.vm.onModeSelected(WatchMode.SELF)
+        h.vm.onDistanceSelected(Distance(3_000))
+        runCurrent()
+        passCountdown()
+        assertIs<WatchFlow.Running>(h.flow)
+    }
+
+    private val Harness.headline: WatchResultHeadline get() = (flow as WatchFlow.Result).headline
+
+    @Test
+    fun `서버 대결 셀프런은 판정을 기다리는 동안 보류이고 판정이 오면 워치 계산이 아니라 서버 결과다(W27, WR12-4)`() = flowTest {
+        val h = open()
+        startOnlineSelf(h)
+
+        // 도착 전에 끝냈으니 워치 계산이면 STOP이다. 서버는 BEST(20초 단축)로 판정한다.
+        runAndEnd(h)
+        assertEquals(WatchResultHeadline.Pending, h.headline)
+        battles.results[7] = verdict("WIN", mine = 880, theirs = 900)
+        advanceTimeBy(WatchFlowViewModel.RESULT_RETRY_MILLIS)
+        runCurrent()
+
+        assertEquals(WatchResultHeadline.Best(20), h.headline)
+    }
+
+    @Test
+    fun `서버 대결 셀럽런은 서버 판정 LOSE를 고른 셀럽 표시명과 도달 시간 차로 보인다(W27)`() = flowTest {
+        battles.results[7] = verdict("LOSE", mine = 1_600, theirs = 1_500)
+        val h = open()
+        battles.recordStart = recordStart(CardKind.CELEB_RUN, meters = 5_000)
+        h.vm.onModeSelected(WatchMode.CELEB)
+        h.vm.onDistanceSelected(Distance(5_000))
+        h.vm.onCelebritySelected((h.flow as WatchFlow.CelebList).celebrities.single())
+        runCurrent()
+        passCountdown()
+
+        runAndEnd(h)
+
+        assertEquals(WatchResultHeadline.Lose("셀럽1", 100), h.headline)
+    }
+
+    @Test
+    fun `서버 판정을 정해진 횟수 안에 받지 못하면 보류를 거두고 워치 계산으로 보인다(W27)`() = flowTest {
+        val h = open()
+        startOnlineSelf(h)
+        runAndEnd(h)
+
+        repeat(WatchFlowViewModel.RECORD_RESULT_ATTEMPTS - 1) {
+            assertEquals(WatchResultHeadline.Pending, h.headline)
+            advanceTimeBy(WatchFlowViewModel.RESULT_RETRY_MILLIS)
+            runCurrent()
+        }
+
+        assertEquals(WatchResultHeadline.Stop, h.headline)
+        advanceTimeBy(WatchFlowViewModel.RESULT_RETRY_MILLIS * 2)
+        runCurrent()
+        assertEquals(WatchResultHeadline.Stop, h.headline)
+    }
+
+    @Test
+    fun `서버가 계속 보류로 답해도 정해진 횟수 뒤 워치 계산이고 보류 중 완료로 닫으면 늦은 판정이 메인을 덮지 않는다(W27)`() = flowTest {
+        val h = open()
+        startOnlineSelf(h)
+        battles.results[7] = verdict("WIN", mine = 880, theirs = 900).copy(isPending = true, verdict = null)
+        runAndEnd(h)
+        advanceTimeBy(WatchFlowViewModel.RESULT_RETRY_MILLIS * (WatchFlowViewModel.RECORD_RESULT_ATTEMPTS - 1))
+        runCurrent()
+        assertEquals(WatchResultHeadline.Stop, h.headline)
+        h.vm.onResultClosed()
+        runCurrent()
+
+        startOnlineSelf(h)
+        runAndEnd(h)
+        assertEquals(WatchResultHeadline.Pending, h.headline)
+        h.vm.onResultClosed()
+        runCurrent()
+        battles.results[7] = verdict("WIN", mine = 880, theirs = 900)
+        advanceTimeBy(WatchFlowViewModel.RESULT_RETRY_MILLIS * 2)
+        runCurrent()
+
+        assertIs<WatchFlow.Main>(h.flow)
+    }
+
+    @Test
+    fun `연결 없이 끝까지 달린 셀프런은 워치 계산이고 최고 기록과 같은 초면 진 것이라 GOOD이다(W27, W28)`() = flowTest {
+        online.value = false
+        battles.tracks[RecordBattleKind.SELF] = listOf(selfTrack(distanceMeters = 3_000, finishSeconds = 2_000))
+        val h = open()
+        h.vm.onModeSelected(WatchMode.SELF)
+        h.vm.onDistanceSelected(Distance(3_000))
+        passCountdown()
+        runNorth(h.tracker, meters = 3_000)
+        val first = h.flow as WatchFlow.Result
+        assertIs<WatchResultHeadline.Best>(first.headline)
+
+        // 서버 최고 기록이 첫 회 완주 시간(초 단위)이 되었고, 둘째 회를 같은 페이스로 달린다.
+        battles.tracks[RecordBattleKind.SELF] =
+            listOf(selfTrack(distanceMeters = 3_000, finishSeconds = first.summary.elapsed.seconds))
+        h.vm.onResultClosed()
+        runCurrent()
+        h.vm.onModeSelected(WatchMode.SELF)
+        h.vm.onDistanceSelected(Distance(3_000))
+        passCountdown()
+        runNorth(h.tracker, meters = 3_000)
+
+        assertEquals(WatchResultHeadline.Good(0), h.headline)
     }
 
     @Test
