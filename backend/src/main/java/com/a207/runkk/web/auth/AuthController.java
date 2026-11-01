@@ -1,6 +1,7 @@
 package com.a207.runkk.web.auth;
 
 import com.a207.runkk.common.BusinessRuleException;
+import com.a207.runkk.common.PermissionDeniedException;
 import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.member.AccountType;
 import com.a207.runkk.member.AuthFailureException;
@@ -108,11 +109,18 @@ public class AuthController {
 
     /**
      * 워치용 토큰 쌍(v0.21 FR-240, D-372, 인증 필요, 본문 없음). 폰의 토큰 쌍은 그대로 유효하다. 탈퇴 회원은 인증 필터가 401로 막고, 그 사이에
-     * 탈퇴했으면 갱신 실패와 같은 401(본문 없음)이다. 갱신 토큰을 새로 만드는 경로라 접속지별 요청 상한과 회원별 발급 한도를 센다(넘으면 429).
+     * 탈퇴했으면 갱신 실패와 같은 401(본문 없음)이다. 갱신 토큰을 새로 만드는 경로라 접속지별 요청 상한과 회원별 발급 한도를 센다(넘으면 429). 워치용 접근
+     * 토큰으로 오면 403 PERMISSION_DENIED다(W26, 폰만 발급 요청).
      */
     @PostMapping("/auth/watch-session")
     ResponseEntity<TokenResponse> watchSession(
-            @RequestAttribute(AuthFilter.MEMBER_ID) long memberId, HttpServletRequest http) {
+            @RequestAttribute(AuthFilter.MEMBER_ID) long memberId,
+            @RequestAttribute(AuthFilter.WATCH_CLIENT) boolean watchClient,
+            HttpServletRequest http) {
+        if (watchClient) {
+            // W26: 워치 세션 발급은 폰만 요청한다. 워치 토큰으로 새 워치 갱신 토큰을 만들어 일괄 폐기를 피하지 못하게 한다
+            throw new PermissionDeniedException("watch_token_cannot_issue_watch_session");
+        }
         attempts.admitWatchSession(http, memberId);
         try {
             return ResponseEntity.ok(TokenResponse.of(authService.issueWatchSession(memberId)));

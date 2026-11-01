@@ -1,5 +1,6 @@
 package com.a207.runkk.web.auth;
 
+import com.a207.runkk.member.AccessGrant;
 import com.a207.runkk.member.AuthFailureException;
 import com.a207.runkk.member.TokenIssuer;
 import jakarta.servlet.FilterChain;
@@ -25,6 +26,9 @@ public class AuthFilter extends OncePerRequestFilter {
 
     /** 컨트롤러가 {@code @RequestAttribute("memberId")}로 받는 요청 속성 이름. */
     public static final String MEMBER_ID = "memberId";
+
+    /** 워치용 접근 토큰으로 온 요청인가(Boolean, 2026-11-01 사용자 결정 W26). */
+    public static final String WATCH_CLIENT = "runkk.watchClient";
 
     static final String ADMIN_PATH = "/api/v1/admin/";
     private static final String BEARER = "Bearer ";
@@ -53,20 +57,22 @@ public class AuthFilter extends OncePerRequestFilter {
             chain.doFilter(request, response);
             return;
         }
-        long memberId;
+        AccessGrant grant;
         try {
-            memberId = tokenIssuer.verify(header.substring(BEARER.length()));
+            grant = tokenIssuer.verifyGrant(header.substring(BEARER.length()));
         } catch (AuthFailureException e) {
             SecurityContextHolder.clearContext();
             writeUnauthorized(response);
             return;
         }
+        long memberId = grant.memberId();
         if (!activeMembers.isActive(memberId)) {
             SecurityContextHolder.clearContext();
             writeUnauthorized(response);
             return;
         }
         request.setAttribute(MEMBER_ID, memberId);
+        request.setAttribute(WATCH_CLIENT, grant.watch());
         SecurityContextHolder.getContext()
                 .setAuthentication(
                         UsernamePasswordAuthenticationToken.authenticated(

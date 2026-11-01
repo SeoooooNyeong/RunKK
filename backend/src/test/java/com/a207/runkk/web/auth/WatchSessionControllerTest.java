@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.a207.runkk.web.WebTestSupport;
 import com.fasterxml.jackson.databind.JsonNode;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.DisplayName;
@@ -270,5 +271,43 @@ class WatchSessionControllerTest extends WebTestSupport {
                         .andReturn()
                         .getResponse()
                         .getContentAsString());
+    }
+
+    @Test
+    @DisplayName("W26: 워치 접근 토큰(회전한 것 포함)으로는 워치 세션을 발급하지 않는다(403 PERMISSION_DENIED), 폰 토큰은 된다")
+    void watchAccessToken_cannotIssueWatchSession() throws Exception {
+        Session phone = signUp();
+        JsonNode watch = issue(phone.accessToken());
+        JsonNode rotated =
+                body(
+                        mvc.perform(refresh(watch.get("refreshToken").asText()))
+                                .andExpect(status().isOk())
+                                .andReturn()
+                                .getResponse()
+                                .getContentAsString());
+
+        for (JsonNode pair : List.of(watch, rotated)) {
+            mvc.perform(watchSession(pair.get("accessToken").asText(), nextClient()))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value("PERMISSION_DENIED"));
+        }
+        mvc.perform(watchSession(phone.accessToken(), nextClient())).andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("W26: 워치 접근 토큰으로 다른 API(상대 기록 미리 받기·설정·워치연동 끄기)는 그대로 쓴다")
+    void watchAccessToken_otherApisWork() throws Exception {
+        Session phone = signUp();
+        String watchAccess = issue(phone.accessToken()).get("accessToken").asText();
+
+        mvc.perform(
+                        get("/api/v1/battles/record-tracks")
+                                .param("kind", "SELF")
+                                .header("Authorization", "Bearer " + watchAccess))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tracks").isArray());
+        mvc.perform(get("/api/v1/me/settings").header("Authorization", "Bearer " + watchAccess))
+                .andExpect(status().isOk());
+        mvc.perform(revokeWatch(watchAccess)).andExpect(status().isNoContent());
     }
 }
