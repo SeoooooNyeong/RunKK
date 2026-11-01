@@ -1,10 +1,11 @@
-package com.a207.runkk.watch.ui
+package com.a207.runkk.watch.battle
 
 import android.content.res.Resources
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.domain.battle.BattleResult
 import com.a207.runkk.app.domain.battle.RecordBattleKind
 import com.a207.runkk.app.domain.run.FinishOutcome
+import com.a207.runkk.watch.ui.R
 
 /**
  * 워치 결과 화면의 머리말과 결과 문구(3.5, D-381, D-388, FR-249 표). 결과 종류마다 객체가 자기 머리말([title])과 문구([subtitle])를 낸다.

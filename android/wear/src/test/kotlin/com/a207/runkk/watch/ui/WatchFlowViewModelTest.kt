@@ -26,6 +26,8 @@ import com.a207.runkk.app.domain.run.LocationSample
 import com.a207.runkk.app.domain.run.RunStartSpec
 import com.a207.runkk.app.domain.run.RunTracker
 import com.a207.runkk.app.domain.settings.GuidanceSettings
+import com.a207.runkk.watch.battle.WatchBattleFlow
+import com.a207.runkk.watch.battle.WatchResultHeadline
 import com.a207.runkk.watch.cache.OpponentRecordCache
 import com.a207.runkk.watch.guide.WatchGuidanceOutput
 import com.a207.runkk.watch.heart.HeartRateCollector
@@ -515,7 +517,7 @@ class WatchFlowViewModelTest {
 
         h.vm.onDistanceSelected(Distance(5_000))
         val list = h.flow as WatchFlow.CelebList
-        assertEquals("셀럽1", list.celebrities.single().record.displayName)
+        assertEquals("셀럽1", list.celebrities.single().displayName)
         h.vm.back()
         assertIs<WatchFlow.CelebDistance>(h.flow)
 

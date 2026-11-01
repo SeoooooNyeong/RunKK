@@ -1,4 +1,4 @@
-package com.a207.runkk.watch.ui
+package com.a207.runkk.watch.battle
 
 import android.app.Application
 import android.content.res.Resources

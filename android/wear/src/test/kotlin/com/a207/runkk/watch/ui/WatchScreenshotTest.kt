@@ -19,6 +19,8 @@ import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.domain.run.HeartRateSample
 import com.a207.runkk.app.domain.run.RunProgress
+import com.a207.runkk.watch.battle.RecordOpponent
+import com.a207.runkk.watch.battle.WatchResultHeadline
 import com.a207.runkk.watch.cache.CachedTrack
 import com.a207.runkk.watch.testing.celebrityTrack
 import com.github.takahirom.roborazzi.captureRoboImage
@@ -179,9 +181,9 @@ class WatchScreenshotTest {
         WatchFlow.CelebList(
             Distance(5_000),
             listOf(
-                CachedTrack(celebrityTrack(1, 5_000, 1_250), Instant.EPOCH),
-                CachedTrack(celebrityTrack(2, 5_000, 1_420), Instant.EPOCH),
-                CachedTrack(celebrityTrack(3, 5_000, 1_610), Instant.EPOCH)
+                RecordOpponent(CachedTrack(celebrityTrack(1, 5_000, 1_250), Instant.EPOCH)),
+                RecordOpponent(CachedTrack(celebrityTrack(2, 5_000, 1_420), Instant.EPOCH)),
+                RecordOpponent(CachedTrack(celebrityTrack(3, 5_000, 1_610), Instant.EPOCH))
             )
         )
     )

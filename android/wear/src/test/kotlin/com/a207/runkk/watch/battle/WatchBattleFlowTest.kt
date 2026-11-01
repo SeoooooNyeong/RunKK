@@ -1,4 +1,4 @@
-package com.a207.runkk.watch.ui
+package com.a207.runkk.watch.battle
 
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.CardKind
@@ -89,9 +89,7 @@ class WatchBattleFlowTest {
 
         assertEquals(Outcome.Success(Unit), waiting.await())
         assertIs<BattleRunState.Matched>(h.coordinator.state.value)
-        val matched = h.flow.toFlow(h.coordinator.state.value) as WatchFlow.Matched
-        assertEquals("민준", matched.opponentName)
-        assertEquals(Gender.MALE, matched.opponentGender)
+        assertEquals(BattleStep.Matched(9, Distance(1_000), "민준", Gender.MALE), h.flow.step())
     }
 
     @Test
@@ -153,15 +151,22 @@ class WatchBattleFlowTest {
     }
 
     @Test
-    fun `대결 상태를 화면 상태로 바꾼다 측정 중은 거리 차 대기와 끝은 null`() = runTest {
-        val h = harness()
-
-        assertNull(h.flow.toFlow(BattleRunState.Idle))
-        assertNull(h.flow.toFlow(BattleRunState.Finished(3, null)))
-        val running = h.flow.toFlow(
-            BattleRunState.Running(3, gapMeters = -6, opponentDistance = null, lastGuidance = null)
+    fun `대결 상태를 화면이 쓰는 단계로 옮긴다 측정 중은 거리 차와 추월 안내만 남긴다(R75 W30)`() {
+        assertEquals(BattleStep.Idle, WatchBattleFlow.stepOf(BattleRunState.Idle))
+        assertEquals(BattleStep.Finished(3), WatchBattleFlow.stepOf(BattleRunState.Finished(3, null)))
+        assertEquals(BattleStep.Discarded, WatchBattleFlow.stepOf(BattleRunState.Discarded(3)))
+        assertEquals(
+            BattleStep.Running(gapMeters = -6, lead = null),
+            WatchBattleFlow.stepOf(
+                BattleRunState.Running(3, gapMeters = -6, opponentDistance = null, lastGuidance = null)
+            )
         )
-        assertEquals(-6, (running as WatchFlow.Running).gapMeters)
+        assertEquals(
+            BattleStep.Countdown(3, Instant.EPOCH),
+            WatchBattleFlow.stepOf(BattleRunState.Countdown(3, Instant.EPOCH))
+        )
+        assertTrue(BattleStep.Countdown(3, Instant.EPOCH).isOpen && BattleStep.Closing.isOpen)
+        assertFalse(BattleStep.Idle.isOpen || BattleStep.Finished(3).isOpen)
     }
 
     @Test
@@ -199,7 +204,7 @@ class WatchBattleFlowTest {
 
         h.flow.onNewSelfBest(Distance(3_000), Duration.ofSeconds(880))
 
-        assertEquals(Duration.ofSeconds(880), h.flow.selfCandidates().single().record.finishTime)
+        assertEquals(Duration.ofSeconds(880), h.flow.selfCandidates().single().finishTime)
     }
 }
 

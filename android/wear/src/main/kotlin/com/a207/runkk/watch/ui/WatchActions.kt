@@ -1,7 +1,7 @@
 package com.a207.runkk.watch.ui
 
 import com.a207.runkk.app.core.model.Distance
-import com.a207.runkk.watch.cache.CachedTrack
+import com.a207.runkk.watch.battle.RecordOpponent
 
 /**
  * 워치 화면의 사용자 조작. [WatchActivity]가 단독 러닝 흐름은 [WatchFlowViewModel]에, 동행 표시(폰에서 시작한 러닝, FR-042)는
@@ -10,7 +10,7 @@ import com.a207.runkk.watch.cache.CachedTrack
 data class WatchActions(
     val onModeSelected: (WatchMode) -> Unit = {},
     val onDistanceSelected: (Distance?) -> Unit = {},
-    val onCelebritySelected: (CachedTrack) -> Unit = {},
+    val onCelebritySelected: (RecordOpponent) -> Unit = {},
     val onStartPressed: () -> Unit = {},
     val onCancelMatching: () -> Unit = {},
     val onPause: () -> Unit = {},
