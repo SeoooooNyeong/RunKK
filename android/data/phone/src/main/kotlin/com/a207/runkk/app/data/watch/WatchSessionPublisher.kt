@@ -19,9 +19,7 @@ import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -31,7 +29,9 @@ import timber.log.Timber
  * 워치에 로그인 정보(WATCH_SESSION)와 로그아웃 표시(SESSION_REVOKED)를 보낸다(3.6, D-371, D-372, SQ-43, SQ-48, FR-240~FR-242).
  *
  * 보내는 때: 로그인 상태이고 워치연동이 켜져 있고 워치가 닿을 때(앱 시작 때 이미 로그인됨, 로그인 완료, 워치연동 켬, 워치 새로 연결)와
- * 워치가 로그인 정보를 요청했을 때(SESSION_REQUEST). **매번 발급받지 않는다**: 워치에 보낸 회원([Memory])과 지금 회원이 같으면 다시
+ * 워치가 로그인 정보를 요청했을 때(SESSION_REQUEST). 요청은 매니페스트의 [PhoneWatchListenerService]가 받아 [onSessionRequested]로 넘긴다
+ * (폰 앱 프로세스가 죽어 있어도 받는다, 코드 리뷰 AN12-1). 앱 안 MessageClient 리스너로 온 같은 요청은 쓰지 않는다(두 번 발급하지 않게).
+ * **매번 발급받지 않는다**: 워치에 보낸 회원([Memory])과 지금 회원이 같으면 다시
  * 받지 않고, 처음이거나 회원이 바뀌었거나 워치가 요청했을 때만 [AccountRepository.issueWatchSession]을 부른다(서버 발급 한도 1시간
  * 20회, I14-5). 한도 초과(429)는 실패로 알리지 않고 워치가 가진 세션을 그대로 둔다.
  *
@@ -39,7 +39,9 @@ import timber.log.Timber
  * 토큰은 DataClient로 보내지 않는다(항목이 Data Layer 저장소에 남는다, NFR-050).
  *
  * 로그아웃·탈퇴(로그인 상태가 거짓이 됨)와 워치연동 끄기(FR-019) 때는 SESSION_REVOKED(DataClient 항목, revokedAt)를 넣는다. 워치에 보낸
- * 회원이 없으면 넣지 않는다. 넣지 못하면 보낸 회원 기억을 남겨 다음 앱 시작·워치 연결 때 다시 넣는다. 게스트도 같다(계정 유형 GUEST). 회원 ID와 계정 유형은 서버 응답이 아니라 폰이 아는 값이다(SQ-43, BE1).
+ * 회원이 없으면 넣지 않는다. 로그인 상태에서 워치연동을 끄면 서버의 워치용 갱신 토큰도 폐기한다([AccountRepository.revokeWatchSession],
+ * DELETE /auth/watch-session, contract-v2 4절, W25). 폐기가 실패해도 로그아웃 표시는 넣는다. 로그아웃·탈퇴는 서버가 함께 폐기하므로 부르지
+ * 않는다. 넣지 못하면 보낸 회원 기억을 남겨 다음 앱 시작·워치 연결 때 다시 넣는다. 게스트도 같다(계정 유형 GUEST). 회원 ID와 계정 유형은 서버 응답이 아니라 폰이 아는 값이다(SQ-43, BE1).
  * 연산들은 하나의 Mutex로 차례로 돈다(발급과 로그아웃 표시가 엇갈리지 않게).
  */
 @Singleton
@@ -75,19 +77,14 @@ class WatchSessionPublisher internal constructor(
     private val lock = Mutex()
     private val started = AtomicBoolean(false)
 
-    /** 로그인 상태·워치연동·워치 연결 변화와 워치의 요청을 따라 보낸다. 여러 번 불러도 한 번만 시작한다. */
+    /** 로그인 상태·워치연동·워치 연결 변화를 따라 보낸다(워치의 요청은 [onSessionRequested]). 여러 번 불러도 한 번만 시작한다. */
     fun start() {
         if (!started.compareAndSet(false, true)) return
-        scope.launch {
-            transport.incoming
-                .filter { it.path == WearPaths.SESSION_REQUEST }
-                .mapNotNull { it.sourceNodeId }
-                .collect { onSessionRequested(it) }
-        }
         // 로그인·워치연동·워치 연결을 한 흐름으로 본다(따로 구독하면 시작 직후 노드 조회와 엇갈려 첫 연결을 놓칠 수 있다).
         // 보낼 수 있고 워치가 닿으면 보내고, 보낼 수 없으면 로그아웃 표시를 넣는다. 워치가 다시 닿을 때도 다시 보므로 넣지 못했던
         // 로그아웃 표시를 다시 넣는다. 두 연산 모두 이미 한 일이면 아무것도 하지 않는다.
         scope.launch {
+            var wasAllowed = false
             combine(
                 sessionRepository.loggedIn,
                 settings.changes().map { it.isWatchLinked },
@@ -96,9 +93,10 @@ class WatchSessionPublisher internal constructor(
                 .distinctUntilChanged()
                 .collect { gate ->
                     when {
-                        !gate.isAllowed -> revokePublished()
+                        !gate.isAllowed -> revokePublished(wasAllowed)
                         gate.isReachable -> publishIfNeeded()
                     }
+                    wasAllowed = gate.isAllowed
                 }
         }
     }
@@ -122,9 +120,22 @@ class WatchSessionPublisher internal constructor(
         issueAndSend(memberId, nodeId = null)
     }
 
-    /** 로그아웃·워치연동 끄기: 워치에 보낸 회원이 있으면 그 회원의 로그아웃 표시를 넣는다. */
-    private suspend fun revokePublished() = lock.withLock {
-        memory.publishedMemberId()?.let { revoke(it) }
+    /**
+     * 로그아웃·워치연동 끄기: 워치에 보낸 회원이 있으면 그 회원의 로그아웃 표시를 넣는다. 로그인 상태에서 워치연동이 꺼졌으면(방금 켜져
+     * 있었거나 보낸 회원이 남아 있음) 서버의 워치용 갱신 토큰도 폐기한다. 로그인 직후 설정 사본이 아직 오지 않은 잠깐(연동 거짓)은
+     * 켜져 있던 적도 보낸 회원도 없어 폐기하지 않는다.
+     */
+    private suspend fun revokePublished(wasAllowed: Boolean) = lock.withLock {
+        val published = memory.publishedMemberId()
+        published?.let { revoke(it) }
+        val isLinkTurnedOff = sessionRepository.loggedIn.value && !settings.watchLinked()
+        if (isLinkTurnedOff && (wasAllowed || published != null)) revokeServerSessions()
+    }
+
+    /** 서버의 워치용 갱신 토큰 폐기(FR-019). 실패는 기록만 한다(워치는 로그아웃 표시로 이미 토큰을 지운다). */
+    private suspend fun revokeServerSessions() {
+        val revoked = accounts.revokeWatchSession()
+        if (revoked is Outcome.Failure) Timber.w("워치용 세션을 서버에서 폐기하지 못했다: %s", revoked.error)
     }
 
     /** 로그인 상태이고 워치연동이 켜져 있으면 지금 회원 ID. 아니면 null. */

@@ -348,6 +348,8 @@ class FakeAccounts : AccountRepository {
 
     override suspend fun issueWatchSession(): Outcome<SessionTokens> = unused()
 
+    override suspend fun revokeWatchSession(): Outcome<Unit> = unused()
+
     override suspend fun startAsGuest(consents: Map<String, Boolean>): Outcome<GuestSession> = unused()
 
     override suspend fun linkSocialAccount(token: ProviderToken): Outcome<Unit> = unused()

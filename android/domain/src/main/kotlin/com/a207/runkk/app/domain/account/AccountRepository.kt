@@ -30,6 +30,12 @@ interface AccountRepository {
     suspend fun issueWatchSession(): Outcome<SessionTokens>
 
     /**
+     * 이 회원의 워치용 갱신 토큰을 모두 폐기한다(DELETE /auth/watch-session, 본문 없음, 204, contract-v2 4절, FR-019, W14, W25).
+     * 폰이 워치연동을 끌 때 WatchSessionPublisher가 부른다. 로그아웃·탈퇴는 서버가 함께 폐기하므로 부르지 않는다.
+     */
+    suspend fun revokeWatchSession(): Outcome<Unit>
+
+    /**
      * 로그인한 본인의 회원 ID(기기에 있는 접근 토큰에서 읽는다, 서버 호출 없음). 토큰이 없으면 null. WatchSessionPublisher가 워치에 보낼
      * 로그인 정보의 회원 ID와 "이미 보낸 회원인가"를 이것으로 정한다(SQ-43: watch-session 응답에는 토큰 쌍뿐이다). 구현이 없으면 null.
      */

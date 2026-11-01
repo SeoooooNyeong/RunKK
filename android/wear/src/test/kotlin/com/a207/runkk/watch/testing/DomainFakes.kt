@@ -199,6 +199,8 @@ class FakeAccountRepository(private val events: MutableList<String> = mutableLis
 
     override suspend fun issueWatchSession(): Outcome<SessionTokens> = unused()
 
+    override suspend fun revokeWatchSession(): Outcome<Unit> = unused()
+
     override suspend fun startAsGuest(consents: Map<String, Boolean>): Outcome<GuestSession> = unused()
 
     override suspend fun linkSocialAccount(token: ProviderToken): Outcome<Unit> = unused()
@@ -237,8 +239,9 @@ class FakeBattleRepository : BattleRepository {
     var cancels: Int = 0
         private set
 
-    /** 서버 기록 대결 시작 응답(셀프·셀럽 공통). 없으면 Network 실패다. */
+    /** 서버 기록 대결 시작 응답(셀프·셀럽 공통). 없으면 [recordStartFailure]로 실패한다. */
     var recordStart: RecordBattleStart? = null
+    var recordStartFailure: AppError = AppError.Network
     val forfeits = mutableListOf<Long>()
 
     /** 대결 결과 응답. */
@@ -270,10 +273,10 @@ class FakeBattleRepository : BattleRepository {
     override suspend fun celebrityCandidates(distance: Distance?): Outcome<RecordBattleCandidates> = unused()
 
     override suspend fun startSelfBattle(distance: Distance): Outcome<RecordBattleStart> =
-        recordStart?.let { Outcome.Success(it) } ?: Outcome.Failure(AppError.Network)
+        recordStart?.let { Outcome.Success(it) } ?: Outcome.Failure(recordStartFailure)
 
     override suspend fun startCelebrityBattle(celebrityId: Long): Outcome<RecordBattleStart> =
-        recordStart?.let { Outcome.Success(it) } ?: Outcome.Failure(AppError.Network)
+        recordStart?.let { Outcome.Success(it) } ?: Outcome.Failure(recordStartFailure)
 
     override suspend fun markStarted(battleId: Long): Outcome<Unit> = Outcome.Success(Unit)
 
