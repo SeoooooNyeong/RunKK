@@ -10,6 +10,7 @@ import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.core.model.RunMode
 import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.battle.BattleRunState
+import com.a207.runkk.app.domain.battle.RandomBattleGate
 import com.a207.runkk.app.domain.battle.RecordBattleKind
 import com.a207.runkk.app.domain.run.FinishOutcome
 import com.a207.runkk.app.domain.run.FreeRunGoal
@@ -47,12 +48,14 @@ import kotlinx.coroutines.withTimeoutOrNull
  * 안내 문구 WatchGuidanceOutput, 본인 요약 AccountRepository(티어·성별).
  *
  * - 시작 전 확인: 폰이 측정 중이면 거부(FR-252), 위치 동의가 없으면 "폰에서 위치 수집 동의를 해 주세요"(FR-245). 배틀런은 서버에 닿지
- *   않으면 시작하지 않는다(FR-251). 셀프·셀럽런은 서버에 닿으면 서버 대결, 아니면 미리 받은 상대 기록으로 워치에서만 한다(D-377, R72).
+ *   않으면 시작하지 않는다(FR-251). 배틀런은 언랭이면 매칭을 요청하기 전에 잠근다(FR-080, 폰 RandomBattleGate와 같은 규칙). 서버 거부는
+ *   사유 코드마다 폰 BattleErrorText와 같은 뜻의 안내를 보인다(코드 리뷰 WR12-1). 셀프·셀럽런은 서버에 닿으면 서버 대결, 아니면 미리 받은 상대 기록으로 워치에서만 한다(D-377, R72).
  * - 자유런은 이 ViewModel이 3·2·1·GO 뒤 RunTracker.startRun을 부르고, 대결은 BattleRunCoordinator가 출발을 정한다.
  * - 끝: 자유런은 RunTracker.ended, 대결은 BattleRunState.Finished로 결과(WatchResultHeadline)를 만든다. 측정 서비스가 밖에서 끝내면
  *   (운동 세션 실패) 기록이 있으면 결과, 없으면 "측정이 중단됐어요"로 메인에 돌아간다.
  * - 로그인: 로그인 정보가 없으면 폰에 요청하고(SESSION_REQUEST) 미로그인 안내를 보인다(FR-242). 결과를 닫을 때 로그아웃 대기였으면
  *   지운다(completeRevoke). 메인을 열 때 서버 설정·본인 요약·기본 대결 거리·상대 기록을 맞춘다(D-379, FR-109, FR-260).
+ * - 다시 열기: 측정 중이면 측정 화면, 대결 성사~출발 사이(Matched·Countdown)면 그 화면과 대결 맥락을 되살린다(코드 리뷰 WR12-2).
  * - 첫 카드: 자유런은 설정 사본의 목표(FR-048, WatchSessionStore.freeRunGoal)이고, 오늘 계획은 폰이 보낸 시작 화면 표시(FR-042)로
  *   안다(폰이 없으면 저장값만). 계획 거리가 네 카드에 없으면 카드를 하나 더 둔다(FR-244). 배틀런은 기본 대결 거리다(FR-109, FR-257).
  */
@@ -79,6 +82,9 @@ class WatchFlowViewModel @Inject constructor(
     private var round: Round? = null
     private var lastMode = WatchMode.FREE
     private var myTier: String? = null
+
+    /** 랜덤 대결까지 남은 유효 러닝 수(RandomBattleGate.runsLeft). null이면 열림 또는 모름(서버가 판정한다). */
+    private var randomRunsLeft: Int? = null
     private var isPhoneRunning = false
     private var lastGap: Int? = null
     private var lastLead: Any? = null
@@ -243,7 +249,10 @@ class WatchFlowViewModel @Inject constructor(
         enterHome(refresh = true)
     }
 
-    /** 뒤로 가기(SwipeToDismissBox·뒤로 버튼). 측정·대결 중(카운트다운·측정·일시정지·매칭 완료)에는 받지 않는다(2.4.25). */
+    /**
+     * 뒤로 가기(SwipeToDismissBox·뒤로 버튼). 측정·대결 중(카운트다운·측정·일시정지·매칭 완료)과 결과에는 받지 않는다(2.4.25). 결과는
+     * 완료로만 닫는다. 하드웨어 뒤로 키가 그 화면에서 앱을 닫지 않게 WatchRoot가 키를 소비한다(WR12-2).
+     */
     fun back() {
         when (val current = _flow.value) {
             is WatchFlow.Picker -> enterHome(refresh = false)
@@ -275,7 +284,28 @@ class WatchFlowViewModel @Inject constructor(
                 WatchFlow.Running(restored.mode, progress, goal, isPausable = isFree)
             }
         }
+        restoredBattle()?.let { return it }
         return if (sessionStore.state.value is WatchSession.None) WatchFlow.NotLoggedIn else WatchFlow.Main()
+    }
+
+    /**
+     * 대결 성사 뒤 출발 전(Matched·Countdown)에 앱을 다시 열었다(WR12-2). 조정자는 앱 범위에서 대결을 이어 가므로 화면 맥락(round)을
+     * 되살려야 이어서 오는 Countdown·Running·Finished를 버리지 않는다. 기록 대결도 같은 상태를 지나지만 맥락을 몰라 배틀런으로 둔다
+     * (측정 중 재진입과 같은 범주). 카운트다운 숫자는 상태 구독(onBattleState → countdownTo)이 맞춘다.
+     */
+    private fun restoredBattle(): WatchFlow? = when (val state = battleFlow.state.value) {
+        is BattleRunState.Matched -> {
+            round = Round(WatchMode.BATTLE, state.match.distance, battleId = state.match.battleId)
+            battleFlow.toFlow(state)
+        }
+
+        is BattleRunState.Countdown -> {
+            val goal = battleFlow.activeDistance()
+            round = Round(WatchMode.BATTLE, goal, battleId = state.battleId)
+            WatchFlow.Countdown(WatchMode.BATTLE, goal, COUNTDOWN_SECONDS)
+        }
+
+        else -> null
     }
 
     private fun onSession(session: WatchSession) {
@@ -332,7 +362,10 @@ class WatchFlowViewModel @Inject constructor(
     private fun refreshAccount(memberId: Long) {
         viewModelScope.launch {
             sessionStore.refreshSettings()
-            (accounts.mySummary() as? Outcome.Success)?.value?.tier?.let { myTier = it }
+            (accounts.mySummary() as? Outcome.Success)?.value?.let { me ->
+                me.tier?.let { myTier = it }
+                randomRunsLeft = RandomBattleGate.runsLeft(me.tier, me.validRuns)
+            }
             battleFlow.refreshCache(memberId)
         }
         // 늦게 온 서버 값이 방금 매칭을 요청한 거리를 덮지 않게 따로 읽고, 매칭을 요청하면 멈춘다(FR-109).
@@ -376,9 +409,11 @@ class WatchFlowViewModel @Inject constructor(
     }
 
     private fun startMatching(picker: WatchFlow.BattleDistance) {
-        val notice = if (!connectivity.isOnline.value) WatchFlow.Notice.BATTLE_OFFLINE else blockedNotice()
+        val notice = WatchFlow.Notice.BATTLE_OFFLINE.takeIf { !connectivity.isOnline.value }
+            ?: blockedNotice()
+            ?: WatchFlow.Notice.RANDOM_LOCKED.takeIf { randomRunsLeft != null }
         if (notice != null) {
-            _flow.value = picker.copy(notice = notice)
+            _flow.value = picker.copy(notice = notice, runsLeft = randomRunsLeft)
             return
         }
         val distance = picker.current.distance ?: return
@@ -398,16 +433,22 @@ class WatchFlowViewModel @Inject constructor(
         }
         matchingJob = viewModelScope.launch {
             val failure = when (val accepted = battleFlow.startMatching(distance)) {
-                is Outcome.Failure -> noticeOf(accepted.error, fallback = WatchFlow.Notice.MATCH_FAILED)
-                is Outcome.Success -> if (battleFlow.awaitMatch()) null else WatchFlow.Notice.MATCH_FAILED
-            }
-            if (failure == null) return@launch
+                is Outcome.Failure -> accepted.error
+                is Outcome.Success -> (battleFlow.awaitMatch() as? Outcome.Failure)?.error
+            } ?: return@launch
             waitingJob?.cancel()
             if (_flow.value is WatchFlow.Matching) {
                 round = null
-                _flow.value = battlePicker(selectedDistance = distance).copy(notice = failure)
+                _flow.value = refusedPicker(distance, failure)
             }
         }
+    }
+
+    /** 매칭 거부·실패 뒤 거리 선택. 서버가 RANKED_ONLY로 거부했으면 남은 수를 모르는 잠금으로 둔다(WR12-1). */
+    private fun refusedPicker(distance: Distance, error: AppError): WatchFlow.BattleDistance {
+        val notice = noticeOf(error, fallback = WatchFlow.Notice.MATCH_FAILED)
+        if (notice == WatchFlow.Notice.RANDOM_LOCKED) randomRunsLeft = randomRunsLeft ?: 0
+        return battlePicker(selectedDistance = distance).copy(notice = notice)
     }
 
     /** 셀프·셀럽런 시작: 서버에 닿으면 서버 대결, 아니면(또는 서버에 닿지 못하면) 워치에서만 한다(D-377, R72). */
@@ -695,7 +736,7 @@ class WatchFlowViewModel @Inject constructor(
         val choices = BATTLE_DISTANCES.map { WatchFlow.Choice(it) }
         val wanted = selectedDistance ?: battleDefault
         val selected = choices.indexOfFirst { it.distance == wanted }.coerceAtLeast(0)
-        return WatchFlow.BattleDistance(choices, selected, connectivity.isOnline.value)
+        return WatchFlow.BattleDistance(choices, selected, connectivity.isOnline.value, runsLeft = randomRunsLeft)
     }
 
     private fun celebPicker(selectedDistance: Distance?): WatchFlow.CelebDistance {
@@ -760,20 +801,27 @@ class WatchFlowViewModel @Inject constructor(
             this is BattleRunState.Running || this is BattleRunState.Closing ||
                 this is BattleRunState.Countdown
 
-        /** 시작 거부 사유 → 안내. 위치 동의 거부(기기·서버 사유 코드)는 동의 안내, 그 밖은 [fallback]. */
+        /**
+         * 시작·매칭 거부 사유 코드 → 안내(WR12-1). 서버 코드는 폰 BattleErrorText(:feature:battle internal, :wear가 쓸 수 없다)와 같은
+         * 뜻이고 위치 동의 거부는 기기 코드(AppError.Rejected.LOCATION_CONSENT)도 받는다. 표에 없으면 [fallback].
+         */
+        private val REJECTED_NOTICES: Map<String, WatchFlow.Notice> = mapOf(
+            AppError.Rejected.LOCATION_CONSENT to WatchFlow.Notice.LOCATION_CONSENT,
+            "LOCATION_CONSENT_REQUIRED" to WatchFlow.Notice.LOCATION_CONSENT,
+            "RANKED_ONLY" to WatchFlow.Notice.RANDOM_LOCKED,
+            "ALREADY_IN_BATTLE" to WatchFlow.Notice.ALREADY_IN_BATTLE,
+            "ALREADY_MATCHED" to WatchFlow.Notice.ALREADY_IN_BATTLE,
+            "MATCH_FAILED" to WatchFlow.Notice.MATCH_FAILED,
+            "QUEUE_UNAVAILABLE" to WatchFlow.Notice.QUEUE_UNAVAILABLE,
+            "BATTLE_DISTANCE_INVALID" to WatchFlow.Notice.DISTANCE_INVALID,
+            "NO_RECORD" to WatchFlow.Notice.NO_RECORD,
+            "CELEBRITY_REMOVED" to WatchFlow.Notice.CELEBRITY_REMOVED
+        )
+
         private fun noticeOf(
             error: AppError,
             fallback: WatchFlow.Notice = WatchFlow.Notice.START_FAILED
-        ): WatchFlow.Notice {
-            val code = (error as? AppError.Rejected)?.code
-            return when (code) {
-                AppError.Rejected.LOCATION_CONSENT, LOCATION_CONSENT_REQUIRED -> WatchFlow.Notice.LOCATION_CONSENT
-                else -> fallback
-            }
-        }
-
-        /** 서버 매칭 거부 사유 코드(위치 동의 없음, FR-080). */
-        private const val LOCATION_CONSENT_REQUIRED = "LOCATION_CONSENT_REQUIRED"
+        ): WatchFlow.Notice = (error as? AppError.Rejected)?.code?.let(REJECTED_NOTICES::get) ?: fallback
 
         /** [flow]에 안내를 단 사본. 안내를 둘 수 없는 화면이면 그대로. */
         private fun withNotice(flow: WatchFlow, notice: WatchFlow.Notice?): WatchFlow = when (flow) {

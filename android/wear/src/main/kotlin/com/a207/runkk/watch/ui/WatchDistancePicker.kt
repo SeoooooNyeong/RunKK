@@ -62,7 +62,7 @@ fun WatchDistancePicker(
         is WatchFlow.FreeGoal -> DialPicker(
             state,
             WatchMode.FREE,
-            isStartEnabled = true,
+            blocked = null,
             onDistanceSelected,
             onStartPressed,
             modifier
@@ -72,7 +72,7 @@ fun WatchDistancePicker(
             DialPicker(
                 state,
                 WatchMode.BATTLE,
-                isStartEnabled = state.isOnline,
+                blocked = battleBlocked(state),
                 onDistanceSelected,
                 onStartPressed,
                 modifier
@@ -84,11 +84,19 @@ fun WatchDistancePicker(
     }
 }
 
+/** 배틀런 매칭 시작을 막는 사유: 서버에 닿지 않음(FR-251), 랜덤 대결 잠금(FR-080, WR12-1). 없으면 null. */
+private fun battleBlocked(state: WatchFlow.BattleDistance): WatchFlow.Notice? = when {
+    !state.isOnline -> WatchFlow.Notice.BATTLE_OFFLINE
+    state.runsLeft != null -> WatchFlow.Notice.RANDOM_LOCKED
+    else -> null
+}
+
+/** [blocked]가 있으면 시작 버튼을 막고 다른 안내가 없을 때 그 사유를 보인다. */
 @Composable
 private fun DialPicker(
     state: WatchFlow.Picker,
     mode: WatchMode,
-    isStartEnabled: Boolean,
+    blocked: WatchFlow.Notice?,
     onDistanceSelected: (Distance?) -> Unit,
     onStartPressed: () -> Unit,
     modifier: Modifier
@@ -154,9 +162,13 @@ private fun DialPicker(
                 ) { select(state.selected + 1) }
             }
             // 안내가 있으면 목표 문구 자리에 보인다(작은 원형 화면에서 아래가 잘리지 않게).
-            val notice = state.notice ?: WatchFlow.Notice.BATTLE_OFFLINE.takeIf { !isStartEnabled }
+            val notice = state.notice ?: blocked
             if (notice != null) {
-                FlowNoticeText(notice, modifier = Modifier.padding(horizontal = 30.dp))
+                FlowNoticeText(
+                    notice,
+                    modifier = Modifier.padding(horizontal = 30.dp),
+                    runsLeft = (state as? WatchFlow.BattleDistance)?.runsLeft
+                )
             } else {
                 Text(
                     text = stringResource(if (isUnlimited) R.string.goal_unlimited else R.string.goal_distance),
@@ -167,7 +179,7 @@ private fun DialPicker(
                 text = stringResource(if (mode == WatchMode.BATTLE) R.string.match_start else R.string.run_start),
                 onClick = onStartPressed,
                 modifier = Modifier.padding(top = 4.dp),
-                isEnabled = isStartEnabled,
+                isEnabled = blocked == null,
                 textSize = ACTION_TEXT_SIZE
             )
         }

@@ -87,7 +87,7 @@ class WatchBattleFlowTest {
         live.server.tryEmit(MatchFound(9, "민준", "GOLD", Distance(1_000), null, null, 3, Gender.MALE))
         runCurrent()
 
-        assertTrue(waiting.await())
+        assertEquals(Outcome.Success(Unit), waiting.await())
         assertIs<BattleRunState.Matched>(h.coordinator.state.value)
         val matched = h.flow.toFlow(h.coordinator.state.value) as WatchFlow.Matched
         assertEquals("민준", matched.opponentName)
@@ -126,7 +126,7 @@ class WatchBattleFlowTest {
     }
 
     @Test
-    fun `서버가 매칭을 실패로 끝내면 거짓이고 대기 채널을 닫는다(취소는 보내지 않는다)`() = runTest {
+    fun `서버가 매칭을 실패로 끝내면 그 사유 코드로 실패하고 대기 채널을 닫는다(취소는 보내지 않는다, WR12-1)`() = runTest {
         val h = harness()
         h.flow.startMatching(Distance(3_000))
         val waiting = async { h.flow.awaitMatch() }
@@ -135,7 +135,7 @@ class WatchBattleFlowTest {
         live.server.tryEmit(MatchFailed("NO_OPPONENT", "상대 없음"))
         runCurrent()
 
-        assertFalse(waiting.await())
+        assertEquals(Outcome.Failure(AppError.Rejected("NO_OPPONENT")), waiting.await())
         assertEquals(1, live.closed)
         assertEquals(0, battles.cancels)
     }

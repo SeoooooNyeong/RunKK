@@ -112,4 +112,13 @@
     <string name="notice_match_failed">매칭하지 못했어요</string>
     <string name="notice_start_failed">측정을 시작하지 못했어요</string>
     <string name="notice_measurement_stopped">측정이 중단됐어요</string>
+
+    <!-- 배틀런 잠금과 서버 거부 사유(FR-080, FR-257). 폰 battle_mode_random_locked_title·BattleErrorText와 같은 뜻이다(WR12-1) -->
+    <string name="notice_random_locked">러닝을 %1$d번 더 뛰면 배틀런이 가능해요!</string>
+    <string name="notice_random_locked_unknown">러닝을 더 뛰면 배틀런이 가능해요!</string>
+    <string name="notice_already_in_battle">이미 매칭을 기다리거나 대결 중이에요</string>
+    <string name="notice_queue_unavailable">잠시 후 다시 시도해 주세요</string>
+    <string name="notice_distance_invalid">고를 수 없는 대결 거리예요</string>
+    <string name="notice_no_record">아직 기록이 없어요</string>
+    <string name="notice_celebrity_removed">고를 수 없는 기록이에요</string>
 </resources>
