@@ -138,6 +138,14 @@ public class CelebrityRecord implements OpponentRecord {
                 .cut(d);
     }
 
+    /**
+     * 상대 표가 기록 거리에 닿는가(track(distance)와 같은 판단을 표를 만들지 않고 한다, W31). 구간 기록이 없으면 균등 페이스 표라 늘 닿고, 있으면
+     * 저장된 구간(몇 점)만 본다.
+     */
+    public boolean hasReachableTrack() {
+        return storedSplits().map(t -> t.arrivalTime(getDistance()).isPresent()).orElse(true);
+    }
+
     private Optional<OpponentTrack> storedSplits() {
         return Optional.ofNullable(splits).map(OpponentTrack::decode);
     }

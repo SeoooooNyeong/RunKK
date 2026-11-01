@@ -7,6 +7,7 @@ import com.a207.runkk.battle.MatchingService;
 import com.a207.runkk.battle.RecordBattleService;
 import com.a207.runkk.common.BusinessRuleException;
 import com.a207.runkk.common.DateRange;
+import com.a207.runkk.common.NotFoundRuleException;
 import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.common.StandardDistance;
 import jakarta.validation.Valid;
@@ -107,13 +108,25 @@ public class BattleController {
     }
 
     /**
-     * 워치가 미리 받는 셀프·셀럽 상대 기록(v0.21 D-377, FR-260). kind는 SELF·CELEBRITY만, 그 밖의 값·없음은 400
-     * BAD_REQUEST. 대결을 만들지 않는다.
+     * 워치가 미리 받는 셀프·셀럽 상대 기록(v0.21 D-377, FR-260). 셀럽 목록의 track은 빈 목록이다(W31). kind는 SELF·CELEBRITY만,
+     * 그 밖의 값·없음은 400 BAD_REQUEST. 대결을 만들지 않는다.
      */
     @GetMapping("/record-tracks")
     BattleDtos.RecordTracksResponse recordTracks(
             @RequestAttribute(MEMBER_ID) long memberId, @RequestParam BattleType kind) {
         return BattleDtos.RecordTracksResponse.of(recordBattleService.recordTracks(memberId, kind));
+    }
+
+    /**
+     * 셀럽 기록 하나와 상대 표(1초 1점, W31). 셀럽 목록은 표 없이 주고 셀럽을 고를 때 이것으로 받는다. 없거나 표를 만들 수 없으면 404
+     * CELEBRITY_REMOVED. 읽기 전용이며 대결을 만들지 않는다.
+     */
+    @GetMapping("/record-tracks/celebrity/{celebrityId}")
+    BattleDtos.RecordTrackResponse celebrityRecordTrack(@PathVariable long celebrityId) {
+        return recordBattleService
+                .celebrityTrack(celebrityId)
+                .map(BattleDtos.RecordTrackResponse::of)
+                .orElseThrow(() -> new NotFoundRuleException(ReasonCode.CELEBRITY_REMOVED));
     }
 
     @PostMapping("/self")
