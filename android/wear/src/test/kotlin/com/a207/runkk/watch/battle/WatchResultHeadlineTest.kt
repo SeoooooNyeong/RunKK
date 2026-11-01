@@ -6,7 +6,6 @@ import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.RunMode
 import com.a207.runkk.app.domain.battle.BattleResult
-import com.a207.runkk.app.domain.battle.RecordBattleKind
 import com.a207.runkk.app.domain.run.CompletedRun
 import com.a207.runkk.app.domain.run.FinishOutcome
 import java.time.Duration
@@ -19,7 +18,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
-/** WatchResultHeadline 세 팩토리: srs FR-249 결과 머리말 표 11줄과 보류(8종, D-381, D-388, 9.2). */
+/** WatchResultHeadline 팩토리 여섯(R73: 기록 대결은 셀프·셀럽으로 나눴다): srs FR-249 결과 머리말 표 11줄과 보류(8종, D-381, D-388, 9.2). */
 @RunWith(RobolectricTestRunner::class)
 @Config(application = Application::class)
 class WatchResultHeadlineTest {
@@ -115,18 +114,18 @@ class WatchResultHeadlineTest {
 
     @Test
     fun `셀프런 최고 기록보다 빠르면 BEST 최고 기록을 n초 단축했어요`() {
-        assertHeadline("BEST", "최고 기록을 12초 단축했어요", WatchResultHeadline.forRecord(RecordBattleKind.SELF, 12, "내 기록"))
+        assertHeadline("BEST", "최고 기록을 12초 단축했어요", WatchResultHeadline.forSelf(12))
     }
 
     @Test
     fun `셀프런 최고 기록보다 느리면 GOOD 최고 기록까지 n초 모자랐어요`() {
-        assertHeadline("GOOD", "최고 기록까지 5초 모자랐어요", WatchResultHeadline.forRecord(RecordBattleKind.SELF, -5, "내 기록"))
+        assertHeadline("GOOD", "최고 기록까지 5초 모자랐어요", WatchResultHeadline.forSelf(-5))
     }
 
     @Test
     fun `셀프런과 셀럽런 도착 전 종료(그만두기)는 STOP이다`() {
-        assertHeadline("STOP", null, WatchResultHeadline.forRecord(RecordBattleKind.SELF, null, "내 기록"))
-        assertHeadline("STOP", null, WatchResultHeadline.forRecord(RecordBattleKind.CELEBRITY, null, "셀럽"))
+        assertHeadline("STOP", null, WatchResultHeadline.forSelf(null))
+        assertHeadline("STOP", null, WatchResultHeadline.forCeleb(null, "셀럽"))
     }
 
     @Test
@@ -134,7 +133,7 @@ class WatchResultHeadlineTest {
         assertHeadline(
             "WIN",
             "김*수보다 30초 먼저 들어왔어요",
-            WatchResultHeadline.forRecord(RecordBattleKind.CELEBRITY, 30, "김*수")
+            WatchResultHeadline.forCeleb(30, "김*수")
         )
     }
 
@@ -143,7 +142,7 @@ class WatchResultHeadlineTest {
         assertHeadline(
             "LOSE",
             "김*수보다 4초 늦게 들어왔어요",
-            WatchResultHeadline.forRecord(RecordBattleKind.CELEBRITY, -4, "김*수")
+            WatchResultHeadline.forCeleb(-4, "김*수")
         )
     }
 
@@ -161,7 +160,7 @@ class WatchResultHeadlineTest {
 
     @Test
     fun `셀프런 최고 기록과 같은 시간은 진 것이라 GOOD 최고 기록과 같았어요(W28)`() {
-        assertHeadline("GOOD", "최고 기록과 같았어요", WatchResultHeadline.forRecord(RecordBattleKind.SELF, 0, "내 기록"))
+        assertHeadline("GOOD", "최고 기록과 같았어요", WatchResultHeadline.forSelf(0))
     }
 
     @Test
@@ -169,7 +168,7 @@ class WatchResultHeadlineTest {
         assertHeadline(
             "LOSE",
             "김*수보다 먼저 들어오지 못했어요",
-            WatchResultHeadline.forRecord(RecordBattleKind.CELEBRITY, 0, "김*수")
+            WatchResultHeadline.forCeleb(0, "김*수")
         )
     }
 
@@ -178,7 +177,7 @@ class WatchResultHeadlineTest {
         assertHeadline(
             "BEST",
             "최고 기록을 20초 단축했어요",
-            WatchResultHeadline.forRecordVerdict(RecordBattleKind.SELF, battle("WIN", mine = 880, theirs = 900), "내 기록")
+            WatchResultHeadline.forSelfVerdict(battle("WIN", mine = 880, theirs = 900))
         )
     }
 
@@ -187,11 +186,7 @@ class WatchResultHeadlineTest {
         assertHeadline(
             "GOOD",
             "최고 기록까지 7초 모자랐어요",
-            WatchResultHeadline.forRecordVerdict(
-                RecordBattleKind.SELF,
-                battle("LOSE", mine = 907, theirs = 900),
-                "내 기록"
-            )
+            WatchResultHeadline.forSelfVerdict(battle("LOSE", mine = 907, theirs = 900))
         )
     }
 
@@ -200,20 +195,12 @@ class WatchResultHeadlineTest {
         assertHeadline(
             "WIN",
             "김*수보다 30초 먼저 들어왔어요",
-            WatchResultHeadline.forRecordVerdict(
-                RecordBattleKind.CELEBRITY,
-                battle("WIN", mine = 1_470, theirs = 1_500, name = "김선수"),
-                "김*수"
-            )
+            WatchResultHeadline.forCelebVerdict(battle("WIN", mine = 1_470, theirs = 1_500, name = "김선수"), "김*수")
         )
         assertHeadline(
             "LOSE",
             "김*수보다 4초 늦게 들어왔어요",
-            WatchResultHeadline.forRecordVerdict(
-                RecordBattleKind.CELEBRITY,
-                battle("LOSE", mine = 1_504, theirs = 1_500, name = null),
-                "김*수"
-            )
+            WatchResultHeadline.forCelebVerdict(battle("LOSE", mine = 1_504, theirs = 1_500, name = null), "김*수")
         )
     }
 
@@ -221,15 +208,11 @@ class WatchResultHeadlineTest {
     fun `서버 판정이 없거나 보류면 머리말 대신 결과를 확인하고 있어요(W27)`() {
         assertEquals(
             WatchResultHeadline.Pending,
-            WatchResultHeadline.forRecordVerdict(RecordBattleKind.SELF, null, "내 기록")
+            WatchResultHeadline.forSelfVerdict(null)
         )
         assertEquals(
             WatchResultHeadline.Pending,
-            WatchResultHeadline.forRecordVerdict(
-                RecordBattleKind.CELEBRITY,
-                battle(null, mine = 1_470, theirs = 1_500, isPending = true),
-                "김*수"
-            )
+            WatchResultHeadline.forCelebVerdict(battle(null, mine = 1_470, theirs = 1_500, isPending = true), "김*수")
         )
     }
 
@@ -237,19 +220,11 @@ class WatchResultHeadlineTest {
     fun `서버 판정에서 내가 도착하지 않았으면 STOP이고 비김은 표에 없어 FINISH다`() {
         assertEquals(
             WatchResultHeadline.Stop,
-            WatchResultHeadline.forRecordVerdict(
-                RecordBattleKind.SELF,
-                battle("LOSE", mine = null, theirs = 900),
-                "내 기록"
-            )
+            WatchResultHeadline.forSelfVerdict(battle("LOSE", mine = null, theirs = 900))
         )
         assertEquals(
             WatchResultHeadline.Finish,
-            WatchResultHeadline.forRecordVerdict(
-                RecordBattleKind.CELEBRITY,
-                battle("DRAW", mine = 1_500, theirs = 1_500),
-                "김*수"
-            )
+            WatchResultHeadline.forCelebVerdict(battle("DRAW", mine = 1_500, theirs = 1_500), "김*수")
         )
     }
 
@@ -258,20 +233,12 @@ class WatchResultHeadlineTest {
         assertHeadline(
             "GOOD",
             null,
-            WatchResultHeadline.forRecordVerdict(
-                RecordBattleKind.SELF,
-                battle("LOSE", mine = 880, theirs = 900),
-                "내 기록"
-            )
+            WatchResultHeadline.forSelfVerdict(battle("LOSE", mine = 880, theirs = 900))
         )
         assertHeadline(
             "LOSE",
             null,
-            WatchResultHeadline.forRecordVerdict(
-                RecordBattleKind.CELEBRITY,
-                battle("LOSE", mine = 1_470, theirs = 1_500),
-                "김*수"
-            )
+            WatchResultHeadline.forCelebVerdict(battle("LOSE", mine = 1_470, theirs = 1_500), "김*수")
         )
     }
 }

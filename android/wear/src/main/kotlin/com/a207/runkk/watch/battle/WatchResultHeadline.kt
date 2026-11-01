@@ -3,14 +3,14 @@ package com.a207.runkk.watch.battle
 import android.content.res.Resources
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.domain.battle.BattleResult
-import com.a207.runkk.app.domain.battle.RecordBattleKind
 import com.a207.runkk.app.domain.run.FinishOutcome
 import com.a207.runkk.watch.ui.R
 
 /**
  * 워치 결과 화면의 머리말과 결과 문구(3.5, D-381, D-388, FR-249 표). 결과 종류마다 객체가 자기 머리말([title])과 문구([subtitle])를 낸다.
- * 흐름마다 자기 종류를 알므로 팩토리로 고른다: 자유런 [forFree], 배틀런 [forBattle], 셀프·셀럽런은 서버 대결이면 [forRecordVerdict]
- * (서버 판정, W27), 서버에 닿지 않은 회면 [forRecord](워치 계산). 문구 표는 이 파일 한 곳에만 있다.
+ * 흐름마다 자기 종류를 알므로 팩토리로 고른다: 자유런 [forFree], 배틀런 [forBattle], 셀프런·셀럽런은 서버 대결이면
+ * [forSelfVerdict]·[forCelebVerdict](서버 판정, W27), 서버에 닿지 않은 회면 [forSelf]·[forCeleb](워치 계산). 기록 대결 종류를
+ * 매개변수로 넘겨 안에서 가르지 않는다(design-review 23장 R73, 제어 결합 없음). 문구 표는 이 파일 한 곳에만 있다.
  */
 sealed interface WatchResultHeadline {
     /** 머리말(FINISH, GOAL, STOP, WIN, LOSE, BEST, GOOD). 판정을 기다리는 중([Pending])이면 빈 문자열이다. */
@@ -118,47 +118,61 @@ sealed interface WatchResultHeadline {
         }
 
         /**
-         * 서버에 닿지 않은 셀프·셀럽런(워치 계산, FR-250): [gapSeconds]는 상대 완주 시간 − 내 도착 시간(초, 양수면 내가 빠름)이고
-         * 도착 전에 끝냈으면 null(STOP)이다. 같은 시간(0)은 진 것이다(W28): 셀프런 GOOD, 셀럽런 LOSE. 셀프런은 BEST·GOOD,
-         * 셀럽런은 [opponentName](셀럽 표시명)으로 WIN·LOSE다.
+         * 서버에 닿지 않은 셀프런(워치 계산, FR-250): [gapSeconds]는 최고 기록 − 내 도착 시간(초, 양수면 내가 빠름)이고 도착 전에
+         * 끝냈으면 null(STOP)이다. 빠르면 BEST, 같은 시간(0)을 포함해 느리면 GOOD이다(W28).
          */
-        fun forRecord(kind: RecordBattleKind, gapSeconds: Long?, opponentName: String): WatchResultHeadline {
-            if (gapSeconds == null) return Stop
-            return recordHeadline(kind, isWin = gapSeconds > 0, gapSeconds = kotlin.math.abs(gapSeconds), opponentName)
+        fun forSelf(gapSeconds: Long?): WatchResultHeadline = signedGap(gapSeconds) { isWin, gap ->
+            if (isWin) Best(gap) else Good(gap)
         }
 
         /**
-         * 서버 대결로 달린 셀프·셀럽런(서버 판정, W27, FR-250): 결과가 없거나 보류면 [Pending], 내가 도착하지 않았으면 STOP, 판정 WIN이면
-         * 셀프 BEST·셀럽 WIN, LOSE면 셀프 GOOD·셀럽 LOSE다. 시간 차는 도달 시간 차이고 판정과 어긋나면(검증 무효 등) 문구가 없다.
-         * 비김(DRAW)은 FR-249 표에 없어 배틀런처럼 FINISH다. 이름은 고른 카드의 [opponentName]을 쓴다(워치 계산과 같은 이름).
+         * 서버에 닿지 않은 셀럽런(워치 계산, FR-250): [gapSeconds]는 셀럽 완주 시간 − 내 도착 시간이고 도착 전에 끝냈으면 null(STOP)이다.
+         * 빠르면 [celebrityName](셀럽 표시명)으로 WIN, 같은 시간(0)을 포함해 느리면 LOSE다(W28).
          */
-        fun forRecordVerdict(kind: RecordBattleKind, result: BattleResult?, opponentName: String): WatchResultHeadline {
-            if (result == null || result.isPending) return Pending
-            val mine = result.myReach ?: return Stop
-            // 화면에 보이는 초 단위로 견준다(워치 계산과 같다).
-            val lead = result.opponentReach?.let { it.seconds - mine.seconds }
-            return when (result.verdict) {
-                VERDICT_WIN -> recordHeadline(kind, isWin = true, lead?.takeIf { it > 0 }, opponentName)
-                VERDICT_LOSE -> recordHeadline(kind, isWin = false, lead?.let { -it }?.takeIf { it >= 0 }, opponentName)
-                else -> Finish
+        fun forCeleb(gapSeconds: Long?, celebrityName: String): WatchResultHeadline =
+            signedGap(gapSeconds) { isWin, gap ->
+                if (isWin) Win(celebrityName, gapSeconds = gap) else Lose(celebrityName, gap)
             }
+
+        /**
+         * 서버 대결로 달린 셀프런(서버 판정, W27, FR-250): 결과가 없거나 보류면 [Pending], 내가 도착하지 않았으면 STOP, 판정 WIN이면
+         * BEST, LOSE면 GOOD이다. 시간 차는 도달 시간 차이고 판정과 어긋나면(검증 무효 등) 문구가 없다. 비김(DRAW)은 FR-249 표에 없어
+         * 배틀런처럼 FINISH다.
+         */
+        fun forSelfVerdict(result: BattleResult?): WatchResultHeadline = verdict(result) { isWin, gap ->
+            if (isWin) Best(gap) else Good(gap)
         }
 
-        private fun recordHeadline(
-            kind: RecordBattleKind,
-            isWin: Boolean,
-            gapSeconds: Long?,
-            opponentName: String
-        ): WatchResultHeadline = when (kind) {
-            RecordBattleKind.SELF -> if (isWin) Best(gapSeconds) else Good(gapSeconds)
+        /**
+         * 서버 대결로 달린 셀럽런(서버 판정, W27, FR-250): [forSelfVerdict]와 같은 규칙으로 WIN·LOSE다. 이름은 고른 카드의
+         * [celebrityName]을 쓴다(워치 계산과 같은 이름).
+         */
+        fun forCelebVerdict(result: BattleResult?, celebrityName: String): WatchResultHeadline =
+            verdict(result) { isWin, gap ->
+                if (isWin) Win(celebrityName, gapSeconds = gap) else Lose(celebrityName, gap)
+            }
 
-            RecordBattleKind.CELEBRITY -> if (isWin) {
-                Win(
-                    opponentName,
-                    gapSeconds = gapSeconds
-                )
-            } else {
-                Lose(opponentName, gapSeconds)
+        /** 워치 계산의 부호 있는 시간 차를 이김 여부와 문구 시간으로 나눈다. 도착 전에 끝냈으면(null) STOP이다. */
+        private inline fun signedGap(
+            gapSeconds: Long?,
+            headline: (isWin: Boolean, gapSeconds: Long) -> WatchResultHeadline
+        ): WatchResultHeadline {
+            if (gapSeconds == null) return Stop
+            return headline(gapSeconds > 0, kotlin.math.abs(gapSeconds))
+        }
+
+        /** 서버 판정을 이김 여부와 문구 시간으로 나눈다. 시간 차는 화면에 보이는 초 단위로 견준다(워치 계산과 같다). */
+        private inline fun verdict(
+            result: BattleResult?,
+            headline: (isWin: Boolean, gapSeconds: Long?) -> WatchResultHeadline
+        ): WatchResultHeadline {
+            if (result == null || result.isPending) return Pending
+            val mine = result.myReach ?: return Stop
+            val lead = result.opponentReach?.let { it.seconds - mine.seconds }
+            return when (result.verdict) {
+                VERDICT_WIN -> headline(true, lead?.takeIf { it > 0 })
+                VERDICT_LOSE -> headline(false, lead?.let { -it }?.takeIf { it >= 0 })
+                else -> Finish
             }
         }
 

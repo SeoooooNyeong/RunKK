@@ -143,8 +143,11 @@ class WatchBattleFlow @Inject constructor(
 
     /** 서버 대결로 달린 셀프·셀럽런의 결과 머리말(서버 판정, W27, FR-250). 판정을 받지 못하면 보류다. */
     suspend fun recordVerdictHeadline(opponent: RecordOpponent, battleId: Long): WatchResultHeadline {
-        val record = opponent.cached.record
-        return WatchResultHeadline.forRecordVerdict(record.kind, result(battleId), record.displayName)
+        val result = result(battleId)
+        return when (opponent.cached.record.kind) {
+            RecordBattleKind.SELF -> WatchResultHeadline.forSelfVerdict(result)
+            RecordBattleKind.CELEBRITY -> WatchResultHeadline.forCelebVerdict(result, opponent.displayName)
+        }
     }
 
     /**
@@ -156,11 +159,13 @@ class WatchBattleFlow @Inject constructor(
         val run = (outcome as? FinishOutcome.Saved)?.run
         val gapSeconds = run?.takeIf { it.distance.isAtLeast(record.distance) }
             ?.let { record.finishTime.seconds - it.elapsed.seconds }
-        val headline = WatchResultHeadline.forRecord(record.kind, gapSeconds, record.displayName)
-        if (record.kind == RecordBattleKind.SELF && headline is WatchResultHeadline.Best && run != null) {
-            onNewSelfBest(record.distance, run.elapsed)
+        return when (record.kind) {
+            RecordBattleKind.CELEBRITY -> WatchResultHeadline.forCeleb(gapSeconds, record.displayName)
+
+            RecordBattleKind.SELF -> WatchResultHeadline.forSelf(gapSeconds).also { headline ->
+                if (headline is WatchResultHeadline.Best && run != null) onNewSelfBest(record.distance, run.elapsed)
+            }
         }
-        return headline
     }
 
     /** 랜덤 대결까지 남은 유효 러닝 수(폰 RandomBattleGate와 같은 규칙, FR-080). null이면 열림 또는 모름(서버가 판정한다). */
