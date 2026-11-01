@@ -1,14 +1,18 @@
 package com.a207.runkk.web.auth;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.a207.runkk.web.WebTestSupport;
+import java.time.Duration;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.context.properties.bind.Binder;
+import org.springframework.boot.context.properties.source.MapConfigurationPropertySource;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
@@ -210,5 +214,16 @@ class AuthAttemptLimitTest extends WebTestSupport {
         mvc.perform(watchSession(second, "203.0.113.61")).andExpect(status().isOk());
         mvc.perform(watchSession(second, "203.0.113.61")).andExpect(status().isOk());
         mvc.perform(watchSession(second, "203.0.113.61")).andExpect(status().isTooManyRequests());
+    }
+
+    @Test
+    @DisplayName("BE12-7: 설정이 없을 때 워치 세션 발급 한도 기본값은 1시간 20회다(I14-5)")
+    void defaultWatchSessionLimit_isTwentyPerHour() {
+        AuthAttemptGuard.Limits defaults =
+                new Binder(new MapConfigurationPropertySource(Map.of()))
+                        .bindOrCreate("runkk.auth.attempts", AuthAttemptGuard.Limits.class);
+
+        assertThat(defaults.watchSessions()).isEqualTo(20);
+        assertThat(defaults.watchSessionWindow()).isEqualTo(Duration.ofHours(1));
     }
 }

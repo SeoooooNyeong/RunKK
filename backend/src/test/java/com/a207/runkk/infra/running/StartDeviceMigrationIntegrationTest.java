@@ -20,8 +20,8 @@ import org.testcontainers.utility.DockerImageName;
 
 /**
  * V33 시작 기기 열과 V35 제약 검증(W23, 코드 리뷰 12차 BE12-2): V33은 열을 상수 기본값으로 더하고 CHECK 제약을 NOT VALID로 걸어 기존 행을
- * 훑지 않는다(짧은 ACCESS EXCLUSIVE 잠금만). V35가 따로 커밋되는 마이그레이션에서 VALIDATE CONSTRAINT로 기존 행을 검사한다(SHARE UPDATE
- * EXCLUSIVE라 읽기·쓰기를 막지 않는다). Docker가 없으면 건너뛴다.
+ * 훑지 않는다(짧은 ACCESS EXCLUSIVE 잠금만). V35가 따로 커밋되는 마이그레이션에서 VALIDATE CONSTRAINT로 기존 행을 검사한다(SHARE
+ * UPDATE EXCLUSIVE라 읽기·쓰기를 막지 않는다). Docker가 없으면 건너뛴다.
  */
 @Testcontainers(disabledWithoutDocker = true)
 @DisplayName("V33·V35 run_record.start_device 마이그레이션(PostgreSQL)")
