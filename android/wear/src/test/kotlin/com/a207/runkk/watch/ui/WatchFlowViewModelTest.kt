@@ -2,18 +2,25 @@ package com.a207.runkk.watch.ui
 
 import android.app.Application
 import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Looper
 import androidx.lifecycle.viewModelScope
+import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.GeoPoint
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.domain.account.MySummary
 import com.a207.runkk.app.domain.battle.BattleRunCoordinator
 import com.a207.runkk.app.domain.battle.MatchAcceptance
 import com.a207.runkk.app.domain.battle.OpponentTrack
 import com.a207.runkk.app.domain.battle.RecordBattleKind
 import com.a207.runkk.app.domain.battle.RecordBattleStart
 import com.a207.runkk.app.domain.live.BattleStart
+import com.a207.runkk.app.domain.live.MatchFailed
 import com.a207.runkk.app.domain.live.MatchFound
+import com.a207.runkk.app.domain.run.Guidance
+import com.a207.runkk.app.domain.run.GuidanceMessage
 import com.a207.runkk.app.domain.run.LocationSample
 import com.a207.runkk.app.domain.run.RunStartSpec
 import com.a207.runkk.app.domain.run.RunTracker
@@ -54,11 +61,13 @@ import com.a207.runkk.wear.contract.WatchSessionMessage
 import com.a207.runkk.wear.contract.WearPaths
 import java.io.File
 import java.time.Duration
+import java.util.Locale
 import kotlin.io.path.createTempDirectory
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -77,7 +86,9 @@ import kotlinx.coroutines.test.setMain
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowTextToSpeech
 
 /**
  * WatchFlowViewModel 상태 전이(상태도 2.4.25, D-374, SQ-44~SQ-46). 협력 객체는 실제 domain 클래스(RunTracker·BattleRunCoordinator)와
@@ -105,7 +116,8 @@ class WatchFlowViewModelTest {
         val vm: WatchFlowViewModel,
         val tracker: RunTracker,
         val coordinator: BattleRunCoordinator,
-        val store: WatchSessionStore
+        val store: WatchSessionStore,
+        val guidance: WatchGuidanceOutput
     ) {
         val flow: WatchFlow get() = vm.flow.value
     }
@@ -121,10 +133,16 @@ class WatchFlowViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun TestScope.harness(isLoggedIn: Boolean = true, tracker: RunTracker? = null): Harness {
+    private fun TestScope.harness(
+        isLoggedIn: Boolean = true,
+        tracker: RunTracker? = null,
+        shared: Harness? = null
+    ): Harness {
         val clock = SchedulerClock(testScheduler)
-        val runs = tracker ?: runTracker(LocalWatchGateway(alertPlayer(), settings, clock), host, settings, pendingRuns)
-        val coordinator = BattleRunCoordinator(runs, live, battles, FakeGuidanceOutput(), clock, backgroundScope)
+        val runs = shared?.tracker ?: tracker
+            ?: runTracker(LocalWatchGateway(alertPlayer(), settings, clock), host, settings, pendingRuns)
+        val coordinator = shared?.coordinator
+            ?: BattleRunCoordinator(runs, live, battles, FakeGuidanceOutput(), clock, backgroundScope)
         val cache = OpponentRecordCache(
             File(createTempDirectory("flow-cache").toFile(), "opponent-records.json"),
             battles,
@@ -167,7 +185,7 @@ class WatchFlowViewModelTest {
             WatchBattleFlow(coordinator, battles, cache, MatchWaiter(live, backgroundScope), pendingRuns, clock)
         val vm = WatchFlowViewModel(runs, battleFlow, store, link, network, guidance, accounts)
         runCurrent()
-        return Harness(vm, runs, coordinator, store)
+        return Harness(vm, runs, coordinator, store, guidance)
     }
 
     private fun session() = WatchSessionMessage(MEMBER, "SOCIAL", "access", "refresh", T0)
@@ -184,8 +202,19 @@ class WatchFlowViewModelTest {
 
     private val created = mutableListOf<WatchFlowViewModel>()
 
-    private fun TestScope.open(isLoggedIn: Boolean = true, tracker: RunTracker? = null): Harness =
-        harness(isLoggedIn, tracker).also { created += it.vm }
+    private fun TestScope.open(
+        isLoggedIn: Boolean = true,
+        tracker: RunTracker? = null,
+        shared: Harness? = null
+    ): Harness = harness(isLoggedIn, tracker, shared).also { created += it.vm }
+
+    /** 배틀런 거리 선택에서 매칭을 요청한다. */
+    private fun TestScope.requestMatch(h: Harness, meters: Long = 3_000) {
+        h.vm.onModeSelected(WatchMode.BATTLE)
+        h.vm.onDistanceSelected(Distance(meters))
+        h.vm.onStartPressed()
+        runCurrent()
+    }
 
     private fun TestScope.phoneRunning(isRunning: Boolean) {
         val display = WatchDisplayMessage(
@@ -679,6 +708,191 @@ class WatchFlowViewModelTest {
         assertEquals(listOf(CardKind.SELF_RUN, CardKind.CELEB_RUN), pendingRuns.saved.map { it.cardKind })
         assertEquals(List(2) { RunStartSpec.StartDevice.WATCH }, pendingRuns.saved.map { it.startDevice })
         assertEquals(listOf(7L, 7L), battles.forfeits)
+    }
+
+    @Test
+    fun `언랭이면 매칭을 요청하기 전에 잠그고 남은 러닝 횟수를 알린다(WR12-1 PV-1, FR-080)`() = flowTest {
+        accounts.summary = MySummary("러너", "UNRANKED", 1, null, null, validRuns = 1)
+        val h = open()
+
+        requestMatch(h)
+
+        val picker = h.flow as WatchFlow.BattleDistance
+        assertEquals(WatchFlow.Notice.RANDOM_LOCKED, picker.notice)
+        assertEquals(2, picker.runsLeft)
+        assertTrue(battles.matchRequests.isEmpty())
+        assertEquals(0, live.opened)
+    }
+
+    @Test
+    fun `언랭인데 유효 러닝 수를 모르면 남은 수 없이 잠근다`() = flowTest {
+        accounts.summary = MySummary("러너", "UNRANKED", 1, null, null, validRuns = null)
+        val h = open()
+
+        h.vm.onModeSelected(WatchMode.BATTLE)
+
+        assertEquals(0, (h.flow as WatchFlow.BattleDistance).runsLeft)
+        h.vm.onStartPressed()
+        assertEquals(WatchFlow.Notice.RANDOM_LOCKED, (h.flow as WatchFlow.BattleDistance).notice)
+        assertTrue(battles.matchRequests.isEmpty())
+    }
+
+    @Test
+    fun `서버가 RANKED_ONLY로 거부하면 매칭 실패가 아니라 배틀런 잠금 안내다(WR12-1 PV-1)`() = flowTest {
+        battles.matchAnswer = Outcome.Failure(AppError.Rejected("RANKED_ONLY"))
+        val h = open()
+
+        requestMatch(h)
+
+        val picker = h.flow as WatchFlow.BattleDistance
+        assertEquals(WatchFlow.Notice.RANDOM_LOCKED, picker.notice)
+        assertEquals(0, picker.runsLeft)
+    }
+
+    @Test
+    fun `서버 매칭 거부 사유마다 폰과 같은 뜻의 안내를 보인다(WR12-1)`() = flowTest {
+        val h = open()
+        val expected = mapOf(
+            "ALREADY_IN_BATTLE" to WatchFlow.Notice.ALREADY_IN_BATTLE,
+            "ALREADY_MATCHED" to WatchFlow.Notice.ALREADY_IN_BATTLE,
+            "QUEUE_UNAVAILABLE" to WatchFlow.Notice.QUEUE_UNAVAILABLE,
+            "BATTLE_DISTANCE_INVALID" to WatchFlow.Notice.DISTANCE_INVALID,
+            "LOCATION_CONSENT_REQUIRED" to WatchFlow.Notice.LOCATION_CONSENT,
+            "MATCH_FAILED" to WatchFlow.Notice.MATCH_FAILED
+        )
+
+        val shown = expected.keys.associateWith { code ->
+            battles.matchAnswer = Outcome.Failure(AppError.Rejected(code))
+            h.vm.back()
+            requestMatch(h)
+            (h.flow as WatchFlow.BattleDistance).notice
+        }
+
+        assertEquals(expected, shown)
+    }
+
+    @Test
+    fun `매칭 대기 중 서버가 사유 코드로 끝내면 그 사유의 안내를 보인다(WR12-1, awaitMatch)`() = flowTest {
+        val h = open()
+        requestMatch(h)
+        assertIs<WatchFlow.Matching>(h.flow)
+
+        live.server.tryEmit(MatchFailed("QUEUE_UNAVAILABLE", "대기열 없음"))
+        runCurrent()
+
+        assertEquals(WatchFlow.Notice.QUEUE_UNAVAILABLE, (h.flow as WatchFlow.BattleDistance).notice)
+    }
+
+    @Test
+    fun `셀프런 서버 시작이 NO_RECORD로 거부되면 기록 없음 안내를 보인다(WR12-1)`() = flowTest {
+        battles.recordStartFailure = AppError.Rejected("NO_RECORD")
+        val h = open()
+        h.vm.onModeSelected(WatchMode.SELF)
+
+        h.vm.onDistanceSelected(Distance(3_000))
+        runCurrent()
+
+        assertEquals(WatchFlow.Notice.NO_RECORD, (h.flow as WatchFlow.SelfDistance).notice)
+    }
+
+    @Test
+    fun `셀럽런 서버 시작이 CELEBRITY_REMOVED로 거부되면 고를 수 없는 기록 안내를 보인다(WR12-1)`() = flowTest {
+        battles.recordStartFailure = AppError.Rejected("CELEBRITY_REMOVED")
+        val h = open()
+        h.vm.onModeSelected(WatchMode.CELEB)
+        h.vm.onDistanceSelected(Distance(5_000))
+
+        h.vm.onCelebritySelected((h.flow as WatchFlow.CelebList).celebrities.single())
+        runCurrent()
+
+        assertEquals(WatchFlow.Notice.CELEBRITY_REMOVED, (h.flow as WatchFlow.CelebList).notice)
+    }
+
+    @Test
+    fun `대결 성사 뒤 출발 전에 앱을 다시 열어도 매칭 완료 화면과 대결을 이어 간다(WR12-2)`() = flowTest {
+        val first = open()
+        requestMatch(first)
+        live.server.tryEmit(MatchFound(41, "민준", "SILVER", Distance(3_000), null, null, 3))
+        runCurrent()
+        assertIs<WatchFlow.Matched>(first.flow)
+
+        val reopened = open(shared = first)
+        assertEquals("민준", (reopened.flow as WatchFlow.Matched).opponentName)
+
+        val startAt = SchedulerClock(testScheduler).instant().plusSeconds(5)
+        live.server.tryEmit(BattleStart(41, startAt, opponentTrack = null))
+        runCurrent()
+        advanceTimeBy(3_000)
+        runCurrent()
+        assertIs<WatchFlow.Countdown>(reopened.flow)
+        advanceTimeBy(2_000 + WatchFlowViewModel.GO_MILLIS + 300)
+        runCurrent()
+
+        val running = reopened.flow as WatchFlow.Running
+        assertEquals(WatchMode.BATTLE, running.mode)
+        assertEquals(Distance(3_000), running.goal)
+    }
+
+    @Test
+    fun `대결 카운트다운 중에 앱을 다시 열면 카운트다운으로 연다(WR12-2)`() = flowTest {
+        val first = open()
+        requestMatch(first)
+        live.server.tryEmit(MatchFound(41, "민준", "SILVER", Distance(3_000), null, null, 3))
+        runCurrent()
+        val startAt = SchedulerClock(testScheduler).instant().plusSeconds(2)
+        live.server.tryEmit(BattleStart(41, startAt, opponentTrack = null))
+        runCurrent()
+
+        val reopened = open(shared = first)
+
+        val countdown = reopened.flow as WatchFlow.Countdown
+        assertEquals(WatchMode.BATTLE, countdown.mode)
+        assertEquals(Distance(3_000), countdown.distance)
+    }
+
+    @Test
+    fun `카운트다운 측정 결과에서는 뒤로 가기를 받지 않고 결과는 완료로만 닫힌다(상태도 2_4_25, WR12-2)`() = flowTest {
+        val h = open()
+        h.vm.onModeSelected(WatchMode.FREE)
+        h.vm.onStartPressed()
+        h.vm.back()
+        assertIs<WatchFlow.Countdown>(h.flow)
+
+        passCountdown()
+        h.vm.back()
+        assertIs<WatchFlow.Running>(h.flow)
+
+        runNorth(h.tracker, meters = 200)
+        h.vm.onEndLongPressed()
+        runCurrent()
+        h.vm.back()
+        assertIs<WatchFlow.Result>(h.flow)
+    }
+
+    @Test
+    fun `결과를 완료로 닫으면 안내 음성 엔진을 닫는다(WR12-6, NFR-048)`() = flowTest {
+        val app = RuntimeEnvironment.getApplication()
+        shadowOf(app.packageManager).setSystemFeature(PackageManager.FEATURE_AUDIO_OUTPUT, true)
+        ShadowTextToSpeech.addLanguageAvailability(Locale.KOREAN)
+        val h = open()
+        h.vm.onModeSelected(WatchMode.FREE)
+        h.vm.onStartPressed()
+        passCountdown()
+        h.guidance.play(
+            Guidance(Guidance.Kind.SPLIT, GuidanceMessage.SPLIT, listOf("1"), hasVoice = true, hasVibration = false)
+        )
+        shadowOf(Looper.getMainLooper()).idle()
+        val tts = shadowOf(checkNotNull(ShadowTextToSpeech.getLastTextToSpeechInstance()))
+        runNorth(h.tracker, meters = 200)
+        h.vm.onEndLongPressed()
+        runCurrent()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertFalse(tts.isShutdown)
+
+        h.vm.onResultClosed()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertTrue(tts.isShutdown)
     }
 
     private companion object {

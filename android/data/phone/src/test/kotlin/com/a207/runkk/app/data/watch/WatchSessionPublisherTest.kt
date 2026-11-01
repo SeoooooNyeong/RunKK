@@ -37,10 +37,10 @@ import kotlinx.coroutines.test.runTest
  */
 class WatchSessionPublisherTest {
     private val transport = RecordingTransport()
-    private val session = FakeSession(loggedIn = true)
-    private val settings = FakeSettings(LINKED)
-    private val accounts = FakeAccounts(memberId = 7)
-    private val memory = FakeMemory()
+    private val session = FakeWatchSession(loggedIn = true)
+    private val settings = FakeWatchSettings(LINKED)
+    private val accounts = FakeWatchAccounts(memberId = 7)
+    private val memory = FakeWatchMemory()
 
     @Test
     fun `로그인·워치연동·연결 상태면 워치용 토큰을 받아 보내고 옛 로그아웃 표시를 지운다(SQ-43, D-390)`() = runTest {
@@ -86,9 +86,9 @@ class WatchSessionPublisherTest {
     @Test
     fun `워치가 로그인 정보를 요청하면 이미 보냈어도 다시 받아 그 워치에 보낸다(FR-242)`() = runTest {
         memory.memberId = 7
-        publisher().start()
+        val publisher = publisher().also { it.start() }
 
-        transport.receive(WearPaths.SESSION_REQUEST, ByteArray(0), nodeId = "watch-1")
+        publisher.onSessionRequested("watch-1")
 
         assertEquals(1, accounts.issued)
         assertEquals("watch-1", transport.of("sendNow", WearPaths.WATCH_SESSION).single().nodeId)
@@ -182,15 +182,68 @@ class WatchSessionPublisherTest {
 
     @Test
     fun `워치연동을 끄면 로그아웃 표시를 보내고 워치가 요청해도 로그인 정보를 보내지 않는다(FR-019)`() = runTest {
-        publisher().start()
+        val publisher = publisher().also { it.start() }
         transport.events.clear()
 
         settings.state.value = LINKED.copy(isWatchLinked = false)
-        transport.receive(WearPaths.SESSION_REQUEST, ByteArray(0), nodeId = "watch-1")
+        publisher.onSessionRequested("watch-1")
 
         assertEquals(1, transport.of("put", WearPaths.SESSION_REVOKED).size)
         assertEquals(0, transport.of("sendNow", WearPaths.WATCH_SESSION).size)
         assertEquals(1, accounts.issued)
+    }
+
+    @Test
+    fun `워치연동을 끄면 서버에 워치용 세션 폐기를 한 번 요청한다(W25, FR-019)`() = runTest {
+        publisher().start()
+
+        settings.state.value = LINKED.copy(isWatchLinked = false)
+
+        assertEquals(1, accounts.revokes)
+        assertEquals(1, transport.of("put", WearPaths.SESSION_REVOKED).size)
+    }
+
+    @Test
+    fun `워치용 세션 폐기가 실패해도 로그아웃 표시는 넣는다`() = runTest {
+        accounts.revokeResult = Outcome.Failure(AppError.Network)
+        publisher().start()
+
+        settings.state.value = LINKED.copy(isWatchLinked = false)
+
+        assertEquals(1, accounts.revokes)
+        assertEquals(1, transport.of("put", WearPaths.SESSION_REVOKED).size)
+        assertNull(memory.memberId)
+    }
+
+    @Test
+    fun `로그아웃은 서버가 워치용 세션도 폐기하므로 따로 폐기를 요청하지 않는다(contract-v2 4절)`() = runTest {
+        publisher().start()
+
+        session.loggedIn.value = false
+        settings.state.value = SettingsSnapshot.SAFE
+
+        assertEquals(0, accounts.revokes)
+        assertEquals(1, transport.of("put", WearPaths.SESSION_REVOKED).size)
+    }
+
+    @Test
+    fun `워치연동이 꺼진 채 시작했고 보낸 회원이 없으면 폐기를 요청하지 않는다`() = runTest {
+        settings.state.value = LINKED.copy(isWatchLinked = false)
+
+        publisher().start()
+
+        assertEquals(0, accounts.revokes)
+        assertEquals(emptyList(), transport.events.map { it.path })
+    }
+
+    @Test
+    fun `앱 안 리스너로 온 SESSION_REQUEST로는 발급하지 않는다(수신 서비스가 받는다, 중복 발급 방지)`() = runTest {
+        memory.memberId = 7
+        publisher().start()
+
+        transport.receive(WearPaths.SESSION_REQUEST, ByteArray(0), nodeId = "watch-1")
+
+        assertEquals(0, accounts.issued)
     }
 
     @Test
@@ -254,6 +307,7 @@ class WatchSessionPublisherTest {
         settings.state.value = LINKED
 
         assertEquals(1, accounts.issued)
+        assertEquals(0, accounts.revokes)
     }
 
     @Test
@@ -271,105 +325,10 @@ class WatchSessionPublisherTest {
         return WatchSessionPublisher(transport, session, settings, accounts, memory, CLOCK, scope)
     }
 
-    private class FakeMemory : WatchSessionPublisher.Memory {
-        var memberId: Long? = null
-
-        override fun publishedMemberId(): Long? = memberId
-
-        override fun remember(memberId: Long) {
-            this.memberId = memberId
-        }
-
-        override fun forget() {
-            memberId = null
-        }
-    }
-
-    private class FakeSession(loggedIn: Boolean) : SessionRepository {
-        override val loggedIn = MutableStateFlow(loggedIn)
-
-        override suspend fun save(tokens: SessionTokens): Outcome<Unit> = Outcome.Success(Unit)
-
-        override suspend fun clear(): Outcome<Unit> = Outcome.Success(Unit)
-
-        override suspend fun saveGuestCredential(credential: String): Outcome<Unit> = Outcome.Success(Unit)
-
-        override suspend fun clearGuestCredential(): Outcome<Unit> = Outcome.Success(Unit)
-
-        override suspend fun hasGuestCredential(): Boolean = false
-    }
-
-    private class FakeSettings(initial: SettingsSnapshot) : SettingsRepository {
-        val state = MutableStateFlow(initial)
-
-        override suspend fun refresh(): Outcome<Unit> = Outcome.Success(Unit)
-
-        override fun locationConsented() = state.value.isLocationConsented
-
-        override fun heartRateConsented() = state.value.isHeartRateConsented
-
-        override fun watchLinked() = state.value.isWatchLinked
-
-        override fun courseMapShared() = state.value.isCourseMapShared
-
-        override fun birthYear() = state.value.birthYear
-
-        override fun guidanceSettings() = state.value.guidanceSettings
-
-        override fun isGuest(): Boolean = state.value.isGuest
-
-        override fun changes(): Flow<SettingsSnapshot> = state
-
-        override suspend fun clear(): Outcome<Unit> = Outcome.Success(Unit)
-    }
-
-    /** 워치용 발급만 쓰는 계정 포트. 나머지 연산은 이 시험에서 부르지 않는다. */
-    private class FakeAccounts(private val memberId: Long?) : AccountRepository {
-        var issued = 0
-        var result: Outcome<SessionTokens> = Outcome.Success(TOKENS)
-
-        override fun selfMemberId(): Long? = memberId
-
-        override suspend fun issueWatchSession(): Outcome<SessionTokens> {
-            issued++
-            return result
-        }
-
-        override suspend fun login(token: ProviderToken): Outcome<SessionTokens> = unused()
-
-        override suspend fun signUp(form: SignUpForm): Outcome<SessionTokens> = unused()
-
-        override suspend fun logout(): Outcome<Unit> = unused()
-
-        override suspend fun startAsGuest(consents: Map<String, Boolean>): Outcome<GuestSession> = unused()
-
-        override suspend fun linkSocialAccount(token: ProviderToken): Outcome<Unit> = unused()
-
-        override suspend fun withdraw(): Outcome<Unit> = unused()
-
-        override suspend fun profile(memberId: Long): Outcome<Profile> = unused()
-
-        override suspend fun mySummary(): Outcome<MySummary> = unused()
-
-        override suspend fun editProfile(edit: ProfileEdit): Outcome<Unit> = unused()
-
-        override suspend fun changeSetting(item: String, value: String): Outcome<Unit> = unused()
-
-        override suspend fun giveConsent(item: String): Outcome<Unit> = unused()
-
-        override suspend fun withdrawConsent(item: String): Outcome<Unit> = unused()
-
-        override suspend fun legalDocument(type: String): Outcome<String> = unused()
-
-        override suspend fun settings(): Outcome<MemberSettings> = unused()
-
-        private fun unused(): Nothing = error("이 시험에서 부르지 않는다")
-    }
-
     private companion object {
         val NOW: Instant = Instant.parse("2026-11-01T01:00:00Z")
         val CLOCK: Clock = Clock.fixed(NOW, ZoneOffset.UTC)
-        val TOKENS = SessionTokens("watch-access", "watch-refresh")
+        val TOKENS = WATCH_TOKENS
         val LINKED =
             SettingsSnapshot(
                 isLocationConsented = true,

@@ -58,24 +58,25 @@ class WatchBattleFlow @Inject constructor(
 
     /**
      * 매칭 대기의 끝을 기다린다. 성사되면 조정자에 넘기고(onMatched) 대기 채널의 출발 예약을 잇는다(대기 임대는 [releaseWait]까지 쥔다).
-     * 성사면 참, 실패·끊김이면 대기 채널을 닫고 서버 대기를 정리한 뒤 거짓이다(실패는 서버가 이미 대기열에서 뺐다).
+     * 서버가 끝내면(MatchFailed) 대기 채널을 닫고 그 사유 코드로 Failure(Rejected)다(서버가 이미 대기열에서 뺐다). 끊기면 서버 대기를
+     * 정리하고 끊긴 사유(모르면 Network)로 Failure다. 화면은 사유 코드로 안내를 고른다(코드 리뷰 WR12-1).
      */
-    suspend fun awaitMatch(): Boolean = when (val end = waiter.awaitEnd()) {
+    suspend fun awaitMatch(): Outcome<Unit> = when (val end = waiter.awaitEnd()) {
         is MatchWaiter.End.Found -> {
             coordinator.onMatched(end.match, RunStartSpec.StartDevice.WATCH)
             waiter.forwardStarts(end.match.battleId, coordinator::onStart)
-            true
+            Outcome.Success(Unit)
         }
 
         is MatchWaiter.End.Failed -> {
             waiter.close()
-            false
+            Outcome.Failure(AppError.Rejected(end.code))
         }
 
         is MatchWaiter.End.Lost -> {
             waiter.close()
             coordinator.abandonMatching()
-            false
+            Outcome.Failure(end.error ?: AppError.Network)
         }
     }
 
@@ -126,6 +127,9 @@ class WatchBattleFlow @Inject constructor(
         is Outcome.Success -> status.value.run { distance?.takeIf { isWaiting } ?: defaultDistance }
         is Outcome.Failure -> null
     }
+
+    /** 열린 대결의 거리(BattleRunCoordinator.activeDistance). 성사~출발 사이에 화면을 다시 열 때 쓴다(WR12-2). */
+    fun activeDistance(): Distance? = coordinator.activeDistance
 
     /** 결과 화면이 대결 끝(Finished·Discarded)을 받았다. 다음 대결이 지난 끝 상태를 받지 않게 한다. */
     fun acknowledge() = coordinator.acknowledgeFinished()

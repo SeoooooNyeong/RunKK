@@ -28,6 +28,10 @@ internal class FakeAccountRepository(private val log: CallLog) : AccountReposito
 
     override suspend fun issueWatchSession(): Outcome<SessionTokens> = call("issueWatchSession", tokens)
 
+    override suspend fun revokeWatchSession(): Outcome<Unit> = call("revokeWatchSession", Unit)
+
+    override fun selfMemberId(): Long? = null
+
     override suspend fun startAsGuest(consents: Map<String, Boolean>): Outcome<GuestSession> =
         call("startAsGuest", GuestSession(SessionTokens("A1", "R1"), "g1.42.credential"))
 

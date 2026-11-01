@@ -92,6 +92,9 @@ constructor(
     override suspend fun issueWatchSession(): Outcome<SessionTokens> =
         ApiErrorMapper.call { auth.watchSession().toDomain() }
 
+    /** 워치용 갱신 토큰 폐기(DELETE /auth/watch-session, 204, contract-v2 4절). 워치연동을 끌 때 부른다(FR-019). */
+    override suspend fun revokeWatchSession(): Outcome<Unit> = ApiErrorMapper.call { auth.revokeWatchSession() }
+
     override fun selfMemberId(): Long? = self.memberId()
 
     /** 서버의 갱신 토큰 폐기. 갱신 토큰이 없으면(이미 로그아웃) 보낼 것이 없다. */

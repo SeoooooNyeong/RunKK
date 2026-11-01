@@ -132,6 +132,25 @@ class AccountRepositoryImplTest {
     }
 
     @Test
+    fun `워치 세션 폐기는 본문 없이 DELETE auth·watch-session을 보내고 204면 성공이다(contract-v2 4절)`() = runTest {
+        api.replyEmpty(204)
+
+        val result = repository.revokeWatchSession()
+
+        assertEquals(Outcome.Success(Unit), result)
+        val sent = api.take()
+        assertEquals("DELETE /api/v1/auth/watch-session", "${sent.method} ${sent.url.encodedPath}")
+        assertEquals(0L, sent.bodySize)
+    }
+
+    @Test
+    fun `워치 세션 폐기가 연결 실패면 Network다`() = runTest {
+        api.close()
+
+        assertEquals(Outcome.Failure(AppError.Network), repository.revokeWatchSession())
+    }
+
+    @Test
     fun `로그아웃은 갱신 토큰을 보낸다`() = runTest {
         api.replyEmpty(200)
 

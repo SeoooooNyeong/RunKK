@@ -28,6 +28,7 @@ import com.a207.runkk.watch.testing.SchedulerClock
 import com.a207.runkk.watch.testing.T0
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
+import com.google.common.util.concurrent.SettableFuture
 import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.Executor
@@ -39,6 +40,7 @@ import kotlin.test.assertTrue
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.runner.RunWith
@@ -139,6 +141,40 @@ class WatchExerciseSourceTest {
         assertNotNull(client.cleared)
     }
 
+    @Test
+    fun `끝내는 중에 새로 시작하면 끝내기가 콜백을 푼 뒤에 연다(남은 위험 M2, WR12-9)`() = runTest {
+        val source = source()
+        source.start()
+        client.events.clear()
+        val endGate = SettableFuture.create<Void?>()
+        client.endFuture = endGate
+
+        val ending = launch { source.end() }
+        runCurrent()
+        val starting = launch { source.start() }
+        runCurrent()
+        endGate.set(null)
+        ending.join()
+        starting.join()
+
+        assertEquals(listOf("end", "clearCallback", "callback", "start"), client.events)
+    }
+
+    @Test
+    fun `끝낸 뒤 늦게 온 운동 끝 알림은 측정 끝으로 보내지 않는다(WR12-9)`() = runTest {
+        val source = source()
+        val ended = mutableListOf<Unit>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { source.ended.collect { ended += it } }
+        source.start()
+        client.deliverEnded()
+        assertEquals(1, ended.size)
+
+        source.end()
+        client.deliverEnded()
+
+        assertEquals(1, ended.size)
+    }
+
     private fun location(atBoot: Duration, accuracy: Double) = SampleDataPoint(
         DataType.LOCATION,
         LocationData(37.5, 127.0),
@@ -198,7 +234,17 @@ internal class FakeExerciseClient : ExerciseClient {
 
     override fun resumeExerciseAsync(): ListenableFuture<Void> = done().also { events += "resume" }
 
-    override fun endExerciseAsync(): ListenableFuture<Void> = done().also { events += "end" }
+    /** 있으면 endExerciseAsync가 이 미래 값을 돌려준다(끝내기가 늦게 끝나는 경우). */
+    var endFuture: ListenableFuture<Void?>? = null
+
+    @Suppress("UNCHECKED_CAST")
+    override fun endExerciseAsync(): ListenableFuture<Void> =
+        ((endFuture as ListenableFuture<Void>?) ?: done()).also { events += "end" }
+
+    /** 등록된 콜백에 운동 세션이 끝났다고 알린다. */
+    fun deliverEnded() {
+        checkNotNull(callback as? WatchExerciseSource.MetricsReceiver) { "콜백이 없다" }.onState(isEnded = true)
+    }
 
     override fun setUpdateCallback(callback: ExerciseUpdateCallback) {
         events += "callback"

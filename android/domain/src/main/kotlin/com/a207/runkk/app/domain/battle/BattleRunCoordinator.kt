@@ -295,6 +295,13 @@ constructor(
     val isWatchMeasuring: Boolean
         get() = runTracker.isWatchMeasuring
 
+    /**
+     * 열린 회의 대결 거리. 열린 회가 없으면 null. 워치가 성사~출발 사이에 화면을 다시 열 때 카운트다운 머리줄과 목표를 되살린다
+     * (상태도 2.4.25, 코드 리뷰 WR12-2: Countdown 상태에는 거리가 없다).
+     */
+    val activeDistance: Distance?
+        get() = run?.distance
+
     /** 대결에 참가할 수 없을 만큼 바쁜가: 열린 회가 있거나 자유런 등 측정 중이다(친구 대결 참가 전 확인, D-273). */
     fun isBusy(): Boolean = run != null || runTracker.isMeasuring
 

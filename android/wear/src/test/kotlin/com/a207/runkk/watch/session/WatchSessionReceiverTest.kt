@@ -23,6 +23,7 @@ import java.io.File
 import kotlin.io.path.createTempDirectory
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -31,6 +32,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import timber.log.Timber
 
 /** 3.3 WatchSessionReceiver: 받은 바이트를 해독해 넘기고, 측정 중이면 deferRevoke를 고른다(D-389, SQ-48, F.4.4). */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -86,6 +88,28 @@ class WatchSessionReceiverTest {
         runCurrent()
 
         assertEquals(WatchSession.None, h.store.state.value)
+    }
+
+    @Test
+    fun `깨진 로그인 정보를 버릴 때 로그에 본문 조각을 남기지 않는다(NFR-050, WR12-5)`() = runTest {
+        val logs = mutableListOf<String>()
+        val tree = object : Timber.Tree() {
+            override fun log(priority: Int, tag: String?, message: String, t: Throwable?) {
+                logs += message
+            }
+        }
+        Timber.plant(tree)
+        try {
+            val h = harness()
+
+            h.receiver.onSession("""{"memberId":7,"accessToken":"secret-access-token",""".toByteArray())
+            runCurrent()
+        } finally {
+            Timber.uproot(tree)
+        }
+
+        assertTrue(logs.isNotEmpty())
+        assertTrue(logs.none { "secret-access-token" in it }, logs.toString())
     }
 
     @Test

@@ -240,7 +240,7 @@ class WearContractCompatibilityTest {
             PauseRequestMessage.decode(sample("pause-request.json"))
         )
         assertEquals(
-            WatchSessionMessage(42, "SOCIAL", "sample-access", "sample-refresh", T),
+            WatchSessionMessage(42, "LINKED", "sample-access", "sample-refresh", T),
             WatchSessionMessage.decode(sample("watch-session.json"))
         )
         assertEquals(SessionRevokedMessage(42, T), SessionRevokedMessage.decode(sample("session-revoked.json")))

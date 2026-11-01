@@ -35,12 +35,17 @@ sealed interface WatchFlow {
         override val notice: Notice? = null
     ) : Picker
 
-    /** 배틀런 대결 거리(FR-257): 1·3·5·10km. 서버에 닿지 않으면 [isOnline]이 거짓이고 매칭 시작을 막는다(FR-251). */
+    /**
+     * 배틀런 대결 거리(FR-257): 1·3·5·10km. 서버에 닿지 않으면 [isOnline]이 거짓이고 매칭 시작을 막는다(FR-251).
+     * [runsLeft]가 있으면 랜덤 대결이 잠겨 있다(언랭, FR-080, 폰 RandomBattleGate와 같은 규칙): 1 이상은 남은 유효 러닝 수, 0은 남은 수를
+     * 모르는 잠금이다. 잠겨 있으면 매칭 시작을 막고 "러닝을 n번 더 뛰면 배틀런이 가능해요!"를 보인다.
+     */
     data class BattleDistance(
         override val choices: List<Choice>,
         override val selected: Int = 0,
         val isOnline: Boolean = true,
-        override val notice: Notice? = null
+        override val notice: Notice? = null,
+        val runsLeft: Int? = null
     ) : Picker
 
     /** 셀프런 거리(FR-258): 1·3·5·10km·하프. 카드에 내 최고 기록 시간, 기록 없는 거리는 누를 수 없다(W10). */
@@ -131,6 +136,24 @@ sealed interface WatchFlow {
 
         /** 매칭 거부·실패·연결 끊김. */
         MATCH_FAILED,
+
+        /** 랜덤 대결 잠금(언랭, 서버 RANKED_ONLY, FR-080). 문구는 BattleDistance.runsLeft로 남은 횟수를 넣는다. */
+        RANDOM_LOCKED,
+
+        /** 이미 매칭을 기다리거나 대결 중(서버 ALREADY_IN_BATTLE·ALREADY_MATCHED). */
+        ALREADY_IN_BATTLE,
+
+        /** 서버 매칭 대기열을 쓸 수 없음(QUEUE_UNAVAILABLE). */
+        QUEUE_UNAVAILABLE,
+
+        /** 서버가 받지 않는 대결 거리(BATTLE_DISTANCE_INVALID). */
+        DISTANCE_INVALID,
+
+        /** 셀프런 서버 시작 거부: 그 거리 기록 없음(NO_RECORD). */
+        NO_RECORD,
+
+        /** 셀럽런 서버 시작 거부: 내려간 셀럽 기록(CELEBRITY_REMOVED). */
+        CELEBRITY_REMOVED,
 
         /** 측정을 시작하지 못함(포그라운드 서비스 거부 등). */
         START_FAILED,
