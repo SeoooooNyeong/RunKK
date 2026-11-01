@@ -190,7 +190,8 @@ public class RecordBattleService {
      * 워치가 미리 받아 두는 기록 대결 상대(v0.21 D-377, FR-260, SQ-46). 읽기만 하고 대결을 만들지 않는다. SELF: 나와의 싸움
      * 거리(1·3·5·10km·하프)마다 최고 기록이 있으면 하나. CELEBRITY: 등록된 유명인 기록 전부(후보 목록과 같은 범위). 상대 표는 POST
      * /battles/self·celebrity와 같은 OpponentRecord.track으로 만든다. 표를 만들 수 없는 기록(경로 파기·기록 없음, 대결 거리에 닿지
-     * 않는 표)은 시작할 때도 거부되므로 뺀다. 거리 → 완주 시간 오름차순. 시작이 아니라 위치 동의는 보지 않는다.
+     * 않는 표)은 시작할 때도 거부되므로 뺀다. 거리 → 완주 시간 오름차순. 시작이 아니라 위치 동의는 보지 않는다. W31: CELEBRITY 목록의 track은 비어
+     * 있고(목록만), 표는 celebrityTrack(id)으로 받는다. SELF는 표를 싣는다.
      *
      * @throws IllegalArgumentException kind가 SELF·CELEBRITY가 아님
      */
@@ -257,15 +258,13 @@ public class RecordBattleService {
                                         opponent.figureKey().orElse(null)));
     }
 
+    /** W31: 목록은 표(track)를 계산하지 않는다. 표를 만들 수 없는 기록을 빼는 규칙만 가볍게 확인한다. */
     private List<RecordTrack> celebrityTracks() {
         List<CelebrityRecord> celebrities = celebrityRecordRepository.findAll(Optional.empty());
         List<RecordTrack> tracks =
                 celebrities.stream()
-                        .map(
-                                c ->
-                                        reachableTrack(c, c.getDistance())
-                                                .map(track -> celebrityTrack(c, track)))
-                        .flatMap(Optional::stream)
+                        .filter(CelebrityRecord::hasReachableTrack)
+                        .map(c -> celebrityEntry(c, OpponentTrack.empty()))
                         .toList();
         log.info(
                 "record_tracks kind=CELEBRITY returned={} skipped={}",
@@ -274,7 +273,21 @@ public class RecordBattleService {
         return tracks;
     }
 
-    private static RecordTrack celebrityTrack(CelebrityRecord c, OpponentTrack track) {
+    /**
+     * W31: 셀럽 하나의 기록과 상대 표(1초 1점, POST /battles/celebrity와 같은 표). 없거나 표를 만들 수 없으면(대결 거리에 닿지 않음) 비어
+     * 있다. 읽기만 하고 대결을 만들지 않는다.
+     */
+    @Transactional(readOnly = true)
+    public Optional<RecordTrack> celebrityTrack(long celebrityId) {
+        return celebrityRecordRepository
+                .findById(celebrityId)
+                .flatMap(
+                        c ->
+                                reachableTrack(c, c.getDistance())
+                                        .map(track -> celebrityEntry(c, track)));
+    }
+
+    private static RecordTrack celebrityEntry(CelebrityRecord c, OpponentTrack track) {
         return new RecordTrack(
                 BattleType.CELEBRITY,
                 c.getId(),

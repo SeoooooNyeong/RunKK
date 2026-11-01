@@ -226,7 +226,7 @@ final class BattleDtos {
      * @param opponentName 상대 표시명(RecordBattleStartResponse.opponentName과 같은 규칙)
      * @param distanceMeters 대결 거리
      * @param finishSeconds 상대 기록 완주 시간(초)
-     * @param track 상대 경과 시간·누적 거리 표
+     * @param track 상대 경과 시간·누적 거리 표. 셀럽 목록(kind=CELEBRITY)에서는 빈 목록이고 단건 조회에서 채운다(W31)
      * @param sourceLabel 출처 표기(유명인), 나와의 싸움이면 null
      * @param estimated 구간 기록이 없어 균등 페이스로 만든 표(A-006)
      * @param celebrityFigure 유명인 캐릭터 그림 키, 없거나 나와의 싸움이면 null
@@ -246,7 +246,11 @@ final class BattleDtos {
                     t.opponentName().value(),
                     t.distance().meters(),
                     t.finishTime().toSeconds(),
-                    t.track().wholeSeconds().stream().map(TrackPointResponse::of).toList(),
+                    t.track().isEmpty()
+                            ? List.of()
+                            : t.track().wholeSeconds().stream()
+                                    .map(TrackPointResponse::of)
+                                    .toList(),
                     Optional.ofNullable(t.source()).map(Source::label).orElse(null),
                     t.estimated(),
                     t.figureKey());
