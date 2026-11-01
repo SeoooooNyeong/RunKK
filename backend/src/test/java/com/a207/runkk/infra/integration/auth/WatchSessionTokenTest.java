@@ -118,4 +118,16 @@ class WatchSessionTokenTest {
         generations.available();
         assertThat(issuer.redeemRefreshToken(watch.refreshToken()).isWatch()).isTrue();
     }
+
+    @Test
+    @DisplayName("W26: 워치 접근 토큰(회전한 것 포함)은 verifyGrant에서 워치용으로, 폰 접근 토큰은 폰용으로 읽힌다")
+    void watchAccessToken_isMarked() {
+        TokenPair watch = issuer.issueWatch(7);
+        TokenPair rotated = issuer.reissue(issuer.redeemRefreshToken(watch.refreshToken()));
+
+        assertThat(issuer.verifyGrant(watch.accessToken()).watch()).isTrue();
+        assertThat(issuer.verifyGrant(rotated.accessToken()).watch()).isTrue();
+        assertThat(issuer.verifyGrant(issuer.issue(7).accessToken()).watch()).isFalse();
+        assertThat(issuer.verifyGrant(watch.accessToken()).memberId()).isEqualTo(7);
+    }
 }

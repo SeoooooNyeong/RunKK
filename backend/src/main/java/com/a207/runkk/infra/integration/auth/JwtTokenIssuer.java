@@ -130,7 +130,7 @@ public class JwtTokenIssuer implements TokenIssuer {
     private TokenPair watchPair(long memberId, long generation) {
         String subject = String.valueOf(memberId);
         return new TokenPair(
-                sign(claims(subject, ACCESS, ACCESS_TTL).build()),
+                sign(claims(subject, ACCESS, ACCESS_TTL).claim(CLIENT, WATCH).build()),
                 sign(
                         claims(subject, REFRESH, REFRESH_TTL)
                                 .claim(CLIENT, WATCH)
@@ -168,7 +168,10 @@ public class JwtTokenIssuer implements TokenIssuer {
     @Override
     public AccessGrant verifyGrant(String accessToken) {
         JWTClaimsSet claims = parse(accessToken, ACCESS);
-        return new AccessGrant(memberIdOf(claims), claims.getExpirationTime().toInstant());
+        return new AccessGrant(
+                memberIdOf(claims),
+                claims.getExpirationTime().toInstant(),
+                WATCH.equals(claims.getClaim(CLIENT)));
     }
 
     @Override
