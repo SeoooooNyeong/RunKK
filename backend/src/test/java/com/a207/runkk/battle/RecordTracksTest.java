@@ -174,7 +174,8 @@ class RecordTracksTest {
         RecordTrack estimated = tracks.get(0);
         assertThat(estimated.type()).isEqualTo(BattleType.CELEBRITY);
         assertThat(estimated.estimated()).isTrue();
-        assertThat(estimated.track())
+        assertThat(estimated.track().isEmpty()).as("W31: 목록은 표를 계산하지 않는다").isTrue();
+        assertThat(records.celebrityTrack(estimated.celebrityId()).orElseThrow().track())
                 .isEqualTo(OpponentTrack.uniform(FIVE_K, Duration.ofMinutes(15)).cut(FIVE_K));
         assertThat(estimated.source().label()).isEqualTo("출처: 대회 공식 기록");
         RecordTrack splits = tracks.get(1);
@@ -190,13 +191,29 @@ class RecordTracksTest {
     void celebrity_trackMatchesStartCelebrityBattle() {
         CelebrityRecord c = celebrity("전설", FIVE_K, Duration.ofMinutes(15), List.of(), "fig");
 
-        RecordTrack track = records.recordTracks(ALICE, BattleType.CELEBRITY).get(0);
+        RecordTrack track = records.celebrityTrack(c.getId()).orElseThrow();
         RecordBattleStart start = records.startCelebrityBattle(ALICE, c.getId());
 
         assertThat(track.track()).isEqualTo(start.track());
         assertThat(track.opponentName()).isEqualTo(start.opponentName());
         assertThat(track.figureKey()).isEqualTo(start.figureKey());
         assertThat(track.estimated()).isEqualTo(start.estimated());
+    }
+
+    @Test
+    @DisplayName("W31 celebrityTrack: 없는 id·표가 거리에 닿지 않는 기록은 비어 있고 대결을 만들지 않는다")
+    void celebrityTrack_missingOrShort_isEmpty() {
+        CelebrityRecord shortOne =
+                celebrity(
+                        "짧은전설",
+                        FIVE_K,
+                        Duration.ofMinutes(16),
+                        List.of(new TrackSample(Duration.ofMinutes(8), Distance.ofMeters(2_500))),
+                        null);
+
+        assertThat(records.celebrityTrack(999_999L)).isEmpty();
+        assertThat(records.celebrityTrack(shortOne.getId())).isEmpty();
+        assertThat(battles.all()).isEmpty();
     }
 
     @Test

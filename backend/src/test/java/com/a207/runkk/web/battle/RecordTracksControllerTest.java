@@ -88,6 +88,15 @@ class RecordTracksControllerTest extends WebTestSupport {
                 .get("tracks");
     }
 
+    private JsonNode single(Session s, long celebrityId) throws Exception {
+        return body(
+                mvc.perform(as(s, get(PATH + "/celebrity/" + celebrityId)))
+                        .andExpect(status().isOk())
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString());
+    }
+
     private static JsonNode byCelebrity(JsonNode tracks, long celebrityId) {
         for (JsonNode t : tracks) {
             if (!t.get("celebrityId").isNull() && t.get("celebrityId").asLong() == celebrityId) {
@@ -225,8 +234,10 @@ class RecordTracksControllerTest extends WebTestSupport {
             assertThat(estimated.get("finishSeconds").asLong()).isEqualTo(900);
             assertThat(estimated.get("sourceLabel").asText()).isEqualTo("출처: 대회 공식 기록");
             assertThat(estimated.get("celebrityFigure").asText()).isEqualTo("legend");
-            // 균등 페이스 1초 표본: (0,0) + 1..899초 + (900, 5000)
-            JsonNode track = estimated.get("track");
+            assertThat(estimated.get("track").isArray()).isTrue();
+            assertThat(estimated.get("track")).isEmpty(); // W31: 목록은 표 없이
+            // 단건: 균등 페이스 1초 표본 (0,0) + 1..899초 + (900, 5000)
+            JsonNode track = single(s, uniform).get("track");
             assertThat(track).hasSize(901);
             assertThat(track.get(450).get("distanceMeters").asLong()).isEqualTo(2_500);
             assertThat(track.get(900).get("distanceMeters").asLong()).isEqualTo(5_000);
@@ -234,7 +245,8 @@ class RecordTracksControllerTest extends WebTestSupport {
             JsonNode withSplits = byCelebrity(tracks, split);
             assertThat(withSplits.get("estimated").asBoolean()).isFalse();
             assertThat(withSplits.get("celebrityFigure").isNull()).isTrue();
-            assertThat(withSplits.get("track")).hasSize(3);
+            assertThat(withSplits.get("track")).isEmpty();
+            assertThat(single(s, split).get("track")).hasSize(3);
             assertThat(tracks.findValues("celebrityId").indexOf(estimated.get("celebrityId")))
                     .isLessThan(
                             tracks.findValues("celebrityId")
@@ -245,15 +257,35 @@ class RecordTracksControllerTest extends WebTestSupport {
         }
     }
 
-    /**
-     * BE13-3 상한(압축 뒤 바이트). 측정값(원문 7,041,088바이트, gzip 823,949바이트)에 약 10% 여유를 둔 값이다. 넘으면 본문 크기(개수·표본
-     * 간격)를 다시 따져 보라는 신호이고, 개수 상한 자체는 사용자 결정 전이라 만들지 않았다.
-     */
-    private static final int GZIP_LIMIT_BYTES = 910_000;
+    /** W31 상한(압축 뒤 바이트). 목록은 표가 없어 풀 20명도 작다. 단건은 풀 마라톤 1초 1점 한 명(측정 gzip 38KB에 여유를 둔 값)이다. */
+    private static final int LIST_GZIP_LIMIT_BYTES = 1_500;
+
+    private static final int SINGLE_GZIP_LIMIT_BYTES = 60_000;
+
+    private static int gzipSize(byte[] plain) throws Exception {
+        ByteArrayOutputStream packed = new ByteArrayOutputStream();
+        try (GZIPOutputStream gzip = new GZIPOutputStream(packed)) {
+            gzip.write(plain);
+        }
+        return packed.size();
+    }
+
+    private byte[] bytesOf(Session s, String path, String... param) throws Exception {
+        var req = as(s, get(path));
+        if (param.length == 2) {
+            req.param(param[0], param[1]);
+        }
+        return mvc.perform(req)
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString()
+                .getBytes(StandardCharsets.UTF_8);
+    }
 
     @Test
-    @DisplayName("BE13-3: 구간 없는 풀 마라톤 셀럽 20건(1초 1점)의 본문은 압축 뒤 상한 안이다")
-    void celebrity_twentyFullMarathons_gzippedSizeWithinLimit() throws Exception {
+    @DisplayName("W31: 구간 없는 풀 마라톤 셀럽 20건의 목록은 압축 뒤 상한 안이고, 단건(1초 1점)도 상한 안이다")
+    void celebrity_twentyFullMarathons_listAndSingleSizeWithinLimit() throws Exception {
         List<Long> ids = new ArrayList<>();
         try {
             for (int i = 0; i < 20; i++) {
@@ -268,25 +300,55 @@ class RecordTracksControllerTest extends WebTestSupport {
                                         null)));
             }
             Session s = signUp();
-            byte[] plain =
-                    mvc.perform(as(s, get(PATH).param("kind", "CELEBRITY")))
-                            .andExpect(status().isOk())
-                            .andReturn()
-                            .getResponse()
-                            .getContentAsString()
-                            .getBytes(StandardCharsets.UTF_8);
-            ByteArrayOutputStream packed = new ByteArrayOutputStream();
-            try (GZIPOutputStream gzip = new GZIPOutputStream(packed)) {
-                gzip.write(plain);
-            }
+            byte[] list = bytesOf(s, PATH, "kind", "CELEBRITY");
+            byte[] one = bytesOf(s, PATH + "/celebrity/" + ids.get(0));
+            int listGzip = gzipSize(list);
+            int oneGzip = gzipSize(one);
             System.out.printf(
-                    "BE13-3 record-tracks 셀럽 20건: 원문 %d바이트, gzip %d바이트%n",
-                    plain.length, packed.size());
+                    "W31 record-tracks 셀럽 20건 목록: 원문 %d, gzip %d / 단건(풀 마라톤): 원문 %d, gzip %d%n",
+                    list.length, listGzip, one.length, oneGzip);
 
-            assertThat(packed.size()).isLessThanOrEqualTo(GZIP_LIMIT_BYTES);
+            assertThat(listGzip).isLessThanOrEqualTo(LIST_GZIP_LIMIT_BYTES);
+            assertThat(oneGzip).isLessThanOrEqualTo(SINGLE_GZIP_LIMIT_BYTES);
         } finally {
             ids.forEach(id -> celebrityRecordService.delete(OPERATOR, id, "시험 정리"));
         }
+    }
+
+    @Test
+    @DisplayName("W31 단건: 없는 셀럽은 404, 표를 만들 수 없는 셀럽도 404, 읽기만 하고 대결을 만들지 않는다")
+    void single_notFound() throws Exception {
+        long shortId =
+                register(
+                        new CelebrityInput(
+                                "짧은전설",
+                                Distance.ofMeters(5_000),
+                                Duration.ofSeconds(960),
+                                List.of(
+                                        new TrackSample(
+                                                Duration.ofSeconds(480), Distance.ofMeters(2_500))),
+                                "대회 공식 기록",
+                                null));
+        try {
+            Session s = signUp();
+            mvc.perform(as(s, get(PATH + "/celebrity/999999")))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value("CELEBRITY_REMOVED"));
+            mvc.perform(as(s, get(PATH + "/celebrity/" + shortId)))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value("CELEBRITY_REMOVED"));
+            mvc.perform(as(s, get("/api/v1/battles/active"))).andExpect(status().isNoContent());
+        } finally {
+            celebrityRecordService.delete(OPERATOR, shortId, "시험 정리");
+        }
+    }
+
+    @Test
+    @DisplayName("W31 단건: 토큰 없으면 401, 숫자가 아닌 id는 400")
+    void single_unauthorizedAndBadId() throws Exception {
+        mvc.perform(get(PATH + "/celebrity/1")).andExpect(status().isUnauthorized());
+        Session s = signUp();
+        mvc.perform(as(s, get(PATH + "/celebrity/abc"))).andExpect(status().isBadRequest());
     }
 
     private long register(CelebrityInput in) {
