@@ -129,14 +129,16 @@ class WatchSessionPublisher internal constructor(
 
     /**
      * 로그아웃·워치연동 끄기: 워치에 보낸 회원이 있으면 그 회원의 로그아웃 표시를 넣는다. 로그인 상태에서 워치연동이 꺼졌으면(방금 켜져
-     * 있었거나 보낸 회원이 남아 있음) 서버의 워치용 갱신 토큰도 폐기한다. 로그인 직후 설정 사본이 아직 오지 않은 잠깐(연동 거짓)은
-     * 켜져 있던 적도 보낸 회원도 없어 폐기하지 않는다.
+     * 있었거나 지금 회원에게 보낸 기억이 남아 있음) 서버의 워치용 갱신 토큰도 폐기한다. 서버 폐기는 지금 로그인한 회원의 세션을 지우므로
+     * 보낸 기억이 다른 회원이면(로그아웃 표시를 넣지 못한 채 다른 회원으로 로그인, 코드 리뷰 AN13-1) 그 기억으로 폐기하지 않는다.
+     * 로그인 직후 설정 사본이 아직 오지 않은 잠깐(연동 거짓)은 켜져 있던 적도 지금 회원에게 보낸 기억도 없어 폐기하지 않는다.
      */
     private suspend fun revokePublished(wasAllowed: Boolean) = lock.withLock {
         val published = memory.publishedMemberId()
         published?.let { revoke(it) }
         val isLinkTurnedOff = sessionRepository.loggedIn.value && !settings.watchLinked()
-        if (isLinkTurnedOff && (wasAllowed || published != null)) revokeServerSessions()
+        val wasPublishedToSelf = published != null && published == accounts.selfMemberId()
+        if (isLinkTurnedOff && (wasAllowed || wasPublishedToSelf)) revokeServerSessions()
     }
 
     /** 서버의 워치용 갱신 토큰 폐기(FR-019). 실패는 기록만 한다(워치는 로그아웃 표시로 이미 토큰을 지운다). */
