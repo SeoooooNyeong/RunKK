@@ -3,13 +3,21 @@ package com.a207.runkk.watch.ui
 import android.app.Application
 import android.content.Context
 import androidx.lifecycle.viewModelScope
+import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.GeoPoint
+import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.battle.BattleRunCoordinator
+import com.a207.runkk.app.domain.battle.MatchAcceptance
+import com.a207.runkk.app.domain.battle.OpponentTrack
 import com.a207.runkk.app.domain.battle.RecordBattleKind
+import com.a207.runkk.app.domain.battle.RecordBattleStart
+import com.a207.runkk.app.domain.live.BattleStart
 import com.a207.runkk.app.domain.live.MatchFound
 import com.a207.runkk.app.domain.run.LocationSample
+import com.a207.runkk.app.domain.run.RunStartSpec
 import com.a207.runkk.app.domain.run.RunTracker
+import com.a207.runkk.app.domain.settings.GuidanceSettings
 import com.a207.runkk.watch.cache.OpponentRecordCache
 import com.a207.runkk.watch.guide.WatchGuidanceOutput
 import com.a207.runkk.watch.heart.HeartRateCollector
@@ -45,6 +53,7 @@ import com.a207.runkk.wear.contract.WatchDisplayMessage
 import com.a207.runkk.wear.contract.WatchSessionMessage
 import com.a207.runkk.wear.contract.WearPaths
 import java.io.File
+import java.time.Duration
 import kotlin.io.path.createTempDirectory
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
@@ -195,6 +204,34 @@ class WatchFlowViewModelTest {
         dataLayer.incoming.tryEmit(WearMessage(WearPaths.WATCH_DISPLAY, display.encode()))
         runCurrent()
     }
+
+    /** 폰이 워치 시작 화면 표시(오늘 계획 목표, FR-042)를 보냈다. */
+    private fun TestScope.phoneHome(planMeters: Long?, planPace: Int? = null) {
+        val display = WatchDisplayMessage(
+            isRunning = false,
+            elapsedSeconds = 0,
+            distanceMeters = 0,
+            planDistanceMeters = planMeters,
+            planPaceSecondsPerKm = planPace
+        )
+        dataLayer.incoming.tryEmit(WearMessage(WearPaths.WATCH_DISPLAY, display.encode()))
+        runCurrent()
+    }
+
+    /** 측정 중인 대결을 조금 달린 뒤 길게 눌러 끝낸다(기록이 남는다, FR-094). */
+    private fun TestScope.runAndEnd(h: Harness) {
+        runNorth(h.tracker, meters = 200)
+        h.vm.onEndLongPressed()
+        runCurrent()
+    }
+
+    private fun recordStart(cardKind: CardKind, meters: Long) = RecordBattleStart(
+        battleId = 7,
+        opponentName = "상대",
+        distance = Distance(meters),
+        track = OpponentTrack.uniform(Distance(meters), Duration.ofSeconds(meters / 3)),
+        cardKind = cardKind
+    )
 
     /** 3·2·1·GO를 지나 측정 화면까지. */
     private fun TestScope.passCountdown() {
@@ -505,6 +542,143 @@ class WatchFlowViewModelTest {
         val running = reopened.flow as WatchFlow.Running
         assertEquals(Distance(5_000), running.goal)
         assertTrue(running.isPausable)
+    }
+
+    @Test
+    fun `자유런 첫 카드는 자유런 설정의 목표 거리다(FR-244, FR-048)`() = flowTest {
+        settings.guidance = GuidanceSettings.DEFAULT.copy(freeRunTarget = Distance(5_000))
+        val h = open()
+
+        h.vm.onModeSelected(WatchMode.FREE)
+
+        val free = h.flow as WatchFlow.FreeGoal
+        assertEquals(listOf(null, Distance(3_000), Distance(5_000), Distance(10_000)), free.choices.map { it.distance })
+        assertEquals(Distance(5_000), free.current.distance)
+    }
+
+    @Test
+    fun `코치 계획 따르기가 켜져 있고 오늘 계획이 있으면 첫 카드는 계획 거리다(FR-244)`() = flowTest {
+        settings.guidance =
+            GuidanceSettings.DEFAULT.copy(isFollowingCoachPlan = true, freeRunTarget = Distance(10_000))
+        val h = open()
+        phoneHome(planMeters = 3_000)
+
+        h.vm.onModeSelected(WatchMode.FREE)
+
+        val free = h.flow as WatchFlow.FreeGoal
+        assertEquals(4, free.choices.size)
+        assertEquals(Distance(3_000), free.current.distance)
+    }
+
+    @Test
+    fun `계획 거리가 네 카드에 없으면 그 거리 카드를 하나 더 두고 처음 고른다(FR-244 7km)`() = flowTest {
+        settings.guidance = GuidanceSettings.DEFAULT.copy(isFollowingCoachPlan = true)
+        val h = open()
+        phoneHome(planMeters = 7_000, planPace = 360)
+
+        h.vm.onModeSelected(WatchMode.FREE)
+        val free = h.flow as WatchFlow.FreeGoal
+        assertEquals(
+            listOf(null, Distance(3_000), Distance(5_000), Distance(7_000), Distance(10_000)),
+            free.choices.map { it.distance }
+        )
+        assertEquals(Distance(7_000), free.current.distance)
+
+        h.vm.onStartPressed()
+        assertEquals(WatchFlow.Countdown(WatchMode.FREE, Distance(7_000), 3), h.flow)
+        passCountdown()
+        assertEquals(Distance(7_000), (h.flow as WatchFlow.Running).goal)
+    }
+
+    @Test
+    fun `코치 계획 따르기가 꺼져 있으면 폰의 계획을 두고 자유런 설정의 목표 거리를 처음 고른다(FR-048)`() = flowTest {
+        settings.guidance = GuidanceSettings.DEFAULT.copy(freeRunTarget = Distance(10_000))
+        val h = open()
+        phoneHome(planMeters = 7_000)
+
+        h.vm.onModeSelected(WatchMode.FREE)
+
+        val free = h.flow as WatchFlow.FreeGoal
+        assertEquals(4, free.choices.size)
+        assertEquals(Distance(10_000), free.current.distance)
+    }
+
+    @Test
+    fun `배틀런 첫 카드는 기본 대결 거리이고 읽지 못하면 5km다(FR-257, FR-109)`() = flowTest {
+        val first = open()
+        first.vm.onModeSelected(WatchMode.BATTLE)
+        assertEquals(Distance(5_000), (first.flow as WatchFlow.BattleDistance).current.distance)
+
+        battles.matchStatusAnswer =
+            Outcome.Success(MatchAcceptance(isWaiting = false, distance = null, defaultDistance = Distance(3_000)))
+        val second = open()
+        second.vm.onModeSelected(WatchMode.BATTLE)
+        assertEquals(Distance(3_000), (second.flow as WatchFlow.BattleDistance).current.distance)
+    }
+
+    @Test
+    fun `매칭을 요청한 거리가 다음 배틀런의 첫 카드다(FR-109)`() = flowTest {
+        val h = open()
+        h.vm.onModeSelected(WatchMode.BATTLE)
+        h.vm.onDistanceSelected(Distance(10_000))
+        h.vm.onStartPressed()
+        runCurrent()
+        h.vm.back()
+        runCurrent()
+        h.vm.back()
+
+        h.vm.onModeSelected(WatchMode.BATTLE)
+
+        assertEquals(Distance(10_000), (h.flow as WatchFlow.BattleDistance).current.distance)
+    }
+
+    @Test
+    fun `워치에서 시작한 배틀런은 시작 기기 WATCH로 기록한다(FR-245, D-378)`() = flowTest {
+        val h = open()
+        h.vm.onModeSelected(WatchMode.BATTLE)
+        h.vm.onDistanceSelected(Distance(1_000))
+        h.vm.onStartPressed()
+        runCurrent()
+        live.server.tryEmit(MatchFound(41, "민준", "SILVER", Distance(1_000), null, null, 3))
+        runCurrent()
+        val startAt = SchedulerClock(testScheduler).instant().plusSeconds(5)
+        live.server.tryEmit(BattleStart(41, startAt, opponentTrack = null))
+        runCurrent()
+        advanceTimeBy(5_000 + WatchFlowViewModel.GO_MILLIS + 300)
+        runCurrent()
+        assertIs<WatchFlow.Running>(h.flow)
+
+        runAndEnd(h)
+
+        val run = pendingRuns.saved.single()
+        assertEquals(41L, run.battleId)
+        assertEquals(RunStartSpec.StartDevice.WATCH, run.startDevice)
+    }
+
+    @Test
+    fun `워치에서 서버 대결로 시작한 셀프런과 셀럽런은 시작 기기 WATCH로 기록한다(FR-245, D-378)`() = flowTest {
+        val h = open()
+        battles.recordStart = recordStart(CardKind.SELF_RUN, meters = 3_000)
+        h.vm.onModeSelected(WatchMode.SELF)
+        h.vm.onDistanceSelected(Distance(3_000))
+        runCurrent()
+        passCountdown()
+        assertIs<WatchFlow.Running>(h.flow)
+        runAndEnd(h)
+        h.vm.onResultClosed()
+
+        battles.recordStart = recordStart(CardKind.CELEB_RUN, meters = 5_000)
+        h.vm.onModeSelected(WatchMode.CELEB)
+        h.vm.onDistanceSelected(Distance(5_000))
+        h.vm.onCelebritySelected((h.flow as WatchFlow.CelebList).celebrities.single())
+        runCurrent()
+        passCountdown()
+        assertIs<WatchFlow.Running>(h.flow)
+        runAndEnd(h)
+
+        assertEquals(listOf(CardKind.SELF_RUN, CardKind.CELEB_RUN), pendingRuns.saved.map { it.cardKind })
+        assertEquals(List(2) { RunStartSpec.StartDevice.WATCH }, pendingRuns.saved.map { it.startDevice })
+        assertEquals(listOf(7L, 7L), battles.forfeits)
     }
 
     private companion object {

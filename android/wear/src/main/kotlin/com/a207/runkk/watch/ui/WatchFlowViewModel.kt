@@ -6,11 +6,13 @@ import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.core.model.RunMode
 import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.battle.BattleRunState
 import com.a207.runkk.app.domain.battle.RecordBattleKind
 import com.a207.runkk.app.domain.run.FinishOutcome
+import com.a207.runkk.app.domain.run.FreeRunGoal
 import com.a207.runkk.app.domain.run.PlanSnapshot
 import com.a207.runkk.app.domain.run.RunProgress
 import com.a207.runkk.app.domain.run.RunStartSpec
@@ -32,6 +34,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -49,7 +52,9 @@ import kotlinx.coroutines.withTimeoutOrNull
  * - 끝: 자유런은 RunTracker.ended, 대결은 BattleRunState.Finished로 결과(WatchResultHeadline)를 만든다. 측정 서비스가 밖에서 끝내면
  *   (운동 세션 실패) 기록이 있으면 결과, 없으면 "측정이 중단됐어요"로 메인에 돌아간다.
  * - 로그인: 로그인 정보가 없으면 폰에 요청하고(SESSION_REQUEST) 미로그인 안내를 보인다(FR-242). 결과를 닫을 때 로그아웃 대기였으면
- *   지운다(completeRevoke). 메인을 열 때 서버 설정·본인 요약·상대 기록을 맞춘다(D-379, FR-260).
+ *   지운다(completeRevoke). 메인을 열 때 서버 설정·본인 요약·기본 대결 거리·상대 기록을 맞춘다(D-379, FR-109, FR-260).
+ * - 첫 카드: 자유런은 설정 사본의 목표(FR-048, WatchSessionStore.freeRunGoal)이고, 오늘 계획은 폰이 보낸 시작 화면 표시(FR-042)로
+ *   안다(폰이 없으면 저장값만). 계획 거리가 네 카드에 없으면 카드를 하나 더 둔다(FR-244). 배틀런은 기본 대결 거리다(FR-109, FR-257).
  */
 @HiltViewModel
 class WatchFlowViewModel @Inject constructor(
@@ -78,10 +83,20 @@ class WatchFlowViewModel @Inject constructor(
     private var lastGap: Int? = null
     private var lastLead: Any? = null
 
+    /** 폰이 마지막으로 보낸 시작 화면의 오늘 계획 목표(FR-042). 폰이 보내지 않았으면 null이다. */
+    private var phonePlan: PlanSnapshot? = null
+
+    /** 자유런 거리 선택을 열 때 고른 목표(FR-048). 그 거리로 시작하면 계획의 목표 페이스도 싣는다. */
+    private var freeGoal: FreeRunGoal = FreeRunGoal.NONE
+
+    /** 배틀런 첫 카드(FR-109). 메인을 열 때 서버 값으로, 매칭을 요청할 때 그 거리로 바꾼다. */
+    private var battleDefault: Distance = DEFAULT_BATTLE_DISTANCE
+
     /** 이 회의 종료 요약. 대결 결과는 Finished와 이 값이 모두 와야 만든다(오는 순서는 정해져 있지 않다). */
     private val endedOutcome = MutableStateFlow<FinishOutcome?>(null)
 
     private var countdownJob: Job? = null
+    private var battleDefaultJob: Job? = null
     private var matchingJob: Job? = null
     private var waitingJob: Job? = null
     private var resultJob: Job? = null
@@ -96,6 +111,13 @@ class WatchFlowViewModel @Inject constructor(
         viewModelScope.launch { accounts.myGender.collect { gender -> updateMain { it.copy(gender = gender) } } }
         viewModelScope.launch {
             phoneLink.displays.map { it.isRunning }.distinctUntilChanged().collect(::onPhoneRunning)
+        }
+        viewModelScope.launch {
+            phoneLink.displays.filter { !it.isRunning }.collect { home ->
+                val distance = home.planDistanceMeters?.let(::Distance)
+                val pace = home.planPaceSecondsPerKm?.let(::Pace)
+                phonePlan = if (distance == null && pace == null) null else PlanSnapshot(distance, pace)
+            }
         }
         viewModelScope.launch {
             connectivity.isOnline.collect { online ->
@@ -259,6 +281,8 @@ class WatchFlowViewModel @Inject constructor(
     private fun onSession(session: WatchSession) {
         when (session) {
             WatchSession.None -> {
+                // 이전 회원의 오늘 계획이 다음 회원의 첫 카드가 되지 않게 지운다.
+                phonePlan = null
                 if (isIdle(_flow.value) && _flow.value !is WatchFlow.Companion) _flow.value = WatchFlow.NotLoggedIn
                 viewModelScope.launch { phoneLink.requestSession() }
             }
@@ -311,6 +335,11 @@ class WatchFlowViewModel @Inject constructor(
             (accounts.mySummary() as? Outcome.Success)?.value?.tier?.let { myTier = it }
             battleFlow.refreshCache(memberId)
         }
+        // 늦게 온 서버 값이 방금 매칭을 요청한 거리를 덮지 않게 따로 읽고, 매칭을 요청하면 멈춘다(FR-109).
+        battleDefaultJob?.cancel()
+        battleDefaultJob = viewModelScope.launch {
+            battleFlow.defaultDistance()?.takeIf { it in BATTLE_DISTANCES }?.let { battleDefault = it }
+        }
     }
 
     private fun startFree(picker: WatchFlow.FreeGoal) {
@@ -330,7 +359,8 @@ class WatchFlowViewModel @Inject constructor(
                 mode = RunMode.FREE,
                 cardKind = CardKind.FREE_RUN,
                 startDevice = RunStartSpec.StartDevice.WATCH,
-                todayPlan = goal?.let { PlanSnapshot(targetDistance = it, targetPace = null) }
+                todayPlan = freeGoal.plan?.takeIf { it.targetDistance == goal }
+                    ?: goal?.let { PlanSnapshot(targetDistance = it, targetPace = null) }
             )
             val started = runTracker.startRun(spec)
             if (started is Outcome.Failure) {
@@ -352,6 +382,8 @@ class WatchFlowViewModel @Inject constructor(
             return
         }
         val distance = picker.current.distance ?: return
+        battleDefaultJob?.cancel()
+        battleDefault = distance
         beginRound(Round(WatchMode.BATTLE, distance))
         matchingJob?.cancel()
         waitingJob?.cancel()
@@ -631,7 +663,7 @@ class WatchFlowViewModel @Inject constructor(
     }
 
     private fun pickerOf(mode: WatchMode): WatchFlow = when (mode) {
-        WatchMode.FREE -> WatchFlow.FreeGoal(FREE_GOALS.map { WatchFlow.Choice(it) })
+        WatchMode.FREE -> freePicker()
 
         WatchMode.BATTLE -> battlePicker(selectedDistance = null)
 
@@ -647,9 +679,22 @@ class WatchFlowViewModel @Inject constructor(
         WatchMode.CELEB -> celebPicker(selectedDistance = null)
     }
 
+    /**
+     * 자유런 목표 거리(FR-244). 첫 카드는 설정 사본의 목표이고, 네 카드에 없는 계획 거리(예: 7km)는 카드를 하나 더 둔다.
+     * 시작할 때 계획 페이스를 싣도록 고른 목표를 [freeGoal]에 둔다. 목표가 없으면(null) 무제한 카드가 FREE_GOALS에 있어 더하지 않는다.
+     */
+    private fun freePicker(): WatchFlow.FreeGoal {
+        freeGoal = sessionStore.freeRunGoal(phonePlan)
+        val target = freeGoal.plan?.targetDistance
+        val goals = if (target in FREE_GOALS) FREE_GOALS else (FREE_GOALS + target).sortedBy { it?.meters ?: 0L }
+        return WatchFlow.FreeGoal(goals.map { WatchFlow.Choice(it) }, selected = goals.indexOf(target))
+    }
+
+    /** 배틀런 대결 거리(FR-257). [selectedDistance]가 없으면 기본 대결 거리(FR-109)를 처음 고른다. */
     private fun battlePicker(selectedDistance: Distance?): WatchFlow.BattleDistance {
         val choices = BATTLE_DISTANCES.map { WatchFlow.Choice(it) }
-        val selected = choices.indexOfFirst { it.distance == selectedDistance }.coerceAtLeast(0)
+        val wanted = selectedDistance ?: battleDefault
+        val selected = choices.indexOfFirst { it.distance == wanted }.coerceAtLeast(0)
         return WatchFlow.BattleDistance(choices, selected, connectivity.isOnline.value)
     }
 
@@ -666,6 +711,9 @@ class WatchFlowViewModel @Inject constructor(
     internal companion object {
         val FREE_GOALS: List<Distance?> = listOf(null, Distance(3_000), Distance(5_000), Distance(10_000))
         val BATTLE_DISTANCES = listOf(Distance(1_000), Distance(3_000), Distance(5_000), Distance(10_000))
+
+        /** 기본 대결 거리를 읽기 전·읽지 못했을 때의 첫 카드(FR-109 기본값, 폰 MatchUiState.DEFAULT_DISTANCE와 같다). */
+        val DEFAULT_BATTLE_DISTANCE = Distance(5_000)
         val SELF_DISTANCES = listOf(
             Distance(1_000),
             Distance(3_000),
