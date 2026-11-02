@@ -120,6 +120,22 @@ class FakePendingRunRepository(private val log: CallLog = CallLog()) : PendingRu
             }
         }
 
+    /** 실제 보관소처럼 REJECTED만 미전송으로 되돌리고 사유를 비운다(W40). */
+    override suspend fun resetRejected(): Outcome<Int> {
+        log.add("pending.resetRejected")
+        failWith?.let { return Outcome.Failure(it) }
+        val count = runs.count { it.uploadState == UploadState.REJECTED }
+        runs.replaceAll { kept ->
+            if (kept.uploadState == UploadState.REJECTED) {
+                kept.copy(uploadState = UploadState.NOT_SENT, rejectedReason = null)
+            } else {
+                kept
+            }
+        }
+        flow.value = runs.toList()
+        return Outcome.Success(count)
+    }
+
     override suspend fun purgeRoutes(): Outcome<Unit> = result("pending.purgeRoutes")
 
     override suspend fun purgeHeartRates(): Outcome<Unit> = result("pending.purgeHeartRates")

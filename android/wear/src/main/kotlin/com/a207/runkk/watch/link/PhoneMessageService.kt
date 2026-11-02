@@ -17,6 +17,8 @@ import javax.inject.Inject
  * 로그인 경로(D-371): 로그인 정보(WATCH_SESSION, MessageClient)와 로그아웃 표시(SESSION_REVOKED, DataClient 항목)는 우편함·PhoneLink를
  * 거치지 않고 [sessionReceiver]로 바로 넘긴다(토큰이 다른 곳에 머물지 않게, NFR-050). 지운 항목(TYPE_DELETED: 폰이 새 로그인 정보를
  * 보낸 뒤 옛 표시를 지움, H-55)은 무시한다. 그 밖의 메시지는 우편함([inbox])에 넣어 PhoneLink가 꺼낸다.
+ *
+ * 거부 기록 다시 보내기 요청(RESEND_REJECTED, W40)은 [resendReceiver]로 바로 넘긴다(PhoneLink가 돌기 전에도 처리한다).
  */
 @AndroidEntryPoint
 class PhoneMessageService : WearableListenerService() {
@@ -26,9 +28,13 @@ class PhoneMessageService : WearableListenerService() {
     @Inject
     lateinit var sessionReceiver: WatchSessionReceiver
 
+    @Inject
+    lateinit var resendReceiver: RejectedResendReceiver
+
     override fun onMessageReceived(event: MessageEvent) {
         when (event.path) {
             WearPaths.WATCH_SESSION -> sessionReceiver.onSession(event.data)
+            WearPaths.RESEND_REJECTED -> resendReceiver.onRequest(event.data)
             else -> inbox.deliver(WearMessage(event.path, event.data))
         }
     }

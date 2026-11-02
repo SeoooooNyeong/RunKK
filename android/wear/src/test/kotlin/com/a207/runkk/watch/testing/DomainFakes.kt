@@ -41,6 +41,7 @@ import com.a207.runkk.app.domain.run.RunCoach
 import com.a207.runkk.app.domain.run.RunTracker
 import com.a207.runkk.app.domain.run.RunWatchBridge
 import com.a207.runkk.app.domain.run.UploadScheduler
+import com.a207.runkk.app.domain.run.UploadState
 import com.a207.runkk.app.domain.run.WatchGateway
 import com.a207.runkk.app.domain.settings.GuidanceSettings
 import com.a207.runkk.app.domain.settings.SettingsRepository
@@ -112,6 +113,22 @@ class FakePendingRunRepository(private val events: MutableList<String> = mutable
     override fun observePending(): Flow<List<CompletedRun>> = flowOf(saved.toList())
 
     override suspend fun remove(recordId: String): Outcome<Unit> = Outcome.Success(Unit)
+
+    /** 실제 보관소처럼 REJECTED만 제자리에서 미전송으로 되돌리고 사유를 비운다(W40). */
+    override suspend fun resetRejected(): Outcome<Int> {
+        events += "pendingRuns.resetRejected"
+        val count = saved.count { it.uploadState == UploadState.REJECTED }
+        saved.replaceAll {
+            if (it.uploadState ==
+                UploadState.REJECTED
+            ) {
+                it.copy(uploadState = UploadState.NOT_SENT, rejectedReason = null)
+            } else {
+                it
+            }
+        }
+        return Outcome.Success(count)
+    }
 
     override suspend fun purgeRoutes(): Outcome<Unit> = Outcome.Success(Unit)
 

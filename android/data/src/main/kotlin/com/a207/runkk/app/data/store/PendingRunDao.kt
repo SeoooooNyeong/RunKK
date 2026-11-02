@@ -27,6 +27,13 @@ internal interface PendingRunDao {
     )
     suspend fun markState(recordId: String, state: String, reason: String?)
 
+    /** 미전송 기록 가운데 [from] 상태인 것을 [to]로 바꾸고 거부 사유를 비운다(다른 칸은 그대로, W40). 바꾼 행 수를 돌려준다. */
+    @Query(
+        "UPDATE pending_run SET uploadState = :to, rejectedReason = NULL " +
+            "WHERE uploadState = :from AND sentAtMillis IS NULL"
+    )
+    suspend fun replaceState(from: String, to: String): Int
+
     @Query("UPDATE pending_run SET route = :empty")
     suspend fun replaceRoutes(empty: ByteArray)
 

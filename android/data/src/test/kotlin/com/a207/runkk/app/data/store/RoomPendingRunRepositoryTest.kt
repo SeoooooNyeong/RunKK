@@ -175,6 +175,25 @@ class RoomPendingRunRepositoryTest {
     }
 
     @Test
+    fun `W40 거부 기록만 미전송으로 되돌리고 사유를 비우며 건수를 돌려준다(덧붙은 늦은 심박은 그대로)`() = runTest {
+        listOf("r-1", "r-2", "r-3").forEach { repository.save(completedRun(it)) }
+        val handedOut = (repository.pending() as Outcome.Success).value
+        repository.markRejected(handedOut[0], "BAD_REQUEST")
+        repository.markRejected(handedOut[2], "BAD_REQUEST")
+        repository.appendHeartRates("r-1", listOf(HeartRateSample(now.plusSeconds(700), 150)))
+        val requestsBefore = scheduler.requests
+
+        assertEquals(Outcome.Success(2), repository.resetRejected())
+
+        val kept = (repository.pending() as Outcome.Success).value
+        assertEquals(listOf("r-1", "r-2", "r-3"), kept.map { it.recordId })
+        assertTrue(kept.all { it.uploadState == UploadState.NOT_SENT && it.rejectedReason == null })
+        assertEquals(listOf(130, 140, 150), kept.first().heartRates.map { it.bpm })
+        assertEquals(requestsBefore, scheduler.requests, "전송 요청은 ResetRejectedRunsUseCase가 한다")
+        assertEquals(Outcome.Success(0), repository.resetRejected())
+    }
+
+    @Test
     fun `R12 D3 보낸 기록은 미전송 목록에서 빠지고 경로·심박·정지 구간을 지운 머리 정보만 남는다(D-77)`() = runTest {
         repository.save(completedRun("r-1"))
 

@@ -3,7 +3,7 @@ package com.a207.runkk.wear.contract
 /**
  * 폰–워치 Wearable Data Layer 경로 이름(D-20, 6.1.15, F.4.1). 경로는 더하기만 한다(D-97).
  * 심박 묶음과 로그아웃 표시만 DataClient(끊겨도 쌓였다가 전달, NFR-032, D-371)이고 나머지는 MessageClient다([DATA_ITEM_PATHS]).
- * 경로 11개는 서로 겹치지 않는다(계약 시험). 받는 쪽은 모르는 경로를 버린다(F.4.4).
+ * 경로 12개는 서로 겹치지 않는다(계약 시험). 받는 쪽은 모르는 경로를 버린다(F.4.4).
  */
 object WearPaths {
     /** 워치 → 폰: 자유런 시작 요청(MessageClient, FR-183). */
@@ -47,6 +47,9 @@ object WearPaths {
 
     /** 워치 → 폰: 워치 측정 중 여부(MessageClient, WatchMeasuringMessage, FR-252, D-371, D-373). */
     const val WATCH_MEASURING = "/runkk/watch-measuring"
+
+    /** 폰 → 워치: 거부 기록 다시 보내기 요청(MessageClient, ResendRejectedMessage, W40). 모르는 옛 워치는 버린다(D-97). */
+    const val RESEND_REJECTED = "/runkk/resend-rejected"
 
     /**
      * DataClient 항목으로 주고받는 경로(접두어). 항목은 Data Layer 저장소에 남으므로 비밀값을 싣는 경로(WATCH_SESSION)는 여기 두지 않는다

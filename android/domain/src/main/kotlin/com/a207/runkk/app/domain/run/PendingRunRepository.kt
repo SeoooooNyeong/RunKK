@@ -26,6 +26,24 @@ interface PendingRunRepository {
     suspend fun markRejected(run: CompletedRun, reason: String): Outcome<Unit> =
         save(run.copy(uploadState = UploadState.REJECTED, rejectedReason = reason))
 
+    /**
+     * 서버가 거부해 멈춘 기록(REJECTED)을 모두 미전송(NOT_SENT)으로 되돌리고 거부 사유를 비운다(W40: 앱 결함을 고친 뒤 다시 보내기).
+     * 되돌린 건수를 돌려준다. 전송 요청은 부르는 쪽(ResetRejectedRunsUseCase)이 한다. 다시 보내도 거부되면 UploadPendingRunsUseCase가
+     * 다시 REJECTED로 남긴다. 기본 구현은 미전송 목록을 읽어 상태만 바꿔 다시 저장한다. 보관소 구현은 상태 칸만 바꾼다(늦은 심박을 덮지 않게).
+     */
+    suspend fun resetRejected(): Outcome<Int> {
+        val rejected =
+            when (val read = pending()) {
+                is Outcome.Failure -> return read
+                is Outcome.Success -> read.value.filter { it.uploadState == UploadState.REJECTED }
+            }
+        rejected.forEach { run ->
+            val saved = save(run.copy(uploadState = UploadState.NOT_SENT, rejectedReason = null))
+            if (saved is Outcome.Failure) return saved
+        }
+        return Outcome.Success(rejected.size)
+    }
+
     suspend fun purgeRoutes(): Outcome<Unit>
 
     /** 미전송 기록의 심박과 늦은 심박 항목(LateHeartRates)을 함께 지운다(FR-029, TF-VA-31). */
