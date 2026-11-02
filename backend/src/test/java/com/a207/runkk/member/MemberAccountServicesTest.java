@@ -195,6 +195,23 @@ class MemberAccountServicesTest {
     }
 
     @Test
+    void purgeWithdrawn_publishesPurgedOnlyInRetryWindow() {
+        long fresh = repository.save(MemberFixtures.member("곰D", NOW.minusDays(60))).getId();
+        long old = repository.save(MemberFixtures.member("곰E", NOW.minusDays(60))).getId();
+        WithdrawalService service =
+                new WithdrawalService(
+                        repository, List.of(), List.of(), auditService, publisher, clock);
+        repository.findById(fresh).orElseThrow().withdraw(NOW.minusDays(10));
+        repository.findById(old).orElseThrow().withdraw(NOW.minusDays(11));
+
+        assertThat(service.purgeWithdrawn(NOW)).isEqualTo(2);
+
+        assertThat(published).containsExactly(new MemberPurged(fresh, NOW));
+        assertThat(repository.findById(old).orElseThrow().getSettings().recordVisibility())
+                .isEqualTo(RecordVisibility.PRIVATE);
+    }
+
+    @Test
     void tierLevelService_usesPolicyBoundary_andIgnoresRepeatedOrdinal() {
         long id = saved("달리는곰");
         TierLevelService service =
