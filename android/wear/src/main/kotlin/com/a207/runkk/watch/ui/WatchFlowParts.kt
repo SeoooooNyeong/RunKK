@@ -128,6 +128,19 @@ internal fun TierChip(tier: String, modifier: Modifier = Modifier) {
     )
 }
 
+/** 내 기본 캐릭터 전신 그림(FR-162: 여자면 여자 그림, 그 밖은 남자 그림). 장식이다. */
+@Composable
+internal fun CharacterImage(gender: Gender?, modifier: Modifier = Modifier) {
+    Image(
+        painter = painterResource(
+            if (gender == Gender.FEMALE) R.drawable.watch_character_female else R.drawable.watch_character_male
+        ),
+        contentDescription = null,
+        contentScale = ContentScale.Fit,
+        modifier = modifier
+    )
+}
+
 /** 캐릭터 얼굴(매칭 완료). 장식이다(이름을 아래에 글자로 둔다). */
 @Composable
 internal fun FaceImage(gender: Gender?, modifier: Modifier = Modifier) {

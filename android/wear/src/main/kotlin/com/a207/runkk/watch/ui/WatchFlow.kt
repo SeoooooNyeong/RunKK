@@ -15,8 +15,9 @@ sealed interface WatchFlow {
     /** 로그인 정보 없음(FR-242). 러닝을 시작할 수 없다. */
     data object NotLoggedIn : WatchFlow
 
-    /** 메인 4안 캐러셀(FR-243). */
-    data class Main(val mode: WatchMode = WatchMode.FREE, val notice: Notice? = null) : WatchFlow
+    /** 메인 4안 캐러셀(FR-243). [gender]는 내 기본 캐릭터 성별(FR-162, 모르면 null → 남자 그림). */
+    data class Main(val mode: WatchMode = WatchMode.FREE, val gender: Gender? = null, val notice: Notice? = null) :
+        WatchFlow
 
     /** 거리 카드를 고르는 화면 넷의 공통 값. [selected]는 [choices]에서 가운데 카드 위치다. */
     sealed interface Picker : WatchFlow {

@@ -98,16 +98,16 @@ class WatchScreenshotTest {
     fun notLoggedIn() = capture("N0_watch_not_logged_in", WatchFlow.NotLoggedIn)
 
     @Test
-    fun mainFree() = capture("Q1_watch_main_free", WatchFlow.Main(WatchMode.FREE))
+    fun mainFree() = capture("Q1_watch_main_free", WatchFlow.Main(WatchMode.FREE, Gender.FEMALE))
 
     @Test
-    fun mainBattle() = capture("Q2_watch_main_battle", WatchFlow.Main(WatchMode.BATTLE))
+    fun mainBattle() = capture("Q2_watch_main_battle", WatchFlow.Main(WatchMode.BATTLE, Gender.FEMALE))
 
     @Test
-    fun mainSelf() = capture("Q3_watch_main_self", WatchFlow.Main(WatchMode.SELF))
+    fun mainSelf() = capture("Q3_watch_main_self", WatchFlow.Main(WatchMode.SELF, Gender.MALE))
 
     @Test
-    fun mainCeleb() = capture("Q4_watch_main_celeb", WatchFlow.Main(WatchMode.CELEB))
+    fun mainCeleb() = capture("Q4_watch_main_celeb", WatchFlow.Main(WatchMode.CELEB, null))
 
     /** 자유런에서 배틀런으로 넘어가는 중간 프레임(Smart Animate 320ms 가운데쯤, 시계 고정). 카드가 반쯤 미끄러지며 커지고 작아진다. */
     @Test
@@ -120,7 +120,7 @@ class WatchScreenshotTest {
                         .clip(CircleShape)
                         .background(WatchColors.Background)
                 ) {
-                    WatchModeCarousel(WatchFlow.Main(WatchMode.FREE), onModeSelected = {})
+                    WatchModeCarousel(WatchFlow.Main(WatchMode.FREE, Gender.FEMALE), onModeSelected = {})
                 }
             }
         }
