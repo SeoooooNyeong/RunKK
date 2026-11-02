@@ -54,7 +54,7 @@ class WatchBattleFlow @Inject constructor(
      * 받아들여지면 [awaitMatch]로 성사를 기다린다.
      */
     suspend fun startMatching(distance: Distance): Outcome<MatchAcceptance> {
-        memory.opponent = null
+        memory.clear()
         val opened = waiter.open()
         if (opened is Outcome.Failure) return opened
         val accepted = coordinator.requestMatch(distance)
@@ -97,6 +97,7 @@ class WatchBattleFlow @Inject constructor(
 
     /** 서버 기록 대결(연결 있음, FR-258·FR-259): POST /battles/self·celebrity → 3초 카운트다운 뒤 측정(onRecordBattleStart). */
     suspend fun startRecordOnline(opponent: RecordOpponent): Outcome<Unit> {
+        memory.clear()
         val record = opponent.cached.record
         val started = when (record.kind) {
             RecordBattleKind.SELF -> battleRepository.startSelfBattle(record.distance)
@@ -106,7 +107,7 @@ class WatchBattleFlow @Inject constructor(
         }
         return when (started) {
             is Outcome.Success -> {
-                memory.opponent = opponent
+                memory.remember(opponent)
                 coordinator.onRecordBattleStart(started.value, RunStartSpec.StartDevice.WATCH)
                 Outcome.Success(Unit)
             }
@@ -118,7 +119,7 @@ class WatchBattleFlow @Inject constructor(
     /** 워치에서만 하는 기록 대결(연결 없음, D-377 U3 (나)): 미리 받은 상대 기록으로 진행하고 기록은 자유런으로 올린다. */
     fun startRecordOffline(opponent: RecordOpponent) {
         val record = opponent.cached.record
-        memory.opponent = opponent
+        memory.remember(opponent)
         coordinator.onOfflineRecordBattle(
             OfflineRecordBattle(record.kind, record.distance, record.celebrityId, record.track)
         )
@@ -144,11 +145,17 @@ class WatchBattleFlow @Inject constructor(
      * null(코드 리뷰 WR13-2). 측정 중이나 카운트다운 중에 화면을 다시 열 때 셀프·셀럽 맥락을 되살린다. 끝난 회를 화면이 확인하기 전에
      * 사라져 기억이 남아 있어도 끝 상태(Finished·Discarded)에서는 돌려주지 않는다.
      */
-    fun activeRecord(): RecordOpponent? = memory.opponent?.takeIf { step().isOpen }
+    fun activeRecord(): RecordOpponent? {
+        if (!step().isOpen) memory.clear()
+        return memory.current()
+    }
+
+    /** 기록 대결 기억을 지운다(WR14-2): 회가 끝났거나 다른 회·모드가 열렸거나 회원이 바뀌었다. */
+    fun forgetRecord() = memory.clear()
 
     /** 결과 화면이 대결 끝(Finished·Discarded)을 받았다. 다음 대결이 지난 끝 상태를 받지 않게 한다. */
     fun acknowledge() {
-        memory.opponent = null
+        memory.clear()
         coordinator.acknowledgeFinished()
     }
 
