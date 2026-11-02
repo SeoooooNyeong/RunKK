@@ -101,13 +101,21 @@ sealed interface WatchFlow {
         val notice: Notice? = null
     ) : WatchFlow
 
-    /** 자유런 일시정지(FR-247): 그때까지의 누적 거리와 계속·종료. */
-    data class Paused(val progress: RunProgress, val goal: Distance?, val notice: Notice? = null) : WatchFlow
+    /** 자유런 일시정지(FR-247): 그때까지의 누적 거리와 계속·종료. [banner]는 폰이 보낸 안내 문구다(동행 표시, FR-195). */
+    data class Paused(
+        val progress: RunProgress,
+        val goal: Distance?,
+        val notice: Notice? = null,
+        val banner: String? = null
+    ) : WatchFlow
 
     /** 결과(FR-249). */
     data class Result(val headline: WatchResultHeadline, val summary: RunSummaryView) : WatchFlow
 
-    /** 폰에서 시작한 러닝의 동행 표시(FR-042, D-380, W07). 값은 WatchViewModel(WatchUiState)이 낸다. */
+    /**
+     * 폰에서 시작한 러닝의 동행 표시(FR-042, D-380, W07). 값은 WatchViewModel(WatchUiState)이 내고, 화면은 그 값을 [Running]·[Paused]로
+     * 옮겨 워치 단독 측정 화면과 같은 모양으로 그린다(W35).
+     */
     data object Companion : WatchFlow
 
     /**
@@ -170,6 +178,12 @@ sealed interface WatchFlow {
         MEASUREMENT_STOPPED,
 
         /** 종료를 짧게 눌렀다(FR-181, FR-248). */
-        HOLD_TO_END
+        HOLD_TO_END,
+
+        /** 동행 표시 중 폰과 연결이 끊겼다(6.1.15 "연결 끊김 표시"). */
+        LINK_LOST,
+
+        /** 동행 표시에서 보낸 요청을 폰이 연결되지 않아 보내지 못했다(FR-183). */
+        PHONE_NOT_CONNECTED
     }
 }

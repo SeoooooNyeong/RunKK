@@ -192,6 +192,8 @@ internal fun noticeRes(notice: WatchFlow.Notice): Int = when (notice) {
     WatchFlow.Notice.START_FAILED -> R.string.notice_start_failed
     WatchFlow.Notice.MEASUREMENT_STOPPED -> R.string.notice_measurement_stopped
     WatchFlow.Notice.HOLD_TO_END -> R.string.hold_to_end
+    WatchFlow.Notice.LINK_LOST -> R.string.link_lost
+    WatchFlow.Notice.PHONE_NOT_CONNECTED -> R.string.phone_not_connected
 }
 
 /** 화면 위쪽(거리 위)에 잠깐 띄우는 문구 띠(안내 문구·"역전!", FR-254). */

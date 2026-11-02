@@ -64,7 +64,8 @@ class WatchViewModel @Inject constructor(
         val isPermissionNeeded: Boolean,
         val latestHeartRate: LocalHeartRate?,
         val events: LocalEvents,
-        val proximity: Proximity? = null
+        val proximity: Proximity? = null,
+        val leadChangedAtMillis: Long? = null
     )
 
     private val received = MutableStateFlow<Received?>(null)
@@ -92,6 +93,7 @@ class WatchViewModel @Inject constructor(
                 received?.let { Proximity(it.gapMeters, it.isAhead, it.intervalMillis, it.receivedAtMillis) }
             }
         ) { inputs, proximity -> inputs.copy(proximity = proximity) }
+        .combine(phoneLink.leadChangedAtMillis) { inputs, leadAt -> inputs.copy(leadChangedAtMillis = leadAt) }
         .combine(ticker) { inputs, _ -> reduce(inputs, clock.millis()) }
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), WatchUiState())
@@ -210,12 +212,13 @@ class WatchViewModel @Inject constructor(
             isPausable = isRunning && display?.isPausable == true,
             proximity = inputs.proximity
                 ?.takeIf { isRunning && now - it.atMillis < PROXIMITY_EXPIRY_MILLIS }
-                ?.let { WatchProximity(it.gapMeters, it.isAhead, it.intervalMillis) }
+                ?.let { WatchProximity(it.gapMeters, it.isAhead, it.intervalMillis) },
+            isLeadChanged = isRunning && inputs.leadChangedAtMillis?.let { now - it < LEAD_BANNER_MILLIS } == true
         )
     }
 
     internal companion object {
-        /** 이보다 오래된 심박은 빈칸(6.1.15 WatchRunDisplay). */
+        /** 이보다 오래된 심박은 빈칸(6.1.15). */
         const val HEART_RATE_STALE_MILLIS = 30_000L
 
         /** 러닝 중 폰 표시가 이만큼 없으면 연결 끊김으로 보인다(폰은 1초마다 보낸다). */
@@ -226,6 +229,9 @@ class WatchViewModel @Inject constructor(
 
         /** 근접 알림 화면을 남기는 시간. 소리·진동처럼 마지막 메시지 뒤 3초가 되면(정각 포함) 내린다(D-158). */
         const val PROXIMITY_EXPIRY_MILLIS = 3_000L
+
+        /** "역전!" 띠를 두는 시간(워치 단독 측정과 같다, WatchFlowViewModel.LEAD_BANNER_MILLIS). */
+        const val LEAD_BANNER_MILLIS = 2_000L
 
         private const val TICK_MILLIS = 1_000L
         private const val STOP_TIMEOUT_MILLIS = 5_000L
