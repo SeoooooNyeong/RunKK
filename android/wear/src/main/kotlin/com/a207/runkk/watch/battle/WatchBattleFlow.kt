@@ -163,12 +163,20 @@ class WatchBattleFlow @Inject constructor(
     suspend fun battleHeadline(battleId: Long, gapMeters: Int?): WatchResultHeadline =
         WatchResultHeadline.forBattle(result(battleId), gapMeters)
 
-    /** 서버 대결로 달린 셀프·셀럽런의 결과 머리말(서버 판정, W27, FR-250). 판정을 받지 못하면 보류다. */
-    suspend fun recordVerdictHeadline(opponent: RecordOpponent, battleId: Long): WatchResultHeadline {
+    /**
+     * 서버 대결로 달린 셀프·셀럽런의 결과 머리말(서버 판정, W27, FR-250). 판정을 받지 못하면 보류다. 서버 판정에 내 도달 시간이 없으면
+     * 이 회의 종료 요약([outcome])으로 잰 시간 차를 쓴다: 끝까지 달렸는데 STOP으로 보이지 않게 한다(R13 D1).
+     */
+    suspend fun recordVerdictHeadline(
+        opponent: RecordOpponent,
+        battleId: Long,
+        outcome: FinishOutcome
+    ): WatchResultHeadline {
         val result = result(battleId)
+        val localLead = localLeadSeconds(opponent, outcome)
         return when (opponent.cached.record.kind) {
-            RecordBattleKind.SELF -> WatchResultHeadline.forSelfVerdict(result)
-            RecordBattleKind.CELEBRITY -> WatchResultHeadline.forCelebVerdict(result, opponent.displayName)
+            RecordBattleKind.SELF -> WatchResultHeadline.forSelfVerdict(result, localLead)
+            RecordBattleKind.CELEBRITY -> WatchResultHeadline.forCelebVerdict(result, opponent.displayName, localLead)
         }
     }
 
@@ -179,8 +187,7 @@ class WatchBattleFlow @Inject constructor(
     fun recordWatchHeadline(opponent: RecordOpponent, outcome: FinishOutcome): WatchResultHeadline {
         val record = opponent.cached.record
         val run = (outcome as? FinishOutcome.Saved)?.run
-        val gapSeconds = run?.takeIf { it.distance.isAtLeast(record.distance) }
-            ?.let { record.finishTime.seconds - it.elapsed.seconds }
+        val gapSeconds = localLeadSeconds(opponent, outcome)
         return when (record.kind) {
             RecordBattleKind.CELEBRITY -> WatchResultHeadline.forCeleb(gapSeconds, record.displayName)
 
@@ -188,6 +195,14 @@ class WatchBattleFlow @Inject constructor(
                 if (headline is WatchResultHeadline.Best && run != null) onNewSelfBest(record.distance, run.elapsed)
             }
         }
+    }
+
+    /** 상대 완주 시간 − 내 도착 시간(초, 양수면 내가 빠름). 도착 전에 끝냈거나 기록이 없으면 null이다. */
+    private fun localLeadSeconds(opponent: RecordOpponent, outcome: FinishOutcome): Long? {
+        val record = opponent.cached.record
+        val run = (outcome as? FinishOutcome.Saved)?.run ?: return null
+        if (!run.distance.isAtLeast(record.distance)) return null
+        return record.finishTime.seconds - run.elapsed.seconds
     }
 
     /** 랜덤 대결까지 남은 유효 러닝 수(폰 RandomBattleGate와 같은 규칙, FR-080). null이면 열림 또는 모름(서버가 판정한다). */

@@ -229,6 +229,36 @@ class WatchResultHeadlineTest {
     }
 
     @Test
+    fun `서버 판정에 내 도달 시간이 없어도 끝까지 달렸으면 STOP이 아니라 워치가 잰 시간 차로 보인다(R13 D1)`() {
+        // 기록 4분 54초, 나 5분 36초: 서버는 카운트다운이 끝난 뒤 들어온 기록이라 LOSE이고 도달 시간을 주지 않았다.
+        assertHeadline(
+            "GOOD",
+            "최고 기록까지 42초 모자랐어요",
+            WatchResultHeadline.forSelfVerdict(battle("LOSE", mine = null, theirs = 294), localLeadSeconds = -42)
+        )
+        assertHeadline(
+            "LOSE",
+            "김*수보다 42초 늦게 들어왔어요",
+            WatchResultHeadline.forCelebVerdict(
+                battle("LOSE", mine = null, theirs = 294),
+                "김*수",
+                localLeadSeconds = -42
+            )
+        )
+        // 도착 전에 끝냈으면(워치 시간 차 없음) 그대로 STOP이다.
+        assertEquals(
+            WatchResultHeadline.Stop,
+            WatchResultHeadline.forSelfVerdict(battle("LOSE", mine = null, theirs = 294), localLeadSeconds = null)
+        )
+        // 서버 도달 시간이 있으면 서버 값이 먼저다.
+        assertHeadline(
+            "GOOD",
+            "최고 기록까지 7초 모자랐어요",
+            WatchResultHeadline.forSelfVerdict(battle("LOSE", mine = 907, theirs = 900), localLeadSeconds = -42)
+        )
+    }
+
+    @Test
     fun `서버가 먼저 도착한 기록을 LOSE로 판정하면(검증 무효) 시간 차 없이 머리말만 보인다`() {
         assertHeadline(
             "GOOD",

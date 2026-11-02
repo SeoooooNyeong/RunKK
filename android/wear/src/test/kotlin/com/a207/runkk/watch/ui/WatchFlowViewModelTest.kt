@@ -17,6 +17,7 @@ import com.a207.runkk.app.domain.account.MySummary
 import com.a207.runkk.app.domain.battle.BattleResult
 import com.a207.runkk.app.domain.battle.BattleRunCoordinator
 import com.a207.runkk.app.domain.battle.MatchAcceptance
+import com.a207.runkk.app.domain.battle.OfflineRecordBattle
 import com.a207.runkk.app.domain.battle.OpponentTrack
 import com.a207.runkk.app.domain.battle.RecordBattleKind
 import com.a207.runkk.app.domain.battle.RecordBattleStart
@@ -694,6 +695,23 @@ class WatchFlowViewModelTest {
     }
 
     @Test
+    fun `거리 0으로 길게 눌러 끝내면 저장하지 않았다는 안내와 메인으로 가고 안내는 잠시 뒤 사라진다(R13 D4)`() = flowTest {
+        val h = open()
+        h.vm.onModeSelected(WatchMode.FREE)
+        h.vm.onStartPressed()
+        passCountdown()
+
+        h.vm.onEndLongPressed()
+        runCurrent()
+
+        assertEquals(WatchFlow.Notice.NOT_SAVED, (h.flow as WatchFlow.Main).notice)
+        assertTrue(pendingRuns.saved.isEmpty())
+        advanceTimeBy(WatchFlowViewModel.NOTICE_MILLIS + 1)
+        runCurrent()
+        assertNull((h.flow as WatchFlow.Main).notice)
+    }
+
+    @Test
     fun `측정 중 받은 로그아웃은 결과를 닫을 때 지우고 미로그인 안내로 간다(FR-241, D-389)`() = flowTest {
         val h = open()
         h.vm.onModeSelected(WatchMode.FREE)
@@ -963,6 +981,66 @@ class WatchFlowViewModelTest {
         runCurrent()
 
         assertIs<WatchFlow.Main>(h.flow)
+    }
+
+    @Test
+    fun `서버 셀프런을 기록보다 늦게 완주하면 판정을 기다리는 동안 다른 사건이 와도 결과가 남고 서버가 도달 시간 없이 LOSE를 줘도 GOOD이다(R13 D1)`() = flowTest {
+        // 셀프 기록 3km 14분 18초(858초), 나는 15분(900초)에 들어온다. 기록이 먼저 도착해 서버 시계가 대결을 닫은 뒤(RESULT_PENDING)
+        // 기록이 올라가고, 서버는 카운트다운 뒤에 도착한 기록이라 LOSE로 판정하며 내 도달 시간을 주지 않는다(myReach 없음).
+        battles.tracks[RecordBattleKind.SELF] = listOf(selfTrack(distanceMeters = 3_000, finishSeconds = 858))
+        battles.results[7] = verdict("WIN", mine = 0, theirs = 0).copy(isPending = true, verdict = null)
+        val h = open()
+        startOnlineSelf(h)
+        runNorth(h.tracker, meters = 3_000)
+        advanceTimeBy(WatchFlowViewModel.OUTCOME_WAIT_MILLIS)
+        runCurrent()
+        assertEquals(WatchResultHeadline.Pending, h.headline)
+
+        // 판정을 기다리는 동안: 로그인 정보 다시 받음, 폰 측정 시작과 끝, 조정자의 다음 단계(Countdown, Discarded, Idle).
+        backgroundScope.launch { h.store.accept(session()) }
+        phoneRunning(true)
+        phoneRunning(false)
+        h.coordinator.onOfflineRecordBattle(
+            OfflineRecordBattle(
+                RecordBattleKind.SELF,
+                Distance(1_000),
+                celebrityId = null,
+                track = OpponentTrack.uniform(Distance(1_000), Duration.ofSeconds(300))
+            )
+        )
+        runCurrent()
+        h.coordinator.cancel()
+        runCurrent()
+        h.coordinator.acknowledgeFinished()
+        runCurrent()
+        assertEquals(WatchResultHeadline.Pending, h.headline)
+
+        battles.results[7] = verdict("LOSE", mine = null, theirs = 858)
+        advanceTimeBy(WatchFlowViewModel.RESULT_RETRY_MILLIS)
+        runCurrent()
+        val result = h.flow as WatchFlow.Result
+        assertTrue(result.summary.distance.meters >= 3_000)
+        val good = WatchResultHeadline.Good(result.summary.elapsed.seconds - 858)
+        assertEquals(good, result.headline)
+        assertTrue(good.gapSeconds!! in 42L..43L)
+
+        // 완료를 누를 때까지 결과에 머문다.
+        advanceTimeBy(WatchFlowViewModel.RESULT_RETRY_MILLIS * WatchFlowViewModel.RECORD_RESULT_ATTEMPTS)
+        runCurrent()
+        assertEquals(good, h.headline)
+        h.vm.onResultClosed()
+        assertIs<WatchFlow.Main>(h.flow)
+    }
+
+    @Test
+    fun `서버 셀프런을 도착 전에 끝내고 서버가 도달 시간 없이 판정하면 STOP이다(R13 D1)`() = flowTest {
+        battles.results[7] = verdict("LOSE", mine = null, theirs = 900)
+        val h = open()
+        startOnlineSelf(h)
+
+        runAndEnd(h)
+
+        assertEquals(WatchResultHeadline.Stop, h.headline)
     }
 
     @Test

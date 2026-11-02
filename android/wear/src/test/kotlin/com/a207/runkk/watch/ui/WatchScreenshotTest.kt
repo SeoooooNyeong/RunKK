@@ -109,6 +109,13 @@ class WatchScreenshotTest {
     @Test
     fun mainCeleb() = capture("Q4_watch_main_celeb", WatchFlow.Main(WatchMode.CELEB, null))
 
+    /** 거리 0으로 끝내 저장하지 않았다는 안내를 메인 위에 띄운다(R13 D4). */
+    @Test
+    fun mainNotSaved() = capture(
+        "Q1_watch_main_not_saved",
+        WatchFlow.Main(WatchMode.FREE, Gender.FEMALE, notice = WatchFlow.Notice.NOT_SAVED)
+    )
+
     /** 자유런에서 배틀런으로 넘어가는 중간 프레임(Smart Animate 320ms 가운데쯤, 시계 고정). 카드가 반쯤 미끄러지며 커지고 작아진다. */
     @Test
     fun mainTransition() {
@@ -303,6 +310,13 @@ class WatchScreenshotTest {
 
     @Test
     fun resultPending() = capture("BW1_watch_result_pending", WatchFlow.Result(WatchResultHeadline.Pending, summary))
+
+    /** 평균 심박이 없으면 그 칸을 비운다(FR-249, R13 D5). */
+    @Test
+    fun resultNoHeartRate() = capture(
+        "SL3_watch_result_good_no_heart_rate",
+        WatchFlow.Result(WatchResultHeadline.Good(42), summary.copy(averageHeartRate = null))
+    )
 
     /** 폰 자유런 동행 표시(계획 5km): 워치 단독 FR3과 같은 모양(W35). */
     @Test

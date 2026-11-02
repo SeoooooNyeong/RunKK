@@ -3,6 +3,7 @@ package com.a207.runkk.watch.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -70,10 +71,13 @@ fun WatchResultScreen(state: WatchFlow.Result, onClose: () -> Unit, modifier: Mo
             }
             Row(modifier = Modifier.padding(top = 2.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 ResultMetric(WatchFormat.pace(summary.averagePace?.secondsPerKm), stringResource(R.string.result_pace))
-                ResultMetric(
-                    WatchFormat.heartRate(summary.averageHeartRate),
-                    stringResource(R.string.result_heart_rate)
-                )
+                // 평균 심박이 없으면 "--" 대신 그 칸을 비운다(FR-249, R13 D5). 평균 페이스 자리는 그대로 둔다.
+                val heartRate = summary.averageHeartRate
+                if (heartRate != null) {
+                    ResultMetric(WatchFormat.heartRate(heartRate), stringResource(R.string.result_heart_rate))
+                } else {
+                    Spacer(Modifier.width(METRIC_WIDTH))
+                }
             }
             PillButton(
                 text = stringResource(R.string.result_done),
@@ -88,13 +92,16 @@ fun WatchResultScreen(state: WatchFlow.Result, onClose: () -> Unit, modifier: Mo
 @Composable
 private fun ResultMetric(value: String, label: String) {
     Column(
-        modifier = Modifier.width(64.dp).semantics(mergeDescendants = true) {},
+        modifier = Modifier.width(METRIC_WIDTH).semantics(mergeDescendants = true) {},
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(text = value, style = numberStyle(18.sp))
         Text(text = label, style = labelStyle(color = WatchColors.OnSurface, size = 8.sp))
     }
 }
+
+/** 결과 수치 한 칸의 너비. */
+private val METRIC_WIDTH = 64.dp
 
 /** 머리말 색: 목표 달성·이김·최고 기록은 라임, 끝냄은 흰색, 중간 종료·짐은 주황, 최고 기록 미달은 라벤더. */
 private fun colorOf(headline: WatchResultHeadline): Color = when (headline) {
