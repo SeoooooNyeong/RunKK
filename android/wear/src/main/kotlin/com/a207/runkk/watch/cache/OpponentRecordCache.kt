@@ -69,7 +69,12 @@ class OpponentRecordCache internal constructor(
     private val fileMutex = Mutex()
 
     /** 회원ID와 그 회원의 상대 기록. memberId가 null이면 비어 있다. */
-    private data class Snapshot(val memberId: Long?, val tracks: List<CachedTrack>) {
+    private data class Snapshot(
+        val memberId: Long?,
+        val tracks: List<CachedTrack>,
+        /** 셀프 목록을 한 번이라도 받았는가(W32). 받았는데 비어 있는 것과 받은 적 없는 것을 가른다. */
+        val isSelfReceived: Boolean = false
+    ) {
         companion object {
             val EMPTY = Snapshot(null, emptyList())
         }
@@ -89,7 +94,9 @@ class OpponentRecordCache internal constructor(
         val isApplied = synchronized(lock) {
             if (generation != startedIn) return@synchronized false
             // 받는 동안 바뀐 값(onNewSelfBest, 셀럽 구간 기록)을 잃지 않게 지금 메모리 사본 위에 받은 종류만 바꾼다.
-            var tracks = snapshotLocked().takeIf { it.memberId == memberId }?.tracks.orEmpty()
+            val previous = snapshotLocked().takeIf { it.memberId == memberId }
+            var tracks = previous?.tracks.orEmpty()
+            val isSelfReceived = previous?.isSelfReceived == true || fetched[RecordBattleKind.SELF] is Outcome.Success
             fetched.forEach { (kind, outcome) ->
                 if (outcome is Outcome.Success) {
                     val kept = tracks.filter { it.record.kind == kind && it.hasTrack }
@@ -97,7 +104,7 @@ class OpponentRecordCache internal constructor(
                         outcome.value.map { keepTrack(CachedTrack(it, fetchedAt), kept) }
                 }
             }
-            cached = Snapshot(memberId, tracks)
+            cached = Snapshot(memberId, tracks, isSelfReceived)
             true
         }
         if (isApplied) persist(startedIn) else Timber.i("받는 동안 상대 기록을 지워 받은 값을 버린다")
@@ -105,6 +112,9 @@ class OpponentRecordCache internal constructor(
     }
 
     fun selfCandidates(): List<CachedTrack> = snapshot().tracks.filter { it.record.kind == RecordBattleKind.SELF }
+
+    /** 셀프 목록을 받은 적이 있는지(W32). 받은 적 없이 오프라인이면 화면이 "연결되면 고를 수 있어요"를 보인다. */
+    fun isSelfReceived(): Boolean = snapshot().isSelfReceived
 
     fun celebrityCandidates(distance: Distance): List<CachedTrack> = snapshot().tracks.filter {
         it.record.kind == RecordBattleKind.CELEBRITY && it.record.distance == distance
@@ -222,7 +232,13 @@ class OpponentRecordCache internal constructor(
         if (!file.exists()) return Snapshot.EMPTY
         return try {
             val records = JSON.decodeFromString(CachedRecords.serializer(), file.readText())
-            Snapshot(records.memberId, records.tracks.map { it.toCached() })
+            val tracks = records.tracks.map { it.toCached() }
+            // 옛 파일(isSelfReceived 없음)은 셀프 기록이 하나라도 있으면 받은 것으로 본다.
+            Snapshot(
+                records.memberId,
+                tracks,
+                records.isSelfReceived || tracks.any { it.record.kind == RecordBattleKind.SELF }
+            )
         } catch (e: IOException) {
             Timber.w(e, "상대 기록 파일을 읽지 못했다")
             Snapshot.EMPTY
@@ -238,7 +254,8 @@ class OpponentRecordCache internal constructor(
     /** 임시 파일에 쓴 뒤 바꿔 넣는다(쓰는 도중 죽어도 이전 파일이 남는다). fileMutex 안에서 부른다. */
     private fun write(snapshot: Snapshot) {
         val memberId = snapshot.memberId ?: return
-        val records = CachedRecords(memberId, snapshot.tracks.map { CachedRecords.Entry.of(it) })
+        val records =
+            CachedRecords(memberId, snapshot.tracks.map { CachedRecords.Entry.of(it) }, snapshot.isSelfReceived)
         val temp = File(file.parentFile, "${file.name}.tmp")
         try {
             temp.writeText(JSON.encodeToString(CachedRecords.serializer(), records))

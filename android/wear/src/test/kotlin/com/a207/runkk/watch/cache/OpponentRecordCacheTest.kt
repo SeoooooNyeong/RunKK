@@ -108,6 +108,33 @@ class OpponentRecordCacheTest {
     }
 
     @Test
+    fun `셀프 목록을 받은 적은 비어 있어도 남고 받기 실패만 있으면 없다(W32)`() = runTest {
+        val cache = cache()
+        assertFalse(cache.isSelfReceived())
+
+        assertIs<Outcome.Failure>(cache.refresh(memberId = 7))
+        assertFalse(cache.isSelfReceived())
+
+        battles.tracks[RecordBattleKind.SELF] = emptyList()
+        cache.refresh(memberId = 7)
+        assertTrue(cache.isSelfReceived())
+        assertTrue(cache().isSelfReceived())
+
+        cache.clear()
+        assertFalse(cache.isSelfReceived())
+    }
+
+    @Test
+    fun `옛 파일은 셀프 기록이 있으면 받은 것으로 읽는다(W32)`() = runTest {
+        battles.tracks[RecordBattleKind.SELF] = listOf(selfTrack(3_000, 900))
+        battles.tracks[RecordBattleKind.CELEBRITY] = emptyList()
+        cache().refresh(memberId = 7)
+        file.writeText(file.readText().replace(",\"isSelfReceived\":true", ""))
+
+        assertTrue(cache().isSelfReceived())
+    }
+
+    @Test
     fun `다른 회원으로 받으면 이전 회원의 기록을 남기지 않는다`() = runTest {
         battles.tracks[RecordBattleKind.SELF] = listOf(selfTrack(3_000, 900))
         battles.tracks[RecordBattleKind.CELEBRITY] = listOf(celebrityTrack(1, 5_000, 1_500))

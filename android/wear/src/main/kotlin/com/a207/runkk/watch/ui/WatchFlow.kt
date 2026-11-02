@@ -113,13 +113,14 @@ sealed interface WatchFlow {
 
     /**
      * 거리 카드 하나. [distance]가 null이면 자유런 무제한이다. [record]는 셀프런 내 최고 기록 시간, [count]는 셀럽 기록 수다.
-     * [isEnabled]가 거짓이면 누를 수 없다(기록 없음).
+     * [isEnabled]가 거짓이면 누를 수 없다(기록 없음). [isOfflineLocked]는 셀프 기록을 받은 적 없이 오프라인이라 누를 수 없는 카드다(W32).
      */
     data class Choice(
         val distance: Distance?,
         val record: Duration? = null,
         val count: Int? = null,
-        val isEnabled: Boolean = true
+        val isEnabled: Boolean = true,
+        val isOfflineLocked: Boolean = false
     )
 
     /** 화면에 잠깐 띄우는 안내. 문구는 화면이 문자열 리소스로 바꾼다. */
