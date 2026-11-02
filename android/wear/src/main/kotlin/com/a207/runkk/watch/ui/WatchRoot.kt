@@ -10,10 +10,10 @@ import androidx.wear.compose.material3.TimeText
 
 /**
  * 앱 전체 틀. 화면은 [WatchFlow] 상태 하나로 고른다(D-374, 상태도 2.4.25). 폰에서 시작한 러닝의 동행 표시([WatchFlow.Companion])는
- * 기존 화면(와이어프레임 K2·K4·K5)을 [companion] 상태로 그린다(D-380, W07).
+ * [companion] 상태를 워치 단독 측정 화면 상태로 옮겨 같은 화면(피그마 FR∞·FR3·BR1·SR3·FP∞)으로 그리고, 조작은 폰에 요청한다(D-380, W35).
  * 뒤로 가기는 거리 선택·셀럽 목록·매칭 중에서만 받는다: SwipeToDismissBox(오른쪽으로 쓸기)와 뒤로 버튼이 [WatchActions.onBack]을
  * 부른다(J-4). 카운트다운·측정·일시정지·매칭 완료·결과에서는 받지 않고, 하드웨어 뒤로 키도 소비해 앱이 닫히지 않게 한다(상태도 2.4.25,
- * 코드 리뷰 WR12-2: 닫히면 결과를 잃고 대결 화면이 끊긴다). 메인·미로그인·동행 표시의 뒤로 키는 시스템 기본 동작(앱 닫기)이다. 시각 표시는 동행 표시와 메인·목록 화면에만 둔다(피그마 측정·카운트다운에는 없다).
+ * 코드 리뷰 WR12-2: 닫히면 결과를 잃고 대결 화면이 끊긴다). 메인·미로그인·동행 표시의 뒤로 키는 시스템 기본 동작(앱 닫기)이다. 시각 표시는 메인·미로그인 화면에만 둔다(피그마 측정·카운트다운에는 없다).
  */
 @Composable
 fun WatchRoot(
@@ -73,18 +73,30 @@ private fun FlowScreen(flow: WatchFlow, companion: WatchUiState, actions: WatchA
 
         is WatchFlow.Result -> WatchResultScreen(flow, onClose = actions.onResultClosed)
 
-        WatchFlow.Companion -> CompanionScreen(companion, actions)
+        WatchFlow.Companion -> CompanionScreen(companion, actions, isAmbient)
     }
 }
 
-/** 동행 표시(와이어프레임 K2·K4·K5): 정지 중이면 일시정지, 근접 알림 중이면 대결 근접 화면, 아니면 러닝 화면. */
+/** 동행 표시(W35): 워치 단독 측정·일시정지 화면을 그대로 쓰고 조작은 폰 요청(onCompanion…)으로 잇는다. */
 @Composable
-private fun CompanionScreen(state: WatchUiState, actions: WatchActions) {
-    val proximity = state.proximity
-    when {
-        state.isPaused -> WatchPausedScreen(state = state, actions = actions)
-        proximity != null -> WatchBattleScreen(state = state, proximity = proximity)
-        else -> WatchRunDisplay(state = state, actions = actions)
+private fun CompanionScreen(state: WatchUiState, actions: WatchActions, isAmbient: Boolean) {
+    when (val shown = state.toMeasureFlow()) {
+        is WatchFlow.Paused -> WatchPausedScreen(
+            shown,
+            onResume = actions.onCompanionResumeTapped,
+            onEndTapped = actions.onCompanionEndTapped,
+            onEndLongPressed = actions.onCompanionEndLongPressed
+        )
+
+        is WatchFlow.Running -> WatchRunScreen(
+            shown,
+            onPause = actions.onCompanionPauseTapped,
+            onEndTapped = actions.onCompanionEndTapped,
+            onEndLongPressed = actions.onCompanionEndLongPressed,
+            isAmbient = isAmbient
+        )
+
+        else -> Unit
     }
 }
 
@@ -92,9 +104,8 @@ private fun CompanionScreen(state: WatchUiState, actions: WatchActions) {
 private fun WatchFlow.holdsBackKey(): Boolean =
     this !is WatchFlow.Main && this !is WatchFlow.NotLoggedIn && this !is WatchFlow.Companion
 
-/** 시각 표시를 둘 화면: 동행 표시, 메인, 목록. */
-private fun WatchFlow.showsTime(): Boolean =
-    this is WatchFlow.Companion || this is WatchFlow.Main || this is WatchFlow.NotLoggedIn
+/** 시각 표시를 둘 화면: 메인, 미로그인. */
+private fun WatchFlow.showsTime(): Boolean = this is WatchFlow.Main || this is WatchFlow.NotLoggedIn
 
 /** SwipeToDismissBox 뒤 화면 자리 키. */
 private const val BACKGROUND_KEY = "watch-flow-background"

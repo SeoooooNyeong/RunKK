@@ -12,8 +12,6 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performTouchInput
-import androidx.compose.ui.test.swipeUp
 import androidx.wear.compose.material3.TimeSource
 import androidx.wear.compose.material3.TimeText
 import com.a207.runkk.app.core.model.Distance
@@ -37,7 +35,7 @@ import org.robolectric.annotation.Config
 
 /**
  * 워치 화면 스크린샷. 작은 원형 워치(192dp, 384px)에 원으로 잘라 찍는다. 앱 프로세스(Hilt RunkkWatchApp) 대신 빈 Application으로 띄운다.
- * 이름 머리는 피그마 프레임(Q·F·B·S·C 흐름, 결과)과 와이어프레임 K2·K4·K5(동행 표시)다. 기록: recordRoborazziLocalDebug,
+ * 이름 머리는 피그마 프레임(Q·F·B·S·C 흐름, 결과)과 K2·K4·K5(폰 러닝 동행 표시, W35부터 측정 화면과 같은 모양)다. 기록: recordRoborazziLocalDebug,
  * 검증: verifyRoborazziLocalDebug.
  */
 @RunWith(RobolectricTestRunner::class)
@@ -67,12 +65,10 @@ class WatchScreenshotTest {
 
     private val summary = RunSummaryView(Distance(3_000), Duration.ofSeconds(1_170), Pace(390), 154)
 
-    /** [isScrolledToEnd]면 크라운으로 끝까지 내린 모습을 찍는다. */
     private fun capture(
         name: String,
         flow: WatchFlow,
         companionState: WatchUiState = companion,
-        isScrolledToEnd: Boolean = false,
         isAmbient: Boolean = false
     ) {
         compose.setContent {
@@ -92,10 +88,6 @@ class WatchScreenshotTest {
                     )
                 }
             }
-        }
-        if (isScrolledToEnd) {
-            compose.onRoot().performTouchInput { swipeUp() }
-            compose.waitForIdle()
         }
         compose.onRoot().captureRoboImage("src/test/snapshots/$name.png")
     }
@@ -312,31 +304,30 @@ class WatchScreenshotTest {
     @Test
     fun resultPending() = capture("BW1_watch_result_pending", WatchFlow.Result(WatchResultHeadline.Pending, summary))
 
+    /** 폰 자유런 동행 표시(계획 5km): 워치 단독 FR3과 같은 모양(W35). */
     @Test
-    fun companionRun() = capture("K2_watch_run", WatchFlow.Companion, companion.copy(isPausable = true))
+    fun companionRun() =
+        capture("K2_watch_run", WatchFlow.Companion, companion.copy(isPausable = true, planDistanceMeters = 5_000))
 
-    @Test
-    fun companionRunActions() =
-        capture("K2_watch_run_actions", WatchFlow.Companion, companion.copy(isPausable = true), isScrolledToEnd = true)
-
-    /** 대결·크루런(일시정지 없음)에서 폰 연결이 끊겼을 때. */
+    /** 폰 대결 중 폰 연결이 끊겼을 때. 근접 값이 없어 거리 차 칸이 비고 "폰 연결 끊김"을 띄운다. */
     @Test
     fun companionLinkLost() =
         capture("K2_watch_run_link_lost", WatchFlow.Companion, companion.copy(isLinkLost = true, heartRateBpm = null))
 
     @Test
+    fun companionAmbient() = capture(
+        "K2_watch_run_ambient",
+        WatchFlow.Companion,
+        companion.copy(isPausable = true, planDistanceMeters = 5_000),
+        isAmbient = true
+    )
+
+    /** 폰 자유런 일시정지: 워치 단독 FP3과 같은 모양(계속·종료는 폰에 요청). */
+    @Test
     fun companionPaused() = capture(
         "K4_watch_paused",
         WatchFlow.Companion,
-        companion.copy(isPaused = true, isPausable = true, paceSecondsPerKm = null, heartRateBpm = 138)
-    )
-
-    @Test
-    fun companionPausedActions() = capture(
-        "K4_watch_paused_actions",
-        WatchFlow.Companion,
-        companion.copy(isPaused = true, isPausable = true, paceSecondsPerKm = null, heartRateBpm = 138),
-        isScrolledToEnd = true
+        companion.copy(isPaused = true, isPausable = true, paceSecondsPerKm = null, planDistanceMeters = 5_000)
     )
 
     @Test
@@ -346,6 +337,7 @@ class WatchScreenshotTest {
         companion.copy(
             elapsedSeconds = 940,
             distanceMeters = 2_840,
+            planDistanceMeters = 3_000,
             proximity = WatchProximity(gapMeters = 18, isAhead = true, intervalMillis = 600)
         )
     )
@@ -357,7 +349,29 @@ class WatchScreenshotTest {
         companion.copy(
             elapsedSeconds = 940,
             distanceMeters = 2_820,
+            planDistanceMeters = 3_000,
             proximity = WatchProximity(gapMeters = 72, isAhead = false, intervalMillis = 1_510)
+        )
+    )
+
+    /** 폰 대결인데 100m 밖이라 근접 값이 없다: 거리 차 칸을 비운다. */
+    @Test
+    fun companionBattleFar() = capture(
+        "K5_watch_battle_far",
+        WatchFlow.Companion,
+        companion.copy(elapsedSeconds = 940, distanceMeters = 2_610, planDistanceMeters = 3_000)
+    )
+
+    @Test
+    fun companionBattleLeadChanged() = capture(
+        "K5_watch_battle_lead",
+        WatchFlow.Companion,
+        companion.copy(
+            elapsedSeconds = 940,
+            distanceMeters = 2_840,
+            planDistanceMeters = 3_000,
+            proximity = WatchProximity(gapMeters = 2, isAhead = true, intervalMillis = 300),
+            isLeadChanged = true
         )
     )
 }
