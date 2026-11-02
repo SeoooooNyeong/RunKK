@@ -45,7 +45,8 @@ internal fun CompletedRun.toEntity(): PendingRunEntity = PendingRunEntity(
     savedAtMillis = savedAt.toEpochMilli(),
     sentAtMillis = null,
     pauses = encodePauses(pauses),
-    startDevice = startDevice.name
+    startDevice = startDevice.name,
+    rejectedReason = rejectedReason
 )
 
 internal fun PendingRunEntity.toDomain(): CompletedRun = CompletedRun(
@@ -63,7 +64,8 @@ internal fun PendingRunEntity.toDomain(): CompletedRun = CompletedRun(
     pauses = decodePauses(pauses),
     startDevice = RunStartSpec.StartDevice.valueOf(startDevice),
     uploadState = UploadState.valueOf(uploadState),
-    savedAt = Instant.ofEpochMilli(savedAtMillis)
+    savedAt = Instant.ofEpochMilli(savedAtMillis),
+    rejectedReason = rejectedReason
 )
 
 internal fun encodeRoute(points: List<RoutePoint>): ByteArray = compress(points.size) { out ->

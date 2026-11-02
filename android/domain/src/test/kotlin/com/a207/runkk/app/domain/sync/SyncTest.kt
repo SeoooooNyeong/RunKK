@@ -8,6 +8,9 @@ import com.a207.runkk.app.core.model.RunMode
 import com.a207.runkk.app.domain.run.CompletedRun
 import com.a207.runkk.app.domain.run.HeartRateSample
 import com.a207.runkk.app.domain.run.LateHeartRates
+import com.a207.runkk.app.domain.run.PauseInterval
+import com.a207.runkk.app.domain.run.PendingRunRepository
+import com.a207.runkk.app.domain.run.UploadState
 import com.a207.runkk.app.domain.testing.CallLog
 import com.a207.runkk.app.domain.testing.FakePendingRunRepository
 import com.a207.runkk.app.domain.testing.T0
@@ -15,6 +18,7 @@ import java.time.Duration
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
 import kotlinx.coroutines.test.runTest
 
 private fun run(id: String, heartRates: List<HeartRateSample> = emptyList()) = CompletedRun(
@@ -35,8 +39,12 @@ private fun run(id: String, heartRates: List<HeartRateSample> = emptyList()) = C
 private class FakeRunUploadRemote(private val log: CallLog) : RunUploadRemote {
     val results = mutableMapOf<String, Outcome<UploadReceipt>>()
 
+    /** upload가 받은 기록(전송 직전 자르기 확인용). */
+    val uploaded = mutableListOf<CompletedRun>()
+
     override suspend fun upload(run: CompletedRun): Outcome<UploadReceipt> {
         log.add("remote.upload:${run.recordId}")
+        uploaded += run
         return results[run.recordId] ?: Outcome.Success(UploadReceipt(run.recordId, isAlreadySaved = false))
     }
 
@@ -127,6 +135,84 @@ class SyncTest {
         val outcomes = UploadPendingRunsUseCase(pending, remote)()
         assertEquals(listOf(UploadOutcome.Failed("a", AppError.Network), UploadOutcome.Sent("b")), outcomes)
         assertEquals(listOf("a"), pending.runs.map { it.recordId })
+    }
+
+    @Test
+    fun `R12 D2-b 서버가 4xx로 거부한 기록은 지우지 않고 사유와 함께 REJECTED로 남기고 다음 실행에 다시 보내지 않는다`() = runTest {
+        pending.runs += listOf(run("bad"), run("ok"))
+        remote.results["bad"] = Outcome.Failure(AppError.Rejected("BAD_REQUEST"))
+
+        val first = UploadPendingRunsUseCase(pending, remote)()
+
+        assertEquals(
+            listOf(UploadOutcome.Failed("bad", AppError.Rejected("BAD_REQUEST")), UploadOutcome.Sent("ok")),
+            first
+        )
+        val kept = pending.runs.single()
+        assertEquals("bad", kept.recordId)
+        assertEquals(UploadState.REJECTED, kept.uploadState)
+        assertEquals("BAD_REQUEST", kept.rejectedReason)
+
+        log.calls.clear()
+        val second = UploadPendingRunsUseCase(pending, remote)()
+
+        assertEquals(emptyList(), second)
+        assertEquals(listOf("pending.pending", "pending.pendingLateHeartRates"), log.calls)
+        assertEquals(listOf("bad"), pending.runs.map { it.recordId })
+    }
+
+    @Test
+    fun `R12 D2-b 네트워크·인증·5xx 실패는 REJECTED로 바꾸지 않고 다음 실행에 다시 보낸다`() = runTest {
+        pending.runs += listOf(run("net"), run("auth"), run("server"))
+        remote.results["net"] = Outcome.Failure(AppError.Network)
+        remote.results["auth"] = Outcome.Failure(AppError.Unauthorized)
+        remote.results["server"] = Outcome.Failure(AppError.Server(503))
+
+        UploadPendingRunsUseCase(pending, remote)()
+
+        assertTrue(pending.runs.all { it.uploadState == UploadState.NOT_SENT })
+        assertTrue(log.calls.none { it.startsWith("pending.markRejected") })
+        remote.results.clear()
+        UploadPendingRunsUseCase(pending, remote)()
+        assertEquals(emptyList(), pending.runs)
+    }
+
+    @Test
+    fun `R12 D2-b 거부 표시를 남기지 못하면 저장 실패로 돌려 재전송 대상이 된다`() = runTest {
+        pending.runs += run("bad")
+        remote.results["bad"] = Outcome.Failure(AppError.Rejected("BAD_REQUEST"))
+        val failing =
+            object : PendingRunRepository by pending {
+                override suspend fun markRejected(run: CompletedRun, reason: String): Outcome<Unit> =
+                    Outcome.Failure(AppError.Storage)
+            }
+
+        val outcomes = UploadPendingRunsUseCase(failing, remote)()
+
+        assertEquals(listOf(UploadOutcome.Failed("bad", AppError.Storage)), outcomes)
+    }
+
+    @Test
+    fun `R12 D2 정지 끝이 기록 끝을 넘친 옛 기록은 보내기 직전에 잘라 보내고 성공하면 지운다`() = runTest {
+        // 에뮬레이터 보관함 사례: 끝 = 시작 + 110_191ms, 둘째 정지 끝 = 시작 + 110_192ms.
+        val overflowing =
+            run("old").copy(
+                elapsed = Duration.ofMillis(70_090),
+                pauses =
+                    listOf(
+                        PauseInterval(T0.plusMillis(40_000), T0.plusMillis(60_000)),
+                        PauseInterval(T0.plusMillis(90_091), T0.plusMillis(110_192))
+                    )
+            )
+        pending.runs += overflowing
+
+        val outcomes = UploadPendingRunsUseCase(pending, remote)()
+
+        assertEquals(listOf(UploadOutcome.Sent("old")), outcomes)
+        val sent = remote.uploaded.single()
+        assertEquals(T0.plusMillis(110_191), sent.endedAt)
+        assertEquals(T0.plusMillis(110_191), sent.pauses.last().to)
+        assertEquals(emptyList(), pending.runs)
     }
 
     @Test

@@ -17,6 +17,7 @@ import com.a207.runkk.app.domain.run.RunCoach
 import com.a207.runkk.app.domain.run.RunTracker
 import com.a207.runkk.app.domain.run.RunWatchBridge
 import com.a207.runkk.app.domain.run.UploadScheduler
+import com.a207.runkk.app.domain.run.UploadState
 import com.a207.runkk.app.domain.run.WatchDisplay
 import com.a207.runkk.app.domain.run.WatchGateway
 import com.a207.runkk.app.domain.settings.GuidanceSettings
@@ -103,6 +104,21 @@ class FakePendingRunRepository(private val log: CallLog = CallLog()) : PendingRu
             flow.value = runs.toList()
         }
     }
+
+    /** 실제 보관소처럼 상태와 사유만 바꾸고 보관함에 남긴다(R12 D2-b). */
+    override suspend fun markRejected(run: CompletedRun, reason: String): Outcome<Unit> =
+        result("pending.markRejected:${run.recordId}").also {
+            if (it is Outcome.Success) {
+                runs.replaceAll { kept ->
+                    if (kept.recordId == run.recordId) {
+                        kept.copy(uploadState = UploadState.REJECTED, rejectedReason = reason)
+                    } else {
+                        kept
+                    }
+                }
+                flow.value = runs.toList()
+            }
+        }
 
     override suspend fun purgeRoutes(): Outcome<Unit> = result("pending.purgeRoutes")
 

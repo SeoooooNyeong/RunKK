@@ -8,6 +8,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.platform.app.InstrumentationRegistry
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import org.junit.Rule
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -118,6 +119,26 @@ class PendingRunDatabaseMigrationTest {
                 row.step()
                 assertEquals("r-1", row.getText(0))
                 assertEquals("PHONE", row.getText(1))
+            }
+        }
+    }
+
+    @Test
+    fun `R12 판 4의 미전송 기록이 판 5로 옮겨도 남고 거부 사유는 비어 있다`() {
+        helper.createDatabase(4).use { v4 ->
+            v4.execSQL(
+                "INSERT INTO pending_run VALUES ('r-1', 'FREE', 'FREE_RUN', NULL, NULL, 0, 1000, 100, " +
+                    "x'', x'', x'', 'NOT_SENT', 0, NULL, x'', 'WATCH')"
+            )
+        }
+
+        helper.runMigrationsAndValidate(5).use { v5 ->
+            v5.prepare("SELECT recordId, uploadState, startDevice, rejectedReason FROM pending_run").use { row ->
+                row.step()
+                assertEquals("r-1", row.getText(0))
+                assertEquals("NOT_SENT", row.getText(1))
+                assertEquals("WATCH", row.getText(2))
+                assertTrue(row.isNull(3))
             }
         }
     }
