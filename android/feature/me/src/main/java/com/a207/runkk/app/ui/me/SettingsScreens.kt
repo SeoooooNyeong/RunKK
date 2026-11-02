@@ -106,7 +106,8 @@ fun SettingsRoute(page: SettingsPage, viewModel: SettingsViewModel = hiltViewMod
                 }
             },
             onNavigate = navigator::navigate,
-            onLogout = viewModel::onLogoutConfirmed
+            onLogout = viewModel::onLogoutConfirmed,
+            onResendRejected = viewModel::onResendRejected
         )
     )
 }

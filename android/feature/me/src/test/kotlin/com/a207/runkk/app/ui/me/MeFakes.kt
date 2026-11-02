@@ -2,8 +2,11 @@ package com.a207.runkk.app.ui.me
 
 import android.content.Context
 import com.a207.runkk.app.core.model.AppError
+import com.a207.runkk.app.core.model.CardKind
+import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.core.model.RunMode
 import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.account.GuestSession
 import com.a207.runkk.app.domain.account.MemberSettings
@@ -19,16 +22,19 @@ import com.a207.runkk.app.domain.run.CompletedRun
 import com.a207.runkk.app.domain.run.HeartRateSample
 import com.a207.runkk.app.domain.run.LateHeartRates
 import com.a207.runkk.app.domain.run.PendingRunRepository
+import com.a207.runkk.app.domain.run.UploadScheduler
+import com.a207.runkk.app.domain.run.UploadState
+import com.a207.runkk.app.domain.run.WatchResendRequester
 import com.a207.runkk.app.domain.settings.GuidanceSettings
 import com.a207.runkk.app.domain.settings.SettingsRepository
 import com.a207.runkk.app.domain.settings.SettingsSnapshot
+import java.time.Duration
 import java.time.Instant
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.TestDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -212,13 +218,35 @@ class FakeSettingsRepository : SettingsRepository {
 class FakePendingRunRepository : PendingRunRepository {
     var cleared = false
 
+    /** 미전송 목록(설정의 못 올린 기록 건수, W40). */
+    val runs = MutableStateFlow<List<CompletedRun>>(emptyList())
+
+    /** 설정하면 resetRejected가 이 오류로 실패한다. */
+    var resetFailWith: AppError? = null
+
     override suspend fun save(run: CompletedRun) = Outcome.Success(Unit)
 
-    override suspend fun pending(): Outcome<List<CompletedRun>> = Outcome.Success(emptyList())
+    override suspend fun pending(): Outcome<List<CompletedRun>> = Outcome.Success(runs.value)
 
-    override fun observePending(): Flow<List<CompletedRun>> = emptyFlow()
+    override fun observePending(): Flow<List<CompletedRun>> = runs
 
     override suspend fun remove(recordId: String) = Outcome.Success(Unit)
+
+    /** 실제 보관소처럼 REJECTED만 미전송으로 되돌린다(W40). */
+    override suspend fun resetRejected(): Outcome<Int> {
+        resetFailWith?.let { return Outcome.Failure(it) }
+        val count = runs.value.count { it.uploadState == UploadState.REJECTED }
+        runs.value = runs.value.map {
+            if (it.uploadState ==
+                UploadState.REJECTED
+            ) {
+                it.copy(uploadState = UploadState.NOT_SENT, rejectedReason = null)
+            } else {
+                it
+            }
+        }
+        return Outcome.Success(count)
+    }
 
     override suspend fun purgeRoutes() = Outcome.Success(Unit)
 
@@ -237,6 +265,42 @@ class FakePendingRunRepository : PendingRunRepository {
         return Outcome.Success(Unit)
     }
 }
+
+/** 전송 예약 요청 횟수만 센다. */
+class FakeUploadScheduler : UploadScheduler {
+    var requests = 0
+
+    override fun requestUpload() {
+        requests++
+    }
+}
+
+/** 워치 다시 보내기 요청 횟수만 센다(W40). */
+class FakeWatchResendRequester : WatchResendRequester {
+    var requests = 0
+
+    override fun requestResend() {
+        requests++
+    }
+}
+
+/** 미전송 기록 하나(설정의 못 올린 기록 시험용). */
+fun pendingRun(id: String, state: UploadState = UploadState.NOT_SENT): CompletedRun = CompletedRun(
+    recordId = id,
+    mode = RunMode.FREE,
+    cardKind = CardKind.FREE_RUN,
+    battleId = null,
+    crewRunPostId = null,
+    startedAt = Instant.parse("2026-11-02T00:00:00Z"),
+    elapsed = Duration.ofMinutes(10),
+    distance = Distance(2_000),
+    route = emptyList(),
+    unstable = emptyList(),
+    heartRates = emptyList(),
+    uploadState = state,
+    savedAt = Instant.parse("2026-11-02T00:10:00Z"),
+    rejectedReason = if (state == UploadState.REJECTED) "BAD_REQUEST" else null
+)
 
 /** 제공자 SDK 대신 정한 결과를 돌려준다. */
 class FakeSocialLoginClient(

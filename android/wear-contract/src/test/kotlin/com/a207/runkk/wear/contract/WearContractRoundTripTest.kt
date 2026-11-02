@@ -148,7 +148,7 @@ class WearContractRoundTripTest {
     }
 
     @Test
-    fun `TC-6547 D-371 경로 11개는 서로 겹치지 않고 값이 설계와 같다`() {
+    fun `TC-6547 D-371 W40 경로 12개는 서로 겹치지 않고 값이 설계와 같다`() {
         val paths =
             listOf(
                 WearPaths.START_REQUEST,
@@ -161,10 +161,11 @@ class WearContractRoundTripTest {
                 WearPaths.SESSION_REQUEST,
                 WearPaths.WATCH_SESSION,
                 WearPaths.SESSION_REVOKED,
-                WearPaths.WATCH_MEASURING
+                WearPaths.WATCH_MEASURING,
+                WearPaths.RESEND_REJECTED
             )
 
-        assertEquals(11, paths.toSet().size)
+        assertEquals(12, paths.toSet().size)
         assertEquals(
             listOf(
                 "/runkk/start-request",
@@ -177,13 +178,23 @@ class WearContractRoundTripTest {
                 "/runkk/session-request",
                 "/runkk/watch-session",
                 "/runkk/session-revoked",
-                "/runkk/watch-measuring"
+                "/runkk/watch-measuring",
+                "/runkk/resend-rejected"
             ),
             paths
         )
         // 한 경로가 다른 경로의 접두어면 심박 묶음처럼 접두어로 받는 쪽이 잘못 고른다.
         paths.forEach { path -> assertTrue(paths.none { it != path && it.startsWith("$path/") }, path) }
         assertEquals("runkk_watch", WearPaths.WATCH_CAPABILITY)
+    }
+
+    @Test
+    fun `W40 거부 기록 다시 보내기 요청은 요청 시각 하나로 왕복하고 MessageClient 경로다`() {
+        val message = ResendRejectedMessage(requestedAtEpochMillis = 1_800_000_000_000)
+
+        assertEquals(message, ResendRejectedMessage.decode(message.encode()))
+        assertEquals(setOf("requestedAtEpochMillis"), jsonKeys(message.encode()))
+        assertTrue(WearPaths.DATA_ITEM_PATHS.none { WearPaths.RESEND_REJECTED.startsWith(it) }, "MessageClient 경로다")
     }
 
     @Test

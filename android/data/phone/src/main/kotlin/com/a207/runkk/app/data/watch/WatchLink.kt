@@ -10,12 +10,14 @@ import com.a207.runkk.app.domain.run.ProximityAlert
 import com.a207.runkk.app.domain.run.WatchDisplay
 import com.a207.runkk.app.domain.run.WatchGateway
 import com.a207.runkk.app.domain.run.WatchNotice
+import com.a207.runkk.app.domain.run.WatchResendRequester
 import com.a207.runkk.app.domain.settings.SettingsRepository
 import com.a207.runkk.wear.contract.EndRequestMessage
 import com.a207.runkk.wear.contract.HeartRateBatchMessage
 import com.a207.runkk.wear.contract.LeadChangeMessage
 import com.a207.runkk.wear.contract.PauseRequestMessage
 import com.a207.runkk.wear.contract.ProximityMessage
+import com.a207.runkk.wear.contract.ResendRejectedMessage
 import com.a207.runkk.wear.contract.StartRequestMessage
 import com.a207.runkk.wear.contract.WatchDisplayMessage
 import com.a207.runkk.wear.contract.WatchMeasuringMessage
@@ -58,6 +60,8 @@ import timber.log.Timber
  * v0.11(F.4, FR-194, FR-196): 워치의 일시정지 요청(PAUSE_REQUEST)을 pauseRequests로 넘기고(모르는 action은 버리고 경고 로그, D-157 (6)),
  * 근접 알림(PROXIMITY)·추월·역전(LEAD_CHANGE)을 보낸다. 보낼지·언제 보낼지는 RunWatchBridge가 정하고 여기서는 메시지로 바꿔 보내기만 한다.
  * 보낸 시각은 [clock]의 지금 시각이다.
+ *
+ * W40: 설정의 "다시 보내기"가 부르면 워치에 거부 기록 다시 보내기를 요청한다(RESEND_REJECTED, WatchResendRequester).
  */
 @Singleton
 class WatchLink internal constructor(
@@ -67,7 +71,8 @@ class WatchLink internal constructor(
     /** 안내 키 → 워치에 보낼 문구(M-3). 운영은 문자열 리소스, 시험은 키 이름이다. */
     private val noticeText: (WatchNotice) -> String = { it.name },
     private val clock: Clock = Clock.systemUTC()
-) : WatchGateway {
+) : WatchGateway,
+    WatchResendRequester {
     /**
      * 운영 조립. 송수신(PlayServicesTransport)은 WatchSessionPublisher와 같은 객체를 나눠 쓴다. WatchLink는 앱 시작 때
      * (WatchHomeSync → RunTracker → RunWatchBridge) 만들어지므로 여기서 워치 로그인 정보 보내기를 시작한다(A2 결정).
@@ -212,6 +217,11 @@ class WatchLink internal constructor(
                 else -> return
             }
         transport.send(WearPaths.LEAD_CHANGE, LeadChangeMessage(lead, clock.millis()).encode())
+    }
+
+    /** 워치에 거부 기록 다시 보내기를 요청한다(W40). 워치가 닿지 않으면 버려진다(MessageClient). */
+    override fun requestResend() {
+        transport.send(WearPaths.RESEND_REJECTED, ResendRejectedMessage(clock.millis()).encode())
     }
 
     /** 처음 보는 측정 시각의 표본만 도메인 심박으로 바꾼다. 기억은 최근 SEEN_LIMIT개까지. */

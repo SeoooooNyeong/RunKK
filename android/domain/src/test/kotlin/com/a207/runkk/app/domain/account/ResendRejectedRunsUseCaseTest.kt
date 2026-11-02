@@ -1,0 +1,73 @@
+package com.a207.runkk.app.domain.account
+
+import com.a207.runkk.app.core.model.AppError
+import com.a207.runkk.app.core.model.CardKind
+import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.core.model.RunMode
+import com.a207.runkk.app.domain.run.CompletedRun
+import com.a207.runkk.app.domain.run.ResetRejectedRunsUseCase
+import com.a207.runkk.app.domain.run.UploadState
+import com.a207.runkk.app.domain.run.WatchResendRequester
+import com.a207.runkk.app.domain.testing.CallLog
+import com.a207.runkk.app.domain.testing.FakePendingRunRepository
+import com.a207.runkk.app.domain.testing.FakeUploadScheduler
+import com.a207.runkk.app.domain.testing.T0
+import java.time.Duration
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.runTest
+
+/** W40: 폰 설정의 "다시 보내기"는 폰의 거부 기록을 되돌리고 연결된 워치에도 같은 일을 요청한다. */
+class ResendRejectedRunsUseCaseTest {
+    private val log = CallLog()
+    private val pending = FakePendingRunRepository(log)
+    private val watch = WatchResendRequester { log.add("watch.requestResend") }
+    private val useCase =
+        ResendRejectedRunsUseCase(pending, ResetRejectedRunsUseCase(pending, FakeUploadScheduler(log)), watch)
+
+    @Test
+    fun `W40 못 올린 기록 건수는 REJECTED만 센다`() = runTest {
+        pending.save(run("a").copy(uploadState = UploadState.REJECTED, rejectedReason = "BAD_REQUEST"))
+        pending.save(run("b"))
+        pending.save(run("c").copy(uploadState = UploadState.REJECTED, rejectedReason = "BAD_REQUEST"))
+
+        assertEquals(2, useCase.observeRejectedCount().first())
+    }
+
+    @Test
+    fun `W40 다시 보내기는 폰 기록을 되돌려 전송을 깨우고 워치에도 요청한다`() = runTest {
+        pending.save(run("a").copy(uploadState = UploadState.REJECTED, rejectedReason = "BAD_REQUEST"))
+        log.calls.clear()
+
+        assertEquals(Outcome.Success(1), useCase())
+
+        assertEquals(listOf("pending.resetRejected", "upload.requestUpload", "watch.requestResend"), log.calls)
+        assertEquals(0, useCase.observeRejectedCount().first())
+    }
+
+    @Test
+    fun `W40 폰 보관함을 바꾸지 못해도 워치 요청은 보내고 실패를 돌려준다`() = runTest {
+        pending.failWith = AppError.Storage
+
+        assertEquals(Outcome.Failure(AppError.Storage), useCase())
+
+        assertEquals(listOf("pending.resetRejected", "watch.requestResend"), log.calls)
+    }
+
+    private fun run(id: String) = CompletedRun(
+        recordId = id,
+        mode = RunMode.FREE,
+        cardKind = CardKind.FREE_RUN,
+        battleId = null,
+        crewRunPostId = null,
+        startedAt = T0,
+        elapsed = Duration.ofMinutes(10),
+        distance = Distance(2_000),
+        route = emptyList(),
+        unstable = emptyList(),
+        heartRates = emptyList(),
+        savedAt = T0
+    )
+}

@@ -153,6 +153,10 @@
     <string name="me_settings_section_visibility">공개 범위</string>
     <string name="me_settings_section_consents">동의 관리</string>
     <string name="me_settings_section_device">기기, 기타</string>
+    <string name="me_settings_section_upload">기록 전송</string>
+    <string name="me_settings_rejected_runs">못 올린 기록 %1$d건</string>
+    <string name="me_settings_resend">다시 보내기</string>
+    <string name="me_settings_resend_started">못 올린 기록을 다시 보내고 있어요</string>
     <string name="me_settings_legal_title">약관 및 정책, 도움말</string>
     <string name="me_logout_cancel">취소</string>
     <string name="me_logout_link_first">먼저 연동하기</string>

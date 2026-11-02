@@ -117,6 +117,11 @@ constructor(
         dao.markState(run.recordId, UploadState.REJECTED.name, reason)
     }
 
+    /** 상태 칸만 바꾼다(markRejected와 같은 이유). 전송 요청은 ResetRejectedRunsUseCase가 한다(W40). */
+    override suspend fun resetRejected(): Outcome<Int> = storage {
+        dao.replaceState(UploadState.REJECTED.name, UploadState.NOT_SENT.name)
+    }
+
     override suspend fun purgeRoutes(): Outcome<Unit> = storage { dao.replaceRoutes(EMPTY_BLOB) }
 
     /** 미전송 기록의 심박과 늦은 심박 항목을 함께 지운다(FR-029, TF-VA-31). */
