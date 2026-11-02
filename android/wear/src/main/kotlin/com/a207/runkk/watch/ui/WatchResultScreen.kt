@@ -28,12 +28,17 @@ import com.a207.runkk.watch.battle.WatchResultHeadline
  * 결과(FR-249, 피그마 FF∞·FG3·FS3·BW1·BL1·BS1·SW3·SL3·SS3): 머리말(FINISH·GOAL·STOP·WIN·LOSE·BEST·GOOD)과 결과 문구, 거리·시간·
  * 평균 페이스·평균 심박, "완료". 머리말·문구는 [WatchResultHeadline]이 낸다. 보류면 머리말 대신 "결과를 확인하고 있어요"다.
  * 평균 심박이 없으면 빈칸이다.
+ * 모션(W41): 머리말이 작게 시작해 커지며 나타나고, 값 두 줄과 "완료"가 차례로(60ms 간격) 아래에서 올라온다(320ms).
  */
 @Composable
 fun WatchResultScreen(state: WatchFlow.Result, onClose: () -> Unit, modifier: Modifier = Modifier) {
     val resources = LocalContext.current.resources
     val headline = state.headline
     val summary = state.summary
+    val headlineIn = rememberReveal(order = 0)
+    val firstRowIn = rememberReveal(order = 1)
+    val secondRowIn = rememberReveal(order = 2)
+    val doneIn = rememberReveal(order = 3)
     TrackBackground(isDimmed = true, modifier = modifier) {
         Column(
             modifier = Modifier.fillMaxSize(),
@@ -42,7 +47,9 @@ fun WatchResultScreen(state: WatchFlow.Result, onClose: () -> Unit, modifier: Mo
         ) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.semantics(mergeDescendants = true) {
+                modifier = Modifier.revealLayer(headlineIn, fromScale = HEADLINE_START_SCALE).semantics(
+                    mergeDescendants = true
+                ) {
                     heading()
                     liveRegion = LiveRegionMode.Polite
                 }
@@ -65,11 +72,17 @@ fun WatchResultScreen(state: WatchFlow.Result, onClose: () -> Unit, modifier: Mo
                     )
                 }
             }
-            Row(modifier = Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(
+                modifier = Modifier.padding(top = 6.dp).revealLayer(firstRowIn, rise = REVEAL_RISE),
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
                 ResultMetric(WatchFormat.distanceKm(summary.distance.meters), stringResource(R.string.result_distance))
                 ResultMetric(WatchFormat.elapsed(summary.elapsed.seconds), stringResource(R.string.result_time))
             }
-            Row(modifier = Modifier.padding(top = 2.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(
+                modifier = Modifier.padding(top = 2.dp).revealLayer(secondRowIn, rise = REVEAL_RISE),
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
                 ResultMetric(WatchFormat.pace(summary.averagePace?.secondsPerKm), stringResource(R.string.result_pace))
                 // 평균 심박이 없으면 "--" 대신 그 칸을 비운다(FR-249, R13 D5). 평균 페이스 자리는 그대로 둔다.
                 val heartRate = summary.averageHeartRate
@@ -82,7 +95,7 @@ fun WatchResultScreen(state: WatchFlow.Result, onClose: () -> Unit, modifier: Mo
             PillButton(
                 text = stringResource(R.string.result_done),
                 onClick = onClose,
-                modifier = Modifier.padding(top = 4.dp),
+                modifier = Modifier.padding(top = 4.dp).revealLayer(doneIn, rise = REVEAL_RISE),
                 textSize = ACTION_TEXT_SIZE
             )
         }
@@ -99,6 +112,10 @@ private fun ResultMetric(value: String, label: String) {
         Text(text = label, style = labelStyle(color = WatchColors.OnSurface, size = 8.sp))
     }
 }
+
+/** 머리말이 나타날 때 처음 크기와 값 줄이 올라오는 거리. */
+private const val HEADLINE_START_SCALE = 0.6f
+private val REVEAL_RISE = 10.dp
 
 /** 결과 수치 한 칸의 너비. */
 private val METRIC_WIDTH = 64.dp

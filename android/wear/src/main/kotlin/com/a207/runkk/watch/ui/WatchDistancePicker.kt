@@ -1,5 +1,17 @@
 package com.a207.runkk.watch.ui
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -38,6 +50,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
@@ -128,10 +141,18 @@ private fun DialPicker(
             .focusRequester(focus)
             .focusable()
     ) {
-        EdgeRing(
-            fraction = if (isUnlimited) 1f else dialFraction(state),
-            color = if (isUnlimited) WatchColors.Lavender else WatchColors.Lime
+        // −·+로 바꾸면 고리와 색이 피그마 변형 전환(SMART_ANIMATE 250ms, 넘쳤다 돌아옴)으로 옮겨 간다. 그리기 단계에서만 읽는다.
+        val ring by animateFloatAsState(
+            if (isUnlimited) 1f else dialFraction(state),
+            motionSpec(DIAL_MS, DialEasing),
+            label = "dial-ring"
         )
+        val ringColor by animateColorAsState(
+            if (isUnlimited) WatchColors.Lavender else WatchColors.Lime,
+            motionSpec(DIAL_MS, ScreenEasing),
+            label = "dial-ring-color"
+        )
+        EdgeRing(fraction = { ring }, color = { ringColor })
         Column(
             modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -158,14 +179,7 @@ private fun DialPicker(
                         .semantics { contentDescription = spoken },
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = if (isUnlimited) "∞" else kmNumber(requireNotNull(current.distance)),
-                        modifier = Modifier.wrapContentSize(unbounded = true),
-                        style = numberStyle(
-                            DIAL_NUMBER_SIZE,
-                            if (isUnlimited) WatchColors.Lavender else WatchColors.Lime
-                        )
-                    )
+                    DialNumber(current.distance)
                 }
                 StepButton(
                     symbol = "+",
@@ -195,6 +209,37 @@ private fun DialPicker(
                 textSize = ACTION_TEXT_SIZE
             )
         }
+    }
+}
+
+/**
+ * 다이얼 가운데 숫자(무제한은 라벤더 ∞). 바뀌면 피그마 변형 전환(250ms, 넘쳤다 돌아옴)처럼 누른 쪽에서 새 숫자가 미끄러져 들어오고
+ * 옛 숫자는 반대쪽으로 빠진다(+는 오른쪽에서, −는 왼쪽에서).
+ */
+@Composable
+private fun DialNumber(distance: Distance?) {
+    val still = LocalMotionStill.current
+    AnimatedContent(
+        targetState = distance,
+        contentAlignment = Alignment.Center,
+        transitionSpec = {
+            if (still) {
+                EnterTransition.None togetherWith ExitTransition.None
+            } else {
+                val direction = if ((targetState?.meters ?: -1L) > (initialState?.meters ?: -1L)) 1 else -1
+                val move = tween<IntOffset>(DIAL_MS, easing = DialEasing)
+                val fade = tween<Float>(DIAL_MS, easing = ScreenEasing)
+                (slideInHorizontally(move) { direction * it / 2 } + fadeIn(fade)) togetherWith
+                    (slideOutHorizontally(move) { -direction * it / 2 } + fadeOut(fade))
+            } using SizeTransform(clip = false)
+        },
+        label = "dial-number"
+    ) { shown ->
+        Text(
+            text = if (shown == null) "∞" else kmNumber(shown),
+            modifier = Modifier.wrapContentSize(unbounded = true),
+            style = numberStyle(DIAL_NUMBER_SIZE, if (shown == null) WatchColors.Lavender else WatchColors.Lime)
+        )
     }
 }
 

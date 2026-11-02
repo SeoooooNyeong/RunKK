@@ -1,7 +1,5 @@
 package com.a207.runkk.watch.ui
 
-import android.animation.ValueAnimator
-import android.os.PowerManager
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.tween
@@ -47,7 +45,6 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.rotary.onRotaryScrollEvent
 import androidx.compose.ui.layout.layout
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -82,7 +79,7 @@ fun WatchModeCarousel(
 ) {
     var target by remember(state.mode) { mutableIntStateOf(state.mode.ordinal) }
     val position = remember(state.mode) { Animatable(state.mode.ordinal.toFloat()) }
-    val isStill = isAmbient || rememberMotionReduced()
+    val isStill = isAmbient || LocalMotionStill.current || rememberMotionReduced()
     val scope = rememberCoroutineScope()
     val focus = remember { FocusRequester() }
     val density = LocalDensity.current
@@ -154,9 +151,10 @@ fun WatchModeCarousel(
                 }
             }
             // 메인으로 돌아오며 받은 안내(측정 중단, 거리 0이라 저장 안 함)는 카드 위에 잠깐 띄운다(R13 D4).
-            state.notice?.let { notice ->
-                Banner(stringResource(noticeRes(notice)), WatchColors.Lavender, Modifier.zIndex(NOTICE_Z))
-            }
+            AnimatedBanner(
+                state.notice?.let { notice -> stringResource(noticeRes(notice)) to WatchColors.Lavender },
+                Modifier.zIndex(NOTICE_Z)
+            )
         }
     }
 }
@@ -286,16 +284,6 @@ private fun ModeCard(mode: WatchMode, slot: CarouselSlot, unit: Dp, onClick: (()
 private fun Modifier.revealHeight(fraction: Float): Modifier = layout { measurable, constraints ->
     val placeable = measurable.measure(constraints)
     layout(placeable.width, (placeable.height * fraction).roundToInt()) { placeable.place(0, 0) }
-}
-
-/** 시스템 애니메이션이 꺼졌거나(접근성 애니메이션 삭제, 개발자 옵션 배율 0) 절전 모드면 움직임을 줄인다. */
-@Composable
-private fun rememberMotionReduced(): Boolean {
-    val context = LocalContext.current
-    return remember(context) {
-        !ValueAnimator.areAnimatorsEnabled() ||
-            context.getSystemService(PowerManager::class.java)?.isPowerSaveMode == true
-    }
 }
 
 private fun descriptionOf(mode: WatchMode): Int = when (mode) {
