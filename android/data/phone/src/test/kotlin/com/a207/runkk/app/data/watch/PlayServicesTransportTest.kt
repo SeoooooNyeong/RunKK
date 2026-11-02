@@ -8,8 +8,11 @@ import com.a207.runkk.app.domain.run.WatchDisplay
 import com.a207.runkk.app.domain.settings.GuidanceSettings
 import com.a207.runkk.app.domain.settings.SettingsRepository
 import com.a207.runkk.app.domain.settings.SettingsSnapshot
+import com.a207.runkk.wear.contract.WearPaths
 import java.time.Duration
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -56,6 +59,17 @@ class PlayServicesTransportTest {
         }
 
         assertEquals(emptyList(), failures.map { it.toString() })
+    }
+
+    @Test
+    fun `W43 앱 안 리스너는 심박 묶음과 워치 거부 건수 항목을 넘기고 심박 묶음만 지운다`() {
+        assertTrue(isForwardedItem("${WearPaths.HEART_RATE_BATCH}/1-0"))
+        assertTrue(isForwardedItem(WearPaths.REJECTED_COUNT))
+        assertFalse(isForwardedItem(WearPaths.RESEND_REJECTED), "폰이 넣은 다시 보내기 요청은 넘기지 않는다")
+        assertFalse(isForwardedItem(WearPaths.SESSION_REVOKED))
+
+        assertTrue(isConsumedItem("${WearPaths.HEART_RATE_BATCH}/1-0"))
+        assertFalse(isConsumedItem(WearPaths.REJECTED_COUNT), "건수는 워치의 지금 상태라 지우지 않는다")
     }
 
     private object NoSettings : SettingsRepository {

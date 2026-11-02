@@ -2,8 +2,8 @@ package com.a207.runkk.wear.contract
 
 /**
  * 폰–워치 Wearable Data Layer 경로 이름(D-20, 6.1.15, F.4.1). 경로는 더하기만 한다(D-97).
- * 심박 묶음과 로그아웃 표시만 DataClient(끊겨도 쌓였다가 전달, NFR-032, D-371)이고 나머지는 MessageClient다([DATA_ITEM_PATHS]).
- * 경로 12개는 서로 겹치지 않는다(계약 시험). 받는 쪽은 모르는 경로를 버린다(F.4.4).
+ * 심박 묶음, 로그아웃 표시, 거부 기록 다시 보내기 요청, 워치 거부 기록 건수는 DataClient(끊겨도 쌓였다가 전달, NFR-032, D-371, W43)이고
+ * 나머지는 MessageClient다([DATA_ITEM_PATHS]). 경로 13개는 서로 겹치지 않는다(계약 시험). 받는 쪽은 모르는 경로를 버린다(F.4.4).
  */
 object WearPaths {
     /** 워치 → 폰: 자유런 시작 요청(MessageClient, FR-183). */
@@ -48,12 +48,21 @@ object WearPaths {
     /** 워치 → 폰: 워치 측정 중 여부(MessageClient, WatchMeasuringMessage, FR-252, D-371, D-373). */
     const val WATCH_MEASURING = "/runkk/watch-measuring"
 
-    /** 폰 → 워치: 거부 기록 다시 보내기 요청(MessageClient, ResendRejectedMessage, W40). 모르는 옛 워치는 버린다(D-97). */
+    /**
+     * 폰 → 워치: 거부 기록 다시 보내기 요청(DataClient 항목, ResendRejectedMessage, W40, W43). 워치가 연결되지 않았을 때 누른 요청도
+     * 남았다가 연결되면 전달된다. 요청 시각이 매번 달라 같은 경로에 넣어도 바뀐 항목으로 간다. 모르는 옛 워치는 버린다(D-97).
+     */
     const val RESEND_REJECTED = "/runkk/resend-rejected"
+
+    /**
+     * 워치 → 폰: 워치의 거부 기록(REJECTED) 건수(DataClient 항목, RejectedCountMessage, W43). 건수가 바뀔 때마다 같은 경로에 넣는다.
+     * 폰은 설정의 못 올린 기록 건수에 더한다(워치가 연결되어 있고 워치 연동이 켜져 있을 때만).
+     */
+    const val REJECTED_COUNT = "/runkk/rejected-count"
 
     /**
      * DataClient 항목으로 주고받는 경로(접두어). 항목은 Data Layer 저장소에 남으므로 비밀값을 싣는 경로(WATCH_SESSION)는 여기 두지 않는다
      * (NFR-050, 계약 시험). 그 밖의 경로는 MessageClient다.
      */
-    val DATA_ITEM_PATHS: Set<String> = setOf(HEART_RATE_BATCH, SESSION_REVOKED)
+    val DATA_ITEM_PATHS: Set<String> = setOf(HEART_RATE_BATCH, SESSION_REVOKED, RESEND_REJECTED, REJECTED_COUNT)
 }

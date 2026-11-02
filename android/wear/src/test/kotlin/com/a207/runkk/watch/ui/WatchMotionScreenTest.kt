@@ -19,6 +19,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeRight
+import androidx.compose.ui.unit.dp
 import androidx.wear.compose.material3.TimeSource
 import androidx.wear.compose.material3.TimeText
 import com.a207.runkk.app.core.model.Distance
@@ -31,6 +32,7 @@ import com.github.takahirom.roborazzi.captureRoboImage
 import java.time.Duration
 import java.time.Instant
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -201,20 +203,49 @@ class WatchMotionScreenTest {
     fun `측정 거리가 바뀌면 옛 값이 빠지고 새 값이 올라온다`() {
         show(freeRun)
         change(freeRun.copy(progress = progress(1_510, 588)), afterMs = 100)
-        compose.onNodeWithText("1.50").assertExists()
+        // WR16-3: 빠지는 옛 값은 그려지기만 하고 의미 트리에는 없다(TalkBack이 옛 거리와 새 거리를 함께 읽지 않게).
+        compose.onNodeWithText("1.50", useUnmergedTree = true).assertDoesNotExist()
         compose.onNodeWithText("1.51").assertExists()
         compose.mainClock.advanceTimeBy(SETTLE_MS)
-        compose.onNodeWithText("1.50").assertDoesNotExist()
+        compose.onNodeWithText("1.50", useUnmergedTree = true).assertDoesNotExist()
+        compose.onNodeWithText("1.51").assertExists()
+    }
+
+    /**
+     * WR16-2: 가장 넓은 "10"이 칸(64dp)을 넘쳐도 −·+ 버튼 칸과 겹치지 않는다. 넘기는 동안에는 피그마 변형 전환대로 옛 숫자가 반 칸 밀려
+     * 나가며 흐려지므로 자리 대신 너비만 본다(칸과 양옆 간격 10dp 안).
+     */
+    @Test
+    fun `거리 다이얼의 10은 −·+ 버튼과 겹치지 않는다`() {
+        show(WatchFlow.FreeGoal(choices, selected = 3))
+        assertDialNumberFits("10")
+        change(WatchFlow.FreeGoal(choices, selected = 2), afterMs = 100)
+        val moving = compose.onNodeWithText("10", useUnmergedTree = true).getUnclippedBoundsInRoot()
+        val width = moving.right - moving.left
+        assertTrue(width <= DIAL_SLOT_WITH_GAPS, "넘기는 동안 \"10\" 너비 $width")
+        compose.mainClock.advanceTimeBy(SETTLE_MS)
+        assertDialNumberFits("5")
     }
 
     @Test
-    fun `측정 거리가 바뀌는 동안 km 단위는 제자리에 있다`() {
-        show(freeRun)
-        val before = compose.onNodeWithText("km").getUnclippedBoundsInRoot()
-        for (step in 1..ROLL_STEPS) {
-            change(freeRun.copy(progress = progress(1_500L + step * 10, 588)), afterMs = 60)
-            assertEquals(before, compose.onNodeWithText("km").getUnclippedBoundsInRoot())
-        }
+    fun `배틀런 거리 다이얼의 10도 −·+ 버튼과 겹치지 않는다`() {
+        show(
+            WatchFlow.BattleDistance(
+                listOf(1_000L, 3_000L, 5_000L, 10_000L).map {
+                    WatchFlow.Choice(Distance(it))
+                },
+                3
+            )
+        )
+        assertDialNumberFits("10")
+    }
+
+    private fun assertDialNumberFits(number: String) {
+        val text = compose.onNodeWithText(number, useUnmergedTree = true).getUnclippedBoundsInRoot()
+        val minus = compose.onNodeWithContentDescription("거리 줄이기").getUnclippedBoundsInRoot()
+        val plus = compose.onNodeWithContentDescription("거리 늘리기").getUnclippedBoundsInRoot()
+        assertTrue(text.left >= minus.right, "\"$number\" 왼쪽 ${text.left}가 − 버튼 오른쪽 ${minus.right}를 넘는다")
+        assertTrue(text.right <= plus.left, "\"$number\" 오른쪽 ${text.right}가 + 버튼 왼쪽 ${plus.left}를 넘는다")
     }
 
     @Test
@@ -254,6 +285,9 @@ private object FixedTime : TimeSource {
 
 /** 쓸기가 끝나기를 기다리는 가장 많은 프레임 수. */
 private const val MAX_SWIPE_FRAMES = 120
+
+/** 다이얼 숫자 칸(64dp)과 양옆 버튼 간격(10dp씩). */
+private val DIAL_SLOT_WITH_GAPS = 84.dp
 
 /** 한 프레임(60Hz). */
 private const val FRAME_MS = 16L

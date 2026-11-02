@@ -1,6 +1,11 @@
 package com.a207.runkk.watch.ui
 
 import android.animation.ValueAnimator
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.Build
 import android.os.PowerManager
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
@@ -12,6 +17,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
@@ -19,6 +25,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 
 /*
  * 워치 화면 모션(W41, 피그마 "Runkk · Galaxy Watch (화면별 + 모션)" 프로토타입). 피그마가 정한 곳은 그 값을, 정하지 않은 곳은 메인
@@ -119,14 +126,51 @@ internal fun screenFadeMillis(from: Any, to: Any): Int =
  */
 internal fun isLapWrap(from: Float, to: Float): Boolean = to < from - LAP_WRAP_GAP
 
-/** 시스템 애니메이션이 꺼졌거나(접근성 애니메이션 삭제, 개발자 옵션 배율 0) 절전 모드면 움직임을 줄인다. */
+/**
+ * 시스템 애니메이션이 꺼졌거나(접근성 애니메이션 삭제, 개발자 옵션 배율 0) 절전 모드면 움직임을 줄인다. 화면이 떠 있는 동안 바뀌어도
+ * 따라간다(WR16-1, 측정 화면은 러닝 내내 떠 있다): 절전 모드는 ACTION_POWER_SAVE_MODE_CHANGED로, 애니메이터 배율은 API 33부터
+ * 배율 변경 리스너로 다시 판단한다.
+ */
 @Composable
 internal fun rememberMotionReduced(): Boolean {
     val context = LocalContext.current
-    return remember(context) {
-        !ValueAnimator.areAnimatorsEnabled() ||
-            context.getSystemService(PowerManager::class.java)?.isPowerSaveMode == true
-    }
+    return produceState(initialValue = isMotionReduced(context), context) {
+        val update = { value = isMotionReduced(context) }
+        val receiver =
+            object : BroadcastReceiver() {
+                override fun onReceive(c: Context, intent: Intent) = update()
+            }
+        ContextCompat.registerReceiver(
+            context,
+            receiver,
+            IntentFilter(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED),
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+        val scaleListener =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                ValueAnimator.DurationScaleChangeListener { update() }
+                    .also(ValueAnimator::registerDurationScaleChangeListener)
+            } else {
+                null
+            }
+        update()
+        awaitDispose {
+            context.unregisterReceiver(receiver)
+            if (scaleListener != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                ValueAnimator.unregisterDurationScaleChangeListener(scaleListener)
+            }
+        }
+    }.value
+}
+
+private fun isMotionReduced(context: Context): Boolean =
+    areAnimatorsOff() || context.getSystemService(PowerManager::class.java)?.isPowerSaveMode == true
+
+/** 애니메이터 배율이 0인가(접근성 애니메이션 삭제, 개발자 옵션). API 33부터는 배율을 바로 읽는다. */
+private fun areAnimatorsOff(): Boolean = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+    ValueAnimator.getDurationScale() == 0f
+} else {
+    !ValueAnimator.areAnimatorsEnabled()
 }
 
 private const val COMPANION_RUN_KEY = "companion-run"

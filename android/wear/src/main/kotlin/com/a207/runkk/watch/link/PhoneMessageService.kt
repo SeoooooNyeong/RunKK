@@ -18,7 +18,8 @@ import javax.inject.Inject
  * 거치지 않고 [sessionReceiver]로 바로 넘긴다(토큰이 다른 곳에 머물지 않게, NFR-050). 지운 항목(TYPE_DELETED: 폰이 새 로그인 정보를
  * 보낸 뒤 옛 표시를 지움, H-55)은 무시한다. 그 밖의 메시지는 우편함([inbox])에 넣어 PhoneLink가 꺼낸다.
  *
- * 거부 기록 다시 보내기 요청(RESEND_REJECTED, W40)은 [resendReceiver]로 바로 넘긴다(PhoneLink가 돌기 전에도 처리한다).
+ * 거부 기록 다시 보내기 요청(RESEND_REJECTED, W40)은 [resendReceiver]로 바로 넘긴다(PhoneLink가 돌기 전에도 처리한다). 요청은
+ * DataClient 항목으로 온다(W43: 워치가 연결되지 않았을 때 누른 요청도 연결되면 DATA_CHANGED로 온다). 옛 폰의 메시지도 받는다.
  */
 @AndroidEntryPoint
 class PhoneMessageService : WearableListenerService() {
@@ -44,12 +45,18 @@ class PhoneMessageService : WearableListenerService() {
         onDataEvents(dataEvents)
     }
 
-    /** 바뀐 DataClient 항목 가운데 로그아웃 표시만 넘긴다. */
+    /** 바뀐 DataClient 항목 가운데 로그아웃 표시와 다시 보내기 요청만 넘긴다. 지운 항목은 무시한다. */
     internal fun onDataEvents(events: Iterable<DataEvent>) {
         events
-            .filter { it.type == DataEvent.TYPE_CHANGED && isSessionRevoked(it.dataItem.uri.path) }
-            .mapNotNull { it.dataItem.data }
-            .forEach(sessionReceiver::onRevoked)
+            .filter { it.type == DataEvent.TYPE_CHANGED }
+            .forEach { event ->
+                val path = event.dataItem.uri.path
+                val data = event.dataItem.data ?: return@forEach
+                when {
+                    isSessionRevoked(path) -> sessionReceiver.onRevoked(data)
+                    path == WearPaths.RESEND_REJECTED -> resendReceiver.onRequest(data)
+                }
+            }
     }
 
     /** SESSION_REVOKED 경로 또는 그 아래 경로(폰이 회원별 하위 경로를 쓰더라도 받는다). */

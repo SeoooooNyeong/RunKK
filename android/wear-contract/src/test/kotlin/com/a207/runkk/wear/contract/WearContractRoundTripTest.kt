@@ -148,7 +148,7 @@ class WearContractRoundTripTest {
     }
 
     @Test
-    fun `TC-6547 D-371 W40 경로 12개는 서로 겹치지 않고 값이 설계와 같다`() {
+    fun `TC-6547 D-371 W40 W43 경로 13개는 서로 겹치지 않고 값이 설계와 같다`() {
         val paths =
             listOf(
                 WearPaths.START_REQUEST,
@@ -162,10 +162,11 @@ class WearContractRoundTripTest {
                 WearPaths.WATCH_SESSION,
                 WearPaths.SESSION_REVOKED,
                 WearPaths.WATCH_MEASURING,
-                WearPaths.RESEND_REJECTED
+                WearPaths.RESEND_REJECTED,
+                WearPaths.REJECTED_COUNT
             )
 
-        assertEquals(12, paths.toSet().size)
+        assertEquals(13, paths.toSet().size)
         assertEquals(
             listOf(
                 "/runkk/start-request",
@@ -179,7 +180,8 @@ class WearContractRoundTripTest {
                 "/runkk/watch-session",
                 "/runkk/session-revoked",
                 "/runkk/watch-measuring",
-                "/runkk/resend-rejected"
+                "/runkk/resend-rejected",
+                "/runkk/rejected-count"
             ),
             paths
         )
@@ -189,12 +191,21 @@ class WearContractRoundTripTest {
     }
 
     @Test
-    fun `W40 거부 기록 다시 보내기 요청은 요청 시각 하나로 왕복하고 MessageClient 경로다`() {
+    fun `W43 거부 기록 다시 보내기 요청은 요청 시각 하나로 왕복하고 DataClient 항목이다(워치가 닿지 않아도 남는다)`() {
         val message = ResendRejectedMessage(requestedAtEpochMillis = 1_800_000_000_000)
 
         assertEquals(message, ResendRejectedMessage.decode(message.encode()))
         assertEquals(setOf("requestedAtEpochMillis"), jsonKeys(message.encode()))
-        assertTrue(WearPaths.DATA_ITEM_PATHS.none { WearPaths.RESEND_REJECTED.startsWith(it) }, "MessageClient 경로다")
+        assertTrue(WearPaths.RESEND_REJECTED in WearPaths.DATA_ITEM_PATHS, "DataClient 항목이다")
+    }
+
+    @Test
+    fun `W43 워치 거부 기록 건수는 건수와 알린 시각으로 왕복하고 DataClient 항목이다`() {
+        val message = RejectedCountMessage(count = 3, atEpochMillis = 1_800_000_000_000)
+
+        assertEquals(message, RejectedCountMessage.decode(message.encode()))
+        assertEquals(setOf("count", "atEpochMillis"), jsonKeys(message.encode()))
+        assertTrue(WearPaths.REJECTED_COUNT in WearPaths.DATA_ITEM_PATHS, "DataClient 항목이다")
     }
 
     @Test

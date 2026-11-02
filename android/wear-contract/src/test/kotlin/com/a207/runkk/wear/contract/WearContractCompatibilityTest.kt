@@ -128,7 +128,15 @@ class WearContractCompatibilityTest {
 
     @Test
     fun `D-371 NFR-050 비밀값을 가진 로그인 정보는 DataClient 경로로 가지 않는다`() {
-        assertEquals(setOf(WearPaths.HEART_RATE_BATCH, WearPaths.SESSION_REVOKED), WearPaths.DATA_ITEM_PATHS)
+        assertEquals(
+            setOf(
+                WearPaths.HEART_RATE_BATCH,
+                WearPaths.SESSION_REVOKED,
+                WearPaths.RESEND_REJECTED,
+                WearPaths.REJECTED_COUNT
+            ),
+            WearPaths.DATA_ITEM_PATHS
+        )
         assertFalse(WearPaths.WATCH_SESSION in WearPaths.DATA_ITEM_PATHS, "토큰은 MessageClient로만 보낸다")
         assertFalse(
             WearPaths.DATA_ITEM_PATHS.any { WearPaths.WATCH_SESSION.startsWith("$it/") },
@@ -174,6 +182,15 @@ class WearContractCompatibilityTest {
         )
     }
 
+    @Test
+    fun `W43 워치 거부 기록 건수는 모르는 항목이 더해져도 해독하고 키는 설계와 같다`() {
+        assertEquals(listOf("count", "atEpochMillis"), keysOf(RejectedCountMessage.serializer().descriptor))
+        assertEquals(
+            RejectedCountMessage(2, 5),
+            RejectedCountMessage.decode("""{"count":2,"atEpochMillis":5,"x":1}""".toByteArray())
+        )
+    }
+
     /** Kotlin Boolean 이름(is + 대문자, 예: isMeasuring)이 JSON 키로 새지 않는다. issuedAtEpochMillis 같은 단어는 해당하지 않는다. */
     @Test
     fun `직렬화 키는 is로 시작하지 않는다(D-97 @SerialName)`() {
@@ -186,7 +203,8 @@ class WearContractCompatibilityTest {
                     WatchSessionMessage.serializer().descriptor,
                     SessionRevokedMessage.serializer().descriptor,
                     WatchMeasuringMessage.serializer().descriptor,
-                    ResendRejectedMessage.serializer().descriptor
+                    ResendRejectedMessage.serializer().descriptor,
+                    RejectedCountMessage.serializer().descriptor
                 )
         descriptors.forEach { descriptor ->
             assertTrue(
@@ -209,7 +227,8 @@ class WearContractCompatibilityTest {
                 "watch-session.json" to { b: ByteArray -> WatchSessionMessage.decode(b).encode() },
                 "session-revoked.json" to { b: ByteArray -> SessionRevokedMessage.decode(b).encode() },
                 "watch-measuring.json" to { b: ByteArray -> WatchMeasuringMessage.decode(b).encode() },
-                "resend-rejected.json" to { b: ByteArray -> ResendRejectedMessage.decode(b).encode() }
+                "resend-rejected.json" to { b: ByteArray -> ResendRejectedMessage.decode(b).encode() },
+                "rejected-count.json" to { b: ByteArray -> RejectedCountMessage.decode(b).encode() }
             )
         samples.forEach { (name, reencode) ->
             val bytes = sample(name)
@@ -257,6 +276,7 @@ class WearContractCompatibilityTest {
         assertEquals(SessionRevokedMessage(42, T), SessionRevokedMessage.decode(sample("session-revoked.json")))
         assertEquals(WatchMeasuringMessage(true, T), WatchMeasuringMessage.decode(sample("watch-measuring.json")))
         assertEquals(ResendRejectedMessage(T), ResendRejectedMessage.decode(sample("resend-rejected.json")))
+        assertEquals(RejectedCountMessage(3, T), RejectedCountMessage.decode(sample("rejected-count.json")))
     }
 
     private fun keysOf(descriptor: SerialDescriptor): List<String> = descriptor.elementNames.toList()

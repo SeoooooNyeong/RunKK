@@ -62,7 +62,7 @@
             android:foregroundServiceType="health|location" />
 
         <!-- 폰 메시지. 프로세스가 죽어 있어도 받으며, 뜬 프로세스는 남은 운동 세션부터 끝낸다(D-20, NFR-023).
-             로그아웃 표시는 DataClient 항목이라 DATA_CHANGED로 받는다(D-371). -->
+             로그아웃 표시와 다시 보내기 요청은 DataClient 항목이라 DATA_CHANGED로 받는다(D-371, W43). -->
         <service
             android:name="com.a207.runkk.watch.link.PhoneMessageService"
             android:exported="true">
@@ -78,6 +78,14 @@
                 <data
                     android:host="*"
                     android:pathPrefix="/runkk/session-revoked"
+                    android:scheme="wear" />
+            </intent-filter>
+            <!-- 거부 기록 다시 보내기 요청(W43). 워치가 연결되지 않았을 때 누른 요청도 연결되면 온다. -->
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.DATA_CHANGED" />
+                <data
+                    android:host="*"
+                    android:pathPrefix="/runkk/resend-rejected"
                     android:scheme="wear" />
             </intent-filter>
         </service>

@@ -110,7 +110,10 @@ class FakePendingRunRepository(private val events: MutableList<String> = mutable
 
     override suspend fun pending(): Outcome<List<CompletedRun>> = Outcome.Success(saved.toList())
 
-    override fun observePending(): Flow<List<CompletedRun>> = flowOf(saved.toList())
+    /** 있으면 observePending이 이 흐름을 낸다(보관함이 바뀌는 순간을 시험이 정할 때). 없으면 지금 목록 한 번이다. */
+    var observed: Flow<List<CompletedRun>>? = null
+
+    override fun observePending(): Flow<List<CompletedRun>> = observed ?: flowOf(saved.toList())
 
     override suspend fun remove(recordId: String): Outcome<Unit> = Outcome.Success(Unit)
 

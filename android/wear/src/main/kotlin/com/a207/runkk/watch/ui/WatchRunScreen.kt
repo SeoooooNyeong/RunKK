@@ -1,18 +1,9 @@
 package com.a207.runkk.watch.ui
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
-import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -43,7 +34,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material3.Text
@@ -157,6 +147,7 @@ private fun rememberRingFraction(target: Float): Animatable<Float, AnimationVect
 /**
  * 바뀌면 새 값이 아래에서 올라오고 옛 값이 위로 빠지는 숫자(측정 거리, W41). 처음 그릴 때와 움직임 줄이기에서는 바로 바뀐다.
  * 움직임은 그리기 단계(graphicsLayer)에서만 한다. 배치를 옮기면 옆 "km"가 맞추는 기준선이 전환마다 흔들린다.
+ * 빠지는 옛 값은 의미 트리에서 뺀다(WR16-3): 전환 중에 TalkBack이 옛 거리와 새 거리를 함께 읽지 않게.
  */
 @Composable
 private fun RollingNumber(text: String, style: TextStyle, modifier: Modifier = Modifier) {
@@ -183,7 +174,7 @@ private fun RollingNumber(text: String, style: TextStyle, modifier: Modifier = M
             Text(
                 text = old,
                 style = style,
-                modifier = Modifier.graphicsLayer {
+                modifier = Modifier.clearAndSetSemantics {}.graphicsLayer {
                     translationY = -size.height / ROLL_DIVISOR * roll.value
                     alpha = 1f - roll.value
                 }
