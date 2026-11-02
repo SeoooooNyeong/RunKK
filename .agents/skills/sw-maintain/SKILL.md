@@ -170,7 +170,7 @@ description: 유지보수 요청 분석과 재공학 계획. 운영 중 들어�
   - 수정·적응: `$sw-code-review` (수정 코드) → `$sw-test` (원인 확인 + 회귀) → 이 CR 파일 완료 처리
   - 개선: `$sw-estimate` (별도 견적) → `$sw-srs` (요구 갱신) → `$sw-design-oo` → `$sw-code-review` → `$sw-test` → `$sw-sqa`
   - 예방·재공학: `$sw-design` (역공학 결과 검증) → `$sw-code-review` → `$sw-test` (비교 검사)
-- 협업 모드: `docs/sw/OWNERS.md`가 있으면 저장 전에 그 규칙을 따른다. `git config user.name`으로 작성자를 찾아 그 사람 담당 파일만 고친다. 새 번호는 `[임시:FR-<이니셜>-1]` 형식으로 쓰고 산출물 버전은 올리지 않는다(변경 표시는 "(다음 판 변경)"). 목차 파일의 머리 헤더·문서 상태·목차, `docs/sw/README.md`, 공용 조각(추적표, 자료사전 등)에 들어갈 내용과 남의 파일에 고칠 것은 `docs/sw/pending/<브랜치 이름의 / 를 - 로>.md`에 적는다. 정식 번호와 버전은 공용 담당이 `$sw-sdlc merge`로 매긴다. 규칙 전문은 CONVENTIONS 8절과 OWNERS.md 3절이다.
+- 협업 모드: `docs/sw/OWNERS.md`가 있으면 저장 전에 그 규칙을 따른다. `git config user.name`으로 작성자를 찾아 그 사람 담당 파일만 고친다. 새 번호는 `[임시:FR-<이니셜>-1]` 형식으로 쓰고 산출물 버전은 올리지 않는다(변경 표시는 "(다음 판 변경)"). 목차 파일의 머리 헤더·문서 상태·목차, `docs/sw/README.md`, 공용 조각(추적표, 자료사전 등)에 들어갈 내용과 남의 파일에 고칠 것은 `docs/sw/pending/<브랜치 이름의 / 를 - 로>.md`에 적는다. 정식 번호와 버전은 공용 담당이 `$sw-sdlc merge`로 매긴다. 규칙 전문은 `docs/sw/OWNERS.md` 3절이다.
 
 ## 체크리스트
 

@@ -149,7 +149,7 @@ SQA는 세 시점에서 수행된다. 지금이 어느 시점인지 먼저 정�
 - 완성 예시는 `examples/sqa.md` (학사관리 시스템 배포 전 FTR).
 - 검토 회의용 체크리스트와 결함 기록 양식은 `references/ftr-checklist.md`에서 복사해 쓴다.
 - 다음 단계: 합격이면 배포 후 `$sw-maintain` (운영 중 변경 요청 처리). 조건부·불합격이면 지적 사항별로 `$sw-code-review`, `$sw-test`, `$sw-design*`, `$sw-srs` 중 해당 스킬.
-- 협업 모드: `docs/sw/OWNERS.md`가 있으면 저장 전에 그 규칙을 따른다. `git config user.name`으로 작성자를 찾아 그 사람 담당 파일만 고친다. 새 번호는 `[임시:FR-<이니셜>-1]` 형식으로 쓰고 산출물 버전은 올리지 않는다(변경 표시는 "(다음 판 변경)"). 목차 파일의 머리 헤더·문서 상태·목차, `docs/sw/README.md`, 공용 조각(추적표, 자료사전 등)에 들어갈 내용과 남의 파일에 고칠 것은 `docs/sw/pending/<브랜치 이름의 / 를 - 로>.md`에 적는다. 정식 번호와 버전은 공용 담당이 `$sw-sdlc merge`로 매긴다. 규칙 전문은 CONVENTIONS 8절과 OWNERS.md 3절이다.
+- 협업 모드: `docs/sw/OWNERS.md`가 있으면 저장 전에 그 규칙을 따른다. `git config user.name`으로 작성자를 찾아 그 사람 담당 파일만 고친다. 새 번호는 `[임시:FR-<이니셜>-1]` 형식으로 쓰고 산출물 버전은 올리지 않는다(변경 표시는 "(다음 판 변경)"). 목차 파일의 머리 헤더·문서 상태·목차, `docs/sw/README.md`, 공용 조각(추적표, 자료사전 등)에 들어갈 내용과 남의 파일에 고칠 것은 `docs/sw/pending/<브랜치 이름의 / 를 - 로>.md`에 적는다. 정식 번호와 버전은 공용 담당이 `$sw-sdlc merge`로 매긴다. 규칙 전문은 `docs/sw/OWNERS.md` 3절이다.
 
 ## 체크리스트
 

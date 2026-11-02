@@ -50,7 +50,7 @@ JDK는 Gradle이 foojay로 21을 내려받는다. 로컬에는 JDK 17 이상만 
 
 - `docs/sw/`는 소프트웨어공학 산출물이다. 목차 파일(`plan.md`, `srs.md`, `design-oo.md` 등)과 같은 이름의 조각 폴더로 나뉜다. 지도는 `docs/sw/README.md`.
 - 산출물은 `sw-*` 스킬로 만든다. Claude Code는 `.claude/skills/sw-*`, Codex는 `.agents/skills/sw-*`를 읽는다. 어디까지 왔는지 모르면 `sw-sdlc`를 부른다. `sw-implement`는 병렬 작업자를 띄우므로 사람이 이름으로 부를 때만 쓴다.
-- 스킬 원본은 sw-sdlc-skills 저장소(GitHub KKTRKKT/sw-sdlc-skills)다. 이 저장소의 스킬 사본을 직접 고치지 말고 원본을 고친 뒤 두 폴더를 함께 바꾼다.
+- 이 저장소의 스킬은 sw-sdlc-skills(GitHub KKTRKKT/sw-sdlc-skills)를 팀용으로 고친 사본이다(협업 모드, `sw-sdlc team`·`merge` 추가). 고칠 때는 `.claude/skills`와 `.agents/skills`의 같은 파일을 함께 고친다.
 - **협업 모드**: `docs/sw/OWNERS.md`를 따른다. 자기 담당 조각만 고치고, 공용 파일(목차 파일 헤더, `docs/sw/README.md`, 추적표, 자료사전 등)은 공용 담당(이성현)만 고친다. 새 번호는 `[임시:FR-박-1]`처럼 쓰고, 공용 파일에 넣을 내용은 `docs/sw/pending/<브랜치>.md`에 적는다. 정식 번호와 버전은 병합 뒤 공용 담당이 `sw-sdlc merge`로 매긴다.
 - 코드 MR에는 그 도메인의 문서 조각과 병합 대기 파일을 함께 올린다. API·DTO·ERD 같은 경계 계약은 제공하는 쪽이 고치고 쓰는 쪽이 승인한다.
 

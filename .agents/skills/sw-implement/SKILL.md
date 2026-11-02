@@ -118,7 +118,7 @@ description: 설계서를 코드로 옮기는 구현 단계를 지휘한다. 실
 - `docs/sw/implementation.md`. 양식은 `templates/implementation.md`.
 - 완성 예시는 `examples/implementation.md`(학사관리 시스템).
 - 다음 단계: `$sw-code-review`(리뷰 반복), 구현 완료 뒤 `$sw-test`. 설계서 갱신 요청이 있으면 `$sw-design-oo`.
-- 협업 모드: `docs/sw/OWNERS.md`가 있으면 저장 전에 그 규칙을 따른다. `git config user.name`으로 작성자를 찾아 그 사람 담당 파일만 고친다. 새 번호는 `[임시:FR-<이니셜>-1]` 형식으로 쓰고 산출물 버전은 올리지 않는다(변경 표시는 "(다음 판 변경)"). 목차 파일의 머리 헤더·문서 상태·목차, `docs/sw/README.md`, 공용 조각(추적표, 자료사전 등)에 들어갈 내용과 남의 파일에 고칠 것은 `docs/sw/pending/<브랜치 이름의 / 를 - 로>.md`에 적는다. 정식 번호와 버전은 공용 담당이 `$sw-sdlc merge`로 매긴다. 규칙 전문은 CONVENTIONS 8절과 OWNERS.md 3절이다.
+- 협업 모드: `docs/sw/OWNERS.md`가 있으면 저장 전에 그 규칙을 따른다. `git config user.name`으로 작성자를 찾아 그 사람 담당 파일만 고친다. 새 번호는 `[임시:FR-<이니셜>-1]` 형식으로 쓰고 산출물 버전은 올리지 않는다(변경 표시는 "(다음 판 변경)"). 목차 파일의 머리 헤더·문서 상태·목차, `docs/sw/README.md`, 공용 조각(추적표, 자료사전 등)에 들어갈 내용과 남의 파일에 고칠 것은 `docs/sw/pending/<브랜치 이름의 / 를 - 로>.md`에 적는다. 정식 번호와 버전은 공용 담당이 `$sw-sdlc merge`로 매긴다. 규칙 전문은 `docs/sw/OWNERS.md` 3절이다.
 
 ## 체크리스트
 
