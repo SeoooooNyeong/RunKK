@@ -17,7 +17,7 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -50,7 +50,7 @@ fun WatchResultScreen(state: WatchFlow.Result, onClose: () -> Unit, modifier: Mo
                 if (headline.title().isNotEmpty()) {
                     Text(
                         text = headline.title(),
-                        style = numberStyle(40.sp, colorOf(headline)).copy(fontStyle = FontStyle.Normal)
+                        style = headlineStyle(RESULT_HEADLINE_SIZE, colorOf(headline))
                     )
                 }
                 headline.subtitle(resources)?.let {
@@ -95,7 +95,7 @@ private fun ResultMetric(value: String, label: String) {
         modifier = Modifier.width(METRIC_WIDTH).semantics(mergeDescendants = true) {},
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(text = value, style = numberStyle(18.sp))
+        Text(text = value, style = numberStyle(RESULT_VALUE_SIZE, weight = FontWeight.Bold))
         Text(text = label, style = labelStyle(color = WatchColors.OnSurface, size = 8.sp))
     }
 }

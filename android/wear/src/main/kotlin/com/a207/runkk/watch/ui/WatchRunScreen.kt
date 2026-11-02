@@ -65,9 +65,13 @@ fun WatchRunScreen(
         val meters = state.progress.distance.meters
         val goal = state.goal
         if (goal != null && goal.meters > 0) {
-            EdgeRing(fraction = meters.toFloat() / goal.meters, color = WatchColors.Lime)
+            EdgeRing(fraction = meters.toFloat() / goal.meters, color = WatchColors.Lime, hasStartKnob = true)
         } else {
-            EdgeRing(fraction = (meters % LAP_METERS).toFloat() / LAP_METERS, color = WatchColors.Lavender)
+            EdgeRing(
+                fraction = (meters % LAP_METERS).toFloat() / LAP_METERS,
+                color = WatchColors.Lavender,
+                hasStartKnob = true
+            )
         }
         Column(
             modifier = Modifier.fillMaxSize(),
@@ -75,12 +79,16 @@ fun WatchRunScreen(
             verticalArrangement = Arrangement.Center
         ) {
             TopLine(state)
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text(text = WatchFormat.distanceKm(meters), style = numberStyle(48.sp))
+            Row {
+                Text(
+                    text = WatchFormat.distanceKm(meters),
+                    modifier = Modifier.alignByBaseline(),
+                    style = numberStyle(RUN_DISTANCE_SIZE)
+                )
                 Text(
                     text = stringResource(R.string.unit_km),
-                    modifier = Modifier.padding(start = 4.dp, bottom = 8.dp),
-                    style = numberStyle(22.sp)
+                    modifier = Modifier.alignByBaseline().padding(start = 5.dp),
+                    style = numberStyle(RUN_UNIT_SIZE)
                 )
             }
             Box(Modifier.padding(vertical = 4.dp).width(110.dp).height(1.dp).background(WatchColors.Ink))
@@ -156,7 +164,7 @@ private fun Metric(value: String, label: String) {
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.semantics(mergeDescendants = true) {}
     ) {
-        Text(text = value, style = numberStyle(20.sp))
+        Text(text = value, style = numberStyle(RUN_VALUE_SIZE, weight = FontWeight.Bold))
         Text(text = label, style = labelStyle(color = WatchColors.OnSurface, size = 9.sp))
     }
 }
@@ -202,6 +210,11 @@ private fun AmbientRun(progress: RunProgress, modifier: Modifier) {
         Text(text = WatchFormat.elapsed(progress.elapsed.seconds), style = numberStyle(20.sp, Color.White))
     }
 }
+
+/** 피그마 FR3 글자 크기(300px 화면 ×0.64): 거리 81px, km 41px, 시간·페이스 30px. */
+private val RUN_DISTANCE_SIZE = 52.sp
+private val RUN_UNIT_SIZE = 26.sp
+private val RUN_VALUE_SIZE = 19.sp
 
 /** 무제한 고리 한 바퀴(1km 구간, FR-246 제안). */
 private const val LAP_METERS = 1_000L

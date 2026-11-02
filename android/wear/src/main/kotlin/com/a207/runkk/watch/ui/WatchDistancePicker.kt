@@ -1,5 +1,6 @@
 package com.a207.runkk.watch.ui
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -27,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.input.rotary.onRotaryScrollEvent
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -126,7 +129,7 @@ private fun DialPicker(
             .focusable()
     ) {
         EdgeRing(
-            fraction = if (isUnlimited) 1f else (state.selected + 1f) / state.choices.size,
+            fraction = if (isUnlimited) 1f else dialFraction(state),
             color = if (isUnlimited) WatchColors.Lavender else WatchColors.Lime
         )
         Column(
@@ -235,13 +238,15 @@ private fun ListPicker(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = contentPadding,
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+                // 카드마다 누르는 칸은 48dp지만 보이는 카드는 작아서, 칸끼리 카드 사이 빈자리만큼 겹쳐 피그마 간격(약 38dp)에 맞춘다.
+                verticalArrangement = Arrangement.spacedBy(CARD_OVERLAP),
                 rotaryScrollableBehavior = RotaryScrollableDefaults.behavior(listState)
             ) {
                 item {
                     Text(
                         text = stringResource(if (mode == WatchMode.SELF) R.string.self_title else R.string.mode_celeb),
-                        style = labelStyle(color = WatchColors.Lime, size = 16.sp).copy(fontWeight = FontWeight.Bold)
+                        modifier = Modifier.padding(bottom = -CARD_OVERLAP),
+                        style = labelStyle(color = WatchColors.Lime, size = 17.sp).copy(fontWeight = FontWeight.Black)
                     )
                 }
                 itemsIndexed(state.choices) { index, choice ->
@@ -253,10 +258,12 @@ private fun ListPicker(
     }
 }
 
-/** 거리 한 줄(피그마 S1-3): 거리와 오른쪽 값(내 기록 시간·셀럽 기록 수). 기록이 없으면 "기록 없음"으로 흐리게 두고 누를 수 없다. */
+/**
+ * 거리 한 줄(피그마 S1-3): 거리와 오른쪽 값(내 기록 시간·셀럽 기록 수). 가운데(고른) 카드는 라임으로 크게, 바깥 테두리와 왼쪽 ▶를
+ * 두르고, 나머지는 작게 그린다. 기록이 없으면 "기록 없음"으로 흐리게 두고 누를 수 없다. 카드는 작아도 누르는 영역은 48dp다.
+ */
 @Composable
 private fun DistanceRow(choice: WatchFlow.Choice, isHighlighted: Boolean, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(14.dp)
     val distance = choice.distance ?: return
     val label = distanceLabel(distance)
     val value = when {
@@ -272,39 +279,101 @@ private fun DistanceRow(choice: WatchFlow.Choice, isHighlighted: Boolean, onClic
         choice.isEnabled -> WatchColors.OnSurface
         else -> WatchColors.Muted
     }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth(ROW_WIDTH)
-            .heightIn(min = ROW_HEIGHT)
-            .clip(shape)
-            .background(if (isLime) WatchColors.Lime else WatchColors.Dark.copy(alpha = 0.6f), shape)
-            .border(1.dp, if (isLime) WatchColors.Lime else WatchColors.Border, shape)
-            .clickable(enabled = choice.isEnabled, role = Role.Button, onClickLabel = label, onClick = onClick)
-            .semantics { contentDescription = "$label, $value" }
-            .padding(horizontal = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(text = label, style = labelStyle(color = textColor, size = 15.sp).copy(fontWeight = FontWeight.ExtraBold))
-        Text(
-            text = value,
-            style = labelStyle(color = textColor, size = 12.sp).copy(fontWeight = FontWeight.Bold),
-            textAlign = TextAlign.End
-        )
+    val shape = RoundedCornerShape(if (isHighlighted) 11.dp else 9.dp)
+    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        if (isHighlighted) SelectArrow(Modifier.align(Alignment.CenterStart).padding(start = ARROW_START))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(if (isHighlighted) FOCUS_WIDTH else CARD_WIDTH)
+                .heightIn(min = TOUCH_SIZE)
+                .clip(RoundedCornerShape(FOCUS_CORNER))
+                .clickable(enabled = choice.isEnabled, role = Role.Button, onClickLabel = label, onClick = onClick)
+                .semantics { contentDescription = "$label, $value" },
+            contentAlignment = Alignment.Center
+        ) {
+            if (isLime) {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(FOCUS_HEIGHT)
+                        .border(1.5.dp, WatchColors.Lime.copy(alpha = 0.4f), RoundedCornerShape(FOCUS_CORNER))
+                )
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth(if (isHighlighted) FOCUS_CARD_RATIO else 1f)
+                    .height(if (isHighlighted) CARD_HEIGHT_SELECTED else CARD_HEIGHT)
+                    .background(if (isLime) WatchColors.Lime else WatchColors.Dark.copy(alpha = 0.6f), shape)
+                    .border(1.dp, if (isLime) WatchColors.Lime else WatchColors.Border, shape)
+                    .padding(horizontal = if (isHighlighted) 10.dp else 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = label,
+                    style = labelStyle(color = textColor, size = if (isHighlighted) 19.sp else 13.sp)
+                        .copy(fontWeight = FontWeight.Bold)
+                )
+                Text(
+                    text = value,
+                    style = labelStyle(color = textColor, size = if (isHighlighted) 14.sp else 11.sp)
+                        .copy(fontWeight = if (isHighlighted) FontWeight.Black else FontWeight.Bold),
+                    textAlign = TextAlign.End
+                )
+            }
+        }
     }
 }
 
-/** 목록 한 줄 너비(화면 비율, 피그마 S1-3)와 높이(워치 최소 터치 크기). */
+/** 고른 카드 왼쪽 라임 ▶(피그마 S1-3 arrow 22×24px). */
+@Composable
+private fun SelectArrow(modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier.size(width = 11.dp, height = 13.dp)) {
+        val path = Path().apply {
+            moveTo(0f, 0f)
+            lineTo(size.width, size.height / 2)
+            lineTo(0f, size.height)
+            close()
+        }
+        drawPath(path, WatchColors.Lime)
+    }
+}
+
+/**
+ * 셀프런·셀럽런 거리 카드(피그마 S1-3 300px 화면 ×0.64). 고른 카드는 바깥 테두리(216×72px) 안에 200×58px, 나머지는 186×46px다.
+ * 너비는 화면 비율, 높이는 dp다.
+ */
+private const val FOCUS_WIDTH = 0.72f
+private const val FOCUS_CARD_RATIO = 0.93f
+private const val CARD_WIDTH = 0.62f
+private val FOCUS_HEIGHT = 46.dp
+private val FOCUS_CORNER = 15.dp
+private val CARD_HEIGHT_SELECTED = 37.dp
+private val CARD_HEIGHT = 29.dp
+private val ARROW_START = 10.dp
+private val CARD_OVERLAP = (-8).dp
+
+/**
+ * 거리 고리 채움(피그마 F1-3·F1-5·F1-10·B1-1): 고른 거리를 가장 긴 거리로 나눈 비율이다. 10km가 끝이면 1km는 1/10, 3km는 3/10,
+ * 5km는 절반을 채운다.
+ */
+internal fun dialFraction(state: WatchFlow.Picker): Float {
+    val longest = state.choices.maxOf { it.distance?.meters ?: 0L }
+    val meters = state.current.distance?.meters ?: return 1f
+    return if (longest > 0) meters.toFloat() / longest else 1f
+}
+
+/** 셀럽 목록(WatchCelebListScreen) 한 줄 너비(화면 비율)와 높이(워치 최소 터치 크기). */
 internal const val ROW_WIDTH = 0.84f
 internal val ROW_HEIGHT = 48.dp
 
 /** 워치 최소 터치 크기(Wear OS 권장 48dp). */
 internal val TOUCH_SIZE = 48.dp
 
-/** 자유런·배틀런 가운데 큰 숫자(무제한은 ∞) 칸과 글자 크기. 가장 넓은 "10"이 들어가는 너비다. */
+/** 자유런·배틀런 가운데 큰 숫자(무제한은 ∞) 칸과 글자 크기(피그마 F1-3 120px ×0.64). 칸은 −·+ 자리를 고정한다. */
 private val DIAL_NUMBER_WIDTH = 64.dp
 private val DIAL_NUMBER_HEIGHT = 64.dp
-private val DIAL_NUMBER_SIZE = 60.sp
+private val DIAL_NUMBER_SIZE = 77.sp
 
 /** 한 카드 넘기는 회전 양. */
 private val ROTARY_STEP = 36.dp
