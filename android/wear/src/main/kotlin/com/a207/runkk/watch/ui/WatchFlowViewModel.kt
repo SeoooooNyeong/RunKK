@@ -124,7 +124,6 @@ class WatchFlowViewModel @Inject constructor(
 
     init {
         viewModelScope.launch { sessionStore.state.collect(::onSession) }
-        viewModelScope.launch { accounts.myGender.collect { gender -> updateMain { it.copy(gender = gender) } } }
         viewModelScope.launch {
             phoneLink.displays.map { it.isRunning }.distinctUntilChanged().collect(::onPhoneRunning)
         }
@@ -442,7 +441,7 @@ class WatchFlowViewModel @Inject constructor(
             _flow.value = WatchFlow.NotLoggedIn
             return
         }
-        _flow.value = WatchFlow.Main(lastMode, accounts.myGender.value, notice)
+        _flow.value = WatchFlow.Main(lastMode, notice)
         if (refresh) refreshAccount(session.memberId)
     }
 

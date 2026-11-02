@@ -129,21 +129,6 @@ fun WatchModeCarousel(
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val unit = maxHeight
             slotPx = with(density) { (unit * SLOT_GAP).toPx() }
-            CharacterImage(
-                gender = state.gender,
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .padding(end = unit * 0.1f)
-                    .height(unit * 0.6f)
-            )
-            Image(
-                painter = painterResource(R.drawable.watch_logo),
-                contentDescription = null,
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .offset(x = unit * 0.42f, y = -unit * 0.1f)
-                    .width(unit * 0.15f)
-            )
             val now = position.value
             val base = kotlin.math.floor(now).toInt()
             // 먼 카드부터 그려 가운데 카드가 위에 온다.
