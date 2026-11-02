@@ -65,9 +65,13 @@ fun WatchRunScreen(
         val meters = state.progress.distance.meters
         val goal = state.goal
         if (goal != null && goal.meters > 0) {
-            EdgeRing(fraction = meters.toFloat() / goal.meters, color = WatchColors.Lime)
+            EdgeRing(fraction = meters.toFloat() / goal.meters, color = WatchColors.Lime, hasStartKnob = true)
         } else {
-            EdgeRing(fraction = (meters % LAP_METERS).toFloat() / LAP_METERS, color = WatchColors.Lavender)
+            EdgeRing(
+                fraction = (meters % LAP_METERS).toFloat() / LAP_METERS,
+                color = WatchColors.Lavender,
+                hasStartKnob = true
+            )
         }
         Column(
             modifier = Modifier.fillMaxSize(),

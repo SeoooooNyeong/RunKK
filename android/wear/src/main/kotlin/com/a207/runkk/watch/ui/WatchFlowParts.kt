@@ -52,8 +52,8 @@ internal fun TrackBackground(
 }
 
 /**
- * 화면 둘레 고리(피그마 F1·FR3). [fraction]만큼 [color]로 채운다(아래쪽 빈틈을 둔 300도 호). [track]은 남은 부분 색이고 null이면
- * 그리지 않는다.
+ * 화면 둘레 고리(피그마 F1·FR3). [fraction]만큼 [color]로 채운다(왼쪽 아래에서 시계 방향으로 오른쪽 아래까지 270도 호, 아래 90도는 비운다).
+ * [track]은 남은 부분 색이고 null이면 그리지 않는다. [hasStartKnob]이면 시작점에 둥근 손잡이를 얹는다(피그마 FR3·BR1·SR3).
  */
 @Composable
 internal fun EdgeRing(
@@ -61,22 +61,40 @@ internal fun EdgeRing(
     color: Color,
     modifier: Modifier = Modifier,
     track: Color? = WatchColors.Dark,
-    width: Dp = 5.dp
+    width: Dp = 5.dp,
+    hasStartKnob: Boolean = false
 ) {
-    Canvas(modifier = modifier.fillMaxSize().padding(3.dp)) {
+    // 손잡이가 화면 둘레에 잘리지 않게 그만큼 고리를 안으로 들인다.
+    val inset = if (hasStartKnob) RING_PADDING + KNOB_RADIUS - width / 2 else RING_PADDING
+    Canvas(modifier = modifier.fillMaxSize().padding(inset)) {
         val stroke = Stroke(width = width.toPx(), cap = StrokeCap.Round)
-        val inset = stroke.width / 2
+        val half = stroke.width / 2
         val arcSize = Size(size.width - stroke.width, size.height - stroke.width)
-        val topLeft = Offset(inset, inset)
+        val topLeft = Offset(half, half)
         if (track != null) drawArc(track, RING_START, RING_SWEEP, false, topLeft, arcSize, style = stroke)
         val sweep = RING_SWEEP * fraction.coerceIn(0f, 1f)
         if (sweep > 0f) drawArc(color, RING_START, sweep, false, topLeft, arcSize, style = stroke)
+        if (hasStartKnob) {
+            val angle = Math.toRadians(RING_START.toDouble())
+            val radius = arcSize.width / 2
+            val knob = Offset(
+                center.x + radius * kotlin.math.cos(angle).toFloat(),
+                center.y + radius * kotlin.math.sin(angle).toFloat()
+            )
+            drawCircle(color, KNOB_RADIUS.toPx(), knob)
+            drawCircle(WatchColors.Ink, KNOB_RADIUS.toPx(), knob, style = Stroke(KNOB_BORDER.toPx()))
+        }
     }
 }
 
-/** 고리가 시작하는 각도(왼쪽 아래)와 그리는 각도(아래 60도를 비운다). */
-private const val RING_START = 120f
-private const val RING_SWEEP = 300f
+/** 고리가 시작하는 각도(왼쪽 아래, 7시 반)와 그리는 각도(피그마 F1-10 끝까지 찬 고리: 7시 반 → 4시 반). */
+private const val RING_START = 135f
+private const val RING_SWEEP = 270f
+
+/** 고리와 화면 가장자리 사이, 시작점 손잡이 반지름과 테두리(피그마 FR3 지름 20px ×0.64). */
+private val RING_PADDING = 3.dp
+private val KNOB_RADIUS = 6.5.dp
+private val KNOB_BORDER = 1.5.dp
 
 /** 거리 이름: 1·3·5·10km는 "3km", 하프·풀은 "하프"·"풀". */
 @Composable
