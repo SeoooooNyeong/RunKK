@@ -15,6 +15,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -33,7 +34,7 @@ import com.a207.runkk.watch.battle.RecordOpponent
 
 /**
  * 셀럽 기록 목록(FR-259, W09). 셀프런 거리 목록과 같은 틀이다(W03, 피그마 S1-3). 항목은 셀럽 표시명(가림 이름), 완주 시간, 출처다.
- * 항목을 누르면 [onCelebritySelected]로 카운트다운에 간다.
+ * 항목을 누르면 [onCelebritySelected]로 카운트다운에 간다. 구간 기록을 받는 동안(W31) 그 항목은 완주 시간 대신 "받는 중"이다.
  */
 @Composable
 fun WatchCelebListScreen(
@@ -59,7 +60,11 @@ fun WatchCelebListScreen(
                     )
                 }
                 itemsIndexed(state.celebrities) { index, celebrity ->
-                    CelebRow(celebrity, isHighlighted = index == state.selected) { onCelebritySelected(celebrity) }
+                    CelebRow(
+                        record = celebrity,
+                        isHighlighted = index == state.selected,
+                        isFetching = celebrity == state.fetching
+                    ) { onCelebritySelected(celebrity) }
                 }
                 state.notice?.let { notice -> item { FlowNoticeText(notice) } }
             }
@@ -68,9 +73,15 @@ fun WatchCelebListScreen(
 }
 
 @Composable
-private fun CelebRow(record: RecordOpponent, isHighlighted: Boolean, onClick: () -> Unit) {
+private fun CelebRow(record: RecordOpponent, isHighlighted: Boolean, isFetching: Boolean, onClick: () -> Unit) {
     val shape = RoundedCornerShape(14.dp)
-    val time = WatchFormat.elapsed(record.finishTime.seconds)
+    val time = if (isFetching) {
+        stringResource(
+            R.string.celeb_fetching
+        )
+    } else {
+        WatchFormat.elapsed(record.finishTime.seconds)
+    }
     val ink = if (isHighlighted) WatchColors.Ink else WatchColors.OnSurface
     Row(
         modifier = Modifier

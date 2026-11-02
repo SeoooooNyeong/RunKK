@@ -26,6 +26,7 @@ import com.a207.runkk.app.domain.battle.RecordBattleCandidates
 import com.a207.runkk.app.domain.battle.RecordBattleKind
 import com.a207.runkk.app.domain.battle.RecordBattleStart
 import com.a207.runkk.app.domain.battle.RecordTrack
+import com.a207.runkk.app.domain.live.TrackTable
 import com.a207.runkk.app.domain.run.CompletedRun
 import com.a207.runkk.app.domain.run.Guidance
 import com.a207.runkk.app.domain.run.GuidanceOutput
@@ -227,7 +228,10 @@ class FakeAccountRepository(private val events: MutableList<String> = mutableLis
     override suspend fun settings(): Outcome<MemberSettings> = unused()
 }
 
-/** 대결 REST(가짜). 워치 캐시는 recordTracks만 부른다. [tracks]가 없는 종류는 Network 실패다. */
+/**
+ * 대결 REST(가짜). 워치 캐시는 recordTracks·celebrityTrack만 부른다. [tracks]가 없는 종류는 Network 실패다. 셀럽 하나는
+ * [celebrityTracks]에 없으면 Network 실패다(W31).
+ */
 class FakeBattleRepository : BattleRepository {
     val tracks = mutableMapOf<RecordBattleKind, List<RecordTrack>>()
     val calls = mutableListOf<RecordBattleKind>()
@@ -253,6 +257,19 @@ class FakeBattleRepository : BattleRepository {
         calls += kind
         gate?.await()
         return tracks[kind]?.let { Outcome.Success(it) } ?: Outcome.Failure(AppError.Network)
+    }
+
+    /** 셀럽 하나의 응답(W31). 없으면 Network 실패다. */
+    val celebrityTracks = mutableMapOf<Long, Outcome<RecordTrack>>()
+    val celebrityTrackCalls = mutableListOf<Long>()
+
+    /** 있으면 celebrityTrack이 이 신호를 받을 때까지 멈춘다(받는 동안 다른 일이 끼어드는 경우). */
+    var celebrityGate: CompletableDeferred<Unit>? = null
+
+    override suspend fun celebrityTrack(celebrityId: Long): Outcome<RecordTrack> {
+        celebrityTrackCalls += celebrityId
+        celebrityGate?.await()
+        return celebrityTracks[celebrityId] ?: Outcome.Failure(AppError.Network)
     }
 
     /** 매칭 상태 응답(기본 대결 거리, FR-109). 기본은 Network 실패다. */
@@ -374,5 +391,9 @@ fun celebrityTrack(id: Long, distanceMeters: Long, finishSeconds: Long): RecordT
     celebrityFigure = "figure$id",
     track = OpponentTrack.uniform(Distance(distanceMeters), Duration.ofSeconds(finishSeconds))
 )
+
+/** 셀럽런 목록 항목(W31: 목록은 구간 기록이 비어 있다). 고를 때 [celebrityTrack]과 같은 기록을 받는다. */
+fun celebrityListItem(id: Long, distanceMeters: Long, finishSeconds: Long): RecordTrack =
+    celebrityTrack(id, distanceMeters, finishSeconds).copy(track = OpponentTrack.from(TrackTable(emptyList())))
 
 private fun unused(): Nothing = error("워치 시험에서 쓰지 않는 연산")

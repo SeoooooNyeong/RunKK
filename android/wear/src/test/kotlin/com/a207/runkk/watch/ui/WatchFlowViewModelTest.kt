@@ -59,6 +59,7 @@ import com.a207.runkk.watch.testing.SchedulerClock
 import com.a207.runkk.watch.testing.SchedulerMonotonicClock
 import com.a207.runkk.watch.testing.T0
 import com.a207.runkk.watch.testing.alertPlayer
+import com.a207.runkk.watch.testing.celebrityListItem
 import com.a207.runkk.watch.testing.celebrityTrack
 import com.a207.runkk.watch.testing.runTracker
 import com.a207.runkk.watch.testing.selfTrack
@@ -78,6 +79,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
@@ -115,8 +117,10 @@ class WatchFlowViewModelTest {
     private val online = MutableStateFlow(true)
     private val battles = FakeBattleRepository().apply {
         tracks[RecordBattleKind.SELF] = listOf(selfTrack(distanceMeters = 3_000, finishSeconds = 900))
+        // W31: 셀럽 목록은 구간 기록 없이 받고 고를 때 셀럽 하나로 받는다.
         tracks[RecordBattleKind.CELEBRITY] =
-            listOf(celebrityTrack(id = 1, distanceMeters = 5_000, finishSeconds = 1_500))
+            listOf(celebrityListItem(id = 1, distanceMeters = 5_000, finishSeconds = 1_500))
+        celebrityTracks[1] = Outcome.Success(celebrityTrack(id = 1, distanceMeters = 5_000, finishSeconds = 1_500))
     }
 
     private class Harness(
@@ -516,7 +520,6 @@ class WatchFlowViewModelTest {
 
     @Test
     fun `셀럽런은 거리 다음 셀럽 목록을 보이고 고르면 카운트다운이다(W09)`() = flowTest {
-        online.value = false
         val h = open()
         h.vm.onModeSelected(WatchMode.CELEB)
         val celeb = h.flow as WatchFlow.CelebDistance
@@ -530,7 +533,122 @@ class WatchFlowViewModelTest {
 
         h.vm.onDistanceSelected(Distance(5_000))
         h.vm.onCelebritySelected((h.flow as WatchFlow.CelebList).celebrities.single())
+        runCurrent()
         assertEquals(WatchFlow.Countdown(WatchMode.CELEB, Distance(5_000), 3), h.flow)
+    }
+
+    /** 셀럽런 5km 목록을 연다. */
+    private fun openCelebList(h: Harness): WatchFlow.CelebList {
+        h.vm.onModeSelected(WatchMode.CELEB)
+        h.vm.onDistanceSelected(Distance(5_000))
+        return h.flow as WatchFlow.CelebList
+    }
+
+    @Test
+    fun `셀럽을 고르면 받는 동안 그 항목을 받는 중으로 보이고 다시 눌러도 한 번만 받은 뒤 카운트다운이다(W31)`() = flowTest {
+        val gate = CompletableDeferred<Unit>()
+        battles.celebrityGate = gate
+        val h = open()
+        val celebrity = openCelebList(h).celebrities.single()
+
+        h.vm.onCelebritySelected(celebrity)
+        runCurrent()
+        assertEquals(celebrity, (h.flow as WatchFlow.CelebList).fetching)
+        h.vm.onCelebritySelected(celebrity)
+        runCurrent()
+
+        gate.complete(Unit)
+        runCurrent()
+        assertEquals(WatchFlow.Countdown(WatchMode.CELEB, Distance(5_000), 3), h.flow)
+        assertEquals(listOf(1L), battles.celebrityTrackCalls)
+    }
+
+    @Test
+    fun `한 번 받은 셀럽은 다음에 연결 없이 고를 수 있다(W31)`() = flowTest {
+        val h = open()
+        h.vm.onCelebritySelected(openCelebList(h).celebrities.single())
+        runCurrent()
+        passCountdown()
+        runAndEnd(h)
+        h.vm.onResultClosed()
+        runCurrent()
+
+        online.value = false
+        h.vm.onCelebritySelected(openCelebList(h).celebrities.single())
+
+        assertEquals(WatchFlow.Countdown(WatchMode.CELEB, Distance(5_000), 3), h.flow)
+        assertEquals(listOf(1L), battles.celebrityTrackCalls)
+    }
+
+    @Test
+    fun `연결이 없고 받아 둔 구간 기록이 없으면 받지 않고 연결 안내를 보인다(W31)`() = flowTest {
+        online.value = false
+        val h = open()
+
+        h.vm.onCelebritySelected(openCelebList(h).celebrities.single())
+        runCurrent()
+
+        val list = h.flow as WatchFlow.CelebList
+        assertEquals(WatchFlow.Notice.CELEB_OFFLINE, list.notice)
+        assertEquals(null, list.fetching)
+        assertTrue(battles.celebrityTrackCalls.isEmpty())
+    }
+
+    @Test
+    fun `셀럽 구간 기록이 없으면(404) 고를 수 없는 기록이고 받다가 끊기면 연결 안내다(W31)`() = flowTest {
+        battles.celebrityTracks[1] = Outcome.Failure(AppError.Rejected("CELEBRITY_REMOVED"))
+        val h = open()
+        val celebrity = openCelebList(h).celebrities.single()
+
+        h.vm.onCelebritySelected(celebrity)
+        runCurrent()
+        assertEquals(WatchFlow.Notice.CELEBRITY_REMOVED, (h.flow as WatchFlow.CelebList).notice)
+        assertEquals(null, (h.flow as WatchFlow.CelebList).fetching)
+
+        battles.celebrityTracks.remove(1)
+        h.vm.onCelebritySelected(celebrity)
+        runCurrent()
+        assertEquals(WatchFlow.Notice.CELEB_OFFLINE, (h.flow as WatchFlow.CelebList).notice)
+
+        battles.celebrityTracks[1] = Outcome.Failure(AppError.Server(503))
+        h.vm.onCelebritySelected(celebrity)
+        runCurrent()
+        assertEquals(WatchFlow.Notice.RETRY_LATER, (h.flow as WatchFlow.CelebList).notice)
+    }
+
+    @Test
+    fun `셀럽 구간 기록을 받는 동안 뒤로 가면 받은 뒤에도 카운트다운으로 가지 않는다(W31)`() = flowTest {
+        val gate = CompletableDeferred<Unit>()
+        battles.celebrityGate = gate
+        val h = open()
+        h.vm.onCelebritySelected(openCelebList(h).celebrities.single())
+        runCurrent()
+
+        h.vm.back()
+        gate.complete(Unit)
+        runCurrent()
+
+        assertIs<WatchFlow.CelebDistance>(h.flow)
+        assertFalse(h.tracker.isMeasuring)
+    }
+
+    @Test
+    fun `뒤로 갔다가 다시 들어와 같은 셀럽을 고르면 새로 받은 뒤 카운트다운이다(W31)`() = flowTest {
+        val gate = CompletableDeferred<Unit>()
+        battles.celebrityGate = gate
+        val h = open()
+        h.vm.onCelebritySelected(openCelebList(h).celebrities.single())
+        runCurrent()
+        h.vm.back()
+
+        h.vm.onDistanceSelected(Distance(5_000))
+        h.vm.onCelebritySelected((h.flow as WatchFlow.CelebList).celebrities.single())
+        runCurrent()
+        gate.complete(Unit)
+        runCurrent()
+
+        assertEquals(WatchFlow.Countdown(WatchMode.CELEB, Distance(5_000), 3), h.flow)
+        assertEquals(listOf(1L, 1L), battles.celebrityTrackCalls)
     }
 
     @Test

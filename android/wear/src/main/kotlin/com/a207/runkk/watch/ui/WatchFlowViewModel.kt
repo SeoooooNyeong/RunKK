@@ -112,6 +112,9 @@ class WatchFlowViewModel @Inject constructor(
     private var leadJob: Job? = null
     private var noticeJob: Job? = null
 
+    /** 고른 셀럽의 구간 기록 받기(W31). 셀럽 목록에서 뒤로 가면 거둔다. */
+    private var celebrityJob: Job? = null
+
     /** 로그인 정보 요청. 폰에 닿은 요청 뒤 [SESSION_REQUEST_GAP_MILLIS] 동안 살아 있어 그 사이 요청을 건너뛴다(WR13-1). */
     private var sessionRequestJob: Job? = null
 
@@ -197,10 +200,36 @@ class WatchFlowViewModel @Inject constructor(
         }
     }
 
-    /** 셀럽 기록 하나를 골랐다(FR-259). 카운트다운으로 간다. */
+    /**
+     * 셀럽 기록 하나를 골랐다(FR-259). 구간 기록을 받아 두었으면 바로 카운트다운이고, 아니면 연결이 있을 때 받은 뒤 카운트다운이다
+     * (W31). 받는 동안 그 항목을 받는 중으로 보이고 다른 선택은 받지 않는다. 연결이 없으면 "연결되면 고를 수 있어요", 없는 기록(404)이면
+     * "고를 수 없는 기록이에요"다.
+     */
     fun onCelebritySelected(c: RecordOpponent) {
-        if (_flow.value !is WatchFlow.CelebList) return
-        startRecord(c, WatchMode.CELEB)
+        val list = _flow.value as? WatchFlow.CelebList ?: return
+        if (list.fetching != null) return
+        battleFlow.readyCelebrity(c)?.let { ready ->
+            startRecord(ready, WatchMode.CELEB)
+            return
+        }
+        val blocked = blockedNotice() ?: WatchFlow.Notice.CELEB_OFFLINE.takeUnless { connectivity.isOnline.value }
+        if (blocked != null) {
+            showNotice(blocked)
+            return
+        }
+        _flow.value = list.copy(fetching = c, notice = null)
+        // 다른 길(로그아웃·메인 재진입)로 목록을 떠나 남은 받기가 같은 항목을 다시 고른 뒤에 끼어들지 않게 거둔다.
+        celebrityJob?.cancel()
+        celebrityJob = viewModelScope.launch {
+            val fetched = battleFlow.fetchCelebrity(c)
+            val current = _flow.value as? WatchFlow.CelebList
+            if (current == null || current.fetching != c) return@launch
+            _flow.value = current.copy(fetching = null)
+            when (fetched) {
+                is Outcome.Success -> startRecord(fetched.value, WatchMode.CELEB)
+                is Outcome.Failure -> showNotice(celebrityNotice(fetched.error))
+            }
+        }
     }
 
     /** "달리기 시작"(자유런, FR-244)·"매칭 시작"(배틀런, FR-257). */
@@ -270,8 +299,14 @@ class WatchFlowViewModel @Inject constructor(
     fun back() {
         when (val current = _flow.value) {
             is WatchFlow.Picker -> enterHome(refresh = false)
-            is WatchFlow.CelebList -> _flow.value = celebPicker(selectedDistance = current.distance)
+
+            is WatchFlow.CelebList -> {
+                celebrityJob?.cancel()
+                _flow.value = celebPicker(selectedDistance = current.distance)
+            }
+
             is WatchFlow.Matching -> onCancelMatching()
+
             else -> Unit
         }
     }
@@ -907,6 +942,13 @@ class WatchFlowViewModel @Inject constructor(
             "NO_RECORD" to WatchFlow.Notice.NO_RECORD,
             "CELEBRITY_REMOVED" to WatchFlow.Notice.CELEBRITY_REMOVED
         )
+
+        /** 셀럽 구간 기록 받기 실패 → 안내(W31): 연결 없음, 없는 기록(404 등 거부), 그 밖(서버 오류)은 잠시 후 다시. */
+        private fun celebrityNotice(error: AppError): WatchFlow.Notice = when (error) {
+            AppError.Network -> WatchFlow.Notice.CELEB_OFFLINE
+            is AppError.Rejected -> WatchFlow.Notice.CELEBRITY_REMOVED
+            else -> WatchFlow.Notice.RETRY_LATER
+        }
 
         private fun noticeOf(
             error: AppError,

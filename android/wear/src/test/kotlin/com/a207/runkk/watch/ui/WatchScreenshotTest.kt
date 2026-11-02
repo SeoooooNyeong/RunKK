@@ -22,6 +22,7 @@ import com.a207.runkk.app.domain.run.RunProgress
 import com.a207.runkk.watch.battle.RecordOpponent
 import com.a207.runkk.watch.battle.WatchResultHeadline
 import com.a207.runkk.watch.cache.CachedTrack
+import com.a207.runkk.watch.testing.celebrityListItem
 import com.a207.runkk.watch.testing.celebrityTrack
 import com.github.takahirom.roborazzi.captureRoboImage
 import java.time.Duration
@@ -187,6 +188,19 @@ class WatchScreenshotTest {
             )
         )
     )
+
+    /** 고른 셀럽의 구간 기록을 받는 중(W31): 그 항목은 완주 시간 대신 "받는 중"이다. */
+    @Test
+    fun celebListFetching() {
+        val celebrities = listOf(
+            RecordOpponent(CachedTrack(celebrityListItem(1, 5_000, 1_250), Instant.EPOCH)),
+            RecordOpponent(CachedTrack(celebrityListItem(2, 5_000, 1_420), Instant.EPOCH))
+        )
+        capture(
+            "C2-5_watch_celeb_list_fetching",
+            WatchFlow.CelebList(Distance(5_000), celebrities, selected = 1, fetching = celebrities[1])
+        )
+    }
 
     @Test
     fun matching() = capture("BMA_watch_matching", WatchFlow.Matching("SILVER", Distance(3_000), waitedSeconds = 7))

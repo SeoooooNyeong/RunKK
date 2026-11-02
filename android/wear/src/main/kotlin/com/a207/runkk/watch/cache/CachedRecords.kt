@@ -14,6 +14,7 @@ import kotlinx.serialization.Serializable
 /**
  * OpponentRecordCache의 파일 형식(JSON 한 개, 회원ID 머리, D-377). 진행표는 1초마다의 누적 미터로 둔다: OpponentTrack은 표본을 밖에
  * 내지 않으므로 distanceAt으로 1초마다 읽어 두고, 읽을 때 같은 1초 간격 TrackTable로 다시 만든다(서버 표는 정수 초라 값이 같다).
+ * 아직 구간 기록을 받지 않은 셀럽 목록 항목(W31, CachedTrack.hasTrack 거짓)은 진행표가 빈 목록이다.
  */
 @Serializable
 internal data class CachedRecords(val memberId: Long, val tracks: List<Entry>) {
@@ -26,7 +27,7 @@ internal data class CachedRecords(val memberId: Long, val tracks: List<Entry>) {
         val finishMillis: Long,
         val sourceLabel: String? = null,
         val celebrityFigure: String? = null,
-        /** 경과 1초, 2초, …의 누적 미터. 마지막 값이 도착 거리다. */
+        /** 경과 1초, 2초, …의 누적 미터. 마지막 값이 도착 거리다. 구간 기록을 받지 않은 셀럽은 비어 있다(W31). */
         val metersPerSecond: List<Long>,
         val fetchedAtEpochMillis: Long
     ) {
@@ -49,8 +50,6 @@ internal data class CachedRecords(val memberId: Long, val tracks: List<Entry>) {
         companion object {
             fun of(cached: CachedTrack): Entry {
                 val record = cached.record
-                val arrival = record.track.arrivalTime(record.distance) ?: record.finishTime
-                val lastSecond = ceil(maxOf(arrival, record.finishTime).toMillis() / MILLIS_PER_SECOND).toLong()
                 return Entry(
                     kind = record.kind.name,
                     distanceMeters = record.distance.meters,
@@ -59,9 +58,15 @@ internal data class CachedRecords(val memberId: Long, val tracks: List<Entry>) {
                     finishMillis = record.finishTime.toMillis(),
                     sourceLabel = record.sourceLabel,
                     celebrityFigure = record.celebrityFigure,
-                    metersPerSecond = (1..lastSecond).map { record.track.distanceAt(Duration.ofSeconds(it)).meters },
+                    metersPerSecond = if (cached.hasTrack) metersPerSecond(record) else emptyList(),
                     fetchedAtEpochMillis = cached.fetchedAt.toEpochMilli()
                 )
+            }
+
+            private fun metersPerSecond(record: RecordTrack): List<Long> {
+                val arrival = record.track.arrivalTime(record.distance) ?: record.finishTime
+                val lastSecond = ceil(maxOf(arrival, record.finishTime).toMillis() / MILLIS_PER_SECOND).toLong()
+                return (1..lastSecond).map { record.track.distanceAt(Duration.ofSeconds(it)).meters }
             }
 
             private const val MILLIS_PER_SECOND = 1_000.0

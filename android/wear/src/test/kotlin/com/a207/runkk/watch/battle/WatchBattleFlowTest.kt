@@ -24,6 +24,8 @@ import com.a207.runkk.watch.testing.FakePendingRunRepository
 import com.a207.runkk.watch.testing.FakeSettingsRepository
 import com.a207.runkk.watch.testing.SchedulerClock
 import com.a207.runkk.watch.testing.alertPlayer
+import com.a207.runkk.watch.testing.celebrityListItem
+import com.a207.runkk.watch.testing.celebrityTrack
 import com.a207.runkk.watch.testing.runTracker
 import com.a207.runkk.watch.testing.selfTrack
 import java.io.File
@@ -34,6 +36,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.async
@@ -233,6 +236,40 @@ class WatchBattleFlowTest {
         runCurrent()
         assertFalse(h.flow.step().isOpen)
         assertNull(h.flow.activeRecord())
+    }
+
+    @Test
+    fun `셀럽 상대는 받아 둔 구간 기록이 없으면 받아서 돌려주고 그다음은 받지 않고 바로 돌려준다(W31)`() = runTest {
+        battles.tracks[RecordBattleKind.SELF] = emptyList()
+        battles.tracks[RecordBattleKind.CELEBRITY] = listOf(celebrityListItem(1, 5_000, 1_500))
+        battles.celebrityTracks[1] = Outcome.Success(celebrityTrack(1, 5_000, 1_500))
+        val h = harness()
+        h.flow.refreshCache(memberId = 1)
+        runCurrent()
+        val listed = h.flow.celebrityCandidates(Distance(5_000)).single()
+        assertNull(h.flow.readyCelebrity(listed))
+
+        val fetched = assertIs<Outcome.Success<RecordOpponent>>(h.flow.fetchCelebrity(listed)).value
+
+        assertEquals("셀럽1", fetched.displayName)
+        assertEquals(fetched, h.flow.readyCelebrity(listed))
+        assertEquals(listOf(1L), battles.celebrityTrackCalls)
+        h.flow.startRecordOffline(assertNotNull(h.flow.readyCelebrity(listed)))
+        runCurrent()
+        assertIs<BattleStep.Countdown>(h.flow.step())
+    }
+
+    @Test
+    fun `셀럽 ID 없는 셀럽 기록은 받지 않고 거부다(W31)`() = runTest {
+        battles.tracks[RecordBattleKind.SELF] = emptyList()
+        battles.tracks[RecordBattleKind.CELEBRITY] = listOf(celebrityListItem(1, 5_000, 1_500).copy(celebrityId = null))
+        val h = harness()
+        h.flow.refreshCache(memberId = 1)
+        runCurrent()
+        val listed = h.flow.celebrityCandidates(Distance(5_000)).single()
+
+        assertIs<AppError.Rejected>(assertIs<Outcome.Failure>(h.flow.fetchCelebrity(listed)).error)
+        assertTrue(battles.celebrityTrackCalls.isEmpty())
     }
 }
 

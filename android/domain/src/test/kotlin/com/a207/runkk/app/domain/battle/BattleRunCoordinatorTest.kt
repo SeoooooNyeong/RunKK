@@ -84,6 +84,8 @@ private class FakeBattleRepository(private val log: CallLog) : BattleRepository 
 
     override suspend fun recordTracks(kind: RecordBattleKind): Outcome<List<RecordTrack>> = error("unused")
 
+    override suspend fun celebrityTrack(celebrityId: Long): Outcome<RecordTrack> = error("unused")
+
     override suspend fun startSelfBattle(distance: Distance): Outcome<RecordBattleStart> = error("unused")
 
     override suspend fun startCelebrityBattle(celebrityId: Long): Outcome<RecordBattleStart> = error("unused")
