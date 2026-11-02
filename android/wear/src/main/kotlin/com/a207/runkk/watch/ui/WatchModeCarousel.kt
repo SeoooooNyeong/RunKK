@@ -3,6 +3,7 @@ package com.a207.runkk.watch.ui
 import android.animation.ValueAnimator
 import android.os.PowerManager
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -24,12 +25,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.BiasAlignment
@@ -85,6 +88,8 @@ fun WatchModeCarousel(
     val step = with(density) { STEP_DRAG.toPx() }
     var rotated by remember { mutableFloatStateOf(0f) }
     var dragStart by remember { mutableIntStateOf(target) }
+    // 끌기 위치는 코루틴 밖에서 바로 더한다(같은 프레임의 이벤트가 앞 델타를 잃지 않게). Animatable에는 이 값을 따라 쓴다.
+    var dragPosition by remember { mutableFloatStateOf(position.value) }
     var slotPx by remember { mutableFloatStateOf(1f) }
     val moveTo = { index: Int ->
         target = index
@@ -97,7 +102,9 @@ fun WatchModeCarousel(
         }
         Unit
     }
-    val release = { moveTo(carouselSettle(dragStart, position.value)) }
+    val release = { moveTo(carouselSettle(dragStart, dragPosition)) }
+    // 처음 구성의 release가 아니라 지금 구성의 release를 부르게 한다(isStill·position이 바뀌어도 따라간다).
+    val currentRelease by rememberUpdatedState(release)
     LaunchedEffect(Unit) { focus.requestFocus() }
     TrackBackground(
         isDimmed = false,
@@ -116,13 +123,15 @@ fun WatchModeCarousel(
                 detectVerticalDragGestures(
                     onDragStart = {
                         dragStart = target
+                        dragPosition = position.value
                         scope.launch { position.stop() }
                     },
-                    onDragEnd = release,
-                    onDragCancel = release
+                    onDragEnd = { currentRelease() },
+                    onDragCancel = { currentRelease() }
                 ) { change, amount ->
                     change.consume()
-                    scope.launch { position.snapTo(position.value - amount / slotPx) }
+                    dragPosition -= amount / slotPx
+                    scope.launch { position.snapTo(dragPosition) }
                 }
             }
     ) {
@@ -136,25 +145,46 @@ fun WatchModeCarousel(
                     .padding(end = unit * 0.1f)
                     .height(unit * 0.6f)
             )
-            val now = position.value
-            val base = kotlin.math.floor(now).toInt()
-            // 먼 카드부터 그려 가운데 카드가 위에 온다.
-            (base - VISIBLE_SLOTS..base + VISIBLE_SLOTS + 1)
-                .filter { kotlin.math.abs(it - now) < VISIBLE_SLOTS + 1 }
-                .sortedByDescending { kotlin.math.abs(it - now) }
-                .forEach { index ->
-                    key(index) {
-                        val distance = index - now
-                        val mode = carouselMode(index)
-                        val onClick: (() -> Unit)? = when (kotlin.math.abs(distance).roundToInt()) {
-                            0 -> ({ onModeSelected(mode) })
-                            1 -> ({ moveTo(index) })
-                            else -> null
-                        }
-                        ModeCard(mode, carouselSlot(distance), unit, onClick)
-                    }
+            // 위치는 카드 안에서 읽는다. 여기서는 어느 번호의 카드가 있는지(칸이 바뀔 때만)만 읽어 매 프레임 다시 구성하지 않는다.
+            val base by remember(position) { derivedStateOf { kotlin.math.floor(position.value).toInt() } }
+            (base - VISIBLE_SLOTS..base + VISIBLE_SLOTS + 1).forEach { index ->
+                key(index) {
+                    PositionedModeCard(index, position, unit, onModeSelected, moveTo)
                 }
+            }
         }
+    }
+}
+
+/**
+ * [index]번 카드 하나. 위치([position])를 이 카드 안에서 읽어 프레임마다 이 카드만 다시 구성하고, 가까운 카드가 위에 오도록 그리기
+ * 순서(zIndex)를 배치 단계에서 정한다. 가운데는 선택, 한 칸 옆은 그 칸으로 이동, 그 밖은 장식이다.
+ */
+@Composable
+private fun PositionedModeCard(
+    index: Int,
+    position: Animatable<Float, AnimationVector1D>,
+    unit: Dp,
+    onModeSelected: (WatchMode) -> Unit,
+    moveTo: (Int) -> Unit
+) {
+    val distance = index - position.value
+    if (kotlin.math.abs(distance) >= VISIBLE_SLOTS + 1) return
+    val mode = carouselMode(index)
+    val onClick: (() -> Unit)? = when (kotlin.math.abs(distance).roundToInt()) {
+        0 -> ({ onModeSelected(mode) })
+        1 -> ({ moveTo(index) })
+        else -> null
+    }
+    Box(
+        Modifier.layout { measurable, constraints ->
+            val placeable = measurable.measure(constraints)
+            layout(placeable.width, placeable.height) {
+                placeable.place(0, 0, zIndex = -kotlin.math.abs(index - position.value))
+            }
+        }
+    ) {
+        ModeCard(mode, carouselSlot(distance), unit, onClick)
     }
 }
 
@@ -283,7 +313,7 @@ private const val VISIBLE_SLOTS = 2
 private val CENTER_BORDER = Color(0xFFE4F79A)
 
 /** 작은 카드 누르는 영역 높이. */
-private val SIDE_TOUCH_HEIGHT = 44.dp
+private val SIDE_TOUCH_HEIGHT = TOUCH_SIZE
 
 /** 작은 카드 바탕(피그마 Q1 진한 남색 → 회색). */
 private val SIDE_CARD_START = Color(0xFF1A2530)

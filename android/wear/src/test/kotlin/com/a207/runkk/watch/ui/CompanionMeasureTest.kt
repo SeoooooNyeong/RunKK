@@ -77,12 +77,27 @@ class CompanionMeasureTest {
         val flow = assertIs<WatchFlow.Running>(
             running.copy(
                 proximity = WatchProximity(gapMeters = 3, isAhead = true, intervalMillis = 300),
-                isLeadChanged = true
+                leadKind = LeadKind.OVERTOOK
             ).toMeasureFlow()
         )
 
         assertTrue(flow.isLeadChanged)
+        assertEquals(LeadKind.OVERTOOK, flow.leadKind)
         assertEquals(3, flow.gapMeters)
+    }
+
+    @Test
+    fun `역전 띠 색은 근접 값이 없어도 방향이 정한다(WR15-5)`() {
+        val overtook = assertIs<WatchFlow.Running>(running.copy(leadKind = LeadKind.OVERTOOK).toMeasureFlow())
+        val overtaken = assertIs<WatchFlow.Running>(running.copy(leadKind = LeadKind.OVERTAKEN).toMeasureFlow())
+        val ahead = WatchProximity(gapMeters = 2, isAhead = true, intervalMillis = 300)
+        val overtakenWhileAhead = assertIs<WatchFlow.Running>(
+            running.copy(proximity = ahead, leadKind = LeadKind.OVERTAKEN).toMeasureFlow()
+        )
+
+        assertEquals(WatchColors.Lime, leadBannerColor(overtook))
+        assertEquals(WatchColors.Orange, leadBannerColor(overtaken))
+        assertEquals(WatchColors.Orange, leadBannerColor(overtakenWhileAhead))
     }
 
     @Test

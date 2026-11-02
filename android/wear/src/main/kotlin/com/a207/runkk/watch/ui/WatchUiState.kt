@@ -28,6 +28,8 @@ data class WatchUiState(
     val isPausable: Boolean = false,
     /** 대결 중 근접 알림이 켜져 있다(FR-196). 이때 측정 화면 위 줄에 거리 차를 보인다. 없으면(100m 밖, 끔) 칸을 비운다. */
     val proximity: WatchProximity? = null,
-    /** 방금 추월·역전을 받았다(FR-188). 측정 화면에 "역전!" 띠를 잠깐 띄운다. */
-    val isLeadChanged: Boolean = false
-)
+    /** 방금 받은 추월·역전의 방향(FR-188). 있으면 측정 화면에 "역전!" 띠를 잠깐 띄우고 색은 방향이 정한다. */
+    val leadKind: LeadKind? = null
+) {
+    val isLeadChanged: Boolean get() = leadKind != null
+}

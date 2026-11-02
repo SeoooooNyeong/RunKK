@@ -96,7 +96,7 @@ fun WatchRunScreen(
         when {
             state.isLeadChanged -> Banner(
                 stringResource(R.string.lead_changed),
-                if ((state.gapMeters ?: 0) >= 0) WatchColors.Lime else WatchColors.Orange
+                leadBannerColor(state)
             )
 
             state.notice != null -> Banner(stringResource(noticeRes(state.notice)), WatchColors.Lavender)
@@ -104,6 +104,13 @@ fun WatchRunScreen(
             state.banner != null -> Banner(state.banner, WatchColors.Lavender)
         }
     }
+}
+
+/** 역전 띠 색. 방향을 알면 방향으로(앞질렀으면 라임, 따라잡혔으면 주황), 모르면(단독 측정) 거리 차 부호로 정한다. */
+internal fun leadBannerColor(state: WatchFlow.Running): Color = when (state.leadKind) {
+    LeadKind.OVERTOOK -> WatchColors.Lime
+    LeadKind.OVERTAKEN -> WatchColors.Orange
+    null -> if ((state.gapMeters ?: 0) >= 0) WatchColors.Lime else WatchColors.Orange
 }
 
 /** 위 줄: 대결 거리 차, 자유런 목표, 무제한 구간 번호. */

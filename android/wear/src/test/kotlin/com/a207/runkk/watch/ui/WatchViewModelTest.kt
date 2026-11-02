@@ -444,10 +444,24 @@ class WatchViewModelTest {
         dataLayer.incoming.tryEmit(WearMessage(WearPaths.LEAD_CHANGE, message.encode()))
         runCurrent()
         assertTrue(vm.uiState.value.isLeadChanged)
+        assertEquals(LeadKind.OVERTOOK, vm.uiState.value.leadKind)
 
         advanceTimeBy(WatchViewModel.LEAD_BANNER_MILLIS)
         runCurrent()
         assertFalse(vm.uiState.value.isLeadChanged)
+    }
+
+    @Test
+    fun `상대가 앞지르면 근접 값이 없어도 뒤처짐 방향을 낸다(WR15-5)`() = runTest {
+        val vm = viewModel()
+        receive(display(running = true))
+
+        val message = LeadChangeMessage(LeadChangeMessage.Kind.OVERTAKEN, T0 + testScheduler.currentTime)
+        dataLayer.incoming.tryEmit(WearMessage(WearPaths.LEAD_CHANGE, message.encode()))
+        runCurrent()
+
+        assertNull(vm.uiState.value.proximity)
+        assertEquals(LeadKind.OVERTAKEN, vm.uiState.value.leadKind)
     }
 
     @Test
