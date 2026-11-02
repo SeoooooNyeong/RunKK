@@ -5,6 +5,7 @@ import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.core.model.SignalState
 import java.time.Duration
 import java.time.Instant
+import java.time.temporal.ChronoUnit
 import kotlin.math.roundToLong
 
 /**
@@ -76,7 +77,7 @@ class RunSession(val spec: RunStartSpec) {
 
     fun start(at: Instant) {
         check(state == State.COUNTDOWN) { "cannot start in state $state" }
-        startedAt = at
+        startedAt = at.atMillis()
         state = State.RUNNING
     }
 
@@ -163,7 +164,7 @@ class RunSession(val spec: RunStartSpec) {
     fun pause(at: Instant): Boolean {
         if (!spec.mode.isPausable) return false
         if (state != State.RUNNING) return false
-        pausedSince = at
+        pausedSince = at.atMillis()
         state = State.PAUSED
         return true
     }
@@ -171,7 +172,7 @@ class RunSession(val spec: RunStartSpec) {
     /** 재개(FR-194): PAUSED → RUNNING. 그 밖의 상태면 거짓이다. */
     fun resume(at: Instant): Boolean {
         if (state != State.PAUSED) return false
-        closePause(at)
+        closePause(at.atMillis())
         state = State.RUNNING
         return true
     }
@@ -228,7 +229,7 @@ class RunSession(val spec: RunStartSpec) {
     /** 열린 정지 구간을 닫고 재개 처리를 한다: 재개 뒤 첫 포인트는 거리를 더하지 않고, 현재 페이스 창을 비운다(D-93 (1)(2)). */
     private fun closePause(at: Instant) {
         val from = requireNotNull(pausedSince)
-        closedPauses += PauseInterval(from, maxOf(at, from))
+        addPause(from, at)
         pausedSince = null
         lastResumedAt = at
         lastNormal = null
@@ -236,10 +237,15 @@ class RunSession(val spec: RunStartSpec) {
         lastCurrentPace = null
     }
 
-    /** 종료: 열린 정지 구간은 종료 시각에 닫는다(D-93 (5)). 경과는 운동 시간이다. */
+    /**
+     * 종료: 열린 정지 구간은 기록 끝에 닫는다(D-93 (5)). 경과는 운동 시간이다.
+     * 기록 끝은 시각 하나(밀리초)로 정하고 정지 구간 끝과 운동 시간을 모두 그 값으로 계산한다. 서버는 기록 끝을
+     * 시작 + 운동 시간 + 정지 합으로 다시 만들어 정지 구간이 그 안에 있는지 보므로(F.2.2) 두 값이 1ms라도 갈리면 400이다(R12 D2).
+     * 다른 스레드가 먼저 읽은 시각으로 정지·재개했으면 그 시각보다 앞으로 끝내지 않는다(from ≤ to).
+     */
     private fun complete(now: Instant): FinishOutcome {
-        // 다른 스레드가 먼저 읽은 시각으로 닫아도 구간이 뒤집히지 않게 한다(from ≤ to).
-        pausedSince?.let { closedPauses += PauseInterval(it, maxOf(now, it)) }
+        val end = listOfNotNull(now.atMillis(), pausedSince, closedPauses.lastOrNull()?.to).max()
+        pausedSince?.let { addPause(it, end) }
         pausedSince = null
         state = State.FINISHED
         val start = requireNotNull(startedAt)
@@ -253,7 +259,7 @@ class RunSession(val spec: RunStartSpec) {
                 battleId = spec.battleId,
                 crewRunPostId = spec.crewRunPostId,
                 startedAt = start,
-                elapsed = Duration.between(start, now).minus(pausedTotal(now)).coerceAtLeast(Duration.ZERO),
+                elapsed = Duration.between(start, end).minus(pausedTotal(end)).coerceAtLeast(Duration.ZERO),
                 distance = distance,
                 route = points.toList(),
                 unstable = unstable.toList(),
@@ -275,7 +281,15 @@ class RunSession(val spec: RunStartSpec) {
         return Pace.of(Duration.between(fromAt, toAt), Distance(meters))
     }
 
+    /** 닫힌 정지 구간을 남긴다. 길이가 0이면(같은 밀리초 안의 정지·재개) 남기지 않는다: 서버는 from < to만 받는다. */
+    private fun addPause(from: Instant, to: Instant) {
+        if (to.isAfter(from)) closedPauses += PauseInterval(from, to)
+    }
+
     private fun Duration.coerceAtLeast(min: Duration): Duration = if (this < min) min else this
+
+    /** 세션이 남기는 시각은 밀리초까지만 둔다. 보관(epoch 밀리초)·전송(밀리초 세 자리)에서 잘려도 값이 바뀌지 않는다(R12 D2). */
+    private fun Instant.atMillis(): Instant = truncatedTo(ChronoUnit.MILLIS)
 
     private companion object {
         val CURRENT_PACE_WINDOW: Duration = Duration.ofSeconds(30)

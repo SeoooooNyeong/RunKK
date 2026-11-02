@@ -156,6 +156,39 @@ class RoomPendingRunRepositoryTest {
     }
 
     @Test
+    fun `R12 D2-b 거부 표시는 미전송으로 남기고 사유를 왕복하며 그 뒤 덧붙은 늦은 심박을 덮지 않는다`() = runTest {
+        val run = completedRun("r-1")
+        repository.save(run)
+        val handedOut = (repository.pending() as Outcome.Success).value.single()
+        repository.appendHeartRates("r-1", listOf(HeartRateSample(now.plusSeconds(700), 150)))
+
+        assertEquals(Outcome.Success(Unit), repository.markRejected(handedOut, "BAD_REQUEST"))
+
+        val kept = (repository.pending() as Outcome.Success).value.single()
+        assertEquals(UploadState.REJECTED, kept.uploadState)
+        assertEquals("BAD_REQUEST", kept.rejectedReason)
+        assertEquals(listOf(130, 140, 150), kept.heartRates.map { it.bpm })
+        assertEquals(
+            run.copy(uploadState = UploadState.REJECTED, rejectedReason = "BAD_REQUEST"),
+            kept.copy(heartRates = run.heartRates)
+        )
+    }
+
+    @Test
+    fun `R12 D3 보낸 기록은 미전송 목록에서 빠지고 경로·심박·정지 구간을 지운 머리 정보만 남는다(D-77)`() = runTest {
+        repository.save(completedRun("r-1"))
+
+        repository.remove("r-1")
+
+        assertEquals(Outcome.Success(emptyList()), repository.pending())
+        val header = assertNotNull(db.pendingRunDao().find("r-1"))
+        assertNotNull(header.sentAtMillis)
+        assertEquals(0, header.route.size)
+        assertEquals(0, header.heartRates.size)
+        assertEquals(0, header.pauses.size)
+    }
+
+    @Test
     fun `미전송 기록에 늦은 심박을 시각 순서로 덧붙인다`() = runTest {
         repository.save(completedRun("r-1"))
         val late = listOf(HeartRateSample(now.plusSeconds(700), 150), HeartRateSample(now.plusSeconds(650), 148))

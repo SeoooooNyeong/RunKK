@@ -5,10 +5,9 @@ import com.a207.runkk.app.domain.run.CompletedRun
 import com.a207.runkk.app.domain.run.HeartRateSample
 import com.a207.runkk.app.domain.sync.DisposalOrder
 import com.a207.runkk.app.domain.sync.UploadReceipt
-import java.time.Duration
 
 // CompletedRun → RunUploadRequest 매퍼(6.1.14 api.run, D-54)와 응답 → 도메인 매퍼.
-// elapsedMillis는 운동 시간(정지 제외)이고 endedAt은 시작 + 운동 시간 + 정지 시간 합이다(서버 규칙: 정지 구간은 시작~종료 안, F.2.2).
+// elapsedMillis는 운동 시간(정지 제외)이고 endedAt은 시작 + 운동 시간 + 정지 시간 합(CompletedRun.endedAt)이다(서버 규칙: 정지 구간은 시작~종료 안, F.2.2).
 
 internal fun CompletedRun.toRequest(): RunUploadRequest = RunUploadRequest(
     recordId = recordId,
@@ -17,7 +16,7 @@ internal fun CompletedRun.toRequest(): RunUploadRequest = RunUploadRequest(
     battleId = battleId,
     crewRunPostId = crewRunPostId,
     startedAt = ServerTime.formatWithOffset(startedAt),
-    endedAt = ServerTime.formatWithOffset(startedAt.plus(elapsed).plus(pausedTotal())),
+    endedAt = ServerTime.formatWithOffset(endedAt),
     elapsedMillis = elapsed.toMillis(),
     distanceMeters = distance.meters,
     pointCount = route.size,
@@ -39,10 +38,6 @@ internal fun CompletedRun.toRequest(): RunUploadRequest = RunUploadRequest(
     },
     startDevice = startDevice.name
 )
-
-/** 정지 시간 합. */
-private fun CompletedRun.pausedTotal(): Duration =
-    pauses.fold(Duration.ZERO) { sum, p -> sum.plus(Duration.between(p.from, p.to)) }
 
 internal fun HeartRateSample.toRequest(): RunUploadRequest.HeartRate =
     RunUploadRequest.HeartRate(ServerTime.formatWithOffset(at), bpm)

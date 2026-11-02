@@ -19,6 +19,13 @@ interface PendingRunRepository {
 
     suspend fun remove(recordId: String): Outcome<Unit>
 
+    /**
+     * 서버가 4xx로 받지 않은 기록을 지우지 않고 사유와 함께 남긴다(uploadState = REJECTED, R12 D2-b). 자동 전송은 이 기록을 다시
+     * 보내지 않는다. 기본 구현은 [run]을 상태만 바꿔 다시 저장한다. 보관소 구현은 전송 중 덧붙은 늦은 심박을 덮지 않게 상태 칸만 바꾼다.
+     */
+    suspend fun markRejected(run: CompletedRun, reason: String): Outcome<Unit> =
+        save(run.copy(uploadState = UploadState.REJECTED, rejectedReason = reason))
+
     suspend fun purgeRoutes(): Outcome<Unit>
 
     /** 미전송 기록의 심박과 늦은 심박 항목(LateHeartRates)을 함께 지운다(FR-029, TF-VA-31). */

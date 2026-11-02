@@ -8,6 +8,7 @@ import com.a207.runkk.app.domain.run.HeartRateSample
 import com.a207.runkk.app.domain.run.LateHeartRates
 import com.a207.runkk.app.domain.run.PendingRunRepository
 import com.a207.runkk.app.domain.run.UploadScheduler
+import com.a207.runkk.app.domain.run.UploadState
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
@@ -109,6 +110,11 @@ constructor(
         // 트랜잭션이 끝난 뒤에만 지운다: 실패해 다시 remove할 때도 같은 기준으로 늦은 심박을 가린다.
         handedOutHeartRates.remove(recordId)
         return leftLate
+    }
+
+    /** 상태 칸만 바꾼다: 전송이 읽은 뒤 덧붙은 늦은 심박(appendHeartRates)을 옛 사본으로 덮지 않는다(F-4와 같은 이유). */
+    override suspend fun markRejected(run: CompletedRun, reason: String): Outcome<Unit> = storage {
+        dao.markState(run.recordId, UploadState.REJECTED.name, reason)
     }
 
     override suspend fun purgeRoutes(): Outcome<Unit> = storage { dao.replaceRoutes(EMPTY_BLOB) }

@@ -20,6 +20,13 @@ internal interface PendingRunDao {
     @Query("SELECT * FROM pending_run WHERE recordId = :recordId")
     suspend fun find(recordId: String): PendingRunEntity?
 
+    /** 미전송 기록의 전송 상태와 거부 사유만 바꾼다(다른 칸, 특히 늦게 덧붙은 심박은 그대로 둔다). */
+    @Query(
+        "UPDATE pending_run SET uploadState = :state, rejectedReason = :reason " +
+            "WHERE recordId = :recordId AND sentAtMillis IS NULL"
+    )
+    suspend fun markState(recordId: String, state: String, reason: String?)
+
     @Query("UPDATE pending_run SET route = :empty")
     suspend fun replaceRoutes(empty: ByteArray)
 

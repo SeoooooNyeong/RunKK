@@ -27,8 +27,44 @@ data class CompletedRun(
     /** 기록을 시작한 기기(RunStartSpec.startDevice, D-378, W23). 서버 기록에 함께 저장된다. */
     val startDevice: RunStartSpec.StartDevice = RunStartSpec.StartDevice.PHONE,
     val uploadState: UploadState = UploadState.NOT_SENT,
-    val savedAt: Instant
+    val savedAt: Instant,
+    /** 서버가 받지 않은 사유 코드(uploadState = REJECTED일 때만, 03-00 "4xx는 거부 사유와 함께 보존", R12 D2-b). */
+    val rejectedReason: String? = null
 ) {
+    /** 정지 시간 합. */
+    val pausedTotal: Duration
+        get() = pauses.fold(Duration.ZERO) { sum, p -> sum.plus(Duration.between(p.from, p.to)) }
+
+    /** 기록 끝 = 시작 + 운동 시간 + 정지 합. 서버 endedAt이고 정지 구간은 이 안에 있어야 한다(F.2.2). */
+    val endedAt: Instant
+        get() = startedAt.plus(elapsed).plus(pausedTotal)
+
+    /**
+     * 전송 직전 방어(R12 D2): 정지 구간을 [startedAt, endedAt] 안으로 자르고, 길이 0인 구간은 빼고, 겹치거나 맞닿은 구간은 합친다.
+     * 기록 끝은 그대로 두고 잘린 만큼 운동 시간을 늘려 "끝 = 시작 + 운동 시간 + 정지 합"을 지킨다. 고칠 것이 없으면 자기 자신이다.
+     * 정지 중 종료 때 정지 끝과 기록 끝을 다른 반올림으로 정하던 옛 판이 보관함에 남긴 기록(끝이 1~2ms 넘침)도 이것으로 올라간다.
+     */
+    fun withPausesInRange(): CompletedRun {
+        if (pauses.isEmpty()) return this
+        val end = endedAt
+        val fitted = mutableListOf<PauseInterval>()
+        for (p in pauses.sortedBy { it.from }) {
+            val from = maxOf(p.from, startedAt)
+            val to = minOf(p.to, end)
+            if (!from.isBefore(to)) continue
+            val last = fitted.lastOrNull()
+            if (last != null && !last.to.isBefore(from)) {
+                fitted[fitted.lastIndex] = PauseInterval(last.from, maxOf(last.to, to))
+            } else {
+                fitted += PauseInterval(from, to)
+            }
+        }
+        if (fitted == pauses) return this
+        val fittedTotal = fitted.fold(Duration.ZERO) { sum, p -> sum.plus(Duration.between(p.from, p.to)) }
+        val workout = Duration.between(startedAt, end).minus(fittedTotal)
+        return copy(pauses = fitted, elapsed = if (workout.isNegative) Duration.ZERO else workout)
+    }
+
     /** 위치 동의 철회 파기 지시(FR-026): 경로 좌표를 지운 사본. */
     fun purgeRoute(): CompletedRun = copy(route = emptyList())
 
