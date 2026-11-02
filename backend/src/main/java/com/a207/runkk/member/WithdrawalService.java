@@ -32,6 +32,9 @@ public class WithdrawalService {
     private static final Logger log = LoggerFactory.getLogger(WithdrawalService.class);
     private static final int RESIDUAL_RETENTION_DAYS = 7;
 
+    /** 자료 정리 사건(MemberPurged)을 다시 내 주는 날 수. 이 기간이 지난 회원에게는 매일 밤 되풀이해 내지 않는다(BE14-2). */
+    private static final int PURGE_EVENT_RETRY_DAYS = 3;
+
     /** 미이용 게스트 파기 기준(FR-200, D-113, D-156). 윤년 영향이 없게 365일로 고정한다. 운영 기준값이 아니다. */
     static final Duration GUEST_IDLE_LIMIT = Duration.ofDays(365);
 
@@ -125,7 +128,8 @@ public class WithdrawalService {
 
     /**
      * batch.member의 WithdrawalPurgeJob이 3시에 부른다. 탈퇴 뒤 7일이 지난 회원마다 Member.purgeResidual → 저장. member
-     * 자기 자료만 다룬다(D-28, design-review.md M3). 처리 수를 돌려준다.
+     * 자기 자료만 다룬다(D-28, design-review.md M3). 처리 수를 돌려준다. 자료 정리 사건은 정리 대상이 된 첫 날부터
+     * PURGE_EVENT_RETRY_DAYS일 안에만 내서 이미 정리한 회원에게 밤마다 되풀이하지 않는다(BE14-2).
      */
     @Transactional
     public int purgeWithdrawn(LocalDateTime now) {
@@ -134,7 +138,10 @@ public class WithdrawalService {
         for (Member member : members) {
             member.purgeResidual();
             memberRepository.save(member);
-            eventPublisher.publish(new MemberPurged(member.getId(), now));
+            if (!member.withdrawnAt()
+                    .isBefore(now.minusDays(RESIDUAL_RETENTION_DAYS + PURGE_EVENT_RETRY_DAYS))) {
+                eventPublisher.publish(new MemberPurged(member.getId(), now));
+            }
         }
         log.info("withdrawal_purged count={}", members.size());
         return members.size();

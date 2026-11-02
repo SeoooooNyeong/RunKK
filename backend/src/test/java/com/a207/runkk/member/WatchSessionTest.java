@@ -201,4 +201,24 @@ class WatchSessionTest {
 
         new WatchSessionWithdrawalListener(auth).onMemberPurged(new MemberPurged(m.getId(), NOW));
     }
+
+    @Test
+    @DisplayName("BE14-1: 파기 리스너는 커밋 뒤(AFTER_COMMIT) 새 트랜잭션에서 돈다")
+    void purgeListener_runsAfterCommitInNewTransaction() throws NoSuchMethodException {
+        var method =
+                WatchSessionWithdrawalListener.class.getMethod(
+                        "onMemberPurged", MemberPurged.class);
+
+        var listener =
+                method.getAnnotation(
+                        org.springframework.transaction.event.TransactionalEventListener.class);
+        var tx =
+                method.getAnnotation(
+                        org.springframework.transaction.annotation.Transactional.class);
+
+        assertThat(listener.phase())
+                .isEqualTo(org.springframework.transaction.event.TransactionPhase.AFTER_COMMIT);
+        assertThat(tx.propagation())
+                .isEqualTo(org.springframework.transaction.annotation.Propagation.REQUIRES_NEW);
+    }
 }
