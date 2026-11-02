@@ -1302,4 +1302,20 @@ class WatchFlowViewModelTest {
         /** 위도 0.0009도 ≈ 100m. */
         const val STEP_DEGREES = 0.0009
     }
+
+    @Test
+    fun `셀럽 구간 기록 받기가 CELEBRITY_REMOVED가 아닌 거부면 잠시 후 다시 안내다(WR14-1)`() = flowTest {
+        battles.celebrityTracks[1] = Outcome.Failure(AppError.Rejected("RATE_LIMITED"))
+        val h = open()
+        val celebrity = openCelebList(h).celebrities.single()
+
+        h.vm.onCelebritySelected(celebrity)
+        runCurrent()
+        assertEquals(WatchFlow.Notice.RETRY_LATER, (h.flow as WatchFlow.CelebList).notice)
+
+        battles.celebrityTracks[1] = Outcome.Failure(AppError.Rejected("BAD_REQUEST"))
+        h.vm.onCelebritySelected(celebrity)
+        runCurrent()
+        assertEquals(WatchFlow.Notice.RETRY_LATER, (h.flow as WatchFlow.CelebList).notice)
+    }
 }

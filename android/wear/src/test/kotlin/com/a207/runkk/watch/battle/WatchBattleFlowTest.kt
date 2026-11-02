@@ -9,6 +9,7 @@ import com.a207.runkk.app.core.model.RunMode
 import com.a207.runkk.app.domain.battle.BattleRunCoordinator
 import com.a207.runkk.app.domain.battle.BattleRunState
 import com.a207.runkk.app.domain.battle.MatchAcceptance
+import com.a207.runkk.app.domain.battle.OfflineRecordBattle
 import com.a207.runkk.app.domain.battle.RecordBattleKind
 import com.a207.runkk.app.domain.live.MatchFailed
 import com.a207.runkk.app.domain.live.MatchFound
@@ -270,6 +271,44 @@ class WatchBattleFlowTest {
 
         assertIs<AppError.Rejected>(assertIs<Outcome.Failure>(h.flow.fetchCelebrity(listed)).error)
         assertTrue(battles.celebrityTrackCalls.isEmpty())
+    }
+
+    @Test
+    fun `기록 대결이 끝나고 서버 시작이 실패해도 낡은 상대가 남지 않아 폰이 연 다른 회로 되살아나지 않는다(WR14-2)`() = runTest {
+        battles.tracks[RecordBattleKind.SELF] = listOf(selfTrack(distanceMeters = 3_000, finishSeconds = 900))
+        val h = harness()
+        h.flow.refreshCache(memberId = 1)
+        runCurrent()
+        val opponent = h.flow.selfCandidates().single()
+        h.flow.startRecordOffline(opponent)
+        runCurrent()
+        h.flow.forfeit()
+        runCurrent()
+
+        // 확인 전에 다음 기록 대결 시작이 실패해도(서버 거부) 이전 기억은 지워진다.
+        assertIs<Outcome.Failure>(h.flow.startRecordOnline(opponent))
+        // 폰이 연 다른 회가 열려도 이 워치의 기록 대결 맥락으로 보지 않는다.
+        h.coordinator.onOfflineRecordBattle(
+            OfflineRecordBattle(RecordBattleKind.SELF, Distance(3_000), null, opponent.cached.record.track)
+        )
+        runCurrent()
+        assertTrue(h.flow.step().isOpen)
+        assertNull(h.flow.activeRecord())
+    }
+
+    @Test
+    fun `회가 끝났음을 알리면(forgetRecord) 상대 기억을 지운다(WR14-2)`() = runTest {
+        battles.tracks[RecordBattleKind.SELF] = listOf(selfTrack(distanceMeters = 3_000, finishSeconds = 900))
+        val h = harness()
+        h.flow.refreshCache(memberId = 1)
+        runCurrent()
+        h.flow.startRecordOffline(h.flow.selfCandidates().single())
+        runCurrent()
+        assertNotNull(h.flow.activeRecord())
+
+        h.flow.forgetRecord()
+
+        assertNull(h.flow.activeRecord())
     }
 }
 

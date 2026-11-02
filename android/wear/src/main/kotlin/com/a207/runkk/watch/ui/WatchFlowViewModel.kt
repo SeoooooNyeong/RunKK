@@ -88,6 +88,7 @@ class WatchFlowViewModel @Inject constructor(
 
     /** 랜덤 대결까지 남은 유효 러닝 수(WatchBattleFlow.randomRunsLeft). null이면 열림 또는 모름(서버가 판정한다). */
     private var randomRunsLeft: Int? = null
+    private var lastMemberId: Long? = null
     private var isPhoneRunning = false
     private var lastGap: Int? = null
     private var lastLead: Any? = null
@@ -380,11 +381,15 @@ class WatchFlowViewModel @Inject constructor(
                 phonePlan = null
                 myTier = null
                 randomRunsLeft = null
+                lastMemberId = null
+                battleFlow.forgetRecord()
                 if (isIdle(_flow.value) && _flow.value !is WatchFlow.Companion) _flow.value = WatchFlow.NotLoggedIn
                 requestSession()
             }
 
             is WatchSession.Active -> {
+                if (lastMemberId != null && lastMemberId != session.memberId) battleFlow.forgetRecord()
+                lastMemberId = session.memberId
                 when (_flow.value) {
                     WatchFlow.NotLoggedIn -> enterHome(refresh = true)
                     is WatchFlow.Main -> refreshAccount(session.memberId)
@@ -609,7 +614,10 @@ class WatchFlowViewModel @Inject constructor(
 
             BattleStep.Closing -> onBattleRunning(active, lastGap, lastLead)
 
-            is BattleStep.Finished -> onBattleFinished(step.battleId)
+            is BattleStep.Finished -> {
+                battleFlow.forgetRecord()
+                onBattleFinished(step.battleId)
+            }
 
             BattleStep.Discarded -> {
                 // 셀프·셀럽런을 그만둬 결과 없이 끝났다(D-266): 결과를 닫는 때가 없으니 지금 TTS를 닫는다(WR13-3).
@@ -700,6 +708,7 @@ class WatchFlowViewModel @Inject constructor(
         if (active.mode != WatchMode.FREE) {
             // 측정 서비스가 밖에서 끝냈다(운동 세션 실패): 대결 회도 닫는다(조정자는 측정 끝을 따로 알지 못한다).
             if (!active.isEndedByUser && battleFlow.step().isOpen) battleFlow.forfeit()
+            battleFlow.forgetRecord()
             return
         }
         countdownJob?.cancel()
@@ -943,10 +952,19 @@ class WatchFlowViewModel @Inject constructor(
             "CELEBRITY_REMOVED" to WatchFlow.Notice.CELEBRITY_REMOVED
         )
 
-        /** 셀럽 구간 기록 받기 실패 → 안내(W31): 연결 없음, 없는 기록(404 등 거부), 그 밖(서버 오류)은 잠시 후 다시. */
+        /** 셀럽 구간 기록 받기 실패 → 안내(W31): 연결 없음, 없는 기록(CELEBRITY_REMOVED 404만), 그 밖(429·400 같은 일시 거부, 서버 오류)은 잠시 후 다시(WR14-1). */
         private fun celebrityNotice(error: AppError): WatchFlow.Notice = when (error) {
             AppError.Network -> WatchFlow.Notice.CELEB_OFFLINE
-            is AppError.Rejected -> WatchFlow.Notice.CELEBRITY_REMOVED
+
+            is AppError.Rejected ->
+                if (error.code ==
+                    "CELEBRITY_REMOVED"
+                ) {
+                    WatchFlow.Notice.CELEBRITY_REMOVED
+                } else {
+                    WatchFlow.Notice.RETRY_LATER
+                }
+
             else -> WatchFlow.Notice.RETRY_LATER
         }
 
