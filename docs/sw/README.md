@@ -8,7 +8,7 @@
 
 ```
 [계획]  할 가치가 있는가? 얼마나, 언제까지, 누가?
-        plan.md v0.31 ──▶ estimate.md v0.4 ──▶ schedule.md v0.11        (결정 기록: decisions.md)
+        plan.md v0.31 ──▶ estimate.md v0.4 ──▶ schedule.md v0.12        (결정 기록: decisions.md)
               │
               ▼
 [분석]  무엇을 만들 것인가?
@@ -32,7 +32,7 @@
 |------|------|------|--------|------|------|
 | 계획 | [plan.md](plan.md) 프로젝트 계획서 | v0.31 | 2026-11-02 | schedule.md v0.11 담당 바로잡음(R-068·R-069), 이전 판 v0.30(1차 배포 완료, 2차 배포 11/13), v0.29(워치 위험 R-060~R-066), v0.28(ai 서버 계약 A1~A9) | 목차 + `plan/` 6개 |
 | 계획 | [estimate.md](estimate.md) 비용 산정서 | v0.4 | 2026-11-02 | plan.md v0.28, 코드 실측 c29df9fa·f95450db | 한 파일 (91KB) |
-| 계획 | [schedule.md](schedule.md) 일정표와 조직 계획 | v0.11 | 2026-11-02 | 담당 재배치(이정현 → 이성현), 2차 배포 11/13, estimate.md v0.4, plan.md v0.31 | 목차 + schedule/ 조각 7개 |
+| 계획 | [schedule.md](schedule.md) 일정표와 조직 계획 | v0.12 | 2026-11-02 | 오규연 디자인 전환(앱 일 → 박재영, 날짜 고정), 담당 재배치(v0.11), 2차 배포 11/13, estimate.md v0.4, plan.md v0.31 | 목차 + schedule/ 조각 8개 |
 | 계획 | [decisions.md](decisions.md) 결정 기록 | v0.1 | 2026-10-19 | schedule.md v0.3, plan.md v0.16 | 한 파일 |
 | 분석 | [srs.md](srs.md) 요구사항 명세서 | v0.20 | 2026-11-02 | plan.md v0.28(A1~A9), CR-110~CR-118(ai 서버 연결, FR-261~FR-272, NFR-052·NFR-053), 이전 판 srs.md v0.19 | 목차 + `srs/` 32개 |
 | 설계 | [design-oo.md](design-oo.md) 객체지향 분석·설계서 | v0.26 | 2026-11-02 | srs.md v0.20(CR-110~CR-118 ai 서버 연결), 05-19 D-434~D-455, 이전 판 v0.21~v0.25(워치 v2) | 목차 + `design-oo/` 38개 |
@@ -87,4 +87,4 @@ srs의 DFD 프로세스 번호(1~7)와 design-oo의 패키지가 같은 기능 �
 - 본문은 같은 이름의 폴더에 `장-순번-주제.md`로 나눴다. 파일 하나가 60KB를 넘지 않도록 큰 장은 절(###)이나 패키지(####) 단위로 다시 나눴다.
 - 장·절 번호는 원래 번호를 그대로 쓴다. 다른 문서가 "srs.md 6.3"처럼 참조하면 목차 표에서 해당 파일을 찾는다.
 - 조각 파일의 첫 줄은 목차·이전·다음 링크다. 본문을 고칠 때는 조각 파일을 고치고, 버전은 목차 파일 헤더에서 올린다.
-- estimate.md(91KB), decisions.md는 100KB 아래라 나누지 않았다. schedule.md는 2026-11-02 v0.8에서 100KB를 넘어 schedule/ 조각으로 나눴다(v0.11 기준 7개).
+- estimate.md(91KB), decisions.md는 100KB 아래라 나누지 않았다. schedule.md는 2026-11-02 v0.8에서 100KB를 넘어 schedule/ 조각으로 나눴다(v0.12 기준 8개).
