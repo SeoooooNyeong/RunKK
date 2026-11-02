@@ -40,7 +40,7 @@ import timber.log.Timber
  * - 폰 → 워치: 표시 정보(MessageClient, [WearPaths.WATCH_DISPLAY])를 [displays]로 내보내고,
  *   그 허용 플래그·러닝 여부로 [HeartRateCollector]를 켜고 끈다. 허용이 거짓이면 즉시 멈추고 보내지 않은 심박을 버린다(NFR-023).
  * - 폰 → 워치: 근접 알림([WearPaths.PROXIMITY])·추월 역전([WearPaths.LEAD_CHANGE])은 [ProximityAlertPlayer]에 넘긴다(FR-196, FR-188).
- *   근접 알림은 [proximity]로, 추월·역전 받은 시각은 [leadChangedAtMillis]로도 내보내 측정 화면이 거리 차와 "역전!"을 보인다.
+ *   근접 알림은 [proximity]로, 추월·역전의 방향과 받은 시각은 [leadChange]로도 내보내 측정 화면이 거리 차와 "역전!"을 보인다.
  *   마지막 표시가 러닝 중일 때만 넘기고, 러닝이 끝났다는 표시를 받으면 재생을 멈춘다. 모르는 경로는 버린다(F.4.4).
  * - 워치 → 폰: 로그인 정보 요청([requestSession], FR-242)과 워치 측정 중 여부([sendMeasuring], FR-252, D-371). 로그인 정보·로그아웃
  *   표시는 토큰을 이 클래스에 두지 않도록 PhoneMessageService가 watch.session으로 바로 넘긴다.
@@ -109,10 +109,10 @@ class PhoneLink @Inject constructor(
      */
     val proximity: StateFlow<PhoneProximity?> = _proximity.asStateFlow()
 
-    private val _leadChangedAtMillis = MutableStateFlow<Long?>(null)
+    private val _leadChange = MutableStateFlow<PhoneLeadChange?>(null)
 
-    /** 러닝 중 마지막으로 추월·역전을 받은 시각(FR-188). 러닝이 끝났다는 표시를 받으면 null. 띠를 얼마나 둘지는 watch.ui가 정한다. */
-    val leadChangedAtMillis: StateFlow<Long?> = _leadChangedAtMillis.asStateFlow()
+    /** 러닝 중 마지막으로 받은 추월·역전의 방향과 받은 시각(FR-188). 러닝이 끝났다는 표시를 받으면 null. 띠를 얼마나 둘지는 watch.ui가 정한다. */
+    val leadChange: StateFlow<PhoneLeadChange?> = _leadChange.asStateFlow()
 
     /** 폰이 수집을 허용했지만 워치 OS 심박 권한이 없다. */
     val heartRatePermissionNeeded: StateFlow<Boolean> = collector.state
@@ -263,7 +263,7 @@ class PhoneLink @Inject constructor(
         if (!display.isRunning) {
             alertPlayer.stop()
             _proximity.value = null
-            _leadChangedAtMillis.value = null
+            _leadChange.value = null
             flushRequests.trySend(Unit)
         }
     }
@@ -281,10 +281,13 @@ class PhoneLink @Inject constructor(
         }
     }
 
-    /** 추월·역전은 긴 진동으로 재생하고, 화면에도 "역전!"을 띄우게 받은 시각을 남긴다. */
+    /** 추월·역전은 긴 진동으로 재생하고, 화면에도 "역전!"을 띄우게 방향과 받은 시각을 남긴다. */
     private fun onLeadChange(message: LeadChangeMessage) {
         alertPlayer.onLeadChange(message)
-        _leadChangedAtMillis.value = clock.millis()
+        _leadChange.value = PhoneLeadChange(
+            isOvertook = message.kind == LeadChangeMessage.Kind.OVERTOOK,
+            receivedAtMillis = clock.millis()
+        )
     }
 
     /** 마지막 표시가 러닝 중인지. 러닝이 끝난 뒤 늦게 온 근접·추월 메시지로 울리지 않게 한다. */

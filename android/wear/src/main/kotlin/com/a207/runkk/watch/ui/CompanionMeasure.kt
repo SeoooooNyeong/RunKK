@@ -42,6 +42,7 @@ internal fun WatchUiState.toMeasureFlow(): WatchFlow {
         gapMeters = proximity?.let { if (it.isAhead) it.gapMeters else -it.gapMeters },
         banner = banner,
         isLeadChanged = isLeadChanged,
+        leadKind = leadKind,
         isPausable = isPausable,
         notice = flowNotice
     )

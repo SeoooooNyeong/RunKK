@@ -371,7 +371,7 @@ class WatchScreenshotTest {
             distanceMeters = 2_840,
             planDistanceMeters = 3_000,
             proximity = WatchProximity(gapMeters = 2, isAhead = true, intervalMillis = 300),
-            isLeadChanged = true
+            leadKind = LeadKind.OVERTOOK
         )
     )
 }

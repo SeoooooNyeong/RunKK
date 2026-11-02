@@ -89,7 +89,7 @@ sealed interface WatchFlow {
 
     /**
      * 측정 중(FR-246). [goal]은 목표·대결 거리(자유런 무제한은 null), [gapMeters]는 대결 상대와의 거리 차(앞서면 양수, 모르면 null),
-     * [banner]는 안내 문구(FR-254), [isLeadChanged]는 방금 앞서고 뒤처짐이 바뀌었다("역전!", FR-188). [isPausable]은 자유런만 참이다.
+     * [banner]는 안내 문구(FR-254), [isLeadChanged]는 방금 앞서고 뒤처짐이 바뀌었다("역전!", FR-188), [leadKind]는 그 방향이다(있으면 띠 색을 정한다). [isPausable]은 자유런만 참이다.
      */
     data class Running(
         val mode: WatchMode,
@@ -98,6 +98,7 @@ sealed interface WatchFlow {
         val gapMeters: Int? = null,
         val banner: String? = null,
         val isLeadChanged: Boolean = false,
+        val leadKind: LeadKind? = null,
         val isPausable: Boolean = false,
         val notice: Notice? = null
     ) : WatchFlow

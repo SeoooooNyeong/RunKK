@@ -2,6 +2,7 @@ package com.a207.runkk.watch.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.a207.runkk.watch.link.PhoneLeadChange
 import com.a207.runkk.watch.link.PhoneLink
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Clock
@@ -65,7 +66,7 @@ class WatchViewModel @Inject constructor(
         val latestHeartRate: LocalHeartRate?,
         val events: LocalEvents,
         val proximity: Proximity? = null,
-        val leadChangedAtMillis: Long? = null
+        val leadChange: PhoneLeadChange? = null
     )
 
     private val received = MutableStateFlow<Received?>(null)
@@ -93,7 +94,7 @@ class WatchViewModel @Inject constructor(
                 received?.let { Proximity(it.gapMeters, it.isAhead, it.intervalMillis, it.receivedAtMillis) }
             }
         ) { inputs, proximity -> inputs.copy(proximity = proximity) }
-        .combine(phoneLink.leadChangedAtMillis) { inputs, leadAt -> inputs.copy(leadChangedAtMillis = leadAt) }
+        .combine(phoneLink.leadChange) { inputs, lead -> inputs.copy(leadChange = lead) }
         .combine(ticker) { inputs, _ -> reduce(inputs, clock.millis()) }
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), WatchUiState())
@@ -213,7 +214,9 @@ class WatchViewModel @Inject constructor(
             proximity = inputs.proximity
                 ?.takeIf { isRunning && now - it.atMillis < PROXIMITY_EXPIRY_MILLIS }
                 ?.let { WatchProximity(it.gapMeters, it.isAhead, it.intervalMillis) },
-            isLeadChanged = isRunning && inputs.leadChangedAtMillis?.let { now - it < LEAD_BANNER_MILLIS } == true
+            leadKind = inputs.leadChange
+                ?.takeIf { isRunning && now - it.receivedAtMillis < LEAD_BANNER_MILLIS }
+                ?.let { if (it.isOvertook) LeadKind.OVERTOOK else LeadKind.OVERTAKEN }
         )
     }
 
