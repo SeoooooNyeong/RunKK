@@ -5,7 +5,7 @@ Claude Code와 Codex가 공통으로 읽는 규칙이다. Claude Code는 `CLAUDE
 ## 프로젝트
 
 - 러닝 앱. `backend/` Spring Boot 3.5 (Java 21, Gradle Kotlin DSL, PostgreSQL 17, Redis 8), `android/` Kotlin 2.4 + Jetpack Compose + Hilt (minSdk 26, targetSdk 36, compileSdk 37), `infra/` Docker Compose(nginx, api, postgres, redis, ai), `ai/` Python 3.12 FastAPI(uv, ruff, pytest, import-linter).
-- 문서 위치: 요구사항·설계·일정은 팀 위키(AppFlowy), 코드 규칙은 위키 **컨벤션 > Code Convention** (원본 md는 GitHub/자율/자율프로젝트_코드컨벤션.md), 개발 사이클은 위키 **컨벤션 > 런크크 개발 사이클 (ECC 하네스)** (원본 md는 GitHub/자율/자율프로젝트_개발사이클.md), 서버 인프라는 `infra/README.md`, 첫 안내는 `docs/ONBOARDING.md`.
+- 문서 위치: 계획서·산정서·일정표·요구사항·설계서·리뷰·시험·SQA 원본은 `docs/sw/`(아래 "산출물 문서와 sw 스킬"), 팀 위키(AppFlowy)는 공유용 사본, 코드 규칙은 위키 **컨벤션 > Code Convention** (원본 md는 GitHub/자율/자율프로젝트_코드컨벤션.md), 개발 사이클은 위키 **컨벤션 > 런크크 개발 사이클 (ECC 하네스)** (원본 md는 GitHub/자율/자율프로젝트_개발사이클.md), 서버 인프라는 `infra/README.md`, 첫 안내는 `docs/ONBOARDING.md`.
 - Spring Boot 3.5 기준: Security 6.x는 람다 DSL만 쓴다(체인 방식 `http.csrf().disable()`은 제거됨), springdoc은 2.x. 서버 설계서(design-oo) D-01이 Java 21 + Spring Boot 3을 정한다.
 
 ## 명령 (검증은 항상 이 명령으로)
@@ -45,6 +45,14 @@ JDK는 Gradle이 foojay로 21을 내려받는다. 로컬에는 JDK 17 이상만 
 - `.env`, 키·토큰, `.jks`, `local.properties`는 커밋하지 않는다.
 - 모르면 추측하지 말고 파일을 읽는다. 위키·명세와 코드가 다르면 사용자에게 묻는다.
 - 응답과 문서는 한국어로 쓴다. 코드 식별자·주석 규칙은 위키 컨벤션 > Code Convention 을 따른다.
+
+## 산출물 문서와 sw 스킬
+
+- `docs/sw/`는 소프트웨어공학 산출물이다. 목차 파일(`plan.md`, `srs.md`, `design-oo.md` 등)과 같은 이름의 조각 폴더로 나뉜다. 지도는 `docs/sw/README.md`.
+- 산출물은 `sw-*` 스킬로 만든다. Claude Code는 `.claude/skills/sw-*`, Codex는 `.agents/skills/sw-*`를 읽는다. 어디까지 왔는지 모르면 `sw-sdlc`를 부른다. `sw-implement`는 병렬 작업자를 띄우므로 사람이 이름으로 부를 때만 쓴다.
+- 스킬 원본은 sw-sdlc-skills 저장소(GitHub KKTRKKT/sw-sdlc-skills)다. 이 저장소의 스킬 사본을 직접 고치지 말고 원본을 고친 뒤 두 폴더를 함께 바꾼다.
+- **협업 모드**: `docs/sw/OWNERS.md`를 따른다. 자기 담당 조각만 고치고, 공용 파일(목차 파일 헤더, `docs/sw/README.md`, 추적표, 자료사전 등)은 공용 담당(이성현)만 고친다. 새 번호는 `[임시:FR-박-1]`처럼 쓰고, 공용 파일에 넣을 내용은 `docs/sw/pending/<브랜치>.md`에 적는다. 정식 번호와 버전은 병합 뒤 공용 담당이 `sw-sdlc merge`로 매긴다.
+- 코드 MR에는 그 도메인의 문서 조각과 병합 대기 파일을 함께 올린다. API·DTO·ERD 같은 경계 계약은 제공하는 쪽이 고치고 쓰는 쪽이 승인한다.
 
 ## 병렬 작업
 
