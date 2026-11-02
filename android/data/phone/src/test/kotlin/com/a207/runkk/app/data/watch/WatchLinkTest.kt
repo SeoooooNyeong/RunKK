@@ -18,7 +18,6 @@ import com.a207.runkk.wear.contract.HeartRateBatchMessage
 import com.a207.runkk.wear.contract.LeadChangeMessage
 import com.a207.runkk.wear.contract.PauseRequestMessage
 import com.a207.runkk.wear.contract.ProximityMessage
-import com.a207.runkk.wear.contract.ResendRejectedMessage
 import com.a207.runkk.wear.contract.StartRequestMessage
 import com.a207.runkk.wear.contract.WatchDisplayMessage
 import com.a207.runkk.wear.contract.WearPaths
@@ -195,20 +194,6 @@ class WatchLinkTest {
     }
 
     @Test
-    fun `W40 다시 보내기 요청은 요청 시각을 실어 RESEND_REJECTED 경로로 보낸다`() = runTest {
-        val link = WatchLink(transport, settings, linkScope(), clock = Clock.fixed(T0, ZoneOffset.UTC))
-
-        link.requestResend()
-
-        assertEquals(
-            listOf(ResendRejectedMessage(T0.toEpochMilli())),
-            transport.sent.filter {
-                it.first == WearPaths.RESEND_REJECTED
-            }.map { ResendRejectedMessage.decode(it.second) }
-        )
-    }
-
-    @Test
     fun `TC-6401 표시 정보에 정지 중·정지 가능을 싣는다`() = runTest {
         val link = WatchLink(transport, settings, linkScope())
 
@@ -236,6 +221,8 @@ class WatchLinkTest {
         override suspend fun putItem(path: String, payload: ByteArray): Boolean = false
 
         override suspend fun deleteItems(path: String): Boolean = false
+
+        override suspend fun readItems(path: String): List<ByteArray> = emptyList()
 
         fun receive(path: String, payload: ByteArray) {
             check(incoming.tryEmit(WatchLink.Incoming(path, payload)))

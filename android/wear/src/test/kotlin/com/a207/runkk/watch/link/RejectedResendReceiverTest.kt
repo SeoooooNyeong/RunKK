@@ -1,5 +1,6 @@
 package com.a207.runkk.watch.link
 
+import android.net.Uri
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.RunMode
@@ -11,6 +12,9 @@ import com.a207.runkk.watch.testing.FakeUploadScheduler
 import com.a207.runkk.wear.contract.ResendRejectedMessage
 import com.a207.runkk.wear.contract.WatchDisplayMessage
 import com.a207.runkk.wear.contract.WearPaths
+import com.google.android.gms.wearable.DataEvent
+import com.google.android.gms.wearable.DataItem
+import com.google.android.gms.wearable.DataItemAsset
 import com.google.android.gms.wearable.MessageEvent
 import java.time.Duration
 import java.time.Instant
@@ -78,6 +82,68 @@ class RejectedResendReceiverTest {
 
         assertEquals(emptyList(), events)
         assertEquals(UploadState.REJECTED, pending.saved.single().uploadState)
+    }
+
+    @Test
+    fun `W43 DataClient 항목으로 남긴 다시 보내기 요청도 받아 되돌린다(워치가 늦게 연결돼도)`() = runTest {
+        pending.saved += run("a").copy(uploadState = UploadState.REJECTED, rejectedReason = "BAD_REQUEST")
+
+        service().onDataEvents(listOf(event(DataEvent.TYPE_CHANGED, ResendRejectedMessage(1_000).encode())))
+        runCurrent()
+
+        assertEquals(UploadState.NOT_SENT, pending.saved.single().uploadState)
+        assertEquals(1, uploads.requests)
+    }
+
+    @Test
+    fun `W43 같은 요청 시각은 한 번만 처리하고 새 요청 시각은 다시 처리한다`() = runTest {
+        pending.saved += run("a").copy(uploadState = UploadState.REJECTED, rejectedReason = "BAD_REQUEST")
+        val service = service()
+
+        service.onDataEvents(listOf(event(DataEvent.TYPE_CHANGED, ResendRejectedMessage(1_000).encode())))
+        service.onMessageReceived(message(WearPaths.RESEND_REJECTED, ResendRejectedMessage(1_000).encode()))
+        service.onDataEvents(listOf(event(DataEvent.TYPE_CHANGED, ResendRejectedMessage(1_000).encode())))
+        runCurrent()
+        assertEquals(listOf("pendingRuns.resetRejected"), events)
+
+        service.onDataEvents(listOf(event(DataEvent.TYPE_CHANGED, ResendRejectedMessage(2_000).encode())))
+        runCurrent()
+        assertEquals(listOf("pendingRuns.resetRejected", "pendingRuns.resetRejected"), events)
+    }
+
+    @Test
+    fun `W43 지운 다시 보내기 항목은 무시한다`() = runTest {
+        pending.saved += run("a").copy(uploadState = UploadState.REJECTED, rejectedReason = "BAD_REQUEST")
+
+        service().onDataEvents(listOf(event(DataEvent.TYPE_DELETED, ResendRejectedMessage(1_000).encode())))
+        runCurrent()
+
+        assertEquals(emptyList(), events)
+    }
+
+    private fun event(type: Int, bytes: ByteArray): DataEvent {
+        val item = object : DataItem {
+            override fun getUri(): Uri = Uri.parse("wear://phone${WearPaths.RESEND_REJECTED}")
+
+            override fun getData(): ByteArray = bytes
+
+            override fun getAssets(): Map<String, DataItemAsset> = emptyMap()
+
+            override fun setData(data: ByteArray?): DataItem = this
+
+            override fun isDataValid(): Boolean = true
+
+            override fun freeze(): DataItem = this
+        }
+        return object : DataEvent {
+            override fun getType(): Int = type
+
+            override fun getDataItem(): DataItem = item
+
+            override fun isDataValid(): Boolean = true
+
+            override fun freeze(): DataEvent = this
+        }
     }
 
     private fun run(id: String) = CompletedRun(

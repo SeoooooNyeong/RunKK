@@ -31,7 +31,8 @@ import timber.log.Timber
 
 /**
  * Play 서비스 Wearable API 송수신. 앱 프로세스가 살아 있는 동안 리스너를 단다(측정 중에는 MeasurementService가 프로세스를 살린다).
- * 심박 데이터 항목은 읽은 뒤 지워 다시 오지 않게 하고, 앱이 꺼져 있던 동안 쌓인 항목은 시작 때 한 번 읽는다.
+ * 심박 데이터 항목은 읽은 뒤 지워 다시 오지 않게 하고, 앱이 꺼져 있던 동안 쌓인 항목은 시작 때 한 번 읽는다. 워치 거부 기록 건수 항목
+ * (REJECTED_COUNT, W43)은 워치의 지금 상태라 넘기기만 하고 지우지 않는다(남은 값은 WatchLink가 readItems로 읽는다).
  * 워치가 없거나 Play 서비스가 없으면 보내기는 조용히 버린다(측정은 폰만으로 계속된다).
  * WatchLink와 WatchSessionPublisher가 한 객체를 나눠 쓴다(리스너·노드 목록을 한 벌만 둔다).
  */
@@ -113,6 +114,12 @@ constructor(
         true
     } ?: false
 
+    override suspend fun readItems(path: String): List<ByteArray> = quietly {
+        // 노드(host)를 비운 주소는 모든 노드의 같은 경로 항목을 가리킨다.
+        val uri = Uri.Builder().scheme(PutDataRequest.WEAR_URI_SCHEME).path(path).build()
+        data.getDataItems(uri).await().use { all -> all.mapNotNull { it.freeze().data } }
+    } ?: emptyList()
+
     /** 워치가 없으면(닿는 노드 0) 보내지 않고 버린다. 노드 목록은 능력 변화·워치 메시지로 갱신된다. */
     private suspend fun deliver(path: String, payload: ByteArray) {
         nodeIds.forEach { nodeId -> messages.sendMessage(nodeId, path, payload).await() }
@@ -134,11 +141,12 @@ constructor(
                 buffer
                     .filter { it.type == DataEvent.TYPE_CHANGED }
                     .map { it.dataItem.freeze() }
-                    .filter { it.uri.path.orEmpty().startsWith(WearPaths.HEART_RATE_BATCH) }
+                    .filter { isForwardedItem(it.uri.path.orEmpty()) }
             }
         items.forEach { item ->
-            item.data?.let { received.tryEmit(WatchLink.Incoming(item.uri.path.orEmpty(), it)) }
-            data.deleteDataItems(item.uri)
+            val path = item.uri.path.orEmpty()
+            item.data?.let { received.tryEmit(WatchLink.Incoming(path, it)) }
+            if (isConsumedItem(path)) data.deleteDataItems(item.uri)
         }
     }
 
@@ -185,3 +193,9 @@ constructor(
         const val MAX_PENDING = 32
     }
 }
+
+/** 앱 안 DataClient 리스너가 WatchLink로 넘기는 항목: 워치가 넣은 심박 묶음과 거부 기록 건수(W43). 폰이 넣은 항목은 넘기지 않는다. */
+internal fun isForwardedItem(path: String): Boolean = isConsumedItem(path) || path == WearPaths.REJECTED_COUNT
+
+/** 넘긴 뒤 지우는 항목: 심박 묶음(다시 오지 않게). 거부 기록 건수는 워치의 지금 상태라 남긴다. */
+internal fun isConsumedItem(path: String): Boolean = path.startsWith(WearPaths.HEART_RATE_BATCH)

@@ -429,6 +429,23 @@ class MeViewModelsTest {
     }
 
     @Test
+    fun `W43 폰에 못 올린 기록이 없어도 워치 건수를 더해 보이고 워치가 되돌리면 0이 된다`() {
+        pendingRuns.runs.value = listOf(pendingRun("b"))
+        watchResend.watchCount.value = 2
+        val vm = settingsViewModel()
+        assertEquals(2, vm.state.value.rejectedRunCount)
+
+        pendingRuns.runs.value = listOf(pendingRun("a", UploadState.REJECTED))
+        assertEquals(3, vm.state.value.rejectedRunCount)
+
+        vm.onResendRejected()
+        watchResend.watchCount.value = 0
+
+        assertEquals(1, watchResend.requests, "워치에 다시 보내기를 요청한다")
+        assertEquals(0, vm.state.value.rejectedRunCount)
+    }
+
+    @Test
     fun `W40 폰 보관함을 바꾸지 못하면 오류를 알리고 건수를 그대로 둔다(워치 요청은 보낸다)`() {
         pendingRuns.runs.value = listOf(pendingRun("a", UploadState.REJECTED))
         pendingRuns.resetFailWith = AppError.Storage

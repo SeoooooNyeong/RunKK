@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
  * [isReachable]이 거짓이면 바로 보내기(sendNow)가 실패한다(워치에 닿지 않음).
  */
 internal class RecordingTransport : WatchLink.Transport {
-    /** 일어난 일(종류, 경로, 내용). 종류는 send·sendNow·put·delete다. */
+    /** 일어난 일(종류, 경로, 내용). 종류는 send·sendNow·put·delete·read다. */
     val events = mutableListOf<Event>()
     override val connected = MutableStateFlow(true)
     override val incoming = MutableSharedFlow<WatchLink.Incoming>(extraBufferCapacity = 16)
@@ -33,6 +33,14 @@ internal class RecordingTransport : WatchLink.Transport {
         if (!canPutItems) return false
         events += Event("put", path, payload)
         return true
+    }
+
+    /** 이미 Data Layer에 있는 항목(경로 → 노드마다 내용). readItems가 돌려준다. */
+    val storedItems = mutableMapOf<String, List<ByteArray>>()
+
+    override suspend fun readItems(path: String): List<ByteArray> {
+        events += Event("read", path, null)
+        return storedItems[path].orEmpty()
     }
 
     override suspend fun deleteItems(path: String): Boolean {

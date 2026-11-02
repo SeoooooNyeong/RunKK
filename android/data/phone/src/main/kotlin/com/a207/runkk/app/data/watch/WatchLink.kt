@@ -17,6 +17,7 @@ import com.a207.runkk.wear.contract.HeartRateBatchMessage
 import com.a207.runkk.wear.contract.LeadChangeMessage
 import com.a207.runkk.wear.contract.PauseRequestMessage
 import com.a207.runkk.wear.contract.ProximityMessage
+import com.a207.runkk.wear.contract.RejectedCountMessage
 import com.a207.runkk.wear.contract.ResendRejectedMessage
 import com.a207.runkk.wear.contract.StartRequestMessage
 import com.a207.runkk.wear.contract.WatchDisplayMessage
@@ -39,11 +40,14 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
+import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.serialization.SerializationException
@@ -61,7 +65,9 @@ import timber.log.Timber
  * 근접 알림(PROXIMITY)·추월·역전(LEAD_CHANGE)을 보낸다. 보낼지·언제 보낼지는 RunWatchBridge가 정하고 여기서는 메시지로 바꿔 보내기만 한다.
  * 보낸 시각은 [clock]의 지금 시각이다.
  *
- * W40: 설정의 "다시 보내기"가 부르면 워치에 거부 기록 다시 보내기를 요청한다(RESEND_REJECTED, WatchResendRequester).
+ * W40·W43(WatchResendRequester): 설정의 "다시 보내기"가 부르면 워치에 거부 기록 다시 보내기를 DataClient 항목(RESEND_REJECTED)으로
+ * 남긴다(워치가 지금 닿지 않아도 연결되면 전달된다). 워치가 알린 거부 기록 건수(REJECTED_COUNT)는 마지막 값을 쥐고, 워치가 연결되어
+ * 있고 워치 연동이 켜져 있을 때만 낸다(아니면 0). 앱을 띄울 때와 워치가 다시 연결될 때 Data Layer에 남은 건수 항목을 읽는다.
  */
 @Singleton
 class WatchLink internal constructor(
@@ -109,6 +115,9 @@ class WatchLink internal constructor(
 
         /** 이 경로의 DataClient 항목을 지운다(새 로그인 정보를 보낸 뒤 옛 로그아웃 표시, D-390). 지웠으면 참. */
         suspend fun deleteItems(path: String): Boolean
+
+        /** 이 경로의 DataClient 항목 내용(노드마다 하나, 워치 거부 기록 건수 W43). 없거나 읽지 못하면 빈 목록. */
+        suspend fun readItems(path: String): List<ByteArray>
     }
 
     /** 워치에서 온 메시지·데이터 항목 하나(경로, 내용, 보낸 워치 노드). */
@@ -120,6 +129,9 @@ class WatchLink internal constructor(
     /** 마지막으로 받은 워치 측정 중 여부와 받은 시각(폰 시계). lock 안에서만 쓴다(D-373 (2), D-390). */
     private var lastWatchMeasuring: WatchMeasuringMessage? = null
     private var lastMeasuringAt: Instant? = null
+
+    /** 워치가 마지막으로 알린 거부 기록 건수(W43). 연결·연동 여부와 상관없이 마지막 값을 쥔다. */
+    private val watchRejected = MutableStateFlow<RejectedCountMessage?>(null)
 
     /** 이미 넘긴 심박의 측정 시각(밀리초). 워치가 같은 묶음을 다시 넣어도(DataItem 재동기화) 한 번만 넘긴다. lock 안에서만 쓴다. */
     private val seenHeartRates = LinkedHashSet<Long>()
@@ -157,6 +169,18 @@ class WatchLink internal constructor(
                 .filter { it.path == WearPaths.WATCH_MEASURING }
                 .mapNotNull { decodeOrNull { WatchMeasuringMessage.decode(it.payload) } }
                 .collect(::onWatchMeasuring)
+        }
+        scope.launch {
+            transport.incoming
+                .filter { it.path == WearPaths.REJECTED_COUNT }
+                .mapNotNull { decodeOrNull { RejectedCountMessage.decode(it.payload) } }
+                .collect(::onWatchRejectedCount)
+        }
+        // 앱을 띄울 때(이미 연결됨)와 워치가 다시 연결될 때 Data Layer에 남은 워치 거부 기록 건수를 읽는다(W43).
+        scope.launch {
+            transport.connected
+                .filter { it }
+                .collect { readWatchRejectedCount() }
         }
         // 워치가 (다시) 연결되면 시작 화면·진행 표시와 수집 허용 여부를 바로 맞춘다.
         scope.launch {
@@ -219,9 +243,35 @@ class WatchLink internal constructor(
         transport.send(WearPaths.LEAD_CHANGE, LeadChangeMessage(lead, clock.millis()).encode())
     }
 
-    /** 워치에 거부 기록 다시 보내기를 요청한다(W40). 워치가 닿지 않으면 버려진다(MessageClient). */
-    override fun requestResend() {
-        transport.send(WearPaths.RESEND_REJECTED, ResendRejectedMessage(clock.millis()).encode())
+    /**
+     * 워치에 거부 기록 다시 보내기를 요청한다(W40). DataClient 항목이라 워치가 지금 닿지 않아도 남았다가 연결되면 전달된다(W43).
+     * 요청 시각이 매번 달라 같은 경로에 넣어도 바뀐 항목으로 간다. 항목을 넣지 못하면(Play 서비스 없음) 기록만 남긴다.
+     */
+    override suspend fun requestResend() {
+        if (!transport.putItem(WearPaths.RESEND_REJECTED, ResendRejectedMessage(clock.millis()).encode())) {
+            Timber.w("워치 다시 보내기 요청을 남기지 못했다")
+        }
+    }
+
+    /** 워치 거부 기록 건수(W43). 워치가 연결되지 않았거나 워치 연동이 꺼져 있으면 0이다. */
+    override fun observeWatchRejectedCount(): Flow<Int> = combine(
+        watchRejected,
+        transport.connected,
+        settings.changes().map { it.isWatchLinked }.onStart { emit(settings.watchLinked()) }
+    ) { last, isConnected, isLinked -> if (isConnected && isLinked) last?.count ?: 0 else 0 }
+        .distinctUntilChanged()
+
+    /** 받은 워치 거부 기록 건수. 늦게 도착한 옛 값(센 시각이 마지막 값보다 이름)은 버린다. */
+    private fun onWatchRejectedCount(message: RejectedCountMessage) {
+        watchRejected.update { last -> last?.takeIf { it.atEpochMillis > message.atEpochMillis } ?: message }
+    }
+
+    private suspend fun readWatchRejectedCount() {
+        transport
+            .readItems(WearPaths.REJECTED_COUNT)
+            .mapNotNull { bytes -> decodeOrNull { RejectedCountMessage.decode(bytes) } }
+            .maxByOrNull { it.atEpochMillis }
+            ?.let(::onWatchRejectedCount)
     }
 
     /** 처음 보는 측정 시각의 표본만 도메인 심박으로 바꾼다. 기억은 최근 SEEN_LIMIT개까지. */

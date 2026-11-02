@@ -275,13 +275,16 @@ class FakeUploadScheduler : UploadScheduler {
     }
 }
 
-/** 워치 다시 보내기 요청 횟수만 센다(W40). */
+/** 워치 다시 보내기 요청 횟수를 세고(W40), 워치가 알린 거부 기록 건수를 [watchCount]로 낸다(W43). */
 class FakeWatchResendRequester : WatchResendRequester {
     var requests = 0
+    val watchCount = MutableStateFlow(0)
 
-    override fun requestResend() {
+    override suspend fun requestResend() {
         requests++
     }
+
+    override fun observeWatchRejectedCount(): Flow<Int> = watchCount
 }
 
 /** 미전송 기록 하나(설정의 못 올린 기록 시험용). */
