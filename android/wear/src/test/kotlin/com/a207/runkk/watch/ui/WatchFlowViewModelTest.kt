@@ -549,6 +549,23 @@ class WatchFlowViewModelTest {
     }
 
     @Test
+    fun `연결된 셀프런은 서버가 대결을 열 때까지 연결 중을 보이고 답이 오면 3부터 센다`() = flowTest {
+        val gate = CompletableDeferred<Unit>()
+        battles.recordStartGate = gate
+        battles.recordStart = recordStart(CardKind.SELF_RUN, meters = 3_000)
+        val h = open()
+        h.vm.onModeSelected(WatchMode.SELF)
+
+        h.vm.onDistanceSelected(Distance(3_000))
+        runCurrent()
+        assertEquals(WatchFlow.Countdown(WatchMode.SELF, Distance(3_000), 3, isConnecting = true), h.flow)
+
+        gate.complete(Unit)
+        runCurrent()
+        assertEquals(WatchFlow.Countdown(WatchMode.SELF, Distance(3_000), 3), h.flow)
+    }
+
+    @Test
     fun `셀럽런은 거리 다음 셀럽 목록을 보이고 고르면 카운트다운이다(W09)`() = flowTest {
         val h = open()
         h.vm.onModeSelected(WatchMode.CELEB)

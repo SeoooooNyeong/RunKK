@@ -67,6 +67,7 @@
     <!-- 카운트다운(FR-180, FR-087, 피그마 FC3·BC1·SC3) -->
     <string name="countdown_header">%1$s %2$s</string>
     <string name="countdown_go">GO</string>
+    <string name="countdown_connecting">연결 중</string>
 
     <!-- 측정 중(FR-246, 피그마 FR∞·FR3·BR1·SR3) -->
     <string name="run_goal">목표 %1$s km</string>

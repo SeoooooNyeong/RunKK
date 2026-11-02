@@ -558,8 +558,9 @@ class WatchFlowViewModel @Inject constructor(
         val picker = _flow.value
         val distance = track.distance
         beginRound(Round(mode, distance, opponent = track))
-        _flow.value = WatchFlow.Countdown(mode, distance, COUNTDOWN_SECONDS)
-        if (!connectivity.isOnline.value) {
+        val isOnline = connectivity.isOnline.value
+        _flow.value = WatchFlow.Countdown(mode, distance, COUNTDOWN_SECONDS, isConnecting = isOnline)
+        if (!isOnline) {
             battleFlow.startRecordOffline(track)
             return
         }

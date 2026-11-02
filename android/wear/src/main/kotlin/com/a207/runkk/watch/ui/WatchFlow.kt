@@ -84,8 +84,16 @@ sealed interface WatchFlow {
         val opponentGender: Gender?
     ) : WatchFlow
 
-    /** 출발 3·2·1·GO(FR-180, FR-087). [secondsLeft]가 0이면 GO다. 자유런 무제한은 [distance]가 null이다. */
-    data class Countdown(val mode: WatchMode, val distance: Distance?, val secondsLeft: Int) : WatchFlow
+    /**
+     * 출발 3·2·1·GO(FR-180, FR-087). [secondsLeft]가 0이면 GO다. 자유런 무제한은 [distance]가 null이다.
+     * [isConnecting]이면 셀프·셀럽런이 서버 대결을 여는 중이라 숫자 대신 "연결 중"을 보인다(서버가 답하면 3부터 센다).
+     */
+    data class Countdown(
+        val mode: WatchMode,
+        val distance: Distance?,
+        val secondsLeft: Int,
+        val isConnecting: Boolean = false
+    ) : WatchFlow
 
     /**
      * 측정 중(FR-246). [goal]은 목표·대결 거리(자유런 무제한은 null), [gapMeters]는 대결 상대와의 거리 차(앞서면 양수, 모르면 null),

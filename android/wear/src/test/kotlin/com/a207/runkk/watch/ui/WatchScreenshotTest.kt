@@ -248,6 +248,12 @@ class WatchScreenshotTest {
         capture("FC3_watch_countdown_free_3km", WatchFlow.Countdown(WatchMode.FREE, Distance(3_000), 3))
 
     @Test
+    fun countdownConnecting() = capture(
+        "SC3_watch_countdown_connecting",
+        WatchFlow.Countdown(WatchMode.SELF, Distance(3_000), 3, isConnecting = true)
+    )
+
+    @Test
     fun countdownGo() = capture("BC1_watch_countdown_go", WatchFlow.Countdown(WatchMode.BATTLE, Distance(1_000), 0))
 
     @Test

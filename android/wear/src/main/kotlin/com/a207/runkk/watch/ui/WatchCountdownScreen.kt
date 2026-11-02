@@ -6,6 +6,9 @@ import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -29,14 +32,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material3.Text
@@ -46,14 +54,16 @@ import androidx.wear.compose.material3.Text
  * 머리줄에 가운뎃점을 넣지 않는다(사용자 문체 규칙).
  * 모션(W41, 피그마에 안쪽 모션이 없어 메인과 같은 320ms 곡선): 숫자가 바뀌면 새 숫자가 크게 들어와 줄고 옛 숫자는 작아지며 사라진다.
  * 숫자마다 둘레 원이 12시에서 시계 방향으로 1초 동안 다시 차오르고, GO는 다 찬 원이다. 움직임 줄이기에서는 바로 바뀐다.
+ * 셀프·셀럽런이 서버 대결을 여는 동안([WatchFlow.Countdown.isConnecting])은 숫자 자리에 "연결 중."·"연결 중.."·"연결 중..."을 되풀이한다.
  */
 @Composable
 fun WatchCountdownScreen(state: WatchFlow.Countdown, modifier: Modifier = Modifier) {
     val distance = state.distance?.let { distanceLabel(it) } ?: stringResource(R.string.unlimited)
     val still = LocalMotionStill.current
-    val fill = remember { Animatable(if (still || state.secondsLeft <= 0) 1f else 0f) }
-    LaunchedEffect(state.secondsLeft, still) {
-        if (still || state.secondsLeft <= 0) {
+    val isRingFull = still || state.isConnecting || state.secondsLeft <= 0
+    val fill = remember { Animatable(if (isRingFull) 1f else 0f) }
+    LaunchedEffect(state.secondsLeft, state.isConnecting, still) {
+        if (isRingFull) {
             fill.snapTo(1f)
         } else {
             fill.snapTo(0f)
@@ -93,7 +103,7 @@ fun WatchCountdownScreen(state: WatchFlow.Countdown, modifier: Modifier = Modifi
                 style = labelStyle(color = WatchColors.Ink, size = 13.sp).copy(fontWeight = FontWeight.Bold)
             )
             AnimatedContent(
-                targetState = state.secondsLeft,
+                targetState = if (state.isConnecting) CONNECTING else state.secondsLeft,
                 transitionSpec = {
                     if (still) {
                         EnterTransition.None togetherWith ExitTransition.None
@@ -106,6 +116,10 @@ fun WatchCountdownScreen(state: WatchFlow.Countdown, modifier: Modifier = Modifi
                 contentAlignment = Alignment.Center,
                 label = "countdown-number"
             ) { left ->
+                if (left == CONNECTING) {
+                    ConnectingText(still)
+                    return@AnimatedContent
+                }
                 Text(
                     text = if (left > 0) left.toString() else stringResource(R.string.countdown_go),
                     modifier = Modifier.semantics { liveRegion = LiveRegionMode.Assertive },
@@ -116,6 +130,44 @@ fun WatchCountdownScreen(state: WatchFlow.Countdown, modifier: Modifier = Modifi
         }
     }
 }
+
+/** 서버 대결을 여는 동안: "연결 중" 뒤 점이 하나, 둘, 셋으로 늘었다 다시 하나가 된다. 글자 폭이 흔들리지 않게 남은 점은 투명하게 그린다. */
+@Composable
+private fun ConnectingText(still: Boolean) {
+    val cycle = if (still) {
+        null
+    } else {
+        rememberInfiniteTransition(label = "connecting").animateFloat(
+            initialValue = 0f,
+            targetValue = MAX_DOTS.toFloat(),
+            animationSpec = infiniteRepeatable(tween(DOT_STEP_MS * MAX_DOTS, easing = LinearEasing)),
+            label = "connecting-dots"
+        )
+    }
+    // 점 수가 바뀔 때만 다시 그린다.
+    val dots by remember(cycle) {
+        derivedStateOf { cycle?.let { (it.value.toInt() + 1).coerceAtMost(MAX_DOTS) } ?: MAX_DOTS }
+    }
+    val label = stringResource(R.string.countdown_connecting)
+    val text = buildAnnotatedString {
+        append(label)
+        append(".".repeat(dots))
+        withStyle(SpanStyle(color = Color.Transparent)) { append(".".repeat(MAX_DOTS - dots)) }
+    }
+    Text(
+        text = text,
+        modifier = Modifier
+            .padding(vertical = CONNECTING_PADDING)
+            .semantics { contentDescription = label },
+        style = labelStyle(color = WatchColors.Ink, size = 22.sp).copy(fontWeight = FontWeight.Bold)
+    )
+}
+
+/** 숫자 자리 키: 연결 중은 남은 초(0 이상)와 겹치지 않는 값이다. 점은 0.4초마다 늘고 셋까지다. */
+private const val CONNECTING = -1
+private const val MAX_DOTS = 3
+private const val DOT_STEP_MS = 400
+private val CONNECTING_PADDING = 32.dp
 
 /** 둘레 원 두께(피그마 FC3), 차오름 시작 각도(12시)와 한 바퀴. */
 private val RING_WIDTH = 3.dp
