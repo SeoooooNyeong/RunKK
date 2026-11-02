@@ -9,7 +9,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeUp
 import androidx.wear.compose.material3.TimeSource
@@ -114,6 +116,27 @@ class WatchScreenshotTest {
 
     @Test
     fun mainCeleb() = capture("Q4_watch_main_celeb", WatchFlow.Main(WatchMode.CELEB, null))
+
+    /** 자유런에서 배틀런으로 넘어가는 중간 프레임(Smart Animate 320ms 가운데쯤, 시계 고정). 카드가 반쯤 미끄러지며 커지고 작아진다. */
+    @Test
+    fun mainTransition() {
+        compose.setContent {
+            WatchTheme {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(CircleShape)
+                        .background(WatchColors.Background)
+                ) {
+                    WatchModeCarousel(WatchFlow.Main(WatchMode.FREE, Gender.FEMALE), onModeSelected = {})
+                }
+            }
+        }
+        compose.mainClock.autoAdvance = false
+        compose.onNodeWithContentDescription("배틀런").performClick()
+        compose.mainClock.advanceTimeBy(TRANSITION_MIDDLE_MS)
+        compose.onRoot().captureRoboImage("src/test/snapshots/Q1-Q2_watch_main_transition.png")
+    }
 
     @Test
     fun freeUnlimited() = capture("F1_watch_free_unlimited", WatchFlow.FreeGoal(choices(null, 3_000, 5_000, 10_000)))
@@ -344,6 +367,9 @@ private object FixedTimeSource : TimeSource {
     @Composable
     override fun currentTime(): String = "10:09"
 }
+
+/** 전환 중간 프레임을 찍는 시각(첫 프레임이 시작 시각을 잡는다). */
+private const val TRANSITION_MIDDLE_MS = 64L
 
 /** 작은 원형 워치(Wear OS small round, 192dp = 384px). */
 private const val WATCH_SMALL_ROUND = "w192dp-h192dp-round-xhdpi"
