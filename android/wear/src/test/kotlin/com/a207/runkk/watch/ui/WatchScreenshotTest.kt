@@ -144,6 +144,11 @@ class WatchScreenshotTest {
     fun freeThree() =
         capture("F1-3_watch_free_3km", WatchFlow.FreeGoal(choices(null, 3_000, 5_000, 10_000), selected = 1))
 
+    /** WR16-2: 가장 넓은 숫자 "10"(피그마 F1-10). */
+    @Test
+    fun freeTen() =
+        capture("F1-10_watch_free_10km", WatchFlow.FreeGoal(choices(null, 3_000, 5_000, 10_000), selected = 3))
+
     @Test
     fun freeConsent() = capture(
         "F1-3_watch_free_consent",
@@ -156,6 +161,13 @@ class WatchScreenshotTest {
 
     @Test
     fun battleOne() = capture("B1-1_watch_battle_1km", WatchFlow.BattleDistance(choices(1_000, 3_000, 5_000, 10_000)))
+
+    /** WR16-2: 배틀런 끝 카드 "10". */
+    @Test
+    fun battleTen() = capture(
+        "B1-10_watch_battle_10km",
+        WatchFlow.BattleDistance(choices(1_000, 3_000, 5_000, 10_000), selected = 3)
+    )
 
     @Test
     fun battleOffline() = capture(
