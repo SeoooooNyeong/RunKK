@@ -29,10 +29,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -151,26 +154,49 @@ private fun rememberRingFraction(target: Float): Animatable<Float, AnimationVect
     return ring
 }
 
-/** 바뀌면 새 값이 아래에서 올라오고 옛 값이 위로 빠지는 숫자(측정 거리, W41). 처음 그릴 때와 움직임 줄이기에서는 바로 바뀐다. */
+/**
+ * 바뀌면 새 값이 아래에서 올라오고 옛 값이 위로 빠지는 숫자(측정 거리, W41). 처음 그릴 때와 움직임 줄이기에서는 바로 바뀐다.
+ * 움직임은 그리기 단계(graphicsLayer)에서만 한다. 배치를 옮기면 옆 "km"가 맞추는 기준선이 전환마다 흔들린다.
+ */
 @Composable
 private fun RollingNumber(text: String, style: TextStyle, modifier: Modifier = Modifier) {
     val still = LocalMotionStill.current
-    AnimatedContent(
-        targetState = text,
-        modifier = modifier,
-        transitionSpec = {
-            if (still) {
-                EnterTransition.None togetherWith ExitTransition.None
-            } else {
-                val move = tween<IntOffset>(CAROUSEL_DURATION_MS, easing = CarouselEasing)
-                val fade = tween<Float>(CAROUSEL_DURATION_MS, easing = CarouselEasing)
-                (slideInVertically(move) { it / ROLL_DIVISOR } + fadeIn(fade)) togetherWith
-                    (slideOutVertically(move) { -it / ROLL_DIVISOR } + fadeOut(fade))
-            } using SizeTransform(clip = false)
-        },
-        label = "rolling-number"
-    ) { shown ->
-        Text(text = shown, style = style)
+    var shown by remember { mutableStateOf(text) }
+    var leaving by remember { mutableStateOf<String?>(null) }
+    val roll = remember { Animatable(1f) }
+    LaunchedEffect(text, still) {
+        if (text == shown) return@LaunchedEffect
+        if (still) {
+            leaving = null
+            shown = text
+            roll.snapTo(1f)
+            return@LaunchedEffect
+        }
+        leaving = shown
+        shown = text
+        roll.snapTo(0f)
+        roll.animateTo(1f, tween(CAROUSEL_DURATION_MS, easing = CarouselEasing))
+        leaving = null
+    }
+    Box(modifier) {
+        leaving?.let { old ->
+            Text(
+                text = old,
+                style = style,
+                modifier = Modifier.graphicsLayer {
+                    translationY = -size.height / ROLL_DIVISOR * roll.value
+                    alpha = 1f - roll.value
+                }
+            )
+        }
+        Text(
+            text = if (still) text else shown,
+            style = style,
+            modifier = Modifier.graphicsLayer {
+                translationY = size.height / ROLL_DIVISOR * (1f - roll.value)
+                alpha = roll.value
+            }
+        )
     }
 }
 

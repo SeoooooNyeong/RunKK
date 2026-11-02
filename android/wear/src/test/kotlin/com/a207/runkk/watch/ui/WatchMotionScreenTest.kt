@@ -12,6 +12,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -29,6 +30,7 @@ import com.a207.runkk.watch.battle.WatchResultHeadline
 import com.github.takahirom.roborazzi.captureRoboImage
 import java.time.Duration
 import java.time.Instant
+import kotlin.test.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -206,6 +208,16 @@ class WatchMotionScreenTest {
     }
 
     @Test
+    fun `측정 거리가 바뀌는 동안 km 단위는 제자리에 있다`() {
+        show(freeRun)
+        val before = compose.onNodeWithText("km").getUnclippedBoundsInRoot()
+        for (step in 1..ROLL_STEPS) {
+            change(freeRun.copy(progress = progress(1_500L + step * 10, 588)), afterMs = 60)
+            assertEquals(before, compose.onNodeWithText("km").getUnclippedBoundsInRoot())
+        }
+    }
+
+    @Test
     fun `일시정지로 들어가면 측정 화면 위로 일시정지 화면이 나타난다`() {
         show(freeRun)
         change(WatchFlow.Paused(progress(1_500, 585, paused = true), Distance(3_000)), afterMs = 120)
@@ -248,3 +260,6 @@ private const val FRAME_MS = 16L
 
 /** 전환이 다 끝날 만큼(가장 긴 320ms + 차례 간격 180ms + 여유). */
 private const val SETTLE_MS = 700L
+
+/** km 제자리 시험에서 거리를 바꾸는 횟수(전환 중간마다 본다). */
+private const val ROLL_STEPS = 4
