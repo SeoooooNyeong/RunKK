@@ -235,8 +235,8 @@ class OpponentRecordCacheTest {
         cache.refresh(memberId = 7)
 
         assertEquals(Outcome.Failure(AppError.Network), cache.fetchCelebrityTrack(1))
-        battles.celebrityTracks[1] = Outcome.Failure(AppError.Rejected("NOT_FOUND"))
-        assertEquals(Outcome.Failure(AppError.Rejected("NOT_FOUND")), cache.fetchCelebrityTrack(1))
+        battles.celebrityTracks[1] = Outcome.Failure(AppError.Rejected("CELEBRITY_REMOVED"))
+        assertEquals(Outcome.Failure(AppError.Rejected("CELEBRITY_REMOVED")), cache.fetchCelebrityTrack(1))
         assertIs<AppError.Rejected>(assertIs<Outcome.Failure>(cache.fetchCelebrityTrack(2)).error)
 
         assertNull(cache.readyCelebrity(1))
@@ -280,5 +280,28 @@ class OpponentRecordCacheTest {
 
         assertNull(other.readyCelebrity(1))
         assertFalse(other.celebrityCandidates(Distance(5_000)).single().hasTrack)
+    }
+
+    @Test
+    fun `목록을 받는 동안 받은 셀럽 구간 기록은 목록이 나중에 적용돼도 남는다(W31)`() = runTest {
+        battles.tracks[RecordBattleKind.SELF] = emptyList()
+        battles.tracks[RecordBattleKind.CELEBRITY] = listOf(celebrityListItem(1, 5_000, 1_500))
+        battles.celebrityTracks[1] = Outcome.Success(celebrityTrack(1, 5_000, 1_500))
+        val cache = cache()
+        cache.refresh(memberId = 7)
+        val gate = CompletableDeferred<Unit>()
+        battles.gate = gate
+        val refreshing = async { cache.refresh(memberId = 7) }
+        runCurrent()
+
+        battles.gate = null
+        cache.fetchCelebrityTrack(1)
+        gate.complete(Unit)
+        refreshing.await()
+        advanceUntilIdle()
+
+        assertNotNull(cache.readyCelebrity(1))
+        battles.tracks.clear()
+        assertNotNull(cache().readyCelebrity(1), "파일에도 남는다")
     }
 }

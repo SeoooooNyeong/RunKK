@@ -16,6 +16,7 @@ import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -31,7 +32,8 @@ import timber.log.Timber
  *   그대로 둔다. 회원ID는 부르는 쪽이 넘긴다: 이 패키지는 watch.session을 모른다(M78). 파일의 회원ID가 다르면 이전 기록을 버린다.
  * - 셀럽런 목록은 구간 기록 없이 온다(W31). 셀럽을 고를 때 [fetchCelebrityTrack]이 GET /battles/record-tracks/celebrity/{id}로
  *   그 셀럽의 구간 기록을 받아 같은 파일에 둔다. 한 번 받은 구간 기록은 목록을 다시 받아도 그 기록(거리·완주 시간)이 같으면 남아
- *   [readyCelebrity]로 연결 없이 꺼낸다. 목록에서 빠진 셀럽은 구간 기록도 버린다.
+ *   [readyCelebrity]로 연결 없이 꺼낸다. 목록에서 빠진 셀럽은 구간 기록도 버린다. 셀럽 ID 하나에 기록 하나다(서버 계약: 목록의
+ *   celebrityId가 단건 경로의 값과 같다).
  * - 꺼내기([selfCandidates]·[celebrityCandidates]·[readyCelebrity])는 메모리 값이다. 아직 파일을 읽지 않았으면 그 자리에서 한 번 읽는다.
  * - [onNewSelfBest]: 워치 셀프런의 새 최고 기록을 다음 받기 전까지 그 거리의 상대로 쓴다(FR-260 제안). 파일 쓰기는 앱 범위에서 한다.
  * - [clear]: 로그아웃·다른 회원 로그인 때 watch.session이 부른다(FR-241, H-56).
@@ -138,7 +140,12 @@ class OpponentRecordCache internal constructor(
             cached = current.copy(tracks = current.tracks.map { if (it.isCelebrity(celebrityId)) fetched else it })
             true
         }
-        if (isApplied) persist(startedIn) else Timber.i("받은 셀럽 구간 기록을 남기지 않는다(지웠거나 목록에 없음)")
+        // 메모리에 둔 뒤 부른 쪽이 취소돼도(목록에서 뒤로 가기) 파일에 남긴다: 다음 프로세스가 연결 없이 쓴다.
+        if (isApplied) {
+            withContext(NonCancellable) { persist(startedIn) }
+        } else {
+            Timber.i("받은 셀럽 구간 기록을 남기지 않는다(지웠거나 목록에 없음)")
+        }
         return Outcome.Success(fetched)
     }
 

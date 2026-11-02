@@ -596,7 +596,7 @@ class WatchFlowViewModelTest {
 
     @Test
     fun `셀럽 구간 기록이 없으면(404) 고를 수 없는 기록이고 받다가 끊기면 연결 안내다(W31)`() = flowTest {
-        battles.celebrityTracks[1] = Outcome.Failure(AppError.Rejected("NOT_FOUND"))
+        battles.celebrityTracks[1] = Outcome.Failure(AppError.Rejected("CELEBRITY_REMOVED"))
         val h = open()
         val celebrity = openCelebList(h).celebrities.single()
 
@@ -630,6 +630,25 @@ class WatchFlowViewModelTest {
 
         assertIs<WatchFlow.CelebDistance>(h.flow)
         assertFalse(h.tracker.isMeasuring)
+    }
+
+    @Test
+    fun `뒤로 갔다가 다시 들어와 같은 셀럽을 고르면 새로 받은 뒤 카운트다운이다(W31)`() = flowTest {
+        val gate = CompletableDeferred<Unit>()
+        battles.celebrityGate = gate
+        val h = open()
+        h.vm.onCelebritySelected(openCelebList(h).celebrities.single())
+        runCurrent()
+        h.vm.back()
+
+        h.vm.onDistanceSelected(Distance(5_000))
+        h.vm.onCelebritySelected((h.flow as WatchFlow.CelebList).celebrities.single())
+        runCurrent()
+        gate.complete(Unit)
+        runCurrent()
+
+        assertEquals(WatchFlow.Countdown(WatchMode.CELEB, Distance(5_000), 3), h.flow)
+        assertEquals(listOf(1L, 1L), battles.celebrityTrackCalls)
     }
 
     @Test

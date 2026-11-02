@@ -107,10 +107,10 @@ class BattleRepositoryImplTest {
 
     @Test
     fun `셀럽 기록 하나가 없으면(404) 본문 code의 Rejected이고 code가 없으면 NOT_FOUND다(W31)`() = runTest {
-        api.reply("""{"code":"CELEBRITY_NOT_FOUND","message":"없음"}""", code = 404)
+        api.reply("""{"code":"CELEBRITY_REMOVED","message":"없음"}""", code = 404)
         api.reply("", code = 404)
 
-        assertEquals(Outcome.Failure(AppError.Rejected("CELEBRITY_NOT_FOUND")), repository.celebrityTrack(9))
+        assertEquals(Outcome.Failure(AppError.Rejected("CELEBRITY_REMOVED")), repository.celebrityTrack(9))
         assertEquals(Outcome.Failure(AppError.Rejected("NOT_FOUND")), repository.celebrityTrack(9))
     }
 

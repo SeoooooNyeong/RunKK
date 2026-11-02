@@ -218,6 +218,8 @@ class WatchFlowViewModel @Inject constructor(
             return
         }
         _flow.value = list.copy(fetching = c, notice = null)
+        // 다른 길(로그아웃·메인 재진입)로 목록을 떠나 남은 받기가 같은 항목을 다시 고른 뒤에 끼어들지 않게 거둔다.
+        celebrityJob?.cancel()
         celebrityJob = viewModelScope.launch {
             val fetched = battleFlow.fetchCelebrity(c)
             val current = _flow.value as? WatchFlow.CelebList
