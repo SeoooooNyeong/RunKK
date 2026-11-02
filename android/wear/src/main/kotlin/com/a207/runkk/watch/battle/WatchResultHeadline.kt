@@ -135,22 +135,27 @@ sealed interface WatchResultHeadline {
             }
 
         /**
-         * 서버 대결로 달린 셀프런(서버 판정, W27, FR-250): 결과가 없거나 보류면 [Pending], 내가 도착하지 않았으면 STOP, 판정 WIN이면
-         * BEST, LOSE면 GOOD이다. 시간 차는 도달 시간 차이고 판정과 어긋나면(검증 무효 등) 문구가 없다. 비김(DRAW)은 FR-249 표에 없어
-         * 배틀런처럼 FINISH다.
+         * 서버 대결로 달린 셀프런(서버 판정, W27, FR-250): 결과가 없거나 보류면 [Pending], 판정 WIN이면 BEST, LOSE면 GOOD이다.
+         * 시간 차는 서버 도달 시간 차이고, 서버에 내 도달 시간이 없으면(카운트다운이 끝난 뒤 도착해 검증되지 않음 등) 워치가 잰
+         * [localLeadSeconds](상대 완주 시간 − 내 도착 시간, 도착 전에 끝냈으면 null)로 쓴다. 둘 다 없으면 도착 전에 끝낸 것이라 STOP이다(R13 D1).
+         * 시간 차가 판정과 어긋나면(검증 무효 등) 문구가 없다. 비김(DRAW)은 FR-249 표에 없어 배틀런처럼 FINISH다.
          */
-        fun forSelfVerdict(result: BattleResult?): WatchResultHeadline = verdict(result) { isWin, gap ->
-            if (isWin) Best(gap) else Good(gap)
-        }
+        fun forSelfVerdict(result: BattleResult?, localLeadSeconds: Long? = null): WatchResultHeadline =
+            verdict(result, localLeadSeconds) { isWin, gap ->
+                if (isWin) Best(gap) else Good(gap)
+            }
 
         /**
          * 서버 대결로 달린 셀럽런(서버 판정, W27, FR-250): [forSelfVerdict]와 같은 규칙으로 WIN·LOSE다. 이름은 고른 카드의
          * [celebrityName]을 쓴다(워치 계산과 같은 이름).
          */
-        fun forCelebVerdict(result: BattleResult?, celebrityName: String): WatchResultHeadline =
-            verdict(result) { isWin, gap ->
-                if (isWin) Win(celebrityName, gapSeconds = gap) else Lose(celebrityName, gap)
-            }
+        fun forCelebVerdict(
+            result: BattleResult?,
+            celebrityName: String,
+            localLeadSeconds: Long? = null
+        ): WatchResultHeadline = verdict(result, localLeadSeconds) { isWin, gap ->
+            if (isWin) Win(celebrityName, gapSeconds = gap) else Lose(celebrityName, gap)
+        }
 
         /** 워치 계산의 부호 있는 시간 차를 이김 여부와 문구 시간으로 나눈다. 도착 전에 끝냈으면(null) STOP이다. */
         private inline fun signedGap(
@@ -161,14 +166,22 @@ sealed interface WatchResultHeadline {
             return headline(gapSeconds > 0, kotlin.math.abs(gapSeconds))
         }
 
-        /** 서버 판정을 이김 여부와 문구 시간으로 나눈다. 시간 차는 화면에 보이는 초 단위로 견준다(워치 계산과 같다). */
+        /**
+         * 서버 판정을 이김 여부와 문구 시간으로 나눈다. 시간 차는 화면에 보이는 초 단위로 견준다(워치 계산과 같다). 서버에 내 도달 시간이
+         * 없으면 [localLeadSeconds]를 쓰고, 그것도 없으면(도착 전 종료) STOP이다.
+         */
         private inline fun verdict(
             result: BattleResult?,
+            localLeadSeconds: Long?,
             headline: (isWin: Boolean, gapSeconds: Long?) -> WatchResultHeadline
         ): WatchResultHeadline {
             if (result == null || result.isPending) return Pending
-            val mine = result.myReach ?: return Stop
-            val lead = result.opponentReach?.let { it.seconds - mine.seconds }
+            val mine = result.myReach
+            val lead = if (mine != null) {
+                result.opponentReach?.let { it.seconds - mine.seconds }
+            } else {
+                localLeadSeconds ?: return Stop
+            }
             return when (result.verdict) {
                 VERDICT_WIN -> headline(true, lead?.takeIf { it > 0 })
                 VERDICT_LOSE -> headline(false, lead?.let { -it }?.takeIf { it >= 0 })

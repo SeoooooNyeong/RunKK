@@ -72,14 +72,18 @@ class WatchFlowViewModel @Inject constructor(
     private val guidance: WatchGuidanceOutput,
     private val accounts: AccountRepository
 ) : ViewModel() {
-    /** 러닝 한 회의 화면 맥락. [opponent]는 셀프·셀럽 상대 기록, [battleId]는 서버 대결 ID(오프라인 기록 대결은 0)다. */
+    /**
+     * 러닝 한 회의 화면 맥락. [opponent]는 셀프·셀럽 상대 기록, [battleId]는 서버 대결 ID(오프라인 기록 대결은 0)다. [isFinished]는
+     * 대결 끝(Finished)을 받아 결과로 들어간 회다: 그 뒤 오는 대결 단계는 결과 화면을 바꾸지 않는다(완료로만 닫는다, 2.4.25, R13 D1).
+     */
     private data class Round(
         val mode: WatchMode,
         val goal: Distance?,
         val opponent: RecordOpponent? = null,
         val battleId: Long? = null,
         val hasStarted: Boolean = false,
-        val isEndedByUser: Boolean = false
+        val isEndedByUser: Boolean = false,
+        val isFinished: Boolean = false
     )
 
     private var round: Round? = null
@@ -443,6 +447,13 @@ class WatchFlowViewModel @Inject constructor(
             return
         }
         _flow.value = WatchFlow.Main(lastMode, accounts.myGender.value, notice)
+        if (notice != null) {
+            noticeJob?.cancel()
+            noticeJob = viewModelScope.launch {
+                delay(NOTICE_MILLIS)
+                updateMain { it.copy(notice = null) }
+            }
+        }
         if (refresh) refreshAccount(session.memberId)
     }
 
@@ -600,7 +611,8 @@ class WatchFlowViewModel @Inject constructor(
 
     private fun onBattleStep(step: BattleStep) {
         val active = round ?: return
-        if (active.mode == WatchMode.FREE) return
+        // 결과로 들어간 회는 뒤에 오는 단계(Discarded·Idle·다시 온 Finished)로 결과 화면을 닫거나 바꾸지 않는다(R13 D1).
+        if (active.mode == WatchMode.FREE || active.isFinished) return
         when (step) {
             is BattleStep.Matched -> {
                 waitingJob?.cancel()
@@ -619,6 +631,7 @@ class WatchFlowViewModel @Inject constructor(
 
             is BattleStep.Finished -> {
                 battleFlow.forgetRecord()
+                round = active.copy(isFinished = true)
                 onBattleFinished(step.battleId)
             }
 
@@ -723,8 +736,10 @@ class WatchFlowViewModel @Inject constructor(
 
             else -> {
                 // 결과 없이 끝났다(거리 0이라 저장하지 않음, 측정 서비스가 밖에서 끝냄): 결과를 닫는 때가 없으니 지금 TTS를 닫는다(WR13-3).
+                // 사용자가 끝냈으면 거리 0이라 저장하지 않았다는 안내다(UML 5a, R13 D4).
                 guidance.shutdown()
-                val notice = WatchFlow.Notice.MEASUREMENT_STOPPED.takeUnless { active.isEndedByUser }
+                val notice =
+                    if (active.isEndedByUser) WatchFlow.Notice.NOT_SAVED else WatchFlow.Notice.MEASUREMENT_STOPPED
                 enterHome(refresh = false, notice = notice)
             }
         }
@@ -786,7 +801,7 @@ class WatchFlowViewModel @Inject constructor(
         }
         if (battleId != OFFLINE_BATTLE_ID) {
             val verdict = awaitVerdict(RECORD_RESULT_ATTEMPTS, summary) {
-                battleFlow.recordVerdictHeadline(opponent, battleId)
+                battleFlow.recordVerdictHeadline(opponent, battleId, outcome)
             } ?: return
             if (verdict != WatchResultHeadline.Pending) {
                 _flow.value = WatchFlow.Result(verdict, summary)

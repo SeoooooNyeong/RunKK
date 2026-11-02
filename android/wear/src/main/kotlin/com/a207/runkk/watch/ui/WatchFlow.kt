@@ -179,6 +179,9 @@ sealed interface WatchFlow {
         /** 측정 서비스가 운동 세션을 열지 못했거나 밖에서 끝나 기록 없이 멈춤. */
         MEASUREMENT_STOPPED,
 
+        /** 거리 0으로 길게 눌러 끝내 기록을 저장하지 않음(UML 5a, R13 D4). */
+        NOT_SAVED,
+
         /** 종료를 짧게 눌렀다(FR-181, FR-248). */
         HOLD_TO_END,
 

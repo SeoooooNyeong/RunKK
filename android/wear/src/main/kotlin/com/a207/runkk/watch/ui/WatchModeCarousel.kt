@@ -60,6 +60,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.wear.compose.material3.Text
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
@@ -151,6 +152,10 @@ fun WatchModeCarousel(
                 key(index) {
                     PositionedModeCard(index, position, unit, onModeSelected, moveTo)
                 }
+            }
+            // 메인으로 돌아오며 받은 안내(측정 중단, 거리 0이라 저장 안 함)는 카드 위에 잠깐 띄운다(R13 D4).
+            state.notice?.let { notice ->
+                Banner(stringResource(noticeRes(notice)), WatchColors.Lavender, Modifier.zIndex(NOTICE_Z))
             }
         }
     }
@@ -308,6 +313,9 @@ private const val SLOT_GAP = 0.25f
 
 /** 가운데에서 이만큼(칸) 떨어진 카드까지 그린다. */
 private const val VISIBLE_SLOTS = 2
+
+/** 안내 띠는 카드(zIndex 0 이하)보다 위에 그린다. */
+private const val NOTICE_Z = 1f
 
 /** 가운데 카드 테두리(피그마 Q1). */
 private val CENTER_BORDER = Color(0xFFE4F79A)
