@@ -497,6 +497,35 @@ class WatchFlowViewModelTest {
     }
 
     @Test
+    fun `셀프 기록을 받은 적 없이 오프라인이면 거리 카드가 연결 안내로 잠기고 연결되면 풀린다(W32, FR-251)`() = flowTest {
+        battles.tracks.clear()
+        online.value = false
+        val h = open()
+        h.vm.onModeSelected(WatchMode.SELF)
+
+        val locked = h.flow as WatchFlow.SelfDistance
+        assertTrue(locked.choices.all { it.isOfflineLocked && !it.isEnabled })
+
+        h.vm.onDistanceSelected(Distance(3_000))
+        assertEquals(locked, h.flow)
+
+        online.value = true
+        runCurrent()
+        assertTrue((h.flow as WatchFlow.SelfDistance).choices.none { it.isOfflineLocked })
+    }
+
+    @Test
+    fun `셀프 기록을 받았는데 그 거리 기록이 없으면 오프라인이어도 기록 없음이다(W32)`() = flowTest {
+        val h = open()
+        online.value = false
+        h.vm.onModeSelected(WatchMode.SELF)
+
+        val self = h.flow as WatchFlow.SelfDistance
+        assertTrue(self.choices.none { it.isOfflineLocked })
+        assertEquals(listOf(false, true, false, false, false), self.choices.map { it.isEnabled })
+    }
+
+    @Test
     fun `연결 없는 셀프런은 미리 받은 기록으로 진행하고 일시정지가 없으며 도착 전에 끝내면 STOP이다(SQ-46, I14-12)`() = flowTest {
         online.value = false
         val h = open()

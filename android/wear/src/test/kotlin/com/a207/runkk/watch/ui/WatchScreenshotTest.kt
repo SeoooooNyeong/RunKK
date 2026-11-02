@@ -164,6 +164,16 @@ class WatchScreenshotTest {
     )
 
     @Test
+    fun selfDistanceOffline() = capture(
+        "S1-3_watch_self_offline",
+        WatchFlow.SelfDistance(
+            listOf(1_000L, 3_000L, 5_000L, 10_000L, 21_097L).map {
+                WatchFlow.Choice(Distance(it), isEnabled = false, isOfflineLocked = true)
+            }
+        )
+    )
+
+    @Test
     fun celebDistance() = capture(
         "C1-5_watch_celeb_distance",
         WatchFlow.CelebDistance(

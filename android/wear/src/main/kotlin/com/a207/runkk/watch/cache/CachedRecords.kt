@@ -17,7 +17,12 @@ import kotlinx.serialization.Serializable
  * 아직 구간 기록을 받지 않은 셀럽 목록 항목(W31, CachedTrack.hasTrack 거짓)은 진행표가 빈 목록이다.
  */
 @Serializable
-internal data class CachedRecords(val memberId: Long, val tracks: List<Entry>) {
+internal data class CachedRecords(
+    val memberId: Long,
+    val tracks: List<Entry>,
+    /** 셀프 목록을 받은 적 있음(W32). 옛 파일에는 없고, 없으면 거짓이다. */
+    val isSelfReceived: Boolean = false
+) {
     @Serializable
     data class Entry(
         val kind: String,

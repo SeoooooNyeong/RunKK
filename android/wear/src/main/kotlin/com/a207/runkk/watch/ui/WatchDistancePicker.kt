@@ -251,6 +251,7 @@ private fun DistanceRow(choice: WatchFlow.Choice, isHighlighted: Boolean, onClic
     val distance = choice.distance ?: return
     val label = distanceLabel(distance)
     val value = when {
+        choice.isOfflineLocked -> stringResource(R.string.notice_celeb_offline)
         !choice.isEnabled -> stringResource(R.string.record_none)
         choice.record != null -> WatchFormat.elapsed(choice.record.seconds)
         choice.count != null -> stringResource(R.string.celeb_count, choice.count)

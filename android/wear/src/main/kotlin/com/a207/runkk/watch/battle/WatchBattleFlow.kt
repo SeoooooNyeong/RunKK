@@ -195,6 +195,9 @@ class WatchBattleFlow @Inject constructor(
 
     fun selfCandidates(): List<RecordOpponent> = cache.selfCandidates().map(::RecordOpponent)
 
+    /** 셀프 기록 목록을 받은 적이 있는지(W32). */
+    fun isSelfReceived(): Boolean = cache.isSelfReceived()
+
     fun celebrityCandidates(d: Distance): List<RecordOpponent> = cache.celebrityCandidates(d).map(::RecordOpponent)
 
     /**

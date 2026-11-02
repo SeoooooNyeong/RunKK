@@ -137,7 +137,10 @@ class WatchFlowViewModel @Inject constructor(
         }
         viewModelScope.launch {
             connectivity.isOnline.collect { online ->
-                _flow.value.let { if (it is WatchFlow.BattleDistance) _flow.value = it.copy(isOnline = online) }
+                _flow.value.let {
+                    if (it is WatchFlow.BattleDistance) _flow.value = it.copy(isOnline = online)
+                    if (it is WatchFlow.SelfDistance) _flow.value = selfPicker(it.selected)
+                }
             }
         }
         viewModelScope.launch {
@@ -836,15 +839,24 @@ class WatchFlowViewModel @Inject constructor(
         WatchMode.BATTLE -> battlePicker(selectedDistance = null)
 
         WatchMode.SELF -> {
-            val records = battleFlow.selfCandidates()
-            val choices = SELF_DISTANCES.map { distance ->
-                val record = records.firstOrNull { it.distance == distance }?.finishTime
-                WatchFlow.Choice(distance, record = record, isEnabled = record != null)
-            }
-            WatchFlow.SelfDistance(choices, selected = firstEnabled(choices))
+            selfPicker(selected = null)
         }
 
         WatchMode.CELEB -> celebPicker(selectedDistance = null)
+    }
+
+    /**
+     * 셀프런 거리(FR-258). 셀프 목록을 받은 적 없이 오프라인이면 모든 카드가 "연결되면 고를 수 있어요"로 잠기고(W32, FR-251),
+     * 받았는데 그 거리 기록이 없으면 "기록 없음"이다. [selected]가 있으면 그 자리를 지킨다(연결 상태가 바뀌어 다시 그릴 때).
+     */
+    private fun selfPicker(selected: Int?): WatchFlow.SelfDistance {
+        val records = battleFlow.selfCandidates()
+        val isLocked = !battleFlow.isSelfReceived() && !connectivity.isOnline.value
+        val choices = SELF_DISTANCES.map { distance ->
+            val record = records.firstOrNull { it.distance == distance }?.finishTime
+            WatchFlow.Choice(distance, record = record, isEnabled = record != null, isOfflineLocked = isLocked)
+        }
+        return WatchFlow.SelfDistance(choices, selected = selected ?: firstEnabled(choices))
     }
 
     /**
