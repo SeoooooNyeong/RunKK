@@ -301,10 +301,10 @@ internal val ROW_HEIGHT = 48.dp
 /** 워치 최소 터치 크기(Wear OS 권장 48dp). */
 internal val TOUCH_SIZE = 48.dp
 
-/** 자유런·배틀런 가운데 큰 숫자(무제한은 ∞) 칸과 글자 크기. 가장 넓은 "10"이 들어가는 너비다. */
+/** 자유런·배틀런 가운데 큰 숫자(무제한은 ∞) 칸과 글자 크기(피그마 F1-3 120px ×0.64). 칸은 −·+ 자리를 고정한다. */
 private val DIAL_NUMBER_WIDTH = 64.dp
 private val DIAL_NUMBER_HEIGHT = 64.dp
-private val DIAL_NUMBER_SIZE = 60.sp
+private val DIAL_NUMBER_SIZE = 77.sp
 
 /** 한 카드 넘기는 회전 양. */
 private val ROTARY_STEP = 36.dp

@@ -1,13 +1,13 @@
 package com.a207.runkk.watch.ui
 
-import android.graphics.Typeface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material3.ColorScheme
 import androidx.wear.compose.material3.MaterialTheme
@@ -39,18 +39,29 @@ internal object WatchColors {
 }
 
 /**
- * 숫자 글꼴. 하이파이의 Barlow Condensed Italic 800을 글꼴 파일 없이 시스템 sans-serif-condensed +
- * ExtraBold + Italic으로 근사한다(글꼴 리소스를 저장소에 넣지 않았다).
+ * 숫자 글꼴(피그마 텍스트 "numerals"): Barlow Condensed 바로 선 글꼴. 큰 숫자·머리말(STOP·GOOD·WIN)은 ExtraBold(800), 작은 값(시간·
+ * 페이스)은 Bold(700)다. 파일은 res/font, 라이선스(SIL OFL 1.1)는 assets/licenses/OFL-BarlowCondensed.txt다.
  */
-private val NumberFamily = FontFamily(Typeface.create("sans-serif-condensed", Typeface.NORMAL))
+private val NumberFamily = FontFamily(
+    Font(R.font.barlow_condensed_bold, FontWeight.Bold),
+    Font(R.font.barlow_condensed_extrabold, FontWeight.ExtraBold)
+)
 
-internal fun numberStyle(size: TextUnit, color: Color = WatchColors.OnSurface): TextStyle = TextStyle(
+/** 숫자 글자. [weight]는 큰 숫자면 ExtraBold, 작은 값이면 Bold(피그마 FR3 "1.50"·"9:45"). */
+internal fun numberStyle(
+    size: TextUnit,
+    color: Color = WatchColors.OnSurface,
+    weight: FontWeight = FontWeight.ExtraBold
+): TextStyle = TextStyle(
     fontFamily = NumberFamily,
-    fontWeight = FontWeight.ExtraBold,
-    fontStyle = FontStyle.Italic,
+    fontWeight = weight,
     fontSize = size,
     color = color
 )
+
+/** 결과 머리말(피그마 FS3 "STOP"·SL3 "GOOD", ExtraBold, 자간 0.02em). */
+internal fun headlineStyle(size: TextUnit, color: Color): TextStyle =
+    numberStyle(size, color).copy(letterSpacing = 0.02.em)
 
 internal fun labelStyle(color: Color = WatchColors.Muted, size: TextUnit = 12.sp): TextStyle = TextStyle(
     fontSize = size,
@@ -75,3 +86,9 @@ private val RunkkWatchColorScheme = ColorScheme(
 fun WatchTheme(content: @Composable () -> Unit) {
     MaterialTheme(colorScheme = RunkkWatchColorScheme, content = content)
 }
+
+/**
+ * 피그마 300px 화면을 작은 원형 워치(192dp)로 옮긴 글자 크기(×0.64). 결과 머리말 72px, 결과 값 30px(피그마 FS3·SL3).
+ */
+internal val RESULT_HEADLINE_SIZE = 46.sp
+internal val RESULT_VALUE_SIZE = 19.sp
