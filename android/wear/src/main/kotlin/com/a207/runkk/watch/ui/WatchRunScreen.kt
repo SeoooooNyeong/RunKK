@@ -1,5 +1,18 @@
 package com.a207.runkk.watch.ui
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationVector1D
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -14,6 +27,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -22,7 +38,9 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material3.Text
@@ -35,6 +53,8 @@ import com.a207.runkk.app.domain.run.RunProgress
  *
  * 조작(피그마에 버튼이 없어 화면 전체로 받는다): 자유런은 누르면 일시정지, 대결은 누르면 "길게 눌러 종료"를 보이고, 모두 1초 이상
  * 누르면 끝낸다(FR-248). 저전력 표시([isAmbient])면 검은 바탕에 거리·시간만 그린다(D-382, 1분마다 다시 그림은 화면 밖이 정한다).
+ * 모션(W41, 320ms): 거리 숫자는 새 값이 아래에서 올라오고, 고리는 새 채움으로 미끄러지고, 띠는 나타났다 흐려지며 사라진다. 고리 값은
+ * 그리기 단계에서만 읽어 측정 1초 갱신마다 화면을 더 구성하지 않는다. 시간·페이스·심박은 움직이지 않는다(매초 바뀌어 배터리만 쓴다).
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -63,16 +83,12 @@ fun WatchRunScreen(
         )
     ) {
         val meters = state.progress.distance.meters
-        val goal = state.goal
-        if (goal != null && goal.meters > 0) {
-            EdgeRing(fraction = meters.toFloat() / goal.meters, color = WatchColors.Lime, hasStartKnob = true)
-        } else {
-            EdgeRing(
-                fraction = (meters % LAP_METERS).toFloat() / LAP_METERS,
-                color = WatchColors.Lavender,
-                hasStartKnob = true
-            )
-        }
+        val goalMeters = state.goal?.meters?.takeIf { it > 0 }
+        val ring = rememberRingFraction(
+            goalMeters?.let { meters.toFloat() / it } ?: ((meters % LAP_METERS).toFloat() / LAP_METERS)
+        )
+        val ringColor = if (goalMeters != null) WatchColors.Lime else WatchColors.Lavender
+        EdgeRing(fraction = { ring.value }, color = { ringColor }, hasStartKnob = true)
         Column(
             modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -80,7 +96,7 @@ fun WatchRunScreen(
         ) {
             TopLine(state)
             Row {
-                Text(
+                RollingNumber(
                     text = WatchFormat.distanceKm(meters),
                     modifier = Modifier.alignByBaseline(),
                     style = numberStyle(RUN_DISTANCE_SIZE)
@@ -101,16 +117,60 @@ fun WatchRunScreen(
             }
             HeartRate(state.progress, Modifier.padding(top = 8.dp))
         }
-        when {
-            state.isLeadChanged -> Banner(
-                stringResource(R.string.lead_changed),
-                leadBannerColor(state)
-            )
+        AnimatedBanner(
+            when {
+                state.isLeadChanged -> stringResource(R.string.lead_changed) to leadBannerColor(state)
+                state.notice != null -> stringResource(noticeRes(state.notice)) to WatchColors.Lavender
+                state.banner != null -> state.banner to WatchColors.Lavender
+                else -> null
+            }
+        )
+    }
+}
 
-            state.notice != null -> Banner(stringResource(noticeRes(state.notice)), WatchColors.Lavender)
-
-            state.banner != null -> Banner(state.banner, WatchColors.Lavender)
+/**
+ * 고리 채움을 [target]으로 부드럽게 옮긴다(320ms, W41). 무제한 구간 고리가 다 차서 0으로 돌아가면 끝까지 채운 뒤 0에서 다시 채운다.
+ * 값은 그리기 단계에서만 읽는다([EdgeRing] 람다).
+ */
+@Composable
+private fun rememberRingFraction(target: Float): Animatable<Float, AnimationVector1D> {
+    val ring = remember { Animatable(target) }
+    val still = LocalMotionStill.current
+    LaunchedEffect(target, still) {
+        if (still) {
+            ring.snapTo(target)
+            return@LaunchedEffect
         }
+        val spec = tween<Float>(CAROUSEL_DURATION_MS, easing = CarouselEasing)
+        if (isLapWrap(ring.value, target)) {
+            ring.animateTo(1f, spec)
+            ring.snapTo(0f)
+        }
+        ring.animateTo(target, spec)
+    }
+    return ring
+}
+
+/** 바뀌면 새 값이 아래에서 올라오고 옛 값이 위로 빠지는 숫자(측정 거리, W41). 처음 그릴 때와 움직임 줄이기에서는 바로 바뀐다. */
+@Composable
+private fun RollingNumber(text: String, style: TextStyle, modifier: Modifier = Modifier) {
+    val still = LocalMotionStill.current
+    AnimatedContent(
+        targetState = text,
+        modifier = modifier,
+        transitionSpec = {
+            if (still) {
+                EnterTransition.None togetherWith ExitTransition.None
+            } else {
+                val move = tween<IntOffset>(CAROUSEL_DURATION_MS, easing = CarouselEasing)
+                val fade = tween<Float>(CAROUSEL_DURATION_MS, easing = CarouselEasing)
+                (slideInVertically(move) { it / ROLL_DIVISOR } + fadeIn(fade)) togetherWith
+                    (slideOutVertically(move) { -it / ROLL_DIVISOR } + fadeOut(fade))
+            } using SizeTransform(clip = false)
+        },
+        label = "rolling-number"
+    ) { shown ->
+        Text(text = shown, style = style)
     }
 }
 
@@ -127,16 +187,22 @@ private fun TopLine(state: WatchFlow.Running) {
     val gap = state.gapMeters
     val goal = state.goal
     when {
-        state.mode != WatchMode.FREE && gap != null -> Text(
-            text = if (gap >=
-                0
-            ) {
-                stringResource(R.string.battle_gap_ahead, gap)
-            } else {
-                stringResource(R.string.battle_gap_behind, -gap)
-            },
-            style = numberStyle(20.sp, if (gap >= 0) WatchColors.Lime else WatchColors.Orange)
-        )
+        state.mode != WatchMode.FREE && gap != null -> {
+            // 앞서고 뒤처짐이 바뀌면 라임과 주황 사이를 320ms 동안 옮긴다(W41).
+            val color by animateColorAsState(
+                if (gap >= 0) WatchColors.Lime else WatchColors.Orange,
+                motionSpec(CAROUSEL_DURATION_MS, CarouselEasing),
+                label = "gap-color"
+            )
+            Text(
+                text = if (gap >= 0) {
+                    stringResource(R.string.battle_gap_ahead, gap)
+                } else {
+                    stringResource(R.string.battle_gap_behind, -gap)
+                },
+                style = numberStyle(20.sp, color)
+            )
+        }
 
         state.mode != WatchMode.FREE -> Text(text = " ", style = numberStyle(20.sp))
 
@@ -215,6 +281,9 @@ private fun AmbientRun(progress: RunProgress, modifier: Modifier) {
 private val RUN_DISTANCE_SIZE = 52.sp
 private val RUN_UNIT_SIZE = 26.sp
 private val RUN_VALUE_SIZE = 19.sp
+
+/** 숫자가 굴러 들어오는 거리(글자 높이의 이 몫). */
+private const val ROLL_DIVISOR = 2
 
 /** 무제한 고리 한 바퀴(1km 구간, FR-246 제안). */
 private const val LAP_METERS = 1_000L

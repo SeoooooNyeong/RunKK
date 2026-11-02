@@ -1,5 +1,15 @@
 package com.a207.runkk.watch.ui
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -64,6 +74,22 @@ internal fun EdgeRing(
     width: Dp = 5.dp,
     hasStartKnob: Boolean = false
 ) {
+    EdgeRing({ fraction }, { color }, modifier, track, width, hasStartKnob)
+}
+
+/**
+ * 움직이는 고리. 채움([fraction])과 색([color])을 그리기 단계에서 읽어, 값이 움직이는 동안 화면을 다시 구성하지 않고 고리만 다시
+ * 그린다(측정 1초 갱신·배터리).
+ */
+@Composable
+internal fun EdgeRing(
+    fraction: () -> Float,
+    color: () -> Color,
+    modifier: Modifier = Modifier,
+    track: Color? = WatchColors.Dark,
+    width: Dp = 5.dp,
+    hasStartKnob: Boolean = false
+) {
     // 손잡이가 화면 둘레에 잘리지 않게 그만큼 고리를 안으로 들인다.
     val inset = if (hasStartKnob) RING_PADDING + KNOB_RADIUS - width / 2 else RING_PADDING
     Canvas(modifier = modifier.fillMaxSize().padding(inset)) {
@@ -71,9 +97,10 @@ internal fun EdgeRing(
         val half = stroke.width / 2
         val arcSize = Size(size.width - stroke.width, size.height - stroke.width)
         val topLeft = Offset(half, half)
+        val fill = color()
         if (track != null) drawArc(track, RING_START, RING_SWEEP, false, topLeft, arcSize, style = stroke)
-        val sweep = RING_SWEEP * fraction.coerceIn(0f, 1f)
-        if (sweep > 0f) drawArc(color, RING_START, sweep, false, topLeft, arcSize, style = stroke)
+        val sweep = RING_SWEEP * fraction().coerceIn(0f, 1f)
+        if (sweep > 0f) drawArc(fill, RING_START, sweep, false, topLeft, arcSize, style = stroke)
         if (hasStartKnob) {
             val angle = Math.toRadians(RING_START.toDouble())
             val radius = arcSize.width / 2
@@ -81,7 +108,7 @@ internal fun EdgeRing(
                 center.x + radius * kotlin.math.cos(angle).toFloat(),
                 center.y + radius * kotlin.math.sin(angle).toFloat()
             )
-            drawCircle(color, KNOB_RADIUS.toPx(), knob)
+            drawCircle(fill, KNOB_RADIUS.toPx(), knob)
             drawCircle(WatchColors.Ink, KNOB_RADIUS.toPx(), knob, style = Stroke(KNOB_BORDER.toPx()))
         }
     }
@@ -228,13 +255,43 @@ internal fun noticeRes(notice: WatchFlow.Notice): Int = when (notice) {
     WatchFlow.Notice.PHONE_NOT_CONNECTED -> R.string.phone_not_connected
 }
 
-/** 화면 위쪽(거리 위)에 잠깐 띄우는 문구 띠(안내 문구·"역전!", FR-254). */
+/**
+ * 화면 위쪽(거리 위)에 잠깐 띄우는 문구 띠(안내 문구·"역전!", FR-254). 없으면(null) 그리지 않는다. 모션(W41): 생기면 위에서
+ * 살짝 내려오며 커지고(320ms), 없어지면 흐려지며 사라지고(220ms), 문구나 색이 바뀌면 겹쳐 바뀐다. 처음 그릴 때 이미 있으면 움직이지 않는다.
+ */
 @Composable
-internal fun BoxScope.Banner(text: String, color: Color, modifier: Modifier = Modifier) {
+internal fun BoxScope.AnimatedBanner(banner: Pair<String, Color>?, modifier: Modifier = Modifier) {
+    val still = LocalMotionStill.current
+    AnimatedContent(
+        targetState = banner,
+        modifier = modifier.align(Alignment.TopCenter),
+        contentAlignment = Alignment.TopCenter,
+        transitionSpec = {
+            when {
+                still -> EnterTransition.None togetherWith ExitTransition.None
+
+                initialState == null ->
+                    (
+                        fadeIn(tween(CAROUSEL_DURATION_MS, easing = CarouselEasing)) +
+                            scaleIn(tween(CAROUSEL_DURATION_MS, easing = CarouselEasing), BANNER_START_SCALE) +
+                            slideInVertically(tween(CAROUSEL_DURATION_MS, easing = CarouselEasing)) { -it / 2 }
+                        ) togetherWith ExitTransition.None
+
+                else -> fadeIn(tween(SCREEN_FADE_MS, easing = ScreenEasing)) togetherWith
+                    fadeOut(tween(SCREEN_FADE_MS, easing = ScreenEasing))
+            } using SizeTransform(clip = false)
+        },
+        label = "banner"
+    ) { shown ->
+        if (shown != null) BannerPill(shown.first, shown.second)
+    }
+}
+
+@Composable
+private fun BannerPill(text: String, color: Color, modifier: Modifier = Modifier) {
     Text(
         text = text,
         modifier = modifier
-            .align(Alignment.TopCenter)
             .padding(top = 34.dp, start = 18.dp, end = 18.dp)
             .background(color, RoundedCornerShape(50))
             .padding(horizontal = 12.dp, vertical = 6.dp),
@@ -242,3 +299,6 @@ internal fun BoxScope.Banner(text: String, color: Color, modifier: Modifier = Mo
         textAlign = TextAlign.Center
     )
 }
+
+/** 띠가 나타날 때 처음 크기. */
+private const val BANNER_START_SCALE = 0.8f

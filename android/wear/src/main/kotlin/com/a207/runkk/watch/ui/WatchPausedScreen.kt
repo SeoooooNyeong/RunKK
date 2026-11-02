@@ -31,6 +31,8 @@ import androidx.wear.compose.material3.Text
  * 워치 단독 자유런 일시정지(FR-247, 피그마 FP∞·FP3): "일시정지", 그때까지의 누적 거리, "계속"(라임 원)과 "종료"(진한 원).
  * 종료는 1초 이상 눌러야 끝나고 짧게 누르면 "길게 눌러 종료"를 보인다(FR-248). 대결에는 이 화면이 없다(W-21).
  * 폰 러닝 동행 표시(자유런)도 이 화면을 쓴다(W35): 계속·종료는 폰에 요청하고, 폰이 보낸 안내(정지 자동 종료 예고, FR-195)는 [WatchFlow.Paused.banner]다.
+ * 모션(W41): 측정 화면 위로 겹쳐 나타난 뒤(피그마 DISSOLVE 220ms) "일시정지"와 거리가 위에서 내려앉고 계속·종료 버튼이 작게
+ * 시작해 커진다(320ms). 계속을 누르면 측정 화면이 다시 겹쳐 나타난다.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -41,6 +43,8 @@ fun WatchPausedScreen(
     onEndLongPressed: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val headIn = rememberReveal(order = 0)
+    val actionsIn = rememberReveal(order = 1)
     TrackBackground(isDimmed = true, modifier = modifier) {
         Column(
             modifier = Modifier.fillMaxSize(),
@@ -49,9 +53,13 @@ fun WatchPausedScreen(
         ) {
             Text(
                 text = stringResource(R.string.paused),
+                modifier = Modifier.revealLayer(headIn, rise = -HEAD_DROP),
                 style = labelStyle(color = WatchColors.OnSurface, size = 18.sp).copy(fontWeight = FontWeight.ExtraBold)
             )
-            Row(modifier = Modifier.padding(top = 6.dp), verticalAlignment = Alignment.Bottom) {
+            Row(
+                modifier = Modifier.padding(top = 6.dp).revealLayer(headIn, rise = -HEAD_DROP),
+                verticalAlignment = Alignment.Bottom
+            ) {
                 Text(text = WatchFormat.distanceKm(state.progress.distance.meters), style = numberStyle(30.sp))
                 Text(
                     text = stringResource(R.string.unit_km),
@@ -60,7 +68,7 @@ fun WatchPausedScreen(
                 )
             }
             Row(
-                modifier = Modifier.padding(top = 10.dp),
+                modifier = Modifier.padding(top = 10.dp).revealLayer(actionsIn, fromScale = ACTIONS_START_SCALE),
                 horizontalArrangement = Arrangement.spacedBy(24.dp)
             ) {
                 RoundAction(
@@ -123,6 +131,10 @@ private fun RoundAction(
         )
     }
 }
+
+/** "일시정지"·거리가 내려앉는 거리와 버튼 처음 크기. */
+private val HEAD_DROP = 8.dp
+private const val ACTIONS_START_SCALE = 0.8f
 
 /** 계속·종료 버튼 지름(피그마 FP3). */
 private val ROUND_ACTION_SIZE = 56.dp
