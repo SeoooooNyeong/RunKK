@@ -49,7 +49,7 @@ private fun FlowScreen(flow: WatchFlow, companion: WatchUiState, actions: WatchA
     when (flow) {
         WatchFlow.NotLoggedIn -> WatchNotLoggedInScreen()
 
-        is WatchFlow.Main -> WatchModeCarousel(flow, onModeSelected = actions.onModeSelected)
+        is WatchFlow.Main -> WatchModeCarousel(flow, onModeSelected = actions.onModeSelected, isAmbient = isAmbient)
 
         is WatchFlow.Picker -> WatchDistancePicker(flow, actions.onDistanceSelected, actions.onStartPressed)
 

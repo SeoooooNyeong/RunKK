@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -147,14 +148,22 @@ private fun DialPicker(
                     description = stringResource(R.string.distance_decrease),
                     isEnabled = state.selected > 0
                 ) { select(state.selected - 1) }
-                Text(
-                    text = if (isUnlimited) "∞" else kmNumber(requireNotNull(current.distance)),
-                    modifier = Modifier.semantics { contentDescription = spoken },
-                    style = numberStyle(
-                        if (isUnlimited) 52.sp else 60.sp,
-                        if (isUnlimited) WatchColors.Lavender else WatchColors.Lime
+                // 무제한(∞)과 거리 숫자가 같은 칸·같은 크기를 써서 넘겨도 설명 줄과 버튼이 움직이지 않는다.
+                Box(
+                    modifier = Modifier
+                        .size(width = DIAL_NUMBER_WIDTH, height = DIAL_NUMBER_HEIGHT)
+                        .semantics { contentDescription = spoken },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = if (isUnlimited) "∞" else kmNumber(requireNotNull(current.distance)),
+                        modifier = Modifier.wrapContentSize(unbounded = true),
+                        style = numberStyle(
+                            DIAL_NUMBER_SIZE,
+                            if (isUnlimited) WatchColors.Lavender else WatchColors.Lime
+                        )
                     )
-                )
+                }
                 StepButton(
                     symbol = "+",
                     description = stringResource(R.string.distance_increase),
@@ -291,6 +300,11 @@ internal val ROW_HEIGHT = 48.dp
 
 /** 워치 최소 터치 크기(Wear OS 권장 48dp). */
 internal val TOUCH_SIZE = 48.dp
+
+/** 자유런·배틀런 가운데 큰 숫자(무제한은 ∞) 칸과 글자 크기. 가장 넓은 "10"이 들어가는 너비다. */
+private val DIAL_NUMBER_WIDTH = 64.dp
+private val DIAL_NUMBER_HEIGHT = 64.dp
+private val DIAL_NUMBER_SIZE = 60.sp
 
 /** 한 카드 넘기는 회전 양. */
 private val ROTARY_STEP = 36.dp

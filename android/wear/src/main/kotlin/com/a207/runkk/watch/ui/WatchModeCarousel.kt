@@ -1,5 +1,9 @@
 package com.a207.runkk.watch.ui
 
+import android.animation.ValueAnimator
+import android.os.PowerManager
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -21,19 +25,26 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.rotary.onRotaryScrollEvent
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -44,23 +55,49 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material3.Text
+import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
 
 /**
  * 메인 4안(FR-243, D-375, 피그마 Q1~Q4): 트랙 그림 배경, 오른쪽에 내 기본 캐릭터 전신 그림, 왼쪽에 세로 평행 카드. 가운데 카드만 크게
  * (아이콘·이름·한 줄 설명) 그리고 위아래 카드는 작게 이름만 그린다. 카드는 자유런·배틀런·셀프런·셀럽런을 순환한다(Q1b~Q4b와 같은 상태).
  * 베젤·크라운 회전과 위아래 넘기기로 한 칸씩 바꾸고, 가운데 카드를 누르면 [onModeSelected]다. 지금 카드 위치는 화면이 갖고
  * 처음 값은 [WatchFlow.Main.mode]다(돌아오면 그 카드).
+ * 칸을 바꿀 때는 피그마 Smart Animate처럼 카드가 한 칸 미끄러지며 커지고 작아진다(320ms, [CarouselEasing]). 끌기 중에는 손가락을
+ * 따라가고 놓으면 가까운 칸으로 붙는다. 저전력 표시([isAmbient])나 애니메이션 끔, 절전 모드면 움직이지 않고 바로 바꾼다.
  */
 @Composable
-fun WatchModeCarousel(state: WatchFlow.Main, onModeSelected: (WatchMode) -> Unit, modifier: Modifier = Modifier) {
-    var mode by remember(state.mode) { mutableStateOf(state.mode) }
+fun WatchModeCarousel(
+    state: WatchFlow.Main,
+    onModeSelected: (WatchMode) -> Unit,
+    modifier: Modifier = Modifier,
+    isAmbient: Boolean = false
+) {
+    var target by remember(state.mode) { mutableIntStateOf(state.mode.ordinal) }
+    val position = remember(state.mode) { Animatable(state.mode.ordinal.toFloat()) }
+    val isStill = isAmbient || rememberMotionReduced()
+    val scope = rememberCoroutineScope()
     val focus = remember { FocusRequester() }
     val density = LocalDensity.current
     val step = with(density) { STEP_DRAG.toPx() }
     var rotated by remember { mutableFloatStateOf(0f) }
-    var dragged by remember { mutableFloatStateOf(0f) }
+    var dragStart by remember { mutableIntStateOf(target) }
+    var slotPx by remember { mutableFloatStateOf(1f) }
+    val moveTo = { index: Int ->
+        target = index
+        scope.launch {
+            if (isStill) {
+                position.snapTo(index.toFloat())
+            } else {
+                position.animateTo(index.toFloat(), tween(CAROUSEL_DURATION_MS, easing = CarouselEasing))
+            }
+        }
+        Unit
+    }
+    val release = { moveTo(carouselSettle(dragStart, position.value)) }
     LaunchedEffect(Unit) { focus.requestFocus() }
     TrackBackground(
         isDimmed = false,
@@ -68,7 +105,7 @@ fun WatchModeCarousel(state: WatchFlow.Main, onModeSelected: (WatchMode) -> Unit
             .onRotaryScrollEvent { event ->
                 rotated += event.verticalScrollPixels
                 if (kotlin.math.abs(rotated) >= step) {
-                    mode = if (rotated > 0) mode.next() else mode.previous()
+                    moveTo(target + if (rotated > 0) 1 else -1)
                     rotated = 0f
                 }
                 true
@@ -76,17 +113,22 @@ fun WatchModeCarousel(state: WatchFlow.Main, onModeSelected: (WatchMode) -> Unit
             .focusRequester(focus)
             .focusable()
             .pointerInput(Unit) {
-                detectVerticalDragGestures(onDragEnd = { dragged = 0f }) { _, amount ->
-                    dragged += amount
-                    if (kotlin.math.abs(dragged) >= step) {
-                        mode = if (dragged < 0) mode.next() else mode.previous()
-                        dragged = 0f
-                    }
+                detectVerticalDragGestures(
+                    onDragStart = {
+                        dragStart = target
+                        scope.launch { position.stop() }
+                    },
+                    onDragEnd = release,
+                    onDragCancel = release
+                ) { change, amount ->
+                    change.consume()
+                    scope.launch { position.snapTo(position.value - amount / slotPx) }
                 }
             }
     ) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val unit = maxHeight
+            slotPx = with(density) { (unit * SLOT_GAP).toPx() }
             CharacterImage(
                 gender = state.gender,
                 modifier = Modifier
@@ -102,69 +144,61 @@ fun WatchModeCarousel(state: WatchFlow.Main, onModeSelected: (WatchMode) -> Unit
                     .offset(x = unit * 0.42f, y = -unit * 0.1f)
                     .width(unit * 0.15f)
             )
-            SideCard(mode.previous().previous(), unit, centerY = -0.42f, onClick = null)
-            SideCard(mode.next().next(), unit, centerY = 0.42f, onClick = null)
-            SideCard(mode.previous(), unit, centerY = -0.25f, onClick = { mode = mode.previous() })
-            SideCard(mode.next(), unit, centerY = 0.25f, onClick = { mode = mode.next() })
-            CenterCard(mode, unit) { onModeSelected(mode) }
-        }
-    }
-}
-
-/** 가운데 큰 카드(라임): 아이콘·이름·한 줄 설명. */
-@Composable
-private fun CenterCard(mode: WatchMode, unit: Dp, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(topEnd = unit * 0.1f, bottomEnd = unit * 0.1f)
-    val name = modeName(mode)
-    val description = stringResource(descriptionOf(mode))
-    Box(
-        modifier = Modifier
-            .offset(y = unit * 0.5f - unit * 0.14f)
-            .width(unit * 0.48f)
-            .height(unit * 0.28f)
-            .background(WatchColors.Lime, shape)
-            .border(1.5.dp, Color(0xFFE4F79A), shape)
-            .clickable(role = Role.Button, onClickLabel = name, onClick = onClick)
-            .semantics { contentDescription = "$name, $description" }
-    ) {
-        Column(
-            modifier = Modifier.align(Alignment.Center).padding(start = unit * 0.06f).clearAndSetSemantics {},
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                ModeIcon(mode, WatchColors.Ink, size = 16.dp)
-                Text(
-                    text = name,
-                    style = labelStyle(color = WatchColors.Ink, size = 19.sp).copy(fontWeight = FontWeight.ExtraBold)
-                )
-            }
-            Text(text = description, style = labelStyle(color = WatchColors.Ink, size = 8.sp))
+            val now = position.value
+            val base = kotlin.math.floor(now).toInt()
+            // 먼 카드부터 그려 가운데 카드가 위에 온다.
+            (base - VISIBLE_SLOTS..base + VISIBLE_SLOTS + 1)
+                .filter { kotlin.math.abs(it - now) < VISIBLE_SLOTS + 1 }
+                .sortedByDescending { kotlin.math.abs(it - now) }
+                .forEach { index ->
+                    key(index) {
+                        val distance = index - now
+                        val mode = carouselMode(index)
+                        val onClick: (() -> Unit)? = when (kotlin.math.abs(distance).roundToInt()) {
+                            0 -> ({ onModeSelected(mode) })
+                            1 -> ({ moveTo(index) })
+                            else -> null
+                        }
+                        ModeCard(mode, carouselSlot(distance), unit, onClick)
+                    }
+                }
         }
     }
 }
 
 /**
- * 위아래 작은 카드(이름만). [centerY]는 화면 가운데에서의 세로 위치(지름 비율)다. 바깥 카드([onClick]이 null)는 반쯤 가려진 장식이다.
- * 누르는 영역은 보이는 카드보다 크게(높이 [SIDE_TOUCH_HEIGHT]) 잡는다(워치 최소 터치 크기).
+ * 카드 한 장. [slot]의 강조가 1이면 가운데 큰 카드(라임, 아이콘·이름·한 줄 설명), 0이면 위아래 작은 카드(이름만)이고 그 사이는 섞어
+ * 그린다. 누르는 영역은 보이는 카드보다 크게(높이 [SIDE_TOUCH_HEIGHT] 이상) 잡는다(워치 최소 터치 크기). [onClick]이 null인 바깥
+ * 카드는 반쯤 가려진 장식이다.
  */
 @Composable
-private fun SideCard(mode: WatchMode, unit: Dp, centerY: Float, onClick: (() -> Unit)?) {
-    val isFar = onClick == null
-    val height = unit * 0.17f
-    val shape = RoundedCornerShape(topEnd = height / 2, bottomEnd = height / 2)
-    val name = modeName(mode)
+private fun ModeCard(mode: WatchMode, slot: CarouselSlot, unit: Dp, onClick: (() -> Unit)?) {
+    val e = slot.emphasis
+    val height = unit * slot.height
     val touch = maxOf(height, SIDE_TOUCH_HEIGHT)
+    val corner = lerp(height / 2, unit * 0.1f, e)
+    val shape = RoundedCornerShape(topEnd = corner, bottomEnd = corner)
+    val name = modeName(mode)
+    val description = stringResource(descriptionOf(mode))
+    val isCenter = e > 0.5f
     val area = Modifier
-        .offset(y = unit * (0.5f + centerY) - touch / 2)
-        .width(unit * if (isFar) 0.28f else 0.35f)
+        .offset(y = unit * (0.5f + slot.centerY) - touch / 2)
+        .width(unit * slot.width)
         .height(touch)
+    val ink = lerp(WatchColors.OnSurface, WatchColors.Ink, e)
     Box(
-        modifier = if (onClick == null) {
-            area.clearAndSetSemantics {}
-        } else {
-            area
-                .clickable(role = Role.Button, onClickLabel = name, onClick = onClick)
-                .semantics { contentDescription = name }
+        modifier = when {
+            onClick == null -> area.clearAndSetSemantics {}
+
+            isCenter ->
+                area
+                    .clickable(role = Role.Button, onClickLabel = name, onClick = onClick)
+                    .semantics { contentDescription = "$name, $description" }
+
+            else ->
+                area
+                    .clickable(role = Role.Button, onClickLabel = name, onClick = onClick)
+                    .semantics { contentDescription = name }
         },
         contentAlignment = Alignment.CenterStart
     ) {
@@ -172,27 +206,68 @@ private fun SideCard(mode: WatchMode, unit: Dp, centerY: Float, onClick: (() -> 
             modifier = Modifier
                 .fillMaxWidth()
                 .height(height)
-                .alpha(if (isFar) FAR_ALPHA else 1f)
-                .background(Brush.horizontalGradient(listOf(SIDE_CARD_START, SIDE_CARD_END)), shape),
-            contentAlignment = Alignment.CenterEnd
+                .alpha(slot.alpha)
+                // 커지고 작아지는 동안 글자가 카드 밖으로 나오지 않게 자른다(멈춘 카드는 그대로 그린다).
+                .then(if (e > 0f && e < 1f) Modifier.clip(shape) else Modifier)
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(lerp(SIDE_CARD_START, WatchColors.Lime, e), lerp(SIDE_CARD_END, WatchColors.Lime, e))
+                    ),
+                    shape
+                )
+                .then(if (e > 0f) Modifier.border(1.5.dp, CENTER_BORDER.copy(alpha = e), shape) else Modifier),
+            contentAlignment = BiasAlignment(horizontalBias = 1f - e, verticalBias = 0f)
         ) {
-            if (!isFar) {
-                Row(
-                    modifier = Modifier.padding(end = 10.dp).clearAndSetSemantics {},
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(3.dp)
+            if (slot.labelAlpha > 0f) {
+                Column(
+                    modifier = Modifier
+                        .padding(start = unit * 0.06f * e, end = 10.dp * (1f - e))
+                        .alpha(slot.labelAlpha)
+                        .clearAndSetSemantics {},
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    ModeIcon(mode, WatchColors.OnSurface, size = 11.dp)
-                    Text(
-                        text = name,
-                        style = labelStyle(
-                            color = WatchColors.OnSurface,
-                            size = 11.sp
-                        ).copy(fontWeight = FontWeight.Bold)
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(lerp(3.dp, 4.dp, e))
+                    ) {
+                        ModeIcon(mode, ink, size = lerp(11.dp, 16.dp, e))
+                        Text(
+                            text = name,
+                            softWrap = false,
+                            maxLines = 1,
+                            style = labelStyle(color = ink, size = (11f + 8f * e).sp).copy(
+                                fontWeight = if (isCenter) FontWeight.ExtraBold else FontWeight.Bold
+                            )
+                        )
+                    }
+                    if (e > 0f) {
+                        Text(
+                            text = description,
+                            modifier = Modifier.alpha(((e - 0.5f) * 2f).coerceIn(0f, 1f)).revealHeight(e),
+                            softWrap = false,
+                            maxLines = 1,
+                            style = labelStyle(color = WatchColors.Ink, size = 8.sp)
+                        )
+                    }
                 }
             }
         }
+    }
+}
+
+/** 설명 줄이 차지하는 높이를 [fraction]만큼만 잡아 카드가 커지는 동안 이름이 부드럽게 올라가게 한다(글자는 뒤 절반에서 나타난다). */
+private fun Modifier.revealHeight(fraction: Float): Modifier = layout { measurable, constraints ->
+    val placeable = measurable.measure(constraints)
+    layout(placeable.width, (placeable.height * fraction).roundToInt()) { placeable.place(0, 0) }
+}
+
+/** 시스템 애니메이션이 꺼졌거나(접근성 애니메이션 삭제, 개발자 옵션 배율 0) 절전 모드면 움직임을 줄인다. */
+@Composable
+private fun rememberMotionReduced(): Boolean {
+    val context = LocalContext.current
+    return remember(context) {
+        !ValueAnimator.areAnimatorsEnabled() ||
+            context.getSystemService(PowerManager::class.java)?.isPowerSaveMode == true
     }
 }
 
@@ -203,8 +278,17 @@ private fun descriptionOf(mode: WatchMode): Int = when (mode) {
     WatchMode.CELEB -> R.string.mode_celeb_description
 }
 
-/** 한 칸 넘기는 회전·끌기 양. */
+/** 한 칸 넘기는 회전 양. */
 private val STEP_DRAG = 36.dp
+
+/** 가운데 카드와 다음 카드 사이(지름 비율). 끌기 이만큼이 한 칸이다. */
+private const val SLOT_GAP = 0.25f
+
+/** 가운데에서 이만큼(칸) 떨어진 카드까지 그린다. */
+private const val VISIBLE_SLOTS = 2
+
+/** 가운데 카드 테두리(피그마 Q1). */
+private val CENTER_BORDER = Color(0xFFE4F79A)
 
 /** 작은 카드 누르는 영역 높이. */
 private val SIDE_TOUCH_HEIGHT = 44.dp
@@ -212,6 +296,3 @@ private val SIDE_TOUCH_HEIGHT = 44.dp
 /** 작은 카드 바탕(피그마 Q1 진한 남색 → 회색). */
 private val SIDE_CARD_START = Color(0xFF1A2530)
 private val SIDE_CARD_END = Color(0xFF2E3236)
-
-/** 바깥 카드 흐림. */
-private const val FAR_ALPHA = 0.85f
