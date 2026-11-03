@@ -280,8 +280,12 @@ class FakeWatchResendRequester : WatchResendRequester {
     var requests = 0
     val watchCount = MutableStateFlow(0)
 
+    /** 있으면 요청이 이 신호를 기다린다(진행 중인 다시 보내기). */
+    var gate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+
     override suspend fun requestResend() {
         requests++
+        gate?.await()
     }
 
     override fun observeWatchRejectedCount(): Flow<Int> = watchCount

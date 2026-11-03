@@ -16,6 +16,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 
 /**
@@ -67,6 +69,25 @@ class ResendRejectedRunsUseCaseTest {
         watchCount.value = 2
 
         assertEquals(3, useCase.observeRejectedCount().first())
+    }
+
+    @Test
+    fun `TC-5426 폰 거부 2건과 워치 3건이 그대로이고 미전송만 바뀌면 5를 한 번만 낸다`() = runTest {
+        pending.save(run("a").copy(uploadState = UploadState.REJECTED, rejectedReason = "BAD_REQUEST"))
+        pending.save(run("b").copy(uploadState = UploadState.REJECTED, rejectedReason = "BAD_REQUEST"))
+        watchCount.value = 3
+        val counts = mutableListOf<Int>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            useCase.observeRejectedCount().collect { counts += it }
+        }
+
+        pending.save(run("n-1"))
+        pending.save(run("n-2"))
+        pending.remove("n-1")
+        pending.remove("n-2")
+        watchCount.value = 3
+
+        assertEquals(listOf(5), counts)
     }
 
     @Test

@@ -70,6 +70,36 @@ class RejectedCountReporterTest {
     }
 
     @Test
+    fun `TC-5462 건수 항목 넣기가 실패해도 구독은 이어지고 다음 변화 때 새 건수를 넣는다`() = runTest {
+        dataLayer.failPutData = true
+        RejectedCountReporter(pending, dataLayer, SchedulerClock(testScheduler), backgroundScope).start()
+        runCurrent()
+        runs.value = listOf(rejected("a"))
+        runCurrent()
+        assertEquals(emptyList(), reported())
+
+        dataLayer.failPutData = false
+        runs.value = listOf(rejected("a"), rejected("b"))
+        runCurrent()
+
+        assertEquals(listOf(2), reported().map { it.count })
+    }
+
+    @Test
+    fun `TC-5462 앱 프로세스가 다시 뜨면 같은 건수라도 지금 건수를 다시 넣는다`() = runTest {
+        runs.value = listOf(rejected("a"))
+        RejectedCountReporter(pending, dataLayer, SchedulerClock(testScheduler), backgroundScope).start()
+        runCurrent()
+        advanceTimeBy(1_000)
+
+        RejectedCountReporter(pending, dataLayer, SchedulerClock(testScheduler), backgroundScope).start()
+        runCurrent()
+
+        assertEquals(listOf(1, 1), reported().map { it.count })
+        assertEquals(listOf(0L, 1_000L), reported().map { it.atEpochMillis - T0 })
+    }
+
+    @Test
     fun `W43 거듭 시작해도 한 번만 알린다`() = runTest {
         val reporter = RejectedCountReporter(pending, dataLayer, SchedulerClock(testScheduler), backgroundScope)
         reporter.start()
