@@ -66,7 +66,7 @@ import com.a207.runkk.app.core.model.Distance
  * - 자유런·배틀런(피그마 F1·F1-3·B1-1): 가운데 큰 숫자(무제한은 ∞)와 −·+, 둘레 고리, "달리기 시작"·"매칭 시작". 베젤·−·+로 바꾸면
  *   [onDistanceSelected], 시작은 [onStartPressed]다. 서버에 닿지 않으면 "매칭 시작"을 막는다(FR-251).
  * - 셀프런·셀럽런(피그마 S1-3): 거리 목록. 셀프런은 내 최고 기록 시간, 셀럽런은 셀럽 기록 수를 보이고 기록 없는 거리는 "기록 없음"으로
- *   누를 수 없다(W10). 카드를 누르면 [onDistanceSelected]다.
+ *   누를 수 없다(W10). 카드를 누르면 [onDistanceSelected]다. 셀프런은 고르지 않은 카드를 고르기만 하고 고른 카드를 다시 누르면 시작한다(W50).
  */
 @Composable
 fun WatchDistancePicker(
@@ -295,7 +295,9 @@ private fun ListPicker(
                     )
                 }
                 itemsIndexed(state.choices) { index, choice ->
-                    DistanceRow(choice, isHighlighted = index == state.selected) { onDistanceSelected(choice.distance) }
+                    DistanceRow(choice, isHighlighted = index == state.selected, isTwoStep = mode == WatchMode.SELF) {
+                        onDistanceSelected(choice.distance)
+                    }
                 }
                 state.notice?.let { notice -> item { FlowNoticeText(notice) } }
             }
@@ -308,9 +310,14 @@ private fun ListPicker(
  * 두르고, 나머지는 작게 그린다. 기록이 없으면 "기록 없음"으로 흐리게 두고 누를 수 없다. 카드는 작아도 누르는 영역은 48dp다.
  */
 @Composable
-private fun DistanceRow(choice: WatchFlow.Choice, isHighlighted: Boolean, onClick: () -> Unit) {
+private fun DistanceRow(choice: WatchFlow.Choice, isHighlighted: Boolean, isTwoStep: Boolean, onClick: () -> Unit) {
     val distance = choice.distance ?: return
     val label = distanceLabel(distance)
+    val clickLabel = when {
+        !isTwoStep -> label
+        isHighlighted -> stringResource(R.string.card_start)
+        else -> stringResource(R.string.card_select)
+    }
     val value = when {
         choice.isOfflineLocked -> stringResource(R.string.notice_celeb_offline)
         !choice.isEnabled -> stringResource(R.string.record_none)
@@ -332,7 +339,7 @@ private fun DistanceRow(choice: WatchFlow.Choice, isHighlighted: Boolean, onClic
                 .fillMaxWidth(if (isHighlighted) FOCUS_WIDTH else CARD_WIDTH)
                 .heightIn(min = TOUCH_SIZE)
                 .clip(RoundedCornerShape(FOCUS_CORNER))
-                .clickable(enabled = choice.isEnabled, role = Role.Button, onClickLabel = label, onClick = onClick)
+                .clickable(enabled = choice.isEnabled, role = Role.Button, onClickLabel = clickLabel, onClick = onClick)
                 .semantics { contentDescription = "$label, $value" },
             contentAlignment = Alignment.Center
         ) {

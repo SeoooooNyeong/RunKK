@@ -586,6 +586,79 @@ class WatchFlowViewModelTest {
         assertEquals(WatchFlow.Countdown(WatchMode.CELEB, Distance(5_000), 3), h.flow)
     }
 
+    @Test
+    fun `셀프런 기록 카드는 처음 누르면 고르기만 하고 고른 카드를 다시 누르면 시작한다(W50)`() = flowTest {
+        battles.tracks[RecordBattleKind.SELF] = listOf(
+            selfTrack(distanceMeters = 1_000, finishSeconds = 300),
+            selfTrack(distanceMeters = 3_000, finishSeconds = 900)
+        )
+        online.value = false
+        val h = open()
+        h.vm.onModeSelected(WatchMode.SELF)
+        assertEquals(0, (h.flow as WatchFlow.SelfDistance).selected)
+
+        h.vm.onDistanceSelected(Distance(3_000))
+        assertEquals(1, (h.flow as WatchFlow.SelfDistance).selected)
+
+        h.vm.onDistanceSelected(Distance(3_000))
+        assertEquals(WatchFlow.Countdown(WatchMode.SELF, Distance(3_000), 3), h.flow)
+    }
+
+    @Test
+    fun `셀프런 처음 강조된 기록 카드는 한 번 누르면 시작한다(W50)`() = flowTest {
+        battles.tracks[RecordBattleKind.SELF] = listOf(
+            selfTrack(distanceMeters = 1_000, finishSeconds = 300),
+            selfTrack(distanceMeters = 3_000, finishSeconds = 900)
+        )
+        online.value = false
+        val h = open()
+        h.vm.onModeSelected(WatchMode.SELF)
+
+        h.vm.onDistanceSelected(Distance(1_000))
+        assertEquals(WatchFlow.Countdown(WatchMode.SELF, Distance(1_000), 3), h.flow)
+    }
+
+    @Test
+    fun `셀럽 목록은 처음 누르면 고르기만 하고 고른 셀럽을 다시 누르면 시작한다(W50)`() = flowTest {
+        battles.tracks[RecordBattleKind.CELEBRITY] = listOf(
+            celebrityListItem(id = 1, distanceMeters = 5_000, finishSeconds = 1_500),
+            celebrityListItem(id = 2, distanceMeters = 5_000, finishSeconds = 1_600)
+        )
+        battles.celebrityTracks[2] =
+            Outcome.Success(celebrityTrack(id = 2, distanceMeters = 5_000, finishSeconds = 1_600))
+        val h = open()
+        val list = openCelebList(h)
+        assertEquals(0, list.selected)
+        val second = list.celebrities[1]
+
+        h.vm.onCelebritySelected(second)
+        runCurrent()
+        val selected = h.flow as WatchFlow.CelebList
+        assertEquals(1, selected.selected)
+        assertEquals(null, selected.fetching)
+        assertTrue(battles.celebrityTrackCalls.isEmpty())
+
+        h.vm.onCelebritySelected(second)
+        runCurrent()
+        assertEquals(listOf(2L), battles.celebrityTrackCalls)
+        assertEquals(WatchFlow.Countdown(WatchMode.CELEB, Distance(5_000), 3), h.flow)
+    }
+
+    @Test
+    fun `셀럽 목록에서 처음 강조된 셀럽은 한 번 누르면 시작한다(W50)`() = flowTest {
+        battles.tracks[RecordBattleKind.CELEBRITY] = listOf(
+            celebrityListItem(id = 1, distanceMeters = 5_000, finishSeconds = 1_500),
+            celebrityListItem(id = 2, distanceMeters = 5_000, finishSeconds = 1_600)
+        )
+        val h = open()
+        val list = openCelebList(h)
+
+        h.vm.onCelebritySelected(list.celebrities[0])
+        runCurrent()
+        assertEquals(listOf(1L), battles.celebrityTrackCalls)
+        assertEquals(WatchFlow.Countdown(WatchMode.CELEB, Distance(5_000), 3), h.flow)
+    }
+
     /** 셀럽런 5km 목록을 연다. */
     private fun openCelebList(h: Harness): WatchFlow.CelebList {
         h.vm.onModeSelected(WatchMode.CELEB)
