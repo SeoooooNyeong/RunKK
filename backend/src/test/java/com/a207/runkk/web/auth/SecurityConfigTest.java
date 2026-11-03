@@ -2,6 +2,7 @@ package com.a207.runkk.web.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.a207.runkk.bootstrap.RunkkApplication;
@@ -45,5 +46,13 @@ class SecurityConfigTest {
     @DisplayName("상태 확인 경로는 공개다")
     void health_isPublic() throws Exception {
         mvc.perform(get("/actuator/health")).andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("워치 v2 새 경로(D-372, D-377)는 공개가 아니라 회원 인증이 필요하다")
+    void watchV2Paths_requireAuthentication() throws Exception {
+        mvc.perform(post("/api/v1/auth/watch-session")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/v1/battles/record-tracks").param("kind", "SELF"))
+                .andExpect(status().isUnauthorized());
     }
 }

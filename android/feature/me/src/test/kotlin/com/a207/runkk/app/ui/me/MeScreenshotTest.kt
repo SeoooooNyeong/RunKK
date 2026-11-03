@@ -107,6 +107,16 @@ class MeScreenshotTest {
         SettingsScreen(SettingsPage.APP, SettingsUiState(isLoading = false, settings = settings), SettingsActions())
     }
 
+    /** W40: 서버가 거부한 기록이 있을 때 맨 위 기록 전송 묶음(못 올린 기록 n건, 다시 보내기). */
+    @Test
+    fun appSettingsRejected() = compose.captureRunkkScreen("me_settings_app_rejected") {
+        SettingsScreen(
+            SettingsPage.APP,
+            SettingsUiState(isLoading = false, settings = settings, rejectedRunCount = 2),
+            SettingsActions()
+        )
+    }
+
     @Test
     fun appSettingsGuest() = compose.captureRunkkScreen("F4_settings_guest") {
         SettingsScreen(

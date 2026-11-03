@@ -44,6 +44,7 @@ class RefreshRevocationPersistenceTest {
     private static final int RACERS = 8;
 
     @Autowired JdbcRefreshTokenRevocations store;
+    @Autowired JdbcWatchSessionGenerations watchSessions;
     @Autowired JdbcTemplate jdbc;
 
     @BeforeEach
@@ -52,7 +53,7 @@ class RefreshRevocationPersistenceTest {
     }
 
     private JwtTokenIssuer started(Clock clock) {
-        return new JwtTokenIssuer(SECRET, clock, store);
+        return new JwtTokenIssuer(SECRET, clock, store, watchSessions);
     }
 
     private JwtTokenIssuer started() {
@@ -75,7 +76,7 @@ class RefreshRevocationPersistenceTest {
     void redeemedToken_cannotBeReplayedAfterRestart() {
         Instant now = Instant.now();
         TokenPair pair = started(Clock.fixed(now, SEOUL)).issue(8);
-        assertThat(started().redeemRefreshToken(pair.refreshToken())).isEqualTo(8);
+        assertThat(started().redeemRefreshToken(pair.refreshToken()).memberId()).isEqualTo(8);
 
         JwtTokenIssuer restarted = started();
         assertThatThrownBy(() -> restarted.redeemRefreshToken(pair.refreshToken()))

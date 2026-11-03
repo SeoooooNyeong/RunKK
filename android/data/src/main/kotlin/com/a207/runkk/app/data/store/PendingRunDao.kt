@@ -17,8 +17,34 @@ internal interface PendingRunDao {
     @Query("SELECT * FROM pending_run WHERE sentAtMillis IS NULL ORDER BY savedAtMillis, recordId")
     fun observePending(): Flow<List<PendingRunEntity>>
 
+    /** [state] 상태인 미전송 기록 건수(R80: 거부 기록 건수). */
+    @Query("SELECT COUNT(*) FROM pending_run WHERE sentAtMillis IS NULL AND uploadState = :state")
+    fun observeCountInState(state: String): Flow<Int>
+
+    /** [excluded] 상태가 아닌 미전송 기록 건수(FR-039 재전송 안내 셈, W48). 모르는 상태 문자열은 미전송으로 읽으므로 함께 센다. */
+    @Query("SELECT COUNT(*) FROM pending_run WHERE sentAtMillis IS NULL AND uploadState != :excluded")
+    suspend fun countNotIn(excluded: String): Int
+
+    /** [excluded] 상태가 아닌 미전송 기록 가운데 가장 이른 저장 시각. 없으면 null. */
+    @Query("SELECT MIN(savedAtMillis) FROM pending_run WHERE sentAtMillis IS NULL AND uploadState != :excluded")
+    suspend fun oldestSavedAtNotIn(excluded: String): Long?
+
     @Query("SELECT * FROM pending_run WHERE recordId = :recordId")
     suspend fun find(recordId: String): PendingRunEntity?
+
+    /** 미전송 기록의 전송 상태와 거부 사유만 바꾼다(다른 칸, 특히 늦게 덧붙은 심박은 그대로 둔다). */
+    @Query(
+        "UPDATE pending_run SET uploadState = :state, rejectedReason = :reason " +
+            "WHERE recordId = :recordId AND sentAtMillis IS NULL"
+    )
+    suspend fun markState(recordId: String, state: String, reason: String?)
+
+    /** 미전송 기록 가운데 [from] 상태인 것을 [to]로 바꾸고 거부 사유를 비운다(다른 칸은 그대로, W40). 바꾼 행 수를 돌려준다. */
+    @Query(
+        "UPDATE pending_run SET uploadState = :to, rejectedReason = NULL " +
+            "WHERE uploadState = :from AND sentAtMillis IS NULL"
+    )
+    suspend fun replaceState(from: String, to: String): Int
 
     @Query("UPDATE pending_run SET route = :empty")
     suspend fun replaceRoutes(empty: ByteArray)

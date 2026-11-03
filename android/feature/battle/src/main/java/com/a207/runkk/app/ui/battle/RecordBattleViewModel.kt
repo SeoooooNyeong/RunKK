@@ -74,6 +74,13 @@ abstract class RecordBattleViewModel(
         val s = mutableState.value
         val candidate = s.selected ?: return
         if (s.isStarting) return
+        // 짝지은 워치가 측정 중이면 서버에 대결을 만들지 않는다(FR-252, D-373): 3초 카운트다운 뒤 측정 시작에서 거부되지 않게.
+        if (coordinator.isWatchMeasuring) {
+            mutableState.update {
+                it.copy(message = BattleErrorText.of(AppError.Rejected(AppError.Rejected.WATCH_MEASURING)))
+            }
+            return
+        }
         mutableState.update { it.copy(isStarting = true) }
         viewModelScope.launch {
             when (val started = begin(candidate)) {

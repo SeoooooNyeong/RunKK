@@ -22,6 +22,7 @@ import java.util.List;
  * @param unstableSegments 불안정 구간
  * @param heartRates 심박 측정값(없을 수 있음)
  * @param pauses 정지 구간(자유런만, null·빈 목록 = 정지 없음). elapsed는 정지 시간을 뺀 운동 시간이다(FR-036, FR-194)
+ * @param startDevice 기록을 시작한 기기(W23, D-378). null(옛 앱) = PHONE
  */
 public record RunUpload(
         String recordId,
@@ -37,7 +38,8 @@ public record RunUpload(
         List<LocationPoint> points,
         List<UnstableSegment> unstableSegments,
         List<HeartRateSample> heartRates,
-        List<PauseInterval> pauses) {
+        List<PauseInterval> pauses,
+        StartDevice startDevice) {
 
     /** 한 기록의 정지 구간 최대 개수(부록 F F.2.2 POST /runs, 제안 100개). */
     public static final int MAX_PAUSES = 100;
@@ -51,7 +53,42 @@ public record RunUpload(
         unstableSegments = unstableSegments == null ? List.of() : List.copyOf(unstableSegments);
         heartRates = heartRates == null ? List.of() : List.copyOf(heartRates);
         pauses = pauses == null ? List.of() : List.copyOf(pauses);
+        startDevice = startDevice == null ? StartDevice.PHONE : startDevice;
         requireValidPauses(pauses, mode, startedAt, endedAt);
+    }
+
+    /** 폰에서 시작한 기록(시작 기기 PHONE). */
+    public RunUpload(
+            String recordId,
+            LocalDateTime startedAt,
+            LocalDateTime endedAt,
+            Distance distance,
+            Duration elapsed,
+            RunMode mode,
+            CardKind cardKind,
+            Long battleId,
+            Long crewRunPostId,
+            int declaredPointCount,
+            List<LocationPoint> points,
+            List<UnstableSegment> unstableSegments,
+            List<HeartRateSample> heartRates,
+            List<PauseInterval> pauses) {
+        this(
+                recordId,
+                startedAt,
+                endedAt,
+                distance,
+                elapsed,
+                mode,
+                cardKind,
+                battleId,
+                crewRunPostId,
+                declaredPointCount,
+                points,
+                unstableSegments,
+                heartRates,
+                pauses,
+                StartDevice.PHONE);
     }
 
     /** 정지 구간이 없는 기록(대결·크루런, 정지 없는 자유런). */
@@ -83,7 +120,8 @@ public record RunUpload(
                 points,
                 unstableSegments,
                 heartRates,
-                List.of());
+                List.of(),
+                StartDevice.PHONE);
     }
 
     private static void requireValidPauses(
@@ -141,6 +179,7 @@ public record RunUpload(
                 points,
                 unstableSegments,
                 List.of(),
-                pauses);
+                pauses,
+                startDevice);
     }
 }

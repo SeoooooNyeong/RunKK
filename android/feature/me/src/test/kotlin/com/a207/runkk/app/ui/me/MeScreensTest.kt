@@ -507,6 +507,33 @@ class MeScreensTest {
     }
 
     @Test
+    fun `W40 못 올린 기록이 있을 때만 건수와 다시 보내기를 보이고 누르면 다시 보낸다`() {
+        var resent = 0
+        var count by mutableStateOf(0)
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                SettingsScreen(
+                    page = SettingsPage.APP,
+                    state = SettingsUiState(
+                        isLoading = false,
+                        settings = MemberSettings(emptyMap(), emptyMap()),
+                        rejectedRunCount = count
+                    ),
+                    actions = SettingsActions(onResendRejected = { resent++ })
+                )
+            }
+        }
+        compose.onNodeWithText("다시 보내기").assertDoesNotExist()
+        compose.onNodeWithText("기록 전송").assertDoesNotExist()
+
+        count = 3
+        compose.onNodeWithText("못 올린 기록 3건").assertExists()
+        compose.onNodeWithText("다시 보내기").performClick()
+
+        assertEquals(1, resent)
+    }
+
+    @Test
     fun `연동 회원의 로그아웃 확인은 제목과 취소, 로그아웃뿐이다`() {
         var loggedOut = 0
         compose.setContent {

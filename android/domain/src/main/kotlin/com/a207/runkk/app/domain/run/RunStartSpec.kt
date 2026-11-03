@@ -22,7 +22,10 @@ data class RunStartSpec(
     val todayPlan: PlanSnapshot? = null,
     val opponentName: String? = null
 ) {
-    /** 시작 기기(FR-183: 워치에서 눌러도 폰이 측정한다). */
+    /**
+     * 시작 기기(FR-183: 워치에서 눌러도 폰이 측정한다). 워치 단독 측정은 WATCH다(D-378). 확정한 기록(CompletedRun)과 서버 기록에
+     * 함께 남는다(W23). 이름은 서버 running.StartDevice와 같다(계약 시험).
+     */
     enum class StartDevice {
         PHONE,
         WATCH

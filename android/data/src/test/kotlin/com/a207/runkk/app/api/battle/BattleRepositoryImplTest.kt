@@ -14,6 +14,7 @@ import com.a207.runkk.app.domain.battle.FriendInvite
 import com.a207.runkk.app.domain.battle.FriendInviteView
 import com.a207.runkk.app.domain.battle.MatchAcceptance
 import com.a207.runkk.app.domain.battle.RecordBattleCandidates
+import com.a207.runkk.app.domain.battle.RecordBattleKind
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -30,6 +31,97 @@ class BattleRepositoryImplTest {
 
     @AfterTest
     fun tearDown() = api.close()
+
+    @Test
+    fun `상대 기록 미리 받기는 kind를 질의로 보내고 구간 기록을 OpponentTrack으로 바꾼다(D-377)`() = runTest {
+        api.reply(
+            """{"tracks":[{"celebrityId":null,"opponentName":"10/02의 나","distanceMeters":1000,"finishSeconds":300,
+               |"track":[{"elapsedSeconds":150,"distanceMeters":500},{"elapsedSeconds":300,"distanceMeters":1000}],
+               |"sourceLabel":null,"estimated":false,"celebrityFigure":null}]}
+            """.trimMargin()
+        )
+
+        val tracks = repository.recordTracks(RecordBattleKind.SELF).value()
+
+        val sent = api.take()
+        assertEquals(
+            "GET /api/v1/battles/record-tracks kind=SELF",
+            "${sent.method} ${sent.url.encodedPath} ${sent.url.encodedQuery}"
+        )
+        val self = tracks.single()
+        assertEquals(RecordBattleKind.SELF, self.kind)
+        assertEquals(Distance(1_000), self.distance)
+        assertEquals(null, self.celebrityId)
+        assertEquals("10/02의 나", self.displayName)
+        assertEquals(Duration.ofSeconds(300), self.finishTime)
+        assertEquals(null, self.sourceLabel)
+        assertEquals(null, self.celebrityFigure)
+        assertEquals(Distance(500), self.track.distanceAt(Duration.ofSeconds(150)))
+        assertEquals(Duration.ofSeconds(300), self.track.arrivalTime(Distance(1_000)))
+    }
+
+    @Test
+    fun `셀럽 상대 기록은 셀럽 ID·출처·그림 키를 읽고 서버 순서를 지킨다(D-377)`() = runTest {
+        api.reply(
+            """{"tracks":[
+               |{"celebrityId":3,"opponentName":"이**","distanceMeters":5000,"finishSeconds":1500,"track":[],
+               | "sourceLabel":"2024 춘천마라톤","estimated":true,"celebrityFigure":"lee"},
+               |{"celebrityId":4,"opponentName":"황**","distanceMeters":5000,"finishSeconds":1600,
+               | "track":[{"elapsedSeconds":1600,"distanceMeters":5000}],"sourceLabel":null,"estimated":false,"celebrityFigure":" "}]}
+            """.trimMargin()
+        )
+
+        val tracks = repository.recordTracks(RecordBattleKind.CELEBRITY).value()
+
+        assertEquals("kind=CELEBRITY", api.take().url.encodedQuery)
+        assertEquals(listOf(3L, 4L), tracks.map { it.celebrityId })
+        assertEquals(RecordBattleKind.CELEBRITY, tracks.first().kind)
+        assertEquals("2024 춘천마라톤", tracks.first().sourceLabel)
+        assertEquals("lee", tracks.first().celebrityFigure)
+        assertEquals(null, tracks.last().celebrityFigure, "빈 그림 키는 없음으로 본다")
+        assertEquals(Distance(2_500), tracks.last().track.distanceAt(Duration.ofSeconds(800)))
+        assertEquals(Distance.ZERO, tracks.first().track.distanceAt(Duration.ofSeconds(800)), "빈 구간 기록은 0m에 머문다")
+        assertEquals(null, tracks.first().track.arrivalTime(Distance(5_000)), "빈 구간 기록은 도착하지 않는다")
+    }
+
+    @Test
+    fun `셀럽 기록 하나는 경로에 셀럽 ID를 넣어 받고 구간 기록을 OpponentTrack으로 바꾼다(W31)`() = runTest {
+        api.reply(
+            """{"celebrityId":3,"opponentName":"이**","distanceMeters":5000,"finishSeconds":1500,
+               |"track":[{"elapsedSeconds":750,"distanceMeters":2500},{"elapsedSeconds":1500,"distanceMeters":5000}],
+               |"sourceLabel":"2024 춘천마라톤","estimated":true,"celebrityFigure":"lee"}
+            """.trimMargin()
+        )
+
+        val celebrity = repository.celebrityTrack(3).value()
+
+        val sent = api.take()
+        assertEquals("GET /api/v1/battles/record-tracks/celebrity/3", "${sent.method} ${sent.url.encodedPath}")
+        assertEquals(RecordBattleKind.CELEBRITY, celebrity.kind)
+        assertEquals(3L, celebrity.celebrityId)
+        assertEquals("이**", celebrity.displayName)
+        assertEquals("2024 춘천마라톤", celebrity.sourceLabel)
+        assertEquals("lee", celebrity.celebrityFigure)
+        assertEquals(Duration.ofSeconds(1_500), celebrity.track.arrivalTime(Distance(5_000)))
+    }
+
+    @Test
+    fun `셀럽 기록 하나가 없으면(404) 본문 code의 Rejected이고 code가 없으면 NOT_FOUND다(W31)`() = runTest {
+        api.reply("""{"code":"CELEBRITY_REMOVED","message":"없음"}""", code = 404)
+        api.reply("", code = 404)
+
+        assertEquals(Outcome.Failure(AppError.Rejected("CELEBRITY_REMOVED")), repository.celebrityTrack(9))
+        assertEquals(Outcome.Failure(AppError.Rejected("NOT_FOUND")), repository.celebrityTrack(9))
+    }
+
+    @Test
+    fun `상대 기록이 없으면 빈 목록이고 잘못된 kind 거부(400)는 Rejected다`() = runTest {
+        api.reply("""{"tracks":[]}""")
+        api.reply("""{"code":"BAD_REQUEST"}""", code = 400)
+
+        assertEquals(Outcome.Success(emptyList()), repository.recordTracks(RecordBattleKind.SELF))
+        assertEquals(Outcome.Failure(AppError.Rejected("BAD_REQUEST")), repository.recordTracks(RecordBattleKind.SELF))
+    }
 
     @Test
     fun `매칭 요청은 거리를 미터로 보내고 대기 여부를 읽는다`() = runTest {

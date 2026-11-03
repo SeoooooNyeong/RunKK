@@ -28,7 +28,9 @@ import com.a207.runkk.app.domain.battle.FriendInviteView
 import com.a207.runkk.app.domain.battle.MatchAcceptance
 import com.a207.runkk.app.domain.battle.OpponentTrack
 import com.a207.runkk.app.domain.battle.RecordBattleCandidates
+import com.a207.runkk.app.domain.battle.RecordBattleKind
 import com.a207.runkk.app.domain.battle.RecordBattleStart
+import com.a207.runkk.app.domain.battle.RecordTrack
 import com.a207.runkk.app.domain.live.ClientMessage
 import com.a207.runkk.app.domain.live.LiveChannel
 import com.a207.runkk.app.domain.live.LiveChannelProvider
@@ -167,6 +169,12 @@ class FakeBattleRepository : BattleRepository {
         calls += "celeb:${distance?.meters}"
         return celebResult
     }
+
+    override suspend fun recordTracks(kind: RecordBattleKind): Outcome<List<RecordTrack>> =
+        Outcome.Failure(AppError.Rejected("UNUSED"))
+
+    override suspend fun celebrityTrack(celebrityId: Long): Outcome<RecordTrack> =
+        Outcome.Failure(AppError.Rejected("UNUSED"))
 
     override suspend fun startSelfBattle(distance: Distance): Outcome<RecordBattleStart> {
         calls += "startSelf:${distance.meters}"
@@ -341,6 +349,12 @@ class FakeAccounts : AccountRepository {
 
     override suspend fun logout(): Outcome<Unit> = unused()
 
+    override suspend fun issueWatchSession(): Outcome<SessionTokens> = unused()
+
+    override suspend fun revokeWatchSession(): Outcome<Unit> = unused()
+
+    override fun selfMemberId(): Long? = null
+
     override suspend fun startAsGuest(consents: Map<String, Boolean>): Outcome<GuestSession> = unused()
 
     override suspend fun linkSocialAccount(token: ProviderToken): Outcome<Unit> = unused()
@@ -508,6 +522,10 @@ private class NoWatch : WatchGateway {
     override fun publish(d: WatchDisplay) = Unit
 
     override fun isConnected() = false
+
+    var isMeasuringOnWatch = false
+
+    override fun isWatchMeasuring(): Boolean = isMeasuringOnWatch
 }
 
 private class ConsentedSettings : SettingsRepository {
@@ -541,12 +559,20 @@ class BattleWorld(
     val channels: FakeLiveChannels = FakeLiveChannels()
 ) {
     private val silent = Silent()
+    private val watch = NoWatch()
+
+    /** 짝지은 워치가 스스로 측정 중인가(FR-252). 시험이 바꾼다. */
+    var isWatchMeasuring: Boolean
+        get() = watch.isMeasuringOnWatch
+        set(value) {
+            watch.isMeasuringOnWatch = value
+        }
     val pendingRuns = NoPendingRuns()
     val uploads = BattleRecordUploads(pendingRuns)
     val tracker =
         RunTracker(
             RunArchive(pendingRuns, silent, scope),
-            RunWatchBridge(NoWatch(), scope),
+            RunWatchBridge(watch, scope),
             RunCoach(silent, ConsentedSettings()),
             MeasurementRuntime(permission, silent, ConsentedSettings(), clock)
         )

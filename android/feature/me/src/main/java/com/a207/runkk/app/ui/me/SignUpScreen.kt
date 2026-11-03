@@ -175,6 +175,14 @@ private fun ConsentRow(line: ConsentLine, state: SignUpUiState, actions: SignUpA
         isTagHighlighted = line.isRequired,
         onView = line.legalType?.let { { actions.onViewLegal(line.item) } }
     )
+    if (line.item == ConsentKeys.LLM_TRANSFER) {
+        Text(
+            text = stringResource(R.string.me_consents_llm_message),
+            style = RunkkTextStyles.Caption,
+            color = RunkkColors.TextSecondary,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+        )
+    }
 }
 
 /** 필수와 선택 사이 구분선의 시험 표지. */

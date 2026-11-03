@@ -1,6 +1,7 @@
 package com.a207.runkk.web.error;
 
 import com.a207.runkk.common.BusinessRuleException;
+import com.a207.runkk.common.NotFoundRuleException;
 import com.a207.runkk.common.PermissionDeniedException;
 import com.a207.runkk.common.ReasonCode;
 import java.sql.SQLException;
@@ -58,6 +59,13 @@ public class ApiExceptionHandler {
     @ExceptionHandler(BusinessRuleException.class)
     ResponseEntity<ErrorResponse> handleBusinessRule(BusinessRuleException e) {
         return ResponseEntity.status(STATUS_BY_REASON.getOrDefault(e.reason(), HttpStatus.CONFLICT))
+                .body(new ErrorResponse(e.reason().name(), e.reason().message()));
+    }
+
+    /** 조회 대상 없음(W31)은 사유 코드와 문구는 그대로 404다. */
+    @ExceptionHandler(NotFoundRuleException.class)
+    ResponseEntity<ErrorResponse> handleNotFound(NotFoundRuleException e) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(new ErrorResponse(e.reason().name(), e.reason().message()));
     }
 

@@ -24,6 +24,13 @@ interface WatchGateway {
     /** 추월·역전 순간 1초 긴 진동(LeadChangeMessage, FR-188). [kind]는 Guidance.Kind.OVERTOOK 또는 OVERTAKEN이다. */
     fun publishLeadChange(kind: Guidance.Kind)
 
+    /**
+     * 짝지은 워치가 스스로 러닝을 측정 중인가(WATCH_MEASURING의 마지막 값, FR-252, D-373 (2)). 참이면 폰 측정·매칭을 시작하지 않는다.
+     * 모르면 거짓이다("모르면 막지 않는다"). 폰 구현(data.watch.WatchLink)은 마지막 참이 오래되면 거짓으로 보고(D-390),
+     * 워치 단독 측정의 구현(watch.run.LocalWatchGateway)은 자기 자신이라 늘 거짓이다(D-369).
+     */
+    fun isWatchMeasuring(): Boolean = false
+
     /** 워치 일시정지 요청의 동작(wear.contract PauseRequestMessage.Action과 같은 값). domain은 wear.contract를 모른다(5.1.2). */
     enum class PauseAction {
         PAUSE,

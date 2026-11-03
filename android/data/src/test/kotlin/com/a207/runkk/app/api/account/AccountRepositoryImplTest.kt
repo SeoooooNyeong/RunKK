@@ -111,6 +111,46 @@ class AccountRepositoryImplTest {
     }
 
     @Test
+    fun `워치 세션은 본문 없이 POST auth·watch-session을 보내고 새 토큰 쌍을 돌려준다(D-372)`() = runTest {
+        api.reply("""{"accessToken":"watch-a","refreshToken":"watch-r"}""")
+
+        val result = repository.issueWatchSession()
+
+        assertEquals(Outcome.Success(SessionTokens("watch-a", "watch-r")), result)
+        val sent = api.take()
+        assertEquals("POST /api/v1/auth/watch-session", "${sent.method} ${sent.url.encodedPath}")
+        assertEquals(0L, sent.bodySize)
+    }
+
+    @Test
+    fun `워치 세션 발급이 401이면 Unauthorized, 연결 실패는 Network다`() = runTest {
+        api.reply("""{"code":"UNAUTHORIZED"}""", code = 401)
+        assertEquals(Outcome.Failure(AppError.Unauthorized), repository.issueWatchSession())
+
+        api.close()
+        assertEquals(Outcome.Failure(AppError.Network), repository.issueWatchSession())
+    }
+
+    @Test
+    fun `워치 세션 폐기는 본문 없이 DELETE auth·watch-session을 보내고 204면 성공이다(contract-v2 4절)`() = runTest {
+        api.replyEmpty(204)
+
+        val result = repository.revokeWatchSession()
+
+        assertEquals(Outcome.Success(Unit), result)
+        val sent = api.take()
+        assertEquals("DELETE /api/v1/auth/watch-session", "${sent.method} ${sent.url.encodedPath}")
+        assertEquals(0L, sent.bodySize)
+    }
+
+    @Test
+    fun `워치 세션 폐기가 연결 실패면 Network다`() = runTest {
+        api.close()
+
+        assertEquals(Outcome.Failure(AppError.Network), repository.revokeWatchSession())
+    }
+
+    @Test
     fun `로그아웃은 갱신 토큰을 보낸다`() = runTest {
         api.replyEmpty(200)
 
@@ -189,6 +229,13 @@ class AccountRepositoryImplTest {
 
         assertEquals(Outcome.Failure(AppError.Unauthorized), loggedOut.profile(AccountRepository.SELF))
         assertEquals(Outcome.Failure(AppError.Unauthorized), loggedOut.mySummary())
+        assertEquals(null, loggedOut.selfMemberId())
+        assertEquals(0, api.server.requestCount)
+    }
+
+    @Test
+    fun `본인 회원 ID는 서버 호출 없이 접근 토큰에서 읽는다(워치 로그인 정보, SQ-43)`() {
+        assertEquals(7L, repository.selfMemberId())
         assertEquals(0, api.server.requestCount)
     }
 

@@ -33,6 +33,8 @@ include(":core:model")
 include(":core:ui")
 include(":domain")
 include(":data")
+// 폰 전용 data.device·data.watch·data.push(D-365, W16). :wear는 쓰지 않는다.
+include(":data:phone")
 include(":feature:home")
 include(":feature:run")
 include(":feature:record")

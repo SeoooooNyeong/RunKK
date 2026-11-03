@@ -47,7 +47,7 @@ android {
             if (kakaoNativeAppKey.isBlank()) "runkk-kakao-disabled" else "kakao$kakaoNativeAppKey"
         // 폰은 IID×10, 워치는 IID×10+1로 Play 버전 코드 충돌을 막는다.
         versionCode = providers.gradleProperty("runkk.versionCode").orElse("10").get().toInt()
-        versionName = "0.10.0"
+        versionName = "0.11.0"
     }
 
     // 서명은 runkk.android.application 공통 플러그인이 RUNKK_KEYSTORE_* 환경 변수로 정한다(.gitlab-ci.yml).
@@ -172,6 +172,7 @@ dependencies {
     implementation(project(":core:ui"))
     implementation(project(":domain"))
     implementation(project(":data"))
+    implementation(project(":data:phone"))
     implementation(project(":feature:home"))
     implementation(project(":feature:run"))
     implementation(project(":feature:record"))

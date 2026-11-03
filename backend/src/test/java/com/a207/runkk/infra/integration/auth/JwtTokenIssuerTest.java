@@ -34,7 +34,10 @@ class JwtTokenIssuerTest {
 
     private static JwtTokenIssuer at(Instant now) {
         return new JwtTokenIssuer(
-                SECRET, Clock.fixed(now, SEOUL), new InMemoryRefreshTokenRevocations());
+                SECRET,
+                Clock.fixed(now, SEOUL),
+                new InMemoryRefreshTokenRevocations(),
+                new InMemoryWatchSessionGenerations());
     }
 
     @Test
@@ -108,7 +111,7 @@ class JwtTokenIssuerTest {
     void refreshToken_isSingleUse_andRevocable() {
         JwtTokenIssuer issuer = at(T0);
         TokenPair pair = issuer.issue(7);
-        assertThat(issuer.redeemRefreshToken(pair.refreshToken())).isEqualTo(7);
+        assertThat(issuer.redeemRefreshToken(pair.refreshToken()).memberId()).isEqualTo(7);
         assertThatThrownBy(() -> issuer.redeemRefreshToken(pair.refreshToken()))
                 .isInstanceOf(AuthFailureException.class);
 
@@ -131,7 +134,11 @@ class JwtTokenIssuerTest {
         InMemoryRefreshTokenRevocations store = new InMemoryRefreshTokenRevocations();
         TokenPair pair = at(T0).issue(7);
         JwtTokenIssuer down =
-                new JwtTokenIssuer(SECRET, Clock.fixed(T0, SEOUL), store.unavailable());
+                new JwtTokenIssuer(
+                        SECRET,
+                        Clock.fixed(T0, SEOUL),
+                        store.unavailable(),
+                        new InMemoryWatchSessionGenerations());
         assertThatThrownBy(() -> down.redeemRefreshToken(pair.refreshToken()))
                 .isInstanceOf(ProviderUnavailableException.class);
         assertThatThrownBy(() -> down.revoke(pair.refreshToken()))
@@ -139,17 +146,26 @@ class JwtTokenIssuerTest {
         down.revoke("not-a-token"); // 읽을 수 없는 토큰은 저장소를 부르지 않는다
 
         JwtTokenIssuer recovered = at(T0);
-        assertThat(recovered.redeemRefreshToken(pair.refreshToken())).isEqualTo(7);
+        assertThat(recovered.redeemRefreshToken(pair.refreshToken()).memberId()).isEqualTo(7);
     }
 
     @Test
     @org.junit.jupiter.api.DisplayName("M6 후속: 만료 정리는 서비스 시각(한국) now까지 만료된 폐기 행만 지운다")
     void purgeExpiredRevocations_removesOnlyExpiredRows() {
         InMemoryRefreshTokenRevocations store = new InMemoryRefreshTokenRevocations();
-        JwtTokenIssuer issuer = new JwtTokenIssuer(SECRET, Clock.fixed(T0, SEOUL), store);
+        JwtTokenIssuer issuer =
+                new JwtTokenIssuer(
+                        SECRET,
+                        Clock.fixed(T0, SEOUL),
+                        store,
+                        new InMemoryWatchSessionGenerations());
         issuer.revoke(issuer.issue(1).refreshToken());
         JwtTokenIssuer later =
-                new JwtTokenIssuer(SECRET, Clock.fixed(T0.plusSeconds(3600), SEOUL), store);
+                new JwtTokenIssuer(
+                        SECRET,
+                        Clock.fixed(T0.plusSeconds(3600), SEOUL),
+                        store,
+                        new InMemoryWatchSessionGenerations());
         String young = later.issue(2).refreshToken();
         later.revoke(young);
 
@@ -168,7 +184,8 @@ class JwtTokenIssuerTest {
                 new JwtTokenIssuer(
                         "another-secret-another-secret-12345",
                         Clock.fixed(T0, SEOUL),
-                        new InMemoryRefreshTokenRevocations());
+                        new InMemoryRefreshTokenRevocations(),
+                        new InMemoryWatchSessionGenerations());
         assertThatThrownBy(() -> otherKey.verify(token)).isInstanceOf(AuthFailureException.class);
         assertThatThrownBy(() -> at(T0).verify(tamperSignature(token)))
                 .isInstanceOf(AuthFailureException.class);
@@ -183,11 +200,15 @@ class JwtTokenIssuerTest {
                                 new JwtTokenIssuer(
                                         "short",
                                         Clock.systemUTC(),
-                                        new InMemoryRefreshTokenRevocations()))
+                                        new InMemoryRefreshTokenRevocations(),
+                                        new InMemoryWatchSessionGenerations()))
                 .isInstanceOf(IllegalStateException.class);
         JwtTokenIssuer random =
                 new JwtTokenIssuer(
-                        "", Clock.fixed(T0, SEOUL), new InMemoryRefreshTokenRevocations());
+                        "",
+                        Clock.fixed(T0, SEOUL),
+                        new InMemoryRefreshTokenRevocations(),
+                        new InMemoryWatchSessionGenerations());
         assertThat(random.verify(random.issue(3).accessToken())).isEqualTo(3);
     }
 }

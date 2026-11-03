@@ -4,6 +4,7 @@ import com.a207.runkk.member.AccessGrant;
 import com.a207.runkk.member.AuthFailureException;
 import com.a207.runkk.member.ProviderType;
 import com.a207.runkk.member.ProviderUnavailableException;
+import com.a207.runkk.member.RefreshGrant;
 import com.a207.runkk.member.SocialAccount;
 import com.a207.runkk.member.TokenIssuer;
 import com.a207.runkk.member.TokenPair;
@@ -22,6 +23,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Date;
+import java.util.OptionalLong;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,7 +36,8 @@ import org.springframework.stereotype.Component;
  * token_type 클레임으로 나눠 한 종류의 토큰으로 다른 종류의 검사를 통과하지 못한다. 갱신 토큰은 한 번만 쓰고(회전) 폐기 목록은
  * RefreshTokenRevocations(PostgreSQL)에 둬 재시작·Redis 장애와 무관하게 남는다(코드 리뷰 2차 M6, M6 후속 결정). 폐기 목록을
  * 확인하거나 기록할 수 없으면 갱신·로그아웃을 ProviderUnavailableException으로 거부한다(fail-closed: 폐기된 토큰을 받아 주지 않는다). 토큰
- * 값은 로그에 남기지 않는다.
+ * 값은 로그에 남기지 않는다. 워치용 갱신 토큰(POST /auth/watch-session, W25)은 client=watch 클레임과 발급 때의 워치 세션 세대(wgen)를
+ * 담고, 갱신 때 그 회원의 지금 세대(WatchSessionGenerations)와 다르면 거부한다. 회전한 새 쌍은 쓴 토큰의 세대를 그대로 잇는다.
  */
 @Component
 public class JwtTokenIssuer implements TokenIssuer {
@@ -51,19 +54,31 @@ public class JwtTokenIssuer implements TokenIssuer {
     private static final String SIGN_UP = "sign_up";
     private static final String PROVIDER = "provider";
     private static final String ACCOUNT = "account";
+    private static final String CLIENT = "client";
+    private static final String WATCH = "watch";
+    private static final String WATCH_GENERATION = "wgen";
     private static final int MIN_SECRET_BYTES = 32;
 
     private final MACSigner signer;
     private final MACVerifier verifier;
     private final Clock clock;
     private final RefreshTokenRevocations revocations;
+    private final WatchSessionGenerations watchSessions;
 
     @Autowired
-    public JwtTokenIssuer(AuthSecrets secrets, Clock clock, RefreshTokenRevocations revocations) {
-        this(secrets.jwtSecret(), clock, revocations);
+    public JwtTokenIssuer(
+            AuthSecrets secrets,
+            Clock clock,
+            RefreshTokenRevocations revocations,
+            WatchSessionGenerations watchSessions) {
+        this(secrets.jwtSecret(), clock, revocations, watchSessions);
     }
 
-    JwtTokenIssuer(String secret, Clock clock, RefreshTokenRevocations revocations) {
+    JwtTokenIssuer(
+            String secret,
+            Clock clock,
+            RefreshTokenRevocations revocations,
+            WatchSessionGenerations watchSessions) {
         byte[] key = secretBytes(secret);
         try {
             this.signer = new MACSigner(key);
@@ -73,6 +88,7 @@ public class JwtTokenIssuer implements TokenIssuer {
         }
         this.clock = clock;
         this.revocations = revocations;
+        this.watchSessions = watchSessions;
     }
 
     @Override
@@ -81,6 +97,63 @@ public class JwtTokenIssuer implements TokenIssuer {
         return new TokenPair(
                 sign(claims(subject, ACCESS, ACCESS_TTL).build()),
                 sign(claims(subject, REFRESH, REFRESH_TTL).build()));
+    }
+
+    @Override
+    public TokenPair issueWatch(long memberId) {
+        long generation;
+        try {
+            generation = watchSessions.current(memberId);
+        } catch (DataAccessException e) {
+            throw unavailable("watch_generation", e);
+        }
+        return watchPair(memberId, generation);
+    }
+
+    @Override
+    public TokenPair reissue(RefreshGrant grant) {
+        return switch (grant) {
+            case RefreshGrant.Watch w -> watchPair(w.memberId(), w.generation());
+            case RefreshGrant.Phone p -> issue(p.memberId());
+        };
+    }
+
+    @Override
+    public void revokeWatchSessions(long memberId) {
+        try {
+            watchSessions.advance(memberId, clock.instant());
+        } catch (DataAccessException e) {
+            throw unavailable("watch_revoke", e);
+        }
+    }
+
+    @Override
+    public void revokeExistingWatchSessions(long memberId) {
+        try {
+            watchSessions.advanceExisting(memberId, clock.instant());
+        } catch (DataAccessException e) {
+            throw unavailable("watch_revoke_existing", e);
+        }
+    }
+
+    @Override
+    public void forgetWatchSessions(long memberId) {
+        try {
+            watchSessions.forget(memberId);
+        } catch (DataAccessException e) {
+            throw unavailable("watch_forget", e);
+        }
+    }
+
+    private TokenPair watchPair(long memberId, long generation) {
+        String subject = String.valueOf(memberId);
+        return new TokenPair(
+                sign(claims(subject, ACCESS, ACCESS_TTL).claim(CLIENT, WATCH).build()),
+                sign(
+                        claims(subject, REFRESH, REFRESH_TTL)
+                                .claim(CLIENT, WATCH)
+                                .claim(WATCH_GENERATION, generation)
+                                .build()));
     }
 
     @Override
@@ -113,7 +186,10 @@ public class JwtTokenIssuer implements TokenIssuer {
     @Override
     public AccessGrant verifyGrant(String accessToken) {
         JWTClaimsSet claims = parse(accessToken, ACCESS);
-        return new AccessGrant(memberIdOf(claims), claims.getExpirationTime().toInstant());
+        return new AccessGrant(
+                memberIdOf(claims),
+                claims.getExpirationTime().toInstant(),
+                WATCH.equals(claims.getClaim(CLIENT)));
     }
 
     @Override
@@ -133,8 +209,13 @@ public class JwtTokenIssuer implements TokenIssuer {
     }
 
     @Override
-    public long redeemRefreshToken(String refreshToken) {
+    public RefreshGrant redeemRefreshToken(String refreshToken) {
         JWTClaimsSet claims = parse(refreshToken, REFRESH);
+        long memberId = memberIdOf(claims);
+        OptionalLong generation = watchGenerationOf(claims);
+        if (generation.isPresent()) {
+            requireLiveWatchSession(memberId, generation.getAsLong());
+        }
         Instant expiry = claims.getExpirationTime().toInstant();
         boolean first;
         try {
@@ -145,7 +226,39 @@ public class JwtTokenIssuer implements TokenIssuer {
         if (!first) {
             throw new AuthFailureException("폐기된 갱신 토큰");
         }
-        return memberIdOf(claims);
+        return generation.isPresent()
+                ? new RefreshGrant.Watch(memberId, generation.getAsLong())
+                : new RefreshGrant.Phone(memberId);
+    }
+
+    /** 워치용 갱신 토큰이면 발급 때의 워치 세션 세대, 폰 토큰이면 비어 있다. 워치 표시가 있는데 세대가 없거나 모르는 표시면 거부한다. */
+    private static OptionalLong watchGenerationOf(JWTClaimsSet claims) {
+        Object client = claims.getClaim(CLIENT);
+        if (client == null) {
+            return OptionalLong.empty();
+        }
+        try {
+            Long generation = claims.getLongClaim(WATCH_GENERATION);
+            if (!WATCH.equals(client) || generation == null) {
+                throw new AuthFailureException("워치 토큰 형식 오류");
+            }
+            return OptionalLong.of(generation);
+        } catch (ParseException e) {
+            throw new AuthFailureException("워치 토큰 형식 오류", e);
+        }
+    }
+
+    /** 토큰 발급 뒤 그 회원의 워치 세션이 폐기되었으면(세대가 바뀜) 거부한다. 거부한 토큰은 폐기 목록에 쓰지 않는다. */
+    private void requireLiveWatchSession(long memberId, long generation) {
+        long current;
+        try {
+            current = watchSessions.current(memberId);
+        } catch (DataAccessException e) {
+            throw unavailable("watch_generation", e);
+        }
+        if (current != generation) {
+            throw new AuthFailureException("폐기된 워치 세션");
+        }
     }
 
     @Override

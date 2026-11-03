@@ -5,12 +5,16 @@ import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.run.CompletedRun
 import com.a207.runkk.app.domain.run.LateHeartRates
 import com.a207.runkk.app.domain.run.PendingRunRepository
+import com.a207.runkk.app.domain.run.UploadState
 import javax.inject.Inject
 
 /**
  * 보관 기록을 서버로 보낸다(6.1.14 domain.sync). data.sync.UploadWorker가 부르고,
  * 실패가 있으면 RetryPolicy 간격 뒤 다시 실행된다(D-15).
  * 성공·"이미 저장됨"이면 보관함에서 지운다. "이미 저장됨"인 기록에 심박이 있으면 늦게 붙은 심박을 따로 보낸다(FR-043).
+ * 보내기 직전에 정지 구간을 기록 범위 안으로 자른다(CompletedRun.withPausesInRange, R12 D2).
+ * 서버가 4xx로 거부하면(AppError.Rejected) 지우지 않고 사유와 함께 REJECTED로 남기고, 그 뒤로는 자동으로 다시 보내지 않는다
+ * (03-00 앱의 응답 해석, R12 D2-b). 네트워크·인증·5xx 실패는 미전송으로 남아 재전송된다.
  * 머리 정보 없는 기록의 늦은 심박 항목(LateHeartRates)도 이 UseCase 하나만 보낸다(D-77, D-80).
  */
 class UploadPendingRunsUseCase
@@ -26,13 +30,13 @@ constructor(
                 is Outcome.Failure -> return listOf(UploadOutcome.Failed(null, pending.error))
                 is Outcome.Success -> pending.value
             }
-        return runs.map { upload(it) } + uploadLateHeartRates()
+        return runs.filter { it.uploadState != UploadState.REJECTED }.map { upload(it) } + uploadLateHeartRates()
     }
 
     private suspend fun upload(run: CompletedRun): UploadOutcome {
         val receipt =
-            when (val uploaded = remote.upload(run)) {
-                is Outcome.Failure -> return UploadOutcome.Failed(run.recordId, uploaded.error)
+            when (val uploaded = remote.upload(run.withPausesInRange())) {
+                is Outcome.Failure -> return failed(run, uploaded.error)
                 is Outcome.Success -> uploaded.value
             }
         // receipt.isAlreadySaved는 여기서 한 번만 본다(D-80). 늦게 붙은 심박을 보내지 못하면 보관함에 남겨 다음 재전송 때 다시 보낸다.
@@ -46,6 +50,15 @@ constructor(
             }
         val removed = if (appended is Outcome.Failure) appended else pendingRuns.remove(run.recordId)
         return if (removed is Outcome.Failure) UploadOutcome.Failed(run.recordId, removed.error) else done
+    }
+
+    /** 거부(4xx)면 사유와 함께 남겨 자동 재전송을 멈춘다. 남기지 못하면 저장 실패로 돌려 다음 실행에 다시 본다. */
+    private suspend fun failed(run: CompletedRun, error: AppError): UploadOutcome.Failed {
+        if (error is AppError.Rejected) {
+            val marked = pendingRuns.markRejected(run, error.code)
+            if (marked is Outcome.Failure) return UploadOutcome.Failed(run.recordId, marked.error)
+        }
+        return UploadOutcome.Failed(run.recordId, error)
     }
 
     /**

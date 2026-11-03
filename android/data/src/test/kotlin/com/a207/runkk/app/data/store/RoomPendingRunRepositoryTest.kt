@@ -14,6 +14,7 @@ import com.a207.runkk.app.domain.run.HeartRateSample
 import com.a207.runkk.app.domain.run.LateHeartRates
 import com.a207.runkk.app.domain.run.PauseInterval
 import com.a207.runkk.app.domain.run.RoutePoint
+import com.a207.runkk.app.domain.run.RunStartSpec
 import com.a207.runkk.app.domain.run.UnstableSegment
 import com.a207.runkk.app.domain.run.UploadScheduler
 import com.a207.runkk.app.domain.run.UploadState
@@ -79,13 +80,23 @@ class RoomPendingRunRepositoryTest {
     }
 
     @Test
-    fun `대결 기록의 ID와 보낸 상태도 왕복한다`() = runTest {
+    fun `워치에서 시작한 기록의 시작 기기를 왕복한다(D-378)`() = runTest {
+        val run = completedRun("r-w").copy(startDevice = RunStartSpec.StartDevice.WATCH)
+
+        repository.save(run)
+
+        assertEquals(Outcome.Success(listOf(run)), repository.pending())
+    }
+
+    @Test
+    fun `대결 기록의 ID와 거부 상태도 왕복한다`() = runTest {
         val run =
             completedRun("r-2").copy(
                 mode = RunMode.BATTLE,
                 cardKind = CardKind.CELEB_RUN,
                 battleId = 42,
-                uploadState = UploadState.SENDING
+                uploadState = UploadState.REJECTED,
+                rejectedReason = "BAD_REQUEST"
             )
 
         repository.save(run)
@@ -132,17 +143,129 @@ class RoomPendingRunRepositoryTest {
     }
 
     @Test
-    fun `20건이 쌓이거나 7일이 지난 기록이 있으면 재전송을 안내한다`() = runTest {
+    fun `R81 모르는 전송 상태 문자열(옛 SENDING)은 미전송으로 읽는다`() = runTest {
+        repository.save(completedRun("r-old"))
+        db.pendingRunDao().markState("r-old", "SENDING", null)
+
+        val read = (repository.pending() as Outcome.Success).value.single()
+
+        assertEquals(UploadState.NOT_SENT, read.uploadState)
+    }
+
+    @Test
+    fun `TC-3182 TC-3184 미전송 19건·20건은 안내하지 않고 21번째를 저장하면 안내한다(기록은 지우지 않는다)`() = runTest {
         repeat(19) { repository.save(completedRun("r-$it").copy(savedAt = now)) }
         assertEquals(Outcome.Success(false), repository.needsReminder(now))
 
         repository.save(completedRun("r-19").copy(savedAt = now))
-        assertEquals(Outcome.Success(true), repository.needsReminder(now))
+        assertEquals(Outcome.Success(false), repository.needsReminder(now), "20건째는 안내하지 않는다")
 
-        repository.clear()
-        repository.save(completedRun("old").copy(savedAt = now.minus(Duration.ofDays(7))))
+        assertEquals(Outcome.Success(Unit), repository.save(completedRun("r-20").copy(savedAt = now)))
         assertEquals(Outcome.Success(true), repository.needsReminder(now))
-        assertEquals(Outcome.Success(false), repository.needsReminder(now.minus(Duration.ofSeconds(1))))
+        assertEquals(21, (repository.pending() as Outcome.Success).value.size, "21번째도 보관하고 지우지 않는다")
+    }
+
+    @Test
+    fun `TC-3183 가장 오래된 미전송 기록이 6일 23시간·7일 정각이면 안내하지 않고 7일 1시간이면 안내한다`() = runTest {
+        repository.save(completedRun("old").copy(savedAt = now.minus(Duration.ofDays(7))))
+
+        assertEquals(Outcome.Success(false), repository.needsReminder(now.minus(Duration.ofHours(1))))
+        assertEquals(Outcome.Success(false), repository.needsReminder(now), "7일 정각은 안내하지 않는다")
+        assertEquals(Outcome.Success(true), repository.needsReminder(now.plus(Duration.ofHours(1))))
+        assertEquals(Outcome.Success(true), repository.needsReminder(now.plusMillis(1)))
+    }
+
+    @Test
+    fun `TC-5417 거부 3건과 미전송 17건에서 21번째를 저장해도 미전송은 18건이라 안내하지 않는다`() = runTest {
+        repeat(20) { repository.save(completedRun("r-$it").copy(savedAt = now)) }
+        val handedOut = (repository.pending() as Outcome.Success).value
+        handedOut.take(3).forEach { repository.markRejected(it, "BAD_REQUEST") }
+
+        repository.save(completedRun("r-20").copy(savedAt = now))
+
+        assertEquals(Outcome.Success(false), repository.needsReminder(now))
+    }
+
+    @Test
+    fun `TC-5417 8일째인 기록이 거부 기록뿐이면 안내하지 않는다`() = runTest {
+        repository.save(completedRun("old").copy(savedAt = now.minus(Duration.ofDays(8))))
+        repository.save(completedRun("new").copy(savedAt = now))
+        val old = (repository.pending() as Outcome.Success).value.first { it.recordId == "old" }
+        repository.markRejected(old, "BAD_REQUEST")
+
+        assertEquals(Outcome.Success(false), repository.needsReminder(now))
+
+        repository.resetRejected()
+        assertEquals(Outcome.Success(true), repository.needsReminder(now), "미전송으로 되돌리면 다시 센다")
+    }
+
+    @Test
+    fun `R80 거부 기록 건수를 세어 바뀔 때마다 낸다`() = runTest {
+        listOf("r-1", "r-2", "r-3").forEach { repository.save(completedRun(it)) }
+        assertEquals(0, repository.observeRejectedCount().first())
+        val handedOut = (repository.pending() as Outcome.Success).value
+
+        repository.markRejected(handedOut[0], "BAD_REQUEST")
+        repository.markRejected(handedOut[1], "BAD_REQUEST")
+        assertEquals(2, repository.observeRejectedCount().first())
+
+        repository.remove("r-1")
+        assertEquals(1, repository.observeRejectedCount().first(), "보낸 기록은 세지 않는다")
+
+        repository.resetRejected()
+        assertEquals(0, repository.observeRejectedCount().first())
+    }
+
+    @Test
+    fun `R12 D2-b 거부 표시는 미전송으로 남기고 사유를 왕복하며 그 뒤 덧붙은 늦은 심박을 덮지 않는다`() = runTest {
+        val run = completedRun("r-1")
+        repository.save(run)
+        val handedOut = (repository.pending() as Outcome.Success).value.single()
+        repository.appendHeartRates("r-1", listOf(HeartRateSample(now.plusSeconds(700), 150)))
+
+        assertEquals(Outcome.Success(Unit), repository.markRejected(handedOut, "BAD_REQUEST"))
+
+        val kept = (repository.pending() as Outcome.Success).value.single()
+        assertEquals(UploadState.REJECTED, kept.uploadState)
+        assertEquals("BAD_REQUEST", kept.rejectedReason)
+        assertEquals(listOf(130, 140, 150), kept.heartRates.map { it.bpm })
+        assertEquals(
+            run.copy(uploadState = UploadState.REJECTED, rejectedReason = "BAD_REQUEST"),
+            kept.copy(heartRates = run.heartRates)
+        )
+    }
+
+    @Test
+    fun `W40 거부 기록만 미전송으로 되돌리고 사유를 비우며 건수를 돌려준다(덧붙은 늦은 심박은 그대로)`() = runTest {
+        listOf("r-1", "r-2", "r-3").forEach { repository.save(completedRun(it)) }
+        val handedOut = (repository.pending() as Outcome.Success).value
+        repository.markRejected(handedOut[0], "BAD_REQUEST")
+        repository.markRejected(handedOut[2], "BAD_REQUEST")
+        repository.appendHeartRates("r-1", listOf(HeartRateSample(now.plusSeconds(700), 150)))
+        val requestsBefore = scheduler.requests
+
+        assertEquals(Outcome.Success(2), repository.resetRejected())
+
+        val kept = (repository.pending() as Outcome.Success).value
+        assertEquals(listOf("r-1", "r-2", "r-3"), kept.map { it.recordId })
+        assertTrue(kept.all { it.uploadState == UploadState.NOT_SENT && it.rejectedReason == null })
+        assertEquals(listOf(130, 140, 150), kept.first().heartRates.map { it.bpm })
+        assertEquals(requestsBefore, scheduler.requests, "전송 요청은 ResetRejectedRunsUseCase가 한다")
+        assertEquals(Outcome.Success(0), repository.resetRejected())
+    }
+
+    @Test
+    fun `R12 D3 보낸 기록은 미전송 목록에서 빠지고 경로·심박·정지 구간을 지운 머리 정보만 남는다(D-77)`() = runTest {
+        repository.save(completedRun("r-1"))
+
+        repository.remove("r-1")
+
+        assertEquals(Outcome.Success(emptyList()), repository.pending())
+        val header = assertNotNull(db.pendingRunDao().find("r-1"))
+        assertNotNull(header.sentAtMillis)
+        assertEquals(0, header.route.size)
+        assertEquals(0, header.heartRates.size)
+        assertEquals(0, header.pauses.size)
     }
 
     @Test
