@@ -20,7 +20,7 @@
               │
               ▼
 [구현]  설계대로 코드로 옮겼는가?          implementation.md v0.10(워치 v2 develop 병합, AI 코치 화면 준비) ⇄ code-review.md v0.20 (18차 확인 합격 0/0/2, 경 합계 21)
-[테스트] 요구대로 동작하는가? 품질은?       test.md v0.17, sqa.md v0.7   ◀── 지금 여기(워치 v2 R16·R17 시험 보강, 2차 배포 11/13)
+[테스트] 요구대로 동작하는가? 품질은?       test.md v0.17, sqa.md v0.8   ◀── 지금 여기(워치 v2 R16·R17 시험 보강, 2차 배포 11/13)
 [유지보수] 운영 중 변화에 대응하는가?       maintenance/
 ```
 
@@ -40,7 +40,7 @@
 | 구현 | [implementation.md](implementation.md) 구현 기록(목차 + implementation/ 조각) | v0.10 | 2026-11-03 | 워치 v2 14장(R1~R17, feature/runkk-watch-v2 → develop 599dc319), AI 코치 동의·화면 준비(ai-coach-consent-박, e66eb8a0) | 목차 + `implementation/` 8개 |
 | 구현 | [code-review.md](code-review.md) 코드 리뷰 결과서 | v0.20 | 2026-11-03 | 워치 v2 12~18차(18차 확인 793eb85e 합격, 경 합계 21), AI 코치 동의·화면(ai-coach-consent-박, 조건부) | 목차 + `code-review/` 21개 |
 | 테스트 | [test.md](test.md) 테스트 계획·케이스 | v0.17 | 2026-11-03 | 워치 v2 R16·R17(TC-5641~TC-5692, 직접 실행 2,312건 실패 0), 이전 v0.16 AI 코치(TC-5627~TC-5640), v0.15 워치 v2 구현 반영(TC-5401~TC-5626) | 목차 + `test/` 35개 |
-| 테스트 | [sqa.md](sqa.md) 품질 검토 결과서 | v0.7 | 2026-11-03 | srs v0.22, design-oo v0.27, design-review v0.20, test v0.15, code-review v0.17, implementation v0.9, plan v0.31, 코드 cc8c138b | 목차 + `sqa/` 7개 |
+| 테스트 | [sqa.md](sqa.md) 품질 검토 결과서 | v0.8 | 2026-11-03 | 08회차: develop 0b16eafe(워치 v2 R16·R17 병합, AI 코치 화면 준비), test v0.17 직접 실행 2,312건 실패 0, code-review v0.20, design-oo v0.28. v0.11 조건부 가능, 정식 불합격 | 목차 + `sqa/` 8개 |
 
 ## 3. 무엇을 어디서 찾나
 
