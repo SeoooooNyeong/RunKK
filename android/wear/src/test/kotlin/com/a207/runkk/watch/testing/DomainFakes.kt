@@ -311,7 +311,7 @@ class FakeBattleRepository : BattleRepository {
 
     override suspend fun celebrityCandidates(distance: Distance?): Outcome<RecordBattleCandidates> = unused()
 
-    /** 있으면 셀프 대결 열기가 이 신호를 받을 때까지 멈춘다(서버가 늦게 답하는 동안 "연결 중"). */
+    /** 있으면 셀프·셀럽 대결 열기가 이 신호를 받을 때까지 멈춘다(서버가 늦게 답하는 동안 "연결 중"). */
     var recordStartGate: CompletableDeferred<Unit>? = null
 
     override suspend fun startSelfBattle(distance: Distance): Outcome<RecordBattleStart> {
@@ -319,8 +319,10 @@ class FakeBattleRepository : BattleRepository {
         return recordStart?.let { Outcome.Success(it) } ?: Outcome.Failure(recordStartFailure)
     }
 
-    override suspend fun startCelebrityBattle(celebrityId: Long): Outcome<RecordBattleStart> =
-        recordStart?.let { Outcome.Success(it) } ?: Outcome.Failure(recordStartFailure)
+    override suspend fun startCelebrityBattle(celebrityId: Long): Outcome<RecordBattleStart> {
+        recordStartGate?.await()
+        return recordStart?.let { Outcome.Success(it) } ?: Outcome.Failure(recordStartFailure)
+    }
 
     override suspend fun markStarted(battleId: Long): Outcome<Unit> = Outcome.Success(Unit)
 

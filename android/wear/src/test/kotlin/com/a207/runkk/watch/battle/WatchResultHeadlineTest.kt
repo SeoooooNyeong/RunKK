@@ -271,4 +271,67 @@ class WatchResultHeadlineTest {
             WatchResultHeadline.forCelebVerdict(battle("LOSE", mine = 1_470, theirs = 1_500), "김*수")
         )
     }
+
+    /** TC-5466(원인-효과 열 4): 서버 판정 WIN에 내 도달 시간이 없으면 워치가 잰 앞선 시간(+12초)으로 문구를 낸다. */
+    @Test
+    fun `서버 판정 WIN에 내 도달 시간이 없으면 워치가 잰 앞선 시간으로 BEST와 WIN 문구를 낸다(TC-5466)`() {
+        val celebWin = battle("WIN", mine = null, theirs = 1_500)
+        assertHeadline(
+            "BEST",
+            "최고 기록을 12초 단축했어요",
+            WatchResultHeadline.forSelfVerdict(battle("WIN", mine = null, theirs = 900), localLeadSeconds = 12)
+        )
+        assertHeadline(
+            "WIN",
+            "김*수보다 12초 먼저 들어왔어요",
+            WatchResultHeadline.forCelebVerdict(celebWin, "김*수", localLeadSeconds = 12)
+        )
+    }
+
+    /** TC-5467(원인-효과 열 5·6): 워치 시간 차가 서버 판정과 어긋나면 머리말은 서버 판정대로이고 문구는 없다(D-468). */
+    @Test
+    fun `워치가 잰 시간 차가 서버 판정과 어긋나면 머리말은 판정대로이고 문구가 없다(TC-5467)`() {
+        val celebWin = battle("WIN", mine = null, theirs = 1_500)
+        val celebLose = battle("LOSE", mine = null, theirs = 1_500)
+        assertHeadline(
+            "BEST",
+            null,
+            WatchResultHeadline.forSelfVerdict(battle("WIN", mine = null, theirs = 900), localLeadSeconds = -5)
+        )
+        assertHeadline(
+            "GOOD",
+            null,
+            WatchResultHeadline.forSelfVerdict(battle("LOSE", mine = null, theirs = 900), localLeadSeconds = 5)
+        )
+        assertHeadline(
+            "WIN",
+            null,
+            WatchResultHeadline.forCelebVerdict(celebWin, "김*수", localLeadSeconds = -5)
+        )
+        assertHeadline(
+            "LOSE",
+            null,
+            WatchResultHeadline.forCelebVerdict(celebLose, "김*수", localLeadSeconds = 5)
+        )
+    }
+
+    /** TC-5468(경곗값 시간 차 −1·0·+1, 원인-효과 열 7): 서버 판정 LOSE에 워치 시간 차를 쓴다. */
+    @Test
+    fun `서버 판정 LOSE에서 워치 시간 차 -1초는 1초 모자람 0초는 같은 시간 문구 +1초는 문구가 없다(TC-5468)`() {
+        val lose = battle("LOSE", mine = null, theirs = 900)
+        assertHeadline("GOOD", "최고 기록까지 1초 모자랐어요", WatchResultHeadline.forSelfVerdict(lose, localLeadSeconds = -1))
+        assertHeadline("GOOD", "최고 기록과 같았어요", WatchResultHeadline.forSelfVerdict(lose, localLeadSeconds = 0))
+        assertHeadline("GOOD", null, WatchResultHeadline.forSelfVerdict(lose, localLeadSeconds = 1))
+        assertHeadline(
+            "LOSE",
+            "김*수보다 1초 늦게 들어왔어요",
+            WatchResultHeadline.forCelebVerdict(lose, "김*수", localLeadSeconds = -1)
+        )
+        assertHeadline(
+            "LOSE",
+            "김*수보다 먼저 들어오지 못했어요",
+            WatchResultHeadline.forCelebVerdict(lose, "김*수", localLeadSeconds = 0)
+        )
+        assertHeadline("LOSE", null, WatchResultHeadline.forCelebVerdict(lose, "김*수", localLeadSeconds = 1))
+    }
 }

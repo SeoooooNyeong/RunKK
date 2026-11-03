@@ -16,12 +16,14 @@ import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.account.MySummary
 import com.a207.runkk.app.domain.battle.BattleResult
 import com.a207.runkk.app.domain.battle.BattleRunCoordinator
+import com.a207.runkk.app.domain.battle.BattleRunState
 import com.a207.runkk.app.domain.battle.MatchAcceptance
 import com.a207.runkk.app.domain.battle.OfflineRecordBattle
 import com.a207.runkk.app.domain.battle.OpponentTrack
 import com.a207.runkk.app.domain.battle.RecordBattleKind
 import com.a207.runkk.app.domain.battle.RecordBattleStart
 import com.a207.runkk.app.domain.live.BattleStart
+import com.a207.runkk.app.domain.live.CountdownStarted
 import com.a207.runkk.app.domain.live.MatchFailed
 import com.a207.runkk.app.domain.live.MatchFound
 import com.a207.runkk.app.domain.run.Guidance
@@ -1399,6 +1401,302 @@ class WatchFlowViewModelTest {
         assertEquals(WatchResultHeadline.Lose("셀럽1", 100), reopened.headline)
     }
 
+    /** TC-5480(실패 갈래 1, M89): 서버에 닿지 못하면(Network) 연결 중에서 오프라인 대결로 바꿔 3부터 센다. */
+    @Test
+    fun `연결 중 서버 대결을 열지 못하고 Network로 끝나면 미리 받은 기록으로 오프라인 대결을 3부터 센다(TC-5480 M89)`() = flowTest {
+        val gate = CompletableDeferred<Unit>()
+        battles.recordStartGate = gate
+        battles.recordStart = null
+        battles.recordStartFailure = AppError.Network
+        val h = open()
+        h.vm.onModeSelected(WatchMode.SELF)
+        h.vm.onDistanceSelected(Distance(3_000))
+        runCurrent()
+        assertEquals(WatchFlow.Countdown(WatchMode.SELF, Distance(3_000), 3, isConnecting = true), h.flow)
+
+        gate.complete(Unit)
+        runCurrent()
+
+        assertEquals(WatchFlow.Countdown(WatchMode.SELF, Distance(3_000), 3), h.flow)
+        passCountdown()
+        val running = h.flow as WatchFlow.Running
+        assertEquals(WatchMode.SELF, running.mode)
+        assertFalse(running.isPausable)
+        runAndEnd(h)
+        // 오프라인 대결은 서버에 그만두기를 보내지 않고 기록을 대결 ID 없는 자유런으로 남긴다(D-377).
+        assertTrue(battles.forfeits.isEmpty())
+        assertNull(pendingRuns.saved.single().battleId)
+    }
+
+    /** TC-5482(실패 갈래 2, M89): Network가 아닌 실패(서버 500·408)는 카운트다운을 멈추고 거리 선택으로 돌아가 기본 실패 안내를 보인다. */
+    @Test
+    fun `연결 중 서버 오류로 실패하면 거리 선택으로 돌아가 시작 실패 안내를 보이고 측정하지 않는다(TC-5482 M89)`() = flowTest {
+        val h = open()
+        val shown = listOf(500, 408).associateWith { status ->
+            battles.recordStartFailure = AppError.Server(status)
+            h.vm.onModeSelected(WatchMode.SELF)
+            h.vm.onDistanceSelected(Distance(3_000))
+            runCurrent()
+            passCountdown()
+            val picker = h.flow as WatchFlow.SelfDistance
+            h.vm.back()
+            picker.notice
+        }
+
+        assertEquals(mapOf(500 to WatchFlow.Notice.START_FAILED, 408 to WatchFlow.Notice.START_FAILED), shown)
+        assertFalse(h.tracker.isMeasuring)
+        assertEquals(BattleRunState.Idle, h.coordinator.state.value)
+    }
+
+    /**
+     * TC-5483(경합): 워치 카운트다운에는 "다시 고르기"가 없고 뒤로 가기도 받지 않는다(상태도 2.4.25). 연결 중에 뒤로 가도 화면은 그대로이고
+     * 늦게 온 서버 답으로 3부터 센다. 05-20 3.4의 "다시 고르기는 두 하위 상태 모두에서 기존 전이"는 워치에 그 조작이 없어 확인할 수 없다.
+     */
+    @Test
+    fun `연결 중에 뒤로 가도 카운트다운에 머물고 늦게 온 서버 답으로 3부터 센다(TC-5483)`() = flowTest {
+        val gate = CompletableDeferred<Unit>()
+        battles.recordStartGate = gate
+        battles.recordStart = recordStart(CardKind.SELF_RUN, meters = 3_000)
+        val h = open()
+        h.vm.onModeSelected(WatchMode.SELF)
+        h.vm.onDistanceSelected(Distance(3_000))
+        runCurrent()
+
+        h.vm.back()
+        assertEquals(WatchFlow.Countdown(WatchMode.SELF, Distance(3_000), 3, isConnecting = true), h.flow)
+        gate.complete(Unit)
+        runCurrent()
+
+        assertEquals(WatchFlow.Countdown(WatchMode.SELF, Distance(3_000), 3), h.flow)
+    }
+
+    /** TC-5478(셀프·셀럽 동치 분할): 셀럽런도 서버가 대결을 열 때까지 연결 중이고 답이 오면 3부터 센다(TC-5477과 같다). */
+    @Test
+    fun `연결된 셀럽런은 서버가 대결을 열 때까지 연결 중을 보이고 답이 오면 3부터 센다(TC-5478)`() = flowTest {
+        val gate = CompletableDeferred<Unit>()
+        battles.recordStartGate = gate
+        battles.recordStart = recordStart(CardKind.CELEB_RUN, meters = 5_000)
+        val h = open()
+        h.vm.onCelebritySelected(openCelebList(h).celebrities.single())
+        runCurrent()
+        assertEquals(WatchFlow.Countdown(WatchMode.CELEB, Distance(5_000), 3, isConnecting = true), h.flow)
+
+        gate.complete(Unit)
+        runCurrent()
+
+        assertEquals(WatchFlow.Countdown(WatchMode.CELEB, Distance(5_000), 3), h.flow)
+        passCountdown()
+        assertEquals(WatchMode.CELEB, (h.flow as WatchFlow.Running).mode)
+    }
+
+    /** 오프라인 기록 대결(셀프 1km)을 조정자에 바로 연다. 화면 흐름의 회(round) 없이 조정자 단계만 바꿀 때 쓴다. */
+    private fun TestScope.openOfflineBattle(h: Harness) {
+        h.coordinator.onOfflineRecordBattle(
+            OfflineRecordBattle(
+                RecordBattleKind.SELF,
+                Distance(1_000),
+                celebrityId = null,
+                track = OpponentTrack.uniform(Distance(1_000), Duration.ofSeconds(300))
+            )
+        )
+        runCurrent()
+    }
+
+    /** 서버 대결로 셀럽런 5km를 시작해 측정 화면까지 간다(상대 기록 3m/s). */
+    private fun TestScope.startOnlineCeleb(h: Harness) {
+        battles.recordStart = recordStart(CardKind.CELEB_RUN, meters = 5_000)
+        h.vm.onCelebritySelected(openCelebList(h).celebrities.single())
+        runCurrent()
+        passCountdown()
+        assertEquals(WatchMode.CELEB, (h.flow as WatchFlow.Running).mode)
+    }
+
+    /** TC-5521(기초 경로 P1 1→X): 화면 흐름의 회가 없으면(앱 첫 화면) 조정자의 Countdown이 와도 화면 흐름이 바뀌지 않는다. */
+    @Test
+    fun `화면 흐름에 회가 없으면 조정자 카운트다운이 와도 메인 그대로다(TC-5521 P1)`() = flowTest {
+        val h = open()
+        val before = h.flow
+        assertIs<WatchFlow.Main>(before)
+
+        openOfflineBattle(h)
+
+        assertIs<BattleRunState.Countdown>(h.coordinator.state.value)
+        assertEquals(before, h.flow)
+        h.coordinator.cancel()
+        runCurrent()
+        assertEquals(before, h.flow)
+    }
+
+    /** TC-5522(기초 경로 P2 1→2a→X): 자유런 회에는 조정자의 Finished를 무시하고 자유런 결과는 측정 끝에서 정한다. */
+    @Test
+    fun `자유런 중 조정자가 Finished로 끝나도 무시하고 자유런 결과는 측정 끝에서 정한다(TC-5522 P2)`() = flowTest {
+        val h = open()
+        h.vm.onModeSelected(WatchMode.FREE)
+        h.vm.onStartPressed()
+        passCountdown()
+        val running = h.flow as WatchFlow.Running
+
+        openOfflineBattle(h)
+        h.coordinator.forfeit()
+        runCurrent()
+
+        assertIs<BattleRunState.Finished>(h.coordinator.state.value)
+        assertEquals(running, h.flow)
+        assertTrue(h.tracker.isMeasuring)
+        runNorth(h.tracker, meters = 200)
+        h.vm.onEndLongPressed()
+        runCurrent()
+        assertEquals(WatchResultHeadline.Finish, h.headline)
+    }
+
+    /** TC-5526(기초 경로 P6 …3→6→X): 셀럽런 측정 중 Running 단계의 격차(앞서면 양수)를 측정 화면에 옮기고, 방향은 격차 부호로 앞섬이다. */
+    @Test
+    fun `셀럽런 측정 중 조정자 격차를 측정 화면에 옮기고 앞서면 앞섬 색이다(TC-5526 P6)`() = flowTest {
+        val h = open()
+        startOnlineCeleb(h)
+
+        runNorth(h.tracker, meters = 300)
+
+        val gap = (h.coordinator.state.value as BattleRunState.Running).gapMeters
+        val running = h.flow as WatchFlow.Running
+        assertEquals(gap, running.gapMeters)
+        assertTrue(checkNotNull(gap) > 0)
+        assertEquals(WatchColors.Lime, leadBannerColor(running))
+    }
+
+    /** TC-5527(기초 경로 P7 …3→7→X): 종료 카운트다운(Closing)에는 마지막 격차로 측정 화면을 유지한다. */
+    @Test
+    fun `종료 카운트다운이 오면 마지막 격차로 측정 화면을 유지한다(TC-5527 P7)`() = flowTest {
+        val h = open()
+        startOnlineCeleb(h)
+        runNorth(h.tracker, meters = 300)
+        val lastGap = (h.flow as WatchFlow.Running).gapMeters
+
+        val endsAt = SchedulerClock(testScheduler).instant().plusSeconds(120)
+        h.coordinator.onMessage(CountdownStarted(7, "셀럽1", endsAt))
+        runCurrent()
+        assertIs<BattleRunState.Closing>(h.coordinator.state.value)
+        runNorth(h.tracker, meters = 100)
+
+        val running = h.flow as WatchFlow.Running
+        assertEquals(WatchMode.CELEB, running.mode)
+        assertEquals(lastGap, running.gapMeters)
+    }
+
+    /**
+     * TC-5530(기초 경로 P10 …3→10→X): 셀럽런 회가 열려 있을 때 조정자가 Idle로 돌아가도 화면 흐름은 그대로다. 측정 중에는 조정자가
+     * Idle로 가는 길이 없어(Idle은 Finished·Discarded 확인 뒤에만) 앞 회의 Discarded를 확인하지 않은 채 연결 중인 셀럽런 회에서 Idle을 낸다.
+     */
+    @Test
+    fun `셀럽런 회가 열려 있을 때 조정자가 Idle로 가도 화면 흐름은 그대로다(TC-5530 P10)`() = flowTest {
+        val gate = CompletableDeferred<Unit>()
+        battles.recordStartGate = gate
+        battles.recordStart = recordStart(CardKind.CELEB_RUN, meters = 5_000)
+        val h = open()
+        openOfflineBattle(h)
+        h.coordinator.cancel()
+        runCurrent()
+        assertIs<BattleRunState.Discarded>(h.coordinator.state.value)
+        h.vm.onCelebritySelected(openCelebList(h).celebrities.single())
+        runCurrent()
+        val connecting = h.flow
+
+        h.coordinator.acknowledgeFinished()
+        runCurrent()
+
+        assertEquals(BattleRunState.Idle, h.coordinator.state.value)
+        assertEquals(connecting, h.flow)
+        gate.complete(Unit)
+        runCurrent()
+        passCountdown()
+        assertEquals(WatchMode.CELEB, (h.flow as WatchFlow.Running).mode)
+    }
+
+    /** TC-5471(경곗값 0·1m): 가장 짧은 양수 거리 1m로 끝내면 기록 1건을 저장하고 결과 화면이다(목표 전이라 STOP). 0m는 TC-5469. */
+    @Test
+    fun `자유런을 1m 달리고 길게 눌러 끝내면 기록을 저장하고 목표 전이라 STOP 결과다(TC-5471)`() = flowTest {
+        val h = open()
+        h.vm.onModeSelected(WatchMode.FREE)
+        h.vm.onDistanceSelected(Distance(3_000))
+        h.vm.onStartPressed()
+        passCountdown()
+        val clock = SchedulerClock(testScheduler)
+        h.tracker.onLocationSample(LocationSample(clock.instant(), GeoPoint(START_LAT, START_LNG), 5.0))
+        advanceTimeBy(STEP_MILLIS)
+        h.tracker.onLocationSample(
+            LocationSample(clock.instant(), GeoPoint(START_LAT + ONE_METER_DEGREES, START_LNG), 5.0)
+        )
+        h.tracker.tick(clock.instant())
+        runCurrent()
+
+        h.vm.onEndLongPressed()
+        runCurrent()
+
+        assertEquals(1L, pendingRuns.saved.single().distance.meters)
+        val result = h.flow as WatchFlow.Result
+        assertEquals(WatchResultHeadline.Stop, result.headline)
+        assertEquals(1L, result.summary.distance.meters)
+    }
+
+    /** TC-5472(종료 화면 2종): 이동 없이 일시정지 화면에서 길게 눌러 끝내도 TC-5469와 같다(저장 0, 메인 안내). */
+    @Test
+    fun `이동 없이 일시정지 화면에서 길게 눌러 끝내면 저장하지 않았다는 안내와 메인으로 간다(TC-5472)`() = flowTest {
+        val h = open()
+        h.vm.onModeSelected(WatchMode.FREE)
+        h.vm.onStartPressed()
+        passCountdown()
+        h.vm.onPause()
+        runCurrent()
+        assertIs<WatchFlow.Paused>(h.flow)
+
+        h.vm.onEndLongPressed()
+        runCurrent()
+
+        assertEquals(WatchFlow.Notice.NOT_SAVED, (h.flow as WatchFlow.Main).notice)
+        assertTrue(pendingRuns.saved.isEmpty())
+    }
+
+    /**
+     * TC-5473(W46, D-472): 서버 셀프런 출발 직후 이동 없이 길게 눌러 끝내면 그만두기를 서버에 보내고, 거리 0이라 기록은 만들지 않으며,
+     * 메인 "기록할 거리가 없어요" 대신 결과 화면(FR-249)으로 간다.
+     */
+    @Test
+    fun `서버 셀프런 출발 직후 거리 0으로 끝내면 그만두기를 보내고 기록 없이 결과 화면이다(TC-5473 W46)`() = flowTest {
+        battles.results[7] = verdict("LOSE", mine = null, theirs = 900)
+        val h = open()
+        startOnlineSelf(h)
+
+        h.vm.onEndLongPressed()
+        runCurrent()
+
+        assertEquals(listOf(7L), battles.forfeits)
+        assertTrue(pendingRuns.saved.isEmpty())
+        assertEquals(WatchResultHeadline.Stop, h.headline)
+    }
+
+    /** TC-5473(W46, D-472): 배틀런도 출발 직후 거리 0으로 끝내면 포기를 보내고 기록 없이 결과 화면이다. */
+    @Test
+    fun `배틀런 출발 직후 거리 0으로 끝내면 포기를 보내고 기록 없이 결과 화면이다(TC-5473 W46)`() = flowTest {
+        battles.results[41] = verdict("LOSE", mine = null, theirs = 300).copy(battleId = 41)
+        val h = open()
+        requestMatch(h, meters = 1_000)
+        live.server.tryEmit(MatchFound(41, "민준", "SILVER", Distance(1_000), null, null, 3))
+        runCurrent()
+        val startAt = SchedulerClock(testScheduler).instant().plusSeconds(5)
+        live.server.tryEmit(BattleStart(41, startAt, opponentTrack = null))
+        runCurrent()
+        advanceTimeBy(5_000 + WatchFlowViewModel.GO_MILLIS + 300)
+        runCurrent()
+        assertIs<WatchFlow.Running>(h.flow)
+
+        h.vm.onEndLongPressed()
+        runCurrent()
+
+        assertEquals(listOf(41L), battles.forfeits)
+        assertTrue(pendingRuns.saved.isEmpty())
+        assertEquals(WatchResultHeadline.Stop, h.headline)
+    }
+
     private fun sessionRequests(): Int = dataLayer.sentMessages.count { it.second == WearPaths.SESSION_REQUEST }
 
     /** 폰 연결이 끊겼다가 다시 닿는다(PhoneLink가 5초마다 노드를 다시 본다). */
@@ -1425,6 +1723,9 @@ class WatchFlowViewModelTest {
 
         /** 위도 0.0009도 ≈ 100m. */
         const val STEP_DEGREES = 0.0009
+
+        /** 위도 0.000009도 ≈ 1m(가장 짧은 양수 거리, TC-5471). */
+        const val ONE_METER_DEGREES = 0.000009
     }
 
     @Test
