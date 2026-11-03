@@ -18,6 +18,7 @@ import javax.inject.Singleton
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 
 /**
@@ -64,6 +65,15 @@ constructor(
         .catch { error ->
             if (error is CancellationException) throw error
             emit(emptyList())
+        }
+
+    /** 거부 기록 건수(R80). 읽기 오류는 0을 내고 끝낸다(observePending과 같은 이유). */
+    override fun observeRejectedCount(): Flow<Int> = dao
+        .observeCountInState(UploadState.REJECTED.name)
+        .distinctUntilChanged()
+        .catch { error ->
+            if (error is CancellationException) throw error
+            emit(0)
         }
 
     /**
@@ -132,10 +142,12 @@ constructor(
         }
     }
 
+    /** 연결되면 올라갈 미전송 기록만 센다(거부 기록 제외, W48). 20건 초과 또는 7일 초과(정각은 아님)면 안내한다(FR-039, TC-3182~3184). */
     override suspend fun needsReminder(now: Instant): Outcome<Boolean> = storage {
-        val rows = dao.pending()
-        val oldestAllowed = now.minus(REMIND_AGE).toEpochMilli()
-        rows.size >= REMIND_COUNT || rows.any { it.savedAtMillis <= oldestAllowed }
+        val rejected = UploadState.REJECTED.name
+        val oldest = dao.oldestSavedAtNotIn(rejected)
+        dao.countNotIn(rejected) > REMIND_COUNT ||
+            (oldest != null && oldest < now.minus(REMIND_AGE).toEpochMilli())
     }
 
     override suspend fun appendHeartRates(recordId: String, samples: List<HeartRateSample>): Outcome<Unit> {

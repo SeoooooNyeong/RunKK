@@ -10,6 +10,7 @@ import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.account.LocationConsentUseCase
 import com.a207.runkk.app.domain.record.Dashboard
 import com.a207.runkk.app.domain.record.RecordRepository
+import com.a207.runkk.app.domain.run.PendingRunRepository
 import com.a207.runkk.app.domain.run.PlanSnapshot
 import com.a207.runkk.app.domain.run.TodayPlanCache
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -33,6 +34,8 @@ import kotlinx.coroutines.launch
  * domain.avatar에 기대지 않는다(D-276).
  * 오늘 계획을 읽으면 TodayPlanCache에도 알려 워치 시작 화면이 같은 계획을 보이게 한다(WatchHomeSync, FR-042).
  * 자유런 카드는 위치 수집 동의를 먼저 본다(D-267): 동의가 없으면 시트를 띄우고, "동의하고 시작"이면 동의를 준 뒤 시작한다.
+ * 미전송 기록이 재전송 안내 기준을 넘으면 상단에 안내 띠를 보인다(FR-039, W48). 보관함이 바뀔 때와 홈이 다시 보일 때 지금 시각으로
+ * 다시 세고, 조건이 풀리면 띠를 내린다. 안내만 하고 기록을 지우거나 측정을 막지 않는다(W47).
  */
 @HiltViewModel
 class HomeViewModel @Inject constructor(
@@ -40,6 +43,7 @@ class HomeViewModel @Inject constructor(
     private val account: AccountRepository,
     private val locationConsent: LocationConsentUseCase,
     private val todayPlans: TodayPlanCache,
+    private val pendingRuns: PendingRunRepository,
     private val clock: Clock
 ) : ViewModel() {
     private val _state = MutableStateFlow(HomeUiState())
@@ -55,6 +59,7 @@ class HomeViewModel @Inject constructor(
     private var consentJob: Job? = null
 
     init {
+        viewModelScope.launch { pendingRuns.observePending().collect { checkResendReminder() } }
         refresh()
     }
 
@@ -70,6 +75,7 @@ class HomeViewModel @Inject constructor(
         // 늦게 끝난 앞 요청이 새 결과를 덮지 않게 취소한다.
         refreshJob?.cancel()
         refreshJob = viewModelScope.launch {
+            checkResendReminder()
             val dashboard = async { records.dashboard(today) }
             val plan = async { records.todayPlan() }
             val profile = async { account.mySummary().getOrNull() }
@@ -128,6 +134,12 @@ class HomeViewModel @Inject constructor(
     fun onConsentClosed() = _state.update { it.copy(isConsentSheetVisible = false) }
 
     fun onMessageShown() = _state.update { it.copy(message = null) }
+
+    /** 재전송 안내 띠(W48). 보관함을 읽지 못하면 띠를 보이지 않는다. */
+    private suspend fun checkResendReminder() {
+        val isNeeded = pendingRuns.needsReminder(clock.instant()).getOrNull() == true
+        _state.update { it.copy(isResendReminderVisible = isNeeded) }
+    }
 
     private companion object {
         /** 러닝 설정 하위 항목 키(MemberSettings.values, 서버 RunSettings.voice·vibration). */

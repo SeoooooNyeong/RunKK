@@ -14,9 +14,9 @@ import com.a207.runkk.app.domain.account.LogoutUseCase
 import com.a207.runkk.app.domain.account.MemberSettings
 import com.a207.runkk.app.domain.account.ProviderToken
 import com.a207.runkk.app.domain.account.ProviderType
-import com.a207.runkk.app.domain.account.ResendRejectedRunsUseCase
 import com.a207.runkk.app.domain.account.SessionRepository
 import com.a207.runkk.app.domain.account.SettingChangeRequest
+import com.a207.runkk.app.domain.run.ResendRejectedRunsUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher

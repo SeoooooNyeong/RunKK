@@ -4,6 +4,7 @@ import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.RunMode
 import com.a207.runkk.app.domain.run.CompletedRun
+import com.a207.runkk.app.domain.run.PendingRunRepository
 import com.a207.runkk.app.domain.run.UploadState
 import com.a207.runkk.watch.testing.FakePendingRunRepository
 import com.a207.runkk.watch.testing.FakeWearDataLayer
@@ -16,6 +17,7 @@ import java.time.Instant
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
@@ -48,6 +50,53 @@ class RejectedCountReporterTest {
 
         assertEquals(listOf(0, 1, 2, 0), reported().map { it.count })
         assertEquals(listOf(0L, 0L, 1_000L, 1_000L), reported().map { it.atEpochMillis - T0 })
+    }
+
+    @Test
+    fun `R80 보관소의 거부 건수를 구독하고 전체 목록은 읽지 않는다`() = runTest {
+        val counts = MutableStateFlow(2)
+        val counting =
+            object : PendingRunRepository by pending {
+                override fun observePending(): Flow<List<CompletedRun>> = error("전체 목록을 읽지 않는다")
+
+                override fun observeRejectedCount(): Flow<Int> = counts
+            }
+        RejectedCountReporter(counting, dataLayer, SchedulerClock(testScheduler), backgroundScope).start()
+        runCurrent()
+        counts.value = 3
+        runCurrent()
+
+        assertEquals(listOf(2, 3), reported().map { it.count })
+    }
+
+    @Test
+    fun `TC-5462 건수 항목 넣기가 실패해도 구독은 이어지고 다음 변화 때 새 건수를 넣는다`() = runTest {
+        dataLayer.failPutData = true
+        RejectedCountReporter(pending, dataLayer, SchedulerClock(testScheduler), backgroundScope).start()
+        runCurrent()
+        runs.value = listOf(rejected("a"))
+        runCurrent()
+        assertEquals(emptyList(), reported())
+
+        dataLayer.failPutData = false
+        runs.value = listOf(rejected("a"), rejected("b"))
+        runCurrent()
+
+        assertEquals(listOf(2), reported().map { it.count })
+    }
+
+    @Test
+    fun `TC-5462 앱 프로세스가 다시 뜨면 같은 건수라도 지금 건수를 다시 넣는다`() = runTest {
+        runs.value = listOf(rejected("a"))
+        RejectedCountReporter(pending, dataLayer, SchedulerClock(testScheduler), backgroundScope).start()
+        runCurrent()
+        advanceTimeBy(1_000)
+
+        RejectedCountReporter(pending, dataLayer, SchedulerClock(testScheduler), backgroundScope).start()
+        runCurrent()
+
+        assertEquals(listOf(1, 1), reported().map { it.count })
+        assertEquals(listOf(0L, 1_000L), reported().map { it.atEpochMillis - T0 })
     }
 
     @Test

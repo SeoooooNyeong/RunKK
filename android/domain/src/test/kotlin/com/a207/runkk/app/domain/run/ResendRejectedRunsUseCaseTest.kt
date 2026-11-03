@@ -1,14 +1,10 @@
-package com.a207.runkk.app.domain.account
+package com.a207.runkk.app.domain.run
 
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.RunMode
-import com.a207.runkk.app.domain.run.CompletedRun
-import com.a207.runkk.app.domain.run.ResetRejectedRunsUseCase
-import com.a207.runkk.app.domain.run.UploadState
-import com.a207.runkk.app.domain.run.WatchResendRequester
 import com.a207.runkk.app.domain.testing.CallLog
 import com.a207.runkk.app.domain.testing.FakePendingRunRepository
 import com.a207.runkk.app.domain.testing.FakeUploadScheduler
@@ -19,6 +15,9 @@ import kotlin.test.assertEquals
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 
 /**
@@ -50,11 +49,45 @@ class ResendRejectedRunsUseCaseTest {
     }
 
     @Test
+    fun `R80 폰 건수는 보관소의 거부 건수를 쓰고 전체 목록을 읽지 않는다`() = runTest {
+        val counting =
+            object : PendingRunRepository by pending {
+                override fun observePending(): Flow<List<CompletedRun>> = error("전체 목록을 읽지 않는다")
+
+                override fun observeRejectedCount(): Flow<Int> = flowOf(4)
+            }
+        val useCase =
+            ResendRejectedRunsUseCase(counting, ResetRejectedRunsUseCase(counting, FakeUploadScheduler(log)), watch)
+        watchCount.value = 1
+
+        assertEquals(5, useCase.observeRejectedCount().first())
+    }
+
+    @Test
     fun `W43 못 올린 기록 건수는 폰 건수와 워치 건수를 더한다`() = runTest {
         pending.save(run("a").copy(uploadState = UploadState.REJECTED, rejectedReason = "BAD_REQUEST"))
         watchCount.value = 2
 
         assertEquals(3, useCase.observeRejectedCount().first())
+    }
+
+    @Test
+    fun `TC-5426 폰 거부 2건과 워치 3건이 그대로이고 미전송만 바뀌면 5를 한 번만 낸다`() = runTest {
+        pending.save(run("a").copy(uploadState = UploadState.REJECTED, rejectedReason = "BAD_REQUEST"))
+        pending.save(run("b").copy(uploadState = UploadState.REJECTED, rejectedReason = "BAD_REQUEST"))
+        watchCount.value = 3
+        val counts = mutableListOf<Int>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            useCase.observeRejectedCount().collect { counts += it }
+        }
+
+        pending.save(run("n-1"))
+        pending.save(run("n-2"))
+        pending.remove("n-1")
+        pending.remove("n-2")
+        watchCount.value = 3
+
+        assertEquals(listOf(5), counts)
     }
 
     @Test

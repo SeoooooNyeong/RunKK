@@ -13,8 +13,8 @@ import com.a207.runkk.app.domain.account.LinkSocialAccountUseCase
 import com.a207.runkk.app.domain.account.LogoutUseCase
 import com.a207.runkk.app.domain.account.ProfileEdit
 import com.a207.runkk.app.domain.account.ProviderType
-import com.a207.runkk.app.domain.account.ResendRejectedRunsUseCase
 import com.a207.runkk.app.domain.account.WithdrawUseCase
+import com.a207.runkk.app.domain.run.ResendRejectedRunsUseCase
 import com.a207.runkk.app.domain.run.ResetRejectedRunsUseCase
 import com.a207.runkk.app.domain.run.UploadState
 import java.time.Year
@@ -425,6 +425,24 @@ class MeViewModelsTest {
         assertEquals(1, uploads.requests, "폰 전송을 바로 깨운다")
         assertEquals(1, watchResend.requests, "워치에도 요청한다")
         assertEquals(UiText.Res(R.string.me_settings_resend_started), vm.state.value.message)
+        assertFalse(vm.state.value.isResending)
+    }
+
+    @Test
+    fun `TC-5439 다시 보내기를 진행 중에 또 누르면 유스케이스는 한 번만 부르고 진행 중으로 남는다`() {
+        pendingRuns.runs.value = listOf(pendingRun("a", UploadState.REJECTED))
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        watchResend.gate = gate
+        val vm = settingsViewModel()
+
+        vm.onResendRejected()
+        vm.onResendRejected()
+
+        assertEquals(1, watchResend.requests)
+        assertEquals(1, uploads.requests)
+        assertTrue(vm.state.value.isResending)
+
+        gate.complete(Unit)
         assertFalse(vm.state.value.isResending)
     }
 

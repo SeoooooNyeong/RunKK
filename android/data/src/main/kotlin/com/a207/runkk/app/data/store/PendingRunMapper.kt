@@ -63,7 +63,7 @@ internal fun PendingRunEntity.toDomain(): CompletedRun = CompletedRun(
     heartRates = decodeHeartRates(heartRates),
     pauses = decodePauses(pauses),
     startDevice = RunStartSpec.StartDevice.valueOf(startDevice),
-    uploadState = UploadState.valueOf(uploadState),
+    uploadState = uploadStateOf(uploadState),
     savedAt = Instant.ofEpochMilli(savedAtMillis),
     rejectedReason = rejectedReason
 )
@@ -141,3 +141,7 @@ private fun <T> decompress(blob: ByteArray, read: (DataInputStream) -> T): List<
         return List(count) { read(input) }
     }
 }
+
+/** 모르는 전송 상태 문자열(옛 SENDING 등)은 미전송으로 읽는다(R81). 연결되면 다시 보낸다. */
+private fun uploadStateOf(name: String): UploadState =
+    UploadState.entries.firstOrNull { it.name == name } ?: UploadState.NOT_SENT
