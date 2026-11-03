@@ -18,6 +18,7 @@ import javax.inject.Singleton
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 
 /**
@@ -64,6 +65,15 @@ constructor(
         .catch { error ->
             if (error is CancellationException) throw error
             emit(emptyList())
+        }
+
+    /** 거부 기록 건수(R80). 읽기 오류는 0을 내고 끝낸다(observePending과 같은 이유). */
+    override fun observeRejectedCount(): Flow<Int> = dao
+        .observeCountInState(UploadState.REJECTED.name)
+        .distinctUntilChanged()
+        .catch { error ->
+            if (error is CancellationException) throw error
+            emit(0)
         }
 
     /**

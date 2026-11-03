@@ -3,7 +3,8 @@ package com.a207.runkk.app.domain.run
 import com.a207.runkk.app.core.model.Outcome
 import java.time.Instant
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 
 /**
  * 미전송 기록 보관 포트(6.1.14). 구현 data.store.RoomPendingRunRepository.
@@ -16,6 +17,14 @@ interface PendingRunRepository {
     suspend fun pending(): Outcome<List<CompletedRun>>
 
     fun observePending(): Flow<List<CompletedRun>>
+
+    /**
+     * 서버가 거부해 멈춘 기록(REJECTED) 건수(R80). 폰 설정의 "못 올린 기록 n건"(ResendRejectedRunsUseCase)과 워치의 건수 알림
+     * (RejectedCountReporter)이 전체 목록 대신 이것을 구독한다. 기본 구현은 미전송 목록을 세고, 보관소 구현은 COUNT 쿼리로 센다.
+     */
+    fun observeRejectedCount(): Flow<Int> = observePending()
+        .map { runs -> runs.count { it.uploadState == UploadState.REJECTED } }
+        .distinctUntilChanged()
 
     suspend fun remove(recordId: String): Outcome<Unit>
 

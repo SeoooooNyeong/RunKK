@@ -17,6 +17,10 @@ internal interface PendingRunDao {
     @Query("SELECT * FROM pending_run WHERE sentAtMillis IS NULL ORDER BY savedAtMillis, recordId")
     fun observePending(): Flow<List<PendingRunEntity>>
 
+    /** [state] 상태인 미전송 기록 건수(R80: 거부 기록 건수). */
+    @Query("SELECT COUNT(*) FROM pending_run WHERE sentAtMillis IS NULL AND uploadState = :state")
+    fun observeCountInState(state: String): Flow<Int>
+
     @Query("SELECT * FROM pending_run WHERE recordId = :recordId")
     suspend fun find(recordId: String): PendingRunEntity?
 

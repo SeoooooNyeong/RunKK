@@ -1,14 +1,10 @@
-package com.a207.runkk.app.domain.account
+package com.a207.runkk.app.domain.run
 
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.RunMode
-import com.a207.runkk.app.domain.run.CompletedRun
-import com.a207.runkk.app.domain.run.ResetRejectedRunsUseCase
-import com.a207.runkk.app.domain.run.UploadState
-import com.a207.runkk.app.domain.run.WatchResendRequester
 import com.a207.runkk.app.domain.testing.CallLog
 import com.a207.runkk.app.domain.testing.FakePendingRunRepository
 import com.a207.runkk.app.domain.testing.FakeUploadScheduler
@@ -19,6 +15,7 @@ import kotlin.test.assertEquals
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 
 /**
@@ -47,6 +44,21 @@ class ResendRejectedRunsUseCaseTest {
         pending.save(run("c").copy(uploadState = UploadState.REJECTED, rejectedReason = "BAD_REQUEST"))
 
         assertEquals(2, useCase.observeRejectedCount().first())
+    }
+
+    @Test
+    fun `R80 폰 건수는 보관소의 거부 건수를 쓰고 전체 목록을 읽지 않는다`() = runTest {
+        val counting =
+            object : PendingRunRepository by pending {
+                override fun observePending(): Flow<List<CompletedRun>> = error("전체 목록을 읽지 않는다")
+
+                override fun observeRejectedCount(): Flow<Int> = flowOf(4)
+            }
+        val useCase =
+            ResendRejectedRunsUseCase(counting, ResetRejectedRunsUseCase(counting, FakeUploadScheduler(log)), watch)
+        watchCount.value = 1
+
+        assertEquals(5, useCase.observeRejectedCount().first())
     }
 
     @Test

@@ -13,8 +13,8 @@ import com.a207.runkk.app.domain.account.LinkSocialAccountUseCase
 import com.a207.runkk.app.domain.account.LogoutUseCase
 import com.a207.runkk.app.domain.account.ProfileEdit
 import com.a207.runkk.app.domain.account.ProviderType
-import com.a207.runkk.app.domain.account.ResendRejectedRunsUseCase
 import com.a207.runkk.app.domain.account.WithdrawUseCase
+import com.a207.runkk.app.domain.run.ResendRejectedRunsUseCase
 import com.a207.runkk.app.domain.run.ResetRejectedRunsUseCase
 import com.a207.runkk.app.domain.run.UploadState
 import java.time.Year

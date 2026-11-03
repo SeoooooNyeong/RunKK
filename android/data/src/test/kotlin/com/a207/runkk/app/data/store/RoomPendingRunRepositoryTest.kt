@@ -89,13 +89,14 @@ class RoomPendingRunRepositoryTest {
     }
 
     @Test
-    fun `대결 기록의 ID와 보낸 상태도 왕복한다`() = runTest {
+    fun `대결 기록의 ID와 거부 상태도 왕복한다`() = runTest {
         val run =
             completedRun("r-2").copy(
                 mode = RunMode.BATTLE,
                 cardKind = CardKind.CELEB_RUN,
                 battleId = 42,
-                uploadState = UploadState.SENDING
+                uploadState = UploadState.REJECTED,
+                rejectedReason = "BAD_REQUEST"
             )
 
         repository.save(run)
@@ -142,6 +143,16 @@ class RoomPendingRunRepositoryTest {
     }
 
     @Test
+    fun `R81 모르는 전송 상태 문자열(옛 SENDING)은 미전송으로 읽는다`() = runTest {
+        repository.save(completedRun("r-old"))
+        db.pendingRunDao().markState("r-old", "SENDING", null)
+
+        val read = (repository.pending() as Outcome.Success).value.single()
+
+        assertEquals(UploadState.NOT_SENT, read.uploadState)
+    }
+
+    @Test
     fun `20건이 쌓이거나 7일이 지난 기록이 있으면 재전송을 안내한다`() = runTest {
         repeat(19) { repository.save(completedRun("r-$it").copy(savedAt = now)) }
         assertEquals(Outcome.Success(false), repository.needsReminder(now))
@@ -153,6 +164,23 @@ class RoomPendingRunRepositoryTest {
         repository.save(completedRun("old").copy(savedAt = now.minus(Duration.ofDays(7))))
         assertEquals(Outcome.Success(true), repository.needsReminder(now))
         assertEquals(Outcome.Success(false), repository.needsReminder(now.minus(Duration.ofSeconds(1))))
+    }
+
+    @Test
+    fun `R80 거부 기록 건수를 세어 바뀔 때마다 낸다`() = runTest {
+        listOf("r-1", "r-2", "r-3").forEach { repository.save(completedRun(it)) }
+        assertEquals(0, repository.observeRejectedCount().first())
+        val handedOut = (repository.pending() as Outcome.Success).value
+
+        repository.markRejected(handedOut[0], "BAD_REQUEST")
+        repository.markRejected(handedOut[1], "BAD_REQUEST")
+        assertEquals(2, repository.observeRejectedCount().first())
+
+        repository.remove("r-1")
+        assertEquals(1, repository.observeRejectedCount().first(), "보낸 기록은 세지 않는다")
+
+        repository.resetRejected()
+        assertEquals(0, repository.observeRejectedCount().first())
     }
 
     @Test
