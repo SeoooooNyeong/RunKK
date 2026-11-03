@@ -30,6 +30,9 @@ sealed interface AppError {
 
             /** 소셜 로그인은 됐으나 가입 전(가입 티켓 발급, D-19). */
             const val SIGN_UP_REQUIRED = "SIGN_UP_REQUIRED"
+
+            /** 짝지은 워치가 러닝을 측정 중이라 폰 측정·매칭을 시작하지 않는다(FR-252, D-373 (2)). */
+            const val WATCH_MEASURING = "WATCH_MEASURING"
         }
     }
 }

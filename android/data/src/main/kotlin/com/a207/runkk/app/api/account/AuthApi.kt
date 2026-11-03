@@ -13,6 +13,14 @@ internal interface AuthApi {
     @POST("auth/login")
     suspend fun login(@Body body: LoginRequest): LoginResponse
 
+    /** 워치용 토큰 쌍(인증 필요, 본문 없음, D-372). 응답은 로그인과 같은 TokenResponse다(contract-v2 1절). */
+    @POST("auth/watch-session")
+    suspend fun watchSession(): TokenPairResponse
+
+    /** 이 회원의 워치용 갱신 토큰을 모두 폐기한다(인증 필요, 본문 없음, 204, contract-v2 4절). */
+    @DELETE("auth/watch-session")
+    suspend fun revokeWatchSession()
+
     @POST("auth/logout")
     suspend fun logout(@Body body: LogoutRequest)
 

@@ -13,7 +13,9 @@ import com.a207.runkk.app.domain.battle.FriendInviteView
 import com.a207.runkk.app.domain.battle.MatchAcceptance
 import com.a207.runkk.app.domain.battle.OpponentTrack
 import com.a207.runkk.app.domain.battle.RecordBattleCandidates
+import com.a207.runkk.app.domain.battle.RecordBattleKind
 import com.a207.runkk.app.domain.battle.RecordBattleStart
+import com.a207.runkk.app.domain.battle.RecordTrack
 import com.a207.runkk.app.domain.live.TrackPoint
 import com.a207.runkk.app.domain.live.TrackTable
 import java.time.Duration
@@ -44,10 +46,25 @@ internal fun RecordBattleStartResponse.toDomain(): RecordBattleStart = RecordBat
     battleId = battleId,
     opponentName = opponentName,
     distance = Distance(distanceMeters),
-    track = OpponentTrack.from(TrackTable(track.map { TrackPoint(it.elapsedSeconds, it.distanceMeters) })),
+    track = track.toOpponentTrack(),
     cardKind = enumByName<CardKind>(cardKind) ?: CardKind.SELF_RUN,
     celebrityFigure = celebrityFigure.figureKey()
 )
+
+/** 미리 받는 상대 기록 한 줄. 종류는 응답에 없어 질의한 [kind]를 싣는다. 구간 기록은 기록 대결 시작과 같은 길로 바꾼다(M39). */
+internal fun RecordTrackResponse.toDomain(kind: RecordBattleKind): RecordTrack = RecordTrack(
+    kind = kind,
+    distance = Distance(distanceMeters),
+    celebrityId = celebrityId,
+    displayName = opponentName,
+    finishTime = Duration.ofSeconds(finishSeconds),
+    sourceLabel = sourceLabel?.takeIf { it.isNotBlank() },
+    celebrityFigure = celebrityFigure.figureKey(),
+    track = track.toOpponentTrack()
+)
+
+private fun List<TrackPointDto>.toOpponentTrack(): OpponentTrack =
+    OpponentTrack.from(TrackTable(map { TrackPoint(it.elapsedSeconds, it.distanceMeters) }))
 
 /** 모르는 대결 종류도 그만두기는 할 수 있게 type만 null로 두고 읽는다. */
 internal fun ActiveBattleResponse.toDomain(): ActiveBattle = ActiveBattle(

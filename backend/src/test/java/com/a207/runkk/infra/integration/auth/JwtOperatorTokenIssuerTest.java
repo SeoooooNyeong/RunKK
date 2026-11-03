@@ -63,7 +63,8 @@ class JwtOperatorTokenIssuerTest {
                 new JwtTokenIssuer(
                         MEMBER_SECRET,
                         Clock.fixed(T0, ZoneId.of("UTC")),
-                        new InMemoryRefreshTokenRevocations());
+                        new InMemoryRefreshTokenRevocations(),
+                        new InMemoryWatchSessionGenerations());
         String memberToken = members.issue(7).accessToken();
         assertThatThrownBy(() -> issuer(T0).verify(memberToken))
                 .isInstanceOf(PermissionDeniedException.class);

@@ -691,6 +691,17 @@ class MatchViewModelTest {
     }
 
     @Test
+    fun `워치가 측정 중이면 받은 초대에 참가할 수 없다(FR-252, D-373)`() = main.runVmTest { vms ->
+        val w = world()
+        w.isWatchMeasuring = true
+
+        val vm = join(w, vms)
+
+        assertEquals(UiText.Res(R.string.battle_error_watch_measuring), vm.state.value.notice)
+        assertNull(vm.state.value.invite)
+    }
+
+    @Test
     fun `TC-9680 거절은 거절을 보내고 홈으로, 거부되면 끝난 초대 안내`() = main.runVmTest { vms ->
         val w = world()
         val vm = join(w, vms)

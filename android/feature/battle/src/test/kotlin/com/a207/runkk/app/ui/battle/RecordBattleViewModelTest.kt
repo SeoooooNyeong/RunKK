@@ -77,6 +77,22 @@ class RecordBattleViewModelTest {
     }
 
     @Test
+    fun `워치가 측정 중이면 서버에 대결을 만들지 않고 워치에서 러닝 중이라고 알린다(FR-252, D-373)`() = runTest(main.dispatcher) {
+        val w = world()
+        w.isWatchMeasuring = true
+        val vm = SelfBattleViewModel(w.battles, w.coordinator)
+        runCurrent()
+        vm.onSelect(vm.state.value.candidates[1])
+
+        vm.onStart()
+        runCurrent()
+
+        assertTrue(w.battles.calls.none { it.startsWith("startSelf") }, "카운트다운에 들어가지 않는다")
+        assertEquals(UiText.Res(R.string.battle_error_watch_measuring), vm.state.value.message)
+        assertFalse(vm.state.value.isStarting)
+    }
+
+    @Test
     fun `후보를 불러오지 못하면 오류를 보이고 다시 시도할 수 있다`() = runTest(main.dispatcher) {
         val w = world()
         w.battles.selfResult = Outcome.Failure(AppError.Network)

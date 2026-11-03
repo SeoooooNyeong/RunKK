@@ -33,6 +33,8 @@ import com.a207.runkk.app.api.battle.InviteViewResponse
 import com.a207.runkk.app.api.battle.MatchAcceptanceResponse
 import com.a207.runkk.app.api.battle.MatchRequest
 import com.a207.runkk.app.api.battle.RecordBattleStartResponse
+import com.a207.runkk.app.api.battle.RecordTrackResponse
+import com.a207.runkk.app.api.battle.RecordTracksResponse
 import com.a207.runkk.app.api.battle.SelfBattleRequest
 import com.a207.runkk.app.api.chat.ChatMessageItem
 import com.a207.runkk.app.api.chat.ChatPageResponse
@@ -109,6 +111,7 @@ import com.a207.runkk.app.domain.live.CrewChatRemoved
 import com.a207.runkk.app.domain.report.ReportReason
 import com.a207.runkk.app.domain.report.ReportStatus
 import com.a207.runkk.app.domain.report.ReportTargetKind
+import com.a207.runkk.app.domain.run.RunStartSpec
 import com.a207.runkk.app.domain.settings.ScreenTheme
 import com.a207.runkk.app.domain.sync.DisposalOrder
 import java.io.File
@@ -187,6 +190,7 @@ class ServerContractTest {
         assertEquals(enumNames("CardKind"), names(CardKind.entries))
         assertEquals(enumNames("RunMode"), names(RunMode.entries))
         assertEquals(enumNames("SignalState"), names(SignalState.entries))
+        assertEquals(enumNames("StartDevice"), names(RunStartSpec.StartDevice.entries))
         assertEquals(enumNames("ItemSlot"), names(ItemSlot.entries))
         assertEquals(enumNames("CrewVisibility"), names(CrewVisibility.entries))
         assertEquals(enumNames("JoinPolicy"), names(JoinPolicy.entries))
@@ -340,6 +344,9 @@ class ServerContractTest {
         response(MatchAcceptanceResponse.serializer(), "BattleDtos.MatchAcceptanceResponse")
         response(CandidatesResponse.serializer(), "BattleDtos.CandidatesResponse")
         response(RecordBattleStartResponse.serializer(), "BattleDtos.RecordBattleStartResponse")
+        // 워치 v2(D-377, contract-v2 2절): 셀프·셀럽 상대 기록 미리 받기
+        response(RecordTracksResponse.serializer(), "BattleDtos.RecordTracksResponse")
+        response(RecordTrackResponse.serializer(), "BattleDtos.RecordTrackResponse")
         response(BattleResultResponse.serializer(), "BattleDtos.BattleResultResponse")
         response(BattleHistoryResponse.serializer(), "BattleDtos.BattleHistoryResponse")
         response(ActiveBattleResponse.serializer(), "BattleDtos.ActiveBattleResponse")

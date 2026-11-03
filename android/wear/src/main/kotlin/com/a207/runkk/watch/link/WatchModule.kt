@@ -28,6 +28,8 @@ import timber.log.Timber
 /**
  * 워치 포트 ↔ 구현 바인딩과 앱 범위(Hilt). watch.heart·watch.alert·watch.link의 구현을 묶으므로 세 패키지를 모두 아는
  * watch.link에 둔다(5.1.2 watch.link → watch.heart, watch.alert). 앱 범위는 [PhoneLink]·HeartRateCollector가 쓴다(전역 범위 금지).
+ * 새 패키지(watch.run·watch.guide)의 포트 바인딩은 각 패키지의 …Bindings가 한다(D-385). 앱 범위와 시계는 공용 :data(RunTracker·
+ * ServerClock 등)도 받는다: 한정자 없는 CoroutineScope·Clock 바인딩은 여기 하나뿐이다(폰은 AppScopeModule·DeviceBindings).
  */
 @Module
 @InstallIn(SingletonComponent::class)
@@ -43,6 +45,9 @@ abstract class WatchModule {
 
     @Binds
     abstract fun wearDataLayer(impl: PlayServicesWearDataLayer): WearDataLayer
+
+    @Binds
+    abstract fun networkState(impl: ConnectivityNetworkState): NetworkState
 
     @Binds
     abstract fun alertVibrator(impl: AndroidAlertVibrator): AlertVibrator

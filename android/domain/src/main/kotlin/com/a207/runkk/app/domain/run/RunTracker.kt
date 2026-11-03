@@ -123,8 +123,11 @@ constructor(
     /**
      * 측정을 시작한다. 포그라운드 측정 서비스를 띄우지 못하면(OS 거부) 만든 세션을 되돌리고 그 실패를 돌려준다:
      * 서비스 없이 측정 중으로 남으면 화면을 끄는 순간 위치가 끊긴다. 근접 알림 전송 기록은 회마다 비운다(D-158 (3)).
+     * 짝지은 워치가 스스로 측정 중이면 Rejected(WATCH_MEASURING)로 거부한다(FR-252, D-373 (2)): 위치 동의 확인보다 먼저 봐서
+     * 동의 안내로 잘못 보내지 않는다.
      */
     fun startRun(spec: RunStartSpec): Outcome<Unit> {
+        if (isWatchMeasuring) return Outcome.Failure(AppError.Rejected(AppError.Rejected.WATCH_MEASURING))
         val startable = checkStartable()
         if (startable is Outcome.Failure) return startable
         val created =
@@ -230,6 +233,13 @@ constructor(
         complete(outcome)
         return outcome
     }
+
+    /**
+     * 짝지은 워치가 스스로 러닝을 측정 중인가(FR-252, D-373 (2)). 참이면 [startRun]이 거부하고, 매칭 요청 전 확인
+     * (BattleRunCoordinator.requestMatch)도 이 값을 읽는다.
+     */
+    val isWatchMeasuring: Boolean
+        get() = watchBridge.isWatchMeasuring()
 
     /** 측정 중인가(정지 포함). 친구 대결 참가 전 확인(BattleRunCoordinator.isBusy, D-273)이 읽는다. */
     val isMeasuring: Boolean

@@ -12,6 +12,7 @@ import com.a207.runkk.watch.testing.T0
 import com.a207.runkk.watch.testing.alertPlayer
 import com.a207.runkk.watch.testing.ok
 import com.a207.runkk.wear.contract.EndRequestMessage
+import com.a207.runkk.wear.contract.LeadChangeMessage
 import com.a207.runkk.wear.contract.PauseRequestMessage
 import com.a207.runkk.wear.contract.ProximityMessage
 import com.a207.runkk.wear.contract.WatchDisplayMessage
@@ -21,6 +22,7 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.Dispatchers
@@ -154,56 +156,11 @@ class WatchViewModelTest {
     }
 
     @Test
-    fun `폰과 연결되지 않은 채 시작을 누르면 폰과 연결 필요를 보인다`() = runTest {
-        dataLayer.nodes = emptyList()
+    fun `폰이 보낸 안내는 잠시 보였다가 사라진다`() = runTest {
         val vm = viewModel()
-
-        vm.onStartTapped()
-        runCurrent()
-
-        val state = vm.uiState.value
-        assertEquals(WatchNotice.PhoneNotConnected, state.notice)
-        assertFalse(state.isStartPending)
-        assertTrue(dataLayer.sentMessages.isEmpty())
-    }
-
-    @Test
-    fun `시작을 누르면 폰에 요청을 보내고 러닝 표시가 올 때까지 기다린다`() = runTest {
-        val vm = viewModel()
-        receive(display(running = false))
-
-        vm.onStartTapped()
-        runCurrent()
-        assertTrue(vm.uiState.value.isStartPending)
-        assertEquals(WearPaths.START_REQUEST, dataLayer.sentMessages.single().second)
-
-        receive(display(running = true))
-
-        assertFalse(vm.uiState.value.isStartPending)
-        assertTrue(vm.uiState.value.isRunning)
-    }
-
-    @Test
-    fun `폰이 시작하지 않으면 기다림을 일정 시간 뒤 푼다`() = runTest {
-        val vm = viewModel()
-        vm.onStartTapped()
-        runCurrent()
-
-        advanceTimeBy(WatchViewModel.START_PENDING_MILLIS + 1_000)
-        runCurrent()
-
-        assertFalse(vm.uiState.value.isStartPending)
-    }
-
-    @Test
-    fun `폰이 보낸 안내는 기다림을 풀고 잠시 보였다가 사라진다`() = runTest {
-        val vm = viewModel()
-        vm.onStartTapped()
-        runCurrent()
 
         receive(display(running = false, notice = "폰에서 러닝 화면을 여세요"))
         assertEquals(WatchNotice.FromPhone("폰에서 러닝 화면을 여세요"), vm.uiState.value.notice)
-        assertFalse(vm.uiState.value.isStartPending)
 
         advanceTimeBy(WatchViewModel.NOTICE_MILLIS + 1_000)
         runCurrent()
@@ -354,21 +311,21 @@ class WatchViewModelTest {
     }
 
     @Test
-    fun `TC-6569 일시정지할 수 있는 자유런이면 일시정지 버튼, 정지 중이면 일시정지 표시와 재개 버튼, 아니면 버튼이 없다`() = runTest {
+    fun `TC-6569 일시정지할 수 있는 자유런이면 눌러 일시정지, 정지 중이면 일시정지 화면(계속), 아니면 일시정지가 없다`() = runTest {
         val vm = viewModel()
 
         receive(display(pausable = true, paused = false))
-        assertEquals(PauseControl.PAUSE, vm.uiState.value.pauseControl)
+        assertTrue(assertIs<WatchFlow.Running>(vm.uiState.value.toMeasureFlow()).isPausable)
         assertFalse(vm.uiState.value.isPaused)
 
         receive(display(pausable = true, paused = true))
-        assertEquals(PauseControl.RESUME, vm.uiState.value.pauseControl)
+        assertIs<WatchFlow.Paused>(vm.uiState.value.toMeasureFlow())
         assertTrue(vm.uiState.value.isPaused)
         // 정지 중 지표는 폰이 보낸 값 그대로(폰이 고정해 보낸다).
         assertEquals(754L, vm.uiState.value.elapsedSeconds)
 
         receive(display(pausable = false, paused = false))
-        assertEquals(PauseControl.NONE, vm.uiState.value.pauseControl)
+        assertFalse(assertIs<WatchFlow.Running>(vm.uiState.value.toMeasureFlow()).isPausable)
     }
 
     @Test
@@ -377,7 +334,7 @@ class WatchViewModelTest {
 
         receive(display(pausable = false, paused = true))
 
-        assertEquals(PauseControl.NONE, vm.uiState.value.pauseControl)
+        assertFalse(assertIs<WatchFlow.Running>(vm.uiState.value.toMeasureFlow()).isPausable)
     }
 
     @Test
@@ -477,15 +434,45 @@ class WatchViewModelTest {
     }
 
     @Test
-    fun `다시 연결을 누르면 연결을 바로 다시 확인해 시작 화면으로 바꾼다(K3)`() = runTest {
-        dataLayer.nodes = emptyList()
+    fun `추월 역전을 받으면 역전 띠를 잠깐 띄우고 지운다(W35)`() = runTest {
         val vm = viewModel()
-        assertFalse(vm.uiState.value.isPhoneConnected)
+        receive(display(running = true))
+        receiveProximity(gapMeters = 3, isAhead = true)
+        assertFalse(vm.uiState.value.isLeadChanged)
 
-        dataLayer.nodes = listOf("phone")
-        vm.onReconnectTapped()
+        val message = LeadChangeMessage(LeadChangeMessage.Kind.OVERTOOK, T0 + testScheduler.currentTime)
+        dataLayer.incoming.tryEmit(WearMessage(WearPaths.LEAD_CHANGE, message.encode()))
+        runCurrent()
+        assertTrue(vm.uiState.value.isLeadChanged)
+        assertEquals(LeadKind.OVERTOOK, vm.uiState.value.leadKind)
+
+        advanceTimeBy(WatchViewModel.LEAD_BANNER_MILLIS)
+        runCurrent()
+        assertFalse(vm.uiState.value.isLeadChanged)
+    }
+
+    @Test
+    fun `상대가 앞지르면 근접 값이 없어도 뒤처짐 방향을 낸다(WR15-5)`() = runTest {
+        val vm = viewModel()
+        receive(display(running = true))
+
+        val message = LeadChangeMessage(LeadChangeMessage.Kind.OVERTAKEN, T0 + testScheduler.currentTime)
+        dataLayer.incoming.tryEmit(WearMessage(WearPaths.LEAD_CHANGE, message.encode()))
         runCurrent()
 
-        assertTrue(vm.uiState.value.isPhoneConnected)
+        assertNull(vm.uiState.value.proximity)
+        assertEquals(LeadKind.OVERTAKEN, vm.uiState.value.leadKind)
+    }
+
+    @Test
+    fun `러닝이 아니면 추월 역전을 받아도 띠를 띄우지 않는다`() = runTest {
+        val vm = viewModel()
+        receive(display(running = false))
+
+        val message = LeadChangeMessage(LeadChangeMessage.Kind.OVERTAKEN, T0 + testScheduler.currentTime)
+        dataLayer.incoming.tryEmit(WearMessage(WearPaths.LEAD_CHANGE, message.encode()))
+        runCurrent()
+
+        assertFalse(vm.uiState.value.isLeadChanged)
     }
 }
