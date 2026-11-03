@@ -93,7 +93,11 @@
     <string name="me_settings_gap_title">중간 알림 간격</string>
     <string name="me_consents_location_title">위치 정보 수집</string>
     <string name="me_consents_heart_title">심박 정보 수집 (선택)</string>
-    <string name="me_consents_llm_title">AI 코멘트용 데이터 전송 (선택)</string>
+    <string name="me_consents_llm_title">AI 리포트·코치용 데이터 외부 전송 (선택)</string>
+    <string name="me_consents_llm_summary">러닝 집계값과 코치 질문 원문을 외부 LLM 서비스로 보내요</string>
+    <string name="me_consents_llm_message">AI 리포트 코멘트와 코치 답변을 만들기 위해 러닝 집계값과 코치에 입력한 질문 원문을 외부 LLM 서비스로 보내요. 처리위탁과 국외 이전이 포함돼요. 동의하지 않아도 규칙 기반 리포트 코멘트는 볼 수 있지만 AI 코치는 이용할 수 없어요. 동의는 설정에서 언제든 철회할 수 있어요.</string>
+    <string name="me_consents_llm_dialog_title">AI 데이터 외부 전송에 동의할까요?</string>
+    <string name="me_consents_llm_dialog_agree">동의하기</string>
     <string name="me_consents_face_title">얼굴 변환 서비스 전송 (선택)</string>
     <string name="me_consents_marketing_title">마케팅, 이벤트 수신 (선택)</string>
     <string name="me_consents_withdraw_location_title">위치 수집 동의를 철회할까요?</string>
@@ -144,7 +148,7 @@
     <string name="me_signup_consent_privacy">개인정보 수집, 이용</string>
     <string name="me_signup_consent_location">위치 정보 수집</string>
     <string name="me_signup_consent_marketing">마케팅 정보 수신</string>
-    <string name="me_signup_consent_llm">AI 리포트 코멘트용 집계값 외부 전송</string>
+    <string name="me_signup_consent_llm">AI 리포트·코치용 데이터 외부 전송</string>
     <string name="me_settings_page_account_link">소셜 계정 연동</string>
     <string name="me_settings_account_type">계정 유형</string>
     <string name="me_account_type_guest">게스트</string>
