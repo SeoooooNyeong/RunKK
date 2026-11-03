@@ -17,6 +17,7 @@ import com.a207.runkk.app.domain.run.RunCoach
 import com.a207.runkk.app.domain.run.RunTracker
 import com.a207.runkk.app.domain.run.RunWatchBridge
 import com.a207.runkk.app.domain.run.UploadScheduler
+import com.a207.runkk.app.domain.run.UploadState
 import com.a207.runkk.app.domain.run.WatchDisplay
 import com.a207.runkk.app.domain.run.WatchGateway
 import com.a207.runkk.app.domain.settings.GuidanceSettings
@@ -104,11 +105,43 @@ class FakePendingRunRepository(private val log: CallLog = CallLog()) : PendingRu
         }
     }
 
+    /** 실제 보관소처럼 상태와 사유만 바꾸고 보관함에 남긴다(R12 D2-b). */
+    override suspend fun markRejected(run: CompletedRun, reason: String): Outcome<Unit> =
+        result("pending.markRejected:${run.recordId}").also {
+            if (it is Outcome.Success) {
+                runs.replaceAll { kept ->
+                    if (kept.recordId == run.recordId) {
+                        kept.copy(uploadState = UploadState.REJECTED, rejectedReason = reason)
+                    } else {
+                        kept
+                    }
+                }
+                flow.value = runs.toList()
+            }
+        }
+
+    /** 실제 보관소처럼 REJECTED만 미전송으로 되돌리고 사유를 비운다(W40). */
+    override suspend fun resetRejected(): Outcome<Int> {
+        log.add("pending.resetRejected")
+        failWith?.let { return Outcome.Failure(it) }
+        val count = runs.count { it.uploadState == UploadState.REJECTED }
+        runs.replaceAll { kept ->
+            if (kept.uploadState == UploadState.REJECTED) {
+                kept.copy(uploadState = UploadState.NOT_SENT, rejectedReason = null)
+            } else {
+                kept
+            }
+        }
+        flow.value = runs.toList()
+        return Outcome.Success(count)
+    }
+
     override suspend fun purgeRoutes(): Outcome<Unit> = result("pending.purgeRoutes")
 
     override suspend fun purgeHeartRates(): Outcome<Unit> = result("pending.purgeHeartRates")
 
-    override suspend fun needsReminder(now: Instant): Outcome<Boolean> = Outcome.Success(runs.size >= 20)
+    override suspend fun needsReminder(now: Instant): Outcome<Boolean> =
+        Outcome.Success(runs.count { it.uploadState != UploadState.REJECTED } > 20)
 
     override suspend fun appendHeartRates(recordId: String, samples: List<HeartRateSample>): Outcome<Unit> {
         log.add("pending.appendHeartRates:$recordId")
@@ -171,6 +204,9 @@ class FakeWatchGateway : WatchGateway {
     override val heartRates = MutableSharedFlow<List<HeartRateSample>>()
     var connected = true
 
+    /** 짝지은 워치가 스스로 측정 중인가(WATCH_MEASURING, D-373). */
+    var watchMeasuring = false
+
     /** publishProximity로 보낸 값(null = 끔). */
     val proximity = mutableListOf<ProximityAlert?>()
     val leadChanges = mutableListOf<Guidance.Kind>()
@@ -180,6 +216,8 @@ class FakeWatchGateway : WatchGateway {
     }
 
     override fun isConnected(): Boolean = connected
+
+    override fun isWatchMeasuring(): Boolean = watchMeasuring
 
     override fun publishProximity(alert: ProximityAlert?) {
         proximity += alert

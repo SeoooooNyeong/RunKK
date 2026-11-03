@@ -97,6 +97,9 @@ constructor(private val gateway: WatchGateway, private val scope: CoroutineScope
 
     fun isWatchConnected(): Boolean = gateway.isConnected()
 
+    /** 짝지은 워치가 스스로 측정 중인가(D-373 (2)). */
+    fun isWatchMeasuring(): Boolean = gateway.isWatchMeasuring()
+
     /** 추월(OVERTOOK)·역전(OVERTAKEN) 순간을 보낸다. 그 밖의 안내 종류는 보내지 않는다. */
     fun publishLeadChange(kind: Guidance.Kind) {
         if (kind == Guidance.Kind.OVERTOOK || kind == Guidance.Kind.OVERTAKEN) gateway.publishLeadChange(kind)

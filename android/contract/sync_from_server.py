@@ -35,7 +35,7 @@ ENUMS = {
     'notification': ['NotificationType', 'Screen'],
     'avatar': ['DefaultCharacter', 'BodyShape', 'SkinTone', 'FailureReason'],
     'battle': ['BattleType', 'Verdict'],
-    'running': ['CardKind', 'RunMode', 'SignalState', 'DisposalKind'],
+    'running': ['CardKind', 'RunMode', 'SignalState', 'DisposalKind', 'StartDevice'],
     'runimal': ['RunimalType'],
     'crew': ['CrewVisibility', 'JoinPolicy', 'AttendanceAnswer', 'PostKind', 'CrewRole', 'CrewRunStatus', 'Readiness',
              'JoinRequestStatus', 'PollMethod'],

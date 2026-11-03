@@ -20,6 +20,28 @@ data class ProximityMessage(
     fun encode(): ByteArray = wearJson.encodeToString(serializer(), this).toByteArray(Charsets.UTF_8)
 
     companion object {
+        /**
+         * 켜진 근접 알림(domain ProximityAlert → 메시지). 폰 data.watch(WatchLink)와 워치 watch.run(LocalWatchGateway)이 이 한 곳으로
+         * 바꾼다(D-393, H-58). gapMeters는 절댓값, intervalMillis는 비프·진동 간격이다.
+         */
+        fun of(gapMeters: Int, intervalMillis: Long, isAhead: Boolean, sentAtEpochMillis: Long): ProximityMessage =
+            ProximityMessage(
+                isActive = true,
+                gapMeters = gapMeters,
+                intervalMillis = intervalMillis,
+                isAhead = isAhead,
+                sentAtEpochMillis = sentAtEpochMillis
+            )
+
+        /** 근접 알림 끔(alert = null): isActive 거짓, 격차·간격 0(F.4.2). [of]와 같은 곳에 둔다(H-58). */
+        fun off(sentAtEpochMillis: Long): ProximityMessage = ProximityMessage(
+            isActive = false,
+            gapMeters = 0,
+            intervalMillis = 0,
+            isAhead = false,
+            sentAtEpochMillis = sentAtEpochMillis
+        )
+
         fun decode(bytes: ByteArray): ProximityMessage =
             wearJson.decodeFromString(serializer(), bytes.toString(Charsets.UTF_8))
     }

@@ -510,6 +510,43 @@
     } ],
     "file" : "web/battle/BattleDtos.java"
   },
+  "BattleDtos.RecordTrackResponse" : {
+    "components" : [ {
+      "name" : "celebrityId",
+      "kind" : "leaf"
+    }, {
+      "name" : "opponentName",
+      "kind" : "leaf"
+    }, {
+      "name" : "distanceMeters",
+      "kind" : "leaf"
+    }, {
+      "name" : "finishSeconds",
+      "kind" : "leaf"
+    }, {
+      "name" : "track",
+      "kind" : "list",
+      "ref" : "BattleDtos.TrackPointResponse"
+    }, {
+      "name" : "sourceLabel",
+      "kind" : "leaf"
+    }, {
+      "name" : "estimated",
+      "kind" : "leaf"
+    }, {
+      "name" : "celebrityFigure",
+      "kind" : "leaf"
+    } ],
+    "file" : "web/battle/BattleDtos.java"
+  },
+  "BattleDtos.RecordTracksResponse" : {
+    "components" : [ {
+      "name" : "tracks",
+      "kind" : "list",
+      "ref" : "BattleDtos.RecordTrackResponse"
+    } ],
+    "file" : "web/battle/BattleDtos.java"
+  },
   "BattleDtos.Row" : {
     "components" : [ {
       "name" : "item",
@@ -2714,6 +2751,9 @@
       "name" : "pauses",
       "kind" : "list",
       "ref" : "RunController.PauseRequest"
+    }, {
+      "name" : "startDevice",
+      "kind" : "leaf"
     } ],
     "file" : "web/run/RunController.java"
   },

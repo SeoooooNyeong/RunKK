@@ -1,6 +1,7 @@
 package com.a207.runkk.web.auth;
 
 import com.a207.runkk.common.BusinessRuleException;
+import com.a207.runkk.common.PermissionDeniedException;
 import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.member.AccountType;
 import com.a207.runkk.member.AuthFailureException;
@@ -19,6 +20,7 @@ import java.time.Clock;
 import java.time.LocalDateTime;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -27,7 +29,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * 로그인·로그아웃·토큰 갱신(설계 5.7.1: POST /auth/login, /auth/logout, /auth/refresh → AuthService), v0.11 게스트
- * 세션 재개(POST /auth/guest/session)와 소셜 계정 연동(POST /me/social-account). 요청 DTO를 서비스 입력으로, 결과를 응답 DTO로
+ * 세션 재개(POST /auth/guest/session)와 소셜 계정 연동(POST /me/social-account), v0.21 워치용 토큰 쌍(POST
+ * /auth/watch-session)과 워치연동 끄기(DELETE /auth/watch-session, W25). 요청 DTO를 서비스 입력으로, 결과를 응답 DTO로
  * 바꾸기만 한다. 로그인 실패는 401(인증 실패)·503(제공자 무응답)과 공통 오류 응답(code·message)이다.
  */
 @RestController
@@ -102,6 +105,47 @@ public class AuthController {
             // 갱신은 제공자를 부르지 않는다: 원인은 서버 저장소라 "로그인 제공자 연결 실패"가 아니다(B-L6)
             throw new BusinessRuleException(ReasonCode.TEMPORARILY_UNAVAILABLE);
         }
+    }
+
+    /**
+     * 워치용 토큰 쌍(v0.21 FR-240, D-372, 인증 필요, 본문 없음). 폰의 토큰 쌍은 그대로 유효하다. 탈퇴 회원은 인증 필터가 401로 막고, 그 사이에
+     * 탈퇴했으면 갱신 실패와 같은 401(본문 없음)이다. 갱신 토큰을 새로 만드는 경로라 접속지별 요청 상한과 회원별 발급 한도를 센다(넘으면 429). 워치용 접근
+     * 토큰으로 오면 403 PERMISSION_DENIED다(W26, 폰만 발급 요청).
+     */
+    @PostMapping("/auth/watch-session")
+    ResponseEntity<TokenResponse> watchSession(
+            @RequestAttribute(AuthFilter.MEMBER_ID) long memberId,
+            @RequestAttribute(AuthFilter.WATCH_CLIENT) boolean watchClient,
+            HttpServletRequest http) {
+        if (watchClient) {
+            // W26: 워치 세션 발급은 폰만 요청한다. 워치 토큰으로 새 워치 갱신 토큰을 만들어 일괄 폐기를 피하지 못하게 한다
+            throw new PermissionDeniedException("watch_token_cannot_issue_watch_session");
+        }
+        attempts.admitWatchSession(http, memberId);
+        try {
+            return ResponseEntity.ok(TokenResponse.of(authService.issueWatchSession(memberId)));
+        } catch (AuthFailureException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        } catch (ProviderUnavailableException e) {
+            // 워치 세션 세대 저장소 장애다(제공자를 부르지 않는다)
+            throw new BusinessRuleException(ReasonCode.TEMPORARILY_UNAVAILABLE);
+        }
+    }
+
+    /**
+     * 워치연동 끄기(2026-11-01 사용자 결정 W25, contract-v2 4절, 인증 필요, 본문 없음). 그 회원의 워치용 갱신 토큰을 모두 폐기하고 204다.
+     * 폰 토큰은 그대로다. 워치의 접근 토큰은 만료(최대 1시간)까지 남는다. 여러 번 불러도 같다. 저장소 장애는 503 TEMPORARILY_UNAVAILABLE(다시
+     * 불러도 된다).
+     */
+    @DeleteMapping("/auth/watch-session")
+    ResponseEntity<Void> revokeWatchSessions(
+            @RequestAttribute(AuthFilter.MEMBER_ID) long memberId) {
+        try {
+            authService.revokeWatchSessions(memberId);
+        } catch (ProviderUnavailableException e) {
+            throw new BusinessRuleException(ReasonCode.TEMPORARILY_UNAVAILABLE);
+        }
+        return ResponseEntity.noContent().build();
     }
 
     /**

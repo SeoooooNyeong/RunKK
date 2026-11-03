@@ -98,20 +98,77 @@ public class AuthService {
         return LoginResult.loggedIn(tokenIssuer.issue(memberId));
     }
 
-    /** 갱신 토큰 폐기(FR-002). 기기의 미전송 기록은 앱이 지우지 않는다. */
+    /**
+     * 갱신 토큰 폐기(FR-002)와 그 회원의 워치용 갱신 토큰 일괄 폐기(W25). 기기의 미전송 기록은 앱이 지우지 않는다.
+     *
+     * @throws ProviderUnavailableException 폐기 목록·워치 세션 세대를 기록할 수 없음(다시 불러도 된다)
+     */
     public void logout(long memberId, String refreshToken) {
         tokenIssuer.revoke(refreshToken);
+        tokenIssuer.revokeWatchSessions(memberId);
         log.info("logout memberId={}", memberId);
     }
 
     /**
-     * 접근 토큰 재발급(D-19). 갱신 토큰은 한 번만 쓴다(회전). 탈퇴한 회원이면 AuthFailureException. 발급 때 마지막 접속을 기록한다.
+     * 그 회원의 워치용 갱신 토큰을 모두 폐기한다(DELETE /auth/watch-session·로그아웃·탈퇴, 2026-11-01 사용자 결정 W25). 폰 토큰은
+     * 그대로다. 워치의 접근 토큰은 만료(최대 1시간)까지 남는다.
+     *
+     * @throws ProviderUnavailableException 워치 세션 세대를 기록할 수 없음
+     */
+    public void revokeWatchSessions(long memberId) {
+        tokenIssuer.revokeWatchSessions(memberId);
+        log.info("watch_sessions_revoked memberId={}", memberId);
+    }
+
+    /**
+     * 탈퇴한 회원의 워치용 갱신 토큰을 폐기한다. 세대 행이 없으면 만들지 않는다(BE13-2).
+     *
+     * @throws ProviderUnavailableException 워치 세션 세대를 기록할 수 없음
+     */
+    public void revokeWatchSessionsOfWithdrawn(long memberId) {
+        tokenIssuer.revokeExistingWatchSessions(memberId);
+        log.info("watch_sessions_revoked_on_withdrawal memberId={}", memberId);
+    }
+
+    /**
+     * 회원 자료 파기 때 그 회원의 워치 세션 세대 행을 지운다(BE13-2).
+     *
+     * @throws ProviderUnavailableException 워치 세션 세대를 지울 수 없음
+     */
+    public void forgetWatchSessions(long memberId) {
+        tokenIssuer.forgetWatchSessions(memberId);
+    }
+
+    /**
+     * 접근 토큰 재발급(D-19). 갱신 토큰은 한 번만 쓴다(회전). 워치용 갱신 토큰이면 새 쌍도 워치용이다(W25). 탈퇴한 회원이면
+     * AuthFailureException. 발급 때 마지막 접속을 기록한다.
      *
      * @throws AuthFailureException 갱신 토큰이 위조·만료·폐기되었거나 회원이 탈퇴함
      * @throws ProviderUnavailableException 폐기 목록을 확인할 수 없음(fail-closed)
      */
     public TokenPair refresh(String refreshToken) {
-        long memberId = tokenIssuer.redeemRefreshToken(refreshToken);
+        RefreshGrant grant = tokenIssuer.redeemRefreshToken(refreshToken);
+        requireActive(grant.memberId());
+        recordAccess(grant.memberId());
+        return tokenIssuer.reissue(grant);
+    }
+
+    /**
+     * POST /auth/watch-session(FR-240, D-372, SQ-43). 인증된 회원(게스트 포함)에게 로그인 때와 같은 issue로 새 토큰 쌍(접근
+     * 1시간, 갱신 14일)을 준다. 워치는 자기 갱신 토큰으로 따로 회전하므로 폰의 토큰 쌍은 폐기하지 않는다. 마지막 접속은 기록하지 않는다(폰의 로그인·갱신이 이미
+     * 기록한다). 갱신 토큰은 워치용으로 표시해 revokeWatchSessions가 폰 토큰과 나눠 폐기한다(W25).
+     *
+     * @throws AuthFailureException 탈퇴했거나 없는 회원
+     * @throws ProviderUnavailableException 워치 세션 세대를 읽을 수 없음
+     */
+    public TokenPair issueWatchSession(long memberId) {
+        requireActive(memberId);
+        TokenPair pair = tokenIssuer.issueWatch(memberId);
+        log.info("watch_session_issued memberId={}", memberId);
+        return pair;
+    }
+
+    private void requireActive(long memberId) {
         boolean active =
                 memberRepository
                         .findById(memberId)
@@ -120,8 +177,6 @@ public class AuthService {
         if (!active) {
             throw new AuthFailureException("탈퇴했거나 없는 회원");
         }
-        recordAccess(memberId);
-        return tokenIssuer.issue(memberId);
     }
 
     /**

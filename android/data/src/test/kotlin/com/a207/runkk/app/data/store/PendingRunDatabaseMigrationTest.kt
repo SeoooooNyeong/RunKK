@@ -8,13 +8,14 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.platform.app.InstrumentationRegistry
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import org.junit.Rule
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 /**
  * 자동 이전이 보관해 둔 미전송 기록을 잃지 않는다. 판 1 → 2(늦은 심박 항목 표 추가, D-77), 판 2 → 3(정지 구간 칼럼 추가, FR-194,
- * TC-6521·TC-6523).
+ * TC-6521·TC-6523), 판 3 → 4(시작 기기 칼럼 추가, 기본 PHONE, W23).
  */
 @RunWith(RobolectricTestRunner::class)
 class PendingRunDatabaseMigrationTest {
@@ -100,6 +101,44 @@ class PendingRunDatabaseMigrationTest {
             v3.prepare("SELECT COUNT(*) FROM late_heart_rate").use { row ->
                 row.step()
                 assertEquals(0L, row.getLong(0))
+            }
+        }
+    }
+
+    @Test
+    fun `판 3의 미전송 기록이 판 4로 옮겨도 남고 시작 기기는 PHONE이다(W23, D-378)`() {
+        helper.createDatabase(3).use { v3 ->
+            v3.execSQL(
+                "INSERT INTO pending_run VALUES ('r-1', 'FREE', 'FREE_RUN', NULL, NULL, 0, 1000, 100, " +
+                    "x'', x'', x'', 'NOT_SENT', 0, NULL, x'')"
+            )
+        }
+
+        helper.runMigrationsAndValidate(4).use { v4 ->
+            v4.prepare("SELECT recordId, startDevice FROM pending_run").use { row ->
+                row.step()
+                assertEquals("r-1", row.getText(0))
+                assertEquals("PHONE", row.getText(1))
+            }
+        }
+    }
+
+    @Test
+    fun `R12 판 4의 미전송 기록이 판 5로 옮겨도 남고 거부 사유는 비어 있다`() {
+        helper.createDatabase(4).use { v4 ->
+            v4.execSQL(
+                "INSERT INTO pending_run VALUES ('r-1', 'FREE', 'FREE_RUN', NULL, NULL, 0, 1000, 100, " +
+                    "x'', x'', x'', 'NOT_SENT', 0, NULL, x'', 'WATCH')"
+            )
+        }
+
+        helper.runMigrationsAndValidate(5).use { v5 ->
+            v5.prepare("SELECT recordId, uploadState, startDevice, rejectedReason FROM pending_run").use { row ->
+                row.step()
+                assertEquals("r-1", row.getText(0))
+                assertEquals("NOT_SENT", row.getText(1))
+                assertEquals("WATCH", row.getText(2))
+                assertTrue(row.isNull(3))
             }
         }
     }

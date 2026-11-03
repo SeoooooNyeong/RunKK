@@ -27,6 +27,7 @@ object ContractEnums {
         "LOCATION_CONSENT",
         "RUN_IN_PROGRESS",
         "SIGN_UP_REQUIRED",
+        "WATCH_MEASURING",
         "PROVIDER_SDK_NOT_READY",
         "LOGIN_CANCELLED",
         "BATTLE_IN_PROGRESS",

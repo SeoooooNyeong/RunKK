@@ -8,6 +8,7 @@ import com.a207.runkk.app.domain.run.HeartRateSample
 import com.a207.runkk.app.domain.run.LateHeartRates
 import com.a207.runkk.app.domain.run.PendingRunRepository
 import com.a207.runkk.app.domain.run.UploadScheduler
+import com.a207.runkk.app.domain.run.UploadState
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
@@ -17,6 +18,7 @@ import javax.inject.Singleton
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 
 /**
@@ -65,6 +67,15 @@ constructor(
             emit(emptyList())
         }
 
+    /** 거부 기록 건수(R80). 읽기 오류는 0을 내고 끝낸다(observePending과 같은 이유). */
+    override fun observeRejectedCount(): Flow<Int> = dao
+        .observeCountInState(UploadState.REJECTED.name)
+        .distinctUntilChanged()
+        .catch { error ->
+            if (error is CancellationException) throw error
+            emit(0)
+        }
+
     /**
      * 보낸 기록을 미전송 목록에서 뺀다. 경로·심박은 지우고 머리 정보만 최근 보낸 30건 안에서 남긴다(D-77).
      * 전송이 읽은 뒤 덧붙은 늦은 심박이 있으면 그 심박만 담은 미전송 기록으로 남기고 전송을 요청한다(F-4).
@@ -111,6 +122,16 @@ constructor(
         return leftLate
     }
 
+    /** 상태 칸만 바꾼다: 전송이 읽은 뒤 덧붙은 늦은 심박(appendHeartRates)을 옛 사본으로 덮지 않는다(F-4와 같은 이유). */
+    override suspend fun markRejected(run: CompletedRun, reason: String): Outcome<Unit> = storage {
+        dao.markState(run.recordId, UploadState.REJECTED.name, reason)
+    }
+
+    /** 상태 칸만 바꾼다(markRejected와 같은 이유). 전송 요청은 ResetRejectedRunsUseCase가 한다(W40). */
+    override suspend fun resetRejected(): Outcome<Int> = storage {
+        dao.replaceState(UploadState.REJECTED.name, UploadState.NOT_SENT.name)
+    }
+
     override suspend fun purgeRoutes(): Outcome<Unit> = storage { dao.replaceRoutes(EMPTY_BLOB) }
 
     /** 미전송 기록의 심박과 늦은 심박 항목을 함께 지운다(FR-029, TF-VA-31). */
@@ -121,10 +142,12 @@ constructor(
         }
     }
 
+    /** 연결되면 올라갈 미전송 기록만 센다(거부 기록 제외, W48). 20건 초과 또는 7일 초과(정각은 아님)면 안내한다(FR-039, TC-3182~3184). */
     override suspend fun needsReminder(now: Instant): Outcome<Boolean> = storage {
-        val rows = dao.pending()
-        val oldestAllowed = now.minus(REMIND_AGE).toEpochMilli()
-        rows.size >= REMIND_COUNT || rows.any { it.savedAtMillis <= oldestAllowed }
+        val rejected = UploadState.REJECTED.name
+        val oldest = dao.oldestSavedAtNotIn(rejected)
+        dao.countNotIn(rejected) > REMIND_COUNT ||
+            (oldest != null && oldest < now.minus(REMIND_AGE).toEpochMilli())
     }
 
     override suspend fun appendHeartRates(recordId: String, samples: List<HeartRateSample>): Outcome<Unit> {

@@ -126,11 +126,14 @@ constructor(
             override fun hasArrived(run: BattleRun, mine: Distance): Boolean = mine.isAtLeast(run.distance)
         }
 
-    /** 랜덤·고스트 매칭 성사. 매칭 화면·애니메이션은 ui.battle이 그린다(design-review.md M25). */
-    fun onMatched(m: MatchFound) {
+    /**
+     * 랜덤·고스트 매칭 성사. 매칭 화면·애니메이션은 ui.battle이 그린다(design-review.md M25).
+     * [startDevice]는 매칭을 시작한 기기다. 워치에서 시작한 대결은 WATCH로 기록하고(FR-245, D-378) 폰 화면은 넘기지 않는다(PHONE).
+     */
+    fun onMatched(m: MatchFound, startDevice: RunStartSpec.StartDevice = RunStartSpec.StartDevice.PHONE) {
         // 성사된 친구 초대는 끝났다: 화면을 떠나도 취소하지 않는다(AN8-16).
         inviteJob = null
-        val run = openRun(m.battleId, m.distance, m.opponentName)
+        val run = openRun(m.battleId, m.distance, m.opponentName, startDevice)
         run.round.scope.launch {
             _state.value = BattleRunState.Matched(m)
             val channel = liveChannelProvider.open()
@@ -149,14 +152,42 @@ constructor(
         run.round.scope.launch { start(run, s) }
     }
 
-    /** 나와의 싸움·유명인: 3초 카운트다운 뒤 측정을 시작하고 시작을 서버에 알린다(design-review.md M34). */
-    fun onRecordBattleStart(s: RecordBattleStart) {
-        val run = openRun(s.battleId, s.distance, s.opponentName)
+    /**
+     * 나와의 싸움·유명인: 3초 카운트다운 뒤 측정을 시작하고 시작을 서버에 알린다(design-review.md M34).
+     * [startDevice]는 [onMatched]와 같다(워치 시작은 WATCH, 폰은 기본값 PHONE).
+     */
+    fun onRecordBattleStart(
+        s: RecordBattleStart,
+        startDevice: RunStartSpec.StartDevice = RunStartSpec.StartDevice.PHONE
+    ) {
+        val run = openRun(s.battleId, s.distance, s.opponentName, startDevice)
         run.round.scope.launch {
             run.schedule(s.track, s.cardKind)
             _state.value = BattleRunState.Countdown(s.battleId, clock.instant().plus(RECORD_COUNTDOWN))
             delay(RECORD_COUNTDOWN.toMillis())
             if (begin(run)) report(run) { battleRepository.markStarted(s.battleId) }
+        }
+    }
+
+    /**
+     * 서버 연결 없이 미리 받은 상대 기록으로 셀프·셀럽런을 진행한다(D-377, 사용자 결정 W18). 진행은 기록 대결과 같다: 3초 카운트다운 뒤
+     * 측정하고 구간 기록으로 상대 거리·격차·추월을 낸다(FR-098). 서버 대결이 없으므로 시작·그만두기·취소를 서버에 보고하지 않고,
+     * 기록은 대결 ID 없는 자유런으로 확정해 보통 자유런처럼 보낸다. 상태(BattleRunState)의 battleId 자리는 0이다.
+     */
+    fun onOfflineRecordBattle(b: OfflineRecordBattle) {
+        val run =
+            openRun(
+                OFFLINE_BATTLE_ID,
+                b.distance,
+                opponentName = null,
+                RunStartSpec.StartDevice.WATCH,
+                isOffline = true
+            )
+        run.round.scope.launch {
+            run.schedule(b.track, CardKind.FREE_RUN)
+            _state.value = BattleRunState.Countdown(OFFLINE_BATTLE_ID, clock.instant().plus(RECORD_COUNTDOWN))
+            delay(RECORD_COUNTDOWN.toMillis())
+            begin(run)
         }
     }
 
@@ -230,6 +261,10 @@ constructor(
      * 그 사이 화면이 떠났으면 [abandonInvite]가 만들어진 초대를 취소한다(남은 초대가 랜덤 매칭을 막지 않게, D-271).
      */
     suspend fun createInvite(distance: Distance): Outcome<FriendInvite> {
+        // 짝지은 워치가 측정 중이면 초대를 만들지 않는다(FR-252, D-373 (2)): 상대가 참가한 뒤 카운트다운 끝에 거부되지 않게.
+        if (runTracker.isWatchMeasuring) {
+            return Outcome.Failure(AppError.Rejected(AppError.Rejected.WATCH_MEASURING))
+        }
         val created = applicationScope.async { battleRepository.createFriendInvite(distance) }
         inviteJob = created
         return created.await()
@@ -253,6 +288,20 @@ constructor(
         inviteJob = null
     }
 
+    /**
+     * 짝지은 워치가 스스로 측정 중인가(FR-252, D-373 (2)). 서버에 대결을 만들기 전(나와의 싸움·유명인 시작, 친구 초대 참가)에 화면이 읽어
+     * 3초 카운트다운 뒤 RunTracker.startRun에서 거부되지 않게 한다.
+     */
+    val isWatchMeasuring: Boolean
+        get() = runTracker.isWatchMeasuring
+
+    /**
+     * 열린 회의 대결 거리. 열린 회가 없으면 null. 워치가 성사~출발 사이에 화면을 다시 열 때 카운트다운 머리줄과 목표를 되살린다
+     * (상태도 2.4.25, 코드 리뷰 WR12-2: Countdown 상태에는 거리가 없다).
+     */
+    val activeDistance: Distance?
+        get() = run?.distance
+
     /** 대결에 참가할 수 없을 만큼 바쁜가: 열린 회가 있거나 자유런 등 측정 중이다(친구 대결 참가 전 확인, D-273). */
     fun isBusy(): Boolean = run != null || runTracker.isMeasuring
 
@@ -261,6 +310,10 @@ constructor(
      * 재시도가 남아 있으면 먼저 멈춰 새 대기열 등록을 지우지 않게 한다.
      */
     suspend fun requestMatch(distance: Distance): Outcome<MatchAcceptance> {
+        // 짝지은 워치가 측정 중이면 대기열에 넣지 않는다(FR-252, D-373 (2)). 성사 뒤 측정 시작은 RunTracker.startRun이 다시 막는다.
+        if (runTracker.isWatchMeasuring) {
+            return Outcome.Failure(AppError.Rejected(AppError.Rejected.WATCH_MEASURING))
+        }
         abandonJob?.cancelAndJoin()
         abandonJob = null
         val request = applicationScope.async { battleRepository.requestMatch(distance) }
@@ -324,14 +377,26 @@ constructor(
      */
     private fun begin(run: BattleRun): Boolean {
         if (run.round.isMeasuring) return false
+        val plan = PlanSnapshot(targetDistance = run.distance, targetPace = null)
         val spec =
-            RunStartSpec(
-                mode = RunMode.BATTLE,
-                cardKind = run.cardKind,
-                battleId = run.battleId,
-                todayPlan = PlanSnapshot(targetDistance = run.distance, targetPace = null),
-                opponentName = run.opponentName
-            )
+            if (run.isOffline) {
+                // 오프라인 기록 대결은 서버 대결이 없어 자유런으로 확정·전송한다(D-377). 워치에서만 연다(SQ-46, D-378).
+                RunStartSpec(
+                    mode = RunMode.FREE,
+                    cardKind = CardKind.FREE_RUN,
+                    startDevice = run.startDevice,
+                    todayPlan = plan
+                )
+            } else {
+                RunStartSpec(
+                    mode = RunMode.BATTLE,
+                    cardKind = run.cardKind,
+                    startDevice = run.startDevice,
+                    battleId = run.battleId,
+                    todayPlan = plan,
+                    opponentName = run.opponentName
+                )
+            }
         val started = run.round.begin(spec) { progress(run, it) }
         if (started is Outcome.Failure) {
             fail(run, started.error)
@@ -342,8 +407,9 @@ constructor(
         return true
     }
 
-    /** 서버 보고. 다시 보내도 실패하면 failure로 남기고 화면 안내를 낸다(F-3). */
+    /** 서버 보고. 다시 보내도 실패하면 failure로 남기고 화면 안내를 낸다(F-3). 오프라인 기록 대결은 서버 대결이 없어 보내지 않는다(D-377). */
     private suspend fun report(run: BattleRun, call: suspend () -> Outcome<Unit>) {
+        if (run.isOffline) return
         val reported = run.round.report(call)
         if (reported is Outcome.Failure) {
             _failure.value = reported.error
@@ -508,7 +574,13 @@ constructor(
     }
 
     /** 이전 회가 남아 있으면 정리(측정 중이면 endRun, 채널 닫기, 범위 취소)하고 새 회를 연다. */
-    private fun openRun(battleId: Long, distance: Distance, opponentName: String): BattleRun {
+    private fun openRun(
+        battleId: Long,
+        distance: Distance,
+        opponentName: String?,
+        startDevice: RunStartSpec.StartDevice,
+        isOffline: Boolean = false
+    ): BattleRun {
         run?.let { previous ->
             run = null
             previous.round.endMeasuring()
@@ -517,14 +589,21 @@ constructor(
         }
         _failure.value = null
         _liveState.value = null
-        return BattleRun(battleId, distance, opponentName).also { run = it }
+        return BattleRun(battleId, distance, opponentName, startDevice, isOffline).also { run = it }
     }
 
     /**
      * 대결 한 회. 범위·측정 여부는 CoordinatedRound가, 예약·상대 종류 전이는 schedule이 맡는다(O-3).
      * 범위 안의 처리되지 않은 예외는 앱을 죽이지 않고 이 회를 연결 실패로 닫는다. [opponentName]은 진행 알림 "vs [상대]"에 싣는다(D-258).
+     * [startDevice]는 이 회를 시작한 기기로 기록에 남는다(D-378). [isOffline]이면 서버 대결 없이 워치에서만 진행하는 기록 대결이다(D-377).
      */
-    private inner class BattleRun(val battleId: Long, val distance: Distance, val opponentName: String) {
+    private inner class BattleRun(
+        val battleId: Long,
+        val distance: Distance,
+        val opponentName: String?,
+        val startDevice: RunStartSpec.StartDevice,
+        val isOffline: Boolean
+    ) {
         val round = CoordinatedRound(applicationScope, runTracker) { fail(this, AppError.Network) }
 
         @Volatile
@@ -586,6 +665,9 @@ constructor(
 
     private companion object {
         val RECORD_COUNTDOWN: Duration = Duration.ofSeconds(3)
+
+        /** 오프라인 기록 대결의 상태 값 battleId 자리(서버 대결 없음, D-377 "RecordBattleStart(battleId = 0) 대신"). */
+        const val OFFLINE_BATTLE_ID = 0L
         const val CANCEL_ATTEMPTS = 3
         const val CANCEL_RETRY_MILLIS = 1_000L
     }

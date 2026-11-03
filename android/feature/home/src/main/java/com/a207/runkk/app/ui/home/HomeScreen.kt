@@ -100,6 +100,7 @@ import com.a207.runkk.app.core.designsystem.LocationConsentSheet
 import com.a207.runkk.app.core.designsystem.RUNKK_BOTTOM_BAR_HEIGHT
 import com.a207.runkk.app.core.designsystem.RUNKK_BOTTOM_BAR_RISE
 import com.a207.runkk.app.core.designsystem.RunkkAvatar
+import com.a207.runkk.app.core.designsystem.RunkkBanner
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkFormat
@@ -230,7 +231,7 @@ fun HomeScreen(state: HomeUiState, actions: HomeActions, modifier: Modifier = Mo
                     fillMinHeight = ROOM_MIN_HEIGHT,
                     gap = 12.dp,
                     // 상단 RRun 로고는 두지 않는다(사용자 요청 2026-10-30).
-                    top = { Header(state, actions.onNavigate) },
+                    top = { Top(state, actions.onNavigate) },
                     fill = {
                         Room(
                             state,
@@ -249,6 +250,19 @@ fun HomeScreen(state: HomeUiState, actions: HomeActions, modifier: Modifier = Mo
     }
     if (state.isConsentSheetVisible) {
         LocationConsentSheet(onAgree = actions.onConsentAgree, onClose = actions.onConsentClose)
+    }
+}
+
+/** 상단: 재전송 안내 띠(필요할 때만, W48)와 헤더. */
+@Composable
+private fun Top(state: HomeUiState, onNavigate: (String) -> Unit) {
+    if (!state.isResendReminderVisible) {
+        Header(state, onNavigate)
+        return
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        RunkkBanner(stringResource(R.string.home_resend_reminder))
+        Header(state, onNavigate)
     }
 }
 

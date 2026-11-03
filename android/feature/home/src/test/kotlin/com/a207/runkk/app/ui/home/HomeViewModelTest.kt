@@ -34,9 +34,52 @@ class HomeViewModelTest {
     private val account = FakeAccountRepository()
     private val settings = FakeSettingsRepository()
     private val todayPlans = TodayPlanCache()
+    private val pendingRuns = FakePendingRunRepository()
 
     private fun viewModel() =
-        HomeViewModel(records, account, LocationConsentUseCase(account, settings), todayPlans, clock)
+        HomeViewModel(records, account, LocationConsentUseCase(account, settings), todayPlans, pendingRuns, clock)
+
+    @Test
+    fun `W48 TC-3184 미전송 기록이 안내 기준을 넘으면 홈 상단에 재전송 안내를 보인다`() {
+        pendingRuns.reminder = Outcome.Success(true)
+
+        assertTrue(viewModel().state.value.isResendReminderVisible)
+        assertEquals(clock.instant(), pendingRuns.reminderChecks.last(), "지금 시각으로 센다")
+    }
+
+    @Test
+    fun `W48 안내 기준 안이면 띠를 보이지 않는다`() {
+        assertFalse(viewModel().state.value.isResendReminderVisible)
+    }
+
+    @Test
+    fun `W48 보관함이 바뀌어 조건이 풀리면 띠가 사라진다`() {
+        pendingRuns.reminder = Outcome.Success(true)
+        val viewModel = viewModel()
+
+        pendingRuns.reminder = Outcome.Success(false)
+        pendingRuns.pendingRuns.value = listOf(completedRun("r-1"))
+
+        assertFalse(viewModel.state.value.isResendReminderVisible)
+    }
+
+    @Test
+    fun `W48 홈에 다시 돌아오면 지금 시각으로 다시 센다(7일 초과는 시간이 지나 생긴다)`() {
+        val viewModel = viewModel()
+        viewModel.onResumed()
+        pendingRuns.reminder = Outcome.Success(true)
+
+        viewModel.onResumed()
+
+        assertTrue(viewModel.state.value.isResendReminderVisible)
+    }
+
+    @Test
+    fun `W48 보관함을 읽지 못하면 띠를 보이지 않는다`() {
+        pendingRuns.reminder = Outcome.Failure(AppError.Storage)
+
+        assertFalse(viewModel().state.value.isResendReminderVisible)
+    }
 
     @Test
     fun `오늘 계획을 읽으면 앱의 오늘 계획 사본에 알린다(워치 시작 화면, FR-042)`() {

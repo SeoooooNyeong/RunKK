@@ -1,4 +1,5 @@
 // api.*·data.*: 도메인 포트 구현(5.1.2, 6.1.14 "데이터"). 포트 ↔ 구현 바인딩은 패키지마다 …Bindings가 한다(D-61).
+// 폰과 워치가 함께 쓰는 공용 모듈이다(D-365, D-366). 폰 전용 data.device·data.watch·data.push는 :data:phone에 있다.
 plugins {
     alias(libs.plugins.runkk.android.library)
     alias(libs.plugins.kotlin.serialization)
@@ -87,15 +88,13 @@ ksp {
 dependencies {
     implementation(project(":domain"))
     implementation(project(":core:model"))
-    implementation(project(":wear-contract"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.kotlinx.coroutines.android)
-    implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.timber)
 
-    // Hilt: 바인딩 모듈, 측정·푸시 서비스(@AndroidEntryPoint)
+    // Hilt: 바인딩 모듈
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
 
@@ -111,12 +110,6 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.androidx.security.crypto)
-
-    // data.device·data.watch·data.push
-    implementation(libs.androidx.lifecycle.service)
-    implementation(libs.play.services.location)
-    implementation(libs.play.services.wearable)
-    implementation(libs.firebase.messaging)
 
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.okhttp.mockwebserver)
