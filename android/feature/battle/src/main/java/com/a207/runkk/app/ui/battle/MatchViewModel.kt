@@ -144,7 +144,10 @@ class MatchViewModel @Inject constructor(
                 is Outcome.Success -> {
                     val view = read.value
                     _state.update { it.copy(distance = view.distance) }
-                    val blocked = view.blockedReason ?: ALREADY_IN_BATTLE.takeIf { coordinator.isBusy() }
+                    val blocked =
+                        view.blockedReason
+                            ?: ALREADY_IN_BATTLE.takeIf { coordinator.isBusy() }
+                            ?: AppError.Rejected.WATCH_MEASURING.takeIf { coordinator.isWatchMeasuring }
                     if (blocked !=
                         null
                     ) {

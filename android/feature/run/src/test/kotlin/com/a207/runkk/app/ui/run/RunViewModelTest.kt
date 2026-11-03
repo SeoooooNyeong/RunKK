@@ -1,7 +1,9 @@
 package com.a207.runkk.app.ui.run
 
 import app.cash.turbine.test
+import com.a207.runkk.app.core.designsystem.RunkkErrorText
 import com.a207.runkk.app.core.designsystem.UiText
+import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.GeoPoint
 import com.a207.runkk.app.core.model.Outcome
@@ -85,6 +87,21 @@ class RunViewModelTest {
         assertEquals(Distance(5_000), vm.state.value.targetDistance)
         assertEquals(Pace(330), vm.state.value.targetPace)
         assertEquals(1, host.started)
+    }
+
+    @Test
+    fun `워치가 측정 중이면 카운트다운에 들어가지 않고 워치에서 러닝 중이라고 알린다(FR-252, D-373)`() = runTest(main.dispatcher) {
+        watch.isMeasuringOnWatch = true
+        val (vm, _) = started()
+
+        assertEquals(RunPhase.PREPARING, vm.state.value.phase)
+        assertEquals(RunkkErrorText.rejected(AppError.Rejected.WATCH_MEASURING), vm.state.value.error)
+        assertEquals(0, host.started)
+
+        // 워치 측정이 끝난 뒤 다시 시도하면 카운트다운으로 간다.
+        watch.isMeasuringOnWatch = false
+        vm.onRetryStart()
+        assertEquals(RunPhase.COUNTDOWN, vm.state.value.phase)
     }
 
     @Test

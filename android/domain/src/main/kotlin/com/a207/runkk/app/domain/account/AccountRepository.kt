@@ -24,6 +24,25 @@ interface AccountRepository {
     suspend fun logout(): Outcome<Unit>
 
     /**
+     * 워치용 토큰 쌍을 따로 받는다(POST /auth/watch-session, D-372, 사용자 결정 W17). 폰 토큰 쌍은 그대로 유효하다(서로 무효로 만들지
+     * 않는다). 폰 data.watch의 WatchSessionPublisher가 워치에 보낼 로그인 정보를 만들 때 부른다(R71: api.account를 직접 부르지 않는다).
+     */
+    suspend fun issueWatchSession(): Outcome<SessionTokens>
+
+    /**
+     * 이 회원의 워치용 갱신 토큰을 모두 폐기한다(DELETE /auth/watch-session, 본문 없음, 204, contract-v2 4절, FR-019, W14, W25).
+     * 폰이 워치연동을 끌 때 WatchSessionPublisher가 부른다. 로그아웃·탈퇴는 서버가 함께 폐기하므로 부르지 않는다.
+     */
+    suspend fun revokeWatchSession(): Outcome<Unit>
+
+    /**
+     * 로그인한 본인의 회원 ID(기기에 있는 접근 토큰에서 읽는다, 서버 호출 없음). 토큰이 없으면 null. WatchSessionPublisher가 워치에 보낼
+     * 로그인 정보의 회원 ID와 "이미 보낸 회원인가"를 이것으로 정한다(SQ-43: watch-session 응답에는 토큰 쌍뿐이다). 기본 구현을 두지 않는다
+     * (빠뜨리면 발행기가 아무것도 보내지 않고 조용히 끝난다, 코드 리뷰 AN12-3).
+     */
+    fun selfMemberId(): Long?
+
+    /**
      * 게스트로 시작(POST /members/guest, FR-197). [consents]의 키는 서버 ConsentItem 이름이고 가입과 같은 동의 화면이 채운다
      * (HEART_RATE·FACE_TRANSFER는 받지 않는다). 거부는 Rejected(UNDER_14·CONSENT_MISSING 등), 접속지 한도 초과는 Server(429).
      */

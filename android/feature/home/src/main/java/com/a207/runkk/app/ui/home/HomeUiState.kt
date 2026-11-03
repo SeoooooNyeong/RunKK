@@ -31,6 +31,8 @@ data class HomeUiState(
     val faceKey: String? = null,
     val faceLayers: List<FaceLayer> = emptyList(),
     val backgroundKey: String? = null,
+    /** 미전송 기록이 재전송 안내 기준(20건 초과 또는 7일 초과)을 넘어 상단에 안내 띠를 보이는가(FR-039, W48). */
+    val isResendReminderVisible: Boolean = false,
     /** 자유런 시작 전 위치 동의 시트(A-6, D-267). */
     val isConsentSheetVisible: Boolean = false,
     /** 한 번 보이고 지우는 안내(위치 동의 실패 등). */

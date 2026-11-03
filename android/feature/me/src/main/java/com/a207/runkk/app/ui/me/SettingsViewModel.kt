@@ -16,6 +16,7 @@ import com.a207.runkk.app.domain.account.ProviderToken
 import com.a207.runkk.app.domain.account.ProviderType
 import com.a207.runkk.app.domain.account.SessionRepository
 import com.a207.runkk.app.domain.account.SettingChangeRequest
+import com.a207.runkk.app.domain.run.ResendRejectedRunsUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
@@ -37,6 +38,7 @@ import kotlinx.coroutines.withContext
  * 화면마다 이 ViewModel을 하나씩 둔다.
  * 값은 AccountRepository.settings로 읽고 바꿀 때 ChangeSettingUseCase(서버 변경 → 설정 사본 갱신)를 부른다.
  * 바꾼 값은 화면에 바로 보이고, 실패하면 이전 값으로 되돌려 알린다.
+ * 서버가 거부한 폰 기록 수를 따라 보이고 "다시 보내기"로 폰과 연결된 워치의 거부 기록을 다시 보낸다(W40, ResendRejectedRunsUseCase).
  */
 @HiltViewModel
 class SettingsViewModel internal constructor(
@@ -46,6 +48,7 @@ class SettingsViewModel internal constructor(
     private val linkSocialAccount: LinkSocialAccountUseCase,
     private val clients: Set<@JvmSuppressWildcards SocialLoginClient>,
     private val logout: LogoutUseCase,
+    private val resendRejectedRuns: ResendRejectedRunsUseCase,
     /** 게스트 자격 증명(암호화 저장소) 읽기 디스패처(A4: 메인에서 디스크를 읽지 않는다). */
     private val ioDispatcher: CoroutineDispatcher
 ) : ViewModel() {
@@ -56,8 +59,9 @@ class SettingsViewModel internal constructor(
         session: SessionRepository,
         linkSocialAccount: LinkSocialAccountUseCase,
         clients: Set<@JvmSuppressWildcards SocialLoginClient>,
-        logout: LogoutUseCase
-    ) : this(account, changeSetting, session, linkSocialAccount, clients, logout, Dispatchers.IO)
+        logout: LogoutUseCase,
+        resendRejectedRuns: ResendRejectedRunsUseCase
+    ) : this(account, changeSetting, session, linkSocialAccount, clients, logout, resendRejectedRuns, Dispatchers.IO)
 
     private val _state = MutableStateFlow(SettingsUiState())
     val state: StateFlow<SettingsUiState> = _state.asStateFlow()
@@ -67,6 +71,11 @@ class SettingsViewModel internal constructor(
 
     init {
         load()
+        viewModelScope.launch {
+            resendRejectedRuns.observeRejectedCount().collect { count ->
+                _state.update { it.copy(rejectedRunCount = count) }
+            }
+        }
     }
 
     fun load() {
@@ -183,6 +192,27 @@ class SettingsViewModel internal constructor(
             when (result) {
                 is Outcome.Success -> _events.send(SettingsEvent.LoggedOut)
                 is Outcome.Failure -> _state.update { it.copy(message = RunkkErrorText.of(result.error)) }
+            }
+        }
+    }
+
+    /**
+     * 못 올린 기록 다시 보내기(W40): 폰의 거부 기록을 미전송으로 되돌려 전송을 깨우고 워치에도 요청한다. 건수는 보관함을 따라 바뀐다.
+     * 다시 보내도 서버가 거부하면 다시 못 올린 기록으로 남는다.
+     */
+    fun onResendRejected() {
+        if (_state.value.isResending) return
+        _state.update { it.copy(isResending = true) }
+        viewModelScope.launch {
+            val result = resendRejectedRuns()
+            _state.update {
+                it.copy(
+                    isResending = false,
+                    message = when (result) {
+                        is Outcome.Success -> UiText.Res(R.string.me_settings_resend_started)
+                        is Outcome.Failure -> RunkkErrorText.of(result.error)
+                    }
+                )
             }
         }
     }

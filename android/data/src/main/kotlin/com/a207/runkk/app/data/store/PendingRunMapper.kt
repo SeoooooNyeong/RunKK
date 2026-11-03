@@ -9,6 +9,7 @@ import com.a207.runkk.app.domain.run.CompletedRun
 import com.a207.runkk.app.domain.run.HeartRateSample
 import com.a207.runkk.app.domain.run.PauseInterval
 import com.a207.runkk.app.domain.run.RoutePoint
+import com.a207.runkk.app.domain.run.RunStartSpec
 import com.a207.runkk.app.domain.run.UnstableSegment
 import com.a207.runkk.app.domain.run.UploadState
 import java.io.ByteArrayInputStream
@@ -43,7 +44,9 @@ internal fun CompletedRun.toEntity(): PendingRunEntity = PendingRunEntity(
     uploadState = uploadState.name,
     savedAtMillis = savedAt.toEpochMilli(),
     sentAtMillis = null,
-    pauses = encodePauses(pauses)
+    pauses = encodePauses(pauses),
+    startDevice = startDevice.name,
+    rejectedReason = rejectedReason
 )
 
 internal fun PendingRunEntity.toDomain(): CompletedRun = CompletedRun(
@@ -59,8 +62,10 @@ internal fun PendingRunEntity.toDomain(): CompletedRun = CompletedRun(
     unstable = decodeUnstable(unstable),
     heartRates = decodeHeartRates(heartRates),
     pauses = decodePauses(pauses),
-    uploadState = UploadState.valueOf(uploadState),
-    savedAt = Instant.ofEpochMilli(savedAtMillis)
+    startDevice = RunStartSpec.StartDevice.valueOf(startDevice),
+    uploadState = uploadStateOf(uploadState),
+    savedAt = Instant.ofEpochMilli(savedAtMillis),
+    rejectedReason = rejectedReason
 )
 
 internal fun encodeRoute(points: List<RoutePoint>): ByteArray = compress(points.size) { out ->
@@ -136,3 +141,7 @@ private fun <T> decompress(blob: ByteArray, read: (DataInputStream) -> T): List<
         return List(count) { read(input) }
     }
 }
+
+/** 모르는 전송 상태 문자열(옛 SENDING 등)은 미전송으로 읽는다(R81). 연결되면 다시 보낸다. */
+private fun uploadStateOf(name: String): UploadState =
+    UploadState.entries.firstOrNull { it.name == name } ?: UploadState.NOT_SENT

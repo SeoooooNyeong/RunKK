@@ -72,6 +72,11 @@ public class RunRecord {
     @Column(name = "crew_run_post_id", updatable = false)
     private Long crewRunPostId;
 
+    /** 기록을 시작한 기기(W23, D-378). V33 이전 기록은 PHONE이다. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "start_device", nullable = false, updatable = false, length = 5)
+    private StartDevice startDevice = StartDevice.PHONE;
+
     @Column(name = "valid", nullable = false)
     private boolean valid;
 
@@ -199,6 +204,7 @@ public class RunRecord {
         this.cardKind = upload.cardKind();
         this.battleId = upload.battleId();
         this.crewRunPostId = upload.crewRunPostId();
+        this.startDevice = upload.startDevice();
         this.track = new RunTrack(startedAt, upload.points(), upload.unstableSegments(), false);
         this.track.sortByTime();
         this.unstableSegmentsData = encodeSegments(upload.unstableSegments());
@@ -512,6 +518,10 @@ public class RunRecord {
 
     public String getRecordId() {
         return recordId;
+    }
+
+    public StartDevice getStartDevice() {
+        return startDevice;
     }
 
     public long getMemberId() {

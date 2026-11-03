@@ -148,7 +148,7 @@ class WearContractRoundTripTest {
     }
 
     @Test
-    fun `TC-6547 경로 7개는 서로 겹치지 않고 값이 설계와 같다`() {
+    fun `TC-6547 D-371 W40 W43 경로 13개는 서로 겹치지 않고 값이 설계와 같다`() {
         val paths =
             listOf(
                 WearPaths.START_REQUEST,
@@ -157,10 +157,16 @@ class WearContractRoundTripTest {
                 WearPaths.END_REQUEST,
                 WearPaths.PAUSE_REQUEST,
                 WearPaths.PROXIMITY,
-                WearPaths.LEAD_CHANGE
+                WearPaths.LEAD_CHANGE,
+                WearPaths.SESSION_REQUEST,
+                WearPaths.WATCH_SESSION,
+                WearPaths.SESSION_REVOKED,
+                WearPaths.WATCH_MEASURING,
+                WearPaths.RESEND_REJECTED,
+                WearPaths.REJECTED_COUNT
             )
 
-        assertEquals(7, paths.toSet().size)
+        assertEquals(13, paths.toSet().size)
         assertEquals(
             listOf(
                 "/runkk/start-request",
@@ -169,13 +175,104 @@ class WearContractRoundTripTest {
                 "/runkk/end-request",
                 "/runkk/pause-request",
                 "/runkk/proximity",
-                "/runkk/lead-change"
+                "/runkk/lead-change",
+                "/runkk/session-request",
+                "/runkk/watch-session",
+                "/runkk/session-revoked",
+                "/runkk/watch-measuring",
+                "/runkk/resend-rejected",
+                "/runkk/rejected-count"
             ),
             paths
         )
         // 한 경로가 다른 경로의 접두어면 심박 묶음처럼 접두어로 받는 쪽이 잘못 고른다.
         paths.forEach { path -> assertTrue(paths.none { it != path && it.startsWith("$path/") }, path) }
         assertEquals("runkk_watch", WearPaths.WATCH_CAPABILITY)
+    }
+
+    @Test
+    fun `W43 거부 기록 다시 보내기 요청은 요청 시각 하나로 왕복하고 DataClient 항목이다(워치가 닿지 않아도 남는다)`() {
+        val message = ResendRejectedMessage(requestedAtEpochMillis = 1_800_000_000_000)
+
+        assertEquals(message, ResendRejectedMessage.decode(message.encode()))
+        assertEquals(setOf("requestedAtEpochMillis"), jsonKeys(message.encode()))
+        assertTrue(WearPaths.RESEND_REJECTED in WearPaths.DATA_ITEM_PATHS, "DataClient 항목이다")
+    }
+
+    @Test
+    fun `W43 워치 거부 기록 건수는 건수와 알린 시각으로 왕복하고 DataClient 항목이다`() {
+        val message = RejectedCountMessage(count = 3, atEpochMillis = 1_800_000_000_000)
+
+        assertEquals(message, RejectedCountMessage.decode(message.encode()))
+        assertEquals(setOf("count", "atEpochMillis"), jsonKeys(message.encode()))
+        assertTrue(WearPaths.REJECTED_COUNT in WearPaths.DATA_ITEM_PATHS, "DataClient 항목이다")
+    }
+
+    @Test
+    fun `D-371 워치 로그인 정보 왕복과 키 5개`() {
+        val message =
+            WatchSessionMessage(
+                memberId = 42,
+                accountType = "SOCIAL",
+                accessToken = "access.jwt",
+                refreshToken = "refresh.jwt",
+                issuedAtEpochMillis = 1_800_000_000_000
+            )
+
+        assertEquals(message, WatchSessionMessage.decode(message.encode()))
+        assertEquals(
+            setOf("memberId", "accountType", "accessToken", "refreshToken", "issuedAtEpochMillis"),
+            jsonKeys(message.encode())
+        )
+    }
+
+    @Test
+    fun `D-371 로그아웃 표시 왕복과 키 2개`() {
+        val message = SessionRevokedMessage(memberId = 42, revokedAtEpochMillis = 1_800_000_000_000)
+
+        assertEquals(message, SessionRevokedMessage.decode(message.encode()))
+        assertEquals(setOf("memberId", "revokedAtEpochMillis"), jsonKeys(message.encode()))
+    }
+
+    @Test
+    fun `D-371 워치 측정 중 알림은 Boolean을 접두어 없는 measuring 키로 왕복한다`() {
+        listOf(true, false).forEach { isMeasuring ->
+            val message = WatchMeasuringMessage(isMeasuring = isMeasuring, atEpochMillis = 1_800_000_000_000)
+            val json = message.encode().toString(Charsets.UTF_8)
+
+            assertEquals(message, WatchMeasuringMessage.decode(message.encode()))
+            assertEquals(setOf("measuring", "atEpochMillis"), jsonKeys(message.encode()))
+            assertTrue(json.contains("\"measuring\":$isMeasuring"), json)
+        }
+    }
+
+    @Test
+    fun `H-58 ProximityMessage·of는 켜진 알림 값을 그대로 담고 off는 끔(0·0)이다`() {
+        assertEquals(
+            ProximityMessage(
+                isActive = true,
+                gapMeters = 35,
+                intervalMillis = 780,
+                isAhead = true,
+                sentAtEpochMillis = 1_800_000_000_000
+            ),
+            ProximityMessage.of(
+                gapMeters = 35,
+                intervalMillis = 780,
+                isAhead = true,
+                sentAtEpochMillis = 1_800_000_000_000
+            )
+        )
+        assertEquals(
+            ProximityMessage(
+                isActive = false,
+                gapMeters = 0,
+                intervalMillis = 0,
+                isAhead = false,
+                sentAtEpochMillis = 1_800_000_000_000
+            ),
+            ProximityMessage.off(sentAtEpochMillis = 1_800_000_000_000)
+        )
     }
 
     private fun jsonKeys(bytes: ByteArray): Set<String> =

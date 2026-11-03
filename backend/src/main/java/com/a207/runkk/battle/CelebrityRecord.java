@@ -138,6 +138,13 @@ public class CelebrityRecord implements OpponentRecord {
                 .cut(d);
     }
 
+    /**
+     * 상대 표가 기록 거리에 닿는가(RecordBattleService.reachableTrack과 같은 판단을 track으로 한 곳에서 한다, W31, BE14-3).
+     */
+    public boolean hasReachableTrack() {
+        return track(getDistance()).arrivalTime(getDistance()).isPresent();
+    }
+
     private Optional<OpponentTrack> storedSplits() {
         return Optional.ofNullable(splits).map(OpponentTrack::decode);
     }

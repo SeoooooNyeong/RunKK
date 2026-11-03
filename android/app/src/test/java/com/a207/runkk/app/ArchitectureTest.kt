@@ -42,14 +42,23 @@ class ArchitectureTest {
         assertEquals(emptyList(), violations)
     }
 
-    /** D-455 코치 하위 패키지 반영: Fan-Out 7 이하, 폰 154개·워치 5개. */
+    /**
+     * 12.4 구조 합격 조건(design-review 19장 R51·R52, D-335): 모듈 Fan-Out 7 이하. 허용 표 화살표는 v0.22(설계 5절·9.1, D-394)로
+     * 폰 153개·워치 26개에서 결정 넷이 하나씩 더했다. 폰: A2 data.watch → core.model(issueWatchSession이 Outcome을 돌려준다).
+     * 워치: W1 watch.cache → domain.live(상대 기록 파일의 진행표를 TrackTable로 되살린다), W2 watch.link → domain.live(매칭 대기 실시간 채널),
+     * W2 watch.session → domain.settings(회원 설정 사본). 그래서 폰 154개다. R79로 ui.me → domain.run(설정의 다시 보내기
+     * ResendRejectedRunsUseCase를 domain.run으로 옮겼다)을 더하고, develop의 D-455 코치 하위 패키지(ui.record.coach)를 합쳐 폰 159개다.
+     * 워치는 design-review 23장 R75 사용자 결정 (가)로 core.model을 폰과 같이 센다(기준 하나). 그러면 watch.ui가 8이라 대결 흐름을
+     * watch.battle로 옮겼다(W30): ui → domain.battle·watch.cache 둘이 ui → watch.battle 하나가 되고 watch.battle이 다섯을 갖는다.
+     * R76으로 쓰지 않는 watch.guide → domain.settings를 뺐다. 워치 코드 28 + core.model 다섯 줄 + battle 다섯 − ui 하나 = 37개다.
+     */
     @Test
-    fun `모듈 Fan-Out은 7 이하이고 허용 표는 폰 154개·워치 5개다`() {
+    fun `모듈 Fan-Out은 7 이하이고 허용 표는 폰 159개·워치 37개다`() {
         val over = ALLOWED.filterValues { it.size > MAX_FAN_OUT }.mapValues { it.value.size }
         assertEquals(emptyMap(), over)
         val (watch, phone) = ALLOWED.entries.partition { it.key.startsWith("watch.") || it.key == "wear.contract" }
-        assertEquals(154, phone.sumOf { it.value.size })
-        assertEquals(5, watch.sumOf { it.value.size })
+        assertEquals(159, phone.sumOf { it.value.size })
+        assertEquals(37, watch.sumOf { it.value.size })
     }
 
     @Test
@@ -154,12 +163,50 @@ class ArchitectureTest {
         assertEquals(emptyList(), violations)
     }
 
-    /** D-183: 한 파일 규칙의 적용 범위는 워치(:wear, 6.1.15 watch.*)까지다. */
+    /**
+     * D-183: 한 파일 규칙의 적용 범위는 워치(:wear, 6.1.15 watch.*)까지다. v0.22(9.1)의 새 패키지 넷(run·guide·session·cache)과
+     * R75 결정의 watch.battle도 filesIn("watch.")에 들어간다. 새 패키지에 파일이 있는지 본다.
+     */
     @Test
     fun `TC-6583 워치 소스도 한 파일 규칙을 지킨다 (D-112, D-183)`() {
         val watch = filesIn("watch.")
         assertTrue(watch.any { moduleOf(it.packageName()) == "watch.alert" }, "watch.alert 파일이 없다")
+        WATCH_PACKAGES_SINCE_V022.forEach { name ->
+            assertTrue(watch.any { moduleOf(it.packageName()) == "watch.$name" }, "watch.$name 파일이 없다")
+        }
+        assertTrue(
+            WATCH_PACKAGES_SINCE_V022.all { moduleOf("$WATCH.$it") == "watch.$it" },
+            "v0.22 이후 워치 패키지가 5.1.2 표에 있다"
+        )
         assertEquals(emptyList(), watch.flatMap(::oneFileViolations))
+    }
+
+    /**
+     * 9.1 새 규칙 (1)(D-366, D-394): watch.*는 공용 :data(api.*·data.*)를 domain 포트로만 쓰고 Hilt가 바인딩을 모은다.
+     * 직접 import는 안내 문구 표 data.guide(D-387)만 허용한다.
+     */
+    @Test
+    fun `D-394 watch는 공용 data 가운데 data·guide만 import한다`() {
+        assertEquals(emptyList(), filesIn("watch.").flatMap(::watchDataViolations))
+        val allowedData = ALLOWED.filterKeys { it.startsWith("watch.") }.values.flatten().filter(::isDataModule)
+        assertEquals(setOf("data.guide"), allowedData.toSet())
+        val fixture = Konsist.scopeFromFile("$FIXTURES/WatchDataImportFixture.kt").files
+        assertEquals(listOf("$APP.data.store.RoomPendingRunRepository"), fixture.flatMap(::watchDataViolations))
+    }
+
+    /**
+     * 9.1 새 규칙 (2)(D-385, R64 재발 방지): Hilt @Module의 @Binds는 같은 패키지의 구현만 묶는다. 다른 패키지 구현을 묶으면 그 패키지를
+     * import해 모듈 패키지의 Fan-Out이 는다. 예외는 설계가 남긴 WatchModule(watch.link: link·heart·alert 바인딩, 설계 2.2) 하나다.
+     */
+    @Test
+    fun `D-385 Hilt 모듈의 Binds는 같은 패키지의 구현만 묶는다`() {
+        val violations = files.filter { it.name !in BINDING_PACKAGE_EXCEPTIONS }.flatMap(::bindingPackageViolations)
+        assertEquals(emptyList(), violations)
+        val fixture = Konsist.scopeFromFile("$FIXTURES/CrossPackageBindsFixture.kt").files
+        assertEquals(
+            listOf("CrossPackageBindsFixture.sensor ← $WATCH.heart.ExerciseHeartRateSensor"),
+            fixture.flatMap(::bindingPackageViolations)
+        )
     }
 
     @Test
@@ -187,6 +234,41 @@ class ArchitectureTest {
         val backThenNavigate = Regex("""\.back\(\)\s*\n\s*\w+\.navigate\(""")
         val violations = files.filter { backThenNavigate.containsMatchIn(it.text) }.map { it.path }
         assertEquals(emptyList(), violations)
+    }
+
+    /** watch.* 파일이 import하는 공용 :data 이름 가운데 data.guide가 아닌 것(9.1 새 규칙 (1)). */
+    private fun watchDataViolations(file: KoFileDeclaration): List<String> = file
+        .importNames()
+        .filter { isDataLayer(it) && moduleOf(it.substringBeforeLast('.')) != "data.guide" }
+
+    private fun isDataModule(module: String): Boolean = module.startsWith("api.") || module.startsWith("data.")
+
+    /**
+     * @Module 안 @Binds 함수의 구현 매개변수가 다른 패키지에서 import한 형식이면 "모듈.함수 ← 구현" 한 줄(9.1 새 규칙 (2)).
+     * 중첩 형식(예: MeasurementService.Host)은 바깥 형식 이름으로 import를 찾는다. 같은 패키지 형식은 import가 없다.
+     */
+    private fun bindingPackageViolations(file: KoFileDeclaration): List<String> {
+        val ownPackage = file.packageName()
+        val imported = file.importNames().filter { it.startsWith(ROOT) }.associateBy { it.substringAfterLast('.') }
+        val modules =
+            file.classes(includeNested = true).filter { it.hasAnnotationWithName("Module") }.map {
+                it.name to
+                    it.functions()
+            } +
+                file.objects(includeNested = true).filter { it.hasAnnotationWithName("Module") }.map {
+                    it.name to
+                        it.functions()
+                }
+        return modules.flatMap { (moduleName, functions) ->
+            functions
+                .filter { it.hasAnnotationWithName("Binds") }
+                .mapNotNull { function ->
+                    val impl = function.parameters.firstOrNull()?.type?.name ?: return@mapNotNull null
+                    val source = imported[impl.substringBefore('.')] ?: return@mapNotNull null
+                    if (source.substringBeforeLast('.') == ownPackage) return@mapNotNull null
+                    "$moduleName.${function.name} ← $source"
+                }
+        }
     }
 
     /** D-112: 최상위 타입이 둘 이상이면 sealed 계층(부모와 하위 타입)이거나 private 함수를 나누는 짝 UseCase여야 한다. */
@@ -249,13 +331,9 @@ class ArchitectureTest {
             .mapNotNull { imported ->
                 val to = moduleOf(imported.substringBeforeLast('.')) ?: moduleOf(imported)
                 when {
+                    isOwnResources(from, imported) -> null
                     to == null -> "$from → $imported (${file.name})"
-
-                    to == from || to in allowed || isE2eException(
-                        file,
-                        imported
-                    ) || isOwnResources(from, imported) -> null
-
+                    to == from || to in allowed || isE2eException(file, imported) -> null
                     else -> "$from → $to (${file.name})"
                 }
             }
@@ -271,11 +349,13 @@ class ArchitectureTest {
             imported in E2E_TOKEN_IMPORTS
 
     /**
-     * :data Gradle 모듈의 R(문자열 리소스)은 namespace 때문에 api.core 패키지에 생기지만 api.core 코드가 아니다.
-     * data.*가 같은 Gradle 모듈의 리소스를 읽는 것은 표의 화살표로 치지 않는다(2차 리뷰 M-3: 도메인 안내 문구).
+     * :data Gradle 모듈의 R(문자열 리소스)은 namespace 때문에 api.core 패키지에 생기지만 api.core 코드가 아니다. :data:phone의 R은
+     * 5.1.2 표 밖 이름(data.phone)에 생긴다(D-365). data.*가 자기 Gradle 모듈의 리소스를 읽는 것은 표의 화살표로 치지 않는다
+     * (2차 리뷰 M-3: 도메인 안내 문구).
      */
     private fun isOwnResources(from: String, imported: String): Boolean =
-        (from.startsWith("data.") && imported == "$APP.api.core.R") ||
+        (from.startsWith("data.") && imported in setOf("$APP.api.core.R", "$APP.data.phone.R")) ||
+            (from.startsWith("watch.") && imported == "$WATCH.ui.R") ||
             (from == "ui.record.coach" && imported == "$APP.ui.record.R")
 
     private fun isAppOrUi(module: String?): Boolean = module == "app" || module?.startsWith("ui.") == true
@@ -291,12 +371,18 @@ class ArchitectureTest {
         const val APP = "$ROOT.app"
         const val WATCH = "$ROOT.watch"
 
+        /** 9.1 새 규칙 (2)의 예외: 설계 2.2가 link·heart·alert 바인딩을 watch.link에 남긴 WatchModule(D-385). */
+        val BINDING_PACKAGE_EXCEPTIONS = setOf("WatchModule")
+
         /** 기기 저장 import 이름(R59 C1). */
         const val SHARED_PREFS = "android.content.SharedPreferences"
 
         /** E2E 토큰 창구와 그 창구를 대체 자리에 넣는 Hilt 모듈(D-112로 파일을 나눴다). */
         val E2E_TOKEN_FILES = setOf("E2eKakaoTokenSource", "E2eLoginModule")
         val E2E_TOKEN_IMPORTS = setOf("$APP.ui.me.KakaoAccessTokenSource", "$APP.ui.me.KakaoTokenOverride")
+
+        /** v0.22(9.1)에 생긴 워치 패키지 넷과 R75 결정(W30)의 battle. */
+        private val WATCH_PACKAGES_SINCE_V022 = listOf("run", "guide", "session", "cache", "battle")
 
         private val DOMAINS =
             listOf(
@@ -330,7 +416,7 @@ class ArchitectureTest {
                 "chat",
                 "report"
             )
-        private val DATAS = listOf("store", "settings", "sync", "watch", "live", "device", "push", "session")
+        private val DATAS = listOf("store", "settings", "sync", "watch", "live", "device", "push", "session", "guide")
         private val UIS =
             listOf(
                 "share",
@@ -356,7 +442,9 @@ class ArchitectureTest {
                 DATAS.forEach { put("data.$it", "$APP.data.$it") }
                 UIS.forEach { put("ui.$it", "$APP.ui.$it") }
                 put("wear.contract", "$ROOT.wear.contract")
-                listOf("heart", "alert", "link", "ui").forEach { put("watch.$it", "$WATCH.$it") }
+                // v0.22(9.1, D-394): 워치 단독 러닝 패키지 run·guide·session·cache. R75 결정(W30): 대결 흐름 battle
+                (listOf("heart", "alert", "link", "ui") + WATCH_PACKAGES_SINCE_V022)
+                    .forEach { put("watch.$it", "$WATCH.$it") }
             }
 
         private val CORE_UI = setOf("core.designsystem", "core.navigation", "core.model")
@@ -415,10 +503,16 @@ class ArchitectureTest {
                 "api.chat" to setOf("api.core", "domain.chat", "core.model"),
                 "api.report" to setOf("api.core", "domain.report", "core.model"),
                 "data.store" to setOf("domain.run", "core.model"),
-                "data.device" to setOf("domain.run", "core.model"),
+                // data.guide 추가(v0.22 R66, D-387): 안내 문구 표 GuidanceTexts를 공용 :data로 옮겼다.
+                "data.device" to setOf("domain.run", "core.model", "data.guide"),
+                // GuidanceTexts는 Guidance·GuidanceMessage(domain.run)만 받아 문구를 돌려준다(core.model 없음, M81).
+                "data.guide" to setOf("domain.run"),
                 "data.settings" to setOf("domain.settings", "core.model"),
                 "data.sync" to setOf("domain.sync", "domain.run", "core.model"),
-                "data.watch" to setOf("domain.run", "domain.settings", "wear.contract"),
+                // domain.account 추가(v0.22 R71, D-392): WatchSessionPublisher가 로그인 상태를 구독하고 issueWatchSession으로 워치용
+                // 토큰을 받는다(api.account 직접 호출 없음).
+                // core.model 추가(2단계 A2 결정): issueWatchSession의 결과(Outcome)와 발급 한도 초과(AppError)를 가려 읽는다.
+                "data.watch" to setOf("domain.run", "domain.settings", "wear.contract", "domain.account", "core.model"),
                 "data.live" to setOf("domain.live", "api.core", "api.live", "core.model"),
                 // domain.chat 추가: OpenChatRoomTracker가 OpenChatRoomRegistry를 구현한다(D-130).
                 "data.push" to setOf("domain.notification", "domain.chat"),
@@ -453,7 +547,8 @@ class ArchitectureTest {
                 "ui.chat" to CORE_UI + setOf("domain.chat", "domain.report"),
                 "ui.avatar" to CORE_UI + "domain.avatar",
                 // domain.settings는 프로필 편집의 출생연도(SettingsRepository.birthYear, D106)다(v0.16 5.1.2).
-                "ui.me" to CORE_UI + setOf("domain.account", "domain.settings"),
+                // domain.run(R79): 설정의 "못 올린 기록 n건, 다시 보내기"(ResendRejectedRunsUseCase, W40). Fan-Out 6.
+                "ui.me" to CORE_UI + setOf("domain.account", "domain.settings", "domain.run"),
                 "ui.notification" to CORE_UI + "domain.notification",
                 // core.model: 시작 작업(AppStartup)이 기기 사본 실패(AppError)를 기록한다. v0.17(D-332, R52): 시작·로그인 때
                 // 기기 사본 맞추기는 domain.sync의 DeviceCopySync가 하고, 로그인 상태는 SessionRepository(domain.account)로 본다.
@@ -467,10 +562,57 @@ class ArchitectureTest {
                         "core.navigation",
                         "core.designsystem"
                     ),
+                // 워치(설계 v0.22 5절 2차 구조, design-review 22.6): 8줄 26개 + W1 결정 1개(watch.cache → domain.live)
+                // + W2 결정 2개(watch.link → domain.live, watch.session → domain.settings) = 29개. R76: 쓰지 않는 watch.guide →
+                // domain.settings를 빼 28개. R75 결정 (가): core.model을 폰처럼 센다(cache·link·run·session·ui 다섯 줄) → 33개.
+                // W30: 대결 흐름을 watch.battle로 옮겨 ui → domain.battle·watch.cache가 ui → watch.battle이 되고(−1)
+                // watch.battle 다섯 줄이 생긴다(+5) = 37개.
                 "watch.heart" to emptySet(),
                 "watch.alert" to setOf("wear.contract"),
-                "watch.link" to setOf("wear.contract", "watch.heart", "watch.alert"),
-                "watch.ui" to setOf("watch.link")
+                // session: 받은 로그인 정보·로그아웃 표시를 넘긴다. domain.run: WatchMeasuringReporter가 RunTracker.isMeasuring을 구독한다(M77).
+                // domain.live(W2 결정): 배틀런 매칭 대기의 서버 실시간 채널(MatchWaiter). watch.ui가 domain.live를 쓰면 Fan-Out이 넘어
+                // 실시간 메시지 형식은 link에서만 다룬다(설계 22.6 "중간 계층"). core.model: MatchWaiter의 Outcome·AppError(상한 7).
+                "watch.link" to
+                    setOf(
+                        "wear.contract",
+                        "watch.heart",
+                        "watch.alert",
+                        "watch.session",
+                        "domain.run",
+                        "domain.live",
+                        "core.model"
+                    ),
+                // 상한 7(J-8, R65, R75). 대결(domain.battle)과 상대 기록(watch.cache)은 watch.battle 너머에서만 본다(W30).
+                "watch.ui" to
+                    setOf(
+                        "watch.link",
+                        "watch.guide",
+                        "watch.session",
+                        "watch.battle",
+                        "domain.run",
+                        "domain.account",
+                        "core.model"
+                    ),
+                // W30(R75 결정 (가)): 대결 시작·취소·결과와 상대 기록을 watch.ui 표시 값(BattleStep, RecordOpponent,
+                // WatchResultHeadline)으로 바꾸는 중간 계층. watch.ui를 모른다(R 리소스만, 순환 0).
+                "watch.battle" to setOf("watch.link", "watch.cache", "domain.battle", "domain.run", "core.model"),
+                "watch.run" to setOf("watch.alert", "wear.contract", "domain.run", "domain.settings", "core.model"),
+                // R76: 안내 출력은 설정을 보지 않는다(D-408 (3), Guidance.hasVoice·hasVibration이 정함).
+                "watch.guide" to setOf("watch.alert", "domain.run", "data.guide"),
+                // domain.settings(W2 결정): 서버 설정 사본은 회원 사본이라 로그인 정보와 수명을 같이 한다(메인을 열 때 refreshSettings,
+                // 로그아웃 때 clear). watch.ui는 domain.settings를 쓰지 않는다(Fan-Out 7 유지).
+                "watch.session" to
+                    setOf(
+                        "watch.cache",
+                        "wear.contract",
+                        "domain.run",
+                        "domain.account",
+                        "domain.settings",
+                        "core.model"
+                    ),
+                // 회원ID는 부르는 쪽이 넘긴다: cache는 watch.session을 모른다(M78, 순환 0). domain.live(W1 결정): OpponentTrack은 표본을
+                // 밖에 내지 않아 파일에 둔 진행표를 OpponentTrack.from(TrackTable)로 되살린다.
+                "watch.cache" to setOf("domain.battle", "domain.live", "core.model")
             )
 
         /** 패키지 이름이 속한 5.1.2 모듈. app은 com.a207.runkk.app 바로 아래(하위 패키지 없음)만이다. */

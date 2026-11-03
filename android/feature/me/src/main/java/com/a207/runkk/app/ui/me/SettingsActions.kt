@@ -16,5 +16,7 @@ data class SettingsActions(
     /** 다른 화면으로(알림 설정, 소셜 계정 연동, 회원 탈퇴). */
     val onNavigate: (String) -> Unit = {},
     /** 로그아웃 확인 대화상자에서 "로그아웃". */
-    val onLogout: () -> Unit = {}
+    val onLogout: () -> Unit = {},
+    /** 못 올린 기록 "다시 보내기"(W40). */
+    val onResendRejected: () -> Unit = {}
 )

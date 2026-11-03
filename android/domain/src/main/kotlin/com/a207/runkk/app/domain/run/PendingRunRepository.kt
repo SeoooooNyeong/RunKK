@@ -3,7 +3,8 @@ package com.a207.runkk.app.domain.run
 import com.a207.runkk.app.core.model.Outcome
 import java.time.Instant
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 
 /**
  * 미전송 기록 보관 포트(6.1.14). 구현 data.store.RoomPendingRunRepository.
@@ -17,14 +18,51 @@ interface PendingRunRepository {
 
     fun observePending(): Flow<List<CompletedRun>>
 
+    /**
+     * 서버가 거부해 멈춘 기록(REJECTED) 건수(R80). 폰 설정의 "못 올린 기록 n건"(ResendRejectedRunsUseCase)과 워치의 건수 알림
+     * (RejectedCountReporter)이 전체 목록 대신 이것을 구독한다. 기본 구현은 미전송 목록을 세고, 보관소 구현은 COUNT 쿼리로 센다.
+     */
+    fun observeRejectedCount(): Flow<Int> = observePending()
+        .map { runs -> runs.count { it.uploadState == UploadState.REJECTED } }
+        .distinctUntilChanged()
+
     suspend fun remove(recordId: String): Outcome<Unit>
+
+    /**
+     * 서버가 4xx로 받지 않은 기록을 지우지 않고 사유와 함께 남긴다(uploadState = REJECTED, R12 D2-b). 자동 전송은 이 기록을 다시
+     * 보내지 않는다. 기본 구현은 [run]을 상태만 바꿔 다시 저장한다. 보관소 구현은 전송 중 덧붙은 늦은 심박을 덮지 않게 상태 칸만 바꾼다.
+     */
+    suspend fun markRejected(run: CompletedRun, reason: String): Outcome<Unit> =
+        save(run.copy(uploadState = UploadState.REJECTED, rejectedReason = reason))
+
+    /**
+     * 서버가 거부해 멈춘 기록(REJECTED)을 모두 미전송(NOT_SENT)으로 되돌리고 거부 사유를 비운다(W40: 앱 결함을 고친 뒤 다시 보내기).
+     * 되돌린 건수를 돌려준다. 전송 요청은 부르는 쪽(ResetRejectedRunsUseCase)이 한다. 다시 보내도 거부되면 UploadPendingRunsUseCase가
+     * 다시 REJECTED로 남긴다. 기본 구현은 미전송 목록을 읽어 상태만 바꿔 다시 저장한다. 보관소 구현은 상태 칸만 바꾼다(늦은 심박을 덮지 않게).
+     */
+    suspend fun resetRejected(): Outcome<Int> {
+        val rejected =
+            when (val read = pending()) {
+                is Outcome.Failure -> return read
+                is Outcome.Success -> read.value.filter { it.uploadState == UploadState.REJECTED }
+            }
+        rejected.forEach { run ->
+            val saved = save(run.copy(uploadState = UploadState.NOT_SENT, rejectedReason = null))
+            if (saved is Outcome.Failure) return saved
+        }
+        return Outcome.Success(rejected.size)
+    }
 
     suspend fun purgeRoutes(): Outcome<Unit>
 
     /** 미전송 기록의 심박과 늦은 심박 항목(LateHeartRates)을 함께 지운다(FR-029, TF-VA-31). */
     suspend fun purgeHeartRates(): Outcome<Unit>
 
-    /** 20건 또는 7일을 넘기면 재전송 안내(FR-039). */
+    /**
+     * 재전송 안내가 필요한가(FR-039, CR-130, W48). 연결되면 올라갈 미전송 기록(REJECTED가 아닌 것)만 센다. 미전송이 20건을 넘었거나
+     * (21번째를 저장했을 때) 가장 오래된 미전송 기록이 저장된 지 7일을 넘었으면(8일째부터) 참이다. 20건째와 7일 정각은 거짓이다.
+     * 거부 기록은 설정의 "못 올린 기록 n건"으로만 알린다(D-473). 안내만 하고 기록을 지우거나 측정을 막지 않는다(W47).
+     */
     suspend fun needsReminder(now: Instant): Outcome<Boolean>
 
     /**

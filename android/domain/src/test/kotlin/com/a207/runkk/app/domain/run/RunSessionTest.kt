@@ -32,6 +32,20 @@ class RunSessionTest {
     }
 
     @Test
+    fun `확정한 기록은 시작 조건의 시작 기기를 지닌다(D-378, W23)`() {
+        val watch = RunSession(freeSpec().copy(startDevice = RunStartSpec.StartDevice.WATCH)).also { it.start(T0) }
+        watch.runFor(5)
+        assertEquals(
+            RunStartSpec.StartDevice.WATCH,
+            assertIs<FinishOutcome.Saved>(watch.finish(at(5))).run.startDevice
+        )
+
+        val phone = running()
+        phone.runFor(5)
+        assertEquals(RunStartSpec.StartDevice.PHONE, assertIs<FinishOutcome.Saved>(phone.finish(at(5))).run.startDevice)
+    }
+
+    @Test
     fun `정상 포인트 사이 거리를 누적한다`() {
         val session = running()
         session.runFor(10)

@@ -4,6 +4,7 @@ import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
@@ -18,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkSwitchRow
@@ -28,6 +30,7 @@ import com.a207.runkk.app.core.navigation.Routes
 
 /**
  * 설정(F4): 계정, 표시, 공개 범위, 동의 관리, 기기, 기타 묶음과 맨 아래 로그아웃·회원 탈퇴.
+ * 서버가 거부한 기록이 있으면 맨 위에 기록 전송 묶음(못 올린 기록 n건, 다시 보내기)을 보인다(W40).
  * 연동하지 않은 게스트의 로그아웃은 기기 기록이 지워진다는 확인과 연동 길을 보인다(F10, FR-199).
  */
 @Composable
@@ -36,6 +39,7 @@ internal fun AppSettings(state: SettingsUiState, actions: SettingsActions) {
     var isChoosingVisibility by remember { mutableStateOf(false) }
     var isShowingLegal by remember { mutableStateOf(false) }
     var isConfirmingLogout by remember { mutableStateOf(false) }
+    if (state.rejectedRunCount > 0) UploadSection(state, actions)
     AccountSection(state, actions)
     DisplaySection(state, actions)
     SoundSection()
@@ -92,6 +96,28 @@ internal fun AppSettings(state: SettingsUiState, actions: SettingsActions) {
             },
             onDismiss = { isConfirmingLogout = false }
         )
+    }
+}
+
+/** 기록 전송 묶음(W40): 서버가 거부해 멈춘 폰 기록 수와 다시 보내기. 누르면 폰과 연결된 워치의 거부 기록을 다시 보낸다. */
+@Composable
+private fun UploadSection(state: SettingsUiState, actions: SettingsActions) {
+    Section(R.string.me_settings_section_upload) {
+        Row(
+            modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 56.dp).padding(start = 16.dp, end = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                stringResource(R.string.me_settings_rejected_runs, state.rejectedRunCount),
+                style = RunkkTextStyles.text(15, FontWeight.Medium),
+                color = RunkkColors.TextPrimary,
+                modifier = Modifier.weight(1f)
+            )
+            RunkkTextLink(
+                stringResource(R.string.me_settings_resend),
+                onClick = { if (!state.isResending) actions.onResendRejected() }
+            )
+        }
     }
 }
 

@@ -1,33 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- api.*·data.live: 서버 연결, data.sync: 네트워크 조건 -->
+    <!-- api.*·data.live: 서버 연결, data.sync: 네트워크 조건. 측정 서비스·FCM과 그 권한은 :data:phone에 있다(D-365). -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <!-- data.device: 측정 위치(FR-032)와 포그라운드 측정 서비스(타입 location, FR-035) -->
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
-    <!-- data.device: 잠금 화면 진행 알림(FR-224). Android 16 이상은 승격 진행 알림(Live Updates, D-259) -->
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
-    <!-- data.device: 진동 안내 -->
-    <uses-permission android:name="android.permission.VIBRATE" />
-
-    <application>
-        <service
-            android:name="com.a207.runkk.app.data.device.MeasurementService"
-            android:exported="false"
-            android:foregroundServiceType="location" />
-
-        <service
-            android:name="com.a207.runkk.app.data.push.RunkkMessagingService"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="com.google.firebase.MESSAGING_EVENT" />
-            </intent-filter>
-        </service>
-    </application>
 
 </manifest>

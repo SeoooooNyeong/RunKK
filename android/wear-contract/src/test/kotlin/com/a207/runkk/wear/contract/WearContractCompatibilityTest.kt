@@ -117,19 +117,98 @@ class WearContractCompatibilityTest {
     }
 
     @Test
+    fun `D-371 v0·22에 새로 생긴 메시지의 키는 설계와 같다`() {
+        assertEquals(
+            listOf("memberId", "accountType", "accessToken", "refreshToken", "issuedAtEpochMillis"),
+            keysOf(WatchSessionMessage.serializer().descriptor)
+        )
+        assertEquals(listOf("memberId", "revokedAtEpochMillis"), keysOf(SessionRevokedMessage.serializer().descriptor))
+        assertEquals(listOf("measuring", "atEpochMillis"), keysOf(WatchMeasuringMessage.serializer().descriptor))
+    }
+
+    @Test
+    fun `D-371 NFR-050 비밀값을 가진 로그인 정보는 DataClient 경로로 가지 않는다`() {
+        assertEquals(
+            setOf(
+                WearPaths.HEART_RATE_BATCH,
+                WearPaths.SESSION_REVOKED,
+                WearPaths.RESEND_REJECTED,
+                WearPaths.REJECTED_COUNT
+            ),
+            WearPaths.DATA_ITEM_PATHS
+        )
+        assertFalse(WearPaths.WATCH_SESSION in WearPaths.DATA_ITEM_PATHS, "토큰은 MessageClient로만 보낸다")
+        assertFalse(
+            WearPaths.DATA_ITEM_PATHS.any { WearPaths.WATCH_SESSION.startsWith("$it/") },
+            "DataClient 접두어 경로 아래에도 두지 않는다"
+        )
+        val revokedKeys = keysOf(SessionRevokedMessage.serializer().descriptor)
+        assertTrue(revokedKeys.none { it.contains("token", ignoreCase = true) }, "로그아웃 표시에는 비밀값이 없다: $revokedKeys")
+    }
+
+    @Test
+    fun `NFR-050 로그인 정보의 문자열 표현은 토큰을 드러내지 않는다`() {
+        val text = WatchSessionMessage(42, "GUEST", "access-secret", "refresh-secret", 5).toString()
+
+        assertFalse("access-secret" in text || "refresh-secret" in text, text)
+        assertTrue("42" in text, text)
+    }
+
+    @Test
+    fun `D-371 새 메시지도 모르는 항목이 더해지면 해독한다`() {
+        assertEquals(
+            SessionRevokedMessage(42, 5),
+            SessionRevokedMessage.decode("""{"memberId":42,"revokedAtEpochMillis":5,"x":1}""".toByteArray())
+        )
+        assertEquals(
+            WatchMeasuringMessage(true, 5),
+            WatchMeasuringMessage.decode("""{"measuring":true,"atEpochMillis":5,"x":1}""".toByteArray())
+        )
+        assertEquals(
+            WatchSessionMessage(42, "SOCIAL", "a", "r", 5),
+            WatchSessionMessage.decode(
+                """{"memberId":42,"accountType":"SOCIAL","accessToken":"a","refreshToken":"r","issuedAtEpochMillis":5,"x":1}"""
+                    .toByteArray()
+            )
+        )
+    }
+
+    @Test
+    fun `W40 다시 보내기 요청은 모르는 항목이 더해져도 해독하고 키는 설계와 같다`() {
+        assertEquals(listOf("requestedAtEpochMillis"), keysOf(ResendRejectedMessage.serializer().descriptor))
+        assertEquals(
+            ResendRejectedMessage(5),
+            ResendRejectedMessage.decode("""{"requestedAtEpochMillis":5,"x":1}""".toByteArray())
+        )
+    }
+
+    @Test
+    fun `W43 워치 거부 기록 건수는 모르는 항목이 더해져도 해독하고 키는 설계와 같다`() {
+        assertEquals(listOf("count", "atEpochMillis"), keysOf(RejectedCountMessage.serializer().descriptor))
+        assertEquals(
+            RejectedCountMessage(2, 5),
+            RejectedCountMessage.decode("""{"count":2,"atEpochMillis":5,"x":1}""".toByteArray())
+        )
+    }
+
+    /** Kotlin Boolean 이름(is + 대문자, 예: isMeasuring)이 JSON 키로 새지 않는다. issuedAtEpochMillis 같은 단어는 해당하지 않는다. */
+    @Test
     fun `직렬화 키는 is로 시작하지 않는다(D-97 @SerialName)`() {
         val descriptors =
             V010_KEYS.map { it.first.descriptor } +
                 listOf(
                     PauseRequestMessage.serializer().descriptor,
                     ProximityMessage.serializer().descriptor,
-                    LeadChangeMessage.serializer().descriptor
+                    LeadChangeMessage.serializer().descriptor,
+                    WatchSessionMessage.serializer().descriptor,
+                    SessionRevokedMessage.serializer().descriptor,
+                    WatchMeasuringMessage.serializer().descriptor,
+                    ResendRejectedMessage.serializer().descriptor,
+                    RejectedCountMessage.serializer().descriptor
                 )
         descriptors.forEach { descriptor ->
             assertTrue(
-                keysOf(descriptor).none {
-                    it.startsWith("is")
-                },
+                keysOf(descriptor).none { BOOLEAN_PREFIX.matches(it) },
                 "${descriptor.serialName}: ${keysOf(descriptor)}"
             )
         }
@@ -144,7 +223,12 @@ class WearContractCompatibilityTest {
                 "resume-request.json" to { b: ByteArray -> PauseRequestMessage.decode(b).encode() },
                 "proximity.json" to { b: ByteArray -> ProximityMessage.decode(b).encode() },
                 "proximity-off.json" to { b: ByteArray -> ProximityMessage.decode(b).encode() },
-                "lead-change.json" to { b: ByteArray -> LeadChangeMessage.decode(b).encode() }
+                "lead-change.json" to { b: ByteArray -> LeadChangeMessage.decode(b).encode() },
+                "watch-session.json" to { b: ByteArray -> WatchSessionMessage.decode(b).encode() },
+                "session-revoked.json" to { b: ByteArray -> SessionRevokedMessage.decode(b).encode() },
+                "watch-measuring.json" to { b: ByteArray -> WatchMeasuringMessage.decode(b).encode() },
+                "resend-rejected.json" to { b: ByteArray -> ResendRejectedMessage.decode(b).encode() },
+                "rejected-count.json" to { b: ByteArray -> RejectedCountMessage.decode(b).encode() }
             )
         samples.forEach { (name, reencode) ->
             val bytes = sample(name)
@@ -185,6 +269,14 @@ class WearContractCompatibilityTest {
             PauseRequestMessage(PauseRequestMessage.Action.PAUSE, T),
             PauseRequestMessage.decode(sample("pause-request.json"))
         )
+        assertEquals(
+            WatchSessionMessage(42, "LINKED", "sample-access", "sample-refresh", T),
+            WatchSessionMessage.decode(sample("watch-session.json"))
+        )
+        assertEquals(SessionRevokedMessage(42, T), SessionRevokedMessage.decode(sample("session-revoked.json")))
+        assertEquals(WatchMeasuringMessage(true, T), WatchMeasuringMessage.decode(sample("watch-measuring.json")))
+        assertEquals(ResendRejectedMessage(T), ResendRejectedMessage.decode(sample("resend-rejected.json")))
+        assertEquals(RejectedCountMessage(3, T), RejectedCountMessage.decode(sample("rejected-count.json")))
     }
 
     private fun keysOf(descriptor: SerialDescriptor): List<String> = descriptor.elementNames.toList()
@@ -195,6 +287,9 @@ class WearContractCompatibilityTest {
     private companion object {
         const val SAMPLE_DIR = "wear-contract-samples"
         const val T = 1_800_000_000_000L
+
+        /** Kotlin Boolean 속성 이름 꼴(D-111 is·has·can 중 is). */
+        val BOOLEAN_PREFIX = Regex("is[A-Z].*")
 
         /** v0.10(설계 v0.10)까지 배포된 메시지의 JSON 키 스냅숏. 지우거나 이름을 바꾸면 옛 상대가 깨진다. */
         val V010_KEYS: List<Pair<KSerializer<*>, List<String>>> =

@@ -88,6 +88,15 @@ constructor(
         Outcome.Failure(ApiErrorMapper.toLoginError(e))
     }
 
+    /** 워치용 토큰 쌍(POST /auth/watch-session, D-372). 폰 토큰은 바꾸지 않는다(돌려받은 쌍은 워치로만 간다). */
+    override suspend fun issueWatchSession(): Outcome<SessionTokens> =
+        ApiErrorMapper.call { auth.watchSession().toDomain() }
+
+    /** 워치용 갱신 토큰 폐기(DELETE /auth/watch-session, 204, contract-v2 4절). 워치연동을 끌 때 부른다(FR-019). */
+    override suspend fun revokeWatchSession(): Outcome<Unit> = ApiErrorMapper.call { auth.revokeWatchSession() }
+
+    override fun selfMemberId(): Long? = self.memberId()
+
     /** 서버의 갱신 토큰 폐기. 갱신 토큰이 없으면(이미 로그아웃) 보낼 것이 없다. */
     override suspend fun logout(): Outcome<Unit> {
         val refresh = tokens.refreshToken() ?: return Outcome.Success(Unit)

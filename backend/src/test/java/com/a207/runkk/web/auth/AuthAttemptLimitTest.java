@@ -1,14 +1,18 @@
 package com.a207.runkk.web.auth;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.a207.runkk.web.WebTestSupport;
+import java.time.Duration;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.context.properties.bind.Binder;
+import org.springframework.boot.context.properties.source.MapConfigurationPropertySource;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
@@ -25,7 +29,9 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
             "runkk.auth.attempts.credential-failures=2",
             "runkk.auth.attempts.failure-window=10m",
             "runkk.auth.attempts.guest-starts=3",
-            "runkk.auth.attempts.guest-start-window=1h"
+            "runkk.auth.attempts.guest-start-window=1h",
+            "runkk.auth.attempts.watch-sessions=3",
+            "runkk.auth.attempts.watch-session-window=1h"
         })
 @DisplayName("web.auth 공개 인증 경로 시도 제한(M5)")
 class AuthAttemptLimitTest extends WebTestSupport {
@@ -176,5 +182,48 @@ class AuthAttemptLimitTest extends WebTestSupport {
                                         .content(write(Map.of("guestCredential", forged))),
                                 "203.0.113.52"))
                 .andExpect(status().isTooManyRequests());
+    }
+
+    private String guestBearer(String clientIp) throws Exception {
+        String guest =
+                mvc.perform(from(guestStart(true), clientIp))
+                        .andExpect(status().isCreated())
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString();
+        return "Bearer " + body(guest).get("accessToken").asText();
+    }
+
+    private MockHttpServletRequestBuilder watchSession(String bearer, String clientIp) {
+        return from(post("/api/v1/auth/watch-session").header("Authorization", bearer), clientIp);
+    }
+
+    @Test
+    @DisplayName("워치 세션 발급(D-372): 회원별 발급 한도는 접속지를 바꿔도 429, 접속지 요청 상한도 함께 센다")
+    void watchSessionLimits() throws Exception {
+        String first = guestBearer("203.0.113.60");
+        String second = guestBearer("203.0.113.60");
+        for (int i = 0; i < 3; i++) {
+            mvc.perform(watchSession(first, "203.0.113.61")).andExpect(status().isOk());
+        }
+        mvc.perform(watchSession(first, "203.0.113.62"))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.code").value("TOO_MANY_ATTEMPTS"));
+
+        // 다른 회원은 회원 한도와 무관하지만 같은 접속지 요청 상한(5)은 함께 센다
+        mvc.perform(watchSession(second, "203.0.113.61")).andExpect(status().isOk());
+        mvc.perform(watchSession(second, "203.0.113.61")).andExpect(status().isOk());
+        mvc.perform(watchSession(second, "203.0.113.61")).andExpect(status().isTooManyRequests());
+    }
+
+    @Test
+    @DisplayName("BE12-7: 설정이 없을 때 워치 세션 발급 한도 기본값은 1시간 20회다(I14-5)")
+    void defaultWatchSessionLimit_isTwentyPerHour() {
+        AuthAttemptGuard.Limits defaults =
+                new Binder(new MapConfigurationPropertySource(Map.of()))
+                        .bindOrCreate("runkk.auth.attempts", AuthAttemptGuard.Limits.class);
+
+        assertThat(defaults.watchSessions()).isEqualTo(20);
+        assertThat(defaults.watchSessionWindow()).isEqualTo(Duration.ofHours(1));
     }
 }

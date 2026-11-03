@@ -1,10 +1,14 @@
-// 워치 앱(5.1.2 watch.heart·watch.link·watch.ui, 6.1.15). 기록을 만들지 않고 표시·시작 요청·심박 수집만 한다(C-002).
-// 의존 방향: watch.ui → watch.link → watch.heart, watch.link → wear.contract. Application·Activity는 watch.ui, Hilt 바인딩은 watch.link.
+// 워치 앱(5.1.2 watch.heart·watch.link·watch.ui, 6.1.15). 폰 러닝의 동행 표시·심박 수집(C-002)에 더해, v0.21부터 domain과 공용 :data를
+// 조립해 워치 단독 러닝을 측정·기록·전송한다(D-366). 폰 전용 :data:phone은 쓰지 않는다(D-365, Hilt 중복 바인딩).
+// 의존 방향은 설계 v0.22 5절 표(워치 8줄)를 따른다. Application·Activity는 watch.ui, Hilt 바인딩은 구현이 있는 패키지의 …Bindings와
+// watch.link의 WatchModule(link·heart·alert)이 한다(D-385).
 plugins {
     alias(libs.plugins.runkk.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
+    // 상대 기록 미리 받기 파일(watch.cache OpponentRecordCache, JSON 한 개, D-377)
+    alias(libs.plugins.kotlin.serialization)
     // 원형 화면 스크린샷(와이어프레임 K1~K5). 폰 화면 모듈의 runkk.android.screenshot은 라이브러리용이라 여기서 직접 붙인다.
     alias(libs.plugins.roborazzi)
 }
@@ -46,6 +50,10 @@ tasks.withType<Test>().configureEach {
 
 dependencies {
     implementation(project(":wear-contract"))
+    // 워치 단독 러닝(D-366): domain 클래스를 그대로 조립하고 공용 :data의 REST·실시간·보관함·전송·설정을 쓴다.
+    implementation(project(":domain"))
+    implementation(project(":data"))
+    implementation(project(":core:model"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
@@ -56,6 +64,9 @@ dependencies {
     implementation(libs.androidx.wear.compose.material3)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
+    // 워치 측정 서비스(watch.run WatchMeasurementService, LifecycleService, D-368)
+    implementation(libs.androidx.lifecycle.service)
+    implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.coroutines.play.services)

@@ -14,6 +14,9 @@ import com.a207.runkk.app.domain.account.LogoutUseCase
 import com.a207.runkk.app.domain.account.ProfileEdit
 import com.a207.runkk.app.domain.account.ProviderType
 import com.a207.runkk.app.domain.account.WithdrawUseCase
+import com.a207.runkk.app.domain.run.ResendRejectedRunsUseCase
+import com.a207.runkk.app.domain.run.ResetRejectedRunsUseCase
+import com.a207.runkk.app.domain.run.UploadState
 import java.time.Year
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -38,6 +41,12 @@ class MeViewModelsTest {
     private val settingsCopy = FakeSettingsRepository()
     private val kakao = FakeSocialLoginClient(ProviderType.KAKAO)
     private val context: Context = RuntimeEnvironment.getApplication()
+    private val pendingRuns = FakePendingRunRepository()
+    private val uploads = FakeUploadScheduler()
+    private val watchResend = FakeWatchResendRequester()
+
+    private fun resendRejected() =
+        ResendRejectedRunsUseCase(pendingRuns, ResetRejectedRunsUseCase(pendingRuns, uploads), watchResend)
 
     private fun settingsViewModel() = SettingsViewModel(
         account,
@@ -46,6 +55,7 @@ class MeViewModelsTest {
         LinkSocialAccountUseCase(account, session, settingsCopy),
         setOf(kakao, FakeSocialLoginClient(ProviderType.GOOGLE)),
         LogoutUseCase(account, session, FakePendingRunRepository(), settingsCopy),
+        resendRejected(),
         main.dispatcher
     )
 
@@ -348,6 +358,7 @@ class MeViewModelsTest {
             LinkSocialAccountUseCase(account, session, settingsCopy),
             setOf(kakao),
             LogoutUseCase(account, session, FakePendingRunRepository(), settingsCopy),
+            resendRejected(),
             io
         )
         assertEquals(0, session.guestReads, "메인에서 읽었다")
@@ -395,5 +406,74 @@ class MeViewModelsTest {
         vm.retry()
         assertEquals(sampleProfile, vm.state.value.profile)
         assertEquals(listOf("profile:9", "profile:9"), account.calls)
+    }
+
+    @Test
+    fun `W40 설정은 폰의 못 올린 기록(REJECTED) 건수를 보이고 되돌리면 0이 된다`() {
+        pendingRuns.runs.value =
+            listOf(
+                pendingRun("a", UploadState.REJECTED),
+                pendingRun("b"),
+                pendingRun("c", UploadState.REJECTED)
+            )
+        val vm = settingsViewModel()
+        assertEquals(2, vm.state.value.rejectedRunCount)
+
+        vm.onResendRejected()
+
+        assertEquals(0, vm.state.value.rejectedRunCount)
+        assertEquals(1, uploads.requests, "폰 전송을 바로 깨운다")
+        assertEquals(1, watchResend.requests, "워치에도 요청한다")
+        assertEquals(UiText.Res(R.string.me_settings_resend_started), vm.state.value.message)
+        assertFalse(vm.state.value.isResending)
+    }
+
+    @Test
+    fun `TC-5439 다시 보내기를 진행 중에 또 누르면 유스케이스는 한 번만 부르고 진행 중으로 남는다`() {
+        pendingRuns.runs.value = listOf(pendingRun("a", UploadState.REJECTED))
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        watchResend.gate = gate
+        val vm = settingsViewModel()
+
+        vm.onResendRejected()
+        vm.onResendRejected()
+
+        assertEquals(1, watchResend.requests)
+        assertEquals(1, uploads.requests)
+        assertTrue(vm.state.value.isResending)
+
+        gate.complete(Unit)
+        assertFalse(vm.state.value.isResending)
+    }
+
+    @Test
+    fun `W43 폰에 못 올린 기록이 없어도 워치 건수를 더해 보이고 워치가 되돌리면 0이 된다`() {
+        pendingRuns.runs.value = listOf(pendingRun("b"))
+        watchResend.watchCount.value = 2
+        val vm = settingsViewModel()
+        assertEquals(2, vm.state.value.rejectedRunCount)
+
+        pendingRuns.runs.value = listOf(pendingRun("a", UploadState.REJECTED))
+        assertEquals(3, vm.state.value.rejectedRunCount)
+
+        vm.onResendRejected()
+        watchResend.watchCount.value = 0
+
+        assertEquals(1, watchResend.requests, "워치에 다시 보내기를 요청한다")
+        assertEquals(0, vm.state.value.rejectedRunCount)
+    }
+
+    @Test
+    fun `W40 폰 보관함을 바꾸지 못하면 오류를 알리고 건수를 그대로 둔다(워치 요청은 보낸다)`() {
+        pendingRuns.runs.value = listOf(pendingRun("a", UploadState.REJECTED))
+        pendingRuns.resetFailWith = AppError.Storage
+        val vm = settingsViewModel()
+
+        vm.onResendRejected()
+
+        assertEquals(1, vm.state.value.rejectedRunCount)
+        assertEquals(RunkkErrorText.of(AppError.Storage), vm.state.value.message)
+        assertEquals(0, uploads.requests)
+        assertEquals(1, watchResend.requests)
     }
 }

@@ -59,6 +59,14 @@ spring:
 server:
   port: ${SERVER_PORT:8080}
   shutdown: graceful
+  # JSON 응답 gzip(2026-11-01 사용자 결정 W24, 코드 리뷰 12차 BE12-1). 워치가 미리 받는 셀럽 상대 기록은 1초 1점이라 풀코스 하나가 약 340KB다.
+  # Accept-Encoding: gzip을 보낸 요청만 압축한다(OkHttp는 자동으로 보내고 푼다). 하한 2KB는 길이를 아는 응답에만 걸리고, 길이 없이 흘려 쓰는
+  # Jackson JSON 응답은 작아도 압축된다(gzip 머리 약 20바이트 늘 뿐 값은 같다).
+  # nginx는 gzip을 켜지 않고(기본 off) Accept-Encoding을 그대로 넘기며 압축 응답을 다시 압축하지 않는다(infra/nginx/common/app-locations.conf).
+  compression:
+    enabled: true
+    mime-types: application/json,application/problem+json
+    min-response-size: 2KB
 
 # prometheus는 모니터링(S15P31A207-78, infra/monitoring)의 Prometheus가 읽는다. develop·prod는 관리 포트를 따로 두어(아래 프로필)
 # 서비스 포트(nginx가 넘기는 8080)에는 actuator가 없고 compose 내부 망에서만 읽힌다. nginx는 바깥에 /actuator/health 하나만 넘긴다.
@@ -121,6 +129,9 @@ runkk:
       # 게스트 생성(POST /members/guest) 접속지별 한도(FR-197, D-89 (4)): 1시간에 10회
       guest-starts: 10
       guest-start-window: 1h
+      # 워치 세션 발급(POST /auth/watch-session, D-372) 회원별 한도: 1시간에 20회. 접근 토큰 하나로 갱신 토큰을 끝없이 만들지 못하게 한다
+      watch-sessions: 20
+      watch-session-window: 1h
     google:
       base-url: ${GOOGLE_TOKENINFO_BASE_URL:https://oauth2.googleapis.com}
       # ID 토큰 aud로 받을 OAuth 클라이언트 ID(쉼표 구분). 비면 구글 로그인을 거부한다.
