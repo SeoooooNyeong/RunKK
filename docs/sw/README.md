@@ -1,5 +1,5 @@
 # 런크크 산출물 안내 (큰 흐름)
-> 작성: 2026-10-28 | 버전: v0.3 | 입력: docs/sw/ 산출물 11개의 머리 헤더
+> 작성: 2026-11-03 | 버전: v0.4 | 입력: docs/sw/ 산출물 11개의 머리 헤더(2026-11-03, sw-sdlc merge 뒤). 이전 판(v0.3, 2026-10-28) 입력: 같은 머리 헤더
 
 이 폴더는 런크크 프로젝트의 소프트웨어공학 산출물을 모은 곳이다. 문서를 처음 보는 사람은 1절의 흐름을 보고, 찾는 내용이 있으면 3절 표에서 파일을 고른다.
 100KB가 넘는 문서 4개(plan, srs, design-oo, design-review)는 목차 파일과 같은 이름의 폴더로 나눴다(4절).
@@ -12,15 +12,15 @@
               │
               ▼
 [분석]  무엇을 만들 것인가?
-        srs.md v0.20  (요구 도출 → 분석 → 명세 → 확인, DFD·자료사전·소단위 명세)
+        srs.md v0.22  (요구 도출 → 분석 → 명세 → 확인, DFD·자료사전·소단위 명세)
               │
               ▼
 [설계]  어떻게 만들 것인가?
-        design-oo.md v0.26 ──▶ design-review.md v0.15
+        design-oo.md v0.28 ──▶ design-review.md v0.21
               │
               ▼
-[구현]  설계대로 코드로 옮겼는가?          implementation.md v0.7(워치 v2 진행 중) ⇄ code-review.md v0.12 (11차 합격 0/0/35, 57e11eec 해소 뒤 남은 경 27)
-[테스트] 요구대로 동작하는가? 품질은?       test.md v0.14, sqa.md v0.5   ◀── 지금 여기(1차 배포 758de88f 조건부 가능, 배포 전 체크리스트)
+[구현]  설계대로 코드로 옮겼는가?          implementation.md v0.10(워치 v2 develop 병합, AI 코치 화면 준비) ⇄ code-review.md v0.20 (18차 확인 합격 0/0/2, 경 합계 21)
+[테스트] 요구대로 동작하는가? 품질은?       test.md v0.17, sqa.md v0.8   ◀── 지금 여기(워치 v2 R16·R17 시험 보강, 2차 배포 11/13)
 [유지보수] 운영 중 변화에 대응하는가?       maintenance/
 ```
 
@@ -34,13 +34,13 @@
 | 계획 | [estimate.md](estimate.md) 비용 산정서 | v0.4 | 2026-11-02 | plan.md v0.28, 코드 실측 c29df9fa·f95450db | 한 파일 (91KB) |
 | 계획 | [schedule.md](schedule.md) 일정표와 조직 계획 | v0.12 | 2026-11-02 | 오규연 디자인 전환(앱 일 → 박재영, 날짜 고정), 담당 재배치(v0.11), 2차 배포 11/13, estimate.md v0.4, plan.md v0.31 | 목차 + schedule/ 조각 8개 |
 | 계획 | [decisions.md](decisions.md) 결정 기록 | v0.1 | 2026-10-19 | schedule.md v0.3, plan.md v0.16 | 한 파일 |
-| 분석 | [srs.md](srs.md) 요구사항 명세서 | v0.20 | 2026-11-02 | plan.md v0.28(A1~A9), CR-110~CR-118(ai 서버 연결, FR-261~FR-272, NFR-052·NFR-053), 이전 판 srs.md v0.19 | 목차 + `srs/` 32개 |
-| 설계 | [design-oo.md](design-oo.md) 객체지향 분석·설계서 | v0.26 | 2026-11-02 | srs.md v0.20(CR-110~CR-118 ai 서버 연결), 05-19 D-434~D-455, 이전 판 v0.21~v0.25(워치 v2) | 목차 + `design-oo/` 38개 |
-| 설계 | [design-review.md](design-review.md) 설계 검증 결과서 | v0.15 | 2026-10-31 | design-oo.md v0.20(21.8 R59·R60 해소 확인: media 하위 패키지·Konsist C1, 새 화살표 0, 조건부 합격 유지, 검토 R-2·R-3·R54·R57), 코드 758de88f. 이전 v0.14: design-oo.md v0.19(21장 조건부 합격), 코드 242612e9 | 목차 + `design-review/` 15개 |
-| 구현 | [implementation.md](implementation.md) 구현 기록(목차 + implementation/ 조각) | v0.7 | 2026-10-31 | srs.md v0.18, design-oo.md v0.22(D-365~D-394), 워치 v2 결정 W01~W22; 이전: design-oo.md v0.19(D-336~D-357), srs.md v0.17(CR-82~CR-91), 사용자 결정 D131~D148, code-review.md v0.10(AN11-4~AN11-6·AN11-9), design-review.md v0.14(R59), test.md v0.12(TF-V12-01~03), 코드 MR !53 cfbd103c..57e11eec(13.10 리뷰·검토 반영, 13.11 배포 전 정리: AN10-5·AN11-7·8·9·BE11-3, D-364, D150·D151) | 한 파일 |
-| 구현 | [code-review.md](code-review.md) 코드 리뷰 결과서 | v0.12 | 2026-10-31 | design-oo.md v0.19, srs.md v0.17, 코드 MR !53 cfbd103c..242612e9(11차 합격 0/0/35), 758de88f(11차 해소 기록: AN11-4·5·6 해소, AN11-9 일부, BE11-3 남음), 57e11eec(해소 기록 2: AN10-5·AN11-7·8·9·BE11-3 해소, 남은 경 27) | 목차 + `code-review/` 12개 |
-| 테스트 | [test.md](test.md) 테스트 계획·케이스 | v0.14 | 2026-11-02 | v0.14: srs.md v0.19 워치 v2(FR-240~FR-260, NFR-048~NFR-051), design-oo.md v0.24, 코드 5a49bd63(새 케이스 240개: 자동화됨 147·미자동화 60·실기기 33, 미커버 0); 이전: srs.md v0.17, design-oo.md v0.19, 코드 758de88f 실행 결과(v0.12 케이스 20개 결과 갱신: 통과 16·일부 19·시험 코드 없음 49·미실행 42, TF-V12-01~03 해소) | 목차 + `test/` 27개 |
-| 테스트 | [sqa.md](sqa.md) 품질 검토 결과서 | v0.5 | 2026-10-31 | srs v0.17, plan v0.26, design-oo v0.20, design-review v0.14, implementation v0.5, code-review v0.11, test v0.13, 코드 758de88f(1차 배포 조건부 가능: 음원 권리, 실기기 필수 시험, 04 조건 이월), 사용자 결정 D149(TC-4773) | 목차 + `sqa/` 5개 |
+| 분석 | [srs.md](srs.md) 요구사항 명세서 | v0.22 | 2026-11-03 | 워치 v2 결정 W34~W48(CR-122~CR-131, FR-273·NFR-054), design-oo.md v0.27 SR27-1~SR27-8, 이전 판 v0.21(W31·W32), v0.20(ai 서버 연결 CR-110~CR-118) | 목차 + `srs/` 35개 |
+| 설계 | [design-oo.md](design-oo.md) 객체지향 분석·설계서 | v0.28 | 2026-11-03 | AI 코치 병합 대기(D-474 ui.record.coach, 폰 159·워치 37), 이전 판 v0.27(워치 v2 R11~R15, D-461~D-473), v0.26(ai 서버 연결 D-434~D-455) | 목차 + `design-oo/` 44개 |
+| 설계 | [design-review.md](design-review.md) 설계 검증 결과서 | v0.21 | 2026-11-03 | design-oo.md v0.27(24장 조건부 합격: R79·R80, 코드 cc8c138b), AI 코치 화면 범위 검토(ai-coach-consent-박, 허용) | 목차 + `design-review/` 19개 |
+| 구현 | [implementation.md](implementation.md) 구현 기록(목차 + implementation/ 조각) | v0.10 | 2026-11-03 | 워치 v2 14장(R1~R17, feature/runkk-watch-v2 → develop 599dc319), AI 코치 동의·화면 준비(ai-coach-consent-박, e66eb8a0) | 목차 + `implementation/` 8개 |
+| 구현 | [code-review.md](code-review.md) 코드 리뷰 결과서 | v0.20 | 2026-11-03 | 워치 v2 12~18차(18차 확인 793eb85e 합격, 경 합계 21), AI 코치 동의·화면(ai-coach-consent-박, 조건부) | 목차 + `code-review/` 21개 |
+| 테스트 | [test.md](test.md) 테스트 계획·케이스 | v0.17 | 2026-11-03 | 워치 v2 R16·R17(TC-5641~TC-5692, 직접 실행 2,312건 실패 0), 이전 v0.16 AI 코치(TC-5627~TC-5640), v0.15 워치 v2 구현 반영(TC-5401~TC-5626) | 목차 + `test/` 35개 |
+| 테스트 | [sqa.md](sqa.md) 품질 검토 결과서 | v0.8 | 2026-11-03 | 08회차: develop 0b16eafe(워치 v2 R16·R17 병합, AI 코치 화면 준비), test v0.17 직접 실행 2,312건 실패 0, code-review v0.20, design-oo v0.28. v0.11 조건부 가능, 정식 불합격 | 목차 + `sqa/` 8개 |
 
 ## 3. 무엇을 어디서 찾나
 
@@ -79,7 +79,7 @@ srs의 DFD 프로세스 번호(1~7)와 design-oo의 패키지가 같은 기능 �
 | UML 다이어그램(유스케이스·클래스·시퀀스·상태·활동) | [design-oo/07-11-UML-다이어그램](design-oo/07-11-UML-다이어그램.md) |
 | 의존도, DSM | [design-oo/12-의존도](design-oo/12-의존도.md) |
 | 구현 지침, 테스트 순서 | [design-oo/13-14-구현-지침-테스트-순서](design-oo/13-14-구현-지침-테스트-순서.md) |
-| 최신 설계 검증 판정 | [design-review/21-v0.19-검증](design-review/21-v0.19-검증.md) (이전 판정 이력은 09~20) |
+| 최신 설계 검증 판정 | [design-review/24-v0.27-검증](design-review/24-v0.27-검증.md) (이전 판정 이력은 09~23) |
 
 ## 4. 분할 규칙
 
