@@ -121,6 +121,52 @@ class RejectedResendReceiverTest {
         assertEquals(emptyList(), events)
     }
 
+    /**
+     * TC-5456(경곗값 같음·앞·뒤): 시각 2000을 처리한 뒤 폰 시계가 거꾸로 가 1999가 와도 처리한다(크기가 아니라 같음으로 본다, D-464).
+     * 2000은 버리고 2001은 처리한다. 각 경우는 2000을 처리한 수신기에서 따로 본다.
+     */
+    @Test
+    fun `직전 요청 시각보다 앞선 시각도 처리하고 같은 시각만 버린다(TC-5456 D-464)`() = runTest {
+        val handled = listOf(1_999L, 2_000L, 2_001L).associateWith { next ->
+            events.clear()
+            val service = service()
+            service.onDataEvents(listOf(event(DataEvent.TYPE_CHANGED, ResendRejectedMessage(2_000).encode())))
+            service.onDataEvents(listOf(event(DataEvent.TYPE_CHANGED, ResendRejectedMessage(next).encode())))
+            runCurrent()
+            events.count { it == "pendingRuns.resetRejected" }
+        }
+
+        assertEquals(mapOf(1_999L to 2, 2_000L to 1, 2_001L to 2), handled)
+    }
+
+    /**
+     * TC-5458(재시작): 1000을 처리한 뒤 워치 앱이 다시 떠 직전 시각을 잃고 같은 항목 1000을 다시 받으면 다시 처리한다. REJECTED만
+     * 되돌리므로 되돌릴 것이 없으면 결과가 같고(전송을 깨우지 않는다), 그 사이 다시 거부된 기록은 되돌린다.
+     */
+    @Test
+    fun `앱이 다시 떠 같은 요청을 다시 받아도 결과가 같고 그 사이 다시 거부된 기록은 되돌린다(TC-5458)`() = runTest {
+        pending.saved += run("a").copy(uploadState = UploadState.REJECTED, rejectedReason = "BAD_REQUEST")
+        service().onDataEvents(listOf(event(DataEvent.TYPE_CHANGED, ResendRejectedMessage(1_000).encode())))
+        runCurrent()
+        assertEquals(UploadState.NOT_SENT, pending.saved.single().uploadState)
+        assertEquals(1, uploads.requests)
+
+        // 다시 뜬 수신기(직전 시각 없음)가 같은 항목을 받는다: 되돌릴 REJECTED가 없다.
+        service().onDataEvents(listOf(event(DataEvent.TYPE_CHANGED, ResendRejectedMessage(1_000).encode())))
+        runCurrent()
+        assertEquals(UploadState.NOT_SENT, pending.saved.single().uploadState)
+        assertEquals(1, uploads.requests)
+
+        // 그 사이 서버가 다시 거부했다: 또 다시 뜬 수신기가 같은 항목을 받으면 되돌리고 전송을 깨운다.
+        pending.saved[0] = pending.saved[0].copy(uploadState = UploadState.REJECTED, rejectedReason = "BAD_REQUEST")
+        service().onDataEvents(listOf(event(DataEvent.TYPE_CHANGED, ResendRejectedMessage(1_000).encode())))
+        runCurrent()
+        assertEquals(UploadState.NOT_SENT, pending.saved.single().uploadState)
+        assertEquals(null, pending.saved.single().rejectedReason)
+        assertEquals(2, uploads.requests)
+        assertEquals(List(3) { "pendingRuns.resetRejected" }, events)
+    }
+
     private fun event(type: Int, bytes: ByteArray): DataEvent {
         val item = object : DataItem {
             override fun getUri(): Uri = Uri.parse("wear://phone${WearPaths.RESEND_REJECTED}")
