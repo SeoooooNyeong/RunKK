@@ -284,7 +284,7 @@ docker exec runkk-prod-api-1 sh -c 'zcat /var/log/runkk/api.2026-11-03.*.log.gz 
 2. 서버에 고정 폴더를 만듭니다: `sudo install -d -m 2775 -g docker /srv/runkk`. sudo를 쓸 수 없으면 CI 변수 `RUNKK_HOME`에 러너가 쓸 수 있는 폴더(지금 서버는 `/home/gitlab-runner/runkk`)를 넣습니다
 3. GitLab **Settings > CI/CD > Variables**:
    - `INFRA_ENV_EDGE`(File) 새로 추가: `SERVER_NAME`, `NGINX_HTTP_PORT`, `NGINX_HTTPS_PORT`, `NGINX_DEVELOP_PORT`, `GRAFANA_ADMIN_USER`. 비밀번호는 masked 변수 `GRAFANA_ADMIN_PASSWORD`, 알림 웹훅은 `GRAFANA_ALERT_WEBHOOK_URL`로 따로 둔다.
-   - `INFRA_ENV`(develop)에 `RUNKK_ENV=develop`, `POSTGRES_VOLUME=runkk_postgres-data`, `REDIS_VOLUME=runkk_redis-data`, `SELFIE_ENABLED=true`(셀카 시험 시)를 더합니다. `SERVER_NAME`·`NGINX_*`·`GRAFANA_*`는 이제 쓰지 않으니 지워도 됩니다.
+   - `INFRA_ENV`(develop)에 `RUNKK_ENV=develop`, `POSTGRES_VOLUME=runkk_postgres-data`, `REDIS_VOLUME=runkk_redis-data`, `SELFIE_ENABLED=true`(셀카 시험 시)를 더합니다. `RUNKK_AI_DB_PASSWORD`(ai 전용 DB 계정 비밀번호, 아래 prod 목록과 같은 규칙)도 필수입니다. `SERVER_NAME`·`NGINX_*`·`GRAFANA_*`는 이제 쓰지 않으니 지워도 됩니다.
    - `INFRA_ENV_PROD`(prod)를 새 값으로 채웁니다(아래 "prod 키 목록"). 다른 비밀(DB·Redis 비밀번호, JWT 키, 내부 토큰)은 develop과 다른 값으로 만듭니다.
 4. 앱: develop APK를 새로 받기 전까지 기존 develop APK(443을 봄)는 이관 뒤 prod 서버에 붙습니다. 테스터에게 이관 시각과 새 develop APK(8443)를 알립니다.
 
@@ -322,7 +322,7 @@ docker exec runkk-prod-api-1 sh -c 'zcat /var/log/runkk/api.2026-11-03.*.log.gz 
 
 ### prod 키 목록 (`INFRA_ENV_PROD`)
 
-필수: `RUNKK_ENV=prod`, `POSTGRES_VOLUME=runkk-prod_postgres-data`, `REDIS_VOLUME=runkk-prod_redis-data`, `SPRING_PROFILES_ACTIVE=prod`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `REDIS_PASSWORD`, `JWT_SECRET`, `ADMIN_JWT_SECRET`, `RUNKK_INTERNAL_TOKEN`, `FRIEND_INVITE_LINK_BASE=https://k15a207.p.ssafy.io/invite/battle`.
+필수: `RUNKK_ENV=prod`, `POSTGRES_VOLUME=runkk-prod_postgres-data`, `REDIS_VOLUME=runkk-prod_redis-data`, `SPRING_PROFILES_ACTIVE=prod`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `REDIS_PASSWORD`, `JWT_SECRET`, `ADMIN_JWT_SECRET`, `RUNKK_INTERNAL_TOKEN`, `RUNKK_AI_DB_PASSWORD`(영숫자, ai 전용 DB 계정 runkk_ai의 비밀번호로 Flyway V29가 첫 배포 때 계정을 만든다. ai `RUNKK_DB_URL`의 비밀번호와 같은 값. 빠지면 compose가 멈춘다), `FRIEND_INVITE_LINK_BASE=https://k15a207.p.ssafy.io/invite/battle`.
 연동(비우면 그 연동만 꺼짐): `KAKAO_APP_ID`(prod 패키지 com.a207.runkk 앱), `GOOGLE_CLIENT_IDS`, `FCM_PROJECT_ID`, `FCM_CREDENTIALS_FILE=/run/secrets/fcm-service-account.json`, `KMA_SERVICE_KEY`, `RUNKK_BOOTSTRAP_OPERATORS`, ai의 `RUNKK_LLM_*`·`RUNKK_ANTHROPIC_*`·`RUNKK_FACE_*`.
 넣지 않음: `SWAGGER_ENABLED`(넣으면 false만), `SELFIE_ENABLED`(기본 꺼짐), `SERVER_NAME`·`NGINX_*`·`GRAFANA_*`(에지 값).
 선택: `DB_POOL_SIZE`, `SCHEDULER_POOL_SIZE`, `AUTH_CLIENT_REQUESTS_PER_MINUTE`, `RUNKK_QUEUE`, `RUNKK_LIVE`, `API_MEM_LIMIT`, `API_JAVA_OPTS`, `BACKUP_TIME`, `BACKUP_KEEP_DAYS`, `BACKUP_DIR`, `BACKUP_OWNER`, `LEGAL_*`.
