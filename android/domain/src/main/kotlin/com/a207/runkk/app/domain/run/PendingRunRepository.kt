@@ -58,7 +58,11 @@ interface PendingRunRepository {
     /** 미전송 기록의 심박과 늦은 심박 항목(LateHeartRates)을 함께 지운다(FR-029, TF-VA-31). */
     suspend fun purgeHeartRates(): Outcome<Unit>
 
-    /** 20건 또는 7일을 넘기면 재전송 안내(FR-039). */
+    /**
+     * 재전송 안내가 필요한가(FR-039, CR-130, W48). 연결되면 올라갈 미전송 기록(REJECTED가 아닌 것)만 센다. 미전송이 20건을 넘었거나
+     * (21번째를 저장했을 때) 가장 오래된 미전송 기록이 저장된 지 7일을 넘었으면(8일째부터) 참이다. 20건째와 7일 정각은 거짓이다.
+     * 거부 기록은 설정의 "못 올린 기록 n건"으로만 알린다(D-473). 안내만 하고 기록을 지우거나 측정을 막지 않는다(W47).
+     */
     suspend fun needsReminder(now: Instant): Outcome<Boolean>
 
     /**

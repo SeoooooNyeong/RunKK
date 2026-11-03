@@ -21,6 +21,14 @@ internal interface PendingRunDao {
     @Query("SELECT COUNT(*) FROM pending_run WHERE sentAtMillis IS NULL AND uploadState = :state")
     fun observeCountInState(state: String): Flow<Int>
 
+    /** [excluded] 상태가 아닌 미전송 기록 건수(FR-039 재전송 안내 셈, W48). 모르는 상태 문자열은 미전송으로 읽으므로 함께 센다. */
+    @Query("SELECT COUNT(*) FROM pending_run WHERE sentAtMillis IS NULL AND uploadState != :excluded")
+    suspend fun countNotIn(excluded: String): Int
+
+    /** [excluded] 상태가 아닌 미전송 기록 가운데 가장 이른 저장 시각. 없으면 null. */
+    @Query("SELECT MIN(savedAtMillis) FROM pending_run WHERE sentAtMillis IS NULL AND uploadState != :excluded")
+    suspend fun oldestSavedAtNotIn(excluded: String): Long?
+
     @Query("SELECT * FROM pending_run WHERE recordId = :recordId")
     suspend fun find(recordId: String): PendingRunEntity?
 

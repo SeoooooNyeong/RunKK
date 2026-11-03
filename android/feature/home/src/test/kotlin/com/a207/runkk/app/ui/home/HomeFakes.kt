@@ -121,7 +121,16 @@ class FakePendingRunRepository : PendingRunRepository {
 
     override suspend fun purgeHeartRates() = Outcome.Success(Unit)
 
-    override suspend fun needsReminder(now: Instant) = Outcome.Success(false)
+    /** needsReminder가 돌려줄 값(W48). */
+    var reminder: Outcome<Boolean> = Outcome.Success(false)
+
+    /** needsReminder가 받은 시각. */
+    val reminderChecks = mutableListOf<Instant>()
+
+    override suspend fun needsReminder(now: Instant): Outcome<Boolean> {
+        reminderChecks += now
+        return reminder
+    }
 
     override suspend fun appendHeartRates(recordId: String, samples: List<HeartRateSample>) = Outcome.Success(Unit)
 

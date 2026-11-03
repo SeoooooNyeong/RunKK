@@ -77,6 +77,18 @@ class HomeScreenTest {
     }
 
     @Test
+    fun `W48 미전송 기록 안내가 필요하면 상단에 재전송 안내 띠를 보인다`() {
+        show(loaded.copy(isResendReminderVisible = true))
+        compose.onNodeWithText("올리지 못한 기록이 있어요. 인터넷에 연결해 주세요").assertExists()
+    }
+
+    @Test
+    fun `W48 안내가 필요 없으면 띠를 보이지 않는다`() {
+        show(loaded)
+        compose.onNodeWithText("올리지 못한 기록이 있어요. 인터넷에 연결해 주세요").assertDoesNotExist()
+    }
+
+    @Test
     fun `TC-9721 오늘·누적 요약, 랜드마크, 잔디, 횟수 달성률은 보이지 않는다`() {
         show(loaded)
         listOf("오늘 달린 거리", "이번 주 목표", "첫 랜드마크를 향해", "우리 집", "자유런 시작", "랜덤 매칭 시작").forEach {

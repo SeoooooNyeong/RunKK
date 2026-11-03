@@ -140,7 +140,8 @@ class FakePendingRunRepository(private val log: CallLog = CallLog()) : PendingRu
 
     override suspend fun purgeHeartRates(): Outcome<Unit> = result("pending.purgeHeartRates")
 
-    override suspend fun needsReminder(now: Instant): Outcome<Boolean> = Outcome.Success(runs.size >= 20)
+    override suspend fun needsReminder(now: Instant): Outcome<Boolean> =
+        Outcome.Success(runs.count { it.uploadState != UploadState.REJECTED } > 20)
 
     override suspend fun appendHeartRates(recordId: String, samples: List<HeartRateSample>): Outcome<Unit> {
         log.add("pending.appendHeartRates:$recordId")

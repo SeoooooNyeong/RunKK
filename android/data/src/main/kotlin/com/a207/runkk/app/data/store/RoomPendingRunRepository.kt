@@ -142,10 +142,12 @@ constructor(
         }
     }
 
+    /** 연결되면 올라갈 미전송 기록만 센다(거부 기록 제외, W48). 20건 초과 또는 7일 초과(정각은 아님)면 안내한다(FR-039, TC-3182~3184). */
     override suspend fun needsReminder(now: Instant): Outcome<Boolean> = storage {
-        val rows = dao.pending()
-        val oldestAllowed = now.minus(REMIND_AGE).toEpochMilli()
-        rows.size >= REMIND_COUNT || rows.any { it.savedAtMillis <= oldestAllowed }
+        val rejected = UploadState.REJECTED.name
+        val oldest = dao.oldestSavedAtNotIn(rejected)
+        dao.countNotIn(rejected) > REMIND_COUNT ||
+            (oldest != null && oldest < now.minus(REMIND_AGE).toEpochMilli())
     }
 
     override suspend fun appendHeartRates(recordId: String, samples: List<HeartRateSample>): Outcome<Unit> {
