@@ -180,8 +180,8 @@ class WatchFlowViewModel @Inject constructor(
     }
 
     /**
-     * 거리 카드(FR-244, FR-257~FR-259). 자유런·배틀런은 가운데 카드를 바꾸고(시작은 [onStartPressed]), 셀프런은 그 거리 기록으로
-     * 바로 시작하며(기록 없는 거리는 무시, W10), 셀럽런은 그 거리의 셀럽 목록으로 간다. 자유런 무제한은 null이다.
+     * 거리 카드(FR-244, FR-257~FR-259). 자유런·배틀런은 가운데 카드를 바꾸고(시작은 [onStartPressed]), 셀프런은 처음 누르면 그 카드를
+     * 고르기만 하고 고른 카드를 다시 누르면 그 거리 기록으로 시작하며(W50, 기록 없는 거리는 무시, W10), 셀럽런은 그 거리의 셀럽 목록으로 간다. 자유런 무제한은 null이다.
      */
     fun onDistanceSelected(d: Distance?) {
         when (val current = _flow.value) {
@@ -196,7 +196,12 @@ class WatchFlowViewModel @Inject constructor(
 
             is WatchFlow.SelfDistance -> {
                 val track = d?.let { distance -> battleFlow.selfCandidates().firstOrNull { it.distance == distance } }
-                if (track != null) startRecord(track, WatchMode.SELF)
+                val index = current.indexOf(d)
+                when {
+                    track == null || index == null -> Unit
+                    index != current.selected -> _flow.value = current.copy(selected = index, notice = null)
+                    else -> startRecord(track, WatchMode.SELF)
+                }
             }
 
             is WatchFlow.CelebDistance -> {
@@ -209,13 +214,20 @@ class WatchFlowViewModel @Inject constructor(
     }
 
     /**
-     * 셀럽 기록 하나를 골랐다(FR-259). 구간 기록을 받아 두었으면 바로 카운트다운이고, 아니면 연결이 있을 때 받은 뒤 카운트다운이다
+     * 셀럽 기록 하나를 눌렀다(FR-259). 고른 항목이 아니면 그 항목을 고르기만 하고(W50), 고른 항목을 다시 누르면 시작한다.
+     * 구간 기록을 받아 두었으면 바로 카운트다운이고, 아니면 연결이 있을 때 받은 뒤 카운트다운이다
      * (W31). 받는 동안 그 항목을 받는 중으로 보이고 다른 선택은 받지 않는다. 연결이 없으면 "연결되면 고를 수 있어요", 없는 기록(404)이면
      * "고를 수 없는 기록이에요"다.
      */
     fun onCelebritySelected(c: RecordOpponent) {
         val list = _flow.value as? WatchFlow.CelebList ?: return
         if (list.fetching != null) return
+        val index = list.celebrities.indexOf(c)
+        if (index < 0) return
+        if (index != list.selected) {
+            _flow.value = list.copy(selected = index, notice = null)
+            return
+        }
         battleFlow.readyCelebrity(c)?.let { ready ->
             startRecord(ready, WatchMode.CELEB)
             return

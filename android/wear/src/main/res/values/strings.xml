@@ -50,6 +50,9 @@
     <string name="record_none">기록 없음</string>
     <string name="celeb_count">%1$d명</string>
     <string name="celeb_fetching">받는 중</string>
+    <!-- 셀프 기록 카드와 셀럽 목록 누르기 안내(W50): 고르지 않은 카드는 고르고, 고른 카드는 시작한다. -->
+    <string name="card_select">선택</string>
+    <string name="card_start">시작</string>
 
     <!-- 매칭(FR-257, 피그마 BMA·BMB) -->
     <string name="matching">상대를 찾고 있어요</string>
