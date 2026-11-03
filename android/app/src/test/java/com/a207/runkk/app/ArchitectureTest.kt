@@ -42,13 +42,13 @@ class ArchitectureTest {
         assertEquals(emptyList(), violations)
     }
 
-    /** 12.4 구조 합격 조건(design-review 19장 R51·R52, D-335): 모듈 Fan-Out 7 이하, 허용 표 화살표 폰 150개·워치 5개. */
+    /** D-455 코치 하위 패키지 반영: Fan-Out 7 이하, 폰 154개·워치 5개. */
     @Test
-    fun `모듈 Fan-Out은 7 이하이고 허용 표는 폰 150개·워치 5개다`() {
+    fun `모듈 Fan-Out은 7 이하이고 허용 표는 폰 154개·워치 5개다`() {
         val over = ALLOWED.filterValues { it.size > MAX_FAN_OUT }.mapValues { it.value.size }
         assertEquals(emptyMap(), over)
         val (watch, phone) = ALLOWED.entries.partition { it.key.startsWith("watch.") || it.key == "wear.contract" }
-        assertEquals(150, phone.sumOf { it.value.size })
+        assertEquals(154, phone.sumOf { it.value.size })
         assertEquals(5, watch.sumOf { it.value.size })
     }
 
@@ -275,7 +275,8 @@ class ArchitectureTest {
      * data.*가 같은 Gradle 모듈의 리소스를 읽는 것은 표의 화살표로 치지 않는다(2차 리뷰 M-3: 도메인 안내 문구).
      */
     private fun isOwnResources(from: String, imported: String): Boolean =
-        from.startsWith("data.") && imported == "$APP.api.core.R"
+        (from.startsWith("data.") && imported == "$APP.api.core.R") ||
+            (from == "ui.record.coach" && imported == "$APP.ui.record.R")
 
     private fun isAppOrUi(module: String?): Boolean = module == "app" || module?.startsWith("ui.") == true
 
@@ -311,7 +312,8 @@ class ArchitectureTest {
                 "notification",
                 "account",
                 "chat",
-                "report"
+                "report",
+                "coach"
             )
         private val APIS =
             listOf(
@@ -335,6 +337,7 @@ class ArchitectureTest {
                 "home",
                 "run",
                 "record",
+                "record.coach",
                 "battle",
                 "crew",
                 "runimal",
@@ -384,6 +387,7 @@ class ArchitectureTest {
                 "domain.settings" to setOf("core.model"),
                 "domain.live" to setOf("core.model"),
                 "domain.record" to setOf("core.model"),
+                "domain.coach" to setOf("core.model"),
                 "domain.runimal" to setOf("core.model"),
                 "domain.avatar" to setOf("core.model"),
                 "domain.report" to setOf("core.model"),
@@ -437,6 +441,8 @@ class ArchitectureTest {
                 "ui.run" to CORE_UI + setOf("domain.run", "domain.record"),
                 // domain.avatar 추가: 러닝 카드 배경 키·단계(AvatarRepository.backgroundChoice, D-140, D-185).
                 "ui.record" to CORE_UI + setOf("domain.record", "domain.run", "domain.avatar", "ui.share"),
+                // 코치를 기존 행에 더하면 Fan-Out 8이다. 같은 Gradle 모듈의 하위 패키지로 나눈다.
+                "ui.record.coach" to setOf("core.designsystem", "core.model", "domain.coach"),
                 // v0.14: domain.account는 위치 동의 시트(LocationConsentUseCase, D-267)와 본인 요약(MySummary: 초대 메시지의
                 // 내 닉네임 D-270, 티어, 랜덤 대결 잠금의 유효 러닝 수 D-331), domain.record는 대결 결과 2쪽의 본인 기록 상세
                 // (RunDetailSource, D-283)다. v0.17(D-331, R51): 유효 러닝 수를 본인 요약에서 받아 domain.runimal을 뺐다.
