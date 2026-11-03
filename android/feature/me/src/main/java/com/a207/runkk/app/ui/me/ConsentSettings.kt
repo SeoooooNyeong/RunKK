@@ -10,13 +10,14 @@ import com.a207.runkk.app.core.designsystem.RunkkConfirmDialog
 import com.a207.runkk.app.core.designsystem.RunkkSwitchRow
 
 /**
- * 동의 관리 묶음(F4, FR-011~FR-016): 위치, 심박(선택), AI 코멘트용 전송(선택), 얼굴 변환 전송(선택), 마케팅(선택).
+ * 동의 관리 묶음(F4, FR-011~FR-016): 위치, 심박(선택), AI 리포트·코치 전송(선택), 얼굴 변환 전송(선택), 마케팅(선택).
  * 위치·심박 철회는 확인을 거치고, 심박 동의는 민감정보 안내를 먼저 보인다(FR-014).
  */
 @Composable
 internal fun ConsentSection(state: SettingsUiState, actions: SettingsActions) {
     var confirmWithdraw by remember { mutableStateOf<String?>(null) }
     var isAskingHeartRate by remember { mutableStateOf(false) }
+    var isAskingLlm by remember { mutableStateOf(false) }
     Section(R.string.me_settings_section_consents) {
         RunkkSwitchRow(
             stringResource(R.string.me_consents_location_title),
@@ -33,7 +34,8 @@ internal fun ConsentSection(state: SettingsUiState, actions: SettingsActions) {
         RunkkSwitchRow(
             stringResource(R.string.me_consents_llm_title),
             state.consent(ConsentKeys.LLM_TRANSFER),
-            { actions.setConsent(ConsentKeys.LLM_TRANSFER, it) }
+            { on -> if (on) isAskingLlm = true else actions.setConsent(ConsentKeys.LLM_TRANSFER, false) },
+            description = stringResource(R.string.me_consents_llm_summary)
         )
         SettingsDivider()
         RunkkSwitchRow(
@@ -65,6 +67,18 @@ internal fun ConsentSection(state: SettingsUiState, actions: SettingsActions) {
                 actions.setConsent(ConsentKeys.HEART_RATE, true)
             },
             onDismiss = { isAskingHeartRate = false }
+        )
+    }
+    if (isAskingLlm) {
+        RunkkConfirmDialog(
+            title = stringResource(R.string.me_consents_llm_dialog_title),
+            message = stringResource(R.string.me_consents_llm_message),
+            confirmLabel = stringResource(R.string.me_consents_llm_dialog_agree),
+            onConfirm = {
+                isAskingLlm = false
+                actions.setConsent(ConsentKeys.LLM_TRANSFER, true)
+            },
+            onDismiss = { isAskingLlm = false }
         )
     }
 }
