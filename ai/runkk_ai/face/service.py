@@ -60,6 +60,11 @@ class AvatarService:
     async def body(self, body_id: str) -> BodyOut:
         return await self._call("body", lambda: self._client.body(body_id))
 
+    async def purge_user(self, user_id: str) -> int:
+        """탈퇴 파기(privacy.WithdrawalService 규약). 사용자 폴더 하나라 지웠으면 1, 없었으면 0. 실패는 AvatarError."""
+        deleted = await self._call("delete", lambda: self._client.delete_user(user_id))
+        return 1 if deleted else 0
+
     async def aclose(self) -> None:
         await self._client.aclose()
 
