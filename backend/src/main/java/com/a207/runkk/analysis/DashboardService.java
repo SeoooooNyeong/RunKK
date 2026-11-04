@@ -10,7 +10,6 @@ import com.a207.runkk.policy.LandmarkTable;
 import com.a207.runkk.policy.OperationPolicy;
 import com.a207.runkk.reward.RewardService;
 import com.a207.runkk.running.DayStats;
-import com.a207.runkk.running.RunListRow;
 import com.a207.runkk.running.RunQueryService;
 import com.a207.runkk.running.RunSummary;
 import com.a207.runkk.running.TotalStats;
@@ -41,9 +40,6 @@ public class DashboardService {
 
     /** 크루 누적 거리를 셀 때 시작일(전체 기간). */
     private static final LocalDate ALL_TIME_START = LocalDate.EPOCH;
-
-    /** 최근 러닝 1건을 먼저 찾아보는 최근 일 수(D-491). 없으면 전체 기간을 본다. */
-    private static final int LATEST_RUN_RECENT_DAYS = 30;
 
     /** 연속이 잔디 범위 밖으로 이어질 때 한 번에 더 읽는 주 수(D136). */
     private static final int STREAK_LOOKBACK_WEEKS = 52;
@@ -113,20 +109,13 @@ public class DashboardService {
     }
 
     /**
-     * 기록 목록(RunQueryService.listRows) 맨 위 행 1건(D-491). 최근 30일을 먼저 보고 없으면 처음부터 본다. 날짜는 기준일이 아니라 오늘
-     * 기준이다 (기준일은 달력 달만 정한다).
+     * 기록 목록 맨 위 행 1건(D-491). 기준일과 무관하게 지금까지 가장 늦게 시작한 기록이다(기준일은 달력 달만 정한다). 최신 1건만 읽는다(코드 리뷰
+     * PL1-B5: 30일 넘게 쉰 회원도 전 기간 목록을 읽지 않음).
      */
     private Optional<RecordRow> latestRun(long memberId) {
-        LocalDate today = LocalDate.now(clock);
-        for (LocalDate from : List.of(today.minusDays(LATEST_RUN_RECENT_DAYS), ALL_TIME_START)) {
-            List<RunListRow> rows =
-                    runQueryService.listRows(memberId, new DateRange(from, today.plusDays(1)));
-            if (!rows.isEmpty()) {
-                RunListRow top = rows.get(0);
-                return Optional.of(RecordRow.of(top.summary(), top.newRecords(), top.routeShape()));
-            }
-        }
-        return Optional.empty();
+        return runQueryService
+                .latestListRow(memberId)
+                .map(top -> RecordRow.of(top.summary(), top.newRecords(), top.routeShape()));
     }
 
     /** 오늘 달린 거리·시간·횟수. 유효 기록만 센다(집계 제외 기록은 달력·누적과 같이 뺀다, v0.10). */

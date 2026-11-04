@@ -11,10 +11,8 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.a207.runkk.common.BusinessRuleException;
 import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.Pace;
-import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.member.InMemoryMemberRepository;
 import com.a207.runkk.member.InMemoryPlacementProgressRepository;
 import com.a207.runkk.member.MemberFixtures;
@@ -31,6 +29,7 @@ import com.a207.runkk.running.RunSummary;
 import java.sql.SQLException;
 import java.time.Duration;
 import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.CannotAcquireLockException;
@@ -66,21 +65,22 @@ class PlacementRoundListenerTest {
     }
 
     private void summary(String recordId, boolean valid, double score) {
-        when(runs.summary(recordId))
+        when(runs.findSummary(recordId))
                 .thenReturn(
-                        new RunSummary(
-                                recordId,
-                                ALICE,
-                                START,
-                                Distance.ofMeters(4_620),
-                                Duration.ofMinutes(32),
-                                new Pace(415),
-                                valid,
-                                valid ? score : null,
-                                RunMode.BATTLE,
-                                CardKind.BATTLE_RUN,
-                                1L,
-                                null));
+                        Optional.of(
+                                new RunSummary(
+                                        recordId,
+                                        ALICE,
+                                        START,
+                                        Distance.ofMeters(4_620),
+                                        Duration.ofMinutes(32),
+                                        new Pace(415),
+                                        valid,
+                                        valid ? score : null,
+                                        RunMode.BATTLE,
+                                        CardKind.BATTLE_RUN,
+                                        1L,
+                                        null)));
     }
 
     private BattleJudged judgedEvent(Battle battle) {
@@ -201,13 +201,13 @@ class PlacementRoundListenerTest {
         summary("r-1", false, 0);
         assertThat(listener.count(invalid.getId())).isFalse();
 
-        when(runs.summary("r-1")).thenThrow(new BusinessRuleException(ReasonCode.RECORD_NOT_FOUND));
+        when(runs.findSummary("r-1")).thenReturn(Optional.empty());
         assertThat(listener.count(invalid.getId())).isFalse();
         assertThat(placementService.view(ALICE).countedRounds()).isZero();
     }
 
     @Test
-    @org.junit.jupiter.api.DisplayName("정정된 판정은 이미 센 판의 승패만 고친다(셈 여부는 그대로)")
+    @org.junit.jupiter.api.DisplayName("TC-5922 정정된 판정은 이미 센 판의 승패만 고친다(셈 여부·판 수는 그대로)")
     void correctedJudgement_updatesVerdictOnly() {
         Battle battle = battles.save(PlacementRoundCheckTest.judged(true, Duration.ofMinutes(25)));
         summary("r-1", true, 38);
@@ -224,5 +224,27 @@ class PlacementRoundListenerTest {
         assertThat(placementService.view(ALICE).countedRounds()).isEqualTo(1);
         assertThat(placementService.view(ALICE).rounds().get(0).verdict())
                 .isEqualTo(PlacementVerdict.LOSE);
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName(
+            "PL1-B7 정정 사건은 먼저 세고 그다음 승패를 고친다: 다른 계기가 옛 판정으로 센 판도 정정 값이 남는다")
+    void correctedJudgement_countsThenCorrects() {
+        Battle battle = battles.save(PlacementRoundCheckTest.judged(true, Duration.ofMinutes(25)));
+        summary("r-1", true, 38);
+        battle.verify(ALICE, new RecordCheck("r-1", true, Duration.ofMinutes(31), 4));
+        Judgement corrected = battle.judge(START.plusHours(1)).orElseThrow();
+        PlacementService spied = org.mockito.Mockito.spy(placementService);
+
+        listenerWith(spied)
+                .onBattleJudged(
+                        new BattleJudged(
+                                battle.getId(), BattleType.GHOST, corrected, corrected.at()));
+
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(spied);
+        order.verify(spied)
+                .countRound(
+                        org.mockito.ArgumentMatchers.eq(ALICE), org.mockito.ArgumentMatchers.any());
+        order.verify(spied).correctVerdict(ALICE, battle.getId(), PlacementVerdict.LOSE);
     }
 }

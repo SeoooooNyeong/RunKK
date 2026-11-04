@@ -101,6 +101,11 @@ public class JpaMemberRepository implements MemberRepository {
     }
 
     @Override
+    public void refresh(Member member) {
+        entityManager.refresh(member);
+    }
+
+    @Override
     public Map<Long, MemberSummary> summaries(Collection<Long> memberIds) {
         if (memberIds.isEmpty()) {
             return Map.of();

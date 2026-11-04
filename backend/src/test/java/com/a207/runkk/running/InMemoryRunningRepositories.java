@@ -287,6 +287,18 @@ public final class InMemoryRunningRepositories {
             return tombstones.size();
         }
 
+        @Override
+        public Optional<RunListRow> latestListRow(long memberId) {
+            return newest(of(memberId))
+                    .findFirst()
+                    .map(
+                            r ->
+                                    new RunListRow(
+                                            r.summary(),
+                                            r.getNewRecords(),
+                                            r.getRouteShape().orElse(null)));
+        }
+
         /** listRows 호출 수(N+1 확인, TC-9428). */
         public int listRowsCalls;
 

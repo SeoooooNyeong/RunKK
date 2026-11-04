@@ -555,8 +555,8 @@ class BattleV014Test {
         Battle battle = finished(Battle.friend(accepted(), NOW), NOW, BOB); // 앨리스 승
         battle.verify(ALICE, new RecordCheck("r-a", true, Duration.ofMinutes(25), 0));
         battle.verify(BOB, new RecordCheck("r-b", true, Duration.ofMinutes(26), 0));
-        when(runs.comparisonOf(org.mockito.ArgumentMatchers.anyString()))
-                .thenThrow(new BusinessRuleException(ReasonCode.RECORD_NOT_FOUND));
+        when(runs.findComparison(org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(Optional.empty());
 
         // TC-9359: 상대(밥) 기록이 지워져 비교값을 못 읽어도 오류 없이 결과를 낸다
         BattleResultView vsDeletedRival = results.result(ALICE, battle.getId());
@@ -586,8 +586,8 @@ class BattleV014Test {
         battle.verify(ALICE, new RecordCheck("r-a", true, Duration.ofMinutes(25), 0));
         battle.verify(BOB, new RecordCheck("r-b", true, Duration.ofMinutes(26), 0));
         when(runs.isDeleted("r-a")).thenReturn(true);
-        when(runs.comparisonOf(org.mockito.ArgumentMatchers.anyString()))
-                .thenThrow(new BusinessRuleException(ReasonCode.RECORD_NOT_FOUND));
+        when(runs.findComparison(org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(Optional.empty());
 
         BattleResultView view = results.result(ALICE, battle.getId());
 
@@ -598,8 +598,8 @@ class BattleV014Test {
 
     @Test
     @DisplayName(
-            "TC-5800 이력 행: 친구 대결이고 상대가 탈퇴하지 않았으면 opponentMemberId, 배치고사 판이면 placementRound(그 밖은"
-                    + " null, D-492·J24-22)")
+            "TC-5800·TC-5930 이력 행: 친구 대결이고 상대가 탈퇴하지 않았으면 opponentMemberId, 배치고사 판이면"
+                    + " placementRound(그 밖은 null, D-492·J24-22)")
     void history_carriesOpponentMemberIdAndPlacementRound() {
         Battle friend = Battle.friend(accepted(), NOW);
         friend.scheduleStart(NOW.plusSeconds(13));

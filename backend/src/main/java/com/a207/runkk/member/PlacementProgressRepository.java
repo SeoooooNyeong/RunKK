@@ -11,8 +11,9 @@ public interface PlacementProgressRepository {
     Optional<PlacementProgress> findById(long memberId);
 
     /**
-     * INSERT … ON CONFLICT DO NOTHING 뒤 PESSIMISTIC_WRITE로 읽는다. PlacementService.lockForMatch만
-     * 쓴다(D-478).
+     * INSERT … ON CONFLICT DO NOTHING 뒤 PESSIMISTIC_WRITE로 읽는다. PlacementService.lockForMatch와, 커밋
+     * 전 매칭 INSERT와 직렬화하려는 탈퇴 두 경로(WithdrawalService, 같은 트랜잭션에서 deleteByMemberId)가 쓴다(D-478, 코드 리뷰
+     * PL1-B3).
      */
     PlacementProgress lockOrCreate(long memberId);
 

@@ -27,6 +27,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 /** PlacementRoundReader(05-21 D-513): 판 결과 상태를 battle 안에서 계산한다. */
@@ -52,21 +53,22 @@ class PlacementRoundReaderTest {
     }
 
     private void validSummary() {
-        when(runs.summary("r-1"))
+        when(runs.findSummary("r-1"))
                 .thenReturn(
-                        new RunSummary(
-                                "r-1",
-                                ALICE,
-                                START,
-                                Distance.ofKm(5),
-                                Duration.ofMinutes(25),
-                                null,
-                                true,
-                                38.0,
-                                RunMode.BATTLE,
-                                CardKind.BATTLE_RUN,
-                                1L,
-                                null));
+                        Optional.of(
+                                new RunSummary(
+                                        "r-1",
+                                        ALICE,
+                                        START,
+                                        Distance.ofKm(5),
+                                        Duration.ofMinutes(25),
+                                        null,
+                                        true,
+                                        38.0,
+                                        RunMode.BATTLE,
+                                        CardKind.BATTLE_RUN,
+                                        1L,
+                                        null)));
     }
 
     @Test
@@ -106,12 +108,29 @@ class PlacementRoundReaderTest {
         members.save(MemberFixtures.member("배치곰"));
         Battle placement =
                 battles.save(PlacementRoundCheckTest.judged(true, Duration.ofMinutes(25)));
-        when(runs.summary("r-1")).thenThrow(new BusinessRuleException(ReasonCode.RECORD_NOT_FOUND));
+        when(runs.findSummary("r-1")).thenReturn(Optional.empty());
         LocalDateTime judgedAt = placement.getJudgement().orElseThrow().at();
 
         assertThat(readerAt(judgedAt.plusHours(23)).stateOf(ALICE, placement.getId()))
                 .contains(PlacementRoundState.PENDING);
         assertThat(readerAt(judgedAt.plusHours(24)).stateOf(ALICE, placement.getId()))
+                .contains(PlacementRoundState.NOT_COUNTED);
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName(
+            "PL1-B8 셀 수 있는데 세지 못한 판은 복구 창(판정 뒤 7일)까지 PENDING, 그 뒤 NOT_COUNTED(더 셀 계기가 없음)")
+    void countableButUncounted_closesAfterRecoveryWindow() {
+        members.save(MemberFixtures.member("배치곰"));
+        progress.put(PlacementProgress.start(ALICE));
+        Battle placement =
+                battles.save(PlacementRoundCheckTest.judged(true, Duration.ofMinutes(25)));
+        validSummary();
+        LocalDateTime judgedAt = placement.getJudgement().orElseThrow().at();
+
+        assertThat(readerAt(judgedAt.plusDays(7).minusSeconds(1)).stateOf(ALICE, placement.getId()))
+                .contains(PlacementRoundState.PENDING);
+        assertThat(readerAt(judgedAt.plusDays(7)).stateOf(ALICE, placement.getId()))
                 .contains(PlacementRoundState.NOT_COUNTED);
     }
 }

@@ -56,9 +56,16 @@ public class RunQueryService {
 
     /** 기록 요약. 없으면 BusinessRuleException(RECORD_NOT_FOUND). */
     public RunSummary summary(String recordId) {
-        return runRecordRepository
-                .findSummary(recordId)
+        return findSummary(recordId)
                 .orElseThrow(() -> new BusinessRuleException(ReasonCode.RECORD_NOT_FOUND));
+    }
+
+    /**
+     * summary와 같은 요약을 예외 없이 준다. 없으면 비어 있다. 읽기 트랜잭션에 참여한 호출에서 업무 예외를 잡으면 트랜잭션이 rollback-only가 되므로,
+     * 요약이 없을 수 있는 기록은 이것으로 읽는다(배치고사 판 상태·셈, 코드 리뷰 PL1-B1).
+     */
+    public Optional<RunSummary> findSummary(String recordId) {
+        return runRecordRepository.findSummary(recordId);
     }
 
     /** 최근 유효 기록 limit개, 최신순(analysis.ReportService). */
@@ -114,6 +121,11 @@ public class RunQueryService {
         return runRecordRepository.listRows(memberId, r);
     }
 
+    /** 기록 목록 맨 위 행 1건(무효 포함, 시작 시각 최신). 홈 최근 러닝이 전 기간 목록을 읽지 않게 한다(D-491, 코드 리뷰 PL1-B5). */
+    public Optional<RunListRow> latestListRow(long memberId) {
+        return runRecordRepository.latestListRow(memberId);
+    }
+
     /** 그 기록이 일으킨 티어 평가(없으면 비어 있다, v0.14 D-291). 기록 상세와 대결 결과가 붙인다. */
     public Optional<EvaluationView> evaluationOf(String recordId) {
         return runRecordRepository.evaluationOf(recordId);
@@ -121,7 +133,18 @@ public class RunQueryService {
 
     /** 대결 결과 비교표용(R5). 없으면 RECORD_NOT_FOUND. */
     public RunComparison comparisonOf(String recordId) {
-        RunRecord record = load(recordId);
+        return comparisonOf(load(recordId));
+    }
+
+    /**
+     * comparisonOf와 같은 값을 예외 없이 준다. 기록이 없으면(지워졌는데 기록 ID 정리가 아직, 기록 ID만 붙은 배치고사 판) 비어 있다. 대결 결과 조회가
+     * 읽기 트랜잭션을 rollback-only로 만들지 않게 한다(코드 리뷰 PL1-B1, D-232).
+     */
+    public Optional<RunComparison> findComparison(String recordId) {
+        return runRecordRepository.findById(recordId).map(RunQueryService::comparisonOf);
+    }
+
+    private static RunComparison comparisonOf(RunRecord record) {
         return new RunComparison(
                 record.getElapsed(), record.getAveragePace(), record.fastestKm().orElse(null));
     }

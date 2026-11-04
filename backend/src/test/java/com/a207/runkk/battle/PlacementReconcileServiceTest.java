@@ -21,6 +21,7 @@ import com.a207.runkk.running.RunQueryService;
 import com.a207.runkk.running.RunSummary;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -50,21 +51,22 @@ class PlacementReconcileServiceTest {
     @BeforeEach
     void wire() {
         members.save(MemberFixtures.member("배치곰"));
-        when(runs.summary(anyString()))
+        when(runs.findSummary(anyString()))
                 .thenReturn(
-                        new RunSummary(
-                                "r-1",
-                                ALICE,
-                                START,
-                                Distance.ofKm(5),
-                                Duration.ofMinutes(25),
-                                null,
-                                true,
-                                38.0,
-                                RunMode.BATTLE,
-                                CardKind.BATTLE_RUN,
-                                1L,
-                                null));
+                        Optional.of(
+                                new RunSummary(
+                                        "r-1",
+                                        ALICE,
+                                        START,
+                                        Distance.ofKm(5),
+                                        Duration.ofMinutes(25),
+                                        null,
+                                        true,
+                                        38.0,
+                                        RunMode.BATTLE,
+                                        CardKind.BATTLE_RUN,
+                                        1L,
+                                        null)));
     }
 
     @Test

@@ -137,14 +137,16 @@ public class BattleResultService {
         AfterCommit.run(() -> battleMessenger.sendAll(recipients, ended));
     }
 
-    /** 기록 상대와의 거리 차 최댓값을 러너 기록 표본으로 구한다(비교표 MAX_LEAD·MAX_GAP). 경로가 파기됐으면 건너뛴다. */
+    /**
+     * 기록 상대와의 거리 차 최댓값을 러너 기록 표본으로 구한다(비교표 MAX_LEAD·MAX_GAP). 기록이 없거나 경로가 파기됐으면 건너뛴다. 예외를 잡지 않고
+     * curveOf(Optional)로 읽어야 판정 트랜잭션이 rollback-only가 되지 않는다(코드 리뷰 PL1-B1과 같은 함정).
+     */
     private void recordGaps(Battle battle, RunRecordSaved e, OpponentTrack opponent) {
-        RunCurve mine;
-        try {
-            mine = runQueryService.curve(e.recordId(), battle.getDistance());
-        } catch (BusinessRuleException purged) {
+        Optional<RunCurve> found = runQueryService.curveOf(e.recordId(), battle.getDistance());
+        if (found.isEmpty()) {
             return;
         }
+        RunCurve mine = found.get();
         long lead = 0;
         long trail = 0;
         for (CurvePoint point : mine.samples()) {
@@ -342,16 +344,12 @@ public class BattleResultService {
         if (mine.isEmpty()) {
             return new ComparisonTable(List.of());
         }
-        try {
-            return ComparisonTable.of(
-                    battle.getType(),
-                    runQueryService.comparisonOf(mine.get()),
-                    theirs(battle, me),
-                    me);
-        } catch (BusinessRuleException removed) {
-            // 내 기록이 지워졌는데 기록 ID 정리(onRunDeleted)가 아직 안 됐다(D-232). 비교표 없이 결과를 보인다
-            return new ComparisonTable(List.of());
-        }
+        // 내 기록이 지워졌는데 기록 ID 정리(onRunDeleted)가 아직 안 됐거나(D-232) 기록 ID만 붙은 판이면 비교표 없이 결과를 보인다.
+        // 예외를 잡지 않고 Optional로 읽어야 읽기 트랜잭션이 rollback-only가 되지 않는다(코드 리뷰 PL1-B1)
+        return runQueryService
+                .findComparison(mine.get())
+                .map(values -> ComparisonTable.of(battle.getType(), values, theirs(battle, me), me))
+                .orElseGet(() -> new ComparisonTable(List.of()));
     }
 
     private ComparisonValues theirs(Battle battle, BattleParticipant me) {
@@ -364,12 +362,10 @@ public class BattleResultService {
         if (rivalRecord.isEmpty()) {
             return ComparisonValues.undisclosed();
         }
-        try {
-            return ComparisonValues.ofRival(
-                    runQueryService.comparisonOf(rivalRecord.get()), rival.orElseThrow());
-        } catch (BusinessRuleException removed) {
-            return ComparisonValues.undisclosed(); // 상대가 탈퇴해 기록이 지워졌다(FR-021)
-        }
+        return runQueryService
+                .findComparison(rivalRecord.get())
+                .map(values -> ComparisonValues.ofRival(values, rival.orElseThrow()))
+                .orElseGet(ComparisonValues::undisclosed); // 상대가 탈퇴해 기록이 지워졌다(FR-021)
     }
 
     private Battle participantBattle(long memberId, long battleId) {

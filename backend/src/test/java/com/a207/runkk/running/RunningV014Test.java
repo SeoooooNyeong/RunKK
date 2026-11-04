@@ -298,6 +298,9 @@ class RunningV014Test {
         List<RunListRow> rows =
                 query.listRows(m, new DateRange(START.toLocalDate(), START.toLocalDate()));
         assertThat(records.listRowsCalls).isEqualTo(1);
+        // PL1-B5: 홈 최근 러닝은 무효 포함 시작 시각이 가장 늦은 1건(기간 무관)
+        assertThat(query.latestListRow(m).orElseThrow().summary().recordId()).isEqualTo(id(2));
+        assertThat(query.latestListRow(m + 1)).isEmpty();
         RunListRow first =
                 rows.stream()
                         .filter(r -> r.summary().recordId().equals(id(1)))
