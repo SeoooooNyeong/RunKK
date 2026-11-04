@@ -8,15 +8,15 @@
 
 ```
 [계획]  할 가치가 있는가? 얼마나, 언제까지, 누가?
-        plan.md v0.31 ──▶ estimate.md v0.4 ──▶ schedule.md v0.12        (결정 기록: decisions.md)
+        plan.md v0.32 ──▶ estimate.md v0.4 ──▶ schedule.md v0.12        (결정 기록: decisions.md)
               │
               ▼
 [분석]  무엇을 만들 것인가?
-        srs.md v0.22  (요구 도출 → 분석 → 명세 → 확인, DFD·자료사전·소단위 명세)
+        srs.md v0.23  (요구 도출 → 분석 → 명세 → 확인, DFD·자료사전·소단위 명세)
               │
               ▼
 [설계]  어떻게 만들 것인가?
-        design-oo.md v0.28 ──▶ design-review.md v0.21
+        design-oo.md v0.29 ──▶ design-review.md v0.21
               │
               ▼
 [구현]  설계대로 코드로 옮겼는가?          implementation.md v0.10(워치 v2 develop 병합, AI 코치 화면 준비) ⇄ code-review.md v0.20 (18차 확인 합격 0/0/2, 경 합계 21)
@@ -30,12 +30,12 @@
 
 | 단계 | 문서 | 버전 | 작성일 | 입력 | 형태 |
 |------|------|------|--------|------|------|
-| 계획 | [plan.md](plan.md) 프로젝트 계획서 | v0.31 | 2026-11-02 | schedule.md v0.11 담당 바로잡음(R-068·R-069), 이전 판 v0.30(1차 배포 완료, 2차 배포 11/13), v0.29(워치 위험 R-060~R-066), v0.28(ai 서버 계약 A1~A9) | 목차 + `plan/` 6개 |
+| 계획 | [plan.md](plan.md) 프로젝트 계획서 | v0.32 | 2026-11-03 | sqa v0.8 위험 감시(R-070~R-075, R-064 develop 종료), 2026-11-03 사용자 결정(코치 일정 비상 계획, 기능 개발은 피그마 확정 뒤), 이전 판 v0.31(담당 바로잡음) | 목차 + `plan/` 6개 |
 | 계획 | [estimate.md](estimate.md) 비용 산정서 | v0.4 | 2026-11-02 | plan.md v0.28, 코드 실측 c29df9fa·f95450db | 한 파일 (91KB) |
 | 계획 | [schedule.md](schedule.md) 일정표와 조직 계획 | v0.12 | 2026-11-02 | 오규연 디자인 전환(앱 일 → 박재영, 날짜 고정), 담당 재배치(v0.11), 2차 배포 11/13, estimate.md v0.4, plan.md v0.31 | 목차 + schedule/ 조각 8개 |
 | 계획 | [decisions.md](decisions.md) 결정 기록 | v0.1 | 2026-10-19 | schedule.md v0.3, plan.md v0.16 | 한 파일 |
-| 분석 | [srs.md](srs.md) 요구사항 명세서 | v0.22 | 2026-11-03 | 워치 v2 결정 W34~W48(CR-122~CR-131, FR-273·NFR-054), design-oo.md v0.27 SR27-1~SR27-8, 이전 판 v0.21(W31·W32), v0.20(ai 서버 연결 CR-110~CR-118) | 목차 + `srs/` 35개 |
-| 설계 | [design-oo.md](design-oo.md) 객체지향 분석·설계서 | v0.28 | 2026-11-03 | AI 코치 병합 대기(D-474 ui.record.coach, 폰 159·워치 37), 이전 판 v0.27(워치 v2 R11~R15, D-461~D-473), v0.26(ai 서버 연결 D-434~D-455) | 목차 + `design-oo/` 44개 |
+| 분석 | [srs.md](srs.md) 요구사항 명세서 | v0.23 | 2026-11-03 | LLM 재동의 확정 CR-133, 셀럽 404 즉시 빼기 CR-134, 추적표 시험 열(test v0.17), 이전 판 v0.22: 워치 v2 결정 W34~W48(CR-122~CR-131, FR-273·NFR-054), design-oo.md v0.27 SR27-1~SR27-8, 이전 판 v0.21(W31·W32), v0.20(ai 서버 연결 CR-110~CR-118) | 목차 + `srs/` 35개 |
+| 설계 | [design-oo.md](design-oo.md) 객체지향 분석·설계서 | v0.29 | 2026-11-03 | 17차 갱신 요청 U17-1·U17-2(05-20 10.3·11절), 이전 판 v0.28: AI 코치 병합 대기(D-474 ui.record.coach, 폰 159·워치 37), 이전 판 v0.27(워치 v2 R11~R15, D-461~D-473), v0.26(ai 서버 연결 D-434~D-455) | 목차 + `design-oo/` 44개 |
 | 설계 | [design-review.md](design-review.md) 설계 검증 결과서 | v0.21 | 2026-11-03 | design-oo.md v0.27(24장 조건부 합격: R79·R80, 코드 cc8c138b), AI 코치 화면 범위 검토(ai-coach-consent-박, 허용) | 목차 + `design-review/` 19개 |
 | 구현 | [implementation.md](implementation.md) 구현 기록(목차 + implementation/ 조각) | v0.10 | 2026-11-03 | 워치 v2 14장(R1~R17, feature/runkk-watch-v2 → develop 599dc319), AI 코치 동의·화면 준비(ai-coach-consent-박, e66eb8a0) | 목차 + `implementation/` 8개 |
 | 구현 | [code-review.md](code-review.md) 코드 리뷰 결과서 | v0.20 | 2026-11-03 | 워치 v2 12~18차(18차 확인 793eb85e 합격, 경 합계 21), AI 코치 동의·화면(ai-coach-consent-박, 조건부) | 목차 + `code-review/` 21개 |
