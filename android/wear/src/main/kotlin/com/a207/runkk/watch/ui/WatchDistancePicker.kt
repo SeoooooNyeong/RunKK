@@ -104,7 +104,7 @@ fun WatchDistancePicker(
 /** 배틀런 매칭 시작을 막는 사유: 서버에 닿지 않음(FR-251), 랜덤 대결 잠금(FR-080, WR12-1). 없으면 null. */
 private fun battleBlocked(state: WatchFlow.BattleDistance): WatchFlow.Notice? = when {
     !state.isOnline -> WatchFlow.Notice.BATTLE_OFFLINE
-    state.runsLeft != null -> WatchFlow.Notice.RANDOM_LOCKED
+    state.isRandomLocked -> WatchFlow.Notice.RANDOM_LOCKED
     else -> null
 }
 
@@ -190,11 +190,7 @@ private fun DialPicker(
             // 안내가 있으면 목표 문구 자리에 보인다(작은 원형 화면에서 아래가 잘리지 않게).
             val notice = state.notice ?: blocked
             if (notice != null) {
-                FlowNoticeText(
-                    notice,
-                    modifier = Modifier.padding(horizontal = 30.dp),
-                    runsLeft = (state as? WatchFlow.BattleDistance)?.runsLeft
-                )
+                FlowNoticeText(notice, modifier = Modifier.padding(horizontal = 30.dp))
             } else {
                 Text(
                     text = stringResource(if (isUnlimited) R.string.goal_unlimited else R.string.goal_distance),

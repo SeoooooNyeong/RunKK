@@ -175,11 +175,11 @@ class WatchScreenshotTest {
         WatchFlow.BattleDistance(choices(1_000, 3_000, 5_000, 10_000), isOnline = false)
     )
 
-    /** 언랭 잠금(FR-080, WR12-1): 남은 유효 러닝 수를 보이고 매칭 시작을 막는다. */
+    /** TC-5868 배치 중 잠금(J24-12, D-500): 「폰에서 배치고사를 마치면 열려요」를 보이고 매칭 시작을 막는다. */
     @Test
     fun battleLocked() = capture(
         "B1-1_watch_battle_locked",
-        WatchFlow.BattleDistance(choices(1_000, 3_000, 5_000, 10_000), selected = 2, runsLeft = 2)
+        WatchFlow.BattleDistance(choices(1_000, 3_000, 5_000, 10_000), selected = 2, isRandomLocked = true)
     )
 
     @Test

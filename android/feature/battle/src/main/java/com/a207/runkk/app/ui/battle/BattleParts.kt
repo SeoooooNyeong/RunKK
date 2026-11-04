@@ -1,5 +1,6 @@
 package com.a207.runkk.app.ui.battle
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -19,7 +20,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -47,8 +50,11 @@ import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import java.time.Duration
 import java.time.LocalDate
 
-/** 상대 그림 종류(D-254): 기본 아바타, 반투명 기본 아바타(과거의 나), 셀럽 그림(전용 캐릭터, 키가 없으면 공통 SD). */
-internal enum class Figure { AVATAR, RIVAL, PAST_SELF, CELEBRITY }
+/**
+ * 상대 그림 종류(D-254): 기본 아바타, 반투명 기본 아바타(과거의 나), 셀럽 그림(전용 캐릭터, 키가 없으면 공통 SD), 배치고사 상대(점선 원
+ * 「?」, FR-276 J24-3).
+ */
+internal enum class Figure { AVATAR, RIVAL, PAST_SELF, CELEBRITY, UNKNOWN }
 
 /**
  * 한쪽 대결자 카드: 그림 칸, 이름, 티어 칩(있으면), 기록 줄(있으면). 그림은 장식이라 읽기 정보는 이름·줄이 맡는다.
@@ -133,6 +139,8 @@ internal fun OpponentFigure(
         )
 
         Figure.CELEBRITY -> CelebrityFigure(size = size, figureKey = celebrityFigure, colorFilter = colorFilter)
+
+        Figure.UNKNOWN -> QuestionCircle(size = size * UNKNOWN_CIRCLE_RATIO, color = RunkkColors.TextSecondary)
     }
 }
 
@@ -227,3 +235,37 @@ internal fun particle(name: String, withFinal: String, withoutFinal: String): St
 
 private const val FINAL_CONSONANTS = 28
 private const val PAST_SELF_ALPHA = 0.5f
+
+/** 배치고사 상대 원은 그림 칸보다 작게 둔다(성사 화면 96 칸 안 72 원). */
+private const val UNKNOWN_CIRCLE_RATIO = 0.75f
+
+/**
+ * 아직 모르는 상대 자리: 점선 원 안 「?」(피그마 61355:2909 원 100·글자 52, 진입 시트 원 64·글자 30과 같은 비율). [color]는 선과 글자 색이다.
+ * 장식이라 낭독하지 않는다(부모가 「나 대 아직 모르는 상대」로 읽는다).
+ */
+@Composable
+internal fun QuestionCircle(size: Dp, color: Color, modifier: Modifier = Modifier) {
+    Box(modifier.size(size).clearAndSetSemantics {}, contentAlignment = Alignment.Center) {
+        Canvas(Modifier.size(size)) {
+            val stroke = 2.dp.toPx()
+            drawCircle(
+                color = color,
+                radius = this.size.minDimension / 2 - stroke / 2,
+                style = Stroke(
+                    width = stroke,
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 4.dp.toPx()))
+                )
+            )
+        }
+        Text(
+            QUESTION_MARK,
+            style = RunkkTextStyles.text((size.value * QUESTION_TEXT_RATIO).toInt(), FontWeight.Bold),
+            color = color
+        )
+    }
+}
+
+private const val QUESTION_MARK = "?"
+
+/** 원 지름 대비 「?」 글자 크기(피그마 100 → 52). */
+private const val QUESTION_TEXT_RATIO = 0.52f

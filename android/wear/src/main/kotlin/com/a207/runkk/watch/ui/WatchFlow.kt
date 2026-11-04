@@ -38,15 +38,15 @@ sealed interface WatchFlow {
 
     /**
      * 배틀런 대결 거리(FR-257): 1·3·5·10km. 서버에 닿지 않으면 [isOnline]이 거짓이고 매칭 시작을 막는다(FR-251).
-     * [runsLeft]가 있으면 랜덤 대결이 잠겨 있다(언랭, FR-080, 폰 RandomBattleGate와 같은 규칙): 1 이상은 남은 유효 러닝 수, 0은 남은 수를
-     * 모르는 잠금이다. 잠겨 있으면 매칭 시작을 막고 "러닝을 n번 더 뛰면 배틀런이 가능해요!"를 보인다.
+     * [isRandomLocked]가 참이면 랜덤 대결이 잠겨 있다(배치 중, J24-12, 공용 RandomBattleGate.isWatchRandomLocked). 잠겨 있으면 매칭 시작을
+     * 막고 「폰에서 배치고사를 마치면 열려요」를 보인다.
      */
     data class BattleDistance(
         override val choices: List<Choice>,
         override val selected: Int = 0,
         val isOnline: Boolean = true,
         override val notice: Notice? = null,
-        val runsLeft: Int? = null
+        val isRandomLocked: Boolean = false
     ) : Picker
 
     /** 셀프런 거리(FR-258): 1·3·5·10km·하프. 카드에 내 최고 기록 시간, 기록 없는 거리는 누를 수 없다(W10). */
@@ -157,7 +157,7 @@ sealed interface WatchFlow {
         /** 매칭 거부·실패·연결 끊김. */
         MATCH_FAILED,
 
-        /** 랜덤 대결 잠금(언랭, 서버 RANKED_ONLY, FR-080). 문구는 BattleDistance.runsLeft로 남은 횟수를 넣는다. */
+        /** 랜덤 대결 잠금(배치 중, J24-12. 옛 서버 RANKED_ONLY 거부도 같다). 문구 「폰에서 배치고사를 마치면 열려요」. */
         RANDOM_LOCKED,
 
         /** 이미 매칭을 기다리거나 대결 중(서버 ALREADY_IN_BATTLE·ALREADY_MATCHED). */

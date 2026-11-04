@@ -10,6 +10,7 @@ import com.a207.runkk.app.domain.battle.BattleRunCoordinator
 import com.a207.runkk.app.domain.battle.BattleRunState
 import com.a207.runkk.app.domain.battle.MatchAcceptance
 import com.a207.runkk.app.domain.battle.OfflineRecordBattle
+import com.a207.runkk.app.domain.battle.RandomBattleGate
 import com.a207.runkk.app.domain.battle.RecordBattleKind
 import com.a207.runkk.app.domain.live.MatchFailed
 import com.a207.runkk.app.domain.live.MatchFound
@@ -102,6 +103,17 @@ class WatchBattleFlowTest {
         assertEquals(Outcome.Success(Unit), waiting.await())
         assertIs<BattleRunState.Matched>(h.coordinator.state.value)
         assertEquals(BattleStep.Matched(9, Distance(1_000), "민준", Gender.MALE), h.flow.step())
+    }
+
+    @Test
+    fun `TC-5867 워치 잠금 판단은 공용 판단과 같다`() = runTest {
+        val h = harness()
+
+        listOf("UNRANKED", "GOLD", null).forEach { tier ->
+            assertEquals(RandomBattleGate.isWatchRandomLocked(tier), h.flow.isRandomLocked(tier), "티어 $tier")
+        }
+        assertTrue(h.flow.isRandomLocked("UNRANKED"))
+        assertFalse(h.flow.isRandomLocked(null))
     }
 
     @Test

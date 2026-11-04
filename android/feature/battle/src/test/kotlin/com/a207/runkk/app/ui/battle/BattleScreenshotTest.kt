@@ -14,9 +14,11 @@ import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.GeoPoint
 import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.core.model.RouteLine
+import com.a207.runkk.app.core.model.TierDisplay
 import com.a207.runkk.app.domain.battle.ActiveBattle
 import com.a207.runkk.app.domain.battle.BattleHistory
 import com.a207.runkk.app.domain.battle.BattleResult
+import com.a207.runkk.app.domain.battle.PlacementRoundState as PRS
 import com.a207.runkk.app.domain.live.BattleGuidance
 import java.time.Duration
 import java.time.LocalDate
@@ -27,7 +29,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * 대결 화면 스크린샷(가짜 UiState, 390×844dp 다크). v0.14 이름은 피그마 화면 ID(C-1·C-9 배틀런 화면, C-10 초대 대기, C-12 참가 확인,
+ * 대결 화면 스크린샷(가짜 UiState, 390×844dp 다크). v0.14 이름은 피그마 화면 ID(C-1 랜덤 대결·C-9 친구 대결(v0.18 분리, 라이트), C-10 초대 대기, C-12 참가 확인,
  * D-2·E-2 카운트다운, D-6 셀프런 결과)이고, 이어 쓰는 화면은 옛 이름(D0~D5)을 그대로 둔다.
  */
 @RunWith(RobolectricTestRunner::class)
@@ -39,24 +41,165 @@ class BattleScreenshotTest {
     private val self = selfCandidates.map(CandidateUi::of)
     private val celeb = celebCandidates.map(CandidateUi::of)
 
-    private val cards = listOf(
-        BattleModeUiState.DistanceCard(Distance(1_000), Duration.ofSeconds(292), LocalDate.of(2026, 9, 14)),
-        BattleModeUiState.DistanceCard(Distance(3_000), Duration.ofSeconds(940), LocalDate.of(2026, 9, 30)),
-        BattleModeUiState.DistanceCard(Distance(5_000), Duration.ofSeconds(1_625), LocalDate.of(2026, 10, 12)),
-        BattleModeUiState.DistanceCard(Distance(10_000), null, null)
-    )
-
-    @Test
-    fun battleModeRandom() = compose.captureRunkkScreen("C1_battle_mode_random") {
-        BattleModeScreen(BattleModeUiState(cards = cards), BattleModeActions())
+    private val placementDetail = recordDetail().let { detail ->
+        detail.copy(
+            summary = detail.summary.copy(
+                startedAt = java.time.Instant.parse("2026-10-15T22:12:00Z"),
+                distance = Distance(5_210),
+                elapsed = Duration.ofSeconds(1_668),
+                averagePace = Pace(320)
+            ),
+            splitPaces = listOf(Pace(331), Pace(326), Pace(318), Pace(322), Pace(312)),
+            averageHeartRate = 152,
+            heartRateZones = mapOf(
+                "Z1" to Duration.ofMinutes(2),
+                "Z2" to Duration.ofMinutes(8),
+                "Z3" to Duration.ofMinutes(12),
+                "Z4" to Duration.ofMinutes(5)
+            ),
+            paused = Duration.ofSeconds(40)
+        )
     }
 
-    @Test
-    fun battleModeFriend() = compose.captureRunkkScreen("C9_battle_mode_friend") {
-        BattleModeScreen(
-            BattleModeUiState(segment = BattleModeUiState.Segment.FRIEND, cards = cards),
-            BattleModeActions()
+    private fun placementResultState(state: PRS?, verdict: String, counted: Int, isStillPending: Boolean = false) =
+        PlacementResultUiState(
+            isLoading = false,
+            battleId = 9,
+            result = battleResult(
+                verdict = verdict
+            ).copy(placementRound = 1, placementState = state, totalRewardPoints = 52),
+            detail = placementDetail,
+            state = state,
+            progress = placing(counted, "GOLD".takeIf { counted > 0 }),
+            isStillPending = isStillPending
         )
+
+    private fun completeState(tier: String) = PlacementCompleteUiState(
+        isLoading = false,
+        tier = tier,
+        rounds = listOf(
+            placementRound(1, 901, "WIN"),
+            placementRound(2, 902, "LOSE"),
+            placementRound(3, 903, "WIN").copy(distance = Distance(3_000), averagePace = Pace(328))
+        ),
+        wins = 2,
+        losses = 1
+    )
+
+    private val friends = listOf(
+        RecentFriend(21, "바람처럼", LocalDate.of(2026, 10, 12)),
+        RecentFriend(22, "달빛러너", LocalDate.of(2026, 9, 30)),
+        RecentFriend(23, "새벽고래", LocalDate.of(2026, 9, 14))
+    )
+
+    /** TC-5892 랜덤 대결 v5(61355:2909): 확정 배지 작게, 「?」, 거리 칩, 「내 5km 최고 기록」, 하단 내비 없음. */
+    @Test
+    fun randomBattle() = compose.captureRunkkScreen("C1_random_battle", isDarkTheme = false) {
+        RandomBattleScreen(
+            RandomBattleUiState(
+                bestByDistance = mapOf(Distance(5_000) to Duration.ofSeconds(1_625)),
+                tierDisplay = TierDisplay.Confirmed("GOLD")
+            ),
+            RandomBattleActions()
+        )
+    }
+
+    /** TC-5893 친구 대결 닫힘(61312:14822). */
+    @Test
+    fun friendBattle() = compose.captureRunkkScreen("C9_friend_battle", isDarkTheme = false) {
+        FriendBattleScreen(FriendBattleUiState(friends = friends, selectedFriendId = 21), FriendBattleActions())
+    }
+
+    /** TC-5894 친구 대결 거리 펼침(61312:14940). */
+    @Test
+    fun friendBattleOpen() = compose.captureRunkkScreen("C9_friend_battle_open", isDarkTheme = false) {
+        FriendBattleScreen(
+            FriendBattleUiState(friends = friends, selectedFriendId = 21, isDistanceMenuOpen = true),
+            FriendBattleActions()
+        )
+    }
+
+    /** TC-5895 최근 친구 없음(제안 문구). */
+    @Test
+    fun friendBattleEmpty() = compose.captureRunkkScreen("C9_friend_battle_empty", isDarkTheme = false) {
+        FriendBattleScreen(FriendBattleUiState(), FriendBattleActions())
+    }
+
+    /** TC-5896 배치고사 1/3(61355:3061). */
+    @Test
+    fun placementRound1() = compose.captureRunkkScreen("P1_placement_round1", isDarkTheme = false) {
+        PlacementScreen(PlacementUiState(isLoading = false, progress = placing(0)), PlacementActions())
+    }
+
+    /** TC-5897 배치고사 2/3(61355:3230), 임시 배지. */
+    @Test
+    fun placementRound2() = compose.captureRunkkScreen("P1_placement_round2", isDarkTheme = false) {
+        PlacementScreen(PlacementUiState(isLoading = false, progress = placing(1, "GOLD")), PlacementActions())
+    }
+
+    /** TC-5898 배치고사 3/3(8절 8 연장). */
+    @Test
+    fun placementRound3() = compose.captureRunkkScreen("P1_placement_round3", isDarkTheme = false) {
+        PlacementScreen(PlacementUiState(isLoading = false, progress = placing(2, "SILVER")), PlacementActions())
+    }
+
+    /** TC-5899 판 결과 1판 셈(61357:3020), 성과 첫 줄 「승리」. */
+    @Test
+    fun placementResult() = compose.captureRunkkScreen("P2_placement_result", isDarkTheme = false) {
+        PlacementResultScreen(placementResultState(PRS.COUNTED, "WIN", counted = 1), PlacementResultActions())
+    }
+
+    /** TC-5900 판 결과 세지 않음(포기 판, 제안 문구). */
+    @Test
+    fun placementResultNotCounted() =
+        compose.captureRunkkScreen("P2_placement_result_not_counted", isDarkTheme = false) {
+            PlacementResultScreen(placementResultState(PRS.NOT_COUNTED, "LOSE", counted = 1), PlacementResultActions())
+        }
+
+    /** TC-5901 판 결과 정리 중(30초 뒤, 제안 문구). */
+    @Test
+    fun placementResultPending() = compose.captureRunkkScreen("P2_placement_result_pending", isDarkTheme = false) {
+        PlacementResultScreen(
+            placementResultState(PRS.PENDING, "WIN", counted = 0, isStillPending = true),
+            PlacementResultActions()
+        )
+    }
+
+    /** TC-5902 배치고사 완료 브론즈(축하 61361:3142). */
+    @Test
+    fun placementCompleteBronze() = compose.captureRunkkScreen("P3_placement_complete_bronze", isDarkTheme = false) {
+        PlacementCompleteScreen(completeState("BRONZE"), PlacementCompleteActions())
+    }
+
+    /** TC-5903 배치고사 완료 실버(축하 61361:3349). */
+    @Test
+    fun placementCompleteSilver() = compose.captureRunkkScreen("P3_placement_complete_silver", isDarkTheme = false) {
+        PlacementCompleteScreen(completeState("SILVER"), PlacementCompleteActions())
+    }
+
+    /** TC-5904 배치고사 완료 골드(축하 61361:3556). */
+    @Test
+    fun placementCompleteGold() = compose.captureRunkkScreen("P3_placement_complete_gold", isDarkTheme = false) {
+        PlacementCompleteScreen(completeState("GOLD"), PlacementCompleteActions())
+    }
+
+    /** TC-5905 배치고사 완료 플래티넘(축하 61361:3765). */
+    @Test
+    fun placementCompletePlatinum() =
+        compose.captureRunkkScreen("P3_placement_complete_platinum", isDarkTheme = false) {
+            PlacementCompleteScreen(completeState("PLATINUM"), PlacementCompleteActions())
+        }
+
+    /** TC-5906 배치고사 완료 마스터(축하 61361:3974). */
+    @Test
+    fun placementCompleteMaster() = compose.captureRunkkScreen("P3_placement_complete_master", isDarkTheme = false) {
+        PlacementCompleteScreen(completeState("MASTER"), PlacementCompleteActions())
+    }
+
+    /** TC-5907 배치고사 완료 골드 다크(토큰 다크 값). */
+    @Test
+    fun placementCompleteGoldDark() = compose.captureRunkkScreen("P3_placement_complete_gold_dark") {
+        PlacementCompleteScreen(completeState("GOLD"), PlacementCompleteActions())
     }
 
     @Test

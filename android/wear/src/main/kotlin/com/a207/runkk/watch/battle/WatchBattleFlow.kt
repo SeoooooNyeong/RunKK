@@ -205,8 +205,11 @@ class WatchBattleFlow @Inject constructor(
         return record.finishTime.seconds - run.elapsed.seconds
     }
 
-    /** 랜덤 대결까지 남은 유효 러닝 수(폰 RandomBattleGate와 같은 규칙, FR-080). null이면 열림 또는 모름(서버가 판정한다). */
-    fun randomRunsLeft(tier: String?, validRuns: Int?): Int? = RandomBattleGate.runsLeft(tier, validRuns)
+    /**
+     * 워치 랜덤 대결을 잠그는가(공용 RandomBattleGate.isWatchRandomLocked, D-500, J24-12): 배치 중(UNRANKED)이면 참이다. 배치고사 화면은
+     * 폰에만 있다. 티어를 모르면 잠그지 않는다(서버가 받으면 배치고사로 처리한다).
+     */
+    fun isRandomLocked(tier: String?): Boolean = RandomBattleGate.isWatchRandomLocked(tier)
 
     fun selfCandidates(): List<RecordOpponent> = cache.selfCandidates().map(::RecordOpponent)
 

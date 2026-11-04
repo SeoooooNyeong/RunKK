@@ -290,12 +290,20 @@ private fun InviteVersus(invite: FriendInviteView) {
     )
 }
 
-/** 성사(C-3): "상대를 찾았어요", 나(티어, R2-10) VS 상대(티어, 최고 기록), 자동 출발 고리. 측정이 늦어지면 그만두기(배틀 QA 2번). */
+/**
+ * 성사(C-3): "상대를 찾았어요", 나(티어, R2-10) VS 상대(티어, 최고 기록), 자동 출발 고리. 측정이 늦어지면 그만두기(배틀 QA 2번).
+ * 배치고사 상대는 점선 원 「?」로 그리고 티어를 보이지 않는다(FR-276, J24-3: UNRANKED를 「배치 중」으로 그리지 않는다).
+ */
 @Composable
 private fun ColumnScope.Matched(match: MatchFound, state: MatchUiState, onForfeit: () -> Unit) {
     val distance = distanceLabel(match.distance).asString()
-    val description =
-        stringResource(R.string.battle_match_found_desc, match.opponentName, tierLabel(match.opponentTier))
+    val isHidden = state.isOpponentHidden
+    val opponentTier = if (isHidden) null else tierLabel(match.opponentTier)
+    val description = stringResource(
+        R.string.battle_match_found_desc,
+        match.opponentName,
+        opponentTier ?: stringResource(R.string.battle_match_placement_opponent)
+    )
     Column(
         modifier = Modifier.weight(1f).fillMaxWidth().padding(top = 40.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -323,8 +331,8 @@ private fun ColumnScope.Matched(match: MatchFound, state: MatchUiState, onForfei
                 Contender(
                     match.opponentName,
                     it,
-                    figure = Figure.RIVAL,
-                    tier = tierLabel(match.opponentTier),
+                    figure = if (isHidden) Figure.UNKNOWN else Figure.RIVAL,
+                    tier = opponentTier,
                     caption = bestLine(distance, match.opponentBest),
                     character = AvatarCharacter.of(match.opponentGender)
                 )

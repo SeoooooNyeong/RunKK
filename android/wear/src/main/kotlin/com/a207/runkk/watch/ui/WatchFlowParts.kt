@@ -205,27 +205,16 @@ internal fun FaceImage(gender: Gender?, modifier: Modifier = Modifier) {
     )
 }
 
-/**
- * 안내 문구 한 줄(트랙 바탕 위 흰 굵은 글자, 나타나면 읽어 준다). 없으면 그리지 않는다. 랜덤 대결 잠금은 [runsLeft]가 1 이상이면
- * "러닝을 n번 더 뛰면 배틀런이 가능해요!", 아니면 남은 수 없는 문구다(폰 BattleModeScreen과 같다).
- */
+/** 안내 문구 한 줄(트랙 바탕 위 흰 굵은 글자, 나타나면 읽어 준다). 없으면 그리지 않는다. */
 @Composable
 internal fun FlowNoticeText(
     notice: WatchFlow.Notice?,
     modifier: Modifier = Modifier,
-    color: Color = WatchColors.OnSurface,
-    runsLeft: Int? = null
+    color: Color = WatchColors.OnSurface
 ) {
     if (notice == null) return
-    val count = runsLeft?.takeIf { notice == WatchFlow.Notice.RANDOM_LOCKED && it > 0 }
     Text(
-        text = if (count !=
-            null
-        ) {
-            stringResource(R.string.notice_random_locked, count)
-        } else {
-            stringResource(noticeRes(notice))
-        },
+        text = stringResource(noticeRes(notice)),
         modifier = modifier.semantics { liveRegion = LiveRegionMode.Polite },
         style = labelStyle(color = color, size = 11.sp).copy(fontWeight = FontWeight.Bold),
         textAlign = TextAlign.Center
@@ -239,7 +228,7 @@ internal fun noticeRes(notice: WatchFlow.Notice): Int = when (notice) {
     WatchFlow.Notice.PHONE_RUNNING -> R.string.notice_phone_running
     WatchFlow.Notice.BATTLE_OFFLINE -> R.string.notice_battle_offline
     WatchFlow.Notice.MATCH_FAILED -> R.string.notice_match_failed
-    WatchFlow.Notice.RANDOM_LOCKED -> R.string.notice_random_locked_unknown
+    WatchFlow.Notice.RANDOM_LOCKED -> R.string.notice_random_locked
     WatchFlow.Notice.ALREADY_IN_BATTLE -> R.string.notice_already_in_battle
     WatchFlow.Notice.QUEUE_UNAVAILABLE -> R.string.notice_queue_unavailable
     WatchFlow.Notice.DISTANCE_INVALID -> R.string.notice_distance_invalid

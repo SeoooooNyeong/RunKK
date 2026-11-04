@@ -49,7 +49,7 @@ import kotlinx.coroutines.withTimeoutOrNull
  * 안내 문구 WatchGuidanceOutput, 본인 요약 AccountRepository(티어·성별).
  *
  * - 시작 전 확인: 폰이 측정 중이면 거부(FR-252), 위치 동의가 없으면 "폰에서 위치 수집 동의를 해 주세요"(FR-245). 배틀런은 서버에 닿지
- *   않으면 시작하지 않는다(FR-251). 배틀런은 언랭이면 매칭을 요청하기 전에 잠근다(FR-080, 폰 RandomBattleGate와 같은 규칙). 서버 거부는
+ *   않으면 시작하지 않는다(FR-251). 배틀런 랜덤 대결은 배치 중이면 매칭을 요청하기 전에 잠근다(J24-12, RandomBattleGate.isWatchRandomLocked). 서버 거부는
  *   사유 코드마다 폰 BattleErrorText와 같은 뜻의 안내를 보인다(코드 리뷰 WR12-1). 셀프·셀럽런은 서버에 닿으면 서버 대결, 아니면 미리 받은 상대 기록으로 워치에서만 한다(D-377, R72).
  * - 자유런은 이 ViewModel이 3·2·1·GO 뒤 RunTracker.startRun을 부르고, 대결은 BattleRunCoordinator가 출발을 정한다.
  * - 끝: 자유런은 RunTracker.ended, 대결은 BattleStep.Finished로 결과(WatchResultHeadline)를 만든다. 측정 서비스가 밖에서 끝내면
@@ -90,8 +90,8 @@ class WatchFlowViewModel @Inject constructor(
     private var lastMode = WatchMode.FREE
     private var myTier: String? = null
 
-    /** 랜덤 대결까지 남은 유효 러닝 수(WatchBattleFlow.randomRunsLeft). null이면 열림 또는 모름(서버가 판정한다). */
-    private var randomRunsLeft: Int? = null
+    /** 워치 랜덤 대결 잠금(배치 중, WatchBattleFlow.isRandomLocked, J24-12). 모르면 거짓(서버가 판정한다). */
+    private var isRandomLocked = false
     private var lastMemberId: Long? = null
     private var isPhoneRunning = false
     private var lastGap: Int? = null
@@ -399,7 +399,7 @@ class WatchFlowViewModel @Inject constructor(
                 // 이전 회원의 오늘 계획·티어·배틀런 잠금이 다음 회원에게 남지 않게 지운다.
                 phonePlan = null
                 myTier = null
-                randomRunsLeft = null
+                isRandomLocked = false
                 lastMemberId = null
                 battleFlow.forgetRecord()
                 if (isIdle(_flow.value) && _flow.value !is WatchFlow.Companion) _flow.value = WatchFlow.NotLoggedIn
@@ -474,7 +474,7 @@ class WatchFlowViewModel @Inject constructor(
             sessionStore.refreshSettings()
             (accounts.mySummary() as? Outcome.Success)?.value?.let { me ->
                 me.tier?.let { myTier = it }
-                randomRunsLeft = battleFlow.randomRunsLeft(me.tier, me.validRuns)
+                isRandomLocked = battleFlow.isRandomLocked(me.tier)
             }
             battleFlow.refreshCache(memberId)
         }
@@ -521,9 +521,9 @@ class WatchFlowViewModel @Inject constructor(
     private fun startMatching(picker: WatchFlow.BattleDistance) {
         val notice = WatchFlow.Notice.BATTLE_OFFLINE.takeIf { !connectivity.isOnline.value }
             ?: blockedNotice()
-            ?: WatchFlow.Notice.RANDOM_LOCKED.takeIf { randomRunsLeft != null }
+            ?: WatchFlow.Notice.RANDOM_LOCKED.takeIf { isRandomLocked }
         if (notice != null) {
-            _flow.value = picker.copy(notice = notice, runsLeft = randomRunsLeft)
+            _flow.value = picker.copy(notice = notice, isRandomLocked = isRandomLocked)
             return
         }
         val distance = picker.current.distance ?: return
@@ -554,10 +554,10 @@ class WatchFlowViewModel @Inject constructor(
         }
     }
 
-    /** 매칭 거부·실패 뒤 거리 선택. 서버가 RANKED_ONLY로 거부했으면 남은 수를 모르는 잠금으로 둔다(WR12-1). */
+    /** 매칭 거부·실패 뒤 거리 선택. 옛 서버가 RANKED_ONLY로 거부했으면 잠금으로 둔다(WR12-1). */
     private fun refusedPicker(distance: Distance, error: AppError): WatchFlow.BattleDistance {
         val notice = noticeOf(error, fallback = WatchFlow.Notice.MATCH_FAILED)
-        if (notice == WatchFlow.Notice.RANDOM_LOCKED) randomRunsLeft = randomRunsLeft ?: 0
+        if (notice == WatchFlow.Notice.RANDOM_LOCKED) isRandomLocked = true
         return battlePicker(selectedDistance = distance).copy(notice = notice)
     }
 
@@ -903,7 +903,7 @@ class WatchFlowViewModel @Inject constructor(
         val choices = BATTLE_DISTANCES.map { WatchFlow.Choice(it) }
         val wanted = selectedDistance ?: battleDefault
         val selected = choices.indexOfFirst { it.distance == wanted }.coerceAtLeast(0)
-        return WatchFlow.BattleDistance(choices, selected, connectivity.isOnline.value, runsLeft = randomRunsLeft)
+        return WatchFlow.BattleDistance(choices, selected, connectivity.isOnline.value, isRandomLocked = isRandomLocked)
     }
 
     private fun celebPicker(selectedDistance: Distance?): WatchFlow.CelebDistance {

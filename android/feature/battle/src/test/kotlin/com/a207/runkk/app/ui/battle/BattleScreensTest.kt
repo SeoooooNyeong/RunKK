@@ -59,26 +59,57 @@ class BattleScreensTest {
     }
 
     @Test
-    fun `배틀런 화면 - 랜덤은 n km 랜덤 매칭 시작, 친구는 카카오톡으로 친구 초대(C-1, C-9)`() {
-        var state = BattleModeUiState()
+    fun `랜덤 대결 화면 - 고른 거리로 n km 매칭 시작, 최고 기록이 없으면 안내(FR-285)`() {
         show {
-            BattleModeScreen(
-                state,
-                BattleModeActions(onRandomStart = { calls += "random" }, onDistance = { calls += "d:${it.meters}" })
+            RandomBattleScreen(
+                RandomBattleUiState(),
+                RandomBattleActions(onStart = { calls += "start" }, onDistance = { calls += "d:${it.meters}" })
             )
         }
-        compose.onNodeWithText("오늘의 상대를 만나 볼까요?").assertExists()
-        compose.onNodeWithText("5km 랜덤 매칭 시작").performClick()
-        compose.onNodeWithContentDescription("3km, 내 최고 기록 기록 없음", substring = true).performClick()
-        assertEquals(listOf("random", "d:3000"), calls)
+        compose.onNodeWithContentDescription("나 대 아직 모르는 상대", substring = true).assertExists()
+        compose.onNodeWithText("아직 기록이 없어요", useUnmergedTree = true).assertExists()
+        compose.onNodeWithText("3km").performClick()
+        compose.onNodeWithText("5km 매칭 시작").performClick()
+        assertEquals(listOf("d:3000", "start"), calls)
     }
 
     @Test
-    fun `D100 배틀런 시작 버튼은 솟은 탭 원 위에 16을 두고 놓인다(C-1)`() {
-        show { BattleModeScreen(BattleModeUiState(), BattleModeActions()) }
+    fun `D100 친구 대결 초대 버튼은 솟은 탭 원 위에 16을 두고 놓인다(C-9)`() {
+        show { FriendBattleScreen(FriendBattleUiState(), FriendBattleActions(onInvite = { calls += "invite" })) }
         val screen = compose.onRoot().getUnclippedBoundsInRoot()
-        val button = compose.onNodeWithText("5km 랜덤 매칭 시작").getUnclippedBoundsInRoot()
+        val button = compose.onNodeWithText("카카오톡으로 초대하기").getUnclippedBoundsInRoot()
         assertEquals((16.dp + RUNKK_BOTTOM_BAR_RISE).value, (screen.bottom - button.bottom).value, 1f)
+        compose.onNodeWithText("카카오톡으로 초대하기").performClick()
+        compose.onNodeWithText("아직 함께 달린 친구가 없어요").assertExists()
+        assertEquals(listOf("invite"), calls)
+    }
+
+    @Test
+    fun `친구 대결 화면 - 친구 라디오와 거리 상자(FR-286)`() {
+        val friends = listOf(RecentFriend(21, "바람처럼", LocalDate.of(2026, 10, 12)))
+        show {
+            FriendBattleScreen(
+                FriendBattleUiState(friends = friends, isDistanceMenuOpen = true),
+                FriendBattleActions(
+                    onFriend = { calls += "f:$it" },
+                    onDistanceMenu = { calls += "menu" },
+                    onDistance = { calls += "d:${it.meters}" }
+                )
+            )
+        }
+        compose.onNodeWithText("10월 12일 함께 달림", useUnmergedTree = true).assertExists()
+        compose.onNodeWithText("바람처럼", useUnmergedTree = true).performClick()
+        compose.onNodeWithContentDescription("거리 5km").performClick()
+        compose.onNodeWithText("10km").performClick()
+        assertEquals(listOf("f:21", "menu", "d:10000"), calls)
+    }
+
+    @Test
+    fun `TC-5876 배치고사 진행을 못 읽으면 시작 버튼을 누를 수 없다`() {
+        show { PlacementScreen(PlacementUiState(isLoading = false), PlacementActions(onStart = { calls += "start" })) }
+        compose.onNodeWithText("배치고사 1판 시작").performClick()
+        compose.onNodeWithText("배치고사 진행을 불러오지 못했어요").assertExists()
+        assertEquals(emptyList(), calls)
     }
 
     @Test
@@ -96,19 +127,6 @@ class BattleScreensTest {
         val screen = compose.onRoot().getUnclippedBoundsInRoot()
         val button = compose.onNodeWithText("5km 기록 깨러 가기").getUnclippedBoundsInRoot()
         assertEquals((16.dp + RUNKK_BOTTOM_BAR_RISE).value, (screen.bottom - button.bottom).value, 1f)
-    }
-
-    @Test
-    fun `배틀런 화면 친구 분절 - 머리와 초대 버튼`() {
-        show {
-            BattleModeScreen(
-                BattleModeUiState(segment = BattleModeUiState.Segment.FRIEND),
-                BattleModeActions(onInvite = { calls += "invite" })
-            )
-        }
-        compose.onNodeWithText("친구와 같은 거리로 겨뤄 볼까요?").assertExists()
-        compose.onNodeWithText("카카오톡으로 친구 초대").performClick()
-        assertEquals(listOf("invite"), calls)
     }
 
     @Test

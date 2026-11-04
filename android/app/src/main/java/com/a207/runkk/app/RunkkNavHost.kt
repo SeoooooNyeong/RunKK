@@ -237,13 +237,13 @@ internal fun isMusicRoute(top: NavKey?): Boolean = when (top) {
 }
 
 /**
- * 경로 → 하단 탭(D-250). 배틀런 화면과 친구 대결(D-498)은 탭이 아니지만 홈을 고른 상태로 하단 탭을 보인다.
+ * 경로 → 하단 탭(D-250). 친구 대결(D-498)은 탭이 아니지만 홈을 고른 상태로 하단 탭을 보인다.
  * 랜덤 대결·배치고사 진행·완료(그리고 인자 화면인 판 결과)는 탭이 없어 하단 탭을 숨긴다.
  */
 internal fun tabOf(route: String): RunkkTab? = when (route) {
     Routes.CREW -> RunkkTab.CREW
     Routes.RECORD_RUN -> RunkkTab.RECORD_RUN
-    Routes.HOME, Routes.BATTLE_MODE, Routes.BATTLE_FRIEND -> RunkkTab.HOME
+    Routes.HOME, Routes.BATTLE_FRIEND -> RunkkTab.HOME
     Routes.RANKING -> RunkkTab.RANKING
     Routes.ME -> RunkkTab.ME
     else -> null

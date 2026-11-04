@@ -30,8 +30,13 @@ data class MatchUiState(
     /** 위치 동의 시트(D-267). */
     val isConsentSheetVisible: Boolean = false,
     /** 성사 뒤 측정이 시작되지 않고 늦어져 그만두기를 보인다(배틀 QA 2번). */
-    val canForfeit: Boolean = false
+    val canForfeit: Boolean = false,
+    /** 배치고사 판 번호(MatchFound.placementRound). 있으면 상대를 점선 원 「?」로 그리고 상대 티어를 숨긴다(FR-276, J24-3). */
+    val placementRound: Int? = null
 ) {
+    /** 상대 티어·그림을 숨기는가(배치고사 상대). */
+    val isOpponentHidden: Boolean get() = placementRound != null
+
     /** 초대가 끝난 까닭. 만료는 "다시 초대하기", 거절은 "확인"으로 친구 대결 거리 고르기에 돌아간다(D-271). */
     enum class InviteEnd { EXPIRED, DECLINED }
 

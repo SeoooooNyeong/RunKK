@@ -44,6 +44,12 @@ class BattleResultViewModel @Inject constructor(
 
     /** 이 화면이 평가 화면을 띄울 차례인가: 끝낸 직후 진입이고 아직 띄우지 않았다(한 번만, D-284, U8-6). */
     private var isEvaluationDue = false
+
+    /** 막 끝난 배치고사 판이면 판 결과로 바꿔 열 차례인가(한 번만, D-501). 이력에서 연 옛 판은 기존 결과다. */
+    private var isPlacementDue = false
+
+    /** 판 결과로 바꿔 열었다. 이 화면의 다시 읽기를 멈춘다. */
+    private var isPlacementOpened = false
     private var detailJob: Job? = null
     private var job: Job? = null
     private var uploadJob: Job? = null
@@ -51,10 +57,20 @@ class BattleResultViewModel @Inject constructor(
 
     /**
      * [battleId]의 결과를 읽는다. [opensEvaluation]은 대결을 끝낸 직후의 첫 읽기에서만 참으로 넘긴다(그 결과에 평가가 실리면 평가 화면).
+     * [isJustFinished]는 대결을 끝낸 직후 진입이고, 그 결과가 배치고사 판이면 판 결과 화면으로 바꿔 연다(D-501).
      * [isForced]면 같은 대결도 다시 읽는다(다시 읽기는 평가 화면 여부를 바꾸지 않는다).
      */
-    fun load(battleId: Long, opensEvaluation: Boolean = false, isForced: Boolean = false) {
-        if (opensEvaluation && _state.value.battleId == null) isEvaluationDue = true
+    fun load(
+        battleId: Long,
+        opensEvaluation: Boolean = false,
+        isForced: Boolean = false,
+        isJustFinished: Boolean = false
+    ) {
+        if (_state.value.battleId == null) {
+            if (opensEvaluation) isEvaluationDue = true
+            if (isJustFinished) isPlacementDue = true
+        }
+        if (isPlacementOpened) return
         if (!isForced && _state.value.battleId == battleId && _state.value.error == null) return
         job?.cancel()
         _state.update { it.copy(isLoading = true, battleId = battleId, error = null) }
@@ -65,12 +81,15 @@ class BattleResultViewModel @Inject constructor(
     /** 읽고, 네트워크 오류면 몇 초마다, 보류면 판정이 나올 때까지 다시 읽는다. */
     private suspend fun read(battleId: Long) {
         show(battles.result(battleId))
+        // 막 끝난 배치고사 판은 판 결과 화면이 다시 읽는다(D-501): 이 화면은 더 읽지 않는다.
+        if (isPlacementOpened) return
         var offlineRetries = 0
         while (_state.value.result == null && lastError.isTransient() && offlineRetries < OFFLINE_RETRIES) {
             delay(OFFLINE_RETRY_MILLIS)
             show(battles.result(battleId))
             offlineRetries++
         }
+        if (isPlacementOpened) return
         // 도착 직후에는 기록이 아직 올라가지 않아 보류로 온다. 서버는 판정을 앱에 알리지 않으므로 판정이 나올 때까지 다시 읽는다.
         // 다시 읽는 동안은 결과를 확인하는 화면을 보이고, 다시 읽기가 실패하면 그 화면을 그대로 둔다.
         try {
@@ -112,6 +131,7 @@ class BattleResultViewModel @Inject constructor(
                 lastError = null
                 _state.update { it.copy(isLoading = false, result = result.value, error = null) }
                 coordinator.acknowledgeFinished()
+                if (openPlacementIfDue(result.value)) return
                 onResult(result.value)
             }
 
@@ -140,6 +160,17 @@ class BattleResultViewModel @Inject constructor(
             isEvaluationDue = false
             _events.trySend(BattleResultEvent.NavigateEvaluation(evaluation))
         }
+    }
+
+    /** 막 끝난 배치고사 판이면(판정 전 보류여도) 판 결과로 바꿔 열고 이 화면의 다시 읽기를 멈춘다. 열었으면 true. */
+    private fun openPlacementIfDue(result: BattleResult): Boolean {
+        if (!isPlacementDue || result.placementRound == null) return false
+        isPlacementDue = false
+        isEvaluationDue = false
+        isPlacementOpened = true
+        _events.trySend(BattleResultEvent.OpenPlacementResult(result.battleId))
+        uploadJob?.cancel()
+        return true
     }
 
     /** 잠시 뒤 다시 읽으면 될 실패(연결 실패·서버 오류). 거부는 다시 읽어도 같다. */

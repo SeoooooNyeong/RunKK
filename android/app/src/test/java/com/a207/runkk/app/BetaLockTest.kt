@@ -70,11 +70,11 @@ class BetaLockTest {
     }
 
     @Test
-    fun `TC-9692 홈·러닝·배틀런·기록런(셀럽런 포함)·랭킹·마이·친구 대결 참가는 열려 있다`() {
+    fun `TC-9692 홈·러닝·친구 대결·기록런(셀럽런 포함)·랭킹·마이·친구 대결 참가는 열려 있다`() {
         listOf<NavKey>(
             Routes.Key(Routes.HOME),
             Routes.Key(Routes.RUN),
-            Routes.Key(Routes.BATTLE_MODE),
+            Routes.Key(Routes.BATTLE_FRIEND),
             Routes.Key(Routes.RECORD_RUN),
             Routes.Key(Routes.RANKING),
             Routes.Key(Routes.ME),
@@ -87,12 +87,19 @@ class BetaLockTest {
     }
 
     @Test
-    fun `하단 탭 경로는 크루·기록런·홈·랭킹·마이 순서이고 배틀런 화면은 홈 탭을 고른다`() {
+    fun `하단 탭 경로는 크루·기록런·홈·랭킹·마이 순서이고 친구 대결 화면은 홈 탭을 고른다`() {
         assertEquals(listOf(Routes.CREW, Routes.RECORD_RUN, Routes.HOME, Routes.RANKING, Routes.ME), Routes.TABS)
         Routes.TABS.forEach { assertEquals(it, tabOf(it)?.let(::routeOf)) }
-        assertEquals(Routes.HOME, tabOf(Routes.BATTLE_MODE)?.let(::routeOf))
+        assertEquals(Routes.HOME, tabOf(Routes.BATTLE_FRIEND)?.let(::routeOf))
         assertEquals(null, tabOf("battle/self"))
         assertEquals("ranking", Routes.RANKING)
+    }
+
+    @Test
+    fun `TC-5909 배틀런 두 분절 화면 경로는 없다`() {
+        val constants = Routes::class.java.declaredFields.map { it.name }
+        assertFalse("BATTLE_MODE" in constants, "배틀런 두 분절 화면(BATTLE_MODE)은 랜덤·친구 대결로 나눴다(CR-142)")
+        assertEquals(null, tabOf("battle/mode"))
     }
 
     @Test

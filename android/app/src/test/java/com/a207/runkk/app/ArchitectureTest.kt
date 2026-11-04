@@ -89,6 +89,18 @@ class ArchitectureTest {
     }
 
     @Test
+    fun `TC-5910 홈은 대결 화면 패키지를 가져오지 않는다`() {
+        val home = files.filter { moduleOf(it.packageName()) == "ui.home" }
+        assertTrue(home.any { it.name == "BattleEntrySheet" }, "진입 시트(ui.home)가 있다")
+        val violations = home.flatMap { file ->
+            file.importNames().filter {
+                moduleOf(it.substringBeforeLast('.')) == "ui.battle"
+            }.map { "${file.name}: $it" }
+        }
+        assertEquals(emptyList(), violations, "진입 시트는 경로 상수(core.navigation)로만 연다(D-499)")
+    }
+
+    @Test
     fun `TC-6581 ui·chat은 domain·chat·domain·report·core만 import한다`() {
         assertEquals(CORE_UI + setOf("domain.chat", "domain.report"), ALLOWED.getValue("ui.chat"))
         assertTrue(files.any { moduleOf(it.packageName()) == "ui.chat" }, "ui.chat 파일이 없다")

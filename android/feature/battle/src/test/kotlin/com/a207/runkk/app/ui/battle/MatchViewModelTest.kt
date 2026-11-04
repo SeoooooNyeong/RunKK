@@ -833,4 +833,22 @@ class MatchViewModelTest {
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
             MatchViewModel(w.battles, w.coordinator, w.channels, w.clock, consentOf(settings, accounts), accounts) as T
     }
+
+    @Test
+    fun `TC-5872 배치고사 상대는 티어 없이 물음표로 그린다`() = main.runVmTest { vms ->
+        val w = world()
+        val vm = quick(w, vms)
+        w.channels.channel.push(matchFound().copy(opponentTier = "UNRANKED", placementRound = 1))
+        runCurrent()
+        assertEquals(MatchPhase.MATCHED, vm.state.value.phase)
+        assertEquals(1, vm.state.value.placementRound)
+        assertTrue(vm.state.value.isOpponentHidden, "상대 티어(UNRANKED)를 「배치 중」으로 그리지 않고 「?」로 그린다")
+
+        val other = world()
+        val plain = quick(other, vms)
+        other.channels.channel.push(matchFound())
+        runCurrent()
+        assertEquals(null, plain.state.value.placementRound)
+        assertFalse(plain.state.value.isOpponentHidden)
+    }
 }
