@@ -197,4 +197,18 @@ class PlacementProgressTest {
         assertThat(p.rounds()).allMatch(r -> r.verdict() == PlacementVerdict.LOSE);
         assertThat(p.rounds().get(0).averagePace()).isEmpty();
     }
+
+    @Test
+    @DisplayName("PL2-B1 판 행 수가 센 판 수와 다르면(잠금 전략이 옛 판 목록을 준 경우) 세지 않고 실패한다")
+    void count_failsWhenRoundsOutOfSync() {
+        PlacementProgress p = PlacementProgress.start(7L);
+        p.count(input(1L, 30.0, 1), BOUNDARY);
+        org.springframework.test.util.ReflectionTestUtils.setField(p, "countedRounds", 2);
+
+        assertThatThrownBy(() -> p.count(input(2L, 30.0, 2), BOUNDARY))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("out of sync");
+        assertThat(p.countedRounds()).isEqualTo(2);
+        assertThat(p.rounds()).hasSize(1);
+    }
 }

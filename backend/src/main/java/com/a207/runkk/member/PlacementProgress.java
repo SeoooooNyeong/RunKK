@@ -116,6 +116,18 @@ public class PlacementProgress {
      * 티어, 3판이면 확정(임시 티어 비움, 완료 시각·확정 판 순번 남김).
      */
     public PlacementCount count(PlacementRoundInput in, TierBoundary boundary) {
+        // 불변식: 잠근 뒤 읽은 판 목록이 센 판 수와 같다. 잠금 전략이 바뀌어 옛 판 목록을 받으면(PL2-B1)
+        // 조용히 넘기지 않고 실패시켜 트랜잭션을 되돌린다(수신자가 로그를 남기고 복구 작업이 다시 센다).
+        // Hibernate를 올릴 때는 PlacementThreadIntegrationTest(TC-5923)를 회귀 기준으로 돌린다.
+        if (rounds.size() != countedRounds) {
+            throw new IllegalStateException(
+                    "placement rounds out of sync: member="
+                            + memberId
+                            + " rows="
+                            + rounds.size()
+                            + " counted="
+                            + countedRounds);
+        }
         if (isCompleted()) {
             return new PlacementCount.Ignored("completed");
         }
