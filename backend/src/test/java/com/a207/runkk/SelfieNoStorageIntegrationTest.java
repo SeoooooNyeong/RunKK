@@ -6,10 +6,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.a207.runkk.avatar.FacePart;
-import com.a207.runkk.avatar.FaceTransformGateway;
-import com.a207.runkk.avatar.FaceTransformOutcome;
-import com.a207.runkk.avatar.SdFacePartImages;
 import com.a207.runkk.bootstrap.RunkkApplication;
 import com.a207.runkk.member.ConsentItem;
 import com.a207.runkk.member.MemberFixtures;
@@ -19,7 +15,6 @@ import com.a207.runkk.member.TokenIssuer;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.EnumMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -47,15 +42,15 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 
 /**
- * 14장 T-17 셀카 비저장(D-59, FR-156): 실제 HTTP multipart 업로드부터 변환까지 api의 multipart 임시 디렉터리에 파일이 0개이고(1MB
- * 이하는 메모리로만 받는다), 같은 회원의 동시 요청은 하나만 변환하며(SET NX 잠금), 1MB를 넘으면 413이다. ai 서버는 가짜 게이트웨이로 바꾼다(ai 컨테이너 쪽
- * 비저장은 ai 저장소 시험이 맡는다).
+ * 14장 T-17 셀카 비저장(D-59, FR-156): 실제 HTTP multipart 업로드부터 작업 접수까지 api의 multipart 임시 디렉터리에 파일이
+ * 0개이고(1MB 이하는 메모리로만 받는다), 같은 회원의 동시 요청은 하나만 접수하며(DB 예약), 1MB를 넘으면 413이다. ai 서버는 가짜 게이트웨이로 바꾼다(ai
+ * 컨테이너 쪽 비저장은 ai 저장소 시험이 맡는다).
  */
 @SpringBootTest(
         classes = RunkkApplication.class,
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
-@DisplayName("T-17 셀카 비저장·동시 요청 하나만 변환")
+@DisplayName("T-17 셀카 비저장·비동기 작업 경합")
 class SelfieNoStorageIntegrationTest {
 
     private static final long WAIT_SECONDS = 10;
@@ -68,20 +63,13 @@ class SelfieNoStorageIntegrationTest {
         registry.add("spring.servlet.multipart.location", uploadDir::toString);
     }
 
-    @MockitoBean FaceTransformGateway faceTransformGateway;
+    @MockitoBean com.a207.runkk.avatar.FaceJobGateway faceJobGateway;
     @Autowired TestRestTemplate http;
     @Autowired MemberRepository members;
     @Autowired MemberSettingService memberSettings;
     @Autowired TokenIssuer tokens;
     @Autowired TransactionTemplate tx;
-
-    private static SdFacePartImages parts() {
-        Map<FacePart, byte[]> images = new EnumMap<>(FacePart.class);
-        for (FacePart part : FacePart.values()) {
-            images.put(part, new byte[] {(byte) 0x89, 'P', 'N', 'G'});
-        }
-        return new SdFacePartImages(images);
-    }
+    @Autowired com.a207.runkk.avatar.AvatarRepository avatars;
 
     private static byte[] jpeg(int size) {
         byte[] image = new byte[size];
@@ -134,13 +122,17 @@ class SelfieNoStorageIntegrationTest {
         CountDownLatch entered = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
         AtomicLong filesDuringConversion = new AtomicLong(-1);
-        when(faceTransformGateway.transform(any()))
+        when(faceJobGateway.submit(org.mockito.ArgumentMatchers.anyLong(), any()))
                 .thenAnswer(
                         inv -> {
                             filesDuringConversion.set(filesIn(uploadDir));
                             entered.countDown();
                             release.await(WAIT_SECONDS, TimeUnit.SECONDS);
-                            return FaceTransformOutcome.success(parts());
+                            return new com.a207.runkk.avatar.FaceJob(
+                                    "test-job",
+                                    com.a207.runkk.avatar.FaceJob.Status.QUEUED,
+                                    null,
+                                    null);
                         });
 
         CompletableFuture<ResponseEntity<String>> first =
@@ -152,11 +144,63 @@ class SelfieNoStorageIntegrationTest {
 
         assertThat(second.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
         assertThat(second.getBody()).contains("SELFIE_IN_PROGRESS");
-        assertThat(done.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(done.getBody()).contains("\"created\":true");
-        verify(faceTransformGateway, times(1)).transform(any());
+        assertThat(done.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
+        assertThat(done.getBody()).contains("\"status\":\"QUEUED\"");
+        verify(faceJobGateway, times(1)).submit(org.mockito.ArgumentMatchers.anyLong(), any());
         assertThat(filesDuringConversion.get()).as("변환 중 multipart 임시 파일").isZero();
         assertThat(filesIn(uploadDir)).as("요청 뒤 multipart 임시 파일").isZero();
+    }
+
+    @Test
+    void concurrentResultsSpendQuotaOnce() throws Exception {
+        String token = consentedMember("완료중복곰");
+        AtomicLong owner = new AtomicLong();
+        when(faceJobGateway.submit(org.mockito.ArgumentMatchers.anyLong(), any()))
+                .thenAnswer(
+                        inv -> {
+                            owner.set(inv.getArgument(0));
+                            return new com.a207.runkk.avatar.FaceJob(
+                                    "result-job",
+                                    com.a207.runkk.avatar.FaceJob.Status.QUEUED,
+                                    null,
+                                    null);
+                        });
+        assertThat(upload(token, jpeg(32)).getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
+        CountDownLatch resultCalls = new CountDownLatch(2);
+        when(faceJobGateway.result(owner.get(), "result-job"))
+                .thenAnswer(
+                        inv -> {
+                            resultCalls.countDown();
+                            assertThat(resultCalls.await(WAIT_SECONDS, TimeUnit.SECONDS)).isTrue();
+                            return new com.a207.runkk.avatar.GeneratedHead(
+                                    "result-head",
+                                    Long.toString(owner.get()),
+                                    "face",
+                                    "eyes",
+                                    "hair",
+                                    Map.of(),
+                                    "short",
+                                    Map.of(),
+                                    Map.of(),
+                                    "now");
+                        });
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(token);
+        java.util.function.Supplier<ResponseEntity<String>> getResult =
+                () ->
+                        http.exchange(
+                                "/api/v1/avatar/selfie/jobs/result-job/result",
+                                HttpMethod.GET,
+                                new HttpEntity<>(headers),
+                                String.class);
+        CompletableFuture<ResponseEntity<String>> first = CompletableFuture.supplyAsync(getResult);
+        CompletableFuture<ResponseEntity<String>> second = CompletableFuture.supplyAsync(getResult);
+        assertThat(first.get(WAIT_SECONDS, TimeUnit.SECONDS).getStatusCode())
+                .isEqualTo(HttpStatus.OK);
+        assertThat(second.get(WAIT_SECONDS, TimeUnit.SECONDS).getStatusCode())
+                .isEqualTo(HttpStatus.OK);
+        Integer count = tx.execute(s -> avatars.findOrCreate(owner.get()).creationCount());
+        assertThat(count).isEqualTo(1);
     }
 
     @Test
@@ -165,7 +209,7 @@ class SelfieNoStorageIntegrationTest {
         String token = consentedMember("큰사진곰");
         ResponseEntity<String> response = upload(token, jpeg(ONE_AND_HALF_MB));
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.PAYLOAD_TOO_LARGE);
-        verify(faceTransformGateway, times(0)).transform(any());
+        verify(faceJobGateway, times(0)).submit(org.mockito.ArgumentMatchers.anyLong(), any());
         assertThat(filesIn(uploadDir)).isZero();
     }
 }

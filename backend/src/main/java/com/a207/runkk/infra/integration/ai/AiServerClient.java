@@ -69,7 +69,7 @@ public class AiServerClient {
         return comments;
     }
 
-    /** /faces 전용 연결(AiServerFaceGateway). */
+    /** 비동기 얼굴 작업 접수·조회 전용 연결(AiServerFaceJobGateway). */
     RestClient faces() {
         return faces;
     }

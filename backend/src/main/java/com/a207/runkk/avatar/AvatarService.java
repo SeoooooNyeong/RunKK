@@ -1,10 +1,7 @@
 package com.a207.runkk.avatar;
 
-import com.a207.runkk.common.BusinessRuleException;
 import com.a207.runkk.common.ItemSlot;
 import com.a207.runkk.common.ReasonCode;
-import com.a207.runkk.member.ConsentItem;
-import com.a207.runkk.member.MemberQueryService;
 import com.a207.runkk.policy.OperationPolicy;
 import com.a207.runkk.policy.ShopCatalog;
 import com.a207.runkk.reward.RewardService;
@@ -21,8 +18,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 아바타 얼굴·꾸미기 유스케이스(설계 6.1.8, SQ-11, srs.md 6.3 6.3·6.6). 셀카 변환은 트랜잭션 밖에서 SelfieConversion이 하고(5.3),
- * 잔액·보유 확인은 reward.RewardService로 읽는다(D-33). 조회(view)는 배포 전에 넘은 랜드마크 배경을 알림 없이 먼저 채운다(D-107 (3)).
+ * 아바타 얼굴·꾸미기 유스케이스(설계 6.1.8, srs.md 6.3). 셀카 작업은 SelfieJobService가 처리한다. 잔액·보유 확인은
+ * reward.RewardService로 읽는다(D-33). 조회(view)는 배포 전에 넘은 랜드마크 배경을 알림 없이 먼저 채운다(D-107 (3)).
  */
 @Service
 public class AvatarService {
@@ -30,9 +27,7 @@ public class AvatarService {
     private static final Logger log = LoggerFactory.getLogger(AvatarService.class);
 
     private final AvatarRepository avatarRepository;
-    private final SelfieConversion selfieConversion;
     private final RewardService rewardService;
-    private final MemberQueryService memberQueryService;
     private final OperationPolicy operationPolicy;
     private final BackgroundService backgroundService;
     private final AvatarTransactions transactions;
@@ -40,40 +35,17 @@ public class AvatarService {
 
     AvatarService(
             AvatarRepository avatarRepository,
-            SelfieConversion selfieConversion,
             RewardService rewardService,
-            MemberQueryService memberQueryService,
             OperationPolicy operationPolicy,
             BackgroundService backgroundService,
             AvatarTransactions transactions,
             Clock clock) {
         this.avatarRepository = avatarRepository;
-        this.selfieConversion = selfieConversion;
         this.rewardService = rewardService;
-        this.memberQueryService = memberQueryService;
         this.operationPolicy = operationPolicy;
         this.backgroundService = backgroundService;
         this.transactions = transactions;
         this.clock = clock;
-    }
-
-    /**
-     * SQ-11. 축소 운영(SELFIE_DISABLED) → 동의(FACE_CONSENT_REQUIRED) → 하루 한도(SELFIE_LIMIT) → 진행 중
-     * 잠금(SELFIE_IN_PROGRESS) → 변환. 실패면 사유 + 기본 캐릭터 안내(횟수 그대로, FR-155). selfie는 어디에도 저장하지 않는다(D-59).
-     */
-    public AvatarResult createFromSelfie(long memberId, byte[] selfie) {
-        if (!operationPolicy.features().selfieEnabled()) {
-            throw new BusinessRuleException(ReasonCode.SELFIE_DISABLED);
-        }
-        if (!memberQueryService.hasConsent(memberId, ConsentItem.FACE_TRANSFER)) {
-            throw new BusinessRuleException(ReasonCode.FACE_CONSENT_REQUIRED);
-        }
-        Optional<FailureReason> failure =
-                selfieConversion.convert(
-                        memberId, selfie, LocalDate.now(clock), operationPolicy.selfieLimit());
-        AvatarView view = view(memberId);
-        return failure.map(reason -> AvatarResult.failed(reason, view))
-                .orElseGet(() -> AvatarResult.created(view));
     }
 
     /** 기본 캐릭터 4종 중 하나(enum이 보장). 셀카 얼굴이 있어도 바꿀 수 있다(FR-158). */

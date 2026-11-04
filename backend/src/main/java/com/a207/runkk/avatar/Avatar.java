@@ -60,6 +60,12 @@ public class Avatar {
     @Column(name = "image_key", nullable = false, length = 200)
     private Map<FacePart, String> facePartKeys = new HashMap<>();
 
+    @Column(name = "head_job_id", length = 64)
+    private String headJobId;
+
+    @Column(name = "pending_face_request", length = 64)
+    private String pendingFaceRequest;
+
     @Column(name = "creation_count", nullable = false)
     private int creationCount;
 
@@ -122,21 +128,42 @@ public class Avatar {
      * BusinessRuleException(SELFIE_LIMIT). 셀카 한도가 운영 기준값이라(SelfieLimit, D-41) 한도를 함께 받는다.
      */
     public void applySelfieFace(SdFaceParts parts, LocalDate today, SelfieLimit limit) {
+        countSelfie(today, limit);
+        headJobId = null;
+        defaultCharacter = null;
+        facePartKeys.clear();
+        facePartKeys.putAll(parts.parts());
+    }
+
+    private void countSelfie(LocalDate today, SelfieLimit limit) {
         if (!canCreateSelfie(today, limit)) {
             throw new BusinessRuleException(ReasonCode.SELFIE_LIMIT);
         }
         createdOnLastDay = today.equals(lastCreatedOn) ? createdOnLastDay + 1 : 1;
         lastCreatedOn = today;
         creationCount++;
-        defaultCharacter = null;
-        facePartKeys.clear();
-        facePartKeys.putAll(parts.parts());
+    }
+
+    void beginFaceJob(String requestId) {
+        pendingFaceRequest = requestId;
+    }
+
+    void applyGeneratedHead(String requestId, String jobId, LocalDate today, SelfieLimit limit) {
+        countSelfie(today, limit);
+        if (requestId.equals(pendingFaceRequest)) {
+            headJobId = jobId;
+            defaultCharacter = null;
+            facePartKeys.clear();
+            pendingFaceRequest = null;
+        }
     }
 
     /** face = DefaultFace(c). 셀카 얼굴이 있어도 바꿀 수 있다(FR-158). 생성 횟수는 그대로다. */
     public void chooseDefault(DefaultCharacter c) {
         defaultCharacter = Objects.requireNonNull(c, "기본 캐릭터");
         facePartKeys.clear();
+        headJobId = null;
+        pendingFaceRequest = null;
     }
 
     /** 같은 부위 기존 아이템을 바꾼다. 보유 확인은 AvatarService가 먼저 한다. */
@@ -206,6 +233,9 @@ public class Avatar {
     public Optional<Face> face() {
         if (defaultCharacter != null) {
             return Optional.of(new DefaultFace(defaultCharacter));
+        }
+        if (headJobId != null) {
+            return Optional.of(() -> "head:" + memberId + ":" + headJobId);
         }
         if (facePartKeys.size() == FacePart.values().length) {
             return Optional.of(new SelfieFace(new SdFaceParts(facePartKeys)));

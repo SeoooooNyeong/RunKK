@@ -1,18 +1,12 @@
 package com.a207.runkk.web.avatar;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.a207.runkk.avatar.FacePart;
-import com.a207.runkk.avatar.FaceTransformGateway;
-import com.a207.runkk.avatar.FaceTransformOutcome;
-import com.a207.runkk.avatar.FailureReason;
 import com.a207.runkk.avatar.SdFacePartImages;
 import com.a207.runkk.common.Distance;
 import com.a207.runkk.policy.OperationPolicy;
@@ -32,17 +26,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
-import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
-/** 5.7.1 아바타 4·상점 2 엔드포인트(web.avatar). ai 서버는 가짜 FaceTransformGateway로 바꾼다. */
+/** 5.7.1 아바타 4·상점 2 엔드포인트(web.avatar). 기존 5파츠 데이터 조회를 함께 검증한다. */
 @DisplayName("web.avatar 아바타·상점 엔드포인트")
 class AvatarControllerTest extends WebTestSupport {
 
-    private static final byte[] JPEG = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 0x10, 0x20};
-    private static final byte[] GIF = {'G', 'I', 'F', '8', '9', 'a'};
-
-    @MockitoBean FaceTransformGateway faceTransformGateway;
+    @Autowired com.a207.runkk.avatar.AvatarRepository avatars;
+    @Autowired com.a207.runkk.avatar.FacePartImageStore images;
+    @Autowired org.springframework.transaction.support.TransactionTemplate tx;
     @Autowired OperationSettingService settings;
     @Autowired OperationPolicy policy;
     @Autowired RewardService rewards;
@@ -66,10 +57,6 @@ class AvatarControllerTest extends WebTestSupport {
             images.put(part, new byte[] {(byte) 0x89, 'P', 'N', 'G'});
         }
         return new SdFacePartImages(images);
-    }
-
-    private static MockMultipartFile selfie(byte[] bytes) {
-        return new MockMultipartFile("selfie", "me.jpg", MediaType.IMAGE_JPEG_VALUE, bytes);
     }
 
     private void ensureShop() {
@@ -102,35 +89,18 @@ class AvatarControllerTest extends WebTestSupport {
     }
 
     @Test
-    @DisplayName("셀카: 동의 없으면 409, GIF는 415, 성공이면 셀카 얼굴·오늘 다시 불가, 두 번째는 SELFIE_LIMIT")
-    void selfie() throws Exception {
+    @DisplayName("이전 5파츠 얼굴 조회와 기본 얼굴 전환은 유지한다")
+    void legacyFace() throws Exception {
         Session s = signUp();
-        mvc.perform(as(s, get("/api/v1/avatar")))
-                .andExpect(jsonPath("$.bodyShape").value("STAGE1"))
-                .andExpect(jsonPath("$.guide").isNotEmpty());
-        mvc.perform(as(s, multipart("/api/v1/avatar/selfie").file(selfie(JPEG))))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("FACE_CONSENT_REQUIRED"));
-        mvc.perform(as(s, put("/api/v1/me/consents/FACE_TRANSFER"))).andExpect(status().isOk());
-        mvc.perform(as(s, multipart("/api/v1/avatar/selfie").file(selfie(GIF))))
-                .andExpect(status().isUnsupportedMediaType());
-
-        when(faceTransformGateway.transform(any()))
-                .thenReturn(FaceTransformOutcome.failure(FailureReason.NO_FACE));
-        mvc.perform(as(s, multipart("/api/v1/avatar/selfie").file(selfie(JPEG))))
-                .andExpect(jsonPath("$.created").value(false))
-                .andExpect(jsonPath("$.failureReason").value("NO_FACE"))
-                .andExpect(jsonPath("$.canCreateSelfieToday").value(true));
-
-        when(faceTransformGateway.transform(any()))
-                .thenReturn(FaceTransformOutcome.success(parts()));
-        mvc.perform(as(s, multipart("/api/v1/avatar/selfie").file(selfie(JPEG))))
-                .andExpect(jsonPath("$.created").value(true))
-                .andExpect(jsonPath("$.faceKey").value(org.hamcrest.Matchers.startsWith("selfie:")))
-                .andExpect(jsonPath("$.canCreateSelfieToday").value(false));
-        mvc.perform(as(s, multipart("/api/v1/avatar/selfie").file(selfie(JPEG))))
-                .andExpect(jsonPath("$.code").value("SELFIE_LIMIT"));
-
+        tx.executeWithoutResult(
+                status -> {
+                    var avatar = avatars.findForUpdate(s.memberId()).orElseThrow();
+                    avatar.applySelfieFace(
+                            images.save(s.memberId(), parts()),
+                            java.time.LocalDate.now(),
+                            new com.a207.runkk.policy.SelfieLimit(1));
+                    avatars.save(avatar);
+                });
         String faceKey =
                 body(mvc.perform(as(s, get("/api/v1/avatar")))
                                 .andReturn()
