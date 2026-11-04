@@ -36,51 +36,53 @@ class PlacementScreensTest {
     private fun assertTexts(vararg texts: String) =
         texts.forEach { compose.onNodeWithText(it, useUnmergedTree = true).assertExists(it) }
 
-    /** 머리 「n」「/3판」은 「배치고사 n/3판」 한 줄로 읽는다(보이는 글자는 기준 이미지가 본다). */
+    /** 머리 「n」「/3판」은 「배치고사 3판 중 n판째」 한 줄로 읽는다(「/」를 읽지 않게, PL2-A5). 보이는 글자는 기준 이미지가 본다. */
     private fun assertHead(spoken: String) =
         compose.onNodeWithContentDescription(spoken, useUnmergedTree = true).assertExists(spoken)
 
-    private fun assertAbsent(vararg texts: String) =
-        texts.forEach { compose.onNodeWithText(it, useUnmergedTree = true).assertDoesNotExist() }
+    /**
+     * 칸 이름(「1판 완료」 등)은 머리 낭독과 겹쳐 읽지 않는다(PL2-A5). 보이는 칸 이름은 기준 이미지 P1_placement_round1~3·P2가 본다.
+     */
+    private fun assertSteps() = listOf("1판 완료", "1판 이번 판", "2판", "3판").forEach {
+        compose.onNodeWithText(it, substring = true).assertDoesNotExist()
+    }
 
     @Test
     fun `TC-5877 진행 카드 칸 이름은 완료·이번 판·남은 판이다`() {
         show { PlacementProgressBeforeRound(placing(0)) }
-        assertHead("배치고사 1/3판")
-        assertTexts("1판 이번 판", "2판", "3판")
-        assertAbsent("1판 완료")
+        assertHead("배치고사 3판 중 1판째")
+        assertSteps()
         compose.onNodeWithContentDescription("임시", substring = true, useUnmergedTree = true).assertDoesNotExist()
     }
 
     @Test
     fun `TC-5877 한 판을 센 뒤 진행 카드는 다음 판과 임시 배지를 보인다`() {
         show { PlacementProgressBeforeRound(placing(1, "GOLD")) }
-        assertHead("배치고사 2/3판")
-        assertTexts("1판 완료", "2판 이번 판", "3판")
+        assertHead("배치고사 3판 중 2판째")
+        assertSteps()
         compose.onNodeWithContentDescription("임시 골드 티어", useUnmergedTree = true).assertExists()
     }
 
     @Test
     fun `TC-5877 두 판을 센 뒤 진행 카드는 3판 이번 판이다`() {
         show { PlacementProgressBeforeRound(placing(2, "SILVER")) }
-        assertHead("배치고사 3/3판")
-        assertTexts("1판 완료", "2판 완료", "3판 이번 판")
+        assertHead("배치고사 3판 중 3판째")
+        assertSteps()
     }
 
     @Test
     fun `TC-5878 판 뒤 진행 카드는 센 판 수와 완료를 보인다`() {
         show { PlacementProgressAfterRound(placing(1, "GOLD")) }
-        assertHead("배치고사 1/3판 완료")
-        assertTexts("1판 완료", "2판", "3판")
-        assertAbsent("2판 이번 판")
+        assertHead("배치고사 3판 중 1판 완료")
+        assertSteps()
         compose.onNodeWithContentDescription("임시 골드 티어", useUnmergedTree = true).assertExists()
     }
 
     @Test
     fun `TC-5878 두 판을 센 뒤 판 뒤 진행 카드`() {
         show { PlacementProgressAfterRound(placing(2, "SILVER")) }
-        assertHead("배치고사 2/3판 완료")
-        assertTexts("1판 완료", "2판 완료", "3판")
+        assertHead("배치고사 3판 중 2판 완료")
+        assertSteps()
         compose.onNodeWithContentDescription("임시 실버 티어", useUnmergedTree = true).assertExists()
     }
 

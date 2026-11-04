@@ -30,8 +30,9 @@
     <string name="placement_card_label">배치고사</string>
     <string name="placement_card_of">/%1$d판</string>
     <string name="placement_card_of_done">/%1$d판 완료</string>
-    <string name="placement_card_desc">배치고사 %1$d/%2$d판</string>
-    <string name="placement_card_desc_done">배치고사 %1$d/%2$d판 완료</string>
+    <!-- 낭독: 「2/3」을 분수·날짜로 읽지 않게 「3판 중 2판째」(PL2-A5) -->
+    <string name="placement_card_desc">배치고사 %2$d판 중 %1$d판째</string>
+    <string name="placement_card_desc_done">배치고사 %2$d판 중 %1$d판 완료</string>
     <string name="placement_step_done">%1$d판 완료</string>
     <string name="placement_step_current">%1$d판 이번 판</string>
     <string name="placement_step_left">%1$d판</string>
