@@ -10,10 +10,10 @@ import org.junit.jupiter.api.Test;
 class AuditEnumsV011Test {
 
     @Test
-    @DisplayName("감사 행위는 19개(운영진 지정·해제, 채팅 강제 삭제, 신고 숨김·기각 추가)")
+    @DisplayName("감사 행위는 20개(AI 자료 파기 지연 추가)")
     void auditActions() {
         assertThat(AuditAction.values())
-                .hasSize(19)
+                .hasSize(20)
                 .contains(
                         AuditAction.MANAGER_APPOINT,
                         AuditAction.MANAGER_DISMISS,

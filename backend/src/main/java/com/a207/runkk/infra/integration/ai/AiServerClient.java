@@ -27,6 +27,7 @@ public class AiServerClient {
 
     private final RestClient comments;
     private final RestClient faces;
+    private final RestClient privacy;
 
     @Autowired
     AiServerClient(Server server) {
@@ -45,12 +46,14 @@ public class AiServerClient {
         }
         this.comments = client(serverUrl, internalToken, commentTimeout);
         this.faces = client(serverUrl, internalToken, faceTimeout);
+        this.privacy = client(serverUrl, internalToken, Duration.ofSeconds(15));
     }
 
     /** 시험용: 이미 만든 클라이언트를 쓴다(MockRestServiceServer). */
     AiServerClient(RestClient comments, RestClient faces) {
         this.comments = comments;
         this.faces = faces;
+        this.privacy = comments;
     }
 
     private static RestClient client(String serverUrl, String token, Duration readTimeout) {
@@ -72,6 +75,11 @@ public class AiServerClient {
     /** 비동기 얼굴 작업 접수·조회 전용 연결(AiServerFaceJobGateway). */
     RestClient faces() {
         return faces;
+    }
+
+    /** AI 파기 전체 제한 10초보다 긴 전용 읽기 제한 15초. */
+    RestClient privacy() {
+        return privacy;
     }
 
     /**
