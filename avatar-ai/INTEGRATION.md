@@ -1,0 +1,63 @@
+# Node 아바타 중계 연동 — S15P31A207-274
+
+확인일: 2026-11-04. 사용자 결정에 따라 `feature/selfie-face-api`와 `avatar-ai/`를 유지한다.
+최신 확인 develop `52686f7e`, AI 중계 구현 `d086e2b9`의 `ai/runkk_ai/face/{client,schemas}.py`와 대조했다.
+
+## 컨테이너
+
+`infra/deploy.sh`는 `../avatar-ai/Dockerfile`을 빌드한다. `.env`와 `data/`, `node_modules/`는 Git·이미지에 넣지 않는다.
+Node 22, `npm ci --omit=dev`, 비루트 `node`, `/app/data` 볼륨, 외부 포트 공개 없음.
+필수 값은 `GMS_KEY`뿐이다. `HOST=0.0.0.0`, `PORT=3000`, `GMS_BASE_URL=https://gms.ssafy.io/gmsapi/api.openai.com/v1`가 기본이다.
+모델 기본값: `gpt-image-2.5-sunburst`, `gpt-4.1-mini`. `AI_CALLBACK_URL`은 v1 배포에서 설정하지 않는다.
+
+기존 배포 환경에 `COMPOSE_PROFILES=writer,avatar`, `AVATAR_GMS_KEY`, `RUNKK_FACE_API_URL=http://avatar:3000/api/v1`을 설정한다.
+운영 비밀 값은 배포 담당자가 주입한다. 이 변경에서 운영 배포나 키 등록은 수행하지 않는다.
+헬스체크: `GET /api/health` → 200. `configured=false`면 서버는 살아 있지만 유료 생성은 503이다.
+
+## AI가 호출하는 계약
+
+기준 경로 `/api/v1`. 인증은 상위 API가 담당하며 Node는 전달된 `userId`로 저장·조회를 분리한다.
+
+| 메소드·경로 | 계약 |
+|---|---|
+| POST /head-jobs | multipart `userId`, UUID `clientRequestId`, `selfie`. 생성 완료를 기다리지 않고 202. 최초 파일 정규화·영속 접수만 기다림 |
+| GET /head-jobs/{id}?userId= | 200, `QUEUED/RUNNING/SUCCEEDED/FAILED`, 실패는 `error.code/message` |
+| GET /head-jobs/{id}/result?userId= | 완료 200, 미완료 409 `JOB_NOT_READY` |
+| GET /heads/latest?userId= | 사용자별 최근 완료 결과, 없으면 404 `HEAD_NOT_FOUND` |
+| GET /bodies/{id} | 프리셋 `daily/hoodie/windbreaker/singlet`, 없으면 404 `BODY_NOT_FOUND` |
+
+같은 프로세스에서 같은 사용자·요청 ID의 동시 접수도 같은 작업을 돌려준다. 입력이 다르면 409 `IDEMPOTENCY_CONFLICT`다.
+생성 전에 반환된 409 `GENERATION_BUSY`만 다시 대기한다. 그 밖의 409와 불명확한 결과·시간 초과는 자동 재생성하지 않는다.
+시간 초과 작업은 `FAILED` + `UPSTREAM_TIMEOUT`이다. 콜백 미설정 완료 작업은 `notification.status=NOT_CONFIGURED`, `attempts=0`이다.
+새 사유 코드는 추가하지 않았다. 기존 `SELFIE_QUALITY_REJECTED`, `FACE_ASSETS_INCOMPLETE`, `STORAGE_FAILED`,
+`GENERATION_OUTCOME_UNKNOWN`, `GENERATION_INTERRUPTED` 등은 작업 상태 200의 `error.code`에 담긴다.
+
+## 앱 합성 — v1.2 필드 유지
+
+`faceImage`, `eyesImage`, `hairImage`는 같은 1024×1024 원본 좌표계의 PNG Data URL이다. 각각 trim하면 안 된다.
+`mobile.canvas`, `anchor`, `renderFaceImage`, `skinColor`를 유지한다. `renderFaceImage`는 코드로 머리 쪽 목만 제거한 PNG다.
+검출에 실패하면 원본 얼굴을 제공한다. 기존 v2 저장 결과에 이 필드가 없으면 코드로 다시 계산하며 AI는 호출하지 않는다.
+`neckMask`, `scene`, `frontImage`, `rightImage`는 추가 필드다. 몸 PNG는 얼굴 결과에 넣지 않고 `/bodies/{id}`의 `pack`으로 받는다.
+
+Android 전달용 예제: `examples/AvatarComposer.kt`. 얼굴은 `mobile.renderFaceImage`를 쓰고,
+`anchor`와 `pack.mobile.neck`를 각각 이미지 원본 좌표로 환산하여 정렬한다.
+두 기준점은 0..1 비율, `neckWidth/neckHeight/neckTop`은 몸 원본 픽셀 단위다.
+몸 → 얼굴 → 눈 → 헤어 순서로 그리며 모든 얼굴 레이어에 같은 위치·배율을 적용한다.
+`skinColor`는 RGB 0..255 세 값이며 null이면 몸 피부색을 유지한다.
+이 Kotlin 파일은 앱에 자동 적용하지 않은 전달용 예제다. Android 프로젝트에서 시각·기기 검증이 필요하다.
+
+## 크레딧과 시간
+
+현재 기본 파이프라인은 정면과 우측을 모두 생성한다. 캐시 없는 성공 1회는 이미지 2회·분석 4회다.
+제공받은 평균(이미지 788, 분석 8)으로 계산하면 약 1,608크레딧이다.
+약 804크레딧·54초는 예전 정면만 생성하던 흐름의 수치이며 현재 전체 결과의 실측값이 아니다.
+이번 자동 시험은 가짜 생성기를 사용하므로 실제 생성 크레딧을 사용하지 않는다.
+배포 후 팀원 셀카로 접수 지연·전체 완료 시간·실제 차감량을 따로 기록한다.
+
+## 이번 검증
+
+Node 코드 검사·자동 테스트 13개 및 Linux Docker 빌드·컨테이너 테스트 13개 통과.
+`test/container-smoke.mjs`는 외부 네트워크 없이 실제 서버를 실행하고 분석 응답만 가짜로 제공한다.
+1024² 기본 PNG 동시 접수 3건은 약 105ms에 모두 202를 반환했고 가짜 분석 호출은 1회였다.
+실패 상태 200, 미완료 결과 409, 사용자 분리, 프리셋 조회, 기존 저장 결과의 v1.2 모바일 보완을 확인했다.
+이 수치는 로컬 접수 시간이며 실제 얼굴 생성 완료 시간이나 운영 부하 시험 결과가 아니다.

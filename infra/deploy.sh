@@ -163,11 +163,11 @@ if [ "$TARGET" = app ]; then
   # 아바타(Node)는 avatar 프로필을 켠 환경에서만 빌드한다. 폴더가 없으면 프로필을 켰어도 멈춰서 옛 이미지로 조용히 뜨지 않게 한다
   case ",$(env_value "$APP_ENV_FILE" COMPOSE_PROFILES "")," in
     *,avatar,*)
-      [ -f ../avatar/Dockerfile ] || die "COMPOSE_PROFILES has avatar but ../avatar/Dockerfile is missing"
+      [ -f ../avatar-ai/Dockerfile ] || die "COMPOSE_PROFILES has avatar but ../avatar-ai/Dockerfile is missing"
       if docker image inspect "runkk-avatar:$RUNKK_ENV" >/dev/null 2>&1; then
         docker tag "runkk-avatar:$RUNKK_ENV" "runkk-avatar:$RUNKK_ENV-prev"
       fi
-      docker build -t "runkk-avatar:$RUNKK_ENV" ../avatar
+      docker build -t "runkk-avatar:$RUNKK_ENV" ../avatar-ai
       ;;
   esac
 fi

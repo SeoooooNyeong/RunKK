@@ -1,0 +1,15 @@
+.env
+.env.*
+!.env.example
+node_modules
+data
+verification
+*-backup-*
+deployment-backup-*
+repaired-head
+.git
+*.log
+verify-*
+deploy-*
+inspect-*
+repair-*
