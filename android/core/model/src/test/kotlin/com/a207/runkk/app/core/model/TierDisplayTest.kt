@@ -27,4 +27,12 @@ class TierDisplayTest {
             assertTrue(TierDisplay.ofPublic(it) !is TierDisplay.Provisional, "$it")
         }
     }
+
+    @Test
+    fun `PL1-A8 모르는 임시 티어는 영문 이름 대신 배치 중으로 접는다`() {
+        assertEquals(TierDisplay.Placing, TierDisplay.ofSelf("UNRANKED", "DIAMOND"))
+        listOf("BRONZE", "SILVER", "GOLD", "PLATINUM", "MASTER").forEach {
+            assertEquals(TierDisplay.Provisional(it), TierDisplay.ofSelf("UNRANKED", it))
+        }
+    }
 }

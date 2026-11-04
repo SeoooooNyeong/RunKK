@@ -19,11 +19,18 @@ sealed interface TierDisplay {
         /** 서버의 확정 전 티어 이름. */
         const val UNRANKED = "UNRANKED"
 
+        /** 앱이 아는 랭크 티어 이름(서버 common.Tier의 UNRANKED 밖, 계약 enums/Tier.txt). */
+        private val RANKED = setOf("BRONZE", "SILVER", "GOLD", "PLATINUM", "MASTER")
+
         /** 본인: 확정 티어가 있으면 확정, 배치 중이면 임시 티어가 있을 때 임시, 없으면 배치 중. 티어를 모르면 null. */
         fun ofSelf(tier: String?, provisionalTier: String?): TierDisplay? = when {
             tier.isNullOrBlank() -> null
+
             tier != UNRANKED -> Confirmed(tier)
-            !provisionalTier.isNullOrBlank() && provisionalTier != UNRANKED -> Provisional(provisionalTier)
+
+            // 모르는 임시 티어(서버가 새 티어를 먼저 냄)는 영문 이름을 보이지 않게 배치 중으로 접는다(PL1-A8)
+            provisionalTier in RANKED -> Provisional(requireNotNull(provisionalTier))
+
             else -> Placing
         }
 
