@@ -146,6 +146,29 @@ class WatchMeasurementServiceTest {
         assertEquals(Outcome.Failure(AppError.Rejected(WatchExerciseSource.EXERCISE_IN_USE)), result.await())
     }
 
+    @Test
+    fun `이전 운동 세션의 끝 알림이 시작 직후 와도 측정을 잇고 이번 세션이 끝나면 EXERCISE_ENDED로 끝낸다`() = runTest {
+        val clock = SchedulerClock(testScheduler)
+        val settings = FakeSettingsRepository()
+        val gateway = LocalWatchGateway(alertPlayer(), settings, clock)
+        val tracker = runTracker(gateway, settings = settings)
+        val client = FakeExerciseClient(startTime = clock::instant).apply { trackedStatus = OWNED_STATUS }
+        val source = WatchExerciseSource(client, clock, isHeartRateAllowed = { true }, elapsedRealtimeMillis = { 0 })
+        tracker.startRun(RunStartSpec(RunMode.FREE, CardKind.FREE_RUN, RunStartSpec.StartDevice.WATCH))
+        val previousStart = clock.instant().minus(Duration.ofMinutes(5))
+
+        val result = async { WatchMeasurementService.relay(tracker, source, gateway, clock) }
+        runCurrent()
+        client.deliverEnded(startTime = previousStart)
+        advanceTimeBy(3_001)
+        assertFalse(result.isCompleted)
+        assertEquals(Duration.ofSeconds(3), tracker.progress.value.elapsed)
+
+        client.deliverEnded()
+        runCurrent()
+        assertEquals(Outcome.Failure(AppError.Rejected(WatchMeasurementService.EXERCISE_ENDED)), result.await())
+    }
+
     private fun heart() = SampleDataPoint(
         DataType.HEART_RATE_BPM,
         120.0,
@@ -157,6 +180,9 @@ class WatchMeasurementServiceTest {
     private companion object {
         @SuppressLint("RestrictedApi")
         val OTHER_APP_STATUS = ExerciseTrackedStatus.OTHER_APP_IN_PROGRESS
+
+        @SuppressLint("RestrictedApi")
+        val OWNED_STATUS = ExerciseTrackedStatus.OWNED_EXERCISE_IN_PROGRESS
     }
 
     @Test
