@@ -17,8 +17,10 @@ import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.testing.RUNKK_PHONE
 import com.a207.runkk.app.core.designsystem.testing.captureRunkkScreen
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.domain.record.AggregationPeriod
 import com.a207.runkk.app.domain.record.PlanProgress
+import com.a207.runkk.app.domain.record.Ranking
 import com.a207.runkk.app.domain.record.Report
 import java.time.LocalDate
 import kotlin.test.assertEquals
@@ -197,9 +199,64 @@ class AnalysisScreensTest {
         )
     }
 
+    /** 시상대 견본(피그마 61296:3779): 7명, 공개 티어 섞임, 내 순위 128위(배치 중). */
+    private val podiumRanking = sampleRanking.copy(
+        entries = listOf(
+            Ranking.Entry(1, "바람", Distance(62_400), Gender.FEMALE, "MASTER"),
+            Ranking.Entry(2, "구름", Distance(58_000), Gender.MALE, "GOLD"),
+            Ranking.Entry(3, "새벽러너", Distance(51_700), Gender.FEMALE, "UNRANKED"),
+            Ranking.Entry(4, "한강토끼", Distance(44_200), Gender.MALE, "PLATINUM"),
+            Ranking.Entry(5, "달빛", Distance(40_900), Gender.FEMALE, "SILVER"),
+            Ranking.Entry(6, "번개", Distance(37_500), Gender.MALE, "BRONZE"),
+            Ranking.Entry(7, "아침해", Distance(33_000), Gender.FEMALE, null)
+        ),
+        mine = Ranking.Entry(128, "달리는곰", Distance(18_400), Gender.MALE, "UNRANKED")
+    )
+
+    /** TC-5858 시상대 3명(가운데 1위) + 내 순위 + 4위부터 목록, 이름 옆 아주 작은 배지. */
     @Test
-    fun rankingShot() = compose.captureRunkkScreen("record_ranking") {
-        RankingScreen(RankingUiState(isLoading = false, ranking = sampleRanking), {}, {}, {})
+    fun rankingShot() = compose.captureRunkkScreen("record_ranking", isDarkTheme = false) {
+        FirstRelease { RankingScreen(RankingUiState(isLoading = false, ranking = podiumRanking), {}, {}, {}) }
+    }
+
+    /** TC-5859 두 명뿐이면 3위 자리는 빈 받침만. */
+    @Test
+    fun rankingPodiumTwoShot() = compose.captureRunkkScreen("record_ranking_podium_two", isDarkTheme = false) {
+        FirstRelease {
+            RankingScreen(
+                RankingUiState(
+                    isLoading = false,
+                    ranking = podiumRanking.copy(entries = podiumRanking.entries.take(2))
+                ),
+                {},
+                {},
+                {}
+            )
+        }
+    }
+
+    /** TC-5860 다크(토큰 다크 값, 받침은 고정 색). */
+    @Test
+    fun rankingDarkShot() = compose.captureRunkkScreen("record_ranking_dark") {
+        FirstRelease { RankingScreen(RankingUiState(isLoading = false, ranking = podiumRanking), {}, {}, {}) }
+    }
+
+    @androidx.compose.runtime.Composable
+    private fun FirstRelease(content: @androidx.compose.runtime.Composable () -> Unit) {
+        CompositionLocalProvider(LocalReleaseScope provides ReleaseScope.FIRST_RELEASE, content = content)
+    }
+
+    @Test
+    fun `TC-5857 랭킹 시상대·본인 행·목록은 이름 옆에 공개 티어 배지를 읽는다`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                RankingScreen(RankingUiState(isLoading = false, ranking = podiumRanking), {}, {}, {})
+            }
+        }
+        compose.onNodeWithContentDescription("1위 바람, 62.40킬로미터, 마스터 티어").assertExists()
+        compose.onNodeWithContentDescription("3위 새벽러너, 51.70킬로미터, 배치 중").assertExists()
+        compose.onNodeWithContentDescription("128위 나, 18.40킬로미터, 나, 배치 중").assertExists()
+        compose.onNodeWithContentDescription("7위 아침해, 33.00킬로미터").assertExists()
     }
 
     @Test

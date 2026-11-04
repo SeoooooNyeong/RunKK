@@ -6,8 +6,10 @@ import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.Pace
+import com.a207.runkk.app.core.model.TierDisplay
 import com.a207.runkk.app.domain.record.AggregationPeriod
 import com.a207.runkk.app.domain.record.PlanProgress
+import com.a207.runkk.app.domain.record.Ranking
 import com.a207.runkk.app.domain.record.TodayPlan
 import com.a207.runkk.app.domain.run.PlanSnapshot
 import com.a207.runkk.app.domain.run.TodayPlanCache
@@ -141,6 +143,25 @@ class AnalysisViewModelsTest {
         vm.onPeriodSelected(AggregationPeriod.MONTHLY)
         assertEquals(listOf("personal:WEEKLY", "crew:WEEKLY", "crew:MONTHLY"), records.calls)
         assertEquals(sampleRanking, vm.state.value.ranking)
+    }
+
+    @Test
+    fun `TC-5857 랭킹 행은 공개 티어 배지를 쓰고 없으면 그리지 않는다`() {
+        val placing = Ranking.Entry(1, "바람", Distance(48_000), publicTier = "UNRANKED")
+        val gold = Ranking.Entry(2, "구름", Distance(41_000), publicTier = "GOLD")
+        val gone = Ranking.Entry(3, "탈퇴", Distance(39_000), publicTier = null)
+        records.rankingResult = Outcome.Success(
+            sampleRanking.copy(entries = listOf(placing, gold, gone), mine = placing.copy(name = "나"))
+        )
+        val state = RankingViewModel(records).state.value
+
+        assertEquals(
+            listOf(TierDisplay.Placing, TierDisplay.Confirmed("GOLD"), null),
+            state.ranking?.entries?.map(::rankingTier)
+        )
+        // 본인 행도 공개 티어다(임시 티어 없음).
+        assertEquals(TierDisplay.Placing, state.ranking?.mine?.let(::rankingTier))
+        assertEquals(placing, state.podium?.first)
     }
 
     @Test

@@ -175,4 +175,6 @@
     <string name="record_ranking_metric">누적 유효 거리</string>
     <string name="record_ranking_me">나</string>
     <string name="record_ranking_km">%1$skm</string>
+    <string name="record_ranking_tier_spoken">%1$s 티어</string>
+    <string name="record_ranking_placing_spoken">배치 중</string>
 </resources>

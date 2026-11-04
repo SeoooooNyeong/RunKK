@@ -10,4 +10,8 @@ data class RankingUiState(
     val isLoading: Boolean = true,
     val ranking: Ranking? = null,
     val error: UiText? = null
-)
+) {
+    /** TOP3 시상대와 4위부터의 목록(FR-290). 랭킹을 읽기 전이면 null. */
+    val podium: RankingPodium?
+        get() = ranking?.let { RankingPodium.of(it.entries) }
+}
