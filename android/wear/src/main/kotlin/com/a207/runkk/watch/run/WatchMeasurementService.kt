@@ -154,10 +154,12 @@ class WatchMeasurementService : LifecycleService() {
         return try {
             ServiceCompat.startForeground(this, NOTIFICATION_ID, notification.build(), foregroundType())
             ongoing
-        } catch (_: SecurityException) {
+        } catch (e: SecurityException) {
+            Timber.w(e, "측정 서비스를 포그라운드로 올리지 못했다")
             null
-        } catch (_: IllegalStateException) {
+        } catch (e: IllegalStateException) {
             // ForegroundServiceStartNotAllowedException(API 31+)
+            Timber.w(e, "측정 서비스를 포그라운드로 올리지 못했다")
             null
         }
     }
