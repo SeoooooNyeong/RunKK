@@ -22,7 +22,9 @@ data class WatchActions(
     val onCompanionEndTapped: () -> Unit = {},
     val onCompanionEndLongPressed: () -> Unit = {},
     val onCompanionPauseTapped: () -> Unit = {},
-    val onCompanionResumeTapped: () -> Unit = {}
+    val onCompanionResumeTapped: () -> Unit = {},
+    /** 워치 위치 꺼짐 안내를 눌렀다(W52). 워치 위치 설정을 연다. */
+    val onOpenLocationSettings: () -> Unit = {}
 ) {
     companion object {
         /** 아무것도 하지 않는 조작(미리보기·스크린샷 시험). */

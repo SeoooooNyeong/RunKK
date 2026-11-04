@@ -1,9 +1,12 @@
 package com.a207.runkk.watch.ui
 
 import android.Manifest
+import android.content.ActivityNotFoundException
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -27,6 +30,7 @@ import javax.inject.Inject
  * 권한 창은 여기서만 띄운다.
  * - 위치(FR-245): 러닝을 시작하는 조작(달리기 시작·매칭 시작·셀프런 거리·셀럽 기록) 때 정밀 위치 권한이 없으면 묻는다. 처음에는 심박
  *   권한(심박 동의가 있으면 모은다, FR-041)과 알림 권한(진행 중 활동, FR-255)도 함께 묻는다. 위치를 거절하면 시작하지 않고 안내한다.
+ *   워치 시스템 위치가 꺼져 있다는 안내를 누르면 위치 설정을 연다(W52).
  * - 동행 표시 심박: 폰이 수집을 허용했는데 워치 OS 권한이 없으면 한 번 묻는다. 알림 권한은 심박 수집이 처음 켜질 때 한 번 묻는다.
  * 저전력 표시(ambient)에서는 측정 화면을 거리·시간만 1분마다 다시 그린다(D-382, FR-256). 폰 러닝 동행 표시도 같다(W35).
  */
@@ -124,8 +128,21 @@ class WatchActivity : ComponentActivity() {
         onCompanionEndTapped = companionViewModel::onEndTapped,
         onCompanionEndLongPressed = companionViewModel::onEndLongPressed,
         onCompanionPauseTapped = companionViewModel::onPauseTapped,
-        onCompanionResumeTapped = companionViewModel::onResumeTapped
+        onCompanionResumeTapped = companionViewModel::onResumeTapped,
+        onOpenLocationSettings = ::openLocationSettings
     )
+
+    /** 워치 위치 설정을 연다(W52). 위치 설정 화면이 없는 기기면 설정 첫 화면이다. */
+    private fun openLocationSettings() {
+        listOf(Settings.ACTION_LOCATION_SOURCE_SETTINGS, Settings.ACTION_SETTINGS).any { action ->
+            try {
+                startActivity(Intent(action))
+                true
+            } catch (_: ActivityNotFoundException) {
+                false
+            }
+        }
+    }
 
     /** 정밀 위치 권한이 있으면 [start]를 바로, 없으면 권한 창(심박·알림 함께) 뒤에 부른다(FR-245 "처음 시작할 때 권한 창"). */
     private fun withStartPermissions(start: () -> Unit) {

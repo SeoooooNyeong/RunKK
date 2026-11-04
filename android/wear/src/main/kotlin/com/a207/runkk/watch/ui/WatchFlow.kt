@@ -148,6 +148,9 @@ sealed interface WatchFlow {
         /** 워치 OS 위치 권한을 허용하지 않음(FR-245). */
         LOCATION_PERMISSION,
 
+        /** 워치 시스템 위치가 꺼져 있어 측정을 시작하지 않음(W52). 누르면 위치 설정을 연다. */
+        LOCATION_OFF,
+
         /** 폰이 측정 중이라 워치 시작 거부(FR-252). */
         PHONE_RUNNING,
 

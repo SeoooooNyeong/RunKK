@@ -118,6 +118,9 @@ class WatchFlowViewModelTest {
     private val live = FakeLiveChannelProvider()
     private val host = FakeMeasurementHost()
     private val online = MutableStateFlow(true)
+
+    /** 워치 시스템 위치(W52). 거짓이면 Health Services가 운동 시작을 거부한다. */
+    private var isLocationOn = true
     private val battles = FakeBattleRepository().apply {
         tracks[RecordBattleKind.SELF] = listOf(selfTrack(distanceMeters = 3_000, finishSeconds = 900))
         // W31: 셀럽 목록은 구간 기록 없이 받고 고를 때 셀럽 하나로 받는다.
@@ -200,7 +203,7 @@ class WatchFlowViewModelTest {
         val memory = shared?.memory ?: RecordBattleMemory()
         val battleFlow =
             WatchBattleFlow(coordinator, battles, cache, MatchWaiter(live, backgroundScope), pendingRuns, memory, clock)
-        val vm = WatchFlowViewModel(runs, battleFlow, store, link, network, guidance, accounts)
+        val vm = WatchFlowViewModel(runs, battleFlow, store, link, network, guidance, accounts) { isLocationOn }
         runCurrent()
         return Harness(vm, runs, coordinator, store, guidance, memory)
     }
@@ -1815,5 +1818,102 @@ class WatchFlowViewModelTest {
         h.vm.onCelebritySelected(celebrity)
         runCurrent()
         assertEquals(WatchFlow.Notice.RETRY_LATER, (h.flow as WatchFlow.CelebList).notice)
+    }
+
+    @Test
+    fun `워치 위치가 꺼져 있으면 자유런을 시작하지 않고 위치 안내를 보인다(W52)`() = flowTest {
+        isLocationOn = false
+        val h = open()
+        h.vm.onModeSelected(WatchMode.FREE)
+
+        h.vm.onStartPressed()
+        passCountdown()
+
+        assertEquals(WatchFlow.Notice.LOCATION_OFF, (h.flow as WatchFlow.FreeGoal).notice)
+        assertEquals(0, host.starts)
+    }
+
+    @Test
+    fun `워치 위치가 꺼져 있으면 셀프런을 시작하지 않고 서버 대결도 열지 않는다(W52)`() = flowTest {
+        isLocationOn = false
+        battles.recordStart = recordStart(CardKind.SELF_RUN, meters = 3_000)
+        val h = open()
+        h.vm.onModeSelected(WatchMode.SELF)
+
+        h.vm.onDistanceSelected(Distance(3_000))
+        runCurrent()
+        passCountdown()
+
+        assertEquals(WatchFlow.Notice.LOCATION_OFF, (h.flow as WatchFlow.SelfDistance).notice)
+        assertEquals(BattleRunState.Idle, h.coordinator.state.value)
+        assertEquals(0, host.starts)
+    }
+
+    @Test
+    fun `워치 위치가 꺼져 있으면 셀럽런을 고를 때 받지도 시작하지도 않는다(W52)`() = flowTest {
+        isLocationOn = false
+        val h = open()
+        val list = openCelebList(h)
+
+        h.vm.onCelebritySelected(list.celebrities.single())
+        runCurrent()
+
+        assertEquals(WatchFlow.Notice.LOCATION_OFF, (h.flow as WatchFlow.CelebList).notice)
+        assertTrue(battles.celebrityTrackCalls.isEmpty())
+        assertEquals(0, host.starts)
+    }
+
+    @Test
+    fun `워치 위치가 꺼져 있으면 배틀런 매칭을 요청하지 않는다(W52)`() = flowTest {
+        isLocationOn = false
+        val h = open()
+
+        requestMatch(h)
+
+        assertEquals(WatchFlow.Notice.LOCATION_OFF, (h.flow as WatchFlow.BattleDistance).notice)
+        assertTrue(battles.matchRequests.isEmpty())
+    }
+
+    @Test
+    fun `워치 위치가 켜지면 같은 화면에서 바로 시작한다(W52)`() = flowTest {
+        isLocationOn = false
+        val h = open()
+        h.vm.onModeSelected(WatchMode.FREE)
+        h.vm.onStartPressed()
+        assertIs<WatchFlow.FreeGoal>(h.flow)
+
+        isLocationOn = true
+        h.vm.onStartPressed()
+
+        assertEquals(WatchFlow.Countdown(WatchMode.FREE, null, 3), h.flow)
+    }
+
+    @Test
+    fun `자유런 측정이 밖에서 끝났을 때 워치 위치가 꺼져 있으면 측정 중단 대신 위치 안내와 거리 선택이다(W52)`() = flowTest {
+        val h = open()
+        h.vm.onModeSelected(WatchMode.FREE)
+        h.vm.onStartPressed()
+        passCountdown()
+
+        isLocationOn = false
+        h.tracker.endRun()
+        runCurrent()
+
+        assertEquals(WatchFlow.Notice.LOCATION_OFF, (h.flow as WatchFlow.FreeGoal).notice)
+    }
+
+    @Test
+    fun `셀프런 측정이 밖에서 기록 없이 끝났을 때 워치 위치가 꺼져 있으면 STOP 대신 위치 안내와 거리 선택이다(W52)`() = flowTest {
+        val h = open()
+        startOnlineSelf(h)
+
+        isLocationOn = false
+        h.tracker.endRun()
+        runCurrent()
+        advanceTimeBy(WatchFlowViewModel.OUTCOME_WAIT_MILLIS + 100)
+        runCurrent()
+
+        assertEquals(WatchFlow.Notice.LOCATION_OFF, (h.flow as WatchFlow.SelfDistance).notice)
+        assertEquals(listOf(7L), battles.forfeits)
     }
 }

@@ -14,12 +14,14 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -31,6 +33,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -205,9 +208,13 @@ internal fun FaceImage(gender: Gender?, modifier: Modifier = Modifier) {
     )
 }
 
+/** 워치 위치 꺼짐 안내를 누르면 부르는 조작(W52). [WatchRoot]가 [WatchActions.onOpenLocationSettings]로 채운다. */
+internal val LocalOpenLocationSettings = staticCompositionLocalOf<() -> Unit> { {} }
+
 /**
  * 안내 문구 한 줄(트랙 바탕 위 흰 굵은 글자, 나타나면 읽어 준다). 없으면 그리지 않는다. 랜덤 대결 잠금은 [runsLeft]가 1 이상이면
- * "러닝을 n번 더 뛰면 배틀런이 가능해요!", 아니면 남은 수 없는 문구다(폰 BattleModeScreen과 같다).
+ * "러닝을 n번 더 뛰면 배틀런이 가능해요!", 아니면 남은 수 없는 문구다(폰 BattleModeScreen과 같다). 워치 위치 꺼짐(W52)은 누르면
+ * 위치 설정을 연다([LocalOpenLocationSettings]).
  */
 @Composable
 internal fun FlowNoticeText(
@@ -218,6 +225,15 @@ internal fun FlowNoticeText(
 ) {
     if (notice == null) return
     val count = runsLeft?.takeIf { notice == WatchFlow.Notice.RANDOM_LOCKED && it > 0 }
+    val clickable = if (notice == WatchFlow.Notice.LOCATION_OFF) {
+        Modifier.clickable(
+            role = Role.Button,
+            onClickLabel = stringResource(R.string.open_location_settings),
+            onClick = LocalOpenLocationSettings.current
+        )
+    } else {
+        Modifier
+    }
     Text(
         text = if (count !=
             null
@@ -226,7 +242,7 @@ internal fun FlowNoticeText(
         } else {
             stringResource(noticeRes(notice))
         },
-        modifier = modifier.semantics { liveRegion = LiveRegionMode.Polite },
+        modifier = modifier.then(clickable).semantics { liveRegion = LiveRegionMode.Polite },
         style = labelStyle(color = color, size = 11.sp).copy(fontWeight = FontWeight.Bold),
         textAlign = TextAlign.Center
     )
@@ -236,6 +252,7 @@ internal fun FlowNoticeText(
 internal fun noticeRes(notice: WatchFlow.Notice): Int = when (notice) {
     WatchFlow.Notice.LOCATION_CONSENT -> R.string.notice_location_consent
     WatchFlow.Notice.LOCATION_PERMISSION -> R.string.notice_location_permission
+    WatchFlow.Notice.LOCATION_OFF -> R.string.notice_location_off
     WatchFlow.Notice.PHONE_RUNNING -> R.string.notice_phone_running
     WatchFlow.Notice.BATTLE_OFFLINE -> R.string.notice_battle_offline
     WatchFlow.Notice.MATCH_FAILED -> R.string.notice_match_failed

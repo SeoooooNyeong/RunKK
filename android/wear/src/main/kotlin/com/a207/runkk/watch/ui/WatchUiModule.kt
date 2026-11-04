@@ -14,4 +14,7 @@ abstract class WatchUiModule {
 
     @Binds
     abstract fun notificationPermissionGate(impl: AndroidNotificationPermissionGate): NotificationPermissionGate
+
+    @Binds
+    abstract fun locationSettingState(impl: AndroidLocationSettingState): LocationSettingState
 }

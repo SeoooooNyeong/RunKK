@@ -40,7 +40,10 @@ fun WatchRoot(
 ) {
     BackHandler(enabled = flow.holdsBackKey()) { if (flow.canGoBack()) actions.onBack() }
     val still = isAmbient || rememberMotionReduced()
-    CompositionLocalProvider(LocalMotionStill provides still) {
+    CompositionLocalProvider(
+        LocalMotionStill provides still,
+        LocalOpenLocationSettings provides actions.onOpenLocationSettings
+    ) {
         RootScaffold(flow, companion, actions, modifier, isAmbient, still, timeText)
     }
 }
