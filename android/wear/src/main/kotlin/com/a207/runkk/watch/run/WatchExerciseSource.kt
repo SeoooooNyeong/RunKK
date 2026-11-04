@@ -28,6 +28,7 @@ import com.a207.runkk.app.domain.run.LocationSample
 import com.a207.runkk.app.domain.settings.SettingsRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -93,6 +94,13 @@ class WatchExerciseSource internal constructor(
     @Volatile
     private var isOpen = false
 
+    /**
+     * 이번 세션의 시작을 요청한 시각(벽시계). 이보다 먼저 시작한 세션의 끝 알림은 이전 세션(이 앱이 남긴 세션을 [open]이 끝낸 것,
+     * 동행 심박 수집, 지난 측정)의 것이라 [ended]로 보내지 않는다. Health Services는 끝 알림을 새 콜백에 늦게 주기도 한다.
+     */
+    @Volatile
+    private var requestedAt: Instant = Instant.MAX
+
     /** 세션을 연다. 다른 앱이 운동 중이면 Failure(Rejected(EXERCISE_IN_USE)), Health Services 오류는 Failure(Rejected(EXERCISE_FAILED)). */
     suspend fun start(): Outcome<Unit> = sessionLock.withLock {
         try {
@@ -114,6 +122,7 @@ class WatchExerciseSource internal constructor(
             Owner.NONE -> Unit
         }
         bootInstant = Instant.ofEpochMilli(clock.millis() - elapsedRealtimeMillis())
+        requestedAt = clock.instant()
         exerciseClient.setUpdateCallback(receiver)
         val dataTypes = if (isHeartRateAllowed()) {
             setOf(DataType.LOCATION, DataType.HEART_RATE_BPM)
@@ -174,12 +183,19 @@ class WatchExerciseSource internal constructor(
     internal inner class MetricsReceiver : ExerciseUpdateCallback {
         override fun onExerciseUpdateReceived(update: ExerciseUpdate) {
             onMetrics(update.latestMetrics)
-            onState(update.exerciseStateInfo.state.isEnded)
+            val info = update.exerciseStateInfo
+            onState(info.state.isEnded, update.startTime, info.endReason)
         }
 
-        /** 운동 세션 상태. 이 앱이 연 세션이 열려 있는데 끝났을 때만 알린다(끝낸 뒤 늦게 온 알림은 버린다). */
-        fun onState(isEnded: Boolean) {
-            if (isEnded && isOpen) endedSignals.tryEmit(Unit)
+        /**
+         * 운동 세션 상태. 이 앱이 연 세션이 열려 있는데 그 세션이 끝났을 때만 알린다. 끝낸 뒤 늦게 온 알림과, 이번 시작 요청보다 먼저
+         * 시작한 이전 세션의 끝 알림([startTime]이 [requestedAt] 전)은 버린다. 시작 시각이 없으면 이번 세션으로 본다.
+         */
+        fun onState(isEnded: Boolean, startTime: Instant?, endReason: Int) {
+            if (!isEnded) return
+            val isPrevious = startTime != null && startTime.isBefore(requestedAt.minus(START_SLACK))
+            Timber.i("운동 세션 끝 알림: 사유 %d, 시작 %s, 열림 %b, 이전 세션 %b", endReason, startTime, isOpen, isPrevious)
+            if (isOpen && !isPrevious) endedSignals.tryEmit(Unit)
         }
 
         fun onMetrics(container: DataPointContainer) {
@@ -228,6 +244,9 @@ class WatchExerciseSource internal constructor(
 
         private const val SAMPLE_BUFFER = 64
         private const val API_BAKLAVA = 36
+
+        /** 세션 시작 시각과 시작 요청 시각의 허용 오차. 이전 세션은 적어도 그만큼 먼저 시작했다. */
+        private val START_SLACK: Duration = Duration.ofSeconds(1)
         private const val READ_HEART_RATE = "android.permission.health.READ_HEART_RATE"
 
         /** 1.1.0은 ExerciseTrackedStatus 상수까지 RestrictedApi로 잡는다. 공개 값이라 이 함수에서만 막는다(watch.heart와 같다). */

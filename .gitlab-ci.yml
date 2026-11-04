@@ -494,6 +494,7 @@ android:build:
     paths:
       - android/app/build/outputs/bundle/prodRelease/*.aab
       - android/wear/build/outputs/bundle/prodRelease/*.aab
+      - android/wear/build/outputs/mapping/prodRelease/mapping.txt
       - android/app/build/outputs/apk/prod/release/*.apk
       - android/app/build/outputs/mapping/prodRelease/mapping.txt
     expire_in: 3 months

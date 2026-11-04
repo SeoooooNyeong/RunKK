@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,6 +45,8 @@ fun WatchCelebListScreen(
     modifier: Modifier = Modifier
 ) {
     val listState = rememberScalingLazyListState(initialCenterItemIndex = state.selected + 1)
+    // 안내는 목록 맨 아래라 화면 밖일 수 있다: 생기면 그 자리로 옮겨 보인다(W52 위치 안내는 눌러야 한다).
+    LaunchedEffect(state.notice) { if (state.notice != null) listState.animateScrollToItem(state.celebrities.size + 1) }
     TrackBackground(isDimmed = true, modifier = modifier) {
         ScreenScaffold(scrollState = listState) { contentPadding ->
             ScalingLazyColumn(
