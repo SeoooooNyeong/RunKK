@@ -23,7 +23,7 @@ android {
         minSdk = 30
         // 폰과 같은 기준값에 1을 더해 Play 버전 코드를 분리한다.
         versionCode = providers.gradleProperty("runkk.versionCode").orElse("10").get().toInt() + 1
-        versionName = "0.11.0"
+        versionName = "0.11.1"
     }
 
     buildFeatures {
