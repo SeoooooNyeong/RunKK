@@ -137,14 +137,16 @@ public class BattleResultService {
         AfterCommit.run(() -> battleMessenger.sendAll(recipients, ended));
     }
 
-    /** 기록 상대와의 거리 차 최댓값을 러너 기록 표본으로 구한다(비교표 MAX_LEAD·MAX_GAP). 경로가 파기됐으면 건너뛴다. */
+    /**
+     * 기록 상대와의 거리 차 최댓값을 러너 기록 표본으로 구한다(비교표 MAX_LEAD·MAX_GAP). 기록이 없거나 경로가 파기됐으면 건너뛴다. 예외를 잡지 않고
+     * curveOf(Optional)로 읽어야 판정 트랜잭션이 rollback-only가 되지 않는다(코드 리뷰 PL1-B1과 같은 함정).
+     */
     private void recordGaps(Battle battle, RunRecordSaved e, OpponentTrack opponent) {
-        RunCurve mine;
-        try {
-            mine = runQueryService.curve(e.recordId(), battle.getDistance());
-        } catch (BusinessRuleException purged) {
+        Optional<RunCurve> found = runQueryService.curveOf(e.recordId(), battle.getDistance());
+        if (found.isEmpty()) {
             return;
         }
+        RunCurve mine = found.get();
         long lead = 0;
         long trail = 0;
         for (CurvePoint point : mine.samples()) {

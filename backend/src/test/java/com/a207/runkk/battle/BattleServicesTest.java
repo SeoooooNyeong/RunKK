@@ -171,14 +171,15 @@ class BattleServicesTest {
             "TC-5790 배치고사 대결에 기록이 붙었는데 이번에 판정이 나지 않았을 때만 PlacementRecordAttached를 낸다(D-512). 판정되면"
                     + " BattleJudged만, 배치고사가 아니면 내지 않는다")
     void applyRecord_publishesPlacementRecordAttachedOnlyWithoutJudgement() {
-        when(runs.curve(anyString(), any()))
-                .thenThrow(new BusinessRuleException(ReasonCode.RECORD_NOT_FOUND));
+        // 기록 표본이 없으면 비어 있다. 예외를 잡는 방식은 실제 트랜잭션을 rollback-only로 만든다(PL1-B1과 같은 함정)
+        when(runs.curveOf(anyString(), any())).thenReturn(Optional.empty());
         Battle judgedNow = battles.save(PlacementRoundCheckTest.started());
         when(runs.timeToReach(eq("on-time"), any()))
                 .thenReturn(Optional.of(Duration.ofMinutes(25)));
         resultService.onRunSaved(saved(ALICE, judgedNow, "on-time", true));
         assertThat(events).hasAtLeastOneElementOfType(BattleJudged.class);
         assertThat(events).noneMatch(e -> e instanceof PlacementRecordAttached);
+        verify(runs, never()).curve(anyString(), any());
 
         events.clear();
         Battle expired = battles.save(PlacementRoundCheckTest.expiredWithoutRecord());
