@@ -48,6 +48,10 @@ internal interface RecordApi {
     @PUT("plans/{date}")
     suspend fun putPlan(@Path("date") date: String, @Body body: PlanRequest)
 
+    /** 계획 취소. 204(본문 없음)이고 계획이 없어도 204다. 지난 날짜는 409 + 본문 code(PAST_DATE). */
+    @DELETE("plans/{date}")
+    suspend fun deletePlan(@Path("date") date: String): Response<Unit>
+
     @GET("plans/progress")
     suspend fun planProgress(@Query("from") from: String, @Query("to") to: String): PlanProgressResponse
 

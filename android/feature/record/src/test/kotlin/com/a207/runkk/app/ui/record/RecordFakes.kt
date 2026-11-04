@@ -175,6 +175,13 @@ class FakeRecordRepository : RecordRepository {
         return planResult
     }
 
+    var deletePlanResult: Outcome<Unit> = Outcome.Success(Unit)
+
+    override suspend fun deletePlan(date: LocalDate): Outcome<Unit> {
+        calls += "deletePlan:$date"
+        return deletePlanResult
+    }
+
     /** 이행 현황에 더할 날(오늘 계획 거리가 있는 경우를 시험한다). */
     var extraProgressDays: List<PlanProgress.Day> = emptyList()
 

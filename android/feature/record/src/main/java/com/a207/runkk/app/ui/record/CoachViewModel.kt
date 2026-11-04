@@ -68,8 +68,13 @@ class CoachViewModel @Inject constructor(
         }
     }
 
-    /** 오늘 계획 거리를 고르면 고른 목표 페이스와 함께 저장한다. */
-    fun onTodayPlan(distance: Distance) = saveTodayPlan(distance, _state.value.todayPace)
+    /**
+     * 오늘 계획 거리를 고르면 고른 목표 페이스와 함께 저장한다. 이미 오늘 계획인 거리를 다시 고르면 오늘 계획을 지운다
+     * (사용자 결정 2026-11-04, S15P31A207-275: 정한 계획을 취소할 길이 없었다).
+     */
+    fun onTodayPlan(distance: Distance) {
+        if (todayPlanned() == distance) clearTodayPlan() else saveTodayPlan(distance, _state.value.todayPace)
+    }
 
     /**
      * 오늘 계획 목표 페이스(사용자 요청 2026-10-31: 코치 계획 따르기의 페이스 안내). null이면 페이스 없음.
@@ -80,8 +85,19 @@ class CoachViewModel @Inject constructor(
         if (_state.value.isSaving) return
         val before = _state.value.todayPace
         _state.update { it.copy(todayPace = pace) }
-        val planned = _state.value.progress?.days?.firstOrNull { it.date == today }?.planned ?: return
+        val planned = todayPlanned() ?: return
         saveTodayPlan(planned, pace, before)
+    }
+
+    private fun todayPlanned(): Distance? = _state.value.progress?.days?.firstOrNull { it.date == today }?.planned
+
+    /** 오늘 계획을 지우고, 지웠으면 앱의 오늘 계획 사본도 비운다(워치 시작 화면에 지운 계획이 남지 않게). */
+    private fun clearTodayPlan() {
+        save(uiText(R.string.record_coach_today_plan_cleared), shouldReload = true) {
+            records.deletePlan(today).also { result ->
+                if (result is Outcome.Success) todayPlans.put(null)
+            }
+        }
     }
 
     /** [before]는 저장하지 못했을 때 되돌릴 페이스(고르기 전 값)다. */

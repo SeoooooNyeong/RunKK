@@ -97,6 +97,8 @@ class FakeRecordRepository : RecordRepository {
 
     override suspend fun putPlan(date: LocalDate, distance: Distance, pace: Pace?): Outcome<Unit> = unused()
 
+    override suspend fun deletePlan(date: LocalDate): Outcome<Unit> = unused()
+
     override suspend fun planProgress(from: LocalDate, to: LocalDate): Outcome<PlanProgress> = unused()
 
     override suspend fun todayPlan(): Outcome<TodayPlan?> = todayPlanResult

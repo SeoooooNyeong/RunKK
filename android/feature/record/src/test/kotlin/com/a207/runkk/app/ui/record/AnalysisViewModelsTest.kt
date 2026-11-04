@@ -85,6 +85,42 @@ class AnalysisViewModelsTest {
     }
 
     @Test
+    fun `오늘 계획과 같은 거리를 다시 누르면 오늘 계획을 지우고 사본도 비운다(S15P31A207-275)`() {
+        records.extraProgressDays = listOf(PlanProgress.Day(TODAY, Distance(5_000), Distance.ZERO, null))
+        todayPlans.put(PlanSnapshot(Distance(5_000), null))
+        val vm = CoachViewModel(records, todayPlans, clock)
+        vm.onTodayPlan(Distance(5_000))
+        assertTrue("deletePlan:2026-10-21" in records.calls)
+        assertTrue(records.calls.none { it.startsWith("plan:") }, "같은 거리면 저장하지 않는다")
+        assertNull(todayPlans.plan.value)
+        assertEquals(UiText.Res(R.string.record_coach_today_plan_cleared), vm.state.value.message)
+        assertEquals(2, records.calls.count { it.startsWith("progress:") }, "지운 뒤 다시 읽는다")
+    }
+
+    @Test
+    fun `오늘 계획과 다른 거리를 누르면 오늘 계획을 바꾼다`() {
+        records.extraProgressDays = listOf(PlanProgress.Day(TODAY, Distance(5_000), Distance.ZERO, null))
+        val vm = CoachViewModel(records, todayPlans, clock)
+        vm.onTodayPlan(Distance(3_000))
+        assertTrue("plan:2026-10-21=3000" in records.calls)
+        assertTrue(records.calls.none { it.startsWith("deletePlan:") })
+        assertEquals(PlanSnapshot(Distance(3_000), null), todayPlans.plan.value)
+    }
+
+    @Test
+    fun `오늘 계획을 지우지 못하면 사본은 그대로 두고 사유 문구로 알린다`() {
+        records.extraProgressDays = listOf(PlanProgress.Day(TODAY, Distance(5_000), Distance.ZERO, null))
+        records.deletePlanResult = Outcome.Failure(AppError.Network)
+        todayPlans.put(PlanSnapshot(Distance(5_000), null))
+        val vm = CoachViewModel(records, todayPlans, clock)
+        vm.onTodayPlan(Distance(5_000))
+        assertEquals(PlanSnapshot(Distance(5_000), null), todayPlans.plan.value)
+        assertEquals(RunkkErrorText.of(AppError.Network), vm.state.value.message)
+        assertEquals(1, records.calls.count { it.startsWith("progress:") }, "실패하면 다시 읽지 않는다")
+        assertFalse(vm.state.value.isSaving)
+    }
+
+    @Test
     fun `성장 분석은 주간으로 읽고 월간으로 바꾼다`() {
         val vm = GrowthViewModel(records)
         assertEquals(sampleGrowth, vm.state.value.growth)
