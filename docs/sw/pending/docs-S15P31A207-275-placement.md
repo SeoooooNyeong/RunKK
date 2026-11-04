@@ -1,6 +1,6 @@
 # 병합 대기: docs/S15P31A207-275-placement
 
-> 작성: 2026-11-04 | 작성자: 이성현 | 스킬: sw-srs, sw-design-oo
+> 작성: 2026-11-04 | 작성자: 이성현 | 스킬: sw-srs, sw-design-oo, sw-design review
 
 공용 담당이 쓴 브랜치라 정식 번호(CR-135~CR-146, FR-274~FR-290)와 버전(srs v0.24)은 이 브랜치에서 매겼다. 핫픽스 브랜치(`hotfix/S15P31A207-275-v0111-feedback`) 병합 대기 파일의 [임시:CR-성-1]~[임시:CR-성-4]는 CR-135~CR-138로 매겼다. 남은 것은 박재영 담당 조각의 문장 수정 요청이다. 근거와 전체 규칙은 srs/03-08-배치고사-화면개편-성.md와 srs/07-16-변경-요청-CR-v0.24.md(7.13.19)에 있다.
 
@@ -12,8 +12,10 @@
 - 공용 조각: 01-개요(용어 티어·배치·언랭 변경, 배치고사·임시 티어·배치 중·확정 티어 추가), 02-전체-설명(S-03 1c·정상 흐름, S-26 정상 흐름, S-28 전제·2b), 03-07·04(목차 이동 링크), 05-외부-인터페이스(5.1 홈·러닝 결과·랭킹 행, 배틀런 화면 삭제 표시와 새 화면 4행), 06-04(대결종류·회원레코드·대시보드정보·티어), 06-05(1.6, 4.1 의사결정표, 4.6 배치고사 상대), 06-07(ERD 2행, 6.4.2 2행, 6.4.8 짧게 누름 행 CR-135, 새 6.4.9), 06-08(v0.24 자료 31개), 07-01·07-11 추적표(새 17행, 바뀐 21행 출처), 07-03(7.10.6), 07-15(다음 링크).
 - 목차·공용: srs.md(머리 헤더 v0.24, 문서 상태, 목차 2행, 8. 다음 단계), README.md(srs 행).
 - (sw-design-oo, design-oo v0.30) srs 정정: 03-08 FR-282·FR-290·J24-14(총괄 결정 J24-14R: 랭킹 이름 옆 아주 작은 공개 티어 배지)·J24-23(D-504: 배치 중 기록은 고스트 후보가 아님, 지금 코드와 같음), 07-03 N-20 행·요약, 07-16 CR-145, 05 5.1 랭킹 행, 06-05 3.6, 06-04 랭킹표 주석, 07-11 FR-282 출처.
-- design-oo/05-21-설계-배치고사-화면개편-성.md: 새 조각. D-475~D-510, 서버·앱 클래스 명세, SQ-49·SQ-50, 상태도 2.4.27, V38 SQL, A-37·A-38, 앱 시각 명세, 피그마 차이 17건, 구현 단위(10절), 테스트 순서(11절).
-- design-oo/05-03-API-실시간-메시지.md: 5.7.3 v0.30 계약(고정) 추가.
+- design-oo/05-21-설계-배치고사-화면개편-성.md: 새 조각. D-475~D-510, 서버·앱 클래스 명세, SQ-49·SQ-50, 상태도 2.4.27, V38 SQL(v0.31에서 V35_1로 바꿈), A-37·A-38, 앱 시각 명세, 피그마 차이 17건, 구현 단위(10절), 테스트 순서(11절).
+- design-oo/05-03-API-실시간-메시지.md: 5.7.3 v0.30 계약(고정) 추가. v0.31: 항목·enum 값 그대로, P2 ALREADY_IN_BATTLE 뜻(생성 경합 포함), P4 서비스 연산(battle PlacementRoundReader), PlacementRoundState·placementState 뜻(미도착 유효 판 셈, 완료 뒤 판 NOT_COUNTED) 문장 보완.
+- (sw-design review, design-review v0.22) design-review/25-v0.30-검증.md 새 조각(결함 R82~R95, 치명 1·중 7·경 6, v0.30 불합격 → v0.31 범위 합격), design-review.md(머리 v0.22, 판정, 목차 행, 26. 다음 단계, 이력), 24장 다음 링크.
+- (design-oo v0.31, 설계 검토 반영) 05-21: 1.1절 D-511~D-520, D-476(V35_1 + develop만 out-of-order), D-478·D-481·D-483·D-484·D-487·D-490·D-495·D-501·D-510 문장, 2.1·2.2·2.4 클래스 명세, SQ-49·SQ-50, 5절, 9·10·11·12·13·14절. 06-01(이성현) 배치고사 요약, 06-06·12-의존도·13-14·A-추적표·B-E(v0.31 이력·색인)·design-oo.md(머리 v0.31, 목차, 상태)·README.
 - design-oo/06-01-클래스-common-member.md(이성현): 배치고사 진행 요약 문단.
 - 공용 design-oo 조각: 06-06(6.1.17 앱 요약), 12-의존도(12.4 v0.30 문단), 07-11(상태 표 PlacementProgress 행), A-추적표(FR-274~FR-290 17행), B-E(v0.30 이력, D 색인), design-oo.md(머리 헤더 v0.30, 목차 행, 상태·다음 단계), README.md(design-oo 행).
 
@@ -29,6 +31,8 @@
 | FR-274~FR-290 | FR | 배치고사 규칙 5, 배치고사 화면 3, 티어 표시 2, 대결 분리 3, 홈·결과·랭킹 4 | srs/03-08 |
 | D-475~D-510 | D | 배치고사·티어 표시·화면 개편 설계 결정(기존 최대 D-474 다음) | design-oo/05-21 |
 | SQ-49·SQ-50, 2.4.27, A-37·A-38 | 시퀀스·상태도·알고리즘 | 배치고사 요청·성사, 판 셈·확정, PlacementProgress 상태, 판 셈·상대 점수 | design-oo/05-21 |
+| D-511~D-520 | D | 설계 검토 반영(판 인정 = 기록 유효, 기록 연결 사건, 판 결과 상태 battle 안, V35_1, 생성 경합, 판 셈 잠금, 읽기 순서, lockForMatch Optional, 화면 연결, 모드 인자 분리) | design-oo/05-21 1.1절 |
+| R82~R95, H-62~H-67, C1~C11 | 검토 결함·숨은 의존·코드 대조 | 기존 최대 R81·H-61 다음 | design-review/25 |
 
 ## 공용 파일 반영
 
@@ -84,5 +88,6 @@
 ### 설계 (design-oo v0.30, sw-design-oo)
 
 - 박재영(design-oo/06-03-클래스-battle.md): 05-21 2.2의 새 클래스 PlacementMatcher, PlacementOpponentFactory, PlacementOpponent, PlacementRoundListener, PlacementReconcileService, PlacementRoundState, RecordCheck와 기존 클래스 변경(Battle.placementRound·markPlacement·verify(memberId, RecordCheck), BattleParticipant.validRunOrdinal, MatchingService.requestMatch 언랭 갈래, MatchAcceptance.placement, MatchFound.placementRound, BattleHistoryView.Entry.placementRound·opponentMemberId, BattleRepository.findPlacementFinishedBetween, BattleResultService.applyRecord)을 6.1.6 명세에 옮긴다. 06-03의 RANKED_ONLY 거부·Battle.verify(memberId, recordId, valid, reachElapsed) 문장은 05-21 D-478·D-482가 대신한다.
+- 박재영(design-oo/06-03-클래스-battle.md, v0.31 추가): 05-21 1.1절의 PlacementRoundCheck(D-511), PlacementRecordAttached와 PlacementRoundListener.onRecordAttached(D-512), PlacementRoundReader와 BattleResultView.placementRound(D-513), PlacementMatcher.start의 `Optional<Battle>` 반환·saveImmediately·활성 칸 고유 제약 → ALREADY_IN_BATTLE(D-515·D-518), PlacementRoundState.of(check, counted, progressCompleted)(D-487), BattleResultService.applyRecord의 사건 발행을 6.1.6에 옮긴다. 판 인정은 참가자 검증값이 아니라 붙은 기록의 유효 러닝이다(R82).
 - 박재영(design-oo/06-02-클래스-running-analysis-profile.md): RankingView.publicTiers·publicTierOf(조회 때 MemberQueryService.summaries로 붙임, D-486), DashboardView.latestRun·latestRunOutcome(D-491)을 6.1.4에 옮긴다.
 - 박재영(코드 검토 요청): 계약(05-03 5.7.3)의 battle·analysis 항목은 제공하는 쪽이 박재영 도메인이므로 MR에서 승인을 받는다(OWNERS 3절 5). 워치 잠금 문구(D-500)도 워치 담당 확인.
