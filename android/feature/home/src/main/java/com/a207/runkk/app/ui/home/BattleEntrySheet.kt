@@ -1,0 +1,233 @@
+package com.a207.runkk.app.ui.home
+
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import com.a207.runkk.app.core.designsystem.AvatarCharacter
+import com.a207.runkk.app.core.designsystem.AvatarExpression
+import com.a207.runkk.app.core.designsystem.LocalAvatarCharacter
+import com.a207.runkk.app.core.designsystem.RunkkAvatar
+import com.a207.runkk.app.core.designsystem.RunkkColors
+import com.a207.runkk.app.core.designsystem.RunkkIcons
+import com.a207.runkk.app.core.designsystem.RunkkTextStyles
+import com.a207.runkk.app.core.designsystem.TierBadge
+import com.a207.runkk.app.core.designsystem.TierBadgeSize
+import com.a207.runkk.app.core.designsystem.tierName
+import com.a207.runkk.app.core.model.TierDisplay
+import com.a207.runkk.app.domain.account.PlacementStatus
+
+/**
+ * 배틀런 진입 시트(FR-284, D-499, 피그마 61355:3402): 홈 배틀런 카드에서 홈 위로 연다(경로가 아니다). 덮개 45%, 표면 위쪽 둥근 28.
+ * 랜덤 카드는 배치 중이면 칩 「배치고사 n/3」과 「3판을 뛰면 티어가 정해져요」, 확정 티어면 확정 배지와 「비슷한 페이스의 러너와 대결해요」,
+ * 진행을 못 읽었으면 「랜덤 대결」만 보인다. 친구 카드는 「카톡으로 친구를 불러 함께」.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun BattleEntrySheet(state: BattleEntrySheetState, onRandom: () -> Unit, onFriend: () -> Unit, onDismiss: () -> Unit) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        shape = RoundedCornerShape(topStart = SHEET_CORNER, topEnd = SHEET_CORNER),
+        containerColor = RunkkColors.Surface,
+        scrimColor = SHEET_SCRIM,
+        dragHandle = null
+    ) {
+        BattleEntrySheetContent(state, onRandom, onFriend)
+    }
+}
+
+/** 시트 안쪽(손잡이·제목·두 카드). 스크린샷은 이것을 홈 위에 겹쳐 찍는다. */
+@Composable
+internal fun BattleEntrySheetContent(
+    state: BattleEntrySheetState,
+    onRandom: () -> Unit,
+    onFriend: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 10.dp, bottom = 28.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Box(Modifier.size(width = 36.dp, height = 4.dp).clip(CircleShape).background(RunkkColors.Border))
+        Text(
+            stringResource(R.string.home_entry_title),
+            style = RunkkTextStyles.text(18, FontWeight.Bold),
+            color = RunkkColors.TextPrimary,
+            modifier = Modifier.fillMaxWidth().semantics { heading() }
+        )
+        RandomCard(state, onRandom)
+        FriendCard(onFriend)
+    }
+}
+
+@Composable
+private fun RandomCard(state: BattleEntrySheetState, onClick: () -> Unit) {
+    val placement = state.placement
+    val title = stringResource(R.string.home_entry_random)
+    val isPlacing = placement?.status == PlacementStatus.IN_PROGRESS
+    val chip = if (isPlacing) {
+        stringResource(
+            R.string.home_entry_placement_chip,
+            placement?.countedRounds ?: 0
+        )
+    } else {
+        null
+    }
+    val confirmed = placement?.takeIf { !isPlacing }?.let { TierDisplay.ofPublic(it.tier) }
+    val caption = when {
+        isPlacing -> stringResource(R.string.home_entry_random_placing)
+        placement != null -> stringResource(R.string.home_entry_random_ranked)
+        else -> null
+    }
+    val tierSpoken = (confirmed as? TierDisplay.Confirmed)?.let {
+        stringResource(R.string.home_entry_tier_spoken, tierName(it.tier) ?: it.tier)
+    }
+    EntryCard(
+        spoken = listOfNotNull(title, chip, tierSpoken, caption).joinToString(", "),
+        container = RunkkColors.Violet,
+        onClick = onClick,
+        art = { QuestionCircle() },
+        chevron = Color.White
+    ) {
+        chip?.let {
+            Text(
+                it,
+                style = RunkkTextStyles.text(11, FontWeight.Bold),
+                color = RunkkColors.Violet,
+                modifier = Modifier.clip(
+                    CircleShape
+                ).background(Color.White).padding(horizontal = 8.dp, vertical = 2.dp)
+            )
+        }
+        confirmed?.let { TierBadge(it, TierBadgeSize.SMALL) }
+        Text(title, style = RunkkTextStyles.text(19, FontWeight.Bold), color = Color.White)
+        caption?.let { Text(it, style = RunkkTextStyles.Caption, color = Color.White) }
+    }
+}
+
+@Composable
+private fun FriendCard(onClick: () -> Unit) {
+    val title = stringResource(R.string.home_entry_friend)
+    val caption = stringResource(R.string.home_entry_friend_caption)
+    val me = LocalAvatarCharacter.current
+    EntryCard(
+        spoken = "$title, $caption",
+        container = RunkkColors.LimeFill,
+        onClick = onClick,
+        art = {
+            Box(Modifier.size(width = ART_WIDTH, height = ART_HEIGHT)) {
+                RunkkAvatar(
+                    faceKey = null,
+                    expression = AvatarExpression.STAND,
+                    modifier = Modifier.offset(x = 14.dp).size(width = 48.dp, height = ART_HEIGHT)
+                )
+                RunkkAvatar(
+                    faceKey = null,
+                    expression = AvatarExpression.STAND,
+                    modifier = Modifier.offset(x = 56.dp).size(width = 48.dp, height = ART_HEIGHT),
+                    character = if (me == AvatarCharacter.MALE) AvatarCharacter.FEMALE else AvatarCharacter.MALE
+                )
+            }
+        },
+        chevron = RunkkColors.OnLimeFill
+    ) {
+        Text(title, style = RunkkTextStyles.text(19, FontWeight.Bold), color = RunkkColors.OnLimeFill)
+        Text(caption, style = RunkkTextStyles.Caption, color = RunkkColors.OnLimeFill)
+    }
+}
+
+/** 대결 카드 틀: r20, pl18 pr12 py10, 글(세로 4) + 그림 110×90 + 꺾쇠. 카드 전체가 버튼 하나로 읽힌다. */
+@Composable
+private fun EntryCard(
+    spoken: String,
+    container: Color,
+    onClick: () -> Unit,
+    art: @Composable () -> Unit,
+    chevron: Color,
+    text: @Composable () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(container)
+            .clickable(role = Role.Button, onClick = onClick)
+            .clearAndSetSemantics {
+                contentDescription = spoken
+                role = Role.Button
+            }
+            .padding(start = 18.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) { text() }
+        art()
+        Icon(RunkkIcons.ChevronRight, contentDescription = null, tint = chevron, modifier = Modifier.size(20.dp))
+    }
+}
+
+/** 고스트 자리: 흰 점선 원 64 안 「?」 30 Bold(그림 110×90 안 (23,13)). */
+@Composable
+private fun QuestionCircle() {
+    Box(Modifier.size(width = ART_WIDTH, height = ART_HEIGHT)) {
+        Box(
+            Modifier.offset(x = 23.dp, y = 13.dp).size(64.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Canvas(Modifier.size(64.dp)) {
+                val stroke = 2.dp.toPx()
+                drawCircle(
+                    color = Color.White,
+                    radius = size.minDimension / 2 - stroke / 2,
+                    style = Stroke(
+                        width = stroke,
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 4.dp.toPx()))
+                    )
+                )
+            }
+            Text(QUESTION, style = RunkkTextStyles.text(30, FontWeight.Bold), color = Color.White)
+        }
+    }
+}
+
+private const val QUESTION = "?"
+private val SHEET_CORNER = 28.dp
+private val ART_WIDTH = 110.dp
+private val ART_HEIGHT = 90.dp
+
+/** 시트 덮개(피그마 rgba(23,26,18,0.45)). */
+internal val SHEET_SCRIM = Color(0x73171A12)
