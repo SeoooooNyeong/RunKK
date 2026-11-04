@@ -26,6 +26,7 @@ import com.a207.runkk.app.domain.account.SessionTokens
 import com.a207.runkk.app.domain.account.SignUpForm
 import com.a207.runkk.app.domain.settings.GuidanceSettings
 import com.a207.runkk.app.domain.settings.ScreenTheme
+import com.a207.runkk.app.domain.settings.SettingsRepository
 import com.a207.runkk.app.domain.settings.SettingsSnapshot
 import java.time.Duration
 import java.time.LocalDate
@@ -33,6 +34,8 @@ import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
@@ -43,8 +46,9 @@ import retrofit2.create
 class AccountRepositoryImplTest {
     private val api = ApiTestServer()
     private val tokens = FixedTokens()
+    private val seen = SeenSettings()
     private val repository =
-        AccountRepositoryImpl(api.retrofit.create(), api.retrofit.create(), tokens, SelfMember(tokens), api.faces)
+        AccountRepositoryImpl(api.retrofit.create(), api.retrofit.create(), tokens, SelfMember(tokens), api.faces, seen)
 
     @AfterTest
     fun tearDown() = api.close()
@@ -230,7 +234,14 @@ class AccountRepositoryImplTest {
                 override fun accessToken(): String? = null
             }
         val loggedOut =
-            AccountRepositoryImpl(api.retrofit.create(), api.retrofit.create(), noToken, SelfMember(noToken), api.faces)
+            AccountRepositoryImpl(
+                api.retrofit.create(),
+                api.retrofit.create(),
+                noToken,
+                SelfMember(noToken),
+                api.faces,
+                seen
+            )
 
         assertEquals(Outcome.Failure(AppError.Unauthorized), loggedOut.profile(AccountRepository.SELF))
         assertEquals(Outcome.Failure(AppError.Unauthorized), loggedOut.mySummary())
@@ -772,4 +783,50 @@ class AccountRepositoryImplTest {
 
         override suspend fun clear(): Outcome<Unit> = Outcome.Success(Unit)
     }
+
+    @Test
+    fun `배치고사 완료 화면을 본 판은 설정 기기 사본에 맡기고 사본을 지우면 남지 않는다(D-531)`() = runTest {
+        assertEquals(null, repository.placementCompleteSeen())
+        assertEquals(Outcome.Success(Unit), repository.savePlacementCompleteSeen(903))
+        assertEquals(903L, seen.placementSeen)
+        assertEquals(903L, repository.placementCompleteSeen())
+        seen.clear()
+        assertEquals(null, repository.placementCompleteSeen(), "로그아웃·탈퇴의 설정 사본 삭제")
+        assertEquals(0, api.server.requestCount, "서버에 묻지 않는다")
+    }
+}
+
+/** 배치고사 완료 사본만 쓰는 설정 저장소 가짜(D-531). 나머지는 사본 없음 값이다. */
+private class SeenSettings : SettingsRepository {
+    var placementSeen: Long? = null
+
+    override suspend fun placementCompleteSeen(): Long? = placementSeen
+
+    override suspend fun savePlacementCompleteSeen(battleId: Long): Outcome<Unit> {
+        placementSeen = battleId
+        return Outcome.Success(Unit)
+    }
+
+    override suspend fun clear(): Outcome<Unit> {
+        placementSeen = null
+        return Outcome.Success(Unit)
+    }
+
+    override suspend fun refresh(): Outcome<Unit> = Outcome.Success(Unit)
+
+    override fun locationConsented() = false
+
+    override fun heartRateConsented() = false
+
+    override fun watchLinked() = false
+
+    override fun courseMapShared() = false
+
+    override fun birthYear(): Int? = null
+
+    override fun guidanceSettings() = GuidanceSettings.DEFAULT
+
+    override fun isGuest() = false
+
+    override fun changes(): Flow<SettingsSnapshot> = flowOf(SettingsSnapshot.SAFE)
 }

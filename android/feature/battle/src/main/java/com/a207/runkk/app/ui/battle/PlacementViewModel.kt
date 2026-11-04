@@ -12,7 +12,6 @@ import com.a207.runkk.app.domain.account.PlacementProgress
 import com.a207.runkk.app.domain.account.PlacementStatus
 import com.a207.runkk.app.domain.battle.BattleRepository
 import com.a207.runkk.app.domain.battle.BattleRunCoordinator
-import com.a207.runkk.app.domain.settings.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.Job
@@ -37,8 +36,7 @@ class PlacementViewModel @Inject constructor(
     private val account: AccountRepository,
     private val battles: BattleRepository,
     private val coordinator: BattleRunCoordinator,
-    private val consent: LocationConsentUseCase,
-    private val settings: SettingsRepository
+    private val consent: LocationConsentUseCase
 ) : ViewModel() {
     private val _state = MutableStateFlow(PlacementUiState())
     val state: StateFlow<PlacementUiState> = _state.asStateFlow()
@@ -128,7 +126,7 @@ class PlacementViewModel @Inject constructor(
     private suspend fun settledRoute(progress: PlacementProgress): String {
         val last = progress.rounds.maxByOrNull { it.round }?.battleId
         val isUnseen = progress.status == PlacementStatus.COMPLETED && last != null &&
-            settings.placementCompleteSeen() != last
+            account.placementCompleteSeen() != last
         return if (isUnseen) Routes.PLACEMENT_COMPLETE else Routes.BATTLE_RANDOM
     }
 }

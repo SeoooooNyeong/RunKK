@@ -28,7 +28,7 @@ class PlacementViewModelTest {
     private val accounts = FakeAccounts()
 
     private fun ViewModelCloser.vm(w: BattleWorld) =
-        track(PlacementViewModel(accounts, w.battles, w.coordinator, consentOf(settings, accounts), settings))
+        track(PlacementViewModel(accounts, w.battles, w.coordinator, consentOf(settings, accounts)))
 
     @Test
     fun `TC-5873 배치고사 진행은 다음 판 번호와 기본 거리로 시작한다`() = main.runVmTest { vms ->
@@ -49,7 +49,7 @@ class PlacementViewModelTest {
     @Test
     fun `TC-5874 확정 티어면 랜덤 대결 화면으로 바꿔 연다`() = main.runVmTest { vms ->
         // 완료 화면을 이미 본 완료(마지막 판 903)와 면제
-        settings.placementSeen = 903
+        accounts.placementSeen = 903
         listOf(PlacementStatus.COMPLETED, PlacementStatus.EXEMPT).forEach { status ->
             accounts.placementResult = Outcome.Success(settled(status, "GOLD"))
             val vm = vms.vm(world())
@@ -68,7 +68,7 @@ class PlacementViewModelTest {
         }
 
         // 다른 판(앞 배치·다른 회원의 대결 ID)을 본 기억은 이번 완료와 상관없다
-        settings.placementSeen = 777
+        accounts.placementSeen = 777
         val stale = vms.vm(world())
         stale.events.test {
             assertEquals(PlacementEvent.Open(Routes.Key(Routes.PLACEMENT_COMPLETE)), awaitItem())

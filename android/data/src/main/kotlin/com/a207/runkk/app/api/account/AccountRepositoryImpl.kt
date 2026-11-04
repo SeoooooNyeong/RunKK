@@ -19,6 +19,7 @@ import com.a207.runkk.app.domain.account.ProfileEdit
 import com.a207.runkk.app.domain.account.ProviderToken
 import com.a207.runkk.app.domain.account.SessionTokens
 import com.a207.runkk.app.domain.account.SignUpForm
+import com.a207.runkk.app.domain.settings.SettingsRepository
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.cancellation.CancellationException
@@ -38,7 +39,8 @@ constructor(
     private val me: MeApi,
     private val tokens: TokenProvider,
     private val self: SelfMember,
-    private val faces: FaceImageSource
+    private val faces: FaceImageSource,
+    private val settings: SettingsRepository
 ) : AccountRepository {
     override suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> = faces.faceLayers(faceKey)
 
@@ -168,6 +170,12 @@ constructor(
     }
 
     override suspend fun placement(): Outcome<PlacementProgress> = ApiErrorMapper.call { me.placement().toDomain() }
+
+    /** 배치고사 완료 화면을 본 판은 서버가 아니라 설정 기기 사본에 둔다(D-531: 로그아웃·탈퇴 때 사본과 함께 지워진다). */
+    override suspend fun placementCompleteSeen(): Long? = settings.placementCompleteSeen()
+
+    override suspend fun savePlacementCompleteSeen(battleId: Long): Outcome<Unit> =
+        settings.savePlacementCompleteSeen(battleId)
 
     override suspend fun settings(): Outcome<MemberSettings> = ApiErrorMapper.call { me.settings().toMemberSettings() }
 

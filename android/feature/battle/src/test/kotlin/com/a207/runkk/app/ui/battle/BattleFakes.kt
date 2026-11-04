@@ -387,6 +387,16 @@ class FakeAccounts : AccountRepository {
         return placementQueue.removeFirstOrNull() ?: placementResult
     }
 
+    /** 배치고사 완료 화면을 본 마지막 판(기기 사본 가짜, D-531). */
+    var placementSeen: Long? = null
+
+    override suspend fun placementCompleteSeen(): Long? = placementSeen
+
+    override suspend fun savePlacementCompleteSeen(battleId: Long): Outcome<Unit> {
+        placementSeen = battleId
+        return Outcome.Success(Unit)
+    }
+
     private fun <T> unused(): Outcome<T> = Outcome.Failure(AppError.Rejected("UNUSED"))
 }
 
@@ -414,16 +424,6 @@ class FakeConsentSettings(var isConsented: Boolean = true) : SettingsRepository 
     override fun isGuest(): Boolean = false
 
     override fun changes(): Flow<SettingsSnapshot> = flowOf(SettingsSnapshot.SAFE)
-
-    /** 배치고사 완료 화면을 본 마지막 판(기기 사본 가짜). */
-    var placementSeen: Long? = null
-
-    override suspend fun placementCompleteSeen(): Long? = placementSeen
-
-    override suspend fun savePlacementCompleteSeen(battleId: Long): Outcome<Unit> {
-        placementSeen = battleId
-        return Outcome.Success(Unit)
-    }
 
     override suspend fun clear(): Outcome<Unit> = Outcome.Success(Unit)
 }
