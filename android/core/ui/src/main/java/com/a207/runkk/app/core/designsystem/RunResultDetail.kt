@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
@@ -796,10 +797,12 @@ fun ResultBottomBar(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 40.dp)
                 .clip(CircleShape)
                 .alpha(if (isSecondaryEnabled) 1f else DISABLED_ALPHA)
-                .clickable(enabled = isSecondaryEnabled, role = Role.Button, onClick = onSecondary),
+                .clickable(enabled = isSecondaryEnabled, role = Role.Button, onClick = onSecondary)
+                // 글자 버튼은 바탕이 없어 터치 영역을 48로 둔다(보이는 글자 자리는 40, PL1-A2)
+                .minimumInteractiveComponentSize()
+                .heightIn(min = 40.dp),
             contentAlignment = Alignment.Center
         ) {
             Text(secondary, style = RunkkTextStyles.text(14, FontWeight.Medium), color = RunkkColors.TextPrimary)

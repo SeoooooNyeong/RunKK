@@ -29,9 +29,6 @@ object Routes {
     const val RANKING = "ranking"
     const val ME = "me"
 
-    /** 배틀런 화면(랜덤 | 친구 분절, ui.battle BattleModeScreen, D-268). 탭이 아니지만 하단 탭을 보이고 홈을 고른 상태로 둔다. */
-    const val BATTLE_MODE = "battle/mode"
-
     // 러닝(ui.run)
 
     /** 자유런 카운트다운·측정·화면 잠금(한 화면, RunViewModel). */

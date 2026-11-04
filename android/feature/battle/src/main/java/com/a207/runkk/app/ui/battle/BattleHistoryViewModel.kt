@@ -3,6 +3,7 @@ package com.a207.runkk.app.ui.battle
 import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.battle.BattleHistory
 import com.a207.runkk.app.domain.battle.BattleRepository
@@ -90,6 +91,13 @@ val HISTORY_FILTERS: List<Pair<Int, BattleHistory.Type?>> = listOf(
     R.string.battle_history_type_self to BattleHistory.Type.SELF,
     R.string.battle_history_type_celeb to BattleHistory.Type.CELEBRITY
 )
+
+/** 이력 행 종류 문구: 배치고사 판이면 종류 뒤에 「배치고사 n판」을 덧붙인다(J24-22, 제안). */
+internal fun historyTypeText(entry: BattleHistory.Entry): UiText {
+    val type = UiText.Res(typeLabel(entry.type))
+    val round = entry.placementRound ?: return type
+    return UiText.Res(R.string.battle_history_type_placement, listOf(type, round))
+}
 
 @StringRes
 internal fun typeLabel(type: BattleHistory.Type): Int = when (type) {

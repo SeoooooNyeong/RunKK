@@ -264,6 +264,27 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun `PL1-A1 앱 시계가 UTC여도 홈 오늘은 한국 날짜다(UTC 일요일 15시 = KST 월요일 0시)`() {
+        val utcClock = Clock.fixed(Instant.parse("2026-11-01T15:00:00Z"), java.time.ZoneOffset.UTC)
+        val vm =
+            HomeViewModel(
+                records,
+                account,
+                LocationConsentUseCase(account, settings),
+                todayPlans,
+                pendingRuns,
+                utcClock
+            )
+        val monday = LocalDate.of(2026, 11, 2)
+
+        assertEquals(monday, records.dashboardDates.last(), "대시보드 기준일은 KST 오늘")
+        val thisWeek = vm.state.value.summary?.grass?.last().orEmpty()
+        assertEquals(monday, thisWeek.first().date, "이번 주는 KST 월요일부터")
+        assertTrue(thisWeek.first().isToday)
+        assertEquals(GrassState.FUTURE, thisWeek[1].state)
+    }
+
+    @Test
     fun `TC-5837 홈 헤더 티어는 본인 표시 규칙을 따른다`() {
         account.placementResult = Outcome.Success(placing(0))
         assertEquals(TierDisplay.Placing, viewModel().state.value.tierDisplay)

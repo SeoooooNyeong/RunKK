@@ -1161,34 +1161,35 @@ class WatchFlowViewModelTest {
     }
 
     @Test
-    fun `언랭이면 매칭을 요청하기 전에 잠그고 남은 러닝 횟수를 알린다(WR12-1 PV-1, FR-080)`() = flowTest {
-        accounts.summary = MySummary("러너", "UNRANKED", 1, null, null, validRuns = 1)
+    fun `TC-5866 배치 중이면 워치 랜덤 대결을 잠그고 폰 안내를 보인다`() = flowTest {
+        accounts.summary = MySummary("러너", "UNRANKED", 1, null, null, validRuns = 7)
         val h = open()
 
         requestMatch(h)
 
         val picker = h.flow as WatchFlow.BattleDistance
         assertEquals(WatchFlow.Notice.RANDOM_LOCKED, picker.notice)
-        assertEquals(2, picker.runsLeft)
+        assertTrue(picker.isRandomLocked, "유효 러닝 수와 상관없이 배치 중이면 잠근다(J24-12)")
         assertTrue(battles.matchRequests.isEmpty())
         assertEquals(0, live.opened)
+        assertEquals(R.string.notice_random_locked, noticeRes(WatchFlow.Notice.RANDOM_LOCKED))
     }
 
     @Test
-    fun `언랭인데 유효 러닝 수를 모르면 남은 수 없이 잠근다`() = flowTest {
-        accounts.summary = MySummary("러너", "UNRANKED", 1, null, null, validRuns = null)
-        val h = open()
+    fun `확정 티어이거나 티어를 모르면 워치 랜덤 대결을 잠그지 않는다(J24-12)`() = flowTest {
+        accounts.summary = MySummary("러너", "GOLD", 1, null, null, validRuns = 1)
+        val ranked = open()
+        ranked.vm.onModeSelected(WatchMode.BATTLE)
+        assertFalse((ranked.flow as WatchFlow.BattleDistance).isRandomLocked)
 
-        h.vm.onModeSelected(WatchMode.BATTLE)
-
-        assertEquals(0, (h.flow as WatchFlow.BattleDistance).runsLeft)
-        h.vm.onStartPressed()
-        assertEquals(WatchFlow.Notice.RANDOM_LOCKED, (h.flow as WatchFlow.BattleDistance).notice)
-        assertTrue(battles.matchRequests.isEmpty())
+        accounts.summary = MySummary("러너", null, 1, null, null, validRuns = null)
+        val unknown = open()
+        unknown.vm.onModeSelected(WatchMode.BATTLE)
+        assertFalse((unknown.flow as WatchFlow.BattleDistance).isRandomLocked)
     }
 
     @Test
-    fun `서버가 RANKED_ONLY로 거부하면 매칭 실패가 아니라 배틀런 잠금 안내다(WR12-1 PV-1)`() = flowTest {
+    fun `옛 서버가 RANKED_ONLY로 거부하면 매칭 실패가 아니라 배틀런 잠금 안내다(WR12-1 PV-1)`() = flowTest {
         battles.matchAnswer = Outcome.Failure(AppError.Rejected("RANKED_ONLY"))
         val h = open()
 
@@ -1196,7 +1197,7 @@ class WatchFlowViewModelTest {
 
         val picker = h.flow as WatchFlow.BattleDistance
         assertEquals(WatchFlow.Notice.RANDOM_LOCKED, picker.notice)
-        assertEquals(0, picker.runsLeft)
+        assertTrue(picker.isRandomLocked)
     }
 
     @Test

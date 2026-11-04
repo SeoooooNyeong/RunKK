@@ -168,7 +168,7 @@ fun SelfBattleScreen(
                 CandidateBody(state, onRetry, emptyTitle = R.string.battle_self_empty_title) {
                     state.candidates.forEach { candidate ->
                         DistanceCardRow(
-                            BattleModeUiState.DistanceCard(
+                            DistanceCard(
                                 candidate.distance,
                                 candidate.finishTime,
                                 candidate.recordedOn

@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -89,23 +90,28 @@ internal fun RankingPeriodRow(
     onPeriod: (AggregationPeriod) -> Unit
 ) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        periods.forEach { (value, label) ->
-            val isSelected = value == selected
-            Box(
-                modifier = Modifier
-                    .minimumInteractiveComponentSize()
-                    .heightIn(min = 32.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(if (isSelected) RunkkColors.SelectedFill else LocalRunkkTierColors.current.periodChip)
-                    .selectable(selected = isSelected, role = Role.RadioButton, onClick = { onPeriod(value) })
-                    .padding(horizontal = 16.dp, vertical = 6.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    label,
-                    style = RunkkTextStyles.text(13, FontWeight.Medium),
-                    color = if (isSelected) RunkkColors.OnSelectedFill else RunkkColors.TextPrimary
-                )
+        // 기간 칩만 라디오 묶음으로 읽는다(「2개 중 1번째」, PL1-A5)
+        Row(Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            periods.forEach { (value, label) ->
+                val isSelected = value == selected
+                Box(
+                    modifier = Modifier
+                        .minimumInteractiveComponentSize()
+                        .heightIn(min = 32.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(
+                            if (isSelected) RunkkColors.SelectedFill else LocalRunkkTierColors.current.periodChip
+                        )
+                        .selectable(selected = isSelected, role = Role.RadioButton, onClick = { onPeriod(value) })
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        label,
+                        style = RunkkTextStyles.text(13, FontWeight.Medium),
+                        color = if (isSelected) RunkkColors.OnSelectedFill else RunkkColors.TextPrimary
+                    )
+                }
             }
         }
         Text(

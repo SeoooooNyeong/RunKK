@@ -549,7 +549,15 @@ class MatchViewModel @Inject constructor(
         handedOver = true
         waitingLease = channel
         channel = null
-        _state.update { it.copy(phase = MatchPhase.MATCHED, match = match, distance = match.distance, error = null) }
+        _state.update {
+            it.copy(
+                phase = MatchPhase.MATCHED,
+                match = match,
+                distance = match.distance,
+                error = null,
+                placementRound = match.placementRound
+            )
+        }
         coordinator.onMatched(match)
         matchedBattleId = match.battleId
         watchStuck(clock.instant().plus(MATCHED_STUCK))

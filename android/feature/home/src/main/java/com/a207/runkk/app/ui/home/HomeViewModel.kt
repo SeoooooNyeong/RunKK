@@ -20,6 +20,7 @@ import com.a207.runkk.app.domain.run.TodayPlanCache
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Clock
 import java.time.LocalDate
+import java.time.ZoneId
 import javax.inject.Inject
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -125,7 +126,8 @@ class HomeViewModel @Inject constructor(
     }
 
     fun refresh() {
-        val today = LocalDate.now(clock)
+        // 앱 시계는 UTC라(DeviceBindings) 한국 0~9시에 하루 앞이 된다. 홈 날짜는 서버 날짜 기준(KST)으로 센다(PL1-A1).
+        val today = LocalDate.now(clock.withZone(HOME_ZONE))
         _state.update { it.copy(isLoading = true, error = null) }
         // 늦게 끝난 앞 요청이 새 결과를 덮지 않게 취소한다.
         refreshJob?.cancel()
@@ -217,3 +219,6 @@ private fun HomeUiState.withSummary(summary: Dashboard?, today: LocalDate): Home
         summary = HomeSummary.of(summary, today)
     )
 }
+
+/** 홈 날짜(오늘·잔디·최근 러닝)의 시간대. 서버가 날짜를 Asia/Seoul로 세므로 같게 둔다(PL1-A1). */
+internal val HOME_ZONE: ZoneId = ZoneId.of("Asia/Seoul")

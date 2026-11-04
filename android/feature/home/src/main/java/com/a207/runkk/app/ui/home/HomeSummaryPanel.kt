@@ -46,7 +46,6 @@ import com.a207.runkk.app.core.designsystem.splitPace
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.domain.record.RunSummary
 import java.time.Duration
-import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -418,7 +417,7 @@ private fun minutesSeconds(elapsed: Duration): String =
 private fun latestDate(run: RunSummary): String {
     val pattern = stringResource(R.string.home_summary_latest_date_pattern)
     val formatter = remember(pattern) { DateTimeFormatter.ofPattern(pattern, Locale.KOREAN) }
-    return formatter.format(run.startedAt.atZone(ZoneId.systemDefault()))
+    return formatter.format(run.startedAt.atZone(HOME_ZONE))
 }
 
 /** 카드 종류 이름(자유런·배틀런·셀프런·셀럽런·크루런). */

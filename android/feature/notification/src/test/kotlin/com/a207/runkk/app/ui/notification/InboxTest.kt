@@ -230,10 +230,10 @@ class InboxTest {
         )
 
         /**
-         * v0.14 하단 탭 재구성(D-250), 배틀런 화면(D-268), 기록 화면 대결 탭(D-281, BATTLE_HISTORY를 대신함),
-         * Runimal 16유형(D-285)이 더한 경로.
+         * v0.14 하단 탭 재구성(D-250), 기록 화면 대결 탭(D-281, BATTLE_HISTORY를 대신함), Runimal 16유형(D-285)이 더한 경로.
+         * v0.14 배틀런 화면(BATTLE_MODE, D-268)은 v0.18에서 랜덤·친구 대결로 나눠 지웠다(D-498, CR-142).
          */
-        val V014_CONSTANTS = setOf("RECORD_RUN", "BATTLE_MODE", "RECORDS_BATTLES", "RUNIMAL_TYPES")
+        val V014_CONSTANTS = setOf("RECORD_RUN", "RECORDS_BATTLES", "RUNIMAL_TYPES")
         val V010_KEYS = setOf(
             "Key", "RunResult", "RecordDetail", "RecordCard", "BattleRunning", "BattleQuickMatch", "BattleResult",
             "CrewHome", "CrewManage", "CrewRunWrite", "CrewRunLobby", "CrewRunResult"

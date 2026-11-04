@@ -87,7 +87,14 @@ fun BattleResultRoute(
     onEvaluation: (BattleResult.Evaluation) -> Unit = {}
 ) {
     var isEvaluationOpened by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(battleId) { viewModel.load(battleId, opensEvaluation = isJustFinished && !isEvaluationOpened) }
+    LaunchedEffect(battleId) {
+        viewModel.load(
+            battleId,
+            opensEvaluation = isJustFinished && !isEvaluationOpened,
+            isJustFinished = isJustFinished
+        )
+    }
+    val navigator = LocalRunkkNavigator.current
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             when (event) {
@@ -95,11 +102,13 @@ fun BattleResultRoute(
                     isEvaluationOpened = true
                     onEvaluation(event.evaluation)
                 }
+
+                // 막 끝난 배치고사 판(D-501): 뒤 스택에 대결 결과를 남기지 않게 바꿔 연다.
+                is BattleResultEvent.OpenPlacementResult -> navigator.replace(Routes.PlacementResult(event.battleId))
             }
         }
     }
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val navigator = LocalRunkkNavigator.current
     BattleResultScreen(
         state = state,
         onCard = {

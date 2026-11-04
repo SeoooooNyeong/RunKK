@@ -229,7 +229,7 @@ private fun HistoryRow(entry: BattleHistory.Entry, onClick: () -> Unit) {
                     stringResource(
                         R.string.battle_history_row_caption,
                         entry.playedAt.atZone(ZoneId.systemDefault()).format(dateFormat),
-                        stringResource(typeLabel(entry.type)),
+                        historyTypeText(entry).asString(),
                         distanceLabel(entry.distance).asString()
                     ),
                     style = RunkkTextStyles.Caption,
