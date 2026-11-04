@@ -105,10 +105,11 @@ class AppContractSnapshotTest {
                         "SettingItem",
                         "DocumentType",
                         "AccountType",
-                        "ScreenTheme"));
+                        "ScreenTheme",
+                        "PlacementStatus"));
         ENUMS.put("notification", List.of("NotificationType", "Screen"));
         ENUMS.put("avatar", List.of("DefaultCharacter", "BodyShape", "SkinTone", "FailureReason"));
-        ENUMS.put("battle", List.of("BattleType", "Verdict"));
+        ENUMS.put("battle", List.of("BattleType", "Verdict", "PlacementRoundState"));
         ENUMS.put(
                 "running",
                 List.of("CardKind", "RunMode", "SignalState", "DisposalKind", "StartDevice"));

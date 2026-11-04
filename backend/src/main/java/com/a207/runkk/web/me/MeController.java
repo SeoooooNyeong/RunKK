@@ -194,6 +194,45 @@ public class MeController {
     }
 
     /**
+     * 본인 배치고사 진행(GET /me/placement, 05-03 5.7.3.3 P1). 임시 티어는 이 응답에만 담는다(FR-282, D-485).
+     *
+     * @param status 진행 상태(IN_PROGRESS·COMPLETED·EXEMPT)
+     * @param countedRounds 센 판 수 0~3, EXEMPT는 0
+     * @param nextRound IN_PROGRESS면 다음 판 번호(1~3), 아니면 null
+     * @param provisionalTier IN_PROGRESS이고 한 판 이상 셌으면 임시 티어(BRONZE~MASTER), 아니면 null
+     * @param tier 회원 티어(공개 티어), IN_PROGRESS면 UNRANKED
+     * @param rounds 센 판(round 오름차순), 없으면 빈 목록
+     */
+    record PlacementResponse(
+            String status,
+            int countedRounds,
+            Integer nextRound,
+            String provisionalTier,
+            String tier,
+            List<Round> rounds) {
+
+        /**
+         * 센 판 하나.
+         *
+         * @param round 판 번호 1~3
+         * @param battleId 그 판 대결 ID
+         * @param battleDistanceMeters 고른 대결 거리(미터)
+         * @param distanceMeters 그 판 러닝 기록 거리(미터)
+         * @param elapsedSeconds 그 판 러닝 기록 운동 시간(초)
+         * @param averagePaceSecondsPerKm 평균 페이스(km당 초), 없으면 null
+         * @param verdict 판 승패(WIN·LOSE·DRAW)
+         */
+        record Round(
+                int round,
+                long battleId,
+                long battleDistanceMeters,
+                long distanceMeters,
+                long elapsedSeconds,
+                Integer averagePaceSecondsPerKm,
+                String verdict) {}
+    }
+
+    /**
      * 프로필 응답(앱 api.me 형식). 공개 수준이 감춘 항목은 null·빈 값이다. disclosure는 member.DisclosureLevel
      * 이름(SELF·PUBLIC·WITHDRAWN) 그대로다. 필드는 더하기만 한다(v0.14 D-229, 옛 앱 보호).
      *

@@ -5,6 +5,7 @@ import com.a207.runkk.battle.BattleHistoryView;
 import com.a207.runkk.battle.BattleType;
 import com.a207.runkk.battle.ComparisonTable;
 import com.a207.runkk.battle.MatchAcceptance;
+import com.a207.runkk.battle.PlacementRoundState;
 import com.a207.runkk.battle.RecordBattleCandidates;
 import com.a207.runkk.battle.RecordBattleStart;
 import com.a207.runkk.battle.RecordTrack;
@@ -76,14 +77,22 @@ final class BattleDtos {
      * @param waiting 대기 중인가
      * @param distanceMeters 대기 거리
      * @param defaultDistanceMeters 기본 대결 거리(마지막으로 요청한 거리)
+     * @param placementRound 배치고사로 만든 대결의 판 번호(1~3), 그 밖은 null(05-03 5.7.3.3 P2)
+     * @param battleId 배치고사로 만든 대결 ID, 그 밖은 null
      */
     record MatchAcceptanceResponse(
-            boolean waiting, Long distanceMeters, Long defaultDistanceMeters) {
+            boolean waiting,
+            Long distanceMeters,
+            Long defaultDistanceMeters,
+            Integer placementRound,
+            Long battleId) {
         static MatchAcceptanceResponse of(MatchAcceptance acceptance) {
             return new MatchAcceptanceResponse(
                     acceptance.waiting(),
                     metersOf(acceptance.distance()),
-                    metersOf(acceptance.defaultDistance()));
+                    metersOf(acceptance.defaultDistance()),
+                    null,
+                    null);
         }
 
         private static Long metersOf(StandardDistance d) {
@@ -102,6 +111,7 @@ final class BattleDtos {
      * @param startAt 출발 시각, 없으면 null
      * @param opponentGender 상대 캐릭터 성별(MALE, FEMALE), 셀럽·나와의 싸움이면 null(2026-10-31 결정)
      * @param celebrityFigure 유명인 캐릭터 그림 키, 유명인 대결이 아니거나 키가 없으면 null(앱 공통 셀럽 그림, 2026-10-31 결정)
+     * @param placementRound 배치고사 대결이면 판 번호(1~3), 아니면 null(05-03 5.7.3.3 P5)
      */
     record ActiveBattleResponse(
             long battleId,
@@ -111,7 +121,8 @@ final class BattleDtos {
             String opponentName,
             LocalDateTime startAt,
             String opponentGender,
-            String celebrityFigure) {
+            String celebrityFigure,
+            Integer placementRound) {
         static ActiveBattleResponse of(ActiveBattleView v) {
             return new ActiveBattleResponse(
                     v.battleId(),
@@ -121,7 +132,8 @@ final class BattleDtos {
                     Optional.ofNullable(v.opponentName()).map(DisplayName::value).orElse(null),
                     v.startAt(),
                     v.opponentGender(),
-                    v.celebrityFigure());
+                    v.celebrityFigure(),
+                    null);
         }
     }
 
@@ -293,6 +305,8 @@ final class BattleDtos {
      * @param evaluation 본인 기록이 일으킨 티어 평가(없으면 null, v0.14 D-291)
      * @param opponentGender 상대 캐릭터 성별(MALE, FEMALE), 셀럽·나와의 싸움이면 null(2026-10-31 결정)
      * @param celebrityFigure 유명인 캐릭터 그림 키, 유명인 대결이 아니거나 키가 없으면 null(2026-10-31 결정)
+     * @param placementRound 배치고사 대결이면 만든 때의 판 번호(1~3), 아니면 null(05-03 5.7.3.3 P4)
+     * @param placementState 배치고사 판 셈 상태(COUNTED·NOT_COUNTED·PENDING), placementRound가 null이면 null
      */
     record BattleResultResponse(
             long battleId,
@@ -312,7 +326,9 @@ final class BattleDtos {
             int totalRewardPoints,
             EvaluationDto evaluation,
             String opponentGender,
-            String celebrityFigure) {}
+            String celebrityFigure,
+            Integer placementRound,
+            PlacementRoundState placementState) {}
 
     /**
      * 이 러닝이 일으킨 티어 평가(v0.14 D-291·D-294).
@@ -388,6 +404,8 @@ final class BattleDtos {
      * @param newRecord 신기록
      * @param gapSeconds 기록 차이(본인 − 상대, 초, 음수면 본인이 빠름), 없으면 null
      * @param sourceLabel 유명인 기록 출처 표기, 없으면 null
+     * @param placementRound 배치고사 대결이면 판 번호, 아니면 null(05-03 5.7.3.3 P6, J24-22)
+     * @param opponentMemberId 친구 대결이고 상대가 탈퇴하지 않았으면 상대 회원 ID, 그 밖은 null(D-492)
      */
     record Entry(
             long battleId,
@@ -398,7 +416,9 @@ final class BattleDtos {
             LocalDateTime playedAt,
             boolean newRecord,
             Long gapSeconds,
-            String sourceLabel) {
+            String sourceLabel,
+            Integer placementRound,
+            Long opponentMemberId) {
         static Entry of(BattleHistoryView.Entry e) {
             return new Entry(
                     e.battleId(),
@@ -409,7 +429,9 @@ final class BattleDtos {
                     e.playedAt(),
                     e.newRecord(),
                     seconds(e.gap()),
-                    e.sourceLabel());
+                    e.sourceLabel(),
+                    null,
+                    null);
         }
     }
 
