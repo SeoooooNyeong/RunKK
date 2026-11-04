@@ -207,7 +207,7 @@ class PlacementRoundListenerTest {
     }
 
     @Test
-    @org.junit.jupiter.api.DisplayName("정정된 판정은 이미 센 판의 승패만 고친다(셈 여부는 그대로)")
+    @org.junit.jupiter.api.DisplayName("TC-5922 정정된 판정은 이미 센 판의 승패만 고친다(셈 여부·판 수는 그대로)")
     void correctedJudgement_updatesVerdictOnly() {
         Battle battle = battles.save(PlacementRoundCheckTest.judged(true, Duration.ofMinutes(25)));
         summary("r-1", true, 38);
@@ -224,5 +224,27 @@ class PlacementRoundListenerTest {
         assertThat(placementService.view(ALICE).countedRounds()).isEqualTo(1);
         assertThat(placementService.view(ALICE).rounds().get(0).verdict())
                 .isEqualTo(PlacementVerdict.LOSE);
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName(
+            "PL1-B7 정정 사건은 먼저 세고 그다음 승패를 고친다: 다른 계기가 옛 판정으로 센 판도 정정 값이 남는다")
+    void correctedJudgement_countsThenCorrects() {
+        Battle battle = battles.save(PlacementRoundCheckTest.judged(true, Duration.ofMinutes(25)));
+        summary("r-1", true, 38);
+        battle.verify(ALICE, new RecordCheck("r-1", true, Duration.ofMinutes(31), 4));
+        Judgement corrected = battle.judge(START.plusHours(1)).orElseThrow();
+        PlacementService spied = org.mockito.Mockito.spy(placementService);
+
+        listenerWith(spied)
+                .onBattleJudged(
+                        new BattleJudged(
+                                battle.getId(), BattleType.GHOST, corrected, corrected.at()));
+
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(spied);
+        order.verify(spied)
+                .countRound(
+                        org.mockito.ArgumentMatchers.eq(ALICE), org.mockito.ArgumentMatchers.any());
+        order.verify(spied).correctVerdict(ALICE, battle.getId(), PlacementVerdict.LOSE);
     }
 }

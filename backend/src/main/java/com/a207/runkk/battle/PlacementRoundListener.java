@@ -49,16 +49,19 @@ public class PlacementRoundListener {
         this.newTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
-    /** 판정(포기 포함). 고스트만 배치고사일 수 있다. 정정이면 이미 센 판의 승패만 고친다(셈 여부는 바꾸지 않음). */
+    /**
+     * 판정(포기 포함). 고스트만 배치고사일 수 있다. 정정이면 센 뒤 그 판의 승패만 고친다(셈 여부는 바꾸지 않음). 세고 나서 고쳐야, 정정 전 판정을 읽은 다른
+     * 계기가 셈 잠금을 기다렸다 옛 승패로 센 판도 정정 값이 남는다(코드 리뷰 PL1-B7).
+     */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onBattleJudged(BattleJudged e) {
         if (e.type() != BattleType.GHOST) {
             return;
         }
+        count(e.battleId());
         if (e.judgement().corrected()) {
             correct(e);
         }
-        count(e.battleId());
     }
 
     /** 판정 없이 기록만 붙은 배치고사 대결(D-512). 판정 전이면 countable이 거짓이라 아무것도 하지 않는다. */
