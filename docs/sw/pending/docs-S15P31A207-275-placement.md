@@ -1,6 +1,6 @@
 # 병합 대기: docs/S15P31A207-275-placement
 
-> 작성: 2026-11-04(갱신 2026-11-05) | 작성자: 이성현 | 스킬: sw-srs, sw-design-oo, sw-design review, sw-test, sw-code-review, sw-implement
+> 작성: 2026-11-04(갱신 2026-11-05) | 작성자: 이성현 | 스킬: sw-srs, sw-design-oo, sw-design review, sw-test, sw-code-review, sw-implement, sw-sqa
 
 공용 담당이 쓴 브랜치라 정식 번호(CR-135~CR-146, FR-274~FR-290)와 버전(srs v0.24)은 이 브랜치에서 매겼다. 핫픽스 브랜치(`hotfix/S15P31A207-275-v0111-feedback`) 병합 대기 파일의 [임시:CR-성-1]~[임시:CR-성-4]는 CR-135~CR-138로 매겼다. 남은 것은 박재영 담당 조각의 문장 수정 요청이다. 근거와 전체 규칙은 srs/03-08-배치고사-화면개편-성.md와 srs/07-16-변경-요청-CR-v0.24.md(7.13.19)에 있다.
 
@@ -27,6 +27,11 @@
 - (sw-test, test v0.19) test/10-28-v019-배치고사-리뷰반영.md 새 조각(19장, TC-5954~TC-5973 20개: 1차 수정 실제 DB 시험 PL1-B1·B3·B5와 번호 없던 단위 시험의 코드 이름 대응, 대결 진행 화면 「?」, 판 결과 회복·미확인 완료 화면, 상태도 2.4.28 전이, 실행 결과 자리 19.10), 10-25 18.8절을 test/10-27-v018-배치고사-단위-AN-2.md로 옮김(100KB), 10-25·10-26·10-27 기존 행 고침(UT-1~UT-3, UT2-1·UT2-3·UT2-4: TC-5750·5832·5874·5908·5931, 18.15.2 구현 목록, 18.15.8 기준 이미지), test/01-계획 1.5, test.md(머리 v0.19, 상태, 목차 3행, 1장 요약, 8장 실행 이력 자리, 9장), README.md(test 행).
 - (sw-implement, implementation v0.11) implementation/15-v0.11.1-배치고사-화면개편.md 새 조각(핫픽스 원래 커밋 6개 CR-135~CR-138 기록 = 핫픽스 병합 대기 파일의 implementation 요청 처리, 단계·worktree, 통합 기록, 결정 I15-1~I15-40, 사고 기록, 리뷰 반복, 배포 확인, 총괄이 채울 자리 15.11), implementation.md(머리 v0.11, 0절, 목차 행), 14·A 조각 이웃 링크, README.md(implementation 행). (보정) design-oo 05-22·test 10-26~10-28을 2차 수정 커밋 0d648155·5a24de5c·ac411a32·e35dba34에 맞춤.
 
+- (sw-implement, implementation v0.11 같은 판 보완, 2026-11-05) implementation/15: 총괄이 채울 자리(15.11) 채움 — 2·3차 수정 커밋(e35dba34 → 23e74149, 앱 9커밋 → 4129283c, 06ca6de4 → 564db6af), 캐시 없는 게이트 수치, 결정 I15-41~I15-46, 리뷰 3·4차 행, main 219940e1 충돌 3파일과 반영 판단, 배포 확인 8번(에뮬레이터). implementation.md 머리 입력·0절(마지막 push 564db6af)·목차 행.
+- (sw-test, test v0.19 같은 판 보완) test/10-28: 19.10 실행 결과와 TC-5954~TC-5973 결과 칸(TC-5973 미실행), UT3-1~UT3-3·UT4-1, 새 19.12 TC-4839~TC-4841, J-T19-7~9. test/01-계획 1.5 TC-4839~TC-4841 행. test.md 머리·상태·함께 고친 문서·변경 이력·목차 행·8장 첫 행·9장.
+- (sw-design-oo, design-oo v0.32 같은 판 보정) design-oo/05-22: code-review 19 U3-1~U3-4(D-531 랜덤 대결 미확인 완료·isCompletionUnseen·프로세스 사본·포트 이동 완료, D-533 progressError·onResumed, D-537 남은 판 막대 Border, D-539 단언 실패 처리, 2.4·S-PL4·SQ-51·3.4·5·6절). A-추적표 FR-281, 07-11 PlacementResultViewModel 행, B-E v0.32 이력·색인, design-oo.md 머리·상태.
+- (sw-sqa, sqa v0.9) sqa/09-검토-2026-11-05.md 새 조각(핫픽스 v0.11.1 MR !70 564db6af 배포 판정: 조건부 배포 가능, 조건 5, DF-055~DF-061, 관문 HQ1~HQ10, 위험 가번호 RW-13~RW-17, J-Q9-1~5). sqa.md 머리 v0.9·최신 판정·목차 행. README.md(sqa·code-review·구현·테스트·설계 행).
+
 ## 새 임시 번호
 
 없음(정식 번호로 매김).
@@ -44,10 +49,15 @@
 | TC-5693~TC-5953 | TC | 배치고사·화면 개편·핫픽스 시험 261개(기존 최대 TC-5692 다음, 대역 TC-5693~TC-5999, 예비 TC-5954~). T-59·T-60 스레드, J-T18-1~13, TF-V18-01~04, R-V18-01~04 | test/10-25, test/10-26 |
 | D-521~D-546, SQ-51, 2.4.28 | D·시퀀스·상태도 | code-review v0.22 1·2차 설계서 갱신 요청과 구현 작업자 결정 반영(기존 최대 D-520·SQ-50·2.4.27 다음) | design-oo/05-22 |
 | TC-5954~TC-5973 | TC | 배치고사 코드 리뷰 반영 시험(예비 대역 TC-5954~에서, 남은 TC-5974~TC-5999는 다른 브랜치 임시 TC 몫) | test/10-28 |
+| TC-4839~TC-4841 | TC | 배치고사 3·4차 리뷰 새 케이스(PL3-A1 판정 함수, PL3-A2 저장 실패, PL4-A1 후속). v0.12 뒤 남은 예비 TC-4839~TC-4999에서(TC-5974~TC-5999는 다른 브랜치 몫) | test/10-28 19.12 |
+| DF-055~DF-061 | SQA 결함 | 핫픽스 v0.11.1 배포 판정 결함(중 2·경 5, 기존 최대 DF-054 다음) | sqa/09 |
+| RW-13~RW-17 | 위험 가번호 | main 합치기, develop 환경 미경유, prod 설정, 옛 앱, (제안) 문구. `/sw-plan`이 R-076부터 매긴다 | sqa/09 7절 |
 
 ## 공용 파일 반영
 
 이 브랜치에서 반영했다. (test v0.19) srs 추적표에 더할 값은 test/10-28 19.7(FR-021·FR-276·FR-280·FR-281·FR-282·FR-287·FR-289·NFR-005). (test v0.18) srs 추적표(07-01·07-11) 테스트 케이스 열에 넣을 값은 test/10-26 18.14에 있고 다음 공용 정리 때 넣는다. 영향 받는 기존 TC 26개의 원래 행 표시(18.16)도 그때 한다. 다른 브랜치 임시 TC([임시:TC-박-파기1~9], [임시:TC-박-얼굴1~8])는 그 브랜치 병합 때 예비 TC-5974~에서 매긴다(TC-5954~TC-5973은 test v0.19가 씀). 남은 것: 다른 브랜치의 임시 번호([임시:FR-박-얼굴1]~[임시:FR-박-얼굴6], [임시:CR-박-얼굴1], 각 TC 임시 번호)는 이 판 번호 뒤(FR-291~, CR-147~)에서 매긴다. DFD 6.1 그림에 새 흐름(4.1 → 4.6 배치고사매칭요청, 4.5 → 1.6 배치판결과)을 그리는 것은 다음 공용 정리 때 한다(7.13.19.2).
+
+(sqa v0.9) plan.md 9절에 RW-13~RW-17 → R-076~R-080, R-V18-03 종료, R-019 발생(조치함)은 다음 `/sw-plan`에서. srs 추적표(07-01·07-11)에 test 18.14·19.7 값과 TC-4839~TC-4841(FR-281)은 다음 공용 정리 때(sqa DF-061).
 
 ## 다른 담당에게 요청
 
@@ -108,3 +118,5 @@
 - 박재영(design-oo/06-02-클래스-running-analysis-profile.md, design-oo v0.32): RunQueryService `findSummary`·`findComparison`·`latestListRow`와 포트 `RunRecordRepository.latestListRow`, "없을 수 있는 기록은 예외를 잡지 말고 Optional 조회" 규칙(D-524), DashboardView는 `latestRun`만(대결 결과는 web.record DashboardController가 붙임, D-523). 이전 요청의 `latestRunOutcome`은 지운다.
 - 박재영(srs/03-04-대결-관리.md FR-101, design-oo v0.32 D-534): 이전 요청 "배치고사 판은 랜덤 대결로 남기고 「배치고사 n판」을 덧붙인다"를 "「배틀런 · 배치고사 n판」(n은 대결을 만든 때 판 번호)"로 읽는다(srs 03-08 J24-22 보완과 같음).
 - 박재영(코드 검토 요청, design-oo v0.32): running 패키지 `RunQueryService`·`RunRecordRepository`에 더한 예외 없는 조회 3개(PL1-B1·PL1-B5 수정)는 박재영 도메인이라 MR !70에서 승인을 받는다. 워치 잠금 문구 줄바꿈(D-546)도 워치 담당 확인.
+
+- 박재영(코드 검토 요청, sqa v0.9 조건 5): MR !70의 battle·running 경계 계약(05-03 5.7.3, RunQueryService 예외 없는 조회)과 워치 잠금 문구(D-546)를 승인한다. main 219940e1 반영 때 워치 3파일 충돌 해결 결과(J24-12 문구와 W52·W53 안내)도 함께 본다.
