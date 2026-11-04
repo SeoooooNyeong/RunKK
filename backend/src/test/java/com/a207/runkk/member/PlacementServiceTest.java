@@ -24,7 +24,10 @@ import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
 /**
  * PlacementService(05-21 2.1): 진행 조회 세 상태(D-488), 판 셈 잠금·멱등·행 생성 금지(D-516), 잠근 뒤 랭크면 비어 있음(D-518),
@@ -151,6 +154,24 @@ class PlacementServiceTest {
         assertThat(service.countRound(id, input(7, 30, 1)))
                 .isEqualTo(new PlacementCount.Ignored("duplicate"));
         assertThat(service.view(id).countedRounds()).isEqualTo(1);
+    }
+
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    @DisplayName("PL1-B6 판 셈 운영 로그에는 결과 종류와 판 번호만 남고 임시 티어는 남지 않는다(D-485)")
+    void countRound_logOmitsProvisionalTier(CapturedOutput output) {
+        long id = saved("새곰");
+        progress.put(PlacementProgress.start(id));
+
+        service.countRound(id, input(11, 27, 1));
+
+        String line =
+                output.getAll()
+                        .lines()
+                        .filter(l -> l.contains("placement_round_counted"))
+                        .findFirst()
+                        .orElseThrow();
+        assertThat(line).contains("result=Provisional", "round=1").doesNotContain("BRONZE");
     }
 
     @Test

@@ -113,11 +113,13 @@ public class PlacementService {
             member.get().confirmPlacement(confirmed.tier());
             memberRepository.save(member.get());
         }
+        // 임시 티어는 본인 응답에만 담는다(D-485). 로그에는 결과 종류와 판 번호만 남긴다(코드 리뷰 PL1-B6)
         log.info(
-                "placement_round_counted memberId={} battleId={} result={}",
+                "placement_round_counted memberId={} battleId={} result={} round={}",
                 memberId,
                 in.battleId(),
-                count);
+                count.getClass().getSimpleName(),
+                progress.countedRounds());
         return count;
     }
 
