@@ -148,3 +148,23 @@ async def test_selfie_never_touches_disk(
     assert response.status_code == 202
     assert writes == []
     assert "SELFIE-SECRET" not in caplog.text
+
+
+async def test_purge_user_counts_deleted_folder(caplog: pytest.LogCaptureFixture) -> None:
+    """WithdrawalService가 부르는 규약(purge_user → 지운 수). 폴더 하나라 1 또는 0."""
+    caplog.set_level(logging.INFO)
+    client = FakeAvatarClient()
+    service = _service(client)
+
+    assert await service.purge_user("42") == 1
+    assert await service.purge_user("42") == 0
+    assert client.deleted == ["42", "42"]
+    assert "avatar_call op=delete result=ok" in caplog.text
+    assert "42" not in caplog.text.replace("avatar_call", "")
+
+
+async def test_purge_user_failure_raises() -> None:
+    service = _service(FakeAvatarClient(error=AvatarError("UPSTREAM_FAILED")))
+
+    with pytest.raises(AvatarError):
+        await service.purge_user("42")

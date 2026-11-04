@@ -1,11 +1,11 @@
 import {readFile,writeFile,mkdir,readdir,unlink} from 'node:fs/promises';
 import {createHash,randomUUID} from 'node:crypto';
 import path from 'node:path';
-import {requireUserId,userDirectory,atomicJson} from './user-storage.mjs';
+import {requireUserId,userDirectory,atomicJson,deleteUserData} from './user-storage.mjs';
 const terminal=new Set(['SUCCEEDED','FAILED']);
 const notFound=()=>Object.assign(new Error('이 사용자의 생성 작업을 찾을 수 없어요.'),{status:404,code:'JOB_NOT_FOUND'});
 export function registerHeadJobs(app,{root,upload,normalizeSelfie,port,normalizeResult=async data=>data,workerIntervalMs=1000,generationTimeoutMs=900000}){
-  const queue=[],known=new Set(),submissionLocks=new Map();let processing=false,notifying=false;
+  const queue=[],known=new Set(),submissionLocks=new Map();let processing=false,notifying=false,active=null;
   async function withSubmissionLock(key, action){
     const previous=submissionLocks.get(key)||Promise.resolve();let release;
     const current=new Promise(resolve=>{release=resolve;});submissionLocks.set(key,current);
@@ -23,7 +23,7 @@ export function registerHeadJobs(app,{root,upload,normalizeSelfie,port,normalize
     catch{n.status=n.attempts>=8?'GAVE_UP':'PENDING';n.nextAttemptAt=Date.now()+Math.min(300000,1000*2**n.attempts);}
     await persist(job);
   }
-  async function pump(){if(processing||!queue.length)return;processing=true;const identity=queue.shift();let job;
+  async function pump(){if(processing||!queue.length)return;processing=true;const identity=queue.shift();active=identity;let job;
     try{job=await read(identity.userId,identity.jobId);if(job.status!=='QUEUED')return;
       job.status='RUNNING';job.updatedAt=new Date().toISOString();await persist(job);
       const form=new FormData();for(const[k,v]of Object.entries(job.options))form.append(k,v);form.append('userId',job.userId);form.append('selfie',new Blob([await readFile(path.join(dir(job.userId,job.jobId),'selfie.jpg'))],{type:'image/jpeg'}),'selfie.jpg');
@@ -34,7 +34,7 @@ export function registerHeadJobs(app,{root,upload,normalizeSelfie,port,normalize
       try{data=await normalizeResult(data,job.userId);}catch(e){await complete(job,'FAILED',{code:e.code||'FACE_ASSETS_INCOMPLETE',message:e.message||'얼굴 이미지 세트가 완성되지 않았어요.'});return;}
       await atomicJson(path.join(dir(job.userId,job.jobId),'result.json'),data);job.headId=data.headId;await complete(job,'SUCCEEDED');
     }catch(error){if(job)await complete(job,'FAILED',{code:'STORAGE_FAILED',message:'작업 결과를 저장하지 못했어요. 자동 재생성하지 않았어요.'}).catch(()=>{});console.error('[head-jobs] worker storage failure',error.code||error.name);}
-    finally{processing=false;}
+    finally{processing=false;active=null;}
   }
   async function scan(){
     const users=path.join(root,'data/users');let entries;try{entries=await readdir(users,{withFileTypes:true});}catch(e){if(e.code==='ENOENT')return;throw e;}
@@ -54,6 +54,15 @@ export function registerHeadJobs(app,{root,upload,normalizeSelfie,port,normalize
   }catch(e){next(e);}});
   app.get('/api/head-jobs/:jobId',async(req,res,next)=>{try{res.json(publicJob(await read(requireUserId(req.query.userId),req.params.jobId)));}catch(e){next(e);}});
   app.get('/api/head-jobs/:jobId/result',async(req,res,next)=>{try{const job=await read(requireUserId(req.query.userId),req.params.jobId);if(job.status!=='SUCCEEDED')return res.status(409).json({error:'성공한 작업에서만 결과를 조회할 수 있어요.',code:'JOB_NOT_READY'});res.json(await normalizeResult(JSON.parse(await readFile(path.join(dir(job.userId,job.jobId),'result.json'),'utf8')),job.userId));}catch(e){next(e);}});
+  // 탈퇴 파기(S15P31A207-257). ai DELETE /users/{userId}가 부른다. 생성 중이면 결과 파일이 다시 생기므로 409 USER_BUSY로 거절하고
+  // (ai가 503을 돌려 api가 다시 부른다), 대기 중인 작업은 큐에서 빼고 셀카와 함께 지운다.
+  app.delete('/api/users/:userId',async(req,res,next)=>{try{
+    const userId=requireUserId(req.params.userId);
+    if(active&&active.userId===userId)return res.status(409).json({error:'이 사용자의 아바타를 만드는 중이에요. 끝난 뒤 다시 지워 주세요.',code:'USER_BUSY'});
+    for(let i=queue.length-1;i>=0;i--)if(queue[i].userId===userId)queue.splice(i,1);
+    const hashed=path.basename(userDirectory(root,userId))+'/';for(const key of [...known])if(key.startsWith(hashed))known.delete(key);
+    res.json({userId,deleted:await deleteUserData(root,userId)});
+  }catch(e){next(e);}});
   const timer=setInterval(()=>{pump();if(!notifying){notifying=true;scan().catch(()=>console.error('[head-jobs] scan failed')).finally(()=>{notifying=false;});}},workerIntervalMs);timer.unref();
   return {stop:()=>clearInterval(timer)};
 }

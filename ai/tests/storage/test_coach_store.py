@@ -74,3 +74,19 @@ async def test_purge_user_removes_every_conversation_of_that_user(store: CoachMe
     assert await store.owner("c2") is None
     assert await store.owner("c3") == "u2"
     assert await store.purge_user("u1") == 0
+
+
+async def test_purge_before_removes_only_old_messages(store: CoachMessageStore) -> None:
+    """보관 기한(-258): 기준 시각보다 오래된 메시지만 지운다. 다 지워진 대화는 없는 대화가 된다."""
+    for i in range(4):
+        await store.append(_msg("old", i))  # T0 ~ T0+3s
+    await store.append(_msg("mixed", 0))
+    await store.append(_msg("mixed", 10))  # T0+10s
+
+    deleted = await store.purge_before(T0 + timedelta(seconds=5))
+
+    assert deleted == 5
+    assert await store.owner("old") is None
+    assert [m.content for m in await store.recent("mixed", 10)] == ["m10"]
+    assert await store.owner("mixed") == "u1"
+    assert await store.purge_before(T0 + timedelta(seconds=5)) == 0
