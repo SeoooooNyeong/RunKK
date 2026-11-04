@@ -8,7 +8,7 @@ if errorlevel 1 (
 )
 if not exist ".env" (
   copy /Y ".env.example" ".env" >nul
-  echo Enter OPENAI_API_KEY, save, then close Notepad.
+  echo Enter GMS_KEY, save, then close Notepad.
   start /wait notepad.exe ".env"
 )
 if not exist "node_modules\openai\package.json" (

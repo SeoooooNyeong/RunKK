@@ -100,6 +100,7 @@ avatar:build:
       changes: *avatar-changes
   script:
     - docker build -t runkk-avatar:$CI_COMMIT_SHORT_SHA avatar-ai
+    - docker run --rm --network none --mount "type=bind,source=$CI_PROJECT_DIR/avatar-ai/test,target=/app/test,readonly" --entrypoint node runkk-avatar:$CI_COMMIT_SHORT_SHA test/container-smoke.mjs
 
 # ---------- ai 서버 ----------
 

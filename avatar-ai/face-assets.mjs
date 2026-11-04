@@ -13,7 +13,9 @@ export function profileMetadata(profile){const {image,metrics,warning,saved,...m
 export function assertFaceResult(data){
   if(data?.schemaVersion!==FACE_ASSETS_VERSION||!FACE_IMAGE_FIELDS.every(k=>typeof data[k]==='string'&&data[k].startsWith('data:image/png;base64,'))||['image','bodyImage','body','pack'].some(k=>Object.hasOwn(data,k)))throw incomplete();
   const count=value=>typeof value==='string'?Number(value.startsWith('data:image/')):value&&typeof value==='object'?Object.values(value).reduce((n,v)=>n+count(v),0):0;
-  if(count(data)!==5)throw incomplete();
+  const render=data.mobile?.renderFaceImage;
+  if(render!==undefined&&(typeof render!=="string"||!render.startsWith("data:image/png;base64,")))throw incomplete();
+  if(count(data)!==(render?6:5))throw incomplete();
   return data;
 }
 export async function savedFaceResult(root,userId,findRight,headId=null){
@@ -24,6 +26,6 @@ export async function savedFaceResult(root,userId,findRight,headId=null){
     if(!profile||profile.scope!=='head'||profile.direction!=='right'||profile.sourceHash!==hash||profile.userId!==userId)throw incomplete();
     layers.right=Buffer.from(profile.image.split(',')[1],'base64');rightProfile=profileMetadata(profile);
   }
-  const mobile=metadata.mobile?.version==='runkk-mobile-compose-v2'?metadata.mobile:await mobileHead(layers.face,metadata.alignment);
+  const mobile=metadata.mobile?.version==='runkk-mobile-compose-v2'&&metadata.mobile.renderFaceImage?.startsWith('data:image/png;base64,')?metadata.mobile:await mobileHead(layers.face,metadata.alignment);
   return assertFaceResult({...metadata,userId,schemaVersion:FACE_ASSETS_VERSION,headId:metadata.id,mobile,rightProfile,...faceImages(layers),saved:true,warning:null});
 }

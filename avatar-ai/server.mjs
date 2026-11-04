@@ -89,7 +89,7 @@ function resolveHairLength(requested, traits) {
 
 
 
-function ensureApiKey(){if(!configured){const e=new Error('.env의 OPENAI_API_KEY를 설정하고 서버를 다시 실행해 주세요.');e.status=503;throw e;}}
+function ensureApiKey(){if(!configured){const e=new Error('GMS_KEY 환경 변수를 설정하고 서버를 다시 실행해 주세요.');e.status=503;throw e;}}
 function headPrompt(traits,similarity,hairLength){
   const rules={short:'Short hair ending near ears or chin; do not add long locks.',medium:'A true bob/lob or shoulder-length hairstyle.',long:'Continuous long side/back strands extending well below the chin. Do not shorten to a bob.',extra_long:'Extra-long side/back strands extending far below the chin. Keep every hair tip inside the canvas.'};
   return `Create a standalone reusable RunKK 2D chibi HEAD sprite using TWO reference images.
@@ -141,7 +141,7 @@ registerBodyGeneration(app,{client,root:DIR,imageModel,visionModel,quality,ensur
 const avatarViews=registerAvatarViews(app,{client,root:DIR,imageModel,visionModel,quality,ensureApiKey,isBusy:()=>generating,setBusy:value=>{generating=value;}});
 registerHeadJobs(app,{root:DIR,upload,normalizeSelfie,port:Number(process.env.PORT||3000),normalizeResult:async(data,userId)=>{
   if(data.userId!==userId)throw Object.assign(new Error('작업의 사용자 정보가 맞지 않아요.'),{status:409,code:'FACE_ASSETS_INCOMPLETE'});
-  if(data.schemaVersion===FACE_ASSETS_VERSION&&data.mobile?.version==='runkk-mobile-compose-v2')return assertFaceResult(data);
+  if(data.schemaVersion===FACE_ASSETS_VERSION&&data.mobile?.version==='runkk-mobile-compose-v2'&&data.mobile.renderFaceImage?.startsWith('data:image/png;base64,'))return assertFaceResult(data);
   const result=await savedFaceResult(DIR,userId,avatarViews.cached,data.headId);return {...result,...(data.metrics?{metrics:data.metrics}:{})};
 }});
 app.use(express.static(path.join(DIR,'public'),{dotfiles:'deny'}));

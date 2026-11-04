@@ -16,9 +16,11 @@ vm.runInNewContext(await readFile(new URL('./public/neck-join.js',import.meta.ur
 const join=context.window.RunKKNeckJoin;
 async function canvas(buffer){const {data,info}=await sharp(buffer).ensureAlpha().raw().toBuffer({resolveWithObject:true});return new PixelCanvas(info.width,info.height,new Uint8ClampedArray(data));}
 const version='runkk-mobile-compose-v2';
-export async function mobileHead(face,alignment){
+export async function mobileHead(face,alignment={pivotX:.5,pivotY:.985}){
   const source=await canvas(face),head=join.prepare(source,alignment.pivotX,alignment.pivotY);
-  return {version,canvas:[source.width,source.height],anchor:[head.confident?head.neckCenter/source.width:alignment.pivotX,head.confident?head.chinY/source.height:alignment.pivotY],displayHeight:444/Math.max(.3,Math.min(.995,alignment.pivotY)),neckRemoved:head.confident,skinColor:head.skinColor||null,neckMask:head.confident?{mode:'remove-neck',chinY:head.chinY,centerX:head.neckCenter,width:head.neckWidth,baseY:Math.max(0,Math.min(source.height-1,Math.round(source.height*alignment.pivotY)))}:null,scene:{canvas:[1024,1024],connection:[512,450],bodyHeight:570,neckGap:10,outerScale:.93,outerCenter:[512,512],drawOrder:['body','faceImage (neckMask applied)','eyesImage','hairImage']}};
+  const rendered=await sharp(Buffer.from(head.canvas.pixels),{raw:{width:source.width,height:source.height,channels:4}}).png().toBuffer();
+  const renderFaceImage="data:image/png;base64,"+rendered.toString("base64");
+  return {version,renderFaceImage,canvas:[source.width,source.height],anchor:[head.confident?head.neckCenter/source.width:alignment.pivotX,head.confident?head.chinY/source.height:alignment.pivotY],displayHeight:444/Math.max(.3,Math.min(.995,alignment.pivotY)),neckRemoved:head.confident,skinColor:head.skinColor||null,neckMask:head.confident?{mode:'remove-neck',chinY:head.chinY,centerX:head.neckCenter,width:head.neckWidth,baseY:Math.max(0,Math.min(source.height-1,Math.round(source.height*alignment.pivotY)))}:null,scene:{canvas:[1024,1024],connection:[512,450],bodyHeight:570,neckGap:10,outerScale:.93,outerCenter:[512,512],drawOrder:['body','faceImage (neckMask applied)','eyesImage','hairImage']}};
 }
 export async function mobileBody(buffer,pack){
   const source=await canvas(buffer),fit=join.inspectBody(source,pack);

@@ -9,7 +9,7 @@ import {requireUserId, userDirectory, saveUserHead, latestUserHead, readUserHead
 
 const png = await readFile(new URL('../public/assets/eyes-default.png', import.meta.url));
 const layers = () => ({composite: png, right: png, face: png, eyes: png, hair: png});
-const metadata = () => ({id: randomUUID(), mobile: {version: 'runkk-mobile-compose-v2'}});
+const metadata = () => ({id: randomUUID(), mobile: {version: 'runkk-mobile-compose-v2', renderFaceImage: 'data:image/png;base64,' + png.toString('base64')}});
 const incomplete = error => error.status === 409 && error.code === 'FACE_ASSETS_INCOMPLETE';
 
 test('얼굴 응답은 몸 없이 정면·우측·얼굴·눈·헤어 PNG 5종을 반환한다', () => {
