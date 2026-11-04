@@ -4,6 +4,10 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -17,10 +21,16 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -29,6 +39,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -247,6 +258,71 @@ internal fun FlowNoticeText(
         textAlign = TextAlign.Center
     )
 }
+
+/**
+ * 메인의 GPS 상태 알약(W53, 피그마에 없는 요소라 띠 알약 모양을 작게 쓴다): 점과 "GPS 찾는 중"·"GPS 준비됨". 찾는 중이면 점이 흐려졌다
+ * 또렷해지기를 되풀이한다(움직임 줄이기면 멈춤). 워치 위치가 꺼져 있으면 "워치 위치를 켜 주세요"이고 누르면 위치 설정을 연다.
+ */
+@Composable
+internal fun GpsStatusPill(status: WatchFlow.GpsStatus, modifier: Modifier = Modifier) {
+    val isOff = status == WatchFlow.GpsStatus.LOCATION_OFF
+    val text = stringResource(
+        when (status) {
+            WatchFlow.GpsStatus.SEARCHING -> R.string.gps_searching
+            WatchFlow.GpsStatus.READY -> R.string.gps_ready
+            WatchFlow.GpsStatus.LOCATION_OFF -> R.string.notice_location_off
+        }
+    )
+    val dotColor = if (status == WatchFlow.GpsStatus.READY) WatchColors.Lime else WatchColors.Lavender
+    val blink = if (status == WatchFlow.GpsStatus.SEARCHING) rememberBlink() else null
+    val clickable = if (isOff) {
+        Modifier.clickable(
+            role = Role.Button,
+            onClickLabel = stringResource(R.string.open_location_settings),
+            onClick = LocalOpenLocationSettings.current
+        )
+    } else {
+        Modifier
+    }
+    Row(
+        modifier = modifier
+            .then(clickable)
+            .background(WatchColors.Background.copy(alpha = PILL_ALPHA), RoundedCornerShape(50))
+            .padding(horizontal = 10.dp, vertical = 4.dp)
+            .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (!isOff) {
+            Box(
+                Modifier
+                    .size(6.dp)
+                    .graphicsLayer { alpha = blink?.value ?: 1f }
+                    .background(dotColor, CircleShape)
+            )
+            Spacer(Modifier.width(5.dp))
+        }
+        Text(
+            text = text,
+            style = labelStyle(color = WatchColors.OnSurface, size = 11.sp).copy(fontWeight = FontWeight.Bold)
+        )
+    }
+}
+
+/** 점멸 흐림 값. 움직임 줄이기면 null(늘 또렷함)이다. 그리기 층에서만 읽는다. */
+@Composable
+private fun rememberBlink(): State<Float>? {
+    if (LocalMotionStill.current) return null
+    return rememberInfiniteTransition(label = "gps").animateFloat(
+        initialValue = 1f,
+        targetValue = BLINK_LOW_ALPHA,
+        animationSpec = infiniteRepeatable(tween(BLINK_MS, easing = ScreenEasing), RepeatMode.Reverse),
+        label = "gps-blink"
+    )
+}
+
+private const val PILL_ALPHA = 0.7f
+private const val BLINK_MS = 700
+private const val BLINK_LOW_ALPHA = 0.2f
 
 /** 안내 → 문자열 리소스. */
 internal fun noticeRes(notice: WatchFlow.Notice): Int = when (notice) {

@@ -81,6 +81,15 @@ class WatchLocationNoticeTest {
         assertEquals(1, opens)
     }
 
+    @Test
+    fun `메인의 위치 안내를 누르면 위치 설정을 연다(W53)`() {
+        show(WatchFlow.Main(WatchMode.FREE, gps = WatchFlow.GpsStatus.LOCATION_OFF))
+
+        clickNotice()
+
+        assertEquals(1, opens)
+    }
+
     private companion object {
         const val NOTICE = "워치 위치를 켜 주세요"
         const val LABEL = "위치 설정 열기"

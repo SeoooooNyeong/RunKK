@@ -287,7 +287,17 @@ internal class FakeExerciseClient(
         return done()
     }
 
-    override fun prepareExerciseAsync(configuration: WarmUpConfig): ListenableFuture<Void> = done()
+    /** 마지막 예열 요청(GPS 예열, W53). */
+    var warmUp: WarmUpConfig? = null
+
+    /** 지금 걸린 콜백(예열 시험이 가용성·상태를 보낸다). */
+    val currentCallback: ExerciseUpdateCallback? get() = callback
+
+    override fun prepareExerciseAsync(configuration: WarmUpConfig): ListenableFuture<Void> {
+        events += "prepare"
+        warmUp = configuration
+        return done()
+    }
 
     override fun flushAsync(): ListenableFuture<Void> = done()
 

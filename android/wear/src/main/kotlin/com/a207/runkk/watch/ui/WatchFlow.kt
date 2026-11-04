@@ -15,9 +15,16 @@ sealed interface WatchFlow {
     /** 로그인 정보 없음(FR-242). 러닝을 시작할 수 없다. */
     data object NotLoggedIn : WatchFlow
 
-    /** 메인 4안 캐러셀(FR-243). [gender]는 내 기본 캐릭터 성별(FR-162, 모르면 null → 남자 그림). */
-    data class Main(val mode: WatchMode = WatchMode.FREE, val gender: Gender? = null, val notice: Notice? = null) :
-        WatchFlow
+    /**
+     * 메인 4안 캐러셀(FR-243). [gender]는 내 기본 캐릭터 성별(FR-162, 모르면 null → 남자 그림). [gps]는 GPS 예열 상태(W53, 예열하지
+     * 않으면 null)다.
+     */
+    data class Main(
+        val mode: WatchMode = WatchMode.FREE,
+        val gender: Gender? = null,
+        val notice: Notice? = null,
+        val gps: GpsStatus? = null
+    ) : WatchFlow
 
     /** 거리 카드를 고르는 화면 넷의 공통 값. [selected]는 [choices]에서 가운데 카드 위치다. */
     sealed interface Picker : WatchFlow {
@@ -98,6 +105,7 @@ sealed interface WatchFlow {
     /**
      * 측정 중(FR-246). [goal]은 목표·대결 거리(자유런 무제한은 null), [gapMeters]는 대결 상대와의 거리 차(앞서면 양수, 모르면 null),
      * [banner]는 안내 문구(FR-254), [isLeadChanged]는 방금 앞서고 뒤처짐이 바뀌었다("역전!", FR-188), [leadKind]는 그 방향이다(있으면 띠 색을 정한다). [isPausable]은 자유런만 참이다.
+     * [isGpsSearching]은 이 회에 위치를 아직 받지 못했거나 마지막 위치 뒤 10초가 지났다("GPS 찾는 중", W53)이다.
      */
     data class Running(
         val mode: WatchMode,
@@ -108,7 +116,8 @@ sealed interface WatchFlow {
         val isLeadChanged: Boolean = false,
         val leadKind: LeadKind? = null,
         val isPausable: Boolean = false,
-        val notice: Notice? = null
+        val notice: Notice? = null,
+        val isGpsSearching: Boolean = false
     ) : WatchFlow
 
     /** 자유런 일시정지(FR-247): 그때까지의 누적 거리와 계속·종료. [banner]는 폰이 보낸 안내 문구다(동행 표시, FR-195). */
@@ -139,6 +148,13 @@ sealed interface WatchFlow {
         val isEnabled: Boolean = true,
         val isOfflineLocked: Boolean = false
     )
+
+    /** 메인의 GPS 상태 표시(W53): 예열 중 찾는 중·준비됨, 워치 위치 꺼짐(누르면 위치 설정). */
+    enum class GpsStatus {
+        SEARCHING,
+        READY,
+        LOCATION_OFF
+    }
 
     /** 화면에 잠깐 띄우는 안내. 문구는 화면이 문자열 리소스로 바꾼다. */
     enum class Notice {
