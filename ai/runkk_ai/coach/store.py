@@ -44,6 +44,10 @@ class CoachMessageStore(Protocol):
         """user_id의 대화(모든 메시지)를 지우고 지운 메시지 수를 돌려준다(탈퇴 파기, S15P31A207-219)."""
         ...
 
+    async def purge_before(self, cutoff: datetime) -> int:
+        """cutoff보다 먼저 남긴 메시지를 지우고 지운 수를 돌려준다(보관 기한, S15P31A207-258)."""
+        ...
+
 
 class InMemoryCoachStore:
     def __init__(self, max_conversations: int = MEMORY_MAX_CONVERSATIONS) -> None:
@@ -69,4 +73,16 @@ class InMemoryCoachStore:
         async with self._lock:
             mine = [cid for cid, messages in self._conversations.items() if messages and messages[0].user_id == user_id]
             count = sum(len(self._conversations.pop(cid)) for cid in mine)
+        return count
+
+    async def purge_before(self, cutoff: datetime) -> int:
+        count = 0
+        async with self._lock:
+            for cid in list(self._conversations):
+                kept = [m for m in self._conversations[cid] if m.at >= cutoff]
+                count += len(self._conversations[cid]) - len(kept)
+                if kept:
+                    self._conversations[cid] = kept
+                else:
+                    del self._conversations[cid]
         return count

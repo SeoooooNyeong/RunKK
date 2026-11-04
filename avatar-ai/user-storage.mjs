@@ -1,5 +1,5 @@
 import {createHash,randomUUID} from 'node:crypto';
-import {mkdir,readFile,writeFile,rename} from 'node:fs/promises';
+import {mkdir,readFile,writeFile,rename,rm,stat} from 'node:fs/promises';
 import path from 'node:path';
 
 export function requireUserId(value){
@@ -32,4 +32,11 @@ export async function readUserHead(root,userId,id){
   const [composite,face,eyes,hair]=await Promise.all(['','-face','-eyes','-hair'].map(s=>readFile(base+s+'.png')));
   let right=null;try{right=await readFile(base+'-right.png');}catch(e){if(e.code!=='ENOENT')throw e;}
   return {metadata,layers:{composite,face,eyes,hair,right}};
+}
+// 탈퇴 파기(S15P31A207-257). 사용자 폴더 하나에 셀카 작업·머리 레이어·옆모습·latest가 모두 있으므로 폴더째 지운다.
+// 이미 없으면 false. 다른 사용자 폴더는 해시 이름이 달라 건드리지 않는다.
+export async function deleteUserData(root,userId){
+  const dir=userDirectory(root,userId);
+  try{await stat(dir);}catch(e){if(e.code==='ENOENT')return false;throw e;}
+  await rm(dir,{recursive:true,force:true});return true;
 }

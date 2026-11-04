@@ -32,6 +32,10 @@ _REASON_BY_NODE_CODE: dict[str, FaceFailureReason] = {
 }
 
 
+class _Deleted(BaseModel):
+    deleted: bool
+
+
 class AvatarError(Exception):
     """아바타 호출 실패 사유. reason은 FaceRouter 응답의 reason 8종 중 하나다."""
 
@@ -59,6 +63,10 @@ class AvatarClient(ABC):
 
     @abstractmethod
     async def body(self, body_id: str) -> BodyOut: ...
+
+    @abstractmethod
+    async def delete_user(self, user_id: str) -> bool:
+        """사용자 폴더(셀카 작업·머리·옆모습)를 지운다. 있었으면 True(탈퇴 파기, S15P31A207-257)."""
 
     async def aclose(self) -> None:
         return None
@@ -90,6 +98,10 @@ class NodeAvatarClient(AvatarClient):
 
     async def body(self, body_id: str) -> BodyOut:
         return _parse(await self._request("GET", f"/bodies/{body_id}"), BodyOut)
+
+    async def delete_user(self, user_id: str) -> bool:
+        """Node DELETE /users/{userId}. 생성 중이면 409 USER_BUSY라 UPSTREAM_FAILED로 올라간다(지웠다고 하지 않는다)."""
+        return _parse(await self._request("DELETE", f"/users/{user_id}"), _Deleted).deleted
 
     async def aclose(self) -> None:
         await self._client.aclose()
