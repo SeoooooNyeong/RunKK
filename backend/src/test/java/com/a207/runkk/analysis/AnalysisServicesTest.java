@@ -538,6 +538,22 @@ class AnalysisServicesTest {
     }
 
     @Test
+    @org.junit.jupiter.api.DisplayName("코치: 오늘 계획 취소는 저장되고 다시 불러도 오류가 없다, 지난 날짜는 PAST_DATE")
+    void coach_deletePlan() {
+        CoachService coach = new CoachService(goals, runs, notifications, policy, clock);
+        coach.putPlan(ME, new DailyPlan(TODAY, Distance.ofKm(4), null));
+
+        coach.deletePlan(ME, TODAY);
+        coach.deletePlan(ME, TODAY);
+
+        assertThat(coach.todayPlan(ME).hasPlan()).isFalse();
+        assertThat(goals.findOrCreate(ME).planOn(TODAY)).isEmpty();
+        assertThatThrownBy(() -> coach.deletePlan(ME, TODAY.minusDays(1)))
+                .extracting(e -> ((BusinessRuleException) e).reason())
+                .isEqualTo(ReasonCode.PAST_DATE);
+    }
+
+    @Test
     @org.junit.jupiter.api.DisplayName("3시 정리: 1년이 지난 날짜별 계획·주간 목표만 지운다")
     void purgePastPlans() {
         RunningGoal goal = goals.findOrCreate(ME);

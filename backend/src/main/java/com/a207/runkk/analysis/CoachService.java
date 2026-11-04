@@ -79,6 +79,14 @@ public class CoachService {
         return GoalResult.of(plan);
     }
 
+    /** 그날 계획을 취소한다. 계획이 없어도 오류가 아니다. 오늘보다 이전 날짜면 PAST_DATE. */
+    @Transactional
+    public void deletePlan(long memberId, LocalDate date) {
+        RunningGoal goals = runningGoalRepository.findOrCreate(memberId);
+        goals.deletePlan(date, LocalDate.now(clock));
+        runningGoalRepository.save(goals);
+    }
+
     /** 날짜마다 checkOn, 오늘 줄에는 supplementFor(cap = policy.supplementCap()). 기간은 93일까지. */
     @Transactional(readOnly = true)
     public PlanProgressView progress(long memberId, DateRange range) {

@@ -149,6 +149,23 @@ class AnalysisDomainTest {
         }
 
         @Test
+        @org.junit.jupiter.api.DisplayName("계획 취소: 그날 계획만 지우고, 없으면 그대로, 지난 날짜는 PAST_DATE")
+        void deletePlan_removesOnlyThatDayAndIsIdempotent() {
+            LocalDate today = MONDAY.plusDays(2);
+            goals.putPlan(new DailyPlan(today, Distance.ofKm(3), null), today);
+            goals.putPlan(new DailyPlan(today.plusDays(1), Distance.ofKm(5), null), today);
+
+            goals.deletePlan(today, today);
+            goals.deletePlan(today, today);
+
+            assertThat(goals.planOn(today)).isEmpty();
+            assertThat(goals.planOn(today.plusDays(1))).isPresent();
+            assertThatThrownBy(() -> goals.deletePlan(today.minusDays(1), today))
+                    .extracting(e -> ((BusinessRuleException) e).reason())
+                    .isEqualTo(ReasonCode.PAST_DATE);
+        }
+
+        @Test
         @org.junit.jupiter.api.DisplayName("checkOn: 부족 = max(0, 계획 − 실제)(FR-074)")
         void checkOn_shortfall() {
             goals.putPlan(new DailyPlan(MONDAY, Distance.ofKm(5), null), MONDAY);
