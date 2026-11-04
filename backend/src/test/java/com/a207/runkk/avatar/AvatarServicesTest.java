@@ -54,13 +54,9 @@ class AvatarServicesTest {
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 10, 21, 9, 0);
     private static final LocalDate TODAY = NOW.toLocalDate();
     private static final long ALICE = 1;
-    private static final byte[] SELFIE = {1, 2, 3};
 
     private final AvatarFakes.Avatars avatars = new AvatarFakes.Avatars();
     private final AvatarFakes.Images images = new AvatarFakes.Images();
-    private final AvatarFakes.Locks locks = new AvatarFakes.Locks();
-    private final AvatarFakes.Failures failures = new AvatarFakes.Failures();
-    private final AvatarFakes.Gateway gateway = new AvatarFakes.Gateway();
     private final RewardService rewards = mock(RewardService.class);
     private final MemberQueryService members = mock(MemberQueryService.class);
     private final OperationPolicy policy = mock(OperationPolicy.class);
@@ -94,8 +90,6 @@ class AvatarServicesTest {
                                         LocalTime.of(21, 0))));
         when(members.hasConsent(ALICE, ConsentItem.FACE_TRANSFER)).thenReturn(true);
         when(rewards.balanceOf(anyLong())).thenReturn(70);
-        SelfieConversion conversion =
-                new SelfieConversion(gateway, images, locks, failures, avatars, members, tx);
         BackgroundService backgrounds =
                 new BackgroundService(
                         avatars,
@@ -107,93 +101,10 @@ class AvatarServicesTest {
                                 java.time.LocalDateTime.of(2026, 10, 1, 0, 0)));
         when(policy.landmarkTable()).thenReturn(new com.a207.runkk.policy.LandmarkTable(List.of()));
         when(runs.validDistanceOf(anyLong())).thenReturn(Distance.ZERO);
-        service =
-                new AvatarService(
-                        avatars, conversion, rewards, members, policy, backgrounds, tx, clock);
+        service = new AvatarService(avatars, rewards, policy, backgrounds, tx, clock);
         appearance =
                 new AppearanceService(
                         avatars, new AppearanceCalculator(), runs, policy, notifications, tx);
-    }
-
-    private static ReasonCode reasonOf(Throwable e) {
-        return ((BusinessRuleException) e).reason();
-    }
-
-    @Test
-    @DisplayName("셀카 성공: 부위 이미지 저장 키로 얼굴을 바꾸고 오늘은 다시 만들 수 없다, 잠금은 풀린다")
-    void selfie_success() {
-        AvatarResult result = service.createFromSelfie(ALICE, SELFIE);
-
-        assertThat(result.created()).isTrue();
-        assertThat(result.view().faceKey()).isEqualTo("selfie:face/1/s1");
-        assertThat(result.view().canCreateSelfieToday()).isFalse();
-        assertThat(result.view().balance()).isEqualTo(70);
-        assertThat(locks.held).isEmpty();
-        assertThatThrownBy(() -> service.createFromSelfie(ALICE, SELFIE))
-                .satisfies(e -> assertThat(reasonOf(e)).isEqualTo(ReasonCode.SELFIE_LIMIT));
-        assertThat(gateway.calls).as("한도 거부는 ai를 부르지 않는다").isEqualTo(1);
-    }
-
-    @Test
-    @DisplayName("변환 실패: 사유 + 기본 캐릭터 안내, 생성 횟수 그대로라 다시 시도할 수 있다")
-    void selfie_failure_keepsCount() {
-        gateway.answer = image -> FaceTransformOutcome.failure(FailureReason.NO_FACE);
-
-        AvatarResult result = service.createFromSelfie(ALICE, SELFIE);
-
-        assertThat(result.created()).isFalse();
-        assertThat(result.failure()).isEqualTo(FailureReason.NO_FACE);
-        assertThat(result.view().guide()).isNotNull();
-        assertThat(result.view().canCreateSelfieToday()).isTrue();
-        assertThat(images.saved).isEmpty();
-    }
-
-    @Test
-    @DisplayName("변환 실패가 하루 5번이면 SELFIE_RETRY_LIMIT, ai를 더 부르지 않는다")
-    void selfie_failureCap() {
-        gateway.answer = image -> FaceTransformOutcome.failure(FailureReason.NO_FACE);
-        for (int i = 0; i < SelfieConversion.MAX_FAILURES_PER_DAY; i++) {
-            assertThat(service.createFromSelfie(ALICE, SELFIE).created()).isFalse();
-        }
-        assertThatThrownBy(() -> service.createFromSelfie(ALICE, SELFIE))
-                .satisfies(e -> assertThat(reasonOf(e)).isEqualTo(ReasonCode.SELFIE_RETRY_LIMIT));
-        assertThat(gateway.calls).isEqualTo(SelfieConversion.MAX_FAILURES_PER_DAY);
-        assertThat(locks.held).isEmpty();
-    }
-
-    @Test
-    @DisplayName("변환하는 사이 탈퇴(동의가 지워짐)하면 부위 이미지를 남기지 않는다")
-    void selfie_withdrawnDuringConversion_leavesNoImages() {
-        gateway.answer =
-                image -> {
-                    when(members.hasConsent(ALICE, ConsentItem.FACE_TRANSFER)).thenReturn(false);
-                    return FaceTransformOutcome.success(AvatarFakes.images());
-                };
-        assertThatThrownBy(() -> service.createFromSelfie(ALICE, SELFIE))
-                .satisfies(
-                        e -> assertThat(reasonOf(e)).isEqualTo(ReasonCode.FACE_CONSENT_REQUIRED));
-        assertThat(images.saved).isEmpty();
-        assertThat(locks.held).isEmpty();
-    }
-
-    @Test
-    @DisplayName("거부: 축소 운영 → 동의 없음 → 진행 중, ai를 부르지 않는다")
-    void selfie_rejections() {
-        when(policy.features()).thenReturn(new FeatureToggles(false, true));
-        assertThatThrownBy(() -> service.createFromSelfie(ALICE, SELFIE))
-                .satisfies(e -> assertThat(reasonOf(e)).isEqualTo(ReasonCode.SELFIE_DISABLED));
-
-        when(policy.features()).thenReturn(new FeatureToggles(true, true));
-        when(members.hasConsent(ALICE, ConsentItem.FACE_TRANSFER)).thenReturn(false);
-        assertThatThrownBy(() -> service.createFromSelfie(ALICE, SELFIE))
-                .satisfies(
-                        e -> assertThat(reasonOf(e)).isEqualTo(ReasonCode.FACE_CONSENT_REQUIRED));
-
-        when(members.hasConsent(ALICE, ConsentItem.FACE_TRANSFER)).thenReturn(true);
-        locks.tryLock(ALICE, Duration.ofSeconds(30));
-        assertThatThrownBy(() -> service.createFromSelfie(ALICE, SELFIE))
-                .satisfies(e -> assertThat(reasonOf(e)).isEqualTo(ReasonCode.SELFIE_IN_PROGRESS));
-        assertThat(gateway.calls).isZero();
     }
 
     @Test
@@ -269,7 +180,10 @@ class AvatarServicesTest {
     @Test
     @DisplayName("부위 이미지: 본인·다른 회원 모두 읽고, 탈퇴한 회원·다른 형식 키는 거부")
     void partImage() {
-        service.createFromSelfie(ALICE, SELFIE);
+        avatars.findForUpdate(ALICE)
+                .orElseThrow()
+                .applySelfieFace(
+                        images.save(ALICE, AvatarFakes.images()), TODAY, new SelfieLimit(1));
         String key = images.saved.get(ALICE).parts().get(FacePart.EYES);
         FaceImageService faces = new FaceImageService(images, members);
         when(members.disclosureOf(anyLong(), any()))
@@ -299,7 +213,10 @@ class AvatarServicesTest {
     @Test
     @DisplayName("탈퇴하면 아바타와 부위 이미지를 지운다")
     void withdrawal() {
-        service.createFromSelfie(ALICE, SELFIE);
+        avatars.findForUpdate(ALICE)
+                .orElseThrow()
+                .applySelfieFace(
+                        images.save(ALICE, AvatarFakes.images()), TODAY, new SelfieLimit(1));
         new AvatarWithdrawalListener(avatars, images)
                 .onMemberWithdrawn(new MemberWithdrawn(ALICE, NOW));
         assertThat(images.saved).isEmpty();
