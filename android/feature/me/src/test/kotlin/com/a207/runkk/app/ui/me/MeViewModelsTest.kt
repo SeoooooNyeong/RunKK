@@ -7,10 +7,13 @@ import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.core.model.TierDisplay
 import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.account.ChangeSettingUseCase
 import com.a207.runkk.app.domain.account.LinkSocialAccountUseCase
 import com.a207.runkk.app.domain.account.LogoutUseCase
+import com.a207.runkk.app.domain.account.PlacementProgress
+import com.a207.runkk.app.domain.account.PlacementStatus
 import com.a207.runkk.app.domain.account.ProfileEdit
 import com.a207.runkk.app.domain.account.ProviderType
 import com.a207.runkk.app.domain.account.WithdrawUseCase
@@ -71,6 +74,25 @@ class MeViewModelsTest {
         assertEquals(sampleProfile, vm.state.value.profile)
         assertEquals(listOf("profile:${AccountRepository.SELF}"), account.calls)
         assertFalse(vm.state.value.isLoading)
+    }
+
+    @Test
+    fun `TC-5861 마이는 본인 표시, 다른 러너는 공개 표시를 쓴다`() {
+        account.profile = sampleProfile.copy(tier = "UNRANKED")
+        account.placementResult = Outcome.Success(
+            PlacementProgress(PlacementStatus.IN_PROGRESS, 1, 2, "PLATINUM", "UNRANKED", emptyList())
+        )
+        assertEquals(TierDisplay.Provisional("PLATINUM"), MeViewModel(account).state.value.tierDisplay)
+
+        // 진행을 못 읽으면 프로필의 공개 티어를 쓴다(임시 티어 없음).
+        account.placementResult = Outcome.Failure(AppError.Network)
+        assertEquals(TierDisplay.Placing, MeViewModel(account).state.value.tierDisplay)
+
+        // 다른 러너는 서버가 준 공개 티어만(임시 티어가 오지 않는다).
+        val other =
+            OtherProfileUiState(memberId = 9, isLoading = false, profile = sampleProfile.copy(tier = "UNRANKED"))
+        assertEquals(TierDisplay.Placing, other.tierDisplay)
+        assertEquals(TierDisplay.Confirmed("GOLD"), other.copy(profile = sampleProfile.copy(tier = "GOLD")).tierDisplay)
     }
 
     @Test

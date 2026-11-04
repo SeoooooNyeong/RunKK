@@ -123,6 +123,12 @@ class FakeAccountRepository : AccountRepository {
 
     override suspend fun profile(memberId: Long): Outcome<Profile> = call("profile:$memberId") { profile }
 
+    /** 배치 진행(D-493). 호출 목록(calls)에는 남기지 않는다. 기본은 못 읽음이다. */
+    var placementResult: Outcome<com.a207.runkk.app.domain.account.PlacementProgress> =
+        Outcome.Failure(AppError.Network)
+
+    override suspend fun placement(): Outcome<com.a207.runkk.app.domain.account.PlacementProgress> = placementResult
+
     override suspend fun mySummary(): Outcome<MySummary> = error("ui.me는 본인 요약을 쓰지 않는다")
 
     override suspend fun editProfile(edit: ProfileEdit): Outcome<Unit> {

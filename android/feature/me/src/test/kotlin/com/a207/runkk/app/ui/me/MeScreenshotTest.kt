@@ -10,6 +10,7 @@ import com.a207.runkk.app.core.designsystem.testing.RUNKK_PHONE
 import com.a207.runkk.app.core.designsystem.testing.captureRunkkScreen
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Gender
+import com.a207.runkk.app.core.model.TierDisplay
 import com.a207.runkk.app.domain.account.MemberSettings
 import org.junit.Rule
 import org.junit.Test
@@ -54,14 +55,32 @@ class MeScreenshotTest {
 
     @Test
     fun me() = compose.captureRunkkScreen("me_profile_menu") {
-        MeScreen(MeUiState(isLoading = false, profile = sampleProfile), onNavigate = {}, onRetry = {})
+        MeScreen(placingMe, onNavigate = {}, onRetry = {})
     }
+
+    /** TC-5862 배치 중 본인 마이: 점선 테두리 「임시 플래티넘」 작은 배지. */
+    private val placingMe = MeUiState(
+        isLoading = false,
+        profile = sampleProfile.copy(tier = "UNRANKED"),
+        tierDisplay = TierDisplay.Provisional("PLATINUM")
+    )
+
+    /** TC-5863 언랭 회원의 다른 러너 프로필: 「언랭」 글자 대신 「배치 중」 작은 배지. */
+    private val placingOther = OtherProfileUiState(
+        memberId = 9,
+        isLoading = false,
+        profile = sampleProfile.copy(tier = "UNRANKED")
+    )
 
     /** 프로필 원에 기본 캐릭터(faceKey "default:BEAR") 그림. */
     @Test
     fun meDefaultCharacter() = compose.captureRunkkScreen("me_profile_default_character") {
         MeScreen(
-            MeUiState(isLoading = false, profile = sampleProfile.copy(faceKey = "default:BEAR")),
+            MeUiState(
+                isLoading = false,
+                profile = sampleProfile.copy(faceKey = "default:BEAR", tier = "GOLD"),
+                tierDisplay = TierDisplay.Confirmed("GOLD")
+            ),
             onNavigate = {},
             onRetry = {}
         )
@@ -185,7 +204,7 @@ class MeScreenshotTest {
     // 라이트 벌(FR-203, NFR-041 화면 10개 × 테마 2).
     @Test
     fun meLight() = compose.captureRunkkScreen("me_profile_menu_light", isDarkTheme = false) {
-        MeScreen(MeUiState(isLoading = false, profile = sampleProfile), onNavigate = {}, onRetry = {})
+        MeScreen(placingMe, onNavigate = {}, onRetry = {})
     }
 
     @Test
@@ -245,11 +264,11 @@ class MeScreenshotTest {
 
     @Test
     fun otherProfile() = compose.captureRunkkScreen("F8_other_profile") {
-        OtherProfileScreen(OtherProfileUiState(memberId = 9, isLoading = false, profile = sampleProfile), {}, {})
+        OtherProfileScreen(placingOther, {}, {})
     }
 
     @Test
     fun otherProfileLight() = compose.captureRunkkScreen("F8_other_profile_light", isDarkTheme = false) {
-        OtherProfileScreen(OtherProfileUiState(memberId = 9, isLoading = false, profile = sampleProfile), {}, {})
+        OtherProfileScreen(placingOther, {}, {})
     }
 }

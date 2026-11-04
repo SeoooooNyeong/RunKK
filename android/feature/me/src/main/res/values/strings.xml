@@ -14,7 +14,6 @@
     <string name="me_menu_withdraw">회원 탈퇴</string>
     <string name="me_logout_title">로그아웃할까요?</string>
     <string name="me_logout_confirm">로그아웃</string>
-    <string name="me_profile_default_tier">언랭</string>
     <string name="me_profile_level">Lv.%1$s</string>
     <string name="me_profile_edit">프로필 편집</string>
     <string name="me_profile_runimal">MY Runimal</string>

@@ -41,13 +41,15 @@ import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
+import com.a207.runkk.app.core.designsystem.TierBadge
+import com.a207.runkk.app.core.designsystem.TierBadgeSize
 import com.a207.runkk.app.core.designsystem.UnreleasedFeature
 import com.a207.runkk.app.core.designsystem.asString
-import com.a207.runkk.app.core.designsystem.tierName
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.model.Gender
+import com.a207.runkk.app.core.model.TierDisplay
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.domain.account.Profile
 import com.a207.runkk.app.domain.account.RecentRun
@@ -82,7 +84,7 @@ fun OtherProfileScreen(
                 modifier = Modifier.weight(1f)
             )
 
-            else -> OtherProfileBody(profile, state.faceLayers, Modifier.weight(1f))
+            else -> OtherProfileBody(profile, state.tierDisplay, state.faceLayers, Modifier.weight(1f))
         }
     }
 }
@@ -92,8 +94,12 @@ fun OtherProfileScreen(
  * "최근 러닝" 최대 3줄(종류·날짜·거리, 서버가 기록 공개 범위를 통과할 때만 준다. 없으면 영역 없음).
  */
 @Composable
-private fun OtherProfileBody(profile: Profile, faceLayers: List<FaceLayer>, modifier: Modifier = Modifier) {
-    val defaultTier = stringResource(R.string.me_profile_default_tier)
+private fun OtherProfileBody(
+    profile: Profile,
+    tierDisplay: TierDisplay?,
+    faceLayers: List<FaceLayer>,
+    modifier: Modifier = Modifier
+) {
     val level = profile.level?.let { stringResource(R.string.me_profile_level, it) }
     val about = aboutLine(LocalContext.current.resources, profile)
     val isCrewOpen = LocalReleaseScope.current.isOpen(UnreleasedFeature.CREW)
@@ -115,11 +121,11 @@ private fun OtherProfileBody(profile: Profile, faceLayers: List<FaceLayer>, modi
             color = RunkkColors.TextPrimary,
             modifier = Modifier.semantics { heading() }
         )
-        Text(
-            listOfNotNull(tierName(profile.tier) ?: defaultTier, level).joinToString(", "),
-            style = RunkkTextStyles.Label,
-            color = RunkkColors.TextSecondary
-        )
+        // 공개 티어는 작은 배지(「언랭」 글자 대신 「배치 중」, D-507), 레벨은 글자.
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            tierDisplay?.let { TierBadge(it, TierBadgeSize.SMALL) }
+            level?.let { Text(it, style = RunkkTextStyles.Label, color = RunkkColors.TextSecondary) }
+        }
         if (isCrewOpen) {
             profile.crewName?.let { Text(it, style = RunkkTextStyles.Body, color = RunkkColors.TextPrimary) }
         }
