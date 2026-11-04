@@ -1,11 +1,9 @@
 package com.a207.runkk.app.ui.run
 
-import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.designsystem.RunkkErrorText
 import com.a207.runkk.app.core.designsystem.RunkkFormat
-import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.uiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.CardKind
@@ -64,7 +62,6 @@ class RunViewModel @Inject constructor(
     private var goal: PlanSnapshot? = null
     private var planLoaded = false
     private var startDevice = RunStartSpec.StartDevice.PHONE
-    private var hintJob: Job? = null
     private var bannerJob: Job? = null
 
     /** 마지막으로 배너를 띄운 km. 첫 진행값(화면을 다시 연 경우 지금 거리)으로 맞추고 배너는 띄우지 않는다. */
@@ -110,10 +107,11 @@ class RunViewModel @Inject constructor(
         _events.trySend(RunEvent.Exit)
     }
 
-    fun onFinishTapped() {
-        tracker.onFinishTapped()
-        showHint(R.string.run_hold_to_finish)
-    }
+    /**
+     * 종료 버튼 짧게 누름·측정 중 뒤로 가기(FR-181). "길게 눌러 종료"는 버튼 아래 캡션이 늘 보여 주므로
+     * 안내 줄과 안내 띠를 더 띄우지 않는다. 같은 문구가 세 군데 겹쳐 보였다(2026-11-04 핫픽스, S15P31A207-275).
+     */
+    fun onFinishTapped() = Unit
 
     /**
      * 길게 눌러 종료(FR-181, 정지 중에도 FR-036). 끝난 결과(저장됨·저장 안 함)는 RunTracker.ended로 받아 이동한다(워치 종료와 같은 길).
@@ -246,17 +244,7 @@ class RunViewModel @Inject constructor(
         _state.update { s -> s.copy(progress = progress, splitBanner = newSplit ?: s.splitBanner) }
     }
 
-    private fun showHint(@StringRes text: Int) {
-        _state.update { it.copy(hint = UiText.Res(text)) }
-        hintJob?.cancel()
-        hintJob = viewModelScope.launch {
-            delay(HINT_MILLIS)
-            _state.update { it.copy(hint = null) }
-        }
-    }
-
     private companion object {
-        const val HINT_MILLIS = 2_500L
         const val BANNER_MILLIS = 10_000L
         const val METERS_PER_KM = 1_000L
     }
