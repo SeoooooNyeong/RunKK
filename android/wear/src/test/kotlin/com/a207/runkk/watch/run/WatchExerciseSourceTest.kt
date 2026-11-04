@@ -175,6 +175,22 @@ class WatchExerciseSourceTest {
         assertEquals(1, ended.size)
     }
 
+    @Test
+    fun `새 세션을 연 뒤에 온 이전 세션의 끝 알림은 측정 끝으로 보내지 않고 이번 세션의 끝만 보낸다`() = runTest {
+        val source = source()
+        val ended = mutableListOf<Unit>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { source.ended.collect { ended += it } }
+        // 이 앱이 남긴 세션(동행 심박 수집, 지난 측정)을 끝내고 새로 연다. 그 세션의 끝 알림은 새 콜백에 늦게 올 수 있다.
+        client.trackedStatus = OWNED
+
+        source.start()
+        client.deliverEnded(startTime = Instant.ofEpochMilli(T0).minus(Duration.ofMinutes(10)))
+        assertEquals(0, ended.size)
+
+        client.deliverEnded()
+        assertEquals(1, ended.size)
+    }
+
     private fun location(atBoot: Duration, accuracy: Double) = SampleDataPoint(
         DataType.LOCATION,
         LocationData(37.5, 127.0),
@@ -205,7 +221,10 @@ class WatchExerciseSourceTest {
 }
 
 /** 가짜 ExerciseClient. 부른 순서를 [events]에 남기고, 등록된 콜백으로 [deliver]가 측정값을 흘린다. */
-internal class FakeExerciseClient : ExerciseClient {
+internal class FakeExerciseClient(
+    /** 운동 세션이 시작되는 시각. Health Services처럼 시작 요청을 받은 뒤의 시각이다. */
+    private val startTime: () -> Instant = { Instant.ofEpochMilli(T0) }
+) : ExerciseClient {
     @SuppressLint("RestrictedApi")
     var trackedStatus: Int = ExerciseTrackedStatus.NO_EXERCISE_IN_PROGRESS
     var config: ExerciseConfig? = null
@@ -227,6 +246,7 @@ internal class FakeExerciseClient : ExerciseClient {
     override fun startExerciseAsync(configuration: ExerciseConfig): ListenableFuture<Void> {
         events += "start"
         config = configuration
+        exerciseStartTime = startTime()
         return done()
     }
 
@@ -241,9 +261,16 @@ internal class FakeExerciseClient : ExerciseClient {
     override fun endExerciseAsync(): ListenableFuture<Void> =
         ((endFuture as ListenableFuture<Void>?) ?: done()).also { events += "end" }
 
-    /** 등록된 콜백에 운동 세션이 끝났다고 알린다. */
-    fun deliverEnded() {
-        checkNotNull(callback as? WatchExerciseSource.MetricsReceiver) { "콜백이 없다" }.onState(isEnded = true)
+    /** 마지막으로 시작한 운동 세션의 시작 시각([startTime]이 찍는다). */
+    var exerciseStartTime: Instant? = null
+
+    /**
+     * 등록된 콜백에 운동 세션이 끝났다고 알린다. [startTime]은 끝난 세션의 시작 시각이고, 기본은 마지막으로 시작한 세션이다. 이전 세션의
+     * 늦은 끝 알림은 그 세션의 시작 시각을 넘긴다.
+     */
+    fun deliverEnded(startTime: Instant? = exerciseStartTime) {
+        checkNotNull(callback as? WatchExerciseSource.MetricsReceiver) { "콜백이 없다" }
+            .onState(isEnded = true, startTime = startTime, endReason = USER_END)
     }
 
     override fun setUpdateCallback(callback: ExerciseUpdateCallback) {
@@ -278,4 +305,9 @@ internal class FakeExerciseClient : ExerciseClient {
     override fun getCapabilitiesAsync(): ListenableFuture<ExerciseCapabilities> = error("쓰지 않는다")
 
     override fun updateExerciseTypeConfigAsync(exerciseTypeConfig: ExerciseTypeConfig): ListenableFuture<Void> = done()
+
+    private companion object {
+        /** ExerciseEndReason.USER_END */
+        const val USER_END = 4
+    }
 }
