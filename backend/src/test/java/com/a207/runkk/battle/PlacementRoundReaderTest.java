@@ -116,4 +116,21 @@ class PlacementRoundReaderTest {
         assertThat(readerAt(judgedAt.plusHours(24)).stateOf(ALICE, placement.getId()))
                 .contains(PlacementRoundState.NOT_COUNTED);
     }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName(
+            "PL1-B8 셀 수 있는데 세지 못한 판은 복구 창(판정 뒤 7일)까지 PENDING, 그 뒤 NOT_COUNTED(더 셀 계기가 없음)")
+    void countableButUncounted_closesAfterRecoveryWindow() {
+        members.save(MemberFixtures.member("배치곰"));
+        progress.put(PlacementProgress.start(ALICE));
+        Battle placement =
+                battles.save(PlacementRoundCheckTest.judged(true, Duration.ofMinutes(25)));
+        validSummary();
+        LocalDateTime judgedAt = placement.getJudgement().orElseThrow().at();
+
+        assertThat(readerAt(judgedAt.plusDays(7).minusSeconds(1)).stateOf(ALICE, placement.getId()))
+                .contains(PlacementRoundState.PENDING);
+        assertThat(readerAt(judgedAt.plusDays(7)).stateOf(ALICE, placement.getId()))
+                .contains(PlacementRoundState.NOT_COUNTED);
+    }
 }

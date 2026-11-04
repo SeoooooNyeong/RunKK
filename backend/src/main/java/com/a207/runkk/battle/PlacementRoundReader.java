@@ -9,6 +9,8 @@ import com.a207.runkk.running.RunSummary;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,6 +20,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Component
 public class PlacementRoundReader {
+
+    private static final Logger log = LoggerFactory.getLogger(PlacementRoundReader.class);
 
     private final BattleRepository battleRepository;
     private final RunQueryService runQueryService;
@@ -58,12 +62,27 @@ public class PlacementRoundReader {
                         .flatMap(runQueryService::findSummary)
                         .map(RunSummary::valid)
                         .orElse(null);
-        PlacementRoundCheck check =
-                PlacementRoundCheck.of(battle, memberId, valid, LocalDateTime.now(clock));
-        return Optional.of(
+        LocalDateTime now = LocalDateTime.now(clock);
+        PlacementRoundCheck check = PlacementRoundCheck.of(battle, memberId, valid, now);
+        PlacementRoundState state =
                 PlacementRoundState.of(
                         check,
                         placementService.isCounted(memberId, battleId),
-                        placementService.isCompleted(memberId)));
+                        placementService.isCompleted(memberId));
+        if (state == PlacementRoundState.PENDING
+                && check.countable()
+                && recoveryClosed(battle, now)) {
+            // 셀 수 있는데 세 계기가 모두 실패한 채 복구 창이 지났다. 더 셀 계기가 없어 닫는다(코드 리뷰 PL1-B8)
+            log.warn("placement_round_unrecovered battleId={} memberId={}", battleId, memberId);
+            return Optional.of(PlacementRoundState.NOT_COUNTED);
+        }
+        return Optional.of(state);
+    }
+
+    /** 판정 뒤 복구 작업이 다시 보는 기간(PlacementReconcileService.LOOKBACK, 7일)이 지났는가. */
+    private static boolean recoveryClosed(Battle battle, LocalDateTime now) {
+        return battle.getJudgement()
+                .map(j -> !now.isBefore(j.at().plus(PlacementReconcileService.LOOKBACK)))
+                .orElse(false);
     }
 }
