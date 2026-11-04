@@ -271,47 +271,8 @@ private fun ranOnLabel(date: LocalDate): String =
 @Composable
 private fun DistanceSelect(selected: Distance, isOpen: Boolean, onToggle: () -> Unit, onSelect: (Distance) -> Unit) {
     val shape = RoundedCornerShape(12.dp)
-    val label = stringResource(R.string.friend_battle_distance)
-    val value = RunkkFormat.targetLabel(selected)
-    val state =
-        stringResource(
-            if (isOpen) R.string.friend_battle_distance_expanded else R.string.friend_battle_distance_collapsed
-        )
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 48.dp)
-                .clip(shape)
-                .background(RunkkColors.Surface)
-                .border(
-                    if (isOpen) 1.5.dp else 1.dp,
-                    if (isOpen) RunkkColors.TextPrimary else RunkkColors.BorderStrong,
-                    shape
-                )
-                .clickable(onClick = onToggle)
-                .clearAndSetSemantics {
-                    contentDescription = "$label $value"
-                    stateDescription = state
-                    role = Role.DropdownList
-                }
-                .padding(start = 16.dp, end = 10.dp, top = 12.dp, bottom = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                label,
-                style = RunkkTextStyles.text(14, FontWeight.Medium),
-                color = RunkkColors.TextSecondary,
-                modifier = Modifier.weight(1f)
-            )
-            Text(value, style = RunkkTextStyles.text(14, FontWeight.Bold), color = RunkkColors.TextPrimary)
-            Icon(
-                if (isOpen) RunkkIcons.ChevronUp else RunkkIcons.ChevronDown,
-                contentDescription = null,
-                tint = RunkkColors.TextPrimary,
-                modifier = Modifier.padding(start = 2.dp).size(22.dp)
-            )
-        }
+        DistanceBox(selected, isOpen, onToggle)
         if (isOpen) {
             Column(
                 modifier = Modifier
@@ -327,6 +288,52 @@ private fun DistanceSelect(selected: Distance, isOpen: Boolean, onToggle: () -> 
                 }
             }
         }
+    }
+}
+
+/** 거리 상자 머리(「거리」, 값, 꺾쇠). 펼침 목록 상자로 읽고 펼침·접힘 상태를 알린다. */
+@Composable
+private fun DistanceBox(selected: Distance, isOpen: Boolean, onToggle: () -> Unit) {
+    val shape = RoundedCornerShape(12.dp)
+    val label = stringResource(R.string.friend_battle_distance)
+    val value = RunkkFormat.targetLabel(selected)
+    val state =
+        stringResource(
+            if (isOpen) R.string.friend_battle_distance_expanded else R.string.friend_battle_distance_collapsed
+        )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .clip(shape)
+            .background(RunkkColors.Surface)
+            .border(
+                if (isOpen) 1.5.dp else 1.dp,
+                if (isOpen) RunkkColors.TextPrimary else RunkkColors.BorderStrong,
+                shape
+            )
+            .clickable(onClick = onToggle)
+            .clearAndSetSemantics {
+                contentDescription = "$label $value"
+                stateDescription = state
+                role = Role.DropdownList
+            }
+            .padding(start = 16.dp, end = 10.dp, top = 12.dp, bottom = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            label,
+            style = RunkkTextStyles.text(14, FontWeight.Medium),
+            color = RunkkColors.TextSecondary,
+            modifier = Modifier.weight(1f)
+        )
+        Text(value, style = RunkkTextStyles.text(14, FontWeight.Bold), color = RunkkColors.TextPrimary)
+        Icon(
+            if (isOpen) RunkkIcons.ChevronUp else RunkkIcons.ChevronDown,
+            contentDescription = null,
+            tint = RunkkColors.TextPrimary,
+            modifier = Modifier.padding(start = 2.dp).size(22.dp)
+        )
     }
 }
 
