@@ -3,6 +3,7 @@ package com.a207.runkk.member;
 import static com.a207.runkk.member.MemberFixtures.NOW;
 import static com.a207.runkk.member.PlacementProgressTest.input;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
@@ -10,7 +11,9 @@ import static org.mockito.Mockito.when;
 
 import com.a207.runkk.audit.AuditService;
 import com.a207.runkk.audit.InMemoryAuditRepository;
+import com.a207.runkk.common.BusinessRuleException;
 import com.a207.runkk.common.Distance;
+import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.common.StandardDistance;
 import com.a207.runkk.common.Tier;
 import com.a207.runkk.policy.InMemoryOperationSettingRepository;
@@ -163,6 +166,18 @@ class PlacementServiceTest {
     }
 
     @Test
+    @DisplayName("PL1-B3 lockForMatch: 잠근 뒤 회원이 탈퇴(ACTIVE 아님)면 MATCH_FAILED로 되돌린다(J24-9)")
+    void lockForMatch_withdrawnMember_fails() {
+        long id = saved("떠난곰");
+        members.findById(id).orElseThrow().withdraw(NOW);
+
+        assertThatThrownBy(() -> service.lockForMatch(id))
+                .isInstanceOf(BusinessRuleException.class)
+                .extracting(e -> ((BusinessRuleException) e).reason())
+                .isEqualTo(ReasonCode.MATCH_FAILED);
+    }
+
+    @Test
     @DisplayName("TC-5769 정정은 센 판의 승패만 바꾸고 행이 없으면 아무것도 하지 않는다")
     void correctVerdict_onlyCountedRound() {
         long id = saved("새곰");
@@ -177,15 +192,21 @@ class PlacementServiceTest {
     }
 
     @Test
-    @DisplayName("TC-5772 탈퇴 두 경로(본인 탈퇴, 미이용 게스트 파기 공통 연산)는 배치 진행 행을 지운다(D-489)")
+    @DisplayName("TC-5772 탈퇴 두 경로(본인 탈퇴, 미이용 게스트 파기 공통 연산)는 가드보다 먼저 진행 행을 잠그고 지운다(D-489, PL1-B3)")
     void withdraw_deletesPlacementRow() {
         long id = saved("떠날곰");
         progress.put(PlacementProgress.start(id));
+        List<String> lockedWhenGuarded = new java.util.ArrayList<>();
+        WithdrawalGuard guard =
+                memberId -> {
+                    lockedWhenGuarded.addAll(progress.calls());
+                    return Optional.empty();
+                };
         WithdrawalService withdrawal =
                 new WithdrawalService(
                         members,
                         progress,
-                        List.of(),
+                        List.of(guard),
                         List.of(),
                         new AuditService(
                                 new InMemoryAuditRepository(),
@@ -202,7 +223,10 @@ class PlacementServiceTest {
         assertThat(progress.has(id)).isFalse();
         assertThat(progress.calls())
                 .as("판 셈과 같은 잠금 순서: 진행 행을 먼저 잠근다(교착 방지)")
-                .containsSubsequence("findByIdForUpdate", "deleteByMemberId");
+                .containsSubsequence("lockOrCreate", "deleteByMemberId");
+        assertThat(lockedWhenGuarded)
+                .as("PL1-B3 가드보다 먼저 진행 행을 잠근다(INSERT … ON CONFLICT 뒤 잠금으로 커밋 전 매칭과 직렬화)")
+                .containsExactly("lockOrCreate");
         assertThat(service.countRound(id, input(1, 30, 1)))
                 .as("탈퇴 뒤 셈·복구가 행을 되살리지 않는다")
                 .isEqualTo(new PlacementCount.Ignored("no-progress"));

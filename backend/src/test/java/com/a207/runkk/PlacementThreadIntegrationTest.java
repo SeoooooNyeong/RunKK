@@ -579,6 +579,52 @@ class PlacementThreadIntegrationTest {
 
     @Test
     @org.junit.jupiter.api.DisplayName(
+            "PL1-B3 첫 배치고사 요청과 탈퇴가 동시에 와도 탈퇴 회원에게 진행 행·활성 대결이 남지 않는다(J24-9·D-489)")
+    void matchVersusWithdrawal_leavesNothingForWithdrawn() throws Exception {
+        for (int i = 0; i < 8; i++) {
+            long m = member("갈림곰" + i);
+
+            together(
+                    List.of(
+                            () -> {
+                                try {
+                                    return matching.requestMatch(m, StandardDistance.KM5);
+                                } catch (BusinessRuleException e) {
+                                    return e.reason();
+                                }
+                            },
+                            () -> {
+                                try {
+                                    return withdrawals.withdraw(m);
+                                } catch (BusinessRuleException e) {
+                                    return e.reason();
+                                }
+                            }));
+
+            boolean withdrawn = !memberQuery.isActive(m);
+            int progress =
+                    jdbc.queryForObject(
+                            "select count(*) from placement_progress where member_id = ?",
+                            Integer.class,
+                            m);
+            int active =
+                    jdbc.queryForObject(
+                            "select count(*) from battle_participant where member_id = ? and"
+                                    + " active_member_id is not null",
+                            Integer.class,
+                            m);
+            if (withdrawn) {
+                assertThat(progress).as("탈퇴 회원 진행 행, 반복 %d", i).isZero();
+                assertThat(active).as("탈퇴 회원 활성 대결, 반복 %d", i).isZero();
+            } else {
+                assertThat(progress).as("남은 회원 진행 행, 반복 %d", i).isEqualTo(1);
+                assertThat(active).as("남은 회원 활성 대결, 반복 %d", i).isEqualTo(1);
+            }
+        }
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName(
             "TC-5926 배치고사가 아닌 러닝(자유 러닝 12회)은 판으로 세지 않고 티어도 정하지 않는다(J24-5·J24-6)")
     void otherRunsDoNotCountForPlacement() {
         long m = member("자유곰");

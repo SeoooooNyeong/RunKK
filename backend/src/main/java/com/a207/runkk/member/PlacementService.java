@@ -1,5 +1,7 @@
 package com.a207.runkk.member;
 
+import com.a207.runkk.common.BusinessRuleException;
+import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.common.Tier;
 import com.a207.runkk.policy.OperationPolicy;
 import java.util.List;
@@ -64,13 +66,20 @@ public class PlacementService {
     }
 
     /**
-     * 배치고사 대결을 만들기 전 진행 행을 잠근다(없으면 만든다, D-478). 잠근 뒤 회원 티어를 다시 읽어 랭크 티어면(3판째 셈이 그 사이 커밋) 비어 있고, 부르는
-     * 쪽이 확정 티어 흐름으로 간다(D-518). 부르는 쪽 트랜잭션 안에서만 돈다.
+     * 배치고사 대결을 만들기 전 진행 행을 잠근다(없으면 만든다, D-478). 잠근 뒤 회원을 DB에서 다시 읽는다(같은 트랜잭션이 앞서 올린 1차 캐시 값이 아님). 그
+     * 사이 탈퇴가 커밋됐으면(ACTIVE 아님) BusinessRuleException(MATCH_FAILED)으로 되돌려 탈퇴 회원의 진행 행·대결을 남기지
+     * 않는다(J24-9, 코드 리뷰 PL1-B3). 랭크 티어이거나 진행이 완료면(3판째 셈이 그 사이 커밋) 비어 있고, 부르는 쪽이 확정 티어 흐름으로
+     * 간다(D-518). 부르는 쪽 트랜잭션 안에서만 돈다.
      */
     @Transactional(propagation = Propagation.MANDATORY)
     public Optional<PlacementBasis> lockForMatch(long memberId) {
         PlacementProgress progress = progressRepository.lockOrCreate(memberId);
         Member member = MemberLoader.load(memberRepository, memberId);
+        memberRepository.refresh(member);
+        if (member.getStatus() != MemberStatus.ACTIVE) {
+            log.info("placement_match_inactive memberId={}", memberId);
+            throw new BusinessRuleException(ReasonCode.MATCH_FAILED);
+        }
         if (member.getTier().isRanked() || progress.isCompleted()) {
             return Optional.empty();
         }
