@@ -44,11 +44,16 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
- * 워치 화면 흐름 상태(WatchFlow, 상태도 2.4.25)를 정하고 사용자 조작을 domain에 넘긴다(3.5, D-374). 협력 객체는 일곱이다(D-386):
+ * 워치 화면 흐름 상태(WatchFlow, 상태도 2.4.25)를 정하고 사용자 조작을 domain에 넘긴다(3.5, D-374). 협력 객체는 아홉이다(D-386, W52, W53):
  * 측정 RunTracker, 대결 WatchBattleFlow, 로그인 WatchSessionStore, 폰 PhoneLink(동행 표시·로그인 정보 요청), 서버 연결 NetworkState,
- * 안내 문구 WatchGuidanceOutput, 본인 요약 AccountRepository(티어·성별).
+ * 안내 문구 WatchGuidanceOutput, 본인 요약 AccountRepository(티어·성별), 워치 시스템 위치 LocationSettingState, GPS 예열 GpsWarmUp.
  *
- * - 시작 전 확인: 폰이 측정 중이면 거부(FR-252), 위치 동의가 없으면 "폰에서 위치 수집 동의를 해 주세요"(FR-245). 배틀런은 서버에 닿지
+ * - GPS(W53): 메인·거리 선택·셀럽 목록이 화면에 보이는 동안(앱이 앞에 있고 저전력 표시가 아님) GPS를 예열하고 메인에 찾는 중·준비됨을
+ *   보인다. 워치 위치가 꺼져 있으면 예열하지 않고 메인에 위치 안내를 보인다. 시작하면(카운트다운·매칭) 예열을 멈춘다. 측정 중에는 위치를
+ *   아직 받지 못했거나 마지막 위치 뒤 [GPS_STALE_MILLIS]가 지나면 "GPS 찾는 중"이다.
+ *
+ * - 시작 전 확인: 폰이 측정 중이면 거부(FR-252), 위치 동의가 없으면 "폰에서 위치 수집 동의를 해 주세요"(FR-245), 워치 시스템 위치가
+ *   꺼져 있으면 "워치 위치를 켜 주세요"(W52, 카운트다운·서버 대결·매칭 전에 막는다). 배틀런은 서버에 닿지
  *   않으면 시작하지 않는다(FR-251). 배틀런은 언랭이면 매칭을 요청하기 전에 잠근다(FR-080, 폰 RandomBattleGate와 같은 규칙). 서버 거부는
  *   사유 코드마다 폰 BattleErrorText와 같은 뜻의 안내를 보인다(코드 리뷰 WR12-1). 셀프·셀럽런은 서버에 닿으면 서버 대결, 아니면 미리 받은 상대 기록으로 워치에서만 한다(D-377, R72).
  * - 자유런은 이 ViewModel이 3·2·1·GO 뒤 RunTracker.startRun을 부르고, 대결은 BattleRunCoordinator가 출발을 정한다.
@@ -70,7 +75,9 @@ class WatchFlowViewModel @Inject constructor(
     private val phoneLink: PhoneLink,
     private val connectivity: NetworkState,
     private val guidance: WatchGuidanceOutput,
-    private val accounts: AccountRepository
+    private val accounts: AccountRepository,
+    private val locationSetting: LocationSettingState,
+    private val gpsWarmUp: GpsWarmUp
 ) : ViewModel() {
     /**
      * 러닝 한 회의 화면 맥락. [opponent]는 셀프·셀럽 상대 기록, [battleId]는 서버 대결 ID(오프라인 기록 대결은 0)다. [isFinished]는
@@ -123,6 +130,17 @@ class WatchFlowViewModel @Inject constructor(
     /** 로그인 정보 요청. 폰에 닿은 요청 뒤 [SESSION_REQUEST_GAP_MILLIS] 동안 살아 있어 그 사이 요청을 건너뛴다(WR13-1). */
     private var sessionRequestJob: Job? = null
 
+    /** 앱 화면이 보인다(onResume~onPause)와 저전력 표시 중이다. 둘로 GPS 예열을 켜고 끈다(W53). */
+    private val isShown = MutableStateFlow(false)
+    private val isAmbient = MutableStateFlow(false)
+
+    /** 메인에 보일 GPS 예열 상태(W53). 메인을 새로 만들 때 잇는다. */
+    private var gpsStatus: WatchFlow.GpsStatus? = null
+
+    /** 측정 중 위치를 받지 못하고 있다(W53). 위치를 받으면 거짓, [GPS_STALE_MILLIS] 동안 더 받지 못하면 다시 참이다. */
+    private var isGpsSearching = true
+    private var gpsStaleJob: Job? = null
+
     private val _flow = MutableStateFlow(initialFlow())
     val flow: StateFlow<WatchFlow> = _flow.asStateFlow()
 
@@ -162,6 +180,13 @@ class WatchFlowViewModel @Inject constructor(
                 it
             }.collect { if (_flow.value is WatchFlow.NotLoggedIn) requestSession() }
         }
+        viewModelScope.launch {
+            val screen = _flow.map(::isWarmUpScreen).distinctUntilChanged()
+            combine(screen, isShown, isAmbient) { onScreen, shown, ambient -> onScreen && shown && !ambient }
+                .distinctUntilChanged()
+                .collectLatest(::warmUpGps)
+        }
+        viewModelScope.launch { runTracker.routeLine.collect { onRouteLine(it.size) } }
         // 기록을 보낸 뒤 상대 기록을 다시 받는다(SQ-46). 회원이 바뀌면 이전 구독을 끊는다.
         viewModelScope.launch {
             sessionStore.state.collectLatest { session ->
@@ -331,6 +356,19 @@ class WatchFlowViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 앱 화면이 보인다(onResume)·가려졌다(onPause). 보이는 동안만 GPS를 예열한다(W53). 빠른 설정·위치 설정에서 돌아올 때 워치 위치를
+     * 다시 본다.
+     */
+    fun onScreenShown(shown: Boolean) {
+        isShown.value = shown
+    }
+
+    /** 저전력 표시에 들어갔다·나왔다. 저전력 표시 중에는 GPS를 예열하지 않는다(W53, NFR-048). */
+    fun onAmbientChanged(ambient: Boolean) {
+        isAmbient.value = ambient
+    }
+
     /** 워치 OS 위치 권한 창에서 거절했다(FR-245). 고른 화면에 안내를 띄운다. */
     fun onLocationPermissionDenied() = showNotice(WatchFlow.Notice.LOCATION_PERMISSION)
 
@@ -356,7 +394,7 @@ class WatchFlowViewModel @Inject constructor(
             return if (isFree && progress.isPaused) {
                 WatchFlow.Paused(progress, goal)
             } else {
-                WatchFlow.Running(restored.mode, progress, goal, isPausable = isFree)
+                WatchFlow.Running(restored.mode, progress, goal, isPausable = isFree, isGpsSearching = isGpsSearching)
             }
         }
         restoredBattle()?.let { return it }
@@ -458,7 +496,7 @@ class WatchFlowViewModel @Inject constructor(
             _flow.value = WatchFlow.NotLoggedIn
             return
         }
-        _flow.value = WatchFlow.Main(lastMode, accounts.myGender.value, notice)
+        _flow.value = WatchFlow.Main(lastMode, accounts.myGender.value, notice, gpsStatus)
         if (notice != null) {
             noticeJob?.cancel()
             noticeJob = viewModelScope.launch {
@@ -597,12 +635,20 @@ class WatchFlowViewModel @Inject constructor(
         resultJob?.cancel()
     }
 
-    /** 시작을 막는 사유: 폰 측정 중(FR-252), 위치 동의·권한 없음(FR-245). 없으면 null. */
+    /**
+     * 시작을 막는 사유: 폰 측정 중(FR-252), 위치 동의·권한 없음(FR-245), 워치 시스템 위치 꺼짐(W52: 꺼진 채 시작하면 Health Services가
+     * 운동 시작을 거부한다). 없으면 null.
+     */
     private fun blockedNotice(): WatchFlow.Notice? = when {
         isPhoneRunning -> WatchFlow.Notice.PHONE_RUNNING
         runTracker.checkStartable() is Outcome.Failure -> WatchFlow.Notice.LOCATION_CONSENT
+        !locationSetting.isEnabled() -> WatchFlow.Notice.LOCATION_OFF
         else -> null
     }
+
+    /** 측정 서비스가 밖에서 끝낸 회의 안내: 워치 위치가 꺼졌으면 위치 안내(W52), 아니면 [otherwise]. */
+    private fun stoppedNotice(otherwise: WatchFlow.Notice): WatchFlow.Notice =
+        if (locationSetting.isEnabled()) otherwise else WatchFlow.Notice.LOCATION_OFF
 
     private fun onProgress(progress: RunProgress, banner: String?) {
         when (val current = _flow.value) {
@@ -615,7 +661,14 @@ class WatchFlowViewModel @Inject constructor(
             is WatchFlow.Paused -> _flow.value = if (progress.isPaused) {
                 current.copy(progress = progress)
             } else {
-                WatchFlow.Running(WatchMode.FREE, progress, current.goal, banner = banner, isPausable = true)
+                WatchFlow.Running(
+                    WatchMode.FREE,
+                    progress,
+                    current.goal,
+                    banner = banner,
+                    isPausable = true,
+                    isGpsSearching = isGpsSearching
+                )
             }
 
             else -> Unit
@@ -727,7 +780,8 @@ class WatchFlowViewModel @Inject constructor(
             goal = active.goal,
             gapMeters = lastGap,
             banner = guidance.banner.value?.text,
-            isPausable = isPausable
+            isPausable = isPausable,
+            isGpsSearching = isGpsSearching
         )
     }
 
@@ -749,11 +803,19 @@ class WatchFlowViewModel @Inject constructor(
 
             else -> {
                 // 결과 없이 끝났다(거리 0이라 저장하지 않음, 측정 서비스가 밖에서 끝냄): 결과를 닫는 때가 없으니 지금 TTS를 닫는다(WR13-3).
-                // 사용자가 끝냈으면 거리 0이라 저장하지 않았다는 안내다(UML 5a, R13 D4).
+                // 사용자가 끝냈으면 거리 0이라 저장하지 않았다는 안내다(UML 5a, R13 D4). 밖에서 끝났는데 워치 위치가 꺼졌으면 위치 안내를
+                // 누를 수 있게 거리 선택으로 간다(W52).
                 guidance.shutdown()
-                val notice =
-                    if (active.isEndedByUser) WatchFlow.Notice.NOT_SAVED else WatchFlow.Notice.MEASUREMENT_STOPPED
-                enterHome(refresh = false, notice = notice)
+                val notice = if (active.isEndedByUser) {
+                    WatchFlow.Notice.NOT_SAVED
+                } else {
+                    stoppedNotice(WatchFlow.Notice.MEASUREMENT_STOPPED)
+                }
+                if (notice == WatchFlow.Notice.LOCATION_OFF && isPickable()) {
+                    _flow.value = freePicker().copy(notice = notice)
+                } else {
+                    enterHome(refresh = false, notice = notice)
+                }
             }
         }
     }
@@ -767,7 +829,7 @@ class WatchFlowViewModel @Inject constructor(
             battleFlow.acknowledge()
             round = null
             val picker = if (active.mode == WatchMode.BATTLE) battlePicker(active.goal) else pickerOf(active.mode)
-            _flow.value = withNotice(picker, WatchFlow.Notice.START_FAILED)
+            _flow.value = withNotice(picker, stoppedNotice(WatchFlow.Notice.START_FAILED))
             return
         }
         resultJob?.cancel()
@@ -775,6 +837,14 @@ class WatchFlowViewModel @Inject constructor(
             val outcome = endedOutcome.value
                 ?: withTimeoutOrNull(OUTCOME_WAIT_MILLIS) { endedOutcome.filterNotNull().first() }
                 ?: FinishOutcome.NotSaved
+            if (isStoppedByLocation(active, outcome)) {
+                // 셀프·셀럽런을 워치 위치가 꺼져 기록 없이 멈췄다(W52): STOP 결과 대신 위치 안내와 거리 선택이다.
+                guidance.shutdown()
+                battleFlow.acknowledge()
+                round = null
+                _flow.value = withNotice(pickerOf(active.mode), WatchFlow.Notice.LOCATION_OFF)
+                return@launch
+            }
             val summary = RunSummaryView.of(outcome)
             val id = active.battleId ?: battleId
             when (active.mode) {
@@ -783,6 +853,17 @@ class WatchFlowViewModel @Inject constructor(
             }
         }
     }
+
+    /**
+     * 기록 대결(셀프·셀럽)을 측정 서비스가 밖에서 기록 없이 끝냈고 지금 워치 위치가 꺼져 있다(W52). 배틀런은 서버 판정이 남으니
+     * 결과를 그대로 보인다.
+     */
+    private fun isStoppedByLocation(active: Round, outcome: FinishOutcome): Boolean =
+        active.mode != WatchMode.BATTLE && !active.isEndedByUser && outcome !is FinishOutcome.Saved &&
+            !locationSetting.isEnabled()
+
+    /** 거리 선택을 보여도 되는가: 로그인되어 있고 폰이 측정 중이 아니다([enterHome]이 메인 대신 다른 화면을 고르는 경우가 아니다). */
+    private fun isPickable(): Boolean = sessionStore.state.value is WatchSession.Active && !isPhoneRunning
 
     /** 배틀런 결과: 서버 판정을 받는다. 보류면 "결과를 확인하고 있어요"를 보이고 판정이 올 때까지 다시 묻는다(FR-108). */
     private suspend fun showBattleResult(battleId: Long, outcome: FinishOutcome, summary: RunSummaryView) {
@@ -841,6 +922,52 @@ class WatchFlowViewModel @Inject constructor(
             if (attempt < attempts - 1) delay(RESULT_RETRY_MILLIS)
         }
         return WatchResultHeadline.Pending
+    }
+
+    /**
+     * GPS 예열(W53). [isShown]이면 워치 위치가 켜져 있을 때 예열 상태를 메인에 옮기고, 꺼져 있으면 위치 안내를 보인다. 예열이 끝나면
+     * (상한·실패) 표시를 지운다. 이 함수가 취소되면(화면을 떠남) 예열 흐름도 취소되어 GPS가 꺼진다.
+     */
+    private suspend fun warmUpGps(isShown: Boolean) {
+        if (!isShown) {
+            showGps(null)
+            return
+        }
+        if (!locationSetting.isEnabled()) {
+            showGps(WatchFlow.GpsStatus.LOCATION_OFF)
+            return
+        }
+        showGps(null)
+        gpsWarmUp.readiness().collect { readiness ->
+            showGps(
+                if (readiness == GpsWarmUp.Readiness.READY) WatchFlow.GpsStatus.READY else WatchFlow.GpsStatus.SEARCHING
+            )
+        }
+        showGps(null)
+    }
+
+    private fun showGps(status: WatchFlow.GpsStatus?) {
+        gpsStatus = status
+        updateMain { it.copy(gps = status) }
+    }
+
+    /** 측정 경로선이 바뀌었다(W53): 점이 있으면 위치를 받은 것이고, [GPS_STALE_MILLIS] 동안 더 오지 않으면 다시 찾는 중이다. */
+    private fun onRouteLine(points: Int) {
+        gpsStaleJob?.cancel()
+        setGpsSearching(points == 0)
+        if (points > 0) {
+            gpsStaleJob = viewModelScope.launch {
+                delay(GPS_STALE_MILLIS)
+                setGpsSearching(true)
+            }
+        }
+    }
+
+    private fun setGpsSearching(searching: Boolean) {
+        isGpsSearching = searching
+        (_flow.value as? WatchFlow.Running)?.let {
+            if (it.isGpsSearching != searching) _flow.value = it.copy(isGpsSearching = searching)
+        }
     }
 
     private fun showNotice(notice: WatchFlow.Notice) {
@@ -940,6 +1067,9 @@ class WatchFlowViewModel @Inject constructor(
         /** "역전!"을 보이는 시간(FR-254 안내 문구와 같은 2초). */
         const val LEAD_BANNER_MILLIS = 2_000L
 
+        /** 측정 중 마지막 위치 뒤 이만큼 더 받지 못하면 "GPS 찾는 중"이다(W53, LocationFilter 불안정 기준과 같은 10초). */
+        const val GPS_STALE_MILLIS = 10_000L
+
         /** 측정 중 안내("길게 눌러 종료" 등)를 보이는 시간. */
         const val NOTICE_MILLIS = 2_000L
 
@@ -970,6 +1100,10 @@ class WatchFlowViewModel @Inject constructor(
         private fun firstEnabled(choices: List<WatchFlow.Choice>): Int = choices.indexOfFirst {
             it.isEnabled
         }.coerceAtLeast(0)
+
+        /** GPS를 예열하는 화면(W53): 메인·거리 선택·셀럽 목록. */
+        private fun isWarmUpScreen(flow: WatchFlow): Boolean =
+            flow is WatchFlow.Main || flow is WatchFlow.Picker || flow is WatchFlow.CelebList
 
         /** 거리 선택·카운트다운 전 화면(동행 표시로 바꿔도 되는 화면). */
         private fun isIdle(flow: WatchFlow): Boolean = flow is WatchFlow.NotLoggedIn || flow is WatchFlow.Main ||

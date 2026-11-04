@@ -116,6 +116,41 @@ class WatchScreenshotTest {
         WatchFlow.Main(WatchMode.FREE, Gender.FEMALE, notice = WatchFlow.Notice.NOT_SAVED)
     )
 
+    /** GPS 예열 중 찾는 중(W53). */
+    @Test
+    fun mainGpsSearching() = capture(
+        "Q1_watch_main_gps_searching",
+        WatchFlow.Main(WatchMode.FREE, Gender.FEMALE, gps = WatchFlow.GpsStatus.SEARCHING)
+    )
+
+    /** GPS 예열 준비됨(W53). */
+    @Test
+    fun mainGpsReady() = capture(
+        "Q1_watch_main_gps_ready",
+        WatchFlow.Main(WatchMode.FREE, Gender.FEMALE, gps = WatchFlow.GpsStatus.READY)
+    )
+
+    /** 워치 위치 꺼짐 안내(W52·W53). 누르면 위치 설정을 연다. */
+    @Test
+    fun mainLocationOff() = capture(
+        "Q1_watch_main_location_off",
+        WatchFlow.Main(WatchMode.FREE, Gender.FEMALE, gps = WatchFlow.GpsStatus.LOCATION_OFF)
+    )
+
+    /** 자유런 거리 선택의 워치 위치 꺼짐 안내(W52). */
+    @Test
+    fun freeLocationOff() = capture(
+        "F1_watch_free_location_off",
+        WatchFlow.FreeGoal(choices(null, 3_000, 5_000, 10_000), notice = WatchFlow.Notice.LOCATION_OFF)
+    )
+
+    /** 측정 중 위치를 받지 못함(W53): 안내 띠 자리에 "GPS 찾는 중". */
+    @Test
+    fun runGpsSearching() = capture(
+        "FRinf_watch_run_gps_searching",
+        WatchFlow.Running(WatchMode.FREE, progress(0, 12), goal = null, isPausable = true, isGpsSearching = true)
+    )
+
     /** 자유런에서 배틀런으로 넘어가는 중간 프레임(Smart Animate 320ms 가운데쯤, 시계 고정). 카드가 반쯤 미끄러지며 커지고 작아진다. */
     @Test
     fun mainTransition() {

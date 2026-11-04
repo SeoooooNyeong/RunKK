@@ -23,7 +23,17 @@ android {
         minSdk = 30
         // 폰과 같은 기준값에 1을 더해 Play 버전 코드를 분리한다.
         versionCode = providers.gradleProperty("runkk.versionCode").orElse("10").get().toInt() + 1
-        versionName = "0.11.0"
+        versionName = "0.11.1"
+    }
+
+    // R8 축소·난독화와 리소스 축소(W51, 폰 app과 같은 설정). 반사로 읽는 곳의 보존 규칙은 proguard-rules.pro,
+    // 확인은 :wear:bundleProdRelease. 서명은 runkk.android.application 공통 플러그인이 정한다.
+    buildTypes {
+        release {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        }
     }
 
     buildFeatures {
