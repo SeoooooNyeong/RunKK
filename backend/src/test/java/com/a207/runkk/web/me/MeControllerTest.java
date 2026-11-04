@@ -1,5 +1,6 @@
 package com.a207.runkk.web.me;
 
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -8,6 +9,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.a207.runkk.common.Tier;
 import com.a207.runkk.web.WebTestSupport;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
@@ -20,6 +22,31 @@ import org.springframework.http.MediaType;
  */
 @DisplayName("web.me 본인 계정·설정·동의·탈퇴")
 class MeControllerTest extends WebTestSupport {
+
+    @Test
+    @DisplayName(
+            "TC-5797 GET /me/placement: 새 회원은 IN_PROGRESS 0/3(다음 판 1, 임시 티어 없음, 티어 UNRANKED, 판 없음),"
+                    + " 배치고사 없이 티어가 있으면 EXEMPT, 인증 없으면 401")
+    void placement_returnsOwnProgress() throws Exception {
+        Session s = signUp();
+        mvc.perform(as(s, get("/api/v1/me/placement")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("IN_PROGRESS"))
+                .andExpect(jsonPath("$.countedRounds").value(0))
+                .andExpect(jsonPath("$.nextRound").value(1))
+                .andExpect(jsonPath("$.provisionalTier").value(nullValue()))
+                .andExpect(jsonPath("$.tier").value("UNRANKED"))
+                .andExpect(jsonPath("$.rounds").isEmpty());
+
+        rank(s, Tier.SILVER);
+        mvc.perform(as(s, get("/api/v1/me/placement")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("EXEMPT"))
+                .andExpect(jsonPath("$.countedRounds").value(0))
+                .andExpect(jsonPath("$.nextRound").value(nullValue()))
+                .andExpect(jsonPath("$.tier").value("SILVER"));
+        mvc.perform(get("/api/v1/me/placement")).andExpect(status().isUnauthorized());
+    }
 
     @Test
     @DisplayName("설정: 단위·러닝설정을 바꾸고, 워치 연동은 심박 동의를 먼저 요구하며, 동의 항목은 거부한다")

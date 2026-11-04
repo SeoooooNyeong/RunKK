@@ -1,6 +1,7 @@
 package com.a207.runkk.member;
 
 import com.a207.runkk.policy.OperationPolicy;
+import java.util.OptionalInt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -12,21 +13,34 @@ import org.springframework.transaction.annotation.Transactional;
 public class TierLevelService {
 
     private final MemberRepository memberRepository;
+    private final PlacementProgressRepository placementProgressRepository;
     private final OperationPolicy policy;
 
-    public TierLevelService(MemberRepository memberRepository, OperationPolicy policy) {
+    public TierLevelService(
+            MemberRepository memberRepository,
+            PlacementProgressRepository placementProgressRepository,
+            OperationPolicy policy) {
         this.memberRepository = memberRepository;
+        this.placementProgressRepository = placementProgressRepository;
         this.policy = policy;
     }
 
     /**
-     * Member.recordValidRun(input, policy.tierBoundary()) 뒤 저장. 같은 순번이 다시 오면 TierProgress가
-     * 무시한다(멱등).
+     * Member.recordValidRun(input, policy.tierBoundary(), 확정 판 순번) 뒤 저장. 같은 순번이 다시 오면 TierProgress가
+     * 무시한다(멱등). 읽는 순서는 Member(@Version) 먼저, 배치 진행 행 그다음이다(D-517): 판 셈이 두 읽기 사이에 커밋돼도 Member는 아직
+     * 언랭이라 재평가가 없고, 저장이 낙관적 잠금 충돌로 다시 돌아 두 값이 같은 시점이 된다.
      */
     @Transactional
     public TierChange recordValidRun(long memberId, RunScoreInput input) {
         Member member = MemberLoader.load(memberRepository, memberId);
-        TierChange change = member.recordValidRun(input, policy.tierBoundary());
+        int placementOrdinal =
+                placementProgressRepository
+                        .findById(memberId)
+                        .map(PlacementProgress::confirmedRunOrdinal)
+                        .filter(OptionalInt::isPresent)
+                        .map(OptionalInt::getAsInt)
+                        .orElse(0);
+        TierChange change = member.recordValidRun(input, policy.tierBoundary(), placementOrdinal);
         memberRepository.save(member);
         return change;
     }

@@ -72,6 +72,7 @@ class RunRejudgeServiceTest {
             spy(
                     new TierLevelService(
                             members,
+                            new com.a207.runkk.member.InMemoryPlacementProgressRepository(),
                             new OperationPolicy(new InMemoryOperationSettingRepository())));
     private final List<DomainEvent> events = new ArrayList<>();
     private final RunRejudgeService service =

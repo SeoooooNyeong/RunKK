@@ -42,6 +42,7 @@ public class WithdrawalService {
     static final String IDLE_GUEST_ACTOR = "system:idle-guest";
 
     private final MemberRepository memberRepository;
+    private final PlacementProgressRepository placementProgressRepository;
     private final List<WithdrawalGuard> guards;
     private final List<IdleGuestWithdrawalGuard> idleGuards;
     private final AuditService auditService;
@@ -52,6 +53,7 @@ public class WithdrawalService {
     @Autowired
     public WithdrawalService(
             MemberRepository memberRepository,
+            PlacementProgressRepository placementProgressRepository,
             List<WithdrawalGuard> guards,
             List<IdleGuestWithdrawalGuard> idleGuards,
             AuditService auditService,
@@ -60,6 +62,7 @@ public class WithdrawalService {
             PlatformTransactionManager transactionManager) {
         this(
                 memberRepository,
+                placementProgressRepository,
                 guards,
                 idleGuards,
                 auditService,
@@ -71,6 +74,7 @@ public class WithdrawalService {
     /** 시험용: 트랜잭션 없이 실행한다. */
     WithdrawalService(
             MemberRepository memberRepository,
+            PlacementProgressRepository placementProgressRepository,
             List<WithdrawalGuard> guards,
             List<IdleGuestWithdrawalGuard> idleGuards,
             AuditService auditService,
@@ -78,6 +82,7 @@ public class WithdrawalService {
             Clock clock) {
         this(
                 memberRepository,
+                placementProgressRepository,
                 guards,
                 idleGuards,
                 auditService,
@@ -88,6 +93,7 @@ public class WithdrawalService {
 
     private WithdrawalService(
             MemberRepository memberRepository,
+            PlacementProgressRepository placementProgressRepository,
             List<WithdrawalGuard> guards,
             List<IdleGuestWithdrawalGuard> idleGuards,
             AuditService auditService,
@@ -96,6 +102,7 @@ public class WithdrawalService {
             TransactionOperations transactions) {
         this.transactions = transactions;
         this.memberRepository = memberRepository;
+        this.placementProgressRepository = placementProgressRepository;
         this.guards = List.copyOf(guards);
         this.idleGuards = List.copyOf(idleGuards);
         this.auditService = auditService;
@@ -115,10 +122,13 @@ public class WithdrawalService {
                 throw new BusinessRuleException(reason.get());
             }
         }
+        // 판 셈과 같은 잠금 순서(배치 진행 → 회원)를 지켜 3판째 셈과 겹쳐도 교착하지 않는다(리뷰 H1)
+        placementProgressRepository.findByIdForUpdate(memberId);
         Member member = MemberLoader.load(memberRepository, memberId);
         LocalDateTime now = LocalDateTime.now(clock);
         member.withdraw(now);
         memberRepository.save(member);
+        placementProgressRepository.deleteByMemberId(memberId); // 배치 기록을 남기지 않는다(D-489)
         String id = String.valueOf(memberId);
         auditService.record(
                 new AuditEntry(id, ActorRole.RUNNER, AuditAction.WITHDRAWAL, id, null, null));
@@ -193,9 +203,11 @@ public class WithdrawalService {
             log.info("idle_guest_skipped memberId={} reason={}", memberId, skip.get());
             return false;
         }
+        placementProgressRepository.findByIdForUpdate(memberId); // 잠금 순서 배치 진행 → 회원(리뷰 H1)
         Member guest = found.get();
         guest.withdraw(now);
         memberRepository.save(guest);
+        placementProgressRepository.deleteByMemberId(memberId); // 배치 기록을 남기지 않는다(D-489)
         auditService.record(
                 new AuditEntry(
                         IDLE_GUEST_ACTOR,

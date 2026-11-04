@@ -91,8 +91,8 @@ final class BattleDtos {
                     acceptance.waiting(),
                     metersOf(acceptance.distance()),
                     metersOf(acceptance.defaultDistance()),
-                    null,
-                    null);
+                    acceptance.placementRound(),
+                    acceptance.battleId());
         }
 
         private static Long metersOf(StandardDistance d) {
@@ -133,7 +133,7 @@ final class BattleDtos {
                     v.startAt(),
                     v.opponentGender(),
                     v.celebrityFigure(),
-                    null);
+                    v.placementRound());
         }
     }
 
@@ -430,8 +430,8 @@ final class BattleDtos {
                     e.newRecord(),
                     seconds(e.gap()),
                     e.sourceLabel(),
-                    null,
-                    null);
+                    e.placementRound(),
+                    e.opponentMemberId());
         }
     }
 

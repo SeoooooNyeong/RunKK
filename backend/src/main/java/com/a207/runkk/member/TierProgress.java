@@ -16,14 +16,15 @@ import org.slf4j.LoggerFactory;
 
 /**
  * 티어 평가에 쓸 유효 러닝 누계를 보관한다(설계 6.1.2, D-27). 평가 시점은 running이 넘긴 유효 러닝 순번으로 정하고 validRunCount는 직전 반영
- * 순번이다(D-37). 최근 점수는 RunningScore 대신 값(double)으로 둔다(member는 running에 의존하지 않는다, 12.2).
+ * 순번이다(D-37). 최근 점수는 RunningScore 대신 값(double)으로 둔다(member는 running에 의존하지 않는다, 12.2). 첫 배치(유효 3회째)는
+ * 배치고사로 옮겨 이 창이 없고 재평가(10의 배수)만 남는다(v0.30 J24-6, D-484). 재평가를 실제로 반영할지는 Member가 정한다(랭크 티어, 확정 판 순번
+ * 뒤).
  */
 @Embeddable
 public class TierProgress {
 
     private static final Logger log = LoggerFactory.getLogger(TierProgress.class);
     private static final int WINDOW = 10;
-    private static final int PLACEMENT = 3;
 
     @Column(name = "valid_run_count", nullable = false)
     private int validRunCount;
@@ -48,8 +49,8 @@ public class TierProgress {
     }
 
     /**
-     * 누계를 갱신한다. 이미 반영한 순번이면 무시하고 비어 있음. 판정 지점을 지났으면 그 창(3 또는 10)의 평균을 돌려준다(FR-022, FR-027). 1 넘게
-     * 건너뛰면 경고 로그를 남기되 그 사이 판정 지점은 놓치지 않는다(D-40).
+     * 누계를 갱신한다. 이미 반영한 순번이면 무시하고 비어 있음. 재평가 지점(10의 배수)을 지났으면 최근 10회 평균을 돌려준다(FR-027). 1 넘게 건너뛰면 경고
+     * 로그를 남기되 그 사이 판정 지점은 놓치지 않는다(D-40). 반영 여부는 Member가 정한다(D-484).
      */
     public OptionalDouble addValidRun(RunScoreInput input) {
         int ordinal = input.validRunOrdinal();
@@ -69,47 +70,38 @@ public class TierProgress {
                         .map(s -> String.format(Locale.ROOT, "%.4f", s))
                         .collect(Collectors.joining(","));
         this.totalValidMeters += input.distance().meters();
-        OptionalInt window = evaluationWindowBetween(validRunCount, ordinal);
+        boolean reevaluation = reevaluationPointBetween(validRunCount, ordinal).isPresent();
         this.validRunCount = ordinal;
-        if (window.isEmpty()) {
+        if (!reevaluation) {
             return OptionalDouble.empty();
         }
         return scores.stream()
-                .skip(Math.max(0, scores.size() - window.getAsInt()))
+                .skip(Math.max(0, scores.size() - WINDOW))
                 .mapToDouble(Double::doubleValue)
                 .average();
     }
 
     /**
-     * lastOrdinal &lt; p ≤ newOrdinal인 판정 지점 p(3 또는 10의 배수) 가운데 가장 큰 것으로 창 크기를 정한다. 10의 배수면 10, 3이면
-     * 3, 지점이 없으면 비어 있음(D-37, D-40).
+     * lastOrdinal &lt; p ≤ newOrdinal인 10의 배수 p 가운데 가장 큰 것(재평가 지점, D-37, D-40, D-484). 없으면 비어 있다.
      */
-    public static OptionalInt evaluationWindowBetween(int lastOrdinal, int newOrdinal) {
+    public static OptionalInt reevaluationPointBetween(int lastOrdinal, int newOrdinal) {
         int largestTen = (newOrdinal / WINDOW) * WINDOW;
         if (largestTen > lastOrdinal && largestTen >= WINDOW) {
-            return OptionalInt.of(WINDOW);
-        }
-        if (lastOrdinal < PLACEMENT && PLACEMENT <= newOrdinal) {
-            return OptionalInt.of(PLACEMENT);
+            return OptionalInt.of(largestTen);
         }
         return OptionalInt.empty();
     }
 
     /**
-     * lastOrdinal에서 newOrdinal로 넘어갈 때 일어나는 평가(v0.14 D-294). 창이 10이면 재평가(그 10의 배수 회차), 3이면 첫
-     * 배치(3회째), 판정 지점이 없으면 비어 있다. evaluationWindowBetween과 같은 규칙이다.
+     * lastOrdinal에서 newOrdinal로 넘어갈 때 일어날 수 있는 평가(v0.14 D-294). 재평가(그 10의 배수 회차)만 낸다. 첫
+     * 배치(FIRST_PLACEMENT)는 배치고사로 옮겨 새로 만들지 않는다(옛 기록 표시용 값만 남음, D-484).
      */
     public static Optional<TierEvaluation> evaluationBetween(int lastOrdinal, int newOrdinal) {
-        OptionalInt window = evaluationWindowBetween(lastOrdinal, newOrdinal);
-        if (window.isEmpty()) {
+        OptionalInt point = reevaluationPointBetween(lastOrdinal, newOrdinal);
+        if (point.isEmpty()) {
             return Optional.empty();
         }
-        if (window.getAsInt() == WINDOW) {
-            return Optional.of(
-                    new TierEvaluation(
-                            EvaluationKind.REEVALUATION, (newOrdinal / WINDOW) * WINDOW));
-        }
-        return Optional.of(new TierEvaluation(EvaluationKind.FIRST_PLACEMENT, PLACEMENT));
+        return Optional.of(new TierEvaluation(EvaluationKind.REEVALUATION, point.getAsInt()));
     }
 
     /**

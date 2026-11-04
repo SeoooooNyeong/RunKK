@@ -529,7 +529,13 @@ class FriendInviteServiceTest {
                 .thenReturn(com.a207.runkk.member.BattleSettings.defaults());
         invite();
         MatchingService matching =
-                new MatchingService(members, settings, queue, availability, clock);
+                new MatchingService(
+                        members,
+                        settings,
+                        queue,
+                        availability,
+                        mock(PlacementMatcher.class),
+                        clock);
         assertReason(
                 () -> matching.requestMatch(INVITER, StandardDistance.KM5),
                 ReasonCode.ALREADY_IN_BATTLE);

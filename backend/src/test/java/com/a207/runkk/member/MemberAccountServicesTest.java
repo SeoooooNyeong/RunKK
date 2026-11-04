@@ -153,6 +153,7 @@ class MemberAccountServicesTest {
         WithdrawalService rejecting =
                 new WithdrawalService(
                         repository,
+                        new InMemoryPlacementProgressRepository(),
                         List.of(
                                 m -> Optional.empty(),
                                 m -> Optional.of(ReasonCode.LEADER_MUST_TRANSFER)),
@@ -168,7 +169,13 @@ class MemberAccountServicesTest {
 
         WithdrawalService service =
                 new WithdrawalService(
-                        repository, List.of(), List.of(), auditService, publisher, clock);
+                        repository,
+                        new InMemoryPlacementProgressRepository(),
+                        List.of(),
+                        List.of(),
+                        auditService,
+                        publisher,
+                        clock);
         assertThat(service.withdraw(id).withdrawn()).isTrue();
         assertThat(published).containsExactly(new MemberWithdrawn(id, NOW));
         assertThat(auditRepository.all())
@@ -184,7 +191,13 @@ class MemberAccountServicesTest {
         saved("곰C");
         WithdrawalService service =
                 new WithdrawalService(
-                        repository, List.of(), List.of(), auditService, publisher, clock);
+                        repository,
+                        new InMemoryPlacementProgressRepository(),
+                        List.of(),
+                        List.of(),
+                        auditService,
+                        publisher,
+                        clock);
         repository.findById(early).orElseThrow().withdraw(NOW.minusDays(8));
         repository.findById(late).orElseThrow().withdraw(NOW.minusDays(6));
 
@@ -200,7 +213,13 @@ class MemberAccountServicesTest {
         long old = repository.save(MemberFixtures.member("곰E", NOW.minusDays(60))).getId();
         WithdrawalService service =
                 new WithdrawalService(
-                        repository, List.of(), List.of(), auditService, publisher, clock);
+                        repository,
+                        new InMemoryPlacementProgressRepository(),
+                        List.of(),
+                        List.of(),
+                        auditService,
+                        publisher,
+                        clock);
         repository.findById(fresh).orElseThrow().withdraw(NOW.minusDays(10));
         repository.findById(old).orElseThrow().withdraw(NOW.minusDays(11));
 
@@ -216,12 +235,15 @@ class MemberAccountServicesTest {
         long id = saved("달리는곰");
         TierLevelService service =
                 new TierLevelService(
-                        repository, new OperationPolicy(new InMemoryOperationSettingRepository()));
-        for (int i = 1; i <= 3; i++) {
+                        repository,
+                        new InMemoryPlacementProgressRepository(),
+                        new OperationPolicy(new InMemoryOperationSettingRepository()));
+        repository.findById(id).orElseThrow().confirmPlacement(Tier.BRONZE);
+        for (int i = 1; i <= 10; i++) {
             service.recordValidRun(id, new RunScoreInput(41, Distance.ofKm(5), i));
         }
         assertThat(repository.findById(id).orElseThrow().getTier()).isEqualTo(Tier.PLATINUM);
-        TierChange again = service.recordValidRun(id, new RunScoreInput(20, Distance.ofKm(5), 3));
+        TierChange again = service.recordValidRun(id, new RunScoreInput(20, Distance.ofKm(5), 10));
         assertThat(again.tierChanged()).isFalse();
     }
 

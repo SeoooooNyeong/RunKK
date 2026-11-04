@@ -323,20 +323,20 @@ class RunningV014Test {
 
     @Test
     @DisplayName(
-            "TC-9417·TC-9418·TC-9420·TC-9424 평가 시점: 3회째 첫 배치(3), 1·2·4·5·9회 없음, 10·20회 재평가(10, 20)")
+            "TC-9417·TC-9418·TC-9420·TC-9424 평가 시점(v0.18 변경, J24-6·D-484): 3회째 첫 배치 없음,"
+                    + " 1·2·3·4·5·9회 없음, 10·20회 재평가(10, 20)")
     void tc9417_evaluationPoints() {
-        assertThat(TierProgress.evaluationBetween(2, 3))
-                .contains(new TierEvaluation(EvaluationKind.FIRST_PLACEMENT, 3));
-        for (int n : new int[] {1, 2, 4, 5, 9}) {
+        for (int n : new int[] {1, 2, 3, 4, 5, 9}) {
             assertThat(TierProgress.evaluationBetween(n - 1, n)).as("순번 " + n).isEmpty();
         }
         assertThat(TierProgress.evaluationBetween(9, 10))
                 .contains(new TierEvaluation(EvaluationKind.REEVALUATION, 10));
         assertThat(TierProgress.evaluationBetween(19, 20))
                 .contains(new TierEvaluation(EvaluationKind.REEVALUATION, 20));
-        assertThat(TierProgress.evaluationBetween(2, 4))
-                .as("건너뛰어도 3을 놓치지 않는다(D-40)")
-                .contains(new TierEvaluation(EvaluationKind.FIRST_PLACEMENT, 3));
+        assertThat(TierProgress.evaluationBetween(2, 4)).as("첫 배치 창이 없다").isEmpty();
+        assertThat(TierProgress.evaluationBetween(9, 11))
+                .as("건너뛰어도 10을 놓치지 않는다(D-40)")
+                .contains(new TierEvaluation(EvaluationKind.REEVALUATION, 10));
         assertThat(TierProgress.evaluationBetween(3, 3)).isEmpty();
     }
 
