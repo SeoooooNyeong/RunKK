@@ -1,14 +1,10 @@
 package com.a207.runkk.avatar;
 
 import com.a207.runkk.NoTransactions;
-import java.time.Duration;
 import java.util.EnumMap;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Stream;
 
 /** avatar 시험용 인메모리 저장소·가짜 게이트웨이(14장 단위). */
@@ -101,33 +97,6 @@ public final class AvatarFakes {
         @Override
         public synchronized void recordFailure(long memberId, java.time.LocalDate day) {
             counts.merge(memberId + "@" + day, 1, Integer::sum);
-        }
-    }
-
-    public static final class Locks implements SelfieLockStore {
-        final Set<Long> held = new HashSet<>();
-
-        @Override
-        public synchronized Optional<String> tryLock(long memberId, Duration ttl) {
-            return held.add(memberId) ? Optional.of("t" + memberId) : Optional.empty();
-        }
-
-        @Override
-        public synchronized void unlock(long memberId, String token) {
-            held.remove(memberId);
-        }
-    }
-
-    /** 응답을 정할 수 있는 가짜 얼굴 변환. 호출 수를 센다. */
-    public static final class Gateway implements FaceTransformGateway {
-        int calls;
-        Function<byte[], FaceTransformOutcome> answer =
-                image -> FaceTransformOutcome.success(images());
-
-        @Override
-        public synchronized FaceTransformOutcome transform(byte[] image) {
-            calls++;
-            return answer.apply(image);
         }
     }
 }

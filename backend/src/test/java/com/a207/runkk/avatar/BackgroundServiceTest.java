@@ -212,15 +212,7 @@ class BackgroundServiceTest {
         when(policy.selfieLimit()).thenReturn(new SelfieLimit(1));
         when(members.hasConsent(anyLong(), any(ConsentItem.class))).thenReturn(true);
         AvatarService avatarService =
-                new AvatarService(
-                        avatars,
-                        mock(SelfieConversion.class),
-                        rewards,
-                        members,
-                        policy,
-                        service,
-                        tx,
-                        clock);
+                new AvatarService(avatars, rewards, policy, service, tx, clock);
         total(M, 130_000);
 
         assertThat(avatarService.view(M).backgroundKey()).isNull();

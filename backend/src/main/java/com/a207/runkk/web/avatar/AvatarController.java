@@ -7,16 +7,13 @@ import com.a207.runkk.common.ItemSlot;
 import com.a207.runkk.reward.PurchaseResult;
 import com.a207.runkk.reward.ShopService;
 import jakarta.validation.Valid;
-import java.io.IOException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Optional;
 import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -25,9 +22,7 @@ import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.multipart.MultipartFile;
 
 /**
  * 아바타 꾸미기·상점 엔드포인트(설계 5.7.1 AvatarController: 아바타 4 + 배경 2(v0.11 FR-201, FR-202), 상점 2). 셀카는
@@ -39,8 +34,6 @@ import org.springframework.web.multipart.MultipartFile;
 public class AvatarController {
 
     private static final String MEMBER_ID = "memberId";
-    private static final List<MediaType> SELFIE_TYPES =
-            List.of(MediaType.IMAGE_JPEG, MediaType.IMAGE_PNG);
 
     /** 부위 이미지 기기 캐시 기간(묶음 키가 바뀌면 새 주소다). */
     private static final Duration PART_CACHE = Duration.ofDays(30);
@@ -62,21 +55,6 @@ public class AvatarController {
         this.faceImageService = faceImageService;
         this.backgroundService = backgroundService;
         this.clock = clock;
-    }
-
-    @PostMapping(value = "/avatar/selfie", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    AvatarDtos.AvatarResponse createFromSelfie(
-            @RequestAttribute(MEMBER_ID) long memberId, @RequestPart("selfie") MultipartFile selfie)
-            throws IOException, HttpMediaTypeNotSupportedException {
-        byte[] image = selfie.getBytes();
-        if (image.length == 0) {
-            throw new IllegalArgumentException("빈 셀카");
-        }
-        if (!SelfieFormat.isJpegOrPng(image)) {
-            throw new HttpMediaTypeNotSupportedException(
-                    MediaType.APPLICATION_OCTET_STREAM, SELFIE_TYPES);
-        }
-        return AvatarDtos.AvatarResponse.of(avatarService.createFromSelfie(memberId, image));
     }
 
     @PostMapping("/avatar/default")

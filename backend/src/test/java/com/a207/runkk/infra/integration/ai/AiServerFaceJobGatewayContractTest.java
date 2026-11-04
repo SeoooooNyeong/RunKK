@@ -1,0 +1,195 @@
+package com.a207.runkk.infra.integration.ai;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.*;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.*;
+
+import com.a207.runkk.avatar.FaceJobRejectedException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.IOException;
+import java.net.http.HttpTimeoutException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.stream.Stream;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatusCode;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.web.client.RestClient;
+
+class AiServerFaceJobGatewayContractTest {
+    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final byte[] SELFIE = {1, 2, 3};
+
+    record Fixture(AiServerFaceJobGateway gateway, MockRestServiceServer server) {}
+
+    static Fixture fixture() {
+        RestClient.Builder builder =
+                RestClient.builder()
+                        .baseUrl("http://ai:8000")
+                        .defaultHeader("X-Internal-Token", "test-token");
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        RestClient rest = builder.build();
+        return new Fixture(
+                new AiServerFaceJobGateway(new AiServerClient(rest, rest), JSON), server);
+    }
+
+    static Stream<Path> samples() throws IOException {
+        try (Stream<Path> paths = Files.list(Path.of("../ai/tests/contract"))) {
+            List<Path> samples =
+                    paths.filter(p -> p.getFileName().toString().startsWith("faces-"))
+                            .filter(p -> p.toString().endsWith(".json"))
+                            .sorted()
+                            .toList();
+            assertThat(samples).hasSize(19);
+            return samples.stream();
+        }
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("samples")
+    void replaysCurrentAiContract(Path path) throws IOException {
+        JsonNode sample = JSON.readTree(Files.readString(path));
+        String endpoint = sample.path("endpoint").asText();
+        String jobId = sample.path("request").path("jobId").asText();
+        String url =
+                endpoint.substring(endpoint.indexOf(' ') + 1)
+                        .replace("{userId}", "42")
+                        .replace("{jobId}", jobId);
+        int status = sample.path("status").asInt();
+        Fixture f = fixture();
+        var request =
+                f.server
+                        .expect(requestTo("http://ai:8000" + url))
+                        .andExpect(header("X-Internal-Token", "test-token"))
+                        .andExpect(
+                                method(
+                                        endpoint.startsWith("POST")
+                                                ? HttpMethod.POST
+                                                : HttpMethod.GET));
+        if (endpoint.startsWith("POST")) {
+            request.andExpect(content().contentType(MediaType.APPLICATION_OCTET_STREAM))
+                    .andExpect(content().bytes(SELFIE));
+        }
+        request.andRespond(
+                withStatus(HttpStatusCode.valueOf(status))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(sample.path("body").toString()));
+        if (status < 300) {
+            Object actual = invoke(f.gateway, endpoint, jobId);
+            JsonNode result = JSON.valueToTree(actual);
+            assertThat(result).isEqualTo(sample.path("body"));
+        } else {
+            assertThatThrownBy(() -> invoke(f.gateway, endpoint, jobId))
+                    .isInstanceOfSatisfying(
+                            FaceJobRejectedException.class,
+                            error -> {
+                                assertThat(error.status()).isEqualTo(status == 401 ? 503 : status);
+                                assertThat(error.reason())
+                                        .isEqualTo(
+                                                status == 401
+                                                        ? "UPSTREAM_FAILED"
+                                                        : sample.path("body")
+                                                                .path("reason")
+                                                                .asText());
+                            });
+        }
+        f.server.verify();
+    }
+
+    private static Object invoke(AiServerFaceJobGateway gateway, String endpoint, String jobId) {
+        if (endpoint.startsWith("POST")) return gateway.submit(42, SELFIE);
+        if (endpoint.endsWith("/result")) return gateway.result(42, jobId);
+        if (endpoint.endsWith("/latest")) return gateway.latest(42);
+        return gateway.status(42, jobId);
+    }
+
+    @Test
+    void timeoutIsNotReportedAsMissingFace() {
+        Fixture f = fixture();
+        f.server
+                .expect(requestTo("http://ai:8000/users/42/faces/latest"))
+                .andRespond(withException(new HttpTimeoutException("timeout")));
+        assertThatThrownBy(() -> f.gateway.latest(42))
+                .isInstanceOfSatisfying(
+                        FaceJobRejectedException.class,
+                        e -> {
+                            assertThat(e.status()).isEqualTo(504);
+                            assertThat(e.reason()).isEqualTo("TIMEOUT");
+                        });
+    }
+
+    @Test
+    void malformedJobResponseIsRejected() {
+        Fixture f = fixture();
+        f.server
+                .expect(requestTo("http://ai:8000/users/42/faces/jobs/a"))
+                .andRespond(
+                        withSuccess(
+                                "{\"jobId\":\"a\",\"status\":\"UNKNOWN\"}",
+                                MediaType.APPLICATION_JSON));
+        assertThatThrownBy(() -> f.gateway.status(42, "a"))
+                .isInstanceOf(FaceJobRejectedException.class);
+    }
+
+    @Test
+    void oversizedDecodedImageIsRejected() throws IOException {
+        JsonNode sample =
+                JSON.readTree(
+                        Files.readString(Path.of("../ai/tests/contract/faces-latest-200-ok.json")));
+        var body = (com.fasterxml.jackson.databind.node.ObjectNode) sample.path("body");
+        byte[] png =
+                java.util.Base64.getDecoder()
+                        .decode(body.path("faceImage").asText().split(",", 2)[1]);
+        java.nio.ByteBuffer.wrap(png).putInt(16, 100_000);
+        body.put(
+                "faceImage",
+                "data:image/png;base64," + java.util.Base64.getEncoder().encodeToString(png));
+        Fixture f = fixture();
+        f.server
+                .expect(requestTo("http://ai:8000/users/42/faces/latest"))
+                .andRespond(withSuccess(body.toString(), MediaType.APPLICATION_JSON));
+        assertThatThrownBy(() -> f.gateway.latest(42)).isInstanceOf(FaceJobRejectedException.class);
+    }
+
+    @Test
+    void overlongErrorCannotReachPersistence() {
+        Fixture f = fixture();
+        String response =
+                "{\"jobId\":\"a\",\"status\":\"FAILED\",\"error\":{\"code\":\"FAIL\",\"message\":\""
+                        + "x".repeat(501)
+                        + "\"}}";
+        f.server
+                .expect(requestTo("http://ai:8000/users/42/faces/jobs/a"))
+                .andRespond(withSuccess(response, MediaType.APPLICATION_JSON));
+        assertThatThrownBy(() -> f.gateway.status(42, "a"))
+                .isInstanceOf(FaceJobRejectedException.class);
+    }
+
+    @Test
+    void additiveUpstreamFieldsRemainCompatible() {
+        Fixture f = fixture();
+        f.server
+                .expect(requestTo("http://ai:8000/users/42/faces/jobs/a"))
+                .andRespond(
+                        withSuccess(
+                                "{\"jobId\":\"a\",\"status\":\"RUNNING\",\"newMetadata\":42}",
+                                MediaType.APPLICATION_JSON));
+        assertThat(f.gateway.status(42, "a").status())
+                .isEqualTo(com.a207.runkk.avatar.FaceJob.Status.RUNNING);
+    }
+
+    @Test
+    void pathTraversalIsRejectedBeforeCallingAi() {
+        Fixture f = fixture();
+        assertThatThrownBy(() -> f.gateway.status(42, "../other"))
+                .isInstanceOf(IllegalArgumentException.class);
+        f.server.verify();
+    }
+}
