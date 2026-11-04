@@ -1,6 +1,6 @@
 # 병합 대기: docs/S15P31A207-275-placement
 
-> 작성: 2026-11-04 | 작성자: 이성현 | 스킬: sw-srs, sw-design-oo, sw-design review, sw-test
+> 작성: 2026-11-04(갱신 2026-11-05) | 작성자: 이성현 | 스킬: sw-srs, sw-design-oo, sw-design review, sw-test, sw-code-review, sw-implement
 
 공용 담당이 쓴 브랜치라 정식 번호(CR-135~CR-146, FR-274~FR-290)와 버전(srs v0.24)은 이 브랜치에서 매겼다. 핫픽스 브랜치(`hotfix/S15P31A207-275-v0111-feedback`) 병합 대기 파일의 [임시:CR-성-1]~[임시:CR-성-4]는 CR-135~CR-138로 매겼다. 남은 것은 박재영 담당 조각의 문장 수정 요청이다. 근거와 전체 규칙은 srs/03-08-배치고사-화면개편-성.md와 srs/07-16-변경-요청-CR-v0.24.md(7.13.19)에 있다.
 
@@ -22,6 +22,7 @@
 - (sw-test, test v0.18) test/10-25-v018-배치고사-계획-단위.md·test/10-26-v018-배치고사-통합-검증-구현목록.md 새 조각(18장, TC-5693~TC-5953 261개: 핫픽스 CR-135~CR-138 10, 단위 서버 103, 화이트박스 8, 단위 앱 97, 통합 32, 검증·시스템 11, 구현 단위별 시험 목록 18.15), test.md(머리 v0.18, 상태, 함께 고친 문서, 변경 이력, 목차 2행, 1장 요약 수, 실행 이력, 다음 행동), test/01-계획.md 1.5 번호 대역 TC-5693~TC-5999 행, test/10-24 다음 링크, README.md(test 행).
 - (sw-code-review, code-review v0.22) code-review/17-배치고사-1차.md 새 조각(hotfix df211dc5..bad8c750, BE-0·BE·AN-1·infra, 조건부 0/5/16, 결함 PL1-B1~B8·PL1-A1~A9·PL1-T1~T4, 설계서 갱신 요청 U-1~U-11, 시험서 갱신 요청 UT-1~UT-3), code-review.md(머리 v0.22, 최신 판정, 변경 이력, 새 절), 3차 리뷰 요약 절을 code-review/00-리뷰-2026-10-21-3차-요약.md로 옮김(목차 100KB 상한, 내용 그대로), README.md(code-review 행).
 - (sw-code-review 2차, code-review v0.22 같은 판) code-review/18-배치고사-2차.md 새 조각(1차 수정 bad8c750..96cc3f5e 확인 + AN-2 3dfb8552..c2685561, 조건부 0/2/14, 결함 PL2-A1~A8·PL2-B1·PL2-T1, 설계서 갱신 요청 U2-1~U2-8, 시험서 UT2-1~UT2-4), code-review.md(머리 헤더 입력, 최신 판정, 변경 이력, 새 절), README.md(code-review 행).
+- (sw-design-oo, design-oo v0.32) design-oo/05-22-설계-배치고사-리뷰반영-성.md 새 조각(D-521~D-546: code-review 17·18 설계서 갱신 요청 U-1~U-9·U-11·U2-1~U2-8 반영, U-10 철회, 구현 작업자가 설계와 다르게 한 것, SQ-51, 상태도 2.4.28, 피그마 차이 18~23). 05-21(헤더·각 결정·2.x·7.1·7.3·8·11·14절에 "v0.32" 표시와 05-22 링크, D-496 masterAccent 정정, 7.3 라이트 브론즈·골드 글자색), 05-03 5.7.3(출처, NOT_COUNTED 뜻, P4 오류, P8 연산, MatchFound null, 계약 시험 이름), 06-01(이성현) 배치고사 요약, 06-06 6.1.17, 07-11 상태 표 행, 12-의존도 v0.32 문단, A-추적표 FR-276·FR-280·FR-281·FR-287·FR-289, B-E(v0.32 이력·색인), srs/03-08 J24-22 보완(이력 라벨 「배틀런 · 배치고사 n판」, n = 만든 때 번호), design-oo.md(머리 v0.32, 목차 행, 상태), README.md(design-oo 행).
 
 ## 새 임시 번호
 
@@ -38,6 +39,7 @@
 | D-511~D-520 | D | 설계 검토 반영(판 인정 = 기록 유효, 기록 연결 사건, 판 결과 상태 battle 안, V35_1, 생성 경합, 판 셈 잠금, 읽기 순서, lockForMatch Optional, 화면 연결, 모드 인자 분리) | design-oo/05-21 1.1절 |
 | R82~R95, H-62~H-67, C1~C11 | 검토 결함·숨은 의존·코드 대조 | 기존 최대 R81·H-61 다음 | design-review/25 |
 | TC-5693~TC-5953 | TC | 배치고사·화면 개편·핫픽스 시험 261개(기존 최대 TC-5692 다음, 대역 TC-5693~TC-5999, 예비 TC-5954~). T-59·T-60 스레드, J-T18-1~13, TF-V18-01~04, R-V18-01~04 | test/10-25, test/10-26 |
+| D-521~D-546, SQ-51, 2.4.28 | D·시퀀스·상태도 | code-review v0.22 1·2차 설계서 갱신 요청과 구현 작업자 결정 반영(기존 최대 D-520·SQ-50·2.4.27 다음) | design-oo/05-22 |
 
 ## 공용 파일 반영
 
@@ -97,3 +99,8 @@
 - 박재영(design-oo/06-02-클래스-running-analysis-profile.md): RankingView.publicTiers·publicTierOf(조회 때 MemberQueryService.summaries로 붙임, D-486), DashboardView.latestRun·latestRunOutcome(D-491)을 6.1.4에 옮긴다.
 - 박재영(design-oo/06-03·06-02, code-review v0.22 1차 결과): 06-03에 옮길 때 05-21의 v0.31 문장 대신 code-review 17 8절 U-1(PlacementRoundCheck 구성요소 7, of(…, now)), U-2(PlacementRoundReader + Clock), U-4(취소 대결 결과 조회 404와 placementState), U-9(MatchAcceptance·MatchFound 보조 생성자)를 반영한 문장을 쓴다. 06-02에는 U-3(DashboardView.latestRunOutcome 대신 DashboardController가 결과를 붙임)을 쓴다. 코드 결함 PL1-B1(RunQueryService.summary 예외의 rollback-only)은 running(박재영 도메인)에 예외 없는 조회 `findSummary`를 더하는 방향이라 그 MR 승인을 받는다.
 - 박재영(코드 검토 요청): 계약(05-03 5.7.3)의 battle·analysis 항목은 제공하는 쪽이 박재영 도메인이므로 MR에서 승인을 받는다(OWNERS 3절 5). 워치 잠금 문구(D-500)도 워치 담당 확인.
+
+- 박재영(design-oo/06-03-클래스-battle.md, design-oo v0.32): 06-03에 옮길 때 05-22의 문장을 쓴다. PlacementRoundCheck 7구성요소·`of` 두 겹침·SUMMARY_GRACE(D-521), PlacementRoundReader 협력 + Clock·`findSummary`·취소 = BATTLE_NOT_FOUND·복구 창(7일) 뒤 NOT_COUNTED(D-522·D-525), PlacementRoundListener의 uq 위반 처리·`count` 반환 뜻·정정은 count 뒤·로그(D-538), 판 셈 동시성 근거와 Hibernate 회귀 기준 TC-5923(D-539), PlacementMatcher QUEUE_UNAVAILABLE·MatchFound null 직렬화(D-540), MatchAcceptance 3인자·MatchFound 8인자 보조 생성자(D-529), BattleResultService.comparison·theirs·recordGaps의 Optional 조회(D-524). 이전 요청의 "U-1·U-2·U-4·U-9 반영 문장"은 이 항목으로 읽는다.
+- 박재영(design-oo/06-02-클래스-running-analysis-profile.md, design-oo v0.32): RunQueryService `findSummary`·`findComparison`·`latestListRow`와 포트 `RunRecordRepository.latestListRow`, "없을 수 있는 기록은 예외를 잡지 말고 Optional 조회" 규칙(D-524), DashboardView는 `latestRun`만(대결 결과는 web.record DashboardController가 붙임, D-523). 이전 요청의 `latestRunOutcome`은 지운다.
+- 박재영(srs/03-04-대결-관리.md FR-101, design-oo v0.32 D-534): 이전 요청 "배치고사 판은 랜덤 대결로 남기고 「배치고사 n판」을 덧붙인다"를 "「배틀런 · 배치고사 n판」(n은 대결을 만든 때 판 번호)"로 읽는다(srs 03-08 J24-22 보완과 같음).
+- 박재영(코드 검토 요청, design-oo v0.32): running 패키지 `RunQueryService`·`RunRecordRepository`에 더한 예외 없는 조회 3개(PL1-B1·PL1-B5 수정)는 박재영 도메인이라 MR !70에서 승인을 받는다. 워치 잠금 문구 줄바꿈(D-546)도 워치 담당 확인.
