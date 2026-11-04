@@ -211,10 +211,17 @@ private fun reachGap(result: BattleResult): String? {
     return (if (gap.isNegative) "-" else "+") + RunkkFormat.duration(gap.abs())
 }
 
+/**
+ * 판 셈 정리 중 줄. 전체 화면 풍경 그림 위라 [Notice]와 같은 Surface 바탕에 두어 글자 대비를 지키고(4.5:1), 나타나면 읽어 준다(PL2-A4).
+ */
 @Composable
 private fun Checking() {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).semantics(mergeDescendants = true) {},
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(RunkkColors.Surface, RoundedCornerShape(14.dp))
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
         horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically
     ) {

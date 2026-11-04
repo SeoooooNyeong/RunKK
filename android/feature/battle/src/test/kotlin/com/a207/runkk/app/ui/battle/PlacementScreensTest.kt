@@ -2,6 +2,9 @@ package com.a207.runkk.app.ui.battle
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -94,6 +97,14 @@ class PlacementScreensTest {
         isStillPending = isStillPending,
         progressError = progressError
     )
+
+    @Test
+    fun `결과를 확인하는 중 줄은 나타나면 읽어 준다(PL2-A4)`() {
+        show { PlacementResultScreen(resultState(PlacementRoundState.PENDING), PlacementResultActions()) }
+        compose.onNode(
+            hasText("결과를 확인하고 있어요") and SemanticsMatcher.keyIsDefined(SemanticsProperties.LiveRegion)
+        ).assertExists()
+    }
 
     @Test
     fun `30초 뒤에도 정리 중이면 안내 옆 다시 확인으로 다시 읽는다(PL2-A2)`() {

@@ -165,6 +165,15 @@ class BattleScreenshotTest {
         )
     }
 
+    /** 판 셈 정리 중 줄(Surface 바탕, PL2-A4). */
+    @Test
+    fun placementResultChecking() = compose.captureRunkkScreen("P2_placement_result_checking", isDarkTheme = false) {
+        PlacementResultScreen(
+            placementResultState(PRS.PENDING, "WIN", counted = 2).copy(detail = null),
+            PlacementResultActions()
+        )
+    }
+
     /** 30초 뒤 정리 중 안내와 「다시 확인」(PL2-A2). 기록 상세가 아직 없어 안내가 한 화면에 보인다. */
     @Test
     fun placementResultRecheck() = compose.captureRunkkScreen("P2_placement_result_recheck", isDarkTheme = false) {
