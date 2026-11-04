@@ -473,7 +473,7 @@ private fun Room(state: HomeUiState, actions: HomeActions, bottomSpace: Dp, modi
     }
 }
 
-/** "이번 주 [n] / [n]km" 막대와 "[n]주 연속"(흰 알약, 가이드 앵커 WEEKLY_GOAL), 러닝 설정(해 모양) 버튼. */
+/** "이번 주 [n] / [n]km" 막대와 "[n]주 연속"(흰 알약, 가이드 앵커 WEEKLY_GOAL), 러닝 설정(톱니바퀴, 2026-11-04 핫픽스) 버튼. */
 @Composable
 private fun WeekRow(state: HomeUiState, onSettings: () -> Unit, onGoal: () -> Unit) {
     val openGoal = stringResource(R.string.home_open_goal_coach)
@@ -521,7 +521,7 @@ private fun WeekRow(state: HomeUiState, onSettings: () -> Unit, onGoal: () -> Un
             Text(streak, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary, maxLines = 1)
         }
         CircleIconButton(
-            icon = RunkkIcons.Sun,
+            icon = RunkkIcons.Settings,
             description = stringResource(R.string.home_run_settings),
             onClick = onSettings
         )
