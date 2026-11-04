@@ -38,6 +38,10 @@ internal interface MeApi {
     @GET("me/guide")
     suspend fun guide(): GuideResponse
 
+    /** 본인 배치고사 진행(FR-279~FR-282, 05-03 5.7.3.2 P1). */
+    @GET("me/placement")
+    suspend fun placement(): PlacementResponse
+
     /** 첫 사용 가이드를 끝냈다(204, 멱등). */
     @PUT("me/guide")
     suspend fun markGuideSeen()

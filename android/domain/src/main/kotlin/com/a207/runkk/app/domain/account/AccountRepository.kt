@@ -1,5 +1,6 @@
 package com.a207.runkk.app.domain.account
 
+import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Outcome
@@ -63,6 +64,13 @@ interface AccountRepository {
      * 읽으면 [myGender]도 갱신한다. 본인 ID를 모르면(토큰 없음) Unauthorized.
      */
     suspend fun mySummary(): Outcome<MySummary>
+
+    /**
+     * 본인 배치고사 진행(GET /me/placement, FR-279~FR-282, D-488·D-493). 홈 헤더 배지·진입 시트, 마이, 배치고사 화면이 읽는다.
+     * 임시 티어는 이 응답에만 있다(FR-282). 모르는 상태 값은 실패(Server(0))다. 기본 구현은 실패라 구현이 없는 가짜 저장소에서는
+     * 화면이 진행을 모르는 상태(배지 없음, 진입 시트 랜덤 → 배치고사 화면)로 동작한다.
+     */
+    suspend fun placement(): Outcome<PlacementProgress> = Outcome.Failure(AppError.Server(0))
 
     /** 프로필 편집(PATCH /me/profile, FR-007, D-287). 성향 태그(D-91)와 사진은 편집 항목이 아니다. */
     suspend fun editProfile(edit: ProfileEdit): Outcome<Unit>

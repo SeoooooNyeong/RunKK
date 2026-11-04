@@ -249,7 +249,7 @@ class BattleScreensTest {
         // 서버 티어 코드는 한글 이름으로 보인다(R2-11)
         compose.onNodeWithText("골드").assertExists()
         compose.onNodeWithText("GOLD").assertDoesNotExist()
-        compose.onNodeWithText("언랭").assertExists()
+        compose.onNodeWithText("배치 중").assertExists()
         compose.onNodeWithText("5km 최고 30:12").assertExists()
         compose.onNodeWithText("5km 최고 29:48").assertExists()
         compose.onNodeWithText("거절").performClick()

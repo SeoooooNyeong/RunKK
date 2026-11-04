@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 티어 엠블럼 master 112dp 라이트(피그마 61363:3403, D-495). 경로는 피그마 SVG 그대로, 색은 RunKK · Tier 변수(design-oo 7.3). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="112dp"
+    android:height="112dp"
+    android:viewportWidth="112"
+    android:viewportHeight="112">
+    <path
+        android:pathData="M14 37.3333L36.1667 56L56 16.3333L75.8333 56L98 37.3333L88.6667 95.6667H23.3333L14 37.3333Z"
+        android:fillColor="#8B7BF0"
+        android:strokeColor="#5C4BDB"
+        android:strokeWidth="7"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M24.5 81.6667H87.5L85.75 95.6667H26.25L24.5 81.6667Z"
+        android:fillColor="#5C4BDB" />
+    <group android:translateX="43.17" android:translateY="52.5">
+    <path
+        android:pathData="M6.22951 23.5278L7.96736 16.0149L2.13889 10.9618L9.83889 10.2934L12.8333 3.20833L15.8278 10.2934L23.5278 10.9618L17.6993 16.0149L19.4372 23.5278L12.8333 19.5441L6.22951 23.5278Z"
+        android:fillColor="#E5E0FF" />
+    </group>
+    <group android:translateX="6.42" android:translateY="27.42">
+    <path
+        android:pathData="M3.68108 13.9028L4.70799 9.46337L1.26389 6.47743L5.81389 6.08247L7.58333 1.89583L9.35278 6.08247L13.9028 6.47743L10.4587 9.46337L11.4856 13.9028L7.58333 11.5488L3.68108 13.9028Z"
+        android:fillColor="#CAEB2E" />
+    </group>
+    <group android:translateX="90.42" android:translateY="27.42">
+    <path
+        android:pathData="M3.68108 13.9028L4.70799 9.46337L1.26389 6.47743L5.81389 6.08247L7.58333 1.89583L9.35278 6.08247L13.9028 6.47743L10.4587 9.46337L11.4856 13.9028L7.58333 11.5488L3.68108 13.9028Z"
+        android:fillColor="#CAEB2E" />
+    </group>
+    <group android:translateX="47.25" android:translateY="5.25">
+    <path
+        android:pathData="M4.2474 16.0417L5.43229 10.9193L1.45833 7.47396L6.70833 7.01823L8.75 2.1875L10.7917 7.01823L16.0417 7.47396L12.0677 10.9193L13.2526 16.0417L8.75 13.3255L4.2474 16.0417Z"
+        android:fillColor="#CAEB2E" />
+    </group>
+</vector>

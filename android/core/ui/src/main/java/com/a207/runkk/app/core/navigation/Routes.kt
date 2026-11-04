@@ -64,9 +64,19 @@ object Routes {
     // 대결(ui.battle), 크루(ui.crew), Runimal(ui.runimal), 아바타(ui.avatar): 화면은 A3b 단계가 등록한다.
 
     /**
-     * 배틀런(랜덤 대결) 거리 고르기·매칭 대기(v0.13). v0.14는 배틀런 화면(BATTLE_MODE)이 대신한다. A3가 대체 화면을 만들면 지운다.
+     * 랜덤 대결(ui.battle RandomBattleScreen, D-498, FR-285): 확정 티어 회원이 거리를 골라 매칭한다. 하단 탭을 숨기고 왼쪽 위 뒤로가 있다.
+     * 홈 배틀런 진입 시트의 랜덤 카드가 연다(배치 중이면 [PLACEMENT], D-499).
      */
     const val BATTLE_RANDOM = "battle/random"
+
+    /** 친구 대결(ui.battle FriendBattleScreen, D-498, FR-286): 하단 탭을 보이고 홈을 고른 상태로 둔다(뒤로 없음). */
+    const val BATTLE_FRIEND = "battle/friend"
+
+    /** 배치고사 진행(ui.battle PlacementScreen, D-498, FR-279): 배치 중 회원의 랜덤 대결. 하단 탭 숨김, 왼쪽 위 뒤로. */
+    const val PLACEMENT = "battle/placement"
+
+    /** 배치고사 완료·티어 확정(ui.battle PlacementCompleteScreen, D-498, FR-281). 하단 탭 숨김, 왼쪽 위 뒤로(= 홈). */
+    const val PLACEMENT_COMPLETE = "battle/placement/complete"
     const val RUNIMAL = "runimal"
 
     /** Runimal 16유형(G-5, ui.runimal RunimalTypesScreen, D-285). */
@@ -156,6 +166,13 @@ object Routes {
      */
     @Serializable
     data class Evaluation(val tier: String, val validRuns: Int, val runimalType: String?) : NavKey
+
+    /**
+     * 배치고사 판 결과(ui.battle PlacementResultScreen, D-498·D-501, FR-280). 대결이 끝난 직후 대결 결과 대신 바꿔 연다.
+     * 하단 탭 숨김, 왼쪽 위 뒤로(= 홈).
+     */
+    @Serializable
+    data class PlacementResult(val battleId: Long) : NavKey
 
     /**
      * 대결 결과(비교표, FR-093·FR-108). [isJustFinished]는 대결을 끝낸 직후 대결 진행 화면이 열 때만 참이다. 기록 대결 탭·알림함에서

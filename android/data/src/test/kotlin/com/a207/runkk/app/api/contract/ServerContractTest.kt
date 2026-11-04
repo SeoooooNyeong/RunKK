@@ -7,6 +7,7 @@ import com.a207.runkk.app.api.account.LoginRequest
 import com.a207.runkk.app.api.account.LoginResponse
 import com.a207.runkk.app.api.account.LogoutRequest
 import com.a207.runkk.app.api.account.MemberSettingsResponse
+import com.a207.runkk.app.api.account.PlacementResponse
 import com.a207.runkk.app.api.account.ProfileEditRequest
 import com.a207.runkk.app.api.account.ProfileResponse
 import com.a207.runkk.app.api.account.SettingChangeBody
@@ -95,6 +96,7 @@ import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.RunMode
 import com.a207.runkk.app.core.model.SignalState
 import com.a207.runkk.app.domain.account.AccountType
+import com.a207.runkk.app.domain.account.PlacementStatus
 import com.a207.runkk.app.domain.account.ProviderType
 import com.a207.runkk.app.domain.avatar.ItemSlot
 import com.a207.runkk.app.domain.battle.BattleHistory
@@ -211,6 +213,8 @@ class ServerContractTest {
         assertEquals(enumNames("ReportReason"), names(ReportReason.entries))
         assertEquals(enumNames("ReportStatus"), names(ReportStatus.entries))
         assertEquals(enumNames("ChatRemovalReason"), names(CrewChatRemoved.Reason.entries))
+        // TC-5941 배치고사 상태(05-03 5.7.3.1)
+        assertEquals(enumNames("PlacementStatus"), names(PlacementStatus.entries))
     }
 
     @Test
@@ -391,6 +395,8 @@ class ServerContractTest {
         response(RunimalTypesResponse.serializer(), "RunimalController.TypesResponse")
         response(RunimalTypeResponse.serializer(), "RunimalController.TypeDetailResponse")
         response(ProfileResponse.serializer(), "MeController.ProfileResponse")
+        // TC-5939 배치고사·화면 개편 계약(05-03 5.7.3.3): 배치 진행, 대시보드 latestRun, 랭킹 publicTier
+        response(PlacementResponse.serializer(), "MeController.PlacementResponse")
         response(DashboardResponse.serializer(), "RecordDtos.DashboardResponse")
         response(RecordListResponse.serializer(), "RecordDtos.RecordListResponse")
         response(RecordDetailResponse.serializer(), "RecordDtos.RecordDetailResponse")

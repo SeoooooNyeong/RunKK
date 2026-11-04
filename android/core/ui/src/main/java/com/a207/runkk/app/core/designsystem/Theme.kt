@@ -91,6 +91,7 @@ fun RunkkTheme(
     ) {
         CompositionLocalProvider(
             LocalRunkkColors provides colors,
+            LocalRunkkTierColors provides if (darkTheme) RunkkTierColors.dark else RunkkTierColors.light,
             LocalReduceMotion provides reduce,
             content = content
         )
