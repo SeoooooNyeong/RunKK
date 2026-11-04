@@ -598,8 +598,8 @@ class BattleV014Test {
 
     @Test
     @DisplayName(
-            "TC-5800 이력 행: 친구 대결이고 상대가 탈퇴하지 않았으면 opponentMemberId, 배치고사 판이면 placementRound(그 밖은"
-                    + " null, D-492·J24-22)")
+            "TC-5800·TC-5930 이력 행: 친구 대결이고 상대가 탈퇴하지 않았으면 opponentMemberId, 배치고사 판이면"
+                    + " placementRound(그 밖은 null, D-492·J24-22)")
     void history_carriesOpponentMemberIdAndPlacementRound() {
         Battle friend = Battle.friend(accepted(), NOW);
         friend.scheduleStart(NOW.plusSeconds(13));

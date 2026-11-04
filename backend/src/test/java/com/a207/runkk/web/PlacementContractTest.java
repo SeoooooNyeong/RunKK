@@ -2,9 +2,15 @@ package com.a207.runkk.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.a207.runkk.battle.Verdict;
+import com.a207.runkk.common.ReasonCode;
+import com.a207.runkk.member.PlacementVerdict;
+import java.io.InputStream;
 import java.lang.reflect.RecordComponent;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
@@ -15,7 +21,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 @org.junit.jupiter.api.DisplayName("배치고사 REST 계약 항목(05-03 5.7.3.3)")
 class PlacementContractTest {
 
-    @ParameterizedTest(name = "{0}")
+    @ParameterizedTest(name = "TC-5706 {0}")
     @CsvSource(
             delimiter = '|',
             value = {
@@ -29,7 +35,7 @@ class PlacementContractTest {
         assertThat(componentNames(type)).containsExactly(fields.split(","));
     }
 
-    @ParameterizedTest(name = "{0}")
+    @ParameterizedTest(name = "TC-5707 {0}")
     @CsvSource(
             delimiter = '|',
             value = {
@@ -57,19 +63,70 @@ class PlacementContractTest {
                 .isLessThan(names.indexOf(appended.get(0)));
     }
 
-    @ParameterizedTest(name = "{0}")
+    @ParameterizedTest(name = "{0} {1}")
     @CsvSource(
             delimiter = '|',
             value = {
-                "member.PlacementStatus|IN_PROGRESS,COMPLETED,EXEMPT",
-                "member.PlacementVerdict|WIN,LOSE,DRAW",
-                "battle.PlacementRoundState|COUNTED,NOT_COUNTED,PENDING",
+                "TC-5703|member.PlacementStatus|IN_PROGRESS,COMPLETED,EXEMPT",
+                "TC-5705|member.PlacementVerdict|WIN,LOSE,DRAW",
+                "TC-5704|battle.PlacementRoundState|COUNTED,NOT_COUNTED,PENDING",
             })
-    void newEnums_haveTheContractValuesInOrder(String type, String values) throws Exception {
+    void newEnums_haveTheContractValuesInOrder(String tc, String type, String values)
+            throws Exception {
         Object[] constants = Class.forName("com.a207.runkk." + type).getEnumConstants();
 
         assertThat(Arrays.stream(constants).map(c -> ((Enum<?>) c).name()))
                 .containsExactly(values.split(","));
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName(
+            "TC-5705 member.PlacementVerdict와 battle.Verdict 값이 같다(이름으로 옮기므로 하나라도 다르면 실패, H-62)")
+    void placementVerdict_matchesBattleVerdict() {
+        assertThat(Arrays.stream(PlacementVerdict.values()).map(Enum::name))
+                .containsExactlyElementsOf(
+                        Arrays.stream(Verdict.values()).map(Enum::name).toList());
+    }
+
+    /**
+     * BE-0 전(df211dc5) 계약 기준 파일의 항목 전부. 배치고사 변경은 이 뒤에 붙이기만 한다: 삭제·이름 변경·순서 변경 0(옛 앱 호환 J24-11,
+     * D-510).
+     */
+    @ParameterizedTest(name = "TC-5708 {0}")
+    @CsvSource(
+            delimiter = '|',
+            value = {
+                "web.battle.BattleDtos$MatchAcceptanceResponse"
+                        + "|waiting,distanceMeters,defaultDistanceMeters",
+                "web.battle.BattleDtos$BattleResultResponse"
+                        + "|battleId,type,pending,retryUpload,verdict,corrected,myReachSeconds,"
+                        + "opponentReachSeconds,rows,weekly,rewardPoints,newRecord,opponentName,"
+                        + "recordId,totalRewardPoints,evaluation,opponentGender,celebrityFigure",
+                "web.battle.BattleDtos$ActiveBattleResponse"
+                        + "|battleId,type,status,distanceMeters,opponentName,startAt,"
+                        + "opponentGender,celebrityFigure",
+                "web.battle.BattleDtos$Entry"
+                        + "|battleId,type,opponentName,distanceMeters,verdict,playedAt,newRecord,"
+                        + "gapSeconds,sourceLabel",
+                "web.record.RecordDtos$Entry"
+                        + "|rank,subjectId,name,tier,distanceMeters,shownGender",
+                "web.record.RecordDtos$DashboardResponse"
+                        + "|baseDate,unit,todayMeters,todaySeconds,todayRuns,totalMeters,"
+                        + "totalSeconds,totalRuns,landmark,streakDays,grass,grassLevels,"
+                        + "weeklyAchievement,weekly,crew,calendar,rewardBalance,monthRuns,"
+                        + "monthMeters,streakWeeks",
+            })
+    void placementContract_onlyAddsFieldsAndKeepsRankedOnly(String type, String before)
+            throws Exception {
+        List<String> old = List.of(before.split(","));
+
+        assertThat(componentNames(type).subList(0, old.size())).containsExactlyElementsOf(old);
+        assertThat(ReasonCode.valueOf("RANKED_ONLY")).as("옛 앱 문구용 사유 코드는 남는다(D-478)").isNotNull();
+        try (InputStream in =
+                getClass().getResourceAsStream("/contract/app/enums/ReasonCode.txt")) {
+            assertThat(new String(in.readAllBytes(), StandardCharsets.UTF_8).lines())
+                    .contains("RANKED_ONLY");
+        }
     }
 
     private static List<String> componentNames(String type) throws ClassNotFoundException {

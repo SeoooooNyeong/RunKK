@@ -220,7 +220,7 @@ class MemberTest {
 
     @Test
     @org.junit.jupiter.api.DisplayName(
-            "TC-5740 3판째가 10번째 순번이면 그 순번에서는 확정만 한다: 확정이 먼저든 러닝 반영이 먼저든 같다(D-484)")
+            "TC-5740·TC-5925 3판째가 10번째 순번이면 그 순번에서는 확정만 한다: 확정이 먼저든 러닝 반영이 먼저든 같다(D-484)")
     void recordValidRun_placementAtTenthOrdinal_noReevaluationThere() {
         Member confirmedFirst = member("곰A");
         for (int i = 1; i <= 9; i++) {

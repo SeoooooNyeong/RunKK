@@ -157,7 +157,8 @@ class AppContractSnapshotTest {
                     .enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS);
 
     @Test
-    @DisplayName("서버 계약이 바뀌면 실패하고 갱신 방법을 알린다")
+    @DisplayName(
+            "TC-5703·TC-5704·TC-5706·TC-5707 서버 계약(배치고사 enum·응답 record 포함)이 바뀌면 실패하고 갱신 방법을 알린다")
     void serverContract_matchesBaseline() throws Exception {
         Map<String, String> generated = generate();
         if (Boolean.parseBoolean(System.getenv(UPDATE_ENV))) {
