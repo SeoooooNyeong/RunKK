@@ -25,7 +25,9 @@ import kotlinx.coroutines.launch
 
 /**
  * 랜덤 대결(FR-285, D-498): 확정 티어 회원이 거리를 골라 매칭한다. 열리면 본인 배치 진행(AccountRepository.placement)을 읽어 배치 중이면
- * 배치고사 진행(Routes.PLACEMENT)으로 바꿔 열고, 아니면 본인 티어 배지를 둔다. 진행을 못 읽으면 배지 없이 그대로 둔다(서버가 배치고사로 받는다).
+ * 배치고사 진행(Routes.PLACEMENT)으로 바꿔 열고, 배치고사를 마쳤는데 그 완료 화면을 이 기기에서 아직 안 봤으면 완료 화면으로 바꿔 연다(PL3-A1:
+ * 판 결과가 정리 중인 채 홈으로 나간 뒤 판이 세어져도 홈 랜덤 카드로 FR-281에 닿게). 아니면 본인 티어 배지를 둔다. 진행을 못 읽으면 배지 없이
+ * 그대로 둔다(서버가 배치고사로 받는다).
  * 시작은 위치 동의(D-267)를 확인한 뒤 매칭(BattleQuickMatch)으로 간다. 남은 친구 초대는 매칭을 막으므로 돌아올 때마다 정리한다(D-271).
  */
 @HiltViewModel
@@ -101,6 +103,10 @@ class RandomBattleViewModel @Inject constructor(
         val progress = (account.placement() as? Outcome.Success)?.value ?: return
         if (progress.status == PlacementStatus.IN_PROGRESS) {
             _events.trySend(RandomBattleEvent.Open(Routes.Key(Routes.PLACEMENT)))
+            return
+        }
+        if (progress.isCompletionUnseen(account.placementCompleteSeen())) {
+            _events.trySend(RandomBattleEvent.Open(Routes.Key(Routes.PLACEMENT_COMPLETE)))
             return
         }
         _state.update { it.copy(tierDisplay = TierDisplay.ofSelf(progress.tier, progress.provisionalTier)) }

@@ -56,6 +56,7 @@ class PlacementCompleteViewModel @Inject constructor(private val account: Accoun
             when (val read = account.placement()) {
                 is Outcome.Success -> {
                     val rounds = read.value.rounds.sortedBy { it.round }
+                    // 기기 저장이 실패해도 저장소가 이번 실행 동안 본 것으로 치고 남긴다(PL3-A2).
                     if (read.value.status == PlacementStatus.COMPLETED) {
                         rounds.lastOrNull()?.let { account.savePlacementCompleteSeen(it.battleId) }
                     }

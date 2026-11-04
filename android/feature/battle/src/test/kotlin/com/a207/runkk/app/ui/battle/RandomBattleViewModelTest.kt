@@ -34,11 +34,34 @@ class RandomBattleViewModelTest {
         val placing = vms.vm(world())
         placing.events.test { assertEquals(RandomBattleEvent.Open(Routes.Key(Routes.PLACEMENT)), awaitItem()) }
 
+        // 완료 화면을 이미 본 완료(마지막 판 903)
+        accounts.placementSeen = 903
         accounts.placementResult = Outcome.Success(settled(PlacementStatus.COMPLETED, "GOLD"))
         val ranked = vms.vm(world())
         runCurrent()
         assertEquals(TierDisplay.Confirmed("GOLD"), ranked.state.value.tierDisplay)
         ranked.events.test { expectNoEvents() }
+    }
+
+    @Test
+    fun `배치고사를 마쳤는데 완료 화면을 아직 안 봤으면 완료 화면으로 바꿔 연다(PL3-A1)`() = main.runVmTest { vms ->
+        accounts.placementResult = Outcome.Success(settled(PlacementStatus.COMPLETED, "GOLD"))
+        listOf(null, 777L).forEach { seen ->
+            accounts.placementSeen = seen
+            val vm = vms.vm(world())
+            vm.events.test {
+                assertEquals(RandomBattleEvent.Open(Routes.Key(Routes.PLACEMENT_COMPLETE)), awaitItem(), "기억 $seen")
+            }
+            assertNull(vm.state.value.tierDisplay, "완료 화면으로 바꿔 열면 배지를 달지 않는다")
+        }
+
+        // 면제는 기억과 상관없이 그대로 배지
+        accounts.placementSeen = null
+        accounts.placementResult = Outcome.Success(settled(PlacementStatus.EXEMPT, "SILVER"))
+        val exempt = vms.vm(world())
+        runCurrent()
+        assertEquals(TierDisplay.Confirmed("SILVER"), exempt.state.value.tierDisplay)
+        exempt.events.test { expectNoEvents() }
     }
 
     @Test
