@@ -301,6 +301,22 @@ class DataStoreSettingsRepositoryTest {
         assertEquals(GuideCopy.NONE, reopened.guideCopy())
     }
 
+    @Test
+    fun `배치고사 완료 화면을 본 판은 refresh가 덮지 않고 다시 열어도 남으며 clear가 지운다(PL2-A2)`() = runTest {
+        val first = open()
+        assertEquals(null, first.placementCompleteSeen())
+        assertEquals(Outcome.Success(Unit), first.savePlacementCompleteSeen(903))
+        remote.next += Outcome.Success(CONSENTED)
+        first.refresh()
+        assertEquals(903L, first.placementCompleteSeen())
+        closeAll()
+
+        val reopened = open()
+        assertEquals(903L, reopened.placementCompleteSeen())
+        reopened.clear()
+        assertEquals(null, reopened.placementCompleteSeen(), "로그아웃·탈퇴 뒤 다른 회원에게 남지 않는다")
+    }
+
     private fun open(): DataStoreSettingsRepository {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO).also(scopes::add)
         return DataStoreSettingsRepository(store, remote, scope)

@@ -1,6 +1,7 @@
 package com.a207.runkk.app.ui.battle
 
 import androidx.activity.compose.BackHandler
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,6 +31,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.a207.runkk.app.core.designsystem.AchievementCard
 import com.a207.runkk.app.core.designsystem.AchievementIcon
@@ -43,6 +45,7 @@ import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkLoading
+import com.a207.runkk.app.core.designsystem.RunkkPillButton
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
@@ -67,6 +70,11 @@ import java.util.Locale
 @Composable
 fun PlacementResultRoute(battleId: Long, viewModel: PlacementResultViewModel = hiltViewModel()) {
     LaunchedEffect(battleId) { viewModel.load(battleId) }
+    // 화면에 돌아오면 30초 뒤에도 정리 중이었거나 진행을 못 읽은 판을 다시 읽는다(PL2-A2).
+    LifecycleResumeEffect(viewModel) {
+        viewModel.onResumed()
+        onPauseOrDispose {}
+    }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val navigator = LocalRunkkNavigator.current
     LaunchedEffect(viewModel) {
@@ -123,7 +131,7 @@ fun PlacementResultScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 when {
-                    result != null -> ResultBody(state, result)
+                    result != null -> ResultBody(state, result, actions.onRetry)
 
                     state.isLoading -> Box(Modifier.fillMaxWidth().height(240.dp)) { RunkkLoading() }
 
@@ -144,7 +152,7 @@ fun PlacementResultScreen(
 }
 
 @Composable
-private fun ResultBody(state: PlacementResultUiState, result: BattleResult) {
+private fun ResultBody(state: PlacementResultUiState, result: BattleResult, onRetry: () -> Unit) {
     state.detail?.let { detail ->
         val summary = detail.summary
         ResultDistanceHero(
@@ -168,13 +176,23 @@ private fun ResultBody(state: PlacementResultUiState, result: BattleResult) {
     }
     AchievementCard(achievementsOf(result, state.verdict))
     val progress = state.progress
-    // 30초 뒤에도 정리 중이면 진행 카드 자리에 안내만 둔다(D-501).
+    // 30초 뒤에도 정리 중이면 진행 카드 자리에 안내와 「다시 확인」만 둔다(D-501, PL2-A2). 진행을 끝내 못 읽으면 오류와 「다시 시도」.
     when {
         state.isStillPending -> Unit
+
         state.isPending -> Checking()
+
+        state.progressError != null -> Notice(
+            state.progressError,
+            retryLabel = R.string.placement_retry,
+            onRetry = onRetry
+        )
+
         progress != null -> PlacementProgressAfterRound(progress)
     }
-    state.notice?.let { Notice(it) }
+    state.notice?.let {
+        Notice(it, retryLabel = R.string.placement_result_recheck.takeIf { state.isStillPending }, onRetry = onRetry)
+    }
 }
 
 /** 성과 줄: 첫 줄 승패(이긴 시간 차, 있으면), 리워드 합계. 판정 전이면 승패 줄을 넣지 않는다(빈 행을 그리지 않는다, 8절 9). */
@@ -209,20 +227,30 @@ private fun Checking() {
     }
 }
 
-/** 진행 카드 아래 안내(세지 않은 판, 정리 중). 나타나면 읽어 준다. */
+/**
+ * 진행 카드 아래 안내(세지 않은 판, 정리 중, 진행 읽기 실패). 나타나면 읽어 준다. [retryLabel]이 있으면 아래에 다시 읽는 글자 단추를 둔다
+ * (정리 중 「다시 확인」, 진행 읽기 실패 「다시 시도」, PL2-A2).
+ */
 @Composable
-private fun Notice(text: UiText) {
-    Text(
-        text.asString(),
-        style = RunkkTextStyles.text(13, FontWeight.Medium),
-        color = RunkkColors.TextSecondary,
-        textAlign = TextAlign.Center,
+private fun Notice(text: UiText, @StringRes retryLabel: Int? = null, onRetry: () -> Unit = {}) {
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .background(RunkkColors.Surface, RoundedCornerShape(14.dp))
-            .padding(horizontal = 16.dp, vertical = 12.dp)
-            .semantics { liveRegion = LiveRegionMode.Polite }
-    )
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text.asString(),
+            style = RunkkTextStyles.text(13, FontWeight.Medium),
+            color = RunkkColors.TextSecondary,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite }
+        )
+        retryLabel?.let {
+            RunkkPillButton(stringResource(it), onClick = onRetry, modifier = Modifier.padding(top = 4.dp))
+        }
+    }
 }
 
 private fun averagePace(detail: RecordDetail): Pace? {

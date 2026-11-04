@@ -37,6 +37,14 @@ interface SettingsRepository {
 
     suspend fun saveGuideCopy(copy: GuideCopy): Outcome<Unit> = Outcome.Success(Unit)
 
+    /**
+     * 배치고사 완료 화면(FR-281)을 본 마지막 판의 대결 ID 기기 사본(PL2-A2). 배치고사 진행 화면이 완료를 받았을 때 이 값이 마지막 판과
+     * 다르면 완료 화면을 연다. 가이드 사본과 같이 같은 기기 파일에 두고 [clear](로그아웃·탈퇴) 때 함께 지운다. 기본 구현은 사본 없음이다.
+     */
+    suspend fun placementCompleteSeen(): Long? = null
+
+    suspend fun savePlacementCompleteSeen(battleId: Long): Outcome<Unit> = Outcome.Success(Unit)
+
     /** 사본 삭제(로그아웃·탈퇴·로그인 상태 해제). */
     suspend fun clear(): Outcome<Unit>
 }

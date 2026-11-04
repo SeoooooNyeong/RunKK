@@ -3,6 +3,7 @@
 package com.a207.runkk.app.ui.battle
 
 import com.a207.runkk.app.core.designsystem.UiText
+import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.account.PlacementStatus
@@ -11,6 +12,7 @@ import com.a207.runkk.app.domain.battle.PlacementRoundState
 import com.a207.runkk.app.ui.battle.BattleWorld.Companion.world
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
@@ -35,7 +37,7 @@ class PlacementResultViewModelTest {
         battleResult(verdict = verdict).copy(battleId = battleId, placementRound = 1, placementState = state)
 
     private fun TestScope.open(w: BattleWorld, vms: ViewModelCloser, battleId: Long = 9): PlacementResultViewModel =
-        vms.track(PlacementResultViewModel(w.battles, details, accounts)).also {
+        vms.track(PlacementResultViewModel(w.battles, details, accounts, w.uploads)).also {
             it.load(battleId)
             runCurrent()
         }
@@ -91,7 +93,7 @@ class PlacementResultViewModelTest {
         accounts.placementResult = Outcome.Success(settled(PlacementStatus.COMPLETED, "GOLD"))
         val w = world()
         w.battles.resultResult = Outcome.Success(placementResult(PlacementRoundState.COUNTED, battleId = 903))
-        val done = vms.track(PlacementResultViewModel(w.battles, details, accounts))
+        val done = vms.track(PlacementResultViewModel(w.battles, details, accounts, w.uploads))
         backgroundScope.launch { done.events.collect { events += it } }
         done.load(903)
         runCurrent()
@@ -102,7 +104,7 @@ class PlacementResultViewModelTest {
 
         // 마지막 판이 다른 대결: 판 결과 그대로
         events.clear()
-        val other = vms.track(PlacementResultViewModel(w.battles, details, accounts))
+        val other = vms.track(PlacementResultViewModel(w.battles, details, accounts, w.uploads))
         backgroundScope.launch { other.events.collect { events += it } }
         w.battles.resultResult = Outcome.Success(placementResult(PlacementRoundState.COUNTED, battleId = 950))
         other.load(950)
@@ -128,6 +130,126 @@ class PlacementResultViewModelTest {
         assertEquals(Verdict.LOSE, state.verdict, "성과 첫 줄 「패배」")
         assertEquals(R.string.placement_verdict_lose, verdictLabelRes(Verdict.LOSE))
         assertEquals(1, w.resultCalls(), "다시 읽지 않는다")
+    }
+
+    /** 3판째(903) 판 결과를 연다. 진행은 완료(마지막 판 903)이고 이벤트를 [events]에 모은다. */
+    private fun TestScope.openLast(
+        w: BattleWorld,
+        vms: ViewModelCloser,
+        events: MutableList<PlacementResultEvent>
+    ): PlacementResultViewModel {
+        val vm = vms.track(PlacementResultViewModel(w.battles, details, accounts, w.uploads))
+        backgroundScope.launch { vm.events.collect { events += it } }
+        vm.load(903)
+        runCurrent()
+        return vm
+    }
+
+    private val complete = PlacementResultEvent.Replace(Routes.Key(Routes.PLACEMENT_COMPLETE))
+
+    @Test
+    fun `30초 뒤 정리 중이어도 기록이 올라가면 다시 읽어 3판째면 완료로 간다(PL2-A2)`() = main.runVmTest { vms ->
+        accounts.placementResult = Outcome.Success(settled(PlacementStatus.COMPLETED, "GOLD"))
+        val w = world()
+        w.battles.resultResult = Outcome.Success(placementResult(PlacementRoundState.PENDING, battleId = 903))
+        val events = mutableListOf<PlacementResultEvent>()
+        val vm = openLast(w, vms, events)
+        advanceTimeBy(15 * 2_000L + 100)
+        assertTrue(vm.state.value.isStillPending)
+
+        w.battles.resultResult = Outcome.Success(placementResult(PlacementRoundState.COUNTED, battleId = 903))
+        w.pendingRuns.runs.value = listOf(pendingBattleRun(10))
+        runCurrent()
+        assertEquals(PlacementRoundState.COUNTED, vm.state.value.state)
+        assertEquals(listOf<PlacementResultEvent>(complete), events)
+    }
+
+    @Test
+    fun `화면에 돌아오면 정리 중인 판을 다시 읽고 정리가 끝난 판은 다시 읽지 않는다(PL2-A2)`() = main.runVmTest { vms ->
+        accounts.placementResult = Outcome.Success(settled(PlacementStatus.COMPLETED, "GOLD"))
+        val w = world()
+        w.battles.resultResult = Outcome.Success(placementResult(PlacementRoundState.PENDING, battleId = 903))
+        val events = mutableListOf<PlacementResultEvent>()
+        val vm = openLast(w, vms, events)
+        vm.onResumed()
+        runCurrent()
+        assertEquals(1, w.resultCalls(), "다시 읽는 중에는 겹쳐 읽지 않는다")
+        advanceTimeBy(15 * 2_000L + 100)
+
+        w.battles.resultResult = Outcome.Success(placementResult(PlacementRoundState.COUNTED, battleId = 903))
+        vm.onResumed()
+        runCurrent()
+        assertEquals(listOf<PlacementResultEvent>(complete), events)
+        val calls = w.resultCalls()
+        vm.onResumed()
+        runCurrent()
+        assertEquals(calls, w.resultCalls(), "정리가 끝났으면 돌아와도 다시 읽지 않는다")
+    }
+
+    @Test
+    fun `다시 확인은 보이던 결과를 가리지 않고 다시 읽는다(PL2-A2)`() = main.runVmTest { vms ->
+        accounts.placementResult = Outcome.Success(settled(PlacementStatus.COMPLETED, "GOLD"))
+        val w = world()
+        w.battles.resultResult = Outcome.Success(placementResult(PlacementRoundState.PENDING, battleId = 903))
+        val events = mutableListOf<PlacementResultEvent>()
+        val vm = openLast(w, vms, events)
+        advanceTimeBy(15 * 2_000L + 100)
+
+        w.battles.resultResult = Outcome.Success(placementResult(PlacementRoundState.COUNTED, battleId = 903))
+        vm.load(903, isForced = true)
+        assertFalse(vm.state.value.isLoading, "결과를 가리지 않는다")
+        assertFalse(vm.state.value.isStillPending)
+        runCurrent()
+        assertEquals(listOf<PlacementResultEvent>(complete), events)
+    }
+
+    @Test
+    fun `진행 읽기가 끝내 실패하면 오류를 보이고 다시 시도로 완료에 닿는다(PL2-A2)`() = main.runVmTest { vms ->
+        accounts.placementResult = Outcome.Success(settled(PlacementStatus.COMPLETED, "GOLD"))
+        repeat(3) { accounts.placementQueue += Outcome.Failure(AppError.Network) }
+        val w = world()
+        w.battles.resultResult = Outcome.Success(placementResult(PlacementRoundState.COUNTED, battleId = 903))
+        val events = mutableListOf<PlacementResultEvent>()
+        val vm = openLast(w, vms, events)
+        advanceTimeBy(2 * 2_000L + 100)
+        assertEquals(UiText.Res(R.string.placement_load_failed), vm.state.value.progressError)
+        assertNull(vm.state.value.progress, "앞서 읽은 진행을 남기지 않는다(한 판 적게 보이지 않게)")
+        assertEquals(emptyList(), events)
+
+        vm.load(903, isForced = true)
+        runCurrent()
+        assertNull(vm.state.value.progressError)
+        assertEquals(listOf<PlacementResultEvent>(complete), events)
+    }
+
+    @Test
+    fun `진행 읽기가 실패해 오류인 판은 화면에 돌아오면 다시 읽는다(PL2-A2)`() = main.runVmTest { vms ->
+        accounts.placementResult = Outcome.Success(settled(PlacementStatus.COMPLETED, "GOLD"))
+        repeat(3) { accounts.placementQueue += Outcome.Failure(AppError.Network) }
+        val w = world()
+        w.battles.resultResult = Outcome.Success(placementResult(PlacementRoundState.COUNTED, battleId = 903))
+        val events = mutableListOf<PlacementResultEvent>()
+        val vm = openLast(w, vms, events)
+        advanceTimeBy(2 * 2_000L + 100)
+        vm.onResumed()
+        runCurrent()
+        assertEquals(listOf<PlacementResultEvent>(complete), events)
+    }
+
+    @Test
+    fun `모르는 판 셈 상태는 정리 중으로 다시 읽고 다시 읽는 중 완료가 오면 완료로 간다(PL2-T1)`() = main.runVmTest { vms ->
+        accounts.placementResult = Outcome.Success(settled(PlacementStatus.COMPLETED, "GOLD"))
+        val w = world()
+        w.battles.resultQueue += Outcome.Success(placementResult(null, battleId = 903))
+        w.battles.resultQueue += Outcome.Success(placementResult(PlacementRoundState.PENDING, battleId = 903))
+        w.battles.resultResult = Outcome.Success(placementResult(PlacementRoundState.COUNTED, battleId = 903))
+        val events = mutableListOf<PlacementResultEvent>()
+        val vm = openLast(w, vms, events)
+        assertTrue(vm.state.value.isPending, "null = 정리 중")
+        assertEquals(emptyList(), events)
+        advanceTimeBy(2 * 2_000L + 100)
+        assertEquals(PlacementRoundState.COUNTED, vm.state.value.state)
+        assertEquals(listOf<PlacementResultEvent>(complete), events)
     }
 
     @Test

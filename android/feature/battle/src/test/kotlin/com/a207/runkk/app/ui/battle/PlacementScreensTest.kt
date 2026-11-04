@@ -5,9 +5,14 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import com.a207.runkk.app.core.designsystem.LocalReleaseScope
 import com.a207.runkk.app.core.designsystem.ReleaseScope
 import com.a207.runkk.app.core.designsystem.RunkkTheme
+import com.a207.runkk.app.core.designsystem.UiText
+import com.a207.runkk.app.domain.battle.PlacementRoundState
+import kotlin.test.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -74,5 +79,48 @@ class PlacementScreensTest {
         assertHead("배치고사 2/3판 완료")
         assertTexts("1판 완료", "2판 완료", "3판")
         compose.onNodeWithContentDescription("임시 실버 티어", useUnmergedTree = true).assertExists()
+    }
+
+    private fun resultState(
+        state: PlacementRoundState?,
+        isStillPending: Boolean = false,
+        progressError: UiText? = null
+    ) = PlacementResultUiState(
+        isLoading = false,
+        battleId = 903,
+        result = battleResult().copy(battleId = 903, placementRound = 3, placementState = state),
+        state = state,
+        progress = if (progressError == null) placing(2, "GOLD") else null,
+        isStillPending = isStillPending,
+        progressError = progressError
+    )
+
+    @Test
+    fun `30초 뒤에도 정리 중이면 안내 옆 다시 확인으로 다시 읽는다(PL2-A2)`() {
+        var retries = 0
+        show {
+            PlacementResultScreen(
+                resultState(PlacementRoundState.PENDING, isStillPending = true),
+                PlacementResultActions(onRetry = { retries++ })
+            )
+        }
+        assertTexts("결과를 정리하고 있어요. 잠시 뒤 다시 확인해 주세요")
+        compose.onNodeWithText("다시 확인").performScrollTo().performClick()
+        assertEquals(1, retries)
+    }
+
+    @Test
+    fun `진행을 끝내 못 읽으면 진행 카드 자리에 오류와 다시 시도를 둔다(PL2-A2)`() {
+        var retries = 0
+        show {
+            PlacementResultScreen(
+                resultState(PlacementRoundState.COUNTED, progressError = UiText.Res(R.string.placement_load_failed)),
+                PlacementResultActions(onRetry = { retries++ })
+            )
+        }
+        assertTexts("배치고사 진행을 불러오지 못했어요")
+        compose.onNodeWithContentDescription("판 완료", substring = true, useUnmergedTree = true).assertDoesNotExist()
+        compose.onNodeWithText("다시 시도").performScrollTo().performClick()
+        assertEquals(1, retries)
     }
 }

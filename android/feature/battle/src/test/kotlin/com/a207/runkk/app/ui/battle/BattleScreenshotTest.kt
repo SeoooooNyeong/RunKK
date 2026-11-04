@@ -165,6 +165,29 @@ class BattleScreenshotTest {
         )
     }
 
+    /** 30초 뒤 정리 중 안내와 「다시 확인」(PL2-A2). 기록 상세가 아직 없어 안내가 한 화면에 보인다. */
+    @Test
+    fun placementResultRecheck() = compose.captureRunkkScreen("P2_placement_result_recheck", isDarkTheme = false) {
+        PlacementResultScreen(
+            placementResultState(PRS.PENDING, "WIN", counted = 2, isStillPending = true).copy(detail = null),
+            PlacementResultActions()
+        )
+    }
+
+    /** 진행 읽기 실패: 진행 카드 자리에 오류와 「다시 시도」(PL2-A2). */
+    @Test
+    fun placementResultProgressError() =
+        compose.captureRunkkScreen("P2_placement_result_progress_error", isDarkTheme = false) {
+            PlacementResultScreen(
+                placementResultState(PRS.COUNTED, "WIN", counted = 2).copy(
+                    detail = null,
+                    progress = null,
+                    progressError = UiText.Res(R.string.placement_load_failed)
+                ),
+                PlacementResultActions()
+            )
+        }
+
     /** TC-5902 배치고사 완료 브론즈(축하 61361:3142). */
     @Test
     fun placementCompleteBronze() = compose.captureRunkkScreen("P3_placement_complete_bronze", isDarkTheme = false) {

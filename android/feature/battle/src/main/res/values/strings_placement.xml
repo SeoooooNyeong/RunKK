@@ -49,6 +49,9 @@
     <string name="placement_result_not_counted">이번 판은 배치고사에 들어가지 않았어요</string>
     <!-- (제안) D-501 -->
     <string name="placement_result_still_pending">결과를 정리하고 있어요. 잠시 뒤 다시 확인해 주세요</string>
+    <!-- (제안) PL2-A2 -->
+    <string name="placement_result_recheck">다시 확인</string>
+    <string name="placement_retry">다시 시도</string>
     <string name="placement_result_next">다음 판 뛰기</string>
     <string name="placement_home">홈으로</string>
     <string name="placement_result_date_pattern">M월 d일 (E) a h:mm</string>
