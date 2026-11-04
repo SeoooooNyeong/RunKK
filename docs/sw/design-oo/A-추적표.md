@@ -241,7 +241,25 @@ srs.md 7.1의 "설계 요소" 열에 같은 내용을 옮겼다. 시퀀스 열�
 | FR-138 | crew · WeeklyRaceService.setGoal(memberId, crewId, goal, now), WeeklyRace.setGoal, 주 행 생성 CREATE_WEEK의 부분 조회(지난 주 목표 이어 쓰기, latestGoalBefore 호출 없음, v0.12 U6-6), CrewAction.SET_GOAL; web.crew PUT /crews/{id}/goal; 앱 domain.crew · CrewRepository.setWeeklyGoal; ui.crew 목표 설정 | crew | | v0.11 (F.1) |
 | FR-141 | crew · RaceStatusView.celebration(CelebrationCard); notification CREW_GOAL_ACHIEVED; 앱 domain.crew · RaceStatus.celebration; ui.crew 축하 카드; ui.share CrewGoalCardRenderer(FR-069 공유 방식) | crew | | v0.11 (F.1) |
 
-FR 184건, 담당 클래스·연산이 없는 FR 0건. (v0.14: 유효 FR 219건, 신규 9건 모두 담당 클래스·연산이 있다.) (v0.19: srs v0.17 신규 FR-234~FR-239 6건과 NFR-045~NFR-047 3건 모두 담당 클래스·연산이 있다. 앱만이고 근거는 05-14.)
+| FR-274 | battle · MatchingService.requestMatch, PlacementMatcher.start, MatchAcceptance.placement, MatchFound.placementRound; member · PlacementService.lockForMatch. 앱 ui.battle · PlacementViewModel.onStartTapped, RandomTicket | battle, member, ui.battle | SQ-49 | v0.30 신규: D-477~D-479 (05-21) |
+| FR-275 | battle · PlacementRoundListener.onBattleJudged·count, Battle.verify(RecordCheck), BattleParticipant.validRunOrdinal, PlacementReconcileService.reconcile; member · PlacementService.countRound | battle, member, batch.battle | SQ-50 | v0.30 신규: D-481, D-482, D-490 |
+| FR-276 | battle · PlacementOpponentFactory.create·opponentScore, PlacementOpponent.track·displayTier; running · RunningScore.paceFor; policy · TierBoundary.midScoreOf | battle | SQ-49 | v0.30 신규: D-480, A-38 |
+| FR-277 | member · PlacementProgress.count, TierBoundary.tierOf | member | SQ-50 | v0.30 신규: D-483, A-37 |
+| FR-278 | member · PlacementProgress.count, Member.confirmPlacement, TierProgress.reevaluationPointBetween, Member.recordValidRun(placementOrdinal), TierLevelService.recordValidRun | member | SQ-50 | v0.30 신규: D-483, D-484. 상태도 2.4.27 |
+| FR-279 | 앱 ui.battle · PlacementScreen, PlacementViewModel, PlacementProgressCard; domain.account · AccountRepository.placement | ui.battle, domain.account | | v0.30 신규: D-493 |
+| FR-280 | 앱 ui.battle · BattleResultViewModel(OpenPlacementResult), PlacementResultScreen, PlacementResultViewModel; core.designsystem 결과 부품; 서버 web.battle · BattleResultAssembler, battle · PlacementRoundState.of | ui.battle, core.designsystem, web.battle, battle | | v0.30 신규: D-487, D-501, D-502 |
+| FR-281 | 앱 ui.battle · PlacementCompleteScreen, PlacementCompleteViewModel, TierBadge(LARGE); 서버 member · PlacementService.view | ui.battle, member | | v0.30 신규: D-488 |
+| FR-282 | member · PlacementService.view(임시 티어는 본인만); analysis · RankingService(publicTiers); 앱 core.model · TierDisplay.ofSelf·ofPublic, 문자열 tier_unranked | member, analysis, core.model | | v0.30 신규: D-485, D-486, D-507 |
+| FR-283 | 앱 core.designsystem · TierBadge, TierEmblem, tierEmblemRes, RunkkTierColors, TierPalette, 드로어블 tier_emblem_* 24개 | core.designsystem | | v0.30 신규: D-495, D-496, D-506 |
+| FR-284 | 앱 ui.home · BattleEntrySheet, HomeViewModel.onBattleCardTapped·onRandomChosen·onFriendChosen | ui.home | | v0.30 신규: D-499 |
+| FR-285 | 앱 ui.battle · RandomBattleScreen, RandomBattleViewModel | ui.battle | | v0.30 신규 |
+| FR-286 | 앱 ui.battle · FriendBattleScreen, FriendBattleViewModel, RecentFriends.of; 서버 battle · BattleHistoryView.Entry.opponentMemberId | ui.battle, battle | | v0.30 신규: D-492 |
+| FR-287 | analysis · DashboardService(latestRun); 앱 ui.home · HomeSummary.of, GrassWeeks.of, HomeViewModel.onSummaryToggle | analysis, ui.home | | v0.30 신규: D-491 |
+| FR-288 | 앱 ui.home · HomeUiState.tierDisplay, core.designsystem · TierBadge(XSMALL) | ui.home | | v0.30 신규 |
+| FR-289 | 앱 ui.run · RunResultScreen; core.designsystem · RunMetricCard, SplitPaceSection, HeartZoneSection, HeartZoneBands.toFour, AchievementCard, ResultBottomBar | ui.run, core.designsystem | | v0.30 신규: D-497, D-502, D-503 |
+| FR-290 | analysis · RankingView.publicTiers·publicTierOf; 앱 ui.record · RankingPodium.of, RankingScreen, TierBadge(XSMALL) | analysis, ui.record | | v0.30 신규: D-486 |
+
+FR 184건, 담당 클래스·연산이 없는 FR 0건. (v0.14: 유효 FR 219건, 신규 9건 모두 담당 클래스·연산이 있다.) (v0.30: srs v0.24 신규 FR-274~FR-290 17건 모두 담당 클래스·연산이 있다. FR-022·FR-027은 05-21 D-484로 바뀜.) (v0.19: srs v0.17 신규 FR-234~FR-239 6건과 NFR-045~NFR-047 3건 모두 담당 클래스·연산이 있다. 앱만이고 근거는 05-14.)
 
 ### A.2 비기능 요구 (NFR)
 

@@ -459,3 +459,11 @@ MemberProfile(record: level(int), photoUrl(String?), intro(String?), ageBand(Str
 
 `static DisclosureLevel of(long viewerId, long targetId, MemberStatus status, ProfileVisibility visibility)`는 위 표 순서로 처음 맞는 상수를 고른다. 공개 범위 규칙은 이 enum 한 곳에만 있다. 수준마다 화면에 남길 항목은 profile.ProfileDisclosure가, 크루원 목록에서 프로필(Runimal 유형 등)을 보일지는 showsProfile()이 정한다(D-52).
 
+##### 배치고사 진행 (v0.30, FR-274~FR-278, D-475~D-490)
+
+전체 명세는 [05-21 2.1](05-21-설계-배치고사-화면개편-성.md)이다. 요약:
+
+- `PlacementProgress`(엔티티, 표 placement_progress, 키 member_id): 한 회원의 배치고사 진행(센 판, 임시 티어, 확정 시점)을 보관한다. `ROUNDS = 3`, `start`, `nextRound`, `basis`, `provisionalTier`, `isCompleted`, `hasCounted`, `count(PlacementRoundInput, TierBoundary): PlacementCount`(A-37), `correctVerdict`, `confirmedRunOrdinal`, `rounds`.
+- `PlacementRound`(@Embeddable, 표 placement_round), `PlacementRoundInput`·`PlacementBasis`·`PlacementView`(record), `PlacementCount`(sealed: Provisional·Confirmed·Ignored), `PlacementStatus`(IN_PROGRESS·COMPLETED·EXEMPT), `PlacementVerdict`(WIN·LOSE·DRAW).
+- `PlacementProgressRepository`(포트, infra.member 구현), `PlacementService`(view, lockForMatch, countRound, correctVerdict, isCounted).
+- 바뀐 것: `Member.confirmPlacement(Tier)` 신규, `Member.recordValidRun(RunScoreInput, TierBoundary, int placementOrdinal)`(재평가는 랭크 티어이고 10의 배수 p > placementOrdinal일 때만), `TierProgress`의 3회 창(PLACEMENT)과 FIRST_PLACEMENT 생성 제거(`reevaluationPointBetween`), `TierLevelService`가 placementOrdinal을 넘김, `WithdrawalService` 두 탈퇴 경로가 같은 트랜잭션에서 배치 진행을 지움(D-489). 위 TierProgress·TierLevelService·Member 명세의 "3회째 첫 배치" 문장은 이 문단이 대신한다 (v0.30, D-484).

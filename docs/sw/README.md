@@ -16,7 +16,7 @@
               │
               ▼
 [설계]  어떻게 만들 것인가?
-        design-oo.md v0.29 ──▶ design-review.md v0.21
+        design-oo.md v0.30 ──▶ design-review.md v0.21
               │
               ▼
 [구현]  설계대로 코드로 옮겼는가?          implementation.md v0.10(워치 v2 develop 병합, AI 코치 화면 준비) ⇄ code-review.md v0.20 (18차 확인 합격 0/0/2, 경 합계 21)
@@ -35,7 +35,7 @@
 | 계획 | [schedule.md](schedule.md) 일정표와 조직 계획 | v0.13 | 2026-11-04 | 11/04 속도 확인(계수 0.14, 확인 필요), 디자인 대기 재일정(17절, 담당·범위 그대로 결정, 2차 배포 11/17 위험), 이전 판 v0.12(오규연 디자인 전환), v0.11(담당 재배치) | 목차 + schedule/ 조각 9개 |
 | 계획 | [decisions.md](decisions.md) 결정 기록 | v0.1 | 2026-10-19 | schedule.md v0.3, plan.md v0.16 | 한 파일 |
 | 분석 | [srs.md](srs.md) 요구사항 명세서 | v0.24 | 2026-11-04 | 배치고사(CR-139, FR-274~FR-278)·티어 표시와 엠블럼(CR-140, FR-282·FR-283)·배치고사 화면(CR-141)·대결 분리(CR-142)·홈 요약 패널(CR-143)·러닝 결과 상용안(CR-144)·랭킹 시상대(CR-145), 핫픽스 v0.11.1 CR-135~CR-138, 이전 판 v0.23: LLM 재동의 확정 CR-133, 셀럽 404 즉시 빼기 CR-134, 추적표 시험 열(test v0.17), 이전 판 v0.22: 워치 v2 결정 W34~W48(CR-122~CR-131, FR-273·NFR-054), design-oo.md v0.27 SR27-1~SR27-8, 이전 판 v0.21(W31·W32), v0.20(ai 서버 연결 CR-110~CR-118) | 목차 + `srs/` 39개 |
-| 설계 | [design-oo.md](design-oo.md) 객체지향 분석·설계서 | v0.29 | 2026-11-03 | 17차 갱신 요청 U17-1·U17-2(05-20 10.3·11절), 이전 판 v0.28: AI 코치 병합 대기(D-474 ui.record.coach, 폰 159·워치 37), 이전 판 v0.27(워치 v2 R11~R15, D-461~D-473), v0.26(ai 서버 연결 D-434~D-455) | 목차 + `design-oo/` 44개 |
+| 설계 | [design-oo.md](design-oo.md) 객체지향 분석·설계서 | v0.30 | 2026-11-04 | 배치고사·티어 표시·화면 개편(05-21 D-475~D-510, 계약 05-03 5.7.3, 마이그레이션 V38, 구현 단위 BE-0·BE·AN-1·AN-2), 이전 판 v0.29: 17차 갱신 요청 U17-1·U17-2(05-20 10.3·11절), 이전 판 v0.28: AI 코치 병합 대기(D-474 ui.record.coach, 폰 159·워치 37), 이전 판 v0.27(워치 v2 R11~R15, D-461~D-473), v0.26(ai 서버 연결 D-434~D-455) | 목차 + `design-oo/` 45개 |
 | 설계 | [design-review.md](design-review.md) 설계 검증 결과서 | v0.21 | 2026-11-03 | design-oo.md v0.27(24장 조건부 합격: R79·R80, 코드 cc8c138b), AI 코치 화면 범위 검토(ai-coach-consent-박, 허용) | 목차 + `design-review/` 19개 |
 | 구현 | [implementation.md](implementation.md) 구현 기록(목차 + implementation/ 조각) | v0.10 | 2026-11-03 | 워치 v2 14장(R1~R17, feature/runkk-watch-v2 → develop 599dc319), AI 코치 동의·화면 준비(ai-coach-consent-박, e66eb8a0) | 목차 + `implementation/` 8개 |
 | 구현 | [code-review.md](code-review.md) 코드 리뷰 결과서 | v0.20 | 2026-11-03 | 워치 v2 12~18차(18차 확인 793eb85e 합격, 경 합계 21), AI 코치 동의·화면(ai-coach-consent-박, 조건부) | 목차 + `code-review/` 21개 |
