@@ -249,10 +249,10 @@ services:
       retries: 8
       start_period: 60s
 
-  # 아바타 서버(안선영 님 Node, S15P31A207-164). 셀카 → 특징 분석(gpt-4.1-mini) → 머리 1장 생성(gpt-image-2.5) → 코드 마스크로
-  # face·eyes·hair 3레이어로 나눠 저장한다. 프로필 avatar라 .env에 COMPOSE_PROFILES에 avatar를 넣은 환경에서만 뜬다.
+  # 아바타 서버(안선영 님 Node, S15P31A207-164). 셀카 → 특징 분석(gpt-4.1-mini) → 정면·우측 머리 생성(gpt-image-2.5-sunburst).
+  # 정면 전체·우측 전체·얼굴(코·입 포함)·눈+속눈썹·헤어+눈썹 5종을 사용자별로 저장한다. 프로필 avatar라 .env에 COMPOSE_PROFILES에 avatar를 넣은 환경에서만 뜬다.
   # ai만 전용 망 avatar로 부르고(기준 경로 http://avatar:3000/api/v1) 밖으로 열지 않는다. GMS 호출이 필요해 internal 망은 아니다.
-  # 결과는 named volume(/app/data, 사용자별 폴더)에 남는다. deploy.sh가 ../avatar(Dockerfile)로 환경별 태그를 만든다.
+  # 결과는 named volume(/app/data, 사용자별 폴더)에 남는다. deploy.sh가 ../avatar-ai(Dockerfile)로 환경별 태그를 만든다.
   avatar:
     image: runkk-avatar:${RUNKK_ENV}
     profiles: ["avatar"]

@@ -65,8 +65,41 @@ variables:
 .deploy-changes: &deploy-changes
   - backend/**/*
   - ai/**/*
+  - avatar-ai/**/*
   - infra/**/*
   - .gitlab-ci.yml
+
+.avatar-changes: &avatar-changes
+  - avatar-ai/**/*
+  - .gitlab-ci.yml
+
+# ---------- 아바타 Node 서버 ----------
+
+avatar:test:
+  stage: test
+  image: node:22-bookworm-slim
+  tags: [docker]
+  interruptible: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: *avatar-changes
+    - if: $CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH =~ /^release\//
+      changes: *avatar-changes
+  script:
+    - cd avatar-ai
+    - npm ci --omit=dev
+    - npm run check
+    - npm test
+
+avatar:build:
+  stage: build
+  tags: [deploy]
+  needs: [avatar:test]
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH =~ /^release\//
+      changes: *avatar-changes
+  script:
+    - docker build -t runkk-avatar:$CI_COMMIT_SHORT_SHA avatar-ai
 
 # ---------- ai 서버 ----------
 
@@ -207,6 +240,8 @@ backend:deploy:
     - job: backend:build
       optional: true
     - job: ai:build
+      optional: true
+    - job: avatar:build
       optional: true
   environment:
     name: $DEPLOY_ENV
