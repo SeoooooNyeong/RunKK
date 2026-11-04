@@ -123,6 +123,7 @@ object Routes {
      * 과거의 나 기록 날짜("10월 2일의 나"), [myBestSeconds]는 셀럽런의 그 거리 내 최고 기록(없으면 "첫 도전")이다.
      * [opponentGender]는 상대 성별 이름(MALE·FEMALE, 지도 위 상대 그림을 고른다)이고 셀럽·과거의 나·모르면 null이다.
      * [celebrityFigure]는 셀럽런의 셀럽 그림 키(서버 celebrityFigure, 카운트다운·지도 위 셀럽 그림을 고른다)이고 없으면 공통 그림이다.
+     * [placementRound]는 배치고사 판 번호(MatchFound.placementRound)이고 있으면 지도 위 상대를 점선 원 「?」로 그린다(FR-276).
      */
     @Serializable
     data class BattleRunning(
@@ -135,7 +136,8 @@ object Routes {
         val opponentRecordedOnEpochDay: Long? = null,
         val myBestSeconds: Long? = null,
         val opponentGender: String? = null,
-        val celebrityFigure: String? = null
+        val celebrityFigure: String? = null,
+        val placementRound: Int? = null
     ) : NavKey
 
     /** 친구 대결 초대 대기(C-10, D-269). 배틀런 화면 친구 분절에서 고른 거리로 초대를 만들고 기다린다. */

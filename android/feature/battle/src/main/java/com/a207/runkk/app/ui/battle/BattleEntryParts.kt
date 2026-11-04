@@ -126,7 +126,8 @@ internal fun EntrySectionTitle(text: String, modifier: Modifier = Modifier) {
 }
 
 /**
- * 거리 칩 넷(1·3·5·10km, 피그마 61355:2909): 같은 폭, 알약. 고름 = 보라 바탕 흰 15 Bold, 안 고름 = 표면 + 1 테두리 15 Medium.
+ * 거리 칩 넷(1·3·5·10km, 피그마 61355:2909): 같은 폭, 알약. 고름 = 보라 바탕 흰 15 Bold, 안 고름 = 표면 + 1 BorderStrong 테두리(컨트롤
+ * 경계, PL2-A7) 15 Medium.
  * 라디오 묶음으로 읽고 고른 칩은 「선택됨」이다. 터치 영역은 48 이상.
  */
 @Composable
@@ -140,7 +141,7 @@ internal fun DistanceChips(selected: Distance, onSelect: (Distance) -> Unit, mod
                     .heightIn(min = 48.dp)
                     .clip(CircleShape)
                     .background(if (isSelected) RunkkColors.Violet else RunkkColors.Surface)
-                    .then(if (isSelected) Modifier else Modifier.border(1.dp, RunkkColors.Border, CircleShape))
+                    .then(if (isSelected) Modifier else Modifier.border(1.dp, RunkkColors.BorderStrong, CircleShape))
                     .selectable(selected = isSelected, role = Role.RadioButton) { onSelect(distance) },
                 contentAlignment = Alignment.Center
             ) {

@@ -63,7 +63,10 @@ fun PlacementProgressAfterRound(progress: PlacementProgress, modifier: Modifier 
     )
 }
 
-/** 두 진행 카드의 틀(표면 r18 p16 사이 12, 그림자). 머리 숫자는 「배치고사 n/3판」 한 줄로 읽는다. */
+/**
+ * 두 진행 카드의 틀(표면 r18 p16 사이 12, 그림자). 머리 숫자는 「배치고사 3판 중 n판째」 한 줄로 읽고, 칸 이름은 머리와 겹치므로 읽지
+ * 않는다(PL2-A5: 「…1판 완료, 1판 완료, 2판, 3판」처럼 겹쳐 읽히지 않게).
+ */
 @Composable
 private fun ProgressCard(
     progress: PlacementProgress,
@@ -112,7 +115,7 @@ private fun ProgressCard(
             }
             provisional?.let { TierBadge(it, TierBadgeSize.SMALL) }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.clearAndSetSemantics {}) {
             (1..RandomBattleGate.PLACEMENT_RUNS).forEach { round ->
                 Step(round, isDone = round <= progress.countedRounds, isCurrent = round == current, Modifier.weight(1f))
             }

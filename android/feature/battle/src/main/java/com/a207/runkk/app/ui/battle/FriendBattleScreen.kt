@@ -265,53 +265,14 @@ private fun ranOnLabel(date: LocalDate): String =
     stringResource(R.string.friend_battle_ran_on, date.monthValue, date.dayOfMonth)
 
 /**
- * 거리 상자(피그마 표면 r12 pl16 pr10 py12, 높이 48): 「거리」와 값·꺾쇠. 닫힘은 1 테두리, 펼침은 1.5 글자색 테두리와 아래 목록(표면 r12, 행 44,
- * 고른 행 라임 바탕). 목록 글자는 앱 글꼴 14 Medium(8절 5).
+ * 거리 상자(피그마 표면 r12 pl16 pr10 py12, 높이 48): 「거리」와 값·꺾쇠. 닫힘은 1 BorderStrong 테두리(컨트롤 경계, PL2-A7), 펼침은 1.5
+ * 글자색 테두리와 아래 목록(표면 r12, 행 44). 목록 글자는 앱 글꼴 14 Medium(8절 5).
  */
 @Composable
 private fun DistanceSelect(selected: Distance, isOpen: Boolean, onToggle: () -> Unit, onSelect: (Distance) -> Unit) {
     val shape = RoundedCornerShape(12.dp)
-    val label = stringResource(R.string.friend_battle_distance)
-    val value = RunkkFormat.targetLabel(selected)
-    val state =
-        stringResource(
-            if (isOpen) R.string.friend_battle_distance_expanded else R.string.friend_battle_distance_collapsed
-        )
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 48.dp)
-                .clip(shape)
-                .background(RunkkColors.Surface)
-                .border(
-                    if (isOpen) 1.5.dp else 1.dp,
-                    if (isOpen) RunkkColors.TextPrimary else RunkkColors.Border,
-                    shape
-                )
-                .clickable(onClick = onToggle)
-                .clearAndSetSemantics {
-                    contentDescription = "$label $value"
-                    stateDescription = state
-                    role = Role.DropdownList
-                }
-                .padding(start = 16.dp, end = 10.dp, top = 12.dp, bottom = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                label,
-                style = RunkkTextStyles.text(14, FontWeight.Medium),
-                color = RunkkColors.TextSecondary,
-                modifier = Modifier.weight(1f)
-            )
-            Text(value, style = RunkkTextStyles.text(14, FontWeight.Bold), color = RunkkColors.TextPrimary)
-            Icon(
-                if (isOpen) RunkkIcons.ChevronUp else RunkkIcons.ChevronDown,
-                contentDescription = null,
-                tint = RunkkColors.TextPrimary,
-                modifier = Modifier.padding(start = 2.dp).size(22.dp)
-            )
-        }
+        DistanceBox(selected, isOpen, onToggle)
         if (isOpen) {
             Column(
                 modifier = Modifier
@@ -323,24 +284,88 @@ private fun DistanceSelect(selected: Distance, isOpen: Boolean, onToggle: () -> 
                     .selectableGroup()
             ) {
                 MatchUiState.DISTANCES.forEach { distance ->
-                    val isSelected = distance == selected
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(OPTION_HEIGHT)
-                            .background(if (isSelected) RunkkColors.LimeFill else RunkkColors.Surface)
-                            .selectable(selected = isSelected, role = Role.RadioButton) { onSelect(distance) }
-                            .padding(horizontal = 16.dp),
-                        contentAlignment = Alignment.CenterStart
-                    ) {
-                        Text(
-                            RunkkFormat.targetLabel(distance),
-                            style = RunkkTextStyles.text(14, FontWeight.Medium),
-                            color = if (isSelected) RunkkColors.OnLimeFill else RunkkColors.TextPrimary
-                        )
-                    }
+                    DistanceOption(distance, isSelected = distance == selected) { onSelect(distance) }
                 }
             }
+        }
+    }
+}
+
+/** 거리 상자 머리(「거리」, 값, 꺾쇠). 펼침 목록 상자로 읽고 펼침·접힘 상태를 알린다. */
+@Composable
+private fun DistanceBox(selected: Distance, isOpen: Boolean, onToggle: () -> Unit) {
+    val shape = RoundedCornerShape(12.dp)
+    val label = stringResource(R.string.friend_battle_distance)
+    val value = RunkkFormat.targetLabel(selected)
+    val state =
+        stringResource(
+            if (isOpen) R.string.friend_battle_distance_expanded else R.string.friend_battle_distance_collapsed
+        )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .clip(shape)
+            .background(RunkkColors.Surface)
+            .border(
+                if (isOpen) 1.5.dp else 1.dp,
+                if (isOpen) RunkkColors.TextPrimary else RunkkColors.BorderStrong,
+                shape
+            )
+            .clickable(onClick = onToggle)
+            .clearAndSetSemantics {
+                contentDescription = "$label $value"
+                stateDescription = state
+                role = Role.DropdownList
+            }
+            .padding(start = 16.dp, end = 10.dp, top = 12.dp, bottom = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            label,
+            style = RunkkTextStyles.text(14, FontWeight.Medium),
+            color = RunkkColors.TextSecondary,
+            modifier = Modifier.weight(1f)
+        )
+        Text(value, style = RunkkTextStyles.text(14, FontWeight.Bold), color = RunkkColors.TextPrimary)
+        Icon(
+            if (isOpen) RunkkIcons.ChevronUp else RunkkIcons.ChevronDown,
+            contentDescription = null,
+            tint = RunkkColors.TextPrimary,
+            modifier = Modifier.padding(start = 2.dp).size(22.dp)
+        )
+    }
+}
+
+/**
+ * 거리 목록 한 행(라디오). 고른 행은 라임 바탕에 굵은 글자와 오른쪽 체크를 더해 색만으로 구분하지 않는다(PL2-A7: 라이트에서 라임 바탕과
+ * 표면 대비가 1.37:1).
+ */
+@Composable
+private fun DistanceOption(distance: Distance, isSelected: Boolean, onSelect: () -> Unit) {
+    val content = if (isSelected) RunkkColors.OnLimeFill else RunkkColors.TextPrimary
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(OPTION_HEIGHT)
+            .background(if (isSelected) RunkkColors.LimeFill else RunkkColors.Surface)
+            .selectable(selected = isSelected, role = Role.RadioButton, onClick = onSelect)
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            RunkkFormat.targetLabel(distance),
+            style = RunkkTextStyles.text(14, if (isSelected) FontWeight.Bold else FontWeight.Medium),
+            color = content,
+            modifier = Modifier.weight(1f)
+        )
+        if (isSelected) {
+            Icon(
+                RunkkIcons.Check,
+                contentDescription = null,
+                tint = content,
+                modifier = Modifier.size(18.dp)
+            )
         }
     }
 }

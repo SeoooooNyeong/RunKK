@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStoreFile
 import com.a207.runkk.app.core.model.AppError
@@ -152,6 +153,23 @@ class DataStoreSettingsRepository internal constructor(
         }
     }
 
+    /** 배치고사 완료 화면을 본 마지막 판(PL2-A2). 가이드 사본과 같이 refresh가 덮지 않고 [clear]가 지운다. 못 읽으면 사본 없음이다. */
+    override suspend fun placementCompleteSeen(): Long? = try {
+        dataStore.data.first()[PLACEMENT_COMPLETE_SEEN]
+    } catch (e: IOException) {
+        Timber.w(e, "배치고사 완료 사본 읽기 실패")
+        null
+    }
+
+    override suspend fun savePlacementCompleteSeen(battleId: Long): Outcome<Unit> = writing.withLock {
+        try {
+            dataStore.edit { it[PLACEMENT_COMPLETE_SEEN] = battleId }
+            Outcome.Success(Unit)
+        } catch (e: IOException) {
+            Outcome.Failure(AppError.Storage)
+        }
+    }
+
     /**
      * 기기 사본을 처음 읽기 전(isSettled 거짓)에는 내보내지 않는다(A4): 앱 시작 때 저장된 화면 테마 앞에 안전한 값(SYSTEM)이
      * 먼저 나가 첫 프레임 테마가 깜빡이지 않게, 동의 구독자(WatchLink)가 잠깐 철회로 보지 않게 한다. 사본이 없으면 그때 SAFE다.
@@ -204,10 +222,12 @@ class DataStoreSettingsRepository internal constructor(
     }
 
     private fun MutablePreferences.write(s: SettingsSnapshot) {
-        // 가이드 사본은 서버 설정 응답에 없으므로 덮어쓰지 않고 남긴다.
+        // 가이드 사본과 배치고사 완료 사본은 서버 설정 응답에 없으므로 덮어쓰지 않고 남긴다.
         val guide = this[GUIDE]
+        val placementSeen = this[PLACEMENT_COMPLETE_SEEN]
         clear()
         guide?.let { this[GUIDE] = it }
+        placementSeen?.let { this[PLACEMENT_COMPLETE_SEEN] = it }
         this[HAS_COPY] = true
         this[LOCATION] = s.isLocationConsented
         this[HEART_RATE] = s.isHeartRateConsented
@@ -260,5 +280,8 @@ class DataStoreSettingsRepository internal constructor(
 
         /** 첫 사용 가이드 기기 사본(GuideCopy 이름, D-277). */
         val GUIDE = stringPreferencesKey("guide_copy")
+
+        /** 배치고사 완료 화면을 본 마지막 판 대결 ID(PL2-A2). */
+        val PLACEMENT_COMPLETE_SEEN = longPreferencesKey("placement_complete_seen")
     }
 }

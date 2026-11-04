@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.account.AccountRepository
+import com.a207.runkk.app.domain.account.PlacementStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.Job
@@ -17,7 +18,10 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/** 배치고사 완료(FR-281, D-501): 본인 배치 진행(AccountRepository.placement)의 확정 티어와 센 세 판을 보인다. */
+/**
+ * 배치고사 완료(FR-281, D-501): 본인 배치 진행(AccountRepository.placement)의 확정 티어와 센 세 판을 보인다. 완료를 읽으면 마지막 판을
+ * 본 것으로 기기에 기억한다(AccountRepository.savePlacementCompleteSeen, D-531: 배치고사 진행 화면이 다시 열지 않게).
+ */
 @HiltViewModel
 class PlacementCompleteViewModel @Inject constructor(private val account: AccountRepository) : ViewModel() {
     private val _state = MutableStateFlow(PlacementCompleteUiState())
@@ -52,6 +56,9 @@ class PlacementCompleteViewModel @Inject constructor(private val account: Accoun
             when (val read = account.placement()) {
                 is Outcome.Success -> {
                     val rounds = read.value.rounds.sortedBy { it.round }
+                    if (read.value.status == PlacementStatus.COMPLETED) {
+                        rounds.lastOrNull()?.let { account.savePlacementCompleteSeen(it.battleId) }
+                    }
                     _state.update {
                         it.copy(
                             isLoading = false,

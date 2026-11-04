@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -35,7 +36,9 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.designsystem.AvatarCharacter
 import com.a207.runkk.app.core.designsystem.AvatarExpression
@@ -259,11 +262,21 @@ internal fun QuestionCircle(size: Dp, color: Color, modifier: Modifier = Modifie
         }
         Text(
             QUESTION_MARK,
-            style = RunkkTextStyles.text((size.value * QUESTION_TEXT_RATIO).toInt(), FontWeight.Bold),
+            style = RunkkTextStyles.text(
+                0,
+                FontWeight.Bold
+            ).copy(fontSize = questionTextSize(size, LocalDensity.current)),
             color = color
         )
     }
 }
+
+/**
+ * 원 [size] 안 「?」 글자 크기. 원은 dp라 글자 크기 설정으로 커지지 않으므로 글자도 dp로 맞춰(글자 배율을 나눠) 원에 닿지 않게 한다
+ * (PL2-A6, TierEmblem의 「?」와 같은 방식). 글자 배율 1에서는 지금까지의 정수 sp와 같다.
+ */
+internal fun questionTextSize(size: Dp, density: Density): TextUnit =
+    with(density) { (size.value * QUESTION_TEXT_RATIO).toInt().dp.toSp() }
 
 private const val QUESTION_MARK = "?"
 

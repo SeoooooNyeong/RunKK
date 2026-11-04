@@ -3,6 +3,7 @@
 package com.a207.runkk.app.ui.battle
 
 import com.a207.runkk.app.core.designsystem.UiText
+import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.account.PlacementStatus
 import kotlin.test.assertEquals
@@ -17,6 +18,19 @@ class PlacementCompleteViewModelTest {
     val main = MainDispatcherRule()
 
     private val accounts = FakeAccounts()
+
+    @Test
+    fun `완료 화면을 읽으면 마지막 판을 본 것으로 기억하고 못 읽으면 기억하지 않는다(PL2-A2)`() = main.runVmTest { vms ->
+        accounts.placementResult = Outcome.Failure(AppError.Network)
+        vms.track(PlacementCompleteViewModel(accounts))
+        runCurrent()
+        assertEquals(null, accounts.placementSeen)
+
+        accounts.placementResult = Outcome.Success(settled(PlacementStatus.COMPLETED, "GOLD"))
+        vms.track(PlacementCompleteViewModel(accounts))
+        runCurrent()
+        assertEquals(903L, accounts.placementSeen, "센 세 판 가운데 마지막 판(901·902·903)")
+    }
 
     @Test
     fun `TC-5884 완료 화면 머리는 승패 수이고 무승부가 있으면 무를 더한다`() = main.runVmTest { vms ->

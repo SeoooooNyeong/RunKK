@@ -93,6 +93,10 @@ class HomeScreenshotTest {
         summary = summary
     )
 
+    /**
+     * TC-5843 내 기록 요약 접힘(FR-287·FR-288): 헤더 아주 작은 배지 「배치 중」 + Lv, 오른쪽 「내 기록 요약 ⌄」, 펼친 패널 없음.
+     * 라이트 짝은 [homeLight](A4_home_light)다.
+     */
     @Test
     fun home() = compose.captureRunkkScreen("A4_home") {
         HomeShell { HomeScreen(loaded, HomeActions(), it) }

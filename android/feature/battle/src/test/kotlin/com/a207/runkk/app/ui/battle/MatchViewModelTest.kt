@@ -851,4 +851,22 @@ class MatchViewModelTest {
         assertEquals(null, plain.state.value.placementRound)
         assertFalse(plain.state.value.isOpponentHidden)
     }
+
+    @Test
+    fun `배치고사 성사는 진행 화면에 판 번호를 넘겨 진행 중에도 상대를 물음표로 그리게 한다(FR-276)`() = main.runVmTest { vms ->
+        val w = world()
+        val vm = quick(w, vms)
+        vm.events.test {
+            val match = matchFound().copy(opponentTier = "UNRANKED", placementRound = 2)
+            w.channels.channel.push(match)
+            runCurrent()
+            w.channels.channel.push(BattleStart(match.battleId, w.clock.now.plusSeconds(10), opponentTrack = null))
+            runCurrent()
+            w.clock.now = w.clock.now.plusSeconds(10)
+            advanceTimeBy(10_000)
+            runCurrent()
+            val started = assertIs<MatchEvent.Started>(awaitItem())
+            assertEquals(2, started.key.placementRound)
+        }
+    }
 }

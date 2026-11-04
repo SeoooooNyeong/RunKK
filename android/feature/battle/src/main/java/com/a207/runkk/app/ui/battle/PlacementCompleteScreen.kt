@@ -116,17 +116,7 @@ fun PlacementCompleteScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 when {
-                    tier != null -> {
-                        CelebrationHero(tier)
-                        Text(
-                            stringResource(R.string.placement_complete_headline, tierName(tier).orEmpty()),
-                            style = RunkkTextStyles.text(24, FontWeight.Bold),
-                            color = RunkkColors.TextPrimary,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.semantics { heading() }
-                        )
-                        RoundsCard(state)
-                    }
+                    tier != null -> CompleteBody(tier, state)
 
                     state.isLoading -> Box(Modifier.fillMaxWidth().height(240.dp)) { RunkkLoading() }
 
@@ -144,6 +134,20 @@ fun PlacementCompleteScreen(
             )
         }
     }
+}
+
+/** 완료 본문: 축하 히어로, 「○○ 티어가 됐어요」 제목, 세 판 카드. */
+@Composable
+private fun CompleteBody(tier: String, state: PlacementCompleteUiState) {
+    CelebrationHero(tier)
+    Text(
+        stringResource(R.string.placement_complete_headline, tierName(tier).orEmpty()),
+        style = RunkkTextStyles.text(24, FontWeight.Bold),
+        color = RunkkColors.TextPrimary,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.semantics { heading() }
+    )
+    RoundsCard(state)
 }
 
 /**

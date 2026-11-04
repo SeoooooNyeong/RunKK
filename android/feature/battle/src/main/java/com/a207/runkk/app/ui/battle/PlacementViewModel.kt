@@ -8,6 +8,7 @@ import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.account.LocationConsentUseCase
+import com.a207.runkk.app.domain.account.PlacementProgress
 import com.a207.runkk.app.domain.account.PlacementStatus
 import com.a207.runkk.app.domain.battle.BattleRepository
 import com.a207.runkk.app.domain.battle.BattleRunCoordinator
@@ -26,7 +27,9 @@ import kotlinx.coroutines.launch
 /**
  * 배치고사 진행(FR-279, D-479·D-498): 배치 중 회원의 랜덤 대결. 본인 배치 진행을 읽어 진행 카드에 보이고, 「배치고사 n판 시작」은 위치 동의를
  * 확인한 뒤 확정 티어와 같은 매칭 흐름(BattleQuickMatch)을 연다(서버가 대기 없이 배치고사 대결을 만든다). 진행이 배치 중이 아니면(이미 확정·면제)
- * 랜덤 대결로 바꿔 연다. 화면에 돌아올 때마다(판을 마치고 다시 열림) 진행을 다시 읽고 남은 친구 초대를 정리한다(D-271).
+ * 랜덤 대결로 바꿔 연다. 다만 배치고사를 마쳤는데 그 완료 화면을 아직 안 봤으면(기기 사본의 마지막 판이 다르면) 완료 화면으로 바꿔 연다
+ * (PL2-A2: 판 결과가 판 셈을 30초 안에 받지 못해도 완료 화면에 닿게). 화면에 돌아올 때마다(판을 마치고 다시 열림) 진행을 다시 읽고 남은
+ * 친구 초대를 정리한다(D-271).
  */
 @HiltViewModel
 class PlacementViewModel @Inject constructor(
@@ -107,7 +110,7 @@ class PlacementViewModel @Inject constructor(
             when (val read = account.placement()) {
                 is Outcome.Success -> {
                     if (read.value.status != PlacementStatus.IN_PROGRESS) {
-                        _events.trySend(PlacementEvent.Open(Routes.Key(Routes.BATTLE_RANDOM)))
+                        _events.trySend(PlacementEvent.Open(Routes.Key(settledRoute(read.value))))
                     }
                     _state.update { it.copy(isLoading = false, progress = read.value) }
                 }
@@ -117,5 +120,13 @@ class PlacementViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    /** 배치 중이 아닐 때 갈 곳: 마쳤고 마지막 판의 완료 화면을 아직 안 봤으면 완료 화면, 아니면(봤음·면제) 랜덤 대결. */
+    private suspend fun settledRoute(progress: PlacementProgress): String {
+        val last = progress.rounds.maxByOrNull { it.round }?.battleId
+        val isUnseen = progress.status == PlacementStatus.COMPLETED && last != null &&
+            account.placementCompleteSeen() != last
+        return if (isUnseen) Routes.PLACEMENT_COMPLETE else Routes.BATTLE_RANDOM
     }
 }
