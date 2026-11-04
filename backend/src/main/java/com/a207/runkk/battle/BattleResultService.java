@@ -104,7 +104,12 @@ public class BattleResultService {
         Distance distance = battle.getDistance();
         Optional<Duration> reach = runQueryService.timeToReach(e.recordId(), distance);
         battle.verify(
-                e.memberId(), e.recordId(), e.valid() && reach.isPresent(), reach.orElse(null));
+                e.memberId(),
+                new RecordCheck(
+                        e.recordId(),
+                        e.valid() && reach.isPresent(),
+                        reach.orElse(null),
+                        e.validRunOrdinal()));
         battle.getOpponentTrack().ifPresent(track -> recordGaps(battle, e, track));
         markSelfRecord(battle, e);
         boolean running = battle.getStatus().isRunning();
@@ -114,6 +119,12 @@ public class BattleResultService {
             endedEarly(battle);
         }
         judgement.ifPresent(j -> announce(battle, j));
+        if (judgement.isEmpty() && battle.placementRound().isPresent()) {
+            // 판정 없이 기록만 붙었다(유령 먼저 + 마감 뒤 업로드, 만료 뒤 늦은 기록). 판 셈이 기다리지 않게 알린다(D-512)
+            eventPublisher.publish(
+                    new PlacementRecordAttached(
+                            battle.getId(), e.memberId(), LocalDateTime.now(clock)));
+        }
     }
 
     /**
@@ -304,7 +315,12 @@ public class BattleResultService {
                 OpponentNames.of(battle, memberId, rivalNames(battle, memberId)),
                 me.getRecordId().filter(id -> !runQueryService.isDeleted(id)).orElse(null),
                 OpponentGenders.nameFor(battle, memberId),
-                battle.getOpponentFigure().orElse(null));
+                battle.getOpponentFigure().orElse(null),
+                placementRoundOf(battle));
+    }
+
+    static Integer placementRoundOf(Battle battle) {
+        return battle.placementRound().isPresent() ? battle.placementRound().getAsInt() : null;
     }
 
     private Map<Long, MemberSummary> rivalNames(Battle battle, long memberId) {

@@ -27,19 +27,23 @@ public final class InMemoryBattleStores {
 
     /** 트랜잭션 없이 바로 실행한다. */
     public static BattleTransactions transactions() {
-        return new BattleTransactions(
-                new PlatformTransactionManager() {
-                    @Override
-                    public TransactionStatus getTransaction(TransactionDefinition definition) {
-                        return new SimpleTransactionStatus();
-                    }
+        return new BattleTransactions(noTransactionManager());
+    }
 
-                    @Override
-                    public void commit(TransactionStatus status) {}
+    /** 아무것도 하지 않는 트랜잭션 관리자(새 트랜잭션 템플릿을 쓰는 수신자 시험용). */
+    public static PlatformTransactionManager noTransactionManager() {
+        return new PlatformTransactionManager() {
+            @Override
+            public TransactionStatus getTransaction(TransactionDefinition definition) {
+                return new SimpleTransactionStatus();
+            }
 
-                    @Override
-                    public void rollback(TransactionStatus status) {}
-                });
+            @Override
+            public void commit(TransactionStatus status) {}
+
+            @Override
+            public void rollback(TransactionStatus status) {}
+        };
     }
 
     /** 대결 저장소. 저장 때 ID를 붙인다. */
@@ -141,6 +145,19 @@ public final class InMemoryBattleStores {
                     b ->
                             b.getStatus() == BattleStatus.RESULT_PENDING
                                     && !b.pendingSince().isAfter(cutoff));
+        }
+
+        @Override
+        public List<Battle> findPlacementFinishedBetween(LocalDateTime from, LocalDateTime to) {
+            return rows.values().stream()
+                    .filter(b -> b.placementRound().isPresent())
+                    .filter(b -> b.getStatus() == BattleStatus.FINISHED)
+                    .filter(
+                            b ->
+                                    b.getJudgement()
+                                            .map(j -> !j.at().isBefore(from) && j.at().isBefore(to))
+                                            .orElse(false))
+                    .toList();
         }
 
         @Override

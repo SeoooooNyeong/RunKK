@@ -179,80 +179,175 @@ class MemberTest {
     }
 
     @Test
-    void recordValidRun_placesTierAtThirdAndUpdatesEveryTenth() {
+    @org.junit.jupiter.api.DisplayName(
+            "TC-5738·TC-5739 일반 러닝은 첫 배치를 하지 않는다: 언랭은 몇 번을 뛰어도 언랭, 레벨만 오른다(J24-6, D-484)")
+    void recordValidRun_unranked_neverPlacesByNormalRuns() {
         Member m = member("달리는곰");
-        for (int i = 1; i <= 2; i++) {
-            assertThat(m.recordValidRun(input(38, i), BOUNDARY).tierChanged()).isFalse();
+        for (int i = 1; i <= 12; i++) {
+            TierChange change = m.recordValidRun(input(38, i), BOUNDARY, 0);
+            assertThat(change.tierChanged()).isFalse();
+            assertThat(change.evaluation()).isEmpty();
         }
-        TierChange third = m.recordValidRun(input(38, 3), BOUNDARY);
-        assertThat(third.previousTier()).isEqualTo(Tier.UNRANKED);
-        assertThat(third.tier()).isEqualTo(Tier.GOLD);
-        assertThat(m.getTier()).isEqualTo(Tier.GOLD);
+        assertThat(m.getTier()).isEqualTo(Tier.UNRANKED);
+        assertThat(m.getLevel()).isEqualTo(2); // 12 × 5km = 60km
+    }
 
+    @Test
+    @org.junit.jupiter.api.DisplayName("TC-5742 랭크 티어는 10의 배수마다 최근 10회 평균으로 재평가한다(기존 규칙 그대로)")
+    void recordValidRun_ranked_reevaluatesEveryTenth() {
+        Member m = member("달리는곰");
+        m.confirmPlacement(Tier.GOLD);
+        for (int i = 1; i <= 3; i++) {
+            m.recordValidRun(input(38, i), BOUNDARY, 0);
+        }
         for (int i = 4; i <= 9; i++) {
-            m.recordValidRun(input(46, i), BOUNDARY);
+            m.recordValidRun(input(46, i), BOUNDARY, 0);
             assertThat(m.getTier()).isEqualTo(Tier.GOLD);
         }
-        m.recordValidRun(input(46, 10), BOUNDARY);
+        TierChange tenth = m.recordValidRun(input(46, 10), BOUNDARY, 0);
         // 최근 10회: 38 ×3 + 46 ×7 = 43.6 → 플래티넘
         assertThat(m.getTier()).isEqualTo(Tier.PLATINUM);
+        assertThat(tenth.evaluation())
+                .contains(new TierEvaluation(EvaluationKind.REEVALUATION, 10));
 
         for (int i = 11; i <= 19; i++) {
-            m.recordValidRun(input(25, i), BOUNDARY);
+            m.recordValidRun(input(25, i), BOUNDARY, 0);
         }
         assertThat(m.getTier()).isEqualTo(Tier.PLATINUM);
-        m.recordValidRun(input(25, 20), BOUNDARY);
+        m.recordValidRun(input(25, 20), BOUNDARY, 0);
         assertThat(m.getTier()).isEqualTo(Tier.BRONZE);
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName(
+            "TC-5740 3판째가 10번째 순번이면 그 순번에서는 확정만 한다: 확정이 먼저든 러닝 반영이 먼저든 같다(D-484)")
+    void recordValidRun_placementAtTenthOrdinal_noReevaluationThere() {
+        Member confirmedFirst = member("곰A");
+        for (int i = 1; i <= 9; i++) {
+            confirmedFirst.recordValidRun(input(46, i), BOUNDARY, 0);
+        }
+        confirmedFirst.confirmPlacement(Tier.SILVER);
+        TierChange tenth = confirmedFirst.recordValidRun(input(46, 10), BOUNDARY, 10);
+        assertThat(tenth.evaluation()).isEmpty();
+        assertThat(confirmedFirst.getTier()).isEqualTo(Tier.SILVER);
+
+        Member runFirst = member("곰B");
+        for (int i = 1; i <= 10; i++) {
+            runFirst.recordValidRun(input(46, i), BOUNDARY, 0);
+        }
+        runFirst.confirmPlacement(Tier.SILVER);
+        assertThat(runFirst.getTier()).isEqualTo(Tier.SILVER);
+
+        for (int i = 11; i <= 19; i++) {
+            confirmedFirst.recordValidRun(input(46, i), BOUNDARY, 10);
+        }
+        assertThat(confirmedFirst.getTier()).isEqualTo(Tier.SILVER);
+        assertThat(confirmedFirst.recordValidRun(input(46, 20), BOUNDARY, 10).evaluation())
+                .contains(new TierEvaluation(EvaluationKind.REEVALUATION, 20));
+        assertThat(confirmedFirst.getTier()).isEqualTo(Tier.MASTER);
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("TC-5741 확정 순번이 10의 배수 앞이면 그 10의 배수에서 재평가한다")
+    void recordValidRun_placementBeforeTenth_reevaluatesAtTenth() {
+        Member m = member("달리는곰");
+        for (int i = 1; i <= 7; i++) {
+            m.recordValidRun(input(30, i), BOUNDARY, 0);
+        }
+        m.confirmPlacement(Tier.SILVER);
+        m.recordValidRun(input(46, 8), BOUNDARY, 7);
+        m.recordValidRun(input(46, 9), BOUNDARY, 7);
+        assertThat(m.recordValidRun(input(46, 10), BOUNDARY, 7).evaluation()).isPresent();
+        // 30 ×7 + 46 ×3 = 34.8 → 실버
+        assertThat(m.getTier()).isEqualTo(Tier.SILVER);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest(
+            name = "TC-5813 재평가 MC/DC: 랭크={0}, 확정 순번={1}, 순번 9→{2} → 재평가 {3}")
+    @org.junit.jupiter.params.provider.CsvSource({
+        "true, 0, 10, true",
+        "false, 0, 10, false",
+        "true, 10, 10, false",
+        "true, 0, 9, false"
+    })
+    void reevaluationCondition_mcdc(
+            boolean ranked, int placementOrdinal, int next, boolean expected) {
+        Member m = member("판정곰");
+        if (ranked) {
+            m.confirmPlacement(Tier.BRONZE);
+        }
+        for (int i = 1; i <= 8; i++) {
+            m.recordValidRun(input(46, i), BOUNDARY, placementOrdinal);
+        }
+        TierChange change = m.recordValidRun(input(46, next), BOUNDARY, placementOrdinal);
+        assertThat(change.evaluation().isPresent()).isEqualTo(expected);
     }
 
     @Test
     void recordValidRun_sameOrdinalAgain_changesNothing() {
         Member m = member("달리는곰");
-        for (int i = 1; i <= 3; i++) {
-            m.recordValidRun(input(38, i), BOUNDARY);
+        m.confirmPlacement(Tier.GOLD);
+        for (int i = 1; i <= 10; i++) {
+            m.recordValidRun(input(38, i), BOUNDARY, 0);
         }
-        TierChange again = m.recordValidRun(input(20, 3), BOUNDARY);
+        TierChange again = m.recordValidRun(input(20, 10), BOUNDARY, 0);
         assertThat(again.tierChanged()).isFalse();
+        assertThat(again.evaluation()).isEmpty();
         assertThat(m.getTier()).isEqualTo(Tier.GOLD);
-        assertThat(m.getLevel()).isEqualTo(1);
+        assertThat(m.getLevel()).isEqualTo(2);
     }
 
     @Test
     void recordValidRun_skippedOrdinals_judgePassedPoints() {
-        Member a = member("곰A");
-        a.recordValidRun(input(38, 1), BOUNDARY);
-        a.recordValidRun(input(38, 2), BOUNDARY);
-        a.recordValidRun(input(38, 4), BOUNDARY); // (2 → 4)
-        assertThat(a.getTier()).isEqualTo(Tier.GOLD);
-
         Member b = member("곰B");
+        b.confirmPlacement(Tier.SILVER);
         for (int i = 1; i <= 9; i++) {
-            b.recordValidRun(input(31, i), BOUNDARY);
+            b.recordValidRun(input(31, i), BOUNDARY, 0);
         }
         assertThat(b.getTier()).isEqualTo(Tier.SILVER);
-        b.recordValidRun(input(46, 11), BOUNDARY); // (9 → 11)
+        b.recordValidRun(input(46, 11), BOUNDARY, 0); // (9 → 11)
         // 최근 10회: 31 ×9 + 46 = 32.5 → 실버 유지지만 판정은 했다
-        assertThat(b.getTier()).isEqualTo(Tier.SILVER);
-        b.recordValidRun(input(46, 12), BOUNDARY);
         assertThat(b.getTier()).isEqualTo(Tier.SILVER);
 
         Member c = member("곰C");
-        c.recordValidRun(input(46, 1), BOUNDARY);
-        c.recordValidRun(input(46, 2), BOUNDARY);
-        c.recordValidRun(input(46, 11), BOUNDARY); // (2 → 11)
+        c.confirmPlacement(Tier.BRONZE);
+        c.recordValidRun(input(46, 1), BOUNDARY, 0);
+        c.recordValidRun(input(46, 2), BOUNDARY, 0);
+        c.recordValidRun(input(46, 11), BOUNDARY, 0); // (2 → 11)
         assertThat(c.getTier()).isEqualTo(Tier.MASTER);
     }
 
     @Test
     void recordValidRun_levelGrowsEvery50km() {
         Member m = member("달리는곰");
-        m.recordValidRun(new RunScoreInput(30, Distance.ofKm(49.9), 1), BOUNDARY);
+        m.recordValidRun(new RunScoreInput(30, Distance.ofKm(49.9), 1), BOUNDARY, 0);
         assertThat(m.getLevel()).isEqualTo(1);
         TierChange change =
-                m.recordValidRun(new RunScoreInput(30, Distance.ofKm(0.1), 2), BOUNDARY);
+                m.recordValidRun(new RunScoreInput(30, Distance.ofKm(0.1), 2), BOUNDARY, 0);
         assertThat(change.level()).isEqualTo(2);
-        m.recordValidRun(new RunScoreInput(30, Distance.ofKm(50), 3), BOUNDARY);
+        m.recordValidRun(new RunScoreInput(30, Distance.ofKm(50), 3), BOUNDARY, 0);
         assertThat(m.getLevel()).isEqualTo(3);
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("TC-5736·TC-5737 배치고사 확정: 언랭만 랭크 티어로, 레벨·누계는 그대로(05-21 2.1)")
+    void confirmPlacement_onlyFromUnrankedToRanked() {
+        Member m = member("달리는곰");
+        m.recordValidRun(new RunScoreInput(30, Distance.ofKm(60), 1), BOUNDARY, 0);
+
+        assertThatThrownBy(() -> m.confirmPlacement(Tier.UNRANKED))
+                .isInstanceOf(IllegalStateException.class);
+        m.confirmPlacement(Tier.PLATINUM);
+
+        assertThat(m.getTier()).isEqualTo(Tier.PLATINUM);
+        assertThat(m.getLevel()).isEqualTo(2);
+        assertThatThrownBy(() -> m.confirmPlacement(Tier.GOLD))
+                .isInstanceOf(IllegalStateException.class);
+
+        Member gone = member("떠난곰");
+        gone.withdraw(NOW);
+        assertThatThrownBy(() -> gone.confirmPlacement(Tier.GOLD))
+                .isInstanceOf(IllegalStateException.class);
     }
 
     @Test
@@ -268,7 +363,7 @@ class MemberTest {
         assertThatThrownBy(() -> m.withdraw(NOW)).isInstanceOf(IllegalStateException.class);
         assertThatThrownBy(() -> m.changeSetting(new SettingChange(SettingItem.UNIT, "MI", null)))
                 .isInstanceOf(IllegalStateException.class);
-        assertThatThrownBy(() -> m.recordValidRun(input(30, 1), BOUNDARY))
+        assertThatThrownBy(() -> m.recordValidRun(input(30, 1), BOUNDARY, 0))
                 .isInstanceOf(IllegalStateException.class);
     }
 
@@ -276,8 +371,9 @@ class MemberTest {
     void purgeResidual_clearsSettingsProgressTags_andIsIdempotent() {
         Member m = member("달리는곰");
         for (int i = 1; i <= 3; i++) {
-            m.recordValidRun(input(38, i), BOUNDARY);
+            m.recordValidRun(input(38, i), BOUNDARY, 0);
         }
+        m.confirmPlacement(Tier.GOLD);
         m.changeSetting(new SettingChange(SettingItem.UNIT, "MI", null));
         assertThatThrownBy(m::purgeResidual).isInstanceOf(IllegalStateException.class);
 

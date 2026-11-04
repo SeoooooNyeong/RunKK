@@ -30,7 +30,7 @@ class TierLateRunTest {
         TierProgress progress = TierProgress.empty();
         progress.addValidRun(input(30, 1));
         progress.addValidRun(input(30, 2));
-        assertThat(progress.addValidRun(input(36, 4))).hasValue(32.0);
+        assertThat(progress.addValidRun(input(36, 4))).isEmpty(); // 3회째 첫 배치 창 없음(D-484)
 
         progress.addLateValidRun(input(42, 3));
         assertThat(progress.validRunCount()).isEqualTo(4);
@@ -75,7 +75,9 @@ class TierLateRunTest {
         long id = members.save(MemberFixtures.member("늦은곰")).getId();
         TierLevelService service =
                 new TierLevelService(
-                        members, new OperationPolicy(new InMemoryOperationSettingRepository()));
+                        members,
+                        new InMemoryPlacementProgressRepository(),
+                        new OperationPolicy(new InMemoryOperationSettingRepository()));
         for (int i = 2; i <= 10; i++) {
             service.recordValidRun(id, new RunScoreInput(41, Distance.ofKm(5), i));
         }

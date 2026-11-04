@@ -10,6 +10,7 @@ import static org.mockito.Mockito.doThrow;
 
 import com.a207.runkk.bootstrap.RunkkApplication;
 import com.a207.runkk.common.Tier;
+import com.a207.runkk.member.Member;
 import com.a207.runkk.member.MemberFixtures;
 import com.a207.runkk.member.MemberRepository;
 import com.a207.runkk.member.TierLevelService;
@@ -67,29 +68,36 @@ class TierJudgementRecoveryIntegrationTest {
         }
     }
 
+    /**
+     * 첫 배치는 배치고사로 옮겨(J24-6, D-484) 일반 러닝의 판정 지점은 10의 배수 재평가뿐이다. 브론즈로 확정된 회원의 10회째 반영이 실패해도 11회째가
+     * 지나친 지점(10)을 판정한다(D-40). Runimal 3회째 수신 실패도 4회째가 메운다.
+     */
     @Test
-    void t10_failedThirdJudgement_isRecoveredByFourthRun() throws InterruptedException {
+    void t10_failedTenthJudgement_isRecoveredByEleventhRun() throws InterruptedException {
         long m =
                 tx.execute(
-                        s ->
-                                members.save(
-                                                MemberFixtures.member(
-                                                        "티어곰", LocalDateTime.now().minusDays(30)))
-                                        .getId());
+                        s -> {
+                            Member member =
+                                    members.save(
+                                            MemberFixtures.member(
+                                                    "티어곰", LocalDateTime.now().minusDays(30)));
+                            member.confirmPlacement(Tier.BRONZE);
+                            return members.save(member).getId();
+                        });
         doThrow(new IllegalStateException("수신자 장애"))
                 .when(tierLevelService)
-                .recordValidRun(anyLong(), argThat(input -> input.validRunOrdinal() == 3));
+                .recordValidRun(anyLong(), argThat(input -> input.validRunOrdinal() == 10));
         doThrow(new IllegalStateException("Runimal 수신자 장애"))
                 .when(runimalService)
                 .onRunSaved(argThat(e -> e.validRunOrdinal() == 3));
 
-        for (int i = 1; i <= 3; i++) {
+        for (int i = 1; i <= 10; i++) {
             uploads.upload(
                     m, new RunUploadCommand(upload(id(i), START.plusHours(i), 5_000, 1_500)));
         }
-        assertThat(members.findById(m).orElseThrow().getTier()).isEqualTo(Tier.UNRANKED);
+        assertThat(members.findById(m).orElseThrow().getTier()).isEqualTo(Tier.BRONZE);
 
-        uploads.upload(m, new RunUploadCommand(upload(id(4), START.plusHours(4), 5_000, 1_500)));
+        uploads.upload(m, new RunUploadCommand(upload(id(11), START.plusHours(11), 5_000, 1_500)));
         assertThat(members.findById(m).orElseThrow().getTier()).isEqualTo(Tier.GOLD);
         assertThat(awaitProvisionalType(m)).isNotNull();
     }

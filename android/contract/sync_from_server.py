@@ -11,7 +11,7 @@
   enums/ErrorCode.http.txt      ReasonCode가 아닌 서버 오류 응답 code (web.error.ApiExceptionHandler)
   dto-records.json              서버 요청·응답 record의 항목 이름·필수 여부·중첩 형식
   policy/ValidityRule.txt       유효 판정 초과 시속 상한 "maxSpeedKmh 값" (running.ValidityRule.STANDARD, FR-047)
-  policy/TierPlacement.txt      첫 티어 배치 유효 러닝 횟수 "placementRuns 값" (member.TierProgress.PLACEMENT, 랜덤 대결 잠금)
+  policy/TierPlacement.txt      배치고사 판 수 "placementRuns 값" (member.PlacementProgress.ROUNDS, 진행 「n/3」의 분모, D-509)
   policy/GatedNotification.txt  "알림종류 미공개기능" (notification.NotificationType의 GatedFeature, 없으면 "-", D138)
 
 앱 쪽 시험(ContractEnumsTest·ServerDtoContractTest·정책 계약 시험)이 이 파일들과 앱 상수·DTO를 대조한다. 서버 값이 바뀌면 이 스크립트를 다시
@@ -365,9 +365,9 @@ def sync_policy():
     end = match(src, m.end() - 1, '(', ')')
     args = [a.strip() for a in split_top(src[m.end():end])]
     write(os.path.join(HERE, 'policy', 'ValidityRule.txt'), ['maxSpeedKmh %s' % float(args[-1])])
-    # 첫 티어 배치 유효 러닝 횟수(member.TierProgress.PLACEMENT). 앱 RandomBattleGate.PLACEMENT_RUNS가 같아야 한다(H-44, D-333).
-    src, _ = strip_comments_and_literals(read(os.path.join(JAVA, 'member', 'TierProgress.java')))
-    m = re.search(r'\bint\s+PLACEMENT\s*=\s*(\d+)\s*;', src)
+    # 배치고사 판 수(member.PlacementProgress.ROUNDS). 앱 RandomBattleGate.PLACEMENT_RUNS가 같아야 한다(H-44, D-333, D-509).
+    src, _ = strip_comments_and_literals(read(os.path.join(JAVA, 'member', 'PlacementProgress.java')))
+    m = re.search(r'\bint\s+ROUNDS\s*=\s*(\d+)\s*;', src)
     write(os.path.join(HERE, 'policy', 'TierPlacement.txt'), ['placementRuns %d' % int(m.group(1))])
     # 닫힌 기능 알림 분류(notification.NotificationType의 GatedFeature 인자). 앱 GatedFeature.of가 같아야 한다(D138, H-47).
     path = os.path.join(JAVA, 'notification', 'NotificationType.java')

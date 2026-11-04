@@ -384,12 +384,15 @@ class RunningServicesTest {
         long m = member();
         TierLevelService real =
                 new TierLevelService(
-                        members, new OperationPolicy(new InMemoryOperationSettingRepository()));
+                        members,
+                        new com.a207.runkk.member.InMemoryPlacementProgressRepository(),
+                        new OperationPolicy(new InMemoryOperationSettingRepository()));
         for (int i = 1; i <= 3; i++) {
             send(m, upload(id(i), START.plusHours(i), 5_000, 1_500));
         }
         saved().forEach(listener(real)::onRunSaved);
-        assertThat(members.findById(m).orElseThrow().getTier()).isEqualTo(Tier.GOLD);
+        // 일반 러닝은 첫 배치를 하지 않는다(J24-6): 3회 반영 뒤에도 언랭, 누적 거리만 늘어난다
+        assertThat(members.findById(m).orElseThrow().getTier()).isEqualTo(Tier.UNRANKED);
         assertThat(records.findById(id(1)).orElseThrow().isTierApplied()).isTrue();
 
         long fresh = member();

@@ -127,7 +127,10 @@ public class BattleStartService {
                     battle.getDistance(),
                     myBest,
                     ref.arrivalElapsed(),
-                    ANIMATION_SECONDS);
+                    ANIMATION_SECONDS,
+                    battle.placementRound().isPresent()
+                            ? battle.placementRound().getAsInt()
+                            : null);
         }
         long rivalId = battle.rivalOf(memberId).orElseThrow().getMemberId();
         MemberSummary rival = members.get(rivalId);

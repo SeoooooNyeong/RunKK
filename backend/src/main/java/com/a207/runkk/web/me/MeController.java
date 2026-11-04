@@ -1,5 +1,6 @@
 package com.a207.runkk.web.me;
 
+import com.a207.runkk.common.Pace;
 import com.a207.runkk.member.ConsentItem;
 import com.a207.runkk.member.ConsentResult;
 import com.a207.runkk.member.DocumentType;
@@ -9,6 +10,9 @@ import com.a207.runkk.member.MemberPreference;
 import com.a207.runkk.member.MemberProfile;
 import com.a207.runkk.member.MemberSettingService;
 import com.a207.runkk.member.MemberSettingsView;
+import com.a207.runkk.member.PlacementRound;
+import com.a207.runkk.member.PlacementService;
+import com.a207.runkk.member.PlacementView;
 import com.a207.runkk.member.ProfileEdit;
 import com.a207.runkk.member.ProfileEditResult;
 import com.a207.runkk.member.ProfileService;
@@ -55,16 +59,25 @@ public class MeController {
     private final MemberSettingService memberSettingService;
     private final WithdrawalService withdrawalService;
     private final ProfileQueryService profileQueryService;
+    private final PlacementService placementService;
 
     public MeController(
             ProfileService profileService,
             MemberSettingService memberSettingService,
             WithdrawalService withdrawalService,
-            ProfileQueryService profileQueryService) {
+            ProfileQueryService profileQueryService,
+            PlacementService placementService) {
         this.profileService = profileService;
         this.memberSettingService = memberSettingService;
         this.withdrawalService = withdrawalService;
         this.profileQueryService = profileQueryService;
+        this.placementService = placementService;
+    }
+
+    /** 본인 배치고사 진행(05-03 5.7.3 P1, FR-279~FR-282). 임시 티어는 이 응답에만 있다(D-485). */
+    @GetMapping("/me/placement")
+    PlacementResponse placement(@RequestAttribute(MEMBER_ID) long memberId) {
+        return PlacementResponse.of(placementService.view(memberId));
     }
 
     /** 회원 프로필(FR-005, FR-006). 공개 수준(SELF·PUBLIC·WITHDRAWN)이 정한 항목만 담긴다. 없는 회원은 400. */
@@ -211,6 +224,16 @@ public class MeController {
             String tier,
             List<Round> rounds) {
 
+        static PlacementResponse of(PlacementView v) {
+            return new PlacementResponse(
+                    v.status().name(),
+                    v.countedRounds(),
+                    v.nextRound(),
+                    v.provisionalTier() == null ? null : v.provisionalTier().name(),
+                    v.tier().name(),
+                    v.rounds().stream().map(Round::of).toList());
+        }
+
         /**
          * 센 판 하나.
          *
@@ -229,7 +252,19 @@ public class MeController {
                 long distanceMeters,
                 long elapsedSeconds,
                 Integer averagePaceSecondsPerKm,
-                String verdict) {}
+                String verdict) {
+
+            static Round of(PlacementRound r) {
+                return new Round(
+                        r.round(),
+                        r.battleId(),
+                        r.battleDistance().distance().meters(),
+                        r.runDistance().meters(),
+                        r.runElapsed().toSeconds(),
+                        r.averagePace().map(Pace::secondsPerKm).orElse(null),
+                        r.verdict().name());
+            }
+        }
     }
 
     /**

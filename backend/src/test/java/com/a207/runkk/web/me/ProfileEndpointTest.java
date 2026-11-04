@@ -16,6 +16,20 @@ import org.springframework.http.MediaType;
 class ProfileEndpointTest extends WebTestSupport {
 
     @Test
+    @DisplayName("TC-5805 다른 러너 프로필의 tier는 공개 티어(배치 중이면 UNRANKED)뿐이고 임시 티어 항목이 없다(D-485)")
+    void otherProfile_showsPublicTierOnly() throws Exception {
+        Session me = signUp();
+        Session other = signUp();
+        mvc.perform(as(me, get("/api/v1/members/" + other.memberId() + "/profile")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tier").value("UNRANKED"))
+                .andExpect(jsonPath("$.provisionalTier").doesNotExist());
+        rank(other, com.a207.runkk.common.Tier.PLATINUM);
+        mvc.perform(as(me, get("/api/v1/members/" + other.memberId() + "/profile")))
+                .andExpect(jsonPath("$.tier").value("PLATINUM"));
+    }
+
+    @Test
     @DisplayName("본인은 SELF(설정 포함), 비공개 회원은 PRIVATE(설정 없음), 공개 회원은 PUBLIC, 없는 회원은 400")
     void profileByDisclosure() throws Exception {
         Session me = signUp();

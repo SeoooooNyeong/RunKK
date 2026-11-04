@@ -7,5 +7,23 @@ package com.a207.runkk.battle;
 public enum PlacementRoundState {
     COUNTED,
     NOT_COUNTED,
-    PENDING
+    PENDING;
+
+    /**
+     * 위에서 처음 맞는 것(D-487, v0.31 R89): 이미 셈 → COUNTED, 세지 않는 판(check.isVoid) → NOT_COUNTED, 끝났는데
+     * 배치고사가 이미 끝남 → NOT_COUNTED, 그 밖(판정 전, 기록 도착 전, 셈 반영 전) → PENDING. 배치고사 대결이 아니면 부르지 않는다.
+     */
+    public static PlacementRoundState of(
+            PlacementRoundCheck check, boolean counted, boolean progressCompleted) {
+        if (counted) {
+            return COUNTED;
+        }
+        if (check.isVoid()) {
+            return NOT_COUNTED;
+        }
+        if (check.finished() && progressCompleted) {
+            return NOT_COUNTED;
+        }
+        return PENDING;
+    }
 }
