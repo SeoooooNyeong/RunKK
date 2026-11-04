@@ -21,6 +21,7 @@
 
 - (sw-test, test v0.18) test/10-25-v018-배치고사-계획-단위.md·test/10-26-v018-배치고사-통합-검증-구현목록.md 새 조각(18장, TC-5693~TC-5953 261개: 핫픽스 CR-135~CR-138 10, 단위 서버 103, 화이트박스 8, 단위 앱 97, 통합 32, 검증·시스템 11, 구현 단위별 시험 목록 18.15), test.md(머리 v0.18, 상태, 함께 고친 문서, 변경 이력, 목차 2행, 1장 요약 수, 실행 이력, 다음 행동), test/01-계획.md 1.5 번호 대역 TC-5693~TC-5999 행, test/10-24 다음 링크, README.md(test 행).
 - (sw-code-review, code-review v0.22) code-review/17-배치고사-1차.md 새 조각(hotfix df211dc5..bad8c750, BE-0·BE·AN-1·infra, 조건부 0/5/16, 결함 PL1-B1~B8·PL1-A1~A9·PL1-T1~T4, 설계서 갱신 요청 U-1~U-11, 시험서 갱신 요청 UT-1~UT-3), code-review.md(머리 v0.22, 최신 판정, 변경 이력, 새 절), 3차 리뷰 요약 절을 code-review/00-리뷰-2026-10-21-3차-요약.md로 옮김(목차 100KB 상한, 내용 그대로), README.md(code-review 행).
+- (sw-code-review 2차, code-review v0.22 같은 판) code-review/18-배치고사-2차.md 새 조각(1차 수정 bad8c750..96cc3f5e 확인 + AN-2 3dfb8552..c2685561, 조건부 0/2/14, 결함 PL2-A1~A8·PL2-B1·PL2-T1, 설계서 갱신 요청 U2-1~U2-8, 시험서 UT2-1~UT2-4), code-review.md(머리 헤더 입력, 최신 판정, 변경 이력, 새 절), README.md(code-review 행).
 
 ## 새 임시 번호
 
