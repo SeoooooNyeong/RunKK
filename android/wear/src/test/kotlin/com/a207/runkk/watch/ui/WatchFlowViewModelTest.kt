@@ -86,7 +86,11 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.onCompletion
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -118,6 +122,21 @@ class WatchFlowViewModelTest {
     private val live = FakeLiveChannelProvider()
     private val host = FakeMeasurementHost()
     private val online = MutableStateFlow(true)
+
+    /** 워치 시스템 위치(W52). 거짓이면 Health Services가 운동 시작을 거부한다. */
+    private var isLocationOn = true
+
+    /** GPS 예열(W53). 모으는 동안만 예열 중이다([warmUps]는 지금 예열 수). */
+    private val gpsReadiness = MutableSharedFlow<GpsWarmUp.Readiness>(replay = 1)
+    private var warmUps = 0
+    private var warmUpStarts = 0
+    private val gpsWarmUp = object : GpsWarmUp {
+        override fun readiness(): Flow<GpsWarmUp.Readiness> = gpsReadiness
+            .onStart {
+                warmUps++
+                warmUpStarts++
+            }.onCompletion { warmUps-- }
+    }
     private val battles = FakeBattleRepository().apply {
         tracks[RecordBattleKind.SELF] = listOf(selfTrack(distanceMeters = 3_000, finishSeconds = 900))
         // W31: 셀럽 목록은 구간 기록 없이 받고 고를 때 셀럽 하나로 받는다.
@@ -200,7 +219,8 @@ class WatchFlowViewModelTest {
         val memory = shared?.memory ?: RecordBattleMemory()
         val battleFlow =
             WatchBattleFlow(coordinator, battles, cache, MatchWaiter(live, backgroundScope), pendingRuns, memory, clock)
-        val vm = WatchFlowViewModel(runs, battleFlow, store, link, network, guidance, accounts)
+        val vm =
+            WatchFlowViewModel(runs, battleFlow, store, link, network, guidance, accounts, { isLocationOn }, gpsWarmUp)
         runCurrent()
         return Harness(vm, runs, coordinator, store, guidance, memory)
     }
@@ -1815,5 +1835,214 @@ class WatchFlowViewModelTest {
         h.vm.onCelebritySelected(celebrity)
         runCurrent()
         assertEquals(WatchFlow.Notice.RETRY_LATER, (h.flow as WatchFlow.CelebList).notice)
+    }
+
+    @Test
+    fun `워치 위치가 꺼져 있으면 자유런을 시작하지 않고 위치 안내를 보인다(W52)`() = flowTest {
+        isLocationOn = false
+        val h = open()
+        h.vm.onModeSelected(WatchMode.FREE)
+
+        h.vm.onStartPressed()
+        passCountdown()
+
+        assertEquals(WatchFlow.Notice.LOCATION_OFF, (h.flow as WatchFlow.FreeGoal).notice)
+        assertEquals(0, host.starts)
+    }
+
+    @Test
+    fun `워치 위치가 꺼져 있으면 셀프런을 시작하지 않고 서버 대결도 열지 않는다(W52)`() = flowTest {
+        isLocationOn = false
+        battles.recordStart = recordStart(CardKind.SELF_RUN, meters = 3_000)
+        val h = open()
+        h.vm.onModeSelected(WatchMode.SELF)
+
+        h.vm.onDistanceSelected(Distance(3_000))
+        runCurrent()
+        passCountdown()
+
+        assertEquals(WatchFlow.Notice.LOCATION_OFF, (h.flow as WatchFlow.SelfDistance).notice)
+        assertEquals(BattleRunState.Idle, h.coordinator.state.value)
+        assertEquals(0, host.starts)
+    }
+
+    @Test
+    fun `워치 위치가 꺼져 있으면 셀럽런을 고를 때 받지도 시작하지도 않는다(W52)`() = flowTest {
+        isLocationOn = false
+        val h = open()
+        val list = openCelebList(h)
+
+        h.vm.onCelebritySelected(list.celebrities.single())
+        runCurrent()
+
+        assertEquals(WatchFlow.Notice.LOCATION_OFF, (h.flow as WatchFlow.CelebList).notice)
+        assertTrue(battles.celebrityTrackCalls.isEmpty())
+        assertEquals(0, host.starts)
+    }
+
+    @Test
+    fun `워치 위치가 꺼져 있으면 배틀런 매칭을 요청하지 않는다(W52)`() = flowTest {
+        isLocationOn = false
+        val h = open()
+
+        requestMatch(h)
+
+        assertEquals(WatchFlow.Notice.LOCATION_OFF, (h.flow as WatchFlow.BattleDistance).notice)
+        assertTrue(battles.matchRequests.isEmpty())
+    }
+
+    @Test
+    fun `워치 위치가 켜지면 같은 화면에서 바로 시작한다(W52)`() = flowTest {
+        isLocationOn = false
+        val h = open()
+        h.vm.onModeSelected(WatchMode.FREE)
+        h.vm.onStartPressed()
+        assertIs<WatchFlow.FreeGoal>(h.flow)
+
+        isLocationOn = true
+        h.vm.onStartPressed()
+
+        assertEquals(WatchFlow.Countdown(WatchMode.FREE, null, 3), h.flow)
+    }
+
+    @Test
+    fun `자유런 측정이 밖에서 끝났을 때 워치 위치가 꺼져 있으면 측정 중단 대신 위치 안내와 거리 선택이다(W52)`() = flowTest {
+        val h = open()
+        h.vm.onModeSelected(WatchMode.FREE)
+        h.vm.onStartPressed()
+        passCountdown()
+
+        isLocationOn = false
+        h.tracker.endRun()
+        runCurrent()
+
+        assertEquals(WatchFlow.Notice.LOCATION_OFF, (h.flow as WatchFlow.FreeGoal).notice)
+    }
+
+    @Test
+    fun `셀프런 측정이 밖에서 기록 없이 끝났을 때 워치 위치가 꺼져 있으면 STOP 대신 위치 안내와 거리 선택이다(W52)`() = flowTest {
+        val h = open()
+        startOnlineSelf(h)
+
+        isLocationOn = false
+        h.tracker.endRun()
+        runCurrent()
+        advanceTimeBy(WatchFlowViewModel.OUTCOME_WAIT_MILLIS + 100)
+        runCurrent()
+
+        assertEquals(WatchFlow.Notice.LOCATION_OFF, (h.flow as WatchFlow.SelfDistance).notice)
+        assertEquals(listOf(7L), battles.forfeits)
+    }
+
+    @Test
+    fun `메인이 보이는 동안 GPS를 예열하고 찾는 중과 준비됨을 메인에 보인다(W53)`() = flowTest {
+        val h = open()
+        assertEquals(0, warmUps)
+
+        h.vm.onScreenShown(true)
+        runCurrent()
+        assertEquals(1, warmUps)
+        assertNull((h.flow as WatchFlow.Main).gps)
+
+        gpsReadiness.emit(GpsWarmUp.Readiness.SEARCHING)
+        runCurrent()
+        assertEquals(WatchFlow.GpsStatus.SEARCHING, (h.flow as WatchFlow.Main).gps)
+
+        gpsReadiness.emit(GpsWarmUp.Readiness.READY)
+        runCurrent()
+        assertEquals(WatchFlow.GpsStatus.READY, (h.flow as WatchFlow.Main).gps)
+    }
+
+    @Test
+    fun `거리 선택으로 가도 예열을 이어 가고 시작하면 카운트다운 전에 예열을 멈춘다(W53)`() = flowTest {
+        val h = open()
+        h.vm.onScreenShown(true)
+        runCurrent()
+
+        h.vm.onModeSelected(WatchMode.FREE)
+        runCurrent()
+        assertEquals(1, warmUps)
+        assertEquals(1, warmUpStarts)
+
+        h.vm.onStartPressed()
+        runCurrent()
+        assertIs<WatchFlow.Countdown>(h.flow)
+        assertEquals(0, warmUps)
+
+        passCountdown()
+        assertEquals(1, host.starts)
+        assertEquals(0, warmUps)
+    }
+
+    @Test
+    fun `앱이 화면에서 가려지거나 저전력 표시면 예열을 멈추고 돌아오면 다시 한다(W53)`() = flowTest {
+        val h = open()
+        h.vm.onScreenShown(true)
+        runCurrent()
+        gpsReadiness.emit(GpsWarmUp.Readiness.READY)
+        runCurrent()
+
+        h.vm.onScreenShown(false)
+        runCurrent()
+        assertEquals(0, warmUps)
+        assertNull((h.flow as WatchFlow.Main).gps)
+
+        h.vm.onScreenShown(true)
+        runCurrent()
+        assertEquals(1, warmUps)
+
+        h.vm.onAmbientChanged(true)
+        runCurrent()
+        assertEquals(0, warmUps)
+    }
+
+    @Test
+    fun `워치 위치가 꺼져 있으면 예열하지 않고 메인에 위치 안내를 보인다(W53)`() = flowTest {
+        isLocationOn = false
+        val h = open()
+
+        h.vm.onScreenShown(true)
+        runCurrent()
+
+        assertEquals(0, warmUpStarts)
+        assertEquals(WatchFlow.GpsStatus.LOCATION_OFF, (h.flow as WatchFlow.Main).gps)
+
+        // 위치 설정에서 켜고 돌아오면(화면이 다시 보이면) 예열한다.
+        h.vm.onScreenShown(false)
+        runCurrent()
+        isLocationOn = true
+        h.vm.onScreenShown(true)
+        runCurrent()
+        assertEquals(1, warmUps)
+    }
+
+    @Test
+    fun `로그인 정보가 없으면 예열하지 않는다(W53)`() = flowTest {
+        val h = open(isLoggedIn = false)
+
+        h.vm.onScreenShown(true)
+        runCurrent()
+
+        assertEquals(WatchFlow.NotLoggedIn, h.flow)
+        assertEquals(0, warmUpStarts)
+    }
+
+    @Test
+    fun `측정 중 위치를 아직 받지 못했으면 GPS 찾는 중이고 받으면 사라지며 10초 넘게 끊기면 다시 보인다(W53)`() = flowTest {
+        val h = open()
+        h.vm.onModeSelected(WatchMode.FREE)
+        h.vm.onStartPressed()
+        passCountdown()
+        assertTrue((h.flow as WatchFlow.Running).isGpsSearching)
+
+        runNorth(h.tracker, meters = 100)
+        assertFalse((h.flow as WatchFlow.Running).isGpsSearching)
+
+        advanceTimeBy(WatchFlowViewModel.GPS_STALE_MILLIS - 1_000)
+        runCurrent()
+        assertFalse((h.flow as WatchFlow.Running).isGpsSearching)
+        advanceTimeBy(2_000)
+        runCurrent()
+        assertTrue((h.flow as WatchFlow.Running).isGpsSearching)
     }
 }

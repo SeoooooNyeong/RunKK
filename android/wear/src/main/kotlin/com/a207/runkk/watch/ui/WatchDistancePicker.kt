@@ -276,6 +276,8 @@ private fun ListPicker(
     modifier: Modifier
 ) {
     val listState = rememberScalingLazyListState(initialCenterItemIndex = state.selected + 1)
+    // 안내는 목록 맨 아래라 화면 밖일 수 있다: 생기면 그 자리로 옮겨 보인다(W52 위치 안내는 눌러야 한다).
+    LaunchedEffect(state.notice) { if (state.notice != null) listState.animateScrollToItem(state.choices.size + 1) }
     TrackBackground(isDimmed = true, modifier = modifier) {
         ScreenScaffold(scrollState = listState) { contentPadding ->
             ScalingLazyColumn(
