@@ -107,14 +107,26 @@ private fun RandomCard(state: BattleEntrySheetState, onClick: () -> Unit) {
     } else {
         null
     }
-    val confirmed = placement?.takeIf { !isPlacing }?.let { TierDisplay.ofPublic(it.tier) }
+    val confirmed = placement?.takeIf { !isPlacing }?.let { TierDisplay.ofSelf(it.tier, it.provisionalTier) }
     val caption = when {
         isPlacing -> stringResource(R.string.home_entry_random_placing)
         placement != null -> stringResource(R.string.home_entry_random_ranked)
         else -> null
     }
-    val tierSpoken = (confirmed as? TierDisplay.Confirmed)?.let {
-        stringResource(R.string.home_entry_tier_spoken, tierName(it.tier) ?: it.tier)
+    val tierSpoken = when (confirmed) {
+        is TierDisplay.Confirmed -> stringResource(
+            R.string.home_entry_tier_spoken,
+            tierName(confirmed.tier) ?: confirmed.tier
+        )
+
+        is TierDisplay.Provisional -> stringResource(
+            R.string.home_entry_tier_spoken,
+            tierName(confirmed.tier) ?: confirmed.tier
+        )
+
+        TierDisplay.Placing -> tierName(TierDisplay.UNRANKED)
+
+        null -> null
     }
     EntryCard(
         spoken = listOfNotNull(title, chip, tierSpoken, caption).joinToString(", "),

@@ -58,6 +58,9 @@ class HomeViewModel @Inject constructor(
 
     private var refreshJob: Job? = null
 
+    /** 배치 진행 읽기 차례. 늦게 끝난 앞 읽기(새로 고침·시트 열기)가 새 값을 덮지 않게 마지막 차례 결과만 쓴다. */
+    private var placementTurn = 0
+
     private var resumedOnce = false
 
     private var consentJob: Job? = null
@@ -88,7 +91,8 @@ class HomeViewModel @Inject constructor(
     /** 배틀런 카드: 진입 시트를 열고 배치 진행을 한 번 다시 읽는다(배치고사를 마친 직후에도 맞는 카드를 보이게, D-499). */
     fun onBattleCardTapped() {
         _state.update { it.copy(isBattleEntryVisible = true) }
-        viewModelScope.launch { applyPlacement(account.placement()) }
+        val turn = ++placementTurn
+        viewModelScope.launch { applyPlacement(account.placement(), turn) }
     }
 
     fun onBattleEntryDismissed() = _state.update { it.copy(isBattleEntryVisible = false) }
@@ -112,7 +116,8 @@ class HomeViewModel @Inject constructor(
     }
 
     /** 배치 진행을 읽었으면 진행과 헤더 배지(본인 표시, D-494)를 바꾸고, 못 읽었으면 지난 값을 둔다. */
-    private fun applyPlacement(result: Outcome<PlacementProgress>) {
+    private fun applyPlacement(result: Outcome<PlacementProgress>, turn: Int) {
+        if (turn != placementTurn) return
         val progress = (result as? Outcome.Success)?.value ?: return
         _state.update {
             it.copy(placement = progress, tierDisplay = TierDisplay.ofSelf(progress.tier, progress.provisionalTier))
@@ -130,6 +135,7 @@ class HomeViewModel @Inject constructor(
             val plan = async { records.todayPlan() }
             val profile = async { account.mySummary().getOrNull() }
             val settings = async { account.settings().getOrNull() }
+            val placementTurnNow = ++placementTurn
             val placement = async { account.placement() }
             val dashboardResult = dashboard.await()
             val planResult = plan.await()
@@ -140,7 +146,7 @@ class HomeViewModel @Inject constructor(
             val memberSettings = settings.await()
             val face = me?.faceKey?.let { account.faceLayers(it).getOrNull() }.orEmpty()
             val summary = dashboardResult.getOrNull()
-            applyPlacement(placement.await())
+            applyPlacement(placement.await(), placementTurnNow)
             _state.update {
                 // 대시보드·프로필을 못 읽었으면 그 값은 지난 값을 남긴다(AN8-11). 읽었는데 잔액이 없으면(옛 서버) 비운다.
                 val balance = if (dashboardResult is Outcome.Success) summary?.rewardBalance else it.header.balance

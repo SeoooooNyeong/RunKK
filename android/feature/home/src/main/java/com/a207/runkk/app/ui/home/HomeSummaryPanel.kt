@@ -17,7 +17,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -34,6 +36,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkFormat
@@ -55,6 +58,7 @@ internal fun SummaryToggle(onToggle: () -> Unit, modifier: Modifier = Modifier) 
     val collapsed = stringResource(R.string.home_summary_state_collapsed)
     Row(
         modifier = modifier
+            .minimumInteractiveComponentSize()
             .shadow(TOGGLE_SHADOW, CircleShape, ambientColor = SHADOW, spotColor = SHADOW)
             .clip(CircleShape)
             .background(RunkkColors.Surface)
@@ -125,6 +129,7 @@ private fun PanelHeader(onCollapse: () -> Unit) {
         )
         Row(
             modifier = Modifier
+                .minimumInteractiveComponentSize()
                 .clip(CircleShape)
                 .clickable(role = Role.Button, onClick = onCollapse)
                 .semantics { stateDescription = expanded }
@@ -298,7 +303,13 @@ private fun LatestRunRow(run: RunSummary, onClick: () -> Unit) {
                         .border(1.dp, RunkkColors.Border, CircleShape)
                         .padding(horizontal = 8.dp, vertical = 2.dp)
                 )
-                Text(date, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary, maxLines = 1)
+                Text(
+                    date,
+                    style = RunkkTextStyles.Caption,
+                    color = RunkkColors.TextSecondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 Metric(km, stringResource(R.string.home_summary_km), Modifier.alignByBaseline())
@@ -404,9 +415,11 @@ private fun minutesSeconds(elapsed: Duration): String =
 
 /** 최근 러닝 날짜 "11월 18일 (수) 오전 7:10". */
 @Composable
-private fun latestDate(run: RunSummary): String =
-    DateTimeFormatter.ofPattern(stringResource(R.string.home_summary_latest_date_pattern), Locale.KOREAN)
-        .format(run.startedAt.atZone(ZoneId.systemDefault()))
+private fun latestDate(run: RunSummary): String {
+    val pattern = stringResource(R.string.home_summary_latest_date_pattern)
+    val formatter = remember(pattern) { DateTimeFormatter.ofPattern(pattern, Locale.KOREAN) }
+    return formatter.format(run.startedAt.atZone(ZoneId.systemDefault()))
+}
 
 /** 카드 종류 이름(자유런·배틀런·셀프런·셀럽런·크루런). */
 private fun kindLabelRes(kind: CardKind): Int = when (kind) {

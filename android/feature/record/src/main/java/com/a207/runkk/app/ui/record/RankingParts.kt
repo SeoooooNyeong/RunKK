@@ -17,6 +17,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -92,6 +93,7 @@ internal fun RankingPeriodRow(
             val isSelected = value == selected
             Box(
                 modifier = Modifier
+                    .minimumInteractiveComponentSize()
                     .heightIn(min = 32.dp)
                     .clip(RoundedCornerShape(8.dp))
                     .background(if (isSelected) RunkkColors.SelectedFill else LocalRunkkTierColors.current.periodChip)
@@ -124,7 +126,7 @@ internal fun RankingPeriodRow(
 internal fun RankingPodiumView(podium: RankingPodium, mine: Ranking.Entry?) {
     val tiers = LocalRunkkTierColors.current
     Row(
-        modifier = Modifier.fillMaxWidth().height(PODIUM_HEIGHT),
+        modifier = Modifier.fillMaxWidth().heightIn(min = PODIUM_HEIGHT),
         horizontalArrangement = Arrangement.spacedBy(13.dp),
         verticalAlignment = Alignment.Bottom
     ) {
