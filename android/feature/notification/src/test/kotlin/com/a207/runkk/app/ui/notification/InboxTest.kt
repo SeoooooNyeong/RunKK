@@ -203,8 +203,8 @@ class InboxTest {
             .map { it.name }
             .toSet()
         val keys = Routes::class.java.declaredClasses.map { it.simpleName }.toSet()
-        assertEquals(V010_CONSTANTS + V011_CONSTANTS + V014_CONSTANTS, constants)
-        assertEquals(V010_KEYS + V011_KEYS + WIRE_V010_KEYS + V014_KEYS, keys)
+        assertEquals(V010_CONSTANTS + V011_CONSTANTS + V014_CONSTANTS + V018_CONSTANTS, constants)
+        assertEquals(V010_KEYS + V011_KEYS + WIRE_V010_KEYS + V014_KEYS + V018_KEYS, keys)
     }
 
     @Test
@@ -248,5 +248,9 @@ class InboxTest {
          * 셀프·셀럽 탭 경로(SELF·CELEB)는 기록런이 대신해 지웠다.
          */
         val V014_KEYS = setOf("RunimalType", "Evaluation", "FriendInviteWait", "FriendInviteJoin")
+
+        /** v0.18 배치고사·대결 분리(D-498): 친구 대결, 배치고사 진행·완료 경로와 판 결과 인자 키(S15P31A207-275). */
+        val V018_CONSTANTS = setOf("BATTLE_FRIEND", "PLACEMENT", "PLACEMENT_COMPLETE")
+        val V018_KEYS = setOf("PlacementResult")
     }
 }

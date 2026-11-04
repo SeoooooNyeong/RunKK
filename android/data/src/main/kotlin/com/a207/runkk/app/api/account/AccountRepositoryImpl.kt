@@ -13,6 +13,7 @@ import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.account.GuestSession
 import com.a207.runkk.app.domain.account.MemberSettings
 import com.a207.runkk.app.domain.account.MySummary
+import com.a207.runkk.app.domain.account.PlacementProgress
 import com.a207.runkk.app.domain.account.Profile
 import com.a207.runkk.app.domain.account.ProfileEdit
 import com.a207.runkk.app.domain.account.ProviderToken
@@ -165,6 +166,8 @@ constructor(
         val document = me.legalDocument(type)
         requireNotNull(document.url ?: document.body) { "고지문서 주소가 비었다" }
     }
+
+    override suspend fun placement(): Outcome<PlacementProgress> = ApiErrorMapper.call { me.placement().toDomain() }
 
     override suspend fun settings(): Outcome<MemberSettings> = ApiErrorMapper.call { me.settings().toMemberSettings() }
 

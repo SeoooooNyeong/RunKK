@@ -108,7 +108,7 @@ fun RunkkNavHost(
         withBottomSpace(if (lockUnreleased) withBetaLock(entries) else entries)
     }
     val top = backStack.lastOrNull()
-    val selectedTab = (top as? Routes.Key)?.route?.let(::tabOf)
+    val selectedTab = tabOf(top)
     val lockedTabs = if (lockUnreleased) LOCKED_TABS else emptySet()
     var isLockedNoticeVisible by rememberSaveable { mutableStateOf(false) }
     val guideAnchors = remember { GuideAnchors() }
@@ -211,7 +211,7 @@ internal class BackStackNavigator(private val backStack: NavBackStack<NavKey>, p
  */
 private fun withBottomSpace(entries: (NavKey) -> NavEntry<NavKey>): (NavKey) -> NavEntry<NavKey> = { key ->
     val entry = entries(key)
-    val isTab = (key as? Routes.Key)?.route?.let(::tabOf) != null
+    val isTab = tabOf(key) != null
     NavEntry(navEntry = entry) { EntryBottomSpace(isTab) { entry.Content() } }
 }
 
@@ -236,15 +236,21 @@ internal fun isMusicRoute(top: NavKey?): Boolean = when (top) {
     else -> true
 }
 
-/** 경로 → 하단 탭(D-250). 배틀런 화면은 탭이 아니지만 홈을 고른 상태로 하단 탭을 보인다. */
+/**
+ * 경로 → 하단 탭(D-250). 배틀런 화면과 친구 대결(D-498)은 탭이 아니지만 홈을 고른 상태로 하단 탭을 보인다.
+ * 랜덤 대결·배치고사 진행·완료(그리고 인자 화면인 판 결과)는 탭이 없어 하단 탭을 숨긴다.
+ */
 internal fun tabOf(route: String): RunkkTab? = when (route) {
     Routes.CREW -> RunkkTab.CREW
     Routes.RECORD_RUN -> RunkkTab.RECORD_RUN
-    Routes.HOME, Routes.BATTLE_MODE -> RunkkTab.HOME
+    Routes.HOME, Routes.BATTLE_MODE, Routes.BATTLE_FRIEND -> RunkkTab.HOME
     Routes.RANKING -> RunkkTab.RANKING
     Routes.ME -> RunkkTab.ME
     else -> null
 }
+
+/** 백 스택 키 → 하단 탭. 인자 화면(결과·판 결과 등)은 탭이 없다. */
+internal fun tabOf(key: NavKey?): RunkkTab? = (key as? Routes.Key)?.route?.let { tabOf(it) }
 
 internal fun routeOf(tab: RunkkTab): String = when (tab) {
     RunkkTab.CREW -> Routes.CREW

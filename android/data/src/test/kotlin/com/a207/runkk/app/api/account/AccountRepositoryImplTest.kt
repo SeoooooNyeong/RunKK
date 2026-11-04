@@ -10,9 +10,13 @@ import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.account.MemberSettings
 import com.a207.runkk.app.domain.account.MySummary
+import com.a207.runkk.app.domain.account.PlacementProgress
+import com.a207.runkk.app.domain.account.PlacementRound
+import com.a207.runkk.app.domain.account.PlacementStatus
 import com.a207.runkk.app.domain.account.Profile
 import com.a207.runkk.app.domain.account.ProfileEdit
 import com.a207.runkk.app.domain.account.ProviderToken
@@ -23,6 +27,7 @@ import com.a207.runkk.app.domain.account.SignUpForm
 import com.a207.runkk.app.domain.settings.GuidanceSettings
 import com.a207.runkk.app.domain.settings.ScreenTheme
 import com.a207.runkk.app.domain.settings.SettingsSnapshot
+import java.time.Duration
 import java.time.LocalDate
 import kotlin.test.AfterTest
 import kotlin.test.Test
@@ -689,6 +694,73 @@ class AccountRepositoryImplTest {
         val value = Json.parseToJsonElement(body["value"]!!.jsonPrimitive.content).jsonObject
         assertEquals("false", value["proximityAlert"]!!.jsonPrimitive.content)
         assertEquals("KM3", value["defaultDistance"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `TC-5827 배치 진행 응답을 도메인으로 바꾼다`() = runTest {
+        api.reply(
+            """{"status":"IN_PROGRESS","countedRounds":1,"nextRound":2,"provisionalTier":"GOLD","tier":"UNRANKED",
+               |"rounds":[{"round":1,"battleId":31,"battleDistanceMeters":5000,"distanceMeters":5210,"elapsedSeconds":1668,
+               |"averagePaceSecondsPerKm":320,"verdict":"WIN"}]}
+            """.trimMargin()
+        )
+        api.reply(
+            """{"status":"COMPLETED","countedRounds":3,"nextRound":null,"provisionalTier":null,"tier":"SILVER",
+               |"rounds":[{"round":1,"battleId":31,"battleDistanceMeters":5000,"distanceMeters":5210,"elapsedSeconds":1668,
+               |"averagePaceSecondsPerKm":null,"verdict":"WIN"},
+               |{"round":2,"battleId":32,"battleDistanceMeters":3000,"distanceMeters":3000,"elapsedSeconds":1000,"verdict":"LOSE"},
+               |{"round":3,"battleId":33,"battleDistanceMeters":1000,"distanceMeters":1000,"elapsedSeconds":330,
+               |"averagePaceSecondsPerKm":330,"verdict":"DRAW"}]}
+            """.trimMargin()
+        )
+        api.reply("""{"status":"EXEMPT","countedRounds":0,"tier":"GOLD","rounds":[]}""")
+
+        val placing = repository.placement().value()
+        val completed = repository.placement().value()
+        val exempt = repository.placement().value()
+
+        assertEquals(
+            PlacementProgress(
+                status = PlacementStatus.IN_PROGRESS,
+                countedRounds = 1,
+                nextRound = 2,
+                provisionalTier = "GOLD",
+                tier = "UNRANKED",
+                rounds = listOf(
+                    PlacementRound(
+                        round = 1,
+                        battleId = 31,
+                        battleDistance = Distance(5_000),
+                        distance = Distance(5_210),
+                        elapsed = Duration.ofSeconds(1_668),
+                        averagePace = Pace(320),
+                        verdict = "WIN"
+                    )
+                )
+            ),
+            placing
+        )
+        assertEquals("/api/v1/me/placement", api.take().url.encodedPath)
+        assertEquals(PlacementStatus.COMPLETED, completed.status)
+        assertEquals(null, completed.nextRound)
+        assertEquals(null, completed.provisionalTier)
+        assertEquals(listOf(1, 2, 3), completed.rounds.map { it.round })
+        assertEquals(listOf(null, null, Pace(330)), completed.rounds.map { it.averagePace })
+        assertEquals(listOf("WIN", "LOSE", "DRAW"), completed.rounds.map { it.verdict })
+        assertEquals(Distance(3_000), completed.rounds[1].battleDistance)
+        assertEquals(PlacementProgress(PlacementStatus.EXEMPT, 0, null, null, "GOLD", emptyList()), exempt)
+    }
+
+    @Test
+    fun `TC-5828 배치 진행을 못 읽으면 실패를 돌려준다`() = runTest {
+        api.reply("""{"code":"UNAUTHORIZED"}""", code = 401)
+        api.reply("""{"code":"INTERNAL"}""", code = 500)
+        api.reply("""{"status":"PAUSED","countedRounds":0,"tier":"UNRANKED","rounds":[]}""")
+
+        assertEquals(Outcome.Failure(AppError.Unauthorized), repository.placement())
+        assertEquals(Outcome.Failure(AppError.Server(500)), repository.placement())
+        // 모르는 상태는 해독 실패로 본다(홈 진입 시트는 배치고사 화면으로 보낸다, D-499).
+        assertEquals(Outcome.Failure(AppError.Server(0)), repository.placement())
     }
 
     private class FixedTokens : TokenProvider {

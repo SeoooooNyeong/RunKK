@@ -8,6 +8,7 @@ import androidx.compose.ui.test.performClick
 import androidx.navigation3.runtime.EntryProviderScope
 import androidx.navigation3.runtime.NavKey
 import com.a207.runkk.app.core.designsystem.LocalReleaseScope
+import com.a207.runkk.app.core.designsystem.RunkkTab
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.UnreleasedFeature
 import com.a207.runkk.app.core.navigation.FeatureEntry
@@ -92,6 +93,21 @@ class BetaLockTest {
         assertEquals(Routes.HOME, tabOf(Routes.BATTLE_MODE)?.let(::routeOf))
         assertEquals(null, tabOf("battle/self"))
         assertEquals("ranking", Routes.RANKING)
+    }
+
+    @Test
+    fun `TC-5830 배치고사·랜덤 대결은 하단 내비를 숨기고 친구 대결은 홈 탭이다`() {
+        assertEquals(RunkkTab.HOME, tabOf(Routes.BATTLE_FRIEND))
+        assertEquals(RunkkTab.HOME, tabOf(Routes.Key(Routes.BATTLE_FRIEND)))
+        listOf<NavKey>(
+            Routes.Key(Routes.BATTLE_RANDOM),
+            Routes.Key(Routes.PLACEMENT),
+            Routes.Key(Routes.PLACEMENT_COMPLETE),
+            Routes.PlacementResult(1)
+        ).forEach { key ->
+            assertEquals(null, tabOf(key), "$key")
+            assertFalse(BetaLock.isLocked(key), "1차 배포에서 열려 있다: $key")
+        }
     }
 
     @Test

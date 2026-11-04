@@ -15,6 +15,10 @@ import androidx.compose.ui.unit.dp
 object RunkkIcons {
     val Back: ImageVector = line("Back", "M15 18L9 12L15 6")
     val ChevronRight: ImageVector = line("ChevronRight", "M9 18L15 12L9 6")
+
+    /** 아래·위 꺾쇠(홈 「내 기록 요약 ⌄」·「접기 ⌃」, 피그마 keyboard_arrow_down·up). */
+    val ChevronDown: ImageVector = line("ChevronDown", "M6 9L12 15L18 9")
+    val ChevronUp: ImageVector = line("ChevronUp", "M18 15L12 9L6 15")
     val ArrowRight: ImageVector = line("ArrowRight", "M5 12H19", "M12 5L19 12L12 19")
     val Bell: ImageVector = line(
         "Bell",

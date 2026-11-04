@@ -198,6 +198,39 @@ class RecordRepositoryImplTest {
     }
 
     @Test
+    fun `TC-5829 대시보드 최근 러닝과 랭킹 공개 티어를 읽는다`() = runTest {
+        api.reply(
+            """{"todayMeters":0,"totalMeters":42000,
+               |"latestRun":{"recordId":"r-9","startedAt":"2026-11-03T22:10:00Z","distanceMeters":3200,"elapsedSeconds":1120,
+               |"averagePaceSecondsPerKm":350,"valid":true,"mode":"FREE","cardKind":"FREE_RUN"}}
+            """.trimMargin()
+        )
+        // 옛 서버(latestRun 없음)도 해독한다.
+        api.reply("""{"todayMeters":0,"totalMeters":0}""")
+        api.reply(
+            """{"entries":[{"rank":1,"name":"바람","distanceMeters":42000,"publicTier":"GOLD"},
+               |{"rank":2,"name":"구름","distanceMeters":30000,"publicTier":"UNRANKED"},
+               |{"rank":3,"name":"탈퇴","distanceMeters":20000,"publicTier":null},
+               |{"rank":4,"name":"옛 행","distanceMeters":10000}],
+               |"mine":{"rank":2,"name":"구름","distanceMeters":30000,"publicTier":"UNRANKED"},"aggregatedAt":"2026-10-20T06:00:00"}
+            """.trimMargin()
+        )
+
+        val latest = repository.dashboard(LocalDate.of(2026, 11, 4)).value().latestRun
+        val old = repository.dashboard(LocalDate.of(2026, 11, 4)).value().latestRun
+        val ranking = repository.personalRanking(AggregationPeriod.WEEKLY).value()
+
+        assertEquals("r-9", latest?.recordId)
+        assertEquals(Distance(3_200), latest?.distance)
+        assertEquals(Duration.ofSeconds(1_120), latest?.elapsed)
+        assertEquals(Pace(350), latest?.averagePace)
+        assertEquals(CardKind.FREE_RUN, latest?.cardKind)
+        assertEquals(null, old)
+        assertEquals(listOf("GOLD", "UNRANKED", null, null), ranking.entries.map { it.publicTier })
+        assertEquals("UNRANKED", ranking.mine?.publicTier)
+    }
+
+    @Test
     fun `집계 전 랭킹은 집계 시각이 없다`() = runTest {
         api.reply("""{"entries":[],"aggregatedAt":null,"notice":null}""")
 

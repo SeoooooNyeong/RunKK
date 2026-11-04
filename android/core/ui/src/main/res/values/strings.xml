@@ -172,10 +172,26 @@
     <string name="result_detail_zone_watch">워치</string>
     <string name="result_detail_zone_spoken">심박 구간 분포(분): %1$s</string>
     <string name="result_detail_reward">리워드 +%1$d</string>
-    <string name="tier_unranked">언랭</string>
+    <!-- 티어 이름(D-507: 언랭 → 배치 중)과 배지(FR-283, D-506). -->
+    <string name="tier_unranked">배치 중</string>
     <string name="tier_bronze">브론즈</string>
     <string name="tier_silver">실버</string>
     <string name="tier_gold">골드</string>
     <string name="tier_platinum">플래티넘</string>
     <string name="tier_master">마스터</string>
+    <string name="tier_provisional_format">임시 %1$s</string>
+    <string name="tier_badge_a11y_confirmed">%1$s 티어</string>
+    <string name="tier_badge_a11y_provisional">임시 %1$s 티어</string>
+    <string name="tier_badge_a11y_placing">배치 중</string>
+    <!-- 러닝 결과 상용안 공용 부품(FR-289, D-502, 피그마 61326:1878·61325:2008). 러닝 결과와 배치고사 판 결과가 함께 쓴다. -->
+    <string name="result_metric_pace_unit">/km</string>
+    <string name="result_metric_heart_unit">bpm</string>
+    <string name="result_metric_spoken">%1$s %2$s</string>
+    <string name="result_split_fastest">가장 빠른 구간 %1$dkm</string>
+    <string name="result_split_spoken_fastest">%1$d킬로미터 구간 %2$s, 가장 빠른 구간</string>
+    <string name="result_zone_share">%1$s %2$d%%</string>
+    <string name="result_zone_spoken">심박 구간 %1$s</string>
+    <string name="result_zone_no_watch">워치를 연결하면 심박 구간을 볼 수 있어요</string>
+    <string name="result_zone_no_birth_year">출생연도를 입력하면 심박 구간을 볼 수 있어요</string>
+    <string name="result_hero_spoken">%1$s, %2$s 킬로미터</string>
 </resources>
