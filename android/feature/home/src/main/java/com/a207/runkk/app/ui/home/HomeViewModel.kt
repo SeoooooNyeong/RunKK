@@ -5,9 +5,13 @@ import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.designsystem.RunkkErrorText
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.core.model.TierDisplay
 import com.a207.runkk.app.core.model.getOrNull
+import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.account.LocationConsentUseCase
+import com.a207.runkk.app.domain.account.PlacementProgress
+import com.a207.runkk.app.domain.account.PlacementStatus
 import com.a207.runkk.app.domain.record.Dashboard
 import com.a207.runkk.app.domain.record.RecordRepository
 import com.a207.runkk.app.domain.run.PendingRunRepository
@@ -54,6 +58,9 @@ class HomeViewModel @Inject constructor(
 
     private var refreshJob: Job? = null
 
+    /** 배치 진행 읽기 차례. 늦게 끝난 앞 읽기(새로 고침·시트 열기)가 새 값을 덮지 않게 마지막 차례 결과만 쓴다. */
+    private var placementTurn = 0
+
     private var resumedOnce = false
 
     private var consentJob: Job? = null
@@ -63,10 +70,58 @@ class HomeViewModel @Inject constructor(
         refresh()
     }
 
-    /** 홈이 다시 보일 때(러닝 결과의 "홈으로", 다른 탭에서 복귀) 다시 읽는다. 처음 표시는 init이 읽으므로 첫 재개는 건너뛴다. */
+    /**
+     * 홈이 다시 보일 때(러닝 결과의 "홈으로", 다른 탭에서 복귀) 다시 읽는다. 처음 표시는 init이 읽으므로 첫 재개는 건너뛴다.
+     * 「내 기록 요약」은 홈에 들어올 때마다 접힌다(J24-16).
+     */
     fun onResumed() {
+        _state.update { it.copy(isSummaryExpanded = false) }
         if (resumedOnce) refresh()
         resumedOnce = true
+    }
+
+    /** 「내 기록 요약 ⌄」·「접기 ⌃」. */
+    fun onSummaryToggle() = _state.update { it.copy(isSummaryExpanded = !it.isSummaryExpanded) }
+
+    /** 최근 러닝 한 줄: 그 기록 상세로 간다. */
+    fun onLatestRunTapped(recordId: String) {
+        _events.trySend(HomeEvent.Navigate(Routes.RecordDetail(recordId)))
+    }
+
+    /** 배틀런 카드: 진입 시트를 열고 배치 진행을 한 번 다시 읽는다(배치고사를 마친 직후에도 맞는 카드를 보이게, D-499). */
+    fun onBattleCardTapped() {
+        _state.update { it.copy(isBattleEntryVisible = true) }
+        val turn = ++placementTurn
+        viewModelScope.launch { applyPlacement(account.placement(), turn) }
+    }
+
+    fun onBattleEntryDismissed() = _state.update { it.copy(isBattleEntryVisible = false) }
+
+    /** 랜덤 카드: 배치 중이거나 진행을 모르면 배치고사 화면(그 화면이 다시 읽는다), 확정 티어면 랜덤 대결(D-499). */
+    fun onRandomChosen() {
+        val placement = _state.value.placement
+        _state.update { it.copy(isBattleEntryVisible = false) }
+        val route = if (placement == null || placement.status == PlacementStatus.IN_PROGRESS) {
+            Routes.PLACEMENT
+        } else {
+            Routes.BATTLE_RANDOM
+        }
+        _events.trySend(HomeEvent.Navigate(Routes.Key(route)))
+    }
+
+    /** 친구 카드: 친구 대결 화면. */
+    fun onFriendChosen() {
+        _state.update { it.copy(isBattleEntryVisible = false) }
+        _events.trySend(HomeEvent.Navigate(Routes.Key(Routes.BATTLE_FRIEND)))
+    }
+
+    /** 배치 진행을 읽었으면 진행과 헤더 배지(본인 표시, D-494)를 바꾸고, 못 읽었으면 지난 값을 둔다. */
+    private fun applyPlacement(result: Outcome<PlacementProgress>, turn: Int) {
+        if (turn != placementTurn) return
+        val progress = (result as? Outcome.Success)?.value ?: return
+        _state.update {
+            it.copy(placement = progress, tierDisplay = TierDisplay.ofSelf(progress.tier, progress.provisionalTier))
+        }
     }
 
     fun refresh() {
@@ -80,6 +135,8 @@ class HomeViewModel @Inject constructor(
             val plan = async { records.todayPlan() }
             val profile = async { account.mySummary().getOrNull() }
             val settings = async { account.settings().getOrNull() }
+            val placementTurnNow = ++placementTurn
+            val placement = async { account.placement() }
             val dashboardResult = dashboard.await()
             val planResult = plan.await()
             if (planResult is Outcome.Success) {
@@ -89,10 +146,11 @@ class HomeViewModel @Inject constructor(
             val memberSettings = settings.await()
             val face = me?.faceKey?.let { account.faceLayers(it).getOrNull() }.orEmpty()
             val summary = dashboardResult.getOrNull()
+            applyPlacement(placement.await(), placementTurnNow)
             _state.update {
                 // 대시보드·프로필을 못 읽었으면 그 값은 지난 값을 남긴다(AN8-11). 읽었는데 잔액이 없으면(옛 서버) 비운다.
                 val balance = if (dashboardResult is Outcome.Success) summary?.rewardBalance else it.header.balance
-                it.withSummary(summary).copy(
+                it.withSummary(summary, today).copy(
                     isLoading = false,
                     header = me?.let { p -> HomeHeader(p.displayName, p.tier, p.level, balance) }
                         ?: it.header.copy(balance = balance),
@@ -149,12 +207,13 @@ class HomeViewModel @Inject constructor(
 }
 
 /** 대시보드에서 홈이 그리는 값만 옮긴다. 읽지 못했으면 지난 값을 그대로 둔다. 목표 0m는 목표 없음이다. */
-private fun HomeUiState.withSummary(summary: Dashboard?): HomeUiState = if (summary == null) {
+private fun HomeUiState.withSummary(summary: Dashboard?, today: LocalDate): HomeUiState = if (summary == null) {
     this
 } else {
     copy(
         weeklyDistance = summary.weekly?.actualDistance ?: Distance.ZERO,
         weeklyGoal = summary.weekly?.goalDistance?.takeIf { it.meters > 0 },
-        streakWeeks = summary.streakWeeks
+        streakWeeks = summary.streakWeeks,
+        summary = HomeSummary.of(summary, today)
     )
 }

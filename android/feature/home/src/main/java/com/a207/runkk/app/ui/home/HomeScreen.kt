@@ -110,12 +110,13 @@ import com.a207.runkk.app.core.designsystem.RunkkProgressBar
 import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
+import com.a207.runkk.app.core.designsystem.TierBadge
+import com.a207.runkk.app.core.designsystem.TierBadgeSize
 import com.a207.runkk.app.core.designsystem.UnreleasedFeature
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.designsystem.guideAnchor
 import com.a207.runkk.app.core.designsystem.media.rememberSoundEffects
 import com.a207.runkk.app.core.designsystem.sceneAvatarFilter
-import com.a207.runkk.app.core.designsystem.tierName
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
@@ -140,6 +141,8 @@ fun HomeRoute(viewModel: HomeViewModel = hiltViewModel()) {
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             when (event) {
+                is HomeEvent.Navigate -> navigator.navigate(event.key)
+
                 HomeEvent.StartRun -> if (LOCATION_PERMISSIONS.any {
                         context.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED
                     }
@@ -159,7 +162,13 @@ fun HomeRoute(viewModel: HomeViewModel = hiltViewModel()) {
             onRetry = viewModel::refresh,
             onConsentAgree = viewModel::onConsentAgreed,
             onConsentClose = viewModel::onConsentClosed,
-            onMessageShown = viewModel::onMessageShown
+            onMessageShown = viewModel::onMessageShown,
+            onSummaryToggle = viewModel::onSummaryToggle,
+            onLatestRun = viewModel::onLatestRunTapped,
+            onBattleCard = viewModel::onBattleCardTapped,
+            onRandom = viewModel::onRandomChosen,
+            onFriend = viewModel::onFriendChosen,
+            onBattleEntryDismiss = viewModel::onBattleEntryDismissed
         )
     )
 }
@@ -174,7 +183,16 @@ data class HomeActions(
     val onRetry: () -> Unit = {},
     val onConsentAgree: () -> Unit = {},
     val onConsentClose: () -> Unit = {},
-    val onMessageShown: () -> Unit = {}
+    val onMessageShown: () -> Unit = {},
+    /** 「내 기록 요약 ⌄」·「접기 ⌃」(FR-287). */
+    val onSummaryToggle: () -> Unit = {},
+    /** 최근 러닝 한 줄(기록 ID). */
+    val onLatestRun: (String) -> Unit = {},
+    /** 배틀런 카드: 진입 시트를 연다(D-499). */
+    val onBattleCard: () -> Unit = {},
+    val onRandom: () -> Unit = {},
+    val onFriend: () -> Unit = {},
+    val onBattleEntryDismiss: () -> Unit = {}
 )
 
 @Composable
@@ -251,6 +269,14 @@ fun HomeScreen(state: HomeUiState, actions: HomeActions, modifier: Modifier = Mo
     if (state.isConsentSheetVisible) {
         LocationConsentSheet(onAgree = actions.onConsentAgree, onClose = actions.onConsentClose)
     }
+    if (state.isBattleEntryVisible) {
+        BattleEntrySheet(
+            BattleEntrySheetState(state.placement),
+            onRandom = actions.onRandom,
+            onFriend = actions.onFriend,
+            onDismiss = actions.onBattleEntryDismiss
+        )
+    }
 }
 
 /** 상단: 재전송 안내 띠(필요할 때만, W48)와 헤더. */
@@ -308,15 +334,11 @@ private fun Header(state: HomeUiState, onNavigate: (String) -> Unit) {
     }
 }
 
-/** 닉네임과 티어·레벨 줄(불러오는 동안은 회색 막대). */
+/** 닉네임과 티어 배지(아주 작게)·「Lv.n」 줄(FR-288, 불러오는 동안은 회색 막대). 진행을 못 읽었으면 배지 없이 Lv만. */
 @Composable
 private fun HeaderIdentity(state: HomeUiState, modifier: Modifier = Modifier) {
     val header = state.header
-    val tierLevel = stringResource(
-        R.string.home_header_tier_level,
-        tierName(header.tier) ?: stringResource(R.string.home_header_default_tier),
-        header.level ?: RunkkFormat.EMPTY
-    )
+    val level = stringResource(R.string.home_header_level, header.level ?: RunkkFormat.EMPTY)
     Column(
         modifier = modifier.semantics(mergeDescendants = true) {
         },
@@ -334,10 +356,24 @@ private fun HeaderIdentity(state: HomeUiState, modifier: Modifier = Modifier) {
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.semantics { heading() }
             )
-            Text(text = tierLevel, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                state.tierDisplay?.let { TierBadge(it, TierBadgeSize.XSMALL) }
+                Text(text = level, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
+            }
         }
     }
 }
+
+/** 양옆으로 [extra]만큼 넓게 그린다(방 안쪽 여백을 넘어 화면 가로 여백까지). 자리 폭은 그대로다. */
+private fun Modifier.bleedHorizontally(extra: Dp): Modifier = layout { measurable, constraints ->
+    val extraPx = extra.roundToPx()
+    val width = constraints.maxWidth + extraPx * 2
+    val placeable = measurable.measure(constraints.copy(minWidth = width, maxWidth = width))
+    layout(constraints.maxWidth, placeable.height) { placeable.place(-extraPx, 0) }
+}
+
+/** 방 안쪽 여백. */
+private val ROOM_PADDING = 12.dp
 
 /** 아래로 [extra]만큼 더 크게 그린다. 자리 크기는 그대로라 넘친 부분은 아래(하단 탭 바 뒤)에 겹친다. */
 private fun Modifier.extendBottom(extra: Dp): Modifier = layout { measurable, constraints ->
@@ -450,7 +486,7 @@ private fun Room(state: HomeUiState, actions: HomeActions, bottomSpace: Dp, modi
             .testTag(HOME_ROOM_TAG)
     ) {
         Column(
-            modifier = Modifier.matchParentSize().padding(12.dp),
+            modifier = Modifier.matchParentSize().padding(ROOM_PADDING),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             WeekRow(
@@ -467,7 +503,25 @@ private fun Room(state: HomeUiState, actions: HomeActions, bottomSpace: Dp, modi
                     modifier = Modifier.clip(RoundedCornerShape(20.dp)).background(RunkkColors.Surface)
                 )
             }
-            RoomAvatar(state, isAvatarOpen, onAvatar = { actions.onNavigate(Routes.AVATAR) }, Modifier.weight(1f))
+            // 「내 기록 요약」은 아바타 위에 겹친다(블러 없음). 펼치면 알약 자리에 화면 가로 여백 16 안쪽 전체 폭 패널이 뜬다(8절 2).
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                RoomAvatar(
+                    state,
+                    isAvatarOpen,
+                    onAvatar = { actions.onNavigate(Routes.AVATAR) },
+                    Modifier.matchParentSize()
+                )
+                if (state.isSummaryExpanded) {
+                    SummaryPanel(
+                        state.summary,
+                        onCollapse = actions.onSummaryToggle,
+                        onLatestRun = actions.onLatestRun,
+                        modifier = Modifier.bleedHorizontally(ROOM_PADDING)
+                    )
+                } else {
+                    SummaryToggle(actions.onSummaryToggle, Modifier.align(Alignment.TopEnd))
+                }
+            }
             Spacer(Modifier.height(bottomSpace))
         }
     }
@@ -560,7 +614,7 @@ private fun RunCards(state: HomeUiState, actions: HomeActions) {
             spokenCaption = battleCaption,
             container = RunkkColors.Violet,
             content = Color.White,
-            onClick = { actions.onNavigate(Routes.BATTLE_MODE) },
+            onClick = actions.onBattleCard,
             modifier = Modifier.weight(1f).guideAnchor(GuideStep.BATTLE_RUN)
         )
     }

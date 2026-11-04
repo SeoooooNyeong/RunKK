@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.designsystem.RunkkErrorText
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.core.model.TierDisplay
 import com.a207.runkk.app.core.model.getOrNull
 import com.a207.runkk.app.domain.account.AccountRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -16,7 +17,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * 마이(F2, FR-005): 본인 프로필을 읽는다. 프로필 편집 저장 뒤 돌아오면(화면 재개) 다시 읽는다(AN8-3).
+ * 마이(F2, FR-005): 본인 프로필과 배치 진행(티어 배지, FR-282)을 읽는다. 프로필 편집 저장 뒤 돌아오면(화면 재개) 다시 읽는다(AN8-3).
  * 로그아웃은 설정(SettingsViewModel)이 한다.
  */
 @HiltViewModel
@@ -45,6 +46,10 @@ class MeViewModel @Inject constructor(private val account: AccountRepository) : 
             when (val result = account.profile(AccountRepository.SELF)) {
                 is Outcome.Success -> {
                     _state.update { it.copy(isLoading = false, profile = result.value) }
+                    val placement = account.placement().getOrNull()
+                    val tier = placement?.let { TierDisplay.ofSelf(it.tier, it.provisionalTier) }
+                        ?: TierDisplay.ofPublic(result.value.tier)
+                    _state.update { it.copy(tierDisplay = tier) }
                     val face = result.value.faceKey?.let { account.faceLayers(it).getOrNull() }.orEmpty()
                     _state.update { it.copy(faceLayers = face) }
                 }

@@ -226,6 +226,16 @@ class FakeAccountRepository : com.a207.runkk.app.domain.account.AccountRepositor
         settingsCalls++
         return settingsResult
     }
+
+    /** 배치 진행(GET /me/placement, D-493). 기본은 못 읽음이다. */
+    var placementResult: Outcome<com.a207.runkk.app.domain.account.PlacementProgress> =
+        Outcome.Failure(AppError.Network)
+    var placementCalls = 0
+
+    override suspend fun placement(): Outcome<com.a207.runkk.app.domain.account.PlacementProgress> {
+        placementCalls++
+        return placementResult
+    }
 }
 
 fun <T> unusedOutcome(): Outcome<T> = Outcome.Failure(AppError.Rejected("UNUSED"))

@@ -364,7 +364,11 @@ private const val MIN_BAR = 0.08f
 @Composable
 fun ResultDistanceHero(distance: Distance, dateLine: String, kindLabel: String?, modifier: Modifier = Modifier) {
     val km = RunkkFormat.km(distance)
-    val spoken = stringResource(R.string.result_hero_spoken, dateLine, km)
+    val spoken = stringResource(
+        R.string.result_hero_spoken,
+        listOfNotNull(kindLabel, dateLine.takeIf { it.isNotBlank() }).joinToString(", "),
+        km
+    )
     Row(modifier = modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
         Column(
             modifier = Modifier.weight(1f).clearAndSetSemantics { contentDescription = spoken },
