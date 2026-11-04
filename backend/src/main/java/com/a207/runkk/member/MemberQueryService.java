@@ -1,6 +1,7 @@
 package com.a207.runkk.member;
 
 import com.a207.runkk.common.Tier;
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -17,6 +18,15 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Transactional(readOnly = true)
 public class MemberQueryService {
+
+    /** AI 파기 누락 보정용 최소 투영. 탈퇴한 회원의 ID와 탈퇴 시각만 내준다. */
+    public Map<Long, LocalDateTime> withdrawalsBefore(LocalDateTime cutoff) {
+        Map<Long, LocalDateTime> result = new LinkedHashMap<>();
+        for (Member member : memberRepository.findWithdrawnBefore(cutoff)) {
+            result.put(member.getId(), member.withdrawnAt());
+        }
+        return result;
+    }
 
     /** 나이대 단위(10살). */
     private static final int AGE_BAND = 10;

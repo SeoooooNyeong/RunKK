@@ -85,6 +85,7 @@ class ArchitectureTest {
                     "batch.avatar",
                     "batch.running",
                     "batch.member",
+                    "batch.aiprivacy",
                     "batch.audit",
                     "batch.notification",
                     "batch.reward",
@@ -106,6 +107,7 @@ class ArchitectureTest {
                     "policy",
                     "notification",
                     "audit",
+                    "aiprivacy",
                     "common",
                     "infra.member",
                     "infra.running",
@@ -120,6 +122,7 @@ class ArchitectureTest {
                     "infra.chat",
                     "infra.report",
                     "infra.audit",
+                    "infra.aiprivacy",
                     "infra.integration.auth",
                     "infra.integration.ai",
                     "infra.integration.push",
@@ -144,6 +147,7 @@ class ArchitectureTest {
                     "policy",
                     "notification",
                     "audit",
+                    "aiprivacy",
                     "common");
 
     /** 12.2 의존 목록(D1~D74, D44·D67의 → common 포함). 키 패키지는 값 패키지만 import할 수 있다. */
@@ -153,6 +157,7 @@ class ArchitectureTest {
         Map<String, Set<String>> m = new HashMap<>();
         // 핵심 패키지 (D1~D43, 12.3 행렬)
         m.put("member", Set.of("policy", "audit"));
+        m.put("aiprivacy", Set.of("member", "audit"));
         m.put("running", Set.of("member", "audit"));
         m.put("runimal", Set.of("member", "running", "policy"));
         m.put("battle", Set.of("member", "running", "policy", "notification", "audit"));
@@ -208,6 +213,7 @@ class ArchitectureTest {
                         "avatar",
                         "running",
                         "member",
+                        "aiprivacy",
                         "audit",
                         "notification",
                         "reward",
@@ -220,6 +226,7 @@ class ArchitectureTest {
         for (String domain :
                 List.of(
                         "member",
+                        "aiprivacy",
                         "running",
                         "analysis",
                         "battle",
@@ -235,7 +242,7 @@ class ArchitectureTest {
         m.put("infra.chat", Set.of("crew.chat")); // v0.11 N15
         m.put("infra.report", Set.of("report")); // v0.11 N16
         m.put("infra.integration.auth", Set.of("member", "operator"));
-        m.put("infra.integration.ai", Set.of("analysis", "avatar"));
+        m.put("infra.integration.ai", Set.of("analysis", "avatar", "aiprivacy"));
         m.put("infra.integration.push", Set.of("notification"));
         m.put("infra.integration.weather", Set.of("running"));
         // 모든 패키지 → common (D44, D53, D66, D67)
@@ -705,8 +712,8 @@ class ArchitectureTest {
     }
 
     @Test
-    void designPackageList_has65NamesAndEachHasAnAllowList() {
-        assertThat(Set.copyOf(PACKAGES)).hasSize(65);
+    void designPackageList_has68NamesAndEachHasAnAllowList() {
+        assertThat(Set.copyOf(PACKAGES)).hasSize(68);
         assertThat(ALLOWED.keySet()).containsExactlyInAnyOrderElementsOf(PACKAGES);
     }
 
