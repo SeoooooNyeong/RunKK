@@ -123,10 +123,10 @@ class PlacementViewModel @Inject constructor(
     }
 
     /** 배치 중이 아닐 때 갈 곳: 마쳤고 마지막 판의 완료 화면을 아직 안 봤으면 완료 화면, 아니면(봤음·면제) 랜덤 대결. */
-    private suspend fun settledRoute(progress: PlacementProgress): String {
-        val last = progress.rounds.maxByOrNull { it.round }?.battleId
-        val isUnseen = progress.status == PlacementStatus.COMPLETED && last != null &&
-            account.placementCompleteSeen() != last
-        return if (isUnseen) Routes.PLACEMENT_COMPLETE else Routes.BATTLE_RANDOM
-    }
+    private suspend fun settledRoute(progress: PlacementProgress): String =
+        if (progress.isCompletionUnseen(account.placementCompleteSeen())) {
+            Routes.PLACEMENT_COMPLETE
+        } else {
+            Routes.BATTLE_RANDOM
+        }
 }

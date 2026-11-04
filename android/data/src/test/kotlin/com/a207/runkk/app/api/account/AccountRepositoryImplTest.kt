@@ -794,15 +794,42 @@ class AccountRepositoryImplTest {
         assertEquals(null, repository.placementCompleteSeen(), "로그아웃·탈퇴의 설정 사본 삭제")
         assertEquals(0, api.server.requestCount, "서버에 묻지 않는다")
     }
+
+    @Test
+    fun `기기 저장이 실패해도 이번 실행 동안은 같은 회원이 본 것으로 친다(PL3-A2)`() = runTest {
+        var who = "7"
+        val switching =
+            object : TokenProvider by tokens {
+                override fun accessToken(): String? = jwtOf(who)
+            }
+        val repo =
+            AccountRepositoryImpl(
+                api.retrofit.create(),
+                api.retrofit.create(),
+                switching,
+                SelfMember(switching),
+                api.faces,
+                seen
+            )
+        seen.saveFails = true
+
+        assertEquals(Outcome.Failure(AppError.Storage), repo.savePlacementCompleteSeen(903))
+        assertEquals(null, seen.placementSeen)
+        assertEquals(903L, repo.placementCompleteSeen(), "프로세스 안 사본")
+        who = "8"
+        assertEquals(null, repo.placementCompleteSeen(), "다른 회원에게는 남지 않는다")
+    }
 }
 
-/** 배치고사 완료 사본만 쓰는 설정 저장소 가짜(D-531). 나머지는 사본 없음 값이다. */
+/** 배치고사 완료 사본만 쓰는 설정 저장소 가짜(D-531). [saveFails]면 기기 저장이 실패한다. 나머지는 사본 없음 값이다. */
 private class SeenSettings : SettingsRepository {
     var placementSeen: Long? = null
+    var saveFails = false
 
     override suspend fun placementCompleteSeen(): Long? = placementSeen
 
     override suspend fun savePlacementCompleteSeen(battleId: Long): Outcome<Unit> {
+        if (saveFails) return Outcome.Failure(AppError.Storage)
         placementSeen = battleId
         return Outcome.Success(Unit)
     }

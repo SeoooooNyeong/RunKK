@@ -26,6 +26,7 @@ import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import timber.log.Timber
 
 /**
  * 계정·회원 포트를 REST로 구현한다(6.1.14 api.account). 가입 전 로그인이면 서버가 준 가입 티켓을 이 객체가 보관하고
@@ -171,11 +172,32 @@ constructor(
 
     override suspend fun placement(): Outcome<PlacementProgress> = ApiErrorMapper.call { me.placement().toDomain() }
 
-    /** 배치고사 완료 화면을 본 판은 서버가 아니라 설정 기기 사본에 둔다(D-531: 로그아웃·탈퇴 때 사본과 함께 지워진다). */
-    override suspend fun placementCompleteSeen(): Long? = settings.placementCompleteSeen()
+    /**
+     * 기기 저장에 실패한 본 판(회원 ID, 대결 ID). 이번 실행 동안만 그 회원이 본 것으로 쳐 완료 화면 ↔ 랜덤 대결 왕복을 막는다(PL3-A2).
+     * 회원 ID로 묶어 다른 회원으로 바뀌면 쓰지 않고, 기기 저장이 성공하면 비운다.
+     */
+    @Volatile
+    private var unsavedSeen: Pair<Long?, Long>? = null
 
-    override suspend fun savePlacementCompleteSeen(battleId: Long): Outcome<Unit> =
-        settings.savePlacementCompleteSeen(battleId)
+    /**
+     * 배치고사 완료 화면을 본 판은 서버가 아니라 설정 기기 사본에 둔다(D-531: 로그아웃·탈퇴 때 사본과 함께 지워진다). 기기 사본이 없으면
+     * 이번 실행에서 저장에 실패한 같은 회원의 값을 준다.
+     */
+    override suspend fun placementCompleteSeen(): Long? = settings.placementCompleteSeen()
+        ?: unsavedSeen?.takeIf { it.first == selfMemberId() }?.second
+
+    override suspend fun savePlacementCompleteSeen(battleId: Long): Outcome<Unit> {
+        val saved = settings.savePlacementCompleteSeen(battleId)
+        unsavedSeen = when (saved) {
+            is Outcome.Success -> null
+
+            is Outcome.Failure -> {
+                Timber.w("배치고사 완료 사본 저장 실패: %s", saved.error)
+                selfMemberId() to battleId
+            }
+        }
+        return saved
+    }
 
     override suspend fun settings(): Outcome<MemberSettings> = ApiErrorMapper.call { me.settings().toMemberSettings() }
 
