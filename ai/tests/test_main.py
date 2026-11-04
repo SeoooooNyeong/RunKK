@@ -183,3 +183,28 @@ async def test_restart_keeps_the_model_an_operator_activated() -> None:
 
     assert active is not None
     assert active.model_id == "v2"
+
+
+async def test_withdrawal_covers_avatar_server_only_when_configured() -> None:
+    """아바타 서버를 켠 환경에서만 탈퇴 파기에 아바타 폴더를 넣는다(-257). 끈 환경에서 넣으면 탈퇴가 늘 503이 된다."""
+    on = create_app(make_settings(face_api_url="http://avatar:3000/api/v1"))
+    off = create_app(make_settings(face_api_url=None))
+
+    async with on.router.lifespan_context(on):
+        assert set(on.state.withdrawal_service._purgers) == {"sessionResults", "coachMessages", "avatarImages"}
+    async with off.router.lifespan_context(off):
+        assert set(off.state.withdrawal_service._purgers) == {"sessionResults", "coachMessages"}
+
+
+async def test_coach_retention_sweeper_runs_with_the_app() -> None:
+    """코치 대화 90일 파기(-258)는 기동 때 한 번, 그 뒤 주기적으로 돈다. 종료 때 멈춘다."""
+    app = create_app(make_settings())
+
+    async with app.router.lifespan_context(app):
+        sweeper = app.state.coach_retention
+        assert sweeper.days == 90
+        task = sweeper._task
+        assert task is not None
+        assert not task.done()
+
+    assert task.done()

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import Row, delete, select
@@ -62,4 +63,9 @@ class PgCoachStore:
     async def purge_user(self, user_id: str) -> int:
         async with self._engine.begin() as conn:
             deleted = (await conn.execute(delete(coach_message).where(_c.user_id == user_id))).rowcount
+        return int(deleted)
+
+    async def purge_before(self, cutoff: datetime) -> int:
+        async with self._engine.begin() as conn:
+            deleted = (await conn.execute(delete(coach_message).where(_c.created_at < cutoff))).rowcount
         return int(deleted)
