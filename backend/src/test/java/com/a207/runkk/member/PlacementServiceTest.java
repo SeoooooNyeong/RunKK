@@ -200,6 +200,9 @@ class PlacementServiceTest {
         withdrawal.withdraw(id);
 
         assertThat(progress.has(id)).isFalse();
+        assertThat(progress.calls())
+                .as("판 셈과 같은 잠금 순서: 진행 행을 먼저 잠근다(교착 방지)")
+                .containsSubsequence("findByIdForUpdate", "deleteByMemberId");
         assertThat(service.countRound(id, input(1, 30, 1)))
                 .as("탈퇴 뒤 셈·복구가 행을 되살리지 않는다")
                 .isEqualTo(new PlacementCount.Ignored("no-progress"));

@@ -35,6 +35,9 @@ public class PlacementProgress {
     /** 배치고사 판 수(브리프 규칙 2, 계약 policy/TierPlacement.txt의 원천, D-509). */
     public static final int ROUNDS = 3;
 
+    /** 같은 대결을 이미 셌을 때의 Ignored 사유. */
+    public static final String DUPLICATE = "duplicate";
+
     @Id
     @Column(name = "member_id")
     private long memberId;
@@ -53,6 +56,10 @@ public class PlacementProgress {
     @Column(name = "completed_at")
     private LocalDateTime completedAt;
 
+    /**
+     * 센 판. 순서 칼럼 없는 bag이라 바뀔 때마다 그 회원의 판 행을 지우고 다시 넣는다(최대 3행). 바꾸는 경로는 모두 진행 행을 PESSIMISTIC_WRITE로
+     * 잠근 뒤 부른다(countRound·correctVerdict, D-516). 잠금 없이 저장하는 경로를 만들지 않는다(리뷰 M4).
+     */
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(
             name = "placement_round",
@@ -113,7 +120,7 @@ public class PlacementProgress {
             return new PlacementCount.Ignored("completed");
         }
         if (hasCounted(in.battleId())) {
-            return new PlacementCount.Ignored("duplicate");
+            return new PlacementCount.Ignored(DUPLICATE);
         }
         int round = countedRounds + 1;
         rounds.add(PlacementRound.of(round, in));

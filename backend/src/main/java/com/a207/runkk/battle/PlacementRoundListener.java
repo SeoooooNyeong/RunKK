@@ -2,6 +2,8 @@ package com.a207.runkk.battle;
 
 import com.a207.runkk.common.BusinessRuleException;
 import com.a207.runkk.common.ReasonCode;
+import com.a207.runkk.member.PlacementCount;
+import com.a207.runkk.member.PlacementProgress;
 import com.a207.runkk.member.PlacementRoundInput;
 import com.a207.runkk.member.PlacementService;
 import com.a207.runkk.member.PlacementVerdict;
@@ -118,19 +120,22 @@ public class PlacementRoundListener {
             return false;
         }
         RunSummary run = summary.get();
-        placementService.countRound(
-                memberId,
-                new PlacementRoundInput(
-                        battleId,
-                        run.score(),
-                        battle.standardDistance().orElseThrow(),
-                        run.distance(),
-                        run.elapsed(),
-                        run.averagePace(),
-                        verdictOf(battle, memberId),
-                        ordinal.getAsInt(),
-                        battle.getJudgement().map(Judgement::at).orElseThrow()));
-        return true;
+        PlacementCount result =
+                placementService.countRound(
+                        memberId,
+                        new PlacementRoundInput(
+                                battleId,
+                                run.score(),
+                                battle.standardDistance().orElseThrow(),
+                                run.distance(),
+                                run.elapsed(),
+                                run.averagePace(),
+                                verdictOf(battle, memberId),
+                                ordinal.getAsInt(),
+                                battle.getJudgement().map(Judgement::at).orElseThrow()));
+        // 셌거나 이미 센 판이면 참. 진행 없음·탈퇴·랭크·완료로 버려진 판은 거짓(리뷰 M3)
+        return !(result instanceof PlacementCount.Ignored ignored)
+                || PlacementProgress.DUPLICATE.equals(ignored.reason());
     }
 
     private Optional<RunSummary> summaryOf(String recordId) {
@@ -144,28 +149,38 @@ public class PlacementRoundListener {
         }
     }
 
+    /** 정정은 일시 오류를 count와 같이 3번까지 다시 한다(리뷰 M1). 그래도 실패하면 운영 로그(placement_correct_failed). */
     private void correct(BattleJudged e) {
-        try {
-            newTransaction.executeWithoutResult(
-                    status ->
-                            battleRepository
-                                    .findById(e.battleId())
-                                    .filter(b -> b.placementRound().isPresent())
-                                    .ifPresent(
-                                            b -> {
-                                                long memberId = b.memberIds().get(0);
-                                                placementService.correctVerdict(
-                                                        memberId,
-                                                        e.battleId(),
-                                                        verdictOf(b, memberId));
-                                            }));
-        } catch (RuntimeException failure) {
-            log.error(
-                    "placement_correct_failed battleId={} error={}",
-                    e.battleId(),
-                    failure.getClass().getSimpleName(),
-                    failure);
+        for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+            try {
+                correctOnce(e);
+                return;
+            } catch (TransientDataAccessException conflict) {
+                log.info("placement_correct_retry battleId={} attempt={}", e.battleId(), attempt);
+            } catch (RuntimeException failure) {
+                log.error(
+                        "placement_correct_failed battleId={} error={}",
+                        e.battleId(),
+                        failure.getClass().getSimpleName(),
+                        failure);
+                return;
+            }
         }
+        log.error("placement_correct_failed battleId={} error=transient", e.battleId());
+    }
+
+    private void correctOnce(BattleJudged e) {
+        newTransaction.executeWithoutResult(
+                status ->
+                        battleRepository
+                                .findById(e.battleId())
+                                .filter(b -> b.placementRound().isPresent())
+                                .ifPresent(
+                                        b -> {
+                                            long memberId = b.memberIds().get(0);
+                                            placementService.correctVerdict(
+                                                    memberId, e.battleId(), verdictOf(b, memberId));
+                                        }));
     }
 
     private static PlacementVerdict verdictOf(Battle battle, long memberId) {

@@ -122,6 +122,8 @@ public class WithdrawalService {
                 throw new BusinessRuleException(reason.get());
             }
         }
+        // 판 셈과 같은 잠금 순서(배치 진행 → 회원)를 지켜 3판째 셈과 겹쳐도 교착하지 않는다(리뷰 H1)
+        placementProgressRepository.findByIdForUpdate(memberId);
         Member member = MemberLoader.load(memberRepository, memberId);
         LocalDateTime now = LocalDateTime.now(clock);
         member.withdraw(now);
@@ -201,6 +203,7 @@ public class WithdrawalService {
             log.info("idle_guest_skipped memberId={} reason={}", memberId, skip.get());
             return false;
         }
+        placementProgressRepository.findByIdForUpdate(memberId); // 잠금 순서 배치 진행 → 회원(리뷰 H1)
         Member guest = found.get();
         guest.withdraw(now);
         memberRepository.save(guest);
