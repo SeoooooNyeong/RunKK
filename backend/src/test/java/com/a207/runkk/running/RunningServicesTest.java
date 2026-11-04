@@ -339,6 +339,11 @@ class RunningServicesTest {
 
         RunComparison cmp = query.comparisonOf(id(1));
         assertThat(cmp.elapsed()).isEqualTo(Duration.ofMinutes(25));
+        // PL1-B1: 없는 기록은 예외 대신 비어 있다(읽기 트랜잭션을 rollback-only로 만들지 않음)
+        assertThat(query.findComparison(id(1))).contains(cmp);
+        assertThat(query.findComparison(id(9))).isEmpty();
+        assertThat(query.findSummary(id(1))).contains(query.summary(id(1)));
+        assertThat(query.findSummary(id(9))).isEmpty();
 
         RunCurve curve = query.curve(id(1), Distance.ofKm(3));
         assertThat(curve.samples().get(0).distance()).isEqualTo(Distance.ZERO);

@@ -342,16 +342,12 @@ public class BattleResultService {
         if (mine.isEmpty()) {
             return new ComparisonTable(List.of());
         }
-        try {
-            return ComparisonTable.of(
-                    battle.getType(),
-                    runQueryService.comparisonOf(mine.get()),
-                    theirs(battle, me),
-                    me);
-        } catch (BusinessRuleException removed) {
-            // 내 기록이 지워졌는데 기록 ID 정리(onRunDeleted)가 아직 안 됐다(D-232). 비교표 없이 결과를 보인다
-            return new ComparisonTable(List.of());
-        }
+        // 내 기록이 지워졌는데 기록 ID 정리(onRunDeleted)가 아직 안 됐거나(D-232) 기록 ID만 붙은 판이면 비교표 없이 결과를 보인다.
+        // 예외를 잡지 않고 Optional로 읽어야 읽기 트랜잭션이 rollback-only가 되지 않는다(코드 리뷰 PL1-B1)
+        return runQueryService
+                .findComparison(mine.get())
+                .map(values -> ComparisonTable.of(battle.getType(), values, theirs(battle, me), me))
+                .orElseGet(() -> new ComparisonTable(List.of()));
     }
 
     private ComparisonValues theirs(Battle battle, BattleParticipant me) {
@@ -364,12 +360,10 @@ public class BattleResultService {
         if (rivalRecord.isEmpty()) {
             return ComparisonValues.undisclosed();
         }
-        try {
-            return ComparisonValues.ofRival(
-                    runQueryService.comparisonOf(rivalRecord.get()), rival.orElseThrow());
-        } catch (BusinessRuleException removed) {
-            return ComparisonValues.undisclosed(); // 상대가 탈퇴해 기록이 지워졌다(FR-021)
-        }
+        return runQueryService
+                .findComparison(rivalRecord.get())
+                .map(values -> ComparisonValues.ofRival(values, rival.orElseThrow()))
+                .orElseGet(ComparisonValues::undisclosed); // 상대가 탈퇴해 기록이 지워졌다(FR-021)
     }
 
     private Battle participantBattle(long memberId, long battleId) {

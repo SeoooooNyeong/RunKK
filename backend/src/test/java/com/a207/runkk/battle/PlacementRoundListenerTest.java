@@ -11,10 +11,8 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.a207.runkk.common.BusinessRuleException;
 import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.Pace;
-import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.member.InMemoryMemberRepository;
 import com.a207.runkk.member.InMemoryPlacementProgressRepository;
 import com.a207.runkk.member.MemberFixtures;
@@ -31,6 +29,7 @@ import com.a207.runkk.running.RunSummary;
 import java.sql.SQLException;
 import java.time.Duration;
 import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.CannotAcquireLockException;
@@ -66,21 +65,22 @@ class PlacementRoundListenerTest {
     }
 
     private void summary(String recordId, boolean valid, double score) {
-        when(runs.summary(recordId))
+        when(runs.findSummary(recordId))
                 .thenReturn(
-                        new RunSummary(
-                                recordId,
-                                ALICE,
-                                START,
-                                Distance.ofMeters(4_620),
-                                Duration.ofMinutes(32),
-                                new Pace(415),
-                                valid,
-                                valid ? score : null,
-                                RunMode.BATTLE,
-                                CardKind.BATTLE_RUN,
-                                1L,
-                                null));
+                        Optional.of(
+                                new RunSummary(
+                                        recordId,
+                                        ALICE,
+                                        START,
+                                        Distance.ofMeters(4_620),
+                                        Duration.ofMinutes(32),
+                                        new Pace(415),
+                                        valid,
+                                        valid ? score : null,
+                                        RunMode.BATTLE,
+                                        CardKind.BATTLE_RUN,
+                                        1L,
+                                        null)));
     }
 
     private BattleJudged judgedEvent(Battle battle) {
@@ -201,7 +201,7 @@ class PlacementRoundListenerTest {
         summary("r-1", false, 0);
         assertThat(listener.count(invalid.getId())).isFalse();
 
-        when(runs.summary("r-1")).thenThrow(new BusinessRuleException(ReasonCode.RECORD_NOT_FOUND));
+        when(runs.findSummary("r-1")).thenReturn(Optional.empty());
         assertThat(listener.count(invalid.getId())).isFalse();
         assertThat(placementService.view(ALICE).countedRounds()).isZero();
     }

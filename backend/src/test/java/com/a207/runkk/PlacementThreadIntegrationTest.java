@@ -45,14 +45,19 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -69,6 +74,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @SpringBootTest(classes = RunkkApplication.class)
 @Import(TestcontainersConfig.class)
 @ActiveProfiles("integration")
+@ExtendWith(OutputCaptureExtension.class)
 @org.junit.jupiter.api.DisplayName("배치고사 스레드 통합(SQ-49·SQ-50)")
 class PlacementThreadIntegrationTest {
 
@@ -425,19 +431,150 @@ class PlacementThreadIntegrationTest {
         assertThat(stateOf(m, battle)).isEqualTo(PlacementRoundState.COUNTED);
     }
 
+    /** 수신자가 실패한 것처럼 센 판을 지운다(판정·기록은 그대로, 진행 0/3). 동시 셈 시험의 출발점. */
+    private void forgetCounts(long memberId) {
+        jdbc.update("delete from placement_round where member_id = ?", memberId);
+        jdbc.update(
+                "update placement_progress set counted_rounds = 0, provisional_tier = null"
+                        + " where member_id = ?",
+                memberId);
+    }
+
+    private int placementRounds(long memberId) {
+        return jdbc.queryForObject(
+                "select count(*) from placement_round where member_id = ?",
+                Integer.class,
+                memberId);
+    }
+
+    private int countedRounds(long memberId) {
+        return jdbc.queryForObject(
+                "select counted_rounds from placement_progress where member_id = ?",
+                Integer.class,
+                memberId);
+    }
+
+    /** 작업들을 CountDownLatch로 같이 출발시키고 끝까지 기다린다. 작업의 예외는 그대로 던진다. */
+    private static List<Object> together(List<Callable<Object>> jobs) throws Exception {
+        ExecutorService pool = Executors.newFixedThreadPool(jobs.size());
+        CountDownLatch ready = new CountDownLatch(jobs.size());
+        CountDownLatch go = new CountDownLatch(1);
+        List<Future<Object>> futures = new ArrayList<>();
+        for (Callable<Object> job : jobs) {
+            futures.add(
+                    pool.submit(
+                            () -> {
+                                ready.countDown();
+                                go.await();
+                                return job.call();
+                            }));
+        }
+        ready.await();
+        go.countDown();
+        List<Object> outcomes = new ArrayList<>();
+        try {
+            for (Future<Object> f : futures) {
+                outcomes.add(f.get(60, TimeUnit.SECONDS));
+            }
+        } finally {
+            pool.shutdownNow();
+        }
+        return outcomes;
+    }
+
+    /** from 이후 출력에서 오류 로그(ERROR 수준 또는 셈 실패) 줄 수. */
+    private static long errorLines(CapturedOutput output, int from) {
+        return output.getAll()
+                .substring(from)
+                .lines()
+                .filter(l -> l.contains(" ERROR ") || l.contains("placement_count_failed"))
+                .count();
+    }
+
     @Test
-    @org.junit.jupiter.api.DisplayName("TC-5923 판정 사건·기록 연결·복구 작업이 같은 판을 다시 불러도 한 번만 센다(D-516)")
-    void threeTriggersSameRound_countOnce() {
-        long m = member("세번곰");
-        Battle battle = winRound(m);
+    @org.junit.jupiter.api.DisplayName(
+            "TC-5923 판정 사건·기록 연결·복구 작업 세 계기가 같은 판을 동시에 불러도 판 행 1, countedRounds 1, 오류 로그 0(D-516,"
+                    + " PL1-T1)")
+    void threeTriggersSameRound_countOnce(CapturedOutput output) throws Exception {
+        for (int i = 0; i < 3; i++) {
+            long m = member("세번곰" + i);
+            Battle battle = winRound(m);
+            forgetCounts(m);
+            int from = output.getAll().length();
 
-        roundListener.count(battle.getId());
-        reconcile.reconcile(LocalDateTime.now().plusHours(1));
-        roundListener.count(battle.getId());
+            together(
+                    List.of(
+                            () -> roundListener.count(battle.getId()),
+                            () -> roundListener.count(battle.getId()),
+                            () -> reconcile.reconcile(LocalDateTime.now().plusHours(1))));
 
-        assertThat(placements.view(m).countedRounds()).isEqualTo(1);
-        assertThat(jdbc.queryForObject("select count(*) from placement_round", Integer.class))
-                .isEqualTo(1);
+            assertThat(countedRounds(m)).as("반복 %d", i).isEqualTo(1);
+            assertThat(placementRounds(m)).as("반복 %d", i).isEqualTo(1);
+            assertThat(errorLines(output, from)).as("반복 %d", i).isZero();
+        }
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName(
+            "TC-5923 같은 회원의 다른 두 판을 동시에 세도 판 행 수 = countedRounds = 2, 오류 로그 0(PL1-B2·PL1-T1)")
+    void twoRoundsSameMember_countedConcurrently_keepBoth(CapturedOutput output) throws Exception {
+        for (int i = 0; i < 3; i++) {
+            long m = member("두판곰" + i);
+            Battle first = winRound(m);
+            forgetCounts(m);
+            Battle second = winRound(m);
+            forgetCounts(m);
+            int from = output.getAll().length();
+
+            together(
+                    List.of(
+                            () -> roundListener.count(first.getId()),
+                            () -> roundListener.count(second.getId())));
+
+            assertThat(countedRounds(m)).as("반복 %d", i).isEqualTo(2);
+            assertThat(placementRounds(m)).as("반복 %d", i).isEqualTo(2);
+            assertThat(placements.view(m).rounds())
+                    .extracting(r -> r.battleId())
+                    .containsExactlyInAnyOrder(first.getId(), second.getId());
+            assertThat(errorLines(output, from)).as("반복 %d", i).isZero();
+        }
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName(
+            "PL1-B1 기록 ID는 붙었는데 요약이 없는 판: 결과 조회가 실패하지 않고 24시간 전 PENDING, 뒤 NOT_COUNTED(TF-V18-01)")
+    void summaryMissing_resultReadable_pendingThenNotCounted(CapturedOutput output) {
+        long m = member("요약곰");
+        Battle battle = startedRound(m, StandardDistance.KM1);
+        LocalDateTime overtime = battle.getStartAt().orElseThrow().plusMinutes(15);
+        battleClock.tick(overtime);
+        battleClock.tick(overtime.plus(Duration.ofHours(24)).plusSeconds(1));
+        assertThat(load(battle.getId()).getStatus()).isEqualTo(BattleStatus.FINISHED);
+        // 기록 ID만 붙고 기록(요약)은 없는 판, 판정 23시간 뒤
+        jdbc.update(
+                "update battle_participant set record_id = ? where battle_id = ?",
+                UUID.randomUUID().toString(),
+                battle.getId());
+        jdbc.update(
+                "update battle set judged_at = ? where id = ?",
+                LocalDateTime.now().minusHours(23),
+                battle.getId());
+        int from = output.getAll().length();
+
+        // GET /battles/{id}/result가 부르는 두 읽기(BattleResultAssembler)가 모두 성공해야 200이다
+        assertThat(results.result(m, battle.getId()).battleId()).isEqualTo(battle.getId());
+        assertThat(stateOf(m, battle)).isEqualTo(PlacementRoundState.PENDING);
+        assertThat(roundListener.count(battle.getId())).isFalse();
+        assertThat(errorLines(output, from)).isZero();
+
+        jdbc.update(
+                "update battle set judged_at = ? where id = ?",
+                LocalDateTime.now().minusHours(25),
+                battle.getId());
+
+        assertThat(results.result(m, battle.getId()).battleId()).isEqualTo(battle.getId());
+        assertThat(stateOf(m, battle)).isEqualTo(PlacementRoundState.NOT_COUNTED);
+        assertThat(placements.view(m).countedRounds()).isZero();
     }
 
     @Test

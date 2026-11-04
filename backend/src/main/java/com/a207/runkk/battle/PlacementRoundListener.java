@@ -1,7 +1,5 @@
 package com.a207.runkk.battle;
 
-import com.a207.runkk.common.BusinessRuleException;
-import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.member.PlacementCount;
 import com.a207.runkk.member.PlacementProgress;
 import com.a207.runkk.member.PlacementRoundInput;
@@ -102,7 +100,7 @@ public class PlacementRoundListener {
         Battle battle = found.get();
         long memberId = battle.memberIds().get(0);
         BattleParticipant me = battle.participant(memberId).orElseThrow();
-        Optional<RunSummary> summary = me.getRecordId().flatMap(this::summaryOf);
+        Optional<RunSummary> summary = me.getRecordId().flatMap(runQueryService::findSummary);
         if (me.getRecordId().isPresent() && summary.isEmpty()) {
             // 기록 ID는 붙었는데 요약을 읽지 못한다. 판정 뒤 유예가 지나면 결과는 NOT_COUNTED로 닫힌다(TF-V18-01)
             log.warn(
@@ -136,17 +134,6 @@ public class PlacementRoundListener {
         // 셌거나 이미 센 판이면 참. 진행 없음·탈퇴·랭크·완료로 버려진 판은 거짓(리뷰 M3)
         return !(result instanceof PlacementCount.Ignored ignored)
                 || PlacementProgress.DUPLICATE.equals(ignored.reason());
-    }
-
-    private Optional<RunSummary> summaryOf(String recordId) {
-        try {
-            return Optional.of(runQueryService.summary(recordId));
-        } catch (BusinessRuleException e) {
-            if (e.reason() != ReasonCode.RECORD_NOT_FOUND) {
-                throw e;
-            }
-            return Optional.empty();
-        }
     }
 
     /** 정정은 일시 오류를 count와 같이 3번까지 다시 한다(리뷰 M1). 그래도 실패하면 운영 로그(placement_correct_failed). */

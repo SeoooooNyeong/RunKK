@@ -27,6 +27,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 /** PlacementRoundReader(05-21 D-513): 판 결과 상태를 battle 안에서 계산한다. */
@@ -52,21 +53,22 @@ class PlacementRoundReaderTest {
     }
 
     private void validSummary() {
-        when(runs.summary("r-1"))
+        when(runs.findSummary("r-1"))
                 .thenReturn(
-                        new RunSummary(
-                                "r-1",
-                                ALICE,
-                                START,
-                                Distance.ofKm(5),
-                                Duration.ofMinutes(25),
-                                null,
-                                true,
-                                38.0,
-                                RunMode.BATTLE,
-                                CardKind.BATTLE_RUN,
-                                1L,
-                                null));
+                        Optional.of(
+                                new RunSummary(
+                                        "r-1",
+                                        ALICE,
+                                        START,
+                                        Distance.ofKm(5),
+                                        Duration.ofMinutes(25),
+                                        null,
+                                        true,
+                                        38.0,
+                                        RunMode.BATTLE,
+                                        CardKind.BATTLE_RUN,
+                                        1L,
+                                        null)));
     }
 
     @Test
@@ -106,7 +108,7 @@ class PlacementRoundReaderTest {
         members.save(MemberFixtures.member("배치곰"));
         Battle placement =
                 battles.save(PlacementRoundCheckTest.judged(true, Duration.ofMinutes(25)));
-        when(runs.summary("r-1")).thenThrow(new BusinessRuleException(ReasonCode.RECORD_NOT_FOUND));
+        when(runs.findSummary("r-1")).thenReturn(Optional.empty());
         LocalDateTime judgedAt = placement.getJudgement().orElseThrow().at();
 
         assertThat(readerAt(judgedAt.plusHours(23)).stateOf(ALICE, placement.getId()))

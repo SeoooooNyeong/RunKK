@@ -55,7 +55,7 @@ public class PlacementRoundReader {
         Boolean valid =
                 battle.participant(memberId)
                         .flatMap(BattleParticipant::getRecordId)
-                        .flatMap(this::summaryOf)
+                        .flatMap(runQueryService::findSummary)
                         .map(RunSummary::valid)
                         .orElse(null);
         PlacementRoundCheck check =
@@ -65,16 +65,5 @@ public class PlacementRoundReader {
                         check,
                         placementService.isCounted(memberId, battleId),
                         placementService.isCompleted(memberId)));
-    }
-
-    private Optional<RunSummary> summaryOf(String recordId) {
-        try {
-            return Optional.of(runQueryService.summary(recordId));
-        } catch (BusinessRuleException e) {
-            if (e.reason() != ReasonCode.RECORD_NOT_FOUND) {
-                throw e;
-            }
-            return Optional.empty();
-        }
     }
 }
