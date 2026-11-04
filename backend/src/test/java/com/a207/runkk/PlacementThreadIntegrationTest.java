@@ -37,6 +37,7 @@ import com.a207.runkk.running.CardKind;
 import com.a207.runkk.running.LocationPoint;
 import com.a207.runkk.running.RunFixtures;
 import com.a207.runkk.running.RunMode;
+import com.a207.runkk.running.RunQueryService;
 import com.a207.runkk.running.RunUpload;
 import com.a207.runkk.running.RunUploadCommand;
 import com.a207.runkk.running.RunUploadService;
@@ -89,6 +90,7 @@ class PlacementThreadIntegrationTest {
     @Autowired PlacementRoundListener roundListener;
     @Autowired PlacementReconcileService reconcile;
     @Autowired RunUploadService uploads;
+    @Autowired RunQueryService runQuery;
     @Autowired MemberRepository members;
     @Autowired MemberQueryService memberQuery;
     @Autowired WithdrawalService withdrawals;
@@ -634,6 +636,18 @@ class PlacementThreadIntegrationTest {
 
         assertThat(memberQuery.summaries(List.of(m)).get(m).tier()).isEqualTo(Tier.UNRANKED);
         assertThat(placements.view(m).countedRounds()).isZero();
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("PL1-B5 홈 최근 러닝은 30일 넘게 쉰 회원도 최신 1건만 읽는다(실제 DB, D-491)")
+    void latestListRow_readsNewestOnly() {
+        long m = member("쉰곰");
+        freeRun(m, LocalDateTime.now().minusDays(60), 3_000, 1_200);
+        freeRun(m, LocalDateTime.now().minusDays(40), 5_000, 1_500);
+
+        assertThat(runQuery.latestListRow(m).orElseThrow().summary().distance())
+                .isEqualTo(Distance.ofMeters(5_000));
+        assertThat(runQuery.latestListRow(member("빈곰"))).isEmpty();
     }
 
     @Test

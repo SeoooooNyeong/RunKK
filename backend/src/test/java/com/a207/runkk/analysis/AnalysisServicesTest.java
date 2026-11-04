@@ -766,18 +766,13 @@ class AnalysisServicesTest {
         assertThat(service.dashboard(ME, null).latestRun()).isNull();
 
         RunSummary old = run(ME, NOW.minusDays(200), 1_000, 400);
-        when(runs.listRows(eq(ME), any()))
-                .thenAnswer(
-                        inv -> {
-                            com.a207.runkk.common.DateRange r = inv.getArgument(1);
-                            return r.contains(NOW.minusDays(200).toLocalDate())
-                                    ? List.of(
-                                            new com.a207.runkk.running.RunListRow(
-                                                    old, List.of(), null))
-                                    : List.of();
-                        });
+        when(runs.latestListRow(ME))
+                .thenReturn(
+                        Optional.of(new com.a207.runkk.running.RunListRow(old, List.of(), null)));
 
         RecordRow latest = service.dashboard(ME, TODAY.minusMonths(3)).latestRun();
+        // PL1-B5: 전 기간 목록을 읽지 않고 최신 1건만 읽는다
+        verify(runs, never()).listRows(eq(ME), any());
 
         assertThat(latest.recordId()).isEqualTo(old.recordId());
         assertThat(latest.distance()).isEqualTo(Distance.ofMeters(1_000));

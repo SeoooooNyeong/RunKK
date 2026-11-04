@@ -121,6 +121,11 @@ public class RunQueryService {
         return runRecordRepository.listRows(memberId, r);
     }
 
+    /** 기록 목록 맨 위 행 1건(무효 포함, 시작 시각 최신). 홈 최근 러닝이 전 기간 목록을 읽지 않게 한다(D-491, 코드 리뷰 PL1-B5). */
+    public Optional<RunListRow> latestListRow(long memberId) {
+        return runRecordRepository.latestListRow(memberId);
+    }
+
     /** 그 기록이 일으킨 티어 평가(없으면 비어 있다, v0.14 D-291). 기록 상세와 대결 결과가 붙인다. */
     public Optional<EvaluationView> evaluationOf(String recordId) {
         return runRecordRepository.evaluationOf(recordId);
