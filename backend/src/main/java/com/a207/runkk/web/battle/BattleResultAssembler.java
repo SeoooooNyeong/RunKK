@@ -65,6 +65,8 @@ class BattleResultAssembler {
                 rewardPoints + runPoints,
                 evaluation,
                 view.opponentGender(),
-                view.celebrityFigure());
+                view.celebrityFigure(),
+                null,
+                null);
     }
 }
