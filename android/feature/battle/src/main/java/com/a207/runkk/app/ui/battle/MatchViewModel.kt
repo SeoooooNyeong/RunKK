@@ -673,7 +673,8 @@ class MatchViewModel @Inject constructor(
                     match.distance.meters,
                     _state.value.opponentKind.name,
                     startAtEpochMillis = startAt?.toEpochMilli(),
-                    opponentGender = match.opponentGender?.name
+                    opponentGender = match.opponentGender?.name,
+                    placementRound = match.placementRound
                 )
             )
         )

@@ -319,6 +319,12 @@ class BattleScreenshotTest {
         BattleRunningScreen(running, BattleRunningActions())
     }
 
+    /** 배치고사 판(FR-276): 지도 위 상대 자리를 점선 원 「?」로 그린다. */
+    @Test
+    fun battleRunningPlacement() = compose.captureRunkkScreen("D3_battle_running_placement") {
+        BattleRunningScreen(running.copy(placementRound = 1), BattleRunningActions())
+    }
+
     @Test
     fun battleRunningOvertook() = compose.captureRunkkScreen("D3_battle_running_overtook") {
         BattleRunningScreen(
