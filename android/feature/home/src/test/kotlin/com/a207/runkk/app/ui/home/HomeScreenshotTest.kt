@@ -184,6 +184,13 @@ class HomeScreenshotTest {
         HomeShell { HomeScreen(loaded, HomeActions(), it) }
     }
 
+    /** 폴드 펼친 화면(673×841dp): 배경 트랙이 아래에 남아 아바타가 트랙 위에 선다(가운데 자르기면 공중에 뜬다). */
+    @Test
+    @Config(qualifiers = "w673dp-h841dp")
+    fun homeFoldLight() = compose.captureRunkkScreen("A4_home_fold_light", isDarkTheme = false) {
+        HomeShell { HomeScreen(loaded, HomeActions(), it) }
+    }
+
     /** 가이드 1단계(자유런 카드, 1/6). */
     @Test
     fun guideFirstStep() = compose.captureRunkkScreen("J1_guide_free_run") {

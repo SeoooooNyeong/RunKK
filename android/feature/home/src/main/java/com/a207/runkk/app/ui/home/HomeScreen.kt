@@ -212,9 +212,11 @@ fun HomeScreen(state: HomeUiState, actions: HomeActions, modifier: Modifier = Mo
     val isAvatarOpen = LocalReleaseScope.current.isOpen(UnreleasedFeature.AVATAR_CUSTOMIZE)
     Box(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
         // 피그마 A-4: 배경 사진이 로고·헤더 뒤부터 탭 바 뒤까지 화면 전체에 깔린다(흰 바탕 없음)
+        // 사진(1:2)은 바닥에 맞춰 자른다: 폴드처럼 넓은 화면에서 가운데로 자르면 트랙이 화면 아래로 밀려 아바타가 떠 보인다
         AvatarBackdrop(
             if (isAvatarOpen) state.backgroundKey else null,
-            modifier = Modifier.fillMaxSize().extendBottom(bleed)
+            modifier = Modifier.fillMaxSize().extendBottom(bleed),
+            alignment = Alignment.BottomCenter
         )
         // 점선 방 바깥은 사진 위에 반투명 막을 덮는다(라이트 흰 막, 다크 검은 막). 방 안 장면은 그대로 둔다
         var roomBounds by remember { mutableStateOf<Rect?>(null) }
