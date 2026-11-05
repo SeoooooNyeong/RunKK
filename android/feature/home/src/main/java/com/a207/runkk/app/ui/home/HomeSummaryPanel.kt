@@ -83,13 +83,15 @@ internal fun SummaryToggle(onToggle: () -> Unit, modifier: Modifier = Modifier) 
 
 /**
  * 펼친 「내 기록 요약」 패널(피그마 61343:2552, 블러 없음): 머리(제목·「접기 ⌃」), 오늘·이번 달 두 칸, 최근 러닝 한 줄,
- * 러닝 잔디 5주×7일. 표면, 1 Border, r24, p16, 세로 12.
+ * 러닝 잔디 5주×7일. 표면, 1 Border, r24, p16, 세로 12. 오늘·이번 달·잔디를 누르면 러닝 기록 화면([onRecords]),
+ * 최근 러닝 한 줄은 그 기록 상세([onLatestRun])로 간다(2026-11-05 사용자 요청).
  */
 @Composable
 internal fun SummaryPanel(
     summary: HomeSummary?,
     onCollapse: () -> Unit,
     onLatestRun: (String) -> Unit,
+    onRecords: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val shape = RoundedCornerShape(24.dp)
@@ -105,14 +107,15 @@ internal fun SummaryPanel(
     ) {
         PanelHeader(onCollapse)
         Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TodayCell(summary?.today, Modifier.weight(1f).fillMaxHeight())
+            TodayCell(summary?.today, onRecords, Modifier.weight(1f).fillMaxHeight())
             MonthCell(
                 summary?.month ?: MonthSummary(com.a207.runkk.app.core.model.Distance.ZERO, 0),
+                onRecords,
                 Modifier.weight(1f).fillMaxHeight()
             )
         }
         LatestRun(summary?.latestRun, onLatestRun)
-        Grass(summary?.grass.orEmpty())
+        Grass(summary?.grass.orEmpty(), onRecords)
     }
 }
 
@@ -153,11 +156,11 @@ private fun PanelHeader(onCollapse: () -> Unit) {
 
 /** 오늘 칸: 「오늘」 / 「3.20」 km / 「18분 40초, 1회」. 오늘 달리지 않았으면 「오늘은 아직 달리지 않았어요」. */
 @Composable
-private fun TodayCell(today: TodaySummary?, modifier: Modifier = Modifier) {
+private fun TodayCell(today: TodaySummary?, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val label = stringResource(R.string.home_summary_today)
     if (today == null) {
         val none = stringResource(R.string.home_summary_today_none)
-        SummaryCell(label, "$label, $none", modifier) {
+        SummaryCell(label, "$label, $none", onClick, modifier) {
             Text(
                 none,
                 style = RunkkTextStyles.text(14, FontWeight.Medium, lineHeight = 20),
@@ -169,7 +172,7 @@ private fun TodayCell(today: TodaySummary?, modifier: Modifier = Modifier) {
     val km = RunkkFormat.km(today.distance)
     val line = stringResource(R.string.home_summary_today_line, minutesSeconds(today.elapsed), today.runs)
     val spoken = stringResource(R.string.home_summary_km_spoken, km)
-    SummaryCell(label, "$label, $spoken, $line", modifier) {
+    SummaryCell(label, "$label, $spoken, $line", onClick, modifier) {
         KmValue(km)
         Text(line, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
     }
@@ -177,24 +180,36 @@ private fun TodayCell(today: TodaySummary?, modifier: Modifier = Modifier) {
 
 /** 이번 달 칸: 「이번 달」 / 「41.2」 km / 「러닝 9회」. */
 @Composable
-private fun MonthCell(month: MonthSummary, modifier: Modifier = Modifier) {
+private fun MonthCell(month: MonthSummary, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val label = stringResource(R.string.home_summary_month)
     val km = RunkkFormat.kmShort(month.distance)
     val runs = stringResource(R.string.home_summary_month_runs, month.runs)
     val spoken = stringResource(R.string.home_summary_km_spoken, km)
-    SummaryCell(label, "$label, $spoken, $runs", modifier) {
+    SummaryCell(label, "$label, $spoken, $runs", onClick, modifier) {
         KmValue(km)
         Text(runs, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
     }
 }
 
+/** 오늘·이번 달 칸. 누르면 러닝 기록 화면으로 간다(낭독은 칸 내용 + 단추 역할). */
 @Composable
-private fun SummaryCell(label: String, spoken: String, modifier: Modifier, content: @Composable () -> Unit) {
+private fun SummaryCell(
+    label: String,
+    spoken: String,
+    onClick: () -> Unit,
+    modifier: Modifier,
+    content: @Composable () -> Unit
+) {
+    val open = stringResource(R.string.home_summary_records_open)
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(16.dp))
             .background(RunkkColors.Background)
-            .clearAndSetSemantics { contentDescription = spoken }
+            .clickable(role = Role.Button, onClickLabel = open, onClick = onClick)
+            .clearAndSetSemantics {
+                contentDescription = spoken
+                role = Role.Button
+            }
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
@@ -345,13 +360,20 @@ private fun Metric(value: String, unit: String?, modifier: Modifier = Modifier) 
     }
 }
 
-/** 「러닝 잔디」 「최근 5주」 + 요일 줄 + 5×7 칸. 단계·범례 없음. 보조 기술은 달린 날 수로 읽는다. */
+/**
+ * 「러닝 잔디」 「최근 5주」 + 요일 줄 + 5×7 칸. 단계·범례 없음. 보조 기술은 달린 날 수로 읽는다. 제목과 칸 묶음 전체를 누르면 러닝 기록
+ * 화면으로 간다.
+ */
 @Composable
-private fun Grass(weeks: List<List<GrassCell>>) {
+private fun Grass(weeks: List<List<GrassCell>>, onClick: () -> Unit) {
     val ranDays = weeks.sumOf { week -> week.count { it.state == GrassState.RAN } }
     val spoken = stringResource(R.string.home_summary_grass_spoken, ranDays)
     val weekdays = stringArrayResource(R.array.home_summary_weekdays)
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    val open = stringResource(R.string.home_summary_records_open)
+    Column(
+        modifier = Modifier.clickable(role = Role.Button, onClickLabel = open, onClick = onClick),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(
                 stringResource(R.string.home_summary_grass),
@@ -367,7 +389,10 @@ private fun Grass(weeks: List<List<GrassCell>>) {
             )
         }
         Column(
-            modifier = Modifier.clearAndSetSemantics { contentDescription = spoken },
+            modifier = Modifier.clearAndSetSemantics {
+                contentDescription = spoken
+                role = Role.Button
+            },
             verticalArrangement = Arrangement.spacedBy(GRASS_GAP)
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(GRASS_GAP)) {

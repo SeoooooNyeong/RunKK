@@ -46,6 +46,7 @@
     <string name="home_summary_latest">최근 러닝</string>
     <string name="home_summary_latest_none">아직 러닝 기록이 없어요</string>
     <string name="home_summary_latest_open">기록 상세 보기</string>
+    <string name="home_summary_records_open">러닝 기록 보기</string>
     <string name="home_summary_latest_date_pattern">M월 d일 (E) a h:mm</string>
     <string name="home_summary_latest_spoken">%1$s, %2$s, %3$s킬로미터, %4$s, 평균 페이스 %5$s</string>
     <string name="home_summary_pace_unit">/km</string>

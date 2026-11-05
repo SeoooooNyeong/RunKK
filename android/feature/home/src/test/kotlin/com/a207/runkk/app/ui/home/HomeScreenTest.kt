@@ -222,6 +222,26 @@ class HomeScreenTest {
     }
 
     @Test
+    fun `TC-5841 펼친 패널의 오늘·이번 달·러닝 잔디를 누르면 러닝 기록 화면으로 간다`() {
+        val today = java.time.LocalDate.of(2026, 11, 4)
+        show(
+            loaded.copy(
+                isSummaryExpanded = true,
+                summary = HomeSummary(
+                    today = null,
+                    month = MonthSummary(Distance(41_200), 9),
+                    latestRun = null,
+                    grass = GrassWeeks.of(emptyMap(), today)
+                )
+            )
+        )
+        compose.onNodeWithContentDescription("오늘, 오늘은 아직 달리지 않았어요").performClick()
+        compose.onNodeWithContentDescription("이번 달", substring = true).performClick()
+        compose.onNodeWithContentDescription("러닝 잔디", substring = true).performClick()
+        assertEquals(listOf(Routes.RECORDS, Routes.RECORDS, Routes.RECORDS), routes)
+    }
+
+    @Test
     fun `TC-5841 접힌 홈은 「내 기록 요약」 단추만 있고 누르면 펼친다`() {
         show(loaded)
         compose.onNodeWithText("최근 러닝").assertDoesNotExist()

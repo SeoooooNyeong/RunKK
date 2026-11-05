@@ -516,6 +516,7 @@ private fun Room(state: HomeUiState, actions: HomeActions, bottomSpace: Dp, modi
                         state.summary,
                         onCollapse = actions.onSummaryToggle,
                         onLatestRun = actions.onLatestRun,
+                        onRecords = { actions.onNavigate(Routes.RECORDS) },
                         modifier = Modifier.bleedHorizontally(ROOM_PADDING)
                     )
                 } else {
