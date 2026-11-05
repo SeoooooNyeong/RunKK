@@ -106,6 +106,12 @@
     <!-- 안내(FR-245, FR-251, FR-252) -->
     <string name="notice_location_consent">폰에서 위치 수집 동의를 해 주세요</string>
     <string name="notice_location_permission">위치 권한을 허용해 주세요</string>
+    <!-- W52: 워치 시스템 위치가 꺼져 있으면 측정을 시작하지 않는다. 안내를 누르면 위치 설정을 연다 -->
+    <string name="notice_location_off">워치 위치를 켜 주세요</string>
+    <string name="open_location_settings">위치 설정 열기</string>
+    <!-- W53: GPS 예열 상태(메인)와 측정 중 위치를 받지 못함 -->
+    <string name="gps_searching">GPS 찾는 중</string>
+    <string name="gps_ready">GPS 준비됨</string>
     <string name="notice_phone_running">폰에서 러닝 중이에요</string>
     <string name="notice_battle_offline">연결되면 배틀런을 할 수 있어요</string>
     <!-- W31: 셀럽 구간 기록은 고를 때 받는다. 받아 둔 적 없는 셀럽은 연결이 있어야 고를 수 있다 -->

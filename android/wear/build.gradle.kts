@@ -26,6 +26,16 @@ android {
         versionName = "0.11.1"
     }
 
+    // R8 축소·난독화와 리소스 축소(W51, 폰 app과 같은 설정). 반사로 읽는 곳의 보존 규칙은 proguard-rules.pro,
+    // 확인은 :wear:bundleProdRelease. 서명은 runkk.android.application 공통 플러그인이 정한다.
+    buildTypes {
+        release {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        }
+    }
+
     buildFeatures {
         compose = true
         // RunkkWatchApp이 디버그 빌드에서만 Timber.DebugTree를 심는다.

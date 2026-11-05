@@ -150,6 +150,13 @@ fun WatchModeCarousel(
                     PositionedModeCard(index, position, unit, onModeSelected, moveTo)
                 }
             }
+            // GPS 예열 상태(W53)는 아래 가운데에 작게 둔다.
+            state.gps?.let { gps ->
+                GpsStatusPill(
+                    gps,
+                    Modifier.align(Alignment.BottomCenter).padding(bottom = unit * GPS_BOTTOM).zIndex(NOTICE_Z)
+                )
+            }
             // 메인으로 돌아오며 받은 안내(측정 중단, 거리 0이라 저장 안 함)는 카드 위에 잠깐 띄운다(R13 D4).
             AnimatedBanner(
                 state.notice?.let { notice -> stringResource(noticeRes(notice)) to WatchColors.Lavender },
@@ -304,6 +311,9 @@ private const val VISIBLE_SLOTS = 2
 
 /** 안내 띠는 카드(zIndex 0 이하)보다 위에 그린다. */
 private const val NOTICE_Z = 1f
+
+/** GPS 상태 알약의 아래 여백(화면 높이 비율). 둥근 화면 아래쪽에서 잘리지 않을 만큼 올린다. */
+private const val GPS_BOTTOM = 0.08f
 
 /** 가운데 카드 테두리(피그마 Q1). */
 private val CENTER_BORDER = Color(0xFFE4F79A)

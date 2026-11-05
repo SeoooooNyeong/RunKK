@@ -115,6 +115,7 @@ fun WatchRunScreen(
                 state.isLeadChanged -> stringResource(R.string.lead_changed) to leadBannerColor(state)
                 state.notice != null -> stringResource(noticeRes(state.notice)) to WatchColors.Lavender
                 state.banner != null -> state.banner to WatchColors.Lavender
+                state.isGpsSearching -> stringResource(R.string.gps_searching) to WatchColors.Lavender
                 else -> null
             }
         )
