@@ -42,6 +42,8 @@
 
 - (구현 기록, implementation v0.12, 2라운드) implementation/16-v0.11.1-핫픽스-추가변경.md 새 조각(16장, 9커밋, I16-1~I16-12). implementation.md(머리 v0.12, 0절, 목차 행), 15장 다음 링크, README.md(implementation 행). `/sw-implement`는 돌리지 않고 양식대로 기록만 했다.
 
+- (sw-code-review, code-review v0.23, 2라운드) code-review/21-핫픽스-추가변경-1차.md 새 조각(1차 0/2/8 → 수정 45f7d383 → 2차 합격 0/0/7, U5-1·U5-2·UT5-1). code-review.md(머리 v0.23, 최신 판정, 새 절), README.md(code-review 행). 같은 판 보정: design-oo 05-23 1.3절(D-549·D-550·D-559)·2.4 표, test 10-29(TC-4842·TC-4852·TC-4866·TC-4867 행, 새 20.8.1 TC-4881·TC-4882, 20.10), test.md(상태, 8장), implementation 16.4·16.7, implementation.md 0절.
+
 ## 새 임시 번호
 
 없음(정식 번호로 매김).
@@ -66,6 +68,8 @@
 | D-547~D-563, SQ-52·SQ-53, 2.4.29 | D·시퀀스·상태도 | 2라운드 핫픽스 추가 변경 설계(기존 최대 D-546·SQ-51·2.4.28 다음) | design-oo/05-23 |
 | R96~R99, H-68~H-70 | 검토 결함·숨은 의존 | 2라운드 설계 검토(기존 최대 R95·H-67 다음, 장 27) | design-review/27 |
 | TC-4842~TC-4880, T-61·T-62 | TC·스레드 | 2라운드 시험(v0.11 대역 남은 예비에서, TC-5974~TC-5999는 다른 브랜치 몫 그대로) | test/10-29 |
+| PL5-B1, PL5-A1~A8, PL5-T1, U5-1·U5-2, UT5-1 | 코드 리뷰 결함·요청 | 2라운드 코드 리뷰(21장) | code-review/21 |
+| TC-4881·TC-4882 | TC | 코드 리뷰 반영 시험 | test/10-29 20.8.1 |
 | J25-1~J25-8 | 분석 담당 결정 | 순위 변동 미표시, 워치 문구 축약·점선 원 색(확인 필요), 칩 판 번호, 옛 서버 잠금 문구, 예열 범위, 도착 판정, 세로 고정 범위 | srs/03-08 3.8.8 |
 | RW-13~RW-17 | 위험 가번호 | main 합치기, develop 환경 미경유, prod 설정, 옛 앱, (제안) 문구. `/sw-plan`이 R-076부터 매긴다 | sqa/09 7절 |
 
@@ -152,3 +156,4 @@
 - srs/03-02-러닝-측정.md FR-243 처리에 "워치 메인 화면이 보이는 동안 GPS를 미리 켜고(상한 5분) 「GPS 찾는 중」·「GPS 준비됨」을 보인다(main W53, CR-153)"를 더한다.
 - 코드 검토 요청(MR !70): 워치 배치고사(1f04f1df, wear·domain RandomBattleGate), 도착 판정(ef3290f1 domain.battle·domain.run, 0905c26d 서버 running.RunTrack), GPS 예열(80592a08 domain.run GpsWarmUp·BattleRunCoordinator·data.device)은 박재영 도메인이라 MR에서 승인을 받는다. 서버 `RunTrack.timeToReach` 허용 오차는 running 경계라 제공 쪽(박재영) 승인이 필요하다.
 - 박재영(design-oo/06-02·06-03·06-06, design-oo v0.33): 05-23의 D-558(RunProgress.exactDistanceMeters, GapTracker.hasArrived(Double), OpponentFeed.hasArrived), D-559(서버 RunTrack ROUNDING_TOLERANCE·exerciseTime), D-560·D-561(GpsWarmUp 포트, BattleRunCoordinator 협력 gpsWarmUp·warmUpGps·showGps, BattleRunState gps, LocationFilter.MAX_ACCURACY_METERS 공개), D-553~D-557(워치 배치고사), D-563(main의 watch.ui.GpsWarmUp·HealthServicesGpsWarmUp·LocationSettingState)를 담당 명세에 옮긴다. 05-21 D-500·05-22 D-546의 워치 잠금 문장은 쓰지 않는다.
+- 박재영(코드 검토 요청, code-review 21장): 45f7d383의 서버 running `RunTrack.timeToArrive`·`RunRecord.timeToArrive`와 `RunQueryService.timeToReach(recordId, d)`의 도착용 전환(PL5-B1)은 running 경계라 MR !70에서 승인한다. 06-02 반영 문장은 design-oo 05-23 1.3절 D-559 보정.
