@@ -14,6 +14,7 @@ import com.a207.runkk.app.domain.record.TodayPlan
 import com.a207.runkk.app.domain.run.PlanSnapshot
 import com.a207.runkk.app.domain.run.TodayPlanCache
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -138,11 +139,26 @@ class AnalysisViewModelsTest {
 
     @Test
     fun `랭킹은 개인·크루와 기간을 바꿔 읽는다(FR-070·FR-071)`() {
-        val vm = RankingViewModel(records)
+        val vm = RankingViewModel(records, clock)
         vm.onScopeSelected(RankingScope.CREW)
         vm.onPeriodSelected(AggregationPeriod.MONTHLY)
         assertEquals(listOf("personal:WEEKLY", "crew:WEEKLY", "crew:MONTHLY"), records.calls)
         assertEquals(sampleRanking, vm.state.value.ranking)
+    }
+
+    @Test
+    fun `랭킹 v3 집계 기간과 마감까지 남은 시간은 한국 시각 주(월~일)·달로 센다`() {
+        // clock = 한국 시각 2026-10-21(수) 12:00
+        val vm = RankingViewModel(records, clock)
+        assertEquals(
+            RankingWindow(LocalDate.of(2026, 10, 19), LocalDate.of(2026, 10, 25), Duration.ofHours(4 * 24 + 12)),
+            vm.state.value.window
+        )
+        vm.onPeriodSelected(AggregationPeriod.MONTHLY)
+        assertEquals(
+            RankingWindow(LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 31), Duration.ofHours(10 * 24 + 12)),
+            vm.state.value.window
+        )
     }
 
     @Test
@@ -153,7 +169,7 @@ class AnalysisViewModelsTest {
         records.rankingResult = Outcome.Success(
             sampleRanking.copy(entries = listOf(placing, gold, gone), mine = placing.copy(name = "나"))
         )
-        val state = RankingViewModel(records).state.value
+        val state = RankingViewModel(records, clock).state.value
 
         assertEquals(
             listOf(TierDisplay.Placing, TierDisplay.Confirmed("GOLD"), null),
@@ -167,7 +183,7 @@ class AnalysisViewModelsTest {
     @Test
     fun `랭킹 오류는 문구로 보인다`() {
         records.rankingResult = Outcome.Failure(AppError.Network)
-        assertEquals(RunkkErrorText.of(AppError.Network), RankingViewModel(records).state.value.error)
+        assertEquals(RunkkErrorText.of(AppError.Network), RankingViewModel(records, clock).state.value.error)
     }
 
     @Test

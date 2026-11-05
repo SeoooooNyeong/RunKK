@@ -7,6 +7,7 @@ import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.record.AggregationPeriod
 import com.a207.runkk.app.domain.record.RecordRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.time.Clock
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -15,7 +16,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 @HiltViewModel
-class RankingViewModel @Inject constructor(private val records: RecordRepository) : ViewModel() {
+class RankingViewModel @Inject constructor(private val records: RecordRepository, private val clock: Clock) :
+    ViewModel() {
     private val _state = MutableStateFlow(RankingUiState())
     val state: StateFlow<RankingUiState> = _state.asStateFlow()
 
@@ -37,7 +39,9 @@ class RankingViewModel @Inject constructor(private val records: RecordRepository
 
     fun refresh() {
         val s = _state.value
-        _state.update { it.copy(isLoading = true, error = null) }
+        _state.update {
+            it.copy(isLoading = true, error = null, window = RankingWindow.of(it.period, clock.instant()))
+        }
         viewModelScope.launch {
             val result = when (s.scope) {
                 RankingScope.PERSONAL -> records.personalRanking(s.period)
