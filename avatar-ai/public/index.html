@@ -12,7 +12,7 @@
   <script src="neck-join.js" defer></script>
   <script src="selfie-quality-ui.js" defer></script>
   <script src="avatar-views.js" defer></script>
-  <script src="studio.js" defer></script>
+  <script src="studio.js?v=20261105-front-neck-export-v2" defer></script>
 </head>
 <body>
 <header class="topbar">
@@ -38,7 +38,7 @@
       <div class="api-actions"><button id="refreshApi" type="button">서버 상태 새로고침</button><button id="loadLatestHead" type="button">최근 생성 불러오기</button></div>
       <details class="traits-editor"><summary>추출한 특징 확인 / 수정</summary><div id="traitsFields"></div></details>
       <div class="head-preview checker ai-head-preview"><img id="headPreview" alt="현재 연결된 머리 이미지"><span class="image-badge" id="headBadge">기본 머리</span></div>
-      <div class="inline-actions"><button type="button" id="defaultHead">기본 머리로</button><button type="button" id="exportHead">머리 PNG 저장 ↓</button></div>
+      <div class="inline-actions"><button type="button" id="defaultHead">기본 머리로</button><button type="button" id="exportHead">목 포함 머리 PNG 저장 ↓</button></div>
       <div class="head-layer-previews" id="layerPreviews" hidden><figure><img id="faceLayerPreview" alt="코와 입이 포함된 얼굴 레이어"><figcaption>얼굴 · 코·입 포함</figcaption><button type="button" id="exportFace">얼굴 PNG ↓</button></figure><figure><img id="eyesLayerPreview" alt="눈과 속눈썹 레이어"><figcaption>눈 · 속눈썹</figcaption><button type="button" id="exportEyes">눈 PNG ↓</button></figure><figure><img id="hairLayerPreview" alt="머리카락과 눈썹 레이어"><figcaption>헤어 · 눈썹</figcaption><button type="button" id="exportHair">헤어 PNG ↓</button></figure></div>
       <details><summary>준비한 머리 PNG 직접 연결</summary><label class="upload-button" for="headFile">＋ 머리 PNG 불러오기</label><input id="headFile" type="file" accept="image/png,image/webp,image/jpeg" hidden></details>
       <div class="neck-connection"><label class="toggle-line"><span>목 자연스럽게 연결</span><input id="neckJoin" type="checkbox" checked></label><div class="slider-row"><label for="neckGap">추가 목 길이</label><input id="neckGap" type="range" min="0" max="26" value="10"><output id="neckGapValue">10px</output></div><p class="hint" id="neckJoinHint">실제 목과 옷깃을 기준으로 자동 연결해요.</p></div>
@@ -47,7 +47,7 @@
     <section class="panel stage-panel">
       <div class="panel-title"><span class="step">02</span><h2>살아 움직이는 나</h2><span class="stage-live"><i></i><span id="poseLabel">대기 중</span></span></div>
       <div class="stage" id="stage"><div class="stage-orbit orbit-one"></div><div class="stage-orbit orbit-two"></div><div class="stage-watermark">RunKK</div><canvas id="avatarCanvas" width="1024" height="1024" aria-label="조립된 2D 아바타 미리보기"></canvas><div class="stage-tag"><span id="outfitTag">데일리 러너</span><small id="headTag">같은 머리 · 공통 동작</small></div><div class="loading" id="loading">아바타를 준비하고 있어요…</div></div>
-      <section class="avatar-view-panel" aria-label="정면 아바타와 우측 얼굴"><div class="avatar-view-tabs" role="group" aria-label="아바타 보기 방향"><button type="button" data-avatar-view="front" aria-pressed="true">정면 아바타</button><button type="button" data-avatar-view="right" disabled aria-pressed="false">우측 얼굴만</button></div><div class="avatar-view-actions"><button type="button" id="generateViewRight">우측 얼굴·헤어 AI 생성</button></div><button type="button" class="small-link" id="restoreViews">저장된 우측 얼굴 불러오기</button><p id="avatarViewMessage" class="hint" role="status">정면 머리를 기준으로 우측 얼굴·헤어·짧은 목만 만들어요. 몸·의류·신발은 포함하지 않아요. 생성 버튼을 누를 때 GMS API 사용량이 발생해요.</p><p class="hint">AI가 추정한 정적 머리 PNG이며 실제 측면 복원이나 3D 회전은 아니에요. 옷만 바꾸면 기존 우측 머리를 재사용할 수 있어요.</p></section>
+      <section class="avatar-view-panel" aria-label="정면 얼굴과 우측 얼굴"><div class="avatar-view-tabs" role="group" aria-label="얼굴 보기 방향"><button type="button" data-avatar-view="front" aria-pressed="true">정면 얼굴만</button><button type="button" data-avatar-view="right" disabled aria-pressed="false">우측 얼굴만</button></div><div class="avatar-view-actions"><button type="button" id="generateViewRight">우측 얼굴·헤어 AI 생성</button></div><div class="avatar-view-actions"><button type="button" id="saveFrontFace">정면 얼굴 PNG 저장 · 목 포함</button><button type="button" id="saveRightFace" disabled>우측 얼굴 PNG 저장</button></div><button type="button" class="small-link" id="restoreViews">저장된 우측 얼굴 불러오기</button><p id="avatarViewMessage" class="hint" role="status">정면과 우측 얼굴을 각각 PNG로 저장할 수 있어요. 정면 PNG에는 목 연결을 포함해요.</p><p class="hint">우측 얼굴은 정적 PNG로 저장돼요. 생성 버튼을 누르면 GMS API 사용량이 발생해요.</p></section>
       <div class="motion-tabs" role="group" aria-label="애니메이션 선택"><button type="button" data-motion="idle" class="active"><span>◌</span> 대기</button><button type="button" data-motion="run"><span>↗</span> 달리기</button><button type="button" data-motion="wave"><span>✋</span> 인사</button></div>
       <div class="playback"><button id="playPause" type="button" aria-label="애니메이션 일시정지">Ⅱ</button><span class="playback-label" id="playState">재생 중</span><input id="speed" type="range" min="50" max="180" value="100" aria-label="재생 속도"><output id="speedValue">1.0×</output><label class="toggle-label"><input id="showRig" type="checkbox"> 기준점</label><label class="toggle-label"><input id="transparentExport" type="checkbox" checked> 투명 PNG</label></div>
       <div class="stage-actions"><button class="button secondary" id="saveProject" type="button">설정 저장 ↓</button><button class="button primary" id="savePng" type="button">현재 모습 PNG 저장 <span>↗</span></button></div>

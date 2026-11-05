@@ -18,7 +18,7 @@ export async function analyzeHeadRegions(client,model,image){
   const guide=await sharp(image).flatten({background:'#eef4e7'}).png().toBuffer();
   const answer=await client.chat.completions.create({model,temperature:0,max_tokens:400,response_format:{type:'json_object'},messages:[
     {role:'system',content:'Inspect the illustrated head. Return JSON only. Never invent hidden or absent features.'},
-    {role:'user',content:[{type:'text',text:'Return {"features":{"bothEyes":true,"nose":true,"mouth":true},"skinPalette":0}. Set a feature false if absent or obscured by hair. Both eyes, nose and mouth must be clearly drawn and naturally aligned. skinPalette nearest illustrated color: 0 #f5cfbc,1 #e8b99d,2 #cf9775,3 #a66e4d,4 #754c39. Color matching only, no demographic inference.'},{type:'image_url',image_url:{url:`data:image/png;base64,${guide.toString('base64')}`,detail:'high'}}]}
+    {role:'user',content:[{type:'text',text:'Return {"features":{"bothEyes":true,"nose":true,"mouth":true,"visibleNeckStub":true},"skinPalette":0}. Set a feature false if absent or obscured by hair. Both eyes, nose, mouth and a short visible neck directly below the jaw must be clearly drawn and naturally aligned. visibleNeckStub is true only when a distinct neck shape connects below the chin; lower-face pixels alone do not count. skinPalette nearest illustrated color: 0 #f5cfbc,1 #e8b99d,2 #cf9775,3 #a66e4d,4 #754c39. Color matching only, no demographic inference.'},{type:'image_url',image_url:{url:`data:image/png;base64,${guide.toString('base64')}`,detail:'high'}}]}
   ]});
   const content=answer.choices?.[0]?.message?.content;
   let regions;try{regions=JSON.parse(content);}catch{throw fail('얼굴 영역 분석 응답을 읽지 못했어요. 기존 아바타를 유지해요.');}
@@ -27,7 +27,7 @@ export async function analyzeHeadRegions(client,model,image){
 }
 
 export async function splitHead(master,regions){
-  if(!regions?.features?.bothEyes||!regions.features.nose||!regions.features.mouth)throw fail('눈·코·입이 확인되지 않았어요.');
+  if(!regions?.features?.bothEyes||!regions.features.nose||!regions.features.mouth||!regions.features.visibleNeckStub)throw fail('눈·코·입 또는 턱 아래 목이 확인되지 않았어요. 기존 아바타를 유지해요.');
   const {data,info}=await sharp(master).ensureAlpha().raw().toBuffer({resolveWithObject:true});
   if(info.width!==1024||info.height!==1024)throw fail('분리 전 완성 머리는 1024×1024여야 해요.');
   let extracted;try{extracted=pixelRegions(data);}catch(error){error.status=502;throw error;}
