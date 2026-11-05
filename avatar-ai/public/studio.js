@@ -100,6 +100,10 @@
     if(background){g.fillStyle='#eef4e7';g.fillRect(0,0,width,height);}
     const factor=Math.min(width,height)/1024;g.save();g.translate((width-1024*factor)/2,(height-1024*factor)/2);g.scale(factor,factor);
     if(!thumbnail&&!bodyOnly&&view!=='front'&&avatarViews?.entries[view]){g.drawImage(avatarViews.entries[view].image,0,0,1024,1024);g.restore();return;}
+    if(!thumbnail&&!bodyOnly&&view==='front'){
+      drawFrontSource(g);
+      g.restore();return;
+    }
     g.translate(512,512);g.scale(.93,.93);g.translate(-512,-512);
     if(!headSprite||!bodyTexture||!isReady){g.restore();return;}
     const p=poseAt(t,motion),set=bodySets[activeOutfit().assetId||'daily']||bodySets.daily;
@@ -206,7 +210,7 @@
   function bind() {
     $('headFile').onchange=async e=>{const file=e.target.files[0];if(!file)return;try{const result=await setHead(await fileData(file),'내 머리 PNG');state.headData=result.canvas.toDataURL('image/png');state.faceData=null;state.eyesData=null;state.hairData=null;state.headName=file.name;state.headPivotX=50;state.headPivotY=98.5;state.generationId=null;rebuildParts();syncControls();scheduleSave();status('새 머리를 연결했어요. 크기·좌우·위아래를 조절해 목 위치를 맞춰 주세요.');if(!result.hasAlpha)notify('배경이 있는 이미지예요. 투명한 머리 PNG를 사용하면 자연스러워요.');}catch(err){notify(err.message);}finally{e.target.value='';}};
     $('defaultHead').onclick=async()=>{try{await setLayers('/assets/face-base-default.png','/assets/eyes-default.png','/assets/hair-default.png');state.headData=null;state.faceData=null;state.eyesData=null;state.hairData=null;state.headName='기본 머리';state.headPivotX=DEFAULT_PIVOT.x;state.headPivotY=DEFAULT_PIVOT.y;state.generationId=null;state.headScale=100;state.headX=0;state.headY=0;rebuildParts();syncControls();scheduleSave();status('기본 얼굴·눈·헤어를 같은 좌표로 연결했어요.');}catch(err){notify(err.message);}};
-    $('exportHead').onclick=()=>{if(headSprite)saveCanvas(headSprite.canvas,'RunKK_head.png');};
+    $('exportHead').onclick=async()=>{try{const blob=await captureFront();download('RunKK_head_with_neck.png',blob);}catch(error){notify(error.message);}};
     for(const [id,layer]of [['exportFace',()=>faceLayer],['exportEyes',()=>eyeLayer],['exportHair',()=>hairLayer]])$(id).onclick=()=>{const item=layer();if(item)saveCanvas(item.canvas,`RunKK_${id.slice(6).toLowerCase()}.png`);else notify('셀카로 세 레이어를 먼저 생성해 주세요.');};
     $('selfieFile').onchange=async e=>{try{const file=e.target.files[0];if(!file)return;if(file.size>8*1024*1024)throw new Error('셀카는 8MB 이하로 골라 주세요.');if(!['image/png','image/jpeg','image/webp'].includes(file.type))throw new Error('JPG, PNG, WEBP 사진을 골라 주세요.');selfieFile=file;selfieQuality=null;selfieQualityError=null;state.traits=null;renderTraits(null);syncAiButtons();if(selfieUrl)URL.revokeObjectURL(selfieUrl);selfieUrl=URL.createObjectURL(file);$('selfiePreview').src=selfieUrl;$('selfiePreview').hidden=false;$('removeSelfie').hidden=false;status('셀카를 선택했어요. 먼저 눈·코·입과 얼굴 밝기를 확인해요.');$('aiMessage').textContent='분석·생성 버튼을 누르면 셀카가 GMS를 통해 AI에 전송돼요. 사진 품질을 확인한 뒤에만 이미지를 생성해요.';}catch(err){notify(err.message);}finally{e.target.value='';}};
     $('removeSelfie').onclick=()=>{if(selfieUrl)URL.revokeObjectURL(selfieUrl);selfieUrl=null;selfieFile=null;selfieQuality=null;selfieQualityError=null;syncAiButtons();$('selfiePreview').removeAttribute('src');$('selfiePreview').hidden=true;$('removeSelfie').hidden=true;};
@@ -249,11 +253,14 @@
     document.querySelectorAll('[data-avatar-view]').forEach(b=>{const direction=b.dataset.avatarView;b.disabled=!isReady||aiBusy||avatarViews.busy||(direction!=='front'&&!avatarViews.entries[direction]);b.setAttribute('aria-pressed',String(direction===view));});
     $('generateViewRight').disabled=!isReady||!apiReady||aiBusy||avatarViews.busy;
     $('restoreViews').disabled=!isReady||aiBusy||avatarViews.busy;
+    $('saveFrontFace').disabled=!isReady||!headSprite;
+    $('saveRightFace').disabled=!avatarViews.entries.right;
     document.querySelectorAll('[data-motion]').forEach(b=>b.disabled=side);for(const id of ['playPause','speed','showRig'])$(id).disabled=side;
     if(side){$('poseLabel').textContent='우측 얼굴';$('playState').textContent='정적 머리 PNG';$('headTag').textContent='정면 머리 기준 · 몸 미포함';}
     else{$('headTag').textContent=eyeLayer?'얼굴 + 눈 + 머리카락 분리 레이어':'같은 머리 · 공통 동작';}
   }
-  function captureFront(){const out=surface(1024,1024),g=out.getContext('2d');if(eyeLayer&&hairLayer){g.drawImage(faceLayer.canvas,0,0);g.drawImage(eyeLayer.canvas,0,0);g.drawImage(hairLayer.canvas,0,0);}else{const im=headSprite.canvas,s=Math.min(1024/im.width,1024/im.height);g.drawImage(im,(1024-im.width*s)/2,(1024-im.height*s)/2,im.width*s,im.height*s);}return new Promise((resolve,reject)=>out.toBlob(blob=>blob?resolve(blob):reject(new Error('정면 머리 이미지를 만들지 못했어요.')),'image/png'));}
+  function drawFrontSource(g){if(eyeLayer&&hairLayer){g.drawImage(faceLayer.canvas,0,0,1024,1024);g.drawImage(eyeLayer.canvas,0,0,1024,1024);g.drawImage(hairLayer.canvas,0,0,1024,1024);}else if(headSprite)g.drawImage(headSprite.canvas,0,0,1024,1024);}
+  function captureFront(){const out=surface(1024,1024),g=out.getContext('2d');drawFrontSource(g);return new Promise((resolve,reject)=>out.toBlob(blob=>blob?resolve(blob):reject(new Error('정면 머리 이미지를 만들지 못했어요.')),'image/png'));}
   async function restoreAvatarViews(announce=true){
     if(!avatarViews||aiBusy||!isReady)return;aiBusy=true;syncAiButtons();
     try{const found=await avatarViews.restore();if(announce)$('avatarViewMessage').textContent=found.length?'현재 머리에 저장된 우측 얼굴을 불러왔어요. AI는 호출하지 않았어요.':'현재 머리에 저장된 우측 얼굴이 없어요. 우측 얼굴 생성 버튼을 눌러 주세요.';}
@@ -268,6 +275,8 @@
       catch(error){$('avatarViewMessage').textContent=error.message;notify(error.message);}finally{aiBusy=false;syncAiButtons();syncControls();}
     };
     $('restoreViews').onclick=()=>restoreAvatarViews(true);
+    $('saveFrontFace').onclick=async()=>{try{const blob=await captureFront();download('RunKK_front_face_with_neck.png',blob);}catch(error){notify(error.message);}};
+    $('saveRightFace').onclick=()=>{const image=avatarViews.entries.right?.image;if(!image)return;const out=surface(1024,1024);out.getContext('2d').drawImage(image,0,0,1024,1024);saveCanvas(out,'RunKK_right_face.png');};
   }
   async function refreshApi(){
     try{const h=await apiRequest('/api/health');apiReady=Boolean(h.ok&&h.configured&&h.mode==='local-server-ai');$('apiState').textContent=apiReady?'GMS 로컬 서버 준비 · API 키 설정됨':'.env에 GMS_KEY를 설정하고 서버를 다시 실행해 주세요.';$('apiState').classList.toggle('error',!apiReady);$('apiState').title='키 설정 여부만 확인해요. 실제 모델 접근은 코디 생성 요청 시 확인돼요.';}catch(error){apiReady=false;$('apiState').textContent=error.message;$('apiState').classList.add('error');}syncAiButtons();
