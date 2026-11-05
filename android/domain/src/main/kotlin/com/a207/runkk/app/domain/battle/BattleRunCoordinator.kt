@@ -123,7 +123,7 @@ constructor(
                 )
             }
 
-            override fun hasArrived(run: BattleRun, mine: Distance): Boolean = mine.isAtLeast(run.distance)
+            override fun hasArrived(run: BattleRun, mineMeters: Double): Boolean = mineMeters >= run.distance.meters
         }
 
     /**
@@ -421,7 +421,8 @@ constructor(
         if (!run.round.isMeasuring || !run.round.accept(p)) return
         run.feed.onProgress(run, p)
         updateMine(run) { p.toMine() }
-        if (run.feed.hasArrived(run, p.distance)) finish(run, status = null)
+        // 반올림한 표시 거리가 아니라 정확한 누적 거리로 도착을 본다(W54)
+        if (run.feed.hasArrived(run, p.exactDistanceMeters)) finish(run, status = null)
     }
 
     private fun handle(run: BattleRun, m: ServerMessage) {
@@ -640,7 +641,8 @@ constructor(
     private interface OpponentFeed {
         fun onProgress(run: BattleRun, p: RunProgress)
 
-        fun hasArrived(run: BattleRun, mine: Distance): Boolean
+        /** 반올림 전 내 누적 거리(m)가 대결 거리에 닿았는가(W54). */
+        fun hasArrived(run: BattleRun, mineMeters: Double): Boolean
     }
 
     /** 기록 상대: 상대 거리를 보간하고 10m 넘는 선두 변경을 추월 안내로 낸다(FR-188). 도착은 GapTracker가 판정한다(S-13). */
@@ -660,7 +662,7 @@ constructor(
             }
         }
 
-        override fun hasArrived(run: BattleRun, mine: Distance): Boolean = gapTracker.hasArrived(mine)
+        override fun hasArrived(run: BattleRun, mineMeters: Double): Boolean = gapTracker.hasArrived(mineMeters)
     }
 
     private companion object {

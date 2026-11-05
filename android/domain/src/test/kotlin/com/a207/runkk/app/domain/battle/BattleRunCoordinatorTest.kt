@@ -618,6 +618,39 @@ class BattleRunCoordinatorTest {
     }
 
     @Test
+    fun `W54 랜덤 대결 도착은 반올림 전 거리로 본다 - 999_7m는 표시가 1000m여도 도착이 아니다`() = runTest {
+        val (tracker, coordinator) = setUp()
+        coordinator.onMatched(match)
+        runCurrent()
+        live.channel.messages.emit(BattleStart(battleId = 3, startAt = T0, opponentTrack = null))
+        runCurrent()
+        tracker.runTo(1, 0.0)
+        tracker.runTo(300, 999.7)
+        runCurrent()
+        assertEquals(1_000L, live.channel.sent.last().distanceMeters)
+        assertIs<BattleRunState.Running>(coordinator.state.value)
+        assertEquals(0, host.stopped)
+        tracker.runTo(301, 1_000.2)
+        runCurrent()
+        assertIs<BattleRunState.Finished>(coordinator.state.value)
+        assertEquals(1, host.stopped)
+    }
+
+    @Test
+    fun `W54 기록 대결 도착도 반올림 전 거리로 본다`() = runTest {
+        val (tracker, coordinator) = setUp()
+        coordinator.onRecordBattleStart(selfStart)
+        advanceTimeBy(3_001)
+        tracker.runTo(1, 0.0)
+        tracker.runTo(30, 99.7)
+        runCurrent()
+        assertIs<BattleRunState.Running>(coordinator.state.value)
+        tracker.runTo(31, 100.1)
+        runCurrent()
+        assertIs<BattleRunState.Finished>(coordinator.state.value)
+    }
+
+    @Test
     fun `대결 종료 메시지 - endRun 뒤 범위를 닫고 채널을 닫는다`() = runTest {
         val (_, coordinator) = setUp()
         coordinator.onMatched(match)
