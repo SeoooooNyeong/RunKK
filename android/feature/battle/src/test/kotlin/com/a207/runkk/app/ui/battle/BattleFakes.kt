@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.GpsReadiness
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.RunMode
 import com.a207.runkk.app.domain.account.AccountRepository
@@ -44,6 +45,7 @@ import com.a207.runkk.app.domain.live.ServerMessage
 import com.a207.runkk.app.domain.record.RecordDetail
 import com.a207.runkk.app.domain.record.RunSummary
 import com.a207.runkk.app.domain.run.CompletedRun
+import com.a207.runkk.app.domain.run.GpsWarmUp
 import com.a207.runkk.app.domain.run.Guidance
 import com.a207.runkk.app.domain.run.GuidanceOutput
 import com.a207.runkk.app.domain.run.HeartRateSample
@@ -576,6 +578,13 @@ private class ConsentedSettings : SettingsRepository {
     override suspend fun clear(): Outcome<Unit> = Outcome.Success(Unit)
 }
 
+/** GPS 예열 가짜(W55). [updates]에 값을 넣으면 조정자가 성사·카운트다운 상태에 싣는다. */
+class FakeGpsWarmUp : GpsWarmUp {
+    val updates = MutableSharedFlow<GpsReadiness>(extraBufferCapacity = 8)
+
+    override fun readiness(maxAccuracyMeters: Double): Flow<GpsReadiness> = updates
+}
+
 /** 실제 BattleRunCoordinator(+ RunTracker)를 가짜 포트로 조립한다. 범위는 runTest의 backgroundScope. */
 class BattleWorld(
     scope: CoroutineScope,
@@ -602,7 +611,8 @@ class BattleWorld(
             RunCoach(silent, ConsentedSettings()),
             MeasurementRuntime(permission, silent, ConsentedSettings(), clock)
         )
-    val coordinator = BattleRunCoordinator(tracker, channels, battles, silent, clock, scope)
+    val gps = FakeGpsWarmUp()
+    val coordinator = BattleRunCoordinator(tracker, channels, battles, silent, clock, scope, gps)
 
     companion object {
         /** 조정자 범위: 시험 스케줄러를 쓰는 표준 디스패처(직렬화용 limitedParallelism을 쓰려면 Unconfined가 아니어야 한다). */

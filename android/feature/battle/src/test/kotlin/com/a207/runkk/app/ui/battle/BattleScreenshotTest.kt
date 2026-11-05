@@ -12,6 +12,7 @@ import com.a207.runkk.app.core.designsystem.testing.RUNKK_PHONE
 import com.a207.runkk.app.core.designsystem.testing.captureRunkkScreen
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.GeoPoint
+import com.a207.runkk.app.core.model.GpsReadiness
 import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.core.model.RouteLine
 import com.a207.runkk.app.core.model.TierDisplay
@@ -260,6 +261,34 @@ class BattleScreenshotTest {
     fun matchFoundScreen() = compose.captureRunkkScreen("D2_match_found") {
         MatchScreen(
             MatchUiState(phase = MatchPhase.MATCHED, match = matchFound(), startsInSeconds = 7, myTier = "GOLD"),
+            MatchActions()
+        )
+    }
+
+    @Test
+    fun matchFoundGpsSearching() = compose.captureRunkkScreen("D2_match_found_gps_searching") {
+        MatchScreen(
+            MatchUiState(
+                phase = MatchPhase.MATCHED,
+                match = matchFound(),
+                startsInSeconds = 7,
+                myTier = "GOLD",
+                gps = GpsReadiness.SEARCHING
+            ),
+            MatchActions()
+        )
+    }
+
+    @Test
+    fun matchFoundGpsReady() = compose.captureRunkkScreen("D2_match_found_gps_ready") {
+        MatchScreen(
+            MatchUiState(
+                phase = MatchPhase.MATCHED,
+                match = matchFound(),
+                startsInSeconds = 7,
+                myTier = "GOLD",
+                gps = GpsReadiness.READY
+            ),
             MatchActions()
         )
     }

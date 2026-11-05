@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.GpsReadiness
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.account.AccountRepository
@@ -608,7 +609,13 @@ class MatchViewModel @Inject constructor(
         followJob = viewModelScope.launch {
             coordinator.state.collect { s ->
                 when (s) {
-                    is BattleRunState.Countdown -> if (s.battleId == match.battleId) countdownTo(s)
+                    is BattleRunState.Matched -> if (s.match.battleId == match.battleId) showGps(s.gps)
+
+                    is BattleRunState.Countdown -> if (s.battleId == match.battleId) {
+                        showGps(s.gps)
+                        // GPS 상태만 바뀐 값이면 출발 카운트다운을 다시 세지 않는다.
+                        if (s.startAt != startAt) countdownTo(s)
+                    }
 
                     is BattleRunState.Running -> if (s.battleId == match.battleId) {
                         releaseWaitingLease()
@@ -681,6 +688,9 @@ class MatchViewModel @Inject constructor(
     }
 
     private fun showNotice(text: UiText) = _state.update { it.copy(notice = text) }
+
+    /** 조정자의 GPS 예열 상태(W55)를 성사 화면에 옮긴다. */
+    private fun showGps(gps: GpsReadiness?) = _state.update { it.copy(gps = gps) }
 
     /** 대기 채널과 시계를 정리한다(서버 정리는 하지 않는다). */
     private fun closeWaiting() {

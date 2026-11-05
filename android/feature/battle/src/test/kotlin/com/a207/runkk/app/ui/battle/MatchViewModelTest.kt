@@ -9,6 +9,7 @@ import app.cash.turbine.test
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.GpsReadiness
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.battle.ActiveBattle
@@ -190,6 +191,30 @@ class MatchViewModelTest {
                 started.key
             )
         }
+    }
+
+    @Test
+    fun `W55 성사 화면에 GPS 예열 상태를 보이고 상태만 바뀌어도 출발 카운트다운을 다시 세지 않는다`() = main.runVmTest { vms ->
+        val w = world()
+        val vm = quick(w, vms)
+        val match = matchFound()
+        w.channels.channel.push(match)
+        runCurrent()
+        assertNull(vm.state.value.gps)
+        w.gps.updates.emit(GpsReadiness.SEARCHING)
+        runCurrent()
+        assertEquals(GpsReadiness.SEARCHING, vm.state.value.gps)
+
+        w.channels.channel.push(BattleStart(match.battleId, w.clock.now.plusSeconds(10), opponentTrack = null))
+        runCurrent()
+        assertEquals(10L, vm.state.value.startsInSeconds)
+        assertEquals(GpsReadiness.SEARCHING, vm.state.value.gps)
+        w.clock.now = w.clock.now.plusSeconds(4)
+        advanceTimeBy(1_100)
+        w.gps.updates.emit(GpsReadiness.READY)
+        runCurrent()
+        assertEquals(GpsReadiness.READY, vm.state.value.gps)
+        assertEquals(6L, vm.state.value.startsInSeconds)
     }
 
     @Test

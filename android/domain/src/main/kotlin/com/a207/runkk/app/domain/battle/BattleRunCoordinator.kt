@@ -3,6 +3,7 @@ package com.a207.runkk.app.domain.battle
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.GpsReadiness
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.RunMode
 import com.a207.runkk.app.domain.live.BattleEnded
@@ -27,9 +28,11 @@ import com.a207.runkk.app.domain.live.OpponentProgress
 import com.a207.runkk.app.domain.live.ProgressReport
 import com.a207.runkk.app.domain.live.ServerMessage
 import com.a207.runkk.app.domain.run.CoordinatedRound
+import com.a207.runkk.app.domain.run.GpsWarmUp
 import com.a207.runkk.app.domain.run.Guidance
 import com.a207.runkk.app.domain.run.GuidanceMessage
 import com.a207.runkk.app.domain.run.GuidanceOutput
+import com.a207.runkk.app.domain.run.LocationFilter
 import com.a207.runkk.app.domain.run.PlanSnapshot
 import com.a207.runkk.app.domain.run.RunProgress
 import com.a207.runkk.app.domain.run.RunStartSpec
@@ -53,6 +56,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * 대결 러닝의 측정과 실시간 메시지를 잇는다(6.1.14). 화면이 아니라 대결 한 회와 수명을 같이 한다:
@@ -75,7 +79,8 @@ constructor(
     private val battleRepository: BattleRepository,
     private val guidanceOutput: GuidanceOutput,
     private val clock: Clock,
-    private val applicationScope: CoroutineScope
+    private val applicationScope: CoroutineScope,
+    private val gpsWarmUp: GpsWarmUp
 ) {
     private val _state = MutableStateFlow<BattleRunState>(BattleRunState.Idle)
     val state: StateFlow<BattleRunState> = _state.asStateFlow()
@@ -136,6 +141,7 @@ constructor(
         val run = openRun(m.battleId, m.distance, m.opponentName, startDevice)
         run.round.scope.launch {
             _state.value = BattleRunState.Matched(m)
+            warmUpGps(run)
             val channel = liveChannelProvider.open()
             run.attach(channel)
             run.round.scope.launch { channel.state.collect { _liveState.value = it } }
@@ -362,10 +368,43 @@ constructor(
         _failure.value = null
     }
 
+    /**
+     * 성사 뒤 출발 전까지 GPS를 미리 켠다(W55, 실기기 시험에서 출발 뒤 41초 동안 위치가 없었다). 측정과 같은 정확도 기준(30m)의
+     * 위치를 한 번 받으면 준비됨으로 두고, 상태는 성사·카운트다운 상태의 gps로 보인다. 측정을 시작하면([begin]) 끄고, 회가 닫히면
+     * (취소·이탈·그만두기·연결 실패) 범위와 함께 꺼진다. 상한 시간이 지나거나 위치를 켤 수 없으면 끄고 상태를 지운다.
+     */
+    private fun warmUpGps(run: BattleRun) {
+        run.warmUpJob =
+            run.round.scope.launch {
+                withTimeoutOrNull(GPS_WARM_UP_LIMIT.toMillis()) {
+                    gpsWarmUp.readiness(LocationFilter.MAX_ACCURACY_METERS).collect { readiness ->
+                        if (run.gps != GpsReadiness.READY) showGps(run, readiness)
+                    }
+                }
+                showGps(run, null)
+            }
+    }
+
+    /** 이 회의 예열 상태를 성사·카운트다운 상태에 싣는다. 다른 상태(측정 중·종료)는 그대로 둔다. */
+    private fun showGps(run: BattleRun, readiness: GpsReadiness?) {
+        run.gps = readiness
+        _state.update { current ->
+            when {
+                current is BattleRunState.Matched && current.match.battleId == run.battleId ->
+                    current.copy(gps = readiness)
+
+                current is BattleRunState.Countdown && current.battleId == run.battleId ->
+                    current.copy(gps = readiness)
+
+                else -> current
+            }
+        }
+    }
+
     private suspend fun start(run: BattleRun, s: BattleStart) {
         if (run.battleId != s.battleId) return
         if (!run.schedule(s.opponentTrack?.let(OpponentTrack::from), cardKind = null)) return
-        _state.value = BattleRunState.Countdown(s.battleId, s.startAt)
+        _state.value = BattleRunState.Countdown(s.battleId, s.startAt, run.gps)
         val wait = Duration.between(clock.instant(), s.startAt)
         if (!wait.isNegative) delay(wait.toMillis())
         begin(run)
@@ -398,6 +437,8 @@ constructor(
                 )
             }
         val started = run.round.begin(spec) { progress(run, it) }
+        // 측정 서비스의 위치 구독이 이어받는다. 예열 위치는 기록에 넘기지 않았다(W55).
+        run.stopGpsWarmUp()
         if (started is Outcome.Failure) {
             fail(run, started.error)
             return false
@@ -620,6 +661,16 @@ constructor(
         /** 그만두기를 보냈는가(연타 막기). 이 회의 직렬 디스패처에서만 읽고 쓴다. */
         var isForfeiting = false
 
+        /** 성사 뒤 GPS 예열(W55)과 그 상태. 이 회의 직렬 디스패처에서만 읽고 쓴다. */
+        var warmUpJob: Job? = null
+        var gps: GpsReadiness? = null
+
+        /** 예열을 끈다. 측정이 시작되면 성사·카운트다운 상태가 사라지므로 상태는 지우지 않는다. */
+        fun stopGpsWarmUp() {
+            warmUpJob?.cancel()
+            warmUpJob = null
+        }
+
         /** 시작 예약을 받았는가. 같은 시작 신호(onStart·BattleStart 재전송)가 두 번 와도 한 번만 시작한다. */
         private var isScheduled = false
 
@@ -667,6 +718,9 @@ constructor(
 
     private companion object {
         val RECORD_COUNTDOWN: Duration = Duration.ofSeconds(3)
+
+        /** GPS 예열 상한(5분, 워치 W53과 같다). 출발이 늦어져도 GPS를 계속 켜 두지 않는다. */
+        val GPS_WARM_UP_LIMIT: Duration = Duration.ofMinutes(5)
 
         /** 오프라인 기록 대결의 상태 값 battleId 자리(서버 대결 없음, D-377 "RecordBattleStart(battleId = 0) 대신"). */
         const val OFFLINE_BATTLE_ID = 0L

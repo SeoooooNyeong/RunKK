@@ -16,6 +16,7 @@ import com.a207.runkk.app.domain.battle.RecordBattleKind
 import com.a207.runkk.app.domain.live.MatchFailed
 import com.a207.runkk.app.domain.live.MatchFound
 import com.a207.runkk.app.domain.run.CompletedRun
+import com.a207.runkk.app.domain.run.GpsWarmUp
 import com.a207.runkk.app.domain.run.PendingRunRepository
 import com.a207.runkk.watch.cache.OpponentRecordCache
 import com.a207.runkk.watch.link.MatchWaiter
@@ -66,7 +67,8 @@ class WatchBattleFlowTest {
         val clock = SchedulerClock(testScheduler)
         val settings = FakeSettingsRepository()
         val tracker = runTracker(LocalWatchGateway(alertPlayer(), settings, clock), settings = settings)
-        val coordinator = BattleRunCoordinator(tracker, live, battles, FakeGuidanceOutput(), clock, backgroundScope)
+        val coordinator =
+            BattleRunCoordinator(tracker, live, battles, FakeGuidanceOutput(), clock, backgroundScope, GpsWarmUp.NONE)
         val cache = OpponentRecordCache(
             File(createTempDirectory("battle-flow").toFile(), "opponent-records.json"),
             battles,

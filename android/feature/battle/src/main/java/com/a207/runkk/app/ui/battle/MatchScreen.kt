@@ -40,6 +40,7 @@ import com.a207.runkk.app.core.designsystem.RunkkActionDialog
 import com.a207.runkk.app.core.designsystem.RunkkAvatar
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkFormat
+import com.a207.runkk.app.core.designsystem.RunkkLiveDot
 import com.a207.runkk.app.core.designsystem.RunkkPrimaryButton
 import com.a207.runkk.app.core.designsystem.RunkkSecondaryButton
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
@@ -47,6 +48,7 @@ import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.designsystem.tierName
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.GpsReadiness
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.domain.battle.FriendInviteView
 import com.a207.runkk.app.domain.live.MatchFound
@@ -339,6 +341,7 @@ private fun ColumnScope.Matched(match: MatchFound, state: MatchUiState, onForfei
             }
         )
         StartRing(state.startsInSeconds, total = MATCH_START_SECONDS)
+        state.gps?.let { GpsStatus(it) }
     }
     // 측정이 늦어지면(배틀 QA 2번) 뒤로가기가 막힌 이 화면에서 나갈 길을 준다.
     if (state.canForfeit) {
@@ -346,6 +349,35 @@ private fun ColumnScope.Matched(match: MatchFound, state: MatchUiState, onForfei
             stringResource(R.string.battle_match_forfeit),
             onClick = onForfeit,
             modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+/**
+ * 출발 전 GPS 예열 상태(W55): 점과 "GPS 찾는 중"·"GPS 준비됨", 그 아래 안내 한 줄. 찾는 중이면 점이 라벤더, 준비되면 라임이다
+ * (워치 W53 알약과 같은 색).
+ */
+@Composable
+private fun GpsStatus(gps: GpsReadiness) {
+    val isReady = gps == GpsReadiness.READY
+    Column(
+        modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            RunkkLiveDot(color = if (isReady) RunkkColors.Lime else RunkkColors.Lavender)
+            Text(
+                stringResource(if (isReady) R.string.battle_match_gps_ready else R.string.battle_match_gps_searching),
+                style = RunkkTextStyles.BodyStrong,
+                color = RunkkColors.TextPrimary
+            )
+        }
+        Text(
+            stringResource(R.string.battle_match_gps_guide),
+            style = RunkkTextStyles.Caption,
+            color = RunkkColors.TextSecondary,
+            textAlign = TextAlign.Center
         )
     }
 }
