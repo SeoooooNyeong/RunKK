@@ -55,6 +55,8 @@ import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material3.Text
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Gender
+import com.a207.runkk.watch.battle.PLACEMENT_RUNS
+import com.a207.runkk.watch.battle.tierNameRes
 
 /** 트랙 그림 배경(피그마 Q1). [isDimmed]면 글자가 잘 보이게 푸른 막을 깐다(피그마 F1·FR3·결과 화면). */
 @Composable
@@ -164,28 +166,28 @@ internal fun modeName(mode: WatchMode): String = stringResource(
     }
 )
 
-/** 서버 티어 코드 → 이름(폰 core.designsystem TierName과 같은 표). 모르는 코드는 그대로 보인다. */
+/** 서버 티어 코드 → 이름(폰 core.designsystem TierName과 같은 표, watch.battle tierNameRes). 모르는 코드는 그대로 보인다. */
 @Composable
-internal fun tierName(tier: String): String = when (tier) {
-    "UNRANKED" -> stringResource(R.string.tier_unranked)
-    "BRONZE" -> stringResource(R.string.tier_bronze)
-    "SILVER" -> stringResource(R.string.tier_silver)
-    "GOLD" -> stringResource(R.string.tier_gold)
-    "PLATINUM" -> stringResource(R.string.tier_platinum)
-    "MASTER" -> stringResource(R.string.tier_master)
-    else -> tier
-}
+internal fun tierName(tier: String): String = tierNameRes(tier)?.let { stringResource(it) } ?: tier
 
 /** 티어 칩(피그마 BMA "실버"). */
 @Composable
-internal fun TierChip(tier: String, modifier: Modifier = Modifier) {
+internal fun TierChip(tier: String, modifier: Modifier = Modifier) = OutlineChip(tierName(tier), modifier)
+
+/** 테두리 칩 한 개(티어 칩, 배치고사 매칭 완료의 「배치고사 n/3」). */
+@Composable
+internal fun OutlineChip(text: String, modifier: Modifier = Modifier) {
     val shape = RoundedCornerShape(50)
     Text(
-        text = tierName(tier),
+        text = text,
         modifier = modifier.border(1.dp, WatchColors.OnSurface, shape).padding(horizontal = 8.dp, vertical = 1.dp),
         style = labelStyle(color = WatchColors.OnSurface, size = 11.sp)
     )
 }
+
+/** 배치고사 판 표시 「배치고사 n/3」(워치 배치고사, FR-276). */
+@Composable
+internal fun placementRoundText(round: Int): String = stringResource(R.string.placement_round, round, PLACEMENT_RUNS)
 
 /** 내 기본 캐릭터 전신 그림(FR-162: 여자면 여자 그림, 그 밖은 남자 그림). 장식이다. */
 @Composable
@@ -223,8 +225,8 @@ internal fun FaceImage(gender: Gender?, modifier: Modifier = Modifier) {
 internal val LocalOpenLocationSettings = staticCompositionLocalOf<() -> Unit> { {} }
 
 /**
- * 안내 문구 한 줄(트랙 바탕 위 흰 굵은 글자, 나타나면 읽어 준다). 없으면 그리지 않는다. 배치 중 랜덤 대결 잠금(J24-12)은 남은 수 없는
- * 고정 문구다. 워치 위치 꺼짐(W52)은 누르면 위치 설정을 연다([LocalOpenLocationSettings]).
+ * 안내 문구 한 줄(트랙 바탕 위 흰 굵은 글자, 나타나면 읽어 준다). 없으면 그리지 않는다. 옛 서버 RANKED_ONLY 거부의 랜덤 대결
+ * 잠금(J24-12, WR12-1)은 남은 수 없는 고정 문구다. 워치 위치 꺼짐(W52)은 누르면 위치 설정을 연다([LocalOpenLocationSettings]).
  */
 @Composable
 internal fun FlowNoticeText(

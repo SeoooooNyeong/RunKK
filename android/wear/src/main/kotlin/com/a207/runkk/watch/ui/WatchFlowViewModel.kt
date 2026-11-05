@@ -10,6 +10,7 @@ import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.core.model.RunMode
 import com.a207.runkk.app.domain.account.AccountRepository
+import com.a207.runkk.app.domain.account.PlacementStatus
 import com.a207.runkk.app.domain.run.FinishOutcome
 import com.a207.runkk.app.domain.run.FreeRunGoal
 import com.a207.runkk.app.domain.run.PlanSnapshot
@@ -17,6 +18,7 @@ import com.a207.runkk.app.domain.run.RunProgress
 import com.a207.runkk.app.domain.run.RunStartSpec
 import com.a207.runkk.app.domain.run.RunTracker
 import com.a207.runkk.watch.battle.BattleStep
+import com.a207.runkk.watch.battle.PlacementStanding
 import com.a207.runkk.watch.battle.RecordOpponent
 import com.a207.runkk.watch.battle.WatchBattleFlow
 import com.a207.runkk.watch.battle.WatchResultHeadline
@@ -46,7 +48,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 /**
  * 워치 화면 흐름 상태(WatchFlow, 상태도 2.4.25)를 정하고 사용자 조작을 domain에 넘긴다(3.5, D-374). 협력 객체는 아홉이다(D-386, W52, W53):
  * 측정 RunTracker, 대결 WatchBattleFlow, 로그인 WatchSessionStore, 폰 PhoneLink(동행 표시·로그인 정보 요청), 서버 연결 NetworkState,
- * 안내 문구 WatchGuidanceOutput, 본인 요약 AccountRepository(티어·성별), 워치 시스템 위치 LocationSettingState, GPS 예열 GpsWarmUp.
+ * 안내 문구 WatchGuidanceOutput, 본인 요약 AccountRepository(티어·성별·배치고사 진행), 워치 시스템 위치 LocationSettingState, GPS 예열 GpsWarmUp.
  *
  * - GPS(W53): 메인·거리 선택·셀럽 목록이 화면에 보이는 동안(앱이 앞에 있고 저전력 표시가 아님) GPS를 예열하고 메인에 찾는 중·준비됨을
  *   보인다. 워치 위치가 꺼져 있으면 예열하지 않고 메인에 위치 안내를 보인다. 시작하면(카운트다운·매칭) 예열을 멈춘다. 측정 중에는 위치를
@@ -54,8 +56,12 @@ import kotlinx.coroutines.withTimeoutOrNull
  *
  * - 시작 전 확인: 폰이 측정 중이면 거부(FR-252), 위치 동의가 없으면 "폰에서 위치 수집 동의를 해 주세요"(FR-245), 워치 시스템 위치가
  *   꺼져 있으면 "워치 위치를 켜 주세요"(W52, 카운트다운·서버 대결·매칭 전에 막는다). 배틀런은 서버에 닿지
- *   않으면 시작하지 않는다(FR-251). 배틀런 랜덤 대결은 배치 중이면 매칭을 요청하기 전에 잠근다(J24-12, RandomBattleGate.isWatchRandomLocked). 서버 거부는
- *   사유 코드마다 폰 BattleErrorText와 같은 뜻의 안내를 보인다(코드 리뷰 WR12-1). 셀프·셀럽런은 서버에 닿으면 서버 대결, 아니면 미리 받은 상대 기록으로 워치에서만 한다(D-377, R72).
+ *   않으면 시작하지 않는다(FR-251). 배치 중(UNRANKED)이어도 랜덤 대결을 잠그지 않는다: 서버가 배치고사 판으로 받는다(워치 배치고사, FR-274).
+ *   옛 서버가 RANKED_ONLY로 거부하면 그때부터 잠금 안내다. 서버 거부는 사유 코드마다 폰 BattleErrorText와 같은 뜻의 안내를 보인다(코드 리뷰 WR12-1).
+ *   셀프·셀럽런은 서버에 닿으면 서버 대결, 아니면 미리 받은 상대 기록으로 워치에서만 한다(D-377, R72).
+ * - 배치고사(워치 배치고사, FR-276·FR-280): 배치 중이면 배틀런 거리 선택에 다음 판 「배치고사 n/3」, 성사 화면은 가상 상대를 숨기고, 결과는
+ *   판정 머리말에 판 셈 문구다(본인 배치고사 진행은 이 ViewModel이 읽어 넘긴다). 판 셈이 정해지지 않았으면 [PLACEMENT_RETRY_MILLIS]마다
+ *   [PLACEMENT_ATTEMPTS]번까지 다시 읽는다(폰과 같다, D-501).
  * - 자유런은 이 ViewModel이 3·2·1·GO 뒤 RunTracker.startRun을 부르고, 대결은 BattleRunCoordinator가 출발을 정한다.
  * - 끝: 자유런은 RunTracker.ended, 대결은 BattleStep.Finished로 결과(WatchResultHeadline)를 만든다. 측정 서비스가 밖에서 끝내면
  *   (운동 세션 실패) 기록이 있으면 결과, 없으면 "측정이 중단됐어요"로 메인에 돌아간다.
@@ -82,12 +88,14 @@ class WatchFlowViewModel @Inject constructor(
     /**
      * 러닝 한 회의 화면 맥락. [opponent]는 셀프·셀럽 상대 기록, [battleId]는 서버 대결 ID(오프라인 기록 대결은 0)다. [isFinished]는
      * 대결 끝(Finished)을 받아 결과로 들어간 회다: 그 뒤 오는 대결 단계는 결과 화면을 바꾸지 않는다(완료로만 닫는다, 2.4.25, R13 D1).
+     * [placementRound]는 매칭 요청 응답이 알린 배치고사 판 번호다(성사 알림에 없을 때 쓴다).
      */
     private data class Round(
         val mode: WatchMode,
         val goal: Distance?,
         val opponent: RecordOpponent? = null,
         val battleId: Long? = null,
+        val placementRound: Int? = null,
         val hasStarted: Boolean = false,
         val isEndedByUser: Boolean = false,
         val isFinished: Boolean = false
@@ -97,8 +105,11 @@ class WatchFlowViewModel @Inject constructor(
     private var lastMode = WatchMode.FREE
     private var myTier: String? = null
 
-    /** 워치 랜덤 대결 잠금(배치 중, WatchBattleFlow.isRandomLocked, J24-12). 모르면 거짓(서버가 판정한다). */
+    /** 워치 랜덤 대결 잠금: 옛 서버가 RANKED_ONLY로 거부했다(WR12-1). 본인 요약을 다시 읽으면 푼다(다시 거부되면 다시 잠근다). */
     private var isRandomLocked = false
+
+    /** 배치고사 중이면 다음 판 번호(GET /me/placement, 워치 배치고사). 배치고사 중이 아니거나 읽지 못하면 null이다. */
+    private var nextPlacementRound: Int? = null
     private var lastMemberId: Long? = null
     private var isPhoneRunning = false
     private var lastGap: Int? = null
@@ -434,10 +445,11 @@ class WatchFlowViewModel @Inject constructor(
     private fun onSession(session: WatchSession) {
         when (session) {
             WatchSession.None -> {
-                // 이전 회원의 오늘 계획·티어·배틀런 잠금이 다음 회원에게 남지 않게 지운다.
+                // 이전 회원의 오늘 계획·티어·배틀런 잠금·배치고사 판이 다음 회원에게 남지 않게 지운다.
                 phonePlan = null
                 myTier = null
                 isRandomLocked = false
+                nextPlacementRound = null
                 lastMemberId = null
                 battleFlow.forgetRecord()
                 if (isIdle(_flow.value) && _flow.value !is WatchFlow.Companion) _flow.value = WatchFlow.NotLoggedIn
@@ -512,8 +524,9 @@ class WatchFlowViewModel @Inject constructor(
             sessionStore.refreshSettings()
             (accounts.mySummary() as? Outcome.Success)?.value?.let { me ->
                 me.tier?.let { myTier = it }
-                isRandomLocked = battleFlow.isRandomLocked(me.tier)
+                isRandomLocked = false
             }
+            refreshPlacement()
             battleFlow.refreshCache(memberId)
         }
         // 늦게 온 서버 값이 방금 매칭을 요청한 거리를 덮지 않게 따로 읽고, 매칭을 요청하면 멈춘다(FR-109).
@@ -521,6 +534,17 @@ class WatchFlowViewModel @Inject constructor(
         battleDefaultJob = viewModelScope.launch {
             battleFlow.defaultDistance()?.takeIf { it in BATTLE_DISTANCES }?.let { battleDefault = it }
         }
+    }
+
+    /**
+     * 본인 배치고사 진행을 읽어 배틀런 거리 선택의 「배치고사 n/3」을 맞춘다(워치 배치고사). 배치 중이면 다음 판 번호(없으면 센 판 + 1),
+     * 아니거나 읽지 못하면 표시하지 않는다. 거리 선택이 열려 있으면 바로 바꾼다.
+     */
+    private suspend fun refreshPlacement() {
+        val progress = (accounts.placement() as? Outcome.Success)?.value
+        nextPlacementRound = progress?.takeIf { it.status == PlacementStatus.IN_PROGRESS }
+            ?.let { it.nextRound ?: (it.countedRounds + 1) }
+        (_flow.value as? WatchFlow.BattleDistance)?.let { _flow.value = it.copy(placementRound = nextPlacementRound) }
     }
 
     private fun startFree(picker: WatchFlow.FreeGoal) {
@@ -582,7 +606,11 @@ class WatchFlowViewModel @Inject constructor(
         matchingJob = viewModelScope.launch {
             val failure = when (val accepted = battleFlow.startMatching(distance)) {
                 is Outcome.Failure -> accepted.error
-                is Outcome.Success -> (battleFlow.awaitMatch() as? Outcome.Failure)?.error
+
+                is Outcome.Success -> {
+                    accepted.value.placementRound?.let { placement -> round = round?.copy(placementRound = placement) }
+                    (battleFlow.awaitMatch() as? Outcome.Failure)?.error
+                }
             } ?: return@launch
             waitingJob?.cancel()
             if (_flow.value is WatchFlow.Matching) {
@@ -683,7 +711,8 @@ class WatchFlowViewModel @Inject constructor(
             is BattleStep.Matched -> {
                 waitingJob?.cancel()
                 round = active.copy(battleId = step.battleId)
-                _flow.value = matchedFlow(step, tier = myTier, myGender = accounts.myGender.value)
+                val matched = matchedFlow(step, tier = myTier, myGender = accounts.myGender.value)
+                _flow.value = matched.copy(placementRound = matched.placementRound ?: active.placementRound)
             }
 
             is BattleStep.Countdown -> {
@@ -713,14 +742,15 @@ class WatchFlowViewModel @Inject constructor(
         }
     }
 
-    /** 매칭 완료 화면(FR-087): 상대 이름·성별·거리에 화면 흐름이 아는 내 티어·성별을 채운다. */
+    /** 매칭 완료 화면(FR-087): 상대 이름·성별·거리·배치고사 판에 화면 흐름이 아는 내 티어·성별을 채운다. */
     private fun matchedFlow(step: BattleStep.Matched, tier: String?, myGender: Gender?): WatchFlow.Matched =
         WatchFlow.Matched(
             tier = tier,
             distance = step.distance,
             opponentName = step.opponentName,
             myGender = myGender,
-            opponentGender = step.opponentGender
+            opponentGender = step.opponentGender,
+            placementRound = step.placementRound
         )
 
     /** 대결 출발 3·2·1(FR-087): 출발 시각까지 3초가 남을 때부터 센다. 측정 시작(Running)이 오면 GO 뒤 측정 화면이다. */
@@ -865,15 +895,49 @@ class WatchFlowViewModel @Inject constructor(
     /** 거리 선택을 보여도 되는가: 로그인되어 있고 폰이 측정 중이 아니다([enterHome]이 메인 대신 다른 화면을 고르는 경우가 아니다). */
     private fun isPickable(): Boolean = sessionStore.state.value is WatchSession.Active && !isPhoneRunning
 
-    /** 배틀런 결과: 서버 판정을 받는다. 보류면 "결과를 확인하고 있어요"를 보이고 판정이 올 때까지 다시 묻는다(FR-108). */
+    /**
+     * 배틀런 결과: 서버 판정을 받는다. 보류면 "결과를 확인하고 있어요"를 보이고 판정이 올 때까지 다시 묻는다(FR-108). 배치고사 판의 셈이
+     * 정해지지 않았으면 판정 머리말에 집계 중 문구를 두고 셈을 다시 읽는다([awaitPlacement]).
+     */
     private suspend fun showBattleResult(battleId: Long, outcome: FinishOutcome, summary: RunSummaryView) {
         if (battleId == OFFLINE_BATTLE_ID) {
             // 앱을 다시 열어 맥락을 잃은 오프라인 기록 대결: 상대를 몰라 자유런 결과로 보인다.
             _flow.value = WatchFlow.Result(WatchResultHeadline.forFree(outcome, goal = null), summary)
             return
         }
-        val headline = awaitVerdict(RESULT_ATTEMPTS, summary) { battleFlow.battleHeadline(battleId, lastGap) } ?: return
+        val headline = awaitVerdict(RESULT_ATTEMPTS, summary) { battleHeadline(battleId) } ?: return
         _flow.value = WatchFlow.Result(headline, summary)
+        if ((headline as? WatchResultHeadline.Placement)?.isCounting == true) awaitPlacement(battleId, summary)
+    }
+
+    /** 배틀런 결과 머리말. 배치고사 판을 셌으면 본인 배치고사 진행(GET /me/placement)을 읽어 넘긴다(워치 배치고사, FR-280). */
+    private suspend fun battleHeadline(battleId: Long): WatchResultHeadline =
+        battleFlow.battleHeadline(battleId, lastGap) {
+            (accounts.placement() as? Outcome.Success)?.value?.let { progress ->
+                PlacementStanding(
+                    isCompleted = progress.status != PlacementStatus.IN_PROGRESS,
+                    countedRounds = progress.countedRounds,
+                    provisionalTier = progress.provisionalTier,
+                    tier = progress.tier
+                )
+            }
+        }
+
+    /**
+     * 배치고사 판 셈이 정해질 때까지 [PLACEMENT_RETRY_MILLIS]마다 [PLACEMENT_ATTEMPTS]번까지 결과와 진행을 다시 읽는다(폰
+     * PlacementResultViewModel과 같은 2초 × 15, D-501). 정해지면 그 문구로 바꾸고, 끝내 정해지지 않으면 집계 중 문구로 둔다. 읽기에
+     * 실패해(판정 보류로 보임) 배치고사 머리말이 아니면 앞 화면을 그대로 둔다. 그 사이 결과 화면을 떠났으면 그만둔다.
+     */
+    private suspend fun awaitPlacement(battleId: Long, summary: RunSummaryView) {
+        repeat(PLACEMENT_ATTEMPTS) {
+            delay(PLACEMENT_RETRY_MILLIS)
+            val headline = battleHeadline(battleId)
+            if (_flow.value !is WatchFlow.Result) return
+            if (headline is WatchResultHeadline.Placement) {
+                _flow.value = WatchFlow.Result(headline, summary)
+                if (!headline.isCounting) return
+            }
+        }
     }
 
     /**
@@ -1030,7 +1094,13 @@ class WatchFlowViewModel @Inject constructor(
         val choices = BATTLE_DISTANCES.map { WatchFlow.Choice(it) }
         val wanted = selectedDistance ?: battleDefault
         val selected = choices.indexOfFirst { it.distance == wanted }.coerceAtLeast(0)
-        return WatchFlow.BattleDistance(choices, selected, connectivity.isOnline.value, isRandomLocked = isRandomLocked)
+        return WatchFlow.BattleDistance(
+            choices,
+            selected,
+            connectivity.isOnline.value,
+            isRandomLocked = isRandomLocked,
+            placementRound = nextPlacementRound
+        )
     }
 
     private fun celebPicker(selectedDistance: Distance?): WatchFlow.CelebDistance {
@@ -1082,6 +1152,10 @@ class WatchFlowViewModel @Inject constructor(
         /** 배틀런 판정을 묻는 횟수와 간격(3초 × 10, D-409). */
         const val RESULT_ATTEMPTS = 10
         const val RESULT_RETRY_MILLIS = 3_000L
+
+        /** 배치고사 판 셈을 다시 읽는 횟수와 간격(폰 PlacementResultViewModel과 같은 2초 × 15 = 30초, D-501). */
+        const val PLACEMENT_ATTEMPTS = 15
+        const val PLACEMENT_RETRY_MILLIS = 2_000L
 
         /**
          * 서버 대결 셀프·셀럽런 판정을 묻는 횟수(폰 결과 화면 BattleResultViewModel.PENDING_RETRIES와 같은 3초 × 20, W27).

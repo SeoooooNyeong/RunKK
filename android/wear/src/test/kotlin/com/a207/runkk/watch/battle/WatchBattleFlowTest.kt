@@ -6,11 +6,12 @@ import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.RunMode
+import com.a207.runkk.app.domain.battle.BattleResult
 import com.a207.runkk.app.domain.battle.BattleRunCoordinator
 import com.a207.runkk.app.domain.battle.BattleRunState
 import com.a207.runkk.app.domain.battle.MatchAcceptance
 import com.a207.runkk.app.domain.battle.OfflineRecordBattle
-import com.a207.runkk.app.domain.battle.RandomBattleGate
+import com.a207.runkk.app.domain.battle.PlacementRoundState
 import com.a207.runkk.app.domain.battle.RecordBattleKind
 import com.a207.runkk.app.domain.live.MatchFailed
 import com.a207.runkk.app.domain.live.MatchFound
@@ -106,15 +107,71 @@ class WatchBattleFlowTest {
     }
 
     @Test
-    fun `TC-5867 워치 잠금 판단은 공용 판단과 같다`() = runTest {
+    fun `배치고사 성사는 화면 단계에 판 번호를 싣는다(워치 배치고사)`() = runTest {
         val h = harness()
+        h.flow.startMatching(Distance(3_000))
+        val waiting = async { h.flow.awaitMatch() }
+        runCurrent()
 
-        listOf("UNRANKED", "GOLD", null).forEach { tier ->
-            assertEquals(RandomBattleGate.isWatchRandomLocked(tier), h.flow.isRandomLocked(tier), "티어 $tier")
-        }
-        assertTrue(h.flow.isRandomLocked("UNRANKED"))
-        assertFalse(h.flow.isRandomLocked(null))
+        live.server.tryEmit(MatchFound(9, "고스트", "UNRANKED", Distance(3_000), null, null, 3, placementRound = 2))
+        runCurrent()
+
+        assertEquals(Outcome.Success(Unit), waiting.await())
+        assertEquals(2, (h.flow.step() as BattleStep.Matched).placementRound)
     }
+
+    @Test
+    fun `배치고사 판 결과 머리말은 판정을 두고 문구를 배치고사 반영으로 바꾼다(FR-280)`() = runTest {
+        val h = harness()
+        battles.results[9] = placementResult(PlacementRoundState.COUNTED)
+
+        val headline = h.flow.battleHeadline(9, gapMeters = 12) { PlacementStanding(false, 1, "SILVER", "UNRANKED") }
+
+        assertEquals("WIN", headline.title())
+        assertEquals(
+            WatchResultHeadline.Placement(
+                WatchResultHeadline.Win("고스트", gapMeters = 12),
+                WatchResultHeadline.PlacementLine.InProgress(1, "SILVER")
+            ),
+            headline
+        )
+    }
+
+    @Test
+    fun `배치고사 판 셈이 정해지지 않았거나 세지 않았으면 진행을 읽지 않는다(FR-280)`() = runTest {
+        val h = harness()
+        var reads = 0
+        val standing: suspend () -> PlacementStanding? = {
+            reads++
+            null
+        }
+        battles.results[9] = placementResult(PlacementRoundState.PENDING)
+        assertEquals(
+            WatchResultHeadline.PlacementLine.Pending,
+            (h.flow.battleHeadline(9, null, standing) as WatchResultHeadline.Placement).line
+        )
+
+        battles.results[9] = placementResult(PlacementRoundState.NOT_COUNTED)
+        assertEquals(
+            WatchResultHeadline.PlacementLine.NotCounted,
+            (h.flow.battleHeadline(9, null, standing) as WatchResultHeadline.Placement).line
+        )
+        assertEquals(0, reads)
+    }
+
+    private fun placementResult(state: PlacementRoundState) = BattleResult(
+        battleId = 9,
+        isPending = false,
+        verdict = "WIN",
+        rows = emptyList(),
+        rewardPoints = null,
+        isNewRecord = false,
+        opponentName = "고스트",
+        myReach = Duration.ofSeconds(900),
+        opponentReach = Duration.ofSeconds(910),
+        placementRound = 1,
+        placementState = state
+    )
 
     @Test
     fun `기본 대결 거리는 서버 기본값이고 대기 중이면 대기 거리이며 읽지 못하면 null이다(FR-109)`() = runTest {

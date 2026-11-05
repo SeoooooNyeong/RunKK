@@ -6,6 +6,7 @@ import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.RunMode
 import com.a207.runkk.app.domain.battle.BattleResult
+import com.a207.runkk.app.domain.battle.PlacementRoundState
 import com.a207.runkk.app.domain.run.CompletedRun
 import com.a207.runkk.app.domain.run.FinishOutcome
 import java.time.Duration
@@ -333,5 +334,65 @@ class WatchResultHeadlineTest {
             WatchResultHeadline.forCelebVerdict(lose, "김*수", localLeadSeconds = 0)
         )
         assertHeadline("LOSE", null, WatchResultHeadline.forCelebVerdict(lose, "김*수", localLeadSeconds = 1))
+    }
+    private fun placement(state: PlacementRoundState?, round: Int? = 2) =
+        battle("WIN", mine = 900, theirs = 910, name = "고스트").copy(placementRound = round, placementState = state)
+
+    private fun progress(isCompleted: Boolean, counted: Int, provisional: String?, tier: String) =
+        PlacementStanding(isCompleted, counted, provisional, tier)
+
+    /** 워치 배치고사(FR-280, D-487): 머리말은 판정 그대로, 문구는 가상 상대 대신 이 판이 배치고사에 어떻게 들어갔는지다. */
+    @Test
+    fun `배치고사 판은 판정 머리말에 배치고사 반영 문구다`() {
+        val win = WatchResultHeadline.Win("고스트", gapMeters = 12)
+        val inProgress = progress(isCompleted = false, 2, "SILVER", "UNRANKED")
+        assertHeadline(
+            "WIN",
+            "배치고사 2/3 · 임시 실버",
+            WatchResultHeadline.forPlacement(win, placement(PlacementRoundState.COUNTED), inProgress)
+        )
+        assertHeadline(
+            "WIN",
+            "배치고사 2/3",
+            WatchResultHeadline.forPlacement(
+                win,
+                placement(PlacementRoundState.COUNTED),
+                inProgress.copy(provisionalTier = null)
+            )
+        )
+        assertHeadline(
+            "WIN",
+            "배치고사 완료 · 티어 확정 골드",
+            WatchResultHeadline.forPlacement(
+                win,
+                placement(PlacementRoundState.COUNTED, round = 3),
+                progress(isCompleted = true, 3, null, "GOLD")
+            )
+        )
+        assertHeadline(
+            "WIN",
+            "배치고사에 반영되지 않았어요",
+            WatchResultHeadline.forPlacement(win, placement(PlacementRoundState.NOT_COUNTED), null)
+        )
+        assertHeadline(
+            "WIN",
+            "배치고사 결과를 집계하고 있어요",
+            WatchResultHeadline.forPlacement(win, placement(PlacementRoundState.PENDING), null)
+        )
+    }
+
+    @Test
+    fun `셈은 됐는데 진행을 읽지 못하면 이 판 번호만 보이고 배치고사가 아니면 판정 그대로다`() {
+        val lose = WatchResultHeadline.Lose("고스트", 8)
+        assertHeadline(
+            "LOSE",
+            "배치고사 2/3",
+            WatchResultHeadline.forPlacement(lose, placement(PlacementRoundState.COUNTED), null)
+        )
+        assertEquals(lose, WatchResultHeadline.forPlacement(lose, placement(null, round = null), null))
+        assertEquals(
+            WatchResultHeadline.Pending,
+            WatchResultHeadline.forPlacement(WatchResultHeadline.Pending, placement(PlacementRoundState.PENDING), null)
+        )
     }
 }

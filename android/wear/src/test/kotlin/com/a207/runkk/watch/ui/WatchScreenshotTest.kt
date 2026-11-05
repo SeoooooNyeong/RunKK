@@ -210,11 +210,21 @@ class WatchScreenshotTest {
         WatchFlow.BattleDistance(choices(1_000, 3_000, 5_000, 10_000), isOnline = false)
     )
 
-    /** TC-5868 배치 중 잠금(J24-12, D-500): 「폰에서 배치고사를 마치면 열려요」를 보이고 매칭 시작을 막는다. */
+    /**
+     * TC-5868 옛 서버의 RANKED_ONLY 거부 뒤 잠금(WR12-1): 「폰에서 배치고사를 마치면 열려요」를 보이고 매칭 시작을 막는다. 배치 중이라고
+     * 잠그지는 않는다(워치 배치고사).
+     */
     @Test
     fun battleLocked() = capture(
         "B1-1_watch_battle_locked",
         WatchFlow.BattleDistance(choices(1_000, 3_000, 5_000, 10_000), selected = 2, isRandomLocked = true)
+    )
+
+    /** 배치고사 중 배틀런 거리(워치 배치고사): 모드 칩이 「배틀런」 대신 다음 판 「배치고사 2/3」. */
+    @Test
+    fun battlePlacement() = capture(
+        "B1-1_watch_battle_placement",
+        WatchFlow.BattleDistance(choices(1_000, 3_000, 5_000, 10_000), selected = 2, placementRound = 2)
     )
 
     @Test
@@ -290,6 +300,20 @@ class WatchScreenshotTest {
         WatchFlow.Matched("SILVER", Distance(3_000), "민준", myGender = Gender.FEMALE, opponentGender = Gender.MALE)
     )
 
+    /** 배치고사 성사(FR-276): 가상 상대 얼굴 대신 점선 원 「?」와 「배치고사 상대」, 티어 칩 자리에 「배치고사 1/3」, 「배치고사를 시작해요!」. */
+    @Test
+    fun matchedPlacement() = capture(
+        "BMB_watch_matched_placement",
+        WatchFlow.Matched(
+            "UNRANKED",
+            Distance(3_000),
+            "고스트",
+            myGender = Gender.FEMALE,
+            opponentGender = Gender.MALE,
+            placementRound = 1
+        )
+    )
+
     @Test
     fun countdownFree() =
         capture("FC3_watch_countdown_free_3km", WatchFlow.Countdown(WatchMode.FREE, Distance(3_000), 3))
@@ -363,6 +387,40 @@ class WatchScreenshotTest {
 
     @Test
     fun resultPending() = capture("BW1_watch_result_pending", WatchFlow.Result(WatchResultHeadline.Pending, summary))
+
+    /** 배치고사 판 결과(FR-280·FR-281): 판정 머리말에 배치고사 반영 문구. */
+    @Test
+    fun resultPlacementConfirmed() = capture(
+        "BW1_watch_result_placement_confirmed",
+        WatchFlow.Result(placement(WatchResultHeadline.PlacementLine.Confirmed("GOLD")), summary)
+    )
+
+    @Test
+    fun resultPlacementProvisional() = capture(
+        "BW1_watch_result_placement_provisional",
+        WatchFlow.Result(placement(WatchResultHeadline.PlacementLine.InProgress(2, "SILVER")), summary)
+    )
+
+    @Test
+    fun resultPlacementNotCounted() = capture(
+        "BL1_watch_result_placement_not_counted",
+        WatchFlow.Result(
+            WatchResultHeadline.Placement(
+                WatchResultHeadline.Lose("고스트", 8),
+                WatchResultHeadline.PlacementLine.NotCounted
+            ),
+            summary
+        )
+    )
+
+    @Test
+    fun resultPlacementPending() = capture(
+        "BW1_watch_result_placement_pending",
+        WatchFlow.Result(placement(WatchResultHeadline.PlacementLine.Pending), summary)
+    )
+
+    private fun placement(line: WatchResultHeadline.PlacementLine) =
+        WatchResultHeadline.Placement(WatchResultHeadline.Win("고스트", gapMeters = 12), line)
 
     /** 평균 심박이 없으면 그 칸을 비운다(FR-249, R13 D5). */
     @Test

@@ -64,7 +64,8 @@ import com.a207.runkk.app.core.model.Distance
 /**
  * 거리 카드 고르기(자유·배틀·셀프·셀럽 공용, FR-244, FR-257~FR-259). 화면은 상태 하나를 그리기만 한다.
  * - 자유런·배틀런(피그마 F1·F1-3·B1-1): 가운데 큰 숫자(무제한은 ∞)와 −·+, 둘레 고리, "달리기 시작"·"매칭 시작". 베젤·−·+로 바꾸면
- *   [onDistanceSelected], 시작은 [onStartPressed]다. 서버에 닿지 않으면 "매칭 시작"을 막는다(FR-251).
+ *   [onDistanceSelected], 시작은 [onStartPressed]다. 서버에 닿지 않으면 "매칭 시작"을 막는다(FR-251). 배치고사 중이면 배틀런 모드 칩이
+ *   「배틀런」 대신 다음 판 「배치고사 n/3」이다(워치 배치고사).
  * - 셀프런·셀럽런(피그마 S1-3): 거리 목록. 셀프런은 내 최고 기록 시간, 셀럽런은 셀럽 기록 수를 보이고 기록 없는 거리는 "기록 없음"으로
  *   누를 수 없다(W10). 카드를 누르면 [onDistanceSelected]다. 셀프런은 고르지 않은 카드를 고르기만 하고 고른 카드를 다시 누르면 시작한다(W50).
  */
@@ -92,7 +93,8 @@ fun WatchDistancePicker(
                 blocked = battleBlocked(state),
                 onDistanceSelected,
                 onStartPressed,
-                modifier
+                modifier,
+                chip = state.placementRound?.let { placementRoundText(it) }
             )
 
         is WatchFlow.SelfDistance -> ListPicker(state, WatchMode.SELF, onDistanceSelected, modifier)
@@ -101,14 +103,14 @@ fun WatchDistancePicker(
     }
 }
 
-/** 배틀런 매칭 시작을 막는 사유: 서버에 닿지 않음(FR-251), 랜덤 대결 잠금(FR-080, WR12-1). 없으면 null. */
+/** 배틀런 매칭 시작을 막는 사유: 서버에 닿지 않음(FR-251), 옛 서버의 랜덤 대결 거부 잠금(RANKED_ONLY, WR12-1). 없으면 null. */
 private fun battleBlocked(state: WatchFlow.BattleDistance): WatchFlow.Notice? = when {
     !state.isOnline -> WatchFlow.Notice.BATTLE_OFFLINE
     state.isRandomLocked -> WatchFlow.Notice.RANDOM_LOCKED
     else -> null
 }
 
-/** [blocked]가 있으면 시작 버튼을 막고 다른 안내가 없을 때 그 사유를 보인다. */
+/** [blocked]가 있으면 시작 버튼을 막고 다른 안내가 없을 때 그 사유를 보인다. [chip]이 있으면 모드 이름 대신 그 글자를 칩에 보인다. */
 @Composable
 private fun DialPicker(
     state: WatchFlow.Picker,
@@ -116,7 +118,8 @@ private fun DialPicker(
     blocked: WatchFlow.Notice?,
     onDistanceSelected: (Distance?) -> Unit,
     onStartPressed: () -> Unit,
-    modifier: Modifier
+    modifier: Modifier,
+    chip: String? = null
 ) {
     val focus = remember { FocusRequester() }
     val step = with(LocalDensity.current) { ROTARY_STEP.toPx() }
@@ -159,7 +162,7 @@ private fun DialPicker(
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                text = modeName(mode),
+                text = chip ?: modeName(mode),
                 modifier = Modifier.background(
                     WatchColors.Dark,
                     RoundedCornerShape(50)

@@ -14,12 +14,15 @@ import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.GeoPoint
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.account.MySummary
+import com.a207.runkk.app.domain.account.PlacementProgress
+import com.a207.runkk.app.domain.account.PlacementStatus
 import com.a207.runkk.app.domain.battle.BattleResult
 import com.a207.runkk.app.domain.battle.BattleRunCoordinator
 import com.a207.runkk.app.domain.battle.BattleRunState
 import com.a207.runkk.app.domain.battle.MatchAcceptance
 import com.a207.runkk.app.domain.battle.OfflineRecordBattle
 import com.a207.runkk.app.domain.battle.OpponentTrack
+import com.a207.runkk.app.domain.battle.PlacementRoundState
 import com.a207.runkk.app.domain.battle.RecordBattleKind
 import com.a207.runkk.app.domain.battle.RecordBattleStart
 import com.a207.runkk.app.domain.live.BattleStart
@@ -218,7 +221,15 @@ class WatchFlowViewModelTest {
         // 기록 대결 상대 기억은 앱 범위(싱글턴)라 다시 연 화면과 나눈다(WR13-2).
         val memory = shared?.memory ?: RecordBattleMemory()
         val battleFlow =
-            WatchBattleFlow(coordinator, battles, cache, MatchWaiter(live, backgroundScope), pendingRuns, memory, clock)
+            WatchBattleFlow(
+                coordinator,
+                battles,
+                cache,
+                MatchWaiter(live, backgroundScope),
+                pendingRuns,
+                memory,
+                clock
+            )
         val vm =
             WatchFlowViewModel(runs, battleFlow, store, link, network, guidance, accounts, { isLocationOn }, gpsWarmUp)
         runCurrent()
@@ -1180,32 +1191,193 @@ class WatchFlowViewModelTest {
         assertEquals(WatchResultHeadline.Good(0), h.headline)
     }
 
-    @Test
-    fun `TC-5866 배치 중이면 워치 랜덤 대결을 잠그고 폰 안내를 보인다`() = flowTest {
+    /** 배치 중(UNRANKED) 회원. 서버는 랜덤 매칭 요청을 배치고사 [round]판 대결로 받는다(FR-274, D-479). */
+    private fun placementMember(round: Int = 1, provisional: String? = null) {
         accounts.summary = MySummary("러너", "UNRANKED", 1, null, null, validRuns = 7)
+        accounts.placementProgress = PlacementProgress(
+            PlacementStatus.IN_PROGRESS,
+            countedRounds = round - 1,
+            nextRound = round,
+            provisionalTier = provisional,
+            tier = "UNRANKED",
+            rounds = emptyList()
+        )
+        battles.matchAnswer =
+            Outcome.Success(MatchAcceptance(isWaiting = false, distance = null, placementRound = round, battleId = 41))
+    }
+
+    /** 배치고사 대결 41번의 판 결과: 판정 WIN과 판 셈 상태 [state]. */
+    private fun placementResult(state: PlacementRoundState?, round: Int = 1) = BattleResult(
+        battleId = 41,
+        isPending = false,
+        verdict = "WIN",
+        rows = emptyList(),
+        rewardPoints = null,
+        isNewRecord = false,
+        opponentName = "고스트",
+        myReach = Duration.ofSeconds(300),
+        opponentReach = Duration.ofSeconds(320),
+        placementRound = round,
+        placementState = state
+    )
+
+    /** 배치고사 1km를 매칭해 출발하고 조금 달린 뒤 끝내 결과 화면까지 간다. */
+    private fun TestScope.finishPlacementBattle(h: Harness) {
+        requestMatch(h, meters = 1_000)
+        live.server.tryEmit(MatchFound(41, "고스트", "UNRANKED", Distance(1_000), null, null, 3, placementRound = 1))
+        runCurrent()
+        live.server.tryEmit(
+            BattleStart(41, SchedulerClock(testScheduler).instant().plusSeconds(5), opponentTrack = null)
+        )
+        runCurrent()
+        advanceTimeBy(5_000 + WatchFlowViewModel.GO_MILLIS + 300)
+        runCurrent()
+        assertIs<WatchFlow.Running>(h.flow)
+        runAndEnd(h)
+        assertIs<WatchFlow.Result>(h.flow)
+    }
+
+    private val Harness.placementLine: WatchResultHeadline.PlacementLine
+        get() = (headline as WatchResultHeadline.Placement).line
+
+    @Test
+    fun `TC-5866 배치 중이어도 워치에서 랜덤 대결 매칭을 요청한다(워치 배치고사)`() = flowTest {
+        placementMember()
         val h = open()
 
         requestMatch(h)
 
-        val picker = h.flow as WatchFlow.BattleDistance
-        assertEquals(WatchFlow.Notice.RANDOM_LOCKED, picker.notice)
-        assertTrue(picker.isRandomLocked, "유효 러닝 수와 상관없이 배치 중이면 잠근다(J24-12)")
-        assertTrue(battles.matchRequests.isEmpty())
-        assertEquals(0, live.opened)
-        assertEquals(R.string.notice_random_locked, noticeRes(WatchFlow.Notice.RANDOM_LOCKED))
+        assertIs<WatchFlow.Matching>(h.flow)
+        assertEquals(listOf(Distance(3_000)), battles.matchRequests)
+        assertEquals(1, live.opened)
     }
 
     @Test
-    fun `확정 티어이거나 티어를 모르면 워치 랜덤 대결을 잠그지 않는다(J24-12)`() = flowTest {
-        accounts.summary = MySummary("러너", "GOLD", 1, null, null, validRuns = 1)
+    fun `배치고사 중이면 배틀런 거리 선택에 다음 판 배치고사 n_3을 보이고 아니면 보이지 않는다`() = flowTest {
+        placementMember(round = 2)
+        val placing = open()
+        placing.vm.onModeSelected(WatchMode.BATTLE)
+        assertEquals(2, (placing.flow as WatchFlow.BattleDistance).placementRound)
+
+        // 다음 판 번호가 없으면 센 판 + 1이다.
+        accounts.placementProgress = accounts.placementProgress?.copy(countedRounds = 2, nextRound = null)
+        val fallback = open()
+        fallback.vm.onModeSelected(WatchMode.BATTLE)
+        assertEquals(3, (fallback.flow as WatchFlow.BattleDistance).placementRound)
+
+        accounts.placementProgress = null
+        val unreadable = open()
+        unreadable.vm.onModeSelected(WatchMode.BATTLE)
+        assertNull((unreadable.flow as WatchFlow.BattleDistance).placementRound)
+
+        accounts.placementProgress =
+            PlacementProgress(PlacementStatus.COMPLETED, 3, null, null, "GOLD", emptyList())
         val ranked = open()
         ranked.vm.onModeSelected(WatchMode.BATTLE)
-        assertFalse((ranked.flow as WatchFlow.BattleDistance).isRandomLocked)
+        val picker = ranked.flow as WatchFlow.BattleDistance
+        assertNull(picker.placementRound)
+        assertFalse(picker.isRandomLocked)
+    }
 
-        accounts.summary = MySummary("러너", null, 1, null, null, validRuns = null)
-        val unknown = open()
-        unknown.vm.onModeSelected(WatchMode.BATTLE)
-        assertFalse((unknown.flow as WatchFlow.BattleDistance).isRandomLocked)
+    @Test
+    fun `배치고사 대결이 성사되면 매칭 완료에 판 번호를 싣고 상대를 숨긴다(FR-276)`() = flowTest {
+        placementMember()
+        val h = open()
+        requestMatch(h)
+
+        live.server.tryEmit(MatchFound(41, "고스트", "UNRANKED", Distance(3_000), null, null, 3, placementRound = 1))
+        runCurrent()
+
+        val matched = h.flow as WatchFlow.Matched
+        assertEquals(1, matched.placementRound)
+        assertTrue(matched.isOpponentHidden)
+        assertEquals("UNRANKED", matched.tier)
+    }
+
+    @Test
+    fun `일반 대결 성사는 상대를 숨기지 않는다`() = flowTest {
+        val h = open()
+        requestMatch(h)
+
+        live.server.tryEmit(MatchFound(41, "민준", "SILVER", Distance(3_000), null, null, 3))
+        runCurrent()
+
+        val matched = h.flow as WatchFlow.Matched
+        assertNull(matched.placementRound)
+        assertFalse(matched.isOpponentHidden)
+    }
+
+    @Test
+    fun `배치고사 3판째를 세어 끝나면 결과 문구는 티어 확정이다(FR-281)`() = flowTest {
+        placementMember(round = 3)
+        battles.results[41] = placementResult(PlacementRoundState.COUNTED, round = 3)
+        val h = open()
+        accounts.placementProgress = PlacementProgress(PlacementStatus.COMPLETED, 3, null, null, "GOLD", emptyList())
+
+        finishPlacementBattle(h)
+
+        assertEquals("WIN", h.headline.title())
+        assertEquals(WatchResultHeadline.PlacementLine.Confirmed("GOLD"), h.placementLine)
+    }
+
+    @Test
+    fun `배치고사 판을 세었고 아직 배치 중이면 결과 문구는 진행과 임시 티어다(FR-280)`() = flowTest {
+        placementMember()
+        battles.results[41] = placementResult(PlacementRoundState.COUNTED)
+        val h = open()
+        accounts.placementProgress =
+            accounts.placementProgress?.copy(countedRounds = 1, nextRound = 2, provisionalTier = "BRONZE")
+
+        finishPlacementBattle(h)
+
+        assertEquals(WatchResultHeadline.PlacementLine.InProgress(1, "BRONZE"), h.placementLine)
+    }
+
+    @Test
+    fun `배치고사에 들어가지 않은 판은 결과 문구가 반영 안 됨이다(FR-280)`() = flowTest {
+        placementMember()
+        battles.results[41] = placementResult(PlacementRoundState.NOT_COUNTED)
+        val h = open()
+
+        finishPlacementBattle(h)
+
+        assertEquals(WatchResultHeadline.PlacementLine.NotCounted, h.placementLine)
+    }
+
+    @Test
+    fun `배치고사 판 셈이 정해지지 않았으면 2초마다 다시 읽고 세어지면 진행을 보인다(D-501)`() = flowTest {
+        placementMember()
+        battles.results[41] = placementResult(PlacementRoundState.PENDING)
+        val h = open()
+
+        finishPlacementBattle(h)
+        assertEquals(WatchResultHeadline.PlacementLine.Pending, h.placementLine)
+
+        battles.results[41] = placementResult(PlacementRoundState.COUNTED)
+        accounts.placementProgress =
+            accounts.placementProgress?.copy(countedRounds = 1, nextRound = 2, provisionalTier = "SILVER")
+        advanceTimeBy(WatchFlowViewModel.PLACEMENT_RETRY_MILLIS)
+        runCurrent()
+
+        assertEquals("WIN", h.headline.title())
+        assertEquals(WatchResultHeadline.PlacementLine.InProgress(1, "SILVER"), h.placementLine)
+    }
+
+    @Test
+    fun `배치고사 판 셈이 15번 다시 읽어도 정해지지 않으면 확인 중 문구로 남고 더 읽지 않는다(D-501)`() = flowTest {
+        placementMember()
+        battles.results[41] = placementResult(PlacementRoundState.PENDING)
+        val h = open()
+        finishPlacementBattle(h)
+
+        advanceTimeBy(WatchFlowViewModel.PLACEMENT_RETRY_MILLIS * WatchFlowViewModel.PLACEMENT_ATTEMPTS + 100)
+        runCurrent()
+        assertEquals(WatchResultHeadline.PlacementLine.Pending, h.placementLine)
+
+        battles.results[41] = placementResult(PlacementRoundState.NOT_COUNTED)
+        advanceTimeBy(WatchFlowViewModel.PLACEMENT_RETRY_MILLIS * 2)
+        runCurrent()
+        assertEquals(WatchResultHeadline.PlacementLine.Pending, h.placementLine)
     }
 
     @Test
@@ -1218,6 +1390,7 @@ class WatchFlowViewModelTest {
         val picker = h.flow as WatchFlow.BattleDistance
         assertEquals(WatchFlow.Notice.RANDOM_LOCKED, picker.notice)
         assertTrue(picker.isRandomLocked)
+        assertEquals(R.string.notice_random_locked, noticeRes(WatchFlow.Notice.RANDOM_LOCKED))
     }
 
     @Test
