@@ -140,7 +140,7 @@ class BattleThreadIntegrationTest {
         redis.getRequiredConnectionFactory().getConnection().serverCommands().flushAll();
     }
 
-    /** 유효 러닝 3회(5km 25분)로 골드가 된 회원. */
+    /** 유효 러닝 3회(5km 25분)를 뛰고 배치고사로 골드가 확정된 회원(일반 러닝은 첫 배치를 하지 않는다, J24-6). */
     private long ranked(String nickname) {
         long id =
                 tx.execute(
@@ -161,6 +161,12 @@ class BattleThreadIntegrationTest {
                                     5_000,
                                     1_500)));
         }
+        tx.executeWithoutResult(
+                s -> {
+                    var member = members.findById(id).orElseThrow();
+                    member.confirmPlacement(Tier.GOLD);
+                    members.save(member);
+                });
         assertThat(members.findById(id).orElseThrow().getTier()).isEqualTo(Tier.GOLD);
         return id;
     }

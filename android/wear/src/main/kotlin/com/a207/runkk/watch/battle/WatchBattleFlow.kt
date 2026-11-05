@@ -10,7 +10,7 @@ import com.a207.runkk.app.domain.battle.BattleRunState
 import com.a207.runkk.app.domain.battle.MatchAcceptance
 import com.a207.runkk.app.domain.battle.OfflineRecordBattle
 import com.a207.runkk.app.domain.battle.OpponentTrack
-import com.a207.runkk.app.domain.battle.RandomBattleGate
+import com.a207.runkk.app.domain.battle.PlacementRoundState
 import com.a207.runkk.app.domain.battle.RecordBattleKind
 import com.a207.runkk.app.domain.run.FinishOutcome
 import com.a207.runkk.app.domain.run.PendingRunRepository
@@ -32,7 +32,8 @@ import kotlinx.coroutines.flow.runningFold
  * domain.battle·watch.cache를 이 클래스 너머로만 본다. 상태를 갖지 않는다: 대결 한 회의 상태는 BattleRunCoordinator가, 매칭 대기 연결은
  * watch.link의 MatchWaiter가, 상대 기록은 OpponentRecordCache가, 지금 연 기록 대결의 상대는 RecordBattleMemory(WR13-2)가 갖는다. 셀프·셀럽런을 서버 대결로 할지(연결 있음) 워치에서만 할지
  * (연결 없음)는 WatchFlowViewModel이 고른다(R72). 셀럽 상대는 고를 때 구간 기록을 받는다([readyCelebrity]·[fetchCelebrity], W31).
- * 여기서 연 대결은 모두 워치가 시작한 회라 시작 기기 WATCH로 조정자에 넘긴다(FR-245, D-378).
+ * 여기서 연 대결은 모두 워치가 시작한 회라 시작 기기 WATCH로 조정자에 넘긴다(FR-245, D-378). 배치고사 대결의 결과 문구에 쓰는 본인
+ * 배치고사 진행은 부르는 쪽(watch.ui)이 읽어 [PlacementStanding]으로 넘긴다(watch.battle은 domain.account를 보지 않는다, 5.1.2 표).
  */
 class WatchBattleFlow @Inject constructor(
     private val coordinator: BattleRunCoordinator,
@@ -159,9 +160,22 @@ class WatchBattleFlow @Inject constructor(
         coordinator.acknowledgeFinished()
     }
 
-    /** 배틀런 결과 머리말(FR-249): 서버 판정과 도착 때 상대와의 거리 차([gapMeters]). 판정을 받지 못하면 보류다. */
-    suspend fun battleHeadline(battleId: Long, gapMeters: Int?): WatchResultHeadline =
-        WatchResultHeadline.forBattle(result(battleId), gapMeters)
+    /**
+     * 배틀런 결과 머리말(FR-249): 서버 판정과 도착 때 상대와의 거리 차([gapMeters]). 판정을 받지 못하면 보류다. 배치고사 대결이면
+     * 판정 머리말에 배치고사 반영 문구를 단다(WatchResultHeadline.forPlacement, FR-280): 판을 셌을 때만 [standing]으로 본인 배치고사
+     * 진행을 받는다(읽지 못하면 null).
+     */
+    suspend fun battleHeadline(
+        battleId: Long,
+        gapMeters: Int?,
+        standing: suspend () -> PlacementStanding? = { null }
+    ): WatchResultHeadline {
+        val result = result(battleId)
+        val verdict = WatchResultHeadline.forBattle(result, gapMeters)
+        if (result?.placementRound == null || verdict == WatchResultHeadline.Pending) return verdict
+        val progress = if (result.placementState == PlacementRoundState.COUNTED) standing() else null
+        return WatchResultHeadline.forPlacement(verdict, result, progress)
+    }
 
     /**
      * 서버 대결로 달린 셀프·셀럽런의 결과 머리말(서버 판정, W27, FR-250). 판정을 받지 못하면 보류다. 서버 판정에 내 도달 시간이 없으면
@@ -204,9 +218,6 @@ class WatchBattleFlow @Inject constructor(
         if (!run.distance.isAtLeast(record.distance)) return null
         return record.finishTime.seconds - run.elapsed.seconds
     }
-
-    /** 랜덤 대결까지 남은 유효 러닝 수(폰 RandomBattleGate와 같은 규칙, FR-080). null이면 열림 또는 모름(서버가 판정한다). */
-    fun randomRunsLeft(tier: String?, validRuns: Int?): Int? = RandomBattleGate.runsLeft(tier, validRuns)
 
     fun selfCandidates(): List<RecordOpponent> = cache.selfCandidates().map(::RecordOpponent)
 
@@ -275,7 +286,8 @@ class WatchBattleFlow @Inject constructor(
                 battleId = state.match.battleId,
                 distance = state.match.distance,
                 opponentName = state.match.opponentName,
-                opponentGender = state.match.opponentGender
+                opponentGender = state.match.opponentGender,
+                placementRound = state.match.placementRound
             )
 
             is BattleRunState.Countdown -> BattleStep.Countdown(state.battleId, state.startAt)

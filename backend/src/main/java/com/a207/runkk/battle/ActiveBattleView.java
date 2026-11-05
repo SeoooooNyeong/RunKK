@@ -15,6 +15,7 @@ import java.time.LocalDateTime;
  * @param opponentGender 상대 캐릭터 성별(MALE, FEMALE), 셀럽·나와의 싸움이면 null(2026-10-31 결정)
  * @param startAt 출발 시각, 시작 보고 전 기록 대결이면 null
  * @param celebrityFigure 유명인 캐릭터 그림 키, 유명인 대결이 아니거나 키가 없으면 null(2026-10-31 결정)
+ * @param placementRound 배치고사 대결이면 판 번호, 아니면 null(05-03 P5)
  */
 public record ActiveBattleView(
         long battleId,
@@ -24,4 +25,5 @@ public record ActiveBattleView(
         DisplayName opponentName,
         String opponentGender,
         LocalDateTime startAt,
-        String celebrityFigure) {}
+        String celebrityFigure,
+        Integer placementRound) {}

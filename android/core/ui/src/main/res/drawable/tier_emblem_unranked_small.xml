@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 티어 엠블럼 unranked 20dp 라이트(피그마 61363:3403, D-495). 경로는 피그마 SVG 그대로, 색은 RunKK · Tier 변수(design-oo 7.3). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="20dp"
+    android:height="20dp"
+    android:viewportWidth="20"
+    android:viewportHeight="20">
+    <path
+        android:pathData="M10 17.9167C14.3723 17.9167 17.9167 14.3723 17.9167 10C17.9167 5.62775 14.3723 2.08333 10 2.08333C5.62775 2.08333 2.08333 5.62775 2.08333 10C2.08333 14.3723 5.62775 17.9167 10 17.9167Z"
+        android:fillColor="#E4E7EC"
+        android:strokeColor="#9AA0A8"
+        android:strokeWidth="2.08333" />
+</vector>

@@ -17,6 +17,8 @@ import java.time.Duration;
  * @param myBest 본인 그 거리 최고 기록(초), 없으면 null
  * @param opponentBest 상대 최고 기록(초), 없으면 null
  * @param animationSeconds 매칭 애니메이션 길이(D-17)
+ * @param placementRound 배치고사 대결이면 판 번호(1~3), 아니면 null(05-03 5.7.3.4). 이때 opponentTier는
+ *     UNRANKED(J24-3)
  */
 public record MatchFound(
         long battleId,
@@ -26,8 +28,31 @@ public record MatchFound(
         Distance distance,
         Duration myBest,
         Duration opponentBest,
-        int animationSeconds)
+        int animationSeconds,
+        Integer placementRound)
         implements BattleMessage {
+
+    /** 배치고사가 아닌 성사(placementRound 없음). */
+    public MatchFound(
+            long battleId,
+            DisplayName opponentName,
+            Tier opponentTier,
+            String opponentGender,
+            Distance distance,
+            Duration myBest,
+            Duration opponentBest,
+            int animationSeconds) {
+        this(
+                battleId,
+                opponentName,
+                opponentTier,
+                opponentGender,
+                distance,
+                myBest,
+                opponentBest,
+                animationSeconds,
+                null);
+    }
 
     @Override
     public String type() {

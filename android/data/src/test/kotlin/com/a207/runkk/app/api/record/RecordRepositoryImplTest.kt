@@ -5,6 +5,7 @@ import com.a207.runkk.app.api.core.SelfMember
 import com.a207.runkk.app.api.core.TokenProvider
 import com.a207.runkk.app.api.core.jwtOf
 import com.a207.runkk.app.api.core.value
+import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Gender
@@ -197,6 +198,39 @@ class RecordRepositoryImplTest {
     }
 
     @Test
+    fun `TC-5829 대시보드 최근 러닝과 랭킹 공개 티어를 읽는다`() = runTest {
+        api.reply(
+            """{"todayMeters":0,"totalMeters":42000,
+               |"latestRun":{"recordId":"r-9","startedAt":"2026-11-03T22:10:00Z","distanceMeters":3200,"elapsedSeconds":1120,
+               |"averagePaceSecondsPerKm":350,"valid":true,"mode":"FREE","cardKind":"FREE_RUN"}}
+            """.trimMargin()
+        )
+        // 옛 서버(latestRun 없음)도 해독한다.
+        api.reply("""{"todayMeters":0,"totalMeters":0}""")
+        api.reply(
+            """{"entries":[{"rank":1,"name":"바람","distanceMeters":42000,"publicTier":"GOLD"},
+               |{"rank":2,"name":"구름","distanceMeters":30000,"publicTier":"UNRANKED"},
+               |{"rank":3,"name":"탈퇴","distanceMeters":20000,"publicTier":null},
+               |{"rank":4,"name":"옛 행","distanceMeters":10000}],
+               |"mine":{"rank":2,"name":"구름","distanceMeters":30000,"publicTier":"UNRANKED"},"aggregatedAt":"2026-10-20T06:00:00"}
+            """.trimMargin()
+        )
+
+        val latest = repository.dashboard(LocalDate.of(2026, 11, 4)).value().latestRun
+        val old = repository.dashboard(LocalDate.of(2026, 11, 4)).value().latestRun
+        val ranking = repository.personalRanking(AggregationPeriod.WEEKLY).value()
+
+        assertEquals("r-9", latest?.recordId)
+        assertEquals(Distance(3_200), latest?.distance)
+        assertEquals(Duration.ofSeconds(1_120), latest?.elapsed)
+        assertEquals(Pace(350), latest?.averagePace)
+        assertEquals(CardKind.FREE_RUN, latest?.cardKind)
+        assertEquals(null, old)
+        assertEquals(listOf("GOLD", "UNRANKED", null, null), ranking.entries.map { it.publicTier })
+        assertEquals("UNRANKED", ranking.mine?.publicTier)
+    }
+
+    @Test
     fun `집계 전 랭킹은 집계 시각이 없다`() = runTest {
         api.reply("""{"entries":[],"aggregatedAt":null,"notice":null}""")
 
@@ -236,6 +270,21 @@ class RecordRepositoryImplTest {
         val request = api.take()
         assertEquals("PUT /api/v1/plans/2026-10-22", "${request.method} ${request.url.encodedPath}")
         assertEquals("""{"distanceMeters":7000,"paceSecondsPerKm":350}""", request.body!!.utf8())
+    }
+
+    @Test
+    fun `계획 취소는 날짜 경로로 DELETE를 보내고 204면 성공, 지난 날짜 409는 사유로 거부된다(S15P31A207-275)`() = runTest {
+        api.replyEmpty(204)
+        api.reply("""{"code":"PAST_DATE","message":"지난 날짜"}""", code = 409)
+
+        assertEquals(Outcome.Success(Unit), repository.deletePlan(LocalDate.of(2026, 10, 22)))
+        assertEquals(
+            Outcome.Failure(AppError.Rejected("PAST_DATE")),
+            repository.deletePlan(LocalDate.of(2026, 10, 21))
+        )
+
+        val request = api.take()
+        assertEquals("DELETE /api/v1/plans/2026-10-22", "${request.method} ${request.url.encodedPath}")
     }
 
     @Test

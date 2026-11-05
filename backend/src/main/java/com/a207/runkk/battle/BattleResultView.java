@@ -23,6 +23,7 @@ import java.util.Optional;
  * @param myRecordId 본인 러닝 기록 ID(기록 카드 FR-068로 가는 길), 아직 없으면 null
  * @param opponentGender 상대 캐릭터 성별(MALE, FEMALE), 셀럽·나와의 싸움이면 null(2026-10-31 결정)
  * @param celebrityFigure 유명인 캐릭터 그림 키, 유명인 대결이 아니거나 키가 없으면 null(2026-10-31 결정)
+ * @param placementRound 배치고사 대결이면 만든 때의 판 번호, 아니면 null(05-21 D-513)
  */
 public record BattleResultView(
         long battleId,
@@ -39,7 +40,8 @@ public record BattleResultView(
         DisplayName opponentName,
         String myRecordId,
         String opponentGender,
-        String celebrityFigure) {
+        String celebrityFigure,
+        Integer placementRound) {
 
     public Optional<Verdict> verdictValue() {
         return Optional.ofNullable(verdict);

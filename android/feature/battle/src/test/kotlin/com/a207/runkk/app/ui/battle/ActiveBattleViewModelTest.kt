@@ -2,6 +2,7 @@
 
 package com.a207.runkk.app.ui.battle
 
+import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
@@ -95,5 +96,18 @@ class ActiveBattleViewModelTest {
         vm.onDismiss()
         assertNull(vm.state.value.battle)
         assertNull(vm.state.value.error)
+    }
+
+    @Test
+    fun `TC-5908 배치고사 판 이력에는 판 번호를 덧붙인다`() {
+        val plain = BattleHistory.Entry(3, BattleHistory.Type.RANDOM, "느긋한고래", Distance(5_000), "WIN", start)
+        assertEquals(UiText.Res(R.string.battle_history_type_battle), historyTypeText(plain))
+        assertEquals(
+            UiText.Res(
+                R.string.battle_history_type_placement,
+                listOf(UiText.Res(R.string.battle_history_type_battle), 2)
+            ),
+            historyTypeText(plain.copy(placementRound = 2))
+        )
     }
 }

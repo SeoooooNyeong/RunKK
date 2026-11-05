@@ -65,6 +65,12 @@ constructor(private val api: RecordApi, private val self: SelfMember) :
             api.putPlan(ServerTime.formatDate(date), PlanRequest(distance.meters, pace?.secondsPerKm))
         }
 
+    /** 204면 성공. 거부 응답은 본문 code로 Rejected(code)가 된다(ApiErrorMapper). */
+    override suspend fun deletePlan(date: LocalDate): Outcome<Unit> = ApiErrorMapper.call {
+        val reply = api.deletePlan(ServerTime.formatDate(date))
+        if (!reply.isSuccessful) throw HttpException(reply)
+    }
+
     override suspend fun planProgress(from: LocalDate, to: LocalDate): Outcome<PlanProgress> =
         ApiErrorMapper.call { api.planProgress(ServerTime.formatDate(from), ServerTime.formatDate(to)).toDomain() }
 

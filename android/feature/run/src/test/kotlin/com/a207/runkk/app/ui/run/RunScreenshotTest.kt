@@ -1,6 +1,8 @@
 package com.a207.runkk.app.ui.run
 
 import androidx.compose.ui.test.junit4.createComposeRule
+import com.a207.runkk.app.core.designsystem.AchievementIcon
+import com.a207.runkk.app.core.designsystem.AchievementRow
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.testing.RUNKK_PHONE
 import com.a207.runkk.app.core.designsystem.testing.captureRunkkScreen
@@ -162,30 +164,51 @@ class RunScreenshotTest {
         )
     }
 
+    /** 상용안 결과 값(피그마 61326:1878): 5.21km, 구간 5개(5km가 가장 빠름), 심박 5구간, 성과 두 줄. */
+    private val result = RunResultUiState(
+        isLoading = false,
+        recordId = "rec-1",
+        cardKind = CardKind.FREE_RUN,
+        startedAt = start,
+        distance = Distance(5_210),
+        elapsed = Duration.ofSeconds(1_668),
+        averagePace = Pace(332),
+        averageHeartRate = 152,
+        splitPaces = listOf(Pace(380), Pace(368), Pace(362), Pace(371), Pace(341)),
+        heartRateZones = mapOf(
+            "Z1" to Duration.ofMinutes(2),
+            "Z2" to Duration.ofMinutes(6),
+            "Z3" to Duration.ofMinutes(9),
+            "Z4" to Duration.ofMinutes(5),
+            "Z5" to Duration.ofMinutes(2)
+        ),
+        heartRateSource = RunResultUiState.HEART_SOURCE_WATCH,
+        achievements = listOf(
+            AchievementRow(AchievementIcon.STAR, UiText.Plain("최장 거리 신기록"), "직전 4.80km"),
+            AchievementRow(AchievementIcon.REWARD, UiText.Res(R.string.run_result_reward), "+52")
+        ),
+        pausedTotal = Duration.ofSeconds(185),
+        isUploaded = true
+    )
+
+    /** TC-5851 라이트, 심박 있음. 1차 배포(아바타 꾸미기 닫힘): 결과는 뛰어오르는 기본 아바타다(D84). */
     @Test
     fun resultLight() = compose.captureRunkkScreen("B4_run_result_light", isDarkTheme = false) {
-        // 1차 배포(아바타 꾸미기 닫힘): 결과 상세는 뛰어오르는 기본 아바타다(D84).
-        androidx.compose.runtime.CompositionLocalProvider(
-            com.a207.runkk.app.core.designsystem.LocalReleaseScope provides
-                com.a207.runkk.app.core.designsystem.ReleaseScope.FIRST_RELEASE
-        ) {
+        FirstRelease { RunResultScreen(result, onCard = {}, onHome = {}, onRetry = {}) }
+    }
+
+    /** TC-5852 다크, 심박 있음(가장 빠른 구간 숫자 Lavender). */
+    @Test
+    fun result() = compose.captureRunkkScreen("B4_run_result") {
+        FirstRelease { RunResultScreen(result, onCard = {}, onHome = {}, onRetry = {}) }
+    }
+
+    /** TC-5853 심박 없음(61325:1956): 지표 두 칸, 「워치를 연결하면 심박 구간을 볼 수 있어요」. */
+    @Test
+    fun resultNoHeart() = compose.captureRunkkScreen("B4_run_result_no_heart", isDarkTheme = false) {
+        FirstRelease {
             RunResultScreen(
-                RunResultUiState(
-                    isLoading = false,
-                    recordId = "rec-1",
-                    cardKind = CardKind.FREE_RUN,
-                    startedAt = start,
-                    distance = Distance(5_020),
-                    elapsed = Duration.ofSeconds(1_668),
-                    averagePace = Pace(332),
-                    averageHeartRate = 152,
-                    splitPaces = listOf(Pace(380), Pace(368), Pace(362), Pace(371), Pace(341)),
-                    heartRateZones = listOf("Z1" to Duration.ofMinutes(2), "Z3" to Duration.ofMinutes(9)),
-                    newRecords = listOf("최장 거리 신기록 · 직전 4.80km"),
-                    rewardPoints = 52,
-                    pausedTotal = Duration.ofSeconds(185),
-                    isUploaded = true
-                ),
+                result.copy(averageHeartRate = null, heartRateZones = emptyMap()),
                 onCard = {},
                 onHome = {},
                 onRetry = {}
@@ -193,34 +216,25 @@ class RunScreenshotTest {
         }
     }
 
+    /** TC-5854 출생연도 없음: 「출생연도를 입력하면 심박 구간을 볼 수 있어요」(제안). */
     @Test
-    fun result() = compose.captureRunkkScreen("B4_run_result") {
-        RunResultScreen(
-            RunResultUiState(
-                isLoading = false,
-                recordId = "rec-1",
-                cardKind = CardKind.FREE_RUN,
-                startedAt = start,
-                distance = Distance(5_020),
-                elapsed = Duration.ofSeconds(1_668),
-                averagePace = Pace(332),
-                averageHeartRate = 152,
-                splitPaces = listOf(Pace(380), Pace(368), Pace(362), Pace(371), Pace(341)),
-                newRecords = listOf("최장 거리 신기록 · 직전 4.80km"),
-                rewardPoints = 52,
-                pausedTotal = Duration.ofMinutes(3),
-                heartRateZones = listOf(
-                    "Z1" to Duration.ofMinutes(2),
-                    "Z2" to Duration.ofMinutes(6),
-                    "Z3" to Duration.ofMinutes(9),
-                    "Z4" to Duration.ofMinutes(5),
-                    "Z5" to Duration.ofMinutes(2)
-                ),
-                isUploaded = true
-            ),
-            onCard = {},
-            onHome = {},
-            onRetry = {}
+    fun resultNoBirthYear() = compose.captureRunkkScreen("B4_run_result_no_birth_year", isDarkTheme = false) {
+        FirstRelease {
+            RunResultScreen(
+                result.copy(heartRateZones = emptyMap(), hasBirthYear = false),
+                onCard = {},
+                onHome = {},
+                onRetry = {}
+            )
+        }
+    }
+
+    @androidx.compose.runtime.Composable
+    private fun FirstRelease(content: @androidx.compose.runtime.Composable () -> Unit) {
+        androidx.compose.runtime.CompositionLocalProvider(
+            com.a207.runkk.app.core.designsystem.LocalReleaseScope provides
+                com.a207.runkk.app.core.designsystem.ReleaseScope.FIRST_RELEASE,
+            content = content
         )
     }
 

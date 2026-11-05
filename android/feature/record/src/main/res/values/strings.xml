@@ -111,6 +111,7 @@
     <string name="record_coach_supplement">보충 거리 %1$skm 추천</string>
     <string name="record_coach_today_title">오늘 계획 정하기</string>
     <string name="record_coach_today_plan_saved">오늘 계획을 %1$skm로 정했어요</string>
+    <string name="record_coach_today_plan_cleared">오늘 계획을 지웠어요</string>
     <string name="record_coach_today_plan_pace_saved">오늘 계획을 %1$skm, %2$s/km로 정했어요</string>
     <string name="record_coach_today_distance">거리</string>
     <string name="record_coach_today_pace">목표 페이스</string>
@@ -171,7 +172,17 @@
     <string name="record_delete_confirm">삭제</string>
     <string name="record_delete_cancel">취소</string>
     <string name="record_delete_not_allowed">삭제할 수 없는 기록이에요</string>
-    <string name="record_ranking_metric">누적 유효 거리</string>
     <string name="record_ranking_me">나</string>
+    <string name="record_ranking_scope_locked">%1$s, 잠김</string>
+    <string name="record_ranking_range">%1$s – %2$s</string>
+    <string name="record_ranking_deadline_days">%1$d일 %2$d시간 뒤 마감</string>
+    <string name="record_ranking_deadline_hours">%1$d시간 뒤 마감</string>
+    <string name="record_ranking_deadline_soon">곧 마감</string>
+    <string name="record_ranking_top3_weekly">이번 주 TOP 3</string>
+    <string name="record_ranking_top3_monthly">이번 달 TOP 3</string>
+    <string name="record_ranking_gap">%1$d위까지 %2$skm</string>
+    <string name="record_ranking_unit_km">km</string>
     <string name="record_ranking_km">%1$skm</string>
+    <string name="record_ranking_tier_spoken">%1$s 티어</string>
+    <string name="record_ranking_placing_spoken">배치 중</string>
 </resources>

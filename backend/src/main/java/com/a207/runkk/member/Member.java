@@ -24,7 +24,6 @@ import java.time.LocalDateTime;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.OptionalInt;
 import java.util.regex.Pattern;
@@ -292,18 +291,25 @@ public class Member {
     }
 
     /**
-     * 유효 러닝 반영. tierProgress가 평가 평균을 주면 tier ← boundary.tierOf(평균). level ← 1 + ⌊누적 km ÷ 50⌋. 같은
-     * 순번을 다시 받으면 아무것도 바꾸지 않는다(멱등, D-37).
+     * 유효 러닝 반영(D-484). 점수 창·누적 거리·레벨(1 + ⌊누적 km ÷ 50⌋)은 늘 갱신한다. 재평가 지점 p(10의 배수)를 지났고 지금 랭크 티어이며 p
+     * &gt; placementOrdinal(배치고사 확정 판의 유효 러닝 순번, 없으면 0)일 때만 tier ← boundary.tierOf(최근 10회 평균). 일반
+     * 러닝은 첫 배치를 하지 않는다(J24-6). 같은 순번을 다시 받으면 아무것도 바꾸지 않는다(멱등, D-37).
      */
-    public TierChange recordValidRun(RunScoreInput input, TierBoundary boundary) {
+    public TierChange recordValidRun(
+            RunScoreInput input, TierBoundary boundary, int placementOrdinal) {
         requireActive();
         Tier previousTier = tier;
         int previousLevel = level;
-        Optional<TierEvaluation> evaluation =
-                TierProgress.evaluationBetween(
+        OptionalInt point =
+                TierProgress.reevaluationPointBetween(
                         tierProgress.validRunCount(), input.validRunOrdinal());
         OptionalDouble average = tierProgress.addValidRun(input);
-        if (average.isPresent()) {
+        boolean reevaluate =
+                average.isPresent()
+                        && point.isPresent()
+                        && tier.isRanked()
+                        && point.getAsInt() > placementOrdinal;
+        if (reevaluate) {
             this.tier = boundary.tierOf(average.getAsDouble());
         }
         this.level = 1 + (int) (tierProgress.totalValidDistance().meters() / METERS_PER_LEVEL);
@@ -312,7 +318,21 @@ public class Member {
                 tier,
                 previousLevel,
                 level,
-                average.isPresent() ? evaluation.orElse(null) : null);
+                reevaluate
+                        ? new TierEvaluation(EvaluationKind.REEVALUATION, point.getAsInt())
+                        : null);
+    }
+
+    /**
+     * 배치고사 확정(05-21 2.1, D-483). 지금 언랭이고 tier가 랭크 티어일 때만 tier를 바꾼다. 레벨·누계는 그대로. 아니면
+     * IllegalStateException.
+     */
+    public void confirmPlacement(Tier confirmed) {
+        requireActive();
+        if (tier.isRanked() || confirmed == null || !confirmed.isRanked()) {
+            throw new IllegalStateException("배치고사 확정은 언랭 → 랭크 티어만: " + tier + " → " + confirmed);
+        }
+        this.tier = confirmed;
     }
 
     /**

@@ -223,6 +223,23 @@ class BattleRunningViewModelTest {
     }
 
     @Test
+    fun `배치고사 판이면 진행 중 상대를 물음표로 그리고 아니면 상대 그림을 그린다(FR-276)`() = main.runVmTest { vms ->
+        val w = world()
+        val placement = vms.track(BattleRunningViewModel(w.coordinator, w.clock))
+        placement.bind(key.copy(placementRound = 2))
+        runCurrent()
+        assertEquals(2, placement.state.value.placementRound)
+        assertTrue(placement.state.value.isOpponentHidden)
+        assertEquals("바람처럼", placement.state.value.opponentName, "표시명은 서버의 가상 닉네임 그대로다")
+
+        val plain = vms.track(BattleRunningViewModel(w.coordinator, w.clock))
+        plain.bind(key)
+        runCurrent()
+        assertNull(plain.state.value.placementRound)
+        assertFalse(plain.state.value.isOpponentHidden)
+    }
+
+    @Test
     fun `종료 카운트다운 중 진행값이 와도 CLOSING을 유지한다(FR-107)`() = main.runVmTest { vms ->
         val w = world()
         val vm = running(w, vms)

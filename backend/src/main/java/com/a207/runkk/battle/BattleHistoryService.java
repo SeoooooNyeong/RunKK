@@ -1,6 +1,7 @@
 package com.a207.runkk.battle;
 
 import com.a207.runkk.common.DateRange;
+import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.PageCursor;
 import com.a207.runkk.member.MemberQueryService;
 import com.a207.runkk.member.MemberSummary;
@@ -117,7 +118,8 @@ public class BattleHistoryService {
                                                 battle, memberId, rivalNames(battle, memberId)),
                                         OpponentGenders.nameFor(battle, memberId),
                                         battle.getStartAt().orElse(null),
-                                        battle.getOpponentFigure().orElse(null)));
+                                        battle.getOpponentFigure().orElse(null),
+                                        BattleResultService.placementRoundOf(battle)));
     }
 
     private Map<Long, MemberSummary> rivalNames(Battle battle, long memberId) {
@@ -163,7 +165,24 @@ public class BattleHistoryService {
                 verdict,
                 battle.getType() == BattleType.SELF && verdict == Verdict.WIN && me.isNewRecord(),
                 gapOf(battle, me).orElse(null),
-                sourceLabel);
+                sourceLabel,
+                BattleResultService.placementRoundOf(battle),
+                friendOf(battle, memberId, names));
+    }
+
+    /** 친구 대결이고 상대가 탈퇴하지 않았으면 상대 회원 ID(D-492). 그 밖(기록 상대, 랜덤 실시간 상대, 탈퇴)은 null. */
+    private static Long friendOf(Battle battle, long memberId, Map<Long, MemberSummary> names) {
+        if (battle.getType() != BattleType.FRIEND) {
+            return null;
+        }
+        return battle.rivalOf(memberId)
+                .map(BattleParticipant::getMemberId)
+                .filter(id -> isActive(names.get(id)))
+                .orElse(null);
+    }
+
+    private static boolean isActive(MemberSummary summary) {
+        return summary != null && !DisplayName.WITHDRAWN.equals(summary.displayName());
     }
 
     private static Optional<Duration> gapOf(Battle battle, BattleParticipant me) {

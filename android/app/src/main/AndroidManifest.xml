@@ -12,10 +12,12 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Runkk">
         <!-- singleTask: 외부 앱(카카오톡·브라우저)에서 초대 링크로 열어도 화면 그래프가 하나다(D-272). 새 링크는 onNewIntent로 받는다. -->
+        <!-- portrait: 폰·폴드 바깥 화면은 세로 고정. 짧은 변 600dp 이상(폴드 펼침·태블릿)은 Android 16이 무시하므로 화면이 가로에서도 깨지지 않게 그린다. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTask"
+            android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

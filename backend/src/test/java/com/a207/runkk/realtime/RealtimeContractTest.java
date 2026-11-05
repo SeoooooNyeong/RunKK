@@ -122,6 +122,26 @@ class RealtimeContractTest {
     }
 
     @Test
+    @org.junit.jupiter.api.DisplayName(
+            "TC-5783 배치고사 MatchFound는 placementRound를 싣고 상대 티어는 UNRANKED다(표본 MatchFound-placement)."
+                    + " 배치고사가 아니면 placementRound를 싣지 않아 옛 표본과 같다(05-03 5.7.3.4)")
+    void placementMatchFound_matchesSample() throws IOException {
+        MatchFound placement =
+                new MatchFound(
+                        103,
+                        DisplayName.of("느긋한고래"),
+                        Tier.UNRANKED,
+                        "FEMALE",
+                        Distance.ofMeters(5_000),
+                        null,
+                        Duration.ofSeconds(2_010),
+                        3,
+                        1);
+        assertThat(JSON.readTree(serializer.serialize(placement)))
+                .isEqualTo(JSON.readTree(sample("MatchFound-placement.json")));
+    }
+
+    @Test
     @org.junit.jupiter.api.DisplayName("앱 ProgressReport JSON을 InboundProgress로 읽는다")
     void appProgress_isReadAsInboundProgress() throws IOException {
         InboundProgress inbound =

@@ -21,7 +21,9 @@ internal data class DashboardResponse(
     val rewardBalance: Int? = null,
     /** baseDate 달의 유효 러닝 횟수·거리(v0.14 기록 화면 월 요약, 서버 D-236). 옛 서버는 주지 않는다(D-289). */
     val monthRuns: Int? = null,
-    val monthMeters: Long? = null
+    val monthMeters: Long? = null,
+    /** 최근 러닝 1건(기록 목록 맨 위 행과 같은 형식, 05-03 5.7.3.3 P8). 기록이 없거나 옛 서버면 null. */
+    val latestRun: RunSummaryDto? = null
 ) {
     /** 이번 주 목표·실적. 서버가 빠뜨린 항목은 0으로 읽어 대시보드 전체가 실패하지 않게 한다. */
     @Serializable

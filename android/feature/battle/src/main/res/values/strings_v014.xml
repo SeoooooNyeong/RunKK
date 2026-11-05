@@ -12,20 +12,7 @@
     <string name="battle_notice_confirm">확인</string>
 
     <!-- 배틀런 화면(C-1·C-9) -->
-    <string name="battle_mode_title">배틀런</string>
-    <string name="battle_mode_random">랜덤 대결</string>
-    <string name="battle_mode_friend">친구 대결</string>
-    <string name="battle_mode_headline_random">오늘의 상대를 만나 볼까요?</string>
-    <string name="battle_mode_headline_friend">친구와 같은 거리로 겨뤄 볼까요?</string>
-    <string name="battle_mode_random_slot">랜덤 상대</string>
-    <string name="battle_mode_friend_slot">친구</string>
     <string name="battle_mode_best">내 최고 기록</string>
-    <string name="battle_mode_random_start">%1$s 랜덤 매칭 시작</string>
-    <string name="battle_mode_random_locked">잠김</string>
-    <string name="battle_mode_random_locked_title">러닝을 %1$d번 더 뛰면 배틀런이 가능해요!</string>
-    <string name="battle_mode_random_locked_title_unknown">러닝을 더 뛰면 배틀런이 가능해요!</string>
-    <string name="battle_mode_random_locked_confirm">확인</string>
-    <string name="battle_mode_invite">카카오톡으로 친구 초대</string>
     <string name="battle_card_desc">%1$s, 내 최고 기록 %2$s, %3$s</string>
 
     <!-- 매칭·초대 대기(C-2·C-10) -->

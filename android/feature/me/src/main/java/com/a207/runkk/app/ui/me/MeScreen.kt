@@ -56,12 +56,14 @@ import com.a207.runkk.app.core.designsystem.RunkkLoading
 import com.a207.runkk.app.core.designsystem.RunkkMenuRow
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
+import com.a207.runkk.app.core.designsystem.TierBadge
+import com.a207.runkk.app.core.designsystem.TierBadgeSize
 import com.a207.runkk.app.core.designsystem.UnreleasedFeature
 import com.a207.runkk.app.core.designsystem.asString
-import com.a207.runkk.app.core.designsystem.tierName
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.model.Gender
+import com.a207.runkk.app.core.model.TierDisplay
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.account.Profile
@@ -101,6 +103,7 @@ fun MeScreen(state: MeUiState, onNavigate: (String) -> Unit, onRetry: () -> Unit
             state.profile != null -> {
                 ProfileHeader(
                     state.profile,
+                    state.tierDisplay,
                     state.faceLayers,
                     onEdit = { onNavigate(Routes.PROFILE_EDIT) },
                     onRunimal = { onNavigate(Routes.RUNIMAL) }
@@ -143,10 +146,15 @@ internal fun aboutLine(res: Resources, profile: Profile): String? = listOfNotNul
     profile.gender?.takeIf { it != Gender.UNDISCLOSED }?.let { res.getString(genderLabelRes(it)) }
 ).takeIf { it.isNotEmpty() }?.joinToString(", ")
 
-/** 아바타(기본 아바타, 꾸미기가 열리면 얼굴 그림), 닉네임·레벨 배지·티어 배지, "편집", "[Runimal] ›". */
+/** 아바타(기본 아바타, 꾸미기가 열리면 얼굴 그림), 닉네임·레벨 배지·티어 배지(작게, 본인 표시), "편집", "[Runimal] ›". */
 @Composable
-private fun ProfileHeader(profile: Profile, faceLayers: List<FaceLayer>, onEdit: () -> Unit, onRunimal: () -> Unit) {
-    val tier = tierName(profile.tier) ?: stringResource(R.string.me_profile_default_tier)
+private fun ProfileHeader(
+    profile: Profile,
+    tierDisplay: TierDisplay?,
+    faceLayers: List<FaceLayer>,
+    onEdit: () -> Unit,
+    onRunimal: () -> Unit
+) {
     val level = stringResource(R.string.me_profile_level, profile.level ?: RunkkFormat.EMPTY)
     Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(
@@ -165,21 +173,25 @@ private fun ProfileHeader(profile: Profile, faceLayers: List<FaceLayer>, onEdit:
             )
         }
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Row(
+            // 닉네임 한 줄, 그 아래 레벨·티어 배지(임시 배지가 길어도 닉네임이 잘리지 않게).
+            Column(
                 modifier = Modifier.semantics(mergeDescendants = true) {},
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text(
                     profile.displayName,
                     style = RunkkTextStyles.text(18, FontWeight.Black),
                     color = RunkkColors.TextPrimary,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false)
+                    overflow = TextOverflow.Ellipsis
                 )
-                RunkkBadge(level)
-                RunkkBadge(tier, tone = RunkkBadgeTone.Lime)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    RunkkBadge(level)
+                    tierDisplay?.let { TierBadge(it, TierBadgeSize.SMALL) }
+                }
             }
             RunimalLink(profile.runimalType, onRunimal)
         }

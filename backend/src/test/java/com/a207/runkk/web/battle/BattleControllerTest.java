@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.a207.runkk.common.Tier;
 import com.a207.runkk.running.LocationPoint;
 import com.a207.runkk.running.RunFixtures;
 import com.a207.runkk.web.WebTestSupport;
@@ -76,7 +77,9 @@ class BattleControllerTest extends WebTestSupport {
     }
 
     @Test
-    @DisplayName("POST·DELETE /battles/match: 거리 오류·언랭 거부, 대기 중 아니면 대기해제")
+    @DisplayName(
+            "TC-5798 POST·DELETE /battles/match: 거리 오류 거부, 언랭은 배치고사 대결(waiting false, 판 번호·대결 ID),"
+                    + " 대기 중 아니면 대기해제")
     void match_rejectsAndCancels() throws Exception {
         Session s = signUp();
         mvc.perform(
@@ -89,8 +92,13 @@ class BattleControllerTest extends WebTestSupport {
                         as(s, post("/api/v1/battles/match"))
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(distance(5_000)))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("RANKED_ONLY"));
+                .andExpect(status().isOk())
+                // TC-5798: 언랭은 RANKED_ONLY 대신 배치고사 대결을 바로 만든다(05-03 P2, D-478·D-479)
+                .andExpect(jsonPath("$.waiting").value(false))
+                .andExpect(jsonPath("$.distanceMeters").value(5_000))
+                .andExpect(jsonPath("$.defaultDistanceMeters").value(5_000))
+                .andExpect(jsonPath("$.placementRound").value(1))
+                .andExpect(jsonPath("$.battleId").isNumber());
         // 대기 중이 아닌 취소는 SRS 4.1 ELSE 갈래대로 거부한다(D-83 ABSENT, K-1)
         mvc.perform(as(s, delete("/api/v1/battles/match")))
                 .andExpect(status().isConflict())
@@ -103,12 +111,46 @@ class BattleControllerTest extends WebTestSupport {
     }
 
     @Test
+    @DisplayName(
+            "TC-5799 배치고사 대결 결과·진행 중 대결은 placementRound를 싣고, 결과의 placementState는 판정 전이라 PENDING. 일반"
+                    + " 대결은 둘 다 null")
+    void result_carriesPlacementState() throws Exception {
+        Session s = signUp();
+        long battleId =
+                body(mvc.perform(
+                                        as(s, post("/api/v1/battles/match"))
+                                                .contentType(MediaType.APPLICATION_JSON)
+                                                .content(distance(3_000)))
+                                .andExpect(status().isOk())
+                                .andReturn()
+                                .getResponse()
+                                .getContentAsString())
+                        .get("battleId")
+                        .asLong();
+        mvc.perform(as(s, get("/api/v1/battles/" + battleId + "/result")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.placementRound").value(1))
+                .andExpect(jsonPath("$.placementState").value("PENDING"))
+                .andExpect(jsonPath("$.type").value("RANDOM"));
+        mvc.perform(as(s, get("/api/v1/battles/active")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.battleId").value(battleId))
+                .andExpect(jsonPath("$.type").value("GHOST"))
+                .andExpect(jsonPath("$.placementRound").value(1));
+        mvc.perform(as(s, post("/api/v1/battles/" + battleId + "/forfeit")))
+                .andExpect(status().is2xxSuccessful());
+
+        mvc.perform(as(s, get("/api/v1/battles/active"))).andExpect(status().isNoContent());
+    }
+
+    @Test
     @DisplayName("GET /battles/match: 대기 상태와 마지막으로 요청한 대결 거리(기본 대결 거리, FR-080·FR-109)")
     void matchStatus_remembersLastDistance() throws Exception {
         Session s = signUp();
         for (int i = 0; i < 3; i++) {
             upload(s, 5_000, 1_500);
         }
+        rank(s, Tier.GOLD);
         mvc.perform(
                         as(s, post("/api/v1/battles/match"))
                                 .contentType(MediaType.APPLICATION_JSON)
@@ -130,6 +172,7 @@ class BattleControllerTest extends WebTestSupport {
         for (int i = 0; i < 3; i++) {
             upload(s, 5_000, 1_500);
         }
+        rank(s, Tier.GOLD);
         mvc.perform(
                         as(s, post("/api/v1/battles/match"))
                                 .contentType(MediaType.APPLICATION_JSON)
@@ -233,6 +276,7 @@ class BattleControllerTest extends WebTestSupport {
         for (int i = 0; i < 3; i++) {
             upload(s, 5_000, 1_500);
         }
+        rank(s, Tier.GOLD);
         long battleId =
                 body(mvc.perform(
                                         as(s, post("/api/v1/battles/self"))

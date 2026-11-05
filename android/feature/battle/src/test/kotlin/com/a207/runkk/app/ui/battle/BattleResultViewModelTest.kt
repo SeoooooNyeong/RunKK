@@ -2,6 +2,7 @@
 
 package com.a207.runkk.app.ui.battle
 
+import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.designsystem.AvatarExpression
 import com.a207.runkk.app.core.designsystem.RunResultDetailState
 import com.a207.runkk.app.core.designsystem.UiText
@@ -15,6 +16,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
@@ -406,5 +408,32 @@ class BattleResultViewModelTest {
         val vm = BattleHistoryViewModel(w.battles)
         runCurrent()
         assertNotNull(vm.state.value.error)
+    }
+
+    @Test
+    fun `TC-5879 막 끝난 배치고사 판만 판 결과 화면으로 바꿔 연다`() = runTest(main.dispatcher) {
+        fun eventsOf(isJustFinished: Boolean, placementRound: Int?): List<BattleResultEvent> {
+            val w = world()
+            w.battles.resultResult = Outcome.Success(
+                battleResult(pending = true, verdict = null).copy(
+                    placementRound = placementRound,
+                    placementState = placementRound?.let {
+                        com.a207.runkk.app.domain.battle.PlacementRoundState.PENDING
+                    }
+                )
+            )
+            val vm = BattleResultViewModel(w.battles, w.coordinator, w.uploads, details)
+            val events = mutableListOf<BattleResultEvent>()
+            backgroundScope.launch { vm.events.collect { events += it } }
+            vm.load(9, isJustFinished = isJustFinished)
+            runCurrent()
+            vm.load(9, isForced = true)
+            runCurrent()
+            vm.viewModelScope.cancel()
+            return events
+        }
+        assertEquals(listOf<BattleResultEvent>(BattleResultEvent.OpenPlacementResult(9)), eventsOf(true, 2))
+        assertEquals(emptyList(), eventsOf(false, 2), "이력에서 연 옛 판은 기존 결과")
+        assertEquals(emptyList(), eventsOf(true, null))
     }
 }

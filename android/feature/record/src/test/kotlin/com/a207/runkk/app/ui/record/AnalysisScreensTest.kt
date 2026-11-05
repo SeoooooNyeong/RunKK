@@ -17,8 +17,10 @@ import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.testing.RUNKK_PHONE
 import com.a207.runkk.app.core.designsystem.testing.captureRunkkScreen
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.domain.record.AggregationPeriod
 import com.a207.runkk.app.domain.record.PlanProgress
+import com.a207.runkk.app.domain.record.Ranking
 import com.a207.runkk.app.domain.record.Report
 import java.time.LocalDate
 import kotlin.test.assertEquals
@@ -36,6 +38,9 @@ class AnalysisScreensTest {
     val compose = createComposeRule()
 
     private val week = LocalDate.of(2026, 10, 19)
+
+    /** 한국 시각 2026-10-21(수) 12:00의 주간 집계 기간. */
+    private val window = RankingWindow(week, week.plusDays(6), java.time.Duration.ofHours(4 * 24 + 12))
     private val coach = CoachUiState(
         weekStart = week,
         today = week.plusDays(2),
@@ -50,13 +55,13 @@ class AnalysisScreensTest {
     )
 
     @Test
-    fun `TC-9742 TC-9698 랭킹은 크루가 닫혀 있으면 개인만, 주간·월간 칩과 누적 유효 거리 기준을 보인다`() {
+    fun `랭킹 v3 크루가 닫혀 있으면 크루 칸은 잠겨 누를 수 없고, 주간·월간 칩 옆에 집계 기간과 마감까지 남은 시간을 보인다`() {
         val calls = mutableListOf<Any>()
         compose.setContent {
             CompositionLocalProvider(LocalReleaseScope provides ReleaseScope.FIRST_RELEASE) {
                 RunkkTheme(reduceMotion = true) {
                     RankingScreen(
-                        RankingUiState(isLoading = false, ranking = sampleRanking),
+                        RankingUiState(isLoading = false, ranking = sampleRanking, window = window),
                         onScope = { calls += it },
                         onPeriod = { calls += it },
                         onRetry = {}
@@ -64,11 +69,25 @@ class AnalysisScreensTest {
                 }
             }
         }
-        compose.onNodeWithText("크루").assertDoesNotExist()
-        compose.onNodeWithText("개인").assertDoesNotExist()
-        compose.onNodeWithText("누적 유효 거리").assertExists()
+        compose.onNodeWithText("개인").assertExists()
+        compose.onNodeWithContentDescription("크루, 잠김").assertIsNotEnabled()
+        compose.onNodeWithText("10.19 – 10.25").assertExists()
+        compose.onNodeWithText("4일 12시간 뒤 마감").assertExists()
+        compose.onNodeWithText("누적 유효 거리").assertDoesNotExist()
         compose.onNodeWithText("월간").performClick()
         assertEquals(listOf<Any>(AggregationPeriod.MONTHLY), calls)
+    }
+
+    @Test
+    fun `랭킹 v3 마감까지 하루가 안 남으면 시간만, 한 시간도 안 남으면 곧 마감이라고 보인다`() {
+        var state by mutableStateOf(RankingUiState(isLoading = false, ranking = sampleRanking, window = window))
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) { RankingScreen(state, {}, {}, {}) }
+        }
+        state = state.copy(window = window.copy(remaining = java.time.Duration.ofMinutes(5 * 60 + 30)))
+        compose.onNodeWithText("5시간 뒤 마감").assertExists()
+        state = state.copy(window = window.copy(remaining = java.time.Duration.ofMinutes(40)))
+        compose.onNodeWithText("곧 마감").assertExists()
     }
 
     @Test
@@ -126,15 +145,54 @@ class AnalysisScreensTest {
     }
 
     @Test
-    fun `TC-9742 랭킹 행은 순위·아바타·닉네임·거리만, 남은 거리·집계 시각·티어는 그리지 않는다`() {
+    fun `랭킹 v3 내 순위 카드는 바로 위 순위까지 남은 거리를 보이고, 집계 시각과 없는 티어는 그리지 않는다`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 RankingScreen(RankingUiState(isLoading = false, ranking = sampleRanking), {}, {}, {})
             }
         }
-        compose.onNodeWithText("한 단계 위까지", substring = true).assertDoesNotExist()
+        compose.onNodeWithContentDescription("2위 나, 41.20킬로미터, 나, 1위까지 6.8km").assertExists()
         compose.onNodeWithText("집계", substring = true).assertDoesNotExist()
         compose.onNodeWithText("골드").assertDoesNotExist()
+    }
+
+    @Test
+    fun `PL5-A2 같은 순위가 있으면 남은 거리는 실제 바로 위 순위 번호로 보인다(1·2·2·4위의 4위는 2위까지)`() {
+        val tied = Ranking(
+            entries = listOf(
+                Ranking.Entry(1, "바람", Distance(48_000)),
+                Ranking.Entry(2, "번개", Distance(41_500)),
+                Ranking.Entry(2, "아침해", Distance(41_500)),
+                Ranking.Entry(4, "나", Distance(41_200))
+            ),
+            mine = Ranking.Entry(4, "나", Distance(41_200)),
+            gapToNext = Distance(300),
+            aggregatedAt = null,
+            notice = null
+        )
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                RankingScreen(RankingUiState(isLoading = false, ranking = tied), {}, {}, {})
+            }
+        }
+        compose.onNodeWithContentDescription("4위 나, 41.20킬로미터, 나, 2위까지 0.3km").assertExists()
+        compose.onNodeWithContentDescription("3위까지", substring = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun `랭킹 v3 1위이거나 남은 거리를 모르면 다음 순위까지 줄을 그리지 않는다`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                RankingScreen(
+                    RankingUiState(isLoading = false, ranking = sampleRanking.copy(gapToNext = null)),
+                    {},
+                    {},
+                    {}
+                )
+            }
+        }
+        compose.onNodeWithContentDescription("위까지", substring = true).assertDoesNotExist()
+        compose.onNodeWithContentDescription("2위 나, 41.20킬로미터, 나").assertExists()
     }
 
     @Test
@@ -160,7 +218,7 @@ class AnalysisScreensTest {
             }
         }
         compose.onNodeWithContentDescription("1위 바람, 48.00킬로미터").assertExists()
-        compose.onNodeWithContentDescription("2위 나, 41.20킬로미터, 나").assertExists()
+        compose.onNodeWithContentDescription("2위 나, 41.20킬로미터, 나, 1위까지 6.8km").assertExists()
     }
 
     @Test
@@ -197,9 +255,70 @@ class AnalysisScreensTest {
         )
     }
 
+    /** 시상대 견본(피그마 61296:3779): 7명, 공개 티어 섞임, 내 순위 128위(배치 중). */
+    private val podiumRanking = sampleRanking.copy(
+        entries = listOf(
+            Ranking.Entry(1, "바람", Distance(62_400), Gender.FEMALE, "MASTER"),
+            Ranking.Entry(2, "구름", Distance(58_000), Gender.MALE, "GOLD"),
+            Ranking.Entry(3, "새벽러너", Distance(51_700), Gender.FEMALE, "UNRANKED"),
+            Ranking.Entry(4, "한강토끼", Distance(44_200), Gender.MALE, "PLATINUM"),
+            Ranking.Entry(5, "달빛", Distance(40_900), Gender.FEMALE, "SILVER"),
+            Ranking.Entry(6, "번개", Distance(37_500), Gender.MALE, "BRONZE"),
+            Ranking.Entry(7, "아침해", Distance(33_000), Gender.FEMALE, null)
+        ),
+        mine = Ranking.Entry(128, "달리는곰", Distance(18_400), Gender.MALE, "UNRANKED"),
+        gapToNext = Distance(300)
+    )
+
+    /** TC-5858 시상대 3명(가운데 1위) + 내 순위 + 4위부터 목록, 이름 옆 아주 작은 배지. */
     @Test
-    fun rankingShot() = compose.captureRunkkScreen("record_ranking") {
-        RankingScreen(RankingUiState(isLoading = false, ranking = sampleRanking), {}, {}, {})
+    fun rankingShot() = compose.captureRunkkScreen("record_ranking", isDarkTheme = false) {
+        FirstRelease {
+            RankingScreen(RankingUiState(isLoading = false, ranking = podiumRanking, window = window), {}, {}, {})
+        }
+    }
+
+    /** TC-5859 두 명뿐이면 3위 자리는 빈 받침만. */
+    @Test
+    fun rankingPodiumTwoShot() = compose.captureRunkkScreen("record_ranking_podium_two", isDarkTheme = false) {
+        FirstRelease {
+            RankingScreen(
+                RankingUiState(
+                    isLoading = false,
+                    ranking = podiumRanking.copy(entries = podiumRanking.entries.take(2)),
+                    window = window
+                ),
+                {},
+                {},
+                {}
+            )
+        }
+    }
+
+    /** TC-5860 다크(토큰 다크 값, 받침은 고정 색). */
+    @Test
+    fun rankingDarkShot() = compose.captureRunkkScreen("record_ranking_dark") {
+        FirstRelease {
+            RankingScreen(RankingUiState(isLoading = false, ranking = podiumRanking, window = window), {}, {}, {})
+        }
+    }
+
+    @androidx.compose.runtime.Composable
+    private fun FirstRelease(content: @androidx.compose.runtime.Composable () -> Unit) {
+        CompositionLocalProvider(LocalReleaseScope provides ReleaseScope.FIRST_RELEASE, content = content)
+    }
+
+    @Test
+    fun `TC-5857 랭킹 시상대·본인 행·목록은 이름 옆에 공개 티어 배지를 읽는다`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                RankingScreen(RankingUiState(isLoading = false, ranking = podiumRanking, window = window), {}, {}, {})
+            }
+        }
+        compose.onNodeWithContentDescription("1위 바람, 62.40킬로미터, 마스터 티어").assertExists()
+        compose.onNodeWithContentDescription("3위 새벽러너, 51.70킬로미터, 배치 중").assertExists()
+        compose.onNodeWithContentDescription("128위 나, 18.40킬로미터, 나, 배치 중, 127위까지 0.3km").assertExists()
+        compose.onNodeWithContentDescription("7위 아침해, 33.00킬로미터").assertExists()
     }
 
     @Test

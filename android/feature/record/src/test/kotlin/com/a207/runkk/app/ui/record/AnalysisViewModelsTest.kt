@@ -6,12 +6,15 @@ import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.Pace
+import com.a207.runkk.app.core.model.TierDisplay
 import com.a207.runkk.app.domain.record.AggregationPeriod
 import com.a207.runkk.app.domain.record.PlanProgress
+import com.a207.runkk.app.domain.record.Ranking
 import com.a207.runkk.app.domain.record.TodayPlan
 import com.a207.runkk.app.domain.run.PlanSnapshot
 import com.a207.runkk.app.domain.run.TodayPlanCache
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -85,6 +88,42 @@ class AnalysisViewModelsTest {
     }
 
     @Test
+    fun `오늘 계획과 같은 거리를 다시 누르면 오늘 계획을 지우고 사본도 비운다(S15P31A207-275)`() {
+        records.extraProgressDays = listOf(PlanProgress.Day(TODAY, Distance(5_000), Distance.ZERO, null))
+        todayPlans.put(PlanSnapshot(Distance(5_000), null))
+        val vm = CoachViewModel(records, todayPlans, clock)
+        vm.onTodayPlan(Distance(5_000))
+        assertTrue("deletePlan:2026-10-21" in records.calls)
+        assertTrue(records.calls.none { it.startsWith("plan:") }, "같은 거리면 저장하지 않는다")
+        assertNull(todayPlans.plan.value)
+        assertEquals(UiText.Res(R.string.record_coach_today_plan_cleared), vm.state.value.message)
+        assertEquals(2, records.calls.count { it.startsWith("progress:") }, "지운 뒤 다시 읽는다")
+    }
+
+    @Test
+    fun `오늘 계획과 다른 거리를 누르면 오늘 계획을 바꾼다`() {
+        records.extraProgressDays = listOf(PlanProgress.Day(TODAY, Distance(5_000), Distance.ZERO, null))
+        val vm = CoachViewModel(records, todayPlans, clock)
+        vm.onTodayPlan(Distance(3_000))
+        assertTrue("plan:2026-10-21=3000" in records.calls)
+        assertTrue(records.calls.none { it.startsWith("deletePlan:") })
+        assertEquals(PlanSnapshot(Distance(3_000), null), todayPlans.plan.value)
+    }
+
+    @Test
+    fun `오늘 계획을 지우지 못하면 사본은 그대로 두고 사유 문구로 알린다`() {
+        records.extraProgressDays = listOf(PlanProgress.Day(TODAY, Distance(5_000), Distance.ZERO, null))
+        records.deletePlanResult = Outcome.Failure(AppError.Network)
+        todayPlans.put(PlanSnapshot(Distance(5_000), null))
+        val vm = CoachViewModel(records, todayPlans, clock)
+        vm.onTodayPlan(Distance(5_000))
+        assertEquals(PlanSnapshot(Distance(5_000), null), todayPlans.plan.value)
+        assertEquals(RunkkErrorText.of(AppError.Network), vm.state.value.message)
+        assertEquals(1, records.calls.count { it.startsWith("progress:") }, "실패하면 다시 읽지 않는다")
+        assertFalse(vm.state.value.isSaving)
+    }
+
+    @Test
     fun `성장 분석은 주간으로 읽고 월간으로 바꾼다`() {
         val vm = GrowthViewModel(records)
         assertEquals(sampleGrowth, vm.state.value.growth)
@@ -100,7 +139,7 @@ class AnalysisViewModelsTest {
 
     @Test
     fun `랭킹은 개인·크루와 기간을 바꿔 읽는다(FR-070·FR-071)`() {
-        val vm = RankingViewModel(records)
+        val vm = RankingViewModel(records, clock)
         vm.onScopeSelected(RankingScope.CREW)
         vm.onPeriodSelected(AggregationPeriod.MONTHLY)
         assertEquals(listOf("personal:WEEKLY", "crew:WEEKLY", "crew:MONTHLY"), records.calls)
@@ -108,9 +147,60 @@ class AnalysisViewModelsTest {
     }
 
     @Test
+    fun `PL5-A1 기간을 빨리 바꾸면 늦게 온 앞 기간 응답이 고른 기간의 랭킹을 덮지 않는다`() {
+        val weekly = sampleRanking.copy(gapToNext = Distance(1_000))
+        val monthly = sampleRanking.copy(gapToNext = Distance(9_000))
+        records.rankingByPeriod[AggregationPeriod.WEEKLY] = Outcome.Success(weekly)
+        records.rankingByPeriod[AggregationPeriod.MONTHLY] = Outcome.Success(monthly)
+        val weeklyGate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        records.rankingGates[AggregationPeriod.WEEKLY] = weeklyGate
+        val vm = RankingViewModel(records, clock) // 주간 요청이 문에 걸려 기다린다
+        vm.onPeriodSelected(AggregationPeriod.MONTHLY)
+        assertEquals(monthly, vm.state.value.ranking)
+        weeklyGate.complete(Unit) // 늦게 온 주간 응답
+        assertEquals(AggregationPeriod.MONTHLY, vm.state.value.period)
+        assertEquals(monthly, vm.state.value.ranking)
+        assertFalse(vm.state.value.isLoading)
+    }
+
+    @Test
+    fun `랭킹 v3 집계 기간과 마감까지 남은 시간은 한국 시각 주(월~일)·달로 센다`() {
+        // clock = 한국 시각 2026-10-21(수) 12:00
+        val vm = RankingViewModel(records, clock)
+        assertEquals(
+            RankingWindow(LocalDate.of(2026, 10, 19), LocalDate.of(2026, 10, 25), Duration.ofHours(4 * 24 + 12)),
+            vm.state.value.window
+        )
+        vm.onPeriodSelected(AggregationPeriod.MONTHLY)
+        assertEquals(
+            RankingWindow(LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 31), Duration.ofHours(10 * 24 + 12)),
+            vm.state.value.window
+        )
+    }
+
+    @Test
+    fun `TC-5857 랭킹 행은 공개 티어 배지를 쓰고 없으면 그리지 않는다`() {
+        val placing = Ranking.Entry(1, "바람", Distance(48_000), publicTier = "UNRANKED")
+        val gold = Ranking.Entry(2, "구름", Distance(41_000), publicTier = "GOLD")
+        val gone = Ranking.Entry(3, "탈퇴", Distance(39_000), publicTier = null)
+        records.rankingResult = Outcome.Success(
+            sampleRanking.copy(entries = listOf(placing, gold, gone), mine = placing.copy(name = "나"))
+        )
+        val state = RankingViewModel(records, clock).state.value
+
+        assertEquals(
+            listOf(TierDisplay.Placing, TierDisplay.Confirmed("GOLD"), null),
+            state.ranking?.entries?.map(::rankingTier)
+        )
+        // 본인 행도 공개 티어다(임시 티어 없음).
+        assertEquals(TierDisplay.Placing, state.ranking?.mine?.let(::rankingTier))
+        assertEquals(placing, state.podium?.first)
+    }
+
+    @Test
     fun `랭킹 오류는 문구로 보인다`() {
         records.rankingResult = Outcome.Failure(AppError.Network)
-        assertEquals(RunkkErrorText.of(AppError.Network), RankingViewModel(records).state.value.error)
+        assertEquals(RunkkErrorText.of(AppError.Network), RankingViewModel(records, clock).state.value.error)
     }
 
     @Test

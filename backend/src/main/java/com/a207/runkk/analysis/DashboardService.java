@@ -104,7 +104,18 @@ public class DashboardService {
                                 .filter(RunSummary::valid)
                                 .mapToLong(r -> r.distance().meters())
                                 .sum()),
-                Streak.countWeeksBack(runDays, base));
+                Streak.countWeeksBack(runDays, base),
+                latestRun(memberId).orElse(null));
+    }
+
+    /**
+     * 기록 목록 맨 위 행 1건(D-491). 기준일과 무관하게 지금까지 가장 늦게 시작한 기록이다(기준일은 달력 달만 정한다). 최신 1건만 읽는다(코드 리뷰
+     * PL1-B5: 30일 넘게 쉰 회원도 전 기간 목록을 읽지 않음).
+     */
+    private Optional<RecordRow> latestRun(long memberId) {
+        return runQueryService
+                .latestListRow(memberId)
+                .map(top -> RecordRow.of(top.summary(), top.newRecords(), top.routeShape()));
     }
 
     /** 오늘 달린 거리·시간·횟수. 유효 기록만 센다(집계 제외 기록은 달력·누적과 같이 뺀다, v0.10). */

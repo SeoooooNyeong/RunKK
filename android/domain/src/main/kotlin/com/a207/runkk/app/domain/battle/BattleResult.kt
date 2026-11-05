@@ -19,6 +19,8 @@ import java.time.LocalDate
  * null, [totalRewardPoints]는 이 대결로 적립한 합계(대결 + 본인 기록, 옛 서버면 null), [evaluation]은 본인 기록이 일으킨 티어
  * 평가(없으면 null, D-284)다. 이번 주 전적(weekly)은 서버가 폐기 예정이라 읽지 않는다(D-283). [opponentGender]는 상대 성별(상대 그림을
  * 고른다)이고 셀럽·과거의 나·옛 서버면 null이다. [celebrityFigure]는 셀럽 그림 키(셀럽 대결이 아니거나 없으면 null)다.
+ * [placementRound]는 배치고사 대결이면 만든 때의 판 번호(1~3), [placementState]는 그 판이 배치고사에 들어갔는지(FR-280, D-487)이고
+ * 배치고사 대결이 아니거나 모르는 값이면 null이다.
  */
 data class BattleResult(
     val battleId: Long,
@@ -35,7 +37,9 @@ data class BattleResult(
     val totalRewardPoints: Int? = null,
     val evaluation: Evaluation? = null,
     val opponentGender: Gender? = null,
-    val celebrityFigure: String? = null
+    val celebrityFigure: String? = null,
+    val placementRound: Int? = null,
+    val placementState: PlacementRoundState? = null
 ) {
     data class Row(val item: String, val mine: String, val theirs: String)
 

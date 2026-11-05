@@ -32,6 +32,12 @@ public interface MemberRepository {
 
     Member save(Member member);
 
+    /**
+     * 이미 읽은 회원을 DB의 지금 값으로 다시 읽는다(같은 트랜잭션의 1차 캐시 값이 아님). 배치 진행 행을 잠근 뒤 상태·티어를 다시 볼 때
+     * 쓴다(PlacementService.lockForMatch, D-518, 코드 리뷰 PL1-B3·PL1-B4).
+     */
+    void refresh(Member member);
+
     /** 표시명·티어·공개 범위를 한 번의 조회로(N+1 방지, 6.5). 없는 ID는 맵에 없다. */
     Map<Long, MemberSummary> summaries(Collection<Long> memberIds);
 

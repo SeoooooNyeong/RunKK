@@ -28,11 +28,11 @@ spring:
           time_zone: Asia/Seoul
   # 비동기 사건 수신자(리포트·Runimal, D-03·배경 해금 BackgroundUnlockListener·채팅 방 밖 알림 ChatDeliveryListener) 실행기. 인스턴스 1개·동시 50명(5.4) 규모. 종료 때 진행 중 작업을 30초까지 기다린다(1단계 리뷰 M6·L2).
   task:
-    # 시각 작업은 batch.* 10개 패키지에 20개다(1초 2개, 1분 2개, 0시 3개, 0시 10분 4개, 0시 30분 1개, 3시 6개, 3시 30분 1개, 20시 1개). 같은 시각 작업과
+    # 시각 작업은 batch.* 10개 패키지에 21개다(1초 2개, 1분 2개, 0시 3개, 0시 10분 4개, 0시 20분 1개, 0시 30분 1개, 3시 6개, 3시 30분 1개, 20시 1개). 같은 시각 작업과
     # 1초 시계가 서로 기다리지 않게 스케줄러 스레드를 작업 수만큼 둔다(5.5, B5 리뷰 "풀 2개로 3시·0시 작업이 겹침"). 작업을 더하면 이 값도 늘린다.
     scheduling:
       pool:
-        size: ${SCHEDULER_POOL_SIZE:20}
+        size: ${SCHEDULER_POOL_SIZE:21}
       thread-name-prefix: runkk-schedule-
     execution:
       thread-name-prefix: runkk-async-
@@ -195,6 +195,8 @@ runkk:
     tier-reconcile-cron: "0 10 0 * * *"
     # 랜드마크 배경 해금 보정(D-107 (3)): 커밋 뒤 비동기 수신자가 놓친 해금을 최근 2일 저장 기록 회원으로 다시 채운다
     background-reconcile-cron: "0 10 0 * * *"
+    # 배치고사 판 셈 누락 복구(D-490): 판정 사건 수신자가 놓친 판을 최근 7일 끝난 배치고사 대결로 다시 센다(티어 보정 0시 10분 다음)
+    placement-reconcile-cron: "0 20 0 * * *"
     join-request-expiry-cron: "0 0 3 * * *"
     appearance-refresh-cron: "0 0 0 * * *"
     # 랭킹 스냅숏 재집계(D-25, FR-070), 계획 미이행 알림(FR-075), 감사 기록 6개월 정리(FR-176)
@@ -267,6 +269,9 @@ spring:
     password: ${DB_PASSWORD}
   flyway:
     enabled: true
+    # 배치고사 V35_1(버전 35.1, 핫픽스 v0.11.1)은 develop DB에 이미 V36·V37이 있어 적용 안 된 낮은 번호가 된다.
+    # develop 프로필만 순서 밖 적용을 켠다(05-21 D-476·D-514). prod는 켜지 않는다. 35.1이 한 번 적용되면 v0.12 릴리스 MR에서 지운다.
+    out-of-order: true
     # V29가 만드는 ai 전용 DB 계정 runkk_ai의 비밀번호(S15P31A207-172). 기본값이 없어 빠지면 기동이 멈춘다.
     # ai .env의 RUNKK_DB_URL과 같은 값이어야 한다
     placeholders:

@@ -187,6 +187,22 @@ public class JpaRunRecordRepository implements RunRecordRepository {
     }
 
     @Override
+    public Optional<RunListRow> latestListRow(long memberId) {
+        return entityManager
+                .createQuery(
+                        LIST_COLUMNS
+                                + " where r.memberId = :m order by r.startedAt desc, r.recordId"
+                                + " desc",
+                        Object[].class)
+                .setParameter("m", memberId)
+                .setMaxResults(1)
+                .getResultList()
+                .stream()
+                .findFirst()
+                .map(row -> RunListRow.of(summary(row), (String) row[12], (String) row[13]));
+    }
+
+    @Override
     public List<RunRecord> findMissingShape(String afterRecordId, int limit) {
         return entityManager
                 .createQuery(

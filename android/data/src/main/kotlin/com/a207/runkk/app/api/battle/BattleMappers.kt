@@ -12,6 +12,7 @@ import com.a207.runkk.app.domain.battle.FriendInvite
 import com.a207.runkk.app.domain.battle.FriendInviteView
 import com.a207.runkk.app.domain.battle.MatchAcceptance
 import com.a207.runkk.app.domain.battle.OpponentTrack
+import com.a207.runkk.app.domain.battle.PlacementRoundState
 import com.a207.runkk.app.domain.battle.RecordBattleCandidates
 import com.a207.runkk.app.domain.battle.RecordBattleKind
 import com.a207.runkk.app.domain.battle.RecordBattleStart
@@ -22,8 +23,13 @@ import java.time.Duration
 
 // DTO → 도메인 매퍼(13.2 toDomain). 앱이 모르는 대결 종류의 이력 줄은 건너뛴다.
 
-internal fun MatchAcceptanceResponse.toDomain(): MatchAcceptance =
-    MatchAcceptance(waiting, distanceMeters?.let(::Distance), defaultDistanceMeters?.let(::Distance))
+internal fun MatchAcceptanceResponse.toDomain(): MatchAcceptance = MatchAcceptance(
+    isWaiting = waiting,
+    distance = distanceMeters?.let(::Distance),
+    defaultDistance = defaultDistanceMeters?.let(::Distance),
+    placementRound = placementRound,
+    battleId = battleId
+)
 
 internal fun CandidatesResponse.toDomain(): RecordBattleCandidates = RecordBattleCandidates(
     candidates.map {
@@ -75,7 +81,8 @@ internal fun ActiveBattleResponse.toDomain(): ActiveBattle = ActiveBattle(
     opponentName = opponentName?.takeIf { it.isNotBlank() },
     startAt = startAt?.let(ServerTime::parse),
     opponentGender = enumByName<Gender>(opponentGender),
-    celebrityFigure = celebrityFigure.figureKey()
+    celebrityFigure = celebrityFigure.figureKey(),
+    placementRound = placementRound
 )
 
 internal fun BattleResultResponse.toDomain(): BattleResult = BattleResult(
@@ -93,7 +100,10 @@ internal fun BattleResultResponse.toDomain(): BattleResult = BattleResult(
     totalRewardPoints = totalRewardPoints,
     evaluation = evaluation?.toDomain(),
     opponentGender = enumByName<Gender>(opponentGender),
-    celebrityFigure = celebrityFigure.figureKey()
+    celebrityFigure = celebrityFigure.figureKey(),
+    placementRound = placementRound,
+    // 모르는 상태 값(새 서버)은 모르는 것으로 둔다: 판 결과 화면이 정리 중으로 다시 읽는다.
+    placementState = enumByName<PlacementRoundState>(placementState)
 )
 
 /** 셀럽 그림 키는 문자열 그대로 넘긴다(그림 고르기는 화면 몫). 빈 값은 없음으로 본다. */
@@ -137,7 +147,9 @@ internal fun BattleHistoryResponse.toDomain(): BattleHistory = BattleHistory(
                     playedAt = ServerTime.parse(entry.playedAt),
                     gap = entry.gapSeconds?.let(Duration::ofSeconds),
                     sourceLabel = entry.sourceLabel,
-                    isNewRecord = entry.newRecord
+                    isNewRecord = entry.newRecord,
+                    placementRound = entry.placementRound,
+                    opponentMemberId = entry.opponentMemberId
                 )
             }
         },

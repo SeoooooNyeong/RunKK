@@ -189,15 +189,16 @@ class RunViewModelTest {
     }
 
     @Test
-    fun `종료 짧게 누름은 안내만 하고 길게 누름은 저장 뒤 결과로 간다(FR-181)`() = runTest(main.dispatcher) {
+    fun `종료 짧게 누름은 안내를 더 띄우지 않고 길게 누름은 저장 뒤 결과로 간다(FR-181, S15P31A207-275)`() = runTest(main.dispatcher) {
         val (vm, tracker) = started()
         tracker.walk(1, 37.5)
         tracker.walk(120, 37.5045)
         tracker.tick(clock.now)
         vm.onFinishTapped()
         assertEquals(RunPhase.RUNNING, vm.state.value.phase)
-        assertEquals(UiText.Res(R.string.run_hold_to_finish), vm.state.value.hint)
-        assertTrue(guidance.played.any { it.kind == Guidance.Kind.FINISH_HINT })
+        // "길게 눌러 종료"는 버튼 아래 캡션 하나로만 보인다. 짧게 누름이 띄우던 안내 줄과 안내 띠는 없앴다(2026-11-04 핫픽스)
+        assertEquals(null, vm.state.value.hint)
+        assertTrue(guidance.played.none { it.kind == Guidance.Kind.FINISH_HINT })
         vm.events.test {
             vm.onFinishLongPressed()
             val event = awaitItem()

@@ -70,11 +70,17 @@ private fun rememberBreath(): State<Float>? {
 private const val BREATH_MS = 900
 private const val BREATH_LOW_ALPHA = 0.45f
 
-/** 매칭 화면 머리줄(피그마 BMA·BMB): 티어 칩과 대결 거리. 티어를 모르면 거리만. */
+/**
+ * 매칭 화면 머리줄(피그마 BMA·BMB): 티어 칩과 대결 거리. 티어를 모르면 거리만. [label]이 있으면 티어 칩 자리에 그 글자 칩을 둔다
+ * (배치고사 매칭 완료의 「배치고사 n/3」).
+ */
 @Composable
-internal fun MatchHeader(tier: String?, distance: Distance) {
+internal fun MatchHeader(tier: String?, distance: Distance, label: String? = null) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        tier?.let { TierChip(it) }
+        when {
+            label != null -> OutlineChip(label)
+            tier != null -> TierChip(tier)
+        }
         Text(text = distanceLabel(distance), style = labelStyle(color = WatchColors.OnSurface, size = 12.sp))
     }
 }

@@ -7,6 +7,7 @@ import com.a207.runkk.app.api.account.LoginRequest
 import com.a207.runkk.app.api.account.LoginResponse
 import com.a207.runkk.app.api.account.LogoutRequest
 import com.a207.runkk.app.api.account.MemberSettingsResponse
+import com.a207.runkk.app.api.account.PlacementResponse
 import com.a207.runkk.app.api.account.ProfileEditRequest
 import com.a207.runkk.app.api.account.ProfileResponse
 import com.a207.runkk.app.api.account.SettingChangeBody
@@ -95,9 +96,11 @@ import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.RunMode
 import com.a207.runkk.app.core.model.SignalState
 import com.a207.runkk.app.domain.account.AccountType
+import com.a207.runkk.app.domain.account.PlacementStatus
 import com.a207.runkk.app.domain.account.ProviderType
 import com.a207.runkk.app.domain.avatar.ItemSlot
 import com.a207.runkk.app.domain.battle.BattleHistory
+import com.a207.runkk.app.domain.battle.PlacementRoundState
 import com.a207.runkk.app.domain.chat.ReactionKind
 import com.a207.runkk.app.domain.crew.AttendanceAnswer
 import com.a207.runkk.app.domain.crew.CrewRanking
@@ -211,6 +214,10 @@ class ServerContractTest {
         assertEquals(enumNames("ReportReason"), names(ReportReason.entries))
         assertEquals(enumNames("ReportStatus"), names(ReportStatus.entries))
         assertEquals(enumNames("ChatRemovalReason"), names(CrewChatRemoved.Reason.entries))
+        // TC-5941 배치고사 상태(05-03 5.7.3.1)
+        assertEquals(enumNames("PlacementStatus"), names(PlacementStatus.entries))
+        // TC-5942 배치고사 판 셈 상태(05-03 5.7.3.1)
+        assertEquals(enumNames("PlacementRoundState"), names(PlacementRoundState.entries))
     }
 
     @Test
@@ -391,6 +398,8 @@ class ServerContractTest {
         response(RunimalTypesResponse.serializer(), "RunimalController.TypesResponse")
         response(RunimalTypeResponse.serializer(), "RunimalController.TypeDetailResponse")
         response(ProfileResponse.serializer(), "MeController.ProfileResponse")
+        // TC-5939 배치고사·화면 개편 계약(05-03 5.7.3.3): 배치 진행, 대시보드 latestRun, 랭킹 publicTier
+        response(PlacementResponse.serializer(), "MeController.PlacementResponse")
         response(DashboardResponse.serializer(), "RecordDtos.DashboardResponse")
         response(RecordListResponse.serializer(), "RecordDtos.RecordListResponse")
         response(RecordDetailResponse.serializer(), "RecordDtos.RecordDetailResponse")
@@ -400,6 +409,23 @@ class ServerContractTest {
         response(PlanProgressResponse.serializer(), "RecordDtos.PlanProgressResponse")
         response(TodayPlanResponse.serializer(), "RecordDtos.TodayPlanResponse")
         response(RunCardResponse.serializer(), "RecordDtos.RunCardResponse")
+        // TC-5940 배치고사 대결 항목(05-03 5.7.3.3): 선택 항목이라 위 대조가 빠뜨리지 않게 이름이 서버 record에 있는지 따로 본다
+        mapOf(
+            MatchAcceptanceResponse.serializer() to
+                ("BattleDtos.MatchAcceptanceResponse" to setOf("placementRound", "battleId")),
+            BattleResultResponse.serializer() to
+                ("BattleDtos.BattleResultResponse" to setOf("placementRound", "placementState")),
+            ActiveBattleResponse.serializer() to ("BattleDtos.ActiveBattleResponse" to setOf("placementRound")),
+            BattleHistoryResponse.Entry.serializer() to
+                ("BattleDtos.Entry" to setOf("placementRound", "opponentMemberId"))
+        ).forEach { (app, server) ->
+            val (key, fields) = server
+            val appNames = (0 until app.descriptor.elementsCount).map { app.descriptor.getElementName(it) }.toSet()
+            val serverNames = records.getValue(key).jsonObject.getValue("components").jsonArray
+                .map { it.jsonObject.getValue("name").jsonPrimitive.content }.toSet()
+            (fields - appNames).forEach { problems += "${app.descriptor.serialName}.$it: 앱 DTO에 없는 배치고사 항목" }
+            (fields - serverNames).forEach { problems += "$key.$it: 서버 record에 없는 배치고사 항목" }
+        }
         assertTrue(problems.isEmpty(), problems.joinToString("\n", prefix = "\n"))
     }
 

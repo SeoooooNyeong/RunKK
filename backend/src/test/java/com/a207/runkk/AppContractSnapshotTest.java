@@ -2,7 +2,7 @@ package com.a207.runkk;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.a207.runkk.member.TierProgress;
+import com.a207.runkk.member.PlacementProgress;
 import com.a207.runkk.notification.NotificationType;
 import com.a207.runkk.running.ValidityRule;
 import com.fasterxml.jackson.annotation.JsonAlias;
@@ -105,10 +105,11 @@ class AppContractSnapshotTest {
                         "SettingItem",
                         "DocumentType",
                         "AccountType",
-                        "ScreenTheme"));
+                        "ScreenTheme",
+                        "PlacementStatus"));
         ENUMS.put("notification", List.of("NotificationType", "Screen"));
         ENUMS.put("avatar", List.of("DefaultCharacter", "BodyShape", "SkinTone", "FailureReason"));
-        ENUMS.put("battle", List.of("BattleType", "Verdict"));
+        ENUMS.put("battle", List.of("BattleType", "Verdict", "PlacementRoundState"));
         ENUMS.put(
                 "running",
                 List.of("CardKind", "RunMode", "SignalState", "DisposalKind", "StartDevice"));
@@ -156,7 +157,8 @@ class AppContractSnapshotTest {
                     .enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS);
 
     @Test
-    @DisplayName("서버 계약이 바뀌면 실패하고 갱신 방법을 알린다")
+    @DisplayName(
+            "TC-5703·TC-5704·TC-5706·TC-5707 서버 계약(배치고사 enum·응답 record 포함)이 바뀌면 실패하고 갱신 방법을 알린다")
     void serverContract_matchesBaseline() throws Exception {
         Map<String, String> generated = generate();
         if (Boolean.parseBoolean(System.getenv(UPDATE_ENV))) {
@@ -252,8 +254,10 @@ class AppContractSnapshotTest {
         files.put(
                 "policy/ValidityRule.txt",
                 text(List.of("maxSpeedKmh " + ValidityRule.STANDARD.maxSpeedKmh())));
-        // 앱 랜덤 대결 잠금(RandomBattleGate.PLACEMENT_RUNS)이 같은 첫 배치 횟수로 남은 횟수를 세도록 넘긴다(H-44, D-333)
-        files.put("policy/TierPlacement.txt", text(List.of("placementRuns " + tierPlacement())));
+        // 앱 배치고사 진행 「n/3」의 분모(RandomBattleGate.PLACEMENT_RUNS)가 서버 판 수와 같도록 넘긴다(H-44, 05-21 D-509)
+        files.put(
+                "policy/TierPlacement.txt",
+                text(List.of("placementRuns " + PlacementProgress.ROUNDS)));
         // 앱 GatedFeature(알림함·시스템 푸시 숨김)가 서버 푸시 차단(D138)과 같은 종류 집합을 쓰도록 넘긴다(H-47). 딸린 기능이 없으면 "-"
         files.put("policy/GatedNotification.txt", text(gatedNotifications()));
         return files;
@@ -270,13 +274,6 @@ class AppContractSnapshotTest {
                                                 ? "-"
                                                 : t.gatedFeature().name()))
                 .toList();
-    }
-
-    /** member.TierProgress.PLACEMENT(패키지 밖에서 보이지 않는 상수라 반사로 읽는다). */
-    private static int tierPlacement() throws ReflectiveOperationException {
-        Field placement = TierProgress.class.getDeclaredField("PLACEMENT");
-        placement.setAccessible(true);
-        return placement.getInt(null);
     }
 
     private static void enums(Map<String, String> files) throws Exception {

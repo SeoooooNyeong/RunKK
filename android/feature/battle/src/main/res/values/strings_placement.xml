@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 랜덤·친구 대결 분리와 배치고사 화면(FR-279~FR-286, design-oo 05-21, 피그마 61355·61357·61361·61312). (제안)은 PM 확인 전 문구다. -->
+<resources>
+    <!-- 랜덤 대결 v5(FR-285, 61355:2909) -->
+    <string name="random_battle_title">랜덤 대결</string>
+    <string name="random_battle_hero">비슷한 페이스의 러너를 찾아 드려요</string>
+    <string name="random_battle_versus_desc">나 대 아직 모르는 상대. 비슷한 페이스의 러너를 찾아 드려요</string>
+    <string name="random_battle_distance_title">거리 선택</string>
+    <string name="random_battle_best">내 %1$s 최고 기록</string>
+    <!-- (제안) J24 8절 4 -->
+    <string name="random_battle_no_best">아직 기록이 없어요</string>
+    <string name="random_battle_start">%1$s 매칭 시작</string>
+
+    <!-- 친구 대결(FR-286, 61312:14822·61312:14940) -->
+    <string name="friend_battle_title">친구 대결</string>
+    <string name="friend_battle_hero_line1">누가 더 빠를지</string>
+    <string name="friend_battle_hero_line2">친구와 대결해 볼까요?</string>
+    <string name="friend_battle_hero_caption">초대를 받은 친구가 들어오면 시작</string>
+    <string name="friend_battle_who">누구랑 달릴까요?</string>
+    <string name="friend_battle_recent">최근 함께 달린 친구</string>
+    <string name="friend_battle_ran_on">%1$d월 %2$d일 함께 달림</string>
+    <!-- (제안) J24-18 -->
+    <string name="friend_battle_empty">아직 함께 달린 친구가 없어요</string>
+    <string name="friend_battle_distance">거리</string>
+    <string name="friend_battle_distance_expanded">펼침</string>
+    <string name="friend_battle_distance_collapsed">접힘</string>
+    <string name="friend_battle_invite">카카오톡으로 초대하기</string>
+
+    <!-- 배치고사 진행(FR-279, 61355:3061·61355:3230, 진행 컴포넌트 61354:2971) -->
+    <string name="placement_card_label">배치고사</string>
+    <string name="placement_card_of">/%1$d판</string>
+    <string name="placement_card_of_done">/%1$d판 완료</string>
+    <!-- 낭독: 「2/3」을 분수·날짜로 읽지 않게 「3판 중 2판째」(PL2-A5) -->
+    <string name="placement_card_desc">배치고사 %2$d판 중 %1$d판째</string>
+    <string name="placement_card_desc_done">배치고사 %2$d판 중 %1$d판 완료</string>
+    <string name="placement_step_done">%1$d판 완료</string>
+    <string name="placement_step_current">%1$d판 이번 판</string>
+    <string name="placement_step_left">%1$d판</string>
+    <string name="placement_start">배치고사 %1$d판 시작</string>
+    <string name="placement_load_failed">배치고사 진행을 불러오지 못했어요</string>
+
+    <!-- 판 결과(FR-280, 61357:3020) -->
+    <string name="placement_result_title">배치고사 결과</string>
+    <string name="placement_verdict_win">승리</string>
+    <string name="placement_verdict_lose">패배</string>
+    <string name="placement_verdict_draw">무승부</string>
+    <string name="placement_result_reward">리워드</string>
+    <string name="placement_result_checking">결과를 확인하고 있어요</string>
+    <!-- (제안) J24-20 -->
+    <string name="placement_result_not_counted">이번 판은 배치고사에 들어가지 않았어요</string>
+    <!-- (제안) D-501 -->
+    <string name="placement_result_still_pending">결과를 정리하고 있어요. 잠시 뒤 다시 확인해 주세요</string>
+    <!-- (제안) PL2-A2 -->
+    <string name="placement_result_recheck">다시 확인</string>
+    <string name="placement_retry">다시 시도</string>
+    <string name="placement_result_next">다음 판 뛰기</string>
+    <string name="placement_home">홈으로</string>
+    <string name="placement_result_date_pattern">M월 d일 (E) a h:mm</string>
+
+    <!-- 배치고사 완료(FR-281, 61357:3270, 축하 61361:3142~3974) -->
+    <string name="placement_complete_title">배치고사 완료</string>
+    <string name="placement_complete_headline">%1$s 티어가 됐어요</string>
+    <string name="placement_complete_rounds">배치고사 %1$d판</string>
+    <string name="placement_complete_record">%1$d승 %2$d패</string>
+    <string name="placement_complete_record_draw">%1$d승 %2$d패 %3$d무</string>
+    <string name="placement_complete_round">%1$d판</string>
+    <string name="placement_complete_km">km</string>
+    <string name="placement_complete_pace_unit">/km</string>
+    <string name="placement_complete_row_desc">%1$d판, %2$s킬로미터, 평균 페이스 %3$s, %4$s</string>
+    <string name="placement_complete_short_win">승</string>
+    <string name="placement_complete_short_lose">패</string>
+    <string name="placement_complete_short_draw">무</string>
+    <!-- (제안) 8절 9 -->
+    <string name="placement_complete_basis">세 판 기록의 평균으로 티어를 정했어요</string>
+    <string name="placement_complete_random">랜덤 대결 하러 가기</string>
+
+    <!-- 매칭 성사·이력의 배치고사(FR-276 J24-3, J24-22) -->
+    <string name="battle_match_placement_opponent">아직 모르는 상대</string>
+    <!-- (제안) J24-22 -->
+    <string name="battle_history_type_placement">%1$s · 배치고사 %2$d판</string>
+</resources>
