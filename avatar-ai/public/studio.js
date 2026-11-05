@@ -54,8 +54,6 @@
     }
     if(skinPixels.length<80)return source;
     const chinY=Math.max(...skinPixels.map(p=>p.y)),chin=skinPixels.filter(p=>p.y>=chinY-9),chinX=chin.reduce((n,p)=>n+p.x,0)/chin.length;
-    // A real neck detected in the face layer is already part of the saved head.
-    if(faceLayer?.canvas&&window.RunKKNeckJoin?.prepare(faceLayer.canvas,state.headPivotX/100,state.headPivotY/100).confident)return source;
     const neckWidth=clamp(span*.19,76,150),neckHeight=clamp(span*.18,90,170),neckTop=chinY-5,neckBottom=Math.min(height-2,neckTop+neckHeight);
     if(neckBottom-neckTop<48)return source;
     const samples=skinPixels.filter(p=>p.y>=chinY-24&&p.y<=chinY),color=[0,1,2].map(k=>Math.round(samples.reduce((n,p)=>n+[p.r,p.green,p.b][k],0)/Math.max(1,samples.length)));
