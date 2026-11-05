@@ -5,6 +5,7 @@ import {createHash,randomUUID} from 'node:crypto';
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import path from 'node:path';
 import {requireUserId,userDirectory} from './user-storage.mjs';
+import {splitRightHead,rightLayerImages,RIGHT_LAYER_VERSION,RIGHT_LAYOUT} from './right-head-layers.mjs';
 
 export const AVATAR_VIEW_VERSION='runkk-head-profile-v3-wind';
 const directions=new Set(['right']);
@@ -61,7 +62,7 @@ async function verifyProfile(client,visionModel,front,profile,direction){
   if(v.headOnly!==true||v.completeHair!==true||v.profile!==true||v.direction!==direction||v.sameHairAndStyle!==true||v.windAppropriate!==true)throw fail('우측 방향·바람에 흐르는 헤어·몸 미포함을 확인하지 못했어요. 기존 정면은 유지해요.');
   return v;
 }
-export function registerAvatarViews(app,{client,root,imageModel,visionModel,quality,ensureApiKey,isBusy,setBusy}){
+export function registerAvatarViews(app,{client,root,imageModel,visionModel,quality,ensureApiKey,isBusy,setBusy,splitProfile=splitRightHead}){
   const upload=multer({storage:multer.memoryStorage(),limits:{files:1,fileSize:8*1024*1024},fileFilter:(_req,file,cb)=>cb(file.mimetype==='image/png'?null:fail('정면 기준 이미지는 PNG로 보내 주세요.',400,'INVALID_FRONT_IMAGE'),file.mimetype==='image/png')});
   const directory=userId=>path.join(userDirectory(root,userId),'head-views');
   const filename=(userId,hash,direction,extension)=>path.join(directory(userId),`${hash}-${direction}.${extension}`);
@@ -69,8 +70,12 @@ export function registerAvatarViews(app,{client,root,imageModel,visionModel,qual
     try{
       const m=JSON.parse(await readFile(filename(userId,hash,direction,'json'),'utf8'));
       if(m.userId!==userId||m.scope!=='head'||m.sourceHash!==hash||m.direction!==direction||m.viewVersion!==AVATAR_VIEW_VERSION||m.imageModel!==imageModel||m.visionModel!==visionModel||m.quality!==quality)return null;
-      const png=await readFile(filename(userId,hash,direction,'png'));return {...m,image:`data:image/png;base64,${png.toString('base64')}`,cached:true,saved:true,warning:null};
-    }catch(error){if(error.code==='ENOENT')return null;throw fail('저장된 옆모습을 읽지 못했어요. 자동으로 다시 생성하지 않았어요.');}
+      const png=await readFile(filename(userId,hash,direction,'png'));
+      let layers;
+      if(m.rightLayerLayout?.version===RIGHT_LAYER_VERSION){try{const buffers=await Promise.all(['face','eyes','hair'].map(part=>readFile(filename(userId,hash,direction,part+'.png'))));layers={rightFace:buffers[0],rightEyes:buffers[1],rightHair:buffers[2]};}catch(e){if(e.code!=='ENOENT')throw e;}}
+      if(!layers){layers=await splitProfile(png);for(const part of ['Face','Eyes','Hair'])await writeFile(filename(userId,hash,direction,part.toLowerCase()+'.png'),layers['right'+part]);m.rightLayerLayout=RIGHT_LAYOUT;m.rightLayerValidation=layers.rightLayerValidation;await writeFile(filename(userId,hash,direction,'json'),JSON.stringify(m,null,2));}
+      return {...m,...rightLayerImages(layers),image:`data:image/png;base64,${png.toString('base64')}`,cached:true,saved:true,warning:null};
+    }catch(error){if(error.code==='ENOENT')return null;if(error.code==='RIGHT_LAYER_EXTRACTION_FAILED')throw error;throw fail('저장된 옆모습을 읽지 못했어요. 자동으로 다시 생성하지 않았어요.');}
   }
   async function generate(userId,front,{lockHeld=false}={}){
     requireUserId(userId);const direction='right',referenceBounds=await inspectFront(front),hash=sourceHash(front);
@@ -83,9 +88,11 @@ export function registerAvatarViews(app,{client,root,imageModel,visionModel,qual
       const encoded=output.data?.[0]?.b64_json;if(!encoded)throw fail('옆모습 이미지 데이터가 없어요.');
       const png=await normalizeProfile(Buffer.from(encoded,'base64'),referenceBounds);
       const validation=await verifyProfile(client,visionModel,front,png,direction);
+      const layers=await splitProfile(png);
       const metadata={userId,viewId:randomUUID(),createdAt:new Date().toISOString(),sourceHash:hash,direction,scope:'head',viewVersion:AVATAR_VIEW_VERSION,imageModel,visionModel,quality,canvas:[1024,1024],referenceBounds,validation,staticImage:true};
-      let saved=true;try{await mkdir(directory(userId),{recursive:true});await writeFile(filename(userId,hash,direction,'png'),png);await writeFile(filename(userId,hash,direction,'json'),JSON.stringify(metadata,null,2));}catch{saved=false;}
-      return {...metadata,image:`data:image/png;base64,${png.toString('base64')}`,cached:false,saved,warning:saved?null:'옆모습을 서버에 저장하지 못했어요. 현재 모습 PNG 저장으로 보관해 주세요.'};
+      Object.assign(metadata,{rightLayerLayout:RIGHT_LAYOUT,rightLayerValidation:layers.rightLayerValidation});
+      let saved=true;try{await mkdir(directory(userId),{recursive:true});await writeFile(filename(userId,hash,direction,'png'),png);for(const part of ['Face','Eyes','Hair'])await writeFile(filename(userId,hash,direction,part.toLowerCase()+'.png'),layers['right'+part]);await writeFile(filename(userId,hash,direction,'json'),JSON.stringify(metadata,null,2));}catch{saved=false;}
+      return {...metadata,...rightLayerImages(layers),image:`data:image/png;base64,${png.toString('base64')}`,cached:false,saved,warning:saved?null:'옆모습을 서버에 저장하지 못했어요. 현재 모습 PNG 저장으로 보관해 주세요.'};
     }finally{if(owns)setBusy(false);}
   }
   app.get('/api/heads/right-profile/:sourceHash',async(req,res,next)=>{

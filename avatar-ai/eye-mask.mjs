@@ -1,4 +1,27 @@
 const W=1024;
+export function refineProfileEye(data,eye,threshold,features){
+  const box={left:Math.max(0,eye.left-6),right:Math.min(W-1,eye.right+6),top:Math.max(0,eye.top-3),bottom:Math.min(W-1,eye.bottom+4)};
+  const white=new Uint8Array(W*W);
+  for(let y=box.top;y<=box.bottom;y++)for(let x=box.left;x<=box.right;x++){const p=y*W+x,i=p*4,r=data[i],g=data[i+1],b=data[i+2];if(data[i+3]>100&&Math.min(r,g,b)>165&&Math.max(r,g,b)-Math.min(r,g,b)<24)white[p]=1;}
+  const sclera=islands(white,box).filter(c=>c.height>eye.height*.25&&c.width>5).sort((a,b)=>b.count-a.count)[0];
+  if(!sclera)throw new Error('우측 눈의 흰자 경계를 찾지 못했어요.');
+  box.top=Math.max(box.top,Math.floor(sclera.top-sclera.height*.30));
+  const ink=new Uint8Array(W*W),seed=new Uint8Array(W*W);
+  for(const p of eye.pixels)seed[p]=1;
+  for(let y=box.top;y<=box.bottom;y++)for(let x=box.left;x<=box.right;x++){
+    const p=y*W+x,i=p*4,r=data[i],g=data[i+1],b=data[i+2];
+    if(data[i+3]>8&&((r+g+b)/3<threshold*1.18||(Math.min(r,g,b)>165&&Math.max(r,g,b)-Math.min(r,g,b)<24)))ink[p]=1;
+  }
+  const parts=islands(ink,box).sort((a,b)=>b.pixels.reduce((s,p)=>s+seed[p],0)-a.pixels.reduce((s,p)=>s+seed[p],0));
+  if(!parts[0])throw new Error('우측 눈 경계를 찾지 못했어요.');
+  const eyes=new Uint8Array(W*W),brows=new Uint8Array(W*W);
+  for(const p of parts[0].pixels)eyes[p]=1;
+  for(let y=box.top;y<=box.bottom;y++){let l=W,r=-1;for(let x=box.left;x<=box.right;x++)if(eyes[y*W+x]){l=Math.min(l,x);r=Math.max(r,x);}for(let x=l;x<=r;x++)eyes[y*W+x]=1;}
+  for(const c of features)if(c.bottom<eye.top&&c.bottom>eye.top-eye.height*.9&&c.width>eye.width*.25&&c.width>c.height*1.5&&Math.abs(c.cx-eye.cx)<eye.width*.6){
+    for(const p of c.pixels){const x=p%W,y=(p/W)|0;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const xx=x+dx,yy=y+dy;if(xx>=0&&xx<W&&yy>=0&&yy<W){const q=yy*W+xx;if(!eyes[q])brows[q]=1;}}}
+  }
+  return {eyes,brows,required:eyes,requiredBrows:brows,details:[{box,whiteBox:{...parts[0],pixels:undefined},eyePixels:parts[0].count,browPixels:brows.reduce((a,b)=>a+b,0)}]};
+}
 function islands(mask,box){
   const visited=new Uint8Array(W*W),queue=new Int32Array(W*W),result=[];
   for(let y=box.top;y<=box.bottom;y++)for(let x=box.left;x<=box.right;x++){

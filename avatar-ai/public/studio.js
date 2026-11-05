@@ -255,6 +255,9 @@
     $('restoreViews').disabled=!isReady||aiBusy||avatarViews.busy;
     $('saveFrontFace').disabled=!isReady||!headSprite;
     $('saveRightFace').disabled=!avatarViews.entries.right;
+    const right=avatarViews.entries.right;
+    $('rightLayerPreviews').hidden=!side||!right?.rightFaceImage;
+    for(const part of ['Face','Eyes','Hair']){const src=right?.['right'+part+'Image'];const preview=$('right'+part+'Preview');if(src&&preview.src!==src)preview.src=src;$('saveRight'+part+'Layer').disabled=!src;}
     document.querySelectorAll('[data-motion]').forEach(b=>b.disabled=side);for(const id of ['playPause','speed','showRig'])$(id).disabled=side;
     if(side){$('poseLabel').textContent='우측 얼굴';$('playState').textContent='정적 머리 PNG';$('headTag').textContent='정면 머리 기준 · 몸 미포함';}
     else{$('headTag').textContent=eyeLayer?'얼굴 + 눈 + 머리카락 분리 레이어':'같은 머리 · 공통 동작';}
@@ -277,6 +280,7 @@
     $('restoreViews').onclick=()=>restoreAvatarViews(true);
     $('saveFrontFace').onclick=async()=>{try{const blob=await captureFront();download('RunKK_front_face_with_neck.png',blob);}catch(error){notify(error.message);}};
     $('saveRightFace').onclick=()=>{const image=avatarViews.entries.right?.image;if(!image)return;const out=surface(1024,1024);out.getContext('2d').drawImage(image,0,0,1024,1024);saveCanvas(out,'RunKK_right_face.png');};
+    for(const part of ['Face','Eyes','Hair'])$('saveRight'+part+'Layer').onclick=async()=>{try{const src=avatarViews.entries.right?.['right'+part+'Image'];if(!src)return;const image=await loadImage(src),out=surface(1024,1024);out.getContext('2d').drawImage(image,0,0);saveCanvas(out,'RunKK_right_'+part.toLowerCase()+'_layer.png');}catch(error){notify(error.message);}};
   }
   async function refreshApi(){
     try{const h=await apiRequest('/api/health');apiReady=Boolean(h.ok&&h.configured&&h.mode==='local-server-ai');$('apiState').textContent=apiReady?'GMS 로컬 서버 준비 · API 키 설정됨':'.env에 GMS_KEY를 설정하고 서버를 다시 실행해 주세요.';$('apiState').classList.toggle('error',!apiReady);$('apiState').title='키 설정 여부만 확인해요. 실제 모델 접근은 코디 생성 요청 시 확인돼요.';}catch(error){apiReady=false;$('apiState').textContent=error.message;$('apiState').classList.add('error');}syncAiButtons();
@@ -290,7 +294,7 @@
     state.headData=hasLayers?null:normalized.canvas.toDataURL('image/png');state.faceData=hasLayers?data.faceImage:null;state.eyesData=hasLayers?data.eyesImage:null;state.hairData=hasLayers?data.hairImage:null;state.headName=hasLayers?'AI 생성 얼굴 + 눈 + 머리카락':'AI 생성 머리';state.headScale=100;state.headX=0;state.headY=0;
     state.headPivotX=clamp((px*crop.sourceWidth-crop.left)/crop.width*100,20,80);state.headPivotY=clamp((py*crop.sourceHeight-crop.top)/crop.height*100,30,99.5);
     state.layerVersion=hasLayers?HEAD_LAYER_VERSION:null;state.segmentationVersion=hasLayers?data.segmentationVersion:null;state.generationId=data.headId||data.id||null;state.traits=safeTraits(data.traits);if(Number.isInteger(anchor.skin))state.skin=clamp(anchor.skin,0,skinColors.length-1);
-    if(avatarViews&&data.rightImage){const image=await loadImage(data.rightImage);avatarViews.setSource(frontSignature());avatarViews.entries.right={image,sourceHash:data.rightProfile?.sourceHash,viewId:data.rightProfile?.viewId};}
+    if(avatarViews&&data.rightImage){const image=await loadImage(data.rightImage);avatarViews.setSource(frontSignature());avatarViews.entries.right={image,sourceHash:data.rightProfile?.sourceHash,viewId:data.rightProfile?.viewId,rightFaceImage:data.rightFaceImage,rightEyesImage:data.rightEyesImage,rightHairImage:data.rightHairImage};}
     renderTraits(state.traits);rebuildParts();syncControls();persist();
   }
   function bindAi(){

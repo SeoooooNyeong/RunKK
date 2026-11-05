@@ -1,6 +1,6 @@
 // Segment stylized sprites using their actual pixels. Vision coordinates are
 // approximate and must never be used to move artwork or to slice through eyes.
-import {refineEyes} from './eye-mask.mjs';
+import {refineEyes,refineProfileEye} from './eye-mask.mjs';
 const W=1024,N=W*W;
 function components(mask){
   const seen=new Uint8Array(N),queue=new Int32Array(N),out=[];
@@ -25,7 +25,7 @@ function fillHoles(mask){
   for(const c of components(inverse))if(c.left>0&&c.top>0&&c.right<W-1&&c.bottom<W-1)for(const p of c.pixels)out[p]=1;
   return out;
 }
-export function pixelRegions(data){
+export function pixelRegions(data,{profile=false}={}){
   const warm=new Uint8Array(N),hist=new Uint32Array(256);
   for(let p=0;p<N;p++){const i=p*4,r=data[i],g=data[i+1],b=data[i+2],v=Math.round((r+g+b)/3);if(data[i+3]>100&&r>g+3&&g>b-2&&r>b+10){warm[p]=1;hist[v]++;}}
   let total=0,sum=0;for(let i=0;i<256;i++){total+=hist[i];sum+=i*hist[i];}
@@ -34,7 +34,7 @@ export function pixelRegions(data){
   const skin=new Uint8Array(N);
   for(let p=0;p<N;p++){const i=p*4;if(warm[p]&&(data[i]+data[i+1]+data[i+2])/3>threshold)skin[p]=1;}
   const candidates=components(skin).filter(c=>c.count>200&&c.cy<W*.95).sort((a,b)=>b.count-a.count);
-  const face=candidates.find(c=>c.cx>W*.22&&c.cx<W*.78&&c.cy<W*.9);if(!face||face.count<12000)throw new Error('얼굴 피부 영역을 찾지 못했어요. 기존 아바타를 유지해요.');
+  const face=candidates.find(c=>c.cx>W*.22&&c.cx<W*(profile?.94:.78)&&c.cy<W*.9);if(!face||face.count<12000)throw new Error('얼굴 피부 영역을 찾지 못했어요. 기존 아바타를 유지해요.');
   const faceMask=new Uint8Array(N);for(const c of candidates){if(c.count>face.count*.008&&c.cx>face.left-face.width*.3&&c.cx<face.right+face.width*.3&&c.cy>face.top&&c.cy<face.bottom+face.height*.4)for(const p of c.pixels)faceMask[p]=1;}
   const filled=fillHoles(dilate(faceMask,3));
   // White sclera can connect to an outer highlight, leaving an eye hole open.
@@ -47,14 +47,15 @@ export function pixelRegions(data){
   for(let y=face.top;y<face.bottom;y++){const row=rows[y];if(!row)continue;
     for(let x=Math.max(row.left+Math.round(face.width*.06),0);x<Math.min(W,row.right-face.width*.06);x++){
       const p=y*W+x,i=p*4,relative=(y-face.top)/face.height;
-      if(filled[p]&&relative>.28&&relative<.83&&data[i+3]>100&&(data[i]+data[i+1]+data[i+2])/3<threshold*.88)dark[p]=1;
+      if(filled[p]&&relative>(profile?.12:.28)&&relative<.83&&data[i+3]>100&&(data[i]+data[i+1]+data[i+2])/3<threshold*.88)dark[p]=1;
     }
   }
-  const features=components(dark).filter(c=>c.width>face.width*.035&&c.width<face.width*.48&&c.height<face.height*.60&&c.count>40);
+  const features=components(dark).filter(c=>c.width>face.width*.035&&c.width<face.width*(profile?.75:.48)&&c.height<face.height*.60&&c.count>40);
   const eyeFor=side=>features.filter(c=>(side==='left'?c.cx<face.cx:c.cx>face.cx)&&c.width>face.width*.08&&c.height>face.height*.06).sort((a,b)=>b.count-a.count)[0];
-  const left=eyeFor('left'),right=eyeFor('right');
+  const near=profile?features.filter(c=>c.cx>face.left+face.width*.35&&c.width>face.width*.08&&c.height>face.height*.06).sort((a,b)=>b.count-a.count)[0]:null;
+  const left=profile?near:eyeFor('left'),right=profile?near:eyeFor('right');
   if(!left||!right||Math.abs(left.cy-right.cy)>face.height*.12||Math.max(left.count,right.count)/Math.min(left.count,right.count)>3)throw Object.assign(new Error('양쪽 눈 영역을 정확히 찾지 못했어요. 기존 아바타를 유지해요.'),{diagnostics:{threshold,face:{...face,pixels:undefined},features:features.map(c=>({...c,pixels:undefined}))},status:502});
-  const refined=refineEyes(data,[left,right],threshold);
+  const refined=profile?refineProfileEye(data,near,threshold,features):refineEyes(data,[left,right],threshold);
   // Restore hair strands crossing the forehead. A filled skin envelope must
   // never swallow a fringe just because skin is visible on both sides of it.
   const hairMask=Uint8Array.from(filled,v=>v?0:1),queue=new Int32Array(N);
@@ -70,11 +71,26 @@ export function pixelRegions(data){
   }
   const holes=Uint8Array.from(hairMask,v=>v?0:1);
   for(const c of components(holes))if(c.count<Math.max(left.height,right.height)**2*.2&&c.bottom<foreheadBottom)for(const p of c.pixels)if(!refined.eyes[p]&&!refined.brows[p])hairMask[p]=1;
+  if(profile){
+    // Sideburns can lie inside the skin scanline envelope. Recover thick ink
+    // connected to the hair, but keep thin ear/jaw outlines in the face layer.
+    const solid=new Uint8Array(N),recovered=new Uint8Array(N);
+    const darkAt=p=>p>=0&&p<N&&data[p*4+3]>8&&(data[p*4]+data[p*4+1]+data[p*4+2])/3<threshold*1.18;
+    const limitY=Math.min(W-5,Math.round(face.bottom-face.height*.18)),limitX=Math.round(near.left-6);
+    for(let y=Math.max(5,foreheadBottom);y<limitY;y++)for(let x=Math.max(5,face.left);x<limitX;x++){
+      const p=y*W+x;if(!darkAt(p)||refined.eyes[p])continue;let support=0;
+      for(let dy=-4;dy<=4;dy+=2)for(let dx=-4;dx<=4;dx+=2)if(darkAt(p+dy*W+dx))support++;
+      if(support>=16)solid[p]=1;
+    }
+    read=0;write=0;for(let p=0;p<N;p++)if(hairMask[p]&&data[p*4+3])queue[write++]=p;
+    while(read<write){const p=queue[read++],x=p%W,y=(p/W)|0;for(const q of [x>0?p-1:-1,x<W-1?p+1:-1,y>0?p-W:-1,y<W-1?p+W:-1])if(q>=0&&solid[q]&&!hairMask[q]){hairMask[q]=recovered[q]=1;queue[write++]=q;}}
+    const edges=dilate(recovered,2);for(let p=0;p<N;p++)if(edges[p]&&darkAt(p)&&!refined.eyes[p])hairMask[p]=1;
+  }
   // Anti-aliased jaw/neck outlines belong to the face. They can lie just
   // outside the bright-skin mask; do not leave a ghost face in the hair PNG.
   const faceEdgeZone=dilate(filled,4);
   let removedFaceEdgePixels=0;
-  for(let y=Math.ceil(Math.max(left.bottom,right.bottom)+Math.max(left.height,right.height)*.05);y<W;y++)for(let x=2;x<W-2;x++){
+  for(let y=profile?foreheadBottom:Math.ceil(Math.max(left.bottom,right.bottom)+Math.max(left.height,right.height)*.05);y<W;y++)for(let x=2;x<W-2;x++){
     const p=y*W+x;if(!hairMask[p]||!faceEdgeZone[p]||refined.eyes[p]||refined.brows[p]||!data[p*4+3])continue;
     const open=[p-2,p+2,p-W*2,p+W*2].some(q=>q<0||q>=N||data[q*4+3]<8);
     if(open){hairMask[p]=0;removedFaceEdgePixels++;}

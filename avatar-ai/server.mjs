@@ -15,6 +15,7 @@ import {FACE_ASSETS_VERSION,FACE_IMAGE_FIELDS,faceImages,profileMetadata,assertF
 import {installApiContract} from './api-contract.mjs';
 import {requireUserId,saveUserHead,latestUserHead} from './user-storage.mjs';
 import {mobileHead,mobileBody} from './mobile-composition.mjs';
+import {RIGHT_IMAGE_FIELDS,RIGHT_LAYOUT} from './right-head-layers.mjs';
 import {measuredClient,installMetrics} from './request-metrics.mjs';
 import {registerHeadJobs} from './head-jobs.mjs';
 
@@ -114,7 +115,7 @@ async function saveHead(userId,layers,traits,hairLength,alignment,qualityResult,
   const id=randomUUID(),metadata={id,createdAt:new Date().toISOString(),schemaVersion:FACE_ASSETS_VERSION,rightProfile,rigVersion:'runkk-front-v1',styleVersion:HEAD_LAYER_VERSION,imageModel,visionModel,traits,hairLength,alignment,quality:qualityResult,mobile,segmentationVersion:HEAD_SEGMENTATION_VERSION,layerLayout:HEAD_LAYOUT,regions:layers.regions,validation:layers.validation};
   return saveUserHead(DIR,userId,layers,metadata);
 }
-app.get('/api/health',(_req,res)=>res.json({ok:true,configured,imageModel,visionModel,quality,autoAlign,provider:baseURL,fields:fieldLabels,supportedHairLengths:HAIR_LENGTHS,layerLayout:LAYER_LAYOUT,selfieQualityVersion:SELFIE_QUALITY_VERSION,avatarViewVersion:AVATAR_VIEW_VERSION,faceAssetsVersion:FACE_ASSETS_VERSION,imageFields:FACE_IMAGE_FIELDS,backgroundJobs:true,mode:'local-server-ai'}));
+app.get('/api/health',(_req,res)=>res.json({ok:true,configured,imageModel,visionModel,quality,autoAlign,provider:baseURL,fields:fieldLabels,supportedHairLengths:HAIR_LENGTHS,layerLayout:LAYER_LAYOUT,selfieQualityVersion:SELFIE_QUALITY_VERSION,avatarViewVersion:AVATAR_VIEW_VERSION,faceAssetsVersion:FACE_ASSETS_VERSION,imageFields:[...FACE_IMAGE_FIELDS,...RIGHT_IMAGE_FIELDS],rightLayerLayout:RIGHT_LAYOUT,backgroundJobs:true,mode:'local-server-ai'}));
 app.post('/api/analyze',upload.single('selfie'),async(req,res,next)=>{try{ensureApiKey();if(!req.file)return res.status(400).json({error:'셀카 사진을 먼저 선택해 주세요.'});res.json(await analyzeSelfie(await normalizeSelfie(req.file.buffer)));}catch(e){next(e);}});
 app.post('/api/generate',upload.single('selfie'),async(req,res,next)=>{
   let ownsGeneration=false;
@@ -130,9 +131,10 @@ app.post('/api/generate',upload.single('selfie'),async(req,res,next)=>{
     const layers=await generateHead(selfie,traits,similarity,hairLength),alignment={pivotX:layers.regions.neck.x/1000,pivotY:layers.regions.neck.y/1000,skin:Math.max(0,Math.min(4,Number(layers.regions.skinPalette)||0)),estimated:false};
     const profile=await avatarViews.generate(userId,layers.composite,{lockHeld:true});
     layers.right=Buffer.from(profile.image.split(',')[1],'base64');
+    for(const part of ['Face','Eyes','Hair'])layers['right'+part]=Buffer.from(profile['right'+part+'Image'].split(',')[1],'base64');
     const rightProfile=profileMetadata(profile),mobile=await mobileHead(layers.face,alignment);
     let saved=null,saveWarning=null;try{saved=await saveHead(userId,layers,traits,hairLength,alignment,analysis.quality,mobile,rightProfile);}catch{saveWarning='서버 폴더에 저장하지 못했어요. 분리 레이어 PNG나 설정 JSON을 직접 저장해 주세요.';}
-    res.json(assertFaceResult({userId,schemaVersion:FACE_ASSETS_VERSION,...faceImages(layers),rightProfile,headId:saved?.id||null,traits,hairLength,alignment,mobile,quality:analysis.quality,styleVersion:HEAD_LAYER_VERSION,segmentationVersion:HEAD_SEGMENTATION_VERSION,layerLayout:HEAD_LAYOUT,validation:layers.validation,saved:Boolean(saved),warning:saveWarning||null}));
+    res.json(assertFaceResult({userId,schemaVersion:FACE_ASSETS_VERSION,...faceImages(layers),rightProfile,rightLayerLayout:RIGHT_LAYOUT,headId:saved?.id||null,traits,hairLength,alignment,mobile,quality:analysis.quality,styleVersion:HEAD_LAYER_VERSION,segmentationVersion:HEAD_SEGMENTATION_VERSION,layerLayout:HEAD_LAYOUT,validation:layers.validation,saved:Boolean(saved),warning:saveWarning||null}));
   }catch(e){next(e);}finally{if(ownsGeneration)generating=false;}
 });
 app.get('/api/heads/latest',async(req,res,next)=>{try{const userId=requireUserId(req.query.userId);res.json(await savedFaceResult(DIR,userId,avatarViews.cached));}catch(e){if(e.code==='ENOENT')return res.status(404).json({error:'이 사용자에게 저장된 AI 머리가 없어요.',code:'HEAD_NOT_FOUND'});next(e);}});
@@ -141,7 +143,7 @@ registerBodyGeneration(app,{client,root:DIR,imageModel,visionModel,quality,ensur
 const avatarViews=registerAvatarViews(app,{client,root:DIR,imageModel,visionModel,quality,ensureApiKey,isBusy:()=>generating,setBusy:value=>{generating=value;}});
 registerHeadJobs(app,{root:DIR,upload,normalizeSelfie,port:Number(process.env.PORT||3000),normalizeResult:async(data,userId)=>{
   if(data.userId!==userId)throw Object.assign(new Error('작업의 사용자 정보가 맞지 않아요.'),{status:409,code:'FACE_ASSETS_INCOMPLETE'});
-  if(data.schemaVersion===FACE_ASSETS_VERSION&&data.mobile?.version==='runkk-mobile-compose-v2'&&data.mobile.renderFaceImage?.startsWith('data:image/png;base64,'))return assertFaceResult(data);
+  if(data.schemaVersion===FACE_ASSETS_VERSION&&RIGHT_IMAGE_FIELDS.every(k=>data[k])&&data.mobile?.version==='runkk-mobile-compose-v2'&&data.mobile.renderFaceImage?.startsWith('data:image/png;base64,'))return assertFaceResult(data);
   const result=await savedFaceResult(DIR,userId,avatarViews.cached,data.headId);return {...result,...(data.metrics?{metrics:data.metrics}:{})};
 }});
 app.use(express.static(path.join(DIR,'public'),{dotfiles:'deny'}));
