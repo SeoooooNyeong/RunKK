@@ -97,6 +97,66 @@ class RunTrackTest {
     }
 
     @Test
+    @org.junit.jupiter.api.DisplayName("경로가 목표에 0.5m 안으로 모자라면 마지막 포인트 시각에 닿은 것으로 본다(W54)")
+    void timeToReach_acceptsRoundingShortfallAtTrackEnd() {
+        // 999.7m: 앱은 1,000m로 반올림해 도착 처리한다
+        RunTrack nearly =
+                track(
+                        List.of(
+                                at(0, 0, SignalState.NORMAL),
+                                at(300, 999.7, SignalState.NORMAL),
+                                at(301, 999.7, SignalState.NORMAL)),
+                        List.of());
+        assertThat(nearly.timeToReach(Distance.ofKm(1))).contains(Duration.ofSeconds(300));
+
+        // 999.4m: 반올림해도 999m라 닿지 않았다
+        RunTrack shortOf =
+                track(
+                        List.of(at(0, 0, SignalState.NORMAL), at(300, 999.4, SignalState.NORMAL)),
+                        List.of());
+        assertThat(shortOf.timeToReach(Distance.ofKm(1))).isEmpty();
+
+        // 끝까지 가서 목표를 넘는 경로는 지금처럼 그 구간 안에서 보간한다
+        RunTrack over =
+                track(
+                        List.of(
+                                at(0, 0, SignalState.NORMAL),
+                                at(300, 999.7, SignalState.NORMAL),
+                                at(310, 1_009.7, SignalState.NORMAL)),
+                        List.of());
+        assertThat(over.timeToReach(Distance.ofKm(1))).contains(Duration.ofMillis(300_300));
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("반올림 허용은 불안정 구간 건너뜀과 정지 차감을 그대로 따른다(W54)")
+    void timeToReach_roundingShortfallSkipsUnstableAndSubtractsPause() {
+        RunTrack gap =
+                track(
+                        List.of(
+                                at(0, 0, SignalState.NORMAL),
+                                at(100, 500, SignalState.NORMAL),
+                                at(120, 600, SignalState.UNSTABLE),
+                                at(220, 1_099.7, SignalState.NORMAL),
+                                at(230, 1_150, SignalState.UNSTABLE)),
+                        List.of());
+        // 불안정으로 들어가는 쌍 150m를 빼면 999.7m, 마지막으로 거리가 늘어난 220초에 닿는다
+        assertThat(gap.timeToReach(Distance.ofKm(1))).contains(Duration.ofSeconds(220));
+
+        RunTrack paused =
+                track(
+                        List.of(
+                                at(0, 0, SignalState.NORMAL),
+                                at(100, 500, SignalState.NORMAL),
+                                at(120, 500, SignalState.NORMAL),
+                                at(220, 999.7, SignalState.NORMAL)),
+                        List.of());
+        PauseInterval pause = new PauseInterval(START.plusSeconds(100), START.plusSeconds(120));
+        // 정지 20초를 뺀 운동 시간 200초
+        assertThat(paused.timeToReach(Distance.ofKm(1), List.of(pause)))
+                .contains(Duration.ofSeconds(200));
+    }
+
+    @Test
     void curve_sweepMatchesCumulativeDistance() {
         RunTrack t =
                 new RunTrack(START, RunFixtures.straightLine(START, 3.0, 100), List.of(), false);

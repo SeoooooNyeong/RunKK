@@ -31,6 +31,12 @@ public class RunTrack {
     /** 부동소수 합의 오차로 정확히 그 거리에서 끝나는 기록이 닿지 못하는 일을 막는다(1mm). */
     private static final double FLOAT_TOLERANCE = 0.001;
 
+    /**
+     * 앱이 표시 거리를 미터로 반올림하므로 999.7m로 끝난 기록도 1,000m로 보고 도착 처리한다. 경로 끝까지 닿지 못해도 모자란 거리가 반올림 차이(0.5m)
+     * 안이면 닿은 것으로 본다(W54, 대결 3 실기기 시험).
+     */
+    private static final double ROUNDING_TOLERANCE = 0.5;
+
     private final LocalDateTime startedAt;
     private List<LocationPoint> points;
     private final List<UnstableSegment> unstableSegments;
@@ -158,7 +164,8 @@ public class RunTrack {
 
     /**
      * 누적 거리 d에 처음 닿은 경과 시간. 두 포인트 사이는 직선 보간이고 불안정 구간 건너뜀과 정지 구간을 가로지르는 쌍은 거리를 더하지 않는다. 도달 시각까지의 정지
-     * 시간을 뺀다(D-122, D-163). 파기했거나 닿지 않았으면 비어 있음.
+     * 시간을 뺀다(D-122, D-163). 경로 끝까지 d에 0.5m 안으로 모자라면 마지막으로 거리가 늘어난 포인트의 시각을 도달 시각으로
+     * 본다(ROUNDING_TOLERANCE). 파기했거나 닿지 않았으면 비어 있음.
      */
     public Optional<Duration> timeToReach(Distance d, List<PauseInterval> pauses) {
         if (purged || points.isEmpty()) {
@@ -166,6 +173,7 @@ public class RunTrack {
         }
         double target = d.meters();
         double acc = 0;
+        LocalDateTime lastGain = null;
         for (int i = 1; i < points.size(); i++) {
             LocationPoint a = points.get(i - 1);
             LocationPoint b = points.get(i);
@@ -176,15 +184,26 @@ public class RunTrack {
             if (seg > 0 && acc + seg + FLOAT_TOLERANCE >= target) {
                 double ratio = Math.min(1.0, (target - acc) / seg);
                 long segMillis = Duration.between(a.measuredAt(), b.measuredAt()).toMillis();
-                LocalDateTime at =
-                        a.measuredAt().plusNanos(Math.round(ratio * segMillis) * 1_000_000L);
                 return Optional.of(
-                        Duration.between(startedAt, at)
-                                .minus(pausedBetween(startedAt, at, pauses)));
+                        exerciseTime(
+                                a.measuredAt()
+                                        .plusNanos(Math.round(ratio * segMillis) * 1_000_000L),
+                                pauses));
             }
             acc += seg;
+            if (seg > 0) {
+                lastGain = b.measuredAt();
+            }
+        }
+        if (lastGain != null && acc + ROUNDING_TOLERANCE >= target) {
+            return Optional.of(exerciseTime(lastGain, pauses));
         }
         return Optional.empty();
+    }
+
+    /** 시작부터 at까지의 경과에서 그 사이 정지 시간을 뺀 운동 시간. */
+    private Duration exerciseTime(LocalDateTime at, List<PauseInterval> pauses) {
+        return Duration.between(startedAt, at).minus(pausedBetween(startedAt, at, pauses));
     }
 
     /** 쌍 (a, b)가 어느 정지 구간에 걸치는가(경계 비포함, D-163). */
