@@ -479,10 +479,10 @@ private fun RankingListRow(entry: Ranking.Entry, isMine: Boolean, showDivider: B
  * 1위이거나 남은 거리를 모르면 막대 줄을 그리지 않는다. 범위·기간을 바꿔 순위가 바뀌면 알린다.
  */
 @Composable
-internal fun RankingMineCard(mine: Ranking.Entry, gapToNext: Distance?, modifier: Modifier = Modifier) {
+internal fun RankingMineCard(mine: Ranking.Entry, gapToNext: Distance?, rankAbove: Int, modifier: Modifier = Modifier) {
     val me = stringResource(R.string.record_ranking_me)
     val gap = gapToNext?.takeIf { mine.rank > 1 }
-    val gapText = gap?.let { stringResource(R.string.record_ranking_gap, mine.rank - 1, RunkkFormat.kmShort(it)) }
+    val gapText = gap?.let { stringResource(R.string.record_ranking_gap, rankAbove, RunkkFormat.kmShort(it)) }
     val spoken = listOfNotNull(rankingSpoken(mine.copy(name = me), isMine = true), gapText).joinToString(", ")
     val shape = RoundedCornerShape(22.dp)
     Row(
@@ -606,3 +606,13 @@ private const val SPARKLE_WAIST = 0.22f
 private const val TRACK_ALPHA = 0.22f
 private const val UNIT_ALPHA = 0.8f
 private const val HOURS_IN_DAY = 24L
+
+/**
+ * 내 바로 위 순위 번호(랭킹 v3 「n위까지」, PL5-A2). 같은 거리는 같은 순위이고 다음 순위는 사람 수만큼 건너뛰므로(FR-070, 1·2·2·4위)
+ * 목록이 내 순위까지 이어지면 목록에서 나보다 앞선 가장 큰 순위를 쓴다. 목록이 내 순위 전에 끝나면 알 수 없어 [mine] 순위 − 1로 둔다.
+ */
+internal fun rankAbove(entries: List<Ranking.Entry>, mine: Ranking.Entry): Int {
+    val coversMine = entries.any { it.rank >= mine.rank }
+    val above = entries.filter { it.rank < mine.rank }.maxOfOrNull { it.rank }
+    return if (coversMine && above != null) above else mine.rank - 1
+}

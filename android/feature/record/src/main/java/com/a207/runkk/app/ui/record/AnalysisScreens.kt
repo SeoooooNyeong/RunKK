@@ -398,6 +398,7 @@ fun RankingScreen(
             RankingMineCard(
                 mine,
                 ranking.gapToNext,
+                rankAbove(ranking.entries, mine),
                 Modifier
                     .align(Alignment.BottomCenter)
                     .padding(start = 16.dp, end = 16.dp, bottom = RUNKK_BOTTOM_BAR_RISE + 8.dp)

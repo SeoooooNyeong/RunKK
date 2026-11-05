@@ -147,6 +147,23 @@ class AnalysisViewModelsTest {
     }
 
     @Test
+    fun `PL5-A1 기간을 빨리 바꾸면 늦게 온 앞 기간 응답이 고른 기간의 랭킹을 덮지 않는다`() {
+        val weekly = sampleRanking.copy(gapToNext = Distance(1_000))
+        val monthly = sampleRanking.copy(gapToNext = Distance(9_000))
+        records.rankingByPeriod[AggregationPeriod.WEEKLY] = Outcome.Success(weekly)
+        records.rankingByPeriod[AggregationPeriod.MONTHLY] = Outcome.Success(monthly)
+        val weeklyGate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        records.rankingGates[AggregationPeriod.WEEKLY] = weeklyGate
+        val vm = RankingViewModel(records, clock) // 주간 요청이 문에 걸려 기다린다
+        vm.onPeriodSelected(AggregationPeriod.MONTHLY)
+        assertEquals(monthly, vm.state.value.ranking)
+        weeklyGate.complete(Unit) // 늦게 온 주간 응답
+        assertEquals(AggregationPeriod.MONTHLY, vm.state.value.period)
+        assertEquals(monthly, vm.state.value.ranking)
+        assertFalse(vm.state.value.isLoading)
+    }
+
+    @Test
     fun `랭킹 v3 집계 기간과 마감까지 남은 시간은 한국 시각 주(월~일)·달로 센다`() {
         // clock = 한국 시각 2026-10-21(수) 12:00
         val vm = RankingViewModel(records, clock)

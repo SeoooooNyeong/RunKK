@@ -157,6 +157,29 @@ class AnalysisScreensTest {
     }
 
     @Test
+    fun `PL5-A2 같은 순위가 있으면 남은 거리는 실제 바로 위 순위 번호로 보인다(1·2·2·4위의 4위는 2위까지)`() {
+        val tied = Ranking(
+            entries = listOf(
+                Ranking.Entry(1, "바람", Distance(48_000)),
+                Ranking.Entry(2, "번개", Distance(41_500)),
+                Ranking.Entry(2, "아침해", Distance(41_500)),
+                Ranking.Entry(4, "나", Distance(41_200))
+            ),
+            mine = Ranking.Entry(4, "나", Distance(41_200)),
+            gapToNext = Distance(300),
+            aggregatedAt = null,
+            notice = null
+        )
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                RankingScreen(RankingUiState(isLoading = false, ranking = tied), {}, {}, {})
+            }
+        }
+        compose.onNodeWithContentDescription("4위 나, 41.20킬로미터, 나, 2위까지 0.3km").assertExists()
+        compose.onNodeWithContentDescription("3위까지", substring = true).assertDoesNotExist()
+    }
+
+    @Test
     fun `랭킹 v3 1위이거나 남은 거리를 모르면 다음 순위까지 줄을 그리지 않는다`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {

@@ -164,10 +164,22 @@ public class RunTrack {
 
     /**
      * 누적 거리 d에 처음 닿은 경과 시간. 두 포인트 사이는 직선 보간이고 불안정 구간 건너뜀과 정지 구간을 가로지르는 쌍은 거리를 더하지 않는다. 도달 시각까지의 정지
-     * 시간을 뺀다(D-122, D-163). 경로 끝까지 d에 0.5m 안으로 모자라면 마지막으로 거리가 늘어난 포인트의 시각을 도달 시각으로
-     * 본다(ROUNDING_TOLERANCE). 파기했거나 닿지 않았으면 비어 있음.
+     * 시간을 뺀다(D-122, D-163). 신기록·구간 페이스·곡선이 쓰므로 실제로 닿아야 한다. 파기했거나 닿지 않았으면 비어 있음.
      */
     public Optional<Duration> timeToReach(Distance d, List<PauseInterval> pauses) {
+        return reach(d, pauses, 0);
+    }
+
+    /**
+     * 대결·크루런 도착 시간. {@link #timeToReach(Distance, List)}와 같되 경로 끝까지 d에 0.5m 안으로 모자라면 마지막으로 거리가 늘어난
+     * 포인트의 시각을 도달 시각으로 본다(ROUNDING_TOLERANCE, W54: 옛 앱은 표시 거리를 미터로 반올림해 도착 처리했다). 신기록·구간에는 쓰지
+     * 않는다(PL5-B1).
+     */
+    public Optional<Duration> timeToArrive(Distance d, List<PauseInterval> pauses) {
+        return reach(d, pauses, ROUNDING_TOLERANCE);
+    }
+
+    private Optional<Duration> reach(Distance d, List<PauseInterval> pauses, double shortfall) {
         if (purged || points.isEmpty()) {
             return Optional.empty();
         }
@@ -195,7 +207,7 @@ public class RunTrack {
                 lastGain = b.measuredAt();
             }
         }
-        if (lastGain != null && acc + ROUNDING_TOLERANCE >= target) {
+        if (shortfall > 0 && lastGain != null && acc + shortfall + FLOAT_TOLERANCE >= target) {
             return Optional.of(exerciseTime(lastGain, pauses));
         }
         return Optional.empty();

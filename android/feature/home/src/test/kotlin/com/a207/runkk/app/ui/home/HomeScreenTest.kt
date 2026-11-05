@@ -222,7 +222,7 @@ class HomeScreenTest {
     }
 
     @Test
-    fun `TC-5841 펼친 패널의 오늘·이번 달·러닝 잔디를 누르면 러닝 기록 화면으로 간다`() {
+    fun `TC-4842 펼친 패널의 오늘·이번 달·러닝 잔디를 누르면 러닝 기록 화면으로 간다`() {
         val today = java.time.LocalDate.of(2026, 11, 4)
         show(
             loaded.copy(
@@ -235,9 +235,10 @@ class HomeScreenTest {
                 )
             )
         )
-        compose.onNodeWithContentDescription("오늘, 오늘은 아직 달리지 않았어요").performClick()
-        compose.onNodeWithContentDescription("이번 달", substring = true).performClick()
-        compose.onNodeWithContentDescription("러닝 잔디", substring = true).performClick()
+        // 화면 낭독기가 두 번 눌러 열 수 있게 칸마다 누르기 동작이 남아 있어야 한다(clearAndSetSemantics가 지우지 않음)
+        compose.onNodeWithContentDescription("오늘, 오늘은 아직 달리지 않았어요").assertHasClickAction().performClick()
+        compose.onNodeWithContentDescription("이번 달", substring = true).assertHasClickAction().performClick()
+        compose.onNodeWithContentDescription("러닝 잔디", substring = true).assertHasClickAction().performClick()
         assertEquals(listOf(Routes.RECORDS, Routes.RECORDS, Routes.RECORDS), routes)
     }
 

@@ -298,9 +298,9 @@ public class RunQueryService {
         return new RunCurve(samples, cut);
     }
 
-    /** d에 처음 닿은 경과 시간(크루런 도착 시각, 대결 검증). */
+    /** d에 처음 닿은 경과 시간(크루런 도착 시각, 대결 검증). 도착이라 0.5m 반올림 차이를 허용한다(RunRecord.timeToArrive, W54). */
     public Optional<Duration> timeToReach(String recordId, Distance d) {
-        return load(recordId).timeToReach(d);
+        return load(recordId).timeToArrive(d);
     }
 
     /** 경로 좌표. 파기 뒤 빈 목록. */
