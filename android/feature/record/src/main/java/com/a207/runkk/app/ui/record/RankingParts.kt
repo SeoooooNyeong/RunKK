@@ -6,6 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -286,11 +287,15 @@ internal fun RankingTop3Card(podium: RankingPodium, mine: Ranking.Entry?, period
                 )
             }
         }
-        Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        // 큰 글자에서도 거리가 잘리지 않게 높이는 내용만큼 늘고, 세 칸(1위 강조 배경)은 가장 높은 칸에 맞춘다
+        Row(
+            Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(horizontal = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
             val gold = tiers.podiumFirst.copy(alpha = FIRST_HIGHLIGHT_ALPHA)
-            PodiumInfo(podium.second, mine, highlight = null, Modifier.weight(1f))
-            PodiumInfo(podium.first, mine, highlight = gold, Modifier.weight(1f))
-            PodiumInfo(podium.third, mine, highlight = null, Modifier.weight(1f))
+            PodiumInfo(podium.second, mine, highlight = null, Modifier.weight(1f).fillMaxHeight())
+            PodiumInfo(podium.first, mine, highlight = gold, Modifier.weight(1f).fillMaxHeight())
+            PodiumInfo(podium.third, mine, highlight = null, Modifier.weight(1f).fillMaxHeight())
         }
     }
 }
@@ -374,10 +379,10 @@ private fun PodiumInfo(entry: Ranking.Entry?, mine: Ranking.Entry?, highlight: C
     val spoken = entry?.let { rankingSpoken(it, it == mine) }
     Column(
         modifier = modifier
-            .height(INFO_HEIGHT)
+            .heightIn(min = INFO_HEIGHT)
             .then(if (highlight != null && entry != null) Modifier.background(highlight) else Modifier)
             .clearAndSetSemantics { spoken?.let { contentDescription = it } }
-            .padding(top = 10.dp),
+            .padding(top = 10.dp, bottom = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(3.dp)
     ) {
