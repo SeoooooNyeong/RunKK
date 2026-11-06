@@ -283,8 +283,26 @@ class WatchFlowViewModel @Inject constructor(
             _flow.value = current.copy(fetching = null)
             when (fetched) {
                 is Outcome.Success -> startRecord(fetched.value, WatchMode.CELEB)
-                is Outcome.Failure -> showNotice(celebrityNotice(fetched.error))
+
+                is Outcome.Failure -> {
+                    val notice = celebrityNotice(fetched.error)
+                    if (notice == WatchFlow.Notice.CELEBRITY_REMOVED) removeUnavailableCelebrity(current, c)
+                    showNotice(notice)
+                }
             }
+        }
+    }
+
+    private fun removeUnavailableCelebrity(list: WatchFlow.CelebList, celebrity: RecordOpponent) {
+        val remaining = list.celebrities - celebrity
+        _flow.value = if (remaining.isEmpty()) {
+            celebPicker(selectedDistance = list.distance)
+        } else {
+            list.copy(
+                celebrities = remaining,
+                selected = list.selected.coerceAtMost(remaining.lastIndex),
+                fetching = null
+            )
         }
     }
 
