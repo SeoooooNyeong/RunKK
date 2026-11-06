@@ -13,8 +13,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
@@ -102,6 +104,8 @@ internal fun SummaryPanel(
             .clip(shape)
             .background(RunkkColors.Surface)
             .border(1.dp, RunkkColors.Border, shape)
+            // 남은 높이(아바타 자리)보다 내용이 길면(작은 화면·큰 글자) 잘리지 않고 패널 안에서 스크롤한다
+            .verticalScroll(rememberScrollState())
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
