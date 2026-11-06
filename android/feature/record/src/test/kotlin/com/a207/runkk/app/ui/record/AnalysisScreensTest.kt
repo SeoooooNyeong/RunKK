@@ -28,6 +28,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 /** 성장·리포트·랭킹·코치 화면: 탭·버튼 동작과 스크린샷. */
@@ -278,6 +279,17 @@ class AnalysisScreensTest {
         }
     }
 
+    /** 글자 크기 130%에서도 시상대 아래 이름·배지·거리가 잘리지 않는다(정보 칸 높이를 내용에 맞춤, 2026-11-06 사용자 지적). */
+    @Test
+    fun rankingLargeFontShot() {
+        RuntimeEnvironment.setFontScale(LARGE_FONT_SCALE)
+        compose.captureRunkkScreen("record_ranking_font130", isDarkTheme = false) {
+            FirstRelease {
+                RankingScreen(RankingUiState(isLoading = false, ranking = podiumRanking, window = window), {}, {}, {})
+            }
+        }
+    }
+
     /** TC-5859 두 명뿐이면 3위 자리는 빈 받침만. */
     @Test
     fun rankingPodiumTwoShot() = compose.captureRunkkScreen("record_ranking_podium_two", isDarkTheme = false) {
@@ -326,3 +338,5 @@ class AnalysisScreensTest {
         CoachScreen(coach.copy(goalRuns = 4, goalDistance = Distance(20_000)), CoachActions())
     }
 }
+
+private const val LARGE_FONT_SCALE = 1.3f
