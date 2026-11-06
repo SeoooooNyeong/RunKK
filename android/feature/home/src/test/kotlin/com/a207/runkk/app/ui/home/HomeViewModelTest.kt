@@ -5,10 +5,14 @@ import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.Pace
+import com.a207.runkk.app.core.model.TierDisplay
+import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.account.LocationConsentUseCase
 import com.a207.runkk.app.domain.account.MemberSettings
 import com.a207.runkk.app.domain.account.MySummary
+import com.a207.runkk.app.domain.account.PlacementProgress
+import com.a207.runkk.app.domain.account.PlacementStatus
 import com.a207.runkk.app.domain.run.PlanSnapshot
 import com.a207.runkk.app.domain.run.TodayPlanCache
 import java.time.Clock
@@ -223,5 +227,127 @@ class HomeViewModelTest {
         assertEquals(0, settings.refreshCalls)
         vm.onMessageShown()
         assertNull(vm.state.value.message)
+    }
+
+    // ---------- 내 기록 요약·헤더 배지·진입 시트(FR-284, FR-287, FR-288, D-499) ----------
+
+    private fun placing(counted: Int, provisional: String? = null) = PlacementProgress(
+        status = PlacementStatus.IN_PROGRESS,
+        countedRounds = counted,
+        nextRound = counted + 1,
+        provisionalTier = provisional,
+        tier = "UNRANKED",
+        rounds = emptyList()
+    )
+
+    private fun settled(status: PlacementStatus, tier: String) =
+        PlacementProgress(status, if (status == PlacementStatus.COMPLETED) 3 else 0, null, null, tier, emptyList())
+
+    @Test
+    fun `TC-5836 내 기록 요약은 접힘으로 시작하고 홈에 다시 오면 접힌다`() {
+        val vm = viewModel()
+        assertFalse(vm.state.value.isSummaryExpanded)
+
+        vm.onSummaryToggle()
+        assertTrue(vm.state.value.isSummaryExpanded)
+        vm.onSummaryToggle()
+        assertFalse(vm.state.value.isSummaryExpanded)
+
+        vm.onSummaryToggle()
+        vm.onResumed()
+        assertFalse(vm.state.value.isSummaryExpanded, "첫 재개도 접는다")
+        vm.onSummaryToggle()
+        vm.onResumed()
+        assertFalse(vm.state.value.isSummaryExpanded, "다른 화면에서 돌아오면 접는다")
+        // 요약 값은 대시보드에서 만든다.
+        assertEquals(5, vm.state.value.summary?.grass?.size)
+    }
+
+    @Test
+    fun `PL1-A1 앱 시계가 UTC여도 홈 오늘은 한국 날짜다(UTC 일요일 15시 = KST 월요일 0시)`() {
+        val utcClock = Clock.fixed(Instant.parse("2026-11-01T15:00:00Z"), java.time.ZoneOffset.UTC)
+        val vm =
+            HomeViewModel(
+                records,
+                account,
+                LocationConsentUseCase(account, settings),
+                todayPlans,
+                pendingRuns,
+                utcClock
+            )
+        val monday = LocalDate.of(2026, 11, 2)
+
+        assertEquals(monday, records.dashboardDates.last(), "대시보드 기준일은 KST 오늘")
+        val thisWeek = vm.state.value.summary?.grass?.last().orEmpty()
+        assertEquals(monday, thisWeek.first().date, "이번 주는 KST 월요일부터")
+        assertTrue(thisWeek.first().isToday)
+        assertEquals(GrassState.FUTURE, thisWeek[1].state)
+    }
+
+    @Test
+    fun `TC-5837 홈 헤더 티어는 본인 표시 규칙을 따른다`() {
+        account.placementResult = Outcome.Success(placing(0))
+        assertEquals(TierDisplay.Placing, viewModel().state.value.tierDisplay)
+
+        account.placementResult = Outcome.Success(placing(1, "GOLD"))
+        assertEquals(TierDisplay.Provisional("GOLD"), viewModel().state.value.tierDisplay)
+
+        account.placementResult = Outcome.Success(settled(PlacementStatus.COMPLETED, "SILVER"))
+        assertEquals(TierDisplay.Confirmed("SILVER"), viewModel().state.value.tierDisplay)
+
+        account.placementResult = Outcome.Failure(AppError.Network)
+        val failed = viewModel().state.value
+        assertNull(failed.tierDisplay, "못 읽으면 배지 없이 Lv만")
+        assertEquals(3, failed.header.level)
+    }
+
+    @Test
+    fun `TC-5838 랜덤 카드는 배치 중이면 배치고사, 확정이면 랜덤 대결로 간다`() = runTest {
+        val cases = listOf(
+            Outcome.Success(placing(1, "GOLD")) to Routes.PLACEMENT,
+            Outcome.Success(settled(PlacementStatus.COMPLETED, "SILVER")) to Routes.BATTLE_RANDOM,
+            Outcome.Success(settled(PlacementStatus.EXEMPT, "GOLD")) to Routes.BATTLE_RANDOM,
+            Outcome.Failure(AppError.Network) to Routes.PLACEMENT
+        )
+        cases.forEach { (placement, route) ->
+            account.placementResult = placement
+            val vm = viewModel()
+            val callsBefore = account.placementCalls
+
+            vm.onBattleCardTapped()
+            assertTrue(vm.state.value.isBattleEntryVisible)
+            assertEquals(callsBefore + 1, account.placementCalls, "시트를 열 때 진행을 한 번 다시 읽는다")
+            vm.onRandomChosen()
+
+            assertFalse(vm.state.value.isBattleEntryVisible)
+            assertEquals(HomeEvent.Navigate(Routes.Key(route)), vm.events.first(), "$placement")
+        }
+    }
+
+    @Test
+    fun `TC-5839 친구 카드는 친구 대결로 가고 닫으면 이동하지 않는다`() = runTest {
+        val vm = viewModel()
+
+        vm.onBattleCardTapped()
+        vm.onFriendChosen()
+        assertFalse(vm.state.value.isBattleEntryVisible)
+        assertEquals(HomeEvent.Navigate(Routes.Key(Routes.BATTLE_FRIEND)), vm.events.first())
+
+        vm.onBattleCardTapped()
+        vm.onBattleEntryDismissed()
+        assertFalse(vm.state.value.isBattleEntryVisible)
+        vm.onFreeRunTapped()
+        // 닫기는 이동 사건을 내지 않는다(다음 사건은 자유런 동의 시트로 상태만 바뀐다).
+        assertTrue(vm.state.value.isConsentSheetVisible)
+    }
+
+    @Test
+    fun `TC-5840 최근 러닝을 누르면 기록 상세로 간다`() = runTest {
+        val vm = viewModel()
+        vm.onSummaryToggle()
+
+        vm.onLatestRunTapped("run-9")
+
+        assertEquals(HomeEvent.Navigate(Routes.RecordDetail("run-9")), vm.events.first())
     }
 }

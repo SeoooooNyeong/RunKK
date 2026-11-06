@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalInt;
 
 /**
  * 대결 참가자 한 명(설계 6.1.6, 상태도 2.4.3). Battle이 합성으로 갖고(cascade ALL) 혼자 저장하지 않는다. 판정 도착 시각은 대결 startAt +
@@ -48,6 +49,10 @@ public class BattleParticipant {
 
     @Column(name = "reach_millis")
     private Long reachMillis;
+
+    /** 붙은 기록의 유효 러닝 순번(무효·없음이면 null, D-482). 배치고사 판 셈이 확정 판 순번으로 남긴다. */
+    @Column(name = "valid_run_ordinal")
+    private Integer validRunOrdinal;
 
     @Column(name = "overtakes", nullable = false)
     private int overtakes;
@@ -103,11 +108,12 @@ public class BattleParticipant {
         return true;
     }
 
-    /** 기록 검증 결과와 기록상 대결 거리 도달 경과 시간(없으면 null). */
-    void verify(String recordId, boolean valid, Duration reachElapsed) {
-        this.recordId = recordId;
-        this.verified = valid;
-        this.reachMillis = reachElapsed == null ? null : reachElapsed.toMillis();
+    /** 기록 검증 결과, 기록상 대결 거리 도달 경과 시간(없으면 null), 유효 러닝 순번(D-482). */
+    void verify(RecordCheck check) {
+        this.recordId = check.recordId();
+        this.verified = check.valid();
+        this.reachMillis = check.reachElapsed() == null ? null : check.reachElapsed().toMillis();
+        this.validRunOrdinal = check.validRunOrdinal() > 0 ? check.validRunOrdinal() : null;
     }
 
     /** 기록이 삭제되었다(v0.14 D-232). 판정·도달 시간은 그대로 두고 기록 ID만 비운다. */
@@ -201,6 +207,11 @@ public class BattleParticipant {
     /** 기록 검증 결과. 기록이 없으면 비어 있다. */
     public Optional<Boolean> getVerified() {
         return Optional.ofNullable(verified);
+    }
+
+    /** 붙은 기록의 유효 러닝 순번(D-482). 없으면 비어 있다. */
+    public OptionalInt getValidRunOrdinal() {
+        return validRunOrdinal == null ? OptionalInt.empty() : OptionalInt.of(validRunOrdinal);
     }
 
     public Optional<Duration> getReachElapsed() {

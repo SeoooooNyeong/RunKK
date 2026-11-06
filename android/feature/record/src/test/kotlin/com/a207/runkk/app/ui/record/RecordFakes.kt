@@ -152,9 +152,14 @@ class FakeRecordRepository : RecordRepository {
 
     override suspend fun report(): Outcome<Report> = reportResult
 
+    /** 기간별 응답(없으면 rankingResult)과 응답을 붙잡아 두는 문(PL5-A1 늦게 온 응답 시험). */
+    val rankingByPeriod = mutableMapOf<AggregationPeriod, Outcome<Ranking>>()
+    val rankingGates = mutableMapOf<AggregationPeriod, kotlinx.coroutines.CompletableDeferred<Unit>>()
+
     override suspend fun personalRanking(period: AggregationPeriod): Outcome<Ranking> {
         calls += "personal:$period"
-        return rankingResult
+        rankingGates[period]?.await()
+        return rankingByPeriod[period] ?: rankingResult
     }
 
     override suspend fun crewRanking(period: AggregationPeriod): Outcome<Ranking> {
@@ -173,6 +178,13 @@ class FakeRecordRepository : RecordRepository {
     override suspend fun putPlan(date: LocalDate, distance: Distance, pace: Pace?): Outcome<Unit> {
         calls += "plan:$date=${distance.meters}" + (pace?.let { ":${it.secondsPerKm}" } ?: "")
         return planResult
+    }
+
+    var deletePlanResult: Outcome<Unit> = Outcome.Success(Unit)
+
+    override suspend fun deletePlan(date: LocalDate): Outcome<Unit> {
+        calls += "deletePlan:$date"
+        return deletePlanResult
     }
 
     /** 이행 현황에 더할 날(오늘 계획 거리가 있는 경우를 시험한다). */

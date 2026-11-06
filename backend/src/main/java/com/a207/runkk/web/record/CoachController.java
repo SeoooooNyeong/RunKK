@@ -13,7 +13,9 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import java.time.LocalDate;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -21,12 +23,13 @@ import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 주간 목표·날짜별 계획·이행 현황·오늘 계획(설계 5.7.1 PUT /goals/weekly, PUT /plans/{date}, GET /plans/progress, GET
- * /plans/today → CoachService, FR-042, FR-072~FR-074, FR-187). 오늘 계획이 없으면 204다. 범위 위반은
- * 409(GOAL_INVALID·PLAN_INVALID·PAST_DATE).
+ * 주간 목표·날짜별 계획·이행 현황·오늘 계획(설계 5.7.1 PUT /goals/weekly, PUT /plans/{date}, DELETE /plans/{date}, GET
+ * /plans/progress, GET /plans/today → CoachService, FR-042, FR-072~FR-074, FR-187). 오늘 계획이 없으면
+ * 204다. 계획 취소는 204이고 없는 계획을 지워도 204다. 범위 위반은 409(GOAL_INVALID·PLAN_INVALID·PAST_DATE).
  */
 @RestController
 @RequestMapping("/api/v1")
@@ -58,6 +61,15 @@ public class CoachController {
                 request.paceSecondsPerKm() == null ? null : new Pace(request.paceSecondsPerKm());
         return coachService.putPlan(
                 memberId, new DailyPlan(date, Distance.ofMeters(request.distanceMeters()), pace));
+    }
+
+    /** 그날 계획 취소(S15P31A207-275, 코치에서 같은 km를 다시 누름). 없으면 그대로 204, 지난 날짜는 409 PAST_DATE. */
+    @DeleteMapping("/plans/{date}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void deletePlan(
+            @RequestAttribute(MEMBER_ID) long memberId,
+            @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        coachService.deletePlan(memberId, date);
     }
 
     @GetMapping("/plans/progress")

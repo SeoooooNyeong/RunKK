@@ -6,19 +6,25 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertHeightIsAtLeast
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
+import com.a207.runkk.app.core.designsystem.AchievementIcon
+import com.a207.runkk.app.core.designsystem.AchievementRow
 import com.a207.runkk.app.core.designsystem.DEFAULT_AVATAR_TAG
 import com.a207.runkk.app.core.designsystem.LocalReleaseScope
 import com.a207.runkk.app.core.designsystem.ReleaseScope
 import com.a207.runkk.app.core.designsystem.RunkkTheme
+import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.shouldAskNotificationPermission
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.domain.run.RunProgress
@@ -129,9 +135,12 @@ class RunScreensTest {
                             averagePace = com.a207.runkk.app.core.model.Pace(332),
                             averageHeartRate = 152,
                             splitPaces = listOf(com.a207.runkk.app.core.model.Pace(380)),
-                            heartRateZones = listOf("Z2" to java.time.Duration.ofMinutes(8)),
-                            newRecords = listOf("최장 거리 신기록 · 직전 4.80km"),
-                            rewardPoints = 52,
+                            heartRateZones = mapOf("Z2" to java.time.Duration.ofMinutes(8)),
+                            achievements = listOf(
+                                AchievementRow(AchievementIcon.STAR, UiText.Plain("최장 거리 신기록"), "직전 4.80km"),
+                                AchievementRow(AchievementIcon.REWARD, UiText.Res(R.string.run_result_reward), "+52")
+                            ),
+                            heartRateSource = RunResultUiState.HEART_SOURCE_WATCH,
                             pausedTotal = java.time.Duration.ofSeconds(185),
                             startedAt = start,
                             isUploaded = true
@@ -151,11 +160,53 @@ class RunScreensTest {
         compose.onNodeWithText("평균 심박", useUnmergedTree = true).assertExists()
         compose.onNodeWithText("구간 페이스").assertExists()
         compose.onNodeWithText("심박 구간").assertExists()
-        compose.onNodeWithText("최장 거리 신기록 · 직전 4.80km").assertExists()
-        compose.onNodeWithText("리워드 +52").assertExists()
-        compose.onNodeWithText("자유런", substring = true).assertExists()
-        listOf("kcal", "°C", "집계 제외", "유효 러닝", "가장 빠른").forEach {
+        // 상용안(FR-289): 성과는 이름과 값을 나눠 보이고 구간 페이스에 「가장 빠른 구간」 범례가 있다.
+        compose.onNodeWithContentDescription("최장 거리 신기록, 직전 4.80km").assertExists()
+        compose.onNodeWithContentDescription("리워드, +52").assertExists()
+        compose.onNodeWithText("가장 빠른 구간 1km", useUnmergedTree = true).assertExists()
+        compose.onNodeWithContentDescription("자유런", substring = true).assertExists()
+        listOf("kcal", "°C", "집계 제외", "유효 러닝").forEach {
             compose.onNodeWithText(it, substring = true).assertDoesNotExist()
+        }
+    }
+
+    @Test
+    fun `TC-5850 결과 하단 바는 홈으로와 기록 카드 만들기다`() {
+        var card = 0
+        var home = 0
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                RunResultScreen(
+                    RunResultUiState(
+                        isLoading = false,
+                        recordId = "r",
+                        distance = Distance(5_020),
+                        elapsed = java.time.Duration.ofSeconds(1_668),
+                        averagePace = com.a207.runkk.app.core.model.Pace(332),
+                        averageHeartRate = 152,
+                        splitPaces = List(10) { com.a207.runkk.app.core.model.Pace(330 + it) },
+                        heartRateZones = mapOf("Z2" to java.time.Duration.ofMinutes(8)),
+                        heartRateSource = RunResultUiState.HEART_SOURCE_WATCH,
+                        startedAt = start,
+                        isUploaded = true
+                    ),
+                    onCard = { card++ },
+                    onHome = { home++ },
+                    onRetry = {}
+                )
+            }
+        }
+        val barTop = compose.onNodeWithTag(RESULT_BOTTOM_BAR_TAG).getUnclippedBoundsInRoot().top
+        compose.onNodeWithText("심박 구간").performScrollTo()
+        // 스크롤해도 하단 바는 같은 자리에 보인다.
+        assertEquals(barTop, compose.onNodeWithTag(RESULT_BOTTOM_BAR_TAG).getUnclippedBoundsInRoot().top)
+        compose.onNodeWithText("홈으로").assertIsDisplayed().performClick()
+        compose.onNodeWithText("기록 카드 만들기").assertIsDisplayed().performClick()
+        assertEquals(1, home)
+        assertEquals(1, card)
+        // 결과에는 티어 배지가 없다.
+        listOf("티어", "배치 중").forEach {
+            compose.onNodeWithContentDescription(it, substring = true).assertDoesNotExist()
         }
     }
 
@@ -173,7 +224,7 @@ class RunScreensTest {
                         elapsed = java.time.Duration.ofSeconds(1_668),
                         startedAt = start,
                         isUploaded = true,
-                        newRecords = listOf("최장 거리 신기록")
+                        achievements = listOf(AchievementRow(AchievementIcon.STAR, UiText.Plain("최장 거리 신기록"), ""))
                     ),
                     onCard = { card++ },
                     onHome = { home++ },
@@ -181,9 +232,9 @@ class RunScreensTest {
                 )
             }
         }
-        compose.onNodeWithContentDescription("5.02 킬로미터").assertExists()
-        compose.onNodeWithText("최장 거리 신기록").assertExists()
-        compose.onNodeWithText("기록 카드").performClick()
+        compose.onNodeWithContentDescription("5.02 킬로미터", substring = true).assertExists()
+        compose.onNodeWithContentDescription("최장 거리 신기록", substring = true).assertExists()
+        compose.onNodeWithText("기록 카드 만들기").performClick()
         compose.onNodeWithText("홈으로").performClick()
         assertEquals(1 to 1, card to home)
     }

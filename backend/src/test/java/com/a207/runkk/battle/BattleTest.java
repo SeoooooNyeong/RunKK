@@ -204,8 +204,8 @@ class BattleTest {
         @DisplayName("규칙 1: 1초 이내 도착 + 둘 다 유효 → 무승부")
         void rule1_withinOneSecond_draw() {
             Battle battle = aliceArrivedFirstAndClosed(ALICE_REACH.plusMillis(900));
-            battle.verify(ALICE, "a", true, ALICE_REACH);
-            battle.verify(BOB, "b", true, ALICE_REACH.plusMillis(900));
+            battle.verify(ALICE, new RecordCheck("a", true, ALICE_REACH, 0));
+            battle.verify(BOB, new RecordCheck("b", true, ALICE_REACH.plusMillis(900), 0));
             Judgement judgement = battle.judge(NOW.plusHours(1)).orElseThrow();
             assertThat(judgement.verdicts().values()).containsOnly(Verdict.DRAW);
             assertThat(judgement.winnerSide()).isEmpty();
@@ -215,8 +215,8 @@ class BattleTest {
         @DisplayName("규칙 2: 먼저 도착한 쪽 유효 → 그쪽 승, 카운트다운 안에 못 온 쪽 패")
         void rule2_firstValid_wins() {
             Battle battle = aliceArrivedFirstAndClosed(null);
-            battle.verify(ALICE, "a", true, ALICE_REACH);
-            battle.verify(BOB, "b", true, null);
+            battle.verify(ALICE, new RecordCheck("a", true, ALICE_REACH, 0));
+            battle.verify(BOB, new RecordCheck("b", true, null, 0));
             Judgement judgement = battle.judge(NOW.plusHours(1)).orElseThrow();
             assertThat(judgement.verdictOf(alice())).contains(Verdict.WIN);
             assertThat(judgement.verdictOf(bob())).contains(Verdict.LOSE);
@@ -228,8 +228,8 @@ class BattleTest {
         @DisplayName("규칙 3: 먼저 도착한 쪽 무효 → 그쪽 패, 다른 쪽이 유효하게 도착했으면 승")
         void rule3_firstInvalid_otherWins() {
             Battle battle = aliceArrivedFirstAndClosed(BOB_REACH);
-            battle.verify(ALICE, "a", false, ALICE_REACH);
-            battle.verify(BOB, "b", true, BOB_REACH);
+            battle.verify(ALICE, new RecordCheck("a", false, ALICE_REACH, 0));
+            battle.verify(BOB, new RecordCheck("b", true, BOB_REACH, 0));
             Judgement judgement = battle.judge(NOW.plusHours(1)).orElseThrow();
             assertThat(judgement.verdictOf(alice())).contains(Verdict.LOSE);
             assertThat(judgement.verdictOf(bob())).contains(Verdict.WIN);
@@ -239,8 +239,8 @@ class BattleTest {
         @DisplayName("규칙 3: 먼저 도착한 쪽 무효, 다른 쪽도 유효 도착 없음 → 먼저 온 쪽 패, 다른 쪽 무승부")
         void rule3_firstInvalid_noOtherValid() {
             Battle battle = aliceArrivedFirstAndClosed(null);
-            battle.verify(ALICE, "a", false, ALICE_REACH);
-            battle.verify(BOB, "b", true, null);
+            battle.verify(ALICE, new RecordCheck("a", false, ALICE_REACH, 0));
+            battle.verify(BOB, new RecordCheck("b", true, null, 0));
             Judgement judgement = battle.judge(NOW.plusHours(1)).orElseThrow();
             assertThat(judgement.verdictOf(alice())).contains(Verdict.LOSE);
             assertThat(judgement.verdictOf(bob())).contains(Verdict.DRAW);
@@ -250,9 +250,9 @@ class BattleTest {
         @DisplayName("규칙 4: 아무도 도착하지 않은 채 두 러닝이 끝남 → 무승부(IN_PROGRESS에서도 판정)")
         void rule4_nobodyArrived_draw() {
             Battle battle = startedRandom();
-            battle.verify(ALICE, "a", true, null);
+            battle.verify(ALICE, new RecordCheck("a", true, null, 0));
             assertThat(battle.judge(NOW.plusMinutes(30))).isEmpty();
-            battle.verify(BOB, "b", true, null);
+            battle.verify(BOB, new RecordCheck("b", true, null, 0));
             Judgement judgement = battle.judge(NOW.plusMinutes(31)).orElseThrow();
             assertThat(judgement.verdicts().values()).containsOnly(Verdict.DRAW);
             assertThat(battle.getStatus()).isEqualTo(BattleStatus.FINISHED);
@@ -262,8 +262,8 @@ class BattleTest {
         @DisplayName("판정 도착 시각은 startAt + 기록상 도달 시간이다(D-30): 실시간 도착 순서와 달라도 기록이 이긴다")
         void arrivalUsesRecordedReach() {
             Battle battle = aliceArrivedFirstAndClosed(ALICE_REACH.plusSeconds(3));
-            battle.verify(ALICE, "a", true, ALICE_REACH.plusSeconds(5));
-            battle.verify(BOB, "b", true, ALICE_REACH.plusSeconds(3));
+            battle.verify(ALICE, new RecordCheck("a", true, ALICE_REACH.plusSeconds(5), 0));
+            battle.verify(BOB, new RecordCheck("b", true, ALICE_REACH.plusSeconds(3), 0));
             Judgement judgement = battle.judge(NOW.plusHours(1)).orElseThrow();
             assertThat(judgement.verdictOf(bob())).contains(Verdict.WIN);
         }
@@ -277,10 +277,10 @@ class BattleTest {
         @DisplayName("먼저 도착한 쪽 기록이 없으면 보류(빈 판정), 기록이 오면 판정")
         void pending_untilFirstRecordArrives() {
             Battle battle = aliceArrivedFirstAndClosed(null);
-            battle.verify(BOB, "b", true, null);
+            battle.verify(BOB, new RecordCheck("b", true, null, 0));
             assertThat(battle.judge(NOW.plusHours(1))).isEmpty();
             assertThat(battle.getStatus()).isEqualTo(BattleStatus.RESULT_PENDING);
-            battle.verify(ALICE, "a", true, ALICE_REACH);
+            battle.verify(ALICE, new RecordCheck("a", true, ALICE_REACH, 0));
             assertThat(battle.judge(NOW.plusHours(2))).isPresent();
         }
 
@@ -289,7 +289,7 @@ class BattleTest {
         void inProgress_waitsForRunningParticipant() {
             Battle battle = startedRandom();
             battle.recordArrival(alice(), startOf(battle).plus(ALICE_REACH));
-            battle.verify(ALICE, "a", true, ALICE_REACH);
+            battle.verify(ALICE, new RecordCheck("a", true, ALICE_REACH, 0));
             assertThat(battle.judge(NOW.plusMinutes(30))).isEmpty();
         }
 
@@ -297,11 +297,11 @@ class BattleTest {
         @DisplayName("정정: 끝난 판정이 먼저 도착한 쪽 무효로 바뀌면 corrected = true")
         void correction_marksCorrected() {
             Battle battle = aliceArrivedFirstAndClosed(BOB_REACH);
-            battle.verify(ALICE, "a", true, ALICE_REACH);
-            battle.verify(BOB, "b", true, BOB_REACH);
+            battle.verify(ALICE, new RecordCheck("a", true, ALICE_REACH, 0));
+            battle.verify(BOB, new RecordCheck("b", true, BOB_REACH, 0));
             assertThat(battle.judge(NOW.plusHours(1)).orElseThrow().corrected()).isFalse();
 
-            battle.verify(ALICE, "a", false, ALICE_REACH);
+            battle.verify(ALICE, new RecordCheck("a", false, ALICE_REACH, 0));
             Judgement corrected = battle.judge(NOW.plusHours(2)).orElseThrow();
             assertThat(corrected.corrected()).isTrue();
             assertThat(corrected.verdictOf(bob())).contains(Verdict.WIN);
@@ -311,17 +311,17 @@ class BattleTest {
         @DisplayName("M2: 끝난 대결을 같은 결과로 다시 판정하면 비어 있고 corrected·판정 시각이 그대로다(멱등)")
         void rejudgeWithSameResult_isIdempotent() {
             Battle battle = aliceArrivedFirstAndClosed(BOB_REACH);
-            battle.verify(ALICE, "a", true, ALICE_REACH);
-            battle.verify(BOB, "b", true, BOB_REACH);
+            battle.verify(ALICE, new RecordCheck("a", true, ALICE_REACH, 0));
+            battle.verify(BOB, new RecordCheck("b", true, BOB_REACH, 0));
             Judgement first = battle.judge(NOW.plusHours(1)).orElseThrow();
             assertThat(battle.judge(NOW.plusHours(2))).isEmpty();
             assertThat(battle.getJudgement()).contains(first);
 
-            battle.verify(ALICE, "a", false, ALICE_REACH);
+            battle.verify(ALICE, new RecordCheck("a", false, ALICE_REACH, 0));
             Judgement corrected = battle.judge(NOW.plusHours(3)).orElseThrow();
             assertThat(corrected.corrected()).isTrue();
 
-            battle.verify(BOB, "b", true, BOB_REACH); // 같은 기록 재전달
+            battle.verify(BOB, new RecordCheck("b", true, BOB_REACH, 0)); // 같은 기록 재전달
             assertThat(battle.judge(NOW.plusHours(4))).isEmpty();
             assertThat(battle.getJudgement()).contains(corrected);
             assertThat(battle.getJudgement().orElseThrow().corrected()).isTrue();
@@ -331,7 +331,7 @@ class BattleTest {
         @DisplayName("expirePending: 24시간 전이면 비어 있고, 지나면 없는 기록을 무효로 보고 판정(정정 아님)")
         void expirePending_after24Hours() {
             Battle battle = aliceArrivedFirstAndClosed(BOB_REACH);
-            battle.verify(BOB, "b", true, BOB_REACH);
+            battle.verify(BOB, new RecordCheck("b", true, BOB_REACH, 0));
             LocalDateTime endsAt = battle.getCountdownEndsAt().orElseThrow();
             assertThat(battle.expirePending(endsAt.plusHours(23))).isEmpty();
 
@@ -356,7 +356,7 @@ class BattleTest {
             assertThat(battle.isOpponentArrivalDue(NOW.plus(BOB_REACH))).isTrue();
             assertThat(battle.recordArrival(Side.OPPONENT, NOW.plus(BOB_REACH))).isTrue();
             assertThat(battle.isOpponentArrivalDue(NOW.plus(BOB_REACH))).isFalse();
-            battle.verify(ALICE, "a", true, ALICE_REACH);
+            battle.verify(ALICE, new RecordCheck("a", true, ALICE_REACH, 0));
             Judgement judgement = battle.judge(NOW.plus(BOB_REACH).plusSeconds(2)).orElseThrow();
             assertThat(judgement.verdictOf(alice())).contains(Verdict.WIN);
             assertThat(judgement.verdictOf(Side.OPPONENT)).contains(Verdict.LOSE);
@@ -429,6 +429,48 @@ class BattleTest {
                     .isInstanceOf(IllegalArgumentException.class);
             assertThatThrownBy(() -> startedRandom().showMemberAs(ALICE, Gender.UNDISCLOSED))
                     .isInstanceOf(IllegalArgumentException.class);
+        }
+    }
+
+    @Nested
+    @DisplayName("배치고사 대결(v0.18 D-477·D-482)")
+    class Placement {
+
+        @Test
+        @DisplayName("TC-5791 verify(RecordCheck)는 기록 ID·검증값·도달 시간과 유효 러닝 순번을 남긴다(무효는 순번 없음)")
+        void verify_storesValidRunOrdinal() {
+            Battle battle = startedRandom();
+            battle.verify(ALICE, new RecordCheck("a", true, Duration.ofMinutes(25), 7));
+            battle.verify(BOB, new RecordCheck("b", false, null, 0));
+
+            BattleParticipant alice = battle.participant(ALICE).orElseThrow();
+            assertThat(alice.getRecordId()).contains("a");
+            assertThat(alice.getVerified()).contains(true);
+            assertThat(alice.getReachElapsed()).contains(Duration.ofMinutes(25));
+            assertThat(alice.getValidRunOrdinal()).hasValue(7);
+            assertThat(battle.participant(BOB).orElseThrow().getValidRunOrdinal()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("TC-5792 markPlacement: 저장 전 고스트 한 번만, 판 번호 1~3. 랜덤·셀프·범위 밖·두 번째는 거부")
+        void markPlacement_boundsAndGhostOnly() {
+            Battle ghost =
+                    Battle.againstRecord(spec(BattleType.GHOST, Duration.ofMinutes(30)), NOW);
+            assertThat(ghost.placementRound()).isEmpty();
+            assertThatThrownBy(() -> ghost.markPlacement(0))
+                    .isInstanceOf(IllegalArgumentException.class);
+            assertThatThrownBy(() -> ghost.markPlacement(4))
+                    .isInstanceOf(IllegalArgumentException.class);
+            ghost.markPlacement(3);
+            assertThat(ghost.placementRound()).hasValue(3);
+            assertThatThrownBy(() -> ghost.markPlacement(1))
+                    .isInstanceOf(IllegalStateException.class);
+
+            Battle self = Battle.againstRecord(spec(BattleType.SELF, Duration.ofMinutes(30)), NOW);
+            assertThatThrownBy(() -> self.markPlacement(1))
+                    .isInstanceOf(IllegalStateException.class);
+            assertThatThrownBy(() -> startedRandom().markPlacement(1))
+                    .isInstanceOf(IllegalStateException.class);
         }
     }
 }

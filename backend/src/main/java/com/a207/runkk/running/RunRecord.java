@@ -386,6 +386,14 @@ public class RunRecord {
     }
 
     /**
+     * 대결·크루런 도착 시간(정지·제외 구간을 뺌, 0.5m 반올림 허용, W54). 신기록·구간에는 {@link #timeToReach(Distance)}를
+     * 쓴다(PL5-B1).
+     */
+    public Optional<Duration> timeToArrive(Distance d) {
+        return track().timeToArrive(d, stops());
+    }
+
+    /**
      * 정지 구간과 제외 구간(초과 시속 쌍, ValidityRule.STANDARD)을 합친 시간순 목록. 도달 시간·곡선이 둘을 같이 건너뛴다. 옛 규칙으로 유효였던
      * 기록은 초과 쌍이 없어 정지 구간과 같다. 파기된 경로면 정지 구간만이다.
      */

@@ -13,6 +13,7 @@ import com.a207.runkk.app.domain.battle.BattleResult
 import com.a207.runkk.app.domain.battle.FriendInvite
 import com.a207.runkk.app.domain.battle.FriendInviteView
 import com.a207.runkk.app.domain.battle.MatchAcceptance
+import com.a207.runkk.app.domain.battle.PlacementRoundState
 import com.a207.runkk.app.domain.battle.RecordBattleCandidates
 import com.a207.runkk.app.domain.battle.RecordBattleKind
 import java.time.Duration
@@ -413,5 +414,68 @@ class BattleRepositoryImplTest {
 
         assertEquals(Outcome.Failure(AppError.Rejected("INVALID_STATE")), repository.forfeit(9))
         assertEquals("POST /api/v1/battles/9/forfeit", api.take().let { "${it.method} ${it.url.encodedPath}" })
+    }
+
+    @Test
+    fun `TC-5869 매칭 응답의 배치고사 항목을 읽는다`() = runTest {
+        api.reply(
+            """{"waiting":false,"distanceMeters":5000,"defaultDistanceMeters":5000,"placementRound":2,"battleId":77}"""
+        )
+        api.reply("""{"waiting":true,"distanceMeters":3000,"defaultDistanceMeters":3000}""")
+
+        val placement = repository.requestMatch(Distance(5_000)).value()
+        val queued = repository.requestMatch(Distance(3_000)).value()
+
+        assertEquals(
+            MatchAcceptance(false, Distance(5_000), Distance(5_000), placementRound = 2, battleId = 77),
+            placement
+        )
+        assertEquals(null, queued.placementRound, "옛 응답(새 항목 없음)은 null")
+        assertEquals(null, queued.battleId)
+    }
+
+    @Test
+    fun `TC-5870 결과·이력·진행 대결의 배치고사 항목을 읽는다`() = runTest {
+        listOf("COUNTED", "NOT_COUNTED", "PENDING").forEach { state ->
+            api.reply("""{"battleId":9,"type":"RANDOM","pending":false,"placementRound":2,"placementState":"$state"}""")
+        }
+        api.reply("""{"battleId":9,"type":"RANDOM","pending":false}""")
+        api.reply(
+            """{"battleId":9,"type":"RANDOM","pending":false,"placementRound":1,"placementState":"SOMETHING_NEW"}"""
+        )
+        api.reply(
+            """{"entries":[
+               |{"battleId":3,"type":"RANDOM","opponentName":"느긋한고래","distanceMeters":5000,"verdict":"WIN",
+               | "playedAt":"2026-11-03T07:12:00","placementRound":2,"opponentMemberId":null},
+               |{"battleId":4,"type":"FRIEND","opponentName":"바람처럼","distanceMeters":3000,"verdict":"LOSE",
+               | "playedAt":"2026-11-02T07:12:00","placementRound":null,"opponentMemberId":42},
+               |{"battleId":5,"type":"FRIEND","opponentName":"옛 친구","distanceMeters":3000,"verdict":"LOSE",
+               | "playedAt":"2026-11-01T07:12:00"}],
+               |"total":3,"wins":1,"losses":2,"selfNewRecords":0}
+            """.trimMargin()
+        )
+        api.reply(
+            """{"battleId":1,"type":"GHOST","status":"WAITING_START","distanceMeters":5000,"opponentName":"단단한러너",
+               |"startAt":"2026-11-04T21:49:13.359187","opponentGender":"MALE","celebrityFigure":null,"placementRound":1}
+            """.trimMargin()
+        )
+
+        val states = List(3) { repository.result(9).value().placementState }
+        val plain = repository.result(9).value()
+        val unknown = repository.result(9).value()
+        val history = repository.history(BattleHistory.Type.RANDOM).value()
+        val active = repository.active().value()
+
+        assertEquals(
+            listOf(PlacementRoundState.COUNTED, PlacementRoundState.NOT_COUNTED, PlacementRoundState.PENDING),
+            states
+        )
+        assertEquals(null, plain.placementRound)
+        assertEquals(null, plain.placementState)
+        assertEquals(1, unknown.placementRound)
+        assertEquals(null, unknown.placementState, "모르는 상태 값은 null")
+        assertEquals(listOf(2, null, null), history.entries.map { it.placementRound })
+        assertEquals(listOf(null, 42L, null), history.entries.map { it.opponentMemberId })
+        assertEquals(1, active?.placementRound)
     }
 }

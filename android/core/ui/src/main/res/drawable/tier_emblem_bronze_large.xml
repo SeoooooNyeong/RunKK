@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 티어 엠블럼 bronze 112dp 라이트(피그마 61363:3403, D-495). 경로는 피그마 SVG 그대로, 색은 RunKK · Tier 변수(design-oo 7.3). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="112dp"
+    android:height="112dp"
+    android:viewportWidth="112"
+    android:viewportHeight="112">
+    <group android:translateX="-8" android:translateY="-5">
+    <path
+        android:pathData="M64 105.333C88.4846 105.333 108.333 85.4846 108.333 61C108.333 36.5154 88.4846 16.6667 64 16.6667C39.5154 16.6667 19.6667 36.5154 19.6667 61C19.6667 85.4846 39.5154 105.333 64 105.333Z"
+        android:fillColor="#E9A774"
+        android:strokeColor="#B5693A"
+        android:strokeWidth="7" />
+    <group android:rotation="-30" android:pivotX="47.989" android:pivotY="34.4737">
+    <path
+        android:pathData="M35.1557,34.4737 a12.8333,6.41667 0 1,0 25.6666,0 a12.8333,6.41667 0 1,0 -25.6666,0 Z"
+        android:fillColor="#FFE3CC" />
+    </group>
+    <path
+        android:pathData="M53.7941 77.5278L56.4799 65.917L47.4722 58.1076L59.3722 57.0747L64 46.125L68.6278 57.0747L80.5278 58.1076L71.5201 65.917L74.2059 77.5278L64 71.3712L53.7941 77.5278Z"
+        android:fillColor="#B5693A" />
+    </group>
+</vector>

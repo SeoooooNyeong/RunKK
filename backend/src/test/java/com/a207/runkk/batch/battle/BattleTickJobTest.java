@@ -52,12 +52,17 @@ class BattleTickJobTest {
                         mock(BattleTickJob.class),
                         mock(AbandonedBattleJob.class),
                         mock(FriendInviteExpiryJob.class),
+                        mock(PlacementReconcileJob.class),
                         new BattleSchedulingConfig.Schedule(
                                 Duration.ofSeconds(1),
                                 Duration.ofMinutes(1),
-                                Duration.ofSeconds(5)))
+                                Duration.ofSeconds(5),
+                                "0 20 0 * * *"))
                 .configureTasks(registrar);
         assertThat(registrar.getFixedDelayTaskList()).hasSize(3);
+        assertThat(registrar.getCronTaskList())
+                .singleElement()
+                .satisfies(t -> assertThat(t.getExpression()).isEqualTo("0 20 0 * * *"));
         assertThat(registrar.getFixedDelayTaskList().get(2).getIntervalDuration())
                 .isEqualTo(Duration.ofSeconds(5));
     }

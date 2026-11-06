@@ -30,6 +30,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /**
  * 대결 한 건의 생애주기(설계 6.1.6, 상태도 2.4.2, 판정 A-10). 참가자는 합성(BattleParticipant), 기록 상대는 값(OpponentRef)과 상대
@@ -149,6 +152,11 @@ public class Battle {
 
     @Column(name = "winner_opponent", nullable = false)
     private boolean winnerOpponent;
+
+    /** 배치고사 판 번호(만든 때, 1~3). 배치고사 대결이 아니면 null(D-477). GHOST만 가질 수 있다. */
+    @Column(name = "placement_round", updatable = false)
+    @JdbcTypeCode(SqlTypes.SMALLINT)
+    private Integer placementRound;
 
     @Version
     @Column(name = "version", nullable = false)
@@ -470,10 +478,30 @@ public class Battle {
     }
 
     /**
-     * 참가자 기록 검증(BattleResultService.onRunSaved, D-51). reachElapsed는 기록상 대결 거리 도달 경과 시간(없으면 null).
+     * 참가자 기록 검증(BattleResultService.onRunSaved, D-51, D-482). 기록 ID·검증값·도달 경과 시간·유효 러닝 순번을 참가자에
+     * 남긴다.
      */
-    public void verify(long memberId, String recordId, boolean valid, Duration reachElapsed) {
-        requireParticipant(memberId).verify(recordId, valid, reachElapsed);
+    public void verify(long memberId, RecordCheck check) {
+        requireParticipant(memberId).verify(check);
+    }
+
+    /**
+     * 배치고사 판으로 표시한다(D-477). GHOST이고 저장 전이며 아직 표시하지 않았을 때만, 판 번호는 1~3. 아니면 IllegalArgumentException·
+     * IllegalStateException.
+     */
+    public void markPlacement(int round) {
+        if (round < 1 || round > 3) {
+            throw new IllegalArgumentException("배치고사 판 번호는 1~3: " + round);
+        }
+        if (type != BattleType.GHOST || id != null || placementRound != null) {
+            throw new IllegalStateException("배치고사 표시는 저장 전 고스트 대결 한 번만: " + type);
+        }
+        placementRound = round;
+    }
+
+    /** 배치고사 판 번호(만든 때). 배치고사 대결이 아니면 비어 있다. */
+    public OptionalInt placementRound() {
+        return placementRound == null ? OptionalInt.empty() : OptionalInt.of(placementRound);
     }
 
     /**

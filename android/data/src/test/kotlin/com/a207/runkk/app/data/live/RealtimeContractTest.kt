@@ -287,6 +287,32 @@ class RealtimeContractTest {
     }
 
     @Test
+    fun `TC-5871 MatchFound의 배치고사 판 번호를 읽고 없으면 null이다`() {
+        val placement = decoder.decode(read("MatchFound-placement.json")) as MatchFound
+        val plain = decoder.decode(read("MatchFound.json")) as MatchFound
+        val old = decoder.decode(
+            """{"type":"MatchFound","battleId":1,"opponentName":"고스트","opponentTier":"SILVER","distance":3000,"animationSeconds":3}"""
+        ) as MatchFound
+
+        assertEquals(
+            MatchFound(
+                battleId = 103,
+                opponentName = "느긋한고래",
+                opponentTier = "UNRANKED",
+                distance = Distance(5_000),
+                myBest = null,
+                opponentBest = Duration.ofSeconds(2_010),
+                animationSeconds = 3,
+                opponentGender = Gender.FEMALE,
+                placementRound = 1
+            ),
+            placement
+        )
+        assertNull(plain.placementRound)
+        assertNull(old.placementRound, "항목이 없는 옛 서버")
+    }
+
+    @Test
     fun `오프셋이 붙은 시각도 읽는다`() {
         val message = decoder.decode(
             """{"type":"CountdownStarted","battleId":1,"arrivedName":"a","endsAt":"2026-10-20T10:27:13Z"}"""
@@ -310,6 +336,7 @@ class RealtimeContractTest {
         val SAMPLES =
             listOf(
                 "MatchFound.json",
+                "MatchFound-placement.json",
                 "BattleStart.json",
                 "BattleStart-random.json",
                 "OpponentProgress.json",

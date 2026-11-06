@@ -203,8 +203,8 @@ class InboxTest {
             .map { it.name }
             .toSet()
         val keys = Routes::class.java.declaredClasses.map { it.simpleName }.toSet()
-        assertEquals(V010_CONSTANTS + V011_CONSTANTS + V014_CONSTANTS, constants)
-        assertEquals(V010_KEYS + V011_KEYS + WIRE_V010_KEYS + V014_KEYS, keys)
+        assertEquals(V010_CONSTANTS + V011_CONSTANTS + V014_CONSTANTS + V018_CONSTANTS, constants)
+        assertEquals(V010_KEYS + V011_KEYS + WIRE_V010_KEYS + V014_KEYS + V018_KEYS, keys)
     }
 
     @Test
@@ -230,10 +230,10 @@ class InboxTest {
         )
 
         /**
-         * v0.14 하단 탭 재구성(D-250), 배틀런 화면(D-268), 기록 화면 대결 탭(D-281, BATTLE_HISTORY를 대신함),
-         * Runimal 16유형(D-285)이 더한 경로.
+         * v0.14 하단 탭 재구성(D-250), 기록 화면 대결 탭(D-281, BATTLE_HISTORY를 대신함), Runimal 16유형(D-285)이 더한 경로.
+         * v0.14 배틀런 화면(BATTLE_MODE, D-268)은 v0.18에서 랜덤·친구 대결로 나눠 지웠다(D-498, CR-142).
          */
-        val V014_CONSTANTS = setOf("RECORD_RUN", "BATTLE_MODE", "RECORDS_BATTLES", "RUNIMAL_TYPES")
+        val V014_CONSTANTS = setOf("RECORD_RUN", "RECORDS_BATTLES", "RUNIMAL_TYPES")
         val V010_KEYS = setOf(
             "Key", "RunResult", "RecordDetail", "RecordCard", "BattleRunning", "BattleQuickMatch", "BattleResult",
             "CrewHome", "CrewManage", "CrewRunWrite", "CrewRunLobby", "CrewRunResult"
@@ -248,5 +248,9 @@ class InboxTest {
          * 셀프·셀럽 탭 경로(SELF·CELEB)는 기록런이 대신해 지웠다.
          */
         val V014_KEYS = setOf("RunimalType", "Evaluation", "FriendInviteWait", "FriendInviteJoin")
+
+        /** v0.18 배치고사·대결 분리(D-498): 친구 대결, 배치고사 진행·완료 경로와 판 결과 인자 키(S15P31A207-275). */
+        val V018_CONSTANTS = setOf("BATTLE_FRIEND", "PLACEMENT", "PLACEMENT_COMPLETE")
+        val V018_KEYS = setOf("PlacementResult")
     }
 }

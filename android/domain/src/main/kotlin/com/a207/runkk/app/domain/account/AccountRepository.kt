@@ -1,5 +1,6 @@
 package com.a207.runkk.app.domain.account
 
+import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Outcome
@@ -63,6 +64,22 @@ interface AccountRepository {
      * 읽으면 [myGender]도 갱신한다. 본인 ID를 모르면(토큰 없음) Unauthorized.
      */
     suspend fun mySummary(): Outcome<MySummary>
+
+    /**
+     * 본인 배치고사 진행(GET /me/placement, FR-279~FR-282, D-488·D-493). 홈 헤더 배지·진입 시트, 마이, 배치고사 화면이 읽는다.
+     * 임시 티어는 이 응답에만 있다(FR-282). 모르는 상태 값은 실패(Server(0))다. 기본 구현은 실패라 구현이 없는 가짜 저장소에서는
+     * 화면이 진행을 모르는 상태(배지 없음, 진입 시트 랜덤 → 배치고사 화면)로 동작한다.
+     */
+    suspend fun placement(): Outcome<PlacementProgress> = Outcome.Failure(AppError.Server(0))
+
+    /**
+     * 이 기기에서 배치고사 완료 화면(FR-281)을 본 마지막 판의 대결 ID(D-531). 배치고사 진행 화면이 완료를 받았을 때 이 값이 마지막 판과
+     * 다르면 완료 화면을 연다. 구현(data)은 설정 기기 사본(SettingsRepository)에 맡겨 로그아웃·탈퇴 때 함께 지운다. 기본 구현은 사본
+     * 없음·저장 무시라, 구현이 없는 가짜 저장소에서는 완료를 받을 때마다 완료 화면을 연다(한 번 더 보여도 되는 쪽).
+     */
+    suspend fun placementCompleteSeen(): Long? = null
+
+    suspend fun savePlacementCompleteSeen(battleId: Long): Outcome<Unit> = Outcome.Success(Unit)
 
     /** 프로필 편집(PATCH /me/profile, FR-007, D-287). 성향 태그(D-91)와 사진은 편집 항목이 아니다. */
     suspend fun editProfile(edit: ProfileEdit): Outcome<Unit>

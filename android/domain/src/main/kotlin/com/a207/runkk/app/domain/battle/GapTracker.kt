@@ -29,8 +29,8 @@ class GapTracker(private val battleDistance: Distance) {
         return if (newLeader == Leader.ME) BattleGuidance.Kind.OVERTOOK else BattleGuidance.Kind.OVERTAKEN
     }
 
-    /** 대결 거리에 닿았는가. */
-    fun hasArrived(mine: Distance): Boolean = mine.isAtLeast(battleDistance)
+    /** 반올림 전 누적 거리(m)가 대결 거리에 닿았는가. 999.7m는 표시로는 1,000m여도 닿지 않았다(W54). */
+    fun hasArrived(mineMeters: Double): Boolean = mineMeters >= battleDistance.meters
 
     private companion object {
         const val OVERTAKE_MARGIN_METERS = 10

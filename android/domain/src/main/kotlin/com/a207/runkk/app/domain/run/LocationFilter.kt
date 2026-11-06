@@ -28,8 +28,9 @@ class LocationFilter {
         return FilteredPoint(s.at, s.point, state)
     }
 
-    private companion object {
+    companion object {
+        /** 이보다 큰 정확도 반경(m)의 측정값은 버린다. GPS 예열의 준비됨 기준도 같다(W55). */
         const val MAX_ACCURACY_METERS = 30.0
-        val UNSTABLE_AFTER: Duration = Duration.ofSeconds(10)
+        private val UNSTABLE_AFTER: Duration = Duration.ofSeconds(10)
     }
 }

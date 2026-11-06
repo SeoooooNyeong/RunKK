@@ -13,7 +13,8 @@ sealed interface ServerMessage
 
 /**
  * 매칭 성사(BattleStartService.announceMatch). 고스트도 랜덤과 같은 항목만 가진다(Q-02). [opponentGender]는 상대 성별(회원이면 그
- * 회원 성별, 가상 상대는 서버가 정한 값)이고 옛 서버·모르는 값이면 null이다.
+ * 회원 성별, 가상 상대는 서버가 정한 값)이고 옛 서버·모르는 값이면 null이다. [placementRound]는 배치고사 대결이면 판 번호(1~3)이고
+ * 그때 상대 티어(opponentTier UNRANKED)는 그리지 않고 상대를 점선 원 「?」로 그린다(FR-276, J24-3). 배치고사가 아니면 null이다.
  */
 data class MatchFound(
     val battleId: Long,
@@ -23,7 +24,8 @@ data class MatchFound(
     val myBest: Duration?,
     val opponentBest: Duration?,
     val animationSeconds: Int,
-    val opponentGender: Gender? = null
+    val opponentGender: Gender? = null,
+    val placementRound: Int? = null
 ) : ServerMessage
 
 /**

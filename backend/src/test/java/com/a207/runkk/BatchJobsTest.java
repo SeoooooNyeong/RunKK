@@ -78,6 +78,18 @@ class BatchJobsTest {
     }
 
     @Test
+    @DisplayName("TC-5796 PlacementReconcileJob(0시 20분, D-490) → reconcile(now) 하나, 실패해도 던지지 않는다")
+    void placementReconcileJob_runsDailyAt0020() {
+        com.a207.runkk.battle.PlacementReconcileService service =
+                mock(com.a207.runkk.battle.PlacementReconcileService.class);
+        new com.a207.runkk.batch.battle.PlacementReconcileJob(service, clock).run();
+        verify(service).reconcile(NOW);
+
+        when(service.reconcile(any())).thenThrow(new IllegalStateException("db"));
+        new com.a207.runkk.batch.battle.PlacementReconcileJob(service, clock).run();
+    }
+
+    @Test
     @DisplayName("TierReconcileJob(0시 10분, D-108) → reconcile(now) 하나, 실패해도 던지지 않는다")
     void tierReconcileJob() {
         TierReconcileService service = mock(TierReconcileService.class);

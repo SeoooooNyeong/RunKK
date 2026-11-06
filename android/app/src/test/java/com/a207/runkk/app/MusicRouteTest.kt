@@ -9,7 +9,7 @@ import org.junit.Test
 class MusicRouteTest {
     @Test
     fun `탭 화면과 결과 화면에서는 홈 음악을 튼다`() {
-        listOf(Routes.HOME, Routes.ME, Routes.RANKING, Routes.RECORD_RUN, Routes.BATTLE_MODE, Routes.NOTIFICATIONS)
+        listOf(Routes.HOME, Routes.ME, Routes.RANKING, Routes.RECORD_RUN, Routes.BATTLE_FRIEND, Routes.NOTIFICATIONS)
             .forEach { assertTrue(isMusicRoute(Routes.Key(it)), it) }
         assertTrue(isMusicRoute(Routes.RunResult("r1", isJustFinished = true)))
         assertTrue(isMusicRoute(Routes.BattleResult(1L, isJustFinished = true)))

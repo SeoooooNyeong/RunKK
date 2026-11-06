@@ -85,6 +85,14 @@ public class RunningGoal {
         plans.put(plan.date(), new PlanCell(plan.distance().meters(), pace));
     }
 
+    /** 그날 계획을 지운다(취소). 없으면 그대로 둔다. 오늘보다 이전 날짜면 PAST_DATE(putPlan과 같은 규칙). */
+    public void deletePlan(LocalDate date, LocalDate today) {
+        if (date.isBefore(today)) {
+            throw new BusinessRuleException(ReasonCode.PAST_DATE);
+        }
+        plans.remove(date);
+    }
+
     public Optional<DailyPlan> planOn(LocalDate day) {
         return Optional.ofNullable(plans.get(day)).map(cell -> cell.toPlan(day));
     }

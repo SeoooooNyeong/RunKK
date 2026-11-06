@@ -119,14 +119,18 @@ class MeScreensTest {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 MeScreen(
-                    MeUiState(isLoading = false, profile = sampleProfile.copy(longestDistance = Distance(21_097))),
+                    MeUiState(
+                        isLoading = false,
+                        profile = sampleProfile.copy(longestDistance = Distance(21_097)),
+                        tierDisplay = com.a207.runkk.app.core.model.TierDisplay.Confirmed("GOLD")
+                    ),
                     onNavigate = { routes += it },
                     onRetry = {}
                 )
             }
         }
         compose.onNodeWithText("Lv.3").assertExists()
-        compose.onNodeWithText("골드").assertExists()
+        compose.onNodeWithText("골드", useUnmergedTree = true).assertExists()
         compose.onNodeWithText("128.4km").assertExists()
         compose.onNodeWithText("21.1km").assertExists()
         compose.onNodeWithText("42회").assertExists()

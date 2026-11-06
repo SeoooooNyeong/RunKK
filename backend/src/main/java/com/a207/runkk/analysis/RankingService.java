@@ -4,6 +4,7 @@ import com.a207.runkk.common.AggregationPeriod;
 import com.a207.runkk.common.DateRange;
 import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.Distance;
+import com.a207.runkk.common.Tier;
 import com.a207.runkk.crew.CrewMembershipReader;
 import com.a207.runkk.crew.CrewSummary;
 import com.a207.runkk.member.MemberQueryService;
@@ -180,7 +181,34 @@ public class RankingService {
                 page.mine(),
                 page.gapToNext(),
                 notice,
-                kind == RankingKind.PERSONAL ? shownGendersOf(page) : Map.of());
+                kind == RankingKind.PERSONAL ? shownGendersOf(page) : Map.of(),
+                kind == RankingKind.PERSONAL ? publicTiersOf(page) : Map.of());
+    }
+
+    /**
+     * 개인 랭킹 줄 회원의 지금 티어(공개 티어, D-486). 0시 스냅숏이면 배치고사를 마친 직후에도 하루 동안 「배치 중」으로 남으므로 조회 때 붙인다. 탈퇴 회원은
+     * 넣지 않는다(응답 null). 보는 사람마다 같고 임시 티어는 넣지 않는다(D-485).
+     */
+    private Map<Long, Tier> publicTiersOf(RankingPage page) {
+        Map<Long, Tier> tiers = new HashMap<>();
+        memberQueryService
+                .summaries(subjectIdsOf(page))
+                .forEach(
+                        (id, summary) -> {
+                            if (!DisplayName.WITHDRAWN.equals(summary.displayName())) {
+                                tiers.put(id, summary.tier());
+                            }
+                        });
+        return tiers;
+    }
+
+    private static Set<Long> subjectIdsOf(RankingPage page) {
+        Set<Long> ids = new HashSet<>();
+        page.top().forEach(e -> ids.add(e.subjectId()));
+        if (page.mine() != null) {
+            ids.add(page.mine().subjectId());
+        }
+        return ids;
     }
 
     /**

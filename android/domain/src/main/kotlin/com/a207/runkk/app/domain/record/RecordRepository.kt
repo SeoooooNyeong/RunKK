@@ -36,6 +36,9 @@ interface RecordRepository {
     /** 날짜별 계획(FR-073). 지난 날짜는 Rejected(PAST_DATE), 거리·페이스가 범위 밖이면 Rejected(PLAN_INVALID). */
     suspend fun putPlan(date: LocalDate, distance: Distance, pace: Pace?): Outcome<Unit>
 
+    /** 날짜별 계획 취소(S15P31A207-275). 계획이 없어도 성공이다. 지난 날짜는 Rejected(PAST_DATE). */
+    suspend fun deletePlan(date: LocalDate): Outcome<Unit>
+
     suspend fun planProgress(from: LocalDate, to: LocalDate): Outcome<PlanProgress>
 
     /** 오늘 계획(FR-042, FR-048). 계획이 없으면 Success(null). ui.run이 domain.run.PlanSnapshot으로 옮긴다. */

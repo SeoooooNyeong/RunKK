@@ -54,6 +54,12 @@ public interface BattleRepository {
      */
     List<BattleWin> findMemberWinsJudgedBetween(LocalDateTime from, LocalDateTime to);
 
+    /**
+     * 판정 시각이 [from, to)인 FINISHED 배치고사 대결(placement_round 있음, 판 셈 누락 복구 D-490, 부분 인덱스
+     * ix_battle_placement).
+     */
+    List<Battle> findPlacementFinishedBetween(LocalDateTime from, LocalDateTime to);
+
     /** 이번 주 전적(FR-093 주간 전적). */
     WeeklyRecord weeklyRecord(long memberId, Week week);
 }

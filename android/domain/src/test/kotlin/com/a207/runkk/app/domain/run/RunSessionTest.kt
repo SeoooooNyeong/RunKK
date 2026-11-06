@@ -53,6 +53,18 @@ class RunSessionTest {
     }
 
     @Test
+    fun `W54 표시 거리는 미터 반올림이고 반올림 전 거리도 함께 낸다`() {
+        val session = running()
+        session.onLocation(normal(1, 0.0))
+        session.onLocation(normal(300, 999.7))
+        val p = session.tick(at(300))
+        assertEquals(Distance(1_000), p.distance)
+        assertEquals(999.7, p.exactDistanceMeters, 0.001)
+        session.pause(at(301))
+        assertEquals(999.7, session.tick(at(302)).exactDistanceMeters, 0.001)
+    }
+
+    @Test
     fun `불안정 포인트는 거리를 더하지 않고 불안정 구간으로 남긴다`() {
         val session = running()
         session.onLocation(normal(1, 0.0))
