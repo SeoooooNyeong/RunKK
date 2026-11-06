@@ -129,6 +129,13 @@ class HomeScreenshotTest {
         HomeShell { HomeScreen(expanded, HomeActions(), it) }
     }
 
+    /** 작은 화면(360×640dp)에서 펼친 패널은 남은 높이에 맞춰 줄고 안에서 스크롤한다(잘림 수정, 2026-11-06 사용자 지적). */
+    @Test
+    @Config(qualifiers = "w360dp-h640dp")
+    fun summaryExpandedSmall() = compose.captureRunkkScreen("A4_summary_expanded_small", isDarkTheme = false) {
+        HomeShell { HomeScreen(expanded, HomeActions(), it) }
+    }
+
     /** TC-5845 오늘 기록 없음(61342:2496). */
     @Test
     fun summaryNoToday() = compose.captureRunkkScreen("A4_summary_no_today", isDarkTheme = false) {
