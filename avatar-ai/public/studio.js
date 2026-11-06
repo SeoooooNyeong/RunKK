@@ -29,6 +29,7 @@
   let selfieUrl = null, selfieFile = null, apiReady = false, aiBusy = false;
   let selfieQuality = null, selfieQualityError = null;
   let avatarViews = null;
+  let blinkRig=null,blinkTime=0,eyePose='auto';
   const canvas = $('avatarCanvas'), ctx = canvas.getContext('2d');
   const motionNames = {idle:'대기 중',run:'달리는 중',wave:'인사하는 중'};
 
@@ -95,13 +96,13 @@
     for(const [a,b]of lines){g.beginPath();g.moveTo(...at(...joints[a]));g.lineTo(...at(...joints[b]));g.stroke();}
     for(const [u,v]of joints){g.beginPath();g.arc(...at(u,v),4,0,Math.PI*2);g.fill();g.stroke();}g.restore();
   }
-  function render(g,width,height,t,{background=false,rig=false,thumbnail=false,bodyOnly=false,motion=state.motion,view=avatarViews?.active||'front'}={}){
+  function render(g,width,height,t,{background=false,rig=false,thumbnail=false,bodyOnly=false,animate=false,motion=state.motion,view=avatarViews?.active||'front'}={}){
     g.setTransform(1,0,0,1,0,0);g.clearRect(0,0,width,height);
     if(background){g.fillStyle='#eef4e7';g.fillRect(0,0,width,height);}
     const factor=Math.min(width,height)/1024;g.save();g.translate((width-1024*factor)/2,(height-1024*factor)/2);g.scale(factor,factor);
     if(!thumbnail&&!bodyOnly&&view!=='front'&&avatarViews?.entries[view]){g.drawImage(avatarViews.entries[view].image,0,0,1024,1024);g.restore();return;}
     if(!thumbnail&&!bodyOnly&&view==='front'){
-      drawFrontSource(g);
+      drawFrontSource(g,animate?(eyePose!=='auto'?({open:0,half:.5,closed:1}[eyePose]):playing&&state.blinkEnabled!==false?window.RunKKEyeBlink.closureAt(blinkTime):0):0);
       g.restore();return;
     }
     g.translate(512,512);g.scale(.93,.93);g.translate(-512,-512);
@@ -121,8 +122,8 @@
     if(rig)drawRig(g,x,y,w,h,bodyNeck[1]);g.restore();
   }
   function frame(now) {
-    if(lastTime!==null&&playing&&!document.hidden)time+=Math.min(.05,(now-lastTime)/1000)*(state.speed/100);
-    lastTime=now;if(isReady)render(ctx,canvas.width,canvas.height,time,{rig:$('showRig').checked});requestAnimationFrame(frame);
+    if(lastTime!==null&&playing&&!document.hidden){const delta=Math.min(.05,(now-lastTime)/1000);time+=delta*(state.speed/100);if(blinkRig&&state.blinkEnabled!==false&&(!avatarViews||avatarViews.active==='front'))blinkTime+=delta;}
+    lastTime=now;if(isReady)render(ctx,canvas.width,canvas.height,time,{rig:$('showRig').checked,animate:true});requestAnimationFrame(frame);
   }
   function scheduleSave() {clearTimeout(savingTimer);savingTimer=setTimeout(persist,260);}
   function persist() {
@@ -131,7 +132,7 @@
   }
   function cleanState(candidate) {
     if(!candidate||typeof candidate!=='object'||![2,3,4,5,6,7,8].includes(candidate.version)||candidate.rigVersion!==RIG)throw new Error('이 로컬 스튜디오의 설정 파일이 아니에요.');
-    const s=defaults();
+    const s=defaults();s.blinkEnabled=candidate.blinkEnabled!==false;
     s.neckJoin=candidate.neckJoin!==false;if(Number.isFinite(candidate.neckGap))s.neckGap=clamp(candidate.neckGap,0,26);
     for(const k of ['shirt','shorts','shoes'])if(/^#[0-9a-f]{6}$/i.test(candidate[k]||''))s[k]=candidate[k];
     if(presets.some(p=>p.id===candidate.bodyPackId))s.bodyPackId=candidate.bodyPackId;if(candidate.customBodyPack?.version===2){s.customBodyPack=validateBodyPack(candidate.customBodyPack);if(candidate.bodyPackId==='custom')s.bodyPackId='custom';}
@@ -153,22 +154,33 @@
     const sharedScale=Math.min(LAYER_SIZE/face.width,LAYER_SIZE/face.height),w=face.width*sharedScale,h=face.height*sharedScale;
     const fitCanvas=(im)=>{const out=surface(LAYER_SIZE,LAYER_SIZE);out.getContext('2d').drawImage(im,(LAYER_SIZE-w)/2,(LAYER_SIZE-h)/2,w,h);return out;};
     const faceCanvas=fitCanvas(face),eyeCanvas=fitCanvas(eyes),hairCanvas=fitCanvas(hair);
+    const {fillFaceEyeHoles}=await import('./eye-skin-fill.mjs');
+    const skinPixels=faceCanvas.getContext('2d').getImageData(0,0,LAYER_SIZE,LAYER_SIZE);
+    fillFaceEyeHoles(skinPixels.data,eyeCanvas.getContext('2d').getImageData(0,0,LAYER_SIZE,LAYER_SIZE).data,LAYER_SIZE,LAYER_SIZE);
+    faceCanvas.getContext('2d').putImageData(skinPixels,0,0);
     const composite=surface(LAYER_SIZE,LAYER_SIZE),cg=composite.getContext('2d');cg.drawImage(faceCanvas,0,0);cg.drawImage(eyeCanvas,0,0);cg.drawImage(hairCanvas,0,0);
     faceLayer={canvas:faceCanvas};
     eyeLayer={canvas:eyeCanvas};
     hairLayer={canvas:hairCanvas};
+    let templates=null;
+    try{templates=await window.RunKKEyeBlink.loadTemplates(loadImage);}catch(error){console.warn('눈 프레임 로드 실패',error);notify('눈 프레임을 불러오지 못했어요. 새로고침해 주세요.');}
+    blinkRig=window.RunKKEyeBlink.prepare(faceCanvas,eyeCanvas,templates);blinkTime=0;eyePose='auto';
+    cg.clearRect(0,0,LAYER_SIZE,LAYER_SIZE);cg.drawImage(faceCanvas,0,0);cg.drawImage(eyeCanvas,0,0);cg.drawImage(hairCanvas,0,0);
+    $('eyeFramePreviews').hidden=!blinkRig;
+    if(blinkRig)for(const name of ['open','half','closed'])$('eyeFrame-'+name).src=blinkRig.frames[name].toDataURL('image/png');
     $('layerPreviews').hidden=false;for(const [id,c]of [['faceLayerPreview',faceCanvas],['eyesLayerPreview',eyeCanvas],['hairLayerPreview',hairCanvas]])$(id).src=c.toDataURL('image/png');
     const merged={canvas:composite,hasAlpha:true,crop:{left:0,top:0,width:LAYER_SIZE,height:LAYER_SIZE,sourceWidth:LAYER_SIZE,sourceHeight:LAYER_SIZE}};
     headSprite=merged;$('headPreview').src=composite.toDataURL('image/png');$('headBadge').textContent=name;$('headTag').textContent='얼굴 + 눈 + 머리카락 분리 레이어';
     return {canvas:composite,trimmed:merged};
   }
   async function setHead(src,name='기본 머리') {
-    $('layerPreviews').hidden=true;
+    $('layerPreviews').hidden=true;$('eyeFramePreviews').hidden=true;blinkRig=null;blinkTime=0;eyePose='auto';
     const im=await loadImage(src);if(im.width*im.height>30_000_000)throw new Error('이미지가 너무 커요. 30MP 이하 이미지를 골라 주세요.');
     const result=trimAlpha(im);headSprite=result;faceLayer={canvas:result.canvas};eyeLayer=null;hairLayer=null;$('headPreview').src=result.canvas.toDataURL('image/png');$('headBadge').textContent=name;$('headTag').textContent='같은 머리 · 공통 동작';
     return result;
   }
   function syncControls() {
+    $('blinkEnabled').checked=state.blinkEnabled!==false;$('eyePose').value=eyePose;
     for(const k of ['headScale','headX','headY','speed','headPivotX','headPivotY','similarity'])$(k).value=state[k];
     $('headScaleValue').textContent=state.headScale+'%';$('headXValue').textContent=state.headX;$('headYValue').textContent=state.headY;
     $('neckJoin').checked=state.neckJoin;$('neckGap').value=state.neckGap;$('neckGapValue').textContent=state.neckGap+'px';
@@ -219,7 +231,10 @@
     $('neckGap').oninput=e=>{state.neckGap=Number(e.target.value);syncControls();scheduleSave();};
     $('resetAlignment').onclick=()=>{Object.assign(state,{headScale:100,headX:0,headY:0,neckJoin:true,neckGap:10});rebuildParts();syncControls();scheduleSave();};
     document.querySelectorAll('[data-motion]').forEach(b=>b.onclick=()=>{state.motion=b.dataset.motion;time=0;syncControls();scheduleSave();status(motionNames[state.motion]+' · 연결된 몸 이미지 전체가 부드럽게 움직여요.');});
-    $('playPause').onclick=()=>{playing=!playing;syncControls();};
+    $('playPause').onclick=()=>{playing=!playing;blinkTime=0;syncControls();};
+    $('blinkEnabled').onchange=()=>{state.blinkEnabled=$('blinkEnabled').checked;blinkTime=0;eyePose='auto';syncControls();scheduleSave();};
+    $('eyePose').onchange=()=>{eyePose=$('eyePose').value;blinkTime=0;};
+    for(const name of ['open','half','closed'])$('saveEyeFrame-'+name).onclick=()=>{if(blinkRig)saveCanvas(blinkRig.frames[name],`RunKK_eyes_${name}.png`);};
     $('transparentExport').onchange=e=>{state.transparent=e.target.checked;scheduleSave();};
     for(const [id,key]of [['shirtColor','shirt'],['shortColor','shorts'],['shoeColor','shoes']])$(id).oninput=e=>{state[key]=e.target.value;scheduleTint();};
     $('crewMark').onchange=e=>{state.mark=e.target.checked;scheduleSave();};
@@ -250,6 +265,9 @@
   function frontSignature(){return JSON.stringify([state.generationId,state.headData,state.faceData,state.eyesData,state.hairData,HEAD_LAYER_VERSION,HEAD_SEGMENTATION_VERSION]);}
   function syncViewControls(){
     if(!avatarViews)return;avatarViews.setSource(frontSignature());const view=avatarViews.active,side=view!=='front';
+    $('blinkEnabled').disabled=side||!blinkRig;$('eyePose').disabled=side||!blinkRig;
+    for(const name of ['open','half','closed'])$('saveEyeFrame-'+name).disabled=!blinkRig;
+    $('blinkEnabled').title=!blinkRig?'분리된 두 눈 레이어가 필요해요.':'정면 미리보기에서 눈을 깜빡여요.';
     document.querySelectorAll('[data-avatar-view]').forEach(b=>{const direction=b.dataset.avatarView;b.disabled=!isReady||aiBusy||avatarViews.busy||(direction!=='front'&&!avatarViews.entries[direction]);b.setAttribute('aria-pressed',String(direction===view));});
     $('generateViewRight').disabled=!isReady||!apiReady||aiBusy||avatarViews.busy;
     $('restoreViews').disabled=!isReady||aiBusy||avatarViews.busy;
@@ -262,7 +280,7 @@
     if(side){$('poseLabel').textContent='우측 얼굴';$('playState').textContent='정적 머리 PNG';$('headTag').textContent='정면 머리 기준 · 몸 미포함';}
     else{$('headTag').textContent=eyeLayer?'얼굴 + 눈 + 머리카락 분리 레이어':'같은 머리 · 공통 동작';}
   }
-  function drawFrontSource(g){if(eyeLayer&&hairLayer){g.drawImage(faceLayer.canvas,0,0,1024,1024);g.drawImage(eyeLayer.canvas,0,0,1024,1024);g.drawImage(hairLayer.canvas,0,0,1024,1024);}else if(headSprite)g.drawImage(headSprite.canvas,0,0,1024,1024);}
+  function drawFrontSource(g,closure=0){if(eyeLayer&&hairLayer){if(blinkRig&&closure>0)window.RunKKEyeBlink.draw(g,blinkRig,closure);else{g.drawImage(faceLayer.canvas,0,0,1024,1024);g.drawImage(eyeLayer.canvas,0,0,1024,1024);}g.drawImage(hairLayer.canvas,0,0,1024,1024);}else if(headSprite)g.drawImage(headSprite.canvas,0,0,1024,1024);}
   function captureFront(){const out=surface(1024,1024),g=out.getContext('2d');drawFrontSource(g);return new Promise((resolve,reject)=>out.toBlob(blob=>blob?resolve(blob):reject(new Error('정면 머리 이미지를 만들지 못했어요.')),'image/png'));}
   async function restoreAvatarViews(announce=true){
     if(!avatarViews||aiBusy||!isReady)return;aiBusy=true;syncAiButtons();
@@ -367,7 +385,7 @@
       if(!ASSETS)throw new Error('assets.bundle.js 파일이 필요해요. ZIP 전체를 압축 해제해 주세요.');
       try{const saved=localStorage.getItem(STORAGE);if(saved)state=cleanState(JSON.parse(saved));}catch{/* storage may be disabled for file:// */}
       if(state.generationId&&state.faceData&&state.segmentationVersion!==HEAD_SEGMENTATION_VERSION){
-        try{const repaired=await apiRequest('/api/heads/latest?userId='+encodeURIComponent(demoUserId));if(repaired.id===state.generationId&&repaired.segmentationVersion===HEAD_SEGMENTATION_VERSION){state.faceData=repaired.faceImage;state.eyesData=repaired.eyesImage;state.hairData=repaired.hairImage;state.segmentationVersion=HEAD_SEGMENTATION_VERSION;scheduleSave();}}catch{/* Keep the stored head if the local server is unavailable. */}
+        try{const repaired=await apiRequest('/api/heads/latest?userId='+encodeURIComponent(demoUserId));if(repaired.warning)notify(repaired.warning);if(repaired.id===state.generationId&&repaired.segmentationVersion===HEAD_SEGMENTATION_VERSION){state.headData=repaired.frontImage;state.faceData=repaired.faceImage;state.eyesData=repaired.eyesImage;state.hairData=repaired.hairImage;state.segmentationVersion=HEAD_SEGMENTATION_VERSION;scheduleSave();}}catch{/* Keep the stored head if the local server is unavailable. */}
       }
       for(const pack of builtinBodies)bodySets[pack.id]=await prepareBodyPack(pack);
       if(!bodySets.daily)throw new Error('새 몸 의상 파일이 필요해요. ZIP 전체를 다시 압축 해제해 주세요.');
