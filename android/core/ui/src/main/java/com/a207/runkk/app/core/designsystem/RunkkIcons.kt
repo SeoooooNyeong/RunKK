@@ -15,6 +15,10 @@ import androidx.compose.ui.unit.dp
 object RunkkIcons {
     val Back: ImageVector = line("Back", "M15 18L9 12L15 6")
     val ChevronRight: ImageVector = line("ChevronRight", "M9 18L15 12L9 6")
+
+    /** 아래·위 꺾쇠(홈 「내 기록 요약 ⌄」·「접기 ⌃」, 피그마 keyboard_arrow_down·up). */
+    val ChevronDown: ImageVector = line("ChevronDown", "M6 9L12 15L18 9")
+    val ChevronUp: ImageVector = line("ChevronUp", "M18 15L12 9L6 15")
     val ArrowRight: ImageVector = line("ArrowRight", "M5 12H19", "M12 5L19 12L12 19")
     val Bell: ImageVector = line(
         "Bell",
@@ -45,6 +49,9 @@ object RunkkIcons {
         "M8.59 13.51L15.42 17.49",
         "M15.41 6.51L8.59 10.49"
     )
+
+    /** 시계(랭킹 「n일 n시간 뒤 마감」, 피그마 schedule). */
+    val Clock: ImageVector = line("Clock", circle(12f, 12f, 9f), "M12 7V12L15 14")
     val Trophy: ImageVector = line(
         "Trophy",
         "M6 9H4.5a2.5 2.5 0 0 1 0-5H6",

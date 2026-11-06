@@ -62,6 +62,11 @@ public class InMemoryMemberRepository implements MemberRepository {
     }
 
     @Override
+    public void refresh(Member member) {
+        // 메모리 저장소는 같은 객체를 돌려주므로 늘 지금 값이다
+    }
+
+    @Override
     public Map<Long, MemberSummary> summaries(Collection<Long> memberIds) {
         return memberIds.stream()
                 .map(members::get)

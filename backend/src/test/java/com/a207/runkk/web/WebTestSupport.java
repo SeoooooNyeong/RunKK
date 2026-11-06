@@ -6,8 +6,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.a207.runkk.bootstrap.RunkkApplication;
+import com.a207.runkk.common.Tier;
 import com.a207.runkk.infra.integration.auth.GoogleLoginGateway;
 import com.a207.runkk.infra.integration.auth.KakaoLoginGateway;
+import com.a207.runkk.member.Member;
+import com.a207.runkk.member.MemberRepository;
 import com.a207.runkk.member.ProviderType;
 import com.a207.runkk.member.SocialAccount;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -24,6 +27,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * web 계층 MockMvc 시험의 공통 준비(test 프로필: H2 + 내장 Redis). 외부 제공자(카카오·구글)는 가짜로 바꾸고, 가입은 실제 로그인 → 가입 경로로 해
@@ -38,6 +42,8 @@ public abstract class WebTestSupport {
 
     @Autowired protected MockMvc mvc;
     @Autowired protected ObjectMapper json;
+    @Autowired private MemberRepository memberRepository;
+    @Autowired private TransactionTemplate transactionTemplate;
 
     @MockitoBean protected KakaoLoginGateway kakao;
     @MockitoBean protected GoogleLoginGateway google;
@@ -56,6 +62,19 @@ public abstract class WebTestSupport {
         public String bearer() {
             return "Bearer " + accessToken;
         }
+    }
+
+    /**
+     * 배치고사를 마친 랭크 회원으로 만든다(일반 러닝은 첫 배치를 하지 않으므로 랭크 회원이 필요한 시험이 쓴다, J24-6·D-484). 대결 시험의 주제가 아닌 배치고사
+     * 3판을 건너뛴다.
+     */
+    protected void rank(Session s, Tier tier) {
+        transactionTemplate.executeWithoutResult(
+                status -> {
+                    Member member = memberRepository.findById(s.memberId()).orElseThrow();
+                    member.confirmPlacement(tier);
+                    memberRepository.save(member);
+                });
     }
 
     /** 새 소셜 계정으로 로그인 → 가입하고 토큰을 돌려준다. */

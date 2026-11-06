@@ -2,6 +2,7 @@ package com.a207.runkk.web.battle;
 
 import com.a207.runkk.battle.BattleResultService;
 import com.a207.runkk.battle.BattleResultView;
+import com.a207.runkk.battle.PlacementRoundReader;
 import com.a207.runkk.reward.AccrualReason;
 import com.a207.runkk.reward.RewardService;
 import com.a207.runkk.running.RunQueryService;
@@ -19,14 +20,17 @@ class BattleResultAssembler {
     private final BattleResultService battleResultService;
     private final RewardService rewardService;
     private final RunQueryService runQueryService;
+    private final PlacementRoundReader placementRoundReader;
 
     BattleResultAssembler(
             BattleResultService battleResultService,
             RewardService rewardService,
-            RunQueryService runQueryService) {
+            RunQueryService runQueryService,
+            PlacementRoundReader placementRoundReader) {
         this.battleResultService = battleResultService;
         this.rewardService = rewardService;
         this.runQueryService = runQueryService;
+        this.placementRoundReader = placementRoundReader;
     }
 
     BattleDtos.BattleResultResponse assemble(long memberId, long battleId) {
@@ -65,6 +69,10 @@ class BattleResultAssembler {
                 rewardPoints + runPoints,
                 evaluation,
                 view.opponentGender(),
-                view.celebrityFigure());
+                view.celebrityFigure(),
+                view.placementRound(),
+                view.placementRound() == null
+                        ? null
+                        : placementRoundReader.stateOf(memberId, battleId).orElse(null));
     }
 }

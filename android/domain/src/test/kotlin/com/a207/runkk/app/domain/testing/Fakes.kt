@@ -1,8 +1,10 @@
 package com.a207.runkk.app.domain.testing
 
 import com.a207.runkk.app.core.model.AppError
+import com.a207.runkk.app.core.model.GpsReadiness
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.run.CompletedRun
+import com.a207.runkk.app.domain.run.GpsWarmUp
 import com.a207.runkk.app.domain.run.Guidance
 import com.a207.runkk.app.domain.run.GuidanceOutput
 import com.a207.runkk.app.domain.run.HeartRateSample
@@ -33,6 +35,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
 
 val T0: Instant = Instant.parse("2026-10-20T00:00:00Z")
 
@@ -257,6 +261,29 @@ class FakeGuidanceOutput : GuidanceOutput {
 
 class FakeLocationPermission(var granted: Boolean = true) : LocationPermission {
     override fun granted(): Boolean = granted
+}
+
+/** GPS 예열 가짜(W55): [emit]으로 상태를 내고, 지금 모으는 쪽 수([collectors])와 받은 정확도 기준을 남긴다. */
+class FakeGpsWarmUp : GpsWarmUp {
+    private val updates = MutableSharedFlow<GpsReadiness>(extraBufferCapacity = 8)
+    var collectors = 0
+        private set
+    var maxAccuracyMeters: Double? = null
+        private set
+
+    fun emit(readiness: GpsReadiness) {
+        updates.tryEmit(readiness)
+    }
+
+    override fun readiness(maxAccuracyMeters: Double): Flow<GpsReadiness> = flow {
+        this@FakeGpsWarmUp.maxAccuracyMeters = maxAccuracyMeters
+        collectors++
+        try {
+            emitAll(updates)
+        } finally {
+            collectors--
+        }
+    }
 }
 
 class FakeMeasurementHost : MeasurementHost {

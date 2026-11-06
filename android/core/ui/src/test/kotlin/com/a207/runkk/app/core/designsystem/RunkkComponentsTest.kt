@@ -378,6 +378,17 @@ class RunkkComponentsTest {
     }
 
     @Test
+    fun `TC-5831 언랭은 배치 중으로 읽는다`() {
+        val res = RuntimeEnvironment.getApplication().resources
+        assertEquals("배치 중", res.getString(R.string.tier_unranked))
+        assertEquals("임시 골드", res.getString(R.string.tier_provisional_format, "골드"))
+        var name: String? = null
+        compose.setContent { name = tierName("UNRANKED") }
+        compose.waitForIdle()
+        assertEquals("배치 중", name)
+    }
+
+    @Test
     fun `길게 누름 동작은 보조 기술 동작으로도 실행된다`() {
         var long = 0
         compose.setContent {

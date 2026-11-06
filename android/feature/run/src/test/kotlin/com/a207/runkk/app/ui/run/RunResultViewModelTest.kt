@@ -1,6 +1,9 @@
 package com.a207.runkk.app.ui.run
 
 import app.cash.turbine.test
+import com.a207.runkk.app.core.designsystem.AchievementIcon
+import com.a207.runkk.app.core.designsystem.AchievementRow
+import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
@@ -57,6 +60,41 @@ class RunResultViewModelTest {
         assertEquals(50, s.rewardPoints)
         assertEquals(151, s.averageHeartRate)
         assertEquals(java.time.Duration.ofSeconds(185), s.pausedTotal)
+    }
+
+    @Test
+    fun `TC-5849 결과 상태는 심박 구간·출처·출생연도·성과를 담는다`() {
+        val zones = listOf("Z1", "Z2", "Z3", "Z4", "Z5").associateWith { java.time.Duration.ofMinutes(3) }
+        pending.runs.value = listOf(completedRun())
+        records.runResult = Outcome.Success(recordDetail().copy(heartRateZones = zones))
+        val withHeart = RunResultViewModel(pending, records).apply { load("rec-1") }.state.value
+
+        assertEquals(zones, withHeart.heartRateZones)
+        assertEquals(RunResultUiState.HEART_SOURCE_WATCH, withHeart.heartRateSource)
+        assertTrue(withHeart.hasBirthYear)
+        assertEquals(
+            listOf(
+                AchievementRow(AchievementIcon.STAR, UiText.Plain("최장 거리 신기록"), "직전 4.80km"),
+                AchievementRow(AchievementIcon.REWARD, UiText.Res(R.string.run_result_reward), "+50")
+            ),
+            withHeart.achievements
+        )
+        // 결과에는 티어 표시가 없다(FR-289).
+        assertTrue(RunResultUiState::class.java.declaredFields.none { it.name.contains("tier", ignoreCase = true) })
+
+        // 심박 없음: 평균 심박도 구간도 없다 → 지표 두 칸, 「워치를 연결하면…」.
+        pending.runs.value = listOf(completedRun())
+        records.runResult = Outcome.Success(recordDetail().copy(averageHeartRate = null, heartRateZones = emptyMap()))
+        val noHeart = RunResultViewModel(pending, records).apply { load("rec-1") }.state.value
+        assertNull(noHeart.averageHeartRate)
+        assertTrue(noHeart.hasBirthYear)
+        assertEquals(emptyMap(), noHeart.heartRateZones)
+
+        // 출생연도 없음: 심박은 있는데 서버가 구간을 못 냈다 → 「출생연도를 입력하면…」.
+        records.runResult = Outcome.Success(recordDetail().copy(heartRateZones = emptyMap()))
+        val noBirthYear = RunResultViewModel(pending, records).apply { load("rec-1") }.state.value
+        assertEquals(151, noBirthYear.averageHeartRate)
+        assertFalse(noBirthYear.hasBirthYear)
     }
 
     @Test

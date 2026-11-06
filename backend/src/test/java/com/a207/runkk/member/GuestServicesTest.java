@@ -440,7 +440,13 @@ class GuestServicesTest {
     private WithdrawalService withdrawal(
             List<WithdrawalGuard> guards, List<IdleGuestWithdrawalGuard> idleGuards) {
         return new WithdrawalService(
-                repository, guards, idleGuards, auditService, published::add, clock);
+                repository,
+                new InMemoryPlacementProgressRepository(),
+                guards,
+                idleGuards,
+                auditService,
+                published::add,
+                clock);
     }
 
     private long guestLastSeen(String nickname, LocalDateTime lastAccess) {
@@ -524,6 +530,7 @@ class GuestServicesTest {
         WithdrawalService service =
                 new WithdrawalService(
                         repository,
+                        new InMemoryPlacementProgressRepository(),
                         List.of(),
                         List.of(),
                         auditService,

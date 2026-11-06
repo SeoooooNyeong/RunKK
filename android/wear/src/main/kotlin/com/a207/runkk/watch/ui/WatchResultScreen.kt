@@ -26,7 +26,8 @@ import com.a207.runkk.watch.battle.WatchResultHeadline
 
 /**
  * 결과(FR-249, 피그마 FF∞·FG3·FS3·BW1·BL1·BS1·SW3·SL3·SS3): 머리말(FINISH·GOAL·STOP·WIN·LOSE·BEST·GOOD)과 결과 문구, 거리·시간·
- * 평균 페이스·평균 심박, "완료". 머리말·문구는 [WatchResultHeadline]이 낸다. 보류면 머리말 대신 "결과를 확인하고 있어요"다.
+ * 평균 페이스·평균 심박, "완료". 머리말·문구는 [WatchResultHeadline]이 낸다. 보류면 머리말 대신 "결과를 확인하고 있어요"다. 배치고사 판이면
+ * 머리말은 판정 색 그대로이고 문구가 배치고사 반영이다(워치 배치고사).
  * 평균 심박이 없으면 빈칸이다.
  * 모션(W41): 머리말이 작게 시작해 커지며 나타나고, 값 두 줄과 "완료"가 차례로(60ms 간격) 아래에서 올라온다(320ms).
  */
@@ -127,4 +128,5 @@ private fun colorOf(headline: WatchResultHeadline): Color = when (headline) {
     WatchResultHeadline.Stop, is WatchResultHeadline.Lose -> WatchColors.Orange
     is WatchResultHeadline.Good -> WatchColors.Lavender
     WatchResultHeadline.Pending -> WatchColors.OnSurface
+    is WatchResultHeadline.Placement -> colorOf(headline.verdict)
 }

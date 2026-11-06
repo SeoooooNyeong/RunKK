@@ -3,6 +3,7 @@ package com.a207.runkk.app.domain.battle
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.GpsReadiness
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.RunMode
 import com.a207.runkk.app.domain.live.BattleEnded
@@ -26,6 +27,7 @@ import com.a207.runkk.app.domain.run.sample
 import com.a207.runkk.app.domain.settings.GuidanceSettings
 import com.a207.runkk.app.domain.settings.SettingsSnapshot
 import com.a207.runkk.app.domain.testing.CallLog
+import com.a207.runkk.app.domain.testing.FakeGpsWarmUp
 import com.a207.runkk.app.domain.testing.FakeGuidanceOutput
 import com.a207.runkk.app.domain.testing.FakeLiveChannelProvider
 import com.a207.runkk.app.domain.testing.FakeLocationPermission
@@ -153,6 +155,7 @@ class BattleRunCoordinatorTest {
     private val repository = FakeBattleRepository(log)
     private val settings = FakeSettingsRepository()
     private val watch = FakeWatchGateway()
+    private val gps = FakeGpsWarmUp()
     private val parentJob = SupervisorJob()
 
     @AfterTest
@@ -174,7 +177,7 @@ class BattleRunCoordinatorTest {
                 backgroundScope
             )
         val appScope = CoroutineScope(StandardTestDispatcher(testScheduler) + parentJob)
-        return tracker to BattleRunCoordinator(tracker, live, repository, output, clock, appScope)
+        return tracker to BattleRunCoordinator(tracker, live, repository, output, clock, appScope, gps)
     }
 
     private fun RunTracker.runTo(second: Long, meters: Double) {
@@ -615,6 +618,100 @@ class BattleRunCoordinatorTest {
         assertIs<BattleRunState.Finished>(coordinator.state.value)
         assertEquals(1, host.stopped)
         assertTrue(parentJob.children.none())
+    }
+
+    @Test
+    fun `W55 랜덤 대결 성사 뒤 GPS를 예열하고 상태를 성사·카운트다운에 실은 뒤 측정이 시작되면 끈다`() = runTest {
+        val (tracker, coordinator) = setUp()
+        coordinator.onMatched(match)
+        runCurrent()
+        assertEquals(1, gps.collectors)
+        assertEquals(30.0, gps.maxAccuracyMeters)
+        assertEquals(BattleRunState.Matched(match), coordinator.state.value)
+        gps.emit(GpsReadiness.SEARCHING)
+        runCurrent()
+        assertEquals(BattleRunState.Matched(match, GpsReadiness.SEARCHING), coordinator.state.value)
+        live.channel.messages.emit(BattleStart(battleId = 3, startAt = T0.plusSeconds(13), opponentTrack = null))
+        runCurrent()
+        assertEquals(BattleRunState.Countdown(3, T0.plusSeconds(13), GpsReadiness.SEARCHING), coordinator.state.value)
+        gps.emit(GpsReadiness.READY)
+        runCurrent()
+        // 한 번 준비되면 정확도가 잠깐 나빠져도 준비됨을 지킨다
+        gps.emit(GpsReadiness.SEARCHING)
+        runCurrent()
+        assertEquals(BattleRunState.Countdown(3, T0.plusSeconds(13), GpsReadiness.READY), coordinator.state.value)
+        advanceTimeBy(13_001)
+        assertEquals(1, host.started)
+        assertEquals(0, gps.collectors)
+        assertIs<BattleRunState.Running>(coordinator.state.value)
+        // 예열 위치는 측정 기록에 들어가지 않는다
+        assertEquals(RunProgress.INITIAL.distance, tracker.progress.value.distance)
+    }
+
+    @Test
+    fun `W55 출발 전에 그만두면 예열을 끄고 기록 대결은 예열하지 않는다`() = runTest {
+        val (_, coordinator) = setUp()
+        coordinator.onMatched(match)
+        runCurrent()
+        gps.emit(GpsReadiness.SEARCHING)
+        runCurrent()
+        assertEquals(1, gps.collectors)
+        coordinator.forfeit()
+        runCurrent()
+        assertEquals(0, gps.collectors)
+        assertIs<BattleRunState.Finished>(coordinator.state.value)
+
+        coordinator.acknowledgeFinished()
+        coordinator.onRecordBattleStart(selfStart)
+        runCurrent()
+        assertEquals(0, gps.collectors)
+        assertEquals(null, (coordinator.state.value as BattleRunState.Countdown).gps)
+    }
+
+    @Test
+    fun `W55 예열 상한 시간이 지나면 끄고 상태를 지운다`() = runTest {
+        val (_, coordinator) = setUp()
+        coordinator.onMatched(match)
+        runCurrent()
+        gps.emit(GpsReadiness.READY)
+        runCurrent()
+        assertEquals(BattleRunState.Matched(match, GpsReadiness.READY), coordinator.state.value)
+        advanceTimeBy(Duration.ofMinutes(5).toMillis() + 1)
+        assertEquals(0, gps.collectors)
+        assertEquals(BattleRunState.Matched(match), coordinator.state.value)
+    }
+
+    @Test
+    fun `W54 랜덤 대결 도착은 반올림 전 거리로 본다 - 999_7m는 표시가 1000m여도 도착이 아니다`() = runTest {
+        val (tracker, coordinator) = setUp()
+        coordinator.onMatched(match)
+        runCurrent()
+        live.channel.messages.emit(BattleStart(battleId = 3, startAt = T0, opponentTrack = null))
+        runCurrent()
+        tracker.runTo(1, 0.0)
+        tracker.runTo(300, 999.7)
+        runCurrent()
+        assertEquals(1_000L, live.channel.sent.last().distanceMeters)
+        assertIs<BattleRunState.Running>(coordinator.state.value)
+        assertEquals(0, host.stopped)
+        tracker.runTo(301, 1_000.2)
+        runCurrent()
+        assertIs<BattleRunState.Finished>(coordinator.state.value)
+        assertEquals(1, host.stopped)
+    }
+
+    @Test
+    fun `W54 기록 대결 도착도 반올림 전 거리로 본다`() = runTest {
+        val (tracker, coordinator) = setUp()
+        coordinator.onRecordBattleStart(selfStart)
+        advanceTimeBy(3_001)
+        tracker.runTo(1, 0.0)
+        tracker.runTo(30, 99.7)
+        runCurrent()
+        assertIs<BattleRunState.Running>(coordinator.state.value)
+        tracker.runTo(31, 100.1)
+        runCurrent()
+        assertIs<BattleRunState.Finished>(coordinator.state.value)
     }
 
     @Test

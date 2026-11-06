@@ -133,7 +133,8 @@ class RunSession(val spec: RunStartSpec) {
                 averagePace = average,
                 signal = lastSignal,
                 heartRate = heartRates.lastOrNull(),
-                isPaused = true
+                isPaused = true,
+                exactDistanceMeters = distanceMeters
             )
         }
         currentPace()?.let { lastCurrentPace = it }
@@ -143,7 +144,8 @@ class RunSession(val spec: RunStartSpec) {
             currentPace = lastCurrentPace,
             averagePace = average,
             signal = lastSignal,
-            heartRate = heartRates.lastOrNull()?.takeIf { Duration.between(it.at, now) <= HEART_RATE_FRESHNESS }
+            heartRate = heartRates.lastOrNull()?.takeIf { Duration.between(it.at, now) <= HEART_RATE_FRESHNESS },
+            exactDistanceMeters = distanceMeters
         )
     }
 

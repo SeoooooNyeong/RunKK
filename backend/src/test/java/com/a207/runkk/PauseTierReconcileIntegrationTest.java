@@ -180,6 +180,12 @@ class PauseTierReconcileIntegrationTest {
     @DisplayName("TC-6786·TC-6787: 순번 9·10 수신 실패 뒤 보정이 9, 10을 반영하고 다시 돌리면 0(멱등)")
     void t32_reconcileFillsMissingOrdinals() {
         long m = member("보정곰");
+        tx.executeWithoutResult(
+                s -> {
+                    var member = members.findById(m).orElseThrow();
+                    member.confirmPlacement(Tier.BRONZE); // 재평가는 랭크 티어만(D-484)
+                    members.save(member);
+                });
         doThrow(new IllegalStateException("수신자 장애"))
                 .when(tierLevelService)
                 .recordValidRun(anyLong(), argThat(input -> input.validRunOrdinal() >= 9));
@@ -193,7 +199,7 @@ class PauseTierReconcileIntegrationTest {
         LocalDateTime now = LocalDateTime.now(clock).plusMinutes(1);
         assertThat(reconcile.reconcile(now)).isEqualTo(1);
         assertThat(memberQuery.appliedValidRunCount(m)).isEqualTo(10);
-        assertThat(members.findById(m).orElseThrow().getTier()).isNotEqualTo(Tier.UNRANKED);
+        assertThat(members.findById(m).orElseThrow().getTier()).isEqualTo(Tier.GOLD);
         assertThat(reconcile.reconcile(now)).isZero();
     }
 
@@ -229,7 +235,8 @@ class PauseTierReconcileIntegrationTest {
                     m, new RunUploadCommand(upload(id(i), START.plusHours(i), 5_000, 1_500)));
         }
         reset(tierLevelService);
-        assertThat(members.findById(m).orElseThrow().getTier()).isEqualTo(Tier.GOLD);
+        // 3회째 첫 배치가 없어졌다(J24-6): 4회째가 먼저 반영돼도 언랭 그대로
+        assertThat(members.findById(m).orElseThrow().getTier()).isEqualTo(Tier.UNRANKED);
         assertThat(totalValidMeters(m)).isEqualTo(15_000L);
         assertThat(
                         jdbc.queryForList(

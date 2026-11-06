@@ -435,7 +435,8 @@ private fun Stat(value: String, label: String, spoken: String) {
  * 앞이면 내가 가던 방향으로 연장. 격차를 모르거나 경로가 짧으면 그리지 않는다). 자유런과 같이 Kakao 지도를 띄울 수 있으면 지도 위에,
  * 아니면 격자 바탕 경로선에 그린다. 내 아바타와 상대(과거의 나는 반투명 내 캐릭터, 랜덤·친구는 상대 성별 캐릭터, 모르면 남자)는 움직이면
  * 달리기 동작, 멈추면 서 있다. 셀럽은 키가 있으면 전용 캐릭터가 같은 방식으로 달리고, 없으면 공통 SD 그림이다(D-254, 사용자 결정
- * 2026-10-31). 경로가 아직 없으면 내 아바타만 가운데에 둔다(사용자 요청 2026-10-30).
+ * 2026-10-31). 배치고사 상대는 성사 화면과 같은 점선 원 「?」이고 이름표는 서버 표시명(가상 닉네임)이다(FR-276). 경로가 아직 없으면
+ * 내 아바타만 가운데에 둔다(사용자 요청 2026-10-30).
  */
 @Composable
 private fun BattleRoute(state: BattleRunningUiState) {
@@ -452,8 +453,13 @@ private fun BattleRoute(state: BattleRunningUiState) {
     val character = LocalAvatarCharacter.current
     val opponentCharacter = if (kind == OpponentKind.SELF) character else AvatarCharacter.of(state.opponentGender)
     val celebrity = CelebrityCharacter.of(state.celebrityFigure)
+    val isOpponentHidden = state.isOpponentHidden
     val opponentFigure: @Composable (alpha: Float) -> Unit = { alpha ->
         when {
+            isOpponentHidden -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                OpponentFigure(Figure.UNKNOWN, size = MARKER_SIZE)
+            }
+
             kind != OpponentKind.CELEBRITY -> RunkkRunningFigure(
                 isTheirsMoving,
                 runFrameMillis(null),
@@ -502,6 +508,7 @@ private fun BattleRoute(state: BattleRunningUiState) {
         theirs,
         opponentName,
         kind,
+        isOpponentHidden,
         opponentCharacter,
         celebrity,
         mine,
@@ -606,6 +613,9 @@ private fun Gap(state: BattleRunningUiState) {
 internal fun gapMetersLabel(gap: Int): String = if (gap >= 0) "+$gap m" else "$gap m"
 
 private const val PAST_SELF_ALPHA = 0.5f
+
+/** 경로 마커 그림 칸(RouteCanvas·KakaoRunMap 기본 markerSize). 배치고사 「?」 원은 이 칸 안에 성사 화면과 같은 비율로 그린다. */
+private val MARKER_SIZE = 72.dp
 
 /** 셀프런·셀럽런 출발 전 카운트다운(3초, design-review.md M34). 고리 몫의 분모다. */
 private const val RECORD_COUNTDOWN_SECONDS = 3L

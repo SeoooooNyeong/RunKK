@@ -538,6 +538,22 @@ class AnalysisServicesTest {
     }
 
     @Test
+    @org.junit.jupiter.api.DisplayName("코치: 오늘 계획 취소는 저장되고 다시 불러도 오류가 없다, 지난 날짜는 PAST_DATE")
+    void coach_deletePlan() {
+        CoachService coach = new CoachService(goals, runs, notifications, policy, clock);
+        coach.putPlan(ME, new DailyPlan(TODAY, Distance.ofKm(4), null));
+
+        coach.deletePlan(ME, TODAY);
+        coach.deletePlan(ME, TODAY);
+
+        assertThat(coach.todayPlan(ME).hasPlan()).isFalse();
+        assertThat(goals.findOrCreate(ME).planOn(TODAY)).isEmpty();
+        assertThatThrownBy(() -> coach.deletePlan(ME, TODAY.minusDays(1)))
+                .extracting(e -> ((BusinessRuleException) e).reason())
+                .isEqualTo(ReasonCode.PAST_DATE);
+    }
+
+    @Test
     @org.junit.jupiter.api.DisplayName("3시 정리: 1년이 지난 날짜별 계획·주간 목표만 지운다")
     void purgePastPlans() {
         RunningGoal goal = goals.findOrCreate(ME);
@@ -652,6 +668,115 @@ class AnalysisServicesTest {
         snapshots.rows.values().forEach(s -> assertThat(s.getComputedAt()).isEqualTo(NOW));
         service.rebuildIfMissing();
         verify(runs, times(4)).distancesByMember(anyCollection(), any());
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName(
+            "TC-5802 랭킹 공개 티어는 조회 때 붙인다: 스냅숏 tier(0시 값)는 그대로, publicTier는 지금 회원 티어, 탈퇴 회원·크루 줄은"
+                    + " 없음(D-486)")
+    void ranking_publicTierAttachedAtQueryTime() {
+        RankingService service = new RankingService(snapshots, members, crews, runs, tx, clock);
+        when(members.rankedMemberIds()).thenReturn(Set.of(ME, OTHER));
+        when(crews.activeMembersByCrew()).thenReturn(Map.of(7L, List.of(ME)));
+        when(members.summaries(any()))
+                .thenReturn(Map.of(ME, summaryOf(ME, "나"), OTHER, summaryOf(OTHER, "너")));
+        when(crews.crewNames(any())).thenReturn(Map.of(7L, DisplayName.of("새벽크루")));
+        when(runs.distancesByMember(anyCollection(), any()))
+                .thenReturn(Map.of(ME, Distance.ofKm(10), OTHER, Distance.ofKm(20)));
+        service.rebuild(NOW.withHour(0));
+        // 0시 뒤 OTHER가 배치고사를 마쳐 플래티넘, ME는 아직 배치 중(언랭)
+        when(members.summaries(any()))
+                .thenReturn(
+                        Map.of(
+                                ME,
+                                new MemberSummary(
+                                        ME,
+                                        DisplayName.of("나"),
+                                        Tier.UNRANKED,
+                                        ProfileVisibility.PUBLIC),
+                                OTHER,
+                                new MemberSummary(
+                                        OTHER,
+                                        DisplayName.of("너"),
+                                        Tier.PLATINUM,
+                                        ProfileVisibility.PUBLIC)));
+
+        RankingView personal = service.personalRanking(ME, AggregationPeriod.WEEKLY);
+
+        RankEntry top = personal.entries().get(0);
+        assertThat(top.tier()).as("스냅숏 값 그대로").isEqualTo(Tier.GOLD);
+        assertThat(personal.publicTierOf(top)).isEqualTo(Tier.PLATINUM);
+        assertThat(personal.publicTierOf(personal.mine())).isEqualTo(Tier.UNRANKED);
+
+        when(members.summaries(any()))
+                .thenReturn(
+                        Map.of(
+                                OTHER,
+                                new MemberSummary(
+                                        OTHER,
+                                        DisplayName.WITHDRAWN,
+                                        Tier.UNRANKED,
+                                        ProfileVisibility.PRIVATE)));
+        RankingView afterWithdrawal = service.personalRanking(ME, AggregationPeriod.WEEKLY);
+        assertThat(afterWithdrawal.publicTierOf(afterWithdrawal.entries().get(0))).isNull();
+        when(crews.activeCrewOf(ME)).thenReturn(Optional.of(new CrewSummary(7, "새벽크루", null)));
+        RankingView crew = service.crewRanking(ME, AggregationPeriod.WEEKLY);
+        assertThat(crew.publicTierOf(crew.mine())).isNull();
+        assertThat(crew.publicTiers()).isEmpty();
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName(
+            "TC-5803 본인 줄도 공개 티어다: 배치 중이면 UNRANKED이고 임시 티어는 랭킹 어디에도 없다(D-485)")
+    void ranking_ownRowHasNoProvisionalTier() {
+        RankingService service = new RankingService(snapshots, members, crews, runs, tx, clock);
+        when(members.rankedMemberIds()).thenReturn(Set.of(ME));
+        when(crews.activeMembersByCrew()).thenReturn(Map.of());
+        when(members.summaries(any()))
+                .thenReturn(
+                        Map.of(
+                                ME,
+                                new MemberSummary(
+                                        ME,
+                                        DisplayName.of("나"),
+                                        Tier.UNRANKED,
+                                        ProfileVisibility.PUBLIC)));
+        when(runs.distancesByMember(anyCollection(), any()))
+                .thenReturn(Map.of(ME, Distance.ofKm(10)));
+        service.rebuild(NOW.withHour(0));
+
+        RankingView personal = service.personalRanking(ME, AggregationPeriod.WEEKLY);
+
+        assertThat(personal.publicTierOf(personal.mine())).isEqualTo(Tier.UNRANKED);
+        assertThat(personal.publicTiers().values()).containsOnly(Tier.UNRANKED);
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName(
+            "TC-5804 대시보드 latestRun = 기록 목록 맨 위 1건(유효·무효 모두, 최근 30일에 없으면 전체 기간), 기록이 없으면"
+                    + " null(D-491)")
+    void dashboard_latestRunIsTopOfRecordList() {
+        DashboardService service =
+                new DashboardService(runs, goals, crews, members, policy, rewards, clock);
+        when(runs.summariesBetween(eq(ME), any())).thenReturn(List.of());
+        when(runs.dailyStats(eq(ME), any())).thenReturn(Map.of());
+        when(runs.totals(ME)).thenReturn(new TotalStats(Distance.ZERO, Duration.ZERO, 0));
+        when(crews.activeCrewOf(ME)).thenReturn(Optional.empty());
+
+        assertThat(service.dashboard(ME, null).latestRun()).isNull();
+
+        RunSummary old = run(ME, NOW.minusDays(200), 1_000, 400);
+        when(runs.latestListRow(ME))
+                .thenReturn(
+                        Optional.of(new com.a207.runkk.running.RunListRow(old, List.of(), null)));
+
+        RecordRow latest = service.dashboard(ME, TODAY.minusMonths(3)).latestRun();
+        // PL1-B5: 전 기간 목록을 읽지 않고 최신 1건만 읽는다
+        verify(runs, never()).listRows(eq(ME), any());
+
+        assertThat(latest.recordId()).isEqualTo(old.recordId());
+        assertThat(latest.distance()).isEqualTo(Distance.ofMeters(1_000));
+        assertThat(latest.battleId()).isNull();
     }
 
     @Test

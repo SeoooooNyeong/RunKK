@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="home_header_default_nickname">러너</string>
-    <string name="home_header_default_tier">언랭</string>
-    <string name="home_header_tier_level">%1$s Lv.%2$s</string>
     <string name="home_header_notifications">알림함</string>
     <string name="home_balance_open_shop">상점 열기</string>
     <string name="home_balance_value">%1$s P</string>
@@ -31,4 +29,51 @@
     <string name="home_guide_start">시작하기</string>
     <string name="home_guide_page">%1$d/%2$d</string>
     <string name="home_resend_reminder">올리지 못한 기록이 있어요. 인터넷에 연결해 주세요</string>
+    <string name="home_header_level">Lv.%1$s</string>
+    <!-- 홈 「내 기록 요약」(FR-287, 피그마 61338:2049·61342:2228·61343:2552). -->
+    <string name="home_summary_title">내 기록 요약</string>
+    <string name="home_summary_collapse">접기</string>
+    <string name="home_summary_state_collapsed">접힘</string>
+    <string name="home_summary_state_expanded">펼침</string>
+    <string name="home_summary_today">오늘</string>
+    <string name="home_summary_month">이번 달</string>
+    <string name="home_summary_km">km</string>
+    <string name="home_summary_km_spoken">%1$s킬로미터</string>
+    <string name="home_summary_minutes_seconds">%1$d분 %2$d초</string>
+    <string name="home_summary_today_line">%1$s, %2$d회</string>
+    <string name="home_summary_today_none">오늘은 아직 달리지 않았어요</string>
+    <string name="home_summary_month_runs">러닝 %1$d회</string>
+    <string name="home_summary_latest">최근 러닝</string>
+    <string name="home_summary_latest_none">아직 러닝 기록이 없어요</string>
+    <string name="home_summary_latest_open">기록 상세 보기</string>
+    <string name="home_summary_records_open">러닝 기록 보기</string>
+    <string name="home_summary_latest_date_pattern">M월 d일 (E) a h:mm</string>
+    <string name="home_summary_latest_spoken">%1$s, %2$s, %3$s킬로미터, %4$s, 평균 페이스 %5$s</string>
+    <string name="home_summary_pace_unit">/km</string>
+    <string name="home_summary_grass">러닝 잔디</string>
+    <string name="home_summary_grass_range">최근 5주</string>
+    <string name="home_summary_grass_spoken">러닝 잔디, 최근 5주 동안 %1$d일 달렸어요</string>
+    <string-array name="home_summary_weekdays">
+        <item>월</item>
+        <item>화</item>
+        <item>수</item>
+        <item>목</item>
+        <item>금</item>
+        <item>토</item>
+        <item>일</item>
+    </string-array>
+    <string name="home_kind_free">자유런</string>
+    <string name="home_kind_battle">배틀런</string>
+    <string name="home_kind_self">셀프런</string>
+    <string name="home_kind_celeb">셀럽런</string>
+    <string name="home_kind_crew">크루런</string>
+    <!-- 배틀런 진입 시트(FR-284, D-499, 피그마 61355:3402). 확정 티어 문구는 제안(J24-19). -->
+    <string name="home_entry_title">어떤 대결을 할까요?</string>
+    <string name="home_entry_random">랜덤 대결</string>
+    <string name="home_entry_placement_chip">배치고사 %1$d/3</string>
+    <string name="home_entry_random_placing">3판을 뛰면 티어가 정해져요</string>
+    <string name="home_entry_random_ranked">비슷한 페이스의 러너와 대결해요</string>
+    <string name="home_entry_tier_spoken">%1$s 티어</string>
+    <string name="home_entry_friend">친구 대결</string>
+    <string name="home_entry_friend_caption">카톡으로 친구를 불러 함께</string>
 </resources>

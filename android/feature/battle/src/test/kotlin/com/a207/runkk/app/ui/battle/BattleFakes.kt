@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.GpsReadiness
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.RunMode
 import com.a207.runkk.app.domain.account.AccountRepository
@@ -12,6 +13,9 @@ import com.a207.runkk.app.domain.account.GuestSession
 import com.a207.runkk.app.domain.account.LocationConsentUseCase
 import com.a207.runkk.app.domain.account.MemberSettings
 import com.a207.runkk.app.domain.account.MySummary
+import com.a207.runkk.app.domain.account.PlacementProgress
+import com.a207.runkk.app.domain.account.PlacementRound
+import com.a207.runkk.app.domain.account.PlacementStatus
 import com.a207.runkk.app.domain.account.Profile
 import com.a207.runkk.app.domain.account.ProfileEdit
 import com.a207.runkk.app.domain.account.ProviderToken
@@ -41,6 +45,7 @@ import com.a207.runkk.app.domain.live.ServerMessage
 import com.a207.runkk.app.domain.record.RecordDetail
 import com.a207.runkk.app.domain.record.RunSummary
 import com.a207.runkk.app.domain.run.CompletedRun
+import com.a207.runkk.app.domain.run.GpsWarmUp
 import com.a207.runkk.app.domain.run.Guidance
 import com.a207.runkk.app.domain.run.GuidanceOutput
 import com.a207.runkk.app.domain.run.HeartRateSample
@@ -212,9 +217,12 @@ class FakeBattleRepository : BattleRepository {
         return activeResult
     }
 
+    /** 차례로 줄 결과(비면 [resultResult]). 판 결과 다시 읽기 시험이 쓴다. */
+    val resultQueue = ArrayDeque<Outcome<BattleResult>>()
+
     override suspend fun result(battleId: Long): Outcome<BattleResult> {
         calls += "result:$battleId"
-        return resultResult
+        return resultQueue.removeFirstOrNull() ?: resultResult
     }
 
     /** 다음 쪽(커서가 있을 때)의 이력. */
@@ -370,6 +378,26 @@ class FakeAccounts : AccountRepository {
     override suspend fun legalDocument(type: String): Outcome<String> = unused()
 
     override suspend fun settings(): Outcome<MemberSettings> = unused()
+
+    /** 본인 배치 진행(GET /me/placement). 차례로 줄 값이 [placementQueue]에 있으면 그것부터 쓴다. */
+    var placementResult: Outcome<PlacementProgress> = Outcome.Failure(AppError.Server(0))
+    val placementQueue = ArrayDeque<Outcome<PlacementProgress>>()
+    var placementCalls = 0
+
+    override suspend fun placement(): Outcome<PlacementProgress> {
+        placementCalls++
+        return placementQueue.removeFirstOrNull() ?: placementResult
+    }
+
+    /** 배치고사 완료 화면을 본 마지막 판(기기 사본 가짜, D-531). */
+    var placementSeen: Long? = null
+
+    override suspend fun placementCompleteSeen(): Long? = placementSeen
+
+    override suspend fun savePlacementCompleteSeen(battleId: Long): Outcome<Unit> {
+        placementSeen = battleId
+        return Outcome.Success(Unit)
+    }
 
     private fun <T> unused(): Outcome<T> = Outcome.Failure(AppError.Rejected("UNUSED"))
 }
@@ -550,6 +578,13 @@ private class ConsentedSettings : SettingsRepository {
     override suspend fun clear(): Outcome<Unit> = Outcome.Success(Unit)
 }
 
+/** GPS 예열 가짜(W55). [updates]에 값을 넣으면 조정자가 성사·카운트다운 상태에 싣는다. */
+class FakeGpsWarmUp : GpsWarmUp {
+    val updates = MutableSharedFlow<GpsReadiness>(extraBufferCapacity = 8)
+
+    override fun readiness(maxAccuracyMeters: Double): Flow<GpsReadiness> = updates
+}
+
 /** 실제 BattleRunCoordinator(+ RunTracker)를 가짜 포트로 조립한다. 범위는 runTest의 backgroundScope. */
 class BattleWorld(
     scope: CoroutineScope,
@@ -576,7 +611,8 @@ class BattleWorld(
             RunCoach(silent, ConsentedSettings()),
             MeasurementRuntime(permission, silent, ConsentedSettings(), clock)
         )
-    val coordinator = BattleRunCoordinator(tracker, channels, battles, silent, clock, scope)
+    val gps = FakeGpsWarmUp()
+    val coordinator = BattleRunCoordinator(tracker, channels, battles, silent, clock, scope, gps)
 
     companion object {
         /** 조정자 범위: 시험 스케줄러를 쓰는 표준 디스패처(직렬화용 limitedParallelism을 쓰려면 Unconfined가 아니어야 한다). */
@@ -744,4 +780,49 @@ fun recordDetail(recordId: String = "rec-9") = RecordDetail(
     crewContribution = null,
     rewardPoints = 12,
     weather = null
+)
+
+/** 배치 중 진행: [counted]판 셈, [provisional] 임시 티어. 센 판은 5km 승·패 번갈아. */
+fun placing(counted: Int, provisional: String? = null) = PlacementProgress(
+    status = PlacementStatus.IN_PROGRESS,
+    countedRounds = counted,
+    nextRound = counted + 1,
+    provisionalTier = provisional,
+    tier = "UNRANKED",
+    rounds = (1..counted).map { placementRound(it, battleId = 900L + it) }
+)
+
+/** 배치고사 완료(3판 셈) 또는 면제 진행. */
+fun settled(status: PlacementStatus, tier: String, verdicts: List<String> = listOf("WIN", "LOSE", "WIN")) =
+    PlacementProgress(
+        status = status,
+        countedRounds = if (status == PlacementStatus.COMPLETED) 3 else 0,
+        nextRound = null,
+        provisionalTier = null,
+        tier = tier,
+        rounds = if (status == PlacementStatus.COMPLETED) {
+            verdicts.mapIndexed { index, verdict -> placementRound(index + 1, 900L + index + 1, verdict) }
+        } else {
+            emptyList()
+        }
+    )
+
+fun placementRound(
+    round: Int,
+    battleId: Long,
+    verdict: String = if (round % 2 ==
+        1
+    ) {
+        "WIN"
+    } else {
+        "LOSE"
+    }
+) = PlacementRound(
+    round = round,
+    battleId = battleId,
+    battleDistance = Distance(5_000),
+    distance = Distance(5_210 - (round - 1) * 210L),
+    elapsed = Duration.ofSeconds(1_730L - round * 20),
+    averagePace = com.a207.runkk.app.core.model.Pace(332 + round * 4),
+    verdict = verdict
 )

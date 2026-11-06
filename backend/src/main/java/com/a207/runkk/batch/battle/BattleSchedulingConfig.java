@@ -1,5 +1,6 @@
 package com.a207.runkk.batch.battle;
 
+import com.a207.runkk.common.ServerZone;
 import java.time.Duration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -8,7 +9,9 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.SchedulingConfigurer;
+import org.springframework.scheduling.config.CronTask;
 import org.springframework.scheduling.config.ScheduledTaskRegistrar;
+import org.springframework.scheduling.support.CronTrigger;
 
 /**
  * batch.battle 작업의 실행 간격(설계 6.1.13 …SchedulingConfig, D-39). 대결 시계 기본 1초(srs.md 6.3 4.2 "1초 간격"),
@@ -27,18 +30,23 @@ public class BattleSchedulingConfig implements SchedulingConfigurer {
     private final BattleTickJob battleTickJob;
     private final AbandonedBattleJob abandonedBattleJob;
     private final FriendInviteExpiryJob friendInviteExpiryJob;
+    private final PlacementReconcileJob placementReconcileJob;
     private final Duration interval;
     private final Duration abandonInterval;
     private final Duration friendInviteExpiryInterval;
+    private final String placementReconcileCron;
 
     public BattleSchedulingConfig(
             BattleTickJob battleTickJob,
             AbandonedBattleJob abandonedBattleJob,
             FriendInviteExpiryJob friendInviteExpiryJob,
+            PlacementReconcileJob placementReconcileJob,
             Schedule schedule) {
         this.battleTickJob = battleTickJob;
         this.abandonedBattleJob = abandonedBattleJob;
         this.friendInviteExpiryJob = friendInviteExpiryJob;
+        this.placementReconcileJob = placementReconcileJob;
+        this.placementReconcileCron = schedule.placementReconcileCron();
         this.interval = schedule.battleTickInterval();
         this.abandonInterval = schedule.battleAbandonInterval();
         this.friendInviteExpiryInterval = schedule.friendInviteExpiryInterval();
@@ -49,6 +57,10 @@ public class BattleSchedulingConfig implements SchedulingConfigurer {
         registrar.addFixedDelayTask(battleTickJob::run, interval);
         registrar.addFixedDelayTask(abandonedBattleJob::run, abandonInterval);
         registrar.addFixedDelayTask(friendInviteExpiryJob::run, friendInviteExpiryInterval);
+        registrar.addCronTask(
+                new CronTask(
+                        placementReconcileJob::run,
+                        new CronTrigger(placementReconcileCron, ServerZone.ID)));
     }
 
     /**
@@ -58,10 +70,13 @@ public class BattleSchedulingConfig implements SchedulingConfigurer {
      * @param battleAbandonInterval runkk.batch.battle-abandon-interval
      * @param friendInviteExpiryInterval runkk.batch.friend-invite-expiry-interval(친구 대결 초대 만료 정리,
      *     D-221)
+     * @param placementReconcileCron runkk.batch.placement-reconcile-cron(배치고사 판 셈 누락 복구, 기본 0시 20분,
+     *     D-490)
      */
     @ConfigurationProperties("runkk.batch")
     public record Schedule(
             @DefaultValue("1s") Duration battleTickInterval,
             @DefaultValue("1m") Duration battleAbandonInterval,
-            @DefaultValue("5s") Duration friendInviteExpiryInterval) {}
+            @DefaultValue("5s") Duration friendInviteExpiryInterval,
+            @DefaultValue("0 20 0 * * *") String placementReconcileCron) {}
 }

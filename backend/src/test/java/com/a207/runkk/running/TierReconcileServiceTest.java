@@ -53,6 +53,7 @@ class TierReconcileServiceTest {
             spy(
                     new TierLevelService(
                             members,
+                            new com.a207.runkk.member.InMemoryPlacementProgressRepository(),
                             new OperationPolicy(new InMemoryOperationSettingRepository())));
     private final TierApplier applier = new TierApplier(tiers, memberQuery, records);
     private final TierReconcileService service =
@@ -118,6 +119,7 @@ class TierReconcileServiceTest {
     @DisplayName("TC-6167 K4: 유효 10·반영 8이면 순번 9, 10 순서로 넘기고 회원 1명 보정. 다시 돌리면 0(멱등, 표시)")
     void tc6167_fillsMissingOrdinalsInOrder() {
         long m = member();
+        members.findById(m).orElseThrow().confirmPlacement(Tier.BRONZE); // 재평가는 랭크 티어만(D-484)
         runs(m, 10, IN_RANGE);
         listenerApplied(m, 1, 2, 3, 4, 5, 6, 7, 8);
 
@@ -126,7 +128,7 @@ class TierReconcileServiceTest {
         assertThat(memberQuery.appliedValidRunCount(m)).isEqualTo(10);
         assertThat(records.findById(recordIds.get(m).get(9)).orElseThrow().isTierApplied())
                 .isTrue();
-        assertThat(members.findById(m).orElseThrow().getTier()).isNotEqualTo(Tier.UNRANKED);
+        assertThat(members.findById(m).orElseThrow().getTier()).isEqualTo(Tier.GOLD);
 
         clearInvocations(tiers);
         assertThat(service.reconcile(NOW)).isZero();
@@ -169,7 +171,8 @@ class TierReconcileServiceTest {
         long m = member();
         runs(m, 4, IN_RANGE);
         listenerApplied(m, 1, 2, 4);
-        assertThat(members.findById(m).orElseThrow().getTier()).isEqualTo(Tier.GOLD);
+        // 3회째 첫 배치가 없어졌다(J24-6, D-484): 4가 먼저 반영돼도 언랭
+        assertThat(members.findById(m).orElseThrow().getTier()).isEqualTo(Tier.UNRANKED);
         assertThat(memberQuery.appliedValidRunCount(m)).isEqualTo(4);
 
         assertThat(service.reconcile(NOW)).isEqualTo(1);
@@ -180,7 +183,7 @@ class TierReconcileServiceTest {
         assertThat(records.findById(recordIds.get(m).get(2)).orElseThrow().isTierApplied())
                 .isTrue();
         assertThat(memberQuery.appliedValidRunCount(m)).isEqualTo(4);
-        assertThat(members.findById(m).orElseThrow().getTier()).isEqualTo(Tier.GOLD);
+        assertThat(members.findById(m).orElseThrow().getTier()).isEqualTo(Tier.UNRANKED);
 
         clearInvocations(tiers);
         assertThat(service.reconcile(NOW)).isZero();
@@ -188,8 +191,8 @@ class TierReconcileServiceTest {
     }
 
     @Test
-    @DisplayName("TC-6790 변형: 순번 3·4가 둘 다 빠지면 3을 먼저 넘겨 배치 판정(언랭 → 배치), 4는 그 뒤")
-    void tc6790_placementAtThird() {
+    @DisplayName("TC-6790 변형: 순번 3·4가 둘 다 빠지면 3, 4 순서로 넘긴다. 일반 러닝은 첫 배치를 하지 않아 언랭 그대로(J24-6)")
+    void tc6790_missingThirdAndFourth_inOrder() {
         long m = member();
         runs(m, 4, IN_RANGE);
         listenerApplied(m, 1, 2);
@@ -197,7 +200,7 @@ class TierReconcileServiceTest {
 
         assertThat(service.reconcile(NOW)).isEqualTo(1);
         assertThat(ordinalsGivenTo(m, 2)).containsExactly(3, 4);
-        assertThat(members.findById(m).orElseThrow().getTier()).isEqualTo(Tier.GOLD);
+        assertThat(members.findById(m).orElseThrow().getTier()).isEqualTo(Tier.UNRANKED);
     }
 
     @Test

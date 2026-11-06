@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 티어 엠블럼 gold 20dp 다크(피그마 61363:3403, D-495). 경로는 피그마 SVG 그대로, 색은 RunKK · Tier 변수(design-oo 7.3). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="20dp"
+    android:height="20dp"
+    android:viewportWidth="20"
+    android:viewportHeight="20">
+    <path
+        android:pathData="M10 1.5L17.5 5.83333V14.1667L10 18.5L2.5 14.1667V5.83333L10 1.5Z"
+        android:fillColor="#F0BE3A"
+        android:strokeColor="#B98522"
+        android:strokeWidth="2.08333"
+        android:strokeLineJoin="round" />
+</vector>

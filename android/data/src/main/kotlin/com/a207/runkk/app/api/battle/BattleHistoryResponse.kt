@@ -12,7 +12,10 @@ internal data class BattleHistoryResponse(
     val selfNewRecords: Int = 0,
     val nextCursor: Long? = null
 ) {
-    /** gapSeconds는 본인 − 상대(초, 음수면 본인이 빠름), 없으면 null. sourceLabel은 유명인 기록 출처 표기. */
+    /**
+     * gapSeconds는 본인 − 상대(초, 음수면 본인이 빠름), 없으면 null. sourceLabel은 유명인 기록 출처 표기. placementRound는 배치고사 판 번호,
+     * opponentMemberId는 친구 대결 상대 회원 ID(탈퇴·그 밖은 null)다(05-03 5.7.3.3 P6).
+     */
     @Serializable
     data class Entry(
         val battleId: Long,
@@ -23,6 +26,8 @@ internal data class BattleHistoryResponse(
         val playedAt: String,
         val newRecord: Boolean = false,
         val gapSeconds: Long? = null,
-        val sourceLabel: String? = null
+        val sourceLabel: String? = null,
+        val placementRound: Int? = null,
+        val opponentMemberId: Long? = null
     )
 }

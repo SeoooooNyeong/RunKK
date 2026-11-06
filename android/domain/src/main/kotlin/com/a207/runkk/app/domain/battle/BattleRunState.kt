@@ -2,6 +2,7 @@ package com.a207.runkk.app.domain.battle
 
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.GpsReadiness
 import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.domain.live.BattleEnded
 import com.a207.runkk.app.domain.live.BattleGuidance
@@ -18,9 +19,11 @@ import java.time.LocalDate
 sealed interface BattleRunState {
     data object Idle : BattleRunState
 
-    data class Matched(val match: MatchFound) : BattleRunState
+    /** 랜덤 대결 성사. [gps]는 출발 전 GPS 예열 상태(W55)이고 예열하지 않으면(위치 권한 없음 등) null이다. */
+    data class Matched(val match: MatchFound, val gps: GpsReadiness? = null) : BattleRunState
 
-    data class Countdown(val battleId: Long, val startAt: Instant) : BattleRunState
+    /** 출발 카운트다운. [gps]는 [Matched]와 같고, 기록 대결(나와의 싸움·유명인)은 예열하지 않아 null이다. */
+    data class Countdown(val battleId: Long, val startAt: Instant, val gps: GpsReadiness? = null) : BattleRunState
 
     /**
      * 측정 중. [opponentConnection]은 랜덤 대결 상대의 연결 상태(FR-088 "상대 연결 확인 중")이고, 기록 상대(고스트·나와의 싸움·

@@ -37,6 +37,15 @@ interface SettingsRepository {
 
     suspend fun saveGuideCopy(copy: GuideCopy): Outcome<Unit> = Outcome.Success(Unit)
 
+    /**
+     * 배치고사 완료 화면(FR-281)을 본 마지막 판의 대결 ID 기기 사본(D-531). 화면은 AccountRepository.placementCompleteSeen으로 읽고
+     * (ui.battle은 domain.settings를 보지 않는다) api.account가 여기에 맡긴다. 가이드 사본과 같이 같은 기기 파일에 두고 [clear]
+     * (로그아웃·탈퇴) 때 함께 지운다. 기본 구현은 사본 없음이다.
+     */
+    suspend fun placementCompleteSeen(): Long? = null
+
+    suspend fun savePlacementCompleteSeen(battleId: Long): Outcome<Unit> = Outcome.Success(Unit)
+
     /** 사본 삭제(로그아웃·탈퇴·로그인 상태 해제). */
     suspend fun clear(): Outcome<Unit>
 }

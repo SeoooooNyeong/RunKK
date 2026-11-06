@@ -284,14 +284,11 @@ class FigmaV014ControllerTest extends WebTestSupport {
                 .andExpect(jsonPath("$.monthMeters").value(8_000));
         mvc.perform(as(a, get("/api/v1/battles/self/candidates"))).andExpect(status().isOk());
 
-        // TC-9417 유효 3회째 기록은 첫 배치 평가를 남기고(validRuns 3, runimalType null), 2회째는 평가가 없다(D-291·D-294)
+        // TC-9417(v0.18 변경): 유효 3회째 기록은 첫 배치 평가를 남기지 않는다(배치고사 3판으로만, J24-6·D-484)
         String third = upload(a, 5_000, 1_400);
         mvc.perform(as(a, get("/api/v1/runs/" + third)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.evaluation.kind").value("FIRST_PLACEMENT"))
-                .andExpect(jsonPath("$.evaluation.validRuns").value(3))
-                .andExpect(jsonPath("$.evaluation.tier").value(notNullValue()))
-                .andExpect(jsonPath("$.evaluation.runimalType").value(nullValue()));
+                .andExpect(jsonPath("$.evaluation").value(nullValue()));
         mvc.perform(as(a, get("/api/v1/runs/" + valid)))
                 .andExpect(jsonPath("$.evaluation").value(nullValue()));
     }

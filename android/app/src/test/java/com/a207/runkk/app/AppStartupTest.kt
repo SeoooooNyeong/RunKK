@@ -420,6 +420,8 @@ private class TodayPlanRecords : RecordRepository {
 
     override suspend fun putPlan(date: LocalDate, distance: Distance, pace: Pace?): Outcome<Unit> = unused()
 
+    override suspend fun deletePlan(date: LocalDate): Outcome<Unit> = unused()
+
     override suspend fun planProgress(from: LocalDate, to: LocalDate): Outcome<PlanProgress> = unused()
 
     override suspend fun card(recordId: String): Outcome<RunCard> = unused()

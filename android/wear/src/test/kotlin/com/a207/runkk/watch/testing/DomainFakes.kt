@@ -8,6 +8,7 @@ import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.account.GuestSession
 import com.a207.runkk.app.domain.account.MemberSettings
 import com.a207.runkk.app.domain.account.MySummary
+import com.a207.runkk.app.domain.account.PlacementProgress
 import com.a207.runkk.app.domain.account.Profile
 import com.a207.runkk.app.domain.account.ProfileEdit
 import com.a207.runkk.app.domain.account.ProviderToken
@@ -234,6 +235,16 @@ class FakeAccountRepository(private val events: MutableList<String> = mutableLis
 
     override suspend fun mySummary(): Outcome<MySummary> =
         summary?.let { Outcome.Success(it) } ?: Outcome.Failure(AppError.Network)
+
+    /** placement(GET /me/placement)가 돌려줄 본인 배치고사 진행. null이면 Network 실패. [placementReads]는 읽은 횟수다. */
+    var placementProgress: PlacementProgress? = null
+    var placementReads: Int = 0
+        private set
+
+    override suspend fun placement(): Outcome<PlacementProgress> {
+        placementReads++
+        return placementProgress?.let { Outcome.Success(it) } ?: Outcome.Failure(AppError.Network)
+    }
 
     override suspend fun editProfile(edit: ProfileEdit): Outcome<Unit> = unused()
 

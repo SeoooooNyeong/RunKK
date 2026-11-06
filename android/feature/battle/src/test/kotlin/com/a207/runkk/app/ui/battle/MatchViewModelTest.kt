@@ -9,6 +9,7 @@ import app.cash.turbine.test
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.GpsReadiness
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.battle.ActiveBattle
@@ -190,6 +191,30 @@ class MatchViewModelTest {
                 started.key
             )
         }
+    }
+
+    @Test
+    fun `W55 성사 화면에 GPS 예열 상태를 보이고 상태만 바뀌어도 출발 카운트다운을 다시 세지 않는다`() = main.runVmTest { vms ->
+        val w = world()
+        val vm = quick(w, vms)
+        val match = matchFound()
+        w.channels.channel.push(match)
+        runCurrent()
+        assertNull(vm.state.value.gps)
+        w.gps.updates.emit(GpsReadiness.SEARCHING)
+        runCurrent()
+        assertEquals(GpsReadiness.SEARCHING, vm.state.value.gps)
+
+        w.channels.channel.push(BattleStart(match.battleId, w.clock.now.plusSeconds(10), opponentTrack = null))
+        runCurrent()
+        assertEquals(10L, vm.state.value.startsInSeconds)
+        assertEquals(GpsReadiness.SEARCHING, vm.state.value.gps)
+        w.clock.now = w.clock.now.plusSeconds(4)
+        advanceTimeBy(1_100)
+        w.gps.updates.emit(GpsReadiness.READY)
+        runCurrent()
+        assertEquals(GpsReadiness.READY, vm.state.value.gps)
+        assertEquals(6L, vm.state.value.startsInSeconds)
     }
 
     @Test
@@ -832,5 +857,41 @@ class MatchViewModelTest {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
             MatchViewModel(w.battles, w.coordinator, w.channels, w.clock, consentOf(settings, accounts), accounts) as T
+    }
+
+    @Test
+    fun `TC-5872 배치고사 상대는 티어 없이 물음표로 그린다`() = main.runVmTest { vms ->
+        val w = world()
+        val vm = quick(w, vms)
+        w.channels.channel.push(matchFound().copy(opponentTier = "UNRANKED", placementRound = 1))
+        runCurrent()
+        assertEquals(MatchPhase.MATCHED, vm.state.value.phase)
+        assertEquals(1, vm.state.value.placementRound)
+        assertTrue(vm.state.value.isOpponentHidden, "상대 티어(UNRANKED)를 「배치 중」으로 그리지 않고 「?」로 그린다")
+
+        val other = world()
+        val plain = quick(other, vms)
+        other.channels.channel.push(matchFound())
+        runCurrent()
+        assertEquals(null, plain.state.value.placementRound)
+        assertFalse(plain.state.value.isOpponentHidden)
+    }
+
+    @Test
+    fun `배치고사 성사는 진행 화면에 판 번호를 넘겨 진행 중에도 상대를 물음표로 그리게 한다(FR-276)`() = main.runVmTest { vms ->
+        val w = world()
+        val vm = quick(w, vms)
+        vm.events.test {
+            val match = matchFound().copy(opponentTier = "UNRANKED", placementRound = 2)
+            w.channels.channel.push(match)
+            runCurrent()
+            w.channels.channel.push(BattleStart(match.battleId, w.clock.now.plusSeconds(10), opponentTrack = null))
+            runCurrent()
+            w.clock.now = w.clock.now.plusSeconds(10)
+            advanceTimeBy(10_000)
+            runCurrent()
+            val started = assertIs<MatchEvent.Started>(awaitItem())
+            assertEquals(2, started.key.placementRound)
+        }
     }
 }

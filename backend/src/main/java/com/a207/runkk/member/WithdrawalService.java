@@ -18,6 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -42,6 +43,7 @@ public class WithdrawalService {
     static final String IDLE_GUEST_ACTOR = "system:idle-guest";
 
     private final MemberRepository memberRepository;
+    private final PlacementProgressRepository placementProgressRepository;
     private final List<WithdrawalGuard> guards;
     private final List<IdleGuestWithdrawalGuard> idleGuards;
     private final AuditService auditService;
@@ -52,6 +54,7 @@ public class WithdrawalService {
     @Autowired
     public WithdrawalService(
             MemberRepository memberRepository,
+            PlacementProgressRepository placementProgressRepository,
             List<WithdrawalGuard> guards,
             List<IdleGuestWithdrawalGuard> idleGuards,
             AuditService auditService,
@@ -60,6 +63,7 @@ public class WithdrawalService {
             PlatformTransactionManager transactionManager) {
         this(
                 memberRepository,
+                placementProgressRepository,
                 guards,
                 idleGuards,
                 auditService,
@@ -71,6 +75,7 @@ public class WithdrawalService {
     /** 시험용: 트랜잭션 없이 실행한다. */
     WithdrawalService(
             MemberRepository memberRepository,
+            PlacementProgressRepository placementProgressRepository,
             List<WithdrawalGuard> guards,
             List<IdleGuestWithdrawalGuard> idleGuards,
             AuditService auditService,
@@ -78,6 +83,7 @@ public class WithdrawalService {
             Clock clock) {
         this(
                 memberRepository,
+                placementProgressRepository,
                 guards,
                 idleGuards,
                 auditService,
@@ -88,6 +94,7 @@ public class WithdrawalService {
 
     private WithdrawalService(
             MemberRepository memberRepository,
+            PlacementProgressRepository placementProgressRepository,
             List<WithdrawalGuard> guards,
             List<IdleGuestWithdrawalGuard> idleGuards,
             AuditService auditService,
@@ -96,6 +103,7 @@ public class WithdrawalService {
             TransactionOperations transactions) {
         this.transactions = transactions;
         this.memberRepository = memberRepository;
+        this.placementProgressRepository = placementProgressRepository;
         this.guards = List.copyOf(guards);
         this.idleGuards = List.copyOf(idleGuards);
         this.auditService = auditService;
@@ -109,6 +117,7 @@ public class WithdrawalService {
      */
     @Transactional
     public WithdrawalResult withdraw(long memberId) {
+        lockPlacement(memberId);
         for (WithdrawalGuard guard : guards) {
             Optional<ReasonCode> reason = guard.check(memberId);
             if (reason.isPresent()) {
@@ -119,6 +128,7 @@ public class WithdrawalService {
         LocalDateTime now = LocalDateTime.now(clock);
         member.withdraw(now);
         memberRepository.save(member);
+        placementProgressRepository.deleteByMemberId(memberId); // 배치 기록을 남기지 않는다(D-489)
         String id = String.valueOf(memberId);
         auditService.record(
                 new AuditEntry(id, ActorRole.RUNNER, AuditAction.WITHDRAWAL, id, null, null));
@@ -163,7 +173,7 @@ public class WithdrawalService {
         int count = 0;
         for (long id : ids) {
             try {
-                Boolean done = transactions.execute(status -> withdrawIdleGuest(id, now));
+                Boolean done = transactions.execute(status -> withdrawIdleGuest(id, now, status));
                 if (Boolean.TRUE.equals(done)) {
                     count++;
                 }
@@ -180,7 +190,7 @@ public class WithdrawalService {
     }
 
     /** 한 게스트를 다시 읽어 아직 미이용 ACTIVE 게스트일 때만 파기한다. 파기했으면 참. */
-    private boolean withdrawIdleGuest(long memberId, LocalDateTime now) {
+    private boolean withdrawIdleGuest(long memberId, LocalDateTime now, TransactionStatus status) {
         Optional<Member> found = memberRepository.findById(memberId);
         if (found.isEmpty()
                 || !found.get().isGuest()
@@ -188,14 +198,17 @@ public class WithdrawalService {
                 || found.get().lastAccessAt().isAfter(now.minus(GUEST_IDLE_LIMIT))) {
             return false;
         }
+        lockPlacement(memberId);
         Optional<ReasonCode> skip = idleSkipReason(memberId);
         if (skip.isPresent()) {
             log.info("idle_guest_skipped memberId={} reason={}", memberId, skip.get());
+            status.setRollbackOnly(); // 잠그려고 넣은 빈 진행 행을 남기지 않는다
             return false;
         }
         Member guest = found.get();
         guest.withdraw(now);
         memberRepository.save(guest);
+        placementProgressRepository.deleteByMemberId(memberId); // 배치 기록을 남기지 않는다(D-489)
         auditService.record(
                 new AuditEntry(
                         IDLE_GUEST_ACTOR,
@@ -206,6 +219,16 @@ public class WithdrawalService {
                         null));
         eventPublisher.publish(new MemberWithdrawn(memberId, now));
         return true;
+    }
+
+    /**
+     * 탈퇴 가드보다 먼저 배치 진행 행을 잠근다(코드 리뷰 PL1-B3). lockForMatch와 같은 INSERT … ON CONFLICT DO NOTHING 뒤
+     * 잠금이라, 커밋 전인 배치고사 매칭의 진행 행 INSERT와도 직렬화된다: 매칭이 먼저면 그 커밋(대결 포함)을 기다린 뒤 가드가 대결을 보고 탈퇴를 막고, 탈퇴가
+     * 먼저면 매칭이 잠근 뒤 탈퇴한 회원을 보고 되돌린다. 행은 같은 트랜잭션에서 지우고(가드가 막으면 함께 되돌려짐) 잠금 순서(배치 진행 → 회원)는 판 셈과 같아
+     * 교착하지 않는다(리뷰 H1).
+     */
+    private void lockPlacement(long memberId) {
+        placementProgressRepository.lockOrCreate(memberId);
     }
 
     private static TransactionOperations perGuestTransaction(

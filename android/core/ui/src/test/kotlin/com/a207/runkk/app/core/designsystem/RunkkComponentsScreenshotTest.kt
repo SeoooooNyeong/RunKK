@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -20,6 +21,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.designsystem.testing.RUNKK_PHONE
 import com.a207.runkk.app.core.designsystem.testing.captureRunkkScreen
+import com.a207.runkk.app.core.model.TierDisplay
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -104,6 +106,28 @@ class RunkkComponentsScreenshotTest {
         }
     }
 
+    /** TC-5821 티어 배지(피그마 61354:2910): 확정·임시·배치 중 × 아주 작게·작게, 크게(확정 5·배치 중). */
+    @Test
+    fun designsystemTierBadges() = compose.captureRunkkScreen("designsystem_tier_badges", isDarkTheme = false) {
+        TierBadgeSheet()
+    }
+
+    @Test
+    fun designsystemTierBadgesDark() = compose.captureRunkkScreen("designsystem_tier_badges_dark") {
+        TierBadgeSheet()
+    }
+
+    /** TC-5822 티어 엠블럼(피그마 61363:3403): 6티어 × 큰 112·작은 20(아주 작게 14). */
+    @Test
+    fun designsystemTierEmblems() = compose.captureRunkkScreen("designsystem_tier_emblems", isDarkTheme = false) {
+        TierEmblemSheet()
+    }
+
+    @Test
+    fun designsystemTierEmblemsDark() = compose.captureRunkkScreen("designsystem_tier_emblems_dark") {
+        TierEmblemSheet()
+    }
+
     /** 아바타 기본 캐릭터 4종(큰 그림)과 홈 상단(48dp)·마이 프로필(56dp) 원 안에 넣었을 때. */
     @Test
     fun avatarCharacters() = compose.captureRunkkScreen("designsystem_avatar_characters") {
@@ -136,6 +160,61 @@ class RunkkComponentsScreenshotTest {
                                 .clip(CircleShape).background(RunkkColors.Border)
                         )
                     }
+                }
+            }
+        }
+    }
+}
+
+private val TIERS = listOf("BRONZE", "SILVER", "GOLD", "PLATINUM", "MASTER")
+
+/** 배지 견본: 맨 위 배치 중, 아주 작게(확정·임시, 두 티어씩), 작게(확정·임시, 한 티어씩), 아래는 크게. */
+@Composable
+private fun TierBadgeSheet() {
+    Column(
+        Modifier.fillMaxSize().background(RunkkColors.Background).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            TierBadge(TierDisplay.Placing, TierBadgeSize.XSMALL)
+            TierBadge(TierDisplay.Placing, TierBadgeSize.SMALL)
+        }
+        TIERS.chunked(2).forEach { pair ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                pair.forEach { tier ->
+                    TierBadge(TierDisplay.Confirmed(tier), TierBadgeSize.XSMALL)
+                    TierBadge(TierDisplay.Provisional(tier), TierBadgeSize.XSMALL)
+                }
+            }
+        }
+        TIERS.forEach { tier ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                TierBadge(TierDisplay.Confirmed(tier), TierBadgeSize.SMALL)
+                TierBadge(TierDisplay.Provisional(tier), TierBadgeSize.SMALL)
+            }
+        }
+        listOf(
+            listOf<TierDisplay>(TierDisplay.Placing) + TIERS.take(2).map { TierDisplay.Confirmed(it) },
+            TIERS.drop(2).map { TierDisplay.Confirmed(it) }
+        ).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) { row.forEach { TierBadgeLarge(it) } }
+        }
+    }
+}
+
+/** 엠블럼 견본: 줄마다 한 티어(큰 112, 작은 20, 아주 작게 14). */
+@Composable
+private fun TierEmblemSheet() {
+    Column(
+        Modifier.fillMaxSize().background(RunkkColors.Background).padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        (listOf("UNRANKED") + TIERS).chunked(2).forEach { pair ->
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                pair.forEach { tier ->
+                    TierEmblem(tier, TierEmblemSize.LARGE)
+                    TierEmblem(tier, TierEmblemSize.SMALL)
+                    TierEmblem(tier, TierEmblemSize.XSMALL)
                 }
             }
         }

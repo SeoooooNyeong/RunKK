@@ -81,7 +81,8 @@ class BattleRunningViewModel @Inject constructor(
             opponentRecordedOn = key.opponentRecordedOnEpochDay?.let(LocalDate::ofEpochDay),
             myBest = key.myBestSeconds?.let(Duration::ofSeconds),
             opponentGender = Gender.entries.firstOrNull { it.name == key.opponentGender },
-            celebrityFigure = key.celebrityFigure
+            celebrityFigure = key.celebrityFigure,
+            placementRound = key.placementRound
         )
         bindJobs += viewModelScope.launch { coordinator.state.collect(::onCoordinator) }
         bindJobs += viewModelScope.launch {

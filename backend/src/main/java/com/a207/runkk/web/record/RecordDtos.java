@@ -17,6 +17,7 @@ import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.GeoPoint;
 import com.a207.runkk.common.Pace;
 import com.a207.runkk.common.ServerZone;
+import com.a207.runkk.common.Tier;
 import com.a207.runkk.running.EvaluationView;
 import com.a207.runkk.running.NewRecordMark;
 import com.a207.runkk.running.RouteShape;
@@ -190,9 +191,17 @@ final class RecordDtos {
             int rewardBalance,
             int monthRuns,
             long monthMeters,
-            int streakWeeks) {
+            int streakWeeks,
+            RunSummaryDto latestRun) {
 
         static DashboardResponse of(DashboardView v) {
+            return of(v, null);
+        }
+
+        /**
+         * latestOutcome은 최근 러닝 1건의 대결 결과(web.record가 BattleHistoryService.outcomesOf로 붙임, D-33).
+         */
+        static DashboardResponse of(DashboardView v, BattleOutcome latestOutcome) {
             Map<String, List<CalendarRun>> calendar = new LinkedHashMap<>();
             v.calendar()
                     .forEach(
@@ -227,7 +236,8 @@ final class RecordDtos {
                     v.rewardBalance(),
                     v.monthRuns(),
                     v.monthMeters().meters(),
-                    v.streakWeeks());
+                    v.streakWeeks(),
+                    v.latestRun() == null ? null : RunSummaryDto.of(v.latestRun(), latestOutcome));
         }
     }
 
@@ -539,8 +549,8 @@ final class RecordDtos {
             return new RankingResponse(
                     v.kind().name(),
                     v.period().name(),
-                    v.entries().stream().map(e -> Entry.of(e, v.shownGenderOf(e))).toList(),
-                    v.mine() == null ? null : Entry.of(v.mine(), v.shownGenderOf(v.mine())),
+                    v.entries().stream().map(e -> Entry.of(e, v)).toList(),
+                    v.mine() == null ? null : Entry.of(v.mine(), v),
                     meters(v.gapToNext()),
                     seoul(v.aggregatedAt()),
                     v.notice());
@@ -549,7 +559,8 @@ final class RecordDtos {
 
     /**
      * 랭킹 한 줄(앱 RankingResponse.Entry + subjectId·tier). shownGender는 개인 랭킹 줄 회원의 표시 성별(MALE·FEMALE,
-     * D-327), 크루 줄은 null이다.
+     * D-327), 크루 줄은 null이다. publicTier는 조회 때 붙인 회원의 지금 티어(UNRANKED = 배치 중)이고 크루 줄·탈퇴 회원은
+     * null이다(05-03 5.7.3.3 P7, D-486). tier는 스냅숏 값 그대로다.
      */
     record Entry(
             int rank,
@@ -557,16 +568,19 @@ final class RecordDtos {
             String name,
             String tier,
             long distanceMeters,
-            String shownGender) {
+            String shownGender,
+            String publicTier) {
 
-        static Entry of(RankEntry e, String shownGender) {
+        static Entry of(RankEntry e, RankingView v) {
+            Tier publicTier = v.publicTierOf(e);
             return new Entry(
                     e.rank(),
                     e.subjectId(),
                     e.displayName().value(),
                     e.tier() == null ? null : e.tier().name(),
                     e.distance().meters(),
-                    shownGender);
+                    v.shownGenderOf(e),
+                    publicTier == null ? null : publicTier.name());
         }
     }
 

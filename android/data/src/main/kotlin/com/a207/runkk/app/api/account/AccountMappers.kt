@@ -5,10 +5,14 @@ import com.a207.runkk.app.api.core.enumByName
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Gender
+import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.domain.account.AccountType
 import com.a207.runkk.app.domain.account.GuestSession
 import com.a207.runkk.app.domain.account.MemberSettings
 import com.a207.runkk.app.domain.account.MySummary
+import com.a207.runkk.app.domain.account.PlacementProgress
+import com.a207.runkk.app.domain.account.PlacementRound
+import com.a207.runkk.app.domain.account.PlacementStatus
 import com.a207.runkk.app.domain.account.Profile
 import com.a207.runkk.app.domain.account.ProfileEdit
 import com.a207.runkk.app.domain.account.ProviderToken
@@ -18,6 +22,8 @@ import com.a207.runkk.app.domain.account.SignUpForm
 import com.a207.runkk.app.domain.settings.GuidanceSettings
 import com.a207.runkk.app.domain.settings.ScreenTheme
 import com.a207.runkk.app.domain.settings.SettingsSnapshot
+import java.time.Duration
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -66,6 +72,29 @@ internal fun Profile.toMySummary(): MySummary = MySummary(
     faceKey = faceKey,
     avatarBackgroundKey = avatarBackgroundKey,
     validRuns = runCount
+)
+
+/**
+ * 배치 진행 → 도메인(05-03 5.7.3.5). 페이스 0 이하는 없음. 모르는 상태 이름은 해독 실패(SerializationException → Server(0))로 본다:
+ * 진행을 모르는 채 IN_PROGRESS·EXEMPT 가운데 하나로 짐작하지 않는다(진입 시트는 실패를 배치고사 화면으로 보낸다, D-499).
+ */
+internal fun PlacementResponse.toDomain(): PlacementProgress = PlacementProgress(
+    status = enumByName<PlacementStatus>(status) ?: throw SerializationException("알 수 없는 배치 상태: $status"),
+    countedRounds = countedRounds,
+    nextRound = nextRound,
+    provisionalTier = provisionalTier,
+    tier = tier,
+    rounds = rounds.map {
+        PlacementRound(
+            round = it.round,
+            battleId = it.battleId,
+            battleDistance = Distance(it.battleDistanceMeters),
+            distance = Distance(it.distanceMeters),
+            elapsed = Duration.ofSeconds(it.elapsedSeconds),
+            averagePace = it.averagePaceSecondsPerKm?.takeIf { pace -> pace > 0 }?.let(::Pace),
+            verdict = it.verdict
+        )
+    }
 )
 
 /** 날짜를 읽지 못한 줄은 버린다(프로필 전체를 실패시키지 않는다). */

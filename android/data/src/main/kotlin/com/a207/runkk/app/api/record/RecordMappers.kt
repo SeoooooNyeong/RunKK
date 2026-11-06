@@ -93,7 +93,8 @@ internal fun DashboardResponse.toDomain(): Dashboard = Dashboard(
     grassLevels = grassLevels.entries.associate { (date, level) -> ServerTime.parseDate(date) to level },
     rewardBalance = rewardBalance,
     monthRuns = monthRuns,
-    monthDistance = monthMeters?.let(::Distance)
+    monthDistance = monthMeters?.let(::Distance),
+    latestRun = latestRun?.toDomain()
 )
 
 internal fun RecordListResponse.toDomain(): RecordList = RecordList(runs.map { it.toDomain() })
@@ -146,7 +147,7 @@ internal fun GrowthResponse.toDomain(): Growth = Growth(
 internal fun ReportResponse.toDomain(): Report = Report(summary, comment, commentSource, message)
 
 internal fun RankingResponse.Entry.toDomain(): Ranking.Entry =
-    Ranking.Entry(rank, name, Distance(distanceMeters), enumByName<Gender>(shownGender))
+    Ranking.Entry(rank, name, Distance(distanceMeters), enumByName<Gender>(shownGender), publicTier)
 
 internal fun RankingResponse.toDomain(): Ranking = Ranking(
     entries = entries.map { it.toDomain() },
