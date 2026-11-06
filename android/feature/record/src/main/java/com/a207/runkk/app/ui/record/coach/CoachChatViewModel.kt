@@ -9,8 +9,9 @@ import com.a207.runkk.app.domain.coach.CoachEvent
 import com.a207.runkk.app.domain.coach.CoachFailure
 import com.a207.runkk.app.domain.coach.CoachRepository
 import com.a207.runkk.app.ui.record.R
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
@@ -84,9 +85,8 @@ class CoachChatViewModel(private val repository: CoachRepository) : ViewModel() 
                     applyEvent(event)
                     event == CoachEvent.Done || event is CoachEvent.Failed
                 }
-            } catch (e: CancellationException) {
-                throw e
             } catch (_: Exception) {
+                currentCoroutineContext().ensureActive()
                 // done 없이 끊긴 스트림도 완료로 보이면 안 된다.
                 _state.update { it.copy(isSending = false, failure = CoachFailure.RETRY) }
             }
