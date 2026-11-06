@@ -10,12 +10,14 @@ import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.FlywayException;
 import org.flywaydb.core.api.output.MigrateResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
@@ -26,8 +28,8 @@ import org.testcontainers.utility.DockerImageName;
 
 /**
  * V35_1 배치고사 진행 마이그레이션(05-21 5절, D-476·D-514). 새 DB 순서(V35 → 35.1)와 develop 순서(V37까지 있는 DB에 순서 밖
- * 35.1)를 PostgreSQL로 확인한다. develop의 V36·V37은 이 브랜치에 없어 표를 건드리지 않는 흉내 파일(db/sim-develop)로 대신한다.
- * Docker가 없으면 건너뛴다.
+ * 35.1)를 PostgreSQL로 확인한다. develop 순서는 실제 마이그레이션 폴더에서 V35_1만 뺀 사본으로 35.1 이전 develop DB를 만든다 (핫픽스
+ * 브랜치에서 쓰던 흉내 파일 db/sim-develop는 실제 V36·V37과 번호가 겹쳐 지웠다). Docker가 없으면 건너뛴다.
  */
 @Testcontainers(disabledWithoutDocker = true)
 @DisplayName("V35_1 배치고사 진행 마이그레이션(PostgreSQL)")
@@ -96,6 +98,24 @@ class PlacementMigrationIntegrationTest {
                 verdict,
                 roundNo,
                 Timestamp.valueOf(T0));
+    }
+
+    /**
+     * 실제 마이그레이션 폴더를 [prefix]로 시작하는 파일만 빼고 [target]에 복사한다. 35.1이 생기기 전 develop DB(V36·V37 적용)를 같은
+     * 체크섬의 실제 파일로 만든다.
+     */
+    private static void copyMigrationsExcept(String prefix, Path target) throws Exception {
+        Path source =
+                Path.of(
+                        PlacementMigrationIntegrationTest.class
+                                .getResource("/db/migration")
+                                .toURI());
+        try (Stream<Path> files = Files.list(source)) {
+            for (Path file :
+                    files.filter(f -> !f.getFileName().toString().startsWith(prefix)).toList()) {
+                Files.copy(file, target.resolve(file.getFileName()));
+            }
+        }
     }
 
     private List<String> appliedVersions() {
@@ -222,32 +242,20 @@ class PlacementMigrationIntegrationTest {
     @DisplayName(
             "TC-5936 develop 순서: V37까지 있는 DB에 35.1은 순서 밖 적용을 켜야 한 번 들어가고, 다시 돌리면 아무것도 하지"
                     + " 않는다(D-476·R85)")
-    void developOrder_outOfOrderAppliesOnce() {
-        flyway("35", false, "classpath:db/migration").migrate();
-        flyway("37", false, "classpath:db/sim-develop").migrate();
-        assertThat(appliedVersions()).endsWith("36", "37");
+    void developOrder_outOfOrderAppliesOnce(@TempDir Path withoutPlacement) throws Exception {
+        copyMigrationsExcept("V35_1__", withoutPlacement);
+        flyway("37", false, "filesystem:" + withoutPlacement.toAbsolutePath()).migrate();
+        assertThat(appliedVersions()).endsWith("35", "36", "37").doesNotContain("35.1");
 
-        assertThatThrownBy(
-                        () ->
-                                flyway(
-                                                "latest",
-                                                false,
-                                                "classpath:db/migration",
-                                                "classpath:db/sim-develop")
-                                        .migrate())
+        assertThatThrownBy(() -> flyway("37", false, "classpath:db/migration").migrate())
                 .as("순서 밖이 꺼진 설정은 적용 안 된 낮은 번호 35.1에서 멈춘다(그래서 develop만 켠다)")
                 .isInstanceOf(FlywayException.class);
         assertThat(appliedVersions()).doesNotContain("35.1");
 
-        MigrateResult develop =
-                flyway("latest", true, "classpath:db/migration", "classpath:db/sim-develop")
-                        .migrate();
+        MigrateResult develop = flyway("37", true, "classpath:db/migration").migrate();
         assertThat(develop.migrationsExecuted).isEqualTo(1);
         assertThat(appliedVersions()).endsWith("36", "37", "35.1");
-        assertThat(
-                        flyway("latest", true, "classpath:db/migration", "classpath:db/sim-develop")
-                                .migrate()
-                                .migrationsExecuted)
+        assertThat(flyway("37", true, "classpath:db/migration").migrate().migrationsExecuted)
                 .isZero();
         assertThat(
                         jdbc.queryForObject(
