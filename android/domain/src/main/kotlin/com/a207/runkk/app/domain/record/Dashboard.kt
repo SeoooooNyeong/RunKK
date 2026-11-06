@@ -32,7 +32,9 @@ data class Dashboard(
     val monthRuns: Int? = null,
     val monthDistance: Distance? = null,
     /** 연속 러닝 주 수(유효 러닝이 1번 이상인 주가 이어진 수, 이번 주에 아직 없으면 지난주부터). 옛 서버면 0이다. */
-    val streakWeeks: Int = 0
+    val streakWeeks: Int = 0,
+    /** 최근 러닝 1건(기록 목록 맨 위 행, 유효·무효 모두, D-491). 기록이 없거나 옛 서버면 null이다. 홈 「내 기록 요약」이 쓴다. */
+    val latestRun: RunSummary? = null
 ) {
     /** 크루가 있으면 크루 스트릭·잔디·랜드마크. */
     data class CrewArea(

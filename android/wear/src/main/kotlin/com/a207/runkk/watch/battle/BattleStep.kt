@@ -14,12 +14,13 @@ sealed interface BattleStep {
 
     data object Idle : BattleStep
 
-    /** 랜덤 매칭 성사(FR-087). */
+    /** 랜덤 매칭 성사(FR-087). [placementRound]는 배치고사 대결이면 판 번호(1~3, MatchFound.placementRound), 아니면 null이다(FR-276). */
     data class Matched(
         val battleId: Long,
         val distance: Distance,
         val opponentName: String,
-        val opponentGender: Gender?
+        val opponentGender: Gender?,
+        val placementRound: Int? = null
     ) : BattleStep
 
     /** 출발 카운트다운. 오프라인 기록 대결의 [battleId]는 0이다. */

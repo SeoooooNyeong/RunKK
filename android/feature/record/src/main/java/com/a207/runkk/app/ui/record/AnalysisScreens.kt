@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -26,6 +27,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -43,6 +46,7 @@ import com.a207.runkk.app.core.designsystem.AvatarCharacter
 import com.a207.runkk.app.core.designsystem.AvatarExpression
 import com.a207.runkk.app.core.designsystem.LocalAvatarCharacter
 import com.a207.runkk.app.core.designsystem.LocalReleaseScope
+import com.a207.runkk.app.core.designsystem.RUNKK_BOTTOM_BAR_RISE
 import com.a207.runkk.app.core.designsystem.RunkkAvatar
 import com.a207.runkk.app.core.designsystem.RunkkCard
 import com.a207.runkk.app.core.designsystem.RunkkChoiceChip
@@ -324,9 +328,10 @@ fun RankingRoute(viewModel: RankingViewModel = hiltViewModel()) {
 }
 
 /**
- * 랭킹 탭(D-286, FR-070): 분절 "개인 | 크루"(크루는 CREW가 닫혀 있으면 분절째 숨겨 개인만), 기간 칩 "주간"·"월간", 기준
- * "누적 유효 거리", 내 순위 카드, 행(순위·아바타·닉네임·거리). 다음 순위까지 남은 거리·집계 시각·티어는 그리지 않는다.
- * 서버 응답에 아바타 키가 없어 모든 행이 기본 아바타다.
+ * 랭킹 탭(D-286, FR-070, 시상대 FR-290, 랭킹 v3 피그마 「랭킹 (v3 2026-11-05) 메인 탭, TOP3 시상대」): 상단 바 오른쪽 「개인 | 크루」
+ * (크루가 닫혀 있으면 크루 칸은 자물쇠로 잠긴다), 주간·월간 칩과 집계 기간·마감까지 남은 시간, TOP3 시상대 카드, 4위부터 목록 카드,
+ * 하단 탭 바로 위에 고정한 내 순위 카드(바로 위 순위까지 남은 거리). 이름 옆에 아주 작은 공개 티어 배지(J24-14R)를 둔다.
+ * 순위 변동·집계 시각은 그리지 않는다(서버에 지난 주기 순위가 없다). 서버 응답에 아바타 키가 없어 모든 행이 기본 아바타다.
  */
 @Composable
 fun RankingScreen(
@@ -336,120 +341,87 @@ fun RankingScreen(
     onRetry: () -> Unit
 ) {
     val isCrewOpen = LocalReleaseScope.current.isOpen(UnreleasedFeature.CREW)
-    AnalysisScaffold(
-        title = stringResource(R.string.record_ranking_title),
-        isLoading = state.isLoading && state.ranking == null,
-        error = state.error,
-        onBack = null,
-        onRetry = onRetry,
-        header = { RankingTabs(state.scope, state.period, isCrewOpen, onScope, onPeriod) }
-    ) {
-        val ranking = state.ranking ?: return@AnalysisScaffold
-        ranking.mine?.let { RankingMineCard(it) }
-        if (ranking.entries.isEmpty()) RunkkEmptyState(stringResource(R.string.record_ranking_empty))
-        ranking.entries.forEach { entry -> RankingEntryRow(entry, isMine = entry == ranking.mine) }
-    }
-}
+    val error = state.error
+    val ranking = state.ranking
+    val mine = ranking?.mine?.takeIf { error == null }
+    Box(Modifier.fillMaxSize().background(RunkkColors.Background)) {
+        Column(Modifier.fillMaxSize()) {
+            RunkkTopBar(
+                title = stringResource(R.string.record_ranking_title),
+                actions = { RankingScopeToggle(state.scope, isCrewOpen, onScope) }
+            )
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    .padding(
+                        start = 16.dp,
+                        end = 16.dp,
+                        top = 4.dp,
+                        bottom = if (mine !=
+                            null
+                        ) {
+                            MINE_CARD_SPACE
+                        } else {
+                            32.dp
+                        }
+                    ),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                val labels = periodLabels()
+                RankingPeriodRow(
+                    PERIODS.mapIndexed { index, (value, _) -> value to labels[index] },
+                    state.period,
+                    state.window,
+                    onPeriod
+                )
+                when {
+                    state.isLoading && ranking == null -> Box(Modifier.fillMaxWidth().padding(vertical = 48.dp)) {
+                        RunkkLoading()
+                    }
 
-/** 랭킹 위쪽: 개인·크루 분절(크루가 열려 있을 때만), 주간·월간 칩과 기준 "누적 유효 거리". */
-@Composable
-private fun RankingTabs(
-    scope: RankingScope,
-    period: AggregationPeriod,
-    isCrewOpen: Boolean,
-    onScope: (RankingScope) -> Unit,
-    onPeriod: (AggregationPeriod) -> Unit
-) {
-    if (isCrewOpen) {
-        RunkkSegmentedTabs(
-            RankingScope.entries.map { stringResource(it.labelRes) },
-            scope.ordinal,
-            onSelect = { onScope(RankingScope.entries[it]) },
-            modifier = Modifier.fillMaxWidth()
-        )
-    }
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        val labels = periodLabels()
-        PERIODS.forEachIndexed { index, (value, _) ->
-            RunkkChoiceChip(labels[index], isSelected = value == period, onSelectedChange = { onPeriod(value) })
+                    error != null -> RunkkErrorState(error.asString(), onRetry = onRetry)
+
+                    ranking != null -> RankingBody(state, ranking)
+                }
+            }
         }
-        Text(
-            stringResource(R.string.record_ranking_metric),
-            style = RunkkTextStyles.Caption,
-            color = RunkkColors.TextSecondary,
-            textAlign = TextAlign.End,
-            modifier = Modifier.weight(1f)
-        )
+        if (mine != null && ranking != null) {
+            // 고정 카드 뒤로 목록이 이어짐을 알리는 아래 흐림
+            Box(
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(MINE_FADE_HEIGHT)
+                    .background(Brush.verticalGradient(listOf(Color.Transparent, RunkkColors.Background)))
+            )
+            RankingMineCard(
+                mine,
+                ranking.gapToNext,
+                rankAbove(ranking.entries, mine),
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(start = 16.dp, end = 16.dp, bottom = RUNKK_BOTTOM_BAR_RISE + 8.dp)
+            )
+        }
     }
 }
 
-/** 내 순위 고정 카드: "[128] (아바타) 나 [18.4]km". 기간을 바꾸면 바뀐 순위를 보조 기술에 알린다. */
+/** TOP3 시상대 카드와 4위부터 목록. 순위가 없으면 빈 안내만. */
 @Composable
-private fun RankingMineCard(mine: Ranking.Entry) {
-    val me = stringResource(R.string.record_ranking_me)
-    RunkkCard(
-        Modifier.fillMaxWidth().semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
-        borderColor = RunkkColors.BorderStrong,
-        shape = RunkkShapes.ExtraLarge
-    ) {
-        RankingLine(mine.copy(name = me), isMine = true)
+private fun RankingBody(state: RankingUiState, ranking: Ranking) {
+    val podium = state.podium ?: return
+    if (ranking.entries.isEmpty()) {
+        RunkkEmptyState(stringResource(R.string.record_ranking_empty))
+        return
     }
+    RankingTop3Card(podium, ranking.mine, state.period)
+    RankingListCard(podium.rest, ranking.mine)
 }
 
-/** 랭킹 한 줄: 순위, 기본 아바타, 이름, 거리. 보조 기술에는 한 줄로 읽어 준다. */
-@Composable
-private fun RankingEntryRow(entry: Ranking.Entry, isMine: Boolean) {
-    Column {
-        RankingLine(entry, isMine, Modifier.padding(vertical = 8.dp))
-        HorizontalDivider(color = RunkkColors.Border)
-    }
-}
-
-@Composable
-private fun RankingLine(entry: Ranking.Entry, isMine: Boolean, modifier: Modifier = Modifier) {
-    val spoken = rankingSpoken(entry, isMine)
-    Row(
-        modifier = modifier.fillMaxWidth().clearAndSetSemantics { contentDescription = spoken },
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        Text(
-            "${entry.rank}",
-            style = RunkkTextStyles.text(16, FontWeight.Bold),
-            color = RunkkColors.TextPrimary,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.width(40.dp)
-        )
-        RunkkAvatar(
-            faceKey = null,
-            expression = AvatarExpression.FACE,
-            modifier = Modifier.size(36.dp).clip(CircleShape).background(RunkkColors.Surface),
-            // 내 줄은 내 캐릭터, 다른 러너 줄은 그 러너의 표시 성별(D-327)
-            character = if (isMine) LocalAvatarCharacter.current else AvatarCharacter.of(entry.shownGender)
-        )
-        Text(
-            entry.name,
-            style = RunkkTextStyles.text(15, if (isMine) FontWeight.Bold else FontWeight.Normal),
-            color = RunkkColors.TextPrimary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f)
-        )
-        Text(
-            stringResource(R.string.record_ranking_km, RunkkFormat.kmShort(entry.distance)),
-            style = RunkkTextStyles.text(16, FontWeight.Bold),
-            color = RunkkColors.TextPrimary
-        )
-    }
-}
-
-/** 랭킹 한 줄 읽기: "2위 달리는곰, 41.20킬로미터, 나". */
-@Composable
-internal fun rankingSpoken(entry: Ranking.Entry, isMine: Boolean): String = listOfNotNull(
-    stringResource(R.string.record_ranking_spoken_entry, entry.rank, entry.name),
-    stringResource(R.string.record_distance_spoken, RunkkFormat.km(entry.distance)),
-    if (isMine) stringResource(R.string.record_ranking_spoken_me) else null
-).joinToString(", ")
+/** 고정한 내 순위 카드에 가리지 않게 목록 아래에 비워 둘 높이와, 카드 뒤 아래 흐림 높이. */
+private val MINE_CARD_SPACE = 120.dp
+private val MINE_FADE_HEIGHT = 120.dp
 
 // ---------- 목표·러닝 코치 ----------
 

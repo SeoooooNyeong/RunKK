@@ -29,13 +29,14 @@
     <string name="run_paused_label">일시정지</string>
     <string name="run_split_banner">%1$dkm, %2$s, 평균 페이스 %3$s</string>
     <string name="run_result_not_found">기록을 찾지 못했어요</string>
-    <string name="run_result_card">기록 카드</string>
+    <string name="run_result_card">기록 카드 만들기</string>
     <string name="run_result_home">홈으로</string>
     <string name="run_result_title">러닝 결과</string>
-    <string name="run_result_date_pattern">M.dd E · a h:mm</string>
     <string name="run_kind_free">자유런</string>
     <string name="run_kind_battle">배틀런</string>
     <string name="run_kind_self">셀프런</string>
     <string name="run_kind_celeb">셀럽런</string>
     <string name="run_kind_crew">크루런</string>
+    <string name="run_result_hero_date_pattern">M월 d일 (E) a h:mm</string>
+    <string name="run_result_reward">리워드</string>
 </resources>

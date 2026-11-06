@@ -1,5 +1,6 @@
 package com.a207.runkk.app.data.device
 
+import com.a207.runkk.app.domain.run.GpsWarmUp
 import com.a207.runkk.app.domain.run.GuidanceOutput
 import com.a207.runkk.app.domain.run.LocationPermission
 import com.a207.runkk.app.domain.run.MeasurementHost
@@ -12,7 +13,7 @@ import java.time.Clock
 
 /**
  * GuidanceOutput ← AndroidGuidanceOutput, LocationPermission ← AndroidLocationPermission,
- * MeasurementHost ← MeasurementService.Host(6.1.14, D-61).
+ * MeasurementHost ← MeasurementService.Host(6.1.14, D-61), GpsWarmUp ← FusedGpsWarmUp(W55).
  * 측정 시각(RunTracker·두 조정자가 주입받는 java.time.Clock)도 기기 기능이라 여기서 하나만 내준다.
  */
 @Module
@@ -20,6 +21,9 @@ import java.time.Clock
 abstract class DeviceBindings {
     @Binds
     abstract fun guidanceOutput(impl: AndroidGuidanceOutput): GuidanceOutput
+
+    @Binds
+    abstract fun gpsWarmUp(impl: FusedGpsWarmUp): GpsWarmUp
 
     @Binds
     abstract fun locationPermission(impl: AndroidLocationPermission): LocationPermission

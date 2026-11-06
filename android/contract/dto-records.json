@@ -339,6 +339,10 @@
    {
     "kind": "leaf",
     "name": "celebrityFigure"
+   },
+   {
+    "kind": "leaf",
+    "name": "placementRound"
    }
   ],
   "file": "web/battle/BattleDtos.java"
@@ -449,6 +453,14 @@
    {
     "kind": "leaf",
     "name": "celebrityFigure"
+   },
+   {
+    "kind": "leaf",
+    "name": "placementRound"
+   },
+   {
+    "kind": "leaf",
+    "name": "placementState"
    }
   ],
   "file": "web/battle/BattleDtos.java"
@@ -559,6 +571,14 @@
    {
     "kind": "leaf",
     "name": "sourceLabel"
+   },
+   {
+    "kind": "leaf",
+    "name": "placementRound"
+   },
+   {
+    "kind": "leaf",
+    "name": "opponentMemberId"
    }
   ],
   "file": "web/battle/BattleDtos.java"
@@ -622,6 +642,14 @@
    {
     "kind": "leaf",
     "name": "defaultDistanceMeters"
+   },
+   {
+    "kind": "leaf",
+    "name": "placementRound"
+   },
+   {
+    "kind": "leaf",
+    "name": "battleId"
    }
   ],
   "file": "web/battle/BattleDtos.java"
@@ -2292,6 +2320,69 @@
   ],
   "file": "web/me/MeController.java"
  },
+ "MeController.PlacementResponse": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "status"
+   },
+   {
+    "kind": "leaf",
+    "name": "countedRounds"
+   },
+   {
+    "kind": "leaf",
+    "name": "nextRound"
+   },
+   {
+    "kind": "leaf",
+    "name": "provisionalTier"
+   },
+   {
+    "kind": "leaf",
+    "name": "tier"
+   },
+   {
+    "kind": "list",
+    "name": "rounds",
+    "ref": "MeController.PlacementResponse.Round"
+   }
+  ],
+  "file": "web/me/MeController.java"
+ },
+ "MeController.PlacementResponse.Round": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "round"
+   },
+   {
+    "kind": "leaf",
+    "name": "battleId"
+   },
+   {
+    "kind": "leaf",
+    "name": "battleDistanceMeters"
+   },
+   {
+    "kind": "leaf",
+    "name": "distanceMeters"
+   },
+   {
+    "kind": "leaf",
+    "name": "elapsedSeconds"
+   },
+   {
+    "kind": "leaf",
+    "name": "averagePaceSecondsPerKm"
+   },
+   {
+    "kind": "leaf",
+    "name": "verdict"
+   }
+  ],
+  "file": "web/me/MeController.java"
+ },
  "MeController.ProfileEditRequest": {
   "components": [
    {
@@ -2735,6 +2826,11 @@
    {
     "kind": "leaf",
     "name": "streakWeeks"
+   },
+   {
+    "kind": "record",
+    "name": "latestRun",
+    "ref": "RecordDtos.RunSummaryDto"
    }
   ],
   "file": "web/record/RecordDtos.java"
@@ -2797,6 +2893,10 @@
    {
     "kind": "leaf",
     "name": "shownGender"
+   },
+   {
+    "kind": "leaf",
+    "name": "publicTier"
    }
   ],
   "file": "web/record/RecordDtos.java"

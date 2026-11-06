@@ -262,6 +262,9 @@
     }, {
       "name" : "celebrityFigure",
       "kind" : "leaf"
+    }, {
+      "name" : "placementRound",
+      "kind" : "leaf"
     } ],
     "file" : "web/battle/BattleDtos.java"
   },
@@ -345,6 +348,12 @@
       "kind" : "leaf"
     }, {
       "name" : "celebrityFigure",
+      "kind" : "leaf"
+    }, {
+      "name" : "placementRound",
+      "kind" : "leaf"
+    }, {
+      "name" : "placementState",
       "kind" : "leaf"
     } ],
     "file" : "web/battle/BattleDtos.java"
@@ -430,6 +439,12 @@
     }, {
       "name" : "sourceLabel",
       "kind" : "leaf"
+    }, {
+      "name" : "placementRound",
+      "kind" : "leaf"
+    }, {
+      "name" : "opponentMemberId",
+      "kind" : "leaf"
     } ],
     "file" : "web/battle/BattleDtos.java"
   },
@@ -477,6 +492,12 @@
       "kind" : "leaf"
     }, {
       "name" : "defaultDistanceMeters",
+      "kind" : "leaf"
+    }, {
+      "name" : "placementRound",
+      "kind" : "leaf"
+    }, {
+      "name" : "battleId",
       "kind" : "leaf"
     } ],
     "file" : "web/battle/BattleDtos.java"
@@ -1759,6 +1780,54 @@
     } ],
     "file" : "web/me/MeController.java"
   },
+  "MeController.PlacementResponse" : {
+    "components" : [ {
+      "name" : "status",
+      "kind" : "leaf"
+    }, {
+      "name" : "countedRounds",
+      "kind" : "leaf"
+    }, {
+      "name" : "nextRound",
+      "kind" : "leaf"
+    }, {
+      "name" : "provisionalTier",
+      "kind" : "leaf"
+    }, {
+      "name" : "tier",
+      "kind" : "leaf"
+    }, {
+      "name" : "rounds",
+      "kind" : "list",
+      "ref" : "MeController.PlacementResponse.Round"
+    } ],
+    "file" : "web/me/MeController.java"
+  },
+  "MeController.PlacementResponse.Round" : {
+    "components" : [ {
+      "name" : "round",
+      "kind" : "leaf"
+    }, {
+      "name" : "battleId",
+      "kind" : "leaf"
+    }, {
+      "name" : "battleDistanceMeters",
+      "kind" : "leaf"
+    }, {
+      "name" : "distanceMeters",
+      "kind" : "leaf"
+    }, {
+      "name" : "elapsedSeconds",
+      "kind" : "leaf"
+    }, {
+      "name" : "averagePaceSecondsPerKm",
+      "kind" : "leaf"
+    }, {
+      "name" : "verdict",
+      "kind" : "leaf"
+    } ],
+    "file" : "web/me/MeController.java"
+  },
   "MeController.ProfileEditRequest" : {
     "components" : [ {
       "name" : "nickname",
@@ -2097,6 +2166,10 @@
     }, {
       "name" : "streakWeeks",
       "kind" : "leaf"
+    }, {
+      "name" : "latestRun",
+      "kind" : "record",
+      "ref" : "RecordDtos.RunSummaryDto"
     } ],
     "file" : "web/record/RecordDtos.java"
   },
@@ -2143,6 +2216,9 @@
       "kind" : "leaf"
     }, {
       "name" : "shownGender",
+      "kind" : "leaf"
+    }, {
+      "name" : "publicTier",
       "kind" : "leaf"
     } ],
     "file" : "web/record/RecordDtos.java"

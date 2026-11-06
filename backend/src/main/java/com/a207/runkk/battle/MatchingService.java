@@ -32,6 +32,7 @@ public class MatchingService {
     private final MemberSettingService memberSettingService;
     private final MatchQueue matchQueue;
     private final RunnerAvailability runnerAvailability;
+    private final PlacementMatcher placementMatcher;
     private final Clock clock;
 
     public MatchingService(
@@ -39,17 +40,20 @@ public class MatchingService {
             MemberSettingService memberSettingService,
             MatchQueue matchQueue,
             RunnerAvailability runnerAvailability,
+            PlacementMatcher placementMatcher,
             Clock clock) {
         this.memberQueryService = memberQueryService;
         this.memberSettingService = memberSettingService;
         this.matchQueue = matchQueue;
         this.runnerAvailability = runnerAvailability;
+        this.placementMatcher = placementMatcher;
         this.clock = clock;
     }
 
     /**
-     * 4.1 의사결정표: 거리·위치 동의 → 언랭 → 이미 대기·대결·초대 대기 중 → 대기 등록 + 기본 대결 거리 기억. 대기열을 쓸 수 없으면
-     * QUEUE_UNAVAILABLE.
+     * 4.1 의사결정표(05-21 D-478): 거리 → 위치 동의 → 티어. 언랭은 배치고사 대결을 대기열 없이 바로 만들고(PlacementMatcher.start,
+     * RANKED_ONLY는 더 내지 않음), 잠근 뒤 이미 랭크 티어였으면 확정 티어 흐름으로 간다(D-518). 확정 티어: 이미 대기·대결·초대 대기 중 → 대기 등록
+     * + 기본 대결 거리 기억. 대기열을 쓸 수 없으면 QUEUE_UNAVAILABLE.
      */
     @Transactional
     public MatchAcceptance requestMatch(long memberId, StandardDistance distance) {
@@ -60,11 +64,19 @@ public class MatchingService {
             throw new BusinessRuleException(ReasonCode.LOCATION_CONSENT_REQUIRED);
         }
         Tier tier = tierOf(memberId);
-        if (!tier.isRanked()) {
-            throw new BusinessRuleException(ReasonCode.RANKED_ONLY);
-        }
         LocalDateTime now = LocalDateTime.now(clock);
-        boolean queued = queueing(() -> enqueueIfFree(memberId, tier, distance, now));
+        if (!tier.isRanked()) {
+            Optional<Battle> placement = placementMatcher.start(memberId, distance, now);
+            if (placement.isPresent()) {
+                memberSettingService.rememberBattleDistance(memberId, distance);
+                Battle battle = placement.get();
+                return MatchAcceptance.placement(
+                        distance, battle.placementRound().orElseThrow(), battle.getId());
+            }
+            tier = tierOf(memberId); // 잠근 사이 3판째 셈이 커밋돼 랭크 티어가 됐다(D-518)
+        }
+        Tier ranked = tier;
+        boolean queued = queueing(() -> enqueueIfFree(memberId, ranked, distance, now));
         if (!queued) {
             throw new BusinessRuleException(ReasonCode.ALREADY_IN_BATTLE);
         }

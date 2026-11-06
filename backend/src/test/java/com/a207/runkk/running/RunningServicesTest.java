@@ -339,6 +339,11 @@ class RunningServicesTest {
 
         RunComparison cmp = query.comparisonOf(id(1));
         assertThat(cmp.elapsed()).isEqualTo(Duration.ofMinutes(25));
+        // PL1-B1: 없는 기록은 예외 대신 비어 있다(읽기 트랜잭션을 rollback-only로 만들지 않음)
+        assertThat(query.findComparison(id(1))).contains(cmp);
+        assertThat(query.findComparison(id(9))).isEmpty();
+        assertThat(query.findSummary(id(1))).contains(query.summary(id(1)));
+        assertThat(query.findSummary(id(9))).isEmpty();
 
         RunCurve curve = query.curve(id(1), Distance.ofKm(3));
         assertThat(curve.samples().get(0).distance()).isEqualTo(Distance.ZERO);
@@ -384,12 +389,15 @@ class RunningServicesTest {
         long m = member();
         TierLevelService real =
                 new TierLevelService(
-                        members, new OperationPolicy(new InMemoryOperationSettingRepository()));
+                        members,
+                        new com.a207.runkk.member.InMemoryPlacementProgressRepository(),
+                        new OperationPolicy(new InMemoryOperationSettingRepository()));
         for (int i = 1; i <= 3; i++) {
             send(m, upload(id(i), START.plusHours(i), 5_000, 1_500));
         }
         saved().forEach(listener(real)::onRunSaved);
-        assertThat(members.findById(m).orElseThrow().getTier()).isEqualTo(Tier.GOLD);
+        // 일반 러닝은 첫 배치를 하지 않는다(J24-6): 3회 반영 뒤에도 언랭, 누적 거리만 늘어난다
+        assertThat(members.findById(m).orElseThrow().getTier()).isEqualTo(Tier.UNRANKED);
         assertThat(records.findById(id(1)).orElseThrow().isTierApplied()).isTrue();
 
         long fresh = member();

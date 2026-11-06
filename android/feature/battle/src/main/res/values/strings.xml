@@ -132,6 +132,9 @@
     <string name="battle_match_starts_soon">곧 자동으로 출발해요</string>
     <string name="battle_match_avatar">아바타</string>
     <string name="battle_match_forfeit">그만두기</string>
+    <string name="battle_match_gps_searching">GPS 찾는 중</string>
+    <string name="battle_match_gps_ready">GPS 준비됨</string>
+    <string name="battle_match_gps_guide">출발 전에 밖에서 가볍게 뛰며 기다려 주세요</string>
     <string name="battle_active_title">진행 중인 대결이 있어요</string>
     <string name="battle_active_message_name">%1$s님과 %2$s 대결</string>
     <string name="battle_active_message">%1$s 대결</string>

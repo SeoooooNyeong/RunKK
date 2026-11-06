@@ -3,12 +3,14 @@ package com.a207.runkk.watch.battle
 import android.content.res.Resources
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.domain.battle.BattleResult
+import com.a207.runkk.app.domain.battle.PlacementRoundState
+import com.a207.runkk.app.domain.battle.RandomBattleGate
 import com.a207.runkk.app.domain.run.FinishOutcome
 import com.a207.runkk.watch.ui.R
 
 /**
  * 워치 결과 화면의 머리말과 결과 문구(3.5, D-381, D-388, FR-249 표). 결과 종류마다 객체가 자기 머리말([title])과 문구([subtitle])를 낸다.
- * 흐름마다 자기 종류를 알므로 팩토리로 고른다: 자유런 [forFree], 배틀런 [forBattle], 셀프런·셀럽런은 서버 대결이면
+ * 흐름마다 자기 종류를 알므로 팩토리로 고른다: 자유런 [forFree], 배틀런 [forBattle](배치고사 판이면 [forPlacement]), 셀프런·셀럽런은 서버 대결이면
  * [forSelfVerdict]·[forCelebVerdict](서버 판정, W27), 서버에 닿지 않은 회면 [forSelf]·[forCeleb](워치 계산). 기록 대결 종류를
  * 매개변수로 넘겨 안에서 가르지 않는다(design-review 23장 R73, 제어 결합 없음). 문구 표는 이 파일 한 곳에만 있다.
  */
@@ -94,6 +96,56 @@ sealed interface WatchResultHeadline {
         override fun subtitle(res: Resources): String = res.getString(R.string.result_pending)
     }
 
+    /**
+     * 배치고사 판 결과(워치 배치고사, FR-280·FR-281, D-487). 머리말은 판정([verdict])의 것을 그대로 두고, 문구는 가상 상대 이름 대신 이 판이
+     * 배치고사에 어떻게 들어갔는지([line])다. [line]이 집계 중이면 화면이 판 셈을 다시 읽는다([isCounting]).
+     */
+    data class Placement(val verdict: WatchResultHeadline, val line: PlacementLine) : WatchResultHeadline {
+        /** 판 셈이 아직 정해지지 않았다(PENDING): 2초마다 다시 읽는다(D-501). */
+        val isCounting: Boolean get() = line == PlacementLine.Pending
+
+        override fun title(): String = verdict.title()
+
+        override fun subtitle(res: Resources): String = line.text(res)
+    }
+
+    /** 배치고사 판 결과 문구 한 줄. */
+    sealed interface PlacementLine {
+        fun text(res: Resources): String
+
+        /** 판을 셌고 배치고사를 마쳤다: 「배치고사 완료 · 티어 확정 골드」. [tier]는 서버 Tier 이름이다. */
+        data class Confirmed(val tier: String) : PlacementLine {
+            override fun text(res: Resources): String =
+                res.getString(R.string.result_placement_confirmed, tierText(res, tier))
+        }
+
+        /**
+         * 판을 셌고 아직 배치 중이다: 「배치고사 [countedRounds]/3 · 임시 실버」. 임시 티어가 없으면(또는 진행을 읽지 못했으면) 「배치고사 n/3」만이다.
+         */
+        data class InProgress(val countedRounds: Int, val provisionalTier: String?) : PlacementLine {
+            override fun text(res: Resources): String = if (provisionalTier == null) {
+                res.getString(R.string.placement_round, countedRounds, RandomBattleGate.PLACEMENT_RUNS)
+            } else {
+                res.getString(
+                    R.string.result_placement_provisional,
+                    countedRounds,
+                    RandomBattleGate.PLACEMENT_RUNS,
+                    tierText(res, provisionalTier)
+                )
+            }
+        }
+
+        /** 이 판은 배치고사에 들어가지 않았다(포기·무효 기록 등, NOT_COUNTED). */
+        data object NotCounted : PlacementLine {
+            override fun text(res: Resources): String = res.getString(R.string.result_placement_not_counted)
+        }
+
+        /** 판 셈을 아직 모른다(PENDING): 「배치고사 결과를 집계하고 있어요」. */
+        data object Pending : PlacementLine {
+            override fun text(res: Resources): String = res.getString(R.string.result_placement_pending)
+        }
+    }
+
     companion object {
         /** 자유런: 목표가 없으면 FINISH, 목표 거리에 닿았으면 GOAL, 목표 전에 끝냈으면 STOP. */
         fun forFree(outcome: FinishOutcome, goal: Distance?): WatchResultHeadline {
@@ -115,6 +167,32 @@ sealed interface WatchResultHeadline {
                 VERDICT_LOSE -> Lose(name, result.opponentReach?.let { mine.minus(it).seconds.coerceAtLeast(0) })
                 else -> Finish
             }
+        }
+
+        /**
+         * 배치고사 판 결과(워치 배치고사, FR-280): 배치고사 대결이 아니거나([BattleResult.placementRound] 없음) 판정을 기다리는 중이면
+         * [verdict] 그대로다. 아니면 판정 머리말에 판 셈 문구를 단다: 셌고 배치고사를 마쳤으면 티어 확정, 셌고 아직 배치 중이면 센 판 수와
+         * 임시 티어(진행 [progress]를 읽지 못했으면 이 판 번호만), 세지 않았으면 반영 안 됨, 셈을 모르면(PENDING·모르는 값) 집계 중이다.
+         */
+        fun forPlacement(
+            verdict: WatchResultHeadline,
+            result: BattleResult,
+            progress: PlacementStanding?
+        ): WatchResultHeadline {
+            val round = result.placementRound ?: return verdict
+            if (verdict == Pending) return verdict
+            val line = when (result.placementState) {
+                PlacementRoundState.COUNTED -> when {
+                    progress == null -> PlacementLine.InProgress(round, provisionalTier = null)
+                    progress.isCompleted -> PlacementLine.Confirmed(progress.tier)
+                    else -> PlacementLine.InProgress(progress.countedRounds, progress.provisionalTier)
+                }
+
+                PlacementRoundState.NOT_COUNTED -> PlacementLine.NotCounted
+
+                PlacementRoundState.PENDING, null -> PlacementLine.Pending
+            }
+            return Placement(verdict, line)
         }
 
         /**
@@ -193,3 +271,20 @@ sealed interface WatchResultHeadline {
         private const val VERDICT_LOSE = "LOSE"
     }
 }
+
+/** 배치고사 판 수(공용 RandomBattleGate.PLACEMENT_RUNS). watch.ui는 domain.battle을 보지 않아 이 값으로 「n/3」의 분모를 쓴다. */
+const val PLACEMENT_RUNS: Int = RandomBattleGate.PLACEMENT_RUNS
+
+/** 서버 티어 코드 → 이름 문자열 리소스(폰 core.designsystem TierName과 같은 표). 모르는 코드면 null이다. 화면 tierName도 이 표를 쓴다. */
+internal fun tierNameRes(tier: String): Int? = when (tier) {
+    RandomBattleGate.UNRANKED -> R.string.tier_unranked
+    "BRONZE" -> R.string.tier_bronze
+    "SILVER" -> R.string.tier_silver
+    "GOLD" -> R.string.tier_gold
+    "PLATINUM" -> R.string.tier_platinum
+    "MASTER" -> R.string.tier_master
+    else -> null
+}
+
+/** 티어 이름(모르는 코드는 그대로). */
+private fun tierText(res: Resources, tier: String): String = tierNameRes(tier)?.let(res::getString) ?: tier

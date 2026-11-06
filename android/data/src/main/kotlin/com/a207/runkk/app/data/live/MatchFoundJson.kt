@@ -42,7 +42,8 @@ internal data class MatchFoundJson(
     val myBest: Long? = null,
     val opponentBest: Long? = null,
     val animationSeconds: Int,
-    val opponentGender: String? = null
+    val opponentGender: String? = null,
+    val placementRound: Int? = null
 ) {
     fun toDomain(): MatchFound = MatchFound(
         battleId = battleId,
@@ -52,6 +53,7 @@ internal data class MatchFoundJson(
         myBest = myBest?.let(Duration::ofSeconds),
         opponentBest = opponentBest?.let(Duration::ofSeconds),
         animationSeconds = animationSeconds,
-        opponentGender = enumByName<Gender>(opponentGender)
+        opponentGender = enumByName<Gender>(opponentGender),
+        placementRound = placementRound
     )
 }

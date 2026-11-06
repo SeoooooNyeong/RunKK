@@ -1,6 +1,7 @@
 package com.a207.runkk.web.record;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -226,6 +227,27 @@ class RecordControllerTest extends WebTestSupport {
     }
 
     @Test
+    @DisplayName(
+            "TC-5801 랭킹 행 publicTier: 조회 때 회원의 지금 티어(배치 중 UNRANKED → 확정 뒤 바로 반영), 스냅숏 tier는"
+                    + " 그대로(D-486)")
+    void ranking_carriesPublicTier() throws Exception {
+        Session me = signUp();
+        upload(me, 7_000, 2_100);
+        rankingService.rebuild(LocalDateTime.now(SEOUL));
+        JsonNode before = getJson(me, "/api/v1/rankings/personal", "period", "WEEKLY").get("mine");
+        assertThat(before.get("publicTier").asText()).isEqualTo("UNRANKED");
+        assertThat(before.get("tier").asText()).isEqualTo("UNRANKED");
+
+        rank(me, com.a207.runkk.common.Tier.GOLD);
+        JsonNode after = getJson(me, "/api/v1/rankings/personal", "period", "WEEKLY").get("mine");
+        assertThat(after.get("publicTier").asText()).isEqualTo("GOLD");
+        assertThat(after.get("tier").asText()).as("스냅숏 값(0시) 그대로").isEqualTo("UNRANKED");
+        assertThat(after.has("provisionalTier")).isFalse();
+        JsonNode crew = getJson(me, "/api/v1/rankings/crew", "period", "MONTHLY");
+        assertThat(crew.get("mine").isNull()).isTrue();
+    }
+
+    @Test
     @DisplayName("주간 목표·계획: 저장, 범위 위반 409, 누락 400, 오늘 계획 없으면 204, 이행 현황")
     void goalsAndPlans() throws Exception {
         Session me = signUp();
@@ -277,6 +299,25 @@ class RecordControllerTest extends WebTestSupport {
         JsonNode dashboard = getJson(me, "/api/v1/dashboard");
         assertThat(dashboard.get("weekly").get("goalRuns").asInt()).isEqualTo(3);
         assertThat(dashboard.get("weeklyAchievement").asDouble()).isGreaterThan(0.0);
+    }
+
+    @Test
+    @DisplayName("계획 취소: DELETE /plans/{date}는 204, 다시 불러도 204, 지난 날짜는 409 PAST_DATE")
+    void deletePlan() throws Exception {
+        Session me = signUp();
+        mvc.perform(
+                        as(me, put("/api/v1/plans/" + TODAY))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(write(Map.of("distanceMeters", 3_000))))
+                .andExpect(status().isOk());
+
+        mvc.perform(as(me, delete("/api/v1/plans/" + TODAY))).andExpect(status().isNoContent());
+        mvc.perform(as(me, delete("/api/v1/plans/" + TODAY))).andExpect(status().isNoContent());
+
+        mvc.perform(as(me, get("/api/v1/plans/today"))).andExpect(status().isNoContent());
+        mvc.perform(as(me, delete("/api/v1/plans/" + TODAY.minusDays(1))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("PAST_DATE"));
     }
 
     @Test

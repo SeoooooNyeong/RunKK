@@ -21,6 +21,8 @@ import java.util.Map;
  * @param weekly 이번 주 목표 달성률, 목표가 없으면 null(목표 설정 안내)
  * @param crew 크루 영역, 크루가 없으면 null
  * @param calendar 기준일이 속한 달의 날짜별 기록
+ * @param latestRun 본인 기록 가운데 시작 시각이 가장 늦은 1건(유효·무효 모두, 기록 목록 맨 위 행과 같은 값), 없으면 null(05-21 D-491).
+ *     대결 결과는 analysis가 battle을 모르므로 web.record가 붙인다(D-33)
  */
 public record DashboardView(
         LocalDate baseDate,
@@ -36,7 +38,8 @@ public record DashboardView(
         int rewardBalance,
         int monthRuns,
         Distance monthMeters,
-        int streakWeeks) {
+        int streakWeeks,
+        RecordRow latestRun) {
 
     /**
      * 거리·시간·횟수 합.

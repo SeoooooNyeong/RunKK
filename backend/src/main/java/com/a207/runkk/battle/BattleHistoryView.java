@@ -35,6 +35,8 @@ public record BattleHistoryView(
      * @param newRecord 신기록 여부
      * @param gap 기록 차이(본인 도달 시간 − 상대 도달 시간, 음수면 본인이 빠름, FR-101), 어느 쪽이든 도달 시간이 없으면 null
      * @param sourceLabel 유명인 기록 출처 표기(FR-100), 유명인 대결이 아니거나 기록이 지워졌으면 null
+     * @param placementRound 배치고사 대결이면 판 번호, 아니면 null(05-03 P6, J24-22)
+     * @param opponentMemberId 친구 대결이고 상대가 탈퇴하지 않았으면 상대 회원 ID, 그 밖은 null(D-492)
      */
     public record Entry(
             long battleId,
@@ -45,5 +47,7 @@ public record BattleHistoryView(
             Verdict verdict,
             boolean newRecord,
             Duration gap,
-            String sourceLabel) {}
+            String sourceLabel,
+            Integer placementRound,
+            Long opponentMemberId) {}
 }

@@ -2,7 +2,10 @@ package com.a207.runkk.app.ui.run
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.a207.runkk.app.core.designsystem.AchievementIcon
+import com.a207.runkk.app.core.designsystem.AchievementRow
 import com.a207.runkk.app.core.designsystem.RunkkErrorText
+import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.Pace
@@ -73,6 +76,7 @@ class RunResultViewModel @Inject constructor(
                         distance = local.distance,
                         elapsed = local.elapsed,
                         averagePace = averagePace(local.elapsed, local.distance),
+                        heartRateSource = RunResultUiState.HEART_SOURCE_WATCH,
                         averageHeartRate = local.heartRates.takeIf { hr ->
                             hr.isNotEmpty()
                         }?.map { hr -> hr.bpm }?.average()?.roundToInt(),
@@ -108,8 +112,13 @@ class RunResultViewModel @Inject constructor(
                         averageHeartRate = detail.averageHeartRate ?: it.averageHeartRate,
                         splitPaces = detail.splitPaces,
                         newRecords = detail.newRecords,
-                        heartRateZones = detail.heartRateZones.toList(),
+                        heartRateZones = detail.heartRateZones,
                         rewardPoints = detail.rewardPoints,
+                        heartRateSource = RunResultUiState.HEART_SOURCE_WATCH,
+                        // 서버는 출생연도가 있을 때만 구간을 준다: 심박은 있는데 구간이 없으면 출생연도가 없다.
+                        hasBirthYear = (detail.averageHeartRate ?: it.averageHeartRate) == null ||
+                            detail.heartRateZones.isNotEmpty(),
+                        achievements = achievementsOf(detail.newRecords, detail.rewardPoints),
                         pausedTotal = detail.paused.takeIf { paused -> !paused.isZero } ?: it.pausedTotal
                     )
                 }
@@ -135,6 +144,22 @@ class RunResultViewModel @Inject constructor(
 
     private companion object {
         const val LOCAL_WAIT_MILLIS = 3_000L
+
+        /** 서버 신기록 문구의 이름·값 구분자("최장 거리 신기록 · 직전 4.80km"). */
+        const val RECORD_SEPARATOR = " · "
+
+        /** 성과 줄: 신기록(서버 문구를 이름·값으로 나눈다)과 리워드 합계 「리워드」 「+n」. */
+        fun achievementsOf(newRecords: List<String>, rewardPoints: Int?): List<AchievementRow> = newRecords.map {
+            AchievementRow(
+                AchievementIcon.STAR,
+                UiText.Plain(it.substringBefore(RECORD_SEPARATOR)),
+                it.substringAfter(RECORD_SEPARATOR, missingDelimiterValue = "")
+            )
+        } + listOfNotNull(
+            rewardPoints?.let {
+                AchievementRow(AchievementIcon.REWARD, UiText.Res(R.string.run_result_reward), "+$it")
+            }
+        )
     }
 
     private fun averagePace(elapsed: Duration, distance: Distance): Pace? =

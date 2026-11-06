@@ -122,7 +122,8 @@ class MemberRunningThreadIntegrationTest {
     }
 
     @Test
-    void t1_concurrentUploadsOfOneMember_getDistinctOrdinals_andTierIsPlaced() throws Exception {
+    void t1_concurrentUploadsOfOneMember_getDistinctOrdinals_andTierStaysUnranked()
+            throws Exception {
         long m = newMember();
         int runs = 8;
         ExecutorService pool = Executors.newFixedThreadPool(runs);
@@ -151,7 +152,8 @@ class MemberRunningThreadIntegrationTest {
                 .containsExactlyInAnyOrder(1, 2, 3, 4, 5, 6, 7, 8);
         assertThat(count("select count(*) from run_record where member_id = ?", m)).isEqualTo(runs);
         Member member = members.findById(m).orElseThrow();
-        assertThat(member.getTier()).isEqualTo(Tier.GOLD);
+        // 일반 러닝은 첫 배치를 하지 않는다(배치고사 3판으로만, J24-6·D-484)
+        assertThat(member.getTier()).isEqualTo(Tier.UNRANKED);
         assertThat(member.getLevel()).isEqualTo(1);
     }
 

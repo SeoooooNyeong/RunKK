@@ -54,10 +54,15 @@ data class BattleRunningUiState(
     /** 상대 성별(지도 위 상대 그림). 셀럽·과거의 나·모르면 null(남자 그림). */
     val opponentGender: Gender? = null,
     /** 셀럽 그림 키(카운트다운·지도 위 셀럽 그림). 없으면 공통 그림. */
-    val celebrityFigure: String? = null
+    val celebrityFigure: String? = null,
+    /** 배치고사 판 번호(Routes.BattleRunning.placementRound). 있으면 지도 위 상대를 점선 원 「?」로 그린다(FR-276, J24-3). */
+    val placementRound: Int? = null
 ) {
     /** 측정 중인가(진행·종료 카운트다운). */
     val isMeasuring: Boolean get() = phase == BattlePhase.RUNNING || phase == BattlePhase.CLOSING
+
+    /** 상대 그림을 숨기는가(배치고사 상대, MatchUiState.isOpponentHidden과 같다). */
+    val isOpponentHidden: Boolean get() = placementRound != null
 
     private companion object {
         const val DEFAULT_METERS = 5_000L

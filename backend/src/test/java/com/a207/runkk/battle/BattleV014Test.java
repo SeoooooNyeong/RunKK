@@ -540,8 +540,8 @@ class BattleV014Test {
     @DisplayName("TC-9358 기록 삭제 사건: 대결 ID가 있으면 그 참가자의 기록 ID만 비운다")
     void tc9358_onRunDeleted() {
         Battle battle = battles.save(startedFriend());
-        battle.verify(ALICE, "r-a", false, null);
-        battle.verify(BOB, "r-b", true, Duration.ofMinutes(25));
+        battle.verify(ALICE, new RecordCheck("r-a", false, null, 0));
+        battle.verify(BOB, new RecordCheck("r-b", true, Duration.ofMinutes(25), 0));
         results.onRunDeleted(new RunRecordDeleted("r-a", ALICE, battle.getId(), null, NOW));
         assertThat(battle.participant(ALICE).orElseThrow().getRecordId()).isEmpty();
         assertThat(battle.participant(BOB).orElseThrow().getRecordId()).contains("r-b");
@@ -553,10 +553,10 @@ class BattleV014Test {
             "TC-9359·TC-9825 기록 삭제 뒤 결과 조회: 200, 내 기록 ID는 null, 상대 기록이 지워졌으면 비교값은 공개 안 됨, 판정은 그대로")
     void tc9359_resultAfterRecordDeleted() {
         Battle battle = finished(Battle.friend(accepted(), NOW), NOW, BOB); // 앨리스 승
-        battle.verify(ALICE, "r-a", true, Duration.ofMinutes(25));
-        battle.verify(BOB, "r-b", true, Duration.ofMinutes(26));
-        when(runs.comparisonOf(org.mockito.ArgumentMatchers.anyString()))
-                .thenThrow(new BusinessRuleException(ReasonCode.RECORD_NOT_FOUND));
+        battle.verify(ALICE, new RecordCheck("r-a", true, Duration.ofMinutes(25), 0));
+        battle.verify(BOB, new RecordCheck("r-b", true, Duration.ofMinutes(26), 0));
+        when(runs.findComparison(org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(Optional.empty());
 
         // TC-9359: 상대(밥) 기록이 지워져 비교값을 못 읽어도 오류 없이 결과를 낸다
         BattleResultView vsDeletedRival = results.result(ALICE, battle.getId());
@@ -583,16 +583,63 @@ class BattleV014Test {
     @DisplayName("D67 삭제 사건 수신자가 실패해 기록 ID가 남아도, 지워진 기록이면 결과의 내 기록 ID는 null")
     void d67_resultHidesBuriedRecordWhenForgetFailed() {
         Battle battle = finished(Battle.friend(accepted(), NOW), NOW, BOB);
-        battle.verify(ALICE, "r-a", true, Duration.ofMinutes(25));
-        battle.verify(BOB, "r-b", true, Duration.ofMinutes(26));
+        battle.verify(ALICE, new RecordCheck("r-a", true, Duration.ofMinutes(25), 0));
+        battle.verify(BOB, new RecordCheck("r-b", true, Duration.ofMinutes(26), 0));
         when(runs.isDeleted("r-a")).thenReturn(true);
-        when(runs.comparisonOf(org.mockito.ArgumentMatchers.anyString()))
-                .thenThrow(new BusinessRuleException(ReasonCode.RECORD_NOT_FOUND));
+        when(runs.findComparison(org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(Optional.empty());
 
         BattleResultView view = results.result(ALICE, battle.getId());
 
         assertThat(battle.participant(ALICE).orElseThrow().getRecordId()).contains("r-a");
         assertThat(view.myRecordId()).isNull();
         assertThat(view.verdict()).isEqualTo(Verdict.WIN);
+    }
+
+    @Test
+    @DisplayName(
+            "TC-5800·TC-5930 이력 행: 친구 대결이고 상대가 탈퇴하지 않았으면 opponentMemberId, 배치고사 판이면"
+                    + " placementRound(그 밖은 null, D-492·J24-22)")
+    void history_carriesOpponentMemberIdAndPlacementRound() {
+        Battle friend = Battle.friend(accepted(), NOW);
+        friend.scheduleStart(NOW.plusSeconds(13));
+        friend.start(NOW.plusSeconds(13));
+        friend.forfeit(BOB, NOW.plusMinutes(1));
+        battles.save(friend);
+        Battle placement = PlacementRoundCheckTest.started();
+        placement.forfeit(ALICE, NOW.plusMinutes(2));
+        battles.save(placement);
+        Battle random = BattleFixtures.startedRandom();
+        random.forfeit(BOB, NOW.plusMinutes(3));
+        battles.save(random);
+        DateRange all = new DateRange(LocalDate.of(2000, 1, 1), LocalDate.of(2100, 1, 1));
+
+        Map<Long, BattleHistoryView.Entry> rows = new HashMap<>();
+        history.history(ALICE, all, Optional.empty())
+                .entries()
+                .forEach(e -> rows.put(e.battleId(), e));
+
+        assertThat(rows.get(friend.getId()).opponentMemberId()).isEqualTo(BOB);
+        assertThat(rows.get(friend.getId()).placementRound()).isNull();
+        assertThat(rows.get(placement.getId()).placementRound()).isEqualTo(1);
+        assertThat(rows.get(placement.getId()).opponentMemberId()).isNull();
+        assertThat(rows.get(placement.getId()).type()).isEqualTo(BattleType.RANDOM);
+        assertThat(rows.get(random.getId()).opponentMemberId()).isNull();
+
+        when(members.summaries(anyCollection()))
+                .thenReturn(
+                        Map.of(
+                                BOB,
+                                new MemberSummary(
+                                        BOB,
+                                        com.a207.runkk.common.DisplayName.WITHDRAWN,
+                                        Tier.UNRANKED,
+                                        com.a207.runkk.member.ProfileVisibility.PRIVATE)));
+        assertThat(history.history(ALICE, all, Optional.empty()).entries())
+                .filteredOn(e -> e.battleId() == friend.getId())
+                .singleElement()
+                .extracting(BattleHistoryView.Entry::opponentMemberId)
+                .as("탈퇴한 상대")
+                .isNull();
     }
 }

@@ -31,7 +31,8 @@ data class BattleHistory(
 
     /**
      * [gap]은 기록 차이(본인 − 상대, 음수면 본인이 빨랐다, 없으면 null), [sourceLabel]은 유명인 기록 출처 표기,
-     * [isNewRecord]는 나와의 싸움 신기록이다.
+     * [isNewRecord]는 나와의 싸움 신기록이다. [placementRound]는 배치고사 판 번호(만든 때, 아니면 null, J24-22),
+     * [opponentMemberId]는 친구 대결 상대 회원 ID(상대가 탈퇴했거나 친구 대결이 아니면 null, D-492)다.
      */
     data class Entry(
         val battleId: Long,
@@ -42,6 +43,8 @@ data class BattleHistory(
         val playedAt: Instant,
         val gap: Duration? = null,
         val sourceLabel: String? = null,
-        val isNewRecord: Boolean = false
+        val isNewRecord: Boolean = false,
+        val placementRound: Int? = null,
+        val opponentMemberId: Long? = null
     )
 }

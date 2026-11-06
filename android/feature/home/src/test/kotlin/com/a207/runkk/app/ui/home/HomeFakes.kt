@@ -97,6 +97,8 @@ class FakeRecordRepository : RecordRepository {
 
     override suspend fun putPlan(date: LocalDate, distance: Distance, pace: Pace?): Outcome<Unit> = unused()
 
+    override suspend fun deletePlan(date: LocalDate): Outcome<Unit> = unused()
+
     override suspend fun planProgress(from: LocalDate, to: LocalDate): Outcome<PlanProgress> = unused()
 
     override suspend fun todayPlan(): Outcome<TodayPlan?> = todayPlanResult
@@ -223,6 +225,16 @@ class FakeAccountRepository : com.a207.runkk.app.domain.account.AccountRepositor
     override suspend fun settings(): Outcome<com.a207.runkk.app.domain.account.MemberSettings> {
         settingsCalls++
         return settingsResult
+    }
+
+    /** 배치 진행(GET /me/placement, D-493). 기본은 못 읽음이다. */
+    var placementResult: Outcome<com.a207.runkk.app.domain.account.PlacementProgress> =
+        Outcome.Failure(AppError.Network)
+    var placementCalls = 0
+
+    override suspend fun placement(): Outcome<com.a207.runkk.app.domain.account.PlacementProgress> {
+        placementCalls++
+        return placementResult
     }
 }
 

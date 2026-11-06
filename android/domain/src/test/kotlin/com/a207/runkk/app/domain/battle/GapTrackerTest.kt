@@ -24,9 +24,11 @@ class GapTrackerTest {
     }
 
     @Test
-    fun `대결 거리에 처음 닿으면 도착`() {
+    fun `대결 거리에 처음 닿으면 도착 - 반올림 전 거리로 본다(W54)`() {
         val tracker = GapTracker(Distance(1_000))
-        assertFalse(tracker.hasArrived(Distance(999)))
-        assertTrue(tracker.hasArrived(Distance(1_000)))
+        assertFalse(tracker.hasArrived(999.0))
+        assertFalse(tracker.hasArrived(999.7))
+        assertTrue(tracker.hasArrived(1_000.0))
+        assertTrue(tracker.hasArrived(1_000.3))
     }
 }

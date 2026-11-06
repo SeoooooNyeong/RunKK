@@ -86,6 +86,7 @@ class BattleServicesTest {
     private final OperationPolicy policy = mock(OperationPolicy.class);
     private final BattleTransactions tx = InMemoryBattleStores.transactions();
     private final Clock clock = Clock.fixed(NOW.atZone(SEOUL).toInstant(), SEOUL);
+    private final PlacementMatcher placementMatcher = mock(PlacementMatcher.class);
 
     /** nextBoolean이 늘 true인 생성기: 무작위 성별은 FEMALE(OpponentGenders.random). */
     private static final RandomGenerator FEMALE_PICK = () -> -1L;
@@ -165,6 +166,42 @@ class BattleServicesTest {
                 NOW);
     }
 
+    @Test
+    @org.junit.jupiter.api.DisplayName(
+            "TC-5790 배치고사 대결에 기록이 붙었는데 이번에 판정이 나지 않았을 때만 PlacementRecordAttached를 낸다(D-512). 판정되면"
+                    + " BattleJudged만, 배치고사가 아니면 내지 않는다")
+    void applyRecord_publishesPlacementRecordAttachedOnlyWithoutJudgement() {
+        // 기록 표본이 없으면 비어 있다. 예외를 잡는 방식은 실제 트랜잭션을 rollback-only로 만든다(PL1-B1과 같은 함정)
+        when(runs.curveOf(anyString(), any())).thenReturn(Optional.empty());
+        Battle judgedNow = battles.save(PlacementRoundCheckTest.started());
+        when(runs.timeToReach(eq("on-time"), any()))
+                .thenReturn(Optional.of(Duration.ofMinutes(25)));
+        resultService.onRunSaved(saved(ALICE, judgedNow, "on-time", true));
+        assertThat(events).hasAtLeastOneElementOfType(BattleJudged.class);
+        assertThat(events).noneMatch(e -> e instanceof PlacementRecordAttached);
+        verify(runs, never()).curve(anyString(), any());
+
+        events.clear();
+        Battle expired = battles.save(PlacementRoundCheckTest.expiredWithoutRecord());
+        when(runs.timeToReach(eq("late"), any())).thenReturn(Optional.empty());
+        resultService.onRunSaved(saved(ALICE, expired, "late", true));
+        assertThat(events)
+                .containsExactly(new PlacementRecordAttached(expired.getId(), ALICE, NOW));
+
+        events.clear();
+        Battle plain =
+                Battle.againstRecord(
+                        BattleFixtures.spec(BattleType.GHOST, Duration.ofMinutes(30)), NOW);
+        plain.scheduleStart(NOW.plusSeconds(13));
+        plain.start(NOW.plusSeconds(13));
+        LocalDateTime overtime = NOW.plusSeconds(13).plusMinutes(75);
+        plain.closeCountdown(overtime);
+        plain.expirePending(overtime.plusHours(24));
+        battles.save(plain);
+        resultService.onRunSaved(saved(ALICE, plain, "late", true));
+        assertThat(events).noneMatch(e -> e instanceof PlacementRecordAttached);
+    }
+
     @Nested
     @org.junit.jupiter.api.DisplayName("MatchingService (srs.md 6.3 4.1)")
     class Matching {
@@ -175,12 +212,21 @@ class BattleServicesTest {
                     settings,
                     queue,
                     new RunnerAvailability(queue, battles, invites),
+                    placementMatcher,
                     clock);
+        }
+
+        private Battle placementBattle(long id, int round) {
+            Battle battle = mock(Battle.class);
+            when(battle.getId()).thenReturn(id);
+            when(battle.placementRound()).thenReturn(java.util.OptionalInt.of(round));
+            return battle;
         }
 
         @Test
         @org.junit.jupiter.api.DisplayName(
-                "거리 오류·위치 동의 없음·언랭·이미 대기 중을 거부하고, 통과하면 대기 등록 + 기본 대결 거리 기억")
+                "거리 오류·위치 동의 없음을 거부하고, 언랭은 RANKED_ONLY 대신 배치고사 대결(대기 아님, 판 번호·대결 ID)을 받으며, 확정"
+                        + " 티어는 대기 등록 + 기본 대결 거리 기억, 이미 대기 중이면 거부(v0.18 D-478)")
         void requestMatch_decisionTable() {
             MatchingService matching = matching();
             assertThatThrownBy(() -> matching.requestMatch(ALICE, StandardDistance.HALF))
@@ -192,15 +238,89 @@ class BattleServicesTest {
                     .isEqualTo(ReasonCode.LOCATION_CONSENT_REQUIRED);
             when(members.summaries(List.of(8L)))
                     .thenReturn(Map.of(8L, BattleFixtures.summary(8L, Tier.UNRANKED)));
-            assertThatThrownBy(() -> matching.requestMatch(8L, StandardDistance.KM5))
-                    .extracting(e -> ((BusinessRuleException) e).reason())
-                    .isEqualTo(ReasonCode.RANKED_ONLY);
+            Battle created = placementBattle(77L, 1);
+            when(placementMatcher.start(8L, StandardDistance.KM5, NOW))
+                    .thenReturn(Optional.of(created));
+            MatchAcceptance placement = matching.requestMatch(8L, StandardDistance.KM5);
+            assertThat(placement)
+                    .isEqualTo(
+                            new MatchAcceptance(
+                                    false, StandardDistance.KM5, StandardDistance.KM5, 1, 77L));
+            assertThat(queue.findWaiting(8L)).as("대기열을 쓰지 않는다").isEmpty();
+            verify(settings).rememberBattleDistance(8L, StandardDistance.KM5);
 
             assertThat(matching.requestMatch(ALICE, StandardDistance.KM5).waiting()).isTrue();
             verify(settings).rememberBattleDistance(ALICE, StandardDistance.KM5);
             assertThatThrownBy(() -> matching.requestMatch(ALICE, StandardDistance.KM5))
                     .extracting(e -> ((BusinessRuleException) e).reason())
                     .isEqualTo(ReasonCode.ALREADY_IN_BATTLE);
+        }
+
+        @Test
+        @org.junit.jupiter.api.DisplayName(
+                "TC-5774 언랭도 거리를 먼저 본다: 1·3·5·10km가 아니면 BATTLE_DISTANCE_INVALID, 배치고사 대결 없음")
+        void requestMatch_unrankedDistanceCheckedFirst() {
+            when(members.summaries(List.of(8L)))
+                    .thenReturn(Map.of(8L, BattleFixtures.summary(8L, Tier.UNRANKED)));
+            assertThatThrownBy(() -> matching().requestMatch(8L, StandardDistance.HALF))
+                    .extracting(e -> ((BusinessRuleException) e).reason())
+                    .isEqualTo(ReasonCode.BATTLE_DISTANCE_INVALID);
+            verify(placementMatcher, never()).start(anyLong(), any(), any());
+        }
+
+        @Test
+        @org.junit.jupiter.api.DisplayName(
+                "TC-5775 위치 동의가 없는 언랭은 LOCATION_CONSENT_REQUIRED, 배치고사 대결 없음")
+        void requestMatch_unrankedWithoutConsent() {
+            when(members.summaries(List.of(8L)))
+                    .thenReturn(Map.of(8L, BattleFixtures.summary(8L, Tier.UNRANKED)));
+            when(members.hasConsent(8L, ConsentItem.LOCATION)).thenReturn(false);
+            assertThatThrownBy(() -> matching().requestMatch(8L, StandardDistance.KM5))
+                    .extracting(e -> ((BusinessRuleException) e).reason())
+                    .isEqualTo(ReasonCode.LOCATION_CONSENT_REQUIRED);
+            verify(placementMatcher, never()).start(anyLong(), any(), any());
+        }
+
+        @Test
+        @org.junit.jupiter.api.DisplayName(
+                "TC-5778 잠근 뒤 이미 랭크 티어(3판째 셈이 그 사이 커밋)면 배치고사 대신 확정 티어 대기열로 간다(D-518)")
+        void requestMatch_lockEmpty_fallsBackToQueue() {
+            when(members.summaries(List.of(8L)))
+                    .thenReturn(Map.of(8L, BattleFixtures.summary(8L, Tier.UNRANKED)))
+                    .thenReturn(Map.of(8L, BattleFixtures.summary(8L, Tier.SILVER)));
+            when(placementMatcher.start(8L, StandardDistance.KM3, NOW))
+                    .thenReturn(Optional.empty());
+
+            MatchAcceptance accepted = matching().requestMatch(8L, StandardDistance.KM3);
+
+            assertThat(accepted.waiting()).isTrue();
+            assertThat(accepted.placementRound()).isNull();
+            assertThat(queue.findWaiting(8L)).map(MatchTicket::getTier).contains(Tier.SILVER);
+        }
+
+        @Test
+        @org.junit.jupiter.api.DisplayName(
+                "TC-5779 이미 티어가 있는 회원은 지금처럼 대기열에 들어가고 배치고사를 부르지 않는다(브리프 12)")
+        void requestMatch_rankedUsesQueueAsBefore() {
+            MatchAcceptance accepted = matching().requestMatch(ALICE, StandardDistance.KM10);
+
+            assertThat(accepted)
+                    .isEqualTo(
+                            new MatchAcceptance(
+                                    true, StandardDistance.KM10, StandardDistance.KM10));
+            assertThat(accepted.battleId()).isNull();
+            verify(placementMatcher, never()).start(anyLong(), any(), any());
+        }
+
+        @Test
+        @org.junit.jupiter.api.DisplayName("TC-5780 배치고사를 마쳐 티어가 확정된 회원의 다음 요청은 일반 매칭(대기열)이다")
+        void requestMatch_afterPlacementCompletion_isNormalMatching() {
+            when(members.summaries(List.of(8L)))
+                    .thenReturn(Map.of(8L, BattleFixtures.summary(8L, Tier.PLATINUM)));
+
+            assertThat(matching().requestMatch(8L, StandardDistance.KM5).waiting()).isTrue();
+            assertThat(queue.findWaiting(8L)).map(MatchTicket::getTier).contains(Tier.PLATINUM);
+            verify(placementMatcher, never()).start(anyLong(), any(), any());
         }
 
         @Test
@@ -432,6 +552,7 @@ class BattleServicesTest {
                             settings,
                             queue,
                             new RunnerAvailability(queue, battles, invites),
+                            placementMatcher,
                             clock);
             List<Throwable> cancelOutcome = new ArrayList<>();
             when(members.ghostEligibleOwners(any(), anyLong()))
@@ -817,6 +938,7 @@ class BattleServicesTest {
                             settings,
                             queue,
                             new RunnerAvailability(queue, battles, invites),
+                            placementMatcher,
                             clock);
             record Case(
                     String state, java.util.function.Supplier<Battle> make, BattleStatus ends) {}

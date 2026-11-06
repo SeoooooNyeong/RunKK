@@ -4,12 +4,15 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.designsystem.GuideAnchors
 import com.a207.runkk.app.core.designsystem.GuideStep
 import com.a207.runkk.app.core.designsystem.LocalGuideAnchors
@@ -23,7 +26,18 @@ import com.a207.runkk.app.core.designsystem.RunkkTab
 import com.a207.runkk.app.core.designsystem.testing.RUNKK_PHONE
 import com.a207.runkk.app.core.designsystem.testing.captureRunkkScreen
 import com.a207.runkk.app.core.model.AppError
+import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.Pace
+import com.a207.runkk.app.core.model.RunMode
+import com.a207.runkk.app.core.model.TierDisplay
+import com.a207.runkk.app.domain.account.PlacementProgress
+import com.a207.runkk.app.domain.account.PlacementStatus
+import com.a207.runkk.app.domain.record.RunSummary
+import java.time.Duration
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.ZoneId
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -47,9 +61,42 @@ class HomeScreenshotTest {
         isAvatarReady = true,
         weeklyDistance = Distance(12_000),
         weeklyGoal = Distance(20_000),
-        streakWeeks = 4
+        streakWeeks = 4,
+        tierDisplay = TierDisplay.Placing
     )
 
+    /** 펼친 패널 값(피그마 61342:2228): 오늘 3.20km 18분 40초 1회, 이번 달 41.2km 9회, 최근 러닝, 5주 잔디. */
+    private val today = LocalDate.of(2026, 11, 4)
+    private val summary = HomeSummary(
+        today = TodaySummary(Distance(3_200), Duration.ofSeconds(1_120), 1),
+        month = MonthSummary(Distance(41_200), 9),
+        latestRun = RunSummary(
+            recordId = "run-9",
+            startedAt = LocalDateTime.of(2026, 11, 4, 7, 10).atZone(ZoneId.systemDefault()).toInstant(),
+            distance = Distance(3_200),
+            elapsed = Duration.ofSeconds(1_120),
+            averagePace = Pace(350),
+            isValid = true,
+            mode = RunMode.FREE,
+            cardKind = CardKind.FREE_RUN
+        ),
+        grass = GrassWeeks.of(
+            listOf(7, 9, 12, 14, 15, 20, 22, 26, 28, 30, 31).associate {
+                LocalDate.of(2026, 10, it) to Distance(3_000)
+            } + listOf(2, 4).associate { LocalDate.of(2026, 11, it) to Distance(3_200) },
+            today
+        )
+    )
+    private val expanded = loaded.copy(
+        tierDisplay = TierDisplay.Confirmed("GOLD"),
+        isSummaryExpanded = true,
+        summary = summary
+    )
+
+    /**
+     * TC-5843 내 기록 요약 접힘(FR-287·FR-288): 헤더 아주 작은 배지 「배치 중」 + Lv, 오른쪽 「내 기록 요약 ⌄」, 펼친 패널 없음.
+     * 라이트 짝은 [homeLight](A4_home_light)다.
+     */
     @Test
     fun home() = compose.captureRunkkScreen("A4_home") {
         HomeShell { HomeScreen(loaded, HomeActions(), it) }
@@ -76,9 +123,71 @@ class HomeScreenshotTest {
         HomeShell { HomeScreen(loaded.copy(isConsentSheetVisible = true), HomeActions(), it) }
     }
 
+    /** TC-5844 펼침 라이트(61342:2228). */
+    @Test
+    fun summaryExpandedLight() = compose.captureRunkkScreen("A4_summary_expanded_light", isDarkTheme = false) {
+        HomeShell { HomeScreen(expanded, HomeActions(), it) }
+    }
+
+    /** TC-5845 오늘 기록 없음(61342:2496). */
+    @Test
+    fun summaryNoToday() = compose.captureRunkkScreen("A4_summary_no_today", isDarkTheme = false) {
+        HomeShell {
+            HomeScreen(
+                expanded.copy(summary = summary.copy(today = null, month = MonthSummary(Distance(38_000), 8))),
+                HomeActions(),
+                it
+            )
+        }
+    }
+
+    /** TC-5846 펼침 다크(61343:2758). */
+    @Test
+    fun summaryExpanded() = compose.captureRunkkScreen("A4_summary_expanded") {
+        HomeShell { HomeScreen(expanded, HomeActions(), it) }
+    }
+
+    /** TC-5847 배틀런 진입 시트, 배치 중(61355:3402). 시트 안쪽을 홈 위 덮개와 함께 그린다. */
+    @Test
+    fun battleEntryPlacing() = compose.captureRunkkScreen("A4_battle_entry_placing", isDarkTheme = false) {
+        EntrySheetOnHome(PlacementProgress(PlacementStatus.IN_PROGRESS, 0, 1, null, "UNRANKED", emptyList()))
+    }
+
+    /** TC-5848 배틀런 진입 시트, 확정 티어(제안 문구). */
+    @Test
+    fun battleEntryRanked() = compose.captureRunkkScreen("A4_battle_entry_ranked", isDarkTheme = false) {
+        EntrySheetOnHome(PlacementProgress(PlacementStatus.COMPLETED, 3, null, null, "GOLD", emptyList()))
+    }
+
+    @Composable
+    private fun EntrySheetOnHome(placement: PlacementProgress) {
+        Box(Modifier.fillMaxSize()) {
+            HomeShell { HomeScreen(loaded, HomeActions(), it) }
+            Box(Modifier.fillMaxSize().background(SHEET_SCRIM))
+            CompositionLocalProvider(LocalReleaseScope provides ReleaseScope.FIRST_RELEASE) {
+                BattleEntrySheetContent(
+                    BattleEntrySheetState(placement),
+                    onRandom = {},
+                    onFriend = {},
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
+                        .background(RunkkColors.Surface)
+                )
+            }
+        }
+    }
+
     // 라이트 벌(FR-203, NFR-041 화면 10개 × 테마 2).
     @Test
     fun homeLight() = compose.captureRunkkScreen("A4_home_light", isDarkTheme = false) {
+        HomeShell { HomeScreen(loaded, HomeActions(), it) }
+    }
+
+    /** 폴드 펼친 화면(673×841dp): 배경 트랙이 아래에 남아 아바타가 트랙 위에 선다(가운데 자르기면 공중에 뜬다). */
+    @Test
+    @Config(qualifiers = "w673dp-h841dp")
+    fun homeFoldLight() = compose.captureRunkkScreen("A4_home_fold_light", isDarkTheme = false) {
         HomeShell { HomeScreen(loaded, HomeActions(), it) }
     }
 

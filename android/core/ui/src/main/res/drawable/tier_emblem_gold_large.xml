@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 티어 엠블럼 gold 112dp 라이트(피그마 61363:3403, D-495). 경로는 피그마 SVG 그대로, 색은 RunKK · Tier 변수(design-oo 7.3). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="112dp"
+    android:height="112dp"
+    android:viewportWidth="112"
+    android:viewportHeight="112">
+    <group android:translateX="-8" android:translateY="-5">
+    <path
+        android:pathData="M64 13.1667L106 37.0833V84.9167L64 108.833L22 84.9167V37.0833L64 13.1667Z"
+        android:fillColor="#F5C84B"
+        android:strokeColor="#C9932A"
+        android:strokeWidth="8.16667"
+        android:strokeLineJoin="round" />
+    <group android:rotation="-30" android:pivotX="47.989" android:pivotY="34.4737">
+    <path
+        android:pathData="M35.1557,34.4737 a12.8333,6.41667 0 1,0 25.6666,0 a12.8333,6.41667 0 1,0 -25.6666,0 Z"
+        android:fillColor="#FFF2C2" />
+    </group>
+    <path
+        android:pathData="M54.9948 70.9167L57.3646 60.6719L49.4167 53.7812L59.9167 52.8698L64 43.2083L68.0833 52.8698L78.5833 53.7812L70.6354 60.6719L73.0052 70.9167L64 65.4844L54.9948 70.9167Z"
+        android:fillColor="#C9932A" />
+    <path
+        android:pathData="M42.8979 90.1667L43.8458 86.0688L40.6667 83.3125L44.8667 82.9479L46.5 79.0833L48.1333 82.9479L52.3333 83.3125L49.1542 86.0688L50.1021 90.1667L46.5 87.9938L42.8979 90.1667Z"
+        android:fillColor="#C9932A" />
+    <path
+        android:pathData="M77.8979 90.1667L78.8458 86.0688L75.6667 83.3125L79.8667 82.9479L81.5 79.0833L83.1333 82.9479L87.3333 83.3125L84.1542 86.0688L85.1021 90.1667L81.5 87.9938L77.8979 90.1667Z"
+        android:fillColor="#C9932A" />
+    </group>
+</vector>

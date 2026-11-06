@@ -186,6 +186,20 @@ public class JpaBattleRepository implements BattleRepository {
     }
 
     @Override
+    public List<Battle> findPlacementFinishedBetween(LocalDateTime from, LocalDateTime to) {
+        return entityManager
+                .createQuery(
+                        "select b from Battle b where b.placementRound is not null"
+                                + " and b.status = :finished"
+                                + " and b.judgedAt >= :from and b.judgedAt < :to order by b.id",
+                        Battle.class)
+                .setParameter("finished", BattleStatus.FINISHED)
+                .setParameter("from", from)
+                .setParameter("to", to)
+                .getResultList();
+    }
+
+    @Override
     public List<Battle> findHistory(long memberId, DateRange range) {
         return entityManager
                 .createQuery(

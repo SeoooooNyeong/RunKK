@@ -115,6 +115,31 @@ class ColorContrastTest {
         assertEquals(dark.borderStrong, dark.runimalTileBorder)
     }
 
+    @Test
+    fun `TC-5818 티어 배지 글자와 바탕 대비는 라이트·다크 모두 4·5 이상이다`() {
+        val sets = listOf(
+            Triple("light", RunkkTierColors.light, RunkkColors.light),
+            Triple("dark", RunkkTierColors.dark, RunkkColors.dark)
+        )
+        val low = sets.flatMap { (name, tiers, colors) ->
+            val confirmed = listOf("BRONZE", "SILVER", "GOLD", "PLATINUM", "MASTER").map { tier ->
+                val palette = tiers.of(tier)
+                listOf("$name $tier 확정" to (palette.content to palette.container)) +
+                    // 임시 배지는 바탕이 표면이다.
+                    ("$name $tier 임시" to (palette.content to colors.surface))
+            }.flatten()
+            val placing = listOf("$name 배치 중" to (tiers.unranked.content to tiers.unranked.container))
+            val podium = listOf(tiers.podiumFirst, tiers.podiumSecond, tiers.podiumThird).map {
+                "$name 받침 $it" to (tiers.onPodium to it)
+            }
+            (confirmed + placing + podium).mapNotNull { (label, pair) ->
+                val ratio = contrastRatio(pair.first, pair.second).round2()
+                if (ratio >= MIN_RATIO) null else "$label $ratio"
+            }
+        }
+        assertEquals(emptyList(), low)
+    }
+
     /** 글자 토큰: text·on으로 시작하는 이름과 강조 글자에도 쓰는 lime·lavender. */
     private fun textTokens(tokens: Map<String, Color>): Set<String> =
         tokens.keys.filter { it.startsWith("text") || ON_PREFIX.matches(it) || it in ACCENT_TEXT }.toSet()

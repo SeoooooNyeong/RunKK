@@ -45,15 +45,17 @@ sealed interface WatchFlow {
 
     /**
      * 배틀런 대결 거리(FR-257): 1·3·5·10km. 서버에 닿지 않으면 [isOnline]이 거짓이고 매칭 시작을 막는다(FR-251).
-     * [runsLeft]가 있으면 랜덤 대결이 잠겨 있다(언랭, FR-080, 폰 RandomBattleGate와 같은 규칙): 1 이상은 남은 유효 러닝 수, 0은 남은 수를
-     * 모르는 잠금이다. 잠겨 있으면 매칭 시작을 막고 "러닝을 n번 더 뛰면 배틀런이 가능해요!"를 보인다.
+     * [isRandomLocked]가 참이면 옛 서버가 랜덤 대결을 RANKED_ONLY로 거부했다(WR12-1): 매칭 시작을 막고 「폰에서 배치고사를 마치면 열려요」를
+     * 보인다. 배치 중이라고 잠그지는 않는다(워치 배치고사). [placementRound]는 배치고사 중이면 다음 판 번호(1~3)이고 모드 칩에 「배치고사 n/3」을
+     * 보인다. 배치고사 중이 아니거나 진행을 읽지 못하면 null이다.
      */
     data class BattleDistance(
         override val choices: List<Choice>,
         override val selected: Int = 0,
         val isOnline: Boolean = true,
         override val notice: Notice? = null,
-        val runsLeft: Int? = null
+        val isRandomLocked: Boolean = false,
+        val placementRound: Int? = null
     ) : Picker
 
     /** 셀프런 거리(FR-258): 1·3·5·10km·하프. 카드에 내 최고 기록 시간, 기록 없는 거리는 누를 수 없다(W10). */
@@ -82,14 +84,21 @@ sealed interface WatchFlow {
     /** 배틀런 매칭 중(BMA, FR-257): 내 티어, 대결 거리, 기다린 초. */
     data class Matching(val tier: String?, val distance: Distance, val waitedSeconds: Long = 0) : WatchFlow
 
-    /** 매칭 완료(BMB, FR-086): 나와 상대 캐릭터, 티어, 거리. */
+    /**
+     * 매칭 완료(BMB, FR-086): 나와 상대 캐릭터, 티어, 거리. [placementRound]는 배치고사 대결이면 판 번호(1~3)다: 그때는 가상 상대를 숨기고
+     * (점선 원 「?」와 「배치고사 상대」, 폰 isOpponentHidden과 같다, FR-276) 티어 칩 자리에 「배치고사 n/3」을 보인다.
+     */
     data class Matched(
         val tier: String?,
         val distance: Distance,
         val opponentName: String,
         val myGender: Gender?,
-        val opponentGender: Gender?
-    ) : WatchFlow
+        val opponentGender: Gender?,
+        val placementRound: Int? = null
+    ) : WatchFlow {
+        /** 상대를 숨기는가(배치고사 상대). */
+        val isOpponentHidden: Boolean get() = placementRound != null
+    }
 
     /**
      * 출발 3·2·1·GO(FR-180, FR-087). [secondsLeft]가 0이면 GO다. 자유런 무제한은 [distance]가 null이다.
@@ -176,7 +185,7 @@ sealed interface WatchFlow {
         /** 매칭 거부·실패·연결 끊김. */
         MATCH_FAILED,
 
-        /** 랜덤 대결 잠금(언랭, 서버 RANKED_ONLY, FR-080). 문구는 BattleDistance.runsLeft로 남은 횟수를 넣는다. */
+        /** 랜덤 대결 잠금(옛 서버 RANKED_ONLY 거부, J24-12, WR12-1). 문구 「폰에서 배치고사를 마치면 열려요」. 배치 중이라고 잠그지는 않는다. */
         RANDOM_LOCKED,
 
         /** 이미 매칭을 기다리거나 대결 중(서버 ALREADY_IN_BATTLE·ALREADY_MATCHED). */
