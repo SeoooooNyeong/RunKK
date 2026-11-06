@@ -23,7 +23,7 @@ android {
         minSdk = 30
         // 폰과 같은 기준값에 1을 더해 Play 버전 코드를 분리한다.
         versionCode = providers.gradleProperty("runkk.versionCode").orElse("10").get().toInt() + 1
-        versionName = "0.11.2"
+        versionName = "0.11.3"
     }
 
     // R8 축소·난독화와 리소스 축소(W51, 폰 app과 같은 설정). 반사로 읽는 곳의 보존 규칙은 proguard-rules.pro,
