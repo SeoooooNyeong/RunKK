@@ -104,7 +104,9 @@ Judged(record): type(RunimalType), ratios(AxisRatios). v0.11에서 두 연산의
 |---------|------|-----------------|
 | `boolean canCreateSelfie(LocalDate today, SelfieLimit limit)` | 셀카 생성 가능 | 오늘 만든 횟수 < limit.perDay(기본 1회, FR-157) |
 | `void applySelfieFace(SdFaceParts parts, LocalDate today)` | 셀카 얼굴 적용 | face = SelfieFace, creationCount + 1, lastCreatedOn = today. 오늘 이미 만들었으면 BusinessRuleException(SELFIE_LIMIT) |
-| `void chooseDefault(DefaultCharacter c)` | 기본 캐릭터 | face = DefaultFace(c). 셀카 얼굴이 있어도 바꿀 수 있다(FR-158) |
+| `void chooseDefault(DefaultCharacter c)` | 기본 캐릭터 | face = DefaultFace(c). 셀카 얼굴이 있어도 바꿀 수 있다(FR-158). (v0.34, CR-154) 진행 중 얼굴 작업의 자동 얼굴 교체를 취소한다(이미 성공한 생성 횟수는 반영) |
+| (v0.34) `void beginFaceJob(String requestId)` | 얼굴 작업 예약 | 패키지 전용. Avatar 행 잠금 안에서 진행 중 요청 ID를 둔다(회원별 접수 직렬화, FR-297) |
+| (v0.34) `void applyGeneratedHead(String requestId, String jobId, LocalDate today, SelfieLimit limit)` | 생성 얼굴 반영 | 패키지 전용. 생성 횟수를 한 번만 더하고, 진행 중 요청과 같을 때만 face를 head:{회원ID}:{작업ID} 키로 바꾼다(FR-296·FR-297). 옛 selfie: 키·기본 얼굴 키는 그대로 읽힌다(FR-298) |
 | `void equip(long itemId, ItemSlot slot)` | 착용 | 같은 부위 기존 아이템 교체. 보유 확인은 AvatarService가 먼저 하고 Avatar는 보유 여부 플래그를 받지 않는다(design-review.md 9.2.1 패키지 안 제어 플래그) |
 | `void unequip(ItemSlot slot)` | 해제 | |
 | `boolean updateAppearance(BodyShape shape, SkinTone tone)` | 외형 갱신 | 체형이 바뀌면 true(알림 대상) |
@@ -136,7 +138,7 @@ SdFaceParts 속성: parts(EnumMap<FacePart, String 이미지 저장 키>), FaceP
 ##### AvatarService
 | 항목 | 내용 |
 |------|------|
-| 의존 | AvatarRepository, FaceTransformGateway, RewardService(reward), MemberQueryService(member), OperationPolicy, Clock. 셀카 변환 단계는 SelfieConversion에, 트랜잭션 나누기는 AvatarTransactions에 맡긴다 (v0.11, CR2-U7) |
+| 의존 | AvatarRepository, FaceTransformGateway, RewardService(reward), MemberQueryService(member), OperationPolicy, Clock. 셀카 변환 단계는 SelfieConversion에, 트랜잭션 나누기는 AvatarTransactions에 맡긴다 (v0.11, CR2-U7). (v0.34, CR-154) 셀카 접수·조회는 SelfieJobService로 옮겨 AvatarService에는 chooseDefault·equip·view만 남았고 FaceTransformGateway 의존이 없다(코드 1d1e5d44). 아래 createFromSelfie 행은 동기 변환 때의 기록이다 |
 
 | 시그니처 | 설명 |
 |---------|------|
@@ -189,7 +191,20 @@ SdFaceParts 속성: parts(EnumMap<FacePart, String 이미지 저장 키>), FaceP
 selectedKey(String, null = 기본 배경), backgrounds(List<항목(key, name, stage, distance, unlocked, unlockedAt?)>). web.avatar BackgroundsResponse(F.2.2)로 바꾼다.
 
 ##### AvatarWithdrawalListener
-`void onMemberWithdrawn(MemberWithdrawn e)`: Avatar 삭제와 FacePartImageStore.deleteByMember(부위 이미지)(D11의 외형 부분). 해금 배경 행(avatar_background)은 avatar 행 삭제의 FK CASCADE로 함께 지워진다 (v0.11, D-107).
+`void onMemberWithdrawn(MemberWithdrawn e)`: Avatar 삭제와 FacePartImageStore.deleteByMember(부위 이미지)(D11의 외형 부분). 해금 배경 행(avatar_background)은 avatar 행 삭제의 FK CASCADE로 함께 지워진다 (v0.11, D-107). (v0.34, CR-154) selfie_job 행은 SelfieJobService.onMemberWithdrawn이 SelfieJobRepository.deleteByMember로 지운다. ai(Node) 쪽 얼굴 자료 삭제는 #244·#257 후속 확인이다.
+
+##### SelfieJob (엔티티), SelfieJobService, FaceJobGateway (포트) (v0.34, CR-154, FR-293~FR-298)
+얼굴 생성을 ai 비동기 작업으로 바꿨다. 책임·상태도·동시성은 [얼굴비동기-박](얼굴비동기-박.md)이 원본이고 여기에는 기존 명세와 잇는 요점만 적는다.
+
+| 클래스 | 종류 | 책임 | 속성·연산 |
+|--------|------|------|-----------|
+| SelfieJob | 엔티티(selfie_job, V36) | 사진 요청 하나의 작업 진행과 반영 여부를 기록한다 | requestId(사진 해시 기반, 응답에 내지 않음), memberId, jobId, 접수 날짜, 상태, finished. `accepted(FaceJob)`, `retryAt(now)`, `submissionInProgress(now)`(접수 여부를 모르는 예약은 30초 뒤 다시 낼 수 있다), `finish()`, `missing()`, `view()`. 사진 원본·Data URL은 저장하지 않는다(FR-156) |
+| SelfieJobService | 응용 서비스 | 접수·조회와 아바타 반영을 조정한다 | 의존 FaceJobGateway, SelfieJobRepository, AvatarRepository, MemberQueryService(member), OperationPolicy, SelfieFailureStore, AvatarTransactions, Clock. `FaceJob submit(memberId, byte[] image)`(202, FR-293) · `FaceJob status(memberId, jobId)`(상태만, FR-294·FR-295) · `GeneratedHead result(memberId, jobId)`(검증 뒤 짧은 트랜잭션에서 Avatar.applyGeneratedHead, FR-296·FR-297) · `GeneratedHead latest(memberId)` · `GeneratedHead head(viewerId, ownerId, jobId)` · `AvatarBody body(bodyId)`. 외부 호출은 트랜잭션 밖, 회원 상태는 Avatar 행 잠금을 얻은 뒤 읽는다 |
+| SelfieJobRepository | 포트 | selfie_job을 읽고 쓴다 | `find(requestId)`, `byJob(memberId, jobId)`, `pending(memberId)`, `save`, `deleteByMember`. 구현 infra.avatar.JpaSelfieJobRepository |
+| FaceJobGateway | 포트 | 인증 회원의 ai 얼굴 작업을 부른다 | `submit(memberId, image)`, `status(memberId, jobId)`, `result(memberId, jobId)`, `latest(memberId)`, `body(bodyId)`. 구현 infra.integration.ai.AiServerFaceJobGateway(응답을 얼굴 계약으로 검증) |
+| FaceJob, GeneratedHead, AvatarBody | 값(record) | 작업 상태(QUEUED·RUNNING·SUCCEEDED·FAILED)와 오류, 생성 머리(faceImage·eyesImage·hairImage·합성 정보), 몸 묶음 | |
+
+SelfieConversion·SelfieLockStore·FaceTransformGateway·FaceTransformOutcome은 코드에서 빠졌다. SelfieFailureStore는 SelfieJobService가 그대로 쓴다. 5파츠 얼굴(SdFaceParts·FacePartImageStore·FaceImageService)은 기존 자료 조회용으로 남는다(FR-298).
 
 ##### FaceImageService (v0.11, CR2-U1, CR2-U7)
 | 항목 | 내용 |
@@ -266,9 +281,10 @@ v0.11에서 지운 연산: `int accruedFor(AccrualReason reason, String sourceId
 | CourseVerdictRepository (runimal) | `void save(CourseVerdict)`, `Map<String, Boolean> findByRecords(Collection<String>)`, `void deleteByMember(long)` |
 | CrewRunParticipationQuery (runimal) | `Set<String> linkedRecordIds(long memberId, DateRange range)` — 구현 crew.CrewRunParticipationReader |
 | AvatarRepository (avatar) | `Avatar findOrCreate(long)`, `Optional<Avatar> findForUpdate(long)`, `void save(Avatar)`, `Stream<Avatar> streamAll()`, `void deleteByMember(long)` |
-| FaceTransformGateway (avatar) | `FaceTransformOutcome transform(byte[] image)` (성공 SdFacePartImages 또는 실패 사유 FailureReason ∈ {NO_FACE, MULTIPLE_FACES, UNSUPPORTED_IMAGE, TOO_LARGE, UPSTREAM_FAILED, TIMEOUT} — ai 서버 FaceRouter의 reason과 같은 이름. 회원 식별자 매개변수 없음) — 구현 infra.integration.ai.AiServerFaceGateway |
+| FaceTransformGateway (avatar) | `FaceTransformOutcome transform(byte[] image)` (성공 SdFacePartImages 또는 실패 사유 FailureReason ∈ {NO_FACE, MULTIPLE_FACES, UNSUPPORTED_IMAGE, TOO_LARGE, UPSTREAM_FAILED, TIMEOUT} — ai 서버 FaceRouter의 reason과 같은 이름. 회원 식별자 매개변수 없음) — 구현 infra.integration.ai.AiServerFaceGateway. (v0.34, CR-154) 코드에서 빠지고 아래 FaceJobGateway로 바뀌었다(FR-155의 동기 변환·회원 ID 미전송 대신 회원별 ai 작업 경로) |
+| (v0.34) FaceJobGateway, SelfieJobRepository (avatar) | 위 "SelfieJob, SelfieJobService, FaceJobGateway" 표 — 구현 infra.integration.ai.AiServerFaceJobGateway, infra.avatar.JpaSelfieJobRepository (CR-154) |
 | FacePartImageStore (avatar) | `SdFaceParts save(long memberId, SdFacePartImages images)`, `void deleteByMember(long memberId)` — 구현 infra.avatar(D-59). `Optional<byte[]> find(String imageKey)`(FaceImageService가 부위 PNG를 읽는다) (v0.11, CR2-U1) |
-| SelfieLockStore, SelfieFailureStore (avatar) | 위 avatar 구현 보조 클래스 표 — 구현 infra.avatar.RedisSelfieLockStore, RedisSelfieFailureStore (v0.11, CR2-U7) |
+| SelfieLockStore, SelfieFailureStore (avatar) | 위 avatar 구현 보조 클래스 표 — 구현 infra.avatar.RedisSelfieLockStore, RedisSelfieFailureStore (v0.11, CR2-U7). (v0.34) SelfieLockStore·RedisSelfieLockStore는 코드에서 빠졌다(접수 직렬화는 Avatar 행 잠금) |
 | RewardWalletRepository (reward) | `RewardWallet findOrCreateForUpdate(long)`, `void save(RewardWallet)`, `void deleteByMember(long)` |
 | RewardAccrualRepository (reward) | `int amountFor(long memberId, AccrualReason reason, String sourceId)`(유일 색인, 없으면 0), `int sumOn(long memberId, LocalDate day)`(색인 idx_reward_accrual_member_accrued, 과거 날짜 합계), `void save(RewardAccrual a)` — 구현 infra.reward.JpaRewardAccrualRepository (v0.11, D-109) |
 
