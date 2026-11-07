@@ -861,6 +861,7 @@ final class CrewDtos {
      * @param leaderName 크루장 표시명
      * @param headcount 인원
      * @param weeklyDistanceMeters 이번 주 크루 거리
+     * @param lastWeekDistanceMeters 지난 주 크루 거리(크루 상세 통계, 피그마 F-02)
      * @param myRole LEADER | MANAGER | MEMBER, 크루 밖이면 null
      * @param inviteCode 초대 코드(크루장만)
      * @param inviteCodeExpiresAt 초대 코드 만료 일시(크루장만)
@@ -877,6 +878,7 @@ final class CrewDtos {
             String leaderName,
             int headcount,
             long weeklyDistanceMeters,
+            long lastWeekDistanceMeters,
             String myRole,
             String inviteCode,
             OffsetDateTime inviteCodeExpiresAt) {
@@ -894,6 +896,7 @@ final class CrewDtos {
                     displayOf(v.leaderName()),
                     v.headcount(),
                     v.weeklyDistance().meters(),
+                    v.lastWeekDistance().meters(),
                     v.myRole() == null ? null : v.myRole().name(),
                     v.inviteCode() == null ? null : v.inviteCode().code(),
                     v.inviteCode() == null ? null : at(v.inviteCode().expiresAt()));

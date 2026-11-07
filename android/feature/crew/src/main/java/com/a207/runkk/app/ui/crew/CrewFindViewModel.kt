@@ -32,6 +32,7 @@ class CrewFindViewModel @Inject constructor(private val crews: CrewRepository) :
     private var job: Job? = null
     private var moreJob: Job? = null
     private var mineJob: Job? = null
+    private var detailJob: Job? = null
 
     /** 찾기 목록(첫 쪽)을 한 번이라도 읽기 시작했는가. 공개 크루가 0개여도 돌아올 때마다 다시 읽지 않게 한다(리뷰 N-12). */
     private var hasRequestedFind = false
@@ -135,9 +136,20 @@ class CrewFindViewModel @Inject constructor(private val crews: CrewRepository) :
         load()
     }
 
-    fun onOpen(item: CrewList.Item) = _state.update { it.copy(detail = item) }
+    /** 상세를 연다. 지난 주 달린 거리는 크루 정보(GET /crews/{id})로 채운다. 읽지 못하면 빈 값으로 둔다. */
+    fun onOpen(item: CrewList.Item) {
+        _state.update { it.copy(detail = item, detailInfo = null) }
+        detailJob?.cancel()
+        detailJob = viewModelScope.launch {
+            val info = (crews.detail(item.crewId) as? Outcome.Success)?.value ?: return@launch
+            _state.update { if (it.detail?.crewId == item.crewId) it.copy(detailInfo = info) else it }
+        }
+    }
 
-    fun onCloseDetail() = _state.update { it.copy(detail = null) }
+    fun onCloseDetail() {
+        detailJob?.cancel()
+        _state.update { it.copy(detail = null, detailInfo = null) }
+    }
 
     fun onMessageShown() = _state.update { it.copy(message = null) }
 

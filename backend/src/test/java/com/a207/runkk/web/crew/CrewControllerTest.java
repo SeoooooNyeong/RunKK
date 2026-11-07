@@ -347,6 +347,7 @@ class CrewControllerTest extends WebTestSupport {
         JsonNode asOutsider = json(call(outsider, get("/api/v1/crews/" + crewId), null));
         assertThat(asOutsider.get("myRole").isNull()).isTrue();
         assertThat(asOutsider.get("weeklyDistanceMeters").asLong()).isZero();
+        assertThat(asOutsider.get("lastWeekDistanceMeters").asLong()).isZero();
 
         call(leader, patch("/api/v1/crews/" + crewId), Map.of("visibility", "PRIVATE"))
                 .andExpect(status().isNoContent());

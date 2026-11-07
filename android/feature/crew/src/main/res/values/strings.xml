@@ -73,7 +73,7 @@
     <string name="crew_meta_headcount">%1$d/%2$d명</string>
     <string name="crew_meta_weekly_distance">이번 주 %1$skm</string>
     <string name="crew_detail_title">크루 정보</string>
-    <string name="crew_detail_weekly">이번 주 크루 거리</string>
+    <string name="crew_detail_last_week">지난 주 달린 거리</string>
     <string name="crew_detail_pending_title">가입 신청을 보냈어요</string>
     <string name="crew_detail_pending_until">%1$s까지 결정돼요</string>
     <string name="crew_detail_full">정원이 찼어요</string>

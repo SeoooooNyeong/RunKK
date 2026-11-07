@@ -16,6 +16,7 @@ internal data class CrewDetailResponse(
     val leaderName: String? = null,
     val headcount: Int,
     val weeklyDistanceMeters: Long = 0,
+    val lastWeekDistanceMeters: Long = 0,
     val myRole: String? = null,
     val inviteCode: String? = null,
     val inviteCodeExpiresAt: String? = null

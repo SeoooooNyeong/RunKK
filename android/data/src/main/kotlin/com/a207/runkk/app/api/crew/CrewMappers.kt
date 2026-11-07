@@ -57,7 +57,8 @@ internal fun CrewDetailResponse.toDomain(): CrewDetail = CrewDetail(
     weeklyDistance = Distance(weeklyDistanceMeters),
     myRole = myRole?.let { enumByName<CrewRole>(it) },
     inviteCode = inviteCode,
-    inviteCodeExpiresAt = inviteCodeExpiresAt?.let(ServerTime::parse)
+    inviteCodeExpiresAt = inviteCodeExpiresAt?.let(ServerTime::parse),
+    lastWeekDistance = Distance(lastWeekDistanceMeters)
 )
 
 internal fun MyCrewResponse.toDomain(): MyCrew = MyCrew(

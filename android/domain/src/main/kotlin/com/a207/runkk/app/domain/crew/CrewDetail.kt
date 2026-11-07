@@ -22,7 +22,9 @@ data class CrewDetail(
     val weeklyDistance: Distance,
     val myRole: CrewRole?,
     val inviteCode: String?,
-    val inviteCodeExpiresAt: Instant?
+    val inviteCodeExpiresAt: Instant?,
+    /** 지난 주 크루 거리(크루 상세 통계, 피그마 F-02). */
+    val lastWeekDistance: Distance = Distance(0)
 ) {
     val isLeader: Boolean get() = myRole == CrewRole.LEADER
 }

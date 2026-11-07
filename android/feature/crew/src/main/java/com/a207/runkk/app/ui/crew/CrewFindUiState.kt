@@ -25,6 +25,8 @@ data class CrewFindUiState(
     val isLoadingMore: Boolean = false,
     /** 상세(바텀 시트)로 연 크루. */
     val detail: CrewList.Item? = null,
+    /** 상세로 연 크루의 정보(GET /crews/{id}): 지난 주 달린 거리(피그마 F-02). 읽기 전이면 null. */
+    val detailInfo: CrewDetail? = null,
     val isJoining: Boolean = false,
     val isInviteOpen: Boolean = false,
     val inviteCode: String = "",

@@ -60,6 +60,7 @@ class CrewV011ScenarioTest {
     @Autowired CrewPostService posts;
     @Autowired CrewRunService crewRuns;
     @Autowired WeeklyRaceService race;
+    @Autowired CrewQueryService queries;
     @Autowired CrewWithdrawalListener withdrawal;
     @Autowired MemberRepository members;
     @Autowired TransactionTemplate tx;
@@ -515,6 +516,20 @@ class CrewV011ScenarioTest {
                 .sendAll(
                         argThat(ids -> ids.contains(c.r1())),
                         eq(new CrewRunCancelled(run, "준비 완료한 참가자가 2명보다 적어 시작하지 않았어요")));
+    }
+
+    @Test
+    @DisplayName("F-02: 크루 상세는 이번 주와 따로 지난 주 크루 거리를 담는다")
+    void detailCarriesLastWeekDistance() {
+        Crew7 c = crew7();
+        LocalDate lastMonday = LocalDate.now().with(java.time.DayOfWeek.MONDAY).minusWeeks(1);
+        jdbc.update(
+                "insert into weekly_race (crew_id, week_start, total_meters) values (?, ?, 64270)",
+                c.id(),
+                lastMonday);
+        CrewDetailView detail = queries.detail(member(), c.id());
+        assertThat(detail.lastWeekDistance()).isEqualTo(Distance.ofMeters(64_270));
+        assertThat(detail.weeklyDistance()).isEqualTo(Distance.ZERO);
     }
 
     private RunRecordSaved saved(long memberId, long meters, LocalDateTime startedAt) {

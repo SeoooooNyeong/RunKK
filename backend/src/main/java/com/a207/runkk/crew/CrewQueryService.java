@@ -217,6 +217,7 @@ public class CrewQueryService {
                 nameOf(leader, leaderId),
                 crew.headcount(),
                 crewRepository.weeklyDistance(crew.getId(), thisWeek()),
+                crewRepository.weeklyDistance(crew.getId(), thisWeek().previous()),
                 role,
                 role == CrewRole.LEADER ? crew.inviteCode() : null);
     }

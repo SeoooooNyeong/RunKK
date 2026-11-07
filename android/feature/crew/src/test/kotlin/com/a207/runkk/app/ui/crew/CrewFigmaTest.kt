@@ -6,6 +6,8 @@ import androidx.compose.ui.test.performClick
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.model.Distance
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -17,6 +19,8 @@ class CrewFigmaTest {
     @get:Rule
     val compose = createComposeRule()
 
+    @get:Rule
+    val main = MainDispatcherRule()
     private val calls = mutableListOf<String>()
 
     @Test
@@ -38,5 +42,27 @@ class CrewFigmaTest {
         compose.onNodeWithText(reason).assertExists()
         compose.onNodeWithText("일정으로 돌아가기").performClick()
         assertEquals(listOf("close"), calls)
+    }
+
+    @Test
+    fun `크루 상세를 열면 크루 정보를 읽어 지난 주 달린 거리를 채우고 닫으면 지운다(F-02)`() {
+        val repo = FakeCrewRepository()
+        val vm = CrewFindViewModel(repo)
+        vm.onOpen(crewA)
+        assertEquals(11L, vm.state.value.detailInfo?.crewId)
+        assertTrue("detail:11" in repo.calls)
+        vm.onCloseDetail()
+        assertNull(vm.state.value.detailInfo)
+    }
+
+    @Test
+    fun `크루 상세 통계는 지난 주 달린 거리다(F-02)`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                CrewDetailContent(crewA, isJoining = false, onJoin = {}, lastWeekDistance = Distance(64_270))
+            }
+        }
+        compose.onNodeWithText("지난 주 달린 거리").assertExists()
+        compose.onNodeWithText("64.27km").assertExists()
     }
 }

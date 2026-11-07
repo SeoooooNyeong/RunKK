@@ -17,15 +17,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.designsystem.RunkkCard
+import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkChipGroup
 import com.a207.runkk.app.core.designsystem.RunkkChoiceChip
 import com.a207.runkk.app.core.designsystem.RunkkSegmentRow
 import com.a207.runkk.app.core.designsystem.RunkkTags
 import com.a207.runkk.app.core.designsystem.RunkkTextField
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
+import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.domain.crew.CrewVisibility
 import com.a207.runkk.app.domain.crew.JoinPolicy
 
@@ -126,3 +129,21 @@ internal fun CrewCard(
         content = content
     )
 }
+
+/** 크루 통계 칸(피그마 F-02·F-18): 작은 이름과 큰 값. 값을 아직 모르면([value]가 null) 빈 값 표시. */
+@Composable
+internal fun CrewStatCard(label: String, value: String?, modifier: Modifier = Modifier) {
+    val colors = MaterialTheme.colorScheme
+    CrewCard(modifier = modifier.semantics(mergeDescendants = true) {}) {
+        Text(label, style = RunkkTextStyles.Caption, color = colors.onSurfaceVariant)
+        Text(
+            value ?: RunkkFormat.EMPTY,
+            style = RunkkTextStyles.text(20, FontWeight.Black),
+            color = colors.onSurface
+        )
+    }
+}
+
+/** "64.27km"(소수 둘째 자리). */
+@Composable
+internal fun kmLabel(distance: Distance): String = stringResource(R.string.crew_contribution_km, RunkkFormat.km(distance))

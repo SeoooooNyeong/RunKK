@@ -11,7 +11,7 @@ import com.a207.runkk.common.TagSet;
  * @param crewId 크루 ID
  * @param name 크루명
  * @param intro 한줄소개
- * @param tags 성향 태그
+ * @param tags 크루 태그(요일·시간대)
  * @param visibility 공개 여부
  * @param joinPolicy 가입 방식
  * @param logoUrl 로고, 없으면 null
@@ -19,6 +19,7 @@ import com.a207.runkk.common.TagSet;
  * @param leaderName 크루장 표시명
  * @param headcount 인원
  * @param weeklyDistance 이번 주 크루 거리
+ * @param lastWeekDistance 지난 주 크루 거리(크루 상세 통계, 피그마 F-02)
  * @param myRole 열람자 역할, 크루 밖이면 null
  * @param inviteCode 초대 코드, 크루장이 아니면 null
  */
@@ -34,5 +35,6 @@ public record CrewDetailView(
         DisplayName leaderName,
         int headcount,
         Distance weeklyDistance,
+        Distance lastWeekDistance,
         CrewRole myRole,
         InviteCode inviteCode) {}
