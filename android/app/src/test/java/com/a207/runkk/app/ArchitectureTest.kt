@@ -48,16 +48,17 @@ class ArchitectureTest {
      * 워치: W1 watch.cache → domain.live(상대 기록 파일의 진행표를 TrackTable로 되살린다), W2 watch.link → domain.live(매칭 대기 실시간 채널),
      * W2 watch.session → domain.settings(회원 설정 사본). 그래서 폰 154개다. R79로 ui.me → domain.run(설정의 다시 보내기
      * ResendRejectedRunsUseCase를 domain.run으로 옮겼다)을 더하고, develop의 D-455 코치 하위 패키지(ui.record.coach)를 합쳐 폰 159개다.
+     * 런바디(S15P31A207-229, D-453): domain.runbody → core.model, api.runbody → api.core·domain.runbody·core.model을 더해 163개다.
      * 워치는 design-review 23장 R75 사용자 결정 (가)로 core.model을 폰과 같이 센다(기준 하나). 그러면 watch.ui가 8이라 대결 흐름을
      * watch.battle로 옮겼다(W30): ui → domain.battle·watch.cache 둘이 ui → watch.battle 하나가 되고 watch.battle이 다섯을 갖는다.
      * R76으로 쓰지 않는 watch.guide → domain.settings를 뺐다. 워치 코드 28 + core.model 다섯 줄 + battle 다섯 − ui 하나 = 37개다.
      */
     @Test
-    fun `모듈 Fan-Out은 7 이하이고 허용 표는 폰 159개·워치 37개다`() {
+    fun `모듈 Fan-Out은 7 이하이고 허용 표는 폰 163개·워치 37개다`() {
         val over = ALLOWED.filterValues { it.size > MAX_FAN_OUT }.mapValues { it.value.size }
         assertEquals(emptyMap(), over)
         val (watch, phone) = ALLOWED.entries.partition { it.key.startsWith("watch.") || it.key == "wear.contract" }
-        assertEquals(159, phone.sumOf { it.value.size })
+        assertEquals(163, phone.sumOf { it.value.size })
         assertEquals(37, watch.sumOf { it.value.size })
     }
 
@@ -411,7 +412,8 @@ class ArchitectureTest {
                 "account",
                 "chat",
                 "report",
-                "coach"
+                "coach",
+                "runbody"
             )
         private val APIS =
             listOf(
@@ -426,7 +428,8 @@ class ArchitectureTest {
                 "notification",
                 "live",
                 "chat",
-                "report"
+                "report",
+                "runbody"
             )
         private val DATAS = listOf("store", "settings", "sync", "watch", "live", "device", "push", "session", "guide")
         private val UIS =
@@ -488,6 +491,7 @@ class ArchitectureTest {
                 "domain.live" to setOf("core.model"),
                 "domain.record" to setOf("core.model"),
                 "domain.coach" to setOf("core.model"),
+                "domain.runbody" to setOf("core.model"),
                 "domain.runimal" to setOf("core.model"),
                 "domain.avatar" to setOf("core.model"),
                 "domain.report" to setOf("core.model"),
@@ -514,6 +518,8 @@ class ArchitectureTest {
                 "api.live" to setOf("api.core"),
                 "api.chat" to setOf("api.core", "domain.chat", "core.model"),
                 "api.report" to setOf("api.core", "domain.report", "core.model"),
+                // 런바디 결과 어댑터(D-453, S15P31A207-229): RunBodyRepository를 Retrofit으로 구현한다.
+                "api.runbody" to setOf("api.core", "domain.runbody", "core.model"),
                 "data.store" to setOf("domain.run", "core.model"),
                 // data.guide 추가(v0.22 R66, D-387): 안내 문구 표 GuidanceTexts를 공용 :data로 옮겼다.
                 "data.device" to setOf("domain.run", "core.model", "data.guide"),
