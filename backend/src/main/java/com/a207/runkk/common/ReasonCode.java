@@ -225,6 +225,16 @@ public enum ReasonCode {
     /** 게시글 사진이 JPEG가 아니거나 깨짐(FR-211, D-100, D-142). 422(STATUS_BY_REASON, 06-06). */
     UNSUPPORTED_IMAGE("지원하지 않는 형식"),
 
+    // runbody (05-19 D-440·D-450, 앱 계약 runbody contract.md v1.0)
+    /** 그 기록의 런바디 분석 작업이 없음(집계 제외 기록, 기능을 켜기 전 기록, 남의 기록). 404(NotFoundRuleException). */
+    RUNBODY_NOT_FOUND("분석할 데이터가 부족해요"),
+    /** 2차 배포 기능이 운영 기준값으로 닫혀 있음(RUNBODY_ENABLED false, D-440). 403(STATUS_BY_REASON). */
+    FEATURE_CLOSED("아직 열리지 않은 기능"),
+    /** ai 결과 읽기 실패·시간 초과(D-449 읽기 10초). 503(STATUS_BY_REASON). 같은 요청을 다시 보내면 된다. */
+    RUNBODY_UNAVAILABLE("분석하지 못했어요"),
+    /** 월이 yyyy-MM(2000~2099년) 형식이 아님. 400(STATUS_BY_REASON). */
+    INVALID_YEAR_MONTH("월 형식 오류"),
+
     // web.auth (코드 리뷰 3차 B-L6)
     /** 서버 저장소 일시 장애로 지금 처리할 수 없음(갱신 토큰 폐기 목록 등). 소셜 제공자 문제가 아니다. 같은 요청을 다시 보내면 된다. */
     TEMPORARILY_UNAVAILABLE("잠시 후 다시 시도해 주세요");

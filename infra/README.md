@@ -117,12 +117,13 @@ SSAFY 배정 도메인(`k15a207.p.ssafy.io`)이 EC2를 가리키는지 확인한
 
 ### 2차 배포 기능 공개 스위치
 
-크루와 아바타 꾸미기(체형·배경)는 환경 변수가 아니라 관리툴 운영 기준값으로 엽니다. `.env`와 compose에는 넣지 않습니다.
+크루, 아바타 꾸미기(체형·배경), 런바디 ai 분석은 환경 변수가 아니라 관리툴 운영 기준값으로 엽니다. `.env`와 compose에는 넣지 않습니다.
 
 | 운영 기준값 | 기본값 | 꺼져 있을 때 |
 |-------------|--------|--------------|
 | `CREW_RELEASED` | false | Runimal 동행 축이 크루런을 세지 않고, 크루 알림 16종은 알림함에만 저장하고 FCM 푸시를 보내지 않습니다 |
 | `AVATAR_RELEASED` | false | 체형 변화(`BODY_SHAPE_CHANGED`)·배경 해금(`BACKGROUND_UNLOCKED`) 알림을 알림함에만 저장하고 FCM 푸시를 보내지 않습니다 |
+| `RUNBODY_ENABLED` | false | 러닝 저장 뒤 런바디 분석 작업을 만들지 않고 ai에 제출·상태 조회하지 않습니다. `/api/v1/runbody/**`는 403 `FEATURE_CLOSED`입니다. 켜기 전에 저장한 러닝은 분석하지 않습니다 |
 
 DB에 행이 없으면 기본값(false)을 쓰므로 1차 배포(develop·prod)는 따로 넣지 않아도 닫혀 있습니다. 2차 배포에서 기능을 열 때 관리툴에서 true로 바꿉니다. 앱의 1차 배포 잠금 빌드(`LOCK_UNRELEASED`)도 같은 알림 종류를 숨기며, 두 분류는 계약 파일 `policy/GatedNotification.txt`로 대조합니다.
 

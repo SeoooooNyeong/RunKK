@@ -298,6 +298,29 @@ public class RunQueryService {
         return new RunCurve(samples, cut);
     }
 
+    /**
+     * 런바디 분석 요청 재료(설계 05-19 2.2, D-444): 심박 표본, 위치 점, 정지 구간, 거리, 운동 시간, 시작 기기, 시작·종료 일시. 기록이 없으면 비어
+     * 있다(읽기 트랜잭션을 rollback-only로 만들지 않게 예외 대신 비움). 파기한 경로·심박은 빈 목록이다.
+     */
+    public Optional<RunBodyInput> bodyInputOf(String recordId) {
+        return runRecordRepository
+                .findById(recordId)
+                .map(
+                        r ->
+                                new RunBodyInput(
+                                        r.getRecordId(),
+                                        r.getMemberId(),
+                                        r.getStartedAt(),
+                                        r.endedAt(),
+                                        r.getDistance(),
+                                        r.getElapsed(),
+                                        r.getStartDevice(),
+                                        r.isValid(),
+                                        r.heartRateSamples(),
+                                        r.isRoutePurged() ? List.of() : r.track().points(),
+                                        r.pauses()));
+    }
+
     /** d에 처음 닿은 경과 시간(크루런 도착 시각, 대결 검증). 도착이라 0.5m 반올림 차이를 허용한다(RunRecord.timeToArrive, W54). */
     public Optional<Duration> timeToReach(String recordId, Distance d) {
         return load(recordId).timeToArrive(d);
