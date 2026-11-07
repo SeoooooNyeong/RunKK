@@ -236,6 +236,7 @@
 
     <!-- 공동 목표·기여도·축하 카드(FR-138~FR-141) -->
     <string name="crew_goal_title">이번 주 공동 목표</string>
+    <string name="crew_goal_title_none">이번 주 달린 거리</string>
     <string name="crew_goal_of">/ %1$s km</string>
     <string name="crew_goal_km_unit">km</string>
     <string name="crew_goal_progress_description">공동 목표 %2$s킬로미터 중 %1$s킬로미터, %3$d퍼센트</string>

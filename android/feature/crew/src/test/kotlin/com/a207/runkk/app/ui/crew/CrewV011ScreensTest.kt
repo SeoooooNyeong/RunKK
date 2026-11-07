@@ -77,6 +77,22 @@ class CrewV011ScreensTest {
     }
 
     @Test
+    fun `레이스 - 목표가 없는 주는 이번 주 달린 거리로 읽히고 마감은 없다(F-06)`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                CrewHomeScreen(
+                    home(CrewRole.LEADER).copy(race = race.copy(contributors = raceWithGoal.contributors)),
+                    CrewHomeActions()
+                )
+            }
+        }
+        compose.onNodeWithText("이번 주 달린 거리").assertExists()
+        compose.onNodeWithText("이번 주 공동 목표").assertDoesNotExist()
+        compose.onNodeWithText("일요일 자정 마감").assertDoesNotExist()
+        compose.onNodeWithText("목표 설정").assertExists()
+    }
+
+    @Test
     fun `레이스 - 달성한 주는 축하 카드와 공유, 기여도 막대는 순위 숫자 없이 읽는다(와이어 E9, FR-140·FR-141)`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
