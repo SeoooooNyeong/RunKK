@@ -497,6 +497,26 @@ class CrewV011ScenarioTest {
                 .isZero();
     }
 
+    @Test
+    @DisplayName("F-14c: 준비 완료가 최소 준비 인원보다 적으면 그 인원을 넣은 문구로 CrewRunCancelled를 보낸다")
+    void crewRunCancelledReasonCarriesMinReady() {
+        Crew7 c = crew7();
+        LocalDateTime at = now().plusMinutes(20).withNano(0);
+        long run =
+                posts.writeCrewRun(
+                                c.r1(),
+                                c.id(),
+                                new CrewRunDraft(null, at, StandardDistance.KM3, null))
+                        .postId();
+        crewRuns.enterLobby(c.r1(), run);
+        crewRuns.toggleReady(c.r1(), run);
+        crewRuns.tick(at);
+        verify(messenger)
+                .sendAll(
+                        argThat(ids -> ids.contains(c.r1())),
+                        eq(new CrewRunCancelled(run, "준비 완료한 참가자가 2명보다 적어 시작하지 않았어요")));
+    }
+
     private RunRecordSaved saved(long memberId, long meters, LocalDateTime startedAt) {
         return new RunRecordSaved(
                 UUID.randomUUID().toString(),

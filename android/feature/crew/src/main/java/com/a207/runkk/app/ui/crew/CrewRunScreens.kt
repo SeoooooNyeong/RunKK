@@ -392,11 +392,11 @@ private fun ColumnScope.RunPhaseBody(state: CrewRunUiState, actions: CrewRunActi
 
         CrewRunPhase.RUNNING, CrewRunPhase.FINISHED -> RelayBody(state)
 
+        // 취소(피그마 F-14c): 서버가 보낸 사유 문구를 그대로 보이고 크루런 일정으로 돌아간다.
         CrewRunPhase.CANCELLED -> RunkkErrorState(
-            state.cancelledReason?.let { stringResource(R.string.crew_run_cancelled_with_reason, it) }
-                ?: stringResource(R.string.crew_run_cancelled),
+            state.cancelledReason ?: stringResource(R.string.crew_run_cancelled),
             onRetry = actions.onClose,
-            retryLabel = stringResource(R.string.crew_run_cancelled_back),
+            retryLabel = stringResource(R.string.crew_run_cancelled_to_schedule),
             modifier = Modifier.weight(1f)
         )
     }

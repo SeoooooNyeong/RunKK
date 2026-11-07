@@ -185,7 +185,7 @@
     <string name="crew_run_quit_confirm_action">그만두기</string>
     <string name="crew_run_quit_confirm_dismiss">계속 달리기</string>
     <string name="crew_run_cancelled">크루런이 취소됐어요</string>
-    <string name="crew_run_cancelled_with_reason">크루런이 취소됐어요 · %1$s</string>
+    <string name="crew_run_cancelled_to_schedule">일정으로 돌아가기</string>
     <string name="crew_run_cancelled_back">돌아가기</string>
     <string name="crew_run_quit_description">크루런 그만두기</string>
     <string name="crew_run_lobby_until_checking">확인 중</string>
