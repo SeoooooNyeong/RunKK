@@ -78,6 +78,7 @@ class ArchitectureTest {
                     "web.report",
                     "web.attempt",
                     "web.error",
+                    "web.runbody",
                     "realtime",
                     "batch.battle",
                     "batch.crew",
@@ -209,6 +210,7 @@ class ArchitectureTest {
         m.put("web.attempt", Set.of());
         m.put("web.report", Set.of("report"));
         m.put("web.admin.report", Set.of("report"));
+        m.put("web.runbody", Set.of("runbody")); // 05-19 5절 web.runbody → runbody
         m.put("realtime", Set.of("battle", "crew", "crew.chat", "member")); // + crew.chat(N11)
         // 구동 (D55~D57, D65, D71~D74): batch.<응용> → 같은 이름의 패키지 하나
         for (String app :
@@ -720,8 +722,8 @@ class ArchitectureTest {
     }
 
     @Test
-    void designPackageList_has71NamesAndEachHasAnAllowList() {
-        assertThat(Set.copyOf(PACKAGES)).hasSize(71);
+    void designPackageList_has72NamesAndEachHasAnAllowList() {
+        assertThat(Set.copyOf(PACKAGES)).hasSize(72);
         assertThat(ALLOWED.keySet()).containsExactlyInAnyOrderElementsOf(PACKAGES);
     }
 

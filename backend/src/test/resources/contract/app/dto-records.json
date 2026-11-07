@@ -2722,6 +2722,19 @@
     } ],
     "file" : "web/report/ReportController.java"
   },
+  "RunBodyDtos.RunBodySessionResponse" : {
+    "components" : [ {
+      "name" : "recordId",
+      "kind" : "leaf"
+    }, {
+      "name" : "status",
+      "kind" : "leaf"
+    }, {
+      "name" : "result",
+      "kind" : "leaf"
+    } ],
+    "file" : "web/runbody/RunBodyDtos.java"
+  },
   "RunController.HeartRateRequest" : {
     "components" : [ {
       "name" : "measuredAt",
