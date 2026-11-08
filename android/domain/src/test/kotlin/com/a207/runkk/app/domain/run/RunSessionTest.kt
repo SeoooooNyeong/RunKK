@@ -68,6 +68,33 @@ class RunSessionTest {
     }
 
     @Test
+    fun `워치 손목 케이던스가 있으면 폰 걸음 센서 케이던스 대신 쓰고 폰 속도는 남긴다(2026-11-08 결정)`() {
+        val session = running()
+        session.runFor(5)
+        session.onMotion(MotionSample(at(1), speedMps = 3.0, cadenceSpm = 160.0))
+        session.onMotion(MotionSample(at(2), cadenceSpm = 162.0))
+        session.onMotion(MotionSample(at(3), cadenceSpm = 174.0), isFromWatch = true)
+
+        val run = assertIs<FinishOutcome.Saved>(session.finish(at(5))).run
+
+        assertEquals(
+            listOf(MotionSample(at(1), speedMps = 3.0), MotionSample(at(3), cadenceSpm = 174.0)),
+            run.motions
+        )
+    }
+
+    @Test
+    fun `워치 케이던스가 없으면 폰 걸음 센서 케이던스를 그대로 쓴다`() {
+        val session = running()
+        session.runFor(5)
+        session.onMotion(MotionSample(at(2), cadenceSpm = 162.0))
+
+        val run = assertIs<FinishOutcome.Saved>(session.finish(at(5))).run
+
+        assertEquals(listOf(MotionSample(at(2), cadenceSpm = 162.0)), run.motions)
+    }
+
+    @Test
     fun `정상 포인트 사이 거리를 누적한다`() {
         val session = running()
         session.runFor(10)

@@ -107,6 +107,13 @@ constructor(
             override fun onResumeRequested() = resume()
 
             override fun onHeartRates(samples: List<HeartRateSample>) = acceptHeartRates(samples)
+
+            override fun onWatchMotions(samples: List<MotionSample>) {
+                synchronized(lock) {
+                    val active = session?.takeIf { it.isActive } ?: return
+                    samples.forEach { active.onMotion(it, isFromWatch = true) }
+                }
+            }
         }
 
     init {

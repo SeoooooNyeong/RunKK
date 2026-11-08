@@ -59,6 +59,9 @@ class RunSession(val spec: RunStartSpec) {
     private val heartRates = mutableListOf<HeartRateSample>()
     private val motions = mutableListOf<MotionSample>()
 
+    /** 동행 워치가 잰 손목 케이던스. 기록을 확정할 때 폰 걸음 센서 케이던스보다 앞선다. */
+    private val watchMotions = mutableListOf<MotionSample>()
+
     /** 포인트마다 (일시, 그때까지 누적 거리). 도달 시각 계산에 쓴다. */
     private val arrivals = mutableListOf<Pair<Instant, Double>>()
 
@@ -119,10 +122,24 @@ class RunSession(val spec: RunStartSpec) {
 
     /**
      * 기기가 잰 속도·케이던스를 남긴다(S15P31A207-242). 정지 중에는 버린다(위치와 같다, D-93 (1)). 값이 없거나 음수·무한대면 버린다.
+     * [isFromWatch]는 동행 워치의 손목 케이던스다.
      */
-    fun onMotion(s: MotionSample) {
+    fun onMotion(s: MotionSample, isFromWatch: Boolean = false) {
         if (!isActive || isPaused || !s.isUsable) return
-        motions += s
+        if (isFromWatch) watchMotions += s else motions += s
+    }
+
+    /**
+     * 기록에 담을 움직임 표본(시간순). 워치 손목 케이던스가 하나라도 있으면 폰 걸음 센서 케이던스는 빼고(손목이 러닝 중 더 안정적이다,
+     * 2026-11-08 결정) 폰 속도는 남긴다.
+     */
+    private fun recordedMotions(): List<MotionSample> {
+        val phone = if (watchMotions.any { it.cadenceSpm != null }) {
+            motions.map { it.copy(cadenceSpm = null) }.filter { it.isUsable }
+        } else {
+            motions
+        }
+        return (phone + watchMotions).sortedBy { it.at }
     }
 
     /**
@@ -278,7 +295,7 @@ class RunSession(val spec: RunStartSpec) {
                 pauses = closedPauses.toList(),
                 startDevice = spec.startDevice,
                 savedAt = now,
-                motions = motions.sortedBy { it.at }
+                motions = recordedMotions()
             )
         )
     }
