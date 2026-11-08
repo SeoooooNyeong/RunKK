@@ -42,6 +42,24 @@ final class MotionSamples {
                 first.cadenceSpm() != null ? first.cadenceSpm() : later.cadenceSpm());
     }
 
+    /**
+     * max개를 넘으면 시간순으로 정렬해 고른 간격(k = ⌈개수 ÷ max⌉번째마다 하나)으로 솎은 사본, 아니면 그대로의 사본(MR !91 AN-5). 상한을 넘었다고
+     * 기록 전체를 거부하지 않고 표본 해상도만 낮춘다.
+     */
+    static List<MotionSample> capped(List<MotionSample> samples, int max) {
+        if (samples.size() <= max) {
+            return List.copyOf(samples);
+        }
+        List<MotionSample> sorted = new ArrayList<>(samples);
+        sorted.sort(Comparator.comparing(MotionSample::measuredAt));
+        int stride = (sorted.size() + max - 1) / max;
+        List<MotionSample> kept = new ArrayList<>(max);
+        for (int i = 0; i < sorted.size(); i += stride) {
+            kept.add(sorted.get(i));
+        }
+        return List.copyOf(kept);
+    }
+
     /** 비어 있으면 null(열을 비운다). */
     static byte[] encode(LocalDateTime origin, List<MotionSample> samples) {
         if (samples.isEmpty()) {

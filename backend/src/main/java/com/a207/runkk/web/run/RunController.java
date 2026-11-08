@@ -53,8 +53,11 @@ public class RunController {
     /** 1초 간격 12시간. */
     private static final int MAX_POINTS = 43_200;
 
-    /** 속도·케이던스를 따로 1초마다 보내도 12시간. */
-    private static final int MAX_MOTIONS = 2 * MAX_POINTS;
+    /**
+     * 움직임 표본을 받는 절대 상한(남용 방지). RunUpload.MAX_MOTIONS(86,400)를 넘는 것은 거부하지 않고 RunUpload가 솎는다(MR !91
+     * AN-5). 이 값을 넘는 요청만 400이다.
+     */
+    private static final int MOTIONS_HARD_LIMIT = 4 * RunUpload.MAX_MOTIONS;
 
     private final RunUploadService runUploadService;
     private final DisposalService disposalService;
@@ -145,7 +148,7 @@ public class RunController {
             @Size(max = MAX_POINTS) List<@Valid @NotNull HeartRateRequest> heartRates,
             @Size(max = RunUpload.MAX_PAUSES) List<@Valid @NotNull PauseRequest> pauses,
             StartDevice startDevice,
-            @Size(max = MAX_MOTIONS) List<@Valid @NotNull MotionRequest> motions) {
+            @Size(max = MOTIONS_HARD_LIMIT) List<@Valid @NotNull MotionRequest> motions) {
 
         RunUpload toUpload(ZoneId zone) {
             return new RunUpload(

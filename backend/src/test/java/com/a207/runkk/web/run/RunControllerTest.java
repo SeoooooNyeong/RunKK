@@ -336,6 +336,30 @@ class RunControllerTest extends WebTestSupport {
     }
 
     @Test
+    @DisplayName("MR !91 AN-5: motions가 상한(86,400개)을 넘어도 기록은 받고 표본만 상한 안으로 솎는다")
+    void upload_tooManyMotions_thinsInsteadOfRejecting() throws Exception {
+        Session s = signUp();
+        String id = UUID.randomUUID().toString();
+        Map<String, Object> body = run(id, 5_000, 1_500);
+        int count = com.a207.runkk.running.RunUpload.MAX_MOTIONS + 1;
+        List<Map<String, Object>> motions = new java.util.ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            // 1,500초 동안 고르게(약 17ms 간격)
+            motions.add(
+                    Map.of("measuredAt", at(START.plusNanos(i * 17_000_000L)), "speedMps", 3.3));
+        }
+        body.put("motions", motions);
+
+        expectStatus(s, body, 200);
+
+        List<MotionSample> stored = runQuery.bodyInputOf(id).orElseThrow().motions();
+        assertThat(stored)
+                .isNotEmpty()
+                .hasSizeLessThanOrEqualTo(com.a207.runkk.running.RunUpload.MAX_MOTIONS);
+        assertThat(stored.get(0).measuredAt()).isEqualTo(START);
+    }
+
+    @Test
     @DisplayName("TC-6685: pauses 항목이 없거나 null·빈 목록이면 정지 없음으로 저장한다")
     void upload_withoutPausesIsCompatible() throws Exception {
         Session s = signUp();

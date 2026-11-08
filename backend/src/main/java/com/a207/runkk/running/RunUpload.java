@@ -24,7 +24,8 @@ import java.util.List;
  * @param pauses 정지 구간(자유런·크루런만, null·빈 목록 = 정지 없음). elapsed는 정지 시간을 뺀 운동 시간이다(FR-036, FR-194, 크루런은
  *     FR-300)
  * @param startDevice 기록을 시작한 기기(W23, D-378). null(옛 앱) = PHONE
- * @param motions 기기가 잰 속도·케이던스 표본(S15P31A207-242). null(옛 앱)·빈 목록 = 없음
+ * @param motions 기기가 잰 속도·케이던스 표본(S15P31A207-242). null(옛 앱)·빈 목록 = 없음. {@value #MAX_MOTIONS}개를 넘으면
+ *     시간순으로 고르게 솎는다
  */
 public record RunUpload(
         String recordId,
@@ -47,6 +48,9 @@ public record RunUpload(
     /** 한 기록의 정지 구간 최대 개수(부록 F F.2.2 POST /runs, 제안 100개). */
     public static final int MAX_PAUSES = 100;
 
+    /** 한 기록에 남기는 움직임 표본 최대 개수(속도·케이던스를 따로 1초마다 12시간). 넘으면 기록을 거부하지 않고 표본만 고르게 솎는다(MR !91 AN-5). */
+    public static final int MAX_MOTIONS = 86_400;
+
     /**
      * 정지 구간 검사(설계 6.1.3 RunUpload, F.2.2, D-163): 자유런·크루런만 비어 있지 않을 수 있다(대결은 정지가 없다), 최대 100개,
      * startedAt ≤ from, to ≤ endedAt, 시간순이고 겹치거나 맞닿지 않는다(앞 구간 to &lt; 뒤 구간 from). 위반은
@@ -58,7 +62,7 @@ public record RunUpload(
         heartRates = heartRates == null ? List.of() : List.copyOf(heartRates);
         pauses = pauses == null ? List.of() : List.copyOf(pauses);
         startDevice = startDevice == null ? StartDevice.PHONE : startDevice;
-        motions = motions == null ? List.of() : List.copyOf(motions);
+        motions = motions == null ? List.of() : MotionSamples.capped(motions, MAX_MOTIONS);
         requireValidPauses(pauses, mode, startedAt, endedAt);
     }
 

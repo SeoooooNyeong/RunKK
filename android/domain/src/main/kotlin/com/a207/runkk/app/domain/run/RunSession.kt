@@ -126,7 +126,7 @@ class RunSession(val spec: RunStartSpec) {
 
     /**
      * 기록에 담을 움직임 표본(시간순). 워치 손목 케이던스가 하나라도 있으면 폰 걸음 센서 케이던스는 빼고(손목이 러닝 중 더 안정적이다,
-     * 2026-11-08 결정) 폰 속도는 남긴다.
+     * 2026-11-08 결정) 폰 속도는 남긴다. 서버 상한([MAX_UPLOAD_MOTIONS])을 넘으면 시간 칸끼리 합쳐 줄인다(MR !91 AN-5).
      */
     private fun recordedMotions(): List<MotionSample> {
         val phone = if (watchMotions.any { it.cadenceSpm != null }) {
@@ -134,7 +134,7 @@ class RunSession(val spec: RunStartSpec) {
         } else {
             motions
         }
-        return (phone + watchMotions).sortedBy { it.at }
+        return (phone + watchMotions).sortedBy { it.at }.thinnedTo(MAX_UPLOAD_MOTIONS)
     }
 
     /**
