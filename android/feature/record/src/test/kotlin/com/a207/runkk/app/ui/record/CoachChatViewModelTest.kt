@@ -1,5 +1,6 @@
 package com.a207.runkk.app.ui.record
 
+import androidx.lifecycle.ViewModelStore
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.coach.CoachConversation
@@ -14,14 +15,20 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeout
 import org.junit.Rule
 import org.junit.Test
 
 /** FR-261~FR-263: 스트림·경곗값·재시도·취소 경로. */
+@OptIn(ExperimentalCoroutinesApi::class)
 class CoachChatViewModelTest {
     @get:Rule
     val main = MainDispatcherRule()
@@ -84,6 +91,62 @@ class CoachChatViewModelTest {
         assertNull(vm.state.value.conversationId)
         assertTrue(vm.state.value.turns.isEmpty())
         assertNull(vm.state.value.failure)
+    }
+
+    @Test
+    fun `화면을 닫아 ViewModel이 취소되면 다시 묻기 오류로 바꾸지 않는다`() {
+        var cancelled = false
+        repository.events = flow {
+            try {
+                emit(CoachEvent.Started("c1"))
+                awaitCancellation()
+            } finally {
+                cancelled = true
+            }
+        }
+        val vm = CoachChatViewModel(repository)
+        val store = ViewModelStore()
+        store.put("coach", vm)
+        vm.send("질문")
+        assertTrue(vm.state.value.isSending)
+        store.clear()
+        assertTrue(cancelled)
+        assertNull(vm.state.value.failure)
+    }
+
+    @Test
+    fun `저장소 흐름만 취소되면 일부 답을 남기고 다시 물을 수 있다`() {
+        repository.events = flow {
+            emit(CoachEvent.Started("c1"))
+            emit(CoachEvent.Delta("일부 답"))
+            throw CancellationException("stream closed")
+        }
+        val vm = CoachChatViewModel(repository)
+        vm.send("질문")
+        assertFalse(vm.state.value.isSending)
+        assertEquals(CoachFailure.RETRY, vm.state.value.failure)
+        assertEquals(listOf(CoachChatTurn("질문", "일부 답")), vm.state.value.turns)
+        repository.events = flowOf(CoachEvent.Delta("다시 받은 답"), CoachEvent.Done)
+        vm.retry()
+        assertEquals(listOf(null to "질문", "c1" to "질문"), repository.questions)
+        assertEquals(listOf(CoachChatTurn("질문", "다시 받은 답", true)), vm.state.value.turns)
+        assertFalse(vm.state.value.isSending)
+        assertNull(vm.state.value.failure)
+    }
+
+    @Test
+    fun `저장소 응답이 시간 초과되면 전송 상태를 풀고 다시 묻기를 안내한다`() = runTest(main.dispatcher) {
+        repository.events = flow {
+            emit(CoachEvent.Started("c1"))
+            withTimeout(100) { awaitCancellation() }
+        }
+        val vm = CoachChatViewModel(repository)
+        vm.send("질문")
+        assertTrue(vm.state.value.isSending)
+        advanceUntilIdle()
+        assertFalse(vm.state.value.isSending)
+        assertEquals(CoachFailure.RETRY, vm.state.value.failure)
+        assertFalse(vm.state.value.turns.single().isComplete)
     }
 
     @Test
