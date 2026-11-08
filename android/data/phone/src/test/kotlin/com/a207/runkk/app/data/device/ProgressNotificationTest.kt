@@ -2,6 +2,7 @@ package com.a207.runkk.app.data.device
 
 import android.app.Notification
 import android.content.Context
+import android.content.Intent
 import androidx.core.app.NotificationCompat
 import androidx.test.core.app.ApplicationProvider
 import com.a207.runkk.app.core.model.CardKind
@@ -9,6 +10,7 @@ import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.GeoPoint
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.RunMode
+import com.a207.runkk.app.core.model.RunNoticeExtras
 import com.a207.runkk.app.domain.run.CompletedRun
 import com.a207.runkk.app.domain.run.FreeRunGoalState
 import com.a207.runkk.app.domain.run.Guidance
@@ -136,6 +138,18 @@ class ProgressNotificationTest {
         assertEquals(0, none.extras.getInt(Notification.EXTRA_PROGRESS_MAX))
         val versus = ProgressNoticeText.of(context, battle(10).copy(distance = Distance(1_000)))
         assertEquals(1_000 to 3_000, versus.progress to versus.progressMax)
+    }
+
+    @Test
+    fun `S15P31A207-278 대결 알림을 누르면 대결 ID를 실어 앱을 열고 자유런 알림은 싣지 않는다`() {
+        val launch = Intent(Intent.ACTION_MAIN).setPackage(context.packageName)
+        val versus = progressOpenIntent(launch, ProgressNoticeText.of(context, battle(42).copy(battleId = 9)))
+        assertEquals(9L, versus.getLongExtra(RunNoticeExtras.BATTLE_ID, 0))
+        val unknown = progressOpenIntent(launch, ProgressNoticeText.of(context, battle(42)))
+        assertFalse(unknown.hasExtra(RunNoticeExtras.BATTLE_ID), "대결 ID가 없으면 앱만 연다")
+        val free = progressOpenIntent(launch, ProgressNoticeText.of(context, free(10, 100, FreeRunGoalState.None)))
+        assertFalse(free.hasExtra(RunNoticeExtras.BATTLE_ID))
+        assertFalse(launch.hasExtra(RunNoticeExtras.BATTLE_ID), "실행 인텐트 원본은 바꾸지 않는다")
     }
 
     // ---------- 표현 선택 (TC-9611~TC-9613, TC-9755~TC-9757, TC-9771) ----------

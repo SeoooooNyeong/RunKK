@@ -36,13 +36,17 @@ sealed interface ProgressNotice {
             get() = null
     }
 
-    /** 대결 알림. [gapMeters]는 앞서면 양수이고 모르면(연결 확인 중) null이다. [battleDistance]는 대결 거리다. */
+    /**
+     * 대결 알림. [gapMeters]는 앞서면 양수이고 모르면(연결 확인 중) null이다. [battleDistance]는 대결 거리다.
+     * [battleId]는 알림을 눌렀을 때 돌아갈 대결이고 모르면 null이다(S15P31A207-278).
+     */
     data class Battle(
         val opponentName: String,
         override val elapsed: Duration,
         override val distance: Distance,
         val gapMeters: Int?,
-        val battleDistance: Distance? = null
+        val battleDistance: Distance? = null,
+        val battleId: Long? = null
     ) : ProgressNotice {
         override val progressEnd: Distance?
             get() = battleDistance
@@ -61,7 +65,14 @@ sealed interface ProgressNotice {
 
                 CardKind.CREW_RUN -> CrewRun(progress.elapsed, progress.distance, progress.isPaused)
 
-                else -> Battle(spec.opponentName.orEmpty(), progress.elapsed, progress.distance, gapMeters, target)
+                else -> Battle(
+                    spec.opponentName.orEmpty(),
+                    progress.elapsed,
+                    progress.distance,
+                    gapMeters,
+                    target,
+                    spec.battleId
+                )
             }
         }
     }

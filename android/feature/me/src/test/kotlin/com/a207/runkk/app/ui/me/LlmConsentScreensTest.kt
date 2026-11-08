@@ -26,7 +26,7 @@ class LlmConsentScreensTest {
                 SignUpScreen(SignUpUiState(), isGuest = true, SignUpActions())
             }
         }
-        compose.onNodeWithText("AI 리포트·코치용 데이터 외부 전송", substring = true).performScrollTo().assertIsOff()
+        compose.onNodeWithText("AI 리포트와 코치용 데이터 외부 전송", substring = true).performScrollTo().assertIsOff()
         compose.onNodeWithText(DISCLOSURE).performScrollTo().assertExists()
     }
 
@@ -34,7 +34,7 @@ class LlmConsentScreensTest {
     fun `설정에서 LLM 동의는 안내를 확인하고 동의할 때만 저장한다`() {
         val changes = mutableListOf<Pair<String, Boolean>>()
         showSettings(false) { item, agreed -> changes += item to agreed }
-        compose.onNodeWithText("AI 리포트·코치용 데이터 외부 전송 (선택)").performScrollTo().performClick()
+        compose.onNodeWithText("AI 리포트와 코치용 데이터 외부 전송 (선택)").performScrollTo().performClick()
         compose.onNodeWithText(DISCLOSURE).assertExists()
         assertEquals(emptyList(), changes)
         compose.onNodeWithText("동의하기").performClick()
@@ -45,7 +45,7 @@ class LlmConsentScreensTest {
     fun `LLM 안내를 취소하면 동의를 저장하지 않는다`() {
         val changes = mutableListOf<Pair<String, Boolean>>()
         showSettings(false) { item, agreed -> changes += item to agreed }
-        compose.onNodeWithText("AI 리포트·코치용 데이터 외부 전송 (선택)").performScrollTo().performClick()
+        compose.onNodeWithText("AI 리포트와 코치용 데이터 외부 전송 (선택)").performScrollTo().performClick()
         compose.onNodeWithText("취소").performClick()
         assertEquals(emptyList(), changes)
     }
@@ -54,7 +54,7 @@ class LlmConsentScreensTest {
     fun `이미 켜진 LLM 동의는 철회할 수 있다`() {
         val changes = mutableListOf<Pair<String, Boolean>>()
         showSettings(true) { item, agreed -> changes += item to agreed }
-        compose.onNodeWithText("AI 리포트·코치용 데이터 외부 전송 (선택)").performScrollTo().performClick()
+        compose.onNodeWithText("AI 리포트와 코치용 데이터 외부 전송 (선택)").performScrollTo().performClick()
         assertEquals(listOf(ConsentKeys.LLM_TRANSFER to false), changes)
     }
 

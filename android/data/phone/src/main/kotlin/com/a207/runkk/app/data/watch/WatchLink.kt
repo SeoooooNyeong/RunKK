@@ -120,6 +120,12 @@ class WatchLink internal constructor(
 
         /** 이 경로의 DataClient 항목 내용(노드마다 하나, 워치 거부 기록 건수 W43). 없거나 읽지 못하면 빈 목록. */
         suspend fun readItems(path: String): List<ByteArray>
+
+        /**
+         * 이 워치 노드가 닿는다(워치가 보낸 메시지, 수신 서비스가 받은 표시 요청). 노드 목록에 없으면 더해 이후 메시지를 버리지 않는다
+         * (S15P31A207-278).
+         */
+        fun markReachable(nodeId: String)
     }
 
     /** 워치에서 온 메시지·데이터 항목 하나(경로, 내용, 보낸 워치 노드). */
@@ -219,6 +225,17 @@ class WatchLink internal constructor(
     override fun isConnected(): Boolean = transport.connected.value
 
     /**
+     * 워치가 지금 표시를 요청했다(DISPLAY_REQUEST, S15P31A207-278). 워치 앱이 꺼져 있던 동안 보낸 일회성 표시를 잃었으므로
+     * 요청한 워치를 닿는 노드로 등록하고, 마지막 표시(측정 중 진행값·대기 화면 오늘 계획·종료 표시, 없으면 대기 화면)를 지금 허용 여부로
+     * 다시 보낸다. 폰 프로세스가 막 깨어났으면 측정 중이 아니므로 대기 화면이다. 요청이 몰려도 보낼 표시는 송신 줄에서 최신 1건만 남는다.
+     * 매니페스트 수신 서비스(PhoneWatchListenerService)만 부른다: 앱 안 리스너로 온 같은 요청은 받지 않는다(두 번 보내지 않게).
+     */
+    internal fun onDisplayRequested(nodeId: String) {
+        transport.markReachable(nodeId)
+        resend(collectionAllowed())
+    }
+
+    /**
      * 짝지은 워치가 스스로 측정 중인가(FR-252, D-373 (2), 3.6). 마지막으로 받은 WATCH_MEASURING이 참이고, 받은 지 [MEASURING_TTL] 안이고,
      * 워치가 닿을 때만 참이다. 워치 앱이 강제 종료돼 거짓이 오지 않아도 폰 측정이 막힌 채 남지 않는다(D-390, H-57). 시각은 워치 시계가
      * 아니라 폰이 받은 시각([clock])으로 잰다(두 기기 시계 차이와 무관하게).
@@ -314,7 +331,7 @@ class WatchLink internal constructor(
 
     private fun collectionAllowed(): Boolean = settings.heartRateConsented() && settings.watchLinked()
 
-    /** 허용 여부가 바뀌었다: 마지막 표시 정보(없으면 대기 화면)를 새 허용 여부로 다시 보낸다. */
+    /** 허용 여부가 바뀌었거나 워치가 요청했다: 마지막 표시 정보(없으면 대기 화면)를 [allowed]로 다시 보낸다. */
     private fun resend(allowed: Boolean) {
         val message =
             synchronized(lock) { lastDisplay }?.toMessage(allowed, noticeText)
