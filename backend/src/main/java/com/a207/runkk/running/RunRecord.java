@@ -536,6 +536,11 @@ public class RunRecord {
         return memberId;
     }
 
+    /** 종료 일시(런바디 요청, D-444). */
+    LocalDateTime endedAt() {
+        return endedAt;
+    }
+
     public LocalDateTime getStartedAt() {
         return startedAt;
     }
@@ -611,6 +616,12 @@ public class RunRecord {
 
     List<UnstableSegment> unstableSegments() {
         return decodeSegments(unstableSegmentsData);
+    }
+
+    /** 심박 원자료(시간순). 없거나 파기했으면 빈 목록(런바디 요청, D-444). */
+    List<HeartRateSample> heartRateSamples() {
+        HeartRateSeries series = heartRateSeries();
+        return series == null ? List.of() : series.samples();
     }
 
     HeartRateSummary heartRateSummary() {

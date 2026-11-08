@@ -2722,6 +2722,95 @@
     } ],
     "file" : "web/report/ReportController.java"
   },
+  "RunBodyDtos.RunBodySessionListResponse" : {
+    "components" : [ {
+      "name" : "items",
+      "kind" : "list",
+      "ref" : "RunBodyDtos.RunBodySessionRow"
+    }, {
+      "name" : "nextCursor",
+      "kind" : "leaf"
+    } ],
+    "file" : "web/runbody/RunBodyDtos.java"
+  },
+  "RunBodyDtos.RunBodySessionResponse" : {
+    "components" : [ {
+      "name" : "recordId",
+      "kind" : "leaf"
+    }, {
+      "name" : "status",
+      "kind" : "leaf"
+    }, {
+      "name" : "result",
+      "kind" : "leaf"
+    } ],
+    "file" : "web/runbody/RunBodyDtos.java"
+  },
+  "RunBodyDtos.RunBodySessionRow" : {
+    "components" : [ {
+      "name" : "recordId",
+      "kind" : "leaf"
+    }, {
+      "name" : "status",
+      "kind" : "leaf"
+    }, {
+      "name" : "score",
+      "kind" : "leaf"
+    }, {
+      "name" : "scoreChange",
+      "kind" : "leaf"
+    } ],
+    "file" : "web/runbody/RunBodyDtos.java"
+  },
+  "RunBodyDtos.RunBodyTrendResponse" : {
+    "components" : [ {
+      "name" : "validRunCount",
+      "kind" : "leaf"
+    }, {
+      "name" : "round",
+      "kind" : "leaf"
+    }, {
+      "name" : "needs",
+      "kind" : "leaf"
+    }, {
+      "name" : "recent",
+      "kind" : "record",
+      "ref" : "RunBodyDtos.RunBodyWindowResponse"
+    }, {
+      "name" : "previous",
+      "kind" : "record",
+      "ref" : "RunBodyDtos.RunBodyWindowResponse"
+    }, {
+      "name" : "sameHeartRatePaceChange",
+      "kind" : "leaf"
+    }, {
+      "name" : "runimalType",
+      "kind" : "leaf"
+    } ],
+    "file" : "web/runbody/RunBodyDtos.java"
+  },
+  "RunBodyDtos.RunBodyWindowResponse" : {
+    "components" : [ {
+      "name" : "fromOrdinal",
+      "kind" : "leaf"
+    }, {
+      "name" : "toOrdinal",
+      "kind" : "leaf"
+    }, {
+      "name" : "paceSecondsPerKm",
+      "kind" : "leaf"
+    }, {
+      "name" : "runsPerWeek",
+      "kind" : "leaf"
+    }, {
+      "name" : "runsPerMonth",
+      "kind" : "leaf"
+    }, {
+      "name" : "averageHeartRate",
+      "kind" : "leaf"
+    } ],
+    "file" : "web/runbody/RunBodyDtos.java"
+  },
   "RunController.HeartRateRequest" : {
     "components" : [ {
       "name" : "measuredAt",

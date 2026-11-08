@@ -213,6 +213,16 @@ public enum SettingKey {
             return ValidationResult.ok();
         }
     },
+    /**
+     * 런바디 ai 분석 사용(2차 배포 기능, FR-265, 05-19 D-440). 거짓이면 러닝 저장 뒤 분석 작업을 만들지 않고 ai에 제출·상태 조회하지 않으며,
+     * 런바디 조회 API는 403 FEATURE_CLOSED다. 행이 없으면 기본 false.
+     */
+    RUNBODY_ENABLED(Boolean.class, "false") {
+        @Override
+        ValidationResult checkRange(Object value) {
+            return ValidationResult.ok();
+        }
+    },
     SELFIE_LIMIT(SelfieLimit.class, "{\"perDay\":1}") {
         @Override
         ValidationResult checkRange(Object value) {

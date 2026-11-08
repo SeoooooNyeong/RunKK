@@ -255,6 +255,19 @@ public class RunQueryService {
         return runRecordRepository.validRunsAfter(memberId, ordinal);
     }
 
+    /** 그 회원의 유효 러닝 수(런바디 요약 G-14의 회차). */
+    public int validRunCount(long memberId) {
+        return runRecordRepository.countValid(memberId);
+    }
+
+    /**
+     * 유효 러닝 순번 fromOrdinal~toOrdinal(포함)의 비교용 값, 순번 순(런바디 요약 "최근 10회 변화", G-14). 순번은
+     * validRunsAfter와 같다.
+     */
+    public List<ValidRunStat> validRunStats(long memberId, int fromOrdinal, int toOrdinal) {
+        return runRecordRepository.validRunStats(memberId, fromOrdinal, toOrdinal);
+    }
+
     /** ownerIds 회원의 유효 기록 중 거리 ≥ d이고 경로가 남은 것(battle.GhostMatcher, A-07). */
     public List<OwnedRun> validRunsReaching(StandardDistance d, Collection<Long> ownerIds) {
         if (ownerIds.isEmpty()) {
@@ -296,6 +309,29 @@ public class RunQueryService {
                         .map(p -> new CurvePoint(p.elapsed(), min(p.distance(), cut)))
                         .toList();
         return new RunCurve(samples, cut);
+    }
+
+    /**
+     * 런바디 분석 요청 재료(설계 05-19 2.2, D-444): 심박 표본, 위치 점, 정지 구간, 거리, 운동 시간, 시작 기기, 시작·종료 일시. 기록이 없으면 비어
+     * 있다(읽기 트랜잭션을 rollback-only로 만들지 않게 예외 대신 비움). 파기한 경로·심박은 빈 목록이다.
+     */
+    public Optional<RunBodyInput> bodyInputOf(String recordId) {
+        return runRecordRepository
+                .findById(recordId)
+                .map(
+                        r ->
+                                new RunBodyInput(
+                                        r.getRecordId(),
+                                        r.getMemberId(),
+                                        r.getStartedAt(),
+                                        r.endedAt(),
+                                        r.getDistance(),
+                                        r.getElapsed(),
+                                        r.getStartDevice(),
+                                        r.isValid(),
+                                        r.heartRateSamples(),
+                                        r.isRoutePurged() ? List.of() : r.track().points(),
+                                        r.pauses()));
     }
 
     /** d에 처음 닿은 경과 시간(크루런 도착 시각, 대결 검증). 도착이라 0.5m 반올림 차이를 허용한다(RunRecord.timeToArrive, W54). */
