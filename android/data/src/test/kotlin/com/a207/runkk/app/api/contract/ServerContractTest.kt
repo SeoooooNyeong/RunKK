@@ -41,7 +41,6 @@ import com.a207.runkk.app.api.chat.ChatMessageItem
 import com.a207.runkk.app.api.chat.ChatPageResponse
 import com.a207.runkk.app.api.chat.ChatPostRequest
 import com.a207.runkk.app.api.chat.ReactionResponse
-import com.a207.runkk.app.api.crew.AlbumResponse
 import com.a207.runkk.app.api.crew.AttendanceRequest
 import com.a207.runkk.app.api.crew.AttendanceResponse
 import com.a207.runkk.app.api.crew.CreatedResponse
@@ -61,10 +60,6 @@ import com.a207.runkk.app.api.crew.LobbyResponse
 import com.a207.runkk.app.api.crew.ManagerResponse
 import com.a207.runkk.app.api.crew.MyCrewResponse
 import com.a207.runkk.app.api.crew.PendingRequestsResponse
-import com.a207.runkk.app.api.crew.PinRequest
-import com.a207.runkk.app.api.crew.PinResponse
-import com.a207.runkk.app.api.crew.PollAnswerRequest
-import com.a207.runkk.app.api.crew.PollResultResponse
 import com.a207.runkk.app.api.crew.PostListResponse
 import com.a207.runkk.app.api.crew.PostWriteRequest
 import com.a207.runkk.app.api.crew.RaceStatusResponse
@@ -321,8 +316,6 @@ class ServerContractTest {
         request(CrewProfileRequest.serializer(), "CrewDtos.CrewProfileRequest")
         request(PostWriteRequest.serializer(), "CrewDtos.PostWriteRequest")
         request(AttendanceRequest.serializer(), "CrewDtos.AttendanceRequest")
-        request(PinRequest.serializer(), "CrewDtos.PinRequest")
-        request(PollAnswerRequest.serializer(), "CrewDtos.PollAnswerRequest")
         request(GoalRequest.serializer(), "CrewDtos.GoalRequest")
         request(GuestStartRequest.serializer(), "SignUpController.GuestStartRequest")
         request(SocialLinkRequest.serializer(), "AuthController.SocialLinkRequest")
@@ -366,9 +359,6 @@ class ServerContractTest {
         response(CrewListResponse.serializer(), "CrewDtos.CrewListResponse")
         response(AttendanceResponse.serializer(), "CrewDtos.AttendanceResponse")
         response(ManagerResponse.serializer(), "CrewDtos.ManagerResponse")
-        response(PinResponse.serializer(), "CrewDtos.PinResponse")
-        response(PollResultResponse.serializer(), "CrewDtos.PollResultResponse")
-        response(AlbumResponse.serializer(), "CrewDtos.AlbumResponse")
         response(GuestStartResponse.serializer(), "SignUpController.GuestStartResponse")
         response(SocialLinkResponse.serializer(), "AuthController.SocialLinkResponse")
         response(BackgroundsResponse.serializer(), "AvatarDtos.BackgroundsResponse")

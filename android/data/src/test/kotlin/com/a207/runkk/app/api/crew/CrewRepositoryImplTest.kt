@@ -29,8 +29,7 @@ import retrofit2.create
 /** api.crew 매퍼(14장 단위(앱 데이터)): 크루 목록·게시판·대기실·크루런 결과 DTO → 도메인, 갈래별 엔드포인트(D-36). */
 class CrewRepositoryImplTest {
     private val api = ApiTestServer()
-    private val photos = FakePhotos()
-    private val repository = CrewRepositoryImpl(api.retrofit.create(), photos.compressor)
+    private val repository = CrewRepositoryImpl(api.retrofit.create())
 
     @AfterTest
     fun tearDown() = api.close()

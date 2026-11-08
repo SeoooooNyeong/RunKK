@@ -5,7 +5,6 @@ import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
-import com.a207.runkk.app.domain.crew.Album
 import com.a207.runkk.app.domain.crew.AttendanceAnswer
 import com.a207.runkk.app.domain.crew.BoardPost
 import com.a207.runkk.app.domain.crew.CelebrationCard
@@ -30,9 +29,7 @@ import com.a207.runkk.app.domain.crew.MyCrew
 import com.a207.runkk.app.domain.crew.Notice
 import com.a207.runkk.app.domain.crew.PendingRequests
 import com.a207.runkk.app.domain.crew.Poll
-import com.a207.runkk.app.domain.crew.PollForm
 import com.a207.runkk.app.domain.crew.PollMethod
-import com.a207.runkk.app.domain.crew.PollResult
 import com.a207.runkk.app.domain.crew.PostList
 import com.a207.runkk.app.domain.crew.RaceStatus
 import com.a207.runkk.app.domain.live.ClientMessage
@@ -301,20 +298,6 @@ val polls = PostList(
     )
 )
 
-fun pollResult(postId: Long, myOptionNo: Int? = null) = PollResult(
-    postId = postId,
-    question = "다음 달 대회 어디 나갈까요?",
-    method = PollMethod.CHOICES,
-    closesAt = start.plusSeconds(86_400),
-    isClosed = postId == 62L,
-    options = listOf(
-        PollResult.Option(1, "춘천", 2, listOf(PollResult.Respondent(1, "바람처럼"), PollResult.Respondent(2, "달빛"))),
-        PollResult.Option(2, "JTBC", 1, listOf(PollResult.Respondent(3, "비공개러너"))),
-        PollResult.Option(3, "안 나감", 0, emptyList())
-    ),
-    myOptionNo = myOptionNo
-)
-
 /** 대면 모임 1건(정원 8, 참석 2·불참 1·미정 0, 내 응답 없음). */
 val meetups = PostList(
     listOf(
@@ -356,14 +339,6 @@ val boards = PostList(
             board = BoardPost("신발 추천 받아요", emptyList())
         )
     )
-)
-
-val album = Album(
-    listOf(
-        Album.Photo(901, 81, "/api/v1/crew-photos/901", start.minusSeconds(600)),
-        Album.Photo(902, 81, "/api/v1/crew-photos/902", start.minusSeconds(600))
-    ),
-    nextCursor = null
 )
 
 /** 목표 50km를 넘긴 주: 진행률 100(상한), 축하 카드. */
@@ -563,8 +538,6 @@ class FakeCrewRepository : CrewRepository {
         return answer("posts:$kind", PostList(answered, postsNext))
     }
 
-    override suspend fun writeCheer(crewId: Long, body: String) = answer("cheer:$body", 43L)
-
     var lastCrewRun: CrewRunForm? = null
 
     override suspend fun writeCrewRun(crewId: Long, form: CrewRunForm): Outcome<Long> {
@@ -584,42 +557,8 @@ class FakeCrewRepository : CrewRepository {
 
     override suspend fun dismissManager(crewId: Long, memberId: Long) = answer("dismiss:$memberId", Unit)
 
-    override suspend fun writeNotice(crewId: Long, body: String, isPinned: Boolean) =
-        answer("notice:$body:$isPinned", 54L)
-
-    override suspend fun pin(postId: Long, isPinned: Boolean) = answer("pin:$postId:$isPinned", Unit)
-
-    /** 마지막으로 만든 투표의 마감 일시. */
-    var lastPollClosesAt: Instant? = null
-
-    override suspend fun writePoll(crewId: Long, form: PollForm): Outcome<Long> {
-        lastPollClosesAt = form.closesAt
-        return answer("writePoll:${form.question}:${form.method}:${form.options}", 63L)
-    }
-
-    /** 응답한 선택지(결과의 myOptionNo). */
-    private val pollAnswers = mutableMapOf<Long, Int>()
-
-    override suspend fun respondPoll(postId: Long, optionNo: Int) =
-        answer("respond:$postId:$optionNo", Unit).also { if (it is Outcome.Success) pollAnswers[postId] = optionNo }
-
-    override suspend fun pollResult(postId: Long) =
-        answer("pollResult:$postId", pollResult(postId, pollAnswers[postId]))
-
-    /** 마지막 대면 모임 일시. */
-    var lastMeetupAt: Instant? = null
-
-    override suspend fun writeMeetup(crewId: Long, form: MeetupForm): Outcome<Long> {
-        lastMeetupAt = form.scheduledAt
-        return answer("writeMeetup:${form.body}:${form.placeName}:${form.capacity}", 72L)
-    }
-
-    override suspend fun writeBoard(crewId: Long, body: String, photoUris: List<String>) =
-        answer("writeBoard:$body:$photoUris", 83L)
-
-    override suspend fun photo(photoId: Long) = answer("photo:$photoId", byteArrayOf(1, 2, 3))
-
-    override suspend fun album(crewId: Long, cursor: Long?) = answer("album:$cursor", album)
+    override suspend fun writeMeetup(crewId: Long, form: MeetupForm): Outcome<Long> =
+        answer("writeMeetup:${form.body}:${form.placeName}:${form.capacity}", 72L)
 
     override suspend fun setWeeklyGoal(crewId: Long, goal: Distance) =
         answer("goal:${goal.meters}", raceWithGoal.copy(goal = goal))

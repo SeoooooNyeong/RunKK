@@ -3,7 +3,6 @@ package com.a207.runkk.app.api.crew
 import com.a207.runkk.app.api.core.ServerTime
 import com.a207.runkk.app.api.core.enumByName
 import com.a207.runkk.app.core.model.Distance
-import com.a207.runkk.app.domain.crew.Album
 import com.a207.runkk.app.domain.crew.AttendanceAnswer
 import com.a207.runkk.app.domain.crew.BoardPost
 import com.a207.runkk.app.domain.crew.CelebrationCard
@@ -26,7 +25,6 @@ import com.a207.runkk.app.domain.crew.Notice
 import com.a207.runkk.app.domain.crew.PendingRequests
 import com.a207.runkk.app.domain.crew.Poll
 import com.a207.runkk.app.domain.crew.PollMethod
-import com.a207.runkk.app.domain.crew.PollResult
 import com.a207.runkk.app.domain.crew.PostList
 import com.a207.runkk.app.domain.crew.RaceStatus
 
@@ -175,30 +173,6 @@ private fun PostListResponse.Item.Meetup.toDomain(): Meetup = Meetup(
 private fun PostListResponse.Item.Poll.toDomain(): Poll? = enumByName<PollMethod>(method)?.let {
     Poll(it, ServerTime.parse(closesAt), closed, responseCount, myOptionNo)
 }
-
-/** 모르는 투표 방식은 해독할 수 없는 응답으로 본다(결과 화면을 잘못 그리지 않는다). */
-internal fun PollResultResponse.toDomain(): PollResult = PollResult(
-    postId = postId,
-    question = question,
-    method = requireNotNull(enumByName<PollMethod>(method)) { "모르는 투표 방식 $method" },
-    closesAt = ServerTime.parse(closesAt),
-    isClosed = closed,
-    options =
-        options.map { option ->
-            PollResult.Option(
-                option.optionNo,
-                option.label,
-                option.count,
-                option.respondents.map { PollResult.Respondent(it.memberId, it.displayName) }
-            )
-        },
-    myOptionNo = myOptionNo
-)
-
-internal fun AlbumResponse.toDomain(): Album = Album(
-    photos = photos.map { Album.Photo(it.photoId, it.postId, it.url, ServerTime.parse(it.postedAt)) },
-    nextCursor = nextCursor
-)
 
 private fun PostListResponse.Item.CrewRun.toDomain(): PostList.CrewRunInfo = PostList.CrewRunInfo(
     distance = Distance(distanceMeters),
