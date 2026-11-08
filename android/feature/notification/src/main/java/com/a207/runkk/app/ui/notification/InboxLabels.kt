@@ -29,6 +29,7 @@ internal object InboxLabels {
         "CREW_SCHEDULE" to R.string.notification_label_crew_schedule,
         "CREW_CHAT" to R.string.notification_label_crew_chat,
         "CREW_GOAL_ACHIEVED" to R.string.notification_label_crew_goal
+        // 운영자 공지(NOTICE)는 라벨 없이 서버가 준 공지 제목을 보인다
     )
 
     @StringRes

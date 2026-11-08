@@ -136,6 +136,24 @@ public class JpaMemberRepository implements MemberRepository {
     }
 
     @Override
+    public Map<Long, String> activeNicknames(Collection<Long> memberIds) {
+        if (memberIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, String> result = new HashMap<>();
+        entityManager
+                .createQuery(
+                        "select m.id, m.nickname.value from Member m"
+                                + " where m.id in :ids and m.status = :active",
+                        Object[].class)
+                .setParameter("ids", Set.copyOf(memberIds))
+                .setParameter("active", MemberStatus.ACTIVE)
+                .getResultList()
+                .forEach(row -> result.put((Long) row[0], (String) row[1]));
+        return result;
+    }
+
+    @Override
     public List<GhostOwner> ghostOwners(Set<Tier> tiers, long excludeMemberId) {
         if (tiers.isEmpty()) {
             return List.of();

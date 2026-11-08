@@ -6,6 +6,7 @@ import com.a207.runkk.common.PageCursor;
 import com.a207.runkk.member.MemberQueryService;
 import com.a207.runkk.member.MemberSummary;
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -44,6 +45,50 @@ public class BattleHistoryService {
     @Transactional(readOnly = true)
     public BattleHistoryView history(long memberId, DateRange range, Optional<BattleType> filter) {
         return history(memberId, range, filter, PageCursor.all());
+    }
+
+    /**
+     * 셀럽 기록마다 회원이 [from, to] 안에 처음 이긴 판정 시각과 표시명(celebrityIds 순서, event 이벤트 응모·코치 승리 포인트,
+     * S15P31A207-275).
+     */
+    @Transactional(readOnly = true)
+    public List<CelebrityChallenge> celebrityChallenges(
+            long memberId, List<Long> celebrityIds, LocalDateTime from, LocalDateTime to) {
+        Map<Long, LocalDateTime> wins =
+                battleRepository.findFirstCelebrityWins(memberId, celebrityIds, from, to);
+        return celebrityIds.stream()
+                .map(
+                        id ->
+                                new CelebrityChallenge(
+                                        id,
+                                        celebrityRecordRepository
+                                                .findById(id)
+                                                .map(CelebrityRecord::getAnonymousName)
+                                                .orElse(null),
+                                        wins.get(id)))
+                .toList();
+    }
+
+    /**
+     * 셀럽 기록 celebrityIds 가운데 하나를 [from, to] 안에 이긴 회원과 기록마다의 첫 판정 시각(회원 ID, 기록 ID 순, event 이벤트 응모자
+     * 명단, S15P31A207-275). 한 회원이 여러 기록을 이겼으면 기록마다 한 줄이다.
+     */
+    @Transactional(readOnly = true)
+    public List<CelebrityWin> celebrityWinners(
+            List<Long> celebrityIds, LocalDateTime from, LocalDateTime to) {
+        return battleRepository.findCelebrityWinners(celebrityIds, from, to);
+    }
+
+    /** 셀럽 기록 ID별 표시명(가림 이름 열). 지워진 기록은 빠진다(event 이벤트 응모자 명단, S15P31A207-275). */
+    @Transactional(readOnly = true)
+    public Map<Long, String> celebrityNames(List<Long> celebrityIds) {
+        Map<Long, String> names = new HashMap<>();
+        for (Long id : celebrityIds) {
+            celebrityRecordRepository
+                    .findById(id)
+                    .ifPresent(r -> names.put(id, r.getAnonymousName()));
+        }
+        return names;
     }
 
     /** 통계는 기간 전체로, 목록은 page만큼(B3 리뷰: 이력 페이지 나누기). */

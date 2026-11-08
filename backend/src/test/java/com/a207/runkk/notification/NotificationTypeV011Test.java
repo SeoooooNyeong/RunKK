@@ -26,13 +26,15 @@ class NotificationTypeV011Test {
                         NotificationType.BACKGROUND_UNLOCKED, Screen.AVATAR_BACKGROUND,
                         NotificationType.REPORT_RESOLVED, Screen.CREW_HOME);
         expected.forEach((type, screen) -> assertThat(type.defaultScreen()).isEqualTo(screen));
-        assertThat(NotificationType.values()).hasSize(21);
+        // + 운영자 공지 NOTICE(S15P31A207-275) = 22
+        assertThat(NotificationType.values()).hasSize(22);
     }
 
     @Test
     @DisplayName("이동 화면은 11개이고 CREW_BOARD는 없다(D-150)")
     void screens_areElevenWithoutCrewBoard() {
-        assertThat(Screen.values()).hasSize(11);
+        // + 운영자 공지 링크 EXTERNAL_LINK(S15P31A207-275) = 12
+        assertThat(Screen.values()).hasSize(12);
         assertThat(Arrays.stream(Screen.values()).map(Enum::name)).doesNotContain("CREW_BOARD");
     }
 

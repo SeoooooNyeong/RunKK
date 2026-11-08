@@ -23,6 +23,9 @@ object Routes {
 
     /** 기록런 탭: 셀프런 | 셀럽런 분절 하나(ui.battle RecordRunScreen, D-250). */
     const val RECORD_RUN = "battle/record"
+
+    /** 기록런 탭을 셀럽런 분절로 연다(이벤트 웹 페이지의 open("celebrity"), 이벤트 계약 5절). 하단 탭은 기록런이다. */
+    const val RECORD_RUN_CELEB = "battle/record/celeb"
     const val HOME = "home"
 
     /** 랭킹 탭: 개인 랭킹(ui.record RankingScreen, D-250, D-286). v0.14에서 값을 "records/ranking"에서 바꿨다. */
@@ -57,6 +60,9 @@ object Routes {
 
     // 알림(ui.notification)
     const val NOTIFICATIONS = "notifications"
+
+    /** 이벤트 목록(진행 중 | 지난 이벤트, 이벤트 계약 2절). 알림함 맨 위 이벤트 항목과 이벤트 웹 페이지의 open("events")가 연다. */
+    const val EVENTS = "events"
 
     // 대결(ui.battle), 크루(ui.crew), Runimal(ui.runimal), 아바타(ui.avatar): 화면은 A3b 단계가 등록한다.
 
@@ -100,6 +106,13 @@ object Routes {
      */
     @Serializable
     data class RunResult(val recordId: String, val isJustFinished: Boolean = false) : NavKey
+
+    /**
+     * 이벤트 상세 웹 페이지(이벤트 계약 4절, 5절). [url]은 API origin에 붙인 절대 주소이고 화면이 ?theme=light|dark를 붙인다.
+     * [slug]는 이벤트 식별자(GET /events/{slug}/me), [title]은 상단 바 제목이다.
+     */
+    @Serializable
+    data class EventDetail(val slug: String, val title: String, val url: String) : NavKey
 
     /** 기록 상세(C2). */
     @Serializable

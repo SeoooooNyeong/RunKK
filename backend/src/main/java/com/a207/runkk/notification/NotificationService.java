@@ -56,22 +56,37 @@ public class NotificationService {
     /** 탈퇴 회원이면 버림 → 알림함 저장 → ALLOWED면 커밋 뒤 기기 토큰으로 푸시(MUTED면 저장만). 무효 토큰은 지운다. */
     @Transactional
     public void notify(NotificationRequest req) {
+        deliver(req);
+    }
+
+    /**
+     * notify와 같고 알림함에 저장했는지 돌려준다. 탈퇴했거나 없는 회원이면 거짓(버림). 운영자 공지(NoticeService)가 받지 못한 회원을 세려고 쓴다.
+     */
+    @Transactional
+    boolean deliver(NotificationRequest req) {
         PushDecision decision =
                 memberQueryService.pushDecision(req.recipientId(), req.type().name());
         if (decision == PushDecision.WITHDRAWN) {
             log.debug("notification_dropped type={} reason=withdrawn", req.type());
-            return;
+            return false;
         }
         notificationRepository.save(Notification.of(req, LocalDateTime.now(clock)));
         if (decision != PushDecision.ALLOWED || unreleased(req.type())) {
-            return;
+            return true;
         }
         List<String> tokens = pushDeviceRepository.tokensOf(req.recipientId());
         if (tokens.isEmpty()) {
-            return;
+            return true;
         }
         afterCommit(
-                () -> push(req, tokens, () -> pushGateway.send(tokens, req.type(), req.content())));
+                () ->
+                        push(
+                                req,
+                                tokens,
+                                () ->
+                                        pushGateway.send(
+                                                tokens, req.type(), req.title(), req.content())));
+        return true;
     }
 
     /**
@@ -185,6 +200,7 @@ public class NotificationService {
                                         new InboxView.Item(
                                                 n.id(),
                                                 n.type(),
+                                                n.title(),
                                                 n.content(),
                                                 n.occurredAt(),
                                                 n.isRead(),
