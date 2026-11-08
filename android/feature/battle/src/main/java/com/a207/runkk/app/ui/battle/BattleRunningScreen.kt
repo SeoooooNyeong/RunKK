@@ -59,6 +59,7 @@ import com.a207.runkk.app.core.designsystem.OpponentMarkerPlacer
 import com.a207.runkk.app.core.designsystem.RouteCanvas
 import com.a207.runkk.app.core.designsystem.RouteMarker
 import com.a207.runkk.app.core.designsystem.RunMapMarker
+import com.a207.runkk.app.core.designsystem.RunPermissionEffect
 import com.a207.runkk.app.core.designsystem.RunkkAvatar
 import com.a207.runkk.app.core.designsystem.RunkkBanner
 import com.a207.runkk.app.core.designsystem.RunkkColors
@@ -81,7 +82,6 @@ import com.a207.runkk.app.core.designsystem.canShowKakaoMap
 import com.a207.runkk.app.core.designsystem.rememberHeadingLeft
 import com.a207.runkk.app.core.designsystem.rememberIsMoving
 import com.a207.runkk.app.core.designsystem.runFrameMillis
-import com.a207.runkk.app.core.designsystem.runPermissionsToAsk
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
@@ -90,38 +90,13 @@ import java.time.Duration
 import kotlin.math.abs
 
 /**
- * 대결 진행 화면이 열리면 진행 알림 권한과 신체 활동 권한(걸음 센서 케이던스, S15P31A207-242)을 한 번에 묻는다(AN8-5, D-259 "첫 러닝
- * 시작 때"). 첫 러닝이 배틀런·친구 대결·셀프런·셀럽런이어도 진행 알림을 띄우고 케이던스를 잴 수 있게 자유런 카운트다운과 같은 규칙
- * (core runPermissionsToAsk)을 쓴다. 거부해도 대결은 이어 간다.
- */
-@Composable
-private fun RunPermissionEffect() {
-    val context = LocalContext.current
-    var isAsked by rememberSaveable { mutableStateOf(false) }
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { }
-    LaunchedEffect(Unit) {
-        val asks = runPermissionsToAsk(
-            sdkInt = Build.VERSION.SDK_INT,
-            isNotificationGranted = context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
-                PackageManager.PERMISSION_GRANTED,
-            isActivityGranted = context.checkSelfPermission(Manifest.permission.ACTIVITY_RECOGNITION) ==
-                PackageManager.PERMISSION_GRANTED,
-            isAsked = isAsked
-        )
-        if (asks.isNotEmpty()) {
-            isAsked = true
-            launcher.launch(asks.toTypedArray())
-        }
-    }
-}
-
-/**
  * 대결 진행(C-4·D-3·E-3)과 셀프런·셀럽런 카운트다운(D-2·E-2). 끝나면 결과 화면이 이 화면을 대신하고, 셀프런·셀럽런을 그만두면
  * 결과 없이 기록런 탭으로 돌아간다(D-266).
  */
 @Composable
 fun BattleRunningRoute(key: Routes.BattleRunning, viewModel: BattleRunningViewModel = hiltViewModel()) {
     LaunchedEffect(key) { viewModel.bind(key) }
+    // 진행 알림·신체 활동 권한을 한 번 묻는다(AN8-5, D-259, S15P31A207-242). 거부해도 대결은 이어 간다.
     RunPermissionEffect()
     val state by viewModel.state.collectAsStateWithLifecycle()
     val navigator = LocalRunkkNavigator.current
