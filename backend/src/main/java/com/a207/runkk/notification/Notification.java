@@ -17,6 +17,7 @@ import java.time.LocalDateTime;
 public class Notification {
 
     private static final int CONTENT_MAX = 500;
+    private static final int TITLE_MAX = 60;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -43,8 +44,13 @@ public class Notification {
     @Column(name = "target_screen", length = 30, updatable = false)
     private Screen targetScreen;
 
-    @Column(name = "target_id", length = 100, updatable = false)
+    /** 대상 ID. 운영자 공지의 링크 주소가 들어가 300자다(V35_3). */
+    @Column(name = "target_id", length = 300, updatable = false)
     private String targetId;
+
+    /** 운영자 공지의 제목(V35_3). 다른 종류는 null이고 앱이 종류로 제목을 정한다. */
+    @Column(name = "title", length = TITLE_MAX, updatable = false)
+    private String title;
 
     protected Notification() {}
 
@@ -54,6 +60,7 @@ public class Notification {
         this.content = fit(req.content());
         this.occurredAt = occurredAt;
         this.read = false;
+        this.title = req.title() == null ? null : fitTitle(req.title());
         if (req.target() != null) {
             this.targetScreen = req.target().screen();
             this.targetId = req.target().targetId();
@@ -72,6 +79,10 @@ public class Notification {
     /** 내용 칼럼 길이(500)를 넘으면 앞부분만 남긴다. */
     static String fit(String content) {
         return content.length() > CONTENT_MAX ? content.substring(0, CONTENT_MAX) : content;
+    }
+
+    private static String fitTitle(String title) {
+        return title.length() > TITLE_MAX ? title.substring(0, TITLE_MAX) : title;
     }
 
     /** 알림 사건을 알림함 한 건으로 만든다(UNREAD). */
@@ -106,6 +117,10 @@ public class Notification {
 
     String content() {
         return content;
+    }
+
+    String title() {
+        return title;
     }
 
     LocalDateTime occurredAt() {

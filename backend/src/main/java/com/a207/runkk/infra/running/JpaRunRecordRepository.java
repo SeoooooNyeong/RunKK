@@ -276,6 +276,25 @@ public class JpaRunRecordRepository implements RunRecordRepository {
     }
 
     @Override
+    public List<RunSummary> validSummariesAtLeast(
+            long minMeters, LocalDateTime from, LocalDateTime to) {
+        return entityManager
+                .createQuery(
+                        SUMMARY_COLUMNS
+                                + " where r.valid = true and r.distanceMeters >= :min"
+                                + " and r.startedAt >= :from and r.startedAt <= :to"
+                                + " order by r.startedAt, r.recordId",
+                        Object[].class)
+                .setParameter("min", minMeters)
+                .setParameter("from", from)
+                .setParameter("to", to)
+                .getResultList()
+                .stream()
+                .map(JpaRunRecordRepository::summary)
+                .toList();
+    }
+
+    @Override
     public List<RunSummary> recentValidSummaries(long memberId, int limit) {
         return entityManager
                 .createQuery(

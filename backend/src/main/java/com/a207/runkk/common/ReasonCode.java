@@ -237,7 +237,11 @@ public enum ReasonCode {
 
     // web.auth (코드 리뷰 3차 B-L6)
     /** 서버 저장소 일시 장애로 지금 처리할 수 없음(갱신 토큰 폐기 목록 등). 소셜 제공자 문제가 아니다. 같은 요청을 다시 보내면 된다. */
-    TEMPORARILY_UNAVAILABLE("잠시 후 다시 시도해 주세요");
+    TEMPORARILY_UNAVAILABLE("잠시 후 다시 시도해 주세요"),
+
+    // event (S15P31A207-275)
+    /** 이벤트가 없거나 공개하지 않음(404). */
+    EVENT_NOT_FOUND("이벤트 없음");
 
     private final String message;
 

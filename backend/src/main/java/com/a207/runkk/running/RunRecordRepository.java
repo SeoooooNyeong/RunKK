@@ -73,6 +73,12 @@ public interface RunRecordRepository {
     /** 기간 안 기록 전부(무효 포함), 최신순. */
     List<RunSummary> summariesBetween(long memberId, DateRange range);
 
+    /**
+     * 모든 회원의 유효 기록 가운데 거리 minMeters 이상이고 시작 시각이 [from, to]인 것, 시작 시각 오래된 순(event 이벤트 응모자 명단,
+     * S15P31A207-275).
+     */
+    List<RunSummary> validSummariesAtLeast(long minMeters, LocalDateTime from, LocalDateTime to);
+
     /** 최근 유효 기록 limit개, 최신순. */
     List<RunSummary> recentValidSummaries(long memberId, int limit);
 

@@ -147,6 +147,15 @@ class JpaRunningRepositoriesIntegrationTest {
         assertThat(records.recentValidSummaries(1, 1))
                 .extracting(RunSummary::recordId)
                 .containsExactly(id(3));
+        // 이벤트 응모자 명단(S15P31A207-275): 유효하고 거리 이상, 시작 시각 양 끝 포함, 오래된 순
+        assertThat(records.validSummariesAtLeast(1_000, START.minusDays(1), START.plusHours(2)))
+                .extracting(RunSummary::recordId)
+                .containsExactly(id(1), id(3));
+        assertThat(records.validSummariesAtLeast(4_000, START.minusDays(1), START.plusHours(2)))
+                .extracting(RunSummary::recordId)
+                .containsExactly(id(1));
+        assertThat(records.validSummariesAtLeast(1_000, START, START.plusHours(2).minusSeconds(1)))
+                .isEmpty();
         assertThat(records.recentValidSamples(1, 5)).hasSize(2);
         assertThat(records.validSamplesBetween(1, today)).hasSize(1);
         assertThat(records.recentValid(1, 5)).hasSize(2);

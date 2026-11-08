@@ -119,7 +119,9 @@ import com.a207.runkk.app.core.designsystem.media.rememberSoundEffects
 import com.a207.runkk.app.core.designsystem.sceneAvatarFilter
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
+import com.a207.runkk.app.core.navigation.LocalSlots
 import com.a207.runkk.app.core.navigation.Routes
+import com.a207.runkk.app.core.navigation.SlotKey
 import java.util.Locale
 import kotlinx.coroutines.launch
 
@@ -334,11 +336,17 @@ private fun Header(state: HomeUiState, onNavigate: (String) -> Unit) {
                 balance = state.header.balance,
                 onClick = if (isAvatarOpen) ({ onNavigate(Routes.SHOP) }) else null
             )
-            CircleIconButton(
-                icon = RunkkIcons.Bell,
-                description = stringResource(R.string.home_header_notifications),
-                onClick = { onNavigate(Routes.NOTIFICATIONS) }
-            )
+            // 안 본 진행 중 이벤트가 있으면 ui.notification이 칸에 라임 점을 넣는다(피그마 62206:1008)
+            Box {
+                CircleIconButton(
+                    icon = RunkkIcons.Bell,
+                    description = stringResource(R.string.home_header_notifications),
+                    onClick = { onNavigate(Routes.NOTIFICATIONS) }
+                )
+                Box(Modifier.align(Alignment.TopEnd).padding(top = 3.dp, end = 3.dp)) {
+                    LocalSlots.current[SlotKey.HOME_INBOX_DOT].orEmpty().forEach { it() }
+                }
+            }
         }
     }
 }

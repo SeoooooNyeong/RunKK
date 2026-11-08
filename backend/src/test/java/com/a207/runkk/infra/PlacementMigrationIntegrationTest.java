@@ -101,10 +101,10 @@ class PlacementMigrationIntegrationTest {
     }
 
     /**
-     * 실제 마이그레이션 폴더를 [prefix]로 시작하는 파일만 빼고 [target]에 복사한다. 35.1이 생기기 전 develop DB(V36·V37 적용)를 같은
-     * 체크섬의 실제 파일로 만든다.
+     * 실제 마이그레이션 폴더를 [prefixes] 중 하나로 시작하는 파일만 빼고 [target]에 복사한다. 35.1이 생기기 전 develop DB(V36·V37
+     * 적용)를 같은 체크섬의 실제 파일로 만든다.
      */
-    private static void copyMigrationsExcept(String prefix, Path target) throws Exception {
+    private static void copyMigrationsExcept(Path target, String... prefixes) throws Exception {
         Path source =
                 Path.of(
                         PlacementMigrationIntegrationTest.class
@@ -112,7 +112,12 @@ class PlacementMigrationIntegrationTest {
                                 .toURI());
         try (Stream<Path> files = Files.list(source)) {
             for (Path file :
-                    files.filter(f -> !f.getFileName().toString().startsWith(prefix)).toList()) {
+                    files.filter(
+                                    f ->
+                                            Stream.of(prefixes)
+                                                    .noneMatch(
+                                                            f.getFileName().toString()::startsWith))
+                            .toList()) {
                 Files.copy(file, target.resolve(file.getFileName()));
             }
         }
@@ -243,9 +248,12 @@ class PlacementMigrationIntegrationTest {
             "TC-5936 develop 순서: V37까지 있는 DB에 35.1은 순서 밖 적용을 켜야 한 번 들어가고, 다시 돌리면 아무것도 하지"
                     + " 않는다(D-476·R85)")
     void developOrder_outOfOrderAppliesOnce(@TempDir Path withoutPlacement) throws Exception {
-        copyMigrationsExcept("V35_1__", withoutPlacement);
+        // 핫픽스 35.1~35.3이 없는 develop DB(V36, V37 적용)를 만든다
+        copyMigrationsExcept(withoutPlacement, "V35_1__", "V35_2__", "V35_3__");
         flyway("37", false, "filesystem:" + withoutPlacement.toAbsolutePath()).migrate();
-        assertThat(appliedVersions()).endsWith("35", "36", "37").doesNotContain("35.1");
+        assertThat(appliedVersions())
+                .endsWith("35", "36", "37")
+                .doesNotContain("35.1", "35.2", "35.3");
 
         assertThatThrownBy(() -> flyway("37", false, "classpath:db/migration").migrate())
                 .as("순서 밖이 꺼진 설정은 적용 안 된 낮은 번호 35.1에서 멈춘다(그래서 develop만 켠다)")
@@ -253,8 +261,9 @@ class PlacementMigrationIntegrationTest {
         assertThat(appliedVersions()).doesNotContain("35.1");
 
         MigrateResult develop = flyway("37", true, "classpath:db/migration").migrate();
-        assertThat(develop.migrationsExecuted).isEqualTo(1);
-        assertThat(appliedVersions()).endsWith("36", "37", "35.1");
+        // 35.1 뒤에 핫픽스 v0.11.4 이벤트 35.2, 공지 알림 35.3도 같은 방식으로 순서 밖 적용된다(S15P31A207-275)
+        assertThat(develop.migrationsExecuted).isEqualTo(3);
+        assertThat(appliedVersions()).endsWith("36", "37", "35.1", "35.2", "35.3");
         assertThat(flyway("37", true, "classpath:db/migration").migrate().migrationsExecuted)
                 .isZero();
         assertThat(

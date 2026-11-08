@@ -99,8 +99,11 @@ class ServerContractTest {
     }
 
     @Test
-    fun `알림 설정 묶음은 서버 NotificationType 21개를 빠짐없이 한 번씩 담는다`() {
-        assertEquals(ContractEnums.names("NotificationType"), NotificationTypes.allTypes.toSet())
+    fun `알림 설정 묶음은 서버 NotificationType 21개를 빠짐없이 한 번씩 담고 운영자 공지만 스위치가 없다`() {
+        assertEquals(
+            ContractEnums.names("NotificationType"),
+            NotificationTypes.allTypes.toSet() + NotificationTypes.alwaysOn
+        )
         assertEquals(21, NotificationTypes.allTypes.size)
     }
 

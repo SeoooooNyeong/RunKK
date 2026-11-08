@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Set;
+import java.util.TreeMap;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -93,6 +94,19 @@ public class RunQueryService {
     /** 기간 안 기록 전부(무효 포함), 최신순. */
     public List<RunSummary> summariesBetween(long memberId, DateRange r) {
         return runRecordRepository.summariesBetween(memberId, r);
+    }
+
+    /**
+     * 회원마다 시작 시각이 [from, to]이고 거리 minMeters 이상인 유효 기록 가운데 가장 이른 하나(회원 ID 순, event 이벤트 응모자 명단,
+     * S15P31A207-275). 같은 시작 시각이면 기록 ID가 앞선 것이다.
+     */
+    public Map<Long, RunSummary> earliestValidRunsAtLeast(
+            long minMeters, LocalDateTime from, LocalDateTime to) {
+        Map<Long, RunSummary> first = new TreeMap<>();
+        for (RunSummary run : runRecordRepository.validSummariesAtLeast(minMeters, from, to)) {
+            first.putIfAbsent(run.memberId(), run);
+        }
+        return first;
     }
 
     /** 1km 구간 페이스, 가장 빠른 1km, 심박 구간(최대 심박이 있을 때), 불안정 구간, 날씨, 신기록, 정지 구간(FR-036). */
