@@ -34,6 +34,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.a207.runkk.app.core.designsystem.LocalReleaseScope
 import com.a207.runkk.app.core.designsystem.RunkkColors
@@ -46,6 +47,7 @@ import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
+import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.core.navigation.route
 import com.a207.runkk.app.domain.notification.Inbox
 import java.time.Clock
@@ -78,6 +80,11 @@ internal fun groupInbox(items: List<Inbox.Item>, clock: Clock): List<InboxGroup>
 fun InboxRoute(viewModel: InboxViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val navigator = LocalRunkkNavigator.current
+    // 이벤트 목록에서 돌아오면 이벤트 항목의 새 이벤트 점을 다시 센다.
+    LifecycleResumeEffect(viewModel) {
+        viewModel.onResumed()
+        onPauseOrDispose {}
+    }
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             when (event) {
@@ -90,7 +97,8 @@ fun InboxRoute(viewModel: InboxViewModel = hiltViewModel()) {
         onBack = navigator::back,
         onItem = viewModel::onItemTapped,
         onRetry = viewModel::refresh,
-        onMessageShown = viewModel::onMessageShown
+        onMessageShown = viewModel::onMessageShown,
+        onEvents = { navigator.navigate(Routes.EVENTS) }
     )
 }
 
@@ -101,7 +109,8 @@ fun InboxScreen(
     onItem: (Inbox.Item) -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
-    onMessageShown: () -> Unit = {}
+    onMessageShown: () -> Unit = {},
+    onEvents: () -> Unit = {}
 ) {
     val snackbar = remember { SnackbarHostState() }
     val context = LocalContext.current
@@ -112,13 +121,19 @@ fun InboxScreen(
         }
     }
     Box(modifier = modifier.fillMaxSize()) {
-        InboxContent(state, onBack, onItem, onRetry)
+        InboxContent(state, onBack, onItem, onRetry, onEvents)
         RunkkSnackbarHost(snackbar, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp))
     }
 }
 
 @Composable
-private fun InboxContent(state: InboxUiState, onBack: () -> Unit, onItem: (Inbox.Item) -> Unit, onRetry: () -> Unit) {
+private fun InboxContent(
+    state: InboxUiState,
+    onBack: () -> Unit,
+    onItem: (Inbox.Item) -> Unit,
+    onRetry: () -> Unit,
+    onEvents: () -> Unit
+) {
     // 1차 배포에서 닫은 기능(크루, 아바타)의 알림은 목록에서 뺀다
     val scope = LocalReleaseScope.current
     val groups = remember(state.groups, scope) {
@@ -127,6 +142,13 @@ private fun InboxContent(state: InboxUiState, onBack: () -> Unit, onItem: (Inbox
     }
     Column(modifier = Modifier.fillMaxSize().background(RunkkColors.Background)) {
         RunkkTopBar(title = stringResource(R.string.notification_inbox_title), onBack = onBack)
+        state.eventSummary?.let {
+            EventInboxRow(
+                it,
+                onClick = onEvents,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp)
+            )
+        }
         when {
             state.isLoading && groups.isEmpty() -> RunkkLoading(modifier = Modifier.weight(1f))
 
