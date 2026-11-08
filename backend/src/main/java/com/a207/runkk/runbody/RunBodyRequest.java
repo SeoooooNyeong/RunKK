@@ -15,7 +15,7 @@ import java.util.List;
  * @param activeMs 운동 시간(정지 제외)
  * @param distanceMeters 기록 거리
  * @param birthYear 출생연도(ai가 최대 심박 220 - 나이에 쓴다)
- * @param samples 심박 표본과 위치로 셈한 이동 표본
+ * @param samples 심박 표본, 위치로 셈한 이동 표본, 기기가 잰 속도·케이던스 표본
  * @param gps 위치 점
  * @param recoveryHeartRates 종료 뒤 회복 심박(종료 시각 기준)
  */
@@ -39,14 +39,23 @@ public record RunBodyRequest(
     }
 
     /**
-     * 센서 표본 한 점. 심박 표본이면 heartRate만, 이동 표본이면 speed·distance만 있다(ai가 1초 칸으로 모은다). 케이던스는 저장하지 않아 없다.
+     * 센서 표본 한 점. 심박 표본이면 heartRate만, 이동 표본이면 distance(와 셈한 speed), 기기 측정 표본이면 speed·cadence만 있다(ai가
+     * 1초 칸으로 모은다, S15P31A207-242).
      *
      * @param tMs 운동 시간 축 밀리초
      * @param heartRate 심박(bpm)
-     * @param speed 직전 위치 점에서 셈한 속도(m/s)
+     * @param speed 속도(m/s). 기기가 잰 값, 없으면 직전 위치 점에서 셈한 값
      * @param distance 직전 위치 점에서 늘어난 거리(m)
+     * @param cadence 기기가 잰 케이던스(분당 걸음 수). 없으면 null(ai가 no_cadence를 붙인다)
      */
-    public record Sample(long tMs, Integer heartRate, Double speed, Double distance) {}
+    public record Sample(
+            long tMs, Integer heartRate, Double speed, Double distance, Double cadence) {
+
+        /** 케이던스 없는 표본. */
+        public Sample(long tMs, Integer heartRate, Double speed, Double distance) {
+            this(tMs, heartRate, speed, distance, null);
+        }
+    }
 
     /**
      * 위치 점 한 개.

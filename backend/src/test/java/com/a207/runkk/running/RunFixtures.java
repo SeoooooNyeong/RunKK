@@ -75,6 +75,27 @@ public final class RunFixtures {
                 samples);
     }
 
+    /** 기기가 잰 속도·케이던스를 단 사본(S15P31A207-242). */
+    public static RunUpload withMotions(RunUpload u, List<MotionSample> motions) {
+        return new RunUpload(
+                u.recordId(),
+                u.startedAt(),
+                u.endedAt(),
+                u.distance(),
+                u.elapsed(),
+                u.mode(),
+                u.cardKind(),
+                u.battleId(),
+                u.crewRunPostId(),
+                u.declaredPointCount(),
+                u.points(),
+                u.unstableSegments(),
+                u.heartRates(),
+                u.pauses(),
+                u.startDevice(),
+                motions);
+    }
+
     /** 5km 25:00(유효, VDOT 약 38.3). */
     public static RunRecord valid5k(String id) {
         return judged(upload(id, 5_000, 1_500));

@@ -3553,6 +3553,23 @@
   ],
   "file": "web/report/ReportController.java"
  },
+ "RunBodyDtos.RunBodySessionResponse": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "recordId"
+   },
+   {
+    "kind": "leaf",
+    "name": "status"
+   },
+   {
+    "kind": "leaf",
+    "name": "result"
+   }
+  ],
+  "file": "web/runbody/RunBodyDtos.java"
+ },
  "RunController.HeartRateRequest": {
   "components": [
    {
@@ -3574,6 +3591,24 @@
     "name": "samples",
     "ref": "RunController.HeartRateRequest",
     "required": true
+   }
+  ],
+  "file": "web/run/RunController.java"
+ },
+ "RunController.MotionRequest": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "measuredAt",
+    "required": true
+   },
+   {
+    "kind": "leaf",
+    "name": "speedMps"
+   },
+   {
+    "kind": "leaf",
+    "name": "cadenceSpm"
    }
   ],
   "file": "web/run/RunController.java"
@@ -3690,6 +3725,11 @@
    {
     "kind": "leaf",
     "name": "startDevice"
+   },
+   {
+    "kind": "list",
+    "name": "motions",
+    "ref": "RunController.MotionRequest"
    }
   ],
   "file": "web/run/RunController.java"

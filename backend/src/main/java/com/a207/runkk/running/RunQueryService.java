@@ -318,7 +318,8 @@ public class RunQueryService {
                                         r.isValid(),
                                         r.heartRateSamples(),
                                         r.isRoutePurged() ? List.of() : r.track().points(),
-                                        r.pauses()));
+                                        r.pauses(),
+                                        r.motionSamples()));
     }
 
     /** d에 처음 닿은 경과 시간(크루런 도착 시각, 대결 검증). 도착이라 0.5m 반올림 차이를 허용한다(RunRecord.timeToArrive, W54). */

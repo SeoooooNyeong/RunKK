@@ -5,6 +5,7 @@ import com.a207.runkk.common.ServerZone;
 import com.a207.runkk.member.MemberQueryService;
 import com.a207.runkk.running.HeartRateSample;
 import com.a207.runkk.running.LocationPoint;
+import com.a207.runkk.running.MotionSample;
 import com.a207.runkk.running.PauseInterval;
 import com.a207.runkk.running.RunBodyInput;
 import com.a207.runkk.running.RunQueryService;
@@ -12,6 +13,7 @@ import com.a207.runkk.running.StartDevice;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -21,8 +23,16 @@ import org.springframework.stereotype.Component;
 
 /**
  * 저장된 러닝으로 ai 런바디 분석 요청을 만든다(설계 05-19 2.2, D-444). 시각은 정지 구간을 뺀 운동 시간 축 밀리초다(ai는 activeMs까지 1초 칸을
- * 만든다). 케이던스는 저장하지 않아 보내지 않는다. 속도도 저장하지 않지만, 이웃한 위치 점 사이 거리와 시간으로 셈한 이동 표본(speed·distance)을 보낸다.
- * 이것이 없으면 ai가 모든 칸을 "멈춤"으로 봐 지구력·안정성·체력 축을 낼 수 없다(설계와 다른 점, 구현 보고에 적음). 회원 식별 항목은 회원 ID 문자열뿐이다.
+ * 만든다). 회원 식별 항목은 회원 ID 문자열뿐이다.
+ *
+ * <p>속도·케이던스는 "기기가 잰 값이 있으면 그 값, 없으면 계산한 값"이다(2026-11-08 사용자 결정, S15P31A207-242, D-444를 바꾼다).
+ *
+ * <ul>
+ *   <li>기기가 잰 속도·케이던스(RunBodyInput.motions)는 그대로 표본으로 보낸다. ai 상한 밖 값은 그 값만 뺀다.
+ *   <li>이웃한 위치 점 사이 거리는 늘 이동 표본(distance)으로 보낸다. 속도는 그 시각 앞뒤 {@link #MEASURED_SPEED_WINDOW} 안에 기기가
+ *       잰 속도가 없을 때만 거리와 시간으로 셈해 함께 보낸다. 이것이 없으면 ai가 모든 칸을 "멈춤"으로 봐 지구력·안정성·체력 축을 낼 수 없다.
+ *   <li>케이던스는 계산하지 않는다. 기기가 재지 않았으면 비우고 ai가 no_cadence를 붙인다.
+ * </ul>
  */
 @Component
 public class RunBodyRequestFactory {
@@ -32,6 +42,12 @@ public class RunBodyRequestFactory {
 
     /** ai SampleIn.speed 상한(lt 15m/s). */
     static final double MAX_SPEED_MPS = 15.0;
+
+    /** ai SampleIn.cadence 상한(lt 300spm). */
+    static final double MAX_CADENCE_SPM = 300.0;
+
+    /** 위치 점 시각 앞뒤로 이 안에 기기가 잰 속도가 있으면 셈한 속도를 보내지 않는다(두 값을 한 칸에 섞지 않는다). */
+    static final Duration MEASURED_SPEED_WINDOW = Duration.ofSeconds(5);
 
     /** 종료 뒤 회복 심박으로 보낼 시간 범위(ai는 1·2분 뒤 값을 본다). */
     static final Duration RECOVERY_WINDOW = Duration.ofMinutes(5);
@@ -88,6 +104,7 @@ public class RunBodyRequestFactory {
                     .ifPresent(
                             t -> samples.add(new RunBodyRequest.Sample(t, hr.bpm(), null, null)));
         }
+        long[] measuredSpeeds = addMeasuredMotions(input.motions(), clock, samples);
         List<RunBodyRequest.GpsPoint> gps = new ArrayList<>();
         LocationPoint previous = null;
         long previousT = -1;
@@ -105,6 +122,7 @@ public class RunBodyRequestFactory {
                             point.accuracyMeters()));
             if (previous != null
                     && !clock.pausedBetween(previous.measuredAt(), point.measuredAt())) {
+                boolean measured = hasNear(measuredSpeeds, t.getAsLong());
                 movement(previous.point(), point.point(), t.getAsLong() - previousT)
                         .ifPresent(
                                 step ->
@@ -112,7 +130,7 @@ public class RunBodyRequestFactory {
                                                 new RunBodyRequest.Sample(
                                                         t.getAsLong(),
                                                         null,
-                                                        step.speed(),
+                                                        measured ? null : step.speed(),
                                                         step.meters())));
             }
             previous = point;
@@ -136,6 +154,48 @@ public class RunBodyRequestFactory {
                 samples,
                 gps,
                 recovery);
+    }
+
+    /**
+     * 기기가 잰 속도·케이던스를 표본으로 더한다. 운동 시간 밖(시작 전·종료 뒤·정지 중) 표본은 버리고, ai 상한 밖 값은 그 값만 뺀다.
+     *
+     * @return 속도를 보낸 표본의 운동 시간 축 밀리초(오름차순)
+     */
+    private static long[] addMeasuredMotions(
+            List<MotionSample> motions, ActiveClock clock, List<RunBodyRequest.Sample> samples) {
+        List<Long> speedTimes = new ArrayList<>();
+        for (MotionSample motion : motions) {
+            OptionalLong t = clock.activeMillis(motion.measuredAt());
+            if (t.isEmpty()) {
+                continue;
+            }
+            Double speed = below(motion.speedMps(), MAX_SPEED_MPS, 3);
+            Double cadence = below(motion.cadenceSpm(), MAX_CADENCE_SPM, 1);
+            if (speed == null && cadence == null) {
+                continue;
+            }
+            samples.add(new RunBodyRequest.Sample(t.getAsLong(), null, speed, null, cadence));
+            if (speed != null) {
+                speedTimes.add(t.getAsLong());
+            }
+        }
+        return speedTimes.stream().mapToLong(Long::longValue).sorted().toArray();
+    }
+
+    /** 0 이상 상한 미만이면 반올림한 값, 아니면 null. */
+    private static Double below(Double value, double limit, int decimals) {
+        if (value == null || value < 0 || value >= limit) {
+            return null;
+        }
+        return round(value, decimals);
+    }
+
+    /** sorted 안에 t 앞뒤 MEASURED_SPEED_WINDOW 안의 값이 있는가. */
+    private static boolean hasNear(long[] sorted, long t) {
+        long window = MEASURED_SPEED_WINDOW.toMillis();
+        int i = Arrays.binarySearch(sorted, t - window);
+        int from = i >= 0 ? i : -i - 1;
+        return from < sorted.length && sorted[from] <= t + window;
     }
 
     /** 이웃한 두 위치 점 사이 이동. 시간이 0 이하이거나 ai 상한을 넘는 쌍은 비어 있다. */

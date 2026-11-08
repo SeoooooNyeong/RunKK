@@ -2755,6 +2755,20 @@
     } ],
     "file" : "web/run/RunController.java"
   },
+  "RunController.MotionRequest" : {
+    "components" : [ {
+      "name" : "measuredAt",
+      "required" : true,
+      "kind" : "leaf"
+    }, {
+      "name" : "speedMps",
+      "kind" : "leaf"
+    }, {
+      "name" : "cadenceSpm",
+      "kind" : "leaf"
+    } ],
+    "file" : "web/run/RunController.java"
+  },
   "RunController.PauseRequest" : {
     "components" : [ {
       "name" : "from",
@@ -2843,6 +2857,10 @@
     }, {
       "name" : "startDevice",
       "kind" : "leaf"
+    }, {
+      "name" : "motions",
+      "kind" : "list",
+      "ref" : "RunController.MotionRequest"
     } ],
     "file" : "web/run/RunController.java"
   },

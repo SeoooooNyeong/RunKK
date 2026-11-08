@@ -9,6 +9,7 @@ import com.a207.runkk.common.Distance;
 import com.a207.runkk.member.MemberQueryService;
 import com.a207.runkk.running.HeartRateSample;
 import com.a207.runkk.running.LocationPoint;
+import com.a207.runkk.running.MotionSample;
 import com.a207.runkk.running.PauseInterval;
 import com.a207.runkk.running.RunBodyInput;
 import com.a207.runkk.running.RunFixtures;
@@ -166,6 +167,130 @@ class RunBodyRequestFactoryTest {
 
         assertThat(request.samples())
                 .containsExactly(new RunBodyRequest.Sample(0, null, null, null));
+    }
+
+    private static RunBodyInput withMotions(RunBodyInput base, List<MotionSample> motions) {
+        return new RunBodyInput(
+                base.recordId(),
+                base.memberId(),
+                base.startedAt(),
+                base.endedAt(),
+                base.distance(),
+                base.elapsed(),
+                base.startDevice(),
+                base.valid(),
+                base.heartRates(),
+                base.points(),
+                base.pauses(),
+                motions);
+    }
+
+    @Test
+    @DisplayName("기기가 잰 속도가 있으면 셈한 속도 대신 그 값을 보내고 거리는 위치로 보낸다")
+    void measuredSpeed_replacesComputedSpeed_distanceStaysFromRoute() {
+        int seconds = 120;
+        List<MotionSample> motions = new ArrayList<>();
+        for (int i = 0; i <= seconds; i++) {
+            motions.add(new MotionSample(START.plusSeconds(i), 3.3333, 172.0));
+        }
+        RunBodyInput run =
+                withMotions(
+                        input(
+                                seconds,
+                                360,
+                                List.of(),
+                                RunFixtures.straightLine(START, 3.0, seconds),
+                                List.of(),
+                                Duration.ZERO),
+                        motions);
+
+        RunBodyRequest request = RunBodyRequestFactory.of(run, 1990);
+
+        List<RunBodyRequest.Sample> device =
+                request.samples().stream().filter(s -> s.cadence() != null).toList();
+        assertThat(device).hasSize(seconds + 1);
+        assertThat(device)
+                .allSatisfy(
+                        s -> {
+                            assertThat(s.speed()).isEqualTo(3.333);
+                            assertThat(s.cadence()).isEqualTo(172.0);
+                            assertThat(s.distance()).isNull();
+                        });
+        List<RunBodyRequest.Sample> moves =
+                request.samples().stream().filter(s -> s.distance() != null).toList();
+        assertThat(moves).hasSize(seconds);
+        assertThat(moves)
+                .as("앞뒤 5초 안에 기기 속도가 있어 셈한 속도는 뺀다")
+                .allSatisfy(m -> assertThat(m.speed()).isNull());
+        assertThat(request.samples()).isSortedAccordingTo((a, b) -> Long.compare(a.tMs(), b.tMs()));
+    }
+
+    @Test
+    @DisplayName("기기 속도가 없는 구간은 위치로 셈하고, 케이던스만 잰 표본은 케이던스만 보낸다")
+    void computedSpeed_fillsGapsWithoutMeasuredSpeed_cadenceOnlySamplesKeepNullSpeed() {
+        int seconds = 60;
+        List<MotionSample> motions = new ArrayList<>();
+        for (int i = 0; i <= 20; i++) {
+            motions.add(new MotionSample(START.plusSeconds(i), 3.0, null));
+        }
+        for (int i = 0; i <= seconds; i += 10) {
+            motions.add(new MotionSample(START.plusSeconds(i), null, 165.5));
+        }
+        RunBodyInput run =
+                withMotions(
+                        input(
+                                seconds,
+                                180,
+                                List.of(),
+                                RunFixtures.straightLine(START, 3.0, seconds),
+                                List.of(),
+                                Duration.ZERO),
+                        motions);
+
+        RunBodyRequest request = RunBodyRequestFactory.of(run, 1990);
+
+        List<RunBodyRequest.Sample> moves =
+                request.samples().stream().filter(s -> s.distance() != null).toList();
+        assertThat(moves)
+                .filteredOn(m -> m.tMs() <= 25_000)
+                .allSatisfy(m -> assertThat(m.speed()).isNull());
+        assertThat(moves)
+                .filteredOn(m -> m.tMs() > 25_000)
+                .isNotEmpty()
+                .allSatisfy(m -> assertThat(m.speed()).isBetween(2.9, 3.1));
+        assertThat(request.samples())
+                .filteredOn(s -> s.cadence() != null)
+                .hasSize(7)
+                .allSatisfy(s -> assertThat(s.speed()).isNull());
+    }
+
+    @Test
+    @DisplayName("ai 상한 밖 값과 운동 시간 밖 표본은 뺀다")
+    void outOfRangeOrOutsideActiveTime_motionsAreDropped() {
+        LocalDateTime pauseFrom = START.plusSeconds(30);
+        LocalDateTime pauseTo = pauseFrom.plusSeconds(30);
+        List<MotionSample> motions =
+                List.of(
+                        new MotionSample(START.minusSeconds(1), 3.0, 170.0),
+                        new MotionSample(START.plusSeconds(10), 16.0, 310.0),
+                        new MotionSample(START.plusSeconds(11), 16.0, 171.0),
+                        new MotionSample(START.plusSeconds(40), 3.0, 170.0),
+                        new MotionSample(START.plusSeconds(200), 3.0, 170.0));
+        RunBodyInput run =
+                withMotions(
+                        input(
+                                60,
+                                180,
+                                List.of(),
+                                List.of(),
+                                List.of(new PauseInterval(pauseFrom, pauseTo)),
+                                Duration.ofSeconds(30)),
+                        motions);
+
+        RunBodyRequest request = RunBodyRequestFactory.of(run, 1990);
+
+        assertThat(request.samples())
+                .containsExactly(new RunBodyRequest.Sample(11_000, null, null, null, 171.0));
     }
 
     @Test
