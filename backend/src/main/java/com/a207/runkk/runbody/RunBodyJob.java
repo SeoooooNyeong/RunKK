@@ -71,6 +71,10 @@ public class RunBodyJob {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    /** 러닝 시작 일시. 러닝 선택 목록·점수 변화의 순서 기준이다(V45, MR !91 e2e 3). */
+    @Column(name = "run_started_at", nullable = false, updatable = false)
+    private LocalDateTime runStartedAt;
+
     @Column(name = "submitted_at")
     private LocalDateTime submittedAt;
 
@@ -91,6 +95,12 @@ public class RunBodyJob {
 
     /** 러닝 저장과 같은 트랜잭션에서 만든다. 커밋 뒤 제출이 유실되면 SUBMIT_GRACE 뒤 pollDue가 제출한다. */
     public static RunBodyJob pending(String recordId, long memberId, LocalDateTime now) {
+        return pending(recordId, memberId, now, now);
+    }
+
+    /** 러닝 시작 일시(runStartedAt)를 함께 남긴다. 없으면 now. */
+    public static RunBodyJob pending(
+            String recordId, long memberId, LocalDateTime now, LocalDateTime runStartedAt) {
         if (recordId == null || recordId.isBlank() || recordId.length() > 36) {
             throw new IllegalArgumentException("기록 ID 오류");
         }
@@ -102,6 +112,8 @@ public class RunBodyJob {
         job.memberId = memberId;
         job.status = RunBodyStatus.PENDING;
         job.createdAt = now.truncatedTo(ChronoUnit.MICROS);
+        job.runStartedAt =
+                runStartedAt == null ? job.createdAt : runStartedAt.truncatedTo(ChronoUnit.MICROS);
         job.nextPollAt = job.createdAt.plus(SUBMIT_GRACE);
         return job;
     }
@@ -251,6 +263,10 @@ public class RunBodyJob {
 
     public LocalDateTime createdAt() {
         return createdAt;
+    }
+
+    public LocalDateTime runStartedAt() {
+        return runStartedAt;
     }
 
     /** 거부 사유. 없으면 null. */

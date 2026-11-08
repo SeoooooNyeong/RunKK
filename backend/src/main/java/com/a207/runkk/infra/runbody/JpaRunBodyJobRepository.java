@@ -52,17 +52,18 @@ public class JpaRunBodyJobRepository implements RunBodyJobRepository {
         String older =
                 after == null
                         ? ""
-                        : " and (j.createdAt < :at or (j.createdAt = :at and j.recordId < :id))";
+                        : " and (j.runStartedAt < :at or (j.runStartedAt = :at and j.recordId <"
+                                + " :id))";
         TypedQuery<RunBodyJob> query =
                 em.createQuery(
                                 "select j from RunBodyJob j where j.memberId = :member"
                                         + older
-                                        + " order by j.createdAt desc, j.recordId desc",
+                                        + " order by j.runStartedAt desc, j.recordId desc",
                                 RunBodyJob.class)
                         .setParameter("member", memberId)
                         .setMaxResults(limit);
         if (after != null) {
-            query.setParameter("at", after.createdAt()).setParameter("id", after.recordId());
+            query.setParameter("at", after.runStartedAt()).setParameter("id", after.recordId());
         }
         return query.getResultList();
     }
@@ -71,12 +72,12 @@ public class JpaRunBodyJobRepository implements RunBodyJobRepository {
     public Optional<Integer> previousScore(RunBodyJob before) {
         return em.createQuery(
                         "select j.overallScore from RunBodyJob j where j.memberId = :member and"
-                                + " j.overallScore is not null and (j.createdAt < :at or"
-                                + " (j.createdAt = :at and j.recordId < :id))"
-                                + " order by j.createdAt desc, j.recordId desc",
+                                + " j.overallScore is not null and (j.runStartedAt < :at or"
+                                + " (j.runStartedAt = :at and j.recordId < :id))"
+                                + " order by j.runStartedAt desc, j.recordId desc",
                         Integer.class)
                 .setParameter("member", before.memberId())
-                .setParameter("at", before.createdAt())
+                .setParameter("at", before.runStartedAt())
                 .setParameter("id", before.recordId())
                 .setMaxResults(1)
                 .getResultStream()

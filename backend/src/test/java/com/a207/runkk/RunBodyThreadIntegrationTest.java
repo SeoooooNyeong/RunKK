@@ -10,6 +10,8 @@ import com.a207.runkk.member.MemberWithdrawn;
 import com.a207.runkk.policy.OperationSettingService;
 import com.a207.runkk.policy.SettingKey;
 import com.a207.runkk.runbody.RunBodyService;
+import com.a207.runkk.runbody.RunBodySessionItem;
+import com.a207.runkk.runbody.RunBodySessionPage;
 import com.a207.runkk.runbody.RunBodySessionView;
 import com.a207.runkk.runbody.RunBodyStatus;
 import com.a207.runkk.running.RunFixtures;
@@ -201,13 +203,20 @@ class RunBodyThreadIntegrationTest {
     }
 
     private String upload(long memberId) {
+        return upload(memberId, LocalDateTime.now().minusHours(1).withNano(0));
+    }
+
+    private String upload(long memberId, LocalDateTime start) {
         String id = UUID.randomUUID().toString();
-        uploads.upload(
-                memberId,
-                new RunUploadCommand(
-                        RunFixtures.upload(
-                                id, LocalDateTime.now().minusHours(1).withNano(0), 5_000, 1_500)));
+        uploads.upload(memberId, new RunUploadCommand(RunFixtures.upload(id, start, 5_000, 1_500)));
         return id;
+    }
+
+    private void scored(String recordId, int score) {
+        jdbc.update(
+                "update runbody_job set status = 'DONE', overall_score = ? where record_id = ?",
+                score,
+                recordId);
     }
 
     private String jobStatus(String recordId) {
@@ -330,6 +339,31 @@ class RunBodyThreadIntegrationTest {
 
         assertThat(jobStatus(recordId)).isEqualTo("ANALYZING");
         assertThat(SUBMITTED).containsKey(recordId);
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName(
+            "e2e 3: 러닝 선택 목록·점수 변화는 올린 순서가 아니라 러닝 시작 순서다(V45 run_started_at)")
+    void sessionsOf_followRunStart() throws Exception {
+        long m = member();
+        LocalDateTime now = LocalDateTime.now().withNano(0);
+        String recent = upload(m, now.minusHours(2));
+        String older = upload(m, now.minusDays(2)); // 나중에 올린 예전 러닝
+        awaitStatus(recent, "ANALYZING");
+        awaitStatus(older, "ANALYZING");
+        scored(recent, 80);
+        scored(older, 70);
+
+        assertThat(runBody.sessionsOf(m, null, 10).items())
+                .extracting(RunBodySessionItem::recordId, RunBodySessionItem::scoreChange)
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple(recent, 10),
+                        org.assertj.core.groups.Tuple.tuple(older, null));
+        RunBodySessionPage first = runBody.sessionsOf(m, null, 1);
+        assertThat(first.items().get(0).scoreChange()).as("쪽 경계도 시작 순서로").isEqualTo(10);
+        assertThat(runBody.sessionsOf(m, first.nextCursor(), 1).items())
+                .extracting(RunBodySessionItem::recordId)
+                .containsExactly(older);
     }
 
     @Test

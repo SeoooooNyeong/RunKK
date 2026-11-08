@@ -15,11 +15,12 @@ public interface RunBodyJobRepository {
     List<String> dueRecordIds(LocalDateTime now, int limit);
 
     /**
-     * 회원의 작업을 만든 순서의 역순(만든 일시, 기록 ID 내림차순)으로 최대 limit개. after가 있으면 그 작업보다 뒤(더 오래된 것)부터다(G-30 목록).
+     * 회원의 작업을 러닝 시작 순서의 역순(시작 일시, 기록 ID 내림차순)으로 최대 limit개. after가 있으면 그 작업보다 뒤(더 예전 러닝)부터다(G-30 목록,
+     * MR !91 e2e 3).
      */
     List<RunBodyJob> latestOf(long memberId, RunBodyJob after, int limit);
 
-    /** before보다 먼저 만든 같은 회원의 작업 중 점수가 있는 가장 최근 것의 점수. 없으면 비어 있다(G-30 이전 러닝 대비 변화). */
+    /** before보다 먼저 시작한 같은 회원의 러닝 작업 중 점수가 있는 가장 최근 것의 점수. 없으면 비어 있다(G-30 이전 러닝 대비 변화). */
     Optional<Integer> previousScore(RunBodyJob before);
 
     /** 회원의 FAILED 작업 중 거부 사유가 reason인 것(출생연도 입력 뒤 다시 내기, MR !91 e2e 1). */

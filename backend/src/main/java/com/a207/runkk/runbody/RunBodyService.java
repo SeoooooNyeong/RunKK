@@ -77,7 +77,7 @@ public class RunBodyService {
             if (!enabled() || jobs.find(e.recordId()).isPresent()) {
                 return;
             }
-            jobs.save(RunBodyJob.pending(e.recordId(), e.memberId(), now()));
+            jobs.save(RunBodyJob.pending(e.recordId(), e.memberId(), now(), e.startedAt()));
         } catch (RuntimeException error) {
             log.error("runbody_prepare_failed error={}", error.getClass().getSimpleName());
         }
@@ -282,7 +282,8 @@ public class RunBodyService {
     }
 
     /**
-     * 러닝 선택 목록(G-30)의 분석 상태와 러닝 점수, 최신순. 점수는 작업에 남긴 값만 쓰고 ai를 부르지 않는다. 변화는 이 회원의 직전 점수 있는 러닝 대비다.
+     * 러닝 선택 목록(G-30)의 분석 상태와 러닝 점수, 러닝 시작 최신순. 점수는 작업에 남긴 값만 쓰고 ai를 부르지 않는다. 변화는 이 회원의 시작 순서로 직전인
+     * 점수 있는 러닝 대비다(MR !91 e2e 3: 올린 순서가 아니다).
      *
      * @param cursor 직전 쪽의 nextCursor(첫 쪽이면 null)
      * @param size 1~MAX_PAGE_SIZE

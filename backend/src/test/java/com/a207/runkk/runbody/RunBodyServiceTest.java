@@ -105,6 +105,34 @@ class RunBodyServiceTest {
     }
 
     @Test
+    @DisplayName("e2e 3: 작업은 러닝 시작 일시를 지닌다(점수 변화·목록 순서 기준)")
+    void savedRun_keepsRunStartedAt() {
+        service.onRunRecordSaved(saved(true));
+        assertThat(job().runStartedAt()).isEqualTo(T0);
+        assertThat(job().createdAt()).isEqualTo(T0);
+    }
+
+    @Test
+    @DisplayName("e2e 3: 늦게 올린 예전 러닝은 시작 일시 순서 자리에 놓이고 점수 변화도 그 순서로 센다")
+    void g30_sessionsOf_ordersByRunStart_notUploadOrder() {
+        // 올린 순서: a(7:00 시작, 70) → late(6:00 시작, 60, 나중에 올림) → c(8:00 시작, 76)
+        jobs.save(doneJob("a", 0, 70, 42, 0));
+        jobs.save(doneJob("late", 10, 60, 42, -60));
+        jobs.save(doneJob("c", 20, 76, 42, 60));
+
+        assertThat(service.sessionsOf(42, null, 10).items())
+                .containsExactly(
+                        new RunBodySessionItem("c", RunBodyStatus.DONE, 76, 6),
+                        new RunBodySessionItem("a", RunBodyStatus.DONE, 70, 10),
+                        new RunBodySessionItem("late", RunBodyStatus.DONE, 60, null));
+        RunBodySessionPage first = service.sessionsOf(42, null, 1);
+        assertThat(first.items())
+                .containsExactly(new RunBodySessionItem("c", RunBodyStatus.DONE, 76, 6));
+        assertThat(service.sessionsOf(42, first.nextCursor(), 1).items())
+                .containsExactly(new RunBodySessionItem("a", RunBodyStatus.DONE, 70, 10));
+    }
+
+    @Test
     void s31_savedValidRun_isSubmittedAfterCommit_thenPolledUntilDone() {
         when(gateway.statusOf(ID))
                 .thenReturn(RunBodyStatus.ANALYZING)
@@ -398,7 +426,14 @@ class RunBodyServiceTest {
     }
 
     private static RunBodyJob doneJob(String id, int minute, int score, long member) {
-        RunBodyJob job = RunBodyJob.pending(id, member, T0.plusMinutes(minute));
+        return doneJob(id, minute, score, member, minute);
+    }
+
+    /** minute에 만들고 startMinute에 시작한 러닝의 끝난 작업. */
+    private static RunBodyJob doneJob(
+            String id, int minute, int score, long member, int startMinute) {
+        RunBodyJob job =
+                RunBodyJob.pending(id, member, T0.plusMinutes(minute), T0.plusMinutes(startMinute));
         job.submitted(T0.plusMinutes(minute));
         job.done();
         job.scored(score);
@@ -454,7 +489,7 @@ class RunBodyServiceTest {
         }
 
         private static final Comparator<RunBodyJob> NEWEST_FIRST =
-                Comparator.comparing(RunBodyJob::createdAt)
+                Comparator.comparing(RunBodyJob::runStartedAt)
                         .thenComparing(RunBodyJob::recordId)
                         .reversed();
 
