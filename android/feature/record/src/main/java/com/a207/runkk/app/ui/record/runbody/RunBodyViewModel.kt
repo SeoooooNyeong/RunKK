@@ -27,8 +27,9 @@ import kotlinx.coroutines.launch
  * 런바디 화면(D-453 RunBodySessionCard·RunBodyMonthSection, FR-066·FR-266·FR-267). 요약 탭은 리포트(RecordRepository.report)와 최근
  * 10회 변화(RunBodyRepository.trend, G-14), 러닝별 탭은
  * 최근 [RECENT_DAYS]일 기록(RecordRepository.runs)과 고른 기록의 분석(RunBodyRepository.session), 월간 탭은 월간 집계(RunBodyRepository.month)다.
- * 분석은 러닝 저장 때 서버가 자동 제출한다(S-31). 대기·분석 중이면 [POLL_MILLIS]마다 [MAX_POLLS]번까지 다시 읽어 완료되면 같은 칸에 결과를 보인다
- * (NFR-053 60초). 실패면 "상태 다시 확인"([onRetrySession])으로 다시 읽는다. 러닝 선택(G-30)의 러닝 점수는 기록 목록과 함께 읽고
+ * 분석은 러닝 저장 때 서버가 자동 제출한다(S-31). 대기·분석 중이면 처음 [FAST_POLLS]번은 [POLL_MILLIS]마다(NFR-053 60초), 그 뒤로는 간격을
+ * 두 배씩 늘려(상한 [MAX_POLL_MILLIS]) 모두 [MAX_POLL_WAIT_MILLIS]까지 다시 읽어 완료되면 같은 칸에 결과를 보인다(MR !91 e2e 4). 그 뒤에도
+ * 대기·분석 중이면 "다시 확인"으로, 실패면 "상태 다시 확인"([onRetrySession])으로 다시 읽는다. 러닝 선택(G-30)의 러닝 점수는 기록 목록과 함께 읽고
  * (RunBodyRepository.scores), 못 읽으면 점수 없이 목록만 보인다.
  *
  * 날짜·시각은 기기 시간대([zone], 러닝 결과 화면과 같은 ZoneId.systemDefault())로 셈한다. 앱 Clock은 UTC(DeviceBindings)라
@@ -211,15 +212,18 @@ class RunBodyViewModel internal constructor(
         _state.update { it.copy(session = RunBodySessionState.Loading) }
         sessionJob = viewModelScope.launch {
             var polls = 0
+            var waited = 0L
             while (true) {
                 val next = sessionState(runBody.session(recordId))
                 _state.update { if (it.selectedRecordId == recordId) it.copy(session = next) else it }
                 val isWaiting = next == RunBodySessionState.Pending || next == RunBodySessionState.Analyzing
                 // 기다리다 분석이 끝난 기록은 서버가 점수를 막 남겼으니 러닝 선택 점수를 다시 읽는다(G-30)
                 if (polls > 0 && next is RunBodySessionState.Done) loadScores()
-                if (!isWaiting || polls >= MAX_POLLS) break
+                if (!isWaiting || waited >= MAX_POLL_WAIT_MILLIS) break
+                val pause = pollDelay(polls)
                 polls++
-                delay(POLL_MILLIS)
+                waited += pause
+                delay(pause)
             }
         }
     }
@@ -253,10 +257,25 @@ class RunBodyViewModel internal constructor(
         /** 러닝 선택 목록의 기간(기록 목록 탭과 같은 90일). */
         const val RECENT_DAYS = 90L
 
-        /** 대기·분석 중 다시 읽는 간격(서버 상태 조회와 같은 5초, D-443). */
+        /** 대기·분석 중 처음 다시 읽는 간격(서버 상태 조회와 같은 5초, D-443). */
         const val POLL_MILLIS = 5_000L
 
-        /** 다시 읽는 횟수 상한: 12번 × 5초 = 60초(NFR-053). 넘으면 멈추고 그 상태를 그대로 보인다. */
-        const val MAX_POLLS = 12
+        /** [POLL_MILLIS] 간격으로 읽는 횟수: 12번 × 5초 = 60초(NFR-053). */
+        const val FAST_POLLS = 12
+
+        /** 늘린 간격의 상한. */
+        const val MAX_POLL_MILLIS = 40_000L
+
+        /** 다시 읽기를 이어 가는 시간 상한(3분). 넘으면 멈추고 그 상태와 "다시 확인"을 보인다(MR !91 e2e 4). */
+        const val MAX_POLL_WAIT_MILLIS = 180_000L
+
+        private const val MAX_DOUBLINGS = 3
+
+        /** [poll]번째 다시 읽기 전 기다림: 처음 [FAST_POLLS]번은 5초, 그 뒤 10·20·40초, 이후 40초. */
+        fun pollDelay(poll: Int): Long {
+            if (poll < FAST_POLLS) return POLL_MILLIS
+            val doublings = (poll - FAST_POLLS + 1).coerceAtMost(MAX_DOUBLINGS)
+            return (POLL_MILLIS shl doublings).coerceAtMost(MAX_POLL_MILLIS)
+        }
     }
 }

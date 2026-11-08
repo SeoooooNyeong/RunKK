@@ -106,15 +106,25 @@ class RunBodyViewModelTest {
     }
 
     @Test
-    fun `60초(12번) 동안 끝나지 않으면 다시 읽기를 멈추고 분석 중을 그대로 보인다(NFR-053)`() {
+    fun `60초 뒤에도 간격을 늘려 3분까지 다시 읽고, 그 뒤에는 멈춰 다시 확인으로 읽는다(MR !91 e2e 4)`() {
         runBody.reply("r3", waiting("r3", RunBodyStatus.ANALYZING))
         val vm = viewModel()
 
         vm.onTab(RunBodyTab.RUN)
-        advance(RunBodyViewModel.POLL_MILLIS * 20)
+        advance(RunBodyViewModel.POLL_MILLIS * RunBodyViewModel.FAST_POLLS)
+        assertEquals(1 + RunBodyViewModel.FAST_POLLS, runBody.sessionCalls.size, "처음 60초는 5초 간격")
+        advance(RunBodyViewModel.POLL_MILLIS)
+        assertEquals(1 + RunBodyViewModel.FAST_POLLS, runBody.sessionCalls.size, "60초 뒤에는 간격이 5초보다 길다")
 
-        assertEquals(1 + RunBodyViewModel.MAX_POLLS, runBody.sessionCalls.size)
+        advance(RunBodyViewModel.MAX_POLL_WAIT_MILLIS)
+        val stopped = runBody.sessionCalls.size
+        assertTrue(stopped > 1 + RunBodyViewModel.FAST_POLLS, "60초 뒤에도 읽는다")
+        advance(10 * 60_000L)
+        assertEquals(stopped, runBody.sessionCalls.size, "3분이 지나면 멈춘다")
         assertEquals(RunBodySessionState.Analyzing, vm.state.value.session)
+
+        vm.onRetrySession()
+        assertEquals(stopped + 1, runBody.sessionCalls.size, "다시 확인은 바로 읽고 다시 기다린다")
     }
 
     @Test

@@ -141,6 +141,19 @@ class RunBodyScreensTest {
     }
 
     @Test
+    fun `대기·분석 중에도 다시 확인으로 상태를 읽는다(MR !91 e2e 4)`() {
+        var retried = 0
+        val session = mutableStateOf<RunBodySessionState>(RunBodySessionState.Pending)
+        compose.setContent {
+            RunkkTheme { RunBodyScreen(runState(session.value), RunBodyActions(onRetrySession = { retried++ })) }
+        }
+        compose.onNodeWithText("다시 확인").performScrollTo().performClick()
+        session.value = RunBodySessionState.Analyzing
+        compose.onNodeWithText("다시 확인").performScrollTo().performClick()
+        assertEquals(2, retried)
+    }
+
+    @Test
     fun `대기 중이면 날짜와 때, 거리로 러닝을 알린다(G-17)`() {
         compose.setContent { RunkkTheme { RunBodyScreen(runState(RunBodySessionState.Pending), RunBodyActions()) } }
         compose.onNodeWithText("분석을 준비하고 있어요").assertExists()

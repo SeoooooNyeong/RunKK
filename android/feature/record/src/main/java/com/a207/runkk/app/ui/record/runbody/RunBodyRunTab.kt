@@ -24,6 +24,7 @@ import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkLoading
 import com.a207.runkk.app.core.designsystem.RunkkPrimaryButton
+import com.a207.runkk.app.core.designsystem.RunkkSecondaryButton
 import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.asString
@@ -111,9 +112,10 @@ private fun SessionSection(session: RunBodySessionState, run: RunSummary, zone: 
                 )
             )
             RunBodyCaption(stringResource(R.string.record_runbody_pending_message))
+            RecheckButton(actions.onRetrySession)
         }
 
-        RunBodySessionState.Analyzing -> AnalyzingSection()
+        RunBodySessionState.Analyzing -> AnalyzingSection(actions.onRetrySession)
 
         RunBodySessionState.Failed -> RunBodyCard(
             stringResource(R.string.record_runbody_failed_title),
@@ -145,15 +147,26 @@ private fun SessionSection(session: RunBodySessionState, run: RunSummary, zone: 
     }
 }
 
+/** 대기·분석 중 "다시 확인"(MR !91 e2e 4). 자동 다시 읽기가 멈춘 뒤에도 상태를 읽을 수 있다. */
+@Composable
+private fun RecheckButton(onClick: () -> Unit) {
+    RunkkSecondaryButton(
+        stringResource(R.string.record_runbody_recheck),
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth()
+    )
+}
+
 /** G-13 분석 중: 같은 칸에 빈 오각형과 "분석 중이에요", 상세보기는 꺼 둔다. */
 @Composable
-private fun AnalyzingSection() {
+private fun AnalyzingSection(onRecheck: () -> Unit) {
     val analyzing = stringResource(R.string.record_runbody_analyzing_short)
     RunBodyCard(stringResource(R.string.record_runbody_profile_title), titleSize = PROFILE_TITLE_SIZE) {
         RunBodyRadar(emptyMap(), centerText = stringResource(R.string.record_runbody_analyzing))
         ProfileCaption(stringResource(R.string.record_runbody_analyzing_message))
         RunBodyIconRow(RunkkIcons.Bolt, stringResource(R.string.record_runbody_best), analyzing, isMuted = true)
         RunBodyIconRow(RunkkIcons.Calendar, stringResource(R.string.record_runbody_check), analyzing, isMuted = true)
+        RecheckButton(onRecheck)
     }
     RunkkPrimaryButton(
         stringResource(R.string.record_runbody_detail_wait),
