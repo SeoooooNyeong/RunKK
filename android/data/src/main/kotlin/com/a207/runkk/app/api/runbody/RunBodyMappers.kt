@@ -13,6 +13,7 @@ import com.a207.runkk.app.domain.runbody.RunBodyStatus
 import com.a207.runkk.app.domain.runbody.RunBodyTrend
 import java.time.Duration
 import java.time.LocalDate
+import java.time.OffsetDateTime
 import java.time.YearMonth
 import java.util.Locale
 
@@ -78,7 +79,8 @@ internal fun RunBodyMonthResponse.toDomain(): RunBodyMonth = RunBodyMonth(
         acute = meters(load.acuteMeters),
         chronicWeekly = meters(load.chronicWeeklyMeters),
         availableFrom = load.availableFrom?.let(LocalDate::parse)
-    )
+    ),
+    asOf = asOf?.let { runCatching { OffsetDateTime.parse(it).toInstant() }.getOrNull() }
 )
 
 /** ai 축 이름(intensity 등). */

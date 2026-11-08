@@ -2,7 +2,10 @@ package com.a207.runkk.app.api.runbody
 
 import kotlinx.serialization.Serializable
 
-/** GET /runbody/months/{yearMonth}: ai MonthlyOut 본문 그대로. 앱이 쓰지 않는 필드(asOf, avatarInputs 등)는 받지 않는다. */
+/**
+ * GET /runbody/months/{yearMonth}: ai MonthlyOut 본문 그대로. 앱이 쓰지 않는 필드(avatarInputs 등)는 받지 않는다. [asOf]는 부하 준비 중 지난 날
+ * 수의 기준 시점이다(MR !91 e2e 6).
+ */
 @Serializable
 internal data class RunBodyMonthResponse(
     val yearMonth: String,
@@ -12,7 +15,8 @@ internal data class RunBodyMonthResponse(
     val weeks: List<Week> = emptyList(),
     val timeOfDay: TimeOfDay = TimeOfDay(),
     val load: Load,
-    val baseline: Baseline
+    val baseline: Baseline,
+    val asOf: String? = null
 ) {
     @Serializable
     data class Axis(val average: Int? = null, val count: Int = 0)

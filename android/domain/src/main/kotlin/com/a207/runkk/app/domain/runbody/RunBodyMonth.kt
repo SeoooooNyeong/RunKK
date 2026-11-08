@@ -3,11 +3,13 @@ package com.a207.runkk.app.domain.runbody
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Pace
 import java.time.Duration
+import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
 
 /**
  * 월간 집계(ai MonthlyOut, FR-267). [averages]에는 점수가 있는 축만 들어 있다. [baseline]·[load]는 달과 관계없이 최근 러닝 기준이다.
+ * [asOf]는 ai가 이 달을 셈한 기준 시점(이번 달이면 지금, 지난달이면 월말)이고 모르면 null이다.
  */
 data class RunBodyMonth(
     val month: YearMonth,
@@ -18,7 +20,8 @@ data class RunBodyMonth(
     val nightRuns: Int,
     val dayRuns: Int,
     val baseline: Baseline,
-    val load: Load
+    val load: Load,
+    val asOf: Instant? = null
 ) {
     /** 이번 달 개인 최고. 없는 항목은 null. [recoveryHeartRate1m]은 1분 회복 심박 변화(bpm, 음수일수록 빠름)다. */
     data class Bests(

@@ -29,7 +29,9 @@ import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.domain.runbody.RunBodyMonth
 import com.a207.runkk.app.ui.record.R
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.Locale
@@ -57,7 +59,7 @@ internal fun MonthTab(state: RunBodyUiState, actions: RunBodyActions) {
                 EmptyMonthCard(actions.onPreviousMonth)
             }
             BaselineCard(month.baseline)
-            LoadCard(month.load, state.today)
+            LoadCard(month.load, loadBasisDate(month.asOf, state.zone, state.today))
             if (month.sessionCount > 0) {
                 BestsCard(month.bests)
                 WeeksCard(month)
@@ -176,9 +178,11 @@ private fun BaselineCard(baseline: RunBodyMonth.Baseline) {
     }
 }
 
-/** 훈련 부하. 준비 중이면 첫 러닝 뒤 지난 날 수(켜지는 날 − 28일부터)를 보인다. */
+/**
+ * 훈련 부하. 준비 중이면 첫 러닝 뒤 지난 날 수(켜지는 날 − 28일부터)를 [basis](그 달을 셈한 날, [loadBasisDate]) 기준으로 보인다.
+ */
 @Composable
-private fun LoadCard(load: RunBodyMonth.Load, today: LocalDate) {
+private fun LoadCard(load: RunBodyMonth.Load, basis: LocalDate) {
     RunBodyCard(stringResource(R.string.record_runbody_load)) {
         val ratio = load.ratio
         val level = load.level
@@ -197,19 +201,27 @@ private fun LoadCard(load: RunBodyMonth.Load, today: LocalDate) {
         } else {
             RunBodyCaption(stringResource(R.string.record_runbody_load_pending))
             load.availableFrom?.let { from ->
-                val passed = (
-                    RunBodyMonth.LOAD_DAYS - ChronoUnit.DAYS.between(
-                        today,
-                        from
-                    )
-                    ).coerceIn(0, RunBodyMonth.LOAD_DAYS.toLong())
                 RunBodyCaption(
-                    stringResource(R.string.record_runbody_load_days, passed.toInt(), RunBodyMonth.LOAD_DAYS)
+                    stringResource(
+                        R.string.record_runbody_load_days,
+                        loadDaysPassed(from, basis),
+                        RunBodyMonth.LOAD_DAYS
+                    )
                 )
             }
             RunBodyCaption(stringResource(R.string.record_runbody_load_pending_message))
         }
     }
+}
+
+/** 부하 지난 날 수의 기준일: ai가 그 달을 셈한 시점(asOf, 지난달이면 월말)의 기기 날짜, 모르면 오늘(MR !91 e2e 6). */
+internal fun loadBasisDate(asOf: Instant?, zone: ZoneId, today: LocalDate): LocalDate =
+    asOf?.atZone(zone)?.toLocalDate() ?: today
+
+/** 부하가 켜지는 날 [from]까지 [basis] 기준으로 지난 날 수(28 − 남은 날, 0~28). */
+internal fun loadDaysPassed(from: LocalDate, basis: LocalDate): Int {
+    val left = ChronoUnit.DAYS.between(basis, from)
+    return (RunBodyMonth.LOAD_DAYS - left).coerceIn(0, RunBodyMonth.LOAD_DAYS.toLong()).toInt()
 }
 
 /** 이번 달 개인 최고: 있는 항목만. 하나도 없으면 카드를 그리지 않는다. */

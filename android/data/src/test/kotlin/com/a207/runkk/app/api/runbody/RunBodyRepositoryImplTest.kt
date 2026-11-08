@@ -135,6 +135,7 @@ class RunBodyRepositoryImplTest {
         assertEquals(0, month.sessionCount)
         assertEquals(emptyMap(), month.averages)
         assertEquals(LocalDate.of(2026, 11, 21), month.load.availableFrom)
+        assertEquals(java.time.Instant.parse("2026-11-07T00:00:00Z"), month.asOf, "그 달을 셈한 기준 시점(MR !91 e2e 6)")
         assertNull(month.load.level)
         assertEquals(1, month.baseline.needs)
     }
