@@ -194,6 +194,32 @@ class EventControllerTest extends WebTestSupport {
     }
 
     @Test
+    @DisplayName("관리 API 그림, 상세 주소는 서버 상대 경로만 받는다(https 절대 주소, //host, 역슬래시는 400)")
+    void adminApi_acceptsRelativePathsOnly() throws Exception {
+        String bearer = operatorBearer();
+        String slug = "path-" + UUID.randomUUID().toString().substring(0, 8);
+        for (String bad :
+                List.of(
+                        "https://k15a207.p.ssafy.io/events/x/",
+                        "//evil.example/x",
+                        "/events\\x",
+                        "events/x")) {
+            Map<String, Object> body = event(slug, Map.of("minDistanceMeters", 1000), true);
+            body.put("kind", "RUN_DISTANCE");
+            body.put("detailUrl", bad);
+            mvc.perform(
+                            post("/api/v1/admin/events")
+                                    .header("Authorization", bearer)
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(write(body)))
+                    .andExpect(status().isBadRequest());
+        }
+        Map<String, Object> ok = event(slug, Map.of("minDistanceMeters", 1000), true);
+        ok.put("kind", "RUN_DISTANCE");
+        assertThat(create(bearer, ok)).isPositive();
+    }
+
+    @Test
     @DisplayName("셀럽 대결 승리가 응모 1회가 되고, 판정 커밋 뒤 코치 승리 포인트 500P가 한 번만 쌓인다")
     void celebrityWin_entersAndGrantsPointOnce() throws Exception {
         String bearer = operatorBearer();

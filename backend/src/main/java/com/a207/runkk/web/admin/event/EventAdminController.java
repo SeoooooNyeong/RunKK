@@ -33,7 +33,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class EventAdminController {
 
     private static final String ACTOR_ID = "actorId";
-    private static final String URL = "^(/|https://)\\S*$";
+
+    /**
+     * 서버 기준 상대 경로만 받는다(이벤트 계약 2절). 앱은 "/"로 시작하는 경로만 API origin에 붙여 열므로(resolveEventPath) https 절대
+     * 주소나 "//host" 주소를 받으면 저장은 되지만 앱에서 그림이 비고 카드가 열리지 않는다.
+     */
+    private static final String URL = "^/(?!/)[^\\s\\\\]*$";
 
     private final EventService eventService;
 
@@ -79,7 +84,7 @@ public class EventAdminController {
      * @param config 종류별 설정. JSON 객체 그대로 또는 JSON 문자열
      * @param startsAt 시작 시각(한국 시간)
      * @param endsAt 종료 시각(한국 시간, 포함)
-     * @param bannerImageUrl 배너 그림 주소(서버 기준 상대 경로 또는 https 주소)
+     * @param bannerImageUrl 배너 그림 주소(서버 기준 상대 경로, "/"로 시작하고 "//"로 시작하지 않음)
      * @param thumbnailImageUrl 썸네일 그림 주소
      * @param detailUrl 상세 웹 페이지 주소
      * @param sortOrder 같은 상태 안 정렬 순서

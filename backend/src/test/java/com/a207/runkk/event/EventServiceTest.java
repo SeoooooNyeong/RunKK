@@ -256,7 +256,8 @@ class EventServiceTest {
                         "{\"minDistanceMeters\":1000}",
                         "{\"celebrityIds\":[],\"pointPerWin\":500}",
                         "{\"celebrityIds\":[11,11],\"pointPerWin\":500}",
-                        "not json")) {
+                        "not json",
+                        "null")) {
             assertThatThrownBy(
                             () ->
                                     service.create(

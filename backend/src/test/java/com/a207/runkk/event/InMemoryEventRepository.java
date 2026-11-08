@@ -53,11 +53,22 @@ final class InMemoryEventRepository implements EventRepository {
                         + ReflectionTestUtils.getField(grant, "eventId")
                         + "/"
                         + ReflectionTestUtils.getField(grant, "targetKey");
+        if (failNextGrant) {
+            failNextGrant = false;
+            throw new org.springframework.dao.TransientDataAccessResourceException("grant down");
+        }
         if (grants.contains(key)) {
             throw new org.springframework.dao.DataIntegrityViolationException(
                     "uq_event_point_grant");
         }
         grants.add(key);
+    }
+
+    private boolean failNextGrant;
+
+    /** 다음 지급 이력 저장 한 번을 일시 장애로 실패시킨다. */
+    void failNextGrant() {
+        failNextGrant = true;
     }
 
     Set<String> grants() {

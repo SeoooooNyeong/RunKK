@@ -5,6 +5,7 @@ import com.a207.runkk.battle.BattleJudged;
 import com.a207.runkk.battle.BattleType;
 import com.a207.runkk.battle.CelebrityChallenge;
 import com.a207.runkk.battle.Side;
+import com.a207.runkk.reward.AccrualReason;
 import com.a207.runkk.reward.RewardService;
 import java.time.Clock;
 import java.time.LocalDateTime;
@@ -74,40 +75,64 @@ public class CoachWinPointListener {
         }
     }
 
-    /** 줄 포인트를 새 트랜잭션에서 찾고, 하나씩 적립한 뒤 지급 이력을 새 트랜잭션에서 남긴다. */
+    /**
+     * 줄 포인트를 새 트랜잭션에서 찾고, 하나씩 적립한 뒤 지급 이력을 새 트랜잭션에서 남긴다. 한 셀럽의 실패는 다른 셀럽 지급을 막지 않는다. 이미 적립된 근거(앞선
+     * 판정에서 적립 뒤 이력 저장만 실패)는 적립된 양으로 이력만 채운다.
+     */
     void grant(long memberId, LocalDateTime judgedAt) {
         List<Due> dues = newTransaction.execute(status -> duePoints(memberId, judgedAt));
         if (dues == null) {
             return;
         }
         for (Due due : dues) {
-            int amount =
-                    rewardService.accrueEvent(
-                            memberId, due.eventId() + ":" + due.key(), due.amount(), due.wonAt());
-            if (amount <= 0) {
-                log.warn(
-                        "event_point_not_accrued memberId={} eventId={} key={}",
+            try {
+                grantOne(memberId, due);
+            } catch (RuntimeException failure) {
+                log.error(
+                        "event_point_failed memberId={} eventId={} key={} error={}",
                         memberId,
                         due.eventId(),
-                        due.key());
-                continue;
+                        due.key(),
+                        failure.getClass().getSimpleName(),
+                        failure);
             }
-            newTransaction.executeWithoutResult(
-                    status ->
-                            eventRepository.savePointGrant(
-                                    new EventPointGrant(
-                                            memberId,
-                                            due.eventId(),
-                                            due.key(),
-                                            amount,
-                                            LocalDateTime.now(clock))));
-            log.info(
-                    "event_point_granted memberId={} eventId={} key={} amount={}",
+        }
+    }
+
+    private void grantOne(long memberId, Due due) {
+        String sourceId = due.eventId() + ":" + due.key();
+        int accrued = rewardService.accrueEvent(memberId, sourceId, due.amount(), due.wonAt());
+        int amount =
+                accrued > 0
+                        ? accrued
+                        : newTransaction.execute(
+                                status ->
+                                        rewardService.accruedFor(
+                                                AccrualReason.EVENT, sourceId, memberId));
+        if (amount <= 0) {
+            log.warn(
+                    "event_point_not_accrued memberId={} eventId={} key={}",
                     memberId,
                     due.eventId(),
-                    due.key(),
-                    amount);
+                    due.key());
+            return;
         }
+        newTransaction.executeWithoutResult(
+                status ->
+                        eventRepository.savePointGrant(
+                                new EventPointGrant(
+                                        memberId,
+                                        due.eventId(),
+                                        due.key(),
+                                        amount,
+                                        LocalDateTime.now(clock))));
+        log.info(
+                "event_point_granted memberId={} eventId={} key={} amount={} restored={}",
+                memberId,
+                due.eventId(),
+                due.key(),
+                amount,
+                accrued <= 0);
     }
 
     private List<Due> duePoints(long memberId, LocalDateTime judgedAt) {

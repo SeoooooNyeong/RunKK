@@ -26,6 +26,10 @@ record EventConfig(List<Long> celebrityIds, Integer pointPerWin, Long minDistanc
         } catch (JsonProcessingException | IllegalArgumentException e) {
             throw new BusinessRuleException(ReasonCode.VALUE_INVALID);
         }
+        if (config == null) {
+            // JSON "null"은 예외 없이 null로 읽힌다
+            throw new BusinessRuleException(ReasonCode.VALUE_INVALID);
+        }
         boolean valid =
                 switch (kind) {
                     case COACH_CELEB ->

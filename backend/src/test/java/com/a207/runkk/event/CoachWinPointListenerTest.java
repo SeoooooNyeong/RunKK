@@ -124,6 +124,28 @@ class CoachWinPointListenerTest {
         listener.onBattleJudged(judged(BattleType.CELEBRITY, Side.member(MEMBER), first));
 
         assertThat(rewards.balanceOf(MEMBER)).isEqualTo(500);
+        // 적립은 있는데 지급 이력이 빠진 상태는 다음 판정이 이력을 채운다(design-oo 05-24 R2)
+        assertThat(events.grants()).containsExactly(MEMBER + "/" + eventId + "/celebrity-11");
+    }
+
+    @Test
+    @DisplayName("한 코치의 지급 이력 저장이 실패해도 다른 코치 포인트는 주고, 빠진 이력은 다음 판정이 채운다")
+    void oneGrantFailureDoesNotSkipOthers() {
+        LocalDateTime first = LocalDateTime.of(2026, 11, 9, 19, 0);
+        wins(first, first.plusMinutes(40));
+        events.failNextGrant();
+
+        listener.onBattleJudged(
+                judged(BattleType.CELEBRITY, Side.member(MEMBER), first.plusMinutes(40)));
+
+        assertThat(rewards.balanceOf(MEMBER)).isEqualTo(1_000);
+        assertThat(events.grants()).containsExactly(MEMBER + "/" + eventId + "/celebrity-12");
+
+        listener.onBattleJudged(
+                judged(BattleType.CELEBRITY, Side.member(MEMBER), first.plusHours(2)));
+
+        assertThat(rewards.balanceOf(MEMBER)).isEqualTo(1_000);
+        assertThat(events.grants()).hasSize(2);
     }
 
     @Test
