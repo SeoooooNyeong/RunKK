@@ -78,7 +78,7 @@
 | 패키지 | common |
 | 책임 | 고른 크루 성향 태그 묶음이 개수 규칙을 지키게 한다 (v0.11, D-91) |
 
-속성: tags(Set<PersonalityTag>, 불변), owner(TagOwner). TagOwner는 CREW 하나만 남는다. 러너 성향 태그(Member.tags, CrewMembership.crewTags, CrewProfileEdit.tags)를 지워 TagOwner.RUNNER를 쓰는 곳이 0이 되므로 RUNNER 상수를 지운다 (v0.11, FR-119, D-91).
+속성: tags(Set<PersonalityTag>, 불변), owner(TagOwner). **(v0.36 변경, D-565)** tags는 Set<CrewTag>(common.CrewTag 8개: 평일·주말 × 아침·점심·저녁·새벽)이고 개수 규칙은 1~3개(분류 규칙 없음, 같은 요일 묶음 여러 시간대 허용). PersonalityTag는 Runimal 축 이름에만 남는다 ([05-24](05-24-설계-2차배포-성.md)). TagOwner는 CREW 하나만 남는다. 러너 성향 태그(Member.tags, CrewMembership.crewTags, CrewProfileEdit.tags)를 지워 TagOwner.RUNNER를 쓰는 곳이 0이 되므로 RUNNER 상수를 지운다 (v0.11, FR-119, D-91).
 
 | 시그니처 | 설명 | 사전 조건 | 사후 조건 / 예외 |
 |---------|------|----------|-----------------|
