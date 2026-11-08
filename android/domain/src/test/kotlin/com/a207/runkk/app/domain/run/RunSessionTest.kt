@@ -46,6 +46,28 @@ class RunSessionTest {
     }
 
     @Test
+    fun `기기가 잰 속도·케이던스를 기록에 담고 정지 중·측정 전 표본과 쓸 수 없는 값은 버린다(S15P31A207-242)`() {
+        val countdown = RunSession(freeSpec())
+        countdown.onMotion(MotionSample(T0, speedMps = 3.0))
+        countdown.start(T0)
+        countdown.runFor(5)
+        countdown.onMotion(MotionSample(at(3), cadenceSpm = 172.0))
+        countdown.onMotion(MotionSample(at(2), speedMps = 3.1))
+        countdown.onMotion(MotionSample(at(4), speedMps = -1.0))
+        countdown.pause(at(5))
+        countdown.onMotion(MotionSample(at(6), speedMps = 0.0))
+        countdown.resume(at(7))
+
+        val run = assertIs<FinishOutcome.Saved>(countdown.finish(at(8))).run
+
+        assertEquals(
+            listOf(MotionSample(at(2), speedMps = 3.1), MotionSample(at(3), cadenceSpm = 172.0)),
+            run.motions
+        )
+        assertEquals(emptyList(), run.purgeRoute().motions, "경로 파기 때 함께 지운다")
+    }
+
+    @Test
     fun `정상 포인트 사이 거리를 누적한다`() {
         val session = running()
         session.runFor(10)

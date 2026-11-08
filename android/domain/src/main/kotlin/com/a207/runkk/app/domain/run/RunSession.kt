@@ -57,6 +57,7 @@ class RunSession(val spec: RunStartSpec) {
     private val points = mutableListOf<RoutePoint>()
     private val unstable = mutableListOf<UnstableSegment>()
     private val heartRates = mutableListOf<HeartRateSample>()
+    private val motions = mutableListOf<MotionSample>()
 
     /** 포인트마다 (일시, 그때까지 누적 거리). 도달 시각 계산에 쓴다. */
     private val arrivals = mutableListOf<Pair<Instant, Double>>()
@@ -114,6 +115,14 @@ class RunSession(val spec: RunStartSpec) {
     fun onHeartRate(s: HeartRateSample) {
         if (!isActive) return
         heartRates += s
+    }
+
+    /**
+     * 기기가 잰 속도·케이던스를 남긴다(S15P31A207-242). 정지 중에는 버린다(위치와 같다, D-93 (1)). 값이 없거나 음수·무한대면 버린다.
+     */
+    fun onMotion(s: MotionSample) {
+        if (!isActive || isPaused || !s.isUsable) return
+        motions += s
     }
 
     /**
@@ -268,7 +277,8 @@ class RunSession(val spec: RunStartSpec) {
                 heartRates = heartRates.toList(),
                 pauses = closedPauses.toList(),
                 startDevice = spec.startDevice,
-                savedAt = now
+                savedAt = now,
+                motions = motions.sortedBy { it.at }
             )
         )
     }

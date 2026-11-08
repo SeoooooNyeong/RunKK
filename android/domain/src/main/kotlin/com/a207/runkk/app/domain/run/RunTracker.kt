@@ -169,6 +169,13 @@ constructor(
         }
     }
 
+    /** 기기가 잰 속도·케이던스(S15P31A207-242). 측정 중일 때만 세션에 남긴다. */
+    fun onMotionSample(s: MotionSample) {
+        synchronized(lock) {
+            session?.takeIf { it.isActive }?.onMotion(s)
+        }
+    }
+
     /**
      * 1초 진행: 진행값 방출 → 안내(정지 중이면 평가하지 않는다, FR-049) → 워치 표시. 정지 길이에는 상한이 없어 정지 중에는
      * 진행값만 낸다(FR-195 삭제, D-257).
