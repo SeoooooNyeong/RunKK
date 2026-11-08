@@ -36,6 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -644,7 +645,9 @@ private fun RunningContent(state: CrewRunUiState, actions: CrewRunActions) {
                     modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
                 )
             }
-            if (!state.isPaused) RunControls(state, actions, isPaused = false)
+            // 정지 중에도 자리를 지켜 위 줄이 내려앉지 않게 하고, 단추는 막 위(PausedOverlay)에 다시 그린다.
+            val hidden = if (state.isPaused) Modifier.graphicsLayer { alpha = 0f }.clearAndSetSemantics {} else Modifier
+            Box(hidden) { RunControls(state, actions, isPaused = false) }
         }
         if (state.isPaused) PausedOverlay(state, actions)
     }
