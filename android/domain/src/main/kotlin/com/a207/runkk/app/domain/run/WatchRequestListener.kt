@@ -14,4 +14,7 @@ interface WatchRequestListener {
     fun onResumeRequested()
 
     fun onHeartRates(samples: List<HeartRateSample>)
+
+    /** 동행 워치의 손목 케이던스(S15P31A207-242). */
+    fun onWatchMotions(samples: List<MotionSample>) = Unit
 }

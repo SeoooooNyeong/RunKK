@@ -273,7 +273,14 @@ public class AiServerRunBodyGateway implements RunBodyGateway {
                     r.distanceMeters(),
                     new Profile(r.birthYear()),
                     r.samples().stream()
-                            .map(s -> new Sample(s.tMs(), s.heartRate(), s.speed(), s.distance()))
+                            .map(
+                                    s ->
+                                            new Sample(
+                                                    s.tMs(),
+                                                    s.heartRate(),
+                                                    s.speed(),
+                                                    s.cadence(),
+                                                    s.distance()))
                             .toList(),
                     r.gps().stream().map(g -> new Gps(g.tMs(), g.lat(), g.lon(), g.acc())).toList(),
                     r.recoveryHeartRates().stream()
@@ -290,7 +297,11 @@ public class AiServerRunBodyGateway implements RunBodyGateway {
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     record Sample(
-            @JsonProperty("tMs") long tMs, Integer heartRate, Double speed, Double distance) {}
+            @JsonProperty("tMs") long tMs,
+            Integer heartRate,
+            Double speed,
+            Double cadence,
+            Double distance) {}
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     record Gps(@JsonProperty("tMs") long tMs, double lat, double lon, Double acc) {}

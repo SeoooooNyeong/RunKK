@@ -23,6 +23,7 @@ import java.util.List;
  * @param heartRates 심박 측정값(없을 수 있음)
  * @param pauses 정지 구간(자유런만, null·빈 목록 = 정지 없음). elapsed는 정지 시간을 뺀 운동 시간이다(FR-036, FR-194)
  * @param startDevice 기록을 시작한 기기(W23, D-378). null(옛 앱) = PHONE
+ * @param motions 기기가 잰 속도·케이던스 표본(S15P31A207-242). null(옛 앱)·빈 목록 = 없음
  */
 public record RunUpload(
         String recordId,
@@ -39,7 +40,8 @@ public record RunUpload(
         List<UnstableSegment> unstableSegments,
         List<HeartRateSample> heartRates,
         List<PauseInterval> pauses,
-        StartDevice startDevice) {
+        StartDevice startDevice,
+        List<MotionSample> motions) {
 
     /** 한 기록의 정지 구간 최대 개수(부록 F F.2.2 POST /runs, 제안 100개). */
     public static final int MAX_PAUSES = 100;
@@ -54,7 +56,44 @@ public record RunUpload(
         heartRates = heartRates == null ? List.of() : List.copyOf(heartRates);
         pauses = pauses == null ? List.of() : List.copyOf(pauses);
         startDevice = startDevice == null ? StartDevice.PHONE : startDevice;
+        motions = motions == null ? List.of() : List.copyOf(motions);
         requireValidPauses(pauses, mode, startedAt, endedAt);
+    }
+
+    /** 움직임 표본이 없는 기록(옛 앱). */
+    public RunUpload(
+            String recordId,
+            LocalDateTime startedAt,
+            LocalDateTime endedAt,
+            Distance distance,
+            Duration elapsed,
+            RunMode mode,
+            CardKind cardKind,
+            Long battleId,
+            Long crewRunPostId,
+            int declaredPointCount,
+            List<LocationPoint> points,
+            List<UnstableSegment> unstableSegments,
+            List<HeartRateSample> heartRates,
+            List<PauseInterval> pauses,
+            StartDevice startDevice) {
+        this(
+                recordId,
+                startedAt,
+                endedAt,
+                distance,
+                elapsed,
+                mode,
+                cardKind,
+                battleId,
+                crewRunPostId,
+                declaredPointCount,
+                points,
+                unstableSegments,
+                heartRates,
+                pauses,
+                startDevice,
+                List.of());
     }
 
     /** 폰에서 시작한 기록(시작 기기 PHONE). */
@@ -180,6 +219,7 @@ public record RunUpload(
                 unstableSegments,
                 List.of(),
                 pauses,
-                startDevice);
+                startDevice,
+                motions);
     }
 }

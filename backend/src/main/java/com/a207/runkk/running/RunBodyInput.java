@@ -7,7 +7,7 @@ import java.util.List;
 
 /**
  * 런바디 분석 요청을 만들 러닝 기록 재료(설계 05-19 2.2 running 추가, D-444). 엔티티 대신 runbody.RunBodyRequestFactory가
- * 읽는다. 케이던스·속도는 저장하지 않아 없다.
+ * 읽는다. 기기가 잰 속도·케이던스는 motions에 있다(2026-11-08 결정, S15P31A207-242, D-444를 바꾼다).
  *
  * @param recordId 기록 ID
  * @param memberId 기록 주인
@@ -20,6 +20,7 @@ import java.util.List;
  * @param heartRates 심박 표본(시간순, 종료 뒤 회복 심박 포함 가능)
  * @param points 위치 점(시간순, 파기했으면 빈 목록)
  * @param pauses 정지 구간(시간순)
+ * @param motions 기기가 잰 속도·케이던스 표본(시간순, 없거나 경로를 파기했으면 빈 목록)
  */
 public record RunBodyInput(
         String recordId,
@@ -32,11 +33,41 @@ public record RunBodyInput(
         boolean valid,
         List<HeartRateSample> heartRates,
         List<LocationPoint> points,
-        List<PauseInterval> pauses) {
+        List<PauseInterval> pauses,
+        List<MotionSample> motions) {
 
     public RunBodyInput {
         heartRates = List.copyOf(heartRates);
         points = List.copyOf(points);
         pauses = List.copyOf(pauses);
+        motions = motions == null ? List.of() : List.copyOf(motions);
+    }
+
+    /** 기기가 잰 움직임 표본이 없는 기록(옛 앱). */
+    public RunBodyInput(
+            String recordId,
+            long memberId,
+            LocalDateTime startedAt,
+            LocalDateTime endedAt,
+            Distance distance,
+            Duration elapsed,
+            StartDevice startDevice,
+            boolean valid,
+            List<HeartRateSample> heartRates,
+            List<LocationPoint> points,
+            List<PauseInterval> pauses) {
+        this(
+                recordId,
+                memberId,
+                startedAt,
+                endedAt,
+                distance,
+                elapsed,
+                startDevice,
+                valid,
+                heartRates,
+                points,
+                pauses,
+                List.of());
     }
 }

@@ -46,7 +46,8 @@ internal interface PendingRunDao {
     )
     suspend fun replaceState(from: String, to: String): Int
 
-    @Query("UPDATE pending_run SET route = :empty")
+    /** 위치 동의 철회 파기(FR-026): 경로와 움직임 표본(속도는 위치에서 나온 값, S15P31A207-242)을 지운다. */
+    @Query("UPDATE pending_run SET route = :empty, motions = :empty")
     suspend fun replaceRoutes(empty: ByteArray)
 
     @Query("UPDATE pending_run SET heartRates = :empty")

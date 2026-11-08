@@ -107,6 +107,13 @@ constructor(
             override fun onResumeRequested() = resume()
 
             override fun onHeartRates(samples: List<HeartRateSample>) = acceptHeartRates(samples)
+
+            override fun onWatchMotions(samples: List<MotionSample>) {
+                synchronized(lock) {
+                    val active = session?.takeIf { it.isActive } ?: return
+                    samples.forEach { active.onMotion(it, isFromWatch = true) }
+                }
+            }
         }
 
     init {
@@ -166,6 +173,13 @@ constructor(
             val active = session?.takeIf { it.isActive } ?: return
             val point = locationFilter.accept(s) ?: return
             if (active.onLocation(point)) _routeLine.value = _routeLine.value + point.point
+        }
+    }
+
+    /** 기기가 잰 속도·케이던스(S15P31A207-242). 측정 중일 때만 세션에 남긴다. */
+    fun onMotionSample(s: MotionSample) {
+        synchronized(lock) {
+            session?.takeIf { it.isActive }?.onMotion(s)
         }
     }
 

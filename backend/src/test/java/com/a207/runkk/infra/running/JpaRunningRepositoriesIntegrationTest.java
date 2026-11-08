@@ -14,10 +14,12 @@ import com.a207.runkk.running.BestEntry;
 import com.a207.runkk.running.DisposalKind;
 import com.a207.runkk.running.DisposalOrder;
 import com.a207.runkk.running.HeartRateSample;
+import com.a207.runkk.running.MotionSample;
 import com.a207.runkk.running.NewRecordMark;
 import com.a207.runkk.running.PauseInterval;
 import com.a207.runkk.running.PersonalRecordBook;
 import com.a207.runkk.running.RunFixtures;
+import com.a207.runkk.running.RunQueryService;
 import com.a207.runkk.running.RunRecord;
 import com.a207.runkk.running.RunSummary;
 import com.a207.runkk.running.RunUpload;
@@ -51,6 +53,7 @@ class JpaRunningRepositoriesIntegrationTest {
     @Autowired JpaDisposalOrderRepository orders;
     @Autowired TransactionTemplate tx;
     @Autowired JdbcTemplate jdbc;
+    @Autowired RunQueryService runQuery;
 
     @BeforeEach
     void clean() {
@@ -100,6 +103,29 @@ class JpaRunningRepositoriesIntegrationTest {
                                 Boolean.class))
                 .isTrue();
         assertThat(records.validRunsReaching(Distance.ofKm(5), List.of(1L))).isEmpty();
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("V41: 속도·케이던스(motion_data) 왕복, 옛 앱 기록은 NULL, 경로 파기 때 함께 지운다")
+    void motionsRoundTrip_andRoutePurgeClearsThem() {
+        List<MotionSample> motions =
+                List.of(
+                        new MotionSample(START.plusSeconds(1), 3.41, null),
+                        new MotionSample(START.plusSeconds(2), null, 171.5),
+                        new MotionSample(START.plusSeconds(3), 3.5, 172.0));
+        store(RunFixtures.judged(RunFixtures.withMotions(upload(id(1), 5_000, 1_500), motions)));
+        store(RunFixtures.judged(upload(id(2), START.plusHours(1), 5_000, 1_500)));
+
+        assertThat(runQuery.bodyInputOf(id(1)).orElseThrow().motions()).isEqualTo(motions);
+        assertThat(runQuery.bodyInputOf(id(2)).orElseThrow().motions()).isEmpty();
+        assertThat(
+                        jdbc.queryForObject(
+                                "select count(*) from run_record where motion_data is null",
+                                Long.class))
+                .isEqualTo(1L);
+
+        tx.executeWithoutResult(st -> records.findById(id(1)).orElseThrow().purgeRoute());
+        assertThat(runQuery.bodyInputOf(id(1)).orElseThrow().motions()).isEmpty();
     }
 
     @Test

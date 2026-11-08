@@ -3,6 +3,7 @@ package com.a207.runkk.watch.link
 import com.a207.runkk.watch.alert.ProximityAlertPlayer
 import com.a207.runkk.watch.heart.HeartRateCollector
 import com.a207.runkk.watch.heart.WatchHeartRate
+import com.a207.runkk.watch.heart.WatchSteps
 import com.a207.runkk.wear.contract.EndRequestMessage
 import com.a207.runkk.wear.contract.HeartRateBatchMessage
 import com.a207.runkk.wear.contract.LeadChangeMessage
@@ -46,7 +47,8 @@ import timber.log.Timber
  *   표시는 토큰을 이 클래스에 두지 않도록 PhoneMessageService가 watch.session으로 바로 넘긴다.
  * - 워치 → 폰: 시작 요청(MessageClient, [WearPaths.START_REQUEST], FR-183), 종료 요청(MessageClient,
  *   [WearPaths.END_REQUEST], FR-181), 일시정지·재개 요청(MessageClient, [WearPaths.PAUSE_REQUEST], FR-194)과
- *   심박 묶음(DataClient, [WearPaths.HEART_RATE_BATCH] 아래 묶음마다 다른 경로, FR-043, NFR-032).
+ *   심박 묶음(DataClient, [WearPaths.HEART_RATE_BATCH] 아래 묶음마다 다른 경로, FR-043, NFR-032). 같은 운동 세션이 잰 손목 걸음도
+ *   묶음의 steps로 함께 보낸다(S15P31A207-242). 심박과 같은 허용 규칙을 따른다(심박 동의가 없으면 세션이 열리지 않아 걸음도 없다).
  *
  * 수신(메시지·심박)은 상태만 바꾸고 바로 돌아오며, 전송은 따로 도는 코루틴이 맡는다.
  * 그래서 Data Layer가 늦어져도 철회 메시지 처리와 심박 수신이 막히지 않는다.
@@ -78,6 +80,9 @@ class PhoneLink @Inject constructor(
 
     /** 아직 폰에 넘기지 않은 심박(측정 순서). */
     private val pending = ArrayDeque<HeartRateBatchMessage.Sample>()
+
+    /** 아직 폰에 넘기지 않은 손목 걸음(측정 순서). */
+    private val pendingSteps = ArrayDeque<HeartRateBatchMessage.Step>()
 
     /** 전송 요청 신호. 여러 번 와도 한 번 보내면 충분하다. */
     private val flushRequests = Channel<Unit>(Channel.CONFLATED)
@@ -144,6 +149,7 @@ class PhoneLink @Inject constructor(
         collector.endLeftoverSession()
         scope.launch { dataLayer.messages.collect { onMessage(it) } }
         scope.launch { collector.samples.collect { onSample(it) } }
+        scope.launch { collector.steps.collect { onSteps(it) } }
         scope.launch { for (request in flushRequests) flush() }
         scope.launch {
             while (isActive) {
@@ -223,9 +229,11 @@ class PhoneLink @Inject constructor(
      * 연결되면 모두 동기화된다(NFR-032). 기기에 저장했으면 참.
      */
     suspend fun sendHeartRates(batch: HeartRateBatchMessage): Boolean {
-        if (batch.samples.isEmpty()) return true
+        val first = batch.samples.firstOrNull()?.measuredAtEpochMillis
+            ?: batch.steps.firstOrNull()?.measuredAtEpochMillis
+            ?: return true
         val sequence = synchronized(lock) { batchSequence++ }
-        val path = "${WearPaths.HEART_RATE_BATCH}/${batch.samples.first().measuredAtEpochMillis}-$sequence"
+        val path = "${WearPaths.HEART_RATE_BATCH}/$first-$sequence"
         return dataLayer.putData(path, batch.encode())
     }
 
@@ -311,6 +319,7 @@ class PhoneLink @Inject constructor(
             if (!allowed) {
                 if (collectionAllowed) allowGeneration++
                 pending.clear()
+                pendingSteps.clear()
                 _latestHeartRate.value = null
             }
             collectionAllowed = allowed
@@ -357,6 +366,21 @@ class PhoneLink @Inject constructor(
         if (full) flushRequests.trySend(Unit)
     }
 
+    /** 허용된 동안 잰 손목 걸음만 쌓는다. 심박 묶음과 함께 보낸다. */
+    private fun onSteps(steps: WatchSteps) {
+        synchronized(lock) {
+            if (!collectionAllowed || steps.measuredAtEpochMillis < allowedSinceMillis) return
+            pendingSteps.addLast(
+                HeartRateBatchMessage.Step(
+                    steps.measuredAtEpochMillis,
+                    perMinute = steps.perMinute,
+                    total = steps.total
+                )
+            )
+            while (pendingSteps.size > MAX_PENDING_SAMPLES) pendingSteps.removeFirst()
+        }
+    }
+
     /**
      * 보내지 않은 심박을 [MAX_BATCH_SAMPLES]개씩 묶어 넘긴다(DataItem 크기 제한 100KB). 꺼낸 뒤 철회되었으면 보내지 않는다.
      * 저장에 실패하면 앞에 되돌려 다음 전송에 함께 보낸다(누락 0, NFR-032). 전송 코루틴 하나만 부른다.
@@ -364,15 +388,17 @@ class PhoneLink @Inject constructor(
     private suspend fun flush() {
         while (true) {
             val (batch, generation) = synchronized(lock) {
-                if (pending.isEmpty()) return
+                if (pending.isEmpty() && pendingSteps.isEmpty()) return
                 val taken = List(minOf(pending.size, MAX_BATCH_SAMPLES)) { pending.removeFirst() }
-                taken to allowGeneration
+                val steps = List(minOf(pendingSteps.size, MAX_BATCH_SAMPLES)) { pendingSteps.removeFirst() }
+                HeartRateBatchMessage(taken, steps) to allowGeneration
             }
             if (isRevoked(generation)) return
-            if (!sendHeartRates(HeartRateBatchMessage(batch))) {
+            if (!sendHeartRates(batch)) {
                 synchronized(lock) {
                     if (generation != allowGeneration || !collectionAllowed) return
-                    batch.asReversed().forEach { pending.addFirst(it) }
+                    batch.samples.asReversed().forEach { pending.addFirst(it) }
+                    batch.steps.asReversed().forEach { pendingSteps.addFirst(it) }
                     trimPendingLocked()
                 }
                 return
@@ -386,6 +412,7 @@ class PhoneLink @Inject constructor(
     /** 오래 보내지 못하면 메모리를 지키려 가장 오래된 심박부터 버린다. */
     private fun trimPendingLocked() {
         while (pending.size > MAX_PENDING_SAMPLES) pending.removeFirst()
+        while (pendingSteps.size > MAX_PENDING_SAMPLES) pendingSteps.removeFirst()
     }
 
     private suspend fun refreshConnection(): List<String> {

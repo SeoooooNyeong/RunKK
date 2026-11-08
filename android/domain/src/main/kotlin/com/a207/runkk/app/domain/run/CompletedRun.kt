@@ -29,7 +29,9 @@ data class CompletedRun(
     val uploadState: UploadState = UploadState.NOT_SENT,
     val savedAt: Instant,
     /** 서버가 받지 않은 사유 코드(uploadState = REJECTED일 때만, 03-00 "4xx는 거부 사유와 함께 보존", R12 D2-b). */
-    val rejectedReason: String? = null
+    val rejectedReason: String? = null,
+    /** 기기가 잰 속도·케이던스 표본(시간순, S15P31A207-242). 재지 못했으면 빈 목록이고 서버가 속도를 위치로 셈한다. */
+    val motions: List<MotionSample> = emptyList()
 ) {
     /** 정지 시간 합. */
     val pausedTotal: Duration
@@ -65,8 +67,8 @@ data class CompletedRun(
         return copy(pauses = fitted, elapsed = if (workout.isNegative) Duration.ZERO else workout)
     }
 
-    /** 위치 동의 철회 파기 지시(FR-026): 경로 좌표를 지운 사본. */
-    fun purgeRoute(): CompletedRun = copy(route = emptyList())
+    /** 위치 동의 철회 파기 지시(FR-026): 경로 좌표와 움직임 표본(속도는 위치에서 나온 값)을 지운 사본. 서버도 함께 지운다. */
+    fun purgeRoute(): CompletedRun = copy(route = emptyList(), motions = emptyList())
 
     /** 심박 동의 철회 파기 지시: 심박을 지운 사본. */
     fun purgeHeartRates(): CompletedRun = copy(heartRates = emptyList())

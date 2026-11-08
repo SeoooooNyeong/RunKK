@@ -193,6 +193,27 @@ class WearContractCompatibilityTest {
 
     /** Kotlin Boolean 이름(is + 대문자, 예: isMeasuring)이 JSON 키로 새지 않는다. issuedAtEpochMillis 같은 단어는 해당하지 않는다. */
     @Test
+    fun `S15P31A207-242 걸음이 없는 옛 심박 묶음은 빈 걸음으로 읽고 새 묶음의 걸음 키는 설계와 같다`() {
+        val old = HeartRateBatchMessage.decode(
+            """{"samples":[{"measuredAtEpochMillis":$T,"bpm":150,"status":"OK"}]}""".toByteArray()
+        )
+        assertEquals(emptyList(), old.steps)
+
+        val fresh = HeartRateBatchMessage(
+            samples = emptyList(),
+            steps = listOf(
+                HeartRateBatchMessage.Step(T, perMinute = 172),
+                HeartRateBatchMessage.Step(T + 1_000, total = 340)
+            )
+        )
+        assertEquals(fresh, HeartRateBatchMessage.decode(fresh.encode()))
+        assertEquals(
+            listOf("measuredAtEpochMillis", "perMinute", "total"),
+            keysOf(HeartRateBatchMessage.Step.serializer().descriptor)
+        )
+    }
+
+    @Test
     fun `직렬화 키는 is로 시작하지 않는다(D-97 @SerialName)`() {
         val descriptors =
             V010_KEYS.map { it.first.descriptor } +

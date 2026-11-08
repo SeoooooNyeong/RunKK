@@ -9,7 +9,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.a207.runkk.running.LocationPoint;
+import com.a207.runkk.running.MotionSample;
 import com.a207.runkk.running.RunFixtures;
+import com.a207.runkk.running.RunQueryService;
 import com.a207.runkk.running.RunRecordRepository;
 import com.a207.runkk.running.StartDevice;
 import com.a207.runkk.web.WebTestSupport;
@@ -31,6 +33,7 @@ class RunControllerTest extends WebTestSupport {
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
 
     @Autowired private RunRecordRepository runs;
+    @Autowired private RunQueryService runQuery;
     private static final LocalDateTime START = LocalDateTime.of(2026, 10, 20, 7, 0);
 
     private static String at(LocalDateTime t) {
@@ -279,6 +282,50 @@ class RunControllerTest extends WebTestSupport {
         Map<String, Object> unknown = run(UUID.randomUUID().toString(), 5_000, 1_500);
         unknown.put("startDevice", "TABLET");
         expectStatus(s, unknown, 400);
+    }
+
+    @Test
+    @DisplayName("S15P31A207-242: motions(속도·케이던스)는 선택 항목이다. 옛 앱 형식은 빈 목록, 값 없는·음수 값은 버린다")
+    void upload_motionsAreOptional() throws Exception {
+        Session s = signUp();
+        String oldAppId = UUID.randomUUID().toString();
+        expectStatus(s, run(oldAppId, 5_000, 1_500), 200);
+        String nullId = UUID.randomUUID().toString();
+        Map<String, Object> nullMotions = run(nullId, 5_000, 1_500);
+        nullMotions.put("motions", null);
+        expectStatus(s, nullMotions, 200);
+
+        String newId = UUID.randomUUID().toString();
+        Map<String, Object> withMotions = run(newId, 5_000, 1_500);
+        Map<String, Object> empty = new HashMap<>();
+        empty.put("measuredAt", at(START.plusSeconds(3)));
+        empty.put("speedMps", null);
+        withMotions.put(
+                "motions",
+                List.of(
+                        Map.of("measuredAt", at(START.plusSeconds(1)), "speedMps", 3.4),
+                        Map.of("measuredAt", at(START.plusSeconds(2)), "cadenceSpm", 172),
+                        Map.of(
+                                "measuredAt",
+                                at(START.plusSeconds(4)),
+                                "speedMps",
+                                -1,
+                                "cadenceSpm",
+                                170),
+                        empty));
+        expectStatus(s, withMotions, 200);
+
+        assertThat(runQuery.bodyInputOf(oldAppId).orElseThrow().motions()).isEmpty();
+        assertThat(runQuery.bodyInputOf(nullId).orElseThrow().motions()).isEmpty();
+        assertThat(runQuery.bodyInputOf(newId).orElseThrow().motions())
+                .containsExactly(
+                        new MotionSample(START.plusSeconds(1), 3.4, null),
+                        new MotionSample(START.plusSeconds(2), null, 172.0),
+                        new MotionSample(START.plusSeconds(4), null, 170.0));
+
+        Map<String, Object> noTime = run(UUID.randomUUID().toString(), 5_000, 1_500);
+        noTime.put("motions", List.of(Map.of("speedMps", 3.0)));
+        expectStatus(s, noTime, 400);
     }
 
     @Test

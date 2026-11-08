@@ -8,6 +8,7 @@ import com.a207.runkk.running.DisposalService;
 import com.a207.runkk.running.HeartRateSample;
 import com.a207.runkk.running.LateHeartRateCommand;
 import com.a207.runkk.running.LocationPoint;
+import com.a207.runkk.running.MotionSample;
 import com.a207.runkk.running.PauseInterval;
 import com.a207.runkk.running.RunMode;
 import com.a207.runkk.running.RunUpload;
@@ -28,6 +29,7 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Objects;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -50,6 +52,9 @@ public class RunController {
 
     /** 1초 간격 12시간. */
     private static final int MAX_POINTS = 43_200;
+
+    /** 속도·케이던스를 따로 1초마다 보내도 12시간. */
+    private static final int MAX_MOTIONS = 2 * MAX_POINTS;
 
     private final RunUploadService runUploadService;
     private final DisposalService disposalService;
@@ -122,6 +127,7 @@ public class RunController {
      * @param pauses 자유 러닝 정지 구간(v0.11 FR-036, D-93), null·빈 목록이면 정지 없음. 규칙 위반은 RunUpload 생성자가
      *     IllegalArgumentException(400)으로 거부한다(F.2.2, D-163)
      * @param startDevice 기록을 시작한 기기(선택, W23, D-378). 없거나 null이면 PHONE(옛 앱), 모르는 값은 400
+     * @param motions 기기가 잰 속도·케이던스(선택, S15P31A207-242). 없거나 null이면 없음(옛 앱). 값이 없거나 잘못된 표본은 버린다
      */
     record RunUploadRequest(
             @NotBlank @Size(max = 36) String recordId,
@@ -138,7 +144,8 @@ public class RunController {
             @Size(max = MAX_POINTS) List<@Valid @NotNull SegmentRequest> unstableSegments,
             @Size(max = MAX_POINTS) List<@Valid @NotNull HeartRateRequest> heartRates,
             @Size(max = RunUpload.MAX_PAUSES) List<@Valid @NotNull PauseRequest> pauses,
-            StartDevice startDevice) {
+            StartDevice startDevice,
+            @Size(max = MAX_MOTIONS) List<@Valid @NotNull MotionRequest> motions) {
 
         RunUpload toUpload(ZoneId zone) {
             return new RunUpload(
@@ -162,7 +169,37 @@ public class RunController {
                     pauses == null
                             ? List.of()
                             : pauses.stream().map(p -> p.toInterval(zone)).toList(),
-                    startDevice);
+                    startDevice,
+                    motions == null
+                            ? List.of()
+                            : motions.stream()
+                                    .map(m -> m.toSample(zone))
+                                    .filter(Objects::nonNull)
+                                    .toList());
+        }
+    }
+
+    /**
+     * 기기가 잰 움직임 표본 하나(S15P31A207-242). 둘 중 하나만 있어도 된다.
+     *
+     * @param measuredAt 측정 일시
+     * @param speedMps 속도(m/s). 재지 않았으면 null
+     * @param cadenceSpm 케이던스(분당 걸음 수). 재지 않았으면 null
+     */
+    record MotionRequest(@NotNull OffsetDateTime measuredAt, Double speedMps, Double cadenceSpm) {
+
+        /** 음수·무한대 값은 없는 값으로 본다. 둘 다 없으면 null(버린다): 표본 하나 때문에 기록 전체를 거부하지 않는다. */
+        MotionSample toSample(ZoneId zone) {
+            Double speed = measure(speedMps);
+            Double cadence = measure(cadenceSpm);
+            if (speed == null && cadence == null) {
+                return null;
+            }
+            return new MotionSample(local(measuredAt, zone), speed, cadence);
+        }
+
+        private static Double measure(Double value) {
+            return value != null && Double.isFinite(value) && value >= 0 ? value : null;
         }
     }
 
