@@ -1649,6 +1649,115 @@
     } ],
     "file" : "web/error/ErrorResponse.java"
   },
+  "EventAdminController.EventRequest" : {
+    "components" : [ {
+      "name" : "slug",
+      "required" : true,
+      "kind" : "leaf"
+    }, {
+      "name" : "title",
+      "required" : true,
+      "kind" : "leaf"
+    }, {
+      "name" : "subtitle",
+      "required" : true,
+      "kind" : "leaf"
+    }, {
+      "name" : "kind",
+      "required" : true,
+      "kind" : "leaf"
+    }, {
+      "name" : "config",
+      "required" : true,
+      "kind" : "leaf"
+    }, {
+      "name" : "startsAt",
+      "required" : true,
+      "kind" : "leaf"
+    }, {
+      "name" : "endsAt",
+      "required" : true,
+      "kind" : "leaf"
+    }, {
+      "name" : "bannerImageUrl",
+      "required" : true,
+      "kind" : "leaf"
+    }, {
+      "name" : "thumbnailImageUrl",
+      "required" : true,
+      "kind" : "leaf"
+    }, {
+      "name" : "detailUrl",
+      "required" : true,
+      "kind" : "leaf"
+    }, {
+      "name" : "sortOrder",
+      "kind" : "leaf"
+    }, {
+      "name" : "published",
+      "kind" : "leaf"
+    } ],
+    "file" : "web/admin/event/EventAdminController.java"
+  },
+  "EventAdminController.PublishedRequest" : {
+    "components" : [ {
+      "name" : "published",
+      "required" : true,
+      "kind" : "leaf"
+    } ],
+    "file" : "web/admin/event/EventAdminController.java"
+  },
+  "EventController.EventListResponse" : {
+    "components" : [ {
+      "name" : "events",
+      "kind" : "list",
+      "ref" : "EventView"
+    } ],
+    "file" : "web/event/EventController.java"
+  },
+  "EventView" : {
+    "components" : [ {
+      "name" : "id",
+      "kind" : "leaf"
+    }, {
+      "name" : "slug",
+      "kind" : "leaf"
+    }, {
+      "name" : "title",
+      "kind" : "leaf"
+    }, {
+      "name" : "subtitle",
+      "kind" : "leaf"
+    }, {
+      "name" : "status",
+      "kind" : "leaf"
+    }, {
+      "name" : "startsAt",
+      "kind" : "leaf"
+    }, {
+      "name" : "endsAt",
+      "kind" : "leaf"
+    }, {
+      "name" : "bannerImageUrl",
+      "kind" : "leaf"
+    }, {
+      "name" : "thumbnailImageUrl",
+      "kind" : "leaf"
+    }, {
+      "name" : "detailUrl",
+      "kind" : "leaf"
+    }, {
+      "name" : "entryCount",
+      "kind" : "leaf"
+    }, {
+      "name" : "maxEntryCount",
+      "kind" : "leaf"
+    }, {
+      "name" : "sortOrder",
+      "kind" : "leaf"
+    } ],
+    "file" : "event/EventView.java"
+  },
   "FriendInviteDtos.AcceptResponse" : {
     "components" : [ {
       "name" : "battleId",

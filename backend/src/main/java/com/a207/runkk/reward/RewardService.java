@@ -7,6 +7,7 @@ import com.a207.runkk.policy.RewardRule;
 import com.a207.runkk.running.RunRecordRejudged;
 import com.a207.runkk.running.RunRecordSaved;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.function.ToIntFunction;
@@ -102,6 +103,15 @@ public class RewardService {
                                                 String.valueOf(e.battleId()),
                                                 e.judgedAt()),
                                         RewardRule::battleWin));
+    }
+
+    /**
+     * 이벤트 포인트(event.CoachWinPointListener, S15P31A207-275). 근거 sourceId("이벤트 ID:대상")로 amount를 하루 상한
+     * 없이 새 트랜잭션에서 적립하고 실제 적립량을 돌려준다. 같은 근거가 이미 있거나 실패하면 0이다(실패는 reward_accrual_failed 로그만).
+     */
+    public int accrueEvent(long memberId, String sourceId, int amount, LocalDateTime at) {
+        return accrueWithRetry(
+                new AccrualSource(memberId, AccrualReason.EVENT, sourceId, at), rule -> amount);
     }
 
     /**

@@ -67,10 +67,20 @@ public class RewardWallet {
     /**
      * 적립량 = min(base, dailyCap − alreadyOnThatDay). 0 이하면 비어 있다(기록하지 않는다). 아니면 잔액을 늘리고, 사건 발생일이
      * lastAccrualDate 이상이면 집계 칼럼을 고친 뒤(같은 날 더하기, 더 새 날 바꾸기) 저장할 적립 행을 돌려준다(FR-159, A-17). 지난 날짜(보정
-     * 배치)는 칼럼을 고치지 않는다. 중복 (사유, 근거) 확인은 호출자가 먼저 한다(D-109).
+     * 배치)는 칼럼을 고치지 않는다. 중복 (사유, 근거) 확인은 호출자가 먼저 한다(D-109). 이벤트 포인트(EVENT)는 상한 없이 base 그대로이고 그날
+     * 합계(집계 칼럼)에 넣지 않는다(S15P31A207-275).
      */
     public Optional<RewardAccrual> accrue(
             AccrualRequest req, RewardRule rule, int alreadyOnThatDay) {
+        if (req.reason() == AccrualReason.EVENT) {
+            if (req.baseAmount() <= 0) {
+                return Optional.empty();
+            }
+            balance += req.baseAmount();
+            return Optional.of(
+                    new RewardAccrual(
+                            memberId, req.reason(), req.sourceId(), req.baseAmount(), req.at()));
+        }
         int amount = Math.min(req.baseAmount(), rule.dailyCap() - alreadyOnThatDay);
         if (amount <= 0) {
             return Optional.empty();
