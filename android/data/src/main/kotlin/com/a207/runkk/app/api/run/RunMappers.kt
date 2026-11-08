@@ -36,7 +36,8 @@ internal fun CompletedRun.toRequest(): RunUploadRequest = RunUploadRequest(
     pauses = pauses.map {
         RunUploadRequest.Pause(ServerTime.formatWithOffset(it.from), ServerTime.formatWithOffset(it.to))
     },
-    startDevice = startDevice.name
+    startDevice = startDevice.name,
+    motions = motions.map { RunUploadRequest.Motion(ServerTime.formatWithOffset(it.at), it.speedMps, it.cadenceSpm) }
 )
 
 internal fun HeartRateSample.toRequest(): RunUploadRequest.HeartRate =

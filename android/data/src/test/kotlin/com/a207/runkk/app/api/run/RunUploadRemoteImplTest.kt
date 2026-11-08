@@ -10,6 +10,7 @@ import com.a207.runkk.app.core.model.RunMode
 import com.a207.runkk.app.core.model.SignalState
 import com.a207.runkk.app.domain.run.CompletedRun
 import com.a207.runkk.app.domain.run.HeartRateSample
+import com.a207.runkk.app.domain.run.MotionSample
 import com.a207.runkk.app.domain.run.PauseInterval
 import com.a207.runkk.app.domain.run.RoutePoint
 import com.a207.runkk.app.domain.run.RunStartSpec
@@ -118,10 +119,34 @@ class RunUploadRemoteImplTest {
                 "unstableSegments",
                 "heartRates",
                 "pauses",
-                "startDevice"
+                "startDevice",
+                "motions"
             ),
             keys
         )
+    }
+
+    @Test
+    fun `기기가 잰 속도·케이던스를 motions로 보내고 재지 못한 값은 뺀다(S15P31A207-242)`() {
+        val run =
+            RUN.copy(
+                motions = listOf(
+                    MotionSample(Instant.parse("2026-10-19T22:00:01Z"), speedMps = 3.25),
+                    MotionSample(Instant.parse("2026-10-19T22:00:02Z"), cadenceSpm = 172.0)
+                )
+            )
+
+        val json = Json.parseToJsonElement(api.json.encodeToString(RunUploadRequest.serializer(), run.toRequest()))
+
+        assertEquals(
+            Json.parseToJsonElement(
+                """[{"measuredAt":"2026-10-20T07:00:01+09:00","speedMps":3.25},""" +
+                    """{"measuredAt":"2026-10-20T07:00:02+09:00","cadenceSpm":172.0}]"""
+            ),
+            json.jsonObject["motions"]
+        )
+        val none = Json.parseToJsonElement(api.json.encodeToString(RunUploadRequest.serializer(), RUN.toRequest()))
+        assertEquals(Json.parseToJsonElement("[]"), none.jsonObject["motions"], "재지 못했으면 빈 배열")
     }
 
     @Test
