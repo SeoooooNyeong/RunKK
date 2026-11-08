@@ -256,7 +256,7 @@ private fun lobbyButtonText(lobby: LobbyAvailability): String = when (lobby) {
     }
 }
 
-/** 지난 크루런 한 줄(와이어 I4): 제목, "크루런, 10.14, 5km, 6명" ›. 끝난 크루런은 눌러 결과로 간다. */
+/** 지난 크루런 한 줄(와이어 I4): 제목, "크루런, 10.14, 5km, 6명" ›. 인원은 함께 달린(진행 참가) 인원이다. 끝난 크루런은 눌러 결과로 간다. */
 @Composable
 private fun PastSchedule(post: PostList.Item, actions: CrewHomeActions) {
     val colors = MaterialTheme.colorScheme

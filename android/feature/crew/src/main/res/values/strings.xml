@@ -33,7 +33,7 @@
     <string name="crew_run_status_finished">끝남</string>
     <string name="crew_run_status_cancelled">취소됨</string>
     <string name="crew_run_going_count">참석 %1$d명</string>
-    <string name="crew_run_finisher_count">완주 %1$d명</string>
+    <string name="crew_run_participant_count">%1$d명 참여</string>
     <string name="crew_meet_pattern">M월 d일(E) HH:mm</string>
     <string name="crew_date_short_pattern">M.d</string>
     <string name="crew_schedule_pattern">M.d (E) HH:mm</string>
