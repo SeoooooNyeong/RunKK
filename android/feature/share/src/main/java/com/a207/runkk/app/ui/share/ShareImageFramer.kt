@@ -5,11 +5,11 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.core.content.ContextCompat
+import com.a207.runkk.app.core.designsystem.R as DesignR
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlin.math.roundToInt
-import com.a207.runkk.app.core.designsystem.R as DesignR
 
 /**
  * 공유 이미지 틀(K-2·K-3, 사용자 결정 2026-11-09): 찍은 카드를 화면 테마 바탕 위에 놓고 카드 아래 가운데에 런크크 워드마크를 작게 붙인다.

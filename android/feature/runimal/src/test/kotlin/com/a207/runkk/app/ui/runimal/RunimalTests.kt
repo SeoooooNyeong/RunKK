@@ -150,7 +150,14 @@ class RunimalViewModelTest {
             RecordingTarget("system", shared),
             RecordingTarget("story", shared)
         )
-        return RunimalViewModel(repo, RunimalCardRenderer(context), sharer, targets, ShareImageFramer(context), dispatcher)
+        return RunimalViewModel(
+            repo,
+            RunimalCardRenderer(context),
+            sharer,
+            targets,
+            ShareImageFramer(context),
+            dispatcher
+        )
     }
 
     /** CardSharer는 파일 쓰기를 Dispatchers.IO에서 하므로 공유가 끝날 때까지 기다린다. */
@@ -334,7 +341,7 @@ class RunimalScreenTest {
     }
 
     @Test
-    fun `1차 배포(RUNIMAL_SHARE 닫힘)에서는 공유가 없고 다음 확정까지 남은 횟수는 보인다`() {
+    fun `1차 배포 범위에서도 Runimal 공유가 열려 있고 다음 확정까지 남은 횟수가 보인다(S15P31A207-239)`() {
         compose.setContent {
             CompositionLocalProvider(LocalReleaseScope provides ReleaseScope.FIRST_RELEASE) {
                 RunkkTheme(reduceMotion = true) {
@@ -343,7 +350,21 @@ class RunimalScreenTest {
             }
         }
         compose.onNodeWithText("다음 확정까지 4회").assertExists()
-        compose.onNodeWithText(str(R.string.runimal_share)).assertDoesNotExist()
+        compose.onNodeWithText(str(R.string.runimal_share)).assertExists()
+    }
+
+    @Test
+    fun `K-3 공유 카드는 MY Runimal 꼬리표와 임시일 때만 임시 유형 꼬리표, 우세 쪽 축 막대를 보인다`() {
+        var provisional by mutableStateOf(false)
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) { RunimalShareCard(cardWithAxes, isProvisional = provisional) }
+        }
+        compose.onNodeWithText(str(R.string.runimal_title)).assertExists()
+        compose.onNodeWithText(str(R.string.runimal_type_provisional)).assertDoesNotExist()
+        compose.onNodeWithText("아침 참새", useUnmergedTree = true).assertExists()
+        compose.onNodeWithContentDescription(str(R.string.runimal_axis_description, "장거리", 64)).assertExists()
+        provisional = true
+        compose.onNodeWithText(str(R.string.runimal_type_provisional)).assertExists()
     }
 
     @Test
