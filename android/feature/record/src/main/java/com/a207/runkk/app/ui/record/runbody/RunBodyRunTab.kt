@@ -129,6 +129,18 @@ private fun SessionSection(session: RunBodySessionState, run: RunSummary, zone: 
 
         RunBodySessionState.NotAnalyzable -> EmptyProfile(onOpenDetail = null)
 
+        RunBodySessionState.NeedsBirthYear -> RunBodyCard(
+            stringResource(R.string.record_runbody_birth_year_title),
+            titleSize = 16
+        ) {
+            RunBodyCaption(stringResource(R.string.record_runbody_birth_year_message))
+            RunkkPrimaryButton(
+                stringResource(R.string.record_runbody_birth_year_edit),
+                onClick = actions.onEditProfile,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+
         is RunBodySessionState.Done -> DoneSection(session.result, actions.onOpenDetail)
     }
 }

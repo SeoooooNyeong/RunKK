@@ -33,6 +33,9 @@ interface RunBodyRepository {
         /** 운영 기준값 RUNBODY_ENABLED가 꺼져 있다(403 FEATURE_CLOSED, D-440). */
         const val FEATURE_CLOSED = "FEATURE_CLOSED"
 
+        /** 출생연도가 없어 분석하지 못했다(세션 failureReason). 프로필에 출생연도를 넣으면 서버가 다시 낸다(MR !91 e2e 1). */
+        const val BIRTH_YEAR_MISSING = "BIRTH_YEAR_MISSING"
+
         /** 러닝 점수 한 번에 읽는 최대 수(서버 쪽 크기 상한 100). 러닝 선택 목록(최근 90일)을 한 번에 덮는다. */
         const val MAX_SCORES = 100
     }

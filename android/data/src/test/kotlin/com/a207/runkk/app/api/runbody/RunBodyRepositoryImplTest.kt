@@ -71,7 +71,18 @@ class RunBodyRepositoryImplTest {
         val failed = repository.session("rec-1").value()
         assertEquals(RunBodyStatus.FAILED, failed.status)
         assertNull(failed.result)
+        assertNull(failed.failureReason)
         assertEquals(Outcome.Failure(AppError.Server(0)), repository.session("rec-1"))
+    }
+
+    @Test
+    fun `출생연도가 없어 실패한 분석은 사유를 읽는다(MR !91 e2e 1)`() = runTest {
+        api.reply("""{"recordId":"rec-1","status":"FAILED","result":null,"failureReason":"BIRTH_YEAR_MISSING"}""")
+
+        val failed = repository.session("rec-1").value()
+
+        assertEquals(RunBodyStatus.FAILED, failed.status)
+        assertEquals(RunBodyRepository.BIRTH_YEAR_MISSING, failed.failureReason)
     }
 
     @Test

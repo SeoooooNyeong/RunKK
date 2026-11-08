@@ -140,6 +140,11 @@ class RunBodyViewModel internal constructor(
         _state.value.selectedRecordId?.let(::loadSession)
     }
 
+    /** 화면에 돌아왔다. 출생연도 안내 중이었으면(프로필 편집에서 돌아옴) 다시 읽는다(MR !91 e2e 1). */
+    fun onResume() {
+        if (_state.value.session == RunBodySessionState.NeedsBirthYear) onRetrySession()
+    }
+
     /** "구간과 피드백 자세히 보기"(G-20). 결과가 있을 때만 연다. */
     fun onOpenDetail() {
         if (_state.value.session is RunBodySessionState.Done) _state.update { it.copy(page = RunBodyPage.DETAIL) }
@@ -222,9 +227,16 @@ class RunBodyViewModel internal constructor(
     private fun sessionState(result: Outcome<RunBodySession>): RunBodySessionState = when (result) {
         is Outcome.Success -> when (result.value.status) {
             RunBodyStatus.PENDING -> RunBodySessionState.Pending
+
             RunBodyStatus.ANALYZING -> RunBodySessionState.Analyzing
+
             RunBodyStatus.DONE -> result.value.result?.let(RunBodySessionState::Done) ?: RunBodySessionState.Failed
-            RunBodyStatus.FAILED -> RunBodySessionState.Failed
+
+            RunBodyStatus.FAILED -> if (result.value.failureReason == RunBodyRepository.BIRTH_YEAR_MISSING) {
+                RunBodySessionState.NeedsBirthYear
+            } else {
+                RunBodySessionState.Failed
+            }
         }
 
         is Outcome.Failure -> {

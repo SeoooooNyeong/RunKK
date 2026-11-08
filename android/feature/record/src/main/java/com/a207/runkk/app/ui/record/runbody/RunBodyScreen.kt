@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
@@ -26,6 +27,7 @@ import com.a207.runkk.app.core.designsystem.RunkkLoading
 import com.a207.runkk.app.core.designsystem.RunkkSegmentRow
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
+import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.ui.record.R
 
 /** 런바디 경로(Routes.REPORT). 시스템 뒤로는 러닝 선택·상세면 탭 화면으로, 탭 화면이면 이전 화면으로 간다. */
@@ -49,9 +51,15 @@ fun RunBodyRoute(viewModel: RunBodyViewModel = hiltViewModel()) {
             onNextMonth = viewModel::onNextMonth,
             onRetryMonth = viewModel::refreshMonth,
             onPeriod = viewModel::onPeriod,
-            onRetryTrend = viewModel::refreshTrend
+            onRetryTrend = viewModel::refreshTrend,
+            onEditProfile = { navigator.navigate(Routes.PROFILE_EDIT) }
         )
     )
+    // 프로필 편집에서 출생연도를 넣고 돌아오면 분석 상태를 다시 읽는다(MR !91 e2e 1)
+    LifecycleResumeEffect(viewModel) {
+        viewModel.onResume()
+        onPauseOrDispose {}
+    }
 }
 
 /** 런바디 화면(G-14·G-13·G-22). 러닝 선택(G-30)과 상세(G-20)는 같은 경로 안의 쪽이다([RunBodyPage]). */

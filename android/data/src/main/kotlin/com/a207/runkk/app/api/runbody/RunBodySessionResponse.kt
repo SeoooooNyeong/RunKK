@@ -2,9 +2,17 @@ package com.a207.runkk.app.api.runbody
 
 import kotlinx.serialization.Serializable
 
-/** GET /runbody/sessions/{recordId}. [result]는 status가 DONE일 때만 있고 ai SessionResultOut 본문 그대로다. */
+/**
+ * GET /runbody/sessions/{recordId}. [result]는 status가 DONE일 때만 있고 ai SessionResultOut 본문 그대로다. [failureReason]은 FAILED일
+ * 때 서버가 남긴 거부 사유다(BIRTH_YEAR_MISSING 등, MR !91 e2e 1).
+ */
 @Serializable
-internal data class RunBodySessionResponse(val recordId: String, val status: String, val result: Result? = null) {
+internal data class RunBodySessionResponse(
+    val recordId: String,
+    val status: String,
+    val result: Result? = null,
+    val failureReason: String? = null
+) {
     /** 앱이 쓰지 않는 필드(metrics, qualityFlags, engineVersion 등)는 받지 않는다(ignoreUnknownKeys). */
     @Serializable
     data class Result(

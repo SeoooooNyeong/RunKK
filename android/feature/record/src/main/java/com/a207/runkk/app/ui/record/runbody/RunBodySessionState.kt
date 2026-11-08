@@ -20,5 +20,8 @@ sealed interface RunBodySessionState {
 
     data object NotAnalyzable : RunBodySessionState
 
+    /** 출생연도가 없어 분석하지 못했다. 입력 안내와 프로필 편집 단추를 보이고, 돌아오면 다시 읽는다(MR !91 e2e 1). */
+    data object NeedsBirthYear : RunBodySessionState
+
     data class Done(val result: RunBodyResult) : RunBodySessionState
 }

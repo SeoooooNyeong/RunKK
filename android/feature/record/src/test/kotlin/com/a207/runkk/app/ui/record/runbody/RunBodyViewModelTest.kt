@@ -136,6 +136,36 @@ class RunBodyViewModelTest {
     }
 
     @Test
+    fun `출생연도가 없어 실패했으면 입력 안내를 보이고, 프로필에서 돌아오면 다시 읽어 분석을 기다린다(MR !91 e2e 1)`() {
+        runBody.reply(
+            "r3",
+            Outcome.Success(
+                com.a207.runkk.app.domain.runbody.RunBodySession(
+                    "r3",
+                    RunBodyStatus.FAILED,
+                    null,
+                    RunBodyRepository.BIRTH_YEAR_MISSING
+                )
+            ),
+            waiting("r3", RunBodyStatus.PENDING),
+            Outcome.Success(done("r3"))
+        )
+        val vm = viewModel()
+
+        vm.onTab(RunBodyTab.RUN)
+        assertEquals(RunBodySessionState.NeedsBirthYear, vm.state.value.session)
+        advance(RunBodyViewModel.POLL_MILLIS * 2)
+        assertEquals(1, runBody.sessionCalls.size, "안내 중에는 다시 읽지 않는다")
+
+        vm.onResume()
+        assertEquals(RunBodySessionState.Pending, vm.state.value.session)
+        advance(RunBodyViewModel.POLL_MILLIS)
+        assertIs<RunBodySessionState.Done>(vm.state.value.session)
+        vm.onResume()
+        assertEquals(3, runBody.sessionCalls.size, "안내 상태가 아니면 돌아와도 다시 읽지 않는다")
+    }
+
+    @Test
     fun `분석 작업이 없는 기록(404)은 데이터 부족이고 다시 읽지 않는다(G-31)`() {
         runBody.reply("r3", Outcome.Failure(AppError.Rejected(RunBodyRepository.NOT_FOUND)))
         val vm = viewModel()

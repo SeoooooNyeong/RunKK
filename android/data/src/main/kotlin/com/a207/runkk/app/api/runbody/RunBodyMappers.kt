@@ -20,7 +20,12 @@ import java.util.Locale
 /** 모르는 상태는 화면을 고르지 않도록 해독 실패로 본다(ApiErrorMapper가 Server(0)으로 바꾼다). */
 internal fun RunBodySessionResponse.toDomain(): RunBodySession {
     val known = requireNotNull(enumByName<RunBodyStatus>(status)) { "모르는 런바디 상태 $status" }
-    return RunBodySession(recordId, known, result?.takeIf { known == RunBodyStatus.DONE }?.toDomain())
+    return RunBodySession(
+        recordId,
+        known,
+        result?.takeIf { known == RunBodyStatus.DONE }?.toDomain(),
+        failureReason?.takeIf { known == RunBodyStatus.FAILED }
+    )
 }
 
 private fun RunBodySessionResponse.Result.toDomain(): RunBodyResult = RunBodyResult(
