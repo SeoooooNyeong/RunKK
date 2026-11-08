@@ -28,7 +28,7 @@ JAVA = os.path.join(ROOT, 'backend', 'src', 'main', 'java', 'com', 'a207', 'runk
 ENUM_OUT = os.path.join(HERE, 'enums')
 
 ENUMS = {
-    'common': ['PersonalityTag', 'ReasonCode', 'RecordVisibility', 'StandardDistance', 'ItemSlot', 'Tier',
+    'common': ['PersonalityTag', 'CrewTag', 'ReasonCode', 'RecordVisibility', 'StandardDistance', 'ItemSlot', 'Tier',
                'AggregationPeriod', 'DistanceUnit'],
     'member': ['ConsentItem', 'FreeRunTarget', 'GapAlertInterval', 'ProfileVisibility', 'Gender', 'ProviderType',
                'SettingItem', 'DocumentType', 'AccountType', 'ScreenTheme', 'PlacementStatus'],

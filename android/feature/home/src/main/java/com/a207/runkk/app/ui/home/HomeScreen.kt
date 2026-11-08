@@ -325,20 +325,27 @@ private fun Header(state: HomeUiState, onNavigate: (String) -> Unit) {
             }
             HeaderIdentity(state, modifier = Modifier.weight(1f))
         }
-        // 상점은 아바타 꾸미기와 함께 연다. 닫혀 있으면 잔액만 보인다(D-252, TC-9700).
-        BalancePill(
-            balance = state.header.balance,
-            onClick = if (isAvatarOpen) ({ onNavigate(Routes.SHOP) }) else null
-        )
-        // 안 본 진행 중 이벤트가 있으면 ui.notification이 칸에 라임 점을 넣는다(피그마 62206:1008)
-        Box {
-            CircleIconButton(
-                icon = RunkkIcons.Bell,
-                description = stringResource(R.string.home_header_notifications),
-                onClick = { onNavigate(Routes.NOTIFICATIONS) }
+        // 잔액과 알림함을 묶어 첫 사용 가이드 포인트 단계(J-8)가 함께 강조한다(S15P31A207-250)
+        Row(
+            modifier = Modifier.guideAnchor(GuideStep.POINT),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // 상점은 아바타 꾸미기와 함께 연다. 닫혀 있으면 잔액만 보인다(D-252, TC-9700).
+            BalancePill(
+                balance = state.header.balance,
+                onClick = if (isAvatarOpen) ({ onNavigate(Routes.SHOP) }) else null
             )
-            Box(Modifier.align(Alignment.TopEnd).padding(top = 3.dp, end = 3.dp)) {
-                LocalSlots.current[SlotKey.HOME_INBOX_DOT].orEmpty().forEach { it() }
+            // 안 본 진행 중 이벤트가 있으면 ui.notification이 칸에 라임 점을 넣는다(피그마 62206:1008)
+            Box {
+                CircleIconButton(
+                    icon = RunkkIcons.Bell,
+                    description = stringResource(R.string.home_header_notifications),
+                    onClick = { onNavigate(Routes.NOTIFICATIONS) }
+                )
+                Box(Modifier.align(Alignment.TopEnd).padding(top = 3.dp, end = 3.dp)) {
+                    LocalSlots.current[SlotKey.HOME_INBOX_DOT].orEmpty().forEach { it() }
+                }
             }
         }
     }

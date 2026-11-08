@@ -179,18 +179,16 @@ class LiveSocketIntegrationTest {
 
     @Test
     @org.junit.jupiter.api.DisplayName(
-            "크루런 진행값(CREW_RUN)이 다른 참가자에게 CrewRunRelay로 가고 위치 항목이 없다(5.7.2, FR-149)")
+            "크루런 진행값(CREW_RUN)이 다른 참가자에게 CrewRunRelay(거리 합·상태)로 가고 위치·순위 항목이 없다(FR-149)")
     void crewRunRelayOverWebSocket() throws Exception {
         long alice = member("크루곰");
         long bob = member("크루여우");
         long postId = 9_000 + alice;
         LocalDateTime now = LocalDateTime.now().withNano(0);
-        crewSessions.save(
-                CrewRunLiveSession.open(
-                        postId,
-                        StandardDistance.KM1,
-                        java.util.Map.of(alice, DisplayName.of("크루곰"), bob, DisplayName.of("크루여우")),
-                        now));
+        java.util.Map<Long, DisplayName> names = new java.util.LinkedHashMap<>();
+        names.put(alice, DisplayName.of("크루곰"));
+        names.put(bob, DisplayName.of("크루여우"));
+        crewSessions.save(CrewRunLiveSession.open(postId, names, now));
 
         Inbox aliceInbox = new Inbox();
         Inbox bobInbox = new Inbox();
@@ -208,7 +206,9 @@ class LiveSocketIntegrationTest {
         assertThat(relay.get("postId").asLong()).isEqualTo(postId);
         assertThat(relay.get("entries").get(0).get("name").asText()).isEqualTo("크루곰");
         assertThat(relay.get("entries").get(0).get("distance").asLong()).isEqualTo(300);
-        assertThat(relay.get("entries").get(0).get("rank").asInt()).isEqualTo(1);
+        assertThat(relay.get("entries").get(0).get("state").asText()).isEqualTo("RUNNING");
+        assertThat(relay.get("totalDistance").asLong()).isEqualTo(300);
+        assertThat(relay.get("entries").get(0).has("rank")).isFalse();
         // D-161: 받는 사람(bob) 줄에만 mine 참
         assertThat(relay.get("entries").get(0).get("mine").asBoolean()).isFalse();
         assertThat(relay.get("entries").get(1).get("memberId").asLong()).isEqualTo(bob);

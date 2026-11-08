@@ -101,7 +101,8 @@ public class OperationPolicy {
                 selfieAllowed && valueOf(SettingKey.SELFIE_ENABLED, Boolean.class),
                 valueOf(SettingKey.AI_COMMENT_ENABLED, Boolean.class),
                 valueOf(SettingKey.CREW_RELEASED, Boolean.class),
-                valueOf(SettingKey.AVATAR_RELEASED, Boolean.class));
+                valueOf(SettingKey.AVATAR_RELEASED, Boolean.class),
+                valueOf(SettingKey.RUNBODY_ENABLED, Boolean.class));
     }
 
     public SelfieLimit selfieLimit() {

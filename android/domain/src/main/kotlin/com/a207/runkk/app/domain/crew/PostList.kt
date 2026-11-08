@@ -39,7 +39,8 @@ data class PostList(val posts: List<Item>, val nextCursor: Long? = null) {
     )
 
     /**
-     * 모집글의 크루런 정보(FR-133): 거리·모집 일시·투표 마감·상태·참여 인원·내 응답·완주 인원·크루 반영 거리(지난 크루런).
+     * 모집글의 크루런 정보(FR-133): 거리·모집 일시·투표 마감·상태·참여 인원·내 응답·함께 달린 인원·크루 반영 거리(지난 크루런).
+     * [finisherCount]는 서버 이름을 따랐지만 크루런 합산 방식에서는 완주 인원이 아니라 진행 참가자 수다.
      * [myAnswer]는 아직 답하지 않았으면 null, [status]는 앱이 모르는 상태면 null이다.
      */
     data class CrewRunInfo(

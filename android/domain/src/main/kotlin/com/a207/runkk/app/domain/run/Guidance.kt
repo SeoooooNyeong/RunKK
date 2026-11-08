@@ -20,7 +20,6 @@ data class Guidance(
         PACE,
         BREATH,
         GAP,
-        RANK,
         OVERTOOK,
         OVERTAKEN,
 

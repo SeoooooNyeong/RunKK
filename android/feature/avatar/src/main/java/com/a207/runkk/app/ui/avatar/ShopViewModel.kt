@@ -2,6 +2,7 @@ package com.a207.runkk.app.ui.avatar
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.uiText
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.avatar.AvatarRepository
@@ -49,6 +50,12 @@ class ShopViewModel @Inject constructor(private val avatars: AvatarRepository) :
 
     fun onPick(item: Shop.Item) {
         if (item.isOwned || !item.isOnSale) return
+        // 잔액을 알면 모자란 아이템은 확인 창(음수 잔액) 없이 바로 안내한다. 모르면 확인 뒤 서버가 판정한다.
+        val balance = _state.value.shop?.balance
+        if (balance != null && item.price > balance) {
+            _state.update { it.copy(message = UiText.Res(R.string.avatar_error_insufficient_reward)) }
+            return
+        }
         _state.update { it.copy(confirming = item) }
     }
 

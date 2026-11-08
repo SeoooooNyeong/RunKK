@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.a207.runkk.TestcontainersConfig;
 import com.a207.runkk.bootstrap.RunkkApplication;
-import com.a207.runkk.common.PersonalityTag;
+import com.a207.runkk.common.CrewTag;
 import com.a207.runkk.crew.CrewCreateCommand;
 import com.a207.runkk.crew.CrewService;
 import com.a207.runkk.crew.CrewVisibility;
@@ -110,7 +110,7 @@ class ChatLatencyIntegrationTest {
                                 new CrewCreateCommand(
                                         "지연크루" + UUID.randomUUID().toString().substring(0, 6),
                                         "함께",
-                                        Set.of(PersonalityTag.SOCIAL_RUN),
+                                        Set.of(CrewTag.WEEKDAY_EVENING),
                                         CrewVisibility.PUBLIC,
                                         JoinPolicy.FREE,
                                         null))

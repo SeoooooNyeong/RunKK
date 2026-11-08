@@ -1,9 +1,9 @@
 package com.a207.runkk.infra.crew;
 
+import com.a207.runkk.common.CrewTag;
 import com.a207.runkk.common.DateRange;
 import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.PageCursor;
-import com.a207.runkk.common.PersonalityTag;
 import com.a207.runkk.common.Week;
 import com.a207.runkk.crew.Crew;
 import com.a207.runkk.crew.CrewListRow;
@@ -107,7 +107,7 @@ public class JpaCrewRepository implements CrewRepository {
      */
     @Override
     public List<CrewListRow> search(CrewSearch cond, PageCursor page, Week week) {
-        List<PersonalityTag> tags = cond.tags().stream().sorted().toList();
+        List<CrewTag> tags = cond.tags().stream().sorted().toList();
         StringBuilder jpql = new StringBuilder("select c from Crew c where c.visibility = :public");
         if (cond.keyword() != null) {
             jpql.append(

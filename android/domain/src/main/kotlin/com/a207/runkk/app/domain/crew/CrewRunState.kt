@@ -1,5 +1,6 @@
 package com.a207.runkk.app.domain.crew
 
+import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.domain.live.CrewRunRelay
 import java.time.Instant
 
@@ -11,8 +12,13 @@ sealed interface CrewRunState {
 
     data class Countdown(val postId: Long, val startAt: Instant) : CrewRunState
 
-    /** 중계(CrewRunRelay)의 참가자 표. */
-    data class Running(val postId: Long, val entries: List<CrewRunRelay.Entry>) : CrewRunState
+    /** 측정 중: 중계(CrewRunRelay)의 참가자 표·크루 합산 거리와 내 측정값([mine]). */
+    data class Running(
+        val postId: Long,
+        val entries: List<CrewRunRelay.Entry>,
+        val totalDistance: Distance = Distance.ZERO,
+        val mine: CrewRunProgress = CrewRunProgress.ZERO
+    ) : CrewRunState
 
     /** cancelledReason이 있으면 취소된 크루런이다. */
     data class Finished(val postId: Long, val cancelledReason: String?) : CrewRunState

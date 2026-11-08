@@ -1,5 +1,6 @@
 package com.a207.runkk.crew;
 
+import com.a207.runkk.common.Distance;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -8,12 +9,13 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
 /**
- * 크루런 참가자 한 명의 응답·준비·결과(설계 6.1.7, 상태도 2.4.6, 자료사전 모집참여). CrewRunPost가 합성으로 가진다. runner는 READY로 출발한
- * 참가자다(준비 안 한 참가자는 출발 때 빠진다, A-13).
+ * 크루런 참가자 한 명의 응답·준비·결과(설계 6.1.7, 상태도 2.4.6, 자료사전 모집참여). 결과는 합산 방식의 끝냄과 끝낼 때 거리·경과다. CrewRunPost가
+ * 합성으로 가진다. runner는 READY로 출발한 참가자다(준비 안 한 참가자는 출발 때 빠진다, A-13).
  */
 @Entity
 @Table(name = "crew_run_participation")
@@ -40,14 +42,17 @@ public class CrewRunParticipation {
     @Column(name = "runner", nullable = false)
     private boolean runner;
 
-    @Column(name = "arrived_at")
-    private LocalDateTime arrivedAt;
+    /** 자기 크루런을 끝냈다(그만두기 또는 크루런 종료로 마감, 합산 방식). */
+    @Column(name = "ended", nullable = false)
+    private boolean ended;
 
-    @Column(name = "finish_rank")
-    private Integer rank;
+    /** 끝낼 때 남긴 거리(미터). 연결된 기록이 없을 때 결과에 쓴다. */
+    @Column(name = "final_distance_m")
+    private Long finalDistanceMeters;
 
-    @Column(name = "quit", nullable = false)
-    private boolean quit;
+    /** 끝낼 때 남긴 경과(밀리초). */
+    @Column(name = "final_elapsed_ms")
+    private Long finalElapsedMillis;
 
     @Column(name = "linked_record_id", length = 36)
     private String linkedRecordId;
@@ -89,18 +94,19 @@ public class CrewRunParticipation {
         runner = true;
     }
 
-    /** 처음 도착만 기록한다. */
-    public void arrive(LocalDateTime at) {
-        if (arrivedAt == null && !quit) {
-            arrivedAt = at;
+    /** 자기 크루런 끝내기(합산 방식). 거리·경과가 있으면 남긴다. 이미 끝냈으면 아무것도 바꾸지 않고 false(재시도 안전). */
+    boolean end(Distance distance, Duration elapsed) {
+        if (ended) {
+            return false;
         }
-    }
-
-    /** 중간 그만두기. 이미 도착했으면 그대로다. */
-    public void quit() {
-        if (arrivedAt == null) {
-            quit = true;
+        ended = true;
+        if (distance != null) {
+            finalDistanceMeters = distance.meters();
         }
+        if (elapsed != null) {
+            finalElapsedMillis = elapsed.toMillis();
+        }
+        return true;
     }
 
     /** 한 참여에 러닝 1건(FR-146). 이미 연결이 있으면 false. */
@@ -121,10 +127,6 @@ public class CrewRunParticipation {
         return true;
     }
 
-    void rankAs(Integer value) {
-        rank = value;
-    }
-
     /** 회원 탈퇴: 참가자 익명화(FR-021). */
     void anonymize() {
         memberId = null;
@@ -138,9 +140,9 @@ public class CrewRunParticipation {
         return answer == AttendanceAnswer.GOING;
     }
 
-    /** 도착했거나 그만뒀다(진행 종료 조건). */
-    boolean isDone() {
-        return arrivedAt != null || quit;
+    /** 자기 크루런을 끝냈다(진행 종료 조건). */
+    public boolean hasEnded() {
+        return ended;
     }
 
     public Optional<Long> memberId() {
@@ -159,16 +161,14 @@ public class CrewRunParticipation {
         return readiness;
     }
 
-    public Optional<LocalDateTime> arrivedAt() {
-        return Optional.ofNullable(arrivedAt);
+    /** 끝낼 때 남긴 거리, 없으면 비어 있다. */
+    public Optional<Distance> finalDistance() {
+        return Optional.ofNullable(finalDistanceMeters).map(Distance::ofMeters);
     }
 
-    public Integer rank() {
-        return rank;
-    }
-
-    public boolean hasQuit() {
-        return quit;
+    /** 끝낼 때 남긴 경과, 없으면 비어 있다. */
+    public Optional<Duration> finalElapsed() {
+        return Optional.ofNullable(finalElapsedMillis).map(Duration::ofMillis);
     }
 
     public Optional<String> linkedRecordId() {

@@ -58,12 +58,12 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.TemporalAdjusters
 
-/** 최신순 알림을 오늘·이번 주(월요일 시작)·그 전으로 묶는다(FR-178). */
-internal fun groupInbox(items: List<Inbox.Item>, clock: Clock): List<InboxGroup> {
-    val today = LocalDate.now(clock)
+/** 최신순 알림을 오늘·이번 주(월요일 시작)·그 전으로 [zone](기기 시간대) 날짜로 묶는다(FR-178). */
+internal fun groupInbox(items: List<Inbox.Item>, clock: Clock, zone: ZoneId = clock.zone): List<InboxGroup> {
+    val today = clock.instant().atZone(zone).toLocalDate()
     val weekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
     val sorted = items.sortedByDescending { it.receivedAt }
-    fun day(item: Inbox.Item) = item.receivedAt.atZone(clock.zone).toLocalDate()
+    fun day(item: Inbox.Item) = item.receivedAt.atZone(zone).toLocalDate()
     return listOf(
         InboxGroup(R.string.notification_group_today, sorted.filter { day(it) == today }),
         InboxGroup(

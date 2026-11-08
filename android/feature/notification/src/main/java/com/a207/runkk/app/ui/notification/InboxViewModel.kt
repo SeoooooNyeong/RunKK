@@ -14,6 +14,7 @@ import com.a207.runkk.app.domain.notification.NotificationRepository
 import com.a207.runkk.app.domain.notification.hasUnseenOngoing
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Clock
+import java.time.ZoneId
 import javax.inject.Inject
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
@@ -30,11 +31,17 @@ import kotlinx.coroutines.launch
  * 맨 위 이벤트 항목은 EventRepository.events와 본 이벤트 사본으로 진행 중 수와 새 이벤트 점을 정한다(이벤트 계약 7절).
  */
 @HiltViewModel
-class InboxViewModel @Inject constructor(
+class InboxViewModel internal constructor(
     private val notifications: NotificationRepository,
     private val clock: Clock,
-    private val eventRepository: EventRepository
+    private val eventRepository: EventRepository,
+    private val zone: ZoneId
 ) : ViewModel() {
+    /** 앱 Clock은 UTC(DeviceBindings)라 날짜·시각은 기기 시간대 [zone](ZoneId.systemDefault(), 러닝 결과 화면과 같다)으로 셈한다(MR !91 e2e 2 후속). */
+    @Inject
+    constructor(notifications: NotificationRepository, clock: Clock, eventRepository: EventRepository) :
+        this(notifications, clock, eventRepository, ZoneId.systemDefault())
+
     private val _state = MutableStateFlow(InboxUiState())
     val state: StateFlow<InboxUiState> = _state.asStateFlow()
 
@@ -76,9 +83,9 @@ class InboxViewModel @Inject constructor(
                 is Outcome.Success -> _state.update {
                     it.copy(
                         isLoading = false,
-                        groups = groupInbox(result.value.items, clock),
+                        groups = groupInbox(result.value.items, clock, zone),
                         now = clock.instant(),
-                        zone = clock.zone
+                        zone = zone
                     )
                 }
 

@@ -114,6 +114,20 @@ class InboxTest {
     }
 
     @Test
+    fun `앱 시계가 UTC여도 오늘·이번 주는 기기 시간대로 묶는다(MR !91 e2e 2 후속)`() {
+        // 한국 11/08 00:30 = UTC 11/07 15:30. 한국 11/07 23:30에 받은 알림은 오늘이 아니라 이번 주다
+        val utc = Clock.fixed(Instant.parse("2026-11-07T15:30:00Z"), java.time.ZoneOffset.UTC)
+        repo.inboxResult = Outcome.Success(
+            Inbox(listOf(sampleItems[0].copy(receivedAt = Instant.parse("2026-11-07T14:30:00Z"))))
+        )
+        val vm = InboxViewModel(repo, utc, FakeEventRepository(), ZoneId.of("Asia/Seoul"))
+
+        val groups = vm.state.value.groups
+        assertEquals(listOf(R.string.notification_group_this_week), groups.map { it.titleRes })
+        assertEquals(ZoneId.of("Asia/Seoul"), vm.state.value.zone)
+    }
+
+    @Test
     fun `알림을 누르면 읽음으로 바꾸고 이동 경로로 간다`() = runTest {
         val vm = InboxViewModel(repo, clock, FakeEventRepository())
         vm.events.test {

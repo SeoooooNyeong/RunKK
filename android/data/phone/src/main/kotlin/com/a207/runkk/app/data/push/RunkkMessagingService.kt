@@ -23,8 +23,8 @@ import javax.inject.Inject
  * - onNewToken → PushTokenSync.onTokenChanged. 토큰 값은 로그에 쓰지 않는다.
  * - 앱이 뒤에 있으면 FCM 알림 메시지는 OS가 띄운다. 앱이 앞에 있으면 OS가 띄우지 않으므로 여기서 띄우되, 표시 전에
  *   OpenChatRoomTracker에 묻는다: 열린 채팅방 크루의 CREW_CHAT은 띄우지 않는다(FR-218). 같은 묶음 키의 알림은 하나로 묶는다.
- * - 1차 배포 잠금 빌드(ReleaseLock)에서는 닫힌 기능(GatedFeature: 아바타·크루)의 알림을 띄우지 않는다. 알림함·알림 설정에서
- *   숨긴 것과 맞춘다(D-339, 코드 리뷰 U10-A2). 앱이 뒤에 있을 때 FCM 알림 메시지는 OS가 띄우므로 여기서 막을 수 없다.
+ * - 잠금 빌드(ReleaseLock)에서 닫힌 기능(GatedFeature: 아바타·크루)의 알림은 띄우지 않는다. 알림함·알림 설정에서
+ *   숨긴 것과 맞춘다. 2차 배포(S15P31A207-248)는 둘 다 열려 있다(D-339, 코드 리뷰 U10-A2). 앱이 뒤에 있을 때 FCM 알림 메시지는 OS가 띄우므로 여기서 막을 수 없다.
  * google-services.json이 없는 빌드에서는 Firebase가 초기화되지 않아 이 서비스가 불리지 않는다.
  */
 @AndroidEntryPoint
@@ -90,5 +90,5 @@ class RunkkMessagingService : FirebaseMessagingService() {
     }
 }
 
-/** 시스템 알림으로 띄울 종류인가: 잠금 빌드에서는 닫힌 기능(GatedFeature)에 딸린 종류를 뺀다(D-339). */
-internal fun isReleased(type: String?, lock: ReleaseLock): Boolean = !lock.isLocked() || GatedFeature.of(type) == null
+/** 시스템 알림으로 띄울 종류인가: 닫힌 기능(GatedFeature)에 딸린 종류를 뺀다(D-339). */
+internal fun isReleased(type: String?, lock: ReleaseLock): Boolean = GatedFeature.of(type)?.let(lock::isOpen) ?: true

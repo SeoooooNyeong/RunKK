@@ -218,6 +218,30 @@ public final class InMemoryRunningRepositories {
         }
 
         @Override
+        public List<ValidRunStat> validRunStats(long memberId, int fromOrdinal, int toOrdinal) {
+            List<RunRecord> valid =
+                    of(memberId)
+                            .filter(RunRecord::isValid)
+                            .sorted(
+                                    Comparator.comparing(RunRecord::getSavedAt)
+                                            .thenComparing(RunRecord::getRecordId))
+                            .toList();
+            List<ValidRunStat> result = new java.util.ArrayList<>();
+            for (int i = fromOrdinal - 1; i < Math.min(toOrdinal, valid.size()); i++) {
+                RunRecord r = valid.get(i);
+                HeartRateSummary hr = r.heartRateSummary();
+                result.add(
+                        new ValidRunStat(
+                                i + 1,
+                                r.getStartedAt(),
+                                r.getDistance(),
+                                r.getAveragePace(),
+                                hr == null ? null : hr.average()));
+            }
+            return result;
+        }
+
+        @Override
         public Distance validDistanceSavedBefore(long memberId, java.time.LocalDateTime cutoff) {
             return Distance.ofMeters(
                     rows.values().stream()

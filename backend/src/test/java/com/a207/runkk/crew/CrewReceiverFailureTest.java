@@ -12,8 +12,8 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import com.a207.runkk.bootstrap.RunkkApplication;
+import com.a207.runkk.common.CrewTag;
 import com.a207.runkk.common.Distance;
-import com.a207.runkk.common.PersonalityTag;
 import com.a207.runkk.member.MemberFixtures;
 import com.a207.runkk.member.MemberRepository;
 import com.a207.runkk.running.RunMode;
@@ -63,7 +63,7 @@ class CrewReceiverFailureTest {
                         new CrewCreateCommand(
                                 "수신크루" + NAMES.incrementAndGet(),
                                 null,
-                                Set.of(PersonalityTag.SOCIAL_RUN),
+                                Set.of(CrewTag.WEEKDAY_EVENING),
                                 CrewVisibility.PUBLIC,
                                 JoinPolicy.FREE,
                                 "https://cdn/logo.png"))

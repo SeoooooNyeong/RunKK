@@ -107,6 +107,13 @@ constructor(
             override fun onResumeRequested() = resume()
 
             override fun onHeartRates(samples: List<HeartRateSample>) = acceptHeartRates(samples)
+
+            override fun onWatchMotions(samples: List<MotionSample>) {
+                synchronized(lock) {
+                    val active = session?.takeIf { it.isActive } ?: return
+                    samples.forEach { active.onMotion(it, isFromWatch = true) }
+                }
+            }
         }
 
     init {
@@ -169,6 +176,13 @@ constructor(
         }
     }
 
+    /** 기기가 잰 속도·케이던스(S15P31A207-242). 측정 중일 때만 세션에 남긴다. */
+    fun onMotionSample(s: MotionSample) {
+        synchronized(lock) {
+            session?.takeIf { it.isActive }?.onMotion(s)
+        }
+    }
+
     /**
      * 1초 진행: 진행값 방출 → 안내(정지 중이면 평가하지 않는다, FR-049) → 워치 표시. 정지 길이에는 상한이 없어 정지 중에는
      * 진행값만 낸다(FR-195 삭제, D-257).
@@ -194,13 +208,13 @@ constructor(
         }
     }
 
-    /** 폰 일시정지 버튼(FR-194). 자유런 RUNNING일 때만 정지한다. */
+    /** 폰 일시정지 버튼(FR-194). 자유런·크루런 RUNNING일 때만 정지한다. */
     fun onPauseTapped() = pause()
 
     /** 폰 재개 버튼(FR-194). PAUSED일 때만 재개한다. */
     fun onResumeTapped() = resume()
 
-    /** 진행 알림의 "일시정지" 버튼(FR-224, D-260). 폰 버튼과 같은 길이고 자유런 RUNNING일 때만 정지한다. */
+    /** 진행 알림의 "일시정지" 버튼(FR-224, D-260). 폰 버튼과 같은 길이고 자유런·크루런 RUNNING일 때만 정지한다. */
     fun onNotificationPauseTapped() = pause()
 
     /** 진행 알림의 "재개" 버튼(FR-224, D-260). PAUSED일 때만 재개한다. */
@@ -268,10 +282,6 @@ constructor(
         }
         val alert = coach.proximityOf(meters, watchBridge.isWatchConnected())
         watchBridge.publishProximity(alert, runtime.now())
-    }
-
-    fun onRankChanged(rank: CrewRank) {
-        synchronized(lock) { session?.takeIf { it.isActive }?.updateRank(rank) }
     }
 
     /**

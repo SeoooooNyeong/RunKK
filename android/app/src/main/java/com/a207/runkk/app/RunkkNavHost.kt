@@ -62,8 +62,8 @@ import java.time.Instant
  * app은 ui.*를 import하지 않는다(design-review.md M35). 하단 탭(크루·기록런·홈·랭킹·마이, D-250)은 맨 위 화면이 탭 경로이거나
  * 배틀런 화면(홈을 고른 상태)일 때만 보인다.
  * 화면마다 ViewModel 저장소를 따로 두어(rememberViewModelStoreNavEntryDecorator) 화면을 닫으면 ViewModel도 정리된다.
- * [lockUnreleased]가 켜지면(1차 배포 빌드, D-251) 크루 탭에 자물쇠를 달고 누르면 [LockedFeatureDialog]만 띄우며(D-253),
- * 잠긴 경로([BetaLock])로 들어오면 안내를 띄우고 뒤로 돌린다. 화면 숨김 판정(LocalReleaseScope), 가이드 앵커 표
+ * [releaseScope](빌드 플래그 LOCK_UNRELEASED로 고른 배포 범위, D-251)에서 크루가 닫혀 있으면 크루 탭에 자물쇠를 달고 누르면
+ * [LockedFeatureDialog]만 띄우며(D-253), 닫힌 기능의 경로([BetaLock])로 들어오면 안내를 띄우고 뒤로 돌린다. 화면 숨김 판정(LocalReleaseScope), 가이드 앵커 표
  * (LocalGuideAnchors), 칸 기여 표(LocalSlots)도 여기서 넣는다. 초대 링크로 받은 [pendingInvite]는 홈이 맨 위가 되면 참가 확인으로 연다.
  * 열었거나 버렸으면(받은 지 5분, 로그아웃) [onInviteDone]으로 비운다. 대결 진행 알림으로 받은 [pendingBattleReturn]은 기능 화면 위
  * 안내에 LocalBattleReturnRequest로 넘기고, 대결 기능이 처리하면 [onBattleReturnDone]으로 비운다(S15P31A207-278).
@@ -75,7 +75,7 @@ fun RunkkNavHost(
     onExit: () -> Unit,
     loggedIn: Boolean,
     modifier: Modifier = Modifier,
-    lockUnreleased: Boolean = BuildConfig.LOCK_UNRELEASED,
+    releaseScope: ReleaseScope = ReleaseScope.of(BuildConfig.LOCK_UNRELEASED),
     pendingInvite: PendingInvite? = null,
     onInviteDone: () -> Unit = {},
     pendingBattleReturn: Long? = null,
@@ -106,21 +106,21 @@ fun RunkkNavHost(
         val top = (backStack.lastOrNull() as? Routes.Key)?.route
         if (!loggedIn && top !in AUTH_ROUTES) navigator.restart(Routes.LOGIN)
     }
-    val provider = remember(featureEntries, lockUnreleased) {
+    val provider = remember(featureEntries, releaseScope) {
         val entries = entryProvider<NavKey>(fallback = { key -> NavEntry(key) { ComingSoonScreen() } }) {
             featureEntries.forEach { it.register(this) }
         }
-        withBottomSpace(if (lockUnreleased) withBetaLock(entries) else entries)
+        withBottomSpace(withBetaLock(entries, releaseScope))
     }
     val top = backStack.lastOrNull()
     val selectedTab = tabOf(top)
-    val lockedTabs = if (lockUnreleased) LOCKED_TABS else emptySet()
+    val lockedTabs = BetaLock.lockedTabs(releaseScope)
     var isLockedNoticeVisible by rememberSaveable { mutableStateOf(false) }
     val guideAnchors = remember { GuideAnchors() }
     val slots = remember(featureEntries) { featureEntries.collectSlots() }
     CompositionLocalProvider(
         LocalRunkkNavigator provides navigator,
-        LocalReleaseScope provides ReleaseScope.of(lockUnreleased),
+        LocalReleaseScope provides releaseScope,
         LocalGuideAnchors provides guideAnchors,
         LocalSlots provides slots
     ) {
@@ -185,9 +185,6 @@ internal fun pendingAfterSession(
     wasLoggedIn: Boolean,
     loggedIn: Boolean
 ): PendingInvite? = pendingInvite?.takeUnless { wasLoggedIn && !loggedIn }
-
-/** 1차 배포에서 잠그는 하단 탭(D-253). */
-private val LOCKED_TABS: Set<RunkkTab> = setOf(RunkkTab.CREW)
 
 /** 백 스택 하나로 RunkkNavigator를 구현한다. 마지막 화면에서 뒤로 가면 앱을 닫는다. */
 internal class BackStackNavigator(private val backStack: NavBackStack<NavKey>, private val onExit: () -> Unit) :
@@ -273,10 +270,11 @@ internal fun routeOf(tab: RunkkTab): String = when (tab) {
     RunkkTab.ME -> Routes.ME
 }
 
-/** 1차 배포에서 잠근 경로([BetaLock])는 등록된 화면 대신 잠긴 기능 안내를 띄우고 뒤로 돌린다(우회 진입 방어, D-251). */
-private fun withBetaLock(entries: (NavKey) -> NavEntry<NavKey>): (NavKey) -> NavEntry<NavKey> = { key ->
-    if (BetaLock.isLocked(key)) NavEntry(key) { LockedRouteScreen() } else entries(key)
-}
+/** [scope]에서 닫힌 기능의 경로([BetaLock])는 등록된 화면 대신 잠긴 기능 안내를 띄우고 뒤로 돌린다(우회 진입 방어, D-251). */
+private fun withBetaLock(entries: (NavKey) -> NavEntry<NavKey>, scope: ReleaseScope): (NavKey) -> NavEntry<NavKey> =
+    { key ->
+        if (BetaLock.isLocked(key, scope)) NavEntry(key) { LockedRouteScreen() } else entries(key)
+    }
 
 /** 잠긴 경로 자리: 빈 바탕 위 잠긴 기능 안내. 닫으면 한 화면 뒤로. */
 @Composable

@@ -1185,6 +1185,10 @@
    },
    {
     "kind": "leaf",
+    "name": "lastWeekDistanceMeters"
+   },
+   {
+    "kind": "leaf",
     "name": "myRole"
    },
    {
@@ -1303,12 +1307,28 @@
    },
    {
     "kind": "leaf",
-    "name": "finisherCount"
+    "name": "title"
+   },
+   {
+    "kind": "leaf",
+    "name": "distanceMeters"
+   },
+   {
+    "kind": "leaf",
+    "name": "startedAt"
+   },
+   {
+    "kind": "leaf",
+    "name": "totalDistanceMeters"
    },
    {
     "kind": "list",
-    "name": "finishers",
-    "ref": "CrewDtos.CrewRunResultResponse.Finisher"
+    "name": "participants",
+    "ref": "CrewDtos.CrewRunResultResponse.Participant"
+   },
+   {
+    "kind": "leaf",
+    "name": "myRecordId"
    },
    {
     "kind": "leaf",
@@ -1321,15 +1341,19 @@
   ],
   "file": "web/crew/CrewDtos.java"
  },
- "CrewDtos.CrewRunResultResponse.Finisher": {
+ "CrewDtos.CrewRunResultResponse.Participant": {
   "components": [
    {
     "kind": "leaf",
-    "name": "rank"
+    "name": "memberId"
    },
    {
     "kind": "leaf",
     "name": "displayName"
+   },
+   {
+    "kind": "leaf",
+    "name": "distanceMeters"
    },
    {
     "kind": "leaf",
@@ -1341,11 +1365,7 @@
    },
    {
     "kind": "leaf",
-    "name": "quit"
-   },
-   {
-    "kind": "leaf",
-    "name": "memberId"
+    "name": "ended"
    },
    {
     "kind": "leaf",
@@ -1555,6 +1575,15 @@
    {
     "kind": "leaf",
     "name": "requestedAt"
+   }
+  ],
+  "file": "web/crew/CrewDtos.java"
+ },
+ "CrewDtos.PauseRequest": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "elapsedSeconds"
    }
   ],
   "file": "web/crew/CrewDtos.java"
@@ -1941,6 +1970,19 @@
    {
     "kind": "leaf",
     "name": "closesAt"
+   }
+  ],
+  "file": "web/crew/CrewDtos.java"
+ },
+ "CrewDtos.QuitRequest": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "distanceMeters"
+   },
+   {
+    "kind": "leaf",
+    "name": "elapsedSeconds"
    }
   ],
   "file": "web/crew/CrewDtos.java"
@@ -3303,6 +3345,10 @@
    },
    {
     "kind": "leaf",
+    "name": "contributedCrewName"
+   },
+   {
+    "kind": "leaf",
     "name": "rewardPoints"
    },
    {
@@ -3721,6 +3767,126 @@
   ],
   "file": "web/report/ReportController.java"
  },
+ "RunBodyDtos.RunBodySessionListResponse": {
+  "components": [
+   {
+    "kind": "list",
+    "name": "items",
+    "ref": "RunBodyDtos.RunBodySessionRow"
+   },
+   {
+    "kind": "leaf",
+    "name": "nextCursor"
+   }
+  ],
+  "file": "web/runbody/RunBodyDtos.java"
+ },
+ "RunBodyDtos.RunBodySessionResponse": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "recordId"
+   },
+   {
+    "kind": "leaf",
+    "name": "status"
+   },
+   {
+    "kind": "leaf",
+    "name": "result"
+   },
+   {
+    "kind": "leaf",
+    "name": "failureReason"
+   }
+  ],
+  "file": "web/runbody/RunBodyDtos.java"
+ },
+ "RunBodyDtos.RunBodySessionRow": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "recordId"
+   },
+   {
+    "kind": "leaf",
+    "name": "status"
+   },
+   {
+    "kind": "leaf",
+    "name": "score"
+   },
+   {
+    "kind": "leaf",
+    "name": "scoreChange"
+   }
+  ],
+  "file": "web/runbody/RunBodyDtos.java"
+ },
+ "RunBodyDtos.RunBodyTrendResponse": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "validRunCount"
+   },
+   {
+    "kind": "leaf",
+    "name": "round"
+   },
+   {
+    "kind": "leaf",
+    "name": "needs"
+   },
+   {
+    "kind": "record",
+    "name": "recent",
+    "ref": "RunBodyDtos.RunBodyWindowResponse"
+   },
+   {
+    "kind": "record",
+    "name": "previous",
+    "ref": "RunBodyDtos.RunBodyWindowResponse"
+   },
+   {
+    "kind": "leaf",
+    "name": "sameHeartRatePaceChange"
+   },
+   {
+    "kind": "leaf",
+    "name": "runimalType"
+   }
+  ],
+  "file": "web/runbody/RunBodyDtos.java"
+ },
+ "RunBodyDtos.RunBodyWindowResponse": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "fromOrdinal"
+   },
+   {
+    "kind": "leaf",
+    "name": "toOrdinal"
+   },
+   {
+    "kind": "leaf",
+    "name": "paceSecondsPerKm"
+   },
+   {
+    "kind": "leaf",
+    "name": "runsPerWeek"
+   },
+   {
+    "kind": "leaf",
+    "name": "runsPerMonth"
+   },
+   {
+    "kind": "leaf",
+    "name": "averageHeartRate"
+   }
+  ],
+  "file": "web/runbody/RunBodyDtos.java"
+ },
  "RunController.HeartRateRequest": {
   "components": [
    {
@@ -3742,6 +3908,24 @@
     "name": "samples",
     "ref": "RunController.HeartRateRequest",
     "required": true
+   }
+  ],
+  "file": "web/run/RunController.java"
+ },
+ "RunController.MotionRequest": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "measuredAt",
+    "required": true
+   },
+   {
+    "kind": "leaf",
+    "name": "speedMps"
+   },
+   {
+    "kind": "leaf",
+    "name": "cadenceSpm"
    }
   ],
   "file": "web/run/RunController.java"
@@ -3858,6 +4042,11 @@
    {
     "kind": "leaf",
     "name": "startDevice"
+   },
+   {
+    "kind": "list",
+    "name": "motions",
+    "ref": "RunController.MotionRequest"
    }
   ],
   "file": "web/run/RunController.java"

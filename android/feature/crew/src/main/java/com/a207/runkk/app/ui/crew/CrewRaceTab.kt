@@ -85,17 +85,20 @@ private fun GoalCard(race: RaceStatus, canSetGoal: Boolean, onEdit: () -> Unit) 
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
+            // 목표가 없는 주는 큰 숫자가 목표가 아니라 달린 거리다(F-06). 제목도 그렇게 읽히게 하고 마감은 목표가 있을 때만 보인다.
             Text(
-                stringResource(R.string.crew_goal_title),
+                stringResource(if (goal != null) R.string.crew_goal_title else R.string.crew_goal_title_none),
                 style = RunkkTextStyles.Caption,
                 color = colors.onSurfaceVariant,
                 modifier = Modifier.weight(1f).semantics { heading() }
             )
-            Text(
-                stringResource(R.string.crew_race_deadline),
-                style = RunkkTextStyles.text(12, FontWeight.Bold),
-                color = colors.secondary
-            )
+            if (goal != null) {
+                Text(
+                    stringResource(R.string.crew_race_deadline),
+                    style = RunkkTextStyles.text(12, FontWeight.Bold),
+                    color = colors.secondary
+                )
+            }
         }
         val description = if (goal != null && progress != null) {
             stringResource(R.string.crew_goal_progress_description, total, RunkkFormat.kmShort(goal), progress)

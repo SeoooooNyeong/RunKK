@@ -8,6 +8,7 @@ import androidx.compose.ui.test.performClick
 import androidx.navigation3.runtime.EntryProviderScope
 import androidx.navigation3.runtime.NavKey
 import com.a207.runkk.app.core.designsystem.LocalReleaseScope
+import com.a207.runkk.app.core.designsystem.ReleaseScope
 import com.a207.runkk.app.core.designsystem.RunkkTab
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.UnreleasedFeature
@@ -43,7 +44,8 @@ private object LockEntries : FeatureEntry {
 }
 
 /**
- * 1차 배포 잠금(D-251~D-253, FR-223): 크루·아바타 경로만 막고 나머지(셀럽런 포함)는 연다. 크루 탭은 이동 없이 잠긴 기능 안내만 띄운다.
+ * 미공개 기능 경로 잠금(D-251~D-253, FR-223): 경로마다 딸린 기능(크루·아바타 꾸미기·런바디)이 지금 범위(ReleaseScope)에서 닫혀 있을 때만
+ * 막는다. 2차 배포(운영 빌드, S15P31A207-248)는 셋 다 열려 있어 막는 경로가 없고, 1차 배포 범위로 돌리면 예전처럼 막는다.
  * 시험 설계 10-06 TC-9691~TC-9697, 10-07 TC-9859(가짜 서버 없이 화면 그래프만, 등록된 가짜 화면은 서버를 부르지 않는다).
  */
 @RunWith(RobolectricTestRunner::class)
@@ -52,38 +54,37 @@ class BetaLockTest {
     val compose = createComposeRule()
 
     @Test
-    fun `TC-9691 크루·아바타 경로는 모두 잠근다`() {
+    fun `TC-9691 크루 경로는 크루, 아바타 경로는 아바타 꾸미기, 런바디 경로는 런바디에 딸린다`() {
         listOf<NavKey>(
             Routes.Key(Routes.CREW),
             Routes.Key(Routes.CREW_CREATE),
             Routes.Key(Routes.CREW_CHAT),
             Routes.Key(Routes.CREW_NOTICE),
-            Routes.Key(Routes.AVATAR),
-            Routes.Key(Routes.AVATAR_SETUP),
-            Routes.Key(Routes.SHOP),
-            Routes.Key(Routes.AVATAR_BACKGROUND),
-            Routes.Key(Routes.REPORT),
             Routes.CrewHome(1),
             Routes.CrewChat(1),
             Routes.CrewRunLobby(1)
-        ).forEach { assertTrue(BetaLock.isLocked(it), "$it") }
+        ).forEach { assertEquals(UnreleasedFeature.CREW, BetaLock.featureOf(it), "$it") }
+        listOf(Routes.AVATAR, Routes.AVATAR_SETUP, Routes.SHOP, Routes.AVATAR_BACKGROUND).forEach {
+            assertEquals(UnreleasedFeature.AVATAR_CUSTOMIZE, BetaLock.featureOf(Routes.Key(it)), it)
+        }
+        assertEquals(UnreleasedFeature.RUNBODY, BetaLock.featureOf(Routes.Key(Routes.REPORT)))
     }
 
     @Test
-    fun `TC-9692 홈·러닝·친구 대결·기록런(셀럽런 포함)·랭킹·마이·친구 대결 참가는 열려 있다`() {
+    fun `S15P31A207-248 운영 빌드 범위는 크루·아바타·런바디 경로를 막지 않고 1차 배포 범위는 막는다`() {
+        val prod = ReleaseScope.of(isLockingUnreleased = true)
         listOf<NavKey>(
-            Routes.Key(Routes.HOME),
-            Routes.Key(Routes.RUN),
-            Routes.Key(Routes.BATTLE_FRIEND),
-            Routes.Key(Routes.RECORD_RUN),
-            Routes.Key(Routes.RANKING),
-            Routes.Key(Routes.ME),
-            Routes.FriendInviteJoin("tok"),
-            Routes.Key(Routes.RUNIMAL),
-            Routes.Key(Routes.RECORDS),
-            Routes.RunResult("r1"),
-            Routes.BattleResult(1)
-        ).forEach { assertFalse(BetaLock.isLocked(it), "$it") }
+            Routes.Key(Routes.CREW),
+            Routes.CrewHome(1),
+            Routes.Key(Routes.SHOP),
+            Routes.Key(Routes.AVATAR),
+            Routes.Key(Routes.REPORT)
+        ).forEach {
+            assertFalse(BetaLock.isLocked(it, prod), "운영 빌드에서 열린다: $it")
+            assertTrue(BetaLock.isLocked(it, ReleaseScope.FIRST_RELEASE), "1차 배포 범위에서 닫힌다: $it")
+        }
+        assertEquals(emptySet(), BetaLock.lockedTabs(prod))
+        assertEquals(setOf(RunkkTab.CREW), BetaLock.lockedTabs(ReleaseScope.FIRST_RELEASE))
     }
 
     @Test
@@ -113,13 +114,32 @@ class BetaLockTest {
             Routes.PlacementResult(1)
         ).forEach { key ->
             assertEquals(null, tabOf(key), "$key")
-            assertFalse(BetaLock.isLocked(key), "1차 배포에서 열려 있다: $key")
+            assertFalse(BetaLock.isLocked(key, ReleaseScope.FIRST_RELEASE), "1차 배포에서 열려 있다: $key")
         }
     }
 
     @Test
-    fun `TC-9695 TC-9859 크루 탭은 이동 없이 추후 추가 예정만 보이고 홈·기록런 탭은 이동한다`() {
-        show(lockUnreleased = true)
+    fun `TC-9693 S15P31A207-248 운영 빌드는 크루 알림 경로로 바로 들어와도 안내 없이 연다`() {
+        show(ReleaseScope.of(isLockingUnreleased = true))
+
+        compose.onNodeWithText("홈 화면 크루 공개 true").assertExists()
+        compose.onNodeWithText("크루 알림 열기").performClick()
+        compose.onNodeWithText("크루 홈 화면").assertExists()
+        compose.onNodeWithText("추후 추가 예정").assertDoesNotExist()
+    }
+
+    @Test
+    fun `S15P31A207-248 운영 빌드의 크루 탭은 자물쇠 없이 크루 화면으로 간다`() {
+        show(ReleaseScope.of(isLockingUnreleased = true))
+
+        compose.onNodeWithText("크루").performClick()
+        compose.onNodeWithText("크루 화면").assertExists()
+        compose.onNodeWithText("추후 추가 예정").assertDoesNotExist()
+    }
+
+    @Test
+    fun `TC-9695 TC-9859 크루가 닫힌 범위의 크루 탭은 이동 없이 추후 추가 예정만 보이고 홈·기록런 탭은 이동한다`() {
+        show(ReleaseScope.FIRST_RELEASE)
 
         compose.onNodeWithText("크루").performClick()
         compose.onNodeWithText("추후 추가 예정").assertExists()
@@ -134,8 +154,8 @@ class BetaLockTest {
     }
 
     @Test
-    fun `TC-9696 TC-9859 잠긴 경로로 바로 들어오면 안내를 띄우고 확인하면 뒤로 돌린다`() {
-        show(lockUnreleased = true)
+    fun `TC-9696 TC-9859 크루가 닫힌 범위에서 잠긴 경로로 바로 들어오면 안내를 띄우고 확인하면 뒤로 돌린다`() {
+        show(ReleaseScope.FIRST_RELEASE)
 
         compose.onNodeWithText("크루 알림 열기").performClick()
         compose.onNodeWithText("추후 추가 예정").assertExists()
@@ -146,23 +166,14 @@ class BetaLockTest {
 
     @Test
     fun `TC-9697 잠그지 않는 빌드는 크루가 열리고 화면 숨김 판정도 열려 있다`() {
-        show(lockUnreleased = false)
+        show(ReleaseScope.of(isLockingUnreleased = false))
 
         compose.onNodeWithText("홈 화면 크루 공개 true").assertExists()
         compose.onNodeWithText("크루").performClick()
         compose.onNodeWithText("크루 화면").assertExists()
     }
 
-    @Test
-    fun `TC-9693 잠그지 않는 빌드는 잠금 경로로 바로 들어와도 안내 없이 연다`() {
-        show(lockUnreleased = false)
-
-        compose.onNodeWithText("크루 알림 열기").performClick()
-        compose.onNodeWithText("크루 홈 화면").assertExists()
-        compose.onNodeWithText("추후 추가 예정").assertDoesNotExist()
-    }
-
-    private fun show(lockUnreleased: Boolean) {
+    private fun show(releaseScope: ReleaseScope) {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 RunkkNavHost(
@@ -170,7 +181,7 @@ class BetaLockTest {
                     startRoute = Routes.HOME,
                     onExit = {},
                     loggedIn = true,
-                    lockUnreleased = lockUnreleased
+                    releaseScope = releaseScope
                 )
             }
         }

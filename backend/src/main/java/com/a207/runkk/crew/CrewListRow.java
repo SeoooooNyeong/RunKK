@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
  * @param crewId 크루 ID
  * @param name 크루명
  * @param intro 한줄소개
- * @param tags 크루 성향 태그
+ * @param tags 크루 태그(요일·시간대)
  * @param logoUrl 로고
  * @param headcount 인원
  * @param joinPolicy 가입 방식

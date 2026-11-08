@@ -10,7 +10,6 @@
     <string name="guidance_gap_behind">%1$sm 뒤처져 있어요</string>
     <string name="guidance_gap_ahead_remaining">%1$sm 앞서는 중, 남은 거리 %2$sm</string>
     <string name="guidance_gap_behind_remaining">%1$sm 뒤처져 있어요, 남은 거리 %2$sm</string>
-    <string name="guidance_rank">%1$s명 중 %2$s위</string>
     <string name="guidance_overtook">상대를 추월했어요! %1$sm 앞서는 중</string>
     <string name="guidance_overtaken">역전당했어요</string>
     <string name="guidance_save_failed">러닝 기록을 기기에 저장하지 못했어요</string>

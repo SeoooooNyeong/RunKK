@@ -38,20 +38,30 @@ class ReleaseShellTest {
     private val res = RuntimeEnvironment.getApplication().resources
 
     @Test
-    fun `TC-9697 1차 배포는 미공개 기능 셋을 모두 닫고 2차 배포는 모두 연다`() {
+    fun `S15P31A207-248 운영 빌드는 크루·아바타 꾸미기·런바디를 모두 연다(카드 뒷면·Runimal 공유는 잠금 항목이 아니다)`() {
+        val prod = ReleaseScope.of(isLockingUnreleased = true)
+        assertEquals(
+            listOf(UnreleasedFeature.CREW, UnreleasedFeature.AVATAR_CUSTOMIZE, UnreleasedFeature.RUNBODY),
+            UnreleasedFeature.entries.filter(prod::isOpen)
+        )
+        assertEquals(UnreleasedFeature.entries, UnreleasedFeature.entries.filter(prod::isOpen))
+    }
+
+    @Test
+    fun `TC-9697 1차 배포 범위는 미공개 기능을 모두 닫고 잠그지 않는 빌드는 모두 연다`() {
         UnreleasedFeature.entries.forEach {
-            assertFalse(ReleaseScope.of(isLockingUnreleased = true).isOpen(it))
+            assertFalse(ReleaseScope.FIRST_RELEASE.isOpen(it))
             assertTrue(ReleaseScope.of(isLockingUnreleased = false).isOpen(it))
         }
         val crewOnly = ReleaseScope.opened(setOf(UnreleasedFeature.CREW))
         assertTrue(crewOnly.isOpen(UnreleasedFeature.CREW))
-        assertFalse(crewOnly.isOpen(UnreleasedFeature.CARD_BACK))
+        assertFalse(crewOnly.isOpen(UnreleasedFeature.AVATAR_CUSTOMIZE))
     }
 
     @Test
-    fun `D93 기록 카드 앞면 공유는 잠금 항목이 아니고 뒷면과 Runimal 공유만 잠근다`() {
+    fun `D93 기록 카드 앞면과 뒷면, Runimal 공유는 잠금 항목이 아니다(S15P31A207-238, 239)`() {
         assertEquals(
-            listOf("CREW", "CARD_BACK", "RUNIMAL_SHARE", "AVATAR_CUSTOMIZE", "RUNBODY"),
+            listOf("CREW", "AVATAR_CUSTOMIZE", "RUNBODY"),
             UnreleasedFeature.entries.map { it.name }
         )
     }

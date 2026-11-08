@@ -82,6 +82,7 @@ class ArchitectureTest {
                     "web.report",
                     "web.attempt",
                     "web.error",
+                    "web.runbody",
                     "realtime",
                     "batch.battle",
                     "batch.crew",
@@ -90,6 +91,7 @@ class ArchitectureTest {
                     "batch.running",
                     "batch.member",
                     "batch.aiprivacy",
+                    "batch.runbody",
                     "batch.audit",
                     "batch.notification",
                     "batch.reward",
@@ -113,6 +115,7 @@ class ArchitectureTest {
                     "notification",
                     "audit",
                     "aiprivacy",
+                    "runbody",
                     "common",
                     "infra.member",
                     "infra.running",
@@ -129,6 +132,7 @@ class ArchitectureTest {
                     "infra.event",
                     "infra.audit",
                     "infra.aiprivacy",
+                    "infra.runbody",
                     "infra.integration.auth",
                     "infra.integration.ai",
                     "infra.integration.push",
@@ -158,6 +162,7 @@ class ArchitectureTest {
                     "notification",
                     "audit",
                     "aiprivacy",
+                    "runbody",
                     "common");
 
     /** 12.2 의존 목록(D1~D74, D44·D67의 → common 포함). 키 패키지는 값 패키지만 import할 수 있다. */
@@ -168,6 +173,8 @@ class ArchitectureTest {
         // 핵심 패키지 (D1~D43, 12.3 행렬)
         m.put("member", Set.of("policy", "audit"));
         m.put("aiprivacy", Set.of("member", "audit"));
+        // 05-19 5절(D-441·D-444·D-440): RunRecordSaved·bodyInputOf, 출생연도, RUNBODY_ENABLED
+        m.put("runbody", Set.of("member", "running", "policy"));
         m.put("running", Set.of("member", "audit"));
         m.put("runimal", Set.of("member", "running", "policy"));
         m.put("battle", Set.of("member", "running", "policy", "notification", "audit"));
@@ -220,6 +227,8 @@ class ArchitectureTest {
         m.put("web.event", Set.of("event"));
         m.put("web.admin.event", Set.of("event"));
         m.put("web.admin.notification", Set.of("notification"));
+        // 05-19 5절 web.runbody → runbody, + runimal(요약 G-14의 나의 러닝 유형, web.crew와 같이 RunimalQuery만)
+        m.put("web.runbody", Set.of("runbody", "runimal"));
         m.put("realtime", Set.of("battle", "crew", "crew.chat", "member")); // + crew.chat(N11)
         // 구동 (D55~D57, D65, D71~D74): batch.<응용> → 같은 이름의 패키지 하나
         for (String app :
@@ -231,6 +240,7 @@ class ArchitectureTest {
                         "running",
                         "member",
                         "aiprivacy",
+                        "runbody", // 05-19 D-443 RunBodyPollJob(pollDue 5초)
                         "audit",
                         "notification",
                         "reward",
@@ -244,6 +254,7 @@ class ArchitectureTest {
                 List.of(
                         "member",
                         "aiprivacy",
+                        "runbody",
                         "running",
                         "analysis",
                         "battle",
@@ -260,7 +271,7 @@ class ArchitectureTest {
         m.put("infra.chat", Set.of("crew.chat")); // v0.11 N15
         m.put("infra.report", Set.of("report")); // v0.11 N16
         m.put("infra.integration.auth", Set.of("member", "operator"));
-        m.put("infra.integration.ai", Set.of("analysis", "avatar", "aiprivacy"));
+        m.put("infra.integration.ai", Set.of("analysis", "avatar", "aiprivacy", "runbody"));
         m.put("infra.integration.push", Set.of("notification"));
         m.put("infra.integration.weather", Set.of("running"));
         // 모든 패키지 → common (D44, D53, D66, D67)
@@ -730,8 +741,8 @@ class ArchitectureTest {
     }
 
     @Test
-    void designPackageList_has73NamesAndEachHasAnAllowList() {
-        assertThat(Set.copyOf(PACKAGES)).hasSize(73);
+    void designPackageList_has77NamesAndEachHasAnAllowList() {
+        assertThat(Set.copyOf(PACKAGES)).hasSize(77);
         assertThat(ALLOWED.keySet()).containsExactlyInAnyOrderElementsOf(PACKAGES);
     }
 

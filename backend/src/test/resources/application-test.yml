@@ -32,6 +32,8 @@ runkk:
   batch:
     battle-tick-enabled: false
     crew-tick-enabled: false
+    # 런바디 작업 진행(05-19 D-443)은 시험이 pollDue를 직접 부른다
+    runbody-poll-enabled: false
     # 기동 뒤 경로 모양 되채우기(D-234)는 시험이 직접 부른다
     route-shape-backfill:
       enabled: false
