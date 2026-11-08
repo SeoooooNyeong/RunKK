@@ -24,7 +24,6 @@ import com.a207.runkk.app.domain.crew.JoinPolicy
 import com.a207.runkk.app.domain.crew.JoinResult
 import com.a207.runkk.app.domain.crew.Lobby
 import com.a207.runkk.app.domain.crew.Meetup
-import com.a207.runkk.app.domain.crew.MeetupForm
 import com.a207.runkk.app.domain.crew.MyCrew
 import com.a207.runkk.app.domain.crew.Notice
 import com.a207.runkk.app.domain.crew.PendingRequests
@@ -556,9 +555,6 @@ class FakeCrewRepository : CrewRepository {
     override suspend fun appointManager(crewId: Long, memberId: Long) = answer("appoint:$memberId", Unit)
 
     override suspend fun dismissManager(crewId: Long, memberId: Long) = answer("dismiss:$memberId", Unit)
-
-    override suspend fun writeMeetup(crewId: Long, form: MeetupForm): Outcome<Long> =
-        answer("writeMeetup:${form.body}:${form.placeName}:${form.capacity}", 72L)
 
     override suspend fun setWeeklyGoal(crewId: Long, goal: Distance) =
         answer("goal:${goal.meters}", raceWithGoal.copy(goal = goal))

@@ -9,7 +9,6 @@ import com.a207.runkk.app.domain.crew.AttendanceAnswer
 import com.a207.runkk.app.domain.crew.BoardPost
 import com.a207.runkk.app.domain.crew.CelebrationCard
 import com.a207.runkk.app.domain.crew.Meetup
-import com.a207.runkk.app.domain.crew.MeetupForm
 import com.a207.runkk.app.domain.crew.Notice
 import com.a207.runkk.app.domain.crew.Poll
 import com.a207.runkk.app.domain.crew.PollMethod
@@ -20,12 +19,11 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlinx.coroutines.test.runTest
-import kotlinx.serialization.json.Json
 import retrofit2.create
 
 /**
- * api.crew v0.11(F.2.2, F.2.4, D-98~D-100, D-105, D-114): 새 게시 종류 해독, 시각 두 형식, 운영진·대면 모임·공동 목표.
- * 서버 S3a 구현 전이라 05-03·S0 DTO 기준이다. 공지·투표·게시판·앨범 쓰기 연산은 앱에서 지웠다(S15P31A207-236).
+ * api.crew v0.11(F.2.2, F.2.4, D-98~D-100, D-105, D-114): 새 게시 종류 해독, 시각 두 형식, 운영진·공동 목표.
+ * 서버 S3a 구현 전이라 05-03·S0 DTO 기준이다. 대면 모임·공지·투표·게시판·앨범 쓰기 연산은 앱에서 지웠다(S15P31A207-236).
  */
 class CrewBoardAndScheduleTest {
     private val api = ApiTestServer()
@@ -98,20 +96,6 @@ class CrewBoardAndScheduleTest {
         assertEquals("PUT /api/v1/crews/5/managers/9", path())
         path()
         assertEquals("DELETE /api/v1/crews/5/managers/9", path())
-    }
-
-    @Test
-    fun `대면 모임은 종류별 항목을 싣고 시각은 오프셋을 붙인다`() = runTest {
-        api.reply("""{"id":100}""", code = 201)
-
-        repository.writeMeetup(5, MeetupForm("모여요", Instant.parse("2026-10-27T10:00:00Z"), "여의나루", null)).value()
-
-        assertEquals(
-            Json.parseToJsonElement(
-                """{"kind":"MEETUP","body":"모여요","scheduledAt":"2026-10-27T19:00:00+09:00","placeName":"여의나루"}"""
-            ),
-            Json.parseToJsonElement(api.take().body!!.utf8())
-        )
     }
 
     @Test

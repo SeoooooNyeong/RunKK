@@ -67,9 +67,6 @@ interface CrewRepository {
 
     suspend fun writeCrewRun(crewId: Long, form: CrewRunForm): Outcome<Long>
 
-    /** 대면 모임 일정 쓰기(FR-207). 작성자는 GOING으로 들어간다. */
-    suspend fun writeMeetup(crewId: Long, form: MeetupForm): Outcome<Long>
-
     /** 이번 주 공동 목표 정하기(PUT /crews/{id}/goal, FR-138). 운영진 이상. 1km 미만은 GOAL_INVALID. */
     suspend fun setWeeklyGoal(crewId: Long, goal: Distance): Outcome<RaceStatus>
 

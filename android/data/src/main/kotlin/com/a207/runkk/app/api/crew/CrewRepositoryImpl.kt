@@ -15,7 +15,6 @@ import com.a207.runkk.app.domain.crew.CrewRunForm
 import com.a207.runkk.app.domain.crew.CrewRunResult
 import com.a207.runkk.app.domain.crew.JoinResult
 import com.a207.runkk.app.domain.crew.Lobby
-import com.a207.runkk.app.domain.crew.MeetupForm
 import com.a207.runkk.app.domain.crew.MyCrew
 import com.a207.runkk.app.domain.crew.PendingRequests
 import com.a207.runkk.app.domain.crew.PostList
@@ -114,18 +113,6 @@ internal class CrewRepositoryImpl @Inject constructor(private val api: CrewApi) 
     override suspend fun dismissManager(crewId: Long, memberId: Long): Outcome<Unit> = ApiErrorMapper.call {
         api.dismissManager(crewId, memberId)
         Unit
-    }
-
-    override suspend fun writeMeetup(crewId: Long, form: MeetupForm): Outcome<Long> = ApiErrorMapper.call {
-        val request =
-            PostWriteRequest(
-                kind = PostList.Kind.MEETUP.name,
-                body = form.body,
-                scheduledAt = ServerTime.formatWithOffset(form.scheduledAt),
-                placeName = form.placeName,
-                capacity = form.capacity
-            )
-        api.writePost(crewId, request).id
     }
 
     override suspend fun setWeeklyGoal(crewId: Long, goal: Distance): Outcome<RaceStatus> =
