@@ -281,4 +281,60 @@ class CrewRunViewModelTest {
         assertEquals(2, w.crews.calls.count { it.startsWith("result") })
         assertEquals(CrewRunStatus.FINISHED, vm.state.value.result?.status)
     }
+
+    @Test
+    fun `결과 - 크루원이 30초 넘게 달려도 간격을 늘려 가며 크루런이 끝날 때까지 다시 읽는다(MR !91 AN-3)`() = main.runVmTest { vms ->
+        val w = crewWorld()
+        w.crews.resultState = crewRunResult.copy(status = CrewRunStatus.RUNNING)
+        val vm = vms.track(CrewRunResultViewModel(w.crews, w.coordinator) { Outcome.Failure(AppError.Network) })
+        fun reads() = w.crews.calls.count { it.startsWith("result") }
+        vm.load(31)
+        runCurrent()
+        advanceTimeBy(CrewRunResultViewModel.REREAD_MILLIS * CrewRunResultViewModel.REREADS + 1)
+        runCurrent()
+        assertEquals(1 + CrewRunResultViewModel.REREADS, reads(), "처음 30초는 3초 간격")
+
+        advanceTimeBy(CrewRunResultViewModel.REREAD_MILLIS + 1)
+        runCurrent()
+        assertEquals(1 + CrewRunResultViewModel.REREADS, reads(), "30초 뒤에는 간격이 3초보다 길다")
+        advanceTimeBy(10 * 60_000L)
+        runCurrent()
+        val afterTenMinutes = reads()
+        assertTrue(afterTenMinutes > 1 + CrewRunResultViewModel.REREADS, "30초 뒤에도 계속 읽는다")
+        assertTrue(afterTenMinutes < 1 + CrewRunResultViewModel.REREADS + 10 * 60 / 3, "간격을 늘려 덜 읽는다")
+
+        w.crews.resultState = crewRunResult
+        advanceTimeBy(CrewRunResultViewModel.MAX_REREAD_MILLIS + 1)
+        runCurrent()
+        val ended = reads()
+        assertEquals(CrewRunStatus.FINISHED, vm.state.value.result?.status)
+        advanceTimeBy(10 * 60_000L)
+        runCurrent()
+        assertEquals(ended, reads(), "모두 끝나 크루런이 닫히면 멈춘다")
+    }
+
+    @Test
+    fun `결과 - 크루런이 끝났고 내 기록만 아직이면 3초 간격 10번까지만 다시 읽는다`() = main.runVmTest { vms ->
+        val w = crewWorld()
+        w.crews.resultState = crewRunResult.copy(myRecordId = null)
+        val vm = vms.track(CrewRunResultViewModel(w.crews, w.coordinator) { Outcome.Failure(AppError.Network) })
+        vm.load(31)
+        advanceTimeBy(10 * 60_000L)
+        runCurrent()
+        assertEquals(1 + CrewRunResultViewModel.REREADS, w.crews.calls.count { it.startsWith("result") })
+    }
+
+    @Test
+    fun `결과 - 크루런이 아무리 길어도 다시 읽기는 상한 시간에서 멈춘다`() = main.runVmTest { vms ->
+        val w = crewWorld()
+        w.crews.resultState = crewRunResult.copy(status = CrewRunStatus.RUNNING)
+        val vm = vms.track(CrewRunResultViewModel(w.crews, w.coordinator) { Outcome.Failure(AppError.Network) })
+        vm.load(31)
+        advanceTimeBy(CrewRunResultViewModel.RUNNING_WATCH_MILLIS + CrewRunResultViewModel.MAX_REREAD_MILLIS)
+        runCurrent()
+        val stopped = w.crews.calls.count { it.startsWith("result") }
+        advanceTimeBy(60 * 60_000L)
+        runCurrent()
+        assertEquals(stopped, w.crews.calls.count { it.startsWith("result") })
+    }
 }

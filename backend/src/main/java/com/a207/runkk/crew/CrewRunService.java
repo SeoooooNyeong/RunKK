@@ -11,6 +11,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -257,12 +258,17 @@ public class CrewRunService {
                 });
     }
 
-    /** check(VIEW_CREW_INTERNAL) → 크루 합산 거리, 참가자별 거리·시간·평균 페이스, 내 기록, 첫 크루런 여부, 크루 반영 거리 합. */
+    /**
+     * check(VIEW_CREW_INTERNAL) → 크루 합산 거리, 참가자별 거리·시간·평균 페이스, 내 기록, 첫 크루런 여부, 크루 반영 거리 합. 진행 중이면
+     * 아직 달리는 참가자는 세션의 마지막 중계 값으로 보인다(MR !91 AN-3).
+     */
     @Transactional(readOnly = true)
     public CrewRunResultView result(long memberId, long postId) {
         CrewRunPost post = load(postId);
         crewAccess.check(memberId, post.crewId(), CrewAction.VIEW_CREW_INTERNAL);
-        return views.result(post, memberId);
+        Map<Long, LiveProgress> live =
+                post.status() == CrewRunStatus.RUNNING ? announcer.lastProgress(postId) : Map.of();
+        return views.result(post, memberId, live);
     }
 
     private CrewRunPost load(long postId) {

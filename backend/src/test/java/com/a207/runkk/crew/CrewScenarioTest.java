@@ -309,6 +309,54 @@ class CrewScenarioTest {
     }
 
     @Test
+    @org.junit.jupiter.api.DisplayName("AN-3: 진행 중 결과는 아직 달리는 참가자의 거리·경과를 0이 아니라 마지막 중계 값으로 준다")
+    void runningResult_usesLatestRelayForRunnersStillRunning() {
+        long leader = member();
+        long a = member();
+        long crewId = crew(leader, JoinPolicy.FREE);
+        membership.apply(a, JoinTarget.byCrew(crewId));
+        LocalDateTime at = LocalDateTime.now().plusMinutes(20).withNano(0);
+        long run =
+                posts.writeCrewRun(
+                                leader,
+                                crewId,
+                                new CrewRunDraft("달리는 중", at, StandardDistance.KM3, null))
+                        .postId();
+        for (long m : List.of(leader, a)) {
+            crewRuns.enterLobby(m, run);
+            crewRuns.toggleReady(m, run);
+        }
+        crewRuns.tick(at);
+        crewRuns.quit(a, run, new FinalProgress(Distance.ofMeters(1_000), Duration.ofSeconds(330)));
+        live.onProgress(
+                leader,
+                run,
+                new ProgressReport(Distance.ofMeters(1_500), Duration.ofSeconds(480), at),
+                at.plusSeconds(483));
+
+        CrewRunResultView result = crewRuns.result(a, run);
+
+        assertThat(result.status()).isEqualTo(CrewRunStatus.RUNNING);
+        CrewRunResultView.Line running =
+                result.participants().stream()
+                        .filter(l -> Long.valueOf(leader).equals(l.memberId()))
+                        .findFirst()
+                        .orElseThrow();
+        assertThat(running.ended()).isFalse();
+        assertThat(running.distance()).isEqualTo(Distance.ofMeters(1_500));
+        assertThat(running.elapsed()).isEqualTo(Duration.ofSeconds(480));
+        assertThat(running.averagePace().secondsPerKm()).isEqualTo(320);
+        assertThat(result.totalDistance()).isEqualTo(Distance.ofMeters(2_500));
+
+        crewRuns.tick(at.plusMinutes(46));
+        CrewRunResultView finished = crewRuns.result(a, run);
+        assertThat(finished.status()).isEqualTo(CrewRunStatus.FINISHED);
+        assertThat(finished.totalDistance())
+                .as("종료 때 마지막 중계 값으로 마감한 값과 같다")
+                .isEqualTo(Distance.ofMeters(2_500));
+    }
+
+    @Test
     void pendingRequests_expireAfterSevenDays() {
         long leader = member();
         long a = member();

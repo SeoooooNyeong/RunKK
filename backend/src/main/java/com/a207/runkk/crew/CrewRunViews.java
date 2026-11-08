@@ -73,10 +73,12 @@ class CrewRunViews {
     }
 
     /**
-     * 합산 방식 결과(S15P31A207-236): 진행 참가자(입장 순)의 거리·시간·평균 페이스(연결된 러닝, 없으면 끝낼 때 남긴 값), 거리 합, 열람자의 연결
-     * 기록, 첫 크루런 여부, 크루 반영 거리 합(WeeklyRace.contributionOf).
+     * 합산 방식 결과(S15P31A207-236): 진행 참가자(입장 순)의 거리·시간·평균 페이스(연결된 러닝, 없으면 끝낼 때 남긴 값, 아직 달리는 중이면 마지막 중계
+     * 값 live), 거리 합, 열람자의 연결 기록, 첫 크루런 여부, 크루 반영 거리 합(WeeklyRace.contributionOf).
+     *
+     * @param live 참가자별 마지막 중계 값(진행 중일 때만, 아니면 빈 맵)
      */
-    CrewRunResultView result(CrewRunPost post, long viewerId) {
+    CrewRunResultView result(CrewRunPost post, long viewerId, Map<Long, LiveProgress> live) {
         List<CrewRunParticipation> runners =
                 post.participations().stream().filter(CrewRunParticipation::isRunner).toList();
         Map<Long, MemberSummary> names =
@@ -84,7 +86,7 @@ class CrewRunViews {
                         runners.stream().flatMap(p -> p.memberId().stream()).toList());
         LocalDate day = post.scheduledAt().toLocalDate();
         List<CrewRunResultView.Line> lines =
-                runners.stream().map(p -> lineOf(p, names, day)).toList();
+                runners.stream().map(p -> lineOf(p, names, day, live)).toList();
         Distance total =
                 lines.stream()
                         .map(CrewRunResultView.Line::distance)
@@ -109,15 +111,27 @@ class CrewRunViews {
                 contribution);
     }
 
-    /** 연결된 기록이 있으면 그 거리·시간·페이스, 없으면 끝낼 때 남긴 값(거리 없으면 0). */
+    /** 연결된 기록이 있으면 그 거리·시간·페이스, 없으면 끝낼 때 남긴 값, 그것도 없고 아직 달리는 중이면 마지막 중계 값(AN-3), 모두 없으면 거리 0. */
     private CrewRunResultView.Line lineOf(
-            CrewRunParticipation p, Map<Long, MemberSummary> names, LocalDate day) {
+            CrewRunParticipation p,
+            Map<Long, MemberSummary> names,
+            LocalDate day,
+            Map<Long, LiveProgress> live) {
         Optional<RunSummary> run =
                 p.memberId().flatMap(id -> p.linkedRecordId().flatMap(r -> summaryOf(id, r, day)));
         DisplayName name = p.memberId().map(id -> nameOf(names, id)).orElse(DisplayName.WITHDRAWN);
+        Optional<LiveProgress> relayed =
+                p.hasEnded() ? Optional.empty() : p.memberId().map(live::get);
         Distance distance =
-                run.map(RunSummary::distance).or(p::finalDistance).orElse(Distance.ZERO);
-        Duration elapsed = run.map(RunSummary::elapsed).or(p::finalElapsed).orElse(null);
+                run.map(RunSummary::distance)
+                        .or(p::finalDistance)
+                        .or(() -> relayed.map(LiveProgress::distance))
+                        .orElse(Distance.ZERO);
+        Duration elapsed =
+                run.map(RunSummary::elapsed)
+                        .or(p::finalElapsed)
+                        .or(() -> relayed.map(LiveProgress::elapsed))
+                        .orElse(null);
         Pace pace = run.map(RunSummary::averagePace).orElseGet(() -> paceOf(elapsed, distance));
         return new CrewRunResultView.Line(
                 name, distance, elapsed, pace, p.hasEnded(), p.memberId().orElse(null));
