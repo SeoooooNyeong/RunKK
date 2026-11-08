@@ -220,6 +220,12 @@ class HomeScreenshotTest {
         GuideOn(GuideStep.ME, index = 6)
     }
 
+    /** 가이드 마지막 포인트 단계(J-8, 8/8, S15P31A207-250): 잔액과 알림함을 강조하고 "시작하기"만. */
+    @Test
+    fun guidePointStepLight() = compose.captureRunkkScreen("J8_guide_point_light", isDarkTheme = false) {
+        GuideOn(GuideStep.POINT, index = 7)
+    }
+
     /** 가이드 크루 탭 단계(J-4, 4/8, S15P31A207-249). */
     @Test
     fun guideCrewStepLight() = compose.captureRunkkScreen("J4_guide_crew_light", isDarkTheme = false) {

@@ -19,6 +19,9 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.a207.runkk.app.core.designsystem.AvatarExpression
 import com.a207.runkk.app.core.designsystem.DEFAULT_AVATAR_TAG
+import com.a207.runkk.app.core.designsystem.GuideAnchors
+import com.a207.runkk.app.core.designsystem.GuideStep
+import com.a207.runkk.app.core.designsystem.LocalGuideAnchors
 import com.a207.runkk.app.core.designsystem.LocalReleaseScope
 import com.a207.runkk.app.core.designsystem.RUNKK_BOTTOM_BAR_HEIGHT
 import com.a207.runkk.app.core.designsystem.ReleaseScope
@@ -31,6 +34,8 @@ import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.account.PlacementProgress
 import com.a207.runkk.app.domain.account.PlacementStatus
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -150,6 +155,37 @@ class HomeScreenTest {
         compose.onNodeWithContentDescription("내 아바타").assertHasClickAction().performClick()
         compose.onNodeWithContentDescription("리워드 잔액 1,250 포인트").performClick()
         assertEquals(listOf(Routes.AVATAR, Routes.SHOP), routes)
+    }
+
+    @Test
+    fun `S15P31A207-248 운영 빌드는 아바타를 누르면 꾸미기, 잔액을 누르면 상점으로 간다`() {
+        show(loaded, ReleaseScope.of(isLockingUnreleased = true))
+        compose.onNodeWithContentDescription("내 아바타").performClick()
+        compose.onNodeWithContentDescription("리워드 잔액 1,250 포인트").performClick()
+        assertEquals(listOf(Routes.AVATAR, Routes.SHOP), routes)
+    }
+
+    @Test
+    fun `S15P31A207-250 포인트 단계(J-8) 앵커는 잔액과 알림함 버튼을 함께 감싼다`() {
+        val anchors = GuideAnchors()
+        compose.setContent {
+            CompositionLocalProvider(
+                LocalReleaseScope provides ReleaseScope.of(isLockingUnreleased = true),
+                LocalGuideAnchors provides anchors
+            ) {
+                RunkkTheme(reduceMotion = true) { HomeScreen(loaded, HomeActions()) }
+            }
+        }
+        compose.waitForIdle()
+        val point = assertNotNull(anchors[GuideStep.POINT], "포인트 단계 앵커")
+        val density = compose.density.density
+        listOf("리워드 잔액 1,250 포인트", "알림함").forEach { label ->
+            val bounds = compose.onNodeWithContentDescription(label).getUnclippedBoundsInRoot()
+            assertTrue(point.left <= bounds.left.value * density + 1f, label)
+            assertTrue(point.right >= bounds.right.value * density - 1f, label)
+            assertTrue(point.top <= bounds.top.value * density + 1f, label)
+            assertTrue(point.bottom >= bounds.bottom.value * density - 1f, label)
+        }
     }
 
     @Test
