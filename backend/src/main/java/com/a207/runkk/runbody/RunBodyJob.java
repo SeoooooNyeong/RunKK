@@ -12,9 +12,9 @@ import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 
 /**
- * 기록 하나의 런바디 분석 작업 상태(설계 05-19 2.2·3.3, D-441·D-443). 분석 결과 본문은 갖지 않고(D-442) 러닝 선택 목록(G-30)에
- * 보일 러닝 점수 하나만 둔다(RunBodyScore, V42). 상태 조회 간격은 5초, 10초, 20초로 늘리고, 실패하면 재제출해 3회째 실패에서 FAILED로
- * 둔다. 연결 실패는 횟수에 세지 않는다(D-450).
+ * 기록 하나의 런바디 분석 작업 상태(설계 05-19 2.2·3.3, D-441·D-443). 분석 결과 본문은 갖지 않고(D-442) 러닝 선택 목록(G-30)에 보일 러닝
+ * 점수 하나만 둔다(RunBodyScore, V42). 상태 조회 간격은 5초, 10초, 20초로 늘리고, 실패하면 재제출해 3회째 실패에서 FAILED로 둔다. 연결 실패는
+ * 횟수에 세지 않는다(D-450).
  */
 @Entity
 @Table(name = "runbody_job")
@@ -141,8 +141,8 @@ public class RunBodyJob {
     }
 
     /**
-     * 러닝 점수를 남긴다(G-30). DONE일 때만 받는다. 점수가 없으면(점수 있는 축 없음) 아무것도 하지 않는다. 같은 ai 결과에서 셈하므로 이미 있으면
-     * 덮어써도 같다.
+     * 러닝 점수를 남긴다(G-30). DONE일 때만 받는다. 점수가 없으면(점수 있는 축 없음) 아무것도 하지 않는다. 같은 ai 결과에서 셈하므로 이미 있으면 덮어써도
+     * 같다.
      */
     public void scored(Integer score) {
         requireStatus(RunBodyStatus.DONE);

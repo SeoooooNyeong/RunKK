@@ -14,11 +14,15 @@ class RunBodyScoreTest {
 
     @Test
     void overall_isRoundedMeanOfScoredAxes() {
-        assertThat(RunBodyScore.overall(List.of(78, 84, 72, 80))).as("314 / 4 = 78.5").isEqualTo(79);
+        assertThat(RunBodyScore.overall(List.of(78, 84, 72, 80)))
+                .as("314 / 4 = 78.5")
+                .isEqualTo(79);
         assertThat(RunBodyScore.overall(Arrays.asList(78, 84, 72, null, 80)))
                 .as("미산출 축(null)은 빼고 센다")
                 .isEqualTo(79);
-        assertThat(RunBodyScore.overall(List.of(78, 39, 46, 62, 69))).as("294 / 5 = 58.8").isEqualTo(59);
+        assertThat(RunBodyScore.overall(List.of(78, 39, 46, 62, 69)))
+                .as("294 / 5 = 58.8")
+                .isEqualTo(59);
         assertThat(RunBodyScore.overall(List.of(0, 100))).isEqualTo(50);
     }
 

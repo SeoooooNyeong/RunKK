@@ -3,9 +3,9 @@ package com.a207.runkk.runbody;
 import java.util.Collection;
 
 /**
- * 러닝 점수(러닝 선택 G-30 "러닝 점수 78"). ai 결과에는 종합 점수가 없어(schemas.py SessionResultOut, axes 다섯 축의
- * score만 있다) 점수가 있는 축들의 평균을 반올림한다. 미산출 축(score null, 예: 케이던스 없는 form)은 빼고 센다. 오각형에서 미산출 축을 0점으로
- * 그리지 않는 것(앱 계약 1.1)과 같은 이유다. 점수가 있는 축이 하나도 없으면 점수도 없다.
+ * 러닝 점수(러닝 선택 G-30 "러닝 점수 78"). ai 결과에는 종합 점수가 없어(schemas.py SessionResultOut, axes 다섯 축의 score만
+ * 있다) 점수가 있는 축들의 평균을 반올림한다. 미산출 축(score null, 예: 케이던스 없는 form)은 빼고 센다. 오각형에서 미산출 축을 0점으로 그리지 않는 것(앱
+ * 계약 1.1)과 같은 이유다. 점수가 있는 축이 하나도 없으면 점수도 없다.
  */
 public final class RunBodyScore {
 

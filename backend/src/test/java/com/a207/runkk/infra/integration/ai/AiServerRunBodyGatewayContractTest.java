@@ -300,8 +300,8 @@ class AiServerRunBodyGatewayContractTest {
                         withStatus(HttpStatusCode.valueOf(200))
                                 .body(
                                         "{\"sessionId\":\"run-1\",\"userId\":\"42\",\"axes\":{"
-                                                + "\"intensity\":{\"score\":80},\"form\":{\"score\":null},"
-                                                + "\"fitness\":{\"score\":75}}}")
+                                            + "\"intensity\":{\"score\":80},\"form\":{\"score\":null},"
+                                            + "\"fitness\":{\"score\":75}}}")
                                 .contentType(MediaType.APPLICATION_JSON));
         f.server
                 .expect(requestTo("http://ai:8000/sessions/run-1"))
@@ -311,7 +311,9 @@ class AiServerRunBodyGatewayContractTest {
                                         "{\"sessionId\":\"run-1\",\"userId\":\"42\",\"axes\":{"
                                                 + "\"form\":{\"score\":null}}}")
                                 .contentType(MediaType.APPLICATION_JSON));
-        assertThat(f.gateway.sessionOf("run-1").score()).as("(80 + 75) / 2 = 77.5 → 78").isEqualTo(78);
+        assertThat(f.gateway.sessionOf("run-1").score())
+                .as("(80 + 75) / 2 = 77.5 → 78")
+                .isEqualTo(78);
         assertThat(f.gateway.sessionOf("run-1").score()).isNull();
     }
 

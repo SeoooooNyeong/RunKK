@@ -109,8 +109,8 @@ public interface RunRecordRepository {
     List<ValidRunScore> validRunsAfter(long memberId, int ordinal);
 
     /**
-     * 그 회원의 유효 기록 중 유효 러닝 순번이 fromOrdinal 이상 toOrdinal 이하인 것, 저장 일시·기록 ID 순(validRunsAfter와 같은 순번). 위치·심박
-     * 원자료 열은 읽지 않는다(런바디 요약 G-14).
+     * 그 회원의 유효 기록 중 유효 러닝 순번이 fromOrdinal 이상 toOrdinal 이하인 것, 저장 일시·기록 ID 순(validRunsAfter와 같은 순번).
+     * 위치·심박 원자료 열은 읽지 않는다(런바디 요약 G-14).
      */
     List<ValidRunStat> validRunStats(long memberId, int fromOrdinal, int toOrdinal);
 

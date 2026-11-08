@@ -64,7 +64,9 @@ class RunBodyTrendTest {
         assertThat(trend.previous().paceSecondsPerKm()).isEqualTo(362);
         assertThat(trend.previous().runsPerWeek()).as("10 × 7 / 28 = 2.5").isEqualTo(2.5);
         assertThat(trend.recent().runsPerWeek()).as("10 × 7 / 19 = 3.68").isEqualTo(3.7);
-        assertThat(trend.previous().runsPerMonth()).as("10 × 30 / 30(28일은 30일로 본다)").isEqualTo(10.0);
+        assertThat(trend.previous().runsPerMonth())
+                .as("10 × 30 / 30(28일은 30일로 본다)")
+                .isEqualTo(10.0);
         assertThat(trend.recent().averageHeartRate()).isEqualTo(150);
         // 348 × 150 / 149 = 350.3 → 362 − 350.3 = 11.7 → 12초 빨라짐
         assertThat(trend.sameHeartRatePaceChange()).isEqualTo(12);
@@ -74,13 +76,13 @@ class RunBodyTrendTest {
     void windowPace_isDistanceWeighted_andShortSpanUsesUnitDays() {
         List<ValidRunStat> runs = new ArrayList<>();
         for (int i = 0; i < 9; i++) {
-            runs.add(
-                    new ValidRunStat(
-                            i + 1, D0, Distance.ofMeters(1_000), new Pace(400), null));
+            runs.add(new ValidRunStat(i + 1, D0, Distance.ofMeters(1_000), new Pace(400), null));
         }
         runs.add(new ValidRunStat(10, D0, Distance.ofMeters(9_000), new Pace(300), null));
         RunBodyTrend trend = RunBodyTrend.of(10, runs, List.of());
-        assertThat(trend.recent().paceSecondsPerKm()).as("(9 × 400 + 9 × 300) / 18 = 350").isEqualTo(350);
+        assertThat(trend.recent().paceSecondsPerKm())
+                .as("(9 × 400 + 9 × 300) / 18 = 350")
+                .isEqualTo(350);
         assertThat(trend.recent().runsPerWeek()).as("하루에 10회여도 7일로 본다").isEqualTo(10.0);
         assertThat(trend.recent().averageHeartRate()).isNull();
     }

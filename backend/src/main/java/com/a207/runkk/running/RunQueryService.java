@@ -261,8 +261,8 @@ public class RunQueryService {
     }
 
     /**
-     * 유효 러닝 순번 fromOrdinal~toOrdinal(포함)의 비교용 값, 순번 순(런바디 요약 "최근 10회 변화", G-14). 순번은 validRunsAfter와
-     * 같다.
+     * 유효 러닝 순번 fromOrdinal~toOrdinal(포함)의 비교용 값, 순번 순(런바디 요약 "최근 10회 변화", G-14). 순번은
+     * validRunsAfter와 같다.
      */
     public List<ValidRunStat> validRunStats(long memberId, int fromOrdinal, int toOrdinal) {
         return runRecordRepository.validRunStats(memberId, fromOrdinal, toOrdinal);

@@ -270,8 +270,6 @@ class JpaRunningRepositoriesIntegrationTest {
         assertThat(stats.get(1).averageHeartRate()).isNull();
         assertThat(stats.get(1).startedAt()).isEqualTo(third.getStartedAt());
         List<ValidRunStat> second = tx.execute(st -> records.validRunStats(1L, 2, 2));
-        assertThat(second)
-                .extracting(ValidRunStat::ordinal)
-                .containsExactly(2);
+        assertThat(second).extracting(ValidRunStat::ordinal).containsExactly(2);
     }
 }

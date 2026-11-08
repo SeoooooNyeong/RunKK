@@ -190,10 +190,7 @@ public class RunBodyService {
         }
     }
 
-    /**
-     * 분석이 끝난 작업에 러닝 점수를 남긴다(G-30). 결과 읽기가 실패해도 작업은 DONE 그대로이고, 점수는 결과를 처음 조회할 때(sessionOf)
-     * 채운다.
-     */
+    /** 분석이 끝난 작업에 러닝 점수를 남긴다(G-30). 결과 읽기가 실패해도 작업은 DONE 그대로이고, 점수는 결과를 처음 조회할 때(sessionOf) 채운다. */
     private void recordScore(String recordId) {
         try {
             storeScore(recordId, gateway.sessionOf(recordId));
@@ -263,8 +260,7 @@ public class RunBodyService {
     }
 
     /**
-     * 러닝 선택 목록(G-30)의 분석 상태와 러닝 점수, 최신순. 점수는 작업에 남긴 값만 쓰고 ai를 부르지 않는다. 변화는 이 회원의 직전 점수 있는 러닝
-     * 대비다.
+     * 러닝 선택 목록(G-30)의 분석 상태와 러닝 점수, 최신순. 점수는 작업에 남긴 값만 쓰고 ai를 부르지 않는다. 변화는 이 회원의 직전 점수 있는 러닝 대비다.
      *
      * @param cursor 직전 쪽의 nextCursor(첫 쪽이면 null)
      * @param size 1~MAX_PAGE_SIZE
@@ -304,10 +300,7 @@ public class RunBodyService {
             Integer score = job.status() == RunBodyStatus.DONE ? job.score() : null;
             items[i] =
                     new RunBodySessionItem(
-                            job.recordId(),
-                            job.status(),
-                            score,
-                            RunBodyScore.change(score, older));
+                            job.recordId(), job.status(), score, RunBodyScore.change(score, older));
             if (score != null) {
                 older = score;
             }
