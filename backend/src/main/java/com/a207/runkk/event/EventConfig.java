@@ -32,21 +32,27 @@ record EventConfig(List<Long> celebrityIds, Integer pointPerWin, Long minDistanc
         }
         boolean valid =
                 switch (kind) {
-                    case COACH_CELEB ->
-                            config.celebrityIds() != null
-                                    && !config.celebrityIds().isEmpty()
-                                    && config.celebrityIds().stream()
-                                            .allMatch(id -> id != null && id > 0)
-                                    && config.celebrityIds().stream().distinct().count()
-                                            == config.celebrityIds().size()
-                                    && config.pointPerWin() != null
-                                    && config.pointPerWin() >= 0;
-                    case RUN_DISTANCE ->
-                            config.minDistanceMeters() != null && config.minDistanceMeters() > 0;
+                    case COACH_CELEB -> config.isValidCoachCeleb();
+                    case RUN_DISTANCE -> config.isValidRunDistance();
                 };
         if (!valid) {
             throw new BusinessRuleException(ReasonCode.VALUE_INVALID);
         }
         return config;
+    }
+
+    /** 셀럽 1명 이상, 모두 양수이고 겹치지 않으며, 승리포인트가 0 이상이다. */
+    private boolean isValidCoachCeleb() {
+        return celebrityIds != null
+                && !celebrityIds.isEmpty()
+                && celebrityIds.stream().allMatch(id -> id != null && id > 0)
+                && celebrityIds.stream().distinct().count() == celebrityIds.size()
+                && pointPerWin != null
+                && pointPerWin >= 0;
+    }
+
+    /** 응모 기준 거리가 양수다. */
+    private boolean isValidRunDistance() {
+        return minDistanceMeters != null && minDistanceMeters > 0;
     }
 }

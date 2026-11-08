@@ -172,6 +172,12 @@ class NoticeServiceTest {
                         "https://forms.gle:8443/x",
                         "https://forms.gle/a b",
                         "intent://forms.gle/x",
+                        "https://docs.google.com/forms/../url?q=https://evil.example",
+                        "https://docs.google.com/forms/%2e%2e/document/d/1",
+                        "https://docs.google.com/forms/",
+                        "https://docs.google.com/forms//x",
+                        "https://forms.gle/../x",
+                        "https://forms.gle/a/b",
                         "https://forms.gle/" + "a".repeat(NoticeService.LINK_MAX))) {
             assertThatThrownBy(() -> service.send("KAKAO:op", notice(List.of(a), bad)))
                     .as(bad)
@@ -184,6 +190,11 @@ class NoticeServiceTest {
         assertThat(NoticeService.isFormLink("https://docs.google.com/forms/d/e/1FAIpQLS/viewform"))
                 .isTrue();
         assertThat(NoticeService.isFormLink("https://FORMS.GLE/AbC")).isTrue();
+        assertThat(
+                        NoticeService.isFormLink(
+                                "https://docs.google.com/forms/d/e/1FAIpQLS_x-Y/viewform?usp=sf_link"))
+                .isTrue();
+        assertThat(NoticeService.isFormLink("https://docs.google.com/forms/d/1abc/edit/")).isTrue();
     }
 
     @Test

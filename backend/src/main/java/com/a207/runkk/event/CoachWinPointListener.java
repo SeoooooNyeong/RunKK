@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -117,15 +118,28 @@ public class CoachWinPointListener {
                     due.key());
             return;
         }
-        newTransaction.executeWithoutResult(
-                status ->
-                        eventRepository.savePointGrant(
-                                new EventPointGrant(
-                                        memberId,
-                                        due.eventId(),
-                                        due.key(),
-                                        amount,
-                                        LocalDateTime.now(clock))));
+        try {
+            newTransaction.executeWithoutResult(
+                    status ->
+                            eventRepository.savePointGrant(
+                                    new EventPointGrant(
+                                            memberId,
+                                            due.eventId(),
+                                            due.key(),
+                                            amount,
+                                            LocalDateTime.now(clock))));
+        } catch (DataIntegrityViolationException conflict) {
+            // 같은 회원의 판정이 동시에 커밋되면 먼저 끝난 쪽이 이력을 남긴다(고유 제약). 이미 있으면 실패가 아니다
+            if (!alreadyGranted(memberId, due)) {
+                throw conflict;
+            }
+            log.info(
+                    "event_point_already_granted memberId={} eventId={} key={}",
+                    memberId,
+                    due.eventId(),
+                    due.key());
+            return;
+        }
         log.info(
                 "event_point_granted memberId={} eventId={} key={} amount={} restored={}",
                 memberId,
@@ -133,6 +147,13 @@ public class CoachWinPointListener {
                 due.key(),
                 amount,
                 accrued <= 0);
+    }
+
+    private boolean alreadyGranted(long memberId, Due due) {
+        return Boolean.TRUE.equals(
+                newTransaction.execute(
+                        status ->
+                                eventRepository.pointGranted(memberId, due.eventId(), due.key())));
     }
 
     private List<Due> duePoints(long memberId, LocalDateTime judgedAt) {

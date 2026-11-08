@@ -13,6 +13,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,6 +31,14 @@ public class NoticeService {
 
     /** 링크 주소 길이 상한(notification.target_id 열, V35_3). */
     public static final int LINK_MAX = 300;
+
+    /**
+     * 링크 경로. 경로 조각은 영문, 숫자, 「-」, 「_」만 받는다. 「.」과 「%」를 막아 「/forms/../url?q=」 같은 점 조각(브라우저가 줄여
+     * docs.google.com의 다른 경로로 간다)으로 구글 폼 밖에 닿지 못하게 한다.
+     */
+    private static final Pattern FORMS_GLE_PATH = Pattern.compile("/[A-Za-z0-9_-]+");
+
+    private static final Pattern DOCS_FORMS_PATH = Pattern.compile("/forms(/[A-Za-z0-9_-]+)+/?");
 
     private static final String AUDIT_TARGET_PREFIX = "NOTICE:";
     private static final int AUDIT_TARGET_MAX = 100;
@@ -82,8 +91,8 @@ public class NoticeService {
     }
 
     /**
-     * 구글 폼 주소인가: https, 사용자 정보와 포트 없음, 호스트 forms.gle(경로 있음) 또는 docs.google.com의 /forms/ 아래. 300자
-     * 이하, 공백 없음.
+     * 구글 폼 주소인가: https, 사용자 정보와 포트 없음, 호스트 forms.gle(경로 조각 하나) 또는 docs.google.com의 /forms/ 아래. 경로
+     * 조각은 영문, 숫자, 「-」, 「_」만(점 조각과 % 인코딩 금지). 300자 이하, 공백 없음.
      */
     static boolean isFormLink(String url) {
         if (url.length() > LINK_MAX || url.chars().anyMatch(Character::isWhitespace)) {
@@ -103,7 +112,7 @@ public class NoticeService {
         }
         String host = uri.getHost().toLowerCase(Locale.ROOT);
         String path = uri.getRawPath() == null ? "" : uri.getRawPath();
-        return ("forms.gle".equals(host) && path.length() > 1)
-                || ("docs.google.com".equals(host) && path.startsWith("/forms/"));
+        return ("forms.gle".equals(host) && FORMS_GLE_PATH.matcher(path).matches())
+                || ("docs.google.com".equals(host) && DOCS_FORMS_PATH.matcher(path).matches());
     }
 }
