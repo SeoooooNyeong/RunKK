@@ -120,15 +120,19 @@ constructor(
         data.getDataItems(uri).await().use { all -> all.mapNotNull { it.freeze().data } }
     } ?: emptyList()
 
-    /** 워치가 없으면(닿는 노드 0) 보내지 않고 버린다. 노드 목록은 능력 변화·워치 메시지로 갱신된다. */
+    /** 워치가 없으면(닿는 노드 0) 보내지 않고 버린다. 노드 목록은 능력 변화·워치 메시지·표시 요청([markReachable])으로 갱신된다. */
     private suspend fun deliver(path: String, payload: ByteArray) {
         nodeIds.forEach { nodeId -> messages.sendMessage(nodeId, path, payload).await() }
     }
 
     /** 워치가 보낸 메시지는 그 노드가 닿는다는 뜻이다(능력 알림보다 먼저 올 수 있다). */
     private fun onMessage(event: MessageEvent) {
-        if (event.sourceNodeId !in nodeIds) updateNodes(nodeIds + event.sourceNodeId)
+        markReachable(event.sourceNodeId)
         received.tryEmit(WatchLink.Incoming(event.path, event.data, event.sourceNodeId))
+    }
+
+    override fun markReachable(nodeId: String) {
+        if (nodeId !in nodeIds) updateNodes(nodeIds + nodeId)
     }
 
     private fun onCapabilityChanged(info: CapabilityInfo) {
