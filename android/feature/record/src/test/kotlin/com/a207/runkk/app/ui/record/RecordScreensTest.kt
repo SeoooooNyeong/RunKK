@@ -39,6 +39,7 @@ import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -383,6 +384,41 @@ class RecordScreensTest {
         compose.onNodeWithText("기기에 저장").performClick()
         compose.onNodeWithText("더 보기").performClick()
         assertEquals(listOf(CardShareKind.SAVE, CardShareKind.SYSTEM), shares)
+    }
+
+    @Test
+    fun `카드 공유 단계는 보이는 카드를 찍어 넘기고, 잠긴 코스 지도 표시를 누르면 안내를 부른다(K-2)`() {
+        val bitmap = android.graphics.Bitmap.createBitmap(8, 10, android.graphics.Bitmap.Config.ARGB_8888)
+        val captured = mutableListOf<com.a207.runkk.app.ui.share.CapturedCard?>()
+        var locked = 0
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                RecordCardScreen(
+                    RecordCardUiState(
+                        isLoading = false,
+                        card = runCard(shared = false),
+                        front = bitmap,
+                        back = bitmap,
+                        isShareStep = true
+                    ),
+                    onClose = {},
+                    onSideSelected = {},
+                    onShare = {},
+                    onMessageShown = {},
+                    onRetry = {},
+                    onShareCaptured = { _, card -> captured += card },
+                    onCourseLocked = { locked++ }
+                )
+            }
+        }
+        compose.onNodeWithText("인스타그램 스토리").assertExists()
+        compose.onNodeWithText("코스 지도 표시").performClick()
+        assertEquals(1, locked)
+        compose.onRoot().captureToImage()
+        compose.onNodeWithText("기기에 저장").performClick()
+        compose.waitForIdle()
+        val card = assertNotNull(captured.single())
+        assertTrue(card.bitmap.width > 0 && card.bitmap.height > card.bitmap.width, "세로 카드 ${card.bitmap.width}")
     }
 
     @Test
