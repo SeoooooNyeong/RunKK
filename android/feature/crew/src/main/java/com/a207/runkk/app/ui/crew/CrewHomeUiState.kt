@@ -12,28 +12,25 @@ import java.time.Instant
 
 data class CrewHomeUiState(
     val crewId: Long = 0,
-    /** 크루 정보(GET /crews/{id}): 이름·인원·내 역할. 읽기 전이면 null. */
+    /** 크루 정보(GET /crews/{id}): 이름·인원·내 역할·태그·초대 코드. 읽기 전이면 null. */
     val detail: CrewDetail? = null,
     val tab: CrewTab = CrewTab.RACE,
+    /** ⋯ 메뉴로 연 쪽(피그마 F-17·F-24). HOME이면 탭 화면이다. */
+    val page: CrewHomePage = CrewHomePage.HOME,
     val isLoading: Boolean = false,
     val race: RaceStatus? = null,
     val period: CrewRanking.Period = CrewRanking.Period.WEEKLY,
     val ranking: CrewRanking? = null,
+    /** 크루런 탭의 크루런 일정(피그마 F-11). */
     val crewRuns: PostList? = null,
-    /** 일정 탭에서 보는 종류: 크루런(CREW_RUN) 또는 대면 모임(MEETUP, FR-132). */
-    val scheduleKind: PostList.Kind = PostList.Kind.CREW_RUN,
-    /** 대면 모임 일정(FR-132·FR-145). 처음 고를 때 읽는다. */
-    val meetups: PostList? = null,
-    /** 일정 탭을 읽은 서버 시각 추정. 지난 대면 모임을 가른다(와이어 I4). 모르면 null(모두 다가오는 일정). */
+    /** 크루런 탭을 읽은 서버 시각 추정. 모르면 null. */
     val scheduleNow: Instant? = null,
     /** 축하 카드를 공유하는 중(FR-141). */
     val isSharing: Boolean = false,
     /** 크루런 모집글별 대기실 단추 상태(postId → LobbyAvailability). 서버 시각 추정으로 1초마다 다시 판단한다. */
     val lobbyEntries: Map<Long, LobbyAvailability> = emptyMap(),
-    /** 레이스 탭 위 고정 공지(최대 3, FR-205, 와이어 E2). 공지 첫 쪽에서 고른다. */
-    val pinnedNotices: List<PostList.Item> = emptyList(),
     val members: CrewMembers? = null,
-    /** 게시글 다음 쪽을 읽는 중. */
+    /** 크루런 다음 쪽을 읽는 중. */
     val isLoadingMore: Boolean = false,
     val isConfirmingLeave: Boolean = false,
     /** 크루원이 남은 크루장이 탈퇴를 누름: 크루장을 넘기라는 안내(와이어 E7, FR-126). */
@@ -42,6 +39,8 @@ data class CrewHomeUiState(
     val confirmDelete: PostList.Item? = null,
     val isEditingIntro: Boolean = false,
     val introDraft: String = "",
+    /** 초대 코드 팝업(피그마 F-18b·F-25b)을 연 상태. */
+    val isInviteOpen: Boolean = false,
     val isBusy: Boolean = false,
     val message: UiText? = null,
     val error: UiText? = null
@@ -53,7 +52,7 @@ data class CrewHomeUiState(
 
     val isLeader: Boolean get() = myRole == CrewRole.LEADER
 
-    /** 크루장·운영진: 크루 관리(가입 결정 등)·공지 작성·고정·공동 목표(3.0.3). */
+    /** 크루장·운영진: ⋯ 메뉴의 크루 관리(가입 결정 등)·공동 목표(3.0.3). */
     val canManage: Boolean get() = myRole == CrewRole.LEADER || myRole == CrewRole.MANAGER
 
     /** 주간 공동 목표 설정(FR-138): 크루장·운영진. */
@@ -62,11 +61,7 @@ data class CrewHomeUiState(
     /** 크루 인원(크루 정보, 없으면 크루원 목록 수). */
     val headcount: Int? get() = detail?.headcount ?: members?.members?.size
 
-    /** 지금 일정 종류의 목록. */
-    val schedules: PostList? get() = if (scheduleKind == PostList.Kind.MEETUP) meetups else crewRuns
-
     companion object {
         const val INTRO_MAX = 40
-        const val PINNED_MAX = 3
     }
 }

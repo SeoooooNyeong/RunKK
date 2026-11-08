@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.a207.runkk.bootstrap.RunkkApplication;
 import com.a207.runkk.common.BusinessRuleException;
-import com.a207.runkk.common.PersonalityTag;
+import com.a207.runkk.common.CrewTag;
 import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.crew.CrewCreateCommand;
 import com.a207.runkk.crew.CrewPostService;
@@ -91,7 +91,7 @@ class ReportThreadIntegrationTest {
                                 new CrewCreateCommand(
                                         "신고크루" + NAMES.incrementAndGet(),
                                         null,
-                                        Set.of(PersonalityTag.SOCIAL_RUN),
+                                        Set.of(CrewTag.WEEKDAY_EVENING),
                                         CrewVisibility.PUBLIC,
                                         JoinPolicy.FREE,
                                         null))

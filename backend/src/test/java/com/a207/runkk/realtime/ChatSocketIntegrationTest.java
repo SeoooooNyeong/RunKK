@@ -3,7 +3,7 @@ package com.a207.runkk.realtime;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.a207.runkk.bootstrap.RunkkApplication;
-import com.a207.runkk.common.PersonalityTag;
+import com.a207.runkk.common.CrewTag;
 import com.a207.runkk.crew.CrewCreateCommand;
 import com.a207.runkk.crew.CrewService;
 import com.a207.runkk.crew.CrewVisibility;
@@ -107,7 +107,7 @@ class ChatSocketIntegrationTest {
                                 new CrewCreateCommand(
                                         "소켓크루" + NAMES.incrementAndGet(),
                                         "함께",
-                                        Set.of(PersonalityTag.SOCIAL_RUN),
+                                        Set.of(CrewTag.WEEKDAY_EVENING),
                                         CrewVisibility.PUBLIC,
                                         JoinPolicy.FREE,
                                         null))

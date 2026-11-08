@@ -27,7 +27,10 @@ class CrewWireframeV010ViewModelTest {
     private fun vm(role: CrewRole): CrewHomeViewModel {
         repo.role = role
         return CrewHomeViewModel(repo, ServerClock(MutableClock()), FakeCelebrationSharer())
-            .also { it.bind(Routes.CrewHome(11), CrewTab.MEMBERS) }
+            .also {
+                it.bind(Routes.CrewHome(11))
+                it.onPage(CrewHomePage.MEMBERS)
+            }
     }
 
     @Test
@@ -67,7 +70,7 @@ class CrewWireframeV010ScreensTest {
     private val leaderHome = CrewHomeUiState(
         crewId = 11,
         detail = crewDetail(role = CrewRole.LEADER),
-        tab = CrewTab.MEMBERS,
+        page = CrewHomePage.INFO,
         race = raceWithGoal,
         ranking = ranking,
         members = members.copy(members = members.members.map { if (it.memberId == 1L) it.copy(isMe = true) else it })
@@ -167,7 +170,7 @@ class CrewWireframeV010ScreensTest {
             CrewFindUiState(
                 isCheckingMine = false,
                 isLoading = false,
-                tags = setOf("SOCIAL_RUN"),
+                tags = setOf("WEEKDAY_EVENING"),
                 crews = listOf(crewA, crewB)
             ),
             CrewFindActions()

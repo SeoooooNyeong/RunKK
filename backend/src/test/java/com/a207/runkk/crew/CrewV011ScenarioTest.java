@@ -11,10 +11,10 @@ import static org.mockito.Mockito.verify;
 
 import com.a207.runkk.bootstrap.RunkkApplication;
 import com.a207.runkk.common.BusinessRuleException;
+import com.a207.runkk.common.CrewTag;
 import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.PageCursor;
 import com.a207.runkk.common.PermissionDeniedException;
-import com.a207.runkk.common.PersonalityTag;
 import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.common.StandardDistance;
 import com.a207.runkk.crew.live.CrewRunCancelled;
@@ -60,6 +60,7 @@ class CrewV011ScenarioTest {
     @Autowired CrewPostService posts;
     @Autowired CrewRunService crewRuns;
     @Autowired WeeklyRaceService race;
+    @Autowired CrewQueryService queries;
     @Autowired CrewWithdrawalListener withdrawal;
     @Autowired MemberRepository members;
     @Autowired TransactionTemplate tx;
@@ -81,7 +82,7 @@ class CrewV011ScenarioTest {
                                 new CrewCreateCommand(
                                         "삼에이크루" + NAMES.incrementAndGet(),
                                         null,
-                                        Set.of(PersonalityTag.SOCIAL_RUN),
+                                        Set.of(CrewTag.WEEKDAY_EVENING),
                                         CrewVisibility.PUBLIC,
                                         JoinPolicy.FREE,
                                         null))
@@ -495,6 +496,40 @@ class CrewV011ScenarioTest {
                         jdbc.queryForObject(
                                 "select count(*) from crew_post where id = ?", Integer.class, run))
                 .isZero();
+    }
+
+    @Test
+    @DisplayName("F-14c: 준비 완료가 최소 준비 인원보다 적으면 그 인원을 넣은 문구로 CrewRunCancelled를 보낸다")
+    void crewRunCancelledReasonCarriesMinReady() {
+        Crew7 c = crew7();
+        LocalDateTime at = now().plusMinutes(20).withNano(0);
+        long run =
+                posts.writeCrewRun(
+                                c.r1(),
+                                c.id(),
+                                new CrewRunDraft(null, at, StandardDistance.KM3, null))
+                        .postId();
+        crewRuns.enterLobby(c.r1(), run);
+        crewRuns.toggleReady(c.r1(), run);
+        crewRuns.tick(at);
+        verify(messenger)
+                .sendAll(
+                        argThat(ids -> ids.contains(c.r1())),
+                        eq(new CrewRunCancelled(run, "준비 완료한 참가자가 2명보다 적어 시작하지 않았어요")));
+    }
+
+    @Test
+    @DisplayName("F-02: 크루 상세는 이번 주와 따로 지난 주 크루 거리를 담는다")
+    void detailCarriesLastWeekDistance() {
+        Crew7 c = crew7();
+        LocalDate lastMonday = LocalDate.now().with(java.time.DayOfWeek.MONDAY).minusWeeks(1);
+        jdbc.update(
+                "insert into weekly_race (crew_id, week_start, total_meters) values (?, ?, 64270)",
+                c.id(),
+                lastMonday);
+        CrewDetailView detail = queries.detail(member(), c.id());
+        assertThat(detail.lastWeekDistance()).isEqualTo(Distance.ofMeters(64_270));
+        assertThat(detail.weeklyDistance()).isEqualTo(Distance.ZERO);
     }
 
     private RunRecordSaved saved(long memberId, long meters, LocalDateTime startedAt) {

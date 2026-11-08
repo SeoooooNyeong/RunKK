@@ -86,6 +86,7 @@ class AppContractSnapshotTest {
                 "common",
                 List.of(
                         "PersonalityTag",
+                        "CrewTag",
                         "ReasonCode",
                         "RecordVisibility",
                         "StandardDistance",

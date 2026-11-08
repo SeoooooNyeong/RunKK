@@ -18,13 +18,20 @@ data class CrewFindUiState(
     val confirmCancel: MyCrew.PendingJoin? = null,
     val isLoading: Boolean = true,
     val keyword: String = "",
+    /** 적용한 찾기 조건(크루 태그, 모두 가진 크루만, 피그마 F-01c). */
     val tags: Set<String> = emptySet(),
+    /** 조건 설정 팝업(피그마 F-01b)을 연 상태. */
+    val isConditionOpen: Boolean = false,
+    /** 팝업에서 고르는 중인 조건. 적용하기를 눌러야 [tags]가 된다. */
+    val conditionDraft: Set<String> = emptySet(),
     val crews: List<CrewList.Item> = emptyList(),
     /** 다음 쪽 커서. null이면 끝까지 읽었다. */
     val nextCursor: Long? = null,
     val isLoadingMore: Boolean = false,
     /** 상세(바텀 시트)로 연 크루. */
     val detail: CrewList.Item? = null,
+    /** 상세로 연 크루의 정보(GET /crews/{id}): 지난 주 달린 거리(피그마 F-02). 읽기 전이면 null. */
+    val detailInfo: CrewDetail? = null,
     val isJoining: Boolean = false,
     val isInviteOpen: Boolean = false,
     val inviteCode: String = "",

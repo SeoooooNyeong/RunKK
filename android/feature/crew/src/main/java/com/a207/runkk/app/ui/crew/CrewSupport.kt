@@ -19,7 +19,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-/** 크루 성향 태그 7분류(크루 전용 "크루 분위기" 포함, SRS 3.5.1). */
+/** 크루 태그 두 줄(평일, 주말) × 시간대 넷(피그마 F-01b·F-04). */
 internal val CREW_TAG_CATEGORIES: List<RunkkTagCategory> = RunkkTags.categories
 
 /** 크루런 거리(FR-132): 1·3·5·10km. */

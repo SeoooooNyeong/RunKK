@@ -126,7 +126,7 @@ public class CrewRunService {
         if (outcome.kind() == DepartureOutcome.Kind.STARTED) {
             announcer.started(post, outcome);
         } else if (outcome.kind() == DepartureOutcome.Kind.CANCELLED) {
-            announcer.cancelled(post, outcome.memberIds());
+            announcer.cancelled(post, outcome.memberIds(), rule.minReady());
         }
         if (post.shouldClose(now, rule)) {
             post.close(now);
