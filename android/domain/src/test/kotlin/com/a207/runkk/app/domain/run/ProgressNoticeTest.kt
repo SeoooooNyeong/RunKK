@@ -20,18 +20,21 @@ class ProgressNoticeTest {
     )
 
     @Test
-    fun `TC-9601 자유런만 Free이고 나머지는 상대 이름을 단 Battle이다`() {
+    fun `TC-9601 자유런은 Free, 크루런은 CrewRun, 나머지는 상대 이름을 단 Battle이다`() {
         val p = progress(2_140, elapsedSeconds = 712)
         val cases = listOf(
             spec(CardKind.FREE_RUN) to null,
             spec(CardKind.BATTLE_RUN, "바람처럼") to "바람처럼",
             spec(CardKind.SELF_RUN, "10월 2일의 나") to "10월 2일의 나",
             spec(CardKind.CELEB_RUN, "김선교 대공") to "김선교 대공",
-            spec(CardKind.CREW_RUN, "새벽런") to "새벽런"
+            spec(CardKind.CREW_RUN, "새벽런") to CREW
         )
         for ((s, name) in cases) {
             val notice = ProgressNotice.of(s, p, gapMeters = 42)
-            if (name == null) {
+            if (name == CREW) {
+                assertIs<ProgressNotice.CrewRun>(notice)
+                assertEquals(null, notice.progressEnd, "크루런은 각자 거리라 막대가 없다")
+            } else if (name == null) {
                 assertIs<ProgressNotice.Free>(notice)
             } else {
                 assertEquals(name, assertIs<ProgressNotice.Battle>(notice).opponentName, "${s.cardKind}")
@@ -81,5 +84,9 @@ class ProgressNoticeTest {
     fun `자유런 알림은 정지 여부를 싣는다`() {
         val paused = ProgressNotice.of(spec(CardKind.FREE_RUN), progress(100).copy(isPaused = true), null)
         assertEquals(true, assertIs<ProgressNotice.Free>(paused).isPaused)
+    }
+
+    private companion object {
+        const val CREW = "<crew>"
     }
 }

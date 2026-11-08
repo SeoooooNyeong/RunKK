@@ -24,10 +24,12 @@ import com.a207.runkk.app.domain.testing.T0
 import com.a207.runkk.app.domain.testing.TestClock
 import com.a207.runkk.app.domain.testing.runTracker
 import java.lang.reflect.Proxy
+import java.time.Duration
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -40,7 +42,7 @@ import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 
-/** CrewRunCoordinator(6.1.14): 대기 진입부터 크루런 한 회의 범위, 진행값 송신, 그만두기. */
+/** CrewRunCoordinator(6.1.14, 합산 방식): 대기 진입부터 크루런 한 회의 범위, 진행값 송신, 일시정지 보고, 끝내기. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class CrewRunCoordinatorTest {
     private val log = CallLog()
@@ -52,6 +54,9 @@ class CrewRunCoordinatorTest {
 
     /** quit이 돌려줄 실패(F-3). null이면 성공. */
     private var quitFailure: AppError? = null
+
+    /** 마지막 quit의 거리(m)·경과. */
+    private var quitArgs: Pair<Any?, Any?>? = null
 
     /** leaveLobby가 돌려줄 실패. null이면 성공. */
     private var leaveFailure: AppError? = null
@@ -66,7 +71,13 @@ class CrewRunCoordinatorTest {
             when (method.name) {
                 "quit" -> {
                     log.add("crew.quit:${args[0]}")
+                    quitArgs = args[1] to args[2]
                     quitFailure?.let { Outcome.Failure(it) } ?: Outcome.Success(Unit)
+                }
+
+                "pause" -> {
+                    log.add("crew.pause:${args[0]}:${(args[1] as Duration).seconds}")
+                    Outcome.Success(Unit)
                 }
 
                 "leaveLobby" -> {
@@ -198,65 +209,73 @@ class CrewRunCoordinatorTest {
     }
 
     @Test
-    fun `중계 메시지를 상태로 내보낸다`() = runTest {
+    fun `중계 메시지의 참가자 표와 합산 거리를 상태로 내보낸다`() = runTest {
         val (_, coordinator) = setUp()
         coordinator.onLobbyEntered(11, Distance(3_000))
         runCurrent()
         val entries =
             listOf(
-                CrewRunRelay.Entry("너", Distance(900), 1, CrewRunRelay.Connection.CONNECTED),
-                CrewRunRelay.Entry("나", Distance(800), 2, CrewRunRelay.Connection.CONNECTED)
+                CrewRunRelay.Entry("너", Distance(900), CrewRunRelay.State.RUNNING),
+                CrewRunRelay.Entry("나", Distance(800), CrewRunRelay.State.PAUSED, 7, isMe = true)
             )
-        live.channel.messages.emit(CrewRunRelay(11, entries))
+        live.channel.messages.emit(CrewRunRelay(11, Distance(1_700), entries))
         runCurrent()
-        assertEquals(entries, assertIs<CrewRunState.Running>(coordinator.state.value).entries)
+        val running = assertIs<CrewRunState.Running>(coordinator.state.value)
+        assertEquals(entries, running.entries)
+        assertEquals(Distance(1_700), running.totalDistance)
     }
 
     @Test
-    fun `중계의 본인 줄(me) 순위로 새 1km마다 순위를 안내한다(FR-190)`() = runTest {
+    fun `크루런 거리에 닿아도 측정을 끝내지 않고 내 측정값을 상태로 낸다(합산 방식)`() = runTest {
         val (tracker, coordinator) = setUp()
-        coordinator.onLobbyEntered(11, Distance(3_000))
+        coordinator.onLobbyEntered(11, Distance(1_000))
         runCurrent()
-        live.channel.messages.emit(CrewRunStart(11, T0, listOf("나", "너", "그")))
+        live.channel.messages.emit(CrewRunStart(11, T0, listOf("나", "너")))
         runCurrent()
         advanceTimeBy(3_001)
-        live.channel.messages.emit(
-            CrewRunRelay(
-                11,
-                listOf(
-                    CrewRunRelay.Entry("너", Distance(900), 1, CrewRunRelay.Connection.CONNECTED, memberId = 12),
-                    // 같은 표시명의 다른 참가자가 있어도 본인 표시(me)로 가린다.
-                    CrewRunRelay.Entry("나", Distance(850), 2, CrewRunRelay.Connection.CONNECTED, 7, isMe = true),
-                    CrewRunRelay.Entry("나", Distance(300), 3, CrewRunRelay.Connection.CONNECTED, memberId = 13)
-                )
-            )
-        )
+        (1L..400L).forEach { second -> tracker.runTo(second, (second - 1) * 3.0) }
         runCurrent()
-        (1L..360L).forEach { second -> tracker.runTo(second, (second - 1) * 3.0) }
-        runCurrent()
-        val rank = guidance.played.filter { it.kind == Guidance.Kind.RANK }
-        assertEquals(listOf(listOf<Any>(3, 2)), rank.map { it.args })
+        val running = assertIs<CrewRunState.Running>(coordinator.state.value)
+        assertTrue(running.mine.distance.meters >= 1_000, "1km를 넘었다: ${running.mine.distance}")
+        assertEquals(Duration.ofSeconds(400), running.mine.elapsed)
+        assertTrue(running.mine.route.points.isNotEmpty())
+        assertEquals(0, host.stopped, "목표 거리에 닿아도 측정은 그대로")
+        assertTrue(guidance.played.any { it.kind == Guidance.Kind.SPLIT }, "자유런처럼 1km 구간 안내")
     }
 
     @Test
-    fun `중계에 본인 줄이 없으면 순위를 안내하지 않는다`() = runTest {
+    fun `일시정지로 바뀌면 정지 때 경과를 서버에 한 번 알리고 재개는 진행값으로만 알린다`() = runTest {
         val (tracker, coordinator) = setUp()
         coordinator.onLobbyEntered(11, Distance(3_000))
         runCurrent()
         live.channel.messages.emit(CrewRunStart(11, T0, listOf("나", "너")))
         runCurrent()
         advanceTimeBy(3_001)
-        live.channel.messages.emit(
-            CrewRunRelay(11, listOf(CrewRunRelay.Entry("나", Distance(900), 1, CrewRunRelay.Connection.CONNECTED, 12)))
+        tracker.runTo(1, 0.0)
+        tracker.runTo(5, 12.0)
+        runCurrent()
+        coordinator.pause()
+        runCurrent()
+        val paused = assertIs<CrewRunState.Running>(coordinator.state.value).mine
+        assertTrue(paused.isPaused)
+        coordinator.pause()
+        runCurrent()
+        assertEquals(
+            listOf("crew.pause:11:${paused.elapsed.seconds}"),
+            log.calls.filter { it.startsWith("crew.pause") }
         )
+        val sentBefore = live.channel.sent.size
+        coordinator.resume()
+        clock.now = T0.plusSeconds(8)
+        tracker.tick(clock.now)
         runCurrent()
-        (1L..360L).forEach { second -> tracker.runTo(second, (second - 1) * 3.0) }
-        runCurrent()
-        assertEquals(emptyList(), guidance.played.filter { it.kind == Guidance.Kind.RANK })
+        assertEquals(false, assertIs<CrewRunState.Running>(coordinator.state.value).mine.isPaused)
+        assertTrue(live.channel.sent.size > sentBefore, "재개 뒤 진행값을 다시 보낸다")
+        assertEquals(1, log.calls.count { it.startsWith("crew.pause") })
     }
 
     @Test
-    fun `그만두기 - quit 보고 뒤 endRun하고 범위를 닫는다`() = runTest {
+    fun `끝내기 - 마지막 거리·경과를 실은 quit 보고 뒤 endRun하고 범위를 닫는다`() = runTest {
         val (tracker, coordinator) = setUp()
         coordinator.onLobbyEntered(11, Distance(3_000))
         runCurrent()
@@ -265,9 +284,11 @@ class CrewRunCoordinatorTest {
         tracker.runTo(1, 0.0)
         tracker.runTo(5, 12.0)
         runCurrent()
+        val mine = assertIs<CrewRunState.Running>(coordinator.state.value).mine
         coordinator.quit()
         runCurrent()
         assertEquals(listOf("crew.quit:11", "pending.save", "upload.requestUpload"), log.calls)
+        assertEquals(mine.distance.meters to mine.elapsed, assertNotNull(quitArgs))
         assertIs<CrewRunState.Finished>(coordinator.state.value)
         assertTrue(parentJob.children.none())
     }
@@ -291,7 +312,7 @@ class CrewRunCoordinatorTest {
         live.channel.messages.emit(CrewRunStart(11, T0.plusSeconds(10), listOf("나", "너")))
         runCurrent()
         live.channel.messages.emit(
-            CrewRunRelay(11, listOf(CrewRunRelay.Entry("너", Distance(0), 1, CrewRunRelay.Connection.CONNECTED)))
+            CrewRunRelay(11, Distance(0), listOf(CrewRunRelay.Entry("너", Distance(0), CrewRunRelay.State.RUNNING)))
         )
         runCurrent()
         assertEquals(CrewRunState.Countdown(11, T0.plusSeconds(13)), coordinator.state.value)

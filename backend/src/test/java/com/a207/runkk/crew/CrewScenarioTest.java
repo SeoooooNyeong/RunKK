@@ -199,7 +199,7 @@ class CrewScenarioTest {
         }
         crewRuns.tick(at);
         sessions.delete(run);
-        sessions.save(CrewRunLiveSession.open(-77L, StandardDistance.KM1, java.util.Map.of(), at));
+        sessions.save(CrewRunLiveSession.open(-77L, java.util.Map.of(), at));
         crewRuns.tick(at.plusSeconds(10));
         assertThat(sessions.load(run)).as("Redis에서 빠진 세션을 시계가 되살린다").isPresent();
         assertThat(sessions.load(-77L)).as("시계가 보지 않는 크루런 세션은 지운다").isEmpty();
@@ -208,10 +208,17 @@ class CrewScenarioTest {
                 run,
                 new ProgressReport(Distance.ofMeters(200), Duration.ofSeconds(60), at),
                 at.plusSeconds(63));
-        crewRuns.quit(a, run);
-        assertThat(sessions.load(run).orElseThrow().ranking())
-                .filteredOn(e -> e.connection() == RelayEntry.Connection.QUIT)
-                .hasSize(1);
+        crewRuns.pause(leader, run, Duration.ofSeconds(60));
+        assertThat(sessions.load(run).orElseThrow().entries())
+                .filteredOn(e -> e.state() == RelayEntry.State.PAUSED)
+                .extracting(RelayEntry::memberId)
+                .containsExactly(leader);
+        crewRuns.quit(a, run, null);
+        crewRuns.quit(a, run, null);
+        assertThat(sessions.load(run).orElseThrow().entries())
+                .filteredOn(e -> e.state() == RelayEntry.State.ENDED)
+                .extracting(RelayEntry::memberId)
+                .containsExactly(a);
         live.detectTimeouts(at.plusSeconds(70));
 
         crewRuns.onRunSaved(crewRunSaved(a, run, "quit-record-000000000000000000000001"));
@@ -222,8 +229,19 @@ class CrewScenarioTest {
         crewRuns.tick(at.plusMinutes(16));
         CrewRunResultView result = crewRuns.result(a, run);
         assertThat(result.status()).isEqualTo(CrewRunStatus.FINISHED);
-        assertThat(result.finisherCount()).isZero();
-        assertThat(result.runners()).filteredOn(CrewRunResultView.Line::quit).hasSize(1);
+        assertThat(result.participants())
+                .extracting(CrewRunResultView.Line::memberId)
+                .containsExactly(leader, a);
+        assertThat(result.participants()).allMatch(CrewRunResultView.Line::ended);
+        CrewRunResultView.Line mine = result.participants().get(1);
+        assertThat(mine.distance()).as("기록 요약이 없으면 끝낼 때 남긴 중계 값").isEqualTo(Distance.ofMeters(200));
+        assertThat(mine.elapsed()).isEqualTo(Duration.ofSeconds(60));
+        assertThat(mine.averagePace().secondsPerKm()).isEqualTo(300);
+        assertThat(result.participants().get(0).distance()).isEqualTo(Distance.ZERO);
+        assertThat(result.totalDistance()).isEqualTo(Distance.ofMeters(200));
+        assertThat(result.myRecordId()).isEqualTo("quit-record-000000000000000000000001");
+        assertThat(result.title()).isEqualTo("둘이");
+        assertThat(result.startedAt()).isEqualTo(at.plusSeconds(3));
         assertThat(sessions.load(run)).isEmpty();
         assertThat(race.contributionOf("quit-record-000000000000000000000001"))
                 .isEqualTo(Distance.ZERO);

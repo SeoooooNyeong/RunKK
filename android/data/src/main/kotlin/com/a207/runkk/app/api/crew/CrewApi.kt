@@ -144,8 +144,11 @@ internal interface CrewApi {
     @POST("crew-runs/{id}/lobby/leave")
     suspend fun leaveLobby(@Path("id") postId: Long): LobbyResponse
 
+    @POST("crew-runs/{id}/pause")
+    suspend fun pause(@Path("id") postId: Long, @Body body: CrewRunPauseRequest)
+
     @POST("crew-runs/{id}/quit")
-    suspend fun quit(@Path("id") postId: Long)
+    suspend fun quit(@Path("id") postId: Long, @Body body: CrewRunQuitRequest)
 
     @GET("crew-runs/{id}/result")
     suspend fun result(@Path("id") postId: Long): CrewRunResultResponse

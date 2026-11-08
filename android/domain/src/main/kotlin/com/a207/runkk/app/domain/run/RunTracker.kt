@@ -194,13 +194,13 @@ constructor(
         }
     }
 
-    /** 폰 일시정지 버튼(FR-194). 자유런 RUNNING일 때만 정지한다. */
+    /** 폰 일시정지 버튼(FR-194). 자유런·크루런 RUNNING일 때만 정지한다. */
     fun onPauseTapped() = pause()
 
     /** 폰 재개 버튼(FR-194). PAUSED일 때만 재개한다. */
     fun onResumeTapped() = resume()
 
-    /** 진행 알림의 "일시정지" 버튼(FR-224, D-260). 폰 버튼과 같은 길이고 자유런 RUNNING일 때만 정지한다. */
+    /** 진행 알림의 "일시정지" 버튼(FR-224, D-260). 폰 버튼과 같은 길이고 자유런·크루런 RUNNING일 때만 정지한다. */
     fun onNotificationPauseTapped() = pause()
 
     /** 진행 알림의 "재개" 버튼(FR-224, D-260). PAUSED일 때만 재개한다. */
@@ -268,10 +268,6 @@ constructor(
         }
         val alert = coach.proximityOf(meters, watchBridge.isWatchConnected())
         watchBridge.publishProximity(alert, runtime.now())
-    }
-
-    fun onRankChanged(rank: CrewRank) {
-        synchronized(lock) { session?.takeIf { it.isActive }?.updateRank(rank) }
     }
 
     /**

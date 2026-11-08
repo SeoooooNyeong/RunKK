@@ -1,6 +1,7 @@
 package com.a207.runkk.crew;
 
 import com.a207.runkk.common.BusinessRuleException;
+import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.common.StandardDistance;
 import com.a207.runkk.policy.CrewRunRule;
@@ -13,17 +14,19 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
  * 크루런 모집글 하나의 생애주기(설계 6.1.7, 상태도 2.4.5·2.4.6, 6.2 A-13). 장소·위치 항목이 없다(FR-132). 시각은 매개변수로 받는다(D-09).
+ * 진행은 합산 방식이다(S15P31A207-236): 각자 달리고 각자 끝내며 순위·도착 판정이 없다.
  */
 @Entity
 @DiscriminatorValue("CREW_RUN")
@@ -218,21 +221,28 @@ public class CrewRunPost extends SchedulePost {
         return DepartureOutcome.started(departedAt, runners());
     }
 
-    /** RUNNING인 진행 참가자의 처음 도착만 기록한다. 종료 뒤 늦게 온 기록은 순위를 바꾸지 않는다. */
-    public void recordArrival(long memberId, LocalDateTime at) {
-        if (status == CrewRunStatus.RUNNING) {
-            runnerOf(memberId).ifPresent(p -> p.arrive(at));
+    /**
+     * 일시정지할 수 있는지 확인한다(합산 방식): RUNNING이고 아직 끝내지 않은 진행 참가자. 아니면 NOT_PARTICIPANT. 정지 상태는 세션에만 두고 DB에
+     * 쓰지 않는다.
+     */
+    public void checkPausable(long memberId) {
+        if (status != CrewRunStatus.RUNNING
+                || runnerOf(memberId).filter(p -> !p.hasEnded()).isEmpty()) {
+            throw new BusinessRuleException(ReasonCode.NOT_PARTICIPANT);
         }
     }
 
-    /** RUNNING인 진행 참가자만. 아니면 NOT_PARTICIPANT. 순위에서 뺀다(FR-192). */
-    public void quit(long memberId, LocalDateTime now) {
-        if (status != CrewRunStatus.RUNNING) {
+    /**
+     * 자기 크루런 끝내기(합산 방식, FR-192 대체). RUNNING·FINISHED인 크루런의 진행 참가자만, 아니면 NOT_PARTICIPANT. 거리·경과를 남기고
+     * 새로 끝냈으면 true, 이미 끝냈으면 false(재시도 안전).
+     */
+    public boolean end(long memberId, Distance distance, Duration elapsed) {
+        if (status != CrewRunStatus.RUNNING && status != CrewRunStatus.FINISHED) {
             throw new BusinessRuleException(ReasonCode.NOT_PARTICIPANT);
         }
-        runnerOf(memberId)
+        return runnerOf(memberId)
                 .orElseThrow(() -> new BusinessRuleException(ReasonCode.NOT_PARTICIPANT))
-                .quit();
+                .end(distance, elapsed);
     }
 
     /** 출발 뒤(진행·종료) 참여에 러닝 1건을 잇는다(FR-146). 참여가 없거나 이미 연결이 있으면 false. */
@@ -243,37 +253,39 @@ public class CrewRunPost extends SchedulePost {
         return participationOf(memberId).map(p -> p.link(recordId)).orElse(false);
     }
 
-    /** RUNNING이고 모두 도착·그만둠 또는 now ≥ departedAt + 거리 × 15분. */
+    /** RUNNING이고 진행 참가자가 모두 끝냈거나 now ≥ departedAt + 거리 × km당 분(CREW_RUN_END_RULE). */
     public boolean shouldClose(LocalDateTime now, CrewRunRule rule) {
         if (status != CrewRunStatus.RUNNING) {
             return false;
         }
-        boolean allDone = runnerParticipations().stream().allMatch(CrewRunParticipation::isDone);
-        return allDone || !now.isBefore(rule.closesAt(departedAt, distance));
+        boolean allEnded = runnerParticipations().stream().allMatch(CrewRunParticipation::hasEnded);
+        return allEnded || !now.isBefore(rule.closesAt(departedAt, distance));
     }
 
-    /** 도착 순 rank 1, 2, 3…, 미도착·그만둠은 rank 없음(미완주). FINISHED. RUNNING이 아니면 IllegalStateException. */
-    public void close(LocalDateTime now) {
+    /**
+     * 아직 끝내지 않은 진행 참가자를 마지막 중계 값(latest, 없으면 값 없이)으로 마감하고 FINISHED. RUNNING이 아니면
+     * IllegalStateException.
+     */
+    public void close(LocalDateTime now, Map<Long, LiveProgress> latest) {
         if (status != CrewRunStatus.RUNNING) {
             throw new IllegalStateException("진행 중이 아니다: " + status);
         }
-        List<CrewRunParticipation> arrived =
-                runnerParticipations().stream()
-                        .filter(p -> p.arrivedAt().isPresent() && !p.hasQuit())
-                        .sorted(Comparator.comparing(p -> p.arrivedAt().orElseThrow()))
-                        .toList();
-        runnerParticipations().forEach(p -> p.rankAs(null));
-        for (int i = 0; i < arrived.size(); i++) {
-            arrived.get(i).rankAs(i + 1);
+        for (CrewRunParticipation p : runnerParticipations()) {
+            Optional<LiveProgress> last = p.memberId().map(latest::get);
+            p.end(
+                    last.map(LiveProgress::distance).orElse(null),
+                    last.map(LiveProgress::elapsed).orElse(null));
         }
         endedAt = now;
         status = CrewRunStatus.FINISHED;
     }
 
-    /** 거리, 희망일시, 참석·불참·미정 인원, 본인 응답, 상태, 완주 인원, 연결 기록(FR-133). */
+    /**
+     * 거리, 희망일시, 참석·불참·미정 인원, 본인 응답, 상태, 함께 달린 인원(진행 참가자 수, 합산 방식이라 완주를 따로 세지 않는다), 연결 기록(FR-133).
+     */
     @Override
     public PostSummary summary(long viewerId) {
-        int finishers = (int) participations.stream().filter(p -> p.rank() != null).count();
+        int finishers = runnerParticipations().size();
         PostSummary.CrewRunInfo run =
                 new PostSummary.CrewRunInfo(
                         distance,

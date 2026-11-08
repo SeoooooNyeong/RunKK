@@ -2,6 +2,7 @@ package com.a207.runkk.app.domain.crew
 
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 
@@ -111,8 +112,14 @@ interface CrewRepository {
 
     suspend fun leaveLobby(postId: Long): Outcome<Lobby>
 
-    /** 크루런 중간 그만두기(POST /crew-runs/{id}/quit). CrewRunCoordinator.quit이 부른다. */
-    suspend fun quit(postId: Long): Outcome<Unit>
+    /**
+     * 내 크루런 끝내기(POST /crew-runs/{id}/quit, 합산 방식). [distanceMeters]·[elapsed]는 끝낼 때의 내 진행값이다(모르면 null,
+     * 서버가 마지막 중계 값을 쓴다). CrewRunCoordinator.quit이 부른다.
+     */
+    suspend fun quit(postId: Long, distanceMeters: Long? = null, elapsed: Duration? = null): Outcome<Unit>
+
+    /** 내 일시정지를 알린다(POST /crew-runs/{id}/pause). 재개는 서버가 늘어난 경과의 진행값으로 판단한다. */
+    suspend fun pause(postId: Long, elapsed: Duration): Outcome<Unit>
 
     suspend fun crewRunResult(postId: Long): Outcome<CrewRunResult>
 }

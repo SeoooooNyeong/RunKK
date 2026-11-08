@@ -101,6 +101,18 @@ class ProgressNotificationTest {
     }
 
     @Test
+    fun `크루런 알림은 경과 제목, 거리, 일시정지·재개 버튼이고 막대가 없다 (F-15b)`() {
+        val running = ProgressNotice.CrewRun(Duration.ofSeconds(940), Distance(2_840), isPaused = false)
+        val text = ProgressNoticeText.of(context, running)
+        assertEquals("크루런 · 15:40 경과", text.title)
+        assertEquals("2.84 km", text.body)
+        assertEquals("2.84 km", text.chip)
+        assertNull(text.progressMax)
+        assertEquals(listOf("일시정지"), OngoingProgressStyle(context).build(running).actionTitles())
+        assertEquals(listOf("재개"), OngoingProgressStyle(context).build(running.copy(isPaused = true)).actionTitles())
+    }
+
+    @Test
     fun `TC-9607 대결 알림에는 동작 버튼이 없다`() {
         for (gap in listOf(42, -118, null)) {
             assertTrue(OngoingProgressStyle(context).build(battle(gap)).actionTitles().isEmpty())

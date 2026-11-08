@@ -1002,12 +1002,24 @@
       "name" : "status",
       "kind" : "leaf"
     }, {
-      "name" : "finisherCount",
+      "name" : "title",
       "kind" : "leaf"
     }, {
-      "name" : "finishers",
+      "name" : "distanceMeters",
+      "kind" : "leaf"
+    }, {
+      "name" : "startedAt",
+      "kind" : "leaf"
+    }, {
+      "name" : "totalDistanceMeters",
+      "kind" : "leaf"
+    }, {
+      "name" : "participants",
       "kind" : "list",
-      "ref" : "CrewDtos.CrewRunResultResponse.Finisher"
+      "ref" : "CrewDtos.CrewRunResultResponse.Participant"
+    }, {
+      "name" : "myRecordId",
+      "kind" : "leaf"
     }, {
       "name" : "firstCrewRun",
       "kind" : "leaf"
@@ -1017,12 +1029,15 @@
     } ],
     "file" : "web/crew/CrewDtos.java"
   },
-  "CrewDtos.CrewRunResultResponse.Finisher" : {
+  "CrewDtos.CrewRunResultResponse.Participant" : {
     "components" : [ {
-      "name" : "rank",
+      "name" : "memberId",
       "kind" : "leaf"
     }, {
       "name" : "displayName",
+      "kind" : "leaf"
+    }, {
+      "name" : "distanceMeters",
       "kind" : "leaf"
     }, {
       "name" : "elapsedSeconds",
@@ -1031,10 +1046,7 @@
       "name" : "averagePaceSecondsPerKm",
       "kind" : "leaf"
     }, {
-      "name" : "quit",
-      "kind" : "leaf"
-    }, {
-      "name" : "memberId",
+      "name" : "ended",
       "kind" : "leaf"
     }, {
       "name" : "me",
@@ -1196,6 +1208,13 @@
       "kind" : "leaf"
     }, {
       "name" : "requestedAt",
+      "kind" : "leaf"
+    } ],
+    "file" : "web/crew/CrewDtos.java"
+  },
+  "CrewDtos.PauseRequest" : {
+    "components" : [ {
+      "name" : "elapsedSeconds",
       "kind" : "leaf"
     } ],
     "file" : "web/crew/CrewDtos.java"
@@ -1491,6 +1510,16 @@
       "kind" : "list-leaf"
     }, {
       "name" : "closesAt",
+      "kind" : "leaf"
+    } ],
+    "file" : "web/crew/CrewDtos.java"
+  },
+  "CrewDtos.QuitRequest" : {
+    "components" : [ {
+      "name" : "distanceMeters",
+      "kind" : "leaf"
+    }, {
+      "name" : "elapsedSeconds",
       "kind" : "leaf"
     } ],
     "file" : "web/crew/CrewDtos.java"

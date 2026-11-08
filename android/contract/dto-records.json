@@ -1307,12 +1307,28 @@
    },
    {
     "kind": "leaf",
-    "name": "finisherCount"
+    "name": "title"
+   },
+   {
+    "kind": "leaf",
+    "name": "distanceMeters"
+   },
+   {
+    "kind": "leaf",
+    "name": "startedAt"
+   },
+   {
+    "kind": "leaf",
+    "name": "totalDistanceMeters"
    },
    {
     "kind": "list",
-    "name": "finishers",
-    "ref": "CrewDtos.CrewRunResultResponse.Finisher"
+    "name": "participants",
+    "ref": "CrewDtos.CrewRunResultResponse.Participant"
+   },
+   {
+    "kind": "leaf",
+    "name": "myRecordId"
    },
    {
     "kind": "leaf",
@@ -1325,15 +1341,19 @@
   ],
   "file": "web/crew/CrewDtos.java"
  },
- "CrewDtos.CrewRunResultResponse.Finisher": {
+ "CrewDtos.CrewRunResultResponse.Participant": {
   "components": [
    {
     "kind": "leaf",
-    "name": "rank"
+    "name": "memberId"
    },
    {
     "kind": "leaf",
     "name": "displayName"
+   },
+   {
+    "kind": "leaf",
+    "name": "distanceMeters"
    },
    {
     "kind": "leaf",
@@ -1345,11 +1365,7 @@
    },
    {
     "kind": "leaf",
-    "name": "quit"
-   },
-   {
-    "kind": "leaf",
-    "name": "memberId"
+    "name": "ended"
    },
    {
     "kind": "leaf",
@@ -1559,6 +1575,15 @@
    {
     "kind": "leaf",
     "name": "requestedAt"
+   }
+  ],
+  "file": "web/crew/CrewDtos.java"
+ },
+ "CrewDtos.PauseRequest": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "elapsedSeconds"
    }
   ],
   "file": "web/crew/CrewDtos.java"
@@ -1945,6 +1970,19 @@
    {
     "kind": "leaf",
     "name": "closesAt"
+   }
+  ],
+  "file": "web/crew/CrewDtos.java"
+ },
+ "CrewDtos.QuitRequest": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "distanceMeters"
+   },
+   {
+    "kind": "leaf",
+    "name": "elapsedSeconds"
    }
   ],
   "file": "web/crew/CrewDtos.java"

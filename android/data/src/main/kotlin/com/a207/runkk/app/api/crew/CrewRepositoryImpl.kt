@@ -27,6 +27,7 @@ import com.a207.runkk.app.domain.crew.PostList
 import com.a207.runkk.app.domain.crew.RaceStatus
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import javax.inject.Inject
@@ -230,7 +231,11 @@ internal class CrewRepositoryImpl(
         api.leaveLobby(postId).toDomain()
     }
 
-    override suspend fun quit(postId: Long): Outcome<Unit> = ApiErrorMapper.call { api.quit(postId) }
+    override suspend fun quit(postId: Long, distanceMeters: Long?, elapsed: Duration?): Outcome<Unit> =
+        ApiErrorMapper.call { api.quit(postId, CrewRunQuitRequest(distanceMeters, elapsed?.seconds)) }
+
+    override suspend fun pause(postId: Long, elapsed: Duration): Outcome<Unit> =
+        ApiErrorMapper.call { api.pause(postId, CrewRunPauseRequest(elapsed.seconds)) }
 
     override suspend fun crewRunResult(postId: Long): Outcome<CrewRunResult> =
         ApiErrorMapper.call { api.result(postId).toDomain() }

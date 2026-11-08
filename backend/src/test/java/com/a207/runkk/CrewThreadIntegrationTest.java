@@ -28,11 +28,14 @@ import com.a207.runkk.crew.CrewPostService;
 import com.a207.runkk.crew.CrewQueryService;
 import com.a207.runkk.crew.CrewRunDraft;
 import com.a207.runkk.crew.CrewRunLiveService;
+import com.a207.runkk.crew.CrewRunLiveSession;
 import com.a207.runkk.crew.CrewRunResultView;
 import com.a207.runkk.crew.CrewRunService;
+import com.a207.runkk.crew.CrewRunStatus;
 import com.a207.runkk.crew.CrewService;
 import com.a207.runkk.crew.CrewVisibility;
 import com.a207.runkk.crew.DecisionResult;
+import com.a207.runkk.crew.FinalProgress;
 import com.a207.runkk.crew.JoinPolicy;
 import com.a207.runkk.crew.JoinRequestStatus;
 import com.a207.runkk.crew.JoinResult;
@@ -262,9 +265,30 @@ class CrewThreadIntegrationTest {
         for (Future<Boolean> f : together(progress)) {
             assertThat(f.get()).isTrue();
         }
-        List<RelayEntry> ranking = sessions.load(postId).orElseThrow().ranking();
-        assertThat(ranking).hasSize(RUNNERS);
-        assertThat(ranking.get(0).distance()).isEqualTo(Distance.ofMeters(190));
+        CrewRunLiveSession live10 = sessions.load(postId).orElseThrow();
+        assertThat(live10.entries())
+                .extracting(RelayEntry::memberId)
+                .as("입장 순")
+                .containsExactlyElementsOf(runners);
+        assertThat(live10.totalDistance()).isEqualTo(Distance.ofMeters(1_450));
+
+        List<Callable<Boolean>> quitsAtOnce = new ArrayList<>();
+        for (long m : runners) {
+            quitsAtOnce.add(
+                    () -> {
+                        crewRuns.quit(
+                                m,
+                                postId,
+                                new FinalProgress(
+                                        Distance.ofMeters(1_000), Duration.ofSeconds(300)));
+                        return true;
+                    });
+        }
+        for (Future<Boolean> f : together(quitsAtOnce)) {
+            assertThat(f.get()).isTrue();
+        }
+        assertThat(sessions.load(postId).orElseThrow().entries())
+                .allMatch(e -> e.state() == RelayEntry.State.ENDED);
 
         List<Callable<Long>> uploadsAtOnce = new ArrayList<>();
         for (int i = 0; i < RUNNERS; i++) {
@@ -283,11 +307,16 @@ class CrewThreadIntegrationTest {
         crewRuns.tick(start.plusMinutes(15));
 
         CrewRunResultView result = crewRuns.result(leader, postId);
-        assertThat(result.finisherCount()).isEqualTo(RUNNERS);
-        assertThat(result.runners())
-                .extracting(CrewRunResultView.Line::rank)
-                .containsExactly(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
-        assertThat(result.runners().get(0).name()).isNotEqualTo(DisplayName.WITHDRAWN);
+        assertThat(result.status()).isEqualTo(CrewRunStatus.FINISHED);
+        assertThat(result.participants())
+                .extracting(CrewRunResultView.Line::memberId)
+                .containsExactlyElementsOf(runners);
+        assertThat(result.participants())
+                .extracting(l -> l.distance().meters())
+                .containsOnly(1_000L);
+        assertThat(result.totalDistance()).isEqualTo(Distance.ofMeters(10_000));
+        assertThat(result.myRecordId()).isNotNull();
+        assertThat(result.participants().get(0).name()).isNotEqualTo(DisplayName.WITHDRAWN);
         assertThat(result.crewContribution()).isEqualTo(Distance.ofMeters(10_000));
         assertThat(result.firstCrewRun()).isTrue();
         assertThat(sessions.load(postId)).isEmpty();

@@ -31,11 +31,6 @@ class RunSession(val spec: RunStartSpec) {
     var gapMeters: Int? = null
         private set
 
-    /** 크루런 순위. RankGuidanceRule 입력. RunCoach가 RunTracker의 락 밖에서 읽는다. */
-    @Volatile
-    var rank: CrewRank? = null
-        private set
-
     /** 측정 시작 일시. 시작 전이면 null. */
     var startedAt: Instant? = null
         private set
@@ -160,7 +155,7 @@ class RunSession(val spec: RunStartSpec) {
     }
 
     /**
-     * 일시정지(FR-194): 자유런 RUNNING → PAUSED. 폰 버튼·워치 요청·알림 버튼이 모두 이 연산을 쓴다(D-256, D-260). [at]은 폰 처리 시각이다.
+     * 일시정지(FR-194): 자유런·크루런 RUNNING → PAUSED. 폰 버튼·워치 요청·알림 버튼이 모두 이 연산을 쓴다(D-256, D-260). [at]은 폰 처리 시각이다.
      * 그 밖의 모드·상태면 거짓이고 상태는 그대로다(D-93 (3), D-137).
      */
     fun pause(at: Instant): Boolean {
@@ -222,10 +217,6 @@ class RunSession(val spec: RunStartSpec) {
 
     fun updateGap(meters: Int) {
         gapMeters = meters
-    }
-
-    fun updateRank(rank: CrewRank) {
-        this.rank = rank
     }
 
     /** 열린 정지 구간을 닫고 재개 처리를 한다: 재개 뒤 첫 포인트는 거리를 더하지 않고, 현재 페이스 창을 비운다(D-93 (1)(2)). */
