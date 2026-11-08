@@ -50,7 +50,7 @@ services:
       RUNKK_QUEUE: ${RUNKK_QUEUE:-redis}
       RUNKK_LIVE: ${RUNKK_LIVE:-websocket}
       # 셀카 변환 서버 스위치(application.yml runkk.features.selfie-enabled). false면 관리툴 운영 기준값과 관계없이 셀카 변환을 막는다.
-      # 기본은 꺼짐이다. 베타(prod)는 꺼 두고(2026-10-23 결정), 셀카를 시험하는 develop만 .env에 SELFIE_ENABLED=true를 둔다
+      # 기본은 꺼짐이다. develop은 .env에 SELFIE_ENABLED=true, prod도 2차 배포(11/13)부터 SELFIE_ENABLED=true(2026-11-09 결정)
       SELFIE_ENABLED: ${SELFIE_ENABLED:-false}
       AI_SERVER_URL: http://ai:8000
       # actuator 관리 포트(develop·prod 프로필). 밖으로 열지 않는다. healthcheck·nginx /actuator/health·Prometheus만 부른다

@@ -113,7 +113,7 @@ SSAFY 배정 도메인(`k15a207.p.ssafy.io`)이 EC2를 가리키는지 확인한
 
 ### 셀카 변환 스위치
 
-`SELFIE_ENABLED`(api 환경 변수, `application.yml runkk.features.selfie-enabled`)는 서버 스위치입니다. false면 관리툴의 운영 기준값 "셀카생성사용"이 켜져 있어도 셀카 변환을 막고(SELFIE_DISABLED) 앱에는 셀카 단추가 보이지 않습니다. compose 기본값은 꺼짐이라 prod `.env`에 넣지 않아도 꺼지고, 셀카를 시험하는 develop `.env`에만 `SELFIE_ENABLED=true`를 둡니다. 로컬 실행(local 프로필)과 시험은 켜진 채입니다.
+`SELFIE_ENABLED`(api 환경 변수, `application.yml runkk.features.selfie-enabled`)는 서버 스위치입니다. false면 관리툴의 운영 기준값 "셀카생성사용"이 켜져 있어도 셀카 변환을 막고(SELFIE_DISABLED) 앱에는 셀카 단추가 보이지 않습니다. compose 기본값은 꺼짐입니다. develop `.env`와, 2차 배포(11/13)부터는 prod `.env`에도 `SELFIE_ENABLED=true`를 둡니다(2026-11-09 결정). 로컬 실행(local 프로필)과 시험은 켜진 채입니다.
 
 ### 2차 배포 기능 공개 스위치
 
@@ -325,7 +325,7 @@ docker exec runkk-prod-api-1 sh -c 'zcat /var/log/runkk/api.2026-11-03.*.log.gz 
 
 필수: `RUNKK_ENV=prod`, `POSTGRES_VOLUME=runkk-prod_postgres-data`, `REDIS_VOLUME=runkk-prod_redis-data`, `SPRING_PROFILES_ACTIVE=prod`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `REDIS_PASSWORD`, `JWT_SECRET`, `ADMIN_JWT_SECRET`, `RUNKK_INTERNAL_TOKEN`, `RUNKK_AI_DB_PASSWORD`(영숫자, ai 전용 DB 계정 runkk_ai의 비밀번호로 Flyway V29가 첫 배포 때 계정을 만든다. ai `RUNKK_DB_URL`의 비밀번호와 같은 값. 빠지면 compose가 멈춘다), `FRIEND_INVITE_LINK_BASE=https://k15a207.p.ssafy.io/invite/battle`.
 연동(비우면 그 연동만 꺼짐): `KAKAO_APP_ID`(prod 패키지 com.a207.runkk 앱), `GOOGLE_CLIENT_IDS`, `FCM_PROJECT_ID`, `FCM_CREDENTIALS_FILE=/run/secrets/fcm-service-account.json`, `KMA_SERVICE_KEY`, `RUNKK_BOOTSTRAP_OPERATORS`, ai의 `RUNKK_LLM_*`·`RUNKK_ANTHROPIC_*`·`RUNKK_FACE_*`.
-넣지 않음: `SWAGGER_ENABLED`(넣으면 false만), `SELFIE_ENABLED`(기본 꺼짐), `SERVER_NAME`·`NGINX_*`·`GRAFANA_*`(에지 값).
+넣지 않음: `SWAGGER_ENABLED`(넣으면 false만), `SERVER_NAME`·`NGINX_*`·`GRAFANA_*`(에지 값). 2차 배포(11/13)부터 `SELFIE_ENABLED=true`는 넣습니다.
 선택: `DB_POOL_SIZE`, `SCHEDULER_POOL_SIZE`, `AUTH_CLIENT_REQUESTS_PER_MINUTE`, `RUNKK_QUEUE`, `RUNKK_LIVE`, `API_MEM_LIMIT`, `API_JAVA_OPTS`, `BACKUP_TIME`, `BACKUP_KEEP_DAYS`, `BACKUP_DIR`, `BACKUP_OWNER`, `LEGAL_*`.
 
 ## 10. 친구 대결 초대 링크 (v0.14, 설계 05-06 D-219, 05-08 D-293·6절)
