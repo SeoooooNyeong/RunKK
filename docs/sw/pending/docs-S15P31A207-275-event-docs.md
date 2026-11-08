@@ -1,6 +1,6 @@
 # 병합 대기: docs/S15P31A207-275-event-docs
 
-> 작성: 2026-11-08 | 작성자: 이성현 | 스킬: sw-srs, sw-design-oo, sw-code-review
+> 작성: 2026-11-08 | 작성자: 이성현 | 스킬: sw-srs, sw-design-oo, sw-code-review, sw-test
 
 이벤트 기능(코치님 이벤트, 베타 1km 이벤트, 알림함 진입점, 상세 웹 화면)의 요구사항과 객체지향 설계를 사후 문서화했다. 코드는 핫픽스 0.11.4 `hotfix/S15P31A207-275-v0114-coach-celeb`(MR !90, 7558f6f4..d824b2a2)에 먼저 들어갔다. 이 문서 브랜치는 origin/develop(55cfd678) 기준이다. 정식 번호와 산출물 버전(srs 다음 판, design-oo 다음 판)은 `/sw-sdlc merge` 때 매긴다.
 
@@ -44,6 +44,7 @@ MR !90(origin/main...d824b2a2)을 리뷰했다. 치명 0, 주요 2, 경미 10, �
 
 ## 고친 조각
 
+- (시험 추가) test/이벤트-성.md: 새 조각. 이벤트 시험 [임시:TC-성-1]~[임시:TC-성-138](단위 서버 59, 단위 앱 36, 통합 T-EV-1~T-EV-4와 마이그레이션, 구조, 계약 21, 검증 10, 시스템 12), 화이트박스 4함수(EventConfig.parse V(G) 12 리팩터링 권고), 배포 뒤 실기기 확인 체크리스트(8절 15항목), 보강 필요 목록(9절), 실행 결과(10절), FR → TC 추적(11절), 기존 케이스 영향(12절).
 - (코드 리뷰 뒤 추가) code-review/이벤트-1차-성.md: 새 조각. 이벤트 1차 코드 리뷰(결함 [임시:EV-성-1]~[임시:EV-성-17], 수정과 검증, 응모자 명단 API, 당첨 알림 기능 확인).
 - (코드 리뷰 뒤 추가) srs/03-07-운영-관리.md: [임시:FR-성-10] 주소 규칙을 상대 경로 전용으로(E3 해소), 새 [임시:FR-성-14] 이벤트 응모자 명단 조회, FR-173 DFD 행에 [임시:FR-성-14], 3.7.2, 3.7.3 제목 줄이 「응모기준거리응모기준거리」로 깨져 있던 것을 「####」로 되돌림.
 - (코드 리뷰 뒤 추가) srs/07-19-변경-요청-CR-이벤트-성.md: 새 요구 목록에 [임시:FR-성-14], 구현 대조 두 줄과 메모 E1, E2, E3, E7에 처리 결과.
@@ -88,8 +89,9 @@ MR !90(origin/main...d824b2a2)을 리뷰했다. 치명 0, 주요 2, 경미 10, �
 | [임시:FR-성-14] | FR | 이벤트 응모자 명단 조회(관리, 추첨용, 코드 리뷰 뒤 추가) | srs/03-07 3.7.2 |
 | [임시:D-성-18] | D | 응모자 명단은 관리 API, 조회 때 한 번에 계산(EventEntrantService) | design-oo/05-24 1.2 |
 | [임시:EV-성-1]~[임시:EV-성-17] | 결함 | 이벤트 1차 코드 리뷰 결함(위 표) | code-review/이벤트-1차-성 2절 |
+| [임시:TC-성-1]~[임시:TC-성-138] | TC | 이벤트 시험 케이스(자동 대응 93: 전부 84, 일부 9. 자동 시험 없음 22. 수동 23) | test/이벤트-성 2~7절 |
 
-번호 아닌 새 식별자(병합 때 확인): srs 절 7.13.22, 3.7.2, 3.7.3, 6.4.10, DFD 프로세스 7.9 이벤트 관리, 7.10 이벤트 조회, 7.11 이벤트 포인트 지급, 새 저장소 「이벤트 파일」(저장소 번호 D20 후보), 위험 메모 E1~E7(07-19 7.13.22.6, `/sw-plan`이 R 번호로), 리뷰 항목 R1~R9(05-24 10절, 설계 검토 R 번호와 별개라 병합 때 접두어를 정한다), 통합 시험 스레드 후보 T-EV-1~T-EV-3.
+번호 아닌 새 식별자(병합 때 확인): 통합 시험 스레드 T-EV-1~T-EV-4(test/이벤트-성 5절, 기존 최대 T-62 다음 번호로), srs 절 7.13.22, 3.7.2, 3.7.3, 6.4.10, DFD 프로세스 7.9 이벤트 관리, 7.10 이벤트 조회, 7.11 이벤트 포인트 지급, 새 저장소 「이벤트 파일」(저장소 번호 D20 후보), 위험 메모 E1~E7(07-19 7.13.22.6, `/sw-plan`이 R 번호로), 리뷰 항목 R1~R9(05-24 10절, 설계 검토 R 번호와 별개라 병합 때 접두어를 정한다), 통합 시험 스레드 후보 T-EV-1~T-EV-3.
 
 설계 결정 목록: D-성-1 목록은 앱 화면, 상세는 정적 웹 페이지 웹뷰 / D-성-2 nginx `location ^~ /events/`, 캐시 60초 / D-성-3 이벤트 종류 enum 둘과 config JSON / D-성-4 응모는 저장하지 않고 조회 때 계산, 기간 한국 시간 양 끝 포함 / D-성-5 셀럽 첫 승리 조회를 battle이 제공 / D-성-6 기록 거리는 running 기존 조회 / D-성-7 코치 승리 포인트는 BattleJudged 커밋 뒤 리스너, 실패는 로그만, 미지급 자가 보충 / D-성-8 이벤트 포인트 하루 상한 제외(AccrualReason.EVENT) / D-성-9 관리 API web.admin.event / D-성-10 감사는 SETTING_CHANGE 재사용(develop V37 audit 제약 때문) / D-성-11 V35_2 out-of-order와 시드 / D-성-12 웹 화면 보안(같은 출처 브리지, 다른 출처 차단) / D-성-13 로그인 정보 전달과 화면 열기 / D-성-14 이벤트 주소는 상대 경로만, 그림 직접 받기 / D-성-15 알림함 항목과 본 이벤트 기기 사본, 홈 점 칸 / D-성-16 패키지 배치 / D-성-17 코치 캐릭터 JOO, KIM.
 
@@ -110,7 +112,7 @@ MR !90(origin/main...d824b2a2)을 리뷰했다. 치명 0, 주요 2, 경미 10, �
 | design-oo/06-06 계열 | 앱 요약에 ui.notification 이벤트 화면, api.notification 이벤트 포트, core.navigation 경로 RECORD_RUN_CELEB, EVENTS, EventDetail과 SlotKey.HOME_INBOX_DOT |
 | design-oo/07-11-UML-다이어그램.md | 상태 표에 이벤트 진행상태 행, 시퀀스 목록에 [임시:SQ-성-1], [임시:SQ-성-2] |
 | plan.md (`/sw-plan`) | 3.1 범위에 이벤트 추가, 하지 않는 일에 경품 추첨과 발송(운영 업무), 위험 E1, E2, E6, E7 |
-| test.md (`/sw-test`) | 07-11 이벤트 행의 테스트 열. 코드 시험(EventServiceTest 8, CoachWinPointListenerTest 5, EventControllerTest 3, EventMigrationIntegrationTest 2, 앱 EventTest 10, EventRepositoryImplTest 5, EventScreenshotTest 4, InboxTest, DataStoreSettingsRepositoryTest)을 TC로 올리고 NFR 실기기 시험을 더한다 |
+| test.md (`/sw-test`) | (2026-11-08 sw-test 처리함: test/이벤트-성.md. 아래 「시험 추가」 행들로 옮김) 07-11 이벤트 행의 테스트 열. 코드 시험(EventServiceTest 8, CoachWinPointListenerTest 5, EventControllerTest 3, EventMigrationIntegrationTest 2, 앱 EventTest 10, EventRepositoryImplTest 5, EventScreenshotTest 4, InboxTest, DataStoreSettingsRepositoryTest)을 TC로 올리고 NFR 실기기 시험을 더한다 |
 | 핫픽스 → develop 역병합 MR | 서버 ArchitectureTest 패키지 수 develop 68 + 4 = 72(PACKAGES 목록 양쪽 변경 합침), 허용 표에 event → member(응모자 명단) 포함, 앱 허용 쌍 160 확인, V35_2가 develop에서 out-of-order로 적용되는지 확인. **MR !90 병합 직후 바로 올리고, 그 전까지 develop, release 배포를 멈춘다**(공용 에지 nginx 설정을 덮어 prod /events/가 사라짐, [임시:EV-성-5]) |
 | code-review.md (코드 리뷰 뒤 추가) | 머리 헤더 입력란에 "코드 hotfix/S15P31A207-275-v0114-coach-celeb origin/main...d824b2a2(MR !90 이벤트 1차), 수정 d221fd54, 2f99b573, 응모자 명단 d06641bb, code-review/이벤트-1차-성.md". 끝의 협업 조각 표에 행 `[이벤트-1차-성](code-review/이벤트-1차-성.md) | event, infra.event, web.event, web.admin.event, battle 경계, reward EVENT, V35_2, nginx /events/, 정적 페이지, 앱 이벤트 화면과 브리지 | 치명 0, 주요 2(1 수정, 1 배포 절차), 경미 10(7 수정), 제안 4, 확인 필요 1, 합격(조건부 배포) | 설계 05-24 D-성-9 갱신, 새 D-성-18`. 임시 결함 번호 [임시:EV-성-1]~[임시:EV-성-17]을 정식 번호로(다음 PL 계열). 버전 올림 |
 | srs/07-03 (코드 리뷰 뒤 추가) | 위 07-03 행에서 E1은 「관리 API 명단([임시:FR-성-14]) 확정, 기간 종료 직후 명단 보관 절차만 남음」으로, E2는 「앱 알림 + 구글 폼 확정, 구글 폼 연락처 수집 동의와 처리방침, 운영자 알림 발송 기능 없음」으로 바꾼다 |
@@ -121,7 +123,13 @@ MR !90(origin/main...d824b2a2)을 리뷰했다. 치명 0, 주요 2, 경미 10, �
 | design-oo/05-03 (코드 리뷰 뒤 추가) | 5.7.1 API 표에 `GET /admin/events/{id}/entrants`(운영자, 쿼리 celebrityId, cursor, size, 응답 EventEntrants, 오류 400, 404 EVENT_NOT_FOUND) 1행 |
 | design-oo/12-의존도 (코드 리뷰 뒤 추가) | 12.4 이벤트 문단에 event → member(MemberQueryService.activeNicknames, 데이터 결합) 화살표 |
 | design-oo/06-01-클래스-common-member.md (이성현) | MemberQueryService.activeNicknames(Collection<Long>): Map<Long, String>(ACTIVE만), MemberRepository.activeNicknames. 소비자 event.EventEntrantService |
-| test.md (`/sw-test`, 코드 리뷰 뒤 추가) | code-review/이벤트-1차-성 8절 우선 시험 대상, 새 시험(EventServiceTest 8, CoachWinPointListenerTest 6, EventEntrantServiceTest 3, EventControllerTest 5, JpaRunningRepositoriesIntegrationTest 보탬, 앱 EventTest 12), 실기기: CSP 아래 두 페이지 표시 |
+| test.md (`/sw-test`, 코드 리뷰 뒤 추가) | (2026-11-08 sw-test 처리함: test/이벤트-성.md 4절 화이트박스, 2, 3, 5절 대응, 7절 TC-성-131, TC-성-132) code-review/이벤트-1차-성 8절 우선 시험 대상, 새 시험(EventServiceTest 8, CoachWinPointListenerTest 6, EventEntrantServiceTest 3, EventControllerTest 5, JpaRunningRepositoriesIntegrationTest 보탬, 앱 EventTest 12), 실기기: CSP 아래 두 페이지 표시 |
+| srs/07-11 「이벤트 행」 테스트 케이스 열 (시험 추가) | 빈 테스트 열을 채운다(임시 번호는 병합 때 정식 TC 번호로). [임시:FR-성-1] → [임시:TC-성-1]~[임시:TC-성-5], [임시:TC-성-24], [임시:TC-성-60], [임시:TC-성-61], [임시:TC-성-66]~[임시:TC-성-73], [임시:TC-성-91]~[임시:TC-성-93], [임시:TC-성-95], [임시:TC-성-96], [임시:TC-성-98], [임시:TC-성-117]. [임시:FR-성-2] → [임시:TC-성-74]~[임시:TC-성-76], [임시:TC-성-94], [임시:TC-성-117]. [임시:FR-성-3] → [임시:TC-성-63], [임시:TC-성-65], [임시:TC-성-66], [임시:TC-성-68], [임시:TC-성-74], [임시:TC-성-76]~[임시:TC-성-79], [임시:TC-성-94]. [임시:FR-성-4] → [임시:TC-성-69], [임시:TC-성-80], [임시:TC-성-81], [임시:TC-성-95], [임시:TC-성-122]~[임시:TC-성-124], [임시:TC-성-136]. [임시:FR-성-5] → [임시:TC-성-25], [임시:TC-성-26], [임시:TC-성-62], [임시:TC-성-80], [임시:TC-성-97], [임시:TC-성-99], [임시:TC-성-122], [임시:TC-성-124]. [임시:FR-성-6] → [임시:TC-성-5], [임시:TC-성-26]~[임시:TC-성-30], [임시:TC-성-99], [임시:TC-성-117], [임시:TC-성-138]. [임시:FR-성-7] → [임시:TC-성-5], [임시:TC-성-15], [임시:TC-성-31]~[임시:TC-성-38], [임시:TC-성-111], [임시:TC-성-118], [임시:TC-성-119]. [임시:FR-성-8] → [임시:TC-성-39]~[임시:TC-성-51], [임시:TC-성-100], [임시:TC-성-112], [임시:TC-성-117]. [임시:FR-성-9] → [임시:TC-성-23], [임시:TC-성-101]. [임시:FR-성-10] → [임시:TC-성-6]~[임시:TC-성-19], [임시:TC-성-96], [임시:TC-성-101]~[임시:TC-성-105]. [임시:FR-성-11] → [임시:TC-성-19]~[임시:TC-성-21], [임시:TC-성-101], [임시:TC-성-121]. [임시:FR-성-12] → [임시:TC-성-19], [임시:TC-성-22], [임시:TC-성-25], [임시:TC-성-47], [임시:TC-성-48], [임시:TC-성-97], [임시:TC-성-101]. [임시:FR-성-13] → [임시:TC-성-84], [임시:TC-성-89], [임시:TC-성-90], [임시:TC-성-95], [임시:TC-성-117], [임시:TC-성-118], [임시:TC-성-120], [임시:TC-성-125], [임시:TC-성-126]. [임시:FR-성-14](코드 리뷰 뒤 추가 행) → [임시:TC-성-52]~[임시:TC-성-59], [임시:TC-성-106]~[임시:TC-성-111], [임시:TC-성-138]. [임시:NFR-성-1] → [임시:TC-성-82]~[임시:TC-성-87], [임시:TC-성-127], [임시:TC-성-128]. [임시:NFR-성-2] → [임시:TC-성-61], [임시:TC-성-64], [임시:TC-성-88], [임시:TC-성-129]~[임시:TC-성-132]. [임시:NFR-성-3] → [임시:TC-성-131], [임시:TC-성-133], [임시:TC-성-134], [임시:TC-성-137]. 「바뀐 기존 행」 문단: FR-159 테스트 +[임시:TC-성-41], [임시:TC-성-42], FR-176 +[임시:TC-성-19], [임시:TC-성-121], FR-178 +[임시:TC-성-74], [임시:TC-성-94], [임시:TC-성-95]. 제약 [임시:C-성-1]은 07-11에 행이 없으므로 test/06 추적표에만 [임시:TC-성-132], [임시:TC-성-135]를 적는다 |
+| test.md (시험 추가) | 머리 헤더 입력란에 "test/이벤트-성.md(이성현 2026-11-08, 핫픽스 0.11.4 이벤트, srs 3.7.2, design-oo 05-24, code-review/이벤트-1차-성, 코드 hotfix d06641bb 시험 재실행)". 문서 상태에 한 문단: 이벤트 138개(자동 대응 93: 전부 84, 일부 9. 자동 시험 없음 22. 수동 23), 계획 완성, 새 FR 14, NFR 3, C 1 미커버 0, EventConfig.parse V(G) 12 리팩터링 권고, 실기기 체크리스트 15항목 미실행. 목차 표에 행 `[이벤트-성](test/이벤트-성.md) | 이벤트 시험(이성현, S15P31A207-275, 2026-11-08, hotfix d06641bb) | TC-성-1~138 정식 번호(138) | 계획 완성. 자동 대응분 재실행 통과, 보강 필요 22, 수동 23 미실행`. 1장 수준표 TC 수에 단위 95, 통합 21, 검증 10, 시스템 12를 더한다. 버전 올림 |
+| test/01-계획.md (시험 추가) | 번호 대역 표에 이벤트 138개의 정식 대역을 정한다(병합 때 남은 예비 대역에서). 통합 스레드 목록에 T-EV-1~T-EV-4를 정식 T 번호로 |
+| test/06-추적표.md (시험 추가) | 끝에 「이벤트 행」 표를 더한다. 열은 요구 ID, 설계 요소, TC(위 srs/07-11 행과 같은 대응) 그리고 [임시:C-성-1] → [임시:TC-성-132], [임시:TC-성-135] 1행. TC 수 집계 문단에 138을 더한다 |
+| test 기존 조각 (시험 추가, test/이벤트-성 12절) | TC-6535(FR-178 Routes 목록) 기대 결과에 EVENTS, RECORD_RUN_CELEB, EventDetail을 더한다. TC-5683(앱 구조) 폰 159 → 160. TC-9856(서버 의존 구조)은 develop 역병합 MR에서 패키지 수 72로. 모두 "(다음 판 변경)" |
+| code-review(다음 리뷰, 시험 추가) | test/이벤트-성 4.1: EventConfig.parse V(G) 12(10 초과) 리팩터링 권고(종류별 검사 메서드 분리), 독립 경로 B3(enum 기본 갈래) 도달 불가. 4.2: CoachWinPointListener.grant의 dues == null 갈래 도달 불가. 9절 보강 필요 22건 가운데 우선 1~3(sumOn EVENT 제외, 동시 판정, battle 질의 조건)은 다음 코드 MR에서 시험부터 쓴다 |
 
 ## 다른 담당에게 요청
 
