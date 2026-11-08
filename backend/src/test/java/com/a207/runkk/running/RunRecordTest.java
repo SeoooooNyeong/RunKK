@@ -286,6 +286,27 @@ class RunRecordTest {
     }
 
     @Test
+    @org.junit.jupiter.api.DisplayName(
+            "BR-1: 멈춘 크루런 기록도 유효 판정·도달 시간에서 정지 시간을 뺀다(2km 10:00 운동 + 2:00 정지)")
+    void crewRunPauses_excludedFromReachAndValidity() {
+        RunRecord r =
+                RunFixtures.judged(
+                        RunFixtures.pausedCrewRun(
+                                id(1), START, 9L, 2_000, 600, new RunFixtures.Pause(300, 120)));
+        assertThat(r.getMode()).isEqualTo(RunMode.CREW_RUN);
+        assertThat(r.isValid()).isTrue();
+        assertThat(r.pausedTotal()).isEqualTo(Duration.ofMinutes(2));
+        assertThat(r.getElapsed()).isEqualTo(Duration.ofMinutes(10));
+        assertThat(r.timeToArrive(Distance.ofKm(2)).orElseThrow().toSeconds())
+                .isCloseTo(600, within(1L));
+        assertThat(r.timeToReach(Distance.ofKm(1)).orElseThrow().toSeconds())
+                .isCloseTo(300, within(1L));
+        assertThat(r.timeToReach(Distance.ofMeters(1_500)).orElseThrow().toSeconds())
+                .as("정지 뒤 지점도 운동 시간으로 잰다")
+                .isCloseTo(450, within(1L));
+    }
+
+    @Test
     void weatherAndHeartRates() {
         RunRecord r = RunFixtures.valid5k(id(1));
         r.attachWeather(null);

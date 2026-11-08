@@ -133,11 +133,11 @@ public class RunRecord {
     @Column(name = "saved_at", nullable = false, updatable = false)
     private LocalDateTime savedAt;
 
-    /** 정지 구간 "시작;끝" 줄 목록(자유런만, V21). */
+    /** 정지 구간 "시작;끝" 줄 목록(자유런·크루런만, V21·V43). */
     @Column(name = "pauses", nullable = false, updatable = false, columnDefinition = "text")
     private String pausesData;
 
-    /** 정지 구간 길이의 합(ms). 자유런이 아니면 0(ck_run_record_pause, V21). */
+    /** 정지 구간 길이의 합(ms). 대결이면 0(ck_run_record_pause, V21·V43). */
     @Column(name = "paused_millis", nullable = false, updatable = false)
     private long pausedMillis;
 

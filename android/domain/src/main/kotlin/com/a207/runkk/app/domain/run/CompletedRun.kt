@@ -22,7 +22,7 @@ data class CompletedRun(
     val route: List<RoutePoint>,
     val unstable: List<UnstableSegment>,
     val heartRates: List<HeartRateSample>,
-    /** 정지 구간(자유런만, FR-194). [elapsed]는 이 구간을 뺀 운동 시간이다. */
+    /** 정지 구간(자유런·크루런만, FR-194·FR-300). [elapsed]는 이 구간을 뺀 운동 시간이다. */
     val pauses: List<PauseInterval> = emptyList(),
     /** 기록을 시작한 기기(RunStartSpec.startDevice, D-378, W23). 서버 기록에 함께 저장된다. */
     val startDevice: RunStartSpec.StartDevice = RunStartSpec.StartDevice.PHONE,

@@ -124,8 +124,8 @@ public class RunController {
      * @param points 위치 포인트
      * @param unstableSegments 불안정 구간
      * @param heartRates 심박
-     * @param pauses 자유 러닝 정지 구간(v0.11 FR-036, D-93), null·빈 목록이면 정지 없음. 규칙 위반은 RunUpload 생성자가
-     *     IllegalArgumentException(400)으로 거부한다(F.2.2, D-163)
+     * @param pauses 자유런·크루런 정지 구간(v0.11 FR-036, D-93, FR-300), null·빈 목록이면 정지 없음. 규칙 위반은 RunUpload
+     *     생성자가 IllegalArgumentException(400)으로 거부한다(F.2.2, D-163)
      * @param startDevice 기록을 시작한 기기(선택, W23, D-378). 없거나 null이면 PHONE(옛 앱), 모르는 값은 400
      * @param motions 기기가 잰 속도·케이던스(선택, S15P31A207-242). 없거나 null이면 없음(옛 앱). 값이 없거나 잘못된 표본은 버린다
      */

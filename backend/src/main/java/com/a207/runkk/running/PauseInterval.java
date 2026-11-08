@@ -4,7 +4,8 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 
 /**
- * 자유런의 정지 구간 하나(설계 6.1.3, 자료사전 정지구간, FR-036, FR-194, D-93). JSON은 {@code pauses[{from, to}]}다.
+ * 자유런·크루런의 정지 구간 하나(설계 6.1.3, 자료사전 정지구간, FR-036, FR-194, FR-300, D-93). JSON은 {@code pauses[{from,
+ * to}]}다.
  *
  * @param from 정지 시작 일시
  * @param to 재개(또는 종료) 일시, from 이후

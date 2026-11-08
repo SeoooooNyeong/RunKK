@@ -100,6 +100,32 @@ class RunUploadRemoteImplTest {
     }
 
     @Test
+    fun `멈춘 크루런 기록도 정지 구간을 실어 보낸다(FR-300, 서버 F_2_2가 CREW_RUN 정지를 받는다, MR !91 BR-1)`() {
+        val crewRun =
+            RUN.copy(
+                mode = RunMode.CREW_RUN,
+                cardKind = CardKind.CREW_RUN,
+                battleId = null,
+                crewRunPostId = 9,
+                startedAt = Instant.parse("2026-10-22T10:00:00Z"),
+                elapsed = Duration.ofMinutes(20),
+                pauses = listOf(
+                    PauseInterval(Instant.parse("2026-10-22T10:10:00Z"), Instant.parse("2026-10-22T10:12:00Z"))
+                )
+            )
+
+        val request = crewRun.toRequest()
+
+        assertEquals("CREW_RUN", request.mode)
+        assertEquals(9L, request.crewRunPostId)
+        assertEquals(
+            listOf(RunUploadRequest.Pause("2026-10-22T19:10:00+09:00", "2026-10-22T19:12:00+09:00")),
+            request.pauses
+        )
+        assertEquals("2026-10-22T19:22:00+09:00", request.endedAt, "20분 운동 + 2분 정지")
+    }
+
+    @Test
     fun `전송 JSON에는 위치·심박이 그 항목에만 있다`() {
         val json = api.json.encodeToString(RunUploadRequest.serializer(), RUN.toRequest())
         val keys = Json.parseToJsonElement(json).let { it as kotlinx.serialization.json.JsonObject }.keys

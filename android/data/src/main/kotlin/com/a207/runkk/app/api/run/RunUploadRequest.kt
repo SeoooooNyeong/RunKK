@@ -30,7 +30,7 @@ internal data class RunUploadRequest(
     @Serializable
     data class Motion(val measuredAt: String, val speedMps: Double?, val cadenceSpm: Double?)
 
-    /** 정지 구간(서버 RunController.PauseRequest, FR-194). 자유런만 비어 있지 않다. */
+    /** 정지 구간(서버 RunController.PauseRequest, FR-194). 자유런·크루런만 비어 있지 않다(FR-300). */
     @Serializable
     data class Pause(val from: String, val to: String)
 

@@ -237,6 +237,13 @@ class RunControllerTest extends WebTestSupport {
         battle.put("battleId", 1);
         battle.put("pauses", List.of(pause(a, b)));
         expectStatus(s, battle, 400);
+        // MR !91 BR-1: 크루런은 각자 일시정지하므로(FR-300) 정지 구간을 받는다
+        Map<String, Object> crewRun = run(UUID.randomUUID().toString(), 5_000, 1_500);
+        crewRun.put("mode", "CREW_RUN");
+        crewRun.put("cardKind", "CREW_RUN");
+        crewRun.put("crewRunPostId", 1);
+        crewRun.put("pauses", List.of(pause(a, b)));
+        expectStatus(s, crewRun, 200);
 
         List<Map<String, Object>> many = new java.util.ArrayList<>();
         for (int i = 0; i < 101; i++) {

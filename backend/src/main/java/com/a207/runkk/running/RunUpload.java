@@ -21,7 +21,8 @@ import java.util.List;
  * @param points 위치 포인트
  * @param unstableSegments 불안정 구간
  * @param heartRates 심박 측정값(없을 수 있음)
- * @param pauses 정지 구간(자유런만, null·빈 목록 = 정지 없음). elapsed는 정지 시간을 뺀 운동 시간이다(FR-036, FR-194)
+ * @param pauses 정지 구간(자유런·크루런만, null·빈 목록 = 정지 없음). elapsed는 정지 시간을 뺀 운동 시간이다(FR-036, FR-194, 크루런은
+ *     FR-300)
  * @param startDevice 기록을 시작한 기기(W23, D-378). null(옛 앱) = PHONE
  * @param motions 기기가 잰 속도·케이던스 표본(S15P31A207-242). null(옛 앱)·빈 목록 = 없음
  */
@@ -47,8 +48,9 @@ public record RunUpload(
     public static final int MAX_PAUSES = 100;
 
     /**
-     * 정지 구간 검사(설계 6.1.3 RunUpload, F.2.2, D-163): 자유런만 비어 있지 않을 수 있다, 최대 100개, startedAt ≤ from, to
-     * ≤ endedAt, 시간순이고 겹치거나 맞닿지 않는다(앞 구간 to &lt; 뒤 구간 from). 위반은 IllegalArgumentException(→ 400).
+     * 정지 구간 검사(설계 6.1.3 RunUpload, F.2.2, D-163): 자유런·크루런만 비어 있지 않을 수 있다(대결은 정지가 없다), 최대 100개,
+     * startedAt ≤ from, to ≤ endedAt, 시간순이고 겹치거나 맞닿지 않는다(앞 구간 to &lt; 뒤 구간 from). 위반은
+     * IllegalArgumentException(→ 400).
      */
     public RunUpload {
         points = points == null ? List.of() : List.copyOf(points);
@@ -130,7 +132,7 @@ public record RunUpload(
                 StartDevice.PHONE);
     }
 
-    /** 정지 구간이 없는 기록(대결·크루런, 정지 없는 자유런). */
+    /** 정지 구간이 없는 기록(대결, 정지 없는 자유런·크루런). */
     public RunUpload(
             String recordId,
             LocalDateTime startedAt,
@@ -174,10 +176,13 @@ public record RunUpload(
         }
     }
 
-    /** 정지 구간은 자유런에만 있고 {@value #MAX_PAUSES}개까지다. */
+    /**
+     * 정지 구간은 자유런과 크루런(합산 방식이라 각자 멈춘다, FR-300, MR !91 BR-1)에만 있고 {@value #MAX_PAUSES}개까지다. 대결은 상대와
+     * 같은 시계로 겨루므로 정지가 없다.
+     */
     private static void requireAllowed(List<PauseInterval> pauses, RunMode mode) {
-        if (mode != RunMode.FREE) {
-            throw new IllegalArgumentException("정지 구간은 자유런에만 있다");
+        if (mode == RunMode.BATTLE) {
+            throw new IllegalArgumentException("대결에는 정지 구간이 없다");
         }
         if (pauses.size() > MAX_PAUSES) {
             throw new IllegalArgumentException("정지 구간은 " + MAX_PAUSES + "개까지");

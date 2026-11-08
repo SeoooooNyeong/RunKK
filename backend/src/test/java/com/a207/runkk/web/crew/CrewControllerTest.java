@@ -335,6 +335,124 @@ class CrewControllerTest extends WebTestSupport {
         assertThat(membershipService.expireRequests(LocalDateTime.now())).isZero();
     }
 
+    /** 크루런 모집글 하나를 만들고 두 사람이 대기실에 들어가 준비한 뒤 출발시킨다. 모집글 ID. */
+    private long departedCrewRun(Session leader, Session a, long crewId, LocalDateTime scheduledAt)
+            throws Exception {
+        long run =
+                json(call(
+                                leader,
+                                post("/api/v1/crews/" + crewId + "/posts"),
+                                Map.of(
+                                        "kind",
+                                        "CREW_RUN",
+                                        "body",
+                                        "3km 같이 달려요",
+                                        "distanceMeters",
+                                        3000,
+                                        "meetAt",
+                                        at(scheduledAt))))
+                        .get("id")
+                        .asLong();
+        call(a, put("/api/v1/posts/" + run + "/attendance"), Map.of("answer", "GOING"));
+        for (Session s : List.of(leader, a)) {
+            call(s, post("/api/v1/crew-runs/" + run + "/lobby/enter"), null);
+            call(s, post("/api/v1/crew-runs/" + run + "/lobby/ready"), null);
+        }
+        crewRunService.tick(scheduledAt);
+        return run;
+    }
+
+    private static String at(LocalDateTime t) {
+        return t.atZone(java.time.ZoneId.of("Asia/Seoul")).toOffsetDateTime().toString();
+    }
+
+    /** POST /runs 본문(앱 RunUploadRequest와 같은 모양). */
+    private static Map<String, Object> runBody(RunUpload u) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("recordId", u.recordId());
+        body.put("startedAt", at(u.startedAt()));
+        body.put("endedAt", at(u.endedAt()));
+        body.put("distanceMeters", u.distance().meters());
+        body.put("elapsedMillis", u.elapsed().toMillis());
+        body.put("mode", u.mode().name());
+        body.put("cardKind", u.cardKind().name());
+        body.put("crewRunPostId", u.crewRunPostId());
+        body.put("pointCount", u.points().size());
+        body.put(
+                "points",
+                u.points().stream()
+                        .map(
+                                p ->
+                                        Map.of(
+                                                "measuredAt", at(p.measuredAt()),
+                                                "latitude", p.point().latitude(),
+                                                "longitude", p.point().longitude(),
+                                                "accuracyMeters", 5))
+                        .toList());
+        body.put(
+                "pauses",
+                u.pauses().stream()
+                        .map(p -> Map.of("from", at(p.from()), "to", at(p.to())))
+                        .toList());
+        return body;
+    }
+
+    @Test
+    @DisplayName(
+            "BR-1: 한 번 멈춘 크루런 기록도 POST /runs가 받고(200 STORED) 참여에 이어져 결과·주간 레이스에 운동 시간·거리로 들어간다")
+    void pausedCrewRunUpload_isStoredAndLinked() throws Exception {
+        Session leader = signUp();
+        Session a = signUp();
+        long crewId = createCrew(leader, "FREE");
+        call(a, post("/api/v1/crews/join"), Map.of("crewId", crewId));
+        LocalDateTime scheduledAt = LocalDateTime.now().plusMinutes(20).withNano(0);
+        long run = departedCrewRun(leader, a, crewId, scheduledAt);
+        LocalDateTime start = scheduledAt.plusSeconds(3);
+
+        call(a, post("/api/v1/crew-runs/" + run + "/pause"), Map.of("elapsedSeconds", 450))
+                .andExpect(status().isNoContent());
+        RunUpload paused =
+                RunFixtures.pausedCrewRun(
+                        UUID.randomUUID().toString(),
+                        start,
+                        run,
+                        3_000,
+                        900,
+                        new RunFixtures.Pause(450, 120));
+        call(a, post("/api/v1/runs"), runBody(paused))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("STORED"))
+                .andExpect(jsonPath("$.valid").value(true));
+        call(
+                        a,
+                        post("/api/v1/crew-runs/" + run + "/quit"),
+                        Map.of("distanceMeters", 3_000, "elapsedSeconds", 900))
+                .andExpect(status().isNoContent());
+        uploadCrewRun(leader.memberId(), run, start, 3_000);
+        crewRunService.tick(start.plusMinutes(46));
+
+        JsonNode result = json(call(a, get("/api/v1/crew-runs/" + run + "/result"), null));
+        assertThat(result.get("myRecordId").asText())
+                .as("참여 연결(linkRun)")
+                .isEqualTo(paused.recordId());
+        assertThat(result.get("totalDistanceMeters").asLong()).isEqualTo(6_000);
+        assertThat(result.get("raceContributionMeters").asLong()).isEqualTo(6_000);
+        JsonNode mine = null;
+        for (JsonNode p : result.get("participants")) {
+            if (p.get("me").asBoolean()) {
+                mine = p;
+            }
+        }
+        assertThat(mine).isNotNull();
+        assertThat(mine.get("distanceMeters").asLong()).isEqualTo(3_000);
+        assertThat(mine.get("elapsedSeconds").asLong()).as("정지 2분을 뺀 운동 시간").isEqualTo(900);
+        call(a, get("/api/v1/crews/" + crewId + "/race"), null)
+                .andExpect(jsonPath("$.totalMeters").value(6_000));
+        call(a, get("/api/v1/runs/" + paused.recordId()), null)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.pausedSeconds").value(120));
+    }
+
     @Test
     @DisplayName("내 크루(GET /crews/me)·크루 단건(GET /crews/{id})·크루원 본인 표시·대기 중 신청")
     void myCrewAndDetail() throws Exception {

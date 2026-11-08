@@ -96,6 +96,50 @@ public final class RunFixtures {
                 motions);
     }
 
+    /**
+     * 한 번 멈춘 크루런 기록(FR-300, MR !91 BR-1). 운동 runSeconds초 동안 meters를 곧게 달리되 pauseAfter초 지점에서
+     * pauseSeconds초 멈춘다(그 사이 포인트 없음, 재개 시각에 같은 자리 포인트 하나). 종료 = 시작 + 운동 + 정지, elapsed = 운동 시간.
+     */
+    public static RunUpload pausedCrewRun(
+            String id, LocalDateTime start, long postId, long meters, int runSeconds, Pause pause) {
+        double speed = (double) meters / runSeconds;
+        List<LocationPoint> points = new ArrayList<>();
+        for (int i = 0; i <= runSeconds; i++) {
+            long at = i <= pause.after() ? i : i + (long) pause.seconds();
+            points.add(pointAt(start.plusSeconds(at), i * speed));
+            if (i == pause.after()) {
+                points.add(pointAt(start.plusSeconds(at + pause.seconds()), i * speed));
+            }
+        }
+        LocalDateTime from = start.plusSeconds(pause.after());
+        return new RunUpload(
+                id,
+                start,
+                start.plusSeconds((long) runSeconds + pause.seconds()),
+                Distance.ofMeters(meters),
+                Duration.ofSeconds(runSeconds),
+                RunMode.CREW_RUN,
+                CardKind.CREW_RUN,
+                null,
+                postId,
+                points.size(),
+                points,
+                List.of(),
+                List.of(),
+                List.of(new PauseInterval(from, from.plusSeconds(pause.seconds()))));
+    }
+
+    /** {@link #pausedCrewRun}의 정지: 운동 after초 지점에서 seconds초. */
+    public record Pause(int after, int seconds) {}
+
+    private static LocationPoint pointAt(LocalDateTime at, double northMeters) {
+        return new LocationPoint(
+                at,
+                new GeoPoint(37.5 + northMeters / METERS_PER_DEGREE, 127.0),
+                5.0,
+                SignalState.NORMAL);
+    }
+
     /** 5km 25:00(유효, VDOT 약 38.3). */
     public static RunRecord valid5k(String id) {
         return judged(upload(id, 5_000, 1_500));
