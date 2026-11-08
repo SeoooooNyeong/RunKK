@@ -40,7 +40,6 @@ import com.a207.runkk.app.core.designsystem.AvatarBackdrop
 import com.a207.runkk.app.core.designsystem.AvatarCharacter
 import com.a207.runkk.app.core.designsystem.AvatarExpression
 import com.a207.runkk.app.core.designsystem.RunResultDetail
-import com.a207.runkk.app.core.designsystem.RunResultDetailState
 import com.a207.runkk.app.core.designsystem.RunkkAvatar
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
@@ -54,7 +53,8 @@ import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.crew.CrewRunResult
-import com.a207.runkk.app.domain.record.RecordDetail
+import com.a207.runkk.app.ui.share.RecordResultDetail
+import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -264,7 +264,7 @@ private fun ParticipantCard(participants: List<CrewRunResult.Participant>) {
 
 /** 상세 쪽(F-16b): 러닝 결과 상세(D-282)와 같은 항목(내 기록), "‹ 크루런 결과로". 기록이 아직 올라가지 않았으면 기다림 문구. */
 @Composable
-private fun DetailPage(detail: RecordDetail?, onBack: () -> Unit) {
+private fun DetailPage(detail: RecordResultDetail?, onBack: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -274,7 +274,7 @@ private fun DetailPage(detail: RecordDetail?, onBack: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         if (detail != null) {
-            RunResultDetail(detail.toDetailState())
+            RunResultDetail(detail.state.copy(dateLine = dateLine(detail.startedAt)))
         } else {
             Text(
                 stringResource(R.string.crew_run_result_detail_waiting),
@@ -295,27 +295,12 @@ private fun DetailPage(detail: RecordDetail?, onBack: () -> Unit) {
     }
 }
 
-/** 기록 상세 → 결과 상세 한 장(대결 결과 2쪽과 같다). 날짜 줄은 "11.07 금 · 오후 9:00 · 크루런". */
+/** 결과 상세 날짜 줄 "11.07 금 · 오후 9:00 · 크루런"(대결 결과 2쪽과 같은 형식). */
 @Composable
-private fun RecordDetail.toDetailState(): RunResultDetailState {
+private fun dateLine(startedAt: Instant): String {
     val pattern = stringResource(R.string.crew_run_result_date_pattern)
-    val date = DateTimeFormatter.ofPattern(
-        pattern,
-        Locale.KOREAN
-    ).format(summary.startedAt.atZone(ZoneId.systemDefault()))
-    return RunResultDetailState(
-        distance = summary.distance,
-        dateLine = "$date · ${stringResource(R.string.crew_run_result_kind)}",
-        elapsed = summary.elapsed,
-        rest = paused.takeIf { !it.isZero },
-        averagePace = summary.averagePace,
-        averageHeartRate = averageHeartRate,
-        splitPaces = splitPaces,
-        heartRateZones = heartRateZones.toList(),
-        newRecords = newRecords,
-        rewardPoints = rewardPoints,
-        expression = AvatarExpression.JUMP
-    )
+    val date = DateTimeFormatter.ofPattern(pattern, Locale.KOREAN).format(startedAt.atZone(ZoneId.systemDefault()))
+    return "$date · ${stringResource(R.string.crew_run_result_kind)}"
 }
 
 /** 쪽 점 두 개. */

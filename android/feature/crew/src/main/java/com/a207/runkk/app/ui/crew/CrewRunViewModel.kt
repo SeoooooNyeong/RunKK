@@ -190,7 +190,7 @@ class CrewRunViewModel @Inject constructor(
                     st.copy(
                         phase = CrewRunPhase.RUNNING,
                         countdown = null,
-                        relay = s.entries.map { e -> RelayRow(e.name, e.distance, e.state, e.isMe) },
+                        relay = s.entries.map { e -> RelayRow(e.name, e.distance, MateState.of(e.state.name), e.isMe) },
                         totalDistance = s.totalDistance,
                         mine = s.mine
                     )

@@ -31,7 +31,6 @@ import com.a207.runkk.app.domain.crew.CrewRunStatus
 import com.a207.runkk.app.domain.crew.Lobby
 import com.a207.runkk.app.domain.crew.LobbyAvailability
 import com.a207.runkk.app.domain.crew.PostList
-import com.a207.runkk.app.domain.live.CrewRunRelay
 import java.time.Duration
 import java.time.LocalDate
 import kotlin.test.assertEquals
@@ -437,8 +436,8 @@ private fun runningState() = CrewRunUiState(
     relay = listOf(
         RelayRow("바람처럼", Distance(3_400)),
         RelayRow("새벽곰", Distance(3_220), isMe = true),
-        RelayRow("달빛", Distance(2_980), CrewRunRelay.State.PAUSED),
-        RelayRow("거북", Distance(1_200), CrewRunRelay.State.ENDED)
+        RelayRow("달빛", Distance(2_980), MateState.PAUSED),
+        RelayRow("거북", Distance(1_200), MateState.ENDED)
     ),
     totalDistance = Distance(10_800),
     mine = CrewRunProgress(

@@ -98,7 +98,6 @@ import com.a207.runkk.app.core.designsystem.rememberHeadingLeft
 import com.a207.runkk.app.core.designsystem.rememberIsMoving
 import com.a207.runkk.app.core.designsystem.runFrameMillis
 import com.a207.runkk.app.core.model.Distance
-import com.a207.runkk.app.core.model.GeoPoint
 import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
@@ -106,7 +105,6 @@ import com.a207.runkk.app.domain.crew.CrewRunProgress
 import com.a207.runkk.app.domain.crew.CrewRunResult
 import com.a207.runkk.app.domain.crew.Lobby
 import com.a207.runkk.app.domain.crew.PostList
-import com.a207.runkk.app.domain.live.CrewRunRelay
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -705,9 +703,6 @@ private fun RunStat(value: String, label: String, spoken: String) {
     }
 }
 
-/** 지도 위 크루원 한 명: 자리, 이름표, 움직이는가. */
-private data class MateMarker(val point: GeoPoint, val label: String, val isMoving: Boolean)
-
 /**
  * 지도와 아바타(F-15): 경로 끝에 내 아바타, 아직 끝내지 않은 크루원은 내 경로 위 거리 차만큼 떨어진 지점(OpponentMarkerPlacer, 대결 상대와
  * 같은 방식). 크루원 성별을 모르므로 기본 캐릭터이고 멈췄으면 이름표가 "이름 · 멈춤"이다. Kakao 지도를 띄울 수 없으면 격자 바탕 경로선이다.
@@ -726,11 +721,11 @@ private fun CrewRunMap(state: CrewRunUiState) {
     val mates = state.relay.filter { !it.isMe && it.isRunning }.mapNotNull { row ->
         val gap = (mine.distance.meters - row.distance.meters).toInt()
         OpponentMarkerPlacer.place(route, mine.distance, gap)?.let { point ->
-            val isPaused = row.state == CrewRunRelay.State.PAUSED
+            val isPaused = row.state == MateState.PAUSED
             MateMarker(
                 point,
                 if (isPaused) resources.getString(R.string.crew_run_mate_paused, row.name) else row.name,
-                row.state == CrewRunRelay.State.RUNNING && !mine.isPaused
+                row.state == MateState.RUNNING && !mine.isPaused
             )
         }
     }
