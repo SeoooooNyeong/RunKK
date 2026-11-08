@@ -205,6 +205,46 @@ public final class InMemoryBattleStores {
         }
 
         @Override
+        public Map<Long, LocalDateTime> findFirstCelebrityWins(
+                long memberId,
+                Collection<Long> celebrityIds,
+                LocalDateTime from,
+                LocalDateTime to) {
+            Map<Long, LocalDateTime> wins = new LinkedHashMap<>();
+            where(
+                            b ->
+                                    b.getStatus() == BattleStatus.FINISHED
+                                            && b.getType() == BattleType.CELEBRITY)
+                    .forEach(
+                            b ->
+                                    b.getJudgement()
+                                            .filter(
+                                                    j ->
+                                                            j.winner() instanceof Side.MemberSide m
+                                                                    && m.memberId() == memberId)
+                                            .filter(
+                                                    j ->
+                                                            !j.at().isBefore(from)
+                                                                    && !j.at().isAfter(to))
+                                            .ifPresent(
+                                                    j -> {
+                                                        long id =
+                                                                Long.parseLong(
+                                                                        b.getOpponent()
+                                                                                .orElseThrow()
+                                                                                .recordId());
+                                                        if (celebrityIds.contains(id)) {
+                                                            wins.merge(
+                                                                    id,
+                                                                    j.at(),
+                                                                    (a, c) ->
+                                                                            a.isBefore(c) ? a : c);
+                                                        }
+                                                    }));
+            return wins;
+        }
+
+        @Override
         public WeeklyRecord weeklyRecord(long memberId, Week week) {
             int[] counts = new int[Verdict.values().length];
             where(b -> b.getStatus() == BattleStatus.FINISHED && week.contains(b.getCreatedAt()))

@@ -242,8 +242,9 @@ class PlacementMigrationIntegrationTest {
         MigrateResult develop =
                 flyway("latest", true, "classpath:db/migration", "classpath:db/sim-develop")
                         .migrate();
-        assertThat(develop.migrationsExecuted).isEqualTo(1);
-        assertThat(appliedVersions()).endsWith("36", "37", "35.1");
+        // 35.1 뒤에 핫픽스 v0.11.4 이벤트 35.2도 같은 방식으로 순서 밖 적용된다(S15P31A207-275)
+        assertThat(develop.migrationsExecuted).isEqualTo(2);
+        assertThat(appliedVersions()).endsWith("36", "37", "35.1", "35.2");
         assertThat(
                         flyway("latest", true, "classpath:db/migration", "classpath:db/sim-develop")
                                 .migrate()

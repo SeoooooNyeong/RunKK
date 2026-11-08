@@ -5,6 +5,7 @@ import com.a207.runkk.common.Week;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -59,6 +60,13 @@ public interface BattleRepository {
      * ix_battle_placement).
      */
     List<Battle> findPlacementFinishedBetween(LocalDateTime from, LocalDateTime to);
+
+    /**
+     * 회원이 이긴 FINISHED 셀럽 대결 중 상대 유명인 기록 ID가 celebrityIds에 있고 판정 시각이 [from, to]인 것의 기록 ID별 첫 판정
+     * 시각(event 이벤트 응모, S15P31A207-275).
+     */
+    Map<Long, LocalDateTime> findFirstCelebrityWins(
+            long memberId, Collection<Long> celebrityIds, LocalDateTime from, LocalDateTime to);
 
     /** 이번 주 전적(FR-093 주간 전적). */
     WeeklyRecord weeklyRecord(long memberId, Week week);

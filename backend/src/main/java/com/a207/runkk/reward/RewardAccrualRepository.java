@@ -11,7 +11,10 @@ public interface RewardAccrualRepository {
     /** 근거 하나의 적립량(유일 색인 uq_reward_accrual_source). 없으면 0. */
     int amountFor(long memberId, AccrualReason reason, String sourceId);
 
-    /** 그날(사건 발생일) 적립 합계(색인 idx_reward_accrual_member_accrued). 보정 배치의 지난 날짜만 부른다. */
+    /**
+     * 그날(사건 발생일) 적립 합계(색인 idx_reward_accrual_member_accrued). 하루 상한 밖인 이벤트 포인트(EVENT)는 넣지 않는다. 보정
+     * 배치의 지난 날짜만 부른다.
+     */
     int sumOn(long memberId, LocalDate day);
 
     void save(RewardAccrual a);
