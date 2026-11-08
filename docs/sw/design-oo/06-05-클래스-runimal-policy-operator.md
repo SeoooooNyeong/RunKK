@@ -465,7 +465,7 @@ v0.11에서 9개를 더해 21개다(괄호는 defaultScreen) (v0.11, FR-175, FR-
 ##### PushGateway (인터페이스)
 `PushResult send(List<String> deviceTokens, NotificationType type, String content)`, `PushResult sendCollapsing(List<String> deviceTokens, NotificationType type, String content, String collapseKey)`(같은 키의 기기 알림을 하나로 묶는다, CREW_CHAT, v0.11 D-102). PushResult(record: sentCount, invalidTokens). 구현 infra.integration.push.FcmPushGateway는 받은 토큰으로 보내기만 하고 토큰 표를 갖지 않는다. 회원 ID를 받지 않는다(D-43).
 
-##### 운영자 공지 (다음 판 변경, [임시:CR-성-6], 설계 [05-25](05-25-설계-공지알림-성.md))
+##### 운영자 공지 (다음 판 변경, [임시:CR-성-6], 설계 [05-26](05-26-설계-공지알림-성.md))
 NotificationType에 `NOTICE(Screen.EXTERNAL_LINK)`를 더해 22개, Screen에 `EXTERNAL_LINK`를 더해 12개다. NOTICE는 MemberSettings.NOTIFICATION_TYPES 밖이라 끌 수 없다([임시:D-성-21]). Notification에 `title`(공지 제목, 60자, null 허용), targetId 길이 300(V35_3). NotificationRequest에 다섯째 구성요소 `title`(네 인자 생성자 유지). InboxView.Item에 `title`. NotificationService에 패키지 전용 `boolean deliver(NotificationRequest)`(notify의 본문, 저장했으면 참). PushGateway에 기본 메서드 `send(tokens, type, title, content)`(FcmPushGateway가 제목을 알림 제목으로). 새 `NoticeService.send(String actorId, NoticeInput): NoticeResult`(1~100명, 구글 폼 링크 검사, 회원마다 deliver, 감사 SETTING_CHANGE 「NOTICE:제목」), 값 `NoticeInput(memberIds, title, body, linkUrl)`, `NoticeResult(requested, stored, skippedMemberIds)`. 의존 notification → audit이 는다([임시:D-성-20], [임시:D-성-23]).
 
 ##### NotificationRepository, PushDeviceRepository, NotificationWithdrawalListener
