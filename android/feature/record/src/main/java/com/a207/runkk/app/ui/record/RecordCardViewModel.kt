@@ -10,6 +10,7 @@ import com.a207.runkk.app.domain.record.RecordRepository
 import com.a207.runkk.app.ui.share.CapturedCard
 import com.a207.runkk.app.ui.share.CardSharer
 import com.a207.runkk.app.ui.share.CardSide
+import com.a207.runkk.app.ui.share.R as ShareR
 import com.a207.runkk.app.ui.share.RunCardRenderer
 import com.a207.runkk.app.ui.share.ShareImageFramer
 import com.a207.runkk.app.ui.share.ShareOutcome
@@ -24,7 +25,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import com.a207.runkk.app.ui.share.R as ShareR
 
 /**
  * 기록 카드 팝업(FR-068·FR-069): RecordRepository.card 값을 RunCardRenderer로 앞·뒷면 이미지로 만들고,

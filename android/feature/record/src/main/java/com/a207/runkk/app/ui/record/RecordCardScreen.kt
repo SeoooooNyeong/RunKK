@@ -29,6 +29,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -37,7 +38,6 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.a207.runkk.app.core.designsystem.AvatarBackdrop
-import com.a207.runkk.app.core.designsystem.LocalReleaseScope
 import com.a207.runkk.app.core.designsystem.LocalRunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
@@ -51,7 +51,6 @@ import com.a207.runkk.app.core.designsystem.RunkkSwitchRow
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
 import com.a207.runkk.app.core.designsystem.UiText
-import com.a207.runkk.app.core.designsystem.UnreleasedFeature
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
@@ -141,8 +140,7 @@ fun RecordCardScreen(
 
 /**
  * 팝업(K-1): 배경 장면(AvatarBackdrop) 위 카드와 그 아래 면 점, 반씩 나란한 "공유"·"닫기"(R2-18, D93). 카드를 누르면 앞면(기록)과
- * 뒷면(코스)이 뒤집힌다. 두 면은 같은 크기(334×383 비율)다. 카드 뒷면(CARD_BACK)이 닫혀 있으면 뒤집기와 면 점이 없다
- * (D-252, TC-9699). 뒷면 모양은 새 디자인을 받을 때까지 잠가 둔다(2026-11-09).
+ * 뒷면(코스)이 뒤집힌다. 두 면은 같은 크기(334×383 비율)다.
  */
 @Composable
 private fun CardPopup(
@@ -153,8 +151,7 @@ private fun CardPopup(
     onClose: () -> Unit
 ) {
     val resources = LocalContext.current.resources
-    val isBackOpen = LocalReleaseScope.current.isOpen(UnreleasedFeature.CARD_BACK)
-    val side = if (isBackOpen) state.side else CardSide.FRONT
+    val side = state.side
     AvatarBackdrop(backgroundKey = null, modifier = Modifier.fillMaxSize().testTag(RECORD_CARD_BACKDROP_TAG))
     Column(
         modifier = Modifier.fillMaxSize().padding(start = 28.dp, end = 28.dp, top = 24.dp, bottom = 32.dp),
@@ -165,20 +162,15 @@ private fun CardPopup(
             if (side == CardSide.FRONT) R.string.record_card_flip_to_back else R.string.record_card_flip_to_front
         )
         val description = cardDescription(resources, card, side)
-        val flip = if (isBackOpen) {
-            Modifier.clickable(role = Role.Button, onClickLabel = flipLabel, onClick = onFlip)
-        } else {
-            Modifier
-        }
         RecordCardFace(
             card,
             side,
             Modifier
                 .weight(1f, fill = false)
-                .then(flip)
+                .clickable(role = Role.Button, onClickLabel = flipLabel, onClick = onFlip)
                 .semantics { contentDescription = description }
         )
-        if (isBackOpen) SideDots(side)
+        SideDots(side)
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             RunkkPrimaryButton(
                 stringResource(R.string.record_card_share),
@@ -235,13 +227,11 @@ private class ShareStepActions(
  * 카드 공유(K-2): 미리보기 카드, "코스 지도 표시"(켜면 미리보기가 코스 면으로 바뀌고 그 면을 공유한다), 공유 대상 막대.
  * 코스 지도 공유가 꺼진 기록은 스위치를 끈 채 흐리게 잠그고, 누르면 기존 안내를 스낵바로 보인다(FR-011·FR-069).
  * 공유할 때 미리보기 카드를 그대로 찍어 넘기고, 워드마크는 ViewModel이 공유 이미지에만 붙인다(사용자 결정 2026-11-09).
- * 카드 뒷면(CARD_BACK)이 닫혀 있으면 스위치가 없고 앞면만 공유한다(D93).
  */
 @Composable
 private fun ShareStep(state: RecordCardUiState, card: RunCard, actions: ShareStepActions) {
     val resources = LocalContext.current.resources
-    val isBackOpen = LocalReleaseScope.current.isOpen(UnreleasedFeature.CARD_BACK)
-    val side = if (isBackOpen) state.side else CardSide.FRONT
+    val side = state.side
     val capture = rememberCardCapture()
     val isDark = LocalRunkkColors.current.isDark
     val scope = rememberCoroutineScope()
@@ -266,14 +256,12 @@ private fun ShareStep(state: RecordCardUiState, card: RunCard, actions: ShareSte
                     .capturedBy(capture)
                     .semantics { contentDescription = description }
             )
-            if (isBackOpen) {
-                CourseSwitch(
-                    isChecked = side == CardSide.BACK,
-                    isEnabled = state.canShareBack,
-                    onCheckedChange = { actions.onSideSelected(if (it) CardSide.BACK else CardSide.FRONT) },
-                    onLocked = actions.onCourseLocked
-                )
-            }
+            CourseSwitch(
+                isChecked = side == CardSide.BACK,
+                isEnabled = state.canShareBack,
+                onCheckedChange = { actions.onSideSelected(if (it) CardSide.BACK else CardSide.FRONT) },
+                onLocked = actions.onCourseLocked
+            )
         }
         ShareTargetBar(
             saveLabel = stringResource(CardShareKind.SAVE.labelRes),
@@ -300,7 +288,6 @@ private fun CourseSwitch(
             .fillMaxWidth()
             .clip(COURSE_SWITCH_SHAPE)
             .background(RunkkColors.Surface)
-            .then(if (isEnabled) Modifier else Modifier.clickable(onClick = onLocked))
             .graphicsLayer { alpha = if (isEnabled) 1f else LOCKED_ALPHA }
     ) {
         RunkkSwitchRow(
@@ -309,6 +296,10 @@ private fun CourseSwitch(
             onCheckedChange = onCheckedChange,
             isEnabled = isEnabled
         )
+        // 잠긴 스위치는 누름을 받지 않으므로 위에 덮개를 얹어 누름을 안내로 돌린다.
+        if (!isEnabled) {
+            Box(Modifier.matchParentSize().clickable(onClick = onLocked).clearAndSetSemantics {})
+        }
     }
 }
 
