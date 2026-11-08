@@ -233,7 +233,7 @@ SelfieConversion·SelfieLockStore·FaceTransformGateway·FaceTransformOutcome은
 
 | 시그니처 | 설명 | 사후 조건 / 예외 |
 |---------|------|-----------------|
-| `Optional<RewardAccrual> accrue(AccrualRequest req, RewardRule rule, int alreadyOnThatDay)` | 적립 | req = (reason, sourceId, baseAmount, at). 적립량 = min(base, dailyCap − alreadyOnThatDay). 0 이하면 비어 있음(기록하지 않는다). 아니면 잔액을 늘리고, req.at의 날짜가 lastAccrualDate 이상이면 집계 칼럼을 고친 뒤(같은 날 더하기, 더 새 날 바꾸기) 저장할 RewardAccrual을 돌려준다(FR-159). 중복 (reason, sourceId) 확인은 호출자가 RewardAccrualRepository.amountFor로 먼저 한다 (v0.11, D-109) |
+| `Optional<RewardAccrual> accrue(AccrualRequest req, RewardRule rule, int alreadyOnThatDay)` | 적립 | req = (reason, sourceId, baseAmount, at). 적립량 = min(base, dailyCap − alreadyOnThatDay). 0 이하면 비어 있음(기록하지 않는다). 아니면 잔액을 늘리고, req.at의 날짜가 lastAccrualDate 이상이면 집계 칼럼을 고친 뒤(같은 날 더하기, 더 새 날 바꾸기) 저장할 RewardAccrual을 돌려준다(FR-159). 중복 (reason, sourceId) 확인은 호출자가 RewardAccrualRepository.amountFor로 먼저 한다 (v0.11, D-109) (다음 판 변경, [05-26](05-26-설계-이벤트-성.md) [임시:D-성-8]) req.reason이 EVENT면 상한과 alreadyOnThatDay를 보지 않는다: baseAmount ≤ 0이면 비어 있음, 아니면 잔액만 늘리고 집계 칼럼(lastAccrualDate, lastAccrualDateAmount)을 그대로 둔 채 RewardAccrual(baseAmount)을 돌려준다 |
 | `OptionalInt accruedOn(LocalDate day)` | 그날 적립 합계 | day가 lastAccrualDate와 같으면 lastAccrualDateAmount, 더 새 날이면 0, 더 옛날(보정 작업의 지난 날짜)이면 비어 있음 → RewardService가 RewardAccrualRepository.sumOn으로 읽는다 (v0.11, D-109) |
 | `void purchase(ShopItem item, LocalDateTime now)` | 구매 | 보유면 ALREADY_OWNED, 잔액 < 가격이면 INSUFFICIENT_REWARD. 잔액 차감, 보유 추가 |
 | `boolean owns(long itemId)` | | |
@@ -251,6 +251,7 @@ v0.11에서 지운 연산: `int accruedFor(AccrualReason reason, String sourceId
 |---------|------|
 | `void onRunSaved(RunRecordSaved e)` | 유효만. accrueWithRetry(AccrualSource(memberId, VALID_RUN, recordId, 저장 일시), rule → rule.amountForRun(distance)) (v0.11, CR34-03) |
 | `void onBattleJudged(BattleJudged e)` | 승자마다 accrueWithRetry(AccrualSource(winnerId, BATTLE_WIN, battleId, 판정 시각), RewardRule::battleWin). 운영자가 RewardRule을 바꾸면 다음 판정부터 바뀐 값으로 적립한다(design-review.md M13). 정정으로 패가 되어도 회수하지 않는다(제안) (v0.11, CR34-03) |
+| `int accrueEvent(long memberId, String sourceId, int amount, LocalDateTime at)` | (다음 판 변경, [임시:D-성-8]) 이벤트 포인트. event.CoachWinPointListener가 부른다. accrueWithRetry(AccrualSource(memberId, EVENT, sourceId, at), rule → amount). sourceId는 「이벤트ID:대상」(예 「1:celebrity-11」). 하루 상한 없이 새 트랜잭션에서 적립하고 실제 적립량을 돌려준다. 같은 근거가 있거나 실패하면 0(실패는 reward_accrual_failed 로그) |
 | `int accrueWithRetry(AccrualSource source, ToIntFunction<RewardRule> amountOf)` (패키지 전용) | 새 트랜잭션에서 지갑 행 잠금(findOrCreateForUpdate) → RewardAccrualRepository.amountFor(memberId, reason, sourceId) > 0이면 0 → 그날 합계 = wallet.accruedOn(day), 비면 RewardAccrualRepository.sumOn(memberId, day) → RewardWallet.accrue(source.request(amountOf(현재 rule)), rule, 그날 합계) → 적립 행 저장 → 지갑 저장. 일시 오류(TransientDataAccessException)면 최대 3회 다시 하고, 그래도 실패하면 로그만 남기고 0. 수신자와 RewardReconcileService가 함께 쓴다(M4 결정). 실제 적립량을 돌려준다 (v0.11, CR34-03, D-109) |
 | `int accruedFor(AccrualReason reason, String sourceId, long memberId)` | 조회. RewardAccrualRepository.amountFor로 답한다. analysis.RecordQueryService(기록 상세)와 web.battle(대결 결과 화면), RewardReconcileService가 부른다 (v0.11, D-109, CR34-03) |
 | `boolean owns(long memberId, long itemId)` | 보유 확인. avatar.AvatarService가 착용 전에 부른다 |
@@ -261,6 +262,9 @@ v0.11에서 지운 연산: `int accruedFor(AccrualReason reason, String sourceId
 
 ##### AccrualSource (값, record, 패키지 전용) (v0.11, CR34-03, CR2-U7)
 속성: memberId(long), reason(AccrualReason), sourceId(String, 기록 ID 또는 대결 ID), at(LocalDateTime, 사건 발생 시각 = 하루 상한의 "그날"). 적립량은 그때의 RewardRule로 정하므로 담지 않는다. `AccrualRequest request(int baseAmount)`: 상한 적용 전 적립량으로 지갑에 넘길 요청을 만든다. 수신자와 보정 작업이 같은 근거를 accrueWithRetry에 넘긴다.
+
+##### AccrualReason (열거) (다음 판 변경, [임시:D-성-8])
+VALID_RUN, BATTLE_WIN, EVENT. EVENT는 이벤트 포인트이고 하루 상한을 받지 않으며 그날 합계에도 넣지 않는다. RewardAccrualRepository.sumOn(memberId, day)은 reason <> EVENT만 더한다(JpaRewardAccrualRepository). V35_2가 reward_accrual.ck_reward_accrual_reason에 EVENT를 더한다. RewardReconcileService(보정)는 VALID_RUN, BATTLE_WIN만 다시 적립하고 EVENT는 다루지 않는다.
 
 ##### RewardReconcileService (v0.11, CR34-03, CR2-U7)
 | 항목 | 내용 |
@@ -460,6 +464,9 @@ v0.11에서 9개를 더해 21개다(괄호는 defaultScreen) (v0.11, FR-175, FR-
 
 ##### PushGateway (인터페이스)
 `PushResult send(List<String> deviceTokens, NotificationType type, String content)`, `PushResult sendCollapsing(List<String> deviceTokens, NotificationType type, String content, String collapseKey)`(같은 키의 기기 알림을 하나로 묶는다, CREW_CHAT, v0.11 D-102). PushResult(record: sentCount, invalidTokens). 구현 infra.integration.push.FcmPushGateway는 받은 토큰으로 보내기만 하고 토큰 표를 갖지 않는다. 회원 ID를 받지 않는다(D-43).
+
+##### 운영자 공지 (다음 판 변경, [임시:CR-성-6], 설계 [05-27](05-27-설계-공지알림-성.md))
+NotificationType에 `NOTICE(Screen.EXTERNAL_LINK)`를 더해 22개, Screen에 `EXTERNAL_LINK`를 더해 12개다. NOTICE는 MemberSettings.NOTIFICATION_TYPES 밖이라 끌 수 없다([임시:D-성-21]). Notification에 `title`(공지 제목, 60자, null 허용), targetId 길이 300(V35_3). NotificationRequest에 다섯째 구성요소 `title`(네 인자 생성자 유지). InboxView.Item에 `title`. NotificationService에 패키지 전용 `boolean deliver(NotificationRequest)`(notify의 본문, 저장했으면 참). PushGateway에 기본 메서드 `send(tokens, type, title, content)`(FcmPushGateway가 제목을 알림 제목으로). 새 `NoticeService.send(String actorId, NoticeInput): NoticeResult`(1~100명, 구글 폼 링크 검사, 회원마다 deliver, 감사 SETTING_CHANGE 「NOTICE:제목」), 값 `NoticeInput(memberIds, title, body, linkUrl)`, `NoticeResult(requested, stored, skippedMemberIds)`. 의존 notification → audit이 는다([임시:D-성-20], [임시:D-성-23]).
 
 ##### NotificationRepository, PushDeviceRepository, NotificationWithdrawalListener
 NotificationRepository: `save`, `List<Notification> findByRecipient(long, Optional<DateRange>, LocalDateTime occurredAfter)`(보관 기간 하한, v0.8 D-67), `Optional<Notification> findById(long)`, `void saveCollapsing(NotificationRequest req, LocalDateTime occurredAt)`(묶음 알림 저장: 읽지 않은 같은 수신자·종류·대상 행을 고쳐 쓰고, 없으면 INSERT … ON CONFLICT DO NOTHING, 넣지 못했으면(같은 순간 다른 요청이 넣음) 다시 고쳐 쓴다. 예외 없이 끝나 부르는 트랜잭션이 깨지지 않는다. V23 부분 유일 색인 uq_notification_unread_collapse (recipient_id, type, target_id) WHERE is_read = FALSE AND type = 'CREW_CHAT' AND target_id IS NOT NULL이 동시 중복을 막는다. 처음 설계한 findUnread는 두지 않는다) (v0.11 구현 반영, U5-A-2, D-172), `int deleteOlderThan(LocalDateTime)`, `void deleteByRecipient(long)`. PushDeviceRepository: `void save(PushDevice)`, `Optional<PushDevice> findByToken(String)`, `List<String> tokensOf(long memberId)`, `void deleteTokens(Collection<String>)`, `void deleteByMember(long)`. 구현은 infra.notification의 JpaNotificationRepository, JpaPushDeviceRepository이고 notification 밖에서 쓰지 않는다. NotificationWithdrawalListener.`onMemberWithdrawn(e)`: 그 회원 알림 삭제(D17)와 기기 토큰 삭제(PushDeviceRepository.deleteByMember, FR-021).
