@@ -54,7 +54,6 @@ import com.a207.runkk.app.core.designsystem.CelebrityFigure
 import com.a207.runkk.app.core.designsystem.KakaoRunMap
 import com.a207.runkk.app.core.designsystem.LocalAvatarCharacter
 import com.a207.runkk.app.core.designsystem.LocalKakaoMapKey
-import com.a207.runkk.app.core.designsystem.NOTIFICATION_PERMISSION_API
 import com.a207.runkk.app.core.designsystem.OPPONENT_MARKER_TAG
 import com.a207.runkk.app.core.designsystem.OpponentMarkerPlacer
 import com.a207.runkk.app.core.designsystem.RouteCanvas
@@ -82,7 +81,7 @@ import com.a207.runkk.app.core.designsystem.canShowKakaoMap
 import com.a207.runkk.app.core.designsystem.rememberHeadingLeft
 import com.a207.runkk.app.core.designsystem.rememberIsMoving
 import com.a207.runkk.app.core.designsystem.runFrameMillis
-import com.a207.runkk.app.core.designsystem.shouldAskNotificationPermission
+import com.a207.runkk.app.core.designsystem.runPermissionsToAsk
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
@@ -91,21 +90,27 @@ import java.time.Duration
 import kotlin.math.abs
 
 /**
- * 대결 진행 화면이 열리면 진행 알림 권한을 한 번 묻는다(AN8-5, D-259 "첫 러닝 시작 때"). 첫 러닝이 배틀런·친구 대결·셀프런·셀럽런이어도
- * 진행 알림을 띄울 수 있게 자유런 카운트다운과 같은 규칙(core shouldAskNotificationPermission)을 쓴다. 거부해도 대결은 이어 간다.
+ * 대결 진행 화면이 열리면 진행 알림 권한과 신체 활동 권한(걸음 센서 케이던스, S15P31A207-242)을 한 번에 묻는다(AN8-5, D-259 "첫 러닝
+ * 시작 때"). 첫 러닝이 배틀런·친구 대결·셀프런·셀럽런이어도 진행 알림을 띄우고 케이던스를 잴 수 있게 자유런 카운트다운과 같은 규칙
+ * (core runPermissionsToAsk)을 쓴다. 거부해도 대결은 이어 간다.
  */
 @Composable
-private fun NotificationPermissionEffect() {
+private fun RunPermissionEffect() {
     val context = LocalContext.current
     var isAsked by rememberSaveable { mutableStateOf(false) }
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { }
     LaunchedEffect(Unit) {
-        if (Build.VERSION.SDK_INT < NOTIFICATION_PERMISSION_API) return@LaunchedEffect
-        val isGranted = context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
-            PackageManager.PERMISSION_GRANTED
-        if (shouldAskNotificationPermission(Build.VERSION.SDK_INT, isGranted, isAsked)) {
+        val asks = runPermissionsToAsk(
+            sdkInt = Build.VERSION.SDK_INT,
+            isNotificationGranted = context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
+                PackageManager.PERMISSION_GRANTED,
+            isActivityGranted = context.checkSelfPermission(Manifest.permission.ACTIVITY_RECOGNITION) ==
+                PackageManager.PERMISSION_GRANTED,
+            isAsked = isAsked
+        )
+        if (asks.isNotEmpty()) {
             isAsked = true
-            launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            launcher.launch(asks.toTypedArray())
         }
     }
 }
@@ -117,7 +122,7 @@ private fun NotificationPermissionEffect() {
 @Composable
 fun BattleRunningRoute(key: Routes.BattleRunning, viewModel: BattleRunningViewModel = hiltViewModel()) {
     LaunchedEffect(key) { viewModel.bind(key) }
-    NotificationPermissionEffect()
+    RunPermissionEffect()
     val state by viewModel.state.collectAsStateWithLifecycle()
     val navigator = LocalRunkkNavigator.current
     LaunchedEffect(viewModel) {
