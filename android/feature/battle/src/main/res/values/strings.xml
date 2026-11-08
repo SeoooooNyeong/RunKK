@@ -140,6 +140,7 @@
     <string name="battle_active_message">%1$s 대결</string>
     <string name="battle_active_forfeit">그만두기</string>
     <string name="battle_active_close">닫기</string>
+    <string name="battle_active_return">대결로 돌아가기</string>
     <string name="battle_self_question">어떤 거리로 겨뤄 볼까요?</string>
     <string name="battle_self_best_label">내 최고 기록</string>
     <string name="battle_history_link">함께 달린 기록 ›</string>

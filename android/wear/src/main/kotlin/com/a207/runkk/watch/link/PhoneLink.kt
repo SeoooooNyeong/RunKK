@@ -42,6 +42,7 @@ import timber.log.Timber
  * - 폰 → 워치: 근접 알림([WearPaths.PROXIMITY])·추월 역전([WearPaths.LEAD_CHANGE])은 [ProximityAlertPlayer]에 넘긴다(FR-196, FR-188).
  *   근접 알림은 [proximity]로, 추월·역전의 방향과 받은 시각은 [leadChange]로도 내보내 측정 화면이 거리 차와 "역전!"을 보인다.
  *   마지막 표시가 러닝 중일 때만 넘기고, 러닝이 끝났다는 표시를 받으면 재생을 멈춘다. 모르는 경로는 버린다(F.4.4).
+ * - 워치 → 폰: 지금 표시 요청([requestDisplay], S15P31A207-278). 앱 시작과 화면 재개 때 보내 꺼져 있던 동안 잃은 표시를 되찾는다.
  * - 워치 → 폰: 로그인 정보 요청([requestSession], FR-242)과 워치 측정 중 여부([sendMeasuring], FR-252, D-371). 로그인 정보·로그아웃
  *   표시는 토큰을 이 클래스에 두지 않도록 PhoneMessageService가 watch.session으로 바로 넘긴다.
  * - 워치 → 폰: 시작 요청(MessageClient, [WearPaths.START_REQUEST], FR-183), 종료 요청(MessageClient,
@@ -72,6 +73,9 @@ class PhoneLink @Inject constructor(
     private var allowGeneration = 0L
     private var batchSequence = 0L
     private var silenceWatchdog: Job? = null
+
+    /** 표시 요청. 폰에 닿은 요청 뒤 [DISPLAY_REQUEST_GAP_MILLIS] 동안 살아 있어 그 사이 요청을 건너뛴다. */
+    private var displayRequestJob: Job? = null
 
     /** 마지막으로 받은 표시 정보. 일시정지 요청을 보낼지(isPausable), 근접 알림을 재생할지(isRunning) 정한다. */
     private var lastDisplay: WatchDisplayMessage? = null
@@ -135,6 +139,7 @@ class PhoneLink @Inject constructor(
     /**
      * 수신·수집·전송·연결 확인을 시작한다. 앱 프로세스가 시작될 때 한 번 부르고, 거듭 불러도 한 번만 돈다.
      * 먼저 이전 프로세스가 남긴 운동 세션을 끝낸다: 새 프로세스는 폰의 허용을 아직 받지 않았다(NFR-023).
+     * 새 프로세스는 표시 정보도 잃었으므로 폰에 지금 표시를 요청한다([requestDisplay], S15P31A207-278).
      */
     fun start() {
         synchronized(lock) {
@@ -155,6 +160,22 @@ class PhoneLink @Inject constructor(
             while (isActive) {
                 refreshConnection()
                 delay(CONNECTION_POLL_MILLIS)
+            }
+        }
+        requestDisplay()
+    }
+
+    /**
+     * 폰에 지금 표시 정보를 요청한다(DISPLAY_REQUEST, 본문 없음, S15P31A207-278). 앱이 시작될 때와 화면이 다시 보일 때 부른다.
+     * 폰→워치 표시는 일회성 메시지라 앱이 꺼져 있던 동안 온 것(측정 중 진행값·대기 화면 오늘 계획·종료 표시)은 남지 않는다. 폰은 마지막
+     * 표시를 다시 보내고, 그 표시가 [displays]로 나가 동행 표시가 뜬다. 앱 시작과 첫 화면 재개가 함께 와도 한 번만 보내도록 폰에 닿은
+     * 요청 뒤 [DISPLAY_REQUEST_GAP_MILLIS] 동안은 다시 보내지 않는다. 닿지 못한 요청(폰 노드 없음)은 간격을 두지 않는다(requestSession과 같다).
+     */
+    fun requestDisplay() {
+        synchronized(lock) {
+            if (displayRequestJob?.isActive == true) return
+            displayRequestJob = scope.launch {
+                if (sendToPhone(WearPaths.DISPLAY_REQUEST, ByteArray(0))) delay(DISPLAY_REQUEST_GAP_MILLIS)
             }
         }
     }
@@ -412,6 +433,9 @@ class PhoneLink @Inject constructor(
 
         /** 폰 노드 연결 상태를 다시 확인하는 간격. */
         const val CONNECTION_POLL_MILLIS = 5_000L
+
+        /** 폰에 닿은 표시 요청 뒤 다시 보내지 않는 간격. 앱 시작과 첫 화면 재개가 거의 함께 온다. */
+        const val DISPLAY_REQUEST_GAP_MILLIS = 2_000L
 
         /** 러닝 중 표시가 이만큼 오지 않으면 수집을 멈춘다. */
         const val MAX_SILENT_RUN_MILLIS = 30 * 60 * 1_000L

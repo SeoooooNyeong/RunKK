@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import com.a207.runkk.app.domain.settings.GuidanceSettings
 import com.a207.runkk.app.domain.settings.SettingsSnapshot
+import com.a207.runkk.wear.contract.WatchDisplayMessage
 import com.a207.runkk.wear.contract.WearPaths
 import com.google.android.gms.wearable.MessageEvent
 import java.time.Clock
@@ -11,6 +12,7 @@ import java.time.Instant
 import java.time.ZoneOffset
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -45,6 +47,7 @@ class PhoneWatchListenerServiceTest {
         return PhoneWatchListenerService().apply {
             this.publisher = publisher
             this.scope = scope
+            this.watchLink = WatchLink(transport, settings, scope)
         }
     }
 
@@ -85,6 +88,37 @@ class PhoneWatchListenerServiceTest {
         val context = RuntimeEnvironment.getApplication()
         val intent = Intent("com.google.android.gms.wearable.MESSAGE_RECEIVED")
             .setData(Uri.parse("wear://watch-1${WearPaths.SESSION_REQUEST}"))
+            .setPackage(context.packageName)
+
+        val resolved = context.packageManager.queryIntentServices(intent, 0).map { it.serviceInfo.name }
+
+        assertEquals(listOf(PhoneWatchListenerService::class.java.name), resolved)
+    }
+
+    @Test
+    fun `S15P31A207-278 워치의 표시 요청을 받으면 그 워치를 닿는 노드로 등록한 뒤 대기 표시를 다시 보낸다(폰 프로세스가 막 깨어남)`() = runTest {
+        val service = service()
+        transport.events.clear()
+
+        service.onMessageReceived(message(WearPaths.DISPLAY_REQUEST, "watch-1"))
+
+        assertEquals(
+            listOf("reach" to "watch-1", "send" to WearPaths.WATCH_DISPLAY),
+            transport.events.map {
+                it.kind to (it.nodeId ?: it.path)
+            }
+        )
+        assertFalse(
+            WatchDisplayMessage.decode(transport.of("send", WearPaths.WATCH_DISPLAY).single().payload!!).isRunning
+        )
+        assertEquals(0, accounts.issued, "표시 요청으로 로그인 정보를 발급하지 않는다")
+    }
+
+    @Test
+    fun `S15P31A207-278 매니페스트가 DISPLAY_REQUEST 메시지를 이 서비스로 보낸다(폰 앱이 꺼져 있어도 깨운다)`() {
+        val context = RuntimeEnvironment.getApplication()
+        val intent = Intent("com.google.android.gms.wearable.MESSAGE_RECEIVED")
+            .setData(Uri.parse("wear://watch-1${WearPaths.DISPLAY_REQUEST}"))
             .setPackage(context.packageName)
 
         val resolved = context.packageManager.queryIntentServices(intent, 0).map { it.serviceInfo.name }

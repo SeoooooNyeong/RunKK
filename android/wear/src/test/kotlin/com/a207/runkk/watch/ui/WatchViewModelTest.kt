@@ -365,7 +365,7 @@ class WatchViewModelTest {
         runCurrent()
 
         assertEquals(WatchNotice.PhoneNotConnected, vm.uiState.value.notice)
-        assertTrue(dataLayer.sentMessages.isEmpty())
+        assertTrue(dataLayer.sentMessages.none { it.second == WearPaths.PAUSE_REQUEST })
     }
 
     @Test

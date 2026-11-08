@@ -18,7 +18,7 @@
             android:exported="false"
             android:foregroundServiceType="location" />
 
-        <!-- data.watch: 워치의 로그인 정보 요청. 앱 프로세스가 죽어 있어도 받는다(FR-242, D-371, 코드 리뷰 AN12-1). -->
+        <!-- data.watch: 워치의 로그인 정보 요청과 표시 요청. 앱 프로세스가 죽어 있어도 받는다(FR-242, D-371, 코드 리뷰 AN12-1, S15P31A207-278). -->
         <service
             android:name="com.a207.runkk.app.data.watch.PhoneWatchListenerService"
             android:exported="true">
@@ -27,6 +27,10 @@
                 <data
                     android:host="*"
                     android:path="/runkk/session-request"
+                    android:scheme="wear" />
+                <data
+                    android:host="*"
+                    android:path="/runkk/display-request"
                     android:scheme="wear" />
             </intent-filter>
         </service>
