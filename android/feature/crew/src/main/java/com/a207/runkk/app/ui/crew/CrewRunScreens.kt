@@ -62,6 +62,7 @@ import com.a207.runkk.app.core.designsystem.OpponentMarkerPlacer
 import com.a207.runkk.app.core.designsystem.RouteCanvas
 import com.a207.runkk.app.core.designsystem.RouteMarker
 import com.a207.runkk.app.core.designsystem.RunMapMarker
+import com.a207.runkk.app.core.designsystem.RunPermissionEffect
 import com.a207.runkk.app.core.designsystem.RunkkBadge
 import com.a207.runkk.app.core.designsystem.RunkkBadgeTone
 import com.a207.runkk.app.core.designsystem.RunkkColors
@@ -250,6 +251,8 @@ internal val TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 fun CrewRunRoute(key: Routes.CrewRunLobby, viewModel: CrewRunViewModel = hiltViewModel()) {
     LaunchedEffect(key) { viewModel.bind(key) }
     val state by viewModel.state.collectAsStateWithLifecycle()
+    // 진행 알림·신체 활동(걸음 센서 케이던스) 권한을 출발 카운트다운에서 한 번 묻는다. 진행 중에 다시 들어온 경우도 묻는다.
+    RunPermissionEffect(shouldAsk = state.phase == CrewRunPhase.COUNTDOWN || state.phase == CrewRunPhase.RUNNING)
     val navigator = LocalRunkkNavigator.current
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
