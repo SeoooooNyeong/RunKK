@@ -107,7 +107,13 @@ private class FakeBattleRepository(private val log: CallLog) : BattleRepository 
         return reportFailure?.let { Outcome.Failure(it) } ?: Outcome.Success(Unit)
     }
 
-    override suspend fun active(): Outcome<ActiveBattle?> = error("unused")
+    /** active가 차례로 돌려줄 결과(비면 진행 중인 대결 없음). */
+    val activeResults = ArrayDeque<Outcome<ActiveBattle?>>()
+
+    override suspend fun active(): Outcome<ActiveBattle?> {
+        log.add("battle.active")
+        return activeResults.removeFirstOrNull() ?: Outcome.Success(null)
+    }
 
     override suspend fun result(battleId: Long): Outcome<BattleResult> = error("unused")
 
@@ -997,6 +1003,84 @@ class BattleRunCoordinatorTest {
         advanceTimeBy(10_000)
         runCurrent()
         assertEquals(listOf("battle.cancel", "battle.requestMatch:5000"), log.calls, "새 대기열 등록을 지우지 않는다")
+    }
+
+    private fun matchedBattle(battleId: Long = 9, type: BattleHistory.Type = BattleHistory.Type.RANDOM) =
+        ActiveBattle(battleId, type, "WAITING_START", Distance(5_000), "바람처럼", startAt = null)
+
+    @Test
+    fun `S15P31A207-278 이탈 취소가 ALREADY_MATCHED로 거부되면 진행 중인 대결을 찾아 그만두기를 보낸다`() = runTest {
+        val (_, coordinator) = setUp()
+        repository.cancelFailure = AppError.Rejected("ALREADY_MATCHED")
+        repository.activeResults += Outcome.Success(matchedBattle())
+        coordinator.abandonMatching()
+        runCurrent()
+        assertEquals(listOf("battle.cancel", "battle.active", "battle.forfeit:9"), log.calls)
+        assertTrue(parentJob.children.none(), "보낸 뒤 남는 작업이 없다")
+    }
+
+    @Test
+    fun `S15P31A207-278 짝을 잡고 대결을 만드는 중이라 대결이 아직 없으면 1초 2초 뒤 다시 찾는다`() = runTest {
+        val (_, coordinator) = setUp()
+        repository.cancelFailure = AppError.Rejected("ALREADY_MATCHED")
+        repository.activeResults += Outcome.Success(null)
+        repository.activeResults += Outcome.Failure(AppError.Network)
+        repository.activeResults += Outcome.Success(matchedBattle(battleId = 11))
+        coordinator.abandonMatching()
+        runCurrent()
+        assertEquals(listOf("battle.cancel", "battle.active"), log.calls)
+        advanceTimeBy(3_100)
+        runCurrent()
+        assertEquals(
+            listOf("battle.cancel", "battle.active", "battle.active", "battle.active", "battle.forfeit:11"),
+            log.calls
+        )
+    }
+
+    @Test
+    fun `S15P31A207-278 끝내 대결이 없거나 매칭으로 생길 수 없는 대결이면 그만두기를 보내지 않는다`() = runTest {
+        val (_, coordinator) = setUp()
+        repository.cancelFailure = AppError.Rejected("ALREADY_MATCHED")
+        coordinator.abandonMatching()
+        advanceTimeBy(10_000)
+        runCurrent()
+        assertEquals(listOf("battle.cancel", "battle.active", "battle.active", "battle.active"), log.calls)
+
+        log.calls.clear()
+        repository.activeResults += Outcome.Success(matchedBattle(type = BattleHistory.Type.FRIEND))
+        coordinator.abandonMatching()
+        runCurrent()
+        assertEquals(listOf("battle.cancel", "battle.active"), log.calls, "친구 대결은 이 대기열에서 생긴 대결이 아니다")
+    }
+
+    @Test
+    fun `S15P31A207-278 이 프로세스가 맡은 대결이면 이탈 취소가 거부돼도 그만두기를 보내지 않는다`() = runTest {
+        val (_, coordinator) = setUp()
+        coordinator.onMatched(MatchFound(9, "바람처럼", "SILVER", Distance(5_000), null, null, 0))
+        runCurrent()
+        repository.cancelFailure = AppError.Rejected("ALREADY_MATCHED")
+        repository.activeResults += Outcome.Success(matchedBattle())
+        coordinator.abandonMatching()
+        runCurrent()
+        assertEquals(listOf("battle.cancel", "battle.active"), log.calls)
+    }
+
+    @Test
+    fun `S15P31A207-278 그만두기를 보내는 중에 새로 요청하면 그만두기가 끝난 뒤에 요청한다`() = runTest {
+        val (_, coordinator) = setUp()
+        repository.cancelFailure = AppError.Rejected("ALREADY_MATCHED")
+        repository.activeResults += Outcome.Success(null)
+        repository.activeResults += Outcome.Success(matchedBattle())
+        coordinator.abandonMatching()
+        runCurrent()
+        backgroundScope.launch { coordinator.requestMatch(Distance(5_000)) }
+        advanceTimeBy(10_000)
+        runCurrent()
+        assertEquals(
+            listOf("battle.cancel", "battle.active", "battle.active", "battle.forfeit:9", "battle.requestMatch:5000"),
+            log.calls,
+            "남은 대결이 새 매칭 요청을 막지 않게 그만두기를 먼저 끝낸다"
+        )
     }
 
     @Test
