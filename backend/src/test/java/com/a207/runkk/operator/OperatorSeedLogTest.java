@@ -56,6 +56,8 @@ class OperatorSeedLogTest {
         assertThat(seed("kakao:k-op")).isFalse();
         assertThat(seed("KAKAO")).isFalse();
         assertThat(count(output, "operator_bootstrap_failed")).isEqualTo(2);
-        assertThat(output.getAll()).doesNotContain("ERROR");
+        // 같은 시각 다른 시험의 배치 로그(예: PollReminderJob)가 섞여도 흔들리지 않게 운영자 시드 줄만 본다
+        assertThat(output.getAll().lines().filter(l -> l.contains("operator_")))
+                .noneMatch(l -> l.contains("ERROR"));
     }
 }
