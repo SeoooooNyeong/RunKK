@@ -17,6 +17,7 @@ import java.time.Instant
 import java.time.ZoneId
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -208,12 +209,58 @@ class InboxTest {
     }
 
     @Test
-    fun `알림 이동 표는 서버 Screen 11개를 모두 다룬다`() {
-        assertEquals(ContractEnums.names("Screen"), INBOX_SCREENS)
+    fun `알림 이동 표는 서버 Screen 11개를 모두 다루고 EXTERNAL_LINK는 링크로 연다`() {
+        assertEquals(ContractEnums.names("Screen"), INBOX_SCREENS + LINK_SCREEN)
         INBOX_SCREENS.forEach { assertNotNull(inboxDestination(it, "1"), it) }
+        assertNull(inboxDestination(LINK_SCREEN, FORM))
     }
 
+    @Test
+    fun `공지 링크는 EXTERNAL_LINK의 https 주소만 열고 나머지는 알림함에 머문다`() {
+        assertEquals(FORM, inboxLink(LINK_SCREEN, FORM))
+        assertNull(inboxLink(LINK_SCREEN, null))
+        assertNull(inboxLink(LINK_SCREEN, "http://forms.gle/AbCdEf123"))
+        assertNull(inboxLink(LINK_SCREEN, "intent://forms.gle/x#Intent;end"))
+        assertNull(inboxLink(LINK_SCREEN, "https://forms.gle/a b"))
+        assertNull(inboxLink("CREW_HOME", FORM))
+    }
+
+    @Test
+    fun `공지를 누르면 읽음으로 바꾸고 링크를 연다, 링크가 없으면 알림함에 머문다`() = runTest {
+        val vm = InboxViewModel(repo, clock, FakeEventRepository())
+        vm.events.test {
+            vm.onItemTapped(notice(id = 11, link = FORM))
+            assertEquals(InboxEvent.OpenLink(FORM), awaitItem())
+            vm.onItemTapped(notice(id = 12, link = null))
+            expectNoEvents()
+        }
+        assertEquals(listOf(11L, 12L), repo.opened)
+    }
+
+    @Test
+    fun `공지 줄은 라벨 대신 서버가 준 공지 제목과 본문을 보인다`() {
+        repo.inboxResult = Outcome.Success(Inbox(listOf(notice(id = 11, link = FORM))))
+        val state = InboxViewModel(repo, clock, FakeEventRepository()).state.value
+        compose.setContent {
+            RunkkTheme { InboxScreen(state, onBack = {}, onItem = {}, onRetry = {}) }
+        }
+        compose.onNodeWithText("코치님 이벤트 당첨").assertExists()
+        compose.onNodeWithText("구글 폼에 연락처를 남겨 주세요").assertExists()
+    }
+
+    private fun notice(id: Long, link: String?) = Inbox.Item(
+        id,
+        "NOTICE",
+        "코치님 이벤트 당첨",
+        "구글 폼에 연락처를 남겨 주세요",
+        now.minusSeconds(60),
+        isRead = false,
+        screen = LINK_SCREEN,
+        targetId = link
+    )
+
     private companion object {
+        const val FORM = "https://forms.gle/AbCdEf123"
         val V010_CONSTANTS = setOf(
             "LOGIN", "SIGN_UP", "HOME", "CREW", "ME", "RUN", "PROFILE_EDIT", "SETTINGS",
             "FREE_RUN_SETTINGS", "NOTIFICATION_SETTINGS", "CONSENTS", "WITHDRAW", "RECORDS", "GROWTH", "REPORT",

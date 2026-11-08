@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
@@ -80,6 +81,7 @@ internal fun groupInbox(items: List<Inbox.Item>, clock: Clock): List<InboxGroup>
 fun InboxRoute(viewModel: InboxViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val navigator = LocalRunkkNavigator.current
+    val uriHandler = LocalUriHandler.current
     // 이벤트 목록에서 돌아오면 이벤트 항목의 새 이벤트 점을 다시 센다.
     LifecycleResumeEffect(viewModel) {
         viewModel.onResumed()
@@ -89,6 +91,9 @@ fun InboxRoute(viewModel: InboxViewModel = hiltViewModel()) {
         viewModel.events.collect { event ->
             when (event) {
                 is InboxEvent.Navigate -> navigator.navigate(event.key)
+
+                // 바깥 브라우저가 없으면 알림함에 머문다
+                is InboxEvent.OpenLink -> runCatching { uriHandler.openUri(event.url) }
             }
         }
     }

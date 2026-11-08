@@ -73,4 +73,7 @@ object NotificationTypes {
 
     /** 화면에 있는 모든 알림 종류(서버 알림종류 21개). */
     val allTypes: List<String> get() = (running + crew + etc).flatMap { it.types }
+
+    /** 끄는 스위치가 없는 종류: 운영자 공지(당첨 안내, 서버 MemberSettings.NOTIFICATION_TYPES 밖, S15P31A207-275). */
+    val alwaysOn: List<String> = listOf("NOTICE")
 }

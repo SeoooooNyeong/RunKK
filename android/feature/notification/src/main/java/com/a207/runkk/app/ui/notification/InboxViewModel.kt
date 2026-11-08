@@ -120,7 +120,12 @@ class InboxViewModel @Inject constructor(
                 }
             }
         }
-        // 모르는 화면이면 알림함에 머문다(옛 앱 호환, FR-178).
+        // 공지 링크는 바깥 브라우저로, 모르는 화면이면 알림함에 머문다(옛 앱 호환, FR-178).
+        val link = inboxLink(item.screen, item.targetId)
+        if (link != null) {
+            _events.trySend(InboxEvent.OpenLink(link))
+            return
+        }
         inboxDestination(item.screen, item.targetId)?.let { _events.trySend(InboxEvent.Navigate(it)) }
     }
 }

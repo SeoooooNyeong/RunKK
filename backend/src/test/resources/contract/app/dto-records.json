@@ -1857,6 +1857,9 @@
       "name" : "type",
       "kind" : "leaf"
     }, {
+      "name" : "title",
+      "kind" : "leaf"
+    }, {
       "name" : "content",
       "kind" : "leaf"
     }, {
@@ -2136,6 +2139,25 @@
       "kind" : "leaf"
     } ],
     "file" : "notification/NavigationTarget.java"
+  },
+  "NoticeAdminController.NoticeRequest" : {
+    "components" : [ {
+      "name" : "memberIds",
+      "required" : true,
+      "kind" : "list-leaf"
+    }, {
+      "name" : "title",
+      "required" : true,
+      "kind" : "leaf"
+    }, {
+      "name" : "body",
+      "required" : true,
+      "kind" : "leaf"
+    }, {
+      "name" : "linkUrl",
+      "kind" : "leaf"
+    } ],
+    "file" : "web/admin/notification/NoticeAdminController.java"
   },
   "NotificationController.PushTokenRequest" : {
     "components" : [ {
