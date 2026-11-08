@@ -146,6 +146,148 @@ class MatchViewModelTest {
         assertEquals(UiText.Res(R.string.battle_error_already_matched), vm.state.value.error)
     }
 
+    // ---------- 앱이 뒤로 감(S15P31A207-278) ----------
+
+    private fun matchedBattle(battleId: Long = 9) =
+        ActiveBattle(battleId, BattleHistory.Type.RANDOM, "WAITING_START", Distance(5_000), "바람처럼", startAt = null)
+
+    @Test
+    fun `S15P31A207-278 대기 중 앱이 뒤로 가면 대기열 취소를 보내고 채널을 닫은 뒤 홈으로`() = main.runVmTest { vms ->
+        val w = world()
+        val vm = quick(w, vms)
+        vm.events.test {
+            assertTrue(vm.onBackgrounded(), "대기를 접으면 화면이 그 자리에서 홈으로 간다")
+            runCurrent()
+            expectNoEvents()
+        }
+        assertEquals(listOf("match:5000", "cancel"), w.battles.calls)
+        assertEquals(1, w.channels.channel.closed)
+    }
+
+    @Test
+    fun `S15P31A207-278 요청 중에 앱이 뒤로 가면 대기를 열지 않고 홈으로`() = main.runVmTest { vms ->
+        val w = world()
+        w.channels.channel.connectGate = CompletableDeferred()
+        val vm = quick(w, vms)
+        assertEquals(MatchPhase.REQUESTING, vm.state.value.phase)
+        vm.events.test {
+            assertTrue(vm.onBackgrounded(), "대기를 접으면 화면이 그 자리에서 홈으로 간다")
+            runCurrent()
+            expectNoEvents()
+            w.channels.channel.connectGate?.complete(Unit)
+            runCurrent()
+            expectNoEvents()
+        }
+        assertTrue(w.battles.calls.none { it.startsWith("match:") }, "뒤로 간 뒤에 대기열에 넣지 않는다: ${w.battles.calls}")
+        assertEquals(1, w.channels.channel.closed)
+    }
+
+    @Test
+    fun `S15P31A207-278 이미 짝지어져 취소가 거부되면 진행 중인 대결을 찾아 그만두기를 보낸다`() = main.runVmTest { vms ->
+        val w = world()
+        w.battles.cancelResult = rejected("ALREADY_MATCHED")
+        w.battles.activeResult = Outcome.Success(matchedBattle())
+        val vm = quick(w, vms)
+        vm.events.test {
+            assertTrue(vm.onBackgrounded(), "대기를 접으면 화면이 그 자리에서 홈으로 간다")
+            runCurrent()
+            expectNoEvents()
+        }
+        assertEquals(listOf("match:5000", "cancel", "active", "forfeit:9"), w.battles.calls)
+    }
+
+    @Test
+    fun `S15P31A207-278 취소 응답을 기다리는 중에 앱이 뒤로 가면 홈으로 가고 늦은 응답으로 다시 이동하지 않는다`() = main.runVmTest { vms ->
+        val w = world()
+        val gate = CompletableDeferred<Unit>()
+        w.battles.cancelGate = gate
+        val vm = quick(w, vms)
+        vm.events.test {
+            vm.onCancel()
+            runCurrent()
+            assertEquals(MatchPhase.CANCELLING, vm.state.value.phase)
+            assertTrue(vm.onBackgrounded(), "대기를 접으면 화면이 그 자리에서 홈으로 간다")
+            runCurrent()
+            expectNoEvents()
+            gate.complete(Unit)
+            runCurrent()
+            expectNoEvents()
+        }
+    }
+
+    @Test
+    fun `S15P31A207-278 성사 뒤 출발 전에 앱이 뒤로 가면 회를 닫고 그 대결에 그만두기를 보낸 뒤 홈으로`() = main.runVmTest { vms ->
+        val w = world()
+        val vm = quick(w, vms)
+        vm.events.test {
+            w.channels.channel.push(matchFound())
+            runCurrent()
+            w.channels.channel.push(BattleStart(9, w.clock.now.plusSeconds(10), opponentTrack = null))
+            runCurrent()
+            assertEquals(MatchPhase.MATCHED, vm.state.value.phase)
+            assertTrue(vm.onBackgrounded(), "대기를 접으면 화면이 그 자리에서 홈으로 간다")
+            runCurrent()
+            expectNoEvents()
+            w.clock.now = w.clock.now.plusSeconds(11)
+            advanceTimeBy(12_000)
+            runCurrent()
+            expectNoEvents()
+        }
+        assertEquals(listOf("match:5000", "forfeit:9"), w.battles.calls, "대기열 취소가 아니라 그 대결 그만두기다")
+        assertEquals(BattleRunState.Idle, w.coordinator.state.value)
+        assertNull(w.forfeits.pending, "보냈으면 남기지 않는다")
+    }
+
+    @Test
+    fun `S15P31A207-278 측정이 시작된 뒤에는 앱이 뒤로 가도 대결을 이어 간다`() = main.runVmTest { vms ->
+        val w = world()
+        val vm = quick(w, vms)
+        vm.events.test {
+            w.channels.channel.push(matchFound())
+            runCurrent()
+            w.channels.channel.push(BattleStart(9, w.clock.now.plusSeconds(1), opponentTrack = null))
+            w.clock.now = w.clock.now.plusSeconds(1)
+            advanceTimeBy(2_000)
+            runCurrent()
+            assertIs<MatchEvent.Started>(awaitItem())
+            assertFalse(vm.onBackgrounded())
+            runCurrent()
+            expectNoEvents()
+        }
+        assertTrue(w.battles.calls.none { it.startsWith("forfeit") || it == "cancel" }, "${w.battles.calls}")
+        assertIs<BattleRunState.Running>(w.coordinator.state.value)
+    }
+
+    @Test
+    fun `S15P31A207-278 친구 초대 대기는 카카오톡 공유로 앱이 뒤로 가므로 그대로 둔다(D-271)`() = main.runVmTest { vms ->
+        val w = world()
+        val vm = vms.vm(w)
+        vm.events.test {
+            vm.startInvite(Distance(3_000))
+            runCurrent()
+            assertIs<MatchEvent.ShareInvite>(awaitItem())
+            assertFalse(vm.onBackgrounded())
+            runCurrent()
+            expectNoEvents()
+        }
+        assertEquals(MatchPhase.INVITING, vm.state.value.phase)
+        assertTrue(w.battles.calls.none { it.startsWith("cancelInvite") }, "${w.battles.calls}")
+    }
+
+    @Test
+    fun `S15P31A207-278 대기 중 화면을 떠날 때 취소가 ALREADY_MATCHED로 거부되면 그 대결에 그만두기를 보낸다`() = main.runVmTest {
+        val w = world()
+        w.battles.cancelResult = rejected("ALREADY_MATCHED")
+        w.battles.activeResult = Outcome.Success(matchedBattle())
+        val store = ViewModelStore()
+        val vm = ViewModelProvider.create(store, factory(w))[MatchViewModel::class]
+        vm.startQuick(Distance(5_000))
+        runCurrent()
+        store.clear()
+        runCurrent()
+        assertEquals(listOf("match:5000", "cancel", "active", "forfeit:9"), w.battles.calls)
+    }
+
     @Test
     fun `취소를 기다리는 사이 성사되면 취소 응답을 무시한다`() = main.runVmTest { vms ->
         val w = world()
