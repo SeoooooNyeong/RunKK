@@ -18,5 +18,7 @@ class RunBodyActions(
     val onPreviousMonth: () -> Unit = {},
     val onNextMonth: () -> Unit = {},
     val onRetryMonth: () -> Unit = {},
+    val onPeriod: (RunBodyPeriod) -> Unit = {},
+    val onRetryTrend: () -> Unit = {},
     val onCoach: (() -> Unit)? = null
 )

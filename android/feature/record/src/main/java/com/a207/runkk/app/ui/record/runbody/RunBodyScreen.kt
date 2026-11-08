@@ -11,26 +11,20 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.a207.runkk.app.core.designsystem.RunkkCard
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkLimePillButton
 import com.a207.runkk.app.core.designsystem.RunkkLoading
 import com.a207.runkk.app.core.designsystem.RunkkSegmentRow
-import com.a207.runkk.app.core.designsystem.RunkkShapes
-import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
-import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.ui.record.R
 
@@ -53,7 +47,9 @@ fun RunBodyRoute(viewModel: RunBodyViewModel = hiltViewModel()) {
             onOpenDetail = viewModel::onOpenDetail,
             onPreviousMonth = viewModel::onPreviousMonth,
             onNextMonth = viewModel::onNextMonth,
-            onRetryMonth = viewModel::refreshMonth
+            onRetryMonth = viewModel::refreshMonth,
+            onPeriod = viewModel::onPeriod,
+            onRetryTrend = viewModel::refreshTrend
         )
     )
 }
@@ -124,43 +120,5 @@ internal fun RunBodyLoadable(isLoading: Boolean, error: String?, onRetry: () -> 
         isLoading -> Box(Modifier.fillMaxWidth().padding(vertical = 48.dp)) { RunkkLoading() }
         error != null -> RunkkErrorState(error, onRetry = onRetry)
         else -> content()
-    }
-}
-
-/** 요약 탭(G-14·G-33): 이번 주 요약과 코치 코멘트(FR-066). 코멘트가 없으면 "코멘트 준비 중", 출처는 표시하지 않는다. */
-@Composable
-private fun SummaryTab(state: RunBodyUiState, actions: RunBodyActions) {
-    RunBodyLoadable(
-        isLoading = state.isReportLoading && state.report == null,
-        error = state.reportError?.asString(),
-        onRetry = actions.onRetryReport
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            RunkkCard(Modifier.fillMaxWidth(), shape = RunkkShapes.ExtraLarge) {
-                Text(
-                    stringResource(R.string.record_report_summary_title),
-                    style = RunkkTextStyles.Caption,
-                    color = RunkkColors.TextSecondary
-                )
-                Text(state.summaryText.asString(), style = RunkkTextStyles.CardTitle, color = RunkkColors.TextPrimary)
-            }
-            val hasComment = state.report?.comment != null
-            RunkkCard(
-                Modifier.fillMaxWidth(),
-                shape = RunkkShapes.ExtraLarge,
-                borderColor = if (hasComment) RunkkColors.Lime else RunkkColors.Border
-            ) {
-                Text(
-                    stringResource(R.string.record_report_comment_title),
-                    style = RunkkTextStyles.Caption,
-                    color = RunkkColors.TextSecondary
-                )
-                Text(
-                    state.commentText.asString(),
-                    style = RunkkTextStyles.text(16, FontWeight.Bold, lineHeight = 24),
-                    color = if (hasComment) RunkkColors.TextPrimary else RunkkColors.TextSecondary
-                )
-            }
-        }
     }
 }

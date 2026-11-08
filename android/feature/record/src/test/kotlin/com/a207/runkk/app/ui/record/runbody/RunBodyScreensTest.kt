@@ -1,7 +1,10 @@
 package com.a207.runkk.app.ui.record.runbody
 
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -13,6 +16,7 @@ import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.domain.record.Report
 import com.a207.runkk.app.domain.runbody.RunBodyAxis
 import com.a207.runkk.app.domain.runbody.RunBodyMonth
+import com.a207.runkk.app.domain.runbody.RunBodyTrend
 import com.a207.runkk.app.ui.record.summary
 import java.time.Duration
 import java.time.Instant
@@ -177,19 +181,72 @@ class RunBodyScreensTest {
         assertEquals(1, previous)
     }
 
+    private fun summaryState(trend: RunBodyTrend?, period: RunBodyPeriod = RunBodyPeriod.WEEK) = RunBodyUiState(
+        today = today,
+        zone = zone,
+        isReportLoading = false,
+        report = Report("이번 주 3회, 15.2km", null, null),
+        isTrendLoading = false,
+        trend = trend,
+        period = period
+    )
+
+    @Test
+    fun `요약은 최근 10회 변화의 회차와 페이스·같은 심박·빈도·러닝 유형을 보이고 토글을 알린다(G-14)`() {
+        val periods = mutableListOf<RunBodyPeriod>()
+        compose.setContent {
+            RunkkTheme { RunBodyScreen(summaryState(sampleTrend()), RunBodyActions(onPeriod = { periods += it })) }
+        }
+        compose.onNodeWithText("2회차").assertExists()
+        compose.onNodeWithText("11~20번째 러닝").assertExists()
+        compose.onNodeWithText("14초 단축").assertExists()
+        compose.onNodeWithText("12초/km").assertExists()
+        compose.onNodeWithText("주간 러닝 빈도").assertExists()
+        compose.onNodeWithText("2.1 → 2.8회").assertExists()
+        compose.onNodeWithText("0.7회 늘었어요").assertExists()
+        compose.onNodeWithText("출근도장 거북이").performScrollTo().assertExists()
+        // 맨 위 탭과 토글에 "월간"이 둘 있다. 두 번째가 주간/월간 토글이다
+        compose.onAllNodesWithText("월간")[1].performClick()
+        assertEquals(listOf(RunBodyPeriod.MONTH), periods)
+    }
+
+    @Test
+    fun `월간이면 빈도를 30일 기준으로, 10회 전이면 남은 횟수를 보인다(G-14)`() {
+        val trend = mutableStateOf(sampleTrend())
+        compose.setContent {
+            RunkkTheme { RunBodyScreen(summaryState(trend.value, RunBodyPeriod.MONTH), RunBodyActions()) }
+        }
+        compose.onNodeWithText("월간 러닝 빈도").assertExists()
+        compose.onNodeWithText("9.0 → 12.0회").assertExists()
+        compose.onNodeWithText("3.0회 늘었어요").assertExists()
+
+        trend.value = RunBodyTrend(4, 0, 6, null, null, null, null)
+        compose.onNodeWithText("러닝을 6번 더 하면 최근 10회 변화를 보여 드려요").assertExists()
+        compose.onNodeWithText("평균 페이스").assertDoesNotExist()
+    }
+
+    @Test
+    fun `러닝 선택은 점수가 있는 기록에 러닝 점수와 변화를 보인다(G-30)`() {
+        compose.setContent {
+            RunkkTheme {
+                RunBodyScreen(
+                    runState(RunBodySessionState.Loading).copy(
+                        page = RunBodyPage.PICK,
+                        scores = mapOf("r3" to SAMPLE_RUN_SCORES.first())
+                    ),
+                    RunBodyActions()
+                )
+            }
+        }
+        compose.onNodeWithContentDescription("러닝 점수 78점, 6점 올랐어요").assertExists()
+        compose.onNodeWithText("러닝 점수", useUnmergedTree = true).assertExists()
+    }
+
     // ---------- 스크린샷(라이트 벌, 피그마 대응) ----------
 
     @Test
     fun summaryShot() = compose.captureRunkkScreen("G14_runbody_summary", isDarkTheme = false) {
-        RunBodyScreen(
-            RunBodyUiState(
-                today = today,
-                zone = zone,
-                isReportLoading = false,
-                report = Report("이번 주 3회, 15.2km", null, null)
-            ),
-            coach
-        )
+        RunBodyScreen(summaryState(sampleTrend()), coach)
     }
 
     @Test
@@ -224,7 +281,13 @@ class RunBodyScreensTest {
 
     @Test
     fun pickShot() = compose.captureRunkkScreen("G30_runbody_pick", isDarkTheme = false) {
-        RunBodyScreen(runState(RunBodySessionState.Loading).copy(page = RunBodyPage.PICK), coach)
+        RunBodyScreen(
+            runState(RunBodySessionState.Loading).copy(
+                page = RunBodyPage.PICK,
+                scores = SAMPLE_RUN_SCORES.associateBy { it.recordId }
+            ),
+            coach
+        )
     }
 
     @Test

@@ -10,7 +10,9 @@ import com.a207.runkk.app.domain.runbody.RunBodyAxis
 import com.a207.runkk.app.domain.runbody.RunBodyMonth
 import com.a207.runkk.app.domain.runbody.RunBodyRepository
 import com.a207.runkk.app.domain.runbody.RunBodyResult
+import com.a207.runkk.app.domain.runbody.RunBodyRunScore
 import com.a207.runkk.app.domain.runbody.RunBodyStatus
+import com.a207.runkk.app.domain.runbody.RunBodyTrend
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -22,7 +24,7 @@ import kotlin.test.assertNull
 import kotlinx.coroutines.test.runTest
 import retrofit2.create
 
-/** api.runbody(D-453): 계약 runkk-work/runbody/contract.md v1.0의 예시 본문을 그대로 읽는다. */
+/** api.runbody(D-453): 계약 runkk-work/runbody/contract.md v1.2의 예시 본문을 그대로 읽는다. */
 class RunBodyRepositoryImplTest {
     private val api = ApiTestServer()
     private val repository = RunBodyRepositoryImpl(api.retrofit.create())
@@ -135,6 +137,63 @@ class RunBodyRepositoryImplTest {
         assertEquals(LocalDate.of(2026, 11, 21), month.load.availableFrom)
         assertNull(month.load.level)
         assertEquals(1, month.baseline.needs)
+    }
+
+    @Test
+    fun `러닝 점수 목록은 size 100으로 읽고 모르는 상태 줄은 버리며 범위 밖 점수는 없는 것으로 본다(계약 7절)`() = runTest {
+        api.reply(
+            """
+            {"items":[
+              {"recordId":"r3","status":"DONE","score":78,"scoreChange":6},
+              {"recordId":"r2","status":"ANALYZING","score":null,"scoreChange":null},
+              {"recordId":"r1","status":"DONE","score":72,"scoreChange":null},
+              {"recordId":"rx","status":"QUEUED","score":50},
+              {"recordId":"ry","status":"DONE","score":140,"scoreChange":3}],
+             "nextCursor":"ry"}
+            """.trimIndent()
+        )
+
+        val scores = repository.scores().value()
+
+        val request = api.take()
+        assertEquals("GET /api/v1/runbody/sessions", "${request.method} ${request.url.encodedPath}")
+        assertEquals("100", request.url.queryParameter("size"))
+        assertEquals(
+            listOf(
+                RunBodyRunScore("r3", RunBodyStatus.DONE, 78, 6),
+                RunBodyRunScore("r2", RunBodyStatus.ANALYZING, null, null),
+                RunBodyRunScore("r1", RunBodyStatus.DONE, 72, null),
+                RunBodyRunScore("ry", RunBodyStatus.DONE, null, null)
+            ),
+            scores
+        )
+    }
+
+    @Test
+    fun `최근 10회 변화는 회차·직전과 최근·같은 심박 페이스·러닝 유형을 읽는다(계약 8절)`() = runTest {
+        api.reply(
+            """
+            {"validRunCount":23,"round":2,"needs":0,
+             "recent":{"fromOrdinal":11,"toOrdinal":20,"paceSecondsPerKm":348,"runsPerWeek":2.8,"runsPerMonth":11.1,"averageHeartRate":150},
+             "previous":{"fromOrdinal":1,"toOrdinal":10,"paceSecondsPerKm":362,"runsPerWeek":2.1,"runsPerMonth":9.0,"averageHeartRate":149},
+             "sameHeartRatePaceChange":12,"runimalType":"COMMUTER_TURTLE"}
+            """.trimIndent()
+        )
+        api.reply("""{"validRunCount":4,"round":0,"needs":6,"recent":null,"previous":null}""")
+
+        val trend = repository.trend().value()
+
+        assertEquals("GET /api/v1/runbody/trend", api.take().let { "${it.method} ${it.url.encodedPath}" })
+        assertEquals(2, trend.round)
+        assertEquals(RunBodyTrend.Window(11, 20, Pace(348), 2.8, 11.1, 150), trend.recent)
+        assertEquals(Pace(362), trend.previous?.pace)
+        assertEquals(14, trend.paceChange)
+        assertEquals(12, trend.sameHeartRatePaceChange)
+        assertEquals("COMMUTER_TURTLE", trend.runimalType)
+
+        val early = repository.trend().value()
+        assertEquals(RunBodyTrend(4, 0, 6, null, null, null, null), early)
+        assertNull(early.paceChange)
     }
 
     private companion object {

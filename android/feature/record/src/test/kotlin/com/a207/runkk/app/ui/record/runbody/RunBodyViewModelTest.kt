@@ -39,14 +39,19 @@ class RunBodyViewModelTest {
     }
 
     @Test
-    fun `처음에는 요약 탭이고 리포트만 읽으며 코멘트가 없으면 준비 중이다(FR-066, G-33)`() {
+    fun `처음에는 요약 탭이고 리포트와 최근 10회 변화만 읽으며 코멘트가 없으면 준비 중이다(FR-066, G-14, G-33)`() {
         val vm = viewModel()
 
         assertEquals(RunBodyTab.SUMMARY, vm.state.value.tab)
         assertFalse(vm.state.value.isReportLoading)
         assertEquals(UiText.Res(R.string.record_report_comment_pending), vm.state.value.commentText)
+        assertFalse(vm.state.value.isTrendLoading)
+        assertEquals(sampleTrend(), vm.state.value.trend)
+        assertEquals(RunBodyPeriod.WEEK, vm.state.value.period)
+        assertEquals(1, runBody.trendCalls)
         assertEquals(emptyList(), records.runsCalls)
         assertEquals(emptyList(), runBody.sessionCalls)
+        assertEquals(0, runBody.scoresCalls)
     }
 
     @Test
@@ -191,5 +196,50 @@ class RunBodyViewModelTest {
         runBody.monthOf = { Outcome.Success(sampleMonth(it)) }
         vm.refreshMonth()
         assertEquals(YearMonth.of(2026, 11), vm.state.value.monthData?.month)
+    }
+
+    @Test
+    fun `주간·월간 토글은 다시 읽지 않고 기간만 바꾸며 최근 10회 변화를 못 읽으면 다시 시도로 읽는다(G-14)`() {
+        runBody.trendReply = Outcome.Failure(AppError.Network)
+        val vm = viewModel()
+
+        assertEquals(null, vm.state.value.trend)
+        assertTrue(vm.state.value.trendError != null)
+        vm.onPeriod(RunBodyPeriod.MONTH)
+        assertEquals(RunBodyPeriod.MONTH, vm.state.value.period)
+        assertEquals(1, runBody.trendCalls)
+
+        runBody.trendReply = Outcome.Success(sampleTrend())
+        vm.refreshTrend()
+        assertEquals(sampleTrend(), vm.state.value.trend)
+        assertEquals(null, vm.state.value.trendError)
+    }
+
+    @Test
+    fun `러닝별 탭은 기록과 함께 러닝 점수를 읽고, 못 읽어도 목록은 그대로다(G-30)`() {
+        val vm = viewModel()
+        vm.onTab(RunBodyTab.RUN)
+
+        assertEquals(1, runBody.scoresCalls)
+        assertEquals(78, vm.state.value.scores["r3"]?.score)
+        assertEquals(6, vm.state.value.scores["r3"]?.change)
+
+        runBody.scoresReply = Outcome.Failure(AppError.Network)
+        vm.refreshRuns()
+        assertEquals(2, runBody.scoresCalls)
+        assertEquals(78, vm.state.value.scores["r3"]?.score)
+        assertTrue(vm.state.value.runs.isNotEmpty())
+    }
+
+    @Test
+    fun `기다리던 분석이 끝나면 러닝 점수를 다시 읽는다(G-30)`() {
+        runBody.reply("r3", waiting("r3", RunBodyStatus.ANALYZING), Outcome.Success(done("r3")))
+        val vm = viewModel()
+
+        vm.onTab(RunBodyTab.RUN)
+        assertEquals(1, runBody.scoresCalls)
+        advance(RunBodyViewModel.POLL_MILLIS)
+        assertIs<RunBodySessionState.Done>(vm.state.value.session)
+        assertEquals(2, runBody.scoresCalls)
     }
 }

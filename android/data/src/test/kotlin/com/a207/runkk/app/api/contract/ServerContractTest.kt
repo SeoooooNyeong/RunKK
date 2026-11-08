@@ -87,6 +87,9 @@ import com.a207.runkk.app.api.run.DisposalOrderResponse
 import com.a207.runkk.app.api.run.LateHeartRatesRequest
 import com.a207.runkk.app.api.run.RunUploadRequest
 import com.a207.runkk.app.api.run.UploadResponse
+import com.a207.runkk.app.api.runbody.RunBodySessionListResponse
+import com.a207.runkk.app.api.runbody.RunBodySessionResponse
+import com.a207.runkk.app.api.runbody.RunBodyTrendResponse
 import com.a207.runkk.app.api.runimal.RunimalCardResponse
 import com.a207.runkk.app.api.runimal.RunimalStatusResponse
 import com.a207.runkk.app.api.runimal.RunimalTypeResponse
@@ -409,6 +412,10 @@ class ServerContractTest {
         response(PlanProgressResponse.serializer(), "RecordDtos.PlanProgressResponse")
         response(TodayPlanResponse.serializer(), "RecordDtos.TodayPlanResponse")
         response(RunCardResponse.serializer(), "RecordDtos.RunCardResponse")
+        // 런바디(계약 runkk-work/runbody/contract.md v1.2): 세션, 러닝 선택 점수 목록(7절), 요약 최근 10회 변화(8절)
+        response(RunBodySessionResponse.serializer(), "RunBodyDtos.RunBodySessionResponse")
+        response(RunBodySessionListResponse.serializer(), "RunBodyDtos.RunBodySessionListResponse")
+        response(RunBodyTrendResponse.serializer(), "RunBodyDtos.RunBodyTrendResponse")
         // TC-5940 배치고사 대결 항목(05-03 5.7.3.3): 선택 항목이라 위 대조가 빠뜨리지 않게 이름이 서버 record에 있는지 따로 본다
         mapOf(
             MatchAcceptanceResponse.serializer() to

@@ -4,7 +4,9 @@ import com.a207.runkk.app.api.core.ApiErrorMapper
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.runbody.RunBodyMonth
 import com.a207.runkk.app.domain.runbody.RunBodyRepository
+import com.a207.runkk.app.domain.runbody.RunBodyRunScore
 import com.a207.runkk.app.domain.runbody.RunBodySession
+import com.a207.runkk.app.domain.runbody.RunBodyTrend
 import java.time.YearMonth
 import javax.inject.Inject
 
@@ -17,4 +19,9 @@ constructor(private val api: RunBodyApi) : RunBodyRepository {
 
     override suspend fun month(month: YearMonth): Outcome<RunBodyMonth> =
         ApiErrorMapper.call { api.month(month.toString()).toDomain() }
+
+    override suspend fun scores(size: Int): Outcome<List<RunBodyRunScore>> =
+        ApiErrorMapper.call { api.sessions(size.coerceIn(1, RunBodyRepository.MAX_SCORES)).toDomain() }
+
+    override suspend fun trend(): Outcome<RunBodyTrend> = ApiErrorMapper.call { api.trend().toDomain() }
 }

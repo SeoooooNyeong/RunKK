@@ -7,8 +7,10 @@ import com.a207.runkk.app.domain.runbody.RunBodyAxis
 import com.a207.runkk.app.domain.runbody.RunBodyMonth
 import com.a207.runkk.app.domain.runbody.RunBodyRepository
 import com.a207.runkk.app.domain.runbody.RunBodyResult
+import com.a207.runkk.app.domain.runbody.RunBodyRunScore
 import com.a207.runkk.app.domain.runbody.RunBodySession
 import com.a207.runkk.app.domain.runbody.RunBodyStatus
+import com.a207.runkk.app.domain.runbody.RunBodyTrend
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -20,6 +22,10 @@ class FakeRunBodyRepository : RunBodyRepository {
     val sessionCalls = mutableListOf<String>()
     var monthOf: (YearMonth) -> Outcome<RunBodyMonth> = { Outcome.Success(sampleMonth(it)) }
     val monthCalls = mutableListOf<YearMonth>()
+    var scoresReply: Outcome<List<RunBodyRunScore>> = Outcome.Success(SAMPLE_RUN_SCORES)
+    var scoresCalls = 0
+    var trendReply: Outcome<RunBodyTrend> = Outcome.Success(sampleTrend())
+    var trendCalls = 0
 
     fun reply(recordId: String, vararg outcomes: Outcome<RunBodySession>) {
         sessionReplies[recordId] = outcomes.toMutableList()
@@ -34,6 +40,16 @@ class FakeRunBodyRepository : RunBodyRepository {
     override suspend fun month(month: YearMonth): Outcome<RunBodyMonth> {
         monthCalls += month
         return monthOf(month)
+    }
+
+    override suspend fun scores(size: Int): Outcome<List<RunBodyRunScore>> {
+        scoresCalls++
+        return scoresReply
+    }
+
+    override suspend fun trend(): Outcome<RunBodyTrend> {
+        trendCalls++
+        return trendReply
     }
 }
 
@@ -114,4 +130,21 @@ fun sampleMonth(month: YearMonth = YearMonth.of(2026, 10)): RunBodyMonth = RunBo
         chronicWeekly = Distance(16_200),
         availableFrom = null
     )
+)
+
+/** G-30 견본: r3 78점(직전보다 6점 올라), r2 72점(직전 없음). */
+val SAMPLE_RUN_SCORES: List<RunBodyRunScore> = listOf(
+    RunBodyRunScore("r3", RunBodyStatus.DONE, 78, 6),
+    RunBodyRunScore("r2", RunBodyStatus.DONE, 72, null)
+)
+
+/** G-14 견본: 2회차(11~20번째), 6'02" → 5'48", 같은 심박 12초 단축, 주 2.1 → 2.8회, 출근도장 거북이. */
+fun sampleTrend(): RunBodyTrend = RunBodyTrend(
+    validRunCount = 23,
+    round = 2,
+    needs = 0,
+    recent = RunBodyTrend.Window(11, 20, Pace(348), 2.8, 12.0, 150),
+    previous = RunBodyTrend.Window(1, 10, Pace(362), 2.1, 9.0, 149),
+    sameHeartRatePaceChange = 12,
+    runimalType = "COMMUTER_TURTLE"
 )
