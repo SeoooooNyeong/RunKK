@@ -284,17 +284,6 @@ class CrewHomeViewModelTest {
     }
 
     @Test
-    fun `게시글은 끝에 닿으면 다음 쪽을 이어 받는다(FR-131, 게시판 응원 칩)`() {
-        repo.postsNext = 41
-        val vm = CrewBoardViewModel(repo, clock).also { it.bind(11, BoardFilter.CHEER) }
-        vm.onLoadMore()
-        assertEquals(listOf(41L, 42L, 49L), vm.state.value.posts?.posts?.map { it.postId })
-        assertNull(vm.state.value.posts?.nextCursor)
-        vm.onLoadMore()
-        assertEquals(1, repo.calls.count { it == "posts:CHEER:41" })
-    }
-
-    @Test
     fun `레이스 탭 - 이번 주 거리·기여도와 주간 랭킹, 기간을 바꾸면 다시 읽는다(FR-137·FR-140)`() {
         val vm = vm()
         assertEquals(race, vm.state.value.race)
@@ -306,23 +295,17 @@ class CrewHomeViewModelTest {
     }
 
     @Test
-    fun `탭은 처음 열 때 한 번만 읽는다`() {
+    fun `탭과 크루원 쪽은 처음 열 때 한 번만 읽는다`() {
         val vm = vm()
-        vm.onTab(CrewTab.MEMBERS)
+        vm.onPage(CrewHomePage.MEMBERS)
+        vm.onPage(CrewHomePage.HOME)
+        vm.onPage(CrewHomePage.MEMBERS)
+        assertEquals(1, repo.calls.count { it == "members" }, repo.calls.toString())
+        vm.onPage(CrewHomePage.HOME)
+        vm.onTab(CrewTab.SCHEDULE)
         vm.onTab(CrewTab.RACE)
-        vm.onTab(CrewTab.MEMBERS)
-        assertEquals(1, repo.calls.count { it == "members" })
-    }
-
-    @Test
-    fun `응원글 200자는 코드 포인트로 세고 넘기지 않는다(D-143, FR-129, 게시판 응원 칩)`() {
-        val vm = CrewBoardViewModel(repo, clock).also { it.bind(11, BoardFilter.CHEER) }
-        val emoji = "\uD83C\uDFC3"
-        vm.onCheerDraft(emoji.repeat(201))
-        assertEquals(emoji.repeat(200), vm.state.value.cheerDraft)
-        assertTrue(vm.state.value.isCheerValid)
-        vm.onCheerDraft("가".repeat(250))
-        assertEquals(200, vm.state.value.cheerDraft.length)
+        vm.onTab(CrewTab.SCHEDULE)
+        assertEquals(1, repo.calls.count { it == "posts:CREW_RUN" }, repo.calls.toString())
     }
 
     @Test

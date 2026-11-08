@@ -6,10 +6,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.ServerClock
+import com.a207.runkk.app.core.navigation.Routes
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -112,5 +115,54 @@ class CrewFigmaTest {
         compose.onAllNodesWithText("저녁")[1].performClick()
         compose.onAllNodesWithText("새벽")[1].performClick()
         assertEquals(setOf("WEEKDAY_MORNING", "WEEKDAY_LUNCH", "WEEKEND_EVENING"), form.tags)
+    }
+
+    @Test
+    fun `크루 홈 탭은 레이스, 크루런, 채팅 셋이고 게시판과 크루원 탭이 없다(F-05)`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                CrewHomeScreen(CrewHomeUiState(crewId = 11, detail = crewDetail(), race = race), CrewHomeActions())
+            }
+        }
+        compose.onNodeWithText("레이스").assertExists()
+        compose.onNodeWithText("크루런").assertExists()
+        compose.onNodeWithText("채팅").assertExists()
+        compose.onNodeWithText("게시판").assertDoesNotExist()
+        compose.onNodeWithText("6/10명", substring = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun `크루 정보 쪽은 태그, 이번 주와 지난 주 거리, 탈퇴하기를 보이고 뒤로 가면 홈이다(F-18)`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                CrewHomeScreen(
+                    CrewHomeUiState(
+                        crewId = 11,
+                        detail = crewDetail().copy(lastWeekDistance = Distance(64_270)),
+                        page = CrewHomePage.INFO
+                    ),
+                    CrewHomeActions(onPage = { calls += "page:$it" }, onLeaveAsk = { calls += "leave" })
+                )
+            }
+        }
+        compose.onNodeWithText("새벽질주").assertExists()
+        compose.onNodeWithText("평일 저녁").assertExists()
+        compose.onNodeWithText("이번 주 달린 거리").assertExists()
+        compose.onNodeWithText("64.27km").assertExists()
+        compose.onNodeWithText("초대 코드").assertDoesNotExist()
+        compose.onNodeWithText("탈퇴하기").performClick()
+        compose.onNodeWithContentDescription("뒤로", substring = true).performClick()
+        assertEquals(listOf("leave", "page:HOME"), calls)
+    }
+
+    @Test
+    fun `크루원 쪽을 처음 열면 크루원을 읽는다(F-22)`() {
+        val repo = FakeCrewRepository()
+        val vm = CrewHomeViewModel(repo, ServerClock(MutableClock()), FakeCelebrationSharer())
+            .also { it.bind(Routes.CrewHome(11)) }
+        assertTrue("members" !in repo.calls)
+        vm.onPage(CrewHomePage.MEMBERS)
+        assertEquals(CrewHomePage.MEMBERS, vm.state.value.page)
+        assertTrue("members" in repo.calls)
     }
 }

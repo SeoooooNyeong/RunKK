@@ -25,8 +25,8 @@ import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.designsystem.RunkkBadge
 import com.a207.runkk.app.core.designsystem.RunkkBadgeTone
 import com.a207.runkk.app.core.designsystem.RunkkCard
-import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkChoiceChip
+import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkSegmentRow
 import com.a207.runkk.app.core.designsystem.RunkkTags
 import com.a207.runkk.app.core.designsystem.RunkkTextField
@@ -143,7 +143,8 @@ internal fun CrewStatCard(label: String, value: String?, modifier: Modifier = Mo
 
 /** "64.27km"(소수 둘째 자리). */
 @Composable
-internal fun kmLabel(distance: Distance): String = stringResource(R.string.crew_contribution_km, RunkkFormat.km(distance))
+internal fun kmLabel(distance: Distance): String =
+    stringResource(R.string.crew_contribution_km, RunkkFormat.km(distance))
 
 /**
  * 크루 태그 고르기(피그마 F-01b·F-04·F-26): 줄마다 "평일"·"주말"과 시간대 칩 넷. 3개를 넘기면 [RunkkTags.toggle]이 더 켜지 않는다.

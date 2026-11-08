@@ -85,11 +85,7 @@ import com.a207.runkk.app.domain.crew.MyCrew
  * 없으면 크루 찾기·상세·초대 코드·만들기·대기 중인 내 가입 신청을 보인다.
  */
 @Composable
-fun CrewFindRoute(
-    initialTab: CrewTab? = null,
-    initialFilter: BoardFilter = BoardFilter.ALL,
-    viewModel: CrewFindViewModel = hiltViewModel()
-) {
+fun CrewFindRoute(initialTab: CrewTab? = null, viewModel: CrewFindViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val navigator = LocalRunkkNavigator.current
     // 크루 만들기 등에서 돌아오면 소속을 다시 확인한다(처음 들어올 때는 ViewModel init이 확인한다).
@@ -100,12 +96,11 @@ fun CrewFindRoute(
     val mine = state.mine
     when {
         mine != null -> {
-            // 알림으로 들어오면(initialTab) 그 탭(게시판이면 initialFilter 칩)을 먼저 열고 뒤로 단추를 둔다(D-150).
+            // 알림으로 들어오면(initialTab) 그 탭을 먼저 열고 뒤로 단추를 둔다(D-150).
             CrewHomeRoute(
                 Routes.CrewHome(mine.crewId),
                 isAtTabRoot = initialTab == null,
-                initialTab = initialTab ?: CrewTab.RACE,
-                initialFilter = initialFilter
+                initialTab = initialTab ?: CrewTab.RACE
             )
             return
         }
