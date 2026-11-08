@@ -156,9 +156,9 @@ class MatchViewModelTest {
         val w = world()
         val vm = quick(w, vms)
         vm.events.test {
-            vm.onBackgrounded()
+            assertTrue(vm.onBackgrounded(), "대기를 접으면 화면이 그 자리에서 홈으로 간다")
             runCurrent()
-            assertEquals(MatchEvent.Home, awaitItem())
+            expectNoEvents()
         }
         assertEquals(listOf("match:5000", "cancel"), w.battles.calls)
         assertEquals(1, w.channels.channel.closed)
@@ -171,9 +171,9 @@ class MatchViewModelTest {
         val vm = quick(w, vms)
         assertEquals(MatchPhase.REQUESTING, vm.state.value.phase)
         vm.events.test {
-            vm.onBackgrounded()
+            assertTrue(vm.onBackgrounded(), "대기를 접으면 화면이 그 자리에서 홈으로 간다")
             runCurrent()
-            assertEquals(MatchEvent.Home, awaitItem())
+            expectNoEvents()
             w.channels.channel.connectGate?.complete(Unit)
             runCurrent()
             expectNoEvents()
@@ -189,9 +189,9 @@ class MatchViewModelTest {
         w.battles.activeResult = Outcome.Success(matchedBattle())
         val vm = quick(w, vms)
         vm.events.test {
-            vm.onBackgrounded()
+            assertTrue(vm.onBackgrounded(), "대기를 접으면 화면이 그 자리에서 홈으로 간다")
             runCurrent()
-            assertEquals(MatchEvent.Home, awaitItem())
+            expectNoEvents()
         }
         assertEquals(listOf("match:5000", "cancel", "active", "forfeit:9"), w.battles.calls)
     }
@@ -206,9 +206,9 @@ class MatchViewModelTest {
             vm.onCancel()
             runCurrent()
             assertEquals(MatchPhase.CANCELLING, vm.state.value.phase)
-            vm.onBackgrounded()
+            assertTrue(vm.onBackgrounded(), "대기를 접으면 화면이 그 자리에서 홈으로 간다")
             runCurrent()
-            assertEquals(MatchEvent.Home, awaitItem())
+            expectNoEvents()
             gate.complete(Unit)
             runCurrent()
             expectNoEvents()
@@ -225,9 +225,9 @@ class MatchViewModelTest {
             w.channels.channel.push(BattleStart(9, w.clock.now.plusSeconds(10), opponentTrack = null))
             runCurrent()
             assertEquals(MatchPhase.MATCHED, vm.state.value.phase)
-            vm.onBackgrounded()
+            assertTrue(vm.onBackgrounded(), "대기를 접으면 화면이 그 자리에서 홈으로 간다")
             runCurrent()
-            assertEquals(MatchEvent.Home, awaitItem())
+            expectNoEvents()
             w.clock.now = w.clock.now.plusSeconds(11)
             advanceTimeBy(12_000)
             runCurrent()
@@ -250,7 +250,7 @@ class MatchViewModelTest {
             advanceTimeBy(2_000)
             runCurrent()
             assertIs<MatchEvent.Started>(awaitItem())
-            vm.onBackgrounded()
+            assertFalse(vm.onBackgrounded())
             runCurrent()
             expectNoEvents()
         }
@@ -266,7 +266,7 @@ class MatchViewModelTest {
             vm.startInvite(Distance(3_000))
             runCurrent()
             assertIs<MatchEvent.ShareInvite>(awaitItem())
-            vm.onBackgrounded()
+            assertFalse(vm.onBackgrounded())
             runCurrent()
             expectNoEvents()
         }

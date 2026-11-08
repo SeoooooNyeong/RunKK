@@ -10,9 +10,6 @@ sealed interface MatchEvent {
     /** 대기 취소·안내 확인: 이전 화면으로(배틀런 화면, 받은 초대면 홈). */
     data object Exit : MatchEvent
 
-    /** 매칭 대기 중 앱이 뒤로 가 대기를 접었다: 홈으로(S15P31A207-278). */
-    data object Home : MatchEvent
-
     /** 초대를 카카오톡으로 보낸다(D-270). 화면이 InviteSharer를 부른다. [inviterName]은 내 닉네임이고 못 읽었으면 null이다. */
     data class ShareInvite(val invite: FriendInvite, val inviterName: String?) : MatchEvent
 }

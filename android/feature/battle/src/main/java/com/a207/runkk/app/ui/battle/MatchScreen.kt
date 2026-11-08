@@ -88,8 +88,6 @@ fun MatchRoute(start: MatchStart, sharer: InviteSharer, viewModel: MatchViewMode
 
                 MatchEvent.Exit -> navigator.back()
 
-                MatchEvent.Home -> navigator.restart(Routes.HOME)
-
                 // 공유 화면이 열리고 닫히기를 기다리는 동안 다음 이벤트(성사·안내)를 막지 않게 따로 띄운다.
                 is MatchEvent.ShareInvite -> scope.launch {
                     val activity = context as? Activity
@@ -109,8 +107,9 @@ fun MatchRoute(start: MatchStart, sharer: InviteSharer, viewModel: MatchViewMode
     }
     // 대기 중 뒤로가기는 취소, 성사 뒤에는 자동 출발이라 막는다(FR-087).
     BackHandler { viewModel.onCancel() }
-    // 랜덤 매칭 대기 중 앱이 뒤로 가면 대기를 접고 홈으로 간다(S15P31A207-278).
-    OnAppBackgrounded(viewModel::onBackgrounded)
+    // 랜덤 매칭 대기 중이나 성사 뒤 출발 전에 앱이 뒤로 가면 대기를 접고 홈으로 간다(S15P31A207-278). 화면 상태가 저장되기 전에
+    // 이동하도록 ON_STOP 안에서 바로 바꾼다(이벤트로 미루면 프로세스가 끝난 뒤 매칭 화면이 복원된다).
+    OnAppBackgrounded { if (viewModel.onBackgrounded()) navigator.restart(Routes.HOME) }
     MatchScreen(
         state = state,
         actions = MatchActions(
