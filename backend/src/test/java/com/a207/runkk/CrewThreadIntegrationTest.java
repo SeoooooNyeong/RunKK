@@ -15,10 +15,10 @@ import com.a207.runkk.avatar.FacePartImageStore;
 import com.a207.runkk.avatar.SdFacePartImages;
 import com.a207.runkk.avatar.SdFaceParts;
 import com.a207.runkk.bootstrap.RunkkApplication;
+import com.a207.runkk.common.CrewTag;
 import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.ItemSlot;
-import com.a207.runkk.common.PersonalityTag;
 import com.a207.runkk.common.ProgressReport;
 import com.a207.runkk.common.StandardDistance;
 import com.a207.runkk.crew.CrewCreateCommand;
@@ -174,7 +174,7 @@ class CrewThreadIntegrationTest {
                         new CrewCreateCommand(
                                 "통합크루" + NAMES.incrementAndGet(),
                                 "함께",
-                                Set.of(PersonalityTag.SOCIAL_RUN),
+                                Set.of(CrewTag.WEEKDAY_EVENING),
                                 CrewVisibility.PUBLIC,
                                 policy,
                                 null))

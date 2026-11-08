@@ -1,10 +1,10 @@
 package com.a207.runkk.web.crew;
 
 import com.a207.runkk.common.BusinessRuleException;
+import com.a207.runkk.common.CrewTag;
 import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.PageCursor;
-import com.a207.runkk.common.PersonalityTag;
 import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.common.ServerZone;
 import com.a207.runkk.common.StandardDistance;
@@ -105,7 +105,7 @@ final class CrewDtos {
      *
      * @param name 크루명
      * @param intro 한줄소개
-     * @param tags 성향 태그
+     * @param tags 크루 태그(요일·시간대)
      * @param visibility 공개 여부
      * @param joinPolicy 가입 방식
      * @param logoUrl 로고 이미지 주소
@@ -113,7 +113,7 @@ final class CrewDtos {
     record CrewFormRequest(
             String name,
             String intro,
-            Set<PersonalityTag> tags,
+            Set<CrewTag> tags,
             CrewVisibility visibility,
             JoinPolicy joinPolicy,
             @Pattern(regexp = "^https://[^\\s]+$") @Size(max = MAX_LOGO_URL) String logoUrl) {
@@ -214,7 +214,7 @@ final class CrewDtos {
          * @param crewId 크루 ID
          * @param name 크루명
          * @param intro 한줄소개
-         * @param tags 성향 태그
+         * @param tags 크루 태그(요일·시간대)
          * @param logoUrl 로고
          * @param leaderName 크루장 표시명
          * @param headcount 인원
@@ -225,7 +225,7 @@ final class CrewDtos {
                 long crewId,
                 String name,
                 String intro,
-                Set<PersonalityTag> tags,
+                Set<CrewTag> tags,
                 String logoUrl,
                 String leaderName,
                 int headcount,
@@ -853,7 +853,7 @@ final class CrewDtos {
      * @param crewId 크루 ID
      * @param name 크루명
      * @param intro 한줄소개
-     * @param tags 성향 태그
+     * @param tags 크루 태그(요일·시간대)
      * @param visibility PUBLIC | PRIVATE
      * @param joinPolicy FREE | APPROVAL
      * @param logoUrl 로고
@@ -870,7 +870,7 @@ final class CrewDtos {
             long crewId,
             String name,
             String intro,
-            Set<PersonalityTag> tags,
+            Set<CrewTag> tags,
             CrewVisibility visibility,
             JoinPolicy joinPolicy,
             String logoUrl,
@@ -941,11 +941,11 @@ final class CrewDtos {
      * 크루 검색 쿼리(GET /crews, 코드 리뷰 2차 P2). 쿼리 이름은 항목 이름과 같다.
      *
      * @param keyword 이름 검색어
-     * @param tags 성향 태그(여러 개는 tags=A&tags=B 또는 tags=A,B)
+     * @param tags 크루 태그(여러 개는 tags=A&tags=B 또는 tags=A,B)
      * @param cursor 다음 페이지 커서
      * @param size 페이지 크기(없으면 전부)
      */
-    record CrewSearchQuery(String keyword, Set<PersonalityTag> tags, Long cursor, Integer size) {
+    record CrewSearchQuery(String keyword, Set<CrewTag> tags, Long cursor, Integer size) {
 
         CrewSearch toSearch() {
             return new CrewSearch(tags, keyword);

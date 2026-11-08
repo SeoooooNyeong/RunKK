@@ -5,8 +5,6 @@ import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -25,10 +23,8 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.a207.runkk.app.core.designsystem.RunkkBadge
 import com.a207.runkk.app.core.designsystem.RunkkPrimaryButton
 import com.a207.runkk.app.core.designsystem.RunkkSecondaryButton
-import com.a207.runkk.app.core.designsystem.RunkkTags
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
 import com.a207.runkk.app.core.model.Distance
@@ -60,7 +56,6 @@ internal fun CrewDetailPage(state: CrewFindUiState, crew: CrewList.Item, actions
  * 정보(GET /crews/{id})를 읽은 뒤에 채우고([lastWeekDistance]가 null이면 빈 값). 이미 가입 신청을 보낸 크루면([pending]) 결정
  * 기한(신청 뒤 7일, FR-121)과 신청 취소를, 아니면 가입 단추를 아래에 둔다.
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun CrewDetailContent(
     crew: CrewList.Item,
@@ -100,14 +95,7 @@ internal fun CrewDetailContent(
                 )
             }
             crew.intro?.let { Text(it, style = RunkkTextStyles.Body, color = colors.onSurface) }
-            if (crew.tags.isNotEmpty()) {
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    crew.tags.forEach { RunkkBadge(RunkkTags.label(it)) }
-                }
-            }
+            CrewTagBadges(crew.tags)
             CrewStatCard(stringResource(R.string.crew_detail_last_week), lastWeekDistance?.let { kmLabel(it) })
         }
         Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 32.dp)) {

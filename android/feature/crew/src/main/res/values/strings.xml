@@ -41,7 +41,7 @@
     <string name="crew_form_name_placeholder">2~20자</string>
     <string name="crew_form_intro_label">한줄 소개</string>
     <string name="crew_form_intro_placeholder">어떤 크루인지 한 줄로</string>
-    <string name="crew_form_tags_caption">성향 태그 최대 %1$d개</string>
+    <string name="crew_form_tags_caption">태그 최대 %1$d개</string>
     <string name="crew_form_visibility_public">공개</string>
     <string name="crew_form_visibility_private">비공개</string>
     <string name="crew_form_visibility_group">공개 여부</string>
@@ -54,9 +54,8 @@
     <string name="crew_find_invite_code">초대 코드</string>
     <string name="crew_find_search_label">크루 찾기</string>
     <string name="crew_find_search_placeholder">크루명, 한줄소개 검색</string>
-    <string name="crew_find_list_title_loading">공개 크루, 최근 생성순</string>
-    <string name="crew_find_list_title">공개 크루 %1$d개, 최근 생성순</string>
-    <string name="crew_find_list_title_tags">%1$s 태그 크루 %2$d개, 최근 생성순</string>
+    <string name="crew_find_list_title">전체 크루</string>
+    <string name="crew_find_list_title_tags">조건에 맞는 크루</string>
     <string name="crew_find_empty_title">조건에 맞는 공개 크루가 없어요</string>
     <string name="crew_find_cancel_confirm_title">가입 신청을 취소할까요?</string>
     <string name="crew_find_cancel_confirm_message">%1$s에 보낸 가입 신청을 거둬요. 다시 신청할 수 있어요.</string>
@@ -65,9 +64,11 @@
     <string name="crew_find_pending_badge">승인 대기</string>
     <string name="crew_find_pending_cancel_description">%1$s 가입 신청 취소</string>
     <string name="crew_find_open_detail">%1$s 자세히 보기</string>
-    <string name="crew_find_tag_title">태그로 찾기</string>
-    <string name="crew_find_tag_more">태그 더보기 ›</string>
-    <string name="crew_find_tag_less">접기</string>
+    <string name="crew_find_condition_title">조건 설정하기</string>
+    <string name="crew_find_condition_hint">요일과 시간대를 선택해 조건에 맞는 크루를 찾아보세요</string>
+    <string name="crew_find_condition_apply">적용하기</string>
+    <string name="crew_find_condition_close">조건 설정 닫기</string>
+    <string name="crew_find_condition_open">조건 설정 열기</string>
     <string name="crew_find_apply_action">신청</string>
     <string name="crew_meta_leader">크루장 %1$s</string>
     <string name="crew_meta_headcount">%1$d/%2$d명</string>

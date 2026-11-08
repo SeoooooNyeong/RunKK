@@ -20,7 +20,7 @@ import kotlinx.coroutines.launch
 
 /**
  * 크루 탭(FR-117~FR-122, FR-124, FR-143). 들어오면 GET /crews/me로 소속을 확인해 크루가 있으면 내 크루 홈을, 없으면
- * 크루 찾기(대기 중인 내 가입 신청·취소 포함)를 보인다. 찾기는 공개 크루 목록(태그 AND·키워드, 끝까지 내리면 다음 쪽)과 추천을 보이고,
+ * 크루 찾기(대기 중인 내 가입 신청·취소 포함)를 보인다. 찾기는 공개 크루 목록(조건 태그 AND·키워드, 끝까지 내리면 다음 쪽)을 보이고,
  * 상세 시트에서 바로 가입(자유)·가입 신청(승인제), 초대 코드 가입을 한다. 가입되면(JOINED) 그 자리에서 내 크루 홈으로 바뀐다.
  * 비공개 크루는 초대 코드로만 들어온다(Q-38).
  */
@@ -131,8 +131,17 @@ class CrewFindViewModel @Inject constructor(private val crews: CrewRepository) :
 
     fun onKeyword(text: String) = _state.update { it.copy(keyword = text.take(KEYWORD_MAX)) }
 
-    fun onTagToggle(id: String) {
-        _state.update { it.copy(tags = RunkkTags.toggle(it.tags, id)) }
+    /** 조건 설정 팝업(피그마 F-01b)을 지금 조건으로 채워 연다. */
+    fun onConditionOpen() = _state.update { it.copy(isConditionOpen = true, conditionDraft = it.tags) }
+
+    fun onConditionToggle(id: String) =
+        _state.update { it.copy(conditionDraft = RunkkTags.toggle(it.conditionDraft, id)) }
+
+    fun onConditionDismiss() = _state.update { it.copy(isConditionOpen = false) }
+
+    /** 고른 조건을 적용해 첫 쪽부터 다시 찾는다(피그마 F-01c). */
+    fun onConditionApply() {
+        _state.update { it.copy(isConditionOpen = false, tags = it.conditionDraft) }
         load()
     }
 

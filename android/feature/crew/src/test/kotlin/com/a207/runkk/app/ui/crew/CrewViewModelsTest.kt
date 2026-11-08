@@ -138,14 +138,18 @@ class CrewFindViewModelTest {
     }
 
     @Test
-    fun `태그를 고르면 그 태그로, 키워드는 검색할 때 다시 찾는다`() {
+    fun `조건 팝업에서 고른 태그는 적용하기를 눌러야 찾기에 쓰이고 키워드는 검색할 때 다시 찾는다(F-01b)`() {
         val vm = CrewFindViewModel(repo)
-        vm.onTagToggle("SOCIAL_RUN")
-        vm.onTagToggle("SOLO_RUN")
-        assertEquals(setOf("SOLO_RUN"), vm.state.value.tags, "같은 분류는 하나만")
+        vm.onConditionOpen()
+        vm.onConditionToggle("WEEKDAY_EVENING")
+        vm.onConditionToggle("WEEKEND_MORNING")
+        assertEquals(emptySet(), vm.state.value.tags, "적용 전에는 찾기 조건이 그대로다")
+        vm.onConditionApply()
+        assertEquals(setOf("WEEKDAY_EVENING", "WEEKEND_MORNING"), vm.state.value.tags)
+        assertEquals(false, vm.state.value.isConditionOpen)
         vm.onKeyword("  새벽 ")
         vm.load()
-        assertEquals("search:새벽:[SOLO_RUN]", repo.calls.last { it.startsWith("search") })
+        assertEquals("search:새벽:[WEEKDAY_EVENING, WEEKEND_MORNING]", repo.calls.last { it.startsWith("search") })
     }
 
     @Test
@@ -201,7 +205,7 @@ class CrewCreateViewModelTest {
     @Test
     fun `이름 2~20자·태그 1~5개가 아니면 보내지 않는다`() {
         val vm = CrewCreateViewModel(repo)
-        vm.onForm(CrewFormState(name = "a", tags = setOf("SOCIAL_RUN")))
+        vm.onForm(CrewFormState(name = "a", tags = setOf("WEEKDAY_EVENING")))
         vm.onSubmit()
         vm.onForm(CrewFormState(name = "새벽질주"))
         vm.onSubmit()
@@ -211,7 +215,7 @@ class CrewCreateViewModelTest {
     @Test
     fun `만들면 크루 탭(내 크루 홈)으로(FR-110)`() = runTest(main.dispatcher) {
         val vm = CrewCreateViewModel(repo)
-        vm.onForm(CrewFormState(name = " 새벽질주 ", tags = setOf("SOCIAL_RUN", "BEGINNER_WELCOME")))
+        vm.onForm(CrewFormState(name = " 새벽질주 ", tags = setOf("WEEKDAY_EVENING", "WEEKEND_MORNING")))
         vm.events.test {
             vm.onSubmit()
             assertEquals(CrewEvent.Created, awaitItem())
@@ -223,7 +227,7 @@ class CrewCreateViewModelTest {
     fun `크루명이 겹치면 이름 중복 문구를 보인다`() {
         repo.fail["create"] = AppError.Rejected("CREW_NAME_TAKEN")
         val vm = CrewCreateViewModel(repo)
-        vm.onForm(CrewFormState(name = "새벽질주", tags = setOf("SOCIAL_RUN")))
+        vm.onForm(CrewFormState(name = "새벽질주", tags = setOf("WEEKDAY_EVENING")))
         vm.onSubmit()
         assertEquals(UiText.Res(R.string.crew_error_crew_name_taken), vm.state.value.error)
     }
@@ -388,7 +392,7 @@ class CrewManageViewModelTest {
         val form = vm.state.value.form
         assertEquals("새벽질주", vm.state.value.crewName)
         assertEquals("새벽에 같이 달려요", form.intro)
-        assertEquals(setOf("SOCIAL_RUN", "DAWN"), form.tags)
+        assertEquals(setOf("WEEKDAY_EVENING", "WEEKDAY_DAWN"), form.tags)
         assertEquals(JoinPolicy.FREE, form.joinPolicy)
         assertEquals("K7P2QX", vm.state.value.inviteCode)
         assertTrue("detail:11" in repo.calls)
@@ -445,7 +449,7 @@ class CrewManageViewModelTest {
     fun `정보 수정이 거부되면 제목을 바꾸지 않는다`() {
         repo.fail["changeInfo"] = AppError.Rejected("CREW_NAME_INVALID")
         val vm = vm()
-        vm.onForm(vm.state.value.form.copy(name = "겹치는이름", tags = setOf("DAWN")))
+        vm.onForm(vm.state.value.form.copy(name = "겹치는이름", tags = setOf("WEEKDAY_DAWN")))
         vm.onSaveInfo()
         assertEquals("새벽질주", vm.state.value.crewName)
         assertEquals(UiText.Res(R.string.crew_error_crew_name_invalid), vm.state.value.message)
@@ -455,7 +459,7 @@ class CrewManageViewModelTest {
     fun `정보 수정은 이름을 채워 두고 저장한다(FR-113)`() {
         val vm = vm()
         assertEquals("새벽질주", vm.state.value.form.name)
-        vm.onForm(vm.state.value.form.copy(name = "새벽질주2", tags = setOf("DAWN")))
+        vm.onForm(vm.state.value.form.copy(name = "새벽질주2", tags = setOf("WEEKDAY_DAWN")))
         vm.onSaveInfo()
         assertTrue("changeInfo:새벽질주2" in repo.calls)
         assertEquals("새벽질주2", vm.state.value.crewName)

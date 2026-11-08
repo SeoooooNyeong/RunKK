@@ -63,8 +63,8 @@ class CrewScreensTest {
         compose.onNodeWithText("크루 만들기").performClick()
         compose.onNodeWithText("저녁런 클럽").performClick()
         compose.onNodeWithText("FOR YOU", substring = true).assertDoesNotExist()
-        compose.onNodeWithText("태그로 찾기").assertExists()
-        compose.onNodeWithText("공개 크루 2개, 최근 생성순").assertExists()
+        compose.onNodeWithText("조건 설정하기").assertExists()
+        compose.onNodeWithText("전체 크루").assertExists()
         assertEquals(listOf("invite", "create", "open:12"), calls)
     }
 
@@ -203,7 +203,7 @@ class CrewScreensTest {
             }
         }
         compose.onNodeWithContentDescription("바람처럼 18.2킬로미터").assertExists()
-        compose.onNodeWithText("6/10명, 함께가 좋아요, 새벽").assertExists()
+        compose.onNodeWithText("6/10명, 평일 저녁, 평일 새벽").assertExists()
         compose.onNodeWithText("응원").assertDoesNotExist()
         compose.onNodeWithText("게시판").performClick()
         compose.onNodeWithText("채팅").performClick()
@@ -397,7 +397,7 @@ class CrewScreenshotTest {
         CrewFindScreen(
             CrewFindUiState(
                 isLoading = false,
-                tags = setOf("SOCIAL_RUN"),
+                tags = setOf("WEEKDAY_EVENING"),
                 crews = listOf(crewA, crewB, crewC)
             ),
             CrewFindActions()
@@ -424,7 +424,7 @@ class CrewScreenshotTest {
                 CrewFormState(
                     name = "새벽질주",
                     intro = "새벽에 같이 달려요",
-                    tags = setOf("SOCIAL_RUN", "DAWN", "BEGINNER_WELCOME")
+                    tags = setOf("WEEKDAY_EVENING", "WEEKDAY_DAWN", "WEEKEND_MORNING")
                 )
             ),
             {},

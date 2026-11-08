@@ -11,10 +11,10 @@ import static org.mockito.Mockito.verify;
 
 import com.a207.runkk.bootstrap.RunkkApplication;
 import com.a207.runkk.common.BusinessRuleException;
+import com.a207.runkk.common.CrewTag;
 import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.PageCursor;
 import com.a207.runkk.common.PermissionDeniedException;
-import com.a207.runkk.common.PersonalityTag;
 import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.common.StandardDistance;
 import com.a207.runkk.crew.live.CrewRunCancelled;
@@ -82,7 +82,7 @@ class CrewV011ScenarioTest {
                                 new CrewCreateCommand(
                                         "삼에이크루" + NAMES.incrementAndGet(),
                                         null,
-                                        Set.of(PersonalityTag.SOCIAL_RUN),
+                                        Set.of(CrewTag.WEEKDAY_EVENING),
                                         CrewVisibility.PUBLIC,
                                         JoinPolicy.FREE,
                                         null))

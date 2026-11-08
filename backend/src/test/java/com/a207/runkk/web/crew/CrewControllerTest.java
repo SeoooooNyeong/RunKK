@@ -67,7 +67,7 @@ class CrewControllerTest extends WebTestSupport {
         Map<String, Object> form = new HashMap<>();
         form.put("name", "크루" + CREWS.incrementAndGet() + "번");
         form.put("intro", "새벽에 함께 달려요");
-        form.put("tags", List.of("SOCIAL_RUN", "MORNING"));
+        form.put("tags", List.of("WEEKDAY_EVENING", "WEEKEND_MORNING"));
         form.put("visibility", "PUBLIC");
         form.put("joinPolicy", policy);
         JsonNode created =
@@ -92,16 +92,17 @@ class CrewControllerTest extends WebTestSupport {
         assertThat(list.get("crews").findValuesAsText("crewId")).contains(String.valueOf(crewId));
         assertThat(list.has("recommendations")).as("추천 삭제(FR-118)").isFalse();
         assertThat(list.get("crews").get(0).has("tagMatches")).isFalse();
-        call(a, get("/api/v1/crews").param("tags", "SOCIAL_RUN,SOLO_RUN"), null) // P2
+        call(a, get("/api/v1/crews").param("tags", "WEEKDAY_EVENING,WEEKDAY_DAWN"), null) // P2
                 .andExpect(status().isOk());
         call(a, get("/api/v1/crews").param("tags", "NOPE"), null)
                 .andExpect(status().isBadRequest());
-        // 2차 L13: 태그 AND를 SQL로 거른다(",태그," 단위라 SOCIAL_RUN이 다른 태그의 일부로 맞지 않는다)
+        // 2차 L13: 태그 AND를 SQL로 거른다(",태그," 단위라 WEEKDAY_EVENING이 다른 태그의 일부로 맞지 않는다)
         String id = String.valueOf(crewId);
         assertThat(
                         json(call(
                                         a,
-                                        get("/api/v1/crews").param("tags", "MORNING,SOCIAL_RUN"),
+                                        get("/api/v1/crews")
+                                                .param("tags", "WEEKEND_MORNING,WEEKDAY_EVENING"),
                                         null))
                                 .get("crews")
                                 .findValuesAsText("crewId"))
@@ -109,7 +110,8 @@ class CrewControllerTest extends WebTestSupport {
         assertThat(
                         json(call(
                                         a,
-                                        get("/api/v1/crews").param("tags", "SOCIAL_RUN,SOLO_RUN"),
+                                        get("/api/v1/crews")
+                                                .param("tags", "WEEKDAY_EVENING,WEEKDAY_DAWN"),
                                         null))
                                 .get("crews")
                                 .findValuesAsText("crewId"))

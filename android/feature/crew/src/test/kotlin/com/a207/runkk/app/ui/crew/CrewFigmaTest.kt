@@ -1,6 +1,11 @@
 package com.a207.runkk.app.ui.crew
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.a207.runkk.app.core.designsystem.RunkkTheme
@@ -64,5 +69,48 @@ class CrewFigmaTest {
         }
         compose.onNodeWithText("지난 주 달린 거리").assertExists()
         compose.onNodeWithText("64.27km").assertExists()
+    }
+
+    @Test
+    fun `크루 찾기 조건 칸을 누르면 평일과 주말 시간대 팝업이 열리고 적용하면 조건에 맞는 크루를 보인다(F-01b, F-01c)`() {
+        var state by mutableStateOf(CrewFindUiState(isLoading = false, crews = listOf(crewA)))
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                CrewFindScreen(
+                    state,
+                    CrewFindActions(
+                        onConditionOpen = { state = state.copy(isConditionOpen = true, conditionDraft = state.tags) },
+                        onConditionToggle = { id ->
+                            state = state.copy(conditionDraft = state.conditionDraft + id)
+                        },
+                        onConditionApply = {
+                            state = state.copy(isConditionOpen = false, tags = state.conditionDraft)
+                        }
+                    )
+                )
+            }
+        }
+        compose.onNodeWithText("요일과 시간대를 선택해 조건에 맞는 크루를 찾아보세요").performClick()
+        compose.onAllNodesWithText("저녁")[0].performClick()
+        compose.onNodeWithText("적용하기").performClick()
+        compose.onNodeWithText("조건에 맞는 크루").assertExists()
+        assertEquals(setOf("WEEKDAY_EVENING"), state.tags)
+        compose.onAllNodesWithText("평일 저녁").assertCountEquals(1)
+    }
+
+    @Test
+    fun `크루 만들기 태그는 평일과 주말 줄에서 최대 3개까지 고른다(F-04)`() {
+        var form by mutableStateOf(CrewFormState(name = "새벽질주"))
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                CrewCreateScreen(CrewCreateUiState(form = form), onBack = {}, onForm = { form = it }, onSubmit = {})
+            }
+        }
+        compose.onNodeWithText("태그 최대 3개").assertExists()
+        compose.onAllNodesWithText("아침")[0].performClick()
+        compose.onAllNodesWithText("점심")[0].performClick()
+        compose.onAllNodesWithText("저녁")[1].performClick()
+        compose.onAllNodesWithText("새벽")[1].performClick()
+        assertEquals(setOf("WEEKDAY_MORNING", "WEEKDAY_LUNCH", "WEEKEND_EVENING"), form.tags)
     }
 }

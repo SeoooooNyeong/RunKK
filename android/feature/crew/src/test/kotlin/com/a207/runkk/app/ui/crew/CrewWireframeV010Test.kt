@@ -167,7 +167,7 @@ class CrewWireframeV010ScreensTest {
             CrewFindUiState(
                 isCheckingMine = false,
                 isLoading = false,
-                tags = setOf("SOCIAL_RUN"),
+                tags = setOf("WEEKDAY_EVENING"),
                 crews = listOf(crewA, crewB)
             ),
             CrewFindActions()
