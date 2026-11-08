@@ -84,18 +84,29 @@ public class FcmPushGateway implements PushGateway {
 
     @Override
     public PushResult send(List<String> deviceTokens, NotificationType type, String content) {
-        return sendAll(deviceTokens, type, content, null);
+        return sendAll(deviceTokens, type, null, content, null);
+    }
+
+    /** 운영자 공지는 공지 제목을 알림 제목으로 쓴다(S15P31A207-275). title이 null이면 「런크크」. */
+    @Override
+    public PushResult send(
+            List<String> deviceTokens, NotificationType type, String title, String content) {
+        return sendAll(deviceTokens, type, title, content, null);
     }
 
     /** 안드로이드 collapse_key와 APNs apns-collapse-id에 같은 묶음 키를 실어 기기 알림을 하나로 묶는다(v0.11 D-102). */
     @Override
     public PushResult sendCollapsing(
             List<String> deviceTokens, NotificationType type, String content, String collapseKey) {
-        return sendAll(deviceTokens, type, content, collapseKey);
+        return sendAll(deviceTokens, type, null, content, collapseKey);
     }
 
     private PushResult sendAll(
-            List<String> deviceTokens, NotificationType type, String content, String collapseKey) {
+            List<String> deviceTokens,
+            NotificationType type,
+            String title,
+            String content,
+            String collapseKey) {
         if (!isEnabled()) {
             log.info(
                     "push_skipped reason=fcm_not_configured type={} devices={}",
@@ -112,7 +123,7 @@ public class FcmPushGateway implements PushGateway {
                         .uri(FCM_BASE + projectId + "/messages:send")
                         .contentType(MediaType.APPLICATION_JSON)
                         .header("Authorization", "Bearer " + bearer)
-                        .body(message(token, type, content, collapseKey))
+                        .body(message(token, type, title, content, collapseKey))
                         .retrieve()
                         .toBodilessEntity();
                 sent++;
@@ -157,10 +168,11 @@ public class FcmPushGateway implements PushGateway {
     }
 
     private static Map<String, Object> message(
-            String token, NotificationType type, String content, String collapseKey) {
+            String token, NotificationType type, String title, String content, String collapseKey) {
         Map<String, Object> message = new LinkedHashMap<>();
         message.put("token", token);
-        message.put("notification", Map.of("title", TITLE, "body", content));
+        message.put(
+                "notification", Map.of("title", title == null ? TITLE : title, "body", content));
         message.put("data", Map.of("type", type.name()));
         if (collapseKey != null) {
             message.put("android", Map.of("collapse_key", collapseKey));

@@ -83,6 +83,16 @@ public class InMemoryMemberRepository implements MemberRepository {
     }
 
     @Override
+    public Map<Long, String> activeNicknames(Collection<Long> memberIds) {
+        return memberIds.stream()
+                .distinct()
+                .map(members::get)
+                .filter(Objects::nonNull)
+                .filter(m -> m.getStatus() == MemberStatus.ACTIVE)
+                .collect(Collectors.toMap(Member::getId, m -> m.nickname().value()));
+    }
+
+    @Override
     public List<GhostOwner> ghostOwners(Set<Tier> tiers, long excludeMemberId) {
         return members.values().stream()
                 .filter(m -> m.getStatus() == MemberStatus.ACTIVE)

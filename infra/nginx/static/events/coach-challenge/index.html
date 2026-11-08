@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>코치님을 이겨라 | 런크크</title>
+<meta name="description" content="코치님 셀럽런 기록을 넘고 GS 상품권 받기">
+<meta property="og:title" content="코치님을 이겨라">
+<meta property="og:description" content="코치님 기록을 넘고 GS 상품권 받기">
+<meta property="og:image" content="/events/coach-challenge/banner.png">
+<script>
+(function () {
+  var root = document.documentElement;
+  var t = new URLSearchParams(location.search).get('theme');
+  if (t === 'dark' || t === 'light') { root.setAttribute('data-theme', t); return; }
+  var mq = window.matchMedia ? matchMedia('(prefers-color-scheme: dark)') : null;
+  function apply() { root.setAttribute('data-theme', mq && mq.matches ? 'dark' : 'light'); }
+  apply();
+  if (mq && mq.addEventListener) mq.addEventListener('change', apply);
+})();
+</script>
+<link rel="preload" as="image" href="joo-run.webp">
+<link rel="preload" as="image" href="kim-run.webp">
+<style>
+:root{
+  --violet:#5C4BDB;--on-violet:#FFFFFF;--lime:#CAEB2E;--on-lime:#171B12;
+  --bg:#F7F8F2;--surface:#FFFFFF;--surface-high:#E9EDE0;--container:#E3DFF9;
+  --text:#171B12;--text2:#67705B;--divider:#E9EDE0;--accent-text:#5C4BDB;
+  --shadow:0 8px 12px rgba(26,20,64,.10);--bar-shadow:0 -4px 8px rgba(0,0,0,.08);
+  color-scheme:light;
+}
+:root[data-theme=dark]{
+  --bg:#171B12;--surface:#292F25;--surface-high:#343D2D;--container:#302856;
+  --text:#FFFFFF;--text2:#A8AEA0;--divider:#444B3E;--accent-text:#A99FF5;
+  --shadow:0 8px 16px rgba(0,0,0,.28);--bar-shadow:0 -4px 10px rgba(0,0,0,.35);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--text);font-family:"IBM Plex Sans KR",-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif;font-size:15px;line-height:1.35;word-break:keep-all;overflow-x:hidden}
+button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer}
+button:focus-visible{outline:3px solid var(--lime);outline-offset:2px}
+h1,h2,p{margin:0}
+.hidden{display:none!important}
+
+/* 히어로 */
+.hero{position:relative;height:500px;background:var(--violet);overflow:hidden;color:var(--on-violet)}
+.ring{position:absolute;left:calc(50% - 45px);top:40px;width:380px;height:380px;border:34px solid var(--lime);border-radius:50%}
+.speed{position:absolute;height:10px;border-radius:5px;background:#fff;opacity:.22}
+.floor{position:absolute;left:0;right:0;top:410px;height:90px;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.3))}
+.runner{position:absolute;height:276px;width:auto;user-select:none;-webkit-user-drag:none}
+.runner.joo{left:calc(50% - 69px);top:226px}
+.runner.kim{left:calc(50% + 21px);top:232px}
+.bar{position:absolute;left:0;right:0;top:0;height:48px;padding:14px 12px 0;display:flex;justify-content:space-between;align-items:center;z-index:2}
+.icon-btn{width:40px;height:40px;margin-top:-8px;display:grid;place-items:center;border-radius:50%}
+.icon-btn svg{width:24px;height:24px}
+.copy{position:absolute;left:20px;top:74px;display:flex;flex-direction:column;align-items:flex-start;gap:10px;z-index:1}
+.pill{display:inline-block;border-radius:999px;padding:5px 12px;font-size:13px;font-weight:700}
+.pill.lime{background:var(--lime);color:var(--on-lime)}
+.hero h1{font-size:44px;line-height:1.12;font-weight:700;letter-spacing:-.02em}
+.hero .sub{font-size:15px;font-weight:500;text-shadow:0 1px 6px rgba(40,30,120,.35)}
+
+/* 본문 */
+main{position:relative;margin-top:-44px;padding:0 16px calc(128px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:32px;max-width:520px;margin-left:auto;margin-right:auto}
+.card{background:var(--surface);border-radius:24px;box-shadow:var(--shadow)}
+.timer{padding:18px 20px 20px;display:flex;flex-direction:column;align-items:center;gap:12px}
+.timer .label{font-size:13px;font-weight:600;color:var(--text2)}
+.cells{display:flex;align-items:center;gap:8px}
+.cell{display:flex;align-items:flex-end;gap:4px;background:var(--surface-high);border-radius:14px;padding:8px 12px}
+.cell b{font-size:30px;line-height:1.1;font-weight:700;font-variant-numeric:tabular-nums}
+.cell span{font-size:14px;font-weight:600;color:var(--text2)}
+.colon{font-size:24px;font-weight:700;color:var(--text2)}
+.ended{font-size:30px;line-height:1.1;font-weight:700;padding:8px 0}
+
+.sec{display:flex;flex-direction:column;gap:14px}
+.sec-head{display:flex;justify-content:space-between;align-items:center}
+.sec h2{font-size:20px;font-weight:700}
+.sec-head .tag{font-size:14px;font-weight:700;color:var(--accent-text)}
+
+.coaches{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.coach{position:relative;padding:18px 12px 14px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center}
+.face{position:relative;width:76px;height:76px;border-radius:50%;background:var(--container)}
+.face img{width:76px;height:76px;border-radius:50%;display:block}
+.won-mark{position:absolute;right:-4px;bottom:-2px;width:28px;height:28px;border-radius:50%;background:var(--lime);color:var(--on-lime);display:grid;place-items:center;border:3px solid var(--surface)}
+.won-mark svg{width:14px;height:14px}
+.coach .name{font-size:15px;font-weight:700}
+.coach .time{font-size:30px;line-height:1.1;font-weight:700;font-variant-numeric:tabular-nums}
+.chip{display:inline-block;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:600;background:var(--surface-high);color:var(--text2)}
+.prize{width:100%;margin-top:4px;padding-top:12px;border-top:1px solid var(--divider);display:flex;flex-direction:column;align-items:center;gap:8px}
+.prize .gift{display:flex;align-items:center;gap:6px;font-size:14px;font-weight:700}
+.prize .gift svg{flex:none;width:18px;height:18px;color:var(--accent-text)}
+.prize .count{font-size:12px;font-weight:600;color:var(--text2)}
+.point{display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:4px 10px;background:var(--lime);color:var(--on-lime);font-size:13px;font-weight:700}
+
+.steps{display:flex;padding:20px 8px}
+.step{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:10px;padding-top:6px;text-align:center}
+.step-ico{position:relative;width:60px;height:60px;border-radius:50%;background:var(--container);color:var(--accent-text);display:grid;place-items:center}
+.step-ico.lime{background:var(--lime);color:var(--on-lime)}
+.step-ico svg{width:26px;height:26px}
+.step-no{position:absolute;left:40px;top:-2px;min-width:20px;padding:1px 6px;border-radius:999px;background:var(--text);color:var(--surface);font-size:11px;font-weight:700;line-height:1.35}
+.step p{font-size:14px;font-weight:600;line-height:1.35}
+
+.me{padding:20px;display:flex;align-items:center;gap:18px}
+.me-count{flex:none;display:flex;align-items:flex-end;gap:2px}
+.me-count b{font-size:44px;line-height:1;font-weight:700}
+.me-count span{font-size:18px;font-weight:700;color:var(--text2)}
+.me-list{flex:1;min-width:0;display:flex;flex-direction:column;gap:10px}
+.me-row{display:flex;align-items:center;gap:10px}
+.me-row img{width:32px;height:32px;border-radius:50%;background:var(--container);flex:none}
+.me-row .who{flex:1;min-width:0;font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.state{flex:none;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:700;background:var(--surface-high);color:var(--text2)}
+.state.done{background:var(--lime);color:var(--on-lime)}
+
+/* 하단 고정 */
+.dock{position:fixed;left:0;right:0;bottom:0;z-index:10;background:var(--surface);box-shadow:var(--bar-shadow);padding:12px 16px calc(16px + env(safe-area-inset-bottom));display:flex;gap:10px}
+.dock-in{display:flex;gap:10px;width:100%;max-width:488px;margin:0 auto}
+.share-btn{flex:none;width:56px;height:56px;border-radius:50%;border:1px solid var(--divider);display:grid;place-items:center;color:var(--text)}
+.share-btn svg{width:22px;height:22px}
+.cta{flex:1;height:56px;border-radius:999px;background:var(--lime);color:var(--on-lime);font-size:17px;font-weight:700}
+.cta:disabled{opacity:.45;cursor:default}
+@media (max-width:370px){
+  .hero h1{font-size:40px}
+  .cell{padding:8px 10px}
+  .coach .time{font-size:28px}
+}
+</style>
+</head>
+<body>
+<header class="hero">
+  <div class="ring" aria-hidden="true"></div>
+  <div class="speed" style="left:-20px;top:330px;width:170px" aria-hidden="true"></div>
+  <div class="speed" style="left:-14px;top:352px;width:140px" aria-hidden="true"></div>
+  <div class="speed" style="left:-8px;top:374px;width:110px" aria-hidden="true"></div>
+  <div class="speed" style="left:-2px;top:396px;width:80px" aria-hidden="true"></div>
+  <div class="floor" aria-hidden="true"></div>
+  <img class="runner joo" src="joo-run.webp" width="160" height="276" alt="">
+  <img class="runner kim" src="kim-run.webp" width="162" height="276" alt="">
+  <nav class="bar">
+    <button class="icon-btn" id="back" type="button" aria-label="닫기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18L9 12L15 6"/></svg></button>
+    <button class="icon-btn" data-share type="button" aria-label="공유"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12V19C4 19.55 4.45 20 5 20H19C19.55 20 20 19.55 20 19V12M8 6L12 2L16 6M12 2V15"/></svg></button>
+  </nav>
+  <div class="copy">
+    <span class="pill lime">11월 16일까지</span>
+    <h1>코치님을<br>이겨라</h1>
+    <p class="sub">SSAFY 코치님과 5km 셀럽런</p>
+  </div>
+</header>
+
+<main>
+  <section class="card timer" aria-live="polite">
+    <p class="label" id="timer-label">끝나기까지</p>
+    <div class="cells" id="cells">
+      <div class="cell"><b id="t-d">00</b><span>일</span></div>
+      <span class="colon" aria-hidden="true">:</span>
+      <div class="cell"><b id="t-h">00</b><span>시간</span></div>
+      <span class="colon" aria-hidden="true">:</span>
+      <div class="cell"><b id="t-m">00</b><span>분</span></div>
+    </div>
+    <p class="ended hidden" id="ended">종료</p>
+  </section>
+
+  <section class="sec">
+    <div class="sec-head"><h2>대결 상대</h2><span class="tag">5km</span></div>
+    <div class="coaches">
+      <article class="card coach" data-coach="celebrity-11">
+        <div class="face"><img src="joo-face.webp" width="76" height="76" alt=""><span class="won-mark hidden"><svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5.8 14.6L11 19.8L22.2 8.8"/></svg></span></div>
+        <p class="name">주세빈 코치님</p>
+        <p class="time">30:18</p>
+        <span class="chip">평균 6:04/km</span>
+        <div class="prize">
+          <p class="gift"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12V21H4V12M2 7H22V12H2V7ZM12 21V7M12 7H7.5A2.5 2.5 0 1 1 7.5 2C11 2 12 7 12 7ZM12 7H16.5A2.5 2.5 0 1 0 16.5 2C13 2 12 7 12 7Z"/></svg>GS 상품권 1만 원</p>
+          <p class="count">추첨 1명</p>
+          <span class="point">이기면 +500P</span>
+        </div>
+      </article>
+      <article class="card coach" data-coach="celebrity-12">
+        <div class="face"><img src="kim-face.webp" width="76" height="76" alt=""><span class="won-mark hidden"><svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5.8 14.6L11 19.8L22.2 8.8"/></svg></span></div>
+        <p class="name">김선교 코치님</p>
+        <p class="time">30:00</p>
+        <span class="chip">평균 6:00/km</span>
+        <div class="prize">
+          <p class="gift"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12V21H4V12M2 7H22V12H2V7ZM12 21V7M12 7H7.5A2.5 2.5 0 1 1 7.5 2C11 2 12 7 12 7ZM12 7H16.5A2.5 2.5 0 1 0 16.5 2C13 2 12 7 12 7Z"/></svg>GS 상품권 1만 원</p>
+          <p class="count">추첨 1명</p>
+          <span class="point">이기면 +500P</span>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2>참여 방법</h2>
+    <ol class="card steps" style="margin:0;list-style:none;box-shadow:none">
+      <li class="step">
+        <div class="step-ico"><svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="2.17" stroke-linecap="round" stroke-linejoin="round"><path d="M21.67 22.75V20.58C21.67 18.19 19.73 16.25 17.33 16.25H8.67C6.27 16.25 4.33 18.19 4.33 20.58V22.75M13 11.92C15.39 11.92 17.33 9.98 17.33 7.58C17.33 5.19 15.39 3.25 13 3.25C10.61 3.25 8.67 5.19 8.67 7.58C8.67 9.98 10.61 11.92 13 11.92Z"/></svg><span class="step-no">1</span></div>
+        <p>셀럽런에서<br>코치님 고르기</p>
+      </li>
+      <li class="step">
+        <div class="step-ico"><svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="2.17" stroke-linecap="round" stroke-linejoin="round"><path d="M13 8.67V14.08L16.25 16.25M10.83 2.17H15.17M13 23.83C18.38 23.83 22.75 19.47 22.75 14.08C22.75 8.7 18.38 4.33 13 4.33C7.62 4.33 3.25 8.7 3.25 14.08C3.25 19.47 7.62 23.83 13 23.83Z"/></svg><span class="step-no">2</span></div>
+        <p>5km 달리기</p>
+      </li>
+      <li class="step">
+        <div class="step-ico lime"><svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="2.17" stroke-linecap="round" stroke-linejoin="round"><path d="M8.67 22.75H17.33M13 22.75V18.42M18.42 5.42V4.33H7.58V5.42M18.42 5.42V9.75C18.42 12.74 15.99 15.17 13 15.17C10.01 15.17 7.58 12.74 7.58 9.75V5.42M18.42 5.42H21.67V7.58C21.67 9.38 20.21 10.83 18.42 10.83M7.58 5.42H4.33V7.58C4.33 9.38 5.79 10.83 7.58 10.83"/></svg><span class="step-no">3</span></div>
+        <p>기록 넘기</p>
+      </li>
+    </ol>
+  </section>
+
+  <section class="sec hidden" id="me-sec">
+    <h2>내 응모</h2>
+    <div class="card me">
+      <div class="me-count"><b id="me-n">0</b><span id="me-max">/ 2</span></div>
+      <div class="me-list" id="me-list"></div>
+    </div>
+  </section>
+</main>
+
+<div class="dock">
+  <div class="dock-in">
+    <button class="share-btn" data-share type="button" aria-label="공유"><svg viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.83" stroke-linecap="round" stroke-linejoin="round"><path d="M3.67 11V17.42C3.67 17.92 4.08 18.33 4.58 18.33H17.42C17.92 18.33 18.33 17.92 18.33 17.42V11M7.33 5.5L11 1.83L14.67 5.5M11 1.83V13.75"/></svg></button>
+    <button class="cta" id="cta" type="button" disabled>셀럽런 도전하기</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  var SLUG = 'coach-challenge';
+  var START = Date.parse('2026-11-08T00:00:00+09:00');
+  var END = Date.parse('2026-11-17T00:00:00+09:00');
+  var FACES = { 'celebrity-11': 'joo-face.webp', 'celebrity-12': 'kim-face.webp' };
+  var SHARE_TEXT = '런크크 이벤트 코치님을 이겨라\n' + location.origin + location.pathname;
+
+  function $(id) { return document.getElementById(id); }
+  function app() { var a = window.RunkkApp; return a && typeof a === 'object' ? a : null; }
+  function now() {
+    var q = new URLSearchParams(location.search).get('now');
+    var t = q ? Date.parse(q) : NaN;
+    return isNaN(t) ? Date.now() : t;
+  }
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function md(s) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s || '');
+    return m ? (+m[2]) + '월 ' + (+m[3]) + '일' : '';
+  }
+
+  // 남은 시간
+  var last = '';
+  function tick() {
+    var t = now();
+    var ended = t >= END;
+    var target = t < START ? START : END;
+    $('timer-label').textContent = t < START ? '시작까지' : '끝나기까지';
+    $('timer-label').classList.toggle('hidden', ended);
+    $('cells').classList.toggle('hidden', ended);
+    $('ended').classList.toggle('hidden', !ended);
+    if (ended) { $('cta').disabled = true; return; }
+    var left = Math.max(0, Math.ceil((target - t) / 60000));
+    var d = Math.floor(left / 1440), h = Math.floor(left % 1440 / 60), m = left % 60;
+    var key = d + ':' + h + ':' + m;
+    if (key === last) return;
+    last = key;
+    $('t-d').textContent = pad(d);
+    $('t-h').textContent = pad(h);
+    $('t-m').textContent = pad(m);
+  }
+
+  // 앱 버튼
+  function wire() {
+    var a = app();
+    var ended = now() >= END;
+    $('cta').disabled = !a || ended;
+    $('back').classList.toggle('hidden', !a);
+    var canShare = !!a || !!navigator.share;
+    document.querySelectorAll('[data-share]').forEach(function (b) { b.classList.toggle('hidden', !canShare); });
+  }
+  $('cta').addEventListener('click', function () { var a = app(); if (a) a.open('celebrity'); });
+  $('back').addEventListener('click', function () { var a = app(); if (a) a.close(); });
+  document.querySelectorAll('[data-share]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var a = app();
+      if (a) { a.share(SHARE_TEXT); return; }
+      if (navigator.share) navigator.share({ title: '코치님을 이겨라', url: location.origin + location.pathname }).catch(function () {});
+    });
+  });
+
+  // 내 응모
+  function renderMe(data) {
+    var items = (data && data.items) || [];
+    var list = $('me-list');
+    list.textContent = '';
+    items.forEach(function (it) {
+      var row = document.createElement('div');
+      row.className = 'me-row';
+      var img = document.createElement('img');
+      img.alt = '';
+      img.src = FACES[it.key] || 'joo-face.webp';
+      var who = document.createElement('span');
+      who.className = 'who';
+      who.textContent = it.label || '';
+      var st = document.createElement('span');
+      st.className = 'state' + (it.done ? ' done' : '');
+      st.textContent = it.done ? (md(it.doneAt) ? md(it.doneAt) + ' 이김' : '이김') : '아직';
+      row.appendChild(img); row.appendChild(who); row.appendChild(st);
+      list.appendChild(row);
+      var card = document.querySelector('[data-coach="' + it.key + '"] .won-mark');
+      if (card) card.classList.toggle('hidden', !it.done);
+    });
+    $('me-n').textContent = String(data.entryCount || 0);
+    $('me-max').textContent = '/ ' + (data.maxEntryCount || items.length || 2);
+    $('me-sec').classList.toggle('hidden', !items.length);
+  }
+  function hideMe() {
+    $('me-sec').classList.add('hidden');
+    document.querySelectorAll('.won-mark').forEach(function (m) { m.classList.add('hidden'); });
+  }
+  function loadMe() {
+    var a = app();
+    var token = '';
+    try { token = a ? a.getAccessToken() : ''; } catch (e) { token = ''; }
+    if (!token) { hideMe(); return; }
+    fetch('/api/v1/events/' + SLUG + '/me', { headers: { Authorization: 'Bearer ' + token }, cache: 'no-store' })
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(renderMe)
+      .catch(hideMe);
+  }
+
+  function refresh() { wire(); tick(); loadMe(); }
+  refresh();
+  setInterval(tick, 1000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) refresh(); });
+  window.addEventListener('pageshow', function (e) { if (e.persisted) refresh(); });
+})();
+</script>
+</body>
+</html>

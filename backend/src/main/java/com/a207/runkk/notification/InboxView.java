@@ -19,6 +19,7 @@ public record InboxView(List<Item> items) {
      *
      * @param id 알림 ID
      * @param type 알림 종류
+     * @param title 제목(운영자 공지만, 없으면 null이고 앱이 종류로 정한다)
      * @param content 내용
      * @param occurredAt 발생 일시
      * @param read 읽음 여부
@@ -27,6 +28,7 @@ public record InboxView(List<Item> items) {
     public record Item(
             long id,
             NotificationType type,
+            String title,
             String content,
             LocalDateTime occurredAt,
             boolean read,

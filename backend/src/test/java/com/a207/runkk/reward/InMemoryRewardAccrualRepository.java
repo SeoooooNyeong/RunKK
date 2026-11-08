@@ -25,6 +25,7 @@ public final class InMemoryRewardAccrualRepository implements RewardAccrualRepos
         sumOnDays.add(day);
         return rows.stream()
                 .filter(a -> a.memberId() == memberId && a.accruedAt().toLocalDate().equals(day))
+                .filter(a -> a.reason() != AccrualReason.EVENT)
                 .mapToInt(RewardAccrual::amount)
                 .sum();
     }

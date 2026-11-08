@@ -41,6 +41,9 @@ public interface MemberRepository {
     /** 표시명·티어·공개 범위를 한 번의 조회로(N+1 방지, 6.5). 없는 ID는 맵에 없다. */
     Map<Long, MemberSummary> summaries(Collection<Long> memberIds);
 
+    /** ACTIVE 회원의 닉네임. 탈퇴했거나 없는 ID는 맵에 없다(event 이벤트 응모자 명단, S15P31A207-275). */
+    Map<Long, String> activeNicknames(Collection<Long> memberIds);
+
     /** 상태 ACTIVE, 기록 전체공개, tier ∈ tiers인 회원(요청자 제외). */
     List<GhostOwner> ghostOwners(Set<Tier> tiers, long excludeMemberId);
 

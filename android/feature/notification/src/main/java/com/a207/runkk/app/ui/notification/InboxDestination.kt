@@ -29,7 +29,17 @@ internal fun inboxDestination(screen: String?, targetId: String?): NavKey? {
     }
 }
 
-/** 이동 표가 다루는 서버 화면 이름(계약 시험이 서버 Screen과 맞춘다). */
+/** 바깥 브라우저로 여는 서버 화면 이름(운영자 공지 NOTICE, S15P31A207-275). 대상 ID가 주소다. */
+internal const val LINK_SCREEN = "EXTERNAL_LINK"
+
+/**
+ * 운영자 공지의 링크: 화면이 [LINK_SCREEN]이고 대상 ID가 공백 없는 https 주소일 때만 그 주소. 아니면 null이고 알림함에 머문다.
+ * 서버가 구글 폼 주소만 받지만 앱도 https 밖의 스킴(intent:, http 등)은 열지 않는다.
+ */
+internal fun inboxLink(screen: String?, targetId: String?): String? =
+    targetId?.takeIf { screen == LINK_SCREEN && it.startsWith("https://") && it.none(Char::isWhitespace) }
+
+/** 이동 표가 다루는 서버 화면 이름(계약 시험이 서버 Screen과 맞춘다. [LINK_SCREEN]은 이동 표 밖이다). */
 internal val INBOX_SCREENS: Set<String> = setOf(
     "COACH_PROGRESS",
     "AVATAR",
