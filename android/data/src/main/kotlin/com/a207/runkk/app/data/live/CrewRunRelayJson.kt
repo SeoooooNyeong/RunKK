@@ -32,30 +32,29 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 
 /**
- * 크루런 중계(서버 crew.live.CrewRunRelay, crew.RelayEntry). 본인 줄은 서버가 mine을 주면 그 값(D-161, Kotlin 이름 isMe)이고,
- * 지금 서버처럼 mine 없이 memberId만 주면 접근 토큰의 회원 ID와 같은 줄이다.
+ * 크루런 중계(서버 crew.live.CrewRunRelay, 합산 방식). 본인 줄은 서버가 mine을 주면 그 값(D-161, Kotlin 이름 isMe)이고,
+ * mine 없이 memberId만 주면 접근 토큰의 회원 ID와 같은 줄이다. 모르는 상태 값은 달리는 중으로 읽는다.
  */
 @Serializable
-internal data class CrewRunRelayJson(val postId: Long, val entries: List<Entry>) {
+internal data class CrewRunRelayJson(val postId: Long, val totalDistance: Long? = null, val entries: List<Entry>) {
     @Serializable
     data class Entry(
         val name: String,
         val distance: Long,
-        val rank: Int? = null,
-        val connection: String,
+        val state: String,
         val memberId: Long? = null,
         @SerialName("mine") val isMe: Boolean? = null
     )
 
-    /** [selfId]는 받는 사람 회원 ID(모르면 null). */
+    /** [selfId]는 받는 사람 회원 ID(모르면 null). 합산 거리가 없으면 줄 거리의 합이다. */
     fun toDomain(selfId: Long?): CrewRunRelay = CrewRunRelay(
         postId,
+        Distance(totalDistance ?: entries.sumOf { it.distance }),
         entries.map {
             CrewRunRelay.Entry(
                 it.name,
                 Distance(it.distance),
-                it.rank,
-                CrewRunRelay.Connection.valueOf(it.connection),
+                CrewRunRelay.State.entries.firstOrNull { s -> s.name == it.state } ?: CrewRunRelay.State.RUNNING,
                 memberId = it.memberId,
                 isMe = it.isMe ?: (selfId != null && it.memberId == selfId)
             )

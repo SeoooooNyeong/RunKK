@@ -155,13 +155,11 @@ class RunSessionTest {
     }
 
     @Test
-    fun `격차와 순위를 반영한다`() {
+    fun `격차를 반영한다`() {
         val session = running()
         assertNull(session.gapMeters)
         session.updateGap(-12)
-        session.updateRank(CrewRank(2, 5))
         assertEquals(-12, session.gapMeters)
-        assertEquals(CrewRank(2, 5), session.rank)
     }
 
     @Test

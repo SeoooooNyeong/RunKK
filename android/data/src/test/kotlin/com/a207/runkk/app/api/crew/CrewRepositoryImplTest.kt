@@ -18,6 +18,7 @@ import com.a207.runkk.app.domain.crew.Lobby
 import com.a207.runkk.app.domain.crew.MyCrew
 import com.a207.runkk.app.domain.crew.PostList
 import com.a207.runkk.app.domain.crew.RaceStatus
+import java.time.Duration
 import java.time.Instant
 import kotlin.test.AfterTest
 import kotlin.test.Test
@@ -261,9 +262,12 @@ class CrewRepositoryImplTest {
         )
         api.reply("""{"postId":77,"myAnswer":"GOING","goingCount":3,"notGoingCount":1,"undecidedCount":0}""")
         api.reply(
-            """{"postId":77,"finishers":[{"rank":1,"displayName":"곰","elapsedSeconds":3000,"averagePaceSecondsPerKm":300,
-               |"quit":false,"memberId":3,"me":false},{"displayName":"토끼","quit":true,"memberId":7,"me":true}],
-               |"firstCrewRun":true,"raceContributionMeters":20000}
+            """{"postId":77,"status":"FINISHED","title":"오늘 저녁 한강 5km","distanceMeters":5000,
+               |"startedAt":"2026-10-25T06:00:03+09:00","totalDistanceMeters":9100,
+               |"participants":[{"memberId":3,"displayName":"곰","distanceMeters":5280,"elapsedSeconds":1712,
+               |"averagePaceSecondsPerKm":324,"ended":true,"me":false},
+               |{"memberId":7,"displayName":"토끼","distanceMeters":3820,"ended":true,"me":true}],
+               |"myRecordId":"rec-7","firstCrewRun":true,"raceContributionMeters":20000}
             """.trimMargin()
         )
 
@@ -274,7 +278,10 @@ class CrewRepositoryImplTest {
         assertEquals(
             Lobby(
                 77,
-                listOf(Lobby.Participant("곰", true, 3, isMe = false), Lobby.Participant("나", false, 7, isMe = true)),
+                listOf(
+                    Lobby.Participant("곰", true, 3, isMe = false, isEntered = true),
+                    Lobby.Participant("나", false, 7, isMe = true, isEntered = true)
+                ),
                 Instant.parse("2026-10-24T21:00:00Z"),
                 Distance(3_000)
             ),
@@ -286,15 +293,40 @@ class CrewRepositoryImplTest {
         assertEquals("""{"answer":"GOING"}""", attendance.body!!.utf8())
         assertEquals(
             CrewRunResult(
-                77,
-                listOf(
-                    CrewRunResult.Finisher(1, "곰", 3_000, 300, hasQuit = false, memberId = 3, isMe = false),
-                    CrewRunResult.Finisher(null, "토끼", null, null, hasQuit = true, memberId = 7, isMe = true)
+                postId = 77,
+                participants = listOf(
+                    CrewRunResult.Participant("곰", Distance(5_280), 1_712, 324, hasEnded = true, memberId = 3),
+                    CrewRunResult.Participant("토끼", Distance(3_820), null, null, memberId = 7, isMe = true)
                 ),
-                true,
-                Distance(20_000)
+                totalDistance = Distance(9_100),
+                isFirstCrewRun = true,
+                raceContribution = Distance(20_000),
+                status = CrewRunStatus.FINISHED,
+                title = "오늘 저녁 한강 5km",
+                distance = Distance(5_000),
+                startedAt = Instant.parse("2026-10-24T21:00:03Z"),
+                myRecordId = "rec-7"
             ),
             result
         )
+    }
+
+    @Test
+    fun `내 크루런 끝내기는 마지막 거리·경과를, 일시정지는 정지 때 경과를 싣는다`() = runTest {
+        api.replyEmpty()
+        api.replyEmpty()
+        api.replyEmpty()
+
+        repository.quit(77, 4_870, Duration.ofSeconds(1_668))
+        repository.pause(77, Duration.ofSeconds(754))
+        repository.quit(78)
+
+        val quit = api.take()
+        assertEquals("POST /api/v1/crew-runs/77/quit", "${quit.method} ${quit.url.encodedPath}")
+        assertEquals("""{"distanceMeters":4870,"elapsedSeconds":1668}""", quit.body!!.utf8())
+        val pause = api.take()
+        assertEquals("POST /api/v1/crew-runs/77/pause", "${pause.method} ${pause.url.encodedPath}")
+        assertEquals("""{"elapsedSeconds":754}""", pause.body!!.utf8())
+        assertEquals("""{}""", api.take().body!!.utf8())
     }
 }

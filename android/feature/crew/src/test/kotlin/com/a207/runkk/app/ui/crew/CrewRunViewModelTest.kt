@@ -6,9 +6,11 @@ import app.cash.turbine.test
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.ServerClock
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.crew.CrewRunState
+import com.a207.runkk.app.domain.crew.CrewRunStatus
 import com.a207.runkk.app.domain.live.CrewRunCancelled
 import com.a207.runkk.app.domain.live.CrewRunEnded
 import com.a207.runkk.app.domain.live.CrewRunRelay
@@ -41,12 +43,11 @@ class CrewRunViewModelTest {
         return vm
     }
 
-    /** "나"는 본인 줄(me)이다. */
-    private fun relay(vararg rows: Triple<String, Long, Int?>) = CrewRunRelay(
+    /** "나"는 본인 줄(me)이다. 줄 순서는 서버가 준 대기실 입장 순이다. */
+    private fun relay(vararg rows: Triple<String, Long, CrewRunRelay.State>) = CrewRunRelay(
         31,
-        rows.map { (name, meters, rank) ->
-            CrewRunRelay.Entry(name, Distance(meters), rank, CrewRunRelay.Connection.CONNECTED, isMe = name == "나")
-        }
+        Distance(rows.sumOf { it.second }),
+        rows.map { (name, meters, state) -> CrewRunRelay.Entry(name, Distance(meters), state, isMe = name == "나") }
     )
 
     @Test
@@ -107,7 +108,7 @@ class CrewRunViewModelTest {
     }
 
     @Test
-    fun `출발 신호 → 카운트다운 → 중계 순위 → 종료면 결과로(FR-148·FR-149·FR-191)`() = main.runVmTest { vms ->
+    fun `출발 신호 → 카운트다운 → 합산 중계(입장 순·함께 달리는 크루원 수) → 종료면 결과로`() = main.runVmTest { vms ->
         val w = crewWorld()
         val vm = lobbyVm(w, vms)
         vm.events.test {
@@ -117,11 +118,19 @@ class CrewRunViewModelTest {
             assertEquals(3L, vm.state.value.countdown)
             w.clock.now = w.clock.now.plusSeconds(3)
             advanceTimeBy(3_100)
-            w.channels.channel.push(relay(Triple("나", 820, 2), Triple("바람처럼", 900, 1), Triple("달빛", 300, null)))
+            w.channels.channel.push(
+                relay(
+                    Triple("나", 820, CrewRunRelay.State.RUNNING),
+                    Triple("바람처럼", 900, CrewRunRelay.State.PAUSED),
+                    Triple("달빛", 300, CrewRunRelay.State.ENDED)
+                )
+            )
             runCurrent()
             assertEquals(CrewRunPhase.RUNNING, vm.state.value.phase)
-            assertEquals(listOf("바람처럼", "나", "달빛"), vm.state.value.relay.map { it.name })
-            assertEquals(listOf(false, true, false), vm.state.value.relay.map { it.isMe }, "내 줄을 강조한다")
+            assertEquals(listOf("나", "바람처럼", "달빛"), vm.state.value.relay.map { it.name }, "서버 순서 그대로")
+            assertEquals(listOf(true, false, false), vm.state.value.relay.map { it.isMe })
+            assertEquals(Distance(2_020), vm.state.value.totalDistance)
+            assertEquals(1, vm.state.value.runningMates, "끝낸 달빛은 빼고 멈춘 바람처럼은 센다")
             w.channels.channel.push(CrewRunEnded(31))
             runCurrent()
             assertEquals(CrewRunEvent.Finished(31), awaitItem())
@@ -146,7 +155,7 @@ class CrewRunViewModelTest {
         runCurrent()
         w.clock.now = w.clock.now.plusSeconds(3)
         advanceTimeBy(3_100)
-        w.channels.channel.push(relay(Triple("나", 400, 1)))
+        w.channels.channel.push(relay(Triple("나", 400, CrewRunRelay.State.RUNNING)))
         runCurrent()
         vm.onQuitTapped()
         assertEquals(UiText.Res(R.string.crew_run_quit_hint), vm.state.value.hint)
@@ -155,7 +164,7 @@ class CrewRunViewModelTest {
         assertFalse(w.crews.calls.any { it.startsWith("quit") })
         vm.onQuitConfirmed()
         runCurrent()
-        assertTrue("quit:31" in w.crews.calls)
+        assertTrue(w.crews.calls.any { it.startsWith("quit:31") })
         assertEquals(CrewRunPhase.FINISHED, vm.state.value.phase)
     }
 
@@ -240,14 +249,36 @@ class CrewRunViewModelTest {
     }
 
     @Test
-    fun `결과 - 완주 인원·순위·첫 크루런·크루 거리 반영(FR-191)`() = main.runVmTest { vms ->
+    fun `결과 - 크루 합산 거리·참가자·첫 크루런을 보이고 내 기록 상세를 한 번 읽는다(F-16·F-16b)`() = main.runVmTest { vms ->
         val w = crewWorld()
-        val vm = vms.track(CrewRunResultViewModel(w.crews, w.coordinator))
+        val read = mutableListOf<String>()
+        val vm = vms.track(
+            CrewRunResultViewModel(w.crews, w.coordinator) { id ->
+                read += id
+                Outcome.Failure(AppError.Network)
+            }
+        )
         vm.load(31)
         runCurrent()
-        assertEquals(2, vm.state.value.finishedCount)
-        assertTrue(vm.state.value.result!!.isFirstCrewRun)
-        assertEquals(R.string.crew_run_connection_checking, connectionLabelRes("CHECKING"))
-        assertEquals(R.string.crew_run_connection_quit, connectionLabelRes("QUIT"))
+        val result = vm.state.value.result!!
+        assertEquals(Distance(23_440), result.totalDistance)
+        assertEquals(5, result.participants.size)
+        assertTrue(result.isFirstCrewRun)
+        assertEquals(listOf("rec-31"), read)
+        assertEquals(listOf("result:31"), w.crews.calls.filter { it.startsWith("result") }, "끝났고 내 기록이 있으면 다시 읽지 않는다")
+    }
+
+    @Test
+    fun `결과 - 아직 달리는 크루원이 있으면 3초 뒤 다시 읽는다`() = main.runVmTest { vms ->
+        val w = crewWorld()
+        w.crews.resultState = crewRunResult.copy(status = CrewRunStatus.RUNNING, myRecordId = null)
+        val vm = vms.track(CrewRunResultViewModel(w.crews, w.coordinator) { Outcome.Failure(AppError.Network) })
+        vm.load(31)
+        runCurrent()
+        w.crews.resultState = crewRunResult
+        advanceTimeBy(CrewRunResultViewModel.REREAD_MILLIS + 1)
+        runCurrent()
+        assertEquals(2, w.crews.calls.count { it.startsWith("result") })
+        assertEquals(CrewRunStatus.FINISHED, vm.state.value.result?.status)
     }
 }

@@ -11,7 +11,7 @@ import kotlin.math.abs
 
 /**
  * 진행 알림 한 장의 문구(D-259). 두 알림 표현(LiveUpdateStyle·OngoingProgressStyle)이 같은 제목·본문을 쓰게 여기서 한 번 만든다.
- * [chip]은 상태 표시줄 칩 글자(자유런 거리 "2.14 km", 대결 거리 차 "+42 m"), [action]은 자유런만 있는 동작 버튼이다.
+ * [chip]은 상태 표시줄 칩 글자(자유런·크루런 거리 "2.14 km", 대결 거리 차 "+42 m"), [action]은 자유런·크루런에 있는 동작 버튼이다.
  * [progressMax]가 null이면 진행 막대를 그리지 않는다(목표 자유).
  */
 internal data class ProgressNoticeText(
@@ -27,7 +27,7 @@ internal data class ProgressNoticeText(
     val body: String
         get() = listOfNotNull(distance, detail).joinToString(BODY_GAP)
 
-    /** 알림 동작 버튼(자유런만). */
+    /** 알림 동작 버튼(자유런·크루런). */
     enum class Action { PAUSE, RESUME }
 
     companion object {
@@ -48,6 +48,16 @@ internal data class ProgressNoticeText(
                     action = if (notice.isPaused) Action.RESUME else Action.PAUSE,
                     progress = progress,
                     progressMax = end?.toInt()
+                )
+
+                is ProgressNotice.CrewRun -> ProgressNoticeText(
+                    title = context.getString(R.string.progress_notice_crew_run_title, elapsedLabel(notice.elapsed)),
+                    distance = distance,
+                    detail = null,
+                    chip = distance,
+                    action = if (notice.isPaused) Action.RESUME else Action.PAUSE,
+                    progress = null,
+                    progressMax = null
                 )
 
                 is ProgressNotice.Battle -> ProgressNoticeText(

@@ -4,7 +4,7 @@ import com.a207.runkk.app.core.model.RunMode
 
 /**
  * 진행값에 맞는 안내를 고른다(6.1.14). rules는 러닝 모드마다 조립한다:
- * 자유런 = Split·TargetReached·Pace·Breath, 대결 = Gap·Breath, 크루런 = Rank·Breath.
+ * 자유런 = Split·TargetReached·Pace·Breath, 대결 = Gap·Breath, 크루런 = Split·Breath(합산 방식, 순위 없음).
  */
 class CoachingJudge(val rules: List<GuidanceRule>) {
     /** 규칙마다 check하고 null이 아닌 것만 모은다. */
@@ -19,7 +19,7 @@ class CoachingJudge(val rules: List<GuidanceRule>) {
 
                 RunMode.BATTLE -> listOf(GapGuidanceRule(), BreathGuidanceRule())
 
-                RunMode.CREW_RUN -> listOf(RankGuidanceRule(), BreathGuidanceRule())
+                RunMode.CREW_RUN -> listOf(SplitGuidanceRule(), BreathGuidanceRule())
             }
         )
     }

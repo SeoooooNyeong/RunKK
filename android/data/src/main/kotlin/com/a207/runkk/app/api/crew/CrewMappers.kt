@@ -214,27 +214,46 @@ private fun PostListResponse.Item.CrewRun.toDomain(): PostList.CrewRunInfo = Pos
 
 internal fun LobbyResponse.toDomain(): Lobby = Lobby(
     postId,
-    participants.map { Lobby.Participant(it.displayName.orEmpty(), it.ready, it.memberId, it.me) },
+    participants.map {
+        Lobby.Participant(
+            it.displayName.orEmpty(),
+            it.ready,
+            it.memberId,
+            it.me,
+            isEntered = it.readiness?.let { r -> r != NOT_ENTERED } ?: true
+        )
+    },
     ServerTime.parse(scheduledAt),
     Distance(distanceMeters)
 )
 
-internal fun CrewRunResultResponse.toDomain(): CrewRunResult = CrewRunResult(
-    postId = postId,
-    finishers =
-        finishers.map {
-            CrewRunResult.Finisher(
-                it.rank,
-                it.displayName.orEmpty(),
-                it.elapsedSeconds,
-                it.averagePaceSecondsPerKm,
-                hasQuit = it.quit,
-                memberId = it.memberId,
-                isMe = it.me
-            )
-        },
-    isFirstCrewRun = firstCrewRun,
-    raceContribution = Distance(raceContributionMeters)
-)
+internal fun CrewRunResultResponse.toDomain(): CrewRunResult {
+    val people = participants.map {
+        CrewRunResult.Participant(
+            displayName = it.displayName.orEmpty(),
+            distance = Distance(it.distanceMeters),
+            elapsedSeconds = it.elapsedSeconds,
+            averagePaceSecondsPerKm = it.averagePaceSecondsPerKm,
+            hasEnded = it.ended,
+            memberId = it.memberId,
+            isMe = it.me
+        )
+    }
+    return CrewRunResult(
+        postId = postId,
+        participants = people,
+        totalDistance = Distance(totalDistanceMeters ?: participants.sumOf { it.distanceMeters }),
+        isFirstCrewRun = firstCrewRun,
+        raceContribution = Distance(raceContributionMeters),
+        status = status?.let { enumByName<CrewRunStatus>(it) },
+        title = title.orEmpty(),
+        distance = distanceMeters?.let(::Distance),
+        startedAt = startedAt?.let(ServerTime::parse),
+        myRecordId = myRecordId
+    )
+}
 
 private const val NEWLINE = "\n"
+
+/** 서버 crew.Readiness의 대기실에 들어오지 않은 값. */
+private const val NOT_ENTERED = "NOT_ENTERED"

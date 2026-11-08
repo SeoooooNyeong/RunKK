@@ -5,11 +5,13 @@ import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -18,6 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -26,9 +29,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -37,15 +44,26 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.a207.runkk.app.core.designsystem.AvatarCharacter
+import com.a207.runkk.app.core.designsystem.KakaoRunMap
+import com.a207.runkk.app.core.designsystem.LocalKakaoMapKey
+import com.a207.runkk.app.core.designsystem.OPPONENT_MARKER_TAG
+import com.a207.runkk.app.core.designsystem.OpponentMarkerPlacer
+import com.a207.runkk.app.core.designsystem.RouteCanvas
+import com.a207.runkk.app.core.designsystem.RouteMarker
+import com.a207.runkk.app.core.designsystem.RunMapMarker
 import com.a207.runkk.app.core.designsystem.RunkkBadge
 import com.a207.runkk.app.core.designsystem.RunkkBadgeTone
+import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkConfirmDialog
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkFormat
@@ -56,13 +74,16 @@ import com.a207.runkk.app.core.designsystem.RunkkLiveDot
 import com.a207.runkk.app.core.designsystem.RunkkLoading
 import com.a207.runkk.app.core.designsystem.RunkkLongPressButton
 import com.a207.runkk.app.core.designsystem.RunkkOverline
+import com.a207.runkk.app.core.designsystem.RunkkPillButton
 import com.a207.runkk.app.core.designsystem.RunkkPrimaryButton
 import com.a207.runkk.app.core.designsystem.RunkkProgressBar
+import com.a207.runkk.app.core.designsystem.RunkkRunningFigure
 import com.a207.runkk.app.core.designsystem.RunkkSecondaryButton
 import com.a207.runkk.app.core.designsystem.RunkkSegmentRow
 import com.a207.runkk.app.core.designsystem.RunkkSelectField
 import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkStatTile
+import com.a207.runkk.app.core.designsystem.RunkkStatusPill
 import com.a207.runkk.app.core.designsystem.RunkkTextField
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
@@ -70,17 +91,26 @@ import com.a207.runkk.app.core.designsystem.SelectLabel
 import com.a207.runkk.app.core.designsystem.StatTileStyle
 import com.a207.runkk.app.core.designsystem.StatTileValue
 import com.a207.runkk.app.core.designsystem.asString
+import com.a207.runkk.app.core.designsystem.canShowKakaoMap
 import com.a207.runkk.app.core.designsystem.codePointLength
+import com.a207.runkk.app.core.designsystem.rememberHeadingLeft
+import com.a207.runkk.app.core.designsystem.rememberIsMoving
+import com.a207.runkk.app.core.designsystem.runFrameMillis
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.GeoPoint
 import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
+import com.a207.runkk.app.domain.crew.CrewRunProgress
 import com.a207.runkk.app.domain.crew.CrewRunResult
 import com.a207.runkk.app.domain.crew.Lobby
 import com.a207.runkk.app.domain.crew.PostList
+import com.a207.runkk.app.domain.live.CrewRunRelay
 import java.time.Duration
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -280,7 +310,7 @@ internal fun dayLabel(resources: Resources, today: LocalDate, offset: Int): Stri
 private val DAY: DateTimeFormatter = DateTimeFormatter.ofPattern("M/d(E)", Locale.KOREAN)
 internal val TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
-// ---------- 대기실·진행 ----------
+// ---------- 대기실·진행(합산 방식, 피그마 F-14~F-15d) ----------
 
 @Composable
 fun CrewRunRoute(key: Routes.CrewRunLobby, viewModel: CrewRunViewModel = hiltViewModel()) {
@@ -295,9 +325,8 @@ fun CrewRunRoute(key: Routes.CrewRunLobby, viewModel: CrewRunViewModel = hiltVie
             }
         }
     }
-    CrewRunScreen(
-        state = state,
-        actions = CrewRunActions(
+    val actions = remember(viewModel) {
+        CrewRunActions(
             onReady = viewModel::onReadyToggle,
             onRefresh = viewModel::enter,
             onLeave = viewModel::onLeaveLobby,
@@ -305,10 +334,13 @@ fun CrewRunRoute(key: Routes.CrewRunLobby, viewModel: CrewRunViewModel = hiltVie
             onQuitLongPress = viewModel::onQuitLongPressed,
             onQuitConfirm = viewModel::onQuitConfirmed,
             onQuitDismiss = viewModel::onQuitDismissed,
+            onPause = viewModel::onPause,
+            onResume = viewModel::onResume,
             onClose = viewModel::onBack,
             onBack = viewModel::onBack
         )
-    )
+    }
+    CrewRunScreen(state = state, actions = actions)
 }
 
 data class CrewRunActions(
@@ -319,38 +351,27 @@ data class CrewRunActions(
     val onQuitLongPress: () -> Unit = {},
     val onQuitConfirm: () -> Unit = {},
     val onQuitDismiss: () -> Unit = {},
+    val onPause: () -> Unit = {},
+    val onResume: () -> Unit = {},
     val onClose: () -> Unit = {},
-    /** 상단 뒤로 단추·시스템 뒤로 가기·"돌아가기". 단계별 처리는 CrewRunViewModel.onBack. */
+    /** 시스템 뒤로 가기·"돌아가기". 단계별 처리는 CrewRunViewModel.onBack. */
     val onBack: () -> Unit = {}
 )
 
 /**
- * 크루런 대기실·진행 화면(와이어 I5, I6, I12). 시스템 뒤로 가기는 늘 [CrewRunActions.onBack]으로 보낸다(대기실에 들어가지 못한 오류
- * 화면에서도 나갈 수 있게). 들어가는 중과 대기실에는 상단에 뒤로 단추를 둔다(대기실에서 누르면 대기실을 나간다).
+ * 크루런 대기실(F-14·F-14b)·카운트다운·진행(F-15)·일시정지(F-15c)·그만두기 확인(F-15d). 시스템 뒤로 가기는 늘 [CrewRunActions.onBack]으로
+ * 보낸다(대기실에 들어가지 못한 오류 화면에서도 나갈 수 있게).
  */
 @Composable
 fun CrewRunScreen(state: CrewRunUiState, actions: CrewRunActions, modifier: Modifier = Modifier) {
     BackHandler(onBack = actions.onBack)
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .padding(bottom = 32.dp)
-    ) {
-        val isLive = state.phase == CrewRunPhase.RUNNING || state.phase == CrewRunPhase.COUNTDOWN ||
-            state.phase == CrewRunPhase.FINISHED
-        RunkkTopBar(
-            title = stringResource(if (isLive) R.string.crew_run_live_title else R.string.crew_run_lobby_title),
-            onBack = actions.onBack.takeIf { state.phase == CrewRunPhase.ENTERING || state.phase == CrewRunPhase.LOBBY }
-        )
-        Column(
-            Modifier.weight(1f).padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            RunPhaseBody(state, actions)
-        }
-        if (state.phase == CrewRunPhase.RUNNING || state.phase == CrewRunPhase.COUNTDOWN) {
-            RunQuitControl(state, actions)
+    Box(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
+        when (state.phase) {
+            CrewRunPhase.ENTERING -> EnteringBody(state, actions)
+            CrewRunPhase.LOBBY -> LobbyContent(state, actions)
+            CrewRunPhase.COUNTDOWN -> CountdownBody(state)
+            CrewRunPhase.RUNNING, CrewRunPhase.FINISHED -> RunningContent(state, actions)
+            CrewRunPhase.CANCELLED -> CancelledBody(state, actions)
         }
     }
     if (state.isConfirmingQuit) {
@@ -366,33 +387,37 @@ fun CrewRunScreen(state: CrewRunUiState, actions: CrewRunActions, modifier: Modi
     }
 }
 
-/** 단계별 본문: 들어오는 중·대기실·카운트다운·중계·취소. */
+/** 대기실에 들어가는 중: 읽는 중이거나 오류. 열리지 않음·이미 시작 같은 거부는 다시 해도 같으니 "돌아가기"를 준다. */
 @Composable
-private fun ColumnScope.RunPhaseBody(state: CrewRunUiState, actions: CrewRunActions) {
-    when (state.phase) {
-        CrewRunPhase.ENTERING -> if (state.error != null) {
-            // 열리지 않음·이미 시작 같은 거부는 다시 해도 같으니 "돌아가기"를 준다.
-            if (state.canRetry) {
-                RunkkErrorState(state.error.asString(), onRetry = actions.onRefresh, modifier = Modifier.weight(1f))
-            } else {
-                RunkkErrorState(
-                    state.error.asString(),
-                    onRetry = actions.onBack,
-                    retryLabel = stringResource(R.string.crew_run_cancelled_back),
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        } else {
-            RunkkLoading(Modifier.weight(1f))
+private fun EnteringBody(state: CrewRunUiState, actions: CrewRunActions) {
+    Column(Modifier.fillMaxSize()) {
+        RunkkTopBar(title = stringResource(R.string.crew_run_lobby_title), onBack = actions.onBack)
+        val error = state.error
+        when {
+            error == null -> RunkkLoading(Modifier.weight(1f))
+
+            state.canRetry -> RunkkErrorState(
+                error.asString(),
+                onRetry = actions.onRefresh,
+                modifier = Modifier.weight(1f)
+            )
+
+            else -> RunkkErrorState(
+                error.asString(),
+                onRetry = actions.onBack,
+                retryLabel = stringResource(R.string.crew_run_cancelled_back),
+                modifier = Modifier.weight(1f)
+            )
         }
+    }
+}
 
-        CrewRunPhase.LOBBY -> LobbyBody(state, actions)
-
-        CrewRunPhase.COUNTDOWN -> CountdownBody(state)
-
-        CrewRunPhase.RUNNING, CrewRunPhase.FINISHED -> RelayBody(state)
-
-        CrewRunPhase.CANCELLED -> RunkkErrorState(
+/** 취소된 크루런(문구는 기존 취소 표시 그대로). */
+@Composable
+private fun CancelledBody(state: CrewRunUiState, actions: CrewRunActions) {
+    Column(Modifier.fillMaxSize()) {
+        RunkkTopBar(title = stringResource(R.string.crew_run_lobby_title))
+        RunkkErrorState(
             state.cancelledReason?.let { stringResource(R.string.crew_run_cancelled_with_reason, it) }
                 ?: stringResource(R.string.crew_run_cancelled),
             onRetry = actions.onClose,
@@ -402,462 +427,407 @@ private fun ColumnScope.RunPhaseBody(state: CrewRunUiState, actions: CrewRunActi
     }
 }
 
-/** 달리는 중 그만두기 단추(와이어 I6). 누르면 확인(I12)을 연다. */
+/** 칩 "● 크루런 · 5km"(F-14·F-15). */
 @Composable
-private fun RunQuitControl(state: CrewRunUiState, actions: CrewRunActions) {
-    val description = stringResource(R.string.crew_run_quit_description)
-    // 시스템 뒤로 가기를 누르면 그만두기 단추를 쓰라는 안내가 뜬다.
-    state.hint?.let { RunkkHint(it.asString(), modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) }
-    RunkkSecondaryButton(
-        stringResource(R.string.crew_run_quit_confirm_action),
-        onClick = actions.onQuitLongPress,
-        isEnabled = !state.isConfirmingQuit,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 16.dp, end = 16.dp, top = 16.dp)
-            .semantics { contentDescription = description },
-        height = 52.dp
+private fun CrewRunChip(distance: Distance?) {
+    RunkkStatusPill(
+        stringResource(R.string.crew_run_chip, distance?.let(RunkkFormat::targetLabel) ?: RunkkFormat.EMPTY),
+        leading = { Box(Modifier.size(8.dp).clip(CircleShape).background(RunkkColors.TextPrimary)) }
     )
 }
 
-/** 대기실(와이어 I5): 거리, 출발까지 남은 시간, 참가자와 준비 수, 준비 완료 단추. */
+/**
+ * 대기실(F-14·F-14b): 칩과 나가기, 모집 시각·출발까지 남은 시간, 참가자 3열 격자(나·이름, 준비 완료·대기 중·미입장)와
+ * "준비 완료 n / m", 아래 준비 완료 단추(준비하면 회색, 다시 누르면 풀린다).
+ */
 @Composable
-private fun ColumnScope.LobbyBody(state: CrewRunUiState, actions: CrewRunActions) {
+private fun LobbyContent(state: CrewRunUiState, actions: CrewRunActions) {
     val lobby = state.lobby ?: return
-    Column(
-        Modifier.weight(1f).verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        Text(
-            state.distance?.let(RunkkFormat::targetLabel) ?: RunkkFormat.EMPTY,
-            style = RunkkTextStyles.BodyStrong,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        LobbyUntilStart(state, lobby)
-        Participants(lobby)
-        state.error?.let {
-            Text(
-                it.asString(),
-                style = RunkkTextStyles.Caption,
-                color = MaterialTheme.colorScheme.secondary,
-                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+    Column(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 32.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            CrewRunChip(state.distance)
+            Spacer(Modifier.weight(1f))
+            RunkkPillButton(
+                stringResource(R.string.crew_run_lobby_leave),
+                onClick = actions.onLeave,
+                isEnabled = !state.isLeaving
             )
         }
+        Column(
+            Modifier.weight(1f).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
+            LobbyUntilStart(state, lobby)
+            Participants(lobby)
+            state.error?.let {
+                Text(
+                    it.asString(),
+                    style = RunkkTextStyles.Caption,
+                    color = RunkkColors.Lavender,
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+                )
+            }
+        }
+        LobbyReadyButton(state, actions)
     }
-    LobbyReadyButton(state, actions)
 }
 
-/** 출발까지 남은 시간(크게)과 "출발까지". */
+/** "오늘 오후 9:00", 큰 남은 시간, "출발까지". */
 @Composable
 private fun LobbyUntilStart(state: CrewRunUiState, lobby: Lobby) {
+    val meet = lobbyMeetLabel(lobby.meetAt)
     val untilSpoken = state.untilStart?.let { RunkkFormat.durationSpoken(it) }
         ?: stringResource(R.string.crew_run_lobby_until_checking)
-    val description = stringResource(R.string.crew_run_lobby_until_description, untilSpoken, meetLabel(lobby.meetAt))
+    val description = stringResource(R.string.crew_run_lobby_until_description, untilSpoken, meet)
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RunkkShapes.ExtraLarge)
-            .background(MaterialTheme.colorScheme.surface)
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RunkkShapes.ExtraLarge)
-            .padding(vertical = 24.dp)
-            .clearAndSetSemantics { contentDescription = description },
+        modifier = Modifier.fillMaxWidth().padding(top = 16.dp).clearAndSetSemantics {
+            contentDescription = description
+        },
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+        verticalArrangement = Arrangement.spacedBy(2.dp)
     ) {
-        Text(
-            untilLabel(state.untilStart),
-            style = RunkkTextStyles.display(72),
-            color = MaterialTheme.colorScheme.primary
-        )
+        Text(meet, style = RunkkTextStyles.Caption, color = RunkkColors.TextPrimary)
+        Text(untilLabel(state.untilStart), style = RunkkTextStyles.display(52), color = RunkkColors.TextPrimary)
         Text(
             stringResource(R.string.crew_run_lobby_until_label),
             style = RunkkTextStyles.Caption,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = RunkkColors.TextPrimary
         )
     }
 }
 
-/** 준비 완료 단추(켬/끔). */
+/** 오늘이면 "오늘 오후 9:00", 아니면 모집 시각 표기. */
+@Composable
+private fun lobbyMeetLabel(at: Instant): String {
+    val zone = ZoneId.systemDefault()
+    val time = at.atZone(zone)
+    if (time.toLocalDate() != LocalDate.now(zone)) return meetLabel(at)
+    val pattern = stringResource(R.string.crew_run_lobby_meet_time_pattern)
+    return stringResource(
+        R.string.crew_run_lobby_meet_today,
+        time.format(DateTimeFormatter.ofPattern(pattern, Locale.KOREAN))
+    )
+}
+
+/** 준비 완료 단추(켬/끔). 준비하면 회색 단추가 된다(F-14b). */
 @Composable
 private fun LobbyReadyButton(state: CrewRunUiState, actions: CrewRunActions) {
     val readyState = stringResource(
         if (state.isReady) R.string.crew_run_lobby_ready_state_on else R.string.crew_run_lobby_ready_state_off
     )
-    RunkkPrimaryButton(
-        stringResource(if (state.isReady) R.string.crew_run_lobby_ready_waiting else R.string.crew_run_ready),
-        onClick = actions.onReady,
-        isEnabled = state.distance != null,
-        isLoading = state.isBusy,
-        // 다시 누르면 풀리는 켬/끔이라 스위치로 알린다.
-        modifier = Modifier.fillMaxWidth().padding(top = 16.dp).semantics {
-            role = Role.Switch
-            stateDescription = readyState
-        }
-    )
+    // 다시 누르면 풀리는 켬/끔이라 스위치로 알린다.
+    val switch = Modifier.fillMaxWidth().padding(top = 16.dp).semantics {
+        role = Role.Switch
+        stateDescription = readyState
+    }
+    if (state.isReady) {
+        RunkkSecondaryButton(
+            stringResource(R.string.crew_run_ready),
+            onClick = actions.onReady,
+            isEnabled = !state.isBusy,
+            modifier = switch
+        )
+    } else {
+        RunkkPrimaryButton(
+            stringResource(R.string.crew_run_ready),
+            onClick = actions.onReady,
+            isEnabled = state.distance != null,
+            isLoading = state.isBusy,
+            modifier = switch
+        )
+    }
 }
 
-/** 참가자(와이어 I5): "참가자", "준비 완료 n / m", 줄마다 이름(나)과 준비 완료·기다리는 중. */
+/** 참가자(F-14): "참가자", "준비 완료 n / m", 3열 격자. */
 @Composable
 private fun Participants(lobby: Lobby) {
-    val colors = MaterialTheme.colorScheme
     val readyCount = lobby.participants.count { it.isReady }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 8.dp)) {
             Text(
                 stringResource(R.string.crew_run_lobby_participants),
                 style = RunkkTextStyles.CardTitle,
-                color = colors.onSurface,
+                color = RunkkColors.TextPrimary,
                 modifier = Modifier.weight(1f).semantics { heading() }
             )
             Text(
                 stringResource(R.string.crew_run_lobby_ready_count, readyCount, lobby.participants.size),
                 style = RunkkTextStyles.Caption,
-                color = colors.onSurfaceVariant
+                color = RunkkColors.TextPrimary
             )
         }
-        lobby.participants.forEach { p ->
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RunkkShapes.Medium)
-                    .background(colors.surface)
-                    .border(1.dp, if (p.isMe) colors.primary else colors.outlineVariant, RunkkShapes.Medium)
-                    .padding(horizontal = 12.dp, vertical = 10.dp)
-                    .semantics(mergeDescendants = true) {},
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                val name = if (p.isMe) stringResource(R.string.crew_member_me) else p.displayName
-                CrewLogo(p.displayName, size = 32, isAccent = p.isMe, modifier = Modifier.clip(CircleShape))
-                Text(name, style = RunkkTextStyles.BodyStrong, color = colors.onSurface, modifier = Modifier.weight(1f))
-                RunkkBadge(
-                    stringResource(if (p.isReady) R.string.crew_run_ready else R.string.crew_run_participant_waiting),
-                    tone = if (p.isReady) RunkkBadgeTone.Lime else RunkkBadgeTone.Muted
-                )
+        lobby.participants.chunked(LOBBY_COLUMNS).forEach { row ->
+            Row(Modifier.fillMaxWidth()) {
+                row.forEach { p -> ParticipantCell(p, Modifier.weight(1f)) }
+                repeat(LOBBY_COLUMNS - row.size) { Spacer(Modifier.weight(1f)) }
             }
         }
     }
 }
 
+/** 참가자 한 칸: 원, 이름(나), 준비 완료(굵게)·대기 중·미입장. */
 @Composable
-private fun ColumnScope.CountdownBody(state: CrewRunUiState) {
+private fun ParticipantCell(p: Lobby.Participant, modifier: Modifier = Modifier) {
+    val name = if (p.isMe) stringResource(R.string.crew_member_me) else p.displayName
+    val status = stringResource(
+        when {
+            p.isReady -> R.string.crew_run_ready
+            p.isEntered -> R.string.crew_run_participant_waiting
+            else -> R.string.crew_run_participant_not_entered
+        }
+    )
     Column(
-        Modifier.weight(1f).fillMaxWidth().semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
+        modifier = modifier.padding(vertical = 4.dp).semantics(mergeDescendants = true) {},
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        CrewLogo(p.displayName, size = 64, isAccent = p.isMe, modifier = Modifier.clip(CircleShape))
+        Text(name, style = RunkkTextStyles.Body, color = RunkkColors.TextPrimary, maxLines = 1)
+        Text(
+            status,
+            style = if (p.isReady) RunkkTextStyles.text(13, FontWeight.Bold) else RunkkTextStyles.Caption,
+            color = RunkkColors.TextPrimary
+        )
+    }
+}
+
+@Composable
+private fun CountdownBody(state: CrewRunUiState) {
+    Column(
+        Modifier.fillMaxSize().semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically)
     ) {
         Text(
             state.countdown?.toString() ?: "READY",
             style = RunkkTextStyles.display(160),
-            color = MaterialTheme.colorScheme.primary
+            color = RunkkColors.TextPrimary
         )
         Text(
             stringResource(R.string.crew_run_countdown_go),
             style = RunkkTextStyles.BodyStrong,
-            color = MaterialTheme.colorScheme.onSurface
+            color = RunkkColors.TextPrimary
         )
     }
 }
 
-/** 진행 중 중계(와이어 I6, FR-149): 내 순위·거리, 1위와의 거리 차, 순위표(순위, 이름, 누적 거리, 막대). */
+/**
+ * 진행(F-15)·일시정지(F-15c): 칩, 큰 내 거리, 경과·현재 페이스·평균 페이스, 지도(내 아바타와 크루원 아바타),
+ * "함께 달리는 크루원 n명", 길게 눌러 종료와 일시정지. 정지 중에는 반투명 막을 덮고 종료·재개만 받는다(개인 러닝 B-4와 같다).
+ */
 @Composable
-private fun ColumnScope.RelayBody(state: CrewRunUiState) {
-    Column(
-        Modifier.weight(1f).verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        state.distance?.let {
+private fun RunningContent(state: CrewRunUiState, actions: CrewRunActions) {
+    Box(Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            CrewRunChip(state.distance)
+            BigDistance(state.mine.distance)
+            RunStats(state.mine)
+            Box(Modifier.weight(1f).fillMaxWidth().padding(top = 24.dp)) {
+                CrewRunMap(state)
+                state.hint?.let { RunkkHint(it.asString(), modifier = Modifier.align(Alignment.BottomCenter)) }
+            }
             Text(
-                RunkkFormat.targetLabel(it),
-                style = RunkkTextStyles.BodyStrong,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                stringResource(R.string.crew_run_together, state.runningMates),
+                style = RunkkTextStyles.Body,
+                color = RunkkColors.TextPrimary,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
             )
-        }
-        RelayMine(state.relay)
-        val total = state.distance?.meters?.coerceAtLeast(1)
-        state.relay.forEach { row -> RelayRowItem(row, total) }
-        if (state.relay.isEmpty()) {
-            Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
+            state.error?.let {
                 Text(
-                    stringResource(R.string.crew_run_relay_waiting),
-                    style = RunkkTextStyles.Body,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    it.asString(),
+                    style = RunkkTextStyles.Caption,
+                    color = RunkkColors.Lavender,
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
                 )
             }
+            if (!state.isPaused) RunControls(state, actions, isPaused = false)
         }
-        state.error?.let {
-            Text(it.asString(), style = RunkkTextStyles.Caption, color = MaterialTheme.colorScheme.secondary)
-        }
+        if (state.isPaused) PausedOverlay(state, actions)
     }
 }
 
-/** 내 순위 "2 / 5"와 내 거리, 1위가 아니면 "1위와 190m". */
+/** 큰 거리 "3.22"와 오른쪽 아래 작은 "km". */
 @Composable
-private fun RelayMine(relay: List<RelayRow>) {
-    val mine = relay.firstOrNull { it.isMe } ?: return
-    val leader = relay.filter { it.rank != null }.minByOrNull { it.rank ?: Int.MAX_VALUE }
-    val colors = MaterialTheme.colorScheme
-    val gap = leader?.takeIf { !it.isMe }?.let { (it.distance.meters - mine.distance.meters).coerceAtLeast(0) }
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(RunkkShapes.ExtraLarge)
-            .background(colors.primaryContainer)
-            .border(1.dp, colors.primary, RunkkShapes.ExtraLarge)
-            .padding(20.dp)
-            .semantics(mergeDescendants = true) {},
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+private fun BigDistance(distance: Distance) {
+    val spoken = stringResource(R.string.crew_run_km_spoken, RunkkFormat.km(distance))
+    Row(
+        modifier = Modifier.fillMaxWidth().clearAndSetSemantics { contentDescription = spoken },
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.Bottom
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            RelayStat(
-                mine.rank?.let { stringResource(R.string.crew_run_live_rank, it, relay.size) } ?: RunkkFormat.EMPTY,
-                stringResource(R.string.crew_run_live_rank_label),
-                Modifier.weight(1f)
-            )
-            RelayStat(
-                RunkkFormat.km(mine.distance),
-                stringResource(R.string.crew_run_live_distance_label),
-                Modifier.weight(1f)
-            )
-        }
-        gap?.let {
-            Text(
-                stringResource(R.string.crew_run_live_gap, it),
-                style = RunkkTextStyles.BodyStrong,
-                color = colors.onSurface
-            )
-        }
+        Text(RunkkFormat.km(distance), style = RunkkTextStyles.DisplayHuge, color = RunkkColors.TextPrimary)
+        Text(
+            stringResource(R.string.crew_run_unit_km),
+            style = RunkkTextStyles.text(18),
+            color = RunkkColors.TextSecondary,
+            modifier = Modifier.padding(start = 4.dp, bottom = 12.dp)
+        )
+    }
+}
+
+/** 경과·현재 페이스·평균 페이스(대결 진행과 같은 세 칸). */
+@Composable
+private fun RunStats(mine: CrewRunProgress) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+        RunStat(
+            RunkkFormat.duration(mine.elapsed),
+            stringResource(R.string.crew_run_stat_elapsed),
+            RunkkFormat.durationSpoken(mine.elapsed)
+        )
+        RunStat(
+            RunkkFormat.pace(mine.currentPace),
+            stringResource(R.string.crew_run_stat_current_pace),
+            RunkkFormat.paceSpoken(mine.currentPace)
+        )
+        RunStat(
+            RunkkFormat.pace(mine.averagePace),
+            stringResource(R.string.crew_run_stat_average_pace),
+            RunkkFormat.paceSpoken(mine.averagePace)
+        )
     }
 }
 
 @Composable
-private fun RelayStat(value: String, label: String, modifier: Modifier = Modifier) {
-    Column(modifier) {
-        Text(value, style = RunkkTextStyles.display(36), color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
-        Text(label, style = RunkkTextStyles.Caption, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-}
-
-/** 중계 한 줄: 순위·표시명·연결 상태·누적 거리와 진행 막대. */
-@Composable
-private fun RelayRowItem(row: RelayRow, total: Long?) {
-    val status = connectionLabelRes(row.connection)?.let { stringResource(it) }
-    val rankText = row.rank?.let { stringResource(R.string.crew_run_rank, it) }
-    val nameText = if (row.isMe) stringResource(R.string.crew_run_me_named, row.name) else row.name
-    val kmText = stringResource(R.string.crew_run_km_spoken, RunkkFormat.km(row.distance))
-    val description = listOfNotNull(rankText, nameText, kmText, status).joinToString(", ")
-    val colors = MaterialTheme.colorScheme
+private fun RunStat(value: String, label: String, spoken: String) {
     Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.clearAndSetSemantics { contentDescription = "$label $spoken" }
+    ) {
+        Text(value, style = RunkkTextStyles.display(28), color = RunkkColors.TextPrimary)
+        Text(label, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
+    }
+}
+
+/** 지도 위 크루원 한 명: 자리, 이름표, 움직이는가. */
+private data class MateMarker(val point: GeoPoint, val label: String, val isMoving: Boolean)
+
+/**
+ * 지도와 아바타(F-15): 경로 끝에 내 아바타, 아직 끝내지 않은 크루원은 내 경로 위 거리 차만큼 떨어진 지점(OpponentMarkerPlacer, 대결 상대와
+ * 같은 방식). 크루원 성별을 모르므로 기본 캐릭터이고 멈췄으면 이름표가 "이름 · 멈춤"이다. Kakao 지도를 띄울 수 없으면 격자 바탕 경로선이다.
+ */
+@Composable
+private fun CrewRunMap(state: CrewRunUiState) {
+    val mine = state.mine
+    val route = mine.route
+    val me = route.points.lastOrNull()
+    val isMoving = rememberIsMoving(mine.distance) && !mine.isPaused && mine.currentPace != null
+    val frameMillis = runFrameMillis(mine.currentPace)
+    val isLeft = rememberHeadingLeft(route)
+    val myName = stringResource(R.string.crew_member_me)
+    val myLabel = if (mine.isPaused) stringResource(R.string.crew_run_mate_paused, myName) else myName
+    val resources = LocalContext.current.resources
+    val mates = state.relay.filter { !it.isMe && it.isRunning }.mapNotNull { row ->
+        val gap = (mine.distance.meters - row.distance.meters).toInt()
+        OpponentMarkerPlacer.place(route, mine.distance, gap)?.let { point ->
+            val isPaused = row.state == CrewRunRelay.State.PAUSED
+            MateMarker(
+                point,
+                if (isPaused) resources.getString(R.string.crew_run_mate_paused, row.name) else row.name,
+                row.state == CrewRunRelay.State.RUNNING && !mine.isPaused
+            )
+        }
+    }
+    val mateFigure: @Composable (Boolean) -> Unit = { moving ->
+        RunkkRunningFigure(moving, runFrameMillis(null), character = AvatarCharacter.of(null), isFacingLeft = isLeft)
+    }
+    // 실행 중 지도 오류가 나면 격자로 바꾼다(D-340)
+    var isMapFailed by remember { mutableStateOf(false) }
+    if (canShowKakaoMap(LocalKakaoMapKey.current, isMapFailed)) {
+        KakaoRunMap(
+            route = route,
+            modifier = Modifier.fillMaxSize(),
+            others = mates.map { m -> RunMapMarker(m.point, label = m.label, figure = { mateFigure(m.isMoving) }) },
+            myLabel = myLabel,
+            onMapError = { isMapFailed = true }
+        ) { RunkkRunningFigure(isMoving, frameMillis, isFacingLeft = isLeft) }
+        return
+    }
+    if (me == null) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(72.dp)) { RunkkRunningFigure(isMoving, frameMillis, isFacingLeft = isLeft) }
+        }
+        return
+    }
+    val markers = mates.map { m ->
+        RouteMarker(m.point, label = m.label, tag = OPPONENT_MARKER_TAG, figure = { mateFigure(m.isMoving) })
+    } +
+        RouteMarker(point = me, label = myLabel, figure = {
+            RunkkRunningFigure(isMoving, frameMillis, isFacingLeft = isLeft)
+        })
+    RouteCanvas(route = route, markers = markers, modifier = Modifier.fillMaxSize())
+}
+
+/** 아래 단추: 길게 눌러 종료(짧게 누르면 안내, 길게 누르면 그만두기 확인 F-15d)와 일시정지·재개. */
+@Composable
+private fun RunControls(state: CrewRunUiState, actions: CrewRunActions, isPaused: Boolean) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.Top
+    ) {
+        RunkkLongPressButton(
+            onTap = actions.onQuitTap,
+            onLongPress = actions.onQuitLongPress,
+            tapLabel = stringResource(R.string.crew_run_finish_tap_label),
+            longPressLabel = stringResource(R.string.crew_run_hold_to_end),
+            contentDescription = stringResource(R.string.crew_run_quit_description),
+            caption = stringResource(R.string.crew_run_hold_to_end),
+            size = BIG_BUTTON,
+            borderColor = RunkkColors.LimeFill,
+            borderWidth = 0.dp,
+            background = RunkkColors.LimeFill
+        ) {
+            Box(Modifier.size(28.dp).clip(RoundedCornerShape(8.dp)).background(RunkkColors.TextPrimary))
+        }
+        val label = stringResource(if (isPaused) R.string.crew_run_resume else R.string.crew_run_pause)
+        Box(
+            modifier = Modifier
+                .size(BIG_BUTTON)
+                .clip(CircleShape)
+                .background(RunkkColors.Surface)
+                .border(2.dp, if (isPaused) RunkkColors.Surface else RunkkColors.BorderStrong, CircleShape)
+                .clickable(
+                    enabled = !state.isConfirmingQuit,
+                    role = Role.Button,
+                    onClickLabel = label,
+                    onClick = if (isPaused) actions.onResume else actions.onPause
+                )
+                .semantics { contentDescription = label },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                if (isPaused) RunkkIcons.Play else RunkkIcons.Pause,
+                contentDescription = null,
+                tint = RunkkColors.TextPrimary,
+                modifier = Modifier.size(BIG_BUTTON / 3)
+            )
+        }
+    }
+}
+
+/** 일시정지(F-15c): 반투명 막 위에 종료·재개. 보조 기술에는 "일시정지" 화면으로 알린다. */
+@Composable
+private fun PausedOverlay(state: CrewRunUiState, actions: CrewRunActions) {
+    val paneTitle = stringResource(R.string.crew_run_pause)
+    Box(
         modifier = Modifier
-            .fillMaxWidth()
-            .clip(RunkkShapes.Medium)
-            .background(colors.surface)
-            .border(1.dp, if (row.isMe) colors.primary else colors.outlineVariant, RunkkShapes.Medium)
-            .padding(horizontal = 12.dp, vertical = 10.dp)
-            .clearAndSetSemantics { contentDescription = description },
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = PAUSE_SCRIM_ALPHA))
+            .semantics { this.paneTitle = paneTitle }
+            .padding(start = 16.dp, end = 16.dp, bottom = 32.dp),
+        contentAlignment = Alignment.BottomCenter
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(
-                row.rank?.toString() ?: "-",
-                style = RunkkTextStyles.display(20),
-                color = if (row.rank == 1) colors.primary else colors.onSurfaceVariant,
-                modifier = Modifier.widthIn(min = 20.dp)
-            )
-            Text(
-                if (row.isMe) stringResource(R.string.crew_member_me) else row.name,
-                style = RunkkTextStyles.BodyStrong,
-                color = colors.onSurface,
-                modifier = Modifier.weight(1f)
-            )
-            status?.let { RunkkBadge(it, tone = RunkkBadgeTone.Muted) }
-            Text(
-                stringResource(R.string.crew_contribution_km, RunkkFormat.km(row.distance)),
-                style = RunkkTextStyles.text(14, FontWeight.Bold),
-                color = colors.onSurface
-            )
-        }
-        if (total != null) {
-            RunkkProgressBar(
-                row.distance.meters.toFloat() / total,
-                color = if (row.isMe) colors.primary else colors.onSurfaceVariant,
-                trackColor = colors.outlineVariant
-            )
-        }
+        RunControls(state, actions, isPaused = true)
     }
-}
-
-/** 연결 상태 문구(서버 CrewRunRelay.Connection 이름). 연결됨이면 null. */
-@StringRes
-internal fun connectionLabelRes(connection: String): Int? = when (connection) {
-    "CHECKING" -> R.string.crew_run_connection_checking
-    "QUIT" -> R.string.crew_run_connection_quit
-    "ARRIVED" -> R.string.crew_run_connection_arrived
-    else -> null
 }
 
 /** 남은 시간 "12:34" 또는 "1:02:03". */
 internal fun untilLabel(left: Duration?): String = left?.let(RunkkFormat::duration) ?: RunkkFormat.EMPTY
 
-// ---------- 결과 ----------
-
-@Composable
-fun CrewRunResultRoute(postId: Long, viewModel: CrewRunResultViewModel = hiltViewModel()) {
-    LaunchedEffect(postId) { viewModel.load(postId) }
-    val state by viewModel.state.collectAsStateWithLifecycle()
-    val navigator = LocalRunkkNavigator.current
-    CrewRunResultScreen(
-        state = state,
-        onCard = { navigator.navigate(Routes.RECORDS) },
-        // 확인: 크루 일정으로 돌아간다(대기실은 결과를 열 때 백 스택에서 뺐다).
-        onHome = navigator::back,
-        onRetry = { viewModel.load(postId, isForced = true) }
-    )
-}
-
-/** 크루런 결과(와이어 I7): 뒤로, "크루런 결과", 인원, 내 순위·기록·평균 페이스, 순위표, 카드 공유와 확인. */
-@Composable
-fun CrewRunResultScreen(
-    state: CrewRunResultUiState,
-    onCard: () -> Unit,
-    onHome: () -> Unit,
-    onRetry: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Column(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        RunkkTopBar(title = stringResource(R.string.crew_run_result_title), onBack = onHome)
-        Column(
-            Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            val result = state.result
-            when {
-                result == null && state.isLoading -> Box(Modifier.fillMaxWidth().height(240.dp)) { RunkkLoading() }
-
-                result == null -> RunkkErrorState(
-                    state.error?.asString() ?: stringResource(R.string.crew_run_result_load_failed),
-                    onRetry = onRetry
-                )
-
-                else -> ResultBody(result)
-            }
-        }
-        Row(
-            Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 32.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            RunkkSecondaryButton(
-                stringResource(R.string.crew_run_result_card),
-                onClick = onCard,
-                modifier = Modifier.weight(1f)
-            )
-            RunkkPrimaryButton(
-                stringResource(R.string.crew_run_result_home),
-                onClick = onHome,
-                modifier = Modifier.weight(1f)
-            )
-        }
-    }
-}
-
-@Composable
-private fun ResultBody(result: CrewRunResult) {
-    Text(
-        stringResource(R.string.crew_run_result_people, result.finishers.size),
-        style = RunkkTextStyles.BodyStrong,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
-    )
-    result.finishers.firstOrNull { it.isMe }?.let { MyResult(it) }
-    result.finishers.sortedBy { it.rank ?: Int.MAX_VALUE }.forEach { f -> FinisherRow(f) }
-}
-
-/** 내 결과(와이어 I7): 순위(크게), "기록, 평균 페이스". 그만뒀으면 "중간에 그만둠". */
-@Composable
-private fun MyResult(me: CrewRunResult.Finisher) {
-    val colors = MaterialTheme.colorScheme
-    val time = me.elapsedSeconds?.let { RunkkFormat.duration(Duration.ofSeconds(it)) }
-    val pace = me.averagePaceSecondsPerKm?.takeIf { it > 0 }?.let { RunkkFormat.pace(Pace(it)) }
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(RunkkShapes.ExtraLarge)
-            .background(colors.primaryContainer)
-            .border(1.dp, colors.primary, RunkkShapes.ExtraLarge)
-            .padding(24.dp)
-            .semantics(mergeDescendants = true) {},
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        val rank = me.rank
-        if (rank != null) {
-            // 숫자 글꼴에는 한글이 없어 "위"는 본문 글꼴로 붙인다.
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text(rank.toString(), style = RunkkTextStyles.display(56), color = colors.primary)
-                Text(
-                    stringResource(R.string.crew_run_rank_unit),
-                    style = RunkkTextStyles.text(24, FontWeight.Black),
-                    color = colors.primary,
-                    modifier = Modifier.padding(bottom = 10.dp, start = 2.dp)
-                )
-            }
-        } else {
-            Text(stringResource(unfinishedRes(me)), style = RunkkTextStyles.CardTitle, color = colors.onSurface)
-        }
-        if (time != null) {
-            Text(
-                listOfNotNull(time, pace?.let { stringResource(R.string.crew_run_result_average_pace, it) })
-                    .joinToString(", "),
-                style = RunkkTextStyles.BodyStrong,
-                color = colors.onSurface
-            )
-        }
-    }
-}
-
-@StringRes
-private fun unfinishedRes(f: CrewRunResult.Finisher): Int =
-    if (f.hasQuit) R.string.crew_run_result_quit else R.string.crew_run_result_unfinished
-
-/** 순위표 한 줄: 순위(못 끝냈으면 -), 이름(나), 기록 또는 "중간에 그만둠". */
-@Composable
-private fun FinisherRow(f: CrewRunResult.Finisher) {
-    val colors = MaterialTheme.colorScheme
-    val time = f.elapsedSeconds?.let { RunkkFormat.duration(Duration.ofSeconds(it)) }
-    val unfinished = stringResource(unfinishedRes(f))
-    val description = listOfNotNull(
-        f.rank?.let { stringResource(R.string.crew_run_rank, it) } ?: unfinished,
-        if (f.isMe) stringResource(R.string.crew_run_me_named, f.displayName) else f.displayName,
-        f.elapsedSeconds?.takeIf { f.rank != null }?.let { RunkkFormat.durationSpoken(Duration.ofSeconds(it)) },
-        f.averagePaceSecondsPerKm?.takeIf { it > 0 && f.rank != null }
-            ?.let { stringResource(R.string.crew_run_result_average_spoken, RunkkFormat.paceSpoken(Pace(it))) }
-    ).joinToString(", ")
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RunkkShapes.Medium)
-            .background(colors.surface)
-            .border(1.dp, if (f.isMe) colors.primary else colors.outlineVariant, RunkkShapes.Medium)
-            .padding(horizontal = 12.dp, vertical = 12.dp)
-            .clearAndSetSemantics { contentDescription = description },
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Text(
-            f.rank?.toString() ?: "-",
-            style = RunkkTextStyles.display(20),
-            color = if (f.rank == 1) colors.primary else colors.onSurfaceVariant,
-            modifier = Modifier.widthIn(min = 20.dp)
-        )
-        Text(
-            if (f.isMe) stringResource(R.string.crew_member_me) else f.displayName,
-            style = RunkkTextStyles.BodyStrong,
-            color = colors.onSurface,
-            modifier = Modifier.weight(1f)
-        )
-        Text(
-            if (f.rank != null) time ?: RunkkFormat.EMPTY else unfinished,
-            style = if (f.rank != null) RunkkTextStyles.text(14, FontWeight.Bold) else RunkkTextStyles.Caption,
-            color = if (f.rank != null) colors.onSurface else colors.onSurfaceVariant
-        )
-    }
-}
+private const val LOBBY_COLUMNS = 3
+private const val PAUSE_SCRIM_ALPHA = 0.45f
+private val BIG_BUTTON = 84.dp

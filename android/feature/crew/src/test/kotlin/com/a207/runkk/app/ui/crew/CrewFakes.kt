@@ -62,6 +62,7 @@ import com.a207.runkk.app.domain.settings.GuidanceSettings
 import com.a207.runkk.app.domain.settings.SettingsRepository
 import com.a207.runkk.app.domain.settings.SettingsSnapshot
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -409,13 +410,20 @@ fun crewDetail(crewId: Long = 11, role: CrewRole? = CrewRole.MEMBER) = CrewDetai
 
 val crewRunResult = CrewRunResult(
     postId = 31,
-    finishers = listOf(
-        CrewRunResult.Finisher(2, "새벽곰", 1_710, 342, memberId = 7, isMe = true),
-        CrewRunResult.Finisher(1, "바람처럼", 1_640, 328),
-        CrewRunResult.Finisher(null, "달빛", null, null, hasQuit = true, memberId = 2)
+    participants = listOf(
+        CrewRunResult.Participant("바람처럼", Distance(5_280), 1_712, 324, memberId = 1),
+        CrewRunResult.Participant("새벽곰", Distance(4_870), 1_668, 342, memberId = 7, isMe = true),
+        CrewRunResult.Participant("달빛", Distance(4_620), 1_700, 368, memberId = 2),
+        CrewRunResult.Participant("거북", Distance(4_950), 1_790, 362, memberId = 3),
+        CrewRunResult.Participant("한강토끼", Distance(3_720), 1_500, 403, memberId = 4)
     ),
+    totalDistance = Distance(23_440),
     isFirstCrewRun = true,
-    raceContribution = Distance(13_400)
+    raceContribution = Distance(23_440),
+    status = CrewRunStatus.FINISHED,
+    title = "오늘 저녁 한강 5km",
+    distance = Distance(5_000),
+    myRecordId = "rec-31"
 )
 
 /** 크루 REST 가짜. 부른 연산을 [calls]에 남긴다. 결과는 [fail]에 코드로 넣으면 그 연산이 거부된다. */
@@ -627,9 +635,14 @@ class FakeCrewRepository : CrewRepository {
 
     override suspend fun leaveLobby(postId: Long) = answer("leaveLobby:$postId", lobbyState)
 
-    override suspend fun quit(postId: Long) = answer("quit:$postId", Unit)
+    override suspend fun quit(postId: Long, distanceMeters: Long?, elapsed: Duration?) =
+        answer("quit:$postId:${distanceMeters ?: "-"}", Unit)
 
-    override suspend fun crewRunResult(postId: Long) = answer("result:$postId", crewRunResult)
+    override suspend fun pause(postId: Long, elapsed: Duration) = answer("pause:$postId:${elapsed.seconds}", Unit)
+
+    var resultState = crewRunResult
+
+    override suspend fun crewRunResult(postId: Long) = answer("result:$postId", resultState)
 }
 
 class FakeLiveChannels : LiveChannelProvider {
