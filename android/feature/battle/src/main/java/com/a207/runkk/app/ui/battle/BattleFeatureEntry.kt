@@ -23,6 +23,8 @@ class BattleFeatureEntry @Inject constructor(private val sharer: InviteSharer) :
 
     override fun register(builder: EntryProviderScope<NavKey>) {
         builder.route(Routes.RECORD_RUN) { RecordRunRoute() }
+        // 이벤트 웹 페이지의 open("celebrity")는 셀럽런 분절로 연다(이벤트 계약 5절)
+        builder.route(Routes.RECORD_RUN_CELEB) { RecordRunRoute(initialSegment = CELEB_SEGMENT) }
         // 랜덤 대결·친구 대결 분리와 배치고사(D-498): 홈 배틀런 진입 시트가 경로 상수로 연다(D-499)
         builder.route(Routes.BATTLE_RANDOM) { RandomBattleRoute() }
         builder.route(Routes.BATTLE_FRIEND) { FriendBattleRoute() }

@@ -25,4 +25,26 @@
     <string name="notification_time_yesterday">어제</string>
     <string name="notification_time_days">%1$d일 전</string>
     <string name="notification_date_pattern">M월 d일</string>
+    <string name="event_inbox_title">이벤트</string>
+    <string name="event_inbox_ongoing_count">진행 중인 이벤트 %1$d개</string>
+    <string name="event_new">새 이벤트</string>
+    <string name="event_list_title">이벤트</string>
+    <string name="event_tab_ongoing">진행 중</string>
+    <string name="event_tab_past">지난 이벤트</string>
+    <string name="event_list_header_ongoing">진행 중인 이벤트</string>
+    <string name="event_list_header_past">지난 이벤트</string>
+    <string name="event_list_empty_ongoing">진행 중인 이벤트가 없어요</string>
+    <string name="event_list_empty_past">지난 이벤트가 없어요</string>
+    <string name="event_chip_new">새 이벤트</string>
+    <string name="event_chip_entered">참여 중</string>
+    <string name="event_chip_upcoming">곧 열려요</string>
+    <string name="event_chip_ended">종료</string>
+    <string name="event_period_until">%1$s까지</string>
+    <string name="event_period_from">%1$s부터</string>
+    <string name="event_period_ended">%1$s 종료</string>
+    <string name="event_date_pattern">M월 d일</string>
+    <string name="event_dday">D-%1$d</string>
+    <string name="event_dday_today">D-DAY</string>
+    <string name="event_entry_progress">%1$d / %2$d</string>
+    <string name="event_banner_page">%1$d / %2$d</string>
 </resources>

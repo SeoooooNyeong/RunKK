@@ -98,7 +98,7 @@ class InboxTest {
 
     @Test
     fun `알림을 오늘·이번 주·그 전으로 묶는다(FR-178)`() {
-        val vm = InboxViewModel(repo, clock)
+        val vm = InboxViewModel(repo, clock, FakeEventRepository())
         val groups = vm.state.value.groups
         assertEquals(
             listOf(
@@ -114,7 +114,7 @@ class InboxTest {
 
     @Test
     fun `알림을 누르면 읽음으로 바꾸고 이동 경로로 간다`() = runTest {
-        val vm = InboxViewModel(repo, clock)
+        val vm = InboxViewModel(repo, clock, FakeEventRepository())
         vm.events.test {
             vm.onItemTapped(sampleItems[0])
             assertEquals(InboxEvent.Navigate(Routes.CrewHome(7)), awaitItem())
@@ -126,7 +126,7 @@ class InboxTest {
     @Test
     fun `알림함을 못 읽으면 오류를 보인다`() {
         repo.inboxResult = Outcome.Failure(AppError.Network)
-        val vm = InboxViewModel(repo, clock)
+        val vm = InboxViewModel(repo, clock, FakeEventRepository())
         assertEquals(RunkkErrorText.of(AppError.Network), vm.state.value.error)
     }
 
@@ -165,7 +165,7 @@ class InboxTest {
     @Test
     fun `읽음 처리가 실패하면 안 읽음으로 되돌리고 알린다`() {
         repo.openResult = Outcome.Failure(AppError.Network)
-        val vm = InboxViewModel(repo, clock)
+        val vm = InboxViewModel(repo, clock, FakeEventRepository())
         vm.onItemTapped(sampleItems[0])
         assertEquals(1, vm.state.value.unreadCount)
         assertEquals(RunkkErrorText.of(AppError.Network), vm.state.value.message)
@@ -203,8 +203,8 @@ class InboxTest {
             .map { it.name }
             .toSet()
         val keys = Routes::class.java.declaredClasses.map { it.simpleName }.toSet()
-        assertEquals(V010_CONSTANTS + V011_CONSTANTS + V014_CONSTANTS + V018_CONSTANTS, constants)
-        assertEquals(V010_KEYS + V011_KEYS + WIRE_V010_KEYS + V014_KEYS + V018_KEYS, keys)
+        assertEquals(V010_CONSTANTS + V011_CONSTANTS + V014_CONSTANTS + V018_CONSTANTS + V0114_CONSTANTS, constants)
+        assertEquals(V010_KEYS + V011_KEYS + WIRE_V010_KEYS + V014_KEYS + V018_KEYS + V0114_KEYS, keys)
     }
 
     @Test
@@ -234,6 +234,10 @@ class InboxTest {
          * v0.14 배틀런 화면(BATTLE_MODE, D-268)은 v0.18에서 랜덤·친구 대결로 나눠 지웠다(D-498, CR-142).
          */
         val V014_CONSTANTS = setOf("RECORD_RUN", "RECORDS_BATTLES", "RUNIMAL_TYPES")
+
+        /** 0.11.4 이벤트(S15P31A207-275): 이벤트 목록, 셀럽런 분절로 여는 기록런, 이벤트 상세 웹 페이지. */
+        val V0114_CONSTANTS = setOf("EVENTS", "RECORD_RUN_CELEB")
+        val V0114_KEYS = setOf("EventDetail")
         val V010_KEYS = setOf(
             "Key", "RunResult", "RecordDetail", "RecordCard", "BattleRunning", "BattleQuickMatch", "BattleResult",
             "CrewHome", "CrewManage", "CrewRunWrite", "CrewRunLobby", "CrewRunResult"
