@@ -35,6 +35,7 @@ constructor(private val gateway: WatchGateway, private val scope: CoroutineScope
             }
         }
         scope.launch { gateway.heartRates.collect { deliver { listener.onHeartRates(it) } } }
+        scope.launch { gateway.motions.collect { deliver { listener.onWatchMotions(it) } } }
     }
 
     /**

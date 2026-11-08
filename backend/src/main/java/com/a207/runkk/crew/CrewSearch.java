@@ -1,6 +1,6 @@
 package com.a207.runkk.crew;
 
-import com.a207.runkk.common.PersonalityTag;
+import com.a207.runkk.common.CrewTag;
 import java.util.Set;
 
 /**
@@ -9,7 +9,7 @@ import java.util.Set;
  * @param tags 고른 태그, 비면 거르지 않음
  * @param keyword 키워드, 비면 거르지 않음
  */
-public record CrewSearch(Set<PersonalityTag> tags, String keyword) {
+public record CrewSearch(Set<CrewTag> tags, String keyword) {
 
     public CrewSearch {
         tags = tags == null ? Set.of() : Set.copyOf(tags);

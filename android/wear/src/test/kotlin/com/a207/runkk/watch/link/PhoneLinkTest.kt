@@ -2,6 +2,7 @@ package com.a207.runkk.watch.link
 
 import com.a207.runkk.watch.alert.ProximityAlertPlayer
 import com.a207.runkk.watch.heart.HeartRateCollector
+import com.a207.runkk.watch.heart.WatchSteps
 import com.a207.runkk.watch.testing.FakeAlertOutput
 import com.a207.runkk.watch.testing.FakeHeartRateSensor
 import com.a207.runkk.watch.testing.FakeSensorPermission
@@ -183,6 +184,45 @@ class PhoneLinkTest {
             )
         }
         assertEquals(HeartRateBatchMessage(expected), HeartRateBatchMessage.decode(bytes))
+    }
+
+    @Test
+    fun `손목 걸음은 심박 묶음의 steps로 함께 보내고 걸음만 있어도 보낸다(S15P31A207-242)`() = runTest {
+        harness()
+        receive(display())
+        sensor.emitSteps(WatchSteps(T0 + 1_000, perMinute = 172))
+        sensor.emitSteps(WatchSteps(T0 + 2_000, total = 340))
+        runCurrent()
+
+        advanceTimeBy(PhoneLink.FLUSH_INTERVAL_MILLIS + 1)
+        runCurrent()
+
+        val (path, bytes) = dataLayer.deliveredItems.single()
+        assertEquals("${WearPaths.HEART_RATE_BATCH}/${T0 + 1_000}-0", path)
+        assertEquals(
+            HeartRateBatchMessage(
+                emptyList(),
+                listOf(
+                    HeartRateBatchMessage.Step(T0 + 1_000, perMinute = 172),
+                    HeartRateBatchMessage.Step(T0 + 2_000, total = 340)
+                )
+            ),
+            HeartRateBatchMessage.decode(bytes)
+        )
+    }
+
+    @Test
+    fun `수집 금지 플래그가 오면 보내지 않은 손목 걸음도 버린다`() = runTest {
+        harness()
+        receive(display())
+        sensor.emitSteps(WatchSteps(T0 + 1_000, perMinute = 172))
+        runCurrent()
+
+        receive(display(allowed = false))
+        advanceTimeBy(PhoneLink.FLUSH_INTERVAL_MILLIS + 1)
+        runCurrent()
+
+        assertTrue(dataLayer.deliveredItems.isEmpty())
     }
 
     @Test

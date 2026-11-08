@@ -9,6 +9,7 @@ import com.a207.runkk.watch.heart.ExerciseSession
 import com.a207.runkk.watch.heart.HeartRateSensor
 import com.a207.runkk.watch.heart.SensorPermission
 import com.a207.runkk.watch.heart.WatchHeartRate
+import com.a207.runkk.watch.heart.WatchSteps
 import com.a207.runkk.watch.link.WearDataLayer
 import com.a207.runkk.watch.link.WearMessage
 import com.a207.runkk.watch.ui.NotificationPermissionGate
@@ -51,6 +52,14 @@ class FakeHeartRateSensor : HeartRateSensor {
     /** 참이면 남은 세션 정리가 Health Services 오류처럼 예외로 끝난다. */
     var failLeftoverCheck: Boolean = false
     private var channel: Channel<Result<WatchHeartRate>>? = null
+    private val stepReadings = MutableSharedFlow<WatchSteps>(extraBufferCapacity = 64)
+
+    override val steps: Flow<WatchSteps> get() = stepReadings
+
+    /** 운동 세션이 잰 손목 걸음 하나를 흘린다(S15P31A207-242). */
+    fun emitSteps(steps: WatchSteps) {
+        stepReadings.tryEmit(steps)
+    }
 
     override suspend fun endLeftoverSession(): Boolean {
         leftoverChecks++

@@ -121,6 +121,40 @@ class RunScreensTest {
     }
 
     @Test
+    fun `S15P31A207-251 운영 빌드 결과 화면은 크루 반영 줄을 보이고 크루가 닫힌 범위는 숨긴다`() {
+        var scope by mutableStateOf(ReleaseScope.of(isLockingUnreleased = true))
+        compose.setContent {
+            CompositionLocalProvider(LocalReleaseScope provides scope) {
+                RunkkTheme(reduceMotion = true) {
+                    RunResultScreen(
+                        RunResultUiState(
+                            isLoading = false,
+                            recordId = "r",
+                            distance = Distance(5_210),
+                            elapsed = java.time.Duration.ofSeconds(1_668),
+                            achievements = listOf(
+                                AchievementRow(
+                                    AchievementIcon.CREW,
+                                    UiText.Res(R.string.run_result_crew, listOf("새벽런")),
+                                    "+5.21km"
+                                )
+                            ),
+                            startedAt = start,
+                            isUploaded = true
+                        ),
+                        onCard = {},
+                        onHome = {},
+                        onRetry = {}
+                    )
+                }
+            }
+        }
+        compose.onNodeWithContentDescription("새벽런 크루 목표에 반영, +5.21km").assertExists()
+        scope = ReleaseScope.FIRST_RELEASE
+        compose.onNodeWithContentDescription("새벽런 크루 목표에 반영, +5.21km").assertDoesNotExist()
+    }
+
+    @Test
     fun `TC-9729 결과 화면은 시간·휴식·평균 페이스·평균 심박·구간·신기록·리워드이고 열량·날씨·집계 제외가 없다`() {
         compose.setContent {
             CompositionLocalProvider(LocalReleaseScope provides ReleaseScope.FIRST_RELEASE) {

@@ -214,8 +214,8 @@ class RunTrackerPauseTest {
     }
 
     @Test
-    fun `TC-6372 대결·크루런은 일시정지하지 않는다`() = runTest {
-        for (mode in listOf(RunMode.BATTLE, RunMode.CREW_RUN)) {
+    fun `TC-6372 대결은 일시정지하지 않는다`() = runTest {
+        for (mode in listOf(RunMode.BATTLE)) {
             val tracker = started(mode)
             val before = watch.published.size
             tracker.pauseAt(t(10))

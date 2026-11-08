@@ -69,6 +69,65 @@ class RunRecordTest {
                 .isEqualTo(StartDevice.WATCH);
     }
 
+    private static RunUpload withMotions(RunUpload u, List<MotionSample> motions) {
+        return new RunUpload(
+                u.recordId(),
+                u.startedAt(),
+                u.endedAt(),
+                u.distance(),
+                u.elapsed(),
+                u.mode(),
+                u.cardKind(),
+                u.battleId(),
+                u.crewRunPostId(),
+                u.declaredPointCount(),
+                u.points(),
+                u.unstableSegments(),
+                u.heartRates(),
+                u.pauses(),
+                u.startDevice(),
+                motions);
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName(
+            "S15P31A207-242: 속도·케이던스 표본은 시간순으로 저장하고 같은 일시는 합치며, 경로 파기 때 함께 지운다")
+    void receive_storesMotions_andRoutePurgeClearsThem() {
+        RunUpload base = upload(id(1), 5_000, 1_500);
+        assertThat(base.motions()).as("옛 앱 형식은 빈 목록").isEmpty();
+        assertThat(RunRecord.receive(1, base).motionSamples()).isEmpty();
+
+        List<MotionSample> motions =
+                List.of(
+                        new MotionSample(START.plusSeconds(2), 3.25, null),
+                        new MotionSample(START.plusSeconds(1), null, 170.0),
+                        new MotionSample(START.plusSeconds(2), 9.0, 168.5),
+                        new MotionSample(START.plusNanos(1_500_000_000L), 3.0, null));
+        RunRecord record = RunRecord.receive(1, withMotions(base, motions));
+
+        assertThat(record.motionSamples())
+                .containsExactly(
+                        new MotionSample(START.plusSeconds(1), null, 170.0),
+                        new MotionSample(START.plusNanos(1_500_000_000L), 3.0, null),
+                        new MotionSample(START.plusSeconds(2), 3.25, 168.5));
+        assertThat(withMotions(base, motions).withoutHeartRates().motions())
+                .as("심박을 뺀 사본도 움직임 표본을 지킨다")
+                .hasSize(4);
+
+        record.purgeRoute();
+        assertThat(record.motionSamples()).isEmpty();
+    }
+
+    @Test
+    void motionSample_requiresAValue_andRejectsNegative() {
+        assertThatThrownBy(() -> new MotionSample(START, null, null))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new MotionSample(START, -1.0, null))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new MotionSample(START, null, Double.NaN))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
     @Test
     void receive_validatesInput() {
         RunUpload ok = upload(id(1), 5_000, 1_500);
@@ -224,6 +283,27 @@ class RunRecordTest {
         assertThat(r.reached(Distance.ofKm(5))).isTrue();
         assertThat(r.reached(Distance.ofKm(10))).isFalse();
         assertThat(r.routePoints()).hasSize(1_501);
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName(
+            "BR-1: 멈춘 크루런 기록도 유효 판정·도달 시간에서 정지 시간을 뺀다(2km 10:00 운동 + 2:00 정지)")
+    void crewRunPauses_excludedFromReachAndValidity() {
+        RunRecord r =
+                RunFixtures.judged(
+                        RunFixtures.pausedCrewRun(
+                                id(1), START, 9L, 2_000, 600, new RunFixtures.Pause(300, 120)));
+        assertThat(r.getMode()).isEqualTo(RunMode.CREW_RUN);
+        assertThat(r.isValid()).isTrue();
+        assertThat(r.pausedTotal()).isEqualTo(Duration.ofMinutes(2));
+        assertThat(r.getElapsed()).isEqualTo(Duration.ofMinutes(10));
+        assertThat(r.timeToArrive(Distance.ofKm(2)).orElseThrow().toSeconds())
+                .isCloseTo(600, within(1L));
+        assertThat(r.timeToReach(Distance.ofKm(1)).orElseThrow().toSeconds())
+                .isCloseTo(300, within(1L));
+        assertThat(r.timeToReach(Distance.ofMeters(1_500)).orElseThrow().toSeconds())
+                .as("정지 뒤 지점도 운동 시간으로 잰다")
+                .isCloseTo(450, within(1L));
     }
 
     @Test

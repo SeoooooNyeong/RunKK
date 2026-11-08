@@ -11,6 +11,7 @@ import com.a207.runkk.app.domain.notification.Inbox
 import com.a207.runkk.app.domain.notification.NotificationRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Clock
+import java.time.ZoneId
 import javax.inject.Inject
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -23,8 +24,16 @@ import kotlinx.coroutines.launch
 
 /** 알림함(FR-175·FR-178): NotificationRepository.inbox·open. 누르면 읽음으로 하고 알림 이동 표의 화면으로 간다. */
 @HiltViewModel
-class InboxViewModel @Inject constructor(private val notifications: NotificationRepository, private val clock: Clock) :
-    ViewModel() {
+class InboxViewModel internal constructor(
+    private val notifications: NotificationRepository,
+    private val clock: Clock,
+    private val zone: ZoneId
+) : ViewModel() {
+    /** 앱 Clock은 UTC(DeviceBindings)라 날짜·시각은 기기 시간대 [zone](ZoneId.systemDefault(), 러닝 결과 화면과 같다)으로 셈한다(MR !91 e2e 2 후속). */
+    @Inject
+    constructor(notifications: NotificationRepository, clock: Clock) :
+        this(notifications, clock, ZoneId.systemDefault())
+
     private val _state = MutableStateFlow(InboxUiState())
     val state: StateFlow<InboxUiState> = _state.asStateFlow()
 
@@ -42,9 +51,9 @@ class InboxViewModel @Inject constructor(private val notifications: Notification
                 is Outcome.Success -> _state.update {
                     it.copy(
                         isLoading = false,
-                        groups = groupInbox(result.value.items, clock),
+                        groups = groupInbox(result.value.items, clock, zone),
                         now = clock.instant(),
-                        zone = clock.zone
+                        zone = zone
                     )
                 }
 

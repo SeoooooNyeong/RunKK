@@ -30,8 +30,9 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
- * 크루런 대기실 → 동시 출발 → 진행 중 중계(FR-147~FR-149, FR-190, FR-192). enterLobby 성공 뒤 CrewRunCoordinator.onLobbyEntered로
- * 채널을 연다. 이후 시작·중계·종료는 조정자 상태를 보이고, 중간 그만두기는 길게 누름 + 확인 뒤 quit(D-49).
+ * 크루런 대기실 → 동시 출발 → 진행(합산 방식, S15P31A207-236, 피그마 F-14~F-15d). enterLobby 성공 뒤
+ * CrewRunCoordinator.onLobbyEntered로 채널을 연다. 이후 시작·중계·내 측정값·종료는 조정자 상태를 보이고, 일시정지·재개는 조정자에
+ * 넘기며, 내 크루런 끝내기는 길게 누름 + 확인 뒤 quit(D-49, F-15d).
  * 출발까지 남은 시간(모집 일시는 서버 시각)은 서버 시각 추정(ServerClock)으로 세고, 출발 카운트다운은 조정자가 측정을 여는
  * 기기 시계(clock)로 센다.
  */
@@ -66,10 +67,7 @@ class CrewRunViewModel @Inject constructor(
         }
     }
 
-    /**
-     * 대기실 입장(또는 새로 읽기). 모집 일시 30분 전부터 열린다(FR-147). 처음 들어오면 대기실 응답의 크루런 거리로 조정자 채널을 연다.
-     * 중계의 내 줄은 조정자가 CrewRunRelay.Entry.isMe로 가려 1km 순위 안내(FR-190)에 쓴다.
-     */
+    /** 대기실 입장(또는 새로 읽기). 모집 일시 30분 전부터 열린다(FR-147). 처음 들어오면 대기실 응답의 크루런 거리로 조정자 채널을 연다. */
     fun enter() {
         val s = _state.value
         _state.update { it.copy(isBusy = true, error = null) }
@@ -158,10 +156,20 @@ class CrewRunViewModel @Inject constructor(
 
     fun onQuitDismissed() = _state.update { it.copy(isConfirmingQuit = false) }
 
-    /** 확인 뒤 중간 그만두기(FR-192). 그때까지 달린 기록은 저장된다. */
+    /** 확인 뒤 내 크루런 끝내기(F-15d). 그때까지 달린 기록은 저장된다. */
     fun onQuitConfirmed() {
         _state.update { it.copy(isConfirmingQuit = false) }
         coordinator.quit()
+    }
+
+    /** 일시정지(F-15c). 서버 보고는 조정자가 한다. */
+    fun onPause() {
+        if (_state.value.phase == CrewRunPhase.RUNNING) coordinator.pause()
+    }
+
+    /** 재개(F-15c). */
+    fun onResume() {
+        if (_state.value.phase == CrewRunPhase.RUNNING) coordinator.resume()
     }
 
     /** 취소된 크루런 화면을 닫을 때. */
@@ -177,17 +185,14 @@ class CrewRunViewModel @Inject constructor(
             }
 
             is CrewRunState.Running -> if (s.postId == postId) {
+                // 줄 순서는 서버가 준 대기실 입장 순 그대로다(순위가 없다).
                 _state.update { st ->
                     st.copy(
                         phase = CrewRunPhase.RUNNING,
                         countdown = null,
-                        relay = s.entries
-                            .map { e -> RelayRow(e.name, e.distance, e.rank, e.connection.name, e.isMe) }
-                            .sortedWith(
-                                compareBy<RelayRow> {
-                                    it.rank ?: Int.MAX_VALUE
-                                }.thenByDescending { it.distance }
-                            )
+                        relay = s.entries.map { e -> RelayRow(e.name, e.distance, MateState.of(e.state.name), e.isMe) },
+                        totalDistance = s.totalDistance,
+                        mine = s.mine
                     )
                 }
             }

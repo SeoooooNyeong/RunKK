@@ -113,6 +113,7 @@ internal fun RecordDetailResponse.toDomain(): RecordDetail = RecordDetail(
     heartRateZones = heartRateZones.mapValues { Duration.ofSeconds(it.value) },
     newRecords = newRecords,
     crewContribution = crewContributionMeters?.let(::Distance),
+    contributedCrewName = contributedCrewName,
     rewardPoints = rewardPoints,
     weather = weather,
     splitPaces = splitPaces.mapNotNull { it.toPace() },

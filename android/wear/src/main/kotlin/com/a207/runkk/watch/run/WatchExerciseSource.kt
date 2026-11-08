@@ -23,8 +23,10 @@ import androidx.health.services.client.data.LocationAccuracy
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.GeoPoint
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.domain.run.CadenceMeter
 import com.a207.runkk.app.domain.run.HeartRateSample
 import com.a207.runkk.app.domain.run.LocationSample
+import com.a207.runkk.app.domain.run.MotionSample
 import com.a207.runkk.app.domain.settings.SettingsRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.Clock
@@ -49,6 +51,9 @@ import timber.log.Timber
  * - 심박은 심박 동의·워치연동·OS 심박 권한이 모두 있을 때만 세션에 넣는다(센서를 켜지 않는다, NFR-023). 믿을 수 없는 값은 버린다.
  * - 다른 앱(삼성 헬스 등)이 운동 중이면 열지 않는다(열면 그 앱의 운동이 끝난다). 이 앱이 남긴 세션은 끝내고 연다.
  * - [pause]·[resume]: 자유런 일시정지 때 운동 세션도 멈춰 GPS를 끈다(NFR-048).
+ * - 속도·케이던스(S15P31A207-242): 신체 활동 권한(ACTIVITY_RECOGNITION)이 있고 기기가 지원하면(capabilities) SPEED와
+ *   STEPS_PER_MINUTE를 세션에 넣어 [motions]로 낸다. STEPS_PER_MINUTE가 없고 STEPS만 있으면 걸음 수로 셈한다(CadenceMeter).
+ *   권한이 없거나 지원하지 않으면 넣지 않는다(서버가 속도를 위치로 셈하고 케이던스는 비운다).
  * 동행 모드 심박 수집(watch.heart)과 같은 운동 세션을 다투지 않는다: 단독 측정 중에는 폰 측정이 막혀 있다(D-373 (3)).
  */
 @Singleton
@@ -56,7 +61,8 @@ class WatchExerciseSource internal constructor(
     private val exerciseClient: ExerciseClient,
     private val clock: Clock,
     private val isHeartRateAllowed: () -> Boolean,
-    private val elapsedRealtimeMillis: () -> Long
+    private val elapsedRealtimeMillis: () -> Long,
+    private val isMotionAllowed: () -> Boolean = { false }
 ) {
     @Inject
     constructor(@ApplicationContext context: Context, clock: Clock, settings: SettingsRepository) : this(
@@ -65,11 +71,17 @@ class WatchExerciseSource internal constructor(
         isHeartRateAllowed = {
             settings.heartRateConsented() && settings.watchLinked() && heartRatePermitted(context)
         },
-        elapsedRealtimeMillis = SystemClock::elapsedRealtime
+        elapsedRealtimeMillis = SystemClock::elapsedRealtime,
+        isMotionAllowed = { activityRecognitionPermitted(context) }
     )
 
     private val locationSamples = MutableSharedFlow<LocationSample>(extraBufferCapacity = SAMPLE_BUFFER)
     private val heartRateSamples = MutableSharedFlow<HeartRateSample>(extraBufferCapacity = SAMPLE_BUFFER)
+    private val motionSamples = MutableSharedFlow<MotionSample>(extraBufferCapacity = SAMPLE_BUFFER)
+
+    /** STEPS로 케이던스를 셈할 때 쓰는 누적 걸음 수와 계산기. 세션마다 새로 만든다. 콜백 스레드 하나에서만 쓴다. */
+    @Volatile
+    private var stepCadence = StepCadence()
     private val endedSignals = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
     /**
@@ -123,11 +135,13 @@ class WatchExerciseSource internal constructor(
         }
         bootInstant = Instant.ofEpochMilli(clock.millis() - elapsedRealtimeMillis())
         requestedAt = clock.instant()
+        stepCadence = StepCadence()
+        val motionTypes = if (isMotionAllowed()) motionDataTypes() else emptySet()
         exerciseClient.setUpdateCallback(receiver)
-        val dataTypes = if (isHeartRateAllowed()) {
-            setOf(DataType.LOCATION, DataType.HEART_RATE_BPM)
-        } else {
-            setOf(DataType.LOCATION)
+        val dataTypes = buildSet<DataType<*, *>> {
+            add(DataType.LOCATION)
+            if (isHeartRateAllowed()) add(DataType.HEART_RATE_BPM)
+            addAll(motionTypes)
         }
         val config = ExerciseConfig.builder(ExerciseType.RUNNING)
             .setDataTypes(dataTypes)
@@ -147,11 +161,31 @@ class WatchExerciseSource internal constructor(
         return Outcome.Success(Unit)
     }
 
+    /**
+     * 기기가 지원하는 속도·케이던스 데이터 종류. SPEED, 그리고 STEPS_PER_MINUTE(없으면 STEPS). 지원 목록을 읽지 못하면 비운다(세션은
+     * 위치·심박만으로 연다).
+     */
+    private suspend fun motionDataTypes(): Set<DataType<*, *>> {
+        val supported = try {
+            exerciseClient.getCapabilitiesAsync().await()
+                .getExerciseTypeCapabilities(ExerciseType.RUNNING).supportedDataTypes
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Timber.w(e, "운동 능력을 읽지 못해 속도·케이던스 없이 연다")
+            return emptySet()
+        }
+        return motionDataTypesOf(supported)
+    }
+
     /** 위치 표본(측정일시, 좌표, 수평 정확도 반경 m). 정확도를 모르면 Double.MAX_VALUE(domain LocationFilter가 거른다). */
     fun locations(): Flow<LocationSample> = locationSamples.asSharedFlow()
 
     /** 믿을 수 있는 심박 표본. */
     fun heartRates(): Flow<HeartRateSample> = heartRateSamples.asSharedFlow()
+
+    /** 기기가 잰 속도·케이던스 표본(S15P31A207-242). 세션에 넣지 않았으면 아무것도 내지 않는다. */
+    fun motions(): Flow<MotionSample> = motionSamples.asSharedFlow()
 
     suspend fun pause() {
         attempt { exerciseClient.pauseExerciseAsync().await() }
@@ -216,6 +250,25 @@ class WatchExerciseSource internal constructor(
                     heartRateSamples.tryEmit(HeartRateSample(point.getTimeInstant(bootInstant), bpm))
                 }
             }
+            onMotionMetrics(container)
+        }
+
+        /** 속도(m/s)·분당 걸음 수·걸음 수를 움직임 표본으로 바꾼다. 음수·무한대 값은 버린다(MotionSample.isUsable). */
+        private fun onMotionMetrics(container: DataPointContainer) {
+            container.getData(DataType.SPEED).forEach { point ->
+                emitMotion(MotionSample(point.getTimeInstant(bootInstant), speedMps = point.value))
+            }
+            container.getData(DataType.STEPS_PER_MINUTE).forEach { point ->
+                emitMotion(MotionSample(point.getTimeInstant(bootInstant), cadenceSpm = point.value.toDouble()))
+            }
+            container.getData(DataType.STEPS).forEach { point ->
+                val at = point.getEndInstant(bootInstant)
+                stepCadence.accept(at, point.value)?.let { emitMotion(MotionSample(at, cadenceSpm = it)) }
+            }
+        }
+
+        private fun emitMotion(sample: MotionSample) {
+            if (sample.isUsable) motionSamples.tryEmit(sample)
         }
 
         override fun onLapSummaryReceived(lapSummary: ExerciseLapSummary) = Unit
@@ -227,6 +280,18 @@ class WatchExerciseSource internal constructor(
         }
 
         override fun onAvailabilityChanged(dataType: DataType<*, *>, availability: Availability) = Unit
+    }
+
+    /** STEPS(구간마다 늘어난 걸음 수)를 누적해 CadenceMeter에 넘긴다. */
+    private class StepCadence {
+        private val meter = CadenceMeter()
+        private var total = 0L
+
+        fun accept(at: Instant, delta: Long): Double? {
+            if (delta < 0) return null
+            total += delta
+            return meter.accept(at, total)
+        }
     }
 
     private enum class Owner {
@@ -256,6 +321,22 @@ class WatchExerciseSource internal constructor(
             ExerciseTrackedStatus.OTHER_APP_IN_PROGRESS -> Owner.OTHER_APP
             else -> Owner.NONE
         }
+
+        /**
+         * 지원 목록에서 세션에 넣을 속도·케이던스 종류를 고른다: SPEED, STEPS_PER_MINUTE(없으면 STEPS).
+         */
+        internal fun motionDataTypesOf(supported: Set<DataType<*, *>>): Set<DataType<*, *>> = buildSet {
+            if (DataType.SPEED in supported) add(DataType.SPEED)
+            when {
+                DataType.STEPS_PER_MINUTE in supported -> add(DataType.STEPS_PER_MINUTE)
+                DataType.STEPS in supported -> add(DataType.STEPS)
+            }
+        }
+
+        /** 신체 활동 권한(ACTIVITY_RECOGNITION). Health Services가 걸음·속도를 주려면 있어야 한다. 없이 넣으면 세션 시작이 거부된다. */
+        internal fun activityRecognitionPermitted(context: Context): Boolean =
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACTIVITY_RECOGNITION) ==
+                PackageManager.PERMISSION_GRANTED
 
         /** OS 심박 권한(API 36부터 health.READ_HEART_RATE, 그 전 BODY_SENSORS). 없으면 운동 세션에 심박을 넣으면 시작이 거부된다. */
         private fun heartRatePermitted(context: Context): Boolean {

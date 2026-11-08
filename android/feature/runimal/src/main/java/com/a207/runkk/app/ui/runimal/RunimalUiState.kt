@@ -11,6 +11,8 @@ data class RunimalUiState(
     /** 공유할 카드 이미지(공유를 처음 누를 때 만든다). */
     val cardImage: Bitmap? = null,
     val isSharing: Boolean = false,
+    /** Runimal 공유 단계(K-3)인가. MY Runimal 오른쪽 위 "공유"로 연다. */
+    val isShareStep: Boolean = false,
     val message: UiText? = null,
     val error: UiText? = null
 ) {

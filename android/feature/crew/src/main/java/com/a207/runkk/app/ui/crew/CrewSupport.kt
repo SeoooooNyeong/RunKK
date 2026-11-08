@@ -19,7 +19,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-/** 크루 성향 태그 7분류(크루 전용 "크루 분위기" 포함, SRS 3.5.1). */
+/** 크루 태그 두 줄(평일, 주말) × 시간대 넷(피그마 F-01b·F-04). */
 internal val CREW_TAG_CATEGORIES: List<RunkkTagCategory> = RunkkTags.categories
 
 /** 크루런 거리(FR-132): 1·3·5·10km. */
@@ -90,7 +90,10 @@ internal fun crewRunStatusLabelRes(status: CrewRunStatus): Int = when (status) {
     CrewRunStatus.CANCELLED -> R.string.crew_run_status_cancelled
 }
 
-/** 크루런 모집글 한 줄 요약: "5km · 10월 24일(토) 07:00 · 갈래요 3명" (+ 끝났으면 "완주 n명"). */
+/**
+ * 크루런 모집글 한 줄 요약: "5km · 10월 24일(토) 07:00 · 참석 3명" (+ 끝났으면 "n명 참여"). 크루런 합산 방식에서 서버
+ * finisherCount는 완주 인원이 아니라 함께 달린(진행 참가) 인원이다.
+ */
 internal fun crewRunSummary(
     resources: Resources,
     info: PostList.CrewRunInfo,
@@ -100,7 +103,7 @@ internal fun crewRunSummary(
     meetLabel(resources, info.scheduledAt, zone),
     resources.getString(R.string.crew_run_going_count, info.goingCount),
     info.takeIf { it.status == CrewRunStatus.FINISHED }
-        ?.let { resources.getString(R.string.crew_run_finisher_count, it.finisherCount) }
+        ?.let { resources.getString(R.string.crew_run_participant_count, it.finisherCount) }
 ).joinToString(" · ")
 
 /** 화면에서 쓰는 [crewRunSummary]. */

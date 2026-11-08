@@ -7,11 +7,12 @@ import java.time.LocalDate
 
 /** 크루런 대기실(서버 crew.LobbyView, FR-147). [distance]는 크루런 거리다. */
 data class Lobby(val postId: Long, val participants: List<Participant>, val meetAt: Instant, val distance: Distance) {
-    /** [isMe]는 열람자 본인 줄이다. */
+    /** [isMe]는 열람자 본인 줄이다. [isEntered]가 거짓이면 갈래요 응답만 하고 대기실에 들어오지 않았다(미입장). */
     data class Participant(
         val displayName: String,
         val isReady: Boolean,
         val memberId: Long? = null,
-        val isMe: Boolean = false
+        val isMe: Boolean = false,
+        val isEntered: Boolean = true
     )
 }

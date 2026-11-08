@@ -162,18 +162,6 @@ class GuidanceRuleTest {
     }
 
     @Test
-    fun `Rank - 새 1km 지점, 순위 알림 켬 - n명 중 n위`() {
-        val rule = RankGuidanceRule()
-        val g = assertNotNull(rule.check(context(progress(1_000), rank = CrewRank(2, 5))))
-        assertEquals(Guidance.Kind.RANK, g.kind)
-        assertEquals(GuidanceMessage.RANK, g.message)
-        assertEquals(listOf<Any>(5, 2), g.args)
-        val off = GuidanceSettings.DEFAULT.copy(isRankAlertOn = false)
-        assertNull(RankGuidanceRule().check(context(progress(1_000), rank = CrewRank(2, 5), settings = off)))
-        assertNull(RankGuidanceRule().check(context(progress(1_000))))
-    }
-
-    @Test
     fun `CoachingJudge - 모드마다 규칙 묶음을 조립한다`() {
         assertEquals(
             setOf(
@@ -189,7 +177,7 @@ class GuidanceRuleTest {
             CoachingJudge.forMode(RunMode.BATTLE).rules.map { it::class }.toSet()
         )
         assertEquals(
-            setOf(RankGuidanceRule::class, BreathGuidanceRule::class),
+            setOf(SplitGuidanceRule::class, BreathGuidanceRule::class),
             CoachingJudge.forMode(RunMode.CREW_RUN).rules.map { it::class }.toSet()
         )
     }

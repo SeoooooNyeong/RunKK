@@ -13,7 +13,7 @@ data class CrewFormState(
     val visibility: CrewVisibility = CrewVisibility.PUBLIC,
     val joinPolicy: JoinPolicy = JoinPolicy.APPROVAL
 ) {
-    /** 크루명 2~20자, 태그 1~5개(FR-110). 최종 판정은 서버가 한다. */
+    /** 크루명 2~20자, 태그 1~3개(FR-110, 피그마 F-04). 최종 판정은 서버가 한다. */
     val isValid: Boolean get() = name.trim().length in NAME_MIN..NAME_MAX && tags.size in 1..RunkkTags.MAX_SELECTED
 
     fun toForm() = CrewForm(name.trim(), intro.trim().ifBlank { null }, tags, visibility, joinPolicy)

@@ -9,6 +9,7 @@ import androidx.room.PrimaryKey
  * 판 3에서 정지 구간(pauses, 자유런만, FR-194)을 더했다. 판 2에서 옮긴 행은 빈 BLOB(정지 없음)이다.
  * 판 4에서 시작 기기(startDevice, RunStartSpec.StartDevice 이름, W23)를 더했다. 판 3에서 옮긴 행은 PHONE이다.
  * 판 5에서 서버 거부 사유(rejectedReason, uploadState = REJECTED일 때만, R12 D2-b)를 더했다. 판 4에서 옮긴 행은 null이다.
+ * 판 6에서 기기가 잰 속도·케이던스(motions, S15P31A207-242)를 더했다. 판 5에서 옮긴 행은 빈 BLOB(표본 없음)이다.
  * sentAtMillis가 null이면 미전송 기록이고, 값이 있으면 이미 보낸 기록의 머리 정보다(경로·심박 없이 최근 보낸 30건만 남긴다, D-77).
  * 머리 정보는 그 기록에 늦게 온 심박(FR-043)을 다시 보내려고 남긴다(RoomPendingRunRepository.appendHeartRates).
  * 이 형식은 data.store 밖으로 나가지 않는다.
@@ -31,7 +32,8 @@ internal class PendingRunEntity(
     val sentAtMillis: Long?,
     @ColumnInfo(typeAffinity = ColumnInfo.BLOB, defaultValue = "x''") val pauses: ByteArray,
     @ColumnInfo(defaultValue = "PHONE") val startDevice: String,
-    val rejectedReason: String?
+    val rejectedReason: String?,
+    @ColumnInfo(typeAffinity = ColumnInfo.BLOB, defaultValue = "x''") val motions: ByteArray
 ) {
     fun copy(heartRates: ByteArray = this.heartRates, sentAtMillis: Long? = this.sentAtMillis): PendingRunEntity =
         PendingRunEntity(
@@ -51,10 +53,11 @@ internal class PendingRunEntity(
             sentAtMillis = sentAtMillis,
             pauses = pauses,
             startDevice = startDevice,
-            rejectedReason = rejectedReason
+            rejectedReason = rejectedReason,
+            motions = motions
         )
 
-    /** 보낸 기록의 머리 정보: 경로·불안정 구간·심박·정지 구간을 비우고 보낸 시각을 남긴다. */
+    /** 보낸 기록의 머리 정보: 경로·불안정 구간·심박·정지 구간·움직임 표본을 비우고 보낸 시각을 남긴다. */
     fun toSentHeader(sentAt: Long, empty: ByteArray): PendingRunEntity = PendingRunEntity(
         recordId = recordId,
         mode = mode,
@@ -72,6 +75,7 @@ internal class PendingRunEntity(
         sentAtMillis = sentAt,
         pauses = empty,
         startDevice = startDevice,
-        rejectedReason = rejectedReason
+        rejectedReason = rejectedReason,
+        motions = empty
     )
 }

@@ -91,6 +91,15 @@ public class MemberQueryService {
                 .orElse(OptionalInt.empty());
     }
 
+    /** 출생연도. 없거나 회원이 없으면 비어 있음(runbody 분석 요청의 최대 심박 추정, D-444). */
+    public OptionalInt birthYearOf(long memberId) {
+        return memberRepository
+                .findById(memberId)
+                .map(Member::birthYear)
+                .map(OptionalInt::of)
+                .orElse(OptionalInt.empty());
+    }
+
     /** 회원 닉네임이 이미 있는가(battle.VirtualRecordService의 nicknameTaken, H-11'). */
     public boolean isNicknameTaken(String nickname) {
         return memberRepository.existsByNickname(nickname);
