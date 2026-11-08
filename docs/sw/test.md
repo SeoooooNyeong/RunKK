@@ -185,6 +185,7 @@ R2·R3로 정한 결정(조각 간 통일분 포함 72건)은 사용자 지시�
 
 | 날짜 | 수준 | 실행 | 합격 | 실패 TC | 비고 |
 |------|------|------|------|---------|------|
+| 2026-11-08 | 단위·통합·구조·화면(2차 배포 통합 MR !91 최종 게이트, c5ee333a: 결함 수정 1ae0b108·확인 리뷰 경 4건 수정·develop 합치기 9fbcdf43 뒤) | android 2,578 / backend 2,095 / ai 518 | 2,578 / 2,095 / 490 | ai `test_queue_wait_counts_toward_timeout` 1건(writer 시간 제한, 변경 무관·되돌려도 실패), ai 27건 건너뜀 | app·wear 빌드 성공. 확인 리뷰 code-review 23장(0/0/4), 수정 내용은 implementation 17.8·17.9. 시험 코드는 MR이 더했고 TC 번호는 아직 없다 |
 | 2026-11-08 | 단위·통합·구조·화면(2차 배포 통합 MR !91, e9baef18) | android 2,505 / backend 2,077 | 2,505 / 2,077 | 없음 | 서버 `./gradlew spotlessCheck test`, 앱 `./gradlew ktlintCheck testLocalDebugUnitTest verifyRoborazziLocalDebug --continue`(대면 모임 선택지 제거로 스냅샷 G5_crew_run_write 1장 재기록 뒤 통과), 후속 정리 뒤 domain 393·data 319·crew 157·구조 21, `:app:assembleLocalDebug :wear:assembleLocalDebug` 성공. 시험 코드는 기능 브랜치가 더했고 TC 번호는 아직 없다(implementation 17.4) |
 | 2026-11-05 | 단위·통합·화면(v0.20, 코드 리뷰 수정 45f7d383 뒤 총괄 게이트) | android 2,496 / backend 1,935 | 2,496 / 1,935 | 없음 | 새 TC-4881·TC-4882, TC-4852·TC-4867 합격으로 바뀜 |
 | 2026-11-05 | 단위·통합·화면(v0.20 핫픽스 추가 변경, 80592a08 총괄 게이트) | android 2,488 / backend RunTrackTest | 2,488 / 통과 | 없음(자동). 예상 불합격 TC-4852(자동화 안 됨) | 20장 39개 중 합격 27·부분 4·미실행 7·정적 확인 1. Robolectric 잠금 1건은 환경 문제로 다시 돌려 통과 |
