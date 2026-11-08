@@ -32,6 +32,12 @@ class CrewRunViewModelTest {
     @get:Rule
     val main = MainDispatcherRule()
 
+    /** 결과 화면 ViewModel. 다시 읽기 상한은 시험 시계(가상 시간)로 센다. */
+    private fun TestScope.resultVm(w: CrewWorld): CrewRunResultViewModel =
+        CrewRunResultViewModel(w.crews, w.coordinator, timeSource = testScheduler.timeSource) {
+            Outcome.Failure(AppError.Network)
+        }
+
     private fun TestScope.lobbyVm(
         w: CrewWorld,
         vms: ViewModelCloser,
@@ -253,7 +259,7 @@ class CrewRunViewModelTest {
         val w = crewWorld()
         val read = mutableListOf<String>()
         val vm = vms.track(
-            CrewRunResultViewModel(w.crews, w.coordinator) { id ->
+            CrewRunResultViewModel(w.crews, w.coordinator, timeSource = testScheduler.timeSource) { id ->
                 read += id
                 Outcome.Failure(AppError.Network)
             }
@@ -272,7 +278,7 @@ class CrewRunViewModelTest {
     fun `결과 - 아직 달리는 크루원이 있으면 3초 뒤 다시 읽는다`() = main.runVmTest { vms ->
         val w = crewWorld()
         w.crews.resultState = crewRunResult.copy(status = CrewRunStatus.RUNNING, myRecordId = null)
-        val vm = vms.track(CrewRunResultViewModel(w.crews, w.coordinator) { Outcome.Failure(AppError.Network) })
+        val vm = vms.track(resultVm(w))
         vm.load(31)
         runCurrent()
         w.crews.resultState = crewRunResult
@@ -286,7 +292,7 @@ class CrewRunViewModelTest {
     fun `결과 - 크루원이 30초 넘게 달려도 간격을 늘려 가며 크루런이 끝날 때까지 다시 읽는다(MR !91 AN-3)`() = main.runVmTest { vms ->
         val w = crewWorld()
         w.crews.resultState = crewRunResult.copy(status = CrewRunStatus.RUNNING)
-        val vm = vms.track(CrewRunResultViewModel(w.crews, w.coordinator) { Outcome.Failure(AppError.Network) })
+        val vm = vms.track(resultVm(w))
         fun reads() = w.crews.calls.count { it.startsWith("result") }
         vm.load(31)
         runCurrent()
@@ -314,10 +320,57 @@ class CrewRunViewModelTest {
     }
 
     @Test
+    fun `결과 - 화면이 가려지면 다시 읽기를 멈추고 돌아오면 바로 읽은 뒤 이어 간다(MR !91 CR2-A1)`() = main.runVmTest { vms ->
+        val w = crewWorld()
+        w.crews.resultState = crewRunResult.copy(status = CrewRunStatus.RUNNING)
+        val vm = vms.track(resultVm(w))
+        fun reads() = w.crews.calls.count { it.startsWith("result") }
+        vm.load(31)
+        runCurrent()
+        advanceTimeBy(CrewRunResultViewModel.REREAD_MILLIS + 1)
+        runCurrent()
+        assertEquals(2, reads())
+
+        vm.onStop()
+        advanceTimeBy(30 * 60_000L)
+        runCurrent()
+        assertEquals(2, reads(), "가려진 동안은 읽지 않는다")
+
+        vm.onStart()
+        runCurrent()
+        assertEquals(3, reads(), "돌아오면 바로 읽는다")
+        advanceTimeBy(CrewRunResultViewModel.REREAD_MILLIS + 1)
+        runCurrent()
+        assertEquals(4, reads(), "간격 규칙을 잇는다")
+        vm.onStart()
+        runCurrent()
+        assertEquals(4, reads(), "이미 읽는 중이면 시작을 거듭하지 않는다")
+    }
+
+    @Test
+    fun `결과 - 3시간 상한은 가려진 시간까지 실제 경과로 센다(MR !91 CR2-A1)`() = main.runVmTest { vms ->
+        val w = crewWorld()
+        w.crews.resultState = crewRunResult.copy(status = CrewRunStatus.RUNNING)
+        val vm = vms.track(resultVm(w))
+        fun reads() = w.crews.calls.count { it.startsWith("result") }
+        vm.load(31)
+        runCurrent()
+        vm.onStop()
+        advanceTimeBy(CrewRunResultViewModel.RUNNING_WATCH_MILLIS + 1)
+        vm.onStart()
+        runCurrent()
+        val afterReturn = reads()
+        assertEquals(2, afterReturn, "돌아와 한 번 읽는다")
+        advanceTimeBy(60 * 60_000L)
+        runCurrent()
+        assertEquals(afterReturn, reads(), "상한을 넘었으니 더 읽지 않는다")
+    }
+
+    @Test
     fun `결과 - 크루런이 끝났고 내 기록만 아직이면 3초 간격 10번까지만 다시 읽는다`() = main.runVmTest { vms ->
         val w = crewWorld()
         w.crews.resultState = crewRunResult.copy(myRecordId = null)
-        val vm = vms.track(CrewRunResultViewModel(w.crews, w.coordinator) { Outcome.Failure(AppError.Network) })
+        val vm = vms.track(resultVm(w))
         vm.load(31)
         advanceTimeBy(10 * 60_000L)
         runCurrent()
@@ -328,7 +381,7 @@ class CrewRunViewModelTest {
     fun `결과 - 크루런이 아무리 길어도 다시 읽기는 상한 시간에서 멈춘다`() = main.runVmTest { vms ->
         val w = crewWorld()
         w.crews.resultState = crewRunResult.copy(status = CrewRunStatus.RUNNING)
-        val vm = vms.track(CrewRunResultViewModel(w.crews, w.coordinator) { Outcome.Failure(AppError.Network) })
+        val vm = vms.track(resultVm(w))
         vm.load(31)
         advanceTimeBy(CrewRunResultViewModel.RUNNING_WATCH_MILLIS + CrewRunResultViewModel.MAX_REREAD_MILLIS)
         runCurrent()

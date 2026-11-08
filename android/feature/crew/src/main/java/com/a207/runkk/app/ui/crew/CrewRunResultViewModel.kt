@@ -8,6 +8,8 @@ import com.a207.runkk.app.domain.crew.CrewRunCoordinator
 import com.a207.runkk.app.domain.crew.CrewRunResult
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlin.time.TimeMark
+import kotlin.time.TimeSource
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,33 +25,73 @@ import kotlinx.coroutines.launch
  * 뒤로는 간격을 두 배씩 늘려 [MAX_REREAD_MILLIS]까지 둔다(배터리). 크루런은 거리 × 15분 뒤 서버가 닫지만 그래도 [RUNNING_WATCH_MILLIS]를
  * 넘기면 멈춘다. 크루런은 닫혔고 내 기록만 아직이면(myRecordId 없음) [REREAD_MILLIS] 간격으로 [REREADS]번까지만 읽는다. 읽기가 실패해도
  * 이미 받은 결과가 있으면 같은 규칙으로 이어 간다.
+ *
+ * 다시 읽기는 화면 수명을 따른다(확인 리뷰 CR2-A1): 화면이 가려지거나 앱이 백그라운드면([onStop]) 멈추고, 돌아오면([onStart]) 바로 한 번 읽은
+ * 뒤 같은 간격 규칙을 잇는다. 상한 [RUNNING_WATCH_MILLIS]는 처음 읽은 때부터의 실제 경과([timeSource])로 센다.
  */
 @HiltViewModel
-class CrewRunResultViewModel @Inject constructor(
+class CrewRunResultViewModel internal constructor(
     private val crews: CrewRepository,
     private val coordinator: CrewRunCoordinator,
+    private val timeSource: TimeSource,
     private val details: CrewRunDetailSource
 ) : ViewModel() {
+    @Inject
+    constructor(crews: CrewRepository, coordinator: CrewRunCoordinator, details: CrewRunDetailSource) :
+        this(crews, coordinator, TimeSource.Monotonic, details)
+
     private val _state = MutableStateFlow(CrewRunResultUiState())
     val state: StateFlow<CrewRunResultUiState> = _state.asStateFlow()
     private var loaded: Long? = null
     private var job: Job? = null
     private var detailJob: Job? = null
 
+    /** 지금까지 다시 읽은 횟수(간격 규칙의 위치). */
+    private var rereads = 0
+
+    /** 처음 읽은 때. 상한을 실제 경과로 센다. */
+    private var watchStart: TimeMark? = null
+
+    /** 화면이 가려져 다시 읽기를 멈췄고 아직 더 읽어야 한다. */
+    private var isPaused = false
+
     fun load(postId: Long, isForced: Boolean = false) {
         if (!isForced && loaded == postId) return
         loaded = postId
-        job?.cancel()
+        rereads = 0
+        watchStart = null
+        isPaused = false
         _state.update { it.copy(isLoading = true, error = null) }
+        watch(postId)
+    }
+
+    /** 화면이 다시 보인다. 가려져 멈췄던 다시 읽기를 바로 한 번 읽고 잇는다. */
+    fun onStart() {
+        val postId = loaded ?: return
+        if (!isPaused || job?.isActive == true) return
+        isPaused = false
+        watch(postId)
+    }
+
+    /** 화면이 가려졌다(다른 화면을 위에 쌓음·백그라운드). 다시 읽기를 멈춘다. */
+    fun onStop() {
+        if (job?.isActive != true) return
+        job?.cancel()
+        isPaused = true
+    }
+
+    private fun watch(postId: Long) {
+        job?.cancel()
         job = viewModelScope.launch {
-            var rereads = 0
-            var waited = 0L
             while (true) {
                 val last = read(postId) ?: return@launch
-                if (!last.needsReread(rereads, waited)) return@launch
+                val start = watchStart ?: timeSource.markNow().also { watchStart = it }
+                if (!last.needsReread(rereads, start.elapsedNow().inWholeMilliseconds)) {
+                    isPaused = false
+                    return@launch
+                }
                 val pause = rereadDelay(rereads)
                 rereads++
-                waited += pause
                 delay(pause)
             }
         }

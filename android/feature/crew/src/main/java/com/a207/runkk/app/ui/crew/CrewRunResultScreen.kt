@@ -35,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.a207.runkk.app.core.designsystem.AvatarBackdrop
 import com.a207.runkk.app.core.designsystem.AvatarCharacter
@@ -63,6 +64,11 @@ import kotlinx.coroutines.launch
 @Composable
 fun CrewRunResultRoute(postId: Long, viewModel: CrewRunResultViewModel = hiltViewModel()) {
     LaunchedEffect(postId) { viewModel.load(postId) }
+    // 다시 읽기는 화면이 보일 때만 한다: 위에 다른 화면을 쌓거나 백그라운드면 멈추고 돌아오면 잇는다(확인 리뷰 CR2-A1)
+    LifecycleStartEffect(viewModel) {
+        viewModel.onStart()
+        onStopOrDispose { viewModel.onStop() }
+    }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val navigator = LocalRunkkNavigator.current
     CrewRunResultScreen(
