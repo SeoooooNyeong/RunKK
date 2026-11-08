@@ -57,7 +57,7 @@ class MemberAccountServicesTest {
         long a = saved("곰A");
         saved("곰B");
         ProfileService service =
-                new ProfileService(repository, List.of(n -> n.equals("가상곰")), clock);
+                new ProfileService(repository, List.of(n -> n.equals("가상곰")), publisher, clock);
 
         assertThatThrownBy(() -> service.editProfile(a, new ProfileEdit("곰B", null, null, null)))
                 .extracting(e -> ((BusinessRuleException) e).reason())
@@ -71,6 +71,11 @@ class MemberAccountServicesTest {
         assertThat(same.photoUrl()).isNull();
         ProfileEditResult renamed = service.editProfile(a, new ProfileEdit("곰C", null, null, null));
         assertThat(renamed.nickname()).isEqualTo("곰C");
+        // MR !91 e2e 1: 출생연도를 넣은 편집만 BirthYearSet을 낸다(런바디가 출생연도 없어 멈춘 분석을 다시 낸다)
+        assertThat(published)
+                .filteredOn(BirthYearSet.class::isInstance)
+                .map(e -> ((BirthYearSet) e).memberId())
+                .containsExactly(a);
     }
 
     @Test

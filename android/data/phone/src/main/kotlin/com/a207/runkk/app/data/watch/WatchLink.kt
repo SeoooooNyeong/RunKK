@@ -4,8 +4,10 @@ import android.content.Context
 import android.net.Uri
 import androidx.annotation.StringRes
 import com.a207.runkk.app.data.phone.R
+import com.a207.runkk.app.domain.run.CadenceMeter
 import com.a207.runkk.app.domain.run.Guidance
 import com.a207.runkk.app.domain.run.HeartRateSample
+import com.a207.runkk.app.domain.run.MotionSample
 import com.a207.runkk.app.domain.run.ProximityAlert
 import com.a207.runkk.app.domain.run.WatchDisplay
 import com.a207.runkk.app.domain.run.WatchGateway
@@ -142,6 +144,12 @@ class WatchLink internal constructor(
     /** 이미 넘긴 심박의 측정 시각(밀리초). 워치가 같은 묶음을 다시 넣어도(DataItem 재동기화) 한 번만 넘긴다. lock 안에서만 쓴다. */
     private val seenHeartRates = LinkedHashSet<Long>()
 
+    /** 이미 넘긴 손목 걸음의 측정 시각(밀리초). 심박과 같은 이유로 한 번만 넘긴다. lock 안에서만 쓴다. */
+    private val seenSteps = LinkedHashSet<Long>()
+
+    /** 누적 걸음 수(STEPS만 지원하는 워치)를 케이던스로 바꾼다. 누적 값이 줄면(새 운동 세션) 처음부터 센다. lock 안에서만 쓴다. */
+    private val wristCadence = CadenceMeter()
+
     override val startRequests: Flow<Unit> =
         transport.incoming
             .filter { it.path == WearPaths.START_REQUEST }
@@ -154,6 +162,18 @@ class WatchLink internal constructor(
             .mapNotNull { decodeOrNull { HeartRateBatchMessage.decode(it.payload) } }
             .filter { collectionAllowed() }
             .map { batch -> firstSeen(batch.samples.filter { it.status == HeartRateBatchMessage.Status.OK }) }
+            .filter { it.isNotEmpty() }
+
+    /**
+     * 동행 워치의 손목 케이던스(S15P31A207-242). 심박 묶음의 steps에서 꺼내고 심박과 같은 허용 규칙을 따른다. 분당 걸음 수는 그대로,
+     * 누적 걸음 수는 CadenceMeter로 바꾼다. 옛 워치의 묶음은 steps가 없어 아무것도 내지 않는다.
+     */
+    override val motions: Flow<List<MotionSample>> =
+        transport.incoming
+            .filter { it.path.startsWith(WearPaths.HEART_RATE_BATCH) }
+            .mapNotNull { decodeOrNull { HeartRateBatchMessage.decode(it.payload) } }
+            .filter { it.steps.isNotEmpty() && collectionAllowed() }
+            .map { batch -> wristCadences(batch.steps) }
             .filter { it.isNotEmpty() }
 
     override val endRequests: Flow<Unit> =
@@ -296,6 +316,17 @@ class WatchLink internal constructor(
         val fresh = samples.filter { seenHeartRates.add(it.measuredAtEpochMillis) }
         while (seenHeartRates.size > SEEN_LIMIT) seenHeartRates.remove(seenHeartRates.first())
         fresh.map { it.toDomain() }
+    }
+
+    /** 처음 보는 측정 시각의 걸음만 케이던스 표본으로 바꾼다. 기억은 최근 SEEN_LIMIT개까지. */
+    private fun wristCadences(steps: List<HeartRateBatchMessage.Step>): List<MotionSample> = synchronized(lock) {
+        val fresh = steps.sortedBy { it.measuredAtEpochMillis }.filter { seenSteps.add(it.measuredAtEpochMillis) }
+        while (seenSteps.size > SEEN_LIMIT) seenSteps.remove(seenSteps.first())
+        fresh.mapNotNull { step ->
+            val at = Instant.ofEpochMilli(step.measuredAtEpochMillis)
+            val cadence = step.perMinute?.toDouble() ?: step.total?.let { wristCadence.accept(at, it) }
+            cadence?.let { MotionSample(at, cadenceSpm = it) }
+        }
     }
 
     private fun collectionAllowed(): Boolean = settings.heartRateConsented() && settings.watchLinked()

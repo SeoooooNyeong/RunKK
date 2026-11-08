@@ -39,7 +39,8 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 기록 목록·상세·카드 값을 조회한다(설계 6.1.4 RecordQueryService, srs.md 6.3 3.2 의사결정표, FR-058~FR-060, FR-068,
  * FR-078, FR-079, FR-185, FR-186). 공개 판정은 기록 주인의 기록공개범위(RecordVisibility)로 하고, 코스 지도는 본인이거나 코스지도공유가
- * 켜졌을 때만 넣는다. 크루 반영 거리는 WeeklyRaceService.contributionOf, 적립량은 RewardService.accruedFor로 읽는다(5.2).
+ * 켜졌을 때만 넣는다. 크루 반영 거리와 반영된 크루 이름은 WeeklyRaceService.contributionOf·contributedCrewNameOf, 적립량은
+ * RewardService.accruedFor로 읽는다(5.2).
  */
 @Service
 @Transactional(readOnly = true)
@@ -111,6 +112,7 @@ public class RecordQueryService {
         RunDetail detail =
                 runQueryService.detail(
                         recordId, self ? maxHeartRateOf(ownerId) : OptionalInt.empty());
+        Distance contribution = self ? contributionOf(recordId) : null;
         return new RecordDetailView(
                 RecordRow.of(summary),
                 self,
@@ -123,7 +125,10 @@ public class RecordQueryService {
                 unstableOf(detail),
                 weatherOf(detail),
                 newRecordLabels(detail.newRecords()),
-                self ? contributionOf(recordId) : null,
+                contribution,
+                contribution == null
+                        ? null
+                        : weeklyRaceService.contributedCrewNameOf(recordId).orElse(null),
                 self ? rewardService.accruedFor(AccrualReason.VALID_RUN, recordId, ownerId) : null,
                 detail.pauses().stream()
                         .map(p -> new RecordDetailView.PauseRange(p.from(), p.to()))

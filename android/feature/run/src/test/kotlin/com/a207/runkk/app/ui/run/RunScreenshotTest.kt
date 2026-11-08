@@ -197,6 +197,32 @@ class RunScreenshotTest {
         FirstRelease { RunResultScreen(result, onCard = {}, onHome = {}, onRetry = {}) }
     }
 
+    /** B-6 v2(피그마 61370:2110) 운영 빌드: 신기록, 크루 반영 「새벽런 크루 목표에 반영」, 리워드(S15P31A207-251). */
+    @Test
+    fun resultCrewLight() = compose.captureRunkkScreen("B6_run_result_crew_light", isDarkTheme = false) {
+        androidx.compose.runtime.CompositionLocalProvider(
+            com.a207.runkk.app.core.designsystem.LocalReleaseScope provides
+                com.a207.runkk.app.core.designsystem.ReleaseScope.of(isLockingUnreleased = true)
+        ) {
+            RunResultScreen(
+                result.copy(
+                    achievements = listOf(
+                        result.achievements.first(),
+                        AchievementRow(
+                            AchievementIcon.CREW,
+                            UiText.Res(R.string.run_result_crew, listOf("새벽런")),
+                            "+5.21km"
+                        ),
+                        result.achievements.last()
+                    )
+                ),
+                onCard = {},
+                onHome = {},
+                onRetry = {}
+            )
+        }
+    }
+
     /** TC-5852 다크, 심박 있음(가장 빠른 구간 숫자 Lavender). */
     @Test
     fun result() = compose.captureRunkkScreen("B4_run_result") {

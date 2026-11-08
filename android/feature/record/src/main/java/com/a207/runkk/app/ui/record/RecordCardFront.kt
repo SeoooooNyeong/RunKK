@@ -5,12 +5,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -39,35 +39,18 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /**
- * 기록 카드 앞면(B-7, FR-068): 날짜·시각과 날씨, 배경 장면 위 기본 아바타, 큰 거리와 "신기록", 운동 시간·평균 페이스·평균 심박.
- * 종류 라벨과 서명 줄은 없다(서명은 사용자 요청 2026-10-30로 뺐다). 뒷면(코스)은 CARD_BACK이 열릴 때만 있다(D-252, D93).
+ * 기록 카드 앞면(B-7·K-1, FR-068): 날짜·시각과 날씨, 배경 장면 위 기본 아바타, 큰 거리와 "신기록", 운동 시간·평균 페이스·평균 심박.
+ * 종류 라벨과 서명 줄은 없다(서명은 사용자 요청 2026-10-30로 뺐다). 크기는 뒷면([RecordCardBack])과 같은 334×383 비율이다(피그마 K-1).
  * 공유 단계도 이 앞면을 그대로 그려 찍은 이미지를 보낸다.
  */
 @Composable
 fun RecordCardFront(card: RunCard, modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(28.dp))
-            .background(RunkkColors.Surface)
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                cardDateLabel(card),
-                style = RunkkTextStyles.Caption,
-                color = RunkkColors.TextSecondary,
-                modifier = Modifier.weight(1f)
-            )
-            card.weather?.let { weatherLabel(it) }?.takeIf { it.isNotEmpty() }?.let {
-                Text(it, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
-            }
-        }
+    RecordCardShell(card, modifier) {
         // 아바타 칸은 홈과 같은 배경 장면 위에 서 있는 모양이다(사용자 요청 2026-10-30, 예전 라임 바탕 대신).
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(AVATAR_BOX_RATIO)
+                .weight(1f)
                 .clip(RoundedCornerShape(24.dp)),
             contentAlignment = Alignment.BottomCenter
         ) {
@@ -80,12 +63,41 @@ fun RecordCardFront(card: RunCard, modifier: Modifier = Modifier) {
             RunkkAvatar(
                 faceKey = null,
                 expression = AvatarExpression.JOY,
-                modifier = Modifier.padding(bottom = 6.dp).fillMaxWidth().fillMaxHeight(AVATAR_HEIGHT_FRACTION),
+                modifier = Modifier.padding(bottom = 4.dp).fillMaxWidth().fillMaxHeight(AVATAR_HEIGHT_FRACTION),
                 colorFilter = sceneAvatarFilter()
             )
         }
         DistanceRow(card)
         StatsRow(card)
+    }
+}
+
+/**
+ * 카드 앞·뒷면 공통 틀(피그마 K 기록 카드): 표면색 둥근 네모(334×383 비율, 안쪽 여백 18, 줄 간격 12) 위쪽에 날짜·시각과 날씨 줄,
+ * 그 아래 [content]. 크기가 정해져 있어 가운데 칸은 남은 높이를 weight로 채운다.
+ */
+@Composable
+internal fun RecordCardShell(card: RunCard, modifier: Modifier, content: @Composable ColumnScope.() -> Unit) {
+    Column(
+        modifier = modifier
+            .aspectRatio(RECORD_CARD_RATIO)
+            .clip(RoundedCornerShape(28.dp))
+            .background(RunkkColors.Surface)
+            .padding(18.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                cardDateLabel(card),
+                style = RunkkTextStyles.Caption,
+                color = RunkkColors.TextSecondary,
+                modifier = Modifier.weight(1f)
+            )
+            card.weather?.let { weatherLabel(it) }?.takeIf { it.isNotEmpty() }?.let {
+                Text(it, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
+            }
+        }
+        content()
     }
 }
 
@@ -145,7 +157,7 @@ private fun StatsRow(card: RunCard) {
 }
 
 @Composable
-private fun CardStat(value: String, label: String, modifier: Modifier, spoken: String? = null) {
+internal fun CardStat(value: String, label: String, modifier: Modifier, spoken: String? = null) {
     Column(
         modifier = modifier.semantics(mergeDescendants = true) {
             spoken?.let { contentDescription = "$label $it" }
@@ -178,6 +190,6 @@ private fun skyLabelRes(sky: CardWeather.Sky): Int = when (sky) {
     CardWeather.Sky.SNOW -> R.string.record_card_sky_snow
 }
 
-/** 아바타 칸 가로:세로. 장면 그림(세로 1:2)이 너무 확대되지 않게 납작하지 않은 비율로 둔다. */
-private const val AVATAR_BOX_RATIO = 1.2f
-private const val AVATAR_HEIGHT_FRACTION = 0.85f
+/** 기록 카드 가로:세로(피그마 B-7·K 시안 334×383, 사용자 결정 2026-11-09). */
+internal const val RECORD_CARD_RATIO = 334f / 383f
+private const val AVATAR_HEIGHT_FRACTION = 0.89f

@@ -5,6 +5,7 @@ import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.domain.run.Guidance
 import com.a207.runkk.app.domain.run.HeartRateSample
+import com.a207.runkk.app.domain.run.MotionSample
 import com.a207.runkk.app.domain.run.PlanSnapshot
 import com.a207.runkk.app.domain.run.ProximityAlert
 import com.a207.runkk.app.domain.run.WatchDisplay
@@ -114,6 +115,57 @@ class WatchLinkTest {
         )
 
         assertEquals(listOf(listOf(HeartRateSample(T0, 140))), received)
+    }
+
+    @Test
+    fun `손목 걸음은 분당 걸음 수를 그대로, 누적 걸음 수는 케이던스로 바꿔 넘기고 다시 온 걸음은 버린다(S15P31A207-242)`() = runTest {
+        val link = WatchLink(transport, settings, linkScope())
+        val received = mutableListOf<List<MotionSample>>()
+        linkScope().launch { link.motions.collect { received += it } }
+        val steps = HeartRateBatchMessage(
+            samples = emptyList(),
+            steps = listOf(
+                HeartRateBatchMessage.Step(T0.toEpochMilli(), perMinute = 172),
+                HeartRateBatchMessage.Step(T0.plusSeconds(10).toEpochMilli(), total = 100),
+                HeartRateBatchMessage.Step(T0.plusSeconds(16).toEpochMilli(), total = 118)
+            )
+        )
+
+        transport.receive("${WearPaths.HEART_RATE_BATCH}/1-0", steps.encode())
+        transport.receive("${WearPaths.HEART_RATE_BATCH}/1-0", steps.encode())
+        transport.receive(
+            "${WearPaths.HEART_RATE_BATCH}/2-0",
+            HeartRateBatchMessage(
+                listOf(HeartRateBatchMessage.Sample(T0.toEpochMilli(), 140, HeartRateBatchMessage.Status.OK))
+            ).encode()
+        )
+
+        assertEquals(
+            listOf(
+                listOf(
+                    MotionSample(T0, cadenceSpm = 172.0),
+                    MotionSample(T0.plusSeconds(16), cadenceSpm = 180.0)
+                )
+            ),
+            received,
+            "누적 18걸음 / 6초 = 분당 180걸음, 같은 묶음 재동기화와 걸음 없는 옛 묶음은 내지 않는다"
+        )
+    }
+
+    @Test
+    fun `심박 동의가 없으면 손목 걸음도 버린다`() = runTest {
+        val link = WatchLink(transport, settings, linkScope())
+        val received = mutableListOf<List<MotionSample>>()
+        linkScope().launch { link.motions.collect { received += it } }
+        settings.emit(CONSENTED.copy(isHeartRateConsented = false))
+
+        transport.receive(
+            "${WearPaths.HEART_RATE_BATCH}/3-0",
+            HeartRateBatchMessage(emptyList(), listOf(HeartRateBatchMessage.Step(T0.toEpochMilli(), perMinute = 170)))
+                .encode()
+        )
+
+        assertTrue(received.isEmpty())
     }
 
     @Test

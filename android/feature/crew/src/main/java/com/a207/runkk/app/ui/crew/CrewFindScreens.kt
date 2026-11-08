@@ -5,8 +5,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,19 +21,18 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -60,12 +57,12 @@ import com.a207.runkk.app.core.designsystem.RUNKK_BOTTOM_BAR_RISE
 import com.a207.runkk.app.core.designsystem.RunkkBadge
 import com.a207.runkk.app.core.designsystem.RunkkBadgeTone
 import com.a207.runkk.app.core.designsystem.RunkkCard
-import com.a207.runkk.app.core.designsystem.RunkkChoiceChip
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkConfirmDialog
 import com.a207.runkk.app.core.designsystem.RunkkEmptyState
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkFormat
+import com.a207.runkk.app.core.designsystem.RunkkIconButton
 import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkLimePillButton
 import com.a207.runkk.app.core.designsystem.RunkkLoading
@@ -74,7 +71,6 @@ import com.a207.runkk.app.core.designsystem.RunkkPrimaryButton
 import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
 import com.a207.runkk.app.core.designsystem.RunkkTags
-import com.a207.runkk.app.core.designsystem.RunkkTextLink
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
@@ -89,11 +85,7 @@ import com.a207.runkk.app.domain.crew.MyCrew
  * 없으면 크루 찾기·상세·초대 코드·만들기·대기 중인 내 가입 신청을 보인다.
  */
 @Composable
-fun CrewFindRoute(
-    initialTab: CrewTab? = null,
-    initialFilter: BoardFilter = BoardFilter.ALL,
-    viewModel: CrewFindViewModel = hiltViewModel()
-) {
+fun CrewFindRoute(initialTab: CrewTab? = null, viewModel: CrewFindViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val navigator = LocalRunkkNavigator.current
     // 크루 만들기 등에서 돌아오면 소속을 다시 확인한다(처음 들어올 때는 ViewModel init이 확인한다).
@@ -104,12 +96,11 @@ fun CrewFindRoute(
     val mine = state.mine
     when {
         mine != null -> {
-            // 알림으로 들어오면(initialTab) 그 탭(게시판이면 initialFilter 칩)을 먼저 열고 뒤로 단추를 둔다(D-150).
+            // 알림으로 들어오면(initialTab) 그 탭을 먼저 열고 뒤로 단추를 둔다(D-150).
             CrewHomeRoute(
                 Routes.CrewHome(mine.crewId),
                 isAtTabRoot = initialTab == null,
-                initialTab = initialTab ?: CrewTab.RACE,
-                initialFilter = initialFilter
+                initialTab = initialTab ?: CrewTab.RACE
             )
             return
         }
@@ -136,7 +127,10 @@ fun CrewFindRoute(
 private fun crewFindActions(viewModel: CrewFindViewModel, onCreate: () -> Unit) = CrewFindActions(
     onKeyword = viewModel::onKeyword,
     onSearch = viewModel::load,
-    onTag = viewModel::onTagToggle,
+    onConditionOpen = viewModel::onConditionOpen,
+    onConditionToggle = viewModel::onConditionToggle,
+    onConditionApply = viewModel::onConditionApply,
+    onConditionDismiss = viewModel::onConditionDismiss,
     onOpen = viewModel::onOpen,
     onCloseDetail = viewModel::onCloseDetail,
     onJoin = viewModel::onJoin,
@@ -157,7 +151,11 @@ private fun crewFindActions(viewModel: CrewFindViewModel, onCreate: () -> Unit) 
 data class CrewFindActions(
     val onKeyword: (String) -> Unit = {},
     val onSearch: () -> Unit = {},
-    val onTag: (String) -> Unit = {},
+    /** 조건 설정 팝업(피그마 F-01b) 열기, 칩 누름, 적용, 닫기. */
+    val onConditionOpen: () -> Unit = {},
+    val onConditionToggle: (String) -> Unit = {},
+    val onConditionApply: () -> Unit = {},
+    val onConditionDismiss: () -> Unit = {},
     val onOpen: (CrewList.Item) -> Unit = {},
     val onCloseDetail: () -> Unit = {},
     val onJoin: (CrewList.Item) -> Unit = {},
@@ -225,6 +223,7 @@ fun CrewFindScreen(state: CrewFindUiState, actions: CrewFindActions, modifier: M
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp + RUNKK_BOTTOM_BAR_RISE)
         )
     }
+    if (state.isConditionOpen) ConditionSheet(state.conditionDraft, actions)
     state.confirmCancel?.let { request ->
         RunkkConfirmDialog(
             title = stringResource(R.string.crew_find_cancel_confirm_title),
@@ -241,14 +240,14 @@ fun CrewFindScreen(state: CrewFindUiState, actions: CrewFindActions, modifier: M
 private fun LazyListScope.crewFindItems(state: CrewFindUiState, actions: CrewFindActions) {
     item { FindHeaderRow(onInviteOpen = actions.onInviteOpen, onCreate = actions.onCreate) }
     item { FindSearchField(state.keyword, actions.onKeyword, actions.onSearch) }
-    // 성향 태그 필터가 크루 찾기의 주 경로다(FR-117, CR-04). 추천 영역은 지웠다(FR-118 삭제).
-    item { FindTagRow(selected = state.tags, onTag = actions.onTag) }
+    // 요일과 시간대 조건이 크루 찾기의 주 경로다(FR-117, 피그마 F-01). 추천 영역은 지웠다(FR-118 삭제).
+    item { ConditionBox(selected = state.tags, onOpen = actions.onConditionOpen) }
     if (state.pending.isNotEmpty()) {
         items(state.pending, key = { "pending-${it.requestId}" }) { request ->
             PendingJoinCard(request, isBusy = state.isJoining, onCancel = { actions.onCancelAsk(request) })
         }
     }
-    item { FindListTitle(isLoading = state.isLoading, count = state.crews.size, tags = state.tags) }
+    item { FindListTitle(hasCondition = state.tags.isNotEmpty()) }
     when {
         state.isLoading && state.crews.isEmpty() -> item {
             Box(Modifier.fillMaxWidth().padding(32.dp)) { RunkkLoading() }
@@ -344,51 +343,71 @@ private fun FindSearchField(keyword: String, onKeyword: (String) -> Unit, onSear
     )
 }
 
-/**
- * 태그로 찾기(주 경로, FR-117, 와이어 E1): 고른 태그를 앞에 두고 처음에는 다섯 개와 "태그 더보기"만 보인다. 고른 태그를 모두 가진
- * 크루만 남는다(AND).
- */
-@OptIn(ExperimentalLayoutApi::class)
+/** 조건 설정 칸(피그마 F-01·F-01c): 제목과 고른 조건 배지(없으면 안내 한 줄). 누르면 조건 설정 팝업(F-01b)을 연다. */
 @Composable
-private fun FindTagRow(selected: Set<String>, onTag: (String) -> Unit) {
-    var isExpanded by rememberSaveable { mutableStateOf(false) }
-    val all = RunkkTags.categories.flatMap { it.tags }
-    val ordered = all.filter { it.id in selected } + all.filterNot { it.id in selected }
-    val shown = if (isExpanded) ordered else ordered.take(maxOf(TAGS_COLLAPSED, selected.size))
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+private fun ConditionBox(selected: Set<String>, onOpen: () -> Unit) {
+    RunkkCard(
+        modifier = Modifier.fillMaxWidth(),
+        onClick = onOpen,
+        onClickLabel = stringResource(R.string.crew_find_condition_open),
+        borderColor = MaterialTheme.colorScheme.outlineVariant,
+        background = MaterialTheme.colorScheme.surface
+    ) {
         Text(
-            stringResource(R.string.crew_find_tag_title),
-            style = RunkkTextStyles.CardTitle,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.semantics { heading() }
+            stringResource(R.string.crew_find_condition_title),
+            style = RunkkTextStyles.BodyStrong,
+            color = MaterialTheme.colorScheme.onSurface
         )
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            shown.forEach { tag ->
-                RunkkChoiceChip(
-                    stringResource(tag.labelRes),
-                    isSelected = tag.id in selected,
-                    onSelectedChange = { onTag(tag.id) }
+        if (selected.isEmpty()) {
+            Text(
+                stringResource(R.string.crew_find_condition_hint),
+                style = RunkkTextStyles.Caption,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            CrewTagBadges(selected)
+        }
+    }
+}
+
+/** 조건 설정 팝업(피그마 F-01b): 제목과 닫기, 평일과 주말 시간대 칩, 적용하기. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ConditionSheet(draft: Set<String>, actions: CrewFindActions) {
+    val colors = MaterialTheme.colorScheme
+    ModalBottomSheet(onDismissRequest = actions.onConditionDismiss, containerColor = colors.surface) {
+        Column(
+            Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    stringResource(R.string.crew_find_condition_title),
+                    style = RunkkTextStyles.CardTitle,
+                    color = colors.onSurface,
+                    modifier = Modifier.weight(1f).semantics { heading() }
+                )
+                RunkkIconButton(
+                    RunkkIcons.Close,
+                    contentDescription = stringResource(R.string.crew_find_condition_close),
+                    onClick = actions.onConditionDismiss
                 )
             }
-            RunkkTextLink(
-                stringResource(if (isExpanded) R.string.crew_find_tag_less else R.string.crew_find_tag_more),
-                onClick = { isExpanded = !isExpanded }
+            CrewTagPicker(selected = draft, onToggle = actions.onConditionToggle)
+            RunkkPrimaryButton(
+                stringResource(R.string.crew_find_condition_apply),
+                onClick = actions.onConditionApply,
+                modifier = Modifier.fillMaxWidth()
             )
         }
     }
 }
 
-/** 목록 제목: "함께가 좋아요, 저녁 태그 크루 n개, 최근 생성순"(태그를 골랐을 때), 아니면 "공개 크루 n개, 최근 생성순". */
+/** 목록 제목(피그마 F-01·F-01c): 조건이 없으면 "전체 크루", 있으면 "조건에 맞는 크루". */
 @Composable
-private fun FindListTitle(isLoading: Boolean, count: Int, tags: Set<String>) {
-    val resources = LocalContext.current.resources
-    val tagNames = tags.joinToString(", ") { RunkkTags.label(resources, it) }
+private fun FindListTitle(hasCondition: Boolean) {
     Text(
-        when {
-            isLoading -> stringResource(R.string.crew_find_list_title_loading)
-            tags.isNotEmpty() -> stringResource(R.string.crew_find_list_title_tags, tagNames, count)
-            else -> stringResource(R.string.crew_find_list_title, count)
-        },
+        stringResource(if (hasCondition) R.string.crew_find_list_title_tags else R.string.crew_find_list_title),
         style = RunkkTextStyles.text(13, FontWeight.Bold),
         color = MaterialTheme.colorScheme.onSurface,
         modifier = Modifier.semantics {
@@ -400,9 +419,6 @@ private fun FindListTitle(isLoading: Boolean, count: Int, tags: Set<String>) {
 
 /** 끝에서 이만큼 안쪽 줄이 보이면 다음 쪽을 읽는다. */
 private const val LOAD_MORE_AHEAD = 3
-
-/** 접었을 때 보이는 태그 수. */
-private const val TAGS_COLLAPSED = 5
 
 /** 대기 중인 내 가입 신청 한 건(FR-143): 크루명, 신청 일시와 취소 단추. */
 @Composable
@@ -459,7 +475,7 @@ private fun CrewRow(crew: CrewList.Item, onClick: () -> Unit) {
                 )
                 if (crew.tags.isNotEmpty()) {
                     Text(
-                        crew.tags.joinToString(", ") { RunkkTags.label(resources, it) },
+                        RunkkTags.sorted(crew.tags).joinToString(", ") { RunkkTags.label(resources, it) },
                         style = RunkkTextStyles.Caption,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,

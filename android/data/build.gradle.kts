@@ -66,7 +66,7 @@ android {
     }
 }
 
-// 1차 배포 잠금(D-251, D-339): 앱(:app)의 LOCK_UNRELEASED와 같은 규칙이다. prod·develop은 참, local은 거짓이고 Gradle 속성
+// 미공개 기능 잠금(D-251, D-339): 앱(:app)의 LOCK_UNRELEASED와 같은 규칙이다. prod·develop은 참, local은 거짓이고 Gradle 속성
 // -Prunkk.lockUnreleased가 있으면 그 값이다. 시스템 푸시(RunkkMessagingService)가 닫힌 기능의 알림을 띄우지 않을 때 읽는다.
 val lockUnreleasedOverride = providers.gradleProperty("runkk.lockUnreleased").orNull?.toBooleanStrictOrNull()
 androidComponents {

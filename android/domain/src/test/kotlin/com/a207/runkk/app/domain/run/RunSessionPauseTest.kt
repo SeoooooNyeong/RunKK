@@ -55,8 +55,8 @@ class RunSessionPauseTest {
     }
 
     @Test
-    fun `TC-6302 대결·크루런은 pause가 거짓이고 상태가 그대로다`() {
-        for (mode in listOf(RunMode.BATTLE, RunMode.CREW_RUN)) {
+    fun `TC-6302 대결은 pause가 거짓이고 상태가 그대로다`() {
+        for (mode in listOf(RunMode.BATTLE)) {
             val s = session(mode)
             assertFalse(s.pause(t(10)), "$mode")
             assertEquals(RunSession.State.RUNNING, s.state)
@@ -369,7 +369,14 @@ class RunSessionPauseTest {
     }
 
     @Test
-    fun `isPausable은 자유런만 참이다 (D-137)`() {
-        assertEquals(listOf(true, false, false), RunMode.entries.map { it.isPausable })
+    fun `isPausable은 자유런과 크루런만 참이다 (D-137, S15P31A207-236)`() {
+        assertEquals(listOf(true, false, true), RunMode.entries.map { it.isPausable })
+    }
+
+    @Test
+    fun `크루런은 각자 일시정지한다 (S15P31A207-236)`() {
+        val s = session(RunMode.CREW_RUN)
+        assertTrue(s.pause(t(10)))
+        assertEquals(RunSession.State.PAUSED, s.state)
     }
 }

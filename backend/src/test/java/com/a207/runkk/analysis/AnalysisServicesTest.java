@@ -375,6 +375,7 @@ class AnalysisServicesTest {
         RunSummary summary = ownersRun();
         RecordQueryService service = records();
         when(races.contributionOf(summary.recordId())).thenReturn(Distance.ofKm(5));
+        when(races.contributedCrewNameOf(summary.recordId())).thenReturn(Optional.of("새벽런"));
         when(rewards.accruedFor(AccrualReason.VALID_RUN, summary.recordId(), OTHER)).thenReturn(50);
         when(members.ageOf(eq(OTHER), anyInt())).thenReturn(OptionalInt.of(30));
         preference(OTHER, RecordVisibility.PRIVATE, false);
@@ -383,6 +384,7 @@ class AnalysisServicesTest {
         assertThat(own.owner()).isTrue();
         assertThat(own.route()).hasSize(1);
         assertThat(own.crewContribution()).isEqualTo(Distance.ofKm(5));
+        assertThat(own.contributedCrewName()).isEqualTo("새벽런");
         assertThat(own.rewardPoints()).isEqualTo(50);
         assertThat(own.calories()).isEqualTo(325);
         assertThat(own.heartRateZones()).containsKey("Z3");
@@ -416,6 +418,7 @@ class AnalysisServicesTest {
         assertThat(other.route()).isEmpty();
         assertThat(other.heartRateZones()).isEmpty();
         assertThat(other.crewContribution()).isNull();
+        assertThat(other.contributedCrewName()).isNull();
         assertThat(other.rewardPoints()).isNull();
         assertThat(other.recordVisibility()).isNull();
     }

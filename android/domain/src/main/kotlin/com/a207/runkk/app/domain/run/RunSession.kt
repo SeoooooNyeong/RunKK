@@ -31,11 +31,6 @@ class RunSession(val spec: RunStartSpec) {
     var gapMeters: Int? = null
         private set
 
-    /** 크루런 순위. RankGuidanceRule 입력. RunCoach가 RunTracker의 락 밖에서 읽는다. */
-    @Volatile
-    var rank: CrewRank? = null
-        private set
-
     /** 측정 시작 일시. 시작 전이면 null. */
     var startedAt: Instant? = null
         private set
@@ -57,6 +52,10 @@ class RunSession(val spec: RunStartSpec) {
     private val points = mutableListOf<RoutePoint>()
     private val unstable = mutableListOf<UnstableSegment>()
     private val heartRates = mutableListOf<HeartRateSample>()
+    private val motions = mutableListOf<MotionSample>()
+
+    /** 동행 워치가 잰 손목 케이던스. 기록을 확정할 때 폰 걸음 센서 케이던스보다 앞선다. */
+    private val watchMotions = mutableListOf<MotionSample>()
 
     /** 포인트마다 (일시, 그때까지 누적 거리). 도달 시각 계산에 쓴다. */
     private val arrivals = mutableListOf<Pair<Instant, Double>>()
@@ -117,6 +116,28 @@ class RunSession(val spec: RunStartSpec) {
     }
 
     /**
+     * 기기가 잰 속도·케이던스를 남긴다(S15P31A207-242). 정지 중에는 버린다(위치와 같다, D-93 (1)). 값이 없거나 음수·무한대면 버린다.
+     * [isFromWatch]는 동행 워치의 손목 케이던스다.
+     */
+    fun onMotion(s: MotionSample, isFromWatch: Boolean = false) {
+        if (!isActive || isPaused || !s.isUsable) return
+        if (isFromWatch) watchMotions += s else motions += s
+    }
+
+    /**
+     * 기록에 담을 움직임 표본(시간순). 워치 손목 케이던스가 하나라도 있으면 폰 걸음 센서 케이던스는 빼고(손목이 러닝 중 더 안정적이다,
+     * 2026-11-08 결정) 폰 속도는 남긴다. 서버 상한([MAX_UPLOAD_MOTIONS])을 넘으면 시간 칸끼리 합쳐 줄인다(MR !91 AN-5).
+     */
+    private fun recordedMotions(): List<MotionSample> {
+        val phone = if (watchMotions.any { it.cadenceSpm != null }) {
+            motions.map { it.copy(cadenceSpm = null) }.filter { it.isUsable }
+        } else {
+            motions
+        }
+        return (phone + watchMotions).sortedBy { it.at }.thinnedTo(MAX_UPLOAD_MOTIONS)
+    }
+
+    /**
      * 1초 진행 지표. 경과는 운동 시간(벽시계 경과 − 정지 합)이고 평균 페이스 = 운동 시간 ÷ 거리다(FR-034).
      * 정지 중에는 거리·운동 시간이 늘지 않고 현재 페이스는 빈 값, 심박은 마지막으로 받은 값이다(D-144, D-157 (4)).
      */
@@ -160,7 +181,7 @@ class RunSession(val spec: RunStartSpec) {
     }
 
     /**
-     * 일시정지(FR-194): 자유런 RUNNING → PAUSED. 폰 버튼·워치 요청·알림 버튼이 모두 이 연산을 쓴다(D-256, D-260). [at]은 폰 처리 시각이다.
+     * 일시정지(FR-194): 자유런·크루런 RUNNING → PAUSED. 폰 버튼·워치 요청·알림 버튼이 모두 이 연산을 쓴다(D-256, D-260). [at]은 폰 처리 시각이다.
      * 그 밖의 모드·상태면 거짓이고 상태는 그대로다(D-93 (3), D-137).
      */
     fun pause(at: Instant): Boolean {
@@ -224,10 +245,6 @@ class RunSession(val spec: RunStartSpec) {
         gapMeters = meters
     }
 
-    fun updateRank(rank: CrewRank) {
-        this.rank = rank
-    }
-
     /** 열린 정지 구간을 닫고 재개 처리를 한다: 재개 뒤 첫 포인트는 거리를 더하지 않고, 현재 페이스 창을 비운다(D-93 (1)(2)). */
     private fun closePause(at: Instant) {
         val from = requireNotNull(pausedSince)
@@ -268,7 +285,8 @@ class RunSession(val spec: RunStartSpec) {
                 heartRates = heartRates.toList(),
                 pauses = closedPauses.toList(),
                 startDevice = spec.startDevice,
-                savedAt = now
+                savedAt = now,
+                motions = recordedMotions()
             )
         )
     }

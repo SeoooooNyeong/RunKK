@@ -7,9 +7,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.a207.runkk.common.BusinessRuleException;
+import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.common.StandardDistance;
+import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -162,53 +165,90 @@ class CrewRunPostTest {
     }
 
     @Test
-    @DisplayName("진행: 도착은 처음만, 그만두기는 순위 제외, 러닝 연결은 한 참여에 1건, 모두 끝나면 종료 조건")
-    void running_arrivalQuitLink() {
+    @DisplayName("진행: 각자 끝내기(값 남김, 다시 불러도 그대로), 정지 확인, 러닝 연결은 한 참여에 1건, 모두 끝내면 종료 조건")
+    void running_endPauseLink() {
         CrewRunPost post = running(A, B);
         LocalDateTime start = AT.plusSeconds(3);
         assertThat(post.shouldClose(start.plusMinutes(10), RULE)).isFalse();
 
-        post.recordArrival(A, start.plusMinutes(25));
-        post.recordArrival(A, start.plusMinutes(40));
-        post.recordArrival(LEADER, start.plusMinutes(28));
         assertThat(post.linkRun(A, "rec-a")).isTrue();
         assertThat(post.linkRun(A, "rec-a2")).isFalse();
         assertThat(post.linkRun(C, "rec-c")).as("참가자가 아님").isFalse();
-        post.quit(B, start.plusMinutes(12));
-        assertThatThrownBy(() -> post.quit(C, start))
+        post.checkPausable(B);
+        assertThat(post.end(B, Distance.ofMeters(2_100), Duration.ofMinutes(12))).isTrue();
+        assertThat(post.end(B, Distance.ofMeters(9_999), Duration.ofMinutes(99)))
+                .as("이미 끝냄")
+                .isFalse();
+        assertThat(post.participationOf(B).orElseThrow().finalDistance())
+                .contains(Distance.ofMeters(2_100));
+        assertThatThrownBy(() -> post.checkPausable(B))
+                .as("끝낸 뒤 정지")
+                .satisfies(e -> assertThat(reasonOf(e)).isEqualTo(ReasonCode.NOT_PARTICIPANT));
+        assertThatThrownBy(() -> post.end(C, null, null))
+                .satisfies(e -> assertThat(reasonOf(e)).isEqualTo(ReasonCode.NOT_PARTICIPANT));
+        assertThatThrownBy(() -> post.checkPausable(C))
                 .satisfies(e -> assertThat(reasonOf(e)).isEqualTo(ReasonCode.NOT_PARTICIPANT));
 
+        post.end(A, Distance.ofMeters(5_280), Duration.ofMinutes(28));
+        assertThat(post.shouldClose(start.plusMinutes(30), RULE)).as("방장이 아직 달린다").isFalse();
+        post.end(LEADER, null, null);
         assertThat(post.shouldClose(start.plusMinutes(30), RULE)).isTrue();
-        post.close(start.plusMinutes(30));
+        post.close(start.plusMinutes(30), Map.of());
 
         assertThat(post.status()).isEqualTo(CrewRunStatus.FINISHED);
-        assertThat(post.participationOf(A).orElseThrow().rank()).isEqualTo(1);
-        assertThat(post.participationOf(LEADER).orElseThrow().rank()).isEqualTo(2);
-        assertThat(post.participationOf(B).orElseThrow().rank()).isNull();
-        assertThat(post.summary(A).crewRun().finisherCount()).isEqualTo(2);
+        assertThat(post.participations())
+                .filteredOn(CrewRunParticipation::isRunner)
+                .allMatch(CrewRunParticipation::hasEnded);
+        assertThat(post.summary(A).crewRun().finisherCount()).as("진행 참가자 수").isEqualTo(3);
         assertThat(post.linkedRecordIds()).containsExactly("rec-a");
     }
 
     @Test
-    @DisplayName("종료 기준 시간(출발 + 거리 × 15분)이 지나면 미도착은 미완주로 끝난다")
+    @DisplayName("종료 기준 시간(출발 + 거리 × 15분)이 지나면 아직 달리는 사람은 마지막 중계 값으로 마감된다")
     void close_byTimeLimit() {
         CrewRunPost post = running(A);
         LocalDateTime start = AT.plusSeconds(3);
-        post.recordArrival(A, start.plusMinutes(30));
+        post.end(A, Distance.ofMeters(4_000), Duration.ofMinutes(30));
         assertThat(post.shouldClose(start.plusMinutes(75).minusSeconds(1), RULE)).isFalse();
         assertThat(post.shouldClose(start.plusMinutes(75), RULE)).isTrue();
-        post.close(start.plusMinutes(75));
-        assertThat(post.participationOf(LEADER).orElseThrow().rank()).isNull();
-        assertThatThrownBy(() -> post.close(start)).isInstanceOf(IllegalStateException.class);
+        post.close(
+                start.plusMinutes(75),
+                Map.of(
+                        LEADER,
+                        new LiveProgress(
+                                Distance.ofMeters(6_100),
+                                Duration.ofMinutes(74),
+                                start.plusMinutes(75)),
+                        A,
+                        new LiveProgress(
+                                Distance.ofMeters(9_000),
+                                Duration.ofMinutes(74),
+                                start.plusMinutes(75))));
+        CrewRunParticipation leader = post.participationOf(LEADER).orElseThrow();
+        assertThat(leader.hasEnded()).isTrue();
+        assertThat(leader.finalDistance()).contains(Distance.ofMeters(6_100));
+        assertThat(leader.finalElapsed()).contains(Duration.ofMinutes(74));
+        assertThat(post.participationOf(A).orElseThrow().finalDistance())
+                .as("먼저 끝낸 값은 그대로")
+                .contains(Distance.ofMeters(4_000));
+        assertThatThrownBy(() -> post.close(start, Map.of()))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(post.end(LEADER, Distance.ofMeters(1), Duration.ZERO))
+                .as("종료 뒤 끝내기는 이미 끝남")
+                .isFalse();
     }
 
     @Test
-    @DisplayName("러닝 연결은 진행 뒤(종료 포함)에도 받고, 출발 전에는 받지 않는다")
+    @DisplayName("러닝 연결은 진행 뒤(종료 포함)에도 받고, 출발 전에는 받지 않는다. 출발 전 끝내기·정지는 NOT_PARTICIPANT")
     void linkRun_onlyAfterDeparture() {
         CrewRunPost voting = post();
         assertThat(voting.linkRun(LEADER, "early")).isFalse();
+        assertThatThrownBy(() -> voting.end(LEADER, null, null))
+                .satisfies(e -> assertThat(reasonOf(e)).isEqualTo(ReasonCode.NOT_PARTICIPANT));
+        assertThatThrownBy(() -> voting.checkPausable(LEADER))
+                .satisfies(e -> assertThat(reasonOf(e)).isEqualTo(ReasonCode.NOT_PARTICIPANT));
         CrewRunPost post = running(A);
-        post.close(AT.plusHours(3));
+        post.close(AT.plusHours(3), Map.of());
         assertThat(post.linkRun(A, "late")).isTrue();
     }
 }

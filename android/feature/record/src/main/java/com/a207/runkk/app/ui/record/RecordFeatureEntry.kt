@@ -15,7 +15,6 @@ class RecordFeatureEntry @Inject constructor() : FeatureEntry {
         builder.route(Routes.RECORDS) { RecordListRoute() }
         builder.route(Routes.RECORDS_BATTLES) { RecordListRoute(initialView = RecordView.BATTLE) }
         builder.route(Routes.GROWTH) { GrowthRoute() }
-        builder.route(Routes.REPORT) { ReportRoute() }
         builder.route(Routes.RANKING) { RankingRoute() }
         builder.route(Routes.COACH) { CoachRoute() }
         builder.addEntryProvider(Routes.RecordDetail::class) { key -> RecordDetailRoute(key.recordId) }

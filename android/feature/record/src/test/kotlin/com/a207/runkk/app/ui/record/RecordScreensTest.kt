@@ -1,10 +1,13 @@
 package com.a207.runkk.app.ui.record
 
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.captureToImage
@@ -26,6 +29,7 @@ import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.GeoPoint
 import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.core.navigation.LocalSlots
 import com.a207.runkk.app.core.navigation.SlotKey
@@ -39,6 +43,7 @@ import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -386,6 +391,89 @@ class RecordScreensTest {
     }
 
     @Test
+    fun `카드 공유 단계는 보이는 카드를 찍어 넘기고, 잠긴 코스 지도 표시를 누르면 안내를 부른다(K-2)`() {
+        val bitmap = android.graphics.Bitmap.createBitmap(8, 10, android.graphics.Bitmap.Config.ARGB_8888)
+        val captured = mutableListOf<com.a207.runkk.app.ui.share.CapturedCard?>()
+        var locked = 0
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                RecordCardScreen(
+                    RecordCardUiState(
+                        isLoading = false,
+                        card = runCard(shared = false),
+                        front = bitmap,
+                        back = bitmap,
+                        isShareStep = true
+                    ),
+                    onClose = {},
+                    onSideSelected = {},
+                    onShare = {},
+                    onMessageShown = {},
+                    onRetry = {},
+                    onShareCaptured = { _, card -> captured += card },
+                    onCourseLocked = { locked++ }
+                )
+            }
+        }
+        compose.onNodeWithText("인스타그램 스토리").assertExists()
+        compose.onNodeWithText("코스 지도 표시").performClick()
+        assertEquals(1, locked)
+        compose.onRoot().captureToImage()
+        compose.onNodeWithText("기기에 저장").performClick()
+        compose.waitForIdle()
+        val card = assertNotNull(captured.single())
+        assertTrue(card.bitmap.width > 0 && card.bitmap.height > card.bitmap.width, "세로 카드 ${card.bitmap.width}")
+    }
+
+    @Test
+    fun `K-1 카드 뒷면은 코스 칸과 거리, 운동 시간, 평균 페이스 세 칸이고 경로가 없으면 코스 기록 없음이다`() {
+        var card by mutableStateOf(runCard())
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) { RecordCardBack(card) }
+        }
+        compose.onNodeWithTag(RECORD_CARD_COURSE_TAG).assertExists()
+        listOf("거리", "운동 시간", "평균 페이스").forEach {
+            compose.onNodeWithText(it, useUnmergedTree = true).assertExists()
+        }
+        compose.onNodeWithText("평균 심박", useUnmergedTree = true).assertDoesNotExist()
+        compose.onNodeWithText("코스 기록 없음", useUnmergedTree = true).assertDoesNotExist()
+        card = card.copy(route = emptyList())
+        compose.onNodeWithText("코스 기록 없음", useUnmergedTree = true).assertExists()
+    }
+
+    @Test
+    fun `K-1 코스 칸 경로는 북쪽이 위, 동쪽이 오른쪽이고 여백 안 가운데에 놓인다`() {
+        val route = listOf(GeoPoint(37.50, 127.00), GeoPoint(37.51, 127.00), GeoPoint(37.51, 127.01))
+        val points = fitRoute(route, width = 300f, height = 260f, pad = 20f)
+        assertTrue(points[1].y < points[0].y, "북쪽이 위")
+        assertTrue(points[2].x > points[1].x, "동쪽이 오른쪽")
+        points.forEach {
+            assertTrue(it.x in 20f..280f && it.y in 20f..240f, "여백 안 $it")
+        }
+        val midX = (points.minOf { it.x } + points.maxOf { it.x }) / 2
+        val midY = (points.minOf { it.y } + points.maxOf { it.y }) / 2
+        assertEquals(150f, midX, 0.5f)
+        assertEquals(130f, midY, 0.5f)
+    }
+
+    @Test
+    fun `K-1 카드 앞면과 뒷면은 같은 크기(334x383 비율)다`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                androidx.compose.foundation.layout.Column(Modifier.width(334.dp)) {
+                    RecordCardFront(runCard(), Modifier.testTag("front"))
+                    RecordCardBack(runCard(), Modifier.testTag("back"))
+                }
+            }
+        }
+        val front = compose.onNodeWithTag("front").getBoundsInRoot()
+        val back = compose.onNodeWithTag("back").getBoundsInRoot()
+        assertEquals(334f, (front.right - front.left).value, 0.5f)
+        assertEquals(383f, (front.bottom - front.top).value, 0.5f)
+        assertEquals((front.bottom - front.top).value, (back.bottom - back.top).value, 0.5f)
+    }
+
+    @Test
     fun `B-7 카드 앞면은 날짜·날씨·거리·신기록·세 지표이고 서명 줄(D113)과 종류 라벨이 없다(FR-068)`() {
         val bitmap = android.graphics.Bitmap.createBitmap(8, 10, android.graphics.Bitmap.Config.ARGB_8888)
         val card = runCard().copy(
@@ -425,7 +513,7 @@ class RecordScreensTest {
     }
 
     @Test
-    fun `TC-9699 D93 1차 배포에서는 앞면 공유가 열리고 뒤집기와 면 점은 없다`() {
+    fun `1차 배포 범위에서도 카드 뒷면이 열려 있어 눌러 뒤집고 면 점이 있다(S15P31A207-238)`() {
         val bitmap = android.graphics.Bitmap.createBitmap(8, 10, android.graphics.Bitmap.Config.ARGB_8888)
         val sides = mutableListOf<com.a207.runkk.app.ui.share.CardSide>()
         val steps = mutableListOf<Boolean>()
@@ -446,22 +534,21 @@ class RecordScreensTest {
             }
         }
         compose.onNodeWithContentDescription("러닝 카드 앞면", substring = true).performClick()
-        compose.onNodeWithTag(RECORD_CARD_DOTS_TAG).assertDoesNotExist()
+        compose.onNodeWithTag(RECORD_CARD_DOTS_TAG).assertExists()
         compose.onNodeWithText("공유").performClick()
         compose.onNodeWithText("닫기").performClick()
-        assertEquals(emptyList(), sides, "뒤집기 없음")
+        assertEquals(listOf(com.a207.runkk.app.ui.share.CardSide.BACK), sides, "뒤집기")
         assertEquals(listOf(true), steps)
         assertEquals(1, closed)
     }
 
     @Test
-    fun `D93 1차 배포 공유 단계는 앞면만 공유하고 코스 지도 표시가 없다`() {
+    fun `1차 배포 범위에서도 공유 단계에 코스 지도 표시가 있다(S15P31A207-238)`() {
         val bitmap = android.graphics.Bitmap.createBitmap(8, 10, android.graphics.Bitmap.Config.ARGB_8888)
         val kinds = mutableListOf<CardShareKind>()
-        var scope by mutableStateOf(ReleaseScope.FIRST_RELEASE)
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
-                CompositionLocalProvider(LocalReleaseScope provides scope) {
+                CompositionLocalProvider(LocalReleaseScope provides ReleaseScope.FIRST_RELEASE) {
                     RecordCardScreen(
                         RecordCardUiState(
                             isLoading = false,
@@ -479,13 +566,11 @@ class RecordScreensTest {
                 }
             }
         }
-        compose.onNodeWithText("코스 지도 표시").assertDoesNotExist()
+        compose.onNodeWithText("코스 지도 표시").assertExists()
         // 공유는 그려진 앞면을 찍어 보낸다(D113). 시험 환경은 누르기 전에 한 번 그려 둔다.
         compose.onRoot().captureToImage()
         compose.onNodeWithText("더 보기").performClick()
         assertEquals(listOf(CardShareKind.SYSTEM), kinds)
-        scope = ReleaseScope.ALL_OPEN
-        compose.onNodeWithText("코스 지도 표시").assertExists()
     }
 
     @Test

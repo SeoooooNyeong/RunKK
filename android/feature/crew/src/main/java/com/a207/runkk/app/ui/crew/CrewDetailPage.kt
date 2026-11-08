@@ -5,15 +5,12 @@ import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -26,13 +23,11 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.a207.runkk.app.core.designsystem.RunkkBadge
-import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkPrimaryButton
 import com.a207.runkk.app.core.designsystem.RunkkSecondaryButton
-import com.a207.runkk.app.core.designsystem.RunkkTags
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
+import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.domain.crew.CrewList
 import com.a207.runkk.app.domain.crew.JoinPolicy
 import com.a207.runkk.app.domain.crew.MyCrew
@@ -46,6 +41,7 @@ internal fun CrewDetailPage(state: CrewFindUiState, crew: CrewList.Item, actions
         RunkkTopBar(title = stringResource(R.string.crew_detail_title), onBack = actions.onCloseDetail)
         CrewDetailContent(
             crew,
+            lastWeekDistance = state.detailInfo?.takeIf { it.crewId == crew.crewId }?.lastWeekDistance,
             pending = state.pending.firstOrNull { it.crewId == crew.crewId },
             isJoining = state.isJoining,
             onJoin = { actions.onJoin(crew) },
@@ -56,16 +52,17 @@ internal fun CrewDetailPage(state: CrewFindUiState, crew: CrewList.Item, actions
 }
 
 /**
- * 크루 상세(크루 밖 열람 범위: 로고, 이름, 인원과 가입 방식, 소개, 태그, 이번 주 크루 거리, 크루장, Q-45). 이미 가입 신청을 보낸
- * 크루면([pending]) 결정 기한(신청 뒤 7일, FR-121)과 신청 취소를, 아니면 가입 단추를 아래에 둔다.
+ * 크루 상세(크루 밖 열람 범위: 로고, 이름, 인원과 가입 방식, 소개, 태그, 지난 주 달린 거리, Q-45, 피그마 F-02). 지난 주 거리는 크루
+ * 정보(GET /crews/{id})를 읽은 뒤에 채우고([lastWeekDistance]가 null이면 빈 값). 이미 가입 신청을 보낸 크루면([pending]) 결정
+ * 기한(신청 뒤 7일, FR-121)과 신청 취소를, 아니면 가입 단추를 아래에 둔다.
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun CrewDetailContent(
     crew: CrewList.Item,
     isJoining: Boolean,
     onJoin: () -> Unit,
     modifier: Modifier = Modifier,
+    lastWeekDistance: Distance? = null,
     pending: MyCrew.PendingJoin? = null,
     onCancel: (MyCrew.PendingJoin) -> Unit = {}
 ) {
@@ -98,19 +95,8 @@ internal fun CrewDetailContent(
                 )
             }
             crew.intro?.let { Text(it, style = RunkkTextStyles.Body, color = colors.onSurface) }
-            if (crew.tags.isNotEmpty()) {
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    crew.tags.forEach { RunkkBadge(RunkkTags.label(it)) }
-                }
-            }
-            CrewCard {
-                DetailLine(stringResource(R.string.crew_detail_weekly), RunkkFormat.targetLabel(crew.weeklyDistance))
-                HorizontalDivider(color = colors.outlineVariant)
-                DetailLine(stringResource(R.string.crew_role_leader), crew.leaderName)
-            }
+            CrewTagBadges(crew.tags)
+            CrewStatCard(stringResource(R.string.crew_detail_last_week), lastWeekDistance?.let { kmLabel(it) })
         }
         Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 32.dp)) {
             if (pending != null) {
@@ -119,20 +105,6 @@ internal fun CrewDetailContent(
                 JoinButton(crew, isJoining, onJoin)
             }
         }
-    }
-}
-
-/** 상세의 한 줄: 이름과 값. */
-@Composable
-private fun DetailLine(label: String, value: String) {
-    Row(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}, verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            label,
-            style = RunkkTextStyles.Body,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(1f)
-        )
-        Text(value, style = RunkkTextStyles.BodyStrong, color = MaterialTheme.colorScheme.onSurface)
     }
 }
 

@@ -26,7 +26,6 @@ import com.a207.runkk.app.domain.live.OpponentProgress
 import com.a207.runkk.app.domain.live.ProgressReport
 import com.a207.runkk.app.domain.live.ServerMessage
 import com.a207.runkk.app.domain.run.CoordinatedRound
-import com.a207.runkk.app.domain.run.CrewRank
 import com.a207.runkk.app.domain.run.RunProgress
 import com.a207.runkk.app.domain.run.RunStartSpec
 import com.a207.runkk.app.domain.run.RunTracker
@@ -46,10 +45,11 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * 크루런 러닝의 측정과 중계 메시지를 잇는다(6.1.14). 크루런 대기 진입(onLobbyEntered) 때 applicationScope 아래에
- * 자기 범위를 만들고 endRun·quit·취소 뒤 닫는다(5.1.2). 상태 변경은 그 범위의 직렬 디스패처에서만 돈다.
- * 출발 카운트다운(Countdown) 중에 온 중계는 그 상태를 덮지 않는다(F-1). 그만두기 보고를 다시 보내도 실패하거나
- * 채널에 연결하지 못하면 failure로 알린다(F-3, O-6).
+ * 크루런 러닝의 측정과 중계 메시지를 잇는다(6.1.14, 합산 방식 S15P31A207-236). 크루런 대기 진입(onLobbyEntered) 때
+ * applicationScope 아래에 자기 범위를 만들고 endRun·quit·취소 뒤 닫는다(5.1.2). 상태 변경은 그 범위의 직렬 디스패처에서만 돈다.
+ * 각자 개인 러닝처럼 측정하고(목표 거리에 닿아도 끝나지 않는다) 일시정지할 수 있다. 정지로 바뀌면 서버에 알리고, 재개는 서버가
+ * 늘어난 경과의 진행값으로 판단한다. 출발 카운트다운(Countdown) 중에 온 중계는 그 상태를 덮지 않는다(F-1). 끝내기 보고를 다시
+ * 보내도 실패하거나 채널에 연결하지 못하면 failure로 알린다(F-3, O-6).
  */
 @Singleton
 class CrewRunCoordinator
@@ -72,10 +72,7 @@ constructor(
     @Volatile
     private var run: CrewRun? = null
 
-    /**
-     * 크루런 대기실 진입(ui.crew가 CrewRepository.enterLobby 성공 뒤 부른다). 채널을 열고 중계를 받는다. 중계의 본인 줄은
-     * data.live가 표시한 CrewRunRelay.Entry.isMe로 가린다(1km 순위 안내, FR-190).
-     */
+    /** 크루런 대기실 진입(ui.crew가 CrewRepository.enterLobby 성공 뒤 부른다). 채널을 열고 중계를 받는다. */
     fun onLobbyEntered(postId: Long, distance: Distance) {
         val run = openRun(postId, distance)
         run.round.scope.launch {
@@ -109,19 +106,30 @@ constructor(
         run.round.scope.launch { handle(run, m) }
     }
 
-    fun onArrived() {
-        val run = run ?: return
-        run.round.scope.launch { finish(run, cancelledReason = null) }
-    }
-
-    /** 확인 뒤 중간 그만두기(POST /crew-runs/{id}/quit, design-review.md E4) → 기록 저장. 보고가 끝내 실패하면 failure로 알린다. */
+    /**
+     * 확인 뒤 내 크루런 끝내기(POST /crew-runs/{id}/quit, F-15d) → 기록 저장. 끝낼 때의 내 거리·경과를 실어 보낸다.
+     * 보고가 끝내 실패하면 failure로 알린다.
+     */
     fun quit() {
         val run = run ?: return
         run.round.scope.launch {
-            val reported = run.round.report { crewRepository.quit(run.postId) }
+            val last = run.last
+            val reported = run.round.report {
+                crewRepository.quit(run.postId, last?.distance?.meters, last?.elapsed)
+            }
             if (reported is Outcome.Failure) _failure.value = reported.error
             finish(run, cancelledReason = null)
         }
+    }
+
+    /** 일시정지(F-15c). 폰 버튼·잠금 화면 알림·워치가 모두 RunTracker로 모이고, 서버 보고는 진행값의 정지 전이로 한다. */
+    fun pause() {
+        if (run?.round?.isMeasuring == true) runTracker.onPauseTapped()
+    }
+
+    /** 재개(F-15c). */
+    fun resume() {
+        if (run?.round?.isMeasuring == true) runTracker.onResumeTapped()
     }
 
     /**
@@ -174,11 +182,22 @@ constructor(
             fail(run, started.error)
             return
         }
-        _state.value = CrewRunState.Running(run.postId, run.lastEntries)
+        _state.value = CrewRunState.Running(run.postId, run.lastEntries, run.lastTotal)
     }
 
+    /**
+     * 진행값 하나: 화면용 내 측정값을 갱신하고, 정지로 바뀌었으면 서버에 알린다(재개는 다음 진행값이 알린다). 경과가 늘어난
+     * 처음 보는 값만 중계 채널로 보낸다. 목표 거리에 닿아도 끝내지 않는다(합산 방식).
+     */
     private fun progress(run: CrewRun, p: RunProgress) {
-        if (!run.round.isMeasuring || !run.round.accept(p)) return
+        if (!run.round.isMeasuring) return
+        run.last = p
+        updateMine(run, p)
+        if (p.isPaused != run.isPaused) {
+            run.isPaused = p.isPaused
+            if (p.isPaused) reportPause(run, p.elapsed)
+        }
+        if (!run.round.accept(p)) return
         run.channel?.send(
             ProgressReport(
                 channel = ProgressReport.Channel.CREW_RUN,
@@ -188,7 +207,25 @@ constructor(
                 sentAt = clock.instant()
             )
         )
-        if (p.distance.isAtLeast(run.distance)) finish(run, cancelledReason = null)
+    }
+
+    /** 정지 보고. 실패해도 측정은 그대로 두고(다른 사람에게 멈춤이 늦게 보일 뿐) 다시 보내기는 CoordinatedRound에 맡긴다. */
+    private fun reportPause(run: CrewRun, elapsed: Duration) {
+        run.round.scope.launch { run.round.report { crewRepository.pause(run.postId, elapsed) } }
+    }
+
+    private fun updateMine(run: CrewRun, p: RunProgress) {
+        val mine = CrewRunProgress(
+            p.distance,
+            p.elapsed,
+            p.currentPace,
+            p.averagePace,
+            isPaused = p.isPaused,
+            route = runTracker.routeLine.value
+        )
+        _state.update { current ->
+            if (current is CrewRunState.Running && current.postId == run.postId) current.copy(mine = mine) else current
+        }
     }
 
     private fun handle(run: CrewRun, m: ServerMessage) {
@@ -213,18 +250,17 @@ constructor(
         }
     }
 
-    /** 중계를 상태로 내보내고 본인 순위를 안내 입력으로 넘긴다. 출발 카운트다운·종료 상태는 덮지 않는다(F-1). */
+    /** 중계(참가자 표·합산 거리)를 상태로 내보낸다. 출발 카운트다운·종료 상태는 덮지 않는다(F-1). */
     private fun onRelay(run: CrewRun, m: CrewRunRelay) {
         if (m.postId != run.postId) return
-        run.remember(m.entries)
+        run.remember(m.entries, m.totalDistance)
         _state.update { current ->
             when (current) {
                 is CrewRunState.Countdown, is CrewRunState.Finished -> current
-                else -> CrewRunState.Running(run.postId, m.entries)
+                is CrewRunState.Running -> current.copy(entries = m.entries, totalDistance = m.totalDistance)
+                else -> CrewRunState.Running(run.postId, m.entries, m.totalDistance)
             }
         }
-        val mine = m.entries.firstOrNull { it.isMe }?.rank
-        if (mine != null && mine in 1..m.entries.size) runTracker.onRankChanged(CrewRank(mine, m.entries.size))
     }
 
     private fun finish(run: CrewRun, cancelledReason: String?) {
@@ -279,9 +315,18 @@ constructor(
         var channel: LiveChannel? = null
             private set
 
-        /** 마지막 중계 표. 측정이 시작되면 Running 상태의 첫 표로 쓴다. */
+        /** 마지막 중계 표와 합산 거리. 측정이 시작되면 Running 상태의 첫 표로 쓴다. */
         var lastEntries: List<CrewRunRelay.Entry> = emptyList()
             private set
+
+        var lastTotal: Distance = Distance.ZERO
+            private set
+
+        /** 마지막으로 받은 내 진행값(끝내기 보고에 싣는다). 직렬 디스패처에서만 쓴다. */
+        var last: RunProgress? = null
+
+        /** 마지막으로 본 정지 여부. 직렬 디스패처에서만 쓴다. */
+        var isPaused = false
 
         /** 시작 예약을 받았는가. 같은 CrewRunStart가 두 번 와도 한 번만 시작한다. */
         @Volatile
@@ -292,8 +337,9 @@ constructor(
             this.channel = channel
         }
 
-        fun remember(entries: List<CrewRunRelay.Entry>) {
+        fun remember(entries: List<CrewRunRelay.Entry>, total: Distance) {
             lastEntries = entries
+            lastTotal = total
         }
 
         /** 시작 예약. 이미 예약됐으면 거짓. */

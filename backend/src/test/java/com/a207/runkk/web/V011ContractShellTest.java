@@ -82,7 +82,7 @@ class V011ContractShellTest extends WebTestSupport {
         Map<String, Object> form = new HashMap<>();
         form.put("name", "계약" + (System.nanoTime() % 100000));
         form.put("intro", "소개");
-        form.put("tags", List.of("SOCIAL_RUN"));
+        form.put("tags", List.of("WEEKDAY_EVENING"));
         form.put("visibility", "PUBLIC");
         form.put("joinPolicy", "FREE");
         long crewId =

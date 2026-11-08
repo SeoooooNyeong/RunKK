@@ -198,6 +198,61 @@ class RecordScreenshotTest {
         )
     }
 
+    /** K-1 시안 카드: 날씨·심박·신기록이 있는 기록. */
+    private fun k1Card() = runCard().copy(
+        averageHeartRate = 152,
+        newRecords = listOf("최장 거리 신기록"),
+        weather = com.a207.runkk.app.domain.record.CardWeather(
+            14,
+            com.a207.runkk.app.domain.record.CardWeather.Sky.CLEAR
+        )
+    )
+
+    private fun k1State(card: com.a207.runkk.app.domain.record.RunCard, side: CardSide, isShareStep: Boolean) =
+        RecordCardUiState(
+            isLoading = false,
+            card = card,
+            front = android.graphics.Bitmap.createBitmap(8, 10, android.graphics.Bitmap.Config.ARGB_8888),
+            side = side,
+            isShareStep = isShareStep
+        )
+
+    /** K-1 1: 카드 뒷면 팝업(코스 있음, 라이트). */
+    @Test
+    fun k1CardBackLight() = compose.captureRunkkScreen("K1_record_card_back_light", isDarkTheme = false) {
+        RecordCardScreen(k1State(k1Card(), CardSide.BACK, false), {}, {}, {}, {}, {})
+    }
+
+    /** K-1 2: 카드 뒷면 팝업(코스 기록 없음, 라이트). */
+    @Test
+    fun k1CardBackNoCourse() = compose.captureRunkkScreen("K1_record_card_back_no_course_light", isDarkTheme = false) {
+        RecordCardScreen(k1State(k1Card().copy(route = emptyList()), CardSide.BACK, false), {}, {}, {}, {}, {})
+    }
+
+    /** K-1 1 다크: 테마 변수로 바뀐 뒷면. */
+    @Test
+    fun k1CardBackDark() = compose.captureRunkkScreen("K1_record_card_back_dark") {
+        RecordCardScreen(k1State(k1Card(), CardSide.BACK, false), {}, {}, {}, {}, {})
+    }
+
+    /** K-2 1: 카드 공유 앞면(라이트). */
+    @Test
+    fun k2ShareFront() = compose.captureRunkkScreen("K2_card_share_front_light", isDarkTheme = false) {
+        RecordCardScreen(k1State(k1Card(), CardSide.FRONT, true), {}, {}, {}, {}, {})
+    }
+
+    /** K-2 2: 코스 지도 표시 켬(뒷면, 라이트). */
+    @Test
+    fun k2ShareBack() = compose.captureRunkkScreen("K2_card_share_back_light", isDarkTheme = false) {
+        RecordCardScreen(k1State(k1Card(), CardSide.BACK, true), {}, {}, {}, {}, {})
+    }
+
+    /** K-2 3: 코스 지도 공유가 꺼진 기록(라이트). */
+    @Test
+    fun k2ShareCourseOff() = compose.captureRunkkScreen("K2_card_share_course_off_light", isDarkTheme = false) {
+        RecordCardScreen(k1State(k1Card().copy(isCourseMapShared = false), CardSide.FRONT, true), {}, {}, {}, {}, {})
+    }
+
     /** G3 카드 공유: 코스 지도 공유가 꺼진 기록이라 "코스 지도 표시"가 잠겨 있다. */
     @Test
     fun cardShareCourseOff() = compose.captureRunkkScreen("G3_card_share_course_off") {

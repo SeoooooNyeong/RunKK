@@ -16,6 +16,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Clock
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.temporal.TemporalAdjusters
 import javax.inject.Inject
 import kotlinx.coroutines.async
@@ -30,12 +31,18 @@ import kotlinx.coroutines.launch
  * 오늘 계획을 정하면 TodayPlanCache에도 알려 워치 시작 화면이 바뀐 계획을 보이게 한다(WatchHomeSync, FR-042).
  */
 @HiltViewModel
-class CoachViewModel @Inject constructor(
+class CoachViewModel internal constructor(
     private val records: RecordRepository,
     private val todayPlans: TodayPlanCache,
-    clock: Clock
+    clock: Clock,
+    zone: ZoneId
 ) : ViewModel() {
-    private val today = LocalDate.now(clock)
+    @Inject
+    constructor(records: RecordRepository, todayPlans: TodayPlanCache, clock: Clock) :
+        this(records, todayPlans, clock, ZoneId.systemDefault())
+
+    /** 앱 Clock은 UTC(DeviceBindings)라 날짜·시각은 기기 시간대 [zone](ZoneId.systemDefault(), 러닝 결과 화면과 같다)으로 셈한다(MR !91 e2e 2 후속). */
+    private val today = clock.instant().atZone(zone).toLocalDate()
     private val weekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
     private val _state = MutableStateFlow(CoachUiState(weekStart = weekStart, today = today))
     val state: StateFlow<CoachUiState> = _state.asStateFlow()
