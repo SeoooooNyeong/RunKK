@@ -9,28 +9,33 @@ import org.robolectric.RuntimeEnvironment
 @RunWith(RobolectricTestRunner::class)
 class RunkkTagsTest {
     @Test
-    fun `고정 목록은 7분류 19개이고 러너는 6분류`() {
-        assertEquals(19, RunkkTags.categories.sumOf { it.tags.size })
-        assertEquals(6, RunkkTags.runnerCategories.size)
-        assertEquals("함께가 좋아요", RunkkTags.label(RuntimeEnvironment.getApplication().resources, "SOCIAL_RUN"))
-    }
-
-    @Test
-    fun `같은 분류에서 다른 태그를 켜면 앞 태그가 꺼진다`() {
-        val selected = RunkkTags.toggle(setOf("SOLO_RUN"), "SOCIAL_RUN")
-        assertEquals(setOf("SOCIAL_RUN"), selected)
+    fun `고정 목록은 평일과 주말 두 줄에 시간대 넷씩 8개다`() {
+        assertEquals(listOf(4, 4), RunkkTags.categories.map { it.tags.size })
+        val res = RuntimeEnvironment.getApplication().resources
+        assertEquals("평일 저녁", RunkkTags.label(res, "WEEKDAY_EVENING"))
+        assertEquals("아침", res.getString(RunkkTags.of("WEEKEND_MORNING")!!.slotRes))
+        assertEquals(true, RunkkTags.of("WEEKEND_MORNING")!!.isWeekend)
     }
 
     @Test
     fun `켜진 태그를 다시 누르면 꺼진다`() {
-        assertEquals(emptySet(), RunkkTags.toggle(setOf("SOLO_RUN"), "SOLO_RUN"))
+        assertEquals(emptySet(), RunkkTags.toggle(setOf("WEEKDAY_EVENING"), "WEEKDAY_EVENING"))
     }
 
     @Test
-    fun `5개를 넘기면 바꾸지 않는다`() {
-        val five = setOf("SOLO_RUN", "SHORT_DISTANCE", "FAMILIAR_ROUTE", "ROUTINE_RUN", "DAWN")
-        assertEquals(five, RunkkTags.toggle(five, "PERSONAL_BEST"))
-        // 같은 분류 안 바꾸기는 상한과 관계없이 된다.
-        assertEquals(five - "DAWN" + "NIGHT", RunkkTags.toggle(five, "NIGHT"))
+    fun `같은 줄의 태그도 함께 고를 수 있고 3개를 넘기면 바꾸지 않는다`() {
+        val two = RunkkTags.toggle(setOf("WEEKDAY_EVENING"), "WEEKDAY_DAWN")
+        assertEquals(setOf("WEEKDAY_EVENING", "WEEKDAY_DAWN"), two)
+        val three = RunkkTags.toggle(two, "WEEKEND_MORNING")
+        assertEquals(three, RunkkTags.toggle(three, "WEEKEND_LUNCH"))
+    }
+
+    @Test
+    fun `모르는 태그는 켜지 않고 목록 순서로 늘어놓는다`() {
+        assertEquals(emptySet(), RunkkTags.toggle(emptySet(), "SOCIAL_RUN"))
+        assertEquals(
+            listOf("WEEKDAY_EVENING", "WEEKEND_MORNING", "SOCIAL_RUN"),
+            RunkkTags.sorted(setOf("SOCIAL_RUN", "WEEKEND_MORNING", "WEEKDAY_EVENING"))
+        )
     }
 }

@@ -55,7 +55,7 @@ class ChatControllerTest extends WebTestSupport {
         Map<String, Object> form = new HashMap<>();
         form.put("name", "채팅크루" + CREWS.incrementAndGet());
         form.put("intro", "함께 달려요");
-        form.put("tags", List.of("SOCIAL_RUN"));
+        form.put("tags", List.of("WEEKDAY_EVENING"));
         form.put("visibility", "PUBLIC");
         form.put("joinPolicy", "FREE");
         long crewId =

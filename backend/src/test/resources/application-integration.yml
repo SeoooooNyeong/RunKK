@@ -17,5 +17,7 @@ runkk:
   batch:
     battle-tick-enabled: false
     crew-tick-enabled: false
+    # 런바디 작업 진행(05-19 D-443)은 시험이 pollDue를 직접 부른다
+    runbody-poll-enabled: false
   embedded-redis:
     enabled: false

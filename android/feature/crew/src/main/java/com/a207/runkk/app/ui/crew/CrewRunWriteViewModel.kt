@@ -8,12 +8,11 @@ import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.crew.CrewRepository
 import com.a207.runkk.app.domain.crew.CrewRunForm
-import com.a207.runkk.app.domain.crew.MeetupForm
-import com.a207.runkk.app.domain.crew.PostList
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Clock
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.ZoneId
 import javax.inject.Inject
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -25,40 +24,24 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * 일정 쓰기(FR-132, FR-207): 크루런(제목·내용·거리 1·3·5·10km·모집 일시, 장소 칸 없음)과 대면 모임(내용·장소·정원·일시).
- * 지난 일시는 앱이 먼저 막고 서버도 거부한다.
+ * 크루런 모집하기(FR-132, 피그마 F-12): 제목·내용·거리 1·3·5·10km·모집 일시. 대면 모임은 앱에서 만들지 않는다.
+ * 지난 일시는 앱이 먼저 막고 서버도 거부한다. 날짜 칩과 고른 시각은 기기 시간대 [zone]으로 읽어 모집 일시로 바꾼다
+ * (앱 Clock은 UTC라 clock.zone으로 바꾸면 9시간 어긋난다, MR !91 e2e 2 후속).
  */
 @HiltViewModel
-class CrewRunWriteViewModel @Inject constructor(private val crews: CrewRepository, private val clock: Clock) :
-    ViewModel() {
-    private val _state = MutableStateFlow(CrewRunWriteUiState(today = LocalDate.now(clock)))
+class CrewRunWriteViewModel internal constructor(
+    private val crews: CrewRepository,
+    private val clock: Clock,
+    private val zone: ZoneId
+) : ViewModel() {
+    @Inject
+    constructor(crews: CrewRepository, clock: Clock) : this(crews, clock, ZoneId.systemDefault())
+
+    private val _state = MutableStateFlow(CrewRunWriteUiState(today = clock.instant().atZone(zone).toLocalDate()))
     val state: StateFlow<CrewRunWriteUiState> = _state.asStateFlow()
 
     private val _events = Channel<CrewRunWriteEvent>(Channel.BUFFERED)
     val events: Flow<CrewRunWriteEvent> = _events.receiveAsFlow()
-
-    /** 일정 종류(크루런·대면 모임, FR-132). */
-    fun onKind(kind: PostList.Kind) {
-        if (kind == PostList.Kind.CREW_RUN ||
-            kind == PostList.Kind.MEETUP
-        ) {
-            _state.update { it.copy(kind = kind, error = null) }
-        }
-    }
-
-    fun onPlace(text: String) = _state.update {
-        it.copy(placeName = text.takeCodePoints(CrewRunWriteUiState.PLACE_MAX), error = null)
-    }
-
-    /** 정원 2~10명. 범위 밖이거나 null이면 크루 정원(비움). */
-    fun onCapacity(capacity: Int?) = _state.update {
-        it.copy(
-            capacity = capacity?.takeIf { c ->
-                c in
-                    CrewRunWriteUiState.CAPACITY_MIN..CrewRunWriteUiState.CAPACITY_MAX
-            }
-        )
-    }
 
     fun onTitle(text: String) = _state.update { it.copy(title = text.take(TITLE_MAX), error = null) }
 
@@ -75,28 +58,17 @@ class CrewRunWriteViewModel @Inject constructor(private val crews: CrewRepositor
     fun onSubmit(crewId: Long) {
         val s = _state.value
         if (!s.isValid || s.isSaving) return
-        val meetAt = s.today.plusDays(s.dayOffset.toLong()).atTime(s.time).atZone(clock.zone).toInstant()
+        val meetAt = s.today.plusDays(s.dayOffset.toLong()).atTime(s.time).atZone(zone).toInstant()
         if (!meetAt.isAfter(clock.instant())) {
             _state.update { it.copy(error = uiText(R.string.crew_run_write_past_time)) }
             return
         }
         _state.update { it.copy(isSaving = true) }
         viewModelScope.launch {
-            val r = if (s.kind == PostList.Kind.MEETUP) {
-                crews.writeMeetup(crewId, MeetupForm(s.body.trim(), meetAt, s.placeName.trim(), s.capacity))
-            } else {
-                crews.writeCrewRun(
-                    crewId,
-                    CrewRunForm(
-                        s.title.trim(),
-                        s.body.trim().ifBlank {
-                            null
-                        },
-                        s.distance,
-                        meetAt
-                    )
-                )
-            }
+            val r = crews.writeCrewRun(
+                crewId,
+                CrewRunForm(s.title.trim(), s.body.trim().ifBlank { null }, s.distance, meetAt)
+            )
             when (r) {
                 is Outcome.Success -> {
                     _state.update { it.copy(isSaving = false) }

@@ -26,7 +26,6 @@ class GuidanceTextsTest {
         assertEquals("목표 거리 5.0km에 도달했어요", text(GuidanceMessage.TARGET_REACHED, 5.0))
         assertEquals("70m 앞서는 중, 남은 거리 2500m", text(GuidanceMessage.GAP_AHEAD_REMAINING, 70, 2_500L))
         assertEquals("30m 뒤처져 있어요", text(GuidanceMessage.GAP_BEHIND, 30))
-        assertEquals("5명 중 2위", text(GuidanceMessage.RANK, 5, 2))
         assertEquals("상대를 추월했어요! 12m 앞서는 중", text(GuidanceMessage.OVERTOOK, 12))
     }
 

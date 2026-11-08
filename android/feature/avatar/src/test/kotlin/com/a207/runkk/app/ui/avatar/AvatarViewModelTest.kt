@@ -90,8 +90,12 @@ class FakeAvatars : AvatarRepository {
         return equipResult(changes)
     }
 
+    /** 상점 읽기 실패(null이면 성공, 잔액 1,240). */
+    var shopFailure: AppError? = null
+
     override suspend fun shop(slot: ItemSlot?): Outcome<Shop> {
         calls += "shop:$slot"
+        shopFailure?.let { return Outcome.Failure(it) }
         return Outcome.Success(Shop(items.filter { slot == null || it.slot == slot }, 1_240))
     }
 
@@ -270,16 +274,31 @@ class ShopViewModelTest {
     }
 
     @Test
-    fun `보유·판매 종료 아이템은 고를 수 없고 잔액 부족은 안내한다`() {
+    fun `보유, 판매 종료 아이템은 고를 수 없고 잔액을 모르면 확인 뒤 서버의 잔액 부족 거절을 안내한다`() {
+        repo.shopFailure = AppError.Network
         val vm = ShopViewModel(repo)
         vm.onPick(items[0])
         vm.onPick(items[4])
         assertNull(vm.state.value.confirming)
+        assertNull(vm.state.value.shop)
         repo.purchaseResult = Outcome.Failure(AppError.Rejected("INSUFFICIENT_REWARD"))
         vm.onPick(items[3])
+        assertEquals(items[3], vm.state.value.confirming)
         vm.onBuy()
+        assertTrue("buy:4" in repo.calls)
         assertEquals(UiText.Res(R.string.avatar_error_insufficient_reward), vm.state.value.message)
         assertFalse(vm.state.value.isBuying)
+    }
+
+    @Test
+    fun `잔액보다 비싼 아이템을 고르면 확인 창 없이 바로 리워드 부족을 안내한다`() {
+        val vm = ShopViewModel(repo)
+        // 카본 러닝화 2,000 P > 잔액 1,240 P
+        vm.onPick(items[3])
+        assertNull(vm.state.value.confirming)
+        assertEquals(UiText.Res(R.string.avatar_error_insufficient_reward), vm.state.value.message)
+        vm.onBuy()
+        assertFalse("buy:4" in repo.calls)
     }
 
     @Test

@@ -1,6 +1,6 @@
 package com.a207.runkk.crew;
 
-import com.a207.runkk.common.PersonalityTag;
+import com.a207.runkk.common.CrewTag;
 import com.a207.runkk.common.StandardDistance;
 import com.a207.runkk.common.TagOwner;
 import com.a207.runkk.common.TagSet;
@@ -27,7 +27,7 @@ public final class CrewFixtures {
         return new CrewProfile(
                 CrewName.of(name),
                 "함께 달려요",
-                TagSet.of(Set.of(PersonalityTag.SOCIAL_RUN, PersonalityTag.MORNING), TagOwner.CREW),
+                TagSet.of(Set.of(CrewTag.WEEKDAY_EVENING, CrewTag.WEEKEND_MORNING), TagOwner.CREW),
                 visibility,
                 policy,
                 null);

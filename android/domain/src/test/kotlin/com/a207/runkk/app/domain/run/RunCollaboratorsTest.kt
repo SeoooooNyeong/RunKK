@@ -227,7 +227,7 @@ class RunCollaboratorsTest {
         paused.onPauseTapped()
         paused.tick(T0.plusSeconds(3))
         seen += watch.published.last().isPausable to watch.published.last().isPaused
-        assertEquals(listOf(true to false, false to false, false to false, true to true), seen)
+        assertEquals(listOf(true to false, false to false, true to false, true to true), seen)
     }
 
     @Test

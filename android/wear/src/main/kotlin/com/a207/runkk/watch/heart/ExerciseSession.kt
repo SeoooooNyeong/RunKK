@@ -1,6 +1,7 @@
 package com.a207.runkk.watch.heart
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 
 /**
  * Health Services 운동 세션 포트(ExerciseClient). 구현 [HealthServicesExerciseSession].
@@ -15,4 +16,7 @@ interface ExerciseSession {
 
     /** 세션을 열어 심박을 낸다. 취소·오류로 끝나면 세션을 끝내고 콜백을 푼 뒤에야 끝난다. */
     fun heartRates(): Flow<WatchHeartRate>
+
+    /** [heartRates]가 연 세션이 함께 잰 손목 걸음(S15P31A207-242). 세션이 열려 있을 때만 값이 온다. */
+    val steps: Flow<WatchSteps> get() = emptyFlow()
 }

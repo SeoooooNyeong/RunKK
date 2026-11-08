@@ -34,7 +34,7 @@ class HomeFeatureEntry @Inject constructor() : FeatureEntry {
     }
 }
 
-/** 가이드 상태를 읽어 단계 목록(1차 배포 6단계, ReleaseScope로 거름)과 앵커로 막을 그린다. */
+/** 가이드 상태를 읽어 단계 목록(ReleaseScope로 거름, 2차 배포 운영 빌드 8단계)과 앵커로 막을 그린다. */
 @Composable
 internal fun FirstRunGuideRoute(viewModel: FirstRunGuideViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()

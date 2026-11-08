@@ -98,17 +98,17 @@ class RealtimeContractTest {
                 "CrewRunRelay" to
                     CrewRunRelay(
                         77,
+                        Distance(7_600),
                         listOf(
                             CrewRunRelay.Entry(
                                 "새벽곰",
                                 Distance(3_120),
-                                1,
-                                CrewRunRelay.Connection.CONNECTED,
+                                CrewRunRelay.State.RUNNING,
                                 11,
                                 isMe = true
                             ),
-                            CrewRunRelay.Entry("달리는여우", Distance(2_980), 2, CrewRunRelay.Connection.CHECKING, 12),
-                            CrewRunRelay.Entry("한강토끼", Distance(1_500), null, CrewRunRelay.Connection.QUIT, 13)
+                            CrewRunRelay.Entry("달리는여우", Distance(2_980), CrewRunRelay.State.PAUSED, 12),
+                            CrewRunRelay.Entry("한강토끼", Distance(1_500), CrewRunRelay.State.ENDED, 13)
                         )
                     ),
                 "CrewRunEnded" to CrewRunEnded(77),
@@ -137,13 +137,16 @@ class RealtimeContractTest {
     }
 
     @Test
-    fun `mine 없는 옛 크루런 중계는 memberId와 접근 토큰 회원 ID가 같은 줄을 본인으로 본다`() {
+    fun `mine 없는 크루런 중계는 memberId와 접근 토큰 회원 ID가 같은 줄을 본인으로 보고 합산 거리가 없으면 줄 거리를 더한다`() {
         val legacy =
             """{"type":"CrewRunRelay","postId":77,"entries":[
-              |{"name":"a","distance":3,"rank":1,"connection":"CONNECTED","memberId":11},
-              |{"name":"b","distance":2,"rank":2,"connection":"CHECKING","memberId":12},
-              |{"name":"c","distance":1,"connection":"QUIT"}]}
+              |{"name":"a","distance":3,"state":"RUNNING","memberId":11},
+              |{"name":"b","distance":2,"state":"CHECKING","memberId":12},
+              |{"name":"c","distance":1,"state":"SOMETHING_NEW"}]}
             """.trimMargin()
+        val decoded = ServerMessageDecoder { 12L }.decode(legacy) as CrewRunRelay
+        assertEquals(Distance(6), decoded.totalDistance)
+        assertEquals(CrewRunRelay.State.RUNNING, decoded.entries[2].state, "모르는 상태는 달리는 중")
 
         assertEquals(
             listOf(false, true, false),
@@ -244,8 +247,8 @@ class RealtimeContractTest {
         val relay =
             ServerMessageDecoder { 11L }.decode(
                 """{"type":"CrewRunRelay","postId":1,"entries":[
-                  |{"name":"a","distance":1,"connection":"CONNECTED","memberId":11,"mine":false},
-                  |{"name":"b","distance":2,"connection":"CONNECTED","memberId":12,"mine":true}]}
+                  |{"name":"a","distance":1,"state":"RUNNING","memberId":11,"mine":false},
+                  |{"name":"b","distance":2,"state":"RUNNING","memberId":12,"mine":true}]}
                 """.trimMargin()
             ) as CrewRunRelay
 

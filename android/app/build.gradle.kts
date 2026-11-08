@@ -128,7 +128,8 @@ androidComponents {
             tasks.configureEach { if (name == taskName) enabled = false }
         }
     }
-    // 1차 배포 잠금(D-251, BetaLock.kt·ReleaseScope): prod·develop 플레이버는 참(팀 시험 빌드도 출시 모습), local은 거짓이다.
+    // 미공개 기능 잠금(D-251, BetaLock.kt·ReleaseScope): prod·develop 플레이버는 참(팀 시험 빌드도 출시 모습), local은 거짓이다.
+    // 참이면 지금 배포 범위(2차 배포 ReleaseScope.SECOND_RELEASE: 카드 뒷면·Runimal 공유만 닫힘)다.
     // Gradle 속성 -Prunkk.lockUnreleased=true|false가 있으면 플레이버 기본값보다 앞선다(2차 배포 기능 개발용).
     val lockUnreleasedOverride = providers.gradleProperty("runkk.lockUnreleased").orNull?.toBooleanStrictOrNull()
     onVariants { variant ->

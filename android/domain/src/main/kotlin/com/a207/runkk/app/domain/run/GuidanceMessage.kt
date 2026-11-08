@@ -32,9 +32,6 @@ enum class GuidanceMessage {
     /** 대결 격차: 뒤처짐 + 남은 거리. 인자: 격차 m(양수), 남은 m. */
     GAP_BEHIND_REMAINING,
 
-    /** 크루런 순위. 인자: 참가자 수, 순위. */
-    RANK,
-
     /** 추월. 인자: 앞선 m. */
     OVERTOOK,
 

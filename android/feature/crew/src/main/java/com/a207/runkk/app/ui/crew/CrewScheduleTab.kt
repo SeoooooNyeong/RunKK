@@ -41,16 +41,12 @@ import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.domain.crew.AttendanceAnswer
 import com.a207.runkk.app.domain.crew.CrewRunStatus
 import com.a207.runkk.app.domain.crew.LobbyAvailability
-import com.a207.runkk.app.domain.crew.Meetup
 import com.a207.runkk.app.domain.crew.PostList
 import java.time.Instant
 
-/** 일정 종류 선택지(FR-132): 크루런·대면 모임. */
-internal val SCHEDULE_KINDS: List<PostList.Kind> = listOf(PostList.Kind.CREW_RUN, PostList.Kind.MEETUP)
-
 /**
- * 일정 탭(와이어 I4, FR-132, FR-133, FR-145, FR-147): "+ 일정 만들기", 크루런과 대면 모임을 한 목록(가까운 일시순)으로, 아래에
- * "지난 일정". 크루런은 대기실 단추, 대면 모임은 정원과 장소를 보이고 둘 다 참석·불참·미정으로 응답한다.
+ * 크루런 탭(피그마 F-11, FR-133, FR-145, FR-147): "+ 크루런 모집하기", 다가오는 크루런(가까운 일시순), 아래에 "지난 크루런".
+ * 크루런마다 참석·불참·미정 응답과 대기실 단추를 보인다.
  */
 internal fun LazyListScope.scheduleTabItems(state: CrewHomeUiState, actions: CrewHomeActions) {
     val (upcoming, past) = splitSchedules(state)
@@ -64,18 +60,14 @@ internal fun LazyListScope.scheduleTabItems(state: CrewHomeUiState, actions: Cre
                 )
             }
             when {
-                state.crewRuns == null && state.meetups == null -> TabLoading(state.isLoading)
+                state.crewRuns == null -> TabLoading(state.isLoading)
                 upcoming.isEmpty() && past.isEmpty() -> RunkkEmptyState(stringResource(R.string.crew_schedule_empty))
                 else -> Unit
             }
         }
     }
     items(upcoming, key = { "schedule:${it.postId}" }) { post ->
-        if (post.kind == PostList.Kind.MEETUP) {
-            MeetupPost(post, actions)
-        } else {
-            CrewRunPost(post, state.lobbyEntries[post.postId], actions)
-        }
+        CrewRunPost(post, state.lobbyEntries[post.postId], actions)
     }
     if (past.isNotEmpty()) {
         item(key = "schedule:past") {
@@ -90,23 +82,18 @@ internal fun LazyListScope.scheduleTabItems(state: CrewHomeUiState, actions: Cre
     }
 }
 
-/**
- * 크루런과 대면 모임을 다가오는 일정(가까운 일시순)과 지난 일정(최근순)으로 나눈다. 끝났거나 취소된 크루런, [CrewHomeUiState.scheduleNow]가
- * 지난 대면 모임이 지난 일정이다.
- */
+/** 크루런을 다가오는 것(가까운 일시순)과 지난 것(최근순)으로 나눈다. 끝났거나 취소된 크루런이 지난 크루런이다. */
 internal fun splitSchedules(state: CrewHomeUiState): Pair<List<PostList.Item>, List<PostList.Item>> {
-    val all = state.crewRuns?.posts.orEmpty() + state.meetups?.posts.orEmpty()
-    val (past, upcoming) = all.partition { isPast(it, state.scheduleNow) }
+    val all = state.crewRuns?.posts.orEmpty().filter { it.kind == PostList.Kind.CREW_RUN }
+    val (past, upcoming) = all.partition { isPast(it) }
     return upcoming.sortedBy { scheduledAt(it) } to past.sortedByDescending { scheduledAt(it) }
 }
 
-private fun scheduledAt(post: PostList.Item): Instant =
-    post.crewRun?.scheduledAt ?: post.meetup?.scheduledAt ?: post.writtenAt
+private fun scheduledAt(post: PostList.Item): Instant = post.crewRun?.scheduledAt ?: post.writtenAt
 
-private fun isPast(post: PostList.Item, now: Instant?): Boolean {
+private fun isPast(post: PostList.Item): Boolean {
     val status = post.crewRun?.status
-    if (status == CrewRunStatus.FINISHED || status == CrewRunStatus.CANCELLED) return true
-    return post.kind == PostList.Kind.MEETUP && now != null && post.meetup?.scheduledAt?.isBefore(now) == true
+    return status == CrewRunStatus.FINISHED || status == CrewRunStatus.CANCELLED
 }
 
 /** 크루런 일정 카드(와이어 I4): 종류, 참석 수, 제목, 일시와 거리, 응답 수와 응답 마감, 응답 단추, 대기실 단추. */
@@ -137,64 +124,6 @@ private fun CrewRunPost(post: PostList.Item, lobby: LobbyAvailability?, actions:
         entry.lobby?.let { LobbyButton(post, it, actions) }
     }
 }
-
-/**
- * 대면 모임 일정 카드(와이어 I4): 종류, 정원, 제목 ›(대면 모임 상세 M7로), 일시와 장소, 응답 수, 응답 단추. 정원이 차면 서버가 새 참석을
- * 거부한다.
- */
-@Composable
-private fun MeetupPost(post: PostList.Item, actions: CrewHomeActions) {
-    val meetup = post.meetup
-    val colors = MaterialTheme.colorScheme
-    CrewCard {
-        ScheduleHeader(
-            post,
-            kind = stringResource(R.string.crew_schedule_kind_meetup),
-            trailing = meetup?.let { capacityLabel(it) },
-            actions = actions
-        )
-        MeetupTitle(post, onClick = { actions.onMeetup(post) })
-        if (meetup != null) {
-            Text(
-                listOf(scheduleLabel(meetup.scheduledAt), meetup.placeName).joinToString(", "),
-                style = RunkkTextStyles.Body,
-                color = colors.onSurface
-            )
-            AnswerCounts(meetup.goingCount, meetup.notGoingCount, meetup.undecidedCount, deadline = null)
-        }
-        AttendanceButtons(post, meetup?.myAnswer, canAnswer = true, actions = actions)
-    }
-}
-
-/** 대면 모임 제목과 ›. 누르면 대면 모임 상세(M7)로 간다. */
-@Composable
-private fun MeetupTitle(post: PostList.Item, onClick: () -> Unit) {
-    val colors = MaterialTheme.colorScheme
-    val title = post.summary.ifBlank { stringResource(R.string.crew_schedule_kind_meetup) }
-    val description = stringResource(R.string.crew_meetup_open_description, title)
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clip(RunkkShapes.Medium)
-            .clickable(role = Role.Button, onClick = onClick)
-            .heightIn(min = 40.dp)
-            .semantics(mergeDescendants = true) { contentDescription = description },
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(title, style = RunkkTextStyles.BodyStrong, color = colors.onSurface, modifier = Modifier.weight(1f))
-        Icon(
-            RunkkIcons.ChevronRight,
-            contentDescription = null,
-            tint = colors.onSurfaceVariant,
-            modifier = Modifier.size(16.dp)
-        )
-    }
-}
-
-/** "정원 6/8명"(정원이 없으면 크루 정원). */
-@Composable
-private fun capacityLabel(meetup: Meetup): String =
-    stringResource(R.string.crew_meetup_capacity_of, meetup.goingCount, meetup.capacity ?: CREW_MAX)
 
 /** 일정 카드 윗줄: 종류 배지, 작성자(내 글은 "나"), 참석 수나 정원, 삭제(지울 수 있으면), 신고(남의 글). */
 @Composable
@@ -327,12 +256,11 @@ private fun lobbyButtonText(lobby: LobbyAvailability): String = when (lobby) {
     }
 }
 
-/** 지난 일정 한 줄(와이어 I4): 제목, "크루런, 10.14, 5km, 6명" ›. 끝난 크루런은 눌러 결과로, 대면 모임은 상세(M7)로 간다. */
+/** 지난 크루런 한 줄(와이어 I4): 제목, "크루런, 10.14, 5km, 6명" ›. 인원은 함께 달린(진행 참가) 인원이다. 끝난 크루런은 눌러 결과로 간다. */
 @Composable
 private fun PastSchedule(post: PostList.Item, actions: CrewHomeActions) {
     val colors = MaterialTheme.colorScheme
     val run = post.crewRun
-    val meetup = post.meetup
     val isResult = run?.status == CrewRunStatus.FINISHED
     val caption = when {
         run != null -> listOf(
@@ -346,21 +274,10 @@ private fun PastSchedule(post: PostList.Item, actions: CrewHomeActions) {
             }
         )
 
-        meetup != null -> listOf(
-            stringResource(R.string.crew_schedule_kind_meetup),
-            shortDateLabel(meetup.scheduledAt),
-            meetup.placeName
-        )
-
         else -> emptyList()
     }.joinToString(", ")
     val resultDescription = stringResource(R.string.crew_home_run_result_description, post.summary)
-    val meetupDescription = stringResource(R.string.crew_meetup_open_description, post.summary)
-    val open: Pair<String, () -> Unit>? = when {
-        isResult -> resultDescription to { actions.onResult(post) }
-        meetup != null -> meetupDescription to { actions.onMeetup(post) }
-        else -> null
-    }
+    val open: Pair<String, () -> Unit>? = if (isResult) resultDescription to { actions.onResult(post) } else null
     CrewCard(
         modifier = open?.let { (description, onOpen) ->
             Modifier

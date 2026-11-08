@@ -47,6 +47,30 @@ class CardScreenshotTest {
         isCourseMapShared = true
     )
 
+    /** 공유 이미지 틀(라이트): 카드 아래 가운데에 작은 워드마크. 카드 자리에는 렌더러 앞면을 넣어 위치만 본다. */
+    @Test
+    fun framedShareImageLight() = compose.captureRunkkScreen("K2_share_image_framed_light", isDarkTheme = false) {
+        val app = RuntimeEnvironment.getApplication()
+        val cardImage = RunCardRenderer(app).render(card, CardSide.FRONT, null, null)
+        Image(
+            ShareImageFramer(app).frame(CapturedCard(cardImage, isDark = false)).asImageBitmap(),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize()
+        )
+    }
+
+    /** 공유 이미지 틀(다크): 라임 워드마크. */
+    @Test
+    fun framedShareImageDark() = compose.captureRunkkScreen("K2_share_image_framed_dark") {
+        val app = RuntimeEnvironment.getApplication()
+        val cardImage = RunCardRenderer(app).render(card, CardSide.FRONT, null, null)
+        Image(
+            ShareImageFramer(app).frame(CapturedCard(cardImage, isDark = true)).asImageBitmap(),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize()
+        )
+    }
+
     @Test
     fun runCardFront() = compose.captureRunkkScreen("share_run_card_front") {
         Image(

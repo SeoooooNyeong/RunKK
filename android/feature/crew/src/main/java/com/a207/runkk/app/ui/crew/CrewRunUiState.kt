@@ -2,6 +2,7 @@ package com.a207.runkk.app.ui.crew
 
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.domain.crew.CrewRunProgress
 import com.a207.runkk.app.domain.crew.Lobby
 import java.time.Duration
 
@@ -16,7 +17,12 @@ data class CrewRunUiState(
     /** 모집 일시까지 남은 시간. */
     val untilStart: Duration? = null,
     val countdown: Long? = null,
+    /** 중계의 크루원 표(내 줄 포함, 대기실 입장 순). */
     val relay: List<RelayRow> = emptyList(),
+    /** 크루가 함께 달린 거리 합(중계). */
+    val totalDistance: Distance = Distance.ZERO,
+    /** 내 측정값(거리·경과·페이스·정지·경로선). */
+    val mine: CrewRunProgress = CrewRunProgress.ZERO,
     val cancelledReason: String? = null,
     val isConfirmingQuit: Boolean = false,
     val isLeaving: Boolean = false,
@@ -28,4 +34,9 @@ data class CrewRunUiState(
      * 다시 해도 같으므로 거짓이고, 화면은 "다시 시도" 대신 "돌아가기"를 보인다.
      */
     val canRetry: Boolean = true
-)
+) {
+    val isPaused: Boolean get() = mine.isPaused
+
+    /** "함께 달리는 크루원 n명": 나를 빼고 아직 끝내지 않은 크루원 수. */
+    val runningMates: Int get() = relay.count { !it.isMe && it.isRunning }
+}

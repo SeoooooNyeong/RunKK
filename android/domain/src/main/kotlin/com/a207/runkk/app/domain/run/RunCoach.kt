@@ -30,7 +30,6 @@ constructor(
                 progress = progress,
                 todayPlan = session.spec.todayPlan,
                 gapMeters = session.gapMeters,
-                rank = session.rank,
                 birthYear = settings.birthYear(),
                 guidanceSettings = settings.guidanceSettings()
             )

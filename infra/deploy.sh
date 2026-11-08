@@ -18,13 +18,10 @@ load_edge_env
 if [ "$TARGET" = app ]; then
   load_app_env
   SPRING_PROFILE="$(env_value "$APP_ENV_FILE" SPRING_PROFILES_ACTIVE prod)"
-  # prod(베타)는 prod 프로필만, Swagger는 켜지 않는다(sqa.md 8.1 필수 4). 셀카는 서버 스위치로 꺼 둔다(2026-10-23 결정)
+  # prod(베타)는 prod 프로필만, Swagger는 켜지 않는다(sqa.md 8.1 필수 4). 셀카는 2차 배포(11/13)부터 연다(2026-11-09 결정, INFRA_ENV_PROD SELFIE_ENABLED=true)
   if [ "$RUNKK_ENV" = prod ]; then
     [ "$SPRING_PROFILE" = prod ] || die "RUNKK_ENV=prod needs SPRING_PROFILES_ACTIVE=prod (got $SPRING_PROFILE)"
     [ "$(env_value "$APP_ENV_FILE" SWAGGER_ENABLED false)" = false ] || die "RUNKK_ENV=prod must not set SWAGGER_ENABLED=true"
-    if [ "$(env_value "$APP_ENV_FILE" SELFIE_ENABLED false)" != false ]; then
-      echo "warning: SELFIE_ENABLED is on for prod. The beta decision (2026-10-23) keeps selfie conversion off." >&2
-    fi
   fi
 fi
 

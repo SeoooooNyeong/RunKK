@@ -38,7 +38,6 @@ object GuidanceTexts {
         GuidanceMessage.GAP_BEHIND to R.string.guidance_gap_behind,
         GuidanceMessage.GAP_AHEAD_REMAINING to R.string.guidance_gap_ahead_remaining,
         GuidanceMessage.GAP_BEHIND_REMAINING to R.string.guidance_gap_behind_remaining,
-        GuidanceMessage.RANK to R.string.guidance_rank,
         GuidanceMessage.OVERTOOK to R.string.guidance_overtook,
         GuidanceMessage.OVERTAKEN to R.string.guidance_overtaken,
         GuidanceMessage.SAVE_FAILED to R.string.guidance_save_failed,

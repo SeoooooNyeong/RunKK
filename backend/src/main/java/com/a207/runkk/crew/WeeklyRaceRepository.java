@@ -38,6 +38,9 @@ public interface WeeklyRaceRepository {
     /** 기록 하나의 반영 거리(어느 크루·주든), 없으면 0. */
     Distance contributionOf(String recordId);
 
+    /** 기록 하나가 반영된 크루(1인 1크루라 하나), 반영이 없으면 빈 값. */
+    Optional<Long> contributedCrewOf(String recordId);
+
     void deleteByCrew(long crewId);
 
     /** 탈퇴 회원의 기여를 익명화한다(합계는 그대로, FR-021). */
