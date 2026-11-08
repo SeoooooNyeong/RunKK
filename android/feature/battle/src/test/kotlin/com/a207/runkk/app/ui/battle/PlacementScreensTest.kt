@@ -28,7 +28,7 @@ class PlacementScreensTest {
     val compose = createComposeRule()
 
     private fun show(content: @Composable () -> Unit) = compose.setContent {
-        CompositionLocalProvider(LocalReleaseScope provides ReleaseScope.of(true)) {
+        CompositionLocalProvider(LocalReleaseScope provides ReleaseScope.FIRST_RELEASE) {
             RunkkTheme(reduceMotion = true) { content() }
         }
     }
