@@ -22,6 +22,7 @@ import java.time.Instant
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
@@ -123,6 +124,36 @@ class RunUploadRemoteImplTest {
             request.pauses
         )
         assertEquals("2026-10-22T19:22:00+09:00", request.endedAt, "20분 운동 + 2분 정지")
+    }
+
+    @Test
+    fun `본문 추정 크기가 상한을 넘으면 움직임 표본을 더 솎아 본문을 줄이고 위치는 그대로 둔다(MR !91 CR2-B2)`() {
+        val motions = List(20_000) { i ->
+            MotionSample(
+                START.plusMillis(i * 250L),
+                speedMps = 3.0 + (i % 3),
+                cadenceSpm = if (i % 2 ==
+                    0
+                ) {
+                    170.0
+                } else {
+                    null
+                }
+            )
+        }
+        val big = RUN.copy(motions = motions)
+        val limit = 400_000
+        fun size(request: RunUploadRequest) =
+            api.json.encodeToString(RunUploadRequest.serializer(), request).toByteArray(Charsets.UTF_8).size
+
+        assertTrue(size(big.toRequest()) > limit, "솎기 전에는 상한을 넘는다")
+        val fitted = big.toFittedRequest(limit)
+
+        assertTrue(size(fitted) <= limit, "솎은 뒤 ${size(fitted)}바이트")
+        assertTrue(fitted.motions.size in 1 until motions.size)
+        assertEquals(big.toRequest().points, fitted.points)
+        assertEquals(RUN.toRequest(), RUN.toFittedRequest(limit), "상한 안이면 그대로")
+        assertEquals(24 * 1024 * 1024, MAX_UPLOAD_BODY_BYTES)
     }
 
     @Test
