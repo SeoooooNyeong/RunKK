@@ -17,11 +17,15 @@ import java.time.Instant
 /**
  * 폰 걸음 센서(TYPE_STEP_COUNTER)로 케이던스를 잰다(S15P31A207-242). 업무 규칙은 domain CadenceMeter가 갖고, 이 클래스는 센서 값을
  * 넘기기만 한다. Android 10부터 걸음 센서는 신체 활동 권한(ACTIVITY_RECOGNITION)이 있어야 값을 준다. 권한이 없거나 센서가 없으면
- * 아무것도 하지 않는다(케이던스 없이 측정하고 서버가 비운다). 측정 서비스가 측정마다 [start]·[stop]한다.
+ * 아무것도 하지 않는다(케이던스 없이 측정하고 서버가 비운다). 측정 서비스가 측정마다 [start]·[stop]하고, 측정 중 1초마다
+ * [ensureStarted]를 불러 시작 뒤에 권한을 허용해도 그때부터 잰다(MR !91 AN-4).
  */
 internal class StepCadenceSensor(private val context: Context) {
     private val sensors: SensorManager? = context.getSystemService(SensorManager::class.java)
     private var listener: SensorEventListener? = null
+
+    /** 센서를 구독하고 있다. */
+    val isListening: Boolean get() = listener != null
 
     /** 센서를 구독한다. 권한·센서가 없으면 거짓이고 아무것도 하지 않는다. */
     fun start(onMotion: (MotionSample) -> Unit): Boolean {
@@ -42,6 +46,12 @@ internal class StepCadenceSensor(private val context: Context) {
         listener = fresh
         return true
     }
+
+    /**
+     * 아직 구독하지 않았으면 다시 시도한다. 측정 시작 때 권한이 없어 못 열었어도 측정 중 권한을 허용하면 이 호출부터 잰다. 이미 구독 중이면 바로 참이고,
+     * 권한 확인은 가벼워 1초마다 불러도 된다.
+     */
+    fun ensureStarted(onMotion: (MotionSample) -> Unit): Boolean = isListening || start(onMotion)
 
     fun stop() {
         listener?.let { sensors?.unregisterListener(it) }

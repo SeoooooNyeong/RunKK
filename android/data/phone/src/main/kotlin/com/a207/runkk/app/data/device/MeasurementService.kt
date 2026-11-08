@@ -145,6 +145,8 @@ class MeasurementService : LifecycleService() {
             lifecycleScope.launch {
                 while (isActive) {
                     delay(INTERVAL_MILLIS)
+                    // 측정 시작 뒤에 신체 활동 권한을 허용했으면 이때부터 걸음을 잰다(MR !91 AN-4)
+                    steps.ensureStarted(runTracker::onMotionSample)
                     runTracker.tick(clock.instant())
                 }
             }
