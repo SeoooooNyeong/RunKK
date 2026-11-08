@@ -21,8 +21,8 @@ import java.util.List;
  * @param validRunCount 유효 러닝 수
  * @param round 최근 10회의 회차(0이면 아직 10회가 안 됐다)
  * @param needs 1회차까지 남은 러닝 수(round가 0일 때만 0보다 크다)
- * @param recent 최근 10회. round가 0이면 null
- * @param previous 직전 10회. round가 2 미만이면 null
+ * @param recent 최근 10회. round가 0이면 null. 수를 센 뒤 그 회차 기록이 지워져 셈할 러닝이 없어도 null(MR !91 BR-3)
+ * @param previous 직전 10회. round가 2 미만이면 null. 그 회차 기록이 지워져 셈할 러닝이 없어도 null
  * @param sameHeartRatePaceChange 같은 심박 페이스 변화(초/km, 양수면 빨라짐). 셈할 수 없으면 null
  */
 public record RunBodyTrend(
@@ -66,6 +66,9 @@ public record RunBodyTrend(
     }
 
     /**
+     * 회차 목록은 수를 센 뒤 따로 읽으므로 그 사이 기록이 지워지면 비거나 짧을 수 있다. 남은 러닝으로 셈하고, 셈할 러닝이 없으면 그 회차를 null로 둔다(예외로
+     * 400을 내지 않는다, MR !91 BR-3).
+     *
      * @param validRunCount 유효 러닝 수
      * @param recentRuns 최근 10회(roundOf가 0이면 빈 목록)
      * @param previousRuns 직전 10회(roundOf가 2 미만이면 빈 목록)
@@ -78,19 +81,22 @@ public record RunBodyTrend(
                     validRunCount, 0, WINDOW - Math.max(0, validRunCount), null, null, null);
         }
         Window recent = window(recentRuns);
-        Window previous = round >= 2 && !previousRuns.isEmpty() ? window(previousRuns) : null;
+        Window previous = round >= 2 ? window(previousRuns) : null;
         return new RunBodyTrend(
                 validRunCount,
                 round,
                 0,
                 recent,
                 previous,
-                previous == null ? null : sameHeartRateChange(recentRuns, previousRuns));
+                recent == null || previous == null
+                        ? null
+                        : sameHeartRateChange(recentRuns, previousRuns));
     }
 
+    /** 한 회차 값. 러닝이 없거나 거리 합이 0이면 null. */
     private static Window window(List<ValidRunStat> runs) {
-        if (runs.isEmpty()) {
-            throw new IllegalArgumentException("회차 러닝이 없다");
+        if (runs.isEmpty() || runs.stream().mapToLong(r -> r.distance().meters()).sum() <= 0) {
+            return null;
         }
         ValidRunStat first = runs.get(0);
         ValidRunStat last = runs.get(runs.size() - 1);

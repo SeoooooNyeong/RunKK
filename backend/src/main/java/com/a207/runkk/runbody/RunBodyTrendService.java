@@ -7,6 +7,8 @@ import com.a207.runkk.running.RunQueryService;
 import com.a207.runkk.running.ValidRunStat;
 import java.util.List;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 런바디 요약 "최근 10회 변화"(G-14)를 러닝 기록에서 셈한다(RunBodyTrend). ai를 부르지 않는다. 운영 기준값 RUNBODY_ENABLED가 꺼져 있으면
@@ -24,8 +26,12 @@ public class RunBodyTrendService {
     }
 
     /**
+     * 유효 러닝 수와 회차 목록을 한 읽기 트랜잭션의 같은 스냅숏(REPEATABLE READ)에서 읽어 그 사이 기록 삭제가 끼지 않게 한다(MR !91 BR-3).
+     * 그래도 회차가 비면 RunBodyTrend가 그 회차를 null로 둔다.
+     *
      * @throws BusinessRuleException FEATURE_CLOSED(기능 닫힘)
      */
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public RunBodyTrend trendOf(long memberId) {
         if (!policy.features().runbodyEnabled()) {
             throw new BusinessRuleException(ReasonCode.FEATURE_CLOSED);

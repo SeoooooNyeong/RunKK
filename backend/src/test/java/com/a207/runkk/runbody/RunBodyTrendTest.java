@@ -44,6 +44,24 @@ class RunBodyTrendTest {
     }
 
     @Test
+    @DisplayName("BR-3: 수를 센 뒤 회차 기록이 지워져 회차 목록이 비면 예외(400) 대신 그 회차를 null로 둔다")
+    void windowEmptiedByDeletion_isNullNotError() {
+        RunBodyTrend recentGone = RunBodyTrend.of(20, List.of(), window(1, 0, 3, 362, 150));
+        assertThat(recentGone.round()).isEqualTo(2);
+        assertThat(recentGone.recent()).isNull();
+        assertThat(recentGone.previous().fromOrdinal()).isEqualTo(1);
+        assertThat(recentGone.sameHeartRatePaceChange()).isNull();
+
+        RunBodyTrend bothGone = RunBodyTrend.of(20, List.of(), List.of());
+        assertThat(bothGone.recent()).isNull();
+        assertThat(bothGone.previous()).isNull();
+
+        RunBodyTrend previousGone = RunBodyTrend.of(20, window(11, 30, 2, 348, 150), List.of());
+        assertThat(previousGone.recent().toOrdinal()).isEqualTo(20);
+        assertThat(previousGone.previous()).isNull();
+    }
+
+    @Test
     void firstRound_hasRecentOnly() {
         RunBodyTrend trend = RunBodyTrend.of(15, window(1, 0, 3, 362, 150), List.of());
         assertThat(trend.round()).isEqualTo(1);
