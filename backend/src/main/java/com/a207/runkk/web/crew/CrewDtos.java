@@ -25,6 +25,7 @@ import com.a207.runkk.crew.CrewRunDraft;
 import com.a207.runkk.crew.CrewRunResultView;
 import com.a207.runkk.crew.CrewSearch;
 import com.a207.runkk.crew.CrewVisibility;
+import com.a207.runkk.crew.FinalProgress;
 import com.a207.runkk.crew.JoinPolicy;
 import com.a207.runkk.crew.LobbyView;
 import com.a207.runkk.crew.MeetupDraft;
@@ -43,6 +44,7 @@ import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -787,20 +789,28 @@ final class CrewDtos {
     }
 
     /**
-     * 크루런 결과.
+     * 크루런 결과(합산 방식, S15P31A207-236).
      *
      * @param postId 게시글 ID
      * @param status 크루런 상태
-     * @param finisherCount 완주 인원
-     * @param finishers 진행 참가자(순위순)
+     * @param title 모집글 본문 첫 줄, 없으면 null
+     * @param distanceMeters 크루런 거리(목표)
+     * @param startedAt 출발 일시, 출발 전이면 null
+     * @param totalDistanceMeters 참가자 거리 합
+     * @param participants 진행 참가자(대기실 입장 순)
+     * @param myRecordId 열람자의 연결된 기록 ID, 없으면 null
      * @param firstCrewRun 첫 크루런
      * @param raceContributionMeters 크루 반영 거리 합
      */
     record CrewRunResultResponse(
             long postId,
             String status,
-            int finisherCount,
-            List<Finisher> finishers,
+            String title,
+            long distanceMeters,
+            OffsetDateTime startedAt,
+            long totalDistanceMeters,
+            List<Participant> participants,
+            String myRecordId,
             boolean firstCrewRun,
             long raceContributionMeters) {
 
@@ -808,8 +818,12 @@ final class CrewDtos {
             return new CrewRunResultResponse(
                     v.postId(),
                     v.status().name(),
-                    v.finisherCount(),
-                    v.runners().stream().map(l -> Finisher.of(l, viewerId)).toList(),
+                    v.title(),
+                    v.distance().distance().meters(),
+                    v.startedAt() == null ? null : at(v.startedAt()),
+                    v.totalDistance().meters(),
+                    v.participants().stream().map(l -> Participant.of(l, viewerId)).toList(),
+                    v.myRecordId(),
                     v.firstCrewRun(),
                     v.crewContribution().meters());
         }
@@ -817,33 +831,74 @@ final class CrewDtos {
         /**
          * 참가자 결과.
          *
-         * @param rank 순위, 미완주면 null
-         * @param displayName 표시명
-         * @param elapsedSeconds 기록(초)
-         * @param averagePaceSecondsPerKm 평균 페이스(초/km)
-         * @param quit 그만둠
          * @param memberId 참가자 회원 ID, 탈퇴했으면 null
+         * @param displayName 표시명
+         * @param distanceMeters 거리
+         * @param elapsedSeconds 시간(초), 없으면 null
+         * @param averagePaceSecondsPerKm 평균 페이스(초/km), 없으면 null
+         * @param ended 끝냈는가
          * @param me 열람자 본인
          */
-        record Finisher(
-                Integer rank,
+        record Participant(
+                Long memberId,
                 String displayName,
+                long distanceMeters,
                 Long elapsedSeconds,
                 Integer averagePaceSecondsPerKm,
-                boolean quit,
-                Long memberId,
+                boolean ended,
                 boolean me) {
 
-            static Finisher of(CrewRunResultView.Line l, long viewerId) {
-                return new Finisher(
-                        l.rank(),
+            static Participant of(CrewRunResultView.Line l, long viewerId) {
+                return new Participant(
+                        l.memberId(),
                         displayOf(l.name()),
+                        l.distance().meters(),
                         l.elapsed() == null ? null : l.elapsed().toSeconds(),
                         l.averagePace() == null ? null : l.averagePace().secondsPerKm(),
-                        l.quit(),
-                        l.memberId(),
+                        l.ended(),
                         l.memberId() != null && l.memberId() == viewerId);
             }
+        }
+    }
+
+    /**
+     * 일시정지 본문(합산 방식). 본문이 없거나 값이 비면 서버가 최신 진행값의 경과를 쓴다.
+     *
+     * @param elapsedSeconds 정지 때 경과(초)
+     */
+    record PauseRequest(Long elapsedSeconds) {
+
+        Duration elapsed() {
+            if (elapsedSeconds == null) {
+                return null;
+            }
+            if (elapsedSeconds < 0) {
+                throw new BusinessRuleException(ReasonCode.CREW_RUN_INVALID);
+            }
+            return Duration.ofSeconds(elapsedSeconds);
+        }
+    }
+
+    /**
+     * 내 크루런 끝내기 본문(합산 방식). 본문이 없으면 서버가 세션의 최신 진행값을 쓴다.
+     *
+     * @param distanceMeters 마지막 누적 거리
+     * @param elapsedSeconds 마지막 경과(초)
+     */
+    record QuitRequest(Long distanceMeters, Long elapsedSeconds) {
+
+        FinalProgress toFinal() {
+            if (distanceMeters == null && elapsedSeconds == null) {
+                return null;
+            }
+            if (distanceMeters == null
+                    || elapsedSeconds == null
+                    || distanceMeters < 0
+                    || elapsedSeconds < 0) {
+                throw new BusinessRuleException(ReasonCode.CREW_RUN_INVALID);
+            }
+            return new FinalProgress(
+                    Distance.ofMeters(distanceMeters), Duration.ofSeconds(elapsedSeconds));
         }
     }
 

@@ -11,8 +11,9 @@ import com.a207.runkk.notification.NotificationRequest;
 import com.a207.runkk.notification.NotificationService;
 import com.a207.runkk.notification.NotificationType;
 import com.a207.runkk.notification.Screen;
+import java.time.Duration;
 import java.util.Collection;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.springframework.stereotype.Component;
@@ -75,7 +76,7 @@ class CrewRunAnnouncer {
                         outcome.startAt(),
                         outcome.memberIds().stream().map(names::get).toList());
         CrewRunLiveSession session =
-                CrewRunLiveSession.open(post.getId(), post.distance(), names, outcome.startAt());
+                CrewRunLiveSession.open(post.getId(), names, outcome.startAt());
         AfterCommit.run(() -> crewLiveSessionStore.save(session));
         AfterCommit.run(() -> crewRunMessenger.sendAll(outcome.memberIds(), start));
     }
@@ -138,10 +139,7 @@ class CrewRunAnnouncer {
         List<Long> runners = post.runners();
         crewLiveSessionStore.save(
                 CrewRunLiveSession.open(
-                        post.getId(),
-                        post.distance(),
-                        namesOf(runners),
-                        post.departedAt().orElseThrow()));
+                        post.getId(), namesOf(runners), post.departedAt().orElseThrow()));
     }
 
     /** 시계가 보는 크루런이 아닌데 남은 세션(삭제된 글·크루)을 지운다. */
@@ -155,14 +153,25 @@ class CrewRunAnnouncer {
                         });
     }
 
-    /** 그만둠: 세션 표시 → 다른 참가자에게 중계(커밋 뒤). */
-    void quitter(long postId, long memberId) {
-        AfterCommit.run(() -> crewRunLiveService.markQuit(memberId, postId));
+    /** 일시정지: 세션 표시 → 모든 참가자에게 중계(커밋 뒤, 합산 방식). */
+    void paused(long postId, long memberId, Duration elapsedAt) {
+        AfterCommit.run(() -> crewRunLiveService.markPaused(memberId, postId, elapsedAt));
+    }
+
+    /** 끝냄: 세션 표시(마지막 값) → 모든 참가자에게 중계(커밋 뒤, 합산 방식). */
+    void ender(long postId, long memberId, LiveProgress last) {
+        AfterCommit.run(() -> crewRunLiveService.markEnded(memberId, postId, last));
+    }
+
+    /** 참가자별 최신 진행값(종료 때 아직 끝내지 않은 참가자를 마감할 값, 1초 시계가 종료 직전에 읽는다). */
+    Map<Long, LiveProgress> lastProgress(long postId) {
+        return crewRunLiveService.latest(postId);
     }
 
     private Map<Long, DisplayName> namesOf(List<Long> memberIds) {
         Map<Long, MemberSummary> summaries = memberQueryService.summaries(memberIds);
-        Map<Long, DisplayName> names = new HashMap<>();
+        // 세션 줄 순서(대기실 입장 순)를 지키려고 넘긴 순서대로 담는다.
+        Map<Long, DisplayName> names = new LinkedHashMap<>();
         memberIds.forEach(
                 id ->
                         names.put(

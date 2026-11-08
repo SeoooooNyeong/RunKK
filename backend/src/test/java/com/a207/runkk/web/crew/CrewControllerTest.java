@@ -284,20 +284,45 @@ class CrewControllerTest extends WebTestSupport {
 
         crewRunService.tick(scheduledAt);
         LocalDateTime start = scheduledAt.plusSeconds(3);
+        call(a, post("/api/v1/crew-runs/" + run + "/pause"), Map.of("elapsedSeconds", 120))
+                .andExpect(status().isNoContent());
+        call(a, post("/api/v1/crew-runs/" + run + "/pause"), null)
+                .andExpect(status().isNoContent());
+        call(
+                        a,
+                        post("/api/v1/crew-runs/" + run + "/quit"),
+                        Map.of("distanceMeters", -1, "elapsedSeconds", 10))
+                .andExpect(jsonPath("$.code").value("CREW_RUN_INVALID"));
+        call(
+                        a,
+                        post("/api/v1/crew-runs/" + run + "/quit"),
+                        Map.of("distanceMeters", 980, "elapsedSeconds", 300))
+                .andExpect(status().isNoContent());
+        call(a, post("/api/v1/crew-runs/" + run + "/pause"), null)
+                .andExpect(jsonPath("$.code").value("NOT_PARTICIPANT"));
         uploadCrewRun(a.memberId(), run, start, 1_000);
         uploadCrewRun(leader.memberId(), run, start, 1_100);
         crewRunService.tick(start.plusMinutes(15));
 
         JsonNode result = json(call(a, get("/api/v1/crew-runs/" + run + "/result"), null));
         assertThat(result.get("status").asText()).isEqualTo("FINISHED");
-        assertThat(result.get("finisherCount").asInt()).isEqualTo(2);
-        assertThat(result.get("finishers").get(0).get("rank").asInt()).isEqualTo(1);
+        assertThat(result.get("title").asText()).isEqualTo("1km 같이 달려요");
+        assertThat(result.get("distanceMeters").asLong()).isEqualTo(1_000);
+        assertThat(result.get("startedAt").asText()).isNotBlank();
+        assertThat(result.get("totalDistanceMeters").asLong()).as("연결된 기록 거리 합").isEqualTo(2_100);
         assertThat(result.get("raceContributionMeters").asLong()).isEqualTo(2_100);
-        assertThat(result.get("finishers").findValuesAsText("memberId"))
-                .contains(String.valueOf(a.memberId()), String.valueOf(leader.memberId()));
-        assertThat(result.get("finishers").findValues("me").stream().filter(JsonNode::asBoolean))
+        assertThat(result.get("participants").findValuesAsText("memberId"))
+                .containsExactly(String.valueOf(leader.memberId()), String.valueOf(a.memberId()));
+        assertThat(result.get("participants").findValuesAsText("distanceMeters"))
+                .containsExactly("1100", "1000");
+        assertThat(result.get("participants").findValues("ended")).allMatch(JsonNode::asBoolean);
+        assertThat(result.get("participants").findValues("me").stream().filter(JsonNode::asBoolean))
                 .hasSize(1);
-        call(a, post("/api/v1/crew-runs/" + run + "/quit"), null)
+        assertThat(result.get("myRecordId").asText()).isNotBlank();
+        assertThat(result.has("finishers")).isFalse();
+        // 종료 뒤 다시 끝내기는 아무 일 없음(재시도 안전)
+        call(a, post("/api/v1/crew-runs/" + run + "/quit"), null).andExpect(status().isNoContent());
+        call(a, post("/api/v1/crew-runs/" + run + "/pause"), null)
                 .andExpect(jsonPath("$.code").value("NOT_PARTICIPANT"));
         call(a, get("/api/v1/crews/" + crewId + "/race"), null)
                 .andExpect(jsonPath("$.totalMeters").value(2_100))

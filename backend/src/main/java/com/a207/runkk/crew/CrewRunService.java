@@ -8,6 +8,7 @@ import com.a207.runkk.running.RunRecordDeleted;
 import com.a207.runkk.running.RunRecordSaved;
 import com.a207.runkk.running.SavedRun;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.function.Function;
@@ -129,7 +130,7 @@ public class CrewRunService {
             announcer.cancelled(post, outcome.memberIds());
         }
         if (post.shouldClose(now, rule)) {
-            post.close(now);
+            post.close(now, announcer.lastProgress(postId));
             announcer.ended(post);
         }
         crewPostRepository.save(post);
@@ -137,9 +138,8 @@ public class CrewRunService {
     }
 
     /**
-     * 크루런게시글ID가 있는 기록이 저장되면 linkRun(FR-146), 기록이 크루런 거리에 닿았으면 recordArrival(startedAt +
-     * timeToReach)(FR-191). 커밋 뒤 새 트랜잭션에서 하고 시계와 충돌하는 등 일시 오류면 다시 읽는다. 그래도 실패하면 로그만 남기고, 빠진 연결은 0시
-     * 일 단위 보정(CrewRunLinkReconcileService)이 relink로 채운다(M4).
+     * 크루런게시글ID가 있는 기록이 저장되면 linkRun(FR-146). 합산 방식이라 도착 판정은 없다. 커밋 뒤 새 트랜잭션에서 하고 시계와 충돌하는 등 일시 오류면
+     * 다시 읽는다. 그래도 실패하면 로그만 남기고, 빠진 연결은 0시 일 단위 보정(CrewRunLinkReconcileService)이 relink로 채운다(M4).
      */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onRunSaved(RunRecordSaved e) {
@@ -201,10 +201,6 @@ public class CrewRunService {
     /** 수신자(onRunSaved)와 보정(relink)이 같은 저장 기록 형식 SavedRun으로 부른다(코드 리뷰 3차 B-M3). */
     private boolean link(CrewRunPost post, SavedRun run) {
         boolean linked = post.linkRun(run.memberId(), run.recordId());
-        if (run.distance().isAtLeast(post.distance().distance())) {
-            views.arrivalAt(run.recordId(), run.startedAt(), post.distance().distance())
-                    .ifPresent(at -> post.recordArrival(run.memberId(), at));
-        }
         crewPostRepository.save(post);
         return linked;
     }
@@ -218,18 +214,50 @@ public class CrewRunService {
         announcer.deleted(post);
     }
 
-    /** CrewRunPost.quit → 세션 markQuit → 다른 참가자에게 "그만둠"(FR-192). */
-    public void quit(long memberId, long postId) {
+    /**
+     * 일시정지(합산 방식): RUNNING인 진행 참가자이고 아직 끝내지 않았는지 확인하고(CrewRunPost.checkPausable) 세션에 멈춤을 표시해 모두에게
+     * 중계한다. DB에 쓰지 않는다. 재개는 정지 때보다 큰 경과의 진행값으로 세션이 판단한다.
+     */
+    @Transactional(readOnly = true)
+    public void pause(long memberId, long postId, Duration elapsedAt) {
+        load(postId).checkPausable(memberId);
+        announcer.paused(postId, memberId, elapsedAt);
+    }
+
+    /**
+     * 자기 크루런 끝내기(합산 방식, FR-192 대체). 앱이 보낸 마지막 거리·경과(없으면 세션의 최신 진행값)를 참여에 남기고 모두에게 "끝냄"을 중계한다. 이미
+     * 끝냈으면 아무 일도 없다. 진행 참가자가 모두 끝내면 다음 1초 시계가 크루런을 닫는다.
+     */
+    public void quit(long memberId, long postId, FinalProgress reported) {
+        if (reported != null) {
+            reported.validate();
+        }
         transactions.retryingRun(
                 () -> {
                     CrewRunPost post = locked(postId);
-                    post.quit(memberId, LocalDateTime.now(clock));
+                    LiveProgress last =
+                            reported != null
+                                    ? new LiveProgress(
+                                            reported.distance(),
+                                            reported.elapsed(),
+                                            LocalDateTime.now(clock))
+                                    : announcer.lastProgress(postId).get(memberId);
+                    boolean ended =
+                            post.end(
+                                    memberId,
+                                    last == null ? null : last.distance(),
+                                    last == null ? null : last.elapsed());
+                    if (!ended) {
+                        return;
+                    }
                     crewPostRepository.save(post);
-                    announcer.quitter(postId, memberId);
+                    if (post.status() == CrewRunStatus.RUNNING) {
+                        announcer.ender(postId, memberId, last);
+                    }
                 });
     }
 
-    /** check(VIEW_CREW_INTERNAL) → 순위별 표시명·기록·평균 페이스, 첫 크루런 여부, 크루 반영 거리 합(FR-191). */
+    /** check(VIEW_CREW_INTERNAL) → 크루 합산 거리, 참가자별 거리·시간·평균 페이스, 내 기록, 첫 크루런 여부, 크루 반영 거리 합. */
     @Transactional(readOnly = true)
     public CrewRunResultView result(long memberId, long postId) {
         CrewRunPost post = load(postId);
