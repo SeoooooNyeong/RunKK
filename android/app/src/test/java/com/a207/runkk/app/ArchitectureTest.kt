@@ -48,17 +48,18 @@ class ArchitectureTest {
      * 워치: W1 watch.cache → domain.live(상대 기록 파일의 진행표를 TrackTable로 되살린다), W2 watch.link → domain.live(매칭 대기 실시간 채널),
      * W2 watch.session → domain.settings(회원 설정 사본). 그래서 폰 154개다. R79로 ui.me → domain.run(설정의 다시 보내기
      * ResendRejectedRunsUseCase를 domain.run으로 옮겼다)을 더하고, develop의 D-455 코치 하위 패키지(ui.record.coach)를 합쳐 폰 159개다.
-     * 런바디(S15P31A207-229, D-453): domain.runbody → core.model, api.runbody → api.core·domain.runbody·core.model을 더해 163개다.
+     * 런바디(S15P31A207-229, D-453): domain.runbody → core.model, api.runbody → api.core·domain.runbody·core.model을 더해 163개,
+     * 하위 패키지 ui.record.runbody → core.designsystem·core.navigation·core.model·domain.record·domain.runbody 다섯을 더해 168개다.
      * 워치는 design-review 23장 R75 사용자 결정 (가)로 core.model을 폰과 같이 센다(기준 하나). 그러면 watch.ui가 8이라 대결 흐름을
      * watch.battle로 옮겼다(W30): ui → domain.battle·watch.cache 둘이 ui → watch.battle 하나가 되고 watch.battle이 다섯을 갖는다.
      * R76으로 쓰지 않는 watch.guide → domain.settings를 뺐다. 워치 코드 28 + core.model 다섯 줄 + battle 다섯 − ui 하나 = 37개다.
      */
     @Test
-    fun `모듈 Fan-Out은 7 이하이고 허용 표는 폰 163개·워치 37개다`() {
+    fun `모듈 Fan-Out은 7 이하이고 허용 표는 폰 168개·워치 37개다`() {
         val over = ALLOWED.filterValues { it.size > MAX_FAN_OUT }.mapValues { it.value.size }
         assertEquals(emptyMap(), over)
         val (watch, phone) = ALLOWED.entries.partition { it.key.startsWith("watch.") || it.key == "wear.contract" }
-        assertEquals(163, phone.sumOf { it.value.size })
+        assertEquals(168, phone.sumOf { it.value.size })
         assertEquals(37, watch.sumOf { it.value.size })
     }
 
@@ -369,7 +370,7 @@ class ArchitectureTest {
     private fun isOwnResources(from: String, imported: String): Boolean =
         (from.startsWith("data.") && imported in setOf("$APP.api.core.R", "$APP.data.phone.R")) ||
             (from.startsWith("watch.") && imported == "$WATCH.ui.R") ||
-            (from == "ui.record.coach" && imported == "$APP.ui.record.R")
+            (from in setOf("ui.record.coach", "ui.record.runbody") && imported == "$APP.ui.record.R")
 
     private fun isAppOrUi(module: String?): Boolean = module == "app" || module?.startsWith("ui.") == true
 
@@ -439,6 +440,7 @@ class ArchitectureTest {
                 "run",
                 "record",
                 "record.coach",
+                "record.runbody",
                 "battle",
                 "crew",
                 "runimal",
@@ -555,6 +557,10 @@ class ArchitectureTest {
                 "ui.record" to CORE_UI + setOf("domain.record", "domain.run", "domain.avatar", "ui.share"),
                 // 코치를 기존 행에 더하면 Fan-Out 8이다. 같은 Gradle 모듈의 하위 패키지로 나눈다.
                 "ui.record.coach" to setOf("core.designsystem", "core.model", "domain.coach"),
+                // 런바디(S15P31A207-229~232, D-453): 코치처럼 하위 패키지로 둔다. 런바디 경로 등록(core.navigation), 요약 탭의 리포트와
+                // 러닝 선택의 기록 목록(domain.record), 분석 결과(domain.runbody). ui.record는 런바디 형식을 import하지 않는다(Fan-Out 7 그대로).
+                "ui.record.runbody" to
+                    setOf("core.designsystem", "core.navigation", "core.model", "domain.record", "domain.runbody"),
                 // v0.14: domain.account는 위치 동의 시트(LocationConsentUseCase, D-267)와 본인 요약(MySummary: 초대 메시지의
                 // 내 닉네임 D-270, 티어, 랜덤 대결 잠금의 유효 러닝 수 D-331), domain.record는 대결 결과 2쪽의 본인 기록 상세
                 // (RunDetailSource, D-283)다. v0.17(D-331, R51): 유효 러닝 수를 본인 요약에서 받아 domain.runimal을 뺐다.

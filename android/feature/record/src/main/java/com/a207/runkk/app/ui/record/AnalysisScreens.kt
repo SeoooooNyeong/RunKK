@@ -256,64 +256,6 @@ private fun GrowthBestsCard(growth: Growth) {
     }
 }
 
-// ---------- 리포트 ----------
-
-@Composable
-fun ReportRoute(viewModel: ReportViewModel = hiltViewModel()) {
-    val state by viewModel.state.collectAsStateWithLifecycle()
-    val navigator = LocalRunkkNavigator.current
-    ReportScreen(state, onBack = navigator::back, onRetry = viewModel::refresh)
-}
-
-@Composable
-fun ReportScreen(state: ReportUiState, onBack: () -> Unit, onRetry: () -> Unit) {
-    AnalysisScaffold(
-        title = stringResource(R.string.record_report_title),
-        isLoading = state.isLoading && state.report == null,
-        error = state.error,
-        onBack = onBack,
-        onRetry = onRetry
-    ) {
-        val report = state.report ?: return@AnalysisScaffold
-        RunkkCard(Modifier.fillMaxWidth(), shape = RunkkShapes.ExtraLarge) {
-            Text(
-                stringResource(R.string.record_report_summary_title),
-                style = RunkkTextStyles.Caption,
-                color = RunkkColors.TextSecondary
-            )
-            Text(state.summaryText.asString(), style = RunkkTextStyles.CardTitle, color = RunkkColors.TextPrimary)
-        }
-        ReportCommentCard(state.commentText.asString(), report.comment != null, report.commentSource)
-    }
-}
-
-/** 코치 코멘트 카드. 코멘트가 있으면 라임 테두리, 규칙 기반 문구면 안내를 덧붙인다. */
-@Composable
-private fun ReportCommentCard(comment: String, hasComment: Boolean, source: String?) {
-    RunkkCard(
-        Modifier.fillMaxWidth(),
-        borderColor = if (hasComment) RunkkColors.Lime else RunkkColors.Border
-    ) {
-        Text(
-            stringResource(R.string.record_report_comment_title),
-            style = RunkkTextStyles.Caption,
-            color = RunkkColors.TextSecondary
-        )
-        Text(
-            comment,
-            style = RunkkTextStyles.text(16, FontWeight.Bold, lineHeight = 24),
-            color = if (hasComment) RunkkColors.TextPrimary else RunkkColors.TextSecondary
-        )
-        if (source == "RULE" || source == "FALLBACK") {
-            Text(
-                stringResource(R.string.record_report_rule_based),
-                style = RunkkTextStyles.Micro,
-                color = RunkkColors.TextSecondary
-            )
-        }
-    }
-}
-
 // ---------- 랭킹 ----------
 
 @Composable
