@@ -12,11 +12,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import com.a207.runkk.app.core.designsystem.LocalReleaseScope
@@ -35,8 +37,10 @@ import com.a207.runkk.app.domain.runimal.RunimalStatus
 import com.a207.runkk.app.domain.settings.GuidanceSettings
 import com.a207.runkk.app.domain.settings.SettingsRepository
 import com.a207.runkk.app.domain.settings.SettingsSnapshot
+import com.a207.runkk.app.ui.share.CapturedCard
 import com.a207.runkk.app.ui.share.CardSharer
 import com.a207.runkk.app.ui.share.RunimalCardRenderer
+import com.a207.runkk.app.ui.share.ShareImageFramer
 import com.a207.runkk.app.ui.share.ShareOutcome
 import com.a207.runkk.app.ui.share.ShareTarget
 import kotlin.test.assertEquals
@@ -89,8 +93,14 @@ private val cardWithAxes = card.copy(
 private val confirmedWithAxes = confirmed.copy(card = cardWithAxes)
 
 private class RecordingTarget(val name: String, val calls: MutableList<String>) : ShareTarget {
+    /** 마지막으로 받은 이미지 높이(시험은 파일 주소를 넘기므로 파일을 읽어 잰다). */
+    var lastHeight = 0
+
     override fun share(context: Context, image: Uri): ShareOutcome {
         calls += name
+        val options = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        android.graphics.BitmapFactory.decodeFile(image.path, options)
+        lastHeight = options.outHeight
         return if (name == "save") ShareOutcome.Saved else ShareOutcome.Shared
     }
 }
@@ -124,6 +134,7 @@ class RunimalViewModelTest {
     private val dispatcher = UnconfinedTestDispatcher()
     private val repo = FakeRunimal(status = Outcome.Success(confirmed), cardResult = Outcome.Success(card))
     private val shared = mutableListOf<String>()
+    private val save = RecordingTarget("save", shared)
 
     @Before
     fun setUp() = Dispatchers.setMain(dispatcher)
@@ -135,11 +146,11 @@ class RunimalViewModelTest {
         val context = RuntimeEnvironment.getApplication()
         val sharer = CardSharer(context, Settings()) { _, file -> Uri.fromFile(file) }
         val targets = RunimalShareTargets(
-            RecordingTarget("save", shared),
+            save,
             RecordingTarget("system", shared),
             RecordingTarget("story", shared)
         )
-        return RunimalViewModel(repo, RunimalCardRenderer(context), sharer, targets, dispatcher)
+        return RunimalViewModel(repo, RunimalCardRenderer(context), sharer, targets, ShareImageFramer(context), dispatcher)
     }
 
     /** CardSharer는 파일 쓰기를 Dispatchers.IO에서 하므로 공유가 끝날 때까지 기다린다. */
@@ -192,6 +203,29 @@ class RunimalViewModelTest {
     }
 
     @Test
+    fun `공유 단계는 유형이 있을 때만 열리고, 찍은 카드는 아래에 워드마크를 붙여 보낸다(K-3)`() {
+        val v = vm()
+        v.onShareStep(true)
+        assertTrue(v.state.value.isShareStep)
+        val captured = android.graphics.Bitmap.createBitmap(334, 400, android.graphics.Bitmap.Config.ARGB_8888)
+        v.onShare(RunimalShareKind.SAVE, CapturedCard(captured, isDark = true))
+        v.awaitShared()
+        assertEquals(listOf("save"), shared)
+        assertTrue(save.lastHeight > captured.height, "워드마크 칸 ${save.lastHeight}")
+        assertNull(v.state.value.cardImage, "찍은 카드는 렌더러 이미지로 남기지 않는다")
+        v.onShareStep(false)
+        assertFalse(v.state.value.isShareStep)
+    }
+
+    @Test
+    fun `유형이 없으면 공유 단계를 열지 않는다`() {
+        repo.status = Outcome.Success(RunimalStatus(null, true, 2, null, types))
+        val v = vm()
+        v.onShareStep(true)
+        assertFalse(v.state.value.isShareStep)
+    }
+
+    @Test
     fun `유형 카드가 거부되면 안내한다`() {
         repo.cardResult = Outcome.Failure(AppError.Rejected("NO_TYPE"))
         val v = vm()
@@ -220,23 +254,71 @@ class RunimalScreenTest {
     val compose = createComposeRule()
 
     @Test
-    fun `공유 버튼 세 개와 축별 우세 비율을 읽어 준다`() {
+    fun `오른쪽 위 공유로 공유 단계를 열고, 공유 단계는 공유 대상 세 개로 찍은 카드를 넘긴다(G-4, K-3)`() {
+        val steps = mutableListOf<Boolean>()
         val calls = mutableListOf<RunimalShareKind>()
+        val captured = mutableListOf<CapturedCard?>()
+        var state by mutableStateOf(RunimalUiState(isLoading = false, status = confirmed))
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
-                RunimalScreen(RunimalUiState(isLoading = false, status = confirmed), {}, { calls += it }, {}, {}, {})
+                RunimalScreen(
+                    state,
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    onShareStep = { steps += it },
+                    onShareCaptured = { kind, card ->
+                        calls += kind
+                        captured += card
+                    }
+                )
+            }
+        }
+        compose.onNodeWithText(str(R.string.runimal_share)).performClick()
+        assertEquals(listOf(true), steps)
+        state = state.copy(isShareStep = true)
+        compose.onNodeWithText(str(R.string.runimal_share_title)).assertExists()
+        compose.onRoot().captureToImage()
+        compose.onNodeWithText("인스타그램 스토리").performClick()
+        compose.onNodeWithText("기기에 저장").performClick()
+        compose.onNodeWithText("더 보기").performClick()
+        compose.waitForIdle()
+        assertEquals(listOf(RunimalShareKind.STORY, RunimalShareKind.SAVE, RunimalShareKind.SYSTEM), calls)
+        assertTrue(captured.all { it != null && it.bitmap.width > 0 })
+    }
+
+    @Test
+    fun `축별 우세 비율을 읽어 주고 하단 공유 막대는 없다`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                RunimalScreen(RunimalUiState(isLoading = false, status = confirmed), {}, {}, {}, {}, {})
             }
         }
         compose.onNodeWithContentDescription(str(R.string.runimal_axis_description, "동행", 78)).assertExists()
         // 내 유형 카드의 큰 그림과 16유형 목록 칸이 동물 이름으로 읽힌다.
         compose.onAllNodesWithContentDescription("아침 참새").assertCountEquals(2)
         compose.onNodeWithContentDescription("펭귄 군단").assertExists()
-        compose.onNodeWithText(
-            str(R.string.runimal_share_with, str(R.string.runimal_share_story))
-        ).performClick()
-        compose.onNodeWithText(str(R.string.runimal_share_save)).performClick()
-        compose.onNodeWithText(str(R.string.runimal_share_system)).performClick()
-        assertEquals(listOf(RunimalShareKind.STORY, RunimalShareKind.SAVE, RunimalShareKind.SYSTEM), calls)
+        compose.onNodeWithText(str(R.string.runimal_share_save)).assertDoesNotExist()
+        compose.onNodeWithText(str(R.string.runimal_share)).assertExists()
+    }
+
+    @Test
+    fun `유형이 없으면 오른쪽 위 공유가 없다(K-3)`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                RunimalScreen(
+                    RunimalUiState(isLoading = false, status = RunimalStatus(null, true, 2, null, types)),
+                    {},
+                    {},
+                    {},
+                    {},
+                    {}
+                )
+            }
+        }
+        compose.onNodeWithText(str(R.string.runimal_share)).assertDoesNotExist()
     }
 
     @Test
@@ -252,7 +334,7 @@ class RunimalScreenTest {
     }
 
     @Test
-    fun `1차 배포(RUNIMAL_SHARE 닫힘)에서는 공유 버튼이 없고 다음 확정까지 남은 횟수는 보인다`() {
+    fun `1차 배포(RUNIMAL_SHARE 닫힘)에서는 공유가 없고 다음 확정까지 남은 횟수는 보인다`() {
         compose.setContent {
             CompositionLocalProvider(LocalReleaseScope provides ReleaseScope.FIRST_RELEASE) {
                 RunkkTheme(reduceMotion = true) {
@@ -261,9 +343,7 @@ class RunimalScreenTest {
             }
         }
         compose.onNodeWithText("다음 확정까지 4회").assertExists()
-        compose.onNodeWithText(str(R.string.runimal_share_with, str(R.string.runimal_share_story)))
-            .assertDoesNotExist()
-        compose.onNodeWithText(str(R.string.runimal_share_save)).assertDoesNotExist()
+        compose.onNodeWithText(str(R.string.runimal_share)).assertDoesNotExist()
     }
 
     @Test

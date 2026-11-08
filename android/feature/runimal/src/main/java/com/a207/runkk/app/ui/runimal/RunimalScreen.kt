@@ -1,5 +1,6 @@
 package com.a207.runkk.app.ui.runimal
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -19,13 +20,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -46,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.a207.runkk.app.core.designsystem.LocalReleaseScope
+import com.a207.runkk.app.core.designsystem.LocalRunkkColors
 import com.a207.runkk.app.core.designsystem.RunimalArt
 import com.a207.runkk.app.core.designsystem.RunimalAxisName
 import com.a207.runkk.app.core.designsystem.RunkkBadge
@@ -56,10 +58,10 @@ import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkLoading
 import com.a207.runkk.app.core.designsystem.RunkkPrimaryButton
 import com.a207.runkk.app.core.designsystem.RunkkProgressBar
-import com.a207.runkk.app.core.designsystem.RunkkSecondaryButton
 import com.a207.runkk.app.core.designsystem.RunkkSectionTitle
 import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
+import com.a207.runkk.app.core.designsystem.RunkkTextLink
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
@@ -70,20 +72,31 @@ import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.runimal.AxisLean
 import com.a207.runkk.app.domain.runimal.RunimalCard
 import com.a207.runkk.app.domain.runimal.RunimalStatus
+import com.a207.runkk.app.ui.share.CapturedCard
+import com.a207.runkk.app.ui.share.ShareTargetBar
+import com.a207.runkk.app.ui.share.capturedBy
+import com.a207.runkk.app.ui.share.rememberCardCapture
 import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
 
-/** MY 러니멀(G-4): 유형 카드·남은 횟수·성향 막대·16유형·카드 공유(RUNIMAL_SHARE가 열려 있을 때만). */
+/**
+ * MY 러니멀(G-4): 유형 카드·남은 횟수·성향 막대·16유형. 유형이 있으면 오른쪽 위 "공유"로 Runimal 공유 단계(K-3)를 연다
+ * (RUNIMAL_SHARE가 열려 있을 때만). 뒤로가기는 공유 단계에서 MY 러니멀로 돌아온다.
+ */
 @Composable
 fun RunimalRoute(viewModel: RunimalViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val navigator = LocalRunkkNavigator.current
+    BackHandler(enabled = state.isShareStep) { viewModel.onShareStep(false) }
     RunimalScreen(
         state = state,
         onBack = navigator::back,
-        onShare = viewModel::onShare,
+        onShare = { viewModel.onShare(it) },
         onRetry = viewModel::load,
         onMessageShown = viewModel::onMessageShown,
-        onShowTypes = { navigator.navigate(Routes.RUNIMAL_TYPES) }
+        onShowTypes = { navigator.navigate(Routes.RUNIMAL_TYPES) },
+        onShareStep = viewModel::onShareStep,
+        onShareCaptured = viewModel::onShare
     )
 }
 
@@ -95,7 +108,9 @@ fun RunimalScreen(
     onRetry: () -> Unit,
     onMessageShown: () -> Unit,
     onShowTypes: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onShareStep: (Boolean) -> Unit = {},
+    onShareCaptured: (RunimalShareKind, CapturedCard?) -> Unit = { kind, _ -> onShare(kind) }
 ) {
     val snackbar = remember { SnackbarHostState() }
     val context = LocalContext.current
@@ -107,22 +122,36 @@ fun RunimalScreen(
     }
     // Runimal 카드 공유는 1차 배포에서 닫는다(D-252, D-285, D93).
     val isShareOpen = LocalReleaseScope.current.isOpen(UnreleasedFeature.RUNIMAL_SHARE)
+    val status = state.status
+    val shareCard = status?.card?.takeIf { status.type != null }
     Box(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            RunkkTopBar(title = stringResource(R.string.runimal_title), onBack = onBack, isTitleCentered = true)
-            val status = state.status
-            when {
-                status == null && state.isLoading -> RunkkLoading(modifier = Modifier.weight(1f))
+        if (state.isShareStep && isShareOpen && status != null && shareCard != null) {
+            RunimalShareStep(
+                shareCard,
+                isProvisional = status.isProvisional,
+                isSharing = state.isSharing,
+                onShare = onShareCaptured,
+                onBack = { onShareStep(false) }
+            )
+        } else {
+            Column(modifier = Modifier.fillMaxSize()) {
+                RunkkTopBar(title = stringResource(R.string.runimal_title), onBack = onBack, isTitleCentered = true) {
+                    if (state.canShare && isShareOpen) {
+                        RunkkTextLink(stringResource(R.string.runimal_share), onClick = { onShareStep(true) })
+                    }
+                }
+                when {
+                    status == null && state.isLoading -> RunkkLoading(modifier = Modifier.weight(1f))
 
-                status == null -> RunkkErrorState(
-                    state.error?.asString() ?: stringResource(R.string.runimal_load_failed),
-                    onRetry = onRetry,
-                    modifier = Modifier.weight(1f)
-                )
+                    status == null -> RunkkErrorState(
+                        state.error?.asString() ?: stringResource(R.string.runimal_load_failed),
+                        onRetry = onRetry,
+                        modifier = Modifier.weight(1f)
+                    )
 
-                else -> RunimalBody(state, status, onShowTypes, Modifier.weight(1f))
+                    else -> RunimalBody(state, status, onShowTypes, Modifier.weight(1f))
+                }
             }
-            if (state.canShare && isShareOpen) ShareBar(state.isSharing, onShare)
         }
         RunkkSnackbarHost(snackbar, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 160.dp))
     }
@@ -161,34 +190,40 @@ private fun RunimalBody(
     }
 }
 
-/** 카드 공유 버튼들(스토리·기기 저장·다른 앱). */
+/**
+ * Runimal 공유 단계(K-3 진입 뼈대): 미리보기는 MY Runimal과 같은 유형 카드이고 아래에 공유 대상 막대가 있다. 공유할 때 미리보기
+ * 카드를 그대로 찍어 넘기고 워드마크는 ViewModel이 공유 이미지에만 붙인다. 공유 카드 모양은 새 디자인을 받아 바꾼다(2026-11-09).
+ */
 @Composable
-private fun ShareBar(isSharing: Boolean, onShare: (RunimalShareKind) -> Unit) {
-    HorizontalDivider(color = RunkkColors.Border)
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 32.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        RunkkPrimaryButton(
-            stringResource(R.string.runimal_share_with, stringResource(RunimalShareKind.STORY.labelRes)),
-            onClick = { onShare(RunimalShareKind.STORY) },
-            isLoading = isSharing,
-            modifier = Modifier.fillMaxWidth()
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            RunkkSecondaryButton(
-                stringResource(RunimalShareKind.SAVE.labelRes),
-                onClick = { onShare(RunimalShareKind.SAVE) },
-                isEnabled = !isSharing,
-                modifier = Modifier.weight(1f)
-            )
-            RunkkSecondaryButton(
-                stringResource(RunimalShareKind.SYSTEM.labelRes),
-                onClick = { onShare(RunimalShareKind.SYSTEM) },
-                isEnabled = !isSharing,
-                modifier = Modifier.weight(1f)
-            )
+private fun RunimalShareStep(
+    card: RunimalCard,
+    isProvisional: Boolean,
+    isSharing: Boolean,
+    onShare: (RunimalShareKind, CapturedCard?) -> Unit,
+    onBack: () -> Unit
+) {
+    val capture = rememberCardCapture()
+    val isDark = LocalRunkkColors.current.isDark
+    val scope = rememberCoroutineScope()
+    val share: (RunimalShareKind) -> Unit = { kind -> scope.launch { onShare(kind, capture.capture(isDark)) } }
+    Column(modifier = Modifier.fillMaxSize()) {
+        RunkkTopBar(title = stringResource(R.string.runimal_share_title), onBack = onBack, isTitleCentered = true)
+        Column(
+            modifier = Modifier.weight(1f).fillMaxWidth().padding(start = 28.dp, end = 28.dp, bottom = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Box(Modifier.capturedBy(capture)) { TypeCard(card, isProvisional) }
         }
+        ShareTargetBar(
+            saveLabel = stringResource(RunimalShareKind.SAVE.labelRes),
+            storyLabel = stringResource(RunimalShareKind.STORY.labelRes),
+            moreLabel = stringResource(RunimalShareKind.SYSTEM.labelRes),
+            isSharing = isSharing,
+            onSave = { share(RunimalShareKind.SAVE) },
+            onStory = { share(RunimalShareKind.STORY) },
+            onMore = { share(RunimalShareKind.SYSTEM) }
+        )
     }
 }
 
