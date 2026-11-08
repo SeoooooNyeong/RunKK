@@ -13,14 +13,11 @@ import com.a207.runkk.app.domain.crew.CelebrationCard
 import com.a207.runkk.app.domain.crew.CrewRanking
 import com.a207.runkk.app.domain.crew.CrewRole
 import com.a207.runkk.app.domain.crew.PollMethod
-import com.a207.runkk.app.domain.crew.PostList
 import com.a207.runkk.app.domain.report.ReportReason
 import com.a207.runkk.app.domain.report.ReportRepository
 import com.a207.runkk.app.domain.report.ReportStatus
 import com.a207.runkk.app.domain.report.ReportTarget
 import com.a207.runkk.app.domain.report.ReportTargetKind
-import java.time.Instant
-import java.time.LocalTime
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
@@ -248,58 +245,18 @@ class CrewManageV011ViewModelTest {
     }
 }
 
-/** 일정 쓰기: 대면 모임(FR-132, D-151, D-155): 장소 1~50자, 정원 2~10(비우면 크루 정원), 지난 일시는 거부. */
-class CrewMeetupWriteViewModelTest {
+/** 크루런 모집하기(FR-132, 피그마 F-12): 대면 모임은 만들지 않는다. */
+class CrewRunWriteBodyViewModelTest {
     @get:Rule
     val main = MainDispatcherRule()
     private val repo = FakeCrewRepository()
     private val clock = MutableClock()
 
     @Test
-    fun `대면 모임은 내용·장소가 있어야 올리고 정원을 고를 수 있다`() {
-        val vm = CrewRunWriteViewModel(repo, clock)
-        vm.onKind(PostList.Kind.MEETUP)
-        vm.onBody("번개 후 맥주")
-        assertFalse(vm.state.value.isValid, "장소가 없다")
-        vm.onPlace("가".repeat(60))
-        assertEquals(50, vm.state.value.placeName.length)
-        vm.onPlace(" 여의나루역 ")
-        vm.onCapacity(8)
-        vm.onDay(2)
-        vm.onTime(LocalTime.of(19, 0))
-        vm.onSubmit(11)
-        assertTrue("writeMeetup:번개 후 맥주:여의나루역:8" in repo.calls)
-        assertEquals(Instant.parse("2026-10-22T10:00:00Z"), repo.lastMeetupAt)
-        assertTrue(repo.calls.none { it.startsWith("writeCrewRun") })
-    }
-
-    @Test
-    fun `장소명 50자는 코드 포인트로 센다(D-143)`() {
-        val vm = CrewRunWriteViewModel(repo, clock)
-        vm.onKind(PostList.Kind.MEETUP)
-        vm.onPlace(EMOJI.repeat(51))
-        assertEquals(EMOJI.repeat(50), vm.state.value.placeName)
-    }
-
-    @Test
     fun `일정 내용 글자 수는 코드 포인트로 센다 - 이모지는 반으로 자르지 않는다(D-143)`() {
         val vm = CrewRunWriteViewModel(repo, clock)
         vm.onBody(EMOJI.repeat(201))
         assertEquals(EMOJI.repeat(200), vm.state.value.body)
-    }
-
-    @Test
-    fun `정원은 2~10명이고 비우면 크루 정원이다`() {
-        val vm = CrewRunWriteViewModel(repo, clock)
-        vm.onKind(PostList.Kind.MEETUP)
-        vm.onCapacity(1)
-        assertNull(vm.state.value.capacity)
-        vm.onCapacity(11)
-        assertNull(vm.state.value.capacity)
-        vm.onCapacity(10)
-        assertEquals(10, vm.state.value.capacity)
-        vm.onCapacity(null)
-        assertNull(vm.state.value.capacity)
     }
 }
 

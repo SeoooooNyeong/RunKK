@@ -93,7 +93,6 @@ import com.a207.runkk.app.core.designsystem.StatTileStyle
 import com.a207.runkk.app.core.designsystem.StatTileValue
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.designsystem.canShowKakaoMap
-import com.a207.runkk.app.core.designsystem.codePointLength
 import com.a207.runkk.app.core.designsystem.rememberHeadingLeft
 import com.a207.runkk.app.core.designsystem.rememberIsMoving
 import com.a207.runkk.app.core.designsystem.runFrameMillis
@@ -104,7 +103,6 @@ import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.crew.CrewRunProgress
 import com.a207.runkk.app.domain.crew.CrewRunResult
 import com.a207.runkk.app.domain.crew.Lobby
-import com.a207.runkk.app.domain.crew.PostList
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -134,10 +132,7 @@ fun CrewRunWriteRoute(key: Routes.CrewRunWrite, viewModel: CrewRunWriteViewModel
         onDistance = viewModel::onDistance,
         onDay = viewModel::onDay,
         onTime = viewModel::onTime,
-        onSubmit = { viewModel.onSubmit(key.crewId) },
-        onKind = viewModel::onKind,
-        onPlace = viewModel::onPlace,
-        onCapacity = viewModel::onCapacity
+        onSubmit = { viewModel.onSubmit(key.crewId) }
     )
 }
 
@@ -151,36 +146,17 @@ fun CrewRunWriteScreen(
     onDay: (Int) -> Unit,
     onTime: (LocalTime) -> Unit,
     onSubmit: () -> Unit,
-    modifier: Modifier = Modifier,
-    onKind: (PostList.Kind) -> Unit = {},
-    onPlace: (String) -> Unit = {},
-    onCapacity: (Int?) -> Unit = {}
+    modifier: Modifier = Modifier
 ) {
-    val isMeetup = state.kind == PostList.Kind.MEETUP
     Column(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         RunkkTopBar(title = stringResource(R.string.crew_run_write_title), onBack = onBack)
         Column(
             Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            RunkkSegmentRow(
-                options = listOf(
-                    stringResource(R.string.crew_schedule_kind_crew_run),
-                    stringResource(R.string.crew_schedule_kind_meetup)
-                ),
-                selectedIndex = SCHEDULE_KINDS.indexOf(state.kind),
-                onSelect = { onKind(SCHEDULE_KINDS[it]) },
-                groupLabel = stringResource(R.string.crew_schedule_kind_group)
-            )
-            // 칸 순서(와이어 I8): 제목, 내용, 일시, 장소명, 정원. 대면 모임 제목과 응답 마감은 서버 입력에 없어 두지 않는다.
-            if (isMeetup) {
-                MeetupBodyField(state, onBody)
-                RunWriteSchedule(state, onDay, onTime)
-                MeetupPlaceFields(state, onPlace, onCapacity)
-            } else {
-                RunWriteFields(state, onTitle, onBody, onDistance)
-                RunWriteSchedule(state, onDay, onTime)
-            }
+            // 크루런만 만든다(피그마 F-12). 칸 순서(와이어 I8): 제목, 내용, 거리, 일시.
+            RunWriteFields(state, onTitle, onBody, onDistance)
+            RunWriteSchedule(state, onDay, onTime)
             state.error?.let {
                 Text(
                     it.asString(),
@@ -199,47 +175,6 @@ fun CrewRunWriteScreen(
             modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 32.dp)
         )
     }
-}
-
-/** 대면 모임 내용. */
-@Composable
-private fun MeetupBodyField(state: CrewRunWriteUiState, onBody: (String) -> Unit) {
-    RunkkTextField(
-        value = state.body,
-        onValueChange = onBody,
-        label = stringResource(R.string.crew_meetup_body_label),
-        placeholder = stringResource(R.string.crew_meetup_body_placeholder),
-        isSingleLine = false
-    )
-}
-
-/** 대면 모임 장소명(50자)·정원(2~10, 비우면 크루 정원, FR-132). 지도 좌표·위치 공유는 받지 않는다. */
-@Composable
-private fun MeetupPlaceFields(state: CrewRunWriteUiState, onPlace: (String) -> Unit, onCapacity: (Int?) -> Unit) {
-    RunkkTextField(
-        value = state.placeName,
-        onValueChange = onPlace,
-        label = stringResource(
-            R.string.crew_meetup_place_label,
-            state.placeName.codePointLength(),
-            CrewRunWriteUiState.PLACE_MAX
-        ),
-        placeholder = stringResource(R.string.crew_meetup_place_placeholder)
-    )
-    val capacities: List<Int?> = listOf<Int?>(null) +
-        (CrewRunWriteUiState.CAPACITY_MIN..CrewRunWriteUiState.CAPACITY_MAX).toList()
-    val crewDefault = stringResource(R.string.crew_meetup_capacity_default)
-    val resources = LocalContext.current.resources
-    RunkkSelectField(
-        label = stringResource(R.string.crew_meetup_capacity_label),
-        options = capacities,
-        selected = state.capacity,
-        optionLabel = {
-            SelectLabel(it?.let { n -> resources.getString(R.string.crew_meetup_capacity_option, n) } ?: crewDefault)
-        },
-        onSelect = onCapacity,
-        placeholder = crewDefault
-    )
 }
 
 /** 제목·내용·거리 입력. */

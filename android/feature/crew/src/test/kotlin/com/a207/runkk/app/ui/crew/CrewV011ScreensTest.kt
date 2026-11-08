@@ -19,8 +19,6 @@ import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.crew.AttendanceAnswer
 import com.a207.runkk.app.domain.crew.CrewRole
 import com.a207.runkk.app.domain.crew.PollMethod
-import com.a207.runkk.app.domain.crew.PostList
-import java.time.LocalDate
 import kotlin.test.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -196,36 +194,6 @@ class CrewV011ScreenshotTest {
     @Config(qualifiers = RUNKK_PHONE)
     @Test
     fun homeLight() = crewHome(isDark = false)
-
-    private fun meetupWrite(isDark: Boolean) =
-        compose.captureRunkkScreen("A3b_crew_meetup_write_${theme(isDark)}", isDark) {
-            CrewRunWriteScreen(
-                CrewRunWriteUiState(
-                    kind = PostList.Kind.MEETUP,
-                    body = "번개 후 맥주",
-                    placeName = "여의나루역 2번 출구",
-                    capacity = 8,
-                    today = LocalDate.of(2026, 10, 20),
-                    dayOffset = 2
-                ),
-                {},
-                {},
-                {},
-                {},
-                {},
-                {},
-                {}
-            )
-        }
-
-    @Config(qualifiers = RUNKK_PHONE)
-    @Test
-    fun meetupWriteDark() = meetupWrite(isDark = true)
-
-    /** 라이트 벌 기준 이미지(FR-203, NFR-041, AN5-D-12). */
-    @Config(qualifiers = RUNKK_PHONE)
-    @Test
-    fun meetupWriteLight() = meetupWrite(isDark = false)
 }
 
 /** 스크린샷 파일 이름 끝(라이트·다크 벌, NFR-041). */

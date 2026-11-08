@@ -44,9 +44,6 @@ import com.a207.runkk.app.domain.crew.LobbyAvailability
 import com.a207.runkk.app.domain.crew.PostList
 import java.time.Instant
 
-/** 일정 쓰기 화면의 종류 선택지(FR-132): 크루런·대면 모임. 크루 홈 크루런 탭은 크루런만 보인다. */
-internal val SCHEDULE_KINDS: List<PostList.Kind> = listOf(PostList.Kind.CREW_RUN, PostList.Kind.MEETUP)
-
 /**
  * 크루런 탭(피그마 F-11, FR-133, FR-145, FR-147): "+ 크루런 모집하기", 다가오는 크루런(가까운 일시순), 아래에 "지난 크루런".
  * 크루런마다 참석·불참·미정 응답과 대기실 단추를 보인다.

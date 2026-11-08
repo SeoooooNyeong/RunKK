@@ -280,9 +280,7 @@
     <string name="crew_celebration_saved">축하 카드를 사진에 저장했어요</string>
 
     <!-- 일정: 크루런·대면 모임, 참석 응답(FR-132, FR-145) -->
-    <string name="crew_schedule_kind_group">일정 종류</string>
     <string name="crew_schedule_kind_crew_run">크루런</string>
-    <string name="crew_schedule_kind_meetup">대면 모임</string>
     <string name="crew_schedule_write">크루런 모집하기</string>
     <string name="crew_schedule_empty">아직 크루런이 없어요</string>
     <string name="crew_schedule_past">지난 크루런</string>
@@ -294,13 +292,6 @@
     <string name="crew_attendance_undecided">미정</string>
     <string name="crew_attendance_mine">내 응답: %1$s</string>
     <string name="crew_meetup_counts">참석 %1$d, 불참 %2$d, 미정 %3$d</string>
-    <string name="crew_meetup_place_label">장소명 (%1$d/%2$d)</string>
-    <string name="crew_meetup_place_placeholder">예: 여의나루역 2번 출구</string>
-    <string name="crew_meetup_capacity_label">정원</string>
-    <string name="crew_meetup_capacity_default">크루 정원(10명)</string>
-    <string name="crew_meetup_capacity_option">%1$d명</string>
-    <string name="crew_meetup_body_label">내용</string>
-    <string name="crew_meetup_body_placeholder">모임 내용을 적어 주세요</string>
 
     <!-- 신고(FR-214) -->
     <string name="crew_report">신고</string>
