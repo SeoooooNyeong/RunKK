@@ -40,7 +40,8 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class BattleRunningViewModel @Inject constructor(
     private val coordinator: BattleRunCoordinator,
-    private val clock: Clock
+    private val clock: Clock,
+    private val screens: OpenBattleScreen
 ) : ViewModel() {
     private val _state = MutableStateFlow(BattleRunningUiState())
     val state: StateFlow<BattleRunningUiState> = _state.asStateFlow()
@@ -61,10 +62,12 @@ class BattleRunningViewModel @Inject constructor(
     /**
      * 진행 화면 인자를 받아 조정자 상태 구독을 시작한다. 같은 대결로 다시 부르면 무시한다.
      * 조정자가 이 대결을 모르면(프로세스가 다시 떠 백 스택만 복원된 경우) [STALE_MILLIS] 뒤 실패 화면으로 바꿔 빠져나갈 수 있게 한다.
+     * 키는 앱 범위에 적어 앱을 밀어 닫았다 다시 열 때 이 화면으로 돌아오게 한다(S15P31A207-278).
      */
     fun bind(key: Routes.BattleRunning) {
         if (bound == key.battleId) return
         bound = key.battleId
+        screens.remember(key)
         bindJobs.forEach { it.cancel() }
         bindJobs.clear()
         tickJob?.cancel()

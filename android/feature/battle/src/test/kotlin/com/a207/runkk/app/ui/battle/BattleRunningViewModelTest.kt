@@ -44,7 +44,7 @@ class BattleRunningViewModelTest {
         runCurrent()
         w.channels.channel.push(BattleStart(match.battleId, w.clock.now, opponentTrack = null))
         runCurrent()
-        val vm = vms.track(BattleRunningViewModel(w.coordinator, w.clock))
+        val vm = vms.track(BattleRunningViewModel(w.coordinator, w.clock, w.screens))
         vm.bind(key)
         runCurrent()
         return vm
@@ -176,11 +176,22 @@ class BattleRunningViewModelTest {
     }
 
     @Test
+    fun `S15P31A207-278 진행 화면 키를 앱 범위에 적어 두고 회가 닫히면 돌려주지 않는다`() = main.runVmTest { vms ->
+        val w = world()
+        val vm = running(w, vms)
+        assertEquals(key, w.screens.key(), "열린 회의 진행 화면 키")
+        vm.onForfeitLongPressed()
+        vm.onForfeitConfirmed()
+        runCurrent()
+        assertNull(w.screens.key(), "닫힌 회의 키는 돌려주지 않는다")
+    }
+
+    @Test
     fun `측정을 시작하지 못하고 끝나면 실패 화면을 보인다`() = main.runVmTest { vms ->
         val w = world()
         w.permission.granted = false
         val match = matchFound()
-        val vm = vms.track(BattleRunningViewModel(w.coordinator, w.clock))
+        val vm = vms.track(BattleRunningViewModel(w.coordinator, w.clock, w.screens))
         vm.bind(key)
         w.coordinator.onMatched(match)
         runCurrent()
@@ -194,7 +205,7 @@ class BattleRunningViewModelTest {
     fun `채널 연결이 실패하면 조정자 failure를 안내로 보이고 닫을 때 지운다`() = main.runVmTest { vms ->
         val w = world()
         w.channels.channel.connectFailure = AppError.Network
-        val vm = vms.track(BattleRunningViewModel(w.coordinator, w.clock))
+        val vm = vms.track(BattleRunningViewModel(w.coordinator, w.clock, w.screens))
         vm.bind(key)
         w.coordinator.onMatched(matchFound())
         runCurrent()
@@ -207,7 +218,7 @@ class BattleRunningViewModelTest {
     @Test
     fun `기록 대결 - 3초 카운트다운을 보인 뒤 측정으로`() = main.runVmTest { vms ->
         val w = world()
-        val vm = vms.track(BattleRunningViewModel(w.coordinator, w.clock))
+        val vm = vms.track(BattleRunningViewModel(w.coordinator, w.clock, w.screens))
         w.coordinator.onRecordBattleStart(
             recordStart(Distance(5_000), com.a207.runkk.app.core.model.CardKind.SELF_RUN, "과거의 나")
         )
@@ -225,14 +236,14 @@ class BattleRunningViewModelTest {
     @Test
     fun `배치고사 판이면 진행 중 상대를 물음표로 그리고 아니면 상대 그림을 그린다(FR-276)`() = main.runVmTest { vms ->
         val w = world()
-        val placement = vms.track(BattleRunningViewModel(w.coordinator, w.clock))
+        val placement = vms.track(BattleRunningViewModel(w.coordinator, w.clock, w.screens))
         placement.bind(key.copy(placementRound = 2))
         runCurrent()
         assertEquals(2, placement.state.value.placementRound)
         assertTrue(placement.state.value.isOpponentHidden)
         assertEquals("바람처럼", placement.state.value.opponentName, "표시명은 서버의 가상 닉네임 그대로다")
 
-        val plain = vms.track(BattleRunningViewModel(w.coordinator, w.clock))
+        val plain = vms.track(BattleRunningViewModel(w.coordinator, w.clock, w.screens))
         plain.bind(key)
         runCurrent()
         assertNull(plain.state.value.placementRound)
@@ -253,7 +264,7 @@ class BattleRunningViewModelTest {
     @Test
     fun `조정자가 이 대결을 모르면 잠시 뒤 실패 화면으로 빠져나갈 수 있다`() = main.runVmTest { vms ->
         val w = world()
-        val vm = vms.track(BattleRunningViewModel(w.coordinator, w.clock))
+        val vm = vms.track(BattleRunningViewModel(w.coordinator, w.clock, w.screens))
         vm.bind(key)
         runCurrent()
         assertEquals(BattlePhase.STARTING, vm.state.value.phase)
@@ -272,7 +283,7 @@ class BattleRunningViewModelTest {
         w.runTo(1, 0.0)
         w.runTo(20, 60.0)
         runCurrent()
-        val vm = vms.track(BattleRunningViewModel(w.coordinator, w.clock))
+        val vm = vms.track(BattleRunningViewModel(w.coordinator, w.clock, w.screens))
         vm.bind(key.copy(startAtEpochMillis = start.toEpochMilli()))
         runCurrent()
         assertEquals(Duration.ofSeconds(20), vm.state.value.elapsed)
@@ -284,7 +295,7 @@ class BattleRunningViewModelTest {
         vms: ViewModelCloser,
         kind: CardKind = CardKind.SELF_RUN
     ): BattleRunningViewModel {
-        val vm = vms.track(BattleRunningViewModel(w.coordinator, w.clock))
+        val vm = vms.track(BattleRunningViewModel(w.coordinator, w.clock, w.screens))
         w.coordinator.onRecordBattleStart(recordStart(Distance(5_000), kind, "10월 2일의 나"))
         val opponent = if (kind == CardKind.SELF_RUN) OpponentKind.SELF else OpponentKind.CELEBRITY
         vm.bind(

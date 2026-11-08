@@ -614,6 +614,9 @@ class BattleWorld(
     val gps = FakeGpsWarmUp()
     val coordinator = BattleRunCoordinator(tracker, channels, battles, silent, clock, scope, gps)
 
+    /** 열린 회의 진행 화면 키(앱 범위). 진행 화면이 적고 앱 위 안내가 읽는다(S15P31A207-278). */
+    val screens = OpenBattleScreen(coordinator)
+
     companion object {
         /** 조정자 범위: 시험 스케줄러를 쓰는 표준 디스패처(직렬화용 limitedParallelism을 쓰려면 Unconfined가 아니어야 한다). */
         fun TestScope.world(): BattleWorld = BattleWorld(
