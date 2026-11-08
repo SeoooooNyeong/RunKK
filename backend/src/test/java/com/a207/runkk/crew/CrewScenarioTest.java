@@ -264,6 +264,51 @@ class CrewScenarioTest {
     }
 
     @Test
+    @org.junit.jupiter.api.DisplayName(
+            "BR-2: 세션을 다시 열면 이미 끝낸 참가자는 DB의 마감 거리·경과로 ENDED, 합산 거리에 들어간다")
+    void ensureSession_restoresEndedRunnersFromParticipations() {
+        long leader = member();
+        long a = member();
+        long crewId = crew(leader, JoinPolicy.FREE);
+        membership.apply(a, JoinTarget.byCrew(crewId));
+        LocalDateTime at = LocalDateTime.now().plusMinutes(20).withNano(0);
+        long run =
+                posts.writeCrewRun(
+                                leader,
+                                crewId,
+                                new CrewRunDraft("다시 열기", at, StandardDistance.KM3, null))
+                        .postId();
+        for (long m : List.of(leader, a)) {
+            crewRuns.enterLobby(m, run);
+            crewRuns.toggleReady(m, run);
+        }
+        crewRuns.tick(at);
+        crewRuns.quit(a, run, new FinalProgress(Distance.ofMeters(1_200), Duration.ofSeconds(420)));
+
+        sessions.delete(run);
+        crewRuns.tick(at.plusSeconds(10));
+        live.detectTimeouts(at.plusSeconds(20));
+
+        CrewRunLiveSession reopened = sessions.load(run).orElseThrow();
+        assertThat(reopened.entries())
+                .filteredOn(e -> e.memberId() == a)
+                .singleElement()
+                .satisfies(
+                        e -> {
+                            assertThat(e.state()).isEqualTo(RelayEntry.State.ENDED);
+                            assertThat(e.distance()).isEqualTo(Distance.ofMeters(1_200));
+                        });
+        assertThat(reopened.totalDistance()).isEqualTo(Distance.ofMeters(1_200));
+        assertThat(reopened.latestOf(a).map(LiveProgress::elapsed))
+                .contains(Duration.ofSeconds(420));
+        assertThat(reopened.entries())
+                .filteredOn(e -> e.memberId() == leader)
+                .extracting(RelayEntry::state)
+                .as("아직 달리는 사람은 진행값이 없어 연결 확인 중")
+                .containsExactly(RelayEntry.State.CHECKING);
+    }
+
+    @Test
     void pendingRequests_expireAfterSevenDays() {
         long leader = member();
         long a = member();

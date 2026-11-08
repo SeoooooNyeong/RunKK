@@ -12,6 +12,7 @@ import com.a207.runkk.notification.NotificationService;
 import com.a207.runkk.notification.NotificationType;
 import com.a207.runkk.notification.Screen;
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -135,16 +136,32 @@ class CrewRunAnnouncer {
         AfterCommit.run(() -> crewRunMessenger.sendAll(recipients, message));
     }
 
-    /** 진행 중인데 세션이 없으면(출발 커밋 뒤 Redis 저장 실패, Redis 재시작) 진행 참가자로 다시 연다. 1초 시계가 RUNNING 크루런마다 부른다. */
+    /**
+     * 진행 중인데 세션이 없으면(출발 커밋 뒤 Redis 저장 실패, Redis 재시작) 진행 참가자로 다시 연다. 이미 끝낸 참가자는 참여에 남은 마감 거리·경과로
+     * "끝냄"을 되살려 중계 합산과 상태가 DB와 같게 한다(MR !91 BR-2). 1초 시계가 RUNNING 크루런마다 부른다.
+     */
     void ensureSession(CrewRunPost post) {
         if (post.status() != CrewRunStatus.RUNNING
                 || crewLiveSessionStore.load(post.getId()).isPresent()) {
             return;
         }
         List<Long> runners = post.runners();
-        crewLiveSessionStore.save(
-                CrewRunLiveSession.open(
-                        post.getId(), namesOf(runners), post.departedAt().orElseThrow()));
+        LocalDateTime departedAt = post.departedAt().orElseThrow();
+        CrewRunLiveSession session =
+                CrewRunLiveSession.open(post.getId(), namesOf(runners), departedAt);
+        for (long memberId : runners) {
+            post.participationOf(memberId)
+                    .filter(CrewRunParticipation::hasEnded)
+                    .ifPresent(p -> session.markEnded(memberId, finalProgressOf(p, departedAt)));
+        }
+        crewLiveSessionStore.save(session);
+    }
+
+    /** 참여에 남은 마감 값(거리가 없으면 null, 경과가 없으면 0). */
+    private static LiveProgress finalProgressOf(CrewRunParticipation p, LocalDateTime seenAt) {
+        return p.finalDistance()
+                .map(d -> new LiveProgress(d, p.finalElapsed().orElse(Duration.ZERO), seenAt))
+                .orElse(null);
     }
 
     /** 시계가 보는 크루런이 아닌데 남은 세션(삭제된 글·크루)을 지운다. */
