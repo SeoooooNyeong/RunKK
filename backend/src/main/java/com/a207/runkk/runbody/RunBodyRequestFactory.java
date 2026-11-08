@@ -87,28 +87,76 @@ public class RunBodyRequestFactory {
         return of(input, birthYear.getAsInt());
     }
 
-    /** 재료로 요청을 만든다(시험이 직접 부른다). */
+    /** 재료로 요청을 만든다(시험이 직접 부른다). 심박·기기 표본·위치 이동을 차례로 표본에 더하고 조립만 한다. */
     static RunBodyRequest of(RunBodyInput input, int birthYear) {
         ActiveClock clock = new ActiveClock(input.startedAt(), input.endedAt(), input.pauses());
         List<RunBodyRequest.Sample> samples = new ArrayList<>();
+        List<RunBodyRequest.RecoveryHeartRate> recovery =
+                addHeartRates(input.heartRates(), input.endedAt(), clock, samples);
+        long[] measuredSpeeds = addMeasuredMotions(input.motions(), clock, samples);
+        List<RunBodyRequest.GpsPoint> gps =
+                addGpsSteps(input.points(), clock, measuredSpeeds, samples);
+        samples.sort(Comparator.comparingLong(RunBodyRequest.Sample::tMs));
+        if (samples.isEmpty()) {
+            // ai SessionIn.samples는 1개 이상이다. 심박·위치가 없는 기록은 값 없는 표본 하나로 요약만 받는다(qualityFlags no_gps
+            // 등)
+            samples.add(new RunBodyRequest.Sample(0, null, null, null));
+        }
+        return new RunBodyRequest(
+                input.recordId(),
+                Long.toString(input.memberId()),
+                input.startDevice() == StartDevice.WATCH ? "watch" : "phone",
+                input.startedAt().atZone(ServerZone.ID).toOffsetDateTime(),
+                input.endedAt().atZone(ServerZone.ID).toOffsetDateTime(),
+                input.elapsed().toMillis(),
+                input.distance().meters(),
+                birthYear,
+                samples,
+                gps,
+                recovery);
+    }
+
+    /**
+     * 운동 중 심박을 표본으로 더하고, 종료 뒤 {@link #RECOVERY_WINDOW} 안의 심박을 {@link #MAX_RECOVERY}개까지 회복 심박으로
+     * 돌려준다. 정지 중 심박은 버린다.
+     */
+    private static List<RunBodyRequest.RecoveryHeartRate> addHeartRates(
+            List<HeartRateSample> heartRates,
+            LocalDateTime endedAt,
+            ActiveClock clock,
+            List<RunBodyRequest.Sample> samples) {
         List<RunBodyRequest.RecoveryHeartRate> recovery = new ArrayList<>();
-        for (HeartRateSample hr : input.heartRates()) {
-            if (hr.measuredAt().isAfter(input.endedAt())) {
-                long after = Duration.between(input.endedAt(), hr.measuredAt()).toMillis();
-                if (after <= RECOVERY_WINDOW.toMillis() && recovery.size() < MAX_RECOVERY) {
-                    recovery.add(new RunBodyRequest.RecoveryHeartRate(after, hr.bpm()));
-                }
+        for (HeartRateSample hr : heartRates) {
+            if (!hr.measuredAt().isAfter(endedAt)) {
+                clock.activeMillis(hr.measuredAt())
+                        .ifPresent(
+                                t ->
+                                        samples.add(
+                                                new RunBodyRequest.Sample(
+                                                        t, hr.bpm(), null, null)));
                 continue;
             }
-            clock.activeMillis(hr.measuredAt())
-                    .ifPresent(
-                            t -> samples.add(new RunBodyRequest.Sample(t, hr.bpm(), null, null)));
+            long after = Duration.between(endedAt, hr.measuredAt()).toMillis();
+            if (after <= RECOVERY_WINDOW.toMillis() && recovery.size() < MAX_RECOVERY) {
+                recovery.add(new RunBodyRequest.RecoveryHeartRate(after, hr.bpm()));
+            }
         }
-        long[] measuredSpeeds = addMeasuredMotions(input.motions(), clock, samples);
+        return recovery;
+    }
+
+    /**
+     * 위치 점을 운동 시간 축 GPS 점으로 바꿔 돌려주고, 이웃한 두 점(정지를 건너지 않는 쌍) 사이 이동을 표본으로 더한다. 앞뒤 {@link
+     * #MEASURED_SPEED_WINDOW} 안에 기기가 잰 속도가 있으면 셈한 속도는 빼고 거리만 보낸다.
+     */
+    private static List<RunBodyRequest.GpsPoint> addGpsSteps(
+            List<LocationPoint> points,
+            ActiveClock clock,
+            long[] measuredSpeeds,
+            List<RunBodyRequest.Sample> samples) {
         List<RunBodyRequest.GpsPoint> gps = new ArrayList<>();
         LocationPoint previous = null;
         long previousT = -1;
-        for (LocationPoint point : input.points()) {
+        for (LocationPoint point : points) {
             OptionalLong t = clock.activeMillis(point.measuredAt());
             if (t.isEmpty()) {
                 previous = null;
@@ -136,24 +184,7 @@ public class RunBodyRequestFactory {
             previous = point;
             previousT = t.getAsLong();
         }
-        samples.sort(Comparator.comparingLong(RunBodyRequest.Sample::tMs));
-        if (samples.isEmpty()) {
-            // ai SessionIn.samples는 1개 이상이다. 심박·위치가 없는 기록은 값 없는 표본 하나로 요약만 받는다(qualityFlags no_gps
-            // 등)
-            samples.add(new RunBodyRequest.Sample(0, null, null, null));
-        }
-        return new RunBodyRequest(
-                input.recordId(),
-                Long.toString(input.memberId()),
-                input.startDevice() == StartDevice.WATCH ? "watch" : "phone",
-                input.startedAt().atZone(ServerZone.ID).toOffsetDateTime(),
-                input.endedAt().atZone(ServerZone.ID).toOffsetDateTime(),
-                input.elapsed().toMillis(),
-                input.distance().meters(),
-                birthYear,
-                samples,
-                gps,
-                recovery);
+        return gps;
     }
 
     /**
