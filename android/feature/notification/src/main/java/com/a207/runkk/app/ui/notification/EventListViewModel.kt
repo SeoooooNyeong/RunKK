@@ -29,9 +29,16 @@ class EventListViewModel @Inject constructor(private val events: EventRepository
     val state: StateFlow<EventListUiState> = _state.asStateFlow()
 
     private var loadJob: Job? = null
+    private var resumedOnce = false
 
     init {
         refresh()
+    }
+
+    /** 상세나 셀럽런에서 돌아오면 응모 수와 상태를 다시 읽는다. 처음 표시는 init이 읽는다. */
+    fun onResumed() {
+        if (resumedOnce) refresh()
+        resumedOnce = true
     }
 
     fun refresh() {

@@ -192,6 +192,34 @@ class EventTest {
         assertNull(bridge.getAccessToken(), "주 문서를 모르면 믿지 않는다")
     }
 
+    @Test
+    fun `허용 origin을 읽을 수 없으면 어떤 주소도 같은 origin이 아니다`() {
+        assertFalse(isSameOrigin(null, ""), "둘 다 null이라 같다고 보면 안 된다")
+        assertFalse(isSameOrigin("file:///android_asset/x.html", "not a url"))
+        val bridge = RunkkAppBridge(
+            allowedOrigin = "",
+            currentUrl = { null },
+            accessToken = { "access-1" },
+            runOnMain = { it() },
+            onOpen = {},
+            onClose = {},
+            onShare = {}
+        )
+        assertNull(bridge.getAccessToken())
+    }
+
+    @Test
+    fun `목록으로 돌아오면 응모 수를 다시 읽는다`() {
+        val vm = EventListViewModel(events, clock)
+        assertEquals(1, events.eventsCalls)
+        vm.onResumed()
+        assertEquals(1, events.eventsCalls, "처음 표시는 init이 읽는다")
+        events.result = Outcome.Success(sampleEvents.map { it.copy(entryCount = 1) })
+        vm.onResumed()
+        assertEquals(2, events.eventsCalls)
+        assertTrue(vm.state.value.events.all { it.entryCount == 1 })
+    }
+
     private object EmptyNotifications : NotificationRepository {
         override suspend fun inbox(): Outcome<Inbox> = Outcome.Success(Inbox(emptyList()))
 

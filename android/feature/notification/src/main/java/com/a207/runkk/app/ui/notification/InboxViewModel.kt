@@ -15,6 +15,7 @@ import com.a207.runkk.app.domain.notification.hasUnseenOngoing
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Clock
 import javax.inject.Inject
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -41,6 +42,7 @@ class InboxViewModel @Inject constructor(
     val events: Flow<InboxEvent> = _events.receiveAsFlow()
 
     private var resumedOnce = false
+    private var eventsJob: Job? = null
 
     init {
         refresh()
@@ -55,7 +57,9 @@ class InboxViewModel @Inject constructor(
 
     /** 이벤트 항목. 못 읽으면 지난 값을 둔다(처음이면 항목 없음). */
     fun refreshEvents() {
-        viewModelScope.launch {
+        // 앞 읽기가 늦게 끝나 새 결과를 덮지 않게 취소한다
+        eventsJob?.cancel()
+        eventsJob = viewModelScope.launch {
             val list = (eventRepository.events() as? Outcome.Success)?.value ?: return@launch
             val seen = eventRepository.seenEventIds()
             val summary = list.takeIf { it.isNotEmpty() }?.let {

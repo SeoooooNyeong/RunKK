@@ -21,8 +21,11 @@ internal fun webOriginOf(url: String?): String? {
     return "$scheme://$host$port"
 }
 
-/** [url]이 [origin]과 같은 origin인가. */
-internal fun isSameOrigin(url: String?, origin: String): Boolean = webOriginOf(url) == webOriginOf(origin)
+/** [url]이 [origin]과 같은 origin인가. [origin]을 읽을 수 없으면 어떤 주소도 같지 않다(둘 다 null을 같다고 보지 않는다). */
+internal fun isSameOrigin(url: String?, origin: String): Boolean {
+    val allowed = webOriginOf(origin) ?: return false
+    return webOriginOf(url) == allowed
+}
 
 /** 상세 주소에 현재 앱 테마를 붙인다(이벤트 계약 4절): "?theme=light" 또는 "?theme=dark". 이미 질의가 있으면 "&"로 잇는다. */
 internal fun withTheme(url: String, isDark: Boolean): String {

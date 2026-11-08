@@ -11,8 +11,12 @@ import java.time.Instant
 internal class FakeEventRepository(var result: Outcome<List<Event>> = Outcome.Success(sampleEvents)) : EventRepository {
     var seen: Set<Long> = emptySet()
     val meCalls = mutableListOf<String>()
+    var eventsCalls = 0
 
-    override suspend fun events(): Outcome<List<Event>> = result
+    override suspend fun events(): Outcome<List<Event>> {
+        eventsCalls++
+        return result
+    }
 
     override suspend fun me(slug: String): Outcome<EventEntry> {
         meCalls += slug
