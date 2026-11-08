@@ -3177,6 +3177,10 @@
    },
    {
     "kind": "leaf",
+    "name": "contributedCrewName"
+   },
+   {
+    "kind": "leaf",
     "name": "rewardPoints"
    },
    {

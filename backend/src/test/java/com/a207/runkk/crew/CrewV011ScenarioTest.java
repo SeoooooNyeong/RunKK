@@ -550,6 +550,18 @@ class CrewV011ScenarioTest {
     }
 
     @Test
+    @DisplayName("S15P31A207-251: 기록이 반영된 크루 이름을 준다(결과 화면 크루 반영 줄), 반영이 없으면 빈 값")
+    void contributedCrewName() {
+        Crew7 c = crew7();
+        RunRecordSaved run = saved(c.r1(), 5_210, now());
+        race.onRunSaved(run);
+
+        assertThat(race.contributedCrewNameOf(run.recordId()))
+                .hasValueSatisfying(name -> assertThat(name).startsWith("삼에이크루"));
+        assertThat(race.contributedCrewNameOf(UUID.randomUUID().toString())).isEmpty();
+    }
+
+    @Test
     @DisplayName("TC-6138~TC-6145: 목표는 L·M만, 정한 즉시 달성, 달성은 한 번, 다시 정해도 재판정 없음, 축하 카드")
     void goals() {
         Crew7 c = crew7();
