@@ -13,6 +13,7 @@ import com.a207.runkk.app.domain.runbody.RunBodyStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Clock
 import java.time.LocalDate
+import java.time.ZoneId
 import javax.inject.Inject
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -29,14 +30,22 @@ import kotlinx.coroutines.launch
  * 분석은 러닝 저장 때 서버가 자동 제출한다(S-31). 대기·분석 중이면 [POLL_MILLIS]마다 [MAX_POLLS]번까지 다시 읽어 완료되면 같은 칸에 결과를 보인다
  * (NFR-053 60초). 실패면 "상태 다시 확인"([onRetrySession])으로 다시 읽는다. 러닝 선택(G-30)의 러닝 점수는 기록 목록과 함께 읽고
  * (RunBodyRepository.scores), 못 읽으면 점수 없이 목록만 보인다.
+ *
+ * 날짜·시각은 기기 시간대([zone], 러닝 결과 화면과 같은 ZoneId.systemDefault())로 셈한다. 앱 Clock은 UTC(DeviceBindings)라
+ * clock.zone을 쓰면 오늘·"낮/밤 러닝"이 9시간 어긋난다(MR !91 e2e 2).
  */
 @HiltViewModel
-class RunBodyViewModel @Inject constructor(
+class RunBodyViewModel internal constructor(
     private val records: RecordRepository,
     private val runBody: RunBodyRepository,
-    private val clock: Clock
+    private val clock: Clock,
+    private val zone: ZoneId
 ) : ViewModel() {
-    private val _state = MutableStateFlow(RunBodyUiState(today = LocalDate.now(clock), zone = clock.zone))
+    @Inject
+    constructor(records: RecordRepository, runBody: RunBodyRepository, clock: Clock) :
+        this(records, runBody, clock, ZoneId.systemDefault())
+
+    private val _state = MutableStateFlow(RunBodyUiState(today = today(), zone = zone))
     val state: StateFlow<RunBodyUiState> = _state.asStateFlow()
     private var hasRuns = false
     private var hasMonth = false
@@ -94,7 +103,7 @@ class RunBodyViewModel @Inject constructor(
     /** 최근 기록을 읽고, 고른 기록이 없거나 목록에 없으면 가장 최근 기록을 골라 분석을 읽는다. */
     fun refreshRuns() {
         hasRuns = true
-        val today = LocalDate.now(clock)
+        val today = today()
         _state.update { it.copy(isRunsLoading = true, runsError = null, today = today) }
         loadScores()
         runsJob?.cancel()
@@ -189,6 +198,8 @@ class RunBodyViewModel @Inject constructor(
             }
         }
     }
+
+    private fun today(): LocalDate = LocalDate.now(clock.withZone(zone))
 
     private fun loadSession(recordId: String) {
         sessionJob?.cancel()

@@ -31,7 +31,7 @@ class RunBodyViewModelTest {
     private val records = FakeRecordRepository()
     private val runBody = FakeRunBodyRepository()
 
-    private fun viewModel() = RunBodyViewModel(records, runBody, clock)
+    private fun viewModel() = RunBodyViewModel(records, runBody, clock, zone)
 
     private fun advance(millis: Long) {
         main.dispatcher.scheduler.advanceTimeBy(millis)
@@ -52,6 +52,20 @@ class RunBodyViewModelTest {
         assertEquals(emptyList(), records.runsCalls)
         assertEquals(emptyList(), runBody.sessionCalls)
         assertEquals(0, runBody.scoresCalls)
+    }
+
+    @Test
+    fun `앱 시계가 UTC여도 오늘과 시각은 기기 시간대로 셈한다(MR !91 e2e 2)`() {
+        // 한국 2026-11-08 01:30 = UTC 2026-11-07 16:30. 앱 Clock은 Clock.systemUTC()다(DeviceBindings)
+        val utc = Clock.fixed(Instant.parse("2026-11-07T16:30:00Z"), java.time.ZoneOffset.UTC)
+        val vm = RunBodyViewModel(records, runBody, utc, zone)
+
+        assertEquals(zone, vm.state.value.zone)
+        assertEquals(LocalDate.of(2026, 11, 8), vm.state.value.today)
+        assertEquals(YearMonth.of(2026, 11), vm.state.value.month)
+        vm.onTab(RunBodyTab.RUN)
+        assertEquals(LocalDate.of(2026, 11, 8), records.runsCalls.single().third)
+        assertEquals(LocalDate.of(2026, 11, 8), vm.state.value.today)
     }
 
     @Test
