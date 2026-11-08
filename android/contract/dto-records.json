@@ -3553,6 +3553,122 @@
   ],
   "file": "web/report/ReportController.java"
  },
+ "RunBodyDtos.RunBodySessionListResponse": {
+  "components": [
+   {
+    "kind": "list",
+    "name": "items",
+    "ref": "RunBodyDtos.RunBodySessionRow"
+   },
+   {
+    "kind": "leaf",
+    "name": "nextCursor"
+   }
+  ],
+  "file": "web/runbody/RunBodyDtos.java"
+ },
+ "RunBodyDtos.RunBodySessionResponse": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "recordId"
+   },
+   {
+    "kind": "leaf",
+    "name": "status"
+   },
+   {
+    "kind": "leaf",
+    "name": "result"
+   }
+  ],
+  "file": "web/runbody/RunBodyDtos.java"
+ },
+ "RunBodyDtos.RunBodySessionRow": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "recordId"
+   },
+   {
+    "kind": "leaf",
+    "name": "status"
+   },
+   {
+    "kind": "leaf",
+    "name": "score"
+   },
+   {
+    "kind": "leaf",
+    "name": "scoreChange"
+   }
+  ],
+  "file": "web/runbody/RunBodyDtos.java"
+ },
+ "RunBodyDtos.RunBodyTrendResponse": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "validRunCount"
+   },
+   {
+    "kind": "leaf",
+    "name": "round"
+   },
+   {
+    "kind": "leaf",
+    "name": "needs"
+   },
+   {
+    "kind": "record",
+    "name": "recent",
+    "ref": "RunBodyDtos.RunBodyWindowResponse"
+   },
+   {
+    "kind": "record",
+    "name": "previous",
+    "ref": "RunBodyDtos.RunBodyWindowResponse"
+   },
+   {
+    "kind": "leaf",
+    "name": "sameHeartRatePaceChange"
+   },
+   {
+    "kind": "leaf",
+    "name": "runimalType"
+   }
+  ],
+  "file": "web/runbody/RunBodyDtos.java"
+ },
+ "RunBodyDtos.RunBodyWindowResponse": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "fromOrdinal"
+   },
+   {
+    "kind": "leaf",
+    "name": "toOrdinal"
+   },
+   {
+    "kind": "leaf",
+    "name": "paceSecondsPerKm"
+   },
+   {
+    "kind": "leaf",
+    "name": "runsPerWeek"
+   },
+   {
+    "kind": "leaf",
+    "name": "runsPerMonth"
+   },
+   {
+    "kind": "leaf",
+    "name": "averageHeartRate"
+   }
+  ],
+  "file": "web/runbody/RunBodyDtos.java"
+ },
  "RunController.HeartRateRequest": {
   "components": [
    {
