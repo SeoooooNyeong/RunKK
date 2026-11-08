@@ -175,12 +175,23 @@ def laps(g: pd.DataFrame, lap_m: float = LAP_M) -> list[Metrics]:
     times, dists = g["t"].tolist(), g["dist_cum"].tolist()
     for t, dist in zip(times, dists, strict=True):
         if dist - start_d >= lap_m:
-            seg = g[(g["t"] > start_t) & (g["t"] <= t)]["hr"]
-            avg_hr = round(_f(seg.mean())) if seg.notna().any() else None
-            out.append({"km": km, "pace_s": int(t - start_t), "avg_hr": avg_hr})
+            out.append({"km": km, "pace_s": int(t - start_t), "avg_hr": _lap_hr(g, start_t, t)})
             start_t, start_d, km = int(t), start_d + lap_m, km + 1
     remaining = dists[-1] - start_d
     if remaining > _PARTIAL_LAP_MIN_M:
         elapsed = int(times[-1] - start_t)
-        out.append({"km": round(remaining / 1000, 2), "pace_s": int(elapsed / remaining * 1000), "partial": True})
+        out.append(
+            {
+                "km": round(remaining / 1000, 2),
+                "pace_s": int(elapsed / remaining * 1000),
+                "avg_hr": _lap_hr(g, start_t, times[-1]),  # 마지막 부분 랩도 그 구간 평균 심박(MR !91 e2e 7)
+                "partial": True,
+            }
+        )
     return out
+
+
+def _lap_hr(g: pd.DataFrame, start_t: float, end_t: float) -> int | None:
+    """(start_t, end_t] 구간의 평균 심박. 심박이 없으면 None."""
+    seg = g[(g["t"] > start_t) & (g["t"] <= end_t)]["hr"]
+    return round(_f(seg.mean())) if seg.notna().any() else None

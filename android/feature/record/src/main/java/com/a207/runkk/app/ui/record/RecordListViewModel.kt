@@ -29,15 +29,21 @@ import kotlinx.coroutines.launch
  * 기록 화면 3탭(G-7·G-8, D-279, FR-057·FR-058). 달력 탭은 그 달 본인 기록(RecordRepository.runs)과 월 요약(GET /dashboard의
  * monthRuns·monthMeters, 연속은 오늘 기준 streakWeeks·streakDays)을, 목록 탭은 최근 [RECENT_DAYS]일 기록을 읽는다. 기기의 미전송 기록 수
  * (PendingRunRepository.observePending)를 함께 보인다. 상세에서 기록을 지우고 돌아오면 [onResumed]로 다시 읽는다(D-280).
+ * 앱 Clock은 UTC(DeviceBindings)라 날짜·시각은 기기 시간대 [zone](ZoneId.systemDefault(), 러닝 결과 화면과 같다)으로 셈한다(MR !91 e2e 2 후속).
  */
 @HiltViewModel
-class RecordListViewModel @Inject constructor(
+class RecordListViewModel internal constructor(
     private val records: RecordRepository,
     private val pendingRuns: PendingRunRepository,
-    private val clock: Clock
+    private val clock: Clock,
+    private val zone: ZoneId
 ) : ViewModel() {
+    @Inject
+    constructor(records: RecordRepository, pendingRuns: PendingRunRepository, clock: Clock) :
+        this(records, pendingRuns, clock, ZoneId.systemDefault())
+
     private val _state = MutableStateFlow(
-        RecordListUiState(month = YearMonth.now(clock), today = LocalDate.now(clock), zone = clock.zone)
+        RecordListUiState(month = YearMonth.from(today()), today = today(), zone = zone)
     )
     val state: StateFlow<RecordListUiState> = _state.asStateFlow()
     private var monthJob: Job? = null
@@ -72,7 +78,7 @@ class RecordListViewModel @Inject constructor(
 
     fun refresh() {
         val month = _state.value.month
-        val today = LocalDate.now(clock)
+        val today = today()
         _state.update { it.copy(isLoading = true, error = null, today = today) }
         monthJob?.cancel()
         monthJob = viewModelScope.launch {
@@ -127,7 +133,7 @@ class RecordListViewModel @Inject constructor(
     /** 목록 탭: 오늘까지 최근 [RECENT_DAYS]일 기록(최신순). */
     fun loadRecent() {
         hasRecent = true
-        val today = LocalDate.now(clock)
+        val today = today()
         _state.update { it.copy(isRecentLoading = true, recentError = null) }
         recentJob?.cancel()
         recentJob = viewModelScope.launch {
@@ -156,6 +162,8 @@ class RecordListViewModel @Inject constructor(
         }
         refresh()
     }
+
+    private fun today(): LocalDate = clock.instant().atZone(zone).toLocalDate()
 
     private companion object {
         const val RECENT_DAYS = 90L

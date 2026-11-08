@@ -199,6 +199,19 @@ public class JpaWeeklyRaceRepository implements WeeklyRaceRepository {
     }
 
     @Override
+    public Optional<Long> contributedCrewOf(String recordId) {
+        List<?> crews =
+                entityManager
+                        .createQuery(
+                                "select c.crewId from RaceContributionRow c where c.recordId ="
+                                        + " :record order by c.crewId")
+                        .setParameter("record", recordId)
+                        .setMaxResults(1)
+                        .getResultList();
+        return crews.stream().findFirst().map(id -> ((Number) id).longValue());
+    }
+
+    @Override
     public void deleteByCrew(long crewId) {
         entityManager
                 .createQuery("delete from RaceContributionRow c where c.crewId = :crew")

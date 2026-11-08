@@ -347,26 +347,20 @@ class RealtimeContractTest {
         DisplayName rabbit = DisplayName.of("한강토끼");
         return new CrewRunRelay(
                 77,
+                Distance.ofMeters(7_600),
                 List.of(
                         new RelayEntry(
                                 bear,
                                 Distance.ofMeters(3_120),
-                                1,
-                                RelayEntry.Connection.CONNECTED,
+                                RelayEntry.State.RUNNING,
                                 11,
                                 false),
                         new RelayEntry(
-                                fox,
-                                Distance.ofMeters(2_980),
-                                2,
-                                RelayEntry.Connection.CHECKING,
-                                12,
-                                false),
+                                fox, Distance.ofMeters(2_980), RelayEntry.State.PAUSED, 12, false),
                         new RelayEntry(
                                 rabbit,
                                 Distance.ofMeters(1_500),
-                                null,
-                                RelayEntry.Connection.QUIT,
+                                RelayEntry.State.ENDED,
                                 13,
                                 false)));
     }

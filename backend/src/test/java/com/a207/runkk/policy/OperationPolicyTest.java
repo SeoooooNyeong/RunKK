@@ -70,12 +70,11 @@ class OperationPolicyTest {
                                 java.time.Duration.ofMinutes(5),
                                 3,
                                 12));
-        // 저장된 항목은 시작 때 채운 캐시에서, 없는 항목(SELFIE_ENABLED, CREW_RELEASED, AVATAR_RELEASED)은 한 번 읽은 뒤
-        // 캐시에서
-        // 읽는다
-        assertThat(repository.findCalls()).isEqualTo(callsAfterStart + 3);
+        // 저장된 항목은 시작 때 채운 캐시에서, 없는 항목(SELFIE_ENABLED, CREW_RELEASED, AVATAR_RELEASED,
+        // RUNBODY_ENABLED)은 한 번 읽은 뒤 캐시에서 읽는다
+        assertThat(repository.findCalls()).isEqualTo(callsAfterStart + 4);
         policy.features();
-        assertThat(repository.findCalls()).isEqualTo(callsAfterStart + 3);
+        assertThat(repository.findCalls()).isEqualTo(callsAfterStart + 4);
     }
 
     @Test

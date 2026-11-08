@@ -143,6 +143,26 @@ class PendingRunDatabaseMigrationTest {
         }
     }
 
+    @Test
+    fun `판 5의 미전송 기록이 판 6으로 옮겨도 남고 움직임 표본은 비어 있다(S15P31A207-242)`() {
+        helper.createDatabase(5).use { v5 ->
+            v5.execSQL(
+                "INSERT INTO pending_run VALUES ('r-1', 'FREE', 'FREE_RUN', NULL, NULL, 0, 1000, 100, " +
+                    "x'', x'', x'', 'NOT_SENT', 0, NULL, x'', 'WATCH', NULL)"
+            )
+        }
+
+        helper.runMigrationsAndValidate(6).use { v6 ->
+            v6.prepare("SELECT recordId, startDevice, length(motions) FROM pending_run").use { row ->
+                row.step()
+                assertEquals("r-1", row.getText(0))
+                assertEquals("WATCH", row.getText(1))
+                assertEquals(0L, row.getLong(2), "움직임 표본 빈 BLOB = 빈 목록")
+            }
+        }
+        assertEquals(emptyList(), decodeMotions(ByteArray(0)))
+    }
+
     private companion object {
         const val DB = "migration-test.db"
     }

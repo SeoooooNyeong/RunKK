@@ -203,12 +203,12 @@ class RealtimeUnitTest {
                     new RelayEntry(
                             com.a207.runkk.common.DisplayName.of("러너" + memberIds[i]),
                             com.a207.runkk.common.Distance.ofMeters(100L * (memberIds.length - i)),
-                            i + 1,
-                            RelayEntry.Connection.CONNECTED,
+                            RelayEntry.State.RUNNING,
                             memberIds[i],
                             false));
         }
-        return new com.a207.runkk.crew.live.CrewRunRelay(77, entries);
+        return new com.a207.runkk.crew.live.CrewRunRelay(
+                77, com.a207.runkk.common.Distance.ofMeters(1_000), entries);
     }
 
     private static List<Long> mineLines(String json) throws IOException {

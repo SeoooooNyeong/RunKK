@@ -41,7 +41,6 @@ import com.a207.runkk.app.api.chat.ChatMessageItem
 import com.a207.runkk.app.api.chat.ChatPageResponse
 import com.a207.runkk.app.api.chat.ChatPostRequest
 import com.a207.runkk.app.api.chat.ReactionResponse
-import com.a207.runkk.app.api.crew.AlbumResponse
 import com.a207.runkk.app.api.crew.AttendanceRequest
 import com.a207.runkk.app.api.crew.AttendanceResponse
 import com.a207.runkk.app.api.crew.CreatedResponse
@@ -61,10 +60,6 @@ import com.a207.runkk.app.api.crew.LobbyResponse
 import com.a207.runkk.app.api.crew.ManagerResponse
 import com.a207.runkk.app.api.crew.MyCrewResponse
 import com.a207.runkk.app.api.crew.PendingRequestsResponse
-import com.a207.runkk.app.api.crew.PinRequest
-import com.a207.runkk.app.api.crew.PinResponse
-import com.a207.runkk.app.api.crew.PollAnswerRequest
-import com.a207.runkk.app.api.crew.PollResultResponse
 import com.a207.runkk.app.api.crew.PostListResponse
 import com.a207.runkk.app.api.crew.PostWriteRequest
 import com.a207.runkk.app.api.crew.RaceStatusResponse
@@ -87,6 +82,9 @@ import com.a207.runkk.app.api.run.DisposalOrderResponse
 import com.a207.runkk.app.api.run.LateHeartRatesRequest
 import com.a207.runkk.app.api.run.RunUploadRequest
 import com.a207.runkk.app.api.run.UploadResponse
+import com.a207.runkk.app.api.runbody.RunBodySessionListResponse
+import com.a207.runkk.app.api.runbody.RunBodySessionResponse
+import com.a207.runkk.app.api.runbody.RunBodyTrendResponse
 import com.a207.runkk.app.api.runimal.RunimalCardResponse
 import com.a207.runkk.app.api.runimal.RunimalStatusResponse
 import com.a207.runkk.app.api.runimal.RunimalTypeResponse
@@ -318,8 +316,6 @@ class ServerContractTest {
         request(CrewProfileRequest.serializer(), "CrewDtos.CrewProfileRequest")
         request(PostWriteRequest.serializer(), "CrewDtos.PostWriteRequest")
         request(AttendanceRequest.serializer(), "CrewDtos.AttendanceRequest")
-        request(PinRequest.serializer(), "CrewDtos.PinRequest")
-        request(PollAnswerRequest.serializer(), "CrewDtos.PollAnswerRequest")
         request(GoalRequest.serializer(), "CrewDtos.GoalRequest")
         request(GuestStartRequest.serializer(), "SignUpController.GuestStartRequest")
         request(SocialLinkRequest.serializer(), "AuthController.SocialLinkRequest")
@@ -363,9 +359,6 @@ class ServerContractTest {
         response(CrewListResponse.serializer(), "CrewDtos.CrewListResponse")
         response(AttendanceResponse.serializer(), "CrewDtos.AttendanceResponse")
         response(ManagerResponse.serializer(), "CrewDtos.ManagerResponse")
-        response(PinResponse.serializer(), "CrewDtos.PinResponse")
-        response(PollResultResponse.serializer(), "CrewDtos.PollResultResponse")
-        response(AlbumResponse.serializer(), "CrewDtos.AlbumResponse")
         response(GuestStartResponse.serializer(), "SignUpController.GuestStartResponse")
         response(SocialLinkResponse.serializer(), "AuthController.SocialLinkResponse")
         response(BackgroundsResponse.serializer(), "AvatarDtos.BackgroundsResponse")
@@ -409,6 +402,10 @@ class ServerContractTest {
         response(PlanProgressResponse.serializer(), "RecordDtos.PlanProgressResponse")
         response(TodayPlanResponse.serializer(), "RecordDtos.TodayPlanResponse")
         response(RunCardResponse.serializer(), "RecordDtos.RunCardResponse")
+        // 런바디(계약 runkk-work/runbody/contract.md v1.2): 세션, 러닝 선택 점수 목록(7절), 요약 최근 10회 변화(8절)
+        response(RunBodySessionResponse.serializer(), "RunBodyDtos.RunBodySessionResponse")
+        response(RunBodySessionListResponse.serializer(), "RunBodyDtos.RunBodySessionListResponse")
+        response(RunBodyTrendResponse.serializer(), "RunBodyDtos.RunBodyTrendResponse")
         // TC-5940 배치고사 대결 항목(05-03 5.7.3.3): 선택 항목이라 위 대조가 빠뜨리지 않게 이름이 서버 record에 있는지 따로 본다
         mapOf(
             MatchAcceptanceResponse.serializer() to

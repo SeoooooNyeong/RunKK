@@ -25,7 +25,6 @@ import com.a207.runkk.app.core.designsystem.RunkkBadgeTone
 import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkPillButton
 import com.a207.runkk.app.core.designsystem.RunkkShapes
-import com.a207.runkk.app.core.designsystem.RunkkTextLink
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.domain.crew.CrewMembers
@@ -33,8 +32,8 @@ import com.a207.runkk.app.domain.crew.CrewRole
 import com.a207.runkk.app.domain.crew.RaceStatus
 
 /**
- * 크루원 탭(와이어 E4, FR-135, FR-144): 크루에서 보이는 내 정보(한줄 소개, 편집), 크루원 목록(역할, 티어, 한줄 소개, 이번 주 거리),
- * 맨 아래 크루 탈퇴. 비공개 크루원은 티어가 오지 않는다.
+ * 크루원 쪽 내용(피그마 F-22·F-29, 와이어 E4, FR-135, FR-144): 크루에서 보이는 내 정보(한줄 소개, 편집), 크루원 목록(역할, 티어,
+ * 한줄 소개, 이번 주 거리). 비공개 크루원은 티어가 오지 않는다. 크루 탈퇴는 크루 정보 쪽(F-18) 맨 아래에 있다.
  */
 @Composable
 internal fun ColumnScope.MembersTab(state: CrewHomeUiState, actions: CrewHomeActions) {
@@ -61,11 +60,6 @@ internal fun ColumnScope.MembersTab(state: CrewHomeUiState, actions: CrewHomeAct
     members.forEach { member ->
         MemberRow(member, weeklyDistance(state.race, member), onOpen = { actions.onMember(member) })
     }
-    RunkkTextLink(
-        stringResource(R.string.crew_home_leave),
-        onClick = actions.onLeaveAsk,
-        modifier = Modifier.align(Alignment.CenterHorizontally)
-    )
 }
 
 /** 크루에서 보이는 내 정보: 제목, 편집 단추, 내 한줄 소개. */

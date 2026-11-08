@@ -29,12 +29,6 @@ class CrewHomeNavigationTest {
     private val actions = CrewHomeActions().withNavigation(crewId = 11, navigate = { navigated += it })
 
     @Test
-    fun `일정 탭 대면 모임 카드는 대면 모임 상세로 간다(M7)`() {
-        actions.onMeetup(meetups.posts[0])
-        assertEquals(listOf<NavKey>(Routes.CrewMeetupDetail(11, 71)), navigated)
-    }
-
-    @Test
     fun `레이스 탭 목표 설정은 주간 공동 목표 화면으로 간다(M8)`() {
         actions.onGoalEdit()
         assertEquals(listOf<NavKey>(Routes.CrewGoalSet(11)), navigated)
@@ -44,12 +38,6 @@ class CrewHomeNavigationTest {
     fun `탭 줄 채팅 칸은 크루 채팅방으로 간다(M4)`() {
         actions.onChat()
         assertEquals(listOf<NavKey>(Routes.CrewChat(11)), navigated)
-    }
-
-    @Test
-    fun `고정 공지의 + 공지는 공지 쓰기로 간다(M1)`() {
-        actions.onNoticeWrite()
-        assertEquals(listOf<NavKey>(Routes.CrewNoticeWrite(11)), navigated)
     }
 
     @Test
@@ -89,27 +77,18 @@ class CrewWireLinksScreensTest {
         tab = tab,
         race = raceWithGoal,
         ranking = ranking,
-        meetups = meetups,
         crewRuns = PostList(emptyList(), null),
         members = members.copy(members = members.members.map { if (it.memberId == 1L) it.copy(isMe = true) else it })
     )
 
     @Test
-    fun `일정 탭 대면 모임 제목을 누르면 대면 모임 상세를 연다(I4, M7)`() {
+    fun `크루원 쪽에서 다른 크루원 줄을 누르면 프로필을 열고 내 줄은 누르지 않는다(E4, F8)`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
-                CrewHomeScreen(home(CrewTab.SCHEDULE), CrewHomeActions(onMeetup = { calls += "meetup:${it.postId}" }))
-            }
-        }
-        compose.onNodeWithContentDescription("번개 모임 후 맥주, 대면 모임 상세").performClick()
-        assertEquals(listOf("meetup:71"), calls)
-    }
-
-    @Test
-    fun `크루원 탭에서 다른 크루원 줄을 누르면 프로필을 열고 내 줄은 누르지 않는다(E4, F8)`() {
-        compose.setContent {
-            RunkkTheme(reduceMotion = true) {
-                CrewHomeScreen(home(CrewTab.MEMBERS), CrewHomeActions(onMember = { calls += "member:${it.memberId}" }))
+                CrewHomeScreen(
+                    home(CrewTab.RACE).copy(page = CrewHomePage.MEMBERS),
+                    CrewHomeActions(onMember = { calls += "member:${it.memberId}" })
+                )
             }
         }
         compose.onNode(hasText("달빛") and hasClickAction(), useUnmergedTree = false).performScrollTo().performClick()

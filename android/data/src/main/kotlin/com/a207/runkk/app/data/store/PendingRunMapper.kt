@@ -7,6 +7,7 @@ import com.a207.runkk.app.core.model.RunMode
 import com.a207.runkk.app.core.model.SignalState
 import com.a207.runkk.app.domain.run.CompletedRun
 import com.a207.runkk.app.domain.run.HeartRateSample
+import com.a207.runkk.app.domain.run.MotionSample
 import com.a207.runkk.app.domain.run.PauseInterval
 import com.a207.runkk.app.domain.run.RoutePoint
 import com.a207.runkk.app.domain.run.RunStartSpec
@@ -24,6 +25,7 @@ import java.util.zip.GZIPOutputStream
 // 엔티티 ↔ CompletedRun 매퍼(6.1.14 data.store, 13.2 "도메인 모델과 매퍼").
 // 경로·불안정 구간·심박·정지 구간은 [형식 버전 1바이트][개수 Int][항목…]을 GZIP으로 압축한 BLOB이다. 빈 BLOB은 빈 목록이다.
 // 시각은 epoch 밀리초, 좌표는 Double 그대로(측정값을 줄이지 않는다), 신호 상태는 0 NORMAL / 1 UNSTABLE.
+// 움직임 표본은 [시각][속도][케이던스]이고 재지 못한 값은 NaN이다.
 
 private const val FORMAT_VERSION = 1
 private const val SIGNAL_NORMAL = 0
@@ -46,7 +48,8 @@ internal fun CompletedRun.toEntity(): PendingRunEntity = PendingRunEntity(
     sentAtMillis = null,
     pauses = encodePauses(pauses),
     startDevice = startDevice.name,
-    rejectedReason = rejectedReason
+    rejectedReason = rejectedReason,
+    motions = encodeMotions(motions)
 )
 
 internal fun PendingRunEntity.toDomain(): CompletedRun = CompletedRun(
@@ -65,7 +68,8 @@ internal fun PendingRunEntity.toDomain(): CompletedRun = CompletedRun(
     startDevice = RunStartSpec.StartDevice.valueOf(startDevice),
     uploadState = uploadStateOf(uploadState),
     savedAt = Instant.ofEpochMilli(savedAtMillis),
-    rejectedReason = rejectedReason
+    rejectedReason = rejectedReason,
+    motions = decodeMotions(motions)
 )
 
 internal fun encodeRoute(points: List<RoutePoint>): ByteArray = compress(points.size) { out ->
@@ -120,6 +124,21 @@ internal fun decodeUnstable(blob: ByteArray): List<UnstableSegment> = decompress
 
 internal fun decodeHeartRates(blob: ByteArray): List<HeartRateSample> = decompress(blob) { input ->
     HeartRateSample(Instant.ofEpochMilli(input.readLong()), input.readInt())
+}
+
+internal fun encodeMotions(samples: List<MotionSample>): ByteArray = compress(samples.size) { out ->
+    samples.forEach { s ->
+        out.writeLong(s.at.toEpochMilli())
+        out.writeDouble(s.speedMps ?: Double.NaN)
+        out.writeDouble(s.cadenceSpm ?: Double.NaN)
+    }
+}
+
+internal fun decodeMotions(blob: ByteArray): List<MotionSample> = decompress(blob) { input ->
+    val at = Instant.ofEpochMilli(input.readLong())
+    val speed = input.readDouble()
+    val cadence = input.readDouble()
+    MotionSample(at, speed.takeUnless { it.isNaN() }, cadence.takeUnless { it.isNaN() })
 }
 
 private fun compress(count: Int, write: (DataOutputStream) -> Unit): ByteArray {

@@ -176,10 +176,9 @@ class RunTrackerTest {
     }
 
     @Test
-    fun `격차·순위를 RunSession에 넘겨 안내 입력으로 쓴다`() = runTest {
+    fun `격차를 RunSession에 넘겨 안내 입력으로 쓴다`() = runTest {
         val tracker = started()
         tracker.onGapChanged(40)
-        tracker.onRankChanged(CrewRank(1, 3))
         tracker.runFor(1)
         assertEquals(FinishOutcome.NotSaved, tracker.endRun())
     }

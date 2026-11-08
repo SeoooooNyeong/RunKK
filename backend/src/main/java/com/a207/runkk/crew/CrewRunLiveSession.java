@@ -3,22 +3,21 @@ package com.a207.runkk.crew;
 import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.ProgressReport;
-import com.a207.runkk.common.StandardDistance;
 import com.a207.runkk.crew.live.CrewRunRelay;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
 /**
- * 진행 중인 크루런 참가자의 최신 거리(설계 6.1.7, srs.md 6.3 5.7.3, D-26). 1초 진행값은 DB에 쓰지 않고 세션 저장소(Redis)에만 둔다. 순위는
- * 그만두지 않은 참가자를 도착일시(먼저), 누적 거리(큰 순)로 정렬한다. 순위 음성 안내(FR-190)는 앱이 중계의 자기 순위로 한다(5.7.2 메시지 4종 고정).
+ * 진행 중인 크루런 참가자의 최신 거리와 진행 상태(합산 방식, S15P31A207-236, 설계 6.1.7, D-26). 1초 진행값은 DB에 쓰지 않고 세션
+ * 저장소(Redis)에만 둔다. 참가자는 각자 달리고 각자 멈추고 각자 끝낸다. 중계는 대기실 입장 순 참가자 줄과 크루가 함께 달린 거리 합이다.
  */
 public class CrewRunLiveSession {
 
@@ -26,37 +25,37 @@ public class CrewRunLiveSession {
     static final Duration TIMEOUT = Duration.ofSeconds(3);
 
     private final long postId;
-    private final StandardDistance distance;
     private final LocalDateTime startAt;
+
+    /** 진행 참가자 표시명, 대기실 입장(참여) 순. */
     private final Map<Long, DisplayName> names;
+
     private final Map<Long, LiveProgress> latest = new HashMap<>();
-    private final Map<Long, LocalDateTime> arrived = new HashMap<>();
-    private final Set<Long> quitters = new HashSet<>();
+
+    /** 일시정지한 참가자와 정지 때 경과. 이보다 큰 경과의 진행값이 오면 다시 달리는 중이다. */
+    private final Map<Long, Duration> paused = new HashMap<>();
+
+    private final Set<Long> ended = new HashSet<>();
     private final Set<Long> checking = new HashSet<>();
 
-    private CrewRunLiveSession(
-            long postId,
-            StandardDistance distance,
-            LocalDateTime startAt,
-            Map<Long, DisplayName> names) {
+    private CrewRunLiveSession(long postId, LocalDateTime startAt, Map<Long, DisplayName> names) {
         this.postId = postId;
-        this.distance = distance;
         this.startAt = startAt;
-        this.names = Map.copyOf(names);
+        this.names = new LinkedHashMap<>(names);
     }
 
-    /** 출발 때 진행 참가자 표시명으로 연다. */
+    /** 출발 때 진행 참가자 표시명(입장 순으로 넘긴다)으로 연다. */
     public static CrewRunLiveSession open(
-            long postId,
-            StandardDistance distance,
-            Map<Long, DisplayName> names,
-            LocalDateTime startAt) {
-        return new CrewRunLiveSession(postId, distance, startAt, names);
+            long postId, Map<Long, DisplayName> names, LocalDateTime startAt) {
+        return new CrewRunLiveSession(postId, startAt, names);
     }
 
-    /** 최신값 갱신 → 모든 참가자에게 순위 중계. 참가자가 아니거나 그만뒀으면 비어 있다. */
+    /**
+     * 최신값 갱신 → 모든 참가자에게 중계. 참가자가 아니거나 이미 끝냈으면 비어 있다. 거리는 되돌리지 않고(늦게 온 이전 값), 정지 때보다 큰 경과가 오면 재개로
+     * 본다.
+     */
     public List<CrewRunMessage> onProgress(long memberId, ProgressReport r, LocalDateTime now) {
-        if (!names.containsKey(memberId) || quitters.contains(memberId)) {
+        if (!names.containsKey(memberId) || ended.contains(memberId)) {
             return List.of();
         }
         LiveProgress before = latest.get(memberId);
@@ -67,18 +66,19 @@ public class CrewRunLiveSession {
             latest.put(memberId, new LiveProgress(r.distance(), r.elapsed(), now));
         }
         checking.remove(memberId);
-        if (r.distance().isAtLeast(distance.distance())) {
-            arrived.putIfAbsent(memberId, now);
+        Duration pausedAt = paused.get(memberId);
+        if (pausedAt != null && r.elapsed().compareTo(pausedAt) > 0) {
+            paused.remove(memberId);
         }
         return List.of(relay());
     }
 
-    /** 3초 넘게 진행값이 없는 참가자를 "연결 확인 중"으로 바꾸고, 바뀐 참가자가 있으면 중계 하나. */
+    /** 3초 넘게 진행값이 없는 달리는 참가자를 "연결 확인 중"으로 바꾸고, 바뀐 참가자가 있으면 중계 하나. 멈춘·끝낸 참가자는 보지 않는다. */
     public List<CrewRunMessage> detectTimeouts(LocalDateTime now) {
         boolean changed = false;
         for (long memberId : names.keySet()) {
-            if (quitters.contains(memberId)
-                    || arrived.containsKey(memberId)
+            if (ended.contains(memberId)
+                    || paused.containsKey(memberId)
                     || checking.contains(memberId)) {
                 continue;
             }
@@ -94,43 +94,53 @@ public class CrewRunLiveSession {
         return changed ? List.of(relay()) : List.of();
     }
 
-    /** 그만두지 않은 참가자를 도착일시(먼저), 누적 거리(큰 순)로. 그만둔 참가자는 끝에 순위 없이. */
-    public List<RelayEntry> ranking() {
-        List<Long> racing =
-                names.keySet().stream()
-                        .filter(id -> !quitters.contains(id))
-                        .sorted(order())
-                        .toList();
-        List<RelayEntry> entries = new ArrayList<>();
-        for (int i = 0; i < racing.size(); i++) {
-            long id = racing.get(i);
-            entries.add(
-                    new RelayEntry(
-                            names.get(id), distanceOf(id), i + 1, connectionOf(id), id, false));
+    /** 일시정지. elapsedAt은 정지 때 경과이고 null이면 최신 진행값의 경과다. 참가자가 아니거나 끝냈으면 거짓. */
+    public boolean markPaused(long memberId, Duration elapsedAt) {
+        if (!names.containsKey(memberId) || ended.contains(memberId)) {
+            return false;
         }
-        quitters.stream()
-                .sorted()
-                .forEach(
-                        id ->
-                                entries.add(
-                                        new RelayEntry(
-                                                names.get(id),
-                                                distanceOf(id),
-                                                null,
-                                                RelayEntry.Connection.QUIT,
-                                                id,
-                                                false)));
+        Duration at =
+                elapsedAt != null
+                        ? elapsedAt
+                        : Optional.ofNullable(latest.get(memberId))
+                                .map(LiveProgress::elapsed)
+                                .orElse(Duration.ZERO);
+        paused.put(memberId, at);
+        checking.remove(memberId);
+        return true;
+    }
+
+    /** 끝냄. last가 있으면 최신값으로 남긴다(중계 거리와 결과가 같게). 참가자가 아니면 거짓. */
+    public boolean markEnded(long memberId, LiveProgress last) {
+        if (!names.containsKey(memberId)) {
+            return false;
+        }
+        if (last != null) {
+            latest.put(memberId, last);
+        }
+        ended.add(memberId);
+        paused.remove(memberId);
+        checking.remove(memberId);
+        return true;
+    }
+
+    /** 참가자의 최신 진행값(끝낼 때·종료 때 참여에 남길 값). */
+    public Optional<LiveProgress> latestOf(long memberId) {
+        return Optional.ofNullable(latest.get(memberId));
+    }
+
+    /** 대기실 입장 순 중계 줄. */
+    public List<RelayEntry> entries() {
+        List<RelayEntry> entries = new ArrayList<>();
+        names.forEach(
+                (id, name) ->
+                        entries.add(new RelayEntry(name, distanceOf(id), stateOf(id), id, false)));
         return entries;
     }
 
-    private Comparator<Long> order() {
-        Comparator<Long> byArrival =
-                Comparator.comparing(
-                        (Long id) -> arrived.get(id),
-                        Comparator.nullsLast(Comparator.naturalOrder()));
-        return byArrival
-                .thenComparing(this::distanceOf, Comparator.reverseOrder())
-                .thenComparing(Comparator.naturalOrder());
+    /** 진행 참가자 전원(끝낸 사람 포함)의 최신 거리 합. */
+    public Distance totalDistance() {
+        return names.keySet().stream().map(this::distanceOf).reduce(Distance.ZERO, Distance::plus);
     }
 
     private Distance distanceOf(long memberId) {
@@ -139,26 +149,19 @@ public class CrewRunLiveSession {
                 .orElse(Distance.ZERO);
     }
 
-    private RelayEntry.Connection connectionOf(long memberId) {
-        if (arrived.containsKey(memberId)) {
-            return RelayEntry.Connection.ARRIVED;
+    private RelayEntry.State stateOf(long memberId) {
+        if (ended.contains(memberId)) {
+            return RelayEntry.State.ENDED;
         }
-        return checking.contains(memberId)
-                ? RelayEntry.Connection.CHECKING
-                : RelayEntry.Connection.CONNECTED;
+        if (paused.containsKey(memberId)) {
+            return RelayEntry.State.PAUSED;
+        }
+        return checking.contains(memberId) ? RelayEntry.State.CHECKING : RelayEntry.State.RUNNING;
     }
 
-    /** 그만둠 표시(FR-192). */
-    public void markQuit(long memberId) {
-        if (names.containsKey(memberId) && !arrived.containsKey(memberId)) {
-            quitters.add(memberId);
-            checking.remove(memberId);
-        }
-    }
-
-    /** 지금 순위의 중계 메시지. */
+    /** 지금 상태의 중계 메시지. */
     public CrewRunMessage relay() {
-        return new CrewRunRelay(postId, ranking());
+        return new CrewRunRelay(postId, totalDistance(), entries());
     }
 
     /** 진행 참가자 전원. */
@@ -170,7 +173,7 @@ public class CrewRunLiveSession {
         return postId;
     }
 
-    /** 세션 저장소용 값. */
+    /** 세션 저장소용 값. 참가자는 입장 순이다. */
     public Snapshot snapshot() {
         List<Snapshot.Runner> runners = new ArrayList<>();
         names.forEach(
@@ -183,20 +186,21 @@ public class CrewRunLiveSession {
                                     progress.map(seen -> seen.distance().meters()).orElse(null),
                                     progress.map(seen -> seen.elapsed().toMillis()).orElse(null),
                                     progress.map(LiveProgress::seenAt).orElse(null),
-                                    arrived.get(id),
-                                    quitters.contains(id),
+                                    Optional.ofNullable(paused.get(id))
+                                            .map(Duration::toMillis)
+                                            .orElse(null),
+                                    ended.contains(id),
                                     checking.contains(id)));
                 });
-        return new Snapshot(postId, distance, startAt, runners);
+        return new Snapshot(postId, startAt, runners);
     }
 
     /** snapshot으로 되살린다. */
     public static CrewRunLiveSession restore(Snapshot snapshot) {
-        Map<Long, DisplayName> names = new HashMap<>();
+        Map<Long, DisplayName> names = new LinkedHashMap<>();
         snapshot.runners().forEach(r -> names.put(r.memberId(), DisplayName.of(r.name())));
         CrewRunLiveSession session =
-                new CrewRunLiveSession(
-                        snapshot.postId(), snapshot.distance(), snapshot.startAt(), names);
+                new CrewRunLiveSession(snapshot.postId(), snapshot.startAt(), names);
         for (Snapshot.Runner runner : snapshot.runners()) {
             if (runner.meters() != null) {
                 session.latest.put(
@@ -206,11 +210,11 @@ public class CrewRunLiveSession {
                                 Duration.ofMillis(runner.elapsedMillis()),
                                 runner.seenAt()));
             }
-            if (runner.arrivedAt() != null) {
-                session.arrived.put(runner.memberId(), runner.arrivedAt());
+            if (runner.pausedAtMillis() != null) {
+                session.paused.put(runner.memberId(), Duration.ofMillis(runner.pausedAtMillis()));
             }
-            if (runner.quit()) {
-                session.quitters.add(runner.memberId());
+            if (runner.ended()) {
+                session.ended.add(runner.memberId());
             }
             if (runner.checking()) {
                 session.checking.add(runner.memberId());
@@ -223,12 +227,10 @@ public class CrewRunLiveSession {
      * 세션 저장 형식.
      *
      * @param postId 크루런 게시글 ID
-     * @param distance 크루런 거리
      * @param startAt 시작 일시
-     * @param runners 참가자 상태
+     * @param runners 참가자 상태, 대기실 입장 순
      */
-    public record Snapshot(
-            long postId, StandardDistance distance, LocalDateTime startAt, List<Runner> runners) {
+    public record Snapshot(long postId, LocalDateTime startAt, List<Runner> runners) {
 
         public Snapshot {
             runners = List.copyOf(runners);
@@ -242,8 +244,8 @@ public class CrewRunLiveSession {
          * @param meters 최신 누적 거리, 받은 적 없으면 null
          * @param elapsedMillis 최신 경과 시간, 받은 적 없으면 null
          * @param seenAt 최신 진행값 받은 시각, 없으면 null
-         * @param arrivedAt 도착 시각, 없으면 null
-         * @param quit 그만둠
+         * @param pausedAtMillis 일시정지 때 경과, 달리는 중이면 null
+         * @param ended 끝냄
          * @param checking 연결 확인 중
          */
         public record Runner(
@@ -252,8 +254,8 @@ public class CrewRunLiveSession {
                 Long meters,
                 Long elapsedMillis,
                 LocalDateTime seenAt,
-                LocalDateTime arrivedAt,
-                boolean quit,
+                Long pausedAtMillis,
+                boolean ended,
                 boolean checking) {}
     }
 }

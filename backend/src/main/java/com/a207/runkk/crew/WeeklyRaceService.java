@@ -216,6 +216,15 @@ public class WeeklyRaceService {
         return weeklyRaceRepository.contributionOf(recordId);
     }
 
+    /** 기록 하나가 반영된 크루의 이름(결과 화면 "OO 크루 목표에 반영", B-6 v2, S15P31A207-251). 반영이 없으면 빈 값. */
+    @Transactional(readOnly = true)
+    public Optional<String> contributedCrewNameOf(String recordId) {
+        return weeklyRaceRepository
+                .contributedCrewOf(recordId)
+                .flatMap(crewRepository::findById)
+                .map(crew -> crew.name().value());
+    }
+
     /**
      * batch.crew의 WeeklyRaceReconcileJob이 매일 0시에 now만 넘겨 부른다(D-38, D-47). 이번 주와 지난주, 그 기간에 소속 행이 있던
      * 크루마다 크루원별 기대 합계(RunQueryService.distancesByMember)와 기여를 비교해 다르면 빠진 유효 기록만 addAtomically로 더한다.

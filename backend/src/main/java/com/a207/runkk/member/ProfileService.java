@@ -1,9 +1,11 @@
 package com.a207.runkk.member;
 
 import com.a207.runkk.common.BusinessRuleException;
+import com.a207.runkk.common.DomainEventPublisher;
 import com.a207.runkk.common.ReasonCode;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,20 +16,24 @@ public class ProfileService {
 
     private final MemberRepository memberRepository;
     private final List<ReservedNicknameChecker> reservedNicknameCheckers;
+    private final DomainEventPublisher eventPublisher;
     private final Clock clock;
 
     public ProfileService(
             MemberRepository memberRepository,
             List<ReservedNicknameChecker> reservedNicknameCheckers,
+            DomainEventPublisher eventPublisher,
             Clock clock) {
         this.memberRepository = memberRepository;
         this.reservedNicknameCheckers = List.copyOf(reservedNicknameCheckers);
+        this.eventPublisher = eventPublisher;
         this.clock = clock;
     }
 
     /**
      * 닉네임 중복(회원·가상) 검사 → Member.editProfile(출생연도 만 14세 판정의 기준 연도는 오늘). 겹치면
-     * BusinessRuleException(NICKNAME_TAKEN). 태그 항목은 없다(D-91).
+     * BusinessRuleException(NICKNAME_TAKEN). 태그 항목은 없다(D-91). 출생연도를 넣었으면 BirthYearSet을 낸다(런바디가 출생연도
+     * 없어 멈춘 분석을 다시 낸다, MR !91 e2e 1).
      */
     @Transactional
     public ProfileEditResult editProfile(long memberId, ProfileEdit edit) {
@@ -46,6 +52,9 @@ public class ProfileService {
         }
         member.editProfile(edit, newNickname, LocalDate.now(clock).getYear());
         memberRepository.save(member);
+        if (edit.birthYear() != null) {
+            eventPublisher.publish(new BirthYearSet(member.getId(), LocalDateTime.now(clock)));
+        }
         return new ProfileEditResult(
                 member.getId(),
                 member.nickname().value(),

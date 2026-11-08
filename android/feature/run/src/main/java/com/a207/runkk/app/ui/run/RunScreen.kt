@@ -74,9 +74,9 @@ import com.a207.runkk.app.core.designsystem.KakaoRunMap
 import com.a207.runkk.app.core.designsystem.LocalAvatarCharacter
 import com.a207.runkk.app.core.designsystem.LocalKakaoMapKey
 import com.a207.runkk.app.core.designsystem.LocalReduceMotion
-import com.a207.runkk.app.core.designsystem.NOTIFICATION_PERMISSION_API
 import com.a207.runkk.app.core.designsystem.RouteCanvas
 import com.a207.runkk.app.core.designsystem.RouteMarker
+import com.a207.runkk.app.core.designsystem.RunPermissionEffect
 import com.a207.runkk.app.core.designsystem.RunkkAvatar
 import com.a207.runkk.app.core.designsystem.RunkkBanner
 import com.a207.runkk.app.core.designsystem.RunkkColors
@@ -98,7 +98,6 @@ import com.a207.runkk.app.core.designsystem.rememberHeadingLeft
 import com.a207.runkk.app.core.designsystem.rememberIsMoving
 import com.a207.runkk.app.core.designsystem.runCycleOf
 import com.a207.runkk.app.core.designsystem.runFrameMillis
-import com.a207.runkk.app.core.designsystem.shouldAskNotificationPermission
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.GeoPoint
 import com.a207.runkk.app.core.model.Pace
@@ -123,7 +122,8 @@ fun RunRoute(viewModel: RunViewModel = hiltViewModel()) {
             viewModel.onRetryStart()
         }
     RunEventEffect(viewModel, navigator)
-    NotificationPermissionEffect(state.phase)
+    // 카운트다운에 들어서면(위치 권한·동의 다음) 진행 알림·신체 활동 권한을 한 번 묻는다.
+    RunPermissionEffect(shouldAsk = state.phase == RunPhase.COUNTDOWN)
     // 동의 관리에서 돌아오면 준비 단계를 다시 확인한다.
     LifecycleResumeEffect(viewModel) {
         viewModel.onResumed()
@@ -166,26 +166,6 @@ private val LOCATION_PERMISSIONS =
 /** 기기 위치 권한(정밀·대략 중 하나)이 있는가. */
 private fun hasLocationPermission(context: Context): Boolean = LOCATION_PERMISSIONS.any {
     context.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED
-}
-
-/**
- * 카운트다운에 들어서면(위치 권한·동의 다음) 알림 권한을 한 번 묻는다(core shouldAskNotificationPermission). 결과와 관계없이 측정은
- * 이어 간다.
- */
-@Composable
-private fun NotificationPermissionEffect(phase: RunPhase) {
-    val context = LocalContext.current
-    var isAsked by rememberSaveable { mutableStateOf(false) }
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
-    LaunchedEffect(phase) {
-        if (phase != RunPhase.COUNTDOWN || Build.VERSION.SDK_INT < NOTIFICATION_PERMISSION_API) return@LaunchedEffect
-        val isGranted = context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
-            PackageManager.PERMISSION_GRANTED
-        if (shouldAskNotificationPermission(Build.VERSION.SDK_INT, isGranted, isAsked)) {
-            isAsked = true
-            launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
-        }
-    }
 }
 
 /** 화면 이벤트(저장됨·저장 안 함·나감)를 이동으로 바꾼다. */
