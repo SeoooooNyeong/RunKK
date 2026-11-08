@@ -360,6 +360,27 @@ class RunControllerTest extends WebTestSupport {
     }
 
     @Test
+    @DisplayName("CR2-T1: motions 남용 상한 경계 345,600개는 받고(200) 345,601개는 400")
+    void upload_motionsHardLimitBoundary() throws Exception {
+        Session s = signUp();
+        int hardLimit = 4 * com.a207.runkk.running.RunUpload.MAX_MOTIONS;
+        assertThat(hardLimit).isEqualTo(345_600);
+        List<Map<String, Object>> motions = new java.util.ArrayList<>(hardLimit + 1);
+        for (int i = 0; i <= hardLimit; i++) {
+            // 1,500초 동안 고르게(약 4ms 간격)
+            motions.add(Map.of("measuredAt", at(START.plusNanos(i * 4_000_000L)), "speedMps", 3.3));
+        }
+        Map<String, Object> atLimit = run(UUID.randomUUID().toString(), 5_000, 1_500);
+        atLimit.put("motions", motions.subList(0, hardLimit));
+        expectStatus(s, atLimit, 200);
+        String overId = UUID.randomUUID().toString();
+        Map<String, Object> over = run(overId, 5_000, 1_500);
+        over.put("motions", motions);
+        expectStatus(s, over, 400);
+        assertThat(runQuery.bodyInputOf(overId)).isEmpty();
+    }
+
+    @Test
     @DisplayName("TC-6685: pauses 항목이 없거나 null·빈 목록이면 정지 없음으로 저장한다")
     void upload_withoutPausesIsCompatible() throws Exception {
         Session s = signUp();

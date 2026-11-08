@@ -145,9 +145,7 @@ class MeasurementService : LifecycleService() {
             lifecycleScope.launch {
                 while (isActive) {
                     delay(INTERVAL_MILLIS)
-                    // 측정 시작 뒤에 신체 활동 권한을 허용했으면 이때부터 걸음을 잰다(MR !91 AN-4)
-                    steps.ensureStarted(runTracker::onMotionSample)
-                    runTracker.tick(clock.instant())
+                    measurementTick(steps, runTracker::onMotionSample, runTracker::tick, clock.instant())
                 }
             }
     }
@@ -290,4 +288,18 @@ class MeasurementService : LifecycleService() {
             }
         }
     }
+}
+
+/**
+ * 측정 서비스 1초 시계 한 번. 측정 시작 뒤에 신체 활동 권한을 허용했으면 이때부터 걸음을 재고(MR !91 AN-4) 진행을 한 칸 민다. 서비스 밖에서 배선을
+ * 시험하려고 뗐다(CR2-T1).
+ */
+internal fun measurementTick(
+    steps: StepCadenceSensor,
+    onMotion: (MotionSample) -> Unit,
+    tick: (Instant) -> Unit,
+    now: Instant
+) {
+    steps.ensureStarted(onMotion)
+    tick(now)
 }
