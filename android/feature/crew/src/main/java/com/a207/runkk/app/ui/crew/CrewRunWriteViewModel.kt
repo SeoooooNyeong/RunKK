@@ -12,6 +12,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Clock
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.ZoneId
 import javax.inject.Inject
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -24,12 +25,19 @@ import kotlinx.coroutines.launch
 
 /**
  * 크루런 모집하기(FR-132, 피그마 F-12): 제목·내용·거리 1·3·5·10km·모집 일시. 대면 모임은 앱에서 만들지 않는다.
- * 지난 일시는 앱이 먼저 막고 서버도 거부한다.
+ * 지난 일시는 앱이 먼저 막고 서버도 거부한다. 날짜 칩과 고른 시각은 기기 시간대 [zone]으로 읽어 모집 일시로 바꾼다
+ * (앱 Clock은 UTC라 clock.zone으로 바꾸면 9시간 어긋난다, MR !91 e2e 2 후속).
  */
 @HiltViewModel
-class CrewRunWriteViewModel @Inject constructor(private val crews: CrewRepository, private val clock: Clock) :
-    ViewModel() {
-    private val _state = MutableStateFlow(CrewRunWriteUiState(today = LocalDate.now(clock)))
+class CrewRunWriteViewModel internal constructor(
+    private val crews: CrewRepository,
+    private val clock: Clock,
+    private val zone: ZoneId
+) : ViewModel() {
+    @Inject
+    constructor(crews: CrewRepository, clock: Clock) : this(crews, clock, ZoneId.systemDefault())
+
+    private val _state = MutableStateFlow(CrewRunWriteUiState(today = clock.instant().atZone(zone).toLocalDate()))
     val state: StateFlow<CrewRunWriteUiState> = _state.asStateFlow()
 
     private val _events = Channel<CrewRunWriteEvent>(Channel.BUFFERED)
@@ -50,7 +58,7 @@ class CrewRunWriteViewModel @Inject constructor(private val crews: CrewRepositor
     fun onSubmit(crewId: Long) {
         val s = _state.value
         if (!s.isValid || s.isSaving) return
-        val meetAt = s.today.plusDays(s.dayOffset.toLong()).atTime(s.time).atZone(clock.zone).toInstant()
+        val meetAt = s.today.plusDays(s.dayOffset.toLong()).atTime(s.time).atZone(zone).toInstant()
         if (!meetAt.isAfter(clock.instant())) {
             _state.update { it.copy(error = uiText(R.string.crew_run_write_past_time)) }
             return

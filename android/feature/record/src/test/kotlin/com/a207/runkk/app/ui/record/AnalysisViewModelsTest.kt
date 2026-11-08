@@ -41,6 +41,15 @@ class AnalysisViewModelsTest {
     }
 
     @Test
+    fun `앱 시계가 UTC여도 오늘·이번 주는 기기 시간대로 셈한다(MR !91 e2e 2 후속)`() {
+        // 한국 10/21 00:30 = UTC 10/20 15:30
+        val utc = Clock.fixed(Instant.parse("2026-10-20T15:30:00Z"), java.time.ZoneOffset.UTC)
+        val vm = CoachViewModel(records, todayPlans, utc, ZoneId.of("Asia/Seoul"))
+        assertEquals(TODAY, vm.state.value.today)
+        assertEquals(LocalDate.of(2026, 10, 19), vm.state.value.weekStart)
+    }
+
+    @Test
     fun `오늘 계획 거리가 없으면 고른 목표 페이스를 두었다가 거리를 고를 때 함께 저장한다(D146)`() {
         val vm = CoachViewModel(records, todayPlans, clock)
         vm.onTodayPace(Pace(240))

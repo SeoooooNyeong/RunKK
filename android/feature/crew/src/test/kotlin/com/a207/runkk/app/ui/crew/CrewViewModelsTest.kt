@@ -473,4 +473,24 @@ class CrewRunWriteViewModelTest {
         assertEquals(Distance(10_000), form.distance)
         assertEquals(java.time.Instant.parse("2026-10-23T22:00:00Z"), form.meetAt, "10/24(토) 07:00 KST")
     }
+
+    @Test
+    fun `앱 시계가 UTC여도 날짜 칩과 모집 일시는 기기 시간대로 셈한다(MR !91 e2e 2 후속)`() = runTest(main.dispatcher) {
+        // 한국 10/21(수) 00:30 = UTC 10/20 15:30
+        val utc = MutableClock(java.time.Instant.parse("2026-10-20T15:30:00Z"), java.time.ZoneOffset.UTC)
+        val vm = CrewRunWriteViewModel(repo, utc, seoul)
+        assertEquals(java.time.LocalDate.of(2026, 10, 21), vm.state.value.today)
+        vm.onTitle("저녁 5K")
+        vm.onDay(0)
+        vm.onTime(LocalTime.of(19, 0))
+        vm.events.test {
+            vm.onSubmit(11)
+            assertEquals(CrewRunWriteEvent.Posted, awaitItem())
+        }
+        assertEquals(
+            java.time.Instant.parse("2026-10-21T10:00:00Z"),
+            assertNotNull(repo.lastCrewRun).meetAt,
+            "10/21 19:00 KST"
+        )
+    }
 }

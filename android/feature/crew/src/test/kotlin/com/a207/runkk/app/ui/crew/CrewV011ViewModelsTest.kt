@@ -130,6 +130,14 @@ class CrewNoticePollMovedTest {
     private val repo = FakeCrewRepository()
 
     @Test
+    fun `앱 시계가 UTC여도 이번 주 월요일은 기기 시간대로 셈한다(MR !91 e2e 2 후속)`() {
+        // 한국 11/09(월) 00:30 = UTC 11/08(일) 15:30. UTC로 세면 지난주 월요일 11/02가 된다
+        val utc = MutableClock(java.time.Instant.parse("2026-11-08T15:30:00Z"), java.time.ZoneOffset.UTC)
+        val vm = CrewGoalSetViewModel(repo, utc, seoul).also { it.bind(11) }
+        assertEquals(java.time.LocalDate.of(2026, 11, 9), vm.state.value.weekStart)
+    }
+
+    @Test
     fun `공동 목표 거부는 서버 사유로 알린다(FR-138)`() {
         repo.fail["goal"] = AppError.Rejected("PERMISSION_DENIED")
         val vm = CrewGoalSetViewModel(repo, MutableClock()).also { it.bind(11) }

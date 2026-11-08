@@ -29,6 +29,17 @@ class RecordListViewModelTest {
     private fun viewModel() = RecordListViewModel(records, pending, clock)
 
     @Test
+    fun `앱 시계가 UTC여도 오늘·달·날짜 묶음은 기기 시간대로 셈한다(MR !91 e2e 2 후속)`() {
+        // 한국 2026-11-01 00:30 = UTC 2026-10-31 15:30. 앱 Clock은 Clock.systemUTC()다(DeviceBindings)
+        val utc = Clock.fixed(Instant.parse("2026-10-31T15:30:00Z"), java.time.ZoneOffset.UTC)
+        val s = RecordListViewModel(records, pending, utc, ZoneId.of("Asia/Seoul")).state.value
+
+        assertEquals(LocalDate.of(2026, 11, 1), s.today)
+        assertEquals(YearMonth.of(2026, 11), s.month)
+        assertEquals(ZoneId.of("Asia/Seoul"), s.zone)
+    }
+
+    @Test
     fun `이번 달 본인 기록을 읽고 최신순으로 둔다(FR-057)`() {
         val s = viewModel().state.value
         assertEquals(YearMonth.of(2026, 10), s.month)
