@@ -29,6 +29,7 @@ import com.a207.runkk.app.domain.battle.BattleResult
 import com.a207.runkk.app.domain.battle.BattleRunCoordinator
 import com.a207.runkk.app.domain.battle.FriendInvite
 import com.a207.runkk.app.domain.battle.FriendInviteView
+import com.a207.runkk.app.domain.battle.InMemoryPendingForfeitStore
 import com.a207.runkk.app.domain.battle.MatchAcceptance
 import com.a207.runkk.app.domain.battle.OpponentTrack
 import com.a207.runkk.app.domain.battle.RecordBattleCandidates
@@ -612,7 +613,8 @@ class BattleWorld(
             MeasurementRuntime(permission, silent, ConsentedSettings(), clock)
         )
     val gps = FakeGpsWarmUp()
-    val coordinator = BattleRunCoordinator(tracker, channels, battles, silent, clock, scope, gps)
+    val forfeits = InMemoryPendingForfeitStore()
+    val coordinator = BattleRunCoordinator(tracker, channels, battles, silent, clock, scope, gps, forfeits)
 
     /** 열린 회의 진행 화면 키(앱 범위). 진행 화면이 적고 앱 위 안내가 읽는다(S15P31A207-278). */
     val screens = OpenBattleScreen(coordinator)

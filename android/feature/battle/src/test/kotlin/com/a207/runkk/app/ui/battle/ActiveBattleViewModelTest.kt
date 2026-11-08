@@ -9,6 +9,7 @@ import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.battle.ActiveBattle
 import com.a207.runkk.app.domain.battle.BattleHistory
+import com.a207.runkk.app.domain.battle.PendingForfeit
 import com.a207.runkk.app.domain.run.RunStartSpec
 import com.a207.runkk.app.ui.battle.BattleWorld.Companion.world
 import kotlin.test.assertEquals
@@ -62,6 +63,23 @@ class ActiveBattleViewModelTest {
             assertEquals(listOf("active", call), w.battles.calls, "종류 $type")
             assertNull(vm.state.value.battle)
         }
+    }
+
+    @Test
+    fun `S15P31A207-278 남은 그만두기가 있으면 남은 대결을 읽기 전에 보내고 앞으로 올 때 다시 보낸다`() = main.runVmTest { vms ->
+        val w = world()
+        w.forfeits.pending = PendingForfeit(9, w.clock.now)
+        val vm = vms.vm(w)
+        runCurrent()
+        assertEquals(listOf("forfeit:9", "active"), w.battles.calls)
+        assertNull(w.forfeits.pending)
+
+        w.battles.calls.clear()
+        w.forfeits.pending = PendingForfeit(10, w.clock.now)
+        vm.onForeground(top = null)
+        runCurrent()
+        assertEquals(listOf("forfeit:10"), w.battles.calls)
+        assertNull(w.forfeits.pending)
     }
 
     @Test

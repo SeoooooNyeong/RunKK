@@ -300,16 +300,37 @@ class MatchViewModel @Inject constructor(
      * 앱이 뒤로 갔다(홈 버튼, 화면 끄기. 화면 회전 같은 구성 변경은 화면이 거른다, S15P31A207-278). 랜덤 매칭이 성사 화면 전(요청 중,
      * 대기 중, 취소 중)이면 대기를 접고 홈으로 간다. 뒤에서 성사되면 사용자는 성사를 보지 못하고 측정 시작도 백그라운드 제한으로 거부되기
      * 때문이다. 서버 정리는 조정자가 applicationScope에서 한다(대기열 취소, 이미 짝지어졌으면 그 대결에 그만두기). 친구 초대는 카카오톡
-     * 공유로 앱이 뒤로 가므로 떠남이 아니다(D-271). 성사 뒤에는 기존 흐름을 따른다.
+     * 공유로 앱이 뒤로 가므로 떠남이 아니다(D-271). 성사 뒤 출발 전이면 [leaveMatched]가 맡는다.
      */
     fun onBackgrounded() {
-        if (handedOver || isLeft || _state.value.phase !in LEAVE_ON_BACKGROUND) return
+        if (isLeft) return
+        if (handedOver) return leaveMatched()
+        if (_state.value.phase !in LEAVE_ON_BACKGROUND) return
         val current = ticket
         if (current !is RandomTicket && !(current == null && isOpeningQuick)) return
         isLeft = true
         cancelJob?.cancel()
         current?.abandon()
         stopWaiting()
+        _events.trySend(MatchEvent.Home)
+    }
+
+    /**
+     * 랜덤 매칭이 성사됐지만 아직 측정을 시작하지 않았는데(카운트다운 중) 앱이 뒤로 갔다(S15P31A207-278, 사용자 결정 2026-11-08 "출발 전이면
+     * 같은 규칙으로 기권"). 앱이 멈춘 걸 늦게 알아(ON_STOP은 0.7~1.7초 늦다) 그 사이 성사된 경우도 여기로 온다. 백그라운드에서는 측정 시작이
+     * 막히므로 조정자가 회를 닫고 그 대결에 그만두기를 보내며, 화면은 안내 없이 홈으로 간다. 이미 측정이 시작됐으면 기존 흐름을 따른다.
+     */
+    private fun leaveMatched() {
+        val match = _state.value.match ?: return
+        if (_state.value.phase != MatchPhase.MATCHED || navigated || forfeiting || ticket !is RandomTicket) return
+        if (!coordinator.abandonMatched(match.battleId)) return
+        isLeft = true
+        followJob?.cancel()
+        countdownJob?.cancel()
+        stuckJob?.cancel()
+        waitJob?.cancel()
+        releaseWaitingLease()
+        handedOver = false
         _events.trySend(MatchEvent.Home)
     }
 

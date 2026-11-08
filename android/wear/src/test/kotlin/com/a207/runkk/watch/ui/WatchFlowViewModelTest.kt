@@ -19,6 +19,7 @@ import com.a207.runkk.app.domain.account.PlacementStatus
 import com.a207.runkk.app.domain.battle.BattleResult
 import com.a207.runkk.app.domain.battle.BattleRunCoordinator
 import com.a207.runkk.app.domain.battle.BattleRunState
+import com.a207.runkk.app.domain.battle.InMemoryPendingForfeitStore
 import com.a207.runkk.app.domain.battle.MatchAcceptance
 import com.a207.runkk.app.domain.battle.OfflineRecordBattle
 import com.a207.runkk.app.domain.battle.OpponentTrack
@@ -180,7 +181,16 @@ class WatchFlowViewModelTest {
         val runs = shared?.tracker ?: tracker
             ?: runTracker(LocalWatchGateway(alertPlayer(), settings, clock), host, settings, pendingRuns)
         val coordinator = shared?.coordinator
-            ?: BattleRunCoordinator(runs, live, battles, FakeGuidanceOutput(), clock, backgroundScope, NoPhoneWarmUp)
+            ?: BattleRunCoordinator(
+                runs,
+                live,
+                battles,
+                FakeGuidanceOutput(),
+                clock,
+                backgroundScope,
+                NoPhoneWarmUp,
+                InMemoryPendingForfeitStore()
+            )
         val cache = OpponentRecordCache(
             File(createTempDirectory("flow-cache").toFile(), "opponent-records.json"),
             battles,

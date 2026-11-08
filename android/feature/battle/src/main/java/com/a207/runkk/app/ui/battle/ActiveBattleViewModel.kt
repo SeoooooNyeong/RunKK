@@ -48,7 +48,11 @@ class ActiveBattleViewModel @Inject constructor(
     private var opening: Long? = null
 
     init {
-        viewModelScope.launch { check() }
+        viewModelScope.launch {
+            // 떠난 매칭의 남은 그만두기를 먼저 보내 끝내기 안내에 그 대결이 뜨지 않게 한다(S15P31A207-278).
+            coordinator.settlePendingForfeit()
+            check()
+        }
     }
 
     /** 읽지 못하거나 없으면(204) 아무것도 띄우지 않는다. 지금 달리고 있는 대결이면 그 화면이 맡는다. */
@@ -58,8 +62,12 @@ class ActiveBattleViewModel @Inject constructor(
         _state.update { it.copy(battle = active) }
     }
 
-    /** 앱이 앞으로 왔거나 맨 위 화면이 바뀌었을 때. 열린 회가 있고 맨 위가 그 진행 화면이 아니면 돌아가기를 안내한다. */
+    /**
+     * 앱이 앞으로 왔거나 맨 위 화면이 바뀌었을 때. 열린 회가 있고 맨 위가 그 진행 화면이 아니면 돌아가기를 안내한다. 백그라운드에서 보내지
+     * 못한 그만두기가 남았으면 다시 보낸다(S15P31A207-278, 사용자 결정 "기억했다가 복귀 때 재전송").
+     */
     fun onForeground(top: NavKey?) {
+        viewModelScope.launch { coordinator.settlePendingForfeit() }
         val key = screens.key()
         val isOnTop = key != null && (top as? Routes.BattleRunning)?.battleId == key.battleId
         if (isOnTop || key == null) opening = null

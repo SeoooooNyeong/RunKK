@@ -216,19 +216,46 @@ class MatchViewModelTest {
     }
 
     @Test
-    fun `S15P31A207-278 성사 뒤에는 앱이 뒤로 가도 취소하지 않고 대결을 이어 간다`() = main.runVmTest { vms ->
+    fun `S15P31A207-278 성사 뒤 출발 전에 앱이 뒤로 가면 회를 닫고 그 대결에 그만두기를 보낸 뒤 홈으로`() = main.runVmTest { vms ->
         val w = world()
         val vm = quick(w, vms)
         vm.events.test {
             w.channels.channel.push(matchFound())
             runCurrent()
+            w.channels.channel.push(BattleStart(9, w.clock.now.plusSeconds(10), opponentTrack = null))
+            runCurrent()
+            assertEquals(MatchPhase.MATCHED, vm.state.value.phase)
+            vm.onBackgrounded()
+            runCurrent()
+            assertEquals(MatchEvent.Home, awaitItem())
+            w.clock.now = w.clock.now.plusSeconds(11)
+            advanceTimeBy(12_000)
+            runCurrent()
+            expectNoEvents()
+        }
+        assertEquals(listOf("match:5000", "forfeit:9"), w.battles.calls, "대기열 취소가 아니라 그 대결 그만두기다")
+        assertEquals(BattleRunState.Idle, w.coordinator.state.value)
+        assertNull(w.forfeits.pending, "보냈으면 남기지 않는다")
+    }
+
+    @Test
+    fun `S15P31A207-278 측정이 시작된 뒤에는 앱이 뒤로 가도 대결을 이어 간다`() = main.runVmTest { vms ->
+        val w = world()
+        val vm = quick(w, vms)
+        vm.events.test {
+            w.channels.channel.push(matchFound())
+            runCurrent()
+            w.channels.channel.push(BattleStart(9, w.clock.now.plusSeconds(1), opponentTrack = null))
+            w.clock.now = w.clock.now.plusSeconds(1)
+            advanceTimeBy(2_000)
+            runCurrent()
+            assertIs<MatchEvent.Started>(awaitItem())
             vm.onBackgrounded()
             runCurrent()
             expectNoEvents()
         }
-        assertEquals(MatchPhase.MATCHED, vm.state.value.phase)
-        assertTrue("cancel" !in w.battles.calls)
-        assertIs<BattleRunState.Matched>(w.coordinator.state.value)
+        assertTrue(w.battles.calls.none { it.startsWith("forfeit") || it == "cancel" }, "${w.battles.calls}")
+        assertIs<BattleRunState.Running>(w.coordinator.state.value)
     }
 
     @Test

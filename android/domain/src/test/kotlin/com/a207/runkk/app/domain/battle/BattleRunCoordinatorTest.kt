@@ -159,6 +159,7 @@ class BattleRunCoordinatorTest {
     private val pending = FakePendingRunRepository(log)
     private val live = FakeLiveChannelProvider()
     private val repository = FakeBattleRepository(log)
+    private val forfeits = InMemoryPendingForfeitStore()
     private val settings = FakeSettingsRepository()
     private val watch = FakeWatchGateway()
     private val gps = FakeGpsWarmUp()
@@ -183,7 +184,7 @@ class BattleRunCoordinatorTest {
                 backgroundScope
             )
         val appScope = CoroutineScope(StandardTestDispatcher(testScheduler) + parentJob)
-        return tracker to BattleRunCoordinator(tracker, live, repository, output, clock, appScope, gps)
+        return tracker to BattleRunCoordinator(tracker, live, repository, output, clock, appScope, gps, forfeits)
     }
 
     private fun RunTracker.runTo(second: Long, meters: Double) {
@@ -1081,6 +1082,84 @@ class BattleRunCoordinatorTest {
             log.calls,
             "남은 대결이 새 매칭 요청을 막지 않게 그만두기를 먼저 끝낸다"
         )
+    }
+
+    @Test
+    fun `S15P31A207-278 이탈 그만두기를 네트워크로 끝내 보내지 못하면 남겨 두고 다시 보낼 때 보낸 뒤 지운다`() = runTest {
+        val (_, coordinator) = setUp()
+        repository.cancelFailure = AppError.Rejected("ALREADY_MATCHED")
+        repository.activeResults += Outcome.Success(matchedBattle())
+        repository.reportFailure = AppError.Network
+        coordinator.abandonMatching()
+        advanceTimeBy(10_000)
+        runCurrent()
+        assertEquals(PendingForfeit(9, T0), forfeits.pending, "찾은 대결 번호를 적어 남긴다")
+
+        log.calls.clear()
+        repository.reportFailure = null
+        coordinator.settlePendingForfeit()
+        assertEquals(listOf("battle.forfeit:9"), log.calls, "번호를 알면 찾지 않고 보낸다")
+        assertNull(forfeits.pending)
+    }
+
+    @Test
+    fun `S15P31A207-278 진행 중인 대결을 끝내 읽지 못하면 번호 없이 남기고 다시 보낼 때 찾아서 보낸다`() = runTest {
+        val (_, coordinator) = setUp()
+        repository.cancelFailure = AppError.Rejected("ALREADY_MATCHED")
+        repeat(3) { repository.activeResults += Outcome.Failure(AppError.Network) }
+        coordinator.abandonMatching()
+        advanceTimeBy(10_000)
+        runCurrent()
+        assertEquals(PendingForfeit(null, T0), forfeits.pending)
+
+        log.calls.clear()
+        repository.activeResults += Outcome.Success(matchedBattle(battleId = 11))
+        coordinator.settlePendingForfeit()
+        assertEquals(listOf("battle.active", "battle.forfeit:11"), log.calls)
+        assertNull(forfeits.pending)
+    }
+
+    @Test
+    fun `S15P31A207-278 남은 그만두기가 기한을 넘었으면 보내지 않고 지운다`() = runTest {
+        val (_, coordinator) = setUp()
+        forfeits.pending = PendingForfeit(9, T0)
+        clock.now = T0.plus(Duration.ofHours(1)).plusSeconds(1)
+        coordinator.settlePendingForfeit()
+        assertEquals(emptyList(), log.calls)
+        assertNull(forfeits.pending)
+    }
+
+    @Test
+    fun `S15P31A207-278 남은 그만두기가 있으면 새 매칭 요청 전에 먼저 보낸다`() = runTest {
+        val (_, coordinator) = setUp()
+        forfeits.pending = PendingForfeit(9, T0)
+        coordinator.requestMatch(Distance(5_000))
+        assertEquals(listOf("battle.forfeit:9", "battle.requestMatch:5000"), log.calls)
+        assertNull(forfeits.pending)
+    }
+
+    @Test
+    fun `S15P31A207-278 성사 뒤 출발 전 이탈은 회를 기록 없이 닫고 그 대결에 그만두기를 보낸다`() = runTest {
+        val (_, coordinator) = setUp()
+        coordinator.onMatched(MatchFound(9, "바람처럼", "SILVER", Distance(5_000), null, null, 0))
+        runCurrent()
+        assertFalse(coordinator.abandonMatched(10), "다른 대결 번호면 닫지 않는다")
+        assertTrue(coordinator.isRunning(9))
+
+        repository.reportFailure = AppError.Network
+        assertTrue(coordinator.abandonMatched(9))
+        assertEquals(BattleRunState.Idle, coordinator.state.value)
+        assertFalse(coordinator.isRunning(9))
+        advanceTimeBy(10_000)
+        runCurrent()
+        assertEquals(List(3) { "battle.forfeit:9" }, log.calls)
+        assertEquals(PendingForfeit(9, T0), forfeits.pending, "보내지 못했으면 남긴다")
+
+        log.calls.clear()
+        repository.reportFailure = null
+        coordinator.settlePendingForfeit()
+        assertEquals(listOf("battle.forfeit:9"), log.calls)
+        assertNull(forfeits.pending)
     }
 
     @Test
