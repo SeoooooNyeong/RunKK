@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>1km 걷거나 달리기 | 런크크</title>
+<meta name="description" content="1km 한 번이면 자동 응모, 메가커피 쿠폰 10명 추첨">
+<meta property="og:title" content="1km 걷거나 달리기">
+<meta property="og:description" content="메가커피 쿠폰 10명 추첨">
+<meta property="og:image" content="/events/beta-1km/banner.png">
+<script>
+(function () {
+  var root = document.documentElement;
+  var t = new URLSearchParams(location.search).get('theme');
+  if (t === 'dark' || t === 'light') { root.setAttribute('data-theme', t); return; }
+  var mq = window.matchMedia ? matchMedia('(prefers-color-scheme: dark)') : null;
+  function apply() { root.setAttribute('data-theme', mq && mq.matches ? 'dark' : 'light'); }
+  apply();
+  if (mq && mq.addEventListener) mq.addEventListener('change', apply);
+})();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<link rel="preload" as="image" href="hero.webp">
+<style>
+:root{
+  --violet:#5C4BDB;--on-violet:#FFFFFF;--lime:#CAEB2E;--on-lime:#171B12;
+  --bg:#F7F8F2;--surface:#FFFFFF;--surface-high:#E9EDE0;--container:#E3DFF9;
+  --text:#171B12;--text2:#67705B;--divider:#E9EDE0;--accent-text:#5C4BDB;
+  --shadow:0 8px 12px rgba(26,20,64,.10);--bar-shadow:0 -4px 8px rgba(0,0,0,.08);
+  --map-bg:#E8EBDF;--map-road:#FFFFFF;--map-label:#6B7360;--map-halo:#E8EBDF;--map-mc:rgba(92,75,219,.28);
+  color-scheme:light;
+}
+:root[data-theme=dark]{
+  --bg:#171B12;--surface:#292F25;--surface-high:#343D2D;--container:#302856;
+  --text:#FFFFFF;--text2:#A8AEA0;--divider:#444B3E;--accent-text:#A99FF5;
+  --shadow:0 8px 16px rgba(0,0,0,.28);--bar-shadow:0 -4px 10px rgba(0,0,0,.35);
+  --map-bg:#1F241A;--map-road:#3A4233;--map-label:#A8AEA0;--map-halo:#1F241A;--map-mc:rgba(169,159,245,.30);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--text);font-family:"IBM Plex Sans KR",-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif;font-size:15px;line-height:1.35;word-break:keep-all;overflow-x:hidden}
+button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer}
+button:focus-visible{outline:3px solid var(--violet);outline-offset:2px}
+h1,h2,h3,p{margin:0}
+.hidden{display:none!important}
+
+/* 히어로 */
+.hero{position:relative;height:430px;background:var(--lime);overflow:hidden;color:var(--on-lime)}
+.ring{position:absolute;left:calc(50% - 15px);top:10px;width:340px;height:340px;border:30px solid var(--violet);border-radius:50%}
+.speed{position:absolute;height:10px;border-radius:5px;background:var(--on-lime);opacity:.12}
+.girl{position:absolute;left:calc(50% + 37px);top:150px;width:136px;height:250px;user-select:none;-webkit-user-drag:none}
+.bar{position:absolute;left:0;right:0;top:0;height:48px;padding:14px 12px 0;display:flex;justify-content:space-between;align-items:center;z-index:2}
+.icon-btn{width:40px;height:40px;margin-top:-8px;display:grid;place-items:center;border-radius:50%}
+.icon-btn svg{width:24px;height:24px}
+.copy{position:absolute;left:20px;top:74px;display:flex;flex-direction:column;align-items:flex-start;gap:10px;z-index:1}
+.pill{display:inline-block;border-radius:999px;padding:5px 12px;font-size:13px;font-weight:700}
+.pill.ink{background:var(--on-lime);color:#fff}
+.pill.white{background:#fff;color:#5C4BDB}
+.hero h1{font-size:40px;line-height:1.14;font-weight:700;letter-spacing:-.02em}
+.hero h1 em{font-style:normal;color:#5C4BDB}
+
+/* 본문 */
+main{position:relative;margin-top:-40px;padding:0 16px calc(128px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:32px;max-width:520px;margin-left:auto;margin-right:auto}
+.card{background:var(--surface);border-radius:24px;box-shadow:var(--shadow)}
+.flat{box-shadow:none}
+.timer{padding:18px 20px 20px;display:flex;flex-direction:column;align-items:center;gap:12px}
+.timer .label{font-size:13px;font-weight:600;color:var(--text2)}
+.cells{display:flex;align-items:center;gap:8px}
+.cell{display:flex;align-items:flex-end;gap:4px;background:var(--surface-high);border-radius:14px;padding:8px 12px}
+.cell b{font-size:30px;line-height:1.1;font-weight:700;font-variant-numeric:tabular-nums}
+.cell span{font-size:14px;font-weight:600;color:var(--text2)}
+.colon{font-size:24px;font-weight:700;color:var(--text2)}
+.ended{font-size:30px;line-height:1.1;font-weight:700;padding:8px 0}
+
+.sec{display:flex;flex-direction:column;gap:14px}
+.sec h2{font-size:20px;font-weight:700}
+
+.me{padding:22px;display:flex;align-items:center;gap:20px}
+.me-ring{position:relative;flex:none;width:104px;height:104px}
+.me-ring>svg{display:block;width:104px;height:104px;transform:rotate(-90deg)}
+.me-ring .track{stroke:var(--surface-high)}
+.me-ring .prog{stroke:var(--violet);transition:stroke-dashoffset .6s ease}
+.me-center{position:absolute;inset:0;display:grid;place-items:center}
+.me-center .check{width:44px;height:44px;border-radius:50%;background:var(--lime);color:var(--on-lime);display:grid;place-items:center}
+.me-center .check svg{width:24px;height:24px}
+.me-center .frac{display:flex;align-items:flex-end;gap:2px;font-weight:700}
+.me-center .frac b{font-size:34px;line-height:1}
+.me-center .frac span{font-size:16px;color:var(--text2)}
+.me-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}
+.me-text .title{font-size:20px;font-weight:700}
+.me-text .meta{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-block;border-radius:999px;padding:3px 10px;font-size:13px;font-weight:700;background:var(--surface-high);color:var(--text2)}
+.chip.v{background:var(--container);color:var(--accent-text)}
+
+.prize{padding:20px;display:flex;align-items:center;gap:18px}
+.prize-ico{flex:none;width:72px;height:72px;border-radius:22px;background:var(--lime);color:var(--on-lime);display:grid;place-items:center}
+.prize-ico svg{width:36px;height:36px}
+.prize .title{font-size:18px;font-weight:700;margin-bottom:6px}
+
+.steps{display:flex;padding:20px 8px;margin:0;list-style:none}
+.step{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:10px;padding-top:6px;text-align:center}
+.step-ico{position:relative;width:60px;height:60px;border-radius:50%;background:var(--container);color:var(--accent-text);display:grid;place-items:center}
+.step-ico.lime{background:var(--lime);color:var(--on-lime)}
+.step-ico svg{width:26px;height:26px}
+.step-no{position:absolute;left:40px;top:-2px;min-width:20px;padding:1px 6px;border-radius:999px;background:var(--text);color:var(--surface);font-size:11px;font-weight:700;line-height:1.35}
+.step p{font-size:14px;font-weight:600}
+
+.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:4px;border-radius:16px;background:var(--surface-high)}
+.tab{height:40px;border-radius:12px;font-size:14px;font-weight:600;color:var(--text2);white-space:nowrap}
+.tab[aria-selected=true]{background:var(--surface);color:var(--text);font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+.tab b{color:var(--accent-text);margin-right:3px}
+.course{overflow:hidden}
+.map{display:block;width:100%;height:auto;aspect-ratio:3/2}
+.course-info{padding:16px 18px 18px;display:flex;flex-direction:column;gap:14px}
+.course-info h3{font-size:18px;font-weight:700}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{background:var(--surface-high);border-radius:14px;padding:10px 12px;display:flex;flex-direction:column;gap:2px}
+.stat span{font-size:12px;font-weight:600;color:var(--text2)}
+.stat b{font-size:17px;font-weight:700;white-space:nowrap}
+.osm{font-size:12px;color:var(--text2)}
+
+/* 지도 */
+.mbg{fill:var(--map-bg)}
+.rr,.rs,.rp{fill:none;stroke:var(--map-road);stroke-linecap:round;stroke-linejoin:round}
+.rr{stroke-width:3.5}
+.rs{stroke-width:6}
+.rp{stroke-width:11}
+.mc{fill:var(--map-mc);stroke:var(--violet);stroke-width:1.5}
+.lb,.lbs{font-size:13px;font-weight:500;fill:var(--map-label);paint-order:stroke;stroke:var(--map-halo);stroke-width:3.5px;stroke-linejoin:round;text-anchor:middle;dominant-baseline:middle}
+.lbs{font-weight:700;fill:var(--text);text-anchor:start;dominant-baseline:auto}
+.stn{fill:#00A84D;stroke:var(--map-bg);stroke-width:1.5}
+.stt{font-size:9px;font-weight:700;fill:#fff;text-anchor:middle}
+.rc{fill:none;stroke:var(--surface);stroke-width:9.5;stroke-linecap:round;stroke-linejoin:round}
+.rt{fill:none;stroke:var(--violet);stroke-width:5.5;stroke-linecap:round;stroke-linejoin:round}
+.ar{fill:none;stroke:#fff;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.st{fill:var(--lime);stroke:#171B12;stroke-width:2.5}
+.turn{fill:var(--surface);stroke:var(--violet);stroke-width:3}
+.lbst,.lbt,.lbd,.lbm{font-weight:700;paint-order:stroke;stroke:var(--map-halo);stroke-width:3.5px;stroke-linejoin:round}
+.lbst{font-size:15px;fill:var(--text)}
+.lbt{font-size:13px;fill:var(--accent-text)}
+.lbd{font-size:13px;fill:var(--text)}
+.lbm{font-size:12px;fill:var(--accent-text)}
+
+/* 하단 고정 */
+.dock{position:fixed;left:0;right:0;bottom:0;z-index:10;background:var(--surface);box-shadow:var(--bar-shadow);padding:12px 16px calc(16px + env(safe-area-inset-bottom))}
+.dock-in{width:100%;max-width:488px;margin:0 auto}
+.cta{width:100%;height:56px;border-radius:999px;background:var(--violet);color:var(--on-violet);font-size:17px;font-weight:700}
+.cta:disabled{opacity:.45;cursor:default}
+@media (max-width:370px){
+  .hero h1{font-size:36px}
+  .cell{padding:8px 10px}
+  .tab{font-size:13px}
+}
+</style>
+</head>
+<body>
+<header class="hero">
+  <div class="ring" aria-hidden="true"></div>
+  <div class="speed" style="left:-20px;top:300px;width:160px" aria-hidden="true"></div>
+  <div class="speed" style="left:-14px;top:322px;width:130px" aria-hidden="true"></div>
+  <div class="speed" style="left:-8px;top:344px;width:100px" aria-hidden="true"></div>
+  <div class="speed" style="left:-2px;top:366px;width:70px" aria-hidden="true"></div>
+  <img class="girl" src="hero.webp" width="136" height="250" alt="">
+  <nav class="bar">
+    <button class="icon-btn" id="back" type="button" aria-label="닫기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18L9 12L15 6"/></svg></button>
+    <button class="icon-btn" id="share" type="button" aria-label="공유"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12V19C4 19.55 4.45 20 5 20H19C19.55 20 20 19.55 20 19V12M8 6L12 2L16 6M12 2V15"/></svg></button>
+  </nav>
+  <div class="copy">
+    <span class="pill ink">11월 16일까지</span>
+    <h1><em>1km</em><br>걷거나<br>달리기</h1>
+    <span class="pill white">걸어도 좋아요</span>
+  </div>
+</header>
+
+<main>
+  <section class="card timer" aria-live="polite">
+    <p class="label" id="timer-label">끝나기까지</p>
+    <div class="cells" id="cells">
+      <div class="cell"><b id="t-d">00</b><span>일</span></div>
+      <span class="colon" aria-hidden="true">:</span>
+      <div class="cell"><b id="t-h">00</b><span>시간</span></div>
+      <span class="colon" aria-hidden="true">:</span>
+      <div class="cell"><b id="t-m">00</b><span>분</span></div>
+    </div>
+    <p class="ended hidden" id="ended">종료</p>
+  </section>
+
+  <section class="sec hidden" id="me-sec">
+    <h2>내 응모</h2>
+    <div class="card me">
+      <div class="me-ring">
+        <svg viewBox="0 0 104 104" aria-hidden="true"><circle class="track" cx="52" cy="52" r="44" fill="none" stroke-width="12"/><circle class="prog" id="me-prog" cx="52" cy="52" r="44" fill="none" stroke-width="12" stroke-linecap="round" stroke-dasharray="276.5" stroke-dashoffset="276.5"/></svg>
+        <div class="me-center">
+          <span class="check hidden" id="me-check"><svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5.8 14.6L11 19.8L22.2 8.8"/></svg></span>
+          <span class="frac" id="me-frac"><b>0</b><span>/ 1</span></span>
+        </div>
+      </div>
+      <div class="me-text">
+        <p class="title" id="me-title">아직이에요</p>
+        <div class="meta" id="me-meta"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2>경품</h2>
+    <div class="card prize flat">
+      <div class="prize-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2V4"/><path d="M14 2V4"/><path d="M6 2V4"/><path d="M16 8A1 1 0 0 1 17 9V17A4 4 0 0 1 13 21H7A4 4 0 0 1 3 17V9A1 1 0 0 1 4 8H18A4 4 0 1 1 18 16H17"/></svg></div>
+      <div>
+        <p class="title">메가커피 쿠폰</p>
+        <span class="chip v">10명 추첨</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2>참여 방법</h2>
+    <ol class="card steps flat">
+      <li class="step">
+        <div class="step-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16V13.62C4 11.5 2.97 10.5 3 8C3.03 5.28 4.49 2 7.5 2C9.37 2 10 3.8 10 5.5C10 8.61 8 11.16 8 14.18V16A2 2 0 1 1 4 16Z"/><path d="M20 20V17.62C20 15.5 21.03 14.5 21 12C20.97 9.28 19.51 6 16.5 6C14.63 6 14 7.8 14 9.5C14 12.61 16 15.16 16 18.18V20A2 2 0 1 0 20 20Z"/><path d="M16 17H20"/><path d="M4 13H8"/></svg><span class="step-no">1</span></div>
+        <p>1km 걷거나<br>달리기</p>
+      </li>
+      <li class="step">
+        <div class="step-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9A3 3 0 0 1 2 15V17A2 2 0 0 0 4 19H20A2 2 0 0 0 22 17V15A3 3 0 0 1 22 9V7A2 2 0 0 0 20 5H4A2 2 0 0 0 2 7Z"/><path d="M13 5V7"/><path d="M13 17V19"/><path d="M13 11V13"/></svg><span class="step-no">2</span></div>
+        <p>자동 응모</p>
+      </li>
+      <li class="step">
+        <div class="step-ico lime"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12V21H4V12M2 7H22V12H2V7ZM12 21V7M12 7H7.5A2.5 2.5 0 1 1 7.5 2C11 2 12 7 12 7ZM12 7H16.5A2.5 2.5 0 1 0 16.5 2C13 2 12 7 12 7Z"/></svg><span class="step-no">3</span></div>
+        <p>10명 추첨</p>
+      </li>
+    </ol>
+  </section>
+
+  <section class="sec">
+    <h2>산책 코스</h2>
+    <div class="tabs" role="tablist" aria-label="산책 코스">
+      <button class="tab" role="tab" id="tab-c" aria-controls="panel-c" aria-selected="true" type="button"><b>C</b>한 바퀴</button>
+      <button class="tab" role="tab" id="tab-d" aria-controls="panel-d" aria-selected="false" tabindex="-1" type="button"><b>D</b>선릉역</button>
+      <button class="tab" role="tab" id="tab-e" aria-controls="panel-e" aria-selected="false" tabindex="-1" type="button"><b>E</b>강남역</button>
+    </div>
+    <div class="card course flat" role="tabpanel" id="panel-c" aria-labelledby="tab-c">
+      <svg class="map" viewBox="0 0 420 280" role="img" aria-label="C 한 바퀴 코스 지도"><rect class="mbg" width="420" height="280"/><path class="rr" d="M120.1 -104.7 L136.8 -58.9 M233.7 -45 L216 -91 M358.9 392.7 L317.2 282.3 M214.1 -37 L196.7 -83.3 M252.9 -52.8 L236.6 -99.6 M239.8 161.7 L313.5 357.8 M429.5 95.6 L382.8 113.4 L346.8 118.4 L267.7 149.8 M346.8 118.4 L316.4 45.4 M401.9 250.2 L437 344.3 M363.1 265 L347.2 223.2 M182.8 188.3 L186.9 191.2 L251.8 365.4 M430.2 239.6 L382.8 113.4 M163.1 214.3 L235.6 406.2 L270.4 448.5 M211.8 172.4 L287.3 373.4 M317.2 282.3 L149.9 344.7 M369.4 214.4 L385.1 256.6 M407.4 248.1 L391.8 205.8 M340.9 273.4 L324.4 231.4 M29 239.8 L-8 295.8 L-12.5 299.7 L-220 381.5 M-97.7 204.8 L-28.7 381.7 M293.8 218.8 L457.6 159.2 M436.4 93 L489 74.2 L520.9 28.8 M15.4 205.3 L-148.7 269.1 M285.5 -30.9 L205.4 -1.2 M216.3 24.5 L295.4 -4.8 M414.7 197.5 L356.1 219.6 M267.7 149.8 L187.5 182.2 M310.7 31.7 L295.4 -4.8 L274.1 -61.4 M232.2 62.5 L194.1 -28.8 L177.5 -75.1 L151.6 -140.9 M-20.2 72.1 L-42.2 65.4 L-77.2 71.5 M-26 21.5 L-115.3 53.7 L-144.6 80.7 M151.6 -140.9 L120.1 -104.7 L80.2 -90 L-0.8 -57.3 M-119.1 146.3 L-25 111.2 M-30 97.5 L-42.9 92.2 L-46.6 92.6 L-53.1 108.3 L-53.3 112.2 L-50.1 120.6 M115.3 4.1 L90.6 -65 L80.2 -90 M83.8 18.8 L-23.3 -266.4 L-21.9 -302.1 L-42.6 -356.8 M-12.5 299.7 L17.1 373.4 M55.1 255 L33.4 289.2 L62.2 365.9 M137.4 310.7 L53.5 342.3 M-0.8 -57.3 L-41.6 -43.4 L-48.7 -39.5 L-148.9 -1.4 L-187.7 5.2 L-209.7 11 M123.4 26.3 L202.8 -6.8 M212.2 15.4 L132.2 48 M222.5 40.3 L141.8 71.4 M164.9 9 L193.6 78.9 M177.5 -75.1 L136.8 -58.9 M136.8 -58.9 L154.2 -12.7 M-81.6 -130.5 L-13.6 55.7 M473.1 19.5 L476.1 28.9 L470.5 37.8 L422.6 56.9 M317.2 282.3 L480.9 221.3 M238.4 76.2 L267.7 149.8 L317.2 282.3 M417.5 293.7 L491.2 248.9 M339.2 341.7 L417.5 293.7 M293.8 218.8 L180.7 260.3 M321.8 128.4 L348.2 199.4 M356.1 219.6 L301.2 240 M168.2 131.6 L247.5 99.8 M199.3 91.4 L219.1 139.8 M275.7 62.6 L282.5 80.4 M325.1 65.9 L283 81.7 M327.3 70.5 L406.6 41.3 M-12.5 299.7 L-39.6 226.4 M40.5 308.5 L82.8 293.3 L67.6 250.7 M-9.1 214.5 L5.1 253.1 L16.6 259.5 M416.9 203.6 L433.2 197.5 M279.5 182.5 L334 161.8 M405.6 104.1 L429.2 169.6 M-21 121 L18.7 104.5 L-0.2 50.3 M366.5 55.6 L375.9 78.5 M106.6 -20.5 L145.7 -35.3 M136.8 -58.9 L98.8 -42.6 M174 -20.7 L144.9 -99.7 M26.3 -68.3 L40.8 -26.2 L63.7 -33.8 M11.1 -26.5 L-37.1 -8.4 M-70 -31.4 L-57.4 3.5 L-35.7 -4.6 M447.5 28.3 L509.8 5.9 M348.2 199.4 L356.1 219.6 M328.1 311.1 L412.5 280.2 M372 321.7 L383.7 341.3 L348.4 365.5 M285.5 -30.9 L309.1 -39.7 M364.8 -47.1 L364.8 -47.1 M378.3 -61.2 L412.7 -71.9 L415.7 -71.2 L457.5 -86.6 L461.4 -86.1 L467.4 -68.4 L466.2 -65.1 L425.2 -50.6 L422.5 -51.4 L415.7 -71.2 M437.4 -55.1 L451.6 -22.1 M423 -73.9 L428.8 -58.9 L466.2 -71.9 M446.8 27 L446.8 27 M457.1 25 L456.1 22.5 L454.6 22.2 L450.4 23.7 M461.4 21.6 L461.4 21.6 M503.4 5.9 L503.4 5.9 M438.6 44.6 L440.7 49.7 M453.3 44.8 L452.5 42.8 M438.1 53.6 L438.1 53.6 M455.2 288 L447.2 291 M449.9 274 L469.1 324.3 M135.9 224.5 L125.8 198.5 L115.3 202.6 L96 153.3 M115.3 202.6 L123.5 221.9 L133.3 217.8 M173.8 145.6 L133.6 161.9 L139.5 176.5 L160 168.2 L154.1 153.6 M160 168.2 L166.6 173.4 M334.7 89.2 L292.2 106.2 L219.1 139.8 L178.2 155.7 M416.1 63.3 L336.6 94 M282.5 80.4 L292.2 106.2 M130.5 292.7 L173.7 275.4 L157.5 231.4 M486.7 373 L479.6 370 L469.7 343.4 L466.5 343.8 L463.8 336.6 L458.4 330.8 M359.3 299.3 L368.4 323.9"/><path class="rs" d="M108.1 235 L55.1 255 L29 239.8 M29 239.8 L-0.6 168.3 M157.9 107.7 L178.2 155.7 L187.5 182.2 M83.8 18.8 L118.4 1.9 L194.1 -28.8 M-6.9 155.4 L-30 97.5 L-13.6 55.7 M115.3 4.1 L152.1 95.5 M-13.6 55.7 L34.5 37.5 M203.7 489 L509.4 299.9 M187.5 182.2 L163.1 214.3 L108.1 235 M194.1 -28.8 L252.9 -52.8 M252.9 -52.8 L274.1 -61.4 M34.5 37.5 L83.8 18.8 M13 163.1 L20.8 153 L34.7 146.4 L35.4 144.3 L33.5 139.7 M133.5 102.4 L131.1 106.1 L126.7 108.8 L110.2 115.4 L106.5 118.4 L105.2 121.4 L106.4 123.6 L112.6 125.3"/><path class="rp" d="M-115.1 -1906.5 L-151.2 -1557.5 L-152.5 -1527.9 L-150 -1494.6 L-140.3 -1443.4 L-131.4 -1412.6 L-110.2 -1346.8 L-77.8 -1257.2 L-28 -1113.3 L-24.8 -1086.6 L-22.4 -1034 L-22 -991 L-24 -918.9 L-24.1 -854.7 L-21.7 -757.3 L-13.6 -703.7 L0.4 -655.1 L38.5 -582.1 L54.8 -558.2 L152.2 -431 L251.1 -306.6 L307.3 -232.8 L319.3 -210.5 L328.3 -185.3 L352.6 -104.2 L388.4 0.2 M-359.4 303.9 L73.4 140.6 M395.5 16.2 L457.6 159.2 L491.2 248.9 M395.5 16.2 L571.7 -52.8 L661.2 -84.9 L762.9 -124.4 M388.4 0.2 L395.5 16.2 M68.7 126.7 L-169.1 218.3 L-412.1 314 M757.1 -140.7 L491.8 -37 L388.4 0.2 M23.6 8.7 L-71.1 -248.3 M519.6 294.7 L501.3 247.7 L436.4 93 L405 12.4 L397.5 -3.4 L327 -213.9 L315.7 -236.1 L302.5 -252.3 L261.3 -309.4 M68.7 126.7 L73.4 140.6 M73.4 140.6 L275.7 62.6 L316.4 45.4 L395.5 16.2 M203.7 489 L73.4 140.6 M388.4 0.2 L152.1 95.5 L68.7 126.7 M34.5 37.5 L23.6 8.7 M68.7 126.7 L34.5 37.5"/><path class="mc" d="M243.7 103.3 L227.8 110.1 L235.4 127.9 L251.3 121.1Z"/><text class="lb" transform="translate(104 97.4) rotate(-20.5)">테헤란로</text><text class="lb" transform="translate(106.8 199.6) rotate(69.8)">논현로</text><g transform="translate(71.5 132.7)"><circle class="stn" r="7"/><text class="stt" y="3.3">2</text></g><text class="lbs" x="80.5" y="153.7">역삼역</text><path class="rc" d="M199.4 91.2 L238.3 76.1 L247.4 73.3 L276 62.5 L316.5 45.3 L320 53.2 L325.1 66.1 L327.4 70.4 L334.8 89 L336.5 94.1 L346.8 118.5 L321.7 128.5 L267.4 150 L240 161.5 L212 172.3 L187.4 182.3 L182.9 188.1 L162.9 214.6 L136 224.7 L108 234.7 L73.2 140.7 L80.6 137.8 L87.5 135 L112.6 125.6 L157.7 107.7 L199.4 91.2"/><path class="rt" d="M199.4 91.2 L238.3 76.1 L247.4 73.3 L276 62.5 L316.5 45.3 L320 53.2 L325.1 66.1 L327.4 70.4 L334.8 89 L336.5 94.1 L346.8 118.5 L321.7 128.5 L267.4 150 L240 161.5 L212 172.3 L187.4 182.3 L182.9 188.1 L162.9 214.6 L136 224.7 L108 234.7 L73.2 140.7 L80.6 137.8 L87.5 135 L112.6 125.6 L157.7 107.7 L199.4 91.2"/><path class="ar" transform="translate(279.3 61.1) rotate(-23)" d="M-2.6 -3.4 L1.6 0 L-2.6 3.4"/><path class="ar" transform="translate(319.2 129.5) rotate(158.4)" d="M-2.6 -3.4 L1.6 0 L-2.6 3.4"/><path class="ar" transform="translate(193.7 179.8) rotate(157.8)" d="M-2.6 -3.4 L1.6 0 L-2.6 3.4"/><path class="ar" transform="translate(95.3 200.4) rotate(-110.3)" d="M-2.6 -3.4 L1.6 0 L-2.6 3.4"/><path class="ar" transform="translate(133.3 117.4) rotate(-21.7)" d="M-2.6 -3.4 L1.6 0 L-2.6 3.4"/><text class="lbm" x="230.8" y="139.3" text-anchor="middle">멀티캠퍼스</text><circle class="st" cx="199.4" cy="91.2" r="8"/><text class="lbst" x="199.4" y="77.2" text-anchor="middle">출발</text></svg>
+      <div class="course-info">
+        <h3>C 한 바퀴</h3>
+        <div class="stats">
+          <div class="stat"><span>거리</span><b>1.1km</b></div>
+          <div class="stat"><span>걷기</span><b>약 13분</b></div>
+          <div class="stat"><span>달리기</span><b>약 7분</b></div>
+        </div>
+      </div>
+    </div>
+    <div class="card course flat hidden" role="tabpanel" id="panel-d" aria-labelledby="tab-d">
+      <svg class="map" viewBox="0 0 420 280" role="img" aria-label="D 선릉역 방향 코스 지도"><rect class="mbg" width="420" height="280"/><path class="rr" d="M307.9 -2.9 L339.7 74.4 M583 -107.2 L510 -77.3 L484.3 -45.3 L394.5 -11.5 L317 19.8 M307.9 -2.9 L323.1 -42.8 L340.4 -116.9 M388.4 -27.7 L416.3 44.1 M307.9 -2.9 L260.8 -14.4 L254.1 -15.1 L247.2 -13.9 L206.8 0.8 M-41.6 5 L-24.4 51.9 M74.9 66.2 L56.8 19 M54.8 74.4 L37 26.9 M94.6 58.2 L77.9 10.1 M159.6 19.5 L111.3 -114.6 L107.7 -121.4 M81.2 278.1 L156.7 479.3 M275.7 210.4 L227.9 228.6 L191 233.8 L109.8 266 M191 233.8 L159.8 158.9 M22.8 305.4 L27 308.4 L93.5 487.1 M276.5 358.1 L227.9 228.6 M2.5 332.1 L76.9 529 L112.6 572.3 M52.5 289.1 L129.9 495.3 M214.1 332.3 L230.3 375.5 M253.1 366.8 L237.1 323.5 M136.5 336.8 L304.6 275.7 M358.1 118.4 L433.5 88.8 M282.8 207.7 L336.8 188.4 L369.5 141.8 M369.5 141.8 L536.5 89.4 M369.5 141.8 L358.1 118.4 L345.7 88.4 M443.8 119.2 L421.6 58.1 M128.1 80.6 L45.9 111.1 M57.1 137.5 L138.3 107.4 M260.6 314.9 L200.5 337.6 M109.8 266 L27.5 299.2 M116.3 49.3 L159.6 19.5 L196.9 5.5 M153.9 144.8 L138.3 107.4 L116.3 49.3 M73.4 176.5 L34.3 82.8 L17.4 35.3 L-9.2 -32.1 M-9.2 -32.1 L-41.6 5 L-82.5 20.1 L-165.5 53.5 M-46.5 116.6 L-71.9 45.7 L-82.5 20.1 M-71.9 45.7 L-32.5 30.2 M-38.2 139.3 L43.3 105.4 M52.9 128.1 L-29.2 161.6 M63.4 153.6 L-19.3 185.5 M4.3 121.6 L33.9 193.2 M17.4 35.3 L-24.4 51.9 M71.5 -68.5 L97.9 3.4 L116.3 49.3 M108.9 0.5 L77.9 10.1 L17.4 35.3 M-24.4 51.9 L-6.6 99.3 M37 26.9 L11.7 -41.1 M56.8 19 L31.5 -49.6 M77.9 10.1 L51.6 -58.6 M320.5 132.3 L323.6 142 L317.8 151.1 L268.8 170.7 M160.6 401.9 L328.5 339.3 M79.8 190.5 L109.8 266 L160.6 401.9 M136.5 336.8 L20.6 379.3 M165.3 244 L192.3 316.9 M200.5 337.6 L144.2 358.5 M7.8 247.3 L89.1 214.7 M39.7 206.1 L59.9 255.7 M118 176.5 L125 194.8 M168.7 179.9 L125.5 196.1 M170.9 184.7 L252.3 154.7 M528.1 141.7 L428.7 181.4 M428.7 181.4 L369.5 141.8 M262.9 321.1 L279.5 314.9 M121.9 299.5 L177.9 278.3 M251.2 219.1 L275.5 286.3 M211.2 169.4 L220.8 192.8 M336.8 188.4 L362.9 262.8 M484.3 318 L456.8 253.3 L428.7 181.4 M488 316.5 L466.1 265.2 L465.2 257.5 L469.5 251.8 L510.7 235.7 M-55.4 91.4 L-15.3 76.1 M-24.4 51.9 L-63.5 68.6 M13.7 91.1 L-16.1 10.1 M294.2 141.3 L358.1 118.4 M270.8 -54.9 L260.8 -14.4 M136.1 35.8 L125.7 9 L126.3 7.6 L151.8 -2 M192.3 316.9 L200.5 337.6 M352.4 -36.4 L347.8 -16.4 L355.7 4.2 M128.1 80.6 L152.3 71.7 M152.6 37.1 L149.2 26.8 M209.4 64.1 L209.4 64.1 M223.2 49.5 L258.5 38.5 L261.6 39.3 L304.5 23.5 L308.5 24 L314.7 42.2 L313.4 45.6 L271.4 60.5 L268.6 59.6 L261.6 39.3 M303.3 23.9 L292.2 -0.6 L256.5 -6.9 L253 -7.1 L228.6 2.2 L227.6 4.4 L230.9 12.6 L234.5 12.9 L276.9 -3.3 M283.9 55.8 L298.4 89.6 M269.1 36.6 L275 51.9 L313.5 38.6 M272.1 44.4 L311 31.4 M293.5 140.1 L293.5 140.1 M304.1 137.9 L303.1 135.5 L301.6 135.1 L297.2 136.7 M308.5 134.4 L308.5 134.4 M350.2 115 L355.9 112.9 M351.6 118.4 L351.6 118.4 M285.1 158.1 L287.2 163.3 M300.2 158.3 L299.3 156.3 M284.6 167.3 L284.6 167.3 M332.6 189.9 L328.5 179.7 M338.2 182.3 L338.2 182.3 M-25.3 342.6 L-35.8 316 L-46.5 320.1 L-66.3 269.6 M-46.5 320.1 L-38.1 340 L-28 335.7 M13.5 261.7 L-27.7 278.4 L-21.7 293.3 L-0.6 284.8 L-6.7 269.9 M-0.6 284.8 L6.1 290.2 M178.5 203.8 L135 221.3 L59.9 255.7 L18 272 M262.1 177.3 L180.5 208.7 M125 194.8 L135 221.3"/><path class="rs" d="M-2.7 222.8 L18 272 L27.5 299.2 M-78.8 131.6 L-43.3 114.3 L34.3 82.8 M-46.5 116.6 L-8.8 210.2 M27.5 299.2 L2.5 332.1 L-53.8 353.4 M34.3 82.8 L94.6 58.2 M94.6 58.2 L116.3 49.3 M-27.9 217.4 L-30.3 221.2 L-34.8 223.9 L-51.8 230.7 L-55.6 233.8 L-56.9 236.9 L-55.6 239.1 L-49.2 240.9"/><path class="rp" d="M-282.8 -1843.1 L-319.8 -1485.2 L-321.1 -1454.8 L-318.6 -1420.6 L-308.7 -1368.2 L-299.5 -1336.5 L-277.8 -1269.1 L-244.5 -1177.2 L-193.5 -1029.6 L-190.2 -1002.2 L-187.7 -948.2 L-187.3 -904.1 L-189.4 -830.1 L-189.4 -764.4 L-187 -664.4 L-178.7 -609.4 L-164.4 -559.6 L-125.2 -484.7 L-108.6 -460.2 L-8.6 -329.7 L92.7 -202.2 L150.4 -126.4 L162.8 -103.6 L171.9 -77.7 L196.9 5.5 L233.7 112.5 M240.9 128.9 L304.6 275.7 L339.1 367.7 M240.9 128.9 L421.6 58.1 L513.4 25.3 L617.8 -15.2 M233.7 112.5 L240.9 128.9 M611.8 -32 L339.7 74.4 L233.7 112.5 M368.2 414.6 L349.4 366.4 L282.8 207.7 L250.6 125 L242.9 108.8 L170.7 -107.1 L159.1 -129.8 L145.5 -146.5 L103.3 -205 M-89.5 256.5 L118 176.5 L159.8 158.9 L240.9 128.9 M233.7 112.5 L-8.8 210.2 L-94.3 242.3"/><path class="mc" d="M85.2 218.3 L68.9 225.3 L76.7 243.5 L93 236.5Z"/><text class="lb" transform="translate(186.7 132.9) rotate(-20.3)">테헤란로</text><text class="lb" transform="translate(300.2 238.6) rotate(66.2)">언주로</text><path class="rc" d="M39.8 205.9 L79.6 190.4 L89 187.5 L118.3 176.4 L159.9 158.8 L223.8 135.2 L240.8 128.6 L287.6 110.9 L345.6 88.1 L380.2 74.1"/><path class="rt" d="M39.8 205.9 L79.6 190.4 L89 187.5 L118.3 176.4 L159.9 158.8 L223.8 135.2 L240.8 128.6 L287.6 110.9 L345.6 88.1 L380.2 74.1"/><path class="ar" transform="translate(141.9 166.4) rotate(-23)" d="M-2.6 -3.4 L1.6 0 L-2.6 3.4"/><path class="ar" transform="translate(278.4 114.4) rotate(-20.7)" d="M-2.6 -3.4 L1.6 0 L-2.6 3.4"/><circle class="turn" cx="380.2" cy="74.1" r="6.5"/><text class="lbt" x="380.2" y="96.1" text-anchor="middle">반환점</text><text class="lbd" x="372.2" y="58.1" text-anchor="end">선릉역 방향</text><text class="lbm" x="72" y="254.8" text-anchor="middle">멀티캠퍼스</text><circle class="st" cx="39.8" cy="205.9" r="8"/><text class="lbst" x="39.8" y="191.9" text-anchor="middle">출발</text></svg>
+      <div class="course-info">
+        <h3>D 선릉역 방향 왕복</h3>
+        <div class="stats">
+          <div class="stat"><span>거리</span><b>1.1km</b></div>
+          <div class="stat"><span>걷기</span><b>약 13분</b></div>
+          <div class="stat"><span>달리기</span><b>약 7분</b></div>
+        </div>
+      </div>
+    </div>
+    <div class="card course flat hidden" role="tabpanel" id="panel-e" aria-labelledby="tab-e">
+      <svg class="map" viewBox="0 0 420 280" role="img" aria-label="E 강남역 방향 코스 지도"><rect class="mbg" width="420" height="280"/><path class="rr" d="M395.3 -56.4 L377.4 -103.8 M2.8 205.1 L-53.8 55.6 M2.7 -80.4 L-56.5 -58 M-38.8 -7.2 L-49.5 -36 L-56.3 -50.7 L-58.1 -136.4 M-205 -90.1 L-131.1 -39.8 L-56.3 -50.7 M102.2 20.1 L79.8 -41.3 M23.5 -19.9 L22.8 -25.6 L11 -57.9 M-49.5 -36 L112.5 -95.8 M-58.1 -136.4 L-3.2 -99.4 L11 -57.9 M421.6 147.1 L497 348 M615.9 79.5 L568.1 97.7 L531.2 102.8 L450.2 135 M363.2 174.4 L367.4 177.3 L433.9 355.8 M343 201 L417.3 397.6 L452.9 440.9 M393 158.1 L470.2 364 M500.9 270.7 L329.5 334.6 M205.6 227.2 L167.8 284.5 L163.2 288.5 L-49.3 372.3 M75.9 191.3 L146.6 372.5 M-281.3 230.7 L-125.7 172.4 L-24.9 133.2 L3 121.1 L7.3 119.9 L38.9 128.6 L54 131.4 M476.9 205.6 L644.7 144.6 M-40.9 236 L3.8 351.2 M7.4 217.1 L23.7 257.2 L52 332.9 M191.7 191.9 L23.7 257.2 M-15.6 300.9 L-69.5 321.8 M468.4 -50.1 L386.4 -19.7 M397.5 6.6 L478.6 -23.4 M450.2 135 L368 168.1 M494.2 14 L478.6 -23.4 L456.7 -81.4 M413.8 45.6 L374.8 -48 L357.8 -95.4 L331.3 -162.7 M155.3 55.4 L137.3 49 L132.8 48.5 L96.9 54.8 M149.4 3.6 L57.9 36.5 L27.8 64.2 M107.3 111.6 L102.8 101.5 L96.9 54.8 M54 131.4 L150.4 95.4 M145.3 81.4 L132.1 76 L128.3 76.4 L121.6 92.5 L121.4 96.5 L124.6 105.1 M96.4 115.8 L114.1 162.2 M90.3 56 L81.9 27.7 M294.1 -14.2 L268.8 -85 L258.1 -110.6 M261.8 0.8 L152.1 -291.4 L153.5 -327.9 L132.3 -383.9 M13.8 27.8 L-19.8 41.4 M75.8 62.1 L47.7 45.7 M23.5 -19.9 L13.8 27.8 L27.8 64.2 M57.9 36.5 L55.3 -32.2 M94.2 -2.6 L57 10.7 L38.8 11.7 L26.7 16.8 L10.6 13.1 L-7.1 16.1 M42 100.5 L62.7 93.4 L79.4 92.2 M21.9 124.2 L25.8 106.5 L11 71.2 M163.2 288.5 L193.5 364 M232.4 242.7 L210.2 277.7 L239.7 356.3 M316.7 299.8 L230.8 332.2 M175.2 -77.2 L133.4 -62.9 L126.1 -58.9 L23.5 -19.9 L-16.3 -13.1 L-38.8 -7.2 M302.4 8.4 L383.7 -25.4 M393.3 -2.7 L311.4 30.7 M403.9 22.8 L321.2 54.6 M344.8 -9.2 L374.3 62.3 M316.1 -78.8 L333.9 -31.5 M-73.9 2.8 L-70.7 3.9 L-38.8 -7.2 M-38.8 -7.2 L-19.8 41.4 M27.8 64.2 L54 131.4 L70.8 179.2 M-19.8 41.4 L-53.8 55.6 M-53.8 55.6 L-103.4 75.1 M92.4 -152.2 L162.1 38.6 M90.3 56 L75.8 62.1 M11 71.2 L8.3 70.7 L3.3 57.9 M420.2 59.6 L450.2 135 L500.9 270.7 M476.9 205.6 L361.1 248.1 M348.3 116.3 L429.4 83.7 M380.1 75.2 L400.4 124.7 M458.4 45.6 L465.3 63.9 M509 49 L465.8 65.2 M87.2 319.2 L58.9 242.9 M163.2 288.5 L135.4 213.4 M-51.2 143.2 L-65.5 101.7 L-90.2 111.2 M217.5 297.5 L260.8 282 L245.2 238.3 M3 121.1 L-6.8 96.9 M-55.9 145.1 L-39.9 185.1 M166.7 201.2 L181.2 240.8 L193 247.3 M102.7 258.5 L114.5 253.7 M-12.8 163.4 L35.4 142.5 L38.9 128.6 M462.3 168.4 L518.1 147.2 M154.5 105.5 L195.1 88.6 L175.8 33.1 M-39.4 93.9 L-18.6 85.7 L-17.9 84.2 L-31.8 46.3 M75.8 62.1 L82.9 121.1 M285.2 -39.4 L325.2 -54.7 M354.2 -39.7 L324.4 -120.6 M90.3 56 L96.9 54.8 M202.9 -88.4 L217.8 -45.3 L241.2 -53.1 M187.4 -45.6 L138 -27.1 M104.3 -50.6 L117.1 -14.9 L139.4 -23.2 M47.8 -29.3 L33.7 -66.6 M18.5 41.1 L42.7 32.9 L52.1 41.5 M-7.1 16.1 L-12 4.7 L-31.8 11.5 M6.5 66 L-2.4 69.5 M11 71.2 L27.8 64.2 M109.3 377.1 L87.2 319.2 M468.4 -50.1 L492.6 -59.1 M315.2 211.5 L304.8 184.9 L294 189 L274.3 138.6 M294 189 L302.5 208.9 L312.5 204.6 M354 130.7 L312.8 147.4 L318.9 162.3 L339.9 153.8 L333.8 138.9 M339.9 153.8 L346.6 159.1 M518.8 72.9 L475.3 90.3 L400.4 124.7 L358.5 141 M-53.8 55.6 L-92.9 -45 M465.3 63.9 L475.3 90.3 M309.6 281.4 L353.9 263.6 L337.3 218.5"/><path class="rs" d="M286.7 222.3 L232.4 242.7 L205.6 227.2 M205.6 227.2 L175.4 153.9 M337.8 91.9 L358.5 141 L368 168.1 M261.8 0.8 L297.2 -16.5 L374.8 -48 M169 140.7 L145.3 81.4 L162.1 38.6 M294.1 -14.2 L331.8 79.3 M162.1 38.6 L211.4 20 M368 168.1 L343 201 L286.7 222.3 M374.8 -48 L435 -72.5 M211.4 20 L261.8 0.8 M189.3 148.5 L197.3 138.2 L211.5 131.5 L212.2 129.3 L210.3 124.6 M312.7 86.5 L310.2 90.2 L305.8 93 L288.8 99.8 L285 102.8 L283.7 105.9 L285 108.1 L291.3 109.9"/><path class="rp" d="M-192.1 292.8 L251.2 125.5 M246.3 111.3 L2.8 205.1 L-246.1 303.2 M200.1 -9.6 L103.2 -272.8 M246.3 111.3 L251.2 125.5 M251.2 125.5 L458.4 45.6 L500.1 28 L581.1 -1.9 M384.6 482.4 L251.2 125.5 M573.8 -18.2 L331.8 79.3 L246.3 111.3 M211.4 20 L200.1 -9.6 M246.3 111.3 L211.4 20"/><path class="mc" d="M425.6 87.4 L409.3 94.3 L417.1 112.5 L433.4 105.6Z"/><text class="lb" transform="translate(115.5 160.4) rotate(-20.6)">테헤란로</text><text class="lb" transform="translate(285.2 186.1) rotate(69.8)">논현로</text><g transform="translate(249.2 117.4)"><circle class="stn" r="7"/><text class="stt" y="3.3">2</text></g><text class="lbs" x="258.2" y="138.4">역삼역</text><path class="rc" d="M380.3 75 L337.5 91.9 L291.3 110.2 L265.6 119.8 L251 125.7 L39.7 205"/><path class="rt" d="M380.3 75 L337.5 91.9 L291.3 110.2 L265.6 119.8 L251 125.7 L39.7 205"/><path class="ar" transform="translate(278.5 115) rotate(159.6)" d="M-2.6 -3.4 L1.6 0 L-2.6 3.4"/><path class="ar" transform="translate(142.1 166.6) rotate(159.4)" d="M-2.6 -3.4 L1.6 0 L-2.6 3.4"/><circle class="turn" cx="39.7" cy="205" r="6.5"/><text class="lbt" x="39.7" y="226" text-anchor="middle">반환점</text><text class="lbd" x="31.7" y="242" text-anchor="start">강남역 방향</text><text class="lbm" x="414" y="123.8" text-anchor="end">멀티캠퍼스</text><circle class="st" cx="380.3" cy="75" r="8"/><text class="lbst" x="380.3" y="61" text-anchor="middle">출발</text></svg>
+      <div class="course-info">
+        <h3>E 강남역 방향 왕복</h3>
+        <div class="stats">
+          <div class="stat"><span>거리</span><b>1.1km</b></div>
+          <div class="stat"><span>걷기</span><b>약 13분</b></div>
+          <div class="stat"><span>달리기</span><b>약 7분</b></div>
+        </div>
+      </div>
+    </div>
+    <p class="osm">지도 자료 © OpenStreetMap 기여자</p>
+  </section>
+</main>
+
+<div class="dock">
+  <div class="dock-in">
+    <button class="cta" id="cta" type="button" disabled>달리러 가기</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  var SLUG = 'beta-1km';
+  var START = Date.parse('2026-11-08T00:00:00+09:00');
+  var END = Date.parse('2026-11-17T00:00:00+09:00');
+  var SHARE_TEXT = '런크크 이벤트 1km 걷거나 달리기\n' + location.origin + location.pathname;
+  var RING = 276.5;
+
+  function $(id) { return document.getElementById(id); }
+  function app() { var a = window.RunkkApp; return a && typeof a === 'object' ? a : null; }
+  function now() {
+    var q = new URLSearchParams(location.search).get('now');
+    var t = q ? Date.parse(q) : NaN;
+    return isNaN(t) ? Date.now() : t;
+  }
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function md(s) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s || '');
+    return m ? (+m[2]) + '월 ' + (+m[3]) + '일' : '';
+  }
+  function km(m) { return (Math.floor(m / 10) / 100).toFixed(2) + 'km'; }
+
+  // 남은 시간
+  var last = '';
+  function tick() {
+    var t = now();
+    var ended = t >= END;
+    var target = t < START ? START : END;
+    $('timer-label').textContent = t < START ? '시작까지' : '끝나기까지';
+    $('timer-label').classList.toggle('hidden', ended);
+    $('cells').classList.toggle('hidden', ended);
+    $('ended').classList.toggle('hidden', !ended);
+    if (ended) { $('cta').disabled = true; return; }
+    var left = Math.max(0, Math.ceil((target - t) / 60000));
+    var d = Math.floor(left / 1440), h = Math.floor(left % 1440 / 60), m = left % 60;
+    var key = d + ':' + h + ':' + m;
+    if (key === last) return;
+    last = key;
+    $('t-d').textContent = pad(d);
+    $('t-h').textContent = pad(h);
+    $('t-m').textContent = pad(m);
+  }
+
+  // 앱 버튼
+  function wire() {
+    var a = app();
+    $('cta').disabled = !a || now() >= END;
+    $('back').classList.toggle('hidden', !a);
+    $('share').classList.toggle('hidden', !a && !navigator.share);
+  }
+  $('cta').addEventListener('click', function () { var a = app(); if (a) a.open('run'); });
+  $('back').addEventListener('click', function () { var a = app(); if (a) a.close(); });
+  $('share').addEventListener('click', function () {
+    var a = app();
+    if (a) { a.share(SHARE_TEXT); return; }
+    if (navigator.share) navigator.share({ title: '1km 걷거나 달리기', url: location.origin + location.pathname }).catch(function () {});
+  });
+
+  // 코스 탭
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('[role=tab]'));
+  function select(tab, focus) {
+    tabs.forEach(function (t) {
+      var on = t === tab;
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+      t.tabIndex = on ? 0 : -1;
+      $(t.getAttribute('aria-controls')).classList.toggle('hidden', !on);
+    });
+    if (focus) tab.focus();
+  }
+  tabs.forEach(function (t, i) {
+    t.addEventListener('click', function () { select(t); });
+    t.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowRight') select(tabs[(i + 1) % tabs.length], true);
+      if (e.key === 'ArrowLeft') select(tabs[(i + tabs.length - 1) % tabs.length], true);
+    });
+  });
+  var initTab = $('tab-' + location.hash.slice(1));
+  if (initTab) select(initTab);
+
+  // 내 응모
+  function renderMe(data) {
+    var it = (data && data.items && data.items[0]) || null;
+    if (!it) { hideMe(); return; }
+    var done = !!it.done;
+    $('me-prog').setAttribute('stroke-dashoffset', done ? '0' : String(RING));
+    $('me-check').classList.toggle('hidden', !done);
+    $('me-frac').classList.toggle('hidden', done);
+    $('me-title').textContent = done ? '응모 완료' : '아직이에요';
+    var meta = $('me-meta');
+    meta.textContent = '';
+    var vals = done ? [md(it.doneAt), it.distanceMeters ? km(it.distanceMeters) : ''] : ['1km 남았어요'];
+    vals.forEach(function (v, i) {
+      if (!v) return;
+      var c = document.createElement('span');
+      c.className = 'chip' + (done && i === 1 ? ' v' : '');
+      c.textContent = v;
+      meta.appendChild(c);
+    });
+    $('me-sec').classList.remove('hidden');
+  }
+  function hideMe() { $('me-sec').classList.add('hidden'); }
+  function loadMe() {
+    var a = app();
+    var token = '';
+    try { token = a ? a.getAccessToken() : ''; } catch (e) { token = ''; }
+    if (!token) { hideMe(); return; }
+    fetch('/api/v1/events/' + SLUG + '/me', { headers: { Authorization: 'Bearer ' + token }, cache: 'no-store' })
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(renderMe)
+      .catch(hideMe);
+  }
+
+  function refresh() { wire(); tick(); loadMe(); }
+  refresh();
+  setInterval(tick, 1000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) refresh(); });
+  window.addEventListener('pageshow', function (e) { if (e.persisted) refresh(); });
+})();
+</script>
+</body>
+</html>
