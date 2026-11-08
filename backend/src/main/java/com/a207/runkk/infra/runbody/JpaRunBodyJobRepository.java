@@ -84,6 +84,18 @@ public class JpaRunBodyJobRepository implements RunBodyJobRepository {
     }
 
     @Override
+    public List<RunBodyJob> failedFor(long memberId, String reason) {
+        return em.createQuery(
+                        "select j from RunBodyJob j where j.memberId = :member and j.status ="
+                                + " :failed and j.failureReason = :reason",
+                        RunBodyJob.class)
+                .setParameter("member", memberId)
+                .setParameter("failed", RunBodyStatus.FAILED)
+                .setParameter("reason", reason)
+                .getResultList();
+    }
+
+    @Override
     public void delete(String recordId) {
         em.createQuery("delete from RunBodyJob j where j.recordId = :id")
                 .setParameter("id", recordId)

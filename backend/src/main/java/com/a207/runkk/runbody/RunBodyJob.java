@@ -44,6 +44,12 @@ public class RunBodyJob {
     /** 연결 실패만 이어져도 작업을 만든 뒤 이만큼 지나면 FAILED로 닫는다. */
     static final Duration GIVE_UP_AFTER = Duration.ofDays(1);
 
+    /** 출생연도가 없어 요청을 만들지 못한 거부 사유(RunBodyRequestFactory). 출생연도를 넣으면 다시 낸다(MR !91 e2e 1). */
+    public static final String BIRTH_YEAR_MISSING = "BIRTH_YEAR_MISSING";
+
+    /** 거부 사유 열 길이(V44). 넘는 사유는 자른다. */
+    static final int MAX_REASON_LENGTH = 40;
+
     @Id
     @Column(name = "record_id", length = 36)
     private String recordId;
@@ -70,6 +76,10 @@ public class RunBodyJob {
 
     @Column(name = "next_poll_at", nullable = false)
     private LocalDateTime nextPollAt;
+
+    /** 바로 실패로 닫은 거부 사유(BIRTH_YEAR_MISSING, REJECTED_413 등). 그 밖에는 null(V44). */
+    @Column(name = "failure_reason", length = MAX_REASON_LENGTH)
+    private String failureReason;
 
     /** 러닝 점수(0~100). DONE이고 ai 결과를 읽었을 때만 있다. */
     @Column(name = "overall_score")
@@ -157,10 +167,35 @@ public class RunBodyJob {
 
     /** ai가 받지 않는 요청(413 TOO_LARGE·422·409, 요청을 만들 수 없음). 재제출하지 않는다(D-450). */
     public void rejected() {
+        rejected(null);
+    }
+
+    /** {@link #rejected()}와 같고 사유를 남긴다({@value #MAX_REASON_LENGTH}자까지, MR !91 e2e 1). */
+    public void rejected(String reason) {
         if (status == RunBodyStatus.DONE) {
             return;
         }
         status = RunBodyStatus.FAILED;
+        failureReason =
+                reason == null || reason.length() <= MAX_REASON_LENGTH
+                        ? reason
+                        : reason.substring(0, MAX_REASON_LENGTH);
+    }
+
+    /**
+     * 출생연도가 없어 실패로 닫은 작업을 회원이 출생연도를 넣은 뒤 다시 낸다: PENDING, 횟수·사유 초기화, 바로 다음 pollDue가 제출한다(MR !91 e2e
+     * 1). 그런 작업이 아니면 거짓.
+     */
+    public boolean retryAfterBirthYear(LocalDateTime now) {
+        if (status != RunBodyStatus.FAILED || !BIRTH_YEAR_MISSING.equals(failureReason)) {
+            return false;
+        }
+        status = RunBodyStatus.PENDING;
+        attempts = 0;
+        polls = 0;
+        failureReason = null;
+        nextPollAt = now;
+        return true;
     }
 
     /** ai에 닿지 못했다(연결 실패). 횟수에 세지 않고 미룬다. 작업을 만든 지 하루가 지나면 FAILED로 닫는다. */
@@ -216,6 +251,11 @@ public class RunBodyJob {
 
     public LocalDateTime createdAt() {
         return createdAt;
+    }
+
+    /** 거부 사유. 없으면 null. */
+    public String failureReason() {
+        return failureReason;
     }
 
     /** 러닝 점수. 아직 없으면 null. */

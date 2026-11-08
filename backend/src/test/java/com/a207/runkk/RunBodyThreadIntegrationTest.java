@@ -166,6 +166,7 @@ class RunBodyThreadIntegrationTest {
     @Autowired DomainEventPublisher events;
     @Autowired TransactionTemplate tx;
     @Autowired JdbcTemplate jdbc;
+    @Autowired com.a207.runkk.member.ProfileService profiles;
 
     @BeforeEach
     void clean() {
@@ -302,6 +303,31 @@ class RunBodyThreadIntegrationTest {
 
         makeDue(recordId);
         runBody.pollDue();
+        assertThat(jobStatus(recordId)).isEqualTo("ANALYZING");
+        assertThat(SUBMITTED).containsKey(recordId);
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName(
+            "e2e 1: 출생연도 없는 회원은 BIRTH_YEAR_MISSING으로 남고(V44), 프로필에 출생연도를 넣으면 다시 제출된다")
+    void missingBirthYear_isResubmittedAfterProfileEdit() throws Exception {
+        long m = member();
+        jdbc.update("update member set birth_year = null where id = ?", m);
+        String recordId = upload(m);
+        assertThat(awaitStatus(recordId, "FAILED")).isEqualTo("FAILED");
+        assertThat(
+                        jdbc.queryForObject(
+                                "select failure_reason from runbody_job where record_id = ?",
+                                String.class,
+                                recordId))
+                .isEqualTo("BIRTH_YEAR_MISSING");
+        assertThat(runBody.sessionOf(m, recordId).failureReason()).isEqualTo("BIRTH_YEAR_MISSING");
+        assertThat(SUBMITTED).doesNotContainKey(recordId);
+
+        profiles.editProfile(m, new com.a207.runkk.member.ProfileEdit(null, 1995, null, null));
+        assertThat(awaitStatus(recordId, "PENDING")).isEqualTo("PENDING");
+        runBody.pollDue();
+
         assertThat(jobStatus(recordId)).isEqualTo("ANALYZING");
         assertThat(SUBMITTED).containsKey(recordId);
     }

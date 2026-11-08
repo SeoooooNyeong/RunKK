@@ -82,7 +82,7 @@ public class RunBodyRequestFactory {
         }
         OptionalInt birthYear = memberQuery.birthYearOf(memberId);
         if (birthYear.isEmpty()) {
-            throw new RunBodyRejectedException("BIRTH_YEAR_MISSING");
+            throw new RunBodyRejectedException(RunBodyJob.BIRTH_YEAR_MISSING);
         }
         return of(input, birthYear.getAsInt());
     }

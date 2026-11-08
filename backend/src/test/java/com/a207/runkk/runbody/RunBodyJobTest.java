@@ -116,6 +116,31 @@ class RunBodyJobTest {
     }
 
     @Test
+    @org.junit.jupiter.api.DisplayName("e2e 1: 거부 사유를 남기고, 출생연도 없음으로 실패한 작업만 출생연도 입력 뒤 다시 낸다")
+    void rejectedReason_andRetryAfterBirthYear() {
+        RunBodyJob job = RunBodyJob.pending(ID, 42, T0);
+        job.rejected(RunBodyJob.BIRTH_YEAR_MISSING);
+        assertThat(job.status()).isEqualTo(RunBodyStatus.FAILED);
+        assertThat(job.failureReason()).isEqualTo("BIRTH_YEAR_MISSING");
+
+        assertThat(job.retryAfterBirthYear(T0.plusHours(1))).isTrue();
+        assertThat(job.status()).isEqualTo(RunBodyStatus.PENDING);
+        assertThat(job.failureReason()).isNull();
+        assertThat(job.attempts()).isZero();
+        assertThat(job.duePoll(T0.plusHours(1))).isTrue();
+        assertThat(job.retryAfterBirthYear(T0.plusHours(2))).as("이미 다시 냈다").isFalse();
+
+        RunBodyJob tooLarge = RunBodyJob.pending(ID, 42, T0);
+        tooLarge.rejected("REJECTED_413");
+        assertThat(tooLarge.retryAfterBirthYear(T0.plusHours(1))).isFalse();
+        assertThat(tooLarge.status()).isEqualTo(RunBodyStatus.FAILED);
+
+        RunBodyJob longReason = RunBodyJob.pending(ID, 42, T0);
+        longReason.rejected("X".repeat(100));
+        assertThat(longReason.failureReason()).hasSize(RunBodyJob.MAX_REASON_LENGTH);
+    }
+
+    @Test
     void unreachable_doesNotCount_andGivesUpAfterOneDay() {
         RunBodyJob job = RunBodyJob.pending(ID, 42, T0);
         job.unreachable(T0.plusMinutes(1));

@@ -20,10 +20,11 @@ public final class RunBodyDtos {
      * @param result DONE일 때만 ai GET /sessions/{id} 200 본문 그대로, 아니면 null
      */
     public record RunBodySessionResponse(
-            String recordId, String status, @JsonRawValue String result) {
+            String recordId, String status, @JsonRawValue String result, String failureReason) {
 
         static RunBodySessionResponse of(RunBodySessionView view) {
-            return new RunBodySessionResponse(view.recordId(), view.status().name(), view.result());
+            return new RunBodySessionResponse(
+                    view.recordId(), view.status().name(), view.result(), view.failureReason());
         }
     }
 

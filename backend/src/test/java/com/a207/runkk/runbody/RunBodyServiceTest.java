@@ -15,6 +15,7 @@ import com.a207.runkk.common.BusinessRuleException;
 import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.NotFoundRuleException;
 import com.a207.runkk.common.ReasonCode;
+import com.a207.runkk.member.BirthYearSet;
 import com.a207.runkk.policy.FeatureToggles;
 import com.a207.runkk.policy.OperationPolicy;
 import com.a207.runkk.running.RunMode;
@@ -215,11 +216,28 @@ class RunBodyServiceTest {
     }
 
     @Test
-    void missingBirthYear_failsWithoutCallingAi() {
-        when(requests.create(ID, 42)).thenThrow(new RunBodyRejectedException("BIRTH_YEAR_MISSING"));
+    @DisplayName("e2e 1: 출생연도가 없으면 ai를 부르지 않고 사유를 남기며, 그 회원이 출생연도를 넣으면 다시 제출한다")
+    void missingBirthYear_keepsReason_andResubmitsAfterBirthYearSet() {
+        when(requests.create(ID, 42))
+                .thenThrow(new RunBodyRejectedException("BIRTH_YEAR_MISSING"))
+                .thenReturn(REQUEST);
         saveAndSubmit();
         assertThat(job().status()).isEqualTo(RunBodyStatus.FAILED);
         verify(gateway, never()).submit(any());
+        assertThat(service.sessionOf(42, ID))
+                .isEqualTo(
+                        new RunBodySessionView(
+                                ID, RunBodyStatus.FAILED, null, "BIRTH_YEAR_MISSING"));
+
+        service.onBirthYearSet(new BirthYearSet(43, T0.plusMinutes(40)));
+        assertThat(job().status()).as("다른 회원").isEqualTo(RunBodyStatus.FAILED);
+        service.onBirthYearSet(new BirthYearSet(42, T0.plusMinutes(40)));
+        assertThat(job().status()).isEqualTo(RunBodyStatus.PENDING);
+        assertThat(service.sessionOf(42, ID).failureReason()).isNull();
+
+        service.pollDue();
+        verify(gateway).submit(REQUEST);
+        assertThat(job().status()).isEqualTo(RunBodyStatus.ANALYZING);
     }
 
     @Test
@@ -444,6 +462,15 @@ class RunBodyServiceTest {
             return rows.values().stream()
                     .filter(j -> j.memberId() == memberId)
                     .sorted(NEWEST_FIRST)
+                    .toList();
+        }
+
+        @Override
+        public List<RunBodyJob> failedFor(long memberId, String reason) {
+            return rows.values().stream()
+                    .filter(j -> j.memberId() == memberId)
+                    .filter(j -> j.status() == RunBodyStatus.FAILED)
+                    .filter(j -> reason.equals(j.failureReason()))
                     .toList();
         }
 

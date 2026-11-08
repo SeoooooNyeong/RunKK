@@ -2775,6 +2775,9 @@
     }, {
       "name" : "result",
       "kind" : "leaf"
+    }, {
+      "name" : "failureReason",
+      "kind" : "leaf"
     } ],
     "file" : "web/runbody/RunBodyDtos.java"
   },

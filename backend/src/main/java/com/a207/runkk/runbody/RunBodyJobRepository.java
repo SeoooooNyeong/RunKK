@@ -22,6 +22,9 @@ public interface RunBodyJobRepository {
     /** before보다 먼저 만든 같은 회원의 작업 중 점수가 있는 가장 최근 것의 점수. 없으면 비어 있다(G-30 이전 러닝 대비 변화). */
     Optional<Integer> previousScore(RunBodyJob before);
 
+    /** 회원의 FAILED 작업 중 거부 사유가 reason인 것(출생연도 입력 뒤 다시 내기, MR !91 e2e 1). */
+    List<RunBodyJob> failedFor(long memberId, String reason);
+
     void delete(String recordId);
 
     void deleteByMember(long memberId);

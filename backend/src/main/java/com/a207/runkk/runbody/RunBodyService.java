@@ -3,6 +3,7 @@ package com.a207.runkk.runbody;
 import com.a207.runkk.common.BusinessRuleException;
 import com.a207.runkk.common.NotFoundRuleException;
 import com.a207.runkk.common.ReasonCode;
+import com.a207.runkk.member.BirthYearSet;
 import com.a207.runkk.policy.OperationPolicy;
 import com.a207.runkk.running.RunRecordDeleted;
 import com.a207.runkk.running.RunRecordSaved;
@@ -99,6 +100,27 @@ public class RunBodyService {
         }
     }
 
+    /**
+     * 회원이 출생연도를 넣으면 출생연도가 없어 실패로 닫은 그 회원의 작업을 PENDING으로 되돌린다. 다음 pollDue(5초)가 제출한다(MR !91 e2e 1).
+     * 오류는 기록만 하고 프로필 편집을 막지 않는다.
+     */
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onBirthYearSet(BirthYearSet e) {
+        try {
+            List<RunBodyJob> stuck =
+                    transactions.execute(
+                            tx -> jobs.failedFor(e.memberId(), RunBodyJob.BIRTH_YEAR_MISSING));
+            for (RunBodyJob job : stuck) {
+                update(job.recordId(), j -> j.retryAfterBirthYear(now()));
+            }
+            if (!stuck.isEmpty()) {
+                log.info("runbody_birth_year_retry count={}", stuck.size());
+            }
+        } catch (RuntimeException error) {
+            log.error("runbody_birth_year_retry_failed error={}", error.getClass().getSimpleName());
+        }
+    }
+
     /** 집계 제외 기록을 지우면(FR-225) 그 작업도 지운다. 대개 작업이 없다(집계 제외 기록은 제출하지 않음). */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onRunRecordDeleted(RunRecordDeleted e) {
@@ -151,7 +173,7 @@ public class RunBodyService {
             log.info("runbody_submitted");
         } catch (RunBodyRejectedException rejected) {
             log.warn("runbody_rejected reason={}", rejected.getMessage());
-            update(recordId, RunBodyJob::rejected);
+            update(recordId, job -> job.rejected(rejected.getMessage()));
         } catch (RunBodyUnavailableException unavailable) {
             log.warn(
                     "runbody_submit_unavailable reason={} connection={}",
@@ -236,7 +258,7 @@ public class RunBodyService {
                         .filter(j -> j.ownedBy(memberId))
                         .orElseThrow(() -> new NotFoundRuleException(ReasonCode.RUNBODY_NOT_FOUND));
         if (job.status() != RunBodyStatus.DONE) {
-            return new RunBodySessionView(recordId, job.status(), null);
+            return new RunBodySessionView(recordId, job.status(), null, job.failureReason());
         }
         RunBodySession session;
         try {
