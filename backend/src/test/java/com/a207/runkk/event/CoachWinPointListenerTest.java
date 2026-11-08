@@ -186,4 +186,41 @@ class CoachWinPointListenerTest {
                 .doesNotThrowAnyException();
         assertThat(rewards.balanceOf(MEMBER)).isZero();
     }
+
+    @Test
+    @DisplayName("판정 시각이 시작 정각, 종료 정각이어도 준다(기간 양 끝 포함, TC-성-46)")
+    void judgedAtPeriodEndsGrants() {
+        wins(START, null);
+        listener.onBattleJudged(judged(BattleType.CELEBRITY, Side.member(MEMBER), START));
+
+        assertThat(rewards.balanceOf(MEMBER)).isEqualTo(500);
+
+        wins(START, END);
+        listener.onBattleJudged(judged(BattleType.CELEBRITY, Side.member(MEMBER), END));
+
+        assertThat(rewards.balanceOf(MEMBER)).isEqualTo(1_000);
+        assertThat(events.grants()).hasSize(2);
+    }
+
+    @Test
+    @DisplayName("승리포인트 0인 이벤트는 이겨도 적립과 지급 이력이 없다(TC-성-50)")
+    void zeroPointEventGrantsNothing() {
+        service.changePublished("op", eventId, false);
+        service.create(
+                "op",
+                EventServiceTest.input(
+                        "coach-zero",
+                        EventKind.COACH_CELEB,
+                        "{\"celebrityIds\":[11,12],\"pointPerWin\":0}",
+                        START,
+                        END,
+                        2,
+                        true));
+        wins(NOW, null);
+
+        listener.onBattleJudged(judged(BattleType.CELEBRITY, Side.member(MEMBER), NOW));
+
+        assertThat(rewards.balanceOf(MEMBER)).isZero();
+        assertThat(events.grants()).isEmpty();
+    }
 }

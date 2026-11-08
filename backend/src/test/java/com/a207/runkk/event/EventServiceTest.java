@@ -301,4 +301,105 @@ class EventServiceTest {
         assertThatThrownBy(() -> service.update(OPERATOR, 999, coach("x", 1)))
                 .isInstanceOf(NotFoundRuleException.class);
     }
+
+    private void assertConfigRejected(EventKind kind, String config) {
+        assertThatThrownBy(
+                        () ->
+                                service.create(
+                                        OPERATOR, input("bad", kind, config, START, END, 1, true)))
+                .as(kind + " " + config)
+                .isInstanceOfSatisfying(
+                        BusinessRuleException.class,
+                        e -> assertThat(e.reason()).isEqualTo(ReasonCode.VALUE_INVALID));
+    }
+
+    @Test
+    @DisplayName(
+            "관리 설정 경곗값: 셀럽 ID 0, -1, null과 승리포인트 없음, -1은 거부하고 셀럽 ID 1, 승리포인트 0과 1은 받는다(TC-성-12~14)")
+    void admin_coachConfigBoundaries() {
+        for (String config :
+                List.of(
+                        "{\"celebrityIds\":[0],\"pointPerWin\":500}",
+                        "{\"celebrityIds\":[-1],\"pointPerWin\":500}",
+                        "{\"celebrityIds\":[null],\"pointPerWin\":500}",
+                        "{\"celebrityIds\":[11]}",
+                        "{\"celebrityIds\":[11],\"pointPerWin\":-1}")) {
+            assertConfigRejected(EventKind.COACH_CELEB, config);
+        }
+        List<String> accepted =
+                List.of(
+                        "{\"celebrityIds\":[1],\"pointPerWin\":500}",
+                        "{\"celebrityIds\":[11],\"pointPerWin\":0}",
+                        "{\"celebrityIds\":[11],\"pointPerWin\":1}");
+        for (int i = 0; i < accepted.size(); i++) {
+            EventAdminView created =
+                    service.create(
+                            OPERATOR,
+                            input(
+                                    "coach-ok-" + i,
+                                    EventKind.COACH_CELEB,
+                                    accepted.get(i),
+                                    START,
+                                    END,
+                                    1,
+                                    true));
+            assertThat(created.kind()).as(accepted.get(i)).isEqualTo(EventKind.COACH_CELEB);
+        }
+    }
+
+    @Test
+    @DisplayName("관리 설정 경곗값: 기준 거리 -1, 0, 없음은 거부하고 1은 받는다(TC-성-16)")
+    void admin_runConfigBoundaries() {
+        for (String config :
+                List.of(
+                        "{\"minDistanceMeters\":-1}",
+                        "{\"minDistanceMeters\":0}",
+                        "{}",
+                        "{\"celebrityIds\":[11],\"pointPerWin\":500}")) {
+            assertConfigRejected(EventKind.RUN_DISTANCE, config);
+        }
+        EventAdminView created =
+                service.create(
+                        OPERATOR,
+                        input(
+                                "run-1m",
+                                EventKind.RUN_DISTANCE,
+                                "{\"minDistanceMeters\":1}",
+                                START,
+                                END,
+                                1,
+                                true));
+        assertThat(created.kind()).isEqualTo(EventKind.RUN_DISTANCE);
+    }
+
+    @Test
+    @DisplayName("RUN_DISTANCE: 1,000m 정각과 1,001m는 응모 1, 999m는 0(응모기준거리 이상, TC-성-33)")
+    void runEntry_countsExactlyMinimumDistance() {
+        service.create(OPERATOR, run("beta-1km", START, END, 2));
+        LocalDateTime at = LocalDateTime.of(2026, 11, 9, 7, 30);
+        for (long meters : List.of(999L, 1_000L, 1_001L)) {
+            when(runs.summariesBetween(anyLong(), any()))
+                    .thenReturn(List.of(summary(at, meters, true)));
+
+            EventEntry entry = service.entry(MEMBER, "beta-1km");
+
+            assertThat(entry.entryCount()).as(meters + "m").isEqualTo(meters >= 1_000 ? 1 : 0);
+        }
+    }
+
+    @Test
+    @DisplayName("RUN_DISTANCE: 시작 정각과 종료 정각에 시작한 기록은 세고 종료 + 1초는 세지 않는다(양 끝 포함, TC-성-34)")
+    void runEntry_includesBothEndsOfPeriod() {
+        service.create(OPERATOR, run("beta-1km", START, END, 2));
+        for (LocalDateTime startedAt : List.of(START, END, END.plusSeconds(1))) {
+            when(runs.summariesBetween(anyLong(), any()))
+                    .thenReturn(List.of(summary(startedAt, 5_000, true)));
+
+            EventEntry entry = service.entry(MEMBER, "beta-1km");
+
+            assertThat(entry.entryCount())
+                    .as(startedAt.toString())
+                    .isEqualTo(startedAt.isAfter(END) ? 0 : 1);
+        }
+    }
 }
