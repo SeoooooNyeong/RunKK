@@ -294,6 +294,7 @@ class CrewControllerTest extends WebTestSupport {
                         a,
                         post("/api/v1/crew-runs/" + run + "/quit"),
                         Map.of("distanceMeters", -1, "elapsedSeconds", 10))
+                .andExpect(status().isConflict()) // 계약 crewrun-sum v1.1 4절(MR !91 BR-C2)
                 .andExpect(jsonPath("$.code").value("CREW_RUN_INVALID"));
         call(
                         a,
@@ -301,6 +302,7 @@ class CrewControllerTest extends WebTestSupport {
                         Map.of("distanceMeters", 980, "elapsedSeconds", 300))
                 .andExpect(status().isNoContent());
         call(a, post("/api/v1/crew-runs/" + run + "/pause"), null)
+                .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("NOT_PARTICIPANT"));
         uploadCrewRun(a.memberId(), run, start, 1_000);
         uploadCrewRun(leader.memberId(), run, start, 1_100);
@@ -325,6 +327,7 @@ class CrewControllerTest extends WebTestSupport {
         // 종료 뒤 다시 끝내기는 아무 일 없음(재시도 안전)
         call(a, post("/api/v1/crew-runs/" + run + "/quit"), null).andExpect(status().isNoContent());
         call(a, post("/api/v1/crew-runs/" + run + "/pause"), null)
+                .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("NOT_PARTICIPANT"));
         call(a, get("/api/v1/crews/" + crewId + "/race"), null)
                 .andExpect(jsonPath("$.totalMeters").value(2_100))
