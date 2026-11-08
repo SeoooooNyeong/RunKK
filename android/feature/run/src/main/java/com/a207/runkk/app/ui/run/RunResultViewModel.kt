@@ -169,7 +169,8 @@ class RunResultViewModel @Inject constructor(
 
         private fun crewRowOf(contribution: Distance, crewName: String?): AchievementRow = AchievementRow(
             AchievementIcon.CREW,
-            crewName?.let { UiText.Res(R.string.run_result_crew, listOf(it)) } ?: UiText.Res(R.string.run_result_crew_unnamed),
+            crewName?.let { UiText.Res(R.string.run_result_crew, listOf(it)) }
+                ?: UiText.Res(R.string.run_result_crew_unnamed),
             "+${RunkkFormat.km(contribution)}km"
         )
     }

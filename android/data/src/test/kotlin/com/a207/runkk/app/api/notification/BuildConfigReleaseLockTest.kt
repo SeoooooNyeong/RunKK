@@ -12,6 +12,11 @@ class BuildConfigReleaseLockTest {
     }
 
     @Test
+    fun `이 빌드 변형의 잠금(prod 변형은 LOCK_UNRELEASED 참)도 크루·아바타 꾸미기 알림을 연다`() {
+        GatedFeature.entries.forEach { assertTrue(BuildConfigReleaseLock().isOpen(it), "$it") }
+    }
+
+    @Test
     fun `잠그지 않는 빌드는 모두 연다`() {
         GatedFeature.entries.forEach { assertTrue(releaseLockOf(isLockingUnreleased = false).isOpen(it), "$it") }
     }
