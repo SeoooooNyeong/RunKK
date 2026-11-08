@@ -46,6 +46,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.currentCoroutineContext
@@ -56,6 +57,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
@@ -80,7 +82,8 @@ constructor(
     private val guidanceOutput: GuidanceOutput,
     private val clock: Clock,
     private val applicationScope: CoroutineScope,
-    private val gpsWarmUp: GpsWarmUp
+    private val gpsWarmUp: GpsWarmUp,
+    private val pendingForfeits: PendingForfeitStore
 ) {
     private val _state = MutableStateFlow<BattleRunState>(BattleRunState.Idle)
     val state: StateFlow<BattleRunState> = _state.asStateFlow()
@@ -112,6 +115,14 @@ constructor(
     /** 이탈 뒤 대기열 취소(재시도 포함). 새 요청이 오면 멈춘다. */
     @Volatile
     private var abandonJob: Job? = null
+
+    /** 성사 뒤 출발 전 이탈의 그만두기(재시도 포함, [abandonMatched]). */
+    @Volatile
+    private var forfeitJob: Job? = null
+
+    /** 남은 그만두기를 다시 보내는 작업([settlePendingForfeit]). 겹쳐 부르면 이 작업을 기다린다. */
+    @Volatile
+    private var settleJob: Job? = null
 
     /** 랜덤 대결: 진행값을 실시간 채널로 보내고 상대 진행은 서버 메시지로 받는다. */
     private val liveOpponentFeed =
@@ -322,6 +333,8 @@ constructor(
         }
         abandonJob?.cancelAndJoin()
         abandonJob = null
+        // 남은 그만두기를 먼저 끝내 떠난 대결이 새 요청을 막지 않게 한다(S15P31A207-278).
+        settlePendingForfeit()
         val request = applicationScope.async { battleRepository.requestMatch(distance) }
         requestJob = request
         return request.await()
@@ -331,7 +344,7 @@ constructor(
      * 매칭 대기 중 화면이 사라질 때(시스템 제스처·탭 이동으로 ViewModel이 지워질 때) 서버 대기열에서 뺀다(FR-085).
      * 화면 범위는 이미 취소됐으므로 applicationScope에서 보낸다. 요청이 아직 서버에 가 있으면 끝난 뒤에 보내고(취소가 먼저 도착해
      * 대기열에 남지 않게), 요청이 받아들여지지 않았으면 보내지 않는다. 네트워크 실패는 1·2초 뒤 두 번 더 보내고, 거부(이미 성사·
-     * 대기 없음)는 다시 보내지 않는다.
+     * 대기 없음)는 다시 보내지 않는다. 이미 짝지어져(ALREADY_MATCHED) 거부되면 그 대결에 그만두기를 보낸다([forfeitMatched]).
      */
     fun abandonMatching() {
         val pending = requestJob
@@ -346,7 +359,95 @@ constructor(
                 result = battleRepository.cancel()
                 attempt++
             }
+            val isMatched = result is Outcome.Failure && result.error == AppError.Rejected(ALREADY_MATCHED)
+            // 새 매칭 요청(requestMatch)이 이 작업을 멈추고 기다릴 때도 그만두기는 끝까지 보낸다. 남은 대결이 새 요청을 막지 않게 한다.
+            // 보내지 못하면(백그라운드 네트워크 제한) 기기에 남겨 앱이 앞으로 올 때 다시 보낸다.
+            if (isMatched) {
+                withContext(NonCancellable) {
+                    pendingForfeits.save(PendingForfeit(battleId = null, since = clock.instant()))
+                    forfeitMatched(battleId = null)
+                }
+            }
         }
+    }
+
+    /**
+     * 성사 뒤 출발 전(측정 시작 전)에 앱이 뒤로 갔다(S15P31A207-278, 사용자 결정 2026-11-08 "출발 전이면 같은 규칙으로 기권"). 백그라운드에서는
+     * 측정 시작(포그라운드 서비스)이 막히므로 이 회를 기록 없이 닫고([BattleRunState.Idle]) 그 대결에 그만두기를 보낸다. 출발 전이라 서버는
+     * 승패 없이 대결을 취소한다. 그만두기는 먼저 기기에 남기고 보내며, 보내지 못하면 앱이 앞으로 올 때 다시 보낸다([settlePendingForfeit]).
+     * [battleId] 회가 열려 있지 않거나 이미 측정 중이면 아무것도 하지 않고 false를 돌려준다.
+     */
+    fun abandonMatched(battleId: Long): Boolean {
+        val current = run ?: return false
+        if (current.battleId != battleId || current.round.isMeasuring) return false
+        close(current, BattleRunState.Idle)
+        pendingForfeits.save(PendingForfeit(battleId, clock.instant()))
+        forfeitJob = applicationScope.launch { forfeitMatched(battleId) }
+        return true
+    }
+
+    /**
+     * 앱이 앞으로 왔다(또는 새 매칭 요청 전): 남은 그만두기가 있으면 다시 보낸다(S15P31A207-278). 보내는 중인 그만두기가 있으면 끝나기를
+     * 기다린 뒤 아직 남았을 때만 보낸다. [PENDING_FORFEIT_LIFETIME]보다 오래된 것은 보내지 않고 지운다. 겹쳐 부르면 진행 중인 작업을 기다린다.
+     */
+    suspend fun settlePendingForfeit() {
+        settleJob?.takeIf { it.isActive }?.let { return it.join() }
+        val inFlight = listOfNotNull(abandonJob, forfeitJob).filter { it.isActive }
+        if (inFlight.isEmpty() && pendingForfeits.load() == null) return
+        val job =
+            applicationScope.launch {
+                inFlight.forEach { it.join() }
+                val pending = pendingForfeits.load() ?: return@launch
+                if (Duration.between(pending.since, clock.instant()) > PENDING_FORFEIT_LIFETIME) {
+                    pendingForfeits.clear()
+                    return@launch
+                }
+                forfeitMatched(pending.battleId)
+            }
+        settleJob = job
+        job.join()
+    }
+
+    /**
+     * 떠난 매칭의 대결에 그만두기를 보낸다(S15P31A207-278). 출발 전이라 서버는 승패 없이 대결을 취소하고 상대에게 OPPONENT_FORFEITED를
+     * 보낸다. [battleId]를 모르면(대기열 취소가 ALREADY_MATCHED로 거부됨) 진행 중인 대결을 찾는다([findMatched]). 이 프로세스가 맡은
+     * 대결이면 보내지 않는다. 그만두기의 네트워크 실패는 1·2초 뒤 두 번 더 보낸다. 보냈거나 거부됐거나 끝낼 대결이 없으면 남은 그만두기를
+     * 지우고, 네트워크로 끝내 보내지 못하면(백그라운드 네트워크 제한 포함) 남겨 둔다.
+     */
+    private suspend fun forfeitMatched(battleId: Long?) {
+        val target = battleId ?: findMatched() ?: return
+        if (target == NO_BATTLE || isRunning(target)) {
+            pendingForfeits.clear()
+            return
+        }
+        // 번호를 알게 됐으면 남은 그만두기에 적어 다음에는 찾지 않고 보낸다.
+        if (battleId == null) pendingForfeits.load()?.let { pendingForfeits.save(it.copy(battleId = target)) }
+        var attempt = 1
+        var result = battleRepository.forfeit(target)
+        while (result is Outcome.Failure && result.error !is AppError.Rejected && attempt < CANCEL_ATTEMPTS) {
+            delay(CANCEL_RETRY_MILLIS * attempt)
+            result = battleRepository.forfeit(target)
+            attempt++
+        }
+        if (result !is Outcome.Failure || result.error is AppError.Rejected) pendingForfeits.clear()
+    }
+
+    /**
+     * 떠난 매칭으로 생긴 진행 중인 대결 번호. 서버가 짝을 잡고 대결을 만드는 사이에는 대결이 아직 없을 수 있어 1·2초 뒤 두 번 더 찾는다.
+     * 매칭으로 생길 수 있는 대결(랜덤·고스트)만 돌려주고, 대결이 없거나 다른 종류면 [NO_BATTLE]이다. 끝내 읽지 못하면(네트워크) null이다.
+     */
+    private suspend fun findMatched(): Long? {
+        var attempt = 1
+        var active = battleRepository.active()
+        var isRead = active is Outcome.Success
+        while ((active as? Outcome.Success)?.value == null && attempt < CANCEL_ATTEMPTS) {
+            delay(CANCEL_RETRY_MILLIS * attempt)
+            active = battleRepository.active()
+            isRead = isRead || active is Outcome.Success
+            attempt++
+        }
+        val battle = (active as? Outcome.Success)?.value ?: return NO_BATTLE.takeIf { isRead }
+        return if (battle.type in MATCHED_TYPES) battle.battleId else NO_BATTLE
     }
 
     /**
@@ -726,5 +827,17 @@ constructor(
         const val OFFLINE_BATTLE_ID = 0L
         const val CANCEL_ATTEMPTS = 3
         const val CANCEL_RETRY_MILLIS = 1_000L
+
+        /** 대기열 취소 거부 사유: 서버가 이미 짝을 지었다(FR-085). */
+        const val ALREADY_MATCHED = "ALREADY_MATCHED"
+
+        /** 랜덤 매칭으로 생기는 대결 종류(상대가 없으면 고스트). */
+        val MATCHED_TYPES = setOf(BattleHistory.Type.RANDOM, BattleHistory.Type.GHOST)
+
+        /** 끝낼 대결이 없다([findMatched]). 서버 대결 번호는 1부터다. */
+        const val NO_BATTLE = -1L
+
+        /** 남은 그만두기를 다시 보내는 기한. 넘으면 대결은 이미 끝났다고 보고 지운다(S15P31A207-278). */
+        val PENDING_FORFEIT_LIFETIME: Duration = Duration.ofHours(1)
     }
 }

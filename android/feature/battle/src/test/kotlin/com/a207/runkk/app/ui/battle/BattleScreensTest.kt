@@ -53,7 +53,7 @@ class BattleScreensTest {
 
     /** 1차 배포 모습(아바타 꾸미기 닫힘: 기본 아바타 2표정, D-254)으로 그린다. */
     private fun show(content: @androidx.compose.runtime.Composable () -> Unit) = compose.setContent {
-        CompositionLocalProvider(LocalReleaseScope provides ReleaseScope.of(true)) {
+        CompositionLocalProvider(LocalReleaseScope provides ReleaseScope.FIRST_RELEASE) {
             RunkkTheme(reduceMotion = true) { content() }
         }
     }

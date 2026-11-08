@@ -15,6 +15,7 @@ internal data class RecordDetailResponse(
     val heartRateZones: Map<String, Long> = emptyMap(),
     val newRecords: List<String> = emptyList(),
     val crewContributionMeters: Long? = null,
+    val contributedCrewName: String? = null,
     val rewardPoints: Int? = null,
     val weather: String? = null,
     val splitPaces: List<Int> = emptyList(),

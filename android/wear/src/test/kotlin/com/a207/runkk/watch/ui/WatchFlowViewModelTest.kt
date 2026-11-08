@@ -19,6 +19,7 @@ import com.a207.runkk.app.domain.account.PlacementStatus
 import com.a207.runkk.app.domain.battle.BattleResult
 import com.a207.runkk.app.domain.battle.BattleRunCoordinator
 import com.a207.runkk.app.domain.battle.BattleRunState
+import com.a207.runkk.app.domain.battle.InMemoryPendingForfeitStore
 import com.a207.runkk.app.domain.battle.MatchAcceptance
 import com.a207.runkk.app.domain.battle.OfflineRecordBattle
 import com.a207.runkk.app.domain.battle.OpponentTrack
@@ -180,7 +181,16 @@ class WatchFlowViewModelTest {
         val runs = shared?.tracker ?: tracker
             ?: runTracker(LocalWatchGateway(alertPlayer(), settings, clock), host, settings, pendingRuns)
         val coordinator = shared?.coordinator
-            ?: BattleRunCoordinator(runs, live, battles, FakeGuidanceOutput(), clock, backgroundScope, NoPhoneWarmUp)
+            ?: BattleRunCoordinator(
+                runs,
+                live,
+                battles,
+                FakeGuidanceOutput(),
+                clock,
+                backgroundScope,
+                NoPhoneWarmUp,
+                InMemoryPendingForfeitStore()
+            )
         val cache = OpponentRecordCache(
             File(createTempDirectory("flow-cache").toFile(), "opponent-records.json"),
             battles,
@@ -2010,6 +2020,34 @@ class WatchFlowViewModelTest {
         assertTrue(pendingRuns.saved.isEmpty())
         assertEquals(WatchResultHeadline.Stop, h.headline)
     }
+
+    @Test
+    fun `S15P31A207-278 화면이 다시 보이면(onResume) 폰에 지금 표시를 요청하고 가려질 때는 보내지 않는다`() = flowTest {
+        val h = open()
+        assertEquals(1, displayRequests(), "앱이 시작될 때(PhoneLink.start) 한 번")
+        advanceTimeBy(PhoneLink.DISPLAY_REQUEST_GAP_MILLIS + 1)
+
+        h.vm.onScreenShown(false)
+        runCurrent()
+        assertEquals(1, displayRequests())
+
+        h.vm.onScreenShown(true)
+        runCurrent()
+        assertEquals(2, displayRequests())
+    }
+
+    @Test
+    fun `S15P31A207-278 폰 러닝 뒤 워치 앱을 열면 표시 요청에 폰이 답한 진행 표시로 동행 화면에 간다`() = flowTest {
+        val h = open()
+        assertIs<WatchFlow.Main>(h.flow)
+        assertEquals(1, displayRequests())
+
+        phoneRunning(true)
+
+        assertEquals(WatchFlow.Companion, h.flow)
+    }
+
+    private fun displayRequests(): Int = dataLayer.sentMessages.count { it.second == WearPaths.DISPLAY_REQUEST }
 
     private fun sessionRequests(): Int = dataLayer.sentMessages.count { it.second == WearPaths.SESSION_REQUEST }
 

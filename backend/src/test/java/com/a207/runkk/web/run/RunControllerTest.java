@@ -9,7 +9,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.a207.runkk.running.LocationPoint;
+import com.a207.runkk.running.MotionSample;
 import com.a207.runkk.running.RunFixtures;
+import com.a207.runkk.running.RunQueryService;
 import com.a207.runkk.running.RunRecordRepository;
 import com.a207.runkk.running.StartDevice;
 import com.a207.runkk.web.WebTestSupport;
@@ -31,6 +33,7 @@ class RunControllerTest extends WebTestSupport {
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
 
     @Autowired private RunRecordRepository runs;
+    @Autowired private RunQueryService runQuery;
     private static final LocalDateTime START = LocalDateTime.of(2026, 10, 20, 7, 0);
 
     private static String at(LocalDateTime t) {
@@ -234,6 +237,13 @@ class RunControllerTest extends WebTestSupport {
         battle.put("battleId", 1);
         battle.put("pauses", List.of(pause(a, b)));
         expectStatus(s, battle, 400);
+        // MR !91 BR-1: 크루런은 각자 일시정지하므로(FR-300) 정지 구간을 받는다
+        Map<String, Object> crewRun = run(UUID.randomUUID().toString(), 5_000, 1_500);
+        crewRun.put("mode", "CREW_RUN");
+        crewRun.put("cardKind", "CREW_RUN");
+        crewRun.put("crewRunPostId", 1);
+        crewRun.put("pauses", List.of(pause(a, b)));
+        expectStatus(s, crewRun, 200);
 
         List<Map<String, Object>> many = new java.util.ArrayList<>();
         for (int i = 0; i < 101; i++) {
@@ -279,6 +289,95 @@ class RunControllerTest extends WebTestSupport {
         Map<String, Object> unknown = run(UUID.randomUUID().toString(), 5_000, 1_500);
         unknown.put("startDevice", "TABLET");
         expectStatus(s, unknown, 400);
+    }
+
+    @Test
+    @DisplayName("S15P31A207-242: motions(속도·케이던스)는 선택 항목이다. 옛 앱 형식은 빈 목록, 값 없는·음수 값은 버린다")
+    void upload_motionsAreOptional() throws Exception {
+        Session s = signUp();
+        String oldAppId = UUID.randomUUID().toString();
+        expectStatus(s, run(oldAppId, 5_000, 1_500), 200);
+        String nullId = UUID.randomUUID().toString();
+        Map<String, Object> nullMotions = run(nullId, 5_000, 1_500);
+        nullMotions.put("motions", null);
+        expectStatus(s, nullMotions, 200);
+
+        String newId = UUID.randomUUID().toString();
+        Map<String, Object> withMotions = run(newId, 5_000, 1_500);
+        Map<String, Object> empty = new HashMap<>();
+        empty.put("measuredAt", at(START.plusSeconds(3)));
+        empty.put("speedMps", null);
+        withMotions.put(
+                "motions",
+                List.of(
+                        Map.of("measuredAt", at(START.plusSeconds(1)), "speedMps", 3.4),
+                        Map.of("measuredAt", at(START.plusSeconds(2)), "cadenceSpm", 172),
+                        Map.of(
+                                "measuredAt",
+                                at(START.plusSeconds(4)),
+                                "speedMps",
+                                -1,
+                                "cadenceSpm",
+                                170),
+                        empty));
+        expectStatus(s, withMotions, 200);
+
+        assertThat(runQuery.bodyInputOf(oldAppId).orElseThrow().motions()).isEmpty();
+        assertThat(runQuery.bodyInputOf(nullId).orElseThrow().motions()).isEmpty();
+        assertThat(runQuery.bodyInputOf(newId).orElseThrow().motions())
+                .containsExactly(
+                        new MotionSample(START.plusSeconds(1), 3.4, null),
+                        new MotionSample(START.plusSeconds(2), null, 172.0),
+                        new MotionSample(START.plusSeconds(4), null, 170.0));
+
+        Map<String, Object> noTime = run(UUID.randomUUID().toString(), 5_000, 1_500);
+        noTime.put("motions", List.of(Map.of("speedMps", 3.0)));
+        expectStatus(s, noTime, 400);
+    }
+
+    @Test
+    @DisplayName("MR !91 AN-5: motions가 상한(86,400개)을 넘어도 기록은 받고 표본만 상한 안으로 솎는다")
+    void upload_tooManyMotions_thinsInsteadOfRejecting() throws Exception {
+        Session s = signUp();
+        String id = UUID.randomUUID().toString();
+        Map<String, Object> body = run(id, 5_000, 1_500);
+        int count = com.a207.runkk.running.RunUpload.MAX_MOTIONS + 1;
+        List<Map<String, Object>> motions = new java.util.ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            // 1,500초 동안 고르게(약 17ms 간격)
+            motions.add(
+                    Map.of("measuredAt", at(START.plusNanos(i * 17_000_000L)), "speedMps", 3.3));
+        }
+        body.put("motions", motions);
+
+        expectStatus(s, body, 200);
+
+        List<MotionSample> stored = runQuery.bodyInputOf(id).orElseThrow().motions();
+        assertThat(stored)
+                .isNotEmpty()
+                .hasSizeLessThanOrEqualTo(com.a207.runkk.running.RunUpload.MAX_MOTIONS);
+        assertThat(stored.get(0).measuredAt()).isEqualTo(START);
+    }
+
+    @Test
+    @DisplayName("CR2-T1: motions 남용 상한 경계 345,600개는 받고(200) 345,601개는 400")
+    void upload_motionsHardLimitBoundary() throws Exception {
+        Session s = signUp();
+        int hardLimit = 4 * com.a207.runkk.running.RunUpload.MAX_MOTIONS;
+        assertThat(hardLimit).isEqualTo(345_600);
+        List<Map<String, Object>> motions = new java.util.ArrayList<>(hardLimit + 1);
+        for (int i = 0; i <= hardLimit; i++) {
+            // 1,500초 동안 고르게(약 4ms 간격)
+            motions.add(Map.of("measuredAt", at(START.plusNanos(i * 4_000_000L)), "speedMps", 3.3));
+        }
+        Map<String, Object> atLimit = run(UUID.randomUUID().toString(), 5_000, 1_500);
+        atLimit.put("motions", motions.subList(0, hardLimit));
+        expectStatus(s, atLimit, 200);
+        String overId = UUID.randomUUID().toString();
+        Map<String, Object> over = run(overId, 5_000, 1_500);
+        over.put("motions", motions);
+        expectStatus(s, over, 400);
+        assertThat(runQuery.bodyInputOf(overId)).isEmpty();
     }
 
     @Test

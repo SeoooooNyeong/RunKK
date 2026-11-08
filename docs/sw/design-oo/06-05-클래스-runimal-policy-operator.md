@@ -233,7 +233,7 @@ SelfieConversion·SelfieLockStore·FaceTransformGateway·FaceTransformOutcome은
 
 | 시그니처 | 설명 | 사후 조건 / 예외 |
 |---------|------|-----------------|
-| `Optional<RewardAccrual> accrue(AccrualRequest req, RewardRule rule, int alreadyOnThatDay)` | 적립 | req = (reason, sourceId, baseAmount, at). 적립량 = min(base, dailyCap − alreadyOnThatDay). 0 이하면 비어 있음(기록하지 않는다). 아니면 잔액을 늘리고, req.at의 날짜가 lastAccrualDate 이상이면 집계 칼럼을 고친 뒤(같은 날 더하기, 더 새 날 바꾸기) 저장할 RewardAccrual을 돌려준다(FR-159). 중복 (reason, sourceId) 확인은 호출자가 RewardAccrualRepository.amountFor로 먼저 한다 (v0.11, D-109) (다음 판 변경, [05-24](05-24-설계-이벤트-성.md) [임시:D-성-8]) req.reason이 EVENT면 상한과 alreadyOnThatDay를 보지 않는다: baseAmount ≤ 0이면 비어 있음, 아니면 잔액만 늘리고 집계 칼럼(lastAccrualDate, lastAccrualDateAmount)을 그대로 둔 채 RewardAccrual(baseAmount)을 돌려준다 |
+| `Optional<RewardAccrual> accrue(AccrualRequest req, RewardRule rule, int alreadyOnThatDay)` | 적립 | req = (reason, sourceId, baseAmount, at). 적립량 = min(base, dailyCap − alreadyOnThatDay). 0 이하면 비어 있음(기록하지 않는다). 아니면 잔액을 늘리고, req.at의 날짜가 lastAccrualDate 이상이면 집계 칼럼을 고친 뒤(같은 날 더하기, 더 새 날 바꾸기) 저장할 RewardAccrual을 돌려준다(FR-159). 중복 (reason, sourceId) 확인은 호출자가 RewardAccrualRepository.amountFor로 먼저 한다 (v0.11, D-109) (다음 판 변경, [05-26](05-26-설계-이벤트-성.md) [임시:D-성-8]) req.reason이 EVENT면 상한과 alreadyOnThatDay를 보지 않는다: baseAmount ≤ 0이면 비어 있음, 아니면 잔액만 늘리고 집계 칼럼(lastAccrualDate, lastAccrualDateAmount)을 그대로 둔 채 RewardAccrual(baseAmount)을 돌려준다 |
 | `OptionalInt accruedOn(LocalDate day)` | 그날 적립 합계 | day가 lastAccrualDate와 같으면 lastAccrualDateAmount, 더 새 날이면 0, 더 옛날(보정 작업의 지난 날짜)이면 비어 있음 → RewardService가 RewardAccrualRepository.sumOn으로 읽는다 (v0.11, D-109) |
 | `void purchase(ShopItem item, LocalDateTime now)` | 구매 | 보유면 ALREADY_OWNED, 잔액 < 가격이면 INSUFFICIENT_REWARD. 잔액 차감, 보유 추가 |
 | `boolean owns(long itemId)` | | |
@@ -465,7 +465,7 @@ v0.11에서 9개를 더해 21개다(괄호는 defaultScreen) (v0.11, FR-175, FR-
 ##### PushGateway (인터페이스)
 `PushResult send(List<String> deviceTokens, NotificationType type, String content)`, `PushResult sendCollapsing(List<String> deviceTokens, NotificationType type, String content, String collapseKey)`(같은 키의 기기 알림을 하나로 묶는다, CREW_CHAT, v0.11 D-102). PushResult(record: sentCount, invalidTokens). 구현 infra.integration.push.FcmPushGateway는 받은 토큰으로 보내기만 하고 토큰 표를 갖지 않는다. 회원 ID를 받지 않는다(D-43).
 
-##### 운영자 공지 (다음 판 변경, [임시:CR-성-6], 설계 [05-26](05-26-설계-공지알림-성.md))
+##### 운영자 공지 (다음 판 변경, [임시:CR-성-6], 설계 [05-27](05-27-설계-공지알림-성.md))
 NotificationType에 `NOTICE(Screen.EXTERNAL_LINK)`를 더해 22개, Screen에 `EXTERNAL_LINK`를 더해 12개다. NOTICE는 MemberSettings.NOTIFICATION_TYPES 밖이라 끌 수 없다([임시:D-성-21]). Notification에 `title`(공지 제목, 60자, null 허용), targetId 길이 300(V35_3). NotificationRequest에 다섯째 구성요소 `title`(네 인자 생성자 유지). InboxView.Item에 `title`. NotificationService에 패키지 전용 `boolean deliver(NotificationRequest)`(notify의 본문, 저장했으면 참). PushGateway에 기본 메서드 `send(tokens, type, title, content)`(FcmPushGateway가 제목을 알림 제목으로). 새 `NoticeService.send(String actorId, NoticeInput): NoticeResult`(1~100명, 구글 폼 링크 검사, 회원마다 deliver, 감사 SETTING_CHANGE 「NOTICE:제목」), 값 `NoticeInput(memberIds, title, body, linkUrl)`, `NoticeResult(requested, stored, skippedMemberIds)`. 의존 notification → audit이 는다([임시:D-성-20], [임시:D-성-23]).
 
 ##### NotificationRepository, PushDeviceRepository, NotificationWithdrawalListener

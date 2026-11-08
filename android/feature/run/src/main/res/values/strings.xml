@@ -39,4 +39,6 @@
     <string name="run_kind_crew">크루런</string>
     <string name="run_result_hero_date_pattern">M월 d일 (E) a h:mm</string>
     <string name="run_result_reward">리워드</string>
+    <string name="run_result_crew">%1$s 크루 목표에 반영</string>
+    <string name="run_result_crew_unnamed">크루 목표에 반영</string>
 </resources>

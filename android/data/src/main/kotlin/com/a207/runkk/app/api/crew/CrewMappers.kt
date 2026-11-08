@@ -3,7 +3,6 @@ package com.a207.runkk.app.api.crew
 import com.a207.runkk.app.api.core.ServerTime
 import com.a207.runkk.app.api.core.enumByName
 import com.a207.runkk.app.core.model.Distance
-import com.a207.runkk.app.domain.crew.Album
 import com.a207.runkk.app.domain.crew.AttendanceAnswer
 import com.a207.runkk.app.domain.crew.BoardPost
 import com.a207.runkk.app.domain.crew.CelebrationCard
@@ -26,7 +25,6 @@ import com.a207.runkk.app.domain.crew.Notice
 import com.a207.runkk.app.domain.crew.PendingRequests
 import com.a207.runkk.app.domain.crew.Poll
 import com.a207.runkk.app.domain.crew.PollMethod
-import com.a207.runkk.app.domain.crew.PollResult
 import com.a207.runkk.app.domain.crew.PostList
 import com.a207.runkk.app.domain.crew.RaceStatus
 
@@ -57,7 +55,8 @@ internal fun CrewDetailResponse.toDomain(): CrewDetail = CrewDetail(
     weeklyDistance = Distance(weeklyDistanceMeters),
     myRole = myRole?.let { enumByName<CrewRole>(it) },
     inviteCode = inviteCode,
-    inviteCodeExpiresAt = inviteCodeExpiresAt?.let(ServerTime::parse)
+    inviteCodeExpiresAt = inviteCodeExpiresAt?.let(ServerTime::parse),
+    lastWeekDistance = Distance(lastWeekDistanceMeters)
 )
 
 internal fun MyCrewResponse.toDomain(): MyCrew = MyCrew(
@@ -175,30 +174,6 @@ private fun PostListResponse.Item.Poll.toDomain(): Poll? = enumByName<PollMethod
     Poll(it, ServerTime.parse(closesAt), closed, responseCount, myOptionNo)
 }
 
-/** 모르는 투표 방식은 해독할 수 없는 응답으로 본다(결과 화면을 잘못 그리지 않는다). */
-internal fun PollResultResponse.toDomain(): PollResult = PollResult(
-    postId = postId,
-    question = question,
-    method = requireNotNull(enumByName<PollMethod>(method)) { "모르는 투표 방식 $method" },
-    closesAt = ServerTime.parse(closesAt),
-    isClosed = closed,
-    options =
-        options.map { option ->
-            PollResult.Option(
-                option.optionNo,
-                option.label,
-                option.count,
-                option.respondents.map { PollResult.Respondent(it.memberId, it.displayName) }
-            )
-        },
-    myOptionNo = myOptionNo
-)
-
-internal fun AlbumResponse.toDomain(): Album = Album(
-    photos = photos.map { Album.Photo(it.photoId, it.postId, it.url, ServerTime.parse(it.postedAt)) },
-    nextCursor = nextCursor
-)
-
 private fun PostListResponse.Item.CrewRun.toDomain(): PostList.CrewRunInfo = PostList.CrewRunInfo(
     distance = Distance(distanceMeters),
     scheduledAt = ServerTime.parse(scheduledAt),
@@ -214,27 +189,46 @@ private fun PostListResponse.Item.CrewRun.toDomain(): PostList.CrewRunInfo = Pos
 
 internal fun LobbyResponse.toDomain(): Lobby = Lobby(
     postId,
-    participants.map { Lobby.Participant(it.displayName.orEmpty(), it.ready, it.memberId, it.me) },
+    participants.map {
+        Lobby.Participant(
+            it.displayName.orEmpty(),
+            it.ready,
+            it.memberId,
+            it.me,
+            isEntered = it.readiness?.let { r -> r != NOT_ENTERED } ?: true
+        )
+    },
     ServerTime.parse(scheduledAt),
     Distance(distanceMeters)
 )
 
-internal fun CrewRunResultResponse.toDomain(): CrewRunResult = CrewRunResult(
-    postId = postId,
-    finishers =
-        finishers.map {
-            CrewRunResult.Finisher(
-                it.rank,
-                it.displayName.orEmpty(),
-                it.elapsedSeconds,
-                it.averagePaceSecondsPerKm,
-                hasQuit = it.quit,
-                memberId = it.memberId,
-                isMe = it.me
-            )
-        },
-    isFirstCrewRun = firstCrewRun,
-    raceContribution = Distance(raceContributionMeters)
-)
+internal fun CrewRunResultResponse.toDomain(): CrewRunResult {
+    val people = participants.map {
+        CrewRunResult.Participant(
+            displayName = it.displayName.orEmpty(),
+            distance = Distance(it.distanceMeters),
+            elapsedSeconds = it.elapsedSeconds,
+            averagePaceSecondsPerKm = it.averagePaceSecondsPerKm,
+            hasEnded = it.ended,
+            memberId = it.memberId,
+            isMe = it.me
+        )
+    }
+    return CrewRunResult(
+        postId = postId,
+        participants = people,
+        totalDistance = Distance(totalDistanceMeters ?: participants.sumOf { it.distanceMeters }),
+        isFirstCrewRun = firstCrewRun,
+        raceContribution = Distance(raceContributionMeters),
+        status = status?.let { enumByName<CrewRunStatus>(it) },
+        title = title.orEmpty(),
+        distance = distanceMeters?.let(::Distance),
+        startedAt = startedAt?.let(ServerTime::parse),
+        myRecordId = myRecordId
+    )
+}
 
 private const val NEWLINE = "\n"
+
+/** 서버 crew.Readiness의 대기실에 들어오지 않은 값. */
+private const val NOT_ENTERED = "NOT_ENTERED"

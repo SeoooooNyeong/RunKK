@@ -31,6 +31,8 @@ class ExerciseHeartRateSensor @Inject constructor(private val session: ExerciseS
         }
     }
 
+    override val steps: Flow<WatchSteps> get() = session.steps
+
     override suspend fun endLeftoverSession(): Boolean {
         // 잠금을 못 잡으면 이 프로세스가 재는 중이다. 그 세션은 열기 전에 남은 세션을 이미 정리했다.
         if (!sessionMutex.tryLock()) return false

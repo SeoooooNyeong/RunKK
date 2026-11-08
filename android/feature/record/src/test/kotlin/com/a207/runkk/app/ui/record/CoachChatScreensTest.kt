@@ -1,5 +1,6 @@
 package com.a207.runkk.app.ui.record
 
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -109,6 +110,38 @@ class CoachChatScreensTest {
         }
         compose.onNodeWithText("새 대화").performScrollTo().performClick()
         assertEquals(1, opened)
+    }
+
+    @Test
+    fun `오류 여섯 종류마다 안내 문구와 복구 버튼을 보인다`() {
+        val failure = mutableStateOf(CoachFailure.RETRY)
+        compose.setContent {
+            RunkkTheme {
+                CoachChatScreen(CoachChatUiState(failure = failure.value), CoachChatActions())
+            }
+        }
+        val messages = mapOf(
+            CoachFailure.RETRY to "답을 만들지 못했어요. 다시 물어봐 주세요",
+            CoachFailure.QUOTA to "오늘 질문을 모두 썼어요. 내일 다시 물어봐 주세요",
+            CoachFailure.EXPIRED to "보관 기간이 지난 대화예요. 새 대화를 열어 주세요",
+            CoachFailure.TOO_LONG to "질문은 1자 이상 500자 이하로 입력해 주세요",
+            CoachFailure.CONSENT_REQUIRED to "AI 코치를 이용하려면 데이터 외부 전송에 동의해 주세요",
+            CoachFailure.FEATURE_CLOSED to "AI 코치는 아직 준비 중이에요"
+        )
+        CoachFailure.entries.forEach { reason ->
+            compose.runOnIdle { failure.value = reason }
+            compose.onNodeWithText(messages.getValue(reason)).performScrollTo().assertExists()
+            if (reason == CoachFailure.RETRY) {
+                compose.onNodeWithText("다시 묻기").assertExists()
+            } else {
+                compose.onNodeWithText("다시 묻기").assertDoesNotExist()
+            }
+            if (reason == CoachFailure.CONSENT_REQUIRED) {
+                compose.onNodeWithText("동의 설정").assertExists()
+            } else {
+                compose.onNodeWithText("동의 설정").assertDoesNotExist()
+            }
+        }
     }
 
     @Test

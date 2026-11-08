@@ -22,14 +22,16 @@ data class CompletedRun(
     val route: List<RoutePoint>,
     val unstable: List<UnstableSegment>,
     val heartRates: List<HeartRateSample>,
-    /** 정지 구간(자유런만, FR-194). [elapsed]는 이 구간을 뺀 운동 시간이다. */
+    /** 정지 구간(자유런·크루런만, FR-194·FR-300). [elapsed]는 이 구간을 뺀 운동 시간이다. */
     val pauses: List<PauseInterval> = emptyList(),
     /** 기록을 시작한 기기(RunStartSpec.startDevice, D-378, W23). 서버 기록에 함께 저장된다. */
     val startDevice: RunStartSpec.StartDevice = RunStartSpec.StartDevice.PHONE,
     val uploadState: UploadState = UploadState.NOT_SENT,
     val savedAt: Instant,
     /** 서버가 받지 않은 사유 코드(uploadState = REJECTED일 때만, 03-00 "4xx는 거부 사유와 함께 보존", R12 D2-b). */
-    val rejectedReason: String? = null
+    val rejectedReason: String? = null,
+    /** 기기가 잰 속도·케이던스 표본(시간순, S15P31A207-242). 재지 못했으면 빈 목록이고 서버가 속도를 위치로 셈한다. */
+    val motions: List<MotionSample> = emptyList()
 ) {
     /** 정지 시간 합. */
     val pausedTotal: Duration
@@ -65,8 +67,8 @@ data class CompletedRun(
         return copy(pauses = fitted, elapsed = if (workout.isNegative) Duration.ZERO else workout)
     }
 
-    /** 위치 동의 철회 파기 지시(FR-026): 경로 좌표를 지운 사본. */
-    fun purgeRoute(): CompletedRun = copy(route = emptyList())
+    /** 위치 동의 철회 파기 지시(FR-026): 경로 좌표와 움직임 표본(속도는 위치에서 나온 값)을 지운 사본. 서버도 함께 지운다. */
+    fun purgeRoute(): CompletedRun = copy(route = emptyList(), motions = emptyList())
 
     /** 심박 동의 철회 파기 지시: 심박을 지운 사본. */
     fun purgeHeartRates(): CompletedRun = copy(heartRates = emptyList())

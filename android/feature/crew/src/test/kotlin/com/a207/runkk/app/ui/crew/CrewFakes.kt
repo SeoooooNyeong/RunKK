@@ -5,7 +5,6 @@ import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
-import com.a207.runkk.app.domain.crew.Album
 import com.a207.runkk.app.domain.crew.AttendanceAnswer
 import com.a207.runkk.app.domain.crew.BoardPost
 import com.a207.runkk.app.domain.crew.CelebrationCard
@@ -25,14 +24,11 @@ import com.a207.runkk.app.domain.crew.JoinPolicy
 import com.a207.runkk.app.domain.crew.JoinResult
 import com.a207.runkk.app.domain.crew.Lobby
 import com.a207.runkk.app.domain.crew.Meetup
-import com.a207.runkk.app.domain.crew.MeetupForm
 import com.a207.runkk.app.domain.crew.MyCrew
 import com.a207.runkk.app.domain.crew.Notice
 import com.a207.runkk.app.domain.crew.PendingRequests
 import com.a207.runkk.app.domain.crew.Poll
-import com.a207.runkk.app.domain.crew.PollForm
 import com.a207.runkk.app.domain.crew.PollMethod
-import com.a207.runkk.app.domain.crew.PollResult
 import com.a207.runkk.app.domain.crew.PostList
 import com.a207.runkk.app.domain.crew.RaceStatus
 import com.a207.runkk.app.domain.live.ClientMessage
@@ -62,6 +58,7 @@ import com.a207.runkk.app.domain.settings.GuidanceSettings
 import com.a207.runkk.app.domain.settings.SettingsRepository
 import com.a207.runkk.app.domain.settings.SettingsSnapshot
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -128,7 +125,7 @@ val crewA = CrewList.Item(
     11,
     "새벽질주",
     "새벽에 같이 달려요",
-    setOf("SOCIAL_RUN", "DAWN"),
+    setOf("WEEKDAY_EVENING", "WEEKDAY_DAWN"),
     "바람처럼",
     6,
     Distance(42_300),
@@ -138,7 +135,7 @@ val crewB = CrewList.Item(
     12,
     "저녁런 클럽",
     null,
-    setOf("EVENING", "BEGINNER_WELCOME"),
+    setOf("WEEKDAY_EVENING", "WEEKEND_MORNING"),
     "달빛",
     10,
     Distance(18_100),
@@ -148,7 +145,7 @@ val crewC = CrewList.Item(
     13,
     "길게 천천히",
     "LSD 위주",
-    setOf("LONG_DISTANCE"),
+    setOf("WEEKEND_LUNCH"),
     "거북",
     4,
     Distance(30_000),
@@ -300,20 +297,6 @@ val polls = PostList(
     )
 )
 
-fun pollResult(postId: Long, myOptionNo: Int? = null) = PollResult(
-    postId = postId,
-    question = "다음 달 대회 어디 나갈까요?",
-    method = PollMethod.CHOICES,
-    closesAt = start.plusSeconds(86_400),
-    isClosed = postId == 62L,
-    options = listOf(
-        PollResult.Option(1, "춘천", 2, listOf(PollResult.Respondent(1, "바람처럼"), PollResult.Respondent(2, "달빛"))),
-        PollResult.Option(2, "JTBC", 1, listOf(PollResult.Respondent(3, "비공개러너"))),
-        PollResult.Option(3, "안 나감", 0, emptyList())
-    ),
-    myOptionNo = myOptionNo
-)
-
 /** 대면 모임 1건(정원 8, 참석 2·불참 1·미정 0, 내 응답 없음). */
 val meetups = PostList(
     listOf(
@@ -357,14 +340,6 @@ val boards = PostList(
     )
 )
 
-val album = Album(
-    listOf(
-        Album.Photo(901, 81, "/api/v1/crew-photos/901", start.minusSeconds(600)),
-        Album.Photo(902, 81, "/api/v1/crew-photos/902", start.minusSeconds(600))
-    ),
-    nextCursor = null
-)
-
 /** 목표 50km를 넘긴 주: 진행률 100(상한), 축하 카드. */
 val raceWithGoal = race.copy(
     contributors = listOf(
@@ -394,7 +369,7 @@ fun crewDetail(crewId: Long = 11, role: CrewRole? = CrewRole.MEMBER) = CrewDetai
     crewId = crewId,
     name = if (crewId == 11L) "새벽질주" else "크루$crewId",
     intro = "새벽에 같이 달려요",
-    tags = setOf("SOCIAL_RUN", "DAWN"),
+    tags = setOf("WEEKDAY_EVENING", "WEEKDAY_DAWN"),
     visibility = CrewVisibility.PUBLIC,
     joinPolicy = JoinPolicy.FREE,
     logoUrl = null,
@@ -403,19 +378,26 @@ fun crewDetail(crewId: Long = 11, role: CrewRole? = CrewRole.MEMBER) = CrewDetai
     headcount = 6,
     weeklyDistance = Distance(42_300),
     myRole = role,
-    inviteCode = if (role == CrewRole.LEADER) "K7P2QX" else null,
+    inviteCode = if (role != null) "K7P2QX" else null,
     inviteCodeExpiresAt = null
 )
 
 val crewRunResult = CrewRunResult(
     postId = 31,
-    finishers = listOf(
-        CrewRunResult.Finisher(2, "새벽곰", 1_710, 342, memberId = 7, isMe = true),
-        CrewRunResult.Finisher(1, "바람처럼", 1_640, 328),
-        CrewRunResult.Finisher(null, "달빛", null, null, hasQuit = true, memberId = 2)
+    participants = listOf(
+        CrewRunResult.Participant("바람처럼", Distance(5_280), 1_712, 324, memberId = 1),
+        CrewRunResult.Participant("새벽곰", Distance(4_870), 1_668, 342, memberId = 7, isMe = true),
+        CrewRunResult.Participant("달빛", Distance(4_620), 1_700, 368, memberId = 2),
+        CrewRunResult.Participant("거북", Distance(4_950), 1_790, 362, memberId = 3),
+        CrewRunResult.Participant("한강토끼", Distance(3_720), 1_500, 403, memberId = 4)
     ),
+    totalDistance = Distance(23_440),
     isFirstCrewRun = true,
-    raceContribution = Distance(13_400)
+    raceContribution = Distance(23_440),
+    status = CrewRunStatus.FINISHED,
+    title = "오늘 저녁 한강 5km",
+    distance = Distance(5_000),
+    myRecordId = "rec-31"
 )
 
 /** 크루 REST 가짜. 부른 연산을 [calls]에 남긴다. 결과는 [fail]에 코드로 넣으면 그 연산이 거부된다. */
@@ -555,8 +537,6 @@ class FakeCrewRepository : CrewRepository {
         return answer("posts:$kind", PostList(answered, postsNext))
     }
 
-    override suspend fun writeCheer(crewId: Long, body: String) = answer("cheer:$body", 43L)
-
     var lastCrewRun: CrewRunForm? = null
 
     override suspend fun writeCrewRun(crewId: Long, form: CrewRunForm): Outcome<Long> {
@@ -576,43 +556,6 @@ class FakeCrewRepository : CrewRepository {
 
     override suspend fun dismissManager(crewId: Long, memberId: Long) = answer("dismiss:$memberId", Unit)
 
-    override suspend fun writeNotice(crewId: Long, body: String, isPinned: Boolean) =
-        answer("notice:$body:$isPinned", 54L)
-
-    override suspend fun pin(postId: Long, isPinned: Boolean) = answer("pin:$postId:$isPinned", Unit)
-
-    /** 마지막으로 만든 투표의 마감 일시. */
-    var lastPollClosesAt: Instant? = null
-
-    override suspend fun writePoll(crewId: Long, form: PollForm): Outcome<Long> {
-        lastPollClosesAt = form.closesAt
-        return answer("writePoll:${form.question}:${form.method}:${form.options}", 63L)
-    }
-
-    /** 응답한 선택지(결과의 myOptionNo). */
-    private val pollAnswers = mutableMapOf<Long, Int>()
-
-    override suspend fun respondPoll(postId: Long, optionNo: Int) =
-        answer("respond:$postId:$optionNo", Unit).also { if (it is Outcome.Success) pollAnswers[postId] = optionNo }
-
-    override suspend fun pollResult(postId: Long) =
-        answer("pollResult:$postId", pollResult(postId, pollAnswers[postId]))
-
-    /** 마지막 대면 모임 일시. */
-    var lastMeetupAt: Instant? = null
-
-    override suspend fun writeMeetup(crewId: Long, form: MeetupForm): Outcome<Long> {
-        lastMeetupAt = form.scheduledAt
-        return answer("writeMeetup:${form.body}:${form.placeName}:${form.capacity}", 72L)
-    }
-
-    override suspend fun writeBoard(crewId: Long, body: String, photoUris: List<String>) =
-        answer("writeBoard:$body:$photoUris", 83L)
-
-    override suspend fun photo(photoId: Long) = answer("photo:$photoId", byteArrayOf(1, 2, 3))
-
-    override suspend fun album(crewId: Long, cursor: Long?) = answer("album:$cursor", album)
-
     override suspend fun setWeeklyGoal(crewId: Long, goal: Distance) =
         answer("goal:${goal.meters}", raceWithGoal.copy(goal = goal))
 
@@ -627,9 +570,14 @@ class FakeCrewRepository : CrewRepository {
 
     override suspend fun leaveLobby(postId: Long) = answer("leaveLobby:$postId", lobbyState)
 
-    override suspend fun quit(postId: Long) = answer("quit:$postId", Unit)
+    override suspend fun quit(postId: Long, distanceMeters: Long?, elapsed: Duration?) =
+        answer("quit:$postId:${distanceMeters ?: "-"}", Unit)
 
-    override suspend fun crewRunResult(postId: Long) = answer("result:$postId", crewRunResult)
+    override suspend fun pause(postId: Long, elapsed: Duration) = answer("pause:$postId:${elapsed.seconds}", Unit)
+
+    var resultState = crewRunResult
+
+    override suspend fun crewRunResult(postId: Long) = answer("result:$postId", resultState)
 }
 
 class FakeLiveChannels : LiveChannelProvider {

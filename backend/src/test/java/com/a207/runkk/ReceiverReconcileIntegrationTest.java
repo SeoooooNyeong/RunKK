@@ -8,8 +8,8 @@ import static org.mockito.Mockito.reset;
 import com.a207.runkk.batch.crew.CrewRunLinkReconcileJob;
 import com.a207.runkk.batch.reward.RewardReconcileJob;
 import com.a207.runkk.bootstrap.RunkkApplication;
+import com.a207.runkk.common.CrewTag;
 import com.a207.runkk.common.Distance;
-import com.a207.runkk.common.PersonalityTag;
 import com.a207.runkk.common.StandardDistance;
 import com.a207.runkk.crew.CrewCreateCommand;
 import com.a207.runkk.crew.CrewPostRepository;
@@ -152,7 +152,7 @@ class ReceiverReconcileIntegrationTest {
                                 new CrewCreateCommand(
                                         "보정크루" + NAMES.incrementAndGet(),
                                         null,
-                                        Set.of(PersonalityTag.SOCIAL_RUN),
+                                        Set.of(CrewTag.WEEKDAY_EVENING),
                                         CrewVisibility.PUBLIC,
                                         JoinPolicy.FREE,
                                         null))

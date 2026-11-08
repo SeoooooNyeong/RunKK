@@ -10,7 +10,6 @@ data class GuidanceContext(
     val progress: RunProgress,
     val todayPlan: PlanSnapshot?,
     val gapMeters: Int?,
-    val rank: CrewRank?,
     val birthYear: Int?,
     val guidanceSettings: GuidanceSettings
 )

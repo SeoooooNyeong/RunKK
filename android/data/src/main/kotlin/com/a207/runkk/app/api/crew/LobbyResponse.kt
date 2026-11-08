@@ -16,6 +16,8 @@ internal data class LobbyResponse(
         val memberId: Long? = null,
         val displayName: String? = null,
         val ready: Boolean = false,
-        val me: Boolean = false
+        val me: Boolean = false,
+        /** NOT_ENTERED | ENTERING | READY(서버 crew.Readiness). 옛 서버면 null. */
+        val readiness: String? = null
     )
 }

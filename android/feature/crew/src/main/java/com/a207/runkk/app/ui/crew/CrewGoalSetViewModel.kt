@@ -10,6 +10,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Clock
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.temporal.TemporalAdjusters
 import javax.inject.Inject
 import kotlin.math.roundToLong
@@ -24,8 +25,14 @@ import kotlinx.coroutines.launch
  * (GET /crews/{id}/race?weekStart=지난 월요일)로 지난 주 결과를 보인다. 1km 미만은 보내지 않고, 최종 판정은 서버(GOAL_INVALID)다.
  */
 @HiltViewModel
-class CrewGoalSetViewModel @Inject constructor(private val crews: CrewRepository, private val clock: Clock) :
-    ViewModel() {
+class CrewGoalSetViewModel internal constructor(
+    private val crews: CrewRepository,
+    private val clock: Clock,
+    private val zone: ZoneId
+) : ViewModel() {
+    @Inject
+    constructor(crews: CrewRepository, clock: Clock) : this(crews, clock, ZoneId.systemDefault())
+
     private val _state = MutableStateFlow(CrewGoalSetUiState())
     val state: StateFlow<CrewGoalSetUiState> = _state.asStateFlow()
 
@@ -34,7 +41,9 @@ class CrewGoalSetViewModel @Inject constructor(private val crews: CrewRepository
     fun bind(crewId: Long) {
         if (bound == crewId) return
         bound = crewId
-        val monday = LocalDate.now(clock).with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+        // 앱 Clock은 UTC(DeviceBindings)라 날짜·시각은 기기 시간대 [zone](ZoneId.systemDefault(), 러닝 결과 화면과 같다)으로 셈한다(MR !91 e2e 2 후속).
+        val monday =
+            clock.instant().atZone(zone).toLocalDate().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
         _state.value = CrewGoalSetUiState(crewId = crewId, weekStart = monday)
         viewModelScope.launch {
             val goal = (crews.race(crewId, null) as? Outcome.Success)?.value?.goal ?: return@launch

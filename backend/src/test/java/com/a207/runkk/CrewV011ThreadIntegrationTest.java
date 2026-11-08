@@ -4,8 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.a207.runkk.bootstrap.RunkkApplication;
 import com.a207.runkk.common.BusinessRuleException;
+import com.a207.runkk.common.CrewTag;
 import com.a207.runkk.common.Distance;
-import com.a207.runkk.common.PersonalityTag;
 import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.crew.AttendanceAnswer;
 import com.a207.runkk.crew.BoardDraft;
@@ -88,7 +88,7 @@ class CrewV011ThreadIntegrationTest {
                                 new CrewCreateCommand(
                                         "동시크루" + NAMES.incrementAndGet(),
                                         null,
-                                        Set.of(PersonalityTag.SOCIAL_RUN),
+                                        Set.of(CrewTag.WEEKDAY_EVENING),
                                         CrewVisibility.PUBLIC,
                                         JoinPolicy.FREE,
                                         null))

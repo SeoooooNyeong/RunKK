@@ -138,14 +138,18 @@ class CrewFindViewModelTest {
     }
 
     @Test
-    fun `태그를 고르면 그 태그로, 키워드는 검색할 때 다시 찾는다`() {
+    fun `조건 팝업에서 고른 태그는 적용하기를 눌러야 찾기에 쓰이고 키워드는 검색할 때 다시 찾는다(F-01b)`() {
         val vm = CrewFindViewModel(repo)
-        vm.onTagToggle("SOCIAL_RUN")
-        vm.onTagToggle("SOLO_RUN")
-        assertEquals(setOf("SOLO_RUN"), vm.state.value.tags, "같은 분류는 하나만")
+        vm.onConditionOpen()
+        vm.onConditionToggle("WEEKDAY_EVENING")
+        vm.onConditionToggle("WEEKEND_MORNING")
+        assertEquals(emptySet(), vm.state.value.tags, "적용 전에는 찾기 조건이 그대로다")
+        vm.onConditionApply()
+        assertEquals(setOf("WEEKDAY_EVENING", "WEEKEND_MORNING"), vm.state.value.tags)
+        assertEquals(false, vm.state.value.isConditionOpen)
         vm.onKeyword("  새벽 ")
         vm.load()
-        assertEquals("search:새벽:[SOLO_RUN]", repo.calls.last { it.startsWith("search") })
+        assertEquals("search:새벽:[WEEKDAY_EVENING, WEEKEND_MORNING]", repo.calls.last { it.startsWith("search") })
     }
 
     @Test
@@ -201,7 +205,7 @@ class CrewCreateViewModelTest {
     @Test
     fun `이름 2~20자·태그 1~5개가 아니면 보내지 않는다`() {
         val vm = CrewCreateViewModel(repo)
-        vm.onForm(CrewFormState(name = "a", tags = setOf("SOCIAL_RUN")))
+        vm.onForm(CrewFormState(name = "a", tags = setOf("WEEKDAY_EVENING")))
         vm.onSubmit()
         vm.onForm(CrewFormState(name = "새벽질주"))
         vm.onSubmit()
@@ -211,7 +215,7 @@ class CrewCreateViewModelTest {
     @Test
     fun `만들면 크루 탭(내 크루 홈)으로(FR-110)`() = runTest(main.dispatcher) {
         val vm = CrewCreateViewModel(repo)
-        vm.onForm(CrewFormState(name = " 새벽질주 ", tags = setOf("SOCIAL_RUN", "BEGINNER_WELCOME")))
+        vm.onForm(CrewFormState(name = " 새벽질주 ", tags = setOf("WEEKDAY_EVENING", "WEEKEND_MORNING")))
         vm.events.test {
             vm.onSubmit()
             assertEquals(CrewEvent.Created, awaitItem())
@@ -223,7 +227,7 @@ class CrewCreateViewModelTest {
     fun `크루명이 겹치면 이름 중복 문구를 보인다`() {
         repo.fail["create"] = AppError.Rejected("CREW_NAME_TAKEN")
         val vm = CrewCreateViewModel(repo)
-        vm.onForm(CrewFormState(name = "새벽질주", tags = setOf("SOCIAL_RUN")))
+        vm.onForm(CrewFormState(name = "새벽질주", tags = setOf("WEEKDAY_EVENING")))
         vm.onSubmit()
         assertEquals(UiText.Res(R.string.crew_error_crew_name_taken), vm.state.value.error)
     }
@@ -280,17 +284,6 @@ class CrewHomeViewModelTest {
     }
 
     @Test
-    fun `게시글은 끝에 닿으면 다음 쪽을 이어 받는다(FR-131, 게시판 응원 칩)`() {
-        repo.postsNext = 41
-        val vm = CrewBoardViewModel(repo, clock).also { it.bind(11, BoardFilter.CHEER) }
-        vm.onLoadMore()
-        assertEquals(listOf(41L, 42L, 49L), vm.state.value.posts?.posts?.map { it.postId })
-        assertNull(vm.state.value.posts?.nextCursor)
-        vm.onLoadMore()
-        assertEquals(1, repo.calls.count { it == "posts:CHEER:41" })
-    }
-
-    @Test
     fun `레이스 탭 - 이번 주 거리·기여도와 주간 랭킹, 기간을 바꾸면 다시 읽는다(FR-137·FR-140)`() {
         val vm = vm()
         assertEquals(race, vm.state.value.race)
@@ -302,23 +295,17 @@ class CrewHomeViewModelTest {
     }
 
     @Test
-    fun `탭은 처음 열 때 한 번만 읽는다`() {
+    fun `탭과 크루원 쪽은 처음 열 때 한 번만 읽는다`() {
         val vm = vm()
-        vm.onTab(CrewTab.MEMBERS)
+        vm.onPage(CrewHomePage.MEMBERS)
+        vm.onPage(CrewHomePage.HOME)
+        vm.onPage(CrewHomePage.MEMBERS)
+        assertEquals(1, repo.calls.count { it == "members" }, repo.calls.toString())
+        vm.onPage(CrewHomePage.HOME)
+        vm.onTab(CrewTab.SCHEDULE)
         vm.onTab(CrewTab.RACE)
-        vm.onTab(CrewTab.MEMBERS)
-        assertEquals(1, repo.calls.count { it == "members" })
-    }
-
-    @Test
-    fun `응원글 200자는 코드 포인트로 세고 넘기지 않는다(D-143, FR-129, 게시판 응원 칩)`() {
-        val vm = CrewBoardViewModel(repo, clock).also { it.bind(11, BoardFilter.CHEER) }
-        val emoji = "\uD83C\uDFC3"
-        vm.onCheerDraft(emoji.repeat(201))
-        assertEquals(emoji.repeat(200), vm.state.value.cheerDraft)
-        assertTrue(vm.state.value.isCheerValid)
-        vm.onCheerDraft("가".repeat(250))
-        assertEquals(200, vm.state.value.cheerDraft.length)
+        vm.onTab(CrewTab.SCHEDULE)
+        assertEquals(1, repo.calls.count { it == "posts:CREW_RUN" }, repo.calls.toString())
     }
 
     @Test
@@ -388,7 +375,7 @@ class CrewManageViewModelTest {
         val form = vm.state.value.form
         assertEquals("새벽질주", vm.state.value.crewName)
         assertEquals("새벽에 같이 달려요", form.intro)
-        assertEquals(setOf("SOCIAL_RUN", "DAWN"), form.tags)
+        assertEquals(setOf("WEEKDAY_EVENING", "WEEKDAY_DAWN"), form.tags)
         assertEquals(JoinPolicy.FREE, form.joinPolicy)
         assertEquals("K7P2QX", vm.state.value.inviteCode)
         assertTrue("detail:11" in repo.calls)
@@ -445,7 +432,7 @@ class CrewManageViewModelTest {
     fun `정보 수정이 거부되면 제목을 바꾸지 않는다`() {
         repo.fail["changeInfo"] = AppError.Rejected("CREW_NAME_INVALID")
         val vm = vm()
-        vm.onForm(vm.state.value.form.copy(name = "겹치는이름", tags = setOf("DAWN")))
+        vm.onForm(vm.state.value.form.copy(name = "겹치는이름", tags = setOf("WEEKDAY_DAWN")))
         vm.onSaveInfo()
         assertEquals("새벽질주", vm.state.value.crewName)
         assertEquals(UiText.Res(R.string.crew_error_crew_name_invalid), vm.state.value.message)
@@ -455,7 +442,7 @@ class CrewManageViewModelTest {
     fun `정보 수정은 이름을 채워 두고 저장한다(FR-113)`() {
         val vm = vm()
         assertEquals("새벽질주", vm.state.value.form.name)
-        vm.onForm(vm.state.value.form.copy(name = "새벽질주2", tags = setOf("DAWN")))
+        vm.onForm(vm.state.value.form.copy(name = "새벽질주2", tags = setOf("WEEKDAY_DAWN")))
         vm.onSaveInfo()
         assertTrue("changeInfo:새벽질주2" in repo.calls)
         assertEquals("새벽질주2", vm.state.value.crewName)
@@ -485,5 +472,25 @@ class CrewRunWriteViewModelTest {
         val form = assertNotNull(repo.lastCrewRun)
         assertEquals(Distance(10_000), form.distance)
         assertEquals(java.time.Instant.parse("2026-10-23T22:00:00Z"), form.meetAt, "10/24(토) 07:00 KST")
+    }
+
+    @Test
+    fun `앱 시계가 UTC여도 날짜 칩과 모집 일시는 기기 시간대로 셈한다(MR !91 e2e 2 후속)`() = runTest(main.dispatcher) {
+        // 한국 10/21(수) 00:30 = UTC 10/20 15:30
+        val utc = MutableClock(java.time.Instant.parse("2026-10-20T15:30:00Z"), java.time.ZoneOffset.UTC)
+        val vm = CrewRunWriteViewModel(repo, utc, seoul)
+        assertEquals(java.time.LocalDate.of(2026, 10, 21), vm.state.value.today)
+        vm.onTitle("저녁 5K")
+        vm.onDay(0)
+        vm.onTime(LocalTime.of(19, 0))
+        vm.events.test {
+            vm.onSubmit(11)
+            assertEquals(CrewRunWriteEvent.Posted, awaitItem())
+        }
+        assertEquals(
+            java.time.Instant.parse("2026-10-21T10:00:00Z"),
+            assertNotNull(repo.lastCrewRun).meetAt,
+            "10/21 19:00 KST"
+        )
     }
 }

@@ -21,7 +21,6 @@ import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.domain.record.AggregationPeriod
 import com.a207.runkk.app.domain.record.PlanProgress
 import com.a207.runkk.app.domain.record.Ranking
-import com.a207.runkk.app.domain.record.Report
 import java.time.LocalDate
 import kotlin.test.assertEquals
 import org.junit.Rule
@@ -241,19 +240,6 @@ class AnalysisScreensTest {
     @Test
     fun growthShot() = compose.captureRunkkScreen("record_growth") {
         GrowthScreen(GrowthUiState(isLoading = false, growth = sampleGrowth), {}, {}, {})
-    }
-
-    @Test
-    fun reportShot() = compose.captureRunkkScreen("record_report") {
-        ReportScreen(
-            ReportUiState(
-                isLoading = false,
-                report = Report("이번 주 3회, 15.2km · 평균 5:38", "지난주보다 페이스가 10초 빨라졌어요. 이 흐름이면 10K도 충분해요", "AI")
-            ),
-            {
-            },
-            {}
-        )
     }
 
     /** 시상대 견본(피그마 61296:3779): 7명, 공개 티어 섞임, 내 순위 128위(배치 중). */

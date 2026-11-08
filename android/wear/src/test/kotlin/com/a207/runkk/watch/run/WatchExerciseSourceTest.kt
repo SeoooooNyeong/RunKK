@@ -13,8 +13,10 @@ import androidx.health.services.client.data.ExerciseGoal
 import androidx.health.services.client.data.ExerciseInfo
 import androidx.health.services.client.data.ExerciseTrackedStatus
 import androidx.health.services.client.data.ExerciseType
+import androidx.health.services.client.data.ExerciseTypeCapabilities
 import androidx.health.services.client.data.ExerciseTypeConfig
 import androidx.health.services.client.data.HeartRateAccuracy
+import androidx.health.services.client.data.IntervalDataPoint
 import androidx.health.services.client.data.LocationAccuracy
 import androidx.health.services.client.data.LocationData
 import androidx.health.services.client.data.SampleDataPoint
@@ -24,6 +26,7 @@ import com.a207.runkk.app.core.model.GeoPoint
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.run.HeartRateSample
 import com.a207.runkk.app.domain.run.LocationSample
+import com.a207.runkk.app.domain.run.MotionSample
 import com.a207.runkk.watch.testing.SchedulerClock
 import com.a207.runkk.watch.testing.T0
 import com.google.common.util.concurrent.Futures
@@ -55,12 +58,101 @@ class WatchExerciseSourceTest {
     /** 부팅 시각 = T0 − 1시간(가짜 elapsedRealtime 1시간). */
     private val bootInstant: Instant = Instant.ofEpochMilli(T0 - BOOT_MILLIS)
 
-    private fun TestScope.source(isHeartRateAllowed: Boolean = true) = WatchExerciseSource(
-        client,
-        SchedulerClock(testScheduler),
-        isHeartRateAllowed = { isHeartRateAllowed },
-        elapsedRealtimeMillis = { BOOT_MILLIS }
-    )
+    private fun TestScope.source(isHeartRateAllowed: Boolean = true, isMotionAllowed: Boolean = false) =
+        WatchExerciseSource(
+            client,
+            SchedulerClock(testScheduler),
+            isHeartRateAllowed = { isHeartRateAllowed },
+            elapsedRealtimeMillis = { BOOT_MILLIS },
+            isMotionAllowed = { isMotionAllowed }
+        )
+
+    private fun supports(vararg types: DataType<*, *>) {
+        client.capabilities = ExerciseCapabilities(
+            mapOf(ExerciseType.RUNNING to ExerciseTypeCapabilities(types.toSet(), emptyMap(), emptyMap(), false))
+        )
+    }
+
+    @Test
+    fun `신체 활동 권한이 있고 기기가 지원하면 속도·분당 걸음 수를 세션에 넣는다(S15P31A207-242)`() = runTest {
+        supports(DataType.LOCATION, DataType.HEART_RATE_BPM, DataType.SPEED, DataType.STEPS_PER_MINUTE, DataType.STEPS)
+
+        source(isMotionAllowed = true).start()
+
+        assertEquals(
+            setOf(DataType.LOCATION, DataType.HEART_RATE_BPM, DataType.SPEED, DataType.STEPS_PER_MINUTE),
+            checkNotNull(client.config).dataTypes
+        )
+    }
+
+    @Test
+    fun `분당 걸음 수가 없으면 걸음 수를, 권한이 없거나 능력을 읽지 못하면 넣지 않는다`() = runTest {
+        supports(DataType.LOCATION, DataType.STEPS)
+        source(isMotionAllowed = true).start()
+        assertEquals(
+            setOf(DataType.LOCATION, DataType.HEART_RATE_BPM, DataType.STEPS),
+            checkNotNull(client.config).dataTypes
+        )
+
+        source(isMotionAllowed = false).start()
+        assertEquals(setOf(DataType.LOCATION, DataType.HEART_RATE_BPM), checkNotNull(client.config).dataTypes)
+
+        client.capabilities = null
+        assertEquals(Outcome.Success(Unit), source(isMotionAllowed = true).start(), "능력 조회 실패에도 세션은 연다")
+        assertEquals(setOf(DataType.LOCATION, DataType.HEART_RATE_BPM), checkNotNull(client.config).dataTypes)
+    }
+
+    @Test
+    fun `속도·분당 걸음 수·걸음 수를 움직임 표본으로 바꾸고 쓸 수 없는 값은 버린다`() = runTest {
+        supports(DataType.SPEED, DataType.STEPS_PER_MINUTE)
+        val source = source(isMotionAllowed = true)
+        val motions = mutableListOf<MotionSample>()
+        backgroundScope.launch { source.motions().collect { motions += it } }
+        source.start()
+        runCurrent()
+
+        client.deliver(
+            DataPointContainer(
+                listOf(
+                    SampleDataPoint(DataType.SPEED, 3.2, Duration.ofMillis(BOOT_MILLIS + 1_000), Bundle()),
+                    SampleDataPoint(DataType.SPEED, Double.NaN, Duration.ofMillis(BOOT_MILLIS + 1_500), Bundle()),
+                    SampleDataPoint(DataType.STEPS_PER_MINUTE, 172L, Duration.ofMillis(BOOT_MILLIS + 2_000), Bundle())
+                )
+            )
+        )
+        // STEPS만 주는 기기: 0~6초 동안 18걸음 = 분당 180걸음
+        client.deliver(
+            DataPointContainer(
+                listOf(
+                    IntervalDataPoint(
+                        DataType.STEPS,
+                        0L,
+                        Duration.ofMillis(BOOT_MILLIS),
+                        Duration.ofMillis(BOOT_MILLIS),
+                        Bundle()
+                    ),
+                    IntervalDataPoint(
+                        DataType.STEPS,
+                        18L,
+                        Duration.ofMillis(BOOT_MILLIS),
+                        Duration.ofMillis(BOOT_MILLIS + 6_000),
+                        Bundle()
+                    )
+                )
+            )
+        )
+        runCurrent()
+
+        val origin = bootInstant.plusMillis(BOOT_MILLIS)
+        assertEquals(
+            listOf(
+                MotionSample(origin.plusMillis(1_000), speedMps = 3.2),
+                MotionSample(origin.plusMillis(2_000), cadenceSpm = 172.0),
+                MotionSample(origin.plusMillis(6_000), cadenceSpm = 180.0)
+            ),
+            motions
+        )
+    }
 
     @Test
     fun `달리기 운동 세션을 GPS와 위치·심박으로 연다`() = runTest {
@@ -228,6 +320,9 @@ internal class FakeExerciseClient(
     @SuppressLint("RestrictedApi")
     var trackedStatus: Int = ExerciseTrackedStatus.NO_EXERCISE_IN_PROGRESS
     var config: ExerciseConfig? = null
+
+    /** 기기 운동 능력. null이면 조회가 실패한다. */
+    var capabilities: ExerciseCapabilities? = null
     var cleared: ExerciseUpdateCallback? = null
     val events = mutableListOf<String>()
     private var callback: ExerciseUpdateCallback? = null
@@ -312,7 +407,9 @@ internal class FakeExerciseClient(
     override fun overrideBatchingModesForActiveExerciseAsync(batchingModes: Set<BatchingMode>): ListenableFuture<Void> =
         done()
 
-    override fun getCapabilitiesAsync(): ListenableFuture<ExerciseCapabilities> = error("쓰지 않는다")
+    override fun getCapabilitiesAsync(): ListenableFuture<ExerciseCapabilities> =
+        capabilities?.let { Futures.immediateFuture(it) }
+            ?: Futures.immediateFailedFuture(IllegalStateException("능력 없음"))
 
     override fun updateExerciseTypeConfigAsync(exerciseTypeConfig: ExerciseTypeConfig): ListenableFuture<Void> = done()
 
