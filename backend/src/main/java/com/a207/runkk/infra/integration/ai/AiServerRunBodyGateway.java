@@ -4,6 +4,7 @@ import com.a207.runkk.runbody.RunBodyGateway;
 import com.a207.runkk.runbody.RunBodyMonth;
 import com.a207.runkk.runbody.RunBodyRejectedException;
 import com.a207.runkk.runbody.RunBodyRequest;
+import com.a207.runkk.runbody.RunBodyScore;
 import com.a207.runkk.runbody.RunBodySession;
 import com.a207.runkk.runbody.RunBodyStatus;
 import com.a207.runkk.runbody.RunBodyUnavailableException;
@@ -20,6 +21,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -123,7 +125,7 @@ public class AiServerRunBodyGateway implements RunBodyGateway {
                 || !body.path("userId").isTextual()) {
             throw malformed();
         }
-        return RunBodySession.done(body.path("userId").asText(), reply.text());
+        return RunBodySession.done(body.path("userId").asText(), reply.text(), scoreOf(body));
     }
 
     @Override
@@ -149,6 +151,23 @@ public class AiServerRunBodyGateway implements RunBodyGateway {
             throw malformed();
         }
         return new RunBodyMonth(body.path("userId").asText(), reply.text());
+    }
+
+    /** axes 다섯 축의 score로 러닝 점수를 셈한다(G-30). score가 정수가 아니거나 0~100 밖이면 그 축을 뺀다(본문은 그대로 넘긴다). */
+    private static Integer scoreOf(JsonNode body) {
+        List<Integer> scores = new ArrayList<>();
+        body.path("axes")
+                .elements()
+                .forEachRemaining(
+                        axis -> {
+                            JsonNode score = axis.path("score");
+                            if (score.isIntegralNumber()
+                                    && score.asInt() >= RunBodyScore.MIN
+                                    && score.asInt() <= RunBodyScore.MAX) {
+                                scores.add(score.asInt());
+                            }
+                        });
+        return RunBodyScore.overall(scores);
     }
 
     private byte[] serialize(SessionIn session) {

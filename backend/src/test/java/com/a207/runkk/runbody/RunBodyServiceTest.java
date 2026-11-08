@@ -296,6 +296,103 @@ class RunBodyServiceTest {
         assertThat(jobs.rows).isEmpty();
     }
 
+    @Test
+    void g30_doneJob_keepsOverallScoreFromAiResult() {
+        when(gateway.statusOf(ID)).thenReturn(RunBodyStatus.DONE);
+        when(gateway.sessionOf(ID)).thenReturn(RunBodySession.done("42", "{}", 78));
+        saveAndSubmit();
+        clock.plus(Duration.ofSeconds(5));
+        service.pollDue();
+        assertThat(job().status()).isEqualTo(RunBodyStatus.DONE);
+        assertThat(job().score()).isEqualTo(78);
+    }
+
+    @Test
+    void g30_scoreReadFailure_keepsDone_andFirstLookupFillsScore() {
+        when(gateway.statusOf(ID)).thenReturn(RunBodyStatus.DONE);
+        when(gateway.sessionOf(ID))
+                .thenThrow(new RunBodyUnavailableException("TIMEOUT_OR_IO", false))
+                .thenReturn(RunBodySession.done("42", "{\"axes\":{}}", 81));
+        saveAndSubmit();
+        clock.plus(Duration.ofSeconds(5));
+        service.pollDue();
+        assertThat(job().status()).isEqualTo(RunBodyStatus.DONE);
+        assertThat(job().score()).isNull();
+
+        assertThat(service.sessionOf(42, ID).status()).isEqualTo(RunBodyStatus.DONE);
+        assertThat(job().score()).isEqualTo(81);
+    }
+
+    @Test
+    void g30_othersResult_isNotScored() {
+        when(gateway.statusOf(ID)).thenReturn(RunBodyStatus.DONE);
+        when(gateway.sessionOf(ID)).thenReturn(RunBodySession.done("7", "{}", 90));
+        saveAndSubmit();
+        clock.plus(Duration.ofSeconds(5));
+        service.pollDue();
+        assertThat(job().score()).isNull();
+    }
+
+    @Test
+    void g30_sessionsOf_newestFirst_withChangeAgainstPreviousScoredRun_andCursor() {
+        // 저장 순서: a(70) → b(실패) → c(76) → d(분석 중) → e(73)
+        jobs.save(doneJob("a", 0, 70));
+        jobs.save(failedJob("b", 1));
+        jobs.save(doneJob("c", 2, 76));
+        RunBodyJob d = RunBodyJob.pending("d", 42, T0.plusMinutes(3));
+        d.submitted(T0.plusMinutes(3));
+        jobs.save(d);
+        jobs.save(doneJob("e", 4, 73));
+        jobs.save(doneJob("other", 5, 99, 43));
+
+        RunBodySessionPage first = service.sessionsOf(42, null, 2);
+        assertThat(first.items())
+                .containsExactly(
+                        new RunBodySessionItem("e", RunBodyStatus.DONE, 73, -3),
+                        new RunBodySessionItem("d", RunBodyStatus.ANALYZING, null, null));
+        assertThat(first.nextCursor()).isEqualTo("d");
+
+        RunBodySessionPage second = service.sessionsOf(42, first.nextCursor(), 2);
+        assertThat(second.items())
+                .containsExactly(
+                        new RunBodySessionItem("c", RunBodyStatus.DONE, 76, 6),
+                        new RunBodySessionItem("b", RunBodyStatus.FAILED, null, null));
+        RunBodySessionPage last = service.sessionsOf(42, second.nextCursor(), 2);
+        assertThat(last.items())
+                .containsExactly(new RunBodySessionItem("a", RunBodyStatus.DONE, 70, null));
+        assertThat(last.nextCursor()).isNull();
+
+        assertThatThrownBy(() -> service.sessionsOf(43, "a", 2))
+                .as("남의 커서")
+                .isInstanceOf(NotFoundRuleException.class);
+        assertThatThrownBy(() -> service.sessionsOf(42, null, 0))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.sessionsOf(42, null, 101))
+                .isInstanceOf(IllegalArgumentException.class);
+        enable(false);
+        assertThatThrownBy(() -> service.sessionsOf(42, null, 2))
+                .extracting(e -> ((BusinessRuleException) e).reason())
+                .isEqualTo(ReasonCode.FEATURE_CLOSED);
+    }
+
+    private static RunBodyJob doneJob(String id, int minute, int score) {
+        return doneJob(id, minute, score, 42);
+    }
+
+    private static RunBodyJob doneJob(String id, int minute, int score, long member) {
+        RunBodyJob job = RunBodyJob.pending(id, member, T0.plusMinutes(minute));
+        job.submitted(T0.plusMinutes(minute));
+        job.done();
+        job.scored(score);
+        return job;
+    }
+
+    private static RunBodyJob failedJob(String id, int minute) {
+        RunBodyJob job = RunBodyJob.pending(id, 42, T0.plusMinutes(minute));
+        job.rejected();
+        return job;
+    }
+
     /** 메모리 저장소. */
     static final class MemoryJobs implements RunBodyJobRepository {
         final Map<String, RunBodyJob> rows = new HashMap<>();
@@ -320,6 +417,34 @@ class RunBodyServiceTest {
             }
             due.sort(Comparator.comparing(RunBodyJob::nextPollAt));
             return due.stream().limit(limit).map(RunBodyJob::recordId).toList();
+        }
+
+        @Override
+        public List<RunBodyJob> latestOf(long memberId, RunBodyJob after, int limit) {
+            return newestFirst(memberId).stream()
+                    .filter(j -> after == null || NEWEST_FIRST.compare(j, after) > 0)
+                    .limit(limit)
+                    .toList();
+        }
+
+        @Override
+        public Optional<Integer> previousScore(RunBodyJob before) {
+            return newestFirst(before.memberId()).stream()
+                    .filter(j -> NEWEST_FIRST.compare(j, before) > 0 && j.score() != null)
+                    .map(RunBodyJob::score)
+                    .findFirst();
+        }
+
+        private static final Comparator<RunBodyJob> NEWEST_FIRST =
+                Comparator.comparing(RunBodyJob::createdAt)
+                        .thenComparing(RunBodyJob::recordId)
+                        .reversed();
+
+        private List<RunBodyJob> newestFirst(long memberId) {
+            return rows.values().stream()
+                    .filter(j -> j.memberId() == memberId)
+                    .sorted(NEWEST_FIRST)
+                    .toList();
         }
 
         @Override

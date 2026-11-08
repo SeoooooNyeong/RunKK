@@ -31,7 +31,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 런바디 웹 계층(05-19 2.5, 앱 계약 runbody contract.md v1.0). 인증 필터·오류 응답까지 실제로 돌리고 ai 게이트웨이만 가짜다(test 프로필
+ * 런바디 웹 계층(05-19 2.5, 앱 계약 runbody contract.md v1.2). 인증 필터·오류 응답까지 실제로 돌리고 ai 게이트웨이만 가짜다(test 프로필
  * MockMvc, 다른 web 시험과 같은 방식).
  */
 @DisplayName("런바디 API")
@@ -66,9 +66,33 @@ class RunBodyControllerTest extends WebTestSupport {
         return recordId;
     }
 
+    private String jobAt(long memberId, LocalDateTime at, Consumer<RunBodyJob> state) {
+        String recordId = UUID.randomUUID().toString();
+        tx.executeWithoutResult(
+                s -> {
+                    RunBodyJob job = RunBodyJob.pending(recordId, memberId, at);
+                    state.accept(job);
+                    jobs.save(job);
+                });
+        return recordId;
+    }
+
+    private static Consumer<RunBodyJob> doneWith(int score) {
+        return j -> {
+            j.done();
+            j.scored(score);
+        };
+    }
+
     @Test
     void closedFeature_returns403FeatureClosed_onBothEndpoints() throws Exception {
         Session s = signUp();
+        mvc.perform(as(s, get("/api/v1/runbody/sessions")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FEATURE_CLOSED"));
+        mvc.perform(as(s, get("/api/v1/runbody/trend")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FEATURE_CLOSED"));
         mvc.perform(as(s, get("/api/v1/runbody/sessions/{id}", UUID.randomUUID())))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("FEATURE_CLOSED"));
@@ -193,5 +217,79 @@ class RunBodyControllerTest extends WebTestSupport {
     @Test
     void withoutToken_is401() throws Exception {
         mvc.perform(get("/api/v1/runbody/months/2026-10")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void g30_sessions_listsOwnJobsNewestFirst_withScoreAndChange_andPages() throws Exception {
+        open(true);
+        Session s = signUp();
+        Session other = signUp();
+        LocalDateTime t0 = LocalDateTime.of(2026, 11, 1, 7, 0);
+        String a = jobAt(s.memberId(), t0, doneWith(72));
+        String b = jobAt(s.memberId(), t0.plusDays(1), j -> j.submitted(t0.plusDays(1)));
+        String c = jobAt(s.memberId(), t0.plusDays(2), doneWith(78));
+        jobAt(other.memberId(), t0.plusDays(3), doneWith(99));
+
+        mvc.perform(as(s, get("/api/v1/runbody/sessions").param("size", "2")))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.items[0].recordId").value(c))
+                .andExpect(jsonPath("$.items[0].status").value("DONE"))
+                .andExpect(jsonPath("$.items[0].score").value(78))
+                .andExpect(jsonPath("$.items[0].scoreChange").value(6))
+                .andExpect(jsonPath("$.items[1].recordId").value(b))
+                .andExpect(jsonPath("$.items[1].status").value("ANALYZING"))
+                .andExpect(jsonPath("$.items[1].score").isEmpty())
+                .andExpect(jsonPath("$.nextCursor").value(b));
+        mvc.perform(as(s, get("/api/v1/runbody/sessions").param("cursor", b)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].recordId").value(a))
+                .andExpect(jsonPath("$.items[0].score").value(72))
+                .andExpect(jsonPath("$.items[0].scoreChange").isEmpty())
+                .andExpect(jsonPath("$.nextCursor").isEmpty());
+
+        mvc.perform(as(other, get("/api/v1/runbody/sessions").param("cursor", b)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("RUNBODY_NOT_FOUND"));
+        for (String bad : new String[] {"0", "101", "x"}) {
+            mvc.perform(as(s, get("/api/v1/runbody/sessions").param("size", bad)))
+                    .andExpect(status().isBadRequest());
+        }
+    }
+
+    @Test
+    void g30_firstSessionLookup_fillsScoreForList() throws Exception {
+        open(true);
+        Session s = signUp();
+        String done = job(s.memberId(), RunBodyJob::done);
+        when(gateway.sessionOf(done))
+                .thenReturn(
+                        RunBodySession.done(
+                                Long.toString(s.memberId()),
+                                RESULT.formatted(done, s.memberId()),
+                                81));
+        mvc.perform(as(s, get("/api/v1/runbody/sessions")))
+                .andExpect(jsonPath("$.items[0].score").isEmpty());
+        mvc.perform(as(s, get("/api/v1/runbody/sessions/{id}", done))).andExpect(status().isOk());
+        mvc.perform(as(s, get("/api/v1/runbody/sessions")))
+                .andExpect(jsonPath("$.items[0].score").value(81));
+    }
+
+    @Test
+    void g14_trend_withoutRuns_isRoundZero() throws Exception {
+        open(true);
+        Session s = signUp();
+        mvc.perform(as(s, get("/api/v1/runbody/trend")))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.validRunCount").value(0))
+                .andExpect(jsonPath("$.round").value(0))
+                .andExpect(jsonPath("$.needs").value(10))
+                .andExpect(jsonPath("$.recent").isEmpty())
+                .andExpect(jsonPath("$.previous").isEmpty())
+                .andExpect(jsonPath("$.sameHeartRatePaceChange").isEmpty())
+                .andExpect(jsonPath("$.runimalType").isEmpty());
     }
 }

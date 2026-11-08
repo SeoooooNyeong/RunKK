@@ -255,6 +255,19 @@ public class RunQueryService {
         return runRecordRepository.validRunsAfter(memberId, ordinal);
     }
 
+    /** 그 회원의 유효 러닝 수(런바디 요약 G-14의 회차). */
+    public int validRunCount(long memberId) {
+        return runRecordRepository.countValid(memberId);
+    }
+
+    /**
+     * 유효 러닝 순번 fromOrdinal~toOrdinal(포함)의 비교용 값, 순번 순(런바디 요약 "최근 10회 변화", G-14). 순번은 validRunsAfter와
+     * 같다.
+     */
+    public List<ValidRunStat> validRunStats(long memberId, int fromOrdinal, int toOrdinal) {
+        return runRecordRepository.validRunStats(memberId, fromOrdinal, toOrdinal);
+    }
+
     /** ownerIds 회원의 유효 기록 중 거리 ≥ d이고 경로가 남은 것(battle.GhostMatcher, A-07). */
     public List<OwnedRun> validRunsReaching(StandardDistance d, Collection<Long> ownerIds) {
         if (ownerIds.isEmpty()) {

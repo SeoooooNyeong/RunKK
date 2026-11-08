@@ -138,4 +138,18 @@ class RunBodyJobTest {
         failed.rejected();
         assertThatThrownBy(failed::done).isInstanceOf(IllegalStateException.class);
     }
+
+    @Test
+    void g30_scored_onlyWhenDone_withinRange() {
+        RunBodyJob job = analyzing();
+        assertThatThrownBy(() -> job.scored(70)).isInstanceOf(IllegalStateException.class);
+        job.done();
+        job.scored(null);
+        assertThat(job.score()).as("점수 있는 축이 없으면 남기지 않는다").isNull();
+        job.scored(78);
+        assertThat(job.score()).isEqualTo(78);
+        assertThatThrownBy(() -> job.scored(101)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> job.scored(-1)).isInstanceOf(IllegalArgumentException.class);
+        assertThat(job.score()).isEqualTo(78);
+    }
 }

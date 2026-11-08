@@ -164,6 +164,17 @@ class AiServerRunBodyGatewayContractTest {
                 assertThat(JSON.readTree(session.body()))
                         .as("ai 본문을 그대로 넘긴다(D-442)")
                         .isEqualTo(sample.path("body"));
+                double sum = 0;
+                int count = 0;
+                for (JsonNode axis : sample.path("body").path("axes")) {
+                    if (axis.path("score").isIntegralNumber()) {
+                        sum += axis.path("score").asInt();
+                        count++;
+                    }
+                }
+                assertThat(session.score())
+                        .as("러닝 점수는 점수 있는 축의 평균 반올림(G-30)")
+                        .isEqualTo((int) Math.round(sum / count));
             } else if (status == 409) {
                 assertThat(f.gateway.sessionOf(sessionId).status())
                         .isEqualTo(RunBodyStatus.ANALYZING);
@@ -278,6 +289,30 @@ class AiServerRunBodyGatewayContractTest {
                 .isInstanceOf(RunBodyUnavailableException.class);
         assertThatThrownBy(() -> f.gateway.sessionOf("run-1"))
                 .isInstanceOf(RunBodyUnavailableException.class);
+    }
+
+    @Test
+    void g30_score_skipsUnscoredAxes_andIsNullWithoutScores() {
+        Fixture f = fixture();
+        f.server
+                .expect(requestTo("http://ai:8000/sessions/run-1"))
+                .andRespond(
+                        withStatus(HttpStatusCode.valueOf(200))
+                                .body(
+                                        "{\"sessionId\":\"run-1\",\"userId\":\"42\",\"axes\":{"
+                                                + "\"intensity\":{\"score\":80},\"form\":{\"score\":null},"
+                                                + "\"fitness\":{\"score\":75}}}")
+                                .contentType(MediaType.APPLICATION_JSON));
+        f.server
+                .expect(requestTo("http://ai:8000/sessions/run-1"))
+                .andRespond(
+                        withStatus(HttpStatusCode.valueOf(200))
+                                .body(
+                                        "{\"sessionId\":\"run-1\",\"userId\":\"42\",\"axes\":{"
+                                                + "\"form\":{\"score\":null}}}")
+                                .contentType(MediaType.APPLICATION_JSON));
+        assertThat(f.gateway.sessionOf("run-1").score()).as("(80 + 75) / 2 = 77.5 → 78").isEqualTo(78);
+        assertThat(f.gateway.sessionOf("run-1").score()).isNull();
     }
 
     @Test

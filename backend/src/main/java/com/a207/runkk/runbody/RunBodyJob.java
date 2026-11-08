@@ -12,8 +12,9 @@ import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 
 /**
- * 기록 하나의 런바디 분석 작업 상태(설계 05-19 2.2·3.3, D-441·D-443). 분석 결과는 갖지 않는다(D-442). 상태 조회 간격은 5초, 10초, 20초로
- * 늘리고, 실패하면 재제출해 3회째 실패에서 FAILED로 둔다. 연결 실패는 횟수에 세지 않는다(D-450).
+ * 기록 하나의 런바디 분석 작업 상태(설계 05-19 2.2·3.3, D-441·D-443). 분석 결과 본문은 갖지 않고(D-442) 러닝 선택 목록(G-30)에
+ * 보일 러닝 점수 하나만 둔다(RunBodyScore, V42). 상태 조회 간격은 5초, 10초, 20초로 늘리고, 실패하면 재제출해 3회째 실패에서 FAILED로
+ * 둔다. 연결 실패는 횟수에 세지 않는다(D-450).
  */
 @Entity
 @Table(name = "runbody_job")
@@ -69,6 +70,10 @@ public class RunBodyJob {
 
     @Column(name = "next_poll_at", nullable = false)
     private LocalDateTime nextPollAt;
+
+    /** 러닝 점수(0~100). DONE이고 ai 결과를 읽었을 때만 있다. */
+    @Column(name = "overall_score")
+    private Integer overallScore;
 
     @Version private Long version;
 
@@ -135,6 +140,21 @@ public class RunBodyJob {
         nextPollAt = now.plus(RETRY_DELAY);
     }
 
+    /**
+     * 러닝 점수를 남긴다(G-30). DONE일 때만 받는다. 점수가 없으면(점수 있는 축 없음) 아무것도 하지 않는다. 같은 ai 결과에서 셈하므로 이미 있으면
+     * 덮어써도 같다.
+     */
+    public void scored(Integer score) {
+        requireStatus(RunBodyStatus.DONE);
+        if (score == null) {
+            return;
+        }
+        if (score < RunBodyScore.MIN || score > RunBodyScore.MAX) {
+            throw new IllegalArgumentException("러닝 점수는 0~100: " + score);
+        }
+        overallScore = score;
+    }
+
     /** ai가 받지 않는 요청(413 TOO_LARGE·422·409, 요청을 만들 수 없음). 재제출하지 않는다(D-450). */
     public void rejected() {
         if (status == RunBodyStatus.DONE) {
@@ -192,5 +212,14 @@ public class RunBodyJob {
 
     public LocalDateTime nextPollAt() {
         return nextPollAt;
+    }
+
+    public LocalDateTime createdAt() {
+        return createdAt;
+    }
+
+    /** 러닝 점수. 아직 없으면 null. */
+    public Integer score() {
+        return overallScore;
     }
 }

@@ -210,7 +210,8 @@ class ArchitectureTest {
         m.put("web.attempt", Set.of());
         m.put("web.report", Set.of("report"));
         m.put("web.admin.report", Set.of("report"));
-        m.put("web.runbody", Set.of("runbody")); // 05-19 5절 web.runbody → runbody
+        // 05-19 5절 web.runbody → runbody, + runimal(요약 G-14의 나의 러닝 유형, web.crew와 같이 RunimalQuery만)
+        m.put("web.runbody", Set.of("runbody", "runimal"));
         m.put("realtime", Set.of("battle", "crew", "crew.chat", "member")); // + crew.chat(N11)
         // 구동 (D55~D57, D65, D71~D74): batch.<응용> → 같은 이름의 패키지 하나
         for (String app :

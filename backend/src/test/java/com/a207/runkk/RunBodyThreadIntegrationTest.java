@@ -261,6 +261,16 @@ class RunBodyThreadIntegrationTest {
         makeDue(recordId);
         runBody.pollDue();
         assertThat(jobStatus(recordId)).isEqualTo("DONE");
+        assertThat(
+                        jdbc.queryForObject(
+                                "select overall_score from runbody_job where record_id = ?",
+                                Integer.class,
+                                recordId))
+                .as("V42: DONE이 되면 ai 결과의 러닝 점수(점수 있는 축 평균)를 남긴다(G-30)")
+                .isEqualTo(70);
+        assertThat(runBody.sessionsOf(m, null, 20).items())
+                .singleElement()
+                .satisfies(item -> assertThat(item.score()).isEqualTo(70));
 
         RunBodySessionView view = runBody.sessionOf(m, recordId);
         assertThat(view.status()).isEqualTo(RunBodyStatus.DONE);

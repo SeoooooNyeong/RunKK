@@ -35,6 +35,9 @@ public class RunBodyService {
     /** pollDue 한 번에 다룰 작업 수. */
     static final int POLL_BATCH = 50;
 
+    /** 러닝 선택 목록 한 쪽의 최대 줄 수(common.PageCursor.MAX_SIZE와 같다). */
+    public static final int MAX_PAGE_SIZE = 100;
+
     private static final Logger log = LoggerFactory.getLogger(RunBodyService.class);
 
     private final RunBodyJobRepository jobs;
@@ -182,6 +185,36 @@ public class RunBodyService {
         if (status == RunBodyStatus.FAILED) {
             log.warn("runbody_analysis_failed");
         }
+        if (status == RunBodyStatus.DONE) {
+            recordScore(recordId);
+        }
+    }
+
+    /**
+     * 분석이 끝난 작업에 러닝 점수를 남긴다(G-30). 결과 읽기가 실패해도 작업은 DONE 그대로이고, 점수는 결과를 처음 조회할 때(sessionOf)
+     * 채운다.
+     */
+    private void recordScore(String recordId) {
+        try {
+            storeScore(recordId, gateway.sessionOf(recordId));
+        } catch (RuntimeException error) {
+            log.warn("runbody_score_unavailable error={}", error.getClass().getSimpleName());
+        }
+    }
+
+    /** DONE 결과이고 본인 결과이며 점수가 있을 때만 남긴다. */
+    private void storeScore(String recordId, RunBodySession session) {
+        if (session.status() != RunBodyStatus.DONE || session.score() == null) {
+            return;
+        }
+        update(
+                recordId,
+                job -> {
+                    if (job.status() == RunBodyStatus.DONE
+                            && Long.toString(job.memberId()).equals(session.userId())) {
+                        job.scored(session.score());
+                    }
+                });
     }
 
     private void retryLater(RunBodyJob job, RunBodyUnavailableException unavailable) {
@@ -223,7 +256,64 @@ public class RunBodyService {
             log.error("runbody_session_owner_mismatch");
             return new RunBodySessionView(recordId, RunBodyStatus.FAILED, null);
         }
+        if (job.score() == null && session.score() != null) {
+            storeScore(recordId, session);
+        }
         return new RunBodySessionView(recordId, RunBodyStatus.DONE, session.body());
+    }
+
+    /**
+     * 러닝 선택 목록(G-30)의 분석 상태와 러닝 점수, 최신순. 점수는 작업에 남긴 값만 쓰고 ai를 부르지 않는다. 변화는 이 회원의 직전 점수 있는 러닝
+     * 대비다.
+     *
+     * @param cursor 직전 쪽의 nextCursor(첫 쪽이면 null)
+     * @param size 1~MAX_PAGE_SIZE
+     * @throws BusinessRuleException FEATURE_CLOSED(기능 닫힘)
+     * @throws NotFoundRuleException RUNBODY_NOT_FOUND(커서가 본인 작업이 아님·지워짐)
+     */
+    public RunBodySessionPage sessionsOf(long memberId, String cursor, int size) {
+        requireEnabled();
+        if (size < 1 || size > MAX_PAGE_SIZE) {
+            throw new IllegalArgumentException("쪽 크기는 1~" + MAX_PAGE_SIZE + ": " + size);
+        }
+        RunBodyJob after =
+                cursor == null
+                        ? null
+                        : read(cursor)
+                                .filter(j -> j.ownedBy(memberId))
+                                .orElseThrow(
+                                        () ->
+                                                new NotFoundRuleException(
+                                                        ReasonCode.RUNBODY_NOT_FOUND));
+        List<RunBodyJob> rows =
+                transactions.execute(tx -> jobs.latestOf(memberId, after, size + 1));
+        boolean hasMore = rows.size() > size;
+        List<RunBodyJob> page = hasMore ? rows.subList(0, size) : rows;
+        if (page.isEmpty()) {
+            return new RunBodySessionPage(List.of(), null);
+        }
+        Integer older =
+                page.stream().anyMatch(j -> j.score() != null)
+                        ? transactions
+                                .execute(tx -> jobs.previousScore(page.get(page.size() - 1)))
+                                .orElse(null)
+                        : null;
+        RunBodySessionItem[] items = new RunBodySessionItem[page.size()];
+        for (int i = page.size() - 1; i >= 0; i--) {
+            RunBodyJob job = page.get(i);
+            Integer score = job.status() == RunBodyStatus.DONE ? job.score() : null;
+            items[i] =
+                    new RunBodySessionItem(
+                            job.recordId(),
+                            job.status(),
+                            score,
+                            RunBodyScore.change(score, older));
+            if (score != null) {
+                older = score;
+            }
+        }
+        return new RunBodySessionPage(
+                List.of(items), hasMore ? page.get(page.size() - 1).recordId() : null);
     }
 
     /**

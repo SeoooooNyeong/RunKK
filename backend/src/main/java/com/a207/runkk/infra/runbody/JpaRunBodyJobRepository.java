@@ -4,6 +4,7 @@ import com.a207.runkk.runbody.RunBodyJob;
 import com.a207.runkk.runbody.RunBodyJobRepository;
 import com.a207.runkk.runbody.RunBodyStatus;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.TypedQuery;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -44,6 +45,42 @@ public class JpaRunBodyJobRepository implements RunBodyJobRepository {
                 .setParameter("now", now)
                 .setMaxResults(limit)
                 .getResultList();
+    }
+
+    @Override
+    public List<RunBodyJob> latestOf(long memberId, RunBodyJob after, int limit) {
+        String older =
+                after == null
+                        ? ""
+                        : " and (j.createdAt < :at or (j.createdAt = :at and j.recordId < :id))";
+        TypedQuery<RunBodyJob> query =
+                em.createQuery(
+                                "select j from RunBodyJob j where j.memberId = :member"
+                                        + older
+                                        + " order by j.createdAt desc, j.recordId desc",
+                                RunBodyJob.class)
+                        .setParameter("member", memberId)
+                        .setMaxResults(limit);
+        if (after != null) {
+            query.setParameter("at", after.createdAt()).setParameter("id", after.recordId());
+        }
+        return query.getResultList();
+    }
+
+    @Override
+    public Optional<Integer> previousScore(RunBodyJob before) {
+        return em.createQuery(
+                        "select j.overallScore from RunBodyJob j where j.memberId = :member and"
+                                + " j.overallScore is not null and (j.createdAt < :at or"
+                                + " (j.createdAt = :at and j.recordId < :id))"
+                                + " order by j.createdAt desc, j.recordId desc",
+                        Integer.class)
+                .setParameter("member", before.memberId())
+                .setParameter("at", before.createdAt())
+                .setParameter("id", before.recordId())
+                .setMaxResults(1)
+                .getResultStream()
+                .findFirst();
     }
 
     @Override
