@@ -6,7 +6,8 @@ import com.a207.runkk.common.TagSet;
 
 /**
  * 크루 한 곳의 정보(크루 홈·정보 수정 화면, FR-113, FR-117). 크루 밖 러너도 공개 크루면 볼 수 있는 항목(Q-45, W-16)에 열람자 역할을 더했다. 초대
- * 코드는 크루장에게만 담는다(FR-112, FR-114). 설계 5.7.1에 없던 조회라 B 단계에서 더했다(앱–서버 빈 곳).
+ * 코드는 크루원 모두에게 담는다(FR-112, 피그마 F-18b, S15P31A207-236). 재발급(FR-114)은 크루장만 한다. 설계 5.7.1에 없던 조회라 B
+ * 단계에서 더했다(앱–서버 빈 곳).
  *
  * @param crewId 크루 ID
  * @param name 크루명
@@ -21,7 +22,7 @@ import com.a207.runkk.common.TagSet;
  * @param weeklyDistance 이번 주 크루 거리
  * @param lastWeekDistance 지난 주 크루 거리(크루 상세 통계, 피그마 F-02)
  * @param myRole 열람자 역할, 크루 밖이면 null
- * @param inviteCode 초대 코드, 크루장이 아니면 null
+ * @param inviteCode 초대 코드, 크루 밖이면 null
  */
 public record CrewDetailView(
         long crewId,

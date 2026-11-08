@@ -343,7 +343,9 @@ class CrewControllerTest extends WebTestSupport {
 
         JsonNode asMember = json(call(a, get("/api/v1/crews/" + crewId), null));
         assertThat(asMember.get("myRole").asText()).isEqualTo("MEMBER");
-        assertThat(asMember.get("inviteCode").isNull()).isTrue();
+        assertThat(asMember.get("inviteCode").asText())
+                .as("크루원도 초대 코드를 본다(F-18b)")
+                .isEqualTo(mine.get("crew").get("inviteCode").asText());
         assertThat(asMember.get("leaderId").asLong()).isEqualTo(leader.memberId());
         assertThat(asMember.get("leaderName").asText()).isNotBlank();
         JsonNode asOutsider = json(call(outsider, get("/api/v1/crews/" + crewId), null));

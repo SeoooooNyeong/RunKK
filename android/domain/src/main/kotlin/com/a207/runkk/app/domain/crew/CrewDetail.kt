@@ -6,7 +6,8 @@ import java.time.Instant
 import java.time.LocalDate
 
 /**
- * 크루 한 곳(서버 crew.CrewDetailView). [myRole]은 크루 밖이면 null이고, [inviteCode]·[inviteCodeExpiresAt]은 크루장에게만 온다.
+ * 크루 한 곳(서버 crew.CrewDetailView). [myRole]은 크루 밖이면 null이고, [inviteCode]·[inviteCodeExpiresAt]은 크루원 모두에게 온다
+ * (피그마 F-18b). 재발급은 크루장만 한다.
  */
 data class CrewDetail(
     val crewId: Long,

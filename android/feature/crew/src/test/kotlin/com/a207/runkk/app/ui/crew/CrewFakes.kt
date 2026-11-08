@@ -403,7 +403,7 @@ fun crewDetail(crewId: Long = 11, role: CrewRole? = CrewRole.MEMBER) = CrewDetai
     headcount = 6,
     weeklyDistance = Distance(42_300),
     myRole = role,
-    inviteCode = if (role == CrewRole.LEADER) "K7P2QX" else null,
+    inviteCode = if (role != null) "K7P2QX" else null,
     inviteCodeExpiresAt = null
 )
 

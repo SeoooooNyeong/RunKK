@@ -863,8 +863,8 @@ final class CrewDtos {
      * @param weeklyDistanceMeters 이번 주 크루 거리
      * @param lastWeekDistanceMeters 지난 주 크루 거리(크루 상세 통계, 피그마 F-02)
      * @param myRole LEADER | MANAGER | MEMBER, 크루 밖이면 null
-     * @param inviteCode 초대 코드(크루장만)
-     * @param inviteCodeExpiresAt 초대 코드 만료 일시(크루장만)
+     * @param inviteCode 초대 코드(크루원이면, 크루 밖이면 null)
+     * @param inviteCodeExpiresAt 초대 코드 만료 일시(크루원이면)
      */
     record CrewDetailResponse(
             long crewId,

@@ -13,6 +13,7 @@ import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.ServerClock
 import com.a207.runkk.app.core.navigation.Routes
+import com.a207.runkk.app.domain.crew.CrewRole
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -149,7 +150,6 @@ class CrewFigmaTest {
         compose.onNodeWithText("평일 저녁").assertExists()
         compose.onNodeWithText("이번 주 달린 거리").assertExists()
         compose.onNodeWithText("64.27km").assertExists()
-        compose.onNodeWithText("초대 코드").assertDoesNotExist()
         compose.onNodeWithText("탈퇴하기").performClick()
         compose.onNodeWithContentDescription("뒤로", substring = true).performClick()
         assertEquals(listOf("leave", "page:HOME"), calls)
@@ -164,5 +164,45 @@ class CrewFigmaTest {
         vm.onPage(CrewHomePage.MEMBERS)
         assertEquals(CrewHomePage.MEMBERS, vm.state.value.page)
         assertTrue("members" in repo.calls)
+    }
+
+    @Test
+    fun `크루원도 크루 정보에서 초대 코드 팝업을 열고 복사한다(F-18b)`() {
+        var state by mutableStateOf(
+            CrewHomeUiState(crewId = 11, detail = crewDetail(role = CrewRole.MEMBER), page = CrewHomePage.INFO)
+        )
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                CrewHomeScreen(
+                    state,
+                    CrewHomeActions(
+                        onInviteOpen = { state = state.copy(isInviteOpen = true) },
+                        onInviteCopied = {
+                            calls += "copied"
+                            state = state.copy(isInviteOpen = false)
+                        }
+                    )
+                )
+            }
+        }
+        compose.onNodeWithText("초대 코드").performClick()
+        compose.onNodeWithText("K 7 P 2 Q X").assertExists()
+        compose.onNodeWithText("복사").performClick()
+        compose.waitForIdle()
+        assertEquals(listOf("copied"), calls)
+    }
+
+    @Test
+    fun `크루 밖이면 초대 코드 단추가 없다`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                CrewHomeScreen(
+                    CrewHomeUiState(crewId = 11, detail = crewDetail(role = null), page = CrewHomePage.INFO),
+                    CrewHomeActions()
+                )
+            }
+        }
+        compose.onNodeWithText("탈퇴하기").assertExists()
+        compose.onNodeWithText("초대 코드").assertDoesNotExist()
     }
 }

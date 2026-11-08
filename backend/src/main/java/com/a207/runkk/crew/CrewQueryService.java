@@ -219,7 +219,7 @@ public class CrewQueryService {
                 crewRepository.weeklyDistance(crew.getId(), thisWeek()),
                 crewRepository.weeklyDistance(crew.getId(), thisWeek().previous()),
                 role,
-                role == CrewRole.LEADER ? crew.inviteCode() : null);
+                role == null ? null : crew.inviteCode());
     }
 
     private Optional<Long> ownCrewId(long memberId) {
