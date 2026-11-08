@@ -271,12 +271,10 @@ internal fun routeOf(tab: RunkkTab): String = when (tab) {
 }
 
 /** [scope]에서 닫힌 기능의 경로([BetaLock])는 등록된 화면 대신 잠긴 기능 안내를 띄우고 뒤로 돌린다(우회 진입 방어, D-251). */
-private fun withBetaLock(
-    entries: (NavKey) -> NavEntry<NavKey>,
-    scope: ReleaseScope
-): (NavKey) -> NavEntry<NavKey> = { key ->
-    if (BetaLock.isLocked(key, scope)) NavEntry(key) { LockedRouteScreen() } else entries(key)
-}
+private fun withBetaLock(entries: (NavKey) -> NavEntry<NavKey>, scope: ReleaseScope): (NavKey) -> NavEntry<NavKey> =
+    { key ->
+        if (BetaLock.isLocked(key, scope)) NavEntry(key) { LockedRouteScreen() } else entries(key)
+    }
 
 /** 잠긴 경로 자리: 빈 바탕 위 잠긴 기능 안내. 닫으면 한 화면 뒤로. */
 @Composable
