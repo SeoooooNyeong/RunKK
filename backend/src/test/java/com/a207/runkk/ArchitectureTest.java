@@ -207,8 +207,9 @@ class ArchitectureTest {
         m.put("web.attempt", Set.of());
         m.put("web.report", Set.of("report"));
         m.put("web.admin.report", Set.of("report"));
-        // 핫픽스 v0.11.4 이벤트(S15P31A207-275): 응모 계산(battle, running), 코치 승리 포인트(reward), 관리 감사(audit)
-        m.put("event", Set.of("battle", "running", "reward", "audit"));
+        // 핫픽스 v0.11.4 이벤트(S15P31A207-275): 응모 계산(battle, running), 코치 승리 포인트(reward), 관리 감사(audit),
+        // 응모자 명단 닉네임(member)
+        m.put("event", Set.of("battle", "running", "reward", "audit", "member"));
         m.put("web.event", Set.of("event"));
         m.put("web.admin.event", Set.of("event"));
         m.put("realtime", Set.of("battle", "crew", "crew.chat", "member")); // + crew.chat(N11)

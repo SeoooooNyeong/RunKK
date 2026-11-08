@@ -68,6 +68,13 @@ public interface BattleRepository {
     Map<Long, LocalDateTime> findFirstCelebrityWins(
             long memberId, Collection<Long> celebrityIds, LocalDateTime from, LocalDateTime to);
 
+    /**
+     * 회원이 이긴 FINISHED 셀럽 대결 중 상대 유명인 기록 ID가 celebrityIds에 있고 판정 시각이 [from, to]인 것을 (회원, 기록)마다 첫 판정
+     * 시각으로 묶는다. 회원 ID, 기록 ID 순(event 이벤트 응모자 명단, S15P31A207-275). 빈 ids면 빈 목록.
+     */
+    List<CelebrityWin> findCelebrityWinners(
+            Collection<Long> celebrityIds, LocalDateTime from, LocalDateTime to);
+
     /** 이번 주 전적(FR-093 주간 전적). */
     WeeklyRecord weeklyRecord(long memberId, Week week);
 }

@@ -69,6 +69,28 @@ public class BattleHistoryService {
                 .toList();
     }
 
+    /**
+     * 셀럽 기록 celebrityIds 가운데 하나를 [from, to] 안에 이긴 회원과 기록마다의 첫 판정 시각(회원 ID, 기록 ID 순, event 이벤트 응모자
+     * 명단, S15P31A207-275). 한 회원이 여러 기록을 이겼으면 기록마다 한 줄이다.
+     */
+    @Transactional(readOnly = true)
+    public List<CelebrityWin> celebrityWinners(
+            List<Long> celebrityIds, LocalDateTime from, LocalDateTime to) {
+        return battleRepository.findCelebrityWinners(celebrityIds, from, to);
+    }
+
+    /** 셀럽 기록 ID별 표시명(가림 이름 열). 지워진 기록은 빠진다(event 이벤트 응모자 명단, S15P31A207-275). */
+    @Transactional(readOnly = true)
+    public Map<Long, String> celebrityNames(List<Long> celebrityIds) {
+        Map<Long, String> names = new HashMap<>();
+        for (Long id : celebrityIds) {
+            celebrityRecordRepository
+                    .findById(id)
+                    .ifPresent(r -> names.put(id, r.getAnonymousName()));
+        }
+        return names;
+    }
+
     /** 통계는 기간 전체로, 목록은 page만큼(B3 리뷰: 이력 페이지 나누기). */
     @Transactional(readOnly = true)
     public BattleHistoryView history(

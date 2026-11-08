@@ -245,6 +245,40 @@ public final class InMemoryBattleStores {
         }
 
         @Override
+        public List<CelebrityWin> findCelebrityWinners(
+                Collection<Long> celebrityIds, LocalDateTime from, LocalDateTime to) {
+            Map<List<Long>, LocalDateTime> wins =
+                    new java.util.TreeMap<>(
+                            java.util.Comparator.<List<Long>>comparingLong(k -> k.get(0))
+                                    .thenComparingLong(k -> k.get(1)));
+            for (Battle b :
+                    where(
+                            b ->
+                                    b.getStatus() == BattleStatus.FINISHED
+                                            && b.getType() == BattleType.CELEBRITY)) {
+                b.getJudgement()
+                        .filter(j -> j.winner() instanceof Side.MemberSide)
+                        .filter(j -> !j.at().isBefore(from) && !j.at().isAfter(to))
+                        .ifPresent(
+                                j -> {
+                                    long id =
+                                            Long.parseLong(
+                                                    b.getOpponent().orElseThrow().recordId());
+                                    long member = ((Side.MemberSide) j.winner()).memberId();
+                                    if (celebrityIds.contains(id)) {
+                                        wins.merge(
+                                                List.of(member, id),
+                                                j.at(),
+                                                (a, c) -> a.isBefore(c) ? a : c);
+                                    }
+                                });
+            }
+            return wins.entrySet().stream()
+                    .map(e -> new CelebrityWin(e.getKey().get(0), e.getKey().get(1), e.getValue()))
+                    .toList();
+        }
+
+        @Override
         public WeeklyRecord weeklyRecord(long memberId, Week week) {
             int[] counts = new int[Verdict.values().length];
             where(b -> b.getStatus() == BattleStatus.FINISHED && week.contains(b.getCreatedAt()))

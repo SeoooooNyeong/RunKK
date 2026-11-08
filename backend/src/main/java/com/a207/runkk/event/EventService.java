@@ -30,7 +30,7 @@ public class EventService {
 
     static final String AUDIT_TARGET_PREFIX = "EVENT:";
     private static final String CELEBRITY_KEY_PREFIX = "celebrity-";
-    private static final String RUN_KEY_PREFIX = "run-";
+    static final String RUN_KEY_PREFIX = "run-";
     private static final BigDecimal METERS_PER_KM = BigDecimal.valueOf(1_000);
 
     private final EventRepository eventRepository;
@@ -129,7 +129,7 @@ public class EventService {
     }
 
     /** 1000 → "1km", 1500 → "1.5km". */
-    private static String distanceLabel(long meters) {
+    static String distanceLabel(long meters) {
         return BigDecimal.valueOf(meters).divide(METERS_PER_KM).stripTrailingZeros().toPlainString()
                 + "km";
     }

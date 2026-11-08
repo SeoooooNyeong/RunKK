@@ -1,6 +1,9 @@
 package com.a207.runkk.web.admin.event;
 
+import com.a207.runkk.common.PageCursor;
 import com.a207.runkk.event.EventAdminView;
+import com.a207.runkk.event.EventEntrantService;
+import com.a207.runkk.event.EventEntrants;
 import com.a207.runkk.event.EventInput;
 import com.a207.runkk.event.EventKind;
 import com.a207.runkk.event.EventService;
@@ -20,13 +23,15 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 이벤트 관리(S15P31A207-275): 목록(비공개 포함), 생성, 수정, 공개 전환 → EventService. 운영자는 web.admin의
- * OperatorCheckInterceptor가 확인해 요청 속성 actorId로 붙인 계정이고 operator, web.admin을 import하지 않는다(D-50). 설정이
- * 종류에 맞지 않거나 기간이 거꾸로이거나 slug가 겹치면 409 VALUE_INVALID, 없는 이벤트는 404 EVENT_NOT_FOUND.
+ * 이벤트 관리(S15P31A207-275): 목록(비공개 포함), 생성, 수정, 공개 전환 → EventService, 응모자 명단 → EventEntrantService.
+ * 운영자는 web.admin의 OperatorCheckInterceptor가 확인해 요청 속성 actorId로 붙인 계정이고 operator, web.admin을
+ * import하지 않는다(D-50). 설정이 종류에 맞지 않거나 기간이 거꾸로이거나 slug가 겹치면 409 VALUE_INVALID, 없는 이벤트는 404
+ * EVENT_NOT_FOUND.
  */
 @RestController
 @RequestMapping("/api/v1/admin/events")
@@ -40,10 +45,15 @@ public class EventAdminController {
      */
     private static final String URL = "^/(?!/)[^\\s\\\\]*$";
 
-    private final EventService eventService;
+    /** 응모자 명단의 size를 주지 않았을 때의 쪽 크기. 상한은 PageCursor.MAX_SIZE(100). */
+    static final int DEFAULT_SIZE = 30;
 
-    public EventAdminController(EventService eventService) {
+    private final EventService eventService;
+    private final EventEntrantService entrantService;
+
+    public EventAdminController(EventService eventService, EventEntrantService entrantService) {
         this.eventService = eventService;
+        this.entrantService = entrantService;
     }
 
     @GetMapping
@@ -72,6 +82,22 @@ public class EventAdminController {
             @PathVariable long id,
             @Valid @RequestBody PublishedRequest request) {
         return eventService.changePublished(actorId, id, request.published());
+    }
+
+    /**
+     * 응모자 명단(추첨용, 2026-11-08 사용자 결정). 응모 조건을 만족한 ACTIVE 회원의 회원 ID, 닉네임, 응모 항목을 회원 ID 내림차순 커서 쪽으로
+     * 준다. celebrityId는 COACH_CELEB에서 그 셀럽 기록을 이긴 회원만 거른다. size가 없으면 30개, 1~100 밖이거나 거를 수 없는
+     * celebrityId면 400, 없는 이벤트는 404 EVENT_NOT_FOUND.
+     */
+    @GetMapping("/{id}/entrants")
+    EventEntrants entrants(
+            @RequestAttribute(ACTOR_ID) String actorId,
+            @PathVariable long id,
+            @RequestParam(value = "celebrityId", required = false) Long celebrityId,
+            @RequestParam(value = "cursor", required = false) Long cursor,
+            @RequestParam(value = "size", required = false) Integer size) {
+        return entrantService.entrants(
+                id, celebrityId, new PageCursor(cursor, size == null ? DEFAULT_SIZE : size));
     }
 
     /**

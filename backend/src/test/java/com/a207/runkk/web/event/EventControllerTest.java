@@ -286,6 +286,87 @@ class EventControllerTest extends WebTestSupport {
                 .isEqualTo(1);
     }
 
+    @Test
+    @DisplayName("응모자 명단: 이긴 회원만 회원 ID 내림차순, 셀럽별로 거르기, 탈퇴 회원 제외, 커서 쪽, 운영자 전용")
+    void entrants_listsWinnersForDraw() throws Exception {
+        String bearer = operatorBearer();
+        String slug = "draw-" + UUID.randomUUID().toString().substring(0, 8);
+        long celebrityA = 8_000 + (long) (Math.random() * 900);
+        long celebrityB = celebrityA + 1;
+        long eventId =
+                create(
+                        bearer,
+                        event(
+                                slug,
+                                Map.of(
+                                        "celebrityIds",
+                                        List.of(celebrityA, celebrityB),
+                                        "pointPerWin",
+                                        0),
+                                true));
+        LocalDateTime at = LocalDateTime.now().minusMinutes(5).truncatedTo(ChronoUnit.SECONDS);
+        Session one = signUp();
+        Session both = signUp();
+        Session gone = signUp();
+        signUp(); // 이기지 못한 회원은 명단에 없다
+        finishedCelebrityWin(one.memberId(), celebrityA, at);
+        finishedCelebrityWin(both.memberId(), celebrityA, at.minusMinutes(1));
+        finishedCelebrityWin(both.memberId(), celebrityA, at);
+        finishedCelebrityWin(both.memberId(), celebrityB, at);
+        finishedCelebrityWin(gone.memberId(), celebrityB, at);
+        jdbc.update(
+                "update member set status = 'WITHDRAWN', withdrawn_at = now(), nickname = null,"
+                    + " provider = null, provider_account_id = null, guest_credential_hash = null"
+                    + " where id = ?",
+                gone.memberId());
+        String path = "/api/v1/admin/events/" + eventId + "/entrants";
+
+        JsonNode all =
+                body(
+                        mvc.perform(get(path).header("Authorization", bearer))
+                                .andExpect(status().isOk())
+                                .andReturn()
+                                .getResponse()
+                                .getContentAsString());
+        assertThat(all.get("total").asInt()).isEqualTo(2);
+        assertThat(all.get("slug").asText()).isEqualTo(slug);
+        JsonNode first = all.get("entrants").get(0);
+        assertThat(first.get("memberId").asLong()).isEqualTo(both.memberId());
+        assertThat(first.get("nickname").asText()).isNotBlank();
+        assertThat(first.get("entryCount").asInt()).isEqualTo(2);
+        assertThat(first.get("items").get(0).get("doneAt").asText())
+                .isEqualTo(at.minusMinutes(1).toString());
+        assertThat(all.get("entrants").get(1).get("memberId").asLong()).isEqualTo(one.memberId());
+        assertThat(all.get("entrants").get(1).get("entryCount").asInt()).isEqualTo(1);
+        assertThat(all.get("nextCursor").isNull()).isTrue();
+
+        mvc.perform(
+                        get(path)
+                                .param("celebrityId", String.valueOf(celebrityB))
+                                .header("Authorization", bearer))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total").value(1))
+                .andExpect(jsonPath("$.entrants[0].memberId").value(both.memberId()));
+        mvc.perform(get(path).param("size", "1").header("Authorization", bearer))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.entrants.length()").value(1))
+                .andExpect(jsonPath("$.nextCursor").value(both.memberId()));
+        mvc.perform(
+                        get(path)
+                                .param("size", "1")
+                                .param("cursor", String.valueOf(both.memberId()))
+                                .header("Authorization", bearer))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.entrants[0].memberId").value(one.memberId()));
+        mvc.perform(get(path).param("celebrityId", "1").header("Authorization", bearer))
+                .andExpect(status().isBadRequest());
+        mvc.perform(get("/api/v1/admin/events/999999999/entrants").header("Authorization", bearer))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("EVENT_NOT_FOUND"));
+        mvc.perform(get(path).header("Authorization", one.bearer()))
+                .andExpect(status().isForbidden());
+    }
+
     /** 회원이 이긴 끝난 셀럽 대결 한 건(판정 결과 칼럼만 채운다). */
     private long finishedCelebrityWin(long memberId, long celebrityId, LocalDateTime judgedAt) {
         jdbc.update(
