@@ -46,6 +46,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.currentCoroutineContext
@@ -56,6 +57,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
@@ -331,7 +333,7 @@ constructor(
      * 매칭 대기 중 화면이 사라질 때(시스템 제스처·탭 이동으로 ViewModel이 지워질 때) 서버 대기열에서 뺀다(FR-085).
      * 화면 범위는 이미 취소됐으므로 applicationScope에서 보낸다. 요청이 아직 서버에 가 있으면 끝난 뒤에 보내고(취소가 먼저 도착해
      * 대기열에 남지 않게), 요청이 받아들여지지 않았으면 보내지 않는다. 네트워크 실패는 1·2초 뒤 두 번 더 보내고, 거부(이미 성사·
-     * 대기 없음)는 다시 보내지 않는다.
+     * 대기 없음)는 다시 보내지 않는다. 이미 짝지어져(ALREADY_MATCHED) 거부되면 그 대결에 그만두기를 보낸다([forfeitMatched]).
      */
     fun abandonMatching() {
         val pending = requestJob
@@ -346,6 +348,34 @@ constructor(
                 result = battleRepository.cancel()
                 attempt++
             }
+            val isMatched = result is Outcome.Failure && result.error == AppError.Rejected(ALREADY_MATCHED)
+            // 새 매칭 요청(requestMatch)이 이 작업을 멈추고 기다릴 때도 그만두기는 끝까지 보낸다. 남은 대결이 새 요청을 막지 않게 한다.
+            if (isMatched) withContext(NonCancellable) { forfeitMatched() }
+        }
+    }
+
+    /**
+     * 떠난 매칭이 서버에서 이미 짝지어졌다(S15P31A207-278). 이 기기는 성사 화면을 보지 못했으므로 진행 중인 대결을 찾아 그만두기를
+     * 보낸다. 출발 전이라 서버는 승패 없이 대결을 취소하고 상대에게 OPPONENT_FORFEITED를 보낸다. 서버가 짝을 잡고 대결을 만드는 사이에는
+     * 대결이 아직 없을 수 있어 1·2초 뒤 두 번 더 찾는다. 매칭으로 생길 수 있는 대결(랜덤·고스트)만 끝내고, 이 프로세스가 맡은
+     * 대결(성사 화면으로 넘어간 회)이면 보내지 않는다. 그만두기의 네트워크 실패는 1·2초 뒤 두 번 더 보낸다.
+     */
+    private suspend fun forfeitMatched() {
+        var attempt = 1
+        var active = battleRepository.active()
+        while ((active as? Outcome.Success)?.value == null && attempt < CANCEL_ATTEMPTS) {
+            delay(CANCEL_RETRY_MILLIS * attempt)
+            active = battleRepository.active()
+            attempt++
+        }
+        val battle = (active as? Outcome.Success)?.value ?: return
+        if (battle.type !in MATCHED_TYPES || isRunning(battle.battleId)) return
+        attempt = 1
+        var result = battleRepository.forfeit(battle.battleId)
+        while (result is Outcome.Failure && result.error !is AppError.Rejected && attempt < CANCEL_ATTEMPTS) {
+            delay(CANCEL_RETRY_MILLIS * attempt)
+            result = battleRepository.forfeit(battle.battleId)
+            attempt++
         }
     }
 
@@ -726,5 +756,11 @@ constructor(
         const val OFFLINE_BATTLE_ID = 0L
         const val CANCEL_ATTEMPTS = 3
         const val CANCEL_RETRY_MILLIS = 1_000L
+
+        /** 대기열 취소 거부 사유: 서버가 이미 짝을 지었다(FR-085). */
+        const val ALREADY_MATCHED = "ALREADY_MATCHED"
+
+        /** 랜덤 매칭으로 생기는 대결 종류(상대가 없으면 고스트). */
+        val MATCHED_TYPES = setOf(BattleHistory.Type.RANDOM, BattleHistory.Type.GHOST)
     }
 }

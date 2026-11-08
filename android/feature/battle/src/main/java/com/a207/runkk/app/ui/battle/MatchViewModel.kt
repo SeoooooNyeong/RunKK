@@ -55,6 +55,7 @@ import kotlinx.coroutines.withTimeoutOrNull
  * 거부·연결 끊김·끝난 초대는 [MatchUiState.notice] 안내를 띄우고 확인하면 이전 화면으로 간다.
  * 성사 뒤 출발 시각 15초가 지나도(출발 시각을 모르면 성사 30초 뒤) 측정이 시작되지 않으면 그만두기를 보인다(배틀 QA 2번).
  * 화면을 떠나면(ViewModel이 지워지면) ticket.abandon이 서버를 정리한다. 카카오톡 공유로 앱이 잠시 뒤로 가는 것은 떠남이 아니다(D-271).
+ * 랜덤 매칭은 성사 화면 전에 앱이 뒤로 가면 대기를 접고 홈으로 간다([onBackgrounded], S15P31A207-278).
  */
 @HiltViewModel
 class MatchViewModel @Inject constructor(
@@ -86,6 +87,13 @@ class MatchViewModel @Inject constructor(
     private var navigated = false
     private var forfeiting = false
     private var startAt: Instant? = null
+    private var cancelJob: Job? = null
+
+    /** 랜덤 매칭이 대기 상태를 읽고 대기를 열기 전이다(티켓이 아직 없다). */
+    private var isOpeningQuick = false
+
+    /** 앱이 뒤로 가 대기를 접었다. 그 뒤에는 대기를 다시 열지 않는다. */
+    private var isLeft = false
 
     /**
      * 본인 요약(랜덤 매칭·친구 초대 시작 때 한 번 읽는다, D-331). 닉네임은 초대 공유 제목에, 티어는 성사 화면 "나"의 티어 칩(R2-10)에 쓴다.
@@ -114,8 +122,11 @@ class MatchViewModel @Inject constructor(
             showNotice(UiText.Res(R.string.battle_error_distance_invalid))
             return
         }
+        isOpeningQuick = true
         viewModelScope.launch {
             val status = (battles.matchStatus() as? Outcome.Success)?.value
+            isOpeningQuick = false
+            if (isLeft) return@launch
             val isWaiting = status?.isWaiting == true
             val resumed = status?.distance?.takeIf { isWaiting }
             if (resumed != null) _state.update { it.copy(distance = resumed) }
@@ -285,6 +296,23 @@ class MatchViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 앱이 뒤로 갔다(홈 버튼, 화면 끄기. 화면 회전 같은 구성 변경은 화면이 거른다, S15P31A207-278). 랜덤 매칭이 성사 화면 전(요청 중,
+     * 대기 중, 취소 중)이면 대기를 접고 홈으로 간다. 뒤에서 성사되면 사용자는 성사를 보지 못하고 측정 시작도 백그라운드 제한으로 거부되기
+     * 때문이다. 서버 정리는 조정자가 applicationScope에서 한다(대기열 취소, 이미 짝지어졌으면 그 대결에 그만두기). 친구 초대는 카카오톡
+     * 공유로 앱이 뒤로 가므로 떠남이 아니다(D-271). 성사 뒤에는 기존 흐름을 따른다.
+     */
+    fun onBackgrounded() {
+        if (handedOver || isLeft || _state.value.phase !in LEAVE_ON_BACKGROUND) return
+        val current = ticket
+        if (current !is RandomTicket && !(current == null && isOpeningQuick)) return
+        isLeft = true
+        cancelJob?.cancel()
+        current?.abandon()
+        stopWaiting()
+        _events.trySend(MatchEvent.Home)
+    }
+
     /** 성사 뒤 측정이 늦어져 보인 그만두기(배틀 QA 2번). 포기를 보내고 이 회를 닫으면 이전 화면으로 돌아간다. */
     fun onForfeit() {
         if (!_state.value.canForfeit) return
@@ -310,7 +338,7 @@ class MatchViewModel @Inject constructor(
 
     private fun cancelQueue() {
         _state.update { it.copy(phase = MatchPhase.CANCELLING) }
-        viewModelScope.launch {
+        cancelJob = viewModelScope.launch {
             when (val cancelled = battles.cancel()) {
                 // 기다리는 사이 성사됐으면(MATCHED) 취소 응답을 무시한다.
                 is Outcome.Success -> if (_state.value.phase == MatchPhase.CANCELLING) {
@@ -743,6 +771,9 @@ class MatchViewModel @Inject constructor(
 
         /** 대기 시간을 세는 단계. */
         val TICKING = setOf(MatchPhase.WAITING, MatchPhase.INVITING)
+
+        /** 랜덤 매칭에서 앱이 뒤로 가면 대기를 접는 단계(성사 화면 전, S15P31A207-278). */
+        val LEAVE_ON_BACKGROUND = setOf(MatchPhase.REQUESTING, MatchPhase.WAITING, MatchPhase.CANCELLING)
 
         /** 서버에 대기가 열렸거나 열리는 중인 단계(떠나면 정리한다). */
         val OPEN = setOf(MatchPhase.REQUESTING, MatchPhase.WAITING, MatchPhase.INVITING, MatchPhase.CANCELLING)
