@@ -154,6 +154,23 @@ class RunBodyScreensTest {
     }
 
     @Test
+    fun `ai 일시 장애면 실패 대신 잠시 후 다시 시도와 다시 시도 단추를 보인다(MR !91 e2e 5)`() {
+        var retried = 0
+        compose.setContent {
+            RunkkTheme {
+                RunBodyScreen(
+                    runState(RunBodySessionState.Unavailable),
+                    RunBodyActions(onRetrySession = { retried++ })
+                )
+            }
+        }
+        compose.onNodeWithText("분석하지 못했어요").assertDoesNotExist()
+        compose.onNodeWithText("잠시 후 다시 시도해 주세요").assertExists()
+        compose.onNodeWithText("다시 시도").performScrollTo().performClick()
+        assertEquals(1, retried)
+    }
+
+    @Test
     fun `대기 중이면 날짜와 때, 거리로 러닝을 알린다(G-17)`() {
         compose.setContent { RunkkTheme { RunBodyScreen(runState(RunBodySessionState.Pending), RunBodyActions()) } }
         compose.onNodeWithText("분석을 준비하고 있어요").assertExists()

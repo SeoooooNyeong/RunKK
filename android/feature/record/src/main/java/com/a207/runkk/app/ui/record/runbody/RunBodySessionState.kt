@@ -18,6 +18,9 @@ sealed interface RunBodySessionState {
     /** 분석 실패이거나 상태를 읽지 못했다(G-19). "상태 다시 확인"으로 다시 읽는다. */
     data object Failed : RunBodySessionState
 
+    /** ai 일시 장애(503 RUNBODY_UNAVAILABLE)나 연결 실패라 지금은 결과를 읽지 못했다. "다시 시도"로 다시 읽는다(MR !91 e2e 5). */
+    data object Unavailable : RunBodySessionState
+
     data object NotAnalyzable : RunBodySessionState
 
     /** 출생연도가 없어 분석하지 못했다. 입력 안내와 프로필 편집 단추를 보이고, 돌아오면 다시 읽는다(MR !91 e2e 1). */

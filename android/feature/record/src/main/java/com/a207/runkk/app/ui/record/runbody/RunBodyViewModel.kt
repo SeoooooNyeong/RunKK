@@ -245,15 +245,24 @@ class RunBodyViewModel internal constructor(
 
         is Outcome.Failure -> {
             val error = result.error
-            if (error is AppError.Rejected && error.code == RunBodyRepository.NOT_FOUND) {
-                RunBodySessionState.NotAnalyzable
-            } else {
-                RunBodySessionState.Failed
+            when {
+                error is AppError.Rejected && error.code == RunBodyRepository.NOT_FOUND ->
+                    RunBodySessionState.NotAnalyzable
+
+                error.isTemporary() -> RunBodySessionState.Unavailable
+
+                else -> RunBodySessionState.Failed
             }
         }
     }
 
+    /** ai 일시 장애(서버 503 RUNBODY_UNAVAILABLE)나 연결 실패: 분석 실패가 아니라 잠시 뒤 다시 읽으면 된다(MR !91 e2e 5). */
+    private fun AppError.isTemporary(): Boolean =
+        this == AppError.Network || (this is AppError.Server && status == UNAVAILABLE_STATUS)
+
     companion object {
+        private const val UNAVAILABLE_STATUS = 503
+
         /** 러닝 선택 목록의 기간(기록 목록 탭과 같은 90일). */
         const val RECENT_DAYS = 90L
 

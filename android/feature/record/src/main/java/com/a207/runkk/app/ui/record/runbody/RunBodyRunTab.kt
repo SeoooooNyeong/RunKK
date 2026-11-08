@@ -129,6 +129,18 @@ private fun SessionSection(session: RunBodySessionState, run: RunSummary, zone: 
             )
         }
 
+        RunBodySessionState.Unavailable -> RunBodyCard(
+            stringResource(R.string.record_runbody_unavailable_title),
+            titleSize = 16
+        ) {
+            RunBodyCaption(stringResource(R.string.record_runbody_unavailable_message))
+            RunkkPrimaryButton(
+                stringResource(R.string.record_runbody_unavailable_retry),
+                onClick = actions.onRetrySession,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+
         RunBodySessionState.NotAnalyzable -> EmptyProfile(onOpenDetail = null)
 
         RunBodySessionState.NeedsBirthYear -> RunBodyCard(

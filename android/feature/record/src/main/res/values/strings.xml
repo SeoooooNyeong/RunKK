@@ -257,6 +257,9 @@
 현재 분석 상태를 다시 확인할 수 있어요.</string>
     <string name="record_runbody_failed_retry">상태 다시 확인</string>
     <string name="record_runbody_recheck">다시 확인</string>
+    <string name="record_runbody_unavailable_title">잠시 후 다시 시도해 주세요</string>
+    <string name="record_runbody_unavailable_message">지금은 분석 결과를 불러오지 못했어요. 러닝 기록과 분석은 그대로 있어요.</string>
+    <string name="record_runbody_unavailable_retry">다시 시도</string>
     <string name="record_runbody_birth_year_title">출생연도를 입력하면 분석할 수 있어요</string>
     <string name="record_runbody_birth_year_message">런바디는 나이에 맞춰 심박을 봐요. 프로필에 출생연도를 넣으면 분석하지 못한 러닝을 다시 분석해요.</string>
     <string name="record_runbody_birth_year_edit">프로필 편집</string>

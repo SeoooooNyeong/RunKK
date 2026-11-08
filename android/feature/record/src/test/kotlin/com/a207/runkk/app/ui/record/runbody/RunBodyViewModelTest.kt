@@ -128,17 +128,23 @@ class RunBodyViewModelTest {
     }
 
     @Test
-    fun `실패와 읽기 오류는 분석하지 못했어요, 상태 다시 확인으로 다시 읽는다(G-19)`() {
+    fun `분석 실패는 분석하지 못했어요, ai 일시 장애(503)와 연결 실패는 잠시 후 다시 시도로 구분한다(G-19, MR !91 e2e 5)`() {
         runBody.reply(
             "r3",
             waiting("r3", RunBodyStatus.FAILED),
             Outcome.Failure(AppError.Server(503)),
+            Outcome.Failure(AppError.Network),
+            Outcome.Failure(AppError.Server(500)),
             Outcome.Success(done("r3"))
         )
         val vm = viewModel()
 
         vm.onTab(RunBodyTab.RUN)
         assertEquals(RunBodySessionState.Failed, vm.state.value.session)
+        vm.onRetrySession()
+        assertEquals(RunBodySessionState.Unavailable, vm.state.value.session)
+        vm.onRetrySession()
+        assertEquals(RunBodySessionState.Unavailable, vm.state.value.session)
         vm.onRetrySession()
         assertEquals(RunBodySessionState.Failed, vm.state.value.session)
         vm.onRetrySession()
