@@ -353,7 +353,12 @@ private fun PercentText(text: String, style: LeanBarStyle) {
 }
 
 /** 축 막대 모양: MY Runimal 화면(G-4)과 Runimal 공유 카드(K-3, 글자 13, 막대 8, 진한 채움). */
-internal enum class LeanBarStyle(val nameSize: Int, val barHeight: Dp, val leaningWeight: FontWeight, val isInkFill: Boolean) {
+internal enum class LeanBarStyle(
+    val nameSize: Int,
+    val barHeight: Dp,
+    val leaningWeight: FontWeight,
+    val isInkFill: Boolean
+) {
     SCREEN(14, 10.dp, FontWeight.Black, isInkFill = false),
     SHARE_CARD(13, 8.dp, FontWeight.Bold, isInkFill = true)
 }

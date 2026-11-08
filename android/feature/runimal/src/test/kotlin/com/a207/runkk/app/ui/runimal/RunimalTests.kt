@@ -432,12 +432,61 @@ class RunimalScreenshotTest {
         RunimalScreen(RunimalUiState(isLoading = false, status = confirmed), {}, {}, {}, {}, {})
     }
 
-    /** MY Runimal(G-4): 서버 축 막대, 16유형 버튼, 1차 배포라 공유 없음. */
+    /** MY Runimal(G-4): 서버 축 막대, 16유형 버튼, 오른쪽 위 공유(1차 배포 범위에서도 연다). */
     @Test
     fun myRunimal() = compose.captureRunkkScreen("G4_my_runimal") {
         CompositionLocalProvider(LocalReleaseScope provides ReleaseScope.FIRST_RELEASE) {
             RunimalScreen(RunimalUiState(isLoading = false, status = confirmedWithAxes), {}, {}, {}, {}, {})
         }
+    }
+
+    /** K-3 1: Runimal 공유(확정 유형, 라이트). */
+    @Test
+    fun k3ShareConfirmed() = compose.captureRunkkScreen("K3_runimal_share_confirmed_light", isDarkTheme = false) {
+        RunimalScreen(
+            RunimalUiState(isLoading = false, status = confirmedWithAxes, isShareStep = true),
+            {},
+            {},
+            {},
+            {},
+            {}
+        )
+    }
+
+    /** K-3 2: Runimal 공유(임시 유형, 라이트). */
+    @Test
+    fun k3ShareProvisional() = compose.captureRunkkScreen("K3_runimal_share_provisional_light", isDarkTheme = false) {
+        RunimalScreen(
+            RunimalUiState(
+                isLoading = false,
+                status = confirmedWithAxes.copy(isProvisional = true),
+                isShareStep = true
+            ),
+            {},
+            {},
+            {},
+            {},
+            {}
+        )
+    }
+
+    /** K-3 1 다크: 테마 변수로 바뀐 공유 카드. */
+    @Test
+    fun k3ShareDark() = compose.captureRunkkScreen("K3_runimal_share_confirmed_dark") {
+        RunimalScreen(
+            RunimalUiState(isLoading = false, status = confirmedWithAxes, isShareStep = true),
+            {},
+            {},
+            {},
+            {},
+            {}
+        )
+    }
+
+    /** G-4 MY Runimal 라이트: 오른쪽 위 "공유". */
+    @Test
+    fun myRunimalLight() = compose.captureRunkkScreen("G4_my_runimal_light", isDarkTheme = false) {
+        RunimalScreen(RunimalUiState(isLoading = false, status = confirmedWithAxes), {}, {}, {}, {}, {})
     }
 
     /** 공유 카드 이미지(ui.share RunimalCardRenderer)가 유형 그림과 한국어 축 이름을 넣어 그린다. */
