@@ -173,7 +173,7 @@
     <string name="crew_manage_transfer_confirm">넘기기</string>
     <string name="crew_manage_delete_title">크루를 삭제할까요?</string>
     <string name="crew_manage_delete_message">크루의 모든 기록이 지워지고 되돌릴 수 없어요.</string>
-    <string name="crew_run_write_title">일정 만들기</string>
+    <string name="crew_run_write_title">크루런 모집하기</string>
     <string name="crew_run_write_title_label">제목</string>
     <string name="crew_run_write_title_placeholder">토요일 아침 5km 같이 뛰어요</string>
     <string name="crew_run_write_body_label">내용(선택)</string>
