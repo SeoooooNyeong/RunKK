@@ -198,7 +198,7 @@ class HomeScreenshotTest {
         HomeShell { HomeScreen(loaded, HomeActions(), it) }
     }
 
-    /** 가이드 1단계(자유런 카드, 1/6). */
+    /** 가이드 1단계(자유런 카드, 1/8). */
     @Test
     fun guideFirstStep() = compose.captureRunkkScreen("J1_guide_free_run") {
         GuideOn(GuideStep.FREE_RUN, index = 0)
@@ -209,15 +209,21 @@ class HomeScreenshotTest {
         GuideOn(GuideStep.FREE_RUN, index = 0)
     }
 
-    /** 가이드 마지막 단계(마이 탭, 6/6): "시작하기"만. */
+    /** 가이드 마이 탭 단계(7/8). */
     @Test
     fun guideLastStep() = compose.captureRunkkScreen("J7_guide_me") {
-        GuideOn(GuideStep.ME, index = 5)
+        GuideOn(GuideStep.ME, index = 6)
     }
 
     @Test
     fun guideLastStepLight() = compose.captureRunkkScreen("J7_guide_me_light", isDarkTheme = false) {
-        GuideOn(GuideStep.ME, index = 5)
+        GuideOn(GuideStep.ME, index = 6)
+    }
+
+    /** 가이드 크루 탭 단계(J-4, 4/8, S15P31A207-249). */
+    @Test
+    fun guideCrewStepLight() = compose.captureRunkkScreen("J4_guide_crew_light", isDarkTheme = false) {
+        GuideOn(GuideStep.CREW, index = 3)
     }
 
     /** 홈과 하단 탭을 그리고, 화면 요소가 적은 [step]의 앵커로 가이드 막을 덮는다. */
@@ -230,7 +236,7 @@ class HomeScreenshotTest {
                 FirstRunGuideOverlay(
                     step = step,
                     index = index,
-                    stepCount = 6,
+                    stepCount = GuideStep.visibleIn(RELEASE_SCOPE).size,
                     anchor = anchors[step],
                     onNext = {},
                     onSkip = {}
@@ -240,16 +246,18 @@ class HomeScreenshotTest {
     }
 }
 
-/** 앱 탭 화면 모양: 홈 자리 아래에 하단 탭 높이를 비우고(RunkkNavHost EntryBottomSpace) 하단 탭 바를 겹친다. 1차 배포 범위다. */
+/** 운영 빌드 배포 범위(2차 배포: 크루·아바타 꾸미기 열림, S15P31A207-248). */
+private val RELEASE_SCOPE = ReleaseScope.of(isLockingUnreleased = true)
+
+/** 앱 탭 화면 모양: 홈 자리 아래에 하단 탭 높이를 비우고(RunkkNavHost EntryBottomSpace) 하단 탭 바를 겹친다. 운영 빌드 범위다. */
 @Composable
 private fun HomeShell(home: @Composable (Modifier) -> Unit) {
-    CompositionLocalProvider(LocalReleaseScope provides ReleaseScope.FIRST_RELEASE) {
+    CompositionLocalProvider(LocalReleaseScope provides RELEASE_SCOPE) {
         Box(Modifier.fillMaxSize().background(RunkkColors.Background)) {
             home(Modifier.padding(bottom = RUNKK_BOTTOM_BAR_HEIGHT))
             RunkkBottomBar(
                 selected = RunkkTab.HOME,
                 onSelect = {},
-                lockedTabs = setOf(RunkkTab.CREW),
                 modifier = Modifier.align(Alignment.BottomCenter)
             )
         }
