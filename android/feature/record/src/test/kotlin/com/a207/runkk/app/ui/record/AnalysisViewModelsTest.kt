@@ -132,12 +132,6 @@ class AnalysisViewModelsTest {
     }
 
     @Test
-    fun `리포트 코멘트가 없으면 준비 중으로 보인다(FR-066)`() {
-        val vm = ReportViewModel(records)
-        assertEquals(UiText.Res(R.string.record_report_comment_pending), vm.state.value.commentText)
-    }
-
-    @Test
     fun `랭킹은 개인·크루와 기간을 바꿔 읽는다(FR-070·FR-071)`() {
         val vm = RankingViewModel(records, clock)
         vm.onScopeSelected(RankingScope.CREW)

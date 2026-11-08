@@ -79,7 +79,10 @@ class RunBodyRepositoryImplTest {
         api.reply("""{"code":"RUNBODY_UNAVAILABLE","message":"ai 응답 없음"}""", code = 503)
 
         assertEquals(Outcome.Failure(AppError.Rejected(RunBodyRepository.NOT_FOUND)), repository.session("rec-1"))
-        assertEquals(Outcome.Failure(AppError.Rejected(RunBodyRepository.FEATURE_CLOSED)), repository.month(YearMonth.of(2026, 10)))
+        assertEquals(
+            Outcome.Failure(AppError.Rejected(RunBodyRepository.FEATURE_CLOSED)),
+            repository.month(YearMonth.of(2026, 10))
+        )
         assertEquals(Outcome.Failure(AppError.Server(503)), repository.session("rec-1"))
     }
 
@@ -92,7 +95,12 @@ class RunBodyRepositoryImplTest {
         assertEquals("/api/v1/runbody/months/2026-10", api.take().url.encodedPath)
         assertEquals(12, month.sessionCount)
         assertEquals(
-            mapOf(RunBodyAxis.INTENSITY to 76, RunBodyAxis.ENDURANCE to 82, RunBodyAxis.STABILITY to 70, RunBodyAxis.FITNESS to 78),
+            mapOf(
+                RunBodyAxis.INTENSITY to 76,
+                RunBodyAxis.ENDURANCE to 82,
+                RunBodyAxis.STABILITY to 70,
+                RunBodyAxis.FITNESS to 78
+            ),
             month.averages
         )
         assertEquals(Duration.ofSeconds(292), month.bests.fastestKm)
