@@ -4,6 +4,7 @@ import android.content.res.Resources
 import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -198,10 +199,14 @@ private fun RecordCardFace(card: RunCard, side: CardSide, modifier: Modifier) {
     }
 }
 
-/** 지금 보이는 면을 알리는 점 두 개(K-1): 지금 면은 길쭉한 진한 점, 다른 면은 작은 흰 점. */
+/**
+ * 지금 보이는 면을 알리는 점 두 개(K-1): 지금 면은 길쭉한 진한 점, 다른 면은 작은 표면색 점. 다크는 표면색이 어두워 밤 배경 장면에
+ * 묻히므로 다른 면 점에 밝은 테두리를 두른다.
+ */
 @Composable
 private fun SideDots(side: CardSide) {
     val description = stringResource(sideDescriptionRes(side))
+    val isDark = LocalRunkkColors.current.isDark
     Row(
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         modifier = Modifier.testTag(RECORD_CARD_DOTS_TAG).semantics { stateDescription = description }
@@ -213,6 +218,13 @@ private fun SideDots(side: CardSide) {
                     .size(width = if (isCurrent) 18.dp else 8.dp, height = 8.dp)
                     .clip(CircleShape)
                     .background(if (isCurrent) RunkkColors.TextPrimary else RunkkColors.Surface)
+                    .then(
+                        if (isDark && !isCurrent) {
+                            Modifier.border(1.dp, RunkkColors.TextPrimary.copy(alpha = DOT_RING_ALPHA), CircleShape)
+                        } else {
+                            Modifier
+                        }
+                    )
             )
         }
     }
@@ -307,6 +319,7 @@ private fun CourseSwitch(
 
 private val COURSE_SWITCH_SHAPE = RoundedCornerShape(16.dp)
 private const val LOCKED_ALPHA = 0.45f
+private const val DOT_RING_ALPHA = 0.8f
 
 /** 카드 팝업 배경 장면의 시험 표지. */
 internal const val RECORD_CARD_BACKDROP_TAG = "record-card-backdrop"

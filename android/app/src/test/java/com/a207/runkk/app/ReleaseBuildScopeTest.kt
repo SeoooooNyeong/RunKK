@@ -10,8 +10,8 @@ import kotlin.test.assertTrue
 import org.junit.Test
 
 /**
- * 빌드 변형마다 실제 BuildConfig.LOCK_UNRELEASED로 고른 배포 범위(S15P31A207-248). prod·develop 변형(testProdDebugUnitTest)은 잠그는
- * 빌드라 크루·아바타 꾸미기·런바디만 열리고 카드 뒷면·Runimal 공유는 닫힌다. local 변형은 모두 열린다.
+ * 빌드 변형마다 실제 BuildConfig.LOCK_UNRELEASED로 고른 배포 범위(S15P31A207-248). prod·develop 변형(testProdDebugUnitTest)도
+ * 크루·아바타 꾸미기·런바디가 열리고, 카드 뒷면·Runimal 공유는 잠금 항목이 아니라 늘 열린다(S15P31A207-238·239). local 변형은 모두 열린다.
  */
 class ReleaseBuildScopeTest {
     private val scope = ReleaseScope.of(BuildConfig.LOCK_UNRELEASED)
@@ -28,9 +28,11 @@ class ReleaseBuildScopeTest {
     }
 
     @Test
-    fun `카드 뒷면·Runimal 공유는 잠그는 빌드에서만 닫힌다`() {
-        val isLocking = BuildConfig.LOCK_UNRELEASED
-        assertEquals(!isLocking, scope.isOpen(UnreleasedFeature.CARD_BACK))
-        assertEquals(!isLocking, scope.isOpen(UnreleasedFeature.RUNIMAL_SHARE))
+    fun `어느 변형에서나 잠금 항목이 모두 열린다(카드 뒷면·Runimal 공유는 잠금 항목이 아니다)`() {
+        assertEquals(UnreleasedFeature.entries, UnreleasedFeature.entries.filter(scope::isOpen))
+        assertEquals(
+            listOf("CREW", "AVATAR_CUSTOMIZE", "RUNBODY"),
+            UnreleasedFeature.entries.map { it.name }
+        )
     }
 }

@@ -17,7 +17,7 @@ fun interface ReleaseScope {
 
         /**
          * 2차 배포(11/13, 사용자 결정 2026-11-09, S15P31A207-248): 크루·아바타 꾸미기·런바디를 연다. 카드 뒷면과 Runimal 공유는
-         * 디자인을 다시 그린 뒤 따로 열어 닫아 둔다.
+         * 피그마 K-1~K-3 시안대로 구현해 잠금 항목에서 뺐으므로 늘 열려 있다(S15P31A207-238·239).
          */
         val SECOND_RELEASE: ReleaseScope = ReleaseScope {
             it == UnreleasedFeature.CREW || it == UnreleasedFeature.AVATAR_CUSTOMIZE || it == UnreleasedFeature.RUNBODY

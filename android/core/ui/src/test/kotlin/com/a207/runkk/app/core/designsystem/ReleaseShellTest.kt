@@ -38,14 +38,13 @@ class ReleaseShellTest {
     private val res = RuntimeEnvironment.getApplication().resources
 
     @Test
-    fun `S15P31A207-248 운영 빌드는 크루·아바타 꾸미기·런바디를 열고 카드 뒷면·Runimal 공유만 닫는다`() {
+    fun `S15P31A207-248 운영 빌드는 크루·아바타 꾸미기·런바디를 모두 연다(카드 뒷면·Runimal 공유는 잠금 항목이 아니다)`() {
         val prod = ReleaseScope.of(isLockingUnreleased = true)
         assertEquals(
             listOf(UnreleasedFeature.CREW, UnreleasedFeature.AVATAR_CUSTOMIZE, UnreleasedFeature.RUNBODY),
             UnreleasedFeature.entries.filter(prod::isOpen)
         )
-        assertFalse(prod.isOpen(UnreleasedFeature.CARD_BACK))
-        assertFalse(prod.isOpen(UnreleasedFeature.RUNIMAL_SHARE))
+        assertEquals(UnreleasedFeature.entries, UnreleasedFeature.entries.filter(prod::isOpen))
     }
 
     @Test

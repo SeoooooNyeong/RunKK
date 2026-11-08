@@ -2,7 +2,7 @@ package com.a207.runkk.app.core.designsystem
 
 /**
  * 배포 범위로 여닫는 기능(D-252, FR-223). 화면은 [ReleaseScope.isOpen]으로 진입점을 가린다. 2차 배포(S15P31A207-248)는
- * 크루·아바타 꾸미기·런바디를 열고 카드 뒷면·Runimal 공유를 닫아 둔다([ReleaseScope.SECOND_RELEASE]).
+ * 크루·아바타 꾸미기·런바디를 모두 연다([ReleaseScope.SECOND_RELEASE]).
  * 기록 카드 앞면 공유(카드 팝업 "공유", 기록 상세 "카드 공유")는 1차 배포에서 연다(D93). 크루 축하 카드 공유는 크루 화면 안에 있어 [CREW]로 닫힌다.
  * 카드 뒷면과 Runimal 공유는 2차 배포에서 피그마 K-1~K-3 시안대로 열었다(S15P31A207-238·239).
  */
