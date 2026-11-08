@@ -264,7 +264,7 @@ v0.10 5.7.1에 없지만 코드에 있는 엔드포인트도 이번에 표에 �
 | 구분 | 형식 |
 |------|------|
 | 요청 `RunUploadRequest` 추가 항목 | `pauses: List<PauseRequest>?` (null·빈 목록 = 정지 없음). `PauseRequest{from: OffsetDateTime, to: OffsetDateTime}` |
-| 규칙 | `mode = FREE`일 때만 비어 있지 않을 수 있다. `from < to`, `startedAt ≤ from`, `to ≤ endedAt`, 시간순·겹침 없음, 최대 100개(제안). 위반은 400 `BAD_REQUEST`(RunUpload 생성자의 IllegalArgumentException). `elapsedMillis`는 정지 시간을 뺀 **운동 시간**이다(FR-036) |
+| 규칙 | `mode = FREE`일 때만 비어 있지 않을 수 있다(**v0.37 변경, srs FR-300·CR-164, [code-review 22장](../code-review/22-2차배포-통합-1차.md) BR-1·U-2: `mode = FREE` 또는 `CREW_RUN`일 때. 대결(BATTLE)은 그대로 거부. 서버 RunUpload.requireAllowed와 V43으로 반영 완료(4a10fae7). 업로드 성공은 200 STORED**). `from < to`, `startedAt ≤ from`, `to ≤ endedAt`, 시간순·겹침 없음, 최대 100개(제안). 위반은 400 `BAD_REQUEST`(RunUpload 생성자의 IllegalArgumentException). `elapsedMillis`는 정지 시간을 뺀 **운동 시간**이다(FR-036) |
 | 응답 | 그대로 `UploadResponse{recordId, status, valid}`. valid는 다섯째 조건(D-94)을 포함한 판정 |
 
 **GET /runs/{id}** [변경] — `RecordDetailResponse`에 `pauses: List<{from: OffsetDateTime, to: OffsetDateTime}>`, `pausedSeconds: long` 추가. 기존 경과 시간 항목은 운동 시간이다.
