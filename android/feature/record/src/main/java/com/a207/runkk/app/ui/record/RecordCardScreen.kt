@@ -123,7 +123,10 @@ fun RecordCardScreen(
             state.isShareStep -> ShareStep(
                 state,
                 card,
-                ShareStepActions(onSideSelected, onShareCaptured, onCourseLocked, onBack = { onShareStep(false) })
+                onSideSelected = onSideSelected,
+                onShare = onShareCaptured,
+                onCourseLocked = onCourseLocked,
+                onBack = { onShareStep(false) }
             )
 
             else -> CardPopup(
@@ -215,31 +218,30 @@ private fun SideDots(side: CardSide) {
     }
 }
 
-/** 카드 공유 단계의 사용자 동작. */
-private class ShareStepActions(
-    val onSideSelected: (CardSide) -> Unit,
-    val onShare: (CardShareKind, CapturedCard?) -> Unit,
-    val onCourseLocked: () -> Unit,
-    val onBack: () -> Unit
-)
-
 /**
  * 카드 공유(K-2): 미리보기 카드, "코스 지도 표시"(켜면 미리보기가 코스 면으로 바뀌고 그 면을 공유한다), 공유 대상 막대.
  * 코스 지도 공유가 꺼진 기록은 스위치를 끈 채 흐리게 잠그고, 누르면 기존 안내를 스낵바로 보인다(FR-011·FR-069).
  * 공유할 때 미리보기 카드를 그대로 찍어 넘기고, 워드마크는 ViewModel이 공유 이미지에만 붙인다(사용자 결정 2026-11-09).
  */
 @Composable
-private fun ShareStep(state: RecordCardUiState, card: RunCard, actions: ShareStepActions) {
+private fun ShareStep(
+    state: RecordCardUiState,
+    card: RunCard,
+    onSideSelected: (CardSide) -> Unit,
+    onShare: (CardShareKind, CapturedCard?) -> Unit,
+    onCourseLocked: () -> Unit,
+    onBack: () -> Unit
+) {
     val resources = LocalContext.current.resources
     val side = state.side
     val capture = rememberCardCapture()
     val isDark = LocalRunkkColors.current.isDark
     val scope = rememberCoroutineScope()
-    val share: (CardShareKind) -> Unit = { kind -> scope.launch { actions.onShare(kind, capture.capture(isDark)) } }
+    val share: (CardShareKind) -> Unit = { kind -> scope.launch { onShare(kind, capture.capture(isDark)) } }
     Column(modifier = Modifier.fillMaxSize()) {
         RunkkTopBar(
             title = stringResource(R.string.record_card_share_title),
-            onBack = actions.onBack,
+            onBack = onBack,
             isTitleCentered = true
         )
         Column(
@@ -259,8 +261,8 @@ private fun ShareStep(state: RecordCardUiState, card: RunCard, actions: ShareSte
             CourseSwitch(
                 isChecked = side == CardSide.BACK,
                 isEnabled = state.canShareBack,
-                onCheckedChange = { actions.onSideSelected(if (it) CardSide.BACK else CardSide.FRONT) },
-                onLocked = actions.onCourseLocked
+                onCheckedChange = { onSideSelected(if (it) CardSide.BACK else CardSide.FRONT) },
+                onLocked = onCourseLocked
             )
         }
         ShareTargetBar(
