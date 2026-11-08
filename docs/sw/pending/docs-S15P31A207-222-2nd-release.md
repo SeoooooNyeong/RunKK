@@ -59,3 +59,9 @@
 - 박재영: design-oo/06-02-클래스-running-analysis-profile.md running 절에 `RunQueryService.bodyInputOf`(Optional\<RunBodyInput\>, 움직임 표본 포함)·`validRunCount`·`validRunStats`(ValidRunStat), `MotionSample`·`MotionSamples`, `RunRecord.motionData`(V41, 경로 파기 때 비움), `RunUpload.motions`를 05-24 D-575·D-577 기준으로 옮긴다.
 - 박재영: 코치 중계(-241) 브랜치 병합 때 SettingKey·FeatureToggles·ReasonCode FEATURE_CLOSED 충돌을 확인한다(MR !91 본문). 문서 쪽은 05-19 D-440과 05-24 2.2 policy 행.
 - 박재영: 2차 배포 날 RUNBODY_ENABLED 켜기와 잠금 해제 B1(MR !91 배포 전 할 일).
+- 박재영: (MR !91 결함 수정 보정, srs 7.13.22.5) srs/03-03
+  - FR-265 처리: "출생연도가 없어 요청을 만들 수 없으면 사유(출생연도 없음)와 함께 바로 실패로 두고, 러너가 출생연도를 넣으면(FR-007) 다시 요청한다"를 더한다.
+  - FR-266 처리: 출생연도 없음이면 「출생연도를 입력하면 분석할 수 있어요」와 프로필 편집 단추, 대기·분석 중이면 3분까지 다시 읽고 「다시 확인」(NFR-053), 결과 읽기 일시 장애(503·연결 실패)면 「잠시 후 다시 시도해 주세요」와 「다시 시도」(분석 실패 「분석하지 못했어요」와 구분)를 더한다.
+  - FR-067·FR-057·FR-073: 화면의 오늘·이번 주·이번 달은 기기 시간대로 셈한다. 런바디 월간 부하의 지난 날 수는 그 달 기준 시점(지난달이면 월말)으로 센다.
+- 박재영: (같은 보정) srs/03-02 FR-036(러닝 기록 확정)에 "크루런 기록도 정지 구간을 남기고 서버가 받는다. 대결 기록은 정지 구간이 없다"를 더한다(BR-1, FR-194 요청과 같은 내용).
+- 박재영: (같은 보정) design-oo/06-02 running 절에 RunUpload 표본 솎기(MAX_MOTIONS 86,400, MotionSamples.capped), requireAllowed(대결만 정지 거부), V43 ck_run_record_pause를 05-24 D-583·D-590 기준으로 옮긴다.
