@@ -132,6 +132,14 @@ DB에 행이 없으면 기본값(false)을 쓰므로 1차 배포(develop·prod)�
 - 보통은 GitLab에서 이전 성공 파이프라인의 `backend:deploy`를 다시 실행합니다(그 커밋으로 다시 빌드해 같은 환경에 올림).
 - 빌드 없이 직전 이미지로 돌리려면 서버에서 `docker tag runkk-api:prod-prev runkk-api:prod`(ai도 같게) 뒤 `backend:deploy`를 다시 실행하지 않고 `docker compose -f $RUNKK_HOME/prod/docker-compose.yml --env-file <prod .env> up -d --no-deps api ai`를 씁니다. CI 작업 폴더에는 `.env`가 남지 않으므로 이 경우 `INFRA_ENV_PROD` 내용을 임시 파일로 두고 끝나면 지웁니다.
 - DB 스키마가 바뀐 배포(Flyway)를 되돌릴 때는 배포 직전 덤프(`runkk-prod-predeploy-*.dump`)로 복구합니다(7절).
+- 0.11.4(운영자 공지 알림, V35_3) 뒤에 덤프 복구 없이 0.11.3 이하 서버 이미지로만 되돌리면, 옛 코드가 `NOTICE` 알림 종류를 몰라 공지를 받은 회원의 알림함 조회가 500이 됩니다. 이미지를 되돌리기 전에 공지 행을 지웁니다(감사 기록 `SETTING_CHANGE` 대상 `NOTICE:제목`에 보낸 내용이 남습니다).
+
+  ```sql
+  BEGIN;
+  SELECT count(*) FROM notification WHERE type = 'NOTICE';
+  DELETE FROM notification WHERE type = 'NOTICE';
+  COMMIT;
+  ```
 
 ## 4. 운영 명령
 

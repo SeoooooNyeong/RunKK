@@ -25,6 +25,15 @@ object RunkkIcons {
         "M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9",
         "M10.3 21a1.94 1.94 0 0 0 3.4 0"
     )
+
+    /** 선물(알림함 이벤트 항목, 피그마 icon/gift). */
+    val Gift: ImageVector = line(
+        "Gift",
+        "M4 8h16a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z",
+        "M12 8v13",
+        "M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7",
+        "M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"
+    )
     val Bolt: ImageVector = line("Bolt", "M13 2L3 14H12L11 22L21 10H12L13 2Z", isFilled = true)
     val Lock: ImageVector = line(
         "Lock",

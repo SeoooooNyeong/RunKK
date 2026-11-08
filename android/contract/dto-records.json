@@ -2192,6 +2192,146 @@
   ],
   "file": "web/error/ErrorResponse.java"
  },
+ "EventAdminController.EventRequest": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "slug",
+    "required": true
+   },
+   {
+    "kind": "leaf",
+    "name": "title",
+    "required": true
+   },
+   {
+    "kind": "leaf",
+    "name": "subtitle",
+    "required": true
+   },
+   {
+    "kind": "leaf",
+    "name": "kind",
+    "required": true
+   },
+   {
+    "kind": "leaf",
+    "name": "config",
+    "required": true
+   },
+   {
+    "kind": "leaf",
+    "name": "startsAt",
+    "required": true
+   },
+   {
+    "kind": "leaf",
+    "name": "endsAt",
+    "required": true
+   },
+   {
+    "kind": "leaf",
+    "name": "bannerImageUrl",
+    "required": true
+   },
+   {
+    "kind": "leaf",
+    "name": "thumbnailImageUrl",
+    "required": true
+   },
+   {
+    "kind": "leaf",
+    "name": "detailUrl",
+    "required": true
+   },
+   {
+    "kind": "leaf",
+    "name": "sortOrder"
+   },
+   {
+    "kind": "leaf",
+    "name": "published"
+   }
+  ],
+  "file": "web/admin/event/EventAdminController.java"
+ },
+ "EventAdminController.PublishedRequest": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "published",
+    "required": true
+   }
+  ],
+  "file": "web/admin/event/EventAdminController.java"
+ },
+ "EventController.EventListResponse": {
+  "components": [
+   {
+    "kind": "list",
+    "name": "events",
+    "ref": "EventView"
+   }
+  ],
+  "file": "web/event/EventController.java"
+ },
+ "EventView": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "id"
+   },
+   {
+    "kind": "leaf",
+    "name": "slug"
+   },
+   {
+    "kind": "leaf",
+    "name": "title"
+   },
+   {
+    "kind": "leaf",
+    "name": "subtitle"
+   },
+   {
+    "kind": "leaf",
+    "name": "status"
+   },
+   {
+    "kind": "leaf",
+    "name": "startsAt"
+   },
+   {
+    "kind": "leaf",
+    "name": "endsAt"
+   },
+   {
+    "kind": "leaf",
+    "name": "bannerImageUrl"
+   },
+   {
+    "kind": "leaf",
+    "name": "thumbnailImageUrl"
+   },
+   {
+    "kind": "leaf",
+    "name": "detailUrl"
+   },
+   {
+    "kind": "leaf",
+    "name": "entryCount"
+   },
+   {
+    "kind": "leaf",
+    "name": "maxEntryCount"
+   },
+   {
+    "kind": "leaf",
+    "name": "sortOrder"
+   }
+  ],
+  "file": "event/EventView.java"
+ },
  "FriendInviteDtos.AcceptResponse": {
   "components": [
    {
@@ -2319,6 +2459,10 @@
    {
     "kind": "leaf",
     "name": "type"
+   },
+   {
+    "kind": "leaf",
+    "name": "title"
    },
    {
     "kind": "leaf",
@@ -2686,6 +2830,30 @@
    }
   ],
   "file": "notification/NavigationTarget.java"
+ },
+ "NoticeAdminController.NoticeRequest": {
+  "components": [
+   {
+    "kind": "list-leaf",
+    "name": "memberIds",
+    "required": true
+   },
+   {
+    "kind": "leaf",
+    "name": "title",
+    "required": true
+   },
+   {
+    "kind": "leaf",
+    "name": "body",
+    "required": true
+   },
+   {
+    "kind": "leaf",
+    "name": "linkUrl"
+   }
+  ],
+  "file": "web/admin/notification/NoticeAdminController.java"
  },
  "NotificationController.PushTokenRequest": {
   "components": [

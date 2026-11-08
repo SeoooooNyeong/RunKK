@@ -317,6 +317,22 @@ class DataStoreSettingsRepositoryTest {
         assertEquals(null, reopened.placementCompleteSeen(), "로그아웃·탈퇴 뒤 다른 회원에게 남지 않는다")
     }
 
+    @Test
+    fun `본 이벤트 사본은 refresh가 덮지 않고 다시 열어도 남으며 clear가 지운다`() = runTest {
+        val first = open()
+        assertEquals(emptySet(), first.seenEventIds())
+        assertEquals(Outcome.Success(Unit), first.saveSeenEventIds(setOf(1L, 2L)))
+        remote.next += Outcome.Success(CONSENTED)
+        first.refresh()
+        assertEquals(setOf(1L, 2L), first.seenEventIds())
+        closeAll()
+
+        val reopened = open()
+        assertEquals(setOf(1L, 2L), reopened.seenEventIds())
+        reopened.clear()
+        assertEquals(emptySet(), reopened.seenEventIds(), "로그아웃 뒤 다른 회원에게 남지 않는다")
+    }
+
     private fun open(): DataStoreSettingsRepository {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO).also(scopes::add)
         return DataStoreSettingsRepository(store, remote, scope)

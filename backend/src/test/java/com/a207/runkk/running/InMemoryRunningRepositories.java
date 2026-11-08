@@ -76,6 +76,18 @@ public final class InMemoryRunningRepositories {
         }
 
         @Override
+        public List<RunSummary> validSummariesAtLeast(
+                long minMeters, java.time.LocalDateTime from, java.time.LocalDateTime to) {
+            return rows.values().stream()
+                    .filter(RunRecord::isValid)
+                    .filter(r -> r.getDistance().meters() >= minMeters)
+                    .filter(r -> !r.getStartedAt().isBefore(from) && !r.getStartedAt().isAfter(to))
+                    .sorted(Comparator.comparing(RunRecord::getStartedAt))
+                    .map(RunRecord::summary)
+                    .toList();
+        }
+
+        @Override
         public List<RunSummary> recentValidSummaries(long memberId, int limit) {
             return recentValid(memberId, limit).stream().map(RunRecord::summary).toList();
         }

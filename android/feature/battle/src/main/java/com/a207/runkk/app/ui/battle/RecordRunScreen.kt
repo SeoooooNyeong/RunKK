@@ -67,11 +67,11 @@ import java.time.LocalDate
 
 /**
  * 기록런 탭(D-1·E-1, D-250): 제목 "기록런"과 셀프런 | 셀럽런 분절(D89). 고른 분절은 rememberSaveable로 지킨다. 분절 안은
- * SelfBattleViewModel·CelebBattleViewModel이 그대로 맡는다.
+ * SelfBattleViewModel·CelebBattleViewModel이 그대로 맡는다. [initialSegment]는 처음 고른 분절이다(셀럽런 경로 Routes.RECORD_RUN_CELEB).
  */
 @Composable
-fun RecordRunRoute() {
-    var selected by rememberSaveable { mutableIntStateOf(0) }
+fun RecordRunRoute(initialSegment: Int = SELF_SEGMENT) {
+    var selected by rememberSaveable { mutableIntStateOf(initialSegment) }
     Column(modifier = Modifier.fillMaxSize().background(RunkkColors.Background)) {
         Text(
             stringResource(R.string.battle_record_run_title),
@@ -89,7 +89,7 @@ fun RecordRunRoute() {
             modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp)
         )
         Box(modifier = Modifier.weight(1f)) {
-            if (selected == 0) SelfBattleRoute() else CelebBattleRoute()
+            if (selected == SELF_SEGMENT) SelfBattleRoute() else CelebBattleRoute()
         }
     }
 }
@@ -387,3 +387,7 @@ private fun SelfBattlePreview() {
         )
     }
 }
+
+/** 기록런 분절 순서: 셀프런, 셀럽런. */
+internal const val SELF_SEGMENT = 0
+internal const val CELEB_SEGMENT = 1

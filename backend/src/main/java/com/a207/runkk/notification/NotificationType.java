@@ -1,9 +1,9 @@
 package com.a207.runkk.notification;
 
 /**
- * 알림 종류 21개(자료사전 알림종류 12개 + v0.11 9개, 부록 B, 06-05). 상수마다 알림을 눌렀을 때 여는 기본 화면을 가진다(FR-178, 6.4). 회원의
- * 종류별 수신 설정은 member가 이 이름(name())으로 보관한다(member → notification 의존 금지, 12.2). 크루·아바타 종류는 딸린 미공개
- * 기능(GatedFeature)을 가진다(D138).
+ * 알림 종류 22개(자료사전 알림종류 12개 + v0.11 9개 + 운영자 공지 NOTICE, 부록 B, 06-05). 상수마다 알림을 눌렀을 때 여는 기본 화면을
+ * 가진다(FR-178, 6.4). 회원의 종류별 수신 설정은 member가 이 이름(name())으로 보관한다(member → notification 의존 금지, 12.2).
+ * 크루·아바타 종류는 딸린 미공개 기능(GatedFeature)을 가진다(D138).
  */
 public enum NotificationType {
     PLAN_MISSED(Screen.COACH_PROGRESS),
@@ -27,7 +27,12 @@ public enum NotificationType {
     CREW_GOAL_ACHIEVED(Screen.CREW_HOME, GatedFeature.CREW),
     MANAGER_CHANGED(Screen.CREW_HOME, GatedFeature.CREW),
     BACKGROUND_UNLOCKED(Screen.AVATAR_BACKGROUND, GatedFeature.AVATAR_CUSTOMIZE),
-    REPORT_RESOLVED(Screen.CREW_HOME, GatedFeature.CREW);
+    REPORT_RESOLVED(Screen.CREW_HOME, GatedFeature.CREW),
+    /**
+     * 운영자 공지(당첨 안내 등, S15P31A207-275). 운영자가 관리 API로 회원을 골라 보낸다(NoticeService). 링크가 있으면 대상 ID가 그
+     * 주소이고 앱이 바깥 브라우저로 연다. 회원이 끌 수 있는 종류가 아니라 MemberSettings.NOTIFICATION_TYPES에 없다.
+     */
+    NOTICE(Screen.EXTERNAL_LINK);
 
     private final Screen defaultScreen;
     private final GatedFeature gatedFeature;

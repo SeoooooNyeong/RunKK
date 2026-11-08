@@ -46,6 +46,14 @@ interface SettingsRepository {
 
     suspend fun savePlacementCompleteSeen(battleId: Long): Outcome<Unit> = Outcome.Success(Unit)
 
+    /**
+     * 이 기기에서 본 이벤트 ID 사본(알림함·홈의 새 이벤트 점). 화면은 EventRepository.seenEventIds로 읽고 api.notification이
+     * 여기에 맡긴다. 배치고사 완료 사본과 같이 같은 기기 파일에 두고 [clear] 때 함께 지운다. 기본 구현은 사본 없음이다.
+     */
+    suspend fun seenEventIds(): Set<Long> = emptySet()
+
+    suspend fun saveSeenEventIds(ids: Set<Long>): Outcome<Unit> = Outcome.Success(Unit)
+
     /** 사본 삭제(로그아웃·탈퇴·로그인 상태 해제). */
     suspend fun clear(): Outcome<Unit>
 }

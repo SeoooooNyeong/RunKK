@@ -50,16 +50,17 @@ class ArchitectureTest {
      * ResendRejectedRunsUseCase를 domain.run으로 옮겼다)을 더하고, develop의 D-455 코치 하위 패키지(ui.record.coach)를 합쳐 폰 159개다.
      * 런바디(S15P31A207-229, D-453): domain.runbody → core.model, api.runbody → api.core·domain.runbody·core.model을 더해 163개,
      * 하위 패키지 ui.record.runbody → core.designsystem·core.navigation·core.model·domain.record·domain.runbody 다섯을 더해 168개다.
+     * 이벤트(S15P31A207-275)가 api.notification → domain.settings(본 이벤트 사본)를 더해 169개다.
      * 워치는 design-review 23장 R75 사용자 결정 (가)로 core.model을 폰과 같이 센다(기준 하나). 그러면 watch.ui가 8이라 대결 흐름을
      * watch.battle로 옮겼다(W30): ui → domain.battle·watch.cache 둘이 ui → watch.battle 하나가 되고 watch.battle이 다섯을 갖는다.
      * R76으로 쓰지 않는 watch.guide → domain.settings를 뺐다. 워치 코드 28 + core.model 다섯 줄 + battle 다섯 − ui 하나 = 37개다.
      */
     @Test
-    fun `모듈 Fan-Out은 7 이하이고 허용 표는 폰 168개·워치 37개다`() {
+    fun `모듈 Fan-Out은 7 이하이고 허용 표는 폰 169개·워치 37개다`() {
         val over = ALLOWED.filterValues { it.size > MAX_FAN_OUT }.mapValues { it.value.size }
         assertEquals(emptyMap(), over)
         val (watch, phone) = ALLOWED.entries.partition { it.key.startsWith("watch.") || it.key == "wear.contract" }
-        assertEquals(168, phone.sumOf { it.value.size })
+        assertEquals(169, phone.sumOf { it.value.size })
         assertEquals(37, watch.sumOf { it.value.size })
     }
 
@@ -516,7 +517,9 @@ class ArchitectureTest {
                 "api.crew" to setOf("api.core", "domain.crew", "core.model"),
                 "api.runimal" to setOf("api.core", "domain.runimal", "core.model"),
                 "api.avatar" to setOf("api.core", "domain.avatar", "core.model"),
-                "api.notification" to setOf("api.core", "domain.notification", "core.model"),
+                // domain.settings 추가(이벤트, S15P31A207-275): 본 이벤트 ID 기기 사본을 설정 사본에 맡긴다(api.account의
+                // 배치고사 완료 사본과 같은 방식).
+                "api.notification" to setOf("api.core", "domain.notification", "domain.settings", "core.model"),
                 "api.live" to setOf("api.core"),
                 "api.chat" to setOf("api.core", "domain.chat", "core.model"),
                 "api.report" to setOf("api.core", "domain.report", "core.model"),

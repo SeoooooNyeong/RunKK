@@ -5,6 +5,8 @@ import com.a207.runkk.battle.BattleRepository;
 import com.a207.runkk.battle.BattleStatus;
 import com.a207.runkk.battle.BattleType;
 import com.a207.runkk.battle.BattleWin;
+import com.a207.runkk.battle.CelebrityWin;
+import com.a207.runkk.battle.OpponentKind;
 import com.a207.runkk.battle.Verdict;
 import com.a207.runkk.battle.WeeklyRecord;
 import com.a207.runkk.common.DateRange;
@@ -14,7 +16,9 @@ import jakarta.persistence.LockModeType;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -231,6 +235,69 @@ public class JpaBattleRepository implements BattleRepository {
                 .getResultList()
                 .stream()
                 .map(row -> new BattleWin((Long) row[0], (Long) row[1], (LocalDateTime) row[2]))
+                .toList();
+    }
+
+    @Override
+    public Map<Long, LocalDateTime> findFirstCelebrityWins(
+            long memberId, Collection<Long> celebrityIds, LocalDateTime from, LocalDateTime to) {
+        if (celebrityIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, LocalDateTime> wins = new HashMap<>();
+        entityManager
+                .createQuery(
+                        "select b.opponentRecordId, min(b.judgedAt) from Battle b"
+                                + " where b.status = :finished and b.type = :celebrity"
+                                + " and b.opponentKind = :kind and b.winnerMemberId = :member"
+                                + " and b.opponentRecordId in :ids"
+                                + " and b.judgedAt >= :from and b.judgedAt <= :to"
+                                + " group by b.opponentRecordId",
+                        Object[].class)
+                .setParameter("finished", BattleStatus.FINISHED)
+                .setParameter("celebrity", BattleType.CELEBRITY)
+                .setParameter("kind", OpponentKind.CELEBRITY)
+                .setParameter("member", memberId)
+                .setParameter("ids", celebrityIds.stream().map(String::valueOf).toList())
+                .setParameter("from", from)
+                .setParameter("to", to)
+                .getResultList()
+                .forEach(row -> wins.put(Long.valueOf((String) row[0]), (LocalDateTime) row[1]));
+        return wins;
+    }
+
+    @Override
+    public List<CelebrityWin> findCelebrityWinners(
+            Collection<Long> celebrityIds, LocalDateTime from, LocalDateTime to) {
+        if (celebrityIds.isEmpty()) {
+            return List.of();
+        }
+        return entityManager
+                .createQuery(
+                        "select b.winnerMemberId, b.opponentRecordId, min(b.judgedAt) from Battle b"
+                                + " where b.status = :finished and b.type = :celebrity"
+                                + " and b.opponentKind = :kind and b.winnerMemberId is not null"
+                                + " and b.opponentRecordId in :ids"
+                                + " and b.judgedAt >= :from and b.judgedAt <= :to"
+                                + " group by b.winnerMemberId, b.opponentRecordId",
+                        Object[].class)
+                .setParameter("finished", BattleStatus.FINISHED)
+                .setParameter("celebrity", BattleType.CELEBRITY)
+                .setParameter("kind", OpponentKind.CELEBRITY)
+                .setParameter("ids", celebrityIds.stream().map(String::valueOf).toList())
+                .setParameter("from", from)
+                .setParameter("to", to)
+                .getResultList()
+                .stream()
+                .map(
+                        row ->
+                                new CelebrityWin(
+                                        (Long) row[0],
+                                        Long.parseLong((String) row[1]),
+                                        (LocalDateTime) row[2]))
+                .sorted(
+                        Comparator.comparingLong(CelebrityWin::memberId)
+                                .thenComparingLong(CelebrityWin::celebrityId))
                 .toList();
     }
 
