@@ -78,6 +78,14 @@ class ProgressNoticeTest {
     }
 
     @Test
+    fun `S15P31A207-278 대결 알림은 알림을 눌러 그 대결 진행 화면으로 가도록 대결 ID를 싣는다`() {
+        val battle = ProgressNotice.of(spec(CardKind.BATTLE_RUN, "바람처럼").copy(battleId = 9), progress(100), null)
+        assertEquals(9L, assertIs<ProgressNotice.Battle>(battle).battleId)
+        val unknown = ProgressNotice.of(spec(CardKind.SELF_RUN, "과거의 나"), progress(100), null)
+        assertNull(assertIs<ProgressNotice.Battle>(unknown).battleId)
+    }
+
+    @Test
     fun `자유런 알림은 정지 여부를 싣는다`() {
         val paused = ProgressNotice.of(spec(CardKind.FREE_RUN), progress(100).copy(isPaused = true), null)
         assertEquals(true, assertIs<ProgressNotice.Free>(paused).isPaused)

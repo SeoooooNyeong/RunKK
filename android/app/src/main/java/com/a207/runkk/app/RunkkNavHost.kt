@@ -47,7 +47,9 @@ import com.a207.runkk.app.core.designsystem.RunkkEmptyState
 import com.a207.runkk.app.core.designsystem.RunkkTab
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
 import com.a207.runkk.app.core.designsystem.media.RunkkBackgroundMusic
+import com.a207.runkk.app.core.navigation.BattleReturnRequest
 import com.a207.runkk.app.core.navigation.FeatureEntry
+import com.a207.runkk.app.core.navigation.LocalBattleReturnRequest
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.LocalSlots
 import com.a207.runkk.app.core.navigation.Routes
@@ -63,7 +65,8 @@ import java.time.Instant
  * [lockUnreleased]가 켜지면(1차 배포 빌드, D-251) 크루 탭에 자물쇠를 달고 누르면 [LockedFeatureDialog]만 띄우며(D-253),
  * 잠긴 경로([BetaLock])로 들어오면 안내를 띄우고 뒤로 돌린다. 화면 숨김 판정(LocalReleaseScope), 가이드 앵커 표
  * (LocalGuideAnchors), 칸 기여 표(LocalSlots)도 여기서 넣는다. 초대 링크로 받은 [pendingInvite]는 홈이 맨 위가 되면 참가 확인으로 연다.
- * 열었거나 버렸으면(받은 지 5분, 로그아웃) [onInviteDone]으로 비운다.
+ * 열었거나 버렸으면(받은 지 5분, 로그아웃) [onInviteDone]으로 비운다. 대결 진행 알림으로 받은 [pendingBattleReturn]은 기능 화면 위
+ * 안내에 LocalBattleReturnRequest로 넘기고, 대결 기능이 처리하면 [onBattleReturnDone]으로 비운다(S15P31A207-278).
  */
 @Composable
 fun RunkkNavHost(
@@ -74,7 +77,9 @@ fun RunkkNavHost(
     modifier: Modifier = Modifier,
     lockUnreleased: Boolean = BuildConfig.LOCK_UNRELEASED,
     pendingInvite: PendingInvite? = null,
-    onInviteDone: () -> Unit = {}
+    onInviteDone: () -> Unit = {},
+    pendingBattleReturn: Long? = null,
+    onBattleReturnDone: () -> Unit = {}
 ) {
     val backStack = rememberNavBackStack(Routes.Key(startRoute))
     val navigator = remember(backStack) { BackStackNavigator(backStack, onExit) }
@@ -155,7 +160,15 @@ fun RunkkNavHost(
         }
         // 기능 화면 위 안내(남은 대결, 홈 위 첫 사용 가이드 등)는 로그인한 동안만 붙인다. 맨 위 경로를 넘긴다(D-255).
         // 스플래시에 덮인 동안은 붙이지 않는다: 남은 대결 대화상자(별도 창)가 스플래시 위에 떴다(리뷰 AN11-4)
-        if (loggedIn && !LocalCoveredBySplash.current) featureEntries.forEach { it.Overlay(top) }
+        // 대결 진행 알림으로 열었으면 돌아갈 대결을 함께 넘긴다(S15P31A207-278)
+        val battleReturn = remember(pendingBattleReturn) {
+            pendingBattleReturn?.let { BattleReturnRequest(it, onBattleReturnDone) }
+        }
+        if (loggedIn && !LocalCoveredBySplash.current) {
+            CompositionLocalProvider(LocalBattleReturnRequest provides battleReturn) {
+                featureEntries.forEach { it.Overlay(top) }
+            }
+        }
         // 홈 배경 음악은 로그인한 동안 화면을 옮겨 다녀도 이어진다. 로그인·가입 화면(자기 음악)과 측정 중(음성 안내)에는 멈춘다(사용자 요청 2026-10-31)
         if (loggedIn) RunkkBackgroundMusic(R.raw.home_bgm, isPlaying = isMusicRoute(top))
         if (isLockedNoticeVisible) LockedFeatureDialog(onDismiss = { isLockedNoticeVisible = false })
