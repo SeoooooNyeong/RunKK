@@ -43,21 +43,64 @@ final class MotionSamples {
     }
 
     /**
-     * max개를 넘으면 시간순으로 정렬해 고른 간격(k = ⌈개수 ÷ max⌉번째마다 하나)으로 솎은 사본, 아니면 그대로의 사본(MR !91 AN-5). 상한을 넘었다고
-     * 기록 전체를 거부하지 않고 표본 해상도만 낮춘다.
+     * max개를 넘으면 같은 일시를 먼저 합치고(normalize), 그래도 넘치면 시간 칸으로 묶어 칸마다 속도·케이던스를 따로 평균한 사본(칸의 일시는 칸 첫 표본).
+     * 칸 길이는 (첫~끝 길이 ÷ max)에서 시작해 10%씩 늘린다. 상한을 넘었다고 기록을 거부하지 않고 해상도만 낮추며, 한 종류 값만 든 표본이 번갈아 와도 두 값이
+     * 모두 남는다(MR !91 AN-5, 확인 리뷰 CR2-B1). max개 이하면 그대로의 사본.
      */
     static List<MotionSample> capped(List<MotionSample> samples, int max) {
         if (samples.size() <= max) {
             return List.copyOf(samples);
         }
-        List<MotionSample> sorted = new ArrayList<>(samples);
-        sorted.sort(Comparator.comparing(MotionSample::measuredAt));
-        int stride = (sorted.size() + max - 1) / max;
-        List<MotionSample> kept = new ArrayList<>(max);
-        for (int i = 0; i < sorted.size(); i += stride) {
-            kept.add(sorted.get(i));
+        List<MotionSample> merged = normalize(samples);
+        if (merged.size() <= max) {
+            return List.copyOf(merged);
         }
-        return List.copyOf(kept);
+        LocalDateTime origin = merged.get(0).measuredAt();
+        long span = Duration.between(origin, merged.get(merged.size() - 1).measuredAt()).toMillis();
+        long bucket = Math.max(1, (span + max) / max);
+        List<MotionSample> binned = bin(merged, origin, bucket);
+        while (binned.size() > max) {
+            bucket += bucket / 10 + 1;
+            binned = bin(merged, origin, bucket);
+        }
+        return List.copyOf(binned);
+    }
+
+    /** 시간순 표본을 origin부터 bucketMillis 칸으로 묶어 칸마다 속도·케이던스를 따로 평균한다. */
+    private static List<MotionSample> bin(
+            List<MotionSample> sorted, LocalDateTime origin, long bucketMillis) {
+        List<MotionSample> out = new ArrayList<>();
+        int i = 0;
+        while (i < sorted.size()) {
+            long index =
+                    Duration.between(origin, sorted.get(i).measuredAt()).toMillis() / bucketMillis;
+            LocalDateTime at = sorted.get(i).measuredAt();
+            double speedSum = 0;
+            double cadenceSum = 0;
+            int speeds = 0;
+            int cadences = 0;
+            while (i < sorted.size()
+                    && Duration.between(origin, sorted.get(i).measuredAt()).toMillis()
+                                    / bucketMillis
+                            == index) {
+                MotionSample s = sorted.get(i);
+                if (s.speedMps() != null) {
+                    speedSum += s.speedMps();
+                    speeds++;
+                }
+                if (s.cadenceSpm() != null) {
+                    cadenceSum += s.cadenceSpm();
+                    cadences++;
+                }
+                i++;
+            }
+            out.add(
+                    new MotionSample(
+                            at,
+                            speeds == 0 ? null : speedSum / speeds,
+                            cadences == 0 ? null : cadenceSum / cadences));
+        }
+        return out;
     }
 
     /** 비어 있으면 null(열을 비운다). */
