@@ -255,7 +255,7 @@ internal fun isMusicRoute(top: NavKey?): Boolean = when (top) {
  */
 internal fun tabOf(route: String): RunkkTab? = when (route) {
     Routes.CREW -> RunkkTab.CREW
-    Routes.RECORD_RUN -> RunkkTab.RECORD_RUN
+    Routes.RECORD_RUN, Routes.RECORD_RUN_CELEB -> RunkkTab.RECORD_RUN
     Routes.HOME, Routes.BATTLE_FRIEND -> RunkkTab.HOME
     Routes.RANKING -> RunkkTab.RANKING
     Routes.ME -> RunkkTab.ME

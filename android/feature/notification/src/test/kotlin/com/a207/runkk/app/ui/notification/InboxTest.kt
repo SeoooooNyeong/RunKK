@@ -17,6 +17,7 @@ import java.time.Instant
 import java.time.ZoneId
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -98,7 +99,7 @@ class InboxTest {
 
     @Test
     fun `알림을 오늘·이번 주·그 전으로 묶는다(FR-178)`() {
-        val vm = InboxViewModel(repo, clock)
+        val vm = InboxViewModel(repo, clock, FakeEventRepository())
         val groups = vm.state.value.groups
         assertEquals(
             listOf(
@@ -114,7 +115,7 @@ class InboxTest {
 
     @Test
     fun `알림을 누르면 읽음으로 바꾸고 이동 경로로 간다`() = runTest {
-        val vm = InboxViewModel(repo, clock)
+        val vm = InboxViewModel(repo, clock, FakeEventRepository())
         vm.events.test {
             vm.onItemTapped(sampleItems[0])
             assertEquals(InboxEvent.Navigate(Routes.CrewHome(7)), awaitItem())
@@ -126,7 +127,7 @@ class InboxTest {
     @Test
     fun `알림함을 못 읽으면 오류를 보인다`() {
         repo.inboxResult = Outcome.Failure(AppError.Network)
-        val vm = InboxViewModel(repo, clock)
+        val vm = InboxViewModel(repo, clock, FakeEventRepository())
         assertEquals(RunkkErrorText.of(AppError.Network), vm.state.value.error)
     }
 
@@ -165,7 +166,7 @@ class InboxTest {
     @Test
     fun `읽음 처리가 실패하면 안 읽음으로 되돌리고 알린다`() {
         repo.openResult = Outcome.Failure(AppError.Network)
-        val vm = InboxViewModel(repo, clock)
+        val vm = InboxViewModel(repo, clock, FakeEventRepository())
         vm.onItemTapped(sampleItems[0])
         assertEquals(1, vm.state.value.unreadCount)
         assertEquals(RunkkErrorText.of(AppError.Network), vm.state.value.message)
@@ -203,17 +204,63 @@ class InboxTest {
             .map { it.name }
             .toSet()
         val keys = Routes::class.java.declaredClasses.map { it.simpleName }.toSet()
-        assertEquals(V010_CONSTANTS + V011_CONSTANTS + V014_CONSTANTS + V018_CONSTANTS, constants)
-        assertEquals(V010_KEYS + V011_KEYS + WIRE_V010_KEYS + V014_KEYS + V018_KEYS, keys)
+        assertEquals(V010_CONSTANTS + V011_CONSTANTS + V014_CONSTANTS + V018_CONSTANTS + V0114_CONSTANTS, constants)
+        assertEquals(V010_KEYS + V011_KEYS + WIRE_V010_KEYS + V014_KEYS + V018_KEYS + V0114_KEYS, keys)
     }
 
     @Test
-    fun `알림 이동 표는 서버 Screen 11개를 모두 다룬다`() {
-        assertEquals(ContractEnums.names("Screen"), INBOX_SCREENS)
+    fun `알림 이동 표는 서버 Screen 11개를 모두 다루고 EXTERNAL_LINK는 링크로 연다`() {
+        assertEquals(ContractEnums.names("Screen"), INBOX_SCREENS + LINK_SCREEN)
         INBOX_SCREENS.forEach { assertNotNull(inboxDestination(it, "1"), it) }
+        assertNull(inboxDestination(LINK_SCREEN, FORM))
     }
 
+    @Test
+    fun `공지 링크는 EXTERNAL_LINK의 https 주소만 열고 나머지는 알림함에 머문다`() {
+        assertEquals(FORM, inboxLink(LINK_SCREEN, FORM))
+        assertNull(inboxLink(LINK_SCREEN, null))
+        assertNull(inboxLink(LINK_SCREEN, "http://forms.gle/AbCdEf123"))
+        assertNull(inboxLink(LINK_SCREEN, "intent://forms.gle/x#Intent;end"))
+        assertNull(inboxLink(LINK_SCREEN, "https://forms.gle/a b"))
+        assertNull(inboxLink("CREW_HOME", FORM))
+    }
+
+    @Test
+    fun `공지를 누르면 읽음으로 바꾸고 링크를 연다, 링크가 없으면 알림함에 머문다`() = runTest {
+        val vm = InboxViewModel(repo, clock, FakeEventRepository())
+        vm.events.test {
+            vm.onItemTapped(notice(id = 11, link = FORM))
+            assertEquals(InboxEvent.OpenLink(FORM), awaitItem())
+            vm.onItemTapped(notice(id = 12, link = null))
+            expectNoEvents()
+        }
+        assertEquals(listOf(11L, 12L), repo.opened)
+    }
+
+    @Test
+    fun `공지 줄은 라벨 대신 서버가 준 공지 제목과 본문을 보인다`() {
+        repo.inboxResult = Outcome.Success(Inbox(listOf(notice(id = 11, link = FORM))))
+        val state = InboxViewModel(repo, clock, FakeEventRepository()).state.value
+        compose.setContent {
+            RunkkTheme { InboxScreen(state, onBack = {}, onItem = {}, onRetry = {}) }
+        }
+        compose.onNodeWithText("코치님 이벤트 당첨").assertExists()
+        compose.onNodeWithText("구글 폼에 연락처를 남겨 주세요").assertExists()
+    }
+
+    private fun notice(id: Long, link: String?) = Inbox.Item(
+        id,
+        "NOTICE",
+        "코치님 이벤트 당첨",
+        "구글 폼에 연락처를 남겨 주세요",
+        now.minusSeconds(60),
+        isRead = false,
+        screen = LINK_SCREEN,
+        targetId = link
+    )
+
     private companion object {
+        const val FORM = "https://forms.gle/AbCdEf123"
         val V010_CONSTANTS = setOf(
             "LOGIN", "SIGN_UP", "HOME", "CREW", "ME", "RUN", "PROFILE_EDIT", "SETTINGS",
             "FREE_RUN_SETTINGS", "NOTIFICATION_SETTINGS", "CONSENTS", "WITHDRAW", "RECORDS", "GROWTH", "REPORT",
@@ -234,6 +281,10 @@ class InboxTest {
          * v0.14 배틀런 화면(BATTLE_MODE, D-268)은 v0.18에서 랜덤·친구 대결로 나눠 지웠다(D-498, CR-142).
          */
         val V014_CONSTANTS = setOf("RECORD_RUN", "RECORDS_BATTLES", "RUNIMAL_TYPES")
+
+        /** 0.11.4 이벤트(S15P31A207-275): 이벤트 목록, 셀럽런 분절로 여는 기록런, 이벤트 상세 웹 페이지. */
+        val V0114_CONSTANTS = setOf("EVENTS", "RECORD_RUN_CELEB")
+        val V0114_KEYS = setOf("EventDetail")
         val V010_KEYS = setOf(
             "Key", "RunResult", "RecordDetail", "RecordCard", "BattleRunning", "BattleQuickMatch", "BattleResult",
             "CrewHome", "CrewManage", "CrewRunWrite", "CrewRunLobby", "CrewRunResult"

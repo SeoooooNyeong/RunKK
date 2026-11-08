@@ -11,6 +11,7 @@ import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStoreFile
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
@@ -170,6 +171,23 @@ class DataStoreSettingsRepository internal constructor(
         }
     }
 
+    /** 본 이벤트 ID(알림함·홈 새 이벤트 점). 배치고사 완료 사본과 같이 refresh가 덮지 않고 [clear]가 지운다. 못 읽으면 빈 집합이다. */
+    override suspend fun seenEventIds(): Set<Long> = try {
+        dataStore.data.first()[SEEN_EVENTS].orEmpty().mapNotNull { it.toLongOrNull() }.toSet()
+    } catch (e: IOException) {
+        Timber.w(e, "본 이벤트 사본 읽기 실패")
+        emptySet()
+    }
+
+    override suspend fun saveSeenEventIds(ids: Set<Long>): Outcome<Unit> = writing.withLock {
+        try {
+            dataStore.edit { it[SEEN_EVENTS] = ids.map(Long::toString).toSet() }
+            Outcome.Success(Unit)
+        } catch (e: IOException) {
+            Outcome.Failure(AppError.Storage)
+        }
+    }
+
     /**
      * 기기 사본을 처음 읽기 전(isSettled 거짓)에는 내보내지 않는다(A4): 앱 시작 때 저장된 화면 테마 앞에 안전한 값(SYSTEM)이
      * 먼저 나가 첫 프레임 테마가 깜빡이지 않게, 동의 구독자(WatchLink)가 잠깐 철회로 보지 않게 한다. 사본이 없으면 그때 SAFE다.
@@ -222,12 +240,14 @@ class DataStoreSettingsRepository internal constructor(
     }
 
     private fun MutablePreferences.write(s: SettingsSnapshot) {
-        // 가이드 사본과 배치고사 완료 사본은 서버 설정 응답에 없으므로 덮어쓰지 않고 남긴다.
+        // 가이드 사본, 배치고사 완료 사본, 본 이벤트 사본은 서버 설정 응답에 없으므로 덮어쓰지 않고 남긴다.
         val guide = this[GUIDE]
         val placementSeen = this[PLACEMENT_COMPLETE_SEEN]
+        val seenEvents = this[SEEN_EVENTS]
         clear()
         guide?.let { this[GUIDE] = it }
         placementSeen?.let { this[PLACEMENT_COMPLETE_SEEN] = it }
+        seenEvents?.let { this[SEEN_EVENTS] = it }
         this[HAS_COPY] = true
         this[LOCATION] = s.isLocationConsented
         this[HEART_RATE] = s.isHeartRateConsented
@@ -283,5 +303,8 @@ class DataStoreSettingsRepository internal constructor(
 
         /** 배치고사 완료 화면을 본 마지막 판 대결 ID(PL2-A2). */
         val PLACEMENT_COMPLETE_SEEN = longPreferencesKey("placement_complete_seen")
+
+        /** 본 이벤트 ID(문자열 집합). */
+        val SEEN_EVENTS = stringSetPreferencesKey("seen_event_ids")
     }
 }

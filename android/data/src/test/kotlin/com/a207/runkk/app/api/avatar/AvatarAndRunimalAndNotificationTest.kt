@@ -179,4 +179,26 @@ class AvatarAndRunimalAndNotificationTest {
         assertEquals("PUT /api/v1/me/push-token", "${push.method} ${push.url.encodedPath}")
         assertEquals("""{"token":"fcm-token"}""", push.body!!.utf8())
     }
+
+    @Test
+    fun `운영자 공지는 서버 제목과 링크 대상을 그대로 쓰고 제목이 없으면 종류 제목`() = runTest {
+        api.reply(
+            """{"items":[{"id":7,"type":"NOTICE","title":"코치님 이벤트 당첨","content":"구글 폼을 열어 주세요",
+               |"occurredAt":"2026-11-17T10:00:00","read":false,
+               |"target":{"screen":"EXTERNAL_LINK","targetId":"https://forms.gle/AbCdEf123"}},
+               |{"id":8,"type":"NOTICE","content":"제목 없음","occurredAt":"2026-11-17T10:00:00","read":true,
+               |"target":{"screen":"EXTERNAL_LINK"}}]}
+            """.trimMargin()
+        )
+
+        val items = NotificationRepositoryImpl(
+            api.retrofit.create(),
+            RuntimeEnvironment.getApplication()
+        ).inbox().value().items
+
+        assertEquals(listOf("코치님 이벤트 당첨", "안내"), items.map { it.title })
+        assertEquals("https://forms.gle/AbCdEf123", items[0].targetId)
+        assertEquals("EXTERNAL_LINK", items[1].screen)
+        assertEquals(null, items[1].targetId)
+    }
 }

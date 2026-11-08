@@ -135,4 +135,36 @@ class FcmPushGatewayTest {
         assertThat(result.sentCount()).isEqualTo(1);
         server.verify();
     }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("운영자 공지는 공지 제목을 알림 제목으로, 제목이 없으면 런크크(S15P31A207-275)")
+    void send_withTitle_usesNoticeTitle() throws Exception {
+        FcmPushGateway gateway = new FcmPushGateway(builder.build(), "runkk", credentials(), CLOCK);
+        server.expect(once(), requestTo(TOKEN_URI))
+                .andRespond(
+                        withSuccess(
+                                "{\"access_token\":\"ya29.x\",\"expires_in\":3600}",
+                                MediaType.APPLICATION_JSON));
+        server.expect(requestTo(SEND))
+                .andExpect(
+                        org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath(
+                                        "$.message.notification.title")
+                                .value("코치님 이벤트 당첨"))
+                .andExpect(
+                        org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath(
+                                        "$.message.data.type")
+                                .value("NOTICE"))
+                .andRespond(withSuccess("{\"name\":\"m1\"}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo(SEND))
+                .andExpect(
+                        org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath(
+                                        "$.message.notification.title")
+                                .value("런크크"))
+                .andRespond(withSuccess("{\"name\":\"m2\"}", MediaType.APPLICATION_JSON));
+
+        gateway.send(List.of("ok"), NotificationType.NOTICE, "코치님 이벤트 당첨", "구글 폼을 열어 주세요");
+        gateway.send(List.of("ok"), NotificationType.NOTICE, null, "제목 없음");
+
+        server.verify();
+    }
 }

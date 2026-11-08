@@ -45,7 +45,7 @@ fun CelebrityFigure(
 }
 
 /**
- * 셀럽 전용 캐릭터(서버 celebrityFigure "lee"·"hwang"·"son"). 서 있는 그림과 달리기 한 주기 4장(오른쪽을 향함)은 기본 아바타
+ * 셀럽 전용 캐릭터(서버 celebrityFigure "lee"·"hwang"·"son"·"joo"·"kim" 등). 서 있는 그림과 달리기 한 주기 4장(오른쪽을 향함)은 기본 아바타
  * ([defaultAvatarOf]·[runCycleOf])와 같은 구성이라 [RunkkRunningFigure]에 그대로 넘긴다.
  */
 enum class CelebrityCharacter(@DrawableRes val stand: Int, val runCycle: List<Int>) {
@@ -101,6 +101,26 @@ enum class CelebrityCharacter(@DrawableRes val stand: Int, val runCycle: List<In
             R.drawable.celebrity_lim_run_2,
             R.drawable.celebrity_lim_run_3,
             R.drawable.celebrity_lim_run_4
+        )
+    ),
+
+    /** SSAFY 코치 실명 셀럽(2026-11-08, D130). 서버 키 "joo"·"kim" */
+    JOO(
+        R.drawable.celebrity_joo_stand,
+        listOf(
+            R.drawable.celebrity_joo_run_1,
+            R.drawable.celebrity_joo_run_2,
+            R.drawable.celebrity_joo_run_3,
+            R.drawable.celebrity_joo_run_4
+        )
+    ),
+    KIM(
+        R.drawable.celebrity_kim_stand,
+        listOf(
+            R.drawable.celebrity_kim_run_1,
+            R.drawable.celebrity_kim_run_2,
+            R.drawable.celebrity_kim_run_3,
+            R.drawable.celebrity_kim_run_4
         )
     );
 

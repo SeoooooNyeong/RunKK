@@ -55,7 +55,8 @@ class ArchitectureTest {
      * S3a web.attempt(D-132) = 61개, + S3c
      * infra.report(N16)·report.target(D-135)·web.admin.ranking(D-136) = 64개, + v0.14
      * batch.runimal(D-246, 유형 비율 0시 작업) = 65개(12장 최종 목록, design-review.md 18장 구조 시험 고정 조건 1,
-     * TC-9856).
+     * TC-9856), + 핫픽스 v0.11.4 이벤트 event·infra.event·web.event·web.admin.event(S15P31A207-275) =
+     * 69개, + 운영자 공지 web.admin.notification(S15P31A207-275) = 70개.
      */
     static final List<String> PACKAGES =
             List.of(
@@ -74,6 +75,9 @@ class ArchitectureTest {
                     "web.admin.audit",
                     "web.admin.report",
                     "web.admin.ranking",
+                    "web.admin.event",
+                    "web.admin.notification",
+                    "web.event",
                     "web.chat",
                     "web.report",
                     "web.attempt",
@@ -104,6 +108,7 @@ class ArchitectureTest {
                     "crew.chat",
                     "report",
                     "analysis",
+                    "event",
                     "policy",
                     "notification",
                     "audit",
@@ -121,6 +126,7 @@ class ArchitectureTest {
                     "infra.notification",
                     "infra.chat",
                     "infra.report",
+                    "infra.event",
                     "infra.audit",
                     "infra.aiprivacy",
                     "infra.integration.auth",
@@ -128,7 +134,10 @@ class ArchitectureTest {
                     "infra.integration.push",
                     "infra.integration.weather");
 
-    /** 도메인·조립 패키지(5.2 조립·응용+도메인·도메인 공통 계층, 핵심 14개 + v0.11 crew.chat·report·report.target = 17개). */
+    /**
+     * 도메인·조립 패키지(5.2 조립·응용+도메인·도메인 공통 계층, 핵심 14개 + v0.11 crew.chat·report·report.target = 17개, +
+     * v0.11.4 event = 18개).
+     */
     static final List<String> CORE =
             List.of(
                     "profile",
@@ -144,6 +153,7 @@ class ArchitectureTest {
                     "crew.chat",
                     "report",
                     "analysis",
+                    "event",
                     "policy",
                     "notification",
                     "audit",
@@ -168,7 +178,8 @@ class ArchitectureTest {
         m.put("profile", Set.of("member", "running", "runimal", "avatar", "crew"));
         m.put("operator", Set.of("member", "policy", "audit")); // + audit: 운영자 로그인 감사(L25)
         m.put("policy", Set.of("audit"));
-        m.put("notification", Set.of("member", "policy"));
+        // 운영자 공지 감사(S15P31A207-275, NoticeService → AuditService)
+        m.put("notification", Set.of("member", "policy", "audit"));
         m.put("audit", Set.of());
         m.put("common", Set.of());
         // v0.11 (부록 F F.6.2 N1~N4, N7~N9. N5·N6은 설계 검증 D-135로 report.target으로 옮겨 없다)
@@ -203,6 +214,12 @@ class ArchitectureTest {
         m.put("web.attempt", Set.of());
         m.put("web.report", Set.of("report"));
         m.put("web.admin.report", Set.of("report"));
+        // 핫픽스 v0.11.4 이벤트(S15P31A207-275): 응모 계산(battle, running), 코치 승리 포인트(reward), 관리 감사(audit),
+        // 응모자 명단 닉네임(member)
+        m.put("event", Set.of("battle", "running", "reward", "audit", "member"));
+        m.put("web.event", Set.of("event"));
+        m.put("web.admin.event", Set.of("event"));
+        m.put("web.admin.notification", Set.of("notification"));
         m.put("realtime", Set.of("battle", "crew", "crew.chat", "member")); // + crew.chat(N11)
         // 구동 (D55~D57, D65, D71~D74): batch.<응용> → 같은 이름의 패키지 하나
         for (String app :
@@ -236,6 +253,7 @@ class ArchitectureTest {
                         "reward",
                         "policy",
                         "notification",
+                        "event",
                         "audit")) {
             m.put("infra." + domain, Set.of(domain));
         }
@@ -712,12 +730,12 @@ class ArchitectureTest {
     }
 
     @Test
-    void designPackageList_has68NamesAndEachHasAnAllowList() {
-        assertThat(Set.copyOf(PACKAGES)).hasSize(68);
+    void designPackageList_has73NamesAndEachHasAnAllowList() {
+        assertThat(Set.copyOf(PACKAGES)).hasSize(73);
         assertThat(ALLOWED.keySet()).containsExactlyInAnyOrderElementsOf(PACKAGES);
     }
 
-    /** B5 완료 조건: 5.1.1의 65개 패키지마다 서버 클래스가 하나 이상 있다(빈 패키지 0). */
+    /** B5 완료 조건: 5.1.1의 70개 패키지마다 서버 클래스가 하나 이상 있다(빈 패키지 0). */
     @Test
     void everyDesignPackage_hasMainClasses() {
         Set<String> filled =
@@ -732,7 +750,7 @@ class ArchitectureTest {
     void mainClasses_resideInDesignPackages() {
         List<String> stray =
                 classes.stream().filter(c -> sliceOf(c).isEmpty()).map(JavaClass::getName).toList();
-        assertThat(stray).as("5.1.1 패키지 65개 밖의 서버 클래스").isEmpty();
+        assertThat(stray).as("5.1.1 패키지 70개 밖의 서버 클래스").isEmpty();
     }
 
     @Test

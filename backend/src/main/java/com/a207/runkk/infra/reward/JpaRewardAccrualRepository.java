@@ -44,9 +44,10 @@ public class JpaRewardAccrualRepository implements RewardAccrualRepository {
                         .createQuery(
                                 "select coalesce(sum(a.amount), 0) from RewardAccrual a"
                                         + " where a.memberId = :m and a.accruedAt >= :from"
-                                        + " and a.accruedAt < :to",
+                                        + " and a.accruedAt < :to and a.reason <> :event",
                                 Long.class)
                         .setParameter("m", memberId)
+                        .setParameter("event", AccrualReason.EVENT)
                         .setParameter("from", day.atStartOfDay())
                         .setParameter("to", day.plusDays(1).atStartOfDay())
                         .getSingleResult();

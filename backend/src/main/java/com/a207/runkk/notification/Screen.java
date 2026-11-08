@@ -16,5 +16,7 @@ public enum Screen {
     CREW_POLL,
     CREW_SCHEDULE,
     CREW_CHAT,
-    AVATAR_BACKGROUND
+    AVATAR_BACKGROUND,
+    /** 대상 ID의 https 주소를 바깥 브라우저로 연다(운영자 공지 NOTICE, S15P31A207-275). 모르는 옛 앱은 알림함에 머문다. */
+    EXTERNAL_LINK
 }

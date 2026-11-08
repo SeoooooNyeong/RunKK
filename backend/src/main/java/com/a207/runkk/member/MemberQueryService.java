@@ -101,6 +101,15 @@ public class MemberQueryService {
         return memberRepository.findById(memberId).map(m -> m.hasConsent(item)).orElse(false);
     }
 
+    /** ACTIVE 회원의 닉네임을 한 번의 조회로. 탈퇴했거나 없는 회원은 맵에 없다(event 이벤트 응모자 명단, S15P31A207-275). */
+    @Transactional(readOnly = true)
+    public Map<Long, String> activeNicknames(Collection<Long> memberIds) {
+        if (memberIds.isEmpty()) {
+            return Map.of();
+        }
+        return memberRepository.activeNicknames(memberIds);
+    }
+
     /** 회원이 있고 ACTIVE인가. web.auth.AuthFilter가 탈퇴 회원의 남은 접근 토큰을 거부할 때 쓴다(코드 리뷰 2차 L21). */
     @Transactional(readOnly = true)
     public boolean isActive(long memberId) {

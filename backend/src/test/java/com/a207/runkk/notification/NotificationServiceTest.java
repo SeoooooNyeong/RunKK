@@ -112,8 +112,15 @@ class NotificationServiceTest {
 
     @Test
     void notificationType_namesMatchMemberSettingsList_andHaveScreens() {
-        assertThat(Arrays.stream(NotificationType.values()).map(Enum::name).toList())
+        // 운영자 공지(NOTICE)는 회원이 끄는 종류가 아니라 설정 목록에 없다(S15P31A207-275)
+        assertThat(
+                        Arrays.stream(NotificationType.values())
+                                .filter(t -> t != NotificationType.NOTICE)
+                                .map(Enum::name)
+                                .toList())
                 .containsExactlyElementsOf(MemberSettings.NOTIFICATION_TYPES);
+        assertThat(NotificationType.NOTICE.defaultScreen()).isEqualTo(Screen.EXTERNAL_LINK);
+        assertThat(NotificationType.NOTICE.gatedFeature()).isNull();
         assertThat(NotificationType.PLAN_MISSED.defaultScreen()).isEqualTo(Screen.COACH_PROGRESS);
         assertThat(NotificationType.BODY_SHAPE_CHANGED.defaultScreen()).isEqualTo(Screen.AVATAR);
         assertThat(NotificationType.BATTLE_CORRECTED.defaultScreen())
@@ -359,7 +366,8 @@ class NotificationServiceTest {
                 .containsExactlyInAnyOrder(
                         NotificationType.PLAN_MISSED,
                         NotificationType.OPPONENT_ARRIVED,
-                        NotificationType.BATTLE_CORRECTED);
+                        NotificationType.BATTLE_CORRECTED,
+                        NotificationType.NOTICE);
     }
 
     @Test

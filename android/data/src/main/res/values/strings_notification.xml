@@ -24,4 +24,6 @@
     <string name="inbox_title_manager_changed">운영진 변경</string>
     <string name="inbox_title_background_unlocked">아바타 배경 해금</string>
     <string name="inbox_title_report_resolved">신고 처리 결과</string>
+    <!-- 운영자 공지(NOTICE). 서버가 공지 제목을 주면 그 제목을 쓴다 -->
+    <string name="inbox_title_notice">안내</string>
 </resources>
