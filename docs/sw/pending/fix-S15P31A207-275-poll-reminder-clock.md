@@ -34,3 +34,9 @@ CI 서버 시험에서 `java.lang.NullPointerException: Cannot invoke java.time.
 
 ## 다른 담당에게 요청
 - 박재영: `AiPrivacyWithdrawalIntegrationTest`(탈퇴 ai 파기 시험)의 Clock 교체를 MR에서 확인한다. 문서 조각 test/ai-자료파기-박.md는 고칠 것이 없다.
+
+## 검증
+
+- backend `./gradlew build` 통과(spotless와 전체 시험 포함, 2026-11-09).
+- 전체 시험 출력에 `Clock.getZone()` NPE와 `poll_reminder_failed` 0줄.
+- TestClockRuleTest 1건, AiPrivacyWithdrawalIntegrationTest 6건, OperatorSeedLogTest 3건 합격.
