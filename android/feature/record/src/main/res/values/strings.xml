@@ -276,7 +276,6 @@
     <string name="record_runbody_no_score">—</string>
     <string name="record_runbody_radar_spoken">%1$s, %2$s</string>
     <string name="record_runbody_detail_title">런바디 상세</string>
-    <string name="record_runbody_detail_caption">%1$s, %2$skm</string>
     <string name="record_runbody_detail_profile">러닝 능력 상세</string>
     <string name="record_runbody_detail_summary">러닝 요약</string>
     <string name="record_runbody_distance">거리</string>

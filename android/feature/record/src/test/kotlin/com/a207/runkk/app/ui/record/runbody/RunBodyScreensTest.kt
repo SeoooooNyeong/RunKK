@@ -262,6 +262,8 @@ class RunBodyScreensTest {
                 )
             }
         }
+        compose.onNodeWithContentDescription("11월 2일 오전 7:10, 5.2km").assertExists()
+        compose.onNodeWithText("00:30:10", useUnmergedTree = true).assertExists()
         compose.onNodeWithText("구간, 페이스, 평균 심박").performScrollTo().assertExists()
         compose.onNodeWithText("5′42″/km, 148 bpm", useUnmergedTree = true).assertExists()
         compose.onNodeWithText("마지막 0.2 km", useUnmergedTree = true).assertExists()

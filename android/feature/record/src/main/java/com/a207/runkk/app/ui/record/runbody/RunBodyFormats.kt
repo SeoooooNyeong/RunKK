@@ -24,6 +24,24 @@ internal fun runBodyShortTime(duration: Duration): String {
     return String.format(Locale.US, "%d:%02d", total / SECONDS_PER_MINUTE, total % SECONDS_PER_MINUTE)
 }
 
+/** 활동 시간 시:분:초 두 자리(피그마 G-20 "00:30:10"). 1시간 미만도 00시로 적는다. 음수는 0이다. */
+internal fun runBodyClock(duration: Duration): String {
+    val total = duration.seconds.coerceAtLeast(0)
+    return String.format(
+        Locale.US,
+        "%02d:%02d:%02d",
+        total / SECONDS_PER_HOUR,
+        total % SECONDS_PER_HOUR / SECONDS_PER_MINUTE,
+        total % SECONDS_PER_MINUTE
+    )
+}
+
+/** 주간 거리 막대에서 라임으로 칠할 가장 긴 주(앞선 주 우선). 모든 주가 0이거나 주가 없으면 null(모두 보라). */
+internal fun longestWeekIndex(meters: List<Long>): Int? {
+    val longest = meters.maxOrNull()?.takeIf { it > 0 } ?: return null
+    return meters.indexOf(longest)
+}
+
 /** km 소수 첫째 자리(5.2). 구간 길이처럼 작은 값은 소수 둘째 자리까지 버리지 않는다(0.25). */
 internal fun runBodyKm(km: Double): String {
     if (km >= 1.0) return String.format(Locale.US, "%.1f", km)
@@ -73,6 +91,7 @@ internal fun timeOfDayRes(hour: Int): Int = when (hour) {
 
 private const val NO_PACE = "-′--″"
 private const val SECONDS_PER_MINUTE = 60
+private const val SECONDS_PER_HOUR = 3_600
 private const val DAWN_END = 4
 private const val MORNING_END = 10
 private const val DAYTIME_END = 16
