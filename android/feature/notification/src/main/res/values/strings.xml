@@ -25,6 +25,7 @@
     <string name="notification_time_yesterday">어제</string>
     <string name="notification_time_days">%1$d일 전</string>
     <string name="notification_date_pattern">M월 d일</string>
+    <string name="notification_open_link">링크 열기</string>
     <string name="event_inbox_title">이벤트</string>
     <string name="event_inbox_ongoing_count">진행 중인 이벤트 %1$d개</string>
     <string name="event_new">새 이벤트</string>

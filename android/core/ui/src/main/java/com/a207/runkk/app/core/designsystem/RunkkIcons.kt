@@ -34,6 +34,14 @@ object RunkkIcons {
         "M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7",
         "M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"
     )
+
+    /** 바깥에서 열기(알림함 공지 행, 피그마 icon/open-in-new 18 격자를 24로 옮김). */
+    val OpenInNew: ImageVector = line(
+        "OpenInNew",
+        "M20 10V4H14",
+        "M20 4L11 13",
+        "M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"
+    )
     val Bolt: ImageVector = line("Bolt", "M13 2L3 14H12L11 22L21 10H12L13 2Z", isFilled = true)
     val Lock: ImageVector = line(
         "Lock",
