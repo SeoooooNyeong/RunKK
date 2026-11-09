@@ -86,14 +86,18 @@ public class CrewService {
                 crew.getId(), crew.inviteCode().code(), crew.inviteCode().expiresAt());
     }
 
-    /** check(EDIT_CREW) → 이름 중복 → Crew.changeInfo. 대기 중 가입 신청은 그대로다(Q-36). */
+    /**
+     * check(EDIT_CREW) → 이름이 바뀌면 2~12자(결정 C1)·이름 중복 → Crew.changeInfo. 지금 이름을 그대로 보내면 길이를 다시 보지
+     * 않는다(기존 13~20자 크루, S15P31A207-295). 대기 중 가입 신청은 그대로다(Q-36).
+     */
     @Transactional
     public CrewResult changeInfo(long requesterId, long crewId, CrewInfoChange change) {
         Crew crew = crewAccess.checkForUpdate(requesterId, crewId, CrewAction.EDIT_CREW);
-        if (change.name() != null
-                && !change.name().equals(crew.name())
-                && crewRepository.existsByName(change.name().value())) {
-            throw new BusinessRuleException(ReasonCode.CREW_NAME_TAKEN);
+        if (change.name() != null && !change.name().equals(crew.name())) {
+            change.name().requireInputLength();
+            if (crewRepository.existsByName(change.name().value())) {
+                throw new BusinessRuleException(ReasonCode.CREW_NAME_TAKEN);
+            }
         }
         crew.changeInfo(change);
         crewRepository.save(crew);
