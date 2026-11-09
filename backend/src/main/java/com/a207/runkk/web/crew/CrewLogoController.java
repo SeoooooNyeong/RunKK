@@ -73,6 +73,7 @@ class CrewLogoController {
         return ResponseEntity.ok()
                 .contentType(MediaType.IMAGE_JPEG)
                 .header(HttpHeaders.CACHE_CONTROL, LOGO_CACHE)
+                .header("X-Content-Type-Options", "nosniff") // 보안 리뷰 LOW: 바이트를 다른 형식으로 해석하지 않게
                 .body(crewLogoService.load(logoId));
     }
 }

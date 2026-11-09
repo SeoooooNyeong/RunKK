@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -188,11 +189,11 @@ public class CrewQueryService {
      */
     public InvitePreviewView invitePreview(String code) {
         LocalDateTime now = LocalDateTime.now(clock);
-        return Optional.ofNullable(code)
-                .map(String::strip)
+        String normalized = code == null ? "" : code.strip().toUpperCase(Locale.ROOT);
+        return Optional.of(normalized)
                 .filter(c -> c.length() == INVITE_CODE_LENGTH)
                 .flatMap(crewRepository::findByInviteCode)
-                .filter(crew -> crew.acceptsInviteCode(code, now))
+                .filter(crew -> crew.acceptsInviteCode(normalized, now))
                 .map(InvitePreviewView::of)
                 .orElseThrow(() -> new BusinessRuleException(ReasonCode.INVALID_CODE));
     }

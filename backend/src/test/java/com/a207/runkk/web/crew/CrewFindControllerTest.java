@@ -318,6 +318,7 @@ class CrewFindControllerTest extends WebTestSupport {
                         .andExpect(status().isOk())
                         .andExpect(content().contentType(MediaType.IMAGE_JPEG))
                         .andExpect(header().string("Cache-Control", "private, max-age=86400"))
+                        .andExpect(header().string("X-Content-Type-Options", "nosniff"))
                         .andReturn()
                         .getResponse()
                         .getContentAsByteArray();
