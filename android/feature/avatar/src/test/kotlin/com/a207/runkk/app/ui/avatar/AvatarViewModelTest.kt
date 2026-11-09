@@ -153,6 +153,20 @@ class FakeAvatars : AvatarRepository {
     }
 }
 
+/** 얼굴 변환 전송 동의(셀카 카드의 체크). */
+internal class FakeConsent(private var given: Boolean?, private val result: Outcome<Unit> = Outcome.Success(Unit)) :
+    FaceConsent {
+    var gives = 0
+
+    override suspend fun isGiven(): Boolean? = given
+
+    override suspend fun give(): Outcome<Unit> {
+        gives++
+        if (result is Outcome.Success) given = true
+        return result
+    }
+}
+
 /** 1×1 PNG(부위 그림 표본). */
 val tinyPng: ByteArray = java.util.Base64.getDecoder().decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
@@ -233,15 +247,58 @@ class AvatarSetupViewModelTest {
     }
 
     @Test
-    fun `만드는 중에는 셀카와 저장을 막는다`() = runTest(main.dispatcher) {
+    fun `만드는 중에는 셀카를 막고 기본 캐릭터는 저장할 수 있으며 조회를 멈추고 한 번만 돌아간다`() = runTest(main.dispatcher) {
         repo.jobResults = mutableListOf(Outcome.Success(SelfieJob("job-1", SelfieJob.Status.RUNNING)))
         val vm = AvatarSetupViewModel(repo, main.dispatcher, listOf(1_000L))
         vm.onSelfie(byteArrayOf(1))
         vm.onSelfie(byteArrayOf(2))
-        vm.onConfirmCharacter()
+        assertFalse(vm.onSelfieRequested())
         assertEquals(1, repo.calls.count { it == "selfie" })
-        assertTrue(repo.calls.none { it.startsWith("default:") })
         assertTrue(vm.state.value.isMakingFace)
+        vm.events.test {
+            vm.onCharacterSelected(DefaultCharacter.CAT)
+            vm.onConfirmCharacter()
+            assertEquals(AvatarSetupEvent.Done, awaitItem())
+            advanceTimeBy(10_000)
+            expectNoEvents()
+        }
+        assertTrue("default:CAT" in repo.calls)
+        assertFalse(vm.state.value.isMakingFace)
+        assertTrue(repo.calls.none { it.startsWith("job:") }, "저장 뒤에는 조회하지 않는다(다음에 들어올 때 이어 끝낸다)")
+    }
+
+    @Test
+    fun `동의하지 않았으면 셀카를 열지 않고 체크를 먼저 요구하며, 체크하면 바로 동의를 저장한다`() = runTest(main.dispatcher) {
+        val consent = FakeConsent(given = false)
+        val vm = AvatarSetupViewModel(repo, main.dispatcher, listOf(1_000L), consent)
+        assertFalse(vm.state.value.hasFaceConsent)
+        assertFalse(vm.onSelfieRequested())
+        assertEquals(UiText.Res(R.string.avatar_setup_face_consent_needed), vm.state.value.error)
+        vm.onFaceConsent()
+        assertTrue(vm.state.value.hasFaceConsent)
+        assertNull(vm.state.value.error)
+        assertEquals(1, consent.gives)
+        vm.onFaceConsent()
+        assertEquals(1, consent.gives, "이미 동의했으면 다시 저장하지 않는다")
+        assertTrue(vm.onSelfieRequested())
+    }
+
+    @Test
+    fun `이미 동의했으면 체크된 채 시작하고, 동의 저장이 실패하면 안내한다`() = runTest(main.dispatcher) {
+        assertTrue(
+            AvatarSetupViewModel(
+                repo,
+                main.dispatcher,
+                listOf(1_000L),
+                FakeConsent(given = true)
+            ).state.value.hasFaceConsent
+        )
+        val failing = FakeConsent(given = false, result = Outcome.Failure(AppError.Network))
+        val vm = AvatarSetupViewModel(repo, main.dispatcher, listOf(1_000L), failing)
+        vm.onFaceConsent()
+        assertFalse(vm.state.value.hasFaceConsent)
+        assertFalse(vm.state.value.isSavingConsent)
+        assertNotNull(vm.state.value.error)
     }
 
     @Test
@@ -291,11 +348,13 @@ class AvatarSetupViewModelTest {
     }
 
     @Test
-    fun `동의가 없으면 동의 안내 문구다`() {
+    fun `서버가 동의 없음으로 거부하면(다른 곳에서 철회) 체크를 풀고 체크를 요구한다`() {
         repo.submitResult = Outcome.Failure(AppError.Rejected("FACE_CONSENT_REQUIRED"))
         val vm = AvatarSetupViewModel(repo)
+        assertTrue(vm.state.value.hasFaceConsent)
         vm.onSelfie(byteArrayOf(1))
-        assertEquals(UiText.Res(R.string.avatar_error_face_consent_required), vm.state.value.error)
+        assertEquals(UiText.Res(R.string.avatar_setup_face_consent_needed), vm.state.value.error)
+        assertFalse(vm.state.value.hasFaceConsent)
         assertTrue(vm.state.value.canCreateSelfie)
     }
 

@@ -53,16 +53,17 @@ class ArchitectureTest {
      * 이벤트(S15P31A207-275)가 api.notification → domain.settings(본 이벤트 사본)를 더해 169개다.
      * 크루런 결과의 내 아바타(S15P31A207-236)가 ui.crew → domain.account(본인 요약의 얼굴·배경, 홈과 같은 출처)를 더해 170개다.
      * 자유런 결과의 내 아바타(S15P31A207-248)가 ui.run → domain.account를 더해 171개다.
+     * 얼굴 만들기 화면 안 동의(S15P31A207-248)가 ui.avatar → domain.account를 더해 172개다.
      * 워치는 design-review 23장 R75 사용자 결정 (가)로 core.model을 폰과 같이 센다(기준 하나). 그러면 watch.ui가 8이라 대결 흐름을
      * watch.battle로 옮겼다(W30): ui → domain.battle·watch.cache 둘이 ui → watch.battle 하나가 되고 watch.battle이 다섯을 갖는다.
      * R76으로 쓰지 않는 watch.guide → domain.settings를 뺐다. 워치 코드 28 + core.model 다섯 줄 + battle 다섯 − ui 하나 = 37개다.
      */
     @Test
-    fun `모듈 Fan-Out은 7 이하이고 허용 표는 폰 171개·워치 37개다`() {
+    fun `모듈 Fan-Out은 7 이하이고 허용 표는 폰 172개·워치 37개다`() {
         val over = ALLOWED.filterValues { it.size > MAX_FAN_OUT }.mapValues { it.value.size }
         assertEquals(emptyMap(), over)
         val (watch, phone) = ALLOWED.entries.partition { it.key.startsWith("watch.") || it.key == "wear.contract" }
-        assertEquals(171, phone.sumOf { it.value.size })
+        assertEquals(172, phone.sumOf { it.value.size })
         assertEquals(37, watch.sumOf { it.value.size })
     }
 
@@ -576,7 +577,8 @@ class ArchitectureTest {
                 // domain.account(S15P31A207-236): 크루런 결과 가운데 내 아바타를 홈과 같은 본인 요약(얼굴 키·배경 키)으로 그린다. Fan-Out 7.
                 "ui.crew" to CORE_UI + setOf("domain.crew", "domain.report", "ui.share", "domain.account"),
                 "ui.chat" to CORE_UI + setOf("domain.chat", "domain.report"),
-                "ui.avatar" to CORE_UI + "domain.avatar",
+                // domain.account(S15P31A207-248): 얼굴 만들기 셀카 카드의 얼굴 변환 전송 동의(settings·giveConsent). Fan-Out 5.
+                "ui.avatar" to CORE_UI + setOf("domain.avatar", "domain.account"),
                 // domain.settings는 프로필 편집의 출생연도(SettingsRepository.birthYear, D106)다(v0.16 5.1.2).
                 // domain.run(R79): 설정의 "못 올린 기록 n건, 다시 보내기"(ResendRejectedRunsUseCase, W40). Fan-Out 6.
                 "ui.me" to CORE_UI + setOf("domain.account", "domain.settings", "domain.run"),

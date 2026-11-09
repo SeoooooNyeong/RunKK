@@ -51,6 +51,7 @@ import com.a207.runkk.app.core.designsystem.RunkkAvatarPortrait
 import com.a207.runkk.app.core.designsystem.RunkkBadge
 import com.a207.runkk.app.core.designsystem.RunkkBadgeTone
 import com.a207.runkk.app.core.designsystem.RunkkCard
+import com.a207.runkk.app.core.designsystem.RunkkCheckRow
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkPrimaryButton
@@ -96,8 +97,13 @@ fun AvatarSetupRoute(viewModel: AvatarSetupViewModel = hiltViewModel()) {
     AvatarSetupScreen(
         state = state,
         onBack = navigator::back,
-        onSelfie = { camera.launch(null) },
-        onAlbum = { album.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+        onSelfie = { if (viewModel.onSelfieRequested()) camera.launch(null) },
+        onAlbum = {
+            if (viewModel.onSelfieRequested()) {
+                album.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+            }
+        },
+        onFaceConsent = viewModel::onFaceConsent,
         onCharacter = viewModel::onCharacterSelected,
         onSave = viewModel::onConfirmCharacter
     )
@@ -121,7 +127,8 @@ fun AvatarSetupScreen(
     onCharacter: (DefaultCharacter) -> Unit,
     onSave: () -> Unit,
     modifier: Modifier = Modifier,
-    onAlbum: () -> Unit = {}
+    onAlbum: () -> Unit = {},
+    onFaceConsent: () -> Unit = {}
 ) {
     Column(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
         RunkkTopBar(title = stringResource(R.string.avatar_setup_title), onBack = onBack)
@@ -136,7 +143,7 @@ fun AvatarSetupScreen(
                 modifier = Modifier.semantics { heading() }
             )
             FacePreview(state)
-            SelfieCard(state.canCreateSelfie, state.isWorking || state.isMakingFace, onSelfie, onAlbum)
+            SelfieCard(state, onSelfie, onAlbum, onFaceConsent)
             RunkkSectionTitle(stringResource(R.string.avatar_setup_pick_character))
             CharacterRow(state.selected, onCharacter)
             if (state.error != null) {
@@ -152,7 +159,7 @@ fun AvatarSetupScreen(
         RunkkPrimaryButton(
             stringResource(R.string.avatar_setup_save),
             onClick = onSave,
-            isEnabled = state.selected != null && !state.isMakingFace,
+            isEnabled = state.selected != null,
             isLoading = state.isWorking,
             modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 32.dp)
         )
@@ -202,9 +209,19 @@ private fun FacePreview(state: AvatarSetupUiState) {
     }
 }
 
-/** 셀카로 만들기 카드(하루 1번): 셀카 찍기, 앨범에서 고르기. 오늘 만들었으면 두 버튼을 끈다. */
+/**
+ * 셀카로 만들기 카드(하루 1번, 피그마 H-1): 얼굴 변환 서비스 전송 동의 체크, 셀카 찍기, 앨범에서 고르기. 오늘 만들었으면 두 버튼을
+ * 끈다. 동의는 체크하면 바로 저장하고, 이미 동의했으면 체크된 채 둔다(철회는 마이 > 동의 관리).
+ */
 @Composable
-private fun SelfieCard(canCreateSelfie: Boolean, isWorking: Boolean, onSelfie: () -> Unit, onAlbum: () -> Unit) {
+private fun SelfieCard(
+    state: AvatarSetupUiState,
+    onSelfie: () -> Unit,
+    onAlbum: () -> Unit,
+    onFaceConsent: () -> Unit
+) {
+    val canCreateSelfie = state.canCreateSelfie
+    val isWorking = state.isWorking || state.isMakingFace
     RunkkCard(borderColor = if (canCreateSelfie) RunkkColors.Lime else RunkkColors.Border) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
@@ -218,6 +235,11 @@ private fun SelfieCard(canCreateSelfie: Boolean, isWorking: Boolean, onSelfie: (
                 tone = if (canCreateSelfie) RunkkBadgeTone.Lime else RunkkBadgeTone.Muted
             )
         }
+        RunkkCheckRow(
+            label = stringResource(R.string.avatar_setup_face_consent),
+            isChecked = state.hasFaceConsent,
+            onCheckedChange = { isChecked -> if (isChecked) onFaceConsent() }
+        )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             RunkkSecondaryButton(
                 stringResource(R.string.avatar_setup_take_selfie),

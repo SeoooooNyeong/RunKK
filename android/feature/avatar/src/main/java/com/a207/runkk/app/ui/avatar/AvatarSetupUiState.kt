@@ -11,7 +11,11 @@ data class AvatarSetupUiState(
     val faceKey: String? = null,
     /** 셀카를 줄여 보내거나 기본 캐릭터를 저장하는 중. */
     val isWorking: Boolean = false,
-    /** 서버가 셀카 얼굴을 만드는 중(접수 뒤 끝나기 전, S15P31A207-248). 셀카 버튼과 저장을 막는다. */
+    /** 서버가 셀카 얼굴을 만드는 중(접수 뒤 끝나기 전, S15P31A207-248). 셀카 버튼을 막는다(기본 캐릭터 저장은 된다). */
     val isMakingFace: Boolean = false,
+    /** 얼굴 변환 서비스 전송 동의(FACE_TRANSFER). 셀카 카드의 체크다. 모르면 거짓이다. */
+    val hasFaceConsent: Boolean = false,
+    /** 동의를 저장하는 중. */
+    val isSavingConsent: Boolean = false,
     val error: UiText? = null
 )
