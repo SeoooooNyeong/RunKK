@@ -155,6 +155,8 @@ docker exec -it runkk-prod-postgres-1 psql -U runkk runkk   # prod DB 접속
 docker exec runkk-nginx-1 nginx -t && docker exec runkk-nginx-1 nginx -s reload   # nginx 설정 다시 읽기
 ```
 
+운영 주의: DB에 직접 시각을 넣거나 시각 조건으로 조회할 때는 한국 시각 기준으로 씁니다. 서버가 저장하는 값은 한국 시각이지만 DB 세션 시간대가 UTC라 `now()`를 그대로 쓰면 9시간 차이가 납니다(2026-11-09 공지 알림 확인, docs/sw/sqa/이벤트-공지-성.md 3절).
+
 ### develop 더미 데이터 (dev:seed)
 
 develop 파이프라인의 수동 잡 **dev:seed**를 누르면 `dev-seed.sh`가 develop DB(`runkk-develop-postgres-1`)에 `dev-seed.sql`을 한 트랜잭션으로 넣습니다. 잡은 develop 브랜치 파이프라인에만 생기고, 스크립트도 `.env`의 `RUNKK_ENV`가 develop이 아니면 멈춥니다.
