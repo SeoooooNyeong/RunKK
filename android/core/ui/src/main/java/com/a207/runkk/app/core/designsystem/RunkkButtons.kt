@@ -50,70 +50,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
-/**
- * 알약 버튼 크기(피그마 RunKK / Buttons / 기본 Size). 높이·좌우 여백·글자를 함께 정한다. 모서리는 알약이다.
- * 화면 맨 아래 주 버튼은 [Large], 대화상자·바텀시트 버튼은 [Medium], 줄 안의 작은 행동은 [Small]·[XSmall].
- * [Hero]는 홈 "자유런 시작"처럼 큰 주 버튼(72, 모서리 20, 피그마 기본 버튼 밖)이다.
- */
-enum class RunkkButtonSize(val height: Dp, val horizontalPadding: Dp, val textStyle: TextStyle, val shape: Shape) {
-    Large(52.dp, 16.dp, RunkkTextStyles.text(16, FontWeight.SemiBold), RunkkShapes.Pill),
-    Medium(48.dp, 16.dp, RunkkTextStyles.text(15, FontWeight.SemiBold), RunkkShapes.Pill),
-    Small(36.dp, 16.dp, RunkkTextStyles.text(14, FontWeight.Medium), RunkkShapes.Pill),
-    XSmall(28.dp, 10.dp, RunkkTextStyles.text(12, FontWeight.Medium), RunkkShapes.Pill),
-    Hero(72.dp, 16.dp, RunkkTextStyles.text(24, FontWeight.Bold), RoundedCornerShape(20.dp))
-}
-
-/**
- * 알약 버튼 모양(피그마 RunKK / Buttons / 기본 Style). 꺼진 버튼은 모양과 상관없이 회색([Gray]: surfaceHigh 채움 + 보조 글자)이다.
- * - [Lime] 주 행동(primary 채움), [Purple] 대화상자 확인(secondary 채움), [Gray] 비활성
- * - [White] 흰 채움·테두리 없음, [Outline] 흰 채움 + divider 1 테두리(취소·보조 행동)
- * - [Text]·[TextMuted] 바탕 없는 글자 버튼(본문색·보조색)
- */
-enum class RunkkButtonStyle { Lime, Purple, Gray, White, Outline, Text, TextMuted }
-
 /** 알약 버튼 한 벌의 색. */
-private data class PillColors(val container: Color, val content: Color, val border: Color?)
-
-@Composable
-private fun RunkkButtonStyle.colors(isEnabled: Boolean, isPressed: Boolean): PillColors {
-    if (!isEnabled) {
-        return when (this) {
-            RunkkButtonStyle.Text, RunkkButtonStyle.TextMuted ->
-                PillColors(Color.Transparent, RunkkColors.TextSecondary, null)
-
-            else -> PillColors(RunkkColors.SurfaceHigh, RunkkColors.TextSecondary, null)
-        }
-    }
-    return when (this) {
-        RunkkButtonStyle.Lime ->
-            PillColors(
-                if (isPressed) RunkkColors.LimeFillPressed else RunkkColors.LimeFill,
-                RunkkColors.OnLimeFill,
-                null
-            )
-
-        RunkkButtonStyle.Purple -> PillColors(RunkkColors.Violet, RunkkColors.OnSecondary, null)
-
-        RunkkButtonStyle.Gray -> PillColors(RunkkColors.SurfaceHigh, RunkkColors.TextSecondary, null)
-
-        RunkkButtonStyle.White ->
-            PillColors(
-                if (isPressed) RunkkColors.SurfacePressed else RunkkColors.Surface,
-                RunkkColors.TextPrimary,
-                null
-            )
-
-        RunkkButtonStyle.Outline -> PillColors(
-            if (isPressed) RunkkColors.SurfacePressed else RunkkColors.Surface,
-            RunkkColors.TextPrimary,
-            RunkkColors.Border
-        )
-
-        RunkkButtonStyle.Text -> PillColors(Color.Transparent, RunkkColors.TextPrimary, null)
-
-        RunkkButtonStyle.TextMuted -> PillColors(Color.Transparent, RunkkColors.TextSecondary, null)
-    }
-}
+internal data class PillColors(val container: Color, val content: Color, val border: Color?)
 
 /** 누르면 살짝 줄어드는 효과(시안 :active scale). 동작 줄이기면 줄이지 않는다. */
 @Composable

@@ -424,9 +424,6 @@ private fun SegmentPill(label: String, fill: Color, content: Color, isSelected: 
     }
 }
 
-/** [RunkkSegmented] 고른 칸 색. */
-enum class RunkkSegmentedSelection { White, Lime }
-
 private val SEGMENT_TRACK_HEIGHT: Dp = 44.dp
 private val SEGMENT_TOUCH_HEIGHT: Dp = 48.dp
 private val SEGMENT_TRACK_PADDING: Dp = 4.dp
