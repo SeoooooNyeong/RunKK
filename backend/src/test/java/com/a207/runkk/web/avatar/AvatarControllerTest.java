@@ -59,14 +59,37 @@ class AvatarControllerTest extends WebTestSupport {
         return new SdFacePartImages(images);
     }
 
-    private void ensureShop() {
-        if (policy.shopCatalog().items().isEmpty()) {
+    private static final String CAP_901 =
+            "{\"id\":901,\"name\":\"러닝 모자\",\"slot\":\"HAT\",\"price\":30,\"onSale\":true}";
+    private static final String SHORTS_902 =
+            "{\"id\":902,\"name\":\"반바지\",\"slot\":\"BOTTOM\",\"price\":40,\"onSale\":true}";
+
+    /** W8 잠긴 아이템(S15P31A207-299): 유효 러닝 1번이면 열린다. */
+    private static final String LOCKED_951 =
+            "{\"id\":951,\"name\":\"완주 기념 티\",\"slot\":\"TOP\",\"price\":10,\"onSale\":true,"
+                    + "\"assetKey\":\"top_finisher_tee\",\"unlock\":{\"kind\":\"RUN_COUNT\","
+                    + "\"threshold\":1,\"text\":\"1번 달리면 열려요\"}}";
+
+    /** 시험 문맥을 함께 쓰는 다른 시험이 넣은 아이템은 지우지 못하므로(D-44) 지금 목록에 없는 시험 아이템만 덧붙인다. */
+    private void ensureShop() throws Exception {
+        java.util.List<String> items = new java.util.ArrayList<>();
+        java.util.Set<Long> have = new java.util.HashSet<>();
+        for (var item : policy.shopCatalog().items()) {
+            have.add(item.id());
+            items.add(write(item));
+        }
+        boolean added = false;
+        for (var e : Map.of(901L, CAP_901, 902L, SHORTS_902, 951L, LOCKED_951).entrySet()) {
+            if (!have.contains(e.getKey())) {
+                items.add(e.getValue());
+                added = true;
+            }
+        }
+        if (added) {
             settings.change(
                     "ops@runkk",
                     SettingKey.SHOP_ITEMS,
-                    "{\"items\":[{\"id\":901,\"name\":\"러닝 모자\",\"slot\":\"HAT\",\"price\":30,"
-                            + "\"onSale\":true},{\"id\":902,\"name\":\"반바지\",\"slot\":\"BOTTOM\","
-                            + "\"price\":40,\"onSale\":true}]}");
+                    "{\"items\":[" + String.join(",", items) + "]}");
         }
     }
 
@@ -223,5 +246,70 @@ class AvatarControllerTest extends WebTestSupport {
         mvc.perform(as(s, get("/api/v1/avatar")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.backgroundKey").doesNotExist());
+    }
+
+    // W8 내 러너·배경 확인·상점 잠금(S15P31A207-299, contract-W8.md)
+
+    @Test
+    @DisplayName("W8 GET /avatar/runner: 러닝 없는 회원은 기본 체형(변화 0)·러닝량 0·대표 시각 없음, 토큰 없으면 401")
+    void runner() throws Exception {
+        Session s = signUp();
+        mvc.perform(as(s, get("/api/v1/avatar/runner")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.bodyShape").value("STAGE1"))
+                .andExpect(jsonPath("$.bodyVariant").value(0))
+                .andExpect(jsonPath("$.skinTone").value("DAYTIME"))
+                .andExpect(jsonPath("$.typicalStartHour").doesNotExist())
+                .andExpect(jsonPath("$.recentRunCount").value(0))
+                .andExpect(jsonPath("$.recentDistanceMeters").value(0))
+                .andExpect(jsonPath("$.runAmount").value(0))
+                .andExpect(jsonPath("$.restDaysBeforeDecline").value(4));
+        mvc.perform(get("/api/v1/avatar/runner")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("W8 배경: 누적 거리·남은 거리·해금 일시(앱 해금 팝업 판정용)")
+    void backgroundsRemaining() throws Exception {
+        Session s = signUp();
+        var incheon = policy.landmarkTable().landmarks().get(0);
+        tx.executeWithoutResult(
+                status -> {
+                    var avatar = avatars.findForUpdate(s.memberId()).orElseThrow();
+                    avatar.unlock(java.util.List.of(incheon), LocalDateTime.of(2026, 11, 9, 7, 40));
+                    avatars.save(avatar);
+                });
+
+        mvc.perform(as(s, get("/api/v1/avatar/backgrounds")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalMeters").value(0))
+                .andExpect(jsonPath("$.backgrounds[0].unlocked").value(true))
+                .andExpect(
+                        jsonPath("$.backgrounds[0].unlockedAt").value("2026-11-09T07:40:00+09:00"))
+                .andExpect(jsonPath("$.backgrounds[0].remainingMeters").value(0))
+                .andExpect(jsonPath("$.backgrounds[1].unlocked").value(false))
+                .andExpect(jsonPath("$.backgrounds[1].remainingMeters").value(120_000));
+    }
+
+    @Test
+    @DisplayName("W8 상점: 그림 키·잠김·조건 문구, 잠긴 아이템 구매는 409 ITEM_LOCKED")
+    void shopLockedItem() throws Exception {
+        ensureShop();
+        Session s = signUp();
+        earn(s.memberId(), 3_000);
+        mvc.perform(as(s, get("/api/v1/shop").param("slot", "TOP")))
+                .andExpect(
+                        jsonPath("$.items[?(@.itemId == 951)].assetKey").value("top_finisher_tee"))
+                .andExpect(jsonPath("$.items[?(@.itemId == 951)].locked").value(true))
+                .andExpect(
+                        jsonPath("$.items[?(@.itemId == 951)].unlockCondition")
+                                .value("1번 달리면 열려요"));
+        mvc.perform(as(s, get("/api/v1/shop").param("slot", "HAT")))
+                .andExpect(jsonPath("$.items[?(@.itemId == 901)].locked").value(false));
+        mvc.perform(
+                        as(s, post("/api/v1/shop/purchases"))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(write(Map.of("itemId", 951))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ITEM_LOCKED"));
     }
 }
