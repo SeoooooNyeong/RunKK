@@ -36,6 +36,9 @@ echo "dump: $(basename "$DUMP") (${AGE_HOURS}h old, $(docker exec "$CHECK" du -h
 [ "$AGE_HOURS" -le "$MAX_AGE_HOURS" ] || die "newest daily dump is ${AGE_HOURS}h old (> ${MAX_AGE_HOURS}h). Check: docker logs $APP_PROJECT-backup-1"
 
 docker exec "$CHECK" createdb -U postgres runkk
+# 덤프에는 ai 전용 계정 runkk_ai(V29 analytics, Flyway가 만듦)에게 준 GRANT가 들어 있다. 빈 시험 컨테이너에는 그 계정이 없어
+# pg_restore가 role "runkk_ai" does not exist로 멈추므로, 복원 전에 로그인 불가 계정으로 먼저 만든다(권한 복원까지 함께 확인한다)
+docker exec "$CHECK" psql -U postgres -v ON_ERROR_STOP=1 -qc "CREATE ROLE runkk_ai NOLOGIN" >/dev/null
 docker exec "$CHECK" pg_restore -U postgres -d runkk --no-owner --exit-on-error "$DUMP" || die "pg_restore failed for $DUMP"
 echo "restore: ok"
 
