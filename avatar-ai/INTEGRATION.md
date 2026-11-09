@@ -1,5 +1,22 @@
 # Node 아바타 중계 연동 — S15P31A207-274
 
+## 2026-11-05 우측 얼굴 분리 레이어 추가
+
+기존 정면 필드와 `rightImage`는 유지한다. 생성 결과, 작업 결과, 최근 얼굴 조회와 우측 프로필 생성·조회 응답에 아래 PNG Data URL을 추가한다.
+
+| 필드 | 내용 |
+|---|---|
+| `rightFaceImage` | 우측 얼굴·코·입·귀·목 |
+| `rightEyesImage` | 보이는 눈 하나·속눈썹 |
+| `rightHairImage` | 머리카락·눈썹 |
+| `rightLayerLayout` | `version: runkk-right-head-layers-v1`, `direction: right`, `canvas: [1024,1024]`, `coordinateSpace: shared-source`, `independentTransforms: false` |
+
+우측 완성 PNG의 픽셀을 서버 코드로 분류한다. 세 PNG는 1024×1024 투명 배경이며 개별 크롭·이동·확대를 하지 않는다. 앱은 얼굴 → 눈 → 헤어 순서로 같은 좌표·배율에 그린다. 얼굴 파츠에는 원래 목이 포함된다. 정면용 `mobile.anchor` 및 `renderFaceImage`는 우측 좌표가 아니므로 우측에 재사용하지 않는다.
+
+기존 우측 PNG만 저장되어 있으면 조회 시 세 파츠를 분리해 사용자 폴더에 저장한다. 추가 이미지 생성·분석 API 호출은 없다. 분리에 실패하면 HTTP 502 `RIGHT_LAYER_EXTRACTION_FAILED`로 반환하며 자동 재생성하지 않는다. ai 중계의 현재 규칙에서는 이 코드를 503으로 변환하므로 세부 오류 노출이 필요하면 전달 목록을 추가해야 한다.
+
+웹 데모는 우측 보기에서 세 파츠 미리보기와 개별 PNG 저장을 제공한다. 새 레이어 필드는 기존 JSON에 추가되는 항목이다.
+
 확인일: 2026-11-04. 사용자 결정에 따라 `feature/selfie-face-api`와 `avatar-ai/`를 유지한다.
 최신 확인 develop `52686f7e`, AI 중계 구현 `d086e2b9`의 `ai/runkk_ai/face/{client,schemas}.py`와 대조했다.
 
