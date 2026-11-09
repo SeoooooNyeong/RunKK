@@ -72,47 +72,123 @@ class ColorContrastTest {
                 "onLimeFill",
                 "onSelectedFill",
                 "onTabSelected",
-                "onBackButton"
+                "onSecondary",
+                "onAccent",
+                "onTagPurple",
+                "onTagLime",
+                "onChipSelected"
             ),
             textTokens(light)
         )
     }
 
     @Test
-    fun `R2-05 라이트 벌의 채움 강조는 라임에 검은 글자, 뒤로 버튼은 보라 원이고 글자·선 강조는 올리브로 남는다`() {
+    fun `S15P31A207-292 라이트 벌은 피그마 Runkk · Theme Light 값이다`() {
         val light = RunkkColors.light
-        val lime = Color(0xFFCBEA2B)
-        assertEquals(listOf(lime, lime, lime), listOf(light.limeFill, light.selectedFill, light.tabSelected))
-        assertEquals(Color(0xFF171B12), light.onLimeFill)
-        assertEquals(Color(0xFF5C4BDB), light.backButton)
-        assertEquals(Color.White, light.onBackButton)
-        assertEquals(Color(0xFF3F6212), light.lime)
+        val expected = mapOf(
+            "background" to 0xFFF7F8F2,
+            "surface" to 0xFFFFFFFF,
+            "surfaceHigh" to 0xFFE9EDE0,
+            "border" to 0xFFE9EDE0,
+            "textPrimary" to 0xFF171B12,
+            "textSecondary" to 0xFF67705B,
+            "limeFill" to 0xFFCAEB2E,
+            "onLimeFill" to 0xFF171B12,
+            "violet" to 0xFF5C4BDB,
+            "onSecondary" to 0xFFFFFFFF,
+            "accent" to 0xFF9B8DEE,
+            "onAccent" to 0xFF171B12,
+            "accentContainer" to 0xFFEBE7FC,
+            "secondaryContainer" to 0xFFE3DFF9,
+            "accentMuted" to 0xFF7569BF,
+            "barCrew" to 0xFFBFC6B3,
+            "tagPurple" to 0xFFEBE7FC,
+            "onTagPurple" to 0xFF5C4BDB,
+            "tagLime" to 0xFFF2F9D0,
+            "onTagLime" to 0xFF3D4A00,
+            "segmentSelected" to 0xFFFFFFFF,
+            "chipSelected" to 0xFF67705B,
+            "onChipSelected" to 0xFFFFFFFF,
+            "outline" to 0xFFC7CCBF,
+            "radioStroke" to 0xFFE9EDE0,
+            "radioSelectedOuter" to 0xFFE9EDE0,
+            "radioDot" to 0xFF171B12,
+            "todayMark" to 0xFFE9EDE0,
+            "inputHigh" to 0xFFE9EDE0,
+            "menuDivider" to 0xFFE9EDE0,
+            "toggleOff" to 0xFFE9EDE0,
+            "lockShortcutIcon" to 0xFFFFFFFF,
+            "chatMine" to 0xFFFFFFFF,
+            "ink" to 0xFF171B12
+        )
+        assertEquals(
+            expected.mapValues {
+                Color(it.value)
+            },
+            expected.keys.associateWith { tokensOf(light).getValue(it) }
+        )
+        assertEquals(Color(0xFF171B12).copy(alpha = 0.45f), light.scrim)
     }
 
     @Test
-    fun `R2-05 다크 벌의 새 토큰은 바꾸기 전 색 그대로다`() {
+    fun `S15P31A207-292 다크 벌은 피그마 Runkk · Theme Dark 값이다`() {
         val dark = RunkkColors.dark
-        assertEquals(dark.lime, dark.limeFill)
-        assertEquals(dark.limePressed, dark.limeFillPressed)
-        assertEquals(dark.onLime, dark.onLimeFill)
-        assertEquals(dark.limeContainer, dark.selectedFill)
-        assertEquals(dark.lime, dark.onSelectedFill)
-        assertEquals(dark.lime, dark.selectedBorder)
-        assertEquals(dark.border, dark.tabSelected)
-        assertEquals(dark.textPrimary, dark.onTabSelected)
-        assertEquals(dark.surface, dark.backButton)
-        assertEquals(dark.textPrimary, dark.onBackButton)
-        assertEquals(dark.border, dark.backButtonBorder)
+        val expected = mapOf(
+            "background" to 0xFF171B12,
+            "surface" to 0xFF292F25,
+            "surfaceHigh" to 0xFF343D2D,
+            "border" to 0xFF444B3E,
+            "textPrimary" to 0xFFFFFFFF,
+            "textSecondary" to 0xFFA8AEA0,
+            "limeFill" to 0xFFCAEB2E,
+            "onLimeFill" to 0xFF171B12,
+            "violet" to 0xFF5C4BDB,
+            "onSecondary" to 0xFFFFFFFF,
+            "accent" to 0xFF9B8DEE,
+            "onAccent" to 0xFF171B12,
+            "accentContainer" to 0xFF3A3452,
+            "secondaryContainer" to 0xFF302856,
+            "accentMuted" to 0xFF9E94D4,
+            "barCrew" to 0xFF949C87,
+            "tagPurple" to 0xFFCFC4FF,
+            "onTagPurple" to 0xFF2B1F6B,
+            "tagLime" to 0xFFF2F9D0,
+            "onTagLime" to 0xFF3D4A00,
+            "segmentSelected" to 0xFF616959,
+            "chipSelected" to 0xFFDBE0D4,
+            "onChipSelected" to 0xFF171B12,
+            "outline" to 0xFF737A6B,
+            "radioStroke" to 0xFF737A6B,
+            "radioSelectedOuter" to 0xFF5C4ADB,
+            "radioDot" to 0xFFFFFFFF,
+            "todayMark" to 0xFF404A38,
+            "inputHigh" to 0xFF40453B,
+            "menuDivider" to 0xFF737A6B,
+            "toggleOff" to 0xFF525C4A,
+            "lockShortcutIcon" to 0xFF171B12,
+            "ink" to 0xFF171B12
+        )
+        assertEquals(
+            expected.mapValues {
+                Color(it.value)
+            },
+            expected.keys.associateWith { tokensOf(dark).getValue(it) }
+        )
+        assertEquals(Color(0xFF171B12).copy(alpha = 0.45f), dark.scrim)
+        assertEquals(Color(0xFF171B12).copy(alpha = 0.58f), dark.imageScrim)
     }
 
     @Test
-    fun `D95 Runimal 그림 바탕은 라이트에서 피그마 연두 네모, 다크에서 어두운 카드색에 옅은 테두리다`() {
-        val light = RunkkColors.light
-        assertEquals(Color(0xFFE9EEDC), light.runimalTile)
-        assertEquals(Color(0xFFD3D9C6), light.runimalTileBorder)
-        val dark = RunkkColors.dark
-        assertEquals(dark.surface, dark.runimalTile)
-        assertEquals(dark.borderStrong, dark.runimalTileBorder)
+    fun `S15P31A207-292 고른 칸·탭은 두 벌 모두 라임 채움에 검은 글자이고 Runimal 바탕은 surfaceHigh다`() {
+        listOf(RunkkColors.light, RunkkColors.dark).forEach { colors ->
+            assertEquals(
+                listOf(colors.limeFill, colors.limeFill, colors.limeFill),
+                listOf(colors.selectedFill, colors.selectedBorder, colors.tabSelected)
+            )
+            assertEquals(colors.onLimeFill, colors.onSelectedFill)
+            assertEquals(colors.onLimeFill, colors.onTabSelected)
+            assertEquals(colors.surfaceHigh, colors.runimalTile)
+        }
     }
 
     @Test
@@ -206,7 +282,13 @@ class ColorContrastTest {
                 "onLimeFill" to "limeFillPressed",
                 "onSelectedFill" to "selectedFill",
                 "onTabSelected" to "tabSelected",
-                "onBackButton" to "backButton",
+                "onSecondary" to "violet",
+                "onAccent" to "accent",
+                "onTagPurple" to "tagPurple",
+                "onTagLime" to "tagLime",
+                "onChipSelected" to "chipSelected",
+                "textPrimary" to "surfaceHigh",
+                "textPrimary" to "segmentSelected",
                 "lavender" to "background",
                 "lavender" to "surface",
                 "lavender" to "backgroundLocked"

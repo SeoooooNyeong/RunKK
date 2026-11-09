@@ -43,6 +43,12 @@ public interface CrewPostRepository {
     /** 크루 삭제 때 끝낼 크루런: 그 크루의 삭제 안 된 LOBBY_OPEN·RUNNING 글(D-66). */
     List<CrewRunPost> findActiveCrewRunsOf(long crewId);
 
+    /** 그 크루의 마친(FINISHED) 크루런 수, 지운 글은 빼고 센다(누적 크루런 횟수, S15P31A207-295). */
+    int countFinishedCrewRuns(long crewId);
+
+    /** 그 크루의 마친 크루런 limit개, 희망일시 최신순(지운 글 제외, 최근 크루런 S15P31A207-295). */
+    List<CrewRunPost> findRecentFinishedCrewRuns(long crewId, int limit);
+
     /** 회원이 참여한 크루런(희망일시가 기간 안). Runimal 동행 축·첫 크루런 여부에 쓴다. */
     List<CrewRunPost> findCrewRunsOf(long memberId, DateRange range);
 

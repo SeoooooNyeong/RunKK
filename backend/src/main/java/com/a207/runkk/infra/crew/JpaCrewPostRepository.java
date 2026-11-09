@@ -185,6 +185,33 @@ public class JpaCrewPostRepository implements CrewPostRepository {
     }
 
     @Override
+    public int countFinishedCrewRuns(long crewId) {
+        return entityManager
+                .createQuery(
+                        "select count(p) from CrewRunPost p where p.crewId = :crew"
+                                + " and p.deleted = false and p.status = :finished",
+                        Long.class)
+                .setParameter("crew", crewId)
+                .setParameter("finished", CrewRunStatus.FINISHED)
+                .getSingleResult()
+                .intValue();
+    }
+
+    /** V50 색인(crew_id, scheduled_at DESC, 마친 크루런만)을 탄다. */
+    @Override
+    public List<CrewRunPost> findRecentFinishedCrewRuns(long crewId, int limit) {
+        return entityManager
+                .createQuery(
+                        "select p from CrewRunPost p where p.crewId = :crew and p.deleted = false"
+                            + " and p.status = :finished order by p.scheduledAt desc, p.id desc",
+                        CrewRunPost.class)
+                .setParameter("crew", crewId)
+                .setParameter("finished", CrewRunStatus.FINISHED)
+                .setMaxResults(limit)
+                .getResultList();
+    }
+
+    @Override
     public List<CrewRunPost> findCrewRunsOf(long memberId, DateRange range) {
         return entityManager
                 .createQuery(

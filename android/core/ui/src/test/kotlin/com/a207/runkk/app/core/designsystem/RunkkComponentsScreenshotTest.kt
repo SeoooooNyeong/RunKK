@@ -43,7 +43,7 @@ class RunkkComponentsScreenshotTest {
         ) {
             RunkkPrimaryButton("카카오로 시작하기", onClick = {}, modifier = Modifier.fillMaxWidth())
             RunkkPrimaryButton("자유런 시작", onClick = {
-            }, size = RunkkButtonSize.Large, hasTrailingArrow = true, modifier = Modifier.fillMaxWidth())
+            }, size = RunkkButtonSize.Hero, hasTrailingArrow = true, modifier = Modifier.fillMaxWidth())
             RunkkSecondaryButton("Google로 시작하기", onClick = {}, modifier = Modifier.fillMaxWidth())
             RunkkAccentOutlinedButton("회원 탈퇴", onClick = {}, modifier = Modifier.fillMaxWidth())
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -162,6 +162,83 @@ class RunkkComponentsScreenshotTest {
                     }
                 }
             }
+        }
+    }
+
+    /** 피그마 맞춤 W1 공통 부품(라이트·다크, S15P31A207-292). */
+    @Test
+    fun figmaPartsLight() = compose.captureRunkkScreen("designsystem_figma_parts_light", isDarkTheme = false) {
+        FigmaParts()
+    }
+
+    @Test
+    fun figmaPartsDark() = compose.captureRunkkScreen("designsystem_figma_parts_dark") { FigmaParts() }
+}
+
+@Composable
+private fun FigmaParts() {
+    Column(
+        Modifier.fillMaxSize().background(RunkkColors.Background),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        RunkkTopBar(title = "크루런 결과", onBack = {})
+        Column(Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            RunkkButton("확인", onClick = {}, modifier = Modifier.fillMaxWidth())
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                RunkkButton(
+                    "취소",
+                    onClick = {},
+                    style = RunkkButtonStyle.Outline,
+                    size = RunkkButtonSize.Medium,
+                    modifier = Modifier.weight(1f)
+                )
+                RunkkButton(
+                    "탈퇴하기",
+                    onClick = {},
+                    style = RunkkButtonStyle.Purple,
+                    size = RunkkButtonSize.Medium,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            RunkkButton("다음", onClick = {}, isEnabled = false, modifier = Modifier.fillMaxWidth())
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                RunkkButton("초대 코드", onClick = {}, style = RunkkButtonStyle.Outline, size = RunkkButtonSize.Small)
+                RunkkButton("가입", onClick = {}, size = RunkkButtonSize.Small)
+                RunkkButton("더보기", onClick = {}, style = RunkkButtonStyle.White, size = RunkkButtonSize.XSmall)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                RunkkChoiceChip("아침", isSelected = false, onSelectedChange = {})
+                RunkkChoiceChip("저녁", isSelected = true, onSelectedChange = {})
+            }
+            RunkkSegmented(listOf("공개", "비공개"), selectedIndex = 0, onSelect = {})
+            RunkkSegmented(
+                listOf("레이스", "크루런", "채팅"),
+                selectedIndex = 1,
+                onSelect = {},
+                selection = RunkkSegmentedSelection.Lime
+            )
+            RunkkSegmentRow(listOf("요약", "러닝별", "월간"), selectedIndex = 0, onSelect = {})
+            MetaRow(
+                listOf(
+                    MetaItem(RunkkIcons.CalendarToday, "2026.10.12 개설"),
+                    MetaItem(RunkkIcons.Group, "7명"),
+                    MetaItem(RunkkIcons.Schedule, "평일 저녁"),
+                    MetaItem(RunkkIcons.DirectionsRun, "5km")
+                )
+            )
+            MetaRow(
+                listOf(
+                    MetaItem(RunkkIcons.CheckCircle, "완료"),
+                    MetaItem(RunkkIcons.EmojiEvents, "골드"),
+                    MetaItem(RunkkIcons.TrendingUp, "Lv23"),
+                    MetaItem(RunkkIcons.Person, "20대")
+                )
+            )
+            RunkkCard(modifier = Modifier.fillMaxWidth()) {
+                Text("테두리 없는 카드", style = RunkkTextStyles.CardTitle, color = RunkkColors.TextPrimary)
+                Text("본문 14/22, IBM Plex Sans KR", style = RunkkTextStyles.Body, color = RunkkColors.TextSecondary)
+            }
+            Text("2.14", style = RunkkTextStyles.DisplayHuge, color = RunkkColors.TextPrimary)
         }
     }
 }

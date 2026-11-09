@@ -16,7 +16,7 @@ import java.util.List;
  * @param contributors 기여자, 거리 큰 순
  * @param myRate 본인 기여율
  * @param goal 그 주 공동 목표(이어 쓴 값 포함), 없으면 null
- * @param goalProgressPercent min(100, 합계 × 100 ÷ 목표), 목표가 없으면 null
+ * @param goalProgressPercent ⌊합계 × 100 ÷ 목표⌋(100을 넘을 수 있다, C2), 목표가 없으면 null
  * @param achievedAt 목표 달성 일시, 아니면 null
  * @param celebration 달성한 주의 축하 카드, 아니면 null
  */

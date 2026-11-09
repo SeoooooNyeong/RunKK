@@ -2,6 +2,7 @@ package com.a207.runkk.reward;
 
 import com.a207.runkk.common.ItemSlot;
 import com.a207.runkk.policy.ShopItem;
+import com.a207.runkk.policy.ShopUnlock;
 import java.util.List;
 
 /**
@@ -26,13 +27,32 @@ public record ShopView(List<Entry> items, int balance) {
      * @param price 가격
      * @param onSale 판매 중
      * @param owned 보유 여부
+     * @param assetKey 앱 그림 키, 없으면 null(W8)
+     * @param locked 해금 조건을 못 채웠고 보유하지 않음(W8)
+     * @param unlockCondition 해금 조건 문구, 조건이 없으면 null(W8)
      */
     public record Entry(
-            long itemId, String name, ItemSlot slot, int price, boolean onSale, boolean owned) {
+            long itemId,
+            String name,
+            ItemSlot slot,
+            int price,
+            boolean onSale,
+            boolean owned,
+            String assetKey,
+            boolean locked,
+            String unlockCondition) {
 
-        static Entry of(ShopItem item, boolean owned) {
+        static Entry of(ShopItem item, boolean owned, boolean locked) {
             return new Entry(
-                    item.id(), item.name(), item.slot(), item.price(), item.onSale(), owned);
+                    item.id(),
+                    item.name(),
+                    item.slot(),
+                    item.price(),
+                    item.onSale(),
+                    owned,
+                    item.assetKey(),
+                    locked,
+                    item.unlockCondition().map(ShopUnlock::text).orElse(null));
         }
     }
 }

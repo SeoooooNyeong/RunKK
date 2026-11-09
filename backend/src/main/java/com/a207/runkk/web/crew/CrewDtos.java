@@ -28,6 +28,7 @@ import com.a207.runkk.crew.CrewRunSlot;
 import com.a207.runkk.crew.CrewSearch;
 import com.a207.runkk.crew.CrewVisibility;
 import com.a207.runkk.crew.FinalProgress;
+import com.a207.runkk.crew.InvitePreviewView;
 import com.a207.runkk.crew.JoinPolicy;
 import com.a207.runkk.crew.LobbyView;
 import com.a207.runkk.crew.MeetupDraft;
@@ -43,6 +44,7 @@ import com.a207.runkk.crew.PostSummary;
 import com.a207.runkk.crew.RaceStatusView;
 import com.a207.runkk.crew.Readiness;
 import com.fasterxml.jackson.annotation.JsonAlias;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -71,6 +73,12 @@ final class CrewDtos {
 
     /** 게시 사진 주소(GET /crew-photos/{photoId}, D-100). */
     static final String PHOTO_PATH = "/api/v1/crew-photos/";
+
+    /** 크루 로고 주소(GET /crew-logos/{logoId}, S15P31A207-295). */
+    static final String LOGO_PATH = "/api/v1/crew-logos/";
+
+    /** 받는 로고 주소: 기존 https 주소 또는 업로드한 로고 경로(contract-W4 8절). */
+    static final String LOGO_URL_PATTERN = "^(https://[^\\s]+|/api/v1/crew-logos/[0-9]{1,18})$";
 
     private CrewDtos() {}
 
@@ -123,7 +131,7 @@ final class CrewDtos {
      * @param tags 크루 태그(요일·시간대)
      * @param visibility 공개 여부
      * @param joinPolicy 가입 방식
-     * @param logoUrl 로고 이미지 주소
+     * @param logoUrl 로고 이미지 주소(https 또는 POST /crew-logos가 준 /api/v1/crew-logos/{logoId})
      */
     record CrewFormRequest(
             String name,
@@ -131,7 +139,7 @@ final class CrewDtos {
             Set<CrewTag> tags,
             CrewVisibility visibility,
             JoinPolicy joinPolicy,
-            @Pattern(regexp = "^https://[^\\s]+$") @Size(max = MAX_LOGO_URL) String logoUrl) {
+            @Pattern(regexp = LOGO_URL_PATTERN) @Size(max = MAX_LOGO_URL) String logoUrl) {
 
         CrewCreateCommand toCommand() {
             return new CrewCreateCommand(name, intro, tags, visibility, joinPolicy, logoUrl);
@@ -139,7 +147,7 @@ final class CrewDtos {
 
         CrewInfoChange toChange() {
             return new CrewInfoChange(
-                    name == null ? null : CrewName.of(name),
+                    name == null ? null : CrewName.edited(name),
                     intro,
                     tags == null ? null : TagSet.of(tags, TagOwner.CREW),
                     visibility,
@@ -171,6 +179,64 @@ final class CrewDtos {
      * @param memberId 새 크루장
      */
     record LeaderRequest(@NotNull Long memberId) {}
+
+    /**
+     * 초대 코드 미리보기 요청(POST /crews/invite-preview, S15P31A207-295). 코드를 URL에 싣지 않으려고 본문으로 받는다.
+     *
+     * @param inviteCode 초대 코드(대소문자·앞뒤 공백 무시)
+     */
+    record InvitePreviewRequest(@NotBlank String inviteCode) {}
+
+    /**
+     * 초대 코드로 찾은 크루 요약(피그마 F-03c). 가입은 POST /crews/join {inviteCode}로 따로 한다.
+     *
+     * @param crewId 크루 ID
+     * @param name 크루명
+     * @param intro 한줄소개
+     * @param tags 크루 태그
+     * @param logoUrl 로고
+     * @param visibility PUBLIC | PRIVATE(비공개면 크루 밖 사람은 상세를 못 본다)
+     * @param joinPolicy FREE | APPROVAL(초대 코드 가입은 방식과 상관없이 바로 가입)
+     * @param headcount 인원
+     * @param createdAt 개설 일시
+     */
+    record InvitePreviewResponse(
+            long crewId,
+            String name,
+            String intro,
+            Set<CrewTag> tags,
+            String logoUrl,
+            CrewVisibility visibility,
+            JoinPolicy joinPolicy,
+            int headcount,
+            OffsetDateTime createdAt) {
+
+        static InvitePreviewResponse of(InvitePreviewView v) {
+            return new InvitePreviewResponse(
+                    v.crewId(),
+                    v.name(),
+                    v.intro(),
+                    v.tags().tags(),
+                    v.logoUrl(),
+                    v.visibility(),
+                    v.joinPolicy(),
+                    v.headcount(),
+                    at(v.createdAt()));
+        }
+    }
+
+    /**
+     * 크루 로고 업로드 결과(POST /crew-logos, S15P31A207-295).
+     *
+     * @param logoId 로고 ID
+     * @param logoUrl 로고 주소(그대로 CrewFormRequest.logoUrl에 싣는다)
+     */
+    record CrewLogoResponse(long logoId, String logoUrl) {
+
+        static CrewLogoResponse of(long logoId) {
+            return new CrewLogoResponse(logoId, LOGO_PATH + logoId);
+        }
+    }
 
     /**
      * 가입 신청: 크루 ID 또는 초대 코드.
@@ -215,12 +281,15 @@ final class CrewDtos {
      *
      * @param crews 공개 크루
      * @param nextCursor 다음 페이지 커서(size를 줬을 때만), 없으면 null
+     * @param totalCount 같은 조건의 공개 크루 전체 수(커서·크기와 상관없음, 피그마 F-01d)
      */
-    record CrewListResponse(List<Item> crews, Long nextCursor) {
+    record CrewListResponse(List<Item> crews, Long nextCursor, long totalCount) {
 
         static CrewListResponse of(CrewListView view) {
             return new CrewListResponse(
-                    view.crews().stream().map(Item::of).toList(), view.nextCursor());
+                    view.crews().stream().map(Item::of).toList(),
+                    view.nextCursor(),
+                    view.totalCount());
         }
 
         /**
@@ -271,7 +340,7 @@ final class CrewDtos {
      * @param contributors 기여자
      * @param myShare 본인 기여율
      * @param goalMeters 이번 주 공동 목표(v0.11 FR-138), 없으면 null
-     * @param goalProgressPercent 목표 진행률 min(100, 합산 × 100 ÷ 목표), 목표가 없으면 null
+     * @param goalProgressPercent 목표 진행률 ⌊합산 × 100 ÷ 목표⌋(100을 넘을 수 있다, C2), 목표가 없으면 null
      * @param achievedAt 목표 달성 일시, 아니면 null
      * @param celebration 축하 카드(달성한 주만, FR-217)
      */
@@ -974,6 +1043,11 @@ final class CrewDtos {
      * @param myRole LEADER | MANAGER | MEMBER, 크루 밖이면 null
      * @param inviteCode 초대 코드(크루원이면, 크루 밖이면 null)
      * @param inviteCodeExpiresAt 초대 코드 만료 일시(크루원이면)
+     * @param createdAt 개설 일시(S15P31A207-295, 아래 넷도 같다)
+     * @param totalDistanceMeters 누적 크루 거리(모든 주 크루 거리 합)
+     * @param crewRunCount 누적 크루런 횟수(마친 크루런)
+     * @param recentCrewRuns 최근 마친 크루런 최대 3건(약속 시각 최신순)
+     * @param rejoinAvailableAt 열람자가 24시간 가입 제한 중이면 가입 가능 시각, 아니면 null
      */
     record CrewDetailResponse(
             long crewId,
@@ -990,7 +1064,12 @@ final class CrewDtos {
             long lastWeekDistanceMeters,
             String myRole,
             String inviteCode,
-            OffsetDateTime inviteCodeExpiresAt) {
+            OffsetDateTime inviteCodeExpiresAt,
+            OffsetDateTime createdAt,
+            long totalDistanceMeters,
+            int crewRunCount,
+            List<RecentCrewRun> recentCrewRuns,
+            OffsetDateTime rejoinAvailableAt) {
 
         static CrewDetailResponse of(CrewDetailView v) {
             return new CrewDetailResponse(
@@ -1008,7 +1087,35 @@ final class CrewDtos {
                     v.lastWeekDistance().meters(),
                     v.myRole() == null ? null : v.myRole().name(),
                     v.inviteCode() == null ? null : v.inviteCode().code(),
-                    v.inviteCode() == null ? null : at(v.inviteCode().expiresAt()));
+                    v.inviteCode() == null ? null : at(v.inviteCode().expiresAt()),
+                    at(v.createdAt()),
+                    v.totalDistance().meters(),
+                    v.crewRunCount(),
+                    v.recentCrewRuns().stream().map(RecentCrewRun::of).toList(),
+                    at(v.rejoinAvailableAt()));
+        }
+
+        /**
+         * 최근 마친 크루런 한 건(개인 정보 없음, 결정 C9).
+         *
+         * @param postId 크루런 모집글 ID
+         * @param scheduledAt 약속 시각
+         * @param participantCount 함께 달린 인원
+         * @param totalDistanceMeters 참가자 거리 합
+         */
+        record RecentCrewRun(
+                long postId,
+                OffsetDateTime scheduledAt,
+                int participantCount,
+                long totalDistanceMeters) {
+
+            static RecentCrewRun of(CrewDetailView.RecentCrewRun r) {
+                return new RecentCrewRun(
+                        r.postId(),
+                        at(r.scheduledAt()),
+                        r.participantCount(),
+                        r.totalDistance().meters());
+            }
         }
     }
 
@@ -1017,8 +1124,12 @@ final class CrewDtos {
      *
      * @param crew 소속 크루, 없으면 null
      * @param pendingRequests 대기 중인 본인 가입 신청
+     * @param rejoinAvailableAt 24시간 가입·생성 제한 중이면 풀리는 시각, 아니면 null(S15P31A207-295)
      */
-    record MyCrewResponse(CrewDetailResponse crew, List<PendingJoin> pendingRequests) {
+    record MyCrewResponse(
+            CrewDetailResponse crew,
+            List<PendingJoin> pendingRequests,
+            OffsetDateTime rejoinAvailableAt) {
 
         static MyCrewResponse of(MyCrewView v) {
             return new MyCrewResponse(
@@ -1031,7 +1142,8 @@ final class CrewDtos {
                                                     p.crewId(),
                                                     p.crewName(),
                                                     at(p.requestedAt())))
-                            .toList());
+                            .toList(),
+                    at(v.rejoinAvailableAt()));
         }
 
         /**

@@ -1,0 +1,11 @@
+{
+  "crewId": 12,
+  "name": "새벽러너스",
+  "intro": "새벽에 함께 달려요",
+  "tags": ["WEEKDAY_DAWN"],
+  "logoUrl": null,
+  "visibility": "PRIVATE",
+  "joinPolicy": "APPROVAL",
+  "headcount": 7,
+  "createdAt": "2026-10-01T09:00:00+09:00"
+}

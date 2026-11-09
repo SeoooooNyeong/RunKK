@@ -11,9 +11,10 @@ import org.junit.jupiter.api.Test;
 class ChatEnumsTest {
 
     @Test
-    @DisplayName("리액션은 LIKE·HEART, 채팅 삭제 사유는 DELETED·HIDDEN")
+    @DisplayName("리액션은 LIKE·HEART·CHECK(W5 C7), 채팅 삭제 사유는 DELETED·HIDDEN")
     void reactionsAndRemovalReasons() {
-        assertThat(ReactionKind.values()).containsExactly(ReactionKind.LIKE, ReactionKind.HEART);
+        assertThat(ReactionKind.values())
+                .containsExactly(ReactionKind.LIKE, ReactionKind.HEART, ReactionKind.CHECK);
         assertThat(ChatRemovalReason.values())
                 .containsExactly(ChatRemovalReason.DELETED, ChatRemovalReason.HIDDEN);
     }

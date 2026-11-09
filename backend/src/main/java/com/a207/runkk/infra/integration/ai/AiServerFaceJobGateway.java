@@ -157,6 +157,16 @@ public class AiServerFaceJobGateway implements FaceJobGateway {
         validatePng(head.faceImage());
         validatePng(head.eyesImage());
         validatePng(head.hairImage());
+        // W9 옆모습·원본 레이어(S15P31A207-300)는 선택 항목이다. 있으면 정면과 같은 PNG 규격을 지켜야 한다.
+        for (String optional :
+                java.util.Arrays.asList(
+                        head.frontImage(),
+                        head.rightImage(),
+                        head.rightFaceImage(),
+                        head.rightEyesImage(),
+                        head.rightHairImage())) {
+            if (optional != null) validatePng(optional);
+        }
         if (head.mobile() != null && head.mobile().containsKey("renderFaceImage")) {
             Object render = head.mobile().get("renderFaceImage");
             validatePng(render instanceof String image ? image : null);
