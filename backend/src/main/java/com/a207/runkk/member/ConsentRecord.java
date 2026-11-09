@@ -18,4 +18,10 @@ public record ConsentRecord(
         @Enumerated(EnumType.STRING) @Column(name = "item", nullable = false, length = 20)
                 ConsentItem item,
         @Column(name = "agreed", nullable = false) boolean agreed,
-        @Column(name = "changed_at", nullable = false) LocalDateTime changedAt) {}
+        @Column(name = "changed_at", nullable = false) LocalDateTime changedAt,
+        @Column(name = "notice_version", nullable = false) int noticeVersion) {
+
+    public ConsentRecord(ConsentItem item, boolean agreed, LocalDateTime changedAt) {
+        this(item, agreed, changedAt, 1);
+    }
+}

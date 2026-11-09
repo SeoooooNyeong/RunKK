@@ -17,6 +17,8 @@ public interface MemberRepository {
 
     Optional<Member> findById(long id);
 
+    Optional<Member> findByIdForUpdate(long id);
+
     Optional<Member> findByAccount(SocialAccount account);
 
     boolean existsByNickname(String nickname);
