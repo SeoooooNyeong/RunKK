@@ -713,6 +713,15 @@
     }, {
       "name" : "clientMessageId",
       "kind" : "leaf"
+    }, {
+      "name" : "messageKind",
+      "kind" : "leaf"
+    }, {
+      "name" : "authorRole",
+      "kind" : "leaf"
+    }, {
+      "name" : "runDistanceMeters",
+      "kind" : "leaf"
     } ],
     "file" : "web/chat/ChatController.java"
   },
@@ -749,6 +758,36 @@
     }, {
       "name" : "myReactions",
       "kind" : "list-leaf"
+    } ],
+    "file" : "web/chat/ChatController.java"
+  },
+  "ChatController.Reactor" : {
+    "components" : [ {
+      "name" : "memberId",
+      "kind" : "leaf"
+    }, {
+      "name" : "displayName",
+      "kind" : "leaf"
+    }, {
+      "name" : "kind",
+      "kind" : "leaf"
+    }, {
+      "name" : "reactedAt",
+      "kind" : "leaf"
+    }, {
+      "name" : "me",
+      "kind" : "leaf"
+    } ],
+    "file" : "web/chat/ChatController.java"
+  },
+  "ChatController.ReactorListResponse" : {
+    "components" : [ {
+      "name" : "messageId",
+      "kind" : "leaf"
+    }, {
+      "name" : "reactors",
+      "kind" : "list",
+      "ref" : "ChatController.Reactor"
     } ],
     "file" : "web/chat/ChatController.java"
   },

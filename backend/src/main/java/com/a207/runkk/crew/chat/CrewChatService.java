@@ -6,14 +6,17 @@ import com.a207.runkk.audit.AuditEntry;
 import com.a207.runkk.audit.AuditService;
 import com.a207.runkk.common.BusinessRuleException;
 import com.a207.runkk.common.DisplayName;
+import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.DomainEventPublisher;
 import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.crew.CrewMembershipReader;
 import com.a207.runkk.crew.CrewRelation;
+import com.a207.runkk.crew.CrewRole;
 import com.a207.runkk.crew.chat.live.ChatRemovalReason;
 import com.a207.runkk.member.MemberQueryService;
 import com.a207.runkk.member.MemberSummary;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -39,6 +42,9 @@ public class CrewChatService {
 
     /** 신고 미리보기 글자 수(코드 포인트). */
     static final int PREVIEW_LENGTH = 100;
+
+    /** 이보다 오래전에 시작한 기록(늦은 업로드)은 러닝 완료 메시지를 남기지 않는다(W5 결정). */
+    static final Duration RUN_FINISHED_WINDOW = Duration.ofHours(24);
 
     private final CrewChatMessageRepository messages;
     private final ChatReactionRepository reactions;
@@ -191,6 +197,80 @@ public class CrewChatService {
         return viewOf(messageId, memberId);
     }
 
+    /**
+     * 반응한 사람 목록(피그마 F-09d, 사용자 결정 C7). 없거나 삭제·숨김이면 CHAT_MESSAGE_NOT_FOUND, 크루 밖·떠난 회원은
+     * NOT_CREW_MEMBER. 반응 한 건이 한 줄이고 먼저 단 순서다. kind를 주면 그 종류만. 표시명은 묶어서 한 번 읽는다.
+     */
+    @Transactional(readOnly = true)
+    public List<ChatReactor> reactors(long memberId, long messageId, Optional<ReactionKind> kind) {
+        CrewChatMessage message = requireVisible(messageId);
+        requireMember(memberId, message.crewId());
+        List<ChatReaction> rows = reactions.reactionsOf(messageId, kind.orElse(null));
+        if (rows.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, MemberSummary> names =
+                memberQuery.summaries(
+                        rows.stream().map(ChatReaction::memberId).distinct().toList());
+        return rows.stream()
+                .map(
+                        r ->
+                                new ChatReactor(
+                                        r.memberId(),
+                                        authorName(r.memberId(), names),
+                                        r.kind(),
+                                        r.reactedAt().atZone(clock.getZone()).toOffsetDateTime(),
+                                        r.memberId() == memberId))
+                .toList();
+    }
+
+    /**
+     * 러닝 완료 시스템 메시지(사용자 결정 C7). crew의 RaceContributionAdded를 받은 ChatRunFinishedListener가 부른다. 지금 그
+     * 크루의 크루원이 아니거나, 시작이 24시간보다 오래된 기록이거나, 같은 기록의 메시지가 이미 있으면 남기지 않고 빈 값이다. 남기면 ChatMessagePosted를
+     * 발행한다(커밋 뒤 방 안 전송, 방 밖 알림 없음). 동시 중복은 고유 색인이 막고 빈 값을 준다.
+     *
+     * @return 남긴 메시지 ID
+     */
+    public Optional<Long> postRunFinished(
+            long crewId,
+            long memberId,
+            String recordId,
+            Distance distance,
+            LocalDateTime startedAt) {
+        try {
+            return Optional.ofNullable(
+                    transactions.execute(
+                            status ->
+                                    postRunFinishedOnce(
+                                            crewId, memberId, recordId, distance, startedAt)));
+        } catch (DataIntegrityViolationException duplicate) {
+            return Optional.empty();
+        }
+    }
+
+    private Long postRunFinishedOnce(
+            long crewId,
+            long memberId,
+            String recordId,
+            Distance distance,
+            LocalDateTime startedAt) {
+        LocalDateTime now = now();
+        if (startedAt.isBefore(now.minus(RUN_FINISHED_WINDOW))
+                || membership.relationOf(memberId, crewId) == CrewRelation.OUTSIDER
+                || messages.findByClientMessageId(
+                                memberId, CrewChatMessage.runFinishedClientId(recordId))
+                        .isPresent()) {
+            return null;
+        }
+        String name = authorName(memberId, memberQuery.summaries(List.of(memberId)));
+        CrewChatMessage saved =
+                messages.save(
+                        CrewChatMessage.runFinished(
+                                crewId, memberId, recordId, name, distance, now));
+        events.publish(new ChatMessagePosted(crewId, saved.id(), memberId, now));
+        return saved.id();
+    }
+
     /** 채팅방 입장 확인(realtime이 ChatPresence(present 참)를 받을 때, N11). 크루 밖이면 NOT_CREW_MEMBER. */
     @Transactional(readOnly = true)
     public void checkRoomAccess(long memberId, long crewId) {
@@ -271,13 +351,15 @@ public class CrewChatService {
         List<Long> ids = page.stream().map(CrewChatMessage::id).toList();
         Map<Long, Map<ReactionKind, Integer>> counts = reactions.countsOf(ids);
         Map<Long, Set<ReactionKind>> mine = reactions.mineOf(memberId, ids);
-        Map<Long, MemberSummary> names =
-                memberQuery.summaries(
-                        page.stream()
-                                .map(CrewChatMessage::authorId)
-                                .filter(Objects::nonNull)
-                                .distinct()
-                                .toList());
+        List<Long> authors =
+                page.stream()
+                        .map(CrewChatMessage::authorId)
+                        .filter(Objects::nonNull)
+                        .distinct()
+                        .toList();
+        Map<Long, MemberSummary> names = memberQuery.summaries(authors);
+        Map<Long, CrewRole> roles =
+                authors.isEmpty() ? Map.of() : membership.rolesIn(page.get(0).crewId(), authors);
         return page.stream()
                 .map(
                         m -> {
@@ -292,7 +374,10 @@ public class CrewChatService {
                                     mine.getOrDefault(m.id(), Set.of()),
                                     own,
                                     CrewChatMessage.mayDelete(own, relation),
-                                    own ? m.clientMessageId() : null);
+                                    own ? m.clientMessageId() : null,
+                                    m.kind(),
+                                    m.authorId() == null ? null : roles.get(m.authorId()),
+                                    m.runDistanceMeters());
                         })
                 .toList();
     }
