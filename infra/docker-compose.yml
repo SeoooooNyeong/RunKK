@@ -29,6 +29,8 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
       SWAGGER_ENABLED: ${SWAGGER_ENABLED:-false}
+      # 서버 시간대(DF-073). 이미지(Dockerfile)와 RunkkApplication.main도 Asia/Seoul로 정한다. API_JAVA_OPTS를 바꿔도 빠지지 않게 TZ로 둔다
+      TZ: Asia/Seoul
       # 컨테이너 메모리 제한(mem_limit) 안에서 힙을 잡는다. 나머지는 메타스페이스·스레드 스택·직접 버퍼 몫이다.
       # 메모리가 바닥나면 반쯤 살아 있는 상태로 남지 않고 끝나서 restart 정책으로 다시 뜬다
       JAVA_TOOL_OPTIONS: ${API_JAVA_OPTS:--XX:MaxRAMPercentage=60 -XX:+ExitOnOutOfMemoryError}
