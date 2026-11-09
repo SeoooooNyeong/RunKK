@@ -41,6 +41,25 @@ class RunBodyTrendTest {
         assertThat(trend.recent()).isNull();
         assertThat(trend.previous()).isNull();
         assertThat(trend.sameHeartRatePaceChange()).isNull();
+        assertThat(trend.firstRunStartedAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("요약 최근 10회 평균(G-14): 회차 평균 거리는 거리 합을 러닝 수로 나눠 m 단위로 반올림한다")
+    void windowAverageDistance_isMeanMeters() {
+        List<ValidRunStat> runs = window(1, 0, 3, 362, 150);
+        runs.set(9, new ValidRunStat(10, D0, Distance.ofMeters(5_005), new Pace(362), 150));
+        // (9 × 5000 + 5005) / 10 = 5000.5 → 5001
+        assertThat(RunBodyTrend.of(10, runs, List.of()).recent().averageDistanceMeters())
+                .isEqualTo(5_001);
+    }
+
+    @Test
+    @DisplayName("첫 유효 러닝 시작 일시를 그대로 싣는다(앱 월간·주간 이동 하한)")
+    void firstRunStartedAt_isCarried() {
+        RunBodyTrend trend = RunBodyTrend.of(3, D0, List.of(), List.of());
+        assertThat(trend.firstRunStartedAt()).isEqualTo(D0);
+        assertThat(trend.round()).isZero();
     }
 
     @Test

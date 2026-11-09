@@ -1,10 +1,12 @@
 package com.a207.runkk.web.runbody;
 
+import com.a207.runkk.common.ServerZone;
 import com.a207.runkk.runbody.RunBodySessionItem;
 import com.a207.runkk.runbody.RunBodySessionPage;
 import com.a207.runkk.runbody.RunBodySessionView;
 import com.a207.runkk.runbody.RunBodyTrend;
 import com.fasterxml.jackson.annotation.JsonRawValue;
+import java.time.OffsetDateTime;
 import java.util.List;
 
 /** 런바디 응답(앱 계약 runbody contract.md v1.2 1절·7절·8절). */
@@ -69,6 +71,7 @@ public final class RunBodyDtos {
      * @param previous 직전 10회(round 2 미만이면 null)
      * @param sameHeartRatePaceChange 같은 심박 페이스 변화(초/km, 양수면 빨라짐). 셈할 수 없으면 null
      * @param runimalType 나의 러닝 유형(서버 RunimalType 이름, 확정 우선·없으면 임시). 없으면 null
+     * @param firstRunAt 첫 유효 러닝 시작 시각(+09:00). 앱이 기기 시간대로 바꿔 월간·주간 이동 하한으로 쓴다. 없으면 null
      */
     public record RunBodyTrendResponse(
             int validRunCount,
@@ -77,7 +80,8 @@ public final class RunBodyDtos {
             RunBodyWindowResponse recent,
             RunBodyWindowResponse previous,
             Integer sameHeartRatePaceChange,
-            String runimalType) {
+            String runimalType,
+            OffsetDateTime firstRunAt) {
 
         static RunBodyTrendResponse of(RunBodyTrend trend, String runimalType) {
             return new RunBodyTrendResponse(
@@ -87,7 +91,10 @@ public final class RunBodyDtos {
                     RunBodyWindowResponse.of(trend.recent()),
                     RunBodyWindowResponse.of(trend.previous()),
                     trend.sameHeartRatePaceChange(),
-                    runimalType);
+                    runimalType,
+                    trend.firstRunStartedAt() == null
+                            ? null
+                            : trend.firstRunStartedAt().atZone(ServerZone.ID).toOffsetDateTime());
         }
     }
 
@@ -100,6 +107,7 @@ public final class RunBodyDtos {
      * @param runsPerWeek 주간 러닝 빈도(회/주, 소수 첫째 자리)
      * @param runsPerMonth 월간 러닝 빈도(회/30일, 소수 첫째 자리)
      * @param averageHeartRate 평균 심박(심박 있는 러닝 3회 미만이면 null)
+     * @param averageDistanceMeters 평균 거리(m)
      */
     public record RunBodyWindowResponse(
             int fromOrdinal,
@@ -107,7 +115,8 @@ public final class RunBodyDtos {
             int paceSecondsPerKm,
             double runsPerWeek,
             double runsPerMonth,
-            Integer averageHeartRate) {
+            Integer averageHeartRate,
+            long averageDistanceMeters) {
 
         static RunBodyWindowResponse of(RunBodyTrend.Window w) {
             return w == null
@@ -118,7 +127,8 @@ public final class RunBodyDtos {
                             w.paceSecondsPerKm(),
                             w.runsPerWeek(),
                             w.runsPerMonth(),
-                            w.averageHeartRate());
+                            w.averageHeartRate(),
+                            w.averageDistanceMeters());
         }
     }
 }

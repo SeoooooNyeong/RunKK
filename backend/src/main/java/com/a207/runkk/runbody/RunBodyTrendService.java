@@ -5,14 +5,15 @@ import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.policy.OperationPolicy;
 import com.a207.runkk.running.RunQueryService;
 import com.a207.runkk.running.ValidRunStat;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 런바디 요약 "최근 10회 변화"(G-14)를 러닝 기록에서 셈한다(RunBodyTrend). ai를 부르지 않는다. 운영 기준값 RUNBODY_ENABLED가 꺼져 있으면
- * 다른 런바디 조회와 같이 FEATURE_CLOSED다(D-440).
+ * 런바디 요약 "최근 10회 변화"·"최근 10회 평균"(G-14)과 첫 유효 러닝 일시를 러닝 기록에서 셈한다(RunBodyTrend). ai를 부르지 않는다. 운영 기준값
+ * RUNBODY_ENABLED가 꺼져 있으면 다른 런바디 조회와 같이 FEATURE_CLOSED다(D-440).
  */
 @Service
 public class RunBodyTrendService {
@@ -40,7 +41,14 @@ public class RunBodyTrendService {
         int round = RunBodyTrend.roundOf(count);
         List<ValidRunStat> recent = round >= 1 ? window(memberId, round) : List.of();
         List<ValidRunStat> previous = round >= 2 ? window(memberId, round - 1) : List.of();
-        return RunBodyTrend.of(count, recent, previous);
+        LocalDateTime first =
+                count > 0
+                        ? runs.validRunStats(memberId, 1, 1).stream()
+                                .findFirst()
+                                .map(ValidRunStat::startedAt)
+                                .orElse(null)
+                        : null;
+        return RunBodyTrend.of(count, first, recent, previous);
     }
 
     private List<ValidRunStat> window(long memberId, int round) {

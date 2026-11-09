@@ -3887,6 +3887,10 @@
    {
     "kind": "leaf",
     "name": "runimalType"
+   },
+   {
+    "kind": "leaf",
+    "name": "firstRunAt"
    }
   ],
   "file": "web/runbody/RunBodyDtos.java"
@@ -3916,6 +3920,10 @@
    {
     "kind": "leaf",
     "name": "averageHeartRate"
+   },
+   {
+    "kind": "leaf",
+    "name": "averageDistanceMeters"
    }
   ],
   "file": "web/runbody/RunBodyDtos.java"
