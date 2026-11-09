@@ -50,11 +50,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
-/** 기본 CTA 크기: 일반 56dp(모서리 16), 크게 72dp(모서리 20, 홈 "자유런 시작"). */
-enum class RunkkButtonSize(val height: Dp, val corner: Dp) {
-    Regular(56.dp, 16.dp),
-    Large(72.dp, 20.dp)
-}
+/** 알약 버튼 한 벌의 색. */
+internal data class PillColors(val container: Color, val content: Color, val border: Color?)
 
 /** 누르면 살짝 줄어드는 효과(시안 :active scale). 동작 줄이기면 줄이지 않는다. */
 @Composable
@@ -67,8 +64,115 @@ fun Modifier.runkkPressScale(interactionSource: MutableInteractionSource, presse
 }
 
 /**
- * 기본 CTA(라임). 화면마다 주 행동 하나에만 쓴다.
- * [hasTrailingArrow]가 참이면 시안 홈 "자유런 시작"처럼 오른쪽에 검은 원 화살표를 단다.
+ * 알약 버튼(피그마 RunKK / Buttons / 기본, S15P31A207-292). 모양은 [style], 높이·글자는 [size]로 고른다.
+ * 꺼지면([isEnabled] 거짓) 회색 채움이 되고 누를 수 없다. [isLoading]이면 글자 대신 도는 표시를 보이고 누름을 막는다.
+ * 높이 36·28 버튼도 누르는 칸은 48dp를 보장한다(보이는 알약은 가운데).
+ *
+ * ```
+ * RunkkButton("확인", onClick = onConfirm)                                    // 화면 아래 주 버튼(라임, 52)
+ * RunkkButton("취소", onClick = onCancel, style = RunkkButtonStyle.Outline, size = RunkkButtonSize.Medium)
+ * ```
+ */
+@Composable
+fun RunkkButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    style: RunkkButtonStyle = RunkkButtonStyle.Lime,
+    size: RunkkButtonSize = RunkkButtonSize.Large,
+    isEnabled: Boolean = true,
+    isLoading: Boolean = false,
+    leadingIcon: ImageVector? = null
+) {
+    PillButton(
+        text = text,
+        onClick = onClick,
+        modifier = modifier,
+        style = style,
+        height = size.height,
+        textStyle = size.textStyle,
+        horizontalPadding = size.horizontalPadding,
+        shape = size.shape,
+        isEnabled = isEnabled,
+        isLoading = isLoading,
+        leadingIcon = leadingIcon
+    )
+}
+
+/** 알약 버튼 그리기. 높이가 48 미만이면 바깥에 48dp 누름 칸을 두고 알약을 가운데 그린다. */
+@Composable
+private fun PillButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier,
+    style: RunkkButtonStyle,
+    height: Dp,
+    textStyle: TextStyle,
+    horizontalPadding: Dp,
+    shape: Shape,
+    isEnabled: Boolean,
+    isLoading: Boolean = false,
+    leadingIcon: ImageVector? = null,
+    borderOverride: Color? = null,
+    contentOverride: Color? = null,
+    trailing: (@Composable () -> Unit)? = null
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val colors = style.colors(isEnabled, pressed)
+    val content = if (isEnabled) contentOverride ?: colors.content else colors.content
+    val border = if (isEnabled) borderOverride ?: colors.border else colors.border
+    val loadingDescription = stringResource(R.string.core_buttons_loading)
+    val isSmall = height < MIN_TOUCH
+    Box(
+        modifier = modifier
+            .then(if (isSmall) Modifier.minimumInteractiveComponentSize() else Modifier)
+            .semantics(mergeDescendants = true) {
+                contentDescription = text
+                if (isLoading) stateDescription = loadingDescription
+            }
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                enabled = isEnabled && !isLoading,
+                role = Role.Button,
+                onClick = onClick
+            ),
+        contentAlignment = Alignment.Center,
+        // 큰 버튼은 부르는 쪽 너비(fillMaxWidth·weight)를 알약까지 넘긴다. 작은 버튼은 48 누름 칸 안에 알약만 그린다.
+        propagateMinConstraints = !isSmall
+    ) {
+        Row(
+            modifier = Modifier
+                .heightIn(min = height)
+                .runkkPressScale(interaction)
+                .clip(shape)
+                .background(colors.container)
+                .then(if (border != null) Modifier.border(1.dp, border, shape) else Modifier)
+                .padding(horizontal = horizontalPadding),
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(24.dp).clearAndSetSemantics {},
+                    color = content,
+                    strokeWidth = 3.dp
+                )
+            } else {
+                if (leadingIcon != null) {
+                    Icon(leadingIcon, contentDescription = null, tint = content, modifier = Modifier.size(18.dp))
+                }
+                Text(text = text, style = textStyle, color = content, maxLines = 1)
+                trailing?.invoke()
+            }
+        }
+    }
+}
+
+/**
+ * 기본 CTA(라임 알약, 피그마 Lime Large 52). 화면마다 주 행동 하나에만 쓴다. 새 코드는 [RunkkButton]을 쓴다.
+ * [hasTrailingArrow]가 참이면 홈 "자유런 시작"처럼 오른쪽에 검은 원 화살표를 단다([RunkkButtonSize.Hero]와 함께 쓴다).
  */
 @Composable
 fun RunkkPrimaryButton(
@@ -77,78 +181,45 @@ fun RunkkPrimaryButton(
     modifier: Modifier = Modifier,
     isEnabled: Boolean = true,
     isLoading: Boolean = false,
-    size: RunkkButtonSize = RunkkButtonSize.Regular,
+    size: RunkkButtonSize = RunkkButtonSize.Large,
     hasTrailingArrow: Boolean = false
 ) {
-    val interaction = remember { MutableInteractionSource() }
-    val pressed by interaction.collectIsPressedAsState()
-    val shape = RoundedCornerShape(size.corner)
-    val loadingDescription = stringResource(R.string.core_buttons_loading)
-    val active = isEnabled && !isLoading
-    Row(
-        modifier = modifier
-            .semantics(mergeDescendants = true) {
-                contentDescription = text
-                if (isLoading) stateDescription = loadingDescription
-            }
-            .heightIn(min = size.height)
-            .runkkPressScale(interaction)
-            .clip(shape)
-            .background(if (pressed) RunkkColors.LimeFillPressed else RunkkColors.LimeFill)
-            .runkkDisabledAlpha(isEnabled)
-            .clickable(
-                interactionSource = interaction,
-                indication = null,
-                enabled = active,
-                role = Role.Button,
-                onClick = onClick
-            )
-            .padding(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        if (isLoading) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(24.dp).clearAndSetSemantics {},
-                color = RunkkColors.OnLimeFill,
-                strokeWidth = 3.dp
-            )
-        } else {
-            RunkkPrimaryButtonContent(text, size, hasTrailingArrow)
-        }
-    }
-}
-
-/** 기본 CTA의 글자와(있으면) 오른쪽 검은 원 화살표. */
-@Composable
-private fun RunkkPrimaryButtonContent(text: String, size: RunkkButtonSize, hasTrailingArrow: Boolean) {
-    Text(
+    PillButton(
         text = text,
-        style = if (size ==
-            RunkkButtonSize.Large
-        ) {
-            RunkkTextStyles.text(24, FontWeight.Black)
+        onClick = onClick,
+        modifier = modifier,
+        style = RunkkButtonStyle.Lime,
+        height = size.height,
+        textStyle = size.textStyle,
+        horizontalPadding = size.horizontalPadding,
+        shape = size.shape,
+        isEnabled = isEnabled,
+        isLoading = isLoading,
+        trailing = if (hasTrailingArrow) {
+            { TrailingArrow() }
         } else {
-            RunkkTextStyles.Button
-        },
-        color = RunkkColors.OnLimeFill
-    )
-    if (hasTrailingArrow) {
-        Box(
-            modifier = Modifier.size(40.dp).clip(CircleShape).background(RunkkColors.OnLimeFill),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                RunkkIcons.ArrowRight,
-                contentDescription = null,
-                tint = RunkkColors.LimeFill,
-                modifier = Modifier.size(20.dp)
-            )
+            null
         }
+    )
+}
+
+/** 기본 CTA 오른쪽 검은 원 화살표. */
+@Composable
+private fun TrailingArrow() {
+    Box(
+        modifier = Modifier.padding(start = 8.dp).size(40.dp).clip(CircleShape).background(RunkkColors.OnLimeFill),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            RunkkIcons.ArrowRight,
+            contentDescription = null,
+            tint = RunkkColors.LimeFill,
+            modifier = Modifier.size(20.dp)
+        )
     }
 }
 
-/** 보조 버튼(표면 + 강한 테두리). 주 행동 옆의 다른 선택지에 쓴다. */
+/** 보조 버튼(피그마 Outline: 흰 채움 + divider 테두리 알약). 주 행동 옆의 다른 선택지에 쓴다. 새 코드는 [RunkkButton]을 쓴다. */
 @Composable
 fun RunkkSecondaryButton(
     text: String,
@@ -156,21 +227,27 @@ fun RunkkSecondaryButton(
     modifier: Modifier = Modifier,
     isEnabled: Boolean = true,
     leadingIcon: ImageVector? = null,
-    height: Dp = 56.dp
+    height: Dp = RunkkButtonSize.Large.height
 ) {
-    OutlineButton(
+    PillButton(
         text = text,
         onClick = onClick,
         modifier = modifier,
-        isEnabled = isEnabled,
-        leadingIcon = leadingIcon,
+        style = RunkkButtonStyle.Outline,
         height = height,
-        borderColor = RunkkColors.BorderStrong,
-        contentColor = RunkkColors.TextPrimary
+        textStyle = if (height < RunkkButtonSize.Large.height) {
+            RunkkButtonSize.Medium.textStyle
+        } else {
+            RunkkButtonSize.Large.textStyle
+        },
+        horizontalPadding = 16.dp,
+        shape = RunkkShapes.Pill,
+        isEnabled = isEnabled,
+        leadingIcon = leadingIcon
     )
 }
 
-/** 외곽선 강조 버튼(라벤더): 종료·그만두기·탈퇴처럼 되돌리기 어려운 행동. */
+/** 외곽선 강조 버튼(라벤더 알약): 종료·그만두기·탈퇴처럼 되돌리기 어려운 행동. */
 @Composable
 fun RunkkAccentOutlinedButton(
     text: String,
@@ -178,63 +255,25 @@ fun RunkkAccentOutlinedButton(
     modifier: Modifier = Modifier,
     isEnabled: Boolean = true,
     leadingIcon: ImageVector? = null,
-    height: Dp = 56.dp
+    height: Dp = RunkkButtonSize.Large.height
 ) {
-    OutlineButton(
+    PillButton(
         text = text,
         onClick = onClick,
         modifier = modifier,
+        style = RunkkButtonStyle.Outline,
+        height = height,
+        textStyle = RunkkButtonSize.Large.textStyle,
+        horizontalPadding = 16.dp,
+        shape = RunkkShapes.Pill,
         isEnabled = isEnabled,
         leadingIcon = leadingIcon,
-        height = height,
-        borderColor = RunkkColors.Lavender,
-        contentColor = RunkkColors.Lavender
+        borderOverride = RunkkColors.Lavender,
+        contentOverride = RunkkColors.Lavender
     )
 }
 
-@Composable
-private fun OutlineButton(
-    text: String,
-    onClick: () -> Unit,
-    modifier: Modifier,
-    isEnabled: Boolean,
-    leadingIcon: ImageVector?,
-    height: Dp,
-    borderColor: Color,
-    contentColor: Color
-) {
-    val interaction = remember { MutableInteractionSource() }
-    val pressed by interaction.collectIsPressedAsState()
-    val shape = RunkkShapes.Medium
-    Row(
-        modifier = modifier
-            .heightIn(min = height)
-            .runkkPressScale(interaction)
-            .clip(shape)
-            .background(if (pressed) RunkkColors.SurfacePressed else RunkkColors.Surface)
-            .border(1.dp, if (pressed) RunkkColors.BorderHover else borderColor, shape)
-            .runkkDisabledAlpha(isEnabled)
-            .clickable(
-                interactionSource = interaction,
-                indication = null,
-                enabled = isEnabled,
-                role = Role.Button,
-                onClick = onClick
-            )
-            .padding(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        if (leadingIcon !=
-            null
-        ) {
-            Icon(leadingIcon, contentDescription = null, tint = contentColor, modifier = Modifier.size(18.dp))
-        }
-        Text(text = text, style = RunkkTextStyles.text(15, FontWeight.Bold), color = contentColor)
-    }
-}
-
-/** 알약 버튼(높이 40, 모서리 20): "취소", "사진 선택", "카드 공유" 같은 작은 행동. 터치 영역은 48dp를 보장한다. */
+/** 작은 외곽선 알약(피그마 Outline Small 36): "취소", "사진 선택", "카드 공유" 같은 작은 행동. 터치 영역은 48dp를 보장한다. */
 @Composable
 fun RunkkPillButton(
     text: String,
@@ -243,51 +282,18 @@ fun RunkkPillButton(
     leadingIcon: ImageVector? = null,
     isEnabled: Boolean = true
 ) {
-    val interaction = remember { MutableInteractionSource() }
-    val pressed by interaction.collectIsPressedAsState()
-    val shape = RoundedCornerShape(20.dp)
-    Box(
-        modifier = modifier
-            .minimumInteractiveComponentSize()
-            .clickable(
-                interactionSource = interaction,
-                indication = null,
-                enabled = isEnabled,
-                role = Role.Button,
-                onClick = onClick
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        Row(
-            modifier = Modifier
-                .heightIn(min = 40.dp)
-                .runkkPressScale(interaction)
-                .clip(shape)
-                .background(if (pressed) RunkkColors.SurfacePressed else RunkkColors.Surface)
-                .border(1.dp, if (pressed) RunkkColors.BorderHover else RunkkColors.BorderStrong, shape)
-                .runkkDisabledAlpha(isEnabled)
-                .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (leadingIcon !=
-                null
-            ) {
-                Icon(
-                    leadingIcon,
-                    contentDescription = null,
-                    tint = RunkkColors.TextPrimary,
-                    modifier = Modifier.size(16.dp)
-                )
-            }
-            Text(text = text, style = RunkkTextStyles.Label, color = RunkkColors.TextPrimary)
-        }
-    }
+    RunkkButton(
+        text = text,
+        onClick = onClick,
+        modifier = modifier,
+        style = RunkkButtonStyle.Outline,
+        size = RunkkButtonSize.Small,
+        isEnabled = isEnabled,
+        leadingIcon = leadingIcon
+    )
 }
 
-/**
- * 라임 알약 버튼(높이 40, 모서리 20, 글자 13 굵게): 시안 크루 "+ 만들기"·"가입"처럼 작은 주 행동. 터치 영역은 48dp를 보장한다.
- */
+/** 작은 라임 알약(피그마 Lime Small 36): 크루 "+ 만들기"·"가입"처럼 작은 주 행동. 터치 영역은 48dp를 보장한다. */
 @Composable
 fun RunkkLimePillButton(
     text: String,
@@ -296,60 +302,29 @@ fun RunkkLimePillButton(
     leadingIcon: ImageVector? = null,
     isEnabled: Boolean = true
 ) {
-    val interaction = remember { MutableInteractionSource() }
-    Box(
-        modifier = modifier
-            .minimumInteractiveComponentSize()
-            .clickable(
-                interactionSource = interaction,
-                indication = null,
-                enabled = isEnabled,
-                role = Role.Button,
-                onClick = onClick
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        Row(
-            modifier = Modifier
-                .heightIn(min = LIME_PILL_MIN_HEIGHT)
-                .runkkPressScale(interaction)
-                // 꺼지면 배경까지 흐리게(alpha는 뒤에 오는 그리기에만 걸린다).
-                .runkkDisabledAlpha(isEnabled)
-                .clip(LIME_PILL_SHAPE)
-                .background(RunkkColors.LimeFill)
-                .padding(horizontal = LIME_PILL_PADDING),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (leadingIcon != null) {
-                Icon(
-                    leadingIcon,
-                    contentDescription = null,
-                    tint = RunkkColors.OnLimeFill,
-                    modifier = Modifier.size(16.dp)
-                )
-            }
-            Text(text, style = RunkkTextStyles.text(13, FontWeight.Black), color = RunkkColors.OnLimeFill)
-        }
-    }
+    RunkkButton(
+        text = text,
+        onClick = onClick,
+        modifier = modifier,
+        style = RunkkButtonStyle.Lime,
+        size = RunkkButtonSize.Small,
+        isEnabled = isEnabled,
+        leadingIcon = leadingIcon
+    )
 }
 
 /**
- * 라임 알약 표시(누르지 않는 값 알약, 홈 리워드 잔액 등): [RunkkLimePillButton]과 같은 모양(최소 높이 40, 모서리 20).
+ * 라임 알약 표시(누르지 않는 값 알약, 홈 리워드 잔액 등): [RunkkLimePillButton]과 같은 모양(최소 높이 36, 알약).
  * 높이를 고정하지 않아 기기 글자 크기를 키우면 알약도 함께 커진다(고정 높이 안에서 글자가 잘리지 않게, 사용자 요청 2026-10-31).
  */
 @Composable
-fun RunkkLimePill(
-    text: String,
-    modifier: Modifier = Modifier,
-    textStyle: TextStyle = RunkkTextStyles.text(13, FontWeight.Black)
-) {
+fun RunkkLimePill(text: String, modifier: Modifier = Modifier, textStyle: TextStyle = RunkkButtonSize.Small.textStyle) {
     Box(
         modifier = modifier
-            .heightIn(min = LIME_PILL_MIN_HEIGHT)
-            .clip(LIME_PILL_SHAPE)
+            .heightIn(min = RunkkButtonSize.Small.height)
+            .clip(RunkkShapes.Pill)
             .background(RunkkColors.LimeFill)
-            .padding(horizontal = LIME_PILL_PADDING),
+            .padding(horizontal = RunkkButtonSize.Small.horizontalPadding),
         contentAlignment = Alignment.Center
     ) {
         Text(text, style = textStyle, color = RunkkColors.OnLimeFill)
@@ -482,7 +457,7 @@ private fun LongPressTarget(
     ) { content() }
 }
 
-/** 라임 글자 링크("보기", "설정", "바꾸기"). 터치 영역 48dp. */
+/** 글자 링크("보기", "설정", "바꾸기", 피그마 링크는 본문색 Medium). 터치 영역 48dp. */
 @Composable
 fun RunkkTextLink(
     text: String,
@@ -506,18 +481,16 @@ fun RunkkTextLink(
             .padding(PaddingValues(horizontal = 4.dp)),
         contentAlignment = Alignment.CenterEnd
     ) {
-        Text(text = text, style = RunkkTextStyles.Caption, color = RunkkColors.Lime)
+        Text(
+            text = text,
+            style = RunkkTextStyles.text(12, FontWeight.Medium, lineHeight = 18),
+            color = RunkkColors.TextPrimary
+        )
     }
 }
 
-private const val DISABLED_ALPHA = 0.4f
-
-/**
- * 비활성 버튼을 흐리게 한다. Modifier.alpha는 1f이면 수정자 자체가 빠져 활성 전환 때 수정자 사슬 구조가 바뀌고,
- * 그 첫 전환에서 버튼이 그려지지 않다가 눌러야 나타나는 결함이 있었다. graphicsLayer는 항상 같은 구조를 유지한다.
- */
-private fun Modifier.runkkDisabledAlpha(isEnabled: Boolean): Modifier =
-    graphicsLayer { alpha = if (isEnabled) 1f else DISABLED_ALPHA }
+/** 누르는 칸 최소 크기(Android 접근성 48dp). */
+private val MIN_TOUCH = 48.dp
 
 @Preview(name = "버튼", backgroundColor = 0xFF09090B, showBackground = true, widthDp = 390)
 @Composable
@@ -526,7 +499,7 @@ private fun RunkkButtonsPreview() {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             RunkkPrimaryButton("카카오로 시작하기", onClick = {}, modifier = Modifier.fillMaxWidth())
             RunkkPrimaryButton("자유런 시작", onClick = {
-            }, modifier = Modifier.fillMaxWidth(), size = RunkkButtonSize.Large, hasTrailingArrow = true)
+            }, modifier = Modifier.fillMaxWidth(), size = RunkkButtonSize.Hero, hasTrailingArrow = true)
             RunkkPrimaryButton("다음", onClick = {}, modifier = Modifier.fillMaxWidth(), isEnabled = false)
             RunkkSecondaryButton("Google로 시작하기", onClick = {}, modifier = Modifier.fillMaxWidth())
             RunkkAccentOutlinedButton("회원 탈퇴", onClick = {}, modifier = Modifier.fillMaxWidth())
@@ -543,8 +516,3 @@ private fun RunkkButtonsPreview() {
         }
     }
 }
-
-/** 라임 알약 모양(버튼과 표시 알약이 함께 쓴다, 리뷰 AN11-8): 최소 높이 40, 모서리 20, 좌우 여백 16. */
-private val LIME_PILL_MIN_HEIGHT = 40.dp
-private val LIME_PILL_SHAPE = RoundedCornerShape(20.dp)
-private val LIME_PILL_PADDING = 16.dp

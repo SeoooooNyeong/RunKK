@@ -144,6 +144,8 @@
     <string name="core_location_consent_title">위치 정보 동의가 필요해요</string>
     <string name="core_location_consent_message">러닝을 기록하려면 위치 정보 수집에 동의해 주세요.</string>
     <string name="core_location_consent_close">닫기</string>
+    <!-- 바텀시트 머리 닫기 ✕(S15P31A207-292) -->
+    <string name="core_sheet_close">닫기</string>
     <string name="core_location_consent_agree">동의하고 시작</string>
     <string name="core_avatar_description">내 아바타</string>
     <!-- 러닝 결과 상세(D-282, 피그마 B-6). 자유런 결과와 대결 결과 2쪽이 함께 쓴다. -->

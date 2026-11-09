@@ -16,11 +16,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -46,6 +44,8 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.a207.runkk.app.core.designsystem.RunkkCard
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkConfirmDialog
+import com.a207.runkk.app.core.designsystem.RunkkDialog
+import com.a207.runkk.app.core.designsystem.RunkkDialogButtons
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkLoading
 import com.a207.runkk.app.core.designsystem.RunkkSecondaryButton
@@ -197,22 +197,15 @@ fun SettingsScreen(
 /** 고지문서 본문 대화상자(설정·가입 화면이 함께 쓴다). */
 @Composable
 internal fun LegalDialog(legal: LegalView, onDismiss: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = RunkkColors.Surface,
-        title = { Text(legal.title.asString(), style = RunkkTextStyles.CardTitle, color = RunkkColors.TextPrimary) },
-        text = {
-            Text(
-                legal.body,
-                style = RunkkTextStyles.Body,
-                color = RunkkColors.TextSecondary,
-                modifier = Modifier.heightIn(max = 400.dp).verticalScroll(rememberScrollState())
-            )
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.me_legal_close), color = RunkkColors.Lime) }
-        }
-    )
+    RunkkDialog(title = legal.title.asString(), onDismissRequest = onDismiss) {
+        Text(
+            legal.body,
+            style = RunkkTextStyles.Body,
+            color = RunkkColors.TextPrimary,
+            modifier = Modifier.heightIn(max = 400.dp).verticalScroll(rememberScrollState())
+        )
+        RunkkDialogButtons(confirmLabel = stringResource(R.string.me_legal_close), onConfirm = onDismiss)
+    }
 }
 
 /** 러닝 설정(A6): 자유런(목표 거리, 음성·진동 안내, 코치 계획 따르기)과 배틀런(기본 대결 거리, 안내, 근접 알림, 중간 알림 간격). */
