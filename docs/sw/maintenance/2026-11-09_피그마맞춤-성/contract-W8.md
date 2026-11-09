@@ -26,14 +26,16 @@ E4는 멱등이다. 해금하지 않은 키, 이미 확인한 키, 모르는 키
 
 | 필드 | 형식 | null | 뜻 |
 |---|---|---|---|
-| `bodyShape` | String enum `BodyShape` (STAGE1·STAGE2·STAGE3·STAGE4) | 아님 | 지금 체형. GET /avatar의 `bodyShape`와 같은 값(매일 0시 재계산, FR-163) |
-| `bodyStage` | int 1~4 | 아님 | 체형 단계 번호(STAGE1=1 … STAGE4=4). 칩 "근육 Lv.{bodyStage}"와 게이지 위치에 쓴다 |
-| `skinTone` | String enum `SkinTone` (DAWN·MORNING·DAYTIME·EVENING·NIGHT) | 아님 | 지금 피부톤. GET /avatar의 `skinTone`과 같은 값(FR-164) |
-| `recentRunCount` | int ≥ 0 | 아님 | 오늘을 포함한 최근 7일(오늘−6일 ~ 오늘, 한국 날짜) 유효 러닝 횟수. "이번 주 n번 달렸어요"에 쓴다. 조회 때마다 계산해 오늘 달린 것도 들어간다 |
-| `restDaysBeforeDecline` | int ≥ 1 | 아님 | 운영 기준값 체형규칙의 쉼 일수(기본 4). "{n}일 넘게 쉬면 배가 나오기 시작해요" |
+| `bodyShape` | String enum `BodyShape` (STAGE1·STAGE2·STAGE3·STAGE4) | 아님 | 지금 체형. GET /avatar의 `bodyShape`와 같은 값(매일 0시 재계산, FR-163 4단계 그대로) |
+| `bodyVariant` | int 0~2 | 아님 | 화면·렌더러용 3단계 체형(0 = 기본, 1 = 변화 1, 2 = 변화 2). STAGE1 → 0, STAGE2·STAGE3 → 1, STAGE4 → 2. 칩 "근육 Lv.{bodyVariant + 1}", 게이지 위치, W9 Rive 체형 입력에 쓴다(6절) |
+| `skinTone` | String enum `SkinTone` (DAWN·MORNING·DAYTIME·EVENING·NIGHT) | 아님 | 지금 피부톤(시간대, FR-164). GET /avatar의 `skinTone`과 같은 값. 칩 "{톤} 피부톤"과 근거 문구용 |
 | `typicalStartHour` | Integer 0~23 | **null 가능** | 피부톤 근거 대표 시각(시). 최근 유효 러닝 10회 시작 시각 중 지금 피부톤 시간대에 속한 것들에서 가장 많은 시(같으면 그중 가장 최근 러닝의 시). 그런 러닝이 없으면 null |
+| `recentRunCount` | int ≥ 0 | 아님 | 오늘을 포함한 최근 7일(오늘−6일 ~ 오늘, 한국 날짜) 유효 러닝 횟수. "이번 주 n번 달렸어요"에 쓴다. 조회 때마다 계산해 오늘 달린 것도 들어간다 |
+| `recentDistanceMeters` | long ≥ 0 | 아님 | 같은 7일의 유효 거리 합(m) |
+| `runAmount` | int 0~100 | 아님 | W9 Rive 피부톤 입력 러닝량. min(100, ⌊recentDistanceMeters × 100 / 30000⌋), 곧 최근 7일 30km 이상이면 100. 서버가 계산한다(6절) |
+| `restDaysBeforeDecline` | int ≥ 1 | 아님 | 운영 기준값 체형규칙의 쉼 일수(기본 4). "{n}일 넘게 쉬면 배가 나오기 시작해요" |
 
-체형 게이지는 **4칸 단계값**이다(연속값 아님). 손잡이 위치 비율 = `(bodyStage - 1) / 3` (STAGE1 왼쪽 끝 "배가 볼록", STAGE4 오른쪽 끝 "근육 탄탄"). 피그마 손잡이(137.58/200.79 ≈ 0.69)는 STAGE3(0.67)과 맞는다.
+체형 게이지는 **3칸 단계값**이다(연속값 아님). 손잡이 위치 비율 = `bodyVariant / 2` (0 왼쪽 끝 "배가 볼록", 2 오른쪽 끝 "근육 탄탄"). 서버 체형은 FR-163대로 4단계로 계산·저장하고 알림도 4단계 변화로 보낸다. 화면과 렌더러만 3단계로 접는다.
 
 ### 2.2 `BackgroundsResponse` (E2·E3·E4)
 
@@ -141,15 +143,17 @@ E1 `GET /api/v1/avatar/runner`
 ```json
 {
   "bodyShape": "STAGE3",
-  "bodyStage": 3,
+  "bodyVariant": 1,
   "skinTone": "MORNING",
+  "typicalStartHour": 7,
   "recentRunCount": 3,
-  "restDaysBeforeDecline": 4,
-  "typicalStartHour": 7
+  "recentDistanceMeters": 15400,
+  "runAmount": 51,
+  "restDaysBeforeDecline": 4
 }
 ```
 
-러닝이 한 번도 없는 회원: `{"bodyShape":"STAGE1","bodyStage":1,"skinTone":"DAYTIME","recentRunCount":0,"restDaysBeforeDecline":4,"typicalStartHour":null}`.
+러닝이 한 번도 없는 회원: `{"bodyShape":"STAGE1","bodyVariant":0,"skinTone":"DAYTIME","typicalStartHour":null,"recentRunCount":0,"recentDistanceMeters":0,"runAmount":0,"restDaysBeforeDecline":4}`.
 
 E2 `GET /api/v1/avatar/backgrounds` (누적 287km, 이번 러닝으로 개성·대전을 열고 아직 확인 안 함, 앞 2개만 보임)
 
@@ -203,7 +207,7 @@ E6 잠긴 아이템 구매: `409 {"code": "ITEM_LOCKED", "message": "아직 해�
 | `api/avatar/BackgroundSeenRequest.kt`(신규) | `keys: List<String>` |
 | `api/avatar/ShopResponse.kt` | Item에 `assetKey: String?`, `locked: Boolean = false`, `unlockCondition: String?` |
 | `domain/avatar/AvatarRepository` | `suspend fun runner(): Outcome<Runner>`, `suspend fun markBackgroundsSeen(keys: List<String>): Outcome<Unit>` |
-| `domain/avatar/Runner`(신규) | `bodyShape: BodyShape, bodyStage: Int, skinTone: SkinTone, recentRunCount: Int, restDaysBeforeDecline: Int, typicalStartHour: Int?` + 게이지 비율 `(bodyStage-1)/3f` |
+| `domain/avatar/Runner`(신규) | `bodyShape: BodyShape, bodyVariant: Int, skinTone: SkinTone, typicalStartHour: Int?, recentRunCount: Int, recentDistance: Distance, runAmount: Int, restDaysBeforeDecline: Int` + 게이지 비율 `bodyVariant / 2f` |
 | `domain/avatar/AvatarBackgrounds` | `totalDistance: Distance`, `unseenKeys: List<String>`, Item에 `remaining: Distance`, `isUnseen: Boolean` |
 | `domain/avatar/Shop.Item` | `assetKey: String?`, `isLocked: Boolean`, `unlockCondition: String?` |
 | `android/contract` | `python android/contract/sync_from_server.py`로 계약 자료 갱신(ReasonCode `ITEM_LOCKED`, DTO 필드) |
@@ -212,7 +216,7 @@ E6 잠긴 아이템 구매: `409 {"code": "ITEM_LOCKED", "message": "아직 해�
 
 | 화면 | Route 제안 | UiState·동작 |
 |---|---|---|
-| H-2 내 러너(신규) | `Routes.AVATAR_RUNNER = "avatar/runner"` | `RunnerUiState(avatar: Avatar?, runner: Runner?, backgroundKey, balance, loading, error)`. `avatar()`·`runner()`를 함께 읽는다. 칩 "근육 Lv.{bodyStage}"·"{톤} 피부톤", 게이지 손잡이 `(bodyStage-1)/3`, 안내 "이번 주 {recentRunCount}번 달렸어요. {restDaysBeforeDecline}일 넘게 쉬면 배가 나오기 시작해요.", 피부톤 근거는 `typicalStartHour`가 있으면 "주로 {오전/오후 h시}에 달려서 {톤} 톤이에요", null이면 "달린 시간대에 따라 피부톤이 바뀌어요". 하단 "꾸미기" → `Routes.AVATAR`, "상점 가기" → `Routes.SHOP` |
+| H-2 내 러너(신규) | `Routes.AVATAR_RUNNER = "avatar/runner"` | `RunnerUiState(avatar: Avatar?, runner: Runner?, backgroundKey, balance, loading, error)`. `avatar()`·`runner()`를 함께 읽는다. 칩 "근육 Lv.{bodyVariant+1}"·"{톤} 피부톤", 게이지 손잡이 `bodyVariant / 2`, 안내 "이번 주 {recentRunCount}번 달렸어요. {restDaysBeforeDecline}일 넘게 쉬면 배가 나오기 시작해요.", 피부톤 근거는 `typicalStartHour`가 있으면 "주로 {오전/오후 h시}에 달려서 {톤} 톤이에요", null이면 "달린 시간대에 따라 피부톤이 바뀌어요". 하단 "꾸미기" → `Routes.AVATAR`, "상점 가기" → `Routes.SHOP` |
 | 홈 아바타 진입 | 홈 아바타 누름 → `Routes.AVATAR_RUNNER` (지금 `Routes.AVATAR`, HomeScreen.kt:529) | 홈 잔액 알약은 그대로 상점 |
 | H-3 꾸미기 배경 탭 | 기존 `Routes.AVATAR_BACKGROUND` | 잠긴 칸 문구 "{name}, {remainingMeters를 km 올림 정수}km 더 달리면 해금"(0이면 "{name}, 곧 해금돼요"). 미리보기 카드에 고른 배경을 깐다(FR-202) |
 | H-4 상점 | 기존 `Routes.SHOP` | `ShopUiState.selected: Shop.Item?` 추가. 칸 누름 = 선택(잠긴 칸은 선택하지 않고 스낵바로 `unlockCondition`). 하단 구매 바: 이름 + "사면 {balance-price} 남아요", 버튼 "{price}에 사기" → H-5 확인 → `purchase`. 잔액 부족은 지금처럼 확인 없이 스낵바(FR-160). 칸 그림은 `assetKey`로 리소스를 찾고 없으면 부위 기본 그림. 잠긴 칸 opacity 0.45, 가격 자리에 `unlockCondition`. 보유 칸은 "소지 중". `ITEM_LOCKED` 응답이면 상점을 다시 읽고 스낵바 |
@@ -221,3 +225,56 @@ E6 잠긴 아이템 구매: `409 {"code": "ITEM_LOCKED", "message": "아직 해�
 ### 5.3 그림 리소스 키
 
 앱 리소스 이름 제안: `shop_item_{assetKey}` (예 `R.drawable.shop_item_top_lime_singlet`). 대응표는 V63 목록(3절)이다. 운영자가 새 아이템에 새 키를 쓰면 앱 배포 전까지 부위 기본 그림으로 보인다.
+
+## 6. W9 렌더러 입력 (S15P31A207-300 아바타 Rive 통합)
+
+근거: `C:/Users/SSAFY/Documents/Codex/2026-11-03/new-chat/AVATAR_POC_ONBOARDING.md` 3절(제품 규칙)·5절(API·레이어 매핑), 저장소 `avatar-ai/INTEGRATION.md`. 앱 아바타는 남녀 Rive 몸체(정면 = 서기, 오른쪽 옆모습 = 달리기)에 셀카 머리 레이어를 붙여 그린다. 입력은 머리 레이어 8장 + 합성 메타, 성별, 의상 상의·하의·신발 0~6, 체형 3단계, 러닝량 0~100이다.
+
+### 6.1 입력별 출처
+
+| 렌더러 입력 | 출처(서버 API·필드) | 비고 |
+|---|---|---|
+| 머리 레이어 8장 | `GET /api/v1/avatar/heads/{ownerId}/{jobId}` (남의 아바타 포함), `GET /api/v1/avatar/selfie/latest`(내 최근), `GET /api/v1/avatar/selfie/jobs/{jobId}/result`(방금 끝난 작업) → `GeneratedHead` | GET /avatar의 `faceKey`가 `head:{ownerId}:{jobId}`이면 셀카 머리다. `default:{캐릭터}`면 셀카 머리가 없고 기본 캐릭터 얼굴이다 |
+| 목 연결·피부색 | 같은 `GeneratedHead.mobile.neckMask`(객체, **null·없음 가능**), `mobile.skinColor`(RGB 0~255 세 값 배열, **null 가능**) | `mobile`은 ai가 준 객체를 그대로 넘긴다(canvas, anchor, renderFaceImage, displayHeight, neckRemoved, skinColor, neckMask, scene …). null이면 몸 피부색 유지·기본 목 연결 |
+| 성별(남·여 몸체) | **아바타 응답에는 없다.** 내 아바타 = 회원 프로필의 내 성별(FR-162: 여성이면 여 몸체, 남성·밝히지 않음·미입력이면 남 몸체). 남의 아바타 = 각 응답의 `shownGender`(랭킹·크루·대결·프로필, D-327) | 이번에 서버를 바꾸지 않았다. 앱의 지금 기본 캐릭터 성별 규칙을 그대로 쓴다 |
+| 의상 상의·하의·신발 0~6 | GET /avatar `equipped`(부위 → itemId) → GET /shop의 `assetKey` → 앱 대응표(6.3) | 그 부위를 안 입었거나 대응표에 없으면 0(기본 의상: 흰 반팔티, 검은 반바지, 흰 신발). 모자(HAT)는 Rive 슬롯이 없어 지금은 그리지 않는다 |
+| 체형 3단계 | `GET /api/v1/avatar/runner`의 `bodyVariant` 0~2 | 0 = 기본, 1 = 변화 1, 2 = 변화 2. 서버 4단계(STAGE1 → 0, STAGE2·3 → 1, STAGE4 → 2)를 서버가 접는다. 남의 아바타는 이 값이 없으므로 0(기본)으로 그린다 |
+| 러닝량 0~100(피부톤) | `GET /api/v1/avatar/runner`의 `runAmount` | **서버가 계산한다**(최근 7일 유효 거리 30km = 100, 비례, 버림). 앱 여러 화면·기기가 같은 값을 쓰게 하고 기준을 서버 한 곳에서 바꾸기 위해서다. 낮으면 밝게, 높으면 어둡게(PoC 규칙). 남의 아바타는 이 값이 없으므로 0으로 그린다 |
+
+주의: FR-164 피부톤(`skinTone`, 달리는 시간대 5톤)과 W9 피부톤(러닝량에 따라 밝기)은 규칙이 다르다. 이번 계약은 둘 다 내준다. 내 러너 화면 칩·근거 문구는 `skinTone`·`typicalStartHour`, Rive 몸 피부 밝기는 `runAmount`다. 하나로 합칠지는 사용자 결정이 필요하다(보고서 결정 목록).
+
+### 6.2 `GeneratedHead` (셀카 머리, 응답 필드 확장)
+
+| 필드 | 형식 | null | 뜻 |
+|---|---|---|---|
+| `headId` | String | 아님 | (기존) |
+| `userId` | String | 가능 | (기존) |
+| `faceImage` | PNG Data URL | 아님 | 정면 피부 기반·코·입·귀·목 (기존) |
+| `eyesImage` | PNG Data URL | 아님 | 정면 눈·속눈썹 (기존) |
+| `hairImage` | PNG Data URL | 아님 | 정면 머리카락·눈썹·안경 (기존) |
+| `frontImage` | PNG Data URL | **없음 가능** | **신규 전달**. 완성된 정면 머리 원본 |
+| `rightImage` | PNG Data URL | **없음 가능** | **신규 전달**. 완성된 오른쪽 옆모습 머리 원본 |
+| `rightFaceImage` | PNG Data URL | **없음 가능** | **신규 전달**. 옆모습 피부 기반·코·입·귀·목 |
+| `rightEyesImage` | PNG Data URL | **없음 가능** | **신규 전달**. 옆모습 보이는 눈·속눈썹 |
+| `rightHairImage` | PNG Data URL | **없음 가능** | **신규 전달**. 옆모습 머리카락·눈썹·안경 |
+| `rightLayerLayout` | 객체 | **없음 가능** | **신규 전달**. ai가 준 그대로(`version`, `direction`, `canvas`, `coordinateSpace`, `independentTransforms`) |
+| `traits`, `hairLength`, `alignment`, `mobile`, `createdAt` | (기존) | | `mobile`은 그대로 넘긴다(6.1) |
+
+- 모든 PNG는 `data:image/png;base64,…`, **1024×1024 공통 좌표**이고 잘라 내지 않았다. 서버는 PNG 머리표지와 크기(1024 이하)를 검사하고 맞지 않으면 503 `UPSTREAM_FAILED`다.
+- 신규 5개 이미지와 `rightLayerLayout`은 **값이 없으면 JSON에서 빠진다**(null을 싣지 않는다). 예전에 만든 얼굴이나 ai가 아직 옆모습을 주지 않으면 없다. 앱은 `rightFaceImage`·`rightEyesImage`·`rightHairImage` 셋이 모두 있을 때만 옆모습(달리기)에 셀카 머리를 쓰고, 하나라도 없으면 달리기 장면은 정면 레이어를 쓰거나 기본 머리로 그린다.
+- 그리는 순서(PoC 규칙): 몸 피부(톤 적용) → 의상 → 얼굴 → 눈 → 헤어. 같은 위치·배율. 피부톤 필터는 눈·헤어·안경·옷에 적용하지 않는다. 정면용 `mobile.anchor`·`renderFaceImage`는 옆모습 좌표가 아니므로 옆모습에 다시 쓰지 않는다.
+- 서버는 이미지를 저장하지 않고 ai(avatar-ai)가 저장한 결과를 전달만 한다(기존 패턴, D-59). 응답은 `Cache-Control: no-store`다.
+
+### 6.3 의상 대응표 (assetKey → Rive 의상 번호, 제안)
+
+| 부위 | 0 | 1 | 2 | 3 | 4 | 5 | 6 |
+|---|---|---|---|---|---|---|---|
+| 상의(TOP) | 기본 흰 반팔티 | `top_lime_singlet` | `top_dawn_windbreaker` | `top_crew_tee` | `top_winter_hoodie` | `top_cherry_vest` | `top_finisher_tee` |
+| 하의(BOTTOM) | 기본 검은 반바지 | `bottom_running_shorts` | `bottom_jogger_pants` | `bottom_leggings` | (비어 있음) | (비어 있음) | (비어 있음) |
+| 신발(SHOES) | 기본 흰 신발 | `shoes_basic_runner` | `shoes_lime_runner` | `shoes_carbon_racer` | (비어 있음) | (비어 있음) | (비어 있음) |
+
+Rive 의상 그림 1~6이 실제로 어떤 옷인지에 맞춰 B단계가 이 표를 고친다. 서버는 의상 번호를 모르고 `assetKey`만 준다(그림 번호를 바꿔도 서버 배포가 필요 없다).
+
+### 6.4 내 러너 화면 예
+
+GET /avatar(얼굴·착용·배경·잔액) + GET /avatar/runner(체형·러닝량·피부톤 근거) + 셀카 머리면 GET /avatar/heads/{ownerId}/{jobId}를 함께 읽어 Rive 정면(서기)으로 그린다. 홈의 달리는 장면은 옆모습 레이어를 쓴다.
