@@ -47,7 +47,12 @@ class RewardServicesTest {
     private final Clock clock = Clock.fixed(NOW.atZone(SEOUL).toInstant(), SEOUL);
     private final RewardService rewards =
             new RewardService(wallets, accruals, policy, new NoTransactionManager());
-    private final ShopService shop = new ShopService(wallets, policy, clock);
+    private final ShopService shop =
+            new ShopService(
+                    wallets,
+                    policy,
+                    org.mockito.Mockito.mock(com.a207.runkk.running.RunQueryService.class),
+                    clock);
 
     @BeforeEach
     void rules() {

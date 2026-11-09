@@ -277,4 +277,76 @@ class BackgroundUnlockIntegrationTest {
             pool.shutdownNow();
         }
     }
+
+    // W8(S15P31A207-299) 남은 거리, V62 상점 기본 목록
+
+    @Test
+    @DisplayName("W8 배경 목록에 누적 거리와 남은 거리가 실린다(해금 0, 잠김 = 기준 − 누적)")
+    void w8_remainingDistance() {
+        long m = member();
+        upload(m, 6_000, 1_800, 2);
+
+        BackgroundsView view = backgrounds.backgrounds(m, LocalDateTime.now());
+
+        assertThat(view.total()).isEqualTo(Distance.ofMeters(6_000));
+        assertThat(view.backgrounds())
+                .extracting(BackgroundsView.Item::key, i -> i.remaining().meters())
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple("L1_TEST", 0L),
+                        org.assertj.core.groups.Tuple.tuple("L2_TEST", 4_000L),
+                        org.assertj.core.groups.Tuple.tuple("L3_TEST", 6_000L));
+    }
+
+    @Test
+    @DisplayName("W8 V62: 빈 DB에 SHOP_ITEMS 기본 목록 16개가 들어가고, 빈 목록 행은 다시 돌리면 채워지며 채운 목록은 건드리지 않는다")
+    void w8_shopSeedMigration() throws Exception {
+        String seeded =
+                jdbc.queryForObject(
+                        "select setting_value from operation_setting where setting_key ="
+                                + " 'SHOP_ITEMS'",
+                        String.class);
+        com.a207.runkk.policy.ShopCatalog catalog =
+                (com.a207.runkk.policy.ShopCatalog) SettingKey.SHOP_ITEMS.parse(seeded);
+        assertThat(catalog.items()).hasSize(16);
+        assertThat(catalog.find(6).flatMap(com.a207.runkk.policy.ShopItem::unlockCondition))
+                .map(com.a207.runkk.policy.ShopUnlock::text)
+                .contains("하프 완주하면 열려요");
+
+        String migration =
+                java.nio.file.Files.readString(
+                        java.nio.file.Path.of(
+                                "src/main/resources/db/migration/V62__shop_items_seed.sql"));
+        try {
+            jdbc.update(
+                    "update operation_setting set setting_value = '{\"items\":[]}'"
+                            + " where setting_key = 'SHOP_ITEMS'");
+            jdbc.execute(migration);
+            assertThat(
+                            jdbc.queryForObject(
+                                    "select setting_value from operation_setting"
+                                            + " where setting_key = 'SHOP_ITEMS'",
+                                    String.class))
+                    .isEqualTo(seeded);
+
+            String custom =
+                    "{\"items\":[{\"id\":7,\"name\":\"모자\",\"slot\":\"HAT\",\"price\":10,"
+                            + "\"onSale\":true}]}";
+            jdbc.update(
+                    "update operation_setting set setting_value = ? where setting_key ="
+                            + " 'SHOP_ITEMS'",
+                    custom);
+            jdbc.execute(migration);
+            assertThat(
+                            jdbc.queryForObject(
+                                    "select setting_value from operation_setting"
+                                            + " where setting_key = 'SHOP_ITEMS'",
+                                    String.class))
+                    .isEqualTo(custom);
+        } finally {
+            jdbc.update(
+                    "update operation_setting set setting_value = ? where setting_key ="
+                            + " 'SHOP_ITEMS'",
+                    seeded);
+        }
+    }
 }
