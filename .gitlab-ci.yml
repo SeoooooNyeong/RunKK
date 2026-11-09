@@ -331,6 +331,25 @@ backup:restore-check:
   after_script:
     - rm -f infra/.env
 
+# develop 더미 데이터: 더미 회원·크루·러닝 기록과 에뮬레이터 계정(러너4171) 러닝을 develop DB에 넣는다(infra/dev-seed.sh, infra/README.md 4절).
+# develop 브랜치 파이프라인에만 생기는 수동 잡이다(main·release·태그·MR·스케줄에는 규칙상 없다). 스크립트도 RUNKK_ENV=develop이 아니면 멈춘다.
+# 다시 눌러도 이미 있는 더미 자료는 건너뛴다. 배포와 겹치지 않게 같은 resource_group을 쓴다.
+dev:seed:
+  stage: smoke
+  tags: [deploy]
+  needs: []
+  resource_group: runkk-server
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE != "schedule" && $CI_PIPELINE_SOURCE != "merge_request_event"
+      when: manual
+      allow_failure: true
+  script:
+    - tr -d '\r' < "$INFRA_ENV" > infra/.env
+    - grep -qx "RUNKK_ENV=develop" infra/.env || { echo "infra/.env RUNKK_ENV must be develop" >&2; exit 1; }
+    - infra/dev-seed.sh
+  after_script:
+    - rm -f infra/.env
+
 # 서버 밖 사본: 00:00 스케줄마다 prod·develop의 가장 최근 매일 덤프를 아티팩트(7일 만료, Developer 이상만)로 올린다(infra/offsite-backup.sh,
 # infra/README.md 7절). 한 번만 돌도록 release 기간(RELEASE_FREEZE=1)에는 release 스케줄, 아니면 develop 스케줄에서 돈다.
 # 덤프 시각(04:30)이 스케줄보다 늦어 아티팩트는 전날 04:30 덤프다. 덤프가 26시간보다 오래되면 실패해 매일 백업이 멈춘 것을 알린다.
