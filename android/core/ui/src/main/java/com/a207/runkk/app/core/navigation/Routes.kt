@@ -45,6 +45,7 @@ object Routes {
     const val FREE_RUN_SETTINGS = "me/settings/run"
     const val NOTIFICATION_SETTINGS = "me/settings/notifications"
     const val CONSENTS = "me/consents"
+    const val COACH_CONSENTS = "me/consents/coach"
     const val WITHDRAW = "me/withdraw"
 
     // 기록(ui.record)

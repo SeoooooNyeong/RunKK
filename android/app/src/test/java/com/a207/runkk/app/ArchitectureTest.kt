@@ -60,7 +60,7 @@ class ArchitectureTest {
         val over = ALLOWED.filterValues { it.size > MAX_FAN_OUT }.mapValues { it.value.size }
         assertEquals(emptyMap(), over)
         val (watch, phone) = ALLOWED.entries.partition { it.key.startsWith("watch.") || it.key == "wear.contract" }
-        assertEquals(169, phone.sumOf { it.value.size })
+        assertEquals(174, phone.sumOf { it.value.size })
         assertEquals(37, watch.sumOf { it.value.size })
     }
 
@@ -431,7 +431,8 @@ class ArchitectureTest {
                 "live",
                 "chat",
                 "report",
-                "runbody"
+                "runbody",
+                "coach"
             )
         private val DATAS = listOf("store", "settings", "sync", "watch", "live", "device", "push", "session", "guide")
         private val UIS =
@@ -525,6 +526,7 @@ class ArchitectureTest {
                 "api.report" to setOf("api.core", "domain.report", "core.model"),
                 // 런바디 결과 어댑터(D-453, S15P31A207-229): RunBodyRepository를 Retrofit으로 구현한다.
                 "api.runbody" to setOf("api.core", "domain.runbody", "core.model"),
+                "api.coach" to setOf("api.core", "domain.coach", "core.model"),
                 "data.store" to setOf("domain.run", "core.model"),
                 // data.guide 추가(v0.22 R66, D-387): 안내 문구 표 GuidanceTexts를 공용 :data로 옮겼다.
                 "data.device" to setOf("domain.run", "core.model", "data.guide"),
@@ -559,11 +561,18 @@ class ArchitectureTest {
                 // domain.avatar 추가: 러닝 카드 배경 키·단계(AvatarRepository.backgroundChoice, D-140, D-185).
                 "ui.record" to CORE_UI + setOf("domain.record", "domain.run", "domain.avatar", "ui.share"),
                 // 코치를 기존 행에 더하면 Fan-Out 8이다. 같은 Gradle 모듈의 하위 패키지로 나눈다.
-                "ui.record.coach" to setOf("core.designsystem", "core.model", "domain.coach"),
+                "ui.record.coach" to setOf("core.designsystem", "core.navigation", "core.model", "domain.coach"),
                 // 런바디(S15P31A207-229~232, D-453): 코치처럼 하위 패키지로 둔다. 런바디 경로 등록(core.navigation), 요약 탭의 리포트와
                 // 러닝 선택의 기록 목록(domain.record), 분석 결과(domain.runbody). ui.record는 런바디 형식을 import하지 않는다(Fan-Out 7 그대로).
                 "ui.record.runbody" to
-                    setOf("core.designsystem", "core.navigation", "core.model", "domain.record", "domain.runbody"),
+                    setOf(
+                        "core.designsystem",
+                        "core.navigation",
+                        "core.model",
+                        "domain.record",
+                        "domain.runbody",
+                        "ui.record.coach"
+                    ),
                 // v0.14: domain.account는 위치 동의 시트(LocationConsentUseCase, D-267)와 본인 요약(MySummary: 초대 메시지의
                 // 내 닉네임 D-270, 티어, 랜덤 대결 잠금의 유효 러닝 수 D-331), domain.record는 대결 결과 2쪽의 본인 기록 상세
                 // (RunDetailSource, D-283)다. v0.17(D-331, R51): 유효 러닝 수를 본인 요약에서 받아 domain.runimal을 뺐다.
