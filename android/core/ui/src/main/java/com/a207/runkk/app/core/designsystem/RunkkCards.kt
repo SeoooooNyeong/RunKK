@@ -71,7 +71,8 @@ private fun ContentDrawScope.drawDashedBorder(color: Color, corner: Dp, width: D
 }
 
 /**
- * 카드(표면 + 테두리, 모서리 20 기본·24 큰 카드). [onClick]이 있으면 눌리는 카드가 되고 [onClickLabel]을 보조 기술에 알린다.
+ * 카드(표면, 모서리 20 기본·24 큰 카드). 피그마 카드는 테두리가 없어 기본은 테두리 없이 그린다(S15P31A207-292). 테두리가 필요하면
+ * [borderColor]를 넘긴다(예: `RunkkColors.Border`). [onClick]이 있으면 눌리는 카드가 되고 [onClickLabel]을 보조 기술에 알린다.
  * [isDashed]면 점선 테두리(자리표시).
  */
 @Composable
@@ -82,7 +83,7 @@ fun RunkkCard(
     onClick: (() -> Unit)? = null,
     onClickLabel: String? = null,
     isDashed: Boolean = false,
-    borderColor: Color = RunkkColors.Border,
+    borderColor: Color = Color.Transparent,
     background: Color = RunkkColors.Surface,
     verticalArrangement: Arrangement.Vertical = Arrangement.spacedBy(8.dp),
     content: @Composable ColumnScope.() -> Unit
@@ -100,7 +101,11 @@ fun RunkkCard(
             .clip(shape)
             .background(background)
             .then(
-                if (isDashed) Modifier.runkkDashedBorder(corner = corner) else Modifier.border(1.dp, borderColor, shape)
+                when {
+                    isDashed -> Modifier.runkkDashedBorder(corner = corner)
+                    borderColor.alpha > 0f -> Modifier.border(1.dp, borderColor, shape)
+                    else -> Modifier
+                }
             )
             .then(
                 if (onClick != null) {
@@ -121,7 +126,7 @@ fun RunkkCard(
     )
 }
 
-/** 통계 타일: 라벨(12) + 큰 숫자(Barlow) + 아래 [caption]. 값과 모양은 [StatTileValue]·[StatTileStyle]로 받는다. */
+/** 통계 타일: 라벨(12) + 큰 숫자(IBM Plex Sans KR Bold) + 아래 [caption]. 값과 모양은 [StatTileValue]·[StatTileStyle]로 받는다. */
 @Composable
 fun RunkkStatTile(
     label: String,
