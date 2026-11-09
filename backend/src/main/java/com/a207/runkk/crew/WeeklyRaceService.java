@@ -3,6 +3,7 @@ package com.a207.runkk.crew;
 import com.a207.runkk.common.DateRange;
 import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.Distance;
+import com.a207.runkk.common.DomainEventPublisher;
 import com.a207.runkk.common.Week;
 import com.a207.runkk.member.MemberQueryService;
 import com.a207.runkk.member.MemberSummary;
@@ -47,6 +48,7 @@ public class WeeklyRaceService {
     private final MemberQueryService memberQueryService;
     private final NotificationService notificationService;
     private final CrewTransactions transactions;
+    private final DomainEventPublisher events;
     private final Clock clock;
 
     WeeklyRaceService(
@@ -57,6 +59,7 @@ public class WeeklyRaceService {
             MemberQueryService memberQueryService,
             NotificationService notificationService,
             CrewTransactions transactions,
+            DomainEventPublisher events,
             Clock clock) {
         this.weeklyRaceRepository = weeklyRaceRepository;
         this.crewRepository = crewRepository;
@@ -65,6 +68,7 @@ public class WeeklyRaceService {
         this.memberQueryService = memberQueryService;
         this.notificationService = notificationService;
         this.transactions = transactions;
+        this.events = events;
         this.clock = clock;
     }
 
@@ -83,7 +87,7 @@ public class WeeklyRaceService {
     /**
      * 기록 시작일시에 소속이던 크루 → Week.of(startedAt) → addAtomically. 더했으면 같은 트랜잭션에서 markAchievedIfReached를
      * 부르고 한 행을 바꿨으면 그 크루의 현재 크루원 모두에게 CREW_GOAL_ACHIEVED(푸시는 커밋 뒤). 늦게 저장된 지난 주 기록도 지난 주에 더하고 지난 주를
-     * 판정한다(FR-217, D-105).
+     * 판정한다(FR-217, D-105). 더했으면 RaceContributionAdded를 발행한다(crew.chat 러닝 완료 메시지, W5 C7).
      */
     private void addToRace(RunRecordSaved e) {
         crewRepository.findMembershipHistory(e.memberId()).stream()
@@ -96,7 +100,16 @@ public class WeeklyRaceService {
                                     new RaceContributionKey(
                                             m.crewId(), week, e.memberId(), e.recordId()),
                                     e.distance())) {
-                                judgeGoal(m.crewId(), week, LocalDateTime.now(clock));
+                                LocalDateTime now = LocalDateTime.now(clock);
+                                events.publish(
+                                        new RaceContributionAdded(
+                                                m.crewId(),
+                                                e.memberId(),
+                                                e.recordId(),
+                                                e.distance(),
+                                                e.startedAt(),
+                                                now));
+                                judgeGoal(m.crewId(), week, now);
                             }
                         });
     }

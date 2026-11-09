@@ -3,6 +3,7 @@ package com.a207.runkk.web.avatar;
 import com.a207.runkk.avatar.AvatarService;
 import com.a207.runkk.avatar.BackgroundService;
 import com.a207.runkk.avatar.FaceImageService;
+import com.a207.runkk.avatar.RunnerService;
 import com.a207.runkk.common.ItemSlot;
 import com.a207.runkk.reward.PurchaseResult;
 import com.a207.runkk.reward.ShopService;
@@ -25,9 +26,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 아바타 꾸미기·상점 엔드포인트(설계 5.7.1 AvatarController: 아바타 4 + 배경 2(v0.11 FR-201, FR-202), 상점 2). 셀카는
- * multipart로 받되 file-size-threshold가 max-file-size보다 커서 디스크 임시 파일 없이 메모리로만 받고(D-59), JPEG·PNG만 들인다.
- * 셀카 바이트를 저장·로그하지 않는다(FR-156).
+ * 아바타 꾸미기·상점 엔드포인트(설계 5.7.1 AvatarController: 아바타 4 + 배경 2(v0.11 FR-201, FR-202), 상점 2, 내 러너
+ * 1(W8)). 셀카는 multipart로 받되 file-size-threshold가 max-file-size보다 커서 디스크 임시 파일 없이 메모리로만 받고(D-59),
+ * JPEG·PNG만 들인다. 셀카 바이트를 저장·로그하지 않는다(FR-156).
  */
 @RestController
 @RequestMapping("/api/v1")
@@ -42,6 +43,7 @@ public class AvatarController {
     private final ShopService shopService;
     private final FaceImageService faceImageService;
     private final BackgroundService backgroundService;
+    private final RunnerService runnerService;
     private final Clock clock;
 
     AvatarController(
@@ -49,11 +51,13 @@ public class AvatarController {
             ShopService shopService,
             FaceImageService faceImageService,
             BackgroundService backgroundService,
+            RunnerService runnerService,
             Clock clock) {
         this.avatarService = avatarService;
         this.shopService = shopService;
         this.faceImageService = faceImageService;
         this.backgroundService = backgroundService;
+        this.runnerService = runnerService;
         this.clock = clock;
     }
 
@@ -75,6 +79,12 @@ public class AvatarController {
     @GetMapping("/avatar")
     AvatarDtos.AvatarResponse view(@RequestAttribute(MEMBER_ID) long memberId) {
         return AvatarDtos.AvatarResponse.of(avatarService.view(memberId));
+    }
+
+    /** 내 러너(W8, 피그마 H-2): 최근 7일 횟수·거리, 3단계 체형, 러닝량, 피부톤 근거 시각(contract-W8.md 2.1). */
+    @GetMapping("/avatar/runner")
+    AvatarDtos.RunnerResponse runner(@RequestAttribute(MEMBER_ID) long memberId) {
+        return AvatarDtos.RunnerResponse.of(runnerService.runner(memberId));
     }
 
     /** 랜드마크 배경 목록(v0.11 FR-201, FR-202). 배포 전에 넘은 랜드마크는 알림 없이 먼저 채운다(D-107 (3)). */
