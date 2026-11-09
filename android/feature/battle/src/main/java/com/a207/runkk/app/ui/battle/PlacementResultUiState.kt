@@ -1,6 +1,7 @@
 package com.a207.runkk.app.ui.battle
 
 import com.a207.runkk.app.core.designsystem.UiText
+import com.a207.runkk.app.domain.account.MyAvatar
 import com.a207.runkk.app.domain.account.PlacementProgress
 import com.a207.runkk.app.domain.battle.BattleResult
 import com.a207.runkk.app.domain.battle.PlacementRoundState
@@ -20,7 +21,9 @@ data class PlacementResultUiState(
     val progress: PlacementProgress? = null,
     val isStillPending: Boolean = false,
     val error: UiText? = null,
-    val progressError: UiText? = null
+    val progressError: UiText? = null,
+    /** 히어로에 그릴 내 아바타(홈과 같은 출처, S15P31A207-248). 못 읽었으면 null이고 기본 아바타다. */
+    val myAvatar: MyAvatar? = null
 ) {
     val verdict: Verdict? get() = Verdict.of(result?.verdict)
 

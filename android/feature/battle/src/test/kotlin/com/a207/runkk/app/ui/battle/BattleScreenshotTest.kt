@@ -150,6 +150,17 @@ class BattleScreenshotTest {
         PlacementResultScreen(placementResultState(PRS.COUNTED, "WIN", counted = 1), PlacementResultActions())
     }
 
+    /** 판 결과 히어로 아바타가 홈과 같은 내 아바타(기본 캐릭터 고양이)다(S15P31A207-248). */
+    @Test
+    fun placementResultMyAvatar() = compose.captureRunkkScreen("P2_placement_result_my_avatar", isDarkTheme = false) {
+        PlacementResultScreen(
+            placementResultState(PRS.COUNTED, "WIN", counted = 1).copy(
+                myAvatar = com.a207.runkk.app.domain.account.MyAvatar("default:CAT", emptyList(), null)
+            ),
+            PlacementResultActions()
+        )
+    }
+
     /** TC-5900 판 결과 세지 않음(포기 판, 제안 문구). */
     @Test
     fun placementResultNotCounted() =
