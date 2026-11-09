@@ -9,6 +9,7 @@ import {mkdtemp, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {randomUUID} from 'node:crypto';
+import {profile} from './profile-fixture.mjs';
 
 test('v1.2 renderFaceImage는 같은 1024 캔버스에서 목만 제거한 PNG다', async () => {
   const pixels = Buffer.alloc(1024 * 1024 * 4);
@@ -39,18 +40,19 @@ test('목 검출에 실패해도 renderFaceImage와 연결 기준점을 제공�
   assert.match(mobile.renderFaceImage, /^data:image\/png;base64,/);
 });
 
-test('이전 v2 저장 결과는 AI 없이 renderFaceImage를 보완하여 조회한다', async t => {
+test('저장된 얼굴 세트의 renderFaceImage를 AI 없이 보완하여 조회한다', async t => {
   const root = await mkdtemp(path.join(tmpdir(), 'runkk-mobile-test-'));
   t.after(async () => {
     assert.ok(path.resolve(root).startsWith(path.join(path.resolve(tmpdir()), 'runkk-mobile-test-')));
     await rm(root, {recursive: true, force: true});
   });
   const png = await sharp({create: {width: 1024, height: 1024, channels: 4, background: {r: 0, g: 0, b: 0, alpha: 0}}}).png().toBuffer();
-  await saveUserHead(root, '42', {composite: png, right: png, face: png, eyes: png, hair: png}, {
+  await saveUserHead(root, '42', {composite: png, right: profile, face: png, eyes: png, hair: png,rightFace:png,rightEyes:png,rightHair:png}, {
     id: randomUUID(), alignment: {pivotX: .5, pivotY: .9}, mobile: {version: 'runkk-mobile-compose-v2'},
   });
   const result = await savedFaceResult(root, '42', () => {throw new Error('저장 결과 조회 시 AI 호출 금지');});
   assert.match(result.mobile.renderFaceImage, /^data:image\/png;base64,/);
   assert.deepEqual(result.mobile.canvas, [1024, 1024]);
+  for(const part of ['Face','Eyes','Hair'])assert.match(result['right'+part+'Image'],/^data:image\/png;base64,/);
   assertFaceResult(result);
 });

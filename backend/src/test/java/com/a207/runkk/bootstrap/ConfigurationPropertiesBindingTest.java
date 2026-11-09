@@ -10,6 +10,7 @@ import com.a207.runkk.batch.reward.RewardSchedulingConfig;
 import com.a207.runkk.infra.integration.auth.AuthSecrets;
 import com.a207.runkk.member.LegalDocumentCatalog;
 import com.a207.runkk.operator.OperatorBootstrap;
+import com.a207.runkk.policy.OperationSettingBootstrap;
 import java.time.Duration;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -34,6 +35,7 @@ class ConfigurationPropertiesBindingTest {
     @Autowired AuthSecrets secrets;
     @Autowired LegalDocumentCatalog.Links links;
     @Autowired OperatorBootstrap.Seed seed;
+    @Autowired OperationSettingBootstrap.Seed settingSeed;
 
     @Test
     @DisplayName("시각 작업: test 프로필 크루런 시계 끔, cron·간격은 application.yml 값")
@@ -55,6 +57,7 @@ class ConfigurationPropertiesBindingTest {
         assertThat(secrets.jwtSecret()).isEmpty();
         assertThat(secrets.toString()).doesNotContain("jwt");
         assertThat(seed.operators()).as("변수가 없으면 null(D-166)").isNull();
+        assertThat(settingSeed.settings()).as("변수가 없으면 null(시드 없음)").isNull();
         assertThat(links.termsUrl()).isEqualTo("https://k15a207.p.ssafy.io/legal/terms");
     }
 }
