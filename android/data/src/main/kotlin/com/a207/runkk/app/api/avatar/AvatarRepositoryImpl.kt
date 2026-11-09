@@ -8,6 +8,7 @@ import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.core.model.getOrNull
 import com.a207.runkk.app.domain.avatar.Avatar
 import com.a207.runkk.app.domain.avatar.AvatarBackgrounds
 import com.a207.runkk.app.domain.avatar.AvatarRepository
@@ -69,7 +70,18 @@ constructor(
         return avatar()
     }
 
-    override suspend fun pendingSelfieJobId(): String? = pending.load()
+    /**
+     * 기기에 남긴 작업이 없으면(앱 데이터를 지웠거나 다른 기기에서 접수) 서버의 진행 중 작업(GET /avatar/selfie/jobs/current)을 읽어
+     * 남긴다. 서버가 그 작업을 끝내기 전까지 새 셀카가 SELFIE_IN_PROGRESS로 막히므로 이어 조회해 끝내야 한다.
+     */
+    override suspend fun pendingSelfieJobId(): String? {
+        pending.load()?.let { return it }
+        val reply = ApiErrorMapper.call { api.currentSelfieJob() }.getOrNull() ?: return null
+        val job = reply.body()?.takeIf { reply.isSuccessful }?.toDomain() ?: return null
+        if (job.status == SelfieJob.Status.FAILED) return null
+        pending.save(job.jobId)
+        return job.jobId
+    }
 
     /** 남긴 작업이 [jobId]일 때만 지운다(그사이 새로 접수한 작업은 그대로). */
     private fun forget(jobId: String) {

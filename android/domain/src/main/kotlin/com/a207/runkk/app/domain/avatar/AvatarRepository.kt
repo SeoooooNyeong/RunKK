@@ -25,7 +25,10 @@ interface AvatarRepository {
      */
     suspend fun finishSelfie(jobId: String): Outcome<Avatar>
 
-    /** 이어 조회할 셀카 작업 ID(로그인한 회원이 접수하고 아직 끝내지 않은 것). 없으면 null. */
+    /**
+     * 이어 조회할 셀카 작업 ID(로그인한 회원이 접수하고 아직 끝내지 않은 것). 기기에 남긴 것이 없으면 서버의 진행 중 작업
+     * (GET /avatar/selfie/jobs/current)을 쓴다. 없으면 null.
+     */
     suspend fun pendingSelfieJobId(): String?
 
     suspend fun chooseDefault(characterId: String): Outcome<Avatar>

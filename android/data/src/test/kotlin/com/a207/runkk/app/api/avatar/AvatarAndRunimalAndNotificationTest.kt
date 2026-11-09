@@ -111,7 +111,8 @@ class AvatarAndRunimalAndNotificationTest {
             SelfieJob("job-1", SelfieJob.Status.FAILED, "SELFIE_QUALITY_REJECTED"),
             repository.selfieJob("job-1").value()
         )
-        assertNull(repository.pendingSelfieJobId())
+        api.replyEmpty(204)
+        assertNull(repository.pendingSelfieJobId(), "서버에도 진행 중 작업이 없다")
         api.take()
         assertEquals("/api/v1/avatar/selfie/jobs/job-1", api.take().target)
     }
@@ -124,7 +125,8 @@ class AvatarAndRunimalAndNotificationTest {
         repository.submitSelfie(byteArrayOf(1))
 
         assertEquals(Outcome.Failure(AppError.Rejected("JOB_NOT_FOUND")), repository.selfieJob("job-1"))
-        assertNull(repository.pendingSelfieJobId())
+        api.replyEmpty(204)
+        assertNull(repository.pendingSelfieJobId(), "서버에도 진행 중 작업이 없다")
     }
 
     @Test
@@ -147,7 +149,8 @@ class AvatarAndRunimalAndNotificationTest {
             Outcome.Failure(AppError.Rejected("FACE_CONSENT_REQUIRED")),
             repository.submitSelfie(byteArrayOf(1))
         )
-        assertNull(repository.pendingSelfieJobId())
+        api.replyEmpty(204)
+        assertNull(repository.pendingSelfieJobId(), "서버에도 진행 중 작업이 없다")
     }
 
     @Test
@@ -164,10 +167,22 @@ class AvatarAndRunimalAndNotificationTest {
 
         assertEquals("head:7:job-1", avatar.faceKey)
         assertEquals(false, avatar.canCreateSelfieToday)
-        assertNull(repository.pendingSelfieJobId())
+        api.replyEmpty(204)
+        assertNull(repository.pendingSelfieJobId(), "서버에도 진행 중 작업이 없다")
         api.take()
         assertEquals("/api/v1/avatar/selfie/jobs/job-1/result", api.take().target)
         assertEquals("/api/v1/avatar", api.take().target)
+    }
+
+    @Test
+    fun `기기에 남긴 작업이 없으면 서버의 진행 중 작업을 이어 조회하려고 남긴다`() = runTest {
+        api.reply("""{"jobId":"job-7","status":"SUCCEEDED","headId":"h-7"}""")
+        val repository = repository()
+
+        assertEquals("job-7", repository.pendingSelfieJobId())
+        assertEquals("/api/v1/avatar/selfie/jobs/current", api.take().target)
+        assertEquals("job-7", repository.pendingSelfieJobId(), "남긴 뒤에는 서버에 다시 묻지 않는다")
+        assertEquals(1, api.server.requestCount)
     }
 
     @Test

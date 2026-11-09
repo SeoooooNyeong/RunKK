@@ -3,6 +3,7 @@ package com.a207.runkk.app.api.avatar
 import kotlinx.serialization.Serializable
 import okhttp3.MultipartBody
 import okhttp3.ResponseBody
+import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.Multipart
@@ -25,6 +26,10 @@ internal interface AvatarApi {
     @Multipart
     @POST("avatar/selfie/jobs")
     suspend fun submitSelfie(@Part selfie: MultipartBody.Part): SelfieJobResponse
+
+    /** 내 진행 중 셀카 작업(접수됐고 결과를 아직 반영하지 않은 것). 없으면 204라 본문이 null이다. */
+    @GET("avatar/selfie/jobs/current")
+    suspend fun currentSelfieJob(): Response<SelfieJobResponse>
 
     @GET("avatar/selfie/jobs/{jobId}")
     suspend fun selfieJob(@Path("jobId") jobId: String): SelfieJobResponse
