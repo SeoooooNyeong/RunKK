@@ -17,11 +17,12 @@ internal val Avatar.renderKey: String
 internal val Avatar.character: DefaultCharacter?
     get() = DefaultCharacter.ofFaceKey(renderKey)
 
-/** 셀카 얼굴인지(서버 SelfieFace.renderKey는 "selfie:"로 시작한다). */
+/** 셀카 얼굴인지(서버 SelfieFace.renderKey "selfie:…", 비동기 셀카 머리 "head:{회원ID}:{작업ID}"). */
 internal val Avatar.isSelfieFace: Boolean
-    get() = faceKey?.startsWith(SELFIE_PREFIX) == true
+    get() = faceKey?.let { it.startsWith(SELFIE_PREFIX) || it.startsWith(HEAD_PREFIX) } == true
 
 private const val SELFIE_PREFIX = "selfie:"
+private const val HEAD_PREFIX = "head:"
 
 /** 부위 문구(FR-161). */
 @get:StringRes

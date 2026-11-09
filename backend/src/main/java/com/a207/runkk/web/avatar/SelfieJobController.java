@@ -39,6 +39,18 @@ public class SelfieJobController {
                 .body(service.submit(memberId, image));
     }
 
+    /** 내 진행 중 셀카 작업(앱이 작업 ID를 잃었을 때 이어 조회한다). 없으면 204. */
+    @GetMapping("/selfie/jobs/current")
+    ResponseEntity<FaceJob> current(@RequestAttribute("memberId") long memberId) {
+        return service.current(memberId)
+                .map(job -> ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(job))
+                .orElseGet(
+                        () ->
+                                ResponseEntity.noContent()
+                                        .cacheControl(CacheControl.noStore())
+                                        .build());
+    }
+
     @GetMapping("/selfie/jobs/{jobId}")
     ResponseEntity<FaceJob> status(
             @RequestAttribute("memberId") long memberId, @PathVariable String jobId) {

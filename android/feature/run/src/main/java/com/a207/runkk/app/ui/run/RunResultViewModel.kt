@@ -11,6 +11,9 @@ import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.core.model.getOrNull
+import com.a207.runkk.app.domain.account.AccountRepository
+import com.a207.runkk.app.domain.account.MyAvatar
+import com.a207.runkk.app.domain.account.myAvatar
 import com.a207.runkk.app.domain.record.RecordDetail
 import com.a207.runkk.app.domain.record.RecordRepository
 import com.a207.runkk.app.domain.run.PendingRunRepository
@@ -37,12 +40,22 @@ import kotlinx.coroutines.withTimeoutOrNull
  * 거리·시간·페이스는 서버가 초과 시속 구간을 뺀 값이다(FR-047). 유효·집계 제외는 화면에 보이지 않는다(D29).
  * 휴식(정지 구간 합)은 기기 보관 기록의 정지 구간이나 서버 pausedSeconds로 보인다.
  * 측정 직후 연 결과에서 서버 기록에 티어 평가(evaluation)가 실리면 평가 화면으로 한 번 이동한다(대결 결과와 같은 방식, D-284, U8-6).
+ * 히어로의 아바타는 홈과 같은 내 아바타(AccountRepository.myAvatar)다(S15P31A207-248).
  */
 @HiltViewModel
-class RunResultViewModel @Inject constructor(
+class RunResultViewModel internal constructor(
     private val pendingRuns: PendingRunRepository,
-    private val records: RecordRepository
+    private val records: RecordRepository,
+    /** 내 아바타(홈과 같은 출처). 못 읽으면 null이고 기본 아바타를 그린다. */
+    private val myAvatar: suspend () -> MyAvatar? = { null }
 ) : ViewModel() {
+    @Inject
+    constructor(
+        pendingRuns: PendingRunRepository,
+        records: RecordRepository,
+        account: AccountRepository
+    ) : this(pendingRuns, records, { account.myAvatar() })
+
     private val _state = MutableStateFlow(RunResultUiState())
     val state: StateFlow<RunResultUiState> = _state.asStateFlow()
 
@@ -65,7 +78,8 @@ class RunResultViewModel @Inject constructor(
         if (opensEvaluation && _state.value.recordId == null) isEvaluationDue = true
         if (!isForced && _state.value.recordId == recordId) return
         loadJob?.cancel()
-        _state.value = RunResultUiState(recordId = recordId)
+        _state.value = RunResultUiState(recordId = recordId, myAvatar = _state.value.myAvatar)
+        readMyAvatar()
         loadJob = viewModelScope.launch {
             val local = withTimeoutOrNull(LOCAL_WAIT_MILLIS) {
                 pendingRuns.observePending().mapNotNull { runs -> runs.firstOrNull { it.recordId == recordId } }.first()
@@ -93,6 +107,16 @@ class RunResultViewModel @Inject constructor(
             // 보관함에서 빠지면 서버 기록을 다시 읽어 "보내는 중"을 "달력에 저장했어요"로 바꾼다(E2E 시나리오 3에서 찾은 결함).
             pendingRuns.observePending().first { runs -> runs.none { it.recordId == recordId } }
             applyServer(recordId, shouldShowError = false)
+        }
+    }
+
+    private var avatarJob: Job? = null
+
+    /** 내 아바타를 한 번 읽는다. 다른 기록을 다시 읽어도 그대로 둔다. */
+    private fun readMyAvatar() {
+        if (_state.value.myAvatar != null || avatarJob != null) return
+        avatarJob = viewModelScope.launch {
+            myAvatar()?.let { look -> _state.update { it.copy(myAvatar = look) } }
         }
     }
 

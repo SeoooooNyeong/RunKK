@@ -8,6 +8,7 @@ import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.Pace
+import com.a207.runkk.app.domain.account.MyAvatar
 import com.a207.runkk.app.domain.record.Evaluation
 import com.a207.runkk.app.domain.run.HeartRateSample
 import kotlin.test.assertEquals
@@ -240,5 +241,30 @@ class RunResultViewModelTest {
             vm.load("rec-1")
             expectNoEvents()
         }
+    }
+
+    @Test
+    fun `결과 아바타는 홈과 같은 내 아바타이고 다른 기록을 다시 읽어도 한 번만 읽는다`() {
+        pending.runs.value = listOf(completedRun())
+        val look = MyAvatar("head:7:job-1", emptyList(), "bg-park")
+        var reads = 0
+        val vm = RunResultViewModel(pending, records) {
+            reads++
+            look
+        }
+        vm.load("rec-1")
+        assertEquals(look, vm.state.value.myAvatar)
+        vm.load("rec-2")
+        assertEquals(look, vm.state.value.myAvatar)
+        assertEquals(1, reads)
+    }
+
+    @Test
+    fun `내 아바타를 읽지 못하면 기본 아바타 그대로다`() {
+        pending.runs.value = listOf(completedRun())
+        val vm = RunResultViewModel(pending, records) { null }
+        vm.load("rec-1")
+        assertNull(vm.state.value.myAvatar)
+        assertEquals(Distance(5_020), vm.state.value.distance)
     }
 }

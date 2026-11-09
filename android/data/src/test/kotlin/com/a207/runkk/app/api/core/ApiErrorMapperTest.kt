@@ -17,6 +17,16 @@ class ApiErrorMapperTest {
     }
 
     @Test
+    fun `셀카 작업 거부는 본문 reason을 사유 코드로 읽는다`() {
+        assertEquals(AppError.Rejected("JOB_NOT_FOUND"), ApiErrorMapper.fromHttp(404, """{"reason":"JOB_NOT_FOUND"}"""))
+        assertEquals(AppError.Rejected("TOO_LARGE"), ApiErrorMapper.fromHttp(413, """{"reason":"TOO_LARGE"}"""))
+        assertEquals(
+            AppError.Rejected("SELFIE_LIMIT"),
+            ApiErrorMapper.fromHttp(409, """{"code":"SELFIE_LIMIT","reason":"X"}""")
+        )
+    }
+
+    @Test
     fun `401은 Unauthorized`() {
         assertEquals(AppError.Unauthorized, ApiErrorMapper.fromHttp(401, null))
     }

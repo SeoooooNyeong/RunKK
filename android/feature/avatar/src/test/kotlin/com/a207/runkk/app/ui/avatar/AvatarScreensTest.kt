@@ -1,8 +1,17 @@
 package com.a207.runkk.app.ui.avatar
 
 import android.graphics.Bitmap
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasStateDescription
@@ -61,6 +70,52 @@ class AvatarScreensTest {
         compose.onNodeWithText(str(R.string.avatar_setup_pick_album)).performClick()
         compose.onNodeWithContentDescription(str(R.string.avatar_character_bear)).performClick()
         assertEquals(listOf("selfie", "album", "BEAR"), calls)
+    }
+
+    @Test
+    fun `얼굴 만들기 - 서버가 얼굴을 만드는 중이면 알리고 셀카, 앨범을 막고 기본 캐릭터 저장은 된다`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                AvatarSetupScreen(
+                    AvatarSetupUiState(isLoading = false, selected = DefaultCharacter.FOX, isMakingFace = true),
+                    {},
+                    {},
+                    {},
+                    {}
+                )
+            }
+        }
+        compose.onNodeWithText(str(R.string.avatar_setup_making)).assertExists()
+        compose.onNodeWithText(str(R.string.avatar_setup_take_selfie)).assertIsNotEnabled()
+        compose.onNodeWithText(str(R.string.avatar_setup_pick_album)).assertIsNotEnabled()
+        compose.onNodeWithText(str(R.string.avatar_setup_save)).assertIsEnabled()
+    }
+
+    @Test
+    fun `얼굴 만들기 - 셀카 카드의 동의 체크를 누르면 동의하고, 동의했으면 체크된 채 다시 눌러도 철회하지 않는다`() {
+        var state by mutableStateOf(AvatarSetupUiState(isLoading = false))
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                AvatarSetupScreen(
+                    state,
+                    {},
+                    {},
+                    {},
+                    {},
+                    onFaceConsent = {
+                        calls += "consent"
+                        state = state.copy(hasFaceConsent = true)
+                    }
+                )
+            }
+        }
+        val isCheckbox = SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Checkbox)
+        val consent = str(R.string.avatar_setup_face_consent)
+        compose.onNodeWithText(consent, substring = true).assertExists()
+        compose.onNode(isCheckbox).assertIsOff().performClick()
+        compose.onNode(isCheckbox).assertIsOn().performClick()
+        compose.onNode(isCheckbox).assertIsOn()
+        assertEquals(listOf("consent"), calls)
     }
 
     @Test
@@ -246,6 +301,23 @@ class AvatarScreenshotTest {
     @Test
     fun setup() = compose.captureRunkkScreen("J7_avatar_face") {
         AvatarSetupScreen(AvatarSetupUiState(isLoading = false, selected = DefaultCharacter.FOX), {}, {}, {}, {})
+    }
+
+    /** 셀카 접수 뒤 서버가 얼굴을 만드는 중(S15P31A207-248): 진행 원과 「얼굴을 만들고 있어요」, 셀카 꺼짐, 동의 체크됨. */
+    @Test
+    fun setupMakingFace() = compose.captureRunkkScreen("J7_avatar_face_making") {
+        AvatarSetupScreen(
+            AvatarSetupUiState(
+                isLoading = false,
+                selected = DefaultCharacter.FOX,
+                isMakingFace = true,
+                hasFaceConsent = true
+            ),
+            {},
+            {},
+            {},
+            {}
+        )
     }
 
     @Test

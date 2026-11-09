@@ -5,12 +5,31 @@ import com.a207.runkk.app.core.model.Outcome
 
 /**
  * 아바타·상점 포트(5.7.1 /avatar/…, /shop/…). 구현 api.avatar.
- * 셀카는 앱이 긴 변 1024px·JPEG·1MB 이하로 줄여 보내고 어디에도 저장하지 않는다(D-23, D-59).
+ * 셀카는 앱이 긴 변 1024px·JPEG·1MB 이하로 줄여 보내고 어디에도 저장하지 않는다(D-23, D-59). 얼굴은 서버가 비동기로 만든다.
  */
 interface AvatarRepository {
     suspend fun avatar(): Outcome<Avatar>
 
-    suspend fun createFromSelfie(jpeg: ByteArray): Outcome<Avatar>
+    /**
+     * 셀카 접수(POST /avatar/selfie/jobs → 202, S15P31A207-276). 접수한 작업 ID는 기기에 남겨 화면을 떠나거나 앱을 다시 켜도
+     * [pendingSelfieJobId]로 이어 조회한다. 동의 없음·하루 한도·재시도 한도·진행 중은 Rejected(사유 코드)다.
+     */
+    suspend fun submitSelfie(jpeg: ByteArray): Outcome<SelfieJob>
+
+    /** 작업 상태(GET /avatar/selfie/jobs/{작업ID}). 실패로 끝났거나 서버가 작업을 잃었으면(JOB_NOT_FOUND) 남긴 작업 ID를 지운다. */
+    suspend fun selfieJob(jobId: String): Outcome<SelfieJob>
+
+    /**
+     * 끝난 작업의 결과를 받아(GET /avatar/selfie/jobs/{작업ID}/result) 서버가 내 얼굴을 셀카 머리로 바꾸게 하고, 바뀐 아바타를 읽는다.
+     * 남긴 작업 ID를 지운다.
+     */
+    suspend fun finishSelfie(jobId: String): Outcome<Avatar>
+
+    /**
+     * 이어 조회할 셀카 작업 ID(로그인한 회원이 접수하고 아직 끝내지 않은 것). 기기에 남긴 것이 없으면 서버의 진행 중 작업
+     * (GET /avatar/selfie/jobs/current)을 쓴다. 없으면 null.
+     */
+    suspend fun pendingSelfieJobId(): String?
 
     suspend fun chooseDefault(characterId: String): Outcome<Avatar>
 

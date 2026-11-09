@@ -16,6 +16,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -173,28 +174,60 @@ public class SelfieJobService {
             recoverMissing(memberId, jobId, error);
             throw error;
         }
-        tx.write(
-                () -> {
-                    Avatar avatar = lockedActiveAvatar(memberId);
-                    requireConsent(memberId);
-                    SelfieJob job = jobs.byJob(memberId, jobId).orElseThrow();
-                    if (job.jobId() != null
-                            && job.view().headId() != null
-                            && !job.view().headId().equals(head.headId())) {
-                        throw new FaceJobRejectedException(503, "UPSTREAM_FAILED");
-                    }
-                    if (!job.finished()) {
-                        avatar.applyGeneratedHead(
-                                job.requestId(), jobId, LocalDate.now(clock), policy.selfieLimit());
-                        job.accepted(
-                                new FaceJob(jobId, FaceJob.Status.SUCCEEDED, head.headId(), null));
-                        job.finish();
-                        avatars.save(avatar);
-                        jobs.save(job);
-                    }
-                    return job;
-                });
+        SelfieJob applied =
+                tx.write(
+                        () -> {
+                            Avatar avatar = lockedActiveAvatar(memberId);
+                            requireConsent(memberId);
+                            SelfieJob job = jobs.byJob(memberId, jobId).orElseThrow();
+                            if (job.jobId() != null
+                                    && job.view().headId() != null
+                                    && !job.view().headId().equals(head.headId())) {
+                                throw new FaceJobRejectedException(503, "UPSTREAM_FAILED");
+                            }
+                            if (job.finished()) return job;
+                            LocalDate today = LocalDate.now(clock);
+                            if (!avatar.canCreateSelfie(today, policy.selfieLimit())) {
+                                // 반영하지 못할 결과는 작업을 끝내 둔다. 롤백하면 끝나지 않은 작업이 남아 새 셀카가 계속 막힌다.
+                                job.accepted(
+                                        new FaceJob(
+                                                jobId,
+                                                FaceJob.Status.FAILED,
+                                                null,
+                                                new FaceJob.Error(
+                                                        ReasonCode.SELFIE_LIMIT.name(), null)));
+                                job.finish();
+                                avatar.endFaceJob(job.requestId());
+                                avatars.save(avatar);
+                                jobs.save(job);
+                                return job;
+                            }
+                            avatar.applyGeneratedHead(
+                                    job.requestId(), jobId, today, policy.selfieLimit());
+                            job.accepted(
+                                    new FaceJob(
+                                            jobId, FaceJob.Status.SUCCEEDED, head.headId(), null));
+                            job.finish();
+                            avatars.save(avatar);
+                            jobs.save(job);
+                            return job;
+                        });
+        if (applied.view().status() == FaceJob.Status.FAILED) {
+            throw new BusinessRuleException(ReasonCode.SELFIE_LIMIT);
+        }
         return head;
+    }
+
+    /**
+     * 앱이 이어 조회할 내 셀카 작업: 접수돼 작업 ID가 있고 아직 끝내지 않은 것(QUEUED·RUNNING, 또는 SUCCEEDED인데 결과를 받지 않아 얼굴에
+     * 반영하지 않은 것). 앱이 작업 ID를 잃어도 이것으로 이어 조회·마무리한다. 외부 호출 없이 마지막으로 본 상태를 돌려준다.
+     */
+    public Optional<FaceJob> current(long memberId) {
+        return tx.read(
+                () ->
+                        jobs.pending(memberId)
+                                .filter(job -> job.jobId() != null)
+                                .map(SelfieJob::view));
     }
 
     public GeneratedHead latest(long memberId) {

@@ -148,6 +148,11 @@ public class Avatar {
         pendingFaceRequest = requestId;
     }
 
+    /** 진행 중이던 셀카 요청을 반영하지 않고 끝낸다(한도를 넘어 결과를 버릴 때). */
+    void endFaceJob(String requestId) {
+        if (requestId.equals(pendingFaceRequest)) pendingFaceRequest = null;
+    }
+
     void applyGeneratedHead(String requestId, String jobId, LocalDate today, SelfieLimit limit) {
         countSelfie(today, limit);
         if (requestId.equals(pendingFaceRequest)) {
