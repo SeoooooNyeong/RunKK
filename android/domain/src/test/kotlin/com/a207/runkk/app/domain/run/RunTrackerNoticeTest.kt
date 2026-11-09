@@ -205,4 +205,39 @@ class RunTrackerNoticeTest {
         assertEquals(0, tracker.routeLine.value.points.size)
         assertEquals(Duration.ZERO, tracker.progress.value.elapsed)
     }
+
+    @Test
+    fun `정지 GPS 흔들림은 거리와 경로에 더하지 않고 운동 시간은 흐른다`() = runTest {
+        val tracker = started()
+        tracker.onLocationSample(sample(1, 0.0))
+        tracker.onLocationSample(sample(2, 4.0).copy(speedUpperEstimateMps = 0.3))
+        tracker.onLocationSample(sample(3, -1.0).copy(speedUpperEstimateMps = 0.2))
+        tracker.tick(T0.plusSeconds(3))
+
+        assertEquals(Distance.ZERO, tracker.progress.value.distance)
+        assertEquals(Duration.ofSeconds(3), tracker.progress.value.elapsed)
+        assertEquals(0.0, tracker.routeLine.value.lengthMeters, 0.01)
+
+        tracker.onLocationSample(sample(4, 2.0).copy(speedUpperEstimateMps = 1.1))
+        tracker.onLocationSample(sample(5, 5.0).copy(speedUpperEstimateMps = 3.2))
+        tracker.tick(T0.plusSeconds(5))
+        assertEquals(Distance(5), tracker.progress.value.distance)
+        assertEquals(5.0, tracker.routeLine.value.lengthMeters, 0.01)
+    }
+
+    @Test
+    fun `수동 일시정지에서 재개할 때 첫 정지 좌표는 이전 위치에 고정하지 않는다`() = runTest {
+        val tracker = started()
+        tracker.onLocationSample(sample(1, 0.0))
+        clock.now = T0.plusSeconds(2)
+        tracker.onPauseTapped()
+        tracker.onLocationSample(sample(2, 3.0).copy(speedUpperEstimateMps = 0.2))
+        clock.now = T0.plusSeconds(3)
+        tracker.onResumeTapped()
+        tracker.onLocationSample(sample(4, 20.0).copy(speedUpperEstimateMps = 0.2))
+        tracker.tick(T0.plusSeconds(4))
+
+        assertEquals(north(20.0), tracker.routeLine.value.points.last())
+        assertEquals(Distance.ZERO, tracker.progress.value.distance)
+    }
 }

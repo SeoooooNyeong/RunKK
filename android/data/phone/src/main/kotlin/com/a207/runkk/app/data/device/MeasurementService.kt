@@ -189,8 +189,17 @@ class MeasurementService : LifecycleService() {
     private fun Location.toSample(): LocationSample = LocationSample(
         at = Instant.ofEpochMilli(time),
         point = GeoPoint(latitude, longitude),
-        accuracyMeters = if (hasAccuracy()) accuracy.toDouble() else Double.MAX_VALUE
+        accuracyMeters = if (hasAccuracy()) accuracy.toDouble() else Double.MAX_VALUE,
+        speedUpperEstimateMps = speedUpperEstimateMps()
     )
+
+    private fun Location.speedUpperEstimateMps(): Double? {
+        if (!hasSpeed() || !hasSpeedAccuracy()) return null
+        val measured = speed.toDouble()
+        val uncertainty = speedAccuracyMetersPerSecond.toDouble()
+        if (!measured.isFinite() || measured < 0 || !uncertainty.isFinite() || uncertainty < 0) return null
+        return measured + uncertainty
+    }
 
     /** 위치가 잰 속도(m/s). 속도를 모르거나 위치 정확도가 기준(30m)을 넘으면 null(서버가 위치로 셈한다). */
     private fun Location.toMotion(): MotionSample? =

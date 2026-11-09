@@ -326,6 +326,7 @@ constructor(
             synchronized(lock) {
                 val active = session?.takeIf { it.isActive } ?: return
                 if (!change(active, now)) return
+                if (!active.isPaused) locationFilter.resetStationaryAnchor()
                 active to active.tick(now).also(::emitProgress)
             }
         coach.play(Guidance.screenOnly(Guidance.Kind.PAUSE, message))
