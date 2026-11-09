@@ -1,5 +1,6 @@
 package com.a207.runkk.app.api.core
 
+import java.io.IOException
 import okhttp3.Interceptor
 import okhttp3.Response
 
@@ -10,7 +11,9 @@ import okhttp3.Response
 class AuthInterceptor(private val tokens: TokenProvider) : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
-        val access = tokens.accessToken()
+        val bound = request.tag(BoundSession::class.java)
+        if (bound != null && !bound.isCurrent(tokens)) throw IOException("Request session changed")
+        val access = bound?.accessToken ?: tokens.accessToken()
         if (access == null || request.header(AUTHORIZATION) != null) return chain.proceed(request)
         return chain.proceed(request.newBuilder().header(AUTHORIZATION, BEARER + access).build())
     }

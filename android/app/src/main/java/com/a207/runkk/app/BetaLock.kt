@@ -44,8 +44,12 @@ internal object BetaLock {
 
     private fun featureOfRoute(route: String): UnreleasedFeature? = when {
         route == Routes.CREW || route.startsWith("${Routes.CREW}/") -> UnreleasedFeature.CREW
+
         route == Routes.AVATAR || route.startsWith("${Routes.AVATAR}/") -> UnreleasedFeature.AVATAR_CUSTOMIZE
-        route == Routes.REPORT -> UnreleasedFeature.RUNBODY
+
+        route == Routes.REPORT || route == Routes.COACH || route == Routes.COACH_CONSENTS ->
+            UnreleasedFeature.RUNBODY
+
         else -> null
     }
 }
