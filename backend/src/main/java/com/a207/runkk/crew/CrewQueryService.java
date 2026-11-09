@@ -134,7 +134,7 @@ public class CrewQueryService {
 
     /**
      * check(VIEW_OR_DECIDE_JOIN). 신청자 표시명·티어·신청일시(FR-136)와 레벨·공개한 나이대·성별(피그마 맞춤 W7 F-25,
-     * CrewMemberProfile 공개 규칙).
+     * CrewMemberProfile 공개 규칙). 탈퇴한 신청자는 보조 정보를 싣지 않는다(크루원 목록과 같은 DisclosureLevel 판정).
      */
     public PendingRequestsView pendingRequests(long requesterId, long crewId) {
         crewAccess.check(requesterId, crewId, CrewAction.VIEW_OR_DECIDE_JOIN);
@@ -143,6 +143,8 @@ public class CrewQueryService {
         Map<Long, MemberSummary> summaries = memberQueryService.summaries(applicants);
         Map<Long, MemberProfile> profiles =
                 memberQueryService.profilesOf(applicants, currentYear());
+        Map<Long, DisclosureLevel> levels =
+                memberQueryService.disclosureOf(requesterId, applicants);
         return new PendingRequestsView(
                 crewId,
                 pending.stream()
@@ -157,7 +159,13 @@ public class CrewQueryService {
                                                         .orElse(null),
                                                 r.requestedAt(),
                                                 CrewMemberProfile.shownTo(
-                                                        profiles.get(r.memberId()),
+                                                        levels.getOrDefault(
+                                                                                r.memberId(),
+                                                                                DisclosureLevel
+                                                                                        .WITHDRAWN)
+                                                                        .showsProfile()
+                                                                ? profiles.get(r.memberId())
+                                                                : null,
                                                         r.memberId() == requesterId)))
                         .toList());
     }

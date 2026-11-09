@@ -4,8 +4,6 @@ import com.a207.runkk.common.Tier;
 import com.a207.runkk.crew.CrewMembersView;
 import com.a207.runkk.crew.CrewQueryService;
 import com.a207.runkk.crew.PendingRequestsView;
-import com.a207.runkk.member.Gender;
-import com.a207.runkk.member.ProfileVisibility;
 import com.a207.runkk.runimal.RunimalQuery;
 import com.a207.runkk.runimal.RunimalType;
 import java.time.OffsetDateTime;
@@ -48,9 +46,9 @@ class CrewMembersAssembler {
                                                 CrewDtos.at(m.joinedAt()),
                                                 m.profile().level(),
                                                 m.profile().ageBand(),
-                                                m.profile().gender(),
-                                                m.profile().ageBandVisibility(),
-                                                m.profile().genderVisibility()))
+                                                nameOf(m.profile().gender()),
+                                                nameOf(m.profile().ageBandVisibility()),
+                                                nameOf(m.profile().genderVisibility())))
                         .toList());
     }
 
@@ -72,8 +70,13 @@ class CrewMembersAssembler {
                                                 CrewDtos.at(r.requestedAt()),
                                                 r.profile().level(),
                                                 r.profile().ageBand(),
-                                                r.profile().gender()))
+                                                nameOf(r.profile().gender())))
                         .toList());
+    }
+
+    /** enum 이름, null이면 null(web.crew는 member 형식을 쓰지 않는다, 13.1 규칙 1). */
+    private static String nameOf(Enum<?> value) {
+        return value == null ? null : value.name();
     }
 
     /**
@@ -97,8 +100,8 @@ class CrewMembersAssembler {
          * @param joinedAt 크루 가입 일시
          * @param level 레벨
          * @param ageBand 나이대("20대"), 남에게는 나이 공개일 때만
-         * @param gender 성별, 남에게는 성별 공개일 때만
-         * @param ageBandVisibility 나이대 공개 값(본인 줄만)
+         * @param gender 성별(FEMALE | MALE | UNDISCLOSED), 남에게는 성별 공개일 때만
+         * @param ageBandVisibility 나이대 공개 값(PUBLIC | PRIVATE, 본인 줄만)
          * @param genderVisibility 성별 공개 값(본인 줄만)
          */
         record Member(
@@ -113,9 +116,9 @@ class CrewMembersAssembler {
                 OffsetDateTime joinedAt,
                 Integer level,
                 String ageBand,
-                Gender gender,
-                ProfileVisibility ageBandVisibility,
-                ProfileVisibility genderVisibility) {}
+                String gender,
+                String ageBandVisibility,
+                String genderVisibility) {}
     }
 
     /**
@@ -147,6 +150,6 @@ class CrewMembersAssembler {
                 OffsetDateTime requestedAt,
                 Integer level,
                 String ageBand,
-                Gender gender) {}
+                String gender) {}
     }
 }

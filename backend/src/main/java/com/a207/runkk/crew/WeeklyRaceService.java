@@ -189,17 +189,17 @@ public class WeeklyRaceService {
     public static final int MAX_HISTORY_SIZE = 100;
 
     /**
-     * check(VIEW_CREW_INTERNAL) → 이번 주 앞의, 목표가 있던 주를 최신 주부터 size개(피그마 맞춤 W7 F-21). before가 있으면 그보다
-     * 앞선 주만(이번 주 월요일보다 늦으면 이번 주 월요일로 줄인다). 더 남았으면 nextBefore가 이 페이지 마지막 주 월요일이다. size가 1~100 밖이면
-     * IllegalArgumentException(400).
+     * check(VIEW_CREW_INTERNAL, 크기 검사보다 먼저) → 이번 주 앞의, 목표가 있던 주를 최신 주부터 size개(피그마 맞춤 W7 F-21).
+     * before가 있으면 그보다 앞선 주만(이번 주 월요일보다 늦으면 이번 주 월요일로 줄인다). 더 남았으면 nextBefore가 이 페이지 마지막 주 월요일이다.
+     * size가 1~100 밖이면 IllegalArgumentException(400).
      */
     @Transactional(readOnly = true)
     public GoalHistoryView goalHistory(
             long viewerId, long crewId, Optional<LocalDate> before, int size) {
+        crewAccess.check(viewerId, crewId, CrewAction.VIEW_CREW_INTERNAL);
         if (size < 1 || size > MAX_HISTORY_SIZE) {
             throw new IllegalArgumentException("페이지 크기는 1~" + MAX_HISTORY_SIZE + ": " + size);
         }
-        crewAccess.check(viewerId, crewId, CrewAction.VIEW_CREW_INTERNAL);
         LocalDate thisMonday = Week.of(LocalDateTime.now(clock)).monday();
         LocalDate bound = before.filter(b -> b.isBefore(thisMonday)).orElse(thisMonday);
         List<GoalHistoryRow> rows = weeklyRaceRepository.goalHistory(crewId, bound, size + 1);

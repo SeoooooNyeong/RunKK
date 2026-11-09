@@ -47,7 +47,7 @@ Flyway: **없음.** 크루 가입일은 기존 `crew_membership.joined_at`(V10�
 | `ageBandVisibility` | string | 예 | **[새]** `ProfileVisibility`: `PUBLIC` \| `PRIVATE`. **본인 줄(`me = true`)에만 값**, 다른 크루원은 null |
 | `genderVisibility` | string | 예 | **[새]** 같은 규칙(본인만) |
 
-공개 규칙은 회원 프로필(`ProfileDisclosure.PUBLIC`, v0.14 D-241)과 같다: 티어·레벨·소개는 늘 보이고 나이대·성별만 항목별 공개 값으로 감춘다. 표시 성별 대체값(`ShownGender`)은 그림용이라 여기서 쓰지 않는다.
+`accumulatedMeters`·`joinedAt`·정렬은 크루 안 정보라 공개 설정과 무관하게 모든 크루원에게 보인다(크루 내 랭킹이 비공개 크루원 거리도 보이는 FR-137과 같은 범위). 공개 규칙은 회원 프로필(`ProfileDisclosure.PUBLIC`, v0.14 D-241)과 같다: 티어·레벨·소개는 늘 보이고 나이대·성별만 항목별 공개 값으로 감춘다. 표시 성별 대체값(`ShownGender`)은 그림용이라 여기서 쓰지 않는다.
 
 ### 응답 표본
 
@@ -106,6 +106,8 @@ Flyway: **없음.** 크루 가입일은 기존 `crew_membership.joined_at`(V10�
 }
 ```
 
+탈퇴한 신청자(대기 중 신청이 남은 경우)는 `level`·`ageBand`·`gender`가 모두 null이다.
+
 오류: 크루 없음 409 `CREW_NOT_FOUND`, 크루장·운영진 아님 403 `PERMISSION_DENIED`(기존과 같음).
 
 ## 4. `GET /crews/{id}/goals/history` — 지난 공동 목표 (F-21) [새]
@@ -117,7 +119,7 @@ Flyway: **없음.** 크루 가입일은 기존 `crew_membership.joined_at`(V10�
 
 | 이름 | 형식 | 필수 | 설명 |
 |---|---|---|---|
-| `before` | `yyyy-MM-dd` | 아니오 | 이 날짜보다 **앞선** 주만(첫 페이지는 비움). 다음 페이지는 앞 응답의 `nextBefore`를 그대로 넣는다 |
+| `before` | `yyyy-MM-dd` | 아니오 | 이 날짜보다 **앞선** 주만(첫 페이지는 비움). 다음 페이지는 앞 응답의 `nextBefore`를 그대로 넣는다. 이번 주 월요일 이후 날짜면 오류 없이 첫 페이지와 같다 |
 | `size` | int 1~100 | 아니오 | 한 페이지 개수, 기본 20 |
 
 `size`가 범위 밖이거나 `before` 형식이 틀리면 400 `BAD_REQUEST`.
