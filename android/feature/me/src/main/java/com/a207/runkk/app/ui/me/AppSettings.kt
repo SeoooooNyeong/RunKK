@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -22,6 +21,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.designsystem.RunkkColors
+import com.a207.runkk.app.core.designsystem.RunkkDialog
+import com.a207.runkk.app.core.designsystem.RunkkDialogButtons
 import com.a207.runkk.app.core.designsystem.RunkkSwitchRow
 import com.a207.runkk.app.core.designsystem.RunkkTextLink
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
@@ -245,27 +246,12 @@ private fun AccountActions(onLogout: () -> Unit, onWithdraw: () -> Unit) {
 /** 약관 및 정책, 도움말: 문서를 골라 연다(FR-018). */
 @Composable
 private fun LegalListDialog(onView: (String, Int) -> Unit, onDismiss: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = RunkkColors.Surface,
-        title = {
-            Text(
-                stringResource(R.string.me_settings_legal_title),
-                style = RunkkTextStyles.CardTitle,
-                color = RunkkColors.TextPrimary
-            )
-        },
-        text = {
-            Column {
-                LEGAL_DOCUMENTS.forEach { (type, title) -> LegalDocumentRow(title, onClick = { onView(type, title) }) }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.me_legal_close), color = RunkkColors.TextSecondary)
-            }
+    RunkkDialog(title = stringResource(R.string.me_settings_legal_title), onDismissRequest = onDismiss) {
+        Column {
+            LEGAL_DOCUMENTS.forEach { (type, title) -> LegalDocumentRow(title, onClick = { onView(type, title) }) }
         }
-    )
+        RunkkDialogButtons(confirmLabel = stringResource(R.string.me_legal_close), onConfirm = onDismiss)
+    }
 }
 
 @Composable

@@ -25,11 +25,13 @@ public record PendingRequestsView(long crewId, List<Line> requests) {
      * @param name 표시명
      * @param tier 티어, 없으면 null
      * @param requestedAt 신청 일시
+     * @param profile 레벨·나이대·성별(공개 설정 반영, 피그마 맞춤 W7 F-25)
      */
     public record Line(
             long requestId,
             long memberId,
             DisplayName name,
             Tier tier,
-            LocalDateTime requestedAt) {}
+            LocalDateTime requestedAt,
+            CrewMemberProfile profile) {}
 }

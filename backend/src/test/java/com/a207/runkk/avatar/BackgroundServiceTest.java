@@ -70,6 +70,8 @@ class BackgroundServiceTest {
     @BeforeEach
     void defaults() {
         when(policy.landmarkTable()).thenReturn(DEFAULTS);
+        when(runs.validDistanceOf(anyLong())).thenReturn(Distance.ofMeters(0));
+        when(runs.validDistanceBefore(anyLong(), any())).thenReturn(Distance.ofMeters(0));
     }
 
     private void total(long memberId, long meters) {
@@ -310,5 +312,39 @@ class BackgroundServiceTest {
                 true,
                 valid ? 1 : 0,
                 N);
+    }
+
+    // W8 남은 거리(S15P31A207-299, contract-W8.md 2.2)
+
+    @Test
+    @DisplayName("목록에 내 누적 거리와 배경마다 남은 거리를 싣는다: 해금했으면 0, 잠겼으면 기준 − 누적")
+    void remainingDistance() {
+        total(M, 287_000);
+        service.unlockReached(M, N);
+
+        BackgroundsView view = service.backgrounds(M, N);
+
+        assertThat(view.total()).isEqualTo(Distance.ofMeters(287_000));
+        BackgroundsView.Item daejeon = view.backgrounds().get(2);
+        BackgroundsView.Item jeonju = view.backgrounds().get(3);
+        assertThat(daejeon.key()).isEqualTo("DAEJEON");
+        assertThat(daejeon.unlocked()).isTrue();
+        assertThat(daejeon.unlockedAt()).isEqualTo(N);
+        assertThat(daejeon.remaining()).isEqualTo(Distance.ZERO);
+        assertThat(jeonju.key()).isEqualTo("JEONJU");
+        assertThat(jeonju.unlocked()).isFalse();
+        assertThat(jeonju.remaining()).isEqualTo(Distance.ofMeters(113_000));
+        assertThat(service.useDefault(M).total()).isEqualTo(Distance.ofMeters(287_000));
+    }
+
+    @Test
+    @DisplayName("누적 거리가 기준을 넘었는데 아직 해금 전이면 남은 거리는 0이다(음수 없음)")
+    void remainingDistance_neverNegative() {
+        when(runs.validDistanceOf(M)).thenReturn(Distance.ofMeters(500_000));
+
+        BackgroundsView view = service.useDefault(M);
+
+        assertThat(view.backgrounds().get(3).unlocked()).isFalse();
+        assertThat(view.backgrounds().get(3).remaining()).isEqualTo(Distance.ZERO);
     }
 }

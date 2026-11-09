@@ -85,12 +85,7 @@ public class OperationPolicy {
                         .map(
                                 item -> {
                                     Object price = prices.get(item.id());
-                                    return new ShopItem(
-                                            item.id(),
-                                            item.name(),
-                                            item.slot(),
-                                            price instanceof Integer p ? p : item.price(),
-                                            item.onSale());
+                                    return price instanceof Integer p ? item.withPrice(p) : item;
                                 })
                         .toList());
     }

@@ -156,6 +156,9 @@
       "name" : "backgrounds",
       "kind" : "list",
       "ref" : "AvatarDtos.BackgroundsResponse.Background"
+    }, {
+      "name" : "totalMeters",
+      "kind" : "leaf"
     } ],
     "file" : "web/avatar/AvatarDtos.java"
   },
@@ -177,6 +180,9 @@
       "kind" : "leaf"
     }, {
       "name" : "unlockedAt",
+      "kind" : "leaf"
+    }, {
+      "name" : "remainingMeters",
       "kind" : "leaf"
     } ],
     "file" : "web/avatar/AvatarDtos.java"
@@ -215,6 +221,34 @@
     } ],
     "file" : "web/avatar/AvatarDtos.java"
   },
+  "AvatarDtos.RunnerResponse" : {
+    "components" : [ {
+      "name" : "bodyShape",
+      "kind" : "leaf"
+    }, {
+      "name" : "bodyVariant",
+      "kind" : "leaf"
+    }, {
+      "name" : "skinTone",
+      "kind" : "leaf"
+    }, {
+      "name" : "typicalStartHour",
+      "kind" : "leaf"
+    }, {
+      "name" : "recentRunCount",
+      "kind" : "leaf"
+    }, {
+      "name" : "recentDistanceMeters",
+      "kind" : "leaf"
+    }, {
+      "name" : "runAmount",
+      "kind" : "leaf"
+    }, {
+      "name" : "restDaysBeforeDecline",
+      "kind" : "leaf"
+    } ],
+    "file" : "web/avatar/AvatarDtos.java"
+  },
   "AvatarDtos.ShopResponse" : {
     "components" : [ {
       "name" : "items",
@@ -244,6 +278,15 @@
       "kind" : "leaf"
     }, {
       "name" : "onSale",
+      "kind" : "leaf"
+    }, {
+      "name" : "assetKey",
+      "kind" : "leaf"
+    }, {
+      "name" : "locked",
+      "kind" : "leaf"
+    }, {
+      "name" : "unlockCondition",
       "kind" : "leaf"
     } ],
     "file" : "web/avatar/AvatarDtos.java"
@@ -713,6 +756,15 @@
     }, {
       "name" : "clientMessageId",
       "kind" : "leaf"
+    }, {
+      "name" : "messageKind",
+      "kind" : "leaf"
+    }, {
+      "name" : "authorRole",
+      "kind" : "leaf"
+    }, {
+      "name" : "runDistanceMeters",
+      "kind" : "leaf"
     } ],
     "file" : "web/chat/ChatController.java"
   },
@@ -749,6 +801,36 @@
     }, {
       "name" : "myReactions",
       "kind" : "list-leaf"
+    } ],
+    "file" : "web/chat/ChatController.java"
+  },
+  "ChatController.Reactor" : {
+    "components" : [ {
+      "name" : "memberId",
+      "kind" : "leaf"
+    }, {
+      "name" : "displayName",
+      "kind" : "leaf"
+    }, {
+      "name" : "kind",
+      "kind" : "leaf"
+    }, {
+      "name" : "reactedAt",
+      "kind" : "leaf"
+    }, {
+      "name" : "me",
+      "kind" : "leaf"
+    } ],
+    "file" : "web/chat/ChatController.java"
+  },
+  "ChatController.ReactorListResponse" : {
+    "components" : [ {
+      "name" : "messageId",
+      "kind" : "leaf"
+    }, {
+      "name" : "reactors",
+      "kind" : "list",
+      "ref" : "ChatController.Reactor"
     } ],
     "file" : "web/chat/ChatController.java"
   },
@@ -1702,6 +1784,45 @@
     } ],
     "file" : "web/crew/CrewDtos.java"
   },
+  "CrewGoalHistoryController.GoalHistoryResponse" : {
+    "components" : [ {
+      "name" : "goals",
+      "kind" : "list",
+      "ref" : "CrewGoalHistoryController.GoalHistoryResponse.Goal"
+    }, {
+      "name" : "nextBefore",
+      "kind" : "leaf"
+    } ],
+    "file" : "web/crew/CrewGoalHistoryController.java"
+  },
+  "CrewGoalHistoryController.GoalHistoryResponse.Goal" : {
+    "components" : [ {
+      "name" : "weekStart",
+      "kind" : "leaf"
+    }, {
+      "name" : "month",
+      "kind" : "leaf"
+    }, {
+      "name" : "weekOfMonth",
+      "kind" : "leaf"
+    }, {
+      "name" : "goalMeters",
+      "kind" : "leaf"
+    }, {
+      "name" : "totalMeters",
+      "kind" : "leaf"
+    }, {
+      "name" : "achieved",
+      "kind" : "leaf"
+    }, {
+      "name" : "progressPercent",
+      "kind" : "leaf"
+    }, {
+      "name" : "participantCount",
+      "kind" : "leaf"
+    } ],
+    "file" : "web/crew/CrewGoalHistoryController.java"
+  },
   "CrewMembersAssembler.CrewMembersResponse" : {
     "components" : [ {
       "name" : "members",
@@ -1732,6 +1853,27 @@
     }, {
       "name" : "me",
       "kind" : "leaf"
+    }, {
+      "name" : "accumulatedMeters",
+      "kind" : "leaf"
+    }, {
+      "name" : "joinedAt",
+      "kind" : "leaf"
+    }, {
+      "name" : "level",
+      "kind" : "leaf"
+    }, {
+      "name" : "ageBand",
+      "kind" : "leaf"
+    }, {
+      "name" : "gender",
+      "kind" : "leaf"
+    }, {
+      "name" : "ageBandVisibility",
+      "kind" : "leaf"
+    }, {
+      "name" : "genderVisibility",
+      "kind" : "leaf"
     } ],
     "file" : "web/crew/CrewMembersAssembler.java"
   },
@@ -1761,6 +1903,15 @@
       "kind" : "leaf"
     }, {
       "name" : "requestedAt",
+      "kind" : "leaf"
+    }, {
+      "name" : "level",
+      "kind" : "leaf"
+    }, {
+      "name" : "ageBand",
+      "kind" : "leaf"
+    }, {
+      "name" : "gender",
       "kind" : "leaf"
     } ],
     "file" : "web/crew/CrewMembersAssembler.java"

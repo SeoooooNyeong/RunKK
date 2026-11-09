@@ -328,7 +328,7 @@ final class CrewDtos {
      * @param contributors 기여자
      * @param myShare 본인 기여율
      * @param goalMeters 이번 주 공동 목표(v0.11 FR-138), 없으면 null
-     * @param goalProgressPercent 목표 진행률 min(100, 합산 × 100 ÷ 목표), 목표가 없으면 null
+     * @param goalProgressPercent 목표 진행률 ⌊합산 × 100 ÷ 목표⌋(100을 넘을 수 있다, C2), 목표가 없으면 null
      * @param achievedAt 목표 달성 일시, 아니면 null
      * @param celebration 축하 카드(달성한 주만, FR-217)
      */
