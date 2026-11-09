@@ -243,7 +243,20 @@ public class CrewChatService {
                             status ->
                                     postRunFinishedOnce(
                                             crewId, memberId, recordId, distance, startedAt)));
-        } catch (DataIntegrityViolationException duplicate) {
+        } catch (DataIntegrityViolationException e) {
+            // 같은 기록의 메시지가 동시에 먼저 들어간 경우(uq_crew_chat_client)만 넘어간다. 다른 무결성 위반은 수신자가 오류 로그를 남긴다
+            boolean duplicate =
+                    Boolean.TRUE.equals(
+                            transactions.execute(
+                                    status ->
+                                            messages.findByClientMessageId(
+                                                            memberId,
+                                                            CrewChatMessage.runFinishedClientId(
+                                                                    recordId))
+                                                    .isPresent()));
+            if (!duplicate) {
+                throw e;
+            }
             return Optional.empty();
         }
     }

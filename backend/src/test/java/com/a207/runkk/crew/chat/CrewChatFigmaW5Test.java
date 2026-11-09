@@ -1,6 +1,7 @@
 package com.a207.runkk.crew.chat;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
@@ -31,6 +32,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataIntegrityViolationException;
 
 /**
  * 피그마 맞춤 W5(S15P31A207-296, 사용자 결정 C7): 작성자 직책, 반응 CHECK, 반응한 사람 목록, 러닝 완료 시스템 메시지. 계약은
@@ -267,5 +269,60 @@ class CrewChatFigmaW5Test {
                         .toList();
         assertThat(ids).contains(text).doesNotContain(run);
         assertThat(lineOf(text).authorId()).isNull();
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName(
+            "러닝 완료: 동시에 같은 기록 메시지가 먼저 들어가 고유 색인에 걸리면 빈 값, 다른 무결성 위반은 다시 던진다")
+    void runFinished_integrityViolation() {
+        InMemoryChatRepositories.Messages racing =
+                new InMemoryChatRepositories.Messages() {
+                    @Override
+                    public CrewChatMessage save(CrewChatMessage message) {
+                        super.save(
+                                CrewChatMessage.runFinished(
+                                        CREW, 4, "rec-1", "러너4", Distance.ofMeters(1), NOW));
+                        throw new DataIntegrityViolationException("uq_crew_chat_client");
+                    }
+                };
+        assertThat(
+                        serviceOver(racing)
+                                .postRunFinished(
+                                        CREW,
+                                        4,
+                                        "rec-1",
+                                        Distance.ofMeters(5_000),
+                                        NOW.minusHours(1)))
+                .isEmpty();
+
+        InMemoryChatRepositories.Messages broken =
+                new InMemoryChatRepositories.Messages() {
+                    @Override
+                    public CrewChatMessage save(CrewChatMessage message) {
+                        throw new DataIntegrityViolationException("ck_crew_chat_message_kind");
+                    }
+                };
+        assertThatThrownBy(
+                        () ->
+                                serviceOver(broken)
+                                        .postRunFinished(
+                                                CREW,
+                                                4,
+                                                "rec-2",
+                                                Distance.ofMeters(5_000),
+                                                NOW.minusHours(1)))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    private CrewChatService serviceOver(CrewChatMessageRepository repository) {
+        return new CrewChatService(
+                repository,
+                reactions,
+                membership,
+                memberQuery,
+                mock(AuditService.class),
+                events::add,
+                NoTransactions.manager(),
+                Clock.fixed(NOW.atZone(SEOUL).toInstant(), SEOUL));
     }
 }
