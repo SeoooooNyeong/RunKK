@@ -9,6 +9,7 @@ import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.uiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.domain.account.MyAvatar
 import com.a207.runkk.app.domain.battle.BattleHistory
 import com.a207.runkk.app.ui.battle.BattleWorld.Companion.world
 import kotlin.test.assertEquals
@@ -47,6 +48,24 @@ class BattleResultViewModelTest {
         assertEquals(listOf("rec-9"), detailCalls, "본인 기록 상세를 한 번 읽는다")
         assertEquals("rec-9", s.detail?.summary?.recordId)
         assertEquals(listOf("result:9"), w.battles.calls, "이번 주 전적·이력을 따로 부르지 않는다")
+    }
+
+    @Test
+    fun `결과 쪽 내 아바타는 홈과 같은 출처(본인 요약의 얼굴·배경)로 한 번 읽는다`() = runTest(main.dispatcher) {
+        val w = world()
+        val look = MyAvatar("face-7", emptyList(), "bg-park")
+        var reads = 0
+        val vm = BattleResultViewModel(w.battles, w.coordinator, w.uploads, details) {
+            reads++
+            look
+        }
+        vm.load(9)
+        runCurrent()
+        assertEquals(look, vm.state.value.myAvatar)
+        vm.load(9, isForced = true)
+        runCurrent()
+        assertEquals(1, reads, "다시 읽어도 내 아바타는 한 번만 읽는다")
+        vm.viewModelScope.cancel()
     }
 
     @Test

@@ -1,8 +1,10 @@
 package com.a207.runkk.app.api.crew
 
 import com.a207.runkk.app.api.core.ApiErrorMapper
+import com.a207.runkk.app.api.core.FaceImageSource
 import com.a207.runkk.app.api.core.ServerTime
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.crew.AttendanceAnswer
 import com.a207.runkk.app.domain.crew.CrewDetail
@@ -27,7 +29,9 @@ import javax.inject.Inject
  * 크루·게시판·대기실 포트를 REST로 구현한다(6.1.14 api.crew). 갈래마다 엔드포인트가 나뉜다(D-36).
  * 목록(크루·게시글)은 [PAGE_SIZE]씩 받아 커서로 이어 받는다.
  */
-internal class CrewRepositoryImpl @Inject constructor(private val api: CrewApi) : CrewRepository {
+internal class CrewRepositoryImpl @Inject constructor(private val api: CrewApi, private val faces: FaceImageSource) :
+    CrewRepository {
+    override suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> = faces.faceLayers(faceKey)
 
     override suspend fun myCrew(): Outcome<MyCrew> = ApiErrorMapper.call { api.myCrew().toDomain() }
 

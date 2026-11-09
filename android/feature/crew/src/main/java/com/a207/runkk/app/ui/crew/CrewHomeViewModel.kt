@@ -260,6 +260,11 @@ class CrewHomeViewModel @Inject constructor(
         }
     }
 
+    /** 크루런 응답 시트를 연다(피그마 F-11: 강조 카드 제목·날짜 줄을 누름). */
+    fun onRunOpen(item: PostList.Item) = _state.update { it.copy(openedRunId = item.postId) }
+
+    fun onRunClose() = _state.update { it.copy(openedRunId = null) }
+
     /** 크루런 탭의 다음 쪽을 이어 받는다. 끝이거나 읽는 중이면 아무것도 하지 않는다. */
     fun onLoadMore() {
         val s = _state.value
@@ -358,14 +363,15 @@ class CrewHomeViewModel @Inject constructor(
 
     /**
      * 모집글마다 대기실 단추 상태를 정하고, 시각이 지나 바뀔 수 있는 글(열리기 전·열림)이 남아 있는 동안 1초마다 다시 정한다.
-     * 목록을 다시 받으면 collectLatest가 이 반복을 새로 시작한다. 바뀐 것이 없으면 상태를 내보내지 않는다.
+     * 목록을 다시 받으면 collectLatest가 이 반복을 새로 시작한다. 강조 카드의 남은 시간을 위해 지금 서버 시각(scheduleNow)도 함께 갱신한다.
      */
     private suspend fun watchLobbies(runs: PostList?) {
         val infos = runs?.posts.orEmpty().mapNotNull { post -> post.crewRun?.let { post.postId to it } }
         while (true) {
             val now = serverClock.now()
             val entries = infos.associate { (postId, info) -> postId to LobbyAvailability.of(info, now) }
-            _state.update { if (it.lobbyEntries == entries) it else it.copy(lobbyEntries = entries) }
+            // 강조 카드의 남은 시간(F-11)도 같은 서버 시각으로 1초마다 센다.
+            _state.update { it.copy(lobbyEntries = entries, scheduleNow = now) }
             if (entries.values.all { it == LobbyAvailability.Closed }) return
             delay(LOBBY_TICK_MILLIS)
         }

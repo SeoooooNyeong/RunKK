@@ -145,6 +145,42 @@ class FaceImageSourceTest {
         assertEquals(0, paths.size)
     }
 
+    @Test
+    fun `셀카 머리 얼굴은 다른 러너 것도 heads 주소로 한 번 받아 얼굴·눈·머리카락 세 층으로 겹친다`() = runTest {
+        fun data(byte: Int) =
+            "data:image/png;base64," + java.util.Base64.getEncoder().encodeToString(byteArrayOf(byte.toByte()))
+        reply = {
+            MockResponse.Builder()
+                .addHeader("Content-Type", "application/json")
+                .addHeader("Cache-Control", "no-store")
+                .body(
+                    """{"headId":"h1","userId":"12","faceImage":"${data(1)}","eyesImage":"${data(2)}",""" +
+                        """"hairImage":"${data(3)}","traits":{"hair":"short"},"mobile":{"canvas":[1024,1024]}}"""
+                )
+                .build()
+        }
+        val layers = (source.faceLayers("head:12:job-1") as Outcome.Success).value
+
+        assertEquals(listOf(FacePart.EARS, FacePart.EYES, FacePart.HAIR), layers.map { it.part }, "아래부터 얼굴·눈·머리카락")
+        assertEquals(listOf<Byte>(1, 2, 3), layers.map { it.png.single() })
+        assertEquals(listOf("/api/v1/avatar/heads/12/job-1"), paths.toList())
+        assertEquals(listOf("Bearer access-1"), auth.toList())
+    }
+
+    @Test
+    fun `셀카 머리를 받지 못하거나 층이 비었거나 키가 이상하면 실패라 화면이 기본 캐릭터를 그린다`() = runTest {
+        reply = { MockResponse.Builder().code(404).body("""{"reason":"HEAD_NOT_FOUND"}""").build() }
+        assertTrue(source.faceLayers("head:12:job-1") is Outcome.Failure)
+
+        reply = { MockResponse.Builder().body("""{"faceImage":"data:image/png;base64,AQ==","eyesImage":""}""").build() }
+        assertTrue(source.faceLayers("head:12:job-1") is Outcome.Failure, "층 하나가 비었다")
+
+        val sent = paths.size
+        assertEquals(Outcome.Failure(AppError.Rejected("FACE_IMAGE_NOT_FOUND")), source.faceLayers("head:x:job"))
+        assertEquals(Outcome.Failure(AppError.Rejected("FACE_IMAGE_NOT_FOUND")), source.faceLayers("head:12:a/b"))
+        assertEquals(sent, paths.size, "이상한 키는 보내지 않는다")
+    }
+
     private class Tokens(private val access: String) : TokenProvider {
         override fun accessToken(): String = access
 

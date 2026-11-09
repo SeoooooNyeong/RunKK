@@ -3,6 +3,7 @@ package com.a207.runkk.app.api.crew
 import com.a207.runkk.app.api.core.ApiTestServer
 import com.a207.runkk.app.api.core.value
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.crew.AttendanceAnswer
 import com.a207.runkk.app.domain.crew.CrewDetail
@@ -29,7 +30,7 @@ import retrofit2.create
 /** api.crew 매퍼(14장 단위(앱 데이터)): 크루 목록·게시판·대기실·크루런 결과 DTO → 도메인, 갈래별 엔드포인트(D-36). */
 class CrewRepositoryImplTest {
     private val api = ApiTestServer()
-    private val repository = CrewRepositoryImpl(api.retrofit.create())
+    private val repository = CrewRepositoryImpl(api.retrofit.create(), api.faces)
 
     @AfterTest
     fun tearDown() = api.close()
@@ -252,10 +253,11 @@ class CrewRepositoryImplTest {
     }
 
     @Test
-    fun `대기실·투표·결과를 바꾼다`() = runTest {
+    fun `대기실·투표·결과를 바꾼다(크루원 얼굴 키·표시 성별 포함, 옛 서버면 null)`() = runTest {
         api.reply(
             """{"postId":77,"scheduledAt":"2026-10-25T06:00:00","distanceMeters":3000,"remainingSeconds":600,
-               |"status":"LOBBY_OPEN","participants":[{"memberId":3,"displayName":"곰","readiness":"READY","ready":true,"me":false},
+               |"status":"LOBBY_OPEN","participants":[{"memberId":3,"displayName":"곰","readiness":"READY","ready":true,"me":false,
+               |"faceKey":"default:FOX","shownGender":"FEMALE"},
                |{"memberId":7,"displayName":"나","readiness":"ENTERING","ready":false,"me":true}]}
             """.trimMargin()
         )
@@ -264,7 +266,7 @@ class CrewRepositoryImplTest {
             """{"postId":77,"status":"FINISHED","title":"오늘 저녁 한강 5km","distanceMeters":5000,
                |"startedAt":"2026-10-25T06:00:03+09:00","totalDistanceMeters":9100,
                |"participants":[{"memberId":3,"displayName":"곰","distanceMeters":5280,"elapsedSeconds":1712,
-               |"averagePaceSecondsPerKm":324,"ended":true,"me":false},
+               |"averagePaceSecondsPerKm":324,"ended":true,"me":false,"faceKey":"default:FOX","shownGender":"MALE"},
                |{"memberId":7,"displayName":"토끼","distanceMeters":3820,"ended":true,"me":true}],
                |"myRecordId":"rec-7","firstCrewRun":true,"raceContributionMeters":20000}
             """.trimMargin()
@@ -278,7 +280,15 @@ class CrewRepositoryImplTest {
             Lobby(
                 77,
                 listOf(
-                    Lobby.Participant("곰", true, 3, isMe = false, isEntered = true),
+                    Lobby.Participant(
+                        "곰",
+                        true,
+                        3,
+                        isMe = false,
+                        isEntered = true,
+                        faceKey = "default:FOX",
+                        shownGender = Gender.FEMALE
+                    ),
                     Lobby.Participant("나", false, 7, isMe = true, isEntered = true)
                 ),
                 Instant.parse("2026-10-24T21:00:00Z"),
@@ -294,7 +304,16 @@ class CrewRepositoryImplTest {
             CrewRunResult(
                 postId = 77,
                 participants = listOf(
-                    CrewRunResult.Participant("곰", Distance(5_280), 1_712, 324, hasEnded = true, memberId = 3),
+                    CrewRunResult.Participant(
+                        "곰",
+                        Distance(5_280),
+                        1_712,
+                        324,
+                        hasEnded = true,
+                        memberId = 3,
+                        faceKey = "default:FOX",
+                        shownGender = Gender.MALE
+                    ),
                     CrewRunResult.Participant("토끼", Distance(3_820), null, null, memberId = 7, isMe = true)
                 ),
                 totalDistance = Distance(9_100),

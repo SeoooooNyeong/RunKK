@@ -5,6 +5,7 @@ import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.model.FacePart
 import com.a207.runkk.app.core.model.Outcome
 import java.io.IOException
+import java.util.Base64
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.CompletableDeferred
@@ -14,6 +15,10 @@ import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.HttpUrl
@@ -35,6 +40,10 @@ import okhttp3.Response
  *   공통 오류 응답 code(403 PERMISSION_DENIED, 409 FACE_IMAGE_NOT_FOUND)로, 연결 실패는 Network로 온다. 실패하거나 화면이 떠나
  *   취소되면 나머지 부위 요청도 끊는다. 부위 그림 하나가 [MAX_PART_BYTES]를 넘으면 받지 않는다.
  * - 셀카 얼굴이 아니면(기본 캐릭터·얼굴 없음) 빈 목록이다.
+ * - 셀카 머리 얼굴("head:{회원ID}:{작업ID}", 서버 Avatar.face의 비동기 셀카 결과, S15P31A207-276)은 머리 하나를
+ *   GET /avatar/heads/{회원ID}/{작업ID}(다른 러너도 받을 수 있다, 프로필 얼굴 공개 규칙)로 받아 그 안의 세 층 PNG(Data URL
+ *   faceImage·eyesImage·hairImage, 같은 캔버스)를 아래부터 얼굴(EARS 자리)·눈(EYES)·머리카락(HAIR) 순서로 겹친다. 서버가 no-store로
+ *   주므로 메모리에 두지 않는다. 층 하나라도 비었거나 PNG가 아니면 실패라 화면이 기본 캐릭터를 그린다.
  */
 class FaceImageSource internal constructor(
     private val client: OkHttpClient,
@@ -52,6 +61,7 @@ class FaceImageSource internal constructor(
     private var cachedFor: Long? = null
 
     suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> {
+        if (faceKey != null && faceKey.startsWith(HEAD_PREFIX)) return headLayers(faceKey.removePrefix(HEAD_PREFIX))
         val location = faceKey?.takeIf { it.startsWith(SELFIE_PREFIX) }?.removePrefix(SELFIE_PREFIX)
             ?: return Outcome.Success(emptyList())
         val segments = location.split('/')
@@ -60,6 +70,58 @@ class FaceImageSource internal constructor(
         }
         if (!ownCacheFor(selfId())) return Outcome.Failure(AppError.Unauthorized)
         return loadLayers(segments)
+    }
+
+    /** 셀카 머리 얼굴("{회원ID}:{작업ID}") 하나를 받아 세 층으로 바꾼다. */
+    private suspend fun headLayers(location: String): Outcome<List<FaceLayer>> {
+        val segments = location.split(':')
+        if (segments.size != 2 || segments[0].toLongOrNull() == null ||
+            segments.any { it.isBlank() || it.contains('/') }
+        ) {
+            return Outcome.Failure(AppError.Rejected(FACE_IMAGE_NOT_FOUND))
+        }
+        if (!ownCacheFor(selfId())) return Outcome.Failure(AppError.Unauthorized)
+        val url = baseUrl.newBuilder().addPathSegments(HEADS_PATH).addPathSegment(segments[0])
+            .addPathSegment(segments[1]).build()
+        val request = Request.Builder().url(url).header(ACCEPT, JSON).build()
+        return try {
+            client.newCall(request).await().use { response ->
+                if (!response.isSuccessful) {
+                    return Outcome.Failure(ApiErrorMapper.fromHttp(response.code, response.body.string()))
+                }
+                val source = response.body.source()
+                if (source.request(MAX_HEAD_BYTES + 1)) return Outcome.Failure(AppError.Server(TOO_LARGE))
+                headOf(source.readUtf8())
+            }
+        } catch (e: IOException) {
+            Outcome.Failure(AppError.Network)
+        }
+    }
+
+    /** 머리 응답 JSON의 세 Data URL을 층으로 바꾼다. */
+    private fun headOf(body: String): Outcome<List<FaceLayer>> {
+        val head = try {
+            HEAD_JSON.parseToJsonElement(body).jsonObject
+        } catch (e: IllegalArgumentException) {
+            return Outcome.Failure(AppError.Server(MALFORMED))
+        }
+        val layers = HEAD_LAYERS.map { (field, part) ->
+            val png = head[field]?.jsonPrimitive?.contentOrNull?.let(::pngOf)
+                ?: return Outcome.Failure(AppError.Server(MALFORMED))
+            FaceLayer(part, png)
+        }
+        return Outcome.Success(layers)
+    }
+
+    /** "data:image/png;base64,…"의 PNG 바이트. 형식이 다르거나 비었으면 null. */
+    private fun pngOf(dataUrl: String): ByteArray? {
+        if (!dataUrl.startsWith(DATA_PNG)) return null
+        val bytes = try {
+            Base64.getDecoder().decode(dataUrl.substring(DATA_PNG.length))
+        } catch (e: IllegalArgumentException) {
+            return null
+        }
+        return bytes.takeIf { it.isNotEmpty() && it.size <= MAX_PART_BYTES }
     }
 
     /**
@@ -165,6 +227,24 @@ class FaceImageSource internal constructor(
 
     private companion object {
         const val SELFIE_PREFIX = "selfie:"
+        const val HEAD_PREFIX = "head:"
+        const val HEADS_PATH = "avatar/heads"
+        const val JSON = "application/json"
+        const val DATA_PNG = "data:image/png;base64,"
+
+        /** 머리 응답 한 개의 상한(세 층 PNG의 base64와 합성 정보, 12MiB). */
+        const val MAX_HEAD_BYTES = 12L * 1024 * 1024
+
+        /** 머리 응답을 읽지 못함(앱이 그리지 않음). */
+        const val MALFORMED = 502
+
+        /** 머리 응답 항목 → 그리는 순서 자리(얼굴 바탕·눈·머리카락). */
+        val HEAD_LAYERS = listOf(
+            "faceImage" to FacePart.EARS,
+            "eyesImage" to FacePart.EYES,
+            "hairImage" to FacePart.HAIR
+        )
+        val HEAD_JSON = Json { ignoreUnknownKeys = true }
         const val PARTS_PATH = "avatar/parts"
         const val FACE_IMAGE_NOT_FOUND = "FACE_IMAGE_NOT_FOUND"
         const val ACCEPT = "Accept"

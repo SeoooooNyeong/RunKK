@@ -27,7 +27,7 @@ import retrofit2.create
  */
 class CrewBoardAndScheduleTest {
     private val api = ApiTestServer()
-    private val repository = CrewRepositoryImpl(api.retrofit.create())
+    private val repository = CrewRepositoryImpl(api.retrofit.create(), api.faces)
 
     @AfterTest
     fun tearDown() = api.close()

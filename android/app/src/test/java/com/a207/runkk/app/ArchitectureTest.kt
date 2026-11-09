@@ -51,16 +51,18 @@ class ArchitectureTest {
      * 런바디(S15P31A207-229, D-453): domain.runbody → core.model, api.runbody → api.core·domain.runbody·core.model을 더해 163개,
      * 하위 패키지 ui.record.runbody → core.designsystem·core.navigation·core.model·domain.record·domain.runbody 다섯을 더해 168개다.
      * 이벤트(S15P31A207-275)가 api.notification → domain.settings(본 이벤트 사본)를 더해 169개다.
+     * 크루런 결과의 내 아바타(S15P31A207-236)가 ui.crew → domain.account(본인 요약의 얼굴·배경, 홈과 같은 출처)를 더해 170개다.
+     * 코치 재동의(S15P31A207-273)는 api.coach의 의존 3개와 ui.record.coach의 경로 등록, 런바디의 코치 진입을 더해 175개다.
      * 워치는 design-review 23장 R75 사용자 결정 (가)로 core.model을 폰과 같이 센다(기준 하나). 그러면 watch.ui가 8이라 대결 흐름을
      * watch.battle로 옮겼다(W30): ui → domain.battle·watch.cache 둘이 ui → watch.battle 하나가 되고 watch.battle이 다섯을 갖는다.
      * R76으로 쓰지 않는 watch.guide → domain.settings를 뺐다. 워치 코드 28 + core.model 다섯 줄 + battle 다섯 − ui 하나 = 37개다.
      */
     @Test
-    fun `모듈 Fan-Out은 7 이하이고 허용 표는 폰 169개·워치 37개다`() {
+    fun `모듈 Fan-Out은 7 이하이고 허용 표는 폰 175개·워치 37개다`() {
         val over = ALLOWED.filterValues { it.size > MAX_FAN_OUT }.mapValues { it.value.size }
         assertEquals(emptyMap(), over)
         val (watch, phone) = ALLOWED.entries.partition { it.key.startsWith("watch.") || it.key == "wear.contract" }
-        assertEquals(174, phone.sumOf { it.value.size })
+        assertEquals(175, phone.sumOf { it.value.size })
         assertEquals(37, watch.sumOf { it.value.size })
     }
 
@@ -579,7 +581,8 @@ class ArchitectureTest {
                 "ui.battle" to CORE_UI + setOf("domain.battle", "domain.live", "domain.account", "domain.record"),
                 "ui.runimal" to CORE_UI + setOf("domain.runimal", "ui.share"),
                 // domain.report(신고 대화상자)·ui.share(축하 카드 공유) 추가(v0.11 F.6.4, D-140).
-                "ui.crew" to CORE_UI + setOf("domain.crew", "domain.report", "ui.share"),
+                // domain.account(S15P31A207-236): 크루런 결과 가운데 내 아바타를 홈과 같은 본인 요약(얼굴 키·배경 키)으로 그린다. Fan-Out 7.
+                "ui.crew" to CORE_UI + setOf("domain.crew", "domain.report", "ui.share", "domain.account"),
                 "ui.chat" to CORE_UI + setOf("domain.chat", "domain.report"),
                 "ui.avatar" to CORE_UI + "domain.avatar",
                 // domain.settings는 프로필 편집의 출생연도(SettingsRepository.birthYear, D106)다(v0.16 5.1.2).

@@ -50,6 +50,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.model.Pace
 import java.time.Duration
 import java.util.Locale
@@ -60,6 +61,7 @@ import kotlinx.coroutines.delay
  * [dateLine]은 부르는 쪽이 만든 "10.16 목 · 오전 7:12 · 자유런"이다. [rest]는 정지 구간 합("휴식 n분 n초")이고 없으면 줄이 없다.
  * [crewLine]은 크루 반영 줄이고 CREW가 닫혀 있으면(1차 배포) 그리지 않는다. 가장 빠른 1km·소모 열량·날씨는 싣지 않는다(D-26).
  * [expression]은 뛰어오르는 아바타가 기본이고(D84, 피그마 B-6·C-8) 패배 상세만 부르는 쪽이 SAD를 넘긴다.
+ * [faceKey]·[faceLayers]는 내 아바타 얼굴(크루런·대결 결과 상세 F-16b)이고 아바타 꾸미기가 열려 있을 때 그린다.
  */
 @Immutable
 data class RunResultDetailState(
@@ -74,7 +76,10 @@ data class RunResultDetailState(
     val newRecords: List<String> = emptyList(),
     val crewLine: String? = null,
     val rewardPoints: Int? = null,
-    val expression: AvatarExpression = AvatarExpression.JUMP
+    val expression: AvatarExpression = AvatarExpression.JUMP,
+    /** 내 아바타 얼굴 키·부위 그림(홈과 같은 출처). 부르는 쪽이 모르면 null·빈 목록이고 기본 아바타다. */
+    val faceKey: String? = null,
+    val faceLayers: List<FaceLayer> = emptyList()
 )
 
 /**
@@ -117,12 +122,13 @@ private fun DistanceHeader(state: RunResultDetailState) {
             Text(state.dateLine, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
         }
         if (state.expression == AvatarExpression.JUMP) {
-            CheeringAvatar()
+            CheeringAvatar(faceKey = state.faceKey, faceLayers = state.faceLayers)
         } else {
             RunkkAvatar(
-                faceKey = null,
+                faceKey = state.faceKey,
                 expression = state.expression,
                 modifier = Modifier.size(110.dp),
+                faceLayers = state.faceLayers,
                 colorFilter = sceneAvatarFilter()
             )
         }
@@ -134,7 +140,11 @@ private fun DistanceHeader(state: RunResultDetailState) {
  * (오르기 tween, 내리기 spring). 움직임 줄이기면 뛰어오른 그림에 멈춰 있다.
  */
 @Composable
-private fun CheeringAvatar(modifier: Modifier = Modifier.size(110.dp)) {
+private fun CheeringAvatar(
+    modifier: Modifier = Modifier.size(110.dp),
+    faceKey: String? = null,
+    faceLayers: List<FaceLayer> = emptyList()
+) {
     val reduceMotion = LocalReduceMotion.current
     val hop = remember { Animatable(0f) }
     var isJumping by remember { mutableStateOf(reduceMotion) }
@@ -149,9 +159,10 @@ private fun CheeringAvatar(modifier: Modifier = Modifier.size(110.dp)) {
         }
     }
     RunkkAvatar(
-        faceKey = null,
+        faceKey = faceKey,
         expression = if (isJumping) AvatarExpression.JUMP else AvatarExpression.STAND,
         modifier = modifier.graphicsLayer { translationY = -hop.value * CHEER_HOP_HEIGHT.toPx() },
+        faceLayers = faceLayers,
         colorFilter = sceneAvatarFilter()
     )
 }

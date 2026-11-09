@@ -2,6 +2,7 @@ package com.a207.runkk.app.core.designsystem
 
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,7 +31,10 @@ fun RunkkAvatar(
     character: AvatarCharacter = LocalAvatarCharacter.current
 ) {
     if (LocalReleaseScope.current.isOpen(UnreleasedFeature.AVATAR_CUSTOMIZE)) {
-        RunkkAvatarPortrait(faceKey ?: RunkkAvatarArt.DEFAULT_FACE_KEY, faceLayers, modifier)
+        // 셀카 얼굴 그림을 아직 받지 못했거나 받지 못하면(셀카 머리 head:·부위 selfie:) 빈 칸이 아니라 기본 캐릭터(토끼)를 그린다.
+        RunkkAvatarPortrait(faceKey ?: RunkkAvatarArt.DEFAULT_FACE_KEY, faceLayers, modifier) {
+            RunkkAvatarPortrait(RunkkAvatarArt.DEFAULT_FACE_KEY, emptyList(), Modifier.fillMaxSize())
+        }
     } else {
         val isFace = expression == AvatarExpression.FACE
         // 여자 서기·기쁨은 남자와 같은 짧은 체형으로 다시 그렸다(사용자 요청 2026-10-31). 아직 머리가 작고 다리가 긴 점프·달리기
