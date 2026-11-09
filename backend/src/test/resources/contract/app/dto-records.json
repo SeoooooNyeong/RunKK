@@ -11,6 +11,17 @@
     } ],
     "file" : "web/admin/AdminAuthController.java"
   },
+  "AiCoachController.QuestionRequest" : {
+    "components" : [ {
+      "name" : "conversationId",
+      "kind" : "leaf"
+    }, {
+      "name" : "text",
+      "required" : true,
+      "kind" : "leaf"
+    } ],
+    "file" : "web/coach/AiCoachController.java"
+  },
   "AuthController.GuestSessionRequest" : {
     "components" : [ {
       "name" : "guestCredential",

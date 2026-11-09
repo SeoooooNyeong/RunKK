@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.OptionalInt;
 import java.util.Set;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -108,6 +109,21 @@ public class MemberQueryService {
     /** 동의 여부만 묻는다(battle 위치, avatar 얼굴 변환, analysis LLM 전송). 없는 회원은 false. */
     public boolean hasConsent(long memberId, ConsentItem item) {
         return memberRepository.findById(memberId).map(m -> m.hasConsent(item)).orElse(false);
+    }
+
+    public boolean hasCurrentCoachConsent(long memberId) {
+        return memberRepository
+                .findById(memberId)
+                .map(Member::hasCurrentCoachConsent)
+                .orElse(false);
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    public boolean lockCurrentCoachConsent(long memberId) {
+        return memberRepository
+                .findByIdForUpdate(memberId)
+                .map(Member::hasCurrentCoachConsent)
+                .orElse(false);
     }
 
     /** ACTIVE 회원의 닉네임을 한 번의 조회로. 탈퇴했거나 없는 회원은 맵에 없다(event 이벤트 응모자 명단, S15P31A207-275). */

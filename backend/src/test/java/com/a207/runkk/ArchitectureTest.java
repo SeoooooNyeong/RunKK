@@ -83,6 +83,7 @@ class ArchitectureTest {
                     "web.attempt",
                     "web.error",
                     "web.runbody",
+                    "web.coach",
                     "realtime",
                     "batch.battle",
                     "batch.crew",
@@ -92,6 +93,7 @@ class ArchitectureTest {
                     "batch.member",
                     "batch.aiprivacy",
                     "batch.runbody",
+                    "batch.aicoach",
                     "batch.audit",
                     "batch.notification",
                     "batch.reward",
@@ -116,6 +118,7 @@ class ArchitectureTest {
                     "audit",
                     "aiprivacy",
                     "runbody",
+                    "aicoach",
                     "common",
                     "infra.member",
                     "infra.running",
@@ -133,6 +136,7 @@ class ArchitectureTest {
                     "infra.audit",
                     "infra.aiprivacy",
                     "infra.runbody",
+                    "infra.aicoach",
                     "infra.integration.auth",
                     "infra.integration.ai",
                     "infra.integration.push",
@@ -175,6 +179,7 @@ class ArchitectureTest {
         m.put("aiprivacy", Set.of("member", "audit"));
         // 05-19 5절(D-441·D-444·D-440): RunRecordSaved·bodyInputOf, 출생연도, RUNBODY_ENABLED
         m.put("runbody", Set.of("member", "running", "policy"));
+        m.put("aicoach", Set.of("member", "policy"));
         m.put("running", Set.of("member", "audit"));
         m.put("runimal", Set.of("member", "running", "policy"));
         m.put("battle", Set.of("member", "running", "policy", "notification", "audit"));
@@ -229,6 +234,7 @@ class ArchitectureTest {
         m.put("web.admin.notification", Set.of("notification"));
         // 05-19 5절 web.runbody → runbody, + runimal(요약 G-14의 나의 러닝 유형, web.crew와 같이 RunimalQuery만)
         m.put("web.runbody", Set.of("runbody", "runimal"));
+        m.put("web.coach", Set.of("aicoach"));
         m.put("realtime", Set.of("battle", "crew", "crew.chat", "member")); // + crew.chat(N11)
         // 구동 (D55~D57, D65, D71~D74): batch.<응용> → 같은 이름의 패키지 하나
         for (String app :
@@ -240,6 +246,7 @@ class ArchitectureTest {
                         "running",
                         "member",
                         "aiprivacy",
+                        "aicoach",
                         "runbody", // 05-19 D-443 RunBodyPollJob(pollDue 5초)
                         "audit",
                         "notification",
@@ -254,6 +261,7 @@ class ArchitectureTest {
                 List.of(
                         "member",
                         "aiprivacy",
+                        "aicoach",
                         "runbody",
                         "running",
                         "analysis",
@@ -271,7 +279,9 @@ class ArchitectureTest {
         m.put("infra.chat", Set.of("crew.chat")); // v0.11 N15
         m.put("infra.report", Set.of("report")); // v0.11 N16
         m.put("infra.integration.auth", Set.of("member", "operator"));
-        m.put("infra.integration.ai", Set.of("analysis", "avatar", "aiprivacy", "runbody"));
+        m.put(
+                "infra.integration.ai",
+                Set.of("analysis", "avatar", "aiprivacy", "runbody", "aicoach"));
         m.put("infra.integration.push", Set.of("notification"));
         m.put("infra.integration.weather", Set.of("running"));
         // 모든 패키지 → common (D44, D53, D66, D67)
@@ -742,7 +752,7 @@ class ArchitectureTest {
 
     @Test
     void designPackageList_has77NamesAndEachHasAnAllowList() {
-        assertThat(Set.copyOf(PACKAGES)).hasSize(77);
+        assertThat(Set.copyOf(PACKAGES)).hasSize(81);
         assertThat(ALLOWED.keySet()).containsExactlyInAnyOrderElementsOf(PACKAGES);
     }
 

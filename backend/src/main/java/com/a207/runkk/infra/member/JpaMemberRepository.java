@@ -12,6 +12,7 @@ import com.a207.runkk.member.MemberSummary;
 import com.a207.runkk.member.ProfileVisibility;
 import com.a207.runkk.member.SocialAccount;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Collection;
@@ -40,6 +41,12 @@ public class JpaMemberRepository implements MemberRepository {
     @Override
     public Optional<Member> findById(long id) {
         return Optional.ofNullable(entityManager.find(Member.class, id));
+    }
+
+    @Override
+    public Optional<Member> findByIdForUpdate(long id) {
+        return Optional.ofNullable(
+                entityManager.find(Member.class, id, LockModeType.PESSIMISTIC_WRITE));
     }
 
     @Override
