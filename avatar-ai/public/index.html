@@ -40,7 +40,7 @@
       <details class="traits-editor"><summary>추출한 특징 확인 / 수정</summary><div id="traitsFields"></div></details>
       <div class="head-preview checker ai-head-preview"><img id="headPreview" alt="현재 연결된 머리 이미지"><span class="image-badge" id="headBadge">기본 머리</span></div>
       <div class="inline-actions"><button type="button" id="defaultHead">기본 머리로</button><button type="button" id="exportHead">목 포함 머리 PNG 저장 ↓</button></div>
-      <div class="head-layer-previews" id="layerPreviews" hidden><figure><img id="faceLayerPreview" alt="코와 입이 포함된 얼굴 레이어"><figcaption>얼굴 · 코·입 포함</figcaption><button type="button" id="exportFace">얼굴 PNG ↓</button></figure><figure><img id="eyesLayerPreview" alt="눈과 속눈썹 레이어"><figcaption>눈 · 속눈썹</figcaption><button type="button" id="exportEyes">눈 PNG ↓</button></figure><figure><img id="hairLayerPreview" alt="머리카락과 눈썹 레이어"><figcaption>헤어 · 눈썹</figcaption><button type="button" id="exportHair">헤어 PNG ↓</button></figure></div>
+      <div id="layerPreviewBlock" hidden><p class="hint layer-preview-title">AI 추출 파츠 · 공통 1024×1024 기준</p><div class="head-layer-previews" id="layerPreviews" hidden><figure><img id="faceLayerPreview" alt="얼굴형과 코, 입, 귀, 목 레이어"><figcaption>얼굴형 · 코·입·귀·목</figcaption><button type="button" id="exportFace">얼굴 PNG ↓</button></figure><figure><img id="eyesLayerPreview" alt="눈과 속눈썹, 쌍꺼풀 레이어"><figcaption>눈 · 속눈썹 · 쌍꺼풀</figcaption><button type="button" id="exportEyes">눈 PNG ↓</button></figure><figure><img id="hairLayerPreview" alt="머리카락과 눈썹 레이어"><figcaption>헤어 · 눈썹</figcaption><button type="button" id="exportHair">헤어 PNG ↓</button></figure></div></div>
       <section id="eyeFramePreviews" hidden aria-label="정면 눈 3종">
         <p class="hint">정면 눈 3종 · 같은 위치의 투명 PNG</p>
         <div class="head-layer-previews">
