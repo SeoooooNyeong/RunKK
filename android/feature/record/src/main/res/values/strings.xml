@@ -193,8 +193,7 @@
     <string name="record_runbody_pick_open">기록 선택</string>
     <string name="record_runbody_runs_empty">아직 러닝 기록이 없어요</string>
     <string name="record_runbody_pick_title">러닝 선택</string>
-    <string name="record_runbody_pick_selected">%1$skm, 선택됨</string>
-    <string name="record_runbody_pick_row">%1$skm, %2$s</string>
+    <string name="record_runbody_pick_selected">선택됨</string>
     <string name="record_runbody_pick_score">러닝 점수</string>
     <string name="record_runbody_pick_score_up">▲ %1$d</string>
     <string name="record_runbody_pick_score_down">▼ %1$d</string>

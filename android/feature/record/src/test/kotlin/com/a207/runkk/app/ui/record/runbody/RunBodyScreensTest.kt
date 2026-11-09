@@ -218,8 +218,9 @@ class RunBodyScreensTest {
                 )
             }
         }
-        compose.onNodeWithText("5.2km, 선택됨").assertExists()
-        compose.onNodeWithText("10.0km, 58:00").performClick()
+        // 피그마 "5.2km · 선택됨"은 가운뎃점 대신 메타 줄로 그리고 한 번에 읽는다([임시:D-성-10])
+        compose.onNodeWithContentDescription("5.2km, 선택됨").assertExists()
+        compose.onNodeWithContentDescription("10.0km, 58:00").performClick()
         assertEquals(listOf("r2"), picked)
     }
 
