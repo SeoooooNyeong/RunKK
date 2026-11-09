@@ -34,6 +34,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.designsystem.RunimalArt
 import com.a207.runkk.app.core.designsystem.RunkkColors
+import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.asString
@@ -123,12 +124,12 @@ private fun PacePanel(recent: Pace, previous: Pace?, change: Int?) {
     val spoken = if (previous != null) {
         stringResource(
             R.string.record_runbody_trend_pace_spoken,
-            runBodyPace(previous),
-            runBodyPace(recent),
+            RunkkFormat.paceSpoken(previous),
+            RunkkFormat.paceSpoken(recent),
             paceChangeText(change ?: 0)
         )
     } else {
-        stringResource(R.string.record_runbody_trend_pace_recent_spoken, runBodyPace(recent))
+        stringResource(R.string.record_runbody_trend_pace_recent_spoken, RunkkFormat.paceSpoken(recent))
     }
     Column(
         modifier = Modifier

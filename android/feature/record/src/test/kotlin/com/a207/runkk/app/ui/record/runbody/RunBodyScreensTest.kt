@@ -2,6 +2,7 @@ package com.a207.runkk.app.ui.record.runbody
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -86,6 +87,18 @@ class RunBodyScreensTest {
         compose.onNodeWithText("요약").performClick()
         assertEquals(listOf(RunBodyTab.MONTH, RunBodyTab.SUMMARY), tabs)
         compose.onNodeWithText("AI 코치").assertDoesNotExist()
+    }
+
+    @Test
+    fun `AI 코치는 오른쪽 아래 떠 있는 버튼으로 코치 대화를 연다(G-13)`() {
+        var coached = 0
+        compose.setContent {
+            RunkkTheme {
+                RunBodyScreen(runState(RunBodySessionState.Loading), RunBodyActions(onCoach = { coached++ }))
+            }
+        }
+        compose.onNodeWithText("AI 코치").assertHasClickAction().performClick()
+        assertEquals(1, coached)
     }
 
     @Test
@@ -249,10 +262,10 @@ class RunBodyScreensTest {
             }
         }
         compose.onNodeWithText("구간, 페이스, 평균 심박").performScrollTo().assertExists()
-        compose.onNodeWithText("5'42\"/km, 148 bpm", useUnmergedTree = true).assertExists()
+        compose.onNodeWithText("5′42″/km, 148 bpm", useUnmergedTree = true).assertExists()
         compose.onNodeWithText("마지막 0.2 km", useUnmergedTree = true).assertExists()
         compose.onNodeWithText("좋았던 점 전반과 후반 페이스 차이가 작아요.").performScrollTo().assertExists()
-        compose.onNodeWithText("확인 근거 전반 5'44\"/km → 후반 5'52\"/km").performScrollTo().assertExists()
+        compose.onNodeWithText("확인 근거 전반 5′44″/km → 후반 5′52″/km").performScrollTo().assertExists()
         compose.onNodeWithText("5.2 km / 5.0 km", useUnmergedTree = true).performScrollTo().assertExists()
     }
 
