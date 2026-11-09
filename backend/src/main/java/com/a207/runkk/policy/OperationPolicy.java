@@ -105,6 +105,14 @@ public class OperationPolicy {
                 valueOf(SettingKey.RUNBODY_ENABLED, Boolean.class));
     }
 
+    public boolean coachEnabled() {
+        return valueOf(SettingKey.COACH_ENABLED, Boolean.class);
+    }
+
+    public int coachDailyLimit() {
+        return valueOf(SettingKey.COACH_DAILY_LIMIT, Integer.class);
+    }
+
     public SelfieLimit selfieLimit() {
         return valueOf(SettingKey.SELFIE_LIMIT, SelfieLimit.class);
     }
