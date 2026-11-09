@@ -9,7 +9,7 @@
   const RIG = 'runkk-front-v1';
   const LAYER_SIZE = 1024;
   const HEAD_LAYER_VERSION = 'runkk-coherent-head-v2';
-  const HEAD_SEGMENTATION_VERSION = 'runkk-ai-source-pixels-v40';
+  const HEAD_SEGMENTATION_VERSION = 'runkk-ai-source-pixels-v41';
   const DEFAULT_PIVOT={x:49.3,y:70.1};
   const builtinBodies=window.RUNKK_BODY_PACKS||[];
   const bodySets={};

@@ -3,7 +3,7 @@ import sharp from 'sharp';
 import {splitAiLayers} from './ai-head-layers.mjs';
 
 export const HEAD_LAYER_VERSION = 'runkk-coherent-head-v2';
-export const HEAD_SEGMENTATION_VERSION = 'runkk-ai-source-pixels-v40';
+export const HEAD_SEGMENTATION_VERSION = 'runkk-ai-source-pixels-v41';
 export const HEAD_LAYOUT = Object.freeze({
   version: HEAD_LAYER_VERSION,
   segmentationVersion: HEAD_SEGMENTATION_VERSION,
@@ -13,7 +13,7 @@ export const HEAD_LAYOUT = Object.freeze({
   layers: ['face', 'eyes', 'hair'],
   faceIncludes: ['nose', 'mouth', 'ears', 'neck', 'eyelidCreases'],
   eyesIncludes: ['eyes', 'eyelashes'],
-  hairIncludes: ['hair', 'eyebrows'],
+  hairIncludes: ['hair', 'eyebrows', 'glasses'],
   independentTransforms: false
 });
 

@@ -8,7 +8,7 @@
 |---|---|
 | `rightFaceImage` | 우측 얼굴·코·입·귀·목·쌍꺼풀 선 |
 | `rightEyesImage` | 우측 프로필에서 보이는 눈 하나·속눈썹 (쌍꺼풀 선 제외) |
-| `rightHairImage` | 머리카락·눈썹 |
+| `rightHairImage` | 머리카락·눈썹·안경 |
 | `rightLayerLayout` | `version: runkk-right-head-layers-v1`, `direction: right`, `canvas: [1024,1024]`, `coordinateSpace: shared-source`, `independentTransforms: false` |
 
 우측 완성 PNG의 픽셀을 서버 코드로 분류한다. 세 PNG는 1024×1024 투명 배경이며 개별 크롭·이동·확대를 하지 않는다. 앱은 얼굴 → 눈 → 헤어 순서로 같은 좌표·배율에 그린다. 얼굴 파츠에는 원래 목이 포함된다. 정면용 `mobile.anchor` 및 `renderFaceImage`는 우측 좌표가 아니므로 우측에 재사용하지 않는다.

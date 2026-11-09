@@ -3,9 +3,9 @@ import {HEAD_SEGMENTATION_VERSION} from './head-layers.mjs';
 
 // Both saved-head storage and the profile cache compare this version. A change
 // to the shared front segmentation must invalidate the right layers as well.
-export const RIGHT_LAYER_VERSION=`runkk-right-head-layers-v22-${HEAD_SEGMENTATION_VERSION}`;
+export const RIGHT_LAYER_VERSION=`runkk-right-head-layers-v23-${HEAD_SEGMENTATION_VERSION}`;
 export const RIGHT_IMAGE_FIELDS=['rightFaceImage','rightEyesImage','rightHairImage'];
-export const RIGHT_LAYOUT={version:RIGHT_LAYER_VERSION,segmentationVersion:HEAD_SEGMENTATION_VERSION,direction:'right',canvas:[1024,1024],coordinateSpace:'shared-source',independentTransforms:false,faceIncludes:['nose','mouth','ear','neck','eyelidCreases'],eyesIncludes:['nearEye','eyelashes'],hairIncludes:['hair','eyebrows']};
+export const RIGHT_LAYOUT={version:RIGHT_LAYER_VERSION,segmentationVersion:HEAD_SEGMENTATION_VERSION,direction:'right',canvas:[1024,1024],coordinateSpace:'shared-source',independentTransforms:false,faceIncludes:['nose','mouth','ear','neck','eyelidCreases'],eyesIncludes:['nearEye','eyelashes'],hairIncludes:['hair','eyebrows','glasses']};
 export async function splitRightHead(image,options={}){
   try{
     const parts=await splitAiLayers(image,{...options,direction:'right'});
