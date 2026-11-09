@@ -70,7 +70,16 @@ export async function alignAiParts(master,parts,{direction='front'}={}){
   const source=await pixels(master),aligned={},metrics={};
   for(const part of ['face','eyes','hair']){
     const points=samples(await pixels(parts[part]),part,direction);
-    if(points.length<30)throw Object.assign(new Error(`${part} 파츠에서 원본과 비교할 특징을 찾지 못했어요.`),{status:502,code:'HEAD_LAYER_ALIGNMENT_FAILED'});
+    if(points.length<30){
+      if(part==='face'){
+        // A smooth skin base may have no reliable dark pixels to color-match.
+        // Its generated PNG already uses the shared source canvas; keep that registration.
+        aligned[part]=parts[part];
+        metrics[part]={scale:1,offsetX:0,offsetY:0,matchError:null,method:'shared-canvas-no-color-anchor'};
+        continue;
+      }
+      throw Object.assign(new Error(`${part} 파츠에서 원본과 비교할 특징을 찾지 못했어요.`),{status:502,code:'HEAD_LAYER_ALIGNMENT_FAILED'});
+    }
     let best={score:Infinity,objective:Infinity,scale:1,dx:0,dy:0};
     // Extraction should already share the source canvas. Large independent
     // transforms can make one layer match by color while moving its features.
