@@ -201,8 +201,6 @@
     <string name="record_runbody_pick_score_spoken">러닝 점수 %1$d점</string>
     <string name="record_runbody_pick_score_up_spoken">%1$d점 올랐어요</string>
     <string name="record_runbody_pick_score_down_spoken">%1$d점 내려갔어요</string>
-    <string name="record_runbody_period_week">주간</string>
-    <string name="record_runbody_period_month">월간</string>
     <string name="record_runbody_trend_title">최근 10회 변화</string>
     <string name="record_runbody_trend_range">%1$d~%2$d번째 러닝</string>
     <string name="record_runbody_trend_round">%1$d회차</string>
@@ -222,7 +220,6 @@
     <string name="record_runbody_trend_shorter">단축</string>
     <string name="record_runbody_trend_longer">늘어남</string>
     <string name="record_runbody_trend_weekly">주간 러닝 빈도</string>
-    <string name="record_runbody_trend_monthly">월간 러닝 빈도</string>
     <string name="record_runbody_trend_freq_value">%1$s회</string>
     <string name="record_runbody_trend_freq_change">%1$s → %2$s회</string>
     <string name="record_runbody_trend_freq_more">%1$s회 늘었어요</string>

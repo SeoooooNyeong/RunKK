@@ -293,18 +293,13 @@ class RunBodyScreensTest {
         )
     }
 
-    private fun summaryState(
-        trend: RunBodyTrend?,
-        period: RunBodyPeriod = RunBodyPeriod.WEEK,
-        comment: String? = null
-    ) = RunBodyUiState(
+    private fun summaryState(trend: RunBodyTrend?, comment: String? = null) = RunBodyUiState(
         today = today,
         zone = zone,
         isReportLoading = false,
         report = Report("1~2회 평균 점수 33.0 · 1회 거리 +0 m", comment, null),
         isTrendLoading = false,
         trend = trend,
-        period = period,
         isWeekLoading = false,
         weekRuns = weekRuns
     )
@@ -343,7 +338,7 @@ class RunBodyScreensTest {
     }
 
     @Test
-    fun `10회 전이면 아무것도 바꾸지 않는 주간·월간 토글과 최근 10회 평균을 그리지 않는다(G-33)`() {
+    fun `10회 전이면 남은 횟수만 보이고 최근 10회 평균은 그리지 않는다(G-33)`() {
         compose.setContent {
             RunkkTheme { RunBodyScreen(summaryState(RunBodyTrend(2, 0, 8, null, null, null, null)), RunBodyActions()) }
         }
@@ -354,11 +349,8 @@ class RunBodyScreensTest {
     }
 
     @Test
-    fun `요약은 최근 10회 변화의 회차와 페이스·같은 심박·빈도·러닝 유형을 보이고 토글을 알린다(G-14)`() {
-        val periods = mutableListOf<RunBodyPeriod>()
-        compose.setContent {
-            RunkkTheme { RunBodyScreen(summaryState(sampleTrend()), RunBodyActions(onPeriod = { periods += it })) }
-        }
+    fun `요약은 최근 10회 변화의 회차와 페이스·같은 심박·주간 빈도·러닝 유형을 보이고 주간·월간 토글은 없다(G-14)`() {
+        compose.setContent { RunkkTheme { RunBodyScreen(summaryState(sampleTrend()), RunBodyActions()) } }
         compose.onNodeWithText("2회차").assertExists()
         compose.onNodeWithText("11~20번째 러닝").assertExists()
         compose.onNodeWithText("14초 단축").assertExists()
@@ -367,24 +359,10 @@ class RunBodyScreensTest {
         compose.onNodeWithText("2.1 → 2.8회").assertExists()
         compose.onNodeWithText("0.7회 늘었어요").assertExists()
         compose.onNodeWithText("출근도장 거북이").performScrollTo().assertExists()
-        // 맨 위 탭과 토글에 "월간"이 둘 있다. 두 번째가 주간/월간 토글이다
-        compose.onAllNodesWithText("월간")[1].performClick()
-        assertEquals(listOf(RunBodyPeriod.MONTH), periods)
-    }
-
-    @Test
-    fun `월간이면 빈도를 30일 기준으로, 10회 전이면 남은 횟수를 보인다(G-14)`() {
-        val trend = mutableStateOf(sampleTrend())
-        compose.setContent {
-            RunkkTheme { RunBodyScreen(summaryState(trend.value, RunBodyPeriod.MONTH), RunBodyActions()) }
-        }
-        compose.onNodeWithText("월간 러닝 빈도").assertExists()
-        compose.onNodeWithText("9.0 → 12.0회").assertExists()
-        compose.onNodeWithText("3.0회 늘었어요").assertExists()
-
-        trend.value = RunBodyTrend(4, 0, 6, null, null, null, null)
-        compose.onNodeWithText("러닝을 6번 더 하면 최근 10회 변화를 보여 드려요").assertExists()
-        compose.onNodeWithText("평균 페이스").assertDoesNotExist()
+        // 피그마 G-14에는 토글이 없다([임시:D-성-17]). "월간"은 맨 위 탭 하나뿐이다
+        compose.onNodeWithText("주간").assertDoesNotExist()
+        assertEquals(1, compose.onAllNodesWithText("월간").fetchSemanticsNodes().size)
+        compose.onNodeWithText("월간 러닝 빈도").assertDoesNotExist()
     }
 
     @Test

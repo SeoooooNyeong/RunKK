@@ -35,7 +35,6 @@ import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.designsystem.RunimalArt
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkIcons
-import com.a207.runkk.app.core.designsystem.RunkkSegmentedTabs
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.model.Pace
@@ -46,27 +45,19 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
- * 요약 탭(G-14·G-33): 주간/월간 토글, 최근 10회 변화(계약 v1.2 8절), 주간 러닝 기록, 최근 10회 평균, 러닝 코멘트(FR-066). 토글은 빈도 줄만
- * 바꾸므로 빈도 줄이 없으면(10회 전, 최근 10회 변화를 못 읽음) 그리지 않는다. 코멘트가 없으면 "코멘트 준비 중", 출처는 표시하지 않는다.
+ * 요약 탭(G-14·G-33): 최근 10회 변화(계약 v1.2 8절), 주간 러닝 기록, 최근 10회 평균, 러닝 코멘트(FR-066). 빈도는 주간만 보인다(주간/월간
+ * 토글 없음, [임시:D-성-17]). 코멘트가 없으면 "코멘트 준비 중", 출처는 표시하지 않는다.
  */
 @Composable
 internal fun SummaryTab(state: RunBodyUiState, actions: RunBodyActions) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         val recent = state.trend?.recent
-        if (recent != null) {
-            RunkkSegmentedTabs(
-                options = RunBodyPeriod.entries.map { stringResource(it.labelRes) },
-                selectedIndex = state.period.ordinal,
-                onSelect = { actions.onPeriod(RunBodyPeriod.entries[it]) },
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
         RunBodyLoadable(
             isLoading = state.isTrendLoading && state.trend == null,
             error = state.trendError?.asString(),
             onRetry = actions.onRetryTrend
         ) {
-            state.trend?.let { TrendCard(it, state.period) }
+            state.trend?.let { TrendCard(it) }
         }
         WeeklyRecordCard(state, actions)
         if (recent != null) RecentAverageCards(recent)
@@ -82,7 +73,7 @@ internal fun SummaryTab(state: RunBodyUiState, actions: RunBodyActions) {
 
 /** 최근 10회 변화(G-14). 10회 전이면 남은 횟수만, 1회차면 직전 값 없이 최근 10회만 보인다. */
 @Composable
-private fun TrendCard(trend: RunBodyTrend, period: RunBodyPeriod) {
+private fun TrendCard(trend: RunBodyTrend) {
     val recent = trend.recent
     if (trend.round == 0 || recent == null) {
         RunBodyCard(stringResource(R.string.record_runbody_trend_title)) {
@@ -97,7 +88,7 @@ private fun TrendCard(trend: RunBodyTrend, period: RunBodyPeriod) {
         if (previous != null) {
             SameHeartRateRow(trend.sameHeartRatePaceChange)
         }
-        FrequencyRow(period, recent, previous)
+        FrequencyRow(recent, previous)
         trend.runimalType?.let { RunimalTypeBox(it) }
     }
 }
@@ -265,23 +256,16 @@ private fun SameHeartRateRow(change: Int?) {
     )
 }
 
+/** 주간 러닝 빈도(회/주). 서버 runsPerMonth는 계약에 남아 있으나 읽지 않는다([임시:D-성-17]). */
 @Composable
-private fun FrequencyRow(period: RunBodyPeriod, recent: RunBodyTrend.Window, previous: RunBodyTrend.Window?) {
-    val label = stringResource(
-        if (period ==
-            RunBodyPeriod.WEEK
-        ) {
-            R.string.record_runbody_trend_weekly
-        } else {
-            R.string.record_runbody_trend_monthly
-        }
-    )
-    val now = frequencyOf(recent, period)
+private fun FrequencyRow(recent: RunBodyTrend.Window, previous: RunBodyTrend.Window?) {
+    val label = stringResource(R.string.record_runbody_trend_weekly)
+    val now = recent.runsPerWeek
     if (previous == null) {
         TrendRow(RunkkIcons.Calendar, label, stringResource(R.string.record_runbody_trend_freq_value, one(now)), null)
         return
     }
-    val before = frequencyOf(previous, period)
+    val before = previous.runsPerWeek
     val delta = ((now - before) * TENTHS).roundToInt()
     TrendRow(
         RunkkIcons.Calendar,
@@ -360,9 +344,6 @@ private fun paceChangeText(change: Int): String = when {
     change < 0 -> stringResource(R.string.record_runbody_trend_slower, -change)
     else -> stringResource(R.string.record_runbody_trend_unchanged)
 }
-
-private fun frequencyOf(window: RunBodyTrend.Window, period: RunBodyPeriod): Double =
-    if (period == RunBodyPeriod.WEEK) window.runsPerWeek else window.runsPerMonth
 
 /** 소수 첫째 자리(2.8). */
 private fun one(value: Double): String = String.format(Locale.US, "%.1f", value)

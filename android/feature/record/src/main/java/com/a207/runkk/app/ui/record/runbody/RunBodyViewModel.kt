@@ -139,9 +139,6 @@ class RunBodyViewModel internal constructor(
         refreshWeek()
     }
 
-    /** 주간/월간 토글(G-14). 다시 읽지 않고 빈도 줄만 바꾼다. */
-    fun onPeriod(period: RunBodyPeriod) = _state.update { it.copy(period = period) }
-
     /** 최근 기록을 읽고, 고른 기록이 없거나 목록에 없으면 가장 최근 기록을 골라 분석을 읽는다. */
     fun refreshRuns() {
         hasRuns = true

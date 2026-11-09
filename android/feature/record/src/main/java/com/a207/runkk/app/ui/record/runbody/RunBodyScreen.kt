@@ -50,7 +50,6 @@ fun RunBodyRoute(viewModel: RunBodyViewModel = hiltViewModel()) {
             onPreviousMonth = viewModel::onPreviousMonth,
             onNextMonth = viewModel::onNextMonth,
             onRetryMonth = viewModel::refreshMonth,
-            onPeriod = viewModel::onPeriod,
             onRetryTrend = viewModel::refreshTrend,
             onPreviousWeek = viewModel::onPreviousWeek,
             onNextWeek = viewModel::onNextWeek,
