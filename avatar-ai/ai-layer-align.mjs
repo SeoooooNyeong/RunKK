@@ -66,9 +66,45 @@ async function preserveSourcePixels(master,layer,part){
   return sharp(result,{raw:{width:1024,height:1024,channels:4}}).png().toBuffer();
 }
 
-export async function alignAiParts(master,parts,{direction='front',hairTransform=null}={}){
+async function enforceEyeOwnership(eyes,hair,eyeBoxes){
+  if(!eyeBoxes?.leftEye||!eyeBoxes?.rightEye)return {eyes,hair};
+  const [eyeData,hairData]=await Promise.all([eyes,hair].map(png=>sharp(png).ensureAlpha().raw().toBuffer()));
+  const boxes=[eyeBoxes.leftEye,eyeBoxes.rightEye];
+  for(let y=0;y<1024;y++)for(let x=0;x<1024;x++){
+    const eyeAllowed=boxes.some(box=>x>=box.left&&x<=box.right&&y>=box.top&&y<=box.bottom);
+    const i=(y*1024+x)*4;
+    if(!eyeAllowed)eyeData[i+3]=0;
+  }
+  // Transfer ownership by the actual eye alpha silhouette, not the broad eye
+  // box, so glasses rims outside the anatomy stay attached to the hair layer.
+  for(let y=0;y<1024;y++)for(let x=0;x<1024;x++){
+    const i=(y*1024+x)*4;
+    let touchesEye=false,insideEyeCore=false;
+    for(const box of boxes){
+      const insetX=Math.round((box.right-box.left)*.12),insetY=Math.round((box.bottom-box.top)*.12);
+      if(x>=box.left+insetX&&x<=box.right-insetX&&y>=box.top+insetY&&y<=box.bottom-insetY){insideEyeCore=true;break;}
+    }
+    for(let dy=-1;dy<=1&&!touchesEye;dy++)for(let dx=-1;dx<=1;dx++){
+      const nx=x+dx,ny=y+dy;
+      if(nx<0||nx>=1024||ny<0||ny>=1024)continue;
+      if(eyeData[(ny*1024+nx)*4+3]>32){touchesEye=true;break;}
+    }
+    if(insideEyeCore||touchesEye)hairData[i+3]=0;
+  }
+  const toPng=data=>sharp(data,{raw:{width:1024,height:1024,channels:4}}).png().toBuffer();
+  return {eyes:await toPng(eyeData),hair:await toPng(hairData)};
+}
+
+export async function alignAiParts(master,parts,{direction='front',hairTransform=null,eyeBoxes=null}={}){
   const source=await pixels(master),aligned={},metrics={};
   for(const part of ['face','eyes','hair']){
+    if(part==='eyes'&&eyeBoxes){
+      // The analyzed eye boxes and image-edit prompt already use source canvas
+      // coordinates. A color-based transform would desynchronize the blink rig.
+      aligned.eyes=await preserveSourcePixels(master,parts.eyes,'eyes');
+      metrics.eyes={scale:1,offsetX:0,offsetY:0,matchError:null,method:'shared-canvas-eye-boxes'};
+      continue;
+    }
     if(part==='hair'&&hairTransform&&Number.isFinite(hairTransform.scale)&&Number.isFinite(hairTransform.offsetX)&&Number.isFinite(hairTransform.offsetY)){
       const placed=await transform(parts.hair,hairTransform.scale,hairTransform.offsetX/4,hairTransform.offsetY/4);
       aligned.hair=await preserveSourcePixels(master,placed,'hair');
@@ -120,6 +156,10 @@ export async function alignAiParts(master,parts,{direction='front',hairTransform
     const shifted=await transform(parts[part],clamp(best.scale,.925,1.075),best.dx,best.dy);
     aligned[part]=part==='face'?shifted:await preserveSourcePixels(master,shifted,part);
     metrics[part]={scale:Number(best.scale.toFixed(3)),offsetX:best.dx*4,offsetY:best.dy*4,matchError:Number(best.score.toFixed(1))};
+  }
+  if(eyeBoxes){
+    const owned=await enforceEyeOwnership(aligned.eyes,aligned.hair,eyeBoxes);
+    aligned.eyes=owned.eyes;aligned.hair=owned.hair;
   }
   return {parts:aligned,metrics};
 }
