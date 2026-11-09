@@ -1658,6 +1658,45 @@
     } ],
     "file" : "web/crew/CrewDtos.java"
   },
+  "CrewGoalHistoryController.GoalHistoryResponse" : {
+    "components" : [ {
+      "name" : "goals",
+      "kind" : "list",
+      "ref" : "CrewGoalHistoryController.GoalHistoryResponse.Goal"
+    }, {
+      "name" : "nextBefore",
+      "kind" : "leaf"
+    } ],
+    "file" : "web/crew/CrewGoalHistoryController.java"
+  },
+  "CrewGoalHistoryController.GoalHistoryResponse.Goal" : {
+    "components" : [ {
+      "name" : "weekStart",
+      "kind" : "leaf"
+    }, {
+      "name" : "month",
+      "kind" : "leaf"
+    }, {
+      "name" : "weekOfMonth",
+      "kind" : "leaf"
+    }, {
+      "name" : "goalMeters",
+      "kind" : "leaf"
+    }, {
+      "name" : "totalMeters",
+      "kind" : "leaf"
+    }, {
+      "name" : "achieved",
+      "kind" : "leaf"
+    }, {
+      "name" : "progressPercent",
+      "kind" : "leaf"
+    }, {
+      "name" : "participantCount",
+      "kind" : "leaf"
+    } ],
+    "file" : "web/crew/CrewGoalHistoryController.java"
+  },
   "CrewMembersAssembler.CrewMembersResponse" : {
     "components" : [ {
       "name" : "members",
@@ -1688,6 +1727,27 @@
     }, {
       "name" : "me",
       "kind" : "leaf"
+    }, {
+      "name" : "accumulatedMeters",
+      "kind" : "leaf"
+    }, {
+      "name" : "joinedAt",
+      "kind" : "leaf"
+    }, {
+      "name" : "level",
+      "kind" : "leaf"
+    }, {
+      "name" : "ageBand",
+      "kind" : "leaf"
+    }, {
+      "name" : "gender",
+      "kind" : "leaf"
+    }, {
+      "name" : "ageBandVisibility",
+      "kind" : "leaf"
+    }, {
+      "name" : "genderVisibility",
+      "kind" : "leaf"
     } ],
     "file" : "web/crew/CrewMembersAssembler.java"
   },
@@ -1717,6 +1777,15 @@
       "kind" : "leaf"
     }, {
       "name" : "requestedAt",
+      "kind" : "leaf"
+    }, {
+      "name" : "level",
+      "kind" : "leaf"
+    }, {
+      "name" : "ageBand",
+      "kind" : "leaf"
+    }, {
+      "name" : "gender",
       "kind" : "leaf"
     } ],
     "file" : "web/crew/CrewMembersAssembler.java"
