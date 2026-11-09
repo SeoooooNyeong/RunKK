@@ -24,8 +24,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * 런바디 화면(D-453 RunBodySessionCard·RunBodyMonthSection, FR-066·FR-266·FR-267). 요약 탭은 리포트(RecordRepository.report)와 최근
- * 10회 변화(RunBodyRepository.trend, G-14), 러닝별 탭은
+ * 런바디 화면(D-453 RunBodySessionCard·RunBodyMonthSection, FR-066·FR-266·FR-267). 요약 탭은 리포트(RecordRepository.report, 코멘트),
+ * 최근 10회 변화(RunBodyRepository.trend, G-14), 주간 러닝 기록(고른 주의 RecordRepository.runs)이고, 러닝별 탭은
  * 최근 [RECENT_DAYS]일 기록(RecordRepository.runs)과 고른 기록의 분석(RunBodyRepository.session), 월간 탭은 월간 집계(RunBodyRepository.month)다.
  * 분석은 러닝 저장 때 서버가 자동 제출한다(S-31). 대기·분석 중이면 처음 [FAST_POLLS]번은 [POLL_MILLIS]마다(NFR-053 60초), 그 뒤로는 간격을
  * 두 배씩 늘려(상한 [MAX_POLL_MILLIS]) 모두 [MAX_POLL_WAIT_MILLIS]까지 다시 읽어 완료되면 같은 칸에 결과를 보인다(MR !91 e2e 4). 그 뒤에도
@@ -55,10 +55,12 @@ class RunBodyViewModel internal constructor(
     private var monthJob: Job? = null
     private var scoresJob: Job? = null
     private var trendJob: Job? = null
+    private var weekJob: Job? = null
 
     init {
         refreshReport()
         refreshTrend()
+        refreshWeek()
     }
 
     fun onTab(tab: RunBodyTab) {
@@ -96,6 +98,45 @@ class RunBodyViewModel internal constructor(
                 }
             }
         }
+    }
+
+    /** 요약 주간 러닝 기록(G-14): 고른 주의 본인 기록(앞뒤 하루를 더 읽어 기기 시간대로 거른다). */
+    fun refreshWeek() {
+        val week = _state.value.week
+        _state.update { it.copy(isWeekLoading = true, weekError = null) }
+        weekJob?.cancel()
+        weekJob = viewModelScope.launch {
+            val (from, to) = weekQueryRange(week)
+            val result = records.runs(RecordRepository.SELF, from, to)
+            _state.update { s ->
+                when {
+                    s.week != week -> s
+
+                    result is Outcome.Success -> s.copy(isWeekLoading = false, weekRuns = result.value.runs)
+
+                    result is Outcome.Failure -> s.copy(
+                        isWeekLoading = false,
+                        weekRuns = null,
+                        weekError = RunkkErrorText.of(result.error)
+                    )
+
+                    else -> s
+                }
+            }
+        }
+    }
+
+    fun onPreviousWeek() {
+        if (_state.value.canGoPreviousWeek) moveWeek(-1)
+    }
+
+    fun onNextWeek() {
+        if (_state.value.canGoNextWeek) moveWeek(1)
+    }
+
+    private fun moveWeek(delta: Long) {
+        _state.update { it.copy(week = it.week.plusWeeks(delta), weekRuns = null) }
+        refreshWeek()
     }
 
     /** 주간/월간 토글(G-14). 다시 읽지 않고 빈도 줄만 바꾼다. */
@@ -158,7 +199,9 @@ class RunBodyViewModel internal constructor(
         return true
     }
 
-    fun onPreviousMonth() = moveMonth(-1)
+    fun onPreviousMonth() {
+        if (_state.value.canGoPreviousMonth) moveMonth(-1)
+    }
 
     fun onNextMonth() {
         if (_state.value.canGoNextMonth) moveMonth(1)

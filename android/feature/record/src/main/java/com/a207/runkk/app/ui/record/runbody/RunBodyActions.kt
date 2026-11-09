@@ -20,6 +20,9 @@ class RunBodyActions(
     val onRetryMonth: () -> Unit = {},
     val onPeriod: (RunBodyPeriod) -> Unit = {},
     val onRetryTrend: () -> Unit = {},
+    val onPreviousWeek: () -> Unit = {},
+    val onNextWeek: () -> Unit = {},
+    val onRetryWeek: () -> Unit = {},
     val onEditProfile: () -> Unit = {},
     val onCoach: (() -> Unit)? = null
 )

@@ -290,6 +290,7 @@ class RunBodyControllerTest extends WebTestSupport {
                 .andExpect(jsonPath("$.recent").isEmpty())
                 .andExpect(jsonPath("$.previous").isEmpty())
                 .andExpect(jsonPath("$.sameHeartRatePaceChange").isEmpty())
-                .andExpect(jsonPath("$.runimalType").isEmpty());
+                .andExpect(jsonPath("$.runimalType").isEmpty())
+                .andExpect(jsonPath("$.firstRunAt").isEmpty());
     }
 }

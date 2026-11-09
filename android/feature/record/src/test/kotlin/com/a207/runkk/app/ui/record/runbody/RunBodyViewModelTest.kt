@@ -3,9 +3,11 @@ package com.a207.runkk.app.ui.record.runbody
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.domain.record.RecordList
 import com.a207.runkk.app.domain.record.RecordRepository
 import com.a207.runkk.app.domain.runbody.RunBodyRepository
 import com.a207.runkk.app.domain.runbody.RunBodyStatus
+import com.a207.runkk.app.domain.runbody.RunBodyTrend
 import com.a207.runkk.app.ui.record.FakeRecordRepository
 import com.a207.runkk.app.ui.record.MainDispatcherRule
 import com.a207.runkk.app.ui.record.R
@@ -33,13 +35,16 @@ class RunBodyViewModelTest {
 
     private fun viewModel() = RunBodyViewModel(records, runBody, clock, zone)
 
+    /** 이번 주(11/2 월 ~ 11/8 일) 기록 목록 읽기: 서버 날짜와 기기 날짜가 어긋나도 빠지지 않게 앞뒤 하루를 더한다. */
+    private val thisWeekCall = Triple(RecordRepository.SELF, LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 9))
+
     private fun advance(millis: Long) {
         main.dispatcher.scheduler.advanceTimeBy(millis)
         main.dispatcher.scheduler.runCurrent()
     }
 
     @Test
-    fun `처음에는 요약 탭이고 리포트와 최근 10회 변화만 읽으며 코멘트가 없으면 준비 중이다(FR-066, G-14, G-33)`() {
+    fun `처음에는 요약 탭이고 리포트와 최근 10회 변화, 이번 주 기록만 읽으며 코멘트가 없으면 준비 중이다(FR-066, G-14, G-33)`() {
         val vm = viewModel()
 
         assertEquals(RunBodyTab.SUMMARY, vm.state.value.tab)
@@ -49,7 +54,10 @@ class RunBodyViewModelTest {
         assertEquals(sampleTrend(), vm.state.value.trend)
         assertEquals(RunBodyPeriod.WEEK, vm.state.value.period)
         assertEquals(1, runBody.trendCalls)
-        assertEquals(emptyList(), records.runsCalls)
+        // 이번 주(11/2 월 ~ 11/8 일)를 앞뒤 하루 더 읽는다
+        assertEquals(listOf(thisWeekCall), records.runsCalls)
+        assertEquals(LocalDate.of(2026, 11, 2), vm.state.value.week)
+        assertFalse(vm.state.value.isWeekLoading)
         assertEquals(emptyList(), runBody.sessionCalls)
         assertEquals(0, runBody.scoresCalls)
     }
@@ -64,7 +72,7 @@ class RunBodyViewModelTest {
         assertEquals(LocalDate.of(2026, 11, 8), vm.state.value.today)
         assertEquals(YearMonth.of(2026, 11), vm.state.value.month)
         vm.onTab(RunBodyTab.RUN)
-        assertEquals(LocalDate.of(2026, 11, 8), records.runsCalls.single().third)
+        assertEquals(LocalDate.of(2026, 11, 8), records.runsCalls.last().third)
         assertEquals(LocalDate.of(2026, 11, 8), vm.state.value.today)
     }
 
@@ -77,7 +85,7 @@ class RunBodyViewModelTest {
         vm.onTab(RunBodyTab.RUN)
 
         assertEquals(
-            listOf(Triple(RecordRepository.SELF, LocalDate.of(2026, 8, 10), LocalDate.of(2026, 11, 7))),
+            listOf(thisWeekCall, Triple(RecordRepository.SELF, LocalDate.of(2026, 8, 10), LocalDate.of(2026, 11, 7))),
             records.runsCalls
         )
         assertEquals("r3", vm.state.value.selectedRecordId)
@@ -242,6 +250,60 @@ class RunBodyViewModelTest {
         assertEquals(listOf(YearMonth.of(2026, 11), YearMonth.of(2026, 10)), runBody.monthCalls)
         assertEquals(YearMonth.of(2026, 10), vm.state.value.monthData?.month)
         assertTrue(vm.state.value.canGoNextMonth)
+    }
+
+    @Test
+    fun `월간은 첫 러닝 달 앞으로 가지 않고, 유효 러닝이 없으면 이번 달에 머문다`() {
+        runBody.trendReply = Outcome.Success(sampleTrend().copy(firstRunAt = Instant.parse("2026-09-30T16:00:00Z")))
+        val vm = viewModel()
+        vm.onTab(RunBodyTab.MONTH)
+
+        // 한국 시각 10월 1일 01시가 첫 러닝이라 10월까지만 간다
+        vm.onPreviousMonth()
+        assertFalse(vm.state.value.canGoPreviousMonth)
+        vm.onPreviousMonth()
+        assertEquals(listOf(YearMonth.of(2026, 11), YearMonth.of(2026, 10)), runBody.monthCalls)
+
+        runBody.trendReply = Outcome.Success(RunBodyTrend(0, 0, 10, null, null, null, null))
+        vm.refreshTrend()
+        assertFalse(vm.state.value.canGoPreviousMonth)
+    }
+
+    @Test
+    fun `주간 러닝 기록은 주를 넘기면 그 주를 읽고 이번 주 뒤와 첫 러닝 주 앞으로는 가지 않는다(G-14)`() {
+        runBody.trendReply = Outcome.Success(sampleTrend().copy(firstRunAt = Instant.parse("2026-10-28T23:00:00Z")))
+        val vm = viewModel()
+
+        assertFalse(vm.state.value.canGoNextWeek)
+        vm.onNextWeek()
+        vm.onPreviousWeek()
+        assertEquals(LocalDate.of(2026, 10, 26), vm.state.value.week)
+        assertFalse(vm.state.value.canGoPreviousWeek, "첫 러닝(한국 10/29)이 든 주")
+        vm.onPreviousWeek()
+        vm.onNextWeek()
+
+        assertEquals(
+            listOf(
+                thisWeekCall,
+                Triple(RecordRepository.SELF, LocalDate.of(2026, 10, 25), LocalDate.of(2026, 11, 2)),
+                thisWeekCall
+            ),
+            records.runsCalls
+        )
+        assertEquals(LocalDate.of(2026, 11, 2), vm.state.value.week)
+    }
+
+    @Test
+    fun `주간 러닝 기록을 읽지 못하면 오류를 두고 다시 읽는다`() {
+        records.runsResult = Outcome.Failure(AppError.Network)
+        val vm = viewModel()
+
+        assertTrue(vm.state.value.weekError != null)
+        assertEquals(null, vm.state.value.weekRecord)
+        records.runsResult = Outcome.Success(RecordList(emptyList()))
+        vm.refreshWeek()
+        assertEquals(null, vm.state.value.weekError)
+        assertEquals(0, vm.state.value.weekRecord?.runs)
     }
 
     @Test
