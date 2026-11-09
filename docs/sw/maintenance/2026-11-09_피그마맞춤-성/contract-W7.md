@@ -14,9 +14,10 @@
 | 3 | `GET /crews/{id}/goals/history` | **새 API**: 지난 공동 목표 목록(주 단위, 페이지) | 크루원 |
 | - | `PATCH /me/profile` | 변경 없음. F-23 나이·성별 공개 토글이 이 API를 쓴다 | 본인 |
 | - | `PATCH /crews/{id}/me` | 변경 없음. 한 줄 소개(`intro`)만 | 크루원 |
-| - | `POST /crews/{id}/invite-code`, 운영진 지정·해제 API | 변경 없음. **서버에 남기고 앱 화면에서만 뺀다**(결정 C5) | 크루장 |
+| 4 | `GET /crews/{id}`, `GET /crews/me` | 응답 형식은 그대로(W4가 필드 추가). **동작 변경**: 크루원이 읽을 때 초대 코드가 만료(발급 뒤 7일)됐으면 서버가 그 자리에서 새 코드를 발급해 `inviteCode`·`inviteCodeExpiresAt`에 준다. 크루 밖 사람의 조회는 코드를 바꾸지 않는다 | 기존과 같음 |
+| - | `POST /crews/{id}/invite-code`, `PUT`·`DELETE /crews/{id}/managers/{memberId}` | 변경 없음. **서버에 남기고 앱 화면에서만 뺀다**(결정 C5) | 크루장 |
 
-Flyway: **없음.** 크루 가입일은 기존 `crew_membership.joined_at`(V10부터 있음, NOT NULL)을 그대로 응답에 싣는다. 기존 행도 모두 값이 있어 채울 것이 없다. 누적 거리·지난 목표는 기존 `race_contribution`·`weekly_race`에서 계산한다.
+Flyway: **`V59__crew_manager_to_member.sql`** — 기존 운영진(`crew_membership.role = 'MANAGER'`)을 모두 `MEMBER`로 바꾼다(운영진 지정 화면 삭제, 결정 C5). MANAGER 역할 값·CHECK 제약·운영진 API는 남긴다. 크루 가입일은 기존 `crew_membership.joined_at`(V10부터 있음, NOT NULL)을 그대로 응답에 싣는다(기존 행도 모두 값이 있어 채울 것이 없다). 누적 거리·지난 목표는 기존 `race_contribution`·`weekly_race`에서 계산한다. V60·V61은 쓰지 않았다.
 
 ## 2. `GET /crews/{id}/members` — 크루원 목록 (F-22·F-29, 팝업 F-22b·F-29b)
 
@@ -34,7 +35,7 @@ Flyway: **없음.** 크루 가입일은 기존 `crew_membership.joined_at`(V10�
 |---|---|---|---|
 | `memberId` | number(long) | 아니오 | 회원 ID |
 | `displayName` | string | 아니오 | 표시명 |
-| `role` | string | 아니오 | `CrewRole`: `LEADER` \| `MANAGER` \| `MEMBER`. 피그마는 크루장 배지만 그린다(MANAGER는 배지 없이 MEMBER처럼 그린다) |
+| `role` | string | 아니오 | `CrewRole`: `LEADER` \| `MANAGER` \| `MEMBER`. V59 뒤로 화면에서 운영진을 만들 수 없어 사실상 `LEADER`·`MEMBER`뿐이다(남은 API로 MANAGER가 생기면 배지 없이 MEMBER처럼 그린다). 피그마는 크루장 배지만 그린다 |
 | `crewIntro` | string | 예 | 크루 내 한 줄 소개(40자 이하) |
 | `tier` | string | 예 | `Tier`: `UNRANKED` \| `BRONZE` \| `SILVER` \| `GOLD` \| `PLATINUM` \| `MASTER` |
 | `runimalType` | string | 예 | Runimal 유형(기존) |
@@ -43,7 +44,7 @@ Flyway: **없음.** 크루 가입일은 기존 `crew_membership.joined_at`(V10�
 | `joinedAt` | string(OffsetDateTime) | 아니오 | **[새]** 지금 소속의 크루 가입 일시. 팝업 "가입일"은 `yyyy. MM. dd` |
 | `level` | number(int) | 예 | **[새]** 레벨(늘 공개). 회원 정보를 못 읽으면 null |
 | `ageBand` | string | 예 | **[새]** 나이대 `"20대"`. 다른 크루원은 나이 공개(`ageBandVisibility = PUBLIC`)일 때만 값, 비공개·미입력이면 null. 본인은 공개 설정과 무관하게 값(미입력이면 null) |
-| `gender` | string | 예 | **[새]** `Gender`: `FEMALE` \| `MALE` \| `UNDISCLOSED`. 다른 크루원은 성별 공개일 때만 값, 비공개·미입력이면 null. 본인은 공개 설정과 무관하게 값 |
+| `gender` | string | 예 | **[새]** `Gender` 이름: `FEMALE` \| `MALE` \| `UNDISCLOSED`. 다른 크루원은 성별 공개일 때만 값, 비공개·미입력이면 null. 본인은 공개 설정과 무관하게 값 |
 | `ageBandVisibility` | string | 예 | **[새]** `ProfileVisibility`: `PUBLIC` \| `PRIVATE`. **본인 줄(`me = true`)에만 값**, 다른 크루원은 null |
 | `genderVisibility` | string | 예 | **[새]** 같은 규칙(본인만) |
 
@@ -195,22 +196,25 @@ Flyway: **없음.** 크루 가입일은 기존 `crew_membership.joined_at`(V10�
 
 ### 6.2 화면·UiState (제안)
 
-- **크루 관리 화면 해체**(결정): `Routes.CrewManage`, `CrewManageScreens`, `CrewManageViewModel`, 크루원 바텀시트 `MemberMenuSheet`, `CrewStaffConfirmDialog`(운영진 지정), 초대 코드 재발급 카드, ⋯ 메뉴 "크루 관리" 항목을 지운다. 기능은 아래로 옮긴다.
+- **크루 관리 화면 해체**(결정): `Routes.CrewManage` 계열, `CrewManageScreens`, `CrewManageViewModel`, 크루원 바텀시트 `MemberMenuSheet`, `CrewStaffConfirmDialog`(운영진 지정), 초대 코드 재발급 카드·"M.d까지 사용할 수 있어요" 문구, ⋯ 메뉴 "크루 관리" 항목을 지운다. 기능은 아래로 옮긴다. 초대 코드 팝업(F-18b/F-25b)은 `GET /crews/{id}`의 `inviteCode`만 보이면 된다(서버가 만료 전 코드를 준다).
+- 새 경로(조정자 결정): `Routes.CrewPastRuns(crewId)`(F-20, W6 API), `Routes.CrewPastGoals(crewId)`(F-21, 이 문서 4장).
+- 상태는 `CrewHomeUiState` 하나에 모은다(조정자 결정): `openedMember`(팝업 대상), `confirmTransfer`(F-29c 대상), `confirmKick`(F-29d 대상), `requests`(F-25 가입 신청), `isConfirmingCrewDelete`(F-27), `isAgePublic`·`isGenderPublic`(F-23 토글, 본인 줄 `ageBandVisibility`·`genderVisibility == PUBLIC`). 아래 제안 형태는 이 이름에 맞춰 읽는다.
 - 크루 정보(F-18·F-25) UiState에 추가: `requests: List<JoinRequestItem>`(크루장·운영진만 채움), `onApprove(requestId)`, `onReject(requestId)`, "지난 크루런 ›"·"지난 목표 ›" 이동, 크루장만 "수정"(F-26)·"크루 삭제하기"(F-27).
-- 크루원(F-22·F-29) UiState 제안:
+- `CrewHomeUiState` 추가 필드 제안(조정자 이름 그대로):
   ```kotlin
-  data class CrewMembersUiState(
-      val me: CrewMember?,                 // me = true 줄. 내 정보 카드·F-23 시트 초깃값
-      val members: List<CrewMember>,       // 서버 순서
-      val openedMember: CrewMember? = null,// 팝업(F-22b/F-29b) 대상. 목록 값을 그대로 씀(추가 조회 없음)
-      val canManage: Boolean,              // myRole == LEADER 일 때만 팝업에 "크루장 넘기기"·"내보내기"
-      val confirm: MemberConfirm? = null,  // TransferLeader(member) | Kick(member) → F-29c/F-29d
-      val editSheet: MyInfoSheet? = null,  // F-23: intro, ageBandPublic, genderPublic, saving
-  )
+  val members: List<CrewMember>            // 서버 순서(누적 거리 내림차순). me = true 줄이 내 정보 카드
+  val requests: List<JoinRequestItem>      // F-25 가입 신청(크루장·운영진만 채움, 아니면 빈 목록)
+  val openedMember: CrewMember? = null     // F-22b/F-29b 팝업 대상. 목록 값을 그대로 씀(추가 조회 없음)
+  val confirmTransfer: CrewMember? = null  // F-29c "[닉네임] 님에게 크루장을 넘길까요?"
+  val confirmKick: CrewMember? = null      // F-29d "[닉네임] 님을 내보낼까요?"
+  val isConfirmingCrewDelete: Boolean = false // F-27
+  val isAgePublic: Boolean                 // F-23 토글 초깃값 = 본인 줄 ageBandVisibility == "PUBLIC"
+  val isGenderPublic: Boolean              // = 본인 줄 genderVisibility == "PUBLIC"
   ```
-  팝업 버튼은 대상이 본인이면 보이지 않는다. 운영진(MANAGER)에게도 넘기기·내보내기는 보이지 않는다(서버도 크루장만 허용).
+  팝업의 "크루장 넘기기"·"내보내기"는 `myRole == LEADER`이고 대상이 본인이 아닐 때만 보인다.
+  운영진(MANAGER)에게도 넘기기·내보내기는 보이지 않는다(서버도 크루장만 허용).
 - F-23 저장: 소개가 바뀌었으면 `PATCH /crews/{id}/me`, 토글이 바뀌었으면 `PATCH /me/profile`(바뀐 항목만). 둘 다 성공하면 크루원 목록 다시 읽기. 하나라도 실패하면 시트를 닫지 않고 오류 표시.
-- 지난 목표(F-21) 새 화면: `CrewGoalHistoryUiState(goals, nextBefore, loadingMore, error)`, 끝까지 스크롤하면 `nextBefore`로 다음 페이지. 카드 1줄 `"${month}월 ${weekOfMonth}주차"`, 2줄 `totalMeters/1000` 소수 첫째 자리 + `"/ ${goalMeters/1000} km"` + `"${progressPercent}%"`, 막대 채움 `min(progressPercent, 100)`, 3줄 `"참여 ${participantCount}명"`. 빈 목록 문구는 앱이 정한다.
+- 지난 목표(F-21) 새 화면(`Routes.CrewPastGoals`): `CrewGoalHistoryUiState(goals, nextBefore, loadingMore, error)`, 끝까지 스크롤하면 `nextBefore`로 다음 페이지. 카드 1줄 `"${month}월 ${weekOfMonth}주차"`, 2줄 `totalMeters/1000` 소수 첫째 자리 + `"/ ${goalMeters/1000} km"` + `"${progressPercent}%"`, 막대 채움 `min(progressPercent, 100)`, 3줄 `"참여 ${participantCount}명"`. 빈 목록 문구는 앱이 정한다.
 - 내보내기 확인 문구는 피그마 그대로 "내보낸 크루원은 다시 가입 신청을 해야 해요."(결정 C10, 서버 24시간 재가입 제한은 그대로다).
 - 계약 동기화: `python android/contract/sync_from_server.py`로 `android/contract/`를 서버 기준 파일(`backend/src/test/resources/contract/app/dto-records.json`)과 맞춘다.
 
@@ -228,3 +232,6 @@ Flyway: **없음.** 크루 가입일은 기존 `crew_membership.joined_at`(V10�
 | W7-8 | 지난 목표 "달성"은 그 주 달성 기록(`achieved_at`) 기준, 진행률은 100 초과 허용 | 알림을 보낸 사실과 일치. 결정 C2 |
 | W7-9 | "N월 N주차"는 서버가 목요일 기준으로 계산해 준다 | 월 경계 주의 표기를 앱·서버가 따로 정하지 않게 |
 | W7-10 | 초대 코드 재발급·운영진 지정/해제 API는 그대로 둔다 | 결정 C5(화면에서만 삭제) |
+| W7-11 | 크루원이 크루 상세·내 크루를 읽을 때 만료된 초대 코드를 새로 발급한다(`InviteCodeRenewal`, 새 쓰기 트랜잭션에서 크루 행 잠금 뒤 다시 확인) | 재발급 화면이 없어도 크루원이 늘 쓸 수 있는 코드를 본다(조정자 결정). 크루 상세 응답 형식은 W4 몫이라 조회 서비스에서만 바꿨다 |
+| W7-12 | V59로 기존 운영진을 모두 크루원으로 바꾼다(퇴장 행 포함) | 운영진 지정 화면 삭제(조정자 결정). 퇴장 행의 역할은 읽는 곳이 없다 |
+| W7-13 | web 응답의 `gender`·`ageBandVisibility`·`genderVisibility`는 enum 이름 문자열 | web.crew는 member 형식을 쓰지 않는다(ArchUnit 13.1 규칙 1). JSON은 같다 |

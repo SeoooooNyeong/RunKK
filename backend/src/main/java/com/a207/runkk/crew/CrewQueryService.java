@@ -40,6 +40,7 @@ public class CrewQueryService {
     private final MemberQueryService memberQueryService;
     private final RunQueryService runQueryService;
     private final WeeklyRaceRepository weeklyRaceRepository;
+    private final InviteCodeRenewal inviteCodeRenewal;
     private final Clock clock;
 
     CrewQueryService(
@@ -49,6 +50,7 @@ public class CrewQueryService {
             MemberQueryService memberQueryService,
             RunQueryService runQueryService,
             WeeklyRaceRepository weeklyRaceRepository,
+            InviteCodeRenewal inviteCodeRenewal,
             Clock clock) {
         this.crewRepository = crewRepository;
         this.crewAccess = crewAccess;
@@ -56,6 +58,7 @@ public class CrewQueryService {
         this.memberQueryService = memberQueryService;
         this.runQueryService = runQueryService;
         this.weeklyRaceRepository = weeklyRaceRepository;
+        this.inviteCodeRenewal = inviteCodeRenewal;
         this.clock = clock;
     }
 
@@ -206,7 +209,7 @@ public class CrewQueryService {
 
     /**
      * 크루 한 곳(GET /crews/{id}). 공개 크루는 누구나, 비공개 크루는 크루원만 본다(비공개 크루는 목록·검색에 나오지 않음, Q-38). 초대 코드는
-     * 크루장에게만 담는다.
+     * 크루원에게만 담고(F-18b), 7일이 지났으면 읽는 자리에서 새로 발급한다(InviteCodeRenewal, 피그마 맞춤 W7).
      */
     public CrewDetailView detail(long viewerId, long crewId) {
         Crew crew = crewAccess.require(crewId);
@@ -261,7 +264,15 @@ public class CrewQueryService {
                 crewRepository.weeklyDistance(crew.getId(), thisWeek()),
                 crewRepository.weeklyDistance(crew.getId(), thisWeek().previous()),
                 role,
-                role == null ? null : crew.inviteCode());
+                role == null ? null : validInviteCode(crew));
+    }
+
+    /** 크루원에게 보일 초대 코드. 7일이 지났으면 새로 발급한다(재발급 화면 삭제, 피그마 맞춤 W7). */
+    private InviteCode validInviteCode(Crew crew) {
+        InviteCode code = crew.inviteCode();
+        return code.isValidAt(LocalDateTime.now(clock))
+                ? code
+                : inviteCodeRenewal.currentOf(crew.getId());
     }
 
     private Optional<Long> ownCrewId(long memberId) {
