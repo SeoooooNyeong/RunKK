@@ -3,7 +3,7 @@ import {toFile} from 'openai';
 import {alignAiParts} from './ai-layer-align.mjs';
 
 const partPrompts = {
-  hair: 'PIXEL-FAITHFUL PART EXTRACTION. Keep only the exact hairstyle, both eyebrows, and the original eyeglasses from IMAGE 1. Eyeglasses belong to this hair layer so the frames move with the hair: retain both rims, bridge, nose pads and visible temple arms in their exact positions. Keep lenses optically clear/transparent; do not include ANY eye content inside the lenses. The eyes are a separate layer and must not appear in this layer, even if the source shows eyes behind the glasses. Preserve every original hair strand, bangs, hairline, bun/ponytail if present, silhouette, color, shading and highlight at its original position. Eyebrows belong to this layer. Eyelashes and eyelid crease lines do NOT: remove upper/lower eyelashes, eyeliner, eye corners, sclera, iris, pupils, highlights, eyelid folds/creases and all face skin. Do not create replacement hair, fill the face opening, or invent/change the hairstyle. Everything outside the original hair, eyebrow and eyeglass-frame pixels is fully transparent.',
+  hair: 'PIXEL-FAITHFUL PART EXTRACTION. Keep only the exact hairstyle, both eyebrows, and the original eyeglasses from IMAGE 1. Eyeglasses belong to this hair layer so the frames move with the hair: retain both rims, bridge, nose pads and visible temple arms in their exact positions. Keep lenses optically clear/transparent; do not include eyes, skin, glare or reflections inside the lens area. Preserve every original hair strand, bangs, hairline, bun/ponytail if present, silhouette, color, shading and highlight at its original position. Eyebrows belong to this layer. Eyelashes and eyelid crease lines do NOT: remove upper/lower eyelashes, eyeliner, eye corners, sclera, iris, pupils, highlights, eyelid folds/creases and all face skin. Do not create replacement hair, fill the face opening, or invent/change the hairstyle. Everything outside the original hair, eyebrow and eyeglass pixels is fully transparent.',
   eyes: 'PIXEL-FAITHFUL PART EXTRACTION. Keep only the original visible eye(s) from IMAGE 1, including sclera, iris, pupil, highlights, upper/lower eyelid contours, eyeliner and eyelashes. Preserve exact shape, expression, size and source positions. Double-eyelid crease lines belong to the FACE layer, and eyeglasses belong to the HAIR layer: do not include either in this eyes layer. Eyebrows are also NOT part of the eyes: remove them completely. Remove glasses frames, bridge, arms, lens tint/reflections, bangs/hair, forehead and all other facial skin, nose, mouth, ears and neck; those pixels must be fully transparent. Do not redraw, beautify, enlarge, separate or reposition the eyes.',
   face: 'PIXEL-FAITHFUL FACE BASE EXTRACTION. Keep the exact original face shape and skin from IMAGE 1, including forehead, nose, mouth, ears and short neck. This is the base onto which the separate eye and hair-with-glasses layers will be overlaid. Erase eye contents (sclera, iris, pupil, highlights, eyeliner, eye-corner marks and eyelashes) and replace those regions with continuous naturally shaded skin sampled/reconstructed from adjacent skin. Preserve the original double-eyelid crease line(s) as part of the face skin at their exact positions. Remove eyeglasses frames, bridge, nose pads, temple arms and lens artifacts, and naturally reconstruct skin where they covered it. Also remove all hair, bangs and eyebrows and naturally reconstruct the skin underneath. Do not leave eye-shaped holes, white patches, rectangular fill boundaries, blur smears, ghost eye contents, or glasses marks. Do not alter the face outline, nose, mouth, ears, neck or overall face position.'
 };
@@ -47,13 +47,18 @@ async function estimateHairTransform(client,visionModel,master,hair){
   return {scale,offsetX,offsetY};
 }
 
-async function oneLayer(master, part, {client,imageModel,quality,direction,landmarks,eyeBoxes}) {
+async function oneLayer(master, part, {client,imageModel,quality,direction,landmarks,glassesPresent}) {
   const profile = direction === 'right';
-  const eyeBoxRule=eyeBoxes?`CANONICAL EYE REGIONS on the source 1024x1024 canvas: left eye x=${eyeBoxes.leftEye.left}..${eyeBoxes.leftEye.right}, y=${eyeBoxes.leftEye.top}..${eyeBoxes.leftEye.bottom}; right eye x=${eyeBoxes.rightEye.left}..${eyeBoxes.rightEye.right}, y=${eyeBoxes.rightEye.top}..${eyeBoxes.rightEye.bottom}. Keep eye pixels confined to these anatomical boxes; the hair layer must be transparent over both eye boxes except glasses frame pixels at the outer rim.`:'Use actual visible eye position in IMAGE 1; do not invent hidden eye parts.';
+  const glassesRule=glassesPresent===true
+    ? 'The source visibly has eyeglasses. Keep only their original frame pixels in the hair layer, exactly in place; remove glasses from face and eyes layers.'
+    : 'The source has no eyeglasses. Do not invent, extract, or add any glasses in any layer.';
+  const partPrompt=part==='hair'
+    ? `PIXEL-FAITHFUL PART EXTRACTION. Keep only the exact hairstyle and both eyebrows. ${glassesRule} If present, glasses belong on this same hair layer so the frames move with hair. Preserve every original hair strand, bangs, hairline, bun/ponytail, silhouette, color, shading and highlight at the original position. Eyebrows belong to this layer. Eyelashes and eyelid crease lines do NOT: remove eyelashes, eyeliner, eye corners, sclera, iris, pupils, highlights, eyelid folds/creases and face skin. Do not create replacement hair or fill face opening. Everything outside original hair, eyebrows${glassesPresent===true?' and glasses':''} is fully transparent.`
+    : partPrompts[part];
   const eyeScope = profile
     ? 'For the eyes part, retain ONLY the single visible near-side eye in this right-facing profile. Do not invent, reveal or add a far-side/second eye.'
     : 'For the eyes part, retain both visible eyes in the front-facing source.';
-  const prompt = `This is an ASSET EXTRACTION from IMAGE 1, NOT a new character illustration. ${sharedLandmarkRule(landmarks)} ${eyeBoxRule} Delete unwanted content and preserve only the requested pixels and their positions. ${partPrompts[part]} ${eyeScope} ${profile ? 'Preserve the exact right-facing profile and wind-swept hair pose from IMAGE 1.' : 'Preserve the exact front-facing pose from IMAGE 1.'} Use the input canvas unchanged at 1024x1024. Do not move, resize, recenter, mirror, redraw, stylize or replace the character. Put only this requested part at exactly the source x/y coordinates. All removed content and background must be alpha 0; no colored background, white face holes, head duplicate, clothes, text or extra objects.`;
+  const prompt = `This is an ASSET EXTRACTION from IMAGE 1, NOT a new character illustration. ${sharedLandmarkRule(landmarks)} Delete unwanted content and preserve only the requested pixels and their positions. ${partPrompt} ${glassesRule} ${eyeScope} ${profile ? 'Preserve the exact right-facing profile and wind-swept hair pose from IMAGE 1.' : 'Preserve the exact front-facing pose from IMAGE 1.'} Use the input canvas unchanged at 1024x1024. Do not move, resize, recenter, mirror, redraw, stylize or replace the character. Put only this requested part at exactly the source x/y coordinates. All removed content and background must be alpha 0; no colored background, white face holes, head duplicate, clothes, text or extra objects.`;
   const result = await client.images.edit({
     model:imageModel,
     image:[await toFile(master,'source-head.png',{type:'image/png'})],
@@ -73,24 +78,28 @@ async function oneLayer(master, part, {client,imageModel,quality,direction,landm
 }
 
 export async function splitAiLayers(master,options={}) {
-  const {client,imageModel,visionModel,quality='high',direction='front',landmarks,eyeBoxes}=options;
+  const {client,imageModel,visionModel,quality='high',direction='front',landmarks,glassesPresent}=options;
   if(!client||!imageModel)throw fail('전체','이미지 모델 연결 정보가 없어요.');
   let parts={};
   // Sequential calls keep one request's credit use bounded if a layer fails.
-  for(const part of ['face','eyes','hair']) parts[part]=await oneLayer(master,part,{client,imageModel,quality,direction,landmarks,eyeBoxes});
-  let hairTransform=null;
-  if(visionModel){try{hairTransform=await estimateHairTransform(client,visionModel,master,parts.hair);}catch{/* Keep the shared-canvas alignment fallback if the vision estimate is unavailable. */}}
-  const aligned=await alignAiParts(master,parts,{direction,hairTransform,eyeBoxes});
-  parts=aligned.parts;
+  for(const part of ['face','eyes','hair']) parts[part]=await oneLayer(master,part,{client,imageModel,quality,direction,landmarks,glassesPresent});
+  let aligned=null;
+  let verdict={};
   if(visionModel){
     const images=[master,parts.face,parts.eyes,parts.hair].map(image=>({type:'image_url',image_url:{url:`data:image/png;base64,${image.toString('base64')}`,detail:'high'}}));
     const eyeScope=direction==='right'?'IMAGE 3 must contain ONLY the one visible near-side eye in the right-facing profile; a far/second eye must not be added.':'IMAGE 3 must contain the two original front-facing eyes.';
-    const review=await client.chat.completions.create({model:visionModel,temperature:0,max_tokens:220,response_format:{type:'json_object'},messages:[
+    const glassesCheck=glassesPresent===true?'The source has glasses; IMAGE 4 must retain them and IMAGE 2/3 must not contain them.':'The source has no glasses; do not invent any in IMAGE 4.';
+    const review=await client.chat.completions.create({model:visionModel,temperature:0,max_tokens:650,response_format:{type:'json_object'},messages:[
       {role:'system',content:'Inspect the four images strictly. Return JSON only; false if unsure.'},
-      {role:'user',content:[{type:'text',text:`IMAGE 1 is the source. Audit strict layer ownership and registration. IMAGE 2 (face base) must retain face/nose/mouth/ears/neck and original double-eyelid crease lines, while eye contents are replaced with natural continuous skin; it has no hair, brows or glasses. IMAGE 3 is the eye layer: ${eyeScope} It includes sclera/iris/pupil/highlights, eyeliner and lashes, but no hair strands, eyebrow, glasses or double-eyelid crease. IMAGE 4 contains only hair, brows and glasses frames; the lenses are transparent and contain NO eye pixels. Check specifically that the eye interiors are absent from IMAGE 4 and no hair or white artifacts contaminate IMAGE 3. Verify source coordinates and unchanged hairstyle. Return JSON only: {"faceOnly":true,"eyesOnly":true,"hairOnly":true,"sameHair":true,"aligned":true}. Mark false if a requirement is visibly violated or uncertain.`},...images]}
+      {role:'user',content:[{type:'text',text:`IMAGE 1 is the complete source avatar and placement standard. IMAGE 2 is the face-only layer (face outline, nose, mouth, ears and neck); IMAGE 3 is the eyes-only layer; IMAGE 4 is the hair, eyebrows and optional glasses layer. Audit ownership as before. ${eyeScope} ${glassesCheck}
+All four files are 1024x1024 with origin at top-left. Also return semantic bounding boxes for the visible intended content, in PIXEL coordinates 0..1023: boxes.source.face = face outline including ears and neck but excluding hair; boxes.source.eyes = both eyes or only the visible near eye for right profile, including lashes; boxes.source.hair = hair silhouette plus eyebrows and glasses only if present. Return corresponding boxes.layers.face, boxes.layers.eyes, boxes.layers.hair for the same content in IMAGES 2,3,4. Each box is {left,top,right,bottom}; do not include transparent canvas margins or unrelated features. These boxes are used to register the extracted part to the exact source proportions while preserving aspect ratio. Return JSON: {"faceOnly":true,"eyesOnly":true,"hairOnly":true,"sameHair":true,"glassesRuleSatisfied":true,"boxes":{"source":{"face":{"left":0,"top":0,"right":0,"bottom":0},"eyes":{"left":0,"top":0,"right":0,"bottom":0},"hair":{"left":0,"top":0,"right":0,"bottom":0}},"layers":{"face":{"left":0,"top":0,"right":0,"bottom":0},"eyes":{"left":0,"top":0,"right":0,"bottom":0},"hair":{"left":0,"top":0,"right":0,"bottom":0}}}}.`},...images]}
     ]});
-    let verdict;try{verdict=JSON.parse(review.choices?.[0]?.message?.content||'');}catch{throw fail('전체','파츠 확인 응답을 읽지 못했어요.');}
-    if(['faceOnly','eyesOnly','hairOnly','sameHair','aligned'].some(key=>verdict[key]!==true))throw fail('전체','원본과 다른 헤어가 생성되거나 파츠가 섞여 결과를 적용하지 않았어요.');
+    try{verdict=JSON.parse(review.choices?.[0]?.message?.content||'');}catch{verdict={};}
+    const failed=['faceOnly','eyesOnly','hairOnly','sameHair','glassesRuleSatisfied'].filter(key=>verdict[key]===false);
+    if(failed.length)throw fail('전체',`AI 검수에서 파츠 소유권 불일치를 발견했어요 (${failed.join(', ')}).`);
+    aligned=await alignAiParts(master,parts,{sourceBoxes:verdict.boxes?.source,layerBoxes:verdict.boxes?.layers});
   }
-  return {...parts,validation:{method:'ai-image-edit-3-parts',model:imageModel,direction,imageCalls:3,canvas:[1024,1024],alignment:aligned.metrics}};
+  if(!aligned)aligned=await alignAiParts(master,parts,{direction});
+  parts=aligned.parts;
+  return {...parts,validation:{method:'ai-image-edit-3-parts',model:imageModel,direction,glassesPresent:glassesPresent===true,imageCalls:3,canvas:[1024,1024],alignment:aligned.metrics}};
 }

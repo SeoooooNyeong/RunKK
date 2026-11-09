@@ -49,24 +49,9 @@
     }
     return frames;
   }
-  function inspect(face,eyes,width,height,eyeBoxes=null){
+  function inspect(face,eyes,width,height){
     const total=width*height;
     if(face.length!==total*4||eyes.length!==total*4)return null;
-    if(eyeBoxes){
-      const boxes=['leftEye','rightEye'].map(key=>{
-        const b=eyeBoxes[key];
-        if(!b||![b.left,b.top,b.right,b.bottom].every(Number.isFinite))return null;
-        const left=Math.max(0,Math.round(b.left*width/1024)),top=Math.max(0,Math.round(b.top*height/1024));
-        const right=Math.min(width-1,Math.round(b.right*width/1024)),bottom=Math.min(height-1,Math.round(b.bottom*height/1024));
-        if(right-left<width*.025||bottom-top<height*.018)return null;
-        return {left,right,top,bottom,width:right-left+1,height:bottom-top+1};
-      });
-      if(boxes.some(box=>!box))return null;
-      boxes.sort((a,b)=>a.left-b.left);
-      if(boxes[1].left-boxes[0].right<width*.06||Math.abs(boxes[0].top+boxes[0].bottom-boxes[1].top-boxes[1].bottom)>height*.16)return null;
-      for(const box of boxes)box.eyeRect={left:box.left,top:box.top,width:box.width,height:box.height};
-      return {boxes,width,height,method:'vision-eye-boxes'};
-    }
     const seen=new Uint8Array(total),queue=new Int32Array(total),components=[];
     for(let start=0;start<total;start++){
       if(seen[start]||eyes[start*4+3]<32)continue;
@@ -84,10 +69,10 @@
     for(const box of boxes)box.eyeRect={left:box.left,top:box.top,width:box.width,height:box.height};
     return {boxes,width,height};
   }
-  function prepare(faceCanvas,eyesCanvas,templates,eyeBoxes=null){
+  function prepare(faceCanvas,eyesCanvas,templates){
     const width=faceCanvas.width,height=faceCanvas.height;
     if(eyesCanvas.width!==width||eyesCanvas.height!==height)return null;
-    const rig=inspect(faceCanvas.getContext('2d').getImageData(0,0,width,height).data,eyesCanvas.getContext('2d').getImageData(0,0,width,height).data,width,height,eyeBoxes);
+    const rig=inspect(faceCanvas.getContext('2d').getImageData(0,0,width,height).data,eyesCanvas.getContext('2d').getImageData(0,0,width,height).data,width,height);
     if(!rig)return null;
     if(!templates)return null;
     const prepared={...rig,face:faceCanvas,eyes:eyesCanvas};

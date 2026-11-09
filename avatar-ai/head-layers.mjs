@@ -3,18 +3,18 @@ import sharp from 'sharp';
 import {splitAiLayers} from './ai-head-layers.mjs';
 
 export const HEAD_LAYER_VERSION = 'runkk-coherent-head-v2';
-export const HEAD_SEGMENTATION_VERSION = 'runkk-ai-source-pixels-v42';
+export const HEAD_SEGMENTATION_VERSION = 'runkk-ai-source-pixels-v44';
 export const HEAD_LAYOUT = Object.freeze({
   version: HEAD_LAYER_VERSION,
   segmentationVersion: HEAD_SEGMENTATION_VERSION,
   canvas: [1024, 1024],
   coordinateSpace: 'shared-source',
   landmarkSpace: 'source-canvas-1024',
-  eyeBoxSpace: 'source-canvas-1024',
   layers: ['face', 'eyes', 'hair'],
   faceIncludes: ['nose', 'mouth', 'ears', 'neck', 'eyelidCreases'],
   eyesIncludes: ['eyes', 'eyelashes'],
-  hairIncludes: ['hair', 'eyebrows', 'glasses'],
+  hairIncludes: ['hair', 'eyebrows'],
+  optionalHairIncludes: ['glasses'],
   independentTransforms: false
 });
 
@@ -46,8 +46,8 @@ export async function analyzeHeadRegions(client, model, image) {
     model, temperature: 0, max_tokens: 700, response_format: {type: 'json_object'},
     messages: [
       {role: 'system', content: 'Inspect the illustrated head. Return JSON only. Never invent hidden or absent features.'},
-      {role: 'user', content: [
-        {type: 'text', text: 'Return JSON with features:{bothEyes,nose,mouth,visibleNeckStub}, skinPalette:0, neck:{x,y}, landmarks:{leftEye:{x,y},rightEye:{x,y},leftEyebrow:{x,y},rightEyebrow:{x,y},nose:{x,y},mouth:{x,y},chin:{x,y},hairCrown:{x,y}}, and eyeBoxes:{leftEye:{left,top,right,bottom},rightEye:{left,top,right,bottom}}. Every coordinate is normalized 0..1000 across the FULL 1024x1024 canvas, origin top-left; left/right mean viewer left/right. Eye points are eye centers. Each eyeBox must tightly enclose only the visible eye anatomy (sclera, iris, pupil, eyeliner and lashes), excluding eyebrows, eyeglass frames, bridge and temples. Keep the two boxes separate and do not include hair strands outside the eye contour. hairCrown is top of hair, chin lowest jaw point, neck center of bottom edge of visible skin neck. Estimate this image, not a template. Set feature false if an eye, nose or mouth is absent/obscured. visibleNeckStub is true only for a distinct neck below chin. skinPalette nearest illustrated color: 0 #f5cfbc,1 #e8b99d,2 #cf9775,3 #a66e4d,4 #754c39. Color matching only, no demographic inference.'},
+    {role: 'user', content: [
+        {type: 'text', text: 'Return JSON with features:{bothEyes,nose,mouth,visibleNeckStub,glassesPresent}, skinPalette:0, neck:{x,y}, and landmarks:{leftEye:{x,y},rightEye:{x,y},leftEyebrow:{x,y},rightEyebrow:{x,y},nose:{x,y},mouth:{x,y},chin:{x,y},hairCrown:{x,y}}. glassesPresent is true only if actual eyeglass rims/bridge are visibly worn; ordinary eyes, highlights and eyelashes are not glasses. Every x/y is normalized 0..1000 across the FULL 1024x1024 image canvas, origin at its upper-left; left and right mean VIEWER left and right. Eye and eyebrow points are the visible centers. hairCrown is top of visible hair. chin is lowest jaw point. neck is center of the bottom edge of visible skin neck. Estimate actual positions in THIS image, not template positions. Return all points even when hair overlaps a brow, but set feature false if an eye, nose or mouth is absent or obscured. visibleNeckStub is true only for a distinct neck shape below the chin. skinPalette nearest illustrated color: 0 #f5cfbc,1 #e8b99d,2 #cf9775,3 #a66e4d,4 #754c39. Color matching only, no demographic inference.'},
         {type: 'image_url', image_url: {url: `data:image/png;base64,${guide.toString('base64')}`, detail: 'high'}}
       ]}
     ]
@@ -63,6 +63,7 @@ export async function analyzeHeadRegions(client, model, image) {
     throw fail('생성한 머리의 목 연결점을 확인하지 못했어요. 이미지 생성 전에 다시 시도해 주세요.');
   }
   regions.neck={x,y};
+  regions.features.glassesPresent=regions.features.glassesPresent===true;
   const names=['leftEye','rightEye','leftEyebrow','rightEyebrow','nose','mouth','chin','hairCrown'];
   const landmarks={};
   for(const name of names){
@@ -78,32 +79,11 @@ export async function analyzeHeadRegions(client, model, image) {
   }
   regions.landmarks=landmarks;
   regions.landmarks.neckBottom={x:Math.round(x*1024/1000),y:Math.round(y*1024/1000)};
-  const normalizeBox=box=>{
-    if(!box)return null;
-    const values=['left','top','right','bottom'].map(key=>Number(box[key]));
-    if(values.some(value=>!Number.isFinite(value)||value<0||value>1000))return null;
-    const [left,top,right,bottom]=values.map(value=>Math.round(value*1024/1000));
-    if(right-left<24||bottom-top<18||right-left>300||bottom-top>240)return null;
-    return {left,top,right,bottom};
-  };
-  const eyeBoxes={leftEye:normalizeBox(regions.eyeBoxes?.leftEye),rightEye:normalizeBox(regions.eyeBoxes?.rightEye)};
-  const eyeDistance=landmarks.rightEye.x-landmarks.leftEye.x;
-  for(const [key,landmark] of [['leftEye',landmarks.leftEye],['rightEye',landmarks.rightEye]]){
-    if(!eyeBoxes[key]){
-      // Stable fallback from the detected eye centers, in the same 1024 canvas.
-      const width=Math.max(36,Math.min(250,Math.round(eyeDistance*.72))),height=Math.max(24,Math.round(width*.62));
-      eyeBoxes[key]={left:Math.max(0,landmark.x-width/2),right:Math.min(1023,landmark.x+width/2),top:Math.max(0,landmark.y-height/2),bottom:Math.min(1023,landmark.y+height/2)};
-    }
-  }
-  if(eyeBoxes.leftEye.right>=eyeBoxes.rightEye.left||Math.abs((eyeBoxes.leftEye.top+eyeBoxes.leftEye.bottom)-(eyeBoxes.rightEye.top+eyeBoxes.rightEye.bottom))>240){
-    throw fail('눈 위치 규격을 확인하지 못했어요. 기존 아바타를 유지해요.');
-  }
-  regions.eyeBoxes=eyeBoxes;
   return regions;
 }
 
 export async function splitHead(master, regions = {}, options = {}) {
-  const parts = await splitAiLayers(master, {...options, landmarks:regions.landmarks,eyeBoxes:regions.eyeBoxes});
+  const parts = await splitAiLayers(master, {...options, landmarks:regions.landmarks,glassesPresent:regions.features.glassesPresent});
   const composite = await sharp(parts.face).composite([{input:parts.eyes},{input:parts.hair}]).png().toBuffer();
   return {
     face:parts.face, eyes:parts.eyes, hair:parts.hair, composite,

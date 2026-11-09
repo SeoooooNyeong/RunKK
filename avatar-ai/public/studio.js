@@ -9,7 +9,7 @@
   const RIG = 'runkk-front-v1';
   const LAYER_SIZE = 1024;
   const HEAD_LAYER_VERSION = 'runkk-coherent-head-v2';
-  const HEAD_SEGMENTATION_VERSION = 'runkk-ai-source-pixels-v42';
+  const HEAD_SEGMENTATION_VERSION = 'runkk-ai-source-pixels-v41';
   const DEFAULT_PIVOT={x:49.3,y:70.1};
   const builtinBodies=window.RUNKK_BODY_PACKS||[];
   const bodySets={};
@@ -21,7 +21,7 @@
     ...builtinBodies.filter(p=>p.id!=='daily').map(p=>({id:p.id,assetId:p.id,name:p.name,desc:p.description,...p.palette,preserveArt:p.preserveArt,mark:false}))
   ];
   const skinColors = ['#f5cfbc','#e8b99d','#cf9775','#a66e4d','#754c39'];
-  const defaults = () => ({version:8,rigVersion:RIG,neckJoin:true,neckGap:10,customBodyPack:null,headData:null,faceData:null,eyesData:null,hairData:null,eyeBoxes:null,headName:'기본 머리',headPivotX:50,headPivotY:98.5,traits:null,generationId:null,hairLength:'auto',similarity:60,torsoData:null,bodyPackId:'daily',shirt:'#f5f3f1',shorts:'#7198da',shoes:'#7198da',mark:false,skin:0,headScale:100,headX:0,headY:0,motion:'idle',speed:100,transparent:true});
+  const defaults = () => ({version:8,rigVersion:RIG,neckJoin:true,neckGap:10,customBodyPack:null,headData:null,faceData:null,eyesData:null,hairData:null,headName:'기본 머리',headPivotX:50,headPivotY:98.5,traits:null,generationId:null,hairLength:'auto',similarity:60,torsoData:null,bodyPackId:'daily',shirt:'#f5f3f1',shorts:'#7198da',shoes:'#7198da',mark:false,skin:0,headScale:100,headX:0,headY:0,motion:'idle',speed:100,transparent:true});
   let state = defaults(), headSprite = null, faceLayer = null, eyeLayer = null, hairLayer = null, joinedFace = null, bodyTexture = null;
   const bodyMesh = new window.RunKKBodyMesh();
   let playing = !matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -141,14 +141,13 @@
     s.traits=safeTraits(candidate.traits);if(['auto','short','medium','long','extra_long'].includes(candidate.hairLength))s.hairLength=candidate.hairLength;if(typeof candidate.generationId==='string'&&/^[a-f0-9-]{36}$/.test(candidate.generationId))s.generationId=candidate.generationId;s.mark=Boolean(candidate.mark);s.transparent=candidate.transparent!==false;
     if(['idle','run','wave'].includes(candidate.motion))s.motion=candidate.motion;
     for(const k of ['headData','faceData','eyesData','hairData'])if(typeof candidate[k]==='string'&&candidate[k].length<12_000_000&&/^data:image\/(png|jpeg|webp);base64,/.test(candidate[k]))s[k]=candidate[k];
-    if(candidate.eyeBoxes&&['leftEye','rightEye'].every(key=>{const b=candidate.eyeBoxes[key];return b&&['left','top','right','bottom'].every(k=>Number.isFinite(b[k])&&b[k]>=0&&b[k]<=1023)&&b.right>b.left&&b.bottom>b.top;}))s.eyeBoxes=candidate.eyeBoxes;
     s.layerVersion=candidate.layerVersion===HEAD_LAYER_VERSION?HEAD_LAYER_VERSION:null;
     s.segmentationVersion=candidate.segmentationVersion===HEAD_SEGMENTATION_VERSION?HEAD_SEGMENTATION_VERSION:null;
     if(s.faceData&&!s.layerVersion){s.faceData=null;s.eyesData=null;s.hairData=null;s.headData=null;s.generationId=null;}
     if(s.headData||s.faceData||s.eyesData||s.hairData)s.headName=String(candidate.headName||'불러온 머리').slice(0,70);
     return s;
   }
-  async function setLayers(faceSrc,eyesSrc,hairSrc,name='기본 머리',eyeBoxes=null) {
+  async function setLayers(faceSrc,eyesSrc,hairSrc,name='기본 머리') {
     const [face,eyes,hair]=await Promise.all([loadImage(faceSrc),loadImage(eyesSrc),loadImage(hairSrc)]);
     if([face,eyes,hair].some(im=>im.width*im.height>30_000_000))throw new Error('이미지가 너무 커요. 30MP 이하 이미지를 골라 주세요.');
     if([eyes,hair].some(im=>im.width!==face.width||im.height!==face.height))throw new Error('세 레이어의 캔버스가 달라요. 다시 생성해 주세요.');
@@ -161,7 +160,7 @@
     hairLayer={canvas:hairCanvas};
     let templates=null;
     try{templates=await window.RunKKEyeBlink.loadTemplates(loadImage);}catch(error){console.warn('눈 프레임 로드 실패',error);notify('눈 프레임을 불러오지 못했어요. 새로고침해 주세요.');}
-    blinkRig=window.RunKKEyeBlink.prepare(faceCanvas,eyeCanvas,templates,eyeBoxes);blinkTime=0;eyePose='auto';
+    blinkRig=window.RunKKEyeBlink.prepare(faceCanvas,eyeCanvas,templates);blinkTime=0;eyePose='auto';
     cg.clearRect(0,0,LAYER_SIZE,LAYER_SIZE);cg.drawImage(faceCanvas,0,0);cg.drawImage(eyeCanvas,0,0);cg.drawImage(hairCanvas,0,0);
     $('eyeFramePreviews').hidden=!blinkRig;
     if(blinkRig)for(const name of ['open','half','closed'])$('eyeFrame-'+name).src=blinkRig.frames[name].toDataURL('image/png');
@@ -171,7 +170,6 @@
     return {canvas:composite,trimmed:merged};
   }
   async function setHead(src,name='기본 머리') {
-    state.eyeBoxes=null;
     $('layerPreviewBlock').hidden=true;$('layerPreviews').hidden=true;$('eyeFramePreviews').hidden=true;blinkRig=null;blinkTime=0;eyePose='auto';
     const im=await loadImage(src);if(im.width*im.height>30_000_000)throw new Error('이미지가 너무 커요. 30MP 이하 이미지를 골라 주세요.');
     const result=trimAlpha(im);headSprite=result;faceLayer={canvas:result.canvas};eyeLayer=null;hairLayer=null;$('headPreview').src=result.canvas.toDataURL('image/png');$('headBadge').textContent=name;$('headTag').textContent='같은 머리 · 공통 동작';
@@ -218,8 +216,8 @@
     return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>reject(new Error('파일을 읽지 못했어요.'));r.readAsDataURL(file);});
   }
   function bind() {
-    $('headFile').onchange=async e=>{const file=e.target.files[0];if(!file)return;try{const result=await setHead(await fileData(file),'내 머리 PNG');state.headData=result.canvas.toDataURL('image/png');state.faceData=null;state.eyesData=null;state.hairData=null;state.eyeBoxes=null;state.headName=file.name;state.headPivotX=50;state.headPivotY=98.5;state.generationId=null;rebuildParts();syncControls();scheduleSave();status('새 머리를 연결했어요. 크기·좌우·위아래를 조절해 목 위치를 맞춰 주세요.');if(!result.hasAlpha)notify('배경이 있는 이미지예요. 투명한 머리 PNG를 사용하면 자연스러워요.');}catch(err){notify(err.message);}finally{e.target.value='';}};
-    $('defaultHead').onclick=async()=>{try{await setLayers('/assets/face-base-default.png','/assets/eyes-default.png','/assets/hair-default.png');state.headData=null;state.faceData=null;state.eyesData=null;state.hairData=null;state.eyeBoxes=null;state.headName='기본 머리';state.headPivotX=DEFAULT_PIVOT.x;state.headPivotY=DEFAULT_PIVOT.y;state.generationId=null;state.headScale=100;state.headX=0;state.headY=0;rebuildParts();syncControls();scheduleSave();status('기본 얼굴·눈·헤어를 같은 좌표로 연결했어요.');}catch(err){notify(err.message);}};
+    $('headFile').onchange=async e=>{const file=e.target.files[0];if(!file)return;try{const result=await setHead(await fileData(file),'내 머리 PNG');state.headData=result.canvas.toDataURL('image/png');state.faceData=null;state.eyesData=null;state.hairData=null;state.headName=file.name;state.headPivotX=50;state.headPivotY=98.5;state.generationId=null;rebuildParts();syncControls();scheduleSave();status('새 머리를 연결했어요. 크기·좌우·위아래를 조절해 목 위치를 맞춰 주세요.');if(!result.hasAlpha)notify('배경이 있는 이미지예요. 투명한 머리 PNG를 사용하면 자연스러워요.');}catch(err){notify(err.message);}finally{e.target.value='';}};
+    $('defaultHead').onclick=async()=>{try{await setLayers('/assets/face-base-default.png','/assets/eyes-default.png','/assets/hair-default.png');state.headData=null;state.faceData=null;state.eyesData=null;state.hairData=null;state.headName='기본 머리';state.headPivotX=DEFAULT_PIVOT.x;state.headPivotY=DEFAULT_PIVOT.y;state.generationId=null;state.headScale=100;state.headX=0;state.headY=0;rebuildParts();syncControls();scheduleSave();status('기본 얼굴·눈·헤어를 같은 좌표로 연결했어요.');}catch(err){notify(err.message);}};
     $('exportHead').onclick=async()=>{try{const blob=await captureFront();download('RunKK_head_with_neck.png',blob);}catch(error){notify(error.message);}};
     for(const [id,layer]of [['exportFace',()=>faceLayer],['exportEyes',()=>eyeLayer],['exportHair',()=>hairLayer]])$(id).onclick=()=>{const item=layer();if(item)saveCanvas(item.canvas,`RunKK_${id.slice(6).toLowerCase()}.png`);else notify('셀카로 세 레이어를 먼저 생성해 주세요.');};
     $('selfieFile').onchange=async e=>{try{const file=e.target.files[0];if(!file)return;if(file.size>8*1024*1024)throw new Error('셀카는 8MB 이하로 골라 주세요.');if(!['image/png','image/jpeg','image/webp'].includes(file.type))throw new Error('JPG, PNG, WEBP 사진을 골라 주세요.');selfieFile=file;selfieQuality=null;selfieQualityError=null;state.traits=null;renderTraits(null);syncAiButtons();if(selfieUrl)URL.revokeObjectURL(selfieUrl);selfieUrl=URL.createObjectURL(file);$('selfiePreview').src=selfieUrl;$('selfiePreview').hidden=false;$('removeSelfie').hidden=false;status('셀카를 선택했어요. 먼저 눈·코·입과 얼굴 밝기를 확인해요.');$('aiMessage').textContent='분석·생성 버튼을 누르면 셀카가 GMS를 통해 AI에 전송돼요. 사진 품질을 확인한 뒤에만 이미지를 생성해요.';}catch(err){notify(err.message);}finally{e.target.value='';}};
@@ -239,7 +237,7 @@
     $('savePng').onclick=()=>{if(!isReady)return;const out=surface(1024,1024);render(out.getContext('2d'),1024,1024,time,{background:!state.transparent});const view=avatarViews?.active||'front';saveCanvas(out,'RunKK_avatar_'+(view==='front'?state.motion:view)+'.png');notify(view==='front'?'현재 동작의 한 장면을 PNG로 저장해요.':'현재 옆모습을 PNG로 저장해요.');};
     $('saveProject').onclick=()=>{download('RunKK_avatar_settings.json',new Blob([JSON.stringify(state,null,2)],{type:'application/json'}));notify('머리·몸 세트와 설정을 JSON으로 저장해요.');};
     $('loadProject').onclick=()=>$('projectFile').click();
-    $('projectFile').onchange=async e=>{const file=e.target.files[0];if(!file)return;try{if(file.size>24*1024*1024)throw new Error('설정 파일은 24MB 이하로 골라 주세요.');const next=cleanState(JSON.parse(await file.text()));const prepared=next.customBodyPack?await prepareBodyPack(next.customBodyPack):null;state=next;if(prepared)bodySets.custom=prepared;else delete bodySets.custom;if(state.faceData&&state.eyesData&&state.hairData)await setLayers(state.faceData,state.eyesData,state.hairData,state.headName,state.eyeBoxes);else await setHead(state.headData||ASSETS.head,state.generationId?'AI 생성 머리':state.headData?'내 머리 PNG':'기본 머리');makePresetCards();renderTraits(state.traits);time=0;rebuildParts();syncControls();scheduleSave();notify('저장한 아바타 설정을 불러왔어요.');}catch(err){notify('불러오기 실패: '+err.message);}finally{e.target.value='';}};
+    $('projectFile').onchange=async e=>{const file=e.target.files[0];if(!file)return;try{if(file.size>24*1024*1024)throw new Error('설정 파일은 24MB 이하로 골라 주세요.');const next=cleanState(JSON.parse(await file.text()));const prepared=next.customBodyPack?await prepareBodyPack(next.customBodyPack):null;state=next;if(prepared)bodySets.custom=prepared;else delete bodySets.custom;if(state.faceData&&state.eyesData&&state.hairData)await setLayers(state.faceData,state.eyesData,state.hairData,state.headName);else await setHead(state.headData||ASSETS.head,state.generationId?'AI 생성 머리':state.headData?'내 머리 PNG':'기본 머리');makePresetCards();renderTraits(state.traits);time=0;rebuildParts();syncControls();scheduleSave();notify('저장한 아바타 설정을 불러왔어요.');}catch(err){notify('불러오기 실패: '+err.message);}finally{e.target.value='';}};
     $('resetAll').onclick=async()=>{state=defaults();state.headPivotX=DEFAULT_PIVOT.x;state.headPivotY=DEFAULT_PIVOT.y;delete bodySets.custom;makePresetCards();await setLayers('/assets/face-base-default.png','/assets/eyes-default.png','/assets/hair-default.png');time=0;playing=true;$('showRig').checked=false;$('removeSelfie').click();rebuildParts();syncControls();scheduleSave();renderTraits(null);notify('기본 아바타로 초기화했어요.');};
     const help=()=>{if(!$('helpDialog').open)$('helpDialog').showModal();};$('helpButton').onclick=help;$('closeHelp').onclick=()=>$('helpDialog').close();$('helpDone').onclick=()=>$('helpDialog').close();$('helpDialog').onclick=e=>{if(e.target===$('helpDialog')){const r=e.target.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)e.target.close();}};
   }
@@ -303,11 +301,13 @@
   }
   function selfieForm(){if(!selfieFile)throw new Error('셀카 사진을 먼저 선택해 주세요.');const form=new FormData();form.append('selfie',selfieFile,selfieFile.name);form.append('userId',demoUserId);return form;}
   async function applyAiHead(data){
-    const hasLayers=data.faceImage&&data.eyesImage&&data.hairImage,eyeBoxes=data.regions?.eyeBoxes||null;
+    const hasLayers=data.faceImage&&data.eyesImage&&data.hairImage;
     if(hasLayers&&data.styleVersion!==HEAD_LAYER_VERSION)throw new Error('이전 생성 결과는 코·입과 정렬 정보가 없어요. 셀카로 다시 생성해 주세요.');
-    if(hasLayers)state.headData=data.frontImage||null;const normalized=hasLayers?await setLayers(data.faceImage,data.eyesImage,data.hairImage,'AI 생성 얼굴 + 눈 + 머리카락',eyeBoxes):await setHead(data.frontImage||data.image,'AI 생성 머리');const crop=normalized.trimmed?.crop||normalized.crop;const anchor=data.alignment||{};
+    const glassesPresent=data.glassesPresent===true||data.regions?.features?.glassesPresent===true||data.rightProfile?.glassesPresent===true;
+    $('hairLayerCaption').textContent=glassesPresent?'헤어 · 눈썹 · 안경':'헤어 · 눈썹';$('rightHairLayerCaption').textContent=glassesPresent?'우측 헤어 · 눈썹 · 안경':'우측 헤어 · 눈썹';$('saveRightHairLayer').textContent=glassesPresent?'우측 헤어 · 눈썹 · 안경 PNG ↓':'우측 헤어 · 눈썹 PNG ↓';
+    if(hasLayers)state.headData=data.frontImage||null;const normalized=hasLayers?await setLayers(data.faceImage,data.eyesImage,data.hairImage,'AI 생성 얼굴 + 눈 + 머리카락'):await setHead(data.frontImage||data.image,'AI 생성 머리');const crop=normalized.trimmed?.crop||normalized.crop;const anchor=data.alignment||{};
     const px=Number.isFinite(anchor.pivotX)?anchor.pivotX:.5,py=Number.isFinite(anchor.pivotY)?anchor.pivotY:.985;
-    state.headData=hasLayers?(data.frontImage||null):normalized.canvas.toDataURL('image/png');state.faceData=hasLayers?data.faceImage:null;state.eyesData=hasLayers?data.eyesImage:null;state.hairData=hasLayers?data.hairImage:null;state.eyeBoxes=hasLayers?eyeBoxes:null;state.headName=hasLayers?'AI 생성 얼굴 + 눈 + 머리카락':'AI 생성 머리';state.headScale=100;state.headX=0;state.headY=0;
+    state.headData=hasLayers?(data.frontImage||null):normalized.canvas.toDataURL('image/png');state.faceData=hasLayers?data.faceImage:null;state.eyesData=hasLayers?data.eyesImage:null;state.hairData=hasLayers?data.hairImage:null;state.headName=hasLayers?'AI 생성 얼굴 + 눈 + 머리카락':'AI 생성 머리';state.headScale=100;state.headX=0;state.headY=0;
     state.headPivotX=clamp((px*crop.sourceWidth-crop.left)/crop.width*100,20,80);state.headPivotY=clamp((py*crop.sourceHeight-crop.top)/crop.height*100,30,99.5);
     state.layerVersion=hasLayers?HEAD_LAYER_VERSION:null;state.segmentationVersion=hasLayers?data.segmentationVersion:null;state.generationId=data.headId||data.id||null;state.traits=safeTraits(data.traits);if(Number.isInteger(anchor.skin))state.skin=clamp(anchor.skin,0,skinColors.length-1);
     if(avatarViews&&data.rightImage){const image=await loadImage(data.rightImage);avatarViews.setSource(frontSignature());avatarViews.entries.right={image,sourceHash:data.rightProfile?.sourceHash,viewId:data.rightProfile?.viewId,rightFaceImage:data.rightFaceImage,rightEyesImage:data.rightEyesImage,rightHairImage:data.rightHairImage};}
@@ -385,12 +385,12 @@
       if(!ASSETS)throw new Error('assets.bundle.js 파일이 필요해요. ZIP 전체를 압축 해제해 주세요.');
       try{const saved=localStorage.getItem(STORAGE);if(saved)state=cleanState(JSON.parse(saved));}catch{/* storage may be disabled for file:// */}
       if(state.generationId&&state.faceData&&state.segmentationVersion!==HEAD_SEGMENTATION_VERSION){
-        try{const repaired=await apiRequest('/api/heads/latest?userId='+encodeURIComponent(demoUserId));if(repaired.warning)notify(repaired.warning);if(repaired.id===state.generationId&&repaired.segmentationVersion===HEAD_SEGMENTATION_VERSION){state.headData=repaired.frontImage;state.faceData=repaired.faceImage;state.eyesData=repaired.eyesImage;state.hairData=repaired.hairImage;state.eyeBoxes=repaired.regions?.eyeBoxes||null;state.segmentationVersion=HEAD_SEGMENTATION_VERSION;scheduleSave();}}catch{/* Keep the stored head if the local server is unavailable. */}
+        try{const repaired=await apiRequest('/api/heads/latest?userId='+encodeURIComponent(demoUserId));if(repaired.warning)notify(repaired.warning);if(repaired.id===state.generationId&&repaired.segmentationVersion===HEAD_SEGMENTATION_VERSION){state.headData=repaired.frontImage;state.faceData=repaired.faceImage;state.eyesData=repaired.eyesImage;state.hairData=repaired.hairImage;state.segmentationVersion=HEAD_SEGMENTATION_VERSION;scheduleSave();}}catch{/* Keep the stored head if the local server is unavailable. */}
       }
       for(const pack of builtinBodies)bodySets[pack.id]=await prepareBodyPack(pack);
       if(!bodySets.daily)throw new Error('새 몸 의상 파일이 필요해요. ZIP 전체를 다시 압축 해제해 주세요.');
       if(state.customBodyPack){try{bodySets.custom=await prepareBodyPack(state.customBodyPack);}catch{state.customBodyPack=null;state.bodyPackId='daily';}}
-      try{if(state.faceData&&state.eyesData&&state.hairData)await setLayers(state.faceData,state.eyesData,state.hairData,state.generationId?'AI 생성 얼굴 + 눈 + 머리카락':'기본 머리',state.eyeBoxes);else if(state.headData)await setHead(state.headData,state.generationId?'AI 생성 머리':'내 머리 PNG');else{state.headPivotX=DEFAULT_PIVOT.x;state.headPivotY=DEFAULT_PIVOT.y;state.eyeBoxes=null;await setLayers('/assets/face-base-default.png','/assets/eyes-default.png','/assets/hair-default.png');}}catch{state.headData=null;state.faceData=null;state.eyesData=null;state.hairData=null;state.eyeBoxes=null;state.headPivotX=DEFAULT_PIVOT.x;state.headPivotY=DEFAULT_PIVOT.y;await setLayers('/assets/face-base-default.png','/assets/eyes-default.png','/assets/hair-default.png');}
+      try{if(state.faceData&&state.eyesData&&state.hairData)await setLayers(state.faceData,state.eyesData,state.hairData,state.generationId?'AI 생성 얼굴 + 눈 + 머리카락':'기본 머리');else if(state.headData)await setHead(state.headData,state.generationId?'AI 생성 머리':'내 머리 PNG');else{state.headPivotX=DEFAULT_PIVOT.x;state.headPivotY=DEFAULT_PIVOT.y;await setLayers('/assets/face-base-default.png','/assets/eyes-default.png','/assets/hair-default.png');}}catch{state.headData=null;state.faceData=null;state.eyesData=null;state.hairData=null;state.headPivotX=DEFAULT_PIVOT.x;state.headPivotY=DEFAULT_PIVOT.y;await setLayers('/assets/face-base-default.png','/assets/eyes-default.png','/assets/hair-default.png');}
       makePresetCards();bind();bindAi();bindWardrobe();bindAvatarViews();renderTraits(state.traits);isReady=true;rebuildParts();syncControls();drawPresetThumbnails();$('loading').hidden=true;
       status('새 몸 의상을 적용했어요. 기존 얼굴은 유지하며 몸 전체가 연결되어 움직여요.');refreshApi();
       restoreAvatarViews(false);
