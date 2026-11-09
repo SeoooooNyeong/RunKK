@@ -172,8 +172,8 @@ Flyway: **없음.** 크루 가입일은 기존 `crew_membership.joined_at`(V10�
 
 | 화면 | 쓰는 API | 담당 | 쓰는 값 |
 |---|---|---|---|
-| F-18·F-25 크루 정보 머리 "[yyyy. mm. dd] · 7명", 통계 칸 "누적 거리"·"누적 크루런 횟수" | `GET /crews/{id}` (`CrewDetailResponse`) | **W4가 필드 추가**(개설일·누적 거리·누적 크루런 횟수·최근 크루런 3건). 필드 이름은 W4 계약(`contract-W4.md`)을 따른다 | 개설일, 누적 거리, 누적 크루런 횟수, `headcount`, `myRole`, `inviteCode` |
-| F-20 지난 크루런(달력·월 목록), F-20b 기간 선택, F-20c 날짜 선택 | **W6가 만드는 지난 크루런 연·월 조회 API**(`contract-W6.md`) | W6 | 그 달 크루런 목록(일시·제목·목표 거리·참가 인원), 달력 점을 찍을 날짜. 기간 선택 휠은 현재 연·월까지만(결정 "기간 선택 휠은 현재 연도까지만") |
+| F-18·F-25 크루 정보 머리 "[yyyy. mm. dd] · 7명", 통계 칸 "누적 거리"·"누적 크루런 횟수" | `GET /crews/{id}` (`CrewDetailResponse`) | **W4가 필드 추가**(`contract-W4.md` 1장): `createdAt`(OffsetDateTime), `totalDistanceMeters`(long, 크루 누적 거리 = weekly_race 합), `crewRunCount`(int, FINISHED 크루런 수), `recentCrewRuns` | `createdAt` → "yyyy. MM. dd", `headcount` → "7명", `totalDistanceMeters` → "1,284.67km", `crewRunCount` → "n회", `myRole`, `inviteCode`. 이번 주·지난 주 거리 칸은 크루 정보에서 쓰지 않는다 |
+| F-20 지난 크루런(달력·월 목록), F-20b 기간 선택, F-20c 날짜 선택 | **W6가 만드는** `GET /crews/{id}/crew-runs/past?month=yyyy-MM[&date=yyyy-MM-dd]` → `PastCrewRunsResponse`(`contract-W6.md`) | W6 | `dates`(달력 점), `runs`(그 달 또는 그날 지난 크루런, 최신순), `earliestMonth`(월 이동·기간 휠 시작, null이면 이번 달만). 기간 휠 끝은 이번 달(결정 "기간 선택 휠은 현재 연도까지만"). 날짜를 누르면 `&date=`로 다시 부르거나 `runs`를 그날 것으로 거른다. 줄을 누르면 W6 상세 `GET /crew-runs/{postId}` |
 | F-23 나이·성별 공개 토글 | `PATCH /me/profile` `{"ageBandVisibility": "PUBLIC"\|"PRIVATE", "genderVisibility": ...}` (null 항목은 그대로) | 기존(member) | 응답 무시, 저장 뒤 크루원 목록 다시 읽기 |
 | F-23 한 줄 소개 | `PATCH /crews/{id}/me` `{"intro": "..."}` (204) | 기존 | |
 | F-29c 크루장 넘기기 | `POST /crews/{id}/leader` `{"memberId": 31}` (204, 크루장만) | 기존 | |

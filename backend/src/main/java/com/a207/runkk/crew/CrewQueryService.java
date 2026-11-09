@@ -8,6 +8,7 @@ import com.a207.runkk.common.PageCursor;
 import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.common.Week;
 import com.a207.runkk.member.DisclosureLevel;
+import com.a207.runkk.member.MemberProfile;
 import com.a207.runkk.member.MemberQueryService;
 import com.a207.runkk.member.MemberSummary;
 import com.a207.runkk.running.RunQueryService;
@@ -38,6 +39,7 @@ public class CrewQueryService {
     private final JoinRequestRepository joinRequestRepository;
     private final MemberQueryService memberQueryService;
     private final RunQueryService runQueryService;
+    private final WeeklyRaceRepository weeklyRaceRepository;
     private final Clock clock;
 
     CrewQueryService(
@@ -46,12 +48,14 @@ public class CrewQueryService {
             JoinRequestRepository joinRequestRepository,
             MemberQueryService memberQueryService,
             RunQueryService runQueryService,
+            WeeklyRaceRepository weeklyRaceRepository,
             Clock clock) {
         this.crewRepository = crewRepository;
         this.crewAccess = crewAccess;
         this.joinRequestRepository = joinRequestRepository;
         this.memberQueryService = memberQueryService;
         this.runQueryService = runQueryService;
+        this.weeklyRaceRepository = weeklyRaceRepository;
         this.clock = clock;
     }
 
@@ -76,12 +80,15 @@ public class CrewQueryService {
     /**
      * check(VIEW_CREW_INTERNAL). 표시명·티어는 MemberQueryService.summaries, 공개 수준은 disclosureOf로 받고
      * showsProfile()이 거짓인 크루원은 표시명·역할·크루 내 소개만 보인다(D-52). Runimal 유형은 web.crew가 disclosedMemberIds로
-     * 붙인다(D-46).
+     * 붙인다(D-46). 피그마 맞춤 W7: 크루원마다 이 크루 누적 기여 거리(WeeklyRaceRepository.totalsByMember), 가입 일시,
+     * 레벨·나이대·성별(CrewMemberProfile 공개 규칙)을 싣고 누적 거리 내림차순 → 가입 일시 → 회원 ID 순으로 준다.
      */
     public CrewMembersView members(long viewerId, long crewId) {
         Crew crew = crewAccess.check(viewerId, crewId, CrewAction.VIEW_CREW_INTERNAL);
-        List<CrewMembership> active = crew.activeMembers();
         List<Long> ids = crew.activeMemberIds();
+        Map<Long, Distance> accumulated = weeklyRaceRepository.totalsByMember(crewId, ids);
+        List<CrewMembership> active = byAccumulated(crew.activeMembers(), accumulated);
+        Map<Long, MemberProfile> profiles = memberQueryService.profilesOf(ids, currentYear());
         Map<Long, MemberSummary> summaries = memberQueryService.summaries(ids);
         Map<Long, DisclosureLevel> levels = memberQueryService.disclosureOf(viewerId, ids);
         Set<Long> disclosed =
@@ -101,17 +108,41 @@ public class CrewQueryService {
                             nameOf(summaries, membership.memberId()),
                             membership.role(),
                             membership.crewIntro(),
-                            shown && summary != null ? summary.tier() : null));
+                            shown && summary != null ? summary.tier() : null,
+                            accumulated.getOrDefault(membership.memberId(), Distance.ZERO),
+                            membership.joinedAt(),
+                            CrewMemberProfile.shownTo(
+                                    shown ? profiles.get(membership.memberId()) : null,
+                                    membership.memberId() == viewerId)));
         }
         return new CrewMembersView(crewId, lines, disclosed);
     }
 
-    /** check(VIEW_OR_DECIDE_JOIN). 신청자 표시명·티어·신청일시(FR-136). */
+    /** 누적 기여 거리 내림차순 → 가입 일시 → 회원 ID(피그마 F-22 순서). */
+    private static List<CrewMembership> byAccumulated(
+            List<CrewMembership> active, Map<Long, Distance> totals) {
+        return active.stream()
+                .sorted(
+                        Comparator.comparing(
+                                        (CrewMembership m) ->
+                                                totals.getOrDefault(m.memberId(), Distance.ZERO))
+                                .reversed()
+                                .thenComparing(CrewMembership::joinedAt)
+                                .thenComparingLong(CrewMembership::memberId))
+                .toList();
+    }
+
+    /**
+     * check(VIEW_OR_DECIDE_JOIN). 신청자 표시명·티어·신청일시(FR-136)와 레벨·공개한 나이대·성별(피그마 맞춤 W7 F-25,
+     * CrewMemberProfile 공개 규칙).
+     */
     public PendingRequestsView pendingRequests(long requesterId, long crewId) {
         crewAccess.check(requesterId, crewId, CrewAction.VIEW_OR_DECIDE_JOIN);
         List<JoinRequest> pending = joinRequestRepository.findPending(crewId);
-        Map<Long, MemberSummary> summaries =
-                memberQueryService.summaries(pending.stream().map(JoinRequest::memberId).toList());
+        List<Long> applicants = pending.stream().map(JoinRequest::memberId).toList();
+        Map<Long, MemberSummary> summaries = memberQueryService.summaries(applicants);
+        Map<Long, MemberProfile> profiles =
+                memberQueryService.profilesOf(applicants, currentYear());
         return new PendingRequestsView(
                 crewId,
                 pending.stream()
@@ -124,7 +155,10 @@ public class CrewQueryService {
                                                 Optional.ofNullable(summaries.get(r.memberId()))
                                                         .map(MemberSummary::tier)
                                                         .orElse(null),
-                                                r.requestedAt()))
+                                                r.requestedAt(),
+                                                CrewMemberProfile.shownTo(
+                                                        profiles.get(r.memberId()),
+                                                        r.memberId() == requesterId)))
                         .toList());
     }
 
@@ -227,6 +261,10 @@ public class CrewQueryService {
                 .filter(CrewMembership::isActive)
                 .map(CrewMembership::crewId)
                 .findFirst();
+    }
+
+    private int currentYear() {
+        return LocalDate.now(clock).getYear();
     }
 
     private Week thisWeek() {

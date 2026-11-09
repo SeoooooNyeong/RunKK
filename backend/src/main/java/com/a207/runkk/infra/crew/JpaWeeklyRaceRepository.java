@@ -2,12 +2,17 @@ package com.a207.runkk.infra.crew;
 
 import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.Week;
+import com.a207.runkk.crew.GoalHistoryRow;
 import com.a207.runkk.crew.RaceContributionKey;
 import com.a207.runkk.crew.WeeklyRace;
 import com.a207.runkk.crew.WeeklyRaceRepository;
 import jakarta.persistence.EntityManager;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -221,6 +226,81 @@ public class JpaWeeklyRaceRepository implements WeeklyRaceRepository {
                 .createQuery("delete from WeeklyRaceRow r where r.crewId = :crew")
                 .setParameter("crew", crewId)
                 .executeUpdate();
+    }
+
+    @Override
+    public Map<Long, Distance> totalsByMember(long crewId, List<Long> memberIds) {
+        if (memberIds.isEmpty()) {
+            return Map.of();
+        }
+        List<Object[]> rows =
+                entityManager
+                        .createQuery(
+                                "select c.memberId, sum(c.meters) from RaceContributionRow c"
+                                        + " where c.crewId = :crew and c.memberId in :members"
+                                        + " group by c.memberId",
+                                Object[].class)
+                        .setParameter("crew", crewId)
+                        .setParameter("members", memberIds)
+                        .getResultList();
+        Map<Long, Distance> totals = new HashMap<>();
+        for (Object[] row : rows) {
+            totals.put(
+                    ((Number) row[0]).longValue(),
+                    Distance.ofMeters(((Number) row[1]).longValue()));
+        }
+        return totals;
+    }
+
+    @Override
+    public List<GoalHistoryRow> goalHistory(long crewId, LocalDate before, int limit) {
+        List<Object[]> weeks =
+                entityManager
+                        .createQuery(
+                                "select r.weekStart, r.goalMeters, r.totalMeters, r.achievedAt"
+                                        + " from WeeklyRaceRow r where r.crewId = :crew"
+                                        + " and r.goalMeters is not null and r.weekStart < :before"
+                                        + " order by r.weekStart desc",
+                                Object[].class)
+                        .setParameter("crew", crewId)
+                        .setParameter("before", before)
+                        .setMaxResults(limit)
+                        .getResultList();
+        if (weeks.isEmpty()) {
+            return List.of();
+        }
+        Map<LocalDate, Integer> participants =
+                participantsOf(crewId, weeks.stream().map(w -> (LocalDate) w[0]).toList());
+        return weeks.stream()
+                .map(
+                        w ->
+                                new GoalHistoryRow(
+                                        (LocalDate) w[0],
+                                        Distance.ofMeters(((Number) w[1]).longValue()),
+                                        Distance.ofMeters(((Number) w[2]).longValue()),
+                                        w[3] != null,
+                                        participants.getOrDefault((LocalDate) w[0], 0)))
+                .toList();
+    }
+
+    /** 주마다 기여 거리 합이 0보다 큰 기여자 수. 익명 기여(member_id null)는 한 묶음이다. */
+    private Map<LocalDate, Integer> participantsOf(long crewId, List<LocalDate> weeks) {
+        List<Object[]> rows =
+                entityManager
+                        .createQuery(
+                                "select c.weekStart, c.memberId, sum(c.meters)"
+                                        + " from RaceContributionRow c where c.crewId = :crew"
+                                        + " and c.weekStart in :weeks"
+                                        + " group by c.weekStart, c.memberId",
+                                Object[].class)
+                        .setParameter("crew", crewId)
+                        .setParameter("weeks", weeks)
+                        .getResultList();
+        Map<LocalDate, Integer> counts = new HashMap<>();
+        rows.stream()
+                .filter(r -> ((Number) Objects.requireNonNull(r[2])).longValue() > 0)
+                .forEach(r -> counts.merge((LocalDate) r[0], 1, Integer::sum));
+        return counts;
     }
 
     @Override

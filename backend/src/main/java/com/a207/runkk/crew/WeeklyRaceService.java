@@ -185,6 +185,30 @@ public class WeeklyRaceService {
                 celebrationOf(crewId, race));
     }
 
+    /** 지난 목표 한 페이지 크기 상한(contract-W7.md). */
+    public static final int MAX_HISTORY_SIZE = 100;
+
+    /**
+     * check(VIEW_CREW_INTERNAL) → 이번 주 앞의, 목표가 있던 주를 최신 주부터 size개(피그마 맞춤 W7 F-21). before가 있으면 그보다
+     * 앞선 주만(이번 주 월요일보다 늦으면 이번 주 월요일로 줄인다). 더 남았으면 nextBefore가 이 페이지 마지막 주 월요일이다. size가 1~100 밖이면
+     * IllegalArgumentException(400).
+     */
+    @Transactional(readOnly = true)
+    public GoalHistoryView goalHistory(
+            long viewerId, long crewId, Optional<LocalDate> before, int size) {
+        if (size < 1 || size > MAX_HISTORY_SIZE) {
+            throw new IllegalArgumentException("페이지 크기는 1~" + MAX_HISTORY_SIZE + ": " + size);
+        }
+        crewAccess.check(viewerId, crewId, CrewAction.VIEW_CREW_INTERNAL);
+        LocalDate thisMonday = Week.of(LocalDateTime.now(clock)).monday();
+        LocalDate bound = before.filter(b -> b.isBefore(thisMonday)).orElse(thisMonday);
+        List<GoalHistoryRow> rows = weeklyRaceRepository.goalHistory(crewId, bound, size + 1);
+        List<GoalHistoryView.Line> page =
+                rows.stream().limit(size).map(GoalHistoryView.Line::of).toList();
+        LocalDate next = rows.size() > size ? page.get(page.size() - 1).weekStart() : null;
+        return new GoalHistoryView(page, next);
+    }
+
     /** 달성한 주만 축하 카드(크루명, 합계, 목표, 참여 인원 = 그 주 기여가 있는 회원 수). 저장하지 않고 조회 때 만든다(FR-141, D-105). */
     private CelebrationCard celebrationOf(long crewId, WeeklyRace race) {
         if (!race.isAchieved() || race.goal().isEmpty()) {
