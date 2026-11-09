@@ -24,6 +24,10 @@ internal data class CrewRunResultResponse(
         val elapsedSeconds: Long? = null,
         val averagePaceSecondsPerKm: Int? = null,
         val ended: Boolean = true,
-        val me: Boolean = false
+        val me: Boolean = false,
+        /** 아바타 얼굴 키. 얼굴을 고르지 않았거나 탈퇴·옛 서버면 null(계약 crewrun-sum v1.2). */
+        val faceKey: String? = null,
+        /** 표시 성별 MALE | FEMALE(D-327). 탈퇴·옛 서버면 null. */
+        val shownGender: String? = null
     )
 }

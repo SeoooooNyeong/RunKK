@@ -14,11 +14,12 @@ data class CoachChatUiState(
     val isLoadingConversations: Boolean = false,
     val conversationError: UiText? = null
 ) {
-    val canAsk: Boolean get() = !isSending && failure != CoachFailure.CONSENT_REQUIRED &&
+    val canAsk: Boolean get() = !isSending && !isLoadingConversations && conversationError == null &&
+        failure != CoachFailure.CONSENT_REQUIRED &&
         failure != CoachFailure.QUOTA && failure != CoachFailure.FEATURE_CLOSED && failure != CoachFailure.EXPIRED
 
     companion object {
-        /** FR-261의 길이 제안값. 전송 계약이 확정되면 서버와 함께 대조한다. */
+        /** FR-261과 #241 서버 계약의 질문 상한. */
         const val MAX_QUESTION_LENGTH = 500
 
         fun accepts(text: String): Boolean = text.isNotBlank() &&

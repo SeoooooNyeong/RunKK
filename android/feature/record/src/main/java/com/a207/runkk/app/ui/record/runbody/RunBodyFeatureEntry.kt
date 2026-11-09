@@ -5,6 +5,7 @@ import androidx.navigation3.runtime.NavKey
 import com.a207.runkk.app.core.navigation.FeatureEntry
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.core.navigation.route
+import com.a207.runkk.app.ui.record.coach.CoachChatRoute
 import javax.inject.Inject
 
 /**
@@ -16,5 +17,6 @@ class RunBodyFeatureEntry @Inject constructor() : FeatureEntry {
 
     override fun register(builder: EntryProviderScope<NavKey>) {
         builder.route(Routes.REPORT) { RunBodyRoute() }
+        builder.route(Routes.COACH) { CoachChatRoute() }
     }
 }

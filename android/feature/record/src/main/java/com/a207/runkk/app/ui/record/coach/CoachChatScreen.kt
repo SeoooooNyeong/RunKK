@@ -4,12 +4,15 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -36,9 +39,13 @@ import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.domain.coach.CoachFailure
 import com.a207.runkk.app.ui.record.R
 
-/** D-451~D-453의 최소 화면. 실제 저장소와 경로 연결은 서버 계약 연동 뒤에 한다. */
+/** 코치의 진입 안내와 대화 화면(D-451~D-453). */
 @Composable
 fun CoachChatScreen(state: CoachChatUiState, actions: CoachChatActions, modifier: Modifier = Modifier) {
+    if (state.failure == CoachFailure.CONSENT_REQUIRED) {
+        CoachConsentRequired(actions, modifier)
+        return
+    }
     Column(modifier.fillMaxSize().background(RunkkColors.Background).imePadding()) {
         RunkkTopBar(title = stringResource(R.string.record_chat_title), onBack = actions.onBack)
         LazyColumn(
@@ -85,6 +92,50 @@ fun CoachChatScreen(state: CoachChatUiState, actions: CoachChatActions, modifier
             }
         }
         QuestionInput(state, actions.onSend)
+    }
+}
+
+/** G-24. 같은 코치 경로에서 질문 입력을 대신하는 안내다. */
+@Composable
+private fun CoachConsentRequired(actions: CoachChatActions, modifier: Modifier) {
+    Column(modifier.fillMaxSize().background(RunkkColors.Background)) {
+        RunkkTopBar(
+            title = stringResource(R.string.record_chat_title),
+            onBack = actions.onBack,
+            isTitleCentered = true
+        )
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 6.dp)) {
+            RunkkCard(Modifier.fillMaxWidth()) {
+                Text(
+                    stringResource(R.string.record_chat_consent_required_title),
+                    style = RunkkTextStyles.CardTitle,
+                    color = RunkkColors.TextPrimary,
+                    modifier = Modifier.semantics { heading() }
+                )
+                Text(
+                    stringResource(R.string.record_chat_consent_required_body),
+                    style = RunkkTextStyles.Body,
+                    color = RunkkColors.TextSecondary
+                )
+                Text(
+                    stringResource(R.string.record_chat_consent_retention),
+                    style = RunkkTextStyles.Body,
+                    color = RunkkColors.TextSecondary
+                )
+            }
+        }
+        Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp), Arrangement.spacedBy(8.dp)) {
+            RunkkSecondaryButton(
+                stringResource(R.string.record_chat_consent_cancel),
+                actions.onBack,
+                Modifier.weight(1f)
+            )
+            RunkkPrimaryButton(
+                stringResource(R.string.record_chat_consent_settings),
+                actions.onConsents,
+                Modifier.weight(1f)
+            )
+        }
     }
 }
 
@@ -141,7 +192,7 @@ private fun ChatFailure(failure: CoachFailure, actions: CoachChatActions) {
         CoachFailure.QUOTA -> R.string.record_chat_quota
         CoachFailure.EXPIRED -> R.string.record_chat_expired
         CoachFailure.TOO_LONG -> R.string.record_chat_question_invalid
-        CoachFailure.CONSENT_REQUIRED -> R.string.record_chat_consent
+        CoachFailure.CONSENT_REQUIRED -> R.string.record_chat_consent_required_title
         CoachFailure.FEATURE_CLOSED -> R.string.record_chat_closed
     }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -151,15 +202,8 @@ private fun ChatFailure(failure: CoachFailure, actions: CoachChatActions) {
             color = RunkkColors.TextSecondary,
             modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
         )
-        when (failure) {
-            CoachFailure.RETRY -> RunkkSecondaryButton(stringResource(R.string.record_chat_retry), actions.onRetry)
-
-            CoachFailure.CONSENT_REQUIRED -> RunkkSecondaryButton(
-                stringResource(R.string.record_chat_consents),
-                actions.onConsents
-            )
-
-            else -> Unit
+        if (failure == CoachFailure.RETRY) {
+            RunkkSecondaryButton(stringResource(R.string.record_chat_retry), actions.onRetry)
         }
     }
 }

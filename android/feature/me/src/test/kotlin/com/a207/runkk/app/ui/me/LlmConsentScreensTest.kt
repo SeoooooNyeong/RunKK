@@ -58,7 +58,19 @@ class LlmConsentScreensTest {
         assertEquals(listOf(ConsentKeys.LLM_TRANSFER to false), changes)
     }
 
-    private fun showSettings(agreed: Boolean, onConsent: (String, Boolean) -> Unit) {
+    @Test
+    fun `코치에서 들어오면 기존 동의를 철회하지 않고 최신 고지를 다시 확인한다`() {
+        val changes = mutableListOf<Pair<String, Boolean>>()
+        showSettings(true, fromCoach = true) { item, agreed -> changes += item to agreed }
+        compose.onNodeWithText("AI 코치 이용을 위한 동의 확인").assertExists()
+        compose.onNodeWithText("AI 리포트와 코치용 데이터 외부 전송 (선택)").performScrollTo().assertIsOff().performClick()
+        compose.onNodeWithText("대화는 마지막 질문 뒤 90일 동안 보관해요.").assertExists()
+        assertEquals(emptyList(), changes)
+        compose.onNodeWithText("동의하기").performClick()
+        assertEquals(listOf(ConsentKeys.LLM_TRANSFER to true), changes)
+    }
+
+    private fun showSettings(agreed: Boolean, fromCoach: Boolean = false, onConsent: (String, Boolean) -> Unit) {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 SettingsScreen(
@@ -67,7 +79,8 @@ class LlmConsentScreensTest {
                         isLoading = false,
                         settings = MemberSettings(emptyMap(), mapOf(ConsentKeys.LLM_TRANSFER to agreed))
                     ),
-                    SettingsActions(setConsent = onConsent)
+                    SettingsActions(setConsent = onConsent),
+                    fromCoach = fromCoach
                 )
             }
         }

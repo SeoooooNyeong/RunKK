@@ -1,6 +1,7 @@
 package com.a207.runkk.app.api.account
 
 import com.a207.runkk.app.api.core.ApiErrorMapper
+import com.a207.runkk.app.api.core.BoundSession
 import com.a207.runkk.app.api.core.FaceImageSource
 import com.a207.runkk.app.api.core.SelfMember
 import com.a207.runkk.app.api.core.TokenProvider
@@ -20,6 +21,7 @@ import com.a207.runkk.app.domain.account.ProviderToken
 import com.a207.runkk.app.domain.account.SessionTokens
 import com.a207.runkk.app.domain.account.SignUpForm
 import com.a207.runkk.app.domain.settings.SettingsRepository
+import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.cancellation.CancellationException
@@ -161,7 +163,19 @@ constructor(
         }
     }
 
-    override suspend fun giveConsent(item: String): Outcome<Unit> = ApiErrorMapper.call { me.giveConsent(item) }
+    override suspend fun giveConsent(item: String): Outcome<Unit> {
+        // 설정에서 최신 전송 고지에 동의한 경우다. 가입 동의는 별도 요청이다.
+        val isLlmTransfer = item == "LLM_TRANSFER"
+        val bound = if (isLlmTransfer) {
+            BoundSession.capture(tokens) ?: return Outcome.Failure(AppError.Unauthorized)
+        } else {
+            null
+        }
+        return ApiErrorMapper.call {
+            me.giveConsent(item, if (isLlmTransfer) 2 else null, bound)
+            if (bound?.isCurrent(tokens) == false) throw IOException("Consent session changed")
+        }
+    }
 
     override suspend fun withdrawConsent(item: String): Outcome<Unit> = ApiErrorMapper.call { me.withdrawConsent(item) }
 

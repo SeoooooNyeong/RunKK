@@ -80,10 +80,9 @@ class CoachChatScreensTest {
                 )
             }
         }
-        compose.onNodeWithText("동의 설정").performClick()
+        compose.onNodeWithText("동의 설정으로 이동").performClick()
         assertEquals(1, opened)
-        compose.onNodeWithText("질문").performTextInput("질문")
-        compose.onNodeWithText("질문 보내기").assertIsNotEnabled()
+        compose.onNodeWithText("질문 보내기").assertDoesNotExist()
     }
 
     @Test
@@ -125,7 +124,7 @@ class CoachChatScreensTest {
             CoachFailure.QUOTA to "오늘 질문을 모두 썼어요. 내일 다시 물어봐 주세요",
             CoachFailure.EXPIRED to "보관 기간이 지난 대화예요. 새 대화를 열어 주세요",
             CoachFailure.TOO_LONG to "질문은 1자 이상 500자 이하로 입력해 주세요",
-            CoachFailure.CONSENT_REQUIRED to "AI 코치를 이용하려면 데이터 외부 전송에 동의해 주세요",
+            CoachFailure.CONSENT_REQUIRED to "AI 코치를 이용하려면 동의가 필요해요",
             CoachFailure.FEATURE_CLOSED to "AI 코치는 아직 준비 중이에요"
         )
         CoachFailure.entries.forEach { reason ->
@@ -137,9 +136,9 @@ class CoachChatScreensTest {
                 compose.onNodeWithText("다시 묻기").assertDoesNotExist()
             }
             if (reason == CoachFailure.CONSENT_REQUIRED) {
-                compose.onNodeWithText("동의 설정").assertExists()
+                compose.onNodeWithText("동의 설정으로 이동").assertExists()
             } else {
-                compose.onNodeWithText("동의 설정").assertDoesNotExist()
+                compose.onNodeWithText("동의 설정으로 이동").assertDoesNotExist()
             }
         }
     }

@@ -23,6 +23,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
@@ -260,6 +261,32 @@ class CrewHomeViewModelTest {
         clock.now = beforeMeet(0)
         advanceTimeBy(1_100)
         assertEquals(LobbyAvailability.Closed, vm.state.value.lobbyEntries[31])
+    }
+
+    @Test
+    fun `크루런 강조 카드의 지금 시각은 서버 시각으로 1초마다 갱신한다(F-11)`() = main.runVmTest { vms ->
+        clock.now = beforeMeet(40)
+        val vm = vms.track(vm())
+        vm.onTab(CrewTab.SCHEDULE)
+        assertEquals(beforeMeet(40), vm.state.value.scheduleNow)
+        clock.now = clock.now.plusSeconds(1)
+        advanceTimeBy(1_100)
+        assertEquals(beforeMeet(40).plusSeconds(1), vm.state.value.scheduleNow)
+    }
+
+    @Test
+    fun `크루런 응답 시트는 연 모집글을 목록의 새 값으로 보이고 닫으면 지운다(F-11)`() = main.runVmTest { vms ->
+        clock.now = beforeMeet(40)
+        val vm = vms.track(vm())
+        vm.onTab(CrewTab.SCHEDULE)
+        val post = vm.state.value.crewRuns!!.posts.first { it.postId == 31L }
+        vm.onRunOpen(post)
+        assertEquals(31L, vm.state.value.openedRun?.postId)
+        vm.onAttendance(post, AttendanceAnswer.NOT_GOING)
+        runCurrent()
+        assertEquals(AttendanceAnswer.NOT_GOING, vm.state.value.openedRun?.crewRun?.myAnswer, "응답 뒤 다시 읽은 목록의 값")
+        vm.onRunClose()
+        assertNull(vm.state.value.openedRun)
     }
 
     @Test

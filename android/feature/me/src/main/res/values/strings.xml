@@ -97,6 +97,12 @@
     <string name="me_consents_llm_message">AI 리포트 코멘트와 코치 답변을 만들기 위해 러닝 집계값과 코치에 입력한 질문 원문을 외부 LLM 서비스로 보내요. 처리위탁과 국외 이전이 포함돼요. 동의하지 않아도 규칙 기반 리포트 코멘트는 볼 수 있지만 AI 코치는 이용할 수 없어요. 동의는 설정에서 언제든 철회할 수 있어요.</string>
     <string name="me_consents_llm_dialog_title">AI 데이터 외부 전송에 동의할까요?</string>
     <string name="me_consents_llm_dialog_agree">동의하기</string>
+    <string name="me_consents_llm_notice_title">동의 확인</string>
+    <string name="me_consents_llm_retention">대화는 마지막 질문 뒤 90일 동안 보관해요.</string>
+    <string name="me_consents_llm_cancel">취소</string>
+    <string name="me_consents_coach_title">AI 코치 이용을 위한 동의 확인</string>
+    <string name="me_consents_coach_summary">아래 AI 리포트와 코치용 전송 항목을 눌러 최신 안내를 확인해 주세요.</string>
+    <string name="me_consents_coach_return">동의가 저장되면 AI 코치로 돌아가요.</string>
     <string name="me_consents_face_title">얼굴 변환 서비스 전송 (선택)</string>
     <string name="me_consents_marketing_title">마케팅, 이벤트 수신 (선택)</string>
     <string name="me_consents_withdraw_location_title">위치 수집 동의를 철회할까요?</string>

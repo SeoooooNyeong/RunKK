@@ -48,6 +48,7 @@ public record CrewRunResultView(
      * @param averagePace 평균 페이스, 없으면 null
      * @param ended 끝냈는가
      * @param memberId 참가자 회원 ID, 탈퇴했으면 null(앱이 본인 줄을 가린다)
+     * @param shownGender 표시 성별 이름(MALE·FEMALE, D-327), 탈퇴했으면 null(크루원 아바타, S15P31A207-236)
      */
     public record Line(
             DisplayName name,
@@ -55,5 +56,6 @@ public record CrewRunResultView(
             Duration elapsed,
             Pace averagePace,
             boolean ended,
-            Long memberId) {}
+            Long memberId,
+            String shownGender) {}
 }

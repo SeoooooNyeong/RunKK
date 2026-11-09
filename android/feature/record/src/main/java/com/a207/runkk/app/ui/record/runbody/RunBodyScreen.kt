@@ -55,7 +55,8 @@ fun RunBodyRoute(viewModel: RunBodyViewModel = hiltViewModel()) {
             onPreviousWeek = viewModel::onPreviousWeek,
             onNextWeek = viewModel::onNextWeek,
             onRetryWeek = viewModel::refreshWeek,
-            onEditProfile = { navigator.navigate(Routes.PROFILE_EDIT) }
+            onEditProfile = { navigator.navigate(Routes.PROFILE_EDIT) },
+            onCoach = { navigator.navigate(Routes.COACH) }
         )
     )
     // 프로필 편집에서 출생연도를 넣고 돌아오면 분석 상태를 다시 읽는다(MR !91 e2e 1)

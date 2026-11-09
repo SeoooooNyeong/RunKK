@@ -1384,6 +1384,14 @@
    {
     "kind": "leaf",
     "name": "me"
+   },
+   {
+    "kind": "leaf",
+    "name": "faceKey"
+   },
+   {
+    "kind": "leaf",
+    "name": "shownGender"
    }
   ],
   "file": "web/crew/CrewDtos.java"
@@ -1540,6 +1548,14 @@
    {
     "kind": "leaf",
     "name": "me"
+   },
+   {
+    "kind": "leaf",
+    "name": "faceKey"
+   },
+   {
+    "kind": "leaf",
+    "name": "shownGender"
    }
   ],
   "file": "web/crew/CrewDtos.java"

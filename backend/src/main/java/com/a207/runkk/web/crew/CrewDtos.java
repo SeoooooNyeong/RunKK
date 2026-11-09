@@ -52,6 +52,7 @@ import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -756,7 +757,10 @@ final class CrewDtos {
             String status,
             List<Participant> participants) {
 
-        static LobbyResponse of(LobbyView v, long viewerId) {
+        /**
+         * @param faceKeys 참가자 얼굴 키(AvatarQuery.faceKeysOf). 얼굴을 고르지 않은 회원은 없다
+         */
+        static LobbyResponse of(LobbyView v, long viewerId, Map<Long, String> faceKeys) {
             return new LobbyResponse(
                     v.postId(),
                     at(v.scheduledAt()),
@@ -771,7 +775,9 @@ final class CrewDtos {
                                                     displayOf(p.name()),
                                                     p.readiness().name(),
                                                     p.readiness() == Readiness.READY,
-                                                    p.memberId() == viewerId))
+                                                    p.memberId() == viewerId,
+                                                    faceKeys.get(p.memberId()),
+                                                    p.shownGender()))
                             .toList());
         }
 
@@ -783,9 +789,17 @@ final class CrewDtos {
          * @param readiness NOT_ENTERED | ENTERING | READY
          * @param ready 준비 완료
          * @param me 열람자 본인
+         * @param faceKey 아바타 얼굴 키(프로필 faceKey와 같은 값), 얼굴을 고르지 않았으면 null(크루원 아바타, S15P31A207-236)
+         * @param shownGender 표시 성별(MALE·FEMALE, D-327). 앱이 크루원 기본 캐릭터를 이 값으로 그린다
          */
         record Participant(
-                long memberId, String displayName, String readiness, boolean ready, boolean me) {}
+                long memberId,
+                String displayName,
+                String readiness,
+                boolean ready,
+                boolean me,
+                String faceKey,
+                String shownGender) {}
     }
 
     /**
@@ -814,7 +828,11 @@ final class CrewDtos {
             boolean firstCrewRun,
             long raceContributionMeters) {
 
-        static CrewRunResultResponse of(CrewRunResultView v, long viewerId) {
+        /**
+         * @param faceKeys 참가자 얼굴 키(AvatarQuery.faceKeysOf). 얼굴을 고르지 않았거나 탈퇴한 참가자는 없다
+         */
+        static CrewRunResultResponse of(
+                CrewRunResultView v, long viewerId, Map<Long, String> faceKeys) {
             return new CrewRunResultResponse(
                     v.postId(),
                     v.status().name(),
@@ -822,7 +840,9 @@ final class CrewDtos {
                     v.distance().distance().meters(),
                     v.startedAt() == null ? null : at(v.startedAt()),
                     v.totalDistance().meters(),
-                    v.participants().stream().map(l -> Participant.of(l, viewerId)).toList(),
+                    v.participants().stream()
+                            .map(l -> Participant.of(l, viewerId, faceKeys))
+                            .toList(),
                     v.myRecordId(),
                     v.firstCrewRun(),
                     v.crewContribution().meters());
@@ -838,6 +858,8 @@ final class CrewDtos {
          * @param averagePaceSecondsPerKm 평균 페이스(초/km), 없으면 null
          * @param ended 끝냈는가
          * @param me 열람자 본인
+         * @param faceKey 아바타 얼굴 키, 얼굴을 고르지 않았거나 탈퇴했으면 null(크루원 아바타, S15P31A207-236)
+         * @param shownGender 표시 성별(MALE·FEMALE, D-327), 탈퇴했으면 null
          */
         record Participant(
                 Long memberId,
@@ -846,9 +868,12 @@ final class CrewDtos {
                 Long elapsedSeconds,
                 Integer averagePaceSecondsPerKm,
                 boolean ended,
-                boolean me) {
+                boolean me,
+                String faceKey,
+                String shownGender) {
 
-            static Participant of(CrewRunResultView.Line l, long viewerId) {
+            static Participant of(
+                    CrewRunResultView.Line l, long viewerId, Map<Long, String> faceKeys) {
                 return new Participant(
                         l.memberId(),
                         displayOf(l.name()),
@@ -856,7 +881,9 @@ final class CrewDtos {
                         l.elapsed() == null ? null : l.elapsed().toSeconds(),
                         l.averagePace() == null ? null : l.averagePace().secondsPerKm(),
                         l.ended(),
-                        l.memberId() != null && l.memberId() == viewerId);
+                        l.memberId() != null && l.memberId() == viewerId,
+                        l.memberId() == null ? null : faceKeys.get(l.memberId()),
+                        l.shownGender());
             }
         }
     }

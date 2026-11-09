@@ -331,7 +331,8 @@ backup:restore-check:
   after_script:
     - rm -f infra/.env
 
-# develop 더미 데이터: 더미 회원·크루·러닝 기록과 에뮬레이터 계정(러너4171) 러닝을 develop DB에 넣는다(infra/dev-seed.sh, infra/README.md 4절).
+# develop 더미 데이터: 더미 회원·크루·러닝 기록과 대상 계정 러닝을 develop DB에 넣는다(infra/dev-seed.sh, infra/README.md 4절).
+# 대상 계정은 잡을 실행할 때 변수 DEV_SEED_TARGETS(쉼표 구분 닉네임)로 준다. 비우면 스크립트 기본값 "러너4171,러너1699"를 쓴다.
 # develop 브랜치 파이프라인에만 생기는 수동 잡이다(main·release·태그·MR·스케줄에는 규칙상 없다). 스크립트도 RUNKK_ENV=develop이 아니면 멈춘다.
 # 다시 눌러도 이미 있는 더미 자료는 건너뛴다. 배포와 겹치지 않게 같은 resource_group을 쓴다.
 dev:seed:
@@ -339,6 +340,8 @@ dev:seed:
   tags: [deploy]
   needs: []
   resource_group: runkk-server
+  variables:
+    DEV_SEED_TARGETS: ""
   rules:
     - if: $CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE != "schedule" && $CI_PIPELINE_SOURCE != "merge_request_event"
       when: manual
