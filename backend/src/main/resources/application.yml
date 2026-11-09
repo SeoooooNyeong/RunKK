@@ -24,8 +24,9 @@ spring:
     properties:
       hibernate:
         default_batch_fetch_size: 100
-        jdbc:
-          time_zone: Asia/Seoul
+        # hibernate.jdbc.time_zone은 두지 않는다(DF-073). 이 값이 JVM 시간대와 다르면 LocalDateTime을 그 차이만큼 옮겨 저장한다(JVM UTC에
+        # 이 값 Asia/Seoul이면 9시간 앞선 값). 두지 않으면 LocalDateTime은 JVM 시간대와 관계없이 한국 시각 벽시계 값 그대로 저장되고 읽힌다.
+        # JVM 시간대는 RunkkApplication.main, Dockerfile, compose가 Asia/Seoul로 맞춘다(DB 세션의 now()도 한국 시각이 된다)
   # 비동기 사건 수신자(리포트·Runimal, D-03·배경 해금 BackgroundUnlockListener·채팅 방 밖 알림 ChatDeliveryListener) 실행기. 인스턴스 1개·동시 50명(5.4) 규모. 종료 때 진행 중 작업을 30초까지 기다린다(1단계 리뷰 M6·L2).
   task:
     # 주기 작업은 26개다(코치 대화 색인 만료 포함). 같은 시각 작업과 1초 시계가 서로 기다리지 않게
