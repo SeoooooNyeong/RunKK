@@ -164,13 +164,13 @@
     cg.clearRect(0,0,LAYER_SIZE,LAYER_SIZE);cg.drawImage(faceCanvas,0,0);cg.drawImage(eyeCanvas,0,0);cg.drawImage(hairCanvas,0,0);
     $('eyeFramePreviews').hidden=!blinkRig;
     if(blinkRig)for(const name of ['open','half','closed'])$('eyeFrame-'+name).src=blinkRig.frames[name].toDataURL('image/png');
-    $('layerPreviews').hidden=false;for(const [id,c]of [['faceLayerPreview',faceCanvas],['eyesLayerPreview',eyeCanvas],['hairLayerPreview',hairCanvas]])$(id).src=c.toDataURL('image/png');
+    $('layerPreviewBlock').hidden=false;$('layerPreviews').hidden=false;for(const [id,c]of [['faceLayerPreview',faceCanvas],['eyesLayerPreview',eyeCanvas],['hairLayerPreview',hairCanvas]])$(id).src=c.toDataURL('image/png');
     const merged={canvas:composite,hasAlpha:true,crop:{left:0,top:0,width:LAYER_SIZE,height:LAYER_SIZE,sourceWidth:LAYER_SIZE,sourceHeight:LAYER_SIZE}};
     headSprite=merged;$('headPreview').src=(name.startsWith('AI 생성')&&state.headData)||composite.toDataURL('image/png');$('headBadge').textContent=name;$('headTag').textContent='얼굴 + 눈 + 머리카락 분리 레이어';
     return {canvas:composite,trimmed:merged};
   }
   async function setHead(src,name='기본 머리') {
-    $('layerPreviews').hidden=true;$('eyeFramePreviews').hidden=true;blinkRig=null;blinkTime=0;eyePose='auto';
+    $('layerPreviewBlock').hidden=true;$('layerPreviews').hidden=true;$('eyeFramePreviews').hidden=true;blinkRig=null;blinkTime=0;eyePose='auto';
     const im=await loadImage(src);if(im.width*im.height>30_000_000)throw new Error('이미지가 너무 커요. 30MP 이하 이미지를 골라 주세요.');
     const result=trimAlpha(im);headSprite=result;faceLayer={canvas:result.canvas};eyeLayer=null;hairLayer=null;$('headPreview').src=result.canvas.toDataURL('image/png');$('headBadge').textContent=name;$('headTag').textContent='같은 머리 · 공통 동작';
     return result;

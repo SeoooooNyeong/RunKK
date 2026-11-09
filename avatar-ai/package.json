@@ -19,5 +19,8 @@
     "openai": "^5.0.0",
     "sharp": "^0.34.0"
   },
-  "description": "RunKK fixed selfie head with seamless 2D body outfits and mesh animation"
+  "description": "RunKK fixed selfie head with seamless 2D body outfits and mesh animation",
+  "allowScripts": {
+    "sharp@0.34.5": true
+  }
 }
