@@ -78,6 +78,14 @@ export async function alignAiParts(master,parts,{direction='front'}={}){
         metrics[part]={scale:1,offsetX:0,offsetY:0,matchError:null,method:'shared-canvas-no-color-anchor'};
         continue;
       }
+      if(part==='hair'){
+        // Hair texture and anti-aliased strands may provide too few stable
+        // color anchors. The image edit uses the unchanged shared canvas, so
+        // preserve its requested source coordinates instead of rejecting it.
+        aligned[part]=parts[part];
+        metrics[part]={scale:1,offsetX:0,offsetY:0,matchError:null,method:'shared-canvas-fallback-low-samples'};
+        continue;
+      }
       throw Object.assign(new Error(`${part} 파츠에서 원본과 비교할 특징을 찾지 못했어요.`),{status:502,code:'HEAD_LAYER_ALIGNMENT_FAILED'});
     }
     let best={score:Infinity,objective:Infinity,scale:1,dx:0,dy:0};
@@ -92,8 +100,17 @@ export async function alignAiParts(master,parts,{direction='front'}={}){
       const value=score(source,points,scale,dx,dy),rank=objective(value,scale,dx,dy);
       if(rank<best.objective)best={score:value,objective:rank,scale,dx,dy};
     }
-    // A different drawing cannot be fixed by shifting it. Reject it before display.
-    if(!Number.isFinite(best.score)||best.score>(direction==='right'?125:100))throw Object.assign(new Error(`${part} 파츠가 원본과 달라 위치를 맞출 수 없어요.`),{status:502,code:'HEAD_LAYER_ALIGNMENT_FAILED'});
+    // Hair strand shading can differ from the source even when the edit kept
+    // the shared canvas. Avoid inventing a transform from unreliable colors.
+    // Keep the image model's original 1024x1024 placement as a safe fallback.
+    if(!Number.isFinite(best.score)||best.score>(direction==='right'?125:100)){
+      if(part==='hair'){
+        aligned[part]=parts[part];
+        metrics[part]={scale:1,offsetX:0,offsetY:0,matchError:Number.isFinite(best.score)?Number(best.score.toFixed(1)):null,method:'shared-canvas-fallback-color-mismatch'};
+        continue;
+      }
+      throw Object.assign(new Error(`${part} 파츠가 원본과 달라 위치를 맞출 수 없어요.`),{status:502,code:'HEAD_LAYER_ALIGNMENT_FAILED'});
+    }
     const shifted=await transform(parts[part],clamp(best.scale,.925,1.075),best.dx,best.dy);
     aligned[part]=part==='face'?shifted:await preserveSourcePixels(master,shifted,part);
     metrics[part]={scale:Number(best.scale.toFixed(3)),offsetX:best.dx*4,offsetY:best.dy*4,matchError:Number(best.score.toFixed(1))};
