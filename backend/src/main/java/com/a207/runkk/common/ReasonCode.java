@@ -224,6 +224,8 @@ public enum ReasonCode {
     TOO_LARGE("사진이 너무 커요"),
     /** 게시글 사진이 JPEG가 아니거나 깨짐(FR-211, D-100, D-142). 422(STATUS_BY_REASON, 06-06). */
     UNSUPPORTED_IMAGE("지원하지 않는 형식"),
+    /** 크루 로고가 없음(GET /crew-logos/{logoId}, S15P31A207-295). 404(NotFoundRuleException). */
+    CREW_LOGO_NOT_FOUND("크루 로고 없음"),
 
     // runbody (05-19 D-440·D-450, 앱 계약 runbody contract.md v1.0)
     /** 그 기록의 런바디 분석 작업이 없음(집계 제외 기록, 기능을 켜기 전 기록, 남의 기록). 404(NotFoundRuleException). */

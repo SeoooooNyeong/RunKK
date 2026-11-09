@@ -33,11 +33,15 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class CrewQueryService {
 
+    /** 초대 코드 길이(InviteCode, FR-112). 길이가 다르면 저장소를 읽지 않고 INVALID_CODE다. */
+    private static final int INVITE_CODE_LENGTH = 6;
+
     private final CrewRepository crewRepository;
     private final CrewAccess crewAccess;
     private final JoinRequestRepository joinRequestRepository;
     private final MemberQueryService memberQueryService;
     private final RunQueryService runQueryService;
+    private final CrewRunHistory crewRunHistory;
     private final Clock clock;
 
     CrewQueryService(
@@ -46,19 +50,21 @@ public class CrewQueryService {
             JoinRequestRepository joinRequestRepository,
             MemberQueryService memberQueryService,
             RunQueryService runQueryService,
+            CrewRunHistory crewRunHistory,
             Clock clock) {
         this.crewRepository = crewRepository;
         this.crewAccess = crewAccess;
         this.joinRequestRepository = joinRequestRepository;
         this.memberQueryService = memberQueryService;
         this.runQueryService = runQueryService;
+        this.crewRunHistory = crewRunHistory;
         this.clock = clock;
     }
 
     /**
      * 공개 크루만, 태그 AND, 키워드(이름·소개), 최근 생성순. 크루 밖 열람 범위 항목만 + 이번 주 크루 거리(W-16). 크루장 표시명은 그 페이지 크루만
      * MemberQueryService.summaries로 붙인다(B4 리뷰). v0.11에서 추천 결합과 태그 일치 수를 지웠다(FR-117, FR-118 삭제,
-     * D-91).
+     * D-91). 같은 조건의 전체 수(totalCount)를 함께 준다(피그마 F-01d "검색 결과 [n]개", S15P31A207-295).
      */
     public CrewListView search(long viewerId, CrewSearch cond, PageCursor page) {
         PageCursor.Slice<CrewListRow> slice =
@@ -70,7 +76,7 @@ public class CrewQueryService {
                 rows.stream()
                         .map(row -> new CrewListView.Item(row, nameOf(leaders, row.leaderId())))
                         .toList();
-        return new CrewListView(items, slice.nextCursor());
+        return new CrewListView(items, slice.nextCursor(), crewRepository.count(cond));
     }
 
     /**
@@ -176,12 +182,34 @@ public class CrewQueryService {
         return detailOf(crew, viewerId);
     }
 
-    /** 본인 소속 크루(없으면 null)와 대기 중인 본인 가입 신청(GET /crews/me). */
+    /**
+     * 초대 코드로 찾은 크루의 요약(피그마 F-03c, S15P31A207-295). 가입시키지 않는다. 코드가 틀리거나 만료면 INVALID_CODE(가입과 같은 사유,
+     * 대입 횟수 제한은 web.crew의 CrewJoinAttemptGuard가 앞뒤에서 건다). 비공개 크루도 준다(초대 코드가 비공개 크루의 가입 수단이다).
+     */
+    public InvitePreviewView invitePreview(String code) {
+        LocalDateTime now = LocalDateTime.now(clock);
+        return Optional.ofNullable(code)
+                .map(String::strip)
+                .filter(c -> c.length() == INVITE_CODE_LENGTH)
+                .flatMap(crewRepository::findByInviteCode)
+                .filter(crew -> crew.acceptsInviteCode(code, now))
+                .map(InvitePreviewView::of)
+                .orElseThrow(() -> new BusinessRuleException(ReasonCode.INVALID_CODE));
+    }
+
+    /**
+     * 본인 소속 크루(없으면 null)와 대기 중인 본인 가입 신청(GET /crews/me). 24시간 가입·생성 제한 중이면 풀리는 시각을 함께 준다(피그마 F-02c,
+     * S15P31A207-295).
+     */
     public MyCrewView myCrew(long memberId) {
+        List<CrewMembership> history = crewRepository.findMembershipHistory(memberId);
         CrewDetailView crew =
-                ownCrewId(memberId)
+                history.stream()
+                        .filter(CrewMembership::isActive)
+                        .map(CrewMembership::crewId)
+                        .findFirst()
                         .flatMap(crewRepository::findById)
-                        .map(c -> detailOf(c, memberId))
+                        .map(c -> detailOf(c, memberId, history))
                         .orElse(null);
         List<JoinRequest> pending = joinRequestRepository.findPendingByMember(memberId);
         Map<Long, String> names = new HashMap<>();
@@ -198,10 +226,16 @@ public class CrewQueryService {
                                                 r.crewId(),
                                                 names.get(r.crewId()),
                                                 r.requestedAt()))
-                        .toList());
+                        .toList(),
+                rejoinAvailableAt(history));
     }
 
     private CrewDetailView detailOf(Crew crew, long viewerId) {
+        return detailOf(crew, viewerId, crewRepository.findMembershipHistory(viewerId));
+    }
+
+    /** 열람자의 멤버십 이력은 24시간 가입 제한 시각에만 쓴다. */
+    private CrewDetailView detailOf(Crew crew, long viewerId, List<CrewMembership> viewerHistory) {
         long leaderId = crew.leaderId();
         Map<Long, MemberSummary> leader = memberQueryService.summaries(List.of(leaderId));
         CrewRole role = crew.membershipOf(viewerId).map(CrewMembership::role).orElse(null);
@@ -219,14 +253,19 @@ public class CrewQueryService {
                 crewRepository.weeklyDistance(crew.getId(), thisWeek()),
                 crewRepository.weeklyDistance(crew.getId(), thisWeek().previous()),
                 role,
-                role == null ? null : crew.inviteCode());
+                role == null ? null : crew.inviteCode(),
+                crew.createdAt(),
+                crewRepository.totalDistance(crew.getId()),
+                crewRunHistory.finishedCount(crew.getId()),
+                crewRunHistory.recent(crew.getId()),
+                rejoinAvailableAt(viewerHistory));
     }
 
-    private Optional<Long> ownCrewId(long memberId) {
-        return crewRepository.findMembershipHistory(memberId).stream()
-                .filter(CrewMembership::isActive)
-                .map(CrewMembership::crewId)
-                .findFirst();
+    /** 24시간 제한(COOLDOWN)이면 풀리는 시각, 소속 중이거나 제한이 없으면 null(JoinEligibility, FR-124). */
+    private LocalDateTime rejoinAvailableAt(List<CrewMembership> history) {
+        return JoinEligibility.evaluate(history, LocalDateTime.now(clock))
+                .availableAt()
+                .orElse(null);
     }
 
     private Week thisWeek() {

@@ -145,9 +145,11 @@ Flyway: `V50__crew_run_finished_index.sql`(마친 크루런 조회 색인), `V51
 
 | 상태 | code | 언제 | 앱 표시 |
 |---|---|---|---|
-| 409 | `INVALID_CODE` | 코드에 맞는 크루가 없거나 만료(7일)·형식 오류 | F-03b: 칸 오류 표시 + "일치하는 크루가 없어요. 초대 코드를 다시 확인해 주세요." |
+| 409 | `INVALID_CODE` | 코드에 맞는 크루가 없음(NOT_FOUND), 만료(7일), 형식 오류. 셋을 구별하지 않는다 | F-03b: 칸 오류 표시 + "일치하는 크루가 없어요. 초대 코드를 다시 확인해 주세요." |
 | 429 | `TOO_MANY_ATTEMPTS` | 회원별로 10분 안에 틀린 코드 5번(미리보기와 가입이 횟수를 함께 쓴다) | 서버 문구 그대로 |
 | 400 | `BAD_REQUEST` | 본문 없음·`inviteCode` 빈 값 | - |
+
+초대 코드 재발급과의 관계: W7은 크루원이 초대 코드를 읽을 때 7일이 지났으면 자동으로 다시 발급한다. 미리보기는 읽기 전용이라 **재발급을 일으키지 않고**, 만료된 코드는 없는 코드(NOT_FOUND)와 똑같이 `409 INVALID_CODE`로 답한다. 재발급된 뒤에는 옛 코드도 `INVALID_CODE`다.
 
 대입 공격 가드: 기존 `CrewJoinAttemptGuard`(회원별 10분 5회, D-132)를 미리보기에도 건다. 틀린 코드는 실패 1회로 남고, 맞는 코드 미리보기는 실패 횟수를 지우지 않는다(내가 아는 코드로 횟수를 지우고 다시 맞혀 보는 우회를 막는다). 가입(5절) 성공만 실패 횟수를 지운다.
 
@@ -198,13 +200,13 @@ API·DTO(`data/.../api/crew/`)
 - `CrewApi`에 `@POST("crews/invite-preview") invitePreview(@Body InvitePreviewRequest): InvitePreviewResponse`, `@Multipart @POST("crew-logos") uploadLogo(@Part logo: MultipartBody.Part): CrewLogoResponse`(파트 이름 `logo`, `image/jpeg`).
 - `CrewFormDto`에 `logoUrl: String?`.
 
-도메인·Repository 제안(`domain/.../crew/`)
+도메인·Repository 제안(`domain/.../crew/`, 이름은 조정자 결정 2026-11-09)
 
 ```kotlin
 // CrewRepository
-suspend fun invitePreview(code: String): Outcome<CrewPreview>      // POST /crews/invite-preview
-suspend fun uploadLogo(jpeg: ByteArray): Outcome<String>           // POST /crew-logos → logoUrl
-suspend fun logo(url: String): Outcome<ByteArray>                  // GET logoUrl(상대 경로면 인증 붙여서), 크루 사진과 같은 방식
+suspend fun previewByInviteCode(code: String): Outcome<CrewPreview>   // POST /crews/invite-preview
+suspend fun uploadLogo(jpeg: ByteArray): Outcome<String>               // POST /crew-logos → logoUrl
+suspend fun logo(url: String): Outcome<ByteArray>                      // GET logoUrl(상대 경로, 인증 붙여서), 크루 사진과 같은 방식
 // search(...)의 결과 CrewList에 totalCount: Long
 
 data class CrewPreview(
@@ -213,17 +215,17 @@ data class CrewPreview(
     val headcount: Int, val createdAt: LocalDate,
 )
 // CrewDetail에: createdAt: LocalDate, totalDistance: Distance, crewRunCount: Int,
-//   recentCrewRuns: List<RecentCrewRun>, rejoinAvailableAt: Instant?
+//   recentCrewRuns: List<RecentCrewRun>, joinableAt: Instant?   (서버 rejoinAvailableAt)
 data class RecentCrewRun(val postId: Long, val scheduledAt: LocalDateTime, val participantCount: Int, val totalDistance: Distance)
-// MyCrew에: rejoinAvailableAt: Instant?
+// MyCrew에: joinableAt: Instant?   (서버 rejoinAvailableAt)
 // CrewForm에: logoUrl: String?
 ```
 
 UiState 제안
 
-- 크루 검색 화면(F-01d·F-01e, 새 경로 예 `Routes.CrewSearch`): `keyword: String`, `results: List<CrewList.Item>`, `resultCount: Long`(= `totalCount`), `isLoading`, `nextCursor`.
-- 크루 상세(F-02·F-02b·F-02c): `detail: CrewDetail?`, `rejoinAvailableAt: Instant?`, `remaining: Duration?`(1초마다 `rejoinAvailableAt - now`로 갱신, 0 이하가 되면 null로 바꾸고 가입 단추를 다시 켠다). 단추 문구 "[hh:mm:ss] 후에 가입할 수 있어요".
-- 초대 코드 바텀시트(F-03·F-03b·F-03c): `code: String`, `step: Input | Preview`, `preview: CrewPreview?`, `inviteError: Boolean`(F-03b 칸 오류), `isSubmitting`. 동작은 "확인"(`invitePreview`) → "가입하기"(`applyWithInviteCode`)로 나눈다. 코드를 고치면 `preview`·`inviteError`를 비운다.
+- 크루 검색 화면(F-01d·F-01e): 경로 `CREW_SEARCH = "crew/search"`, `CrewSearchUiState(keyword: String, results: List<CrewList.Item>, resultCount: Long /* = totalCount */, isLoading: Boolean, nextCursor: Long?)`.
+- 크루 찾기(F-01·F-03): `CrewFindUiState.invite: InviteSheetState(code: String, step: InviteStep, preview: CrewPreview?, isBusy: Boolean)`, `enum class InviteStep { ENTERING, NOT_FOUND, FOUND }`. "확인" → `previewByInviteCode`: 200이면 `FOUND`(F-03c), `INVALID_CODE`면 `NOT_FOUND`(F-03b 칸 오류), `TOO_MANY_ATTEMPTS`면 `ENTERING` 그대로 두고 서버 문구 안내. `FOUND`에서 "가입하기" → `applyWithInviteCode(code)`. 코드를 고치면 `ENTERING`으로 돌리고 `preview`를 비운다. 초대 코드 입력은 바텀시트다. `CrewFindUiState.joinableAt: Instant?`(`/crews/me`의 `rejoinAvailableAt`)이 미래면 크루 만들기·가입을 막는다.
+- 크루 상세(F-02·F-02b·F-02c): `detail: CrewDetail?`, `joinableAt: Instant?`, `remaining: Duration?`(1초마다 `joinableAt - now`로 갱신, 0 이하가 되면 null로 바꾸고 가입 단추를 다시 켠다). 단추 문구 "[hh:mm:ss] 후에 가입할 수 있어요". 통계 2칸은 `lastWeekDistanceMeters`·`crewRunCount`, 최근 크루런은 `recentCrewRuns`.
 - 크루 만들기(F-04): `logo: ByteArray?`(고른 이미지 미리보기), `logoUrl: String?`(업로드 결과), `isUploadingLogo`, 크루명 상한 `NAME_MAX = 12`. 로고는 고르자마자 올리거나 "크루 만들기"를 누를 때 먼저 올린 뒤 `logoUrl`을 실어 만든다.
 
 ## 11. 서버 결정 목록
@@ -239,6 +241,7 @@ UiState 제안
 | S7 | 최근 크루런 거리 합은 결과 화면과 같은 규칙(기록 → 끝낸 값 → 0) | 같은 크루런이 화면마다 다른 거리로 보이지 않게 |
 | S8 | `rejoinAvailableAt`은 상세와 `/crews/me` 둘 다에 준다 | F-02c는 상세에서, 크루 만들기 제한은 크루 탭 첫 화면에서 쓴다 |
 | S9 | 초대 미리보기는 `POST /crews/invite-preview` 본문으로 받는다 | 코드를 URL·접근 로그에 남기지 않는다 |
+| S10a | 미리보기는 재발급을 일으키지 않고 만료 코드는 없는 코드와 같은 `INVALID_CODE` | W7 자동 재발급과 겹치지 않게(조정자 결정), 코드 존재 여부를 흘리지 않게 |
 | S10 | 미리보기도 가입과 같은 실패 횟수(회원별 10분 5회)를 쓰고, 미리보기 성공은 횟수를 지우지 않는다 | 대입 공격 가드, 아는 코드로 횟수를 지우는 우회 차단 |
 | S11 | 가입은 기존 `POST /crews/join {inviteCode}`를 그대로 쓴다 | 이미 시도 제한·자격 판정이 있다 |
 | S12 | 미리보기는 비공개 크루도 보여 주고 `visibility`를 준다 | 초대 코드는 비공개 크루 가입 수단이다. 앱은 `PRIVATE`이면 상세 이동을 숨긴다 |

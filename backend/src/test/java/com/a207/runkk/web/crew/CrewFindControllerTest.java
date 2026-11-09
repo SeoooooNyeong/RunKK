@@ -42,8 +42,8 @@ import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 /**
- * 피그마 맞춤 W4(S15P31A207-295, contract-W4.md): 크루 상세 통계·최근 크루런, 검색 전체 개수, 24시간 가입 제한 시각, 초대 코드
- * 미리보기와 시도 제한, 크루 로고 업로드·조회, 크루명 2~12자. test 프로필(H2 + 내장 Redis)에서 인증 필터를 거쳐 돈다.
+ * 피그마 맞춤 W4(S15P31A207-295, contract-W4.md): 크루 상세 통계·최근 크루런, 검색 전체 개수, 24시간 가입 제한 시각, 초대 코드 미리보기와
+ * 시도 제한, 크루 로고 업로드·조회, 크루명 2~12자. test 프로필(H2 + 내장 Redis)에서 인증 필터를 거쳐 돈다.
  */
 @DisplayName("web.crew 크루 찾기·상세·초대·만들기(W4)")
 class CrewFindControllerTest extends WebTestSupport {
@@ -186,7 +186,10 @@ class CrewFindControllerTest extends WebTestSupport {
         assertThat(second.get("crews")).hasSize(1);
         assertThat(second.get("totalCount").asLong()).isEqualTo(3);
         assertThat(
-                        json(call(viewer, get("/api/v1/crews").param("keyword", token + "없음"), null))
+                        json(call(
+                                        viewer,
+                                        get("/api/v1/crews").param("keyword", token + "없음"),
+                                        null))
                                 .get("totalCount")
                                 .asLong())
                 .isZero();
@@ -203,8 +206,7 @@ class CrewFindControllerTest extends WebTestSupport {
                 .isTrue();
         call(a, post("/api/v1/crews/join"), Map.of("crewId", crewId));
         LocalDateTime before = LocalDateTime.now();
-        call(a, post("/api/v1/crews/" + crewId + "/leave"), null)
-                .andExpect(status().isNoContent());
+        call(a, post("/api/v1/crews/" + crewId + "/leave"), null).andExpect(status().isNoContent());
 
         JsonNode me = json(call(a, get("/api/v1/crews/me"), null));
         assertThat(me.get("crew").isNull()).isTrue();
@@ -235,8 +237,7 @@ class CrewFindControllerTest extends WebTestSupport {
         Session leader = signUp();
         Session b = signUp();
         String name = uniqueName();
-        String code =
-                createCrew(leader, name, "PRIVATE", "APPROVAL").get("inviteCode").asText();
+        String code = createCrew(leader, name, "PRIVATE", "APPROVAL").get("inviteCode").asText();
 
         JsonNode preview =
                 json(
@@ -263,13 +264,11 @@ class CrewFindControllerTest extends WebTestSupport {
                 .andExpect(jsonPath("$.code").value("INVALID_CODE"));
         call(b, post("/api/v1/crews/invite-preview"), Map.of("inviteCode", " "))
                 .andExpect(status().isBadRequest());
-        call(b, post("/api/v1/crews/invite-preview"), Map.of())
-                .andExpect(status().isBadRequest());
+        call(b, post("/api/v1/crews/invite-preview"), Map.of()).andExpect(status().isBadRequest());
 
         call(b, post("/api/v1/crews/join"), Map.of("inviteCode", code))
                 .andExpect(jsonPath("$.status").value("JOINED"))
-                .andExpect(
-                        jsonPath("$.crewId").value(preview.get("crewId").asLong()));
+                .andExpect(jsonPath("$.crewId").value(preview.get("crewId").asLong()));
     }
 
     @Test
@@ -277,8 +276,7 @@ class CrewFindControllerTest extends WebTestSupport {
     void invitePreview_isRateLimited() throws Exception {
         Session leader = signUp();
         Session c = signUp();
-        String code =
-                createCrew(leader, uniqueName(), "PUBLIC", "FREE").get("inviteCode").asText();
+        String code = createCrew(leader, uniqueName(), "PUBLIC", "FREE").get("inviteCode").asText();
         String wrong = code.equals("ZZZZZZ") ? "YYYYYY" : "ZZZZZZ";
         for (int i = 0; i < 5; i++) {
             call(c, post("/api/v1/crews/invite-preview"), Map.of("inviteCode", wrong))
@@ -326,8 +324,7 @@ class CrewFindControllerTest extends WebTestSupport {
         assertThat(JpegSamples.count(stored, "GPS")).isZero();
         assertThat(JpegSamples.count(stored, "Exif")).isZero();
 
-        long crewId =
-                createCrew(leader, uniqueName(), "PUBLIC", "FREE", url).get("id").asLong();
+        long crewId = createCrew(leader, uniqueName(), "PUBLIC", "FREE", url).get("id").asLong();
         call(outsider, get("/api/v1/crews/" + crewId), null)
                 .andExpect(jsonPath("$.logoUrl").value(url));
 
@@ -342,8 +339,7 @@ class CrewFindControllerTest extends WebTestSupport {
                                         .file(logo(JpegSamples.ofSize(1_048_577)))))
                 .andExpect(status().isPayloadTooLarge())
                 .andExpect(jsonPath("$.code").value("TOO_LARGE"));
-        mvc.perform(as(leader, multipart("/api/v1/crew-logos")))
-                .andExpect(status().isBadRequest());
+        mvc.perform(as(leader, multipart("/api/v1/crew-logos"))).andExpect(status().isBadRequest());
         mvc.perform(as(leader, get("/api/v1/crew-logos/" + (logoId + 100_000))))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("CREW_LOGO_NOT_FOUND"));

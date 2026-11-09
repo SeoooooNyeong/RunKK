@@ -100,6 +100,7 @@ class CrewJoinAttemptGuardTest {
         pool.shutdown();
         assertThat(reached).hasValue(5);
     }
+
     @Test
     @DisplayName("초대 코드 미리보기도 틀린 코드를 실패로 세고 가입과 횟수를 함께 쓴다(S15P31A207-295)")
     void previewSharesFailuresWithJoin() {
