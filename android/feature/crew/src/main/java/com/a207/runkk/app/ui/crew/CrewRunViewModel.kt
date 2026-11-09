@@ -55,6 +55,10 @@ class CrewRunViewModel @Inject constructor(
     private var hintJob: Job? = null
     private var startAt: Instant? = null
 
+    /** 대기실 응답 없이 다시 들어왔을 때 결과 응답에서 읽은 크루원 표시 성별(memberId → 성별). */
+    private var rejoinGenders: Map<Long, Gender> = emptyMap()
+    private var genderJob: Job? = null
+
     fun bind(key: Routes.CrewRunLobby) {
         if (bound == key.postId) return
         bound = key.postId
@@ -186,6 +190,8 @@ class CrewRunViewModel @Inject constructor(
             }
 
             is CrewRunState.Running -> if (s.postId == postId) {
+                // 대기실 응답 없이 진행에 들어왔으면(진행 중 앱을 다시 띄움) 크루원 표시 성별을 결과 응답에서 한 번 읽는다(계약 v1.3).
+                if (_state.value.lobby == null) readGendersOnce(postId)
                 // 줄 순서는 서버가 준 대기실 입장 순 그대로다(순위가 없다).
                 _state.update { st ->
                     st.copy(
@@ -197,7 +203,7 @@ class CrewRunViewModel @Inject constructor(
                                 e.distance,
                                 MateState.of(e.state.name),
                                 e.isMe,
-                                st.lobby.genderOf(e.memberId)
+                                st.lobby.genderOf(e.memberId) ?: e.memberId?.let(rejoinGenders::get)
                             )
                         },
                         totalDistance = s.totalDistance,
@@ -225,6 +231,21 @@ class CrewRunViewModel @Inject constructor(
             }
 
             else -> Unit
+        }
+    }
+
+    /**
+     * 진행 중 앱을 다시 띄워 대기실에 들어가지 못하면(이미 시작) 중계에 크루원 성별이 없어 남자 기본 캐릭터가 된다. 결과 응답(진행 중에도
+     * participants에 memberId·shownGender가 있다)을 한 번 읽어 다음 중계부터 채운다. 실패하면 기본 캐릭터 그대로다.
+     */
+    private fun readGendersOnce(postId: Long) {
+        if (genderJob != null) return
+        genderJob = viewModelScope.launch {
+            val result = (crews.crewRunResult(postId) as? Outcome.Success)?.value ?: return@launch
+            // 다음 중계(1초마다)부터 이 성별로 그린다.
+            rejoinGenders = result.participants
+                .mapNotNull { p -> p.memberId?.let { id -> p.shownGender?.let { id to it } } }
+                .toMap()
         }
     }
 

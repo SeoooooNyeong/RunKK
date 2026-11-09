@@ -334,6 +334,36 @@ class CrewRunViewModelTest {
     }
 
     @Test
+    fun `진행 - 대기실 응답 없이 다시 들어오면 크루원 성별을 결과 응답에서 한 번 읽어 채운다(계약 v1_3)`() = main.runVmTest { vms ->
+        val w = crewWorld()
+        lobbyVm(w, vms)
+        // 앱을 다시 띄운 화면: 대기실 입장은 이미 시작이라 거부되고 진행 상태만 이어진다.
+        w.crews.fail["enter"] = AppError.Rejected("ALREADY_STARTED")
+        val vm = vms.track(CrewRunViewModel(w.crews, w.coordinator, w.clock, ServerClock(w.clock)))
+        vm.bind(Routes.CrewRunLobby(31))
+        runCurrent()
+        assertEquals(null, vm.state.value.lobby)
+        w.channels.channel.push(CrewRunStart(31, w.clock.now, listOf("바람처럼", "달빛", "나")))
+        runCurrent()
+        w.clock.now = w.clock.now.plusSeconds(3)
+        advanceTimeBy(3_100)
+        fun relayOf(meters: Long) = CrewRunRelay(
+            31,
+            Distance(meters),
+            listOf(
+                CrewRunRelay.Entry("바람처럼", Distance(meters), CrewRunRelay.State.RUNNING, memberId = 1),
+                CrewRunRelay.Entry("달빛", Distance(meters), CrewRunRelay.State.RUNNING, memberId = 2)
+            )
+        )
+        w.channels.channel.push(relayOf(500))
+        runCurrent()
+        w.channels.channel.push(relayOf(600))
+        runCurrent()
+        assertEquals(listOf(Gender.FEMALE, Gender.MALE), vm.state.value.relay.map { it.shownGender })
+        assertEquals(1, w.crews.calls.count { it == "result:31" }, "결과 응답은 한 번만 읽는다")
+    }
+
+    @Test
     fun `결과 - 크루원 셀카 얼굴 그림은 얼굴 키마다 한 번만 받는다`() = main.runVmTest { vms ->
         val w = crewWorld()
         w.crews.resultState = crewRunResult.copy(status = CrewRunStatus.RUNNING)
