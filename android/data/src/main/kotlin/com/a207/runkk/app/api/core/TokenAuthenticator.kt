@@ -16,12 +16,18 @@ class TokenAuthenticator(private val tokens: TokenProvider, private val refreshe
     override fun authenticate(route: Route?, response: Response): Request? {
         // 갱신한 토큰으로 다시 보낸 요청도 401이면 더 하지 않는다(갱신 1회).
         if (response.priorResponse != null) return null
-        val sentAccess = response.request.header(AUTHORIZATION)?.removePrefix(BEARER)
+        val bound = response.request.tag(BoundSession::class.java)
+        if (bound != null && !bound.isCurrent(tokens)) return null
+        return retry(response.request)?.takeIf { bound?.isCurrent(tokens) != false }
+    }
+
+    private fun retry(request: Request): Request? {
+        val sentAccess = request.header(AUTHORIZATION)?.removePrefix(BEARER)
         val current = tokens.accessToken()
-        if (current != null && current != sentAccess) return response.request.withAccess(current)
+        if (current != null && current != sentAccess) return request.withAccess(current)
         if (tokens.refreshToken() == null) return null
         return when (val renewal = refresher.refreshNow()) {
-            is SessionRefresher.Refresh.Renewed -> response.request.withAccess(renewal.accessToken)
+            is SessionRefresher.Refresh.Renewed -> request.withAccess(renewal.accessToken)
             SessionRefresher.Refresh.Rejected, SessionRefresher.Refresh.Unavailable -> null
         }
     }

@@ -4,11 +4,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.designsystem.RunkkErrorText
 import com.a207.runkk.app.core.designsystem.UiText
+import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.coach.CoachEvent
 import com.a207.runkk.app.domain.coach.CoachFailure
 import com.a207.runkk.app.domain.coach.CoachRepository
 import com.a207.runkk.app.ui.record.R
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -18,8 +21,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/** AI 코치 상태(D-453). 서버 중계 #241과 어댑터가 연결되기 전에는 제품 경로에 등록하지 않는다. */
-class CoachChatViewModel(private val repository: CoachRepository) : ViewModel() {
+/** AI 코치 상태(D-453). 대화 목록 요청이 진입 시점의 서버 동의 검사도 맡는다. */
+@HiltViewModel
+class CoachChatViewModel @Inject constructor(private val repository: CoachRepository) : ViewModel() {
     private val _state = MutableStateFlow(CoachChatUiState())
     val state = _state.asStateFlow()
     private var questionJob: Job? = null
@@ -34,11 +38,31 @@ class CoachChatViewModel(private val repository: CoachRepository) : ViewModel() 
         viewModelScope.launch {
             when (val result = repository.conversations()) {
                 is Outcome.Success -> _state.update {
-                    it.copy(isLoadingConversations = false, conversations = result.value)
+                    it.copy(
+                        isLoadingConversations = false,
+                        conversations = result.value,
+                        failure = it.failure?.takeUnless { failure -> failure.isGate() }
+                    )
                 }
 
-                is Outcome.Failure -> _state.update {
-                    it.copy(isLoadingConversations = false, conversationError = RunkkErrorText.of(result.error))
+                is Outcome.Failure -> {
+                    val gate = when ((result.error as? AppError.Rejected)?.code) {
+                        "CONSENT_REQUIRED" -> CoachFailure.CONSENT_REQUIRED
+                        "FEATURE_CLOSED" -> CoachFailure.FEATURE_CLOSED
+                        else -> null
+                    }
+                    if (gate != null) questionJob?.cancel()
+                    _state.update {
+                        if (gate == null) {
+                            it.copy(
+                                isLoadingConversations = false,
+                                conversationError = RunkkErrorText.of(result.error),
+                                failure = it.failure?.takeUnless { failure -> failure.isGate() }
+                            )
+                        } else {
+                            CoachChatUiState(failure = gate)
+                        }
+                    }
                 }
             }
         }
@@ -56,7 +80,7 @@ class CoachChatViewModel(private val repository: CoachRepository) : ViewModel() 
 
     fun retry() {
         val before = _state.value
-        if (before.isSending || before.failure != CoachFailure.RETRY) return
+        if (!before.canAsk || before.failure != CoachFailure.RETRY) return
         val last = before.turns.lastOrNull() ?: return
         _state.update { it.copy(turns = it.turns.dropLast(1) + last.copy(answer = "")) }
         ask(last.question)
@@ -72,7 +96,8 @@ class CoachChatViewModel(private val repository: CoachRepository) : ViewModel() 
         questionJob?.cancel()
         questionJob = null
         _state.update {
-            it.copy(conversationId = null, turns = emptyList(), isSending = false, failure = null, inputError = null)
+            val gate = it.failure?.takeIf { reason -> reason.isGate() }
+            it.copy(conversationId = null, turns = emptyList(), isSending = false, failure = gate, inputError = null)
         }
     }
 
@@ -112,8 +137,14 @@ class CoachChatViewModel(private val repository: CoachRepository) : ViewModel() 
                     }
                 )
 
-                is CoachEvent.Failed -> current.copy(isSending = false, failure = event.reason)
+                is CoachEvent.Failed -> if (event.reason.isGate()) {
+                    CoachChatUiState(failure = event.reason)
+                } else {
+                    current.copy(isSending = false, failure = event.reason)
+                }
             }
         }
     }
+
+    private fun CoachFailure.isGate() = this == CoachFailure.CONSENT_REQUIRED || this == CoachFailure.FEATURE_CLOSED
 }

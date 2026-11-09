@@ -1,5 +1,6 @@
 package com.a207.runkk.app.api.account
 
+import com.a207.runkk.app.api.core.BoundSession
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
@@ -7,6 +8,8 @@ import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.PUT
 import retrofit2.http.Path
+import retrofit2.http.Query
+import retrofit2.http.Tag
 
 /** 회원 본인·프로필·설정·동의·약관·탈퇴 REST(5.7.1 MeController). */
 internal interface MeApi {
@@ -23,7 +26,7 @@ internal interface MeApi {
     suspend fun changeSetting(@Body body: SettingChangeBody)
 
     @PUT("me/consents/{item}")
-    suspend fun giveConsent(@Path("item") item: String)
+    suspend fun giveConsent(@Path("item") item: String, @Query("version") version: Int?, @Tag session: BoundSession?)
 
     @DELETE("me/consents/{item}")
     suspend fun withdrawConsent(@Path("item") item: String)

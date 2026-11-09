@@ -30,6 +30,7 @@ infra/
 ├─ smoke.sh                    배포 뒤 확인 (CI backend:smoke)
 ├─ restore-check.sh            매일 덤프 복구 시험 (CI backup:restore-check, 7절)
 ├─ offsite-backup.sh           매일 덤프 서버 밖 사본 (CI backup:offsite, 7절)
+├─ dev-seed.sh, dev-seed.sql   develop DB 더미 데이터 (CI dev:seed, 수동, develop 전용, 4절)
 ├─ lib.sh                      위 스크립트가 함께 쓰는 함수
 ├─ init-letsencrypt.sh         Let's Encrypt 인증서 1회 발급 + HTTPS 전환
 ├─ backup/pg-backup.sh         backup 컨테이너가 도는 매일 pg_dump (7절)
@@ -153,6 +154,15 @@ docker logs -f --tail 100 runkk-prod-api-1           # prod api 로그 (develop�
 docker exec -it runkk-prod-postgres-1 psql -U runkk runkk   # prod DB 접속
 docker exec runkk-nginx-1 nginx -t && docker exec runkk-nginx-1 nginx -s reload   # nginx 설정 다시 읽기
 ```
+
+### develop 더미 데이터 (dev:seed)
+
+develop 파이프라인의 수동 잡 **dev:seed**를 누르면 `dev-seed.sh`가 develop DB(`runkk-develop-postgres-1`)에 `dev-seed.sql`을 한 트랜잭션으로 넣습니다. 잡은 develop 브랜치 파이프라인에만 생기고, 스크립트도 `.env`의 `RUNKK_ENV`가 develop이 아니면 멈춥니다.
+
+- 넣는 것: 게스트형 더미 회원 18명(`더미러너01`~`18`, 로그인 수단 없음), 공개 크루 5개(`더미 …`, 크루원·다가오는/지난 크루런·채팅·주간 레이스), 더미 회원마다 최근 6주 유효 러닝 10~25회(경로 포함)와 그 기록으로 센 티어·레벨·Runimal.
+- 대상 계정: 잡 변수 `DEV_SEED_TARGETS`(쉼표 구분 닉네임, 비우면 `러너4171,러너1699`)의 닉네임마다 그 회원이 있으면 `더미 새벽한강 크루`에 넣고(활성 크루가 없을 때만), 출생연도가 비었으면 1998로 채우고, 최근 6주 러닝 22회(경로·심박·움직임 표본)와 런바디 작업(PENDING)을 넣습니다. 없는 닉네임은 경고만 남깁니다. 기록 ID는 회원 ID와 순번으로 만들어 다시 돌려도 중복되지 않습니다.
+- 다시 눌러도 이미 있는 더미 회원·크루·기록은 건너뜁니다.
+- 랭킹 스냅숏은 0시 집계(또는 관리 API `POST /api/v1/admin/rankings/recompute`) 뒤에, 대상 계정의 티어 누계는 0시 10분 티어 보정 뒤에 반영됩니다. 런바디 작업은 서버가 5초 안에 ai로 보냅니다.
 
 ## 5. 로컬에서 같은 구성 띄우기
 

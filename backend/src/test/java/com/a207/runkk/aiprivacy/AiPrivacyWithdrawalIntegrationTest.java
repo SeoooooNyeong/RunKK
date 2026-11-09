@@ -12,12 +12,26 @@ import java.time.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.context.bean.override.convention.TestBean;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.support.TransactionTemplate;
 
 class AiPrivacyWithdrawalIntegrationTest extends WebTestSupport {
     @MockitoBean AiDataEraser eraser;
-    @MockitoBean Clock clock;
+
+    /**
+     * 목 Clock은 문맥이 뜰 때와 각 시험 뒤 초기화되면 시간대가 null이라 같은 문맥의 주기 작업(PollReminderJob 1분 등)이 NPE를 낸다
+     * (S15P31A207-275). 시간대를 늘 가진 시계로 바꾸고 시각만 옮긴다.
+     */
+    @TestBean Clock clock;
+
+    private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
+    private static final MovableClock CLOCK = new MovableClock();
+
+    static Clock clock() {
+        return CLOCK;
+    }
+
     @Autowired AiPurgeService service;
     @Autowired AiPurgeRequestRepository requests;
     @Autowired WithdrawalService withdrawals;
@@ -29,12 +43,31 @@ class AiPrivacyWithdrawalIntegrationTest extends WebTestSupport {
 
     @BeforeEach
     void time() {
-        when(clock.getZone()).thenReturn(ZoneId.of("Asia/Seoul"));
         at(now);
     }
 
     private void at(LocalDateTime time) {
-        when(clock.instant()).thenReturn(time.atZone(ZoneId.of("Asia/Seoul")).toInstant());
+        CLOCK.now = time.atZone(SEOUL).toInstant();
+    }
+
+    private static final class MovableClock extends Clock {
+        private volatile Instant now =
+                LocalDateTime.of(2026, 11, 4, 12, 0).atZone(SEOUL).toInstant();
+
+        @Override
+        public ZoneId getZone() {
+            return SEOUL;
+        }
+
+        @Override
+        public Clock withZone(ZoneId zone) {
+            return this;
+        }
+
+        @Override
+        public Instant instant() {
+            return now;
+        }
     }
 
     private PurgeStatus purgeStatus(long id) {

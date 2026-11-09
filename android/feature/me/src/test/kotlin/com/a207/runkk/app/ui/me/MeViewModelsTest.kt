@@ -288,6 +288,22 @@ class MeViewModelsTest {
     }
 
     @Test
+    fun `최신 동의 저장 성공만 코치 복귀 이벤트를 낸다`() = runTest {
+        val vm = settingsViewModel()
+        val key = "giveConsent:LLM_TRANSFER"
+        account.failures[key] = AppError.Network
+        vm.events.test {
+            vm.setConsent(ConsentKeys.LLM_TRANSFER, true)
+            assertEquals(RunkkErrorText.of(AppError.Network), vm.state.value.message)
+            expectNoEvents()
+            account.failures.remove(key)
+            vm.setConsent(ConsentKeys.LLM_TRANSFER, true)
+            assertEquals(SettingsEvent.LlmConsentSaved, awaitItem())
+            assertTrue(vm.state.value.consent(ConsentKeys.LLM_TRANSFER))
+        }
+    }
+
+    @Test
     fun `탈퇴는 확인한 뒤에만 보내고 끝나면 로그인 화면으로 간다(FR-020)`() = runTest {
         val pending = FakePendingRunRepository()
         val vm = WithdrawViewModel(WithdrawUseCase(account, pending, settingsCopy, session))

@@ -8,6 +8,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import java.io.File
+import java.io.IOException
 import java.time.Clock
 import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
@@ -80,6 +81,13 @@ object ApiCoreBindings {
     ): OkHttpClient = base
         .newBuilder()
         .addInterceptor(AuthInterceptor(tokens))
+        .addNetworkInterceptor { chain ->
+            val request = chain.request()
+            if (request.tag(BoundSession::class.java)?.isCurrent(tokens) == false) {
+                throw IOException("Request session changed")
+            }
+            chain.proceed(request)
+        }
         .authenticator(TokenAuthenticator(tokens, refresher))
         .build()
 

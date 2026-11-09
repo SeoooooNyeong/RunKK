@@ -1,6 +1,6 @@
 # Writer 모델 관리 설계
 
-> 작성 2026-11-09 | 다음 판 변경 | S15P31A207-243, D-446, FR-268~271
+> 작성 2026-11-09 | v0.39(2026-11-09 병합, CR-179) | S15P31A207-243, D-446, FR-268~271
 
 - `web.admin.model`은 기존 관리자 인터셉터의 actorId를 사용한다. `aimodel.AiModelService`는 입력과 URL 허용 목록을 확인하고 감사 기록을 남긴다.
 - `infra.integration.ai.AiServerModelGateway`는 전용 HTTP 연결에 내부 토큰과 읽기 제한을 적용한다. 등록·활성화·롤백의 순서와 모델 저장은 AI의 writer 등록부가 맡는다. 변경 호출을 자동 재시도하지 않는다.
