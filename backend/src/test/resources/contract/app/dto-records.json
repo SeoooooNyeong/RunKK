@@ -2173,6 +2173,21 @@
     } ],
     "file" : "member/MemberSettingsView.java"
   },
+  "ModelAdminController.RegisterRequest" : {
+    "components" : [ {
+      "name" : "modelId",
+      "required" : true,
+      "kind" : "leaf"
+    }, {
+      "name" : "baseUrl",
+      "required" : true,
+      "kind" : "leaf"
+    }, {
+      "name" : "note",
+      "kind" : "leaf"
+    } ],
+    "file" : "web/admin/model/ModelAdminController.java"
+  },
   "NavigationTarget" : {
     "components" : [ {
       "name" : "screen",
