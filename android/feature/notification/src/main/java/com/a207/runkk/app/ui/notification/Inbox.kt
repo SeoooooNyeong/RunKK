@@ -168,7 +168,11 @@ private fun InboxContent(
                 // 보드(F7)는 묶음 제목 없이 최신순 한 목록이다.
                 val items = groups.flatMap { it.items }
                 itemsIndexed(items, key = { _, item -> item.id }) { index, item ->
-                    InboxRow(item, state, onClick = { onItem(item) })
+                    if (item.type == NOTICE_TYPE) {
+                        InboxNoticeRow(item, inboxTimeOf(item, state), onClick = { onItem(item) })
+                    } else {
+                        InboxRow(item, state, onClick = { onItem(item) })
+                    }
                     if (index < items.lastIndex) HorizontalDivider(color = RunkkColors.Border)
                 }
             }
@@ -176,14 +180,20 @@ private fun InboxContent(
     }
 }
 
+/** 줄 오른쪽(공지는 아래)의 상대 시간. */
+@Composable
+private fun inboxTimeOf(item: Inbox.Item, state: InboxUiState): String {
+    val resources = LocalContext.current.resources
+    return remember(item.receivedAt, state.now, state.zone) {
+        inboxTime(resources, item.receivedAt, state.now, state.zone)
+    }
+}
+
 /** 알림 한 줄: 안 읽음 점, 종류 라벨, 본문(안 읽음은 굵게), 오른쪽 상대 시간. */
 @Composable
 private fun InboxRow(item: Inbox.Item, state: InboxUiState, onClick: () -> Unit) {
     val readState = stringResource(if (item.isRead) R.string.notification_read else R.string.notification_unread)
-    val resources = LocalContext.current.resources
-    val time = remember(item.receivedAt, state.now, state.zone) {
-        inboxTime(resources, item.receivedAt, state.now, state.zone)
-    }
+    val time = inboxTimeOf(item, state)
     val label = InboxLabels.of(item.type)?.let { stringResource(it) } ?: item.title
     Row(
         modifier = Modifier

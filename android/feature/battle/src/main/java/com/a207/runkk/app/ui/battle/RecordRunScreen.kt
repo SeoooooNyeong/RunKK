@@ -44,7 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.a207.runkk.app.core.designsystem.CelebrityFigure
+import com.a207.runkk.app.core.designsystem.CelebrityPortrait
 import com.a207.runkk.app.core.designsystem.RUNKK_BOTTOM_BAR_RISE
 import com.a207.runkk.app.core.designsystem.RunkkChoiceChip
 import com.a207.runkk.app.core.designsystem.RunkkColors
@@ -304,7 +304,10 @@ private fun CandidateBody(
     }
 }
 
-/** 셀럽 카드 한 장(E-1). 고르기·선택 표시는 셀프런 거리 카드(DistanceCardRow)와 같다. */
+/**
+ * 셀럽 카드 한 장(피그마 E-1 60865:7422): 셀럽 그림(코치는 둥근 얼굴) 58, 이름 15 굵게, 거리 11 굵게와 기록 13, 출처 11.
+ * 고르기와 선택 표시는 셀프런 거리 카드(DistanceCardRow)와 같다.
+ */
 @Composable
 private fun CelebCandidateCard(candidate: CandidateUi, isSelected: Boolean, onClick: () -> Unit) {
     val time = candidate.finishTime?.let(RunkkFormat::duration)
@@ -314,16 +317,16 @@ private fun CelebCandidateCard(candidate: CandidateUi, isSelected: Boolean, onCl
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RunkkShapes.Large)
+            .clip(RunkkShapes.ExtraLarge)
             .background(RunkkColors.Surface)
             .border(
                 if (isSelected) 2.dp else 1.dp,
                 if (isSelected) RunkkColors.TextSecondary else RunkkColors.Border,
-                RunkkShapes.Large
+                RunkkShapes.ExtraLarge
             )
             .clickable(enabled = candidate.isSelectable, role = Role.RadioButton, onClick = onClick)
             .alpha(if (candidate.isSelectable) 1f else FADED)
-            .padding(16.dp)
+            .padding(14.dp)
             .semantics(mergeDescendants = true) {
                 contentDescription = description
                 selected = isSelected
@@ -331,27 +334,32 @@ private fun CelebCandidateCard(candidate: CandidateUi, isSelected: Boolean, onCl
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        CelebrityFigure(size = 56.dp, figureKey = candidate.celebrityFigure)
+        CelebrityPortrait(size = 58.dp, figureKey = candidate.celebrityFigure)
         Column(
             modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+            verticalArrangement = Arrangement.spacedBy(3.dp)
         ) {
             Text(
                 candidate.name,
-                style = RunkkTextStyles.text(16, FontWeight.Black),
+                style = RunkkTextStyles.text(15, FontWeight.Bold),
                 color = RunkkColors.TextPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(distance, style = RunkkTextStyles.text(12, FontWeight.Black), color = RunkkColors.TextPrimary)
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    distance,
+                    style = RunkkTextStyles.text(11, FontWeight.Bold),
+                    color = RunkkColors.TextPrimary,
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                )
                 Text(
                     time ?: stringResource(R.string.battle_no_record),
-                    style = RunkkTextStyles.Body,
+                    style = RunkkTextStyles.Label,
                     color = RunkkColors.TextPrimary
                 )
             }
-            source?.let { Text(it, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary) }
+            source?.let { Text(it, style = RunkkTextStyles.Micro, color = RunkkColors.TextSecondary) }
         }
     }
 }

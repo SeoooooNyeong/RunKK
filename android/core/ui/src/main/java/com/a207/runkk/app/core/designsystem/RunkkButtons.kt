@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -356,7 +357,8 @@ fun RunkkLimePill(
 }
 
 /**
- * 원형 아이콘 버튼(보이는 크기 40dp, 터치 영역 48dp). [hasBadge]가 참이면 오른쪽 위에 라벤더 점을 단다(새 알림).
+ * 원형 아이콘 버튼(보이는 크기 40dp, 터치 영역 48dp). [hasBadge]가 참이면 원 오른쪽 위에 [RunkkNotificationDot]을 단다(새 알림,
+ * 점 중심이 원 가장자리에서 4dp 안쪽, 피그마 알림 점).
  * [contentDescription]은 필수다(아이콘만 있는 버튼). 원 색은 [containerColor], 아이콘 색은 [iconTint]다.
  */
 @Composable
@@ -384,26 +386,18 @@ fun RunkkIconButton(
             },
         contentAlignment = Alignment.Center
     ) {
-        Box(
-            modifier = Modifier
-                .size(visualSize)
-                .runkkPressScale(interaction, pressedScale = 0.95f)
-                .clip(CircleShape)
-                .background(containerColor)
-                .border(1.dp, borderColor, CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(iconSize))
-            if (hasBadge) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(top = visualSize / 5, end = visualSize / 5)
-                        .size(8.dp)
-                        .clip(CircleShape)
-                        .background(RunkkColors.Lavender)
-                )
+        Box(modifier = Modifier.size(visualSize).runkkPressScale(interaction, pressedScale = 0.95f)) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .clip(CircleShape)
+                    .background(containerColor)
+                    .border(1.dp, borderColor, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(iconSize))
             }
+            if (hasBadge) RunkkNotificationDot(Modifier.align(Alignment.TopEnd).offset(x = 2.dp, y = (-2).dp))
         }
     }
 }
