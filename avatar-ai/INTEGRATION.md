@@ -6,8 +6,8 @@
 
 | 필드 | 내용 |
 |---|---|
-| `rightFaceImage` | 우측 얼굴·코·입·귀·목 |
-| `rightEyesImage` | 보이는 눈 하나·속눈썹 |
+| `rightFaceImage` | 우측 얼굴·코·입·귀·목·쌍꺼풀 선 |
+| `rightEyesImage` | 우측 프로필에서 보이는 눈 하나·속눈썹 (쌍꺼풀 선 제외) |
 | `rightHairImage` | 머리카락·눈썹 |
 | `rightLayerLayout` | `version: runkk-right-head-layers-v1`, `direction: right`, `canvas: [1024,1024]`, `coordinateSpace: shared-source`, `independentTransforms: false` |
 
@@ -15,7 +15,7 @@
 
 기존 우측 PNG만 저장되어 있으면 조회 시 세 파츠를 분리해 사용자 폴더에 저장한다. 추가 이미지 생성·분석 API 호출은 없다. 분리에 실패하면 HTTP 502 `RIGHT_LAYER_EXTRACTION_FAILED`로 반환하며 자동 재생성하지 않는다. ai 중계의 현재 규칙에서는 이 코드를 503으로 변환하므로 세부 오류 노출이 필요하면 전달 목록을 추가해야 한다.
 
-웹 데모는 우측 보기에서 세 파츠 미리보기와 개별 PNG 저장을 제공한다. 새 레이어 필드는 기존 JSON에 추가되는 항목이다.
+웹 데모는 우측 보기에서 세 파츠 미리보기와 개별 PNG 저장을 제공한다. 쌍꺼풀 선은 얼굴 파츠에 남기고 눈 파츠에는 눈과 속눈썹만 둔다. 새 레이어 필드는 기존 JSON에 추가되는 항목이다.
 
 확인일: 2026-11-04. 사용자 결정에 따라 `feature/selfie-face-api`와 `avatar-ai/`를 유지한다.
 최신 확인 develop `52686f7e`, AI 중계 구현 `d086e2b9`의 `ai/runkk_ai/face/{client,schemas}.py`와 대조했다.
