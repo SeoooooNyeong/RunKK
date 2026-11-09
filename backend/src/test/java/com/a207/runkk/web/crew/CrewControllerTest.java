@@ -266,8 +266,19 @@ class CrewControllerTest extends WebTestSupport {
         call(a, get("/api/v1/crews/" + crewId + "/posts").param("kind", "NOPE"), null) // P3
                 .andExpect(status().isBadRequest());
 
+        call(a, post("/api/v1/avatar/default"), Map.of("characterId", "FOX"))
+                .andExpect(status().isOk());
         call(a, post("/api/v1/crew-runs/" + run + "/lobby/enter"), null)
-                .andExpect(jsonPath("$.status").value("LOBBY_OPEN"));
+                .andExpect(jsonPath("$.status").value("LOBBY_OPEN"))
+                // 크루원 아바타(S15P31A207-236, 계약 crewrun-sum v1.2): 얼굴 키(프로필과 같은 값)와 표시 성별(D-327)
+                .andExpect(
+                        jsonPath("$.participants[?(@.memberId == " + a.memberId() + ")].faceKey")
+                                .value(org.hamcrest.Matchers.contains("default:FOX")))
+                .andExpect(
+                        jsonPath("$.participants[*].shownGender")
+                                .value(
+                                        org.hamcrest.Matchers.everyItem(
+                                                org.hamcrest.Matchers.oneOf("MALE", "FEMALE"))));
         call(leader, post("/api/v1/crew-runs/" + run + "/lobby/enter"), null);
         call(a, post("/api/v1/crew-runs/" + run + "/lobby/ready"), null);
         call(leader, post("/api/v1/crew-runs/" + run + "/lobby/leave"), null);
@@ -324,6 +335,12 @@ class CrewControllerTest extends WebTestSupport {
                 .hasSize(1);
         assertThat(result.get("myRecordId").asText()).isNotBlank();
         assertThat(result.has("finishers")).isFalse();
+        JsonNode leaderLine = result.get("participants").get(0);
+        JsonNode aLine = result.get("participants").get(1);
+        assertThat(aLine.get("faceKey").asText()).isEqualTo("default:FOX");
+        assertThat(leaderLine.hasNonNull("faceKey")).as("얼굴을 고르지 않았으면 null").isFalse();
+        assertThat(result.get("participants").findValuesAsText("shownGender"))
+                .allMatch(g -> g.equals("MALE") || g.equals("FEMALE"));
         // 종료 뒤 다시 끝내기는 아무 일 없음(재시도 안전)
         call(a, post("/api/v1/crew-runs/" + run + "/quit"), null).andExpect(status().isNoContent());
         call(a, post("/api/v1/crew-runs/" + run + "/pause"), null)

@@ -4,6 +4,7 @@ import com.a207.runkk.common.DateRange;
 import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.Pace;
+import com.a207.runkk.member.Gender;
 import com.a207.runkk.member.MemberQueryService;
 import com.a207.runkk.member.MemberSummary;
 import com.a207.runkk.running.RunQueryService;
@@ -17,9 +18,8 @@ import java.util.Optional;
 import org.springframework.stereotype.Component;
 
 /**
- * 크루런 대기실·결과 화면을 만든다(CrewRunService.enterLobby·result). 다른 패키지 자료는
- * MemberQueryService(표시명)·RunQueryService(기록)로만 읽는다(D-32). CrewRunService의 생성자 의존을 Fan-Out 7 안에 두려고
- * 뗀 패키지 전용 보조다.
+ * 크루런 대기실·결과 화면을 만든다(CrewRunService.enterLobby·result). 다른 패키지 자료는 MemberQueryService(표시명·표시
+ * 성별)·RunQueryService(기록)로만 읽는다(D-32). CrewRunService의 생성자 의존을 Fan-Out 7 안에 두려고 뗀 패키지 전용 보조다.
  */
 @Component
 class CrewRunViews {
@@ -52,9 +52,9 @@ class CrewRunViews {
                                         p.answer() == AttendanceAnswer.GOING
                                                 && p.memberId().isPresent())
                         .toList();
-        Map<Long, MemberSummary> names =
-                memberQueryService.summaries(
-                        going.stream().map(p -> p.memberId().orElseThrow()).toList());
+        List<Long> ids = going.stream().map(p -> p.memberId().orElseThrow()).toList();
+        Map<Long, MemberSummary> names = memberQueryService.summaries(ids);
+        Map<Long, Gender> genders = memberQueryService.shownGendersOf(ids);
         Duration remaining = Duration.between(now, post.scheduledAt());
         return new LobbyView(
                 post.getId(),
@@ -67,7 +67,10 @@ class CrewRunViews {
                                 p -> {
                                     long id = p.memberId().orElseThrow();
                                     return new LobbyView.Entry(
-                                            id, nameOf(names, id), p.readiness());
+                                            id,
+                                            nameOf(names, id),
+                                            p.readiness(),
+                                            genderOf(genders, id));
                                 })
                         .toList());
     }
@@ -81,12 +84,12 @@ class CrewRunViews {
     CrewRunResultView result(CrewRunPost post, long viewerId, Map<Long, LiveProgress> live) {
         List<CrewRunParticipation> runners =
                 post.participations().stream().filter(CrewRunParticipation::isRunner).toList();
-        Map<Long, MemberSummary> names =
-                memberQueryService.summaries(
-                        runners.stream().flatMap(p -> p.memberId().stream()).toList());
+        List<Long> ids = runners.stream().flatMap(p -> p.memberId().stream()).toList();
+        Map<Long, MemberSummary> names = memberQueryService.summaries(ids);
+        Map<Long, Gender> genders = memberQueryService.shownGendersOf(ids);
         LocalDate day = post.scheduledAt().toLocalDate();
         List<CrewRunResultView.Line> lines =
-                runners.stream().map(p -> lineOf(p, names, day, live)).toList();
+                runners.stream().map(p -> lineOf(p, names, genders, day, live)).toList();
         Distance total =
                 lines.stream()
                         .map(CrewRunResultView.Line::distance)
@@ -115,6 +118,7 @@ class CrewRunViews {
     private CrewRunResultView.Line lineOf(
             CrewRunParticipation p,
             Map<Long, MemberSummary> names,
+            Map<Long, Gender> genders,
             LocalDate day,
             Map<Long, LiveProgress> live) {
         Optional<RunSummary> run =
@@ -134,7 +138,13 @@ class CrewRunViews {
                         .orElse(null);
         Pace pace = run.map(RunSummary::averagePace).orElseGet(() -> paceOf(elapsed, distance));
         return new CrewRunResultView.Line(
-                name, distance, elapsed, pace, p.hasEnded(), p.memberId().orElse(null));
+                name,
+                distance,
+                elapsed,
+                pace,
+                p.hasEnded(),
+                p.memberId().orElse(null),
+                p.memberId().map(id -> genderOf(genders, id)).orElse(null));
     }
 
     /** 끝낼 때 남긴 값으로 계산한 평균 페이스. 거리·시간이 없거나 0이면 null. */
@@ -176,6 +186,12 @@ class CrewRunViews {
                 .filter(other -> !other.getId().equals(post.getId()))
                 .filter(other -> other.scheduledAt().isBefore(post.scheduledAt()))
                 .noneMatch(other -> other.runners().contains(viewerId));
+    }
+
+    /** 표시 성별 이름(MALE·FEMALE). 맵에 없으면(조회 누락) null이고 앱은 남자 기본 캐릭터를 그린다. */
+    private static String genderOf(Map<Long, Gender> genders, long memberId) {
+        Gender gender = genders.get(memberId);
+        return gender == null ? null : gender.name();
     }
 
     private static DisplayName nameOf(Map<Long, MemberSummary> names, long memberId) {

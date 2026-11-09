@@ -1,6 +1,7 @@
 package com.a207.runkk.app.domain.crew
 
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.model.Outcome
 import java.time.Duration
 import java.time.Instant
@@ -91,4 +92,10 @@ interface CrewRepository {
     suspend fun pause(postId: Long, elapsed: Duration): Outcome<Unit>
 
     suspend fun crewRunResult(postId: Long): Outcome<CrewRunResult>
+
+    /**
+     * 크루원 얼굴 그림: 대기실·결과 참가자의 faceKey(셀카 아바타)로 부위 그림을 받는다(AccountRepository.faceLayers와 같은 그림).
+     * 셀카 얼굴이 아니면 빈 목록, 받지 못하면 실패다. 구현이 없으면 빈 목록이다.
+     */
+    suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> = Outcome.Success(emptyList())
 }

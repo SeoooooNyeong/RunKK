@@ -34,6 +34,8 @@ public record LobbyView(
      * @param memberId 회원 ID
      * @param name 표시명
      * @param readiness 준비 상태
+     * @param shownGender 다른 러너에게 보이는 표시 성별 이름(MALE·FEMALE, MemberQueryService.shownGendersOf,
+     *     D-327). 앱이 크루원 캐릭터를 이 값으로 그린다(크루원 아바타, S15P31A207-236)
      */
-    public record Entry(long memberId, DisplayName name, Readiness readiness) {}
+    public record Entry(long memberId, DisplayName name, Readiness readiness, String shownGender) {}
 }

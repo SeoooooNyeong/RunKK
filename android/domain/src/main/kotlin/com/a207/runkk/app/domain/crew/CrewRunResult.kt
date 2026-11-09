@@ -1,6 +1,7 @@
 package com.a207.runkk.app.domain.crew
 
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.Gender
 import java.time.Instant
 
 /**
@@ -22,7 +23,10 @@ data class CrewRunResult(
     /** 아직 끝내지 않은 참가자가 있다(크루런 진행 중). */
     val isRunning: Boolean get() = status == CrewRunStatus.RUNNING
 
-    /** [isMe]는 열람자 본인, [memberId]는 탈퇴했으면 null, [hasEnded]는 그만두기나 크루런 종료로 마감됐는가. */
+    /**
+     * [isMe]는 열람자 본인, [memberId]는 탈퇴했으면 null, [hasEnded]는 그만두기나 크루런 종료로 마감됐는가.
+     * [faceKey]·[shownGender]는 그 회원의 아바타 얼굴 키와 표시 성별(D-327)이고 탈퇴·옛 서버·얼굴 없음이면 null이다(크루원 아바타).
+     */
     data class Participant(
         val displayName: String,
         val distance: Distance,
@@ -30,6 +34,8 @@ data class CrewRunResult(
         val averagePaceSecondsPerKm: Int? = null,
         val hasEnded: Boolean = true,
         val memberId: Long? = null,
-        val isMe: Boolean = false
+        val isMe: Boolean = false,
+        val faceKey: String? = null,
+        val shownGender: Gender? = null
     )
 }

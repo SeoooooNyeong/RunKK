@@ -657,7 +657,8 @@ private fun RunStat(value: String, label: String, spoken: String) {
 
 /**
  * 지도와 아바타(F-15): 경로 끝에 내 아바타, 아직 끝내지 않은 크루원은 내 경로 위 거리 차만큼 떨어진 지점(OpponentMarkerPlacer, 대결 상대와
- * 같은 방식). 크루원 성별을 모르므로 기본 캐릭터이고 멈췄으면 이름표가 "이름 · 멈춤"이다. Kakao 지도를 띄울 수 없으면 격자 바탕 경로선이다.
+ * 같은 방식). 크루원 캐릭터는 그 크루원의 표시 성별(대기실 응답, D-327)이고 멈췄으면 이름표가 "이름 · 멈춤"이다.
+ * Kakao 지도를 띄울 수 없으면 격자 바탕 경로선이다.
  */
 @Composable
 private fun CrewRunMap(state: CrewRunUiState) {
@@ -677,12 +678,13 @@ private fun CrewRunMap(state: CrewRunUiState) {
             MateMarker(
                 point,
                 if (isPaused) resources.getString(R.string.crew_run_mate_paused, row.name) else row.name,
-                row.state == MateState.RUNNING && !mine.isPaused
+                row.state == MateState.RUNNING && !mine.isPaused,
+                AvatarCharacter.of(row.shownGender)
             )
         }
     }
-    val mateFigure: @Composable (Boolean) -> Unit = { moving ->
-        RunkkRunningFigure(moving, runFrameMillis(null), character = AvatarCharacter.of(null), isFacingLeft = isLeft)
+    val mateFigure: @Composable (MateMarker) -> Unit = { m ->
+        RunkkRunningFigure(m.isMoving, runFrameMillis(null), character = m.character, isFacingLeft = isLeft)
     }
     // 실행 중 지도 오류가 나면 격자로 바꾼다(D-340)
     var isMapFailed by remember { mutableStateOf(false) }
@@ -690,7 +692,7 @@ private fun CrewRunMap(state: CrewRunUiState) {
         KakaoRunMap(
             route = route,
             modifier = Modifier.fillMaxSize(),
-            others = mates.map { m -> RunMapMarker(m.point, label = m.label, figure = { mateFigure(m.isMoving) }) },
+            others = mates.map { m -> RunMapMarker(m.point, label = m.label, figure = { mateFigure(m) }) },
             myLabel = myLabel,
             onMapError = { isMapFailed = true }
         ) { RunkkRunningFigure(isMoving, frameMillis, isFacingLeft = isLeft) }
@@ -703,7 +705,7 @@ private fun CrewRunMap(state: CrewRunUiState) {
         return
     }
     val markers = mates.map { m ->
-        RouteMarker(m.point, label = m.label, tag = OPPONENT_MARKER_TAG, figure = { mateFigure(m.isMoving) })
+        RouteMarker(m.point, label = m.label, tag = OPPONENT_MARKER_TAG, figure = { mateFigure(m) })
     } +
         RouteMarker(point = me, label = myLabel, figure = {
             RunkkRunningFigure(isMoving, frameMillis, isFacingLeft = isLeft)

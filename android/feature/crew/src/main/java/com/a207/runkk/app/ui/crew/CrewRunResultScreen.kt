@@ -44,6 +44,7 @@ import com.a207.runkk.app.core.designsystem.AvatarExpression
 import com.a207.runkk.app.core.designsystem.LocalReleaseScope
 import com.a207.runkk.app.core.designsystem.RunResultDetail
 import com.a207.runkk.app.core.designsystem.RunkkAvatar
+import com.a207.runkk.app.core.designsystem.RunkkAvatarArt
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkFormat
@@ -55,6 +56,7 @@ import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
 import com.a207.runkk.app.core.designsystem.UnreleasedFeature
 import com.a207.runkk.app.core.designsystem.asString
+import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.account.MyAvatar
@@ -156,7 +158,7 @@ private fun ResultPager(state: CrewRunResultUiState, result: CrewRunResult, page
     val scope = rememberCoroutineScope()
     Column(modifier = Modifier.fillMaxSize()) {
         HorizontalPager(state = pagerState, modifier = Modifier.weight(1f)) { page ->
-            if (page == 0) SummaryPage(result, state.myAvatar) else DetailPage(state.detail)
+            if (page == 0) SummaryPage(result, state.myAvatar, state.mateFaces) else DetailPage(state.detail)
         }
         // 쪽 넘김 글자("밀어서 상세 결과 보기 ›"·"‹ 크루런 결과로") 바로 아래에 쪽 점(피그마 F-16·F-16b).
         val isSummary = pagerState.currentPage == 0
@@ -186,7 +188,7 @@ private fun PageLink(text: String, onClick: () -> Unit) {
 
 /** 결과 쪽(F-16): 모집글 제목, 아바타 줄(가운데 내 아바타), 크루 합산 거리, 참가자 목록(이름·거리). */
 @Composable
-private fun SummaryPage(result: CrewRunResult, myAvatar: MyAvatar?) {
+private fun SummaryPage(result: CrewRunResult, myAvatar: MyAvatar?, mateFaces: Map<String, List<FaceLayer>>) {
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -200,7 +202,7 @@ private fun SummaryPage(result: CrewRunResult, myAvatar: MyAvatar?) {
                 textAlign = TextAlign.Center
             )
         }
-        AvatarRow(result, myAvatar)
+        AvatarRow(result, myAvatar, mateFaces)
         val total = RunkkFormat.km(result.totalDistance)
         val spoken = stringResource(R.string.crew_run_result_total_spoken, total)
         Text(
@@ -214,10 +216,11 @@ private fun SummaryPage(result: CrewRunResult, myAvatar: MyAvatar?) {
 }
 
 /**
- * 아바타 줄: 가운데 크게 내 아바타(홈과 같은 얼굴, 체형은 앱의 LocalAvatarCharacter), 양옆에 크루원(성별을 모르므로 기본 캐릭터) 넷까지.
+ * 아바타 줄: 가운데 크게 내 아바타(홈과 같은 얼굴, 체형은 앱의 LocalAvatarCharacter), 양옆에 크루원 넷까지(그 크루원의 얼굴 키·셀카 부위
+ * 그림·표시 성별, 계약 crewrun-sum v1.2).
  */
 @Composable
-private fun AvatarRow(result: CrewRunResult, myAvatar: MyAvatar?) {
+private fun AvatarRow(result: CrewRunResult, myAvatar: MyAvatar?, mateFaces: Map<String, List<FaceLayer>>) {
     val others = result.participants.filter { !it.isMe }.take(OTHER_AVATARS)
     val left = others.take((others.size + 1) / 2)
     val right = others.drop(left.size)
@@ -226,24 +229,30 @@ private fun AvatarRow(result: CrewRunResult, myAvatar: MyAvatar?) {
         horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        left.forEach { _ -> MateAvatar() }
+        left.forEach { MateAvatar(it, mateFaces) }
         RunkkAvatar(
             faceKey = myAvatar?.faceKey,
             expression = AvatarExpression.JOY,
             modifier = Modifier.size(width = 104.dp, height = 140.dp),
             faceLayers = myAvatar?.faceLayers.orEmpty()
         )
-        right.forEach { _ -> MateAvatar() }
+        right.forEach { MateAvatar(it, mateFaces) }
     }
 }
 
+/**
+ * 크루원 아바타 한 칸: 기본 캐릭터 얼굴이면 그 그림, 셀카 얼굴이면 받은 부위 그림이다. 얼굴 키가 없거나(얼굴을 고르지 않음·옛 서버)
+ * 셀카 부위 그림을 아직 받지 못했으면 지금처럼 기본 캐릭터다(빈 칸을 그리지 않는다).
+ */
 @Composable
-private fun MateAvatar() {
+private fun MateAvatar(mate: CrewRunResult.Participant, mateFaces: Map<String, List<FaceLayer>>) {
+    val layers = mate.faceKey?.let(mateFaces::get).orEmpty()
     RunkkAvatar(
-        faceKey = null,
+        faceKey = mate.faceKey?.takeIf { RunkkAvatarArt.characterOf(it) != null || layers.isNotEmpty() },
         expression = AvatarExpression.JOY,
         modifier = Modifier.size(width = 50.dp, height = 62.dp),
-        character = AvatarCharacter.of(null)
+        faceLayers = layers,
+        character = AvatarCharacter.of(mate.shownGender)
     )
 }
 
