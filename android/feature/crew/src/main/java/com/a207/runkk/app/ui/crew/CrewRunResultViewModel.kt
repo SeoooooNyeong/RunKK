@@ -46,6 +46,9 @@ class CrewRunResultViewModel internal constructor(
     private var job: Job? = null
     private var detailJob: Job? = null
 
+    /** 얼굴 그림을 받으러 간 크루원 얼굴 키(다시 읽을 때 또 받지 않는다). */
+    private val requestedFaces = mutableSetOf<String>()
+
     /** 지금까지 다시 읽은 횟수(간격 규칙의 위치). */
     private var rereads = 0
 
@@ -104,6 +107,7 @@ class CrewRunResultViewModel internal constructor(
                 _state.update { it.copy(isLoading = false, result = r.value, error = null) }
                 coordinator.acknowledgeFinished()
                 readDetail(r.value.myRecordId)
+                readMateFaces(r.value)
             }
 
             is Outcome.Failure -> {
@@ -121,6 +125,18 @@ class CrewRunResultViewModel internal constructor(
         detailJob = viewModelScope.launch {
             (details.detail(recordId) as? Outcome.Success)?.let { read ->
                 _state.update { it.copy(detail = read.value) }
+            }
+        }
+    }
+
+    /** 아바타 줄 크루원의 셀카 얼굴 부위 그림을 얼굴 키마다 한 번 받는다. 받지 못하면 얼굴 키만으로 그린다. */
+    private fun readMateFaces(result: CrewRunResult) {
+        val keys = result.participants.filter { !it.isMe }.mapNotNull { it.faceKey }.filter { requestedFaces.add(it) }
+        keys.forEach { key ->
+            viewModelScope.launch {
+                (crews.faceLayers(key) as? Outcome.Success)?.value?.takeIf { it.isNotEmpty() }?.let { layers ->
+                    _state.update { it.copy(mateFaces = it.mateFaces + (key to layers)) }
+                }
             }
         }
     }

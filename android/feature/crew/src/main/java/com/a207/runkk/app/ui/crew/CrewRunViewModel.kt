@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.uiText
 import com.a207.runkk.app.core.model.AppError
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.ServerClock
 import com.a207.runkk.app.core.navigation.Routes
@@ -190,7 +191,15 @@ class CrewRunViewModel @Inject constructor(
                     st.copy(
                         phase = CrewRunPhase.RUNNING,
                         countdown = null,
-                        relay = s.entries.map { e -> RelayRow(e.name, e.distance, MateState.of(e.state.name), e.isMe) },
+                        relay = s.entries.map { e ->
+                            RelayRow(
+                                e.name,
+                                e.distance,
+                                MateState.of(e.state.name),
+                                e.isMe,
+                                st.lobby.genderOf(e.memberId)
+                            )
+                        },
                         totalDistance = s.totalDistance,
                         mine = s.mine
                     )
@@ -256,3 +265,7 @@ class CrewRunViewModel @Inject constructor(
 
 /** 대기실 응답의 내 줄(me) 준비 여부. 내 줄이 없으면 null. */
 private fun Lobby.myReady(): Boolean? = participants.firstOrNull { it.isMe }?.isReady
+
+/** 중계 줄 회원의 표시 성별(대기실 응답의 같은 memberId 줄, 크루원 아바타). 중계에는 아바타 값을 싣지 않는다(계약 crewrun-sum v1.2). */
+private fun Lobby?.genderOf(memberId: Long?): Gender? =
+    memberId?.let { id -> this?.participants?.firstOrNull { it.memberId == id }?.shownGender }

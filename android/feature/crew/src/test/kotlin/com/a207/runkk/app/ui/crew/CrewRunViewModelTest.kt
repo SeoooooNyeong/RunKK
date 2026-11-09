@@ -6,6 +6,7 @@ import app.cash.turbine.test
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.ServerClock
 import com.a207.runkk.app.core.navigation.Routes
@@ -272,6 +273,50 @@ class CrewRunViewModelTest {
         assertTrue(result.isFirstCrewRun)
         assertEquals(listOf("rec-31"), read)
         assertEquals(listOf("result:31"), w.crews.calls.filter { it.startsWith("result") }, "끝났고 내 기록이 있으면 다시 읽지 않는다")
+    }
+
+    @Test
+    fun `진행 - 크루원 캐릭터는 대기실 응답의 같은 memberId 줄 표시 성별이다(크루원 아바타)`() = main.runVmTest { vms ->
+        val w = crewWorld()
+        val vm = lobbyVm(w, vms)
+        w.channels.channel.push(CrewRunStart(31, w.clock.now, listOf("바람처럼", "달빛", "나")))
+        runCurrent()
+        w.clock.now = w.clock.now.plusSeconds(3)
+        advanceTimeBy(3_100)
+        w.channels.channel.push(
+            CrewRunRelay(
+                31,
+                Distance(2_000),
+                listOf(
+                    CrewRunRelay.Entry("바람처럼", Distance(900), CrewRunRelay.State.RUNNING, memberId = 1),
+                    CrewRunRelay.Entry("달빛", Distance(800), CrewRunRelay.State.RUNNING, memberId = 2),
+                    CrewRunRelay.Entry("모름", Distance(300), CrewRunRelay.State.RUNNING, memberId = 99)
+                )
+            )
+        )
+        runCurrent()
+        assertEquals(
+            listOf(Gender.FEMALE, Gender.MALE, null),
+            vm.state.value.relay.map { it.shownGender },
+            "대기실에 없는 회원은 모름(남자 기본 캐릭터)"
+        )
+    }
+
+    @Test
+    fun `결과 - 크루원 셀카 얼굴 그림은 얼굴 키마다 한 번만 받는다`() = main.runVmTest { vms ->
+        val w = crewWorld()
+        w.crews.resultState = crewRunResult.copy(status = CrewRunStatus.RUNNING)
+        val vm = vms.track(resultVm(w))
+        vm.load(31)
+        runCurrent()
+        advanceTimeBy(3_100)
+        runCurrent()
+        assertEquals(
+            listOf("face:default:FOX", "face:selfie:face/2/set-a", "face:default:BEAR"),
+            w.crews.calls.filter { it.startsWith("face:") },
+            "다시 읽어도 또 받지 않고, 내 줄·얼굴 없는 크루원은 받지 않는다"
+        )
+        assertEquals(setOf("selfie:face/2/set-a"), vm.state.value.mateFaces.keys, "빈 목록(기본 캐릭터 얼굴)은 담지 않는다")
     }
 
     @Test

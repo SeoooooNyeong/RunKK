@@ -212,7 +212,10 @@ class ArchitectureTest {
         m.put("web.record", Set.of("analysis", "battle", "running"));
         // v0.14 W5: 대결 결과의 평가 표시(RunQueryService.evaluationOf, D-291·D-300)
         m.put("web.battle", Set.of("battle", "reward", "running"));
-        m.put("web.crew", Set.of("crew", "runimal", "web.attempt")); // + V9(D-132)
+        // + V9(D-132). + avatar: 크루런 대기실·결과의 크루원 얼굴 키(AvatarQuery.faceKeysOf, S15P31A207-236).
+        // Runimal 유형처럼
+        // 표현 계층이 붙여 crew → avatar 화살표를 만들지 않는다(D-46)
+        m.put("web.crew", Set.of("crew", "runimal", "avatar", "web.attempt"));
         m.put("web.runimal", Set.of("runimal"));
         m.put("web.avatar", Set.of("avatar", "reward"));
         m.put("web.admin", Set.of("operator", "web.attempt")); // + V7
