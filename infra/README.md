@@ -144,6 +144,8 @@ develop은 GitLab CI 변수 `INFRA_ENV`에 `RUNKK_BOOTSTRAP_SETTINGS=CREW_RELEAS
   COMMIT;
   ```
 
+- 서버 시간대 수정(V48, DF-073)이 적용된 환경은 V48이 없는 서버 이미지(옛 시간대 설정: JVM UTC, `hibernate.jdbc.time_zone`)로 되돌리지 않습니다. 오류 없이 뜨지만(Flyway는 DB에만 있는 V48, V49를 문제 삼지 않습니다) 그 뒤 서버가 쓰는 시각이 다시 9시간 앞서 저장되어 V48로 고친 값과 섞입니다. 되돌려야 하면 V48 직전 덤프(`before-tz` 또는 그 배포의 `predeploy`)로 DB를 먼저 복구한 뒤 이미지를 되돌립니다. V48 적용 뒤에는 `-prev` 이미지 태그로 되돌리지 않고, 이전 파이프라인의 `backend:deploy`를 다시 실행하지 않으며, V48 이전에 develop에서 갈라진 `release/*` 브랜치에 push하지 않습니다(8443 자동 배포로 옛 이미지가 뜹니다).
+
 ## 4. 운영 명령
 
 CI 작업 폴더에는 `.env`가 남지 않으므로 서버에서는 컨테이너 이름으로 다룹니다(`runkk-<환경>-<서비스>-1`, 에지는 `runkk-<서비스>-1`).
@@ -155,7 +157,7 @@ docker exec -it runkk-prod-postgres-1 psql -U runkk runkk   # prod DB 접속
 docker exec runkk-nginx-1 nginx -t && docker exec runkk-nginx-1 nginx -s reload   # nginx 설정 다시 읽기
 ```
 
-운영 주의(결함 DF-073, 근본 수정 진행 중): API 컨테이너 JVM이 UTC인데 Clock과 `hibernate.jdbc.time_zone`이 Asia/Seoul이라 서버가 쓴 시각은 DB에 9시간 앞서 저장되고, SQL로 넣은 시각(시드, 운영자 SQL, DB `now()`)은 서버가 9시간 이르게 읽습니다. 근본 수정(fix/S15P31A207-275-server-timezone)이 그 환경에 적용되기 전까지는 DB에서 서버가 쓴 시각을 읽을 때 9시간을 빼고, SQL로 시각을 넣을 때 의도한 한국 시각에 9시간을 더합니다. event 기간은 +9시간 임시 보정해 두었으므로 근본 수정 때 되돌립니다(docs/sw/sqa/이벤트-공지-성.md 3절).
+운영 주의(결함 DF-073, 서버 시간대): develop은 2026-11-09 V48 적용 뒤 서버가 쓴 시각과 SQL로 넣는 시각 모두 한국 시각 그대로 저장합니다(SQL로 넣을 때 9시간을 더하지 않습니다). 운영은 2차 배포(V36~V49, 서버 시간대 수정 V48 포함) 전까지 옛 규칙입니다: API 컨테이너 JVM이 UTC인데 Clock과 `hibernate.jdbc.time_zone`이 Asia/Seoul이라 서버가 쓴 시각은 DB에 9시간 앞서 저장되므로 DB에서 읽을 때 9시간을 빼고, SQL로 시각을 넣을 때 의도한 한국 시각에 9시간을 더합니다. 운영 event 기간은 +9시간 임시 보정해 두었고 2차 배포의 V48이 되돌립니다(docs/sw/sqa/이벤트-공지-성.md 3절, docs/sw/design-oo/05-28-설계-서버시간대-성.md 6절).
 
 ### develop 더미 데이터 (dev:seed)
 
