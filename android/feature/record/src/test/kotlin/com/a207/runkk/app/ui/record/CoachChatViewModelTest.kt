@@ -36,6 +36,22 @@ class CoachChatViewModelTest {
     private val repository = FakeCoachRepository()
 
     @Test
+    fun `최신 동의가 없으면 전송하지 않고 동의 저장 뒤 서버를 다시 확인한다`() {
+        repository.conversationResult = Outcome.Failure(AppError.Rejected("CONSENT_REQUIRED"))
+        val vm = CoachChatViewModel(repository)
+        assertEquals(CoachFailure.CONSENT_REQUIRED, vm.state.value.failure)
+        vm.send("개인 질문")
+        assertTrue(repository.questions.isEmpty())
+
+        repository.conversationResult = Outcome.Success(emptyList())
+        vm.refreshConversations()
+        assertNull(vm.state.value.failure)
+        assertTrue(repository.questions.isEmpty())
+        vm.send("새 질문")
+        assertEquals(listOf<Pair<String?, String>>(null to "새 질문"), repository.questions)
+    }
+
+    @Test
     fun `답 조각은 한 답에 이어 붙이고 done으로 완료한다`() {
         val vm = CoachChatViewModel(repository)
         vm.send("어떻게 달릴까요?")
@@ -196,16 +212,18 @@ class CoachChatViewModelTest {
     }
 
     @Test
-    fun `대화 목록 실패는 새 질문을 막지 않고 목록만 다시 읽을 수 있다`() {
+    fun `서버 동의를 확인하지 못하면 목록을 다시 읽기 전까지 새 질문을 보내지 않는다`() {
         repository.conversationResult = Outcome.Failure(AppError.Network)
         val vm = CoachChatViewModel(repository)
         assertTrue(vm.state.value.conversationError != null)
         vm.send("새 질문")
-        assertEquals(1, repository.questions.size)
+        assertTrue(repository.questions.isEmpty())
         repository.conversationResult = Outcome.Success(listOf(conversation))
         vm.refreshConversations()
         assertNull(vm.state.value.conversationError)
         assertEquals(listOf(conversation), vm.state.value.conversations)
+        vm.send("새 질문")
+        assertEquals(1, repository.questions.size)
     }
 
     private val conversation = CoachConversation("old", "이전 질문", LocalDateTime.of(2026, 11, 2, 10, 0))
