@@ -340,7 +340,13 @@ private fun DetailPage(state: BattleResultUiState, result: BattleResult, onBack:
     ) {
         val detail = state.detail
         if (detail != null) {
-            RunResultDetail(detail.toDetailState(state.verdict, result))
+            // 결과 상세의 아바타도 내 아바타(홈과 같은 얼굴)다.
+            RunResultDetail(
+                detail.toDetailState(state.verdict, result).copy(
+                    faceKey = state.myAvatar?.faceKey,
+                    faceLayers = state.myAvatar?.faceLayers.orEmpty()
+                )
+            )
         } else {
             Text(
                 stringResource(R.string.battle_result_detail_waiting),

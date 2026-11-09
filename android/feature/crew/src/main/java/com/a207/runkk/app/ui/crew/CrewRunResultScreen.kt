@@ -158,7 +158,13 @@ private fun ResultPager(state: CrewRunResultUiState, result: CrewRunResult, page
     val scope = rememberCoroutineScope()
     Column(modifier = Modifier.fillMaxSize()) {
         HorizontalPager(state = pagerState, modifier = Modifier.weight(1f)) { page ->
-            if (page == 0) SummaryPage(result, state.myAvatar, state.mateFaces) else DetailPage(state.detail)
+            if (page ==
+                0
+            ) {
+                SummaryPage(result, state.myAvatar, state.mateFaces)
+            } else {
+                DetailPage(state.detail, state.myAvatar)
+            }
         }
         // 쪽 넘김 글자("밀어서 상세 결과 보기 ›"·"‹ 크루런 결과로") 바로 아래에 쪽 점(피그마 F-16·F-16b).
         val isSummary = pagerState.currentPage == 0
@@ -299,9 +305,9 @@ private fun ParticipantCard(participants: List<CrewRunResult.Participant>) {
     }
 }
 
-/** 상세 쪽(F-16b): 러닝 결과 상세(D-282)와 같은 항목(내 기록). 기록이 아직 올라가지 않았으면 기다림 문구. */
+/** 상세 쪽(F-16b): 러닝 결과 상세(D-282)와 같은 항목(내 기록, 아바타는 내 아바타). 기록이 아직 올라가지 않았으면 기다림 문구. */
 @Composable
-private fun DetailPage(detail: RecordResultDetail?) {
+private fun DetailPage(detail: RecordResultDetail?, myAvatar: MyAvatar?) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -311,7 +317,13 @@ private fun DetailPage(detail: RecordResultDetail?) {
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         if (detail != null) {
-            RunResultDetail(detail.state.copy(dateLine = dateLine(detail.startedAt)))
+            RunResultDetail(
+                detail.state.copy(
+                    dateLine = dateLine(detail.startedAt),
+                    faceKey = myAvatar?.faceKey,
+                    faceLayers = myAvatar?.faceLayers.orEmpty()
+                )
+            )
         } else {
             Text(
                 stringResource(R.string.crew_run_result_detail_waiting),

@@ -69,6 +69,23 @@ class RunkkAvatarPortraitTest {
     }
 
     @Test
+    fun `결과 상세 아바타는 넘긴 내 아바타 얼굴을 그린다(F-16b)`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                RunResultDetail(
+                    RunResultDetailState(
+                        com.a207.runkk.app.core.model.Distance(4_870),
+                        "",
+                        java.time.Duration.ofMinutes(28),
+                        faceKey = "default:FOX"
+                    )
+                )
+            }
+        }
+        compose.onNodeWithTag(runkkAvatarCharacterTag("FOX"), useUnmergedTree = true).assertExists()
+    }
+
+    @Test
     fun `모르는 값이면 자리 그림을 그린다`() {
         show("default:DRAGON", emptyList())
         compose.onNodeWithText(PLACEHOLDER, useUnmergedTree = true).assertExists()
