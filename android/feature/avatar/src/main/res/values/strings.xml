@@ -78,6 +78,7 @@
     <string name="avatar_setup_selfie_daily">하루 1번</string>
     <string name="avatar_setup_pick_album">앨범에서 고르기</string>
     <string name="avatar_setup_save">저장</string>
+    <string name="avatar_setup_making">얼굴을 만들고 있어요</string>
     <string name="avatar_decorate_save">저장</string>
     <string name="avatar_tab_background">배경</string>
     <string name="avatar_trait_body">체형 %1$s</string>

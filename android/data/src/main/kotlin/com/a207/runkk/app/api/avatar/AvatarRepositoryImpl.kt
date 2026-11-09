@@ -13,6 +13,7 @@ import com.a207.runkk.app.domain.avatar.AvatarBackgrounds
 import com.a207.runkk.app.domain.avatar.AvatarRepository
 import com.a207.runkk.app.domain.avatar.BackgroundChoice
 import com.a207.runkk.app.domain.avatar.ItemSlot
+import com.a207.runkk.app.domain.avatar.SelfieJob
 import com.a207.runkk.app.domain.avatar.Shop
 import javax.inject.Inject
 import okhttp3.MediaType.Companion.toMediaType
@@ -21,35 +22,58 @@ import okhttp3.RequestBody.Companion.toRequestBody
 
 /**
  * 아바타·상점 포트를 REST로 구현한다(6.1.14 api.avatar). 셀카 바이트는 요청 본문으로만 보내고 기기·로그에 남기지 않는다(D-23, D-59).
+ * 셀카 얼굴은 서버가 비동기로 만든다(S15P31A207-276): 접수한 작업 ID만 [pending]에 남겨 이어 조회한다.
  * 앱이 모르는 착용 부위는 건너뛴다.
  */
 internal class AvatarRepositoryImpl
 @Inject
 constructor(
     private val api: AvatarApi,
-    private val faces: FaceImageSource
+    private val faces: FaceImageSource,
+    private val pending: PendingSelfieStore
 ) : AvatarRepository {
     override suspend fun avatar(): Outcome<Avatar> = ApiErrorMapper.call { api.avatar().toDomain() }
 
     override suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> = faces.faceLayers(faceKey)
 
-    /** 변환 실패는 200 + created=false라 Rejected(failureReason)로 바꿔 화면이 사유를 보이게 한다. */
-    override suspend fun createFromSelfie(jpeg: ByteArray): Outcome<Avatar> {
-        val reply =
-            when (
-                val result =
-                    ApiErrorMapper.call {
-                        val part = MultipartBody.Part.createFormData(SELFIE_PART, SELFIE_FILE, jpeg.toRequestBody(JPEG))
-                        api.createFromSelfie(part)
-                    }
-            ) {
-                is Outcome.Failure -> return result
-                is Outcome.Success -> result.value
-            }
-        if (reply.created == false) {
-            return Outcome.Failure(AppError.Rejected(reply.failureReason ?: SELFIE_FAILED))
+    /** 접수하면 작업 ID를 남긴다. 접수 응답이 이미 실패면 남기지 않는다. */
+    override suspend fun submitSelfie(jpeg: ByteArray): Outcome<SelfieJob> {
+        val result = ApiErrorMapper.call {
+            val part = MultipartBody.Part.createFormData(SELFIE_PART, SELFIE_FILE, jpeg.toRequestBody(JPEG))
+            api.submitSelfie(part).toDomain()
         }
-        return Outcome.Success(reply.toDomain())
+        if (result is Outcome.Success) {
+            if (result.value.status == SelfieJob.Status.FAILED) pending.clear() else pending.save(result.value.jobId)
+        }
+        return result
+    }
+
+    override suspend fun selfieJob(jobId: String): Outcome<SelfieJob> {
+        val result = ApiErrorMapper.call { api.selfieJob(jobId).toDomain() }
+        val isOver = when (result) {
+            is Outcome.Success -> result.value.status == SelfieJob.Status.FAILED
+            is Outcome.Failure -> result.error is AppError.Rejected
+        }
+        if (isOver) forget(jobId)
+        return result
+    }
+
+    /** 결과 본문은 읽지 않고 닫는다(서버가 응답 전에 얼굴을 바꾼다). 거부(작업 없음·준비 안 됨 등)면 남긴 작업도 지운다. */
+    override suspend fun finishSelfie(jobId: String): Outcome<Avatar> {
+        val done = ApiErrorMapper.call { api.selfieResult(jobId).close() }
+        if (done is Outcome.Failure) {
+            if (done.error is AppError.Rejected) forget(jobId)
+            return done
+        }
+        forget(jobId)
+        return avatar()
+    }
+
+    override suspend fun pendingSelfieJobId(): String? = pending.load()
+
+    /** 남긴 작업이 [jobId]일 때만 지운다(그사이 새로 접수한 작업은 그대로). */
+    private fun forget(jobId: String) {
+        if (pending.load() == jobId) pending.clear()
     }
 
     override suspend fun chooseDefault(characterId: String): Outcome<Avatar> =
@@ -85,7 +109,6 @@ constructor(
     private companion object {
         const val SELFIE_PART = "selfie"
         const val SELFIE_FILE = "selfie.jpg"
-        const val SELFIE_FAILED = "SELFIE_FAILED"
         val JPEG = "image/jpeg".toMediaType()
     }
 }
@@ -100,6 +123,13 @@ internal fun AvatarResponse.toDomain(): Avatar = Avatar(
     canCreateSelfieToday = canCreateSelfieToday,
     rejected = rejected.bySlot(),
     backgroundKey = backgroundKey
+)
+
+/** 모르는 상태는 아직 진행 중으로 본다(앱이 조회를 이어 가고 서버가 끝을 알린다). */
+internal fun SelfieJobResponse.toDomain(): SelfieJob = SelfieJob(
+    jobId = jobId,
+    status = enumByName<SelfieJob.Status>(status) ?: SelfieJob.Status.RUNNING,
+    failureCode = error?.code
 )
 
 internal fun BackgroundsResponse.toDomain(): AvatarBackgrounds = AvatarBackgrounds(

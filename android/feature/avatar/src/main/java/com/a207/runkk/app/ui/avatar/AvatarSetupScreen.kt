@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -67,7 +68,7 @@ import kotlinx.coroutines.withContext
 
 /**
  * 얼굴 만들기(J7, 가입에서 옮김, FR-155~FR-158): 셀카(카메라·앨범)로 SD 얼굴을 만들거나 기본 캐릭터 얼굴을 골라 저장한다.
- * 셀카는 줄여 보낸 뒤 원본을 남기지 않는다(SelfieEncoder). 끝나면 이전 화면(꾸미기)으로.
+ * 셀카는 줄여 보낸 뒤 원본을 남기지 않는다(SelfieEncoder). 서버가 얼굴을 만드는 동안 「만드는 중」을 보이고, 끝나면 이전 화면(꾸미기)으로.
  */
 @Composable
 fun AvatarSetupRoute(viewModel: AvatarSetupViewModel = hiltViewModel()) {
@@ -135,7 +136,7 @@ fun AvatarSetupScreen(
                 modifier = Modifier.semantics { heading() }
             )
             FacePreview(state)
-            SelfieCard(state.canCreateSelfie, state.isWorking, onSelfie, onAlbum)
+            SelfieCard(state.canCreateSelfie, state.isWorking || state.isMakingFace, onSelfie, onAlbum)
             RunkkSectionTitle(stringResource(R.string.avatar_setup_pick_character))
             CharacterRow(state.selected, onCharacter)
             if (state.error != null) {
@@ -151,31 +152,53 @@ fun AvatarSetupScreen(
         RunkkPrimaryButton(
             stringResource(R.string.avatar_setup_save),
             onClick = onSave,
-            isEnabled = state.selected != null,
+            isEnabled = state.selected != null && !state.isMakingFace,
             isLoading = state.isWorking,
             modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 32.dp)
         )
     }
 }
 
-/** 아바타 얼굴 미리보기: 고른 기본 캐릭터, 없으면 지금 얼굴. */
+/**
+ * 아바타 얼굴 미리보기: 고른 기본 캐릭터, 없으면 지금 얼굴. 서버가 셀카 얼굴을 만드는 중이면 얼굴 둘레에 진행 원을 돌리고
+ * 「얼굴을 만들고 있어요」를 알린다(S15P31A207-248).
+ */
 @Composable
 private fun FacePreview(state: AvatarSetupUiState) {
     val key =
         state.selected?.let { RunkkAvatarArt.defaultKey(it.name) } ?: state.faceKey ?: RunkkAvatarArt.DEFAULT_FACE_KEY
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RunkkShapes.ExtraLarge)
             .background(RunkkColors.Surface)
             .padding(vertical = 16.dp),
-        contentAlignment = Alignment.Center
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        RunkkAvatarPortrait(
-            key,
-            faceLayers = emptyList(),
-            modifier = Modifier.size(112.dp).clip(CircleShape).background(RunkkColors.Border)
-        )
+        Box(contentAlignment = Alignment.Center) {
+            RunkkAvatarPortrait(
+                key,
+                faceLayers = emptyList(),
+                modifier = Modifier.size(112.dp).clip(CircleShape).background(RunkkColors.Border)
+            )
+            if (state.isMakingFace) {
+                CircularProgressIndicator(
+                    color = RunkkColors.Lime,
+                    trackColor = RunkkColors.Border,
+                    strokeWidth = 3.dp,
+                    modifier = Modifier.size(124.dp)
+                )
+            }
+        }
+        if (state.isMakingFace) {
+            Text(
+                stringResource(R.string.avatar_setup_making),
+                style = RunkkTextStyles.text(14, FontWeight.Bold),
+                color = RunkkColors.TextPrimary,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+            )
+        }
     }
 }
 

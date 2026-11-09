@@ -9,6 +9,9 @@ data class AvatarSetupUiState(
     val selected: DefaultCharacter? = null,
     /** 지금 얼굴 키(미리보기, 고른 캐릭터가 없을 때). */
     val faceKey: String? = null,
+    /** 셀카를 줄여 보내거나 기본 캐릭터를 저장하는 중. */
     val isWorking: Boolean = false,
+    /** 서버가 셀카 얼굴을 만드는 중(접수 뒤 끝나기 전, S15P31A207-248). 셀카 버튼과 저장을 막는다. */
+    val isMakingFace: Boolean = false,
     val error: UiText? = null
 )

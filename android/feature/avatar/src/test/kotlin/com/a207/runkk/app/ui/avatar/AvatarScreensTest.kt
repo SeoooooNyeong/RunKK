@@ -64,6 +64,25 @@ class AvatarScreensTest {
     }
 
     @Test
+    fun `얼굴 만들기 - 서버가 얼굴을 만드는 중이면 알리고 셀카, 앨범, 저장을 막는다`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                AvatarSetupScreen(
+                    AvatarSetupUiState(isLoading = false, selected = DefaultCharacter.FOX, isMakingFace = true),
+                    {},
+                    {},
+                    {},
+                    {}
+                )
+            }
+        }
+        compose.onNodeWithText(str(R.string.avatar_setup_making)).assertExists()
+        compose.onNodeWithText(str(R.string.avatar_setup_take_selfie)).assertIsNotEnabled()
+        compose.onNodeWithText(str(R.string.avatar_setup_pick_album)).assertIsNotEnabled()
+        compose.onNodeWithText(str(R.string.avatar_setup_save)).assertIsNotEnabled()
+    }
+
+    @Test
     fun `꾸미기 - 아바타를 그림 하나로 읽어 주고 아이템을 누르면 입히고 상점, 얼굴, 저장으로 간다(J3)`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
@@ -246,6 +265,18 @@ class AvatarScreenshotTest {
     @Test
     fun setup() = compose.captureRunkkScreen("J7_avatar_face") {
         AvatarSetupScreen(AvatarSetupUiState(isLoading = false, selected = DefaultCharacter.FOX), {}, {}, {}, {})
+    }
+
+    /** 셀카 접수 뒤 서버가 얼굴을 만드는 중(S15P31A207-248): 진행 원과 「얼굴을 만들고 있어요」, 셀카·저장 꺼짐. */
+    @Test
+    fun setupMakingFace() = compose.captureRunkkScreen("J7_avatar_face_making") {
+        AvatarSetupScreen(
+            AvatarSetupUiState(isLoading = false, selected = DefaultCharacter.FOX, isMakingFace = true),
+            {},
+            {},
+            {},
+            {}
+        )
     }
 
     @Test

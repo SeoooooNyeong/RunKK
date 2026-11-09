@@ -9,6 +9,7 @@ import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.avatar.Avatar
 import com.a207.runkk.app.domain.avatar.ItemSlot
+import com.a207.runkk.app.domain.avatar.SelfieJob
 import com.a207.runkk.app.domain.avatar.Shop
 import com.a207.runkk.app.domain.notification.Inbox
 import com.a207.runkk.app.domain.runimal.RunimalCard
@@ -17,6 +18,7 @@ import java.time.Instant
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.test.runTest
 import org.junit.runner.RunWith
@@ -32,6 +34,23 @@ class AvatarAndRunimalAndNotificationTest {
     @AfterTest
     fun tearDown() = api.close()
 
+    /** 남긴 셀카 작업 ID를 메모리에 두는 저장소. */
+    private val pending = object : PendingSelfieStore {
+        var jobId: String? = null
+
+        override fun load(): String? = jobId
+
+        override fun save(jobId: String) {
+            this.jobId = jobId
+        }
+
+        override fun clear() {
+            jobId = null
+        }
+    }
+
+    private fun repository() = AvatarRepositoryImpl(api.retrofit.create(), api.faces, pending)
+
     @Test
     fun `아바타 DTO를 부위별 맵으로 바꾸고 모르는 부위는 건너뛴다`() = runTest {
         api.reply(
@@ -40,7 +59,7 @@ class AvatarAndRunimalAndNotificationTest {
             """.trimMargin()
         )
 
-        val avatar = AvatarRepositoryImpl(api.retrofit.create(), api.faces).avatar().value()
+        val avatar = repository().avatar().value()
 
         assertEquals(
             Avatar(
@@ -58,48 +77,97 @@ class AvatarAndRunimalAndNotificationTest {
     }
 
     @Test
-    fun `셀카는 JPEG multipart로 보내고 착용 변경은 부위 이름으로 보낸다`() = runTest {
-        val body = """{"bodyShape":"NORMAL","skinTone":"DAY"}"""
-        api.reply(body)
-        api.reply(body)
-        val repository = AvatarRepositoryImpl(api.retrofit.create(), api.faces)
+    fun `셀카는 JPEG multipart로 작업 접수 경로에 보내고 착용 변경은 부위 이름으로 보낸다`() = runTest {
+        api.reply("""{"jobId":"job-1","status":"QUEUED"}""", code = 202)
+        api.reply("""{"bodyShape":"NORMAL","skinTone":"DAY"}""")
+        val repository = repository()
 
-        repository.createFromSelfie(byteArrayOf(0xFF.toByte(), 0xD8.toByte()))
+        assertEquals(
+            SelfieJob("job-1", SelfieJob.Status.QUEUED),
+            repository.submitSelfie(byteArrayOf(0xFF.toByte(), 0xD8.toByte())).value()
+        )
         repository.equip(mapOf(ItemSlot.HAT to null, ItemSlot.TOP to 12L))
 
         val selfie = api.take()
+        assertEquals("/api/v1/avatar/selfie/jobs", selfie.target)
         assertTrue(selfie.headers["Content-Type"]!!.startsWith("multipart/form-data"))
         val part = selfie.body!!.utf8()
         assertTrue(part.contains("name=\"selfie\"") && part.contains("Content-Type: image/jpeg"), part)
         assertEquals("""{"changes":{"HAT":null,"TOP":12}}""", api.take().body!!.utf8())
+        assertEquals("job-1", repository.pendingSelfieJobId(), "접수한 작업은 이어 조회하려고 남긴다")
     }
 
     @Test
-    fun `셀카 변환 실패는 200이어도 실패 사유로 돌려준다`() = runTest {
-        api.reply(
-            """{"faceKey":null,"defaultCharacterId":null,"guide":"기본 캐릭터를 고를 수 있어요","bodyShape":"STAGE1","skinTone":"DAYTIME",
-               |"equipped":{},"balance":0,"canCreateSelfieToday":true,"rejected":{},"created":false,
-               |"failureReason":"NO_FACE","failureMessage":"얼굴을 찾지 못했어요"}
-            """.trimMargin()
+    fun `작업이 실패로 끝나면 사유를 돌려주고 남긴 작업을 지운다`() = runTest {
+        api.reply("""{"jobId":"job-1","status":"QUEUED"}""", code = 202)
+        api.reply("""{"jobId":"job-1","status":"RUNNING"}""")
+        api.reply("""{"jobId":"job-1","status":"FAILED","error":{"code":"SELFIE_QUALITY_REJECTED","message":"흐림"}}""")
+        val repository = repository()
+        repository.submitSelfie(byteArrayOf(1))
+
+        assertEquals(SelfieJob.Status.RUNNING, repository.selfieJob("job-1").value().status)
+        assertEquals("job-1", repository.pendingSelfieJobId())
+        assertEquals(
+            SelfieJob("job-1", SelfieJob.Status.FAILED, "SELFIE_QUALITY_REJECTED"),
+            repository.selfieJob("job-1").value()
         )
-
-        val result = AvatarRepositoryImpl(api.retrofit.create(), api.faces).createFromSelfie(byteArrayOf(1))
-
-        assertEquals(Outcome.Failure(AppError.Rejected("NO_FACE")), result)
+        assertNull(repository.pendingSelfieJobId())
+        api.take()
+        assertEquals("/api/v1/avatar/selfie/jobs/job-1", api.take().target)
     }
 
     @Test
-    fun `셀카 변환이 성공하면 아바타를 돌려준다`() = runTest {
-        api.reply(
-            """{"faceKey":"face-1","defaultCharacterId":null,"guide":null,"bodyShape":"STAGE1","skinTone":"DAYTIME","equipped":{},
-               |"balance":0,"canCreateSelfieToday":false,"rejected":{},"created":true,"failureReason":null,"failureMessage":null}
-            """.trimMargin()
+    fun `서버가 작업을 잃었으면(404 reason) 거부로 돌려주고 남긴 작업을 지운다`() = runTest {
+        api.reply("""{"jobId":"job-1","status":"QUEUED"}""", code = 202)
+        api.reply("""{"reason":"JOB_NOT_FOUND"}""", code = 404)
+        val repository = repository()
+        repository.submitSelfie(byteArrayOf(1))
+
+        assertEquals(Outcome.Failure(AppError.Rejected("JOB_NOT_FOUND")), repository.selfieJob("job-1"))
+        assertNull(repository.pendingSelfieJobId())
+    }
+
+    @Test
+    fun `조회가 잠깐 실패하면 남긴 작업을 그대로 둔다`() = runTest {
+        api.reply("""{"jobId":"job-1","status":"QUEUED"}""", code = 202)
+        api.reply("""{"reason":"UPSTREAM_FAILED"}""", code = 503)
+        val repository = repository()
+        repository.submitSelfie(byteArrayOf(1))
+
+        assertEquals(Outcome.Failure(AppError.Server(503)), repository.selfieJob("job-1"))
+        assertEquals("job-1", repository.pendingSelfieJobId())
+    }
+
+    @Test
+    fun `동의가 없으면 접수 거부이고 작업을 남기지 않는다`() = runTest {
+        api.reply("""{"code":"FACE_CONSENT_REQUIRED","message":"전송 동의 필요"}""", code = 409)
+        val repository = repository()
+
+        assertEquals(
+            Outcome.Failure(AppError.Rejected("FACE_CONSENT_REQUIRED")),
+            repository.submitSelfie(byteArrayOf(1))
         )
+        assertNull(repository.pendingSelfieJobId())
+    }
 
-        val avatar = AvatarRepositoryImpl(api.retrofit.create(), api.faces).createFromSelfie(byteArrayOf(1)).value()
+    @Test
+    fun `끝난 작업은 결과를 받아 얼굴을 바꾸고 바뀐 아바타를 읽는다`() = runTest {
+        api.reply("""{"jobId":"job-1","status":"QUEUED"}""", code = 202)
+        api.reply("""{"headId":"h-1","faceImage":"data:image/png;base64,AAAA"}""")
+        api.reply(
+            """{"faceKey":"head:7:job-1","bodyShape":"STAGE1","skinTone":"DAYTIME","canCreateSelfieToday":false}"""
+        )
+        val repository = repository()
+        repository.submitSelfie(byteArrayOf(1))
 
-        assertEquals("face-1", avatar.faceKey)
+        val avatar = repository.finishSelfie("job-1").value()
+
+        assertEquals("head:7:job-1", avatar.faceKey)
         assertEquals(false, avatar.canCreateSelfieToday)
+        assertNull(repository.pendingSelfieJobId())
+        api.take()
+        assertEquals("/api/v1/avatar/selfie/jobs/job-1/result", api.take().target)
+        assertEquals("/api/v1/avatar", api.take().target)
     }
 
     @Test
@@ -108,7 +176,7 @@ class AvatarAndRunimalAndNotificationTest {
             """{"items":[{"itemId":12,"slot":"TOP","name":"러닝 티","price":100,"owned":true,"onSale":true}],"balance":340}"""
         )
         api.reply("""{"balance":240}""")
-        val repository = AvatarRepositoryImpl(api.retrofit.create(), api.faces)
+        val repository = repository()
 
         assertEquals(
             Shop(listOf(Shop.Item(12, ItemSlot.TOP, "러닝 티", 100, true, true)), 340),
