@@ -41,7 +41,14 @@ class CrewMembersAssembler {
                                                 m.crewIntro(),
                                                 m.tier(),
                                                 types.get(m.memberId()),
-                                                m.memberId() == viewerId))
+                                                m.memberId() == viewerId,
+                                                m.accumulated().meters(),
+                                                CrewDtos.at(m.joinedAt()),
+                                                m.profile().level(),
+                                                m.profile().ageBand(),
+                                                nameOf(m.profile().gender()),
+                                                nameOf(m.profile().ageBandVisibility()),
+                                                nameOf(m.profile().genderVisibility())))
                         .toList());
     }
 
@@ -60,12 +67,20 @@ class CrewMembersAssembler {
                                                 CrewDtos.displayOf(r.name()),
                                                 r.tier(),
                                                 types.get(r.memberId()),
-                                                CrewDtos.at(r.requestedAt())))
+                                                CrewDtos.at(r.requestedAt()),
+                                                r.profile().level(),
+                                                r.profile().ageBand(),
+                                                nameOf(r.profile().gender())))
                         .toList());
     }
 
+    /** enum 이름, null이면 null(web.crew는 member 형식을 쓰지 않는다, 13.1 규칙 1). */
+    private static String nameOf(Enum<?> value) {
+        return value == null ? null : value.name();
+    }
+
     /**
-     * 크루원 목록. 비공개 크루원은 표시명·역할·크루 내 소개만 있다.
+     * 크루원 목록. 비공개 크루원은 표시명·역할·크루 내 소개만 있다. 누적 거리 내림차순(피그마 맞춤 W7, contract-W7.md 2장).
      *
      * @param members 크루원
      */
@@ -81,6 +96,13 @@ class CrewMembersAssembler {
          * @param tier 티어(공개만)
          * @param runimalType Runimal 유형(공개만)
          * @param me 열람자 본인
+         * @param accumulatedMeters 이 크루에 반영된 누적 기여 거리(m)
+         * @param joinedAt 크루 가입 일시
+         * @param level 레벨
+         * @param ageBand 나이대("20대"), 남에게는 나이 공개일 때만
+         * @param gender 성별(FEMALE | MALE | UNDISCLOSED), 남에게는 성별 공개일 때만
+         * @param ageBandVisibility 나이대 공개 값(PUBLIC | PRIVATE, 본인 줄만)
+         * @param genderVisibility 성별 공개 값(본인 줄만)
          */
         record Member(
                 long memberId,
@@ -89,7 +111,14 @@ class CrewMembersAssembler {
                 String crewIntro,
                 Tier tier,
                 RunimalType runimalType,
-                boolean me) {}
+                boolean me,
+                long accumulatedMeters,
+                OffsetDateTime joinedAt,
+                Integer level,
+                String ageBand,
+                String gender,
+                String ageBandVisibility,
+                String genderVisibility) {}
     }
 
     /**
@@ -108,6 +137,9 @@ class CrewMembersAssembler {
          * @param tier 티어
          * @param runimalType Runimal 유형
          * @param requestedAt 신청 일시
+         * @param level 레벨
+         * @param ageBand 나이대, 나이 공개일 때만
+         * @param gender 성별, 성별 공개일 때만
          */
         record Request(
                 long requestId,
@@ -115,6 +147,9 @@ class CrewMembersAssembler {
                 String displayName,
                 Tier tier,
                 RunimalType runimalType,
-                OffsetDateTime requestedAt) {}
+                OffsetDateTime requestedAt,
+                Integer level,
+                String ageBand,
+                String gender) {}
     }
 }

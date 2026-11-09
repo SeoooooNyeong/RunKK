@@ -1,0 +1,156 @@
+package com.a207.runkk.app.core.avatar
+
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Color
+import java.io.ByteArrayOutputStream
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNotSame
+import kotlin.test.assertSame
+import kotlin.test.assertTrue
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.GraphicsMode
+
+/**
+ * 디자인 규칙(아바타 PoC 온보딩 3절): 피부톤 필터는 피부에만 쓰고 눈·헤어·안경·옷에는 쓰지 않는다. 피부에 톤을 적용한 뒤 옷을 얹는다.
+ * 러닝량 0은 원본 바이트 그대로라 바꿀 때마다 누적되지 않는다.
+ */
+@RunWith(RobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+class SkinToneLayeringTest {
+    @Test
+    fun `측면 머리는 얼굴 피부만 어둡게 하고 눈·헤어 색은 그대로 얹는다`() {
+        val layers = SideHeadLayers(
+            face = png(64, 64) { fill(it, 0..63, 0..63, SKIN) },
+            eyes = png(64, 64) { fill(it, 10..12, 10..12, EYE) },
+            hair = png(64, 64) { fill(it, 40..50, 0..5, HAIR) }
+        )
+        val composed = decode(AvatarImages.composeSideHead(layers, amount = 100))
+
+        assertEquals(EYE, composed.getPixel(11, 11), "눈")
+        assertEquals(HAIR, composed.getPixel(45, 2), "헤어")
+        assertNear(Color.rgb(170, 90, 51), composed.getPixel(30, 30), "피부(R×0.70, G×0.50, B×0.32)")
+        composed.recycle()
+    }
+
+    @Test
+    fun `러닝량 0은 원본 바이트를 그대로 돌려준다`() {
+        val face = png(8, 8) { fill(it, 0..7, 0..7, SKIN) }
+        assertSame(face, AvatarImages.faceForRunningAmount(face, 0))
+    }
+
+    @Test
+    fun `몸 텍스처는 피부만 어둡게 하고 옷은 원래 색으로 위에 얹는다`() {
+        val source = png(256, 768) { bitmap ->
+            fill(bitmap, 0..255, 0..765, SHIRT)
+            fill(bitmap, 100..150, 300..400, SKIN)
+        }
+        val prepared = BodySkinLayers.prepare("side_leg_skin", source)
+        assertTrue(prepared.skinPixels > 0)
+        val rendered = decode(BodySkinLayers.render(prepared, amount = 100))
+
+        assertEquals(SHIRT, rendered.getPixel(10, 10), "옷")
+        assertNear(Color.rgb(170, 90, 51), rendered.getPixel(120, 350), "피부")
+        rendered.recycle()
+        assertSame(source, BodySkinLayers.render(prepared, amount = 0), "러닝량 0·기본 의상은 원본 그대로")
+    }
+
+    @Test
+    fun `생성 얼굴 피부색에 몸 피부만 맞추고 옷은 그대로 둔다`() {
+        val source = png(256, 768) { bitmap ->
+            fill(bitmap, 0..255, 0..765, SHIRT)
+            fill(bitmap, 100..150, 300..400, SKIN)
+        }
+        val prepared = BodySkinLayers.prepare("side_leg_skin", source)
+        val matched = GeneratedAvatarLayers.matchBody(prepared, Color.rgb(200, 150, 120))
+        val original = decode(matched.original)
+
+        assertNear(Color.rgb(200, 150, 120), original.getPixel(120, 350), "피부는 생성 얼굴 피부색")
+        assertEquals(SHIRT, original.getPixel(10, 10), "옷")
+        original.recycle()
+    }
+
+    @Test
+    fun `정면 헤어는 톤 계산을 거치지 않고 얼굴만 러닝량 캐시를 다시 쓴다`() {
+        val face = png(32, 32) { fill(it, 0..31, 0..31, SKIN) }
+        val hair = png(32, 32) { fill(it, 0..31, 0..3, HAIR) }
+        val request = AvatarToneRequest(
+            version = 1,
+            identity = 1,
+            gender = AvatarGender.FEMALE,
+            amount = 60,
+            outfit = AvatarOutfit(),
+            shape = AvatarBodyShape.BASE,
+            face = face,
+            hair = hair,
+            frontFullness = null,
+            runFullness = null,
+            sideLayers = null,
+            skinAssets = emptyMap(),
+            generatedSkinColor = null
+        )
+        val first = AvatarTextureComposer.compose(request, AvatarToneCache())
+        assertSame(hair, first.hair, "헤어는 원본 바이트")
+        assertNotSame(face, checkNotNull(first.face).bytes, "얼굴은 톤을 적용한 새 텍스처")
+
+        val cached = AvatarTextureComposer.compose(request, first.toCache(AvatarToneCache()))
+        assertSame(first.face, cached.face, "같은 러닝량이면 다시 계산하지 않는다")
+        val changed = AvatarTextureComposer.compose(
+            AvatarToneRequest(
+                version = 2,
+                identity = 1,
+                gender = AvatarGender.FEMALE,
+                amount = 80,
+                outfit = AvatarOutfit(),
+                shape = AvatarBodyShape.BASE,
+                face = face,
+                hair = hair,
+                frontFullness = null,
+                runFullness = null,
+                sideLayers = null,
+                skinAssets = emptyMap(),
+                generatedSkinColor = null
+            ),
+            first.toCache(AvatarToneCache())
+        )
+        assertEquals(80, checkNotNull(changed.face).amount)
+    }
+
+    private fun assertNear(expected: Int, actual: Int, message: String) {
+        val channels = listOf(Color::red, Color::green, Color::blue)
+        assertTrue(
+            channels.all { kotlin.math.abs(it(expected) - it(actual)) <= 2 } && Color.alpha(actual) == 255,
+            "$message: 기대 ${Integer.toHexString(expected)}, 실제 ${Integer.toHexString(actual)}"
+        )
+    }
+
+    private companion object {
+        val SKIN = Color.rgb(243, 180, 160)
+        val EYE = Color.rgb(30, 20, 20)
+        val HAIR = Color.rgb(90, 60, 40)
+        val SHIRT = Color.rgb(250, 250, 250)
+
+        fun png(width: Int, height: Int, draw: (Bitmap) -> Unit): ByteArray {
+            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            return try {
+                draw(bitmap)
+                ByteArrayOutputStream().use {
+                    check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
+                    it.toByteArray()
+                }
+            } finally {
+                bitmap.recycle()
+            }
+        }
+
+        fun fill(bitmap: Bitmap, xs: IntRange, ys: IntRange, color: Int) {
+            val width = xs.last - xs.first + 1
+            val row = IntArray(width) { color }
+            for (y in ys) bitmap.setPixels(row, 0, width, xs.first, y, width, 1)
+        }
+
+        fun decode(bytes: ByteArray): Bitmap = checkNotNull(BitmapFactory.decodeByteArray(bytes, 0, bytes.size))
+    }
+}

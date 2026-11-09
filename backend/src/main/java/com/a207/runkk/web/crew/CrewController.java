@@ -114,6 +114,19 @@ public class CrewController {
                         () -> membershipService.apply(memberId, target)));
     }
 
+    /**
+     * 초대 코드 미리보기(피그마 F-03c, S15P31A207-295): 코드에 맞는 크루 요약만 주고 가입시키지 않는다. 가입과 같은 실패 횟수 제한(회원별 10분
+     * 5회, 429)을 건다. 코드를 URL·접근 로그에 남기지 않으려고 본문으로 받는다.
+     */
+    @PostMapping("/crews/invite-preview")
+    CrewDtos.InvitePreviewResponse invitePreview(
+            @RequestAttribute(MEMBER_ID) long memberId,
+            @Valid @RequestBody CrewDtos.InvitePreviewRequest body) {
+        return CrewDtos.InvitePreviewResponse.of(
+                joinAttemptGuard.preview(
+                        memberId, () -> crewQueryService.invitePreview(body.inviteCode())));
+    }
+
     @DeleteMapping("/join-requests/{id}")
     CrewDtos.JoinResponse cancel(
             @RequestAttribute(MEMBER_ID) long memberId, @PathVariable("id") long requestId) {

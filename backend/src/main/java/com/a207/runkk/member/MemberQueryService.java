@@ -72,7 +72,25 @@ public class MemberQueryService {
 
     /** 프로필 화면의 레벨·사진·소개·나이대·성별(profile, FR-005). year 기준 나이대. */
     public MemberProfile profileOf(long memberId, int year) {
-        Member m = MemberLoader.load(memberRepository, memberId);
+        return profileOf(MemberLoader.load(memberRepository, memberId), year);
+    }
+
+    /**
+     * profileOf를 여러 명에게 한 번의 조회로(크루원 목록·가입 신청 목록의 레벨·나이대·성별, 피그마 맞춤 W7). 공개 값으로 거르지 않고 그대로 내주며 거르기는
+     * 부르는 쪽이 한다. 없는 회원은 맵에 없다.
+     */
+    public Map<Long, MemberProfile> profilesOf(Collection<Long> memberIds, int year) {
+        if (memberIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, MemberProfile> result = new HashMap<>();
+        for (Member m : memberRepository.findAllById(memberIds)) {
+            result.put(m.getId(), profileOf(m, year));
+        }
+        return result;
+    }
+
+    private static MemberProfile profileOf(Member m, int year) {
         OptionalInt age = m.ageIn(year);
         String ageBand = age.isPresent() ? (age.getAsInt() / AGE_BAND * AGE_BAND) + "대" : null;
         return new MemberProfile(
