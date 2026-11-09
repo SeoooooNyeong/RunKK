@@ -459,7 +459,8 @@ class ArchitectureTest {
         /** 5.1.2 모듈(패키지) 이름 → 실제 패키지 접두어. 가장 긴 접두어가 이긴다. */
         val PACKAGES: Map<String, String> =
             buildMap {
-                listOf("core.model", "core.navigation", "core.designsystem").forEach { put(it, "$APP.$it") }
+                listOf("core.model", "core.navigation", "core.designsystem", "core.avatar")
+                    .forEach { put(it, "$APP.$it") }
                 DOMAINS.forEach { put("domain.$it", "$APP.domain.$it") }
                 APIS.forEach { put("api.$it", "$APP.api.$it") }
                 DATAS.forEach { put("data.$it", "$APP.data.$it") }
@@ -475,9 +476,9 @@ class ArchitectureTest {
         /** 모듈 Fan-Out 상한(12.4, design-review 구조 합격 조건). */
         const val MAX_FAN_OUT = 7
 
-        /** 한 파일 규칙(D-112)을 건 표현 계층 모듈: core 표현 두 패키지, app, 5.1.2 표의 ui.* 전부. */
+        /** 한 파일 규칙(D-112)을 건 표현 계층 모듈: core 표현 세 패키지(아바타 렌더러 포함), app, 5.1.2 표의 ui.* 전부. */
         private val ONE_FILE_PRESENTATION_MODULES: List<String> =
-            listOf("core.designsystem", "core.navigation", "app") + UIS.map { "ui.$it" }
+            listOf("core.designsystem", "core.navigation", "core.avatar", "app") + UIS.map { "ui.$it" }
 
         /** 한 파일 규칙·Boolean 이름 규칙의 픽스처(프로젝트 루트 기준). */
         const val FIXTURES = "app/src/test/resources/konsist"
@@ -495,6 +496,8 @@ class ArchitectureTest {
                 "core.navigation" to emptySet(),
                 "wear.contract" to emptySet(),
                 "core.designsystem" to setOf("core.model"),
+                // 공용 Rive 아바타 렌더러(:core:avatar, S15P31A207-300): 앱 패키지를 하나도 import하지 않는다.
+                "core.avatar" to emptySet(),
                 "domain.settings" to setOf("core.model"),
                 "domain.live" to setOf("core.model"),
                 "domain.record" to setOf("core.model"),
