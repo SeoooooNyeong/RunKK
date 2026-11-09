@@ -252,6 +252,35 @@ class BattleScreenshotTest {
         )
     }
 
+    /** 셀럽런 목록 코치 두 줄(피그마 E-1 60865:7403, 라이트): 코치는 둥근 얼굴, 그 밖의 셀럽은 서 있는 그림. */
+    @Test
+    fun celebBattleCoaches() = compose.captureRunkkScreen("D1_celeb_battle_coaches", isDarkTheme = false) {
+        val coaches = listOf(
+            CandidateUi(
+                11, "주세빈 코치님",
+                Distance(
+                    5_000
+                ),
+                Duration.ofSeconds(1_818), null, null, "출처: 런크크", false, celebrityFigure = "joo"
+            ),
+            CandidateUi(
+                12, "김선교 코치님",
+                Distance(
+                    5_000
+                ),
+                Duration.ofSeconds(1_800), null, null, "출처: 런크크", false, celebrityFigure = "kim"
+            )
+        )
+        CelebBattleScreen(
+            RecordBattleUiState(isLoading = false, candidates = coaches + celeb),
+            {},
+            {},
+            {},
+            {},
+            {}
+        )
+    }
+
     @Test
     fun matchWaiting() = compose.captureRunkkScreen("D2_match_waiting") {
         MatchScreen(MatchUiState(phase = MatchPhase.WAITING, waitingSeconds = 7), MatchActions())

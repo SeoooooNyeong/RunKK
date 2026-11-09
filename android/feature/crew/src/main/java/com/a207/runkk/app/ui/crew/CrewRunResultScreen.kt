@@ -46,6 +46,7 @@ import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkLoading
+import com.a207.runkk.app.core.designsystem.RunkkPageDots
 import com.a207.runkk.app.core.designsystem.RunkkPrimaryButton
 import com.a207.runkk.app.core.designsystem.RunkkSecondaryButton
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
@@ -309,26 +310,17 @@ private fun dateLine(startedAt: Instant): String {
     return "$date · ${stringResource(R.string.crew_run_result_kind)}"
 }
 
-/** 쪽 점 두 개. */
+/** 쪽 점 두 개(디자인 시스템 RunkkPageDots, 결과 화면은 간격 6과 강한 테두리색). */
 @Composable
 private fun PageDots(current: Int) {
-    val description = stringResource(R.string.crew_run_result_page_desc, current + 1, RESULT_PAGES)
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).clearAndSetSemantics {
-            contentDescription =
-                description
-        },
-        horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally)
-    ) {
-        repeat(RESULT_PAGES) { index ->
-            Box(
-                Modifier
-                    .size(width = if (index == current) 18.dp else 6.dp, height = 6.dp)
-                    .clip(CircleShape)
-                    .background(if (index == current) RunkkColors.TextPrimary else RunkkColors.BorderStrong)
-            )
-        }
-    }
+    RunkkPageDots(
+        current = current,
+        count = RESULT_PAGES,
+        description = stringResource(R.string.crew_run_result_page_desc, current + 1, RESULT_PAGES),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        gap = 6.dp,
+        inactiveColor = RunkkColors.BorderStrong
+    )
 }
 
 /** 결과 쪽이 보이는 정도(0~1). 상세 쪽으로 넘어가면 0이다. */
