@@ -54,7 +54,7 @@ class BootstrapConfigTest {
         int registered =
                 scheduledTaskHolders.stream().mapToInt(h -> h.getScheduledTasks().size()).sum();
         int tasks = registered + TASKS_OFF_IN_TEST_PROFILE;
-        assertThat(tasks).as("운영 등록 작업 수(application.yml 주석과 같다)").isEqualTo(25);
+        assertThat(tasks).as("운영 등록 작업 수(application.yml 주석과 같다)").isEqualTo(26);
         assertThat(schedulerPoolSize).isGreaterThanOrEqualTo(tasks);
     }
 

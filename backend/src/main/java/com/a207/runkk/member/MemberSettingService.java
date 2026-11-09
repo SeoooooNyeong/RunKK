@@ -48,24 +48,29 @@ public class MemberSettingService {
      */
     @Transactional
     public ConsentResult giveConsent(long memberId, ConsentItem item) {
+        return giveConsent(memberId, item, 1);
+    }
+
+    @Transactional
+    public ConsentResult giveConsent(long memberId, ConsentItem item, int noticeVersion) {
         Member member = MemberLoader.load(memberRepository, memberId);
-        ConsentChange change = member.giveConsent(item, LocalDateTime.now(clock));
+        ConsentChange change = member.giveConsent(item, LocalDateTime.now(clock), noticeVersion);
         memberRepository.save(member);
         audit(memberId, change);
         return new ConsentResult(item, change.before(), change.after());
     }
 
-    /**
-     * Member.withdrawConsent → 저장 → 감사(동의변경) → LOCATION·HEART_RATE를 동의 상태에서 철회하면 ConsentWithdrawn
-     * 발행(FR-025, FR-026, FR-029). 이미 철회한 항목을 다시 철회하면 파기 지시를 또 만들지 않는다.
-     */
+    /** 위치·심박·LLM 동의를 철회하면 ConsentWithdrawn을 발행한다. 러닝 자료 파기와 코치 중계 취소는 각 수신자가 맡는다. */
     @Transactional
     public ConsentResult withdrawConsent(long memberId, ConsentItem item) {
         Member member = MemberLoader.load(memberRepository, memberId);
         ConsentChange change = member.withdrawConsent(item, LocalDateTime.now(clock));
         memberRepository.save(member);
         audit(memberId, change);
-        if (change.before() && (item == ConsentItem.LOCATION || item == ConsentItem.HEART_RATE)) {
+        if (change.before()
+                && (item == ConsentItem.LOCATION
+                        || item == ConsentItem.HEART_RATE
+                        || item == ConsentItem.LLM_TRANSFER)) {
             eventPublisher.publish(new ConsentWithdrawn(memberId, item, change.at()));
         }
         return new ConsentResult(item, change.before(), change.after());

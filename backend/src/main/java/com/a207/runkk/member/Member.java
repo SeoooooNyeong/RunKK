@@ -261,9 +261,19 @@ public class Member {
 
     /** 동의. 이력에 덧붙이고 이전·이후 값을 돌려준다(감사용). */
     public ConsentChange giveConsent(ConsentItem item, LocalDateTime now) {
+        return giveConsent(item, now, 1);
+    }
+
+    static final int COACH_NOTICE_VERSION = 2;
+
+    ConsentChange giveConsent(ConsentItem item, LocalDateTime now, int noticeVersion) {
         requireActive();
+        if (noticeVersion != 1
+                && (item != ConsentItem.LLM_TRANSFER || noticeVersion != COACH_NOTICE_VERSION)) {
+            throw new IllegalArgumentException("지원하지 않는 동의 안내 판");
+        }
         boolean before = consents.isAgreed(item);
-        consents.record(item, true, now);
+        consents.record(item, now, noticeVersion);
         timestamps = timestamps.touched(now);
         return new ConsentChange(item, before, true, now);
     }
@@ -282,6 +292,11 @@ public class Member {
 
     public boolean hasConsent(ConsentItem item) {
         return consents.isAgreed(item);
+    }
+
+    boolean hasCurrentCoachConsent() {
+        return getStatus() == MemberStatus.ACTIVE
+                && consents.agreedVersion(ConsentItem.LLM_TRANSFER) == COACH_NOTICE_VERSION;
     }
 
     /** 기본 대결 거리 저장. MemberSettingService만 부른다(FR-080). */

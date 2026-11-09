@@ -26,14 +26,23 @@ public class ConsentHistory {
         records.add(new ConsentRecord(item, agreed, at));
     }
 
+    void record(ConsentItem item, LocalDateTime at, int noticeVersion) {
+        records.add(new ConsentRecord(item, true, at, noticeVersion));
+    }
+
     /** 가장 최근 값. 이력이 없으면 false. */
     public boolean isAgreed(ConsentItem item) {
+        return agreedVersion(item) > 0;
+    }
+
+    int agreedVersion(ConsentItem item) {
         for (int i = records.size() - 1; i >= 0; i--) {
-            if (records.get(i).item() == item) {
-                return records.get(i).agreed();
+            ConsentRecord record = records.get(i);
+            if (record.item() == item) {
+                return record.agreed() ? record.noticeVersion() : 0;
             }
         }
-        return false;
+        return 0;
     }
 
     /** 탈퇴 때 비운다. 감사 로그의 동의 기록은 AuditRecord에 따로 남아 6개월 보존된다. */

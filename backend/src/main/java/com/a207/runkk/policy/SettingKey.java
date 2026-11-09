@@ -223,6 +223,18 @@ public enum SettingKey {
             return ValidationResult.ok();
         }
     },
+    COACH_ENABLED(Boolean.class, "false") {
+        @Override
+        ValidationResult checkRange(Object value) {
+            return ValidationResult.ok();
+        }
+    },
+    COACH_DAILY_LIMIT(Integer.class, "20") {
+        @Override
+        ValidationResult checkRange(Object value) {
+            return rule((Integer) value > 0, "양의 정수");
+        }
+    },
     SELFIE_LIMIT(SelfieLimit.class, "{\"perDay\":1}") {
         @Override
         ValidationResult checkRange(Object value) {

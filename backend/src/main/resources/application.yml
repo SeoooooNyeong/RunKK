@@ -28,12 +28,12 @@ spring:
           time_zone: Asia/Seoul
   # 비동기 사건 수신자(리포트·Runimal, D-03·배경 해금 BackgroundUnlockListener·채팅 방 밖 알림 ChatDeliveryListener) 실행기. 인스턴스 1개·동시 50명(5.4) 규모. 종료 때 진행 중 작업을 30초까지 기다린다(1단계 리뷰 M6·L2).
   task:
-    # 주기 작업은 batch.* 12개 패키지에 25개다(간격 6개: 1초 2개·5초 2개·1분 2개, 시각 19개). 같은 시각 작업과 1초 시계가 서로 기다리지 않게
+    # 주기 작업은 26개다(코치 대화 색인 만료 포함). 같은 시각 작업과 1초 시계가 서로 기다리지 않게
     # 스케줄러 스레드를 작업 수만큼 둔다(5.5, B5 리뷰 "풀 2개로 3시·0시 작업이 겹침", MR !91 BR-4 런바디 5초 작업 추가).
     # 작업을 더하면 이 값도 늘린다(BootstrapConfigTest가 등록 수와 비교한다).
     scheduling:
       pool:
-        size: ${SCHEDULER_POOL_SIZE:25}
+        size: ${SCHEDULER_POOL_SIZE:26}
       thread-name-prefix: runkk-schedule-
     execution:
       thread-name-prefix: runkk-async-
