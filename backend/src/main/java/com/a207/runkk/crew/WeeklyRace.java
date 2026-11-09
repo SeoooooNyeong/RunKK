@@ -82,12 +82,15 @@ public class WeeklyRace {
         return achievedAt != null;
     }
 
-    /** 진행률 min(100, ⌊합계 × 100 ÷ 목표⌋), 목표가 없으면 빈 값(FR-140). */
+    /**
+     * 진행률 ⌊합계 × 100 ÷ 목표⌋, 목표가 없으면 빈 값(FR-140). 100을 넘으면 넘는 값 그대로 둔다(105% 등, 피그마 맞춤 사용자 결정 C2,
+     * S15P31A207-296). 막대를 100%에서 채우는 것은 앱이 한다.
+     */
     public Optional<Integer> goalProgressPercent() {
         if (goal == null) {
             return Optional.empty();
         }
-        return Optional.of((int) Math.min(PERCENT, total.meters() * PERCENT / goal.meters()));
+        return Optional.of((int) (total.meters() * PERCENT / goal.meters()));
     }
 
     public Optional<Distance> goal() {

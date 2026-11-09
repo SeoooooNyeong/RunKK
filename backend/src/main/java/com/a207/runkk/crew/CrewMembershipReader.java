@@ -45,6 +45,32 @@ public class CrewMembershipReader {
                 .orElse(CrewRelation.OUTSIDER);
     }
 
+    /** 회원들의 지금 크루 역할(채팅 작성자 크루장 배지, 피그마 맞춤 W5 C7). 크루를 한 번만 읽는다. 크루가 없거나 소속이 아닌 회원은 맵에 없다. */
+    public Map<Long, CrewRole> rolesIn(long crewId, Collection<Long> memberIds) {
+        Map<Long, CrewRole> roles = new HashMap<>();
+        crewRepository
+                .findById(crewId)
+                .ifPresent(
+                        crew ->
+                                memberIds.forEach(
+                                        id -> {
+                                            CrewRole role = roleOf(crew.relationOf(id));
+                                            if (role != null) {
+                                                roles.put(id, role);
+                                            }
+                                        }));
+        return roles;
+    }
+
+    private static CrewRole roleOf(CrewRelation relation) {
+        return switch (relation) {
+            case LEADER -> CrewRole.LEADER;
+            case MANAGER -> CrewRole.MANAGER;
+            case MEMBER -> CrewRole.MEMBER;
+            case OUTSIDER -> null;
+        };
+    }
+
     public List<Long> activeMemberIds(long crewId) {
         return crewRepository.findById(crewId).map(Crew::activeMemberIds).orElse(List.of());
     }

@@ -14,7 +14,9 @@ import static org.mockito.Mockito.when;
 
 import com.a207.runkk.NoTransactions;
 import com.a207.runkk.common.DisplayName;
+import com.a207.runkk.common.Distance;
 import com.a207.runkk.crew.CrewMembershipReader;
+import com.a207.runkk.crew.CrewRole;
 import com.a207.runkk.crew.chat.live.ChatRemovalReason;
 import com.a207.runkk.crew.chat.live.CrewChatPosted;
 import com.a207.runkk.crew.chat.live.CrewChatReactionChanged;
@@ -65,6 +67,7 @@ class ChatDeliveryListenerTest {
     @BeforeEach
     void setUp() {
         when(membership.activeMemberIds(CREW)).thenReturn(List.of(1L, 2L, 3L, 4L));
+        when(membership.rolesIn(CREW, List.of(3L))).thenReturn(Map.of(3L, CrewRole.LEADER));
         when(memberQuery.summaries(anyCollection()))
                 .thenReturn(Map.of(3L, new MemberSummary(3, DisplayName.of("새벽곰"), null, null)));
         CrewChatMessenger messenger =
@@ -114,7 +117,10 @@ class ChatDeliveryListenerTest {
                                 "새벽곰",
                                 "내일 7시 출발",
                                 OffsetDateTime.of(NOW, ZoneOffset.ofHours(9)),
-                                U1));
+                                U1,
+                                ChatMessageKind.TEXT,
+                                "LEADER",
+                                null));
         assertThat(signal.type()).isEqualTo("CrewChatPosted");
 
         ArgumentCaptor<NotificationRequest> req =
@@ -126,6 +132,27 @@ class ChatDeliveryListenerTest {
         assertThat(first.type()).isEqualTo(NotificationType.CREW_CHAT);
         assertThat(first.target()).isEqualTo(new NavigationTarget(Screen.CREW_CHAT, "7"));
         assertThat(first.content()).isEqualTo("새벽곰: 내일 7시 출발");
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName(
+            "W5 러닝 완료 시스템 메시지는 방 안에 RUN_FINISHED·거리로 보내고 방 밖 CREW_CHAT 알림은 보내지 않는다")
+    void runFinished_roomOnly() {
+        long id =
+                messages.save(
+                                CrewChatMessage.runFinished(
+                                        CREW, 3, "rec-1", "새벽곰", Distance.ofMeters(5_021), NOW))
+                        .id();
+
+        listener.onPosted(new ChatMessagePosted(CREW, id, 3, NOW));
+
+        assertThat(sent).hasSize(1);
+        CrewChatPosted signal = (CrewChatPosted) sent.get(0).signal();
+        assertThat(signal.messageKind()).isEqualTo(ChatMessageKind.RUN_FINISHED);
+        assertThat(signal.runDistanceMeters()).isEqualTo(5_021L);
+        assertThat(signal.content()).isEqualTo("새벽곰님이 5.02km를 달렸어요");
+        assertThat(signal.authorRole()).isEqualTo("LEADER");
+        verify(notifications, never()).notifyCollapsing(any());
     }
 
     @Test

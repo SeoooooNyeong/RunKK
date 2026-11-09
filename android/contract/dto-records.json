@@ -201,6 +201,10 @@
     "kind": "list",
     "name": "backgrounds",
     "ref": "AvatarDtos.BackgroundsResponse.Background"
+   },
+   {
+    "kind": "leaf",
+    "name": "totalMeters"
    }
   ],
   "file": "web/avatar/AvatarDtos.java"
@@ -230,6 +234,10 @@
    {
     "kind": "leaf",
     "name": "unlockedAt"
+   },
+   {
+    "kind": "leaf",
+    "name": "remainingMeters"
    }
   ],
   "file": "web/avatar/AvatarDtos.java"
@@ -277,6 +285,43 @@
   ],
   "file": "web/avatar/AvatarDtos.java"
  },
+ "AvatarDtos.RunnerResponse": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "bodyShape"
+   },
+   {
+    "kind": "leaf",
+    "name": "bodyVariant"
+   },
+   {
+    "kind": "leaf",
+    "name": "skinTone"
+   },
+   {
+    "kind": "leaf",
+    "name": "typicalStartHour"
+   },
+   {
+    "kind": "leaf",
+    "name": "recentRunCount"
+   },
+   {
+    "kind": "leaf",
+    "name": "recentDistanceMeters"
+   },
+   {
+    "kind": "leaf",
+    "name": "runAmount"
+   },
+   {
+    "kind": "leaf",
+    "name": "restDaysBeforeDecline"
+   }
+  ],
+  "file": "web/avatar/AvatarDtos.java"
+ },
  "AvatarDtos.ShopResponse": {
   "components": [
    {
@@ -316,6 +361,18 @@
    {
     "kind": "leaf",
     "name": "onSale"
+   },
+   {
+    "kind": "leaf",
+    "name": "assetKey"
+   },
+   {
+    "kind": "leaf",
+    "name": "locked"
+   },
+   {
+    "kind": "leaf",
+    "name": "unlockCondition"
    }
   ],
   "file": "web/avatar/AvatarDtos.java"
@@ -929,6 +986,18 @@
    {
     "kind": "leaf",
     "name": "clientMessageId"
+   },
+   {
+    "kind": "leaf",
+    "name": "messageKind"
+   },
+   {
+    "kind": "leaf",
+    "name": "authorRole"
+   },
+   {
+    "kind": "leaf",
+    "name": "runDistanceMeters"
    }
   ],
   "file": "web/chat/ChatController.java"
@@ -975,6 +1044,45 @@
    {
     "kind": "list-leaf",
     "name": "myReactions"
+   }
+  ],
+  "file": "web/chat/ChatController.java"
+ },
+ "ChatController.Reactor": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "memberId"
+   },
+   {
+    "kind": "leaf",
+    "name": "displayName"
+   },
+   {
+    "kind": "leaf",
+    "name": "kind"
+   },
+   {
+    "kind": "leaf",
+    "name": "reactedAt"
+   },
+   {
+    "kind": "leaf",
+    "name": "me"
+   }
+  ],
+  "file": "web/chat/ChatController.java"
+ },
+ "ChatController.ReactorListResponse": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "messageId"
+   },
+   {
+    "kind": "list",
+    "name": "reactors",
+    "ref": "ChatController.Reactor"
    }
   ],
   "file": "web/chat/ChatController.java"
@@ -1212,6 +1320,48 @@
    {
     "kind": "leaf",
     "name": "inviteCodeExpiresAt"
+   },
+   {
+    "kind": "leaf",
+    "name": "createdAt"
+   },
+   {
+    "kind": "leaf",
+    "name": "totalDistanceMeters"
+   },
+   {
+    "kind": "leaf",
+    "name": "crewRunCount"
+   },
+   {
+    "kind": "list",
+    "name": "recentCrewRuns",
+    "ref": "CrewDtos.CrewDetailResponse.RecentCrewRun"
+   },
+   {
+    "kind": "leaf",
+    "name": "rejoinAvailableAt"
+   }
+  ],
+  "file": "web/crew/CrewDtos.java"
+ },
+ "CrewDtos.CrewDetailResponse.RecentCrewRun": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "postId"
+   },
+   {
+    "kind": "leaf",
+    "name": "scheduledAt"
+   },
+   {
+    "kind": "leaf",
+    "name": "participantCount"
+   },
+   {
+    "kind": "leaf",
+    "name": "totalDistanceMeters"
    }
   ],
   "file": "web/crew/CrewDtos.java"
@@ -1255,6 +1405,10 @@
    {
     "kind": "leaf",
     "name": "nextCursor"
+   },
+   {
+    "kind": "leaf",
+    "name": "totalCount"
    }
   ],
   "file": "web/crew/CrewDtos.java"
@@ -1296,6 +1450,19 @@
    {
     "kind": "leaf",
     "name": "joinPolicy"
+   }
+  ],
+  "file": "web/crew/CrewDtos.java"
+ },
+ "CrewDtos.CrewLogoResponse": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "logoId"
+   },
+   {
+    "kind": "leaf",
+    "name": "logoUrl"
    }
   ],
   "file": "web/crew/CrewDtos.java"
@@ -1457,6 +1624,57 @@
   ],
   "file": "web/crew/CrewDtos.java"
  },
+ "CrewDtos.InvitePreviewRequest": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "inviteCode",
+    "required": true
+   }
+  ],
+  "file": "web/crew/CrewDtos.java"
+ },
+ "CrewDtos.InvitePreviewResponse": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "crewId"
+   },
+   {
+    "kind": "leaf",
+    "name": "name"
+   },
+   {
+    "kind": "leaf",
+    "name": "intro"
+   },
+   {
+    "kind": "list-leaf",
+    "name": "tags"
+   },
+   {
+    "kind": "leaf",
+    "name": "logoUrl"
+   },
+   {
+    "kind": "leaf",
+    "name": "visibility"
+   },
+   {
+    "kind": "leaf",
+    "name": "joinPolicy"
+   },
+   {
+    "kind": "leaf",
+    "name": "headcount"
+   },
+   {
+    "kind": "leaf",
+    "name": "createdAt"
+   }
+  ],
+  "file": "web/crew/CrewDtos.java"
+ },
  "CrewDtos.JoinRequestBody": {
   "components": [
    {
@@ -1584,6 +1802,10 @@
     "kind": "list",
     "name": "pendingRequests",
     "ref": "CrewDtos.MyCrewResponse.PendingJoin"
+   },
+   {
+    "kind": "leaf",
+    "name": "rejoinAvailableAt"
    }
   ],
   "file": "web/crew/CrewDtos.java"
@@ -2106,6 +2328,57 @@
   ],
   "file": "web/crew/CrewDtos.java"
  },
+ "CrewGoalHistoryController.GoalHistoryResponse": {
+  "components": [
+   {
+    "kind": "list",
+    "name": "goals",
+    "ref": "CrewGoalHistoryController.GoalHistoryResponse.Goal"
+   },
+   {
+    "kind": "leaf",
+    "name": "nextBefore"
+   }
+  ],
+  "file": "web/crew/CrewGoalHistoryController.java"
+ },
+ "CrewGoalHistoryController.GoalHistoryResponse.Goal": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "weekStart"
+   },
+   {
+    "kind": "leaf",
+    "name": "month"
+   },
+   {
+    "kind": "leaf",
+    "name": "weekOfMonth"
+   },
+   {
+    "kind": "leaf",
+    "name": "goalMeters"
+   },
+   {
+    "kind": "leaf",
+    "name": "totalMeters"
+   },
+   {
+    "kind": "leaf",
+    "name": "achieved"
+   },
+   {
+    "kind": "leaf",
+    "name": "progressPercent"
+   },
+   {
+    "kind": "leaf",
+    "name": "participantCount"
+   }
+  ],
+  "file": "web/crew/CrewGoalHistoryController.java"
+ },
  "CrewMembersAssembler.CrewMembersResponse": {
   "components": [
    {
@@ -2145,6 +2418,34 @@
    {
     "kind": "leaf",
     "name": "me"
+   },
+   {
+    "kind": "leaf",
+    "name": "accumulatedMeters"
+   },
+   {
+    "kind": "leaf",
+    "name": "joinedAt"
+   },
+   {
+    "kind": "leaf",
+    "name": "level"
+   },
+   {
+    "kind": "leaf",
+    "name": "ageBand"
+   },
+   {
+    "kind": "leaf",
+    "name": "gender"
+   },
+   {
+    "kind": "leaf",
+    "name": "ageBandVisibility"
+   },
+   {
+    "kind": "leaf",
+    "name": "genderVisibility"
    }
   ],
   "file": "web/crew/CrewMembersAssembler.java"
@@ -2184,6 +2485,18 @@
    {
     "kind": "leaf",
     "name": "requestedAt"
+   },
+   {
+    "kind": "leaf",
+    "name": "level"
+   },
+   {
+    "kind": "leaf",
+    "name": "ageBand"
+   },
+   {
+    "kind": "leaf",
+    "name": "gender"
    }
   ],
   "file": "web/crew/CrewMembersAssembler.java"
