@@ -28,10 +28,11 @@ import org.testcontainers.utility.DockerImageName;
 /**
  * V48 서버 시간대 수정(DF-073): V47까지 올린 PostgreSQL에 옛 설정(JVM UTC, jdbc.time_zone Asia/Seoul)이 남긴 모양의 행을
  * 두고 V48을 적용하면, 서버가 쓴 시각만 9시간 빠지고 SQL로 넣은 시각(시드, 운영자 SQL)과 대기열, 시점 열은 그대로다. 이벤트 시드의 만든 시각(Flyway 세션
- * UTC의 now())은 9시간 더해진다. Docker가 없으면 건너뛴다.
+ * UTC의 now())은 9시간 더해진다. V49는 보정 없는 새 DB에서 V48이 틀어 놓은 이벤트 시드만 되돌리고 보정된 DB(develop, 운영)는 그대로 둔다.
+ * Docker가 없으면 건너뛴다.
  */
 @Testcontainers(disabledWithoutDocker = true)
-@DisplayName("V48 서버 시간대 수정 마이그레이션(PostgreSQL)")
+@DisplayName("V48 서버 시간대 수정과 V49 이벤트 시드 후속 마이그레이션(PostgreSQL)")
 class ServerTimeZoneMigrationIntegrationTest {
 
     /** 실제 한국 시각. 옛 설정의 서버는 이 시각을 9시간 앞선 SERVER_STORED로 저장했다. */
@@ -257,6 +258,80 @@ class ServerTimeZoneMigrationIntegrationTest {
         assertThat(at("SELECT created_at FROM event WHERE id = ?", apiEvent)).isEqualTo(KST);
         assertThat(at("SELECT updated_at FROM event WHERE id = ?", apiEvent))
                 .isEqualTo(KST.plusMinutes(5));
+    }
+
+    private static final String EVENT_ROWS =
+            "SELECT slug, starts_at, ends_at, created_at, updated_at FROM event ORDER BY slug";
+
+    @Test
+    @DisplayName("임시 보정이 없는 새 DB(새 설정이 V35_2부터 적용)에서는 V49 뒤 이벤트 시드의 기간과 만든 시각, 고친 시각이 V48 전과 같다")
+    void freshDatabase_eventSeedStays() {
+        // 시험 JVM과 새 이미지는 Asia/Seoul이라 V35_2 시드의 now()가 이미 한국 시각이다
+        List<Map<String, Object>> before = jdbc.queryForList(EVENT_ROWS);
+
+        migrateTo("48");
+
+        // V48(develop에 적용된 판)은 보정 없는 시드도 9시간 빼고 만든 시각을 9시간 미래로 만든다
+        assertThat(at("SELECT starts_at FROM event WHERE slug = 'beta-1km'"))
+                .isEqualTo(LocalDateTime.of(2026, 11, 7, 15, 0, 0));
+
+        migrateTo("49");
+
+        assertThat(before).hasSize(2);
+        assertThat(jdbc.queryForList(EVENT_ROWS)).isEqualTo(before);
+        assertThat(at("SELECT starts_at FROM event WHERE slug = 'beta-1km'"))
+                .isEqualTo(LocalDateTime.of(2026, 11, 8, 0, 0, 0));
+        assertThat(at("SELECT ends_at FROM event WHERE slug = 'beta-1km'"))
+                .isEqualTo(LocalDateTime.of(2026, 11, 16, 23, 59, 59));
+    }
+
+    @Test
+    @DisplayName("임시 보정이 된 DB(develop, 운영)에서는 V49가 이벤트 행을 하나도 바꾸지 않는다")
+    void correctedDatabase_v49ChangesNothing() {
+        jdbc.update(
+                "UPDATE event SET starts_at = starts_at + INTERVAL '9 hours',"
+                        + " ends_at = ends_at + INTERVAL '9 hours'");
+        jdbc.update(
+                "INSERT INTO event (slug, title, subtitle, kind, config, starts_at, ends_at,"
+                        + " banner_image_url, thumbnail_image_url, detail_url, sort_order,"
+                        + " published, created_at, updated_at) VALUES ('next', '다음', '다음',"
+                        + " 'RUN_DISTANCE', '{\"minDistanceMeters\":1000}', ?, ?, '/b.png',"
+                        + " '/t.png', '/events/next/', 3, false, ?, ?)",
+                ts(LocalDateTime.of(2026, 11, 20, 9, 0)),
+                ts(LocalDateTime.of(2026, 11, 28, 8, 59, 59)),
+                ts(SERVER_STORED),
+                ts(SERVER_STORED));
+        migrateTo("48");
+        List<Map<String, Object>> afterV48 = jdbc.queryForList(EVENT_ROWS);
+
+        migrateTo("49");
+
+        assertThat(afterV48).hasSize(3);
+        assertThat(jdbc.queryForList(EVENT_ROWS)).isEqualTo(afterV48);
+        assertThat(at("SELECT starts_at FROM event WHERE slug = 'coach-challenge'"))
+                .isEqualTo(LocalDateTime.of(2026, 11, 8, 0, 0, 0));
+    }
+
+    @Test
+    @DisplayName("옛 설정(세션 UTC)으로 시드했지만 보정이 없던 DB는 V49가 기간만 리터럴로 돌리고 V48이 고친 만든 시각은 그대로 둔다")
+    void uncorrectedOldDatabase_v49RestoresPeriodOnly() {
+        // 옛 설정 Flyway 세션(UTC)의 now(): 한국 시각보다 9시간 이르다
+        LocalDateTime seededUtc = LocalDateTime.of(2026, 11, 1, 0, 0, 0);
+        jdbc.update(
+                "UPDATE event SET created_at = ?, updated_at = ?", ts(seededUtc), ts(seededUtc));
+
+        migrateTo("49");
+
+        for (String slug : List.of("coach-challenge", "beta-1km")) {
+            assertThat(at("SELECT starts_at FROM event WHERE slug = ?", slug))
+                    .isEqualTo(LocalDateTime.of(2026, 11, 8, 0, 0, 0));
+            assertThat(at("SELECT ends_at FROM event WHERE slug = ?", slug))
+                    .isEqualTo(LocalDateTime.of(2026, 11, 16, 23, 59, 59));
+            assertThat(at("SELECT created_at FROM event WHERE slug = ?", slug))
+                    .isEqualTo(seededUtc.plusHours(9));
+            assertThat(at("SELECT updated_at FROM event WHERE slug = ?", slug))
+                    .isEqualTo(seededUtc.plusHours(9));
+        }
     }
 
     @Test
