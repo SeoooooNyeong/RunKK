@@ -62,6 +62,8 @@ services:
       ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET:?set ADMIN_JWT_SECRET in .env}
       # 첫 운영자 시드: 화이트리스트가 비었을 때만 한 번 넣고 감사 기록을 남긴다. 예) KAKAO:1234567890
       RUNKK_BOOTSTRAP_OPERATORS: ${RUNKK_BOOTSTRAP_OPERATORS:-}
+      # 운영 기준값 시드: 그 키의 행이 없을 때만 시작 때 한 번 넣고 감사 기록을 남긴다. 예) CREW_RELEASED=true,AVATAR_RELEASED=true
+      RUNKK_BOOTSTRAP_SETTINGS: ${RUNKK_BOOTSTRAP_SETTINGS:-}
       SCHEDULER_POOL_SIZE: ${SCHEDULER_POOL_SIZE:-25}
       # 랜드마크 배경 알림 없이 채우기 기준 시각(D-176): 이 시각 전 유효 거리만 센다. 첫 배포 때 V25 적용 시각으로 둔다
       AVATAR_BACKFILL_CUTOFF: ${AVATAR_BACKFILL_CUTOFF:-2026-10-22T00:00:00}
