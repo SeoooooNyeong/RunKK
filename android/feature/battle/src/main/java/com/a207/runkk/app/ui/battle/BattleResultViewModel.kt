@@ -4,6 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.domain.account.AccountRepository
+import com.a207.runkk.app.domain.account.MyAvatar
+import com.a207.runkk.app.domain.account.myAvatar
 import com.a207.runkk.app.domain.battle.BattleRecordUploads
 import com.a207.runkk.app.domain.battle.BattleRepository
 import com.a207.runkk.app.domain.battle.BattleResult
@@ -30,12 +33,23 @@ import kotlinx.coroutines.launch
  * (BattleRecordUploads) 다시 읽고, 네트워크 오류는 몇 초마다 다시 읽는다(배틀 QA 5번).
  */
 @HiltViewModel
-class BattleResultViewModel @Inject constructor(
+class BattleResultViewModel internal constructor(
     private val battles: BattleRepository,
     private val coordinator: BattleRunCoordinator,
     private val uploads: BattleRecordUploads,
-    private val runDetails: RunDetailSource
+    private val runDetails: RunDetailSource,
+    /** 내 아바타(홈과 같은 출처, AccountRepository.myAvatar). 결과 쪽 내 그림과 배경에 쓴다. */
+    private val myAvatar: suspend () -> MyAvatar? = { null }
 ) : ViewModel() {
+    @Inject
+    constructor(
+        battles: BattleRepository,
+        coordinator: BattleRunCoordinator,
+        uploads: BattleRecordUploads,
+        runDetails: RunDetailSource,
+        account: AccountRepository
+    ) : this(battles, coordinator, uploads, runDetails, { account.myAvatar() })
+
     private val _state = MutableStateFlow(BattleResultUiState())
     val state: StateFlow<BattleResultUiState> = _state.asStateFlow()
 
@@ -53,6 +67,7 @@ class BattleResultViewModel @Inject constructor(
     private var detailJob: Job? = null
     private var job: Job? = null
     private var uploadJob: Job? = null
+    private var avatarJob: Job? = null
     private var lastError: AppError? = null
 
     /**
@@ -76,6 +91,15 @@ class BattleResultViewModel @Inject constructor(
         _state.update { it.copy(isLoading = true, battleId = battleId, error = null) }
         job = viewModelScope.launch { read(battleId) }
         watchUploads(battleId)
+        readMyAvatar()
+    }
+
+    /** 내 아바타(홈과 같은 얼굴·배경)를 한 번 읽는다. 못 읽으면 기본 아바타 그대로다. */
+    private fun readMyAvatar() {
+        if (_state.value.myAvatar != null || avatarJob?.isActive == true) return
+        avatarJob = viewModelScope.launch {
+            myAvatar()?.let { look -> _state.update { it.copy(myAvatar = look) } }
+        }
     }
 
     /** 읽고, 네트워크 오류면 몇 초마다, 보류면 판정이 나올 때까지 다시 읽는다. */

@@ -9,6 +9,7 @@ import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.ServerClock
 import com.a207.runkk.app.core.navigation.Routes
+import com.a207.runkk.app.domain.account.MyAvatar
 import com.a207.runkk.app.domain.crew.CrewRunState
 import com.a207.runkk.app.domain.crew.CrewRunStatus
 import com.a207.runkk.app.domain.live.CrewRunCancelled
@@ -151,6 +152,12 @@ class CrewRunViewModelTest {
         runCurrent()
         assertEquals(CrewRunPhase.CANCELLED, vm.state.value.phase)
         assertEquals("준비 완료 2명 미만", vm.state.value.cancelledReason)
+        // 취소 화면(F-14c)도 대기실 틀이다: 마지막 대기실(참가자·준비 상태)을 그대로 두고 남은 시간은 0:00이다.
+        assertEquals(3, vm.state.value.lobby?.participants?.size)
+        assertEquals(Duration.ZERO, vm.state.value.untilStart)
+        w.clock.now = w.clock.now.plusSeconds(5)
+        advanceTimeBy(5_000)
+        assertEquals(Duration.ZERO, vm.state.value.untilStart, "취소된 뒤에는 다시 세지 않는다")
     }
 
     @Test
@@ -272,6 +279,30 @@ class CrewRunViewModelTest {
         assertTrue(result.isFirstCrewRun)
         assertEquals(listOf("rec-31"), read)
         assertEquals(listOf("result:31"), w.crews.calls.filter { it.startsWith("result") }, "끝났고 내 기록이 있으면 다시 읽지 않는다")
+    }
+
+    @Test
+    fun `결과 - 가운데 내 아바타는 홈과 같은 출처(본인 요약의 얼굴·배경)로 한 번 읽는다(F-16)`() = main.runVmTest { vms ->
+        val w = crewWorld()
+        val look = MyAvatar("face-7", emptyList(), "bg-park")
+        var reads = 0
+        val vm = vms.track(
+            CrewRunResultViewModel(
+                w.crews,
+                w.coordinator,
+                timeSource = testScheduler.timeSource,
+                myAvatar = {
+                    reads++
+                    look
+                }
+            ) { Outcome.Failure(AppError.Network) }
+        )
+        vm.load(31)
+        runCurrent()
+        assertEquals(look, vm.state.value.myAvatar)
+        vm.load(31, isForced = true)
+        runCurrent()
+        assertEquals(1, reads, "다시 읽어도 내 아바타는 한 번만 읽는다")
     }
 
     @Test

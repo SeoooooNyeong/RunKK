@@ -54,6 +54,63 @@ class CrewFigmaTest {
     }
 
     @Test
+    fun `크루런 취소는 대기실 틀에 0시 0분과 사유, 참가자 준비 상태를 그대로 보이고 나가기도 일정으로 돌아간다(F-14c)`() {
+        val reason = "준비 완료한 참가자가 2명보다 적어 시작하지 않았어요"
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                CrewRunScreen(
+                    CrewRunUiState(
+                        postId = 31,
+                        distance = Distance(5_000),
+                        phase = CrewRunPhase.CANCELLED,
+                        lobby = lobby,
+                        untilStart = java.time.Duration.ZERO,
+                        cancelledReason = reason
+                    ),
+                    CrewRunActions(onClose = { calls += "close" }, onLeave = { calls += "leave" })
+                )
+            }
+        }
+        compose.onNodeWithText("크루런 · 5km").assertExists()
+        compose.onNodeWithText("00:00", useUnmergedTree = true).assertExists()
+        compose.onNodeWithText(reason, useUnmergedTree = true).assertExists()
+        compose.onNodeWithText("출발까지", useUnmergedTree = true).assertDoesNotExist()
+        compose.onNodeWithText("준비 완료 1 / 3").assertExists()
+        compose.onNodeWithText("준비 완료", useUnmergedTree = true).assertExists()
+        compose.onNodeWithText("나가기").performClick()
+        compose.onNodeWithText("일정으로 돌아가기").performClick()
+        assertEquals(listOf("close", "close"), calls)
+    }
+
+    @Test
+    fun `크루런 대기실 참가자 격자는 나를 첫 칸에 둔다(F-14)`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                CrewRunScreen(
+                    CrewRunUiState(postId = 31, distance = Distance(5_000), phase = CrewRunPhase.LOBBY, lobby = lobby),
+                    CrewRunActions()
+                )
+            }
+        }
+        val me = compose.onNodeWithText("나", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val other = compose.onNodeWithText("바람처럼", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        assertTrue(me.top <= other.top && me.left < other.left, "나는 첫 줄 첫 칸이다")
+    }
+
+    @Test
+    fun `크루런 그만두기 확인은 계속 달리기와 그만두기 두 알약이다(F-15d)`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                CrewQuitDialog(onConfirm = { calls += "quit" }, onDismiss = { calls += "keep" })
+            }
+        }
+        compose.onNodeWithText("크루런을 그만둘까요?").assertExists()
+        compose.onNodeWithText("계속 달리기").performClick()
+        compose.onNodeWithText("그만두기").performClick()
+        assertEquals(listOf("keep", "quit"), calls)
+    }
+
+    @Test
     fun `크루 상세를 열면 크루 정보를 읽어 지난 주 달린 거리를 채우고 닫으면 지운다(F-02)`() {
         val repo = FakeCrewRepository()
         val vm = CrewFindViewModel(repo)

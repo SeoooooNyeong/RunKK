@@ -48,6 +48,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.a207.runkk.app.core.designsystem.AvatarBackdrop
 import com.a207.runkk.app.core.designsystem.AvatarCharacter
 import com.a207.runkk.app.core.designsystem.AvatarExpression
+import com.a207.runkk.app.core.designsystem.LocalReleaseScope
 import com.a207.runkk.app.core.designsystem.RunResultDetail
 import com.a207.runkk.app.core.designsystem.RunResultDetailState
 import com.a207.runkk.app.core.designsystem.RunkkCard
@@ -61,11 +62,13 @@ import com.a207.runkk.app.core.designsystem.RunkkSecondaryButton
 import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
+import com.a207.runkk.app.core.designsystem.UnreleasedFeature
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.designsystem.sceneAvatarFilter
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
+import com.a207.runkk.app.domain.account.MyAvatar
 import com.a207.runkk.app.domain.battle.BattleHistory
 import com.a207.runkk.app.domain.battle.BattleResult
 import com.a207.runkk.app.domain.record.RecordDetail
@@ -142,10 +145,12 @@ fun BattleResultScreen(
 ) {
     val result = state.result
     val isDecided = result != null && !result.isPending
+    // 배경은 홈과 같다: 아바타 꾸미기가 열렸으면 내 배경 키, 아니면 기본 배경.
+    val isAvatarOpen = LocalReleaseScope.current.isOpen(UnreleasedFeature.AVATAR_CUSTOMIZE)
     Box(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
         if (isDecided) {
             AvatarBackdrop(
-                backgroundKey = null,
+                backgroundKey = if (isAvatarOpen) state.myAvatar?.backgroundKey else null,
                 modifier = Modifier.fillMaxSize().graphicsLayer { alpha = verdictPageVisibility(pagerState) }
             )
         }
@@ -216,7 +221,7 @@ private fun VerdictPage(state: BattleResultUiState, result: BattleResult, onDeta
                 liveRegion = LiveRegionMode.Polite
             }
         )
-        Figures(kind, verdict, AvatarCharacter.of(result.opponentGender), result.celebrityFigure)
+        Figures(kind, verdict, AvatarCharacter.of(result.opponentGender), result.celebrityFigure, state.myAvatar)
         Text(
             message,
             style = RunkkTextStyles.text(17, FontWeight.Black),
@@ -239,7 +244,13 @@ private fun VerdictPage(state: BattleResultUiState, result: BattleResult, onDeta
  * 셀럽 그림 키([celebrity])로 고른 전용 캐릭터(없으면 공통 흐린 그림).
  */
 @Composable
-private fun Figures(kind: OpponentKind, verdict: Verdict?, rival: AvatarCharacter, celebrity: String?) {
+private fun Figures(
+    kind: OpponentKind,
+    verdict: Verdict?,
+    rival: AvatarCharacter,
+    celebrity: String?,
+    myAvatar: MyAvatar?
+) {
     val expression = resultExpression(verdict)
     val opponent = when (kind) {
         OpponentKind.SELF -> Figure.PAST_SELF
@@ -248,7 +259,13 @@ private fun Figures(kind: OpponentKind, verdict: Verdict?, rival: AvatarCharacte
     }
     Box(modifier = Modifier.size(width = 260.dp, height = 220.dp).clearAndSetSemantics {}) {
         Box(Modifier.align(Alignment.CenterStart)) {
-            OpponentFigure(Figure.AVATAR, size = 180.dp, expression = expression, colorFilter = sceneAvatarFilter())
+            OpponentFigure(
+                Figure.AVATAR,
+                size = 180.dp,
+                expression = expression,
+                colorFilter = sceneAvatarFilter(),
+                myAvatar = myAvatar
+            )
         }
         Box(Modifier.align(Alignment.CenterEnd).offset(y = 12.dp)) {
             OpponentFigure(

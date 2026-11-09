@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
@@ -40,6 +41,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.a207.runkk.app.core.designsystem.AvatarBackdrop
 import com.a207.runkk.app.core.designsystem.AvatarCharacter
 import com.a207.runkk.app.core.designsystem.AvatarExpression
+import com.a207.runkk.app.core.designsystem.LocalReleaseScope
 import com.a207.runkk.app.core.designsystem.RunResultDetail
 import com.a207.runkk.app.core.designsystem.RunkkAvatar
 import com.a207.runkk.app.core.designsystem.RunkkColors
@@ -51,9 +53,11 @@ import com.a207.runkk.app.core.designsystem.RunkkPrimaryButton
 import com.a207.runkk.app.core.designsystem.RunkkSecondaryButton
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
+import com.a207.runkk.app.core.designsystem.UnreleasedFeature
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
+import com.a207.runkk.app.domain.account.MyAvatar
 import com.a207.runkk.app.domain.crew.CrewRunResult
 import com.a207.runkk.app.ui.share.RecordResultDetail
 import java.time.Instant
@@ -105,10 +109,12 @@ fun CrewRunResultScreen(
     pagerState: PagerState = rememberPagerState { RESULT_PAGES }
 ) {
     val result = state.result
+    // 배경은 홈과 같다: 아바타 꾸미기가 열렸으면 내 배경 키, 아니면 기본 배경.
+    val isAvatarOpen = LocalReleaseScope.current.isOpen(UnreleasedFeature.AVATAR_CUSTOMIZE)
     Box(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
         if (result != null) {
             AvatarBackdrop(
-                backgroundKey = null,
+                backgroundKey = if (isAvatarOpen) state.myAvatar?.backgroundKey else null,
                 modifier = Modifier.fillMaxSize().graphicsLayer { alpha = summaryPageVisibility(pagerState) }
             )
         }
@@ -150,19 +156,37 @@ private fun ResultPager(state: CrewRunResultUiState, result: CrewRunResult, page
     val scope = rememberCoroutineScope()
     Column(modifier = Modifier.fillMaxSize()) {
         HorizontalPager(state = pagerState, modifier = Modifier.weight(1f)) { page ->
-            if (page == 0) {
-                SummaryPage(result, onDetail = { scope.launch { pagerState.animateScrollToPage(1) } })
-            } else {
-                DetailPage(state.detail, onBack = { scope.launch { pagerState.animateScrollToPage(0) } })
-            }
+            if (page == 0) SummaryPage(result, state.myAvatar) else DetailPage(state.detail)
         }
+        // 쪽 넘김 글자("밀어서 상세 결과 보기 ›"·"‹ 크루런 결과로") 바로 아래에 쪽 점(피그마 F-16·F-16b).
+        val isSummary = pagerState.currentPage == 0
+        PageLink(
+            stringResource(if (isSummary) R.string.crew_run_result_swipe_detail else R.string.crew_run_result_back),
+            onClick = { scope.launch { pagerState.animateScrollToPage(if (isSummary) 1 else 0) } }
+        )
         PageDots(pagerState.currentPage)
     }
 }
 
-/** 결과 쪽(F-16): 모집글 제목, 아바타 줄(가운데 내 아바타), 크루 합산 거리, 참가자 목록(이름·거리), "밀어서 상세 결과 보기 ›". */
+/** 쪽 넘김 글자 단추(작게, 가운데). */
 @Composable
-private fun SummaryPage(result: CrewRunResult, onDetail: () -> Unit) {
+private fun PageLink(text: String, onClick: () -> Unit) {
+    Text(
+        text,
+        style = RunkkTextStyles.Caption,
+        color = RunkkColors.TextPrimary,
+        textAlign = TextAlign.Center,
+        modifier = Modifier
+            .fillMaxWidth()
+            .wrapContentWidth()
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 4.dp)
+    )
+}
+
+/** 결과 쪽(F-16): 모집글 제목, 아바타 줄(가운데 내 아바타), 크루 합산 거리, 참가자 목록(이름·거리). */
+@Composable
+private fun SummaryPage(result: CrewRunResult, myAvatar: MyAvatar?) {
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -176,7 +200,7 @@ private fun SummaryPage(result: CrewRunResult, onDetail: () -> Unit) {
                 textAlign = TextAlign.Center
             )
         }
-        AvatarRow(result)
+        AvatarRow(result, myAvatar)
         val total = RunkkFormat.km(result.totalDistance)
         val spoken = stringResource(R.string.crew_run_result_total_spoken, total)
         Text(
@@ -186,18 +210,14 @@ private fun SummaryPage(result: CrewRunResult, onDetail: () -> Unit) {
             modifier = Modifier.clearAndSetSemantics { contentDescription = spoken }
         )
         ParticipantCard(result.participants)
-        Text(
-            stringResource(R.string.crew_run_result_swipe_detail),
-            style = RunkkTextStyles.Caption,
-            color = RunkkColors.TextPrimary,
-            modifier = Modifier.clickable(role = Role.Button, onClick = onDetail).padding(8.dp)
-        )
     }
 }
 
-/** 아바타 줄: 가운데 크게 내 아바타, 양옆에 크루원(성별을 모르므로 기본 캐릭터) 넷까지. */
+/**
+ * 아바타 줄: 가운데 크게 내 아바타(홈과 같은 얼굴, 체형은 앱의 LocalAvatarCharacter), 양옆에 크루원(성별을 모르므로 기본 캐릭터) 넷까지.
+ */
 @Composable
-private fun AvatarRow(result: CrewRunResult) {
+private fun AvatarRow(result: CrewRunResult, myAvatar: MyAvatar?) {
     val others = result.participants.filter { !it.isMe }.take(OTHER_AVATARS)
     val left = others.take((others.size + 1) / 2)
     val right = others.drop(left.size)
@@ -208,9 +228,10 @@ private fun AvatarRow(result: CrewRunResult) {
     ) {
         left.forEach { _ -> MateAvatar() }
         RunkkAvatar(
-            faceKey = null,
+            faceKey = myAvatar?.faceKey,
             expression = AvatarExpression.JOY,
-            modifier = Modifier.size(width = 104.dp, height = 140.dp)
+            modifier = Modifier.size(width = 104.dp, height = 140.dp),
+            faceLayers = myAvatar?.faceLayers.orEmpty()
         )
         right.forEach { _ -> MateAvatar() }
     }
@@ -269,9 +290,9 @@ private fun ParticipantCard(participants: List<CrewRunResult.Participant>) {
     }
 }
 
-/** 상세 쪽(F-16b): 러닝 결과 상세(D-282)와 같은 항목(내 기록), "‹ 크루런 결과로". 기록이 아직 올라가지 않았으면 기다림 문구. */
+/** 상세 쪽(F-16b): 러닝 결과 상세(D-282)와 같은 항목(내 기록). 기록이 아직 올라가지 않았으면 기다림 문구. */
 @Composable
-private fun DetailPage(detail: RecordResultDetail?, onBack: () -> Unit) {
+private fun DetailPage(detail: RecordResultDetail?) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -290,15 +311,6 @@ private fun DetailPage(detail: RecordResultDetail?, onBack: () -> Unit) {
                 modifier = Modifier.padding(vertical = 24.dp)
             )
         }
-        Text(
-            stringResource(R.string.crew_run_result_back),
-            style = RunkkTextStyles.Caption,
-            color = RunkkColors.TextSecondary,
-            modifier = Modifier
-                .align(Alignment.CenterHorizontally)
-                .clickable(role = Role.Button, onClick = onBack)
-                .padding(8.dp)
-        )
     }
 }
 
@@ -317,7 +329,7 @@ private fun PageDots(current: Int) {
         current = current,
         count = RESULT_PAGES,
         description = stringResource(R.string.crew_run_result_page_desc, current + 1, RESULT_PAGES),
-        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        modifier = Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 8.dp),
         gap = 6.dp,
         inactiveColor = RunkkColors.BorderStrong
     )

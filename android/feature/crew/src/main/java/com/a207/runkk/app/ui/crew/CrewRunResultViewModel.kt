@@ -3,6 +3,9 @@ package com.a207.runkk.app.ui.crew
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.domain.account.AccountRepository
+import com.a207.runkk.app.domain.account.MyAvatar
+import com.a207.runkk.app.domain.account.myAvatar
 import com.a207.runkk.app.domain.crew.CrewRepository
 import com.a207.runkk.app.domain.crew.CrewRunCoordinator
 import com.a207.runkk.app.domain.crew.CrewRunResult
@@ -28,23 +31,31 @@ import kotlinx.coroutines.launch
  *
  * 다시 읽기는 화면 수명을 따른다(확인 리뷰 CR2-A1): 화면이 가려지거나 앱이 백그라운드면([onStop]) 멈추고, 돌아오면([onStart]) 바로 한 번 읽은
  * 뒤 같은 간격 규칙을 잇는다. 상한 [RUNNING_WATCH_MILLIS]는 처음 읽은 때부터의 실제 경과([timeSource])로 센다.
+ *
+ * 가운데 내 아바타는 홈과 같은 출처(본인 요약의 얼굴·배경, AccountRepository.myAvatar)로 한 번 읽는다([myAvatar]).
  */
 @HiltViewModel
 class CrewRunResultViewModel internal constructor(
     private val crews: CrewRepository,
     private val coordinator: CrewRunCoordinator,
     private val timeSource: TimeSource,
+    private val myAvatar: suspend () -> MyAvatar? = { null },
     private val details: CrewRunDetailSource
 ) : ViewModel() {
     @Inject
-    constructor(crews: CrewRepository, coordinator: CrewRunCoordinator, details: CrewRunDetailSource) :
-        this(crews, coordinator, TimeSource.Monotonic, details)
+    constructor(
+        crews: CrewRepository,
+        coordinator: CrewRunCoordinator,
+        details: CrewRunDetailSource,
+        account: AccountRepository
+    ) : this(crews, coordinator, TimeSource.Monotonic, { account.myAvatar() }, details)
 
     private val _state = MutableStateFlow(CrewRunResultUiState())
     val state: StateFlow<CrewRunResultUiState> = _state.asStateFlow()
     private var loaded: Long? = null
     private var job: Job? = null
     private var detailJob: Job? = null
+    private var avatarJob: Job? = null
 
     /** 지금까지 다시 읽은 횟수(간격 규칙의 위치). */
     private var rereads = 0
@@ -63,6 +74,15 @@ class CrewRunResultViewModel internal constructor(
         isPaused = false
         _state.update { it.copy(isLoading = true, error = null) }
         watch(postId)
+        readMyAvatar()
+    }
+
+    /** 내 아바타(홈과 같은 얼굴·배경)를 한 번 읽는다. 못 읽으면 기본 아바타 그대로다. */
+    private fun readMyAvatar() {
+        if (_state.value.myAvatar != null || avatarJob?.isActive == true) return
+        avatarJob = viewModelScope.launch {
+            myAvatar()?.let { look -> _state.update { it.copy(myAvatar = look) } }
+        }
     }
 
     /** 화면이 다시 보인다. 가려져 멈췄던 다시 읽기를 바로 한 번 읽고 잇는다. */

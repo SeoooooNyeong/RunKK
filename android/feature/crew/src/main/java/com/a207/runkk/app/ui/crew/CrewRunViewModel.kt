@@ -200,7 +200,15 @@ class CrewRunViewModel @Inject constructor(
             is CrewRunState.Finished -> if (s.postId == postId) {
                 tickJob?.cancel()
                 if (s.cancelledReason != null) {
-                    _state.update { it.copy(phase = CrewRunPhase.CANCELLED, cancelledReason = s.cancelledReason) }
+                    // 취소 화면(F-14c)은 대기실 틀이다: 마지막 대기실(참가자·준비 상태)을 그대로 두고 남은 시간은 0:00이다.
+                    _state.update {
+                        it.copy(
+                            phase = CrewRunPhase.CANCELLED,
+                            cancelledReason = s.cancelledReason,
+                            untilStart = Duration.ZERO,
+                            countdown = null
+                        )
+                    }
                 } else {
                     _state.update { it.copy(phase = CrewRunPhase.FINISHED, isConfirmingQuit = false) }
                     _events.trySend(CrewRunEvent.Finished(postId))
