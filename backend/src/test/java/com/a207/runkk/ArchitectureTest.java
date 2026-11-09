@@ -72,6 +72,7 @@ class ArchitectureTest {
                     "web.admin",
                     "web.admin.celebrity",
                     "web.admin.setting",
+                    "web.admin.model",
                     "web.admin.audit",
                     "web.admin.report",
                     "web.admin.ranking",
@@ -119,6 +120,7 @@ class ArchitectureTest {
                     "aiprivacy",
                     "runbody",
                     "aicoach",
+                    "aimodel",
                     "common",
                     "infra.member",
                     "infra.running",
@@ -180,6 +182,7 @@ class ArchitectureTest {
         // 05-19 5절(D-441·D-444·D-440): RunRecordSaved·bodyInputOf, 출생연도, RUNBODY_ENABLED
         m.put("runbody", Set.of("member", "running", "policy"));
         m.put("aicoach", Set.of("member", "policy"));
+        m.put("aimodel", Set.of("audit"));
         m.put("running", Set.of("member", "audit"));
         m.put("runimal", Set.of("member", "running", "policy"));
         m.put("battle", Set.of("member", "running", "policy", "notification", "audit"));
@@ -218,6 +221,7 @@ class ArchitectureTest {
         m.put("web.admin.ranking", Set.of("analysis", "audit"));
         m.put("web.admin.celebrity", Set.of("battle"));
         m.put("web.admin.setting", Set.of("policy"));
+        m.put("web.admin.model", Set.of("aimodel"));
         m.put("web.admin.audit", Set.of("audit"));
         m.put("web.error", Set.of());
         // v0.11 (N12~N14), web.chat → web.attempt(V8, D-132)
@@ -281,7 +285,7 @@ class ArchitectureTest {
         m.put("infra.integration.auth", Set.of("member", "operator"));
         m.put(
                 "infra.integration.ai",
-                Set.of("analysis", "avatar", "aiprivacy", "runbody", "aicoach"));
+                Set.of("analysis", "avatar", "aiprivacy", "runbody", "aicoach", "aimodel"));
         m.put("infra.integration.push", Set.of("notification"));
         m.put("infra.integration.weather", Set.of("running"));
         // 모든 패키지 → common (D44, D53, D66, D67)
@@ -752,7 +756,7 @@ class ArchitectureTest {
 
     @Test
     void designPackageList_has77NamesAndEachHasAnAllowList() {
-        assertThat(Set.copyOf(PACKAGES)).hasSize(81);
+        assertThat(Set.copyOf(PACKAGES)).hasSize(83);
         assertThat(ALLOWED.keySet()).containsExactlyInAnyOrderElementsOf(PACKAGES);
     }
 

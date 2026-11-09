@@ -153,6 +153,7 @@ runkk:
     internal-token: ${RUNKK_INTERNAL_TOKEN:}
     comment-timeout: 3s
     face-timeout: 15s
+    writer-model-urls: ${RUNKK_WRITER_MODEL_URLS:http://writer:8080}
   # 서버 스위치(policy.OperationPolicy). selfie-enabled가 false면 관리툴 운영 기준값 SELFIE_ENABLED와 관계없이 셀카 변환을 막는다(SELFIE_DISABLED).
   # 로컬·시험은 켜 두고, 배포 compose는 기본 꺼짐이다(infra/docker-compose.yml SELFIE_ENABLED, 베타 prod는 꺼짐 2026-10-23 결정)
   features:

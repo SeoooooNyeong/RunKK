@@ -30,6 +30,7 @@ public class AiServerClient {
     private final RestClient faces;
     private final RestClient privacy;
     private final RestClient runbody;
+    private final RestClient models;
 
     /** 런바디 읽기 시간 제한(05-19 D-449). 하프 표본(약 1MB) 제출과 결과 읽기를 함께 덮는다. */
     static final Duration RUNBODY_READ_TIMEOUT = Duration.ofSeconds(10);
@@ -53,6 +54,7 @@ public class AiServerClient {
         this.faces = client(serverUrl, internalToken, faceTimeout);
         this.privacy = client(serverUrl, internalToken, Duration.ofSeconds(15));
         this.runbody = client(serverUrl, internalToken, RUNBODY_READ_TIMEOUT);
+        this.models = client(serverUrl, internalToken, Duration.ofSeconds(5));
     }
 
     /** 시험용: 이미 만든 클라이언트를 쓴다(MockRestServiceServer). */
@@ -61,6 +63,7 @@ public class AiServerClient {
         this.faces = faces;
         this.privacy = comments;
         this.runbody = comments;
+        this.models = comments;
     }
 
     private static RestClient client(String serverUrl, String token, Duration readTimeout) {
@@ -92,6 +95,10 @@ public class AiServerClient {
     /** 런바디 분석 제출·상태·결과·월간 집계 전용 연결(AiServerRunBodyGateway, 읽기 10초). */
     RestClient runbody() {
         return runbody;
+    }
+
+    RestClient models() {
+        return models;
     }
 
     /**
