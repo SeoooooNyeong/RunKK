@@ -155,6 +155,8 @@ docker exec -it runkk-prod-postgres-1 psql -U runkk runkk   # prod DB 접속
 docker exec runkk-nginx-1 nginx -t && docker exec runkk-nginx-1 nginx -s reload   # nginx 설정 다시 읽기
 ```
 
+운영 주의(결함 DF-073, 근본 수정 진행 중): API 컨테이너 JVM이 UTC인데 Clock과 `hibernate.jdbc.time_zone`이 Asia/Seoul이라 서버가 쓴 시각은 DB에 9시간 앞서 저장되고, SQL로 넣은 시각(시드, 운영자 SQL, DB `now()`)은 서버가 9시간 이르게 읽습니다. 근본 수정(fix/S15P31A207-275-server-timezone)이 그 환경에 적용되기 전까지는 DB에서 서버가 쓴 시각을 읽을 때 9시간을 빼고, SQL로 시각을 넣을 때 의도한 한국 시각에 9시간을 더합니다. event 기간은 +9시간 임시 보정해 두었으므로 근본 수정 때 되돌립니다(docs/sw/sqa/이벤트-공지-성.md 3절).
+
 ### develop 더미 데이터 (dev:seed)
 
 develop 파이프라인의 수동 잡 **dev:seed**를 누르면 `dev-seed.sh`가 develop DB(`runkk-develop-postgres-1`)에 `dev-seed.sql`을 한 트랜잭션으로 넣습니다. 잡은 develop 브랜치 파이프라인에만 생기고, 스크립트도 `.env`의 `RUNKK_ENV`가 develop이 아니면 멈춥니다.
