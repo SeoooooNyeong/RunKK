@@ -17,7 +17,7 @@ export async function atomicJson(file,value){
 }
 export async function saveUserHead(root,userId,layers,metadata){
   const dir=userDirectory(root,userId),heads=path.join(dir,'heads');await mkdir(heads,{recursive:true});
-  for(const [suffix,image]of [['',layers.composite],['-face',layers.face],['-eyes',layers.eyes],['-hair',layers.hair]])await writeFile(path.join(heads,metadata.id+suffix+'.png'),image);
+  for(const [suffix,image]of [['',layers.composite],['-original',layers.master],['-face',layers.face],['-eyes',layers.eyes],['-hair',layers.hair]])if(image)await writeFile(path.join(heads,metadata.id+suffix+'.png'),image);
   if(layers.right)await writeFile(path.join(heads,metadata.id+'-right.png'),layers.right);
   if(['Face','Eyes','Hair'].every(part=>layers['right'+part]))await saveUserRightLayers(root,userId,metadata.id,layers);
   await atomicJson(path.join(heads,metadata.id+'.json'),{...metadata,userId});
@@ -33,7 +33,8 @@ export async function readUserHead(root,userId,id){
   if(metadata.userId!==userId)throw new Error('Head owner mismatch');
   const [composite,face,eyes,hair]=await Promise.all(['','-face','-eyes','-hair'].map(s=>readFile(base+s+'.png')));
   let right=null;try{right=await readFile(base+'-right.png');}catch(e){if(e.code!=='ENOENT')throw e;}
-  const layers={composite,face,eyes,hair,right};
+  let master=null;try{master=await readFile(base+'-original.png');}catch(e){if(e.code!=='ENOENT')throw e;}
+  const layers={composite,master,face,eyes,hair,right};
   try{const manifest=JSON.parse(await readFile(base+'-right-layers.json','utf8'));if(manifest.version===RIGHT_LAYER_VERSION)for(const part of ['Face','Eyes','Hair'])layers['right'+part]=await readFile(base+'-right-'+part.toLowerCase()+'.png');}catch(e){if(e.code!=='ENOENT')throw e;}
   return {metadata,layers};
 }

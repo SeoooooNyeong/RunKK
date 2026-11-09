@@ -62,7 +62,7 @@ async function verifyProfile(client,visionModel,front,profile,direction){
   if(v.headOnly!==true||v.completeHair!==true||v.profile!==true||v.direction!==direction||v.sameHairAndStyle!==true||v.windAppropriate!==true)throw fail('우측 방향·바람에 흐르는 헤어·몸 미포함을 확인하지 못했어요. 기존 정면은 유지해요.');
   return v;
 }
-export function registerAvatarViews(app,{client,root,imageModel,visionModel,quality,ensureApiKey,isBusy,setBusy,splitProfile=splitRightHead}){
+export function registerAvatarViews(app,{client,root,imageModel,visionModel,quality,ensureApiKey,isBusy,setBusy,splitProfile=png=>splitRightHead(png,{client,imageModel,visionModel,quality})}){
   const upload=multer({storage:multer.memoryStorage(),limits:{files:1,fileSize:8*1024*1024},fileFilter:(_req,file,cb)=>cb(file.mimetype==='image/png'?null:fail('정면 기준 이미지는 PNG로 보내 주세요.',400,'INVALID_FRONT_IMAGE'),file.mimetype==='image/png')});
   const directory=userId=>path.join(userDirectory(root,userId),'head-views');
   const filename=(userId,hash,direction,extension)=>path.join(directory(userId),`${hash}-${direction}.${extension}`);

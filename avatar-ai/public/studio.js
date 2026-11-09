@@ -9,7 +9,7 @@
   const RIG = 'runkk-front-v1';
   const LAYER_SIZE = 1024;
   const HEAD_LAYER_VERSION = 'runkk-coherent-head-v2';
-  const HEAD_SEGMENTATION_VERSION = 'runkk-eyes-folds-hair-brows-v24';
+  const HEAD_SEGMENTATION_VERSION = 'runkk-ai-source-pixels-v38';
   const DEFAULT_PIVOT={x:49.3,y:70.1};
   const builtinBodies=window.RUNKK_BODY_PACKS||[];
   const bodySets={};
@@ -154,10 +154,6 @@
     const sharedScale=Math.min(LAYER_SIZE/face.width,LAYER_SIZE/face.height),w=face.width*sharedScale,h=face.height*sharedScale;
     const fitCanvas=(im)=>{const out=surface(LAYER_SIZE,LAYER_SIZE);out.getContext('2d').drawImage(im,(LAYER_SIZE-w)/2,(LAYER_SIZE-h)/2,w,h);return out;};
     const faceCanvas=fitCanvas(face),eyeCanvas=fitCanvas(eyes),hairCanvas=fitCanvas(hair);
-    const {fillFaceEyeHoles}=await import('./eye-skin-fill.mjs');
-    const skinPixels=faceCanvas.getContext('2d').getImageData(0,0,LAYER_SIZE,LAYER_SIZE);
-    fillFaceEyeHoles(skinPixels.data,eyeCanvas.getContext('2d').getImageData(0,0,LAYER_SIZE,LAYER_SIZE).data,LAYER_SIZE,LAYER_SIZE);
-    faceCanvas.getContext('2d').putImageData(skinPixels,0,0);
     const composite=surface(LAYER_SIZE,LAYER_SIZE),cg=composite.getContext('2d');cg.drawImage(faceCanvas,0,0);cg.drawImage(eyeCanvas,0,0);cg.drawImage(hairCanvas,0,0);
     faceLayer={canvas:faceCanvas};
     eyeLayer={canvas:eyeCanvas};
@@ -170,7 +166,7 @@
     if(blinkRig)for(const name of ['open','half','closed'])$('eyeFrame-'+name).src=blinkRig.frames[name].toDataURL('image/png');
     $('layerPreviews').hidden=false;for(const [id,c]of [['faceLayerPreview',faceCanvas],['eyesLayerPreview',eyeCanvas],['hairLayerPreview',hairCanvas]])$(id).src=c.toDataURL('image/png');
     const merged={canvas:composite,hasAlpha:true,crop:{left:0,top:0,width:LAYER_SIZE,height:LAYER_SIZE,sourceWidth:LAYER_SIZE,sourceHeight:LAYER_SIZE}};
-    headSprite=merged;$('headPreview').src=composite.toDataURL('image/png');$('headBadge').textContent=name;$('headTag').textContent='얼굴 + 눈 + 머리카락 분리 레이어';
+    headSprite=merged;$('headPreview').src=(name.startsWith('AI 생성')&&state.headData)||composite.toDataURL('image/png');$('headBadge').textContent=name;$('headTag').textContent='얼굴 + 눈 + 머리카락 분리 레이어';
     return {canvas:composite,trimmed:merged};
   }
   async function setHead(src,name='기본 머리') {
@@ -259,7 +255,7 @@
   function syncAiButtons(){for(const id of ['analyzeButton','generateButton'])$(id).disabled=aiBusy||!apiReady||!selfieFile;$('generateButton').disabled=$('generateButton').disabled||selfieQuality?.canGenerate===false;$('generateButton').title=selfieQuality?.canGenerate===false?'사진 품질을 확인하기 어려워요. 새 셀카를 선택해 주세요.':'';$('selfieFile').disabled=aiBusy;$('headFile').disabled=aiBusy;$('removeSelfie').disabled=aiBusy;$('defaultHead').disabled=aiBusy;$('resetAll').disabled=aiBusy;$('loadProject').disabled=aiBusy;$('loadLatestHead').disabled=aiBusy;$('generateBody').disabled=aiBusy||!apiReady;for(const id of ['topPart','bottomPart','shoesPart'])$(id).disabled=aiBusy||!apiReady;$('bodyPackFile').disabled=aiBusy;window.RunKKSelfieQuality.render($('selfieQuality'),{quality:selfieQuality,selected:Boolean(selfieFile),busy:aiBusy&&Boolean(selfieFile)&&!selfieQuality,error:selfieQualityError});syncViewControls();}
   async function apiRequest(url,options={}){
     if(location.protocol==='file:')throw new Error('npm start로 서버를 실행하고 http://localhost:3000에서 열어 주세요.');
-    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),360000);
+    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),url==='/api/generate'?900000:360000);
     try{const res=await fetch(url,{...options,signal:controller.signal,cache:'no-store'});let data;try{data=await res.json();}catch{throw new Error('서버 응답을 읽지 못했어요. 새 server.mjs로 서버를 다시 실행해 주세요.');}if(!res.ok)throw Object.assign(new Error(data.message||data.error||'요청 실패'),{quality:data.quality,code:data.code,status:res.status});return data;}catch(error){if(error.name==='AbortError')throw new Error('응답 대기 시간이 초과됐어요. 자동 재시도하지 않았어요. 최근 생성 불러오기를 확인해 주세요.');throw error;}finally{clearTimeout(timer);}
   }
   function frontSignature(){return JSON.stringify([state.generationId,state.headData,state.faceData,state.eyesData,state.hairData,HEAD_LAYER_VERSION,HEAD_SEGMENTATION_VERSION]);}
@@ -307,9 +303,9 @@
   async function applyAiHead(data){
     const hasLayers=data.faceImage&&data.eyesImage&&data.hairImage;
     if(hasLayers&&data.styleVersion!==HEAD_LAYER_VERSION)throw new Error('이전 생성 결과는 코·입과 정렬 정보가 없어요. 셀카로 다시 생성해 주세요.');
-    const normalized=hasLayers?await setLayers(data.faceImage,data.eyesImage,data.hairImage,'AI 생성 얼굴 + 눈 + 머리카락'):await setHead(data.frontImage||data.image,'AI 생성 머리');const crop=normalized.trimmed?.crop||normalized.crop;const anchor=data.alignment||{};
+    if(hasLayers)state.headData=data.frontImage||null;const normalized=hasLayers?await setLayers(data.faceImage,data.eyesImage,data.hairImage,'AI 생성 얼굴 + 눈 + 머리카락'):await setHead(data.frontImage||data.image,'AI 생성 머리');const crop=normalized.trimmed?.crop||normalized.crop;const anchor=data.alignment||{};
     const px=Number.isFinite(anchor.pivotX)?anchor.pivotX:.5,py=Number.isFinite(anchor.pivotY)?anchor.pivotY:.985;
-    state.headData=hasLayers?null:normalized.canvas.toDataURL('image/png');state.faceData=hasLayers?data.faceImage:null;state.eyesData=hasLayers?data.eyesImage:null;state.hairData=hasLayers?data.hairImage:null;state.headName=hasLayers?'AI 생성 얼굴 + 눈 + 머리카락':'AI 생성 머리';state.headScale=100;state.headX=0;state.headY=0;
+    state.headData=hasLayers?(data.frontImage||null):normalized.canvas.toDataURL('image/png');state.faceData=hasLayers?data.faceImage:null;state.eyesData=hasLayers?data.eyesImage:null;state.hairData=hasLayers?data.hairImage:null;state.headName=hasLayers?'AI 생성 얼굴 + 눈 + 머리카락':'AI 생성 머리';state.headScale=100;state.headX=0;state.headY=0;
     state.headPivotX=clamp((px*crop.sourceWidth-crop.left)/crop.width*100,20,80);state.headPivotY=clamp((py*crop.sourceHeight-crop.top)/crop.height*100,30,99.5);
     state.layerVersion=hasLayers?HEAD_LAYER_VERSION:null;state.segmentationVersion=hasLayers?data.segmentationVersion:null;state.generationId=data.headId||data.id||null;state.traits=safeTraits(data.traits);if(Number.isInteger(anchor.skin))state.skin=clamp(anchor.skin,0,skinColors.length-1);
     if(avatarViews&&data.rightImage){const image=await loadImage(data.rightImage);avatarViews.setSource(frontSignature());avatarViews.entries.right={image,sourceHash:data.rightProfile?.sourceHash,viewId:data.rightProfile?.viewId,rightFaceImage:data.rightFaceImage,rightEyesImage:data.rightEyesImage,rightHairImage:data.rightHairImage};}
@@ -320,10 +316,12 @@
     $('refreshApi').onclick=refreshApi;$('hairLength').onchange=e=>{state.hairLength=e.target.value;scheduleSave();};
     $('analyzeButton').onclick=async()=>{try{const form=selfieForm();aiBusy=true;selfieQuality=null;selfieQualityError=null;syncAiButtons();$('analyzeButton').textContent='분석 중…';$('aiMessage').textContent='눈·코·입 가시성과 얼굴 밝기·선명도를 함께 확인하고 있어요.';const data=await apiRequest('/api/analyze',{method:'POST',body:form});if(!data.quality)throw new Error('품질 검사 서버를 새로 실행해 주세요.');selfieQuality=data.quality;state.traits=safeTraits(data.traits);renderTraits(state.traits);scheduleSave();$('aiMessage').textContent=data.quality.message;if(!data.quality.canGenerate)notify('사진 품질 확인 · 새 셀카를 선택해 주세요.');}catch(error){selfieQualityError=error.message;$('aiMessage').textContent=error.message;notify(error.message);}finally{aiBusy=false;$('analyzeButton').textContent='특징 분석';syncAiButtons();}};
     $('generateButton').onclick=async()=>{
+      let previewTimer=null,previewShown=false;
       try{const form=selfieForm(),traits=readTraits();if(traits?.hair.trim()&&traits?.eyes.trim())form.append('traits',JSON.stringify(traits));form.append('hairLength',state.hairLength);form.append('similarity',String(state.similarity));
-        aiBusy=true;selfieQualityError=null;syncAiButtons();$('generateButton').classList.add('busy');$('generateButton').textContent='품질 확인 · 생성 중…';$('aiMessage').textContent='사진 품질 확인 → 특징 추출 → 완성 머리 생성 → 얼굴·눈·헤어 분리 순서로 진행해요.';status('사진 품질을 확인하고 있어요. 특징이 보이지 않으면 이미지를 생성하지 않아요.');
+        aiBusy=true;selfieQualityError=null;syncAiButtons();$('generateButton').classList.add('busy');$('generateButton').textContent='품질 확인 · 생성 중…';$('aiMessage').textContent='사진 품질 확인 → 완성 머리 생성 → AI로 얼굴·눈·헤어 이미지 각각 생성 → 우측 모습 생성 순서로 진행해요.';status('사진 품질을 확인하고 있어요. 특징이 보이지 않으면 이미지를 생성하지 않아요.');
+        previewTimer=setInterval(async()=>{if(previewShown)return;try{const response=await fetch('/api/generate-preview?userId='+encodeURIComponent(demoUserId),{cache:'no-store'});if(response.status!==200)return;const preview=await response.json();if(preview.frontImage?.startsWith('data:image/png;base64,')){previewShown=true;$('headPreview').src=preview.frontImage;$('headBadge').textContent='AI 생성 원본';$('aiMessage').textContent='완성 머리를 만들었어요. AI가 얼굴·눈·헤어 파츠를 생성하는 중이에요.';}}catch{}},1000);
         const data=await apiRequest('/api/generate',{method:'POST',body:form});selfieQuality=data.quality||null;await applyAiHead(data);$('aiMessage').textContent=data.warning||'얼굴·눈·헤어 레이어를 만들었어요. 옷이나 동작을 바꿔도 각각의 레이어가 유지돼요.';status('AI 얼굴·눈·헤어 연결 완료 · 의상과 동작을 바꿔 보세요.');notify('내 얼굴·눈·헤어를 각각 연결했어요.');
-      }catch(error){if(error.quality)selfieQuality=error.quality;if(error.code==='SELFIE_QUALITY_UNAVAILABLE')selfieQualityError=error.message;$('aiMessage').textContent=error.message;status(error.code==='SELFIE_QUALITY_REJECTED'?'사진 품질 확인이 필요해요. 이미지를 생성하지 않았고 기존 아바타는 유지돼요.':'머리를 연결하지 못했어요. 기존 머리는 유지돼요.');notify(error.message);}finally{aiBusy=false;$('generateButton').classList.remove('busy');$('generateButton').textContent='AI 머리 생성 ↗';syncAiButtons();}
+      }catch(error){if(previewShown)$('headBadge').textContent='AI 생성 원본 · 파츠 확인 필요';if(error.quality)selfieQuality=error.quality;if(error.code==='SELFIE_QUALITY_UNAVAILABLE')selfieQualityError=error.message;$('aiMessage').textContent=error.message;status(error.code==='SELFIE_QUALITY_REJECTED'?'사진 품질 확인이 필요해요. 이미지를 생성하지 않았고 기존 아바타는 유지돼요.':'파츠 연결에 실패했어요. 생성 원본은 위에서 확인할 수 있어요.');notify(error.message);}finally{if(previewTimer)clearInterval(previewTimer);aiBusy=false;$('generateButton').classList.remove('busy');$('generateButton').textContent='AI 머리 생성 ↗';syncAiButtons();}
     };
     $('loadLatestHead').onclick=async()=>{try{const data=await apiRequest('/api/heads/latest?userId='+encodeURIComponent(demoUserId));await applyAiHead(data);$('aiMessage').textContent='이 사용자의 최근 머리를 불러왔어요. AI를 다시 호출하지 않았어요.';notify('최근 AI 머리를 연결했어요.');}catch(error){notify(error.message);}};
   }
