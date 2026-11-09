@@ -17,6 +17,6 @@ class RunBodyFeatureEntry @Inject constructor() : FeatureEntry {
 
     override fun register(builder: EntryProviderScope<NavKey>) {
         builder.route(Routes.REPORT) { RunBodyRoute() }
-        builder.route(Routes.COACH) { CoachChatRoute() }
+        builder.route(Routes.COACH_CHAT) { CoachChatRoute() }
     }
 }

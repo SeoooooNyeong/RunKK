@@ -69,6 +69,7 @@ class BetaLockTest {
         }
         assertEquals(UnreleasedFeature.RUNBODY, BetaLock.featureOf(Routes.Key(Routes.REPORT)))
         assertEquals(UnreleasedFeature.RUNBODY, BetaLock.featureOf(Routes.Key(Routes.COACH)))
+        assertEquals(UnreleasedFeature.RUNBODY, BetaLock.featureOf(Routes.Key(Routes.COACH_CHAT)))
         assertEquals(UnreleasedFeature.RUNBODY, BetaLock.featureOf(Routes.Key(Routes.COACH_CONSENTS)))
     }
 
