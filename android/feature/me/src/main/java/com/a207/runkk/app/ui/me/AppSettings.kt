@@ -34,7 +34,7 @@ import com.a207.runkk.app.core.navigation.Routes
  * 연동하지 않은 게스트의 로그아웃은 기기 기록이 지워진다는 확인과 연동 길을 보인다(F10, FR-199).
  */
 @Composable
-internal fun AppSettings(state: SettingsUiState, actions: SettingsActions) {
+internal fun AppSettings(state: SettingsUiState, actions: SettingsActions, onOpenLlmNotice: () -> Unit) {
     var isAskingHeartRate by remember { mutableStateOf(false) }
     var isChoosingVisibility by remember { mutableStateOf(false) }
     var isShowingLegal by remember { mutableStateOf(false) }
@@ -44,7 +44,7 @@ internal fun AppSettings(state: SettingsUiState, actions: SettingsActions) {
     DisplaySection(state, actions)
     SoundSection()
     VisibilitySection(state, actions, onChooseVisibility = { isChoosingVisibility = true })
-    ConsentSection(state, actions)
+    ConsentSection(state, actions, fromCoach = false, onOpenLlmNotice = onOpenLlmNotice)
     DeviceSection(
         state,
         actions,

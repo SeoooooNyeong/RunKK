@@ -116,6 +116,10 @@ class SettingsViewModel internal constructor(
 
     fun setConsent(item: String, isAgreed: Boolean) {
         val current = _state.value.settings ?: return
+        if (item == ConsentKeys.LLM_TRANSFER && isAgreed) {
+            saveLlmConsent()
+            return
+        }
         val previous = current.consents[item]
         _state.update { s ->
             s.copy(settings = s.settings?.let { it.copy(consents = it.consents + (item to isAgreed)) })
@@ -132,6 +136,34 @@ class SettingsViewModel internal constructor(
                 settings.consents[item] != isAgreed -> settings
                 previous == null -> settings.copy(consents = settings.consents - item)
                 else -> settings.copy(consents = settings.consents + (item to previous))
+            }
+        }
+    }
+
+    private fun saveLlmConsent() {
+        if (_state.value.isSavingLlmConsent) return
+        _state.update { it.copy(isSavingLlmConsent = true, message = null) }
+        viewModelScope.launch {
+            val result = changes.withLock { changeSetting(SettingChangeRequest.GiveConsent(ConsentKeys.LLM_TRANSFER)) }
+            when (result) {
+                is Outcome.Success -> {
+                    _state.update { state ->
+                        state.copy(
+                            isSavingLlmConsent = false,
+                            settings = state.settings?.let {
+                                it.copy(
+                                    consents =
+                                        it.consents + (ConsentKeys.LLM_TRANSFER to true)
+                                )
+                            }
+                        )
+                    }
+                    _events.send(SettingsEvent.LlmConsentSaved)
+                }
+
+                is Outcome.Failure -> _state.update {
+                    it.copy(isSavingLlmConsent = false, message = RunkkErrorText.of(result.error))
+                }
             }
         }
     }
