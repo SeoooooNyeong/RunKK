@@ -2,6 +2,9 @@ package com.a207.runkk.app.core.designsystem
 
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -66,6 +69,21 @@ class RunkkAvatarPortraitTest {
         RunkkAvatarArt.characters.keys.forEach {
             compose.onNodeWithTag(runkkAvatarCharacterTag(it), useUnmergedTree = true).assertDoesNotExist()
         }
+    }
+
+    @Test
+    fun `셀카 머리 얼굴(head)은 받은 층을 겹쳐 그리고, 아직 못 받았으면 빈 칸 대신 기본 캐릭터다`() {
+        var layers by mutableStateOf(emptyList<FaceLayer>())
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                RunkkAvatar("head:12:job-1", AvatarExpression.JOY, Modifier.size(40.dp), layers)
+            }
+        }
+        compose.onNodeWithTag(runkkAvatarCharacterTag("RABBIT"), useUnmergedTree = true).assertExists()
+        layers = listOf(FacePart.EARS, FacePart.EYES, FacePart.HAIR).map { FaceLayer(it, TINY_PNG) }
+        compose.waitForIdle()
+        compose.onNodeWithTag(RUNKK_AVATAR_FACE_TAG, useUnmergedTree = true).assertExists()
+        compose.onNodeWithTag(runkkAvatarCharacterTag("RABBIT"), useUnmergedTree = true).assertDoesNotExist()
     }
 
     @Test
