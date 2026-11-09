@@ -22,6 +22,9 @@ data class CrewHomeActions(
     val onAttendance: (PostList.Item, AttendanceAnswer) -> Unit = { _, _ -> },
     val onWriteSchedule: () -> Unit = {},
     val onLobby: (PostList.Item) -> Unit = {},
+    /** 크루런 응답 시트 열기(강조 카드 제목·날짜 줄)·닫기(피그마 F-11). */
+    val onRunOpen: (PostList.Item) -> Unit = {},
+    val onRunClose: () -> Unit = {},
     val onResult: (PostList.Item) -> Unit = {},
     /** ⋯ 메뉴의 크루 관리(크루장·운영진, Routes.CrewManage). */
     val onManage: () -> Unit = {},

@@ -18,6 +18,10 @@ internal data class LobbyResponse(
         val ready: Boolean = false,
         val me: Boolean = false,
         /** NOT_ENTERED | ENTERING | READY(서버 crew.Readiness). 옛 서버면 null. */
-        val readiness: String? = null
+        val readiness: String? = null,
+        /** 아바타 얼굴 키. 얼굴을 고르지 않았거나 옛 서버면 null(계약 crewrun-sum v1.2). */
+        val faceKey: String? = null,
+        /** 표시 성별 MALE | FEMALE(D-327). 옛 서버면 null. */
+        val shownGender: String? = null
     )
 }

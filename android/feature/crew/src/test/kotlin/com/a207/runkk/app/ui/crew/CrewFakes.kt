@@ -4,6 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.FaceLayer
+import com.a207.runkk.app.core.model.FacePart
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.crew.AttendanceAnswer
 import com.a207.runkk.app.domain.crew.BoardPost
@@ -356,8 +359,8 @@ val raceWithGoal = race.copy(
 val lobby = Lobby(
     31,
     listOf(
-        Lobby.Participant("바람처럼", true, 1),
-        Lobby.Participant("달빛", false, 2),
+        Lobby.Participant("바람처럼", true, 1, faceKey = "default:FOX", shownGender = Gender.FEMALE),
+        Lobby.Participant("달빛", false, 2, shownGender = Gender.MALE),
         Lobby.Participant("새벽곰", false, 7, isMe = true)
     ),
     meetAt = start.plusSeconds(600),
@@ -385,11 +388,35 @@ fun crewDetail(crewId: Long = 11, role: CrewRole? = CrewRole.MEMBER) = CrewDetai
 val crewRunResult = CrewRunResult(
     postId = 31,
     participants = listOf(
-        CrewRunResult.Participant("바람처럼", Distance(5_280), 1_712, 324, memberId = 1),
+        CrewRunResult.Participant(
+            "바람처럼",
+            Distance(5_280),
+            1_712,
+            324,
+            memberId = 1,
+            faceKey = "default:FOX",
+            shownGender = Gender.FEMALE
+        ),
         CrewRunResult.Participant("새벽곰", Distance(4_870), 1_668, 342, memberId = 7, isMe = true),
-        CrewRunResult.Participant("달빛", Distance(4_620), 1_700, 368, memberId = 2),
+        CrewRunResult.Participant(
+            "달빛",
+            Distance(4_620),
+            1_700,
+            368,
+            memberId = 2,
+            faceKey = "selfie:face/2/set-a",
+            shownGender = Gender.MALE
+        ),
         CrewRunResult.Participant("거북", Distance(4_950), 1_790, 362, memberId = 3),
-        CrewRunResult.Participant("한강토끼", Distance(3_720), 1_500, 403, memberId = 4)
+        CrewRunResult.Participant(
+            "한강토끼",
+            Distance(3_720),
+            1_500,
+            403,
+            memberId = 4,
+            faceKey = "default:BEAR",
+            shownGender = Gender.FEMALE
+        )
     ),
     totalDistance = Distance(23_440),
     isFirstCrewRun = true,
@@ -578,6 +605,12 @@ class FakeCrewRepository : CrewRepository {
     var resultState = crewRunResult
 
     override suspend fun crewRunResult(postId: Long) = answer("result:$postId", resultState)
+
+    /** 셀카 얼굴 키면 부위 그림 한 장, 아니면 빈 목록(FaceImageSource와 같은 규칙). */
+    override suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> = answer(
+        "face:$faceKey",
+        if (faceKey?.startsWith("selfie:") == true) listOf(FaceLayer(FacePart.EYES, byteArrayOf(1))) else emptyList()
+    )
 }
 
 class FakeLiveChannels : LiveChannelProvider {

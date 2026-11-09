@@ -6,8 +6,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
@@ -34,6 +37,7 @@ import com.a207.runkk.app.domain.crew.PostList
 import java.time.Duration
 import java.time.LocalDate
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -232,7 +236,71 @@ class CrewScreensTest {
     }
 
     @Test
-    fun `일정 탭 - 크루런 참석·불참·미정과 대기실(FR-145)`() {
+    fun `일정 탭 - 가장 가까운 크루런은 강조 카드이고 제목을 누르면 응답 시트에서 참석·불참·미정과 대기실(F-11, FR-145)`() {
+        var state by androidx.compose.runtime.mutableStateOf(
+            CrewHomeUiState(
+                crewId = 11,
+                detail = crewDetail(),
+                tab = CrewTab.SCHEDULE,
+                crewRuns = crewRunPosts,
+                scheduleNow = crewRunVoting.scheduledAt.minusSeconds(1_785),
+                lobbyEntries = mapOf(31L to LobbyAvailability.Open, 32L to LobbyAvailability.Closed)
+            )
+        )
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                CrewHomeScreen(
+                    state,
+                    CrewHomeActions(
+                        onAttendance = { post, answer -> calls += "${post.postId}:$answer" },
+                        onLobby = { calls += "lobby:${it.postId}" },
+                        onResult = { calls += "result:${it.postId}" },
+                        onRunOpen = { state = state.copy(openedRunId = it.postId) },
+                        onRunClose = { state = state.copy(openedRunId = null) }
+                    )
+                )
+            }
+        }
+        compose.onNodeWithText("참석 2명").assertExists()
+        compose.onNodeWithContentDescription("29분 45초 후 시작").assertExists()
+        compose.onNodeWithText("대기실 입장하기").performClick()
+        compose.onNodeWithText("같이 달려요").performClick()
+        compose.onAllNodes(androidx.compose.ui.test.hasText("크루런, 비대면", substring = true))[0].assertExists()
+        compose.onNodeWithText("참석").performClick()
+        // 강조 카드와 시트에 대기실 단추가 하나씩 있다. 시트의 단추는 시트를 닫고 대기실로 간다.
+        val lobbyButtons = compose.onAllNodes(androidx.compose.ui.test.hasText("대기실 입장하기"))
+        lobbyButtons.assertCountEquals(2)
+        lobbyButtons[1].performClick()
+        compose.waitForIdle()
+        if (state.openedRunId != null) {
+            compose.onAllNodes(androidx.compose.ui.test.hasText("대기실 입장하기"))[0].performClick()
+            compose.waitForIdle()
+        }
+        assertNull(state.openedRunId)
+        // 끝난 크루런(32)은 지난 크루런에 있고 누르면 결과로 간다(와이어 I4).
+        compose.onNodeWithText("지난 크루런").performScrollTo().assertExists()
+        compose.onNodeWithContentDescription("지난 결과", substring = true).performScrollTo().performClick()
+        assertEquals(listOf("lobby:31", "31:${AttendanceAnswer.GOING}", "result:32"), calls.distinct())
+    }
+
+    @Test
+    fun `일정 탭 - 나머지 크루런은 이번주·다음주 날짜 줄이고 참석 칩을 누르면 참석을 켜고 끈다(F-11)`() {
+        // 강조 카드는 토 10.24 07:00, 이번주는 일 10.25, 다음주는 토 10.31(주는 월요일부터).
+        val now = crewRunVoting.scheduledAt.minusSeconds(1_785)
+        val sat = crewRunPosts.posts[0].copy(
+            postId = 33,
+            summary = "토요일 한강",
+            crewRun = crewRunVoting.copy(scheduledAt = now.plusSeconds(86_400), goingCount = 5)
+        )
+        val next = crewRunPosts.posts[0].copy(
+            postId = 34,
+            summary = "주말 롱런",
+            crewRun = crewRunVoting.copy(
+                scheduledAt = now.plusSeconds(7 * 86_400),
+                goingCount = 4,
+                myAnswer = AttendanceAnswer.GOING
+            )
+        )
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 CrewHomeScreen(
@@ -240,26 +308,19 @@ class CrewScreensTest {
                         crewId = 11,
                         detail = crewDetail(),
                         tab = CrewTab.SCHEDULE,
-                        crewRuns = crewRunPosts,
-                        lobbyEntries = mapOf(31L to LobbyAvailability.Open, 32L to LobbyAvailability.Closed)
+                        crewRuns = PostList(listOf(crewRunPosts.posts[0], sat, next)),
+                        scheduleNow = now
                     ),
-                    CrewHomeActions(
-                        onAttendance = { post, answer -> calls += "${post.postId}:$answer" },
-                        onLobby = { calls += "lobby:${it.postId}" },
-                        onResult = { calls += "result:${it.postId}" }
-                    )
+                    CrewHomeActions(onAttendance = { post, answer -> calls += "${post.postId}:$answer" })
                 )
             }
         }
-        compose.onNodeWithText("같이 달려요").assertExists()
-        compose.onAllNodes(androidx.compose.ui.test.hasText("크루런, 비대면", substring = true))[0].assertExists()
-        compose.onAllNodes(androidx.compose.ui.test.hasText("참석 2", substring = true))[0].assertExists()
-        compose.onAllNodesWithTextFirst("참석")
-        compose.onAllNodesWithTextFirst("대기실 들어가기")
-        // 끝난 크루런(32)은 지난 크루런에 있고 누르면 결과로 간다(와이어 I4).
-        compose.onNodeWithText("지난 크루런").performScrollTo().assertExists()
-        compose.onNodeWithContentDescription("지난 결과", substring = true).performScrollTo().performClick()
-        assertEquals(listOf("31:${AttendanceAnswer.GOING}", "lobby:31", "result:32"), calls)
+        compose.onNodeWithContentDescription("이번주 1개").assertExists()
+        compose.onNodeWithContentDescription("다음주 1개").assertExists()
+        compose.onNodeWithText("지난 크루런 ›").assertDoesNotExist()
+        compose.onNodeWithContentDescription("참석 응답, 참석 5").assertIsOff().performClick()
+        compose.onNodeWithContentDescription("참석 응답, 참석 4").assertIsOn().performClick()
+        assertEquals(listOf("33:${AttendanceAnswer.GOING}", "34:${AttendanceAnswer.UNDECIDED}"), calls)
     }
 
     private fun showCrewRuns(entry: LobbyAvailability, status: CrewRunStatus = CrewRunStatus.VOTING) {
@@ -275,7 +336,8 @@ class CrewScreensTest {
                                 crewRunPosts.posts[0].copy(crewRun = crewRunVoting.copy(status = status))
                             )
                         ),
-                        lobbyEntries = mapOf(31L to entry)
+                        lobbyEntries = mapOf(31L to entry),
+                        scheduleNow = crewRunVoting.scheduledAt.minusSeconds(3_600)
                     ),
                     CrewHomeActions(onLobby = { calls += "lobby:${it.postId}" })
                 )
@@ -286,7 +348,7 @@ class CrewScreensTest {
     @Test
     fun `크루런 탭 - 대기실이 열리기 전에는 남은 분을 보이고 누를 수 없다(FR-133)`() {
         showCrewRuns(LobbyAvailability.NotYet(10))
-        compose.onNodeWithText("대기실 들어가기").assertDoesNotExist()
+        compose.onNodeWithText("대기실 입장하기").assertDoesNotExist()
         compose.onNodeWithText("대기실 10분 뒤 열려요").assertIsNotEnabled().performClick()
         assertEquals(emptyList(), calls)
     }
@@ -300,14 +362,14 @@ class CrewScreensTest {
     @Test
     fun `크루런 탭 - 30분 전부터는 대기실에 들어간다`() {
         showCrewRuns(LobbyAvailability.Open, CrewRunStatus.LOBBY_OPEN)
-        compose.onNodeWithText("대기실 들어가기").assertIsEnabled().performClick()
+        compose.onNodeWithText("대기실 입장하기").assertIsEnabled().performClick()
         assertEquals(listOf("lobby:31"), calls)
     }
 
     @Test
     fun `크루런 탭 - 모집 일시가 지났으면 대기실이 닫혔다고 보이고 누를 수 없다`() {
         showCrewRuns(LobbyAvailability.Closed, CrewRunStatus.RUNNING)
-        compose.onNodeWithText("대기실 들어가기").assertDoesNotExist()
+        compose.onNodeWithText("대기실 입장하기").assertDoesNotExist()
         compose.onNodeWithText("대기실이 닫혔어요").assertIsNotEnabled().performClick()
         assertEquals(emptyList(), calls)
     }
@@ -349,9 +411,6 @@ class CrewScreensTest {
         compose.onNodeWithContentDescription("뒤로").performClick()
         assertEquals(listOf("retry", "back"), calls)
     }
-
-    private fun androidx.compose.ui.test.junit4.ComposeContentTestRule.onAllNodesWithTextFirst(text: String) =
-        onAllNodes(androidx.compose.ui.test.hasText(text))[0].performClick()
 
     @Test
     fun `크루런 진행 - 함께 달리는 크루원 수(나·끝낸 사람 빼고)와 내 거리·지표를 보인다(F-15)`() {
@@ -524,9 +583,58 @@ class CrewScreenshotTest {
     @Test
     fun race() = compose.captureRunkkScreen("G3_my_crew_race") { CrewHomeScreen(home, CrewHomeActions()) }
 
+    /**
+     * 크루런 탭(피그마 F-11): 29분 45초 뒤 크루런이 강조 카드, 이번주 둘(하나는 내가 참석)·다음주 하나, 지난 크루런 하나.
+     */
+    private val crewRunsHome: CrewHomeUiState = run {
+        val now = start.plusSeconds(15)
+        val base = crewRunPosts.posts[0]
+        fun upcoming(
+            id: Long,
+            title: String,
+            at: java.time.Instant,
+            km: Int,
+            going: Int,
+            mine: AttendanceAnswer? = null
+        ) = base.copy(
+            postId = id,
+            summary = title,
+            crewRun = crewRunVoting.copy(
+                scheduledAt = at,
+                distance = Distance(km * 1_000L),
+                goingCount = going,
+                myAnswer = mine
+            )
+        )
+        val hero = upcoming(31, "오늘 저녁 같이 5km", start.plusSeconds(1_800), 5, 5, AttendanceAnswer.GOING)
+        val runs = listOf(
+            hero,
+            upcoming(33, "토요일 한강 같이 뛰어요", start.plusSeconds(302_400), 5, 5, AttendanceAnswer.GOING),
+            upcoming(34, "주말 롱런", start.plusSeconds(388_800), 10, 4),
+            upcoming(35, "토요일 한강 같이 뛰어요", start.plusSeconds(907_200), 5, 5),
+            crewRunPosts.posts[1]
+        )
+        home.copy(
+            tab = CrewTab.SCHEDULE,
+            crewRuns = PostList(runs),
+            scheduleNow = now,
+            lobbyEntries = runs.mapNotNull { p -> p.crewRun?.let { p.postId to LobbyAvailability.of(it, now) } }.toMap()
+        )
+    }
+
     @Test
     fun crewRuns() = compose.captureRunkkScreen("G3_my_crew_crew_runs") {
-        CrewHomeScreen(home.copy(tab = CrewTab.SCHEDULE), CrewHomeActions())
+        CrewHomeScreen(crewRunsHome, CrewHomeActions())
+    }
+
+    @Test
+    fun crewRunsLight() = compose.captureRunkkScreen("G3_my_crew_crew_runs_light", isDarkTheme = false) {
+        CrewHomeScreen(crewRunsHome, CrewHomeActions())
+    }
+
+    @Test
+    fun crewRunSheet() = compose.captureRunkkScreen("G3_my_crew_crew_run_sheet") {
+        CrewHomeScreen(crewRunsHome.copy(openedRunId = 34), CrewHomeActions())
     }
 
     @Test
@@ -582,19 +690,44 @@ class CrewScreenshotTest {
         )
     }
 
+    /** 대기실(F-14b): 내 준비(isReady)와 격자의 내 칸 상태를 맞춘다(대기실 응답의 내 줄이 준비 완료). */
+    private val readyLobby = CrewRunUiState(
+        postId = 31,
+        distance = Distance(5_000),
+        phase = CrewRunPhase.LOBBY,
+        lobby = lobbyWithAbsent.copy(
+            participants = lobbyWithAbsent.participants.map { if (it.isMe) it.copy(isReady = true) else it }
+        ),
+        isReady = true,
+        untilStart = Duration.ofSeconds(512)
+    )
+
+    /** 취소(F-14c): 마지막 대기실 그대로, 남은 시간 0, 서버 취소 사유. */
+    private val cancelledLobby = CrewRunUiState(
+        postId = 31,
+        distance = Distance(5_000),
+        phase = CrewRunPhase.CANCELLED,
+        lobby = lobbyWithAbsent,
+        untilStart = Duration.ZERO,
+        cancelledReason = "준비 완료한 참가자가 2명보다 적어 시작하지 않았어요"
+    )
+
     @Test
-    fun lobbyScreen() = compose.captureRunkkScreen("G6_crew_run_lobby") {
-        CrewRunScreen(
-            CrewRunUiState(
-                postId = 31,
-                distance = Distance(5_000),
-                phase = CrewRunPhase.LOBBY,
-                lobby = lobbyWithAbsent,
-                isReady = true,
-                untilStart = Duration.ofSeconds(512)
-            ),
-            CrewRunActions()
-        )
+    fun lobbyScreen() = compose.captureRunkkScreen("G6_crew_run_lobby") { CrewRunScreen(readyLobby, CrewRunActions()) }
+
+    @Test
+    fun lobbyLight() = compose.captureRunkkScreen("G6_crew_run_lobby_light", isDarkTheme = false) {
+        CrewRunScreen(readyLobby, CrewRunActions())
+    }
+
+    @Test
+    fun cancelled() = compose.captureRunkkScreen("G6_crew_run_cancelled") {
+        CrewRunScreen(cancelledLobby, CrewRunActions())
+    }
+
+    @Test
+    fun cancelledLight() = compose.captureRunkkScreen("G6_crew_run_cancelled_light", isDarkTheme = false) {
+        CrewRunScreen(cancelledLobby, CrewRunActions())
     }
 
     @Test
@@ -611,6 +744,11 @@ class CrewScreenshotTest {
     }
 
     @Test
+    fun relayLight() = compose.captureRunkkScreen("G7_crew_run_relay_light", isDarkTheme = false) {
+        CrewRunScreen(runningState(), CrewRunActions())
+    }
+
+    @Test
     fun paused() = compose.captureRunkkScreen("G7_crew_run_paused") {
         CrewRunScreen(runningState().copy(mine = runningState().mine.copy(isPaused = true)), CrewRunActions())
     }
@@ -621,7 +759,17 @@ class CrewScreenshotTest {
     }
 
     @Test
+    fun quitConfirmLight() = compose.captureRunkkScreen("G7_crew_run_quit_confirm_light", isDarkTheme = false) {
+        CrewRunScreen(runningState().copy(isConfirmingQuit = true), CrewRunActions())
+    }
+
+    @Test
     fun result() = compose.captureRunkkScreen("G8_crew_run_result") {
+        CrewRunResultScreen(CrewRunResultUiState(isLoading = false, result = crewRunResult), {}, {}, {})
+    }
+
+    @Test
+    fun resultLight() = compose.captureRunkkScreen("G8_crew_run_result_light", isDarkTheme = false) {
         CrewRunResultScreen(CrewRunResultUiState(isLoading = false, result = crewRunResult), {}, {}, {})
     }
 

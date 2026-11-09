@@ -50,6 +50,7 @@ import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkLiveDot
 import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
+import com.a207.runkk.app.domain.account.MyAvatar
 import java.time.Duration
 import java.time.LocalDate
 
@@ -117,7 +118,7 @@ private fun FigureCard(figure: Figure, character: AvatarCharacter, celebrityFigu
 }
 
 /**
- * 대결자 그림 하나. 나는 기본 아바타, 배틀런 상대는 상대 성별([character])의 상대 그림, 과거의 나는 반투명 기본 아바타, 셀럽은
+ * 대결자 그림 하나. 나는 내 아바타([myAvatar]가 있으면 홈과 같은 얼굴, 없으면 기본 아바타), 배틀런 상대는 상대 성별([character])의 상대 그림, 과거의 나는 반투명 기본 아바타, 셀럽은
  * 키([celebrityFigure])의 전용 캐릭터이고 키가 없으면 공통 흐린 그림이다(D-254, D73·D74, 사용자 결정 2026-10-31).
  */
 @Composable
@@ -127,10 +128,17 @@ internal fun OpponentFigure(
     expression: AvatarExpression = AvatarExpression.STAND,
     colorFilter: ColorFilter? = null,
     character: AvatarCharacter = AvatarCharacter.MALE,
-    celebrityFigure: String? = null
+    celebrityFigure: String? = null,
+    myAvatar: MyAvatar? = null
 ) {
     when (figure) {
-        Figure.AVATAR -> RunkkAvatar(null, expression, Modifier.size(size), colorFilter = colorFilter)
+        Figure.AVATAR -> RunkkAvatar(
+            myAvatar?.faceKey,
+            expression,
+            Modifier.size(size),
+            myAvatar?.faceLayers.orEmpty(),
+            colorFilter = colorFilter
+        )
 
         Figure.RIVAL -> RivalAvatar(Modifier.size(size), colorFilter, character)
 

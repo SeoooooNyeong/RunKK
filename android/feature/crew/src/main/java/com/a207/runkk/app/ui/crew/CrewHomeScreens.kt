@@ -26,6 +26,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -54,6 +55,7 @@ import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.crew.CrewRole
 import com.a207.runkk.app.domain.crew.PostList
+import kotlinx.coroutines.launch
 
 // ---------- 내 크루 홈 ----------
 
@@ -135,6 +137,8 @@ private fun crewHomeActions(vm: CrewHomeViewModel, onReport: (PostList.Item) -> 
     onDeleteConfirm = vm::onDeleteConfirm,
     onReport = onReport,
     onAttendance = vm::onAttendance,
+    onRunOpen = vm::onRunOpen,
+    onRunClose = vm::onRunClose,
     onShareCelebration = vm::onShareCelebration,
     onLeaveAsk = vm::onLeaveAsk,
     onLeaveDismiss = vm::onLeaveDismiss,
@@ -192,6 +196,11 @@ private fun HomeTabs(state: CrewHomeUiState, actions: CrewHomeActions, isAtTabRo
     LaunchedEffect(nearEnd, hasMore, state.tab) {
         if (nearEnd && hasMore) actions.onLoadMore()
     }
+    val scope = rememberCoroutineScope()
+    // "지난 크루런 ›": 목록을 지난 크루런 머리글까지 내린다.
+    val onPast: () -> Unit = {
+        schedulePastIndex(state)?.let { index -> scope.launch { list.animateScrollToItem(index) } }
+    }
     Column(Modifier.fillMaxSize()) {
         Header(state, actions, isAtTabRoot)
         CrewTabStrip(state.tab, onTab = actions.onTab, onChat = actions.onChat)
@@ -201,19 +210,19 @@ private fun HomeTabs(state: CrewHomeUiState, actions: CrewHomeActions, isAtTabRo
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            homeTabItems(state, actions)
+            homeTabItems(state, actions, onPast)
         }
     }
 }
 
 /** 고른 탭의 내용(읽기 실패면 오류 상태). 크루런은 글마다 항목을 더하고(보이는 것만 그린다, AN5-D-6), 레이스는 한 항목으로 그린다. */
-private fun LazyListScope.homeTabItems(state: CrewHomeUiState, actions: CrewHomeActions) {
+private fun LazyListScope.homeTabItems(state: CrewHomeUiState, actions: CrewHomeActions, onPast: () -> Unit) {
     if (state.error != null && !state.isLoading) {
         item(key = "error") { RunkkErrorState(state.error.asString(), onRetry = actions.onRetry) }
         return
     }
     when (state.tab) {
-        CrewTab.SCHEDULE -> scheduleTabItems(state, actions)
+        CrewTab.SCHEDULE -> scheduleTabItems(state, actions, onPast)
 
         CrewTab.RACE -> item(key = "tab:${state.tab}") {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) { RaceTab(state, actions) }
@@ -292,6 +301,24 @@ private fun HomeDialogs(state: CrewHomeUiState, actions: CrewHomeActions) {
         )
     }
     if (state.isEditingIntro) IntroSheet(state, actions)
+    state.openedRun?.let { post ->
+        // 시트에서 다른 화면·대화상자로 가면 시트를 닫는다(돌아왔을 때 시트가 남지 않게).
+        val closing = actions.copy(
+            onLobby = {
+                actions.onRunClose()
+                actions.onLobby(it)
+            },
+            onDeleteAsk = {
+                actions.onRunClose()
+                actions.onDeleteAsk(it)
+            },
+            onReport = {
+                actions.onRunClose()
+                actions.onReport(it)
+            }
+        )
+        CrewRunSheet(post, state.lobbyEntries[post.postId], closing)
+    }
     val code = state.detail?.inviteCode
     if (state.isInviteOpen && code != null) InviteCodeDialog(code, actions)
 }
