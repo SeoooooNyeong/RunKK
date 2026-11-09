@@ -18,7 +18,7 @@
         if(result.scope!=='head'||result.sourceHash!==sourceHash||result.direction!==direction)throw new Error('우측 머리의 정면 기준 정보가 맞지 않아요. 기존 정면은 유지해요.');
         const image=await this.decode(result.image);
         this.setSource(this.signature());if(revision!==this.revision)throw new Error('생성 중 얼굴이나 코디가 변경돼서 결과를 적용하지 않았어요. 현재 정면으로 다시 생성해 주세요.');
-        this.entries[direction]={image,sourceHash,viewId:result.viewId};this.active=direction;return result;
+        this.entries[direction]={image,sourceHash,viewId:result.viewId,rightFaceImage:result.rightFaceImage,rightEyesImage:result.rightEyesImage,rightHairImage:result.rightHairImage};this.active=direction;return result;
       }finally{this.busy=false;this.update();}
     }
     async restore(){
@@ -29,7 +29,7 @@
         const found=await Promise.all(['right'].map(async direction=>{
           let result;try{result=await this.request(`/api/v1/heads/right-profile/${sourceHash}?userId=${encodeURIComponent(localStorage.getItem('runkk-avatar-demo-user'))}`);}catch(error){if(error.status===404)return null;throw error;}
           if(result.scope!=='head'||result.sourceHash!==sourceHash||result.direction!==direction)throw new Error('저장된 우측 머리의 기준이 맞지 않아요.');
-          return {direction,image:await this.decode(result.image),sourceHash,viewId:result.viewId};
+          return {direction,image:await this.decode(result.image),sourceHash,viewId:result.viewId,rightFaceImage:result.rightFaceImage,rightEyesImage:result.rightEyesImage,rightHairImage:result.rightHairImage};
         }));
         this.setSource(this.signature());if(revision!==this.revision)return [];
         const loaded=[];for(const entry of found)if(entry){this.entries[entry.direction]=entry;loaded.push(entry.direction);}return loaded;

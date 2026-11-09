@@ -23,7 +23,7 @@ async function fixture(t, validation=accepted) {
       return {choices:[{message:{content:JSON.stringify(comparison?validation:{headOnly:true,frontFacing:true,hasFace:true})}}]};
     }}}
   };
-  const api=registerAvatarViews({get(){},post(){}},{client,root,imageModel:'image-test',visionModel:'vision-test',quality:'high',ensureApiKey(){},isBusy:()=>false,setBusy(){}});
+  const api=registerAvatarViews({get(){},post(){}},{client,root,imageModel:'image-test',visionModel:'vision-test',quality:'high',ensureApiKey(){},isBusy:()=>false,setBusy(){},splitProfile:async png=>({rightFace:png,rightEyes:png,rightHair:png})});
   return {api,root,calls};
 }
 
@@ -39,6 +39,7 @@ test('기존 정지 헤어 캐시는 무효화하고 바람 헤어를 한 번 �
   assert.equal(result.viewVersion,AVATAR_VIEW_VERSION);
   assert.deepEqual(result.canvas,[1024,1024]);
   assert.equal(result.validation.windAppropriate,true);
+  for(const part of ['Face','Eyes','Hair'])assert.match(result['right'+part+'Image'],/^data:image\/png;base64,/);
   assert.match(calls.prompt,/backward toward the LEFT/);
   assert.match(calls.prompt,/Absolutely NO torso/);
   const again=await api.generate('alice',front);
@@ -53,4 +54,15 @@ test('바람 표현 검증에 실패하면 저장·자동 재생성하지 않는
   await assert.rejects(api.generate('alice',front),e=>e.code==='AVATAR_VIEW_INVALID');
   assert.equal(await api.cached('alice',sourceHash(front)),null);
   assert.equal(calls.image,1);
+});
+
+test('현재 버전 우측 캐시에 레이어가 없으면 이미지 생성 없이 분리하고 재사용한다',async t=>{
+  const {api,root,calls}=await fixture(t),hash=sourceHash(front),dir=path.join(userDirectory(root,'alice'),'head-views');
+  await mkdir(dir,{recursive:true});
+  await writeFile(path.join(dir,hash+'-right.png'),front);
+  await writeFile(path.join(dir,hash+'-right.json'),JSON.stringify({userId:'alice',scope:'head',sourceHash:hash,direction:'right',viewVersion:AVATAR_VIEW_VERSION,imageModel:'image-test',visionModel:'vision-test',quality:'high'}));
+  const first=await api.cached('alice',hash),again=await api.cached('alice',hash);
+  assert.equal(first.rightEyesImage,again.rightEyesImage);
+  assert.match(first.rightEyesImage,/^data:image\/png;base64,/);
+  assert.equal(calls.image,0);assert.equal(calls.vision,0);
 });
