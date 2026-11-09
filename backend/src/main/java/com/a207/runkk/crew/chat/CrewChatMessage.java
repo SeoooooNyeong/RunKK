@@ -1,6 +1,7 @@
 package com.a207.runkk.crew.chat;
 
 import com.a207.runkk.common.BusinessRuleException;
+import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.PermissionDeniedException;
 import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.crew.CrewAction;
@@ -8,19 +9,24 @@ import com.a207.runkk.crew.CrewPermissionPolicy;
 import com.a207.runkk.crew.CrewRelation;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.Objects;
+import java.util.UUID;
 
 /**
  * 크루 채팅 메시지 한 건의 내용과 표시 상태(설계 6.1.7a, FR-208, D-101). 삭제는 표시(deleted) 뒤 목록에서 빼고, 신고 숨김은 hidden이다.
- * 작성자가 탈퇴하면 authorId가 비고 내용은 남는다(FR-021). 위치 항목이 없다(NFR-021).
+ * 작성자가 탈퇴하면 authorId가 비고 내용은 남는다(FR-021). 위치 항목이 없다(NFR-021). 피그마 맞춤 W5(C7, V53)부터 종류(kind)가 있어 러닝
+ * 완료 시스템 메시지(RUN_FINISHED)는 러닝한 크루원을 작성자로 두고 거리(미터)만 싣는다.
  */
 @Entity
 @Table(
@@ -45,6 +51,17 @@ public class CrewChatMessage {
 
     /** 앱이 만든 메시지 ID 길이(UUID 문자열). */
     static final int CLIENT_MESSAGE_ID_LENGTH = 36;
+
+    /** kind 칼럼 길이(V53). */
+    private static final int KIND_LENGTH = 20;
+
+    /** 러닝 완료 메시지의 clientMessageId를 기록 ID에서 만들 때 붙이는 머리말. */
+    private static final String RUN_FINISHED_SEED = "run-finished:";
+
+    /** 미터 → 1/100 km. */
+    private static final long METERS_PER_CENTI_KM = 10;
+
+    private static final long CENTI_PER_KM = 100;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -75,6 +92,13 @@ public class CrewChatMessage {
     @Column(name = "hidden", nullable = false)
     private boolean hidden;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "kind", nullable = false, updatable = false, length = KIND_LENGTH)
+    private ChatMessageKind kind = ChatMessageKind.TEXT;
+
+    @Column(name = "run_distance_meters", updatable = false)
+    private Long runDistanceMeters;
+
     protected CrewChatMessage() {}
 
     private CrewChatMessage(long crewId, long authorId, ChatDraft trimmed, LocalDateTime at) {
@@ -104,6 +128,49 @@ public class CrewChatMessage {
         }
         return new CrewChatMessage(
                 crewId, authorId, new ChatDraft(draft.clientMessageId(), trimmed), now);
+    }
+
+    /**
+     * 러닝 완료 시스템 메시지(사용자 결정 C7). 작성자는 러닝한 크루원이고 내용은 "○○님이 n.nnkm를 달렸어요"(소수 둘째 자리 버림)다. 내용은 옛 앱이 보통
+     * 메시지로 보여 줄 대체 문구이고 새 앱은 kind·runDistanceMeters·작성자 이름으로 그린다. clientMessageId는 기록 ID로 정한 UUID라
+     * 같은 기록의 두 번째 메시지는 고유 색인 uq_crew_chat_client가 막는다.
+     *
+     * @param displayName 러닝한 크루원의 지금 표시명
+     * @param distance 기록 거리(0 이상)
+     */
+    public static CrewChatMessage runFinished(
+            long crewId,
+            long memberId,
+            String recordId,
+            String displayName,
+            Distance distance,
+            LocalDateTime now) {
+        if (now == null || recordId == null || displayName == null || distance == null) {
+            throw new IllegalArgumentException("러닝 완료 메시지 값이 비었다");
+        }
+        String content = displayName + "님이 " + km(distance) + "km를 달렸어요";
+        CrewChatMessage m =
+                new CrewChatMessage(
+                        crewId,
+                        memberId,
+                        new ChatDraft(runFinishedClientId(recordId), content),
+                        now);
+        m.kind = ChatMessageKind.RUN_FINISHED;
+        m.runDistanceMeters = distance.meters();
+        return m;
+    }
+
+    /** 기록 ID로 정한 러닝 완료 메시지 ID(UUID v3, 36자). */
+    static String runFinishedClientId(String recordId) {
+        return UUID.nameUUIDFromBytes(
+                        (RUN_FINISHED_SEED + recordId).getBytes(StandardCharsets.UTF_8))
+                .toString();
+    }
+
+    /** "5.02"처럼 소수 둘째 자리까지 버림. */
+    private static String km(Distance d) {
+        long centi = d.meters() / METERS_PER_CENTI_KM;
+        return String.format("%d.%02d", centi / CENTI_PER_KM, centi % CENTI_PER_KM);
     }
 
     /**
@@ -177,6 +244,27 @@ public class CrewChatMessage {
     /** 보낸 일시를 그 시간대의 오프셋 시각으로(앱 계약 sentAt, F.2.2·F.3.2). */
     OffsetDateTime sentAtIn(ZoneId zone) {
         return sentAt.atZone(zone).toOffsetDateTime();
+    }
+
+    public ChatMessageKind kind() {
+        return kind;
+    }
+
+    /** 러닝 완료 메시지의 거리(미터), 보통 메시지면 null. */
+    public Long runDistanceMeters() {
+        return runDistanceMeters;
+    }
+
+    /** 러닝 완료 시스템 메시지인가. */
+    public boolean isSystem() {
+        return kind != ChatMessageKind.TEXT;
+    }
+
+    /** 작성자 탈퇴 때 러닝 완료 메시지를 목록에서 뺀다(개인정보, W5 결정). 보통 메시지에는 쓰지 않는다. */
+    public void retractSystem() {
+        if (isSystem()) {
+            this.deleted = true;
+        }
     }
 
     public boolean isDeleted() {
