@@ -42,14 +42,13 @@ internal object BetaLock {
     fun lockedTabs(scope: ReleaseScope): Set<RunkkTab> =
         if (scope.isOpen(UnreleasedFeature.CREW)) emptySet() else setOf(RunkkTab.CREW)
 
+    /** 런바디에 딸린 경로: 리포트, 러닝 코치, AI 코치 대화, 코치 동의. */
+    private val RUNBODY_ROUTES = setOf(Routes.REPORT, Routes.COACH, Routes.COACH_CHAT, Routes.COACH_CONSENTS)
+
     private fun featureOfRoute(route: String): UnreleasedFeature? = when {
         route == Routes.CREW || route.startsWith("${Routes.CREW}/") -> UnreleasedFeature.CREW
-
         route == Routes.AVATAR || route.startsWith("${Routes.AVATAR}/") -> UnreleasedFeature.AVATAR_CUSTOMIZE
-
-        route == Routes.REPORT || route == Routes.COACH || route == Routes.COACH_CONSENTS ->
-            UnreleasedFeature.RUNBODY
-
+        route in RUNBODY_ROUTES -> UnreleasedFeature.RUNBODY
         else -> null
     }
 }
