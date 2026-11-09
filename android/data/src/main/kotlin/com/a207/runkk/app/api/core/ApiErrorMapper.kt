@@ -17,6 +17,8 @@ import retrofit2.HttpException
  * - 429는 본문 code(TOO_MANY_ATTEMPTS 등)가 있으면 Rejected(code), 없으면 Server(429)
  * - 그 밖의 4xx(409 포함)는 본문 code를 사유 코드로 하는 Rejected(code). 서버 web.error.ErrorResponse(code, message)의 code를
  *   그대로 쓰고, 본문에 없으면 404는 NOT_FOUND, 400은 BAD_REQUEST, 나머지는 HTTP_상태.
+ * - 셀카 얼굴 작업(web.avatar.SelfieJobController)은 사유를 code가 아니라 reason에 싣는다({"reason":"JOB_NOT_FOUND"}).
+ *   code가 없으면 reason을 사유 코드로 쓴다.
  */
 object ApiErrorMapper {
     private const val UNAUTHORIZED = 401
@@ -90,7 +92,7 @@ object ApiErrorMapper {
         else -> "HTTP_$status"
     }
 
-    private fun reasonCode(body: String?): String? = decodeBody(body)?.code
+    private fun reasonCode(body: String?): String? = decodeBody(body)?.let { it.code ?: it.reason }
 
     private fun decodeBody(body: String?): ErrorBody? {
         if (body.isNullOrBlank()) return null
@@ -104,5 +106,5 @@ object ApiErrorMapper {
     }
 
     @Serializable
-    private data class ErrorBody(val code: String? = null, val message: String? = null)
+    private data class ErrorBody(val code: String? = null, val message: String? = null, val reason: String? = null)
 }

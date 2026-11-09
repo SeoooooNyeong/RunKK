@@ -9,6 +9,7 @@ import com.a207.runkk.app.core.model.getOrNull
 import com.a207.runkk.app.domain.avatar.Avatar
 import com.a207.runkk.app.domain.avatar.AvatarRepository
 import com.a207.runkk.app.domain.avatar.ItemSlot
+import com.a207.runkk.app.domain.avatar.SelfieJob
 import com.a207.runkk.app.domain.avatar.Shop
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -39,6 +40,7 @@ class AvatarViewModel @Inject constructor(private val avatars: AvatarRepository)
         _state.update { it.copy(isLoading = true, error = null) }
         job = viewModelScope.launch {
             val shop = async { avatars.shop(null) }
+            finishPendingSelfie()
             when (val avatar = avatars.avatar()) {
                 is Outcome.Success -> {
                     _state.update {
@@ -57,6 +59,15 @@ class AvatarViewModel @Inject constructor(private val avatars: AvatarRepository)
                 }
             }
         }
+    }
+
+    /**
+     * 얼굴 만들기 화면을 떠난 뒤 서버가 셀카 얼굴을 다 만들었으면 결과를 받아 내 얼굴을 바꾼다(S15P31A207-248). 아직 만드는 중이면
+     * 얼굴 만들기 화면에 다시 들어올 때 이어 조회한다.
+     */
+    private suspend fun finishPendingSelfie() {
+        val jobId = avatars.pendingSelfieJobId() ?: return
+        if (avatars.selfieJob(jobId).getOrNull()?.status == SelfieJob.Status.SUCCEEDED) avatars.finishSelfie(jobId)
     }
 
     /** 마지막으로 그림을 받은 얼굴 키. 같은 얼굴이면 다시 받지 않는다(묶음 키가 바뀌면 새 얼굴이다). */

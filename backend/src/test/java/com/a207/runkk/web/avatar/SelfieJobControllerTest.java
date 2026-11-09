@@ -100,6 +100,27 @@ class SelfieJobControllerTest extends WebTestSupport {
     }
 
     @Test
+    void currentJobLetsAppResumeWithoutLocalJobId() throws Exception {
+        Session user = signUp();
+        mvc.perform(as(user, get("/api/v1/avatar/selfie/jobs/current")))
+                .andExpect(status().isNoContent());
+        mvc.perform(as(user, put("/api/v1/me/consents/FACE_TRANSFER"))).andExpect(status().isOk());
+        when(gateway.submit(eq(user.memberId()), any()))
+                .thenReturn(new FaceJob("http-job-3", FaceJob.Status.QUEUED, null, null));
+        mvc.perform(as(user, multipart("/api/v1/avatar/selfie/jobs").file(image(JPEG))))
+                .andExpect(status().isAccepted());
+        mvc.perform(as(user, get("/api/v1/avatar/selfie/jobs/current")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.jobId").value("http-job-3"))
+                .andExpect(jsonPath("$.status").value("QUEUED"));
+        verify(gateway, never()).status(anyLong(), anyString());
+        Session other = signUp();
+        mvc.perform(as(other, get("/api/v1/avatar/selfie/jobs/current")))
+                .andExpect(status().isNoContent());
+        mvc.perform(get("/api/v1/avatar/selfie/jobs/current")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void imageLimitsAndBodyPresetAreExposed() throws Exception {
         Session user = signUp();
         mvc.perform(

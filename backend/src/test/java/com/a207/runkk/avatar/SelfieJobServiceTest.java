@@ -147,6 +147,60 @@ class SelfieJobServiceTest {
     }
 
     @Test
+    void currentJobIsTheAcceptedUnfinishedOneUntilResultIsApplied() {
+        assertThat(service.current(1)).isEmpty();
+        service.submit(1, new byte[] {1});
+        assertThat(service.current(1)).contains(queued);
+        when(gateway.status(1, "job-1"))
+                .thenReturn(new FaceJob("job-1", FaceJob.Status.SUCCEEDED, "head-1", null));
+        service.status(1, "job-1");
+        assertThat(service.current(1).orElseThrow().status()).isEqualTo(FaceJob.Status.SUCCEEDED);
+        assertThat(service.current(2)).isEmpty();
+        service.result(1, "job-1");
+        assertThat(service.current(1)).isEmpty();
+    }
+
+    @Test
+    void failedJobIsNotCurrent() {
+        service.submit(1, new byte[] {1});
+        when(gateway.status(1, "job-1"))
+                .thenReturn(
+                        new FaceJob(
+                                "job-1",
+                                FaceJob.Status.FAILED,
+                                null,
+                                new FaceJob.Error("NO_FACE_DETECTED", "얼굴 없음")));
+        service.status(1, "job-1");
+        assertThat(service.current(1)).isEmpty();
+    }
+
+    @Test
+    void uncertainSubmissionWithoutJobIdIsNotCurrent() {
+        when(gateway.submit(eq(1L), any())).thenThrow(new FaceJobRejectedException(504, "TIMEOUT"));
+        assertThatThrownBy(() -> service.submit(1, new byte[] {1}))
+                .isInstanceOf(FaceJobRejectedException.class);
+        assertThat(service.current(1)).isEmpty();
+    }
+
+    @Test
+    void resultOverDailyLimitFinishesJobSoMemberIsNotBlocked() {
+        service.submit(1, new byte[] {1});
+        when(policy.selfieLimit()).thenReturn(new SelfieLimit(0));
+        assertThatThrownBy(() -> service.result(1, "job-1"))
+                .isInstanceOfSatisfying(
+                        BusinessRuleException.class,
+                        e -> assertThat(e.reason()).isEqualTo(ReasonCode.SELFIE_LIMIT));
+        assertThat(service.current(1)).isEmpty();
+        assertThat(service.status(1, "job-1").error().code()).isEqualTo("SELFIE_LIMIT");
+        assertThat(avatars.findOrCreate(1).creationCount()).isZero();
+        assertThat(avatars.findOrCreate(1).face()).isEmpty();
+        when(policy.selfieLimit()).thenReturn(new SelfieLimit(1));
+        when(gateway.submit(eq(1L), any()))
+                .thenReturn(new FaceJob("job-2", FaceJob.Status.QUEUED, null, null));
+        assertThat(service.submit(1, new byte[] {2}).jobId()).isEqualTo("job-2");
+    }
+
+    @Test
     void uncertainSubmissionCanRetrySamePhotoAfterLease() {
         when(gateway.submit(eq(1L), any())).thenThrow(new FaceJobRejectedException(504, "TIMEOUT"));
         assertThatThrownBy(() -> service.submit(1, new byte[] {1}))

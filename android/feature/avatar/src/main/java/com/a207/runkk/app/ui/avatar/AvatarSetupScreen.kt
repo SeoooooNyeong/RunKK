@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -50,6 +51,7 @@ import com.a207.runkk.app.core.designsystem.RunkkAvatarPortrait
 import com.a207.runkk.app.core.designsystem.RunkkBadge
 import com.a207.runkk.app.core.designsystem.RunkkBadgeTone
 import com.a207.runkk.app.core.designsystem.RunkkCard
+import com.a207.runkk.app.core.designsystem.RunkkCheckRow
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkPrimaryButton
@@ -67,7 +69,7 @@ import kotlinx.coroutines.withContext
 
 /**
  * 얼굴 만들기(J7, 가입에서 옮김, FR-155~FR-158): 셀카(카메라·앨범)로 SD 얼굴을 만들거나 기본 캐릭터 얼굴을 골라 저장한다.
- * 셀카는 줄여 보낸 뒤 원본을 남기지 않는다(SelfieEncoder). 끝나면 이전 화면(꾸미기)으로.
+ * 셀카는 줄여 보낸 뒤 원본을 남기지 않는다(SelfieEncoder). 서버가 얼굴을 만드는 동안 「만드는 중」을 보이고, 끝나면 이전 화면(꾸미기)으로.
  */
 @Composable
 fun AvatarSetupRoute(viewModel: AvatarSetupViewModel = hiltViewModel()) {
@@ -95,8 +97,13 @@ fun AvatarSetupRoute(viewModel: AvatarSetupViewModel = hiltViewModel()) {
     AvatarSetupScreen(
         state = state,
         onBack = navigator::back,
-        onSelfie = { camera.launch(null) },
-        onAlbum = { album.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+        onSelfie = { if (viewModel.onSelfieRequested()) camera.launch(null) },
+        onAlbum = {
+            if (viewModel.onSelfieRequested()) {
+                album.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+            }
+        },
+        onFaceConsent = viewModel::onFaceConsent,
         onCharacter = viewModel::onCharacterSelected,
         onSave = viewModel::onConfirmCharacter
     )
@@ -120,7 +127,8 @@ fun AvatarSetupScreen(
     onCharacter: (DefaultCharacter) -> Unit,
     onSave: () -> Unit,
     modifier: Modifier = Modifier,
-    onAlbum: () -> Unit = {}
+    onAlbum: () -> Unit = {},
+    onFaceConsent: () -> Unit = {}
 ) {
     Column(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
         RunkkTopBar(title = stringResource(R.string.avatar_setup_title), onBack = onBack)
@@ -135,7 +143,7 @@ fun AvatarSetupScreen(
                 modifier = Modifier.semantics { heading() }
             )
             FacePreview(state)
-            SelfieCard(state.canCreateSelfie, state.isWorking, onSelfie, onAlbum)
+            SelfieCard(state, onSelfie, onAlbum, onFaceConsent)
             RunkkSectionTitle(stringResource(R.string.avatar_setup_pick_character))
             CharacterRow(state.selected, onCharacter)
             if (state.error != null) {
@@ -158,30 +166,62 @@ fun AvatarSetupScreen(
     }
 }
 
-/** 아바타 얼굴 미리보기: 고른 기본 캐릭터, 없으면 지금 얼굴. */
+/**
+ * 아바타 얼굴 미리보기: 고른 기본 캐릭터, 없으면 지금 얼굴. 서버가 셀카 얼굴을 만드는 중이면 얼굴 둘레에 진행 원을 돌리고
+ * 「얼굴을 만들고 있어요」를 알린다(S15P31A207-248).
+ */
 @Composable
 private fun FacePreview(state: AvatarSetupUiState) {
     val key =
         state.selected?.let { RunkkAvatarArt.defaultKey(it.name) } ?: state.faceKey ?: RunkkAvatarArt.DEFAULT_FACE_KEY
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RunkkShapes.ExtraLarge)
             .background(RunkkColors.Surface)
             .padding(vertical = 16.dp),
-        contentAlignment = Alignment.Center
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        RunkkAvatarPortrait(
-            key,
-            faceLayers = emptyList(),
-            modifier = Modifier.size(112.dp).clip(CircleShape).background(RunkkColors.Border)
-        )
+        Box(contentAlignment = Alignment.Center) {
+            RunkkAvatarPortrait(
+                key,
+                faceLayers = emptyList(),
+                modifier = Modifier.size(112.dp).clip(CircleShape).background(RunkkColors.Border)
+            )
+            if (state.isMakingFace) {
+                CircularProgressIndicator(
+                    color = RunkkColors.Lime,
+                    trackColor = RunkkColors.Border,
+                    strokeWidth = 3.dp,
+                    modifier = Modifier.size(124.dp)
+                )
+            }
+        }
+        if (state.isMakingFace) {
+            Text(
+                stringResource(R.string.avatar_setup_making),
+                style = RunkkTextStyles.text(14, FontWeight.Bold),
+                color = RunkkColors.TextPrimary,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+            )
+        }
     }
 }
 
-/** 셀카로 만들기 카드(하루 1번): 셀카 찍기, 앨범에서 고르기. 오늘 만들었으면 두 버튼을 끈다. */
+/**
+ * 셀카로 만들기 카드(하루 1번, 피그마 H-1): 얼굴 변환 서비스 전송 동의 체크, 셀카 찍기, 앨범에서 고르기. 오늘 만들었으면 두 버튼을
+ * 끈다. 동의는 체크하면 바로 저장하고, 이미 동의했으면 체크된 채 둔다(철회는 마이 > 동의 관리).
+ */
 @Composable
-private fun SelfieCard(canCreateSelfie: Boolean, isWorking: Boolean, onSelfie: () -> Unit, onAlbum: () -> Unit) {
+private fun SelfieCard(
+    state: AvatarSetupUiState,
+    onSelfie: () -> Unit,
+    onAlbum: () -> Unit,
+    onFaceConsent: () -> Unit
+) {
+    val canCreateSelfie = state.canCreateSelfie
+    val isWorking = state.isWorking || state.isMakingFace
     RunkkCard(borderColor = if (canCreateSelfie) RunkkColors.Lime else RunkkColors.Border) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
@@ -195,6 +235,11 @@ private fun SelfieCard(canCreateSelfie: Boolean, isWorking: Boolean, onSelfie: (
                 tone = if (canCreateSelfie) RunkkBadgeTone.Lime else RunkkBadgeTone.Muted
             )
         }
+        RunkkCheckRow(
+            label = stringResource(R.string.avatar_setup_face_consent),
+            isChecked = state.hasFaceConsent,
+            onCheckedChange = { isChecked -> if (isChecked) onFaceConsent() }
+        )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             RunkkSecondaryButton(
                 stringResource(R.string.avatar_setup_take_selfie),

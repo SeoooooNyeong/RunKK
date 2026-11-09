@@ -156,7 +156,9 @@ private fun ResultBody(state: RunResultUiState, distance: Distance, elapsed: Dur
         dateLine = state.startedAt?.let {
             dateLabel(it, stringResource(R.string.run_result_hero_date_pattern))
         }.orEmpty(),
-        kindLabel = stringResource(kindLabelRes(state.cardKind ?: CardKind.FREE_RUN))
+        kindLabel = stringResource(kindLabelRes(state.cardKind ?: CardKind.FREE_RUN)),
+        faceKey = state.myAvatar?.faceKey,
+        faceLayers = state.myAvatar?.faceLayers.orEmpty()
     )
     RunMetricCard(
         elapsed = elapsed,

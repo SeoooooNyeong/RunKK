@@ -12,6 +12,7 @@ import com.a207.runkk.app.core.model.GeoPoint
 import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.core.model.RouteLine
 import com.a207.runkk.app.core.model.SignalState
+import com.a207.runkk.app.domain.account.MyAvatar
 import com.a207.runkk.app.domain.run.HeartRateSample
 import com.a207.runkk.app.domain.run.RunProgress
 import java.time.Duration
@@ -275,6 +276,17 @@ class RunScreenshotTest {
                 elapsed = Duration.ofMinutes(20),
                 averagePace = Pace(400)
             ),
+            onCard = {},
+            onHome = {},
+            onRetry = {}
+        )
+    }
+
+    /** 2차 배포(아바타 꾸미기 열림): 히어로 아바타가 홈과 같은 내 아바타(기본 캐릭터 고양이)다(S15P31A207-248). */
+    @Test
+    fun resultMyAvatar() = compose.captureRunkkScreen("B4_run_result_my_avatar") {
+        RunResultScreen(
+            result.copy(myAvatar = MyAvatar("default:CAT", emptyList(), null)),
             onCard = {},
             onHome = {},
             onRetry = {}

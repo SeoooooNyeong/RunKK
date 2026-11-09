@@ -158,7 +158,9 @@ private fun ResultBody(state: PlacementResultUiState, result: BattleResult, onRe
         ResultDistanceHero(
             distance = summary.distance,
             dateLine = dateLine(summary.startedAt, stringResource(R.string.placement_result_date_pattern)),
-            kindLabel = null
+            kindLabel = null,
+            faceKey = state.myAvatar?.faceKey,
+            faceLayers = state.myAvatar?.faceLayers.orEmpty()
         )
         RunMetricCard(
             elapsed = summary.elapsed,

@@ -8,6 +8,7 @@ import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.account.PlacementStatus
+import com.a207.runkk.app.domain.account.myAvatar
 import com.a207.runkk.app.domain.battle.BattleRecordUploads
 import com.a207.runkk.app.domain.battle.BattleRepository
 import com.a207.runkk.app.domain.battle.BattleResult
@@ -82,6 +83,17 @@ class PlacementResultViewModel @Inject constructor(
         }
         job = viewModelScope.launch { read(battleId) }
         watchUploads(battleId)
+        readMyAvatar()
+    }
+
+    private var avatarJob: Job? = null
+
+    /** 내 아바타(홈과 같은 얼굴, AccountRepository.myAvatar)를 한 번 읽는다. 못 읽으면 기본 아바타 그대로다. */
+    private fun readMyAvatar() {
+        if (_state.value.myAvatar != null || avatarJob != null) return
+        avatarJob = viewModelScope.launch {
+            account.myAvatar()?.let { look -> _state.update { it.copy(myAvatar = look) } }
+        }
     }
 
     /** 화면에 돌아올 때: 30초 뒤에도 정리 중이었거나 진행을 못 읽었으면 다시 읽는다(PL2-A2). */

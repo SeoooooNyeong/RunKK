@@ -315,7 +315,13 @@ class FakeAvatarRepository(
 
     override suspend fun avatar() = error("unused")
 
-    override suspend fun createFromSelfie(jpeg: ByteArray) = error("unused")
+    override suspend fun submitSelfie(jpeg: ByteArray) = error("unused")
+
+    override suspend fun selfieJob(jobId: String) = error("unused")
+
+    override suspend fun finishSelfie(jobId: String) = error("unused")
+
+    override suspend fun pendingSelfieJobId(): String? = null
 
     override suspend fun chooseDefault(characterId: String) = error("unused")
 
