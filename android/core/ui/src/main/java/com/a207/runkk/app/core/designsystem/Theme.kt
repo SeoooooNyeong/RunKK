@@ -24,9 +24,12 @@ private fun RunkkColors.toColorScheme(): ColorScheme {
         onPrimary = onLime,
         primaryContainer = limeContainer,
         onPrimaryContainer = lime,
-        secondary = lavender,
-        onSecondary = onLime,
-        tertiary = violet,
+        secondary = violet,
+        onSecondary = onSecondary,
+        secondaryContainer = secondaryContainer,
+        tertiary = accent,
+        onTertiary = onAccent,
+        tertiaryContainer = accentContainer,
         background = background,
         onBackground = textPrimary,
         surface = surface,
@@ -35,9 +38,10 @@ private fun RunkkColors.toColorScheme(): ColorScheme {
         onSurfaceVariant = textSecondary,
         surfaceContainer = surface,
         surfaceContainerHigh = surface,
-        surfaceContainerHighest = border,
+        surfaceContainerHighest = surfaceHigh,
         outline = borderStrong,
         outlineVariant = border,
+        scrim = scrim,
         error = lavender,
         onError = onLime
     )
@@ -46,12 +50,21 @@ private fun RunkkColors.toColorScheme(): ColorScheme {
 private val DarkColorScheme = RunkkColors.dark.toColorScheme()
 private val LightColorScheme = RunkkColors.light.toColorScheme()
 
-/** 시안의 모서리 반경(12·16·20·24dp). */
+/** 시안의 모서리 반경(12·16·20·24dp)과 피그마 알약·대화상자·바텀시트 모서리. */
 object RunkkShapes {
     val Small = RoundedCornerShape(12.dp)
     val Medium = RoundedCornerShape(16.dp)
     val Large = RoundedCornerShape(20.dp)
     val ExtraLarge = RoundedCornerShape(24.dp)
+
+    /** 알약(피그마 모서리 100): 버튼·칩·세그먼트. */
+    val Pill = RoundedCornerShape(percent = 50)
+
+    /** 대화상자 카드(피그마 28). */
+    val Dialog = RoundedCornerShape(28.dp)
+
+    /** 바텀시트 위 모서리(피그마 28/28/0/0). */
+    val Sheet = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
 }
 
 /**

@@ -371,7 +371,7 @@ private const val MIN_BAR = 0.08f
 
 /**
  * 결과 위쪽 거리 히어로(피그마 61326:1878): 종류 칩(없으면 생략) + 날짜 줄, 큰 거리 60 Bold + 「km」, 오른쪽 기뻐하는 아바타 84.
- * 큰 숫자는 Barlow가 아니라 Noto Sans KR Bold다(D-497). 아바타 얼굴은 [faceKey]·[faceLayers](내 아바타)이고 없으면 기본 얼굴이다.
+ * 큰 숫자는 IBM Plex Sans KR Bold다(D-497, S15P31A207-292). 아바타 얼굴은 [faceKey]·[faceLayers](내 아바타)이고 없으면 기본 얼굴이다.
  */
 @Composable
 fun ResultDistanceHero(
