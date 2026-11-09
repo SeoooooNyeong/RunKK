@@ -117,7 +117,7 @@ SSAFY 배정 도메인(`k15a207.p.ssafy.io`)이 EC2를 가리키는지 확인한
 
 ### 2차 배포 기능 공개 스위치
 
-크루, 아바타 꾸미기(체형·배경), 런바디 ai 분석은 환경 변수가 아니라 관리툴 운영 기준값으로 엽니다. `.env`와 compose에는 넣지 않습니다.
+크루, 아바타 꾸미기(체형·배경), 런바디 ai 분석은 관리툴 운영 기준값으로 엽니다. 처음 값만은 환경 변수 `RUNKK_BOOTSTRAP_SETTINGS`로 넣을 수 있습니다(아래).
 
 | 운영 기준값 | 기본값 | 꺼져 있을 때 |
 |-------------|--------|--------------|
@@ -126,6 +126,8 @@ SSAFY 배정 도메인(`k15a207.p.ssafy.io`)이 EC2를 가리키는지 확인한
 | `RUNBODY_ENABLED` | false | 러닝 저장 뒤 런바디 분석 작업을 만들지 않고 ai에 제출·상태 조회하지 않습니다. `/api/v1/runbody/**`는 403 `FEATURE_CLOSED`입니다. 켜기 전에 저장한 러닝은 분석하지 않습니다 |
 
 DB에 행이 없으면 기본값(false)을 쓰므로 1차 배포(develop·prod)는 따로 넣지 않아도 닫혀 있습니다. 2차 배포에서 기능을 열 때 관리툴에서 true로 바꿉니다. 앱의 1차 배포 잠금 빌드(`LOCK_UNRELEASED`)도 같은 알림 종류를 숨기며, 두 분류는 계약 파일 `policy/GatedNotification.txt`로 대조합니다.
+
+develop은 GitLab CI 변수 `INFRA_ENV`에 `RUNKK_BOOTSTRAP_SETTINGS=CREW_RELEASED=true,AVATAR_RELEASED=true,RUNBODY_ENABLED=true`를 넣고 배포하면 시작 때 그 키의 행이 없을 때만 한 번 넣습니다(감사 기록 행위자 `bootstrap:RUNKK_BOOTSTRAP_SETTINGS`). 이미 행이 있으면(관리툴로 바꾼 값) 덮지 않으므로 이후 변경은 관리툴로 합니다. 모르는 키나 형식이 틀린 값은 WARN 로그만 남기고 건너뜁니다.
 
 ### 롤백
 
