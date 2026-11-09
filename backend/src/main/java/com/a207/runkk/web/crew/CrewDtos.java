@@ -22,7 +22,9 @@ import com.a207.runkk.crew.CrewName;
 import com.a207.runkk.crew.CrewProfileEdit;
 import com.a207.runkk.crew.CrewRole;
 import com.a207.runkk.crew.CrewRunDraft;
+import com.a207.runkk.crew.CrewRunRepeat;
 import com.a207.runkk.crew.CrewRunResultView;
+import com.a207.runkk.crew.CrewRunSlot;
 import com.a207.runkk.crew.CrewSearch;
 import com.a207.runkk.crew.CrewVisibility;
 import com.a207.runkk.crew.FinalProgress;
@@ -76,17 +78,27 @@ final class CrewDtos {
         return name == null ? null : name.value();
     }
 
-    /** 1·3·5·10km 미터 → 기준 거리. 아니면 CREW_RUN_INVALID. */
+    /**
+     * 크루런 거리 미터 → 기준 거리(W6). null은 제한 없음(null). 기준 거리가 아닌 값은 CREW_RUN_INVALID. 크루런
+     * 선택지(3·5·10km·하프)인지는 도메인(CrewRunPost)이 본다(수정 때 기존 1km를 그대로 둘 수 있게).
+     */
     static StandardDistance crewRunDistance(Long meters) {
+        if (meters == null) {
+            return null;
+        }
         return Arrays.stream(StandardDistance.values())
-                .filter(StandardDistance::isCrewRun)
-                .filter(d -> meters != null && d.distance().meters() == meters)
+                .filter(d -> d.distance().meters() == meters)
                 .findFirst()
                 .orElseThrow(() -> new BusinessRuleException(ReasonCode.CREW_RUN_INVALID));
     }
 
     static Long meters(Distance d) {
         return d == null ? null : d.meters();
+    }
+
+    /** 기준 거리 미터, 제한 없음(null)이면 null(W6). */
+    static Long meters(StandardDistance d) {
+        return d == null ? null : d.distance().meters();
     }
 
     /** 도메인 시각 → 오프셋 포함 시각(D-114). */
@@ -334,8 +346,8 @@ final class CrewDtos {
      * multipart POST /crews/{id}/board-posts로 쓴다.
      *
      * @param kind 게시 종류
-     * @param body 본문(투표는 질문)
-     * @param distanceMeters 크루런 거리
+     * @param body 본문(투표는 질문, 크루런은 내용)
+     * @param distanceMeters 크루런 거리, null이면 제한 없음(W6)
      * @param scheduledAt 크루런·대면 모임 일시
      * @param voteDeadline 크루런 참석 응답 마감, 비우면 일시
      * @param placeName 대면 모임 장소명(1~50자)
@@ -344,6 +356,8 @@ final class CrewDtos {
      * @param pollMethod 투표 방식
      * @param options 투표 선택지(CHOICES 2~5개, YES_NO는 비운다)
      * @param closesAt 투표 마감 일시
+     * @param title 크루런 제목(1~30자, W6)
+     * @param repeat 크루런 반복, null이면 NONE(W6)
      */
     record PostWriteRequest(
             @NotNull PostKind kind,
@@ -356,11 +370,16 @@ final class CrewDtos {
             Boolean pinned,
             PollMethod pollMethod,
             List<String> options,
-            OffsetDateTime closesAt) {
+            OffsetDateTime closesAt,
+            String title,
+            CrewRunRepeat repeat) {
 
-        CrewRunDraft toCrewRunDraft() {
+        /** 앱에서 고를 수 있는 일시(15일·5분, CrewRunSlot)를 먼저 본다. now는 서버 시간대 시각이다. */
+        CrewRunDraft toCrewRunDraft(LocalDateTime now) {
+            LocalDateTime at = local(scheduledAt);
+            CrewRunSlot.requireSelectable(at, now);
             return new CrewRunDraft(
-                    body, local(scheduledAt), crewRunDistance(distanceMeters), local(voteDeadline));
+                    title, body, at, crewRunDistance(distanceMeters), local(voteDeadline), repeat);
         }
 
         /** 장소명·정원 범위 위반은 MeetupDraft 생성자의 IllegalArgumentException(400, D-155). */
@@ -388,7 +407,8 @@ final class CrewDtos {
     /**
      * 일정 참석 응답(v0.11 PUT /posts/{id}/attendance, FR-145).
      *
-     * @param answer GOING | NOT_GOING | UNDECIDED
+     * @param answer GOING | NOT_GOING | UNDECIDED. W6 앱은 GOING(참석)만 보내고 참석 취소는 DELETE
+     *     /posts/{id}/attendance다
      */
     record AttendanceRequest(@NotNull AttendanceAnswer answer) {}
 
@@ -700,7 +720,7 @@ final class CrewDtos {
         /**
          * 모집글의 크루런 정보.
          *
-         * @param distanceMeters 크루런 거리
+         * @param distanceMeters 크루런 거리, 제한 없음이면 null(W6)
          * @param scheduledAt 모집희망일시
          * @param voteDeadline 투표 마감
          * @param status 크루런 상태
@@ -710,9 +730,10 @@ final class CrewDtos {
          * @param raceContributionMeters 크루 반영 거리(지난 크루런)
          * @param notGoingCount 불참 인원(v0.11 FR-133)
          * @param undecidedCount 미정 인원(v0.11 FR-133)
+         * @param title 제목(W6). 목록 Item.body는 이제 내용만이다
          */
         record CrewRun(
-                long distanceMeters,
+                Long distanceMeters,
                 OffsetDateTime scheduledAt,
                 OffsetDateTime voteDeadline,
                 String status,
@@ -721,11 +742,12 @@ final class CrewDtos {
                 int finisherCount,
                 Long raceContributionMeters,
                 int notGoingCount,
-                int undecidedCount) {
+                int undecidedCount,
+                String title) {
 
             static CrewRun of(PostSummary.CrewRunInfo run, Distance contribution) {
                 return new CrewRun(
-                        run.distance().distance().meters(),
+                        meters(run.distance()),
                         at(run.scheduledAt()),
                         at(run.voteDeadline()),
                         run.status().name(),
@@ -734,7 +756,8 @@ final class CrewDtos {
                         run.finisherCount(),
                         meters(contribution),
                         run.counts().notGoing(),
-                        run.counts().undecided());
+                        run.counts().undecided(),
+                        run.title());
             }
         }
     }
@@ -744,7 +767,7 @@ final class CrewDtos {
      *
      * @param postId 게시글 ID
      * @param scheduledAt 모집희망일시
-     * @param distanceMeters 크루런 거리
+     * @param distanceMeters 크루런 거리, 제한 없음이면 null(W6)
      * @param remainingSeconds 남은 시간
      * @param status 크루런 상태
      * @param participants 참가자 준비 상태
@@ -752,7 +775,7 @@ final class CrewDtos {
     record LobbyResponse(
             long postId,
             OffsetDateTime scheduledAt,
-            long distanceMeters,
+            Long distanceMeters,
             long remainingSeconds,
             String status,
             List<Participant> participants) {
@@ -764,7 +787,7 @@ final class CrewDtos {
             return new LobbyResponse(
                     v.postId(),
                     at(v.scheduledAt()),
-                    v.distance().distance().meters(),
+                    meters(v.distance()),
                     v.remaining().toSeconds(),
                     v.status().name(),
                     v.participants().stream()
@@ -807,8 +830,8 @@ final class CrewDtos {
      *
      * @param postId 게시글 ID
      * @param status 크루런 상태
-     * @param title 모집글 본문 첫 줄, 없으면 null
-     * @param distanceMeters 크루런 거리(목표)
+     * @param title 모집글 제목(W6)
+     * @param distanceMeters 크루런 거리(목표), 제한 없음이면 null(W6)
      * @param startedAt 출발 일시, 출발 전이면 null
      * @param totalDistanceMeters 참가자 거리 합
      * @param participants 진행 참가자(대기실 입장 순)
@@ -820,7 +843,7 @@ final class CrewDtos {
             long postId,
             String status,
             String title,
-            long distanceMeters,
+            Long distanceMeters,
             OffsetDateTime startedAt,
             long totalDistanceMeters,
             List<Participant> participants,
@@ -837,7 +860,7 @@ final class CrewDtos {
                     v.postId(),
                     v.status().name(),
                     v.title(),
-                    v.distance().distance().meters(),
+                    meters(v.distance()),
                     v.startedAt() == null ? null : at(v.startedAt()),
                     v.totalDistance().meters(),
                     v.participants().stream()

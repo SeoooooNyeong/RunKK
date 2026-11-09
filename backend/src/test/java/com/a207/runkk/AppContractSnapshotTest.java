@@ -125,7 +125,8 @@ class AppContractSnapshotTest {
                         "CrewRunStatus",
                         "Readiness",
                         "JoinRequestStatus",
-                        "PollMethod"));
+                        "PollMethod",
+                        "CrewRunRepeat"));
         ENUMS.put("crew.chat", List.of("ReactionKind"));
         ENUMS.put("crew.chat.live", List.of("ChatRemovalReason"));
         ENUMS.put("report", List.of("ReportTargetKind", "ReportReason", "ReportStatus"));
