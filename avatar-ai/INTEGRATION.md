@@ -86,3 +86,8 @@ Node 코드 검사·자동 테스트 13개 및 Linux Docker 빌드·컨테이너
 우측 생성 버전은 `runkk-head-profile-v3-wind`다. 이전 버전의 우측 생성 캐시는 재사용하지 않는다. 이미 완료·저장된 얼굴 세트의 `GET /heads/latest`와 작업 결과는 원래 결과를 유지한다. 새 모습을 원하면 새 `clientRequestId`로 생성하거나 `POST /heads/right-profile`에 기존 정면 PNG를 보낸다. 후자는 우측 프로필만 반환하며 기존 얼굴 세트의 `rightImage`를 교체하지 않는다.
 
 이미지 생성 1회와 기존 검증 호출 횟수는 그대로다. 바람 표현 검증 실패는 기존 `AVATAR_VIEW_INVALID`로 처리하며 자동 유료 재생성하지 않는다. 응답 필드·PNG 규격·앱 합성 계약은 유지한다. 자동 시험은 모의 응답을 사용하므로 실제 AI의 그림 품질은 별도 생성 확인이 필요하다.
+
+## 셀카 판정 별칭과 파츠 정합 보정 (2026-11-09, S15P31A207-300)
+
+`traits.hair_length`가 정확히 `짧음`, `짧은 머리`이면 `short`로 정규화한다. 그 밖의 한국어 값과 품질 enum 번역 값은 계속 `SELFIE_QUALITY_UNAVAILABLE`이며, 프롬프트에 enum은 영문 그대로 쓰라고 명시했다.
+`ai-layer-align.mjs`는 전체 alpha 경계 대신 vision이 보고한 같은 의미 박스끼리 비교하고, 짝이 없으면 공유 캔버스를 유지한다. 눈과 헤어는 `pixel-layer-registration.mjs`가 원본 픽셀과 정합하며 손실이 15% 이상 줄고 170 이하일 때만 적용한다. 이때 `validation.alignment.<part>`에 `method=source-pixel-registration`과 선택 필드 `scaleX`, `scaleY`, `pixelRegistration`이 붙는다. 8개 PNG 필드와 규격, `mobile` 계약은 바뀌지 않는다.
