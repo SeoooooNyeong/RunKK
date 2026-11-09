@@ -336,14 +336,15 @@ private fun Header(state: HomeUiState, onNavigate: (String) -> Unit) {
                 balance = state.header.balance,
                 onClick = if (isAvatarOpen) ({ onNavigate(Routes.SHOP) }) else null
             )
-            // 안 본 진행 중 이벤트가 있으면 ui.notification이 칸에 라임 점을 넣는다(피그마 62206:1008)
+            // 안 본 진행 중 이벤트가 있으면 ui.notification이 칸에 알림 점을 넣는다(피그마 A-4 62273:7142). 점 중심이 40dp 원의
+            // 오른쪽 위 가장자리에서 4dp 안쪽이다(48dp 터치 칸 기준 위 2, 오른쪽 2).
             Box {
                 CircleIconButton(
                     icon = RunkkIcons.Bell,
                     description = stringResource(R.string.home_header_notifications),
                     onClick = { onNavigate(Routes.NOTIFICATIONS) }
                 )
-                Box(Modifier.align(Alignment.TopEnd).padding(top = 3.dp, end = 3.dp)) {
+                Box(Modifier.align(Alignment.TopEnd).padding(top = 2.dp, end = 2.dp)) {
                     LocalSlots.current[SlotKey.HOME_INBOX_DOT].orEmpty().forEach { it() }
                 }
             }

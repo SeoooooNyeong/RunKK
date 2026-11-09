@@ -54,6 +54,7 @@ import com.a207.runkk.app.core.designsystem.RunkkCard
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkLoading
+import com.a207.runkk.app.core.designsystem.RunkkPageDots
 import com.a207.runkk.app.core.designsystem.RunkkPillButton
 import com.a207.runkk.app.core.designsystem.RunkkPrimaryButton
 import com.a207.runkk.app.core.designsystem.RunkkSecondaryButton
@@ -374,26 +375,17 @@ private fun dateLine(startedAt: java.time.Instant, kind: CardKind): String {
     return "$date · $label"
 }
 
-/** 쪽 점 두 개. */
+/** 쪽 점 두 개(디자인 시스템 RunkkPageDots, 결과 화면은 간격 6과 강한 테두리색). */
 @Composable
 private fun PageDots(current: Int) {
-    val description = stringResource(R.string.battle_result_page_desc, current + 1, PAGES)
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).clearAndSetSemantics {
-            contentDescription =
-                description
-        },
-        horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally)
-    ) {
-        repeat(PAGES) { index ->
-            Box(
-                Modifier
-                    .size(width = if (index == current) 18.dp else 6.dp, height = 6.dp)
-                    .clip(CircleShape)
-                    .background(if (index == current) RunkkColors.TextPrimary else RunkkColors.BorderStrong)
-            )
-        }
-    }
+    RunkkPageDots(
+        current = current,
+        count = PAGES,
+        description = stringResource(R.string.battle_result_page_desc, current + 1, PAGES),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        gap = 6.dp,
+        inactiveColor = RunkkColors.BorderStrong
+    )
 }
 
 /** 판정을 기다리는 중(도착 직후) 또는 다시 읽기를 멈춘 뒤에도 판정이 없음(직접 다시 읽기). */

@@ -1,6 +1,11 @@
 package com.a207.runkk.app.ui.notification
 
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import app.cash.turbine.test
@@ -260,6 +265,20 @@ class InboxTest {
         }
         compose.onNodeWithText("코치님 이벤트 당첨").assertExists()
         compose.onNodeWithText("구글 폼에 연락처를 남겨 주세요").assertExists()
+    }
+
+    @Test
+    fun `공지 행은 링크가 있을 때만 링크 열기 동작 이름을 달고 시간을 함께 보인다(피그마 공지 행)`() {
+        repo.inboxResult = Outcome.Success(Inbox(listOf(notice(id = 11, link = FORM), notice(id = 12, link = null))))
+        val state = InboxViewModel(repo, clock, FakeEventRepository()).state.value
+        compose.setContent {
+            RunkkTheme { InboxScreen(state, onBack = {}, onItem = {}, onRetry = {}) }
+        }
+        val withLabel = SemanticsMatcher("링크 열기 동작") {
+            it.config.getOrNull(SemanticsActions.OnClick)?.label == "링크 열기"
+        }
+        compose.onAllNodes(withLabel).assertCountEquals(1)
+        compose.onAllNodesWithText("1분 전").assertCountEquals(2)
     }
 
     private fun notice(id: Long, link: String?) = Inbox.Item(
