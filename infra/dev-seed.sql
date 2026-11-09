@@ -5,8 +5,10 @@
 --           크루 5개 × 3명 이상을 채우려고 더미 회원을 18명으로 했다
 --           다가오는 크루런 모집글 2~3개(참석 응답), 지난 크루런 1~2개(합산 방식 결과와 연결 기록), 크루 채팅, 이번 주·지난주 주간 레이스와 목표
 --   러닝    더미 회원마다 최근 6주 유효 러닝 10~25회(경로 포함). 티어·레벨·배치고사 완료·Runimal은 그 기록으로 계산해 바로 채운다
---   에뮬레이터 계정  닉네임 "러너4171"이 있으면 더미 크루에 넣고(활성 크루가 없을 때만), 출생연도가 비었으면 1998로 채우고,
---           최근 6주 유효 러닝 22회(경로·심박·움직임 표본)와 런바디 작업(PENDING)을 넣는다. 없으면 경고만 하고 건너뛴다
+--   대상 계정  psql 변수 dev_seed_targets(쉼표 구분 닉네임, 기본 "러너4171,러너1699", dev-seed.sh가 DEV_SEED_TARGETS로 넘긴다)의
+--           닉네임마다 그 회원이 있으면 더미 크루에 넣고(활성 크루가 없을 때만), 출생연도가 비었으면 1998로 채우고,
+--           최근 6주 유효 러닝 22회(경로·심박·움직임 표본)와 런바디 작업(PENDING)을 넣는다. 없는 닉네임은 경고만 하고 건너뛴다.
+--           대상 계정 러닝 기록 ID는 회원 ID·순번에서 만든다(닉네임이 아니다)
 -- 멱등   더미 회원·크루는 닉네임·이름으로 찾아 이미 있으면 그 회원·크루에 딸린 자료를 다시 만들지 않는다. 러닝 기록 ID는 회원·순번에서 만든
 --        고정 UUID라 다시 돌려도 같은 행이다(ON CONFLICT DO NOTHING). 주간 레이스 합계는 기여 행에서 다시 센다
 -- 저장 형식은 서버 코드를 따른다
@@ -19,7 +21,13 @@
 
 SET client_min_messages = notice;
 SET TIME ZONE 'Asia/Seoul';
+\if :{?dev_seed_targets}
+\else
+  \set dev_seed_targets '러너4171,러너1699'
+\endif
 BEGIN;
+-- DO 본문에는 psql 변수가 들어가지 않아 트랜잭션 설정 값으로 넘긴다
+SET LOCAL runkk.dev_seed_targets = :'dev_seed_targets';
 DO $$ BEGIN PERFORM setseed(0.4171); END $$;
 
 -- ---------- 보조 함수(세션 임시 스키마, 끝나면 사라진다) ----------
@@ -279,6 +287,7 @@ DECLARE
   v_type text;
   v_lean text;
   v_emulator bigint;
+  v_nick text;
   v_sched timestamp;
   v_answer text;
   v_runs_k integer;
@@ -525,49 +534,54 @@ BEGIN
     v_chats := v_chats + 6;
   END LOOP;
 
-  -- 7. 에뮬레이터 계정 "러너4171" ------------------------------------------------------------------
-  SELECT id INTO v_emulator FROM member WHERE nickname = '러너4171' AND status = 'ACTIVE';
-  IF NOT FOUND THEN
-    RAISE WARNING 'dev-seed: 회원 "러너4171"이 없어 에뮬레이터 계정 단계를 건너뛴다';
-  ELSE
-    UPDATE member SET birth_year = 1998 WHERE id = v_emulator AND birth_year IS NULL;
-    IF EXISTS (SELECT 1 FROM crew_membership WHERE member_id = v_emulator AND left_at IS NULL) THEN
-      RAISE NOTICE 'dev-seed: 러너4171은 이미 활성 크루(%)가 있어 크루 가입은 건너뛴다',
-        (SELECT c2.name FROM crew_membership cm JOIN crew c2 ON c2.id = cm.crew_id
-         WHERE cm.member_id = v_emulator AND cm.left_at IS NULL LIMIT 1);
+  -- 7. 대상 계정(dev_seed_targets, 기본 "러너4171,러너1699") ------------------------------------------------
+  FOR v_nick IN
+    SELECT DISTINCT btrim(t) FROM unnest(string_to_array(current_setting('runkk.dev_seed_targets', true), ',')) AS t
+    WHERE btrim(t) <> ''
+  LOOP
+    SELECT id INTO v_emulator FROM member WHERE nickname = v_nick AND status = 'ACTIVE';
+    IF NOT FOUND THEN
+      RAISE WARNING 'dev-seed: 회원 "%"이 없어 대상 계정 단계를 건너뛴다', v_nick;
     ELSE
-      INSERT INTO crew_membership (crew_id, member_id, role, joined_at, left_at, leave_reason, crew_intro)
-      SELECT crew_id, v_emulator, 'MEMBER', v_now - interval '43 days', NULL, NULL, NULL FROM seed_crew WHERE no = 1;
-      RAISE NOTICE 'dev-seed: 러너4171을 "더미 새벽한강 크루" 크루원으로 넣었다';
+      UPDATE member SET birth_year = 1998 WHERE id = v_emulator AND birth_year IS NULL;
+      IF EXISTS (SELECT 1 FROM crew_membership WHERE member_id = v_emulator AND left_at IS NULL) THEN
+        RAISE NOTICE 'dev-seed: %은 이미 활성 크루(%)가 있어 크루 가입은 건너뛴다', v_nick,
+          (SELECT c2.name FROM crew_membership cm JOIN crew c2 ON c2.id = cm.crew_id
+           WHERE cm.member_id = v_emulator AND cm.left_at IS NULL LIMIT 1);
+      ELSE
+        INSERT INTO crew_membership (crew_id, member_id, role, joined_at, left_at, leave_reason, crew_intro)
+        SELECT crew_id, v_emulator, 'MEMBER', v_now - interval '43 days', NULL, NULL, NULL FROM seed_crew WHERE no = 1;
+        RAISE NOTICE 'dev-seed: %을 "더미 새벽한강 크루" 크루원으로 넣었다', v_nick;
+      END IF;
+      -- 유효 러닝 22회: 경로·심박·움직임 표본(5초 간격). 티어 반영 표시는 세우지 않아 0시 10분 티어 보정(TierReconcileService,
+      -- 저장 일시가 최근 2일인 반영 전 유효 기록)이 저장 순서대로 반영한다. 저장 일시는 지금 직전으로 시작 순서를 따른다
+      v_runs_k := 0;
+      FOR k IN 1..22 LOOP
+        v_day := greatest(1, round(42 - (k - 1) * 41.0 / 21 + (random() - 0.5) * 1.2)::integer);
+        v_start := (v_today - v_day)::timestamp
+                   + make_interval(hours => CASE WHEN k % 3 = 0 THEN 7 ELSE 20 END, mins => (random() * 40)::integer);
+        IF k = 22 THEN
+          v_start := v_now - make_interval(mins => 240 + (random() * 60)::integer);
+        END IF;
+        v_target := 3000 + (random() * 7000)::integer;
+        v_rec := md5('runkk-devseed:emulator:' || v_emulator || ':' || k)::uuid::text;
+        SELECT * INTO v_run FROM pg_temp.seed_run(
+            v_rec, v_emulator, v_start, v_target, (330 + random() * 50) * (1 + (v_target - 5000) / 120000.0),
+            park_lat[1], park_lon[1], 5, true, 'FREE', NULL, v_now - make_interval(secs => 23 - k), false);
+        IF v_run.o_inserted THEN
+          v_new_runs := v_new_runs + 1;
+          v_runs_k := v_runs_k + 1;
+        END IF;
+        -- 런바디 분석 작업: 서버 RunBodyPollJob(5초)의 pollDue가 next_poll_at이 지난 PENDING을 ai에 제출한다
+        INSERT INTO runbody_job (record_id, member_id, status, attempts, polls, created_at, submitted_at, next_poll_at, version,
+                                 overall_score, failure_reason, run_started_at)
+        SELECT v_rec, v_emulator, 'PENDING', 0, 0, v_now, NULL, v_now, 0, NULL, NULL, r2.started_at
+        FROM run_record r2 WHERE r2.record_id = v_rec AND r2.valid
+        ON CONFLICT DO NOTHING;
+      END LOOP;
+      RAISE NOTICE 'dev-seed: % 러닝 % 회 추가(memberId=%)', v_nick, v_runs_k, v_emulator;
     END IF;
-    -- 유효 러닝 22회: 경로·심박·움직임 표본(5초 간격). 티어 반영 표시는 세우지 않아 0시 10분 티어 보정(TierReconcileService,
-    -- 저장 일시가 최근 2일인 반영 전 유효 기록)이 저장 순서대로 반영한다. 저장 일시는 지금 직전으로 시작 순서를 따른다
-    v_runs_k := 0;
-    FOR k IN 1..22 LOOP
-      v_day := greatest(1, round(42 - (k - 1) * 41.0 / 21 + (random() - 0.5) * 1.2)::integer);
-      v_start := (v_today - v_day)::timestamp
-                 + make_interval(hours => CASE WHEN k % 3 = 0 THEN 7 ELSE 20 END, mins => (random() * 40)::integer);
-      IF k = 22 THEN
-        v_start := v_now - make_interval(mins => 240 + (random() * 60)::integer);
-      END IF;
-      v_target := 3000 + (random() * 7000)::integer;
-      v_rec := md5('runkk-devseed:emulator:' || v_emulator || ':' || k)::uuid::text;
-      SELECT * INTO v_run FROM pg_temp.seed_run(
-          v_rec, v_emulator, v_start, v_target, (330 + random() * 50) * (1 + (v_target - 5000) / 120000.0),
-          park_lat[1], park_lon[1], 5, true, 'FREE', NULL, v_now - make_interval(secs => 23 - k), false);
-      IF v_run.o_inserted THEN
-        v_new_runs := v_new_runs + 1;
-        v_runs_k := v_runs_k + 1;
-      END IF;
-      -- 런바디 분석 작업: 서버 RunBodyPollJob(5초)의 pollDue가 next_poll_at이 지난 PENDING을 ai에 제출한다
-      INSERT INTO runbody_job (record_id, member_id, status, attempts, polls, created_at, submitted_at, next_poll_at, version,
-                               overall_score, failure_reason, run_started_at)
-      SELECT v_rec, v_emulator, 'PENDING', 0, 0, v_now, NULL, v_now, 0, NULL, NULL, r2.started_at
-      FROM run_record r2 WHERE r2.record_id = v_rec AND r2.valid
-      ON CONFLICT DO NOTHING;
-    END LOOP;
-    RAISE NOTICE 'dev-seed: 러너4171 러닝 % 회 추가(memberId=%)', v_runs_k, v_emulator;
-  END IF;
+  END LOOP;
 
   -- 8. 주간 레이스: 이번 주·지난주, 그 주 시작일시에 소속이던 크루의 유효 기록 기여(WeeklyRaceService.onRunSaved와 같은 규칙) ---------
   INSERT INTO race_contribution (crew_id, week_start, member_id, record_id, meters)
