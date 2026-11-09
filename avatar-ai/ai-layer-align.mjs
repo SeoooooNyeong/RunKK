@@ -66,9 +66,15 @@ async function preserveSourcePixels(master,layer,part){
   return sharp(result,{raw:{width:1024,height:1024,channels:4}}).png().toBuffer();
 }
 
-export async function alignAiParts(master,parts,{direction='front'}={}){
+export async function alignAiParts(master,parts,{direction='front',hairTransform=null}={}){
   const source=await pixels(master),aligned={},metrics={};
   for(const part of ['face','eyes','hair']){
+    if(part==='hair'&&hairTransform&&Number.isFinite(hairTransform.scale)&&Number.isFinite(hairTransform.offsetX)&&Number.isFinite(hairTransform.offsetY)){
+      const placed=await transform(parts.hair,hairTransform.scale,hairTransform.offsetX/4,hairTransform.offsetY/4);
+      aligned.hair=await preserveSourcePixels(master,placed,'hair');
+      metrics.hair={scale:Number(hairTransform.scale.toFixed(3)),offsetX:Number(hairTransform.offsetX.toFixed(1)),offsetY:Number(hairTransform.offsetY.toFixed(1)),matchError:null,method:'vision-hair-bounds'};
+      continue;
+    }
     const points=samples(await pixels(parts[part]),part,direction);
     if(points.length<30){
       if(part==='face'){

@@ -18,6 +18,35 @@ function sharedLandmarkRule(landmarks) {
   return `COMMON REGISTRATION CONTRACT for ALL three extracted PNGs. Coordinates are PIXELS on the ORIGINAL 1024x1024 canvas, origin top-left, x rightward, y downward. Visible feature centers: ${['leftEye','rightEye','leftEyebrow','rightEyebrow','nose','mouth','chin','hairCrown','neckBottom'].map(point).join('; ')}. Treat IMAGE 1 as the only visual source. Keep each retained feature centered at its listed coordinate. Keep its original width, height, silhouette and distance from the other landmarks. Transparent removal MUST NOT shift or enlarge remaining content. Leave the original surrounding empty margins. The face, eyes, and hair outputs must superimpose without any per-layer adjustment.`;
 }
 
+async function estimateHairTransform(client,visionModel,master,hair){
+  const images=await Promise.all([master,hair].map(async png=>{
+    const flattened=await sharp(png).flatten({background:'#eef4e7'}).png().toBuffer();
+    return {type:'image_url',image_url:{url:`data:image/png;base64,${flattened.toString('base64')}`,detail:'high'}};
+  }));
+  const response=await client.chat.completions.create({model:visionModel,temperature:0,max_tokens:260,response_format:{type:'json_object'},messages:[
+    {role:'system',content:'Compare image geometry precisely. Return JSON only. Never invent coordinates for invisible content.'},
+    {role:'user',content:[{type:'text',text:'IMAGE 1 is the AI-generated complete head and is the placement reference. IMAGE 2 is the transparent hair-and-eyebrows extraction from that exact image. Measure the visible HAIR silhouette in both images, excluding eyebrows, face, ears and neck. Include attached bangs, bun and loose hair strands. For each image return the hair bounding box left, top, right, bottom and the crown point (x,y) at the top-center/root of the hairstyle. Coordinates are on the full 1024x1024 canvas, integers 0..1023, origin top-left. Include confidence from 0 to 1. Return exactly {"source":{"left":0,"top":0,"right":0,"bottom":0,"crown":{"x":0,"y":0}},"layer":{"left":0,"top":0,"right":0,"bottom":0,"crown":{"x":0,"y":0}},"confidence":0.0}. The extracted hair is the same hairstyle, so report where it actually appears in IMAGE 2; do not assume it is already aligned.'},...images]}
+  ]});
+  let result;try{result=JSON.parse(response.choices?.[0]?.message?.content||'');}catch{return null;}
+  const {source,layer}=result||{};
+  const validBox=box=>box&&['left','top','right','bottom'].every(key=>Number.isFinite(box[key])&&box[key]>=0&&box[key]<=1023)&&box.right-box.left>80&&box.bottom-box.top>80;
+  const validPoint=point=>point&&Number.isFinite(point.x)&&Number.isFinite(point.y)&&point.x>=0&&point.x<=1023&&point.y>=0&&point.y<=1023;
+  if(!Number.isFinite(Number(result?.confidence))||Number(result.confidence)<0.55||!validBox(source)||!validBox(layer)||!validPoint(source.crown)||!validPoint(layer.crown))return null;
+  const sourceWidth=source.right-source.left,sourceHeight=source.bottom-source.top;
+  const layerWidth=layer.right-layer.left,layerHeight=layer.bottom-layer.top;
+  const scale=Math.sqrt((sourceWidth/layerWidth)*(sourceHeight/layerHeight));
+  if(!Number.isFinite(scale)||scale<0.7||scale>1.45)return null;
+  const project=value=>(value-512)*scale+512;
+  const sourceCenter={x:(source.left+source.right)/2,y:(source.top+source.bottom)/2};
+  const layerCenter={x:(layer.left+layer.right)/2,y:(layer.top+layer.bottom)/2};
+  // Blend the silhouette-center and crown anchors so the overall size and
+  // the top/root placement both line up with the generated reference.
+  const offsetX=.55*(sourceCenter.x-project(layerCenter.x))+.45*(source.crown.x-project(layer.crown.x));
+  const offsetY=.55*(sourceCenter.y-project(layerCenter.y))+.45*(source.crown.y-project(layer.crown.y));
+  if(Math.abs(offsetX)>220||Math.abs(offsetY)>220)return null;
+  return {scale,offsetX,offsetY};
+}
+
 async function oneLayer(master, part, {client,imageModel,quality,direction,landmarks}) {
   const profile = direction === 'right';
   const eyeScope = profile
@@ -48,7 +77,9 @@ export async function splitAiLayers(master,options={}) {
   let parts={};
   // Sequential calls keep one request's credit use bounded if a layer fails.
   for(const part of ['face','eyes','hair']) parts[part]=await oneLayer(master,part,{client,imageModel,quality,direction,landmarks});
-  const aligned=await alignAiParts(master,parts,{direction});
+  let hairTransform=null;
+  if(visionModel){try{hairTransform=await estimateHairTransform(client,visionModel,master,parts.hair);}catch{/* Keep the shared-canvas alignment fallback if the vision estimate is unavailable. */}}
+  const aligned=await alignAiParts(master,parts,{direction,hairTransform});
   parts=aligned.parts;
   if(visionModel){
     const images=[master,parts.face,parts.eyes,parts.hair].map(image=>({type:'image_url',image_url:{url:`data:image/png;base64,${image.toString('base64')}`,detail:'high'}}));
