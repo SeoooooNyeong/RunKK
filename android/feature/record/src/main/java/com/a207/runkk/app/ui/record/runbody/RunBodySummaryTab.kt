@@ -24,6 +24,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -36,6 +37,7 @@ import com.a207.runkk.app.core.designsystem.RunimalArt
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkIcons
+import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.model.Pace
@@ -83,7 +85,7 @@ private fun TrendCard(trend: RunBodyTrend) {
         return
     }
     val previous = trend.previous
-    RunBodyCard(null) {
+    RunBodyCard(null, spacing = 18.dp) {
         TrendHeader(trend.round, recent)
         PacePanel(recent.pace, previous?.pace, trend.paceChange)
         if (previous != null) {
@@ -100,19 +102,23 @@ private fun TrendHeader(round: Int, recent: RunBodyTrend.Window) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
                 stringResource(R.string.record_runbody_trend_title),
-                style = RunkkTextStyles.text(20, FontWeight.Black),
+                style = RunkkTextStyles.text(20, FontWeight.Bold, lineHeight = 26),
                 color = RunkkColors.TextPrimary,
                 modifier = Modifier.semantics { heading() }
             )
-            RunBodyCaption(stringResource(R.string.record_runbody_trend_range, recent.fromOrdinal, recent.toOrdinal))
+            Text(
+                stringResource(R.string.record_runbody_trend_range, recent.fromOrdinal, recent.toOrdinal),
+                style = RunkkTextStyles.text(13, FontWeight.Medium),
+                color = RunkkColors.TextSecondary
+            )
         }
         Text(
             stringResource(R.string.record_runbody_trend_round, round),
             style = RunkkTextStyles.text(12, FontWeight.Bold),
             color = RunkkColors.Violet,
             modifier = Modifier
-                .clip(RoundedCornerShape(CHIP_RADIUS))
-                .background(RunkkColors.Lavender.copy(alpha = LAVENDER_ALPHA))
+                .clip(RunkkShapes.Pill)
+                .background(RunkkColors.SecondaryContainer)
                 .padding(horizontal = 10.dp, vertical = 5.dp)
         )
     }
@@ -147,25 +153,19 @@ private fun PacePanel(recent: Pace, previous: Pace?, change: Int?) {
                 color = RunkkColors.TextPrimary,
                 modifier = Modifier.weight(1f)
             )
-            if (previous != null && change != null) {
-                Text(
-                    paceChangeText(change),
-                    style = RunkkTextStyles.text(13, FontWeight.Bold),
-                    color = RunkkColors.OnLimeFill,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(CHIP_RADIUS))
-                        .background(RunkkColors.LimeFill)
-                        .padding(horizontal = 10.dp, vertical = 5.dp)
-                )
-            }
+            if (previous != null && change != null) PaceChangeChip(change)
         }
         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             if (previous != null) {
                 Column {
-                    RunBodyCaption(stringResource(R.string.record_runbody_trend_previous))
+                    Text(
+                        stringResource(R.string.record_runbody_trend_previous),
+                        style = RunkkTextStyles.text(12, FontWeight.Medium),
+                        color = RunkkColors.TextSecondary
+                    )
                     Text(
                         runBodyPace(previous),
-                        style = RunkkTextStyles.display(24),
+                        style = RunkkTextStyles.display(22, letterSpacingEm = -0.01f),
                         color = RunkkColors.TextSecondary
                     )
                 }
@@ -182,14 +182,19 @@ private fun PacePanel(recent: Pace, previous: Pace?, change: Int?) {
                     style = RunkkTextStyles.text(12, FontWeight.Bold),
                     color = RunkkColors.Violet
                 )
-                Row(verticalAlignment = Alignment.Bottom) {
-                    Text(runBodyPace(recent), style = RunkkTextStyles.display(44), color = RunkkColors.TextPrimary)
-                    Spacer(Modifier.width(4.dp))
+                Row {
+                    Text(
+                        runBodyPace(recent),
+                        style = RunkkTextStyles.display(40, letterSpacingEm = -0.02f, lineHeightRatio = 1.1f),
+                        color = RunkkColors.TextPrimary,
+                        modifier = Modifier.alignByBaseline()
+                    )
+                    Spacer(Modifier.width(3.dp))
                     Text(
                         stringResource(R.string.record_runbody_trend_per_km),
-                        style = RunkkTextStyles.Body,
+                        style = RunkkTextStyles.text(14, FontWeight.Medium),
                         color = RunkkColors.TextSecondary,
-                        modifier = Modifier.padding(bottom = 8.dp)
+                        modifier = Modifier.alignByBaseline()
                     )
                 }
             }
@@ -202,32 +207,29 @@ private fun PacePanel(recent: Pace, previous: Pace?, change: Int?) {
 @Composable
 private fun PaceAxis(previous: Pace, recent: Pace) {
     val (slowest, fastest) = paceAxisRange(previous, recent)
-    val track = RunkkColors.Border
+    val track = RunkkColors.SurfaceHigh
     val fill = RunkkColors.LimeFill
     val ring = RunkkColors.Violet
     val muted = RunkkColors.TextSecondary
     val surface = RunkkColors.Surface
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    val tick = RunkkTextStyles.text(11, FontWeight.Medium)
+    // 피그마: 트랙 4(끝 둥글게), 단축 구간 6(끝 각짐), 직전 점 지름 14(흰 바탕 + 보조색 테 2), 최근 점 지름 20(라임 + 보라 테 3)
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Canvas(Modifier.fillMaxWidth().height(22.dp)) {
             val y = size.height / 2
             fun x(pace: Pace): Float = size.width * (slowest - pace.secondsPerKm) / (slowest - fastest).toFloat()
             drawLine(track, Offset(0f, y), Offset(size.width, y), strokeWidth = 4.dp.toPx(), cap = StrokeCap.Round)
             val from = x(previous)
             val to = x(recent)
-            drawLine(fill, Offset(from, y), Offset(to, y), strokeWidth = 6.dp.toPx(), cap = StrokeCap.Round)
-            drawCircle(surface, radius = 6.dp.toPx(), center = Offset(from, y))
+            drawLine(fill, Offset(from, y), Offset(to, y), strokeWidth = 6.dp.toPx(), cap = StrokeCap.Butt)
+            drawCircle(surface, radius = 7.dp.toPx(), center = Offset(from, y))
             drawCircle(muted, radius = 6.dp.toPx(), center = Offset(from, y), style = Stroke(2.dp.toPx()))
-            drawCircle(fill, radius = 8.dp.toPx(), center = Offset(to, y))
-            drawCircle(ring, radius = 9.dp.toPx(), center = Offset(to, y), style = Stroke(3.dp.toPx()))
+            drawCircle(fill, radius = 10.dp.toPx(), center = Offset(to, y))
+            drawCircle(ring, radius = 8.5.dp.toPx(), center = Offset(to, y), style = Stroke(3.dp.toPx()))
         }
         Row(Modifier.fillMaxWidth()) {
-            Text(
-                runBodyPace(Pace(slowest)),
-                style = RunkkTextStyles.Caption,
-                color = muted,
-                modifier = Modifier.weight(1f)
-            )
-            Text(runBodyPace(Pace(fastest)), style = RunkkTextStyles.Caption, color = muted)
+            Text(runBodyPace(Pace(slowest)), style = tick, color = muted, modifier = Modifier.weight(1f))
+            Text(runBodyPace(Pace(fastest)), style = tick, color = muted)
         }
     }
 }
@@ -263,13 +265,18 @@ private fun FrequencyRow(recent: RunBodyTrend.Window, previous: RunBodyTrend.Win
     val label = stringResource(R.string.record_runbody_trend_weekly)
     val now = recent.runsPerWeek
     if (previous == null) {
-        TrendRow(RunkkIcons.Calendar, label, stringResource(R.string.record_runbody_trend_freq_value, one(now)), null)
+        TrendRow(
+            RunkkIcons.CalendarToday,
+            label,
+            stringResource(R.string.record_runbody_trend_freq_value, one(now)),
+            null
+        )
         return
     }
     val before = previous.runsPerWeek
     val delta = ((now - before) * TENTHS).roundToInt()
     TrendRow(
-        RunkkIcons.Calendar,
+        RunkkIcons.CalendarToday,
         label,
         stringResource(R.string.record_runbody_trend_freq_change, one(before), one(now)),
         when {
@@ -280,7 +287,10 @@ private fun FrequencyRow(recent: RunBodyTrend.Window, previous: RunBodyTrend.Win
     )
 }
 
-/** 라벤더 원 아이콘 + 이름 + 오른쪽 값(굵게)과 그 아래 작은 보라 설명. 보조 기술은 한 줄로 읽는다. */
+/**
+ * 보라 컨테이너 원(36) 안 아이콘(20) + 이름(15 Medium) + 오른쪽 값(17 Bold)과 그 아래 작은 보라 설명(12 Bold). 보조 기술은 한 줄로
+ * 읽는다.
+ */
 @Composable
 private fun TrendRow(icon: ImageVector, label: String, value: String, note: String?) {
     Row(
@@ -289,14 +299,19 @@ private fun TrendRow(icon: ImageVector, label: String, value: String, note: Stri
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Box(
-            Modifier.size(36.dp).clip(CircleShape).background(RunkkColors.Lavender.copy(alpha = LAVENDER_ALPHA)),
+            Modifier.size(36.dp).clip(CircleShape).background(RunkkColors.SecondaryContainer),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, contentDescription = null, tint = RunkkColors.Violet, modifier = Modifier.size(18.dp))
+            Icon(icon, contentDescription = null, tint = RunkkColors.Violet, modifier = Modifier.size(20.dp))
         }
-        Text(label, style = RunkkTextStyles.Body, color = RunkkColors.TextPrimary, modifier = Modifier.weight(1f))
+        Text(
+            label,
+            style = RunkkTextStyles.text(15, FontWeight.Medium),
+            color = RunkkColors.TextPrimary,
+            modifier = Modifier.weight(1f)
+        )
         Column(horizontalAlignment = Alignment.End) {
-            Text(value, style = RunkkTextStyles.text(18, FontWeight.Black), color = RunkkColors.TextPrimary)
+            Text(value, style = RunkkTextStyles.text(17, FontWeight.Bold), color = RunkkColors.TextPrimary)
             note?.let {
                 Text(it, style = RunkkTextStyles.text(12, FontWeight.Bold), color = RunkkColors.Violet)
             }
@@ -304,15 +319,18 @@ private fun TrendRow(icon: ImageVector, label: String, value: String, note: Stri
     }
 }
 
-/** 나의 러닝 유형: 러니멀 그림 + 이름(서버 RunimalType 이름을 RunimalArt로). */
+/**
+ * 나의 러닝 유형(피그마 바탕 accent container, 모서리 16): 흰 원(안쪽 2) 안 러니멀 그림 44 + 이름. 피그마는 얼굴 그림이지만 러니멀 그림을
+ * 그대로 쓴다(사용자 결정 B2, [임시:D-성-18]).
+ */
 @Composable
 private fun RunimalTypeBox(type: String) {
     val art = RunimalArt.of(type)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(PANEL_RADIUS))
-            .background(RunkkColors.Lavender.copy(alpha = LAVENDER_ALPHA))
+            .clip(RoundedCornerShape(TYPE_BOX_RADIUS))
+            .background(RunkkColors.AccentContainer)
             .padding(12.dp)
             .semantics(mergeDescendants = true) {},
         verticalAlignment = Alignment.CenterVertically,
@@ -321,20 +339,46 @@ private fun RunimalTypeBox(type: String) {
         Image(
             painterResource(art.drawableRes),
             contentDescription = null,
-            modifier = Modifier.size(48.dp).clip(CircleShape).background(RunkkColors.Surface)
+            modifier = Modifier.clip(CircleShape).background(RunkkColors.Surface).padding(2.dp).size(44.dp)
         )
         Column {
             Text(
                 stringResource(R.string.record_runbody_trend_type),
-                style = RunkkTextStyles.Caption,
+                style = RunkkTextStyles.text(12, FontWeight.Medium),
                 color = RunkkColors.TextSecondary
             )
             Text(
                 stringResource(art.nameRes),
-                style = RunkkTextStyles.text(18, FontWeight.Black),
+                style = RunkkTextStyles.text(17, FontWeight.Bold),
                 color = RunkkColors.TextPrimary
             )
         }
+    }
+}
+
+/**
+ * 평균 페이스 변화 칩(라임 알약): 빨라졌으면 trending_down 16 + 3 + "14초 단축", 느려졌으면 trending_up, 같으면 글자만. 아이콘은 장식이다.
+ * 피그마 "Icon / 빨라짐"(trending_down)은 앱 아이콘에 없어 [RunkkIcons.TrendingUp]을 위아래로 뒤집어 그린다.
+ */
+@Composable
+private fun PaceChangeChip(change: Int) {
+    Row(
+        modifier = Modifier
+            .clip(RunkkShapes.Pill)
+            .background(RunkkColors.LimeFill)
+            .padding(horizontal = 10.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(3.dp)
+    ) {
+        if (change != 0) {
+            Icon(
+                RunkkIcons.TrendingUp,
+                contentDescription = null,
+                tint = RunkkColors.OnLimeFill,
+                modifier = Modifier.size(16.dp).graphicsLayer { if (change > 0) scaleY = -1f }
+            )
+        }
+        Text(paceChangeText(change), style = RunkkTextStyles.text(13, FontWeight.Bold), color = RunkkColors.OnLimeFill)
     }
 }
 
@@ -363,7 +407,6 @@ internal fun paceAxisRange(previous: Pace, recent: Pace): Pair<Int, Int> {
 
 private const val AXIS_STEP = 30
 private const val TENTHS = 10.0
-private const val LAVENDER_ALPHA = 0.3f
 private const val NO_VALUE = "-"
-private val CHIP_RADIUS = 14.dp
 private val PANEL_RADIUS = 20.dp
+private val TYPE_BOX_RADIUS = 16.dp

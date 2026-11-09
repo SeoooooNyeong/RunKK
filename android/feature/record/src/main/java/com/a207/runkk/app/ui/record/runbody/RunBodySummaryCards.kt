@@ -73,7 +73,7 @@ private fun WeekHeader(state: RunBodyUiState, actions: RunBodyActions) {
             modifier = Modifier.weight(1f).semantics { heading() }
         )
         WeekArrow(
-            RunkkIcons.Back,
+            RunkkIcons.ArrowBack,
             stringResource(R.string.record_runbody_week_previous),
             state.canGoPreviousWeek,
             actions.onPreviousWeek
@@ -85,16 +85,24 @@ private fun WeekHeader(state: RunBodyUiState, actions: RunBodyActions) {
             modifier = Modifier.padding(horizontal = 4.dp)
         )
         WeekArrow(
-            RunkkIcons.ChevronRight,
+            RunkkIcons.ArrowBack,
             stringResource(R.string.record_runbody_week_next),
             state.canGoNextWeek,
-            actions.onNextWeek
+            actions.onNextWeek,
+            isMirrored = true
         )
     }
 }
 
+/** 주 넘기기 화살표(피그마 arrow_back·arrow_forward 24, 누름 칸 48). arrow_forward는 앱 아이콘에 없어 [isMirrored]로 ←를 뒤집는다. */
 @Composable
-private fun WeekArrow(icon: ImageVector, label: String, isEnabled: Boolean, onClick: () -> Unit) {
+private fun WeekArrow(
+    icon: ImageVector,
+    label: String,
+    isEnabled: Boolean,
+    onClick: () -> Unit,
+    isMirrored: Boolean = false
+) {
     Box(
         modifier = Modifier
             .size(48.dp)
@@ -103,7 +111,12 @@ private fun WeekArrow(icon: ImageVector, label: String, isEnabled: Boolean, onCl
             .graphicsLayer { alpha = if (isEnabled) 1f else DISABLED_ALPHA },
         contentAlignment = Alignment.Center
     ) {
-        Icon(icon, contentDescription = label, tint = RunkkColors.TextPrimary, modifier = Modifier.size(24.dp))
+        Icon(
+            icon,
+            contentDescription = label,
+            tint = RunkkColors.TextPrimary,
+            modifier = Modifier.size(24.dp).graphicsLayer { if (isMirrored) scaleX = -1f }
+        )
     }
 }
 
@@ -129,8 +142,8 @@ private fun WeekBody(week: RunBodyWeek) {
                 )
             }
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                WeekChip(RunkkIcons.Walk, stringResource(R.string.record_runbody_week_runs, week.runs))
-                WeekChip(RunkkIcons.Clock, RunkkFormat.duration(week.elapsed))
+                WeekChip(RunkkIcons.DirectionsRun, stringResource(R.string.record_runbody_week_runs, week.runs))
+                WeekChip(RunkkIcons.Schedule, RunkkFormat.duration(week.elapsed))
             }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -146,7 +159,7 @@ private fun WeekChip(icon: ImageVector, text: String) {
     Row(
         modifier = Modifier
             .clip(RoundedCornerShape(CHIP_RADIUS))
-            .background(RunkkColors.Border)
+            .background(RunkkColors.SurfaceHigh)
             .padding(horizontal = 10.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -180,7 +193,7 @@ private fun DayCell(day: DayOfWeek, distance: Distance?) {
             Modifier
                 .size(DAY_SIZE)
                 .clip(CircleShape)
-                .background(if (km != null) RunkkColors.LimeFill else RunkkColors.Border),
+                .background(if (km != null) RunkkColors.LimeFill else RunkkColors.SurfaceHigh),
             contentAlignment = Alignment.Center
         ) {
             km?.let {
@@ -236,10 +249,9 @@ private fun AverageTile(icon: ImageVector, label: String, value: String?, unit: 
     }
 }
 
-/** 러닝 코멘트(G-14·G-33): 말풍선 + 보라 제목, 본문. 코멘트가 없으면 "코멘트 준비 중"을 흐리게. */
+/** 러닝 코멘트(G-14·G-33): 말풍선 + 보라 제목, 본문(14 Regular 본문색). 코멘트가 없어도 같은 글자색으로 "코멘트 준비 중"(G-33). */
 @Composable
 internal fun CommentCard(state: RunBodyUiState) {
-    val hasComment = state.report?.comment != null
     SummaryTile(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}, spacing = 8.dp) {
         TileHeader(
             RunkkIcons.ChatBubble,
@@ -250,7 +262,7 @@ internal fun CommentCard(state: RunBodyUiState) {
         Text(
             state.commentText.asString(),
             style = RunkkTextStyles.text(14, lineHeight = 21),
-            color = if (hasComment) RunkkColors.TextPrimary else RunkkColors.TextSecondary
+            color = RunkkColors.TextPrimary
         )
     }
 }
