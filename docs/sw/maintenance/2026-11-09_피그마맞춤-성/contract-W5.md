@@ -67,7 +67,6 @@
 |---|---|---|---|
 | memberId | long | 아니오 | 반응한 회원 ID(탈퇴 회원의 반응은 탈퇴 때 지워져 없다) |
 | displayName | String | 아니오 | 표시명 |
-| faceKey | String | 예 | 아바타 얼굴 키(크루런 대기실 `faceKey`와 같은 값), 얼굴을 고르지 않았으면 null |
 | kind | ReactionKind | 아니오 | 반응 종류 |
 | reactedAt | OffsetDateTime | 아니오 | 반응한 일시 |
 | me | boolean | 아니오 | 요청자 본인 |
@@ -151,6 +150,8 @@ V54·V55는 쓰지 않았다.
 | W5-D7 | 시스템 메시지 문장 | 저장 `content`는 "○○님이 n.nnkm를 달렸어요"(거리는 소수 둘째 자리 버림). 앱은 피그마대로 제목 "{authorName}님이 러닝을 마쳤어요" + 부제 "{n.nn}km"를 `authorName`·`runDistanceMeters`로 그린다. **피그마의 "mm:ss"(시간)는 싣지 않는다** | 개인정보는 닉네임·거리만(사용자 지시) |
 | W5-D8 | 시스템 메시지 대상 | 크루런·대결을 포함한 모든 유효 기록, 한 기록에 한 번. 늦은 업로드(시작 24시간 초과)와 재합산은 제외 | 지금 크루런은 채팅에 따로 남기는 것이 없어 겹치지 않는다. 오래된 기록이 "방금 마쳤다"처럼 보이지 않게 |
 | W5-D9 | 시스템 메시지 알림 | 방 안 실시간 전송만, 방 밖 푸시 없음 | 러닝마다 푸시가 가면 시끄럽다 |
+| W5-D11 | 반응한 사람 아바타 | `faceKey`를 싣지 않는다. 앱은 채팅 줄과 같은 이름 첫 글자 아바타를 쓴다 | 지금 채팅 줄도 얼굴 키 없이 첫 글자 아바타다. web.chat → avatar 의존을 새로 만들지 않는다 |
+| W5-D12 | 시스템 메시지 경로(설계 05-29와 다름) | `RunRecordSaved` → crew `WeeklyRaceService.onRunSaved`가 합산에 처음 더할 때 `RaceContributionAdded` 발행 → crew.chat `ChatRunFinishedListener`(AFTER_COMMIT, @Async) → `CrewChatService.postRunFinished` → `ChatMessagePosted` → `ChatDeliveryListener`(방 안만). 설계안의 "RunRecordSaved를 crew.chat이 직접 받기"는 쓰지 않았다 | crew.chat은 running에 의존할 수 없다(ArchitectureTest 허용표). 합산 경로를 타면 "기록 시작 시각에 소속이던 크루"·유효 기록·기록당 1회가 레이스 합산과 똑같이 맞는다 |
 | W5-D10 | 반응 CHECK 저장 | DB CHECK 제약을 V53에서 바꾼다. kind 열 길이(10)는 그대로 | CHECK는 5자 |
 
 ## 9. 앱(B단계) 할 일
@@ -161,29 +162,23 @@ V54·V55는 쓰지 않았다.
 - 실시간 `CrewChatPosted` 해독기: 위 3필드 추가.
 - `ReactionKind`(domain·api): `CHECK` 추가, 문자열 `chat_reaction_check`, 아이콘(피그마 e707c·6d62e).
 - 새 `ChatMessageKind`(domain), 앱 `contract/sync_from_server.py` ENUMS에 crew.chat `ChatMessageKind` 추가, 표본 `contract/realtime/` 4개를 이 문서 5절로 맞춘다.
-- 새 API: `ChatApi.reactors(messageId: Long, kind: ReactionKind?): ReactorListResponse`.
-- `ChatRepository.reactors(messageId: Long, kind: ReactionKind? = null): Result<List<Reactor>>`.
-- 도메인 `Reactor(memberId: Long, displayName: String, faceKey: String?, kind: ReactionKind, reactedAt: Instant, me: Boolean)`.
+- 새 API: `ChatApi.reactors(messageId: Long, kind: ReactionKind? = null): ReactorListResponse`.
+- `ChatRepository.reactors(messageId: Long): Result<List<Reactor>>`(전체를 한 번 받아 탭은 앱에서 거른다. 서버 `kind` 필터는 필요할 때만).
+- 도메인 `Reactor(memberId: Long, displayName: String, kind: ReactionKind, reactedAt: Instant, me: Boolean)`.
 - 도메인 `ChatMessage`에 `kind: ChatMessageKind`, `authorRole: CrewRole?`, `runDistance: Distance?`.
 
 ### 9.2 UiState 제안
 
 ```kotlin
-// ChatUiState에 더한다
-val reactorSheet: ReactorSheetState? = null
-
-data class ReactorSheetState(
-    val messageId: Long,
-    val tab: ReactionKind? = null,          // null = 전체
-    val kindsPresent: List<ReactionKind>,   // 그 메시지 reactions 키(탭 목록)
-    val reactors: List<Reactor> = emptyList(),
-    val loading: Boolean = true,
-    val error: Boolean = false,
-)
+// ChatUiState에 더한다(설계 05-29 이름)
+val reactorsTarget: Long? = null            // 시트를 연 메시지 ID, null이면 닫힘
+val reactorsTab: ReactionKind? = null       // null = 전체
+val reactors: List<Reactor> = emptyList()   // 전체 목록(탭은 reactorsTab으로 거른다)
+val isLoadingReactors: Boolean = false
 
 // ChatActions
-fun onOpenReactors(messageId: Long)        // 여는 제스처는 앱이 정한다(알약 길게 누르기 권장, 짧게 누르기는 달기·떼기 유지)
-fun onReactorTab(kind: ReactionKind?)       // 전체는 kind 없이, 탭마다 서버 필터 또는 받은 목록을 앱에서 거르기(둘 다 가능)
+fun onOpenReactors(messageId: Long)         // 반응 알약을 길게 눌러 연다(짧게 누르면 지금처럼 달기·떼기)
+fun onReactorTab(kind: ReactionKind?)
 fun onCloseReactors()
 ```
 
@@ -191,4 +186,4 @@ fun onCloseReactors()
 - 크루장 배지: `messageKind == TEXT && authorRole == LEADER`.
 - 레이스 카드: 참여 인원 = `contributors.count { it.distanceMeters > 0 }`, 진행률 글자 = `"${goalProgressPercent}%"`(자르지 않음), 막대 채움 = `min(1f, goalProgressPercent / 100f)`.
 - 목표 화면: `lastWeek: RaceStatus?` → `pastWeeks: List<RaceStatus>`(지난 1·2·3주, `race(crewId, weekStart)` 세 번).
-- 채팅 탭 이동(C6)은 서버 변경이 없다. 방 입장 `ChatPresence`는 탭이 보일 때만 보낸다(기존 D-103 규칙).
+- 채팅 탭 이동(C6)은 서버 변경이 없다(설계 05-29 이름: `CrewTab.CHAT`, `Routes.CrewHome(crewId, tab: String? = null)`, `Routes.CrewChat` 삭제, `ChatTabContent(crewId, isVisible, modifier)`). 방 입장 `ChatPresence`는 탭이 보일 때만 보낸다(기존 D-103 규칙).
