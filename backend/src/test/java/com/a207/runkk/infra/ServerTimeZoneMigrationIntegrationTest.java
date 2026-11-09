@@ -260,6 +260,29 @@ class ServerTimeZoneMigrationIntegrationTest {
     }
 
     @Test
+    @DisplayName("임시 보정이 없는 새 DB(새 설정이 V35_2부터 적용)에서는 이벤트 시드의 기간과 만든 시각, 고친 시각이 그대로다")
+    void freshDatabase_eventSeedStays() {
+        // 시험 JVM과 새 이미지는 Asia/Seoul이라 V35_2 시드의 now()가 이미 한국 시각이다
+        List<Map<String, Object>> before =
+                jdbc.queryForList(
+                        "SELECT slug, starts_at, ends_at, created_at, updated_at FROM event ORDER"
+                                + " BY slug");
+
+        migrateTo("48");
+
+        assertThat(before).hasSize(2);
+        assertThat(
+                        jdbc.queryForList(
+                                "SELECT slug, starts_at, ends_at, created_at, updated_at FROM event"
+                                        + " ORDER BY slug"))
+                .isEqualTo(before);
+        assertThat(at("SELECT starts_at FROM event WHERE slug = 'beta-1km'"))
+                .isEqualTo(LocalDateTime.of(2026, 11, 8, 0, 0, 0));
+        assertThat(at("SELECT ends_at FROM event WHERE slug = 'beta-1km'"))
+                .isEqualTo(LocalDateTime.of(2026, 11, 16, 23, 59, 59));
+    }
+
+    @Test
     @DisplayName("대기열 행과 Flyway 기록은 그대로다")
     void excludedColumns_stay() {
         LocalDateTime waiting = LocalDateTime.of(2026, 11, 9, 14, 0);

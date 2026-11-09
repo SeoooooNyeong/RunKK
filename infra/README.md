@@ -144,6 +144,8 @@ develop은 GitLab CI 변수 `INFRA_ENV`에 `RUNKK_BOOTSTRAP_SETTINGS=CREW_RELEAS
   COMMIT;
   ```
 
+- 서버 시간대 수정(V48, DF-073)이 적용된 환경은 V48이 없는 서버 이미지(옛 시간대 설정: JVM UTC, `hibernate.jdbc.time_zone`)로 되돌리지 않습니다. 오류 없이 뜨지만 그 뒤 서버가 쓰는 시각이 다시 9시간 앞서 저장되어 V48로 고친 값과 섞입니다(Flyway는 DB에만 있는 V48을 문제 삼지 않습니다). 되돌려야 하면 V48 직전 덤프(`before-tz` 또는 그 배포의 `predeploy`)로 DB를 먼저 복구합니다. V48 적용 뒤의 `-prev` 이미지 태그와, V48 이전에 develop에서 갈라진 `release/*` 브랜치의 8443 자동 배포도 같은 경우입니다.
+
 ## 4. 운영 명령
 
 CI 작업 폴더에는 `.env`가 남지 않으므로 서버에서는 컨테이너 이름으로 다룹니다(`runkk-<환경>-<서비스>-1`, 에지는 `runkk-<서비스>-1`).

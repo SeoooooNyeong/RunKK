@@ -10,14 +10,17 @@
 --
 -- 되돌리지 않는 것(근거는 design-oo/05-28-설계-서버시간대-성.md 4절)
 --   timestamp with time zone 열(refresh_token_revocation.expires_at, watch_session_generation.revoked_at, analytics 스키마): 시점 값이라 영향 없음
---   match_ticket.waiting_since, assigned_at: JdbcTemplate(Timestamp.valueOf)와 SQL LOCALTIMESTAMP로 써서 옮겨지지 않았다. 대기열은 잠깐만 남는 행이다
+--   match_ticket.waiting_since, assigned_at: waiting_since는 JdbcTemplate(Timestamp.valueOf)로 써서 옮겨지지 않았고, assigned_at은 SQL
+--                     LOCALTIMESTAMP(옛 세션 UTC)라 UTC 벽시계 값이다. 대기열은 잠깐만 남는 행이고(두 환경 0행) 배정 뒤 5분 정리가 지운다
 --   flyway_schema_history.installed_on: Flyway 기록이라 고치지 않는다(옛 행은 UTC 벽시계 값으로 남는다)
 --   celebrity_record: V32 시드 10건(리터럴)과 운영자가 SQL로 넣은 11, 12번(DB now(), 한국 시각)은 이미 한국 시각이다.
 --                     관리 API로 등록한 행(감사 CELEBRITY_REGISTER가 있는 행)만 되돌린다
 --   event.created_at, updated_at: V35_2 시드는 Flyway 연결(세션 시간대 UTC)의 now()라 UTC 벽시계 값(한국 시각보다 9시간 이름)이다. 시드 행은
 --                     9시간 더하고, 관리 API로 만든 행과 바꾼 값은 9시간 뺀다
 --   event.starts_at, ends_at: V35_2 시드는 한국 시각 리터럴이었지만 2026-11-09 임시 보정(+9시간)으로 서버 기준 값이 되었고, 관리 API로 만든 행도
---                     서버 기준 값이라 모든 행을 9시간 뺀다
+--                     서버 기준 값이라 9시간 뺀다
+--   event 시드가 보정 전 리터럴(11-08 00:00 ~ 11-16 23:59:59) 그대로인 DB: 옛 설정 api가 쓴 적 없는 새 DB다(시험 컨테이너, 새 환경. 새 설정 이미지가
+--                     V35_2와 V48을 한 번에 적용해 시드 now()도 한국 시각이다). 그 시드 행은 기간, 만든 시각, 고친 시각을 모두 그대로 둔다
 
 -- 1. 감사 기록은 추가 전용(V1 트리거)이라 이 마이그레이션 안에서만 트리거를 끄고 고친다
 ALTER TABLE audit_record DISABLE TRIGGER trg_audit_record_reject_update;
@@ -31,7 +34,7 @@ SET registered_at          = c.registered_at - INTERVAL '9 hours',
 WHERE EXISTS (SELECT 1 FROM audit_record a
               WHERE a.action = 'CELEBRITY_REGISTER' AND a.target_id = c.id::text);
 
--- 3. 이벤트: 기간은 모두, 만든 시각과 고친 시각은 시드와 서버 값을 나눈다(같은 UPDATE 안의 식은 고치기 전 값을 본다)
+-- 3. 이벤트: 보정 전 시드(새 DB)를 빼고 기간은 모두, 만든 시각과 고친 시각은 시드와 서버 값을 나눈다(같은 UPDATE 안의 식은 고치기 전 값을 본다)
 UPDATE event
 SET starts_at  = starts_at - INTERVAL '9 hours',
     ends_at    = ends_at - INTERVAL '9 hours',
@@ -40,7 +43,10 @@ SET starts_at  = starts_at - INTERVAL '9 hours',
                       ELSE created_at - INTERVAL '9 hours' END,
     updated_at = CASE WHEN slug IN ('coach-challenge', 'beta-1km') AND updated_at = created_at
                       THEN updated_at + INTERVAL '9 hours'
-                      ELSE updated_at - INTERVAL '9 hours' END;
+                      ELSE updated_at - INTERVAL '9 hours' END
+WHERE NOT (slug IN ('coach-challenge', 'beta-1km')
+           AND starts_at = TIMESTAMP '2026-11-08 00:00:00'
+           AND ends_at = TIMESTAMP '2026-11-16 23:59:59');
 
 -- 4. 그 밖에 서버가 JPA로 쓰는 timestamp without time zone 열 전부(V47 기준 public 스키마, 표 이름순). NULL은 NULL로 남는다
 UPDATE ai_purge_request SET lease_until = lease_until - INTERVAL '9 hours',
