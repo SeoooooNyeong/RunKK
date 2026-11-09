@@ -37,6 +37,22 @@ public record CrewRunDraft(
         this(titleOf(body), body, scheduledAt, distance, voteDeadline, CrewRunRepeat.NONE);
     }
 
+    /**
+     * 제목 칸 없이 "제목\n내용"을 본문 하나로 보내는 옛 앱 요청(W6 전 앱 호환, V57과 같은 규칙): 첫 줄(30자까지)을 제목, 나머지 줄을 내용으로 나눈다.
+     * 첫 줄이 비면 제목은 "크루런"이다.
+     */
+    public static CrewRunDraft fromCombinedBody(
+            String combined,
+            LocalDateTime scheduledAt,
+            StandardDistance distance,
+            LocalDateTime voteDeadline,
+            CrewRunRepeat repeat) {
+        String text = combined == null ? "" : combined.strip();
+        int newline = text.indexOf('\n');
+        String rest = newline < 0 ? "" : text.substring(newline + 1).strip();
+        return new CrewRunDraft(titleOf(text), rest, scheduledAt, distance, voteDeadline, repeat);
+    }
+
     private static String titleOf(String body) {
         String first =
                 body == null ? "" : body.strip().lines().findFirst().map(String::strip).orElse("");

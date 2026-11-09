@@ -94,7 +94,9 @@ class CrewScheduleControllerTest extends WebTestSupport {
     }
 
     @Test
-    @DisplayName("작성: 제목 필수·1km 금지·5분 단위·15일 범위는 CREW_RUN_INVALID, 제한 없음(null)·하프는 받는다")
+    @DisplayName(
+            "작성: 빈 제목·1km·5분 단위·15일 범위 위반은 CREW_RUN_INVALID, 제한 없음(null)·하프는 받고 제목 없는 옛 앱 본문은 첫 줄이"
+                    + " 제목")
     void writeRules() throws Exception {
         Crew c = crew();
         OffsetDateTime at = tomorrow();
@@ -111,9 +113,13 @@ class CrewScheduleControllerTest extends WebTestSupport {
                     .andExpect(status().isConflict())
                     .andExpect(jsonPath("$.code").value("CREW_RUN_INVALID"));
         }
-        Map<String, Object> noTitle = run("x", 5000, at, null);
-        noTitle.remove("title");
-        writeRun(c.l(), c.id(), noTitle).andExpect(jsonPath("$.code").value("CREW_RUN_INVALID"));
+        Map<String, Object> legacy = run("x", 5000, at, null);
+        legacy.remove("title");
+        legacy.put("body", "옛 앱 제목\n옛 앱 내용");
+        long old = created(writeRun(c.l(), c.id(), legacy));
+        call(c.l(), get("/api/v1/crew-runs/" + old), null)
+                .andExpect(jsonPath("$.title").value("옛 앱 제목"))
+                .andExpect(jsonPath("$.body").value("옛 앱 내용"));
         writeRun(c.l(), c.id(), run("반복값", 5000, at, "DAILY")).andExpect(status().isBadRequest());
     }
 

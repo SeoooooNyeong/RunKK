@@ -356,7 +356,7 @@ final class CrewDtos {
      * @param pollMethod 투표 방식
      * @param options 투표 선택지(CHOICES 2~5개, YES_NO는 비운다)
      * @param closesAt 투표 마감 일시
-     * @param title 크루런 제목(1~30자, W6)
+     * @param title 크루런 제목(1~30자, W6). null이면 옛 앱 호환으로 본문 첫 줄을 제목, 나머지를 내용으로 나눈다
      * @param repeat 크루런 반복, null이면 NONE(W6)
      */
     record PostWriteRequest(
@@ -378,8 +378,12 @@ final class CrewDtos {
         CrewRunDraft toCrewRunDraft(LocalDateTime now) {
             LocalDateTime at = local(scheduledAt);
             CrewRunSlot.requireSelectable(at, now);
-            return new CrewRunDraft(
-                    title, body, at, crewRunDistance(distanceMeters), local(voteDeadline), repeat);
+            StandardDistance distance = crewRunDistance(distanceMeters);
+            if (title == null) { // 제목 칸이 없던 옛 앱: 본문 첫 줄이 제목(V57과 같은 규칙)
+                return CrewRunDraft.fromCombinedBody(
+                        body, at, distance, local(voteDeadline), repeat);
+            }
+            return new CrewRunDraft(title, body, at, distance, local(voteDeadline), repeat);
         }
 
         /** 장소명·정원 범위 위반은 MeetupDraft 생성자의 IllegalArgumentException(400, D-155). */
